@@ -1,6 +1,34 @@
 {
   "title": "Indstillinger",
   "common": {
+    "commandShell": {
+      "title": "Agentens kommandoskal",
+      "auto": "Automatisk",
+      "windowsPowerShell": "Windows PowerShell",
+      "powerShellCore": "PowerShell 7",
+      "commandPrompt": "Command Prompt",
+      "gitBash": "Git Bash",
+      "bash": "Bash",
+      "zsh": "Zsh",
+      "fish": "Fish",
+      "executable": "Kørbar Git Bash-fil",
+      "autoDetect": "Registrer automatisk",
+      "browse": "Find Git Bash",
+      "clearOverride": "Ryd brugerdefineret sti",
+      "checking": "Kontrollerer Git Bash...",
+      "available": "Tilgængelig: {path}",
+      "refresh": "Kontrollér igen",
+      "updateFailed": "Indstillingen for kommandoskal kunne ikke opdateres.",
+      "checkFailed": "Det kunne ikke kontrolleres, om Git Bash er tilgængelig.",
+      "browseFailed": "Den kørbare Git Bash-fil kunne ikke vælges.",
+      "loadFailed": "Indstillingen for kommandoskal kunne ikke indlæses.",
+      "errors": {
+        "unsupported-platform": "Git Bash kan kun vælges på Windows.",
+        "override-invalid": "Den brugerdefinerede sti skal pege på en eksisterende bash.exe.",
+        "not-found": "Git Bash blev ikke fundet på denne enhed.",
+        "validation-failed": "Den fundne kørbare fil bestod ikke Git Bash-valideringen."
+      }
+    },
     "title": "Generelle indstillinger",
     "resetData": "Nulstil data",
     "language": "Sprog",
@@ -29,7 +57,7 @@
     "customProxyUrlPlaceholder": "Eksempel: http://127.0.0.1:7890",
     "invalidProxyUrl": "Ugyldig proxy-URL, indtast en gyldig http/https-adresse",
     "addCustomSearchEngine": "Tilføj brugerdefineret søgemaskine",
-    "addCustomSearchEngineDesc": "Tilføj en ny søgemaskine ved at angive navn og søge-URL. URL'en skal indeholde {query} som søgepladsholder.",
+    "addCustomSearchEngineDesc": "Tilføj en ny søgemaskine ved at angive navn og søge-URL. URL'en skal indeholde {'{'}query{'}'} som søgepladsholder.",
     "searchEngineName": "Søgemaskinens navn",
     "searchEngineNamePlaceholder": "Indtast navnet på søgemaskinen",
     "searchEngineUrl": "Søge-URL",
@@ -52,6 +80,7 @@
     "contentProtectionRestartNotice": "Denne ændring genstarter applikationen. Vil du fortsætte?",
     "copyWithCotEnabled": "Kopiér COT-detaljer",
     "traceDebugEnabled": "Trace-kald",
+    "traceDebugEnabledDesc": "Gemmer modelanmodningens indhold lokalt, mens funktionen er aktiveret. Godkendelsesheadere fra kendte udbydere og API-nøglefelter maskeres, men prompts kan indeholde følsomme data.",
     "loggingEnabled": "Aktivér logning",
     "loggingDialogTitle": "Bekræft ændring af logindstillinger",
     "loggingEnableDesc": "Aktivering af logning hjælper os med at diagnosticere problemer og forbedre appen. Logfiler kan indeholde følsomme oplysninger.",
@@ -71,18 +100,6 @@
     "defaultModel": {
       "title": "Standardmodel",
       "chatModel": "Standard chatmodel"
-    },
-    "autoCompaction": {
-      "title": "Automatisk komprimering",
-      "enabled": "Aktiver automatisk komprimering",
-      "description": "Når en samtale nærmer sig modellens grænse for kontekstvinduet, kan DeepChat automatisk opsummere ældre historik, så sessionen kan fortsætte. Hvis funktionen er slået fra, genererer DeepChat ikke opsummeringer, men trimmer stadig forespørgselsvisningen efter behov for at undgå rå context-window-fejl fra udbyderen.",
-      "thresholdLabel": "Udløsningstærskel",
-      "thresholdMin": "Tidligt ({value}%)",
-      "thresholdMax": "Sent ({value}%)",
-      "thresholdDescription": "Start komprimering, når promptforbruget når denne andel af det effektive historikbudget. Lavere værdier giver mere luft; højere værdier bevarer mere rå kontekst.",
-      "retainPairsLabel": "Behold seneste beskedpar",
-      "retainPairsValue": "{count} par",
-      "retainPairsDescription": "Behold de senest fuldførte bruger-/assistent-par uden for komprimeringen. Den aktuelle forespørgsel er ikke inkluderet."
     }
   },
   "data": {
@@ -120,8 +137,6 @@
     "resetAllDesc": "Slet alle data, herunder chat, konfigurationer og cachefiler",
     "resetting": "Nulstiller...",
     "confirmReset": "Bekræft nulstilling",
-    "resetCompleteDevTitle": "Datanulstilling fuldført",
-    "resetCompleteDevMessage": "Genstart applikationen manuelt i udviklingstilstand. Stop den nuværende proces og kør pnpm run dev igen",
     "toast": {
       "backupSuccessTitle": "Backup lykkedes",
       "backupSuccessMessage": "Data blev sikkerhedskopieret"
@@ -154,7 +169,33 @@
       "confirmDescription": "YoBrowser-sessionens cookies, cache, LocalStorage, IndexedDB og andre data vil blive slettet, og du skal muligvis logge ind på hjemmesiden igen.",
       "confirmTitle": "Bekræft at rydde YoBrowser-data?",
       "description": "En uafhængig browsersandbox, der ikke deler cookies og lokal lagring med hovedapplikationen. YoBrowser-data kan ryddes med et enkelt klik her.",
-      "title": "YoBrowser Sandbox"
+      "title": "YoBrowser Sandbox",
+      "import": {
+        "button": "Import website data",
+        "title": "Import browser session data",
+        "description": "Choose a Chrome or Arc profile. macOS may ask you to authorize Keychain access. The source is never modified.",
+        "scanning": "Looking for browser profiles...",
+        "unsupportedTitle": "Not supported on this platform",
+        "unsupportedDescription": "Direct browser data import is currently available only on macOS. Windows remains unsupported because current Chrome data is app-bound.",
+        "profileLabel": "Source profile",
+        "profilePlaceholder": "Select a profile",
+        "noProfiles": "No supported Chrome or Arc profiles with cookie data were found.",
+        "cookies": "Cookies and sessions",
+        "supported": "Included in this import",
+        "otherData": "Passwords and web storage",
+        "notIncluded": "Not included in this version",
+        "preview": "Authorize and preview",
+        "previewTitle": "Ready to replace YoBrowser cookies",
+        "previewDescription": "{count} cookies can be imported. Existing YoBrowser cookies will be replaced.",
+        "skipped": "Skipped: {expired} expired, {partitioned} partitioned.",
+        "confirm": "Replace and import",
+        "doneTitle": "Import complete",
+        "doneDescription": "Imported {count} cookies. Open browser pages were reloaded.",
+        "keyDenied": "Keychain access was denied or the browser key could not be read.",
+        "previewExpired": "The source changed or the preview expired. Create a new preview.",
+        "encryptionUnsupported": "This profile uses an encryption format that this importer does not support.",
+        "failed": "Import failed before completion. Existing YoBrowser cookies were restored when mutation had started."
+      }
     },
     "databaseRepair": {
       "title": "Databasereparation",
@@ -364,7 +405,7 @@
   "dashboard": {
     "badge": "Brugsoverblik",
     "title": "Brugsoverblik",
-    "description": "Vis tokenforbrug, cachetræf og estimerede omkostninger. Token- og omkostningsdata er estimeret ud fra offentligt tilgængelige oplysninger, og nogle udbydere eller ældre beskeder kan mangle data, så tallene er kun vejledende.",
+    "description": "Følg tokenforbrug og cache-træffere.",
     "actions": {
       "refresh": "Opdater"
     },
@@ -380,8 +421,8 @@
     },
     "empty": {
       "title": "Ingen brugsstatistik endnu",
-      "description": "Når der findes brugsdata, vises tokenforbrug, cachetræf og estimerede omkostninger her.",
-      "historyNote": "Token- og omkostningsdata er estimeret ud fra offentligt tilgængelige oplysninger. Nogle udbydere eller ældre beskeder kan mangle data, så tallene er kun vejledende."
+      "description": "Tokenforbrug og cache-træffere vises her, når brugsdata er tilgængelige.",
+      "historyNote": "Brugsdata fra nogle udbydere eller tidligere beskeder kan være ufuldstændige."
     },
     "summary": {
       "totalTokens": "Samlede tokens",
@@ -393,11 +434,7 @@
       "cachedTokensCachedLabel": "Cachelagret",
       "cachedTokensUncachedLabel": "Ikke cachelagret",
       "cacheHitRate": "Cachetræfrate",
-      "cacheHitRateDescription": "Cachelagrede prompt-tokens divideret med alle inputtokens.",
-      "estimatedCost": "Estimeret pris",
-      "estimatedCostDescription": "Anslået pris i USD ud fra udbyderens priser eller AIHubMix som reserve.",
-      "estimatedCostTrendLabel": "Udvikling de seneste 30 dage",
-      "estimatedCostTrendEmpty": "Ingen registreret omkostning de seneste 30 dage.",
+      "cacheHitRateDescription": "Cachelagrede prompt-tokens divideret med inputtokens fra brugsregistreringer med cachemålinger.",
       "recordingStartedAt": "Første registrering",
       "recordingStartedAtDescription": "Den tidligste brugsregistrering, der aktuelt findes i denne oversigt.",
       "withDeepChatDaysLabel": "Dage sammen",
@@ -427,9 +464,18 @@
     },
     "breakdown": {
       "providerTitle": "Udbyderrangliste",
-      "providerDescription": "Sorteret først efter estimeret pris og derefter efter samlede tokens.",
+      "providerDescription": "Rangeret efter samlet antal tokens.",
       "modelTitle": "Modelrangliste",
-      "modelDescription": "Top 10 modeller efter estimeret pris og derefter samlede tokens.",
+      "modelDescription": "Top 10 modeller efter samlet antal tokens.",
+      "categoryTitle": "Forbrug efter aktivitet",
+      "categoryDescription": "Adskil samtaleforbrug fra interne modelkald til kontekstkomprimering.",
+      "category": {
+        "chat": "Samtale",
+        "compaction": "Kontekstkomprimering"
+      },
+      "chatEvents": "{count} beskeder",
+      "compactionEvents": "{count} modelkald",
+      "unknownUsage": "{count} med ukendt forbrug",
       "messages": "{count} beskeder",
       "empty": "Der er endnu ingen fordelingsdata."
     },
@@ -465,9 +511,17 @@
     "unavailable": "Ikke tilgængelig"
   },
   "modelConfigItem": {
-    "chatFallbackWarning": "Svag Agent-kapacitet: understøtter kun legacy fallback-værktøjskald"
+    "chatFallbackWarning": "Svag Agent-kapacitet: understøtter kun legacy fallback-værktøjskald",
+    "capability": {
+      "vision": "Synsevne",
+      "functionCall": "Funktionskald",
+      "reasoning": "Reasoning-evne",
+      "search": "Websøgningsevne"
+    }
   },
   "model": {
+    "temperatureFixedByPolicy": "Denne model fastlåser temperaturen til {value}.",
+    "topPFixedByPolicy": "Denne model fastlåser Top P til {value}.",
     "title": "Modelindstillinger",
     "systemPrompt": {
       "label": "Systemprompt",
@@ -595,7 +649,6 @@
       "currentUsingModelDefault": "Bruger i øjeblikket modellens standardkonfiguration",
       "temperature": {
         "description": "Styrer tilfældigheden i output. De fleste modeller bruger 0-1, nogle understøtter 0-2. Højere værdi øger tilfældigheden.",
-        "fixedMoonshotKimi": "Moonshot Kimi K2.5/K2.6 låser temperaturen til {enabled}, når tænkning er aktiveret, og til {disabled}, når den er deaktiveret.",
         "label": "Temperatur"
       },
       "topP": {
@@ -754,6 +807,11 @@
     }
   },
   "provider": {
+    "customHeaders": {
+      "title": "Brugerdefinerede forespørgselsheaders",
+      "description": "Indtast et JSON-objekt med tekstværdier.",
+      "parseError": "Fortolkning af brugerdefinerede headers mislykkedes"
+    },
     "search": "Søg efter udbydere…",
     "enable": "Aktivér tjeneste",
     "enabled": "Aktiveret",
@@ -775,6 +833,7 @@
     "urlFormat": "API-eksempel: {defaultUrl}",
     "urlFormatFill": "Udfyld API-URL",
     "openaiResponsesNotice": "OpenAI bruger som standard Responses API. Hvis et tredjeparts-endpoint kun understøtter Chat Completions, skal du bruge OpenAI Completions-udbyderen.",
+    "amdDeveloperHint": "AMD GPU Cloud leverer offentlige model-API'er via Radeon Token Factory. Hent en API-nøgle fra AMD for at få adgang til de modeller, der er tilgængelige i øjeblikket.",
     "modifyBaseUrl": "Rediger",
     "baseUrlLockedHint": "Denne udbyder er låst til den anbefalede basis-URL for at mindske fejlkonfiguration.",
     "refreshModelsWithMetadataHint": "Opdatering af denne udbyder synkroniserer først upstream-metadata og genopbygger derefter den lokale modelliste.",
@@ -833,7 +892,7 @@
       },
       "disableAllModels": {
         "title": "Bekræft deaktivering af alle modeller",
-        "content": "Er du sikker på, at du vil deaktivere alle modeller?",
+        "content": "Er du sikker på, at du vil deaktivere alle modeller for \"{name}\"?",
         "confirm": "Deaktiver alle"
       },
       "configModels": {
@@ -1068,7 +1127,63 @@
     "openaiCodexCallbackTitle": "Fuldfør godkendelse",
     "openaiCodexCallbackDescription": "Når browseren er færdig, skal du vende tilbage til DeepChat. Hvis DeepChat ikke opdateres, skal du indsætte den fulde callback-URL her.",
     "openaiCodexCallbackPlaceholder": "Indsæt den fulde callback-URL",
-    "openaiCodexCompleteAuthentication": "Fuldfør godkendelse"
+    "openaiCodexCompleteAuthentication": "Fuldfør godkendelse",
+    "xaiGrokAuth": "xAI Grok OAuth",
+    "xaiGrokConnected": "xAI Grok er tilsluttet",
+    "xaiGrokNotConnected": "xAI Grok er ikke tilsluttet",
+    "xaiGrokPendingDevice": "Venter på enhedsgodkendelse",
+    "xaiGrokDisabled": "xAI Grok OAuth er deaktiveret",
+    "xaiGrokError": "Godkendelse af xAI Grok mislykkedes",
+    "xaiGrokAccount": "Konto",
+    "xaiGrokSignInDevice": "Log ind med SuperGrok / Premium+",
+    "xaiGrokReconnect": "Opret forbindelse igen",
+    "xaiGrokSignOut": "Log ud",
+    "xaiGrokCancel": "Annuller",
+    "xaiGrokOpenVerification": "Åbn bekræftelsessiden",
+    "xaiGrokLoginTip": "Bruger xAI-enhedskode-OAuth til SuperGrok eller X Premium+. Tokens gemmes separat fra API-nøgler. API-nøgler fra Console understøttes stadig nedenfor.",
+    "xaiGrokApiKeyAlternative": "Eller brug en xAI Console-API-nøgle:",
+    "browseAll": "Gennemse alle udbydere",
+    "updateKey": "Opdater nøgle",
+    "sidebar": {
+      "configured": "Konfigurerede",
+      "disabledTag": "Fra",
+      "empty": "Ingen udbydere er konfigureret endnu. Gennemse alle udbydere for at opsætte en."
+    },
+    "menu": {
+      "enable": "Aktivér",
+      "disable": "Deaktivér",
+      "rename": "Omdøb",
+      "delete": "Slet"
+    },
+    "health": {
+      "verified": "Verificeret",
+      "checking": "Kontrollerer",
+      "needsAttention": "Kræver opmærksomhed",
+      "notChecked": "Ikke kontrolleret",
+      "lastChecked": "Sidst kontrolleret {time}"
+    },
+    "catalog": {
+      "title": "Gennemse alle udbydere",
+      "description": "Vælg en udbyder for at starte opsætningen. Den vises i sidepanelet, når den er konfigureret.",
+      "searchPlaceholder": "Søg efter udbydere...",
+      "noResults": "Ingen matchende udbydere",
+      "configured": "Konfigureret"
+    },
+    "addFlow": {
+      "connect": "Forbind og indlæs modeller",
+      "validating": "Verificerer forbindelsen...",
+      "loadingModels": "Indlæser modeller...",
+      "failed": "Forbindelsen mislykkedes. Kontrollér konfigurationen og prøv igen.",
+      "successTitle": "{name} er forbundet",
+      "successDescription": "Indlæste {count} modeller og forudvalgte {selected}. Du kan justere valget nedenfor.",
+      "successNoModels": "Forbundet. Ingen modeller tilgængelige endnu.",
+      "startChatting": "Begynd at chatte",
+      "viewModels": "Se modeller"
+    },
+    "stagedUpdate": {
+      "failedTitle": "Opdatering ikke anvendt",
+      "failedDescription": "Den nye konfiguration bestod ikke verifikationen; den tidligere fungerende konfiguration blev bevaret."
+    }
   },
   "knowledgeBase": {
     "title": "Indstillinger for vidensbase",
@@ -1173,7 +1288,15 @@
       "timeout": "Timeout",
       "saveConfig": "Gem",
       "resetConfig": "Nulstil",
-      "seconds": "sekunder"
+      "seconds": "sekunder",
+      "configLoadFailed": "Konfigurationen kunne ikke indlæses",
+      "configSaved": "Konfigurationen er gemt",
+      "configSaveFailed": "Konfigurationen kunne ikke gemmes",
+      "configReset": "Konfigurationen er nulstillet",
+      "configResetFailed": "Konfigurationen kunne ikke nulstilles",
+      "connectionSucceeded": "Forbindelsen lykkedes",
+      "connectionFailed": "Der kunne ikke oprettes forbindelse med den aktuelle konfiguration",
+      "invalidBaseUrl": "Angiv en HTTP- eller HTTPS-adresse uden loginoplysninger eller forespørgselsparametre"
     },
     "deleteFile": {
       "title": "Bekræft sletning af fil",
@@ -1231,6 +1354,7 @@
       "name": "Servernavn",
       "namePlaceholder": "Indtast servernavn",
       "nameRequired": "Servernavn er påkrævet",
+      "nameDuplicate": "Der findes allerede en server med dette navn.",
       "type": "Servertype",
       "typePlaceholder": "Vælg servertype",
       "typeStdio": "Standard input/output (Stdio)",
@@ -1258,11 +1382,6 @@
       "iconPlaceholder": "Indtast ikon",
       "icons": "Ikon",
       "iconsPlaceholder": "Indtast ikon",
-      "autoApprove": "Godkend automatisk",
-      "autoApproveAll": "Alle",
-      "autoApproveRead": "Læs",
-      "autoApproveWrite": "Skriv",
-      "autoApproveHelp": "Vælg hvilke handlinger der må godkendes uden brugerbekræftelse",
       "submit": "Indsend",
       "add": "Tilføj",
       "update": "Opdatér",
@@ -1295,7 +1414,42 @@
       "e2bApiKey": "E2B API-nøgle",
       "e2bApiKeyPlaceholder": "Indtast dine E2B-nøgler, fx e2b_1111xx*******",
       "e2bApiKeyHelp": "Besøg e2b.dev for at hente din nøgle",
-      "e2bApiKeyRequired": "API-nøgle er påkrævet for at aktivere E2B"
+      "e2bApiKeyRequired": "API-nøgle er påkrævet for at aktivere E2B",
+      "sseCompatibilityBadge": "Kompatibilitet",
+      "sseMigrationHint": "SSE er kun til ældre kompatibilitet. Migrer serveren til Streamable HTTP, når det er muligt.",
+      "authorizationMode": "Godkendelsestilstand",
+      "authorizationInteractive": "Interaktiv OAuth",
+      "authorizationNone": "Ingen OAuth",
+      "authorizationClientCredentials": "Klientlegitimationsoplysninger (udkast)",
+      "authorizationPrivateKeyJwt": "JWT med privat nøgle",
+      "authorizationEnterprise": "Adgang på tværs af virksomhedsapps",
+      "authorizationHelp": {
+        "none": "Brug ikke et OAuth-flow. En statisk Authorization-header har stadig forrang, hvis den er konfigureret.",
+        "interactive": "Åbn systembrowseren, og fuldfør et godkendelseskodeflow med PKCE.",
+        "client_credentials": "Godkend denne server som maskinklient med en beskyttet hemmelighed.",
+        "private_key_jwt": "Godkend denne server som maskinklient med en beskyttet privat nøgle.",
+        "cross_app_access": "Udveksl en godkendt virksomhedsidentitet med adgang til denne beskyttede ressource."
+      },
+      "authorizationHeaderOverride": "En statisk Authorization-header er konfigureret og har forrang for denne OAuth-tilstand.",
+      "protectedResourceUrl": "URL til beskyttet ressource",
+      "protectedResourceUrlPlaceholder": "https://mcp.example.com",
+      "authorizationServerIssuer": "Udsteder for godkendelsesserver",
+      "authorizationServerIssuerPlaceholder": "https://auth.example.com",
+      "clientMetadataUrl": "URL til klientmetadata",
+      "authorizationClientId": "Klient-id",
+      "authorizationScopes": "Adgangsomfang",
+      "authorizationScopesPlaceholder": "read write",
+      "keyAlgorithm": "Nøglealgoritme",
+      "identityProfile": "Virksomhedsidentitetsprofil",
+      "identityProfilePlaceholder": "Vælg en identitetsprofil",
+      "privateKey": "Privat nøgle",
+      "clientSecret": "Klienthemmelighed",
+      "removeCredential": "Fjern gemt legitimationsoplysning",
+      "credentialConfiguredPlaceholder": "En beskyttet legitimationsoplysning er allerede konfigureret",
+      "credentialConfigured": "Legitimationsoplysning konfigureret",
+      "credentialMemoryOnly": "Denne legitimationsoplysning gemmes kun i hukommelsen og går tabt, når DeepChat afsluttes.",
+      "credentialRemoveError": "Den beskyttede legitimationsoplysning kunne ikke fjernes",
+      "credentialSaveError": "Den beskyttede legitimationsoplysning kunne ikke gemmes"
     },
     "deleteServer": "Slet server",
     "editServer": "Rediger server",
@@ -1369,22 +1523,22 @@
       "redetectFailed": "Gen-detektion mislykkedes",
       "redetectFailedDesc": "Kan ikke finde ny optimal kilde, bruger standardkonfiguration"
     },
-    "managedServerReadOnly": "DeepChat managed service",
-    "managedServerReadOnlyDesc": "Manage enablement and permissions from the owning plugin settings.",
+    "managedServerReadOnly": "DeepChat-administreret tjeneste",
+    "managedServerReadOnlyDesc": "Administrer aktivering og tilladelser i indstillingerne for det tilhørende plugin.",
     "center": {
-      "title": "MCP Center",
-      "running": "Running",
-      "builtIn": "Built-in",
-      "custom": "Custom",
-      "searchPlaceholder": "Search MCP servers...",
-      "noResults": "No matching MCP servers",
-      "command": "Command / URL",
+      "title": "MCP-center",
+      "running": "Kører",
+      "builtIn": "Indbygget",
+      "custom": "Brugerdefineret",
+      "searchPlaceholder": "Søg efter MCP-servere...",
+      "noResults": "Ingen matchende MCP-servere",
+      "command": "Kommando / URL",
       "filters": {
-        "all": "All",
-        "running": "Running",
-        "stopped": "Stopped",
-        "builtIn": "Built-in",
-        "custom": "Custom"
+        "all": "Alle",
+        "running": "Kører",
+        "stopped": "Stoppet",
+        "builtIn": "Indbygget",
+        "custom": "Brugerdefineret"
       }
     },
     "authRequired": "Godkendelse påkrævet",
@@ -1395,7 +1549,53 @@
     "authCallbackPlaceholder": "Indsæt den fulde callback-URL",
     "completeAuthentication": "Fuldfør godkendelse",
     "saveSuccess": "Konfiguration gemt",
-    "saveFailed": "Kunne ikke gemme konfiguration"
+    "saveFailed": "Kunne ikke gemme konfiguration",
+    "enterpriseProfiles": {
+      "title": "Virksomhedsidentiteter",
+      "description": "Administrer genanvendelige OpenID Connect-identiteter til MCP-virksomhedsgodkendelse.",
+      "label": "Profilnavn",
+      "issuer": "OpenID-udsteder",
+      "clientId": "Klient-id",
+      "scopes": "Adgangsomfang",
+      "clientAuthentication": "Klientgodkendelse hos identitetsudbyder",
+      "publicClient": "Offentlig klient",
+      "confidentialClient": "Klienthemmelighed",
+      "clientSecret": "Identitetsudbyderens klienthemmelighed",
+      "clientSecretMissing": "En klienthemmelighed skal konfigureres før login.",
+      "authenticated": "Godkendt",
+      "signIn": "Log ind",
+      "signOut": "Log ud",
+      "callbackUrl": "Callback-URL",
+      "empty": "Ingen virksomhedsidentitetsprofiler.",
+      "loadError": "Virksomhedsidentiteter kunne ikke indlæses",
+      "saveError": "Virksomhedsidentiteten kunne ikke gemmes",
+      "authError": "Login med virksomhedsidentitet mislykkedes",
+      "removeError": "Virksomhedsidentiteten kunne ikke fjernes",
+      "removeTitle": "Fjern virksomhedsidentitet?",
+      "removeDescription": "Fjern {name} og alle legitimationsoplysninger, der er knyttet til den?",
+      "status": {
+        "signed_out": "Logget ud",
+        "authenticating": "Godkender",
+        "authenticated": "Godkendt",
+        "error": "Fejl"
+      }
+    },
+    "diagnostics": {
+      "title": "MCP-diagnosticering",
+      "serverId": "Server-id",
+      "owner": "Ejer",
+      "transport": "Transport",
+      "connectionState": "Forbindelse",
+      "era": "Protokolæra",
+      "serverImplementation": "Serverimplementering",
+      "probe": "Forhandlingskontrol",
+      "extensions": "Serverudvidelser",
+      "clientExtensions": "Klientudvidelser",
+      "cache": "Cache",
+      "subscriptions": "Abonnementer",
+      "auth": "Godkendelse",
+      "copy": "Kopiér diagnosticering"
+    }
   },
   "cronJobs": {
     "title": "Planlagte opgaver",
@@ -1449,7 +1649,7 @@
       "error": "Fejl",
       "invalidAgent": "Agent mangler eller er deaktiveret. Vælg en anden agent."
     },
-    "runNowSuccess": "Planlagt opgave startet"
+    "runNowSuccess": "Planlagt opgave fuldført"
   },
   "about": {
     "title": "Om os",
@@ -1507,8 +1707,6 @@
     "description": "Administrér lokale Agent Client Protocol-agenter startede af DeepChat.",
     "enabledTitle": "Aktivér ACP",
     "enabledDescription": "Når aktiveret, vises konfigurerede ACP-agenter som modeller i vælgeren.",
-    "useBuiltinRuntimeTitle": "Brug DeepChats indbyggede runtime",
-    "useBuiltinRuntimeDescription": "Spring systemets node- og uv-kommandoer over ved at bruge DeepChats medfølgende versioner.",
     "enableToAccess": "Aktivér ACP for at konfigurere agenter.",
     "addCustomAgent": "Tilføj brugerdefineret agent",
     "customEmpty": "Ingen brugerdefinerede agenter endnu.",
@@ -1567,6 +1765,25 @@
       "cannotDeleteTitle": "Behold mindst én profil",
       "cannotDeleteDesc": "Indbyggede agenter kræver mindst én konfiguration.",
       "noAgent": "Vælg en agent for at administrere dens profiler."
+    },
+    "auth": {
+      "title": "Log ind på {name}",
+      "description": "Vælg en godkendelsesmetode. Legitimationsoplysningerne forbliver hos agentprocessen.",
+      "requiredTitle": "{name} kræver login",
+      "requiredDescription": "Godkend, før du starter denne chat.",
+      "checkSignIn": "Kontrollér login",
+      "openTerminal": "Åbn terminal",
+      "cancelSignIn": "Annuller login",
+      "unsupported": "Denne godkendelsesmetode understøttes ikke. Konfigurer dens miljøvariabler manuelt.",
+      "noMethods": "Agenten angav ikke en godkendelsesmetode, som DeepChat kan bruge.",
+      "status": {
+        "required": "Godkendelse påkrævet",
+        "running": "Logger ind",
+        "reconnecting": "Opretter forbindelse igen",
+        "succeeded": "Klar",
+        "cancelled": "Annulleret",
+        "failed": "Mislykket"
+      }
     },
     "terminal": {
       "title": "Initialiseringsterminal",
@@ -1739,7 +1956,7 @@
       "successMessage": "Færdighed {name} er blevet slettet succesfuldt",
       "title": "Slet skill"
     },
-    "description": "Administrér og konfigurér AI-assistentens skill-modul",
+    "description": "Gennemse alle Skills. Åbn en Skill for at se den og administrere aktiverede Agents.",
     "edit": {
       "allowedTools": "Yderligere værktøjer",
       "allowedToolsHint": "Kommaadskilt liste over værktøjsnavne",
@@ -1776,7 +1993,7 @@
       }
     },
     "empty": "Ingen færdigheder",
-    "emptyHint": "Klik på knappen „Tilføj skill“ for at installere en ny skill",
+    "emptyHint": "Importér Skills fra en ekstern Agent.",
     "install": {
       "description": "Vælg skill-installationsmetode",
       "dragInvalid": "Indholdet understøttes ikke. Træk en skill-mappe eller en enkelt .zip-fil.",
@@ -1802,6 +2019,32 @@
     "noResults": "Ingen matchende skill fundet",
     "openFolder": "Åbn mappe",
     "search": "Søg skill...",
+    "agentImport": {
+      "menuItem": "Importér fra ekstern Agent",
+      "title": "Importér fra ekstern Agent",
+      "description": "Importér validerede Skills til DeepChat. Aktivér Agents fra forhåndsvisningen af hver Skill.",
+      "resultPartial": "Import fuldført med fejl",
+      "resultSuccess": "Import fuldført",
+      "sourceTitle": "Kilde-Agent",
+      "emptySources": "Ingen importkilder",
+      "skillCount": "{count} Skills",
+      "previewTitle": "Skills der skal importeres",
+      "emptyPreview": "Ingen tilgængelige Skills",
+      "status": {
+        "ready": "Klar",
+        "conflict": "Konflikt",
+        "unavailable": "Utilgængelig",
+        "same": "Allerede tilføjet"
+      },
+      "strategy": {
+        "skip": "Spring over",
+        "rename": "Omdøb",
+        "overwrite": "Overskriv"
+      },
+      "overwriteImpact": "Overskrivning af denne Skill påvirker aktiverede Agents: {agents}.",
+      "resultSummaryV3": "Importeret: {imported}, genbrugt: {reused}, sprunget over: {skipped}, mislykket: {failed}.",
+      "execute": "Importér valgte"
+    },
     "sync": {
       "batchAction": "Batchbehandling",
       "conflict": "konflikt",
@@ -1898,8 +2141,6 @@
       "env": "{count} env",
       "pythonShort": "Py",
       "nodeShort": "Node",
-      "enabled": "Enabled",
-      "disabled": "Disabled",
       "enable": "Enable in DeepChat",
       "disable": "Disable in DeepChat",
       "viewDetails": "Vis detaljer",
@@ -1915,111 +2156,6 @@
       "success": "Skill Disabled",
       "successMessage": "Skill {name} is disabled in DeepChat",
       "failed": "Disable Failed"
-    },
-    "tabs": {
-      "library": "Library",
-      "agents": "Agents",
-      "syncDirectory": "Synkroniseringsmappe"
-    },
-    "agents": {
-      "title": "Agents",
-      "summary": "{count} supported agent(s)",
-      "refresh": "Refresh",
-      "empty": "No supported agents found.",
-      "emptySkills": "No skills found for this agent.",
-      "loadFailed": "Failed to load agent skills",
-      "conflictCount": "{count} conflict",
-      "table": {
-        "skill": "Skill",
-        "owner": "Owner",
-        "status": "Status",
-        "action": "Action",
-        "preview": "Forhandsvisning"
-      },
-      "owner": {
-        "deepchat": "DeepChat",
-        "external-link": "External",
-        "broken-link": "Broken link",
-        "unknown": "Unknown"
-      },
-      "status": {
-        "linked": "Linked",
-        "agent-owned": "Agent owned",
-        "linked-out": "Linked out",
-        "broken-link": "Broken link",
-        "conflict": "Conflict",
-        "empty": "Empty"
-      },
-      "actions": {
-        "adopt": "Adopt",
-        "resolve-conflict": "Resolve",
-        "repair-link": "Repair",
-        "remove-link": "Remove",
-        "open": "Open",
-        "pending": "Write actions are enabled in a later phase.",
-        "view": "Vis"
-      },
-      "agentStatus": {
-        "ready": "Ready",
-        "detected-no-skills-dir": "No skills directory",
-        "permission-denied": "Permission denied"
-      },
-      "counts": {
-        "skills": "{count} skill(s)",
-        "linked": "{count} linked",
-        "agentOwned": "{count} agent owned",
-        "conflicts": "{count} conflict(s)",
-        "broken": "{count} broken"
-      },
-      "adoptDialog": {
-        "adoptTitle": "Adopt Skill",
-        "conflictTitle": "Resolve Conflict",
-        "adoptDescription": "Copy this skill into DeepChat, back up the original, and replace the agent entry with a link.",
-        "conflictDescription": "{skill} already exists in DeepChat. The default action keeps the current DeepChat skill and adopts this agent skill as a renamed copy.",
-        "loading": "Preparing adoption preview...",
-        "previewFailed": "Failed to prepare adoption preview",
-        "executeFailed": "Failed to adopt skill",
-        "currentLocation": "Current location",
-        "afterAdoption": "After adoption",
-        "backup": "Backup",
-        "chooseAction": "Choose action",
-        "adoptAs": "Adopt as {name}",
-        "replaceDeepChat": "Replace existing DeepChat skill",
-        "keepCurrent": "Keep current state",
-        "unsupportedStrategies": "Replace and keep strategies are not available in this build.",
-        "warnings": "Warnings",
-        "apply": "Apply",
-        "linkArrow": "-> DeepChat skill",
-        "successTitle": "Skill adopted",
-        "successDescription": "{name} is now managed by DeepChat."
-      },
-      "syncToAgent": "Sync to Agent",
-      "syncDialog": {
-        "title": "Sync to {agent}",
-        "description": "Create DeepChat-owned links for selected skills. Existing agent content is skipped.",
-        "target": "Target",
-        "deepchatSkills": "DeepChat skills",
-        "empty": "No linkable DeepChat skills.",
-        "preview": "Preview",
-        "loading": "Preparing link preview...",
-        "noSelection": "Select at least one skill.",
-        "apply": "Apply",
-        "failed": "Failed to sync skills",
-        "successTitle": "Skills synced",
-        "successDescription": "{count} skill(s) linked.",
-        "status": {
-          "ready": "Ready",
-          "already-linked": "Already linked",
-          "conflict": "Conflict",
-          "missing": "Missing"
-        }
-      },
-      "linkAction": {
-        "repairSuccess": "Link repaired",
-        "removeSuccess": "Link removed",
-        "successDescription": "{name} updated.",
-        "failed": "Failed to update link"
-      }
     },
     "git": {
       "title": "Git",
@@ -2052,7 +2188,6 @@
       "saved": "Synkroniseringsmappe gemt",
       "export": "Eksporter til mappe",
       "import": "Importer fra mappe",
-      "includeDisabled": "Medtag deaktiverede skills",
       "previewExport": "Forhåndsvis eksport",
       "exportNow": "Eksporter nu",
       "previewImport": "Forhåndsvis import",
@@ -2105,7 +2240,13 @@
       "edit": "Rediger",
       "delete": "Slet",
       "confirmDeleteTitle": "Slet skill",
-      "confirmDeleteDescription": "Slet skill \"{name}\"? Denne handling kan ikke fortrydes."
+      "confirmDeleteDescription": "Slet skill \"{name}\"? Denne handling kan ikke fortrydes.",
+      "enabledAgents": "Aktiverede Agents",
+      "enabledAgentsHint": "Disse Agents kan bruge denne Skill.",
+      "noEnabledAgents": "Ingen Agent bruger denne Skill endnu.",
+      "addAgent": "Tilføj Agent",
+      "removeAgent": "Fjern {agent}",
+      "agentUpdateFailed": "Kunne ikke opdatere aktiverede Agents"
     },
     "installToAgent": {
       "title": "Installer {name} i Agent",
@@ -2123,6 +2264,17 @@
       "disconnectSuccess": "Afbrudt fra Agent",
       "disconnectSuccessMessage": "{name} er ikke længere linket til mål-Agent.",
       "disconnectFailed": "Kunne ikke afbryde fra Agent"
+    },
+    "impact": {
+      "changed": "Aktiverede Agents er ændret. Gennemgå påvirkningen, og prøv igen.",
+      "editEnabled": "Indholdsændringer gælder for disse Agents ved deres næste kørsel: {agents}.",
+      "editUnused": "Ingen Agent bruger denne Skill i øjeblikket.",
+      "confirmDeleteEnabled": "Slet {name}? Den er aktiveret for: {agents}.",
+      "confirmDeleteUnused": "Slet {name}? Ingen Agent bruger den i øjeblikket."
+    },
+    "syncDirectory": {
+      "action": "Synkroniser mappe",
+      "back": "Tilbage til Skills"
     }
   },
   "notificationsHooks": {
@@ -2362,11 +2514,7 @@
       "accessRules": "Adgangsregler"
     },
     "remoteControl": {
-      "title": "Fjernstyring",
       "description": "Bind hvert fjernendepunkt til én DeepChat-session, og behold sessionen på tværs af kommandoer.",
-      "streamMode": "Stream-tilstand",
-      "streamModeDraft": "Udkast-streaming",
-      "streamModeFinal": "Kun endeligt svar",
       "allowedUserIds": "Tilladte bruger-id'er",
       "allowedUserIdsPlaceholder": "fx 123456789, 987654321",
       "defaultAgent": "Standard DeepChat-agent",
@@ -2378,19 +2526,14 @@
       "manageBindings": "Administrer bindinger",
       "pairCode": "Parringskode",
       "noPairCode": "Ingen aktiv parringskode",
-      "generatePairCode": "Generer",
-      "clearPairCode": "Ryd",
       "pairCodeExpiresAt": "Udløber {time}",
-      "pairDialogTitle": "Telegram-parring",
-      "pairDialogDescription": "Generer en parringskode, og fuldfør parringen i din Telegram-botchat.",
-      "pairDialogInstruction": "Send denne kommando til den tilsvarende bot:",
-      "bindingsDialogTitle": "Bundne sessioner",
-      "bindingsDialogDescription": "Fjern Telegram-sessionbindinger én ad gangen.",
-      "bindingsEmpty": "Ingen Telegram-bindinger endnu.",
+      "pairDialogTitle": "{channel}-parring",
+      "pairDialogDescription": "Generer en parringskode, og fuldfør parringen i din {channel}-botchat.",
+      "bindingsDialogTitle": "Bundne {channel}-sessioner",
+      "bindingsDialogDescription": "Fjern eksterne sessionsbindinger én ad gangen.",
+      "bindingsEmpty": "Ingen bindinger endnu.",
       "pairingSuccessTitle": "Parring fuldført",
       "pairingSuccessDescription": "Listen over tilladte bruger-id'er er blevet opdateret.",
-      "clearBindings": "Ryd bindinger",
-      "clearBindingsResult": "{count} binding(er) ryddet.",
       "pairDialogInstructionTelegram": "Send denne kommando til Telegram-botten:",
       "pairDialogInstructionFeishu": "Send this command in a Feishu / Lark bot direct chat; it adds the sender to the same authorized-principal list used by scan authorization:",
       "pairDialogInstructionDiscord": "Send denne kommando til Discord-botten i en DM eller målkanal:",
@@ -2480,7 +2623,95 @@
       "loginConnected": "WeChat iLink-kontoen er forbundet."
     }
   },
+  "ocr": {
+    "description": "Udtræk automatisk tekst fra billeder, når den valgte model ikke kan se dem. Genkendelsen foregår kun på denne enhed.",
+    "autoExtract": "Genkend automatisk tekst i billeder",
+    "autoExtractDescription": "Bruges, når den valgte model ikke kan se billeder.",
+    "advancedTitle": "Avancerede indstillinger",
+    "advancedDescription": "De fleste behøver ikke ændre disse.",
+    "backend": "Genkendelsesmetode",
+    "backendDescription": "Automatisk vælger den bedste metode til denne enhed. Brug kun CPU ved fejlfinding af kompatibilitet.",
+    "backendAuto": "Automatisk (anbefalet)",
+    "backendCpu": "Kun CPU",
+    "diagnosticsTitle": "Diagnostik",
+    "diagnosticsDescription": "Kun nødvendig ved fejlfinding.",
+    "refresh": "Prøv igen",
+    "loading": "Indlæser OCR-status…",
+    "statusUnavailable": "OCR-status er midlertidigt utilgængelig.",
+    "availability": "Tilgængelighed",
+    "available": "Tilgængelig",
+    "unavailable": "Ikke tilgængelig",
+    "process": "Hjælpeproces",
+    "version": "Light OCR-version",
+    "notStarted": "Efter behov",
+    "nodeNotStarted": "Starter efter behov",
+    "queuedRequests": "{count} anmodning(er) i kø",
+    "strategy": "Genkendelsesstrategi",
+    "nodeVersion": "Node-runtime",
+    "detectionBackend": "Backend til tekstdetektion",
+    "recognitionBackend": "Backend til tekstgenkendelse",
+    "cacheTitle": "Lokal cache",
+    "cacheMode": "Lagertilstand",
+    "cacheEntries": "Billeder",
+    "cacheUsage": "Brugt plads",
+    "cacheNotStarted": "Ingen cache endnu.",
+    "cacheProtected": "Krypteret lokal afledt cache.",
+    "clearCache": "Ryd",
+    "clearCacheTitle": "Ryd den lokale cache?",
+    "clearCacheDescription": "Cachelagrede genkendelsesresultater slettes. Tekst, der allerede er gemt i chats, påvirkes ikke.",
+    "clearCacheConfirm": "Ryd",
+    "cacheCleared": "OCR-cachen er ryddet",
+    "cacheClearedDescription": "Tekst, der allerede er gemt i chats, blev ikke ændret.",
+    "loadFailed": "OCR-indstillingerne kunne ikke indlæses.",
+    "updateFailed": "OCR-indstillingen kunne ikke opdateres.",
+    "statusLoadFailed": "OCR-status kunne ikke kontrolleres.",
+    "clearCacheFailed": "OCR-cachen kunne ikke ryddes.",
+    "unavailableReasons": {
+      "asset_identity_mismatch": "De indbyggede OCR-aktiver svarer ikke til den fastlåste version.",
+      "assets_missing": "Nødvendige offline OCR-aktiver mangler i denne installation.",
+      "runtime_manifest_invalid": "Manifestet for den indbyggede OCR-runtime er ugyldigt.",
+      "service_closed": "OCR-tjenesten lukker ned.",
+      "unsupported_platform": "OCR er ikke tilgængelig for denne platform og arkitektur.",
+      "toolchain_unavailable": "OCR kræver officiel Node.js v24.18.0. Åbn Indstillinger → Værktøjskæder, og installer det officielle runtime.",
+      "version_mismatch": "OCR kræver Node.js v24.18.0. Denne version er uden for intervallet. Åbn Indstillinger → Værktøjskæder, og installer det officielle runtime.",
+      "abi_mismatch": "OCR kræver Node.js ABI 137 (v24.18.0). Åbn Indstillinger → Værktøjskæder, og installer det officielle runtime."
+    },
+    "processStates": {
+      "idle": "Inaktiv",
+      "starting": "Starter",
+      "ready": "Klar",
+      "busy": "Genkender",
+      "stopping": "Stopper",
+      "closed": "Lukket"
+    },
+    "strategies": {
+      "bounded-960": "Afgrænset billede",
+      "tiled-v1": "Fliseopdelt dokument"
+    },
+    "cacheModes": {
+      "persistent": "Krypteret på disk",
+      "memory": "Kun hukommelse"
+    },
+    "cacheFallbackReasons": {
+      "database_error": "Den vedvarende cache er utilgængelig, fordi databasen ikke kunne åbnes.",
+      "safe_storage_unavailable": "Den vedvarende cache er utilgængelig, fordi sikker nøglelagring ikke er tilgængelig."
+    }
+  },
+  "leaveGuard": {
+    "dirtyTitle": "Ikke-gemte ændringer",
+    "dirtyDescription": "Forlad siden og kassér ændringerne?",
+    "busyTitle": "Gemmer",
+    "busyDescription": "Vent på, at lagringen bliver færdig, før du forlader siden.",
+    "stay": "Fortsæt redigering",
+    "discard": "Kassér ændringer"
+  },
   "deepchatAgents": {
+    "saveFeedback": {
+      "saving": "Gemmer…",
+      "saved": "Gemt",
+      "saveFailed": "Kunne ikke gemme. Ændringerne er bevaret.",
+      "retry": "Prøv igen"
+    },
     "title": "DeepChat-agenter",
     "description": "Administrer DeepChat-agenter og de standardværdier, de bruger i nye sessioner.",
     "builtIn": "Indbygget",
@@ -2525,6 +2756,16 @@
     "permissionFullAccess": "Fuld adgang",
     "permissionDefault": "Standardtilladelse",
     "toolsTitle": "Indbyggede værktøjer",
+    "outputLimitsTitle": "Avancerede outputgrænser",
+    "outputLimitsDescription": "Styr, hvor meget værktøjsoutput der forbliver indlejret for denne agent.",
+    "outputLimitsSafetyHint": "Kontrollen af modelkonteksten kan stadig gemme resultater i en fil eller afvise resultater, der ikke er plads til.",
+    "outputLimitsReset": "Nulstil standardværdier",
+    "outputLimitsReadFile": "Fillæsning",
+    "outputLimitsReadFileHint": "Antal tegn, der returneres, når læsning ikke angiver en eksplicit grænse.",
+    "outputLimitsTool": "Værktøjsoutput",
+    "outputLimitsToolHint": "Indlejret grænse for understøttede værktøjer med stort output.",
+    "outputLimitsCommand": "Kommandooutput",
+    "outputLimitsCommandHint": "Forgrundsvisning for exec- og skill-scripts.",
     "compactionTitle": "Automatisk komprimering",
     "compactionEnabled": "Aktivér automatisk komprimering",
     "compactionDescription": "Disse standarder påvirker kun fremtidige DeepChat-sessioner.",
@@ -2532,8 +2773,8 @@
     "compactionRetainPairs": "Behold seneste par",
     "deleteConfirm": "Slet agenten \"{name}\"? Dens historik falder tilbage til den indbyggede DeepChat-agent.",
     "subagentsTitle": "Underagenter",
-    "subagentsDescription": "Konfigurer de genanvendelige slots til undersessioner, som `subagent_orchestrator` stiller til rådighed.",
-    "subagentsEnabled": "Aktivér underagenter",
+    "subagentsDescription": "Tillad denne agent at uddelegere uafhængige delopgaver. Modellen afgør, hvornår konfigurerede pladser bruges; uddelegering bruger ekstra tokens, tid og systemressourcer.",
+    "subagentsEnabled": "Tillad denne agent at uddelegere delopgaver",
     "subagentTargetType": "Måltype",
     "subagentTargetSelf": "Denne agent",
     "subagentTargetAgent": "Agent",
@@ -2555,14 +2796,23 @@
       "tabMemories": "Hukommelse",
       "tabPersona": "Persona-tidslinje",
       "memoriesCount": "{count} minder",
-      "clearAll": "Ryd alt",
-      "clearConfirmTitle": "Ryd al hukommelse?",
-      "clearConfirmBody": "Dette fjerner permanent alle minder for denne agent. Dette kan ikke fortrydes.",
+      "clearAll": "Ryd hukommelse",
+      "clearConfirmTitle": "Ryd faktuelle minder og persona?",
+      "clearConfirmBody": "Dette fjerner permanent faktuelle minder og persona for denne agent. Faste direktiver bevares og kan administreres separat. Dette kan ikke fortrydes.",
+      "cleanupPendingRestart": "Låste vektorfiler slettes efter genstart",
       "emptyMemories": "Ingen minder endnu. De samles, mens du chatter med denne agent.",
       "emptyPersona": "Ingen selvmodel-versioner endnu.",
       "personaActive": "Aktiv",
       "rollback": "Rul tilbage",
       "actionFailed": "Handling mislykkedes",
+      "commandRejected": {
+        "unavailable": "Hukommelsen er midlertidigt utilgængelig. Prøv igen.",
+        "notFound": "Denne hukommelse findes ikke længere. Visningen er blevet opdateret.",
+        "invalidState": "Denne handling er ikke længere gyldig. Visningen er blevet opdateret.",
+        "conflict": "Løs hukommelseskonflikten, før du prøver igen.",
+        "stale": "Denne hukommelse er ændret. Visningen er blevet opdateret; prøv igen.",
+        "anchored": "Fjern forankringen af den aktive persona, før du ruller tilbage."
+      },
       "conflict": "Konflikt",
       "restore": "Gendan",
       "sourceLine": "Fra session {session} · {count} poster",
@@ -2606,6 +2856,7 @@
       "searchPlaceholder": "Søg i minder",
       "noSearchResults": "Ingen minder matcher din søgning.",
       "addMemory": "Tilføj minde",
+      "loadMore": "Indlæs flere",
       "addContentPlaceholder": "Det, du vil have denne assistent til at huske…",
       "addCategoryLabel": "Hukommelseskategori",
       "addCategoryNone": "Ingen kategori",
@@ -2750,6 +3001,9 @@
     "enable": "Enable",
     "disable": "Disable",
     "openSettings": "Settings",
+    "testRuntime": "Test runtime",
+    "retryRuntime": "Prøv runtime igen",
+    "quarantineDescription": "DeepChat stoppede denne runtime efter en ukorrekt afslutning. Prøv kun igen, når skrivebordet sikkert kan styres.",
     "runtime": "Runtime",
     "runtimeState": "Tilstand",
     "version": "Version",
@@ -2763,6 +3017,8 @@
       "missing": "Missing",
       "installed": "Installed",
       "running": "Running",
+      "readyOnDemand": "Klar efter behov",
+      "quarantined": "I karantæne",
       "error": "Error"
     },
     "emptyTitle": "No built-in plugins available",
@@ -2851,13 +3107,13 @@
     "tabConfig": "Konfiguration",
     "tabManage": "Administrer",
     "config": {
-      "rootHint": "deepchat er den indbyggede agent og konfigurationsroden: værdier, der angives her, bliver standardværdier, som andre agenter arver.",
+      "rootHint": "deepchat er en beskyttet, indbygget agent. Dens konfiguration er uafhængig af alle andre agenter.",
       "extractionModel": "Model til hukommelsesværktøj",
       "extractionModelHint": "Model, der bruges til at udtrække og deduplikere minder. Falder tilbage til chatmodellen, hvis den ikke er valgt.",
       "injectionBudget": "Injektionsbudget (tokens)",
-      "injectionBudgetHint": "Omtrentligt token-loft for den samlede hukommelsesinjektion. Lad være tom for at arve standardværdien ({default}).",
+      "injectionBudgetHint": "Omtrentligt token-loft for den samlede hukommelsesinjektion. Lad feltet være tomt for at bruge standardværdien ({default}).",
       "retrievalTitle": "Rangering af genfinding",
-      "retrievalHint": "Tilsidesæt, hvordan genfundne minder rangeres; arver standardværdierne, når den er slået fra.",
+      "retrievalHint": "Tilpas, hvordan genfundne minder rangeres; standardrangeringen bruges, når funktionen er slået fra.",
       "retrievalOverride": "Tilsidesæt genfindingsparametre",
       "topK": "Antal genfindinger (topK)",
       "rrfK": "Fusionskonstant (rrfK)",
@@ -2866,14 +3122,16 @@
       "weightRecency": "Vægt · aktualitet",
       "weightImportance": "Vægt · vigtighed",
       "advancedTitle": "Avancerede hukommelsesindstillinger",
-      "advancedHint": "Juster udtrækning, promptbudget og rangering ved genfinding. Lad felter være tomme for at arve standardværdier.",
-      "inheritedHint": "Tomt felt bruger arvet/standardværdi.",
+      "advancedHint": "Juster udtrækning, promptbudget og rangering ved genfinding. Lad felterne være tomme for at bruge standardværdierne.",
+      "inheritedHint": "Et tomt felt bruger standardværdien.",
       "topKHint": "Interval 1-100. Standard: {default}.",
       "rrfKHint": "Interval 1-1000. Standard: {default}.",
       "similarityThresholdHint": "Interval 0-1. Standard: {default}.",
       "weightHint": "Ikke-negativ rangeringsvægt. Standard: {default}."
     },
     "redesign": {
+      "reindexIncomplete": "Genopbygningen af vektorindekset blev ikke fuldført: {reason}. Hukommelsesindholdet er ikke gået tabt; søgning med nøgleord bruges i øjeblikket.",
+      "reindexInternalReason": "Den lokale embedding-pipeline kunne ikke fuldføre genopbygningen.",
       "tabMemories": "Hukommelser",
       "tabPersona": "Personprofil",
       "tabDiagnostics": "Diagnostik",
@@ -2917,7 +3175,7 @@
       "archivedMatches": "Match i arkivet",
       "refresh": "Opdater",
       "inboxTitle": "Kræver opmærksomhed",
-      "inboxDescription": "Løs hukommelseskonflikter og personprofilkladder, før de forsvinder ud af overblikket.",
+      "inboxDescription": "Løs hukommelseskonflikter, personprofilkladder og foreslåede direktiver, før de forsvinder ud af overblikket.",
       "conflictBadge": "{count} konflikter",
       "personaDraftBadge": "{count} personprofilkladder",
       "conflictSectionTitle": "Hukommelseskonflikter ({count})",
@@ -2964,7 +3222,48 @@
         "memory-persona-rollback": "Rullede personprofil tilbage",
         "memory-persona-anchor": "Opdaterede personprofilanker",
         "memory-reindex": "Genindekserede hukommelse"
-      }
+      },
+      "tabDirectives": "Direktiver",
+      "directiveDraftBadge": "{count} direktivkladder",
+      "directiveDraftSectionTitle": "Foreslåede direktiver ({count})",
+      "directiveCreateTitle": "Opret et fast direktiv",
+      "directiveCreateDescription": "Manuelle direktiver bliver aktive med det samme. Modelforslag forbliver kladder, indtil du godkender dem.",
+      "directiveRuntimeEnabled": "Anvendes under kørsel",
+      "directiveRuntimeDisabled": "Inaktiv, mens hukommelse er slået fra",
+      "directiveKindLabel": "Direktivtype",
+      "directiveKind": {
+        "instruction": "Fast instruktion",
+        "suppress_topic": "Undertryk emne"
+      },
+      "directiveTopicLabel": "Matchet emne",
+      "directiveTopicPlaceholder": "Præcist emne eller udtryk, der skal undertrykkes fra genkaldt hukommelse",
+      "directiveTopicTooBroad": "Emner med CJK-tegn skal have mindst {min} synlige tegn for ikke at skjule uvedkommende hukommelse.",
+      "directiveContentLabel": "Instruktion",
+      "directiveInstructionPlaceholder": "Skriv en fast instruktion til denne agent.",
+      "directiveSuppressPlaceholder": "Forklar, hvordan agenten skal håndtere dette emne.",
+      "directiveInstructionHint": "Dette er vejledning på brugerniveau og kan ikke tilsidesætte system- eller sikkerhedsregler.",
+      "directiveSuppressHint": "Emnet filtrerer genkaldt hukommelse; instruktionen styrer svaret. Dette er ikke et outputfilter.",
+      "directiveLength": "Instruktion {content}/{contentMax} · Emne {topic}/{topicMax}",
+      "directiveCreateAction": "Aktivér direktiv",
+      "directiveCapacityTitle": "Grænsen for aktive direktiver er nået",
+      "directiveCapacityDescription": "Hver agent kan have op til {max} aktive direktiver. Slet et aktivt direktiv, før du tilføjer eller godkender et nyt.",
+      "directiveListTitle": "Gemte direktiver",
+      "directiveListDescription": "{active} aktive · {draft} afventer godkendelse",
+      "directiveEmptyTitle": "Ingen direktiver endnu",
+      "directiveEmptyDescription": "Opret en fast instruktion her, eller godkend et forslag fra indbakken.",
+      "directiveStatus": {
+        "active": "Aktiv",
+        "draft": "Kladde",
+        "rejected": "Afvist"
+      },
+      "directiveSource": {
+        "explicit_user": "Eksplicit brugerhandling",
+        "manual": "Indstillinger",
+        "derived_suggestion": "Foreslået fra samtalen"
+      },
+      "directiveTopicValue": "Emne: {topic}",
+      "directiveDeleteTitle": "Slet dette direktiv?",
+      "directiveDeleteDescription": "Direktivet stopper med at gælde med det samme. Du kan oprette det igen senere."
     }
   },
   "pluginsHub": {
@@ -2972,12 +3271,122 @@
     "available": "Tilgængelige plugins",
     "add": "Tilføj",
     "manage": "Manage",
+    "builtinCapability": "Indbygget funktion",
     "emptySearch": "Ingen tilgængelige plugins.",
     "pluginNotFound": "Plugin not found.",
     "actionResult": "Action result",
     "cuaDescription": "DeepChats ComputerUse-plugin implementeret med udgangspunkt i trycua/cua-projektet.",
     "acpUnavailableTitle": "Plugins er ikke tilgængelige for ACP-agenter",
     "acpUnavailableDescription": "ACP-agenter administrerer værktøjer og udvidelser i deres eget kørselsmiljø. Vælg en DeepChat-agent for at bruge plugins.",
-    "agentScopeUnsupported": "Agentafgrænsede udvidelser er kun tilgængelige for DeepChat-agenter."
+    "agentScopeUnsupported": "Agentafgrænsede udvidelser er kun tilgængelige for DeepChat-agenter.",
+    "scopeGlobalPlugins": "Denne side er app-global: installation, aktivering og processtatus for officielle plugins deles af alle DeepChat-agenter.",
+    "scopeCurrentAgent": "Denne side er agentpolitik: ændringer påvirker kun Skills/MCP-tilgængelighed for “{agent}”, ikke globale installationer.",
+    "currentAgentFallback": "aktuel agent"
+  },
+  "debug": {
+    "description": "Værktøjer kun til udvikling til forhåndsvisning af mock-tilstande og guidede forløb.",
+    "unavailableTitle": "Fejlfindingsværktøjer er ikke tilgængelige",
+    "unavailableDescription": "Denne handling er kun tilgængelig i udviklingstilstand.",
+    "splash": {
+      "title": "Opstartsvindue",
+      "description": "Forhåndsvis opstartsvinduets tilstande uden at starte et rigtigt databaseoplåsningsforløb.",
+      "loading": "Forhåndsvis indlæsning",
+      "systemUnlock": "Forhåndsvis systemoplåsning",
+      "unlock": "Forhåndsvis manuel oplåsning",
+      "recovery": "Forhåndsvis databasegendannelse",
+      "failed": "Kan ikke vise opstartsscenariet.",
+      "previewHint": "Udviklingsforhåndsvisning — adgangskodeafsendelse er deaktiveret."
+    },
+    "guidance": {
+      "title": "Vejledning og data",
+      "description": "Opret mock-data til introduktion, samtaler og opdateringer, som kun bruges under udvikling.",
+      "failed": "Kan ikke starte det guidede fejlfindingsforløb."
+    }
+  },
+  "toolchains": {
+    "description": "Vælg, hvor DeepChat henter Node og uv fra. Kilden skifter ikke af sig selv bagefter.",
+    "nodeTitle": "Node.js",
+    "uvTitle": "uv",
+    "source": "Kilde",
+    "sources": {
+      "bundled": "Medfølger i appen",
+      "managed": "Installeret af DeepChat",
+      "system": "Systeminstallation",
+      "custom": "Brugerdefineret sti",
+      "unconfigured": "Ikke konfigureret",
+      "autoNamed": "Automatisk ({source})"
+    },
+    "systemDetected": "Systembinær fil fundet: {path}",
+    "systemDetectedHint": "Hvis der allerede er en fungerende installation, bruges den. Der downloades ikke noget.",
+    "install": "Installer officielt runtime",
+    "repair": "Reparer",
+    "revert": "Gendan",
+    "cancelInstall": "Annuller",
+    "installing": "Installerer…",
+    "version": "Version",
+    "path": "Sti",
+    "bannerTitle": "Et påkrævet runtime mangler",
+    "bannerDescription": "Node eller uv er ikke tilgængelig til MCP, ACP, Skills eller OCR.",
+    "bannerAction": "Åbn værktøjskæder",
+    "availability": {
+      "ready": "Klar",
+      "missing": "Mangler",
+      "incomplete": "Ufuldstændig",
+      "unconfigured": "Ikke konfigureret"
+    },
+    "downloadReasons": {
+      "dns": "Downloadværten kunne ikke slås op.",
+      "timeout": "Downloadet fik timeout.",
+      "http": "Downloadserveren returnerede en fejl.",
+      "proxy": "Download via den konfigurerede proxy mislykkedes.",
+      "checksum_mismatch": "Den downloadede fil dumpede integritetskontrollen.",
+      "disk": "Runtime kunne ikke skrives til disken.",
+      "cancelled": "Downloadet blev annulleret.",
+      "activation_failed": "Runtime kunne ikke aktiveres.",
+      "unsupported_platform": "Denne platform har ikke et officielt runtime."
+    },
+    "ocrPinHint": "OCR kræver officiel Node v24.18.0 (ABI 137). Dette runtime er klar til chat og MCP, men ikke til OCR. Installer det officielle runtime."
+  },
+  "userPlugins": {
+    "install": "Installer et plugin",
+    "update": "Gennemgå opdatering",
+    "installDescription": "Installer en pakke i Codex-format direkte fra Git eller ZIP. Gennemgå pakken, før du aktiverer dens komponenter.",
+    "gitUrl": "Offentlig HTTPS-Git-URL",
+    "gitRef": "Gren, tag eller commit (valgfrit)",
+    "subdirectory": "Pakkens undermappe (valgfrit)",
+    "chooseZip": "Vælg ZIP-fil",
+    "chooseDirectory": "Vælg pluginmappe",
+    "inspect": "Undersøg pakke",
+    "executionNotice": "Hooks og stdio-MCP-servere kører lokal kode med din kontos adgang til filer og netværk. Aktivér kun kode, du har tillid til. Kommandoer som npx eller uvx kan hente afhængigheder, når serveren starter.",
+    "useSkills": "Brug medfølgende Skills",
+    "allowHooks": "Jeg har gennemgået disse kommandoer og tillader automatiske kontekst-hooks",
+    "allowMcp": "Jeg har gennemgået disse kommandoer, endepunkter og variabelbindinger og tillader MCP-forbindelser",
+    "sharedData": "Pluginets data deles mellem sessioner i denne installation.",
+    "requiredVariables": "Påkrævede miljø- eller legitimationsvariabler",
+    "applyUpdate": "Anvend gennemgået opdatering",
+    "uninstall": "Afinstaller",
+    "source": "Installationskilde",
+    "selected": "Valgt",
+    "notSelected": "Ikke valgt",
+    "reviewed": "Kommandoer gennemgået",
+    "hooksNotEnabled": "Automatiske hooks er ikke godkendt. Gennemgå en opdatering for at aktivere dem; Skills alene aktiverer ikke automatiske hooks.",
+    "diagnostics": "Seneste hookaktivitet",
+    "noInvocations": "Ingen hookkald er registreret siden appen blev startet.",
+    "retryHook": "Kør hook igen",
+    "mcpSetupDescription": "Aktivér pluginet for at registrere dets servere. Indtast eller erstat variabelværdier her; værtens miljøvariabler deles aldrig automatisk. Administrer godkendelse i MCP-indstillingerne.",
+    "saveMcp": "Gem og opret forbindelse igen",
+    "manageMcp": "Åbn MCP-indstillinger",
+    "uninstallDescription": "Fjern dette plugin, dets private data, Skill-tildelinger og tilknyttede MCP-servere. Samtalehistorikken bevares.",
+    "fromGit": "Installer fra Git",
+    "fromZip": "Installer fra ZIP",
+    "userPlugin": "Brugerplugin",
+    "hookStatus": {
+      "started": "Kører",
+      "completed": "Fuldført",
+      "failed": "Mislykkedes",
+      "uncertain": "Afbrudt; resultat ukendt"
+    },
+    "technicalDetails": "Tekniske detaljer",
+    "hooks": "Hooks"
   }
 }

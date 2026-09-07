@@ -17,6 +17,7 @@ import about from './about.json'
 import contextMenu from './contextMenu.json'
 import promptSetting from './promptSetting.json'
 import traceDialog from './traceDialog.json'
+import tapeInspector from './tapeInspector.json'
 import plan from './plan.json'
 
 // Individual top-level keys
@@ -53,6 +54,7 @@ export default {
   contextMenu,
   promptSetting,
   traceDialog,
+  tapeInspector,
   plan,
   ...others
 }

@@ -8,36 +8,48 @@
       <span class="truncate text-xs" :class="!enabled ? 'text-foreground/70' : ''">
         {{ modelName }}
       </span>
-      <Icon
-        v-if="vision"
-        icon="lucide:eye"
-        class="h-4 w-4 shrink-0 text-blue-500"
-        title="视觉能力"
-      />
-      <Icon
-        v-if="functionCall"
-        icon="lucide:function-square"
-        class="h-4 w-4 shrink-0 text-orange-500"
-        title="函数调用能力"
-      />
-      <Icon
-        v-if="showWeakAgentWarning"
-        icon="lucide:triangle-alert"
-        class="h-4 w-4 shrink-0 text-amber-500"
-        :title="$t('settings.modelConfigItem.chatFallbackWarning')"
-      />
-      <Icon
-        v-if="reasoning"
-        icon="lucide:brain"
-        class="h-4 w-4 shrink-0 text-purple-500"
-        title="推理能力"
-      />
-      <Icon
-        v-if="enableSearch"
-        icon="lucide:globe"
-        class="h-4 w-4 shrink-0 text-green-500"
-        title="联网搜索能力"
-      />
+      <Tooltip v-if="vision">
+        <TooltipTrigger as-child>
+          <span class="inline-flex shrink-0">
+            <Icon icon="lucide:eye" class="size-4 text-blue-500" />
+          </span>
+        </TooltipTrigger>
+        <TooltipContent>{{ t('settings.modelConfigItem.capability.vision') }}</TooltipContent>
+      </Tooltip>
+      <Tooltip v-if="functionCall">
+        <TooltipTrigger as-child>
+          <span class="inline-flex shrink-0">
+            <Icon icon="lucide:function-square" class="size-4 text-orange-500" />
+          </span>
+        </TooltipTrigger>
+        <TooltipContent>
+          {{ t('settings.modelConfigItem.capability.functionCall') }}
+        </TooltipContent>
+      </Tooltip>
+      <Tooltip v-if="showWeakAgentWarning">
+        <TooltipTrigger as-child>
+          <span class="inline-flex shrink-0">
+            <Icon icon="lucide:triangle-alert" class="size-4 text-amber-500" />
+          </span>
+        </TooltipTrigger>
+        <TooltipContent>{{ t('settings.modelConfigItem.chatFallbackWarning') }}</TooltipContent>
+      </Tooltip>
+      <Tooltip v-if="reasoning">
+        <TooltipTrigger as-child>
+          <span class="inline-flex shrink-0">
+            <Icon icon="lucide:brain" class="size-4 text-purple-500" />
+          </span>
+        </TooltipTrigger>
+        <TooltipContent>{{ t('settings.modelConfigItem.capability.reasoning') }}</TooltipContent>
+      </Tooltip>
+      <Tooltip v-if="enableSearch">
+        <TooltipTrigger as-child>
+          <span class="inline-flex shrink-0">
+            <Icon icon="lucide:globe" class="size-4 text-green-500" />
+          </span>
+        </TooltipTrigger>
+        <TooltipContent>{{ t('settings.modelConfigItem.capability.search') }}</TooltipContent>
+      </Tooltip>
     </div>
     <div class="flex shrink-0 flex-row items-center gap-2 whitespace-nowrap">
       <span
@@ -46,11 +58,9 @@
       >
         {{ group }}
       </span>
-      <span
-        class="shrink-0 rounded-full border border-muted-foreground/20 bg-muted px-2 py-0.5 text-xs text-muted-foreground select-none"
-      >
+      <DcBadge variant="neutral" class="shrink-0 select-none text-xs">
         {{ type }}
-      </span>
+      </DcBadge>
       <Switch
         v-if="!hideEnableToggle"
         :key="`${providerId}:${modelId}`"
@@ -58,25 +68,25 @@
         :model-value="enabled"
         @update:model-value="onEnabledChange"
       />
-      <Button
+      <DcButton
         v-if="changeable"
         variant="link"
-        size="icon"
-        class="w-7 h-7 text-xs text-normal rounded-lg"
+        size="icon-sm"
+        icon="lucide:settings"
+        icon-size="4"
+        :tooltip="t('settings.model.configureModel')"
+        class="rounded-lg text-xs"
         @click="onConfigModel"
-        :title="$t('settings.model.configureModel')"
-      >
-        <Icon icon="lucide:settings" class="w-4 h-4 text-muted-foreground" />
-      </Button>
-      <Button
+      />
+      <DcButton
         v-if="isCustomModel"
         variant="link"
         size="icon"
-        class="w-7 h-7 text-xs text-normal rounded-lg"
+        class="h-7 w-7 rounded-lg text-xs"
         @click="onDeleteModel"
       >
-        <Icon icon="lucide:trash-2" class="w-4 h-4 text-destructive" />
-      </Button>
+        <Icon icon="lucide:trash-2" class="size-4 text-destructive" />
+      </DcButton>
     </div>
   </div>
 
@@ -95,11 +105,16 @@
 
 <script setup lang="ts">
 import { computed, ref, toRefs } from 'vue'
-import { Button } from '@shadcn/components/ui/button'
+import { useI18n } from 'vue-i18n'
+import { DcBadge } from '@dc-ui/components/badge'
+import { DcButton } from '@dc-ui/components/button'
 import { Switch } from '@shadcn/components/ui/switch'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@shadcn/components/ui/tooltip'
 import { Icon } from '@iconify/vue'
 import { hasNativeToolCapability, ModelType, type NewApiEndpointType } from '@shared/model'
 import ModelConfigDialog from './ModelConfigDialog.vue'
+
+const { t } = useI18n()
 
 const props = withDefaults(
   defineProps<{

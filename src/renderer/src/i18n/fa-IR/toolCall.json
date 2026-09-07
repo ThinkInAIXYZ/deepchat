@@ -19,7 +19,9 @@
   "title": "تماس ابزار",
   "terminalOutput": "خروجی ترمینال",
   "badge": {
-    "rtk": "RTK"
+    "rtk": "RTK",
+    "allowed": "مجاز شد",
+    "denied": "رد شد"
   },
   "replacementsCount": "{count} مورد جایگزین شد"
 }

@@ -63,6 +63,27 @@
         "yobrowser": "YoBrowser"
       }
     },
+    "toolMode": {
+      "title": "Mode",
+      "modelDefault": "Valeur par défaut du modèle",
+      "options": {
+        "agent": "Agent",
+        "code": "Code",
+        "minimal": "Minimal"
+      },
+      "descriptions": {
+        "agent": "Utiliser l’ensemble d’outils standard de l’agent.",
+        "code": "Composer les outils activés par du code. Nécessite le mode d’autorisation Accès complet.",
+        "minimal": "Simplifie les opérations sur les fichiers tout en conservant les autres outils activés."
+      },
+      "useModelDefault": "Utiliser la valeur par défaut du modèle",
+      "saving": "Enregistrement du mode...",
+      "locked": "Vous pourrez changer de mode après cette réponse.",
+      "updateFailed": "Impossible de mettre à jour le mode des outils.",
+      "codeEntry": "Entrée de code",
+      "codeCallable": "Appelable depuis le code",
+      "minimalTools": "Outils de programmation"
+    },
     "fileUploadFailed": "Échec du traitement de la pièce jointe",
     "fileUploadFailedDesc": "Impossible de traiter {count} fichiers : {names}",
     "fileUploadFailedMore": " et {count} de plus",
@@ -71,6 +92,12 @@
     "audioInputUnsupportedDescription": "Le modèle {model} ne prend pas en charge l'entrée audio. {count} pièce(s) jointe(s) audio ont été ignorées."
   },
   "pendingInput": {
+    "resume": "Reprendre la file",
+    "resumeFailed": "Impossible de reprendre la file",
+    "retry": "Réessayer",
+    "retryRequired": "Nouvel essai requis",
+    "retryRequiredDescription": "Ce message n'a pas été envoyé. Réessayez pour reprendre la file.",
+    "retryFailed": "Impossible de réessayer le message en attente",
     "steer": "Guidage",
     "queueCount": "En attente {count}/{max}",
     "toSteer": "Interrompre et envoyer",
@@ -153,7 +180,8 @@
   "mode": {
     "acpAgent": "Agent ACP",
     "agent": "Agent",
-    "current": "Mode actuel : {mode}"
+    "current": "Mode actuel : {mode}",
+    "saveFailed": "Impossible d’enregistrer le mode sélectionné"
   },
   "topbar": {
     "share": "Partager",
@@ -167,7 +195,6 @@
     "systemPrompt": "Prompt système",
     "systemPromptPlaceholder": "Sélectionner un préréglage",
     "temperature": "Température",
-    "temperatureFixedMoonshotKimi": "Moonshot Kimi K2.5/K2.6 fixe la température à {enabled} lorsque la réflexion est activée et à {disabled} lorsqu’elle est désactivée.",
     "topP": "Top P",
     "topPDescription": "Échantillonnage nucleus ; laissez vide pour utiliser la valeur par défaut du fournisseur",
     "contextLength": "Longueur du contexte",
@@ -203,6 +230,12 @@
       "contextMenu": {
         "insertPath": "Insérer dans la zone de saisie",
         "openFile": "ouvrir le fichier",
+        "openInApp": "Ouvrir dans {app}",
+        "openInTerminalApp": "Ouvrir le dossier dans {app}",
+        "openFailed": "Impossible d’ouvrir le fichier avec cette application",
+        "preferredAppUnavailable": "L’application préférée n’est pas disponible pour le moment. Ouverture avec l’application par défaut.",
+        "openWith": "Ouvrir avec",
+        "openWithSystemDefault": "Ouvrir avec l’application par défaut",
         "revealInFolder": "Ouvrir dans le gestionnaire de fichiers"
       },
       "empty": "Aucun fichier pour l'instant",
@@ -301,10 +334,19 @@
   "compaction": {
     "compacting": "Compactage du contexte...",
     "compacted": "Le contexte a été compacté",
+    "compactedWithoutSummary": "Le contexte a été compacté sans résumé",
+    "compactedWithoutLargerSummary": "Le contexte a été compacté sans utiliser un résumé plus volumineux",
     "commandDescription": "Compacter le contexte de conversation",
     "noopTitle": "Aucun contexte à compacter",
     "noopDescription": "Il n'y a pas encore de nouvel historique de conversation à compacter.",
     "failedTitle": "Échec de la compaction"
+  },
+  "contextOccupancy": {
+    "label": "Utilisation du contexte",
+    "details": "{used} sur {capacity} jetons",
+    "provider": "Mesuré par le fournisseur",
+    "estimated": "Estimé depuis la vue de requête",
+    "stale": "Obsolète après un changement de modèle, de fenêtre ou de compactage"
   },
   "newThread": {
     "title": "Créer et explorer"
@@ -348,7 +390,13 @@
     "moveProjectGroupBottom": "Déplacer tout en bas",
     "searchCommand": "Search",
     "chatSection": "Chat",
-    "workspace": "Workspace"
+    "workspace": "Workspace",
+    "addWorkspace": "Ajouter un espace de travail",
+    "manageWorkspaces": "Gérer les espaces de travail",
+    "openWorkspaceFolder": "Ouvrir le dossier",
+    "emptyWorkspace": "Vide",
+    "addWorkspaceFailed": "Échec de l’ajout de l’espace de travail",
+    "searchLoadedRangeDescription": "Affichage des résultats des conversations chargées. Faites défiler pour charger plus d’historique."
   },
   "floatingWidget": {
     "title": "Aperçu des tâches",
@@ -400,6 +448,72 @@
     "firstChat": {
       "description": "Tout est prêt. Saisissez ici votre premier message pour terminer l’onboarding.",
       "caption": "Le projecteur reste sur la zone de saisie jusqu’à l’envoi de votre premier message."
+    }
+  },
+  "messageReceipt": {
+    "unread": "Non lu",
+    "read": "Lu"
+  },
+  "attachments": {
+    "chooseRepresentation": "Choisir comment envoyer {name}",
+    "representation": "Représentation de la pièce jointe",
+    "auto": "Automatique",
+    "sendImage": "Envoyer l’image",
+    "useOcrText": "Utiliser le texte OCR",
+    "useEmbeddedText": "Utiliser le texte intégré",
+    "preparing": "Traitement des pièces jointes…",
+    "actionRequiredTitle": "Une pièce jointe nécessite votre attention",
+    "actionRequiredDescription": "Une ou plusieurs pièces jointes ne peuvent pas être utilisées. Choisissez comment continuer.",
+    "attachmentNumber": "Pièce jointe {number}",
+    "moreIssues": "{count} autres problèmes de pièce jointe",
+    "genericUnavailable": "Aucun contenu de pièce jointe exploitable n’est disponible.",
+    "keepDraft": "Conserver le brouillon",
+    "switchVisionModel": "Passer à un modèle doté de capacités visuelles",
+    "retry": "Réessayer",
+    "sendWithoutImageContent": "Ignorer le contenu joint",
+    "inspectOcrText": "Afficher le texte OCR",
+    "ocrBadge": "OCR",
+    "embeddedTextBadge": "Texte",
+    "ocrPartialBadge": "OCR · Partiel",
+    "ocrLimitedBadge": "OCR · Limité",
+    "imageBadge": "Image jointe",
+    "unavailableBadge": "Indisponible",
+    "ocrPreviewTitle": "Texte OCR — {name}",
+    "ocrPreviewDescription": "Environ {tokens} jetons ont été envoyés comme contenu de pièce jointe non fiable.",
+    "ocrPageCoverage": "Inclut le texte jusqu’à la page {page}.",
+    "ocrPageCoveragePartial": "Inclut une partie de la page {page}.",
+    "ocrTextTruncated": "Ce texte OCR a été tronqué avant son envoi.",
+    "reasons": {
+      "automatic_ocr_disabled": "La reconnaissance OCR automatique est désactivée.",
+      "document_limit_exceeded": "Un seul PDF peut utiliser l’OCR par requête.",
+      "document_too_large": "Le PDF dépasse la taille de fichier autorisée.",
+      "image_dimensions_exceeded": "Les dimensions de l’image décodée dépassent la limite de sécurité.",
+      "image_limit_exceeded": "Ce tour contient plus d’images que le moteur OCR ne peut en traiter.",
+      "image_payload_unavailable": "Les données de l’image d’origine ne sont plus disponibles.",
+      "image_too_large": "L’image dépasse la limite de taille par fichier.",
+      "ocr_cancelled": "La reconnaissance OCR a été annulée.",
+      "ocr_empty": "La reconnaissance OCR n’a trouvé aucun texte exploitable.",
+      "ocr_failed": "La reconnaissance OCR n’a pas pu traiter cette pièce jointe.",
+      "ocr_queue_full": "Le moteur OCR est occupé. Réessayez une fois la pièce jointe actuelle traitée.",
+      "ocr_resource_limited": "L’OCR s’est arrêté à la limite de traitement du PDF.",
+      "ocr_runtime_unavailable": "La reconnaissance OCR n’est pas disponible sur cette plateforme ou cette installation.",
+      "invalid_attachment_snapshot": "Les données OCR enregistrées sont invalides.",
+      "turn_ocr_budget_exhausted": "Le texte OCR dépasse la limite de texte joint de ce message.",
+      "pdf_text_unavailable": "Aucun texte intégré n’est disponible dans ce PDF.",
+      "requested_image_requires_vision": "« Envoyer l’image » nécessite un modèle doté de capacités visuelles.",
+      "turn_image_bytes_exceeded": "Les images de ce tour dépassent la limite de taille totale.",
+      "user_skipped_attachment_content": "Le contenu joint a été omis à votre demande.",
+      "user_skipped_image_content": "Le contenu de l’image a été omis à votre demande.",
+      "unsupported_image_format": "Ce format d’image n’est pas pris en charge par le moteur OCR."
+    },
+    "pending": {
+      "blockedCount": "{count} bloqués",
+      "blocked": "Bloqué",
+      "retry": "Réessayer la reconnaissance OCR",
+      "sendWithoutImageContent": "Ignorer le contenu joint",
+      "blockedDescription": "Cet élément attend une décision concernant la pièce jointe.",
+      "blockedReasonMore": "{reason} Il reste également {count} autres problèmes.",
+      "resolveFailed": "Impossible de résoudre le message bloqué"
     }
   },
   "skillDraft": {
@@ -459,6 +573,14 @@
       "dropped": "Écartées",
       "tokens": "Tokens",
       "budget": "Budget",
+      "allocation": "Répartition du budget de contribution",
+      "directive": "Directive",
+      "persona": "Persona",
+      "working": "Mémoire de travail",
+      "queryRecall": "Rappel par requête",
+      "overhead": "Surcharge",
+      "unused": "Inutilisé",
+      "overheadSummary": "Surcharge {overhead} · Inutilisé {unused}",
       "countOnly": "Cet enregistrement ne contient qu’un résumé chiffré.",
       "unavailable": "Cette mémoire n’est plus disponible.",
       "noSelectedDetails": "Aucun détail de mémoire à afficher pour ce tour.",
@@ -485,5 +607,29 @@
       "amendRetryable": "La modification a échoué. Le souvenir initial a été restauré ; réessayez.",
       "amendRestoreFailed": "La modification a échoué et le souvenir initial n’a pas pu être restauré."
     }
+  },
+  "orchestration": {
+    "actions": {
+      "openChild": "Ouvrir l’Agent enfant"
+    },
+    "activityTitle": "Activité des Agents",
+    "proactive": {
+      "title": "Collaboration proactive",
+      "description": "Permet à l’Agent parent de déléguer lorsque le travail indépendant ou parallèle apporte un bénéfice clair. Peut utiliser plus de temps, de tokens et de ressources.",
+      "reasons": {
+        "session_unavailable": "Cette session n’est plus disponible.",
+        "agent_unavailable": "L’Agent sélectionné n’est pas disponible.",
+        "deepchat_agent_required": "La collaboration proactive nécessite un DeepChat Agent.",
+        "regular_parent_required": "La collaboration proactive n’est pas disponible dans une session enfant.",
+        "agent_policy_unavailable": "La politique de collaboration n’a pas pu être chargée.",
+        "subagents_disabled": "Activez les Subagents pour cet Agent afin d’utiliser la collaboration proactive."
+      }
+    }
+  },
+  "guardStop": {
+    "maxToolCalls": "La limite d'appels d'outils a été atteinte avant la fin de la tâche.",
+    "noProgress": "Des résultats d'outils identiques répétés n'ont donné aucun progrès, l'Agent s'est donc arrêté.",
+    "maxTurns": "La limite de tours du fournisseur a été atteinte avant la fin de la tâche.",
+    "continueMessage": "Continuez là où vous vous êtes arrêté."
   }
 }

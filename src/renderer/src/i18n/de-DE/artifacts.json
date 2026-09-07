@@ -30,6 +30,7 @@
   "htmlPreviewTitle": "HTML-Vorschau",
   "svgPreviewTitle": "SVG-Vorschau",
   "copy": "Kopieren",
+  "generating": "Artifact wird generiert...",
   "copyAsImage": "Als Bild kopieren",
   "copyImageSuccessDesc": "Bild wurde in die Zwischenablage kopiert",
   "copyImageFailedDesc": "Bild konnte nicht in die Zwischenablage kopiert werden",

@@ -83,8 +83,8 @@
 
         <!-- 进度指示器 -->
         <div v-if="isChecking" class="flex items-center justify-center py-6">
-          <div class="flex items-center">
-            <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mr-3"></div>
+          <div class="flex items-center gap-3">
+            <Spinner class="size-6 text-primary" />
             <span class="text-muted-foreground">{{
               t('settings.provider.dialog.modelCheck.checking')
             }}</span>
@@ -93,33 +93,30 @@
       </div>
 
       <DialogFooter class="shrink-0">
-        <Button type="button" variant="outline" @click="closeDialog">
+        <DcButton type="button" variant="outline" @click="closeDialog">
           {{ result ? t('dialog.close') : t('dialog.cancel') }}
-        </Button>
-        <Button
+        </DcButton>
+        <DcButton
           data-testid="model-check-submit"
           v-if="!result && hasModels"
           type="button"
           :disabled="!selectedModelId || isChecking"
           @click="handleCheck"
         >
-          <div
-            v-if="isChecking"
-            class="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"
-          ></div>
+          <Spinner v-if="isChecking" data-icon="inline-start" />
           {{
             isChecking
               ? t('settings.provider.dialog.modelCheck.checking')
               : t('settings.provider.dialog.modelCheck.test')
           }}
-        </Button>
+        </DcButton>
       </DialogFooter>
     </DialogContent>
   </Dialog>
 </template>
 
 <script setup lang="ts">
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
 import {
   Dialog,
   DialogContent,
@@ -136,6 +133,7 @@ import {
   SelectTrigger,
   SelectValue
 } from '@shadcn/components/ui/select'
+import { Spinner } from '@shadcn/components/ui/spinner'
 import { Icon } from '@iconify/vue'
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'

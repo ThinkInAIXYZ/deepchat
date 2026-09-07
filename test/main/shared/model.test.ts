@@ -3,7 +3,6 @@ import {
   ModelType,
   resolveNewApiEndpointTypeFromRoute,
   resolveNewApiSelectableEndpointTypes,
-  resolveProviderCapabilityProviderId,
   shouldUseAnthropicClaudeRouteFromSupportedEndpoints
 } from '@shared/model'
 
@@ -153,55 +152,6 @@ describe('new-api route helpers', () => {
         'claude-image'
       )
     ).toBe('image-generation')
-  })
-
-  it('maps capability provider ids from route metadata for new-api-like forks', () => {
-    expect(
-      resolveProviderCapabilityProviderId(
-        'fork-api',
-        {
-          supportedEndpointTypes: ['openai-response', 'anthropic'],
-          type: ModelType.Chat
-        },
-        'claude-opus-4-7'
-      )
-    ).toBe('anthropic')
-  })
-
-  it('maps zenmux anthropic-prefixed models to anthropic capability semantics', () => {
-    expect(resolveProviderCapabilityProviderId('zenmux', null, 'anthropic/claude-opus-4-7')).toBe(
-      'anthropic'
-    )
-  })
-
-  it('keeps transport-compatible anthropic relays on provider-local capability semantics', () => {
-    expect(
-      resolveProviderCapabilityProviderId(
-        'my-anthropic-proxy',
-        {
-          providerApiType: 'anthropic'
-        },
-        'claude-opus-4-7'
-      )
-    ).toBe('my-anthropic-proxy')
-  })
-
-  it('keeps minimax on provider-local capability semantics without explicit anthropic routing', () => {
-    expect(
-      resolveProviderCapabilityProviderId(
-        'minimax',
-        {
-          providerApiType: 'anthropic'
-        },
-        'MiniMax-M2.5'
-      )
-    ).toBe('minimax')
-  })
-
-  it('keeps openai transport claude carriers on their original provider id', () => {
-    expect(
-      resolveProviderCapabilityProviderId('openrouter', null, 'anthropic/claude-opus-4-7')
-    ).toBe('openrouter')
   })
 
   it('adds every chat endpoint for chat selectable endpoint debugging', () => {

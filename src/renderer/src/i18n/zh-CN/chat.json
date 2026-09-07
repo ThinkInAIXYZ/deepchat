@@ -63,12 +63,99 @@
         "yobrowser": "YoBrowser"
       }
     },
+    "toolMode": {
+      "title": "模式",
+      "modelDefault": "模型默认",
+      "options": {
+        "agent": "Agent",
+        "code": "Code",
+        "minimal": "Minimal"
+      },
+      "descriptions": {
+        "agent": "使用标准 Agent 工具集。",
+        "code": "通过代码编排当前启用的工具，需要完全访问权限模式。",
+        "minimal": "精简文件操作，同时保留其他已启用工具。"
+      },
+      "useModelDefault": "使用模型默认",
+      "saving": "正在保存模式...",
+      "locked": "本次回复结束后可切换模式。",
+      "updateFailed": "无法更新工具模式。",
+      "codeEntry": "代码入口",
+      "codeCallable": "Code 可调用",
+      "minimalTools": "编码工具"
+    },
     "fileUploadFailed": "附件处理失败",
     "fileUploadFailedDesc": "无法处理 {count} 个文件：{names}",
     "fileUploadFailedMore": " 等 {count} 个",
     "unnamedFile": "未命名文件",
     "audioInputUnsupportedTitle": "当前模型不支持音频附件",
     "audioInputUnsupportedDescription": "模型 {model} 不支持音频输入，已忽略 {count} 个音频附件。"
+  },
+  "messageReceipt": {
+    "unread": "未读",
+    "read": "已读"
+  },
+  "attachments": {
+    "chooseRepresentation": "选择如何发送 {name}",
+    "representation": "附件表示方式",
+    "auto": "自动",
+    "sendImage": "发送图片",
+    "useOcrText": "使用 OCR 文本",
+    "useEmbeddedText": "使用 PDF 原文",
+    "preparing": "正在处理附件…",
+    "actionRequiredTitle": "附件需要处理",
+    "actionRequiredDescription": "一个或多个附件无法使用，请选择如何继续。",
+    "attachmentNumber": "附件 {number}",
+    "moreIssues": "另有 {count} 个附件问题",
+    "genericUnavailable": "没有可用的附件内容。",
+    "keepDraft": "保留草稿",
+    "switchVisionModel": "切换视觉模型",
+    "retry": "重试",
+    "sendWithoutImageContent": "忽略附件内容",
+    "inspectOcrText": "查看 OCR 文本",
+    "ocrBadge": "OCR",
+    "embeddedTextBadge": "原文",
+    "ocrPartialBadge": "OCR · 部分",
+    "ocrLimitedBadge": "OCR · 受限",
+    "imageBadge": "图片",
+    "unavailableBadge": "不可用",
+    "ocrPreviewTitle": "OCR 文本 — {name}",
+    "ocrPreviewDescription": "约 {tokens} 个 token，已作为不可信附件内容发送。",
+    "ocrPageCoverage": "文本包含至第 {page} 页。",
+    "ocrPageCoveragePartial": "文本包含至第 {page} 页的一部分。",
+    "ocrTextTruncated": "这段 OCR 文本在发送前已被截断。",
+    "reasons": {
+      "automatic_ocr_disabled": "自动 OCR 已关闭。",
+      "document_limit_exceeded": "每次请求仅支持对一个 PDF 执行 OCR。",
+      "document_too_large": "PDF 超过文件大小限制。",
+      "image_dimensions_exceeded": "图片解码后的尺寸超过安全限制。",
+      "image_limit_exceeded": "本轮图片数量超过 OCR 处理上限。",
+      "image_payload_unavailable": "原始图片数据已不可用。",
+      "image_too_large": "图片超过单文件大小限制。",
+      "ocr_cancelled": "OCR 已取消。",
+      "ocr_empty": "OCR 未识别到可用文字。",
+      "ocr_failed": "OCR 无法处理此附件。",
+      "ocr_queue_full": "OCR 正忙，请等待当前附件处理完成后重试。",
+      "ocr_resource_limited": "OCR 已在 PDF 处理资源上限处停止。",
+      "ocr_runtime_unavailable": "当前平台或安装环境不支持 OCR。",
+      "invalid_attachment_snapshot": "已保存的 OCR 数据无效。",
+      "turn_ocr_budget_exhausted": "OCR 文本超出本条消息的附件文本额度。",
+      "pdf_text_unavailable": "此 PDF 没有可用的内嵌文字。",
+      "requested_image_requires_vision": "“发送图片”需要支持视觉能力的模型。",
+      "turn_image_bytes_exceeded": "本轮图片总大小超过限制。",
+      "user_skipped_attachment_content": "已按你的选择省略附件内容。",
+      "user_skipped_image_content": "已按你的选择省略图片内容。",
+      "unsupported_image_format": "OCR 不支持此图片格式。"
+    },
+    "pending": {
+      "blockedCount": "{count} 条受阻",
+      "blocked": "受阻",
+      "retry": "重试 OCR",
+      "sendWithoutImageContent": "忽略附件内容",
+      "blockedDescription": "此项正在等待附件处理选择。",
+      "blockedReasonMore": "{reason} 另有 {count} 个问题。",
+      "resolveFailed": "无法处理受阻消息"
+    }
   },
   "skillDraft": {
     "confirmationTitle": "技能草稿",
@@ -101,7 +188,13 @@
     "limitReached": "等待区已满（最多 {max} 条）。",
     "remove": "删除",
     "steerUnavailable": "当前无法打断",
-    "steerFailed": "打断失败"
+    "steerFailed": "打断失败",
+    "resume": "继续队列",
+    "resumeFailed": "无法继续队列",
+    "retry": "重试",
+    "retryRequired": "需要重试",
+    "retryRequiredDescription": "此消息未能发送，请重试以继续队列。",
+    "retryFailed": "无法重试队列消息"
   },
   "features": {
     "webSearch": "联网搜索",
@@ -135,10 +228,19 @@
   "compaction": {
     "compacting": "正在压缩上下文...",
     "compacted": "上下文已压缩",
+    "compactedWithoutSummary": "上下文已压缩，但未生成摘要",
+    "compactedWithoutLargerSummary": "上下文已压缩，未采用体积更大的摘要",
     "commandDescription": "压缩会话上下文",
     "noopTitle": "没有可压缩的上下文",
     "noopDescription": "当前还没有新的对话历史需要压缩。",
     "failedTitle": "压缩失败"
+  },
+  "contextOccupancy": {
+    "label": "上下文占用",
+    "details": "已用 {used} / {capacity} tokens",
+    "provider": "Provider 实测",
+    "estimated": "根据请求视图估算",
+    "stale": "模型、窗口或压缩边界变更后的旧数据"
   },
   "rateLimit": {
     "queueTooltip": "队列中有 {count} 个请求，间隔 {interval} 秒",
@@ -180,7 +282,8 @@
   "mode": {
     "current": "当前模式：{mode}",
     "agent": "Agent",
-    "acpAgent": "ACP Agent"
+    "acpAgent": "ACP Agent",
+    "saveFailed": "无法保存模式选择"
   },
   "topbar": {
     "backToParent": "返回父会话",
@@ -197,7 +300,6 @@
     "systemPrompt": "系统提示词",
     "systemPromptPlaceholder": "选择预设",
     "temperature": "温度",
-    "temperatureFixedMoonshotKimi": "Moonshot Kimi K2.5/K2.6 在开启思考时固定为 {enabled}，关闭思考时固定为 {disabled}。",
     "topP": "Top P（核采样）",
     "topPDescription": "留空使用服务商默认值",
     "contextLength": "上下文长度",
@@ -279,8 +381,14 @@
       },
       "contextMenu": {
         "openFile": "打开文件",
+        "openWith": "打开方式",
+        "openInApp": "在 {app} 中打开",
+        "openInTerminalApp": "在 {app} 中打开所在目录",
+        "openFailed": "无法用该应用打开此文件",
+        "preferredAppUnavailable": "首选应用暂时不可用，本次改用系统默认方式打开。",
         "revealInFolder": "在文件管理器中打开",
-        "insertPath": "插入到输入框"
+        "insertPath": "插入到输入框",
+        "openWithSystemDefault": "用系统默认方式打开"
       },
       "watchStatus": {
         "degraded": "正在使用降级监听模式，文件变化刷新会变慢。",
@@ -360,6 +468,11 @@
     "searchCommand": "搜索",
     "chatSection": "Chat",
     "workspace": "工作区",
+    "addWorkspace": "添加工作区",
+    "manageWorkspaces": "管理工作区",
+    "openWorkspaceFolder": "打开文件夹",
+    "emptyWorkspace": "空",
+    "addWorkspaceFailed": "添加工作区失败",
     "remoteControlDisabled": "未启用",
     "remoteControlStatus": {
       "disabled": "远程控制已禁用",
@@ -383,7 +496,8 @@
     "searchPlaceholder": "搜索会话标题",
     "searchAriaLabel": "搜索会话标题",
     "searchEmptyTitle": "没有找到匹配的会话",
-    "searchEmptyDescription": "试试换一个标题关键词"
+    "searchEmptyDescription": "试试换一个标题关键词",
+    "searchLoadedRangeDescription": "正在显示已加载会话中的匹配项。向下滚动以加载更多历史记录。"
   },
   "spotlight": {
     "placeholder": "搜索会话、Agent、设置与动作…",
@@ -459,6 +573,14 @@
       "dropped": "丢弃",
       "tokens": "Token",
       "budget": "预算",
+      "allocation": "贡献预算分配",
+      "directive": "指令",
+      "persona": "人格",
+      "working": "工作投影",
+      "queryRecall": "查询召回",
+      "overhead": "结构开销",
+      "unused": "未使用",
+      "overheadSummary": "结构开销 {overhead} · 未使用 {unused}",
       "countOnly": "这条记录只包含计数摘要。",
       "unavailable": "这条记忆已不可用。",
       "noSelectedDetails": "本轮没有可展示的记忆明细。",
@@ -485,5 +607,27 @@
       "amendRetryable": "修改失败，原记忆已恢复。请保留输入后重试。",
       "amendRestoreFailed": "修改失败，且原记忆未能恢复。请手动重新记住这段内容。"
     }
+  },
+  "orchestration": {
+    "actions": { "openChild": "打开子会话" },
+    "activityTitle": "Agent 活动",
+    "proactive": {
+      "title": "主动协作",
+      "description": "允许主 Agent 在独立或并行工作明显有帮助时主动委派；可能消耗更多时间、Token 和系统资源。",
+      "reasons": {
+        "session_unavailable": "当前会话已不可用。",
+        "agent_unavailable": "当前选择的 Agent 不可用。",
+        "deepchat_agent_required": "主动协作需要使用 DeepChat Agent。",
+        "regular_parent_required": "子会话中不能启用主动协作。",
+        "agent_policy_unavailable": "无法加载协作策略。",
+        "subagents_disabled": "请先为此 Agent 启用 Subagent，再使用主动协作。"
+      }
+    }
+  },
+  "guardStop": {
+    "maxToolCalls": "工具调用次数已达上限，任务尚未完成。",
+    "noProgress": "连续相同的工具结果没有进展，已停止。",
+    "maxTurns": "已达到本轮对话上限，任务尚未完成。",
+    "continueMessage": "请从刚才停下的地方继续。"
   }
 }

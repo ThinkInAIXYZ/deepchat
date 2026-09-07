@@ -20,12 +20,12 @@ import {
   type AgentMemoryAuditStatus as SharedAuditStatus,
   isSafeAgentId as isSharedSafeAgentId
 } from '@shared/types/agent-memory'
-import { isSafeAgentId as isPresenterSafeAgentId } from '@/presenter/memoryPresenter'
+import { isSafeAgentId as isPresenterSafeAgentId } from '@/memory'
 import type {
   AgentMemoryAuditActorType as DomainAuditActorType,
   AgentMemoryAuditStatus as DomainAuditStatus
-} from '@/presenter/memoryPresenter/domain/audit'
-import type { MemoryUpdateReason as PresenterMemoryUpdateReason } from '@/presenter/memoryPresenter/types'
+} from '@/memory/domain/audit'
+import type { MemoryUpdateReason as PresenterMemoryUpdateReason } from '@/memory/types'
 
 type Equal<Left, Right> =
   (<Value>() => Value extends Left ? 1 : 2) extends <Value>() => Value extends Right ? 1 : 2

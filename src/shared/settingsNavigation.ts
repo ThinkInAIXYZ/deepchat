@@ -7,19 +7,21 @@ export interface SettingsNavigationItem {
     | 'settings-provider'
     | 'settings-dashboard'
     | 'settings-mcp'
+    | 'settings-ocr'
+    | 'settings-toolchains'
     | 'settings-deepchat-agents'
     | 'settings-acp'
     | 'settings-remote'
     | 'settings-notifications-hooks'
     | 'settings-scheduled-tasks'
     | 'settings-plugins'
-    | 'settings-skills'
     | 'settings-prompt'
     | 'settings-memory'
     | 'settings-knowledge-base'
     | 'settings-database'
     | 'settings-shortcut'
     | 'settings-about'
+    | 'settings-debug'
   path: string
   titleKey: string
   icon: string
@@ -29,6 +31,7 @@ export interface SettingsNavigationItem {
   supportedPlatforms?: string[]
   supportedTargets?: string[]
   hiddenInSidebar?: boolean
+  developmentOnly?: boolean
 }
 
 export type SettingsNavigationGroupKey =
@@ -119,7 +122,7 @@ export const SETTINGS_NAVIGATION_ITEMS: SettingsNavigationItem[] = [
     titleKey: 'routes.settings-environments',
     icon: 'lucide:folders',
     position: 3.25,
-    groupKey: 'models',
+    groupKey: 'setup',
     keywords: ['environment', 'workspace', 'folder', 'project', '环境', '工作区', '目录']
   },
   {
@@ -168,6 +171,25 @@ export const SETTINGS_NAVIGATION_ITEMS: SettingsNavigationItem[] = [
     groupKey: 'tools',
     keywords: ['mcp', 'tools', 'server', 'model context protocol', '工具', '服务'],
     hiddenInSidebar: true
+  },
+  {
+    routeName: 'settings-ocr',
+    path: '/ocr',
+    titleKey: 'routes.settings-ocr',
+    icon: 'lucide:scan-text',
+    position: 5.1,
+    groupKey: 'tools',
+    keywords: ['ocr', 'image text', 'file processing', '文字识别', '图片文字', '文件处理'],
+    hiddenInSidebar: true
+  },
+  {
+    routeName: 'settings-toolchains',
+    path: '/toolchains',
+    titleKey: 'routes.settings-toolchains',
+    icon: 'lucide:hammer',
+    position: 5.15,
+    groupKey: 'tools',
+    keywords: ['toolchain', 'node', 'uv', 'runtime', 'npx', 'uvx', '运行时', '工具链']
   },
   {
     routeName: 'settings-remote',
@@ -219,16 +241,6 @@ export const SETTINGS_NAVIGATION_ITEMS: SettingsNavigationItem[] = [
     groupKey: 'tools',
     keywords: ['plugin', 'plugins', 'extension', 'runtime', '插件', '扩展', '运行时'],
     supportedTargets: ['darwin/arm64', 'darwin/x64', 'win32/x64', 'win32/arm64', 'linux/x64'],
-    hiddenInSidebar: true
-  },
-  {
-    routeName: 'settings-skills',
-    path: '/skills',
-    titleKey: 'routes.settings-skills',
-    icon: 'lucide:wand-sparkles',
-    position: 6,
-    groupKey: 'knowledge',
-    keywords: ['skill', 'skills', '技能'],
     hiddenInSidebar: true
   },
   {
@@ -284,6 +296,16 @@ export const SETTINGS_NAVIGATION_ITEMS: SettingsNavigationItem[] = [
     position: 11,
     groupKey: 'system',
     keywords: ['about', 'version', 'info', '关于', '版本']
+  },
+  {
+    routeName: 'settings-debug',
+    path: '/debug',
+    titleKey: 'routes.settings-debug',
+    icon: 'lucide:bug',
+    position: 12,
+    groupKey: 'system',
+    developmentOnly: true,
+    keywords: ['debug', 'mock', 'development', '调试', '模拟']
   }
 ]
 
@@ -333,22 +355,32 @@ export const isSettingsNavigationItemSupported = (
   )
 }
 
-export const getSettingsRouteItems = (platform?: string, arch?: string): SettingsNavigationItem[] =>
-  SETTINGS_NAVIGATION_ITEMS.filter((item) =>
-    isSettingsNavigationItemSupported(item, platform, arch)
+export const getSettingsRouteItems = (
+  platform?: string,
+  arch?: string,
+  includeDevelopmentItems = false
+): SettingsNavigationItem[] =>
+  SETTINGS_NAVIGATION_ITEMS.filter(
+    (item) =>
+      isSettingsNavigationItemSupported(item, platform, arch) &&
+      (includeDevelopmentItems || !item.developmentOnly)
   )
 
 export const getSettingsNavigationItems = (
   platform?: string,
-  arch?: string
+  arch?: string,
+  includeDevelopmentItems = false
 ): SettingsNavigationItem[] =>
-  getSettingsRouteItems(platform, arch).filter((item) => !item.hiddenInSidebar)
+  getSettingsRouteItems(platform, arch, includeDevelopmentItems).filter(
+    (item) => !item.hiddenInSidebar
+  )
 
 export const getSettingsNavigationGroups = (
   platform?: string,
-  arch?: string
+  arch?: string,
+  includeDevelopmentItems = false
 ): SettingsNavigationGroup[] => {
-  const items = getSettingsNavigationItems(platform, arch)
+  const items = getSettingsNavigationItems(platform, arch, includeDevelopmentItems)
 
   return SETTINGS_NAVIGATION_GROUPS.map((group) => ({
     ...group,
@@ -362,9 +394,10 @@ export const resolveSettingsNavigationPath = (
   routeName: SettingsNavigationItem['routeName'],
   params?: Record<string, string>,
   platform?: string,
-  arch?: string
+  arch?: string,
+  includeDevelopmentItems = false
 ): string => {
-  const item = getSettingsRouteItems(platform, arch).find(
+  const item = getSettingsRouteItems(platform, arch, includeDevelopmentItems).find(
     (navigationItem) => navigationItem.routeName === routeName
   )
   if (!item) {

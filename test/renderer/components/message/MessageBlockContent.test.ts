@@ -2,7 +2,7 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { defineComponent } from 'vue'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import MessageBlockContent from '@/components/message/MessageBlockContent.vue'
-import type { DisplayAssistantMessageBlock } from '@/components/chat/messageListItems'
+import type { DisplayAssistantMessageBlock } from '@/features/chat-page/model/displayMessage'
 import type { MarkdownLinkContext } from '@/components/markdown/linkTypes'
 
 const { syncArtifactMock, completeArtifactMock } = vi.hoisted(() => ({
@@ -83,10 +83,14 @@ vi.mock('@/components/markdown/MarkdownRenderer.vue', () => ({
       linkContext: {
         type: Object as () => MarkdownLinkContext | undefined,
         default: undefined
+      },
+      hiddenImageSources: {
+        type: Array,
+        default: undefined
       }
     },
     template:
-      '<div class="markdown-stub" :data-mode="mode" :data-message-id="messageId" :data-thread-id="threadId" :data-link-source="linkContext?.source" :data-link-session-id="linkContext?.sessionId" :data-smooth-streaming="String(smoothStreaming)" :data-streaming="String(streaming)" :data-final="String(final)" :data-virtualize-nodes="String(virtualizeNodes)">{{ content }}</div>'
+      '<div class="markdown-stub" :data-mode="mode" :data-message-id="messageId" :data-thread-id="threadId" :data-link-source="linkContext?.source" :data-link-session-id="linkContext?.sessionId" :data-smooth-streaming="String(smoothStreaming)" :data-streaming="String(streaming)" :data-final="String(final)" :data-virtualize-nodes="String(virtualizeNodes)" :data-hidden-image-sources="hiddenImageSources?.join(\',\')">{{ content }}</div>'
   })
 }))
 
@@ -190,6 +194,23 @@ describe('MessageBlockContent', () => {
     expect(markdown.text()).toContain('plain markdown content')
   })
 
+  it('passes promoted local image sources to MarkdownRenderer', async () => {
+    const wrapper = mount(MessageBlockContent, {
+      props: {
+        block: createBlock({ content: '![image](imgcache://generated.png)' }),
+        messageId: 'm-image',
+        threadId: 's-image',
+        hiddenMarkdownImageSources: ['imgcache://generated.png']
+      }
+    })
+
+    await flushPromises()
+
+    expect(wrapper.get('.markdown-stub').attributes('data-hidden-image-sources')).toBe(
+      'imgcache://generated.png'
+    )
+  })
+
   it('marks completed content blocks as final static markdown', async () => {
     const wrapper = mount(MessageBlockContent, {
       props: {
@@ -231,9 +252,44 @@ describe('MessageBlockContent', () => {
       expect(markdown.attributes('data-smooth-streaming')).toBe('true')
       expect(markdown.attributes('data-streaming')).toBe('true')
       expect(markdown.attributes('data-final')).toBe('false')
-      expect(markdown.attributes('data-virtualize-nodes')).toBe('false')
+      // MarkdownRenderer disables its node window while live, but keeps this capability
+      // enabled so Markstream can still defer heavy offscreen nodes.
+      expect(markdown.attributes('data-virtualize-nodes')).toBe('true')
     }
   )
+
+  it('hands a streaming text part to final state without replacing its renderer node', async () => {
+    const wrapper = mount(MessageBlockContent, {
+      props: {
+        block: createBlock({
+          status: 'loading',
+          content: 'streaming markdown content'
+        }),
+        messageId: 'm-stream',
+        threadId: 's-stream'
+      }
+    })
+
+    await flushPromises()
+
+    const liveNode = wrapper.get('.markdown-stub').element
+    expect(wrapper.get('.markdown-stub').attributes('data-final')).toBe('false')
+
+    await wrapper.setProps({
+      block: createBlock({
+        status: 'success',
+        content: 'final markdown content'
+      })
+    })
+    await flushPromises()
+
+    const finalMarkdown = wrapper.get('.markdown-stub')
+    expect(finalMarkdown.element).toBe(liveNode)
+    expect(finalMarkdown.attributes('data-streaming')).toBe('false')
+    expect(finalMarkdown.attributes('data-final')).toBe('true')
+    expect(finalMarkdown.attributes('data-virtualize-nodes')).toBe('true')
+    expect(finalMarkdown.text()).toContain('final markdown content')
+  })
 
   it('keeps all nodes mounted for searchable result messages', async () => {
     const wrapper = mount(MessageBlockContent, {

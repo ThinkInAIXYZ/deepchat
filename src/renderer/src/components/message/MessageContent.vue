@@ -12,7 +12,7 @@
         @click="handleMentionClick(block)"
       >
         <Icon :icon="getMentionIcon(block.category)" class="w-3 h-3 shrink-0" />
-        <span class="truncate">{{ getMentionLabel(block) }}</span>
+        <span class="truncate">{{ getVisibleMentionLabel(block) }}</span>
       </span>
 
       <!-- 代码块 -->
@@ -34,14 +34,13 @@
       </span>
 
       <!-- File chip -->
-      <span
+      <ChatAttachmentItem
         v-else-if="block.type === 'file'"
-        class="inline-flex items-center gap-1 rounded-md border border-muted-foreground/25 bg-muted/25 px-1.5 py-0.5 text-xs text-muted-foreground align-middle"
+        :file="getBlockFile(block)"
+        compact
         data-testid="user-message-inline-file"
-      >
-        <Icon :icon="getFileIcon(block)" class="h-3 w-3 shrink-0" />
-        <span class="truncate max-w-[120px]">{{ block.fileName }}</span>
-      </span>
+        @click="emit('fileClick', block.filePath)"
+      />
     </template>
   </div>
 </template>
@@ -55,9 +54,10 @@ import type {
   DisplayUserMessageMentionBlock,
   DisplayUserMessageSkillBlock,
   DisplayUserMessageTextBlock
-} from '@/components/chat/messageListItems'
+} from '@/features/chat-page/model/displayMessage'
+import { getVisibleMentionLabel } from '@/features/chat-page/model/displayUserMessageText'
 import { useLanguageStore } from '@/stores/language'
-import { getMimeTypeIcon } from '@/lib/utils'
+import ChatAttachmentItem from '@/components/chat/ChatAttachmentItem.vue'
 
 const MENTION_ICON_MAP: Record<string, string> = {
   context: 'lucide:quote',
@@ -86,6 +86,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   mentionClick: [block: DisplayUserMessageMentionBlock]
+  fileClick: [filePath: string]
 }>()
 const langStore = useLanguageStore()
 // 计算属性：处理内容块
@@ -103,16 +104,6 @@ const getMentionIcon = (category: string) => {
   return MENTION_ICON_MAP[category] || MENTION_ICON_MAP.default
 }
 
-const getMentionLabel = (block: DisplayUserMessageMentionBlock) => {
-  if (block.category === 'prompts') {
-    return block.id || block.content
-  }
-  if (block.category === 'context') {
-    return block.id || block.category
-  }
-  return block.content
-}
-
 const getMentionTitle = (block: DisplayUserMessageMentionBlock) => {
   if (block.category === 'context') {
     return block.id || ''
@@ -120,7 +111,13 @@ const getMentionTitle = (block: DisplayUserMessageMentionBlock) => {
   return block.content
 }
 
-const getFileIcon = (block: DisplayUserMessageFileBlock) => {
-  return getMimeTypeIcon(block.mimeType || 'application/octet-stream')
+const getBlockFile = (block: DisplayUserMessageFileBlock) => {
+  return (
+    block.file ?? {
+      name: block.fileName,
+      path: block.filePath,
+      mimeType: block.mimeType
+    }
+  )
 }
 </script>

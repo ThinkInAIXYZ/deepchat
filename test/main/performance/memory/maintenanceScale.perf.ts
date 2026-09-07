@@ -1,6 +1,6 @@
 import { expect } from 'vitest'
 
-import { AgentMemoryTable } from '@/presenter/sqlitePresenter/tables/agentMemory'
+import { AgentMemoryTable } from '@/memory/data/tables/agentMemory'
 
 import { describeIfNativeSqlite, requireDatabase } from '../../nativeSqliteHarness'
 
@@ -33,28 +33,42 @@ describeIfNativeSqlite('Agent Memory #28 maintenance scale', () => {
           )
         }
         insert.run('target', 'target', 1, 'embedded', 50_001, 'challenged', null)
-        insert.run('winner', 'winner', 1, 'conflicted', 50_002, null, 'target')
+        insert.run('winner', 'winner', 1, 'embedded', 50_002, null, null)
         for (let index = 0; index < 1_000; index += 1) {
           insert.run(`sibling-${index}`, 'sibling', 1, 'conflicted', 50_003 + index, null, 'target')
         }
       })()
+      db.exec(`
+        UPDATE agent_memory
+        SET lifecycle_state = CASE status
+          WHEN 'conflicted' THEN 'conflicted'
+          WHEN 'archived' THEN 'archived'
+          ELSE 'active'
+        END,
+        embedding_state = CASE status
+          WHEN 'embedded' THEN 'ready'
+          WHEN 'error' THEN 'error'
+          WHEN 'fts_only' THEN 'fts_only'
+          ELSE 'pending'
+        END;
+      `)
       db.exec('ANALYZE')
 
       const plan = db
         .prepare(
           `EXPLAIN QUERY PLAN
            SELECT *
-           FROM agent_memory INDEXED BY idx_agent_memory_cognitive_top_v2
+           FROM agent_memory INDEXED BY idx_agent_memory_cognitive_top_v3
            WHERE agent_id = 'maintenance'
              AND superseded_by IS NULL
-             AND status NOT IN ('archived', 'conflicted')
+             AND lifecycle_state = 'active'
              AND kind IN ('episodic', 'semantic', 'reflection')
              AND kind IN ('episodic', 'semantic')
            ORDER BY importance DESC, created_at DESC, id DESC
            LIMIT 20`
         )
         .all() as Array<{ detail: string }>
-      expect(plan.some((row) => row.detail.includes('idx_agent_memory_cognitive_top_v2'))).toBe(
+      expect(plan.some((row) => row.detail.includes('idx_agent_memory_cognitive_top_v3'))).toBe(
         true
       )
       expect(plan.some((row) => row.detail.includes('TEMP B-TREE FOR ORDER BY'))).toBe(false)

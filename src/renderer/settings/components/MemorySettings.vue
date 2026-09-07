@@ -14,9 +14,9 @@
       class="space-y-3 rounded-lg border border-destructive/40 py-10 text-center text-sm text-destructive"
     >
       <div>{{ loadError }}</div>
-      <Button variant="outline" size="sm" @click="() => reload()">
-        {{ t('common.reset') }}
-      </Button>
+      <DcButton variant="outline" size="sm" @click="() => reload()">
+        {{ t('settings.memory.redesign.refresh') }}
+      </DcButton>
     </div>
 
     <div
@@ -34,7 +34,11 @@
           <span class="text-[11px] font-medium text-muted-foreground sm:shrink-0">
             {{ t('settings.memory.agentPicker') }}
           </span>
-          <Select :model-value="selectedAgentId" @update:model-value="onSelect">
+          <Select
+            :model-value="selectedAgentId"
+            :disabled="configSaving"
+            @update:model-value="onSelect"
+          >
             <SelectTrigger
               class="h-8 w-full min-w-40 sm:w-48"
               data-testid="settings-memory-agent-picker"
@@ -76,80 +80,114 @@
           </span>
         </div>
 
-        <Button
+        <DcButton
           variant="ghost"
           size="sm"
           class="h-8 shrink-0 justify-center self-start sm:self-auto"
           data-testid="settings-memory-configure"
+          :disabled="configSaving"
           :aria-expanded="configOpen"
-          @click="configOpen = !configOpen"
+          @click="toggleConfig"
         >
           <Icon icon="lucide:settings-2" class="mr-1.5 h-3.5 w-3.5" />
           {{ configureActionLabel }}
-        </Button>
+        </DcButton>
       </div>
 
+      <MemoryInlineFeedback
+        v-if="pageFeedback"
+        :feedback="pageFeedback"
+        @clear="clearPageFeedback"
+      />
+
       <MemoryConfigInlinePanel
+        ref="configPanelRef"
         v-model:open="configOpen"
         :agent-id="selectedAgentId"
+        @pending-change="configSaving = $event"
         @saved="handleConfigSaved"
       />
 
-      <MemoryInboxBar
-        :agent-id="selectedAgentId"
-        :conflict-count="status?.conflictCount ?? 0"
-        :draft-count="status?.personaDraftCount ?? 0"
-        :refresh-token="refreshToken"
-      />
+      <div v-show="!configOpen" class="flex min-h-0 flex-1 flex-col gap-4">
+        <MemoryInboxBar
+          :agent-id="selectedAgentId"
+          :conflict-count="status?.conflictCount ?? 0"
+          :draft-count="status?.personaDraftCount ?? 0"
+          :directive-draft-count="status?.directiveDraftCount ?? 0"
+          :refresh-token="refreshToken"
+        />
 
-      <Tabs v-model="activeTab" class="flex min-h-0 w-full flex-1 flex-col">
-        <TabsList
-          class="grid w-full max-w-lg"
-          :class="personaTabVisible ? 'grid-cols-3' : 'grid-cols-2'"
+        <Tabs
+          :model-value="activeTab"
+          class="flex min-h-0 w-full flex-1 flex-col"
+          @update:model-value="onTabChange"
         >
-          <TabsTrigger value="memories">
-            {{ t('settings.memory.redesign.tabMemories') }}
-          </TabsTrigger>
-          <TabsTrigger v-if="personaTabVisible" value="persona">
-            {{ t('settings.memory.redesign.tabPersona') }}
-            <Badge
-              v-if="(status?.personaDraftCount ?? 0) > 0"
-              variant="secondary"
-              class="ml-1.5 text-[10px]"
-            >
-              {{ status?.personaDraftCount }}
-            </Badge>
-          </TabsTrigger>
-          <TabsTrigger value="diagnostics">
-            {{ t('settings.memory.redesign.tabDiagnostics') }}
-          </TabsTrigger>
-        </TabsList>
+          <TabsList
+            class="grid w-full max-w-2xl"
+            :class="personaTabVisible ? 'grid-cols-4' : 'grid-cols-3'"
+          >
+            <TabsTrigger value="memories">
+              {{ t('settings.memory.redesign.tabMemories') }}
+            </TabsTrigger>
+            <TabsTrigger v-if="personaTabVisible" value="persona">
+              {{ t('settings.memory.redesign.tabPersona') }}
+              <DcBadge
+                v-if="(status?.personaDraftCount ?? 0) > 0"
+                variant="secondary"
+                class="ml-1.5 text-[10px]"
+              >
+                {{ status?.personaDraftCount }}
+              </DcBadge>
+            </TabsTrigger>
+            <TabsTrigger value="directives">
+              {{ t('settings.memory.redesign.tabDirectives') }}
+              <DcBadge
+                v-if="(status?.directiveDraftCount ?? 0) > 0"
+                variant="secondary"
+                class="ml-1.5 text-[10px]"
+              >
+                {{ status?.directiveDraftCount }}
+              </DcBadge>
+            </TabsTrigger>
+            <TabsTrigger value="diagnostics">
+              {{ t('settings.memory.redesign.tabDiagnostics') }}
+            </TabsTrigger>
+          </TabsList>
 
-        <TabsContent value="memories" class="mt-4 min-h-0 flex-1">
-          <MemoryListView
-            :agent-id="selectedAgentId"
-            :memory-enabled="memoryEnabled"
-            :refresh-token="refreshToken"
-            @enable="configOpen = true"
-          />
-        </TabsContent>
+          <TabsContent value="memories" class="mt-4 min-h-0 flex-1">
+            <MemoryListView
+              :agent-id="selectedAgentId"
+              :memory-enabled="memoryEnabled"
+              :refresh-token="refreshToken"
+              @enable="openConfig"
+            />
+          </TabsContent>
 
-        <TabsContent v-if="personaTabVisible" value="persona" class="mt-4 min-h-0 flex-1">
-          <MemoryPersonaPanel
-            :agent-id="selectedAgentId"
-            :persona-evolution-enabled="personaEvolutionEnabled"
-            :refresh-token="refreshToken"
-          />
-        </TabsContent>
+          <TabsContent v-if="personaTabVisible" value="persona" class="mt-4 min-h-0 flex-1">
+            <MemoryPersonaPanel
+              :agent-id="selectedAgentId"
+              :persona-evolution-enabled="personaEvolutionEnabled"
+              :refresh-token="refreshToken"
+            />
+          </TabsContent>
 
-        <TabsContent value="diagnostics" class="mt-4 min-h-0 flex-1">
-          <MemoryDiagnosticsPanel
-            :agent-id="selectedAgentId"
-            :status="status"
-            :refresh-token="refreshToken"
-          />
-        </TabsContent>
-      </Tabs>
+          <TabsContent value="directives" class="mt-4 min-h-0 flex-1">
+            <MemoryDirectivesPanel
+              :agent-id="selectedAgentId"
+              :memory-enabled="memoryEnabled"
+              :refresh-token="refreshToken"
+            />
+          </TabsContent>
+
+          <TabsContent value="diagnostics" class="mt-4 min-h-0 flex-1">
+            <MemoryDiagnosticsPanel
+              :agent-id="selectedAgentId"
+              :status="status"
+              :refresh-token="refreshToken"
+            />
+          </TabsContent>
+        </Tabs>
+      </div>
     </div>
   </SettingsPageShell>
 </template>
@@ -159,8 +197,8 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { Icon } from '@iconify/vue'
-import { Button } from '@shadcn/components/ui/button'
-import { Badge } from '@shadcn/components/ui/badge'
+import { DcButton } from '@dc-ui/components/button'
+import { DcBadge } from '@dc-ui/components/badge'
 import {
   Select,
   SelectContent,
@@ -176,27 +214,37 @@ import type { Agent, DeepChatAgentConfig } from '@shared/types/agent-interface'
 import SettingsPageShell from './control-center/SettingsPageShell.vue'
 import MemoryConfigInlinePanel from './MemoryConfigInlinePanel.vue'
 import MemoryDiagnosticsPanel from './MemoryDiagnosticsPanel.vue'
+import MemoryDirectivesPanel from './MemoryDirectivesPanel.vue'
 import MemoryInboxBar from './MemoryInboxBar.vue'
+import MemoryInlineFeedback from './MemoryInlineFeedback.vue'
 import MemoryListView from './MemoryListView.vue'
 import MemoryPersonaPanel from './MemoryPersonaPanel.vue'
+import { useMemoryInlineFeedback } from '../lib/useMemoryInlineFeedback'
+import { settingsLeaveGuard } from '../services/settingsLeaveGuard'
 
 const BUILTIN_DEEPCHAT_AGENT_ID = 'deepchat'
+type MemoryTab = 'memories' | 'persona' | 'directives' | 'diagnostics'
 
 const { t } = useI18n()
 const route = useRoute()
 const router = useRouter()
 const configClient = createConfigClient()
 const memoryClient = createMemoryClient()
+const pageFeedbackController = useMemoryInlineFeedback('MemorySettings')
+const pageFeedback = pageFeedbackController.feedback
+const clearPageFeedback = pageFeedbackController.clear
 
 const loading = ref(true)
 const agents = ref<Agent[]>([])
 const selectedAgentId = ref('')
-const activeTab = ref<'memories' | 'persona' | 'diagnostics'>('memories')
+const activeTab = ref<MemoryTab>('memories')
 const resolvedSelected = ref<DeepChatAgentConfig | null>(null)
 const resolvedAgentId = ref('')
 const status = ref<MemoryStatusDto | null>(null)
 const loadError = ref<string | null>(null)
 const configOpen = ref(false)
+const configSaving = ref(false)
+const configPanelRef = ref<{ requestClose: () => Promise<void> } | null>(null)
 const refreshToken = ref(0)
 let statusRequestId = 0
 let disposeUpdated: (() => void) | null = null
@@ -295,10 +343,13 @@ async function loadResolved(): Promise<void> {
     if (selectedAgentId.value !== agentId) return
     resolvedSelected.value = config
     resolvedAgentId.value = agentId
-  } catch {
+  } catch (error) {
     if (selectedAgentId.value !== agentId) return
-    resolvedSelected.value = null
-    resolvedAgentId.value = agentId
+    if (resolvedAgentId.value !== agentId) {
+      resolvedSelected.value = null
+      resolvedAgentId.value = agentId
+    }
+    pageFeedbackController.fail(error)
   }
 }
 
@@ -313,22 +364,45 @@ async function loadStatus(): Promise<void> {
     const next = await memoryClient.getStatus(agentId)
     if (requestId !== statusRequestId || selectedAgentId.value !== agentId) return
     status.value = next
-  } catch {
+  } catch (error) {
     if (requestId !== statusRequestId || selectedAgentId.value !== agentId) return
-    status.value = null
+    pageFeedbackController.fail(error)
   }
 }
 
-function onSelect(value: unknown): void {
+async function onSelect(value: unknown): Promise<void> {
+  if (configSaving.value) return
   const id = typeof value === 'string' ? value : ''
   if (!id || id === selectedAgentId.value) return
+  if (!(await settingsLeaveGuard.requestLeave())) return
   selectedAgentId.value = id
   void router.replace({ query: { ...route.query, agentId: id } })
+}
+
+function toggleConfig(): void {
+  if (configOpen.value) void configPanelRef.value?.requestClose()
+  else void openConfig()
+}
+
+async function openConfig(): Promise<void> {
+  if (await settingsLeaveGuard.requestLeave()) configOpen.value = true
+}
+
+function isMemoryTab(value: unknown): value is MemoryTab {
+  return (
+    value === 'memories' || value === 'persona' || value === 'directives' || value === 'diagnostics'
+  )
+}
+
+async function onTabChange(value: unknown): Promise<void> {
+  if (!isMemoryTab(value) || value === activeTab.value) return
+  if (await settingsLeaveGuard.requestLeave()) activeTab.value = value
 }
 
 async function reload(preferred?: string | null): Promise<void> {
   loading.value = true
   loadError.value = null
+  clearPageFeedback()
   const previousAgentId = selectedAgentId.value
   try {
     await loadAgents(preferred ?? selectedAgentId.value)
@@ -339,11 +413,12 @@ async function reload(preferred?: string | null): Promise<void> {
       await Promise.all([loadResolved(), loadStatus()])
     }
   } catch (error) {
+    console.error('[MemorySettings] Failed to load agents', error)
     agents.value = []
     resolvedSelected.value = null
     resolvedAgentId.value = ''
     status.value = null
-    loadError.value = error instanceof Error ? error.message : String(error)
+    loadError.value = t('settings.memory.redesign.configLoadFailed')
   } finally {
     loading.value = false
   }
@@ -351,6 +426,7 @@ async function reload(preferred?: string | null): Promise<void> {
 
 async function refreshSelected(): Promise<void> {
   refreshToken.value += 1
+  clearPageFeedback()
   await Promise.all([loadResolved(), loadStatus()])
 }
 
@@ -367,6 +443,7 @@ function handleConfigSaved(): void {
 }
 
 watch(selectedAgentId, () => {
+  clearPageFeedback()
   if (refreshTimer) {
     clearTimeout(refreshTimer)
     refreshTimer = null
@@ -380,7 +457,11 @@ watch(selectedAgentId, () => {
 watch(
   () => route.query.agentId,
   (value) => {
-    if (typeof value === 'string' && agents.value.some((agent) => agent.id === value)) {
+    if (
+      !configSaving.value &&
+      typeof value === 'string' &&
+      agents.value.some((agent) => agent.id === value)
+    ) {
       selectedAgentId.value = value
     }
   }

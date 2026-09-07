@@ -19,7 +19,11 @@
               <span class="text-sm font-medium">{{ t('settings.data.syncEnable') }}</span>
             </span>
             <div class="shrink-0">
-              <Switch :model-value="syncEnabled" @update:model-value="handleSyncEnabledChange" />
+              <Switch
+                :model-value="syncEnabled"
+                :disabled="isSyncInteractionDisabled"
+                @update:model-value="handleSyncEnabledChange"
+              />
             </div>
           </div>
 
@@ -33,20 +37,21 @@
             </span>
             <div class="flex w-full gap-2 lg:w-96">
               <Input
-                v-model="syncFolderPath"
-                :disabled="!syncStore.syncEnabled"
+                :model-value="syncFolderPath"
+                :disabled="!syncStore.syncEnabled || isSyncInteractionDisabled"
+                readonly
                 class="h-8!"
-                @click="syncStore.selectSyncFolder"
+                @click="handleSelectSyncFolder"
               />
-              <Button
+              <DcButton
                 size="icon-sm"
                 variant="outline"
-                :disabled="!syncStore.syncEnabled"
-                :title="t('settings.data.openSyncFolder')"
-                @click="syncStore.openSyncFolder"
+                :disabled="!syncStore.syncEnabled || isSyncInteractionDisabled"
+                :tooltip="t('settings.data.openSyncFolder')"
+                @click="handleOpenSyncFolder"
               >
                 <Icon icon="lucide:external-link" class="h-4 w-4" />
-              </Button>
+              </DcButton>
             </div>
           </div>
 
@@ -68,18 +73,15 @@
           </div>
 
           <div class="flex flex-col gap-2 sm:flex-row">
-            <Button
+            <DcButton
               variant="outline"
               class="w-full sm:w-auto"
               :dir="languageStore.dir"
-              :disabled="!syncStore.syncEnabled || syncStore.isBackingUp"
+              :disabled="!syncStore.syncEnabled || isSyncInteractionDisabled"
               @click="handleBackup"
             >
-              <Icon
-                :icon="syncStore.isBackingUp ? 'lucide:loader-2' : 'lucide:save'"
-                class="h-4 w-4 text-muted-foreground"
-                :class="syncStore.isBackingUp ? 'animate-spin' : ''"
-              />
+              <Spinner v-if="syncStore.isBackingUp" class="size-4 text-muted-foreground" />
+              <Icon v-else icon="lucide:save" class="size-4 text-muted-foreground" />
               <span class="text-sm font-medium">
                 {{
                   syncStore.isBackingUp
@@ -87,19 +89,19 @@
                     : t('settings.data.startBackup')
                 }}
               </span>
-            </Button>
+            </DcButton>
 
-            <Dialog v-model:open="isImportDialogOpen">
+            <Dialog :open="isImportDialogOpen" @update:open="handleImportDialogOpenChange">
               <DialogTrigger as-child>
-                <Button
+                <DcButton
                   variant="outline"
                   class="w-full sm:w-auto"
-                  :disabled="!syncStore.syncEnabled"
+                  :disabled="!syncStore.syncEnabled || isSyncInteractionDisabled"
                   :dir="languageStore.dir"
                 >
                   <Icon icon="lucide:download" class="h-4 w-4 text-muted-foreground" />
                   <span class="text-sm font-medium">{{ t('settings.data.importData') }}</span>
-                </Button>
+                </DcButton>
               </DialogTrigger>
               <DialogContent>
                 <DialogHeader>
@@ -113,7 +115,10 @@
                     <Label class="text-sm font-medium" :dir="languageStore.dir">
                       {{ t('settings.data.backupSelectLabel') }}
                     </Label>
-                    <Select v-model="selectedBackup" :disabled="!availableBackups.length">
+                    <Select
+                      v-model="selectedBackup"
+                      :disabled="syncStore.isImporting || !availableBackups.length"
+                    >
                       <SelectTrigger class="h-8!" :dir="languageStore.dir">
                         <SelectValue :placeholder="t('settings.data.selectBackupPlaceholder')" />
                       </SelectTrigger>
@@ -137,7 +142,11 @@
                     </p>
                   </div>
 
-                  <RadioGroup v-model="importMode" class="flex flex-col gap-2">
+                  <RadioGroup
+                    v-model="importMode"
+                    :disabled="syncStore.isImporting"
+                    class="flex flex-col gap-2"
+                  >
                     <div class="flex items-center space-x-2">
                       <RadioGroupItem value="increment" />
                       <Label>{{ t('settings.data.incrementImport') }}</Label>
@@ -149,10 +158,14 @@
                   </RadioGroup>
                 </div>
                 <DialogFooter>
-                  <Button variant="outline" @click="closeImportDialog">
+                  <DcButton
+                    variant="outline"
+                    :disabled="syncStore.isImporting"
+                    @click="closeImportDialog"
+                  >
                     {{ t('dialog.cancel') }}
-                  </Button>
-                  <Button
+                  </DcButton>
+                  <DcButton
                     variant="default"
                     :disabled="syncStore.isImporting || !selectedBackup"
                     @click="handleImport"
@@ -162,7 +175,7 @@
                         ? t('settings.data.importing')
                         : t('settings.data.confirmImport')
                     }}
-                  </Button>
+                  </DcButton>
                 </DialogFooter>
               </DialogContent>
             </Dialog>
@@ -185,6 +198,7 @@
               <button
                 type="button"
                 data-testid="cloud-provider-r2"
+                :disabled="isCloudInteractionDisabled"
                 :class="
                   cn(
                     'flex h-8 items-center justify-center gap-2 rounded-md px-3 text-xs font-medium transition-colors',
@@ -201,6 +215,7 @@
               <button
                 type="button"
                 data-testid="cloud-provider-custom"
+                :disabled="isCloudInteractionDisabled"
                 :class="
                   cn(
                     'flex h-8 items-center justify-center gap-2 rounded-md px-3 text-xs font-medium transition-colors',
@@ -275,6 +290,7 @@
                 <Input
                   id="cloud-endpoint"
                   v-model="cloudForm.endpoint"
+                  :disabled="isCloudInteractionDisabled"
                   class="h-8!"
                   placeholder="https://<account>.r2.cloudflarestorage.com"
                 />
@@ -290,7 +306,12 @@
                 <Label for="cloud-bucket" class="text-xs">
                   {{ t('settings.data.cloudSync.bucket') }}
                 </Label>
-                <Input id="cloud-bucket" v-model="cloudForm.bucket" class="h-8!" />
+                <Input
+                  id="cloud-bucket"
+                  v-model="cloudForm.bucket"
+                  :disabled="isCloudInteractionDisabled"
+                  class="h-8!"
+                />
               </div>
               <div v-if="cloudProviderMode === 'custom'" class="flex flex-col gap-1.5">
                 <Label for="cloud-region" class="text-xs">
@@ -299,6 +320,7 @@
                 <Input
                   id="cloud-region"
                   v-model="cloudForm.region"
+                  :disabled="isCloudInteractionDisabled"
                   class="h-8!"
                   placeholder="auto"
                 />
@@ -310,6 +332,7 @@
                 <Input
                   id="cloud-access-key-id"
                   v-model="cloudForm.accessKeyId"
+                  :disabled="isCloudInteractionDisabled"
                   class="h-8!"
                   autocomplete="off"
                 />
@@ -328,6 +351,7 @@
                 <Input
                   id="cloud-secret-access-key"
                   v-model="cloudForm.secretAccessKey"
+                  :disabled="isCloudInteractionDisabled"
                   data-testid="cloud-secret-input"
                   type="password"
                   class="h-8!"
@@ -358,6 +382,7 @@
                 <Input
                   id="cloud-prefix"
                   v-model="cloudForm.prefix"
+                  :disabled="isCloudInteractionDisabled"
                   class="h-8!"
                   placeholder="deepchat-backups"
                 />
@@ -385,6 +410,7 @@
                   <Input
                     id="cloud-r2-region"
                     v-model="cloudForm.region"
+                    :disabled="isCloudInteractionDisabled"
                     class="h-8!"
                     placeholder="auto"
                   />
@@ -399,6 +425,7 @@
                   <Input
                     id="cloud-r2-prefix"
                     v-model="cloudForm.prefix"
+                    :disabled="isCloudInteractionDisabled"
                     class="h-8!"
                     placeholder="deepchat-backups"
                   />
@@ -417,36 +444,33 @@
             </p>
 
             <div class="flex flex-col gap-2 sm:flex-row">
-              <Button
+              <DcSubmitButton
                 variant="default"
                 class="w-full sm:w-auto"
                 data-testid="cloud-save-test"
+                :status="cloudSaveTestStatus"
                 :disabled="isCloudSaveDisabled"
                 @click="handleSaveAndTestCloud"
               >
-                <Icon
-                  :icon="isCloudBusy ? 'lucide:loader-2' : 'lucide:plug-zap'"
-                  class="h-4 w-4"
-                  :class="isCloudBusy ? 'animate-spin' : ''"
-                />
                 <span class="text-sm font-medium">
                   {{ t('settings.data.cloudSync.saveAndTest') }}
                 </span>
-              </Button>
-              <Button
+              </DcSubmitButton>
+              <DcSubmitButton
                 variant="outline"
                 class="w-full sm:w-auto"
                 data-testid="cloud-save-only"
+                :status="cloudSaveStatus"
                 :disabled="isCloudSaveDisabled"
                 @click="handleSaveCloud"
               >
-                <Icon icon="lucide:save" class="h-4 w-4 text-muted-foreground" />
                 <span class="text-sm font-medium">{{ t('settings.data.cloudSync.saveOnly') }}</span>
-              </Button>
+              </DcSubmitButton>
             </div>
+            <DcInlineError v-if="cloudOperationError" :error="cloudOperationError" class="mt-2" />
 
             <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
-              <Button
+              <DcButton
                 variant="outline"
                 class="w-full sm:w-auto"
                 :disabled="isCloudOperationDisabled"
@@ -455,8 +479,8 @@
               >
                 <Icon icon="lucide:cloud-upload" class="h-4 w-4 text-muted-foreground" />
                 <span class="text-sm font-medium">{{ t('settings.data.cloudSync.upload') }}</span>
-              </Button>
-              <Button
+              </DcButton>
+              <DcButton
                 variant="outline"
                 class="w-full sm:w-auto"
                 :disabled="isCloudOperationDisabled"
@@ -465,9 +489,13 @@
               >
                 <Icon icon="lucide:cloud-download" class="h-4 w-4 text-muted-foreground" />
                 <span class="text-sm font-medium">{{ t('settings.data.cloudSync.pull') }}</span>
-              </Button>
+              </DcButton>
               <div class="flex items-center gap-3">
-                <RadioGroup v-model="cloudPullMode" class="flex flex-row gap-3">
+                <RadioGroup
+                  v-model="cloudPullMode"
+                  :disabled="isCloudInteractionDisabled"
+                  class="flex flex-row gap-3"
+                >
                   <div class="flex items-center space-x-2">
                     <RadioGroupItem value="increment" id="cloud-increment" />
                     <Label for="cloud-increment" class="text-xs">{{
@@ -558,15 +586,15 @@
             v-if="isDatabaseSecurityStatusLoaded && !hasDatabaseSecurityStatusError"
             class="flex flex-col gap-2 sm:flex-row"
           >
-            <Button
+            <DcButton
               v-if="!databaseSecurityStatus?.enabled"
               class="w-full justify-center sm:w-36"
               :disabled="isDatabaseSecurityActionDisabled"
               @click="openDatabaseEncryptionDialog('enable')"
             >
               <span>{{ t('settings.data.databaseEncryption.setPasswordButton') }}</span>
-            </Button>
-            <Button
+            </DcButton>
+            <DcButton
               v-else
               variant="outline"
               class="w-full justify-center sm:w-36"
@@ -574,8 +602,8 @@
               @click="openDatabaseEncryptionDialog('change')"
             >
               <span>{{ t('settings.data.databaseEncryption.changeButton') }}</span>
-            </Button>
-            <Button
+            </DcButton>
+            <DcButton
               v-if="databaseSecurityStatus?.enabled"
               variant="destructive"
               class="w-full justify-center sm:w-36"
@@ -583,10 +611,13 @@
               @click="openDatabaseEncryptionDialog('disable')"
             >
               <span>{{ t('settings.data.databaseEncryption.disableButton') }}</span>
-            </Button>
+            </DcButton>
           </div>
 
-          <Dialog v-model:open="isDatabaseEncryptionDialogOpen">
+          <Dialog
+            :open="isDatabaseEncryptionDialogOpen"
+            @update:open="handleDatabaseEncryptionDialogOpenChange"
+          >
             <DialogContent v-if="isDatabaseEncryptionDialogOpen" class="sm:max-w-md">
               <DialogHeader>
                 <DialogTitle class="flex items-center gap-2 text-base">
@@ -606,6 +637,7 @@
                   <Input
                     id="database-current-password"
                     v-model="databaseCurrentPassword"
+                    :disabled="isDatabaseSecurityBusy"
                     type="password"
                     autocomplete="current-password"
                     class="h-9!"
@@ -622,6 +654,7 @@
                   <Input
                     id="database-new-password"
                     v-model="databaseNewPassword"
+                    :disabled="isDatabaseSecurityBusy"
                     type="password"
                     autocomplete="new-password"
                     class="h-9!"
@@ -638,6 +671,7 @@
                   <Input
                     id="database-confirm-password"
                     v-model="databaseConfirmPassword"
+                    :disabled="isDatabaseSecurityBusy"
                     type="password"
                     autocomplete="new-password"
                     class="h-9!"
@@ -656,26 +690,24 @@
               >
                 {{ t('settings.data.databaseEncryption.safeStorageUnavailable') }}
               </p>
+              <DcInlineError
+                v-if="databaseSecurityError"
+                :error="databaseSecurityError"
+                class="mt-2"
+              />
 
               <DialogFooter class="gap-2 sm:justify-between">
-                <Button
-                  type="button"
-                  variant="outline"
-                  :disabled="isDatabaseSecurityBusy"
-                  :tabindex="databaseEncryptionAction === 'enable' ? 3 : 4"
-                  @click="closeDatabaseEncryptionDialog"
-                >
-                  {{ t('settings.data.databaseEncryption.cancelButton') }}
-                </Button>
-                <Button
-                  type="button"
-                  :variant="databaseEncryptionAction === 'disable' ? 'destructive' : 'default'"
-                  :disabled="!canSubmitDatabaseEncryptionDialog"
-                  :tabindex="databaseEncryptionAction === 'enable' ? 4 : 5"
-                  @click="submitDatabaseEncryptionDialog"
-                >
-                  <span>{{ databaseEncryptionSubmitLabel }}</span>
-                </Button>
+                <DcFormActions
+                  :submit-status="databaseSecuritySubmitStatus"
+                  :submit-disabled="!canSubmitDatabaseEncryptionDialog"
+                  :cancel-disabled="isDatabaseSecurityBusy"
+                  :danger-submit="databaseEncryptionAction === 'disable'"
+                  :submit-label="databaseEncryptionSubmitLabel"
+                  :cancel-label="t('settings.data.databaseEncryption.cancelButton')"
+                  submit-test-id="database-encryption-submit"
+                  @cancel="closeDatabaseEncryptionDialog"
+                  @submit="submitDatabaseEncryptionDialog"
+                />
               </DialogFooter>
             </DialogContent>
           </Dialog>
@@ -700,7 +732,7 @@
                 </p>
               </div>
             </div>
-            <Button
+            <DcButton
               variant="outline"
               class="w-full shrink-0 lg:w-56"
               :dir="languageStore.dir"
@@ -710,7 +742,7 @@
               <span class="text-sm font-medium">
                 {{ t('settings.data.providerImport.entryButton') }}
               </span>
-            </Button>
+            </DcButton>
           </div>
 
           <div
@@ -737,7 +769,7 @@
                 </p>
               </div>
             </div>
-            <Button
+            <DcButton
               data-testid="database-repair-button"
               variant="outline"
               class="w-full shrink-0 lg:w-56"
@@ -745,11 +777,8 @@
               :dir="languageStore.dir"
               @click="runSchemaRepair()"
             >
-              <Icon
-                :icon="isRepairing ? 'lucide:loader-2' : 'lucide:wrench'"
-                class="h-4 w-4 text-muted-foreground"
-                :class="isRepairing ? 'animate-spin' : ''"
-              />
+              <Spinner v-if="isRepairing" class="size-4 text-muted-foreground" />
+              <Icon v-else icon="lucide:wrench" class="size-4 text-muted-foreground" />
               <span class="text-sm font-medium">
                 {{
                   isRepairing
@@ -757,7 +786,7 @@
                     : t('settings.data.databaseRepair.button')
                 }}
               </span>
-            </Button>
+            </DcButton>
           </div>
 
           <div
@@ -786,18 +815,15 @@
                 </p>
               </div>
             </div>
-            <Button
+            <DcButton
               variant="outline"
               class="w-full shrink-0 lg:w-40"
               :disabled="isUpdatingModelConfig"
               :dir="languageStore.dir"
               @click="handleRefreshProviderDb"
             >
-              <Icon
-                :icon="isUpdatingModelConfig ? 'lucide:loader-2' : 'lucide:refresh-cw'"
-                class="h-4 w-4 text-muted-foreground"
-                :class="isUpdatingModelConfig ? 'animate-spin' : ''"
-              />
+              <Spinner v-if="isUpdatingModelConfig" class="size-4 text-muted-foreground" />
+              <Icon v-else icon="lucide:refresh-cw" class="size-4 text-muted-foreground" />
               <span class="text-sm font-medium">
                 {{
                   isUpdatingModelConfig
@@ -805,7 +831,7 @@
                     : t('settings.data.modelConfigUpdate.button')
                 }}
               </span>
-            </Button>
+            </DcButton>
           </div>
 
           <div
@@ -821,118 +847,103 @@
                 </p>
               </div>
             </div>
-            <AlertDialog v-model:open="isResetDialogOpen">
-              <Button
-                variant="outline"
-                class="w-full shrink-0 justify-center border-destructive/30 text-destructive hover:bg-destructive/10 hover:text-destructive lg:w-40"
-                :disabled="isResetActionDisabled"
-                :dir="languageStore.dir"
-                data-testid="danger-zone-reset-entry"
-                aria-haspopup="dialog"
-                @click="openResetDialog"
-              >
-                <Icon icon="lucide:triangle-alert" class="h-4 w-4" />
-                <span class="text-sm font-medium">{{ t('settings.data.resetData') }}</span>
-              </Button>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>{{ t('settings.data.resetConfirmTitle') }}</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    {{ t('settings.data.resetConfirmDescription') }}
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <div class="p-4">
-                  <RadioGroup v-model="resetType" class="flex flex-col gap-3">
-                    <div
-                      class="-m-2 flex cursor-pointer items-start space-x-3 rounded-lg border border-transparent p-2 transition-colors hover:bg-accent"
-                      :class="resetType === 'chat' ? 'border-destructive/25 bg-destructive/5' : ''"
-                      data-testid="danger-zone-reset-option-chat"
-                      @click="resetType = 'chat'"
-                    >
-                      <RadioGroupItem value="chat" id="reset-chat" class="mt-1" />
-                      <div class="flex flex-col">
-                        <Label for="reset-chat" class="font-medium">{{
-                          t('settings.data.resetChatData')
-                        }}</Label>
-                        <p class="text-xs text-muted-foreground">
-                          {{ t('settings.data.resetChatDataDesc') }}
-                        </p>
-                      </div>
-                    </div>
-                    <div
-                      class="-m-2 flex cursor-pointer items-start space-x-3 rounded-lg border border-transparent p-2 transition-colors hover:bg-accent"
-                      :class="
-                        resetType === 'knowledge' ? 'border-destructive/25 bg-destructive/5' : ''
-                      "
-                      data-testid="danger-zone-reset-option-knowledge"
-                      @click="resetType = 'knowledge'"
-                    >
-                      <RadioGroupItem value="knowledge" id="reset-knowledge" class="mt-1" />
-                      <div class="flex flex-col">
-                        <Label for="reset-knowledge" class="font-medium">{{
-                          t('settings.data.resetKnowledgeData')
-                        }}</Label>
-                        <p class="text-xs text-muted-foreground">
-                          {{ t('settings.data.resetKnowledgeDataDesc') }}
-                        </p>
-                      </div>
-                    </div>
-                    <div
-                      class="-m-2 flex cursor-pointer items-start space-x-3 rounded-lg border border-transparent p-2 transition-colors hover:bg-accent"
-                      :class="
-                        resetType === 'config' ? 'border-destructive/25 bg-destructive/5' : ''
-                      "
-                      data-testid="danger-zone-reset-option-config"
-                      @click="resetType = 'config'"
-                    >
-                      <RadioGroupItem value="config" id="reset-config" class="mt-1" />
-                      <div class="flex flex-col">
-                        <Label for="reset-config" class="font-medium">{{
-                          t('settings.data.resetConfig')
-                        }}</Label>
-                        <p class="text-xs text-muted-foreground">
-                          {{ t('settings.data.resetConfigDesc') }}
-                        </p>
-                      </div>
-                    </div>
-                    <div
-                      class="-m-2 flex cursor-pointer items-start space-x-3 rounded-lg border border-transparent p-2 transition-colors hover:bg-accent"
-                      :class="resetType === 'all' ? 'border-destructive/25 bg-destructive/5' : ''"
-                      data-testid="danger-zone-reset-option-all"
-                      @click="resetType = 'all'"
-                    >
-                      <RadioGroupItem value="all" id="reset-all" class="mt-1" />
-                      <div class="flex flex-col">
-                        <Label for="reset-all" class="font-medium">{{
-                          t('settings.data.resetAll')
-                        }}</Label>
-                        <p class="text-xs text-muted-foreground">
-                          {{ t('settings.data.resetAllDesc') }}
-                        </p>
-                      </div>
-                    </div>
-                  </RadioGroup>
-                </div>
-                <AlertDialogFooter>
-                  <AlertDialogCancel @click="closeResetDialog">
-                    {{ t('dialog.cancel') }}
-                  </AlertDialogCancel>
-                  <AlertDialogAction
-                    :class="
-                      cn(
-                        'bg-destructive text-destructive-foreground shadow-sm hover:bg-destructive/90'
-                      )
-                    "
-                    :disabled="isResetActionDisabled"
-                    @click="handleReset"
+            <DcButton
+              variant="outline"
+              class="w-full shrink-0 justify-center border-destructive/30 text-destructive hover:bg-destructive/10 hover:text-destructive lg:w-40"
+              :disabled="isResetActionDisabled"
+              :dir="languageStore.dir"
+              data-testid="danger-zone-reset-entry"
+              aria-haspopup="dialog"
+              @click="openResetDialog"
+            >
+              <Icon icon="lucide:triangle-alert" class="h-4 w-4" />
+              <span class="text-sm font-medium">{{ t('settings.data.resetData') }}</span>
+            </DcButton>
+            <DcConfirmDialog
+              :open="isResetDialogOpen"
+              :title="t('settings.data.resetConfirmTitle')"
+              :description="t('settings.data.resetConfirmDescription')"
+              :confirm-label="
+                isResetting ? t('settings.data.resetting') : t('settings.data.confirmReset')
+              "
+              :busy="isResetting"
+              :disabled-confirm="isResetActionDisabled"
+              :confirm-attrs="{ 'data-testid': 'danger-zone-reset-confirm' }"
+              @update:open="handleResetDialogOpenChange"
+              @confirm="handleReset"
+              @cancel="closeResetDialog"
+            >
+              <div class="p-4">
+                <RadioGroup v-model="resetType" class="flex flex-col gap-3" :disabled="isResetting">
+                  <div
+                    class="-m-2 flex cursor-pointer items-start space-x-3 rounded-lg border border-transparent p-2 transition-colors hover:bg-accent"
+                    :class="resetType === 'chat' ? 'border-destructive/25 bg-destructive/5' : ''"
+                    data-testid="danger-zone-reset-option-chat"
+                    @click="selectResetType('chat')"
                   >
-                    {{
-                      isResetting ? t('settings.data.resetting') : t('settings.data.confirmReset')
-                    }}
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
+                    <RadioGroupItem value="chat" id="reset-chat" class="mt-1" />
+                    <div class="flex flex-col">
+                      <Label for="reset-chat" class="font-medium">{{
+                        t('settings.data.resetChatData')
+                      }}</Label>
+                      <p class="text-xs text-muted-foreground">
+                        {{ t('settings.data.resetChatDataDesc') }}
+                      </p>
+                    </div>
+                  </div>
+                  <div
+                    class="-m-2 flex cursor-pointer items-start space-x-3 rounded-lg border border-transparent p-2 transition-colors hover:bg-accent"
+                    :class="
+                      resetType === 'knowledge' ? 'border-destructive/25 bg-destructive/5' : ''
+                    "
+                    data-testid="danger-zone-reset-option-knowledge"
+                    @click="selectResetType('knowledge')"
+                  >
+                    <RadioGroupItem value="knowledge" id="reset-knowledge" class="mt-1" />
+                    <div class="flex flex-col">
+                      <Label for="reset-knowledge" class="font-medium">{{
+                        t('settings.data.resetKnowledgeData')
+                      }}</Label>
+                      <p class="text-xs text-muted-foreground">
+                        {{ t('settings.data.resetKnowledgeDataDesc') }}
+                      </p>
+                    </div>
+                  </div>
+                  <div
+                    class="-m-2 flex cursor-pointer items-start space-x-3 rounded-lg border border-transparent p-2 transition-colors hover:bg-accent"
+                    :class="resetType === 'config' ? 'border-destructive/25 bg-destructive/5' : ''"
+                    data-testid="danger-zone-reset-option-config"
+                    @click="selectResetType('config')"
+                  >
+                    <RadioGroupItem value="config" id="reset-config" class="mt-1" />
+                    <div class="flex flex-col">
+                      <Label for="reset-config" class="font-medium">{{
+                        t('settings.data.resetConfig')
+                      }}</Label>
+                      <p class="text-xs text-muted-foreground">
+                        {{ t('settings.data.resetConfigDesc') }}
+                      </p>
+                    </div>
+                  </div>
+                  <div
+                    class="-m-2 flex cursor-pointer items-start space-x-3 rounded-lg border border-transparent p-2 transition-colors hover:bg-accent"
+                    :class="resetType === 'all' ? 'border-destructive/25 bg-destructive/5' : ''"
+                    data-testid="danger-zone-reset-option-all"
+                    @click="selectResetType('all')"
+                  >
+                    <RadioGroupItem value="all" id="reset-all" class="mt-1" />
+                    <div class="flex flex-col">
+                      <Label for="reset-all" class="font-medium">{{
+                        t('settings.data.resetAll')
+                      }}</Label>
+                      <p class="text-xs text-muted-foreground">
+                        {{ t('settings.data.resetAllDesc') }}
+                      </p>
+                    </div>
+                  </div>
+                </RadioGroup>
+              </div>
+            </DcConfirmDialog>
           </div>
 
           <div
@@ -949,52 +960,44 @@
                 </p>
               </div>
             </div>
-            <AlertDialog v-model:open="isClearSandboxDialogOpen">
-              <AlertDialogTrigger as-child>
-                <Button
-                  data-testid="yobrowser-clear-sandbox-button"
-                  variant="outline"
-                  class="w-full shrink-0 lg:w-56"
-                  :disabled="isClearingSandbox"
-                  :dir="languageStore.dir"
-                >
-                  <Icon
-                    :icon="isClearingSandbox ? 'lucide:loader-2' : 'lucide:trash-2'"
-                    class="h-4 w-4 text-muted-foreground"
-                    :class="isClearingSandbox ? 'animate-spin' : ''"
-                  />
-                  <span class="text-sm font-medium">
-                    {{
-                      isClearingSandbox
-                        ? t('settings.data.yoBrowser.clearing')
-                        : t('settings.data.yoBrowser.clearButton')
-                    }}
-                  </span>
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>{{
-                    t('settings.data.yoBrowser.confirmTitle')
-                  }}</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    {{ t('settings.data.yoBrowser.confirmDescription') }}
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel @click="isClearSandboxDialogOpen = false">
-                    {{ t('dialog.cancel') }}
-                  </AlertDialogCancel>
-                  <AlertDialogAction :disabled="isClearingSandbox" @click="handleClearSandboxData">
-                    {{
-                      isClearingSandbox
-                        ? t('settings.data.yoBrowser.clearing')
-                        : t('settings.data.yoBrowser.confirmAction')
-                    }}
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
+            <div class="flex w-full shrink-0 flex-col gap-2 lg:w-56">
+              <BrowserDataImportDialog />
+              <DcButton
+                variant="outline"
+                class="w-full shrink-0 lg:w-56"
+                :loading="isClearingSandbox"
+                icon="lucide:trash-2"
+                data-testid="yobrowser-clear-sandbox-button"
+                :disabled="isClearingSandbox"
+                @click="isClearSandboxDialogOpen = true"
+              >
+                <span class="text-sm font-medium">
+                  {{
+                    isClearingSandbox
+                      ? t('settings.data.yoBrowser.clearing')
+                      : t('settings.data.yoBrowser.clearButton')
+                  }}
+                </span>
+              </DcButton>
+              <DcConfirmDialog
+                :open="isClearSandboxDialogOpen"
+                :title="t('settings.data.yoBrowser.confirmTitle')"
+                :description="t('settings.data.yoBrowser.confirmDescription')"
+                :confirm-label="
+                  isClearingSandbox
+                    ? t('settings.data.yoBrowser.clearing')
+                    : t('settings.data.yoBrowser.confirmAction')
+                "
+                :busy="isClearingSandbox"
+                :confirm-attrs="{ 'data-testid': 'yobrowser-clear-sandbox-confirm' }"
+                @update:open="handleClearSandboxDialogOpenChange"
+                @confirm="handleClearSandboxData"
+              >
+                <p v-if="sandboxClearFailed" role="alert" class="text-sm text-destructive">
+                  {{ t('settings.data.yoBrowser.clearFailedTitle') }}
+                </p>
+              </DcConfirmDialog>
+            </div>
           </div>
         </div>
       </div>
@@ -1012,11 +1015,7 @@
               data-testid="sync-error-dialog-description"
               class="max-h-[40vh] overflow-y-auto whitespace-pre-wrap break-words pr-1 text-left"
             >
-              {{
-                syncStore.importResult?.message
-                  ? t(syncStore.importResult.message, { count: syncStore.importResult.count || 0 })
-                  : ''
-              }}
+              {{ importErrorDescription }}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter data-testid="sync-error-dialog-footer" class="shrink-0">
@@ -1049,15 +1048,17 @@ import {
 import {
   AlertDialog,
   AlertDialogAction,
-  AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
   AlertDialogFooter,
   AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger
+  AlertDialogTitle
 } from '@shadcn/components/ui/alert-dialog'
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
+import { DcConfirmDialog } from '@dc-ui/components/confirm-dialog'
+import { DcInlineError } from '@dc-ui/components/inline-error'
+import { DcSubmitButton, useDcFormSubmit } from '@dc-ui/components/form'
+import { DcFormActions } from '@dc-ui/components/form-actions'
 import { Input } from '@shadcn/components/ui/input'
 import { Switch } from '@shadcn/components/ui/switch'
 import { RadioGroup, RadioGroupItem } from '@shadcn/components/ui/radio-group'
@@ -1069,6 +1070,7 @@ import {
   SelectTrigger,
   SelectValue
 } from '@shadcn/components/ui/select'
+import { Spinner } from '@shadcn/components/ui/spinner'
 import { useSyncStore } from '@/stores/sync'
 import { useLanguageStore } from '@/stores/language'
 import { createBrowserClient } from '@api/BrowserClient'
@@ -1084,10 +1086,12 @@ import {
   validateCloudSyncForm,
   type CloudSyncProviderMode
 } from '@/lib/cloudSyncForm'
-import { useToast } from '@/components/use-toast'
+import { notifyRenderer } from '@renderer-notifications/rendererNotificationPort'
 import PrivacySettingsSection from './common/PrivacySettingsSection.vue'
 import SettingsPageShell from './control-center/SettingsPageShell.vue'
 import ProviderConfigImportDialog from './ProviderConfigImportDialog.vue'
+import BrowserDataImportDialog from './BrowserDataImportDialog.vue'
+import { settingsLeaveGuard } from '../services/settingsLeaveGuard'
 
 const PROVIDER_IMPORT_SECTION = 'provider-import'
 const DATABASE_REPAIR_SECTION = 'database-repair'
@@ -1122,7 +1126,6 @@ const {
   cloudConfig,
   isCloudBusy
 } = storeToRefs(syncStore)
-const { toast } = useToast()
 
 const isImportDialogOpen = ref(false)
 const isProviderImportDialogOpen = ref(false)
@@ -1135,6 +1138,7 @@ const resetType = ref<'chat' | 'knowledge' | 'config' | 'all'>('chat')
 const isResetting = ref(false)
 const isUpdatingModelConfig = ref(false)
 const isClearingSandbox = ref(false)
+const sandboxClearFailed = ref(false)
 const isClearSandboxDialogOpen = ref(false)
 const isRepairing = ref(false)
 const lastRepairReport = ref<DatabaseRepairReport | null>(null)
@@ -1149,11 +1153,32 @@ const databaseNewPassword = ref('')
 const databaseConfirmPassword = ref('')
 const isBackupActive = computed(() => isBackingUpRef.value)
 const isImporting = computed(() => isImportingRef.value)
+const isSyncFeedbackPending = ref(false)
+const isCloudFeedbackPending = ref(false)
+const cloudOperationError = ref<string | null>(null)
+const databaseSecurityError = ref<string | null>(null)
+const { status: cloudSaveStatus, run: runCloudSave } = useDcFormSubmit()
+const { status: cloudSaveTestStatus, run: runCloudSaveTest } = useDcFormSubmit()
+const { status: databaseSecuritySubmitStatus, run: runDatabaseSecuritySubmit } = useDcFormSubmit()
+const syncInitializationFailed = ref(false)
+const isSyncOperationBusy = computed(
+  () => isBackupActive.value || isImporting.value || isSyncFeedbackPending.value
+)
+const isSyncInteractionDisabled = computed(
+  () => isSyncOperationBusy.value || syncInitializationFailed.value
+)
 const isRepairActionDisabled = computed(() => {
   return isRepairing.value || isBackupActive.value || isImporting.value
 })
 const isResetActionDisabled = computed(() => {
   return isResetting.value || isBackupActive.value || isImporting.value
+})
+const importErrorDescription = computed(() => {
+  const message = syncStore.importResult?.message
+  if (message && /^sync\.[a-zA-Z0-9_.-]+$/.test(message)) {
+    return t(message, { count: syncStore.importResult?.count || 0 })
+  }
+  return t('sync.error.importFailed')
 })
 const databasePasswordValidation = computed(() => {
   if (databaseEncryptionAction.value === 'disable') {
@@ -1312,24 +1337,90 @@ const lastDatabaseMigrationLabel = computed(() => {
   return new Date(lastMigrationAt).toLocaleString()
 })
 
-const syncEnabled = computed({
-  get: () => syncStore.syncEnabled,
-  set: (value) => syncStore.setSyncEnabled(value)
-})
+const syncEnabled = computed(() => syncStore.syncEnabled)
+const syncFolderPath = computed(() => syncStore.syncFolderPath)
 
-const syncFolderPath = computed({
-  get: () => syncStore.syncFolderPath,
-  set: (value) => syncStore.setSyncFolderPath(value)
-})
+const beginSyncOperation = () => {
+  syncInitializationFailed.value = false
+  isSyncFeedbackPending.value = true
+}
 
-const handleSyncEnabledChange = (value: boolean) => {
-  syncEnabled.value = value
+const handleSyncEnabledChange = async (value: boolean) => {
+  if (isSyncInteractionDisabled.value || value === syncStore.syncEnabled) return
+  beginSyncOperation()
+  try {
+    await syncStore.setSyncEnabled(value)
+    notifyRenderer({
+      kind: 'success',
+      code: 'settings.data.sync.updated',
+      title: t('common.saved')
+    })
+  } catch (error) {
+    console.error('[DataSettings] Failed to update sync state', error)
+    notifyRenderer({
+      kind: 'error',
+      code: 'settings.data.sync.updateFailed',
+      title: t('common.error.operationFailed')
+    })
+  } finally {
+    isSyncFeedbackPending.value = false
+  }
+}
+
+const handleSelectSyncFolder = async () => {
+  if (!syncStore.syncEnabled || isSyncInteractionDisabled.value) return
+  beginSyncOperation()
+  try {
+    const selected = await syncStore.selectSyncFolder()
+    if (!selected) {
+      isSyncFeedbackPending.value = false
+      return
+    }
+    notifyRenderer({
+      kind: 'success',
+      code: 'settings.data.sync.folderUpdated',
+      title: t('common.saved')
+    })
+  } catch (error) {
+    console.error('[DataSettings] Failed to select sync folder', error)
+    notifyRenderer({
+      kind: 'error',
+      code: 'settings.data.sync.folderUpdateFailed',
+      title: t('common.error.operationFailed')
+    })
+  } finally {
+    isSyncFeedbackPending.value = false
+  }
+}
+
+const handleOpenSyncFolder = async () => {
+  if (!syncStore.syncEnabled || isSyncInteractionDisabled.value) return
+  beginSyncOperation()
+  try {
+    await syncStore.openSyncFolder()
+    notifyRenderer({
+      kind: 'success',
+      code: 'settings.data.sync.folderOpened',
+      title: t('settings.data.openSyncFolder')
+    })
+  } catch (error) {
+    console.error('[DataSettings] Failed to open sync folder', error)
+    notifyRenderer({
+      kind: 'error',
+      code: 'settings.data.sync.folderOpenFailed',
+      title: t('common.error.operationFailed')
+    })
+  } finally {
+    isSyncFeedbackPending.value = false
+  }
 }
 
 // === Cloud sync (S3-compatible) ===
 const cloudProviderMode = ref<CloudSyncProviderMode>('r2')
 const cloudPullMode = ref<'increment' | 'overwrite'>('increment')
 const cloudForm = ref(createDefaultCloudSyncForm())
+const cloudCommittedSignature = ref('')
+const cloudFormInitialized = ref(false)
 
 const setCloudProviderMode = (mode: CloudSyncProviderMode) => {
   cloudProviderMode.value = mode
@@ -1339,19 +1430,31 @@ const setCloudProviderMode = (mode: CloudSyncProviderMode) => {
   }
 }
 
+const cloudFormSignature = computed(() =>
+  JSON.stringify(buildCloudSyncConfigInput(cloudForm.value))
+)
+const cloudFormDirty = computed(
+  () => cloudFormInitialized.value && cloudFormSignature.value !== cloudCommittedSignature.value
+)
+
+const applyCloudConfig = (config: NonNullable<typeof cloudConfig.value>) => {
+  cloudForm.value.endpoint = config.endpoint
+  cloudForm.value.bucket = config.bucket
+  cloudForm.value.region = config.region || CLOUD_SYNC_DEFAULTS.region
+  cloudForm.value.prefix = config.prefix || CLOUD_SYNC_DEFAULTS.prefix
+  cloudForm.value.accessKeyId = config.accessKeyId
+  cloudForm.value.secretAccessKey = ''
+  cloudCommittedSignature.value = cloudFormSignature.value
+  cloudFormInitialized.value = true
+}
+
 watch(
   cloudConfig,
   (config) => {
     if (!config) {
       return
     }
-    cloudForm.value.endpoint = config.endpoint
-    cloudForm.value.bucket = config.bucket
-    cloudForm.value.region = config.region || CLOUD_SYNC_DEFAULTS.region
-    cloudForm.value.prefix = config.prefix || CLOUD_SYNC_DEFAULTS.prefix
-    cloudForm.value.accessKeyId = config.accessKeyId
-    // never prefill the secret; empty means "keep existing"
-    cloudForm.value.secretAccessKey = ''
+    applyCloudConfig(config)
   },
   { immediate: true }
 )
@@ -1368,9 +1471,13 @@ const isCloudSecretWriteUnavailable = computed(
     Boolean(cloudForm.value.secretAccessKey.trim()) &&
     cloudConfig.value?.safeStorageAvailable === false
 )
+const isCloudInteractionDisabled = computed(() => Boolean(isCloudBusy.value) || !cloudConfig.value)
 const isCloudSaveDisabled = computed(
   () =>
-    Boolean(isCloudBusy.value) ||
+    isCloudInteractionDisabled.value ||
+    isCloudFeedbackPending.value ||
+    cloudSaveStatus.value === 'submitting' ||
+    cloudSaveTestStatus.value === 'submitting' ||
     !cloudValidation.value.canSave ||
     isCloudSecretWriteUnavailable.value
 )
@@ -1383,7 +1490,12 @@ const hasUsableCloudConfig = computed(() =>
   )
 )
 const isCloudOperationDisabled = computed(
-  () => Boolean(isCloudBusy.value) || !hasUsableCloudConfig.value
+  () =>
+    isCloudInteractionDisabled.value ||
+    isCloudFeedbackPending.value ||
+    cloudSaveStatus.value === 'submitting' ||
+    cloudSaveTestStatus.value === 'submitting' ||
+    !hasUsableCloudConfig.value
 )
 const cloudSecretPlaceholder = computed(() =>
   hasStoredCloudSecret.value ? t('settings.data.cloudSync.secretConfigured') : ''
@@ -1396,76 +1508,119 @@ const cloudSecretStatusText = computed(() => {
 })
 
 const persistCloudConfig = async (): Promise<boolean> => {
-  if (isCloudSaveDisabled.value) {
+  if (isCloudBusy.value || !cloudValidation.value.canSave || isCloudSecretWriteUnavailable.value) {
     return false
   }
   await syncStore.saveCloudConfig(buildCloudSyncConfigInput(cloudForm.value))
   cloudForm.value.secretAccessKey = ''
+  cloudCommittedSignature.value = cloudFormSignature.value
+  cloudFormInitialized.value = true
   return true
 }
 
-const handleSaveCloud = async () => {
-  const saved = await persistCloudConfig()
-  if (!saved) {
-    return
-  }
-  toast({
-    title: t('settings.data.cloudSync.savedTitle'),
-    duration: 3000
-  })
+const cloudResultDescription = (message: string | undefined): string | undefined => {
+  return message && /^sync\.[a-zA-Z0-9_.-]+$/.test(message) ? t(message) : undefined
 }
 
-const handleSaveAndTestCloud = async () => {
-  const saved = await persistCloudConfig()
-  if (!saved) {
-    return
-  }
-  await handleTestCloud()
+const handleSaveCloud = () => {
+  if (isCloudSaveDisabled.value) return
+  isCloudFeedbackPending.value = true
+  cloudOperationError.value = null
+  void runCloudSave(async () => {
+    if (!(await persistCloudConfig())) {
+      throw new Error('cloud save aborted')
+    }
+  })
+    .catch((error: unknown) => {
+      console.error('[DataSettings] Failed to save cloud config', error)
+      cloudOperationError.value = t('common.error.operationFailed')
+    })
+    .finally(() => {
+      isCloudFeedbackPending.value = false
+    })
 }
 
-const handleTestCloud = async () => {
-  const result = await syncStore.testCloud()
-  if (!result) {
-    return
-  }
-  toast({
-    title: result.success
-      ? t('settings.data.cloudSync.testSuccessTitle')
-      : t('settings.data.cloudSync.testFailedTitle'),
-    description: result.success ? undefined : t(result.message),
-    variant: result.success ? 'default' : 'destructive',
-    duration: 4000
+const handleSaveAndTestCloud = () => {
+  if (isCloudSaveDisabled.value) return
+  isCloudFeedbackPending.value = true
+  cloudOperationError.value = null
+  void runCloudSaveTest(async () => {
+    if (!(await persistCloudConfig())) {
+      throw new Error('cloud save aborted')
+    }
+    const result = await syncStore.testCloud()
+    if (!result?.success) {
+      throw new Error(t('settings.data.cloudSync.testFailedTitle'))
+    }
   })
+    .catch((error: unknown) => {
+      console.error('[DataSettings] Failed to save or test cloud config', error)
+      cloudOperationError.value = t('settings.data.cloudSync.testFailedTitle')
+    })
+    .finally(() => {
+      isCloudFeedbackPending.value = false
+    })
 }
 
 const handleUploadToCloud = async () => {
-  const result = await syncStore.uploadToCloud()
-  if (!result) {
-    return
+  if (isCloudOperationDisabled.value) return
+  isCloudFeedbackPending.value = true
+  try {
+    const result = await syncStore.uploadToCloud()
+    if (!result?.success) {
+      notifyRenderer({
+        kind: 'error',
+        code: 'settings.data.cloud.uploadFailed',
+        title: t('settings.data.cloudSync.uploadFailedTitle'),
+        description: cloudResultDescription(result?.message)
+      })
+      return
+    }
+    notifyRenderer({
+      kind: 'success',
+      code: 'settings.data.cloud.uploadSucceeded',
+      title: t('settings.data.cloudSync.uploadSuccessTitle')
+    })
+  } catch (error) {
+    console.error('[DataSettings] Failed to upload cloud backup', error)
+    notifyRenderer({
+      kind: 'error',
+      code: 'settings.data.cloud.uploadFailed',
+      title: t('settings.data.cloudSync.uploadFailedTitle')
+    })
+  } finally {
+    isCloudFeedbackPending.value = false
   }
-  toast({
-    title: result.success
-      ? t('settings.data.cloudSync.uploadSuccessTitle')
-      : t('settings.data.cloudSync.uploadFailedTitle'),
-    description: result.success ? undefined : t(result.message),
-    variant: result.success ? 'default' : 'destructive',
-    duration: 4000
-  })
 }
 
 const handlePullFromCloud = async () => {
-  const result = await syncStore.pullFromCloud(cloudPullMode.value)
-  if (!result) {
-    return
-  }
-  if (result.success) {
-    toast({
+  if (isCloudOperationDisabled.value) return
+  isCloudFeedbackPending.value = true
+  try {
+    const result = await syncStore.pullFromCloud(cloudPullMode.value)
+    if (!result?.success) {
+      notifyRenderer({
+        kind: 'error',
+        code: 'settings.data.cloud.pullFailed',
+        title: t('settings.data.importErrorTitle')
+      })
+      return
+    }
+    notifyRenderer({
+      kind: 'success',
+      code: 'settings.data.cloud.pullSucceeded',
       title: t('settings.data.cloudSync.pullSuccessTitle'),
-      description: t('settings.provider.toast.importSuccessMessage', {
-        count: result.count ?? 0
-      }),
-      duration: 4000
+      description: cloudResultDescription(result.message)
     })
+  } catch (error) {
+    console.error('[DataSettings] Failed to pull cloud backup', error)
+    notifyRenderer({
+      kind: 'error',
+      code: 'settings.data.cloud.pullFailed',
+      title: t('settings.data.importErrorTitle')
+    })
+  } finally {
+    isCloudFeedbackPending.value = false
   }
 }
 
@@ -1492,73 +1647,59 @@ const closeDatabaseEncryptionDialog = () => {
   clearDatabasePasswordFields()
 }
 
+const handleDatabaseEncryptionDialogOpenChange = (open: boolean) => {
+  if (open) {
+    isDatabaseEncryptionDialogOpen.value = true
+    return
+  }
+  closeDatabaseEncryptionDialog()
+}
+
 const refreshDatabaseSecurityStatus = async () => {
   hasDatabaseSecurityStatusError.value = false
   try {
     databaseSecurityStatus.value = await databaseSecurityClient.getStatus()
     isDatabaseSecurityStatusLoaded.value = true
   } catch (error) {
-    console.error('Failed to load database encryption status:', error)
+    console.error('[DataSettings] Failed to load database encryption status', error)
     isDatabaseSecurityStatusLoaded.value = Boolean(databaseSecurityStatus.value)
     hasDatabaseSecurityStatusError.value = true
   }
 }
 
-const runDatabaseSecurityAction = async (
-  action: () => Promise<DatabaseSecurityStatus>,
-  successTitleKey: string
-) => {
-  if (isDatabaseSecurityBusy.value) {
-    return
-  }
-  isDatabaseSecurityBusy.value = true
-  try {
-    databaseSecurityStatus.value = await action()
-    isDatabaseSecurityStatusLoaded.value = true
-    hasDatabaseSecurityStatusError.value = false
-    clearDatabasePasswordFields()
-    isDatabaseEncryptionDialogOpen.value = false
-    toast({
-      title: t(successTitleKey),
-      duration: 4000
-    })
-  } catch (error) {
-    console.error('Database encryption action failed:', error)
-    toast({
-      title: t('settings.data.databaseEncryption.failedTitle'),
-      description:
-        error instanceof Error
-          ? error.message
-          : t('settings.data.databaseEncryption.failedDescription'),
-      variant: 'destructive',
-      duration: 5000
-    })
-  } finally {
-    isDatabaseSecurityBusy.value = false
-  }
+const runDatabaseSecurityAction = (action: () => Promise<DatabaseSecurityStatus>) => {
+  if (isDatabaseSecurityBusy.value) return
+  databaseSecurityError.value = null
+  void runDatabaseSecuritySubmit(async () => {
+    isDatabaseSecurityBusy.value = true
+    try {
+      databaseSecurityStatus.value = await action()
+      isDatabaseSecurityStatusLoaded.value = true
+      hasDatabaseSecurityStatusError.value = false
+      clearDatabasePasswordFields()
+      isDatabaseEncryptionDialogOpen.value = false
+    } finally {
+      isDatabaseSecurityBusy.value = false
+    }
+  }).catch((error: unknown) => {
+    console.error('[DataSettings] Database encryption action failed', error)
+    databaseSecurityError.value = t('settings.data.databaseEncryption.failedTitle')
+  })
 }
 
 const enableDatabaseEncryption = async () => {
   if (!canEnableDatabaseEncryption.value) {
     return
   }
-  await runDatabaseSecurityAction(
-    () => databaseSecurityClient.enable(databaseNewPassword.value),
-    'settings.data.databaseEncryption.enabledTitle'
-  )
+  await runDatabaseSecurityAction(() => databaseSecurityClient.enable(databaseNewPassword.value))
 }
 
 const changeDatabasePassword = async () => {
   if (!canChangeDatabasePassword.value) {
     return
   }
-  await runDatabaseSecurityAction(
-    () =>
-      databaseSecurityClient.changePassword(
-        databaseCurrentPassword.value,
-        databaseNewPassword.value
-      ),
-    'settings.data.databaseEncryption.changedTitle'
+  await runDatabaseSecurityAction(() =>
+    databaseSecurityClient.changePassword(databaseCurrentPassword.value, databaseNewPassword.value)
   )
 }
 
@@ -1566,9 +1707,8 @@ const disableDatabaseEncryption = async () => {
   if (!canDisableDatabaseEncryption.value) {
     return
   }
-  await runDatabaseSecurityAction(
-    () => databaseSecurityClient.disable(databaseCurrentPassword.value),
-    'settings.data.databaseEncryption.disabledTitle'
+  await runDatabaseSecurityAction(() =>
+    databaseSecurityClient.disable(databaseCurrentPassword.value)
   )
 }
 
@@ -1648,13 +1788,6 @@ const openProviderImportDialog = () => {
 }
 
 const handleProviderImportComplete = (result: ProviderImportApplyResult) => {
-  toast({
-    title: t('settings.data.providerImport.toastTitle'),
-    description: t('settings.data.providerImport.toastDescription', {
-      count: result.summary.imported
-    })
-  })
-
   if (result.summary.imported > 0) {
     void completeProviderImportOnboardingSteps(result)
   }
@@ -1676,25 +1809,8 @@ const completeProviderImportOnboardingSteps = async (result: ProviderImportApply
       await onboardingClient.setStepStatus({ stepId: 'provider-model', status: 'completed' })
     }
   } catch (error) {
-    console.error('Failed to complete provider import onboarding steps:', error)
+    console.error('[DataSettings] Failed to complete provider import onboarding steps', error)
   }
-}
-
-const buildRepairToastDescription = (report: DatabaseRepairReport) => {
-  if (report.status === 'healthy') {
-    return t('settings.data.databaseRepair.toastHealthyDescription')
-  }
-
-  if (report.remainingIssues.length > 0) {
-    return t('settings.data.databaseRepair.toastManualDescription', {
-      repaired: report.repairedIssues.length,
-      manual: report.remainingIssues.length
-    })
-  }
-
-  return t('settings.data.databaseRepair.toastRepairedDescription', {
-    count: report.repairedIssues.length
-  })
 }
 
 const openExternalLink = (url: string) => {
@@ -1713,30 +1829,28 @@ const runSchemaRepair = async () => {
   try {
     const result = await databaseSecurityClient.repairSchema()
     if (isPresenterError(result) || !result) {
-      toast({
+      notifyRenderer({
+        kind: 'error',
+        code: 'settings.data.databaseRepair.failed',
         title: t('settings.data.databaseRepair.toastFailedTitle'),
-        description: t('settings.data.databaseRepair.toastFailedDescription'),
-        variant: 'destructive'
+        description: t('settings.data.databaseRepair.toastFailedDescription')
       })
       return
     }
 
     lastRepairReport.value = result
-    toast({
-      title: t(
-        result.status === 'healthy'
-          ? 'settings.data.databaseRepair.toastHealthyTitle'
-          : 'settings.data.databaseRepair.toastCompletedTitle'
-      ),
-      description: buildRepairToastDescription(result),
-      variant: result.remainingIssues.length > 0 ? 'destructive' : 'default'
+    notifyRenderer({
+      kind: 'success',
+      code: 'settings.data.databaseRepair.completed',
+      title: repairSummaryText.value
     })
   } catch (error) {
-    console.error('Failed to repair database schema:', error)
-    toast({
+    console.error('[DataSettings] Failed to repair database schema', error)
+    notifyRenderer({
+      kind: 'error',
+      code: 'settings.data.databaseRepair.failed',
       title: t('settings.data.databaseRepair.toastFailedTitle'),
-      description: t('settings.data.databaseRepair.toastFailedDescription'),
-      variant: 'destructive'
+      description: t('settings.data.databaseRepair.toastFailedDescription')
     })
   } finally {
     isRepairing.value = false
@@ -1759,8 +1873,84 @@ const handleSettingsSectionNavigation = (event: Event) => {
   void runSchemaRepair()
 }
 
+const dataOperationBusy = computed(
+  () =>
+    isBackupActive.value ||
+    isImporting.value ||
+    isCloudBusy.value ||
+    isDatabaseSecurityBusy.value ||
+    isRepairing.value ||
+    isUpdatingModelConfig.value ||
+    isResetting.value ||
+    isClearingSandbox.value ||
+    isSyncFeedbackPending.value ||
+    isCloudFeedbackPending.value
+)
+const databaseSecurityDraftDirty = computed(
+  () =>
+    isDatabaseEncryptionDialogOpen.value &&
+    Boolean(
+      databaseCurrentPassword.value || databaseNewPassword.value || databaseConfirmPassword.value
+    )
+)
+const dataDraftDirty = computed(() => cloudFormDirty.value || databaseSecurityDraftDirty.value)
+
+watch(isClearSandboxDialogOpen, (open) => {
+  if (!open) sandboxClearFailed.value = false
+})
+
+const discardDataDrafts = () => {
+  if (cloudConfig.value) {
+    applyCloudConfig(cloudConfig.value)
+  } else {
+    cloudForm.value = createDefaultCloudSyncForm()
+    cloudCommittedSignature.value = cloudFormSignature.value
+    cloudFormInitialized.value = true
+  }
+  clearDatabasePasswordFields()
+  isDatabaseEncryptionDialogOpen.value = false
+  isImportDialogOpen.value = false
+  isResetDialogOpen.value = false
+  isClearSandboxDialogOpen.value = false
+}
+
+const dataLeaveGuardLease = settingsLeaveGuard.register({
+  id: 'settings-data-operations',
+  onDiscard: discardDataDrafts
+})
+const stopDataLeaveRiskSync = watch(
+  [dataOperationBusy, dataDraftDirty],
+  ([busy, dirty]) => {
+    dataLeaveGuardLease.setRisk(busy ? 'busy' : dirty ? 'dirty' : 'clean')
+  },
+  { immediate: true, flush: 'sync' }
+)
+
+const initializeSyncSettings = async () => {
+  if (isSyncFeedbackPending.value) return
+  beginSyncOperation()
+  try {
+    await syncStore.initialize()
+    notifyRenderer({
+      kind: 'success',
+      code: 'settings.data.sync.initialized',
+      title: t('settings.data.syncFolder')
+    })
+  } catch (error) {
+    syncInitializationFailed.value = true
+    console.error('[DataSettings] Failed to initialize sync settings', error)
+    notifyRenderer({
+      kind: 'error',
+      code: 'settings.data.sync.initializeFailed',
+      title: t('common.error.operationFailed')
+    })
+  } finally {
+    isSyncFeedbackPending.value = false
+  }
+}
+
 onMounted(async () => {
-  await syncStore.initialize()
+  await initializeSyncSettings()
   await refreshDatabaseSecurityStatus()
   window.addEventListener(SETTINGS_SECTION_EVENT, handleSettingsSectionNavigation as EventListener)
 
@@ -1774,6 +1964,8 @@ onMounted(async () => {
 })
 
 onBeforeUnmount(() => {
+  stopDataLeaveRiskSync()
+  dataLeaveGuardLease.release()
   window.removeEventListener(
     SETTINGS_SECTION_EVENT,
     handleSettingsSectionNavigation as EventListener
@@ -1822,19 +2014,30 @@ const formatBackupLabel = (fileName: string, createdAt: number, size: number) =>
 }
 
 const handleBackup = async () => {
-  const backupInfo = await syncStore.startBackup()
-  if (!backupInfo) {
-    return
+  if (!syncStore.syncEnabled || isSyncInteractionDisabled.value) return
+  try {
+    const backupInfo = await syncStore.startBackup()
+    if (!backupInfo) {
+      notifyRenderer({
+        kind: 'error',
+        code: 'settings.data.sync.backupFailed',
+        title: t('common.error.operationFailed')
+      })
+      return
+    }
+    notifyRenderer({
+      kind: 'success',
+      code: 'settings.data.sync.backupSucceeded',
+      title: t('settings.data.toast.backupSuccessTitle')
+    })
+  } catch (error) {
+    console.error('[DataSettings] Backup failed', error)
+    notifyRenderer({
+      kind: 'error',
+      code: 'settings.data.sync.backupFailed',
+      title: t('common.error.operationFailed')
+    })
   }
-
-  toast({
-    title: t('settings.provider.toast.backupSuccessTitle'),
-    description: t('settings.provider.toast.backupSuccessMessage', {
-      time: new Date(backupInfo.createdAt).toLocaleString(),
-      size: formatBytes(backupInfo.size)
-    }),
-    duration: 4000
-  })
 }
 
 const handleRefreshProviderDb = async () => {
@@ -1845,18 +2048,22 @@ const handleRefreshProviderDb = async () => {
     const result = await configClient.refreshProviderDb(true)
 
     if (!result || result.status === 'error') {
-      console.error('Failed to refresh provider DB:', result?.message)
-      toast({
+      console.error('[DataSettings] Failed to refresh provider DB', {
+        status: result?.status ?? 'missing'
+      })
+      notifyRenderer({
+        kind: 'error',
+        code: 'settings.data.modelConfig.updateFailed',
         title: t('settings.data.modelConfigUpdate.failedTitle'),
-        description: t('settings.data.modelConfigUpdate.failedDescription'),
-        variant: 'destructive',
-        duration: 4000
+        description: t('settings.data.modelConfigUpdate.failedDescription')
       })
       return
     }
 
     const isUpToDate = result.status === 'not-modified' || result.status === 'skipped'
-    toast({
+    notifyRenderer({
+      kind: 'success',
+      code: isUpToDate ? 'settings.data.modelConfig.upToDate' : 'settings.data.modelConfig.updated',
       title: t(
         isUpToDate
           ? 'settings.data.modelConfigUpdate.upToDateTitle'
@@ -1866,16 +2073,15 @@ const handleRefreshProviderDb = async () => {
         isUpToDate
           ? 'settings.data.modelConfigUpdate.upToDateDescription'
           : 'settings.data.modelConfigUpdate.updatedDescription'
-      ),
-      duration: 4000
+      )
     })
   } catch (error) {
-    console.error('Failed to refresh provider DB:', error)
-    toast({
+    console.error('[DataSettings] Failed to refresh provider DB', error)
+    notifyRenderer({
+      kind: 'error',
+      code: 'settings.data.modelConfig.updateFailed',
       title: t('settings.data.modelConfigUpdate.failedTitle'),
-      description: t('settings.data.modelConfigUpdate.failedDescription'),
-      variant: 'destructive',
-      duration: 4000
+      description: t('settings.data.modelConfigUpdate.failedDescription')
     })
   } finally {
     isUpdatingModelConfig.value = false
@@ -1883,28 +2089,58 @@ const handleRefreshProviderDb = async () => {
 }
 
 const closeImportDialog = () => {
+  if (syncStore.isImporting) return
   isImportDialogOpen.value = false
   importMode.value = 'increment'
 }
 
-const handleImport = async () => {
-  if (!selectedBackup.value) {
+const handleImportDialogOpenChange = (open: boolean) => {
+  if (open) {
+    isImportDialogOpen.value = true
     return
   }
-  const result = await syncStore.importData(
-    selectedBackup.value,
-    importMode.value as 'increment' | 'overwrite'
-  )
-  if (result?.success) {
-    toast({
-      title: t('settings.provider.toast.importSuccessTitle'),
-      description: t('settings.provider.toast.importSuccessMessage', {
-        count: result.count ?? 0
-      }),
-      duration: 4000
-    })
-  }
   closeImportDialog()
+}
+
+const handleImport = async () => {
+  if (!selectedBackup.value || isSyncInteractionDisabled.value) return
+  beginSyncOperation()
+  try {
+    const result = await syncStore.importData(
+      selectedBackup.value,
+      importMode.value as 'increment' | 'overwrite'
+    )
+    if (!result) {
+      isSyncFeedbackPending.value = false
+      return
+    }
+    if (result.success) {
+      notifyRenderer({
+        kind: 'success',
+        code: 'settings.data.sync.importSucceeded',
+        title: t('settings.data.importSuccessTitle'),
+        description: t(result.message, {
+          count: result.count ?? 0
+        })
+      })
+    } else {
+      notifyRenderer({
+        kind: 'error',
+        code: 'settings.data.sync.importFailed',
+        title: t('settings.data.importErrorTitle')
+      })
+    }
+    closeImportDialog()
+  } catch (error) {
+    console.error('[DataSettings] Import failed', error)
+    notifyRenderer({
+      kind: 'error',
+      code: 'settings.data.sync.importFailed',
+      title: t('settings.data.importErrorTitle')
+    })
+  } finally {
+    isSyncFeedbackPending.value = false
+  }
 }
 
 const handleAlertAction = () => {
@@ -1912,8 +2148,18 @@ const handleAlertAction = () => {
 }
 
 const closeResetDialog = () => {
+  if (isResetting.value) return
   isResetDialogOpen.value = false
   resetType.value = 'chat'
+}
+
+const handleResetDialogOpenChange = (open: boolean) => {
+  if (isResetting.value) return
+  if (open) {
+    isResetDialogOpen.value = true
+    return
+  }
+  closeResetDialog()
 }
 
 const openResetDialog = () => {
@@ -1925,15 +2171,32 @@ const openResetDialog = () => {
   isResetDialogOpen.value = true
 }
 
+const selectResetType = (type: typeof resetType.value) => {
+  if (isResetting.value) return
+  resetType.value = type
+}
+
 const handleReset = async () => {
   if (isResetActionDisabled.value) return
 
+  const selectedResetType = resetType.value
   isResetting.value = true
   try {
-    await deviceClient.resetDataByType(resetType.value)
-    closeResetDialog()
+    await deviceClient.resetDataByType(selectedResetType)
+    notifyRenderer({
+      kind: 'success',
+      code: 'settings.data.reset.completed',
+      title: t('settings.data.resetData')
+    })
+    isResetDialogOpen.value = false
+    resetType.value = 'chat'
   } catch (error) {
-    console.error('Failed to reset data:', error)
+    console.error('[DataSettings] Failed to reset data', error)
+    notifyRenderer({
+      kind: 'error',
+      code: 'settings.data.reset.failed',
+      title: t('common.error.operationFailed')
+    })
   } finally {
     isResetting.value = false
   }
@@ -1942,25 +2205,27 @@ const handleReset = async () => {
 const handleClearSandboxData = async () => {
   if (isClearingSandbox.value) return
 
+  sandboxClearFailed.value = false
   isClearingSandbox.value = true
   try {
     await browserClient.clearSandboxData()
-    toast({
+    notifyRenderer({
+      kind: 'success',
+      code: 'settings.data.sandbox.cleared',
       title: t('settings.data.yoBrowser.clearedTitle'),
-      description: t('settings.data.yoBrowser.clearedDescription'),
-      duration: 4000
+      description: t('settings.data.yoBrowser.clearedDescription')
     })
+    isClearSandboxDialogOpen.value = false
   } catch (error) {
-    console.error('Failed to clear YoBrowser sandbox data:', error)
-    toast({
-      title: t('settings.data.yoBrowser.clearFailedTitle'),
-      description: t('settings.data.yoBrowser.clearFailedDescription'),
-      variant: 'destructive',
-      duration: 4000
-    })
+    console.error('[DataSettings] Failed to clear YoBrowser sandbox data', error)
+    sandboxClearFailed.value = true
   } finally {
     isClearingSandbox.value = false
-    isClearSandboxDialogOpen.value = false
   }
+}
+
+const handleClearSandboxDialogOpenChange = (open: boolean) => {
+  if (isClearingSandbox.value) return
+  isClearSandboxDialogOpen.value = open
 }
 </script>

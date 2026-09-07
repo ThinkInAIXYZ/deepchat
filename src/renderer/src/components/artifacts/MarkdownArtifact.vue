@@ -1,8 +1,5 @@
 <template>
-  <div
-    ref="messageBlock"
-    class="markdown-content-wrapper relative w-full px-4 pb-8 artifact-dialog-content"
-  >
+  <div class="markdown-content-wrapper relative w-full px-4 pb-8 artifact-dialog-content">
     <MarkdownRenderer
       :content="props.block.content || ''"
       :final="true"
@@ -15,10 +12,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
 import MarkdownRenderer from '@/components/markdown/MarkdownRenderer.vue'
-
-const messageBlock = ref<HTMLDivElement>()
 
 const props = defineProps<{
   block: {

@@ -22,7 +22,8 @@
             <TooltipTrigger>
               <Switch
                 :model-value="isBuiltinMcpEnabled"
-                :disabled="!mcpStore.mcpEnabled"
+                :disabled="!mcpStore.mcpEnabled || operationPending"
+                @click.stop
                 @update:model-value="toggleBuiltinMcpServer"
               />
             </TooltipTrigger>
@@ -40,6 +41,12 @@
     <Collapsible v-model:open="isBuiltinConfigPanelOpen">
       <CollapsibleContent>
         <div class="p-4 border-t space-y-4">
+          <div v-if="panelError" role="alert" class="space-y-0.5 text-xs text-destructive">
+            <p>{{ panelError.title }}</p>
+            <p v-if="panelError.description" class="text-muted-foreground">
+              {{ panelError.description }}
+            </p>
+          </div>
           <div v-if="builtinConfigs.length > 0" class="space-y-3">
             <div
               v-for="(config, index) in builtinConfigs"
@@ -49,11 +56,13 @@
               <div class="absolute top-2 right-2 flex gap-2">
                 <Switch
                   :model-value="config.enabled === true"
+                  :disabled="operationPending"
                   size="sm"
                   @update:model-value="(value) => toggleConfigEnabled(index, value)"
                 />
                 <button
                   type="button"
+                  :disabled="operationPending"
                   class="text-muted-foreground hover:text-primary"
                   @click="handleSetting(config)"
                 >
@@ -61,36 +70,21 @@
                 </button>
                 <button
                   type="button"
+                  :disabled="operationPending"
                   class="text-muted-foreground hover:text-primary"
                   @click="editBuiltinConfig(index)"
                 >
                   <Icon icon="lucide:edit" class="h-4 w-4" />
                 </button>
-                <AlertDialog>
-                  <AlertDialogTrigger asChild>
-                    <button type="button" class="text-muted-foreground hover:text-destructive">
-                      <Icon icon="lucide:trash-2" class="h-4 w-4" />
-                    </button>
-                  </AlertDialogTrigger>
-                  <AlertDialogContent>
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>{{
-                        t('settings.knowledgeBase.removeBuiltinKnowledgeConfirmTitle', {
-                          name: config.description
-                        })
-                      }}</AlertDialogTitle>
-                      <AlertDialogDescription>
-                        {{ t('settings.knowledgeBase.removeBuiltinKnowledgeConfirmDesc') }}
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel>{{ t('common.cancel') }}</AlertDialogCancel>
-                      <AlertDialogAction @click="removeBuiltinConfig(index)">{{
-                        t('common.confirm')
-                      }}</AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
+                <button
+                  type="button"
+                  :disabled="operationPending"
+                  class="text-muted-foreground hover:text-destructive"
+                  data-testid="builtin-knowledge-remove-trigger"
+                  @click="requestRemoveBuiltinConfig(config)"
+                >
+                  <Icon icon="lucide:trash-2" class="h-4 w-4" />
+                </button>
               </div>
               <div class="grid gap-2">
                 <div class="flex items-center">
@@ -113,8 +107,9 @@
           </div>
 
           <div class="flex justify-center">
-            <Button
+            <DcButton
               type="button"
+              :disabled="operationPending"
               size="sm"
               class="w-full flex items-center justify-center gap-2"
               variant="outline"
@@ -122,12 +117,27 @@
             >
               <Icon icon="lucide:plus" class="w-8 h-4" />
               {{ t('settings.knowledgeBase.addBuiltinKnowledgeConfig') }}
-            </Button>
+            </DcButton>
           </div>
         </div>
       </CollapsibleContent>
     </Collapsible>
-    <Dialog v-model:open="isBuiltinConfigDialogOpen">
+    <DcConfirmDialog
+      :open="removeDialogOpen"
+      :title="
+        t('settings.knowledgeBase.removeBuiltinKnowledgeConfirmTitle', {
+          name: removeTargetDescription
+        })
+      "
+      :description="t('settings.knowledgeBase.removeBuiltinKnowledgeConfirmDesc')"
+      :busy="operationPending"
+      :confirm-attrs="{ 'data-testid': 'builtin-knowledge-remove-confirm' }"
+      :cancel-attrs="{ 'data-testid': 'builtin-knowledge-remove-cancel' }"
+      busy-data-testid="builtin-knowledge-remove-spinner"
+      @update:open="handleRemoveDialogOpenChange"
+      @confirm="removeBuiltinConfig"
+    />
+    <Dialog :open="isBuiltinConfigDialogOpen" @update:open="handleDialogOpenChange">
       <DialogContent>
         <DialogHeader>
           <DialogTitle>{{
@@ -140,7 +150,11 @@
           </DialogDescription>
         </DialogHeader>
         <ScrollArea class="max-h-[500px]">
-          <div class="p-3">
+          <div
+            class="p-3"
+            :class="{ 'pointer-events-none opacity-70': operationPending }"
+            :inert="operationPending"
+          >
             <div class="space-y-4 py-4">
               <div class="space-y-2">
                 <Label
@@ -151,7 +165,6 @@
                 <Input
                   id="edit-builtin-config-description"
                   v-model="editingBuiltinConfig.description"
-                  required
                   :placeholder="t('settings.knowledgeBase.descriptionPlaceholder')"
                 />
               </div>
@@ -176,7 +189,7 @@
                 </div>
                 <Popover v-model:open="embeddingModelSelectOpen">
                   <PopoverTrigger as-child>
-                    <Button
+                    <DcButton
                       id="edit-builtin-config-model"
                       variant="outline"
                       class="w-full justify-between"
@@ -192,14 +205,14 @@
                           selectEmbeddingModel?.name || t('settings.common.selectModel')
                         }}</span>
                       </div>
-                      <Button
+                      <DcButton
                         size="sm"
                         variant="ghost"
                         class="text-xs text-muted-foreground rounded-full w-6 h-6 flex items-center justify-center"
                       >
                         <Icon icon="lucide:chevron-down" class="w-4 h-4 text-muted-foreground" />
-                      </Button>
-                    </Button>
+                      </DcButton>
+                    </DcButton>
                   </PopoverTrigger>
                   <PopoverContent class="w-80 p-0">
                     <ModelSelect
@@ -218,7 +231,7 @@
                 </div>
                 <Popover v-model:open="rerankModelSelectOpen">
                   <PopoverTrigger as-child>
-                    <Button
+                    <DcButton
                       id="edit-builtin-config-model"
                       variant="outline"
                       class="w-full justify-between"
@@ -233,7 +246,7 @@
                           {{ selectRerankModel?.name || t('settings.common.selectModel') }}
                         </span>
                       </div>
-                      <Button
+                      <DcButton
                         size="sm"
                         variant="ghost"
                         v-if="selectRerankModel"
@@ -241,16 +254,16 @@
                         @click.stop="clearRerankModel"
                       >
                         <Icon icon="lucide:x" class="w-4 h-4 text-muted-foreground" />
-                      </Button>
-                      <Button
+                      </DcButton>
+                      <DcButton
                         size="sm"
                         variant="ghost"
                         v-else
                         class="text-xs text-muted-foreground rounded-full w-6 h-6 flex items-center justify-center"
                       >
                         <Icon icon="lucide:chevron-down" class="w-4 h-4 text-muted-foreground" />
-                      </Button>
-                    </Button>
+                      </DcButton>
+                    </DcButton>
                   </PopoverTrigger>
                   <PopoverContent class="w-80 p-0">
                     <ModelSelect
@@ -378,7 +391,9 @@
                               />
                             </TooltipTrigger>
                             <TooltipContent>
-                              <p class="w-64">{{ t('settings.knowledgeBase.separatorsHelper') }}</p>
+                              <p class="w-64">
+                                {{ t('settings.knowledgeBase.separatorsHelper') }}
+                              </p>
                             </TooltipContent>
                           </Tooltip>
                         </TooltipProvider>
@@ -392,14 +407,14 @@
                         ></Input>
                         <Popover v-model:open="separatorsPopoverOpen">
                           <PopoverTrigger as-child>
-                            <Button
+                            <DcButton
                               size="sm"
                               variant="ghost"
                               class="whitespace-nowrap"
-                              :title="t('settings.knowledgeBase.separatorsPreset')"
+                              :tooltip="t('settings.knowledgeBase.separatorsPreset')"
                             >
                               <Icon icon="lucide:book-marked" class="w-4 h-4 text-primary" />
-                            </Button>
+                            </DcButton>
                           </PopoverTrigger>
                           <PopoverContent class="w-40 p-2">
                             <div class="space-y-2">
@@ -407,7 +422,7 @@
                                 {{ t('settings.knowledgeBase.selectLanguage') }}
                               </div>
                               <div class="max-h-48 overflow-y-auto space-y-1">
-                                <Button
+                                <DcButton
                                   v-for="language in supportedLanguages"
                                   :key="language"
                                   variant="ghost"
@@ -416,7 +431,7 @@
                                   @click="handleLanguageSelect(language)"
                                 >
                                   {{ language }}
-                                </Button>
+                                </DcButton>
                               </div>
                             </div>
                           </PopoverContent>
@@ -440,7 +455,9 @@
                               />
                             </TooltipTrigger>
                             <TooltipContent>
-                              <p class="w-64">{{ t('settings.knowledgeBase.chunkSizeHelper') }}</p>
+                              <p class="w-64">
+                                {{ t('settings.knowledgeBase.chunkSizeHelper') }}
+                              </p>
                             </TooltipContent>
                           </Tooltip>
                         </TooltipProvider>
@@ -528,18 +545,18 @@
           </div>
         </ScrollArea>
         <DialogFooter>
-          <Button variant="outline" @click="closeBuiltinConfigDialog">{{
-            t('common.cancel')
-          }}</Button>
-          <Button
-            type="button"
-            :disabled="!isEditingBuiltinConfigValid || submitLoading"
-            @click="saveBuiltinConfig"
-          >
-            <Icon v-if="submitLoading" icon="lucide:loader-circle" class="animate-spin" />{{
-              isEditing ? t('common.confirm') : t('settings.knowledgeBase.addConfig')
-            }}
-          </Button>
+          <div class="mr-auto min-w-0 space-y-1">
+            <DcInlineError v-if="dialogValidationError" :error="dialogValidationError" />
+            <DcInlineError v-if="operationError" :error="operationError" />
+          </div>
+          <DcFormActions
+            :submit-status="saveStatus"
+            :submit-disabled="!isEditingBuiltinConfigValid || operationPending"
+            :cancel-disabled="operationPending"
+            :submit-label="isEditing ? t('common.confirm') : t('settings.knowledgeBase.addConfig')"
+            @cancel="closeBuiltinConfigDialog"
+            @submit="saveBuiltinConfig"
+          />
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -547,10 +564,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
 import { Switch } from '@shadcn/components/ui/switch'
 import { Collapsible, CollapsibleContent } from '@shadcn/components/ui/collapsible'
 import {
@@ -562,17 +579,10 @@ import {
   DialogDescription
 } from '@shadcn/components/ui/dialog'
 import { Slider } from '@shadcn/components/ui/slider'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger
-} from '@shadcn/components/ui/alert-dialog'
+import { DcConfirmDialog } from '@dc-ui/components/confirm-dialog'
+import { DcInlineError } from '@dc-ui/components/inline-error'
+import { DcFormActions } from '@dc-ui/components/form-actions'
+import { useDcFormSubmit } from '@dc-ui/components/form'
 import { Input } from '@shadcn/components/ui/input'
 import { Label } from '@shadcn/components/ui/label'
 import { Popover, PopoverContent, PopoverTrigger } from '@shadcn/components/ui/popover'
@@ -594,14 +604,16 @@ import { ScrollArea } from '@shadcn/components/ui/scroll-area'
 import { useMcpStore } from '@/stores/mcp'
 import { ModelType } from '@shared/model'
 import { useThemeStore } from '@/stores/theme'
-import { BuiltinKnowledgeConfig, RENDERER_MODEL_META } from '@shared/presenter'
-import { toast } from '@/components/use-toast'
+import type { RENDERER_MODEL_META } from '@shared/types/provider'
+import type { BuiltinKnowledgeConfig } from '@shared/types/knowledge'
 import { useRoute } from 'vue-router'
 import { nanoid } from 'nanoid'
 import { useModelStore } from '@/stores/modelStore'
 import { createConfigClient } from '@api/ConfigClient'
 import { createKnowledgeClient } from '@api/KnowledgeClient'
 import { createProviderClient } from '@api/ProviderClient'
+import { useKnowledgeConfigOperation } from '../lib/useKnowledgeConfigOperation'
+import { settingsLeaveGuard } from '../services/settingsLeaveGuard'
 // 全局对象
 const { t } = useI18n()
 const mcpStore = useMcpStore()
@@ -610,6 +622,8 @@ const themeStore = useThemeStore()
 const configClient = createConfigClient()
 const knowledgeClient = createKnowledgeClient()
 const providerClient = createProviderClient()
+const knowledgeOperation = useKnowledgeConfigOperation()
+const operationPending = knowledgeOperation.pending
 const emit = defineEmits<{
   (e: 'showDetail', config: BuiltinKnowledgeConfig): void
 }>()
@@ -625,7 +639,12 @@ const fragmentsNumber = ref<number[]>([6])
 
 const isBuiltinConfigPanelOpen = ref(false)
 const isEditing = ref(false)
-const submitLoading = ref(false)
+const panelError = ref<{ title: string; description?: string } | null>(null)
+const dialogValidationError = ref<string | null>(null)
+const operationError = ref<string | null>(null)
+const { status: saveStatus, run: runSave } = useDcFormSubmit()
+const separators = ref('')
+const supportedLanguages = ref<string[]>([])
 
 // 自动检测维度开关
 const autoDetectDimensionsSwitch = ref(true)
@@ -635,6 +654,21 @@ const clearRerankModel = () => {
   rerankModelSelectOpen.value = false
 }
 const builtinConfigs = ref<Array<BuiltinKnowledgeConfig>>([])
+type BuiltinRemoveRequest =
+  | { status: 'idle' }
+  | { status: 'confirming'; target: BuiltinKnowledgeConfig }
+const removeRequest = shallowRef<BuiltinRemoveRequest>({ status: 'idle' })
+const removeDialogOpen = computed(() => removeRequest.value.status === 'confirming')
+const removeTargetDescription = computed(() =>
+  removeRequest.value.status === 'confirming' ? removeRequest.value.target.description : ''
+)
+
+const cloneBuiltinConfig = (config: BuiltinKnowledgeConfig): BuiltinKnowledgeConfig => ({
+  ...config,
+  embedding: { ...config.embedding },
+  ...(config.rerank ? { rerank: { ...config.rerank } } : {}),
+  ...(config.separators ? { separators: [...config.separators] } : {})
+})
 
 // 正在编辑的配置
 const editingBuiltinConfig = ref<BuiltinKnowledgeConfig>({
@@ -649,17 +683,29 @@ const editingBuiltinConfig = ref<BuiltinKnowledgeConfig>({
   fragmentsNumber: 6,
   enabled: true
 })
+// 对话框状态
+const isBuiltinConfigDialogOpen = ref(false)
+const dialogInitialSignature = ref('')
+const editingSignature = computed(() =>
+  JSON.stringify({
+    config: editingBuiltinConfig.value,
+    separators: separators.value,
+    fragmentsNumber: fragmentsNumber.value[0],
+    autoDetectDimensions: autoDetectDimensionsSwitch.value
+  })
+)
+const dialogDirty = computed(
+  () => isBuiltinConfigDialogOpen.value && editingSignature.value !== dialogInitialSignature.value
+)
 
 // 当前选择的嵌入模型
 const selectEmbeddingModel = ref<RENDERER_MODEL_META | null>(null)
 // 当前选择的重排模型
 const selectRerankModel = ref<RENDERER_MODEL_META | null>(null)
 
-// 对话框状态
-const isBuiltinConfigDialogOpen = ref(false)
-
 // 打开添加对话框
 function openAddConfig() {
+  if (operationPending.value) return
   isEditing.value = false
   editingBuiltinConfig.value = {
     id: nanoid(),
@@ -678,7 +724,9 @@ function openAddConfig() {
   selectEmbeddingModel.value = null
   selectRerankModel.value = null
   autoDetectDimensionsSwitch.value = true
-  submitLoading.value = false
+  dialogValidationError.value = null
+  operationError.value = null
+  dialogInitialSignature.value = editingSignature.value
   isBuiltinConfigDialogOpen.value = true
 }
 
@@ -690,11 +738,12 @@ const editingConfigIndex = ref<number>(-1)
 
 // 验证配置是否有效
 const isEditingBuiltinConfigValid = computed(() => {
+  const dimensions = Number(editingBuiltinConfig.value.dimensions)
   return (
     editingBuiltinConfig.value.description.trim() !== '' &&
     editingBuiltinConfig.value.embedding.providerId.trim() !== '' &&
     editingBuiltinConfig.value.embedding.modelId.trim() !== '' &&
-    (autoDetectDimensionsSwitch.value || editingBuiltinConfig.value.dimensions)
+    (autoDetectDimensionsSwitch.value || (Number.isFinite(dimensions) && dimensions > 0))
   )
 })
 
@@ -707,43 +756,34 @@ const getEnableModelConfig = (modelId: string, providerId: string): RENDERER_MOD
 }
 
 // 打开编辑对话框
-const editBuiltinConfig = async (index: number) => {
+const editBuiltinConfig = (index: number) => {
+  if (operationPending.value || index < 0 || index >= builtinConfigs.value.length) return
   const config = builtinConfigs.value[index]
   // 设置当前选择的嵌入模型
-  const embeddingModel = (await getEnableModelConfig(
-    config.embedding.modelId,
-    config.embedding.providerId
-  )) as RENDERER_MODEL_META
+  const embeddingModel = getEnableModelConfig(config.embedding.modelId, config.embedding.providerId)
   // 如果模型不存在或被禁用
   if (!embeddingModel || !embeddingModel.enabled) {
-    toast({
+    panelError.value = {
       title: t('settings.knowledgeBase.modelNotFound', {
         provider: t(config.embedding.providerId),
         model: config.embedding.modelId
       }),
-      description: t('settings.knowledgeBase.modelNotFoundDesc'),
-      variant: 'destructive',
-      duration: 3000
-    })
+      description: t('settings.knowledgeBase.modelNotFoundDesc')
+    }
     return
   }
   if (config.rerank && config.rerank.providerId && config.rerank.modelId) {
     // 设置当前选择的重排序模型
-    const rerankModel = (await getEnableModelConfig(
-      config.rerank.modelId,
-      config.rerank.providerId
-    )) as RENDERER_MODEL_META
+    const rerankModel = getEnableModelConfig(config.rerank.modelId, config.rerank.providerId)
     // 如果模型不存在或被禁用
     if (!rerankModel || !rerankModel.enabled) {
-      toast({
+      panelError.value = {
         title: t('settings.knowledgeBase.modelNotFound', {
           provider: t(config.rerank.providerId),
           model: config.rerank.modelId
         }),
-        description: t('settings.knowledgeBase.modelNotFoundDesc'),
-        variant: 'destructive',
-        duration: 3000
-      })
+        description: t('settings.knowledgeBase.modelNotFoundDesc')
+      }
       return
     }
     selectRerankModel.value = rerankModel
@@ -757,17 +797,19 @@ const editBuiltinConfig = async (index: number) => {
   }
 
   isEditing.value = true
+  panelError.value = null
   selectEmbeddingModel.value = embeddingModel
   editingConfigIndex.value = index
-  editingBuiltinConfig.value = { ...builtinConfigs.value[index] }
+  editingBuiltinConfig.value = cloneBuiltinConfig(config)
   fragmentsNumber.value = [editingBuiltinConfig.value.fragmentsNumber]
   autoDetectDimensionsSwitch.value = editingBuiltinConfig.value.dimensions === undefined
-  submitLoading.value = false
+  dialogValidationError.value = null
+  operationError.value = null
+  dialogInitialSignature.value = editingSignature.value
   isBuiltinConfigDialogOpen.value = true
 }
 
-// 关闭编辑对话框
-const closeBuiltinConfigDialog = () => {
+const resetBuiltinConfigDialog = () => {
   isBuiltinConfigDialogOpen.value = false
   editingConfigIndex.value = -1
   editingBuiltinConfig.value = {
@@ -784,8 +826,25 @@ const closeBuiltinConfigDialog = () => {
   }
   separators.value = ''
   selectEmbeddingModel.value = null
+  selectRerankModel.value = null
   autoDetectDimensionsSwitch.value = true
-  submitLoading.value = false
+  dialogValidationError.value = null
+  operationError.value = null
+  dialogInitialSignature.value = editingSignature.value
+}
+
+// 关闭编辑对话框
+const closeBuiltinConfigDialog = () => {
+  if (operationPending.value) return
+  resetBuiltinConfigDialog()
+}
+
+const handleDialogOpenChange = (open: boolean) => {
+  if (open) {
+    isBuiltinConfigDialogOpen.value = true
+  } else {
+    closeBuiltinConfigDialog()
+  }
 }
 
 // 进入设置页面
@@ -795,78 +854,118 @@ const handleSetting = (config: BuiltinKnowledgeConfig) => {
 
 // 保存配置
 const saveBuiltinConfig = async () => {
-  if (!isEditingBuiltinConfigValid.value) return
-  editingBuiltinConfig.value.fragmentsNumber = fragmentsNumber.value[0]
-  submitLoading.value = true
+  if (operationPending.value || !isEditingBuiltinConfigValid.value) return
+  dialogValidationError.value = null
+  operationError.value = null
+  const draft = cloneBuiltinConfig(editingBuiltinConfig.value)
+  draft.fragmentsNumber = fragmentsNumber.value[0]
   // 转换separators格式
   if (separators.value && separators.value.trim() !== '') {
     const separatorsArray = separatorString2Array(separators.value)
     if (separatorsArray.length === 0) {
-      toast({
-        title: t('settings.knowledgeBase.invalidSeparators'),
-        variant: 'destructive',
-        duration: 3000
-      })
-      submitLoading.value = false
+      dialogValidationError.value = t('settings.knowledgeBase.invalidSeparators')
       return
     }
-    editingBuiltinConfig.value.separators = separatorsArray
+    draft.separators = separatorsArray
   } else {
-    delete editingBuiltinConfig.value.separators
+    delete draft.separators
   }
-  // 自动获取dimensions
-  if (autoDetectDimensionsSwitch.value) {
-    const result = await providerClient.getEmbeddingDimensions(
-      editingBuiltinConfig.value.embedding.providerId,
-      editingBuiltinConfig.value.embedding.modelId
-    )
-    if (result.errorMsg) {
-      toast({
-        title: t('settings.knowledgeBase.autoDetectDimensionsError'),
-        description: String(result.errorMsg),
-        variant: 'destructive',
-        duration: 3000
-      })
-      submitLoading.value = false
-      return
-    }
-    console.log('获取到向量信息:', result.data)
-    editingBuiltinConfig.value.dimensions = result.data.dimensions
-    editingBuiltinConfig.value.normalized = result.data.normalized
+  if (!autoDetectDimensionsSwitch.value) {
+    draft.dimensions = Number(draft.dimensions)
   }
 
-  const nextConfigs = [...builtinConfigs.value]
+  const nextConfigs = builtinConfigs.value.map(cloneBuiltinConfig)
   if (isEditing.value && editingConfigIndex.value !== -1) {
-    nextConfigs[editingConfigIndex.value] = { ...editingBuiltinConfig.value }
+    if (editingConfigIndex.value < 0 || editingConfigIndex.value >= nextConfigs.length) return
+    nextConfigs[editingConfigIndex.value] = draft
   } else {
-    nextConfigs.push({ ...editingBuiltinConfig.value })
+    nextConfigs.push(draft)
   }
 
-  const saved = await saveBuiltinConfigs(nextConfigs)
-  submitLoading.value = false
-  if (!saved) return
+  try {
+    await runSave(async () => {
+      let failureTitle = t('common.error.operationFailed')
+      let dimensionsResolved = !autoDetectDimensionsSwitch.value
+      const saved = await knowledgeOperation.run({
+        code: 'settings.knowledgeBase.builtin.save',
+        source: 'dialog',
+        label: t('common.saving'),
+        perform: async () => {
+          failureTitle = t('common.error.operationFailed')
+          if (!dimensionsResolved) {
+            const result = await providerClient.getEmbeddingDimensions(
+              draft.embedding.providerId,
+              draft.embedding.modelId
+            )
+            if (
+              result.errorMsg ||
+              !Number.isFinite(result.data.dimensions) ||
+              result.data.dimensions <= 0
+            ) {
+              failureTitle = t('settings.knowledgeBase.autoDetectDimensionsError')
+              return false
+            }
+            draft.dimensions = result.data.dimensions
+            draft.normalized = result.data.normalized
+            dimensionsResolved = true
+          }
+          await configClient.setKnowledgeConfigs(nextConfigs)
+          return true
+        },
+        failure: () => ({ title: failureTitle }),
+        commit: () => {
+          builtinConfigs.value = nextConfigs.map(cloneBuiltinConfig)
+          panelError.value = null
+          resetBuiltinConfigDialog()
+        }
+      })
+      if (!saved) {
+        throw new Error('save configuration rejected')
+      }
+    })
+  } catch (error) {
+    console.error('[BuiltinKnowledgeSettings] save configuration failed', error)
+    operationError.value =
+      knowledgeOperation.lastError.value?.title ?? t('common.error.operationFailed')
+  }
+}
 
-  builtinConfigs.value = nextConfigs
-  toast({
-    title: isEditing.value
-      ? t('settings.knowledgeBase.configUpdated')
-      : t('settings.knowledgeBase.configAdded'),
-    description: isEditing.value
-      ? t('settings.knowledgeBase.configUpdatedDesc')
-      : t('settings.knowledgeBase.configAddedDesc'),
-    duration: 3000
-  })
+const requestRemoveBuiltinConfig = (config: BuiltinKnowledgeConfig) => {
+  if (operationPending.value || removeRequest.value.status !== 'idle') return
+  removeRequest.value = { status: 'confirming', target: config }
+}
 
-  closeBuiltinConfigDialog()
+const handleRemoveDialogOpenChange = (open: boolean) => {
+  if (open || operationPending.value || removeRequest.value.status !== 'confirming') return
+  removeRequest.value = { status: 'idle' }
 }
 
 // 移除配置
-const removeBuiltinConfig = async (index: number) => {
-  const nextConfigs = builtinConfigs.value.filter((_, configIndex) => configIndex !== index)
-  const saved = await saveBuiltinConfigs(nextConfigs)
-  if (saved) {
-    builtinConfigs.value = nextConfigs
+const removeBuiltinConfig = async () => {
+  const request = removeRequest.value
+  if (operationPending.value || request.status !== 'confirming') return
+  const index = builtinConfigs.value.findIndex((config) => config === request.target)
+  if (index < 0) {
+    removeRequest.value = { status: 'idle' }
+    panelError.value = { title: t('common.error.operationFailed') }
+    return
   }
+  const nextConfigs = builtinConfigs.value.map(cloneBuiltinConfig)
+  nextConfigs.splice(index, 1)
+  await knowledgeOperation.run({
+    code: 'settings.knowledgeBase.builtin.remove',
+    source: 'confirmation',
+    label: t('common.saving'),
+    perform: async () => {
+      await configClient.setKnowledgeConfigs(nextConfigs)
+      return true
+    },
+    commit: () => {
+      builtinConfigs.value = nextConfigs.map(cloneBuiltinConfig)
+      panelError.value = null
+      removeRequest.value = { status: 'idle' }
+    }
+  })
 }
 
 // 选择嵌入模型
@@ -894,23 +993,39 @@ const handleRerankModelSelect = (model: RENDERER_MODEL_META, providerId: string)
 
 // 切换配置启用状态
 const toggleConfigEnabled = async (index: number, enabled: boolean) => {
+  if (operationPending.value || index < 0 || index >= builtinConfigs.value.length) return
   const nextConfigs = builtinConfigs.value.map((config, configIndex) =>
-    configIndex === index ? { ...config, enabled } : config
+    cloneBuiltinConfig(configIndex === index ? { ...config, enabled } : config)
   )
-  const saved = await saveBuiltinConfigs(nextConfigs)
-  if (saved) {
-    builtinConfigs.value = nextConfigs
-  }
+  await knowledgeOperation.run({
+    code: 'settings.knowledgeBase.builtin.toggleConfig',
+    source: 'panel',
+    label: t('common.saving'),
+    perform: async () => {
+      await configClient.setKnowledgeConfigs(nextConfigs)
+      return true
+    },
+    commit: () => {
+      builtinConfigs.value = nextConfigs.map(cloneBuiltinConfig)
+      panelError.value = null
+    }
+  })
 }
 
 const isBuiltinMcpEnabled = computed(() => {
-  return mcpStore.serverStatuses['builtinKnowledge'] || false
+  return Boolean(mcpStore.config.mcpServers['builtinKnowledge']?.enabled)
 })
 
 // 切换BuitinKnowledge MCP服务器启用状态
 const toggleBuiltinMcpServer = async (_value: boolean) => {
-  if (!mcpStore.mcpEnabled) return
-  await mcpStore.toggleServer('builtinKnowledge')
+  if (!mcpStore.mcpEnabled || operationPending.value) return
+  await knowledgeOperation.run({
+    code: 'settings.knowledgeBase.builtin.toggleServer',
+    source: 'panel',
+    label: t('common.saving'),
+    perform: () => mcpStore.toggleServer('builtinKnowledge'),
+    commit: () => undefined
+  })
 }
 
 // 切换内置配置面板
@@ -918,36 +1033,24 @@ const toggleBuiltinConfigPanel = () => {
   isBuiltinConfigPanelOpen.value = !isBuiltinConfigPanelOpen.value
 }
 
-const saveBuiltinConfigs = async (configs: BuiltinKnowledgeConfig[]) => {
-  try {
-    await configClient.setKnowledgeConfigs(configs)
-    return true
-  } catch (error) {
-    console.error('更新BuiltinKnowledge配置失败:', error)
-    toast({
-      title: t('common.error.operationFailed'),
-      description: String(error),
-      variant: 'destructive',
-      duration: 3000
-    })
-    return false
-  }
-}
-
 const loadBuiltinConfig = async () => {
   try {
-    builtinConfigs.value = await configClient.getKnowledgeConfigs()
+    builtinConfigs.value = (await configClient.getKnowledgeConfigs()).map(cloneBuiltinConfig)
+    panelError.value = null
   } catch (error) {
-    console.error('加载BuiltinKnowledge配置失败:', error)
+    console.error('[BuiltinKnowledge] Failed to load configuration', error)
+    panelError.value = { title: t('common.error.requestFailed') }
   }
 }
 
-const separators = ref('')
-const supportedLanguages = ref<string[]>([])
-knowledgeClient.getSupportedLanguages().then((res) => {
-  supportedLanguages.value = res
-  console.log('支持的语言:', supportedLanguages.value)
-})
+const loadSupportedLanguages = async () => {
+  try {
+    const languages = await knowledgeClient.getSupportedLanguages()
+    supportedLanguages.value = languages
+  } catch (error) {
+    console.error('[BuiltinKnowledge] Failed to load supported languages', error)
+  }
+}
 
 // 处理语言选择
 const handleLanguageSelect = async (language: string) => {
@@ -985,35 +1088,15 @@ const separatorsArray2String = (arr: string[]): string => {
  * @param str
  */
 const separatorString2Array = (str: string): string[] => {
-  // 正则匹配所有被双引号包裹的内容（支持转义字符）
-  const regex = /"((?:\\.|[^"\\])*)"/g
-  const matches: string[] = []
-  let match
-
-  // 提取所有匹配项
-  while ((match = regex.exec(str.trim())) !== null) {
-    // 处理转义字符（将 \n、\t 等还原为实际字符）
-    const unescaped = match[1].replace(/\\([nrt"\\])/g, (_, char) => {
-      switch (char) {
-        case 'n':
-          return '\n'
-        case 'r':
-          return '\r'
-        case 't':
-          return '\t'
-        case '"':
-          return '"'
-        case '\\':
-          return '\\'
-        default:
-          return char
-      }
-    })
-    matches.push(unescaped)
+  try {
+    const parsed: unknown = JSON.parse(`[${str}]`)
+    if (!Array.isArray(parsed) || !parsed.every((separator) => typeof separator === 'string')) {
+      return []
+    }
+    return Array.from(new Set(parsed))
+  } catch {
+    return []
   }
-
-  // 去重并返回
-  return Array.from(new Set(matches))
 }
 
 const route = useRoute()
@@ -1029,17 +1112,32 @@ watch(
   { immediate: true }
 )
 
-// 监听MCP全局状态变化
-watch(
-  () => mcpStore.mcpEnabled,
-  async (enabled) => {
-    if (!enabled && isBuiltinMcpEnabled.value) {
-      await mcpStore.toggleServer('builtinKnowledge')
-    }
-  }
+onMounted(() => {
+  void Promise.all([loadBuiltinConfig(), loadSupportedLanguages()])
+})
+
+const leaveGuardLease = settingsLeaveGuard.register({
+  id: 'builtin-knowledge-config',
+  onDiscard: closeBuiltinConfigDialog
+})
+const stopLeaveRiskSync = watch(
+  [operationPending, dialogDirty],
+  ([busy, dirty]) => {
+    leaveGuardLease.setRisk(busy ? 'busy' : dirty ? 'dirty' : 'clean')
+  },
+  { immediate: true, flush: 'sync' }
+)
+const stopValidationSync = watch(
+  editingSignature,
+  () => {
+    dialogValidationError.value = null
+  },
+  { flush: 'sync' }
 )
 
-onMounted(async () => {
-  await loadBuiltinConfig()
+onBeforeUnmount(() => {
+  stopLeaveRiskSync()
+  stopValidationSync()
+  leaveGuardLease.release()
 })
 </script>

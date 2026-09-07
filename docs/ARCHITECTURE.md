@@ -1,119 +1,137 @@
 # DeepChat 当前架构概览
 
-本文档描述 `2026-06-13` 的主架构。当前目标是维持 typed renderer-main boundary，
-并把新增能力接到既有 route/runtime owner 上。
+本文档描述 `2026-07-16` 的 main 进程实际结构。旧的全局 `Presenter`、
+`LifecycleManager`、全局 `EventBus` 和业务模块查找入口已经删除。
 
-## 主链路
+## 总体结构
 
 ```mermaid
-flowchart LR
-    Renderer["Renderer / Stores / Views"] --> Client["renderer/api clients"]
-    Client --> Bridge["window.deepchat / preload bridge"]
-    Bridge --> Contracts["shared/contracts routes + events"]
-    Contracts --> Routes["src/main/routes dispatcher"]
-    Routes --> Services["route services / handlers"]
-    Services --> Ports["presenter-backed ports"]
-    Ports --> AgentSession["agentSessionPresenter"]
-    AgentSession --> Runtime["agentRuntimePresenter"]
-    Runtime --> Tool["toolPresenter"]
-    Runtime --> SQLite["sqlitePresenter"]
-    Tool --> Mcp["mcpPresenter"]
-    Tool --> AgentTools["toolPresenter/agentTools"]
-    Ports --> Provider["llmProviderPresenter"]
-    Provider --> Acp["llmProviderPresenter/acp"]
+flowchart TD
+    Renderer["Renderer"] --> Preload["Preload bridge"]
+    Preload --> Contracts["shared typed routes / events"]
+    Contracts --> RouteMaps["各模块 route map"]
+    RouteMaps --> Modules["负责该行为的模块"]
+
+    App["App composition"] --> Platform["Platform / Settings / Data"]
+    App --> Capabilities["Provider / Tool / MCP / Skill / Plugin / Memory / Knowledge / Workspace"]
+    App --> Agent["Agent: DeepChat / ACP"]
+    App --> Session["Session"]
+    App --> Entries["Desktop / Remote / Scheduler / Deeplink"]
+
+    Entries --> Session
+    Session --> Agent
+    Agent --> Capabilities
+    Capabilities --> Platform
 ```
 
-主结论：
+`src/main/app/composition.ts` 是唯一的组合入口。它创建模块、传入明确依赖、注册 route、
+排定启动与停止顺序，但不导出模块列表，也不提供按名称查找模块的方法。
 
-- renderer 业务代码优先经过 `renderer/api/*Client`、`window.deepchat` 和 shared contracts。
-- `src/main/routes/index.ts` 是 typed route dispatcher，并装配 settings、sessions、chat、
-  providers、models、config、MCP、plugins、skills、skill sync、sync、browser、workspace、
-  onboarding、OAuth、knowledge、upgrade、dialog、tools、database security、scheduled tasks 等 route。
-- presenter 仍是 runtime owner，但 route services 只通过窄 port 或明确 client 依赖使用它们。
-- `SessionPresenter` 仍保留为 legacy 数据访问、导出和兼容边界，不再是当前聊天主链路 owner。
+依赖方向是：
+
+```text
+App composition
+  -> Desktop / Remote / Scheduler / Deeplink
+  -> Session
+  -> Agent runtime
+  -> Provider / Tool / MCP / Skill / Plugin / Memory / Knowledge / Workspace
+  -> Platform / Settings / Data
+```
+
+下层模块不能反向读取 App、Desktop、Remote 或 Scheduler。需要通知 renderer 时，App 在创建模块时
+传入有类型的发送函数。
+
+## 生命周期
+
+### App
+
+`src/main/appMain.ts` 负责 Electron 进程入口、single-instance、deeplink 缓存和退出请求。
+`src/main/app/mainProcess.ts` 负责数据库解锁、连接、迁移和启动失败清理。
+`src/main/app/composition.ts` 负责创建、连接、启动和停止业务模块。
+
+`startMainProcess()` 只返回 `MainProcessControl`。它只能聚焦主窗口、处理 deeplink、清理权限、
+确认退出、查询主窗口和停止 main 进程，不能读取业务模块。
+
+### Session
+
+`src/main/session/` 负责可长期保存的 Session 规则：
+
+- `lifecycle.ts`：创建、草稿、关闭和基础生命周期；
+- `turn.ts`：发送、排队、停止和交互回复；
+- `assignment.ts`：Agent、model、project、fork 和 subagent 结果处理；
+- `query.ts`：不会偷偷载入 Agent 的查询；
+- `deletion.ts`：删除顺序和两类 backend 清理；
+- `data/`：transcript、Tape、pending input、settings、search 和 trace。
+
+窗口与 Session 的绑定不在 Session 数据中，由 `DesktopSessionBinding` 负责。窗口关闭不会默认删除
+Session，也不会默认停止仍由其他入口使用的任务。
+
+### Agent
+
+`AgentManager` 根据 `AgentDescriptor.kind` 选择两套独立实现：
+
+- `DeepChat`：`DeepChatAgentRuntime`、`DeepChatAgentInstance` 和 `DeepChatLoopEngine`；
+- `ACP`：`AcpAgentRuntime`、`AcpAgentInstance` 和 ACP protocol runtime。
+
+一个已载入的 Session 只有一个对应 instance。每次 Turn 使用独立 Run 保存取消信号、provider round、
+request sequence 和临时输出状态。Session 拥有长期数据，Agent runtime 只通过窄接口读写这些数据。
 
 ## 模块职责
 
-| 模块 | 位置 | 职责 |
+| 模块 | 位置 | 负责内容 |
 | --- | --- | --- |
-| `renderer/api` | `src/renderer/api/` | typed renderer clients，吸收 bridge/channel 细节 |
-| shared contracts | `src/shared/contracts/` | route registry、schema、typed event catalog |
-| preload bridge | `src/preload/createBridge.ts` / `src/preload/index.ts` | 暴露 `window.deepchat.invoke/on` |
-| main routes | `src/main/routes/` | typed route dispatch、services、handlers |
-| hot path ports | `src/main/routes/hotPathPorts.ts` / `src/main/presenter/runtimePorts.ts` | route runtime 到 presenter 的最小接口 |
-| `AgentSessionPresenter` | `src/main/presenter/agentSessionPresenter/` | session registry、window binding、legacy import、runtime delegation |
-| `AgentRuntimePresenter` | `src/main/presenter/agentRuntimePresenter/` | 聊天 loop、stream、tool interaction、message/session persistence |
-| `ToolPresenter` | `src/main/presenter/toolPresenter/` | MCP tools 与本地 agent tools 聚合、权限预检查、调用路由 |
-| `LLMProviderPresenter` | `src/main/presenter/llmProviderPresenter/` | provider 实例、model/runtime 管理、ACP helper、AI SDK runtime |
-| `StartupWorkloadCoordinator` | `src/main/presenter/startupWorkloadCoordinator/` | startup/settings/floating 等目标的分阶段后台任务调度 |
-| `RemoteControlPresenter` | `src/main/presenter/remoteControlPresenter/` | Telegram、Feishu/Lark、QQBot、Discord、WeChat iLink 远程控制 |
-| `CronJobsService` | `src/main/presenter/cronJobs/` | 定时任务持久化、cron 调度、Agent run 执行和 Remote 投递 |
-| `DatabaseSecurityPresenter` | `src/main/presenter/databaseSecurityPresenter/` | SQLCipher 启用、改密、关闭、safeStorage/manual unlock |
-| Spotlight search | `src/renderer/src/stores/ui/spotlight.ts` | 全局搜索、会话/消息跳转、设置导航和非破坏性 action |
+| App | `src/main/app/` | 进程启动、退出、维护状态、组合依赖 |
+| Desktop | `src/main/desktop/` | window、tab、tray、shortcut、floating、browser、renderer binding |
+| Session | `src/main/session/` | Session 生命周期、Turn、查询、长期数据和删除规则 |
+| Agent | `src/main/agent/` | Agent catalog、backend 选择、DeepChat/ACP instance 和执行 |
+| Provider | `src/main/provider/` | Provider/model 配置、实例、请求和认证 |
+| Tool | `src/main/tool/` | Tool catalog、执行、权限和本地 Agent tools |
+| MCP | `src/main/mcp/` | MCP 配置、server/client 生命周期和 MCP 调用 |
+| Skill | `src/main/skill/` | Skill 文件、扫描、同步、选择和贡献 |
+| Plugin | `src/main/plugin/` | Plugin package、安装状态和能力登记 |
+| Memory | `src/main/memory/` | 长期记忆、检索、写入、索引和后台维护 |
+| Knowledge | `src/main/knowledge/` | 内置知识库、切片、索引和检索 |
+| Workspace / File | `src/main/workspace/`、`src/main/file/` | Workspace 授权、文件树、搜索、转换和临时文件 |
+| Remote | `src/main/remote/` | channel runtime、endpoint binding、远程命令和结果发送 |
+| Scheduler | `src/main/scheduler/` | Cron job、run、delivery 和 detached Session |
+| Settings | `src/main/settings/`、各模块 `settings.ts` | 底层设置存储和各模块自己的配置解释 |
+| Data | `src/main/data/`、各模块 `data/` | SQLite 连接、schema，以及各模块自己的 table 访问 |
 
-## 当前分层
+Desktop 内仍有 `WindowPresenter`、`TabPresenter` 等历史类名。它们只是 Desktop 模块内部的具体实现，
+不是全局入口，也不能被业务模块用来查找其他能力。
 
-### 1. Renderer-Main Boundary
+Desktop 的平台合同：
 
-- `src/shared/contracts/routes*.ts` 与 `events*.ts` 是 migrated path 的契约真源。
-- `src/preload/createBridge.ts` 统一 route invoke 和 typed event subscribe。
-- `src/renderer/api/*Client.ts` 是组件和 store 的默认入口。
-- `src/renderer/api/legacy/**` 已退休并从当前树删除；guard 会阻止它被重新创建。
-- raw IPC 只允许存在于 `createBridge`、`window.api` dedicated preload API 这类明确边界内，
-  业务层不得直接调用 `presenter:call`、`remoteControlPresenter:call` 或
-  `window.electron.ipcRenderer`。
+- app-scoped 命令使用 application menu accelerator；`globalShortcut` 只用于真正的全局窗口显示/隐藏；
+- primary app chrome 和列表行使用桌面 cursor 语义，内容 hyperlink 保留 link affordance；
+- chat search、message jump 和 app chrome 默认使用 immediate/native scroll，不启用全局 smooth scroll；
+- macOS window material 按 main/settings/window state 设置，Windows/Linux 保持各自平台选项；
+- 修改 shortcut settings 后重新注册 menu accelerator，不创建第二套 renderer shortcut owner。
 
-### 2. Main Route Runtime
+## 数据边界
 
-- `src/main/routes/index.ts` 根据 route registry 分发请求。
-- `SessionService`、`ChatService`、`ProviderService` 负责 migrated chat/session/provider hot path。
-- `ProviderImportService` 负责外部 provider 配置扫描与应用。
-- models routes 提供 model catalog、runtime list、config import/export、audio transcription。
-- database security 与 scheduled tasks 已经是 typed route，renderer 通过专用 client 调用。
+`MainDatabase` 只负责连接、事务、schema、诊断、修复、备份和 reopen。业务 table 由各模块自己的
+database 对象取得。长期运行对象不能缓存一次打开数据库时创建的旧 table；数据库维护完成后，
+它们通过稳定的 database owner 读取当前连接。
 
-### 3. Agent Runtime
+通用 `SettingsStore` 和 `SecretStore` 只提供底层存储。Provider、MCP、Agent、Desktop、Sync、
+Knowledge、Hook、Skill、Project 和 Upgrade 分别解释自己的配置，不通过一个通用 Config 业务入口。
 
-- `AgentSessionPresenter` 创建/恢复/激活 session，并把执行交给 `AgentRuntimePresenter`。
-- `AgentRuntimePresenter` 拥有 stream loop、tool loop、pending input、manual/auto compaction、
-  message trace 和结构化消息持久化。
-- `DeepChatMessageStore` 采用头表 + 结构化子表模型，并在读路径缺行时回退旧 JSON。
-- 历史搜索使用 `deepchat_search_documents` 与 FTS5，FTS 不可用时回退 `LIKE`。
-- Agent progress 使用 `agent-core/update_plan`、`chat.plan.updated` 和 renderer 浮层展示任务计划；
-  plan 是按 session 保存的 transient progress UI，不作为 assistant 正文历史持久化或
-  rehydrate。切换 session 只显示当前 session 的 live plan，reload 后不恢复旧 plan。
+## 通信边界
 
-### 4. Provider And Media Runtime
+- Renderer 调用使用 `src/shared/contracts/` 中的 typed route。
+- 各模块在自己的 `routes.ts` 创建 route map；App 统一注册并拒绝重名。
+- 发给 renderer 的通知使用 typed event envelope。
+- main 内部业务操作使用直接调用，不通过全局 event bus。
+- route 只做通信适配；event 只表示已经发生的事实。
 
-- `ModelType` 当前包含 chat、embedding、rerank、imageGeneration、videoGeneration、tts。
-- OpenAI-compatible image/video generation 和 TTS 通过 model config、provider route meta、
-  AI SDK runtime 与消息渲染协作。
-- 本地录音转写走 `ModelClient.transcribeAudio()` / `models.transcribeAudio`，由 provider runtime 完成。
-- provider deeplink 与 provider config import 都会在写入前做 preview、校验、冲突处理和脱敏展示。
+## 验证
 
-### 5. Compatibility Boundary
+模块行为由 typecheck、lint 和对应的 unit/integration tests 验证。Agent legacy boundary 仍由
+`scripts/agent-cleanup-guard.mjs` 做窄范围检查；其余依赖方向在模块测试和 code review 中维护，不再运行
+全仓库启发式扫描器。
 
-仍保留但只承担兼容职责：
-
-- `src/main/presenter/agentSessionPresenter/legacyImportService.ts`
-- 旧 `conversations/messages` 数据域，作为 import-only 与导出数据源
-- `src/main/presenter/sessionPresenter/`，作为 main 内部 compatibility/data facade
-- `src/main/eventbus.ts`，继续服务未迁移路径；migrated UI 通知优先走 typed events
-
-## 防回归规则
-
-- 新 renderer-main 能力默认走 `renderer/api/*Client` + `window.deepchat` + shared contracts。
-- legacy transport 已退休；不要重新创建 `src/renderer/api/legacy/**`，也不要新增第二个
-  compatibility quarantine。确有兼容需要时，应先定义窄 typed route/event 或专用 preload API。
-- `scripts/architecture-guard.mjs` 检测 direct legacy transport、已退休 legacy 目录、
-  并读取 `docs/architecture/baselines/main-kernel-bridge-register.json`。
-- `scripts/agent-cleanup-guard.mjs` 用于防止已退休 agent runtime 入口回流。
-
-## 推荐阅读顺序
-
-1. [README.md](./README.md)
-2. [guides/code-navigation.md](./guides/code-navigation.md)
-3. [FLOWS.md](./FLOWS.md)
-4. [architecture/agent-system.md](./architecture/agent-system.md)
-5. [architecture/tool-system.md](./architecture/tool-system.md)
-6. [architecture/session-management.md](./architecture/session-management.md)
-7. [architecture/agent-memory-system/spec.md](./architecture/agent-memory-system/spec.md)
+详细合同见 [Agent 系统](./architecture/agent-system.md)、
+[Session 管理](./architecture/session-management.md)、[Tool 系统](./architecture/tool-system.md)、
+[Memory 系统](./architecture/memory-system.md)、[Tape 系统](./architecture/tape-system.md) 和
+[事件系统](./architecture/event-system.md)。已完成的 main-process realignment 实施记录由 Git 历史保存。

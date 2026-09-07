@@ -34,3 +34,12 @@ describe('validateGenerationNumericField topP bounds', () => {
     expect(validateGenerationNumericField('topP', 1.01)).toBe('top_p_out_of_range')
   })
 })
+
+describe('validateGenerationNumericField context length bounds', () => {
+  it('requires a positive context length', () => {
+    expect(validateGenerationNumericField('contextLength', 0, { maxTokens: 0 })).toBe(
+      'context_length_non_positive'
+    )
+    expect(validateGenerationNumericField('contextLength', 1, { maxTokens: 0 })).toBeNull()
+  })
+})

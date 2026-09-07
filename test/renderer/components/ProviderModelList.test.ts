@@ -84,6 +84,7 @@ describe('ProviderModelList', () => {
       })
     }))
     vi.doMock('@vueuse/core', () => ({
+      refDebounced: (source: unknown) => source,
       useDebounceFn: (fn: (...args: unknown[]) => unknown) => fn,
       useElementSize: () => ({ height: ref(48) })
     }))
@@ -155,7 +156,7 @@ describe('ProviderModelList', () => {
       global: {
         stubs: {
           Input: InputStub,
-          Button: ButtonStub,
+          DcButton: ButtonStub,
           Badge: passthrough('Badge'),
           Popover: passthrough('Popover'),
           PopoverContent: passthrough('PopoverContent'),

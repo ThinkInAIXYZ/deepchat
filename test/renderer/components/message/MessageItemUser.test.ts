@@ -4,21 +4,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type {
   DisplayUserMessage,
   DisplayUserMessageMentionBlock
-} from '@/components/chat/messageListItems'
+} from '@/features/chat-page/model/displayMessage'
+import { getVisibleMentionLabel } from '@/features/chat-page/model/displayUserMessageText'
 import type { MessageFile } from '@shared/types/agent-interface'
 import MessageItemUser from '@/components/message/MessageItemUser.vue'
 
 const originalApi = window.api
-
-const getVisibleMentionLabel = (block: DisplayUserMessageMentionBlock) => {
-  if (block.category === 'prompts') {
-    return block.id || block.content
-  }
-  if (block.category === 'context') {
-    return block.id || block.category
-  }
-  return block.content
-}
 
 vi.mock('vue-i18n', () => ({
   useI18n: () => ({
@@ -52,7 +43,18 @@ vi.mock('@api/WindowClient', () => ({
 vi.mock('@/components/message/MessageInfo.vue', () => ({
   default: defineComponent({
     name: 'MessageInfo',
-    template: '<div class="message-info-stub" />'
+    props: {
+      receipt: {
+        type: String,
+        default: null
+      },
+      receiptLabel: {
+        type: String,
+        default: undefined
+      }
+    },
+    template:
+      '<div class="message-info-stub" :data-receipt="receipt ?? undefined">{{ receiptLabel }}</div>'
   })
 }))
 
@@ -74,6 +76,12 @@ vi.mock('@/components/chat/ChatAttachmentItem.vue', () => ({
 vi.mock('@/components/message/MessageToolbar.vue', () => ({
   default: defineComponent({
     name: 'MessageToolbar',
+    props: {
+      isReadOnly: {
+        type: Boolean,
+        default: false
+      }
+    },
     emits: ['edit', 'save', 'cancel', 'copy', 'delete', 'retry'],
     template: `
       <div class="message-toolbar-stub">
@@ -194,6 +202,7 @@ describe('MessageItemUser', () => {
   })
 
   afterEach(() => {
+    vi.useRealTimers()
     window.api = originalApi
     document.body.innerHTML = ''
   })
@@ -329,6 +338,31 @@ describe('MessageItemUser', () => {
     )
   })
 
+  it('uses persisted rich content instead of raw text and inline metadata', async () => {
+    const wrapper = mount(MessageItemUser, {
+      props: {
+        message: createMessage(
+          {},
+          {
+            text: 'raw text must not render',
+            activeSkills: ['inline-skill'],
+            inlineItems: [{ type: 'skill', offset: 0, skillName: 'inline-skill' }],
+            content: [
+              { type: 'text', content: 'visible ' },
+              { type: 'mention', category: 'context', id: 'project-a', content: 'raw context' }
+            ]
+          }
+        )
+      },
+      ...globalMountOptions
+    })
+
+    const messageContent = wrapper.get('[data-message-content="true"]')
+    expect(messageContent.text()).toContain('visible project-a')
+    expect(messageContent.text()).not.toContain('raw text must not render')
+    expect(messageContent.text()).not.toContain('inline-skill')
+  })
+
   it('keeps attachments visible when long text collapses', async () => {
     const wrapper = mount(MessageItemUser, {
       props: {
@@ -376,5 +410,60 @@ describe('MessageItemUser', () => {
     expect(body.attributes('data-user-message-collapsible')).toBe('false')
     expect(body.attributes('data-user-message-expanded')).toBe('true')
     expect(wrapper.find('[data-user-message-toggle="true"]').exists()).toBe(false)
+  })
+
+  it('shows the Steer receipt lifecycle and keeps unread messages immutable', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(1_000)
+    const wrapper = mount(MessageItemUser, {
+      props: {
+        message: createMessage({
+          status: 'pending',
+          inputReceipt: { mode: 'steer', readAt: null }
+        })
+      },
+      ...globalMountOptions
+    })
+
+    expect(wrapper.get('.message-info-stub').attributes('data-receipt')).toBe('unread')
+    expect(wrapper.get('.message-info-stub').text()).toBe('chat.messageReceipt.unread')
+
+    await vi.advanceTimersByTimeAsync(60_000)
+
+    expect(wrapper.get('.message-info-stub').attributes('data-receipt')).toBe('unread')
+    await wrapper.get('[data-action="edit"]').trigger('click')
+    expect(wrapper.find('textarea').exists()).toBe(false)
+
+    await wrapper.setProps({
+      message: createMessage({
+        status: 'pending',
+        inputReceipt: { mode: 'steer', readAt: Date.now() }
+      })
+    })
+    await nextTick()
+
+    expect(wrapper.get('.message-info-stub').attributes('data-receipt')).toBe('read')
+    expect(wrapper.get('.message-info-stub').text()).toBe('chat.messageReceipt.read')
+
+    await vi.advanceTimersByTimeAsync(1_499)
+    expect(wrapper.get('.message-info-stub').attributes('data-receipt')).toBe('read')
+
+    await vi.advanceTimersByTimeAsync(1)
+    expect(wrapper.get('.message-info-stub').attributes('data-receipt')).toBeUndefined()
+  })
+
+  it('hides recovery-specific UI for a restart-failed Steer message', () => {
+    const wrapper = mount(MessageItemUser, {
+      props: {
+        message: createMessage({
+          status: 'error',
+          inputReceipt: { mode: 'steer', readAt: null }
+        })
+      },
+      ...globalMountOptions
+    })
+
+    expect(wrapper.get('.message-info-stub').attributes('data-receipt')).toBeUndefined()
+    expect(wrapper.find('[data-testid="failed-steer-retry"]').exists()).toBe(false)
   })
 })

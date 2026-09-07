@@ -18,14 +18,14 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
         with:
-          node-version: '24.14.1'
+          node-version: '24.18.0'
           package-manager-cache: false
 
       - name: Setup pnpm
         uses: pnpm/action-setup@0e279bb959325dab635dd2c09392533439d90093
 
       - name: Install dependencies
-        run: pnpm install
+        run: pnpm install --frozen-lockfile
 
       - name: Configure pnpm workspace for Windows arm64
         run: pnpm run install:sharp
@@ -34,7 +34,7 @@ jobs:
           TARGET_ARCH: arm64
 
       - name: Install Windows arm64 dependencies
-        run: pnpm install
+        run: pnpm install --frozen-lockfile
         env:
           npm_config_build_from_source: true
           npm_config_platform: win32
@@ -47,6 +47,11 @@ jobs:
         run: |
           pnpm run installRuntime:duckdb:vss:win:arm64
           pnpm run smoke:duckdb:vss -- --platform win32 --arch arm64
+
+      - name: Validate native memory vector storage
+        env:
+          DEEPCHAT_REQUIRE_NATIVE_DUCKDB_VSS: '1'
+        run: pnpm exec vitest --config vitest.config.memory-native.ts --run test/main/memory/memoryVectorStoreV2Native.test.ts
 
       - name: Build Windows arm64 package
         run: |

@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { defineComponent } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
-import type { LLM_PROVIDER } from '../../../src/shared/presenter'
+import type { LLM_PROVIDER } from '@shared/types/provider'
 
 const buttonStub = defineComponent({
   name: 'Button',
@@ -78,8 +78,8 @@ describe('GitHubCopilotOAuth', () => {
     vi.doMock('@shadcn/components/ui/input', () => ({
       Input: inputStub
     }))
-    vi.doMock('@shadcn/components/ui/button', () => ({
-      Button: buttonStub
+    vi.doMock('@dc-ui/components/button', () => ({
+      DcButton: buttonStub
     }))
     vi.doMock('@shadcn/components/ui/label', () => ({
       Label: labelStub

@@ -37,6 +37,7 @@
       "read": "Zezwolić „{toolName}” z „{serverName}” na wykonanie operacji odczytu?",
       "write": "Zezwolić „{toolName}” z „{serverName}” na wykonywanie operacji zapisu?",
       "all": "Zezwolić „{toolName}” z „{serverName}” na wykonywanie operacji odczytu i zapisu?",
+      "subagentStart": "Uruchomić to zadanie Subagenta? Może ono zużyć dodatkowe tokeny, czas i zasoby systemowe.",
       "command": "Wykonaj polecenie: {command}",
       "commandWithRisk": "Wykonaj polecenie: {command}\n\nPoziom ryzyka: {riskLevel}\n\nSugestia: {suggestion}"
     },

@@ -1,6 +1,34 @@
 {
   "title": "הגדרות",
   "common": {
+    "commandShell": {
+      "title": "מעטפת הפקודות של הסוכן",
+      "auto": "אוטומטי",
+      "windowsPowerShell": "Windows PowerShell",
+      "powerShellCore": "PowerShell 7",
+      "commandPrompt": "Command Prompt",
+      "gitBash": "Git Bash",
+      "bash": "Bash",
+      "zsh": "Zsh",
+      "fish": "Fish",
+      "executable": "קובץ ההפעלה של Git Bash",
+      "autoDetect": "זיהוי אוטומטי",
+      "browse": "בחירת Git Bash",
+      "clearOverride": "ניקוי הנתיב המותאם אישית",
+      "checking": "Git Bash נבדק...",
+      "available": "זמין: {path}",
+      "refresh": "בדיקה חוזרת",
+      "updateFailed": "לא ניתן לעדכן את הגדרת מעטפת הפקודות.",
+      "checkFailed": "לא ניתן לבדוק אם Git Bash זמין.",
+      "browseFailed": "לא ניתן לבחור את קובץ ההפעלה של Git Bash.",
+      "loadFailed": "לא ניתן לטעון את הגדרת מעטפת הפקודות.",
+      "errors": {
+        "unsupported-platform": "בחירת Git Bash זמינה רק ב-Windows.",
+        "override-invalid": "הנתיב המותאם אישית חייב להפנות אל bash.exe קיים.",
+        "not-found": "Git Bash לא נמצא במכשיר זה.",
+        "validation-failed": "קובץ ההפעלה שזוהה לא עבר את האימות של Git Bash."
+      }
+    },
     "title": "הגדרות כלליות",
     "resetData": "אפס נתונים",
     "language": "שפה",
@@ -29,7 +57,7 @@
     "customProxyUrlPlaceholder": "דוגמה: http://127.0.0.1:7890",
     "invalidProxyUrl": "כתובת פרוקסי לא חוקית, אנא הזן כתובת http/https תקינה",
     "addCustomSearchEngine": "הוסף מנוע חיפוש מותאם",
-    "addCustomSearchEngineDesc": "הוסף מנוע חיפוש חדש על ידי מתן שם וכתובת URL לחיפוש. הכתובת חייבת לכלול את {query} כמציין מקום לשאילתה.",
+    "addCustomSearchEngineDesc": "הוסף מנוע חיפוש חדש על ידי מתן שם וכתובת URL לחיפוש. הכתובת חייבת לכלול את {'{'}query{'}'} כמציין מקום לשאילתה.",
     "searchEngineName": "שם מנוע החיפוש",
     "searchEngineNamePlaceholder": "הזן את שם מנוע החיפוש",
     "searchEngineUrl": "כתובת URL לחיפוש",
@@ -52,6 +80,7 @@
     "contentProtectionRestartNotice": "שינוי הגדרה זו יגרום להפעלה מחדש של האפליקציה. האם להמשיך?",
     "copyWithCotEnabled": "העתק פרטי COT (שרשרת מחשבה)",
     "traceDebugEnabled": "מעקב אחר קריאה (Trace Call)",
+    "traceDebugEnabledDesc": "כאשר האפשרות מופעלת, תוכן בקשות המודל נשמר באופן מקומי. כותרות אימות של ספקים מוכרים ושדות מפתח API מוסתרים, אך ההנחיות עשויות להכיל מידע רגיש.",
     "loggingEnabled": "הפעל רישום לוגים",
     "loggingDialogTitle": "אשר שינוי הגדרת רישום לוגים",
     "loggingEnableDesc": "הפעלת רישום לוגים תעזור לנו לאבחן בעיות ולשפר את האפליקציה. קבצי הלוג עשויים להכיל מידע רגיש.",
@@ -71,18 +100,6 @@
     "defaultModel": {
       "title": "מודל ברירת מחדל",
       "chatModel": "מודל צ'אט ברירת מחדל"
-    },
-    "autoCompaction": {
-      "title": "דחיסה אוטומטית",
-      "enabled": "הפעלת דחיסה אוטומטית",
-      "description": "כאשר שיחה מתקרבת למגבלת חלון ההקשר של המודל, DeepChat יכול לסכם אוטומטית היסטוריה ישנה יותר כדי שהשיחה תוכל להימשך. אם האפשרות כבויה, DeepChat לא ייצור סיכומים, אך עדיין יקצץ את תצוגת הבקשה בעת הצורך כדי להימנע ככל האפשר משגיאות context-window גולמיות של הספק.",
-      "thresholdLabel": "סף הפעלה",
-      "thresholdMin": "מוקדם ({value}%)",
-      "thresholdMax": "מאוחר ({value}%)",
-      "thresholdDescription": "להתחיל דחיסה כאשר השימוש בפרומפט מגיע לחלק הזה מתקציב ההיסטוריה האפקטיבי. ערכים נמוכים משאירים יותר מרווח; ערכים גבוהים שומרים יותר מההקשר הגולמי.",
-      "retainPairsLabel": "שמירת זוגות ההודעות האחרונות",
-      "retainPairsValue": "{count} זוגות",
-      "retainPairsDescription": "לשמור מחוץ לדחיסה את זוגות המשתמש והעוזר האחרונים שהושלמו. השאילתה הנוכחית לא נכללת."
     }
   },
   "notificationsHooks": {
@@ -187,8 +204,6 @@
     "resetAllDesc": "מחק את כל הנתונים כולל היסטוריית צ'אט, תצורות וקבצי מטמון",
     "resetting": "מאפס...",
     "confirmReset": "אשר איפוס",
-    "resetCompleteDevTitle": "איפוס הנתונים הושלם",
-    "resetCompleteDevMessage": "אנא הפעל מחדש ידנית את האפליקציה במצב פיתוח. עצור את התהליך הנוכחי והרץ שוב pnpm run dev",
     "toast": {
       "backupSuccessTitle": "גיבוי הושלם בהצלחה",
       "backupSuccessMessage": "הנתונים גובו בהצלחה"
@@ -221,7 +236,33 @@
       "confirmDescription": "העוגיות, המטמון, LocalStorage, IndexedDB ונתונים אחרים של הפעלת YoBrowser יימחקו, וייתכן שתצטרך להיכנס שוב לאתר.",
       "confirmTitle": "לאשר לנקות נתוני YoBrowser?",
       "description": "ארגז חול עצמאי של דפדפן שאינו חולק עוגיות ואחסון מקומי עם האפליקציה הראשית. ניתן לנקות את נתוני YoBrowser בלחיצה אחת כאן.",
-      "title": "ארגז חול של YoBrowser"
+      "title": "ארגז חול של YoBrowser",
+      "import": {
+        "button": "Import website data",
+        "title": "Import browser session data",
+        "description": "Choose a Chrome or Arc profile. macOS may ask you to authorize Keychain access. The source is never modified.",
+        "scanning": "Looking for browser profiles...",
+        "unsupportedTitle": "Not supported on this platform",
+        "unsupportedDescription": "Direct browser data import is currently available only on macOS. Windows remains unsupported because current Chrome data is app-bound.",
+        "profileLabel": "Source profile",
+        "profilePlaceholder": "Select a profile",
+        "noProfiles": "No supported Chrome or Arc profiles with cookie data were found.",
+        "cookies": "Cookies and sessions",
+        "supported": "Included in this import",
+        "otherData": "Passwords and web storage",
+        "notIncluded": "Not included in this version",
+        "preview": "Authorize and preview",
+        "previewTitle": "Ready to replace YoBrowser cookies",
+        "previewDescription": "{count} cookies can be imported. Existing YoBrowser cookies will be replaced.",
+        "skipped": "Skipped: {expired} expired, {partitioned} partitioned.",
+        "confirm": "Replace and import",
+        "doneTitle": "Import complete",
+        "doneDescription": "Imported {count} cookies. Open browser pages were reloaded.",
+        "keyDenied": "Keychain access was denied or the browser key could not be read.",
+        "previewExpired": "The source changed or the preview expired. Create a new preview.",
+        "encryptionUnsupported": "This profile uses an encryption format that this importer does not support.",
+        "failed": "Import failed before completion. Existing YoBrowser cookies were restored when mutation had started."
+      }
     },
     "databaseRepair": {
       "title": "תיקון מסד הנתונים",
@@ -431,7 +472,7 @@
   "dashboard": {
     "badge": "לוח שימוש",
     "title": "לוח שימוש",
-    "description": "מציג שימוש בטוקנים, פגיעות מטמון ועלות משוערת. נתוני הטוקנים והעלות מוערכים על סמך מידע ציבורי, וחלק מהספקים או מההודעות המוקדמות יותר עשויים להיות חסרים, לכן יש להתייחס לנתונים כהערכה בלבד.",
+    "description": "עקבו אחר השימוש באסימונים ופגיעות במטמון.",
     "actions": {
       "refresh": "רענון"
     },
@@ -447,8 +488,8 @@
     },
     "empty": {
       "title": "עדיין אין נתוני שימוש",
-      "description": "שימוש בטוקנים, פגיעות מטמון ועלות משוערת יוצגו כאן ברגע שנתוני השימוש יהיו זמינים.",
-      "historyNote": "נתוני הטוקנים והעלות מוערכים על סמך מידע ציבורי. חלק מהספקים או מההודעות המוקדמות יותר עשויים להיות חסרים, לכן יש להתייחס לנתונים כהערכה בלבד."
+      "description": "השימוש באסימונים ופגיעות במטמון יופיעו כאן כאשר נתוני שימוש יהיו זמינים.",
+      "historyNote": "נתוני השימוש של ספקים מסוימים או של הודעות קודמות עשויים להיות חלקיים."
     },
     "summary": {
       "totalTokens": "סך כל הטוקנים",
@@ -460,11 +501,7 @@
       "cachedTokensCachedLabel": "במטמון",
       "cachedTokensUncachedLabel": "ללא מטמון",
       "cacheHitRate": "שיעור פגיעות מטמון",
-      "cacheHitRateDescription": "טוקני פרומפט מהמטמון חלקי כלל טוקני הקלט.",
-      "estimatedCost": "עלות משוערת",
-      "estimatedCostDescription": "עלות משוערת בדולרים לפי תמחור הספק או תמחור הגיבוי של AIHubMix.",
-      "estimatedCostTrendLabel": "מגמה ב־30 הימים האחרונים",
-      "estimatedCostTrendEmpty": "לא נרשמה עלות ב־30 הימים האחרונים.",
+      "cacheHitRateDescription": "טוקני פרומפט מהמטמון חלקי טוקני הקלט ברשומות שימוש הכוללות מדדי מטמון.",
       "recordingStartedAt": "תחילת הרישום",
       "recordingStartedAtDescription": "רשומת השימוש המוקדמת ביותר השמורה כעת בלוח זה.",
       "withDeepChatDaysLabel": "ימים יחד",
@@ -494,9 +531,18 @@
     },
     "breakdown": {
       "providerTitle": "דירוג ספקים",
-      "providerDescription": "מדורג קודם לפי עלות משוערת ולאחר מכן לפי סך הטוקנים.",
+      "providerDescription": "מדורג לפי סך האסימונים.",
       "modelTitle": "דירוג מודלים",
-      "modelDescription": "10 המודלים המובילים לפי עלות משוערת ולאחר מכן לפי סך הטוקנים.",
+      "modelDescription": "10 המודלים המובילים לפי סך האסימונים.",
+      "categoryTitle": "שימוש לפי פעילות",
+      "categoryDescription": "הפרדת השימוש בשיחות מקריאות פנימיות למודל לצורך דחיסת ההקשר.",
+      "category": {
+        "chat": "שיחה",
+        "compaction": "דחיסת הקשר"
+      },
+      "chatEvents": "{count} הודעות",
+      "compactionEvents": "{count} קריאות למודל",
+      "unknownUsage": "{count} שימושים לא ידועים",
       "messages": "{count} הודעות",
       "empty": "עדיין אין נתוני פירוט להצגה."
     },
@@ -532,9 +578,17 @@
     "unavailable": "לא זמין"
   },
   "modelConfigItem": {
-    "chatFallbackWarning": "יכולת Agent חלשה: תומך רק בקריאות כלים של fallback מדור קודם"
+    "chatFallbackWarning": "יכולת Agent חלשה: תומך רק בקריאות כלים של fallback מדור קודם",
+    "capability": {
+      "vision": "יכולת ראייה",
+      "functionCall": "יכולת קריאת פונקציות",
+      "reasoning": "יכולת הסקת מסקנות",
+      "search": "יכולת חיפוש ברשת"
+    }
   },
   "model": {
+    "temperatureFixedByPolicy": "המודל הזה מקבע את הטמפרטורה ל-{value}.",
+    "topPFixedByPolicy": "המודל הזה מקבע את Top P ל-{value}.",
     "title": "הגדרות מודל",
     "systemPrompt": {
       "label": "הנחיית מערכת",
@@ -662,7 +716,6 @@
       "currentUsingModelDefault": "משתמש כעת בתצורת ברירת המחדל של המודל",
       "temperature": {
         "description": "שלוט באקראיות הפלט. רוב המודלים הם 0-1, וחלקם תומכים בין 0-2. ערכים גבוהים יותר מגבירים את האקראיות.",
-        "fixedMoonshotKimi": "Moonshot Kimi K2.5/K2.6 מקבע את הטמפרטורה ל-{enabled} כשהחשיבה מופעלת ול-{disabled} כשהיא כבויה.",
         "label": "טמפרטורה"
       },
       "topP": {
@@ -821,6 +874,11 @@
     }
   },
   "provider": {
+    "customHeaders": {
+      "title": "כותרות בקשה מותאמות אישית",
+      "description": "יש להזין אובייקט JSON עם ערכי מחרוזת.",
+      "parseError": "פענוח כותרות מותאמות אישית נכשל"
+    },
     "search": "חפש פלטפורמות ספקים...",
     "enable": "הפעל שירות",
     "enabled": "מופעל",
@@ -854,6 +912,7 @@
     "urlFormat": "דוגמת API: {defaultUrl}",
     "urlFormatFill": "מילוי בכתובת ה-API",
     "openaiResponsesNotice": "OpenAI משתמשת כברירת מחדל ב-Responses API. אם endpoint של צד שלישי תומך רק ב-Chat Completions, השתמש בספק OpenAI Completions.",
+    "amdDeveloperHint": "AMD GPU Cloud מספק ממשקי API ציבוריים למודלים דרך Radeon Token Factory. יש לקבל מפתח API מ-AMD כדי לגשת למודלים הזמינים כעת.",
     "modifyBaseUrl": "ערוך",
     "baseUrlLockedHint": "הספק הזה נעול לכתובת הבסיס המומלצת כדי לצמצם שגיאות תצורה.",
     "refreshModelsWithMetadataHint": "רענון הספק הזה יסנכרן קודם את המטא־דאטה במעלה הזרם ולאחר מכן יבנה מחדש את רשימת המודלים המקומית.",
@@ -912,7 +971,7 @@
       },
       "disableAllModels": {
         "title": "אשר השבתת כל המודלים",
-        "content": "האם אתה בטוח שברצונך להשבית את כל המודלים?",
+        "content": "האם אתה בטוח שברצונך להשבית את כל המודלים של \"{name}\"?",
         "confirm": "השבת הכל"
       },
       "configModels": {
@@ -1135,7 +1194,63 @@
     "openaiCodexCallbackTitle": "השלמת האימות",
     "openaiCodexCallbackDescription": "לאחר שהדפדפן מסיים, חזור אל DeepChat. אם DeepChat לא מתעדכן, הדבק כאן את כתובת ה-URL המלאה לחזרה.",
     "openaiCodexCallbackPlaceholder": "הדבק את כתובת ה-URL המלאה לחזרה",
-    "openaiCodexCompleteAuthentication": "השלמת האימות"
+    "openaiCodexCompleteAuthentication": "השלמת האימות",
+    "xaiGrokAuth": "xAI Grok OAuth",
+    "xaiGrokConnected": "xAI Grok מחובר",
+    "xaiGrokNotConnected": "xAI Grok אינו מחובר",
+    "xaiGrokPendingDevice": "ממתין לאישור המכשיר",
+    "xaiGrokDisabled": "OAuth של xAI Grok מושבת",
+    "xaiGrokError": "האישור של xAI Grok נכשל",
+    "xaiGrokAccount": "חשבון",
+    "xaiGrokSignInDevice": "כניסה באמצעות SuperGrok / Premium+",
+    "xaiGrokReconnect": "התחברות מחדש",
+    "xaiGrokSignOut": "יציאה",
+    "xaiGrokCancel": "ביטול",
+    "xaiGrokOpenVerification": "פתיחת דף האימות",
+    "xaiGrokLoginTip": "משתמש ב-OAuth עם קוד מכשיר של xAI עבור SuperGrok או X Premium+. האסימונים נשמרים בנפרד ממפתחות API. מפתחות API של Console עדיין נתמכים למטה.",
+    "xaiGrokApiKeyAlternative": "או להשתמש במפתח API של xAI Console:",
+    "browseAll": "עיון בכל הספקים",
+    "updateKey": "עדכון מפתח",
+    "sidebar": {
+      "configured": "מוגדרים",
+      "disabledTag": "כבוי",
+      "empty": "עדיין לא הוגדרו ספקים. עיינו בכל הספקים כדי להגדיר אחד."
+    },
+    "menu": {
+      "enable": "הפעלה",
+      "disable": "השבתה",
+      "rename": "שינוי שם",
+      "delete": "מחיקה"
+    },
+    "health": {
+      "verified": "מאומת",
+      "checking": "בבדיקה",
+      "needsAttention": "דורש טיפול",
+      "notChecked": "לא נבדק",
+      "lastChecked": "נבדק לאחרונה {time}"
+    },
+    "catalog": {
+      "title": "עיון בכל הספקים",
+      "description": "בחרו ספק כדי להתחיל בהגדרתו. הוא יופיע בסרגל הצד לאחר ההגדרה.",
+      "searchPlaceholder": "חיפוש ספקים...",
+      "noResults": "אין ספקים תואמים",
+      "configured": "מוגדר"
+    },
+    "addFlow": {
+      "connect": "התחברות וטעינת מודלים",
+      "validating": "מאמת את החיבור...",
+      "loadingModels": "טוען מודלים...",
+      "failed": "החיבור נכשל. בדקו את התצורה ונסו שוב.",
+      "successTitle": "{name} מחובר",
+      "successDescription": "נטענו {count} מודלים ונבחרו מראש {selected}. ניתן להתאים את הבחירה למטה.",
+      "successNoModels": "מחובר. אין מודלים זמינים עדיין.",
+      "startChatting": "להתחיל לשוחח",
+      "viewModels": "הצגת מודלים"
+    },
+    "stagedUpdate": {
+      "failedTitle": "העדכון לא הוחל",
+      "failedDescription": "התצורה החדשה נכשלה באימות; התצורה הקודמת שפעלה נשמרה."
+    }
   },
   "knowledgeBase": {
     "title": "הגדרות בסיס ידע",
@@ -1240,7 +1355,15 @@
       "timeout": "פסק זמן (Timeout)",
       "saveConfig": "שמור",
       "resetConfig": "אפס",
-      "seconds": "שניות"
+      "seconds": "שניות",
+      "configLoadFailed": "לא ניתן לטעון את התצורה",
+      "configSaved": "התצורה נשמרה",
+      "configSaveFailed": "לא ניתן לשמור את התצורה",
+      "configReset": "התצורה אופסה",
+      "configResetFailed": "לא ניתן לאפס את התצורה",
+      "connectionSucceeded": "החיבור הצליח",
+      "connectionFailed": "לא ניתן להתחבר עם התצורה הנוכחית",
+      "invalidBaseUrl": "הזן כתובת HTTP או HTTPS ללא פרטי התחברות או פרמטרים של שאילתה"
     },
     "deleteFile": {
       "title": "אישור מחיקת קובץ",
@@ -1298,6 +1421,7 @@
       "name": "שם השרת",
       "namePlaceholder": "הזן את שם השרת",
       "nameRequired": "שם השרת נדרש",
+      "nameDuplicate": "שרת בשם הזה כבר קיים.",
       "type": "סוג שרת",
       "typePlaceholder": "בחר סוג שרת",
       "typeStdio": "קלט ופלט סטנדרטי (Stdio)",
@@ -1325,11 +1449,6 @@
       "iconPlaceholder": "הזן אייקון",
       "icons": "אייקון",
       "iconsPlaceholder": "הזן אייקון",
-      "autoApprove": "אישור אוטומטי",
-      "autoApproveAll": "הכל",
-      "autoApproveRead": "קריאה",
-      "autoApproveWrite": "כתיבה",
-      "autoApproveHelp": "בחר סוגי פעולות לאישור אוטומטי ללא אישור המשתמש",
       "submit": "שלח",
       "add": "הוסף",
       "update": "עדכן",
@@ -1362,7 +1481,42 @@
       "e2bApiKey": "E2B ApiKey",
       "e2bApiKeyPlaceholder": "הזן את מפתחות ה-API של E2B כאן, למשל e2b_1111xx*******",
       "e2bApiKeyHelp": "עבור ל-e2b.dev כדי לקבל את ה-ApiKey שלך",
-      "e2bApiKeyRequired": "חובה להזין ApiKey כדי להפעיל את פונקציית E2B"
+      "e2bApiKeyRequired": "חובה להזין ApiKey כדי להפעיל את פונקציית E2B",
+      "sseCompatibilityBadge": "תאימות",
+      "sseMigrationHint": "SSE מיועד לתאימות למערכות ישנות בלבד. יש להעביר את השרת ל-Streamable HTTP כשיתאפשר.",
+      "authorizationMode": "מצב הרשאה",
+      "authorizationInteractive": "OAuth אינטראקטיבי",
+      "authorizationNone": "ללא OAuth",
+      "authorizationClientCredentials": "פרטי כניסה של לקוח (טיוטה)",
+      "authorizationPrivateKeyJwt": "JWT עם מפתח פרטי",
+      "authorizationEnterprise": "גישה ארגונית בין אפליקציות",
+      "authorizationHelp": {
+        "none": "אין להשתמש בתהליך OAuth. כותרת Authorization קבועה, אם הוגדרה, עדיין מקבלת עדיפות.",
+        "interactive": "יש לפתוח את דפדפן המערכת ולהשלים תהליך קוד הרשאה עם PKCE.",
+        "client_credentials": "יש לאמת שרת זה כלקוח מכונה באמצעות סוד מוגן.",
+        "private_key_jwt": "יש לאמת שרת זה כלקוח מכונה באמצעות מפתח פרטי מוגן.",
+        "cross_app_access": "יש להחליף זהות ארגונית מאושרת בגישה למשאב מוגן זה."
+      },
+      "authorizationHeaderOverride": "הוגדרה כותרת Authorization קבועה, והיא מקבלת עדיפות על מצב OAuth זה.",
+      "protectedResourceUrl": "URL של המשאב המוגן",
+      "protectedResourceUrlPlaceholder": "https://mcp.example.com",
+      "authorizationServerIssuer": "מנפיק שרת ההרשאה",
+      "authorizationServerIssuerPlaceholder": "https://auth.example.com",
+      "clientMetadataUrl": "URL של מטא-נתוני הלקוח",
+      "authorizationClientId": "מזהה לקוח",
+      "authorizationScopes": "היקפים",
+      "authorizationScopesPlaceholder": "read write",
+      "keyAlgorithm": "אלגוריתם מפתח",
+      "identityProfile": "פרופיל זהות ארגונית",
+      "identityProfilePlaceholder": "בחירת פרופיל זהות",
+      "privateKey": "מפתח פרטי",
+      "clientSecret": "סוד לקוח",
+      "removeCredential": "הסרת פרטי כניסה שמורים",
+      "credentialConfiguredPlaceholder": "כבר הוגדרו פרטי כניסה מוגנים",
+      "credentialConfigured": "פרטי הכניסה הוגדרו",
+      "credentialMemoryOnly": "פרטי כניסה אלה נשמרים בזיכרון בלבד ויאבדו ביציאה מ-DeepChat.",
+      "credentialRemoveError": "הסרת פרטי הכניסה המוגנים נכשלה",
+      "credentialSaveError": "שמירת פרטי הכניסה המוגנים נכשלה"
     },
     "deleteServer": "מחק שרת",
     "editServer": "ערוך שרת",
@@ -1436,22 +1590,22 @@
       "redetectFailed": "זיהוי מחדש נכשל",
       "redetectFailedDesc": "לא ניתן לזהות מחדש registry אופטימלי, ישתמש בתצורת ברירת המחדל"
     },
-    "managedServerReadOnly": "DeepChat managed service",
-    "managedServerReadOnlyDesc": "Manage enablement and permissions from the owning plugin settings.",
+    "managedServerReadOnly": "שירות בניהול DeepChat",
+    "managedServerReadOnlyDesc": "יש לנהל הפעלה והרשאות בהגדרות התוסף המשויך.",
     "center": {
-      "title": "MCP Center",
-      "running": "Running",
-      "builtIn": "Built-in",
-      "custom": "Custom",
-      "searchPlaceholder": "Search MCP servers...",
-      "noResults": "No matching MCP servers",
-      "command": "Command / URL",
+      "title": "מרכז MCP",
+      "running": "פועל",
+      "builtIn": "מובנה",
+      "custom": "מותאם אישית",
+      "searchPlaceholder": "חיפוש שרתי MCP...",
+      "noResults": "לא נמצאו שרתי MCP תואמים",
+      "command": "פקודה / URL",
       "filters": {
-        "all": "All",
-        "running": "Running",
-        "stopped": "Stopped",
-        "builtIn": "Built-in",
-        "custom": "Custom"
+        "all": "הכול",
+        "running": "פועל",
+        "stopped": "נעצר",
+        "builtIn": "מובנה",
+        "custom": "מותאם אישית"
       }
     },
     "authRequired": "נדרש אימות",
@@ -1462,7 +1616,53 @@
     "authCallbackPlaceholder": "הדבק את כתובת ה-URL המלאה לחזרה",
     "completeAuthentication": "השלמת האימות",
     "saveSuccess": "התצורה נשמרה",
-    "saveFailed": "שמירת התצורה נכשלה"
+    "saveFailed": "שמירת התצורה נכשלה",
+    "enterpriseProfiles": {
+      "title": "זהויות ארגוניות",
+      "description": "ניהול זהויות OpenID Connect לשימוש חוזר עבור הרשאת MCP ארגונית.",
+      "label": "שם הפרופיל",
+      "issuer": "מנפיק OpenID",
+      "clientId": "מזהה לקוח",
+      "scopes": "היקפים",
+      "clientAuthentication": "אימות לקוח אצל ספק הזהות",
+      "publicClient": "לקוח ציבורי",
+      "confidentialClient": "לקוח חסוי",
+      "clientSecret": "סוד לקוח של ספק הזהות",
+      "clientSecretMissing": "יש להגדיר סוד לקוח לפני הכניסה.",
+      "authenticated": "מאומת",
+      "signIn": "כניסה",
+      "signOut": "יציאה",
+      "callbackUrl": "URL לחזרה",
+      "empty": "אין פרופילים של זהות ארגונית.",
+      "loadError": "טעינת הזהויות הארגוניות נכשלה",
+      "saveError": "שמירת הזהות הארגונית נכשלה",
+      "authError": "הכניסה הארגונית נכשלה",
+      "removeError": "הסרת הזהות הארגונית נכשלה",
+      "removeTitle": "להסיר את הזהות הארגונית?",
+      "removeDescription": "להסיר את {name} ואת כל פרטי הכניסה המקושרים אליה?",
+      "status": {
+        "signed_out": "מנותק",
+        "authenticating": "מתבצע אימות",
+        "authenticated": "מאומת",
+        "error": "שגיאה"
+      }
+    },
+    "diagnostics": {
+      "title": "אבחון MCP",
+      "serverId": "מזהה שרת",
+      "owner": "בעלים",
+      "transport": "תעבורה",
+      "connectionState": "חיבור",
+      "era": "דור הפרוטוקול",
+      "serverImplementation": "מימוש השרת",
+      "probe": "בדיקת משא ומתן",
+      "extensions": "הרחבות שרת",
+      "clientExtensions": "הרחבות לקוח",
+      "cache": "מטמון",
+      "subscriptions": "מינויים",
+      "auth": "הרשאה",
+      "copy": "העתקת אבחון"
+    }
   },
   "cronJobs": {
     "title": "משימות מתוזמנות",
@@ -1516,7 +1716,7 @@
       "error": "שגיאה",
       "invalidAgent": "הסוכן חסר או מושבת. בחר סוכן אחר."
     },
-    "runNowSuccess": "המשימה המתוזמנת הופעלה"
+    "runNowSuccess": "המשימה המתוזמנת הושלמה"
   },
   "about": {
     "title": "אודותינו",
@@ -1574,8 +1774,6 @@
     "description": "ניהול סוכני ACP מקומיים (Agent Client Protocol) המופעלים על ידי DeepChat.",
     "enabledTitle": "הפעל את ACP",
     "enabledDescription": "כאשר מופעל, סוכני ACP מוגדרים יופיעו כמודלים בבוחר.",
-    "useBuiltinRuntimeTitle": "השתמש בסביבת הרצה מובנית של DeepChat",
-    "useBuiltinRuntimeDescription": "כאשר מופעל, עוקף פקודות node ו-uv של המערכת, ומשתמש בגרסאות המצורפות ל-DeepChat.",
     "enableToAccess": "הפעל את ACP כדי להגדיר סוכנים.",
     "addCustomAgent": "הוסף סוכן מותאם אישית",
     "customEmpty": "אין סוכנים מותאמים אישית עדיין.",
@@ -1634,6 +1832,25 @@
       "cannotDeleteTitle": "השאר לפחות פרופיל אחד",
       "cannotDeleteDesc": "סוכנים מובנים דורשים לפחות תצורה אחת.",
       "noAgent": "בחר סוכן כדי לנהל את הפרופילים שלו."
+    },
+    "auth": {
+      "title": "כניסה אל {name}",
+      "description": "בחר שיטת אימות. פרטי הגישה נשארים בתהליך הסוכן.",
+      "requiredTitle": "{name} דורש כניסה",
+      "requiredDescription": "יש לבצע אימות לפני תחילת הצ׳אט.",
+      "checkSignIn": "בדיקת כניסה",
+      "openTerminal": "פתיחת מסוף",
+      "cancelSignIn": "ביטול כניסה",
+      "unsupported": "שיטת אימות זו אינה נתמכת. יש להגדיר את משתני הסביבה שלה באופן ידני.",
+      "noMethods": "הסוכן לא סיפק שיטת אימות שבה DeepChat יכול להשתמש.",
+      "status": {
+        "required": "נדרש אימות",
+        "running": "מתבצעת כניסה",
+        "reconnecting": "מתבצע חיבור מחדש",
+        "succeeded": "מוכן",
+        "cancelled": "בוטל",
+        "failed": "נכשל"
+      }
     },
     "terminal": {
       "title": "טרמינל אתחול",
@@ -1806,7 +2023,7 @@
       "successMessage": "הכישור {name} נמחק בהצלחה",
       "title": "מחק כישור"
     },
-    "description": "ניהול והגדרת מודול הכישורים של עוזר AI",
+    "description": "עיינו בכל ה-Skills. פתחו Skill כדי להציג אותו בתצוגה מקדימה ולנהל Agents מופעלים.",
     "edit": {
       "allowedTools": "כלים נוספים",
       "allowedToolsHint": "רשימת שמות כלים מופרדים בפסיקים",
@@ -1843,7 +2060,7 @@
       }
     },
     "empty": "אין כישורים",
-    "emptyHint": "לחץ על כפתור „הוסף skill“ להתקנת skill חדש",
+    "emptyHint": "ייבאו Skills מ-Agent חיצוני.",
     "install": {
       "description": "בחר שיטת התקנת skill",
       "dragInvalid": "התוכן אינו נתמך. גרור תיקיית skill או קובץ .zip יחיד.",
@@ -1869,6 +2086,32 @@
     "noResults": "לא נמצא כישור תואם",
     "openFolder": "פתח תיקייה",
     "search": "חיפוש skill...",
+    "agentImport": {
+      "menuItem": "ייבוא מ-Agent חיצוני",
+      "title": "ייבוא מ-Agent חיצוני",
+      "description": "ייבוא Skills מאומתים אל DeepChat. ניתן להפעיל Agents מהתצוגה המקדימה של כל Skill.",
+      "resultPartial": "הייבוא הושלם עם שגיאות",
+      "resultSuccess": "הייבוא הושלם",
+      "sourceTitle": "Agent מקור",
+      "emptySources": "אין מקורות לייבוא",
+      "skillCount": "{count} Skills",
+      "previewTitle": "Skills לייבוא",
+      "emptyPreview": "אין Skills זמינים",
+      "status": {
+        "ready": "מוכן",
+        "conflict": "התנגשות",
+        "unavailable": "לא זמין",
+        "same": "כבר נוסף"
+      },
+      "strategy": {
+        "skip": "דלג",
+        "rename": "שנה שם",
+        "overwrite": "החלף"
+      },
+      "overwriteImpact": "החלפת Skill זה משפיעה על ה-Agents הפעילים: {agents}.",
+      "resultSummaryV3": "יובאו {imported}, נעשה שימוש חוזר ב-{reused}, דולגו {skipped}, נכשלו {failed}.",
+      "execute": "ייבוא הנבחרים"
+    },
     "sync": {
       "batchAction": "עיבוד אצווה",
       "conflict": "סכסוך",
@@ -1965,8 +2208,6 @@
       "env": "{count} משתני סביבה",
       "pythonShort": "פייתון",
       "nodeShort": "Node",
-      "enabled": "Enabled",
-      "disabled": "Disabled",
       "enable": "Enable in DeepChat",
       "disable": "Disable in DeepChat",
       "viewDetails": "הצג פרטים",
@@ -1982,111 +2223,6 @@
       "success": "Skill Disabled",
       "successMessage": "Skill {name} is disabled in DeepChat",
       "failed": "Disable Failed"
-    },
-    "tabs": {
-      "library": "Library",
-      "agents": "Agents",
-      "syncDirectory": "תיקיית סנכרון"
-    },
-    "agents": {
-      "title": "Agents",
-      "summary": "{count} supported agent(s)",
-      "refresh": "Refresh",
-      "empty": "No supported agents found.",
-      "emptySkills": "No skills found for this agent.",
-      "loadFailed": "Failed to load agent skills",
-      "conflictCount": "{count} conflict",
-      "table": {
-        "skill": "Skill",
-        "owner": "Owner",
-        "status": "Status",
-        "action": "Action",
-        "preview": "תצוגה מקדימה"
-      },
-      "owner": {
-        "deepchat": "DeepChat",
-        "external-link": "External",
-        "broken-link": "Broken link",
-        "unknown": "Unknown"
-      },
-      "status": {
-        "linked": "Linked",
-        "agent-owned": "Agent owned",
-        "linked-out": "Linked out",
-        "broken-link": "Broken link",
-        "conflict": "Conflict",
-        "empty": "Empty"
-      },
-      "actions": {
-        "adopt": "Adopt",
-        "resolve-conflict": "Resolve",
-        "repair-link": "Repair",
-        "remove-link": "Remove",
-        "open": "Open",
-        "pending": "Write actions are enabled in a later phase.",
-        "view": "הצג"
-      },
-      "agentStatus": {
-        "ready": "Ready",
-        "detected-no-skills-dir": "No skills directory",
-        "permission-denied": "Permission denied"
-      },
-      "counts": {
-        "skills": "{count} skill(s)",
-        "linked": "{count} linked",
-        "agentOwned": "{count} agent owned",
-        "conflicts": "{count} conflict(s)",
-        "broken": "{count} broken"
-      },
-      "adoptDialog": {
-        "adoptTitle": "Adopt Skill",
-        "conflictTitle": "Resolve Conflict",
-        "adoptDescription": "Copy this skill into DeepChat, back up the original, and replace the agent entry with a link.",
-        "conflictDescription": "{skill} already exists in DeepChat. The default action keeps the current DeepChat skill and adopts this agent skill as a renamed copy.",
-        "loading": "Preparing adoption preview...",
-        "previewFailed": "Failed to prepare adoption preview",
-        "executeFailed": "Failed to adopt skill",
-        "currentLocation": "Current location",
-        "afterAdoption": "After adoption",
-        "backup": "Backup",
-        "chooseAction": "Choose action",
-        "adoptAs": "Adopt as {name}",
-        "replaceDeepChat": "Replace existing DeepChat skill",
-        "keepCurrent": "Keep current state",
-        "unsupportedStrategies": "Replace and keep strategies are not available in this build.",
-        "warnings": "Warnings",
-        "apply": "Apply",
-        "linkArrow": "-> DeepChat skill",
-        "successTitle": "Skill adopted",
-        "successDescription": "{name} is now managed by DeepChat."
-      },
-      "syncToAgent": "Sync to Agent",
-      "syncDialog": {
-        "title": "Sync to {agent}",
-        "description": "Create DeepChat-owned links for selected skills. Existing agent content is skipped.",
-        "target": "Target",
-        "deepchatSkills": "DeepChat skills",
-        "empty": "No linkable DeepChat skills.",
-        "preview": "Preview",
-        "loading": "Preparing link preview...",
-        "noSelection": "Select at least one skill.",
-        "apply": "Apply",
-        "failed": "Failed to sync skills",
-        "successTitle": "Skills synced",
-        "successDescription": "{count} skill(s) linked.",
-        "status": {
-          "ready": "Ready",
-          "already-linked": "Already linked",
-          "conflict": "Conflict",
-          "missing": "Missing"
-        }
-      },
-      "linkAction": {
-        "repairSuccess": "Link repaired",
-        "removeSuccess": "Link removed",
-        "successDescription": "{name} updated.",
-        "failed": "Failed to update link"
-      }
     },
     "git": {
       "title": "Git",
@@ -2119,7 +2255,6 @@
       "saved": "תיקיית הסנכרון נשמרה",
       "export": "ייצא לתיקייה",
       "import": "ייבא מתיקייה",
-      "includeDisabled": "כלול skills מושבתים",
       "previewExport": "תצוגה מקדימה לייצוא",
       "exportNow": "ייצא עכשיו",
       "previewImport": "תצוגה מקדימה לייבוא",
@@ -2172,7 +2307,13 @@
       "edit": "עריכה",
       "delete": "מחיקה",
       "confirmDeleteTitle": "מחיקת skill",
-      "confirmDeleteDescription": "למחוק את skill \"{name}\"? לא ניתן לבטל פעולה זו."
+      "confirmDeleteDescription": "למחוק את skill \"{name}\"? לא ניתן לבטל פעולה זו.",
+      "enabledAgents": "Enabled Agents",
+      "enabledAgentsHint": "These Agents can use this Skill.",
+      "noEnabledAgents": "No Agent uses this Skill yet.",
+      "addAgent": "Add Agent",
+      "removeAgent": "Remove {agent}",
+      "agentUpdateFailed": "Failed to update enabled Agents"
     },
     "installToAgent": {
       "title": "התקן את {name} ב-Agent",
@@ -2190,6 +2331,17 @@
       "disconnectSuccess": "נותק מ-Agent",
       "disconnectSuccessMessage": "{name} כבר לא מקושר ל-Agent היעד.",
       "disconnectFailed": "הניתוק מ-Agent נכשל"
+    },
+    "impact": {
+      "changed": "Enabled Agents changed. Review the impact and try again.",
+      "editEnabled": "Content changes apply to these Agents on their next Run: {agents}.",
+      "editUnused": "No Agent currently uses this Skill.",
+      "confirmDeleteEnabled": "Delete {name}? It is enabled for: {agents}.",
+      "confirmDeleteUnused": "Delete {name}? No Agent currently uses it."
+    },
+    "syncDirectory": {
+      "action": "Sync directory",
+      "back": "Back to Skills"
     }
   },
   "environments": {
@@ -2362,11 +2514,7 @@
       "accessRules": "כללי גישה"
     },
     "remoteControl": {
-      "title": "שליטה מרחוק",
       "description": "קשרו כל יעד מרוחק לסשן DeepChat אחד ושמרו על אותו סשן בין פקודות.",
-      "streamMode": "מצב סטרימינג",
-      "streamModeDraft": "סטרימינג טיוטה",
-      "streamModeFinal": "תשובה סופית בלבד",
       "allowedUserIds": "מזהי משתמש מורשים",
       "allowedUserIdsPlaceholder": "e.g. 123456789, 987654321",
       "defaultAgent": "סוכן DeepChat ברירת מחדל",
@@ -2378,19 +2526,14 @@
       "manageBindings": "ניהול קישורים",
       "pairCode": "קוד צימוד",
       "noPairCode": "אין קוד צימוד פעיל",
-      "generatePairCode": "צור",
-      "clearPairCode": "נקה",
       "pairCodeExpiresAt": "פג תוקף ב-{time}",
-      "pairDialogTitle": "צימוד Telegram",
-      "pairDialogDescription": "צור קוד צימוד והשלם את הצימוד מתוך הצ'אט עם בוט ה-Telegram שלך.",
-      "pairDialogInstruction": "שלח את הפקודה הזו לבוט המתאים:",
-      "bindingsDialogTitle": "סשנים מקושרים",
-      "bindingsDialogDescription": "הסר קישורי סשן של Telegram אחד-אחד.",
-      "bindingsEmpty": "עדיין אין קישורי Telegram.",
+      "pairDialogTitle": "צימוד {channel}",
+      "pairDialogDescription": "צור קוד צימוד והשלם את הצימוד מתוך הצ'אט עם בוט ה-{channel} שלך.",
+      "bindingsDialogTitle": "סשנים מקושרים של {channel}",
+      "bindingsDialogDescription": "הסר קישורי סשן מרוחק אחד-אחד.",
+      "bindingsEmpty": "עדיין אין קישורים.",
       "pairingSuccessTitle": "הצימוד הושלם",
       "pairingSuccessDescription": "רשימת מזהי המשתמש המורשים רועננה.",
-      "clearBindings": "נקה קישורים",
-      "clearBindingsResult": "{count} קישור(ים) נוקו.",
       "pairDialogInstructionTelegram": "שלחו את הפקודה הזו לבוט Telegram:",
       "pairDialogInstructionFeishu": "Send this command in a Feishu / Lark bot direct chat; it adds the sender to the same authorized-principal list used by scan authorization:",
       "pairDialogInstructionDiscord": "שלחו את הפקודה הזו לבוט Discord בהודעה פרטית או בערוץ היעד:",
@@ -2480,7 +2623,95 @@
       "loginConnected": "חשבון WeChat iLink חובר."
     }
   },
+  "ocr": {
+    "description": "חלץ טקסט מתמונות באופן אוטומטי כאשר המודל שנבחר אינו יכול לראות אותן. הזיהוי מתבצע במכשיר הזה בלבד.",
+    "autoExtract": "זיהוי טקסט בתמונות באופן אוטומטי",
+    "autoExtractDescription": "משמש כאשר המודל שנבחר אינו יכול לראות תמונות.",
+    "advancedTitle": "הגדרות מתקדמות",
+    "advancedDescription": "לרוב אין צורך לשנות אותן.",
+    "backend": "שיטת זיהוי",
+    "backendDescription": "המצב האוטומטי בוחר את השיטה הטובה ביותר למכשיר הזה. יש להשתמש ב-CPU רק לפתרון בעיות תאימות.",
+    "backendAuto": "אוטומטי (מומלץ)",
+    "backendCpu": "CPU בלבד",
+    "diagnosticsTitle": "פרטי אבחון",
+    "diagnosticsDescription": "נדרשים רק לפתרון בעיות.",
+    "refresh": "נסה שוב",
+    "loading": "מצב ה-OCR נטען…",
+    "statusUnavailable": "מצב ה-OCR אינו זמין באופן זמני.",
+    "availability": "זמינות",
+    "available": "זמין",
+    "unavailable": "לא זמין",
+    "process": "תהליך עזר",
+    "version": "גרסת Light OCR",
+    "notStarted": "לפי דרישה",
+    "nodeNotStarted": "מופעל לפי דרישה",
+    "queuedRequests": "{count} בקשות בתור",
+    "strategy": "אסטרטגיית זיהוי",
+    "nodeVersion": "סביבת הריצה של Node",
+    "detectionBackend": "מנוע איתור",
+    "recognitionBackend": "מנוע זיהוי",
+    "cacheTitle": "מטמון מקומי",
+    "cacheMode": "מצב אחסון",
+    "cacheEntries": "תמונות",
+    "cacheUsage": "שטח בשימוש",
+    "cacheNotStarted": "עדיין אין מטמון.",
+    "cacheProtected": "מטמון נגזר מקומי ומוצפן.",
+    "clearCache": "נקה",
+    "clearCacheTitle": "לנקות את המטמון המקומי?",
+    "clearCacheDescription": "תוצאות הזיהוי שבמטמון יימחקו. טקסט שכבר נשמר בצ׳אטים לא יושפע.",
+    "clearCacheConfirm": "נקה",
+    "cacheCleared": "מטמון ה-OCR נוקה",
+    "cacheClearedDescription": "טקסט שכבר נשמר בצ׳אטים לא השתנה.",
+    "loadFailed": "לא ניתן לטעון את הגדרות ה-OCR.",
+    "updateFailed": "לא ניתן לעדכן את הגדרת ה-OCR.",
+    "statusLoadFailed": "לא ניתן לבדוק את מצב ה-OCR.",
+    "clearCacheFailed": "לא ניתן לנקות את מטמון ה-OCR.",
+    "unavailableReasons": {
+      "asset_identity_mismatch": "משאבי ה-OCR המובנים אינם תואמים לגרסה המקובעת.",
+      "assets_missing": "בהתקנה זו חסרים משאבי OCR לא מקוונים נדרשים.",
+      "runtime_manifest_invalid": "מניפסט סביבת ה-OCR המובנית אינו תקין.",
+      "service_closed": "שירות ה-OCR נמצא בתהליך סגירה.",
+      "unsupported_platform": "OCR אינו זמין לפלטפורמה ולארכיטקטורה האלה.",
+      "toolchain_unavailable": "OCR דורש Node.js רשמי v24.18.0. פתחו הגדרות ← שרשראות כלים והתקינו את סביבת הריצה הרשמית.",
+      "version_mismatch": "OCR דורש Node.js v24.18.0. גרסה זו מחוץ לטווח. פתחו הגדרות ← שרשראות כלים והתקינו את סביבת הריצה הרשמית.",
+      "abi_mismatch": "OCR דורש Node.js ABI 137 (v24.18.0). פתחו הגדרות ← שרשראות כלים והתקינו את סביבת הריצה הרשמית."
+    },
+    "processStates": {
+      "idle": "לא פעיל",
+      "starting": "מופעל",
+      "ready": "מוכן",
+      "busy": "מזהה",
+      "stopping": "מופסק",
+      "closed": "סגור"
+    },
+    "strategies": {
+      "bounded-960": "תמונה מוגבלת",
+      "tiled-v1": "מסמך מחולק"
+    },
+    "cacheModes": {
+      "persistent": "מוצפן בדיסק",
+      "memory": "זיכרון בלבד"
+    },
+    "cacheFallbackReasons": {
+      "database_error": "המטמון המתמשך אינו זמין משום שלא ניתן לפתוח את מסד הנתונים שלו.",
+      "safe_storage_unavailable": "המטמון המתמשך אינו זמין משום שאין אחסון מאובטח למפתחות."
+    }
+  },
+  "leaveGuard": {
+    "dirtyTitle": "שינויים שלא נשמרו",
+    "dirtyDescription": "לצאת ולבטל את השינויים?",
+    "busyTitle": "השמירה מתבצעת",
+    "busyDescription": "יש להמתין לסיום השמירה לפני היציאה.",
+    "stay": "להמשיך לערוך",
+    "discard": "לבטל שינויים"
+  },
   "deepchatAgents": {
+    "saveFeedback": {
+      "saving": "שומר…",
+      "saved": "נשמר",
+      "saveFailed": "השמירה נכשלה. השינויים לא אבדו.",
+      "retry": "נסה שוב"
+    },
     "title": "סוכני DeepChat",
     "description": "נהלו את סוכני DeepChat ואת הברירות שהם מחילים על שיחות חדשות.",
     "builtIn": "מובנה",
@@ -2525,6 +2756,16 @@
     "permissionFullAccess": "גישה מלאה",
     "permissionDefault": "הרשאת ברירת מחדל",
     "toolsTitle": "כלים מובנים",
+    "outputLimitsTitle": "מגבלות פלט מתקדמות",
+    "outputLimitsDescription": "שליטה בכמות פלט הכלים שנשארת מוטמעת עבור סוכן זה.",
+    "outputLimitsSafetyHint": "בדיקת ההקשר של המודל עדיין עשויה להעביר לקובץ או לדחות תוצאות שאינן נכנסות.",
+    "outputLimitsReset": "איפוס לברירות המחדל",
+    "outputLimitsReadFile": "קריאת קובץ",
+    "outputLimitsReadFileHint": "מספר התווים שמוחזרים כאשר לא מוגדרת מגבלה מפורשת לקריאה.",
+    "outputLimitsTool": "פלט כלי",
+    "outputLimitsToolHint": "מגבלת הטמעה עבור כלים נתמכים שמפיקים פלט גדול.",
+    "outputLimitsCommand": "פלט פקודה",
+    "outputLimitsCommandHint": "תצוגה מקדימה בחזית עבור exec וסקריפטים של מיומנויות.",
     "compactionTitle": "דחיסה אוטומטית",
     "compactionEnabled": "הפעלת דחיסה אוטומטית",
     "compactionDescription": "ברירות המחדל האלה משפיעות רק על שיחות DeepChat חדשות.",
@@ -2532,8 +2773,8 @@
     "compactionRetainPairs": "שמירת הזוגות האחרונים",
     "deleteConfirm": "למחוק את הסוכן \"{name}\"? ההיסטוריה שלו תחזור לסוכן DeepChat המובנה.",
     "subagentsTitle": "סוכני משנה",
-    "subagentsDescription": "הגדירו את משבצות שיחות-הבת הניתנות לשימוש חוזר ש-`subagent_orchestrator` חושף.",
-    "subagentsEnabled": "הפעלת סוכני משנה",
+    "subagentsDescription": "אפשרו לסוכן הזה להאציל תת־משימות עצמאיות. המודל מחליט מתי להשתמש במשבצות שהוגדרו; ההאצלה צורכת טוקנים, זמן ומשאבי מערכת נוספים.",
+    "subagentsEnabled": "לאפשר לסוכן הזה להאציל תת־משימות",
     "subagentTargetType": "סוג יעד",
     "subagentTargetSelf": "הסוכן הזה",
     "subagentTargetAgent": "סוכן",
@@ -2555,14 +2796,23 @@
       "tabMemories": "זיכרונות",
       "tabPersona": "ציר זמן של פרסונה",
       "memoriesCount": "{count} זיכרונות",
-      "clearAll": "נקה הכול",
-      "clearConfirmTitle": "לנקות את כל הזיכרונות?",
-      "clearConfirmBody": "פעולה זו מסירה לצמיתות את כל הזיכרונות של סוכן זה. לא ניתן לבטל.",
+      "clearAll": "נקה זיכרונות",
+      "clearConfirmTitle": "לנקות זיכרונות עובדתיים ופרסונה?",
+      "clearConfirmBody": "פעולה זו מסירה לצמיתות את הזיכרונות העובדתיים ואת הפרסונה של סוכן זה. הנחיות קבועות נשמרות וניתן לנהל אותן בנפרד. לא ניתן לבטל.",
+      "cleanupPendingRestart": "קובצי וקטורים נעולים יימחקו לאחר הפעלה מחדש",
       "emptyMemories": "אין עדיין זיכרונות. הם נצברים תוך כדי שיחה עם סוכן זה.",
       "emptyPersona": "אין עדיין גרסאות של מודל-עצמי.",
       "personaActive": "פעיל",
       "rollback": "שחזר",
       "actionFailed": "הפעולה נכשלה",
+      "commandRejected": {
+        "unavailable": "הזיכרון אינו זמין זמנית. נסה שוב.",
+        "notFound": "הזיכרון הזה כבר לא קיים. התצוגה רועננה.",
+        "invalidState": "הפעולה הזו כבר אינה תקפה. התצוגה רועננה.",
+        "conflict": "יש לפתור את התנגשות הזיכרון לפני ניסיון נוסף.",
+        "stale": "הזיכרון הזה השתנה. התצוגה רועננה; נסה שוב.",
+        "anchored": "יש לבטל את העיגון של הפרסונה הפעילה לפני שחזור."
+      },
       "conflict": "התנגשות",
       "restore": "שחזר",
       "sourceLine": "מתוך שיחה {session} · {count} רשומות",
@@ -2606,6 +2856,7 @@
       "searchPlaceholder": "חיפוש זיכרונות",
       "noSearchResults": "אין זיכרונות התואמים את החיפוש שלך.",
       "addMemory": "הוסף זיכרון",
+      "loadMore": "טעינת עוד",
       "addContentPlaceholder": "מה שתרצה שהעוזר הזה יזכור…",
       "addCategoryLabel": "קטגוריית זיכרון",
       "addCategoryNone": "ללא קטגוריה",
@@ -2750,6 +3001,9 @@
     "enable": "Enable",
     "disable": "Disable",
     "openSettings": "Settings",
+    "testRuntime": "בדיקת סביבת הריצה",
+    "retryRuntime": "ניסיון חוזר של סביבת הריצה",
+    "quarantineDescription": "DeepChat עצר את סביבת הריצה לאחר יציאה לא תקינה. יש לנסות שוב רק כאשר בטוח לשלוט בשולחן העבודה.",
     "runtime": "Runtime",
     "runtimeState": "מצב",
     "version": "Version",
@@ -2763,6 +3017,8 @@
       "missing": "Missing",
       "installed": "Installed",
       "running": "Running",
+      "readyOnDemand": "מוכן לפי דרישה",
+      "quarantined": "בהסגר",
       "error": "Error"
     },
     "emptyTitle": "No built-in plugins available",
@@ -2851,13 +3107,13 @@
     "tabConfig": "הגדרה",
     "tabManage": "ניהול",
     "config": {
-      "rootHint": "deepchat הוא הסוכן המובנה ושורש התצורה: ערכים שנקבעים כאן הופכים לברירות המחדל שסוכנים אחרים יורשים.",
+      "rootHint": "deepchat הוא סוכן מובנה מוגן. התצורה שלו עצמאית מזו של כל סוכן אחר.",
       "extractionModel": "מודל כלי הזיכרון",
       "extractionModelHint": "מודל המשמש לחילוץ ולמניעת כפילויות של זיכרונות. אם לא נבחר, חוזרים למודל הצ׳אט.",
       "injectionBudget": "תקציב הזרקה (טוקנים)",
-      "injectionBudgetHint": "תקרת טוקנים משוערת להזרקת הזיכרון המורכבת. השאר ריק כדי לרשת את ברירת המחדל ({default}).",
+      "injectionBudgetHint": "תקרת טוקנים משוערת להזרקת הזיכרון המורכבת. השאר ריק כדי להשתמש בברירת המחדל ({default}).",
       "retrievalTitle": "דירוג אחזור",
-      "retrievalHint": "עוקף את אופן הדירוג של זיכרונות שאוחזרו; יורש את ברירות המחדל כשכבוי.",
+      "retrievalHint": "התאם את אופן הדירוג של זיכרונות שאוחזרו; כשהאפשרות כבויה נעשה שימוש בדירוג ברירת המחדל.",
       "retrievalOverride": "עקוף פרמטרים של אחזור",
       "topK": "מספר אחזורים (topK)",
       "rrfK": "קבוע מיזוג (rrfK)",
@@ -2866,14 +3122,16 @@
       "weightRecency": "משקל · עדכניות",
       "weightImportance": "משקל · חשיבות",
       "advancedTitle": "הגדרות זיכרון מתקדמות",
-      "advancedHint": "כוונן חילוץ, תקציב פרומפט ודירוג אחזור. השאר שדות ריקים כדי לרשת ברירות מחדל.",
-      "inheritedHint": "שדה ריק משתמש בערך בירושה/ברירת מחדל.",
+      "advancedHint": "כוונן חילוץ, תקציב פרומפט ודירוג אחזור. השאר שדות ריקים כדי להשתמש בברירות המחדל.",
+      "inheritedHint": "שדה ריק משתמש בערך ברירת המחדל.",
       "topKHint": "טווח 1-100. ברירת מחדל: {default}.",
       "rrfKHint": "טווח 1-1000. ברירת מחדל: {default}.",
       "similarityThresholdHint": "טווח 0-1. ברירת מחדל: {default}.",
       "weightHint": "משקל דירוג לא שלילי. ברירת מחדל: {default}."
     },
     "redesign": {
+      "reindexIncomplete": "בניית האינדקס הווקטורי מחדש לא הושלמה: {reason}. תוכן הזיכרון לא אבד; כרגע נעשה שימוש באחזור לפי מילות מפתח.",
+      "reindexInternalReason": "צינור העיבוד המקומי של ההטמעות לא הצליח להשלים את הבנייה מחדש.",
       "tabMemories": "זיכרונות",
       "tabPersona": "פרסונה",
       "tabDiagnostics": "אבחון",
@@ -2917,7 +3175,7 @@
       "archivedMatches": "התאמות בארכיון",
       "refresh": "רענון",
       "inboxTitle": "דורש תשומת לב",
-      "inboxDescription": "פתרו התנגשויות זיכרון וטיוטות פרסונה לפני שהן נעלמות מהתצוגה.",
+      "inboxDescription": "פתרו התנגשויות זיכרון, טיוטות פרסונה והנחיות מוצעות לפני שהן נעלמות מהתצוגה.",
       "conflictBadge": "{count} התנגשויות",
       "personaDraftBadge": "{count} טיוטות פרסונה",
       "conflictSectionTitle": "התנגשויות זיכרון ({count})",
@@ -2964,7 +3222,48 @@
         "memory-persona-rollback": "פרסונה שוחזרה",
         "memory-persona-anchor": "עוגן פרסונה עודכן",
         "memory-reindex": "הזיכרון אונדקס מחדש"
-      }
+      },
+      "tabDirectives": "הנחיות",
+      "directiveDraftBadge": "{count} טיוטות הנחיה",
+      "directiveDraftSectionTitle": "הנחיות מוצעות ({count})",
+      "directiveCreateTitle": "יצירת הנחיה קבועה",
+      "directiveCreateDescription": "הנחיות ידניות הופכות לפעילות מיד. הצעות המודל נשארות טיוטות עד לאישורן.",
+      "directiveRuntimeEnabled": "מוחלת בזמן ריצה",
+      "directiveRuntimeDisabled": "לא פעילה כשהזיכרון כבוי",
+      "directiveKindLabel": "סוג ההנחיה",
+      "directiveKind": {
+        "instruction": "הנחיה קבועה",
+        "suppress_topic": "השתקת נושא"
+      },
+      "directiveTopicLabel": "נושא תואם",
+      "directiveTopicPlaceholder": "נושא או ביטוי מדויק שיושתק מהזיכרון המאוחזר",
+      "directiveTopicTooBroad": "נושאים הכוללים תווי CJK חייבים להכיל לפחות {min} תווים גלויים כדי שלא להסתיר זיכרונות שאינם קשורים.",
+      "directiveContentLabel": "הנחיה",
+      "directiveInstructionPlaceholder": "כתבו הנחיה קבועה לסוכן הזה.",
+      "directiveSuppressPlaceholder": "הסבירו כיצד הסוכן צריך לטפל בנושא הזה.",
+      "directiveInstructionHint": "זוהי הנחיה ברמת המשתמש ואינה יכולה לעקוף כללי מערכת או בטיחות.",
+      "directiveSuppressHint": "הנושא מסנן את הזיכרון המאוחזר; ההנחיה מכוונת את התשובה. זה אינו מסנן פלט.",
+      "directiveLength": "הנחיה {content}/{contentMax} · נושא {topic}/{topicMax}",
+      "directiveCreateAction": "הפעלת ההנחיה",
+      "directiveCapacityTitle": "הגעתם למגבלת ההנחיות הפעילות",
+      "directiveCapacityDescription": "לכל סוכן יכולות להיות עד {max} הנחיות פעילות. מחקו הנחיה פעילה לפני הוספה או אישור של הנחיה נוספת.",
+      "directiveListTitle": "הנחיות שמורות",
+      "directiveListDescription": "{active} פעילות · {draft} ממתינות לאישור",
+      "directiveEmptyTitle": "אין עדיין הנחיות",
+      "directiveEmptyDescription": "צרו כאן הנחיה קבועה או אשרו הצעה מתיבת הדואר הנכנס.",
+      "directiveStatus": {
+        "active": "פעילה",
+        "draft": "טיוטה",
+        "rejected": "נדחתה"
+      },
+      "directiveSource": {
+        "explicit_user": "פעולת משתמש מפורשת",
+        "manual": "הגדרות",
+        "derived_suggestion": "הוצעה מתוך השיחה"
+      },
+      "directiveTopicValue": "נושא: {topic}",
+      "directiveDeleteTitle": "למחוק את ההנחיה הזו?",
+      "directiveDeleteDescription": "ההנחיה תפסיק לחול מיד. תוכלו ליצור אותה שוב מאוחר יותר."
     }
   },
   "pluginsHub": {
@@ -2972,12 +3271,122 @@
     "available": "תוספים זמינים",
     "add": "הוספה",
     "manage": "Manage",
+    "builtinCapability": "יכולת מובנית",
     "emptySearch": "אין תוספים זמינים.",
     "pluginNotFound": "Plugin not found.",
     "actionResult": "Action result",
     "cuaDescription": "תוסף ComputerUse של DeepChat שמיושם על בסיס הפרויקט trycua/cua.",
     "acpUnavailableTitle": "תוספים אינם זמינים לסוכני ACP",
     "acpUnavailableDescription": "סוכני ACP מנהלים כלים והרחבות בסביבת הריצה שלהם. יש לבחור סוכן DeepChat כדי להשתמש בתוספים.",
-    "agentScopeUnsupported": "הרחבות ברמת הסוכן זמינות רק לסוכני DeepChat."
+    "agentScopeUnsupported": "הרחבות ברמת הסוכן זמינות רק לסוכני DeepChat.",
+    "scopeGlobalPlugins": "עמוד זה הוא גלובלי לאפליקציה: התקנה, הפעלה ומצב תהליך של תוספים רשמיים משותפים לכל סוכני DeepChat.",
+    "scopeCurrentAgent": "עמוד זה הוא מדיניות סוכן: השינויים משפיעים רק על זמינות Skills/MCP של „{agent}”, לא על התקנות גלובליות.",
+    "currentAgentFallback": "הסוכן הנוכחי"
+  },
+  "debug": {
+    "description": "כלים לפיתוח בלבד להצגת תצוגה מקדימה של מצבי דמה ותהליכים מודרכים.",
+    "unavailableTitle": "כלי ניפוי השגיאות אינם זמינים",
+    "unavailableDescription": "פעולה זו זמינה רק במצב פיתוח.",
+    "splash": {
+      "title": "חלון פתיחה",
+      "description": "הצג תצוגה מקדימה של מצבי חלון הפתיחה בלי להתחיל תהליך אמיתי של ביטול נעילת מסד הנתונים.",
+      "loading": "תצוגה מקדימה של טעינה",
+      "systemUnlock": "תצוגה מקדימה של ביטול נעילת המערכת",
+      "unlock": "תצוגה מקדימה של ביטול נעילה ידני",
+      "recovery": "תצוגה מקדימה של שחזור מסד הנתונים",
+      "failed": "לא ניתן להציג את תרחיש חלון הפתיחה.",
+      "previewHint": "תצוגה מקדימה לפיתוח — שליחת הסיסמה מושבתת."
+    },
+    "guidance": {
+      "title": "הדרכה ונתונים",
+      "description": "צור נתוני דמה לפיתוח בלבד עבור תהליך ההיכרות, שיחות ועדכונים.",
+      "failed": "לא ניתן להפעיל את התהליך המודרך לניפוי שגיאות."
+    }
+  },
+  "toolchains": {
+    "description": "בחרו מאיפה DeepChat מקבל את Node ו-uv. המקור לא מתחלף מעצמו אחרי הבחירה.",
+    "nodeTitle": "Node.js",
+    "uvTitle": "uv",
+    "source": "מקור",
+    "sources": {
+      "bundled": "כלול ביישום",
+      "managed": "הותקן על ידי DeepChat",
+      "system": "התקנת מערכת",
+      "custom": "נתיב מותאם",
+      "unconfigured": "לא הוגדר",
+      "autoNamed": "אוטומטי ({source})"
+    },
+    "systemDetected": "נמצא קובץ בינארי של המערכת: {path}",
+    "systemDetectedHint": "אם כבר יש התקנה עובדת, נשתמש בה. לא יורד דבר.",
+    "install": "התקנת סביבת הריצה הרשמית",
+    "repair": "תיקון",
+    "revert": "שחזור",
+    "cancelInstall": "ביטול",
+    "installing": "מתקין…",
+    "version": "גרסה",
+    "path": "נתיב",
+    "bannerTitle": "חסרה סביבת ריצה נדרשת",
+    "bannerDescription": "Node או uv אינם זמינים עבור MCP, ACP, Skills או OCR.",
+    "bannerAction": "פתיחת שרשראות כלים",
+    "availability": {
+      "ready": "מוכן",
+      "missing": "חסר",
+      "incomplete": "חלקי",
+      "unconfigured": "לא הוגדר"
+    },
+    "downloadReasons": {
+      "dns": "לא ניתן היה לפתור את מארח ההורדה.",
+      "timeout": "ההורדה חרגה ממגבלת הזמן.",
+      "http": "שרת ההורדה החזיר שגיאה.",
+      "proxy": "ההורדה דרך ה-proxy שהוגדר נכשלה.",
+      "checksum_mismatch": "הקובץ שהורד נכשל בבדיקת השלמות.",
+      "disk": "לא ניתן היה לכתוב את סביבת הריצה לדיסק.",
+      "cancelled": "ההורדה בוטלה.",
+      "activation_failed": "לא ניתן היה להפעיל את סביבת הריצה.",
+      "unsupported_platform": "לפלטפורמה זו אין סביבת ריצה רשמית."
+    },
+    "ocrPinHint": "OCR דורש Node רשמי v24.18.0 (ABI 137). סביבה זו מתאימה לצ׳אט ול-MCP, אך לא ל-OCR. התקינו את סביבת הריצה הרשמית."
+  },
+  "userPlugins": {
+    "install": "התקנת תוסף",
+    "update": "בדיקת עדכון",
+    "installDescription": "התקנת חבילה בפורמט Codex ישירות מ־Git או ZIP. יש לבדוק את החבילה לפני הפעלת רכיביה.",
+    "gitUrl": "כתובת Git ציבורית בפרוטוקול HTTPS",
+    "gitRef": "ענף, תג או commit (רשות)",
+    "subdirectory": "תיקיית משנה של החבילה (רשות)",
+    "chooseZip": "בחירת קובץ ZIP",
+    "chooseDirectory": "בחירת תיקיית תוסף",
+    "inspect": "בדיקת חבילה",
+    "executionNotice": "Hooks ושרתי MCP מסוג stdio מריצים קוד מקומי עם הרשאות הגישה לקבצים ולרשת של החשבון שלך. יש להפעיל רק קוד מהימן. פקודות כמו npx או uvx עשויות להוריד תלויות בעת הפעלת השרת.",
+    "useSkills": "שימוש במיומנויות הכלולות",
+    "allowHooks": "בדקתי את הפקודות האלה ואני מאשר הפעלת hooks אוטומטיים של הקשר",
+    "allowMcp": "בדקתי את הפקודות, נקודות הקצה וקישורי המשתנים האלה ואני מאשר חיבורי MCP",
+    "sharedData": "נתוני התקנת התוסף הזאת משותפים בין שיחות.",
+    "requiredVariables": "משתני סביבה או פרטי זיהוי נדרשים",
+    "applyUpdate": "החלת העדכון שנבדק",
+    "uninstall": "הסרת התקנה",
+    "source": "מקור ההתקנה",
+    "selected": "נבחר",
+    "notSelected": "לא נבחר",
+    "reviewed": "הפקודות נבדקו",
+    "hooksNotEnabled": "Hooks אוטומטיים אינם מורשים. יש לבדוק עדכון כדי להפעיל אותם; מיומנויות לבדן אינן מפעילות hooks אוטומטיים.",
+    "diagnostics": "פעילות hooks אחרונה",
+    "noInvocations": "לא תועדו קריאות ל־hooks מאז הפעלת היישום.",
+    "retryHook": "הפעלת ה־hook מחדש",
+    "mcpSetupDescription": "יש להפעיל את התוסף כדי לרשום את השרתים שלו. כאן ניתן להזין או להחליף ערכי משתנים; משתני הסביבה של המחשב לעולם אינם משותפים אוטומטית. ניתן לנהל אימות בהגדרות MCP.",
+    "saveMcp": "שמירה וחיבור מחדש",
+    "manageMcp": "פתיחת הגדרות MCP",
+    "uninstallDescription": "הסרת התוסף, הנתונים הפרטיים שלו, שיוכי המיומנויות ושרתי ה־MCP שבבעלותו. היסטוריית השיחות תישמר.",
+    "fromGit": "התקנה מ־Git",
+    "fromZip": "התקנה מ־ZIP",
+    "userPlugin": "תוסף משתמש",
+    "hookStatus": {
+      "started": "פועל",
+      "completed": "הושלם",
+      "failed": "נכשל",
+      "uncertain": "נקטע; התוצאה אינה ידועה"
+    },
+    "technicalDetails": "פרטים טכניים",
+    "hooks": "Hooks"
   }
 }

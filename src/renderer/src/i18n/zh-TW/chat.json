@@ -63,6 +63,27 @@
         "yobrowser": "YoBrowser"
       }
     },
+    "toolMode": {
+      "title": "模式",
+      "modelDefault": "模型預設",
+      "options": {
+        "agent": "Agent",
+        "code": "Code",
+        "minimal": "Minimal"
+      },
+      "descriptions": {
+        "agent": "使用標準 Agent 工具集。",
+        "code": "透過程式碼編排目前啟用的工具，需要完整存取權限模式。",
+        "minimal": "精簡檔案操作，同時保留其他已啟用工具。"
+      },
+      "useModelDefault": "使用模型預設",
+      "saving": "正在儲存模式...",
+      "locked": "本次回覆結束後可切換模式。",
+      "updateFailed": "無法更新工具模式。",
+      "codeEntry": "程式碼入口",
+      "codeCallable": "Code 可呼叫",
+      "minimalTools": "編碼工具"
+    },
     "fileUploadFailed": "附件處理失敗",
     "fileUploadFailedDesc": "無法處理 {count} 個檔案：{names}",
     "fileUploadFailedMore": " 等 {count} 個",
@@ -71,6 +92,12 @@
     "audioInputUnsupportedDescription": "模型 {model} 不支援音訊輸入，已忽略 {count} 個音訊附件。"
   },
   "pendingInput": {
+    "resume": "繼續佇列",
+    "resumeFailed": "無法繼續佇列",
+    "retry": "重試",
+    "retryRequired": "需要重試",
+    "retryRequiredDescription": "此訊息未能傳送，請重試以繼續佇列。",
+    "retryFailed": "無法重試佇列訊息",
     "steer": "打斷",
     "queueCount": "待發 {count}/{max}",
     "toSteer": "打斷並發送",
@@ -116,10 +143,19 @@
   "compaction": {
     "compacting": "正在壓縮上下文...",
     "compacted": "上下文已壓縮",
+    "compactedWithoutSummary": "上下文已壓縮，但未產生摘要",
+    "compactedWithoutLargerSummary": "上下文已壓縮，未採用體積更大的摘要",
     "commandDescription": "壓縮會話上下文",
     "noopTitle": "沒有可壓縮的上下文",
     "noopDescription": "目前還沒有新的對話歷史需要壓縮。",
     "failedTitle": "壓縮失敗"
+  },
+  "contextOccupancy": {
+    "label": "上下文佔用",
+    "details": "已用 {used} / {capacity} tokens",
+    "provider": "Provider 實測",
+    "estimated": "根據請求檢視估算",
+    "stale": "模型、視窗或壓縮邊界變更後的舊資料"
   },
   "rateLimit": {
     "queueTooltip": "佇列中有 {count} 個請求，間隔 {interval} 秒",
@@ -161,7 +197,8 @@
   "mode": {
     "acpAgent": "ACP Agent",
     "agent": "Agent",
-    "current": "當前模式：{mode}"
+    "current": "當前模式：{mode}",
+    "saveFailed": "無法儲存模式選擇"
   },
   "topbar": {
     "share": "分享",
@@ -175,7 +212,6 @@
     "systemPrompt": "系統提示詞",
     "systemPromptPlaceholder": "選擇預設",
     "temperature": "溫度",
-    "temperatureFixedMoonshotKimi": "Moonshot Kimi K2.5/K2.6 在開啟思考時固定為 {enabled}，關閉思考時固定為 {disabled}。",
     "topP": "Top P（核心採樣）",
     "topPDescription": "留空使用服務商預設值",
     "contextLength": "上下文長度",
@@ -211,6 +247,12 @@
       "contextMenu": {
         "insertPath": "插入到輸入框",
         "openFile": "打開文件",
+        "openInApp": "在 {app} 中開啟",
+        "openInTerminalApp": "在 {app} 中開啟所在目錄",
+        "openFailed": "無法用該應用開啟此檔案",
+        "preferredAppUnavailable": "首選應用程式暫時無法使用，本次改用系統預設方式開啟。",
+        "openWith": "開啟方式",
+        "openWithSystemDefault": "用系統預設方式開啟",
         "revealInFolder": "在文件管理器中打開"
       },
       "empty": "暫無文件",
@@ -348,7 +390,13 @@
     "moveProjectGroupBottom": "移至最下方",
     "searchCommand": "搜尋",
     "chatSection": "Chat",
-    "workspace": "工作區"
+    "workspace": "工作區",
+    "addWorkspace": "新增工作區",
+    "manageWorkspaces": "管理工作區",
+    "openWorkspaceFolder": "開啟資料夾",
+    "emptyWorkspace": "空白",
+    "addWorkspaceFailed": "新增工作區失敗",
+    "searchLoadedRangeDescription": "正在顯示已載入對話中的相符結果。向下捲動以載入更多歷史記錄。"
   },
   "floatingWidget": {
     "title": "任務總覽",
@@ -400,6 +448,72 @@
     "firstChat": {
       "description": "現在已經準備好了，在這裡傳送第一條訊息即可完成引導。",
       "caption": "聚光會一直停留在輸入框，直到你真正送出第一條訊息。"
+    }
+  },
+  "messageReceipt": {
+    "unread": "未讀",
+    "read": "已讀"
+  },
+  "attachments": {
+    "chooseRepresentation": "選擇如何傳送 {name}",
+    "representation": "附件表示方式",
+    "auto": "自動",
+    "sendImage": "傳送圖片",
+    "useOcrText": "使用 OCR 文字",
+    "useEmbeddedText": "使用 PDF 原文",
+    "preparing": "正在處理附件…",
+    "actionRequiredTitle": "附件需要處理",
+    "actionRequiredDescription": "一個或多個附件無法使用，請選擇如何繼續。",
+    "attachmentNumber": "附件 {number}",
+    "moreIssues": "另有 {count} 個附件問題",
+    "genericUnavailable": "沒有可用的附件內容。",
+    "keepDraft": "保留草稿",
+    "switchVisionModel": "切換視覺模型",
+    "retry": "重試",
+    "sendWithoutImageContent": "忽略附件內容",
+    "inspectOcrText": "檢視 OCR 文字",
+    "ocrBadge": "OCR",
+    "embeddedTextBadge": "原文",
+    "ocrPartialBadge": "OCR · 部分",
+    "ocrLimitedBadge": "OCR · 受限",
+    "imageBadge": "圖片",
+    "unavailableBadge": "不可用",
+    "ocrPreviewTitle": "OCR 文字 — {name}",
+    "ocrPreviewDescription": "約 {tokens} 個 token，已作為不可信附件內容傳送。",
+    "ocrPageCoverage": "文字包含至第 {page} 頁。",
+    "ocrPageCoveragePartial": "文字包含至第 {page} 頁的一部分。",
+    "ocrTextTruncated": "這段 OCR 文字在傳送前已被截斷。",
+    "reasons": {
+      "automatic_ocr_disabled": "自動 OCR 已關閉。",
+      "document_limit_exceeded": "每次請求僅支援對一個 PDF 執行 OCR。",
+      "document_too_large": "PDF 超過檔案大小限制。",
+      "image_dimensions_exceeded": "圖片解碼後的尺寸超過安全限制。",
+      "image_limit_exceeded": "本輪圖片數量超過 OCR 處理上限。",
+      "image_payload_unavailable": "原始圖片資料已不可用。",
+      "image_too_large": "圖片超過單一檔案大小限制。",
+      "ocr_cancelled": "OCR 已取消。",
+      "ocr_empty": "OCR 未辨識到可用文字。",
+      "ocr_failed": "OCR 無法處理此附件。",
+      "ocr_queue_full": "OCR 正忙，請等待目前附件處理完成後重試。",
+      "ocr_resource_limited": "OCR 已在 PDF 處理資源上限處停止。",
+      "ocr_runtime_unavailable": "目前平台或安裝環境不支援 OCR。",
+      "invalid_attachment_snapshot": "已儲存的 OCR 資料無效。",
+      "turn_ocr_budget_exhausted": "OCR 文字超出此訊息的附件文字額度。",
+      "pdf_text_unavailable": "此 PDF 沒有可用的內嵌文字。",
+      "requested_image_requires_vision": "「傳送圖片」需要支援視覺能力的模型。",
+      "turn_image_bytes_exceeded": "本輪圖片總大小超過限制。",
+      "user_skipped_attachment_content": "已依照你的選擇省略附件內容。",
+      "user_skipped_image_content": "已依照你的選擇省略圖片內容。",
+      "unsupported_image_format": "OCR 不支援此圖片格式。"
+    },
+    "pending": {
+      "blockedCount": "{count} 條受阻",
+      "blocked": "受阻",
+      "retry": "重試 OCR",
+      "sendWithoutImageContent": "忽略附件內容",
+      "blockedDescription": "此項正在等待附件處理選擇。",
+      "blockedReasonMore": "{reason} 另有 {count} 個問題。",
+      "resolveFailed": "無法處理受阻訊息"
     }
   },
   "skillDraft": {
@@ -459,6 +573,14 @@
       "dropped": "丟棄",
       "tokens": "Token",
       "budget": "預算",
+      "allocation": "貢獻預算分配",
+      "directive": "指令",
+      "persona": "人格",
+      "working": "工作投影",
+      "queryRecall": "查詢召回",
+      "overhead": "結構開銷",
+      "unused": "未使用",
+      "overheadSummary": "結構開銷 {overhead} · 未使用 {unused}",
       "countOnly": "這筆記錄只包含計數摘要。",
       "unavailable": "這條記憶已不可用。",
       "noSelectedDetails": "本輪沒有可展示的記憶明細。",
@@ -485,5 +607,29 @@
       "amendRetryable": "修改失敗，原記憶已還原。請保留輸入後重試。",
       "amendRestoreFailed": "修改失敗，且原記憶未能還原。請手動重新記住這段內容。"
     }
+  },
+  "orchestration": {
+    "actions": {
+      "openChild": "開啟子對話"
+    },
+    "activityTitle": "Agent 活動",
+    "proactive": {
+      "title": "主動協作",
+      "description": "允許主 Agent 在獨立或並行工作明顯有幫助時主動委派；可能使用更多時間、Token 與系統資源。",
+      "reasons": {
+        "session_unavailable": "目前對話已不可用。",
+        "agent_unavailable": "目前選取的 Agent 不可用。",
+        "deepchat_agent_required": "主動協作需要使用 DeepChat Agent。",
+        "regular_parent_required": "子對話中不能啟用主動協作。",
+        "agent_policy_unavailable": "無法載入協作策略。",
+        "subagents_disabled": "請先為此 Agent 啟用 Subagent，再使用主動協作。"
+      }
+    }
+  },
+  "guardStop": {
+    "maxToolCalls": "工具呼叫次數已達上限，任務尚未完成。",
+    "noProgress": "連續相同的工具結果沒有進展，已停止。",
+    "maxTurns": "已達到本輪對話上限，任務尚未完成。",
+    "continueMessage": "請從剛才停下的地方繼續。"
   }
 }

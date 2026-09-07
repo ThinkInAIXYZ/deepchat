@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { RENDERER_MODEL_META } from '@shared/presenter'
+import type { RENDERER_MODEL_META } from '@shared/types/provider'
 import {
   resolveChatModelByQuery,
   resolvePreferredChatModel,

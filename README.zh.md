@@ -24,6 +24,52 @@
   <a href="./README.zh.md">中文</a> / <a href="./README.md">English</a> / <a href="./README.jp.md">日本語</a>
 </div>
 
+## ❤️ 赞助
+
+<table>
+  <tr>
+    <td width="25%" align="center">
+      <a href="https://go.apimart.ai/gh-deepchat">
+        <img src="./assets/sponsors/apimart.png" alt="APIMart" width="240" />
+      </a>
+    </td>
+    <td width="75%">
+      感谢 APIMart 赞助了本项目！APIMart 是专注 AI 图片/视频生成的低价 API 平台，GPT-Image-2
+      低至 $0.006/张，1 美元可出图 160+ 张。图片、视频一套异步 API 通吃，提交任务拿
+      ID、回调取结果，跑批万张不超时、换模型不改代码。按量付费、无月费，通过此<a
+      href="https://go.apimart.ai/gh-deepchat">注册链接</a>注册即可开用。
+    </td>
+  </tr>
+  <tr>
+    <td width="25%" align="center">
+      <a href="https://www.openmodel.ai?ref=ZGLyq8YQ">
+        <img src="./assets/sponsors/openmodel.png" alt="OpenModel" width="240" />
+      </a>
+    </td>
+    <td width="75%">
+      感谢 OpenModel 对本项目的支持！OpenModel 为 Codex 和 Claude Code 提供高达 90%
+      的客户专属折扣，涵盖所有支持的模型，帮助开发者在不改变工作方式的前提下降低 API
+      成本。只需连接您的 OpenModel API 密钥，即可像往常一样继续使用 Codex 或 Claude
+      Code——系统会自动检测支持的客户端，并应用折扣路由，无需额外参数或手动路由。您还可以为每个
+      API 密钥配置备用方案，选择在折扣路由暂时不可用时继续按标准价格计费或停止计费。DeepChat
+      用户可以通过<a href="https://www.openmodel.ai?ref=ZGLyq8YQ">此链接</a>注册。
+    </td>
+  </tr>
+  <tr>
+    <td width="25%" align="center">
+      <a href="https://www.packyapi.ai/register?aff=0A33">
+        <img src="./assets/sponsors/packycode.png" alt="PackyCode" width="240" />
+      </a>
+    </td>
+    <td width="75%">
+      PackyCode 是一家稳定、高效的 API 中转服务商，提供 Claude Code、Codex、Gemini
+      等多种中转服务。具备自动故障转移、智能路由和无限并发等多种功能，让 AI
+      编程成为真正的生产力工具。点击<a
+      href="https://www.packyapi.ai/register?aff=0A33">此链接</a>注册，立即开始使用！
+    </td>
+  </tr>
+</table>
+
 ## 📑 目录
 
 - [📑 目录](#-目录)
@@ -119,7 +165,7 @@ DeepChat 的会话与 Agent 过程基于 Tape.systems 的哲学设计：把过�
 - 🔧 **出色的 MCP（Model Context Protocol）支持**
   - 完整支持 Resources / Prompts / Tools 三大核心能力
   - 支持 StreamableHTTP、SSE、Stdio 等传输协议
-  - 内置 Node.js 运行环境，npx/node 类服务可开箱即用
+  - 可在设置中安装官方 Node.js 工具链，供 npx/node 类服务使用
   - 支持 inMemory 服务，内置代码执行、网络信息获取、文件操作等实用能力
   - 提供清晰的工具调用展示和参数/返回数据调试体验
   - 支持通过 DeepLink 一键安装 MCP 服务
@@ -364,6 +410,14 @@ DeepChat 可以通过聊天软件远程控制，让你离开桌面后也能继�
       <img src="./src/renderer/src/assets/llm-icons/siliconcloud-color.svg" width="50" height="50" alt="SiliconFlow Icon"><br/>
       <a href="https://www.siliconflow.cn/">SiliconFlow</a>
     </td>
+    <td>
+      <img src="./src/renderer/src/assets/llm-icons/orcarouter.svg" width="50" height="50" alt="OrcaRouter Icon"><br/>
+      <a href="https://www.orcarouter.ai/">OrcaRouter</a>
+    </td>
+    <td>
+      <img src="./src/renderer/src/assets/llm-icons/synthorai.svg" width="50" height="50" alt="Synthorai Icon"><br/>
+      <a href="https://synthorai.io/">Synthorai</a>
+    </td>
   </tr>
 
 </table>
@@ -478,7 +532,7 @@ DeepChat是一个活跃的开源社区项目，我们欢迎各种形式的贡献
 
 ## ⭐ Star历史
 
-[![Star History Chart](https://api.star-history.com/svg?repos=ThinkInAIXYZ/deepchat&type=Timeline)](https://www.star-history.com/#ThinkInAIXYZ/deepchat&Timeline)
+[![Star History Chart](https://star-history.dera.page/svg?repos=ThinkInAIXYZ/deepchat&type=Timeline)](https://star-history.dera.page/#ThinkInAIXYZ/deepchat&Timeline)
 
 ## 👨‍💻 贡献者
 

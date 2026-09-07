@@ -20,11 +20,12 @@
             <TooltipTrigger>
               <Switch
                 :model-value="isRagflowMcpEnabled"
-                :disabled="!mcpStore.mcpEnabled"
+                :disabled="!mcpEnabled || operationPending"
+                @click.stop
                 @update:model-value="toggleRagflowMcpServer"
               />
             </TooltipTrigger>
-            <TooltipContent v-if="!mcpStore.mcpEnabled">
+            <TooltipContent v-if="!mcpEnabled">
               <p>{{ t('settings.mcp.enableToAccess') }}</p>
             </TooltipContent>
           </Tooltip>
@@ -40,6 +41,7 @@
     <Collapsible v-model:open="isRagflowConfigPanelOpen">
       <CollapsibleContent>
         <div class="p-4 border-t space-y-4">
+          <DcInlineError v-if="loadError" :error="loadError" />
           <!-- 已添加的配置列表 -->
           <div v-if="ragflowConfigs.length > 0" class="space-y-3">
             <div
@@ -50,11 +52,13 @@
               <div class="absolute top-2 right-2 flex gap-2">
                 <Switch
                   :model-value="config.enabled === true"
+                  :disabled="operationPending"
                   size="sm"
                   @update:model-value="toggleConfigEnabled(index, $event)"
                 />
                 <button
                   type="button"
+                  :disabled="operationPending"
                   class="text-muted-foreground hover:text-primary"
                   @click="editRagflowConfig(index)"
                 >
@@ -62,6 +66,7 @@
                 </button>
                 <button
                   type="button"
+                  :disabled="operationPending"
                   class="text-muted-foreground hover:text-destructive"
                   @click="removeRagflowConfig(index)"
                 >
@@ -93,8 +98,9 @@
 
           <!-- 添加配置按钮 -->
           <div class="flex justify-center">
-            <Button
+            <DcButton
               type="button"
+              :disabled="operationPending"
               size="sm"
               class="w-full flex items-center justify-center gap-2"
               variant="outline"
@@ -102,14 +108,14 @@
             >
               <Icon icon="lucide:plus" class="w-8 h-4" />
               {{ t('settings.knowledgeBase.addRagflowConfig') }}
-            </Button>
+            </DcButton>
           </div>
         </div>
       </CollapsibleContent>
     </Collapsible>
 
     <!-- RAGFlow配置对话框 -->
-    <Dialog v-model:open="isRagflowConfigDialogOpen">
+    <Dialog :open="isRagflowConfigDialogOpen" @update:open="handleDialogOpenChange">
       <DialogContent>
         <DialogHeader>
           <DialogTitle>{{
@@ -129,6 +135,7 @@
             <Input
               id="edit-ragflow-description"
               v-model="editingRagflowConfig.description"
+              :disabled="operationPending"
               :placeholder="t('settings.knowledgeBase.descriptionPlaceholder')"
             />
           </div>
@@ -140,6 +147,7 @@
             <Input
               id="edit-ragflow-api-key"
               v-model="editingRagflowConfig.apiKey"
+              :disabled="operationPending"
               type="password"
               placeholder="RAGFlow API Key"
             />
@@ -152,6 +160,7 @@
             <Input
               id="edit-ragflow-dataset-ids"
               v-model="editingRagflowConfig.datasetIdsStr"
+              :disabled="operationPending"
               placeholder="Dataset IDs (用逗号分隔)"
             />
           </div>
@@ -163,28 +172,32 @@
             <Input
               id="edit-ragflow-endpoint"
               v-model="editingRagflowConfig.endpoint"
+              :disabled="operationPending"
               placeholder="http://localhost"
             />
           </div>
         </div>
         <DialogFooter>
-          <Button variant="outline" @click="closeRagflowConfigDialog">{{
-            t('common.cancel')
-          }}</Button>
-          <Button type="button" :disabled="!isEditingRagflowConfigValid" @click="saveRagflowConfig">
-            {{ isEditing ? t('common.confirm') : t('settings.knowledgeBase.addConfig') }}
-          </Button>
+          <DcFormActions
+            :submit-status="saveStatus"
+            :submit-disabled="operationPending || !isEditingRagflowConfigValid"
+            :cancel-disabled="operationPending"
+            :submit-label="isEditing ? t('common.confirm') : t('settings.knowledgeBase.addConfig')"
+            @cancel="closeRagflowConfigDialog"
+            @submit="saveRagflowConfig"
+          />
         </DialogFooter>
+        <DcInlineError v-if="operationError" :error="operationError" class="mt-2" />
       </DialogContent>
     </Dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch, toRaw, onUnmounted } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
 import { Input } from '@shadcn/components/ui/input'
 import { Label } from '@shadcn/components/ui/label'
 import { Switch } from '@shadcn/components/ui/switch'
@@ -197,8 +210,9 @@ import {
   DialogDescription
 } from '@shadcn/components/ui/dialog'
 import { Collapsible, CollapsibleContent } from '@shadcn/components/ui/collapsible'
-import { useMcpStore } from '@/stores/mcp'
-import { useToast } from '@/components/use-toast'
+import { DcInlineError } from '@dc-ui/components/inline-error'
+import { useDcFormSubmit } from '@dc-ui/components/form'
+import { DcFormActions } from '@dc-ui/components/form-actions'
 import {
   Tooltip,
   TooltipContent,
@@ -206,10 +220,10 @@ import {
   TooltipTrigger
 } from '@shadcn/components/ui/tooltip'
 import { useRoute } from 'vue-router'
+import { useExternalKnowledgeConfigs } from '../lib/useExternalKnowledgeConfigs'
+import { settingsLeaveGuard } from '../services/settingsLeaveGuard'
 
 const { t } = useI18n()
-const mcpStore = useMcpStore()
-const { toast } = useToast()
 const route = useRoute()
 
 // 对话框状态
@@ -230,7 +244,6 @@ interface EditingRagflowConfig extends Omit<RagflowConfig, 'datasetIds'> {
   datasetIdsStr: string
 }
 
-const ragflowConfigs = ref<RagflowConfig[]>([])
 const editingRagflowConfig = ref<EditingRagflowConfig>({
   description: '',
   apiKey: '',
@@ -239,6 +252,45 @@ const editingRagflowConfig = ref<EditingRagflowConfig>({
   enabled: true
 })
 const editingConfigIndex = ref<number>(-1)
+const dialogInitialSignature = ref('')
+const editingSignature = computed(() => JSON.stringify(editingRagflowConfig.value))
+const dialogDirty = computed(
+  () => isRagflowConfigDialogOpen.value && editingSignature.value !== dialogInitialSignature.value
+)
+
+const isRagflowConfig = (value: unknown): value is RagflowConfig => {
+  if (typeof value !== 'object' || value === null) return false
+  const config = value as Record<string, unknown>
+  return (
+    typeof config.description === 'string' &&
+    typeof config.apiKey === 'string' &&
+    Array.isArray(config.datasetIds) &&
+    config.datasetIds.every((datasetId) => typeof datasetId === 'string') &&
+    typeof config.endpoint === 'string' &&
+    (config.enabled === undefined || typeof config.enabled === 'boolean')
+  )
+}
+
+const cloneConfig = (config: RagflowConfig): RagflowConfig => ({
+  ...config,
+  datasetIds: [...config.datasetIds]
+})
+const knowledgeConfigs = useExternalKnowledgeConfigs({
+  serverName: 'ragflowKnowledge',
+  codePrefix: 'settings.knowledgeBase.ragflow',
+  diagnosticName: 'RAGFlowKnowledge',
+  isConfig: isRagflowConfig,
+  clone: cloneConfig
+})
+const ragflowConfigs = knowledgeConfigs.configs
+const loadError = knowledgeConfigs.loadError
+const knowledgeOperation = knowledgeConfigs.operation
+const operationPending = knowledgeConfigs.pending
+const isRagflowMcpEnabled = knowledgeConfigs.serverEnabled
+const mcpEnabled = knowledgeConfigs.globalEnabled
+
+const operationError = ref<string | null>(null)
+const { status: saveStatus, run: runSave } = useDcFormSubmit()
 
 // 验证配置是否有效
 const isEditingRagflowConfigValid = computed(() => {
@@ -251,6 +303,7 @@ const isEditingRagflowConfigValid = computed(() => {
 
 // 打开添加配置对话框
 const openAddConfig = () => {
+  if (operationPending.value) return
   isEditing.value = false
   editingConfigIndex.value = -1
   editingRagflowConfig.value = {
@@ -260,6 +313,7 @@ const openAddConfig = () => {
     endpoint: 'http://localhost',
     enabled: true
   }
+  dialogInitialSignature.value = editingSignature.value
   isRagflowConfigDialogOpen.value = true
 }
 
@@ -269,6 +323,7 @@ defineExpose({
 
 // 打开编辑配置对话框
 const editRagflowConfig = (index: number) => {
+  if (operationPending.value) return
   isEditing.value = true
   editingConfigIndex.value = index
   const config = ragflowConfigs.value[index]
@@ -276,11 +331,11 @@ const editRagflowConfig = (index: number) => {
     ...config,
     datasetIdsStr: config.datasetIds.join(',')
   }
+  dialogInitialSignature.value = editingSignature.value
   isRagflowConfigDialogOpen.value = true
 }
 
-// 关闭配置对话框
-const closeRagflowConfigDialog = () => {
+const resetRagflowConfigDialog = () => {
   isRagflowConfigDialogOpen.value = false
   editingConfigIndex.value = -1
   editingRagflowConfig.value = {
@@ -290,11 +345,28 @@ const closeRagflowConfigDialog = () => {
     endpoint: 'http://localhost',
     enabled: true
   }
+  operationError.value = null
+  dialogInitialSignature.value = editingSignature.value
+}
+
+// 关闭配置对话框
+const closeRagflowConfigDialog = () => {
+  if (operationPending.value) return
+  resetRagflowConfigDialog()
+}
+
+const handleDialogOpenChange = (open: boolean) => {
+  if (open) {
+    isRagflowConfigDialogOpen.value = true
+  } else {
+    closeRagflowConfigDialog()
+  }
 }
 
 // 保存配置
 const saveRagflowConfig = async () => {
-  if (!isEditingRagflowConfigValid.value) return
+  if (operationPending.value || !isEditingRagflowConfigValid.value) return
+  operationError.value = null
 
   const datasetIds = editingRagflowConfig.value.datasetIdsStr
     .split(',')
@@ -302,99 +374,41 @@ const saveRagflowConfig = async () => {
     .filter((id) => id !== '')
 
   const config: RagflowConfig = {
-    description: editingRagflowConfig.value.description,
+    description: editingRagflowConfig.value.description.trim(),
     apiKey: editingRagflowConfig.value.apiKey,
     datasetIds,
-    endpoint: editingRagflowConfig.value.endpoint,
+    endpoint: editingRagflowConfig.value.endpoint.trim(),
     enabled: editingRagflowConfig.value.enabled
   }
 
-  if (isEditing.value) {
-    // 更新配置
-    if (editingConfigIndex.value !== -1) {
-      ragflowConfigs.value[editingConfigIndex.value] = config
-    }
-    toast({
-      title: t('settings.knowledgeBase.configUpdated'),
-      description: t('settings.knowledgeBase.configUpdatedDesc', {
-        name: t('settings.knowledgeBase.ragflowTitle')
-      })
+  try {
+    await runSave(async () => {
+      const saved = await knowledgeConfigs.save(
+        isEditing.value ? editingConfigIndex.value : null,
+        config,
+        resetRagflowConfigDialog
+      )
+      if (!saved) {
+        throw new Error('save configuration rejected')
+      }
     })
-  } else {
-    // 添加配置
-    ragflowConfigs.value.push(config)
-    toast({
-      title: t('settings.knowledgeBase.configAdded'),
-      description: t('settings.knowledgeBase.configAddedDesc', {
-        name: t('settings.knowledgeBase.ragflowTitle')
-      })
-    })
+  } catch (error) {
+    console.error('[RagflowKnowledgeSettings] save configuration failed', error)
+    operationError.value =
+      knowledgeOperation.lastError.value?.title ?? t('common.error.operationFailed')
   }
-
-  // 更新到MCP配置
-  await updateRagflowConfigToMcp()
-
-  // 关闭对话框
-  closeRagflowConfigDialog()
 }
 
 // 移除RAGFlow配置
 const removeRagflowConfig = async (index: number) => {
-  ragflowConfigs.value.splice(index, 1)
-  await updateRagflowConfigToMcp()
+  if (operationPending.value) return
+  await knowledgeConfigs.remove(index)
 }
 
 // 切换配置启用状态
 const toggleConfigEnabled = async (index: number, enabled: boolean) => {
-  ragflowConfigs.value[index].enabled = enabled
-  await updateRagflowConfigToMcp()
-}
-
-// 更新RAGFlow配置到MCP
-const updateRagflowConfigToMcp = async () => {
-  try {
-    // 将配置转换为MCP需要的格式 - 转换为JSON字符串
-    const envJson = {
-      configs: toRaw(ragflowConfigs.value)
-    }
-    // 更新到MCP服务器
-    await mcpStore.updateServer('ragflowKnowledge', {
-      env: envJson
-    })
-
-    return true
-  } catch (error) {
-    console.error('更新RAGFlow配置失败:', error)
-    toast({
-      title: t('common.error.operationFailed'),
-      description: String(error),
-      variant: 'destructive'
-    })
-    return false
-  }
-}
-
-// 从MCP加载RAGFlow配置
-const loadRagflowConfigFromMcp = async () => {
-  try {
-    // 获取ragflowKnowledge服务器配置
-    const serverConfig = mcpStore.config.mcpServers['ragflowKnowledge']
-    if (serverConfig && serverConfig.env) {
-      // 解析配置 - env可能是JSON字符串
-      try {
-        // 尝试解析JSON字符串
-        const envObj =
-          typeof serverConfig.env === 'string' ? JSON.parse(serverConfig.env) : serverConfig.env
-        if (envObj.configs && Array.isArray(envObj.configs)) {
-          ragflowConfigs.value = envObj.configs
-        }
-      } catch (parseError) {
-        console.error('解析RAGFlow配置JSON失败:', parseError)
-      }
-    }
-  } catch (error) {
-    console.error('加载RAGFlow配置失败:', error)
-  }
+  if (operationPending.value) return
+  await knowledgeConfigs.setEnabled(index, enabled)
 }
 
 // 切换RAGFlow配置面板
@@ -402,26 +416,10 @@ const toggleRagflowConfigPanel = () => {
   isRagflowConfigPanelOpen.value = !isRagflowConfigPanelOpen.value
 }
 
-// 计算RAGFlow MCP服务器是否启用
-const isRagflowMcpEnabled = computed(() => {
-  return mcpStore.serverStatuses['ragflowKnowledge'] || false
-})
-
 // 切换RAGFlow MCP服务器状态
 const toggleRagflowMcpServer = async () => {
-  if (!mcpStore.mcpEnabled) return
-  await mcpStore.toggleServer('ragflowKnowledge')
+  await knowledgeConfigs.toggleServer()
 }
-
-// 监听MCP全局状态变化
-watch(
-  () => mcpStore.mcpEnabled,
-  async (enabled) => {
-    if (!enabled && isRagflowMcpEnabled.value) {
-      await mcpStore.toggleServer('ragflowKnowledge')
-    }
-  }
-)
 
 // 监听URL查询参数，设置活动标签页
 watch(
@@ -434,23 +432,20 @@ watch(
   { immediate: true }
 )
 
-// 组件挂载时加载配置
-let unwatch: (() => void) | undefined
-onMounted(async () => {
-  unwatch = watch(
-    () => mcpStore.config.ready,
-    async (ready) => {
-      if (ready) {
-        unwatch?.() // only run once to avoid multiple calls
-        await loadRagflowConfigFromMcp()
-      }
-    },
-    { immediate: true }
-  )
+const leaveGuardLease = settingsLeaveGuard.register({
+  id: 'ragflow-knowledge-config',
+  onDiscard: closeRagflowConfigDialog
 })
+const stopLeaveRiskSync = watch(
+  [operationPending, dialogDirty],
+  ([busy, dirty]) => {
+    leaveGuardLease.setRisk(busy ? 'busy' : dirty ? 'dirty' : 'clean')
+  },
+  { immediate: true, flush: 'sync' }
+)
 
-// cancel the watch to avoid memory leaks
-onUnmounted(() => {
-  unwatch?.()
+onBeforeUnmount(() => {
+  stopLeaveRiskSync()
+  leaveGuardLease.release()
 })
 </script>

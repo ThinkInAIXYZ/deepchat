@@ -13,7 +13,9 @@
   "imagePreviewCount": "无图片预览 | {count} 张图片预览 | {count} 张图片预览",
   "terminalOutput": "终端输出",
   "badge": {
-    "rtk": "RTK"
+    "rtk": "RTK",
+    "allowed": "已允许",
+    "denied": "已拒绝"
   },
   "replacementsCount": "已完成 {count} 处替换",
   "fileOperation": "文件操作",

@@ -23,7 +23,7 @@
     "acpWorkdirCurrent": "Current workdir: {path}",
     "acpMode": "モード",
     "acpModeTooltip": "現在のモード：{mode}",
-    "agentWorkspaceCurrent": "現在の作業ディレクトリ: {パス}",
+    "agentWorkspaceCurrent": "現在の作業ディレクトリ: {path}",
     "workspaceUnavailableTooltip": "ディレクトリが存在しないかアクセスできません: {path}",
     "agentWorkspaceSelect": "作業ディレクトリを選択",
     "agentWorkspaceTooltip": "エージェントの作業ディレクトリを設定する",
@@ -63,6 +63,27 @@
         "yobrowser": "YoBrowser"
       }
     },
+    "toolMode": {
+      "title": "モード",
+      "modelDefault": "モデルの既定値",
+      "options": {
+        "agent": "Agent",
+        "code": "Code",
+        "minimal": "Minimal"
+      },
+      "descriptions": {
+        "agent": "標準の Agent ツールセットを使用します。",
+        "code": "有効なツールをコードで組み合わせます。フルアクセス権限モードが必要です。",
+        "minimal": "ファイル操作を簡素化し、その他の有効なツールは保持します。"
+      },
+      "useModelDefault": "モデルの既定値を使用",
+      "saving": "モードを保存中...",
+      "locked": "この応答の完了後にモードを切り替えられます。",
+      "updateFailed": "ツールモードを更新できませんでした。",
+      "codeEntry": "コード入口",
+      "codeCallable": "コードから呼び出し可能",
+      "minimalTools": "コーディングツール"
+    },
     "fileUploadFailed": "添付ファイルの処理に失敗しました",
     "fileUploadFailedDesc": "次の {count} 件のファイルを処理できませんでした: {names}",
     "fileUploadFailedMore": " ほか {count} 件",
@@ -71,6 +92,12 @@
     "audioInputUnsupportedDescription": "モデル {model} は音声入力をサポートしていないため、{count} 件の音声添付を無視しました。"
   },
   "pendingInput": {
+    "resume": "キューを再開",
+    "resumeFailed": "キューを再開できませんでした",
+    "retry": "再試行",
+    "retryRequired": "再試行が必要",
+    "retryRequiredDescription": "このメッセージは送信されませんでした。キューを続行するには再試行してください。",
+    "retryFailed": "キュー内のメッセージを再試行できませんでした",
     "steer": "誘導",
     "queueCount": "送信待ち {count}/{max}",
     "toSteer": "中断して送信",
@@ -153,7 +180,8 @@
   "mode": {
     "acpAgent": "ACPエージェント",
     "agent": "エージェント",
-    "current": "現在のモード: {モード}"
+    "current": "現在のモード: {mode}",
+    "saveFailed": "モードの選択を保存できませんでした"
   },
   "topbar": {
     "share": "共有",
@@ -167,7 +195,6 @@
     "systemPrompt": "システムプロンプト",
     "systemPromptPlaceholder": "プリセットを選択",
     "temperature": "温度",
-    "temperatureFixedMoonshotKimi": "Moonshot Kimi K2.5/K2.6 は、思考を有効にすると温度が {enabled} に固定され、無効にすると {disabled} に固定されます。",
     "topP": "Top P",
     "topPDescription": "核サンプリング。空欄でプロバイダーの既定値を使用",
     "contextLength": "コンテキスト長",
@@ -203,6 +230,12 @@
       "contextMenu": {
         "insertPath": "入力ボックスに挿入",
         "openFile": "ファイルを開く",
+        "openInApp": "{app} で開く",
+        "openInTerminalApp": "{app} でフォルダを開く",
+        "openFailed": "そのアプリでファイルを開けませんでした",
+        "preferredAppUnavailable": "優先アプリは現在利用できないため、システムの既定のアプリで開きます。",
+        "openWith": "開き方",
+        "openWithSystemDefault": "システムの既定のアプリで開く",
         "revealInFolder": "ファイルマネージャーで開く"
       },
       "empty": "まだファイルがありません",
@@ -301,10 +334,19 @@
   "compaction": {
     "compacting": "コンテキストを圧縮しています...",
     "compacted": "コンテキストは圧縮されました",
+    "compactedWithoutSummary": "要約を使わずにコンテキストを圧縮しました",
+    "compactedWithoutLargerSummary": "より大きな要約を使わずにコンテキストを圧縮しました",
     "commandDescription": "会話コンテキストを圧縮",
     "noopTitle": "圧縮できるコンテキストがありません",
     "noopDescription": "まだ圧縮できる新しい会話履歴がありません。",
     "failedTitle": "圧縮に失敗しました"
+  },
+  "contextOccupancy": {
+    "label": "コンテキスト使用量",
+    "details": "{capacity} トークン中 {used}",
+    "provider": "プロバイダーによる実測",
+    "estimated": "リクエストビューからの推定",
+    "stale": "モデル、ウィンドウ、または圧縮の変更後の古い値"
   },
   "newThread": {
     "title": "作成して探索"
@@ -348,7 +390,13 @@
     "moveProjectGroupBottom": "最下部へ移動",
     "searchCommand": "Search",
     "chatSection": "Chat",
-    "workspace": "Workspace"
+    "workspace": "Workspace",
+    "addWorkspace": "ワークスペースを追加",
+    "manageWorkspaces": "ワークスペースを管理",
+    "openWorkspaceFolder": "フォルダを開く",
+    "emptyWorkspace": "空",
+    "addWorkspaceFailed": "ワークスペースを追加できませんでした",
+    "searchLoadedRangeDescription": "読み込み済みの会話から一致する項目を表示しています。スクロールして履歴をさらに読み込めます。"
   },
   "floatingWidget": {
     "title": "タスク概要",
@@ -400,6 +448,72 @@
     "firstChat": {
       "description": "準備は完了です。ここに最初のメッセージを入力してオンボーディングを完了しましょう。",
       "caption": "最初のメッセージを送信するまで、スポットライトは入力欄に表示されたままです。"
+    }
+  },
+  "messageReceipt": {
+    "unread": "未読",
+    "read": "既読"
+  },
+  "attachments": {
+    "chooseRepresentation": "{name} の送信方法を選択",
+    "representation": "添付ファイルの送信形式",
+    "auto": "自動",
+    "sendImage": "画像を送信",
+    "useOcrText": "OCR テキストを使用",
+    "useEmbeddedText": "埋め込みテキストを使用",
+    "preparing": "添付ファイルを処理しています…",
+    "actionRequiredTitle": "添付ファイルを確認してください",
+    "actionRequiredDescription": "1 件以上の添付ファイルを使用できません。続行方法を選択してください。",
+    "attachmentNumber": "添付ファイル {number}",
+    "moreIssues": "ほかに {count} 件の添付ファイルの問題があります",
+    "genericUnavailable": "使用できる添付ファイルの内容がありません。",
+    "keepDraft": "下書きを保持",
+    "switchVisionModel": "画像対応モデルに切り替える",
+    "retry": "再試行",
+    "sendWithoutImageContent": "添付内容を省略",
+    "inspectOcrText": "OCR テキストを表示",
+    "ocrBadge": "OCR",
+    "embeddedTextBadge": "テキスト",
+    "ocrPartialBadge": "OCR · 一部",
+    "ocrLimitedBadge": "OCR · 制限",
+    "imageBadge": "画像",
+    "unavailableBadge": "利用不可",
+    "ocrPreviewTitle": "OCR テキスト — {name}",
+    "ocrPreviewDescription": "約 {tokens} トークンが、信頼できない添付ファイルの内容として送信されました。",
+    "ocrPageCoverage": "{page} ページまでのテキストを含みます。",
+    "ocrPageCoveragePartial": "{page} ページの一部を含みます。",
+    "ocrTextTruncated": "この OCR テキストは送信前に切り詰められました。",
+    "reasons": {
+      "automatic_ocr_disabled": "自動 OCR はオフになっています。",
+      "document_limit_exceeded": "1 回のリクエストで OCR を使用できる PDF は 1 件だけです。",
+      "document_too_large": "PDF がファイルサイズの上限を超えています。",
+      "image_dimensions_exceeded": "デコード後の画像サイズが安全上の上限を超えています。",
+      "image_limit_exceeded": "このターンの画像数が OCR の処理上限を超えています。",
+      "image_payload_unavailable": "元の画像データは利用できなくなりました。",
+      "image_too_large": "画像がファイル単位のサイズ上限を超えています。",
+      "ocr_cancelled": "OCR はキャンセルされました。",
+      "ocr_empty": "OCR で使用可能なテキストを検出できませんでした。",
+      "ocr_failed": "OCR でこの添付ファイルを処理できませんでした。",
+      "ocr_queue_full": "OCR は処理中です。現在の添付ファイルの処理完了後に再試行してください。",
+      "ocr_resource_limited": "PDF の処理上限に達したため OCR を停止しました。",
+      "ocr_runtime_unavailable": "このプラットフォームまたはインストール環境では OCR を利用できません。",
+      "invalid_attachment_snapshot": "保存された OCR データが無効です。",
+      "turn_ocr_budget_exhausted": "OCR テキストがこのメッセージの添付テキスト上限を超えています。",
+      "pdf_text_unavailable": "この PDF には使用できる埋め込みテキストがありません。",
+      "requested_image_requires_vision": "「画像を送信」には画像対応モデルが必要です。",
+      "turn_image_bytes_exceeded": "このターンの画像が合計サイズの上限を超えています。",
+      "user_skipped_attachment_content": "選択に従って添付ファイルの内容を省略しました。",
+      "user_skipped_image_content": "選択に従って画像の内容を省略しました。",
+      "unsupported_image_format": "この画像形式は OCR でサポートされていません。"
+    },
+    "pending": {
+      "blockedCount": "{count} 件保留",
+      "blocked": "保留",
+      "retry": "OCR を再試行",
+      "sendWithoutImageContent": "添付内容を省略",
+      "blockedDescription": "この項目は添付ファイルの処理方法が選択されるまで保留されています。",
+      "blockedReasonMore": "{reason} ほかに {count} 件の問題があります。",
+      "resolveFailed": "保留中のメッセージを処理できませんでした"
     }
   },
   "skillDraft": {
@@ -459,6 +573,14 @@
       "dropped": "除外",
       "tokens": "トークン",
       "budget": "予算",
+      "allocation": "メモリ投入予算の配分",
+      "directive": "ディレクティブ",
+      "persona": "ペルソナ",
+      "working": "ワーキングメモリ",
+      "queryRecall": "クエリ検索",
+      "overhead": "オーバーヘッド",
+      "unused": "未使用",
+      "overheadSummary": "オーバーヘッド {overhead} · 未使用 {unused}",
       "countOnly": "この記録には件数の概要のみが含まれています。",
       "unavailable": "このメモリは利用できなくなりました。",
       "noSelectedDetails": "このターンで表示できるメモリ詳細はありません。",
@@ -485,5 +607,29 @@
       "amendRetryable": "編集に失敗しました。元のメモリは復元されたので、もう一度お試しください。",
       "amendRestoreFailed": "編集に失敗し、元のメモリも復元できませんでした。"
     }
+  },
+  "orchestration": {
+    "actions": {
+      "openChild": "子 Agent を開く"
+    },
+    "activityTitle": "Agent のアクティビティ",
+    "proactive": {
+      "title": "プロアクティブ連携",
+      "description": "独立または並列の作業に明確な効果がある場合、親 Agent が自律的に委任できます。時間、Token、システム資源の使用量が増える場合があります。",
+      "reasons": {
+        "session_unavailable": "このセッションは利用できなくなりました。",
+        "agent_unavailable": "選択した Agent は利用できません。",
+        "deepchat_agent_required": "プロアクティブ連携には DeepChat Agent が必要です。",
+        "regular_parent_required": "子セッションではプロアクティブ連携を利用できません。",
+        "agent_policy_unavailable": "連携ポリシーを読み込めませんでした。",
+        "subagents_disabled": "プロアクティブ連携を使用するには、この Agent の Subagent を有効にしてください。"
+      }
+    }
+  },
+  "guardStop": {
+    "maxToolCalls": "タスクが完了する前にツール呼び出し回数の上限に達しました。",
+    "noProgress": "同じツール結果が繰り返され進展がなかったため、Agent は停止しました。",
+    "maxTurns": "タスクが完了する前にプロバイダーラウンドの上限に達しました。",
+    "continueMessage": "中断したところから続けてください。"
   }
 }

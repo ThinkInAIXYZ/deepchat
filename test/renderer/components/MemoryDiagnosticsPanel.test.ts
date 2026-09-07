@@ -9,6 +9,7 @@ import {
   type MemoryStatusDto
 } from '../../../src/shared/contracts/routes'
 import { auditSentenceKey } from '../../../src/renderer/settings/components/memoryRedesignUtils'
+import enSettings from '../../../src/renderer/src/i18n/en-US/settings.json'
 
 const passthrough = (name: string) => defineComponent({ name, template: '<div><slot /></div>' })
 
@@ -20,11 +21,18 @@ const ButtonStub = defineComponent({
     '<button v-bind="$attrs" :disabled="disabled" @click="$emit(\'click\', $event)"><slot /></button>'
 })
 
+const AlertDialogStub = defineComponent({
+  name: 'AlertDialog',
+  props: { open: { type: Boolean, default: false } },
+  template: '<div v-if="open"><slot /></div>'
+})
+
 const stubs = {
-  Button: ButtonStub,
+  DcButton: ButtonStub,
   Badge: passthrough('Badge'),
-  AlertDialog: passthrough('AlertDialog'),
+  AlertDialog: AlertDialogStub,
   AlertDialogAction: ButtonStub,
+  AlertDialogAsyncAction: ButtonStub,
   AlertDialogCancel: ButtonStub,
   AlertDialogContent: passthrough('AlertDialogContent'),
   AlertDialogDescription: passthrough('AlertDialogDescription'),
@@ -32,7 +40,8 @@ const stubs = {
   AlertDialogHeader: passthrough('AlertDialogHeader'),
   AlertDialogTitle: passthrough('AlertDialogTitle'),
   AlertDialogTrigger: passthrough('AlertDialogTrigger'),
-  Icon: passthrough('Icon')
+  Icon: passthrough('Icon'),
+  Spinner: passthrough('Spinner')
 }
 
 const baseStatus: MemoryStatusDto = {
@@ -43,8 +52,23 @@ const baseStatus: MemoryStatusDto = {
   archivedMemoryCount: 0,
   conflictCount: 0,
   personaDraftCount: 0,
+  directiveDraftCount: 0,
+  activeDirectiveCount: 0,
   personaVersionCount: 0,
   reindexing: false
+}
+
+const failedReindexStatus: MemoryStatusDto = {
+  ...baseStatus,
+  pendingEmbedding: 2,
+  lastReindex: {
+    outcome: 'blocked',
+    finishedAt: 1,
+    lastError: {
+      message: 'embedding service unavailable',
+      retryable: true
+    }
+  }
 }
 
 const baseHealth = createEmptyMemoryHealth(200)
@@ -60,10 +84,12 @@ const basePreview: MemoryArchiveCandidateLifecyclePreview = {
 
 function deferred<T>() {
   let resolve!: (value: T) => void
-  const promise = new Promise<T>((next) => {
+  let reject!: (reason?: unknown) => void
+  const promise = new Promise<T>((next, fail) => {
     resolve = next
+    reject = fail
   })
-  return { promise, resolve }
+  return { promise, resolve, reject }
 }
 
 function auditEvent(overrides: Partial<MemoryAuditEvent> = {}): MemoryAuditEvent {
@@ -98,9 +124,8 @@ async function setup(
     getArchiveCandidateLifecyclePreview: vi.fn().mockResolvedValue(basePreview),
     listAuditEvents: vi.fn().mockResolvedValue(options.auditEvents ?? []),
     reindex: vi.fn().mockResolvedValue({ started: true }),
-    clear: vi.fn().mockResolvedValue(0)
+    clear: vi.fn().mockResolvedValue({ removed: 0, cleanupPendingRestart: false })
   }
-  const toast = vi.fn()
   const t = vi.fn((key: string, params?: Record<string, string | number>) => {
     const message = options.messages?.[key] ?? key
     if (!params) return message
@@ -111,7 +136,6 @@ async function setup(
   const te = vi.fn((key: string) => Object.hasOwn(options.messages ?? {}, key))
 
   vi.doMock('@api/MemoryClient', () => ({ createMemoryClient: () => memoryClient }))
-  vi.doMock('@/components/use-toast', () => ({ useToast: () => ({ toast }) }))
   vi.doMock('vue-i18n', () => ({
     useI18n: () => ({ t, te, locale: { value: 'en-US' } })
   }))
@@ -125,7 +149,7 @@ async function setup(
     global: { stubs }
   })
   await flushPromises()
-  return { wrapper, memoryClient, toast, t, te }
+  return { wrapper, memoryClient, t, te }
 }
 
 function reindexButton(wrapper: Awaited<ReturnType<typeof setup>>['wrapper']) {
@@ -142,21 +166,27 @@ function refreshButton(wrapper: Awaited<ReturnType<typeof setup>>['wrapper']) {
     .find((button) => button.text().includes('settings.memory.redesign.refresh'))!
 }
 
-function clearAllActionButton(wrapper: Awaited<ReturnType<typeof setup>>['wrapper']) {
-  return wrapper
-    .findAll('button')
-    .filter((button) => button.text().includes('settings.deepchatAgents.memoryManager.clearAll'))
-    .at(-1)!
+async function confirmClearAll(wrapper: Awaited<ReturnType<typeof setup>>['wrapper']) {
+  await wrapper.get('[data-testid="memory-clear-all-trigger"]').trigger('click')
+  await wrapper.get('[data-testid="memory-clear-all-confirm"]').trigger('click')
 }
 
 describe('MemoryDiagnosticsPanel', () => {
-  it('renders Agent recall and process-wide pipeline pressure', async () => {
+  it('states that clear preserves standing directives', () => {
+    const clearCopy = enSettings.deepchatAgents.memoryManager
+
+    expect(clearCopy.clearAll).toBe('Clear memories')
+    expect(clearCopy.clearConfirmTitle).toContain('factual memories and persona')
+    expect(clearCopy.clearConfirmBody).toContain('Standing directives are kept')
+  })
+
+  it('renders formatted diagnostics and process-wide pipeline pressure', async () => {
     const health: MemoryHealthDto = structuredClone(baseHealth)
     health.runtime.agent.retrieval.recall.latencyMs.total = {
       samples: 4,
-      p50: 12,
-      p95: 48,
-      max: 50
+      p50: 685.7158329999074,
+      p95: Number.POSITIVE_INFINITY,
+      max: 804
     }
     health.runtime.agent.retrieval.recall.degradationCounts.vectorCold = 3
     health.runtime.process.extractionQueue.depth = 2
@@ -169,18 +199,44 @@ describe('MemoryDiagnosticsPanel', () => {
     health.runtime.process.providerAdmission.admissionDecisions.rateLimited = 2
     const providerPressureSummary =
       'Rate limit {rateLimited} · Capacity {capacityRejected} · Deadline {deadline} · Aborted {aborted} · Late settle {lateSettled}'
-    const { wrapper, t } = await setup(baseStatus, {
+    const { wrapper, memoryClient, t } = await setup(baseStatus, {
       health,
       messages: { 'settings.memory.redesign.providerPressureSummary': providerPressureSummary }
     })
+    memoryClient.getArchiveCandidateLifecyclePreview.mockResolvedValueOnce({
+      ...basePreview,
+      lifecycles: [
+        {
+          memoryId: 'memory-with-floating-point-diagnostics',
+          decayTier: 'archive_candidate',
+          forget: {
+            ageDays: 12.3456,
+            decayScore: 0.123456
+          }
+        }
+      ]
+    })
+    await refreshButton(wrapper).trigger('click')
+    await flushPromises()
 
     const pipeline = wrapper.get('[data-testid="runtime-pipeline"]')
-    expect(pipeline.text()).toContain('12')
-    expect(pipeline.text()).toContain('48')
+    const archiveCandidates = wrapper.get('[data-testid="archive-candidates"]')
+    const pipelineValues = pipeline.findAll('.tabular-nums').map((node) => node.text())
+    const archiveCandidateMetrics = archiveCandidates
+      .findAll('.text-muted-foreground > span')
+      .map((node) => node.text())
+    expect(pipelineValues).toContain('685.716')
+    expect(pipelineValues).toContain('Infinity')
     expect(pipeline.text()).toContain('1250')
     expect(pipeline.text()).toContain('7')
     expect(pipeline.text()).toContain('Rate limit 2')
     expect(pipeline.text()).toContain('Deadline 1')
+    expect(archiveCandidateMetrics).toContain(
+      'settings.deepchatAgents.memoryManager.health.archivePrediction.ageDays: 12.3'
+    )
+    expect(archiveCandidateMetrics).toContain(
+      'settings.deepchatAgents.memoryManager.health.archivePrediction.decayScore: 0.123'
+    )
     expect(t).toHaveBeenCalledWith('settings.memory.redesign.providerPressureSummary', {
       rateLimited: 2,
       capacityRejected: 0,
@@ -276,6 +332,115 @@ describe('MemoryDiagnosticsPanel', () => {
     wrapper.unmount()
   })
 
+  it('shows a persistent failed-reindex banner with the sanitized reason and retry action', async () => {
+    const message =
+      'Vector index rebuild did not finish: {reason}. Memory content was not lost; keyword recall is currently active.'
+    const { wrapper, memoryClient } = await setup(failedReindexStatus, {
+      messages: {
+        'settings.memory.redesign.reindexIncomplete': message,
+        'settings.memory.redesign.reindexInternalReason':
+          'The local embedding pipeline could not complete the rebuild.'
+      }
+    })
+
+    const banner = wrapper.get('[data-testid="reindex-failure-banner"]')
+    expect(banner.text()).not.toContain('embedding service unavailable')
+    expect(banner.text()).toContain('The local embedding pipeline could not complete the rebuild.')
+    expect(banner.text()).toContain('Memory content was not lost')
+    expect(banner.text()).toContain('keyword recall is currently active')
+
+    await banner.get('button').trigger('click')
+    await flushPromises()
+    expect(memoryClient.reindex).toHaveBeenCalledWith('deepchat')
+    expect(wrapper.find('[data-testid="reindex-failure-banner"]').exists()).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('shows restart guidance without a retry action for non-retryable failures', async () => {
+    const status: MemoryStatusDto = {
+      ...failedReindexStatus,
+      lastReindex: {
+        outcome: 'blocked',
+        finishedAt: 1,
+        lastError: {
+          message: '[Memory] vector store cleanup pending restart',
+          retryable: false,
+          code: 'pending-restart'
+        }
+      }
+    }
+    const { wrapper, memoryClient } = await setup(status, {
+      messages: {
+        'settings.memory.redesign.reindexIncomplete': 'Rebuild failed: {reason}',
+        'settings.deepchatAgents.memoryManager.cleanupPendingRestart':
+          'Locked vector files will be deleted after restart'
+      }
+    })
+
+    const banner = wrapper.get('[data-testid="reindex-failure-banner"]')
+    expect(banner.text()).toContain('Locked vector files will be deleted after restart')
+    expect(banner.find('button').exists()).toBe(false)
+    expect(memoryClient.reindex).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
+
+  it('localizes internal reindex failures instead of rendering backend control-flow text', async () => {
+    const status: MemoryStatusDto = {
+      ...failedReindexStatus,
+      lastReindex: {
+        outcome: 'blocked',
+        finishedAt: 1,
+        lastError: {
+          message: '[Memory] embedding provider returned invalid vectors',
+          retryable: true,
+          code: 'embedding-invalid'
+        }
+      }
+    }
+    const { wrapper } = await setup(status, {
+      messages: {
+        'settings.memory.redesign.reindexIncomplete': 'Rebuild failed: {reason}',
+        'settings.memory.redesign.reindexInternalReason': 'Localized internal reason'
+      }
+    })
+
+    const banner = wrapper.get('[data-testid="reindex-failure-banner"]')
+    expect(banner.text()).toContain('Localized internal reason')
+    expect(banner.text()).not.toContain('embedding provider returned invalid vectors')
+    wrapper.unmount()
+  })
+
+  it('hides old reindex results while running and after a successful rebuild', async () => {
+    const { wrapper } = await setup({ ...failedReindexStatus, reindexing: true })
+
+    expect(wrapper.find('[data-testid="reindex-failure-banner"]').exists()).toBe(false)
+
+    await wrapper.setProps({
+      status: {
+        ...baseStatus,
+        lastReindex: {
+          outcome: 'completed',
+          finishedAt: 2,
+          lastError: null
+        }
+      }
+    })
+    await flushPromises()
+    expect(wrapper.find('[data-testid="reindex-failure-banner"]').exists()).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('does not carry a reindex failure banner across an agent switch', async () => {
+    const { wrapper } = await setup(failedReindexStatus)
+    expect(wrapper.find('[data-testid="reindex-failure-banner"]').exists()).toBe(true)
+
+    await wrapper.setProps({ agentId: 'other-agent', status: null })
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="reindex-failure-banner"]').exists()).toBe(false)
+    wrapper.unmount()
+  })
+
   it('settles reindex pending on a null status observed after the reindex started', async () => {
     const { wrapper } = await setup()
 
@@ -330,31 +495,112 @@ describe('MemoryDiagnosticsPanel', () => {
   it('reloads diagnostics after clearing all memories for the current agent', async () => {
     const { wrapper, memoryClient } = await setup()
 
-    await clearAllActionButton(wrapper).trigger('click')
+    await confirmClearAll(wrapper)
     await flushPromises()
 
     expect(memoryClient.clear).toHaveBeenCalledWith('deepchat')
     expect(memoryClient.getHealth).toHaveBeenCalledTimes(2)
+    expect(wrapper.find('[data-testid="memory-clear-all-confirm"]').exists()).toBe(false)
     wrapper.unmount()
   })
 
-  it('shows a failure toast when clearing all memories fails', async () => {
-    const { wrapper, memoryClient, toast } = await setup()
-    memoryClient.clear.mockRejectedValueOnce(new Error('clear failed'))
+  it('keeps the confirmation mounted while the post-clear reload is pending', async () => {
+    const { wrapper, memoryClient } = await setup()
+    const pendingHealth = deferred<MemoryHealthDto>()
+    memoryClient.getHealth.mockReturnValueOnce(pendingHealth.promise)
 
-    await clearAllActionButton(wrapper).trigger('click')
+    await confirmClearAll(wrapper)
     await flushPromises()
 
-    expect(toast).toHaveBeenCalled()
+    expect(wrapper.find('[data-testid="memory-clear-all-confirm"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="memory-clear-all-spinner"]').exists()).toBe(true)
+
+    pendingHealth.resolve(baseHealth)
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="memory-clear-all-confirm"]').exists()).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('disables clear confirmation while a background diagnostics reload is pending', async () => {
+    const { wrapper, memoryClient } = await setup()
+    const pendingHealth = deferred<MemoryHealthDto>()
+
+    await wrapper.get('[data-testid="memory-clear-all-trigger"]').trigger('click')
+    memoryClient.getHealth.mockReturnValueOnce(pendingHealth.promise)
+    await wrapper.setProps({ refreshToken: 1 })
+    await flushPromises()
+
+    const confirm = wrapper.get('[data-testid="memory-clear-all-confirm"]')
+    expect(confirm.attributes('disabled')).toBeDefined()
+    await confirm.trigger('click')
+    expect(memoryClient.clear).not.toHaveBeenCalled()
+
+    pendingHealth.resolve(baseHealth)
+    await flushPromises()
+
+    expect(confirm.attributes('disabled')).toBeUndefined()
+    await confirm.trigger('click')
+    await flushPromises()
+
+    expect(memoryClient.clear).toHaveBeenCalledTimes(1)
+    expect(wrapper.find('[data-testid="memory-clear-all-confirm"]').exists()).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('keeps clear-all progress and failure feedback inside the confirmation', async () => {
+    const { wrapper, memoryClient } = await setup()
+    const pending = deferred<{ removed: number; cleanupPendingRestart: boolean }>()
+    memoryClient.clear.mockReturnValueOnce(pending.promise)
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+
+    await confirmClearAll(wrapper)
+    await flushPromises()
+
+    expect(
+      wrapper.get('[data-testid="memory-clear-all-confirm"]').attributes('disabled')
+    ).toBeDefined()
+    expect(
+      wrapper.get('[data-testid="memory-clear-all-cancel"]').attributes('disabled')
+    ).toBeDefined()
+    expect(wrapper.find('[data-testid="memory-clear-all-spinner"]').exists()).toBe(true)
+
+    pending.reject(new Error('clear failed'))
+    await flushPromises()
+
+    const feedback = wrapper.get('[data-testid="memory-inline-feedback"]')
+    expect(feedback.attributes('data-tone')).toBe('error')
+    expect(feedback.text()).toContain('settings.deepchatAgents.memoryManager.actionFailed')
+    expect(wrapper.find('[data-testid="memory-clear-all-confirm"]').exists()).toBe(true)
+
+    await wrapper.get('[data-testid="memory-clear-all-confirm"]').trigger('click')
+    await flushPromises()
+
+    expect(memoryClient.clear).toHaveBeenCalledTimes(2)
+    expect(wrapper.find('[data-testid="memory-clear-all-confirm"]').exists()).toBe(false)
+    consoleError.mockRestore()
+    wrapper.unmount()
+  })
+
+  it('shows a restart cleanup notice for quarantined vector files', async () => {
+    const { wrapper, memoryClient } = await setup()
+    memoryClient.clear.mockResolvedValueOnce({ removed: 3, cleanupPendingRestart: true })
+
+    await confirmClearAll(wrapper)
+    await flushPromises()
+
+    const feedback = wrapper.get('[data-testid="memory-inline-feedback"]')
+    expect(feedback.attributes('data-tone')).toBe('warning')
+    expect(feedback.text()).toContain('settings.deepchatAgents.memoryManager.cleanupPendingRestart')
     wrapper.unmount()
   })
 
   it('drops a stale clear-all response after the agent changes', async () => {
-    const { wrapper, memoryClient, toast } = await setup()
-    const pending = deferred<number>()
+    const { wrapper, memoryClient } = await setup()
+    const pending = deferred<{ removed: number; cleanupPendingRestart: boolean }>()
     memoryClient.clear.mockReturnValueOnce(pending.promise)
 
-    await clearAllActionButton(wrapper).trigger('click')
+    await confirmClearAll(wrapper)
     await flushPromises()
     expect(memoryClient.clear).toHaveBeenCalledWith('deepchat')
 
@@ -362,12 +608,12 @@ describe('MemoryDiagnosticsPanel', () => {
     await flushPromises()
     const healthCallsAfterAgentSwitch = memoryClient.getHealth.mock.calls.length
 
-    pending.resolve(0)
+    pending.resolve({ removed: 0, cleanupPendingRestart: false })
     await flushPromises()
     await flushPromises()
 
     expect(memoryClient.getHealth).toHaveBeenCalledTimes(healthCallsAfterAgentSwitch)
-    expect(toast).not.toHaveBeenCalled()
+    expect(wrapper.find('[data-testid="memory-inline-feedback"]').exists()).toBe(false)
     wrapper.unmount()
   })
 })

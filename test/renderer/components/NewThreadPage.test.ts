@@ -1,8 +1,10 @@
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { defineComponent, h, reactive } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
 import type { ReasoningEffort, Verbosity } from '../../../src/shared/types/model-db'
 import type { PermissionMode } from '../../../src/shared/types/agent-interface'
+import type { ToolModeOverride } from '../../../src/shared/toolMode'
+import type { JSONContent } from '@tiptap/core'
 
 const passthrough = (name: string) =>
   defineComponent({
@@ -15,6 +17,8 @@ const chatInputClearPendingSkillsMock = vi.fn(() => {
   chatInputPendingSkillsSnapshotRef.value = []
 })
 const chatInputPendingSkillsSnapshotRef: { value: string[] } = { value: [] }
+const chatInputDocumentSnapshotRef: { value: JSONContent | undefined } = { value: undefined }
+const chatStatusBarOpenModelPickerMock = vi.fn(() => true)
 
 const createChatInputBoxStub = () =>
   defineComponent({
@@ -25,6 +29,8 @@ const createChatInputBoxStub = () =>
       sessionId: { type: String, default: null },
       workspacePath: { type: String, default: null },
       isAcpSession: { type: Boolean, default: false },
+      supportsVision: { type: Boolean, default: null },
+      editable: { type: Boolean, default: true },
       submitDisabled: { type: Boolean, default: false }
     },
     emits: [
@@ -32,20 +38,33 @@ const createChatInputBoxStub = () =>
       'update:files',
       'submit',
       'command-submit',
-      'pending-skills-change'
+      'pending-skills-change',
+      'draft-change',
+      'switch-vision-model'
     ],
     setup(props, { expose }) {
       expose({
         triggerAttach: chatInputTriggerAttachMock,
         getPendingSkillsSnapshot: () => [...chatInputPendingSkillsSnapshotRef.value],
+        setPendingSkills: (skills: string[]) => {
+          chatInputPendingSkillsSnapshotRef.value = [...skills]
+        },
+        getDocumentSnapshot: () => chatInputDocumentSnapshotRef.value,
+        restoreDocumentSnapshot: (document: JSONContent) => {
+          chatInputDocumentSnapshotRef.value = document
+        },
         clearPendingSkills: chatInputClearPendingSkillsMock
       })
       return () =>
         h('div', {
           'data-testid': 'chat-input-box',
           'data-submit-disabled': String(props.submitDisabled),
+          'data-agent-id': props.agentId,
+          'data-editable': String(props.editable),
           'data-workspace-path': props.workspacePath ?? '',
-          'data-is-acp-session': String(props.isAcpSession)
+          'data-is-acp-session': String(props.isAcpSession),
+          'data-supports-vision':
+            props.supportsVision === null ? 'unknown' : String(props.supportsVision)
         })
     }
   })
@@ -55,7 +74,31 @@ const setup = async (options?: {
     agentId: string
     projectDir: string
     permissionMode?: string
-  }) => Promise<{ id: string; providerId?: string; modelId?: string } | null>
+  }) => Promise<
+    | {
+        status: 'ready'
+        session: { id: string; providerId?: string; modelId?: string }
+      }
+    | {
+        status: 'auth_required'
+        session: { id: string; providerId?: string; modelId?: string }
+        challenge: {
+          id: string
+          agentId: string
+          agentName: string
+          workdir: string
+          origin: 'draft_session'
+          sessionId: string
+          methods: Array<{
+            id: string
+            name: string
+            type: 'agent' | 'terminal' | 'env_var' | 'unsupported'
+            supported: boolean
+          }>
+        }
+      }
+    | null
+  >
   selectedProject?: {
     path: string
     name: string
@@ -66,15 +109,33 @@ const setup = async (options?: {
   defaultModel?: { providerId: string; modelId: string }
   preferredModel?: { providerId: string; modelId: string }
   resolvedAgentConfig?: Record<string, unknown>
+  resolveDeepChatAgentConfig?: (agentId: string) => Promise<Record<string, unknown>>
+  selectedAgentId?: string
+  selectedAgentType?: 'deepchat' | 'acp'
+  newConversationProjectDirIntent?: {
+    id: number
+    projectDir: string | null
+    consumed?: boolean
+  } | null
   deferStartupTasks?: boolean
   modelStoreInitialized?: boolean
   initializeModels?: () => Promise<void>
-  modelCapabilities?: Record<string, { supportsAudioInput: boolean | null }>
+  modelCapabilities?: Record<
+    string,
+    {
+      supportsAudioInput: boolean
+      supportsSearch?: boolean
+      searchExecution?: 'provider'
+    }
+  >
 }) => {
   vi.resetModules()
+  vi.doMock('pinia', () => vi.importActual('pinia'))
   chatInputTriggerAttachMock.mockReset()
   chatInputClearPendingSkillsMock.mockClear()
   chatInputPendingSkillsSnapshotRef.value = []
+  chatInputDocumentSnapshotRef.value = undefined
+  chatStatusBarOpenModelPickerMock.mockClear()
   const initialSelectedProject = Object.prototype.hasOwnProperty.call(
     options ?? {},
     'selectedProject'
@@ -107,15 +168,36 @@ const setup = async (options?: {
     openFolderPicker: vi.fn()
   })
 
-  const sessionStore = {
+  const initialProjectDirIntent = options?.newConversationProjectDirIntent
+    ? {
+        ...options.newConversationProjectDirIntent,
+        consumed: options.newConversationProjectDirIntent.consumed ?? false
+      }
+    : null
+  const sessionStore = reactive({
     createSession: vi.fn().mockResolvedValue(undefined),
     selectSession: vi.fn().mockResolvedValue(undefined),
-    sendMessage: vi.fn().mockResolvedValue(undefined)
-  }
+    sendMessage: vi.fn().mockResolvedValue(undefined),
+    newConversationProjectDirIntent: initialProjectDirIntent,
+    consumeNewConversationProjectDirIntent: vi.fn((intentId: number) => {
+      const intent = sessionStore.newConversationProjectDirIntent
+      if (!intent || intent.id !== intentId || intent.consumed) {
+        return
+      }
+      sessionStore.newConversationProjectDirIntent = { ...intent, consumed: true }
+    })
+  })
 
+  const selectedAgentId = options?.selectedAgentId ?? 'acp-agent'
+  const selectedAgentType = options?.selectedAgentType ?? 'acp'
   const agentStore = reactive({
-    selectedAgentId: 'acp-agent',
-    selectedAgent: { id: 'acp-agent', name: 'ACP Agent', type: 'acp' as const, enabled: true }
+    selectedAgentId,
+    selectedAgent: {
+      id: selectedAgentId,
+      name: selectedAgentId,
+      type: selectedAgentType,
+      enabled: true
+    }
   })
 
   const getChatSelectableModelGroups = () => modelStore.enabledModels
@@ -153,12 +235,16 @@ const setup = async (options?: {
     })
   })
 
-  const draftStore = reactive({
+  const { createPinia } = await import('pinia')
+  const { useDraftStore } =
+    await vi.importActual<typeof import('@/stores/ui/draft')>('@/stores/ui/draft')
+  const draftStore = Object.assign(useDraftStore(createPinia()), {
     projectDir: projectStore.selectedProject?.path ?? undefined,
     providerId: undefined as string | undefined,
     modelId: undefined as string | undefined,
     permissionMode: 'full_access' as PermissionMode,
     disabledAgentTools: [] as string[],
+    toolModeOverride: null as ToolModeOverride,
     systemPrompt: undefined as string | undefined,
     temperature: undefined as number | undefined,
     contextLength: undefined as number | undefined,
@@ -180,11 +266,15 @@ const setup = async (options?: {
       }
       return Promise.resolve(undefined)
     }),
-    resolveDeepChatAgentConfig: vi.fn().mockResolvedValue(
-      options?.resolvedAgentConfig ?? {
-        disabledAgentTools: [],
-        permissionMode: 'full_access'
-      }
+    resolveDeepChatAgentConfig: vi.fn(
+      options?.resolveDeepChatAgentConfig ??
+        (() =>
+          Promise.resolve(
+            options?.resolvedAgentConfig ?? {
+              disabledAgentTools: [],
+              permissionMode: 'full_access'
+            }
+          ))
     )
   }
 
@@ -192,12 +282,15 @@ const setup = async (options?: {
     ensureAcpDraftSession: vi.fn().mockImplementation(
       options?.ensureAcpDraftSession ??
         (() => {
-          return Promise.resolve({ id: 'draft-1' })
+          return Promise.resolve({ status: 'ready', session: { id: 'draft-1' } })
         })
     )
   }
+  const chatClient = {
+    cancelSubmission: vi.fn().mockResolvedValue({ cancelled: true })
+  }
   const modelClient = {
-    getCapabilities: vi.fn((providerId: string, modelId: string) => {
+    getCapabilities: vi.fn(({ providerId, modelId }: { providerId: string; modelId: string }) => {
       const capabilities = options?.modelCapabilities?.[`${providerId}:${modelId}`]
       return Promise.resolve(capabilities ?? { supportsAudioInput: true })
     }),
@@ -206,6 +299,13 @@ const setup = async (options?: {
     onModelConfigChanged: vi.fn(() => vi.fn()),
     onModelsChanged: vi.fn(() => vi.fn()),
     onModelStatusChanged: vi.fn(() => vi.fn())
+  }
+  let providersChangedListener: ((payload: { providerIds?: string[] }) => void) | null = null
+  const providerClient = {
+    onProvidersChanged: vi.fn((listener: (payload: { providerIds?: string[] }) => void) => {
+      providersChangedListener = listener
+      return vi.fn()
+    })
   }
   const isDirectoryMock = vi.fn((path: string) => {
     const resolver = options?.isDirectory ?? true
@@ -234,8 +334,14 @@ const setup = async (options?: {
   vi.doMock('@api/SessionClient', () => ({
     createSessionClient: vi.fn(() => sessionClient)
   }))
+  vi.doMock('@api/ChatClient', () => ({
+    createChatClient: vi.fn(() => chatClient)
+  }))
   vi.doMock('@api/ModelClient', () => ({
     createModelClient: vi.fn(() => modelClient)
+  }))
+  vi.doMock('@api/ProviderClient', () => ({
+    createProviderClient: vi.fn(() => providerClient)
   }))
   vi.doMock('@api/FileClient', () => ({
     createFileClient: vi.fn(() => ({
@@ -266,42 +372,55 @@ const setup = async (options?: {
     default: passthrough('ChatInputToolbar')
   }))
   vi.doMock('@/components/chat/ChatStatusBar.vue', () => ({
-    default: passthrough('ChatStatusBar')
+    default: defineComponent({
+      name: 'ChatStatusBar',
+      setup(_, { expose }) {
+        expose({ openModelPicker: chatStatusBarOpenModelPickerMock })
+        return () => h('div', { 'data-testid': 'chat-status-bar' })
+      }
+    })
   }))
   vi.doMock('@shadcn/components/ui/tooltip', () => ({
     TooltipProvider: passthrough('TooltipProvider')
   }))
 
   const NewThreadPage = (await import('@/pages/NewThreadPage.vue')).default
-  const wrapper = mount(NewThreadPage, {
-    global: {
-      stubs: {
-        TooltipProvider: passthrough('TooltipProvider'),
-        Button: passthrough('Button'),
-        DropdownMenu: passthrough('DropdownMenu'),
-        DropdownMenuTrigger: passthrough('DropdownMenuTrigger'),
-        DropdownMenuContent: passthrough('DropdownMenuContent'),
-        DropdownMenuItem: passthrough('DropdownMenuItem'),
-        DropdownMenuLabel: passthrough('DropdownMenuLabel'),
-        DropdownMenuSeparator: passthrough('DropdownMenuSeparator'),
-        Icon: true,
-        ChatInputToolbar: true,
-        ChatStatusBar: true
+  const mountPage = () =>
+    mount(NewThreadPage, {
+      global: {
+        stubs: {
+          TooltipProvider: passthrough('TooltipProvider'),
+          DcButton: passthrough('Button'),
+          DropdownMenu: passthrough('DropdownMenu'),
+          DropdownMenuTrigger: passthrough('DropdownMenuTrigger'),
+          DropdownMenuContent: passthrough('DropdownMenuContent'),
+          DropdownMenuItem: passthrough('DropdownMenuItem'),
+          DropdownMenuLabel: passthrough('DropdownMenuLabel'),
+          DropdownMenuSeparator: passthrough('DropdownMenuSeparator'),
+          Icon: true,
+          AcpAuthDialog: true,
+          ChatInputToolbar: true
+        }
       }
-    }
-  })
+    })
+  const wrapper = mountPage()
 
   await flushPromises()
 
   return {
     wrapper,
+    mountPage,
     projectStore,
     sessionStore,
     agentStore,
     modelStore,
     draftStore,
     modelClient,
+    emitProvidersChanged: (payload: { providerIds?: string[] }) =>
+      providersChangedListener?.(payload),
     sessionClient,
+    chatClient,
+    chatStatusBarOpenModelPickerMock,
     isDirectoryMock,
     flushStartupDeferredTasks: async () => {
       while (startupDeferredTasks.length > 0) {
@@ -316,6 +435,174 @@ const setup = async (options?: {
 }
 
 describe('NewThreadPage ACP draft session bootstrap', () => {
+  beforeEach(() => localStorage.clear())
+
+  it('restores separate agent drafts with attachments, skills and inline references', async () => {
+    const { wrapper, agentStore } = await setup()
+    const input = wrapper.getComponent({ name: 'ChatInputBox' })
+    const file = { name: 'plan.md', path: '/tmp/plan.md', mimeType: 'text/markdown' }
+    const document: JSONContent = {
+      type: 'doc',
+      content: [
+        {
+          type: 'paragraph',
+          content: [
+            { type: 'text', text: 'review ' },
+            { type: 'mention', attrs: { id: 'workspace-file', label: 'src/main.ts' } },
+            {
+              type: 'fileAttachment',
+              attrs: { fileName: file.name, filePath: file.path, mimeType: file.mimeType }
+            },
+            { type: 'skillChip', attrs: { skillName: 'review' } }
+          ]
+        }
+      ]
+    }
+    chatInputDocumentSnapshotRef.value = document
+    chatInputPendingSkillsSnapshotRef.value = ['review']
+    input.vm.$emit('update:modelValue', 'review ')
+    input.vm.$emit('pending-skills-change', ['review'])
+    input.vm.$emit('update:files', [file])
+    await flushPromises()
+
+    agentStore.selectedAgentId = 'agent-b'
+    await flushPromises()
+    expect(input.props('modelValue')).toBe('')
+    expect(input.props('files')).toEqual([])
+    expect(chatInputPendingSkillsSnapshotRef.value).toEqual([])
+    ;(wrapper.vm as any).message = 'draft B'
+    await flushPromises()
+
+    agentStore.selectedAgentId = 'acp-agent'
+    await flushPromises()
+    expect(input.props('modelValue')).toBe('review ')
+    expect(input.props('files')).toEqual([file])
+    expect(chatInputPendingSkillsSnapshotRef.value).toEqual(['review'])
+    expect(chatInputDocumentSnapshotRef.value).toEqual(document)
+
+    agentStore.selectedAgentId = 'agent-b'
+    await flushPromises()
+    expect(input.props('modelValue')).toBe('draft B')
+    expect(input.props('files')).toEqual([])
+  })
+
+  it('flushes a complete draft before unmount and restores it with a fresh store', async () => {
+    const first = await setup()
+    const document: JSONContent = {
+      type: 'doc',
+      content: [
+        {
+          type: 'paragraph',
+          content: [
+            { type: 'text', text: 'unfinished' },
+            { type: 'mention', attrs: { id: 'reference' } }
+          ]
+        }
+      ]
+    }
+    chatInputDocumentSnapshotRef.value = document
+    chatInputPendingSkillsSnapshotRef.value = ['review']
+    first.wrapper.getComponent({ name: 'ChatInputBox' }).vm.$emit('update:modelValue', 'unfinished')
+    first.wrapper.unmount()
+
+    const second = await setup()
+    expect(second.wrapper.getComponent({ name: 'ChatInputBox' }).props('modelValue')).toBe(
+      'unfinished'
+    )
+    expect(chatInputDocumentSnapshotRef.value).toEqual(document)
+    expect(chatInputPendingSkillsSnapshotRef.value).toEqual(['review'])
+  })
+
+  it('persists edits after debounce and flushes pending edits on window close', async () => {
+    const { wrapper } = await setup()
+    vi.useFakeTimers()
+    ;(wrapper.vm as any).message = 'debounced draft'
+    await vi.advanceTimersByTimeAsync(400)
+    const key = 'deepchat.composerDraft.v1.new-thread:acp-agent'
+    expect(JSON.parse(localStorage.getItem(key)!).rawMessage).toBe('debounced draft')
+
+    ;(wrapper.vm as any).message = 'latest edit'
+    window.dispatchEvent(new Event('beforeunload'))
+    expect(JSON.parse(localStorage.getItem(key)!).rawMessage).toBe('latest edit')
+  })
+
+  it('does not clear newer edits when a send resolves after unmount and remount', async () => {
+    const { wrapper, mountPage, sessionStore } = await setup()
+    let resolveSend!: () => void
+    sessionStore.sendMessage.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveSend = resolve
+        })
+    )
+    ;(wrapper.vm as any).message = 'submitted draft'
+    await flushPromises()
+    const sending = (wrapper.vm as any).onSubmit()
+    await flushPromises()
+    wrapper.unmount()
+
+    const second = mountPage()
+    await flushPromises()
+    ;(second.vm as any).message = 'newer draft'
+    await flushPromises()
+    resolveSend()
+    await sending
+    await flushPromises()
+    expect(second.getComponent({ name: 'ChatInputBox' }).props('modelValue')).toBe('newer draft')
+    expect(
+      JSON.parse(localStorage.getItem('deepchat.composerDraft.v1.new-thread:acp-agent')!).rawMessage
+    ).toBe('newer draft')
+  })
+
+  it('clears only the originating draft after a send succeeds on another agent', async () => {
+    const { wrapper, sessionStore, agentStore } = await setup()
+    let resolveSend!: () => void
+    sessionStore.sendMessage.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveSend = resolve
+        })
+    )
+    ;(wrapper.vm as any).message = 'submitted draft'
+    await flushPromises()
+    const sending = (wrapper.vm as any).onSubmit()
+    await flushPromises()
+    agentStore.selectedAgentId = 'agent-b'
+    await flushPromises()
+    ;(wrapper.vm as any).message = 'draft B'
+    await flushPromises()
+    resolveSend()
+    await sending
+    await flushPromises()
+    expect((wrapper.vm as any).message).toBe('draft B')
+    expect(localStorage.getItem('deepchat.composerDraft.v1.new-thread:acp-agent')).toBeNull()
+    agentStore.selectedAgentId = 'acp-agent'
+    await flushPromises()
+    expect((wrapper.vm as any).message).toBe('')
+  })
+
+  it('keeps pending attachments with their agent when capability checks finish late', async () => {
+    const { wrapper, agentStore, modelClient } = await setup()
+    let resolveCapabilities!: (value: { supportsAudioInput: boolean }) => void
+    modelClient.getCapabilities.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveCapabilities = resolve
+        })
+    )
+    const file = { name: 'plan.md', path: '/tmp/plan.md', mimeType: 'text/markdown' }
+    const filtering = (wrapper.vm as any).onFilesChange([file])
+    await flushPromises()
+    agentStore.selectedAgentId = 'agent-b'
+    await flushPromises()
+    resolveCapabilities({ supportsAudioInput: true })
+    await filtering
+    expect((wrapper.vm as any).attachedFiles).toEqual([])
+    agentStore.selectedAgentId = 'acp-agent'
+    await flushPromises()
+    expect((wrapper.vm as any).attachedFiles).toEqual([file])
+  })
+
   it('defers ACP draft session bootstrap until startup deferred tasks are released', async () => {
     const { sessionClient, flushStartupDeferredTasks } = await setup({
       deferStartupTasks: true
@@ -425,6 +712,144 @@ describe('NewThreadPage ACP draft session bootstrap', () => {
     expect((wrapper.vm as any).acpDraftSessionId).toBe('draft-1')
   })
 
+  it('passes the resolved DeepChat draft model capability to the composer', async () => {
+    const { agentStore, draftStore, modelStore, wrapper } = await setup({
+      selectedAgentId: 'deepchat',
+      selectedAgentType: 'deepchat'
+    })
+    agentStore.selectedAgent = {
+      id: 'deepchat',
+      name: 'DeepChat',
+      type: 'deepchat',
+      enabled: true
+    }
+    modelStore.enabledModels = [
+      {
+        providerId: 'openai',
+        models: [{ id: 'vision-model', name: 'Vision', vision: true }]
+      }
+    ]
+    draftStore.providerId = 'openai'
+    draftStore.modelId = 'vision-model'
+    await flushPromises()
+
+    expect(wrapper.get('[data-testid="chat-input-box"]').attributes('data-supports-vision')).toBe(
+      'true'
+    )
+  })
+
+  it('captures provider-native search intent in the first DeepChat turn', async () => {
+    const { wrapper, sessionStore, draftStore, modelStore } = await setup({
+      selectedAgentId: 'deepchat',
+      selectedAgentType: 'deepchat',
+      modelCapabilities: {
+        'deepseek:deepseek-v4-flash': {
+          supportsAudioInput: false,
+          supportsSearch: true,
+          searchExecution: 'provider'
+        }
+      }
+    })
+    modelStore.enabledModels = [
+      {
+        providerId: 'deepseek',
+        models: [{ id: 'deepseek-v4-flash', name: 'DeepSeek V4 Flash' }]
+      }
+    ]
+    draftStore.providerId = 'deepseek'
+    draftStore.modelId = 'deepseek-v4-flash'
+    await flushPromises()
+
+    expect((wrapper.vm as any).isSearchAvailable).toBe(true)
+    ;(wrapper.vm as any).toggleSearch()
+    ;(wrapper.vm as any).message = 'Find the latest DeepChat release'
+    await (wrapper.vm as any).onSubmit()
+
+    expect(sessionStore.createSession).toHaveBeenCalledWith(
+      expect.objectContaining({
+        providerId: 'deepseek',
+        modelId: 'deepseek-v4-flash',
+        search: true
+      })
+    )
+  })
+
+  it('keeps default-model search capability while provider configuration refreshes', async () => {
+    const capabilities = {
+      'deepseek:deepseek-v4-flash': {
+        supportsAudioInput: false,
+        supportsSearch: true,
+        searchExecution: 'provider' as const
+      }
+    }
+    const { wrapper, draftStore, modelStore, modelClient, emitProvidersChanged } = await setup({
+      selectedAgentId: 'deepchat',
+      selectedAgentType: 'deepchat',
+      defaultModel: { providerId: 'deepseek', modelId: 'deepseek-v4-flash' },
+      modelCapabilities: capabilities
+    })
+    modelStore.enabledModels = [
+      {
+        providerId: 'deepseek',
+        models: [{ id: 'deepseek-v4-flash', name: 'DeepSeek V4 Flash' }]
+      }
+    ]
+    draftStore.providerId = 'deepseek'
+    draftStore.modelId = 'deepseek-v4-flash'
+    await flushPromises()
+    expect((wrapper.vm as any).isSearchAvailable).toBe(true)
+
+    draftStore.providerId = undefined
+    draftStore.modelId = undefined
+    await flushPromises()
+    expect((wrapper.vm as any).isSearchAvailable).toBe(true)
+
+    let resolveRefresh!: (capability: {
+      supportsAudioInput: boolean
+      supportsSearch: boolean
+    }) => void
+    const refresh = new Promise<{
+      supportsAudioInput: boolean
+      supportsSearch: boolean
+    }>((resolve) => {
+      resolveRefresh = resolve
+    })
+    const previousRequestCount = modelClient.getCapabilities.mock.calls.length
+    modelClient.getCapabilities.mockReturnValueOnce(refresh)
+    emitProvidersChanged({ providerIds: ['deepseek'] })
+    await vi.waitFor(() =>
+      expect(modelClient.getCapabilities).toHaveBeenCalledTimes(previousRequestCount + 1)
+    )
+    expect((wrapper.vm as any).isSearchAvailable).toBe(true)
+
+    resolveRefresh({ supportsAudioInput: false, supportsSearch: false })
+    await vi.waitFor(() => expect((wrapper.vm as any).isSearchAvailable).toBe(false))
+  })
+
+  it('cancels attachment preparation before opening the vision model picker', async () => {
+    const { chatClient, chatStatusBarOpenModelPickerMock, wrapper } = await setup({
+      selectedAgentId: 'deepchat',
+      selectedAgentType: 'deepchat'
+    })
+    const submission = {
+      submissionId: 'submission-1',
+      cancelled: false,
+      mainDispatched: true
+    }
+    ;(wrapper.vm as any).activeSubmission = submission
+    ;(wrapper.vm as any).isPreparingAttachments = true
+
+    wrapper.findComponent({ name: 'ChatInputBox' }).vm.$emit('switch-vision-model')
+    await flushPromises()
+
+    expect(submission.cancelled).toBe(true)
+    expect(chatClient.cancelSubmission).toHaveBeenCalledWith('submission-1')
+    expect(chatStatusBarOpenModelPickerMock).toHaveBeenCalledOnce()
+    expect(chatClient.cancelSubmission.mock.invocationCallOrder[0]).toBeLessThan(
+      chatStatusBarOpenModelPickerMock.mock.invocationCallOrder[0]!
+    )
+  })
+
   it('shows a warning and blocks ACP draft/send when the selected workdir is invalid', async () => {
     const { wrapper, sessionClient, sessionStore } = await setup({
       isDirectory: false
@@ -517,15 +942,187 @@ describe('NewThreadPage ACP draft session bootstrap', () => {
     expect(sessionStore.createSession).not.toHaveBeenCalled()
   })
 
+  it('keeps ACP image attachments on the non-cancellable send path', async () => {
+    const { wrapper, sessionStore } = await setup()
+    const image = { name: 'scan.png', path: '/tmp/scan.png', mimeType: 'image/png' }
+    ;(wrapper.vm as any).message = 'ACP image prompt'
+    ;(wrapper.vm as any).attachedFiles = [image]
+
+    await (wrapper.vm as any).onSubmit()
+    await flushPromises()
+
+    expect(sessionStore.sendMessage).toHaveBeenCalledWith('draft-1', {
+      text: 'ACP image prompt',
+      files: [image]
+    })
+  })
+
+  it('allows a DeepChat image-only initial turn', async () => {
+    const { wrapper, sessionStore, modelStore, draftStore } = await setup({
+      selectedAgentId: 'deepchat',
+      selectedAgentType: 'deepchat'
+    })
+    modelStore.enabledModels = [
+      {
+        providerId: 'openai',
+        models: [{ id: 'gpt-4', name: 'GPT-4' }]
+      }
+    ]
+    draftStore.providerId = 'openai'
+    draftStore.modelId = 'gpt-4'
+    const image = { name: 'scan.png', path: '/tmp/scan.png', mimeType: 'image/png' }
+    ;(wrapper.vm as any).attachedFiles = [image]
+
+    await (wrapper.vm as any).onSubmit()
+    await flushPromises()
+
+    expect(sessionStore.createSession).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: '',
+        files: [image],
+        agentId: 'deepchat'
+      }),
+      expect.objectContaining({
+        submissionId: expect.any(String),
+        isCancellationRequested: expect.any(Function)
+      })
+    )
+  })
+
+  it('uses cancellable attachment preparation for an initial PDF turn', async () => {
+    const { wrapper, sessionStore, modelStore, draftStore } = await setup({
+      selectedAgentId: 'deepchat',
+      selectedAgentType: 'deepchat'
+    })
+    modelStore.enabledModels = [
+      {
+        providerId: 'openai',
+        models: [{ id: 'gpt-4', name: 'GPT-4' }]
+      }
+    ]
+    draftStore.providerId = 'openai'
+    draftStore.modelId = 'gpt-4'
+    const pdf = {
+      name: 'scan.pdf',
+      path: '/tmp/scan.pdf',
+      mimeType: 'application/pdf',
+      requestedRepresentation: 'ocr_text'
+    }
+    ;(wrapper.vm as any).attachedFiles = [pdf]
+
+    await (wrapper.vm as any).onSubmit()
+    await flushPromises()
+
+    expect(sessionStore.createSession).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: '',
+        files: [pdf],
+        agentId: 'deepchat'
+      }),
+      expect.objectContaining({
+        submissionId: expect.any(String),
+        isCancellationRequested: expect.any(Function)
+      })
+    )
+  })
+
+  it('locks the new-thread editor while initial attachment preflight is in flight', async () => {
+    const { wrapper, sessionStore, modelStore, draftStore } = await setup({
+      selectedAgentId: 'deepchat',
+      selectedAgentType: 'deepchat'
+    })
+    modelStore.enabledModels = [
+      {
+        providerId: 'openai',
+        models: [{ id: 'gpt-4', name: 'GPT-4' }]
+      }
+    ]
+    draftStore.providerId = 'openai'
+    draftStore.modelId = 'gpt-4'
+    let resolveCreate!: () => void
+    sessionStore.createSession.mockImplementationOnce(
+      () => new Promise<void>((resolve) => (resolveCreate = resolve))
+    )
+    ;(wrapper.vm as any).attachedFiles = [
+      { name: 'scan.png', path: '/tmp/scan.png', mimeType: 'image/png' }
+    ]
+
+    const submit = (wrapper.vm as any).onSubmit()
+    await vi.waitFor(() => expect(sessionStore.createSession).toHaveBeenCalledTimes(1))
+    expect(wrapper.get('[data-testid="chat-input-box"]').attributes('data-editable')).toBe('false')
+
+    resolveCreate()
+    await submit
+    await flushPromises()
+  })
+
+  it('cancels initial image preparation without clearing the new-thread draft', async () => {
+    const { wrapper, sessionStore, modelStore, draftStore, chatClient } = await setup({
+      selectedAgentId: 'deepchat',
+      selectedAgentType: 'deepchat'
+    })
+    modelStore.enabledModels = [
+      {
+        providerId: 'openai',
+        models: [{ id: 'gpt-4', name: 'GPT-4' }]
+      }
+    ]
+    draftStore.providerId = 'openai'
+    draftStore.modelId = 'gpt-4'
+    const image = { name: 'scan.png', path: '/tmp/scan.png', mimeType: 'image/png' }
+    let rejectCreate!: (error: Error) => void
+    sessionStore.createSession.mockImplementationOnce(
+      () =>
+        new Promise<void>((_resolve, reject) => {
+          rejectCreate = reject
+        })
+    )
+    chatClient.cancelSubmission.mockImplementationOnce(async () => {
+      const error = new Error('Aborted')
+      error.name = 'AbortError'
+      rejectCreate(error)
+      return { cancelled: true }
+    })
+    ;(wrapper.vm as any).message = 'keep this'
+    ;(wrapper.vm as any).attachedFiles = [image]
+
+    const submit = (wrapper.vm as any).onSubmit()
+    await vi.waitFor(() => expect(sessionStore.createSession).toHaveBeenCalledOnce())
+    const submissionOptions = sessionStore.createSession.mock.calls[0]?.[1]
+    ;(wrapper.vm as any).cancelSubmissionPreparation()
+    await submit
+    await flushPromises()
+
+    expect(chatClient.cancelSubmission).toHaveBeenCalledWith(submissionOptions?.submissionId)
+    expect((wrapper.vm as any).message).toBe('keep this')
+    expect((wrapper.vm as any).attachedFiles).toEqual([image])
+  })
+
+  it('preserves the ACP text requirement for attachment-only drafts', async () => {
+    const { wrapper, sessionStore } = await setup()
+    const image = { name: 'scan.png', path: '/tmp/scan.png', mimeType: 'image/png' }
+    ;(wrapper.vm as any).attachedFiles = [image]
+
+    await (wrapper.vm as any).onSubmit()
+    await flushPromises()
+
+    expect(sessionStore.sendMessage).not.toHaveBeenCalled()
+    expect(sessionStore.createSession).not.toHaveBeenCalled()
+    expect((wrapper.vm as any).attachedFiles).toEqual([image])
+  })
+
   it('filters ACP draft attachments using the ensured draft model target', async () => {
     const textFile = { name: 'a.txt', path: '/tmp/a.txt', mimeType: 'text/plain' }
     const audioFile = { name: 'clip.wav', path: '/tmp/clip.wav', mimeType: 'audio/wav' }
     const { wrapper, sessionStore, modelClient } = await setup({
       ensureAcpDraftSession: () =>
         Promise.resolve({
-          id: 'draft-1',
-          providerId: 'acp',
-          modelId: 'runtime-agent'
+          status: 'ready',
+          session: {
+            id: 'draft-1',
+            providerId: 'acp',
+            modelId: 'runtime-agent'
+          }
         }),
       modelCapabilities: {
         'acp:runtime-agent': { supportsAudioInput: false }
@@ -538,7 +1135,10 @@ describe('NewThreadPage ACP draft session bootstrap', () => {
     await (wrapper.vm as any).onSubmit()
     await flushPromises()
 
-    expect(modelClient.getCapabilities).toHaveBeenCalledWith('acp', 'runtime-agent')
+    expect(modelClient.getCapabilities).toHaveBeenCalledWith({
+      providerId: 'acp',
+      modelId: 'runtime-agent'
+    })
     expect(sessionStore.sendMessage).toHaveBeenCalledWith('draft-1', {
       text: 'hello from draft',
       files: [textFile]
@@ -568,7 +1168,7 @@ describe('NewThreadPage ACP draft session bootstrap', () => {
     }
   })
 
-  it('passes draft generation settings when creating a deepchat session', async () => {
+  it('passes draft generation and tool mode settings when creating a deepchat session', async () => {
     const { wrapper, sessionStore, agentStore, modelStore, draftStore } = await setup()
 
     agentStore.selectedAgentId = 'deepchat'
@@ -582,6 +1182,7 @@ describe('NewThreadPage ACP draft session bootstrap', () => {
     draftStore.providerId = 'openai'
     draftStore.modelId = 'gpt-4'
     draftStore.disabledAgentTools = ['exec', 'cdp_send']
+    draftStore.toolModeOverride = 'code'
     ;(draftStore.toGenerationSettings as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
       systemPrompt: 'Preset prompt',
       temperature: 1.2,
@@ -601,6 +1202,7 @@ describe('NewThreadPage ACP draft session bootstrap', () => {
         files: [{ name: 'plan.md', path: '/tmp/workspace/plan.md', mimeType: 'text/markdown' }],
         agentId: 'deepchat',
         disabledAgentTools: ['exec', 'cdp_send'],
+        toolModeOverride: 'code',
         generationSettings: {
           systemPrompt: 'Preset prompt',
           temperature: 1.2,
@@ -659,6 +1261,10 @@ describe('NewThreadPage ACP draft session bootstrap', () => {
         expect.objectContaining({
           message: 'hello deepchat',
           files: [file]
+        }),
+        expect.objectContaining({
+          submissionId: expect.any(String),
+          isCancellationRequested: expect.any(Function)
         })
       )
       expect((wrapper.vm as any).message).toBe('hello deepchat')
@@ -719,6 +1325,96 @@ describe('NewThreadPage ACP draft session bootstrap', () => {
       name: 'agent-writer'
     })
     expect(draftStore.projectDir).toBe('/workspaces/agent-writer')
+  })
+
+  it('prefers a new-conversation workspace intent over the agent default directory', async () => {
+    const { projectStore, draftStore, sessionStore } = await setup({
+      selectedAgentId: 'deepchat',
+      selectedAgentType: 'deepchat',
+      defaultProjectPath: '/workspaces/global',
+      resolvedAgentConfig: {
+        defaultProjectPath: '/workspaces/agent-writer',
+        disabledAgentTools: [],
+        permissionMode: 'full_access'
+      },
+      newConversationProjectDirIntent: {
+        id: 1,
+        projectDir: '/workspaces/design'
+      }
+    })
+
+    expect(projectStore.selectProject).toHaveBeenCalledWith('/workspaces/design', 'manual')
+    expect(projectStore.selectedProject).toEqual({
+      path: '/workspaces/design',
+      name: 'design'
+    })
+    expect(draftStore.projectDir).toBe('/workspaces/design')
+    expect(sessionStore.consumeNewConversationProjectDirIntent).toHaveBeenCalledWith(1)
+  })
+
+  it('preserves an explicit null Chats intent over the agent default directory', async () => {
+    const { projectStore, draftStore, sessionStore } = await setup({
+      selectedAgentId: 'deepchat',
+      selectedAgentType: 'deepchat',
+      resolvedAgentConfig: {
+        defaultProjectPath: '/workspaces/agent-writer',
+        disabledAgentTools: [],
+        permissionMode: 'full_access'
+      },
+      newConversationProjectDirIntent: {
+        id: 1,
+        projectDir: null
+      }
+    })
+
+    expect(projectStore.selectProject).toHaveBeenCalledWith(null, 'manual')
+    expect(projectStore.selectedProject).toBeNull()
+    expect(projectStore.selectionSource).toBe('manual')
+    expect(draftStore.projectDir).toBeUndefined()
+    expect(sessionStore.consumeNewConversationProjectDirIntent).toHaveBeenCalledWith(1)
+  })
+
+  it('fences stale agent defaults after a workspace intent arrives', async () => {
+    const configResolvers: Array<(config: Record<string, unknown>) => void> = []
+    const { projectStore, draftStore, sessionStore } = await setup({
+      selectedAgentId: 'deepchat',
+      selectedAgentType: 'deepchat',
+      resolveDeepChatAgentConfig: () =>
+        new Promise((resolve) => {
+          configResolvers.push(resolve)
+        })
+    })
+
+    expect(configResolvers).toHaveLength(1)
+
+    sessionStore.newConversationProjectDirIntent = {
+      id: 1,
+      projectDir: '/workspaces/design',
+      consumed: false
+    }
+    await Promise.resolve()
+    expect(configResolvers).toHaveLength(2)
+
+    configResolvers[1]({
+      defaultProjectPath: '/workspaces/agent-writer',
+      disabledAgentTools: [],
+      permissionMode: 'full_access'
+    })
+    await flushPromises()
+
+    configResolvers[0]({
+      defaultProjectPath: '/workspaces/agent-writer',
+      disabledAgentTools: [],
+      permissionMode: 'full_access'
+    })
+    await flushPromises()
+
+    expect(projectStore.selectedProject).toEqual({
+      path: '/workspaces/design',
+      name: 'design'
+    })
+    expect(draftStore.projectDir).toBe('/workspaces/design')
+    expect(sessionStore.consumeNewConversationProjectDirIntent).toHaveBeenCalledTimes(1)
   })
 
   it('prefers preferredModel over defaultModel when creating a deepchat session', async () => {
@@ -811,15 +1507,17 @@ describe('NewThreadPage ACP draft session bootstrap', () => {
     const { wrapper, sessionStore, agentStore, modelStore } = await setup()
 
     agentStore.selectedAgentId = 'deepchat'
+    await flushPromises()
     modelStore.enabledModels = [
       {
         providerId: 'openai',
         models: [{ id: 'gpt-4', name: 'GPT-4' }]
       }
     ]
+    ;(wrapper.vm as any).message = 'hello deepchat'
+    await flushPromises()
     ;(wrapper.vm as any).onPendingSkillsChange(['stale-skill'])
     chatInputPendingSkillsSnapshotRef.value = ['live-skill', 'live-skill']
-    ;(wrapper.vm as any).message = 'hello deepchat'
 
     await (wrapper.vm as any).onSubmit()
     await flushPromises()
@@ -833,12 +1531,13 @@ describe('NewThreadPage ACP draft session bootstrap', () => {
   })
 
   it('ignores stale ensureAcpDraftSession response after agent/workdir switches', async () => {
-    let resolveOld: ((value: { id: string }) => void) | null = null
-    let resolveNew: ((value: { id: string }) => void) | null = null
-    const oldPromise = new Promise<{ id: string }>((resolve) => {
+    const ready = (id: string) => ({ status: 'ready' as const, session: { id } })
+    let resolveOld: ((value: ReturnType<typeof ready>) => void) | null = null
+    let resolveNew: ((value: ReturnType<typeof ready>) => void) | null = null
+    const oldPromise = new Promise<ReturnType<typeof ready>>((resolve) => {
       resolveOld = resolve
     })
-    const newPromise = new Promise<{ id: string }>((resolve) => {
+    const newPromise = new Promise<ReturnType<typeof ready>>((resolve) => {
       resolveNew = resolve
     })
 
@@ -850,7 +1549,7 @@ describe('NewThreadPage ACP draft session bootstrap', () => {
         if (agentId === 'acp-agent-2' && projectDir === '/tmp/workspace-2') {
           return newPromise
         }
-        return Promise.resolve({ id: 'unexpected' })
+        return Promise.resolve(ready('unexpected'))
       }
     })
 
@@ -864,13 +1563,60 @@ describe('NewThreadPage ACP draft session bootstrap', () => {
     projectStore.selectedProject = { path: '/tmp/workspace-2', name: 'workspace-2' }
     await flushPromises()
 
-    resolveOld?.({ id: 'draft-old' })
+    resolveOld?.(ready('draft-old'))
     await flushPromises()
     expect((wrapper.vm as any).acpDraftSessionId).not.toBe('draft-old')
 
-    resolveNew?.({ id: 'draft-new' })
+    resolveNew?.(ready('draft-new'))
     await flushPromises()
     expect((wrapper.vm as any).acpDraftSessionId).toBe('draft-new')
+  })
+
+  it('preserves the local draft and retries setup after authentication succeeds', async () => {
+    let callCount = 0
+    const ensureAcpDraftSession = vi.fn(async () => {
+      callCount += 1
+      if (callCount === 1) {
+        return {
+          status: 'auth_required' as const,
+          session: { id: 'draft-auth', providerId: 'acp', modelId: 'acp-agent' },
+          challenge: {
+            id: 'challenge-1',
+            agentId: 'acp-agent',
+            agentName: 'ACP Agent',
+            workdir: '/tmp/workspace',
+            origin: 'draft_session' as const,
+            sessionId: 'draft-auth',
+            methods: [
+              {
+                id: 'browser-login',
+                name: 'Browser login',
+                type: 'terminal' as const,
+                supported: true
+              }
+            ]
+          }
+        }
+      }
+      return { status: 'ready' as const, session: { id: 'draft-auth' } }
+    })
+    const { wrapper } = await setup({ ensureAcpDraftSession })
+
+    expect((wrapper.vm as any).acpDraftSessionId).toBe('draft-auth')
+    expect((wrapper.vm as any).acpAuthChallenge?.id).toBe('challenge-1')
+    expect(wrapper.get('[data-testid="chat-input-box"]').attributes('data-submit-disabled')).toBe(
+      'true'
+    )
+
+    await (wrapper.vm as any).handleAcpAuthSucceeded()
+    await flushPromises()
+
+    expect(ensureAcpDraftSession).toHaveBeenCalledTimes(2)
+    expect((wrapper.vm as any).acpDraftSessionId).toBe('draft-auth')
+    expect((wrapper.vm as any).acpAuthChallenge).toBeNull()
+    expect(wrapper.get('[data-testid="chat-input-box"]').attributes('data-submit-disabled')).toBe(
+      'false'
+    )
   })
 
   it('handles null ensureAcpDraftSession result without throwing', async () => {

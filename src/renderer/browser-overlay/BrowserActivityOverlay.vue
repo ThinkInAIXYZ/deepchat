@@ -123,7 +123,6 @@ onBeforeUnmount(() => {
     linear-gradient(#000 0 0);
   mask-composite: exclude;
   opacity: 0;
-  animation: halo-flow 2.8s linear infinite;
 }
 
 .halo.active {
@@ -138,6 +137,7 @@ onBeforeUnmount(() => {
 
 .halo.active::before {
   opacity: 0.78;
+  animation: halo-flow 2.8s linear infinite;
 }
 
 @keyframes halo-flow {

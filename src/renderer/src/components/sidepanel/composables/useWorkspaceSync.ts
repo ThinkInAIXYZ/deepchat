@@ -7,7 +7,7 @@ import type {
   WorkspaceGitState,
   WorkspaceInvalidationKind,
   WorkspaceWatchStatusEvent
-} from '@shared/presenter'
+} from '@shared/types/workspace'
 import type { WorkspaceSessionState } from '@/stores/ui/sidepanel'
 
 interface UseWorkspaceSyncOptions {

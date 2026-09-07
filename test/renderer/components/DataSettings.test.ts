@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { defineComponent, nextTick, reactive } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
 
@@ -11,7 +11,7 @@ const buttonStub = defineComponent({
     }
   },
   emits: ['click'],
-  template: '<button :disabled="disabled" @click="$emit(\'click\')"><slot /></button>'
+  template: '<button :disabled="disabled" @click="$emit(\'click\', $event)"><slot /></button>'
 })
 
 const passthroughStub = (name: string) =>
@@ -20,14 +20,25 @@ const passthroughStub = (name: string) =>
     template: '<div><slot /></div>'
   })
 
+function deferred<T>() {
+  let resolve!: (value: T) => void
+  let reject!: (reason?: unknown) => void
+  const promise = new Promise<T>((next, fail) => {
+    resolve = next
+    reject = fail
+  })
+  return { promise, resolve, reject }
+}
+
 const setup = async (
   options: {
     databaseSecurityGetStatus?: ReturnType<typeof vi.fn>
+    realAlertDialog?: boolean
+    syncInitialize?: ReturnType<typeof vi.fn>
   } = {}
 ) => {
   vi.resetModules()
 
-  const toast = vi.fn()
   const openExternal = vi.fn().mockResolvedValue(undefined)
   const browserClient = {
     openExternal,
@@ -52,7 +63,7 @@ const setup = async (
       safeStorageAvailable: true
     },
     isCloudBusy: false,
-    initialize: vi.fn().mockResolvedValue(undefined),
+    initialize: options.syncInitialize ?? vi.fn().mockResolvedValue(undefined),
     selectSyncFolder: vi.fn(),
     openSyncFolder: vi.fn(),
     refreshBackups: vi.fn().mockResolvedValue(undefined),
@@ -150,6 +161,7 @@ const setup = async (
       providersCount: 1
     })
   }
+  const notifyRenderer = vi.fn(() => true)
 
   vi.doMock('@/stores/sync', () => ({
     useSyncStore: () => syncStore
@@ -174,39 +186,40 @@ const setup = async (
   vi.doMock('@api/DeviceClient', () => ({
     createDeviceClient: () => deviceClient
   }))
-  vi.doMock('@/components/use-toast', () => ({
-    useToast: () => ({
-      toast
-    })
+  vi.doMock('@renderer-notifications/rendererNotificationPort', () => ({
+    notifyRenderer
   }))
   vi.doMock('vue-i18n', () => ({
     useI18n: () => ({
-      t: (key: string) =>
-        (
-          ({
-            'common.error.operationFailed': 'Operation failed',
-            'common.unknownError': 'Unknown error',
-            'settings.common.privacyMode': 'Privacy Mode',
-            'settings.common.privacyModeDescription':
-              'Stop automatic outbound requests owned by DeepChat:',
-            'settings.common.privacyModeAutoUpdate': 'App update checks',
-            'settings.common.privacyModeProviderDb': 'Provider and model metadata refresh',
-            'settings.common.privacyModeAcpRegistry': 'ACP Registry refresh and icon sync',
-            'settings.common.privacyModeNpmRegistry': 'MCP npm registry auto-detect',
-            'settings.common.privacyModeManualActions':
-              'Manual checks and manual refresh actions stay available.',
-            'settings.common.privacyModeIntegrations':
-              'Configured third-party integrations stay available.',
-            'settings.data.cloudSync.providerR2': 'Cloudflare R2',
-            'settings.data.cloudSync.providerCustom': 'Custom S3-compatible',
-            'settings.data.cloudSync.r2SecretApiTokenError':
-              'Use the S3 Secret Access Key, not the Cloudflare API token value.',
-            'settings.data.cloudSync.saveAndTest': 'Save and Test',
-            'settings.data.cloudSync.saveOnly': 'Save Only',
-            'settings.data.cloudSync.testSuccessTitle': 'Connection succeeded',
-            'settings.data.modelConfigUpdate.linkLabel': 'ThinkInAIXYZ/PublicProviderConf'
-          }) as Record<string, string>
-        )[key] ?? key
+      t: (key: string, params?: Record<string, unknown>) => {
+        const translated =
+          (
+            {
+              'common.error.operationFailed': 'Operation failed',
+              'common.unknownError': 'Unknown error',
+              'settings.common.privacyMode': 'Privacy Mode',
+              'settings.common.privacyModeDescription':
+                'Stop automatic outbound requests owned by DeepChat:',
+              'settings.common.privacyModeAutoUpdate': 'App update checks',
+              'settings.common.privacyModeProviderDb': 'Provider and model metadata refresh',
+              'settings.common.privacyModeAcpRegistry': 'ACP Registry refresh and icon sync',
+              'settings.common.privacyModeNpmRegistry': 'MCP npm registry auto-detect',
+              'settings.common.privacyModeManualActions':
+                'Manual checks and manual refresh actions stay available.',
+              'settings.common.privacyModeIntegrations':
+                'Configured third-party integrations stay available.',
+              'settings.data.cloudSync.providerR2': 'Cloudflare R2',
+              'settings.data.cloudSync.providerCustom': 'Custom S3-compatible',
+              'settings.data.cloudSync.r2SecretApiTokenError':
+                'Use the S3 Secret Access Key, not the Cloudflare API token value.',
+              'settings.data.cloudSync.saveAndTest': 'Save and Test',
+              'settings.data.cloudSync.saveOnly': 'Save Only',
+              'settings.data.cloudSync.testSuccessTitle': 'Connection succeeded',
+              'settings.data.modelConfigUpdate.linkLabel': 'ThinkInAIXYZ/PublicProviderConf'
+            } as Record<string, string>
+          )[key] ?? key
+        return params?.result ? `${translated}: ${String(params.result)}` : translated
+      }
     })
   }))
   vi.doMock('pinia', async () => {
@@ -226,6 +239,7 @@ const setup = async (
     .default
 
   const wrapper = mount(DataSettings, {
+    ...(options.realAlertDialog ? { attachTo: document.body } : {}),
     global: {
       stubs: {
         ScrollArea: passthroughStub('ScrollArea'),
@@ -237,16 +251,19 @@ const setup = async (
         DialogHeader: passthroughStub('DialogHeader'),
         DialogTitle: passthroughStub('DialogTitle'),
         DialogTrigger: passthroughStub('DialogTrigger'),
-        AlertDialog: passthroughStub('AlertDialog'),
-        AlertDialogAction: buttonStub,
-        AlertDialogCancel: buttonStub,
-        AlertDialogContent: passthroughStub('AlertDialogContent'),
-        AlertDialogDescription: passthroughStub('AlertDialogDescription'),
-        AlertDialogFooter: passthroughStub('AlertDialogFooter'),
-        AlertDialogHeader: passthroughStub('AlertDialogHeader'),
-        AlertDialogTitle: passthroughStub('AlertDialogTitle'),
-        AlertDialogTrigger: passthroughStub('AlertDialogTrigger'),
-        Button: buttonStub,
+        AlertDialog: options.realAlertDialog ? false : passthroughStub('AlertDialog'),
+        AlertDialogAction: options.realAlertDialog ? false : buttonStub,
+        AlertDialogAsyncAction: options.realAlertDialog ? false : buttonStub,
+        AlertDialogCancel: options.realAlertDialog ? false : buttonStub,
+        AlertDialogContent: options.realAlertDialog ? false : passthroughStub('AlertDialogContent'),
+        AlertDialogDescription: options.realAlertDialog
+          ? false
+          : passthroughStub('AlertDialogDescription'),
+        AlertDialogFooter: options.realAlertDialog ? false : passthroughStub('AlertDialogFooter'),
+        AlertDialogHeader: options.realAlertDialog ? false : passthroughStub('AlertDialogHeader'),
+        AlertDialogTitle: options.realAlertDialog ? false : passthroughStub('AlertDialogTitle'),
+        AlertDialogTrigger: options.realAlertDialog ? false : passthroughStub('AlertDialogTrigger'),
+        DcButton: buttonStub,
         Input: defineComponent({
           name: 'Input',
           props: {
@@ -291,12 +308,12 @@ const setup = async (
     openExternal,
     browserClient,
     wrapper,
-    toast,
     syncStore,
     uiSettingsStore,
     databaseSecurityClient,
     deviceClient,
-    configClient
+    configClient,
+    notifyRenderer
   }
 }
 
@@ -316,6 +333,9 @@ const findRefreshButton = (wrapper: ReturnType<typeof mount>) =>
 const findRepairButton = (wrapper: ReturnType<typeof mount>) =>
   findButtonByText(wrapper, 'settings.data.databaseRepair', 'Repair database')
 
+const findBackupButton = (wrapper: ReturnType<typeof mount>) =>
+  findButtonByText(wrapper, 'settings.data.startBackup', 'Start backup')
+
 const findResetEntryButton = (wrapper: ReturnType<typeof mount>) =>
   findButtonByText(wrapper, 'settings.data.resetData', 'Reset data')
 
@@ -331,6 +351,10 @@ const findClearSandboxConfirmButton = (wrapper: ReturnType<typeof mount>) =>
 describe('DataSettings', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+  })
+
+  afterEach(() => {
+    document.body.innerHTML = ''
   })
 
   it('renders the consolidated sync and operations sections', async () => {
@@ -392,12 +416,15 @@ describe('DataSettings', () => {
         'break-words'
       ])
     )
+    expect(description.text()).toBe('sync.error.importFailed')
+    expect(description.text()).not.toContain('Unauthorized')
+    expect(description.text()).not.toContain('cloudflarestorage.com')
     expect(wrapper.get('[data-testid="sync-error-dialog-footer"]').exists()).toBe(true)
     expect(wrapper.get('[data-testid="sync-error-dialog-confirm"]').exists()).toBe(true)
   })
 
   it('saves the cloud config before testing the cloud connection', async () => {
-    const { wrapper, syncStore, toast } = await setup()
+    const { wrapper, syncStore, notifyRenderer } = await setup()
 
     await wrapper.get('#cloud-endpoint').setValue('https://account.r2.cloudflarestorage.com/')
     await wrapper.get('#cloud-bucket').setValue('deepchat')
@@ -418,12 +445,90 @@ describe('DataSettings', () => {
     expect(syncStore.saveCloudConfig.mock.invocationCallOrder[0]).toBeLessThan(
       syncStore.testCloud.mock.invocationCallOrder[0]
     )
-    expect(toast).toHaveBeenCalledWith({
-      title: 'Connection succeeded',
-      description: undefined,
-      variant: 'default',
-      duration: 4000
+    // 成功反馈走按钮 ✅ 态，不再弹 toast，也不出现内联错误
+    expect(notifyRenderer).not.toHaveBeenCalledWith(
+      expect.objectContaining({ code: 'settings.data.cloud.testSucceeded' })
+    )
+    expect(wrapper.find('[role="alert"]').exists()).toBe(false)
+  })
+
+  it('reports cloud connection failures as an inline error after the persisted config snapshot', async () => {
+    const { wrapper, syncStore, notifyRenderer } = await setup()
+    syncStore.testCloud.mockResolvedValueOnce({
+      success: false,
+      message: 'sync.error.cloudConnectionFailed'
     })
+
+    await wrapper.get('#cloud-endpoint').setValue('https://account.r2.cloudflarestorage.com/')
+    await wrapper.get('#cloud-bucket').setValue('deepchat')
+    await wrapper.get('#cloud-access-key-id').setValue('access-key')
+    await wrapper.get('[data-testid="cloud-secret-input"]').setValue('secret-key')
+    await wrapper.get('[data-testid="cloud-save-test"]').trigger('click')
+    await flushPromises()
+
+    expect(notifyRenderer).not.toHaveBeenCalledWith(
+      expect.objectContaining({ code: 'settings.data.cloud.testFailed' })
+    )
+    expect(wrapper.get('[role="alert"]').text()).toContain(
+      'settings.data.cloudSync.testFailedTitle'
+    )
+  })
+
+  it('reports a failed cloud save as an inline error and preserves the unsaved draft', async () => {
+    const { wrapper, syncStore, notifyRenderer } = await setup()
+    syncStore.saveCloudConfig.mockRejectedValueOnce(
+      new Error('Authorization failed for secret-key@example.test')
+    )
+
+    await wrapper.get('#cloud-endpoint').setValue('https://account.r2.cloudflarestorage.com/')
+    await wrapper.get('#cloud-bucket').setValue('deepchat')
+    await wrapper.get('#cloud-access-key-id').setValue('access-key')
+    await wrapper.get('[data-testid="cloud-secret-input"]').setValue('secret-key')
+    await wrapper.get('[data-testid="cloud-save-only"]').trigger('click')
+    await flushPromises()
+
+    expect(notifyRenderer).not.toHaveBeenCalledWith(
+      expect.objectContaining({ code: 'settings.data.cloud.saveFailed' })
+    )
+    expect(wrapper.get('[role="alert"]').text()).toContain('Operation failed')
+    expect(wrapper.text()).not.toContain('secret-key@example.test')
+    expect((wrapper.get('#cloud-bucket').element as HTMLInputElement).value).toBe('deepchat')
+
+    const { settingsLeaveGuard } =
+      await import('../../../src/renderer/settings/services/settingsLeaveGuard')
+    expect(settingsLeaveGuard.getSnapshot().risk).toBe('dirty')
+    wrapper.unmount()
+    expect(settingsLeaveGuard.getSnapshot().risk).toBe('clean')
+  })
+
+  it('marks cloud persistence busy until the write settles', async () => {
+    const { wrapper, syncStore } = await setup()
+    let resolveSave: (() => void) | undefined
+    syncStore.saveCloudConfig.mockReturnValueOnce(
+      new Promise<void>((resolve) => {
+        resolveSave = resolve
+      })
+    )
+
+    await wrapper.get('#cloud-endpoint').setValue('https://account.r2.cloudflarestorage.com/')
+    await wrapper.get('#cloud-bucket').setValue('deepchat')
+    await wrapper.get('#cloud-access-key-id').setValue('access-key')
+    await wrapper.get('[data-testid="cloud-secret-input"]').setValue('secret-key')
+    await wrapper.get('[data-testid="cloud-save-only"]').trigger('click')
+    await nextTick()
+
+    const { settingsLeaveGuard } =
+      await import('../../../src/renderer/settings/services/settingsLeaveGuard')
+    expect(settingsLeaveGuard.getSnapshot().risk).toBe('busy')
+    expect(
+      (wrapper.vm as unknown as { isCloudFeedbackPending: boolean }).isCloudFeedbackPending
+    ).toBe(true)
+
+    resolveSave?.()
+    await flushPromises()
+
+    expect(settingsLeaveGuard.getSnapshot().risk).toBe('clean')
+    wrapper.unmount()
   })
 
   it('blocks Cloudflare API token values in the R2 secret field', async () => {
@@ -517,7 +622,7 @@ describe('DataSettings', () => {
   })
 
   it('enables database encryption after matching password input', async () => {
-    const { wrapper, databaseSecurityClient, toast } = await setup()
+    const { wrapper, databaseSecurityClient, notifyRenderer } = await setup()
     await findDatabaseEncryptionButton(
       wrapper,
       'settings.data.databaseEncryption.setPasswordButton'
@@ -526,17 +631,48 @@ describe('DataSettings', () => {
 
     await wrapper.get('#database-new-password').setValue('sqlite-pass')
     await wrapper.get('#database-confirm-password').setValue('sqlite-pass')
-    await findDatabaseEncryptionButton(
-      wrapper,
-      'settings.data.databaseEncryption.enableButton'
-    ).trigger('click')
+    await wrapper.get('[data-testid="database-encryption-submit"]').trigger('click')
     await flushPromises()
 
     expect(databaseSecurityClient.enable).toHaveBeenCalledWith('sqlite-pass')
-    expect(toast).toHaveBeenCalledWith({
-      title: 'settings.data.databaseEncryption.enabledTitle',
-      duration: 4000
-    })
+    // 成功反馈走按钮 ✅ 态，不再弹 toast
+    expect(notifyRenderer).not.toHaveBeenCalledWith(
+      expect.objectContaining({ code: 'settings.data.databaseSecurity.updated' })
+    )
+    expect(
+      (wrapper.vm as unknown as { isDatabaseEncryptionDialogOpen: boolean })
+        .isDatabaseEncryptionDialogOpen
+    ).toBe(false)
+  })
+
+  it('keeps database encryption failures in the dialog without exposing details', async () => {
+    const { wrapper, databaseSecurityClient, notifyRenderer } = await setup()
+    databaseSecurityClient.enable.mockRejectedValueOnce(
+      new Error('SQLCipher rejected sqlite-pass at /private/database.db')
+    )
+
+    await findDatabaseEncryptionButton(
+      wrapper,
+      'settings.data.databaseEncryption.setPasswordButton'
+    ).trigger('click')
+    await nextTick()
+    await wrapper.get('#database-new-password').setValue('sqlite-pass')
+    await wrapper.get('#database-confirm-password').setValue('sqlite-pass')
+    await wrapper.get('[data-testid="database-encryption-submit"]').trigger('click')
+    await flushPromises()
+
+    expect(notifyRenderer).not.toHaveBeenCalledWith(
+      expect.objectContaining({ code: 'settings.data.databaseSecurity.updateFailed' })
+    )
+    expect(wrapper.get('[role="alert"]').text()).toContain(
+      'settings.data.databaseEncryption.failedTitle'
+    )
+    expect(wrapper.text()).not.toContain('/private/database.db')
+    expect(wrapper.text()).not.toContain('sqlite-pass')
+    expect(
+      (wrapper.vm as unknown as { isDatabaseEncryptionDialogOpen: boolean })
+        .isDatabaseEncryptionDialogOpen
+    ).toBe(true)
   })
 
   it('shows database encryption status as unknown when status loading fails', async () => {
@@ -556,19 +692,22 @@ describe('DataSettings', () => {
     ).toBe(false)
   })
 
-  it('shows an error toast when updating privacy mode fails', async () => {
-    const { wrapper, toast, uiSettingsStore } = await setup()
+  it('reports privacy update failures as an error toast without exposing transport details', async () => {
+    const { wrapper, uiSettingsStore, notifyRenderer } = await setup()
 
     uiSettingsStore.setPrivacyModeEnabled = vi.fn().mockRejectedValue(new Error('IPC failed'))
 
     await wrapper.get('[data-testid="privacy-mode-switch"]').trigger('click')
     await flushPromises()
 
-    expect(toast).toHaveBeenCalledWith({
-      title: 'Operation failed',
-      description: 'IPC failed',
-      variant: 'destructive'
-    })
+    expect(notifyRenderer).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'error',
+        code: 'settings.privacy.updateFailed',
+        title: 'Operation failed'
+      })
+    )
+    expect(wrapper.text()).not.toContain('IPC failed')
   })
 
   it('does not render a repair result summary before any repair run', async () => {
@@ -578,8 +717,8 @@ describe('DataSettings', () => {
     expect(wrapper.text()).not.toContain('settings.data.databaseRepair.notCheckedYet')
   })
 
-  it('calls refreshProviderDb, shows loading state, then shows an updated toast', async () => {
-    const { wrapper, toast, configClient } = await setup()
+  it('calls refreshProviderDb, shows loading state, then reports a transient result', async () => {
+    const { wrapper, configClient, notifyRenderer } = await setup()
 
     let resolveRefresh:
       | ((value: { status: string; lastUpdated: number; providersCount: number }) => void)
@@ -605,15 +744,16 @@ describe('DataSettings', () => {
     await flushPromises()
 
     expect(configClient.refreshProviderDb).toHaveBeenCalledWith(true)
-    expect(toast).toHaveBeenCalledWith({
+    expect(notifyRenderer).toHaveBeenCalledWith({
+      kind: 'success',
+      code: 'settings.data.modelConfig.updated',
       title: 'settings.data.modelConfigUpdate.updatedTitle',
-      description: 'settings.data.modelConfigUpdate.updatedDescription',
-      duration: 4000
+      description: 'settings.data.modelConfigUpdate.updatedDescription'
     })
   })
 
-  it('shows an up-to-date toast when upstream metadata has not changed', async () => {
-    const { wrapper, toast, configClient } = await setup()
+  it('reports a transient up-to-date result when upstream metadata has not changed', async () => {
+    const { wrapper, configClient, notifyRenderer } = await setup()
 
     configClient.refreshProviderDb.mockResolvedValueOnce({
       status: 'not-modified',
@@ -624,15 +764,16 @@ describe('DataSettings', () => {
     await findRefreshButton(wrapper).trigger('click')
     await flushPromises()
 
-    expect(toast).toHaveBeenCalledWith({
+    expect(notifyRenderer).toHaveBeenCalledWith({
+      kind: 'success',
+      code: 'settings.data.modelConfig.upToDate',
       title: 'settings.data.modelConfigUpdate.upToDateTitle',
-      description: 'settings.data.modelConfigUpdate.upToDateDescription',
-      duration: 4000
+      description: 'settings.data.modelConfigUpdate.upToDateDescription'
     })
   })
 
-  it('shows a destructive toast when refreshing provider metadata fails', async () => {
-    const { wrapper, toast, configClient } = await setup()
+  it('reports provider metadata refresh failures as transient feedback', async () => {
+    const { wrapper, configClient, notifyRenderer } = await setup()
 
     configClient.refreshProviderDb.mockResolvedValueOnce({
       status: 'error',
@@ -644,26 +785,24 @@ describe('DataSettings', () => {
     await findRefreshButton(wrapper).trigger('click')
     await flushPromises()
 
-    expect(toast).toHaveBeenCalledWith({
+    expect(notifyRenderer).toHaveBeenCalledWith({
+      kind: 'error',
+      code: 'settings.data.modelConfig.updateFailed',
       title: 'settings.data.modelConfigUpdate.failedTitle',
-      description: 'settings.data.modelConfigUpdate.failedDescription',
-      variant: 'destructive',
-      duration: 4000
+      description: 'settings.data.modelConfigUpdate.failedDescription'
     })
+    expect(wrapper.text()).not.toContain('network down')
   })
 
-  it('runs schema repair and shows a healthy toast summary', async () => {
-    const { wrapper, toast, databaseSecurityClient } = await setup()
+  it('runs schema repair and keeps the healthy result in the section', async () => {
+    const { wrapper, databaseSecurityClient } = await setup()
 
     await findRepairButton(wrapper).trigger('click')
     await flushPromises()
 
     expect(databaseSecurityClient.repairSchema).toHaveBeenCalledTimes(1)
-    expect(toast).toHaveBeenCalledWith({
-      title: 'settings.data.databaseRepair.toastHealthyTitle',
-      description: 'settings.data.databaseRepair.toastHealthyDescription',
-      variant: 'default'
-    })
+    expect(wrapper.text()).toContain('settings.data.databaseRepair.lastResultLabel')
+    expect(wrapper.text()).toContain('settings.data.databaseRepair.summaryHealthy')
   })
 
   it('disables schema repair during backup and blocks both click and auto-run paths', async () => {
@@ -737,17 +876,61 @@ describe('DataSettings', () => {
   })
 
   it('clears YoBrowser sandbox data through BrowserClient', async () => {
-    const { wrapper, browserClient, toast } = await setup()
+    const { wrapper, browserClient, notifyRenderer } = await setup()
 
     await findClearSandboxConfirmButton(wrapper).trigger('click')
     await flushPromises()
 
     expect(browserClient.clearSandboxData).toHaveBeenCalledTimes(1)
-    expect(toast).toHaveBeenCalledWith({
+    expect(notifyRenderer).toHaveBeenCalledWith({
+      kind: 'success',
+      code: 'settings.data.sandbox.cleared',
       title: 'settings.data.yoBrowser.clearedTitle',
-      description: 'settings.data.yoBrowser.clearedDescription',
-      duration: 4000
+      description: 'settings.data.yoBrowser.clearedDescription'
     })
+  })
+
+  it('keeps the sandbox confirmation open when clearing fails', async () => {
+    const { wrapper, browserClient, notifyRenderer } = await setup({ realAlertDialog: true })
+    browserClient.clearSandboxData.mockRejectedValueOnce(
+      new Error('Failed to delete /private/sandbox/session')
+    )
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    notifyRenderer.mockClear()
+
+    await wrapper.get('[data-testid="yobrowser-clear-sandbox-button"]').trigger('click')
+    await flushPromises()
+    document
+      .querySelector<HTMLButtonElement>('[data-testid="yobrowser-clear-sandbox-confirm"]')!
+      .click()
+    await flushPromises()
+
+    const sandboxConfirm = document.querySelector('[data-testid="yobrowser-clear-sandbox-confirm"]')
+    expect(sandboxConfirm?.closest('[data-slot="alert-dialog-content"]')?.textContent).toContain(
+      'settings.data.yoBrowser.clearFailedTitle'
+    )
+    expect(notifyRenderer).not.toHaveBeenCalled()
+    expect(document.body.textContent).not.toContain('/private/sandbox/session')
+    expect(document.querySelector('[data-testid="yobrowser-clear-sandbox-confirm"]')).not.toBeNull()
+
+    document
+      .querySelector<HTMLButtonElement>('[data-testid="yobrowser-clear-sandbox-confirm"]')!
+      .click()
+    await flushPromises()
+
+    expect(browserClient.clearSandboxData).toHaveBeenCalledTimes(2)
+    expect(
+      (wrapper.vm as unknown as { isClearSandboxDialogOpen: boolean }).isClearSandboxDialogOpen
+    ).toBe(false)
+    expect(notifyRenderer).toHaveBeenCalledOnce()
+    expect(notifyRenderer).toHaveBeenCalledWith({
+      kind: 'success',
+      code: 'settings.data.sandbox.cleared',
+      title: 'settings.data.yoBrowser.clearedTitle',
+      description: 'settings.data.yoBrowser.clearedDescription'
+    })
+    consoleError.mockRestore()
+    wrapper.unmount()
   })
 
   it('renders the PublicProviderConf link and opens it externally when clicked', async () => {
@@ -782,7 +965,7 @@ describe('DataSettings', () => {
     expect(findResetEntryButton(wrapper).attributes('disabled')).toBeDefined()
     expect(findResetConfirmButton(wrapper).attributes('disabled')).toBeDefined()
 
-    findResetConfirmButton(wrapper).vm.$emit('click')
+    findResetConfirmButton(wrapper).vm.$emit('click', new MouseEvent('click'))
     await flushPromises()
 
     expect(deviceClient.resetDataByType).not.toHaveBeenCalled()
@@ -808,5 +991,127 @@ describe('DataSettings', () => {
     await flushPromises()
 
     expect(deviceClient.resetDataByType).toHaveBeenCalledWith('knowledge')
+  })
+
+  it('keeps reset failures in the confirmation surface without exposing details', async () => {
+    const { wrapper, deviceClient, notifyRenderer } = await setup({ realAlertDialog: true })
+    const pending = deferred<{ reset: boolean }>()
+    deviceClient.resetDataByType.mockReturnValueOnce(pending.promise)
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+
+    await findResetEntryButton(wrapper).trigger('click')
+    await flushPromises()
+    const resetConfirm = wrapper
+      .findAllComponents({ name: 'AlertDialogAsyncAction' })
+      .find((candidate) => candidate.attributes('data-testid') === 'danger-zone-reset-confirm')
+    if (!resetConfirm) throw new Error('Reset confirmation button not found')
+    await resetConfirm.trigger('click')
+    const resetContent = resetConfirm.element.closest('[data-slot="alert-dialog-content"]')
+    await vi.waitFor(() => {
+      expect(deviceClient.resetDataByType).toHaveBeenCalledOnce()
+      expect(resetConfirm.attributes('disabled')).toBeDefined()
+    })
+    resetContent
+      ?.querySelector<HTMLElement>('[data-testid="danger-zone-reset-option-knowledge"]')
+      ?.click()
+    expect((wrapper.vm as unknown as { resetType: string }).resetType).toBe('chat')
+
+    pending.reject(new Error('Unable to reset /private/deepchat.db'))
+    await flushPromises()
+
+    await vi.waitFor(() => {
+      expect(notifyRenderer).toHaveBeenCalledWith(
+        expect.objectContaining({
+          kind: 'error',
+          code: 'settings.data.reset.failed',
+          title: 'Operation failed'
+        })
+      )
+    })
+    expect(document.body.textContent).not.toContain('/private/deepchat.db')
+    expect((wrapper.vm as unknown as { isResetDialogOpen: boolean }).isResetDialogOpen).toBe(true)
+    expect(resetConfirm.element.isConnected).toBe(true)
+
+    await resetConfirm.trigger('click')
+    await vi.waitFor(() => {
+      expect(deviceClient.resetDataByType).toHaveBeenCalledTimes(2)
+    })
+
+    expect((wrapper.vm as unknown as { isResetDialogOpen: boolean }).isResetDialogOpen).toBe(false)
+    consoleError.mockRestore()
+    wrapper.unmount()
+  })
+
+  it('reports sync persistence failures as an error toast without changing the visible setting', async () => {
+    const { wrapper, syncStore, notifyRenderer } = await setup()
+    syncStore.setSyncEnabled.mockRejectedValueOnce(new Error('IPC token leaked'))
+
+    wrapper.findComponent({ name: 'Switch' }).vm.$emit('update:modelValue', false)
+    await flushPromises()
+
+    expect(syncStore.syncEnabled).toBe(true)
+    expect(notifyRenderer).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'error',
+        code: 'settings.data.sync.updateFailed',
+        title: 'Operation failed'
+      })
+    )
+    expect(wrapper.text()).not.toContain('IPC token leaked')
+  })
+
+  it('reports backup failures as transient feedback', async () => {
+    const { wrapper, syncStore, notifyRenderer } = await setup()
+    syncStore.startBackup.mockRejectedValueOnce(new Error('Backup path /private/sync failed'))
+
+    await findBackupButton(wrapper).trigger('click')
+    await flushPromises()
+
+    expect(notifyRenderer).toHaveBeenCalledWith({
+      kind: 'error',
+      code: 'settings.data.sync.backupFailed',
+      title: 'Operation failed'
+    })
+    expect(wrapper.text()).not.toContain('/private/sync')
+  })
+
+  it('reports completed backups as transient feedback', async () => {
+    const { wrapper, syncStore, notifyRenderer } = await setup()
+    syncStore.startBackup.mockResolvedValueOnce({
+      fileName: 'deepchat-20260730.db',
+      createdAt: 1_785_369_600_000,
+      size: 4_096
+    })
+
+    await findBackupButton(wrapper).trigger('click')
+    await flushPromises()
+
+    expect(notifyRenderer).toHaveBeenCalledWith({
+      kind: 'success',
+      code: 'settings.data.sync.backupSucceeded',
+      title: 'settings.data.toast.backupSuccessTitle'
+    })
+  })
+
+  it('reports failed sync initialization as a toast and re-enables sync on a fresh load', async () => {
+    const initialize = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('cloud config at /private/config failed'))
+      .mockResolvedValueOnce(undefined)
+    const { wrapper, notifyRenderer } = await setup({ syncInitialize: initialize })
+
+    expect(notifyRenderer).toHaveBeenCalledWith({
+      kind: 'error',
+      code: 'settings.data.sync.initializeFailed',
+      title: 'Operation failed'
+    })
+    expect(wrapper.text()).not.toContain('/private/config')
+    expect(wrapper.findComponent({ name: 'Switch' }).attributes('disabled')).toBeDefined()
+
+    wrapper.unmount()
+    const { wrapper: remounted } = await setup({ syncInitialize: initialize })
+    expect(initialize).toHaveBeenCalledTimes(2)
+    expect(remounted.findComponent({ name: 'Switch' }).attributes('disabled')).toBeUndefined()
+    remounted.unmount()
   })
 })

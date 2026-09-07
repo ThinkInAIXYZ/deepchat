@@ -1,5 +1,5 @@
 import { computed } from 'vue'
-import type { DisplayAssistantMessageBlock } from '@/components/chat/messageListItems'
+import type { DisplayAssistantMessageBlock } from '@/features/chat-page/model/displayMessage'
 
 export interface ProcessedPart {
   type: 'text' | 'thinking' | 'artifact' | 'tool_call'

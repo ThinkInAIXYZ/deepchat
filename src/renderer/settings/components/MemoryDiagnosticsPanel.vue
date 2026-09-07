@@ -1,28 +1,62 @@
 <template>
   <section class="flex min-h-0 flex-1 flex-col gap-4">
-    <div
-      class="flex flex-col gap-3 rounded-lg border border-border p-3 lg:flex-row lg:items-center lg:justify-between"
+    <DcSectionCard
+      :title="t('settings.memory.redesign.diagnosticsTitle')"
+      :description="t('settings.memory.redesign.diagnosticsDescription')"
     >
-      <div>
-        <h2 class="text-sm font-semibold">{{ t('settings.memory.redesign.diagnosticsTitle') }}</h2>
-        <p class="mt-1 text-xs text-muted-foreground">
-          {{ t('settings.memory.redesign.diagnosticsDescription') }}
+      <template #actions>
+        <div class="flex flex-wrap gap-2">
+          <DcButton
+            variant="outline"
+            size="sm"
+            class="h-8 text-xs"
+            :disabled="loading"
+            @click="refresh"
+          >
+            <Icon icon="lucide:refresh-cw" class="mr-1.5 h-3.5 w-3.5" />
+            {{ t('settings.memory.redesign.refresh') }}
+          </DcButton>
+          <DcButton size="sm" class="h-8 text-xs" :disabled="reindexing" @click="reindex">
+            <Icon icon="lucide:rotate-cw" class="mr-1.5 h-3.5 w-3.5" />
+            {{
+              reindexing
+                ? t('settings.deepchatAgents.memoryManager.health.reindexing')
+                : t('settings.deepchatAgents.memoryManager.health.reindex')
+            }}
+          </DcButton>
+        </div>
+      </template>
+    </DcSectionCard>
+
+    <MemoryInlineFeedback v-if="feedback" :feedback="feedback" @clear="clearFeedback" />
+
+    <div
+      v-if="showReindexFailure"
+      role="alert"
+      data-testid="reindex-failure-banner"
+      class="flex flex-col gap-3 rounded-lg border border-destructive/40 bg-destructive/5 p-3 sm:flex-row sm:items-center sm:justify-between"
+    >
+      <div class="flex min-w-0 gap-2">
+        <Icon icon="lucide:triangle-alert" class="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
+        <p class="text-xs leading-5 text-foreground">
+          {{
+            t('settings.memory.redesign.reindexIncomplete', {
+              reason: reindexFailureReason
+            })
+          }}
         </p>
       </div>
-      <div class="flex flex-wrap gap-2">
-        <Button variant="outline" size="sm" class="h-8 text-xs" :disabled="loading" @click="load">
-          <Icon icon="lucide:refresh-cw" class="mr-1.5 h-3.5 w-3.5" />
-          {{ t('settings.memory.redesign.refresh') }}
-        </Button>
-        <Button size="sm" class="h-8 text-xs" :disabled="reindexing" @click="reindex">
-          <Icon icon="lucide:rotate-cw" class="mr-1.5 h-3.5 w-3.5" />
-          {{
-            reindexing
-              ? t('settings.deepchatAgents.memoryManager.health.reindexing')
-              : t('settings.deepchatAgents.memoryManager.health.reindex')
-          }}
-        </Button>
-      </div>
+      <DcButton
+        v-if="canRetryReindex"
+        variant="outline"
+        size="sm"
+        class="h-8 shrink-0 text-xs"
+        :disabled="reindexing"
+        @click="reindex"
+      >
+        <Icon icon="lucide:rotate-cw" class="mr-1.5 h-3.5 w-3.5" />
+        {{ t('settings.deepchatAgents.memoryManager.health.reindex') }}
+      </DcButton>
     </div>
 
     <div v-if="loading" class="py-12 text-center text-sm text-muted-foreground">
@@ -50,11 +84,8 @@
           />
         </div>
 
-        <section class="rounded-lg border border-border p-3">
-          <h3 class="text-sm font-semibold">
-            {{ t('settings.memory.redesign.pipelineTitle') }}
-          </h3>
-          <div class="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+        <DcSectionCard :title="t('settings.memory.redesign.pipelineTitle')">
+          <div class="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
             <StatusPill
               :label="t('settings.deepchatAgents.memoryManager.health.error')"
               :value="health?.embeddings.error ?? 0"
@@ -72,18 +103,14 @@
               :value="health?.conflicts.conflicted ?? status?.conflictCount ?? 0"
             />
           </div>
-        </section>
+        </DcSectionCard>
 
-        <section class="rounded-lg border border-border p-3" data-testid="runtime-pipeline">
-          <div>
-            <h3 class="text-sm font-semibold">
-              {{ t('settings.memory.redesign.runtimePipelineTitle') }}
-            </h3>
-            <p class="mt-1 text-xs text-muted-foreground">
-              {{ t('settings.memory.redesign.processWideDescription') }}
-            </p>
-          </div>
-          <div class="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+        <DcSectionCard
+          data-testid="runtime-pipeline"
+          :title="t('settings.memory.redesign.runtimePipelineTitle')"
+          :description="t('settings.memory.redesign.processWideDescription')"
+        >
+          <div class="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
             <StatusPill
               :label="t('settings.memory.redesign.recallP50')"
               :value="recallLatencyP50"
@@ -121,6 +148,7 @@
               :value="health?.runtime.process.providerAdmission.queued ?? 0"
             />
             <StatusPill
+              class="sm:col-span-2 lg:col-span-3"
               :label="t('settings.memory.redesign.providerPressure')"
               :value="providerEventSummary"
             />
@@ -133,29 +161,25 @@
               })
             }}
           </p>
-        </section>
+        </DcSectionCard>
 
-        <section class="rounded-lg border border-border p-3">
-          <div class="flex items-center justify-between gap-3">
-            <div>
-              <h3 class="text-sm font-semibold">
-                {{ t('settings.memory.redesign.archiveCandidatesTitle') }}
-              </h3>
-              <p class="mt-1 text-xs text-muted-foreground">
-                {{ t('settings.memory.redesign.archiveCandidatesDescription') }}
-              </p>
-            </div>
-            <Badge variant="secondary" class="text-[10px]">
+        <DcSectionCard
+          data-testid="archive-candidates"
+          :title="t('settings.memory.redesign.archiveCandidatesTitle')"
+          :description="t('settings.memory.redesign.archiveCandidatesDescription')"
+        >
+          <template #actions>
+            <DcBadge variant="secondary" class="text-[10px]">
               {{ archivePreview?.lifecycles.length ?? 0 }}
-            </Badge>
-          </div>
+            </DcBadge>
+          </template>
           <div
             v-if="!archivePreview || archivePreview.lifecycles.length === 0"
             class="py-8 text-center text-xs text-muted-foreground"
           >
             {{ t('settings.deepchatAgents.memoryManager.health.archivePrediction.empty') }}
           </div>
-          <ol v-else class="mt-3 space-y-2">
+          <ol v-else class="space-y-2">
             <li
               v-for="lifecycle in archivePreview.lifecycles"
               :key="lifecycle.memoryId"
@@ -163,48 +187,45 @@
             >
               <div class="flex flex-wrap items-center justify-between gap-2">
                 <span class="font-medium">{{ shortId(lifecycle.memoryId) }}</span>
-                <Badge variant="outline" class="text-[10px]">
+                <DcBadge variant="outline" class="text-[10px]">
                   {{
                     t(`settings.deepchatAgents.memoryManager.lifecycle.tier.${lifecycle.decayTier}`)
                   }}
-                </Badge>
+                </DcBadge>
               </div>
               <div class="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-muted-foreground">
                 <span>
                   {{ t('settings.deepchatAgents.memoryManager.health.archivePrediction.ageDays') }}:
-                  {{ formatNumber(lifecycle.forget.ageDays) }}
+                  {{ formatDays(lifecycle.forget.ageDays) }}
                 </span>
                 <span>
                   {{
                     t('settings.deepchatAgents.memoryManager.health.archivePrediction.decayScore')
-                  }}: {{ formatNumber(lifecycle.forget.decayScore) }}
+                  }}: {{ formatDecimal(lifecycle.forget.decayScore) }}
                 </span>
               </div>
             </li>
           </ol>
-        </section>
+        </DcSectionCard>
       </div>
 
       <aside class="space-y-4">
-        <section class="rounded-lg border border-border p-3">
-          <h3 class="text-sm font-semibold">
-            {{ t('settings.memory.redesign.recentFailuresTitle') }}
-          </h3>
+        <DcSectionCard :title="t('settings.memory.redesign.recentFailuresTitle')">
           <div
             v-if="!health || health.maintenance.recentFailures.length === 0"
             class="py-6 text-center text-xs text-muted-foreground"
           >
             {{ t('settings.deepchatAgents.memoryManager.health.noRecentFailures') }}
           </div>
-          <ol v-else class="mt-3 space-y-2">
+          <ol v-else class="space-y-2">
             <li
               v-for="failure in health.maintenance.recentFailures"
               :key="`${failure.eventType}:${failure.createdAt}`"
               class="rounded-md border border-border px-3 py-2 text-xs"
             >
               <div class="flex flex-wrap items-center gap-1.5">
-                <Badge variant="outline" class="text-[10px]">{{ failure.eventType }}</Badge>
-                <Badge variant="destructive" class="text-[10px]">{{ failure.status }}</Badge>
+                <DcBadge variant="outline" class="text-[10px]">{{ failure.eventType }}</DcBadge>
+                <DcBadge variant="destructive" class="text-[10px]">{{ failure.status }}</DcBadge>
                 <span class="text-[10px] text-muted-foreground">
                   {{ formatRelativeTime(failure.createdAt, locale) }}
                 </span>
@@ -214,32 +235,31 @@
               </p>
             </li>
           </ol>
-        </section>
+        </DcSectionCard>
 
-        <section class="rounded-lg border border-border p-3">
-          <h3 class="text-sm font-semibold">{{ t('settings.memory.redesign.activityTitle') }}</h3>
+        <DcSectionCard :title="t('settings.memory.redesign.activityTitle')">
           <div
             v-if="auditEvents.length === 0"
             class="py-6 text-center text-xs text-muted-foreground"
           >
             {{ t('settings.deepchatAgents.memoryManager.emptyActivity') }}
           </div>
-          <ol v-else class="mt-3 space-y-2">
+          <ol v-else class="space-y-2">
             <li
               v-for="event in auditEvents"
               :key="event.id"
               class="rounded-md border border-border px-3 py-2 text-xs"
             >
               <div class="flex flex-wrap items-center gap-1.5">
-                <Badge variant="outline" class="text-[10px]">
+                <DcBadge variant="outline" class="text-[10px]">
                   {{ eventLabel(event.eventType) }}
-                </Badge>
-                <Badge
+                </DcBadge>
+                <DcBadge
                   :variant="event.status === 'failed' ? 'destructive' : 'secondary'"
                   class="text-[10px]"
                 >
                   {{ event.status }}
-                </Badge>
+                </DcBadge>
                 <span class="text-[10px] text-muted-foreground">
                   {{ formatRelativeTime(event.createdAt, locale) }}
                 </span>
@@ -249,7 +269,7 @@
               </p>
             </li>
           </ol>
-        </section>
+        </DcSectionCard>
 
         <section class="rounded-lg border border-destructive/40 p-3">
           <h3 class="text-sm font-semibold text-destructive">
@@ -258,57 +278,51 @@
           <p class="mt-1 text-xs text-muted-foreground">
             {{ t('settings.memory.redesign.dangerZoneDescription') }}
           </p>
-          <AlertDialog>
-            <AlertDialogTrigger as-child>
-              <Button variant="destructive" size="sm" class="mt-3 h-8 text-xs">
-                <Icon icon="lucide:trash-2" class="mr-1.5 h-3.5 w-3.5" />
-                {{ t('settings.deepchatAgents.memoryManager.clearAll') }}
-              </Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>
-                  {{ t('settings.deepchatAgents.memoryManager.clearConfirmTitle') }}
-                </AlertDialogTitle>
-                <AlertDialogDescription>
-                  {{ t('settings.deepchatAgents.memoryManager.clearConfirmBody') }}
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>{{ t('common.cancel') }}</AlertDialogCancel>
-                <AlertDialogAction
-                  class="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                  @click="clearAll"
-                >
-                  {{ t('settings.deepchatAgents.memoryManager.clearAll') }}
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
+          <DcButton
+            variant="destructive"
+            size="sm"
+            class="mt-3 h-8 text-xs"
+            :disabled="loading || clearing"
+            data-testid="memory-clear-all-trigger"
+            @click="requestClearAll"
+          >
+            <Icon icon="lucide:trash-2" class="mr-1.5 h-3.5 w-3.5" />
+            {{ t('settings.deepchatAgents.memoryManager.clearAll') }}
+          </DcButton>
         </section>
       </aside>
     </div>
+
+    <DcConfirmDialog
+      :open="clearDialogOpen"
+      :title="t('settings.deepchatAgents.memoryManager.clearConfirmTitle')"
+      :description="t('settings.deepchatAgents.memoryManager.clearConfirmBody')"
+      :confirm-label="t('settings.deepchatAgents.memoryManager.clearAll')"
+      :busy="clearing"
+      :disabled-confirm="loading"
+      :confirm-attrs="{ 'data-testid': 'memory-clear-all-confirm' }"
+      :cancel-attrs="{ 'data-testid': 'memory-clear-all-cancel' }"
+      busy-data-testid="memory-clear-all-spinner"
+      @update:open="handleClearDialogOpenChange"
+      @confirm="clearAll"
+    >
+      <MemoryInlineFeedback
+        v-if="clearOperationFeedbackState"
+        :feedback="clearOperationFeedbackState"
+        @clear="clearClearAllFeedback"
+      />
+    </DcConfirmDialog>
   </section>
 </template>
 
 <script setup lang="ts">
-import { computed, defineComponent, h, ref, watch } from 'vue'
+import { computed, defineComponent, h, ref, shallowRef, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger
-} from '@shadcn/components/ui/alert-dialog'
-import { Badge } from '@shadcn/components/ui/badge'
-import { Button } from '@shadcn/components/ui/button'
-import { useToast } from '@/components/use-toast'
+import { DcConfirmDialog } from '@dc-ui/components/confirm-dialog'
+import { DcSectionCard } from '@dc-ui/components/section-card'
+import { DcBadge } from '@dc-ui/components/badge'
+import { DcButton } from '@dc-ui/components/button'
 import { createMemoryClient } from '@api/MemoryClient'
 import type {
   MemoryArchiveCandidateLifecyclePreview,
@@ -316,11 +330,10 @@ import type {
   MemoryHealthDto,
   MemoryStatusDto
 } from '@shared/contracts/routes'
-import {
-  auditSentenceKey,
-  formatRelativeTime,
-  notifyMemoryActionFailed
-} from './memoryRedesignUtils'
+import { auditSentenceKey, formatRelativeTime } from './memoryRedesignUtils'
+import MemoryInlineFeedback from './MemoryInlineFeedback.vue'
+import { useMemoryInlineFeedback } from '../lib/useMemoryInlineFeedback'
+import { useMemoryNumberFormatters } from '../lib/useMemoryNumberFormatters'
 
 const props = defineProps<{
   agentId: string
@@ -329,11 +342,23 @@ const props = defineProps<{
 }>()
 
 const { t, te, locale } = useI18n()
-const { toast } = useToast()
+const { formatDecimal, formatDays } = useMemoryNumberFormatters()
+
 const memoryClient = createMemoryClient()
+const panelFeedback = useMemoryInlineFeedback('MemoryDiagnosticsPanel')
+const feedback = panelFeedback.feedback
+const clearFeedback = panelFeedback.clear
+const clearOperationFeedback = useMemoryInlineFeedback('MemoryDiagnosticsPanel.clearAll')
+const clearOperationFeedbackState = clearOperationFeedback.feedback
+const clearClearAllFeedback = clearOperationFeedback.clear
 
 const loading = ref(false)
 const reindexPending = ref(false)
+type ClearRequest =
+  | { status: 'idle' }
+  | { status: 'confirming' }
+  | { status: 'pending'; agentId: string }
+const clearRequest = shallowRef<ClearRequest>({ status: 'idle' })
 const health = ref<MemoryHealthDto | null>(null)
 const archivePreview = ref<MemoryArchiveCandidateLifecyclePreview | null>(null)
 const auditEvents = ref<MemoryAuditEvent[]>([])
@@ -345,9 +370,30 @@ let statusEpoch = 0
 let pendingStartEpoch: number | null = null
 
 const reindexing = computed(() => reindexPending.value || props.status?.reindexing === true)
+const clearDialogOpen = computed(() => clearRequest.value.status !== 'idle')
+const clearing = computed(() => clearRequest.value.status === 'pending')
+const showReindexFailure = computed(
+  () =>
+    !reindexing.value &&
+    props.status?.lastReindex !== undefined &&
+    props.status.lastReindex.outcome !== 'completed'
+)
+const canRetryReindex = computed(() => props.status?.lastReindex?.lastError?.retryable === true)
+const reindexFailureReason = computed(() => {
+  const error = props.status?.lastReindex?.lastError
+  if (!error?.code) return t('settings.memory.redesign.reindexInternalReason')
+  if (error.code === 'pending-restart') {
+    return t('settings.deepchatAgents.memoryManager.cleanupPendingRestart')
+  }
+  return t('settings.memory.redesign.reindexInternalReason')
+})
 const recallDiagnostics = computed(() => health.value?.runtime.agent.retrieval.recall)
-const recallLatencyP50 = computed(() => recallDiagnostics.value?.latencyMs.total.p50 ?? '—')
-const recallLatencyP95 = computed(() => recallDiagnostics.value?.latencyMs.total.p95 ?? '—')
+const recallLatencyP50 = computed(() =>
+  formatOptionalDecimal(recallDiagnostics.value?.latencyMs.total.p50)
+)
+const recallLatencyP95 = computed(() =>
+  formatOptionalDecimal(recallDiagnostics.value?.latencyMs.total.p95)
+)
 const fallbackCount = computed(() => {
   const counts = recallDiagnostics.value?.degradationCounts
   if (!counts) return 0
@@ -404,23 +450,27 @@ const StatusPill = defineComponent({
   },
   setup(pillProps) {
     return () =>
-      h('div', { class: 'flex items-center justify-between rounded-md bg-muted px-3 py-2' }, [
-        h('span', { class: 'text-xs text-muted-foreground' }, pillProps.label),
-        h('span', { class: 'text-sm font-semibold tabular-nums' }, String(pillProps.value))
-      ])
+      h(
+        'div',
+        { class: 'flex min-w-0 items-center justify-between gap-3 rounded-md bg-muted px-3 py-2' },
+        [
+          h('span', { class: 'min-w-0 text-xs leading-5 text-muted-foreground' }, pillProps.label),
+          h(
+            'span',
+            { class: 'min-w-0 text-right text-sm font-semibold leading-5 tabular-nums' },
+            String(pillProps.value)
+          )
+        ]
+      )
   }
 })
-
-function notifyFailed(error?: unknown): void {
-  notifyMemoryActionFailed(toast, t, error)
-}
 
 function shortId(id: string): string {
   return id.length > 10 ? `${id.slice(0, 4)}…${id.slice(-6)}` : id
 }
 
-function formatNumber(value: number): string {
-  return Number.isFinite(value) ? value.toFixed(value >= 10 ? 0 : 2) : String(value)
+function formatOptionalDecimal(value: number | null | undefined): string {
+  return value == null ? '—' : formatDecimal(value)
 }
 
 function eventLabel(eventType: string): string {
@@ -445,15 +495,21 @@ async function load(): Promise<void> {
     auditEvents.value = nextEvents
   } catch (error) {
     if (current !== requestId || props.agentId !== agentId) return
-    notifyFailed(error)
+    panelFeedback.fail(error)
   } finally {
     if (current === requestId && props.agentId === agentId) loading.value = false
   }
 }
 
+function refresh(): void {
+  clearFeedback()
+  void load()
+}
+
 async function reindex(): Promise<void> {
   const agentId = props.agentId
   if (!agentId || reindexing.value) return
+  clearFeedback()
   reindexPending.value = true
   try {
     const result = await memoryClient.reindex(agentId)
@@ -467,25 +523,50 @@ async function reindex(): Promise<void> {
     await load()
   } catch (error) {
     if (props.agentId !== agentId) return
-    notifyFailed(error)
+    panelFeedback.fail(error)
     reindexPending.value = false
     pendingStartEpoch = null
   }
 }
 
+function requestClearAll(): void {
+  if (!props.agentId || loading.value || clearRequest.value.status !== 'idle') return
+  clearClearAllFeedback()
+  clearRequest.value = { status: 'confirming' }
+}
+
+function handleClearDialogOpenChange(open: boolean): void {
+  if (open || clearRequest.value.status !== 'confirming') return
+  clearRequest.value = { status: 'idle' }
+  clearClearAllFeedback()
+}
+
 async function clearAll(): Promise<void> {
-  const agentId = props.agentId
-  if (!agentId || loading.value) return
-  loading.value = true
+  if (loading.value || clearRequest.value.status !== 'confirming') return
+  const pendingRequest = { status: 'pending' as const, agentId: props.agentId }
+  clearRequest.value = pendingRequest
+  clearClearAllFeedback()
   try {
-    await memoryClient.clear(agentId)
-    if (props.agentId !== agentId) return
+    const result = await memoryClient.clear(pendingRequest.agentId)
+    if (props.agentId !== pendingRequest.agentId || clearRequest.value !== pendingRequest) {
+      return
+    }
+    if (result.cleanupPendingRestart) {
+      panelFeedback.show(
+        'warning',
+        t('settings.deepchatAgents.memoryManager.cleanupPendingRestart')
+      )
+    }
     await load()
+    if (props.agentId !== pendingRequest.agentId || clearRequest.value !== pendingRequest) {
+      return
+    }
+    clearRequest.value = { status: 'idle' }
   } catch (error) {
-    if (props.agentId !== agentId) return
-    notifyFailed(error)
-  } finally {
-    if (props.agentId === agentId) loading.value = false
+    if (props.agentId === pendingRequest.agentId && clearRequest.value === pendingRequest) {
+      clearRequest.value = { status: 'confirming' }
+      clearOperationFeedback.fail(error)
+    }
   }
 }
 
@@ -498,6 +579,9 @@ watch(
 watch(
   () => props.agentId,
   () => {
+    clearFeedback()
+    clearClearAllFeedback()
+    clearRequest.value = { status: 'idle' }
     reindexPending.value = false
     pendingStartEpoch = null
   }

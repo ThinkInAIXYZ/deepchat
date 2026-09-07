@@ -3,11 +3,15 @@ import { FLOATING_BUTTON_EVENTS } from '../../../src/shared/floatingButtonChanne
 import { DEEPCHAT_ROUTE_INVOKE_CHANNEL } from '../../../src/shared/contracts/channels'
 import { browserActivityChangedEvent } from '../../../src/shared/contracts/events'
 import {
+  DATABASE_RECOVERY_CANCEL_CHANNEL,
+  DATABASE_RECOVERY_REQUEST_CHANNEL,
+  DATABASE_RECOVERY_SUBMIT_CHANNEL,
   DATABASE_UNLOCK_CANCEL_CHANNEL,
   DATABASE_UNLOCK_PROGRESS_CHANNEL,
   DATABASE_UNLOCK_REQUEST_CHANNEL,
   DATABASE_UNLOCK_SUBMIT_CHANNEL
 } from '../../../src/shared/contracts/databaseSecurity'
+import { SPLASH_DEBUG_MODE_CHANNEL } from '../../../src/shared/contracts/splash'
 
 type Listener = (_event: unknown, payload: unknown) => void
 
@@ -62,6 +66,14 @@ const installElectronPreloadMock = () => {
   const ipcRenderer = {
     invoke: vi.fn(async (channel: string, routeName?: string) => {
       if (channel === DEEPCHAT_ROUTE_INVOKE_CHANNEL) {
+        if (routeName === 'config.getLanguage') {
+          return {
+            requestedLanguage: 'zh-CN',
+            locale: 'zh-CN',
+            direction: 'auto'
+          }
+        }
+
         if (routeName === 'plugins.get') {
           return {
             plugin: {
@@ -262,6 +274,29 @@ describe('preload IPC boundaries', () => {
     )
   })
 
+  it('replays a debug mode received before the splash renderer subscribes', async () => {
+    const { listeners } = installElectronPreloadMock()
+    await import('../../../src/preload/splash-preload')
+
+    const preloadDebugListener = (listeners.get(SPLASH_DEBUG_MODE_CHANNEL) ?? [])[0]
+    preloadDebugListener?.({}, 'system-unlock')
+
+    const deepchatSplash = (
+      window as Window & {
+        deepchatSplash: {
+          onDebugMode: (
+            callback: (mode: 'loading' | 'system-unlock' | 'unlock') => void
+          ) => () => void
+        }
+      }
+    ).deepchatSplash
+    const callback = vi.fn()
+    const unsubscribe = deepchatSplash.onDebugMode(callback)
+
+    expect(callback).toHaveBeenCalledExactlyOnceWith('system-unlock')
+    unsubscribe()
+  })
+
   it('exposes splash unlock APIs through scoped database-security channels', async () => {
     const { ipcRenderer, listeners } = installElectronPreloadMock()
     await import('../../../src/preload/splash-preload')
@@ -271,6 +306,14 @@ describe('preload IPC boundaries', () => {
         deepchatSplash: {
           onUnlockRequest: (callback: (payload: typeof validUnlockRequest) => void) => () => void
           onUnlockProgress: (callback: (payload: typeof validUnlockProgress) => void) => () => void
+          onDebugMode: (
+            callback: (mode: 'loading' | 'system-unlock' | 'unlock') => void
+          ) => () => void
+          getLanguageState: () => Promise<{
+            requestedLanguage: string
+            locale: string
+            direction: 'auto' | 'rtl' | 'ltr'
+          }>
           submitUnlock: (payload: { requestId: string; password: string }) => void
           cancelUnlock: (payload: { requestId: string }) => void
         }
@@ -278,33 +321,59 @@ describe('preload IPC boundaries', () => {
     ).deepchatSplash
 
     expect(Object.keys(deepchatSplash).sort()).toEqual([
+      'cancelRecovery',
       'cancelUnlock',
+      'getLanguageState',
+      'onDebugMode',
+      'onRecoveryRequest',
       'onUnlockProgress',
       'onUnlockRequest',
       'onUpdate',
+      'submitRecovery',
       'submitUnlock'
     ])
 
     const unlockRequestCallback = vi.fn()
     const unlockProgressCallback = vi.fn()
+    const debugModeCallback = vi.fn()
     const unsubscribeRequest = deepchatSplash.onUnlockRequest(unlockRequestCallback)
     const unsubscribeProgress = deepchatSplash.onUnlockProgress(unlockProgressCallback)
+    const unsubscribeDebugMode = deepchatSplash.onDebugMode(debugModeCallback)
     const [requestListener] = listeners.get(DATABASE_UNLOCK_REQUEST_CHANNEL) ?? []
     const [progressListener] = listeners.get(DATABASE_UNLOCK_PROGRESS_CHANNEL) ?? []
+    const debugModeListeners = listeners.get(SPLASH_DEBUG_MODE_CHANNEL) ?? []
+    const debugModeListener = debugModeListeners.at(-1)
 
     requestListener?.({}, validUnlockRequest)
     progressListener?.({}, validUnlockProgress)
+    debugModeListener?.({}, 'unlock')
     unsubscribeRequest()
     unsubscribeProgress()
+    unsubscribeDebugMode()
 
+    await expect(deepchatSplash.getLanguageState()).resolves.toEqual({
+      requestedLanguage: 'zh-CN',
+      locale: 'zh-CN',
+      direction: 'auto'
+    })
     deepchatSplash.submitUnlock({ requestId: 'unlock-1', password: 'secret' })
     deepchatSplash.submitUnlock({ requestId: '', password: 'secret' })
     deepchatSplash.submitUnlock({ requestId: 'unlock-1', password: 42 as unknown as string })
     deepchatSplash.cancelUnlock({ requestId: 'unlock-1' })
     deepchatSplash.cancelUnlock({ requestId: '' })
+    deepchatSplash.submitRecovery({ requestId: 'recovery-1', action: 'start-empty' })
+    deepchatSplash.submitRecovery({ requestId: '', action: 'start-empty' })
+    deepchatSplash.cancelRecovery({ requestId: 'recovery-1' })
+    deepchatSplash.cancelRecovery({ requestId: '' })
 
     expect(unlockRequestCallback).toHaveBeenCalledWith(validUnlockRequest)
     expect(unlockProgressCallback).toHaveBeenCalledWith(validUnlockProgress)
+    expect(debugModeCallback).toHaveBeenCalledWith('unlock')
+    expect(ipcRenderer.invoke).toHaveBeenCalledWith(
+      DEEPCHAT_ROUTE_INVOKE_CHANNEL,
+      'config.getLanguage',
+      {}
+    )
     expect(ipcRenderer.removeListener).toHaveBeenCalledWith(
       DATABASE_UNLOCK_REQUEST_CHANNEL,
       requestListener
@@ -314,13 +383,20 @@ describe('preload IPC boundaries', () => {
       progressListener
     )
     expect(ipcRenderer.removeAllListeners).not.toHaveBeenCalled()
-    expect(ipcRenderer.send).toHaveBeenCalledTimes(2)
+    expect(ipcRenderer.send).toHaveBeenCalledTimes(4)
     expect(ipcRenderer.send).toHaveBeenCalledWith(DATABASE_UNLOCK_SUBMIT_CHANNEL, {
       requestId: 'unlock-1',
       password: 'secret'
     })
     expect(ipcRenderer.send).toHaveBeenCalledWith(DATABASE_UNLOCK_CANCEL_CHANNEL, {
       requestId: 'unlock-1'
+    })
+    expect(ipcRenderer.send).toHaveBeenCalledWith(DATABASE_RECOVERY_SUBMIT_CHANNEL, {
+      requestId: 'recovery-1',
+      action: 'start-empty'
+    })
+    expect(ipcRenderer.send).toHaveBeenCalledWith(DATABASE_RECOVERY_CANCEL_CHANNEL, {
+      requestId: 'recovery-1'
     })
   })
 })

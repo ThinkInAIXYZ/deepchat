@@ -1,4 +1,4 @@
-import type { DisplayMessage } from '@/components/chat/messageListItems'
+import type { DisplayMessage } from '@/features/chat-page/model/displayMessage'
 
 type MockMessageKind = 'text' | 'long-markdown' | 'code' | 'tool' | 'image' | 'thinking'
 

@@ -6,7 +6,17 @@ import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { unzipSync } from 'fflate'
-import { signMacHelperForRelease } from './sign-cua-helper.mjs'
+import {
+  CUA_DARWIN_HELPER_APP_NAME,
+  CUA_DARWIN_HELPER_BUNDLE_IDENTIFIER,
+  CUA_DARWIN_HELPER_EXECUTABLE_NAME,
+  findDisallowedDarwinLoadPaths,
+  parseDarwinLinkedLibraries,
+  parseDarwinRpaths
+} from './cua-macos-contract.mjs'
+import { signMacHelper } from './sign-cua-helper.mjs'
+import { parseCuaToolCatalog } from './cua-tool-catalog-contract.mjs'
+import { writeCuaRuntimeIntegrityDescriptor } from './package-plugin.mjs'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const rootDir = process.env.DEEPCHAT_ROOT_DIR
@@ -21,9 +31,10 @@ const vendorRoot = process.env.DEEPCHAT_CUA_VENDOR_ROOT
 const upstreamMetadataPath = path.join(vendorRoot, 'upstream.json')
 const helperBinaryName = 'cua-driver'
 const upstreamDarwinHelperAppDirName = 'CuaDriver.app'
-export const darwinHelperAppDirName = 'DeepChat Computer Use.app'
-export const darwinHelperBinaryName = 'deepchat-cua-driver'
-export const darwinHelperBundleIdentifier = 'com.deepchat.computeruse.helper'
+const upstreamDarwinThemeAuthoringExecutableName = 'cua-cursor-theme'
+export const darwinHelperAppDirName = CUA_DARWIN_HELPER_APP_NAME
+export const darwinHelperBinaryName = CUA_DARWIN_HELPER_EXECUTABLE_NAME
+export const darwinHelperBundleIdentifier = CUA_DARWIN_HELPER_BUNDLE_IDENTIFIER
 const darwinHelperBundleName = 'DeepChat Computer Use'
 
 const targetAssetKeys = {
@@ -111,7 +122,8 @@ async function readUpstreamMetadata() {
     'version',
     'updatedAt',
     'releaseUrl',
-    'checksumsAsset'
+    'checksumsAsset',
+    'checksumsSha256'
   ]
   for (const field of requiredFields) {
     if (typeof metadata[field] !== 'string' || metadata[field].length === 0) {
@@ -123,6 +135,14 @@ async function readUpstreamMetadata() {
   }
   if (!metadata.assets || typeof metadata.assets !== 'object') {
     throw new Error('CUA upstream metadata must declare release assets')
+  }
+  if (!/^[a-f0-9]{64}$/.test(metadata.checksumsSha256)) {
+    throw new Error('CUA upstream metadata has an invalid checksumsSha256')
+  }
+  for (const [assetKey, asset] of Object.entries(metadata.assets)) {
+    if (!asset || typeof asset !== 'object' || !/^[a-f0-9]{64}$/.test(asset.sha256 ?? '')) {
+      throw new Error(`CUA upstream metadata has an invalid sha256 for ${assetKey}`)
+    }
   }
   return metadata
 }
@@ -199,6 +219,14 @@ async function verifyChecksum(checksumsPath, assetPath, assetName) {
   if (actual !== expected) {
     await fs.rm(assetPath, { force: true })
     throw new Error(`Checksum mismatch for ${assetName}. Expected ${expected}, got ${actual}`)
+  }
+}
+
+async function verifyPinnedChecksum(filePath, expectedHash, label) {
+  const actual = await sha256File(filePath)
+  if (actual !== expectedHash) {
+    await fs.rm(filePath, { force: true })
+    throw new Error(`Checksum mismatch for ${label}. Expected ${expectedHash}, got ${actual}`)
   }
 }
 
@@ -318,8 +346,27 @@ async function renameDarwinHelperExecutable(appPath) {
   await fs.rename(upstreamExecutable, deepchatExecutable)
 }
 
+async function assertDarwinHelperExecutableClosure(appPath) {
+  const macOsDir = path.join(appPath, 'Contents', 'MacOS')
+  const entries = await fs.readdir(macOsDir, { withFileTypes: true })
+  const valid =
+    entries.length === 1 &&
+    entries[0].name === darwinHelperBinaryName &&
+    entries[0].isFile()
+  if (!valid) {
+    throw new Error(
+      `CUA macOS helper Contents/MacOS must contain only the regular file ${darwinHelperBinaryName}; found: ${entries.map((entry) => entry.name).sort().join(', ') || 'none'}`
+    )
+  }
+}
+
 export async function normalizeDarwinHelperBundle(appPath) {
   await renameDarwinHelperExecutable(appPath)
+  await fs.rm(
+    path.join(appPath, 'Contents', 'MacOS', upstreamDarwinThemeAuthoringExecutableName),
+    { force: true }
+  )
+  await assertDarwinHelperExecutableClosure(appPath)
   await rewriteDarwinHelperInfoPlist(appPath)
   await fs.rm(path.join(appPath, 'Contents', '_CodeSignature'), { recursive: true, force: true })
   await fs.rm(path.join(appPath, 'Contents', 'CodeResources'), { force: true })
@@ -338,14 +385,13 @@ export async function stageDarwinRuntime(extractDir, runtimeDir) {
   await normalizeDarwinHelperBundle(targetApp)
 }
 
-async function stageWindowsRuntime(extractDir, runtimeDir) {
+export async function stageWindowsRuntime(extractDir, runtimeDir) {
   const driver = await findFirst(extractDir, (file) => path.basename(file) === 'cua-driver.exe')
-  const uia = await findFirst(extractDir, (file) => path.basename(file) === 'cua-driver-uia.exe')
-  if (!driver || !uia) {
-    throw new Error('CUA Windows archive must contain cua-driver.exe and cua-driver-uia.exe')
+  if (!driver) {
+    throw new Error('CUA Windows archive is missing cua-driver.exe')
   }
   await fs.copyFile(driver, path.join(runtimeDir, 'cua-driver.exe'))
-  await fs.copyFile(uia, path.join(runtimeDir, 'cua-driver-uia.exe'))
+  await fs.rm(path.join(runtimeDir, 'cua-driver-uia.exe'), { force: true })
 }
 
 async function stageLinuxRuntime(extractDir, runtimeDir) {
@@ -423,6 +469,35 @@ function smokeCheck(executable, targetPlatform, targetArch) {
   console.log((result.stdout || result.stderr).trim())
 }
 
+export async function generateCuaToolCatalog(
+  executable,
+  outputPath,
+  expectedVersion,
+  { readCommand = read } = {}
+) {
+  let parsed
+  try {
+    parsed = JSON.parse(
+      readCommand(executable, ['dump-docs', '--type', 'mcp', '--pretty'], {
+        timeout: 30_000,
+        windowsHide: true
+      })
+    )
+  } catch (error) {
+    throw new Error(
+      `Unable to generate CUA MCP tool catalog: ${error instanceof Error ? error.message : error}`
+    )
+  }
+  const catalog = parseCuaToolCatalog(parsed, `${executable} dump-docs --type mcp`)
+  if (catalog.version !== expectedVersion) {
+    throw new Error(
+      `CUA MCP tool catalog version mismatch. Expected ${expectedVersion}, got ${catalog.version}`
+    )
+  }
+  await fs.writeFile(outputPath, `${JSON.stringify(catalog, null, 2)}\n`)
+  return catalog
+}
+
 function validateDarwinArchitecture(executable, targetPlatform, targetArch) {
   if (targetPlatform !== 'darwin' || process.platform !== 'darwin') {
     return
@@ -435,33 +510,183 @@ function validateDarwinArchitecture(executable, targetPlatform, targetArch) {
   }
 }
 
-async function signDarwinHelper(runtimeDir, targetPlatform) {
+export function inspectDarwinExecutable(executable, { readCommand = read } = {}) {
+  return {
+    rpaths: parseDarwinRpaths(readCommand('/usr/bin/otool', ['-l', executable])),
+    linkedLibraries: parseDarwinLinkedLibraries(
+      readCommand('/usr/bin/otool', ['-L', executable])
+    )
+  }
+}
+
+export function inspectDarwinArchitectures(executable, { readCommand = read } = {}) {
+  const architectures = readCommand('/usr/bin/lipo', ['-archs', executable])
+    .split(/\s+/)
+    .filter(Boolean)
+  if (
+    architectures.length === 0 ||
+    architectures.some((architecture) => !/^[A-Za-z0-9_]+$/.test(architecture))
+  ) {
+    throw new Error(`Unable to determine CUA helper architectures: ${executable}`)
+  }
+  return [...new Set(architectures)]
+}
+
+function assertAllowedDarwinLinkedLibraries(linkedLibraries, executable) {
+  const disallowed = findDisallowedDarwinLoadPaths(linkedLibraries)
+  if (disallowed.length > 0) {
+    throw new Error(
+      `CUA helper contains non-system linked libraries (${disallowed.join(', ')}): ${executable}`
+    )
+  }
+}
+
+function assertAllowedDarwinRpaths(rpaths, executable) {
+  const disallowed = findDisallowedDarwinLoadPaths(rpaths)
+  if (disallowed.length > 0) {
+    throw new Error(
+      `CUA helper still contains non-system RPATHs after sanitation (${disallowed.join(', ')}): ${executable}`
+    )
+  }
+}
+
+function enforceThinDarwinLoadPathContract(
+  executable,
+  {
+    inspectExecutable = inspectDarwinExecutable,
+    runCommand = run,
+    initialInspection
+  } = {}
+) {
+  const before = initialInspection ?? inspectExecutable(executable)
+  assertAllowedDarwinLinkedLibraries(before.linkedLibraries, executable)
+
+  const removedRpaths = findDisallowedDarwinLoadPaths(before.rpaths)
+  for (const rpath of removedRpaths) {
+    runCommand('/usr/bin/install_name_tool', ['-delete_rpath', rpath, executable])
+  }
+
+  const after = inspectExecutable(executable)
+  assertAllowedDarwinLinkedLibraries(after.linkedLibraries, executable)
+  assertAllowedDarwinRpaths(after.rpaths, executable)
+  return { removedRpaths }
+}
+
+export function enforceDarwinLoadPathContract(
+  executable,
+  {
+    inspectExecutable = inspectDarwinExecutable,
+    inspectArchitectures = inspectDarwinArchitectures,
+    ensureToolAvailable = ensureTool,
+    runCommand = run,
+    enforceSlice = (slicePath, initialInspection) =>
+      enforceThinDarwinLoadPathContract(slicePath, {
+        inspectExecutable,
+        runCommand,
+        initialInspection
+      }),
+    makeTemporaryDirectory = (prefix) => fsSync.mkdtempSync(prefix),
+    readMode = (targetPath) => fsSync.statSync(targetPath).mode,
+    applyMode = (targetPath, mode) => fsSync.chmodSync(targetPath, mode),
+    replaceFile = (sourcePath, targetPath) => fsSync.renameSync(sourcePath, targetPath),
+    removeTemporaryDirectory = (targetPath) =>
+      fsSync.rmSync(targetPath, { recursive: true, force: true })
+  } = {}
+) {
+  const initialInspection = inspectExecutable(executable)
+  assertAllowedDarwinLinkedLibraries(initialInspection.linkedLibraries, executable)
+  if (findDisallowedDarwinLoadPaths(initialInspection.rpaths).length === 0) {
+    return { removedRpaths: [] }
+  }
+
+  ensureToolAvailable('/usr/bin/install_name_tool', ['-help'])
+  ensureToolAvailable('/usr/bin/lipo', ['-info', process.execPath])
+  const architectures = inspectArchitectures(executable)
+  let removedRpaths
+  if (architectures.length === 1) {
+    removedRpaths = enforceSlice(executable, initialInspection).removedRpaths
+  } else {
+    const temporaryDirectory = makeTemporaryDirectory(`${executable}.load-paths-`)
+    const slicePaths = []
+    let sanitationError
+    try {
+      removedRpaths = []
+      for (const architecture of architectures) {
+        const slicePath = path.join(
+          temporaryDirectory,
+          `${architecture}-${path.basename(executable)}`
+        )
+        runCommand('/usr/bin/lipo', [
+          '-thin',
+          architecture,
+          executable,
+          '-output',
+          slicePath
+        ])
+        slicePaths.push(slicePath)
+        removedRpaths.push(...enforceSlice(slicePath).removedRpaths)
+      }
+
+      const rebuiltExecutable = path.join(temporaryDirectory, path.basename(executable))
+      runCommand('/usr/bin/lipo', ['-create', ...slicePaths, '-output', rebuiltExecutable])
+      const rebuiltInspection = inspectExecutable(rebuiltExecutable)
+      assertAllowedDarwinLinkedLibraries(
+        rebuiltInspection.linkedLibraries,
+        rebuiltExecutable
+      )
+      assertAllowedDarwinRpaths(rebuiltInspection.rpaths, rebuiltExecutable)
+      const rebuiltArchitectures = inspectArchitectures(rebuiltExecutable)
+      if (
+        rebuiltArchitectures.length !== architectures.length ||
+        architectures.some(
+          (architecture) => !rebuiltArchitectures.includes(architecture)
+        )
+      ) {
+        throw new Error(
+          `CUA helper architecture set changed during sanitation: ${architectures.join(', ')} -> ${rebuiltArchitectures.join(', ')}`
+        )
+      }
+      applyMode(rebuiltExecutable, readMode(executable) & 0o777)
+      replaceFile(rebuiltExecutable, executable)
+    } catch (error) {
+      sanitationError = error
+    }
+    try {
+      removeTemporaryDirectory(temporaryDirectory)
+    } catch (cleanupError) {
+      if (sanitationError) {
+        throw new AggregateError(
+          [sanitationError, cleanupError],
+          'CUA helper sanitation failed and temporary slice cleanup was incomplete'
+        )
+      }
+      throw cleanupError
+    }
+    if (sanitationError) {
+      throw sanitationError
+    }
+  }
+
+  removedRpaths = [...new Set(removedRpaths)]
+  if (removedRpaths.length > 0) {
+    console.info(`Removed CUA helper build-machine RPATHs: ${removedRpaths.join(', ')}`)
+  }
+  return { removedRpaths }
+}
+
+async function signDarwinHelper(runtimeDir, targetPlatform, packagePurpose) {
   if (targetPlatform !== 'darwin' || process.platform !== 'darwin') {
-    return
+    return null
   }
   ensureTool('codesign', ['--version'])
   const helperAppPath = path.join(runtimeDir, darwinHelperAppDirName)
   const entitlementsPath = path.join(pluginDir, 'build', 'entitlements.plist')
-  const signedForRelease = await signMacHelperForRelease({
+  return signMacHelper({
     appPath: helperAppPath,
     entitlementsPath,
+    purpose: packagePurpose,
     cwd: rootDir
   })
-  if (!signedForRelease) {
-    run('codesign', [
-      '--force',
-      '--deep',
-      '--sign',
-      '-',
-      '--entitlements',
-      entitlementsPath,
-      '--options',
-      'runtime',
-      '--timestamp=none',
-      helperAppPath
-    ])
-  }
-  run('codesign', ['--verify', '--deep', '--strict', '--verbose=2', helperAppPath])
 }
 
 async function main() {
@@ -472,8 +697,14 @@ async function main() {
   const targetArch = String(
     args.get('arch') ?? process.env.TARGET_ARCH ?? process.arch
   ).toLowerCase()
+  const packagePurpose = args.get('purpose')
   const metadata = await readUpstreamMetadata()
   const target = getTarget(targetPlatform, targetArch, metadata)
+  if (!canRunTarget(targetPlatform, targetArch)) {
+    throw new Error(
+      `CUA MCP tool catalog must be generated on its native target; host is ${process.platform}/${process.arch}, target is ${targetPlatform}/${targetArch}`
+    )
+  }
   const cacheDir = process.env.DEEPCHAT_CUA_DOWNLOAD_CACHE
     ? path.resolve(process.env.DEEPCHAT_CUA_DOWNLOAD_CACHE)
     : path.join(os.tmpdir(), 'deepchat-cua-driver-cache', metadata.tag)
@@ -486,24 +717,64 @@ async function main() {
   const assetPath = path.join(cacheDir, target.assetName)
   const checksumsPath = path.join(cacheDir, metadata.checksumsAsset)
 
-  await downloadFile(downloadUrl(metadata, metadata.checksumsAsset), checksumsPath)
-  await downloadFile(downloadUrl(metadata, target.assetName), assetPath)
-  await verifyChecksum(checksumsPath, assetPath, target.assetName)
-  await extractArchive(assetPath, extractDir)
+  let buildError
+  try {
+    await downloadFile(downloadUrl(metadata, metadata.checksumsAsset), checksumsPath)
+    await verifyPinnedChecksum(
+      checksumsPath,
+      metadata.checksumsSha256,
+      metadata.checksumsAsset
+    )
+    await downloadFile(downloadUrl(metadata, target.assetName), assetPath)
+    await verifyPinnedChecksum(assetPath, metadata.assets[target.assetKey].sha256, target.assetName)
+    await verifyChecksum(checksumsPath, assetPath, target.assetName)
+    await extractArchive(assetPath, extractDir)
 
-  const { runtimeDir, executable } = await stageRuntime(targetPlatform, targetArch, extractDir)
-  validateDarwinArchitecture(executable, targetPlatform, targetArch)
-  await signDarwinHelper(runtimeDir, targetPlatform)
-  smokeCheck(executable, targetPlatform, targetArch)
+    const { runtimeDir, executable } = await stageRuntime(targetPlatform, targetArch, extractDir)
+    validateDarwinArchitecture(executable, targetPlatform, targetArch)
+    if (targetPlatform === 'darwin' && process.platform === 'darwin') {
+      enforceDarwinLoadPathContract(executable)
+    }
+    const signingResult = await signDarwinHelper(runtimeDir, targetPlatform, packagePurpose)
+    smokeCheck(executable, targetPlatform, targetArch)
+    await generateCuaToolCatalog(
+      executable,
+      path.join(runtimeDir, 'tool-catalog.json'),
+      metadata.version
+    )
+    const stat = await fs.stat(executable)
+    if (stat.size === 0) {
+      throw new Error('Staged CUA runtime is invalid')
+    }
+    const { descriptorPath } = writeCuaRuntimeIntegrityDescriptor(pluginDir, {
+      targetPlatform,
+      targetArch,
+      purpose: signingResult?.purpose ?? packagePurpose
+    })
+    console.log(
+      `Generated CUA runtime integrity descriptor: ${path.relative(rootDir, descriptorPath)}`
+    )
 
-  const relativeRuntimePath = path.relative(rootDir, runtimeDir)
-  const stat = await fs.stat(executable)
-  if (!fsSync.existsSync(executable) || stat.size === 0) {
-    throw new Error('Staged CUA runtime is invalid')
+    const relativeRuntimePath = path.relative(rootDir, runtimeDir)
+    console.log(`CUA Driver ${metadata.tag} staged at ${relativeRuntimePath}`)
+  } catch (error) {
+    buildError = error
   }
 
-  await fs.rm(workRoot, { recursive: true, force: true })
-  console.log(`CUA Driver ${metadata.tag} staged at ${relativeRuntimePath}`)
+  try {
+    await fs.rm(workRoot, { recursive: true, force: true })
+  } catch (cleanupError) {
+    if (buildError) {
+      throw new AggregateError(
+        [buildError, cleanupError],
+        'CUA runtime build failed and temporary workspace cleanup was incomplete'
+      )
+    }
+    throw cleanupError
+  }
+  if (buildError) {
+    throw buildError
+  }
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

@@ -1,6 +1,6 @@
 ---
 name: deepchat-sdd-cleanup
-description: Use only when a developer explicitly asks to clean, prune, tidy, or organize DeepChat SDD documentation after implementation and validation. Scans docs/features, docs/issues, and docs/architecture; prefers multi-agent review when available; removes completed issue docs tied to closed GitHub issues, drops stale plan/tasks files from completed feature or architecture goals, and deletes obsolete feature or architecture docs.
+description: Use only when a developer explicitly asks to clean, prune, tidy, or organize DeepChat SDD documentation after implementation and validation. Scans docs/features, docs/issues, and docs/architecture; prefers multi-agent review when available; removes completed issue docs when a linked GitHub issue is closed or implementation and validation evidence proves the bug no longer exists, drops stale plans and legacy task files from completed feature or architecture goals, and deletes obsolete feature or architecture docs.
 ---
 
 # DeepChat SDD Cleanup
@@ -25,11 +25,11 @@ feature, bug, architecture, or release work.
 
 ## Cleanup Rules
 
-- Completed feature or architecture goal: delete `plan.md` and `tasks.md`; keep `spec.md` only when
-  it still defines a maintained contract, regression guard, platform policy, or architecture
-  decision.
-- Completed issue goal: delete the issue folder when a linked GitHub issue is closed or the local
-  code and tests prove the bug no longer exists.
+- Completed feature or architecture goal: delete `plan.md` and any legacy `tasks.md`; keep `spec.md`
+  only when it still defines a maintained contract, regression guard, platform policy, or
+  architecture decision.
+- Completed issue goal: delete the issue folder when a linked GitHub issue is closed or the
+  implementation and validation evidence prove the bug no longer exists.
 - Removed feature: delete its folder when the product/code path is gone and the spec has no reusable
   decision record.
 - Obsolete architecture: delete its folder when the module was fully replaced and the doc no longer
@@ -45,7 +45,7 @@ solely because a GitHub link looks old.
 
 ## Never Delete
 
-- Active work with unchecked tasks.
+- Active work with unchecked `plan.md` steps or legacy tasks.
 - Any document containing unresolved `[NEEDS CLARIFICATION]`.
 - A document referenced by `docs/README.md`, `docs/ARCHITECTURE.md`, `docs/FLOWS.md`, or AGENTS
   instructions unless the reference is updated in the same change.

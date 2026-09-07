@@ -48,19 +48,16 @@
           <DialogTitle>
             <div class="flex items-center justify-between gap-2 pr-8">
               <span>{{ selectedPreview?.title || t('toolCall.imagePreview') }}</span>
-              <Tooltip v-if="selectedPreview">
-                <TooltipTrigger as-child>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    class="h-7 w-7 rounded-lg text-muted-foreground hover:text-foreground"
-                    @click="handleSaveSelectedPreview"
-                  >
-                    <Icon icon="lucide:download" class="h-4 w-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>{{ t('image.save') }}</TooltipContent>
-              </Tooltip>
+              <DcButton
+                v-if="selectedPreview"
+                variant="ghost"
+                size="icon-sm"
+                icon="lucide:download"
+                icon-size="4"
+                :tooltip="t('image.save')"
+                class="rounded-lg text-muted-foreground hover:text-foreground"
+                @click="handleSaveSelectedPreview"
+              />
             </div>
           </DialogTitle>
         </DialogHeader>
@@ -86,9 +83,8 @@
 import { computed, ref } from 'vue'
 import { Icon } from '@iconify/vue'
 import { useI18n } from 'vue-i18n'
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@shadcn/components/ui/dialog'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@shadcn/components/ui/tooltip'
 import type { ToolCallImagePreview } from '@shared/types/core/mcp'
 import ImageActionContextMenu from './ImageActionContextMenu.vue'
 import { useImageActions } from '@/composables/useImageActions'

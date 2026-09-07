@@ -1,8 +1,24 @@
 import { z } from 'zod'
-import { defineRouteContract } from '../common'
+import { RevisionSchema, defineRouteContract } from '../common'
 import { EnvironmentSummarySchema, ProjectSchema } from '../domainSchemas'
 
 export const EnvironmentStatusSchema = z.enum(['active', 'archived', 'removed'])
+
+export const ProjectSnapshotSchema = z.object({
+  version: RevisionSchema,
+  projects: z.array(ProjectSchema),
+  environments: z.array(EnvironmentSummarySchema),
+  archivedEnvironments: z.array(EnvironmentSummarySchema),
+  removedEnvironments: z.array(EnvironmentSummarySchema),
+  defaultProjectPath: z.string().nullable(),
+  defaultChatWorkspacePath: z.string().nullable()
+})
+
+export const projectGetSnapshotRoute = defineRouteContract({
+  name: 'project.getSnapshot',
+  input: z.object({}).default({}),
+  output: ProjectSnapshotSchema
+})
 
 export const projectListRecentRoute = defineRouteContract({
   name: 'project.listRecent',
@@ -42,7 +58,8 @@ export const projectArchiveEnvironmentRoute = defineRouteContract({
     path: z.string().trim().min(1)
   }),
   output: z.object({
-    updated: z.boolean()
+    updated: z.boolean(),
+    version: RevisionSchema
   })
 })
 
@@ -90,6 +107,7 @@ export const projectSelectDirectoryRoute = defineRouteContract({
   name: 'project.selectDirectory',
   input: z.object({}).default({}),
   output: z.object({
-    path: z.string().nullable()
+    path: z.string().nullable(),
+    version: RevisionSchema
   })
 })

@@ -13,19 +13,34 @@
   "notImplementedDesc": "이 공급업체는 아직 미리 볼 수 없습니다.",
   "provider": "공급업체",
   "model": "모델",
-  "title": "요청 매개변수 미리보기",
+  "title": "메시지 진단",
   "tabs": {
     "request": "요청",
     "view": "보기",
     "entries": "항목",
-    "budget": "예산"
+    "budget": "예산",
+    "execution": "실행 감사"
   },
   "empty": "진단 없음",
-  "emptyDesc": "이 메시지에는 요청 추적 또는 보기 매니페스트가 없습니다",
+  "emptyDesc": "이 메시지에는 요청 추적, Tape 보기 매니페스트 또는 중첩 실행 감사가 없습니다",
   "requestUnavailable": "요청 추적 없음",
   "requestUnavailableDesc": "이 메시지에는 저장된 제공자 요청 추적이 없습니다",
   "manifestUnavailable": "보기 매니페스트 없음",
   "manifestUnavailableDesc": "이 메시지에는 저장된 Tape 보기 매니페스트가 없습니다",
+  "execution": {
+    "empty": "중첩 실행 없음",
+    "emptyDesc": "이 요청에 기록된 프로그래밍 방식의 도구 작업이 없습니다",
+    "corrupt": "실행 감사가 손상되었습니다",
+    "corruptDesc": "중첩된 Journal 사실이 충돌하거나 검증할 수 없습니다",
+    "unavailable": "실행 감사를 사용할 수 없습니다",
+    "unavailableDesc": "중첩된 Journal 사실을 읽을 수 없습니다",
+    "truncated": "처음 256개의 중첩 작업만 표시됩니다",
+    "status": {
+      "success": "성공",
+      "error": "오류",
+      "indeterminate": "불확정"
+    }
+  },
   "viewId": "보기 ID",
   "policy": "정책",
   "policyVersion": "정책 버전",

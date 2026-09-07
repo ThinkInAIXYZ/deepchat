@@ -63,6 +63,27 @@
         "yobrowser": "Trình duyệt Yo"
       }
     },
+    "toolMode": {
+      "title": "Chế độ",
+      "modelDefault": "Mặc định của mô hình",
+      "options": {
+        "agent": "Agent",
+        "code": "Code",
+        "minimal": "Minimal"
+      },
+      "descriptions": {
+        "agent": "Sử dụng bộ công cụ Agent tiêu chuẩn.",
+        "code": "Kết hợp các công cụ đã bật bằng mã. Yêu cầu chế độ quyền Toàn quyền truy cập.",
+        "minimal": "Đơn giản hóa thao tác tệp và giữ các công cụ đã bật khác."
+      },
+      "useModelDefault": "Dùng mặc định của mô hình",
+      "saving": "Đang lưu chế độ...",
+      "locked": "Bạn có thể đổi chế độ sau khi phản hồi này hoàn tất.",
+      "updateFailed": "Không thể cập nhật chế độ công cụ.",
+      "codeEntry": "Điểm vào mã",
+      "codeCallable": "Có thể gọi từ mã",
+      "minimalTools": "Công cụ lập trình"
+    },
     "fileUploadFailed": "Tệp đính kèm không thành công",
     "fileUploadFailedDesc": "Không thể xử lý tệp {count}: {names}",
     "fileUploadFailedMore": " và {count} khác",
@@ -71,6 +92,12 @@
     "audioInputUnsupportedDescription": "Model {model} không hỗ trợ đầu vào âm thanh. Đã bỏ qua (các) tệp đính kèm âm thanh {count}."
   },
   "pendingInput": {
+    "resume": "Tiếp tục hàng đợi",
+    "resumeFailed": "Không thể tiếp tục hàng đợi",
+    "retry": "Thử lại",
+    "retryRequired": "Cần thử lại",
+    "retryRequiredDescription": "Tin nhắn này chưa được gửi. Hãy thử lại để tiếp tục hàng đợi.",
+    "retryFailed": "Không thể thử lại tin nhắn trong hàng đợi",
     "steer": "Chỉ đạo",
     "queueCount": "Đang chờ gửi {count}/{max}",
     "toSteer": "Ngắt & gửi",
@@ -114,12 +141,21 @@
     "rateLimitMinutes": "tôi"
   },
   "compaction": {
-    "compacting": "Nén bối cảnh...",
-    "compacted": "Bối cảnh đã được nén",
-    "commandDescription": "Bối cảnh hội thoại nhỏ gọn",
-    "noopTitle": "Không có ngữ cảnh để thu gọn",
-    "noopDescription": "Chưa có lịch sử hội thoại mới nào được thu gọn.",
+    "compacting": "Đang nén ngữ cảnh...",
+    "compacted": "Ngữ cảnh đã được nén",
+    "compactedWithoutSummary": "Ngữ cảnh đã được nén mà không có bản tóm tắt",
+    "compactedWithoutLargerSummary": "Ngữ cảnh đã được nén mà không dùng bản tóm tắt lớn hơn",
+    "commandDescription": "Nén ngữ cảnh phiên",
+    "noopTitle": "Không có ngữ cảnh để nén",
+    "noopDescription": "Chưa có lịch sử hội thoại mới nào để nén.",
     "failedTitle": "Nén không thành công"
+  },
+  "contextOccupancy": {
+    "label": "Mức dùng ngữ cảnh",
+    "details": "{used} trên {capacity} token",
+    "provider": "Do nhà cung cấp đo",
+    "estimated": "Ước tính từ chế độ xem yêu cầu",
+    "stale": "Đã cũ sau khi đổi mô hình, cửa sổ hoặc nén"
   },
   "rateLimit": {
     "queueTooltip": "Yêu cầu {count} trong hàng đợi, khoảng thời gian {interval}",
@@ -161,7 +197,8 @@
   "mode": {
     "current": "Chế độ hiện tại: {mode}",
     "agent": "Agent",
-    "acpAgent": "ACP Agent"
+    "acpAgent": "ACP Agent",
+    "saveFailed": "Không thể lưu lựa chọn chế độ"
   },
   "topbar": {
     "backToParent": "Quay lại trang gốc",
@@ -178,7 +215,6 @@
     "systemPrompt": "System Prompt",
     "systemPromptPlaceholder": "Chọn một cài đặt trước",
     "temperature": "Nhiệt độ",
-    "temperatureFixedMoonshotKimi": "Moonshot Kimi K2.5/K2.6 sửa nhiệt độ thành {enabled} khi tính năng suy nghĩ được bật và {disabled} khi tính năng này bị tắt.",
     "topP": "Top P",
     "topPDescription": "Nucleus sampling; leave blank to use provider default",
     "contextLength": "Độ dài ngữ cảnh",
@@ -260,8 +296,14 @@
       },
       "contextMenu": {
         "openFile": "Mở tập tin",
+        "openWith": "Mở bằng",
+        "openInApp": "Mở trong {app}",
+        "openInTerminalApp": "Mở thư mục trong {app}",
+        "openFailed": "Không thể mở tệp bằng ứng dụng đó",
+        "preferredAppUnavailable": "Ứng dụng ưa thích tạm thời không khả dụng. Đang mở bằng ứng dụng mặc định của hệ thống.",
         "revealInFolder": "Hiển thị trong trình quản lý tập tin",
-        "insertPath": "Chèn vào đầu vào"
+        "insertPath": "Chèn vào đầu vào",
+        "openWithSystemDefault": "Mở bằng ứng dụng mặc định của hệ thống"
       },
       "watchStatus": {
         "degraded": "Đang theo dõi ở chế độ dự phòng. Thay đổi có thể được làm mới chậm hơn.",
@@ -364,7 +406,13 @@
     "moveProjectGroupBottom": "Di chuyển xuống cuối",
     "searchCommand": "Search",
     "chatSection": "Chat",
-    "workspace": "Workspace"
+    "workspace": "Workspace",
+    "addWorkspace": "Thêm không gian làm việc",
+    "manageWorkspaces": "Quản lý không gian làm việc",
+    "openWorkspaceFolder": "Mở thư mục",
+    "emptyWorkspace": "Trống",
+    "addWorkspaceFailed": "Không thể thêm không gian làm việc",
+    "searchLoadedRangeDescription": "Đang hiển thị kết quả khớp từ các cuộc trò chuyện đã tải. Cuộn để tải thêm lịch sử."
   },
   "spotlight": {
     "placeholder": "Tìm kiếm cuộc trò chuyện, đại lý, cài đặt, hành động…",
@@ -400,6 +448,72 @@
     "firstChat": {
       "description": "Mọi thứ đã sẵn sàng. Nhập tin nhắn đầu tiên của bạn vào đây để hoàn tất quy trình giới thiệu.",
       "caption": "Đèn chiếu vẫn ở trên hộp nhập cho đến khi bạn gửi tin nhắn đầu tiên."
+    }
+  },
+  "messageReceipt": {
+    "unread": "Chưa đọc",
+    "read": "Đã đọc"
+  },
+  "attachments": {
+    "chooseRepresentation": "Chọn cách gửi {name}",
+    "representation": "Dạng biểu diễn tệp đính kèm",
+    "auto": "Tự động",
+    "sendImage": "Gửi hình ảnh",
+    "useOcrText": "Dùng văn bản OCR",
+    "useEmbeddedText": "Dùng văn bản nhúng",
+    "preparing": "Đang xử lý tệp đính kèm…",
+    "actionRequiredTitle": "Tệp đính kèm cần được xử lý",
+    "actionRequiredDescription": "Không thể sử dụng một hoặc nhiều tệp đính kèm. Hãy chọn cách tiếp tục.",
+    "attachmentNumber": "Tệp đính kèm {number}",
+    "moreIssues": "Thêm {count} sự cố với tệp đính kèm",
+    "genericUnavailable": "Không có nội dung tệp đính kèm dùng được.",
+    "keepDraft": "Giữ bản nháp",
+    "switchVisionModel": "Chuyển sang mô hình có khả năng thị giác",
+    "retry": "Thử lại",
+    "sendWithoutImageContent": "Bỏ qua nội dung đính kèm",
+    "inspectOcrText": "Xem văn bản OCR",
+    "ocrBadge": "OCR",
+    "embeddedTextBadge": "Văn bản",
+    "ocrPartialBadge": "OCR · Một phần",
+    "ocrLimitedBadge": "OCR · Giới hạn",
+    "imageBadge": "Hình ảnh",
+    "unavailableBadge": "Không khả dụng",
+    "ocrPreviewTitle": "Văn bản OCR — {name}",
+    "ocrPreviewDescription": "Khoảng {tokens} token đã được gửi dưới dạng nội dung tệp đính kèm không đáng tin cậy.",
+    "ocrPageCoverage": "Bao gồm văn bản đến trang {page}.",
+    "ocrPageCoveragePartial": "Bao gồm một phần trang {page}.",
+    "ocrTextTruncated": "Văn bản OCR này đã bị cắt bớt trước khi gửi.",
+    "reasons": {
+      "automatic_ocr_disabled": "OCR tự động đang tắt.",
+      "document_limit_exceeded": "Mỗi yêu cầu chỉ có thể dùng OCR cho một tệp PDF.",
+      "document_too_large": "Tệp PDF vượt quá giới hạn dung lượng.",
+      "image_dimensions_exceeded": "Kích thước hình ảnh sau khi giải mã vượt quá giới hạn an toàn.",
+      "image_limit_exceeded": "Lượt này có nhiều hình ảnh hơn mức OCR có thể xử lý.",
+      "image_payload_unavailable": "Dữ liệu hình ảnh gốc không còn khả dụng.",
+      "image_too_large": "Hình ảnh vượt quá giới hạn dung lượng cho mỗi tệp.",
+      "ocr_cancelled": "Đã hủy OCR.",
+      "ocr_empty": "OCR không tìm thấy văn bản dùng được.",
+      "ocr_failed": "OCR không thể xử lý tệp đính kèm này.",
+      "ocr_queue_full": "OCR đang bận. Hãy thử lại sau khi xử lý xong tệp đính kèm hiện tại.",
+      "ocr_resource_limited": "OCR đã dừng ở giới hạn xử lý PDF.",
+      "ocr_runtime_unavailable": "OCR không khả dụng trên nền tảng hoặc bản cài đặt này.",
+      "invalid_attachment_snapshot": "Dữ liệu OCR đã lưu không hợp lệ.",
+      "turn_ocr_budget_exhausted": "Văn bản OCR vượt quá giới hạn văn bản đính kèm của tin nhắn này.",
+      "pdf_text_unavailable": "Không có văn bản nhúng trong tệp PDF này.",
+      "requested_image_requires_vision": "“Gửi hình ảnh” yêu cầu mô hình có khả năng thị giác.",
+      "turn_image_bytes_exceeded": "Các hình ảnh trong lượt này vượt quá giới hạn tổng dung lượng.",
+      "user_skipped_attachment_content": "Nội dung tệp đính kèm đã được bỏ qua theo lựa chọn của bạn.",
+      "user_skipped_image_content": "Nội dung hình ảnh đã được bỏ qua theo lựa chọn của bạn.",
+      "unsupported_image_format": "Định dạng hình ảnh này không được OCR hỗ trợ."
+    },
+    "pending": {
+      "blockedCount": "{count} mục bị chặn",
+      "blocked": "Bị chặn",
+      "retry": "Thử lại OCR",
+      "sendWithoutImageContent": "Bỏ qua nội dung đính kèm",
+      "blockedDescription": "Mục này đang chờ quyết định về tệp đính kèm.",
+      "blockedReasonMore": "{reason} Ngoài ra còn {count} sự cố khác.",
+      "resolveFailed": "Không thể xử lý tin nhắn bị chặn"
     }
   },
   "skillDraft": {
@@ -459,6 +573,14 @@
       "dropped": "Đã bỏ",
       "tokens": "Token",
       "budget": "Ngân sách",
+      "allocation": "Phân bổ ngân sách đóng góp",
+      "directive": "Chỉ dẫn",
+      "persona": "Chân dung",
+      "working": "Bộ nhớ làm việc",
+      "queryRecall": "Truy hồi theo truy vấn",
+      "overhead": "Chi phí phụ",
+      "unused": "Chưa dùng",
+      "overheadSummary": "Chi phí phụ {overhead} · Chưa dùng {unused}",
       "countOnly": "Bản ghi này chỉ có tóm tắt số lượng.",
       "unavailable": "Bộ nhớ này không còn khả dụng.",
       "noSelectedDetails": "Không có chi tiết bộ nhớ để hiển thị cho lượt này.",
@@ -485,5 +607,29 @@
       "amendRetryable": "Chỉnh sửa thất bại. Ký ức ban đầu đã được khôi phục, hãy thử lại.",
       "amendRestoreFailed": "Chỉnh sửa thất bại và không thể khôi phục ký ức ban đầu."
     }
+  },
+  "orchestration": {
+    "actions": {
+      "openChild": "Mở Agent con"
+    },
+    "activityTitle": "Hoạt động của Agent",
+    "proactive": {
+      "title": "Cộng tác chủ động",
+      "description": "Cho phép Agent chính ủy quyền khi công việc độc lập hoặc song song mang lại lợi ích rõ ràng. Có thể dùng thêm thời gian, token và tài nguyên.",
+      "reasons": {
+        "session_unavailable": "Phiên này không còn khả dụng.",
+        "agent_unavailable": "Agent đã chọn không khả dụng.",
+        "deepchat_agent_required": "Cộng tác chủ động yêu cầu một DeepChat Agent.",
+        "regular_parent_required": "Cộng tác chủ động không khả dụng trong phiên con.",
+        "agent_policy_unavailable": "Không thể tải chính sách cộng tác.",
+        "subagents_disabled": "Hãy bật Subagents cho Agent này để dùng cộng tác chủ động."
+      }
+    }
+  },
+  "guardStop": {
+    "maxToolCalls": "Đã đạt giới hạn số lần gọi công cụ trước khi hoàn thành tác vụ.",
+    "noProgress": "Kết quả công cụ giống nhau lặp lại không mang lại tiến triển, nên Agent đã dừng.",
+    "maxTurns": "Đã đạt giới hạn số vòng của nhà cung cấp trước khi hoàn thành tác vụ.",
+    "continueMessage": "Tiếp tục từ chỗ vừa dừng."
   }
 }

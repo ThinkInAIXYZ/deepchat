@@ -1,6 +1,34 @@
 {
   "title": "pengaturan",
   "common": {
+    "commandShell": {
+      "title": "Shell perintah Agent",
+      "auto": "Otomatis",
+      "windowsPowerShell": "Windows PowerShell",
+      "powerShellCore": "PowerShell 7",
+      "commandPrompt": "Command Prompt",
+      "gitBash": "Git Bash",
+      "bash": "Bash",
+      "zsh": "Zsh",
+      "fish": "Fish",
+      "executable": "File eksekusi Git Bash",
+      "autoDetect": "Deteksi otomatis",
+      "browse": "Pilih Git Bash",
+      "clearOverride": "Hapus jalur khusus",
+      "checking": "Memeriksa Git Bash...",
+      "available": "Tersedia: {path}",
+      "refresh": "Periksa lagi",
+      "updateFailed": "Pengaturan shell perintah tidak dapat diperbarui.",
+      "checkFailed": "Ketersediaan Git Bash tidak dapat diperiksa.",
+      "browseFailed": "File eksekusi Git Bash tidak dapat dipilih.",
+      "loadFailed": "Pengaturan shell perintah tidak dapat dimuat.",
+      "errors": {
+        "unsupported-platform": "Git Bash hanya dapat dipilih di Windows.",
+        "override-invalid": "Jalur khusus harus mengarah ke bash.exe yang ada.",
+        "not-found": "Git Bash tidak ditemukan di perangkat ini.",
+        "validation-failed": "File eksekusi yang terdeteksi tidak lolos validasi Git Bash."
+      }
+    },
     "title": "Pengaturan umum",
     "resetData": "Setel ulang data",
     "language": "Bahasa",
@@ -18,18 +46,6 @@
     "privacyModeNpmRegistry": "MCP npm Deteksi otomatis registri",
     "privacyModeManualActions": "Pemeriksaan manual dan penyegaran manual terus tersedia.",
     "privacyModeIntegrations": "Integrasi pihak ketiga seperti MCP/Remote yang dikonfigurasi sendiri tidak terpengaruh",
-    "autoCompaction": {
-      "title": "kompresi otomatis",
-      "enabled": "Aktifkan kompresi otomatis",
-      "description": "Saat percakapan mendekati batas jendela konteks model, DeepChat dapat merangkum riwayat lama secara otomatis agar sesi tetap berlanjut. Jika dinonaktifkan, DeepChat tidak akan membuat ringkasan, tetapi tetap memangkas tampilan permintaan saat diperlukan untuk menghindari error context-window mentah dari penyedia.",
-      "thresholdLabel": "ambang batas pemicu",
-      "thresholdMin": "Muka ({value}%)",
-      "thresholdMax": "Ditunda ({value}%)",
-      "thresholdDescription": "Kompresi dimulai ketika tingkat hunian prompt mencapai proporsi anggaran historis efektif ini. Nilai yang lebih rendah menghasilkan buffer yang lebih besar, dan nilai yang lebih tinggi mempertahankan lebih banyak konteks aslinya.",
-      "retainPairsLabel": "Simpan pesan terbaru",
-      "retainPairsValue": "{count} Ya",
-      "retainPairsDescription": "Pasangan pesan pengguna dan asisten yang paling baru diselesaikan selalu disimpan dan tidak berpartisipasi dalam kompresi. Kueri terakhir saat ini tidak dihitung."
-    },
     "searchAssistantModel": "model pembantu",
     "selectModel": "Pilih modelnya",
     "proxyMode": "mode proksi",
@@ -41,7 +57,7 @@
     "customProxyUrlPlaceholder": "Misalnya: http://127.0.0.1:7890",
     "invalidProxyUrl": "Alamat proxy tidak valid, masukkan http/https URL yang valid",
     "addCustomSearchEngine": "Tambahkan mesin pencari khusus",
-    "addCustomSearchEngineDesc": "Untuk menambahkan mesin pencari baru, berikan nama dan cari URL. {query} harus disertakan dalam URL sebagai placeholder kueri.",
+    "addCustomSearchEngineDesc": "Untuk menambahkan mesin pencari baru, berikan nama dan cari URL. {'{'}query{'}'} harus disertakan dalam URL sebagai placeholder kueri.",
     "searchEngineName": "Nama mesin pencari",
     "searchEngineNamePlaceholder": "Silakan masukkan nama mesin pencari",
     "searchEngineUrl": "Telusuri URL",
@@ -69,6 +85,7 @@
     "contentProtectionRestartNotice": "Mengalihkan pengaturan ini akan menyebabkan program dimulai ulang. Apakah Anda yakin ingin melanjutkan?",
     "copyWithCotEnabled": "Salin informasi COT",
     "traceDebugEnabled": "Lacak panggilan",
+    "traceDebugEnabledDesc": "Saat diaktifkan, konten permintaan model disimpan secara lokal. Header autentikasi penyedia yang dikenal dan bidang kunci API disamarkan, tetapi prompt mungkin berisi data sensitif.",
     "loggingEnabled": "Aktifkan pencatatan",
     "loggingDialogTitle": "Konfirmasikan perubahan pengaturan log",
     "loggingEnableDesc": "Mengaktifkan logging akan membantu kami mendiagnosis masalah dan meningkatkan aplikasi. File log mungkin berisi informasi sensitif.",
@@ -85,7 +102,95 @@
       "chatModel": "Model obrolan bawaan"
     }
   },
+  "ocr": {
+    "description": "Ekstrak teks dari gambar secara otomatis saat model yang dipilih tidak dapat melihatnya. Pengenalan hanya dilakukan di perangkat ini.",
+    "autoExtract": "Kenali teks dalam gambar secara otomatis",
+    "autoExtractDescription": "Digunakan saat model yang dipilih tidak dapat melihat gambar.",
+    "advancedTitle": "Pengaturan lanjutan",
+    "advancedDescription": "Kebanyakan pengguna tidak perlu mengubahnya.",
+    "backend": "Metode pengenalan",
+    "backendDescription": "Otomatis memilih metode terbaik untuk perangkat ini. Gunakan CPU hanya saat memecahkan masalah kompatibilitas.",
+    "backendAuto": "Otomatis (Disarankan)",
+    "backendCpu": "CPU saja",
+    "diagnosticsTitle": "Informasi diagnostik",
+    "diagnosticsDescription": "Hanya diperlukan saat memecahkan masalah.",
+    "refresh": "Coba lagi",
+    "loading": "Memuat status OCR…",
+    "statusUnavailable": "Status OCR untuk sementara tidak tersedia.",
+    "availability": "Ketersediaan",
+    "available": "Tersedia",
+    "unavailable": "Tidak tersedia",
+    "process": "Proses pembantu",
+    "version": "Versi Light OCR",
+    "notStarted": "Sesuai kebutuhan",
+    "nodeNotStarted": "Dimulai sesuai kebutuhan",
+    "queuedRequests": "{count} permintaan dalam antrean",
+    "strategy": "Strategi pengenalan",
+    "nodeVersion": "Runtime Node",
+    "detectionBackend": "Backend deteksi",
+    "recognitionBackend": "Backend pengenalan",
+    "cacheTitle": "Cache lokal",
+    "cacheMode": "Mode penyimpanan",
+    "cacheEntries": "Gambar",
+    "cacheUsage": "Ruang terpakai",
+    "cacheNotStarted": "Belum ada cache.",
+    "cacheProtected": "Cache turunan lokal terenkripsi.",
+    "clearCache": "Bersihkan",
+    "clearCacheTitle": "Bersihkan cache lokal?",
+    "clearCacheDescription": "Hasil pengenalan dalam cache akan dihapus. Teks yang sudah disimpan dalam chat tidak akan terpengaruh.",
+    "clearCacheConfirm": "Bersihkan",
+    "cacheCleared": "Cache OCR dihapus",
+    "cacheClearedDescription": "Teks yang sudah disimpan dalam chat tidak diubah.",
+    "loadFailed": "Pengaturan OCR tidak dapat dimuat.",
+    "updateFailed": "Pengaturan OCR tidak dapat diperbarui.",
+    "statusLoadFailed": "Status OCR tidak dapat diperiksa.",
+    "clearCacheFailed": "Cache OCR tidak dapat dihapus.",
+    "unavailableReasons": {
+      "asset_identity_mismatch": "Aset OCR bawaan tidak cocok dengan rilis yang dikunci.",
+      "assets_missing": "Aset OCR luring yang diperlukan tidak ada dalam instalasi ini.",
+      "runtime_manifest_invalid": "Manifes runtime OCR bawaan tidak valid.",
+      "service_closed": "Layanan OCR sedang dihentikan.",
+      "unsupported_platform": "OCR tidak tersedia untuk platform dan arsitektur ini.",
+      "toolchain_unavailable": "OCR membutuhkan Node.js resmi v24.18.0. Buka Pengaturan → Toolchain dan pasang runtime resmi.",
+      "version_mismatch": "OCR membutuhkan Node.js v24.18.0. Versi ini di luar rentang. Buka Pengaturan → Toolchain dan pasang runtime resmi.",
+      "abi_mismatch": "OCR membutuhkan Node.js ABI 137 (v24.18.0). Buka Pengaturan → Toolchain dan pasang runtime resmi."
+    },
+    "processStates": {
+      "idle": "Tidak aktif",
+      "starting": "Memulai",
+      "ready": "Siap",
+      "busy": "Mengenali",
+      "stopping": "Menghentikan",
+      "closed": "Ditutup"
+    },
+    "strategies": {
+      "bounded-960": "Gambar terbatas",
+      "tiled-v1": "Dokumen berpetak"
+    },
+    "cacheModes": {
+      "persistent": "Terenkripsi di disk",
+      "memory": "Hanya memori"
+    },
+    "cacheFallbackReasons": {
+      "database_error": "Cache persisten tidak tersedia karena basis datanya tidak dapat dibuka.",
+      "safe_storage_unavailable": "Cache persisten tidak tersedia karena penyimpanan kunci aman tidak tersedia."
+    }
+  },
+  "leaveGuard": {
+    "dirtyTitle": "Perubahan belum disimpan",
+    "dirtyDescription": "Keluar dan buang perubahan?",
+    "busyTitle": "Sedang menyimpan",
+    "busyDescription": "Tunggu hingga penyimpanan selesai sebelum keluar.",
+    "stay": "Lanjutkan mengedit",
+    "discard": "Buang perubahan"
+  },
   "deepchatAgents": {
+    "saveFeedback": {
+      "saving": "Menyimpan…",
+      "saved": "Tersimpan",
+      "saveFailed": "Tidak dapat menyimpan. Perubahan tetap dipertahankan.",
+      "retry": "Coba lagi"
+    },
     "title": "DeepChat Agents",
     "description": "Kelola DeepChat Agent dan default sesi barunya.",
     "builtIn": "Bawaan",
@@ -130,8 +235,8 @@
     "permissionFullAccess": "Aktifkan semua",
     "permissionDefault": "Izin bawaan",
     "subagentsTitle": "subagent",
-    "subagentsDescription": "Konfigurasikan slot sesi `subagent_orchestrator` yang dapat digunakan kembali.",
-    "subagentsEnabled": "Aktifkan subagent",
+    "subagentsDescription": "Izinkan Agent ini mendelegasikan subtugas independen. Model menentukan kapan slot terkonfigurasi digunakan; delegasi memakai token, waktu, dan sumber daya sistem tambahan.",
+    "subagentsEnabled": "Izinkan Agent ini mendelegasikan subtugas",
     "subagentTargetType": "tipe sasaran",
     "subagentTargetSelf": "Saat iniAgent",
     "subagentTargetAgent": "Tentukan Agent",
@@ -141,6 +246,16 @@
     "subagentLimit": "slot {count}/{max}",
     "addSubagentSlot": "+ tambahkan slot",
     "toolsTitle": "Alat bawaan",
+    "outputLimitsTitle": "Batas output lanjutan",
+    "outputLimitsDescription": "Atur jumlah output alat yang tetap ditampilkan langsung untuk Agen ini.",
+    "outputLimitsSafetyHint": "Pemeriksaan konteks model masih dapat memindahkan ke file atau menolak hasil yang tidak muat.",
+    "outputLimitsReset": "Atur ulang ke default",
+    "outputLimitsReadFile": "Pembacaan file",
+    "outputLimitsReadFileHint": "Jumlah karakter yang dikembalikan saat pembacaan tidak menentukan batas eksplisit.",
+    "outputLimitsTool": "Output alat",
+    "outputLimitsToolHint": "Batas tampilan langsung untuk alat yang didukung dengan output besar.",
+    "outputLimitsCommand": "Output perintah",
+    "outputLimitsCommandHint": "Pratinjau latar depan untuk exec dan skrip keterampilan.",
     "compactionTitle": "kompresi otomatis",
     "compactionEnabled": "Aktifkan kompresi otomatis",
     "compactionDescription": "Pengaturan ini hanya memengaruhi sesi DeepChat berikutnya yang baru dibuat.",
@@ -160,14 +275,23 @@
       "tabMemories": "Memori",
       "tabPersona": "Linimasa persona",
       "memoriesCount": "{count} memori",
-      "clearAll": "Bersihkan semua",
-      "clearConfirmTitle": "Bersihkan semua memori?",
-      "clearConfirmBody": "Ini menghapus permanen semua memori agen ini. Tidak dapat dibatalkan.",
+      "clearAll": "Bersihkan memori",
+      "clearConfirmTitle": "Bersihkan memori faktual dan persona?",
+      "clearConfirmBody": "Ini menghapus permanen memori faktual dan persona agen ini. Arahan tetap dipertahankan dan dapat dikelola secara terpisah. Tidak dapat dibatalkan.",
+      "cleanupPendingRestart": "File vektor yang terkunci akan dihapus setelah aplikasi dimulai ulang",
       "emptyMemories": "Belum ada memori. Memori terkumpul saat Anda mengobrol dengan agen ini.",
       "emptyPersona": "Belum ada versi model-diri.",
       "personaActive": "Aktif",
       "rollback": "Kembalikan",
       "actionFailed": "Tindakan gagal",
+      "commandRejected": {
+        "unavailable": "Memori sementara tidak tersedia. Coba lagi.",
+        "notFound": "Memori ini sudah tidak ada. Tampilan telah dimuat ulang.",
+        "invalidState": "Tindakan ini sudah tidak valid. Tampilan telah dimuat ulang.",
+        "conflict": "Selesaikan konflik memori sebelum mencoba lagi.",
+        "stale": "Memori ini telah berubah. Tampilan telah dimuat ulang; coba lagi.",
+        "anchored": "Lepaskan sematan persona aktif sebelum mengembalikan."
+      },
       "conflict": "Konflik",
       "restore": "Pulihkan",
       "sourceLine": "Dari sesi {session} · {count} entri",
@@ -211,6 +335,7 @@
       "searchPlaceholder": "Cari memori",
       "noSearchResults": "Tidak ada memori yang cocok dengan pencarian Anda.",
       "addMemory": "Tambah memori",
+      "loadMore": "Muat lebih banyak",
       "addContentPlaceholder": "Hal yang ingin Anda ingat oleh asisten ini…",
       "addCategoryLabel": "Kategori memori",
       "addCategoryNone": "Tanpa kategori",
@@ -446,8 +571,6 @@
     "resetAllDesc": "Hapus semua data termasuk riwayat obrolan, konfigurasi, dan file cache",
     "resetting": "Menyetel ulang...",
     "confirmReset": "Konfirmasikan pengaturan ulang",
-    "resetCompleteDevTitle": "Penyetelan ulang data selesai",
-    "resetCompleteDevMessage": "Di lingkungan pengembangan, silakan restart aplikasi secara manual untuk melihat efeknya. Harap hentikan proses saat ini dan jalankan kembali pnpm run dev",
     "toast": {
       "backupSuccessTitle": "Pencadangan berhasil",
       "backupSuccessMessage": "Data berhasil dicadangkan"
@@ -548,7 +671,33 @@
       "clearedTitle": "Menghapus data YoBrowser",
       "clearedDescription": "Sesi sandbox telah disetel ulang dan tab terkait akan dimuat ulang.",
       "clearFailedTitle": "Pembersihan gagal",
-      "clearFailedDescription": "Silakan coba lagi atau periksa log untuk informasi lebih lanjut."
+      "clearFailedDescription": "Silakan coba lagi atau periksa log untuk informasi lebih lanjut.",
+      "import": {
+        "button": "Impor data situs web",
+        "title": "Impor data sesi browser",
+        "description": "Pilih profil Chrome atau Arc. macOS mungkin meminta Anda mengizinkan akses Rantai Kunci. Sumber tidak akan diubah.",
+        "scanning": "Mencari profil browser...",
+        "unsupportedTitle": "Tidak didukung di platform ini",
+        "unsupportedDescription": "Impor data browser secara langsung saat ini hanya tersedia di macOS. Windows belum didukung karena data Chrome saat ini terikat pada aplikasi.",
+        "profileLabel": "Profil sumber",
+        "profilePlaceholder": "Pilih profil",
+        "noProfiles": "Tidak ditemukan profil Chrome atau Arc yang didukung dengan data cookie.",
+        "cookies": "Cookie dan sesi",
+        "supported": "Disertakan dalam impor ini",
+        "otherData": "Kata sandi dan penyimpanan web",
+        "notIncluded": "Tidak disertakan dalam versi ini",
+        "preview": "Izinkan dan pratinjau",
+        "previewTitle": "Siap mengganti cookie YoBrowser",
+        "previewDescription": "{count} cookie dapat diimpor. Cookie YoBrowser yang ada akan diganti.",
+        "skipped": "Dilewati: {expired} kedaluwarsa, {partitioned} terpartisi.",
+        "confirm": "Ganti dan impor",
+        "doneTitle": "Impor selesai",
+        "doneDescription": "{count} cookie telah diimpor. Halaman browser yang terbuka telah dimuat ulang.",
+        "keyDenied": "Akses Rantai Kunci ditolak atau kunci browser tidak dapat dibaca.",
+        "previewExpired": "Sumber berubah atau pratinjau kedaluwarsa. Buat pratinjau baru.",
+        "encryptionUnsupported": "Profil ini menggunakan format enkripsi yang tidak didukung oleh pengimpor ini.",
+        "failed": "Impor gagal sebelum selesai. Cookie YoBrowser yang ada telah dipulihkan jika perubahan sempat dimulai."
+      }
     },
     "privacyTitle": "Data & Privasi",
     "privacyDescription": "Kelola sinkronisasi cadangan, mode privasi, pemeliharaan data, dan operasi berbahaya.",
@@ -690,7 +839,7 @@
   "dashboard": {
     "badge": "Gunakan Kanban",
     "title": "Gunakan Kanban",
-    "description": "Statistik konsumsi token, cache hits, dan perkiraan harga. token dan data biaya diperkirakan berdasarkan informasi publik. Beberapa pemasok atau data berita sebelumnya mungkin hilang dan hanya untuk referensi.",
+    "description": "Lacak penggunaan token dan hit cache.",
     "actions": {
       "refresh": "Segarkan"
     },
@@ -706,8 +855,8 @@
     },
     "empty": {
       "title": "Belum ada statistik",
-      "description": "Setelah data penggunaan tersedia, konsumsi token, cache hits, dan perkiraan harga ditampilkan di sini.",
-      "historyNote": "token dan data biaya diperkirakan berdasarkan informasi publik. Beberapa pemasok atau data berita sebelumnya mungkin hilang dan hanya untuk referensi."
+      "description": "Penggunaan token dan hit cache akan muncul di sini setelah data penggunaan tersedia.",
+      "historyNote": "Data penggunaan dari beberapa penyedia atau pesan sebelumnya mungkin tidak lengkap."
     },
     "summary": {
       "totalTokens": "Jumlahnya Token",
@@ -719,11 +868,7 @@
       "cachedTokensCachedLabel": "cache terkena",
       "cachedTokensUncachedLabel": "rindu",
       "cacheHitRate": "Tingkat keberhasilan cache",
-      "cacheHitRateDescription": "Cache prompt token sebagai proporsi total input token.",
-      "estimatedCost": "perkiraan harga",
-      "estimatedCostDescription": "Perkiraan biaya dalam USD dengan harga provider saat ini atau harga pengganti AIHubMix.",
-      "estimatedCostTrendLabel": "Tren dalam 30 hari terakhir",
-      "estimatedCostTrendEmpty": "Tidak ada biaya yang dicatat dalam 30 hari terakhir.",
+      "cacheHitRateDescription": "Token prompt dalam cache dibagi token input dari catatan penggunaan yang memiliki metrik cache.",
       "recordingStartedAt": "Statistik waktu mulai",
       "recordingStartedAtDescription": "Waktu catatan penggunaan paling awal di dasbor saat ini.",
       "withDeepChatDaysLabel": "Jumlah hari persahabatan",
@@ -753,9 +898,18 @@
     },
     "breakdown": {
       "providerTitle": "Peringkat penyedia",
-      "providerDescription": "Urutkan berdasarkan perkiraan harga terlebih dahulu, lalu total token.",
+      "providerDescription": "Diurutkan berdasarkan total token.",
       "modelTitle": "Peringkat model",
-      "modelDescription": "10 model teratas diurutkan berdasarkan perkiraan harga dan total token.",
+      "modelDescription": "10 model teratas berdasarkan total token.",
+      "categoryTitle": "Penggunaan berdasarkan aktivitas",
+      "categoryDescription": "Pisahkan penggunaan percakapan dari panggilan model internal untuk kompresi konteks.",
+      "category": {
+        "chat": "Percakapan",
+        "compaction": "Kompresi konteks"
+      },
+      "chatEvents": "{count} pesan",
+      "compactionEvents": "{count} panggilan model",
+      "unknownUsage": "{count} penggunaan tidak diketahui",
       "messages": "{count} pesan",
       "empty": "Belum ada data detail untuk ditampilkan."
     },
@@ -791,9 +945,17 @@
     "unavailable": "Belum ada"
   },
   "modelConfigItem": {
-    "chatFallbackWarning": "Kemampuan Agent yang lemah: hanya mendukung panggilan alat fallback lama"
+    "chatFallbackWarning": "Kemampuan Agent yang lemah: hanya mendukung panggilan alat fallback lama",
+    "capability": {
+      "vision": "Kemampuan penglihatan",
+      "functionCall": "Kemampuan pemanggilan fungsi",
+      "reasoning": "Kemampuan penalaran",
+      "search": "Kemampuan pencarian web"
+    }
   },
   "model": {
+    "temperatureFixedByPolicy": "Model ini menetapkan temperatur ke {value}.",
+    "topPFixedByPolicy": "Model ini menetapkan Top P ke {value}.",
     "title": "Pengaturan model",
     "systemPrompt": {
       "label": "system prompt",
@@ -857,8 +1019,7 @@
       },
       "temperature": {
         "label": "suhu",
-        "description": "Kontrol keacakan output. Kebanyakan model mendukung 0-1, dan beberapa mendukung 0-2. Semakin tinggi nilainya, semakin acak.",
-        "fixedMoonshotKimi": "Moonshot Kimi K2.5/K2.6 ditetapkan ke {enabled} saat pemikiran diaktifkan, dan ditetapkan ke {disabled} saat pemikiran dimatikan."
+        "description": "Kontrol keacakan output. Kebanyakan model mendukung 0-1, dan beberapa mendukung 0-2. Semakin tinggi nilainya, semakin acak."
       },
       "topP": {
         "label": "Top P",
@@ -1080,6 +1241,11 @@
     }
   },
   "provider": {
+    "customHeaders": {
+      "title": "Header permintaan khusus",
+      "description": "Masukkan objek JSON dengan nilai string.",
+      "parseError": "Penguraian Header Kustom gagal"
+    },
     "search": "Platform penyedia layanan pencarian…",
     "enable": "Mulai layanan",
     "enabled": "Diaktifkan",
@@ -1114,6 +1280,7 @@
     "urlFormat": "API contoh: {defaultUrl}",
     "urlFormatFill": "Isi ke API URL",
     "openaiResponsesNotice": "OpenAI Layanan resmi menggunakan Responses API secara default; jika pihak ketiga hanya mendukung Penyelesaian Obrolan, silakan gunakan penyedia layanan Penyelesaian OpenAI.",
+    "amdDeveloperHint": "AMD GPU Cloud menyediakan API model publik melalui Radeon Token Factory. Dapatkan kunci API dari AMD untuk mengakses model yang tersedia saat ini.",
     "modifyBaseUrl": "Ubah",
     "baseUrlLockedHint": "Jenis provider ini ditetapkan ke Base URL yang direkomendasikan secara default untuk menghindari modifikasi yang salah yang menyebabkan pengecualian permintaan.",
     "refreshModelsWithMetadataHint": "Saat menyegarkan penyedia layanan, metadata upstream akan disinkronkan terlebih dahulu, dan kemudian daftar model lokal akan dibuat ulang.",
@@ -1394,7 +1561,63 @@
     "openaiCodexCallbackTitle": "Selesaikan autentikasi",
     "openaiCodexCallbackDescription": "Setelah browser selesai, kembali ke DeepChat. Jika DeepChat tidak diperbarui, tempel URL callback lengkap di sini.",
     "openaiCodexCallbackPlaceholder": "Tempel URL callback lengkap",
-    "openaiCodexCompleteAuthentication": "Selesaikan autentikasi"
+    "openaiCodexCompleteAuthentication": "Selesaikan autentikasi",
+    "xaiGrokAuth": "xAI Grok OAuth",
+    "xaiGrokConnected": "xAI Grok terhubung",
+    "xaiGrokNotConnected": "xAI Grok tidak terhubung",
+    "xaiGrokPendingDevice": "Menunggu otorisasi perangkat",
+    "xaiGrokDisabled": "OAuth xAI Grok dinonaktifkan",
+    "xaiGrokError": "Otorisasi xAI Grok gagal",
+    "xaiGrokAccount": "Akun",
+    "xaiGrokSignInDevice": "Masuk dengan SuperGrok / Premium+",
+    "xaiGrokReconnect": "Hubungkan kembali",
+    "xaiGrokSignOut": "Keluar",
+    "xaiGrokCancel": "Batal",
+    "xaiGrokOpenVerification": "Buka halaman verifikasi",
+    "xaiGrokLoginTip": "Menggunakan OAuth kode perangkat xAI untuk SuperGrok atau X Premium+. Token disimpan terpisah dari kunci API. Kunci API Console tetap didukung di bawah ini.",
+    "xaiGrokApiKeyAlternative": "Atau gunakan kunci API xAI Console:",
+    "browseAll": "Jelajahi semua penyedia",
+    "updateKey": "Perbarui kunci",
+    "sidebar": {
+      "configured": "Terkonfigurasi",
+      "disabledTag": "Mati",
+      "empty": "Belum ada penyedia yang dikonfigurasi. Jelajahi semua penyedia untuk mulai menyiapkan."
+    },
+    "menu": {
+      "enable": "Aktifkan",
+      "disable": "Nonaktifkan",
+      "rename": "Ubah nama",
+      "delete": "Hapus"
+    },
+    "health": {
+      "verified": "Terverifikasi",
+      "checking": "Memeriksa",
+      "needsAttention": "Perlu perhatian",
+      "notChecked": "Belum diperiksa",
+      "lastChecked": "Terakhir diperiksa {time}"
+    },
+    "catalog": {
+      "title": "Jelajahi semua penyedia",
+      "description": "Pilih penyedia untuk mulai menyiapkannya. Penyedia akan muncul di bilah samping setelah dikonfigurasi.",
+      "searchPlaceholder": "Cari penyedia...",
+      "noResults": "Tidak ada penyedia yang cocok",
+      "configured": "Terkonfigurasi"
+    },
+    "addFlow": {
+      "connect": "Hubungkan dan muat model",
+      "validating": "Memverifikasi koneksi...",
+      "loadingModels": "Memuat model...",
+      "failed": "Koneksi gagal. Periksa konfigurasi dan coba lagi.",
+      "successTitle": "{name} terhubung",
+      "successDescription": "Memuat {count} model dan memilih {selected} di awal. Anda dapat menyesuaikannya di bawah.",
+      "successNoModels": "Terhubung. Belum ada model yang tersedia.",
+      "startChatting": "Mulai mengobrol",
+      "viewModels": "Lihat model"
+    },
+    "stagedUpdate": {
+      "failedTitle": "Pembaruan tidak diterapkan",
+      "failedDescription": "Konfigurasi baru gagal diverifikasi; konfigurasi sebelumnya yang berfungsi tetap dipertahankan."
+    }
   },
   "knowledgeBase": {
     "title": "Pengaturan basis pengetahuan",
@@ -1510,7 +1733,15 @@
       "seconds": "detik",
       "testConnection": "koneksi uji",
       "timeout": "batas waktu",
-      "title": "Konfigurasi ekspor Nowledge Mem"
+      "title": "Konfigurasi ekspor Nowledge Mem",
+      "configLoadFailed": "Konfigurasi tidak dapat dimuat",
+      "configSaved": "Konfigurasi disimpan",
+      "configSaveFailed": "Konfigurasi tidak dapat disimpan",
+      "configReset": "Konfigurasi diatur ulang",
+      "configResetFailed": "Konfigurasi tidak dapat diatur ulang",
+      "connectionSucceeded": "Koneksi berhasil",
+      "connectionFailed": "Tidak dapat terhubung dengan konfigurasi saat ini",
+      "invalidBaseUrl": "Masukkan alamat HTTP atau HTTPS tanpa kredensial atau parameter kueri"
     }
   },
   "mcp": {
@@ -1556,6 +1787,7 @@
       "name": "Nama server",
       "namePlaceholder": "Masukkan nama server",
       "nameRequired": "Nama server tidak boleh kosong",
+      "nameDuplicate": "Server dengan nama ini sudah ada.",
       "type": "Jenis server",
       "typePlaceholder": "Pilih jenis server",
       "typeStdio": "Input dan output standar (Stdio)",
@@ -1583,11 +1815,6 @@
       "iconPlaceholder": "ikon masukan",
       "icons": "ikon",
       "iconsPlaceholder": "ikon masukan",
-      "autoApprove": "Otorisasi otomatis",
-      "autoApproveAll": "Semua",
-      "autoApproveRead": "membaca",
-      "autoApproveWrite": "menulis",
-      "autoApproveHelp": "Pilih jenis operasi yang memerlukan otorisasi otomatis dan dapat dilakukan tanpa konfirmasi pengguna",
       "submit": "Kirim",
       "add": "tambahkan",
       "update": "memperbarui",
@@ -1620,7 +1847,42 @@
       "e2bApiKey": "E2B ApiKey",
       "e2bApiKeyPlaceholder": "Masukkan E2B Api Key Anda di sini, seperti e2b_1111xx*****",
       "e2bApiKeyHelp": "Buka e2b.dev untuk mendapatkan ApiKey Anda",
-      "e2bApiKeyRequired": "ApiKey harus dimasukkan untuk mengaktifkan fungsi E2B"
+      "e2bApiKeyRequired": "ApiKey harus dimasukkan untuk mengaktifkan fungsi E2B",
+      "sseCompatibilityBadge": "Kompatibilitas",
+      "sseMigrationHint": "SSE hanya untuk kompatibilitas lama. Migrasikan server ini ke Streamable HTTP jika tersedia.",
+      "authorizationMode": "Mode otorisasi",
+      "authorizationInteractive": "OAuth interaktif",
+      "authorizationNone": "Tanpa OAuth",
+      "authorizationClientCredentials": "Kredensial klien (draf)",
+      "authorizationPrivateKeyJwt": "JWT kunci privat",
+      "authorizationEnterprise": "Akses lintas aplikasi perusahaan",
+      "authorizationHelp": {
+        "none": "Jangan gunakan alur OAuth. Header Authorization statis, jika dikonfigurasi, tetap diprioritaskan.",
+        "interactive": "Buka browser sistem dan selesaikan alur kode otorisasi dengan PKCE.",
+        "client_credentials": "Autentikasi server ini sebagai klien mesin dengan rahasia yang dilindungi.",
+        "private_key_jwt": "Autentikasi server ini sebagai klien mesin dengan kunci privat yang dilindungi.",
+        "cross_app_access": "Tukarkan identitas perusahaan yang disetujui untuk mengakses sumber daya terlindungi ini."
+      },
+      "authorizationHeaderOverride": "Header Authorization statis dikonfigurasi dan diprioritaskan daripada mode OAuth ini.",
+      "protectedResourceUrl": "URL sumber daya terlindungi",
+      "protectedResourceUrlPlaceholder": "https://mcp.example.com",
+      "authorizationServerIssuer": "Penerbit server otorisasi",
+      "authorizationServerIssuerPlaceholder": "https://auth.example.com",
+      "clientMetadataUrl": "URL metadata klien",
+      "authorizationClientId": "ID klien",
+      "authorizationScopes": "Cakupan",
+      "authorizationScopesPlaceholder": "read write",
+      "keyAlgorithm": "Algoritme kunci",
+      "identityProfile": "Profil identitas perusahaan",
+      "identityProfilePlaceholder": "Pilih profil identitas",
+      "privateKey": "Kunci privat",
+      "clientSecret": "Rahasia klien",
+      "removeCredential": "Hapus kredensial tersimpan",
+      "credentialConfiguredPlaceholder": "Kredensial terlindungi sudah dikonfigurasi",
+      "credentialConfigured": "Kredensial dikonfigurasi",
+      "credentialMemoryOnly": "Kredensial ini hanya disimpan di memori dan akan hilang saat DeepChat ditutup.",
+      "credentialRemoveError": "Gagal menghapus kredensial terlindungi",
+      "credentialSaveError": "Gagal menyimpan kredensial terlindungi"
     },
     "deleteServer": "Hapus server",
     "editServer": "Sunting server",
@@ -1698,7 +1960,7 @@
     "managedServerReadOnly": "DeepChat Layanan Terkelola",
     "managedServerReadOnlyDesc": "Silakan kelola aktivasi dan izin di pengaturan plugin yang sesuai",
     "center": {
-      "title": "MCP Center",
+      "title": "Pusat MCP",
       "running": "Berlari",
       "builtIn": "Bawaan",
       "custom": "Adat",
@@ -1721,7 +1983,53 @@
     "authCallbackPlaceholder": "Tempel URL callback lengkap",
     "completeAuthentication": "Selesaikan autentikasi",
     "saveSuccess": "Konfigurasi disimpan",
-    "saveFailed": "Gagal menyimpan konfigurasi"
+    "saveFailed": "Gagal menyimpan konfigurasi",
+    "enterpriseProfiles": {
+      "title": "Identitas perusahaan",
+      "description": "Kelola identitas OpenID Connect yang dapat digunakan kembali untuk otorisasi perusahaan MCP.",
+      "label": "Nama profil",
+      "issuer": "Penerbit OpenID",
+      "clientId": "ID klien",
+      "scopes": "Cakupan",
+      "clientAuthentication": "Autentikasi klien penyedia identitas",
+      "publicClient": "Klien publik",
+      "confidentialClient": "Rahasia klien",
+      "clientSecret": "Rahasia klien penyedia identitas",
+      "clientSecretMissing": "Rahasia klien harus dikonfigurasi sebelum masuk.",
+      "authenticated": "Terautentikasi",
+      "signIn": "Masuk",
+      "signOut": "Keluar",
+      "callbackUrl": "URL panggilan balik",
+      "empty": "Tidak ada profil identitas perusahaan.",
+      "loadError": "Gagal memuat identitas perusahaan",
+      "saveError": "Gagal menyimpan identitas perusahaan",
+      "authError": "Gagal masuk dengan identitas perusahaan",
+      "removeError": "Gagal menghapus identitas perusahaan",
+      "removeTitle": "Hapus identitas perusahaan?",
+      "removeDescription": "Hapus {name} dan semua kredensial yang terikat padanya?",
+      "status": {
+        "signed_out": "Keluar",
+        "authenticating": "Mengautentikasi",
+        "authenticated": "Terautentikasi",
+        "error": "Kesalahan"
+      }
+    },
+    "diagnostics": {
+      "title": "Diagnostik MCP",
+      "serverId": "ID server",
+      "owner": "Pemilik",
+      "transport": "Transport",
+      "connectionState": "Koneksi",
+      "era": "Era protokol",
+      "serverImplementation": "Implementasi server",
+      "probe": "Pemeriksaan negosiasi",
+      "extensions": "Ekstensi server",
+      "clientExtensions": "Ekstensi klien",
+      "cache": "Cache",
+      "subscriptions": "Langganan",
+      "auth": "Otorisasi",
+      "copy": "Salin diagnostik"
+    }
   },
   "about": {
     "title": "Tentang kami",
@@ -1779,8 +2087,6 @@
     "description": "Mengelola ACP Agent lokal yang dimulai oleh DeepChat.",
     "enabledTitle": "Aktifkan ACP",
     "enabledDescription": "Setelah diaktifkan, ACP Agent yang dikonfigurasi akan muncul di daftar model.",
-    "useBuiltinRuntimeTitle": "Gunakan lingkungan bawaan DeepChat",
-    "useBuiltinRuntimeDescription": "Jika dicentang, perintah node dan uv sistem akan dilewati dan versi yang disertakan dengan DeepChat akan digunakan.",
     "enableToAccess": "Agent tidak dapat dikonfigurasi sampai ACP diaktifkan.",
     "registryInstallEntry": "Instal Agent",
     "registryInstallEntryDescription": "Cari dan instal Agent dari ACP Registry dan kembali ke sini untuk mengaktifkan dan mengkonfigurasinya setelah instalasi selesai.",
@@ -1885,6 +2191,25 @@
       "cannotDeleteTitle": "Simpan setidaknya satu konfigurasi",
       "cannotDeleteDesc": "Agent bawaan memerlukan setidaknya satu konfigurasi.",
       "noAgent": "Silakan pilih Agent untuk dikelola."
+    },
+    "auth": {
+      "title": "Sign in to {name}",
+      "description": "Choose an authentication method. Credentials stay with the agent process.",
+      "requiredTitle": "{name} needs sign-in",
+      "requiredDescription": "Authenticate before starting this chat.",
+      "checkSignIn": "Check sign-in",
+      "openTerminal": "Open terminal",
+      "cancelSignIn": "Cancel sign-in",
+      "unsupported": "This authentication method is not supported. Configure its environment variables manually.",
+      "noMethods": "The agent did not provide an authentication method that DeepChat can use.",
+      "status": {
+        "required": "Authentication required",
+        "running": "Signing in",
+        "reconnecting": "Reconnecting",
+        "succeeded": "Ready",
+        "cancelled": "Cancelled",
+        "failed": "Failed"
+      }
     },
     "terminal": {
       "title": "Inisialisasi terminal",
@@ -1993,8 +2318,8 @@
     "resetToDefaultFailed": "Penyetelan ulang gagal, coba lagi"
   },
   "skills": {
-    "title": "Pengaturan Skills",
-    "description": "Modul skill untuk mengelola dan mengonfigurasi asisten AI",
+    "title": "Skills",
+    "description": "Jelajahi semua Skill. Buka Skill untuk melihat pratinjau dan mengelola Agent yang diaktifkan.",
     "draftSuggestions": {
       "title": "Disarankan curah hujan setelah misi Skill Draf",
       "description": "Setelah tugas selesai, izinkan Agent menyarankan pembuatan draf skill sementara ketika proses yang dapat digunakan kembali diidentifikasi. Draf akan disimpan di direktori sementara terlebih dahulu, dan Anda perlu memutuskan secara manual apakah akan mengimpornya untuk instalasi."
@@ -2002,7 +2327,7 @@
     "openFolder": "buka folder",
     "addSkill": "Tambahkan skill",
     "empty": "Tidak ada skill",
-    "emptyHint": "Klik tombol \"Tambahkan skill\" untuk menginstal skill baru",
+    "emptyHint": "Impor Skill dari Agent eksternal.",
     "noResults": "Tidak ditemukan skill yang cocok",
     "search": "Telusuri skill...",
     "count": "Jumlah {count} skill",
@@ -2040,8 +2365,6 @@
       "env": "{count} variabel lingkungan",
       "pythonShort": "Py",
       "nodeShort": "Node",
-      "enabled": "Enabled",
-      "disabled": "Disabled",
       "enable": "Enable in DeepChat",
       "disable": "Disable in DeepChat",
       "viewDetails": "Lihat detail",
@@ -2097,6 +2420,32 @@
       "title": "skill sudah ada",
       "description": "skill bernama \"{name}\" sudah ada. Apakah Anda ingin menimpa?",
       "overwrite": "Penutup"
+    },
+    "agentImport": {
+      "menuItem": "Impor dari Agent eksternal",
+      "title": "Impor dari Agent eksternal",
+      "description": "Impor Skills yang telah divalidasi ke DeepChat. Aktifkan Agents dari pratinjau setiap Skill.",
+      "resultPartial": "Impor selesai dengan kesalahan",
+      "resultSuccess": "Impor selesai",
+      "sourceTitle": "Agent sumber",
+      "emptySources": "Tidak ada sumber impor",
+      "skillCount": "{count} Skills",
+      "previewTitle": "Skills yang akan diimpor",
+      "emptyPreview": "Tidak ada Skills tersedia",
+      "status": {
+        "ready": "Siap",
+        "conflict": "Konflik",
+        "unavailable": "Tidak tersedia",
+        "same": "Sudah ditambahkan"
+      },
+      "strategy": {
+        "skip": "Lewati",
+        "rename": "Ganti nama",
+        "overwrite": "Timpa"
+      },
+      "overwriteImpact": "Menimpa Skill ini memengaruhi Agents yang diaktifkan: {agents}.",
+      "resultSummaryV3": "Diimpor {imported}, digunakan kembali {reused}, dilewati {skipped}, gagal {failed}.",
+      "execute": "Impor yang dipilih"
     },
     "sync": {
       "title": "sinkronisasi",
@@ -2188,111 +2537,6 @@
       "skip": "lewati",
       "importSelected": "Impor dipilih"
     },
-    "tabs": {
-      "library": "Library",
-      "agents": "Agents",
-      "syncDirectory": "Direktori sinkronisasi"
-    },
-    "agents": {
-      "title": "Agents",
-      "summary": "{count} supported agent(s)",
-      "refresh": "Refresh",
-      "empty": "No supported agents found.",
-      "emptySkills": "No skills found for this agent.",
-      "loadFailed": "Failed to load agent skills",
-      "conflictCount": "{count} conflict",
-      "table": {
-        "skill": "Skill",
-        "owner": "Owner",
-        "status": "Status",
-        "action": "Action",
-        "preview": "Pratinjau"
-      },
-      "owner": {
-        "deepchat": "DeepChat",
-        "external-link": "External",
-        "broken-link": "Broken link",
-        "unknown": "Unknown"
-      },
-      "status": {
-        "linked": "Linked",
-        "agent-owned": "Agent owned",
-        "linked-out": "Linked out",
-        "broken-link": "Broken link",
-        "conflict": "Conflict",
-        "empty": "Empty"
-      },
-      "actions": {
-        "adopt": "Adopt",
-        "resolve-conflict": "Resolve",
-        "repair-link": "Repair",
-        "remove-link": "Remove",
-        "open": "Open",
-        "pending": "Write actions are enabled in a later phase.",
-        "view": "Lihat"
-      },
-      "agentStatus": {
-        "ready": "Ready",
-        "detected-no-skills-dir": "No skills directory",
-        "permission-denied": "Permission denied"
-      },
-      "counts": {
-        "skills": "{count} skill(s)",
-        "linked": "{count} linked",
-        "agentOwned": "{count} agent owned",
-        "conflicts": "{count} conflict(s)",
-        "broken": "{count} broken"
-      },
-      "adoptDialog": {
-        "adoptTitle": "Adopt Skill",
-        "conflictTitle": "Resolve Conflict",
-        "adoptDescription": "Copy this skill into DeepChat, back up the original, and replace the agent entry with a link.",
-        "conflictDescription": "{skill} already exists in DeepChat. The default action keeps the current DeepChat skill and adopts this agent skill as a renamed copy.",
-        "loading": "Preparing adoption preview...",
-        "previewFailed": "Failed to prepare adoption preview",
-        "executeFailed": "Failed to adopt skill",
-        "currentLocation": "Current location",
-        "afterAdoption": "After adoption",
-        "backup": "Backup",
-        "chooseAction": "Choose action",
-        "adoptAs": "Adopt as {name}",
-        "replaceDeepChat": "Replace existing DeepChat skill",
-        "keepCurrent": "Keep current state",
-        "unsupportedStrategies": "Replace and keep strategies are not available in this build.",
-        "warnings": "Warnings",
-        "apply": "Apply",
-        "linkArrow": "-> DeepChat skill",
-        "successTitle": "Skill adopted",
-        "successDescription": "{name} is now managed by DeepChat."
-      },
-      "syncToAgent": "Sync to Agent",
-      "syncDialog": {
-        "title": "Sync to {agent}",
-        "description": "Create DeepChat-owned links for selected skills. Existing agent content is skipped.",
-        "target": "Target",
-        "deepchatSkills": "DeepChat skills",
-        "empty": "No linkable DeepChat skills.",
-        "preview": "Preview",
-        "loading": "Preparing link preview...",
-        "noSelection": "Select at least one skill.",
-        "apply": "Apply",
-        "failed": "Failed to sync skills",
-        "successTitle": "Skills synced",
-        "successDescription": "{count} skill(s) linked.",
-        "status": {
-          "ready": "Ready",
-          "already-linked": "Already linked",
-          "conflict": "Conflict",
-          "missing": "Missing"
-        }
-      },
-      "linkAction": {
-        "repairSuccess": "Link repaired",
-        "removeSuccess": "Link removed",
-        "successDescription": "{name} updated.",
-        "failed": "Failed to update link"
-      }
-    },
     "git": {
       "title": "Git",
       "description": "Pindai repositori Git dan instal skill yang dipilih ke DeepChat.",
@@ -2324,7 +2568,6 @@
       "saved": "Direktori sinkronisasi disimpan",
       "export": "Ekspor ke direktori",
       "import": "Impor dari direktori",
-      "includeDisabled": "Sertakan skill yang dinonaktifkan",
       "previewExport": "Pratinjau Ekspor",
       "exportNow": "Ekspor Sekarang",
       "previewImport": "Pratinjau Impor",
@@ -2377,7 +2620,13 @@
       "edit": "Edit",
       "delete": "Hapus",
       "confirmDeleteTitle": "Hapus skill",
-      "confirmDeleteDescription": "Hapus skill \"{name}\"? Tindakan ini tidak dapat dibatalkan."
+      "confirmDeleteDescription": "Hapus skill \"{name}\"? Tindakan ini tidak dapat dibatalkan.",
+      "enabledAgents": "Enabled Agents",
+      "enabledAgentsHint": "These Agents can use this Skill.",
+      "noEnabledAgents": "No Agent uses this Skill yet.",
+      "addAgent": "Add Agent",
+      "removeAgent": "Remove {agent}",
+      "agentUpdateFailed": "Failed to update enabled Agents"
     },
     "installToAgent": {
       "title": "Instal {name} ke Agent",
@@ -2395,6 +2644,17 @@
       "disconnectSuccess": "Terputus dari Agent",
       "disconnectSuccessMessage": "{name} tidak lagi tertaut ke Agent target.",
       "disconnectFailed": "Gagal memutus dari Agent"
+    },
+    "impact": {
+      "changed": "Enabled Agents changed. Review the impact and try again.",
+      "editEnabled": "Content changes apply to these Agents on their next Run: {agents}.",
+      "editUnused": "No Agent currently uses this Skill.",
+      "confirmDeleteEnabled": "Delete {name}? It is enabled for: {agents}.",
+      "confirmDeleteUnused": "Delete {name}? No Agent currently uses it."
+    },
+    "syncDirectory": {
+      "action": "Sync directory",
+      "back": "Back to Skills"
     }
   },
   "environments": {
@@ -2691,6 +2951,9 @@
     "enable": "aktifkan",
     "disable": "nonaktifkan",
     "openSettings": "pengaturan",
+    "testRuntime": "Uji runtime",
+    "retryRuntime": "Coba lagi runtime",
+    "quarantineDescription": "DeepChat menghentikan runtime ini setelah keluar secara tidak bersih. Coba lagi hanya saat desktop aman untuk dikendalikan.",
     "runtime": "waktu proses",
     "runtimeState": "Status",
     "version": "versi",
@@ -2704,6 +2967,8 @@
       "missing": "Tidak dipasang",
       "installed": "Dipasang",
       "running": "Berlari",
+      "readyOnDemand": "Siap saat diperlukan",
+      "quarantined": "Dikarantina",
       "error": "Kesalahan"
     }
   },
@@ -2833,7 +3098,7 @@
       "error": "Error",
       "invalidAgent": "Agen tidak tersedia atau dinonaktifkan. Pilih agen lain."
     },
-    "runNowSuccess": "Tugas terjadwal dimulai"
+    "runNowSuccess": "Tugas terjadwal selesai"
   },
   "memory": {
     "description": "Tinjau, konfigurasi, dan kelola apa yang diingat setiap agen di seluruh sesi. Memori terpisah per agen.",
@@ -2842,13 +3107,13 @@
     "tabConfig": "Konfigurasi",
     "tabManage": "Kelola",
     "config": {
-      "rootHint": "deepchat adalah agen bawaan dan akar konfigurasi: nilai yang diatur di sini menjadi default yang diwarisi oleh agen lain.",
+      "rootHint": "deepchat adalah agen bawaan yang dilindungi. Konfigurasinya terpisah dari semua agen lainnya.",
       "extractionModel": "Model alat memori",
       "extractionModelHint": "Model yang digunakan untuk mengekstrak dan menyahduplikasi memori. Jika tidak dipilih, menggunakan model chat.",
       "injectionBudget": "Anggaran injeksi (token)",
-      "injectionBudgetHint": "Batas token perkiraan untuk injeksi memori yang dirakit. Biarkan kosong untuk mewarisi default ({default}).",
+      "injectionBudgetHint": "Batas token perkiraan untuk injeksi memori yang dirakit. Biarkan kosong untuk menggunakan nilai default ({default}).",
       "retrievalTitle": "Peringkat pengambilan",
-      "retrievalHint": "Mengganti cara memori yang diambil diperingkat; mewarisi default saat nonaktif.",
+      "retrievalHint": "Sesuaikan cara memori yang diambil diperingkat; peringkat default digunakan saat dinonaktifkan.",
       "retrievalOverride": "Ganti parameter pengambilan",
       "topK": "Jumlah pengambilan (topK)",
       "rrfK": "Konstanta fusi (rrfK)",
@@ -2857,14 +3122,16 @@
       "weightRecency": "Bobot · kebaruan",
       "weightImportance": "Bobot · kepentingan",
       "advancedTitle": "Pengaturan memori lanjutan",
-      "advancedHint": "Sesuaikan ekstraksi, anggaran prompt, dan peringkat pengambilan. Kosongkan kolom untuk mewarisi nilai default.",
-      "inheritedHint": "Kosong berarti menggunakan nilai turunan/default.",
+      "advancedHint": "Sesuaikan ekstraksi, anggaran prompt, dan peringkat pengambilan. Kosongkan kolom untuk menggunakan nilai default.",
+      "inheritedHint": "Kolom kosong menggunakan nilai default.",
       "topKHint": "Rentang 1-100. Default: {default}.",
       "rrfKHint": "Rentang 1-1000. Default: {default}.",
       "similarityThresholdHint": "Rentang 0-1. Default: {default}.",
       "weightHint": "Bobot peringkat non-negatif. Default: {default}."
     },
     "redesign": {
+      "reindexIncomplete": "Pembuatan ulang indeks vektor belum selesai: {reason}. Konten memori tidak hilang; pengambilan berbasis kata kunci sedang digunakan.",
+      "reindexInternalReason": "Pipeline embedding lokal tidak dapat menyelesaikan pembuatan ulang.",
       "tabMemories": "Memori",
       "tabPersona": "Profil",
       "tabDiagnostics": "Diagnostik",
@@ -2908,7 +3175,7 @@
       "archivedMatches": "Kecocokan yang diarsipkan",
       "refresh": "Segarkan",
       "inboxTitle": "Perlu perhatian",
-      "inboxDescription": "Selesaikan konflik memori dan draf profil sebelum hilang dari tampilan.",
+      "inboxDescription": "Selesaikan konflik memori, draf profil, dan arahan yang disarankan sebelum hilang dari tampilan.",
       "conflictBadge": "{count} konflik",
       "personaDraftBadge": "{count} draf profil",
       "conflictSectionTitle": "Konflik memori ({count})",
@@ -2955,7 +3222,48 @@
         "memory-persona-rollback": "Profil dikembalikan",
         "memory-persona-anchor": "Jangkar profil diperbarui",
         "memory-reindex": "Memori diindeks ulang"
-      }
+      },
+      "tabDirectives": "Arahan",
+      "directiveDraftBadge": "{count} draf arahan",
+      "directiveDraftSectionTitle": "Arahan yang disarankan ({count})",
+      "directiveCreateTitle": "Buat arahan tetap",
+      "directiveCreateDescription": "Arahan manual langsung aktif. Saran model tetap berupa draf sampai Anda menyetujuinya.",
+      "directiveRuntimeEnabled": "Diterapkan saat runtime",
+      "directiveRuntimeDisabled": "Tidak aktif saat memori dimatikan",
+      "directiveKindLabel": "Jenis arahan",
+      "directiveKind": {
+        "instruction": "Instruksi tetap",
+        "suppress_topic": "Saring topik"
+      },
+      "directiveTopicLabel": "Topik yang cocok",
+      "directiveTopicPlaceholder": "Topik atau frasa persis yang akan disaring dari memori yang dipanggil kembali",
+      "directiveTopicTooBroad": "Topik yang memuat karakter CJK memerlukan sedikitnya {min} karakter terlihat agar tidak menyaring memori yang tidak terkait.",
+      "directiveContentLabel": "Instruksi",
+      "directiveInstructionPlaceholder": "Tulis instruksi tetap untuk agen ini.",
+      "directiveSuppressPlaceholder": "Jelaskan cara agen menangani topik ini.",
+      "directiveInstructionHint": "Ini adalah panduan tingkat pengguna dan tidak dapat mengesampingkan aturan sistem atau keamanan.",
+      "directiveSuppressHint": "Topik menyaring memori yang dipanggil kembali; instruksi memandu respons. Ini bukan penyaring keluaran.",
+      "directiveLength": "Instruksi {content}/{contentMax} · Topik {topic}/{topicMax}",
+      "directiveCreateAction": "Aktifkan arahan",
+      "directiveCapacityTitle": "Batas arahan aktif tercapai",
+      "directiveCapacityDescription": "Setiap agen dapat memiliki hingga {max} arahan aktif. Hapus satu arahan aktif sebelum menambah atau menyetujui arahan lain.",
+      "directiveListTitle": "Arahan tersimpan",
+      "directiveListDescription": "{active} aktif · {draft} menunggu persetujuan",
+      "directiveEmptyTitle": "Belum ada arahan",
+      "directiveEmptyDescription": "Buat instruksi tetap di sini atau setujui saran dari kotak masuk.",
+      "directiveStatus": {
+        "active": "Aktif",
+        "draft": "Draf",
+        "rejected": "Ditolak"
+      },
+      "directiveSource": {
+        "explicit_user": "Tindakan pengguna eksplisit",
+        "manual": "Pengaturan",
+        "derived_suggestion": "Disarankan dari percakapan"
+      },
+      "directiveTopicValue": "Topik: {topic}",
+      "directiveDeleteTitle": "Hapus arahan ini?",
+      "directiveDeleteDescription": "Arahan akan segera berhenti diterapkan. Anda dapat membuatnya lagi nanti."
     }
   },
   "pluginsHub": {
@@ -2963,12 +3271,122 @@
     "available": "Plugin yang tersedia",
     "add": "Tambah",
     "manage": "Manage",
+    "builtinCapability": "Kemampuan bawaan",
     "emptySearch": "Tidak ada plugin yang tersedia.",
     "pluginNotFound": "Plugin not found.",
     "actionResult": "Action result",
     "cuaDescription": "Plugin ComputerUse DeepChat yang diimplementasikan berdasarkan proyek trycua/cua.",
     "acpUnavailableTitle": "Plugin tidak tersedia untuk agen ACP",
     "acpUnavailableDescription": "Agen ACP mengelola alat dan ekstensi di lingkungan runtime mereka sendiri. Pilih agen DeepChat untuk menggunakan plugin.",
-    "agentScopeUnsupported": "Ekstensi khusus agen hanya tersedia untuk agen DeepChat."
+    "agentScopeUnsupported": "Ekstensi khusus agen hanya tersedia untuk agen DeepChat.",
+    "scopeGlobalPlugins": "Halaman ini bersifat global aplikasi: instalasi, pengaktifan, dan status proses plugin resmi dibagikan ke semua agen DeepChat.",
+    "scopeCurrentAgent": "Halaman ini adalah kebijakan agen: perubahan hanya memengaruhi ketersediaan Skills/MCP untuk “{agent}”, bukan instalasi global.",
+    "currentAgentFallback": "agen saat ini"
+  },
+  "debug": {
+    "description": "Alat khusus pengembangan untuk mempratinjau status tiruan dan alur terpandu.",
+    "unavailableTitle": "Alat debug tidak tersedia",
+    "unavailableDescription": "Tindakan ini hanya tersedia dalam mode pengembangan.",
+    "splash": {
+      "title": "Jendela pembuka",
+      "description": "Pratinjau status jendela pembuka tanpa memulai alur pembukaan kunci basis data yang sebenarnya.",
+      "loading": "Pratinjau pemuatan",
+      "systemUnlock": "Pratinjau pembukaan kunci sistem",
+      "unlock": "Pratinjau pembukaan kunci manual",
+      "recovery": "Pratinjau pemulihan basis data",
+      "failed": "Tidak dapat menampilkan skenario jendela pembuka.",
+      "previewHint": "Pratinjau pengembangan — pengiriman kata sandi dinonaktifkan."
+    },
+    "guidance": {
+      "title": "Panduan dan data",
+      "description": "Buat tiruan onboarding, percakapan, dan pembaruan khusus pengembangan.",
+      "failed": "Tidak dapat memulai alur terpandu debug."
+    }
+  },
+  "toolchains": {
+    "description": "Pilih dari mana DeepChat mendapatkan Node dan uv. Sumber tidak beralih sendiri setelah dipilih.",
+    "nodeTitle": "Node.js",
+    "uvTitle": "uv",
+    "source": "Sumber",
+    "sources": {
+      "bundled": "Terbundle di aplikasi",
+      "managed": "Dipasang oleh DeepChat",
+      "system": "Instalasi sistem",
+      "custom": "Jalur kustom",
+      "unconfigured": "Belum dikonfigurasi",
+      "autoNamed": "Otomatis ({source})"
+    },
+    "systemDetected": "Biner sistem ditemukan: {path}",
+    "systemDetectedHint": "Jika sudah ada instalasi yang berfungsi, itu yang dipakai. Tidak ada unduhan.",
+    "install": "Pasang runtime resmi",
+    "repair": "Perbaiki",
+    "revert": "Kembalikan",
+    "cancelInstall": "Batal",
+    "installing": "Memasang…",
+    "version": "Versi",
+    "path": "Jalur",
+    "bannerTitle": "Runtime yang diperlukan tidak ada",
+    "bannerDescription": "Node atau uv tidak tersedia untuk MCP, ACP, Skills, atau OCR.",
+    "bannerAction": "Buka toolchain",
+    "availability": {
+      "ready": "Siap",
+      "missing": "Tidak ada",
+      "incomplete": "Tidak lengkap",
+      "unconfigured": "Belum dikonfigurasi"
+    },
+    "downloadReasons": {
+      "dns": "Host unduhan tidak dapat diselesaikan.",
+      "timeout": "Unduhan habis waktu.",
+      "http": "Server unduhan mengembalikan kesalahan.",
+      "proxy": "Unduhan melalui proksi yang dikonfigurasi gagal.",
+      "checksum_mismatch": "Berkas yang diunduh gagal verifikasi integritas.",
+      "disk": "Runtime tidak dapat ditulis ke disk.",
+      "cancelled": "Unduhan dibatalkan.",
+      "activation_failed": "Runtime tidak dapat diaktifkan.",
+      "unsupported_platform": "Platform ini tidak memiliki runtime resmi."
+    },
+    "ocrPinHint": "OCR membutuhkan Node resmi v24.18.0 (ABI 137). Runtime ini siap untuk chat dan MCP, tetapi tidak untuk OCR. Pasang runtime resmi."
+  },
+  "userPlugins": {
+    "install": "Pasang plugin",
+    "update": "Tinjau pembaruan",
+    "installDescription": "Pasang paket berformat Codex langsung dari Git atau ZIP. Tinjau paket sebelum mengaktifkan komponennya.",
+    "gitUrl": "URL Git HTTPS publik",
+    "gitRef": "Branch, tag, atau commit (opsional)",
+    "subdirectory": "Subdirektori paket (opsional)",
+    "chooseZip": "Pilih berkas ZIP",
+    "chooseDirectory": "Pilih direktori plugin",
+    "inspect": "Periksa paket",
+    "executionNotice": "Hook dan server MCP stdio menjalankan kode lokal dengan hak akses berkas dan jaringan akun Anda. Aktifkan hanya kode yang Anda percayai. Perintah seperti npx atau uvx dapat mengunduh dependensi saat server dimulai.",
+    "useSkills": "Gunakan Skills yang disertakan",
+    "allowHooks": "Saya telah meninjau perintah ini dan mengizinkan hook konteks otomatis",
+    "allowMcp": "Saya telah meninjau perintah, endpoint, dan pengikatan variabel ini serta mengizinkan koneksi MCP",
+    "sharedData": "Data plugin pada pemasangan ini dibagikan antarsesi.",
+    "requiredVariables": "Variabel lingkungan atau kredensial yang diperlukan",
+    "applyUpdate": "Terapkan pembaruan yang telah ditinjau",
+    "uninstall": "Hapus pemasangan",
+    "source": "Sumber pemasangan",
+    "selected": "Dipilih",
+    "notSelected": "Tidak dipilih",
+    "reviewed": "Perintah telah ditinjau",
+    "hooksNotEnabled": "Hook otomatis belum diizinkan. Tinjau pembaruan untuk mengaktifkannya; Skills saja tidak mengaktifkan hook otomatis.",
+    "diagnostics": "Aktivitas hook terbaru",
+    "noInvocations": "Belum ada pemanggilan hook yang tercatat sejak aplikasi dimulai.",
+    "retryHook": "Jalankan hook lagi",
+    "mcpSetupDescription": "Aktifkan plugin untuk mendaftarkan servernya. Masukkan atau ganti nilai variabel di sini; variabel lingkungan host tidak pernah dibagikan secara otomatis. Kelola autentikasi di pengaturan MCP.",
+    "saveMcp": "Simpan dan hubungkan kembali",
+    "manageMcp": "Buka pengaturan MCP",
+    "uninstallDescription": "Hapus plugin ini, data pribadinya, penetapan Skills, dan server MCP miliknya. Riwayat percakapan tetap disimpan.",
+    "fromGit": "Pasang dari Git",
+    "fromZip": "Pasang dari ZIP",
+    "userPlugin": "Plugin pengguna",
+    "hookStatus": {
+      "started": "Berjalan",
+      "completed": "Selesai",
+      "failed": "Gagal",
+      "uncertain": "Terputus; hasil tidak diketahui"
+    },
+    "technicalDetails": "Detail teknis",
+    "hooks": "Hook"
   }
 }

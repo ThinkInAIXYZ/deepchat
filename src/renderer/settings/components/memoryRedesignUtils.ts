@@ -42,24 +42,6 @@ export function categoryLabelKey(category: AgentMemoryCategory | null | undefine
   return `settings.deepchatAgents.memoryManager.category.${category}`
 }
 
-type MemoryToast = (options: {
-  variant?: 'destructive'
-  title: string
-  description?: string
-}) => void
-
-export function notifyMemoryActionFailed(
-  toast: MemoryToast,
-  t: (key: string) => string,
-  error?: unknown
-): void {
-  toast({
-    variant: 'destructive',
-    title: t('settings.deepchatAgents.memoryManager.actionFailed'),
-    description: error instanceof Error ? error.message : error ? String(error) : undefined
-  })
-}
-
 const relativeTimeFormatters = new Map<string, Intl.RelativeTimeFormat>()
 
 export function formatRelativeTime(ms: number, locale: string): string {

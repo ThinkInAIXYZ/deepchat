@@ -1,4 +1,5 @@
-import type { DisplayAssistantMessageBlock } from '@/components/chat/messageListItems'
+import type { DisplayAssistantMessageBlock } from '@/features/chat-page/model/displayMessage'
+import { parseLiveDelegationSpawnBlock } from '@/lib/liveDelegationToolCall'
 
 export type AssistantRenderItem =
   | {
@@ -15,6 +16,11 @@ export type AssistantRenderItem =
       durationMs: number
       reasoningCount: number
       toolCallCount: number
+    }
+  | {
+      kind: 'mcp-app'
+      key: string
+      block: DisplayAssistantMessageBlock
     }
 
 export type BuildAssistantRenderItemsOptions = {
@@ -43,6 +49,12 @@ const ACTIVITY_BLOCK_TYPES = new Set<DisplayAssistantMessageBlock['type']>([
   'tool_call'
 ])
 
+export const isProviderSearchBlock = (block: DisplayAssistantMessageBlock): boolean => {
+  if (block.type !== 'search') return false
+  const actionType = block.extra?.actionType
+  return actionType === 'search' || actionType === 'open_page' || actionType === 'find_in_page'
+}
+
 const isFiniteTimestamp = (value: number): boolean => Number.isFinite(value) && value >= 0
 
 const normalizeTimestamp = (value: number, fallback: number): number =>
@@ -58,7 +70,7 @@ const isEmptyReasoningBlock = (block: DisplayAssistantMessageBlock): boolean =>
   (typeof block.content !== 'string' || block.content.trim().length === 0)
 
 export const isCompletedActivityBlock = (block: DisplayAssistantMessageBlock): boolean => {
-  if (!ACTIVITY_BLOCK_TYPES.has(block.type)) {
+  if (!ACTIVITY_BLOCK_TYPES.has(block.type) && !isProviderSearchBlock(block)) {
     return false
   }
 
@@ -66,7 +78,7 @@ export const isCompletedActivityBlock = (block: DisplayAssistantMessageBlock): b
     return false
   }
 
-  if (block.type === 'tool_call') {
+  if (block.type === 'tool_call' || isProviderSearchBlock(block)) {
     return true
   }
 
@@ -131,6 +143,23 @@ export const buildAssistantRenderItems = ({
   const items: AssistantRenderItem[] = []
   let activityBuffer: BufferedActivityBlock[] = []
 
+  const pushStandaloneBlock = (block: DisplayAssistantMessageBlock, index: number) => {
+    const key = buildBlockKey(block, messageId, index)
+    const hasMcpApp = block.type === 'tool_call' && Boolean(block.tool_call?.mcpResult?.app)
+    items.push({
+      kind: 'block',
+      key: hasMcpApp ? `${key}:tool` : key,
+      block
+    })
+    if (hasMcpApp) {
+      items.push({
+        kind: 'mcp-app',
+        key: `${key}:app`,
+        block
+      })
+    }
+  }
+
   const flushActivityBuffer = () => {
     if (activityBuffer.length === 0) {
       return
@@ -139,6 +168,15 @@ export const buildAssistantRenderItems = ({
     const group = buildActivityGroupItem(messageId, messageUpdatedAt, activityBuffer)
     if (group) {
       items.push(group)
+    }
+    for (const { block, index } of activityBuffer) {
+      if (block.type === 'tool_call' && block.tool_call?.mcpResult?.app) {
+        items.push({
+          kind: 'mcp-app',
+          key: `${buildBlockKey(block, messageId, index)}:app`,
+          block
+        })
+      }
     }
     activityBuffer = []
   }
@@ -152,17 +190,23 @@ export const buildAssistantRenderItems = ({
       return
     }
 
+    if (shouldGroup && parseLiveDelegationSpawnBlock(block)) {
+      flushActivityBuffer()
+      items.push({
+        kind: 'block',
+        key: buildBlockKey(block, messageId, index),
+        block
+      })
+      return
+    }
+
     if (shouldGroup && isCompletedActivityBlock(block)) {
       activityBuffer.push({ block, index })
       return
     }
 
     flushActivityBuffer()
-    items.push({
-      kind: 'block',
-      key: buildBlockKey(block, messageId, index),
-      block
-    })
+    pushStandaloneBlock(block, index)
   })
 
   flushActivityBuffer()

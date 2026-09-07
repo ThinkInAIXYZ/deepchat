@@ -1,6 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { defineComponent, nextTick } from 'vue'
+import { defineComponent } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
+import { notifyRenderer } from '@renderer-notifications/rendererNotificationPort'
+
+vi.mock('@renderer-notifications/rendererNotificationPort', () => ({
+  notifyRenderer: vi.fn()
+}))
 
 const buttonStub = defineComponent({
   name: 'Button',
@@ -13,6 +18,17 @@ const passthroughStub = (name: string) =>
     name,
     template: '<div><slot /></div>'
   })
+
+const selectStub = defineComponent({
+  name: 'Select',
+  props: {
+    modelValue: { type: String, default: '' },
+    disabled: { type: Boolean, default: false }
+  },
+  emits: ['update:modelValue'],
+  template:
+    '<div data-testid="update-channel-select" :data-value="modelValue" :data-disabled="String(disabled)"><slot /></div>'
+})
 
 const route = {
   name: 'settings-about'
@@ -28,10 +44,6 @@ const deviceClientMock = vi.hoisted(() => ({
 const browserClientMock = vi.hoisted(() => ({
   openExternal: vi.fn()
 }))
-const debugClientMock = vi.hoisted(() => ({
-  createMockChatSession: vi.fn()
-}))
-const toastMock = vi.hoisted(() => vi.fn())
 const windowClientMock = vi.hoisted(() => ({
   startGuidedOnboarding: vi.fn(),
   onSettingsCheckForUpdates: vi.fn().mockImplementation((listener: () => void) => {
@@ -58,8 +70,6 @@ const upgradeStoreMock = {
   updateState: 'error',
   refreshStatus: vi.fn().mockResolvedValue('error'),
   checkUpdate: vi.fn().mockResolvedValue('error'),
-  mockDownloadedUpdate: vi.fn().mockResolvedValue('downloaded'),
-  clearMockUpdate: vi.fn().mockResolvedValue('not-available'),
   handleUpdate: vi.fn().mockResolvedValue(undefined)
 }
 
@@ -71,9 +81,6 @@ vi.mock('@api/DeviceClient', () => ({
 }))
 vi.mock('@api/BrowserClient', () => ({
   createBrowserClient: () => browserClientMock
-}))
-vi.mock('@api/DebugClient', () => ({
-  createDebugClient: () => debugClientMock
 }))
 vi.mock('@api/WindowClient', () => ({
   createWindowClient: () => windowClientMock
@@ -95,12 +102,6 @@ vi.mock('@/stores/theme', () => ({
   })
 }))
 
-vi.mock('@/components/use-toast', () => ({
-  useToast: () => ({
-    toast: toastMock
-  })
-}))
-
 vi.mock('vue-i18n', () => ({
   useI18n: () => ({
     t: (key: string, params?: { version?: string; title?: string; count?: number }) => {
@@ -115,15 +116,6 @@ vi.mock('vue-i18n', () => ({
         'about.disclaimerButton': '免责声明',
         'about.checkUpdateButton': '检查更新',
         'about.disclaimerTitle': '免责声明',
-        'about.mockUpdateButton': '模拟已下载更新',
-        'about.clearMockUpdateButton': '清除模拟更新',
-        'about.mockOnboardingButton': '模拟首次进入引导',
-        'about.mockChatButton': '创建长会话Mock数据',
-        'about.mockChatCreating': '创建中...',
-        'about.mockChatCreated': 'Mock会话已创建',
-        'about.mockChatCreatedDesc': `已创建${params?.title ?? ''}，共${params?.count ?? ''}条消息`,
-        'about.mockChatCreateFailed': '创建Mock会话失败',
-        'about.mockChatCreateUnavailable': 'Mock会话只在开发模式可用',
         'update.versionAvailable': `${params?.version ?? ''} 可用`,
         'update.autoUpdateFailed': '自动更新可能不稳定，请手动下载更新',
         'update.githubDownload': 'GitHub 下载',
@@ -148,17 +140,20 @@ vi.mock('vue-router', () => ({
 describe('AboutUsSettings', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    configClientMock.getUpdateChannel.mockReset()
+    configClientMock.setUpdateChannel.mockReset()
+    deviceClientMock.getAppVersion.mockReset()
+    browserClientMock.openExternal.mockReset()
+    upgradeStoreMock.refreshStatus.mockReset()
+    upgradeStoreMock.checkUpdate.mockReset()
+    upgradeStoreMock.handleUpdate.mockReset()
     configClientMock.getUpdateChannel.mockResolvedValue('stable')
     configClientMock.setUpdateChannel.mockResolvedValue('stable')
     deviceClientMock.getAppVersion.mockResolvedValue('1.0.0-beta.3')
     browserClientMock.openExternal.mockResolvedValue(undefined)
-    debugClientMock.createMockChatSession.mockResolvedValue({
-      created: true,
-      sessionId: 'debug-long-chat-test',
-      title: 'Debug long chat test',
-      messageCount: 200
-    })
-    windowClientMock.startGuidedOnboarding.mockResolvedValue({ started: true, focused: true })
+    upgradeStoreMock.refreshStatus.mockResolvedValue('error')
+    upgradeStoreMock.checkUpdate.mockResolvedValue('error')
+    upgradeStoreMock.handleUpdate.mockResolvedValue(undefined)
     Object.assign(upgradeStoreMock, {
       shouldShowUpdateNotes: true,
       updateInfo: {
@@ -195,7 +190,7 @@ describe('AboutUsSettings', () => {
     const wrapper = mount(AboutUsSettings, {
       global: {
         stubs: {
-          Button: buttonStub,
+          DcButton: buttonStub,
           Icon: true,
           Dialog: passthroughStub('Dialog'),
           DialogContent: passthroughStub('DialogContent'),
@@ -203,7 +198,7 @@ describe('AboutUsSettings', () => {
           DialogFooter: passthroughStub('DialogFooter'),
           DialogHeader: passthroughStub('DialogHeader'),
           DialogTitle: passthroughStub('DialogTitle'),
-          Select: passthroughStub('Select'),
+          Select: selectStub,
           SelectContent: passthroughStub('SelectContent'),
           SelectItem: passthroughStub('SelectItem'),
           SelectTrigger: passthroughStub('SelectTrigger'),
@@ -216,16 +211,7 @@ describe('AboutUsSettings', () => {
     await flushPromises()
 
     const buttons = wrapper.findAll('button').map((button) => button.text())
-    expect(buttons).toEqual([
-      '意见反馈',
-      '免责声明',
-      '模拟已下载更新',
-      '模拟首次进入引导',
-      '创建长会话Mock数据',
-      'GitHub 下载',
-      '官网下载',
-      '关闭'
-    ])
+    expect(buttons).toEqual(['意见反馈', '免责声明', 'GitHub 下载', '官网下载', '关闭'])
     expect(wrapper.text()).not.toContain('检查更新')
 
     const officialButton = wrapper.findAll('button').find((button) => button.text() === '官网下载')
@@ -250,7 +236,7 @@ describe('AboutUsSettings', () => {
     const wrapper = mount(AboutUsSettings, {
       global: {
         stubs: {
-          Button: buttonStub,
+          DcButton: buttonStub,
           Icon: true,
           Dialog: passthroughStub('Dialog'),
           DialogContent: passthroughStub('DialogContent'),
@@ -258,7 +244,7 @@ describe('AboutUsSettings', () => {
           DialogFooter: passthroughStub('DialogFooter'),
           DialogHeader: passthroughStub('DialogHeader'),
           DialogTitle: passthroughStub('DialogTitle'),
-          Select: passthroughStub('Select'),
+          Select: selectStub,
           SelectContent: passthroughStub('SelectContent'),
           SelectItem: passthroughStub('SelectItem'),
           SelectTrigger: passthroughStub('SelectTrigger'),
@@ -294,7 +280,7 @@ describe('AboutUsSettings', () => {
     const wrapper = mount(AboutUsSettings, {
       global: {
         stubs: {
-          Button: buttonStub,
+          DcButton: buttonStub,
           Icon: true,
           Dialog: passthroughStub('Dialog'),
           DialogContent: passthroughStub('DialogContent'),
@@ -302,7 +288,7 @@ describe('AboutUsSettings', () => {
           DialogFooter: passthroughStub('DialogFooter'),
           DialogHeader: passthroughStub('DialogHeader'),
           DialogTitle: passthroughStub('DialogTitle'),
-          Select: passthroughStub('Select'),
+          Select: selectStub,
           SelectContent: passthroughStub('SelectContent'),
           SelectItem: passthroughStub('SelectItem'),
           SelectTrigger: passthroughStub('SelectTrigger'),
@@ -327,10 +313,11 @@ describe('AboutUsSettings', () => {
     wrapper.unmount()
   })
 
-  it('renders the mock update button and injects the mock downloaded state', async () => {
+  it('shows a confirmation toast when no update is available', async () => {
     upgradeStoreMock.showManualDownloadOptions = false
     upgradeStoreMock.updateError = null
     upgradeStoreMock.updateState = 'idle'
+    upgradeStoreMock.checkUpdate.mockResolvedValueOnce('not-available')
 
     const { default: AboutUsSettings } =
       await import('../../../src/renderer/settings/components/AboutUsSettings.vue')
@@ -338,7 +325,7 @@ describe('AboutUsSettings', () => {
     const wrapper = mount(AboutUsSettings, {
       global: {
         stubs: {
-          Button: buttonStub,
+          DcButton: buttonStub,
           Icon: true,
           Dialog: passthroughStub('Dialog'),
           DialogContent: passthroughStub('DialogContent'),
@@ -346,7 +333,7 @@ describe('AboutUsSettings', () => {
           DialogFooter: passthroughStub('DialogFooter'),
           DialogHeader: passthroughStub('DialogHeader'),
           DialogTitle: passthroughStub('DialogTitle'),
-          Select: passthroughStub('Select'),
+          Select: selectStub,
           SelectContent: passthroughStub('SelectContent'),
           SelectItem: passthroughStub('SelectItem'),
           SelectTrigger: passthroughStub('SelectTrigger'),
@@ -357,75 +344,34 @@ describe('AboutUsSettings', () => {
     })
 
     await flushPromises()
+    const checkButton = wrapper.findAll('button').find((button) => button.text() === '检查更新')
+    expect(checkButton).toBeTruthy()
 
-    const mockButton = wrapper
-      .findAll('button')
-      .find((button) => button.text() === '模拟已下载更新')
-    expect(mockButton).toBeTruthy()
-
-    await mockButton!.trigger('click')
-
-    expect(upgradeStoreMock.mockDownloadedUpdate).toHaveBeenCalledTimes(1)
-  })
-
-  it('starts the dev onboarding guide from the about page', async () => {
-    const { default: AboutUsSettings } =
-      await import('../../../src/renderer/settings/components/AboutUsSettings.vue')
-
-    const wrapper = mount(AboutUsSettings, {
-      global: {
-        stubs: {
-          Button: buttonStub,
-          Icon: true,
-          Dialog: passthroughStub('Dialog'),
-          DialogContent: passthroughStub('DialogContent'),
-          DialogDescription: passthroughStub('DialogDescription'),
-          DialogFooter: passthroughStub('DialogFooter'),
-          DialogHeader: passthroughStub('DialogHeader'),
-          DialogTitle: passthroughStub('DialogTitle'),
-          Select: passthroughStub('Select'),
-          SelectContent: passthroughStub('SelectContent'),
-          SelectItem: passthroughStub('SelectItem'),
-          SelectTrigger: passthroughStub('SelectTrigger'),
-          SelectValue: passthroughStub('SelectValue'),
-          NodeRenderer: passthroughStub('NodeRenderer')
-        }
-      }
-    })
-
+    await checkButton!.trigger('click')
     await flushPromises()
 
-    const onboardingButton = wrapper
-      .findAll('button')
-      .find((button) => button.text() === '模拟首次进入引导')
-
-    expect(onboardingButton).toBeTruthy()
-
-    await onboardingButton!.trigger('click')
-
-    expect(windowClientMock.startGuidedOnboarding).toHaveBeenCalledTimes(1)
-  })
-
-  it('creates mock long chat data from the about page', async () => {
-    let resolveCreateMockChat!: (value: {
-      created: boolean
-      sessionId: string
-      title: string
-      messageCount: number
-    }) => void
-    debugClientMock.createMockChatSession.mockReturnValueOnce(
-      new Promise((resolve) => {
-        resolveCreateMockChat = resolve
+    expect(upgradeStoreMock.checkUpdate).toHaveBeenCalledWith(false)
+    expect(notifyRenderer).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'success',
+        code: 'settings.about.alreadyUpToDate',
+        title: 'update.alreadyUpToDate'
       })
     )
 
+    wrapper.unmount()
+  })
+
+  it('keeps the committed update channel when persistence fails', async () => {
+    configClientMock.setUpdateChannel.mockRejectedValueOnce(new Error('disk unavailable'))
+
     const { default: AboutUsSettings } =
       await import('../../../src/renderer/settings/components/AboutUsSettings.vue')
 
     const wrapper = mount(AboutUsSettings, {
       global: {
         stubs: {
-          Button: buttonStub,
+          DcButton: buttonStub,
           Icon: true,
           Dialog: passthroughStub('Dialog'),
           DialogContent: passthroughStub('DialogContent'),
@@ -433,7 +379,51 @@ describe('AboutUsSettings', () => {
           DialogFooter: passthroughStub('DialogFooter'),
           DialogHeader: passthroughStub('DialogHeader'),
           DialogTitle: passthroughStub('DialogTitle'),
-          Select: passthroughStub('Select'),
+          Select: selectStub,
+          SelectContent: passthroughStub('SelectContent'),
+          SelectItem: passthroughStub('SelectItem'),
+          SelectTrigger: passthroughStub('SelectTrigger'),
+          SelectValue: passthroughStub('SelectValue'),
+          NodeRenderer: passthroughStub('NodeRenderer')
+        }
+      }
+    })
+
+    await flushPromises()
+    const select = wrapper.getComponent(selectStub)
+    select.vm.$emit('update:modelValue', 'beta')
+    await flushPromises()
+
+    expect(configClientMock.setUpdateChannel).toHaveBeenCalledWith('beta')
+    expect(select.props('modelValue')).toBe('stable')
+    expect(notifyRenderer).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'error',
+        code: 'settings.about.updateChannelSaveFailed',
+        title: 'common.error.operationFailed'
+      })
+    )
+    expect(wrapper.text()).not.toContain('disk unavailable')
+
+    wrapper.unmount()
+  })
+
+  it('does not render debug mock controls or create their clients', async () => {
+    const { default: AboutUsSettings } =
+      await import('../../../src/renderer/settings/components/AboutUsSettings.vue')
+
+    const wrapper = mount(AboutUsSettings, {
+      global: {
+        stubs: {
+          DcButton: buttonStub,
+          Icon: true,
+          Dialog: passthroughStub('Dialog'),
+          DialogContent: passthroughStub('DialogContent'),
+          DialogDescription: passthroughStub('DialogDescription'),
+          DialogFooter: passthroughStub('DialogFooter'),
+          DialogHeader: passthroughStub('DialogHeader'),
+          DialogTitle: passthroughStub('DialogTitle'),
+          Select: selectStub,
           SelectContent: passthroughStub('SelectContent'),
           SelectItem: passthroughStub('SelectItem'),
           SelectTrigger: passthroughStub('SelectTrigger'),
@@ -445,33 +435,10 @@ describe('AboutUsSettings', () => {
 
     await flushPromises()
 
-    const mockChatButton = wrapper
-      .findAll('button')
-      .find((button) => button.text() === '创建长会话Mock数据')
-
-    expect(mockChatButton).toBeTruthy()
-
-    await mockChatButton!.trigger('click')
-    await nextTick()
-
-    expect(debugClientMock.createMockChatSession).toHaveBeenCalledTimes(1)
-    const pendingButton = wrapper.findAll('button').find((button) => button.text() === '创建中...')
-    expect(pendingButton?.attributes('disabled')).toBeDefined()
-
-    resolveCreateMockChat({
-      created: true,
-      sessionId: 'debug-long-chat-test',
-      title: 'Debug long chat test',
-      messageCount: 200
-    })
-    await flushPromises()
-
-    expect(toastMock).toHaveBeenCalledWith({
-      title: 'Mock会话已创建',
-      description: '已创建Debug long chat test，共200条消息'
-    })
-    expect(wrapper.findAll('button').some((button) => button.text() === '创建长会话Mock数据')).toBe(
-      true
-    )
+    expect(wrapper.text()).not.toContain('模拟已下载更新')
+    expect(wrapper.text()).not.toContain('清除模拟更新')
+    expect(wrapper.text()).not.toContain('模拟首次进入引导')
+    expect(wrapper.text()).not.toContain('创建长会话Mock数据')
+    expect(windowClientMock.startGuidedOnboarding).not.toHaveBeenCalled()
   })
 })

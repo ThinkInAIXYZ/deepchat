@@ -93,12 +93,6 @@ const settingsPages = [
     optional: true
   },
   {
-    name: 'skills',
-    routeName: 'settings-skills',
-    tabTestId: 'settings-tab-skills',
-    pageTestId: 'settings-skills-page'
-  },
-  {
     name: 'prompts',
     routeName: 'settings-prompt',
     tabTestId: 'settings-tab-prompt',

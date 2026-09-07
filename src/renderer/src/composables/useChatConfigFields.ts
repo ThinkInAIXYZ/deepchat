@@ -11,6 +11,7 @@ import type {
   FieldConfig
 } from '@/components/ChatConfig/types'
 import type { ThinkingBudgetRange } from '@/composables/useThinkingBudget'
+import type { GenerationParameterControl } from '@/composables/useModelCapabilities'
 import {
   DEFAULT_REASONING_EFFORT_OPTIONS as FALLBACK_REASONING_EFFORT_OPTIONS,
   isReasoningEffort,
@@ -55,7 +56,7 @@ export interface UseChatConfigFieldsOptions {
   providerId: Ref<string | undefined>
 
   // Composables
-  supportsTemperatureControl: Ref<boolean | null>
+  temperatureControl: ComputedRef<GenerationParameterControl>
   showThinkingBudget: ComputedRef<boolean>
   thinkingBudgetError: ComputedRef<string>
   budgetRange: Ref<ThinkingBudgetRange | null>
@@ -85,19 +86,30 @@ export function useChatConfigFields(options: UseChatConfigFieldsOptions) {
   const sliderFields = computed<SliderFieldConfig[]>(() => {
     const fields: SliderFieldConfig[] = []
 
-    // Temperature is hidden only when model capabilities explicitly disable it.
-    if (options.supportsTemperatureControl.value !== false) {
+    const temperatureControl = options.temperatureControl.value
+    if (temperatureControl.mode === 'editable' || temperatureControl.mode === 'fixed') {
+      const fixedTemperature =
+        temperatureControl.mode === 'fixed' ? temperatureControl.value : undefined
       fields.push({
         key: 'temperature',
         type: 'slider',
         icon: 'lucide:thermometer',
         label: t('settings.model.temperature.label'),
         description: t('settings.model.temperature.description'),
+        disabled: fixedTemperature !== undefined,
+        hint:
+          fixedTemperature !== undefined
+            ? t('settings.model.temperatureFixedByPolicy', { value: fixedTemperature })
+            : undefined,
         min: 0,
         max: 2,
         step: 0.1,
-        getValue: () => options.temperature.value,
-        setValue: (val) => options.emit('update:temperature', val)
+        getValue: () => fixedTemperature ?? options.temperature.value,
+        setValue: (val) => {
+          if (fixedTemperature === undefined) {
+            options.emit('update:temperature', val)
+          }
+        }
       })
     }
 

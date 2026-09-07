@@ -36,13 +36,14 @@
           v-else-if="file.status === 'processing'"
           class="relative group w-6 h-6 flex items-center justify-center"
         >
-          <Icon icon="lucide:loader" class="text-base text-blue-500 animate-spin" />
+          <Spinner class="size-4 text-blue-500" />
           <!-- Tooltip -->
           <div
             class="absolute bottom-full mb-1 w-max px-2 py-0.5 rounded-md bg-card text-muted-foreground text-xs opacity-0 group-hover:opacity-100 transition-opacity shadow-md pointer-events-none whitespace-nowrap"
           >
-            {{ Math.floor(progressPercent) }}% {{ progress.completed + progress.error }}/{{
-              progress.total
+            {{ Math.floor(progressPercent) }}% {{ fileProgress.completed + fileProgress.error }}/{{
+              fileProgress.total
+            }}
             }}
           </div>
         </div>
@@ -58,56 +59,50 @@
           class="text-base text-yellow-500"
         />
       </div>
-      <AlertDialog>
-        <AlertDialogTrigger asChild>
-          <Button
-            variant="ghost"
-            size="icon"
-            class="h-7 w-7 flex items-center justify-center rounded-full hover:bg-blue-100 transition-colors"
-            :title="t(`settings.knowledgeBase.reAdd`)"
-            v-if="file.status !== 'processing'"
-          >
-            <Icon icon="lucide:refresh-ccw" class="text-base text-gray-500" />
-          </Button>
-        </AlertDialogTrigger>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>{{ t('settings.knowledgeBase.reAddFile.title') }} </AlertDialogTitle>
-          </AlertDialogHeader>
-          <AlertDialogDescription>{{
-            t('settings.knowledgeBase.reAddFile.content', { fileName: file.name })
-          }}</AlertDialogDescription>
-          <AlertDialogFooter>
-            <AlertDialogCancel>{{ t('common.cancel') }}</AlertDialogCancel>
-            <AlertDialogAction @click="reAddFile">{{ t('common.confirm') }}</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <DcButton
+        variant="ghost"
+        size="icon"
+        :disabled="disabled"
+        class="h-7 w-7 flex items-center justify-center rounded-full hover:bg-blue-100 transition-colors"
+        :tooltip="t(`settings.knowledgeBase.reAdd`)"
+        v-if="file.status !== 'processing'"
+        @click="reAddDialogOpen = true"
+      >
+        <Icon icon="lucide:refresh-ccw" class="text-base text-gray-500" />
+      </DcButton>
+      <DcConfirmDialog
+        :open="reAddDialogOpen"
+        :title="t('settings.knowledgeBase.reAddFile.title')"
+        :description="t('settings.knowledgeBase.reAddFile.content', { fileName: file.name })"
+        :danger="false"
+        confirm-label="t('common.confirm')"
+        cancel-label="t('common.cancel')"
+        @update:open="reAddDialogOpen = $event"
+        @confirm="reAddFile"
+        @cancel="reAddDialogOpen = false"
+      />
 
-      <AlertDialog>
-        <AlertDialogTrigger asChild>
-          <Button
-            variant="ghost"
-            size="icon"
-            class="h-7 w-7 flex items-center justify-center rounded-full hover:bg-blue-100 transition-colors"
-            :title="t(`settings.knowledgeBase.delete`)"
-          >
-            <Icon icon="lucide:trash" class="text-base text-red-400" />
-          </Button>
-        </AlertDialogTrigger>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>{{ t('settings.knowledgeBase.deleteFile.title') }} </AlertDialogTitle>
-          </AlertDialogHeader>
-          <AlertDialogDescription>{{
-            t('settings.knowledgeBase.deleteFile.content', { fileName: file.name })
-          }}</AlertDialogDescription>
-          <AlertDialogFooter>
-            <AlertDialogCancel>{{ t('common.cancel') }}</AlertDialogCancel>
-            <AlertDialogAction @click="deleteFile">{{ t('common.confirm') }}</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <DcButton
+        variant="ghost"
+        size="icon"
+        :disabled="disabled"
+        class="h-7 w-7 flex items-center justify-center rounded-full hover:bg-blue-100 transition-colors"
+        :tooltip="t(`settings.knowledgeBase.delete`)"
+        @click="deleteDialogOpen = true"
+      >
+        <Icon icon="lucide:trash" class="text-base text-red-400" />
+      </DcButton>
+      <DcConfirmDialog
+        :open="deleteDialogOpen"
+        :title="t('settings.knowledgeBase.deleteFile.title')"
+        :description="t('settings.knowledgeBase.deleteFile.content', { fileName: file.name })"
+        :danger="true"
+        confirm-label="t('common.confirm')"
+        cancel-label="t('common.cancel')"
+        @update:open="deleteDialogOpen = $event"
+        @confirm="deleteFile"
+        @cancel="deleteDialogOpen = false"
+      />
     </div>
   </div>
 </template>
@@ -118,22 +113,12 @@ import { Icon } from '@iconify/vue'
 import { useI18n } from 'vue-i18n'
 import utc from 'dayjs/plugin/utc'
 import timezone from 'dayjs/plugin/timezone'
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
-import { KnowledgeFileMessage } from '@shared/presenter'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger
-} from '@shadcn/components/ui/alert-dialog'
-import { Button } from '@shadcn/components/ui/button'
+import { computed, ref } from 'vue'
+import type { KnowledgeFileMessage } from '@shared/types/knowledge'
+import { DcButton } from '@dc-ui/components/button'
+import { Spinner } from '@shadcn/components/ui/spinner'
+import { DcConfirmDialog } from '@dc-ui/components/confirm-dialog'
 import dayjs from 'dayjs'
-import { createKnowledgeClient } from '@api/KnowledgeClient'
 
 dayjs.extend(utc)
 dayjs.extend(timezone)
@@ -141,6 +126,12 @@ dayjs.extend(timezone)
 const { t } = useI18n()
 const props = defineProps<{
   file: KnowledgeFileMessage
+  progress?: {
+    completed: number
+    error: number
+    total: number
+  }
+  disabled?: boolean
 }>()
 const emit = defineEmits<{
   delete: []
@@ -154,12 +145,16 @@ const uploadTime = computed(() => {
   return dayjs(props.file.uploadedAt).tz(userTimeZone).format('YYYY-MM-DD HH:mm:ss')
 })
 // 删除文件
+const deleteDialogOpen = ref(false)
 const deleteFile = () => {
+  deleteDialogOpen.value = false
   emit('delete')
 }
 
 // 重新上传
+const reAddDialogOpen = ref(false)
 const reAddFile = () => {
+  reAddDialogOpen.value = false
   emit('reAdd')
 }
 
@@ -191,29 +186,13 @@ const getStatusTitle = (status: string): string => {
   }
 }
 
-const progress = ref({ completed: 0, error: 0, total: 0 })
+const fileProgress = computed(
+  () => props.progress ?? { completed: 0, error: 0, total: props.file.metadata.totalChunks }
+)
 const progressPercent = computed(() => {
-  if (!progress.value.total) return 0
-  return ((progress.value.completed + progress.value.error) / progress.value.total) * 100
-})
-
-const knowledgeClient = createKnowledgeClient()
-let stopFileProgress: (() => void) | null = null
-
-onMounted(async () => {
-  stopFileProgress = knowledgeClient.onFileProgress((data) => {
-    if (props.file.id === data.fileId) {
-      progress.value = {
-        completed: data.completed,
-        error: data.error,
-        total: data.total
-      }
-    }
-  })
-})
-
-onBeforeUnmount(() => {
-  stopFileProgress?.()
-  stopFileProgress = null
+  if (!fileProgress.value.total) return 0
+  return (
+    ((fileProgress.value.completed + fileProgress.value.error) / fileProgress.value.total) * 100
+  )
 })
 </script>

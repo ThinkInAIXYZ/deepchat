@@ -16,5 +16,9 @@
   "autoUpdate": "Aggiornamento automatico",
   "restarting": "Riavvio in corso",
   "alreadyUpToDate": "Già aggiornato",
-  "alreadyUpToDateDesc": "DeepChat è già all'ultima versione, non serve aggiornare."
+  "alreadyUpToDateDesc": "DeepChat è già all'ultima versione, non serve aggiornare.",
+  "taskRunningTitle": "Attività in corso",
+  "taskRunningDescription": "Ci sono attività in esecuzione. Come vuoi procedere con l'aggiornamento?",
+  "updateNow": "Aggiorna ora",
+  "updateAfterTasksComplete": "Aggiorna al termine delle attività"
 }

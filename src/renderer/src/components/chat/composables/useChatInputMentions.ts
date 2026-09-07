@@ -3,9 +3,9 @@ import { VueRenderer } from '@tiptap/vue-3'
 import type { Editor, Range } from '@tiptap/core'
 import tippy from 'tippy.js'
 import { createSessionClient } from '@api/SessionClient'
-import { createSkillClient } from '@api/SkillClient'
 import { createWorkspaceClient } from '@api/WorkspaceClient'
-import type { PromptListEntry, WorkspaceFileNode } from '@shared/presenter'
+import type { WorkspaceFileNode } from '@shared/types/workspace'
+import type { PromptListEntry } from '@shared/types/mcp'
 import { useMcpStore } from '@/stores/mcp'
 import { useSkillsStore } from '@/stores/skillsStore'
 import {
@@ -29,12 +29,12 @@ export interface UseChatInputMentionsOptions {
   getEditor: () => Editor | null
   workspacePath: Ref<string | null>
   sessionId: Ref<string | null>
+  agentId: Ref<string | null>
   isAcpSession: Ref<boolean>
   isGenerating?: Ref<boolean>
   compactCommandDescription?: Ref<string>
   onCommandSubmit: (command: string) => void
-  onActivateSkill?: (skillName: string) => Promise<void> | void
-  onPendingSkillsChange?: (skills: string[]) => void
+  onActivateSkill: (skillName: string) => Promise<void> | void
 }
 
 interface FileSuggestionItem {
@@ -77,16 +77,15 @@ const normalizeAcpCommands = (commands: unknown): AcpSessionCommand[] => {
 export function useChatInputMentions(options: UseChatInputMentionsOptions) {
   const workspaceClient = createWorkspaceClient()
   const sessionClient = createSessionClient()
-  const skillClient = createSkillClient()
   const mcpStore = useMcpStore()
   const skillsStore = useSkillsStore()
 
   const acpCommands = ref<AcpSessionCommand[]>([])
   const acpCommandFetchSeq = ref(0)
-  const pendingSkills = ref<string[]>([])
   const isSuggestionMenuOpen = ref(false)
   const suppressSubmitUntil = ref(0)
   const registeredWorkspacePath = ref<string | null>(null)
+  const normalizedAgentId = computed(() => options.agentId.value?.trim() || 'deepchat')
   let unsubscribeAcpCommandsReady: (() => void) | null = null
 
   // Stores the pending command/prompt context for the inline CommandForm
@@ -103,10 +102,6 @@ export function useChatInputMentions(options: UseChatInputMentionsOptions) {
 
   const closeDialog = () => {
     pendingFormData.value = null
-  }
-
-  const notifyPendingSkills = () => {
-    options.onPendingSkillsChange?.([...pendingSkills.value])
   }
 
   const ensureWorkspaceRegistered = async (): Promise<boolean> => {
@@ -194,7 +189,7 @@ export function useChatInputMentions(options: UseChatInputMentionsOptions) {
       })
     }
 
-    for (const skill of skillsStore.skills) {
+    for (const skill of skillsStore.getSkillsForAgent(normalizedAgentId.value)) {
       items.push({
         id: `skill:${skill.name}`,
         category: 'skill',
@@ -265,26 +260,6 @@ export function useChatInputMentions(options: UseChatInputMentionsOptions) {
     }
   }
 
-  const activateSkill = async (skillName: string) => {
-    if (!skillName) return
-
-    const sessionId = options.sessionId.value
-    if (!sessionId) {
-      if (!pendingSkills.value.includes(skillName)) {
-        pendingSkills.value = [...pendingSkills.value, skillName]
-        notifyPendingSkills()
-      }
-      return
-    }
-
-    const activeSkills = await skillClient.getActiveSkills(sessionId)
-    if (activeSkills.includes(skillName)) {
-      return
-    }
-
-    await skillClient.setActiveSkills(sessionId, [...activeSkills, skillName])
-  }
-
   const insertPromptText = async (prompt: PromptListEntry, args?: Record<string, string>) => {
     try {
       const result = await mcpStore.getPrompt(prompt, args)
@@ -341,12 +316,7 @@ export function useChatInputMentions(options: UseChatInputMentionsOptions) {
 
     if (action.kind === 'activate-skill') {
       editor.chain().focus().insertContentAt(range, '').run()
-
-      if (options.onActivateSkill) {
-        await options.onActivateSkill(action.skillName)
-        return
-      }
-      await activateSkill(action.skillName)
+      await options.onActivateSkill(action.skillName)
       return
     }
 
@@ -535,13 +505,14 @@ export function useChatInputMentions(options: UseChatInputMentionsOptions) {
   )
 
   watch(
-    () => options.sessionId.value,
-    (sessionId) => {
-      if (sessionId) {
-        pendingSkills.value = []
-        notifyPendingSkills()
+    normalizedAgentId,
+    (nextAgentId, previousAgentId) => {
+      if (previousAgentId && previousAgentId !== nextAgentId) {
+        closeDialog()
       }
-    }
+      void skillsStore.ensureSkillsLoaded(nextAgentId)
+    },
+    { immediate: true }
   )
 
   watch(
@@ -553,9 +524,6 @@ export function useChatInputMentions(options: UseChatInputMentionsOptions) {
   )
 
   onMounted(() => {
-    if (skillsStore.skills.length === 0) {
-      void skillsStore.loadSkills()
-    }
     void mcpStore.loadPrompts()
     void mcpStore.loadTools()
 
@@ -572,7 +540,6 @@ export function useChatInputMentions(options: UseChatInputMentionsOptions) {
     slashSuggestion,
     isSuggestionMenuOpen,
     shouldSuppressSubmit,
-    pendingSkills,
     submitDialog,
     closeDialog
   }

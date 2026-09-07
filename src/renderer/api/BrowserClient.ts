@@ -2,18 +2,27 @@ import type { DeepchatBridge } from '@shared/contracts/bridge'
 import {
   browserActivityChangedEvent,
   browserOpenRequestedEvent,
-  browserStatusChangedEvent
+  browserPreviewActionEvent,
+  browserPreviewFrameEvent,
+  browserPreviewSurfaceChangedEvent,
+  browserStatusChangedEvent,
+  type DeepchatEventPayload
 } from '@shared/contracts/events'
 import {
   browserAttachCurrentWindowRoute,
+  browserApplyImportRoute,
   browserClearSandboxDataRoute,
+  browserDismissPreviewRoute,
   browserDestroyRoute,
   browserDetachRoute,
   browserGetStatusRoute,
   browserGoBackRoute,
   browserGoForwardRoute,
   browserLoadUrlRoute,
+  browserPreviewImportRoute,
   browserReloadRoute,
+  browserScanImportSourcesRoute,
+  browserSetPreviewModeRoute,
   browserUpdateCurrentWindowBoundsRoute
 } from '@shared/contracts/routes'
 import type { YoBrowserStatus } from '@shared/types/browser'
@@ -73,6 +82,19 @@ export function createBrowserClient(bridge: DeepchatBridge = getDeepchatBridge()
     return result.detached
   }
 
+  async function setPreviewMode(
+    sessionId: string,
+    mode: 'capturing' | 'rendering' | 'stopped',
+    runId?: string
+  ) {
+    return await bridge.invoke(browserSetPreviewModeRoute.name, { sessionId, mode, runId })
+  }
+
+  async function dismissPreview(sessionId: string, runId: string) {
+    const result = await bridge.invoke(browserDismissPreviewRoute.name, { sessionId, runId })
+    return result.dismissed
+  }
+
   async function destroy(sessionId: string) {
     const result = await bridge.invoke(browserDestroyRoute.name, { sessionId })
     return result.destroyed
@@ -98,6 +120,18 @@ export function createBrowserClient(bridge: DeepchatBridge = getDeepchatBridge()
     return result.cleared
   }
 
+  async function scanImportSources() {
+    return await bridge.invoke(browserScanImportSourcesRoute.name, {})
+  }
+
+  async function previewImport(profileId: string) {
+    return await bridge.invoke(browserPreviewImportRoute.name, { profileId })
+  }
+
+  async function applyImport(token: string) {
+    return await bridge.invoke(browserApplyImportRoute.name, { token })
+  }
+
   async function openExternal(url: string) {
     await openRuntimeExternal(url)
   }
@@ -107,6 +141,8 @@ export function createBrowserClient(bridge: DeepchatBridge = getDeepchatBridge()
       sessionId: string
       windowId: number
       url: string
+      source: 'agent' | 'user'
+      runId?: string
       version: number
     }) => void
   ) {
@@ -118,6 +154,8 @@ export function createBrowserClient(bridge: DeepchatBridge = getDeepchatBridge()
       sessionId: string
       windowId: number
       url: string
+      source: 'agent' | 'user'
+      runId?: string
       version: number
     }) => void
   ) {
@@ -168,22 +206,48 @@ export function createBrowserClient(bridge: DeepchatBridge = getDeepchatBridge()
     return bridge.on(browserActivityChangedEvent.name, listener)
   }
 
+  function onPreviewFrame(
+    listener: (payload: DeepchatEventPayload<typeof browserPreviewFrameEvent.name>) => void
+  ) {
+    return bridge.on(browserPreviewFrameEvent.name, listener)
+  }
+
+  function onPreviewAction(
+    listener: (payload: DeepchatEventPayload<typeof browserPreviewActionEvent.name>) => void
+  ) {
+    return bridge.on(browserPreviewActionEvent.name, listener)
+  }
+
+  function onPreviewSurfaceChanged(
+    listener: (payload: DeepchatEventPayload<typeof browserPreviewSurfaceChangedEvent.name>) => void
+  ) {
+    return bridge.on(browserPreviewSurfaceChangedEvent.name, listener)
+  }
+
   return {
     getStatus,
     loadUrl,
     attachCurrentWindow,
     updateCurrentWindowBounds,
     detach,
+    setPreviewMode,
+    dismissPreview,
     destroy,
     goBack,
     goForward,
     reload,
     clearSandboxData,
+    scanImportSources,
+    previewImport,
+    applyImport,
     openExternal,
     onOpenRequested,
     onOpenRequestedForCurrentWindow,
     onStatusChanged,
-    onActivityChanged
+    onActivityChanged,
+    onPreviewFrame,
+    onPreviewAction,
+    onPreviewSurfaceChanged
   }
 }
 

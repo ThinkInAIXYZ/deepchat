@@ -2,8 +2,10 @@ import { z } from 'zod'
 import { BrowserPageStatus } from '../types/browser'
 import { ApiEndpointType, ModelType, NEW_API_ENDPOINT_TYPES } from '../model'
 import {
+  AttachmentRepresentationPreferenceSchema,
   FileMetadataValueSchema,
   ImageGenerationOptionsSchema,
+  PdfEmbeddedTextCoverageSchema,
   VideoGenerationOptionsSchema,
   TtsSettingsSchema,
   JsonValueSchema,
@@ -16,6 +18,12 @@ import {
   VerbositySchema
 } from '../types/model-db'
 import { ConflictStrategy } from '../types/skillSync'
+import {
+  AGENT_OUTPUT_LIMIT_MAX_CHARS,
+  AGENT_OUTPUT_LIMIT_MIN_CHARS
+} from '../lib/agentOutputLimits'
+import { ToolModeSchema } from '../toolMode'
+import { ProviderCustomHeadersSchema } from '../providerCustomHeaders'
 
 export const ThemeModeSchema = z.enum(['dark', 'light', 'system'])
 
@@ -228,34 +236,6 @@ export const SkillSyncImportPreviewSchema = z.looseObject({
   warnings: z.array(z.string())
 })
 
-export const SkillSyncExportPreviewSchema = z.looseObject({
-  skillName: z.string().min(1),
-  targetTool: z.string().min(1),
-  targetPath: z.string(),
-  convertedContent: z.string(),
-  warnings: z.array(z.string()),
-  conflict: z
-    .looseObject({
-      existingPath: z.string(),
-      strategy: SkillSyncConflictStrategySchema
-    })
-    .optional(),
-  exportOptions: z.record(z.string(), z.unknown()).optional()
-})
-
-export const SkillSyncResultSchema = z.looseObject({
-  success: z.boolean(),
-  imported: z.number().int().nonnegative(),
-  exported: z.number().int().nonnegative(),
-  skipped: z.number().int().nonnegative(),
-  failed: z.array(
-    z.looseObject({
-      skill: z.string(),
-      reason: z.string()
-    })
-  )
-})
-
 export const SkillSyncFormatCapabilitiesSchema = z.looseObject({
   hasFrontmatter: z.boolean(),
   supportsName: z.boolean(),
@@ -308,7 +288,6 @@ export const UsageDashboardSummarySchema = z.object({
   totalTokens: z.number().nonnegative(),
   cachedInputTokens: z.number().nonnegative(),
   cacheHitRate: z.number(),
-  estimatedCostUsd: z.number().nullable(),
   mostActiveDay: z.object({
     date: z.string().nullable(),
     messageCount: z.number().int().nonnegative()
@@ -322,7 +301,6 @@ export const UsageDashboardCalendarDaySchema = z.object({
   outputTokens: z.number().nonnegative(),
   totalTokens: z.number().nonnegative(),
   cachedInputTokens: z.number().nonnegative(),
-  estimatedCostUsd: z.number().nullable(),
   level: z.union([z.literal(0), z.literal(1), z.literal(2), z.literal(3), z.literal(4)])
 })
 
@@ -333,8 +311,17 @@ export const UsageDashboardBreakdownItemSchema = z.object({
   inputTokens: z.number().nonnegative(),
   outputTokens: z.number().nonnegative(),
   totalTokens: z.number().nonnegative(),
-  cachedInputTokens: z.number().nonnegative(),
-  estimatedCostUsd: z.number().nullable()
+  cachedInputTokens: z.number().nonnegative()
+})
+
+export const UsageDashboardCategoryItemSchema = z.object({
+  id: z.enum(['chat', 'compaction']),
+  eventCount: z.number().int().nonnegative(),
+  knownUsageCount: z.number().int().nonnegative(),
+  unknownUsageCount: z.number().int().nonnegative(),
+  inputTokens: z.number().nonnegative(),
+  outputTokens: z.number().nonnegative(),
+  totalTokens: z.number().nonnegative()
 })
 
 export const UsageDashboardRtkSummarySchema = z.object({
@@ -379,6 +366,7 @@ export const UsageDashboardDataSchema = z.object({
   calendar: z.array(UsageDashboardCalendarDaySchema),
   providerBreakdown: z.array(UsageDashboardBreakdownItemSchema),
   modelBreakdown: z.array(UsageDashboardBreakdownItemSchema),
+  categoryBreakdown: z.array(UsageDashboardCategoryItemSchema).default([]),
   rtk: UsageDashboardRtkDataSchema
 })
 
@@ -390,6 +378,7 @@ export const LlmProviderSchema = z.looseObject({
   apiKey: z.string(),
   copilotClientId: z.string().optional(),
   baseUrl: z.string(),
+  customHeaders: ProviderCustomHeadersSchema.optional(),
   models: z.array(ProviderModelSummarySchema).optional(),
   customModels: z.array(ProviderModelSummarySchema).optional(),
   enable: z.boolean(),
@@ -521,27 +510,67 @@ export const ReasoningPortraitSchema = z.looseObject({
   notes: z.array(z.string()).optional()
 })
 
+const NumberRequestParameterPolicySchema = z.discriminatedUnion('mode', [
+  z.object({ mode: z.literal('passthrough') }),
+  z.object({ mode: z.literal('fixed'), value: z.number() }),
+  z.object({ mode: z.literal('omit') })
+])
+
+const BooleanRequestParameterPolicySchema = z.discriminatedUnion('mode', [
+  z.object({ mode: z.literal('passthrough') }),
+  z.object({ mode: z.literal('fixed'), value: z.boolean() }),
+  z.object({ mode: z.literal('omit') })
+])
+
+const LegacyThinkingRequestParameterPolicySchema = z.discriminatedUnion('mode', [
+  z.object({ mode: z.literal('passthrough') }),
+  z.object({ mode: z.literal('fixed'), value: z.enum(['enabled', 'disabled']) }),
+  z.object({ mode: z.literal('omit') })
+])
+
 export const ModelCapabilitiesSchema = z.object({
-  supportsAudioInput: z.boolean().nullable(),
-  supportsReasoning: z.boolean().nullable(),
+  identity: z.discriminatedUnion('catalogMatched', [
+    z.object({
+      providerId: z.string().min(1),
+      requestModelId: z.string().min(1),
+      catalogMatched: z.literal(true),
+      catalogModelId: z.string().min(1)
+    }),
+    z.object({
+      providerId: z.string().min(1),
+      requestModelId: z.string().min(1),
+      catalogMatched: z.literal(false),
+      catalogModelId: z.null()
+    })
+  ]),
+  defaultToolMode: ToolModeSchema.optional(),
+  requestPolicy: z.object({
+    temperature: NumberRequestParameterPolicySchema,
+    topP: NumberRequestParameterPolicySchema,
+    reasoning: BooleanRequestParameterPolicySchema,
+    legacyThinking: LegacyThinkingRequestParameterPolicySchema
+  }),
+  supportsAudioInput: z.boolean(),
+  supportsReasoning: z.boolean(),
   reasoningPortrait: ReasoningPortraitSchema.nullable(),
-  thinkingBudgetRange: z
-    .object({
-      min: z.number().int().optional(),
-      max: z.number().int().optional(),
-      default: z.number().int().optional()
-    })
-    .nullable(),
-  supportsSearch: z.boolean().nullable(),
-  searchDefaults: z
-    .object({
-      default: z.boolean().optional(),
-      forced: z.boolean().optional(),
-      strategy: z.enum(['turbo', 'max']).optional()
-    })
-    .nullable(),
-  supportsTemperatureControl: z.boolean().nullable(),
-  temperatureCapability: z.boolean().nullable()
+  thinkingBudgetRange: z.object({
+    min: z.number().int().optional(),
+    max: z.number().int().optional(),
+    default: z.number().int().optional()
+  }),
+  supportsSearch: z.boolean(),
+  searchExecution: z.literal('provider').optional(),
+  searchDefaults: z.object({
+    default: z.boolean().optional(),
+    forced: z.boolean().optional(),
+    strategy: z.enum(['turbo', 'max']).optional()
+  }),
+  supportsTemperatureControl: z.boolean(),
+  temperatureCapability: z.boolean().nullable(),
+  supportsReasoningEffort: z.boolean(),
+  reasoningEffortDefault: ReasoningEffortSchema.optional(),
+  supportsVerbosity: z.boolean(),
+  verbosityDefault: VerbositySchema.optional()
 })
 
 export const ModelConfigSchema = z.looseObject({
@@ -623,6 +652,7 @@ export const OllamaModelSchema = z.looseObject({
   size: z.number(),
   digest: z.string(),
   modified_at: z.union([z.string(), z.date()]),
+  runtimeContextLength: z.number().int().positive().optional(),
   details: z.looseObject({
     format: z.string(),
     family: z.string(),
@@ -681,7 +711,25 @@ export const DeepChatAgentConfigSchema = z.looseObject({
   enabledSkillNames: z.array(z.string()).nullable().optional(),
   enabledMcpServerIds: z.array(z.string()).nullable().optional(),
   subagentEnabled: z.boolean().optional(),
-  defaultProjectPath: z.string().nullable().optional()
+  defaultProjectPath: z.string().nullable().optional(),
+  readFileAutoTruncateChars: z
+    .number()
+    .int()
+    .min(AGENT_OUTPUT_LIMIT_MIN_CHARS)
+    .max(AGENT_OUTPUT_LIMIT_MAX_CHARS)
+    .optional(),
+  toolOutputInlineChars: z
+    .number()
+    .int()
+    .min(AGENT_OUTPUT_LIMIT_MIN_CHARS)
+    .max(AGENT_OUTPUT_LIMIT_MAX_CHARS)
+    .optional(),
+  commandOutputInlineChars: z
+    .number()
+    .int()
+    .min(AGENT_OUTPUT_LIMIT_MIN_CHARS)
+    .max(AGENT_OUTPUT_LIMIT_MAX_CHARS)
+    .optional()
 })
 
 export const ConfigValueSchema = z.union([
@@ -701,7 +749,9 @@ export const PreparedMessageFileSchema = z.object({
   mimeType: z.string().optional(),
   token: z.number().optional(),
   thumbnail: z.string().optional(),
-  metadata: z.record(z.string(), FileMetadataValueSchema).optional()
+  metadata: z.record(z.string(), FileMetadataValueSchema).optional(),
+  pdfTextCoverage: PdfEmbeddedTextCoverageSchema.optional(),
+  requestedRepresentation: AttachmentRepresentationPreferenceSchema.optional()
 })
 
 export const DeviceInfoSchema = z.object({
@@ -798,6 +848,13 @@ export const WorkspaceFileNodeSchema: z.ZodType<{
   })
 )
 
+export const WorkspaceFileOpenAppSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  kind: z.enum(['editor', 'terminal']),
+  iconDataUrl: z.string().optional()
+})
+
 export const WorkspaceFileMetadataSchema = z.object({
   fileName: z.string(),
   fileSize: z.number(),
@@ -867,7 +924,9 @@ export const YoBrowserStatusSchema = z.object({
   canGoBack: z.boolean(),
   canGoForward: z.boolean(),
   visible: z.boolean(),
-  loading: z.boolean()
+  loading: z.boolean(),
+  owner: z.enum(['agent', 'user']).optional(),
+  agentRunId: z.string().optional()
 })
 
 export const RectangleSchema = z.object({

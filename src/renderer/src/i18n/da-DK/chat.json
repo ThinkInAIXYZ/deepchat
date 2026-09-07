@@ -70,6 +70,27 @@
         "yobrowser": "YoBrowser"
       }
     },
+    "toolMode": {
+      "title": "Tilstand",
+      "modelDefault": "Modelstandard",
+      "options": {
+        "agent": "Agent",
+        "code": "Code",
+        "minimal": "Minimal"
+      },
+      "descriptions": {
+        "agent": "Brug Agents standardværktøjssæt.",
+        "code": "Sammensæt aktiverede værktøjer via kode. Kræver tilladelsestilstanden Fuld adgang.",
+        "minimal": "Forenkler filhandlinger og bevarer andre aktiverede værktøjer."
+      },
+      "useModelDefault": "Brug modelstandard",
+      "saving": "Gemmer tilstand...",
+      "locked": "Du kan skifte tilstand, når dette svar er færdigt.",
+      "updateFailed": "Værktøjstilstanden kunne ikke opdateres.",
+      "codeEntry": "Kodeindgang",
+      "codeCallable": "Kan kaldes fra kode",
+      "minimalTools": "Kodeværktøjer"
+    },
     "fileUploadFailed": "Vedhæftning mislykkedes",
     "fileUploadFailedDesc": "Kunne ikke behandle {count} filer: {names}",
     "fileUploadFailedMore": " og {count} flere",
@@ -78,6 +99,12 @@
     "audioInputUnsupportedDescription": "Modellen {model} understøtter ikke lydinput. {count} lydvedhæftning(er) blev ignoreret."
   },
   "pendingInput": {
+    "resume": "Fortsæt kø",
+    "resumeFailed": "Kunne ikke fortsætte køen",
+    "retry": "Prøv igen",
+    "retryRequired": "Kræver nyt forsøg",
+    "retryRequiredDescription": "Denne besked blev ikke sendt. Prøv igen for at fortsætte køen.",
+    "retryFailed": "Kunne ikke prøve beskeden igen",
     "steer": "Styring",
     "queueCount": "Afventer {count}/{max}",
     "toSteer": "Afbryd og send",
@@ -153,7 +180,8 @@
   "mode": {
     "acpAgent": "ACP-agent",
     "agent": "Agent",
-    "current": "Aktuel tilstand: {mode}"
+    "current": "Aktuel tilstand: {mode}",
+    "saveFailed": "Kunne ikke gemme tilstandsvalget"
   },
   "topbar": {
     "share": "Del",
@@ -167,7 +195,6 @@
     "systemPrompt": "Systemprompt",
     "systemPromptPlaceholder": "Vælg en forudindstilling",
     "temperature": "Temperatur",
-    "temperatureFixedMoonshotKimi": "Moonshot Kimi K2.5/K2.6 låser temperaturen til {enabled}, når tænkning er aktiveret, og til {disabled}, når den er deaktiveret.",
     "topP": "Top P",
     "topPDescription": "Nucleus-sampling; lad feltet stå tomt for at bruge udbyderens standard",
     "contextLength": "Kontekstlængde",
@@ -203,6 +230,12 @@
       "contextMenu": {
         "insertPath": "Indsæt i inputboksen",
         "openFile": "åbne fil",
+        "openInApp": "Åbn i {app}",
+        "openInTerminalApp": "Åbn mappen i {app}",
+        "openFailed": "Filen kunne ikke åbnes med det program",
+        "preferredAppUnavailable": "Det foretrukne program er ikke tilgængeligt lige nu. Åbner med systemets standardprogram.",
+        "openWith": "Åbn med",
+        "openWithSystemDefault": "Åbn med systemets standardprogram",
         "revealInFolder": "Åbn i filhåndtering"
       },
       "empty": "Ingen filer endnu",
@@ -301,10 +334,19 @@
   "compaction": {
     "compacting": "Komprimerer kontekst...",
     "compacted": "Konteksten blev komprimeret",
+    "compactedWithoutSummary": "Konteksten blev komprimeret uden et resumé",
+    "compactedWithoutLargerSummary": "Konteksten blev komprimeret uden at bruge et større resumé",
     "commandDescription": "Komprimer samtalekontekst",
     "noopTitle": "Ingen kontekst at komprimere",
     "noopDescription": "Der er endnu ingen ny samtalehistorik at komprimere.",
     "failedTitle": "Komprimering mislykkedes"
+  },
+  "contextOccupancy": {
+    "label": "Kontekstforbrug",
+    "details": "{used} af {capacity} tokens",
+    "provider": "Målt af udbyderen",
+    "estimated": "Estimeret fra anmodningsvisningen",
+    "stale": "Forældet efter ændring af model, vindue eller komprimering"
   },
   "newThread": {
     "title": "Byg og udforsk"
@@ -348,7 +390,13 @@
     "moveProjectGroupBottom": "Flyt til bunden",
     "searchCommand": "Search",
     "chatSection": "Chat",
-    "workspace": "Workspace"
+    "workspace": "Workspace",
+    "addWorkspace": "Tilføj arbejdsområde",
+    "manageWorkspaces": "Administrer arbejdsområder",
+    "openWorkspaceFolder": "Åbn mappe",
+    "emptyWorkspace": "Tom",
+    "addWorkspaceFailed": "Arbejdsområdet kunne ikke tilføjes",
+    "searchLoadedRangeDescription": "Viser resultater fra indlæste samtaler. Rul for at indlæse mere historik."
   },
   "floatingWidget": {
     "title": "Opgaveoversigt",
@@ -400,6 +448,72 @@
     "firstChat": {
       "description": "Everything is ready. Type your first message here to finish the onboarding flow.",
       "caption": "The spotlight stays on the input box until you send your first message."
+    }
+  },
+  "messageReceipt": {
+    "unread": "Ulæst",
+    "read": "Læst"
+  },
+  "attachments": {
+    "chooseRepresentation": "Vælg, hvordan {name} skal sendes",
+    "representation": "Visning af vedhæftet fil",
+    "auto": "Automatisk",
+    "sendImage": "Send billede",
+    "useOcrText": "Brug OCR-tekst",
+    "useEmbeddedText": "Brug integreret tekst",
+    "preparing": "Behandler vedhæftninger…",
+    "actionRequiredTitle": "Vedhæftningen kræver opmærksomhed",
+    "actionRequiredDescription": "En eller flere vedhæftninger kan ikke bruges. Vælg, hvordan du vil fortsætte.",
+    "attachmentNumber": "Vedhæftning {number}",
+    "moreIssues": "{count} yderligere problemer med vedhæftninger",
+    "genericUnavailable": "Der er intet brugbart indhold fra vedhæftninger.",
+    "keepDraft": "Behold kladde",
+    "switchVisionModel": "Skift til en model med billedforståelse",
+    "retry": "Prøv igen",
+    "sendWithoutImageContent": "Spring vedhæftet indhold over",
+    "inspectOcrText": "Vis OCR-tekst",
+    "ocrBadge": "OCR",
+    "embeddedTextBadge": "Tekst",
+    "ocrPartialBadge": "OCR · Delvis",
+    "ocrLimitedBadge": "OCR · Begrænset",
+    "imageBadge": "Billede",
+    "unavailableBadge": "Ikke tilgængelig",
+    "ocrPreviewTitle": "OCR-tekst — {name}",
+    "ocrPreviewDescription": "Ca. {tokens} tokens blev sendt som ikke-betroet indhold fra en vedhæftet fil.",
+    "ocrPageCoverage": "Indeholder tekst til og med side {page}.",
+    "ocrPageCoveragePartial": "Indeholder en del af side {page}.",
+    "ocrTextTruncated": "Denne OCR-tekst blev afkortet, før den blev sendt.",
+    "reasons": {
+      "automatic_ocr_disabled": "Automatisk OCR er slået fra.",
+      "document_limit_exceeded": "Kun én PDF kan bruge OCR pr. anmodning.",
+      "document_too_large": "PDF-filen overskrider filstørrelsesgrænsen.",
+      "image_dimensions_exceeded": "Det afkodede billedes dimensioner overskrider sikkerhedsgrænsen.",
+      "image_limit_exceeded": "Denne omgang indeholder flere billeder, end OCR kan behandle.",
+      "image_payload_unavailable": "De oprindelige billeddata er ikke længere tilgængelige.",
+      "image_too_large": "Billedet overskrider størrelsesgrænsen pr. fil.",
+      "ocr_cancelled": "OCR blev annulleret.",
+      "ocr_empty": "OCR fandt ingen brugbar tekst.",
+      "ocr_failed": "OCR kunne ikke behandle denne vedhæftning.",
+      "ocr_queue_full": "OCR er optaget. Prøv igen, når den aktuelle vedhæftning er færdigbehandlet.",
+      "ocr_resource_limited": "OCR stoppede ved grænsen for PDF-behandling.",
+      "ocr_runtime_unavailable": "OCR er ikke tilgængelig på denne platform eller installation.",
+      "invalid_attachment_snapshot": "De gemte OCR-data er ugyldige.",
+      "turn_ocr_budget_exhausted": "OCR-teksten overskrider denne beskeds grænse for vedhæftet tekst.",
+      "pdf_text_unavailable": "Der er ingen integreret tekst i denne PDF.",
+      "requested_image_requires_vision": "„Send billede“ kræver en model med billedforståelse.",
+      "turn_image_bytes_exceeded": "Billederne i denne omgang overskrider den samlede størrelsesgrænse.",
+      "user_skipped_attachment_content": "Indholdet fra vedhæftningen blev udeladt efter dit valg.",
+      "user_skipped_image_content": "Billedindholdet blev udeladt efter dit valg.",
+      "unsupported_image_format": "Dette billedformat understøttes ikke af OCR."
+    },
+    "pending": {
+      "blockedCount": "{count} blokerede",
+      "blocked": "Blokeret",
+      "retry": "Prøv OCR igen",
+      "sendWithoutImageContent": "Spring vedhæftet indhold over",
+      "blockedDescription": "Dette element venter på en beslutning om vedhæftningen.",
+      "blockedReasonMore": "{reason} Der er desuden {count} yderligere problemer.",
+      "resolveFailed": "Den blokerede besked kunne ikke behandles"
     }
   },
   "skillDraft": {
@@ -459,6 +573,14 @@
       "dropped": "Fravalgt",
       "tokens": "Tokens",
       "budget": "Budget",
+      "allocation": "Fordeling af bidragsbudget",
+      "directive": "Direktiv",
+      "persona": "Persona",
+      "working": "Arbejdshukommelse",
+      "queryRecall": "Forespørgselsgenkaldelse",
+      "overhead": "Ekstraforbrug",
+      "unused": "Ubrugt",
+      "overheadSummary": "Ekstraforbrug {overhead} · Ubrugt {unused}",
       "countOnly": "Denne post indeholder kun en optællingsoversigt.",
       "unavailable": "Dette minde er ikke længere tilgængeligt.",
       "noSelectedDetails": "Der er ingen hukommelsesdetaljer at vise for denne tur.",
@@ -485,5 +607,29 @@
       "amendRetryable": "Ændringen mislykkedes. Den oprindelige hukommelse er gendannet, så prøv igen.",
       "amendRestoreFailed": "Ændringen mislykkedes, og den oprindelige hukommelse kunne ikke gendannes."
     }
+  },
+  "orchestration": {
+    "actions": {
+      "openChild": "Åbn underagent"
+    },
+    "activityTitle": "Agentaktivitet",
+    "proactive": {
+      "title": "Proaktivt samarbejde",
+      "description": "Lader den overordnede Agent uddelegere, når uafhængigt eller parallelt arbejde tydeligt hjælper. Kan bruge mere tid, flere tokens og flere ressourcer.",
+      "reasons": {
+        "session_unavailable": "Denne samtale er ikke længere tilgængelig.",
+        "agent_unavailable": "Den valgte Agent er ikke tilgængelig.",
+        "deepchat_agent_required": "Proaktivt samarbejde kræver en DeepChat Agent.",
+        "regular_parent_required": "Proaktivt samarbejde er ikke tilgængeligt i en undersamtale.",
+        "agent_policy_unavailable": "Samarbejdspolitikken kunne ikke indlæses.",
+        "subagents_disabled": "Aktivér Subagents for denne Agent for at bruge proaktivt samarbejde."
+      }
+    }
+  },
+  "guardStop": {
+    "maxToolCalls": "Værktøjskaldsgrænsen blev nået, før opgaven var færdig.",
+    "noProgress": "Gentagne identiske værktøjsresultater gav ingen fremgang, så Agent stoppede.",
+    "maxTurns": "Grænsen for samtalerunder blev nået, før opgaven var færdig.",
+    "continueMessage": "Fortsæt derfra, hvor du slap."
   }
 }

@@ -19,7 +19,9 @@
   "title": "ツール呼び出し",
   "terminalOutput": "端子出力",
   "badge": {
-    "rtk": "RTK"
+    "rtk": "RTK",
+    "allowed": "許可済み",
+    "denied": "拒否済み"
   },
   "replacementsCount": "{count}か所の置換を完了しました"
 }

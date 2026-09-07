@@ -1,17 +1,18 @@
 import { mount } from '@vue/test-utils'
-import { defineComponent } from 'vue'
+import { defineComponent, onMounted, onUnmounted } from 'vue'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import MessageItemAssistant from '@/components/message/MessageItemAssistant.vue'
 import type {
   DisplayAssistantMessage,
   DisplayAssistantMessageBlock
-} from '@/components/chat/messageListItems'
+} from '@/features/chat-page/model/displayMessage'
 
 const memoryActivity = vi.hoisted(() => ({
   enabled: false,
   openTurnMemories: vi.fn(),
   rememberSelection: vi.fn()
 }))
+const notifyRenderer = vi.hoisted(() => vi.fn())
 
 vi.mock('vue-i18n', () => ({
   useI18n: () => ({
@@ -23,8 +24,8 @@ vi.mock('@/stores/ui/memoryActivity', () => ({
   useMemoryActivityStore: () => memoryActivity
 }))
 
-vi.mock('@/components/use-toast', () => ({
-  useToast: () => ({ toast: vi.fn() })
+vi.mock('@renderer-notifications/rendererNotificationPort', () => ({
+  notifyRenderer
 }))
 
 vi.mock('@api/DeviceClient', () => ({
@@ -50,8 +51,8 @@ vi.mock('@shadcn/components/ui/spinner', () => ({
   })
 }))
 
-vi.mock('@shadcn/components/ui/button', () => ({
-  Button: defineComponent({
+vi.mock('@dc-ui/components/button', () => ({
+  DcButton: defineComponent({
     name: 'Button',
     template: '<button type="button"><slot /></button>'
   })
@@ -188,6 +189,7 @@ describe('MessageItemAssistant', () => {
     memoryActivity.enabled = false
     memoryActivity.openTurnMemories.mockClear()
     memoryActivity.rememberSelection.mockClear()
+    notifyRenderer.mockClear()
   })
 
   const global = {
@@ -200,12 +202,20 @@ describe('MessageItemAssistant', () => {
           disableMarkdownVirtualization: {
             type: Boolean,
             default: false
+          },
+          hiddenMarkdownImageSources: {
+            type: Array,
+            default: undefined
           }
         },
         template:
-          '<div data-testid="message-block-content" :data-disable-markdown-virtualization="String(disableMarkdownVirtualization)"><slot /></div>'
+          '<div data-testid="message-block-content" :data-disable-markdown-virtualization="String(disableMarkdownVirtualization)" :data-hidden-image-sources="hiddenMarkdownImageSources?.join(\',\')"><slot /></div>'
       }),
       MessageBlockThink: componentStub('MessageBlockThink'),
+      MessageBlockSearch: defineComponent({
+        name: 'MessageBlockSearch',
+        template: '<div data-testid="search-block" />'
+      }),
       MessageBlockToolCall: componentStub('MessageBlockToolCall'),
       MessageBlockError: componentStub('MessageBlockError'),
       MessageBlockQuestionRequest: componentStub('MessageBlockQuestionRequest'),
@@ -236,6 +246,53 @@ describe('MessageItemAssistant', () => {
       })
     }
   }
+
+  it('renders only normalized provider search blocks with the provider activity UI', () => {
+    const legacyBlock: DisplayAssistantMessageBlock = {
+      id: 'legacy-search',
+      type: 'search',
+      status: 'success',
+      timestamp: 1,
+      extra: { label: 'mcp_web_search', total: 3 }
+    }
+    const providerBlock: DisplayAssistantMessageBlock = {
+      id: 'provider-search',
+      type: 'search',
+      content: 'DeepChat',
+      status: 'success',
+      timestamp: 2,
+      extra: { actionType: 'search', provider: 'deepseek' }
+    }
+
+    const legacy = mount(MessageItemAssistant, {
+      props: { message: createMessage('sent', [legacyBlock]), isCapturingImage: false },
+      global
+    })
+    const provider = mount(MessageItemAssistant, {
+      props: {
+        message: createMessage('sent', [providerBlock]),
+        isCapturingImage: false,
+        isStreamingMessage: true
+      },
+      global
+    })
+
+    expect(legacy.find('[data-testid="search-block"]').exists()).toBe(false)
+    expect(provider.find('[data-testid="search-block"]').exists()).toBe(true)
+  })
+
+  it('allows code block hosts to shrink inside the assistant row', () => {
+    const wrapper = mount(MessageItemAssistant, {
+      props: {
+        message: createMessage('pending', []),
+        isCapturingImage: false
+      },
+      global
+    })
+
+    const contentElement = wrapper.get('[data-message-content="true"]').element
+    expect(contentElement.parentElement?.classList.contains('min-w-0')).toBe(true)
+  })
 
   it('does not render a spinner for empty non-pending assistant messages', () => {
     const wrapper = mount(MessageItemAssistant, {
@@ -309,6 +366,39 @@ describe('MessageItemAssistant', () => {
         .get('[data-testid="message-block-content"]')
         .attributes('data-disable-markdown-virtualization')
     ).toBe('true')
+  })
+
+  it('passes promoted local image sources to content blocks for Markdown deduplication', () => {
+    const wrapper = mount(MessageItemAssistant, {
+      props: {
+        message: createMessage('sent', [
+          createVideoLikeImageBlock({
+            image_data: {
+              data: 'imgcache://generated.png',
+              mimeType: 'image/png'
+            }
+          }),
+          createVideoLikeImageBlock({
+            image_data: {
+              data: 'https://example.com/remote.png',
+              mimeType: 'image/png'
+            }
+          }),
+          {
+            type: 'content',
+            content: '![generated](imgcache://generated.png)',
+            status: 'success',
+            timestamp: 2
+          }
+        ]),
+        isCapturingImage: false
+      },
+      global
+    })
+
+    expect(
+      wrapper.get('[data-testid="message-block-content"]').attributes('data-hidden-image-sources')
+    ).toBe('imgcache://generated.png')
   })
 
   it('renders video blocks from legacy content urls', () => {
@@ -421,7 +511,7 @@ describe('MessageItemAssistant', () => {
     expect(wrapper.findComponent({ name: 'MessageBlockToolCall' }).exists()).toBe(true)
   })
 
-  it('does not group sent activity while the thread is still generating', () => {
+  it('groups sent activity even while the thread is still generating', () => {
     const wrapper = mount(MessageItemAssistant, {
       props: {
         message: createMessage('sent', [createThinkingBlock(), createToolCallBlock()]),
@@ -431,9 +521,123 @@ describe('MessageItemAssistant', () => {
       global
     })
 
+    expect(wrapper.find('[data-testid="activity-group"]').exists()).toBe(true)
+    expect(wrapper.findComponent({ name: 'MessageBlockThink' }).exists()).toBe(false)
+    expect(wrapper.findComponent({ name: 'MessageBlockToolCall' }).exists()).toBe(false)
+  })
+
+  it('does not group activity for the actively streaming row', () => {
+    const wrapper = mount(MessageItemAssistant, {
+      props: {
+        message: createMessage('sent', [createThinkingBlock(), createToolCallBlock()]),
+        isCapturingImage: false,
+        isInGeneratingThread: true,
+        isStreamingMessage: true
+      },
+      global
+    })
+
     expect(wrapper.find('[data-testid="activity-group"]').exists()).toBe(false)
     expect(wrapper.findComponent({ name: 'MessageBlockThink' }).exists()).toBe(true)
     expect(wrapper.findComponent({ name: 'MessageBlockToolCall' }).exists()).toBe(true)
+  })
+
+  it('renders provider search activity while the row is still streaming', () => {
+    const wrapper = mount(MessageItemAssistant, {
+      props: {
+        message: createMessage('pending', [
+          {
+            id: 'ws_1',
+            type: 'search',
+            content: 'DeepChat',
+            status: 'success',
+            timestamp: 2,
+            extra: { actionType: 'search', provider: 'deepseek' }
+          }
+        ]),
+        isCapturingImage: false,
+        isStreamingMessage: true
+      },
+      global
+    })
+
+    expect(wrapper.find('[data-testid="activity-group"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="search-block"]').exists()).toBe(true)
+  })
+
+  it('does not remount an MCP App when live activity becomes grouped', async () => {
+    let appMountCount = 0
+    let appUnmountCount = 0
+    const ToolCallStub = defineComponent({
+      name: 'MessageBlockToolCall',
+      props: {
+        renderMode: {
+          type: String,
+          default: 'full'
+        }
+      },
+      setup(componentProps) {
+        onMounted(() => {
+          if (componentProps.renderMode === 'app-only') {
+            appMountCount += 1
+          }
+        })
+        onUnmounted(() => {
+          if (componentProps.renderMode === 'app-only') {
+            appUnmountCount += 1
+          }
+        })
+        return {}
+      },
+      template: '<div :data-render-mode="renderMode" />'
+    })
+    const appBlock = createToolCallBlock({
+      tool_call: {
+        id: 'tc-app',
+        name: 'render_chart',
+        mcpResult: {
+          schemaVersion: 1,
+          serverId: 'server-id',
+          configGeneration: 1,
+          bindingHash: 'binding-hash',
+          toolName: 'render_chart',
+          app: {
+            schemaVersion: 1,
+            serverId: 'server-id',
+            configGeneration: 1,
+            bindingHash: 'binding-hash',
+            serverName: 'charts',
+            toolName: 'render_chart',
+            resourceUri: 'ui://chart/index.html',
+            resourceMimeType: 'text/html;profile=mcp-app'
+          }
+        }
+      }
+    })
+    const wrapper = mount(MessageItemAssistant, {
+      props: {
+        message: createMessage('sent', [createThinkingBlock(), appBlock]),
+        isCapturingImage: false,
+        isStreamingMessage: true
+      },
+      global: {
+        ...global,
+        stubs: {
+          ...global.stubs,
+          MessageBlockToolCall: ToolCallStub
+        }
+      }
+    })
+
+    expect(appMountCount).toBe(1)
+    expect(wrapper.findAll('[data-render-mode="app-only"]')).toHaveLength(1)
+
+    await wrapper.setProps({ isStreamingMessage: false })
+
+    expect(wrapper.find('[data-testid="activity-group"]').exists()).toBe(true)
+    expect(wrapper.findAll('[data-render-mode="app-only"]')).toHaveLength(1)
+    expect(appMountCount).toBe(1)
+    expect(appUnmountCount).toBe(0)
   })
 
   it('does not group pending activity when the thread is idle', () => {
@@ -537,5 +741,156 @@ describe('MessageItemAssistant', () => {
     await wrapper.find('[data-testid="memory"]').trigger('click')
 
     expect(memoryActivity.openTurnMemories).not.toHaveBeenCalled()
+  })
+
+  it('projects a guard stop from metadata and continues without showing the raw error', async () => {
+    const wrapper = mount(MessageItemAssistant, {
+      props: {
+        message: createMessage(
+          'error',
+          [
+            {
+              type: 'error',
+              status: 'error',
+              timestamp: 1,
+              content: 'Agent stopped after four identical tool batches produced no progress.'
+            }
+          ],
+          { runStopReason: 'no_progress' }
+        ),
+        isCapturingImage: false,
+        allowGuardStopContinue: true
+      },
+      global
+    })
+
+    expect(wrapper.find('[data-testid="guard-stop-banner"]').exists()).toBe(true)
+    expect(wrapper.text()).toContain('chat.guardStop.noProgress')
+    expect(wrapper.findComponent({ name: 'MessageBlockError' }).exists()).toBe(false)
+
+    await wrapper.find('[data-testid="guard-stop-continue"]').trigger('click')
+    expect(wrapper.emitted('continue')).toEqual([['s1', 'm1']])
+  })
+
+  it('keeps historical guard-stop copy without a continue button', () => {
+    const wrapper = mount(MessageItemAssistant, {
+      props: {
+        message: createMessage(
+          'error',
+          [
+            {
+              type: 'error',
+              status: 'error',
+              timestamp: 1,
+              content: 'Agent stopped after four identical tool batches produced no progress.'
+            }
+          ],
+          { runStopReason: 'no_progress' }
+        ),
+        isCapturingImage: false,
+        allowGuardStopContinue: false
+      },
+      global
+    })
+
+    expect(wrapper.find('[data-testid="guard-stop-banner"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="guard-stop-continue"]').exists()).toBe(false)
+  })
+
+  describe('resolved permission projection', () => {
+    const createPermissionActionBlock = (
+      status: DisplayAssistantMessageBlock['status'],
+      toolCallId = 'tc1'
+    ): DisplayAssistantMessageBlock => ({
+      type: 'action',
+      action_type: 'tool_call_permission',
+      status,
+      timestamp: 1,
+      tool_call: { id: toolCallId, name: 'run_command' }
+    })
+
+    const ToolCallStub = defineComponent({
+      name: 'MessageBlockToolCall',
+      props: {
+        permissionStatus: {
+          type: String,
+          default: undefined
+        }
+      },
+      template:
+        '<div data-testid="tool-call-stub" :data-permission-status="permissionStatus ?? \'\'" />'
+    })
+
+    const mountWith = (content: DisplayAssistantMessageBlock[]) =>
+      mount(MessageItemAssistant, {
+        props: {
+          message: createMessage('pending', content),
+          isCapturingImage: false,
+          isInGeneratingThread: true
+        },
+        global: {
+          ...global,
+          stubs: {
+            ...global.stubs,
+            MessageBlockToolCall: ToolCallStub
+          }
+        }
+      })
+
+    it('merges the granted outcome into the tool card and hides the action card', () => {
+      const wrapper = mountWith([
+        createPermissionActionBlock('granted'),
+        createToolCallBlock({ tool_call: { id: 'tc1', name: 'run_command' } })
+      ])
+
+      expect(wrapper.findComponent({ name: 'MessageBlockAction' }).exists()).toBe(false)
+      expect(
+        wrapper.find('[data-testid="tool-call-stub"]').attributes('data-permission-status')
+      ).toBe('granted')
+    })
+
+    it('merges the denied outcome into the tool card', () => {
+      const wrapper = mountWith([
+        createPermissionActionBlock('denied'),
+        createToolCallBlock({ tool_call: { id: 'tc1', name: 'run_command' } })
+      ])
+
+      expect(wrapper.findComponent({ name: 'MessageBlockAction' }).exists()).toBe(false)
+      expect(
+        wrapper.find('[data-testid="tool-call-stub"]').attributes('data-permission-status')
+      ).toBe('denied')
+    })
+
+    it('merges the outcome only into the tool call with the matching id', () => {
+      const wrapper = mountWith([
+        createPermissionActionBlock('granted', 'tc2'),
+        createToolCallBlock({ tool_call: { id: 'tc1', name: 'run_command' } }),
+        createToolCallBlock({ tool_call: { id: 'tc2', name: 'write_file' } })
+      ])
+
+      expect(wrapper.findComponent({ name: 'MessageBlockAction' }).exists()).toBe(false)
+      const stubs = wrapper.findAll('[data-testid="tool-call-stub"]')
+      expect(stubs).toHaveLength(2)
+      expect(stubs[0].attributes('data-permission-status')).toBe('')
+      expect(stubs[1].attributes('data-permission-status')).toBe('granted')
+    })
+
+    it('keeps the standalone action card when the tool card is missing', () => {
+      const wrapper = mountWith([createPermissionActionBlock('denied', 'tc-missing')])
+
+      expect(wrapper.findComponent({ name: 'MessageBlockAction' }).exists()).toBe(true)
+    })
+
+    it('keeps pending permission action blocks visible and unmerged', () => {
+      const wrapper = mountWith([
+        createPermissionActionBlock('pending'),
+        createToolCallBlock({ tool_call: { id: 'tc1', name: 'run_command' } })
+      ])
+
+      expect(wrapper.findComponent({ name: 'MessageBlockAction' }).exists()).toBe(true)
+      expect(
+        wrapper.find('[data-testid="tool-call-stub"]').attributes('data-permission-status')
+      ).toBe('')
+    })
   })
 })

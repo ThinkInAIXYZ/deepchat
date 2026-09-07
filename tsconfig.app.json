@@ -5,10 +5,9 @@
     "src/renderer/src/**/*",
     "src/renderer/src/**/*.vue",
     "src/renderer/src/assets/**/*",
-    "src/renderer/browser/env.d.ts",
-    "src/renderer/browser/**/*",
-    "src/renderer/browser/**/*.vue",
-    "src/renderer/browser/assets/**/*",
+    "src/renderer/browser-overlay/env.d.ts",
+    "src/renderer/browser-overlay/**/*",
+    "src/renderer/browser-overlay/**/*.vue",
     "src/renderer/floating/env.d.ts",
     "src/renderer/floating/**/*",
     "src/renderer/floating/**/*.vue",
@@ -18,13 +17,17 @@
     "src/renderer/splash/assets/**/*",
     "src/preload/*.d.ts",
     "src/renderer/api/**/*",
+    "src/renderer/services/**/*",
     "src/shared/**/*",
     "src/shadcn/**/*",
+    "src/dc-ui/**/*",
+    "src/dc-ui/**/*.vue",
     "src/renderer/settings/**/*",
     "src/renderer/settings/**/*.vue"
   ],
   "compilerOptions": {
     "module": "esnext",
+    "moduleResolution": "bundler",
     "composite": false,
     "declaration": false,
     "emitDeclarationOnly": false,
@@ -36,14 +39,20 @@
       "@api/*": [
         "./src/renderer/api/*"
       ],
-      "@browser/*": [
-        "./src/renderer/browser/*"
+      "@renderer-notifications": [
+        "./src/renderer/services/notifications/index.ts"
+      ],
+      "@renderer-notifications/*": [
+        "./src/renderer/services/notifications/*"
       ],
       "@shared/*": [
         "./src/shared/*"
       ],
       "@shadcn/*": [
         "./src/shadcn/*"
+      ],
+      "@dc-ui/*": [
+        "./src/dc-ui/*"
       ]
     }
   }

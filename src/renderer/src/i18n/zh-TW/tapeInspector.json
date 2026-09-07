@@ -1,0 +1,185 @@
+{
+  "title": "Tape 檢查器",
+  "actions": {
+    "apply": "套用",
+    "expand": "展開",
+    "collapse": "收合",
+    "refresh": "重新整理",
+    "loadOlder": "載入更早的 Tape Entry",
+    "loadMore": "載入更多",
+    "loadEvidence": "載入更多模型請求",
+    "loadMatchingEntries": "載入對應 Entry",
+    "openSession": "開啟 Tape 檢查器",
+    "openMessage": "在 Tape 檢查器中開啟",
+    "pause": "暫停即時更新",
+    "resume": "恢復即時更新"
+  },
+  "columns": {
+    "name": "名稱",
+    "kind": "類型",
+    "status": "狀態",
+    "start": "開始時間",
+    "duration": "持續時間",
+    "waterfall": "瀑布圖"
+  },
+  "search": {
+    "loadedLabel": "搜尋已載入的 Tape Entry 和模型請求",
+    "loadedPlaceholder": "搜尋已載入的 Tape Entry 和模型請求",
+    "loadedScope": "文字搜尋僅涵蓋已載入範圍"
+  },
+  "filters": {
+    "title": "篩選",
+    "allFamilies": "全部類別",
+    "errorsOnly": "僅顯示錯誤"
+  },
+  "groups": {
+    "run": "執行",
+    "request": "模型請求",
+    "attempt": "Provider 嘗試",
+    "tool": "工具操作"
+  },
+  "families": {
+    "context": "上下文材料",
+    "journal": "執行日誌",
+    "contract": "任務契約",
+    "view": "View",
+    "attempt": "Provider 嘗試",
+    "anchor": "Anchor",
+    "message": "訊息",
+    "lineage": "譜系",
+    "tool": "工具",
+    "other": "其他"
+  },
+  "activity": {
+    "userMessage": "使用者訊息",
+    "assistantMessage": "助理訊息",
+    "user": "使用者",
+    "assistant": "助理",
+    "reasoning": "思考",
+    "media": "媒體",
+    "memoryView": "已組裝 Memory 上下文",
+    "directiveView": "已組裝 Memory 指令",
+    "toolCall": "工具呼叫",
+    "toolResult": "工具結果",
+    "memorySelection": "選取 {selected} 項 · 捨棄 {dropped} 項",
+    "tokenUse": "{used} / {budget} tokens",
+    "relations": {
+      "input": "輸入",
+      "output": "可觀察結果",
+      "later": "後續活動"
+    }
+  },
+  "evidence": {
+    "request": "模型請求",
+    "earlierSummary": "更早的 Tape 歷史中已有精確對應的父 Entry",
+    "standaloneSummary": "目前檢視中沒有可顯示的精確父 Entry",
+    "earlierHint": "這些模型請求在更早的 Tape 歷史中有精確對應的 Provider 嘗試 Entry。載入對應 Entry 會連續補入相關歷史，不會改變模型請求順序。",
+    "standaloneHint": "這些模型請求按時間順序獨立顯示，因為精確父 Entry 被目前篩選隱藏、比可見範圍更新、尚未記錄，或請求沒有嘗試識別。系統絕不會用時間戳猜測父 Entry。",
+    "lanes": {
+      "earlier": "對應 Entry 位於更早歷史的模型請求（{count}）",
+      "request": "獨立顯示的模型請求（{count}）",
+      "diagnostic": "內部診斷（{count}）"
+    },
+    "scope": {
+      "request": "請求層級",
+      "diagnostic": "內部診斷",
+      "earlier": "更早的 Entry",
+      "filtered": "被目前檢視隱藏",
+      "newer": "等待即時檢視載入",
+      "not_recorded": "尚無完成 Entry"
+    }
+  },
+  "kinds": {
+    "evidence": "模型請求",
+    "lane": "請求集合",
+    "group": "衍生群組"
+  },
+  "states": {
+    "unknown": "未知",
+    "statusPending": "結果 Entry 尚未載入",
+    "timingPending": "起迄 Entry 尚未配對",
+    "timingEarlierHistory": "配對的邊界位於更早的 Tape 歷史",
+    "timingFiltered": "配對的邊界被目前篩選隱藏",
+    "timingAwaitingLive": "正在等待即時工作階段記錄配對邊界",
+    "timingNotRecorded": "這份記錄沒有同時儲存兩個時序邊界",
+    "timingInconsistent": "已記錄的時序邊界不一致",
+    "notApplicable": "此項目不適用",
+    "empty": "沒有相符的 Tape Entry 或模型請求",
+    "loadedCounts": "{entries} 個 Tape Entry · {evidence} 個模型請求",
+    "pageLoaded": "已載入 {count} 個 Tape Entry。原位置已保留，請繼續捲動查看。",
+    "pageLoadedComplete": "已載入 {count} 個 Tape Entry，現已到達 Tape 起點。",
+    "pageNoMatches": "已掃描下一段有界範圍，但沒有符合目前條件的 Tape Entry。",
+    "pageNoMatchesComplete": "已到達 Tape 起點，沒有更早且符合目前條件的 Entry。",
+    "matchingEntriesUnavailable": "請使用 Tape 順序並清除 Entry 篩選後載入對應歷史",
+    "live": "即時",
+    "paused": "已暫停",
+    "liveUnavailable": "即時更新無法使用"
+  },
+  "waterfall": {
+    "sequence": "Tape 追加順序中的位置（entryId）",
+    "point": "單一時間點項目，不計算持續時間"
+  },
+  "timeline": {
+    "title": "概覽",
+    "actual": "時間",
+    "sequence": "序列",
+    "session": "工作階段",
+    "model": "模型",
+    "tools": "工具",
+    "duration": "時段",
+    "point": "時點",
+    "error": "錯誤",
+    "earlierNotLoaded": "較早的 Tape Entry 尚未載入"
+  },
+  "detail": {
+    "title": "詳細資料",
+    "selectPrompt": "選取一列以檢視其可用詳細資料",
+    "contextTail": "本次請求前的近期可見活動",
+    "observedResult": "可觀察結果",
+    "finalSnapshot": "與本次模型請求精確關聯的最終累計內容塊；系統未保留逐 token 事件。",
+    "resultBlocksTruncated": "這裡只顯示有界範圍內最新的結果內容塊。",
+    "memoryManifestHint": "這份 manifest 記錄當時選取了哪些 Memory 項目及其預算；精確的歷史 Prompt 內容請查看相關模型請求。",
+    "subsequentActivity": "請求後的會話活動",
+    "subsequentActivityHint": "這些內容塊發生在請求之後，但舊記錄缺少足夠身份，不能歸屬為本次請求的輸出。",
+    "integrity": "完整性",
+    "provenance": "來源",
+    "timing": "時序",
+    "payload": "允許揭露的承載資料",
+    "raw": "已去除敏感資料的原始記錄",
+    "truncated": "已截斷",
+    "hashes": "雜湊與大小",
+    "sources": {
+      "tape": "Tape Entry",
+      "message_trace": "模型請求",
+      "derived": "衍生 View"
+    }
+  },
+  "fields": {
+    "entryId": "Entry ID",
+    "family": "類別",
+    "name": "名稱",
+    "kind": "類型",
+    "status": "Entry 狀態",
+    "disclosure": "揭露層級",
+    "traceId": "Trace ID",
+    "messageId": "訊息 ID",
+    "requestSeq": "請求序號",
+    "attempt": "實體嘗試",
+    "provider": "供應商",
+    "model": "模型",
+    "endpoint": "端點",
+    "group": "群組",
+    "identity": "識別資訊",
+    "records": "項目數"
+  },
+  "integrity": {
+    "valid": "有效",
+    "invalid": "無效",
+    "unverified": "未驗證"
+  },
+  "errors": {
+    "load_failed": "無法載入檢查器資料",
+    "detail_failed": "無法載入項目詳細資料",
+    "record_not_found": "選取的項目已無法使用"
+  }
+}

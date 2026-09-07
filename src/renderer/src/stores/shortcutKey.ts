@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { onMounted, ref } from 'vue'
-import type { ShortcutKeySetting } from '@shared/presenter'
+import type { ShortcutKeySetting } from '@shared/types/desktop'
 import { createShortcutClient } from '@api/ShortcutClient'
 import { createConfigClient } from '../../api/ConfigClient'
 

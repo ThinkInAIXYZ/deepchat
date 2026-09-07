@@ -63,6 +63,27 @@
         "yobrowser": "YoBrowser"
       }
     },
+    "toolMode": {
+      "title": "מצב",
+      "modelDefault": "ברירת המחדל של המודל",
+      "options": {
+        "agent": "Agent",
+        "code": "Code",
+        "minimal": "Minimal"
+      },
+      "descriptions": {
+        "agent": "השתמש בערכת הכלים הרגילה של הסוכן.",
+        "code": "שלב כלים פעילים באמצעות קוד. נדרש מצב הרשאה של גישה מלאה.",
+        "minimal": "מפשט פעולות קבצים תוך שמירה על כלים מופעלים אחרים."
+      },
+      "useModelDefault": "השתמש בברירת המחדל של המודל",
+      "saving": "המצב נשמר...",
+      "locked": "ניתן להחליף מצב לאחר סיום התשובה הזאת.",
+      "updateFailed": "לא ניתן לעדכן את מצב הכלים.",
+      "codeEntry": "כניסת קוד",
+      "codeCallable": "ניתן לקריאה מהקוד",
+      "minimalTools": "כלי תכנות"
+    },
     "fileUploadFailed": "עיבוד הקובץ המצורף נכשל",
     "fileUploadFailedDesc": "לא ניתן לעבד {count} קבצים: {names}",
     "fileUploadFailedMore": " ועוד {count} נוספים",
@@ -71,6 +92,12 @@
     "audioInputUnsupportedDescription": "המודל {model} לא תומך בקלט אודיו. {count} קובץ/י אודיו צורף/ו והתעלמנו מהם."
   },
   "pendingInput": {
+    "resume": "המשך תור",
+    "resumeFailed": "לא ניתן להמשיך את התור",
+    "retry": "נסה שוב",
+    "retryRequired": "נדרש ניסיון חוזר",
+    "retryRequiredDescription": "ההודעה לא נשלחה. נסה שוב כדי להמשיך את התור.",
+    "retryFailed": "לא ניתן היה לנסות שוב את ההודעה שבתור",
     "steer": "הכוונה",
     "queueCount": "ממתין לשליחה {count}/{max}",
     "toSteer": "להפסיק ולשלוח",
@@ -153,7 +180,8 @@
   "mode": {
     "acpAgent": "סוכן ACP",
     "agent": "סוֹכֵן",
-    "current": "מצב נוכחי: {mode}"
+    "current": "מצב נוכחי: {mode}",
+    "saveFailed": "שמירת בחירת המצב נכשלה"
   },
   "topbar": {
     "share": "שיתוף",
@@ -167,7 +195,6 @@
     "systemPrompt": "הנחיית מערכת",
     "systemPromptPlaceholder": "בחר תבנית",
     "temperature": "טמפרטורה",
-    "temperatureFixedMoonshotKimi": "Moonshot Kimi K2.5/K2.6 מקבע את הטמפרטורה ל-{enabled} כשהחשיבה מופעלת ול-{disabled} כשהיא כבויה.",
     "topP": "Top P",
     "topPDescription": "Nucleus sampling; leave blank to use provider default",
     "contextLength": "אורך הקשר",
@@ -203,6 +230,12 @@
       "contextMenu": {
         "insertPath": "הכנס לתוך תיבת הקלט",
         "openFile": "לפתוח קובץ",
+        "openInApp": "פתח ב־{app}",
+        "openInTerminalApp": "פתח את התיקייה ב־{app}",
+        "openFailed": "לא ניתן לפתוח את הקובץ באמצעות היישום הזה",
+        "preferredAppUnavailable": "היישום המועדף אינו זמין כרגע. נפתח באמצעות ברירת המחדל של המערכת.",
+        "openWith": "פתח באמצעות",
+        "openWithSystemDefault": "פתח באמצעות ברירת המחדל של המערכת",
         "revealInFolder": "פתח במנהל הקבצים"
       },
       "empty": "עדיין אין קבצים",
@@ -301,10 +334,19 @@
   "compaction": {
     "compacting": "דחיסת ההקשר מתבצעת...",
     "compacted": "ההקשר נדחס",
+    "compactedWithoutSummary": "ההקשר נדחס ללא סיכום",
+    "compactedWithoutLargerSummary": "ההקשר נדחס מבלי להשתמש בסיכום גדול יותר",
     "commandDescription": "דחיסת הקשר השיחה",
     "noopTitle": "אין הקשר לדחיסה",
     "noopDescription": "עדיין אין היסטוריית שיחה חדשה לדחיסה.",
     "failedTitle": "הדחיסה נכשלה"
+  },
+  "contextOccupancy": {
+    "label": "שימוש בהקשר",
+    "details": "{used} מתוך {capacity} טוקנים",
+    "provider": "נמדד על ידי הספק",
+    "estimated": "הוערך מתצוגת הבקשה",
+    "stale": "מיושן לאחר שינוי מודל, חלון או דחיסה"
   },
   "newThread": {
     "title": "בנו וגלו"
@@ -348,7 +390,13 @@
     "moveProjectGroupBottom": "העבר לתחתית הרשימה",
     "searchCommand": "Search",
     "chatSection": "Chat",
-    "workspace": "Workspace"
+    "workspace": "Workspace",
+    "addWorkspace": "הוספת סביבת עבודה",
+    "manageWorkspaces": "ניהול סביבות עבודה",
+    "openWorkspaceFolder": "פתיחת תיקייה",
+    "emptyWorkspace": "ריק",
+    "addWorkspaceFailed": "הוספת סביבת העבודה נכשלה",
+    "searchLoadedRangeDescription": "מוצגות התאמות משיחות שנטענו. גלול כדי לטעון היסטוריה נוספת."
   },
   "floatingWidget": {
     "title": "סקירת משימות",
@@ -400,6 +448,72 @@
     "firstChat": {
       "description": "הכול מוכן. הקלידו כאן את ההודעה הראשונה כדי להשלים את תהליך ההיכרות.",
       "caption": "ההדגשה תישאר על שדה הקלט עד שתשלחו את ההודעה הראשונה."
+    }
+  },
+  "messageReceipt": {
+    "unread": "לא נקרא",
+    "read": "נקרא"
+  },
+  "attachments": {
+    "chooseRepresentation": "בחירת אופן השליחה של {name}",
+    "representation": "ייצוג הקובץ המצורף",
+    "auto": "אוטומטי",
+    "sendImage": "שליחת תמונה",
+    "useOcrText": "שימוש בטקסט OCR",
+    "useEmbeddedText": "שימוש בטקסט מוטמע",
+    "preparing": "מעבד קבצים מצורפים…",
+    "actionRequiredTitle": "קובץ מצורף דורש טיפול",
+    "actionRequiredDescription": "לא ניתן להשתמש בקובץ מצורף אחד או יותר. יש לבחור כיצד להמשיך.",
+    "attachmentNumber": "קובץ מצורף {number}",
+    "moreIssues": "{count} בעיות נוספות בקבצים המצורפים",
+    "genericUnavailable": "אין תוכן שמיש בקובץ המצורף.",
+    "keepDraft": "שמירת הטיוטה",
+    "switchVisionModel": "מעבר למודל עם יכולת ראייה",
+    "retry": "ניסיון חוזר",
+    "sendWithoutImageContent": "דילוג על תוכן הקובץ",
+    "inspectOcrText": "הצגת טקסט OCR",
+    "ocrBadge": "OCR",
+    "embeddedTextBadge": "טקסט",
+    "ocrPartialBadge": "OCR · חלקי",
+    "ocrLimitedBadge": "OCR · מוגבל",
+    "imageBadge": "תמונה",
+    "unavailableBadge": "לא זמין",
+    "ocrPreviewTitle": "טקסט OCR — {name}",
+    "ocrPreviewDescription": "כ־{tokens} טוקנים נשלחו כתוכן לא מהימן של קובץ מצורף.",
+    "ocrPageCoverage": "כולל טקסט עד עמוד {page}.",
+    "ocrPageCoveragePartial": "כולל חלק מעמוד {page}.",
+    "ocrTextTruncated": "טקסט ה־OCR הזה קוצר לפני שנשלח.",
+    "reasons": {
+      "automatic_ocr_disabled": "OCR אוטומטי כבוי.",
+      "document_limit_exceeded": "רק קובץ PDF אחד יכול להשתמש ב־OCR בכל בקשה.",
+      "document_too_large": "קובץ ה־PDF חורג ממגבלת גודל הקובץ.",
+      "image_dimensions_exceeded": "ממדי התמונה המפוענחת חורגים ממגבלת הבטיחות.",
+      "image_limit_exceeded": "בסבב הזה יש יותר תמונות מכפי שמנוע ה־OCR יכול לעבד.",
+      "image_payload_unavailable": "נתוני התמונה המקורית אינם זמינים עוד.",
+      "image_too_large": "התמונה חורגת ממגבלת הגודל לקובץ.",
+      "ocr_cancelled": "פעולת ה־OCR בוטלה.",
+      "ocr_empty": "מנוע ה־OCR לא מצא טקסט שמיש.",
+      "ocr_failed": "מנוע ה־OCR לא הצליח לעבד את הקובץ המצורף.",
+      "ocr_queue_full": "מנוע ה־OCR עסוק. יש לנסות שוב לאחר סיום עיבוד הקובץ המצורף הנוכחי.",
+      "ocr_resource_limited": "ה־OCR נעצר במגבלת עיבוד ה־PDF.",
+      "ocr_runtime_unavailable": "OCR אינו זמין בפלטפורמה או בהתקנה זו.",
+      "invalid_attachment_snapshot": "נתוני ה-OCR השמורים אינם תקינים.",
+      "turn_ocr_budget_exhausted": "טקסט ה-OCR חורג ממגבלת טקסט הקבצים המצורפים של הודעה זו.",
+      "pdf_text_unavailable": "אין טקסט מוטמע זמין בקובץ PDF זה.",
+      "requested_image_requires_vision": "״שליחת תמונה״ דורשת מודל עם יכולת ראייה.",
+      "turn_image_bytes_exceeded": "התמונות בסבב הזה חורגות ממגבלת הגודל הכוללת.",
+      "user_skipped_attachment_content": "תוכן הקובץ המצורף הושמט לפי בקשתך.",
+      "user_skipped_image_content": "תוכן התמונה הושמט לפי בקשתך.",
+      "unsupported_image_format": "פורמט התמונה הזה אינו נתמך על ידי OCR."
+    },
+    "pending": {
+      "blockedCount": "{count} חסומים",
+      "blocked": "חסום",
+      "retry": "ניסיון OCR חוזר",
+      "sendWithoutImageContent": "דילוג על תוכן הקובץ",
+      "blockedDescription": "פריט זה ממתין להחלטה בנוגע לקובץ המצורף.",
+      "blockedReasonMore": "{reason} קיימות גם {count} בעיות נוספות.",
+      "resolveFailed": "לא ניתן לטפל בהודעה החסומה"
     }
   },
   "skillDraft": {
@@ -459,6 +573,14 @@
       "dropped": "הושמטו",
       "tokens": "טוקנים",
       "budget": "תקציב",
+      "allocation": "הקצאת תקציב התרומה",
+      "directive": "הנחיה",
+      "persona": "פרסונה",
+      "working": "זיכרון עבודה",
+      "queryRecall": "אחזור לפי שאילתה",
+      "overhead": "תקורה",
+      "unused": "לא בשימוש",
+      "overheadSummary": "תקורה {overhead} · לא בשימוש {unused}",
       "countOnly": "הרשומה הזו כוללת רק סיכום ספירה.",
       "unavailable": "הזיכרון הזה אינו זמין עוד.",
       "noSelectedDetails": "אין פרטי זיכרון להצגה עבור הסבב הזה.",
@@ -485,5 +607,29 @@
       "amendRetryable": "העריכה נכשלה. הזיכרון המקורי שוחזר, אפשר לנסות שוב.",
       "amendRestoreFailed": "העריכה נכשלה, ולא ניתן היה לשחזר את הזיכרון המקורי."
     }
+  },
+  "orchestration": {
+    "actions": {
+      "openChild": "פתיחת Agent ילד"
+    },
+    "activityTitle": "פעילות Agent",
+    "proactive": {
+      "title": "שיתוף פעולה יזום",
+      "description": "מאפשר ל-Agent הראשי להאציל משימות כאשר עבודה עצמאית או מקבילית מועילה בבירור. עשוי לצרוך יותר זמן, Tokens ומשאבים.",
+      "reasons": {
+        "session_unavailable": "ההפעלה הזו אינה זמינה עוד.",
+        "agent_unavailable": "ה-Agent שנבחר אינו זמין.",
+        "deepchat_agent_required": "שיתוף פעולה יזום דורש DeepChat Agent.",
+        "regular_parent_required": "שיתוף פעולה יזום אינו זמין בהפעלת משנה.",
+        "agent_policy_unavailable": "לא ניתן לטעון את מדיניות שיתוף הפעולה.",
+        "subagents_disabled": "יש להפעיל Subagents עבור Agent זה כדי להשתמש בשיתוף פעולה יזום."
+      }
+    }
+  },
+  "guardStop": {
+    "maxToolCalls": "הגעת למגבלת קריאות הכלים לפני שהמשימה הסתיימה.",
+    "noProgress": "תוצאות כלים זהות שחזרו על עצמן לא קידמו דבר, ולכן ה-Agent נעצר.",
+    "maxTurns": "הגעת למגבלת הסבבים של הספק לפני שהמשימה הסתיימה.",
+    "continueMessage": "המשך מהמקום שבו הפסקת."
   }
 }

@@ -16,6 +16,8 @@ import chat from './chat.json'
 import toolCall from './toolCall.json'
 import contextMenu from './contextMenu.json'
 import promptSetting from './promptSetting.json'
+import traceDialog from './traceDialog.json'
+import tapeInspector from './tapeInspector.json'
 import plan from './plan.json'
 // 单独的顶层键
 const others = {
@@ -50,6 +52,8 @@ export default {
   toolCall,
   contextMenu,
   promptSetting,
+  traceDialog,
+  tapeInspector,
   plan,
   ...others
 }

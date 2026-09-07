@@ -1,5 +1,5 @@
 {
-  "title": "Request Preview",
+  "title": "Message Diagnostics",
   "provider": "Provider",
   "model": "Model",
   "endpoint": "API Endpoint",
@@ -18,14 +18,29 @@
     "request": "Request",
     "view": "View",
     "entries": "Entries",
-    "budget": "Budget"
+    "budget": "Budget",
+    "execution": "Execution"
   },
   "empty": "No diagnostics",
-  "emptyDesc": "No request trace or view manifest is available for this message",
+  "emptyDesc": "No request trace, view manifest, or nested execution audit is available for this message",
   "requestUnavailable": "No request trace",
   "requestUnavailableDesc": "This message has no persisted provider request trace",
   "manifestUnavailable": "No view manifest",
   "manifestUnavailableDesc": "This message has no persisted Tape view manifest",
+  "execution": {
+    "empty": "No nested executions",
+    "emptyDesc": "No programmatic tool operation is recorded for this request",
+    "corrupt": "Execution audit is corrupt",
+    "corruptDesc": "The nested Journal facts conflict or cannot be verified",
+    "unavailable": "Execution audit unavailable",
+    "unavailableDesc": "The nested Journal facts could not be read",
+    "truncated": "Only the first 256 nested operations are shown",
+    "status": {
+      "success": "Success",
+      "error": "Error",
+      "indeterminate": "Indeterminate"
+    }
+  },
   "viewId": "View ID",
   "policy": "Policy",
   "policyVersion": "Policy version",

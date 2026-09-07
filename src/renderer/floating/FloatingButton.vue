@@ -406,43 +406,60 @@ onUnmounted(() => {
 <style scoped>
 .widget-stage {
   --widget-radius: 16px;
-  --widget-ease-smooth: cubic-bezier(0.16, 1, 0.3, 1);
-  --widget-ease-soft: cubic-bezier(0.22, 1, 0.36, 1);
   --transition-collapsed-layer:
-    opacity 260ms ease, transform 620ms var(--widget-ease-smooth),
-    filter 520ms var(--widget-ease-smooth);
+    opacity var(--dc-motion-default) var(--dc-ease-out-soft),
+    transform var(--dc-motion-slow) var(--dc-ease-out-express);
   --transition-expanded-shell:
-    opacity 320ms ease, transform 640ms var(--widget-ease-smooth),
-    filter 520ms var(--widget-ease-smooth);
+    opacity var(--dc-motion-slow) var(--dc-ease-out-soft),
+    transform var(--dc-motion-slow) var(--dc-ease-out-express);
   --transition-panel:
-    opacity 280ms ease, transform 620ms var(--widget-ease-smooth),
-    filter 420ms var(--widget-ease-soft);
+    opacity var(--dc-motion-default) var(--dc-ease-out-soft),
+    transform var(--dc-motion-slow) var(--dc-ease-out-express);
   --transition-session:
-    opacity 320ms ease, transform 640ms var(--widget-ease-smooth),
-    filter 460ms var(--widget-ease-soft);
+    opacity var(--dc-motion-slow) var(--dc-ease-out-soft),
+    transform var(--dc-motion-slow) var(--dc-ease-out-express);
   --transition-logo-hero:
-    opacity 240ms ease, transform 700ms var(--widget-ease-smooth),
-    filter 560ms var(--widget-ease-smooth), border-color 220ms ease;
+    opacity var(--dc-motion-default) var(--dc-ease-out-soft),
+    transform var(--dc-motion-slow) var(--dc-ease-out-express),
+    border-color var(--dc-motion-default) var(--dc-ease-out-soft);
   --transition-logo:
-    opacity 240ms ease, transform 640ms var(--widget-ease-smooth), filter 320ms ease;
+    opacity var(--dc-motion-default) var(--dc-ease-out-soft),
+    transform var(--dc-motion-slow) var(--dc-ease-out-express);
   --transition-status-face:
-    opacity 260ms ease, transform 620ms var(--widget-ease-smooth),
-    filter 420ms var(--widget-ease-soft);
+    opacity var(--dc-motion-default) var(--dc-ease-out-soft),
+    transform var(--dc-motion-slow) var(--dc-ease-out-express);
   --transition-status-logo:
-    opacity 260ms ease, transform 620ms var(--widget-ease-smooth), filter 320ms ease;
+    opacity var(--dc-motion-default) var(--dc-ease-out-soft),
+    transform var(--dc-motion-slow) var(--dc-ease-out-express);
   border-radius: var(--widget-radius);
 }
 
 .widget-stage[data-motion='closing'] {
-  --transition-collapsed-layer: opacity 180ms ease, transform 220ms var(--widget-ease-soft);
-  --transition-expanded-shell: opacity 200ms ease, transform 220ms var(--widget-ease-soft);
-  --transition-panel: opacity 170ms ease, transform 180ms var(--widget-ease-soft);
-  --transition-session: opacity 160ms ease, transform 180ms var(--widget-ease-soft);
+  --transition-collapsed-layer:
+    opacity var(--dc-motion-fast) var(--dc-ease-out-soft),
+    transform var(--dc-motion-default) var(--dc-ease-out-soft);
+  --transition-expanded-shell:
+    opacity var(--dc-motion-fast) var(--dc-ease-out-soft),
+    transform var(--dc-motion-default) var(--dc-ease-out-soft);
+  --transition-panel:
+    opacity var(--dc-motion-fast) var(--dc-ease-out-soft),
+    transform var(--dc-motion-fast) var(--dc-ease-out-soft);
+  --transition-session:
+    opacity var(--dc-motion-fast) var(--dc-ease-out-soft),
+    transform var(--dc-motion-fast) var(--dc-ease-out-soft);
   --transition-logo-hero:
-    opacity 180ms ease, transform 220ms var(--widget-ease-soft), border-color 180ms ease;
-  --transition-logo: opacity 160ms ease, transform 180ms var(--widget-ease-soft);
-  --transition-status-face: opacity 170ms ease, transform 180ms var(--widget-ease-soft);
-  --transition-status-logo: opacity 160ms ease, transform 160ms ease;
+    opacity var(--dc-motion-fast) var(--dc-ease-out-soft),
+    transform var(--dc-motion-default) var(--dc-ease-out-soft),
+    border-color var(--dc-motion-fast) var(--dc-ease-out-soft);
+  --transition-logo:
+    opacity var(--dc-motion-fast) var(--dc-ease-out-soft),
+    transform var(--dc-motion-fast) var(--dc-ease-out-soft);
+  --transition-status-face:
+    opacity var(--dc-motion-fast) var(--dc-ease-out-soft),
+    transform var(--dc-motion-fast) var(--dc-ease-out-soft);
+  --transition-status-logo:
+    opacity var(--dc-motion-fast) var(--dc-ease-out-soft),
+    transform var(--dc-motion-fast) var(--dc-ease-out-soft);
 }
 
 .widget-stage[data-theme='dark'] {
@@ -551,7 +568,7 @@ onUnmounted(() => {
   -webkit-user-select: none;
   backface-visibility: hidden;
   transform: translateZ(0);
-  will-change: transform, opacity;
+  will-change: transform, opacity, filter;
   transition:
     transform 160ms ease,
     border-color 200ms ease,

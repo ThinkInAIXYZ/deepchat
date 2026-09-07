@@ -3,7 +3,6 @@ export const FLOATING_BUTTON_EVENTS = {
   RIGHT_CLICKED: 'floating-button:right-clicked',
   VISIBILITY_CHANGED: 'floating-button:visibility-changed',
   POSITION_CHANGED: 'floating-button:position-changed',
-  ENABLED_CHANGED: 'floating-button:enabled-changed',
   HOVER_STATE_CHANGED: 'floating-button:hover-state-changed',
   SNAPSHOT_REQUEST: 'floating-button:snapshot-request',
   SNAPSHOT_UPDATED: 'floating-button:snapshot-updated',

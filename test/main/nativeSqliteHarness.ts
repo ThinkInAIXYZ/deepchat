@@ -53,6 +53,16 @@ export function nativeSqliteItIf(
 export const describeIfNativeSqlite = nativeSqliteDescribeIf()
 export const itIfNativeSqlite = nativeSqliteItIf()
 
+export function dropV48DerivedArtifacts(db: { exec(sql: string): unknown }): void {
+  db.exec(`
+    DROP TRIGGER IF EXISTS agent_memory_dirty_ai;
+    DROP TRIGGER IF EXISTS agent_memory_dirty_au;
+    DROP TRIGGER IF EXISTS agent_memory_dirty_ad;
+    DROP TABLE IF EXISTS agent_memory_dirty;
+    DROP TABLE IF EXISTS agent_memory_derivation;
+  `)
+}
+
 export function requireDatabase(): NonNullable<typeof Database> {
   if (!Database || !nativeSqliteAvailable) throw new Error(nativeSqliteUnavailableReason)
   return Database

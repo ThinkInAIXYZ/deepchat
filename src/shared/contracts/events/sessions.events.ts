@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import type { PendingSessionInputRecord } from '@shared/types/agent-interface'
 import {
+  ChatMessageRecordSchema,
   EntityIdSchema,
   SessionCompactionStateSchema,
   SessionStatusSchema,
@@ -50,7 +51,8 @@ export const sessionsCompactionChangedEvent = defineEventContract({
   name: 'sessions.compaction.changed',
   payload: SessionCompactionStateSchema.extend({
     sessionId: EntityIdSchema,
-    version: z.number().int()
+    emitSeq: z.number().int().positive(),
+    latestAnchorEntryId: z.number().int().positive().nullable()
   })
 })
 
@@ -60,6 +62,24 @@ export const sessionsPendingInputsChangedEvent = defineEventContract({
     sessionId: EntityIdSchema,
     items: z.array(PendingSessionInputRecordSchema).optional(),
     version: z.number().int()
+  })
+})
+
+export const sessionsMessagesChangedEvent = defineEventContract({
+  name: 'sessions.messages.changed',
+  payload: z.object({
+    sessionId: EntityIdSchema,
+    messages: z.array(ChatMessageRecordSchema),
+    version: z.number().int()
+  })
+})
+
+export const sessionsTapeInspectorHeadChangedEvent = defineEventContract({
+  name: 'sessions.tapeInspector.head.changed',
+  payload: z.object({
+    sessionId: EntityIdSchema,
+    tapeIncarnationId: EntityIdSchema,
+    maxEntryId: z.number().int().nonnegative()
   })
 })
 

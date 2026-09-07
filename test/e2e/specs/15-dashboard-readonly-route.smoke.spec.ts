@@ -33,7 +33,6 @@ test('dashboard settings reads usage dashboard through typed route @smoke', asyn
           }
         }
         summary?: {
-          estimatedCostUsd?: unknown
           messageCount?: unknown
           sessionCount?: unknown
           totalTokens?: unknown
@@ -54,7 +53,6 @@ test('dashboard settings reads usage dashboard through typed route @smoke', asyn
       rtkSource: dashboard?.rtk?.source,
       rtkTotalCommands: dashboard?.rtk?.summary?.totalCommands,
       rtkTotalSavedTokens: dashboard?.rtk?.summary?.totalSavedTokens,
-      summaryEstimatedCostUsd: dashboard?.summary?.estimatedCostUsd,
       summaryMessageCount: dashboard?.summary?.messageCount,
       summarySessionCount: dashboard?.summary?.sessionCount,
       summaryTotalTokens: dashboard?.summary?.totalTokens
@@ -74,10 +72,6 @@ test('dashboard settings reads usage dashboard through typed route @smoke', asyn
   expect(['bundled', 'system', 'none']).toContain(snapshot.rtkSource)
   expect(typeof snapshot.rtkTotalCommands).toBe('number')
   expect(typeof snapshot.rtkTotalSavedTokens).toBe('number')
-  expect(
-    snapshot.summaryEstimatedCostUsd === null ||
-      typeof snapshot.summaryEstimatedCostUsd === 'number'
-  ).toBe(true)
   expect(typeof snapshot.summaryMessageCount).toBe('number')
   expect(typeof snapshot.summarySessionCount).toBe('number')
   expect(typeof snapshot.summaryTotalTokens).toBe('number')

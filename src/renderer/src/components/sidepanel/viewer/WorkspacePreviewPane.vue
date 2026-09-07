@@ -99,7 +99,7 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { ArtifactState } from '@/stores/artifact'
-import type { WorkspaceFilePreview } from '@shared/presenter'
+import type { WorkspaceFilePreview } from '@shared/types/workspace'
 import type { WorkspacePreviewKind } from '../composables/useWorkspaceViewerModel'
 import MarkdownRenderer from '@/components/markdown/MarkdownRenderer.vue'
 import HTMLArtifact from '@/components/artifacts/HTMLArtifact.vue'

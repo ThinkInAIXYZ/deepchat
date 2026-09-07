@@ -21,7 +21,7 @@ describe('ChatSearchBar', () => {
       global: {
         stubs: {
           Icon: true,
-          Button: defineComponent({
+          DcButton: defineComponent({
             name: 'Button',
             template: '<button type="button"><slot /></button>'
           })

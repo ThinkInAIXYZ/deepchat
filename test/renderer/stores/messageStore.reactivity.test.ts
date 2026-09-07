@@ -17,7 +17,8 @@ describe('messageStore reactivity', () => {
         messages: [],
         nextCursor: null,
         hasMore: false
-      })
+      }),
+      onMessagesChanged: vi.fn(() => () => undefined)
     }
     const streamListeners = {
       updated: [] as Array<(payload: any) => void>,
@@ -56,6 +57,7 @@ describe('messageStore reactivity', () => {
     const { useMessageStore } = await import('@/stores/ui/message')
     const store = useMessageStore()
 
+    store.setCurrentSessionId('s1')
     await store.loadMessages('s1')
 
     const responseHandler = streamListeners.updated[0]

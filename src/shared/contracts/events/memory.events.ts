@@ -13,6 +13,11 @@ export const MemoryUpdateReasonSchema = z.enum([
   'persona-reject',
   'persona-rollback',
   'manual-edit',
+  'directive-suggest',
+  'directive-create',
+  'directive-approve',
+  'directive-reject',
+  'directive-delete',
   'reindex'
 ])
 
@@ -31,6 +36,7 @@ export const memoryUpdatedEvent = defineEventContract({
     reason: MemoryUpdateReasonSchema,
     version: TimestampMsSchema,
     memoryId: z.string().optional(),
+    directiveId: z.string().optional(),
     sessionId: z.string().optional(),
     createdIds: z.array(z.string()).max(50).optional()
   })

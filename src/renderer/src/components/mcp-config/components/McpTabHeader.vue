@@ -31,7 +31,7 @@ const tabs = [
             v-for="tab in tabs"
             :key="tab.id"
             :class="[
-              'group flex items-center px-1 py-1.5 text-xs font-medium transition-all duration-300 ease-out',
+              'group flex items-center px-1 py-1.5 text-xs font-medium transition-colors duration-[var(--dc-motion-fast)] ease-[var(--dc-ease-out-soft)]',
               'hover:text-foreground',
               activeTab === tab.id
                 ? 'text-foreground'
@@ -42,7 +42,7 @@ const tabs = [
             <Icon
               :icon="tab.icon"
               :class="[
-                'mr-2 h-3.5 w-3.5 transition-all duration-300',
+                'mr-2 h-3.5 w-3.5 transition-colors duration-[var(--dc-motion-fast)] ease-[var(--dc-ease-out-soft)]',
                 activeTab === tab.id ? 'text-primary' : 'group-hover:text-foreground'
               ]"
             />
@@ -50,10 +50,10 @@ const tabs = [
               {{ t(tab.label) }}
               <div
                 :class="[
-                  'absolute -bottom-1.5 left-0 h-0.5 bg-primary transition-all duration-300 ease-out',
+                  'absolute -bottom-1.5 left-0 h-0.5 w-full origin-left bg-primary transition-[scale,opacity] duration-[var(--dc-motion-fast)] ease-[var(--dc-ease-out-express)] motion-reduce:transition-none',
                   activeTab === tab.id
-                    ? 'w-full opacity-100'
-                    : 'w-0 opacity-0 group-hover:w-full group-hover:opacity-50'
+                    ? 'scale-x-100 opacity-100'
+                    : 'scale-x-0 opacity-0 group-hover:scale-x-100 group-hover:opacity-50'
                 ]"
               />
             </span>

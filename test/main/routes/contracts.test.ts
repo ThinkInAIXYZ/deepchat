@@ -7,8 +7,12 @@ import {
   chatStreamUpdatedEvent,
   contextMenuAskAiRequestedEvent,
   contextMenuTranslateRequestedEvent,
+  mcpSamplingRequestEvent,
   settingsChangedEvent,
-  sessionsUpdatedEvent
+  sessionsCompactionChangedEvent,
+  sessionsUpdatedEvent,
+  projectEnvironmentsChangedEvent,
+  configLanguageChangedEvent
 } from '@shared/contracts/events'
 import {
   DEEPCHAT_ROUTE_CATALOG,
@@ -22,6 +26,8 @@ import {
   providersListSummariesRoute,
   providersTestConnectionRoute,
   modelsTranscribeAudioRoute,
+  mcpAppsListToolsRoute,
+  mcpAppsPrepareViewRoute,
   configListAgentsRoute,
   oauthGithubCopilotStartDeviceFlowLoginRoute,
   oauthGithubCopilotStartLoginRoute,
@@ -31,15 +37,21 @@ import {
   sessionsGetGenerationSettingsRoute,
   sessionsGetPermissionModeRoute,
   settingsGetSnapshotRoute,
+  settingsCheckCommandShellRoute,
+  settingsUpdateCommandShellRoute,
   settingsListSystemFontsRoute,
   settingsUpdateRoute,
   sessionsCreateRoute,
   sessionsDeactivateRoute,
   sessionsGetActiveRoute,
+  sessionsGetCompactionSnapshotRoute,
+  sessionsGetContextOccupancyRoute,
   sessionsListRoute,
+  sessionsQueuePendingInputRoute,
   sessionsRestoreRoute,
   sessionsSetPermissionModeRoute,
   sessionsUpdateGenerationSettingsRoute,
+  sessionsUpdateQueuedInputRoute,
   systemOpenSettingsRoute,
   windowConsumePendingSettingsProviderInstallRoute,
   windowRequeuePendingSettingsProviderInstallRoute
@@ -47,15 +59,102 @@ import {
 import { SessionGenerationSettingsPatchSchema } from '@shared/contracts/common'
 
 describe('main kernel contracts', () => {
+  it('preserves MCP binding identity and validates MCP App tool metadata', () => {
+    expect(
+      mcpSamplingRequestEvent.payload.parse({
+        request: {
+          requestId: 'request-1',
+          serverName: 'fixture',
+          serverId: 'server-id',
+          configGeneration: 2,
+          bindingHash: 'binding-hash',
+          requiresVision: false,
+          messages: []
+        },
+        version: 1
+      }).request
+    ).toMatchObject({
+      serverId: 'server-id',
+      configGeneration: 2,
+      bindingHash: 'binding-hash'
+    })
+
+    expect(
+      mcpAppsListToolsRoute.output.parse({
+        tools: [
+          {
+            name: 'inspect',
+            inputSchema: { type: 'object' },
+            annotations: {
+              readOnlyHint: true,
+              customHint: 'kept'
+            }
+          }
+        ]
+      }).tools[0].annotations
+    ).toEqual({
+      readOnlyHint: true,
+      customHint: 'kept'
+    })
+    expect(() =>
+      mcpAppsListToolsRoute.output.parse({
+        tools: [
+          {
+            name: 'inspect',
+            inputSchema: {},
+            annotations: { readOnlyHint: 'yes' }
+          }
+        ]
+      })
+    ).toThrow()
+
+    expect(
+      mcpAppsPrepareViewRoute.output.parse({
+        view: {
+          instanceId: 'instance-id-123456',
+          sandboxUrl: 'mcp-app://instance-id-123456/sandbox.html',
+          html: '<main>App</main>',
+          sandbox: 'allow-scripts allow-same-origin',
+          tool: {
+            name: 'inspect',
+            inputSchema: {}
+          },
+          expiresAt: 1
+        }
+      }).view.sandbox
+    ).toBe('allow-scripts allow-same-origin')
+  })
+
+  it('accepts and ignores the retired Session-level Subagent input', () => {
+    expect(
+      sessionsCreateRoute.input.parse({
+        agentId: 'deepchat',
+        message: 'hello',
+        subagentEnabled: true
+      })
+    ).toEqual({
+      agentId: 'deepchat',
+      message: 'hello'
+    })
+    expect(DEEPCHAT_ROUTE_CATALOG).not.toHaveProperty('sessions.setSubagentEnabled')
+  })
+
   it('registers typed route catalog entries through phase4', () => {
     const routeKeys = Object.keys(DEEPCHAT_ROUTE_CATALOG).sort()
 
     expect(routeKeys).toEqual(
       expect.arrayContaining([
-        'acpTerminal.input',
-        'acpTerminal.kill',
+        'acpAuth.cancel',
+        'acpAuth.input',
+        'acpAuth.inspect',
+        'acpAuth.start',
+        'acpAuth.status',
         'browser.attachCurrentWindow',
         'browser.clearSandboxData',
+        'browser.dismissPreview',
+        'browser.setPreviewMode',
+        'computerUse.dismissPreview',
+        'computerUse.setPreviewMode',
         'databaseSecurity.repairSchema',
         'debug.createMockChatSession',
         'config.addManualAcpAgent',
@@ -73,6 +172,7 @@ describe('main kernel contracts', () => {
         'config.refreshProviderDb',
         'config.removeManualAcpAgent',
         'config.repairAcpAgent',
+        'chat.cancelSubmission',
         'chat.sendMessage',
         'chat.steerActiveTurn',
         'config.resolveDeepChatAgentConfig',
@@ -114,14 +214,16 @@ describe('main kernel contracts', () => {
         'mcp.router.getApiKey',
         'mcp.router.installServer',
         'mcp.router.isServerInstalled',
+        'mcp.router.listInstalledServerIds',
         'mcp.router.listServers',
         'mcp.router.setApiKey',
-        'mcp.router.updateServersAuth',
         'mcp.submitSamplingDecision',
         'mcp.updateServer',
         'nowledgeMem.getConfig',
         'nowledgeMem.testConnection',
         'nowledgeMem.updateConfig',
+        'ocr.clearCache',
+        'ocr.getRuntimeStatus',
         'oauth.githubCopilot.startDeviceFlowLogin',
         'oauth.githubCopilot.startLogin',
         'oauth.openaiCodex.cancelLogin',
@@ -175,6 +277,8 @@ describe('main kernel contracts', () => {
         'sessions.getAcpSessionCommands',
         'sessions.getAcpSessionConfigOptions',
         'sessions.getAgents',
+        'sessions.getCompactionSnapshot',
+        'sessions.getContextOccupancy',
         'sessions.getDisabledAgentTools',
         'sessions.getGenerationSettings',
         'sessions.getPermissionMode',
@@ -182,6 +286,8 @@ describe('main kernel contracts', () => {
         'sessions.getUsageDashboard',
         'sessions.listMessageTraces',
         'sessions.listPendingInputs',
+        'sessions.subscribeTapeInspectorHead',
+        'sessions.unsubscribeTapeInspectorHead',
         'sessions.moveQueuedInput',
         'sessions.queuePendingInput',
         'sessions.rename',
@@ -192,13 +298,13 @@ describe('main kernel contracts', () => {
         'sessions.setModel',
         'sessions.setPermissionMode',
         'sessions.setProjectDir',
-        'sessions.setSubagentEnabled',
         'sessions.steerPendingInput',
         'sessions.togglePinned',
         'sessions.translateText',
         'sessions.updateDisabledAgentTools',
         'sessions.updateGenerationSettings',
         'sessions.updateQueuedInput',
+        'skills.delete',
         'skills.getActive',
         'skills.getSyncConfig',
         'skills.executeSyncDirectoryExport',
@@ -206,6 +312,7 @@ describe('main kernel contracts', () => {
         'skills.installFromGit',
         'skills.installFromFolder',
         'skills.installFromUrl',
+        'skills.listAll',
         'skills.listCatalog',
         'skills.listMetadata',
         'skills.openFolder',
@@ -214,27 +321,15 @@ describe('main kernel contracts', () => {
         'skills.readFile',
         'skills.scanGitRepo',
         'skills.setActive',
+        'skills.setAssignments',
         'skills.setDisabled',
         'skills.setSyncDirectory',
         'shortcut.destroy',
         'shortcut.register',
         'shortcut.unregister',
         'skillSync.acknowledgeDiscoveries',
-        'skillSync.executeAdoptAgentSkill',
-        'skillSync.executeExport',
-        'skillSync.executeImport',
-        'skillSync.executeLinkDeepChatSkills',
-        'skillSync.getAgentDetail',
-        'skillSync.getAgentSkillDetail',
         'skillSync.getNewDiscoveries',
         'skillSync.getRegisteredTools',
-        'skillSync.previewAdoptAgentSkill',
-        'skillSync.previewExport',
-        'skillSync.previewImport',
-        'skillSync.previewLinkDeepChatSkills',
-        'skillSync.removeAgentSkillLink',
-        'skillSync.repairAgentSkillLink',
-        'skillSync.scanAgents',
         'skillSync.scanExternalTools',
         'sync.getBackupStatus',
         'sync.import',
@@ -253,11 +348,70 @@ describe('main kernel contracts', () => {
         'window.focusMain',
         'window.notifySettingsReady',
         'window.requeuePendingSettingsProviderInstall',
+        'window.resumeGuidedOnboarding',
         'window.startGuidedOnboarding',
         'workspace.watch'
       ])
     )
     expect(new Set(routeKeys).size).toBe(routeKeys.length)
+  })
+
+  it('uses revision schemas for versioned project and configuration payloads', () => {
+    expect(
+      projectEnvironmentsChangedEvent.payload.parse({
+        action: 'select',
+        path: '/workspace',
+        version: 7
+      })
+    ).toEqual({ action: 'select', path: '/workspace', version: 7 })
+    expect(() =>
+      projectEnvironmentsChangedEvent.payload.parse({
+        action: 'select',
+        path: '/workspace',
+        version: -1
+      })
+    ).toThrow()
+    expect(
+      DEEPCHAT_ROUTE_CATALOG['project.archiveEnvironment'].output.parse({
+        updated: true,
+        version: 7
+      })
+    ).toEqual({ updated: true, version: 7 })
+    expect(() =>
+      DEEPCHAT_ROUTE_CATALOG['project.archiveEnvironment'].output.parse({
+        updated: true,
+        version: -1
+      })
+    ).toThrow()
+    expect(
+      DEEPCHAT_ROUTE_CATALOG['project.selectDirectory'].output.parse({
+        path: '/workspace',
+        version: 7
+      })
+    ).toEqual({ path: '/workspace', version: 7 })
+    expect(() =>
+      DEEPCHAT_ROUTE_CATALOG['project.selectDirectory'].output.parse({
+        path: '/workspace',
+        version: -1
+      })
+    ).toThrow()
+
+    expect(
+      configLanguageChangedEvent.payload.parse({
+        requestedLanguage: 'en-US',
+        locale: 'en-US',
+        direction: 'ltr',
+        version: 3
+      })
+    ).toMatchObject({ version: 3 })
+    expect(() =>
+      configLanguageChangedEvent.payload.parse({
+        requestedLanguage: 'en-US',
+        locale: 'en-US',
+        direction: 'ltr',
+        version: -1
+      })
+    ).toThrow()
   })
 
   it('trims and rejects blank project path route inputs', () => {
@@ -471,6 +625,22 @@ describe('main kernel contracts', () => {
       }
     })
     expect(
+      DEEPCHAT_ROUTE_CATALOG['nowledgeMem.testConnection'].input.parse({
+        config: {
+          baseUrl: 'http://draft.local',
+          apiKey: 'draft-secret',
+          timeout: 12000
+        }
+      })
+    ).toEqual({
+      config: {
+        baseUrl: 'http://draft.local',
+        apiKey: 'draft-secret',
+        timeout: 12000
+      }
+    })
+    expect(DEEPCHAT_ROUTE_CATALOG['nowledgeMem.testConnection'].input.parse({})).toEqual({})
+    expect(
       DEEPCHAT_ROUTE_CATALOG['nowledgeMem.testConnection'].output.parse({
         result: {
           success: true,
@@ -494,9 +664,11 @@ describe('main kernel contracts', () => {
   it('validates skill file read route payloads', () => {
     expect(
       DEEPCHAT_ROUTE_CATALOG['skills.readFile'].input.parse({
+        agentId: 'deepchat',
         name: 'write-tests'
       })
     ).toEqual({
+      agentId: 'deepchat',
       name: 'write-tests'
     })
     expect(
@@ -509,30 +681,41 @@ describe('main kernel contracts', () => {
 
     expect(() =>
       DEEPCHAT_ROUTE_CATALOG['skills.readFile'].input.parse({
+        agentId: 'deepchat',
         name: ''
       })
+    ).toThrow()
+    expect(() =>
+      DEEPCHAT_ROUTE_CATALOG['skills.readFile'].input.parse({ name: 'write-tests' })
     ).toThrow()
   })
 
   it('validates skill Git and sync directory route payloads', () => {
     expect(() =>
-      DEEPCHAT_ROUTE_CATALOG['skills.scanGitRepo'].input.parse({ repoUrl: '' })
+      DEEPCHAT_ROUTE_CATALOG['skills.scanGitRepo'].input.parse({
+        agentId: 'deepchat',
+        repoUrl: ''
+      })
     ).toThrow()
 
     expect(
       DEEPCHAT_ROUTE_CATALOG['skills.installFromGit'].input.parse({
+        agentId: 'deepchat',
         repoUrl: 'https://github.com/op7418/guizang-ppt-skill',
         skillNames: ['guizang-ppt-skill'],
         strategy: 'rename'
       })
     ).toEqual({
+      agentId: 'deepchat',
       repoUrl: 'https://github.com/op7418/guizang-ppt-skill',
       skillNames: ['guizang-ppt-skill'],
-      strategy: 'rename'
+      strategy: 'rename',
+      assignToAgent: true
     })
 
     expect(() =>
       DEEPCHAT_ROUTE_CATALOG['skills.installFromGit'].input.parse({
+        agentId: 'deepchat',
         repoUrl: 'https://github.com/op7418/guizang-ppt-skill',
         skillNames: ['guizang-ppt-skill'],
         strategy: 'replace'
@@ -546,6 +729,35 @@ describe('main kernel contracts', () => {
     ).toEqual({
       skillsDirectory: '/tmp/deepchat-skills'
     })
+  })
+
+  it('validates Agent Skill import selections', () => {
+    expect(
+      DEEPCHAT_ROUTE_CATALOG['skills.executeAgentImport'].input.parse({
+        source: { kind: 'external', toolId: 'codex' },
+        items: [{ skillName: 'write-tests', strategy: 'rename' }]
+      })
+    ).toEqual({
+      source: { kind: 'external', toolId: 'codex' },
+      items: [{ skillName: 'write-tests', strategy: 'rename' }]
+    })
+
+    expect(() =>
+      DEEPCHAT_ROUTE_CATALOG['skills.executeAgentImport'].input.parse({
+        source: { kind: 'external', toolId: 'codex' },
+        items: [
+          { skillName: 'write-tests', strategy: 'skip' },
+          { skillName: ' write-tests ', strategy: 'overwrite' }
+        ]
+      })
+    ).toThrow('Duplicate Skill selection')
+
+    expect(() =>
+      DEEPCHAT_ROUTE_CATALOG['skills.executeAgentImport'].input.parse({
+        source: { kind: 'external', toolId: 'codex' },
+        items: [{ skillName: '../outside', strategy: 'overwrite' }]
+      })
+    ).toThrow()
   })
 
   it('validates MCP Router marketplace route payloads', () => {
@@ -699,15 +911,58 @@ describe('main kernel contracts', () => {
         changes: [
           { key: 'fontSizeLevel', value: 3 },
           { key: 'privacyModeEnabled', value: true },
-          { key: 'launchAtLoginEnabled', value: true }
+          { key: 'launchAtLoginEnabled', value: true },
+          { key: 'ocrAutoExtractForNonVisionModels', value: false },
+          { key: 'ocrBackend', value: 'cpu' }
         ]
       })
     ).toEqual({
       changes: [
         { key: 'fontSizeLevel', value: 3 },
         { key: 'privacyModeEnabled', value: true },
-        { key: 'launchAtLoginEnabled', value: true }
+        { key: 'launchAtLoginEnabled', value: true },
+        { key: 'ocrAutoExtractForNonVisionModels', value: false },
+        { key: 'ocrBackend', value: 'cpu' }
       ]
+    })
+
+    expect(() =>
+      settingsUpdateRoute.input.parse({ changes: [{ key: 'ocrBackend', value: 'metal' }] })
+    ).toThrow()
+  })
+
+  it('validates command shell configuration and availability structurally', () => {
+    expect(
+      settingsUpdateCommandShellRoute.input.parse({
+        config: {
+          preference: 'git-bash',
+          gitBashExecutableOverride: ' C:\\Program Files\\Git\\bin\\bash.exe '
+        }
+      })
+    ).toEqual({
+      config: {
+        preference: 'git-bash',
+        gitBashExecutableOverride: 'C:\\Program Files\\Git\\bin\\bash.exe'
+      }
+    })
+    expect(() =>
+      settingsUpdateCommandShellRoute.input.parse({ config: { preference: 'pwsh' } })
+    ).toThrow()
+    expect(() =>
+      settingsCheckCommandShellRoute.output.parse({
+        gitBash: {
+          supported: true,
+          available: true,
+          executable: 'C:\\Git\\bin\\bash.exe',
+          source: 'unknown'
+        }
+      })
+    ).toThrow()
+  })
+
+  it('accepts OCR as a typed settings navigation target', () => {
+    expect(systemOpenSettingsRoute.input.parse({ routeName: 'settings-ocr' })).toEqual({
+      routeName: 'settings-ocr'
     })
   })
 
@@ -829,6 +1084,13 @@ describe('main kernel contracts', () => {
     })
   })
 
+  it('rejects a zero session context window at the route boundary', () => {
+    expect(() => SessionGenerationSettingsPatchSchema.parse({ contextLength: 0 })).toThrow()
+    expect(SessionGenerationSettingsPatchSchema.parse({ contextLength: 1 })).toEqual({
+      contextLength: 1
+    })
+  })
+
   it('accepts auto approve in session permission mode contracts', () => {
     expect(
       sessionsSetPermissionModeRoute.input.parse({
@@ -867,7 +1129,6 @@ describe('main kernel contracts', () => {
         totalTokens: 30,
         cachedInputTokens: 0,
         cacheHitRate: 0,
-        estimatedCostUsd: null,
         mostActiveDay: {
           date: '2026-06-11',
           messageCount: 1
@@ -881,7 +1142,6 @@ describe('main kernel contracts', () => {
           outputTokens: 20,
           totalTokens: 30,
           cachedInputTokens: 0,
-          estimatedCostUsd: null,
           level: 1
         }
       ],
@@ -914,7 +1174,37 @@ describe('main kernel contracts', () => {
       DEEPCHAT_ROUTE_CATALOG['sessions.getUsageDashboard'].output.parse({
         dashboard
       })
-    ).toEqual({ dashboard })
+    ).toEqual({ dashboard: { ...dashboard, categoryBreakdown: [] } })
+
+    expect(
+      DEEPCHAT_ROUTE_CATALOG['sessions.getUsageDashboard'].output.parse({
+        dashboard: {
+          ...dashboard,
+          categoryBreakdown: [
+            {
+              id: 'compaction',
+              eventCount: 2,
+              knownUsageCount: 1,
+              unknownUsageCount: 1,
+              inputTokens: 100,
+              outputTokens: 20,
+              totalTokens: 120
+            }
+          ]
+        }
+      })
+    ).toMatchObject({
+      dashboard: {
+        categoryBreakdown: [
+          {
+            id: 'compaction',
+            eventCount: 2,
+            knownUsageCount: 1,
+            unknownUsageCount: 1
+          }
+        ]
+      }
+    })
 
     expect(() =>
       DEEPCHAT_ROUTE_CATALOG['sessions.getUsageDashboard'].output.parse({
@@ -1027,6 +1317,60 @@ describe('main kernel contracts', () => {
     })
   })
 
+  it('validates pending input payload objects before dispatch', () => {
+    expect(
+      sessionsQueuePendingInputRoute.input.parse({
+        sessionId: 'session-1',
+        content: 'queued text'
+      })
+    ).toEqual({
+      sessionId: 'session-1',
+      content: 'queued text'
+    })
+
+    expect(
+      sessionsUpdateQueuedInputRoute.input.parse({
+        sessionId: 'session-1',
+        itemId: 'pending-1',
+        content: {
+          text: 'queued object',
+          files: [],
+          inlineItems: [{ type: 'skill', offset: 0, skillName: 'review' }]
+        }
+      })
+    ).toEqual({
+      sessionId: 'session-1',
+      itemId: 'pending-1',
+      content: {
+        text: 'queued object',
+        files: [],
+        inlineItems: [{ type: 'skill', offset: 0, skillName: 'review' }]
+      }
+    })
+
+    expect(
+      sessionsQueuePendingInputRoute.input.safeParse({
+        sessionId: 'session-1',
+        content: { files: [] }
+      }).success
+    ).toBe(false)
+    expect(
+      sessionsQueuePendingInputRoute.input.safeParse({
+        sessionId: 'session-1',
+        content: { text: 'bad file', files: [{ name: 'missing path' }] }
+      }).success
+    ).toBe(false)
+    expect(
+      sessionsQueuePendingInputRoute.input.safeParse({
+        sessionId: 'session-1',
+        content: {
+          text: 'bad inline item',
+          inlineItems: [{ type: 'skill', offset: -1, skillName: 'review' }]
+        }
+      }).success
+    ).toBe(false)
+  })
+
   it('validates manual compaction route contracts', () => {
     expect(
       sessionsCompactRoute.input.parse({
@@ -1050,8 +1394,84 @@ describe('main kernel contracts', () => {
       state: {
         status: 'compacted',
         cursorOrderSeq: 3,
-        summaryUpdatedAt: 123
+        summaryUpdatedAt: 123,
+        boundaryReason: null
       }
+    })
+
+    expect(
+      sessionsGetCompactionSnapshotRoute.output.parse({
+        state: {
+          status: 'compacted',
+          cursorOrderSeq: 5,
+          summaryUpdatedAt: null,
+          boundaryReason: 'summary_unavailable'
+        },
+        emitSeq: 7,
+        latestAnchorEntryId: 19
+      })
+    ).toEqual({
+      state: {
+        status: 'compacted',
+        cursorOrderSeq: 5,
+        summaryUpdatedAt: null,
+        boundaryReason: 'summary_unavailable'
+      },
+      emitSeq: 7,
+      latestAnchorEntryId: 19
+    })
+
+    expect(
+      sessionsGetContextOccupancyRoute.output.parse({
+        freshness: 'current',
+        source: 'provider',
+        occupiedTokens: 24_000,
+        contextWindowTokens: 32_000,
+        requestSeq: 3,
+        manifestEntryId: 20,
+        providerAttemptEntryId: 21,
+        measuredAt: 123
+      })
+    ).toEqual({
+      freshness: 'current',
+      source: 'provider',
+      occupiedTokens: 24_000,
+      contextWindowTokens: 32_000,
+      requestSeq: 3,
+      manifestEntryId: 20,
+      providerAttemptEntryId: 21,
+      measuredAt: 123
+    })
+    expect(() =>
+      sessionsGetContextOccupancyRoute.output.parse({
+        freshness: 'unavailable',
+        source: 'estimated',
+        occupiedTokens: null,
+        contextWindowTokens: null,
+        requestSeq: null,
+        manifestEntryId: null,
+        providerAttemptEntryId: null,
+        measuredAt: null
+      })
+    ).toThrow()
+
+    expect(
+      sessionsCompactionChangedEvent.payload.parse({
+        sessionId: 'session-1',
+        status: 'compacting',
+        cursorOrderSeq: 5,
+        summaryUpdatedAt: null,
+        emitSeq: 8,
+        latestAnchorEntryId: 19
+      })
+    ).toEqual({
+      sessionId: 'session-1',
+      status: 'compacting',
+      cursorOrderSeq: 5,
+      summaryUpdatedAt: null,
+      boundaryReason: null,
+      emitSeq: 8,
+      latestAnchorEntryId: 19
     })
   })
 
@@ -1354,11 +1774,13 @@ describe('main kernel contracts', () => {
 
     expect(
       DEEPCHAT_ROUTE_CATALOG['providers.runAcpDebugAction'].input.parse({
+        requestId: 'debug-request-1',
         agentId: 'codex-acp',
         action: 'initialize',
         payload: {}
       })
     ).toEqual({
+      requestId: 'debug-request-1',
       agentId: 'codex-acp',
       action: 'initialize',
       payload: {}
@@ -1367,26 +1789,58 @@ describe('main kernel contracts', () => {
     expect(
       DEEPCHAT_ROUTE_CATALOG['models.getCapabilities'].output.parse({
         capabilities: {
+          identity: {
+            providerId: 'openai',
+            requestModelId: 'gpt-5.4',
+            catalogMatched: true,
+            catalogModelId: 'gpt-5.4'
+          },
+          requestPolicy: {
+            temperature: { mode: 'passthrough' },
+            topP: { mode: 'passthrough' },
+            reasoning: { mode: 'passthrough' },
+            legacyThinking: { mode: 'passthrough' }
+          },
           supportsReasoning: true,
           reasoningPortrait: null,
-          thinkingBudgetRange: null,
+          thinkingBudgetRange: {},
           supportsSearch: true,
           searchDefaults: { default: true, forced: false, strategy: 'turbo' },
           supportsAudioInput: false,
           supportsTemperatureControl: true,
-          temperatureCapability: true
+          temperatureCapability: true,
+          supportsReasoningEffort: true,
+          reasoningEffortDefault: 'medium',
+          supportsVerbosity: true,
+          verbosityDefault: 'medium'
         }
       })
     ).toEqual({
       capabilities: {
+        identity: {
+          providerId: 'openai',
+          requestModelId: 'gpt-5.4',
+          catalogMatched: true,
+          catalogModelId: 'gpt-5.4'
+        },
+        requestPolicy: {
+          temperature: { mode: 'passthrough' },
+          topP: { mode: 'passthrough' },
+          reasoning: { mode: 'passthrough' },
+          legacyThinking: { mode: 'passthrough' }
+        },
         supportsReasoning: true,
         reasoningPortrait: null,
-        thinkingBudgetRange: null,
+        thinkingBudgetRange: {},
         supportsSearch: true,
         searchDefaults: { default: true, forced: false, strategy: 'turbo' },
         supportsAudioInput: false,
         supportsTemperatureControl: true,
-        temperatureCapability: true
+        temperatureCapability: true,
+        supportsReasoningEffort: true,
+        reasoningEffortDefault: 'medium',
+        supportsVerbosity: true,
+        verbosityDefault: 'medium'
       }
     })
 
@@ -1526,55 +1980,24 @@ describe('main kernel contracts', () => {
       format: 'markdown',
       lastModified: new Date('2024-01-01T00:00:00.000Z')
     }
-    const importPreview = {
-      skill: {
-        name: 'write-tests',
-        description: 'Write tests',
-        instructions: 'Write useful tests'
-      },
-      source,
-      warnings: []
+    const removedSkillSyncRoutes = [
+      'skillSync.previewAdoptAgentSkill',
+      'skillSync.executeAdoptAgentSkill',
+      'skillSync.previewLinkDeepChatSkills',
+      'skillSync.executeLinkDeepChatSkills',
+      'skillSync.previewImport',
+      'skillSync.executeImport',
+      'skillSync.previewExport',
+      'skillSync.executeExport',
+      'skillSync.scanAgents',
+      'skillSync.getAgentDetail',
+      'skillSync.getAgentSkillDetail',
+      'skillSync.repairAgentSkillLink',
+      'skillSync.removeAgentSkillLink'
+    ]
+    for (const routeName of removedSkillSyncRoutes) {
+      expect(DEEPCHAT_ROUTE_CATALOG).not.toHaveProperty(routeName)
     }
-
-    expect(() =>
-      DEEPCHAT_ROUTE_CATALOG['skillSync.previewImport'].input.parse({
-        toolId: '',
-        skillNames: ['write-tests']
-      })
-    ).toThrow()
-
-    expect(
-      DEEPCHAT_ROUTE_CATALOG['skillSync.previewImport'].input.parse({
-        toolId: 'codex',
-        skillNames: ['write-tests']
-      })
-    ).toEqual({
-      toolId: 'codex',
-      skillNames: ['write-tests']
-    })
-
-    expect(() =>
-      DEEPCHAT_ROUTE_CATALOG['skillSync.executeImport'].input.parse({
-        previews: [importPreview],
-        strategies: {
-          'write-tests': 'replace'
-        }
-      })
-    ).toThrow()
-
-    expect(
-      DEEPCHAT_ROUTE_CATALOG['skillSync.executeImport'].input.parse({
-        previews: [importPreview],
-        strategies: {
-          'write-tests': 'overwrite'
-        }
-      })
-    ).toEqual({
-      previews: [importPreview],
-      strategies: {
-        'write-tests': 'overwrite'
-      }
-    })
 
     expect(
       DEEPCHAT_ROUTE_CATALOG['skillSync.scanExternalTools'].output.parse({
@@ -1599,16 +2022,6 @@ describe('main kernel contracts', () => {
         }
       ]
     })
-
-    expect(
-      DEEPCHAT_ROUTE_CATALOG['skillSync.getAgentSkillDetail'].input.parse({
-        agentId: 'codex',
-        skillName: 'write-tests'
-      })
-    ).toEqual({
-      agentId: 'codex',
-      skillName: 'write-tests'
-    })
   })
 
   it('registers typed event catalog entries through phase4', () => {
@@ -1616,12 +2029,9 @@ describe('main kernel contracts', () => {
 
     expect(eventKeys).toEqual(
       expect.arrayContaining([
-        'acpTerminal.error',
-        'acpTerminal.exited',
-        'acpTerminal.externalDependenciesRequired',
-        'acpTerminal.output',
-        'acpTerminal.started',
-        'appRuntime.dataResetCompleteDev',
+        'acpAuth.output',
+        'acpAuth.stateChanged',
+        'appRuntime.guidedOnboardingResumeRequested',
         'appRuntime.guidedOnboardingStartRequested',
         'appRuntime.mcpInstallRequested',
         'appRuntime.shortcutRequested',
@@ -1631,7 +2041,12 @@ describe('main kernel contracts', () => {
         'appRuntime.windowFocused',
         'browser.activity.changed',
         'browser.open.requested',
+        'browser.preview.action',
+        'browser.preview.frame',
+        'browser.preview.surface.changed',
         'browser.status.changed',
+        'computerUse.preview.frame',
+        'computerUse.preview.surface.changed',
         'chat.plan.updated',
         'chat.stream.completed',
         'chat.stream.failed',
@@ -1648,7 +2063,6 @@ describe('main kernel contracts', () => {
         'config.systemPrompts.changed',
         'config.systemTheme.changed',
         'config.theme.changed',
-        'databaseSecurity.repairSuggested',
         'dialog.requested',
         'knowledge.file.progress',
         'knowledge.file.updated',
@@ -1663,7 +2077,7 @@ describe('main kernel contracts', () => {
         'models.changed',
         'models.config.changed',
         'models.status.changed',
-        'notification.error',
+        'notification.semantic',
         'oauth.openaiCodex.statusChanged',
         'providers.acp.debug.event',
         'providers.changed',
@@ -1677,21 +2091,17 @@ describe('main kernel contracts', () => {
         'sessions.compaction.changed',
         'sessions.pendingInputs.changed',
         'sessions.status.changed',
+        'sessions.tapeInspector.head.changed',
         'sessions.updated',
         'settings.checkForUpdatesRequested',
         'settings.changed',
+        'settings.commandShell.changed',
         'settings.navigateRequested',
         'settings.providerInstallRequested',
         'startup.workload.changed',
         'skills.catalog.changed',
         'skills.session.changed',
         'skillSync.discoveries.changed',
-        'skillSync.export.completed',
-        'skillSync.export.progress',
-        'skillSync.export.started',
-        'skillSync.import.completed',
-        'skillSync.import.progress',
-        'skillSync.import.started',
         'skillSync.scan.completed',
         'skillSync.scan.started',
         'sync.backup.completed',
@@ -1701,6 +2111,9 @@ describe('main kernel contracts', () => {
         'sync.import.completed',
         'sync.import.error',
         'sync.import.started',
+        'toolchains.changed',
+        'toolchains.missing',
+        'toolchains.progress',
         'upgrade.error',
         'upgrade.progress',
         'upgrade.status.changed',
@@ -1711,6 +2124,116 @@ describe('main kernel contracts', () => {
       ])
     )
     expect(new Set(eventKeys).size).toBe(eventKeys.length)
+    expect(eventKeys).not.toContain('notification.error')
+    expect(eventKeys).not.toContain('databaseSecurity.repairSuggested')
+  })
+
+  it('requires upgrade release dates to be normalized before event publication', () => {
+    const payload = {
+      status: 'available',
+      info: {
+        version: '1.1.0-beta.6',
+        releaseDate: '2026-07-25T11:28:19.451Z',
+        releaseNotes: ''
+      },
+      version: 1
+    }
+    const contract = DEEPCHAT_EVENT_CATALOG['upgrade.status.changed'].payload
+
+    expect(contract.safeParse(payload).success).toBe(true)
+
+    // This intentionally bypasses the publisher's output type to protect the runtime boundary
+    // when an unnormalized external value reaches contract parsing.
+    const bypassedPayload = {
+      ...payload,
+      info: {
+        ...payload.info,
+        releaseDate: new Date(payload.info.releaseDate)
+      }
+    } as unknown
+    expect(contract.safeParse(bypassedPayload).success).toBe(false)
+  })
+
+  it('accepts only byte arrays for browser preview frames', () => {
+    const payload = {
+      sessionId: 'session-1',
+      runId: 'run-1',
+      sequence: 0,
+      width: 480,
+      height: 300,
+      mimeType: 'image/jpeg',
+      timestamp: Date.now()
+    } as const
+
+    expect(
+      DEEPCHAT_EVENT_CATALOG['browser.preview.frame'].payload.safeParse({
+        ...payload,
+        data: new Uint8Array([1, 2, 3])
+      }).success
+    ).toBe(true)
+    expect(
+      DEEPCHAT_EVENT_CATALOG['browser.preview.frame'].payload.safeParse({
+        ...payload,
+        data: new Uint16Array([1, 2, 3])
+      }).success
+    ).toBe(false)
+    expect(
+      DEEPCHAT_EVENT_CATALOG['browser.preview.frame'].payload.safeParse({
+        ...payload,
+        data: new DataView(new ArrayBuffer(3))
+      }).success
+    ).toBe(false)
+  })
+
+  it('validates bounded Computer Use preview frames with a target epoch', () => {
+    const payload = {
+      sessionId: 'session-1',
+      runId: 'run-1',
+      epoch: 2,
+      sequence: 3,
+      width: 480,
+      height: 300,
+      mimeType: 'image/jpeg',
+      timestamp: Date.now()
+    } as const
+
+    expect(
+      DEEPCHAT_EVENT_CATALOG['computerUse.preview.frame'].payload.safeParse({
+        ...payload,
+        data: new Uint8Array([1, 2, 3])
+      }).success
+    ).toBe(true)
+    expect(
+      DEEPCHAT_EVENT_CATALOG['computerUse.preview.frame'].payload.safeParse({
+        ...payload,
+        epoch: -1,
+        data: new Uint8Array([1, 2, 3])
+      }).success
+    ).toBe(false)
+    expect(
+      DEEPCHAT_EVENT_CATALOG['computerUse.preview.frame'].payload.safeParse({
+        ...payload,
+        data: new Uint8Array(512 * 1024 + 1)
+      }).success
+    ).toBe(false)
+  })
+
+  it('validates browser preview actions against an exact target', () => {
+    expect(
+      DEEPCHAT_EVENT_CATALOG['browser.preview.action'].payload.safeParse({
+        action: 'activate',
+        windowId: 1,
+        sessionId: 'session-1',
+        runId: 'run-1'
+      }).success
+    ).toBe(true)
+    expect(
+      DEEPCHAT_EVENT_CATALOG['browser.preview.action'].payload.safeParse({
+        action: 'activate',
+        windowId: 1,
+        sessionId: 'session-1'
+      }).success
+    ).toBe(false)
   })
 
   it('validates typed chat stream payloads', () => {

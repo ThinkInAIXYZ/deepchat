@@ -1,68 +1,58 @@
 <template>
-  <Card
-    data-testid="summary-card-nostalgia"
-    class="flex h-full flex-col overflow-hidden border-border/70 bg-card/90 backdrop-blur-sm"
-  >
-    <CardHeader class="space-y-1 pb-1">
-      <CardTitle class="wrap-break-word whitespace-normal text-base leading-tight">
-        {{ t('settings.dashboard.summary.nostalgiaLabel') }}
-      </CardTitle>
-    </CardHeader>
-    <CardContent
-      v-if="nostalgiaCard"
-      class="flex flex-1 flex-col gap-3 pt-0 lg:grid lg:grid-cols-[minmax(0,13rem)_minmax(0,1fr)] lg:items-start lg:gap-4 xl:flex xl:flex-col"
-    >
-      <div class="flex min-h-18 items-start sm:min-h-20">
+  <div data-testid="summary-card-nostalgia" class="flex h-full min-w-0 flex-col gap-3">
+    <p class="text-sm text-muted-foreground">
+      {{ t('settings.dashboard.summary.nostalgiaLabel') }}
+    </p>
+    <template v-if="nostalgiaCard">
+      <div class="flex min-h-10 items-start">
         <Transition name="nostalgia-fade" mode="out-in">
-          <CardTitle
+          <p
             :key="activeNostalgiaStat?.id ?? 'unavailable'"
             data-testid="nostalgia-rotating-value"
-            class="wrap-break-word whitespace-normal text-2xl font-semibold leading-tight tracking-tight sm:text-3xl"
+            class="wrap-break-word whitespace-normal text-xl font-bold leading-tight tracking-tight"
           >
             {{ activeNostalgiaStat?.value ?? t('settings.dashboard.unavailable') }}
-          </CardTitle>
+          </p>
         </Transition>
       </div>
 
-      <div data-testid="nostalgia-details" class="space-y-2 lg:pt-0.5">
+      <div data-testid="nostalgia-details" class="space-y-2">
         <div
           v-for="item in nostalgiaCard.details"
           :key="item.id"
           :data-testid="`nostalgia-detail-${item.id}`"
-          class="rounded-lg border border-border/30 bg-muted/5 px-3 py-2.5"
         >
-          <p class="wrap-break-word whitespace-normal text-sm leading-6">
+          <p class="wrap-break-word whitespace-normal text-sm leading-5 text-muted-foreground">
             {{ item.content }}
           </p>
         </div>
       </div>
-    </CardContent>
-    <CardContent v-else-if="isPending" class="flex flex-1 flex-col justify-center gap-4 pt-0">
-      <div class="h-9 w-32 animate-pulse rounded-md bg-muted"></div>
+    </template>
+    <template v-else-if="isPending">
+      <div class="h-7 w-32 animate-pulse rounded-md bg-card/70"></div>
       <div class="space-y-2">
-        <div class="h-9 animate-pulse rounded-lg bg-muted/70"></div>
-        <div class="h-9 animate-pulse rounded-lg bg-muted/50"></div>
-        <div class="h-9 animate-pulse rounded-lg bg-muted/30"></div>
+        <div class="h-5 animate-pulse rounded-md bg-card/60"></div>
+        <div class="h-5 animate-pulse rounded-md bg-card/45"></div>
+        <div class="h-5 animate-pulse rounded-md bg-card/30"></div>
       </div>
-    </CardContent>
-    <CardContent v-else class="flex flex-1 flex-col justify-center gap-3 pt-0">
-      <CardTitle
+    </template>
+    <template v-else>
+      <p
         data-testid="nostalgia-rotating-value"
-        class="wrap-break-word whitespace-normal text-2xl font-semibold leading-tight tracking-tight sm:text-3xl"
+        class="wrap-break-word whitespace-normal text-xl font-bold leading-tight tracking-tight"
       >
         {{ t('settings.dashboard.unavailable') }}
-      </CardTitle>
+      </p>
       <p class="text-sm leading-6 text-muted-foreground">
         {{ t('settings.dashboard.empty.description') }}
       </p>
-    </CardContent>
-  </Card>
+    </template>
+  </div>
 </template>
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { Card, CardContent, CardHeader, CardTitle } from '@shadcn/components/ui/card'
 import type { UsageDashboardData } from '@shared/types/agent-interface'
 
 type NostalgiaRotatingStat = {

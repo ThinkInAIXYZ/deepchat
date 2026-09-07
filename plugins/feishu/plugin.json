@@ -21,8 +21,7 @@
       "transport": "stdio",
       "command": "node",
       "args": ["${plugin.root}/mcp/serve.mjs"],
-      "env": {},
-      "autoApprove": []
+      "env": {}
     }
   ],
   "skills": [

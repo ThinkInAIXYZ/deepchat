@@ -27,7 +27,7 @@
           />
         </div>
 
-        <div class="flex flex-col w-full space-y-1.5">
+        <div class="flex min-w-0 flex-col w-full space-y-1.5">
           <MessageInfo :name="currentMessage.model_name" :timestamp="currentMessage.timestamp" />
           <div class="flex flex-col w-full gap-1.5" data-message-content="true">
             <Spinner
@@ -47,7 +47,16 @@
                 :duration-ms="item.durationMs"
                 :reasoning-count="item.reasoningCount"
                 :tool-call-count="item.toolCallCount"
+                :read-only="isReadOnly"
+                :permission-status-by-tool-call-id="permissionStatusByToolCallId"
                 @toggle-collapse="handleCollapseToggle"
+              />
+              <MessageBlockToolCall
+                v-else-if="item.kind === 'mcp-app'"
+                :block="item.block"
+                :message-id="currentMessage.id"
+                :thread-id="currentThreadId"
+                render-mode="app-only"
               />
               <MessageBlockContent
                 v-else-if="item.block.type === 'content'"
@@ -56,6 +65,7 @@
                 :thread-id="currentThreadId"
                 :is-search-result="isSearchResult"
                 :disable-markdown-virtualization="disableMarkdownVirtualization"
+                :hidden-markdown-image-sources="promotedImageSources"
               />
               <MessageBlockThink
                 v-else-if="
@@ -67,11 +77,23 @@
                 :usage="currentMessage.usage"
                 @toggle-collapse="handleCollapseToggle"
               />
+              <MessageBlockSearch
+                v-else-if="isProviderSearchBlock(item.block)"
+                :block="item.block"
+                :thread-id="currentThreadId"
+              />
               <MessageBlockToolCall
                 v-else-if="item.block.type === 'tool_call' && !isInternalToolCall(item.block)"
                 :block="item.block"
                 :message-id="currentMessage.id"
                 :thread-id="currentThreadId"
+                :read-only="isReadOnly"
+                :render-mode="item.block.tool_call?.mcpResult?.app ? 'tool-only' : 'full'"
+                :permission-status="
+                  item.block.tool_call?.id
+                    ? permissionStatusByToolCallId[item.block.tool_call.id]
+                    : undefined
+                "
               />
               <MessageBlockQuestionRequest
                 v-else-if="
@@ -108,6 +130,14 @@
               />
               <MessageBlockError v-else-if="item.block.type === 'error'" :block="item.block" />
             </template>
+            <MessageBlockGuardStop
+              v-if="guardStopReason"
+              :stop-reason="guardStopReason"
+              :is-read-only="isReadOnly"
+              :disabled="resolvedIsInGeneratingThread"
+              :allow-continue="allowGuardStopContinue !== false"
+              @continue="handleGuardStopContinue"
+            />
           </div>
           <MessageToolbar
             :loading="message.status === 'pending'"
@@ -120,6 +150,7 @@
             :show-trace="showTrace"
             :show-memory="memoryActivity.enabled && !isReadOnly"
             :is-read-only="isReadOnly"
+            :copy-text="copyText"
             @retry="handleAction('retry')"
             @delete="handleAction('delete')"
             @copy="handleAction('copy')"
@@ -129,6 +160,7 @@
             @next="handleAction('next')"
             @fork="handleAction('fork')"
             @trace="handleAction('trace')"
+            @tape-inspector="handleAction('tapeInspector')"
             @memory="handleMemoryDetails"
           />
         </div>
@@ -185,12 +217,12 @@
         </DialogDescription>
       </DialogHeader>
       <DialogFooter>
-        <Button variant="outline" @click="cancelFork">
+        <DcButton variant="outline" @click="cancelFork">
           {{ t('dialog.cancel') }}
-        </Button>
-        <Button variant="default" @click="confirmFork">
+        </DcButton>
+        <DcButton variant="default" @click="confirmFork">
           {{ t('dialog.fork.confirm') }}
-        </Button>
+        </DcButton>
       </DialogFooter>
     </DialogContent>
   </Dialog>
@@ -201,13 +233,17 @@ import { ref, computed, watch } from 'vue'
 import {
   type DisplayAssistantMessage,
   type DisplayAssistantMessageBlock,
+  buildResolvedPermissionStatusByToolCallId,
   filterRenderableAssistantBlocks,
+  getResolvedPermissionStatus,
   isInternalAssistantToolCallBlock
-} from '@/components/chat/messageListItems'
+} from '@/features/chat-page/model/displayMessage'
 import MessageBlockContent from './MessageBlockContent.vue'
 import MessageBlockThink from './MessageBlockThink.vue'
 import MessageBlockToolCall from './MessageBlockToolCall.vue'
 import MessageBlockError from './MessageBlockError.vue'
+import MessageBlockGuardStop from './MessageBlockGuardStop.vue'
+import { isGuardRunStopReason } from '@shared/lib/runStopReason'
 import MessageBlockQuestionRequest from './MessageBlockQuestionRequest.vue'
 import MessageToolbar from './MessageToolbar.vue'
 import MessageInfo from './MessageInfo.vue'
@@ -220,7 +256,8 @@ import MessageBlockImage from './MessageBlockImage.vue'
 import MessageBlockAudio from './MessageBlockAudio.vue'
 import MessageBlockVideo from './MessageBlockVideo.vue'
 import MessageBlockActivityGroup from './MessageBlockActivityGroup.vue'
-import { buildAssistantRenderItems } from './messageActivityGroups'
+import MessageBlockSearch from './MessageBlockSearch.vue'
+import { buildAssistantRenderItems, isProviderSearchBlock } from './messageActivityGroups'
 
 import {
   Dialog,
@@ -230,7 +267,7 @@ import {
   DialogHeader,
   DialogTitle
 } from '@shadcn/components/ui/dialog'
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
 import {
   ContextMenu,
   ContextMenuContent,
@@ -240,23 +277,24 @@ import {
 } from '@shadcn/components/ui/context-menu'
 import { createDeviceClient } from '@api/DeviceClient'
 import { useThemeStore } from '@/stores/theme'
-import { useToast } from '@/components/use-toast'
+import { notifyRenderer } from '@renderer-notifications/rendererNotificationPort'
 import { useMemoryActivityStore } from '@/stores/ui/memoryActivity'
 const props = defineProps<{
   message: DisplayAssistantMessage
   isCapturingImage: boolean
   useLegacyActions?: boolean
   isInGeneratingThread?: boolean
+  isStreamingMessage?: boolean
   showTrace?: boolean
   isReadOnly?: boolean
   disableMarkdownVirtualization?: boolean
+  allowGuardStopContinue?: boolean
 }>()
 
 const themeStore = useThemeStore()
 const deviceClient = createDeviceClient()
 const uiSettingsStore = useUiSettingsStore()
 const { t } = useI18n()
-const { toast } = useToast()
 const memoryActivity = useMemoryActivityStore()
 
 const AUDIO_EXTENSIONS = ['.mp3', '.wav', '.m4a', '.aac', '.flac', '.ogg', '.opus']
@@ -329,6 +367,7 @@ const emit = defineEmits<{
   ]
   variantChanged: [messageId: string]
   trace: [messageId: string]
+  tapeInspector: [messageId: string]
   retry: [messageId: string]
   delete: [messageId: string]
   fork: [messageId: string]
@@ -398,14 +437,76 @@ const currentContent = computed(() => {
   return filterRenderableAssistantBlocks(blocks ?? [])
 })
 
+const copyText = computed(() =>
+  currentContent.value
+    .filter((block) => {
+      if (
+        (block.type === 'reasoning_content' || block.type === 'artifact-thinking') &&
+        !uiSettingsStore.copyWithCotEnabled
+      ) {
+        return false
+      }
+      return true
+    })
+    .map((block) => {
+      const trimmedContent = (block.content ?? '').trim()
+      if (
+        (block.type === 'reasoning_content' || block.type === 'artifact-thinking') &&
+        uiSettingsStore.copyWithCotEnabled
+      ) {
+        return `<think>\n${trimmedContent}\n</think>`
+      }
+      return trimmedContent
+    })
+    .join('\n')
+    .trim()
+)
+
+const promotedImageSources = computed(() =>
+  Array.from(
+    new Set(
+      currentContent.value
+        .filter(
+          (block) =>
+            block.type === 'image' &&
+            block.image_data?.mimeType?.toLowerCase().startsWith('image/') &&
+            block.image_data.data.startsWith('imgcache://')
+        )
+        .map((block) => block.image_data!.data)
+    )
+  )
+)
+
 const shouldGroupActivity = computed(() => {
-  if (resolvedIsInGeneratingThread.value) return false
+  // Row-level: only the actively streaming row stays ungrouped so its activity
+  // renders live; thread-level generating must not ungroup settled history.
+  if (props.isStreamingMessage) return false
   return currentMessage.value.status !== 'pending'
 })
 
+const permissionStatusByToolCallId = computed(() =>
+  buildResolvedPermissionStatusByToolCallId(currentContent.value)
+)
+
+// Resolved permission outcomes merge into their tool card; the standalone
+// action card only remains as a fallback when the tool card is missing.
+const guardStopReason = computed(() => {
+  const stopReason = currentMessage.value.runStopReason
+  return isGuardRunStopReason(stopReason) ? stopReason : undefined
+})
+
+const currentVisibleContent = computed(() =>
+  currentContent.value.filter((block) => {
+    if (guardStopReason.value && block.type === 'error') return false
+    const status = getResolvedPermissionStatus(block)
+    const toolCallId = block.tool_call?.id
+    return !(status && toolCallId && permissionStatusByToolCallId.value[toolCallId])
+  })
+)
+
 const currentRenderItems = computed(() =>
   buildAssistantRenderItems({
-    blocks: currentContent.value,
+    blocks: currentVisibleContent.value,
     messageId: currentMessage.value.id,
     messageUpdatedAt: currentMessage.value.updatedAt,
     shouldGroup: shouldGroupActivity.value,
@@ -481,6 +582,7 @@ type HandleActionType =
   | 'copyImageFromTop'
   | 'fork'
   | 'trace'
+  | 'tapeInspector'
 
 const handleCollapseToggle = () => {
   emit('variantChanged', props.message.id)
@@ -568,11 +670,12 @@ const handleSelectionRemember = async () => {
     return
   }
   const result = await memoryActivity.rememberSelection(text)
-  toast({
+  notifyRenderer({
+    kind: result ? 'success' : 'error',
+    code: result ? 'chat.memory.remembered' : 'chat.memory.rememberFailed',
     title: result
       ? t(`chat.memory.toast.add.${result.action}`)
-      : t('chat.memory.toast.rememberFailed'),
-    variant: result ? 'default' : 'destructive'
+      : t('chat.memory.toast.rememberFailed')
   })
 }
 
@@ -588,6 +691,13 @@ const handleBlockContinue = (conversationId: string, messageId: string) => {
     return
   }
   emit('continue', conversationId, messageId)
+}
+
+const handleGuardStopContinue = () => {
+  if (isReadOnly.value || resolvedIsInGeneratingThread.value) {
+    return
+  }
+  emit('continue', currentThreadId.value, currentMessage.value.id)
 }
 
 const handleBlockSwitchProvider = () => {
@@ -607,30 +717,7 @@ const handleAction = (action: HandleActionType) => {
   } else if (action === 'delete') {
     emit('delete', currentMessage.value.id)
   } else if (action === 'copy') {
-    deviceClient.copyText(
-      currentContent.value
-        .filter((block) => {
-          if (
-            (block.type === 'reasoning_content' || block.type === 'artifact-thinking') &&
-            !uiSettingsStore.copyWithCotEnabled
-          ) {
-            return false
-          }
-          return true
-        })
-        .map((block) => {
-          const trimmedContent = (block.content ?? '').trim()
-          if (
-            (block.type === 'reasoning_content' || block.type === 'artifact-thinking') &&
-            uiSettingsStore.copyWithCotEnabled
-          ) {
-            return `<think>\n${trimmedContent}\n</think>`
-          }
-          return trimmedContent
-        })
-        .join('\n')
-        .trim()
-    )
+    deviceClient.copyText(copyText.value)
   } else if (action === 'prev' || action === 'next') {
     if (!useLegacyActions.value) {
       return
@@ -668,6 +755,8 @@ const handleAction = (action: HandleActionType) => {
     }
   } else if (action === 'trace') {
     emit('trace', currentMessage.value.id)
+  } else if (action === 'tapeInspector') {
+    emit('tapeInspector', currentMessage.value.id)
   }
 }
 

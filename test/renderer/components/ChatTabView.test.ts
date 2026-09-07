@@ -1,5 +1,5 @@
 import { flushPromises, mount } from '@vue/test-utils'
-import { defineComponent, reactive } from 'vue'
+import { defineComponent, onUnmounted, provide, reactive } from 'vue'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 type SetupOptions = {
@@ -10,11 +10,22 @@ type SetupOptions = {
   newConversationTargetAgentId?: string | null
   sessionError?: string | null
   activeSessionId?: string | null
+  bootstrapActiveSessionId?: string | null
   bootstrapReject?: boolean
+  performanceReporter?: {
+    recordStartup: ReturnType<typeof vi.fn>
+    observeStartupWorkload: ReturnType<typeof vi.fn>
+  }
 }
 
 const setup = async (options: SetupOptions = {}) => {
   vi.resetModules()
+
+  const { recentMessageMeasurementCache } =
+    await import('@/composables/message/recentMessageMeasurementCache')
+  recentMessageMeasurementCache.clear()
+  let nextChatPageInstanceId = 1
+  const chatPageMounts: Array<{ instanceId: number; sessionId: string }> = []
 
   const markStartupInteractive = vi.fn()
   const pageRouter = reactive({
@@ -37,7 +48,10 @@ const setup = async (options: SetupOptions = {}) => {
     error: options.sessionError ?? null,
     newConversationTargetAgentId: options.newConversationTargetAgentId ?? 'deepchat',
     hasLoadedInitialPage: false,
-    applyBootstrapShell: vi.fn().mockResolvedValue(undefined),
+    applyBootstrapShell: vi.fn().mockImplementation(async ({ activeSessionId, activeSession }) => {
+      sessionStore.activeSessionId = activeSessionId
+      sessionStore.activeSession = activeSession
+    }),
     fetchSessions: vi.fn().mockResolvedValue(undefined),
     startNewConversation: vi.fn().mockResolvedValue(undefined)
   })
@@ -91,8 +105,16 @@ const setup = async (options: SetupOptions = {}) => {
 
         return {
           startupRunId: 'run-1',
-          activeSessionId: sessionStore.activeSessionId,
-          activeSession: sessionStore.activeSession,
+          activeSessionId:
+            options.bootstrapActiveSessionId === undefined
+              ? sessionStore.activeSessionId
+              : options.bootstrapActiveSessionId,
+          activeSession:
+            options.bootstrapActiveSessionId === undefined
+              ? sessionStore.activeSession
+              : options.bootstrapActiveSessionId
+                ? { ...sessionStore.activeSession, id: options.bootstrapActiveSessionId }
+                : null,
           agents:
             agentStore.selectedAgentId === null
               ? []
@@ -147,6 +169,19 @@ const setup = async (options: SetupOptions = {}) => {
       template: '<div data-testid="chat-side-panel" />'
     })
   }))
+
+  vi.doMock('@/components/browser/AgentBrowserPiP.vue', () => ({
+    default: defineComponent({
+      name: 'AgentBrowserPiP',
+      template: '<div data-testid="agent-browser-pip-stub" />'
+    })
+  }))
+  vi.doMock('@/components/computerUse/AgentComputerUsePiP.vue', () => ({
+    default: defineComponent({
+      name: 'AgentComputerUsePiP',
+      template: '<div data-testid="agent-computer-use-pip-stub" />'
+    })
+  }))
   vi.doMock('@/pages/AgentWelcomePage.vue', () => ({
     default: defineComponent({
       name: 'AgentWelcomePage',
@@ -159,7 +194,7 @@ const setup = async (options: SetupOptions = {}) => {
       template: '<div data-testid="new-thread-page" />'
     })
   }))
-  vi.doMock('@/pages/ChatPage.vue', () => ({
+  vi.doMock('@/features/chat-page/ChatPage.vue', () => ({
     default: defineComponent({
       name: 'ChatPage',
       props: {
@@ -168,12 +203,35 @@ const setup = async (options: SetupOptions = {}) => {
           required: true
         }
       },
-      template: '<div data-testid="chat-page">{{ sessionId }}</div>'
+      setup(props) {
+        const sessionId = props.sessionId
+        const instanceId = nextChatPageInstanceId
+        nextChatPageInstanceId += 1
+        const cachedHeight = recentMessageMeasurementCache.get(sessionId)?.message ?? null
+        chatPageMounts.push({ instanceId, sessionId })
+        onUnmounted(() => {
+          recentMessageMeasurementCache.set(sessionId, { message: 321 })
+        })
+        return { cachedHeight, instanceId }
+      },
+      template:
+        '<div data-testid="chat-page" :data-instance-id="instanceId" :data-cached-height="cachedHeight">{{ sessionId }}</div>'
     })
   }))
 
-  const ChatTabView = (await import('@/views/ChatTabView.vue')).default
-  const wrapper = mount(ChatTabView)
+  const ChatTabView = (await import('@/apps/chat-main/ChatTabView.vue')).default
+  const { RENDERER_PERFORMANCE_REPORTER } =
+    await import('@/platform/performance/rendererPerformance')
+  const Host = defineComponent({
+    components: { ChatTabView },
+    setup() {
+      if (options.performanceReporter) {
+        provide(RENDERER_PERFORMANCE_REPORTER, options.performanceReporter as never)
+      }
+    },
+    template: '<ChatTabView />'
+  })
+  const wrapper = mount(Host)
 
   await flushPromises()
   await vi.runAllTimersAsync()
@@ -187,7 +245,9 @@ const setup = async (options: SetupOptions = {}) => {
     ollamaStore,
     projectStore,
     sessionStore,
-    markStartupInteractive
+    markStartupInteractive,
+    chatPageMounts,
+    recentMessageMeasurementCache
   }
 }
 
@@ -210,6 +270,54 @@ describe('ChatTabView startup and routing', () => {
     expect(markStartupInteractive).toHaveBeenCalledTimes(1)
     expect(modelStore.initialize).toHaveBeenCalledTimes(1)
     expect(ollamaStore.initialize).toHaveBeenCalledTimes(1)
+  })
+
+  it('records bootstrap, route, interactive, and deferred phases through the app-scoped reporter', async () => {
+    const performanceReporter = {
+      recordStartup: vi.fn(),
+      observeStartupWorkload: vi.fn()
+    }
+
+    await setup({ performanceReporter })
+
+    expect(performanceReporter.recordStartup).toHaveBeenCalledWith('bootstrap-ready', {
+      startupRunId: 'run-1'
+    })
+    expect(performanceReporter.recordStartup).toHaveBeenCalledWith('route-ready')
+    expect(performanceReporter.recordStartup).toHaveBeenCalledWith('interactive')
+    expect(performanceReporter.recordStartup).toHaveBeenCalledWith('deferred-settled')
+  })
+
+  it('starts the initial session request only after bootstrap shell hydration', async () => {
+    const { sessionStore } = await setup({
+      currentRoute: 'chat',
+      activeSessionId: null,
+      bootstrapActiveSessionId: 'bootstrap-session'
+    })
+
+    expect(sessionStore.applyBootstrapShell).toHaveBeenCalledWith(
+      expect.objectContaining({ activeSessionId: 'bootstrap-session' })
+    )
+    expect(sessionStore.fetchSessions).toHaveBeenCalledTimes(1)
+    expect(sessionStore.fetchSessions.mock.invocationCallOrder[0]).toBeGreaterThan(
+      sessionStore.applyBootstrapShell.mock.invocationCallOrder[0]
+    )
+    expect(sessionStore.activeSessionId).toBe('bootstrap-session')
+  })
+
+  it('preserves an explicit null bootstrap session id', async () => {
+    const { sessionStore } = await setup({
+      currentRoute: 'chat',
+      activeSessionId: 'session-1',
+      bootstrapActiveSessionId: null
+    })
+
+    expect(sessionStore.applyBootstrapShell).toHaveBeenCalledWith(
+      expect.objectContaining({
+        activeSessionId: null,
+        activeSession: null
+      })
+    )
   })
 
   it('hydrates the route from the session store state and keeps provider warmup on demand', async () => {
@@ -306,5 +414,30 @@ describe('ChatTabView startup and routing', () => {
 
     expect(wrapper.find('[data-testid="chat-page"]').text()).toContain('session-42')
     expect(wrapper.find('[data-testid="collapsed-new-chat-button"]').exists()).toBe(false)
+  })
+
+  it('preserves session measurements across keyed ChatPage remounts', async () => {
+    const { wrapper, pageRouter, chatPageMounts, recentMessageMeasurementCache } = await setup({
+      currentRoute: 'chat',
+      chatSessionId: 'session-1'
+    })
+
+    const firstInstanceId = wrapper.get('[data-testid="chat-page"]').attributes('data-instance-id')
+    pageRouter.chatSessionId = 'session-2'
+    await wrapper.vm.$nextTick()
+
+    expect(recentMessageMeasurementCache.get('session-1')).toEqual({ message: 321 })
+
+    pageRouter.chatSessionId = 'session-1'
+    await wrapper.vm.$nextTick()
+
+    const restoredPage = wrapper.get('[data-testid="chat-page"]')
+    expect(restoredPage.attributes('data-instance-id')).not.toBe(firstInstanceId)
+    expect(restoredPage.attributes('data-cached-height')).toBe('321')
+    expect(chatPageMounts.map(({ sessionId }) => sessionId)).toEqual([
+      'session-1',
+      'session-2',
+      'session-1'
+    ])
   })
 })

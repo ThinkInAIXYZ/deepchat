@@ -36,6 +36,10 @@
         :maxLiveNodes="120"
         :liveNodeBuffer="30"
         :customId="customId"
+        :final="!thinking"
+        :smooth-streaming="false"
+        :code-block-stream="thinking"
+        :code-block-props="thinkingCodeBlockProps"
       />
     </div>
 
@@ -51,7 +55,7 @@
 import { useThemeStore } from '@/stores/theme'
 import { Icon } from '@iconify/vue'
 import { h, computed, onMounted, watch } from 'vue'
-import NodeRenderer, { setCustomComponents, CodeBlockNode, PreCodeNode } from 'markstream-vue'
+import NodeRenderer, { setCustomComponents, PreCodeNode } from 'markstream-vue'
 import { ensureMarkdownWorkers } from '@/lib/markdownWorkerLifecycle'
 
 const props = defineProps<{
@@ -72,6 +76,13 @@ defineEmits<{
 }>()
 const customId = 'thinking-content'
 const themeStore = useThemeStore()
+const thinkingCodeBlockProps = {
+  isShowPreview: false,
+  showCopyButton: false,
+  showExpandButton: false,
+  showPreviewButton: false,
+  showFontSizeButtons: false
+} as const
 const propsWatchSource = () => [props.label, props.expanded, props.thinking, props.content] as const
 
 onMounted(() => {
@@ -82,29 +93,8 @@ onMounted(() => {
 
 watch(propsWatchSource, () => {}, { immediate: true })
 setCustomComponents(customId, {
-  code_block: (_props) => {
-    const isMermaid = _props.node.language === 'mermaid'
-    if (isMermaid) {
-      // 对于 Mermaid 代码块，直接返回 MermaidNode 组件
-      return h(PreCodeNode.vue, {
-        ..._props
-      })
-    }
-    return h(
-      CodeBlockNode,
-      {
-        ..._props,
-        isShowPreview: false,
-        showCopyButton: false,
-        showExpandButton: false,
-        showPreviewButton: false,
-        showFontSizeButtons: false
-      },
-      undefined
-    )
-  },
   mermaid: (_props) =>
-    h(PreCodeNode.vue, {
+    h(PreCodeNode, {
       ..._props
     })
 })

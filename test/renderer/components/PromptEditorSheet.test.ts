@@ -75,12 +75,6 @@ vi.mock('vue-i18n', () => ({
       params?.count !== undefined ? `${key}:${params.count}` : key
   })
 }))
-vi.mock('@/components/use-toast', () => ({
-  useToast: () => ({
-    toast: vi.fn()
-  })
-}))
-
 describe('PromptEditorSheet', () => {
   it('uploads prompt attachments through FileClient before submit', async () => {
     vi.resetModules()
@@ -104,7 +98,12 @@ describe('PromptEditorSheet', () => {
     const wrapper = mount(PromptEditorSheet, {
       props: {
         open: true,
-        prompt: null
+        prompt: null,
+        pending: false,
+        feedback: {
+          status: 'idle',
+          version: 0
+        }
       },
       global: {
         stubs: {
@@ -115,7 +114,7 @@ describe('PromptEditorSheet', () => {
           SheetHeader: passthrough('SheetHeader'),
           SheetTitle: passthrough('SheetTitle'),
           ScrollArea: passthrough('ScrollArea'),
-          Button: ButtonStub,
+          DcButton: ButtonStub,
           Input: InputStub,
           Label: passthrough('Label'),
           Checkbox: CheckboxStub,

@@ -1,4 +1,4 @@
-// src/shared/presenter.ts
+// src/shared/model.ts
 // Implement enum and runtime exports to avoid Vite errors
 
 export enum ModelType {
@@ -28,7 +28,7 @@ export const NEW_API_ENDPOINT_TYPES = [
 
 export type NewApiEndpointType = (typeof NEW_API_ENDPOINT_TYPES)[number]
 
-export type NewApiCapabilityProviderId = 'openai' | 'anthropic' | 'gemini'
+export type NewApiCapabilityFamilyHint = 'anthropic' | 'gemini'
 
 export type NewApiRouteMeta = {
   endpointType?: NewApiEndpointType
@@ -36,7 +36,7 @@ export type NewApiRouteMeta = {
   type?: ModelType
   providerApiType?: string
   ownedBy?: string
-  capabilityProviderId?: string
+  capabilityFamilyHint?: NewApiCapabilityFamilyHint
 }
 
 type NewApiSpecialEndpointType = Extract<NewApiEndpointType, 'anthropic' | 'gemini'>
@@ -265,13 +265,6 @@ export const hasNativeToolCapability = (
   functionCall?: boolean | null
 ): boolean => Boolean(functionCall) || hasNewApiRouteHints(route)
 
-function hasZenmuxAnthropicRoute(providerId: string, modelId?: string): boolean {
-  return (
-    normalizeProviderValue(providerId) === 'zenmux' &&
-    normalizeModelId(modelId).startsWith('anthropic/')
-  )
-}
-
 export function isClaudeFamilyModelId(modelId: string | undefined): boolean {
   return normalizeModelId(modelId).includes('claude')
 }
@@ -285,36 +278,33 @@ export function isDeepSeekSeriesModelId(modelId: string | undefined): boolean {
 }
 
 function hasAnthropicRouteHint(
-  route: Pick<NewApiRouteMeta, 'ownedBy' | 'capabilityProviderId'> | null | undefined,
+  route: Pick<NewApiRouteMeta, 'ownedBy' | 'capabilityFamilyHint'> | null | undefined,
   modelId?: string
 ): boolean {
   const ownedBy = normalizeRouteHintValue(route?.ownedBy)
-  const capabilityProviderId = normalizeRouteHintValue(route?.capabilityProviderId)
   return (
     isClaudeFamilyModelId(modelId) ||
     ownedBy.includes('claude') ||
     ownedBy.includes('anthropic') ||
-    capabilityProviderId.includes('anthropic')
+    route?.capabilityFamilyHint === 'anthropic'
   )
 }
 
 function hasGeminiRouteHint(
-  route: Pick<NewApiRouteMeta, 'ownedBy' | 'capabilityProviderId'> | null | undefined,
+  route: Pick<NewApiRouteMeta, 'ownedBy' | 'capabilityFamilyHint'> | null | undefined,
   modelId?: string
 ): boolean {
   const ownedBy = normalizeRouteHintValue(route?.ownedBy)
-  const capabilityProviderId = normalizeRouteHintValue(route?.capabilityProviderId)
   return (
     isGeminiFamilyModelId(modelId) ||
     ownedBy.includes('gemini') ||
     ownedBy.includes('google') ||
-    capabilityProviderId.includes('gemini') ||
-    capabilityProviderId.includes('google')
+    route?.capabilityFamilyHint === 'gemini'
   )
 }
 
 export function inferNewApiSpecialEndpointTypeFromRoute(
-  route: Pick<NewApiRouteMeta, 'ownedBy' | 'capabilityProviderId'> | null | undefined,
+  route: Pick<NewApiRouteMeta, 'ownedBy' | 'capabilityFamilyHint'> | null | undefined,
   modelId?: string
 ): NewApiSpecialEndpointType | undefined {
   if (hasAnthropicRouteHint(route, modelId)) {
@@ -326,23 +316,6 @@ export function inferNewApiSpecialEndpointTypeFromRoute(
   }
 
   return undefined
-}
-
-export const resolveNewApiCapabilityProviderId = (
-  endpointType: NewApiEndpointType
-): NewApiCapabilityProviderId => {
-  switch (endpointType) {
-    case 'anthropic':
-      return 'anthropic'
-    case 'gemini':
-      return 'gemini'
-    case 'openai':
-    case 'openai-response':
-    case 'image-generation':
-    case 'video-generation':
-    default:
-      return 'openai'
-  }
 }
 
 export const shouldUseAnthropicClaudeRouteFromSupportedEndpoints = (
@@ -416,22 +389,6 @@ export const resolveNewApiEndpointTypeFromRoute = (
   }
 
   return 'openai'
-}
-
-export const resolveProviderCapabilityProviderId = (
-  providerId: string,
-  route: NewApiRouteMeta | null | undefined,
-  modelId?: string
-): string => {
-  if (hasZenmuxAnthropicRoute(providerId, modelId)) {
-    return 'anthropic'
-  }
-
-  if (!hasNewApiRouteHints(route)) {
-    return providerId
-  }
-
-  return resolveNewApiCapabilityProviderId(resolveNewApiEndpointTypeFromRoute(route, modelId))
 }
 
 export const isChatSelectableModelType = (type: ModelType | undefined): boolean =>

@@ -24,7 +24,7 @@ const stubs = {
   SelectItem: passthrough('SelectItem'),
   SelectTrigger: passthrough('SelectTrigger'),
   SelectValue: passthrough('SelectValue'),
-  Button: passthrough('Button'),
+  DcButton: passthrough('Button'),
   Badge: passthrough('Badge'),
   Icon: passthrough('Icon'),
   MemoryConfigInlinePanel: PropStub(
@@ -37,6 +37,12 @@ const stubs = {
     'agentId',
     'conflictCount',
     'draftCount',
+    'directiveDraftCount',
+    'refreshToken'
+  ]),
+  MemoryDirectivesPanel: PropStub('MemoryDirectivesPanel', [
+    'agentId',
+    'memoryEnabled',
     'refreshToken'
   ]),
   MemoryListView: PropStub('MemoryListView', ['agentId', 'memoryEnabled', 'refreshToken']),
@@ -57,11 +63,14 @@ const baseStatus: MemoryStatusDto = {
   archivedMemoryCount: 0,
   conflictCount: 0,
   personaDraftCount: 0,
+  directiveDraftCount: 0,
+  activeDirectiveCount: 0,
   personaVersionCount: 0
 }
 
 afterEach(() => {
   vi.useRealTimers()
+  vi.restoreAllMocks()
 })
 
 async function setup(
@@ -140,6 +149,10 @@ function inboxBar(wrapper: Awaited<ReturnType<typeof setup>>['wrapper']) {
   return wrapper.findComponent({ name: 'MemoryInboxBar' })
 }
 
+function directivesPanel(wrapper: Awaited<ReturnType<typeof setup>>['wrapper']) {
+  return wrapper.findComponent({ name: 'MemoryDirectivesPanel' })
+}
+
 describe('MemorySettings redesign shell', () => {
   it('defaults to the built-in deepchat agent', async () => {
     const { wrapper } = await setup([other, deepchat])
@@ -157,6 +170,23 @@ describe('MemorySettings redesign shell', () => {
     expect(listView(wrapper).exists()).toBe(false)
   })
 
+  it('shows a sanitized inline error when selected-agent state cannot be loaded', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    const { wrapper } = await setup([deepchat], {
+      resolveImpl: async () => {
+        throw new Error('secret config failure')
+      }
+    })
+
+    const feedback = wrapper.get('[data-testid="memory-inline-feedback"]')
+    expect(feedback.attributes('data-tone')).toBe('error')
+    expect(feedback.text()).toContain('settings.deepchatAgents.memoryManager.actionFailed')
+    expect(feedback.text()).not.toContain('secret config failure')
+    expect(statusSummary(wrapper).text()).toContain('settings.memory.redesign.statusDisabled')
+    expect(consoleError).toHaveBeenCalledWith('[MemorySettings] Action failed', expect.any(Error))
+    consoleError.mockRestore()
+  })
+
   it('renders status counts from the extended status dto', async () => {
     const { wrapper } = await setup([deepchat], {
       resolveImpl: async () => ({
@@ -169,6 +199,8 @@ describe('MemorySettings redesign shell', () => {
         archivedMemoryCount: 2,
         conflictCount: 1,
         personaDraftCount: 1,
+        directiveDraftCount: 2,
+        activeDirectiveCount: 3,
         personaVersionCount: 1
       })
     })
@@ -178,6 +210,12 @@ describe('MemorySettings redesign shell', () => {
     expect(statusSummary(wrapper).text()).toContain('Embedding: text-embedding-v4')
     expect(wrapper.findComponent({ name: 'MemoryStatusCard' }).exists()).toBe(false)
     expect(wrapper.text()).toContain('settings.memory.redesign.tabPersona')
+    expect(wrapper.text()).toContain('settings.memory.redesign.tabDirectives')
+    expect(inboxBar(wrapper).props('directiveDraftCount')).toBe(2)
+    expect(directivesPanel(wrapper).props()).toMatchObject({
+      agentId: 'deepchat',
+      memoryEnabled: true
+    })
   })
 
   it('keeps a single configure entry that toggles the inline config panel', async () => {
@@ -214,6 +252,38 @@ describe('MemorySettings redesign shell', () => {
     expect(wrapper.find('[data-testid="settings-memory-config-panel"]').exists()).toBe(false)
   })
 
+  it('guards configuration entry and in-page tab changes before hiding the editor surface', async () => {
+    const { wrapper } = await setup([deepchat])
+    const { settingsLeaveGuard } =
+      await import('../../../src/renderer/settings/services/settingsLeaveGuard')
+    const lease = settingsLeaveGuard.register({
+      id: 'memory-settings-test-editor',
+      onDiscard: () => undefined
+    })
+    lease.setRisk('dirty')
+
+    await wrapper.find('[data-testid="settings-memory-configure"]').trigger('click')
+    await flushPromises()
+    expect(configPanel(wrapper).props('open')).toBe(false)
+    expect(settingsLeaveGuard.getSnapshot().promptOpen).toBe(true)
+
+    expect(settingsLeaveGuard.discardAndLeave()).toBe(true)
+    await flushPromises()
+    expect(configPanel(wrapper).props('open')).toBe(true)
+
+    configPanel(wrapper).vm.$emit('update:open', false)
+    await flushPromises()
+    lease.setRisk('dirty')
+    wrapper.findComponent({ name: 'Tabs' }).vm.$emit('update:model-value', 'directives')
+    await flushPromises()
+    expect(wrapper.findComponent({ name: 'Tabs' }).attributes('model-value')).toBe('memories')
+
+    expect(settingsLeaveGuard.discardAndLeave()).toBe(true)
+    await flushPromises()
+    expect(wrapper.findComponent({ name: 'Tabs' }).attributes('model-value')).toBe('directives')
+    lease.release()
+  })
+
   it('uses the single top action to enable memory when memory is disabled', async () => {
     const { wrapper } = await setup([deepchat])
 
@@ -248,6 +318,28 @@ describe('MemorySettings redesign shell', () => {
     expect(
       wrapper.find('[data-testid="settings-memory-config-panel"]').attributes('data-agent-id')
     ).toBe('other')
+  })
+
+  it('keeps the active agent and config surface stable while a field is saving', async () => {
+    const { wrapper } = await setup([deepchat, other])
+    await wrapper.find('[data-testid="settings-memory-configure"]').trigger('click')
+    await flushPromises()
+
+    configPanel(wrapper).vm.$emit('pending-change', true)
+    await flushPromises()
+
+    expect(wrapper.findComponent({ name: 'Select' }).attributes('disabled')).toBeDefined()
+    expect(
+      wrapper.find('[data-testid="settings-memory-configure"]').attributes('disabled')
+    ).toBeDefined()
+
+    wrapper.findComponent({ name: 'Select' }).vm.$emit('update:model-value', 'other')
+    await flushPromises()
+    expect(configPanel(wrapper).props('agentId')).toBe('deepchat')
+
+    configPanel(wrapper).vm.$emit('pending-change', false)
+    await flushPromises()
+    expect(wrapper.findComponent({ name: 'Select' }).attributes('disabled')).toBe('false')
   })
 
   it('does not inherit the previous agent memoryEnabled while the next resolve is pending', async () => {
@@ -294,7 +386,8 @@ describe('MemorySettings redesign shell', () => {
               activeMemoryCount: 7,
               archivedMemoryCount: 3,
               conflictCount: 5,
-              personaDraftCount: 4
+              personaDraftCount: 4,
+              directiveDraftCount: 3
             })
           : otherStatusPending
     })
@@ -302,6 +395,7 @@ describe('MemorySettings redesign shell', () => {
     expect(statusSummary(wrapper).text()).toContain('7 active · 3 archived')
     expect(inboxBar(wrapper).props('conflictCount')).toBe(5)
     expect(inboxBar(wrapper).props('draftCount')).toBe(4)
+    expect(inboxBar(wrapper).props('directiveDraftCount')).toBe(3)
 
     wrapper.findComponent({ name: 'Select' }).vm.$emit('update:model-value', 'other')
     await flushPromises()
@@ -310,6 +404,7 @@ describe('MemorySettings redesign shell', () => {
     expect(statusSummary(wrapper).text()).toContain('0 active · 0 archived')
     expect(inboxBar(wrapper).props('conflictCount')).toBe(0)
     expect(inboxBar(wrapper).props('draftCount')).toBe(0)
+    expect(inboxBar(wrapper).props('directiveDraftCount')).toBe(0)
 
     resolveOtherStatus(baseStatus)
     await flushPromises()

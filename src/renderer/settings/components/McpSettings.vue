@@ -6,12 +6,12 @@
   <div
     v-else-if="showMcpSkeleton || agentPolicyLoading"
     data-testid="settings-mcp-page"
-    class="w-full h-full flex flex-col p-4 gap-4 animate-pulse"
+    class="flex h-full w-full flex-col gap-4 p-4"
   >
-    <div class="h-16 rounded-xl bg-muted/40"></div>
-    <div class="h-24 rounded-xl bg-muted/30"></div>
-    <div class="h-10 rounded-xl bg-muted/20"></div>
-    <div class="flex-1 rounded-xl bg-muted/20"></div>
+    <Skeleton class="h-16 rounded-xl bg-muted/40" />
+    <Skeleton class="h-24 rounded-xl bg-muted/30" />
+    <Skeleton class="h-10 rounded-xl bg-muted/20" />
+    <Skeleton class="min-h-0 flex-1 rounded-xl bg-muted/20" />
   </div>
 
   <div
@@ -34,18 +34,18 @@
             class="flex shrink-0 items-center gap-3"
             @click="handleMcpGuideTargetInteract"
           >
-            <Button v-if="mcpEnabled" size="sm" @click="openAddServerDialog">
+            <DcButton v-if="mcpEnabled" size="sm" @click="openAddServerDialog">
               <Icon icon="lucide:plus" class="size-4" />
               {{ t('common.add') }}
-            </Button>
-            <Button variant="outline" size="sm" @click="openMarketView">
+            </DcButton>
+            <DcButton variant="outline" size="sm" @click="openMarketView">
               <Icon icon="lucide:shopping-bag" class="size-4" />
               {{ t('routes.settings-mcp-market') }}
-            </Button>
+            </DcButton>
             <Switch
               dir="ltr"
               :model-value="mcpEnabled"
-              :disabled="isAgentScope"
+              :disabled="isAgentScope || mcpMasterSaving"
               @update:model-value="handleMcpEnabledChange"
             />
           </div>
@@ -57,11 +57,24 @@
     <!-- Server list -->
     <div class="min-h-0 flex-1 overflow-hidden">
       <div v-if="mcpEnabled" class="h-full min-h-0">
+        <div
+          v-if="agentPolicyError"
+          role="alert"
+          class="m-4 flex items-center justify-between gap-3 rounded-lg border border-destructive/30 bg-destructive/5 p-3"
+        >
+          <span class="text-sm text-destructive">{{ agentPolicyError }}</span>
+          <DcButton size="sm" variant="outline" @click="loadAgentPolicy">
+            {{ t('common.retry') }}
+          </DcButton>
+        </div>
         <McpServers
+          v-else
           ref="mcpServersRef"
           :show-footer-add-button="false"
           :server-enabled-overrides="serverEnabledOverrides"
+          :server-loading-overrides="serverLoadingOverrides"
           :agent-scoped-toggle="isAgentScope"
+          :agent-scoped-busy="Boolean(agentToggleServerName)"
           @toggle-agent-server="handleToggleAgentServer"
         >
           <template #status-bar>
@@ -86,9 +99,9 @@
           </template>
 
           <template #footer-actions-after>
-            <Dialog v-model:open="npmAdvancedDialogOpen">
+            <Dialog :open="npmAdvancedDialogOpen" @update:open="handleNpmDialogOpenChange">
               <DialogTrigger as-child>
-                <Button
+                <DcButton
                   variant="outline"
                   size="sm"
                   class="h-8 max-w-[18rem] gap-1.5 px-3 text-xs"
@@ -101,7 +114,7 @@
                   <span class="truncate font-mono">
                     {{ npmRegistryStatus.currentRegistry || 'Default' }}
                   </span>
-                </Button>
+                </DcButton>
               </DialogTrigger>
               <DialogContent class="sm:max-w-md">
                 <DialogHeader>
@@ -119,17 +132,16 @@
                       <span class="truncate font-mono text-xs">
                         {{ npmRegistryStatus.currentRegistry || 'Default' }}
                       </span>
-                      <Button
+                      <DcButton
                         variant="ghost"
                         size="icon-sm"
-                        :disabled="refreshing"
+                        icon="lucide:refresh-cw"
+                        :label="t('settings.mcp.npmRegistry.refresh')"
+                        :tooltip="t('settings.mcp.npmRegistry.refresh')"
+                        :loading="refreshing"
+                        :disabled="npmRegistryBusy"
                         @click="refreshNpmRegistry"
-                      >
-                        <Icon
-                          :icon="refreshing ? 'lucide:loader-2' : 'lucide:refresh-cw'"
-                          :class="refreshing ? 'size-4 animate-spin' : 'size-4'"
-                        />
-                      </Button>
+                      />
                     </div>
                   </div>
                   <div class="flex items-center justify-between gap-3">
@@ -138,6 +150,7 @@
                     </span>
                     <Switch
                       :model-value="npmRegistryStatus.autoDetectEnabled"
+                      :disabled="npmRegistryBusy"
                       @update:model-value="setAutoDetectNpmRegistry"
                     />
                   </div>
@@ -145,27 +158,46 @@
                     v-model="customRegistryInput"
                     :placeholder="t('settings.mcp.npmRegistry.customSourcePlaceholder')"
                     class="font-mono"
+                    :disabled="npmRegistryBusy"
+                    :aria-invalid="npmRegistryFeedback?.kind === 'error'"
+                    @update:model-value="clearNpmRegistryFeedback"
                   />
+                  <p
+                    v-if="npmRegistryFeedback"
+                    :role="npmRegistryFeedback.kind === 'error' ? 'alert' : 'status'"
+                    class="text-xs"
+                    :class="
+                      npmRegistryFeedback.kind === 'error'
+                        ? 'text-destructive'
+                        : 'text-muted-foreground'
+                    "
+                  >
+                    {{ npmRegistryFeedback.message }}
+                  </p>
                   <div class="flex gap-2">
-                    <Button
+                    <DcSubmitButton
                       variant="outline"
+                      :status="npmRegistrySaveStatus"
                       :disabled="
                         !customRegistryInput.trim() ||
-                        customRegistryInput.trim() === npmRegistryStatus.customRegistry
+                        customRegistryInput.trim() === npmRegistryStatus.customRegistry ||
+                        npmRegistryBusy
                       "
                       class="flex-1"
                       @click="saveCustomNpmRegistry"
                     >
                       {{ t('common.save') }}
-                    </Button>
-                    <Button
+                    </DcSubmitButton>
+                    <DcSubmitButton
                       v-if="npmRegistryStatus.customRegistry"
                       variant="outline"
+                      :status="npmRegistryClearStatus"
+                      :disabled="npmRegistryBusy"
                       class="flex-1"
                       @click="clearCustomNpmRegistry"
                     >
                       {{ t('common.clear') }}
-                    </Button>
+                    </DcSubmitButton>
                   </div>
                 </div>
               </DialogContent>
@@ -207,8 +239,9 @@ import { computed, ref, onMounted, watch } from 'vue'
 import McpServers from '@/components/mcp-config/components/McpServers.vue'
 import McpBuiltinMarket from './McpBuiltinMarket.vue'
 import { Switch } from '@shadcn/components/ui/switch'
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
 import { Input } from '@shadcn/components/ui/input'
+import { Skeleton } from '@shadcn/components/ui/skeleton'
 import { Icon } from '@iconify/vue'
 import { Separator } from '@shadcn/components/ui/separator'
 import {
@@ -219,11 +252,11 @@ import {
   DialogTitle,
   DialogTrigger
 } from '@shadcn/components/ui/dialog'
+import { DcSubmitButton, useDcFormSubmit } from '@dc-ui/components/form'
 import { useMcpStore } from '@/stores/mcp'
 import { useLanguageStore } from '@/stores/language'
 import { useAgentStore } from '@/stores/ui/agent'
 import { useSessionStore } from '@/stores/ui/session'
-import { useToast } from '@/components/use-toast'
 import { useRoute, useRouter } from 'vue-router'
 import GuidedOnboardingOverlay from '@/components/onboarding/GuidedOnboardingOverlay.vue'
 import { useGuidedOnboardingStep } from '@/composables/useGuidedOnboardingStep'
@@ -231,6 +264,7 @@ import { createWindowClient } from '@api/WindowClient'
 import { continueGuidedOnboardingFromSettings } from '../lib/guidedOnboardingSettings'
 import { createConfigClient } from '@api/ConfigClient'
 import type { Agent, DeepChatAgentConfig } from '@shared/types/agent-interface'
+import { notifyRenderer } from '@renderer-notifications/rendererNotificationPort'
 
 const props = withDefaults(
   defineProps<{
@@ -247,7 +281,6 @@ const mcpStore = useMcpStore()
 const agentStore = useAgentStore()
 const sessionStore = useSessionStore()
 const configClient = createConfigClient()
-const { toast } = useToast()
 const route = useRoute()
 const router = useRouter()
 const windowClient = createWindowClient()
@@ -275,13 +308,32 @@ const npmRegistryStatus = ref<{
   customRegistry: undefined
 })
 
-const refreshing = ref(false)
+type NpmRegistryOperation = 'refresh' | 'auto-detect' | 'save' | 'clear'
+type NpmRegistryFeedback = Readonly<{
+  kind: 'info' | 'error'
+  message: string
+}>
+
+const npmRegistryOperation = ref<NpmRegistryOperation | null>(null)
+const { status: npmRegistrySaveStatus, run: runSaveNpmRegistry } = useDcFormSubmit()
+const { status: npmRegistryClearStatus, run: runClearNpmRegistry } = useDcFormSubmit()
+const npmRegistryBusy = computed(
+  () =>
+    npmRegistryOperation.value !== null ||
+    npmRegistrySaveStatus.value === 'submitting' ||
+    npmRegistryClearStatus.value === 'submitting'
+)
+const refreshing = computed(() => npmRegistryOperation.value === 'refresh')
+const npmRegistryFeedback = ref<NpmRegistryFeedback | null>(null)
 const customRegistryInput = ref('')
 const npmAdvancedDialogOpen = ref(false)
 const targetAgent = ref<Agent | null>(null)
 const targetAgentConfig = ref<DeepChatAgentConfig>({})
 const agentPolicyLoading = ref(false)
 const agentPolicyRequestId = ref(0)
+const agentPolicyError = ref<string | null>(null)
+const agentToggleServerName = ref<string | null>(null)
+const mcpMasterSaving = ref(false)
 
 const normalizeList = (value: string[] | null | undefined): string[] =>
   Array.from(new Set((value ?? []).map((item) => item.trim()).filter(Boolean))).sort(
@@ -334,6 +386,9 @@ const serverEnabledOverrides = computed<Record<string, boolean>>(() => {
     ])
   )
 })
+const serverLoadingOverrides = computed<Record<string, boolean>>(() =>
+  agentToggleServerName.value ? { [agentToggleServerName.value]: true } : {}
+)
 const runningCount = computed(() => mcpStore.serverList.filter((server) => server.isRunning).length)
 const builtInCount = computed(
   () =>
@@ -394,7 +449,24 @@ const handleMcpGuideExpert = async () => {
 }
 
 const handleMcpEnabledChange = async (enabled: boolean) => {
-  await mcpStore.setMcpEnabled(enabled)
+  if (mcpMasterSaving.value) return
+  mcpMasterSaving.value = true
+  let success = false
+  try {
+    success = await mcpStore.setMcpEnabled(enabled)
+  } catch (error) {
+    console.error('[McpSettings] Failed to update the MCP master switch:', error)
+  } finally {
+    mcpMasterSaving.value = false
+  }
+  if (!success) {
+    notifyRenderer({
+      kind: 'error',
+      code: 'settings.mcp.masterToggleFailed',
+      title: t('common.error.operationFailed'),
+      description: t('common.error.requestFailed')
+    })
+  }
 }
 
 watch(targetAgentId, () => {
@@ -407,12 +479,14 @@ const loadAgentPolicy = async () => {
     targetAgent.value = null
     targetAgentConfig.value = {}
     agentPolicyLoading.value = false
+    agentPolicyError.value = null
     return
   }
 
   const requestId = ++agentPolicyRequestId.value
   const requestedAgentId = targetAgentId.value
   agentPolicyLoading.value = true
+  agentPolicyError.value = null
   try {
     const agents = await configClient.listAgents({
       agentType: 'deepchat',
@@ -426,6 +500,7 @@ const loadAgentPolicy = async () => {
     if (!agent) {
       targetAgent.value = null
       targetAgentConfig.value = {}
+      agentPolicyError.value = t('settings.pluginsHub.agentScopeUnsupported')
       return
     }
 
@@ -437,19 +512,16 @@ const loadAgentPolicy = async () => {
     targetAgent.value = agent
     targetAgentConfig.value = effectiveConfig ?? agent?.config ?? {}
   } catch (error) {
-    if (requestId !== agentPolicyRequestId.value) {
+    if (requestId !== agentPolicyRequestId.value || requestedAgentId !== targetAgentId.value) {
       return
     }
 
     targetAgent.value = null
     targetAgentConfig.value = {}
-    toast({
-      title: t('settings.pluginsHub.agentScopeUnsupported'),
-      description: error instanceof Error ? error.message : String(error),
-      variant: 'destructive'
-    })
+    console.error('[McpSettings] Failed to load agent MCP policy:', error)
+    agentPolicyError.value = t('common.error.requestFailed')
   } finally {
-    if (requestId === agentPolicyRequestId.value) {
+    if (requestId === agentPolicyRequestId.value && requestedAgentId === targetAgentId.value) {
       agentPolicyLoading.value = false
     }
   }
@@ -473,37 +545,64 @@ const buildNextAgentMcpServerIds = (serverName: string, enabled: boolean): strin
 }
 
 const handleToggleAgentServer = async (serverName: string, enabled: boolean) => {
-  if (!targetAgent.value || !isDeepChatTarget.value) {
-    toast({
-      title: t('settings.pluginsHub.agentScopeUnsupported'),
-      variant: 'destructive'
-    })
+  if (agentToggleServerName.value) return
+  const agent = targetAgent.value
+  if (!agent || !isDeepChatTarget.value) {
+    agentPolicyError.value = t('settings.pluginsHub.agentScopeUnsupported')
     return
   }
 
+  const previousConfig = targetAgentConfig.value
+  const enabledMcpServerIds = buildNextAgentMcpServerIds(serverName, enabled)
+  const requestedAgentId = agent.id
+  agentToggleServerName.value = serverName
+  targetAgentConfig.value = {
+    ...previousConfig,
+    enabledMcpServerIds
+  }
   try {
-    const enabledMcpServerIds = buildNextAgentMcpServerIds(serverName, enabled)
-    const updatedAgent = await configClient.updateDeepChatAgent(targetAgent.value.id, {
+    const updatedAgent = await configClient.updateDeepChatAgent(requestedAgentId, {
       config: {
         enabledMcpServerIds
       }
     })
-    targetAgent.value = updatedAgent ?? targetAgent.value
+    if (!updatedAgent) {
+      throw new Error(`Agent "${requestedAgentId}" no longer exists`)
+    }
+
+    if (targetAgentId.value !== requestedAgentId) {
+      return
+    }
+
+    targetAgent.value = updatedAgent
     targetAgentConfig.value = {
       ...targetAgentConfig.value,
-      ...updatedAgent?.config,
+      ...updatedAgent.config,
       enabledMcpServerIds
     }
-    await agentStore.refreshAgentsByIds('deepchat', [targetAgent.value.id])
-    toast({
+    notifyRenderer({
+      kind: 'success',
+      code: 'settings.agentMcpPolicy.saved',
       title: t('settings.mcp.saveSuccess')
     })
+    try {
+      await agentStore.refreshAgentsByIds('deepchat', [requestedAgentId])
+    } catch (refreshError) {
+      console.warn('[McpSettings] Agent cache refresh failed after MCP policy save:', refreshError)
+    }
   } catch (error) {
-    toast({
+    console.error('[McpSettings] Failed to save agent MCP policy:', error)
+    if (targetAgentId.value === requestedAgentId) {
+      targetAgentConfig.value = previousConfig
+    }
+    notifyRenderer({
+      kind: 'error',
+      code: 'settings.agentMcpPolicy.saveFailed',
       title: t('settings.mcp.saveFailed'),
-      description: error instanceof Error ? error.message : String(error),
-      variant: 'destructive'
+      description: t('common.error.requestFailed')
     })
+  } finally {
+    agentToggleServerName.value = null
   }
 }
 
@@ -511,54 +610,67 @@ const openAddServerDialog = () => {
   mcpServersRef.value?.openAddServerDialog()
 }
 
-const loadNpmRegistryStatus = async () => {
+const loadNpmRegistryStatus = async (reportError = true): Promise<boolean> => {
   try {
     const status = await mcpStore.getNpmRegistryStatus()
     npmRegistryStatus.value = status
     customRegistryInput.value = status.customRegistry || ''
+    return true
   } catch (error) {
     console.error('Failed to load npm registry status:', error)
+    if (reportError) {
+      npmRegistryFeedback.value = {
+        kind: 'error',
+        message: t('settings.mcp.npmRegistry.updateFailed')
+      }
+    }
+    return false
   }
 }
 
 const refreshNpmRegistry = async () => {
+  if (npmRegistryBusy.value) return
+  npmRegistryOperation.value = 'refresh'
+  npmRegistryFeedback.value = null
   try {
-    refreshing.value = true
-    await mcpStore.refreshNpmRegistry()
-    await loadNpmRegistryStatus()
-    toast({
-      title: t('settings.mcp.npmRegistry.refreshSuccess'),
-      description: t('settings.mcp.npmRegistry.refreshSuccessDesc')
-    })
+    const registry = await mcpStore.refreshNpmRegistry()
+    npmRegistryStatus.value = {
+      ...npmRegistryStatus.value,
+      currentRegistry: registry
+    }
+    await loadNpmRegistryStatus(false)
+    npmRegistryFeedback.value = null
   } catch (error) {
     console.error('Failed to refresh npm registry:', error)
-    toast({
-      title: t('settings.mcp.npmRegistry.refreshFailed'),
-      description: error instanceof Error ? error.message : String(error),
-      variant: 'destructive'
-    })
+    npmRegistryFeedback.value = {
+      kind: 'error',
+      message: t('settings.mcp.npmRegistry.refreshFailed')
+    }
   } finally {
-    refreshing.value = false
+    npmRegistryOperation.value = null
   }
 }
 
 const setAutoDetectNpmRegistry = async (enabled: boolean) => {
+  if (npmRegistryBusy.value) return
+  npmRegistryOperation.value = 'auto-detect'
+  npmRegistryFeedback.value = null
   try {
     await mcpStore.setAutoDetectNpmRegistry(enabled)
-    await loadNpmRegistryStatus()
-    toast({
-      title: t('settings.mcp.npmRegistry.autoDetectUpdated'),
-      description: enabled
-        ? t('settings.mcp.npmRegistry.autoDetectEnabled')
-        : t('settings.mcp.npmRegistry.autoDetectDisabled')
-    })
+    npmRegistryStatus.value = {
+      ...npmRegistryStatus.value,
+      autoDetectEnabled: enabled
+    }
+    await loadNpmRegistryStatus(false)
+    npmRegistryFeedback.value = null
   } catch (error) {
     console.error('Failed to set auto detect npm registry:', error)
-    toast({
-      title: t('settings.mcp.npmRegistry.updateFailed'),
-      description: error instanceof Error ? error.message : String(error),
-      variant: 'destructive'
-    })
+    npmRegistryFeedback.value = {
+      kind: 'error',
+      message: t('settings.mcp.npmRegistry.updateFailed')
+    }
+  } finally {
+    npmRegistryOperation.value = null
   }
 }
 
@@ -573,20 +685,19 @@ const normalizeNpmRegistryUrl = (registry: string): string => {
 const validateCustomRegistry = async (registry: string): Promise<boolean> => {
   try {
     if (!registry.startsWith('http://') && !registry.startsWith('https://')) {
-      toast({
-        title: t('settings.mcp.npmRegistry.invalidUrl'),
-        description: t('settings.mcp.npmRegistry.invalidUrlDesc'),
-        variant: 'destructive'
-      })
+      npmRegistryFeedback.value = {
+        kind: 'error',
+        message: t('settings.mcp.npmRegistry.invalidUrlDesc')
+      }
       return false
     }
     const normalizedRegistry = normalizeNpmRegistryUrl(registry)
     const testPackage = 'tiny-runtime-injector'
     const testUrl = `${normalizedRegistry}${testPackage}`
-    toast({
-      title: t('settings.mcp.npmRegistry.testing'),
-      description: t('settings.mcp.npmRegistry.testingDesc', { registry: normalizedRegistry })
-    })
+    npmRegistryFeedback.value = {
+      kind: 'info',
+      message: t('settings.mcp.npmRegistry.testing')
+    }
     const response = await fetch(testUrl, {
       method: 'HEAD',
       signal: AbortSignal.timeout(10000)
@@ -597,89 +708,113 @@ const validateCustomRegistry = async (registry: string): Promise<boolean> => {
     return true
   } catch (error) {
     console.error('Custom registry validation failed:', error)
-    toast({
-      title: t('settings.mcp.npmRegistry.testFailed'),
-      description: t('settings.mcp.npmRegistry.testFailedDesc', {
-        registry: normalizeNpmRegistryUrl(registry),
-        error: error instanceof Error ? error.message : String(error)
-      }),
-      variant: 'destructive'
-    })
+    npmRegistryFeedback.value = {
+      kind: 'error',
+      message: t('settings.mcp.npmRegistry.testFailed')
+    }
     return false
   }
 }
 
 const saveCustomNpmRegistry = async () => {
+  if (npmRegistryBusy.value) return
+  const registry = customRegistryInput.value.trim()
+  if (!registry) return
+
   try {
-    const registry = customRegistryInput.value.trim()
-    if (!registry) {
-      return
-    }
-    const isValid = await validateCustomRegistry(registry)
-    if (!isValid) {
-      return
-    }
-    await mcpStore.setCustomNpmRegistry(registry)
-    await loadNpmRegistryStatus()
-    const normalizedRegistry = npmRegistryStatus.value.customRegistry
-    if (normalizedRegistry) {
-      customRegistryInput.value = normalizedRegistry
-    }
-    toast({
-      title: t('settings.mcp.npmRegistry.customSourceSet'),
-      description: t('settings.mcp.npmRegistry.customSourceSetDesc', {
-        registry: normalizedRegistry || registry
-      })
+    await runSaveNpmRegistry(async () => {
+      const isValid = await validateCustomRegistry(registry)
+      if (!isValid) {
+        throw new Error('registry validation failed')
+      }
+      try {
+        await mcpStore.setCustomNpmRegistry(registry)
+        const normalizedRegistry = normalizeNpmRegistryUrl(registry)
+        npmRegistryStatus.value = {
+          ...npmRegistryStatus.value,
+          currentRegistry: normalizedRegistry,
+          isFromCache: false,
+          customRegistry: normalizedRegistry
+        }
+        customRegistryInput.value = normalizedRegistry
+        await loadNpmRegistryStatus(false)
+        npmRegistryFeedback.value = null
+      } catch (error) {
+        console.error('Failed to save custom npm registry:', error)
+        npmRegistryFeedback.value = {
+          kind: 'error',
+          message: t('settings.mcp.npmRegistry.updateFailed')
+        }
+        throw error
+      }
     })
-  } catch (error) {
-    console.error('Failed to save custom npm registry:', error)
-    toast({
-      title: t('settings.mcp.npmRegistry.updateFailed'),
-      description: error instanceof Error ? error.message : String(error),
-      variant: 'destructive'
-    })
+  } catch {
+    // 校验/持久化失败已通过 npmRegistryFeedback 内联展示，按钮态已置 ⚠
   }
 }
 
 const clearCustomNpmRegistry = async () => {
+  if (npmRegistryBusy.value) return
   try {
-    await mcpStore.setCustomNpmRegistry(undefined)
-    customRegistryInput.value = ''
-    await mcpStore.clearNpmRegistryCache()
-    toast({
-      title: t('settings.mcp.npmRegistry.customSourceCleared'),
-      description: t('settings.mcp.npmRegistry.redetectingOptimal')
+    await runClearNpmRegistry(async () => {
+      try {
+        await mcpStore.setCustomNpmRegistry(undefined)
+        customRegistryInput.value = ''
+        npmRegistryStatus.value = {
+          ...npmRegistryStatus.value,
+          customRegistry: undefined
+        }
+        npmRegistryFeedback.value = {
+          kind: 'info',
+          message: t('settings.mcp.npmRegistry.redetectingOptimal')
+        }
+        try {
+          await mcpStore.clearNpmRegistryCache()
+          const registry = await mcpStore.refreshNpmRegistry()
+          npmRegistryStatus.value = {
+            ...npmRegistryStatus.value,
+            currentRegistry: registry,
+            isFromCache: true
+          }
+          await loadNpmRegistryStatus(false)
+          npmRegistryFeedback.value = null
+        } catch (detectError) {
+          console.error('Failed to re-detect optimal registry:', detectError)
+          await loadNpmRegistryStatus(false)
+          npmRegistryFeedback.value = {
+            kind: 'error',
+            message: t('settings.mcp.npmRegistry.redetectFailedDesc')
+          }
+          throw detectError
+        }
+      } catch (error) {
+        console.error('Failed to clear custom npm registry:', error)
+        npmRegistryFeedback.value = {
+          kind: 'error',
+          message: t('settings.mcp.npmRegistry.updateFailed')
+        }
+        throw error
+      }
     })
-    try {
-      await mcpStore.refreshNpmRegistry()
-      await loadNpmRegistryStatus()
-      toast({
-        title: t('settings.mcp.npmRegistry.redetectComplete'),
-        description: t('settings.mcp.npmRegistry.redetectCompleteDesc')
-      })
-      npmAdvancedDialogOpen.value = false
-    } catch (detectError) {
-      console.error('Failed to re-detect optimal registry:', detectError)
-      await loadNpmRegistryStatus()
-      toast({
-        title: t('settings.mcp.npmRegistry.redetectFailed'),
-        description: t('settings.mcp.npmRegistry.redetectFailedDesc'),
-        variant: 'destructive'
-      })
-      npmAdvancedDialogOpen.value = false
-    }
-  } catch (error) {
-    console.error('Failed to clear custom npm registry:', error)
-    toast({
-      title: t('settings.mcp.npmRegistry.updateFailed'),
-      description: error instanceof Error ? error.message : String(error),
-      variant: 'destructive'
-    })
+  } catch {
+    // 失败已通过 npmRegistryFeedback 内联展示，按钮态已置 ⚠
   }
 }
 
+const clearNpmRegistryFeedback = () => {
+  if (!npmRegistryBusy.value) {
+    npmRegistryFeedback.value = null
+  }
+}
+
+const handleNpmDialogOpenChange = (open: boolean) => {
+  if (!open && npmRegistryBusy.value) return
+  npmAdvancedDialogOpen.value = open
+  if (!open) npmRegistryFeedback.value = null
+}
+
 onMounted(() => {
-  loadNpmRegistryStatus()
+  void loadNpmRegistryStatus()
   void loadAgentPolicy()
 })
 

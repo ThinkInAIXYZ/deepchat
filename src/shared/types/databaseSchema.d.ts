@@ -34,10 +34,3 @@ export interface DatabaseRepairReport {
   repairedIssues: DatabaseSchemaIssue[]
   remainingIssues: DatabaseSchemaIssue[]
 }
-
-export interface DatabaseRepairSuggestedPayload {
-  title: string
-  message: string
-  reason: string
-  dedupeKey: string
-}

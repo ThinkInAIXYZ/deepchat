@@ -25,9 +25,12 @@ describe('provider DB catalog', () => {
       'moonshot-ai',
       'nvidia',
       'stepfun',
+      'stepfun-step-plan',
       'upstage'
     ]) {
       expect(isProviderDbBackedProvider(providerId)).toBe(true)
     }
+
+    expect(isProviderDbBackedProvider(' STEPFUN-STEP-PLAN ')).toBe(true)
   })
 })

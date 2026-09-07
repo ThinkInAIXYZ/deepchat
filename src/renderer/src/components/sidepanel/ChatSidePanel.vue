@@ -3,17 +3,19 @@
     data-testid="chat-side-panel-shell"
     class="chat-side-panel-shell h-full min-h-0 overflow-hidden"
     :class="[
-      isWorkspaceFullscreenActive ? 'absolute inset-0 w-full' : 'relative shrink-0',
+      isSidepanelFullscreenActive ? 'absolute inset-0 w-full' : 'relative shrink-0',
       { 'chat-side-panel-shell--resizing': isResizing }
     ]"
     :style="shellStyle"
     :data-workspace-fullscreen="String(isWorkspaceFullscreenActive)"
+    :data-browser-fullscreen="String(isBrowserFullscreenActive)"
+    :data-tape-inspector-fullscreen="String(isTapeInspectorFullscreenActive)"
   >
     <aside
       v-if="props.sessionId"
       class="chat-side-panel-surface absolute inset-y-0 flex h-full min-h-0 w-full origin-right flex-col bg-background"
       :class="[
-        isWorkspaceFullscreenActive ? 'inset-x-0 border shadow-xl' : 'right-0 border-l shadow-lg',
+        isSidepanelFullscreenActive ? 'inset-x-0 border shadow-xl' : 'right-0 border-l shadow-lg',
         panelVisible
           ? 'translate-x-0 opacity-100'
           : 'pointer-events-none translate-x-3 opacity-0 shadow-none',
@@ -24,7 +26,7 @@
       ]"
     >
       <button
-        v-if="panelVisible && !isWorkspaceFullscreenActive"
+        v-if="panelVisible && !isSidepanelFullscreenActive"
         data-testid="chat-side-panel-resize-handle"
         class="absolute inset-y-0 left-0 w-1 -translate-x-1/2 cursor-col-resize"
         type="button"
@@ -57,36 +59,109 @@
           >
             {{ t('common.browser.name') }}
           </button>
+          <button
+            v-if="sidepanelStore.mcpAppPreviewOwnerId"
+            data-testid="mcp-app-sidepanel-tab"
+            class="rounded-md px-2.5 py-1 text-xs transition-colors duration-200 ease-out"
+            :class="
+              sidepanelStore.activeTab === 'mcp-app'
+                ? 'bg-background text-foreground shadow-sm'
+                : 'text-muted-foreground'
+            "
+            type="button"
+            @click="sidepanelStore.openMcpAppPreview(sidepanelStore.mcpAppPreviewOwnerId)"
+          >
+            {{ t('mcp.apps.title') }}
+          </button>
+          <button
+            v-if="uiSettingsStore.traceDebugEnabled"
+            data-testid="tape-inspector-sidepanel-tab"
+            class="rounded-md px-2.5 py-1 text-xs transition-colors duration-200 ease-out"
+            :class="
+              sidepanelStore.activeTab === 'tape-inspector'
+                ? 'bg-background text-foreground shadow-sm'
+                : 'text-muted-foreground'
+            "
+            type="button"
+            @click="sidepanelStore.openTapeInspector(props.sessionId)"
+          >
+            {{ t('tapeInspector.title') }}
+          </button>
         </div>
 
-        <Button variant="ghost" size="icon" class="h-7 w-7" @click="sidepanelStore.closePanel()">
-          <Icon icon="lucide:x" class="h-4 w-4" />
-        </Button>
+        <DcButton
+          variant="ghost"
+          size="icon"
+          icon="lucide:x"
+          :label="t('common.close')"
+          :tooltip="t('common.close')"
+          class="h-7 w-7"
+          @click="sidepanelStore.closePanel()"
+        />
       </div>
 
-      <WorkspacePanel
-        v-if="sidepanelStore.activeTab === 'workspace'"
-        :session-id="props.sessionId"
-        :workspace-path="props.workspacePath"
-        :is-fullscreen="isWorkspaceFullscreenActive"
-        @toggle-fullscreen="toggleWorkspaceFullscreen"
-        @insert-file-reference="handleWorkspaceInsertFileReference"
+      <Transition
+        name="panel-content"
+        mode="out-in"
+        @before-leave="panelContentLeaving = true"
+        @after-leave="panelContentLeaving = false"
+        @leave-cancelled="panelContentLeaving = false"
+      >
+        <WorkspacePanel
+          v-if="sidepanelStore.activeTab === 'workspace'"
+          :session-id="props.sessionId"
+          :workspace-path="props.workspacePath"
+          :is-fullscreen="isWorkspaceFullscreenActive"
+          @toggle-fullscreen="toggleWorkspaceFullscreen"
+          @insert-file-reference="handleWorkspaceInsertFileReference"
+        />
+        <BrowserPanel
+          v-else-if="sidepanelStore.activeTab === 'browser'"
+          :session-id="props.sessionId"
+          :is-fullscreen="isBrowserFullscreenActive"
+          @toggle-fullscreen="toggleBrowserFullscreen"
+        />
+        <TapeInspectorPanel
+          v-else-if="
+            sidepanelStore.activeTab === 'tape-inspector' &&
+            uiSettingsStore.traceDebugEnabled &&
+            shouldShow
+          "
+          :session-id="props.sessionId"
+          :open-request="sidepanelStore.tapeInspectorOpenRequest"
+          :is-fullscreen="isTapeInspectorFullscreenActive"
+          @toggle-fullscreen="toggleTapeInspectorFullscreen"
+          @open-message-diagnostics="inspectorDiagnosticsTarget = $event"
+        />
+      </Transition>
+      <div
+        v-show="sidepanelStore.activeTab === 'mcp-app' && !panelContentLeaving"
+        id="mcp-app-sidepanel-outlet"
+        data-testid="mcp-app-sidepanel-outlet"
+        class="min-h-0 flex-1"
       />
-      <BrowserPanel v-else :session-id="props.sessionId" />
     </aside>
+    <TraceDialog
+      :message-id="inspectorDiagnosticsTarget?.messageId ?? null"
+      :request-seq="inspectorDiagnosticsTarget?.requestSeq"
+      @close="inspectorDiagnosticsTarget = null"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { Icon } from '@iconify/vue'
 import { useI18n } from 'vue-i18n'
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
 import { createBrowserClient } from '@api/BrowserClient'
 import BrowserPanel from './BrowserPanel.vue'
 import WorkspacePanel from './WorkspacePanel.vue'
+import TapeInspectorPanel from '@/components/tape-inspector/TapeInspectorPanel.vue'
+import type { TapeInspectorMessageDiagnosticsTarget } from '@/components/tape-inspector/model'
+import TraceDialog from '@/components/trace/TraceDialog.vue'
 import { WORKSPACE_EVENTS } from '@/events'
 import { useSidepanelStore } from '@/stores/ui/sidepanel'
+import { useUiSettingsStore } from '@/stores/uiSettingsStore'
 
 const props = defineProps<{
   sessionId: string | null
@@ -95,6 +170,7 @@ const props = defineProps<{
 
 const { t } = useI18n()
 const sidepanelStore = useSidepanelStore()
+const uiSettingsStore = useUiSettingsStore()
 const browserClient = createBrowserClient()
 const PANEL_MOTION_MS = 220
 const FULLSCREEN_MOTION_MS = 180
@@ -110,17 +186,37 @@ const shouldShow = computed(() => sidepanelStore.open && Boolean(props.sessionId
 const layoutWidth = ref(shouldShow.value ? sidepanelStore.width : 0)
 const panelVisible = ref(shouldShow.value)
 const isResizing = ref(false)
+const panelContentLeaving = ref(false)
 const isWorkspaceFullscreen = ref(false)
+const isBrowserFullscreen = ref(false)
+const isTapeInspectorFullscreen = ref(false)
+const inspectorDiagnosticsTarget = ref<TapeInspectorMessageDiagnosticsTarget | null>(null)
 const fullscreenMotionState = ref<'expanding' | 'collapsing' | null>(null)
 
 const isWorkspaceFullscreenActive = computed(() => {
   return isWorkspaceFullscreen.value && shouldShow.value && sidepanelStore.activeTab === 'workspace'
 })
+const isBrowserFullscreenActive = computed(() => {
+  return isBrowserFullscreen.value && shouldShow.value && sidepanelStore.activeTab === 'browser'
+})
+const isTapeInspectorFullscreenActive = computed(() => {
+  return (
+    isTapeInspectorFullscreen.value &&
+    shouldShow.value &&
+    sidepanelStore.activeTab === 'tape-inspector'
+  )
+})
+const isSidepanelFullscreenActive = computed(
+  () =>
+    isWorkspaceFullscreenActive.value ||
+    isBrowserFullscreenActive.value ||
+    isTapeInspectorFullscreenActive.value
+)
 
 const shellStyle = computed(() => {
   return {
-    width: isWorkspaceFullscreenActive.value ? '100%' : `${layoutWidth.value}px`,
-    ...(isWorkspaceFullscreenActive.value ? { zIndex: 'var(--dc-z-sidepanel)' } : {})
+    width: isSidepanelFullscreenActive.value ? '100%' : `${layoutWidth.value}px`,
+    ...(isSidepanelFullscreenActive.value ? { zIndex: 'var(--dc-z-sidepanel)' } : {})
   }
 })
 
@@ -128,13 +224,17 @@ const handleBrowserOpenRequested = (payload: {
   sessionId: string
   windowId: number
   url: string
+  source: 'agent' | 'user'
+  runId?: string
   version: number
 }) => {
   if (!props.sessionId || payload.sessionId !== props.sessionId) {
     return
   }
 
-  sidepanelStore.openBrowser()
+  if (payload.source !== 'agent' || sidepanelStore.open) {
+    sidepanelStore.openBrowser()
+  }
 }
 
 const clearPanelMotionHandles = () => {
@@ -188,6 +288,16 @@ const resetWorkspaceFullscreen = () => {
   clearFullscreenMotionHandle()
 }
 
+const resetBrowserFullscreen = () => {
+  isBrowserFullscreen.value = false
+  clearFullscreenMotionHandle()
+}
+
+const resetTapeInspectorFullscreen = () => {
+  isTapeInspectorFullscreen.value = false
+  clearFullscreenMotionHandle()
+}
+
 const toggleWorkspaceFullscreen = () => {
   if (!shouldShow.value || sidepanelStore.activeTab !== 'workspace') {
     return
@@ -200,6 +310,34 @@ const toggleWorkspaceFullscreen = () => {
     fullscreenMotionState.value = null
   }, FULLSCREEN_MOTION_MS)
   isWorkspaceFullscreen.value = !isWorkspaceFullscreen.value
+}
+
+const toggleBrowserFullscreen = () => {
+  if (!shouldShow.value || sidepanelStore.activeTab !== 'browser') {
+    return
+  }
+
+  clearFullscreenMotionHandle()
+  fullscreenMotionState.value = isBrowserFullscreen.value ? 'collapsing' : 'expanding'
+  fullscreenMotionTimer = window.setTimeout(() => {
+    fullscreenMotionTimer = null
+    fullscreenMotionState.value = null
+  }, FULLSCREEN_MOTION_MS)
+  isBrowserFullscreen.value = !isBrowserFullscreen.value
+}
+
+const toggleTapeInspectorFullscreen = () => {
+  if (!shouldShow.value || sidepanelStore.activeTab !== 'tape-inspector') {
+    return
+  }
+
+  clearFullscreenMotionHandle()
+  fullscreenMotionState.value = isTapeInspectorFullscreen.value ? 'collapsing' : 'expanding'
+  fullscreenMotionTimer = window.setTimeout(() => {
+    fullscreenMotionTimer = null
+    fullscreenMotionState.value = null
+  }, FULLSCREEN_MOTION_MS)
+  isTapeInspectorFullscreen.value = !isTapeInspectorFullscreen.value
 }
 
 const handleWorkspaceInsertFileReference = (filePath: string) => {
@@ -222,7 +360,7 @@ const handleWorkspaceInsertFileReference = (filePath: string) => {
 const startResize = (event: MouseEvent) => {
   event.preventDefault()
 
-  if (isWorkspaceFullscreenActive.value) {
+  if (isSidepanelFullscreenActive.value) {
     return
   }
 
@@ -260,6 +398,8 @@ watch(shouldShow, (visible) => {
 
   if (!visible) {
     resetWorkspaceFullscreen()
+    resetBrowserFullscreen()
+    resetTapeInspectorFullscreen()
   }
 
   if (visible) {
@@ -286,7 +426,26 @@ watch(
     if (activeTab !== 'workspace') {
       resetWorkspaceFullscreen()
     }
+    if (activeTab !== 'browser') {
+      resetBrowserFullscreen()
+    }
+    if (activeTab !== 'tape-inspector') {
+      resetTapeInspectorFullscreen()
+    }
   }
+)
+
+watch(
+  () => [uiSettingsStore.traceDebugEnabled, props.sessionId, sidepanelStore.activeTab] as const,
+  ([enabled, sessionId, activeTab]) => {
+    if (activeTab !== 'tape-inspector') return
+    if (!sessionId) {
+      sidepanelStore.closePanel()
+      return
+    }
+    if (!enabled && sidepanelStore.open) sidepanelStore.openWorkspace(sessionId)
+  },
+  { immediate: true }
 )
 
 watch(
@@ -294,6 +453,9 @@ watch(
   (sessionId, previousSessionId) => {
     if (!sessionId || sessionId !== previousSessionId) {
       resetWorkspaceFullscreen()
+      resetBrowserFullscreen()
+      resetTapeInspectorFullscreen()
+      inspectorDiagnosticsTarget.value = null
     }
   }
 )
@@ -325,16 +487,13 @@ onBeforeUnmount(() => {
 <style scoped>
 .chat-side-panel-shell {
   contain: layout style paint;
-  transition-duration: var(--dc-motion-default);
-  transition-property: width;
-  transition-timing-function: var(--dc-ease-out-express);
 }
 
 .chat-side-panel-surface {
   backface-visibility: hidden;
   transform: translateZ(0);
   transition-duration: var(--dc-motion-default);
-  transition-property: transform, opacity, box-shadow, border-radius;
+  transition-property: transform, opacity;
   transition-timing-function: var(--dc-ease-out-express);
   will-change: transform, opacity;
 }
@@ -351,8 +510,14 @@ onBeforeUnmount(() => {
   transition: none;
 }
 
-.chat-side-panel-shell--resizing {
-  transition: none;
+.panel-content-enter-active,
+.panel-content-leave-active {
+  transition: opacity var(--dc-motion-fast) var(--dc-ease-out-soft);
+}
+
+.panel-content-enter-from,
+.panel-content-leave-to {
+  opacity: 0;
 }
 
 @keyframes workspace-panel-fullscreen-enter {
@@ -369,22 +534,23 @@ onBeforeUnmount(() => {
 
 @keyframes workspace-panel-fullscreen-exit {
   from {
-    opacity: 0.96;
-    transform: translateZ(0) scale(1.01);
+    opacity: 1;
+    transform: translateZ(0) scale(1);
   }
 
   to {
-    opacity: 1;
-    transform: translateZ(0) scale(1);
+    opacity: 0.94;
+    transform: translateZ(0) scale(0.985);
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .chat-side-panel-shell {
+  .chat-side-panel-surface {
     transition: none;
   }
 
-  .chat-side-panel-surface {
+  .panel-content-enter-active,
+  .panel-content-leave-active {
     transition: none;
   }
 

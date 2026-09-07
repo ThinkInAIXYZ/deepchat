@@ -30,6 +30,7 @@
   "htmlPreviewTitle": "HTML 预览",
   "svgPreviewTitle": "SVG 预览",
   "copy": "复制",
+  "generating": "正在生成 artifact...",
   "copyAsImage": "复制为图片",
   "copyImageSuccessDesc": "图片已复制到剪贴板",
   "copyImageFailedDesc": "无法复制图片到剪贴板",

@@ -1,7 +1,9 @@
 # Memory Quality Gates and Observability — Specification
 
-> Status: **implementation-complete / external-native-validation-pending**  
-> Classification: **architecture**  
+> Status: **implementation-complete / retrieval-artifact-upload-pending**
+>
+> Classification: **architecture**
+>
 > Runtime scope: **local, in-process, and non-persistent**
 
 This document defines the maintained requirements for Agent Memory quality gates, retrieval evaluation,
@@ -40,7 +42,7 @@ metric calculation remain isolated from credentials, providers, and external net
 
 ### AC-1 — Native Memory CI
 
-- The existing `memory-native-validation` job uses the repository-pinned Node 24 and pnpm toolchain.
+- The `test-native-memory` job uses the repository-pinned Node 24 and pnpm toolchain.
 - The job installs an independent dependency tree and rebuilds the SQLite binding for the Node ABI.
 - A smoke step loads the binding, opens encrypted SQLite, creates a table, writes, reads, and closes it.
 - Native tests run with `DEEPCHAT_REQUIRE_NATIVE_SQLITE=1`; a missing binding, FTS, JSON, migration harness, or
@@ -100,6 +102,8 @@ metric calculation remain isolated from credentials, providers, and external net
 - Recorders accept only numbers, booleans, timestamps, and closed enums.
 - Diagnostics never retain query text, memory content, prompts, vectors, provider responses, API keys, SQL,
   stacks, exception messages, or other free text.
+- Query-embedding circuit diagnostics retain only closed/open/half-open state and aggregate failure, open, and
+  skip counts; provider/model identity remains internal to the circuit owner.
 - Collector failures are swallowed and cannot change business results.
 
 ### AC-6 — Metric Semantics
@@ -115,6 +119,8 @@ metric calculation remain isolated from credentials, providers, and external net
 - Maintenance reports cheap/heavy outcomes, calls, tokens, and every denied budget step.
 - Vector warmup distinguishes succeeded, deferred, and failed outcomes.
 - Provider diagnostics separate admission decisions from deadline, abort, and late-settle race events.
+- Query-embedding circuit skips use a closed retrieval degradation cause; cancellation and local control
+  rejection never increment its provider-health failure count.
 - Process gauges receive absolute values from resource owners and never aggregate retained Agent state.
 
 ### AC-7 — Typed Health Contract and UI

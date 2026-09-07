@@ -16,6 +16,8 @@ export interface SliderFieldConfig extends BaseFieldConfig {
   min: number
   max: number
   step: number
+  disabled?: boolean
+  hint?: string
   formatter?: (value: number) => string
   getValue: () => number
   setValue: (value: number) => void

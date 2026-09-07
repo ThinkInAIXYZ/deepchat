@@ -8,7 +8,7 @@
         <Icon icon="lucide:type" class="w-4 h-4 text-muted-foreground" />
         <span class="truncate">{{ t('settings.display.fontTitle') }}</span>
       </span>
-      <Button
+      <DcButton
         variant="ghost"
         size="sm"
         class="h-9 md:h-8 px-3 w-full md:w-auto justify-center"
@@ -17,7 +17,7 @@
       >
         <Icon icon="lucide:rotate-ccw" class="h-4 w-4 mr-1.5" />
         {{ t('settings.display.fontReset') }}
-      </Button>
+      </DcButton>
     </div>
 
     <div class="flex items-center gap-2 text-[11px] text-muted-foreground">
@@ -42,14 +42,14 @@
           <div class="w-full md:w-[260px] ml-auto">
             <Popover v-model:open="textPopoverOpen">
               <PopoverTrigger as-child>
-                <Button
+                <DcButton
                   variant="outline"
                   class="w-full justify-between h-9"
                   :style="{ fontFamily: textPreviewFont }"
                 >
                   <span class="truncate">{{ textFontLabel }}</span>
                   <Icon icon="lucide:chevrons-up-down" class="h-4 w-4 text-muted-foreground/70" />
-                </Button>
+                </DcButton>
               </PopoverTrigger>
               <PopoverContent class="w-[320px] p-0" align="start">
                 <div class="p-2" :style="{ fontFamily: PREVIEW_FALLBACK }">
@@ -130,14 +130,14 @@
           <div class="w-full md:w-[260px] ml-auto">
             <Popover v-model:open="codePopoverOpen">
               <PopoverTrigger as-child>
-                <Button
+                <DcButton
                   variant="outline"
                   class="w-full justify-between h-9"
                   :style="{ fontFamily: codePreviewFont }"
                 >
                   <span class="truncate">{{ codeFontLabel }}</span>
                   <Icon icon="lucide:chevrons-up-down" class="h-4 w-4 text-muted-foreground/70" />
-                </Button>
+                </DcButton>
               </PopoverTrigger>
               <PopoverContent class="w-[320px] p-0" align="start">
                 <div class="p-2" :style="{ fontFamily: PREVIEW_FALLBACK }">
@@ -214,7 +214,7 @@
 
 <script setup lang="ts">
 import { Icon } from '@iconify/vue'
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
 import { Input } from '@shadcn/components/ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from '@shadcn/components/ui/popover'
 import { ScrollArea } from '@shadcn/components/ui/scroll-area'

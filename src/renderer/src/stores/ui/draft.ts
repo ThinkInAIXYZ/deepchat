@@ -1,13 +1,24 @@
 import { defineStore } from 'pinia'
-import { ref, shallowRef, toRaw } from 'vue'
+import { ref, shallowReactive, shallowRef, toRaw } from 'vue'
+import {
+  copyComposerDraft,
+  createEmptyComposerDraft,
+  type ComposerSessionDraft
+} from '@/features/chat-page/model/composerDraftState'
+import { loadComposerDraftFromStorage } from '@/features/chat-page/model/composerDraftPersistence'
 import { normalizeImageGenerationOptions } from '@shared/imageGenerationSettings'
 import { normalizeVideoGenerationOptions } from '@shared/videoGenerationSettings'
 import { DEFAULT_DISABLED_AGENT_TOOLS } from '@shared/agentTools'
+import {
+  DEFAULT_ORCHESTRATION_POLICY,
+  type OrchestrationPolicy
+} from '@shared/orchestration/policy'
 import type {
   CreateSessionInput,
   PermissionMode,
   SessionGenerationSettings
 } from '@shared/types/agent-interface'
+import type { ToolModeOverride } from '@shared/toolMode'
 
 export interface StartDeeplinkPayload {
   token: number
@@ -15,13 +26,13 @@ export interface StartDeeplinkPayload {
   modelId: string | null
   systemPrompt: string
   mentions: string[]
-  autoSend: boolean
 }
 
 // --- Store ---
 
 export const useDraftStore = defineStore('draft', () => {
   // --- State ---
+  const newThreadComposerDrafts = shallowReactive(new Map<string, ComposerSessionDraft>())
   const providerId = ref<string | undefined>(undefined)
   const modelId = ref<string | undefined>(undefined)
   const projectDir = ref<string | undefined>(undefined)
@@ -47,11 +58,25 @@ export const useDraftStore = defineStore('draft', () => {
   )
   const permissionMode = ref<PermissionMode>('full_access')
   const disabledAgentTools = ref<string[]>([...DEFAULT_DISABLED_AGENT_TOOLS])
-  const subagentEnabled = ref(false)
+  const orchestrationPolicy = ref<OrchestrationPolicy>(DEFAULT_ORCHESTRATION_POLICY)
+  const toolModeOverride = ref<ToolModeOverride>(null)
   const pendingStartDeeplink = ref<StartDeeplinkPayload | null>(null)
   let nextStartToken = 0
 
   // --- Actions ---
+
+  function getNewThreadComposerDraft(agentId: string): ComposerSessionDraft {
+    let draft = newThreadComposerDrafts.get(agentId)
+    if (!draft) {
+      draft = loadComposerDraftFromStorage(`new-thread:${agentId}`) ?? createEmptyComposerDraft()
+      newThreadComposerDrafts.set(agentId, draft)
+    }
+    return draft
+  }
+
+  function setNewThreadComposerDraft(agentId: string, draft: ComposerSessionDraft): void {
+    newThreadComposerDrafts.set(agentId, copyComposerDraft(draft))
+  }
 
   function normalizeDraftImageGeneration(
     value: SessionGenerationSettings['imageGeneration']
@@ -104,7 +129,8 @@ export const useDraftStore = defineStore('draft', () => {
       modelId: modelId.value,
       permissionMode: permissionMode.value,
       disabledAgentTools: [...disabledAgentTools.value],
-      subagentEnabled: subagentEnabled.value,
+      orchestrationPolicy: orchestrationPolicy.value,
+      toolModeOverride: toolModeOverride.value,
       generationSettings: toGenerationSettings()
     }
   }
@@ -174,7 +200,8 @@ export const useDraftStore = defineStore('draft', () => {
     agentId.value = 'deepchat'
     permissionMode.value = 'full_access'
     disabledAgentTools.value = [...DEFAULT_DISABLED_AGENT_TOOLS]
-    subagentEnabled.value = false
+    orchestrationPolicy.value = DEFAULT_ORCHESTRATION_POLICY
+    toolModeOverride.value = null
     resetGenerationSettings()
   }
 
@@ -194,6 +221,9 @@ export const useDraftStore = defineStore('draft', () => {
   }
 
   return {
+    newThreadComposerDrafts,
+    getNewThreadComposerDraft,
+    setNewThreadComposerDraft,
     providerId,
     modelId,
     projectDir,
@@ -213,7 +243,8 @@ export const useDraftStore = defineStore('draft', () => {
     videoGeneration,
     permissionMode,
     disabledAgentTools,
-    subagentEnabled,
+    orchestrationPolicy,
+    toolModeOverride,
     pendingStartDeeplink,
     toGenerationSettings,
     toCreateInput,

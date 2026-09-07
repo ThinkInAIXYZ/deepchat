@@ -1,7 +1,7 @@
 <template>
   <div
     ref="rowRef"
-    class="message-list-row"
+    class="message-list-row pb-1"
     :data-message-id="item.id"
     :data-message-role="item.role"
   >
@@ -9,6 +9,7 @@
       v-if="isCompactionMessageItem(item)"
       data-compaction-indicator="true"
       :data-compaction-status="item.compactionStatus ?? 'compacted'"
+      :data-compaction-boundary-reason="item.compactionBoundaryReason ?? undefined"
       class="compaction-divider"
     >
       <div class="compaction-divider__line" />
@@ -18,7 +19,7 @@
           'compaction-divider__label--compacting': item.compactionStatus === 'compacting'
         }"
       >
-        {{ getCompactionCopy(item.compactionStatus) }}
+        {{ getCompactionCopy(item.compactionStatus, item.compactionBoundaryReason) }}
       </span>
       <div class="compaction-divider__line" />
     </div>
@@ -35,15 +36,18 @@
       :message="item as DisplayAssistantMessage"
       :use-legacy-actions="false"
       :is-in-generating-thread="isGenerating"
+      :is-streaming-message="isStreamingMessage"
       :show-trace="showTrace"
       :is-capturing-image="isCapturing"
       :is-read-only="isReadOnly"
+      :allow-guard-stop-continue="allowGuardStopContinue"
       :disable-markdown-virtualization="disableMarkdownVirtualization"
       @retry="onRetry"
       @delete="onDelete"
       @fork="onFork"
       @continue="onContinue"
       @trace="onTrace"
+      @tape-inspector="onTapeInspector"
       @copy-image="onCopyImage"
     />
   </div>
@@ -59,23 +63,28 @@ import {
   isCompactionMessageItem,
   type DisplayUserMessage,
   type MessageListItem
-} from './messageListItems'
+} from '@/features/chat-page/model/displayMessage'
+import type { SessionCompactionBoundaryReason } from '@shared/types/agent-interface'
 
 const props = withDefaults(
   defineProps<{
     item: MessageListItem
     isGenerating?: boolean
+    isStreamingMessage?: boolean
     showTrace?: boolean
     isCapturing?: boolean
     isReadOnly?: boolean
     disableMarkdownVirtualization?: boolean
+    allowGuardStopContinue?: boolean
   }>(),
   {
     isGenerating: false,
+    isStreamingMessage: false,
     showTrace: false,
     isCapturing: false,
     isReadOnly: false,
-    disableMarkdownVirtualization: false
+    disableMarkdownVirtualization: false,
+    allowGuardStopContinue: true
   }
 )
 
@@ -85,6 +94,7 @@ const emit = defineEmits<{
   fork: [messageId: string]
   continue: [conversationId: string, messageId: string]
   trace: [messageId: string]
+  tapeInspector: [messageId: string]
   editSave: [payload: { messageId: string; text: string }]
   copyImage: [
     messageId: string,
@@ -163,8 +173,19 @@ onBeforeUnmount(() => {
   }
 })
 
-const getCompactionCopy = (status?: 'compacting' | 'compacted'): string =>
-  status === 'compacting' ? t('chat.compaction.compacting') : t('chat.compaction.compacted')
+const getCompactionCopy = (
+  status?: 'compacting' | 'compacted',
+  boundaryReason?: SessionCompactionBoundaryReason | null
+): string => {
+  if (status === 'compacting') return t('chat.compaction.compacting')
+  if (boundaryReason === 'summary_unavailable') {
+    return t('chat.compaction.compactedWithoutSummary')
+  }
+  if (boundaryReason === 'summary_rejected_larger') {
+    return t('chat.compaction.compactedWithoutLargerSummary')
+  }
+  return t('chat.compaction.compacted')
+}
 
 const onRetry = (messageId: string) => emit('retry', messageId)
 const onDelete = (messageId: string) => emit('delete', messageId)
@@ -172,6 +193,7 @@ const onFork = (messageId: string) => emit('fork', messageId)
 const onContinue = (conversationId: string, messageId: string) =>
   emit('continue', conversationId, messageId)
 const onTrace = (messageId: string) => emit('trace', messageId)
+const onTapeInspector = (messageId: string) => emit('tapeInspector', messageId)
 const onEditSave = (payload: { messageId: string; text: string }) => emit('editSave', payload)
 const onCopyImage = (
   messageId: string,

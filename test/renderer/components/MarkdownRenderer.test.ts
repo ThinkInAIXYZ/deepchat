@@ -1,7 +1,15 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { defineComponent, h } from 'vue'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { MarkdownLinkContext } from '@/components/markdown/linkTypes'
+
+function createDeferred<T>() {
+  let resolve!: (value: T) => void
+  const promise = new Promise<T>((innerResolve) => {
+    resolve = innerResolve
+  })
+  return { promise, resolve }
+}
 
 const {
   showArtifactMock,
@@ -25,6 +33,16 @@ const setup = async (props: Record<string, unknown> = {}) => {
   vi.resetModules()
 
   let customComponents: Record<string, (...args: any[]) => any> = {}
+  const setCustomComponentsMock = vi.fn(
+    (
+      customIdOrComponents: string | Record<string, (...args: any[]) => any>,
+      maybeComponents?: Record<string, (...args: any[]) => any>
+    ) => {
+      customComponents =
+        typeof customIdOrComponents === 'string' ? (maybeComponents ?? {}) : customIdOrComponents
+    }
+  )
+  const removeCustomComponentsMock = vi.fn()
 
   vi.doMock('nanoid', () => ({
     nanoid: nanoidMock
@@ -78,7 +96,8 @@ const setup = async (props: Record<string, unknown> = {}) => {
       artifactTitle: 'HTML Preview',
       language: 'html',
       node: {
-        code: '<h1>Hello</h1>'
+        code: '<h1>Hello</h1>',
+        language: 'html'
       }
     }
 
@@ -89,157 +108,105 @@ const setup = async (props: Record<string, unknown> = {}) => {
           type: Boolean,
           default: undefined
         },
-        mode: {
-          type: String,
-          default: undefined
-        },
-        htmlPolicy: {
-          type: String,
-          default: undefined
-        },
-        smoothStreaming: {
-          type: [Boolean, String],
-          default: false
-        },
-        typewriter: {
-          type: Boolean,
-          default: false
-        },
-        batchRendering: {
-          type: Boolean,
-          default: false
-        },
-        deferNodesUntilVisible: {
-          type: Boolean,
-          default: false
-        },
-        viewportPriority: {
-          type: Boolean,
-          default: false
-        },
-        nodeVirtual: {
-          type: [Boolean, String],
-          default: false
-        },
-        maxLiveNodes: {
-          type: Number,
-          default: undefined
-        },
-        liveNodeBuffer: {
-          type: Number,
-          default: undefined
-        },
         codeBlockStream: {
           type: Boolean,
           default: false
         },
-        initialRenderBatchSize: {
-          type: Number,
+        codeBlockOptions: {
+          type: Object,
           default: undefined
         },
-        renderBatchSize: {
-          type: Number,
+        themes: {
+          type: Array,
           default: undefined
         },
-        renderBatchDelay: {
-          type: Number,
+        mermaidProps: {
+          type: Object,
           default: undefined
         },
-        renderBatchBudgetMs: {
-          type: Number,
-          default: undefined
-        },
-        renderBatchIdleTimeoutMs: {
-          type: Number,
-          default: undefined
-        },
-        parseCoalesceMs: {
-          type: Number,
+        customId: {
+          type: String,
           default: undefined
         },
         content: {
           type: String,
           default: ''
+        },
+        parseOptions: {
+          type: Object,
+          default: undefined
         }
       },
-      setup(props) {
+      emits: ['click', 'mouseover', 'mouseout', 'handleArtifactClick'],
+      setup(props, { emit }) {
         return () =>
           h(
             'div',
             {
               'data-testid': 'node-renderer',
               'data-final': String(props.final),
-              'data-mode': props.mode,
-              'data-html-policy': props.htmlPolicy,
-              'data-smooth-streaming': String(props.smoothStreaming),
-              'data-typewriter': String(props.typewriter),
-              'data-batch-rendering': String(props.batchRendering),
-              'data-defer-nodes-until-visible': String(props.deferNodesUntilVisible),
-              'data-viewport-priority': String(props.viewportPriority),
-              'data-node-virtual': String(props.nodeVirtual),
-              'data-max-live-nodes': String(props.maxLiveNodes),
-              'data-live-node-buffer': String(props.liveNodeBuffer),
               'data-code-block-stream': String(props.codeBlockStream),
-              'data-initial-render-batch-size': String(props.initialRenderBatchSize),
-              'data-render-batch-size': String(props.renderBatchSize),
-              'data-render-batch-delay': String(props.renderBatchDelay),
-              'data-render-batch-budget-ms': String(props.renderBatchBudgetMs),
-              'data-render-batch-idle-timeout-ms': String(props.renderBatchIdleTimeoutMs),
-              'data-parse-coalesce-ms': String(props.parseCoalesceMs),
+              'data-code-block-overflow': props.codeBlockOptions?.overflow,
+              'data-code-block-font-family': props.codeBlockOptions?.fontFamily,
+              'data-code-block-themes': props.themes?.join(','),
+              'data-mermaid-strict': String(props.mermaidProps?.isStrict),
+              'data-custom-id': props.customId,
               'data-content': props.content
             },
             [
-              customComponents.code_block?.({
-                node: {
-                  language: 'html',
-                  code: '<h1>Hello</h1>',
-                  raw: '<h1>Hello</h1>'
-                }
-              }) ?? h('div')
+              h(
+                'a',
+                {
+                  href: 'https://example.com/link',
+                  class: 'link-node',
+                  'data-testid': 'rendered-link',
+                  onClick: (event: MouseEvent) => emit('click', event)
+                },
+                'link'
+              ),
+              h(
+                'a',
+                {
+                  href: '#unmarked-anchor',
+                  'data-testid': 'unmarked-anchor',
+                  onClick: (event: MouseEvent) => emit('click', event)
+                },
+                'unmarked anchor'
+              ),
+              h(
+                'button',
+                {
+                  type: 'button',
+                  'data-testid': 'preview-code',
+                  onClick: () => emit('handleArtifactClick', previewPayload)
+                },
+                'preview code'
+              ),
+              h(
+                'span',
+                {
+                  class: 'reference-node',
+                  'data-testid': 'reference-node',
+                  onClick: (event: MouseEvent) => emit('click', event),
+                  onMouseover: (event: MouseEvent) => emit('mouseover', event),
+                  onMouseout: (event: MouseEvent) => emit('mouseout', event)
+                },
+                '1'
+              )
             ]
           )
-      }
-    })
-
-    const CodeBlockNode = defineComponent({
-      name: 'CodeBlockNode',
-      emits: ['previewCode'],
-      mounted() {
-        this.$emit('previewCode', previewPayload)
-      },
-      render() {
-        return h('div', { 'data-testid': 'code-block-node' })
-      }
-    })
-
-    const ReferenceNode = defineComponent({
-      name: 'ReferenceNode',
-      render() {
-        return h('div')
-      }
-    })
-
-    const MermaidBlockNode = defineComponent({
-      name: 'MermaidBlockNode',
-      render() {
-        return h('div')
       }
     })
 
     return {
       default: NodeRenderer,
       NodeRenderer,
-      CodeBlockNode,
-      ReferenceNode,
-      MermaidBlockNode,
-      removeCustomComponents: vi.fn(),
-      setCustomComponents: (
-        customIdOrComponents: string | Record<string, (...args: any[]) => any>,
-        maybeComponents?: Record<string, (...args: any[]) => any>
-      ) => {
-        customComponents =
-          typeof customIdOrComponents === 'string' ? (maybeComponents ?? {}) : customIdOrComponents
-      }
+      removeCustomComponents: removeCustomComponentsMock,
+      normalizeLanguageIdentifier: (language?: string) => {
+        const normalized = language?.trim().toLowerCase() ?? ''
+        return normalized === 'zsh' ? 'shell' : normalized === 'plaintext' ? 'plain' : normalized
+      },
+      setCustomComponents: setCustomComponentsMock
     }
   })
 
@@ -255,7 +222,9 @@ const setup = async (props: Record<string, unknown> = {}) => {
 
   return {
     wrapper,
-    getCustomComponents: () => customComponents
+    getCustomComponents: () => customComponents,
+    setCustomComponentsMock,
+    removeCustomComponentsMock
   }
 }
 
@@ -270,8 +239,15 @@ describe('MarkdownRenderer', () => {
     ensureMarkdownWorkersMock.mockReset()
     ensureMarkdownWorkersMock.mockResolvedValue(undefined)
     navigateLinkMock.mockReset()
-    navigateLinkMock.mockResolvedValue(true)
+    navigateLinkMock.mockImplementation(async (_href: string, event?: MouseEvent | null) => {
+      event?.preventDefault()
+      return true
+    })
     nanoidMock.mockReturnValueOnce('fallback-message').mockReturnValueOnce('fallback-thread')
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
   })
 
   it('initializes markdown workers lazily when mounted', async () => {
@@ -281,10 +257,12 @@ describe('MarkdownRenderer', () => {
   })
 
   it('uses the provided message and thread ids for HTML preview artifacts', async () => {
-    await setup({
+    const { wrapper } = await setup({
       messageId: 'message-1',
       threadId: 'thread-1'
     })
+
+    await wrapper.get('[data-testid="preview-code"]').trigger('click')
 
     expect(showArtifactMock).toHaveBeenCalledWith(
       {
@@ -302,7 +280,8 @@ describe('MarkdownRenderer', () => {
   })
 
   it('falls back to local ids when no message or thread ids are provided', async () => {
-    await setup()
+    const { wrapper } = await setup()
+    await wrapper.get('[data-testid="preview-code"]').trigger('click')
 
     expect(showArtifactMock).toHaveBeenCalledWith(
       {
@@ -319,61 +298,126 @@ describe('MarkdownRenderer', () => {
     )
   })
 
-  it('renders static markdown as final docs content by default', async () => {
-    const { wrapper } = await setup()
-    const nodeRenderer = wrapper.get('[data-testid="node-renderer"]')
+  it('normalizes unsupported code fence languages before they reach Markstream', async () => {
+    const { wrapper } = await setup({
+      content: '```desktop-local-file\nconst answer = 42\n```'
+    })
 
-    expect(nodeRenderer.attributes('data-mode')).toBe('docs')
-    expect(nodeRenderer.attributes('data-html-policy')).toBe('safe')
-    expect(nodeRenderer.attributes('data-final')).toBe('true')
-    expect(nodeRenderer.attributes('data-smooth-streaming')).toBe('false')
-    expect(nodeRenderer.attributes('data-typewriter')).toBe('false')
-    expect(nodeRenderer.attributes('data-batch-rendering')).toBe('true')
-    expect(nodeRenderer.attributes('data-defer-nodes-until-visible')).toBe('true')
-    expect(nodeRenderer.attributes('data-viewport-priority')).toBe('true')
-    expect(nodeRenderer.attributes('data-node-virtual')).toBe('auto')
-    expect(nodeRenderer.attributes('data-max-live-nodes')).toBe('260')
-    expect(nodeRenderer.attributes('data-live-node-buffer')).toBe('80')
-    expect(nodeRenderer.attributes('data-code-block-stream')).toBe('false')
-    expect(nodeRenderer.attributes('data-initial-render-batch-size')).toBe('96')
-    expect(nodeRenderer.attributes('data-render-batch-size')).toBe('80')
-    expect(nodeRenderer.attributes('data-render-batch-delay')).toBe('0')
-    expect(nodeRenderer.attributes('data-render-batch-budget-ms')).toBe('8')
-    expect(nodeRenderer.attributes('data-render-batch-idle-timeout-ms')).toBe('16')
-    expect(nodeRenderer.attributes('data-parse-coalesce-ms')).toBe('0')
+    expect(wrapper.get('[data-testid="node-renderer"]').attributes('data-content')).toBe(
+      '```plaintext\nconst answer = 42\n```'
+    )
   })
 
-  it('marks the root for scoped code block scrollbar stabilization', async () => {
+  it('normalizes unsupported code fence languages during streaming updates', async () => {
+    const { wrapper } = await setup({ content: '', streaming: true, final: false })
+
+    await wrapper.setProps({
+      content: '~~~DESKTOP-LOCAL-FILE path=src/example.ts\nconst answer = 42\n~~~'
+    })
+
+    expect(wrapper.get('[data-testid="node-renderer"]').attributes('data-content')).toBe(
+      '~~~plaintext path=src/example.ts\nconst answer = 42\n~~~'
+    )
+  })
+
+  it('leaves generic code blocks on Markstream’s built-in enhanced path', async () => {
+    const { getCustomComponents } = await setup({ mode: 'chat' })
+
+    expect(getCustomComponents().code_block).toBeUndefined()
+  })
+
+  it('passes renderer-neutral code block options and themes', async () => {
+    const { wrapper } = await setup()
+    const renderer = wrapper.get('[data-testid="node-renderer"]')
+
+    expect(renderer.attributes('data-code-block-overflow')).toBe('wrap')
+    expect(renderer.attributes('data-code-block-font-family')).toBe('monospace')
+    expect(renderer.attributes('data-code-block-themes')).toBe('vitesse-dark,vitesse-light')
+  })
+
+  it('uses the built-in strict Mermaid renderer without a global custom registry', async () => {
+    const { wrapper, getCustomComponents, setCustomComponentsMock, removeCustomComponentsMock } =
+      await setup()
+
+    expect(wrapper.get('[data-testid="node-renderer"]').attributes('data-mermaid-strict')).toBe(
+      'true'
+    )
+    expect(getCustomComponents()).toEqual({})
+    expect(setCustomComponentsMock).not.toHaveBeenCalled()
+
+    wrapper.unmount()
+    expect(removeCustomComponentsMock).not.toHaveBeenCalled()
+  })
+
+  it('keeps each NodeRenderer measurement identity instance-local', async () => {
+    const { wrapper } = await setup({ messageId: 'message-1', threadId: 'thread-1' })
+
+    expect(wrapper.get('[data-testid="node-renderer"]').attributes('data-custom-id')).toContain(
+      'artifact-msg-fallback-message'
+    )
+  })
+
+  it('keeps prose wrapping from splitting code surfaces at every character', async () => {
     const { wrapper } = await setup()
 
     expect(wrapper.classes()).toContain('markdown-renderer-root')
+    expect(wrapper.classes()).toContain('break-words')
+    expect(wrapper.classes()).not.toContain('break-all')
   })
 
-  it('passes the requested chat mode and streaming options to NodeRenderer for live content', async () => {
-    const { wrapper } = await setup({
-      mode: 'chat',
-      streaming: true,
-      final: false,
-      smoothStreaming: true
-    })
+  it('passes final and code block streaming flags for live content', async () => {
+    const { wrapper } = await setup({ streaming: true, final: false })
     const nodeRenderer = wrapper.get('[data-testid="node-renderer"]')
 
-    expect(nodeRenderer.attributes('data-mode')).toBe('chat')
     expect(nodeRenderer.attributes('data-final')).toBe('false')
-    expect(nodeRenderer.attributes('data-smooth-streaming')).toBe('auto')
-    expect(nodeRenderer.attributes('data-typewriter')).toBe('true')
-    expect(nodeRenderer.attributes('data-node-virtual')).toBe('false')
-    expect(nodeRenderer.attributes('data-max-live-nodes')).toBe('0')
-    expect(nodeRenderer.attributes('data-live-node-buffer')).toBe('0')
     expect(nodeRenderer.attributes('data-code-block-stream')).toBe('true')
-    expect(nodeRenderer.attributes('data-defer-nodes-until-visible')).toBe('false')
-    expect(nodeRenderer.attributes('data-viewport-priority')).toBe('false')
-    expect(nodeRenderer.attributes('data-initial-render-batch-size')).toBe('10')
-    expect(nodeRenderer.attributes('data-render-batch-size')).toBe('14')
-    expect(nodeRenderer.attributes('data-render-batch-delay')).toBe('8')
-    expect(nodeRenderer.attributes('data-render-batch-budget-ms')).toBe('3')
-    expect(nodeRenderer.attributes('data-render-batch-idle-timeout-ms')).toBe('24')
-    expect(nodeRenderer.attributes('data-parse-coalesce-ms')).toBe('12')
+  })
+
+  it('suppresses only Markdown image nodes backed by promoted local images', async () => {
+    const { wrapper } = await setup({
+      hiddenImageSources: ['imgcache://generated.png']
+    })
+    const parseOptions = wrapper.findComponent({ name: 'NodeRenderer' }).props('parseOptions') as {
+      postTransformNodes(nodes: any[]): any[]
+    }
+    const nodes = [
+      {
+        type: 'paragraph',
+        raw: 'images',
+        children: [
+          {
+            type: 'image',
+            raw: '![generated](imgcache://generated.png)',
+            src: 'imgcache://generated.png',
+            alt: 'generated',
+            title: null
+          },
+          {
+            type: 'image',
+            raw: '![external](https://example.com/external.png)',
+            src: 'https://example.com/external.png',
+            alt: 'external',
+            title: null
+          }
+        ]
+      }
+    ]
+
+    expect(parseOptions.postTransformNodes(nodes)).toEqual([
+      {
+        type: 'paragraph',
+        raw: 'images',
+        children: [
+          {
+            type: 'image',
+            raw: '![external](https://example.com/external.png)',
+            src: 'https://example.com/external.png',
+            alt: 'external',
+            title: null
+          }
+        ]
+      }
+    ])
   })
 
   it('renders the first non-empty streaming update immediately', async () => {
@@ -393,39 +437,37 @@ describe('MarkdownRenderer', () => {
     )
   })
 
-  it('disables smooth streaming when requested for live content', async () => {
-    const { wrapper } = await setup({
-      streaming: true,
-      final: false,
-      smoothStreaming: false
-    })
+  it('keeps coalescing updates for non-streaming surfaces', async () => {
+    vi.useFakeTimers()
+    const { wrapper } = await setup({ content: 'initial static content' })
+    const nodeRenderer = () => wrapper.get('[data-testid="node-renderer"]')
 
-    expect(wrapper.get('[data-testid="node-renderer"]').attributes('data-smooth-streaming')).toBe(
-      'false'
-    )
-    expect(wrapper.get('[data-testid="node-renderer"]').attributes('data-final')).toBe('false')
+    await wrapper.setProps({ content: 'updated static content' })
+    expect(nodeRenderer().attributes('data-content')).toBe('initial static content')
+
+    vi.advanceTimersByTime(64)
+    await wrapper.vm.$nextTick()
+    expect(nodeRenderer().attributes('data-content')).toBe('updated static content')
   })
 
-  it('marks completed chat markdown as final', async () => {
-    const { wrapper } = await setup({
-      smoothStreaming: false
-    })
+  it('retries reference interactions after a search-result request fails', async () => {
+    getSearchResultsMock
+      .mockRejectedValueOnce(new Error('transient search failure'))
+      .mockResolvedValueOnce([{ url: 'https://example.com/reference' }])
+    const { wrapper } = await setup({ messageId: 'message-1' })
+    const referenceElement = wrapper.get('[data-testid="reference-node"]').element
 
-    const nodeRenderer = wrapper.get('[data-testid="node-renderer"]')
-    expect(nodeRenderer.attributes('data-final')).toBe('true')
-  })
+    referenceElement.dispatchEvent(new MouseEvent('click'))
+    await flushPromises()
 
-  it('allows callers to disable completed-node virtualization and deferral', async () => {
-    const { wrapper } = await setup({
-      virtualizeNodes: false
-    })
-    const nodeRenderer = wrapper.get('[data-testid="node-renderer"]')
+    expect(navigateLinkMock).not.toHaveBeenCalled()
+    expect(showReferenceMock).not.toHaveBeenCalled()
 
-    expect(nodeRenderer.attributes('data-node-virtual')).toBe('false')
-    expect(nodeRenderer.attributes('data-defer-nodes-until-visible')).toBe('false')
-    expect(nodeRenderer.attributes('data-viewport-priority')).toBe('false')
-    expect(nodeRenderer.attributes('data-max-live-nodes')).toBe('0')
-    expect(nodeRenderer.attributes('data-live-node-buffer')).toBe('0')
+    referenceElement.dispatchEvent(new MouseEvent('mouseover'))
+    await flushPromises()
+
+    expect(getSearchResultsMock).toHaveBeenCalledTimes(2)
+    expect(showReferenceMock).toHaveBeenCalledOnce()
   })
 
   it('routes reference clicks through the shared markdown link navigator', async () => {
@@ -435,7 +477,7 @@ describe('MarkdownRenderer', () => {
       }
     ])
 
-    const { getCustomComponents } = await setup({
+    const { wrapper } = await setup({
       messageId: 'message-1',
       threadId: 'thread-1',
       linkContext: {
@@ -444,17 +486,150 @@ describe('MarkdownRenderer', () => {
       } satisfies MarkdownLinkContext
     })
 
-    const referenceVNode = getCustomComponents().reference?.({
-      node: {
-        id: '1'
-      }
-    })
     const clickEvent = new MouseEvent('click', { altKey: true })
 
-    await referenceVNode.props.onClick(clickEvent)
+    wrapper.get('[data-testid="reference-node"]').element.dispatchEvent(clickEvent)
     await flushPromises()
 
     expect(getSearchResultsMock).toHaveBeenCalledWith('message-1')
     expect(navigateLinkMock).toHaveBeenCalledWith('https://example.com/reference', clickEvent)
+  })
+
+  it('ignores reference results that resolve after the renderer unmounts', async () => {
+    const searchResults = createDeferred<Array<{ url: string }>>()
+    getSearchResultsMock.mockReturnValueOnce(searchResults.promise)
+    const { wrapper } = await setup({ messageId: 'message-1' })
+
+    wrapper.get('[data-testid="reference-node"]').element.dispatchEvent(new MouseEvent('click'))
+    wrapper.unmount()
+    searchResults.resolve([{ url: 'https://example.com/stale' }])
+    await flushPromises()
+
+    expect(navigateLinkMock).not.toHaveBeenCalled()
+  })
+
+  it('routes built-in link clicks through the shared markdown link navigator', async () => {
+    const { wrapper } = await setup()
+    const clickEvent = new MouseEvent('click', { cancelable: true })
+
+    wrapper.get('[data-testid="rendered-link"]').element.dispatchEvent(clickEvent)
+    await flushPromises()
+
+    expect(navigateLinkMock).toHaveBeenCalledWith('https://example.com/link', clickEvent)
+  })
+
+  it('does not take over anchors without Markstream’s link marker', async () => {
+    const { wrapper } = await setup()
+    const clickEvent = new MouseEvent('click')
+    Object.defineProperty(clickEvent, 'target', {
+      value: wrapper.get('[data-testid="unmarked-anchor"]').element
+    })
+
+    wrapper.findComponent({ name: 'NodeRenderer' }).vm.$emit('click', clickEvent)
+    await flushPromises()
+
+    expect(navigateLinkMock).not.toHaveBeenCalled()
+  })
+
+  it('supports keyboard activation for built-in reference nodes', async () => {
+    getSearchResultsMock.mockResolvedValueOnce([{ url: 'https://example.com/reference' }])
+    const { wrapper } = await setup({ messageId: 'message-1' })
+    const referenceElement = wrapper.get('[data-testid="reference-node"]').element
+
+    referenceElement.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+    await flushPromises()
+
+    expect(navigateLinkMock).toHaveBeenCalledWith(
+      'https://example.com/reference',
+      expect.any(MouseEvent)
+    )
+  })
+
+  it('anchors reference previews to the delegated reference element', async () => {
+    getSearchResultsMock.mockResolvedValueOnce([{ url: 'https://example.com/reference' }])
+    const { wrapper } = await setup({ messageId: 'message-1' })
+    const referenceElement = wrapper.get('[data-testid="reference-node"]').element as HTMLElement
+    const rect = referenceElement.getBoundingClientRect()
+
+    referenceElement.dispatchEvent(new MouseEvent('mouseover'))
+    await flushPromises()
+
+    expect(showReferenceMock).toHaveBeenCalledWith({ url: 'https://example.com/reference' }, rect)
+
+    referenceElement.dispatchEvent(new MouseEvent('mouseout'))
+    expect(hideReferenceMock).toHaveBeenCalled()
+  })
+
+  it('splits long streaming content into a static prefix and a live tail', async () => {
+    const longContent = Array.from(
+      { length: 400 },
+      (_, index) => `paragraph ${index} of text`
+    ).join('\n\n')
+    const { wrapper } = await setup({ streaming: true, content: longContent })
+    await flushPromises()
+
+    const renderers = wrapper.findAll('[data-testid="node-renderer"]')
+    expect(renderers).toHaveLength(2)
+
+    const prefix = renderers[0]
+    const tail = renderers[1]
+    expect(prefix.attributes('data-final')).toBe('true')
+    expect(prefix.attributes('data-custom-id')).toMatch(/::prefix$/)
+    expect(tail.attributes('data-final')).toBe('false')
+    expect(tail.attributes('data-custom-id')).toMatch(/::tail$/)
+    // Prefix + tail together reconstruct the whole document.
+    expect(prefix.attributes('data-content') + tail.attributes('data-content')).toBe(longContent)
+  })
+
+  it('does not split inside a single oversized code fence', async () => {
+    const fencedContent = '```\n' + 'a'.repeat(6500) + '\n```'
+    const { wrapper } = await setup({ streaming: true, content: fencedContent })
+    await flushPromises()
+
+    const renderers = wrapper.findAll('[data-testid="node-renderer"]')
+    expect(renderers).toHaveLength(1)
+    // The whole fence stays in the single streaming renderer, never split.
+    expect(renderers[0].attributes('data-content')).toBe(fencedContent)
+  })
+
+  it('does not split when mixed fence markers are unbalanced', async () => {
+    // One unclosed ``` fence and one unclosed ~~~ fence: combined parity looks
+    // even, but each marker type must be balanced independently.
+    const mixedContent =
+      '```\n' + 'a'.repeat(2000) + '\n\n~~~\n' + 'b'.repeat(2000) + '\n\n' + 'c'.repeat(2000)
+    const { wrapper } = await setup({ streaming: true, content: mixedContent })
+    await flushPromises()
+
+    const renderers = wrapper.findAll('[data-testid="node-renderer"]')
+    expect(renderers).toHaveLength(1)
+    expect(renderers[0].attributes('data-content')).toBe(mixedContent)
+  })
+
+  it('does not split mid-paragraph when no blank-line boundary exists', async () => {
+    const noBlankContent = 'word '.repeat(2500)
+    const { wrapper } = await setup({ streaming: true, content: noBlankContent })
+    await flushPromises()
+
+    const renderers = wrapper.findAll('[data-testid="node-renderer"]')
+    expect(renderers).toHaveLength(1)
+    expect(renderers[0].attributes('data-content')).toBe(noBlankContent)
+  })
+
+  it('resets the split when a stream shrinks and restarts', async () => {
+    const longContent = Array.from(
+      { length: 400 },
+      (_, index) => `paragraph ${index} of text`
+    ).join('\n\n')
+    const { wrapper } = await setup({ streaming: true, content: longContent })
+    await flushPromises()
+    expect(wrapper.findAll('[data-testid="node-renderer"]')).toHaveLength(2)
+
+    const restartedContent = 'short regenerated answer'
+    await wrapper.setProps({ content: restartedContent })
+    await flushPromises()
+
+    const renderers = wrapper.findAll('[data-testid="node-renderer"]')
+    expect(renderers).toHaveLength(1)
+    expect(renderers[0].attributes('data-content')).toBe(restartedContent)
   })
 })

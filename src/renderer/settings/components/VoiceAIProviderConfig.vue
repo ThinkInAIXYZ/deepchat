@@ -138,7 +138,7 @@
 
 <script setup lang="ts">
 import { onMounted, ref, watch } from 'vue'
-import type { LLM_PROVIDER } from '@shared/presenter'
+import type { LLM_PROVIDER } from '@shared/types/provider'
 import { useI18n } from 'vue-i18n'
 import { useProviderStore } from '@/stores/providerStore'
 import { Input } from '@shadcn/components/ui/input'

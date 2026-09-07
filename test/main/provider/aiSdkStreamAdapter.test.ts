@@ -1,0 +1,762 @@
+import { describe, expect, it, vi } from 'vitest'
+import { adaptAiSdkStream } from '@/provider/aiSdk/streamAdapter'
+import type { LLMCoreStreamEvent } from '@shared/types/core/llm-events'
+import { APICallError } from '@ai-sdk/provider'
+
+async function collectEvents(parts: any[], options: Parameters<typeof adaptAiSdkStream>[1]) {
+  async function* stream() {
+    for (const part of parts) {
+      yield part
+    }
+  }
+
+  const events: LLMCoreStreamEvent[] = []
+  for await (const event of adaptAiSdkStream(stream(), options)) {
+    events.push(event)
+  }
+  return events
+}
+
+describe('AI SDK stream adapter', () => {
+  it('preserves canonical OpenAI-compatible metadata namespaces as opaque options', async () => {
+    const events = await collectEvents(
+      [
+        {
+          type: 'text-delta',
+          id: 'text-1',
+          text: 'hello',
+          providerMetadata: {
+            newApi: {
+              acceptedPredictionTokens: 1
+            }
+          }
+        }
+      ],
+      { supportsNativeTools: true }
+    )
+
+    expect(events).toEqual([
+      {
+        type: 'text',
+        content: 'hello',
+        provider_options: {
+          newApi: {
+            acceptedPredictionTokens: 1
+          }
+        }
+      }
+    ])
+  })
+
+  it('maps native tool streaming events to DeepChat core events', async () => {
+    const events = await collectEvents(
+      [
+        {
+          type: 'text-delta',
+          id: 'text-1',
+          text: 'hello ',
+          providerMetadata: { vertex: { thoughtSignature: 'text-signature' } }
+        },
+        {
+          type: 'reasoning-delta',
+          id: 'reason-1',
+          text: 'thinking',
+          providerMetadata: { vertex: { thoughtSignature: 'reason-signature' } }
+        },
+        {
+          type: 'tool-input-start',
+          id: 'call-1',
+          toolName: 'getWeather',
+          providerMetadata: { vertex: { thoughtSignature: 'tool-signature' } }
+        },
+        {
+          type: 'tool-input-delta',
+          id: 'call-1',
+          delta: '{"city":"',
+          providerMetadata: { vertex: { thoughtSignature: 'tool-signature' } }
+        },
+        { type: 'tool-input-delta', id: 'call-1', delta: 'Beijing"}' },
+        { type: 'tool-input-end', id: 'call-1' },
+        {
+          type: 'finish',
+          finishReason: 'tool-calls',
+          rawFinishReason: 'tool_calls',
+          totalUsage: {
+            inputTokens: 10,
+            outputTokens: 5,
+            totalTokens: 15,
+            inputTokenDetails: {
+              cacheReadTokens: 3
+            }
+          }
+        }
+      ],
+      { supportsNativeTools: true }
+    )
+
+    expect(events).toEqual([
+      {
+        type: 'text',
+        content: 'hello ',
+        provider_options: { vertex: { thoughtSignature: 'text-signature' } }
+      },
+      {
+        type: 'reasoning',
+        reasoning_content: 'thinking',
+        provider_options: { vertex: { thoughtSignature: 'reason-signature' } }
+      },
+      {
+        type: 'tool_call_start',
+        tool_call_id: 'call-1',
+        tool_call_name: 'getWeather',
+        provider_options: { vertex: { thoughtSignature: 'tool-signature' } }
+      },
+      {
+        type: 'tool_call_chunk',
+        tool_call_id: 'call-1',
+        tool_call_arguments_chunk: '{"city":"',
+        provider_options: { vertex: { thoughtSignature: 'tool-signature' } }
+      },
+      { type: 'tool_call_chunk', tool_call_id: 'call-1', tool_call_arguments_chunk: 'Beijing"}' },
+      {
+        type: 'tool_call_end',
+        tool_call_id: 'call-1',
+        tool_call_arguments_complete: '{"city":"Beijing"}'
+      },
+      {
+        type: 'usage',
+        usage: {
+          prompt_tokens: 10,
+          completion_tokens: 5,
+          total_tokens: 15,
+          cached_tokens: 3
+        }
+      },
+      { type: 'stop', stop_reason: 'tool_use' }
+    ])
+  })
+
+  it('marks streaming and atomic provider-executed calls as provider-owned', async () => {
+    const events = await collectEvents(
+      [
+        {
+          type: 'tool-input-start',
+          id: 'streamed-provider-call',
+          toolName: 'web_search',
+          providerExecuted: true
+        },
+        {
+          type: 'tool-input-delta',
+          id: 'streamed-provider-call',
+          delta: '{"query":"deepchat"}'
+        },
+        { type: 'tool-input-end', id: 'streamed-provider-call' },
+        {
+          type: 'tool-call',
+          toolCallId: 'atomic-provider-call',
+          toolName: 'code_execution',
+          input: { code: '1 + 1' },
+          providerExecuted: true
+        }
+      ],
+      { supportsNativeTools: true }
+    )
+
+    expect(events.filter((event) => event.type === 'tool_call_start')).toEqual([
+      {
+        type: 'tool_call_start',
+        tool_call_id: 'streamed-provider-call',
+        tool_call_name: 'web_search',
+        tool_call_execution_owner: 'provider'
+      },
+      {
+        type: 'tool_call_start',
+        tool_call_id: 'atomic-provider-call',
+        tool_call_name: 'code_execution',
+        tool_call_execution_owner: 'provider'
+      }
+    ])
+  })
+
+  it('completes raw-projected tool input without duplicating streamed arguments', async () => {
+    const projectRawChunk = vi.fn((rawValue: unknown) => rawValue as LLMCoreStreamEvent)
+    const events = await collectEvents(
+      [
+        {
+          type: 'raw',
+          rawValue: {
+            type: 'tool_call_start',
+            tool_call_id: 'call-1',
+            tool_call_name: 'run_code',
+            provider_options: { deepseek: { itemId: 'fc-1' } }
+          }
+        },
+        {
+          type: 'raw',
+          rawValue: {
+            type: 'tool_call_chunk',
+            tool_call_id: 'call-1',
+            tool_call_arguments_chunk: '{"code":"'
+          }
+        },
+        {
+          type: 'raw',
+          rawValue: {
+            type: 'tool_call_chunk',
+            tool_call_id: 'call-1',
+            tool_call_arguments_chunk: 'console.log(1)"}'
+          }
+        },
+        {
+          type: 'tool-call',
+          toolCallId: 'call-1',
+          toolName: 'run_code',
+          input: { code: 'console.log(1)' },
+          providerMetadata: { deepseek: { itemId: 'fc-1' } }
+        }
+      ],
+      { supportsNativeTools: true, projectRawChunk }
+    )
+
+    expect(events).toEqual([
+      {
+        type: 'tool_call_start',
+        tool_call_id: 'call-1',
+        tool_call_name: 'run_code',
+        provider_options: { deepseek: { itemId: 'fc-1' } }
+      },
+      {
+        type: 'tool_call_chunk',
+        tool_call_id: 'call-1',
+        tool_call_arguments_chunk: '{"code":"'
+      },
+      {
+        type: 'tool_call_chunk',
+        tool_call_id: 'call-1',
+        tool_call_arguments_chunk: 'console.log(1)"}'
+      },
+      {
+        type: 'tool_call_end',
+        tool_call_id: 'call-1',
+        tool_call_arguments_complete: '{"code":"console.log(1)"}',
+        provider_options: { deepseek: { itemId: 'fc-1' } }
+      }
+    ])
+  })
+
+  it('falls back to an atomic tool call when a raw delta arrives without its start', async () => {
+    const projectRawChunk = vi.fn((rawValue: unknown) => rawValue as LLMCoreStreamEvent)
+    const events = await collectEvents(
+      [
+        {
+          type: 'raw',
+          rawValue: {
+            type: 'tool_call_chunk',
+            tool_call_id: 'call-1',
+            tool_call_arguments_chunk: '{"path":"lost-start"}'
+          }
+        },
+        {
+          type: 'tool-call',
+          toolCallId: 'call-1',
+          toolName: 'read_file',
+          input: { path: 'README.md' }
+        }
+      ],
+      { supportsNativeTools: true, projectRawChunk }
+    )
+
+    expect(events).toEqual([
+      { type: 'tool_call_start', tool_call_id: 'call-1', tool_call_name: 'read_file' },
+      {
+        type: 'tool_call_chunk',
+        tool_call_id: 'call-1',
+        tool_call_arguments_chunk: '{"path":"README.md"}'
+      },
+      {
+        type: 'tool_call_end',
+        tool_call_id: 'call-1',
+        tool_call_arguments_complete: '{"path":"README.md"}'
+      }
+    ])
+  })
+
+  it('projects provider search sources alongside ordinary tool lifecycles', async () => {
+    const providerSearch = {
+      id: 'ws_1',
+      action: { type: 'search' as const, target: 'DeepChat' },
+      label: 'DeepChat',
+      provider: 'deepseek',
+      results: [],
+      providerReplayJson: '{"version":1}'
+    }
+    const projectRawChunk = vi.fn(() => ({
+      type: 'provider_search' as const,
+      provider_search: providerSearch
+    }))
+
+    const events = await collectEvents(
+      [
+        { type: 'raw', rawValue: { type: 'response.output_item.done' } },
+        {
+          type: 'source',
+          sourceType: 'url',
+          id: 'citation-1',
+          url: 'https://deepchat.thinkinai.xyz/',
+          title: 'DeepChat'
+        },
+        {
+          type: 'source',
+          sourceType: 'url',
+          id: 'citation-duplicate',
+          url: 'https://deepchat.thinkinai.xyz/',
+          title: 'Duplicate'
+        },
+        {
+          type: 'source',
+          sourceType: 'url',
+          id: 'citation-unsafe',
+          url: 'javascript:alert(1)',
+          title: 'Unsafe'
+        },
+        {
+          type: 'source',
+          sourceType: 'url',
+          id: 'citation-credentials',
+          url: 'https://user:secret@example.com/private',
+          title: 'Credentials'
+        },
+        {
+          type: 'source',
+          sourceType: 'document',
+          id: 'document-1',
+          mediaType: 'text/plain',
+          title: 'Document'
+        },
+        { type: 'tool-input-start', id: 'local_1', toolName: 'read_file' },
+        { type: 'tool-input-delta', id: 'local_1', delta: '{"path":"README.md"}' },
+        { type: 'tool-input-end', id: 'local_1' },
+        {
+          type: 'finish',
+          finishReason: 'stop',
+          totalUsage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 }
+        }
+      ],
+      { supportsNativeTools: true, projectRawChunk }
+    )
+
+    expect(events).toEqual([
+      { type: 'provider_search', provider_search: providerSearch },
+      {
+        type: 'provider_url_source',
+        provider_url_source: {
+          searchId: 'ws_1',
+          title: 'DeepChat',
+          url: 'https://deepchat.thinkinai.xyz/',
+          rank: 0
+        }
+      },
+      {
+        type: 'tool_call_start',
+        tool_call_id: 'local_1',
+        tool_call_name: 'read_file'
+      },
+      {
+        type: 'tool_call_chunk',
+        tool_call_id: 'local_1',
+        tool_call_arguments_chunk: '{"path":"README.md"}'
+      },
+      {
+        type: 'tool_call_end',
+        tool_call_id: 'local_1',
+        tool_call_arguments_complete: '{"path":"README.md"}'
+      },
+      {
+        type: 'usage',
+        usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 }
+      },
+      { type: 'stop', stop_reason: 'complete' }
+    ])
+    expect(projectRawChunk).toHaveBeenCalledWith({ type: 'response.output_item.done' })
+  })
+
+  it('keeps URL sources attached to the latest search action', async () => {
+    const search = {
+      id: 'ws_search',
+      action: { type: 'search' as const, target: 'current price' },
+      label: 'current price',
+      provider: 'deepseek',
+      results: [],
+      providerReplayJson: '{"search":true}'
+    }
+    const openPage = {
+      id: 'ws_page',
+      action: {
+        type: 'open_page' as const,
+        target: 'https://example.com/article',
+        url: 'https://example.com/article'
+      },
+      label: 'https://example.com/article',
+      provider: 'deepseek',
+      results: [],
+      providerReplayJson: '{"page":true}'
+    }
+    const projectRawChunk = vi.fn((rawValue: any) =>
+      rawValue.projected
+        ? { type: 'provider_search' as const, provider_search: rawValue.projected }
+        : null
+    )
+
+    const events = await collectEvents(
+      [
+        {
+          type: 'source',
+          sourceType: 'url',
+          id: 'orphan',
+          url: 'https://example.com/orphan'
+        },
+        { type: 'raw', rawValue: { projected: search } },
+        { type: 'raw', rawValue: { projected: openPage } },
+        {
+          type: 'source',
+          sourceType: 'url',
+          id: 'source-1',
+          url: 'https://example.com/source'
+        }
+      ],
+      { supportsNativeTools: true, projectRawChunk }
+    )
+
+    expect(events).toEqual([
+      { type: 'provider_search', provider_search: search },
+      { type: 'provider_search', provider_search: openPage },
+      {
+        type: 'provider_url_source',
+        provider_url_source: {
+          searchId: 'ws_search',
+          title: 'example.com',
+          url: 'https://example.com/source',
+          rank: 0
+        }
+      }
+    ])
+  })
+
+  it('preserves explicit zero cache usage reported by the provider', async () => {
+    const events = await collectEvents(
+      [
+        {
+          type: 'finish',
+          finishReason: 'stop',
+          rawFinishReason: 'stop',
+          totalUsage: {
+            inputTokens: 10,
+            outputTokens: 2,
+            totalTokens: 12,
+            inputTokenDetails: {
+              cacheReadTokens: 0,
+              cacheWriteTokens: 0
+            }
+          }
+        }
+      ],
+      { supportsNativeTools: true }
+    )
+
+    expect(events).toEqual([
+      {
+        type: 'usage',
+        usage: {
+          prompt_tokens: 10,
+          completion_tokens: 2,
+          total_tokens: 12,
+          cached_tokens: 0,
+          cache_write_tokens: 0
+        }
+      },
+      { type: 'stop', stop_reason: 'complete' }
+    ])
+  })
+
+  it('parses legacy function_call blocks from text deltas', async () => {
+    const events = await collectEvents(
+      [
+        {
+          type: 'text-delta',
+          id: 'text-1',
+          text: 'before <function_call>{"function_call":{"name":"search","arguments":{"q":"deepchat"}}}</function_call> after'
+        },
+        {
+          type: 'finish',
+          finishReason: 'stop',
+          rawFinishReason: 'stop',
+          totalUsage: {
+            inputTokens: 2,
+            outputTokens: 4,
+            totalTokens: 6
+          }
+        }
+      ],
+      { supportsNativeTools: false }
+    )
+
+    expect(events[0]).toEqual({ type: 'text', content: 'before ' })
+    expect(events[1].type).toBe('tool_call_start')
+    expect(events[2].type).toBe('tool_call_chunk')
+    expect(events[3].type).toBe('tool_call_end')
+    expect(events[4]).toEqual({ type: 'text', content: ' after' })
+    expect(events[5]).toEqual({
+      type: 'usage',
+      usage: {
+        prompt_tokens: 2,
+        completion_tokens: 4,
+        total_tokens: 6
+      }
+    })
+    expect(events[6]).toEqual({ type: 'stop', stop_reason: 'tool_use' })
+  })
+
+  it('maps image file parts and caches the emitted data url', async () => {
+    const cacheImage = vi.fn().mockResolvedValue('cached://image')
+    const events = await collectEvents(
+      [
+        {
+          type: 'file',
+          file: {
+            mediaType: 'image/png',
+            base64: 'ZmFrZQ=='
+          }
+        },
+        {
+          type: 'finish',
+          finishReason: 'stop',
+          rawFinishReason: 'stop',
+          totalUsage: {
+            inputTokens: 1,
+            outputTokens: 1,
+            totalTokens: 2
+          }
+        }
+      ],
+      { supportsNativeTools: true, cacheImage }
+    )
+
+    expect(cacheImage).toHaveBeenCalledWith('data:image/png;base64,ZmFrZQ==')
+    expect(events[0]).toEqual({
+      type: 'image_data',
+      image_data: {
+        data: 'cached://image',
+        mimeType: 'image/png'
+      }
+    })
+    expect(events[2]).toEqual({ type: 'stop', stop_reason: 'complete' })
+  })
+
+  it('falls back to the original image data url when image caching fails', async () => {
+    const cacheImage = vi.fn().mockRejectedValue(new Error('cache failed'))
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+
+    const events = await collectEvents(
+      [
+        {
+          type: 'file',
+          file: {
+            mediaType: 'image/jpeg',
+            base64: 'YWJjZA=='
+          }
+        },
+        {
+          type: 'finish',
+          finishReason: 'stop',
+          rawFinishReason: 'stop',
+          totalUsage: {
+            inputTokens: 1,
+            outputTokens: 1,
+            totalTokens: 2
+          }
+        }
+      ],
+      { supportsNativeTools: true, cacheImage }
+    )
+
+    expect(cacheImage).toHaveBeenCalledWith('data:image/jpeg;base64,YWJjZA==')
+    expect(warnSpy).toHaveBeenCalled()
+    expect(events[0]).toEqual({
+      type: 'image_data',
+      image_data: {
+        data: 'data:image/jpeg;base64,YWJjZA==',
+        mimeType: 'image/jpeg'
+      }
+    })
+
+    warnSpy.mockRestore()
+  })
+
+  it('skips file parts with missing or non-image media types', async () => {
+    const cacheImage = vi.fn()
+    const events = await collectEvents(
+      [
+        {
+          type: 'file',
+          file: {
+            mediaType: undefined,
+            base64: 'ZmFrZQ=='
+          }
+        },
+        {
+          type: 'file',
+          file: {
+            mediaType: 'application/pdf',
+            base64: 'ZmFrZQ=='
+          }
+        },
+        {
+          type: 'finish',
+          finishReason: 'stop',
+          rawFinishReason: 'stop',
+          totalUsage: {
+            inputTokens: 1,
+            outputTokens: 1,
+            totalTokens: 2
+          }
+        }
+      ],
+      { supportsNativeTools: true, cacheImage }
+    )
+
+    expect(cacheImage).not.toHaveBeenCalled()
+    expect(events).toEqual([
+      {
+        type: 'usage',
+        usage: {
+          prompt_tokens: 1,
+          completion_tokens: 1,
+          total_tokens: 2
+        }
+      },
+      { type: 'stop', stop_reason: 'complete' }
+    ])
+  })
+
+  it('maps the length finish reason to max_tokens', async () => {
+    const events = await collectEvents(
+      [
+        {
+          type: 'finish',
+          finishReason: 'length',
+          rawFinishReason: 'length',
+          totalUsage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 }
+        }
+      ],
+      { supportsNativeTools: true }
+    )
+
+    expect(events.at(-1)).toEqual({ type: 'stop', stop_reason: 'max_tokens' })
+  })
+
+  it('preserves max_tokens after parsing a legacy tool call', async () => {
+    const events = await collectEvents(
+      [
+        {
+          type: 'text-delta',
+          id: 'text-1',
+          text: '<function_call>{"function_call":{"name":"search","arguments":{"q":"deepchat"}}}</function_call>'
+        },
+        {
+          type: 'finish',
+          finishReason: 'length',
+          rawFinishReason: 'length',
+          totalUsage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 }
+        }
+      ],
+      { supportsNativeTools: false }
+    )
+
+    expect(events.at(-1)).toEqual({ type: 'stop', stop_reason: 'max_tokens' })
+  })
+
+  it.each([
+    [
+      'content-filter',
+      'Provider stopped the response because of content filtering.',
+      { code: 'content_filter', retryable: false }
+    ],
+    [
+      'error',
+      'Provider stopped the response because of an error.',
+      { code: 'provider_finish_error' }
+    ],
+    [
+      'other',
+      'Provider stopped the response for an unspecified reason: provider-specific',
+      { code: 'provider_finish_other' }
+    ]
+  ] as const)(
+    'surfaces the %s finish reason as an error',
+    async (finishReason, message, failure) => {
+      const events = await collectEvents(
+        [
+          {
+            type: 'finish',
+            finishReason,
+            rawFinishReason: finishReason === 'other' ? 'provider-specific' : finishReason,
+            totalUsage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 }
+          }
+        ],
+        { supportsNativeTools: true }
+      )
+
+      expect(events.slice(-2)).toEqual([
+        { type: 'error', error_message: message, failure },
+        { type: 'stop', stop_reason: 'error' }
+      ])
+    }
+  )
+
+  it('surfaces an SDK abort part as a provider error', async () => {
+    const events = await collectEvents([{ type: 'abort', reason: 'upstream aborted' }], {
+      supportsNativeTools: true
+    })
+
+    expect(events).toEqual([
+      {
+        type: 'error',
+        error_message: 'upstream aborted',
+        failure: { code: 'provider_stream_aborted' }
+      },
+      { type: 'stop', stop_reason: 'error' }
+    ])
+  })
+
+  it('preserves safe retry metadata from an AI SDK error part', async () => {
+    const error = new APICallError({
+      message: 'temporarily unavailable',
+      url: 'https://provider.example.com/chat',
+      requestBodyValues: { secret: 'request' },
+      statusCode: 503,
+      responseHeaders: {
+        'retry-after': '3',
+        authorization: 'Bearer secret'
+      },
+      responseBody: 'sensitive response',
+      isRetryable: true
+    })
+
+    const events = await collectEvents([{ type: 'error', error }], {
+      supportsNativeTools: true
+    })
+
+    expect(events).toEqual([
+      {
+        type: 'error',
+        error_message: 'temporarily unavailable',
+        failure: {
+          statusCode: 503,
+          retryable: true,
+          retryHeaders: { 'retry-after': '3' }
+        }
+      },
+      { type: 'stop', stop_reason: 'error' }
+    ])
+  })
+})

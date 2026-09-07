@@ -22,6 +22,12 @@ describe('settings navigation helpers', () => {
     expect(getSettingsNavigationGroups()[0]?.key).toBe('overview')
   })
 
+  it('keeps Skills out of the settings window navigation', () => {
+    expect(getSettingsNavigationItems().some((item) => item.routeName === 'settings-skills')).toBe(
+      false
+    )
+  })
+
   it('resolves provider routes with params', () => {
     expect(
       resolveSettingsNavigationPath('settings-provider', {
@@ -72,5 +78,12 @@ describe('settings navigation helpers', () => {
     expect(resolveSettingsNavigationPath('settings-plugins', undefined, 'linux', 'arm64')).toBe(
       '/overview'
     )
+  })
+
+  it('keeps the hidden OCR settings route available for compatibility', () => {
+    expect(
+      getSettingsNavigationItems('linux', 'arm64').some((item) => item.routeName === 'settings-ocr')
+    ).toBe(false)
+    expect(resolveSettingsNavigationPath('settings-ocr', undefined, 'linux', 'arm64')).toBe('/ocr')
   })
 })

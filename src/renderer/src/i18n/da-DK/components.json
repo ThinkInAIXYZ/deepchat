@@ -28,6 +28,7 @@
       "all": "Tillad '{toolName}' på '{serverName}' at udføre læse- og skriveoperationer?",
       "read": "Tillad '{toolName}' på '{serverName}' at udføre læseoperationer?",
       "write": "Tillad '{toolName}' på '{serverName}' at udføre skrivehandlinger?",
+      "subagentStart": "Start denne Subagent-opgave? Det kan bruge ekstra tokens, tid og systemressourcer.",
       "command": "Kør kommando: {command}",
       "commandWithRisk": "Kør kommando: {command}\n\nRisikniveau: {riskLevel}\n\nForslag: {suggestion}"
     },

@@ -11,6 +11,7 @@ const PROVIDER_DB_BACKED_PROVIDER_IDS = new Set([
   'nvidia',
   'o3fan',
   'stepfun',
+  'stepfun-step-plan',
   'upstage',
   'kimi-for-coding',
   'openai-codex'

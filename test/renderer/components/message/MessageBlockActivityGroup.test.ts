@@ -5,7 +5,7 @@ import MessageBlockActivityGroup from '@/components/message/MessageBlockActivity
 import type {
   DisplayAssistantMessageBlock,
   DisplayMessageUsage
-} from '@/components/chat/messageListItems'
+} from '@/features/chat-page/model/displayMessage'
 
 vi.mock('vue-i18n', () => ({
   useI18n: () => ({
@@ -72,7 +72,7 @@ const blocks: DisplayAssistantMessageBlock[] = [
   }
 ]
 
-const mountGroup = () =>
+const mountGroup = (props: Record<string, unknown> = {}) =>
   mount(MessageBlockActivityGroup, {
     props: {
       blocks,
@@ -81,7 +81,8 @@ const mountGroup = () =>
       usage,
       durationMs: 65_000,
       reasoningCount: 1,
-      toolCallCount: 1
+      toolCallCount: 1,
+      ...props
     },
     global: {
       stubs: {
@@ -105,9 +106,24 @@ const mountGroup = () =>
             block: {
               type: Object,
               required: true
+            },
+            renderMode: {
+              type: String,
+              default: 'full'
             }
           },
-          template: '<div data-testid="tool-block">{{ block.tool_call?.name }}</div>'
+          template:
+            '<div data-testid="tool-block" :data-render-mode="renderMode">{{ block.tool_call?.name }}</div>'
+        }),
+        MessageBlockSearch: defineComponent({
+          name: 'MessageBlockSearch',
+          props: {
+            block: {
+              type: Object,
+              required: true
+            }
+          },
+          template: '<div data-testid="search-block">{{ block.content }}</div>'
         })
       }
     }
@@ -160,6 +176,9 @@ describe('MessageBlockActivityGroup', () => {
     )
     expect(wrapper.find('[data-testid="think-block"]').text()).toBe('thinking')
     expect(wrapper.find('[data-testid="tool-block"]').text()).toBe('shell_command')
+    expect(wrapper.find('[data-testid="tool-block"]').attributes('data-render-mode')).toBe(
+      'tool-only'
+    )
 
     await wrapper.get('[data-testid="activity-group-toggle"]').trigger('click')
 
@@ -198,5 +217,26 @@ describe('MessageBlockActivityGroup', () => {
     expect(remounted.get('[data-testid="activity-group-toggle"]').attributes('aria-expanded')).toBe(
       'false'
     )
+  })
+
+  it('renders provider search activity inside the expanded group', async () => {
+    const wrapper = mountGroup({
+      blocks: [
+        {
+          id: 'ws_1',
+          type: 'search',
+          content: 'DeepChat latest release',
+          status: 'success',
+          timestamp: 1_000
+        }
+      ],
+      reasoningCount: 0,
+      toolCallCount: 0
+    })
+
+    expect(wrapper.get('[data-testid="activity-group-toggle"]').text()).not.toContain('tool call')
+    await wrapper.get('[data-testid="activity-group-toggle"]').trigger('click')
+
+    expect(wrapper.get('[data-testid="search-block"]').text()).toBe('DeepChat latest release')
   })
 })

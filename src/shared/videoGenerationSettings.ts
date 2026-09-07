@@ -242,15 +242,16 @@ export function supportsOpenAICompatibleVideoGeneration(
     providerKind === 'openai-compatible' ||
     providerKind === 'openai-responses' ||
     providerOptionsKey === 'openai' ||
-    providerOptionsKey === 'new-api' ||
     providerId === 'openai' ||
     providerId === 'openai-responses' ||
     providerId === 'new-api' ||
+    providerId === 'apimart' ||
     providerApiType === 'openai' ||
     providerApiType === 'openai-compatible' ||
     providerApiType === 'openai-responses' ||
     providerApiType === 'openai_chat' ||
-    providerApiType === 'new-api'
+    providerApiType === 'new-api' ||
+    providerApiType === 'apimart'
 
   return (
     isOpenAICompatibleProvider &&

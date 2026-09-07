@@ -1,5 +1,12 @@
 # ACP v1 Reliability Specification
 
+> Status: active. This specification predates the layered agent-runtime migration, and its unchecked
+> reliability scope remains open until the task ledger is reconciled against current code and real-agent
+> validation. Canonical ownership now places direct `kind=acp` execution in `AcpAgentRuntime` /
+> `AcpAgentInstance`; `AcpProvider` is retained only for `kind=deepchat + providerId=acp` compatibility.
+> Terminal authentication is specified separately in `docs/features/acp-terminal-auth/spec.md`; that
+> focused specification is authoritative where this broad reliability document conflicts with it.
+
 Last reviewed: 2026-06-02
 
 ## 背景
@@ -17,7 +24,7 @@ DeepChat 已经具备 ACP agent 的基本启动、初始化、`session/new`、`s
 - 客户端能力页：[Content](https://agentclientprotocol.com/protocol/v1/content)、[Tool Calls](https://agentclientprotocol.com/protocol/v1/tool-calls)、[File System](https://agentclientprotocol.com/protocol/v1/file-system)、[Terminals](https://agentclientprotocol.com/protocol/v1/terminals)
 - 状态增强页：[Agent Plan](https://agentclientprotocol.com/protocol/v1/agent-plan)、[Session Modes](https://agentclientprotocol.com/protocol/v1/session-modes)、[Session Config Options](https://agentclientprotocol.com/protocol/v1/session-config-options)、[Slash Commands](https://agentclientprotocol.com/protocol/v1/slash-commands)、[Extensibility](https://agentclientprotocol.com/protocol/v1/extensibility)、[Transports](https://agentclientprotocol.com/protocol/v1/transports)
 - 本仓库 registry snapshot：`resources/acp-registry/registry.json`
-- 现有 ACP 入口：`src/main/presenter/llmProviderPresenter/acp/*`、`src/main/presenter/llmProviderPresenter/providers/acpProvider.ts`
+- 现有 ACP 入口：`src/main/agent/acp/*`、`src/main/provider/providers/acpProvider.ts`
 
 ## 用户故事
 
@@ -31,7 +38,7 @@ DeepChat 已经具备 ACP agent 的基本启动、初始化、`session/new`、`s
 
 - `initialize` 会声明 DeepChat 实际支持的 client capabilities，并保存 agent 返回的完整 capabilities、auth methods、agent info。
 - 所有可选协议方法都按 capability gate 调用；没有 capability 时不调用、不误报。
-- `authenticate`、`logout`、`session/list`、`session/resume`、`session/close` 有可复用 presenter/debug 入口。
+- `authenticate`、`logout`、`session/list`、`session/resume`、`session/close` 有可复用 typed route/debug 入口。
 - `session/update` 不会因为 listener 注册时序丢失早期通知，尤其是 DimCode 的 `available_commands_update`。
 - `session/prompt` 只发送当前用户 turn，按 prompt capabilities 发送 text/image/audio/resource/resource_link。
 - `terminal/create/output/wait_for_exit/kill/release` 符合 output byte limit 和 command args 语义。
@@ -55,7 +62,7 @@ DeepChat 已经具备 ACP agent 的基本启动、初始化、`session/new`、`s
 | --- | --- | --- | --- |
 | Transports | ACP 使用 JSON-RPC 2.0；常见 client 以 agent subprocess + stdio 通信；MCP stdio 必须支持，HTTP/SSE 按 agent capability 过滤 | 已有 subprocess/stdout/stderr 连接、registry launch spec、MCP transport filter；需要加强版本漂移和进程树清理 | registry launch spec 仍为首选；global/local 命令只做 fallback/diagnostics；初始化、认证、E2E probe 都有 timeout 和 process tree cleanup |
 | Initialization | Client 调 `initialize`，发送 `protocolVersion`、`clientCapabilities`、`clientInfo`；Agent 返回 `agentCapabilities`、`authMethods`、`agentInfo` | 已发送 `fs`、`terminal`；未声明/实现 auth capability；只解析部分 capability | 解析并保存完整 capability snapshot；不支持协议版本时关闭连接并展示错误；只声明已实现 client capabilities |
-| Authentication | Agent 用 `authMethods` 暴露方法；Client 调 `authenticate({ methodId })`；`logout` 只能在 `agentCapabilities.auth.logout` 存在时调用 | 有 auth method 日志字段，但没有产品化 authenticate/logout 入口 | 增加 authenticate/logout presenter/debug/UI 入口；处理 `agent`、`env_var`、`terminal` 类型；auth required 错误转成可操作状态 |
+| Authentication | Agent 用 `authMethods` 暴露方法；默认 `agent` 方法走 `authenticate({ methodId })`；Preview `terminal` 方法走独立交互进程，成功后重连且不得调用 `authenticate`；`logout` 只能在 `agentCapabilities.auth.logout` 存在时调用 | 有 auth method 日志字段，但没有产品化 authenticate/logout/terminal auth 入口 | 按 `docs/features/acp-terminal-auth/spec.md` 实现 terminal auth；增加 agent authenticate/logout typed route/debug/UI 入口；auth required 错误转成可操作状态 |
 | Session Setup: `session/new` | 创建新 session，传 `cwd` 和 MCP servers，返回 `sessionId`，可带初始 modes/models/config options | 已支持；但 listener 通常在返回后注册，早期 update 可能丢 | 新 DeepChat 会话首次使用 ACP agent 时才创建远端 session；返回后写入本地 `AcpSessionLink`；缓冲并 flush 早期 update |
 | Session Setup: `session/load` | 仅 `loadSession=true` 时调用；agent 会重放历史 update，再响应 load 完成 | 已支持并在 load 前注册 listener | 用作远端 session 历史导入/重放；进入 staging buffer，转换为 DeepChat message/block 后按 fingerprint 幂等落库 |
 | Session Setup: `session/resume` | 仅 `sessionCapabilities.resume` 存在时调用；不重放历史，恢复上下文后返回 | 未接入 | 用于已绑定 DeepChat conversation 的继续对话；不把远端 session 当事实源覆盖本地消息 |
@@ -64,7 +71,7 @@ DeepChat 已经具备 ACP agent 的基本启动、初始化、`session/new`、`s
 | Session List | 仅 `sessionCapabilities.list` 存在时调用；支持 `cwd` filter、cursor pagination；`session_info_update` 同步标题/更新时间 | 未接入 list；`session_info_update` 被忽略 | 按 workspace 同步远端 session catalog；用 `agentId + canonicalWorkdir + remoteSessionId` 去重；只更新 link metadata，不直接覆盖 DeepChat conversation |
 | Prompt Turn | `session/prompt` 发送当前用户 message 的 ContentBlock[]；`session/cancel` 中断当前 turn；prompt content 必须受 capabilities 限制 | 已 prompt/cancel；formatter 会拼温度、maxTokens 和历史 USER/ASSISTANT 文本，容易重复上下文 | formatter 改为当前 turn only；system prompt 只作为首次 session context；cancel 只针对活跃 turn |
 | Content | Baseline 支持 text/resource_link；image/audio/resource 由 `promptCapabilities` 决定 | 输入侧 image 多数降级为 resource_link；输出侧 image 可转为 image block，audio/resource 偏文本化 | 输入侧按 capability 发送 image/audio/resource/resource_link/text；输出侧保留结构，不能显示的内容给清晰文本 fallback |
-| Tool Calls | Agent 通过 `tool_call`、`tool_call_update` 汇报工具状态、内容、locations、raw input/output；可嵌入 terminal/diff/content | 已映射 tool_call/update，但把部分状态当 permission block；terminal/diff/locations/raw 字段展示不完整 | 保留工具 call 生命周期；补 terminal/diff/location 展示和 raw metadata；不要把普通 tool progress 误标为权限 |
+| Tool Calls | Agent 通过 `tool_call`、`tool_call_update` 汇报工具状态、内容、locations、raw input/output；可嵌入 terminal/diff/content | 已映射 tool_call/update，参数与结果分别投影；raw output、content、terminal snapshot 和 diff 可进入工具响应；普通状态仍被当作 permission block，locations/raw metadata 展示不完整 | 保留工具 call 生命周期；补 location 和 raw metadata；不要把普通 tool progress 误标为权限 |
 | Client Permission | Client baseline method `session/request_permission` 用于工具权限确认 | 主进程已有 resolver 分发底座；需要 UI/超时/debug/test 闭环 | 复用现有 DeepChat permission overlay；补 timeout/cancel 默认 outcome；debug log 记录 permission request/result |
 | File System | `fs/read_text_file`、`fs/write_text_file` 只在 client capability 声明后可用；路径绝对；line 为 1-based | 已有 handler，包含 workspace guard、二进制/大小控制 | 保持安全边界；补 1-based、越界、二进制、跨 workspace 写入测试；声明能力与真实 handler 绑定 |
 | Terminals | `terminal/create` 用 `command` + `args` + `env` + `cwd`；`outputByteLimit` 超限时从开头截断，保留最新输出且字符边界有效 | 已有 terminal manager；当前把 command/args 拼进 shell，输出超限时保留开头 | 改为直接 spawn command + args；仅显式 shell 场景使用 shell；输出 buffer 保留尾部；release 后仍允许已渲染内容留在 tool call |
@@ -82,6 +89,8 @@ DeepChat 已经具备 ACP agent 的基本启动、初始化、`session/new`、`s
 - 不在本目标内实现 ACP v2 或未发布协议。
 - 不为某个单独 agent 写硬编码行为；DimCode、Claude Code ACP、Codex ACP 只作为兼容样本。
 - 不改变非 ACP provider 的现有 prompt、MCP、权限或 terminal 行为。
+- DeepChat host 侧的 MCP v2 negotiation、Apps、Tasks 和 authorization extensions 不包装或重新解释
+  ACP agent 自己管理的 MCP 连接；ACP 仍只按自身声明的 `mcpCapabilities` 接收 transport。
 - 不默认扩大文件系统权限；ACP fs/terminal 继续受 session workdir 和 DeepChat 安全策略约束。
 - 不做远端 session 的主动批量写入或双向同步；远端 session catalog 是可导入资源，DeepChat conversation 才是本地事实源。
 

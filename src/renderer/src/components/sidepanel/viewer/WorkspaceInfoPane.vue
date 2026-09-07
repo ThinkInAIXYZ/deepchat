@@ -22,7 +22,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import type { WorkspaceFilePreview } from '@shared/presenter'
+import type { WorkspaceFilePreview } from '@shared/types/workspace'
 
 const props = defineProps<{
   filePreview: WorkspaceFilePreview

@@ -16,5 +16,9 @@
   "topbarButton": "更新",
   "restarting": "正在重啟",
   "alreadyUpToDate": "已經是最新版本了",
-  "alreadyUpToDateDesc": "您的 DeepChat 目前已經是最新版本，無需更新。"
+  "alreadyUpToDateDesc": "您的 DeepChat 目前已經是最新版本，無需更新。",
+  "taskRunningTitle": "有進行中的任務",
+  "taskRunningDescription": "當前有任務正在進行中，請選擇更新方式：",
+  "updateNow": "立即更新",
+  "updateAfterTasksComplete": "任務完畢後更新"
 }

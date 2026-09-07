@@ -1,0 +1,1348 @@
+import { realpathSync } from 'fs'
+import fs from 'fs/promises'
+import path from 'path'
+import os from 'os'
+import { getSessionsRoot } from '@/agent/shared/storage/sessionPaths'
+import { z } from 'zod'
+import { minimatch } from 'minimatch'
+import { diffLines } from 'diff'
+import { validateGlobPattern, validateRegexPattern } from '@shared/regexValidator'
+import { getLanguageFromFilename } from '@shared/utils/codeLanguage'
+import { glob } from 'glob'
+import type { CommandShellPathStyle } from '@shared/commandShell'
+import { normalizeCommandShellFilePath } from '@/agent/shared/process/commandShellPath'
+import {
+  AGENT_RAW_READ_MAX_BYTES,
+  buildBinaryReadGuidance,
+  decodeAgentFileBytes,
+  paginateReadContent
+} from '@/lib/binaryReadGuard'
+
+const ReadFileArgsSchema = z.object({
+  paths: z.array(z.string()).min(1).describe('Array of file paths to read'),
+  offset: z
+    .number()
+    .int()
+    .min(0)
+    .optional()
+    .describe('Starting character offset (0-based), applied to each file independently'),
+  limit: z
+    .number()
+    .int()
+    .positive()
+    .optional()
+    .describe(
+      'Maximum characters to read per file. Large files are auto-truncated if not specified'
+    )
+})
+
+const WriteFileArgsSchema = z.object({
+  path: z.string(),
+  content: z.string()
+})
+
+const ListDirectoryArgsSchema = z.object({
+  path: z.string(),
+  showDetails: z.boolean().default(false),
+  sortBy: z.enum(['name', 'size', 'modified']).default('name')
+})
+
+const CreateDirectoryArgsSchema = z.object({
+  path: z.string()
+})
+
+const MoveFilesArgsSchema = z.object({
+  sources: z.array(z.string()).min(1),
+  destination: z.string()
+})
+
+const EditTextArgsSchema = z.object({
+  path: z.string(),
+  operation: z.enum(['replace_pattern', 'edit_lines']),
+  pattern: z.string().optional(),
+  replacement: z.string().optional(),
+  global: z.boolean().default(true),
+  caseSensitive: z.boolean().default(false),
+  edits: z
+    .array(
+      z.object({
+        oldText: z.string(),
+        newText: z.string()
+      })
+    )
+    .optional(),
+  dryRun: z.boolean().default(false)
+})
+
+const GlobSearchArgsSchema = z.object({
+  pattern: z.string().describe('Glob pattern (e.g., **/*.ts, src/**/*.js)'),
+  root: z.string().optional().describe('Root directory for search (defaults to workspace root)'),
+  excludePatterns: z
+    .array(z.string())
+    .optional()
+    .default([])
+    .describe('Patterns to exclude (e.g., ["node_modules", ".git"])'),
+  maxResults: z.number().default(1000).describe('Maximum number of results to return'),
+  sortBy: z
+    .enum(['name', 'modified'])
+    .default('name')
+    .describe('Sort results by name or modification time')
+})
+
+const GrepSearchArgsSchema = z.object({
+  path: z.string(),
+  pattern: z.string(),
+  filePattern: z.string().optional(),
+  recursive: z.boolean().default(true),
+  caseSensitive: z.boolean().default(false),
+  includeLineNumbers: z.boolean().default(true),
+  contextLines: z.number().default(0),
+  maxResults: z.number().default(100)
+})
+
+const TextReplaceArgsSchema = z.object({
+  path: z.string(),
+  pattern: z.string(),
+  replacement: z.string(),
+  global: z.boolean().default(true),
+  caseSensitive: z.boolean().default(false),
+  dryRun: z.boolean().default(false)
+})
+
+const EditFileArgsSchema = z.object({
+  path: z.string(),
+  oldText: z.string().max(10000),
+  newText: z.string().max(10000)
+})
+
+const DirectoryTreeArgsSchema = z.object({
+  path: z.string(),
+  depth: z.number().int().min(0).max(3).default(1)
+})
+
+const GetFileInfoArgsSchema = z.object({
+  path: z.string()
+})
+
+interface FileMutationOptions {
+  beforeMutation?: () => void
+}
+
+interface FileReadOptions {
+  mimeType: string
+  autoTruncateChars: number
+  maxReadBytes?: number
+}
+
+const READ_CHUNK_BYTES = 64 * 1024
+
+async function readFileWindow(
+  filePath: string,
+  maxReadBytes: number
+): Promise<{ bytes: Buffer; totalBytes: number }> {
+  const handle = await fs.open(filePath, 'r')
+  try {
+    const { size } = await handle.stat()
+    const chunks: Buffer[] = []
+    let offset = 0
+    while (offset < maxReadBytes) {
+      const want = Math.min(READ_CHUNK_BYTES, maxReadBytes - offset)
+      const chunk = Buffer.alloc(want)
+      const { bytesRead } = await handle.read(chunk, 0, want, offset)
+      if (bytesRead === 0) {
+        break
+      }
+      chunks.push(bytesRead === want ? chunk : chunk.subarray(0, bytesRead))
+      offset += bytesRead
+      if (bytesRead < want) {
+        break
+      }
+    }
+    const bytes = Buffer.concat(chunks, offset)
+    let truncated = false
+    if (offset === maxReadBytes) {
+      const peek = Buffer.alloc(1)
+      const { bytesRead } = await handle.read(peek, 0, 1, offset)
+      truncated = bytesRead > 0
+    }
+    const totalBytes = truncated ? Math.max(size, bytes.length + 1) : bytes.length
+    return { bytes, totalBytes }
+  } finally {
+    await handle.close()
+  }
+}
+
+interface GrepMatch {
+  file: string
+  line: number
+  content: string
+  beforeContext?: string[]
+  afterContext?: string[]
+}
+
+interface GrepResult {
+  totalMatches: number
+  files: string[]
+  matches: GrepMatch[]
+}
+
+interface TextReplaceResult {
+  success: boolean
+  replacements: number
+  diff?: string
+  error?: string
+  originalContent?: string
+  modifiedContent?: string
+}
+
+interface DiffToolSuccessResponse {
+  success: true
+  originalCode: string
+  updatedCode: string
+  language: string
+  replacements?: number
+}
+
+interface DiffToolErrorResponse {
+  success: false
+  error: string
+}
+
+type DiffToolResponse = DiffToolSuccessResponse | DiffToolErrorResponse
+
+interface TreeEntry {
+  name: string
+  type: 'file' | 'directory'
+  children?: TreeEntry[]
+}
+
+interface GlobMatch {
+  path: string
+  name: string
+  modified?: Date
+  size?: number
+}
+
+interface LineRange {
+  start: number
+  end: number
+}
+
+interface PathValidationOptions {
+  enforceAllowed?: boolean
+  accessType?: 'read' | 'write'
+}
+
+export interface ProtectedDirectoryRule {
+  root: string
+  allowedDirectories: string[]
+}
+
+export class AgentFileSystemHandler {
+  private allowedDirectories: string[]
+  private readonly allowedDirectoryRoots: string[]
+  private conversationId?: string
+  private readonly sessionsRoot: string
+  private readonly allowExternalAccess: boolean
+  private readonly commandShellPathStyle: CommandShellPathStyle
+  private readonly pathApi: path.PlatformPath
+  private readonly caseInsensitivePathComparison: boolean
+  private readonly protectedDirectoryRules: Array<{
+    roots: string[]
+    allowedRoots: string[]
+  }>
+
+  constructor(
+    allowedDirectories: string[],
+    options: {
+      conversationId?: string
+      allowExternalAccess?: boolean
+      protectedDirectoryRules?: ProtectedDirectoryRule[]
+      commandShellPathStyle?: CommandShellPathStyle
+    } = {}
+  ) {
+    if (allowedDirectories.length === 0) {
+      throw new Error('At least one allowed directory must be provided')
+    }
+    this.commandShellPathStyle = options.commandShellPathStyle ?? 'native'
+    this.pathApi = this.commandShellPathStyle === 'msys' ? path.win32 : path
+    this.caseInsensitivePathComparison =
+      process.platform === 'win32' || this.commandShellPathStyle === 'msys'
+    this.allowedDirectories = allowedDirectories.map((dir) =>
+      this.normalizePath(this.pathApi.resolve(this.expandHome(dir)))
+    )
+    this.allowedDirectoryRoots = Array.from(
+      new Set(
+        this.allowedDirectories.flatMap((dir) => {
+          const roots = [dir]
+          try {
+            roots.push(this.normalizePath(realpathSync.native(dir)))
+          } catch {
+            // Keep the configured directory when the target does not exist yet.
+          }
+          return roots
+        })
+      )
+    )
+    this.conversationId = options.conversationId
+    this.sessionsRoot = this.normalizePath(getSessionsRoot())
+    this.allowExternalAccess = options.allowExternalAccess === true
+    this.protectedDirectoryRules = (options.protectedDirectoryRules ?? []).map((rule) => ({
+      roots: this.resolveDirectoryRoots([rule.root]),
+      allowedRoots: this.resolveDirectoryRoots(rule.allowedDirectories)
+    }))
+  }
+
+  private normalizePath(p: string): string {
+    return this.pathApi.normalize(p)
+  }
+
+  private normalizeLineEndings(text: string): string {
+    return text.replace(/\r\n/g, '\n')
+  }
+
+  private pathAliases(inputPath: string): string[] {
+    const normalized = this.normalizePath(inputPath)
+    const aliases = [normalized]
+
+    if (process.platform === 'darwin') {
+      if (normalized === '/var' || normalized.startsWith('/var/')) {
+        aliases.push(`/private${normalized}`)
+      }
+      if (normalized === '/private/var' || normalized.startsWith('/private/var/')) {
+        aliases.push(normalized.slice('/private'.length))
+      }
+    }
+
+    return Array.from(new Set(aliases))
+  }
+
+  private isPathAllowed(candidatePath: string): boolean {
+    if (!this.isProtectedPathAllowed(candidatePath)) return false
+    return this.isWithinDirectoryRoots(candidatePath, this.allowedDirectoryRoots)
+  }
+
+  private resolveDirectoryRoots(directories: string[]): string[] {
+    return Array.from(
+      new Set(
+        directories.flatMap((directory) => {
+          const normalized = this.normalizePath(this.pathApi.resolve(this.expandHome(directory)))
+          const roots = this.pathAliases(normalized)
+          try {
+            roots.push(...this.pathAliases(this.normalizePath(realpathSync.native(normalized))))
+          } catch {
+            // Keep the configured path when it does not exist yet.
+          }
+          return roots
+        })
+      )
+    )
+  }
+
+  private isWithinDirectoryRoots(candidatePath: string, roots: string[]): boolean {
+    return this.pathAliases(candidatePath).some((candidateAlias) =>
+      roots.some((root) => {
+        const candidate = this.caseInsensitivePathComparison
+          ? candidateAlias.toLowerCase()
+          : candidateAlias
+        const normalizedRoot = this.caseInsensitivePathComparison ? root.toLowerCase() : root
+        const relative = this.pathApi.relative(normalizedRoot, candidate)
+        return (
+          relative === '' ||
+          (relative !== '..' &&
+            !relative.startsWith(`..${this.pathApi.sep}`) &&
+            !this.pathApi.isAbsolute(relative))
+        )
+      })
+    )
+  }
+
+  private isProtectedPathAllowed(candidatePath: string): boolean {
+    return this.protectedDirectoryRules.every((rule) => {
+      if (!this.isWithinDirectoryRoots(candidatePath, rule.roots)) return true
+      return this.isWithinDirectoryRoots(candidatePath, rule.allowedRoots)
+    })
+  }
+
+  private assertProtectedPathAllowed(candidatePath: string): void {
+    if (!this.isProtectedPathAllowed(candidatePath)) {
+      throw new Error('Access denied - path belongs to an inactive shared Skill package')
+    }
+  }
+
+  private expandHome(filepath: string): string {
+    if (filepath.startsWith('~/') || filepath === '~') {
+      return this.pathApi.join(os.homedir(), filepath.slice(1))
+    }
+    return filepath
+  }
+
+  resolvePath(requestedPath: string, baseDirectory?: string): string {
+    const shellNormalizedPath = normalizeCommandShellFilePath(
+      requestedPath,
+      this.commandShellPathStyle
+    )
+    const expandedPath = this.expandHome(shellNormalizedPath)
+    const normalizedBaseDirectory = baseDirectory
+      ? normalizeCommandShellFilePath(baseDirectory, this.commandShellPathStyle)
+      : undefined
+    const absolute = this.pathApi.isAbsolute(expandedPath)
+      ? this.pathApi.resolve(expandedPath)
+      : this.pathApi.resolve(normalizedBaseDirectory ?? this.allowedDirectories[0], expandedPath)
+    return this.normalizePath(absolute)
+  }
+
+  isPathAllowedAbsolute(candidatePath: string): boolean {
+    const normalized = this.normalizePath(this.pathApi.resolve(candidatePath))
+    return this.isPathAllowed(normalized)
+  }
+
+  async resolveValidatedPath(
+    requestedPath: string,
+    baseDirectory: string | undefined,
+    accessType: 'read' | 'write'
+  ): Promise<string> {
+    return await this.validatePath(requestedPath, baseDirectory, { accessType })
+  }
+
+  async resolveValidatedCreatePath(requestedPath: string, baseDirectory?: string): Promise<string> {
+    const target = this.resolvePath(requestedPath, baseDirectory)
+    const enforceAllowed = !this.allowExternalAccess
+    this.assertProtectedPathAllowed(target)
+    if (enforceAllowed && !this.isPathAllowed(target)) {
+      throw new Error(
+        `Access denied - path outside allowed directories: ${target} not in ${this.allowedDirectoryRoots.join(', ')}`
+      )
+    }
+
+    let ancestor = target
+    while (true) {
+      try {
+        const realAncestor = this.normalizePath(await fs.realpath(ancestor))
+        this.assertProtectedPathAllowed(realAncestor)
+        if (enforceAllowed && !this.isPathAllowed(realAncestor)) {
+          throw new Error('Access denied - symlink target outside allowed directories')
+        }
+        return target
+      } catch (error) {
+        if (error instanceof Error && error.message.startsWith('Access denied')) {
+          throw error
+        }
+        if (!error || typeof error !== 'object' || !('code' in error) || error.code !== 'ENOENT') {
+          throw error
+        }
+        const parent = this.pathApi.dirname(ancestor)
+        if (parent === ancestor) {
+          throw new Error(`No existing parent directory for: ${target}`)
+        }
+        ancestor = parent
+      }
+    }
+  }
+
+  private async validatePath(
+    requestedPath: string,
+    baseDirectory?: string,
+    options: PathValidationOptions = {}
+  ): Promise<string> {
+    const enforceAllowed = options.enforceAllowed ?? !this.allowExternalAccess
+    const normalizedRequested = this.resolvePath(requestedPath, baseDirectory)
+    this.assertProtectedPathAllowed(normalizedRequested)
+    const requestedPathAllowed = !enforceAllowed || this.isPathAllowed(normalizedRequested)
+    if (options.accessType === 'read') {
+      this.assertSessionReadAllowed(normalizedRequested)
+    }
+    if (enforceAllowed) {
+      if (!requestedPathAllowed) {
+        throw new Error(
+          `Access denied - path outside allowed directories: ${normalizedRequested} not in ${this.allowedDirectoryRoots.join(', ')}`
+        )
+      }
+    }
+    let pathResolutionError: unknown
+    try {
+      const realPath = await fs.realpath(normalizedRequested)
+      const normalizedReal = this.normalizePath(realPath)
+      this.assertProtectedPathAllowed(normalizedReal)
+      if (options.accessType === 'read') {
+        this.assertSessionReadAllowed(normalizedReal)
+      }
+      if (enforceAllowed) {
+        const isRealPathAllowed = this.isPathAllowed(normalizedReal)
+        if (!isRealPathAllowed) {
+          throw new Error('Access denied - symlink target outside allowed directories')
+        }
+      }
+      return realPath
+    } catch (error) {
+      pathResolutionError = error
+      const parentDir = this.pathApi.dirname(normalizedRequested)
+      try {
+        const realParentPath = await fs.realpath(parentDir)
+        const normalizedParent = this.normalizePath(realParentPath)
+        this.assertProtectedPathAllowed(normalizedParent)
+        if (enforceAllowed) {
+          const isParentAllowed = this.isPathAllowed(normalizedParent)
+          if (!isParentAllowed) {
+            throw new Error('Access denied - parent directory outside allowed directories')
+          }
+        }
+        return normalizedRequested
+      } catch (parentError) {
+        if (
+          pathResolutionError instanceof Error &&
+          pathResolutionError.message.startsWith('Access denied')
+        ) {
+          throw pathResolutionError
+        }
+        if (parentError instanceof Error && parentError.message.startsWith('Access denied')) {
+          throw parentError
+        }
+        throw new Error(`Parent directory does not exist: ${parentDir}`)
+      }
+    }
+  }
+
+  private isWithinSessionsRoot(candidatePath: string): boolean {
+    return this.isWithinDirectoryRoots(candidatePath, [this.sessionsRoot])
+  }
+
+  private assertSessionReadAllowed(candidatePath: string): void {
+    if (!this.isWithinSessionsRoot(candidatePath)) return
+    if (!this.conversationId) {
+      throw new Error('Access denied - session files require an active conversation')
+    }
+    const sessionDir = this.normalizePath(this.pathApi.join(this.sessionsRoot, this.conversationId))
+    if (!this.isWithinDirectoryRoots(candidatePath, [sessionDir])) {
+      throw new Error('Access denied - session files outside current conversation')
+    }
+  }
+
+  assertReadAllowedAbsolute(candidatePath: string): void {
+    const normalized = this.normalizePath(this.pathApi.resolve(candidatePath))
+    this.assertProtectedPathAllowed(normalized)
+    this.assertSessionReadAllowed(normalized)
+  }
+
+  private countLines(value: string): number {
+    if (value.length === 0) return 0
+    const lineCount = value.split('\n').length
+    return value.endsWith('\n') ? lineCount - 1 : lineCount
+  }
+
+  private addContextRange(ranges: LineRange[], index: number, totalLines: number): void {
+    if (totalLines <= 0) return
+    const clamped = Math.min(Math.max(index, 0), totalLines - 1)
+    ranges.push({ start: clamped, end: clamped })
+  }
+
+  private expandRanges(ranges: LineRange[], totalLines: number, contextLines: number): LineRange[] {
+    if (totalLines <= 0 || ranges.length === 0) return []
+    const expanded = ranges.map((range) => ({
+      start: Math.max(0, range.start - contextLines),
+      end: Math.min(totalLines - 1, range.end + contextLines)
+    }))
+    expanded.sort((a, b) => a.start - b.start)
+    const merged: LineRange[] = []
+    for (const range of expanded) {
+      const last = merged[merged.length - 1]
+      if (!last || range.start > last.end + 1) {
+        merged.push({ ...range })
+        continue
+      }
+      last.end = Math.max(last.end, range.end)
+    }
+    return merged
+  }
+
+  private formatNoChanges(count: number): string {
+    return `... [No changes: ${count} lines] ...`
+  }
+
+  private buildCollapsedText(lines: string[], ranges: LineRange[]): string {
+    if (lines.length === 0) return ''
+    if (ranges.length === 0) {
+      return this.formatNoChanges(lines.length)
+    }
+    const output: string[] = []
+    let cursor = 0
+    for (const range of ranges) {
+      if (range.start > cursor) {
+        const gap = range.start - cursor
+        if (gap > 0) {
+          output.push(this.formatNoChanges(gap))
+        }
+      }
+      output.push(...lines.slice(range.start, range.end + 1))
+      cursor = range.end + 1
+    }
+    if (cursor < lines.length) {
+      const remaining = lines.length - cursor
+      if (remaining > 0) {
+        output.push(this.formatNoChanges(remaining))
+      }
+    }
+    return output.join('\n')
+  }
+
+  private buildTruncatedDiff(
+    originalContent: string,
+    updatedContent: string,
+    contextLines: number
+  ): { originalCode: string; updatedCode: string } {
+    const normalizedOriginal = this.normalizeLineEndings(originalContent)
+    const normalizedUpdated = this.normalizeLineEndings(updatedContent)
+    const originalLines = normalizedOriginal.split('\n')
+    const updatedLines = normalizedUpdated.split('\n')
+    const originalRanges: LineRange[] = []
+    const updatedRanges: LineRange[] = []
+
+    let originalIndex = 0
+    let updatedIndex = 0
+    const parts = diffLines(normalizedOriginal, normalizedUpdated)
+
+    for (const part of parts) {
+      const lineCount = this.countLines(part.value)
+      if (part.added) {
+        if (lineCount > 0) {
+          updatedRanges.push({ start: updatedIndex, end: updatedIndex + lineCount - 1 })
+        }
+        this.addContextRange(originalRanges, originalIndex, originalLines.length)
+        updatedIndex += lineCount
+        continue
+      }
+      if (part.removed) {
+        if (lineCount > 0) {
+          originalRanges.push({ start: originalIndex, end: originalIndex + lineCount - 1 })
+        }
+        this.addContextRange(updatedRanges, updatedIndex, updatedLines.length)
+        originalIndex += lineCount
+        continue
+      }
+      originalIndex += lineCount
+      updatedIndex += lineCount
+    }
+
+    const expandedOriginal = this.expandRanges(originalRanges, originalLines.length, contextLines)
+    const expandedUpdated = this.expandRanges(updatedRanges, updatedLines.length, contextLines)
+
+    return {
+      originalCode: this.buildCollapsedText(originalLines, expandedOriginal),
+      updatedCode: this.buildCollapsedText(updatedLines, expandedUpdated)
+    }
+  }
+
+  private async getFileStats(filePath: string): Promise<{
+    size: number
+    created: Date
+    modified: Date
+    accessed: Date
+    isDirectory: boolean
+    isFile: boolean
+    permissions: string
+  }> {
+    const stats = await fs.stat(filePath)
+    return {
+      size: stats.size,
+      created: stats.birthtime,
+      modified: stats.mtime,
+      accessed: stats.atime,
+      isDirectory: stats.isDirectory(),
+      isFile: stats.isFile(),
+      permissions: stats.mode.toString(8).slice(-3)
+    }
+  }
+
+  private async runGrepSearch(
+    rootPath: string,
+    pattern: string,
+    options: {
+      filePattern?: string
+      recursive?: boolean
+      caseSensitive?: boolean
+      includeLineNumbers?: boolean
+      contextLines?: number
+      maxResults?: number
+    } = {}
+  ): Promise<GrepResult> {
+    const {
+      filePattern,
+      recursive = true,
+      caseSensitive = false,
+      includeLineNumbers = true,
+      contextLines = 0,
+      maxResults = 100
+    } = options
+
+    validateRegexPattern(pattern)
+    return this.runJavaScriptGrepSearch(rootPath, pattern, {
+      filePattern: filePattern || '*',
+      recursive,
+      caseSensitive,
+      includeLineNumbers,
+      contextLines,
+      maxResults
+    })
+  }
+
+  private async runJavaScriptGrepSearch(
+    rootPath: string,
+    pattern: string,
+    options: {
+      filePattern?: string
+      recursive?: boolean
+      caseSensitive?: boolean
+      includeLineNumbers?: boolean
+      contextLines?: number
+      maxResults?: number
+    }
+  ): Promise<GrepResult> {
+    const {
+      filePattern = '*',
+      recursive = true,
+      caseSensitive = false,
+      includeLineNumbers = true,
+      contextLines = 0,
+      maxResults = 100
+    } = options
+
+    const result: GrepResult = {
+      totalMatches: 0,
+      files: [],
+      matches: []
+    }
+
+    const regexFlags = caseSensitive ? 'g' : 'gi'
+    let regex: RegExp
+    try {
+      regex = new RegExp(pattern, regexFlags)
+    } catch (error) {
+      throw new Error(`Invalid regular expression pattern: ${pattern}. Error: ${error}`)
+    }
+
+    const searchInFile = async (filePath: string): Promise<void> => {
+      try {
+        const content = await fs.readFile(filePath, 'utf-8')
+        const lines = content.split('\n')
+        const fileMatches: GrepMatch[] = []
+
+        for (let i = 0; i < lines.length; i++) {
+          const line = lines[i]
+          regex.lastIndex = 0
+          const matches = Array.from(line.matchAll(regex))
+          if (matches.length === 0) continue
+
+          const match: GrepMatch = {
+            file: filePath,
+            line: includeLineNumbers ? i + 1 : 0,
+            content: line
+          }
+
+          if (contextLines > 0) {
+            const startContext = Math.max(0, i - contextLines)
+            const endContext = Math.min(lines.length - 1, i + contextLines)
+            if (startContext < i) {
+              match.beforeContext = lines.slice(startContext, i)
+            }
+            if (endContext > i) {
+              match.afterContext = lines.slice(i + 1, endContext + 1)
+            }
+          }
+
+          fileMatches.push(match)
+          result.totalMatches += matches.length
+          if (result.totalMatches >= maxResults) {
+            break
+          }
+        }
+
+        if (fileMatches.length > 0) {
+          result.files.push(filePath)
+          result.matches.push(...fileMatches)
+        }
+      } catch {
+        // Skip unreadable files.
+      }
+    }
+
+    const searchDirectory = async (currentPath: string): Promise<void> => {
+      if (result.totalMatches >= maxResults) return
+      let entries
+      try {
+        entries = await fs.readdir(currentPath, { withFileTypes: true })
+      } catch {
+        return
+      }
+
+      for (const entry of entries) {
+        if (result.totalMatches >= maxResults) break
+        const fullPath = this.pathApi.join(currentPath, entry.name)
+        try {
+          await this.validatePath(fullPath, undefined, {
+            enforceAllowed: false,
+            accessType: 'read'
+          })
+          if (entry.isFile()) {
+            if (minimatch(entry.name, filePattern, { nocase: !caseSensitive })) {
+              await searchInFile(fullPath)
+            }
+          } else if (entry.isDirectory() && recursive) {
+            await searchDirectory(fullPath)
+          }
+        } catch {
+          continue
+        }
+      }
+    }
+
+    const validatedPath = await this.validatePath(rootPath, undefined, {
+      enforceAllowed: false,
+      accessType: 'read'
+    })
+    const stats = await fs.stat(validatedPath)
+
+    if (stats.isFile()) {
+      if (minimatch(this.pathApi.basename(validatedPath), filePattern, { nocase: true })) {
+        await searchInFile(validatedPath)
+      }
+    } else if (stats.isDirectory()) {
+      await searchDirectory(validatedPath)
+    }
+
+    return result
+  }
+
+  private async replaceTextInFile(
+    filePath: string,
+    pattern: string,
+    replacement: string,
+    options: {
+      global?: boolean
+      caseSensitive?: boolean
+      dryRun?: boolean
+    } = {}
+  ): Promise<TextReplaceResult> {
+    const { global = true, caseSensitive = false, dryRun = false } = options
+    try {
+      // Validate pattern for ReDoS safety before constructing RegExp
+      try {
+        validateRegexPattern(pattern)
+      } catch (error) {
+        return {
+          success: false,
+          replacements: 0,
+          error: error instanceof Error ? error.message : String(error)
+        }
+      }
+
+      const originalContent = await fs.readFile(filePath, 'utf-8')
+      const normalizedOriginal = this.normalizeLineEndings(originalContent)
+      const regexFlags = global ? (caseSensitive ? 'g' : 'gi') : caseSensitive ? '' : 'i'
+      let regex: RegExp
+      try {
+        regex = new RegExp(pattern, regexFlags)
+      } catch (error) {
+        return {
+          success: false,
+          replacements: 0,
+          error: `Invalid regular expression pattern: ${pattern}. Error: ${error}`
+        }
+      }
+
+      // Pattern already validated above, safe to create count regex
+      const countRegex = new RegExp(pattern, caseSensitive ? 'g' : 'gi')
+      const matches = Array.from(normalizedOriginal.matchAll(countRegex))
+      const replacements = global ? matches.length : Math.min(1, matches.length)
+
+      if (replacements === 0) {
+        return {
+          success: true,
+          replacements: 0,
+          originalContent: normalizedOriginal,
+          modifiedContent: normalizedOriginal
+        }
+      }
+
+      const modifiedContent = normalizedOriginal.replace(regex, replacement)
+      if (!dryRun) {
+        await fs.writeFile(filePath, modifiedContent, 'utf-8')
+      }
+
+      return {
+        success: true,
+        replacements,
+        originalContent: normalizedOriginal,
+        modifiedContent
+      }
+    } catch (error) {
+      return {
+        success: false,
+        replacements: 0,
+        error: error instanceof Error ? error.message : String(error)
+      }
+    }
+  }
+
+  async readFile(
+    args: unknown,
+    baseDirectory: string | undefined,
+    options: FileReadOptions
+  ): Promise<string> {
+    const parsed = ReadFileArgsSchema.safeParse(args)
+    if (!parsed.success) {
+      throw new Error(`Invalid arguments: ${parsed.error}`)
+    }
+
+    const { offset = 0, limit } = parsed.data
+
+    const results = await Promise.all(
+      parsed.data.paths.map(async (filePath: string) => {
+        try {
+          const validPath = await this.validatePath(filePath, baseDirectory, {
+            enforceAllowed: false,
+            accessType: 'read'
+          })
+          const maxReadBytes = options.maxReadBytes ?? AGENT_RAW_READ_MAX_BYTES
+          const { bytes, totalBytes } = await readFileWindow(validPath, maxReadBytes)
+          const decoded = decodeAgentFileBytes(bytes)
+          if (decoded.kind === 'binary') {
+            return buildBinaryReadGuidance(filePath, options.mimeType, 'agent')
+          }
+          return paginateReadContent(
+            filePath,
+            decoded.content,
+            offset,
+            limit,
+            options.autoTruncateChars,
+            bytes.length < totalBytes ? { readBytes: bytes.length, totalBytes } : undefined
+          )
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : String(error)
+          return `${filePath}: Error - ${errorMessage}`
+        }
+      })
+    )
+    return results.join('\n---\n')
+  }
+
+  async writeFile(
+    args: unknown,
+    baseDirectory?: string,
+    options: FileMutationOptions = {}
+  ): Promise<string> {
+    const parsed = WriteFileArgsSchema.safeParse(args)
+    if (!parsed.success) {
+      throw new Error(`Invalid arguments: ${parsed.error}`)
+    }
+    const validPath = await this.validatePath(parsed.data.path, baseDirectory, {
+      accessType: 'write'
+    })
+    options.beforeMutation?.()
+    await fs.writeFile(validPath, parsed.data.content, 'utf-8')
+    return `Successfully wrote to ${parsed.data.path}`
+  }
+
+  async listDirectory(args: unknown, baseDirectory?: string): Promise<string> {
+    const parsed = ListDirectoryArgsSchema.safeParse(args)
+    if (!parsed.success) {
+      throw new Error(`Invalid arguments: ${parsed.error}`)
+    }
+    const validPath = await this.validatePath(parsed.data.path, baseDirectory, {
+      enforceAllowed: false,
+      accessType: 'read'
+    })
+    const entries = await fs.readdir(validPath, { withFileTypes: true })
+    const formatted = entries
+      .map((entry) => {
+        const prefix = entry.isDirectory() ? '[DIR]' : '[FILE]'
+        return `${prefix} ${entry.name}`
+      })
+      .join('\n')
+    return `Directory listing for ${parsed.data.path}:\n\n${formatted}`
+  }
+
+  async createDirectory(args: unknown, baseDirectory?: string): Promise<string> {
+    const parsed = CreateDirectoryArgsSchema.safeParse(args)
+    if (!parsed.success) {
+      throw new Error(`Invalid arguments: ${parsed.error}`)
+    }
+    const validPath = await this.validatePath(parsed.data.path, baseDirectory, {
+      accessType: 'write'
+    })
+    await fs.mkdir(validPath, { recursive: true })
+    return `Successfully created directory ${parsed.data.path}`
+  }
+
+  async moveFiles(args: unknown, baseDirectory?: string): Promise<string> {
+    const parsed = MoveFilesArgsSchema.safeParse(args)
+    if (!parsed.success) {
+      throw new Error(`Invalid arguments: ${parsed.error}`)
+    }
+    const results = await Promise.all(
+      parsed.data.sources.map(async (source) => {
+        const validSourcePath = await this.validatePath(source, baseDirectory, {
+          accessType: 'write'
+        })
+        const validDestPath = await this.validatePath(
+          this.pathApi.join(parsed.data.destination, this.pathApi.basename(source)),
+          baseDirectory,
+          {
+            accessType: 'write'
+          }
+        )
+        try {
+          await fs.rename(validSourcePath, validDestPath)
+          return `Successfully moved ${source} to ${parsed.data.destination}`
+        } catch (e) {
+          return `Move ${source} failed: ${JSON.stringify(e)}`
+        }
+      })
+    )
+    return results.join('\n')
+  }
+
+  async editText(
+    args: unknown,
+    baseDirectory?: string,
+    options: FileMutationOptions = {}
+  ): Promise<string> {
+    const parsed = EditTextArgsSchema.safeParse(args)
+    if (!parsed.success) {
+      throw new Error(`Invalid arguments: ${parsed.error}`)
+    }
+    const validPath = await this.validatePath(parsed.data.path, baseDirectory, {
+      accessType: 'write'
+    })
+    const content = await fs.readFile(validPath, 'utf-8')
+    let modifiedContent = content
+
+    if (parsed.data.operation === 'edit_lines' && parsed.data.edits) {
+      for (const edit of parsed.data.edits) {
+        if (!modifiedContent.includes(edit.oldText)) {
+          throw new Error(`Cannot find exact matching content: ${edit.oldText}`)
+        }
+        modifiedContent = modifiedContent.replace(edit.oldText, edit.newText)
+      }
+    } else if (parsed.data.operation === 'replace_pattern' && parsed.data.pattern) {
+      // Validate pattern for ReDoS safety before constructing RegExp
+      try {
+        validateRegexPattern(parsed.data.pattern)
+      } catch (error) {
+        throw new Error(
+          error instanceof Error ? error.message : `Invalid pattern: ${String(error)}`
+        )
+      }
+
+      const flags = parsed.data.caseSensitive ? 'g' : 'gi'
+      const regex = new RegExp(parsed.data.pattern, flags)
+      modifiedContent = modifiedContent.replace(regex, parsed.data.replacement || '')
+    }
+
+    const { originalCode, updatedCode } = this.buildTruncatedDiff(content, modifiedContent, 3)
+    const language = getLanguageFromFilename(validPath)
+    if (!parsed.data.dryRun) {
+      options.beforeMutation?.()
+      await fs.writeFile(validPath, modifiedContent, 'utf-8')
+    }
+    const response: DiffToolResponse = {
+      success: true,
+      originalCode,
+      updatedCode,
+      language
+    }
+    return JSON.stringify(response)
+  }
+
+  async grepSearch(args: unknown, baseDirectory?: string): Promise<string> {
+    const parsed = GrepSearchArgsSchema.safeParse(args)
+    if (!parsed.success) {
+      throw new Error(`Invalid arguments: ${parsed.error}`)
+    }
+
+    const validPath = await this.validatePath(parsed.data.path, baseDirectory, {
+      enforceAllowed: false,
+      accessType: 'read'
+    })
+    const result = await this.runGrepSearch(validPath, parsed.data.pattern, {
+      filePattern: parsed.data.filePattern,
+      recursive: parsed.data.recursive,
+      caseSensitive: parsed.data.caseSensitive,
+      includeLineNumbers: parsed.data.includeLineNumbers,
+      contextLines: parsed.data.contextLines,
+      maxResults: parsed.data.maxResults
+    })
+
+    if (result.totalMatches === 0) {
+      return 'No matches found'
+    }
+
+    const formattedResults = result.matches
+      .map((match) => {
+        let output = `${match.file}:${match.line}: ${match.content}`
+        if (match.beforeContext && match.beforeContext.length > 0) {
+          const beforeLines = match.beforeContext
+            .map(
+              (line, i) => `${match.file}:${match.line - match.beforeContext!.length + i}: ${line}`
+            )
+            .join('\n')
+          output = beforeLines + '\n' + output
+        }
+        if (match.afterContext && match.afterContext.length > 0) {
+          const afterLines = match.afterContext
+            .map((line, i) => `${match.file}:${match.line + i + 1}: ${line}`)
+            .join('\n')
+          output = output + '\n' + afterLines
+        }
+        return output
+      })
+      .join('\n--\n')
+
+    return `Found ${result.totalMatches} matches in ${result.files.length} files:\n\n${formattedResults}`
+  }
+
+  async textReplace(args: unknown, baseDirectory?: string): Promise<string> {
+    const parsed = TextReplaceArgsSchema.safeParse(args)
+    if (!parsed.success) {
+      throw new Error(`Invalid arguments: ${parsed.error}`)
+    }
+
+    const validPath = await this.validatePath(parsed.data.path, baseDirectory, {
+      accessType: 'write'
+    })
+    const result = await this.replaceTextInFile(
+      validPath,
+      parsed.data.pattern,
+      parsed.data.replacement,
+      {
+        global: parsed.data.global,
+        caseSensitive: parsed.data.caseSensitive,
+        dryRun: parsed.data.dryRun
+      }
+    )
+
+    if (!result.success) {
+      return result.error || 'Text replacement failed'
+    }
+
+    const { originalCode, updatedCode } = this.buildTruncatedDiff(
+      result.originalContent ?? '',
+      result.modifiedContent ?? '',
+      3
+    )
+    const language = getLanguageFromFilename(validPath)
+    const response: DiffToolResponse = {
+      success: true,
+      originalCode,
+      updatedCode,
+      language,
+      replacements: result.replacements
+    }
+    return JSON.stringify(response)
+  }
+
+  async editFile(
+    args: unknown,
+    baseDirectory?: string,
+    options: FileMutationOptions = {}
+  ): Promise<string> {
+    const parsed = EditFileArgsSchema.safeParse(args)
+    if (!parsed.success) {
+      throw new Error(`Invalid arguments: ${parsed.error}`)
+    }
+
+    const { path: filePath, oldText, newText } = parsed.data
+    const validPath = await this.validatePath(filePath, baseDirectory, {
+      accessType: 'write'
+    })
+
+    const content = await fs.readFile(validPath, 'utf-8')
+    const normalizedOldText = this.normalizeLineEndings(oldText)
+    const normalizedNewText = this.normalizeLineEndings(newText)
+    const normalizedContent = this.normalizeLineEndings(content)
+
+    if (!normalizedContent.includes(normalizedOldText)) {
+      throw new Error(
+        `Cannot find the specified text to replace. The exact text was not found in the file.`
+      )
+    }
+
+    let replacementCount = 0
+
+    const modifiedContent = normalizedContent.replaceAll(normalizedOldText, () => {
+      replacementCount++
+      return normalizedNewText
+    })
+
+    options.beforeMutation?.()
+    await fs.writeFile(validPath, modifiedContent, 'utf-8')
+
+    const { originalCode, updatedCode } = this.buildTruncatedDiff(
+      normalizedContent,
+      modifiedContent,
+      3
+    )
+    const language = getLanguageFromFilename(validPath)
+    const response: DiffToolResponse = {
+      success: true,
+      originalCode,
+      updatedCode,
+      language,
+      replacements: replacementCount
+    }
+    return JSON.stringify(response)
+  }
+
+  async directoryTree(args: unknown, baseDirectory?: string): Promise<string> {
+    const parsed = DirectoryTreeArgsSchema.safeParse(args)
+    if (!parsed.success) {
+      throw new Error(`Invalid arguments: ${parsed.error}`)
+    }
+
+    const depth = parsed.data.depth
+    const buildTree = async (currentPath: string, currentDepth: number): Promise<TreeEntry[]> => {
+      const validPath = await this.validatePath(currentPath, baseDirectory, {
+        enforceAllowed: false,
+        accessType: 'read'
+      })
+      const entries = await fs.readdir(validPath, { withFileTypes: true })
+      const result: TreeEntry[] = []
+
+      for (const entry of entries) {
+        const entryData: TreeEntry = {
+          name: entry.name,
+          type: entry.isDirectory() ? 'directory' : 'file'
+        }
+
+        if (entry.isDirectory()) {
+          const subPath = this.pathApi.join(currentPath, entry.name)
+          if (currentDepth < depth) {
+            entryData.children = await buildTree(subPath, currentDepth + 1)
+          }
+        }
+
+        result.push(entryData)
+      }
+
+      return result
+    }
+
+    const treeData = await buildTree(parsed.data.path, 0)
+    return JSON.stringify(treeData, null, 2)
+  }
+
+  async getFileInfo(args: unknown, baseDirectory?: string): Promise<string> {
+    const parsed = GetFileInfoArgsSchema.safeParse(args)
+    if (!parsed.success) {
+      throw new Error(`Invalid arguments: ${parsed.error}`)
+    }
+
+    const validPath = await this.validatePath(parsed.data.path, baseDirectory, {
+      enforceAllowed: false,
+      accessType: 'read'
+    })
+    const info = await this.getFileStats(validPath)
+    return Object.entries(info)
+      .map(([key, value]) => `${key}: ${value}`)
+      .join('\n')
+  }
+
+  async globSearch(args: unknown, baseDirectory?: string): Promise<string> {
+    const parsed = GlobSearchArgsSchema.safeParse(args)
+    if (!parsed.success) {
+      throw new Error(`Invalid arguments: ${parsed.error}`)
+    }
+
+    const { pattern, root, excludePatterns = [], maxResults = 1000, sortBy = 'name' } = parsed.data
+    validateGlobPattern(pattern)
+
+    // Determine root directory
+    const searchRoot = root
+      ? await this.validatePath(root, baseDirectory, { enforceAllowed: false, accessType: 'read' })
+      : await this.validatePath(baseDirectory ?? this.allowedDirectories[0], undefined, {
+          enforceAllowed: false,
+          accessType: 'read'
+        })
+
+    // Default exclusions
+    const defaultExclusions = [
+      '**/node_modules/**',
+      '**/.git/**',
+      '**/dist/**',
+      '**/build/**',
+      '**/.next/**'
+    ]
+    const allExclusions = [...defaultExclusions, ...excludePatterns]
+
+    // Use glob library for fast file matching
+    const globOptions = {
+      cwd: searchRoot,
+      ignore: allExclusions,
+      absolute: true,
+      nodir: true,
+      maxResults: maxResults + 100 // Get extra results for filtering
+    }
+
+    try {
+      const matches = await glob(pattern, globOptions)
+
+      // Preserve matches without allowlist filtering for read operations.
+      const validMatches = await Promise.all(
+        matches.map(async (filePath) => {
+          return filePath
+        })
+      )
+
+      const filteredMatches = validMatches.filter((match): match is string => match !== null)
+
+      // Get file stats for sorting
+      const matchesWithStats: GlobMatch[] = await Promise.all(
+        filteredMatches.slice(0, maxResults).map(async (filePath) => {
+          try {
+            const stats = await fs.stat(filePath)
+            return {
+              path: filePath,
+              name: this.pathApi.basename(filePath),
+              modified: stats.mtime,
+              size: stats.size
+            }
+          } catch {
+            return {
+              path: filePath,
+              name: this.pathApi.basename(filePath)
+            }
+          }
+        })
+      )
+
+      // Sort results
+      if (sortBy === 'modified') {
+        matchesWithStats.sort((a, b) => {
+          const aTime = a.modified?.getTime() || 0
+          const bTime = b.modified?.getTime() || 0
+          return bTime - aTime // Descending (newest first)
+        })
+      } else {
+        // Sort by name (default)
+        matchesWithStats.sort((a, b) => a.path.localeCompare(b.path))
+      }
+
+      // Format output
+      const formatted = matchesWithStats.map((match) => {
+        let output = match.path
+        if (match.modified !== undefined && sortBy === 'modified') {
+          output += ` (${match.modified.toISOString()})`
+        }
+        if (match.size !== undefined) {
+          output += ` [${match.size} bytes]`
+        }
+        return output
+      })
+
+      return `Found ${formatted.length} files matching pattern "${pattern}":\n\n${formatted.join('\n')}`
+    } catch (error) {
+      throw new Error(
+        `Glob search failed: ${error instanceof Error ? error.message : String(error)}`
+      )
+    }
+  }
+}

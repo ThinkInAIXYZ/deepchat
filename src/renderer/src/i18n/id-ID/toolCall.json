@@ -13,7 +13,9 @@
   "imagePreviewCount": "Tidak ada pratinjau gambar | {count} pratinjau gambar | {count} pratinjau gambar",
   "terminalOutput": "Keluaran terminal",
   "badge": {
-    "rtk": "RTK"
+    "rtk": "RTK",
+    "allowed": "Diizinkan",
+    "denied": "Ditolak"
   },
   "replacementsCount": "Penggantian selesai di {count}",
   "fileOperation": "Operasi berkas",

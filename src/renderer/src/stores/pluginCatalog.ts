@@ -1,7 +1,12 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import type { RemoteChannel, RemoteChannelDescriptor, RemoteChannelStatus } from '@shared/presenter'
+import type {
+  RemoteChannel,
+  RemoteChannelDescriptor,
+  RemoteChannelStatus
+} from '@shared/types/remote'
 import type { PluginListItem } from '@shared/types/plugin'
+import type { OcrRuntimeStatus } from '@shared/contracts/routes/ocr.routes'
 
 type RemoteStatusCache = Partial<Record<RemoteChannel, RemoteChannelStatus>>
 
@@ -9,8 +14,11 @@ export const usePluginCatalogStore = defineStore('pluginCatalog', () => {
   const plugins = ref<PluginListItem[]>([])
   const remoteChannels = ref<RemoteChannelDescriptor[]>([])
   const remoteStatuses = ref<RemoteStatusCache>({})
+  const ocrStatus = ref<OcrRuntimeStatus | null>(null)
+  const ocrStatusHasError = ref(false)
   let pluginMutationVersion = 0
   let remoteMutationVersion = 0
+  let ocrRefreshVersion = 0
 
   const getPlugin = (pluginId: string): PluginListItem | null =>
     plugins.value.find((plugin) => plugin.id === pluginId) ?? null
@@ -21,6 +29,11 @@ export const usePluginCatalogStore = defineStore('pluginCatalog', () => {
       index < 0
         ? [...plugins.value, plugin]
         : plugins.value.map((item) => (item.id === plugin.id ? plugin : item))
+  }
+
+  const removePlugin = (pluginId: string) => {
+    pluginMutationVersion += 1
+    plugins.value = plugins.value.filter((plugin) => plugin.id !== pluginId)
   }
 
   const capturePluginRefresh = (): number => pluginMutationVersion
@@ -128,11 +141,36 @@ export const usePluginCatalogStore = defineStore('pluginCatalog', () => {
     remoteStatuses.value = nextStatuses
   }
 
+  const beginOcrRefresh = (): number => {
+    ocrRefreshVersion += 1
+    return ocrRefreshVersion
+  }
+
+  const replaceOcrStatus = (status: OcrRuntimeStatus, version: number): boolean => {
+    if (version !== ocrRefreshVersion) {
+      return false
+    }
+    ocrStatus.value = status
+    ocrStatusHasError.value = false
+    return true
+  }
+
+  const markOcrStatusRefreshFailed = (version: number): boolean => {
+    if (version !== ocrRefreshVersion) {
+      return false
+    }
+    ocrStatusHasError.value = true
+    return true
+  }
+
   return {
     plugins,
     remoteChannels,
     remoteStatuses,
+    ocrStatus,
+    ocrStatusHasError,
     getPlugin,
+    removePlugin,
     capturePluginRefresh,
     replacePlugins,
     replacePlugin,
@@ -144,6 +182,9 @@ export const usePluginCatalogStore = defineStore('pluginCatalog', () => {
     replaceRemoteStatus,
     beginRemoteEnabledMutation,
     commitRemoteMutation,
-    rollbackRemoteMutation
+    rollbackRemoteMutation,
+    beginOcrRefresh,
+    replaceOcrStatus,
+    markOcrStatusRefreshFailed
   }
 })

@@ -1,6 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const setMcpServerEnabledMutate = vi.hoisted(() => vi.fn())
+const addMcpServerMutate = vi.hoisted(() => vi.fn())
+const updateMcpServerMutate = vi.hoisted(() => vi.fn())
+const removeMcpServerMutate = vi.hoisted(() => vi.fn())
+const configRefetch = vi.hoisted(() => vi.fn())
+const mountedCallbacks = vi.hoisted(() => [] as Array<() => Promise<void>>)
 
 const mcpClientMock = vi.hoisted(() => ({
   getMcpServers: vi.fn().mockResolvedValue({}),
@@ -9,6 +14,10 @@ const mcpClientMock = vi.hoisted(() => ({
   startServer: vi.fn().mockResolvedValue(undefined),
   stopServer: vi.fn().mockResolvedValue(undefined),
   isServerRunning: vi.fn().mockResolvedValue(false),
+  getServerDiagnostics: vi.fn().mockResolvedValue({
+    lifecycleStatus: 'stopped',
+    connectionState: 'stopped'
+  }),
   getServerAuthStatus: vi.fn().mockResolvedValue({
     serverName: 'demo',
     state: 'none',
@@ -16,10 +25,16 @@ const mcpClientMock = vi.hoisted(() => ({
   }),
   getAllToolDefinitions: vi.fn().mockResolvedValue([]),
   getMcpClients: vi.fn().mockResolvedValue([]),
-  getAllResources: vi.fn().mockResolvedValue([])
+  getAllResources: vi.fn().mockResolvedValue([]),
+  onServerStarted: vi.fn(() => vi.fn()),
+  onServerStopped: vi.fn(() => vi.fn()),
+  onConfigChanged: vi.fn(() => vi.fn()),
+  onServerStatusChanged: vi.fn(() => vi.fn()),
+  onServerAuthChanged: vi.fn(() => vi.fn()),
+  onToolCallResult: vi.fn(() => vi.fn())
 }))
 
-const configPresenterMock = vi.hoisted(() => ({
+const configServiceMock = vi.hoisted(() => ({
   getCustomPrompts: vi.fn().mockResolvedValue([]),
   getSetting: vi.fn().mockResolvedValue([]),
   setSetting: vi.fn().mockResolvedValue(undefined),
@@ -40,7 +55,9 @@ vi.mock('vue', async () => {
   const actual = await vi.importActual<typeof import('vue')>('vue')
   return {
     ...actual,
-    onMounted: vi.fn()
+    onMounted: vi.fn((callback: () => Promise<void>) => {
+      mountedCallbacks.push(callback)
+    })
   }
 })
 
@@ -49,15 +66,23 @@ vi.mock('@api/McpClient', () => ({
 }))
 
 vi.mock('../../../src/renderer/api/ConfigClient', () => ({
-  createConfigClient: vi.fn(() => configPresenterMock)
+  createConfigClient: vi.fn(() => configServiceMock)
 }))
 
 vi.mock('@/composables/useIpcMutation', () => ({
-  useIpcMutation: (options: { mutation?: (...args: any[]) => unknown }) => ({
-    mutateAsync: options.mutation?.toString().includes('setMcpServerEnabled')
+  useIpcMutation: (options: { mutation?: (...args: any[]) => unknown }) => {
+    const source = options.mutation?.toString() ?? ''
+    const mutateAsync = source.includes('setMcpServerEnabled')
       ? setMcpServerEnabledMutate
-      : vi.fn().mockResolvedValue(undefined)
-  })
+      : source.includes('addMcpServer')
+        ? addMcpServerMutate
+        : source.includes('updateMcpServer')
+          ? updateMcpServerMutate
+          : source.includes('removeMcpServer')
+            ? removeMcpServerMutate
+            : vi.fn().mockResolvedValue(undefined)
+    return { mutateAsync }
+  }
 }))
 
 vi.mock('@/composables/useIpcQuery', () => ({
@@ -65,7 +90,10 @@ vi.mock('@/composables/useIpcQuery', () => ({
 }))
 
 vi.mock('@pinia/colada', () => ({
-  useQuery: () => createQueryState()
+  useQuery: () => ({
+    ...createQueryState(),
+    refetch: configRefetch
+  })
 }))
 
 vi.mock('vue-i18n', () => ({
@@ -83,12 +111,23 @@ const setupStore = async () => {
   return useMcpStore()
 }
 
-describe('useMcpStore toggleServer rollback', () => {
-  beforeEach(async () => {
+describe('useMcpStore', () => {
+  beforeEach(() => {
     vi.clearAllMocks()
+    mountedCallbacks.length = 0
     setMcpServerEnabledMutate.mockReset()
+    addMcpServerMutate.mockReset()
+    updateMcpServerMutate.mockReset()
+    removeMcpServerMutate.mockReset()
+    configRefetch.mockReset()
+    configRefetch.mockResolvedValue({ status: 'success', data: undefined })
     mcpClientMock.startServer.mockClear()
     mcpClientMock.stopServer.mockClear()
+    mcpClientMock.getServerDiagnostics.mockReset()
+    mcpClientMock.getServerDiagnostics.mockResolvedValue({
+      lifecycleStatus: 'stopped',
+      connectionState: 'stopped'
+    })
     mcpClientMock.getServerAuthStatus.mockReset()
     mcpClientMock.getServerAuthStatus.mockResolvedValue({
       serverName: 'demo',
@@ -108,7 +147,6 @@ describe('useMcpStore toggleServer rollback', () => {
           env: {},
           descriptions: 'Demo server',
           icons: 'D',
-          autoApprove: [],
           disable: false,
           type: 'stdio',
           enabled: false
@@ -143,7 +181,6 @@ describe('useMcpStore toggleServer rollback', () => {
           env: {},
           descriptions: 'Demo server',
           icons: 'D',
-          autoApprove: [],
           disable: false,
           type: 'stdio',
           enabled: false
@@ -181,7 +218,6 @@ describe('useMcpStore toggleServer rollback', () => {
           env: {},
           descriptions: 'Demo server',
           icons: 'D',
-          autoApprove: [],
           disable: false,
           type: 'stdio',
           enabled: true
@@ -192,7 +228,6 @@ describe('useMcpStore toggleServer rollback', () => {
           env: {},
           descriptions: 'Computer Use',
           icons: 'plugin',
-          autoApprove: [],
           disable: false,
           type: 'stdio',
           enabled: true,
@@ -212,6 +247,101 @@ describe('useMcpStore toggleServer rollback', () => {
     expect(store.enabledServerCount).toBe(0)
   })
 
+  it('hydrates startup and failure lifecycle from main-process diagnostics', async () => {
+    const store = await setupStore()
+
+    store.config = {
+      mcpServers: {
+        demo: {
+          command: 'https://mcp.example.com',
+          args: [],
+          env: {},
+          descriptions: 'Demo server',
+          icons: 'D',
+          disable: false,
+          type: 'http',
+          enabled: true
+        }
+      },
+      mcpEnabled: true,
+      ready: true
+    }
+    mcpClientMock.getServerDiagnostics.mockResolvedValueOnce({
+      lifecycleStatus: 'connecting',
+      connectionState: 'starting'
+    })
+
+    await store.updateServerStatus('demo', true)
+
+    expect(store.serverStatuses.demo).toBe(false)
+    expect(store.serverLifecycleStatuses.demo).toBe('connecting')
+    expect(store.serverList[0]).toMatchObject({
+      isRunning: false,
+      lifecycleStatus: 'connecting',
+      errorMessage: undefined
+    })
+
+    mcpClientMock.getServerDiagnostics.mockResolvedValueOnce({
+      lifecycleStatus: 'failed',
+      connectionState: 'error',
+      lastError: 'connection failed'
+    })
+    await store.updateServerStatus('demo', true)
+
+    expect(store.serverLifecycleStatuses.demo).toBe('failed')
+    expect(store.serverList[0]).toMatchObject({
+      lifecycleStatus: 'failed',
+      errorMessage: 'connection failed'
+    })
+  })
+
+  it('keeps a newer lifecycle event over stale diagnostics', async () => {
+    let finishDiagnostics!: (value: {
+      lifecycleStatus: 'connected'
+      connectionState: 'connected'
+    }) => void
+    mcpClientMock.getServerDiagnostics.mockReturnValueOnce(
+      new Promise((resolve) => {
+        finishDiagnostics = resolve
+      })
+    )
+    const store = await setupStore()
+    await mountedCallbacks[0]()
+    store.config = {
+      mcpServers: {
+        demo: {
+          command: 'demo-command',
+          args: [],
+          env: {},
+          descriptions: 'Demo server',
+          icons: 'D',
+          disable: false,
+          type: 'stdio',
+          enabled: true
+        }
+      },
+      mcpEnabled: true,
+      ready: true
+    }
+
+    const pendingStatus = store.updateServerStatus('demo', true)
+    await vi.waitFor(() => {
+      expect(mcpClientMock.getServerDiagnostics).toHaveBeenCalledWith('demo', undefined)
+    })
+    const statusListener = mcpClientMock.onServerStatusChanged.mock.calls[0][0]
+    statusListener({
+      serverName: 'demo',
+      lifecycleStatus: 'failed',
+      message: 'startup failed'
+    })
+    finishDiagnostics({ lifecycleStatus: 'connected', connectionState: 'connected' })
+    await pendingStatus
+
+    expect(store.serverStatuses.demo).toBe(false)
+    expect(store.serverLifecycleStatuses.demo).toBe('failed')
+    expect(store.serverStatusMessages.demo).toBe('startup failed')
+  })
+
   it('hides plugin-owned servers from MCP UI lists', async () => {
     const store = await setupStore()
 
@@ -223,30 +353,22 @@ describe('useMcpStore toggleServer rollback', () => {
           env: {},
           descriptions: 'Demo server',
           icons: 'D',
-          autoApprove: [],
           disable: false,
           type: 'stdio',
           enabled: true
         },
         'cua-driver': {
           command: '/Applications/DeepChat Computer Use.app/Contents/MacOS/deepchat-cua-driver',
-          args: ['mcp', '--no-daemon-relaunch'],
-          env: {
-            CUA_DRIVER_MCP_MODE: '1',
-            CUA_DRIVER_RS_MCP_NO_RELAUNCH: '1',
-            DEEPCHAT_COMPUTER_USE_APP_PATH: '/Applications/DeepChat Computer Use.app',
-            DEEPCHAT_COMPUTER_USE_BINARY_PATH:
-              '/Applications/DeepChat Computer Use.app/Contents/MacOS/deepchat-cua-driver'
-          },
+          args: ['mcp', '--embedded'],
           descriptions: 'Computer Use',
           icons: 'plugin',
-          autoApprove: [],
           disable: false,
           type: 'stdio',
           enabled: true,
           source: 'plugin',
           sourceId: 'com.deepchat.plugins.cua',
-          ownerPluginId: 'com.deepchat.plugins.cua'
+          ownerPluginId: 'com.deepchat.plugins.cua',
+          inheritEnv: 'minimal'
         }
       },
       mcpEnabled: true,
@@ -272,7 +394,6 @@ describe('useMcpStore toggleServer rollback', () => {
           env: {},
           descriptions: 'Memory',
           icons: 'M',
-          autoApprove: [],
           disable: false,
           type: 'inmemory',
           enabled: false
@@ -283,7 +404,6 @@ describe('useMcpStore toggleServer rollback', () => {
           env: {},
           descriptions: 'Tavily',
           icons: 'T',
-          autoApprove: [],
           disable: false,
           type: 'stdio',
           enabled: false
@@ -294,7 +414,6 @@ describe('useMcpStore toggleServer rollback', () => {
           env: {},
           descriptions: 'Linear',
           icons: 'L',
-          autoApprove: [],
           disable: false,
           type: 'sse',
           enabled: true
@@ -305,5 +424,43 @@ describe('useMcpStore toggleServer rollback', () => {
     }
 
     expect(store.serverList.map((server) => server.name)).toEqual(['linear', 'memory', 'tavily'])
+  })
+
+  it('keeps server mutation results truthful when follow-up refreshes fail', async () => {
+    const consoleWarn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const store = await setupStore()
+    const serverConfig = {
+      command: 'demo-command',
+      args: [],
+      env: {},
+      descriptions: 'Demo server',
+      icons: 'D',
+      autoApprove: [],
+      disable: false,
+      type: 'stdio' as const,
+      enabled: false
+    }
+    store.config = {
+      mcpServers: {
+        demo: serverConfig
+      },
+      mcpEnabled: true,
+      ready: true
+    }
+    addMcpServerMutate.mockResolvedValueOnce({ status: 'added' })
+    updateMcpServerMutate.mockResolvedValueOnce(undefined)
+    removeMcpServerMutate.mockResolvedValueOnce(undefined)
+    configRefetch.mockRejectedValue(new Error('refresh failed'))
+
+    await expect(store.addServer('added', serverConfig)).resolves.toEqual({ status: 'added' })
+    await expect(store.updateServer('demo', { descriptions: 'Updated' })).resolves.toBe(true)
+    await expect(store.removeServer('demo')).resolves.toBe(true)
+    await vi.waitFor(() => {
+      expect(consoleWarn).toHaveBeenCalled()
+    })
+
+    expect(store.config.mcpServers.added).toEqual(serverConfig)
+    expect(store.config.mcpServers.demo).toBeUndefined()
+    consoleWarn.mockRestore()
   })
 })

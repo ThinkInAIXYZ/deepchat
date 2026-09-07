@@ -28,7 +28,9 @@ export default defineConfig({
           index: resolve('src/main/index.ts'),
           backgroundExecUtilityHost: resolve('src/main/backgroundExecUtilityHostEntry.ts'),
           fileWatcherUtilityHost: resolve('src/main/fileWatcherUtilityHostEntry.ts'),
-          schedulerUtilityHost: resolve('src/main/schedulerUtilityHostEntry.ts')
+          schedulerUtilityHost: resolve('src/main/schedulerUtilityHostEntry.ts'),
+          codeModeUtilityHost: resolve('src/main/codeModeUtilityHostEntry.ts'),
+          lightOcrHelper: resolve('src/main/lightOcrHelperEntry.ts')
         },
         external: ['sharp', '@duckdb/node-api'],
         output: {
@@ -70,8 +72,10 @@ export default defineConfig({
       alias: {
         '@': resolve('src/renderer/src'),
         '@api': resolve('src/renderer/api'),
+        '@renderer-notifications': resolve('src/renderer/services/notifications'),
         '@shared': resolve('src/shared'),
-        "@shadcn": resolve('src/shadcn'),
+        '@shadcn': resolve('src/shadcn'),
+        '@dc-ui': resolve('src/dc-ui'),
         vue: 'vue/dist/vue.esm-bundler.js'
       }
     },
@@ -120,7 +124,6 @@ export default defineConfig({
         ? [
             vueDevTools({
               appendTo: 'src/renderer/src/main.ts'
-              // appendTo:'src/renderer/browser/main.ts'
             })
           ]
         : [])

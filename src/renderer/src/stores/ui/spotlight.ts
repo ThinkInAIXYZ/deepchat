@@ -9,7 +9,7 @@ import { useAgentStore } from './agent'
 import { usePageRouterStore } from './pageRouter'
 import { useSessionStore } from './session'
 import { SETTINGS_NAVIGATION_ITEMS, type SettingsNavigationItem } from '@shared/settingsNavigation'
-import type { HistorySearchHit } from '@shared/presenter'
+import type { HistorySearchHit } from '@shared/contracts/routes/sessions.routes'
 
 type SpotlightItemKind = 'session' | 'message' | 'agent' | 'setting' | 'action'
 type SpotlightActionId =
@@ -18,6 +18,7 @@ type SpotlightActionId =
   | 'open-providers'
   | 'open-agents'
   | 'open-mcp'
+  | 'open-ocr'
   | 'open-shortcuts'
   | 'open-remote'
 
@@ -109,6 +110,12 @@ const actionItems: Array<{
     titleKey: 'routes.settings-mcp',
     icon: 'lucide:server',
     keywords: ['mcp', 'tools', 'server', '工具']
+  },
+  {
+    id: 'open-ocr',
+    titleKey: 'routes.settings-ocr',
+    icon: 'lucide:scan-text',
+    keywords: ['ocr', 'image text', 'file processing', '文字识别', '图片文字', '文件处理']
   },
   {
     id: 'open-shortcuts',
@@ -425,6 +432,7 @@ export const useSpotlightStore = defineStore('spotlight', () => {
 
     if (item.kind === 'session' && item.sessionId) {
       await sessionStore.selectSession(item.sessionId)
+      await router.push({ name: 'chat' })
       return
     }
 
@@ -434,6 +442,7 @@ export const useSpotlightStore = defineStore('spotlight', () => {
         messageId: item.messageId
       }
       await sessionStore.selectSession(item.sessionId)
+      await router.push({ name: 'chat' })
       return
     }
 
@@ -466,6 +475,16 @@ export const useSpotlightStore = defineStore('spotlight', () => {
         return
       case 'open-mcp':
         await router.push({ name: 'plugins-mcp' })
+        return
+      case 'open-ocr':
+        if (
+          agentStore.selectedAgent &&
+          (agentStore.selectedAgent.agentType ?? agentStore.selectedAgent.type) === 'acp'
+        ) {
+          await navigateToSettings('settings-ocr')
+          return
+        }
+        await router.push({ name: 'plugins-builtin-ocr' })
         return
       case 'open-remote':
         await router.push({ name: 'plugins' })

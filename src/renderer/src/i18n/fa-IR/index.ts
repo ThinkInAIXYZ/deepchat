@@ -16,6 +16,8 @@ import artifacts from './artifacts.json'
 import chat from './chat.json'
 import contextMenu from './contextMenu.json'
 import promptSetting from './promptSetting.json'
+import traceDialog from './traceDialog.json'
+import tapeInspector from './tapeInspector.json'
 import plan from './plan.json'
 
 const others = {
@@ -50,6 +52,8 @@ export default {
   chat,
   contextMenu,
   promptSetting,
+  traceDialog,
+  tapeInspector,
   plan,
   ...others
 }

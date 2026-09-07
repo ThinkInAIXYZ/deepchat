@@ -1,0 +1,1350 @@
+import { EventEmitter } from 'events'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { createDeepchatEventEnvelope } from '@shared/contracts/events'
+
+const sendToAllWindowsMock = vi.fn()
+const overlayUpdateBoundsMock = vi.fn(async () => undefined)
+const overlaySendActivityMock = vi.fn()
+const overlayHideMock = vi.fn()
+const overlayDestroyMock = vi.fn()
+const nativeInitializeMock = vi.fn(async () => false)
+const nativeIsAvailableMock = vi.fn(() => false)
+const nativePrepareMock = vi.fn(() => 'renderer-canvas')
+const nativePresentMock = vi.fn(() => true)
+const nativeHideMock = vi.fn()
+const nativeRemoveTargetMock = vi.fn()
+const nativeReleaseClaimMock = vi.fn()
+const nativeClaimMock = vi.fn(() => 1)
+const nativeDismissMock = vi.fn(() => true)
+const nativeIsCurrentMock = vi.fn(() => true)
+let nativeActionHandler:
+  | ((action: 'activate' | 'dismiss' | 'superseded', target: Record<string, unknown>) => void)
+  | null = null
+let loadUrlObserver: (() => void) | null = null
+let cdpCommandObserver: ((method: string) => void) | null = null
+
+class MockWebContents extends EventEmitter {
+  id: number
+  url = 'about:blank'
+  title = ''
+  destroyed = false
+  loading = false
+  pendingLoad: {
+    resolve: () => void
+    reject: (error: Error) => void
+  } | null = null
+  debugger = {
+    isAttached: vi.fn(() => false),
+    detach: vi.fn(),
+    attach: vi.fn(),
+    sendCommand: vi.fn(async (method: string) => {
+      cdpCommandObserver?.(method)
+      return {}
+    })
+  }
+  session = {}
+  navigationHistory = {
+    canGoBack: vi.fn(() => false),
+    canGoForward: vi.fn(() => false)
+  }
+  loadURL = vi.fn((url: string) => {
+    loadUrlObserver?.()
+    this.url = url
+    this.loading = true
+    this.emit('did-start-loading')
+
+    return new Promise<void>((resolve, reject) => {
+      this.pendingLoad = { resolve, reject }
+    })
+  })
+  goBack = vi.fn()
+  goForward = vi.fn()
+  reload = vi.fn(() => {
+    this.loading = true
+    this.emit('did-start-loading')
+  })
+  reloadIgnoringCache = vi.fn()
+  isLoading = vi.fn(() => this.loading)
+  close = vi.fn(() => {
+    this.destroyed = true
+    this.emit('destroyed')
+  })
+  sendInputEvent = vi.fn()
+  setBackgroundThrottling = vi.fn()
+  capturePage = vi.fn(async () => ({
+    resize: vi.fn(() => ({
+      toJPEG: vi.fn(() => Buffer.from('preview-frame'))
+    }))
+  }))
+
+  constructor(id: number) {
+    super()
+    this.id = id
+  }
+
+  getURL() {
+    return this.url
+  }
+
+  getTitle() {
+    return this.title
+  }
+
+  isDestroyed() {
+    return this.destroyed
+  }
+
+  emitDomReady() {
+    this.emit('dom-ready')
+  }
+
+  finishLoad() {
+    if (!this.loading) {
+      return
+    }
+
+    this.emitDomReady()
+    this.loading = false
+    this.emit('did-finish-load')
+    this.emit('did-stop-loading')
+    this.pendingLoad?.resolve()
+    this.pendingLoad = null
+  }
+
+  failLoad(errorCode: number = -105, errorDescription: string = 'NAME_NOT_RESOLVED') {
+    this.loading = false
+    this.emit('did-fail-load', {}, errorCode, errorDescription, this.url, true)
+    this.pendingLoad?.reject(new Error(`Navigation failed ${errorCode}: ${errorDescription}`))
+    this.pendingLoad = null
+  }
+}
+
+class MockContentView {
+  addChildView = vi.fn()
+  removeChildView = vi.fn()
+}
+
+class MockBrowserWindow extends EventEmitter {
+  contentView = new MockContentView()
+  webContents = {
+    focus: vi.fn(),
+    isDestroyed: vi.fn(() => false)
+  }
+  destroyed = false
+  visible = true
+  focused = true
+
+  constructor(public readonly id: number) {
+    super()
+  }
+
+  isDestroyed() {
+    return this.destroyed
+  }
+
+  isVisible() {
+    return this.visible
+  }
+
+  isFocused() {
+    return this.focused
+  }
+}
+
+class MockBaseWindow extends EventEmitter {
+  contentView = new MockContentView()
+  destroyed = false
+  setIgnoreMouseEvents = vi.fn()
+  showInactive = vi.fn()
+
+  constructor(readonly options: Record<string, unknown>) {
+    super()
+  }
+
+  isDestroyed() {
+    return this.destroyed
+  }
+
+  destroy() {
+    this.destroyed = true
+    this.emit('closed')
+  }
+}
+
+describe('YoBrowserPresenter', () => {
+  beforeEach(() => {
+    vi.resetModules()
+    vi.clearAllMocks()
+    sendToAllWindowsMock.mockReset()
+    overlayUpdateBoundsMock.mockClear()
+    overlaySendActivityMock.mockClear()
+    overlayHideMock.mockClear()
+    overlayDestroyMock.mockClear()
+    nativeInitializeMock.mockResolvedValue(false)
+    nativeIsAvailableMock.mockReturnValue(false)
+    nativePrepareMock.mockReturnValue('renderer-canvas')
+    nativePresentMock.mockReturnValue(true)
+    nativeClaimMock.mockReturnValue(1)
+    nativeDismissMock.mockReturnValue(true)
+    nativeIsCurrentMock.mockReturnValue(true)
+    nativeActionHandler = null
+    loadUrlObserver = null
+    cdpCommandObserver = null
+    vi.useFakeTimers()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  const setupPresenter = async () => {
+    let nextWebContentsId = 100
+    const windows = new Map<number, MockBrowserWindow>()
+    const viewConfigs: Array<Record<string, any>> = []
+    const previewHosts: MockBaseWindow[] = []
+
+    vi.doMock('electron', () => {
+      class MockWebContentsView {
+        webContents: MockWebContents
+        setBorderRadius = vi.fn()
+        setBackgroundColor = vi.fn()
+        setBounds = vi.fn()
+        setVisible = vi.fn()
+
+        constructor(options: Record<string, any>) {
+          viewConfigs.push(options)
+          this.webContents = new MockWebContents(nextWebContentsId++)
+        }
+      }
+
+      return {
+        app: {
+          getPath: vi.fn(() => 'C:/mock-user-data')
+        },
+        BaseWindow: class extends MockBaseWindow {
+          constructor(options: Record<string, unknown>) {
+            super(options)
+            previewHosts.push(this)
+          }
+        },
+        BrowserWindow: {
+          fromId: (id: number) => windows.get(id) ?? null
+        },
+        WebContentsView: MockWebContentsView
+      }
+    })
+
+    vi.doMock('@shared/logger', () => ({
+      default: {
+        info: vi.fn(),
+        warn: vi.fn(),
+        error: vi.fn()
+      }
+    }))
+
+    vi.doMock('@/desktop/browser/DownloadManager', () => ({
+      DownloadManager: class {
+        downloadFile = vi.fn()
+      }
+    }))
+
+    vi.doMock('@/desktop/browser/yoBrowserSession', () => ({
+      getYoBrowserSession: () => ({}),
+      getYoBrowserUnpartitionedCookies: vi.fn(async () => []),
+      clearYoBrowserSessionData: vi.fn()
+    }))
+
+    vi.doMock('@/desktop/browser/YoBrowserOverlayWindow', () => ({
+      YoBrowserOverlayWindow: class {
+        updateBounds = overlayUpdateBoundsMock
+        sendActivity = overlaySendActivityMock
+        hide = overlayHideMock
+        destroy = overlayDestroyMock
+      }
+    }))
+
+    const { YoBrowserPresenter } = await import('@/desktop/browser/YoBrowserPresenter')
+    const windowPresenter = {
+      show: vi.fn((windowId: number) => {
+        const target = windows.get(windowId)
+        if (target) {
+          target.visible = true
+          target.focused = true
+        }
+      }),
+      hide: vi.fn((windowId: number) => {
+        const target = windows.get(windowId)
+        if (target) {
+          target.visible = false
+        }
+      }),
+      closeWindow: vi.fn(async () => undefined),
+      getFocusedWindow: vi.fn(() => windows.get(1) ?? null),
+      getAllWindows: vi.fn(() => Array.from(windows.values())),
+      sendToWindow: vi.fn((windowId: number, channel: string, envelope: unknown) => {
+        sendToAllWindowsMock(channel, envelope, windowId)
+        return true
+      })
+    }
+
+    const previewCoordinator = {
+      register: vi.fn(
+        (
+          _source: 'browser',
+          handler: (
+            action: 'activate' | 'dismiss' | 'superseded',
+            target: Record<string, unknown>
+          ) => void
+        ) => {
+          nativeActionHandler = handler
+          return vi.fn()
+        }
+      ),
+      initialize: nativeInitializeMock,
+      isAvailable: nativeIsAvailableMock,
+      claim: nativeClaimMock,
+      releaseClaim: nativeReleaseClaimMock,
+      dismiss: nativeDismissMock,
+      prepare: nativePrepareMock,
+      present: nativePresentMock,
+      hide: nativeHideMock,
+      removeTarget: nativeRemoveTargetMock,
+      isCurrent: nativeIsCurrentMock
+    }
+    const presenter = new YoBrowserPresenter(
+      windowPresenter as any,
+      (name, payload) => {
+        sendToAllWindowsMock('deepchat:event', createDeepchatEventEnvelope(name, payload))
+      },
+      previewCoordinator as never
+    )
+
+    const getSessionWebContents = (sessionId: string) => {
+      return ((presenter as any).sessionBrowsers.get(sessionId)?.view?.webContents ??
+        null) as MockWebContents | null
+    }
+
+    return {
+      presenter,
+      windows,
+      viewConfigs,
+      previewHosts,
+      windowPresenter,
+      getSessionWebContents
+    }
+  }
+
+  it('starts session navigation immediately and resolves after dom-ready', async () => {
+    const { presenter, windows, getSessionWebContents } = await setupPresenter()
+    windows.set(1, new MockBrowserWindow(1))
+
+    const loadPromise = presenter.loadUrl('session-a', 'https://example.com')
+    await Promise.resolve()
+
+    const webContents = getSessionWebContents('session-a')
+    expect(webContents?.loadURL).toHaveBeenCalledWith('https://example.com')
+
+    await presenter.attachSessionBrowser('session-a', 1)
+    await presenter.updateSessionBrowserBounds(
+      'session-a',
+      1,
+      { x: 12, y: 18, width: 320, height: 480 },
+      true
+    )
+    await vi.advanceTimersByTimeAsync(130)
+    await Promise.resolve()
+
+    webContents?.emitDomReady()
+    await loadPromise
+    webContents?.finishLoad()
+  })
+
+  it('does not commit navigation when no host window is available', async () => {
+    const { presenter } = await setupPresenter()
+    const beforeDispatch = vi.fn()
+
+    await expect(
+      presenter.loadUrl(
+        'session-a',
+        'https://example.com',
+        undefined,
+        undefined,
+        'agent',
+        'run-a',
+        beforeDispatch
+      )
+    ).rejects.toThrow('No host window available for YoBrowser')
+
+    expect(beforeDispatch).not.toHaveBeenCalled()
+  })
+
+  it('publishes agent navigation state only after the dispatch commit', async () => {
+    const { presenter, windows, getSessionWebContents } = await setupPresenter()
+    windows.set(1, new MockBrowserWindow(1))
+    const order: string[] = []
+    sendToAllWindowsMock.mockImplementation((_channel, envelope) => {
+      if (envelope.name === 'browser.status.changed') {
+        order.push(`${envelope.name}:${envelope.payload.reason}`)
+      } else if (envelope.name.startsWith('browser.')) {
+        order.push(envelope.name)
+      }
+    })
+    const beforeDispatch = vi.fn(() => order.push('commit'))
+    loadUrlObserver = () => order.push('target')
+
+    const loadPromise = presenter.loadUrl(
+      'session-a',
+      'https://example.com',
+      undefined,
+      undefined,
+      'agent',
+      'run-a',
+      beforeDispatch
+    )
+    await Promise.resolve()
+
+    expect(order.slice(0, 3)).toEqual(['commit', 'target', 'browser.status.changed:created'])
+    expect(order).toEqual(
+      expect.arrayContaining([
+        'browser.status.changed:created',
+        'browser.open.requested',
+        'browser.activity.changed'
+      ])
+    )
+    getSessionWebContents('session-a')?.emitDomReady()
+    await loadPromise
+  })
+
+  it('retries creation after an agent projection failure without dropping later state', async () => {
+    const { presenter, windows, getSessionWebContents } = await setupPresenter()
+    windows.set(1, new MockBrowserWindow(1))
+    const successfulEvents: string[] = []
+    let rejectCreated = true
+    sendToAllWindowsMock.mockImplementation((_channel, envelope) => {
+      const event = `${envelope.name}:${envelope.payload.reason ?? ''}`
+      if (
+        rejectCreated &&
+        envelope.name === 'browser.status.changed' &&
+        envelope.payload.reason === 'created'
+      ) {
+        rejectCreated = false
+        throw new Error('renderer unavailable')
+      }
+      successfulEvents.push(event)
+    })
+
+    const loadPromise = presenter.loadUrl(
+      'session-a',
+      'https://example.com',
+      undefined,
+      undefined,
+      'agent',
+      'run-a',
+      vi.fn()
+    )
+    await Promise.resolve()
+    getSessionWebContents('session-a')?.emitDomReady()
+    await loadPromise
+
+    expect(successfulEvents).toContain('browser.status.changed:created')
+    expect(successfulEvents).toContain('browser.status.changed:updated')
+    expect(successfulEvents).toContain('browser.open.requested:')
+    expect(successfulEvents.indexOf('browser.status.changed:created')).toBeLessThan(
+      successfulEvents.indexOf('browser.status.changed:updated')
+    )
+    await expect(presenter.getBrowserStatus('session-a')).resolves.toMatchObject({
+      initialized: true,
+      owner: 'agent',
+      agentRunId: 'run-a'
+    })
+  })
+
+  it('does not publish agent navigation state when the dispatch commit fails', async () => {
+    const { presenter, windows, getSessionWebContents } = await setupPresenter()
+    windows.set(1, new MockBrowserWindow(1))
+    const journalError = new Error('journal unavailable')
+    sendToAllWindowsMock.mockClear()
+
+    const loadPromise = presenter.loadUrl(
+      'session-a',
+      'https://example.com',
+      undefined,
+      undefined,
+      'agent',
+      'run-a',
+      () => {
+        throw journalError
+      }
+    )
+    const webContents = getSessionWebContents('session-a')
+
+    await expect(loadPromise).rejects.toBe(journalError)
+
+    expect(sendToAllWindowsMock).not.toHaveBeenCalled()
+    expect(webContents?.loadURL).not.toHaveBeenCalled()
+    expect(webContents?.close).toHaveBeenCalledOnce()
+    await expect(presenter.getBrowserStatus('session-a')).resolves.toMatchObject({
+      initialized: false
+    })
+  })
+
+  it('does not publish agent CDP state when the dispatch commit fails', async () => {
+    const { presenter, windows, getSessionWebContents } = await setupPresenter()
+    windows.set(1, new MockBrowserWindow(1))
+    const initialLoad = presenter.loadUrl('session-a', 'https://example.com')
+    await Promise.resolve()
+    const webContents = getSessionWebContents('session-a')
+    webContents?.emitDomReady()
+    await initialLoad
+    sendToAllWindowsMock.mockClear()
+    webContents?.debugger.sendCommand.mockClear()
+    const journalError = new Error('journal unavailable')
+
+    await expect(
+      presenter.sendCdpCommand('session-a', 'Page.reload', undefined, 'agent', 'run-a', () => {
+        throw journalError
+      })
+    ).rejects.toBe(journalError)
+
+    expect(sendToAllWindowsMock).not.toHaveBeenCalled()
+    expect(webContents).not.toBeNull()
+    expect(webContents!.debugger.sendCommand.mock.calls.map(([method]) => method)).not.toContain(
+      'Page.reload'
+    )
+  })
+
+  it('publishes agent CDP state only after the dispatch reaches the target', async () => {
+    const { presenter, windows, getSessionWebContents } = await setupPresenter()
+    windows.set(1, new MockBrowserWindow(1))
+    const initialLoad = presenter.loadUrl('session-a', 'https://example.com')
+    await Promise.resolve()
+    const webContents = getSessionWebContents('session-a')
+    webContents?.emitDomReady()
+    await initialLoad
+    const order: string[] = []
+    sendToAllWindowsMock.mockImplementation((_channel, envelope) => {
+      if (envelope.name.startsWith('browser.')) order.push(envelope.name)
+    })
+    cdpCommandObserver = (method) => {
+      if (method === 'Page.reload') order.push('target')
+    }
+
+    await presenter.sendCdpCommand('session-a', 'Page.reload', undefined, 'agent', 'run-a', () =>
+      order.push('commit')
+    )
+
+    expect(order.slice(0, 2)).toEqual(['commit', 'target'])
+    expect(order).toEqual(
+      expect.arrayContaining(['browser.open.requested', 'browser.status.changed'])
+    )
+  })
+
+  it('preserves an existing browser when an agent navigation commit fails', async () => {
+    const { presenter, windows, getSessionWebContents } = await setupPresenter()
+    windows.set(1, new MockBrowserWindow(1))
+    const initialLoad = presenter.loadUrl('session-a', 'https://example.com')
+    await Promise.resolve()
+    const webContents = getSessionWebContents('session-a')
+    webContents?.emitDomReady()
+    await initialLoad
+    sendToAllWindowsMock.mockClear()
+    webContents?.loadURL.mockClear()
+    const journalError = new Error('journal unavailable')
+
+    await expect(
+      presenter.loadUrl(
+        'session-a',
+        'https://example.org',
+        undefined,
+        undefined,
+        'agent',
+        'run-a',
+        () => {
+          throw journalError
+        }
+      )
+    ).rejects.toBe(journalError)
+
+    expect(sendToAllWindowsMock).not.toHaveBeenCalled()
+    expect(webContents?.loadURL).not.toHaveBeenCalled()
+    expect(webContents?.close).not.toHaveBeenCalled()
+    await expect(presenter.getBrowserStatus('session-a')).resolves.toMatchObject({
+      initialized: true
+    })
+  })
+
+  it('resolves loadUrl only after the first dom-ready', async () => {
+    const { presenter, windows, getSessionWebContents } = await setupPresenter()
+    windows.set(1, new MockBrowserWindow(1))
+
+    let settled = false
+    const loadPromise = presenter.loadUrl('session-a', 'https://example.com').then(() => {
+      settled = true
+    })
+
+    await Promise.resolve()
+    await presenter.attachSessionBrowser('session-a', 1)
+    await presenter.updateSessionBrowserBounds(
+      'session-a',
+      1,
+      { x: 10, y: 20, width: 300, height: 400 },
+      true
+    )
+    await Promise.resolve()
+
+    expect(settled).toBe(false)
+
+    const webContents = getSessionWebContents('session-a')
+    webContents?.emitDomReady()
+    await loadPromise
+
+    expect(settled).toBe(true)
+    webContents?.finishLoad()
+  })
+
+  it('returns a clear error when dom-ready never arrives', async () => {
+    const { presenter, windows } = await setupPresenter()
+    windows.set(1, new MockBrowserWindow(1))
+
+    const loadPromise = presenter.loadUrl('session-a', 'https://example.com', 5000)
+    const rejection = expect(loadPromise).rejects.toThrow(
+      'Timed out waiting for dom-ready: https://example.com'
+    )
+    await vi.advanceTimersByTimeAsync(5050)
+    await rejection
+  }, 7000)
+
+  it('does not emit WINDOW_UPDATED for pure bounds changes', async () => {
+    const { presenter, windows } = await setupPresenter()
+    windows.set(1, new MockBrowserWindow(1))
+
+    void presenter.loadUrl('session-a', 'https://example.com')
+    await Promise.resolve()
+    await presenter.attachSessionBrowser('session-a', 1)
+    sendToAllWindowsMock.mockClear()
+
+    await presenter.updateSessionBrowserBounds(
+      'session-a',
+      1,
+      { x: 0, y: 0, width: 240, height: 360 },
+      true
+    )
+    await presenter.updateSessionBrowserBounds(
+      'session-a',
+      1,
+      { x: 8, y: 16, width: 256, height: 384 },
+      true
+    )
+
+    const updatedEvents = sendToAllWindowsMock.mock.calls
+      .filter(([event]) => event === 'deepchat:event')
+      .map(([, envelope]) => envelope)
+      .filter(
+        (envelope: any) =>
+          envelope.name === 'browser.status.changed' && envelope.payload.reason === 'updated'
+      )
+    expect(updatedEvents).toHaveLength(0)
+  })
+
+  it('keeps session browsers isolated when switching the attached session', async () => {
+    const { presenter, windows, getSessionWebContents } = await setupPresenter()
+    windows.set(1, new MockBrowserWindow(1))
+
+    const firstLoad = presenter.loadUrl('session-a', 'https://example.com/a')
+    await Promise.resolve()
+    await presenter.attachSessionBrowser('session-a', 1)
+    await presenter.updateSessionBrowserBounds(
+      'session-a',
+      1,
+      { x: 10, y: 10, width: 300, height: 400 },
+      true
+    )
+    await vi.advanceTimersByTimeAsync(130)
+    getSessionWebContents('session-a')?.emitDomReady()
+    await firstLoad
+
+    const secondLoad = presenter.loadUrl('session-b', 'https://example.com/b')
+    await Promise.resolve()
+    await presenter.attachSessionBrowser('session-b', 1)
+    await presenter.updateSessionBrowserBounds(
+      'session-b',
+      1,
+      { x: 10, y: 10, width: 300, height: 400 },
+      true
+    )
+    await vi.advanceTimersByTimeAsync(130)
+    getSessionWebContents('session-b')?.emitDomReady()
+    await secondLoad
+
+    const firstStatus = await presenter.getBrowserStatus('session-a')
+    const secondStatus = await presenter.getBrowserStatus('session-b')
+
+    expect(firstStatus.initialized).toBe(true)
+    expect(firstStatus.visible).toBe(false)
+    expect(secondStatus.initialized).toBe(true)
+    expect(secondStatus.visible).toBe(true)
+  })
+
+  it('creates the embedded WebContentsView with sandbox enabled', async () => {
+    const { presenter, windows, viewConfigs } = await setupPresenter()
+    windows.set(1, new MockBrowserWindow(1))
+
+    void presenter.loadUrl('session-a', 'https://example.com')
+    await Promise.resolve()
+
+    expect(viewConfigs).toHaveLength(1)
+    expect(viewConfigs[0]?.webPreferences).toMatchObject({
+      sandbox: true
+    })
+  })
+
+  it('publishes agent navigation activity without exposing page content', async () => {
+    const { presenter, windows, getSessionWebContents } = await setupPresenter()
+    windows.set(1, new MockBrowserWindow(1))
+
+    const loadPromise = presenter.loadUrl(
+      'session-a',
+      'https://example.com',
+      undefined,
+      undefined,
+      'agent'
+    )
+    await Promise.resolve()
+    getSessionWebContents('session-a')?.emitDomReady()
+    await loadPromise
+
+    const activityPayloads = sendToAllWindowsMock.mock.calls
+      .filter(([event]) => event === 'deepchat:event')
+      .map(([, envelope]) => envelope)
+      .filter((envelope: any) => envelope.name === 'browser.activity.changed')
+      .map((envelope: any) => envelope.payload)
+
+    expect(activityPayloads).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          sessionId: 'session-a',
+          kind: 'navigation',
+          action: 'navigate',
+          phase: 'started'
+        }),
+        expect.objectContaining({
+          sessionId: 'session-a',
+          kind: 'navigation',
+          action: 'navigate',
+          phase: 'completed'
+        })
+      ])
+    )
+    expect(JSON.stringify(activityPayloads)).not.toContain('example.com')
+  })
+
+  it('captures a bounded preview frame without creating a second page', async () => {
+    const { presenter, windows, previewHosts, getSessionWebContents } = await setupPresenter()
+    windows.set(1, new MockBrowserWindow(1))
+
+    const loadPromise = presenter.loadUrl(
+      'session-a',
+      'https://example.com',
+      undefined,
+      1,
+      'agent',
+      'run-1'
+    )
+    await Promise.resolve()
+    const webContents = getSessionWebContents('session-a')
+    webContents?.emitDomReady()
+    await loadPromise
+    sendToAllWindowsMock.mockClear()
+
+    expect(await presenter.setPreviewMode('session-a', 'capturing', 1, 'run-1')).toEqual({
+      updated: true,
+      surface: 'renderer-canvas'
+    })
+    await vi.advanceTimersByTimeAsync(0)
+
+    expect(previewHosts).toHaveLength(1)
+    expect(previewHosts[0].options).toMatchObject({
+      show: process.platform !== 'darwin',
+      fullscreenable: process.platform !== 'darwin'
+    })
+    expect(previewHosts[0].showInactive).toHaveBeenCalledTimes(
+      process.platform === 'darwin' ? 1 : 0
+    )
+    expect(webContents?.capturePage).toHaveBeenCalledWith(
+      { x: 0, y: 0, width: 1280, height: 800 },
+      { stayHidden: true }
+    )
+    expect(sendToAllWindowsMock).toHaveBeenCalledWith(
+      'deepchat:event',
+      expect.objectContaining({
+        name: 'browser.preview.frame',
+        payload: expect.objectContaining({
+          sessionId: 'session-a',
+          runId: 'run-1',
+          width: 400,
+          height: 250,
+          mimeType: 'image/jpeg'
+        })
+      }),
+      1
+    )
+
+    const activeCaptureCount = webContents?.capturePage.mock.calls.length ?? 0
+    await vi.advanceTimersByTimeAsync(499)
+    expect(webContents?.capturePage).toHaveBeenCalledTimes(activeCaptureCount)
+    await vi.advanceTimersByTimeAsync(1)
+    expect(webContents?.capturePage).toHaveBeenCalledTimes(activeCaptureCount + 1)
+
+    const captureCount = webContents?.capturePage.mock.calls.length
+    expect(await presenter.setPreviewMode('session-a', 'rendering', 1, 'run-1')).toEqual({
+      updated: true,
+      surface: 'renderer-canvas'
+    })
+    await vi.advanceTimersByTimeAsync(1100)
+    expect(webContents?.capturePage).toHaveBeenCalledTimes(captureCount ?? 0)
+
+    expect(await presenter.setPreviewMode('session-a', 'stopped', 1, 'run-1')).toEqual({
+      updated: true,
+      surface: 'none'
+    })
+    expect(previewHosts[0].destroyed).toBe(true)
+  })
+
+  it('releases the hidden preview host when its Agent session becomes inactive', async () => {
+    const { presenter, windows, previewHosts, getSessionWebContents } = await setupPresenter()
+    windows.set(1, new MockBrowserWindow(1))
+
+    const loadPromise = presenter.loadUrl(
+      'session-a',
+      'https://example.com',
+      undefined,
+      1,
+      'agent',
+      'run-1'
+    )
+    await Promise.resolve()
+    const webContents = getSessionWebContents('session-a')
+    webContents?.emitDomReady()
+    await loadPromise
+
+    expect(previewHosts).toHaveLength(1)
+    expect(previewHosts[0].destroyed).toBe(false)
+
+    await presenter.releaseInactivePreview('session-a')
+
+    expect(previewHosts[0].destroyed).toBe(true)
+    expect(webContents?.setBackgroundThrottling).toHaveBeenLastCalledWith(true)
+  })
+
+  it('resumes preview capture after a previous capture times out while stopping', async () => {
+    const { presenter, windows, previewHosts, getSessionWebContents } = await setupPresenter()
+    windows.set(1, new MockBrowserWindow(1))
+
+    const firstLoad = presenter.loadUrl(
+      'session-a',
+      'https://example.com/first',
+      undefined,
+      1,
+      'agent',
+      'run-1'
+    )
+    await Promise.resolve()
+    const webContents = getSessionWebContents('session-a')
+    webContents?.emitDomReady()
+    await firstLoad
+    webContents?.capturePage.mockImplementationOnce(() => new Promise(() => undefined))
+
+    await presenter.setPreviewMode('session-a', 'capturing', 1, 'run-1')
+    await vi.advanceTimersByTimeAsync(0)
+    expect(webContents?.capturePage).toHaveBeenCalledTimes(1)
+
+    const release = presenter.releaseInactivePreview('session-a')
+    await vi.advanceTimersByTimeAsync(500)
+    await release
+
+    const secondLoad = presenter.loadUrl(
+      'session-a',
+      'https://example.com/second',
+      undefined,
+      1,
+      'agent',
+      'run-2'
+    )
+    await Promise.resolve()
+    webContents?.emitDomReady()
+    await secondLoad
+
+    expect(previewHosts).toHaveLength(2)
+    expect(await presenter.setPreviewMode('session-a', 'capturing', 1, 'run-2')).toEqual({
+      updated: true,
+      surface: 'renderer-canvas'
+    })
+    await vi.advanceTimersByTimeAsync(0)
+    expect(webContents?.capturePage).toHaveBeenCalledTimes(2)
+  })
+
+  it('uses the idle preview cadence after browser activity settles', async () => {
+    const { presenter, windows, getSessionWebContents } = await setupPresenter()
+    windows.set(1, new MockBrowserWindow(1))
+
+    const loadPromise = presenter.loadUrl(
+      'session-a',
+      'https://example.com',
+      undefined,
+      1,
+      'agent',
+      'run-1'
+    )
+    await Promise.resolve()
+    const webContents = getSessionWebContents('session-a')
+    webContents?.finishLoad()
+    await loadPromise
+    await vi.advanceTimersByTimeAsync(1501)
+
+    await presenter.setPreviewMode('session-a', 'capturing', 1, 'run-1')
+    await vi.advanceTimersByTimeAsync(0)
+    expect(webContents?.capturePage).toHaveBeenCalledTimes(1)
+
+    await vi.advanceTimersByTimeAsync(1999)
+    expect(webContents?.capturePage).toHaveBeenCalledTimes(1)
+    await vi.advanceTimersByTimeAsync(1)
+    expect(webContents?.capturePage).toHaveBeenCalledTimes(2)
+  })
+
+  it('loads NativeKit only when Browser capture is requested', async () => {
+    const { presenter, windows, getSessionWebContents } = await setupPresenter()
+    windows.set(1, new MockBrowserWindow(1))
+
+    const loadPromise = presenter.loadUrl(
+      'session-a',
+      'https://example.com',
+      undefined,
+      1,
+      'agent',
+      'run-1'
+    )
+    await Promise.resolve()
+    getSessionWebContents('session-a')?.emitDomReady()
+    await loadPromise
+
+    expect(nativeInitializeMock).not.toHaveBeenCalled()
+
+    await presenter.setPreviewMode('session-a', 'rendering', 1, 'run-1')
+    expect(nativeInitializeMock).not.toHaveBeenCalled()
+
+    await presenter.setPreviewMode('session-a', 'capturing', 1, 'run-1')
+    expect(nativeInitializeMock).toHaveBeenCalledOnce()
+  })
+
+  it('opens Browser in the side panel when NativeKit is unavailable', async () => {
+    const { presenter, windows, windowPresenter, getSessionWebContents } = await setupPresenter()
+    windows.set(1, new MockBrowserWindow(1))
+    nativePrepareMock.mockReturnValue('none')
+
+    const loadPromise = presenter.loadUrl(
+      'session-a',
+      'https://example.com',
+      undefined,
+      1,
+      'agent',
+      'run-1'
+    )
+    await Promise.resolve()
+    getSessionWebContents('session-a')?.emitDomReady()
+    await loadPromise
+    sendToAllWindowsMock.mockClear()
+
+    await expect(presenter.setPreviewMode('session-a', 'capturing', 1, 'run-1')).resolves.toEqual({
+      updated: true,
+      surface: 'none'
+    })
+
+    expect(windowPresenter.show).toHaveBeenCalledWith(1, true)
+    expect(sendToAllWindowsMock).toHaveBeenCalledWith(
+      'deepchat:event',
+      expect.objectContaining({
+        name: 'browser.preview.action',
+        payload: {
+          action: 'activate',
+          windowId: 1,
+          sessionId: 'session-a',
+          runId: 'run-1'
+        }
+      }),
+      1
+    )
+    await vi.advanceTimersByTimeAsync(1)
+    expect(getSessionWebContents('session-a')?.capturePage).not.toHaveBeenCalled()
+  })
+
+  it('rejects preview capture for a stale Agent run', async () => {
+    const { presenter, windows, getSessionWebContents } = await setupPresenter()
+    windows.set(1, new MockBrowserWindow(1))
+
+    const loadPromise = presenter.loadUrl(
+      'session-a',
+      'https://example.com',
+      undefined,
+      1,
+      'agent',
+      'run-1'
+    )
+    await Promise.resolve()
+    getSessionWebContents('session-a')?.emitDomReady()
+    await loadPromise
+
+    expect(await presenter.setPreviewMode('session-a', 'capturing', 1, 'run-old')).toEqual({
+      updated: false,
+      surface: 'none'
+    })
+  })
+
+  it('routes native preview frames and actions without renderer frame payloads', async () => {
+    const { presenter, windows, windowPresenter, getSessionWebContents } = await setupPresenter()
+    windows.set(1, new MockBrowserWindow(1))
+    nativeInitializeMock.mockResolvedValue(true)
+    nativeIsAvailableMock.mockReturnValue(true)
+    nativePrepareMock.mockReturnValue('native-overlay')
+
+    const loadPromise = presenter.loadUrl(
+      'session-a',
+      'https://example.com',
+      undefined,
+      1,
+      'agent',
+      'run-1'
+    )
+    await Promise.resolve()
+    const webContents = getSessionWebContents('session-a')
+    webContents?.emitDomReady()
+    await loadPromise
+    sendToAllWindowsMock.mockClear()
+
+    expect(await presenter.setPreviewMode('session-a', 'capturing', 1, 'run-1')).toEqual({
+      updated: true,
+      surface: 'native-overlay'
+    })
+    await vi.advanceTimersByTimeAsync(1)
+
+    expect(nativePresentMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        windowId: 1,
+        sessionId: 'session-a',
+        runId: 'run-1'
+      }),
+      Buffer.from('preview-frame')
+    )
+    expect(
+      sendToAllWindowsMock.mock.calls.some(
+        ([, envelope]) => (envelope as { name?: string }).name === 'browser.preview.frame'
+      )
+    ).toBe(false)
+
+    const target = nativePrepareMock.mock.calls[0][0]
+    nativeActionHandler?.('activate', target)
+
+    expect(windowPresenter.show).toHaveBeenCalledWith(1, true)
+    expect(sendToAllWindowsMock).toHaveBeenCalledWith(
+      'deepchat:event',
+      expect.objectContaining({
+        name: 'browser.preview.action',
+        payload: {
+          action: 'activate',
+          windowId: 1,
+          sessionId: 'session-a',
+          runId: 'run-1'
+        }
+      }),
+      1
+    )
+  })
+
+  it.each(['load_url', 'cdp_send'])(
+    'stops activity for a canceled %s and ignores late completion',
+    async (toolName) => {
+      const { presenter, windows, getSessionWebContents } = await setupPresenter()
+      windows.set(1, new MockBrowserWindow(1))
+      const initialLoad = presenter.loadUrl('session-a', 'https://example.com')
+      const webContents = getSessionWebContents('session-a')!
+      webContents.emitDomReady()
+      await initialLoad
+      webContents.finishLoad()
+      sendToAllWindowsMock.mockClear()
+
+      let finishCommand!: () => void
+      if (toolName === 'cdp_send') {
+        webContents.debugger.sendCommand.mockImplementation(async (method: string) => {
+          if (method === 'Runtime.evaluate') {
+            await new Promise<void>((resolve) => {
+              finishCommand = resolve
+            })
+          }
+          return {}
+        })
+      }
+      const controller = new AbortController()
+      const command = presenter.toolHandler.callTool(
+        toolName,
+        toolName === 'load_url'
+          ? { url: 'https://example.com/next' }
+          : {
+              method: 'Runtime.evaluate',
+              params: {
+                expression: 'new Promise(() => { document.querySelector("button").click() })',
+                awaitPromise: true
+              }
+            },
+        'session-a',
+        'run-a',
+        undefined,
+        controller.signal
+      )
+      const cancellation = expect(command).rejects.toMatchObject({ name: 'AbortError' })
+      const phases = () =>
+        sendToAllWindowsMock.mock.calls
+          .map(([, envelope]) => envelope)
+          .filter((envelope: any) => envelope.name === 'browser.activity.changed')
+          .map((envelope: any) => envelope.payload.phase)
+      await vi.advanceTimersByTimeAsync(0)
+      expect(phases()).toEqual(['started'])
+
+      controller.abort()
+      await cancellation
+      await vi.advanceTimersByTimeAsync(0)
+      expect(phases()).toEqual(['started', 'failed'])
+
+      if (toolName === 'cdp_send') finishCommand()
+      else webContents.finishLoad()
+      await vi.advanceTimersByTimeAsync(0)
+      expect(phases()).toEqual(['started', 'failed'])
+      await presenter.shutdown()
+    }
+  )
+
+  it('maps agent CDP mouse and screenshot commands to overlay activity', async () => {
+    const { presenter, windows, getSessionWebContents } = await setupPresenter()
+    windows.set(1, new MockBrowserWindow(1))
+
+    const loadPromise = presenter.loadUrl('session-a', 'https://example.com')
+    await Promise.resolve()
+    getSessionWebContents('session-a')?.emitDomReady()
+    await loadPromise
+    await presenter.attachSessionBrowser('session-a', 1)
+    await presenter.updateSessionBrowserBounds(
+      'session-a',
+      1,
+      { x: 10, y: 20, width: 300, height: 400 },
+      true
+    )
+
+    sendToAllWindowsMock.mockClear()
+    await presenter.sendCdpCommand(
+      'session-a',
+      'Input.dispatchMouseEvent',
+      { type: 'mousePressed', x: 42, y: 84 },
+      'agent'
+    )
+    await presenter.sendCdpCommand(
+      'session-a',
+      'Page.captureScreenshot',
+      { clip: { x: 4, y: 8, width: 120, height: 80, scale: 1 } },
+      'agent'
+    )
+    await Promise.resolve()
+
+    const activityPayloads = sendToAllWindowsMock.mock.calls
+      .filter(([event]) => event === 'deepchat:event')
+      .map(([, envelope]) => envelope)
+      .filter((envelope: any) => envelope.name === 'browser.activity.changed')
+      .map((envelope: any) => envelope.payload)
+
+    expect(activityPayloads).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: 'pointer',
+          action: 'mouse_click',
+          phase: 'started',
+          point: { x: 42, y: 84 }
+        }),
+        expect.objectContaining({
+          kind: 'vision',
+          action: 'screenshot',
+          phase: 'started',
+          rect: { x: 4, y: 8, width: 120, height: 80 }
+        })
+      ])
+    )
+    expect(overlaySendActivityMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'pointer',
+        action: 'mouse_click',
+        point: { x: 42, y: 84 }
+      })
+    )
+  })
+
+  it('maps Runtime.evaluate click and scroll scripts to visible action cues', async () => {
+    const { presenter, windows, getSessionWebContents } = await setupPresenter()
+    windows.set(1, new MockBrowserWindow(1))
+
+    const loadPromise = presenter.loadUrl('session-a', 'https://example.com')
+    await Promise.resolve()
+    getSessionWebContents('session-a')?.emitDomReady()
+    await loadPromise
+    await presenter.attachSessionBrowser('session-a', 1)
+    await presenter.updateSessionBrowserBounds(
+      'session-a',
+      1,
+      { x: 10, y: 20, width: 300, height: 400 },
+      true
+    )
+
+    sendToAllWindowsMock.mockClear()
+    await presenter.sendCdpCommand(
+      'session-a',
+      'Runtime.evaluate',
+      { expression: 'document.querySelector("button")?.click()' },
+      'agent'
+    )
+    await presenter.sendCdpCommand(
+      'session-a',
+      'Runtime.evaluate',
+      { expression: 'window.scrollBy(0, 600)' },
+      'agent'
+    )
+
+    const activityPayloads = sendToAllWindowsMock.mock.calls
+      .filter(([event]) => event === 'deepchat:event')
+      .map(([, envelope]) => envelope)
+      .filter((envelope: any) => envelope.name === 'browser.activity.changed')
+      .map((envelope: any) => envelope.payload)
+
+    expect(activityPayloads).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: 'pointer',
+          action: 'mouse_click',
+          phase: 'started'
+        }),
+        expect.objectContaining({
+          kind: 'scroll',
+          action: 'mouse_wheel',
+          direction: 'down',
+          phase: 'started'
+        })
+      ])
+    )
+  })
+
+  it('maps Runtime.evaluate client coordinates by axis name', async () => {
+    const { presenter } = await setupPresenter()
+    const extractPoint = (presenter as any).extractPointFromRuntimeExpression.bind(presenter)
+
+    expect(
+      extractPoint(
+        'document.dispatchEvent(new MouseEvent("click", { clientY: 12.4, clientX: 98.6 }))'
+      )
+    ).toEqual({ x: 99, y: 12 })
+    expect(
+      extractPoint('document.dispatchEvent(new MouseEvent("click", { clientX: 10, clientX: 20 }))')
+    ).toBeUndefined()
+    expect(extractPoint('document.querySelector("button")?.click()')).toBeUndefined()
+  })
+
+  it('does not steal focus from the attached browser view', async () => {
+    const { presenter, windows, getSessionWebContents } = await setupPresenter()
+    const hostWindow = new MockBrowserWindow(1)
+    windows.set(1, hostWindow)
+
+    const loadPromise = presenter.loadUrl('session-a', 'https://example.com')
+    await Promise.resolve()
+    getSessionWebContents('session-a')?.emitDomReady()
+    await loadPromise
+
+    await presenter.attachSessionBrowser('session-a', 1)
+    await Promise.resolve()
+
+    expect(hostWindow.webContents.focus).not.toHaveBeenCalled()
+  })
+
+  it('does not show overlay activity when the host window is backgrounded', async () => {
+    const { presenter, windows, getSessionWebContents } = await setupPresenter()
+    const hostWindow = new MockBrowserWindow(1)
+    hostWindow.focused = false
+    windows.set(1, hostWindow)
+
+    const loadPromise = presenter.loadUrl('session-a', 'https://example.com')
+    await Promise.resolve()
+    getSessionWebContents('session-a')?.emitDomReady()
+    await loadPromise
+    await presenter.attachSessionBrowser('session-a', 1)
+    await presenter.updateSessionBrowserBounds(
+      'session-a',
+      1,
+      { x: 10, y: 20, width: 300, height: 400 },
+      true
+    )
+
+    sendToAllWindowsMock.mockClear()
+    await presenter.sendCdpCommand(
+      'session-a',
+      'Input.dispatchMouseEvent',
+      { type: 'mousePressed', x: 42, y: 84 },
+      'agent'
+    )
+    await Promise.resolve()
+
+    const activityEvents = sendToAllWindowsMock.mock.calls.filter(
+      ([event]) => event === 'deepchat:event'
+    )
+    expect(activityEvents.length).toBeGreaterThan(0)
+    expect(overlayUpdateBoundsMock).not.toHaveBeenCalled()
+    expect(overlaySendActivityMock).not.toHaveBeenCalled()
+    expect(hostWindow.webContents.focus).not.toHaveBeenCalled()
+  })
+
+  it('hides the overlay when the host window loses focus', async () => {
+    const { presenter, windows, getSessionWebContents } = await setupPresenter()
+    const hostWindow = new MockBrowserWindow(1)
+    windows.set(1, hostWindow)
+
+    const loadPromise = presenter.loadUrl('session-a', 'https://example.com')
+    await Promise.resolve()
+    getSessionWebContents('session-a')?.emitDomReady()
+    await loadPromise
+    await presenter.attachSessionBrowser('session-a', 1)
+    await presenter.updateSessionBrowserBounds(
+      'session-a',
+      1,
+      { x: 10, y: 20, width: 300, height: 400 },
+      true
+    )
+
+    hostWindow.emit('blur')
+
+    expect(overlayHideMock).toHaveBeenCalled()
+  })
+
+  it('hides and destroys the overlay with the session browser lifecycle', async () => {
+    const { presenter, windows, getSessionWebContents } = await setupPresenter()
+    windows.set(1, new MockBrowserWindow(1))
+
+    const loadPromise = presenter.loadUrl('session-a', 'https://example.com')
+    await Promise.resolve()
+    getSessionWebContents('session-a')?.emitDomReady()
+    await loadPromise
+    await presenter.attachSessionBrowser('session-a', 1)
+    await presenter.updateSessionBrowserBounds(
+      'session-a',
+      1,
+      { x: 10, y: 20, width: 300, height: 400 },
+      true
+    )
+
+    await presenter.detachSessionBrowser('session-a')
+    expect(overlayHideMock).toHaveBeenCalled()
+
+    await presenter.destroySessionBrowser('session-a')
+    expect(overlayDestroyMock).toHaveBeenCalled()
+  })
+})

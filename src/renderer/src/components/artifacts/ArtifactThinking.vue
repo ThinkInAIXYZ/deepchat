@@ -1,17 +1,17 @@
 <template>
-  <div class="text-xs text-muted-foreground rounded-lg flex flex-row gap-2 px-2 py-2">
-    <Icon icon="lucide:loader-2" class="w-4 h-4 animate-spin" />
-    生成artifact...
+  <div class="flex flex-row gap-2 rounded-lg px-2 py-2 text-xs text-muted-foreground">
+    <Spinner class="size-4" />
+    {{ t('artifacts.generating') }}
   </div>
 </template>
 
 <script setup lang="ts">
-// import { useI18n } from 'vue-i18n'
-import { Icon } from '@iconify/vue'
+import { useI18n } from 'vue-i18n'
 import { onMounted, ref, watch } from 'vue'
 import { createConfigClient } from '@api/ConfigClient'
+import { Spinner } from '@shadcn/components/ui/spinner'
 
-// const { t } = useI18n()
+const { t } = useI18n()
 const configClient = createConfigClient()
 const collapse = ref(false)
 

@@ -63,6 +63,27 @@
         "yobrowser": "YoBrowser"
       }
     },
+    "toolMode": {
+      "title": "Режим",
+      "modelDefault": "По умолчанию для модели",
+      "options": {
+        "agent": "Agent",
+        "code": "Code",
+        "minimal": "Minimal"
+      },
+      "descriptions": {
+        "agent": "Использовать стандартный набор инструментов агента.",
+        "code": "Объединять включённые инструменты с помощью кода. Требуется режим разрешений «Полный доступ».",
+        "minimal": "Упрощает файловые операции, сохраняя другие включённые инструменты."
+      },
+      "useModelDefault": "Использовать настройку модели",
+      "saving": "Сохранение режима...",
+      "locked": "Режим можно переключить после завершения этого ответа.",
+      "updateFailed": "Не удалось обновить режим инструментов.",
+      "codeEntry": "Вход для кода",
+      "codeCallable": "Доступно из кода",
+      "minimalTools": "Инструменты программирования"
+    },
     "fileUploadFailed": "Не удалось обработать вложение",
     "fileUploadFailedDesc": "Не удалось обработать {count} файлов: {names}",
     "fileUploadFailedMore": " и ещё {count}",
@@ -71,6 +92,12 @@
     "audioInputUnsupportedDescription": "Модель {model} не поддерживает аудиоввод. Пропущено аудиофайлов: {count}."
   },
   "pendingInput": {
+    "resume": "Возобновить очередь",
+    "resumeFailed": "Не удалось возобновить очередь",
+    "retry": "Повторить",
+    "retryRequired": "Требуется повторная попытка",
+    "retryRequiredDescription": "Это сообщение не было отправлено. Повторите его, чтобы продолжить очередь.",
+    "retryFailed": "Не удалось повторить сообщение в очереди",
     "steer": "Направление",
     "queueCount": "В ожидании {count}/{max}",
     "toSteer": "Прервать и отправить",
@@ -153,7 +180,8 @@
   "mode": {
     "acpAgent": "Агент АШП",
     "agent": "Агент",
-    "current": "Текущий режим: {mode}"
+    "current": "Текущий режим: {mode}",
+    "saveFailed": "Не удалось сохранить выбранный режим"
   },
   "topbar": {
     "share": "Поделиться",
@@ -167,7 +195,6 @@
     "systemPrompt": "Системный промпт",
     "systemPromptPlaceholder": "Выберите пресет",
     "temperature": "Температура",
-    "temperatureFixedMoonshotKimi": "Moonshot Kimi K2.5/K2.6 фиксирует температуру на уровне {enabled}, когда мышление включено, и на уровне {disabled}, когда оно отключено.",
     "topP": "Top P",
     "topPDescription": "Nucleus sampling; оставьте пустым, чтобы использовать значение провайдера по умолчанию",
     "contextLength": "Длина контекста",
@@ -203,6 +230,12 @@
       "contextMenu": {
         "insertPath": "Вставить в поле ввода",
         "openFile": "открыть файл",
+        "openInApp": "Открыть в {app}",
+        "openInTerminalApp": "Открыть папку в {app}",
+        "openFailed": "Не удалось открыть файл в этом приложении",
+        "preferredAppUnavailable": "Предпочтительное приложение сейчас недоступно. Файл будет открыт в приложении по умолчанию.",
+        "openWith": "Открыть с помощью",
+        "openWithSystemDefault": "Открыть в приложении по умолчанию",
         "revealInFolder": "Открыть в файловом менеджере"
       },
       "empty": "Файлов пока нет",
@@ -301,10 +334,19 @@
   "compaction": {
     "compacting": "Сжатие контекста...",
     "compacted": "Контекст сжат",
+    "compactedWithoutSummary": "Контекст сжат без сводки",
+    "compactedWithoutLargerSummary": "Контекст сжат без использования более объёмной сводки",
     "commandDescription": "Сжать контекст беседы",
     "noopTitle": "Нет контекста для сжатия",
     "noopDescription": "Пока нет новой истории разговора для сжатия.",
     "failedTitle": "Не удалось сжать контекст"
+  },
+  "contextOccupancy": {
+    "label": "Использование контекста",
+    "details": "{used} из {capacity} токенов",
+    "provider": "Измерено провайдером",
+    "estimated": "Оценка по представлению запроса",
+    "stale": "Устарело после смены модели, окна или сжатия"
   },
   "newThread": {
     "title": "Создавайте и исследуйте"
@@ -348,7 +390,13 @@
     "moveProjectGroupBottom": "Переместить в конец",
     "searchCommand": "Search",
     "chatSection": "Chat",
-    "workspace": "Workspace"
+    "workspace": "Workspace",
+    "addWorkspace": "Добавить рабочее пространство",
+    "manageWorkspaces": "Управление рабочими пространствами",
+    "openWorkspaceFolder": "Открыть папку",
+    "emptyWorkspace": "Пусто",
+    "addWorkspaceFailed": "Не удалось добавить рабочее пространство",
+    "searchLoadedRangeDescription": "Показаны совпадения из загруженных бесед. Прокрутите, чтобы загрузить больше истории."
   },
   "floatingWidget": {
     "title": "Обзор задач",
@@ -400,6 +448,72 @@
     "firstChat": {
       "description": "Всё готово. Введите здесь своё первое сообщение, чтобы завершить онбординг.",
       "caption": "Подсветка останется на поле ввода, пока вы не отправите первое сообщение."
+    }
+  },
+  "messageReceipt": {
+    "unread": "Не прочитано",
+    "read": "Прочитано"
+  },
+  "attachments": {
+    "chooseRepresentation": "Выберите способ отправки файла {name}",
+    "representation": "Представление вложения",
+    "auto": "Автоматически",
+    "sendImage": "Отправить изображение",
+    "useOcrText": "Использовать текст OCR",
+    "useEmbeddedText": "Использовать встроенный текст",
+    "preparing": "Обработка вложений…",
+    "actionRequiredTitle": "Вложение требует внимания",
+    "actionRequiredDescription": "Невозможно использовать одно или несколько вложений. Выберите способ продолжения.",
+    "attachmentNumber": "Вложение {number}",
+    "moreIssues": "Ещё проблем с вложениями: {count}",
+    "genericUnavailable": "Нет пригодного содержимого вложения.",
+    "keepDraft": "Сохранить черновик",
+    "switchVisionModel": "Переключиться на модель с поддержкой изображений",
+    "retry": "Повторить",
+    "sendWithoutImageContent": "Пропустить содержимое вложения",
+    "inspectOcrText": "Просмотреть текст OCR",
+    "ocrBadge": "OCR",
+    "embeddedTextBadge": "Текст",
+    "ocrPartialBadge": "OCR · Частично",
+    "ocrLimitedBadge": "OCR · Ограничено",
+    "imageBadge": "Изображение",
+    "unavailableBadge": "Недоступно",
+    "ocrPreviewTitle": "Текст OCR — {name}",
+    "ocrPreviewDescription": "Около {tokens} токенов отправлено как недоверенное содержимое вложения.",
+    "ocrPageCoverage": "Включает текст до страницы {page}.",
+    "ocrPageCoveragePartial": "Включает часть страницы {page}.",
+    "ocrTextTruncated": "Этот текст OCR был сокращён перед отправкой.",
+    "reasons": {
+      "automatic_ocr_disabled": "Автоматическое распознавание OCR отключено.",
+      "document_limit_exceeded": "В одном запросе OCR может обработать только один PDF.",
+      "document_too_large": "PDF превышает ограничение размера файла.",
+      "image_dimensions_exceeded": "Размеры декодированного изображения превышают безопасный предел.",
+      "image_limit_exceeded": "В этом ходе больше изображений, чем может обработать OCR.",
+      "image_payload_unavailable": "Данные исходного изображения больше недоступны.",
+      "image_too_large": "Изображение превышает ограничение размера одного файла.",
+      "ocr_cancelled": "Распознавание OCR отменено.",
+      "ocr_empty": "OCR не обнаружил пригодного текста.",
+      "ocr_failed": "OCR не смог обработать это вложение.",
+      "ocr_queue_full": "OCR занят. Повторите попытку после обработки текущего вложения.",
+      "ocr_resource_limited": "OCR остановлен на пределе обработки PDF.",
+      "ocr_runtime_unavailable": "OCR недоступен на этой платформе или в этой установке.",
+      "invalid_attachment_snapshot": "Сохранённые данные OCR недействительны.",
+      "turn_ocr_budget_exhausted": "Текст OCR превышает лимит текста вложений для этого сообщения.",
+      "pdf_text_unavailable": "В этом PDF нет доступного встроенного текста.",
+      "requested_image_requires_vision": "Для варианта «Отправить изображение» требуется модель с поддержкой изображений.",
+      "turn_image_bytes_exceeded": "Изображения в этом ходе превышают общий предел размера.",
+      "user_skipped_attachment_content": "Содержимое вложения пропущено по вашему выбору.",
+      "user_skipped_image_content": "Содержимое изображения пропущено по вашему выбору.",
+      "unsupported_image_format": "Этот формат изображения не поддерживается OCR."
+    },
+    "pending": {
+      "blockedCount": "Заблокировано: {count}",
+      "blocked": "Заблокировано",
+      "retry": "Повторить OCR",
+      "sendWithoutImageContent": "Пропустить содержимое вложения",
+      "blockedDescription": "Этот элемент ожидает решения по вложению.",
+      "blockedReasonMore": "{reason} Кроме того, есть ещё {count} проблем.",
+      "resolveFailed": "Не удалось обработать заблокированное сообщение"
     }
   },
   "skillDraft": {
@@ -459,6 +573,14 @@
       "dropped": "Исключено",
       "tokens": "Токены",
       "budget": "Бюджет",
+      "allocation": "Распределение бюджета контекста",
+      "directive": "Директива",
+      "persona": "Персона",
+      "working": "Рабочая память",
+      "queryRecall": "Извлечение по запросу",
+      "overhead": "Накладные расходы",
+      "unused": "Не использовано",
+      "overheadSummary": "Накладные расходы {overhead} · Не использовано {unused}",
       "countOnly": "Эта запись содержит только сводку по количеству.",
       "unavailable": "Это воспоминание больше недоступно.",
       "noSelectedDetails": "Для этого хода нет подробностей воспоминаний.",
@@ -485,5 +607,29 @@
       "amendRetryable": "Изменение не удалось. Исходная память восстановлена, попробуйте еще раз.",
       "amendRestoreFailed": "Изменение не удалось, и исходную память не удалось восстановить."
     }
+  },
+  "orchestration": {
+    "actions": {
+      "openChild": "Открыть дочерний Agent"
+    },
+    "activityTitle": "Активность Agent",
+    "proactive": {
+      "title": "Проактивное сотрудничество",
+      "description": "Позволяет родительскому Agent делегировать задачи, когда независимая или параллельная работа явно полезна. Может потребовать больше времени, токенов и ресурсов.",
+      "reasons": {
+        "session_unavailable": "Этот сеанс больше недоступен.",
+        "agent_unavailable": "Выбранный Agent недоступен.",
+        "deepchat_agent_required": "Для проактивного сотрудничества требуется DeepChat Agent.",
+        "regular_parent_required": "Проактивное сотрудничество недоступно в дочернем сеансе.",
+        "agent_policy_unavailable": "Не удалось загрузить политику сотрудничества.",
+        "subagents_disabled": "Включите Subagents для этого Agent, чтобы использовать проактивное сотрудничество."
+      }
+    }
+  },
+  "guardStop": {
+    "maxToolCalls": "Достигнут лимит вызовов инструментов до завершения задачи.",
+    "noProgress": "Повторяющиеся одинаковые результаты инструментов не дали прогресса, поэтому Agent остановился.",
+    "maxTurns": "Достигнут лимит раундов провайдера до завершения задачи.",
+    "continueMessage": "Продолжите с того места, где остановились."
   }
 }

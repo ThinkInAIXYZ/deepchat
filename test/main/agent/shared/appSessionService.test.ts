@@ -1,0 +1,448 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { AppSessionService } from '@/agent/shared/appSessionService'
+
+vi.mock('nanoid', () => ({ nanoid: vi.fn(() => 'mock-id-123') }))
+
+function createMockSqlitePresenter() {
+  return {
+    newSessionsTable: {
+      create: vi.fn(),
+      get: vi.fn(),
+      list: vi.fn().mockReturnValue([]),
+      getDisabledAgentTools: vi.fn().mockReturnValue([]),
+      updateDisabledAgentTools: vi.fn(),
+      getOrchestrationPolicy: vi.fn().mockReturnValue('explicit'),
+      updateOrchestrationPolicy: vi.fn(),
+      update: vi.fn(),
+      delete: vi.fn()
+    },
+    newEnvironmentsTable: {
+      listPathsForSession: vi.fn().mockReturnValue([]),
+      syncPath: vi.fn(),
+      syncForSession: vi.fn()
+    },
+    deepchatSearchDocumentsTable: {
+      upsert: vi.fn(),
+      refreshSessionTitle: vi.fn(),
+      deleteBySession: vi.fn()
+    },
+    deepchatSessionMetadataTable: {
+      upsert: vi.fn(),
+      get: vi.fn().mockReturnValue(null),
+      delete: vi.fn()
+    }
+  } as any
+}
+
+describe('AppSessionService', () => {
+  let sqlitePresenter: ReturnType<typeof createMockSqlitePresenter>
+  let notifyEnvironmentProjectionChanged: ReturnType<typeof vi.fn>
+  let manager: AppSessionService
+
+  beforeEach(() => {
+    sqlitePresenter = createMockSqlitePresenter()
+    notifyEnvironmentProjectionChanged = vi.fn()
+    manager = new AppSessionService(
+      sqlitePresenter,
+      sqlitePresenter,
+      notifyEnvironmentProjectionChanged
+    )
+  })
+
+  describe('create', () => {
+    it('creates a session, syncs environments, and returns the generated id', () => {
+      const id = manager.create('deepchat', 'Hello world', '/tmp/workspace')
+
+      expect(id).toBe('mock-id-123')
+      expect(sqlitePresenter.newSessionsTable.create).toHaveBeenCalledWith(
+        'mock-id-123',
+        'deepchat',
+        'Hello world',
+        '/tmp/workspace',
+        {
+          isDraft: undefined,
+          disabledAgentTools: undefined,
+          orchestrationPolicy: undefined,
+          sessionKind: undefined,
+          parentSessionId: undefined,
+          subagentMetaJson: null
+        }
+      )
+      expect(sqlitePresenter.deepchatSearchDocumentsTable.upsert).toHaveBeenCalledWith({
+        documentKey: 'session:mock-id-123',
+        sessionId: 'mock-id-123',
+        documentKind: 'session',
+        title: 'Hello world',
+        content: '',
+        updatedAt: expect.any(Number)
+      })
+      expect(sqlitePresenter.newEnvironmentsTable.syncPath).toHaveBeenCalledWith('/tmp/workspace')
+      expect(notifyEnvironmentProjectionChanged).toHaveBeenCalledTimes(1)
+    })
+
+    it('stores session metadata when provided', () => {
+      manager.create('deepchat', 'Scheduled run', '/tmp/workspace', {
+        metadata: {
+          source: 'cron_job',
+          cronJobId: 'job-1',
+          cronJobRunId: 'run-1',
+          scheduledAt: 123
+        }
+      })
+
+      expect(sqlitePresenter.deepchatSessionMetadataTable.upsert).toHaveBeenCalledWith(
+        'mock-id-123',
+        {
+          source: 'cron_job',
+          cronJobId: 'job-1',
+          cronJobRunId: 'run-1',
+          scheduledAt: 123
+        }
+      )
+    })
+  })
+
+  describe('get', () => {
+    it('reads from replacement tables after SQLite reopens', () => {
+      const replacement = createMockSqlitePresenter()
+      replacement.newSessionsTable.get.mockReturnValue({
+        id: 's2',
+        agent_id: 'deepchat',
+        title: 'Reopened',
+        project_dir: null,
+        is_pinned: 0,
+        is_draft: 0,
+        session_kind: 'regular',
+        parent_session_id: null,
+        subagent_enabled: 0,
+        subagent_meta_json: null,
+        created_at: 1000,
+        updated_at: 2000
+      })
+      sqlitePresenter.newSessionsTable = replacement.newSessionsTable
+      sqlitePresenter.deepchatSessionMetadataTable = replacement.deepchatSessionMetadataTable
+
+      expect(manager.get('s2')?.title).toBe('Reopened')
+      expect(replacement.newSessionsTable.get).toHaveBeenCalledWith('s2')
+    })
+
+    it('returns mapped SessionRecord when found', () => {
+      sqlitePresenter.newSessionsTable.get.mockReturnValue({
+        id: 's1',
+        agent_id: 'deepchat',
+        title: 'Test',
+        project_dir: '/tmp/proj',
+        is_pinned: 1,
+        is_draft: 0,
+        subagent_enabled: 1,
+        created_at: 1000,
+        updated_at: 2000
+      })
+
+      const record = manager.get('s1')
+
+      expect(record).toEqual({
+        id: 's1',
+        agentId: 'deepchat',
+        title: 'Test',
+        projectDir: '/tmp/proj',
+        isPinned: true,
+        isDraft: false,
+        sessionKind: 'regular',
+        parentSessionId: null,
+        subagentMeta: null,
+        orchestrationPolicy: 'explicit',
+        toolModeOverride: null,
+        createdAt: 1000,
+        updatedAt: 2000
+      })
+      expect(record).not.toHaveProperty('subagentEnabled')
+    })
+
+    it('maps proactive policy from durable session state', () => {
+      sqlitePresenter.newSessionsTable.get.mockReturnValue({
+        id: 's1',
+        agent_id: 'deepchat',
+        title: 'Workflow',
+        project_dir: '/tmp/proj',
+        is_pinned: 0,
+        is_draft: 0,
+        session_kind: 'regular',
+        parent_session_id: null,
+        subagent_meta_json: null,
+        orchestration_policy: 'proactive',
+        created_at: 1000,
+        updated_at: 2000,
+        revision: 3
+      })
+
+      expect(manager.get('s1')).toMatchObject({
+        id: 's1',
+        orchestrationPolicy: 'proactive'
+      })
+    })
+
+    it('returns stored metadata when present', () => {
+      sqlitePresenter.newSessionsTable.get.mockReturnValue({
+        id: 's1',
+        agent_id: 'deepchat',
+        title: 'Scheduled',
+        project_dir: '/tmp/proj',
+        is_pinned: 0,
+        is_draft: 0,
+        created_at: 1000,
+        updated_at: 2000
+      })
+      sqlitePresenter.deepchatSessionMetadataTable.get.mockReturnValue({
+        source: 'cron_job',
+        cronJobId: 'job-1',
+        cronJobRunId: 'run-1',
+        scheduledAt: 123
+      })
+
+      expect(manager.get('s1')).toEqual(
+        expect.objectContaining({
+          metadata: {
+            source: 'cron_job',
+            cronJobId: 'job-1',
+            cronJobRunId: 'run-1',
+            scheduledAt: 123
+          }
+        })
+      )
+    })
+
+    it('ignores retired workflow metadata while preserving child identity', () => {
+      const baseRow = {
+        id: 'child-1',
+        agent_id: 'deepchat',
+        title: 'Workflow child',
+        project_dir: '/tmp/proj',
+        is_pinned: 0,
+        is_draft: 0,
+        session_kind: 'subagent',
+        parent_session_id: 'parent-1',
+        created_at: 1000,
+        updated_at: 2000,
+        revision: 0
+      }
+      sqlitePresenter.newSessionsTable.get.mockReturnValueOnce({
+        ...baseRow,
+        subagent_meta_json: JSON.stringify({
+          slotId: 'workflow:slot',
+          displayName: 'Workflow child',
+          targetAgentId: 'deepchat',
+          workflow: {
+            runId: 'run-1',
+            invocationId: 'invocation-1',
+            correlationSlot: 'workflow:slot'
+          }
+        })
+      })
+
+      expect(manager.get('child-1')?.subagentMeta).toEqual({
+        slotId: 'workflow:slot',
+        displayName: 'Workflow child',
+        targetAgentId: 'deepchat'
+      })
+
+      sqlitePresenter.newSessionsTable.get.mockReturnValueOnce({
+        ...baseRow,
+        subagent_meta_json: JSON.stringify({
+          slotId: 'legacy-slot',
+          displayName: 'Legacy child',
+          workflow: {
+            runId: '',
+            invocationId: 'invocation-1',
+            correlationSlot: 'workflow:slot'
+          }
+        })
+      })
+      expect(manager.get('child-1')?.subagentMeta).toEqual({
+        slotId: 'legacy-slot',
+        displayName: 'Legacy child',
+        targetAgentId: undefined
+      })
+
+      sqlitePresenter.newSessionsTable.get.mockReturnValueOnce({
+        ...baseRow,
+        subagent_meta_json: JSON.stringify({
+          slotId: 'workflow:slot',
+          displayName: 'Mismatched workflow child',
+          workflow: {
+            runId: 'run-1',
+            invocationId: 'invocation-1',
+            correlationSlot: 'workflow:different'
+          }
+        })
+      })
+      expect(manager.get('child-1')?.subagentMeta).toEqual({
+        slotId: 'workflow:slot',
+        displayName: 'Mismatched workflow child',
+        targetAgentId: undefined
+      })
+    })
+
+    it('preserves live ownership while ignoring retired metadata', () => {
+      const baseRow = {
+        id: 'child-1',
+        agent_id: 'deepchat',
+        title: 'Live child',
+        project_dir: '/tmp/proj',
+        is_pinned: 0,
+        is_draft: 0,
+        session_kind: 'subagent',
+        parent_session_id: 'parent-1',
+        created_at: 1000,
+        updated_at: 2000,
+        revision: 0
+      }
+      sqlitePresenter.newSessionsTable.get.mockReturnValueOnce({
+        ...baseRow,
+        subagent_meta_json: JSON.stringify({
+          slotId: 'reviewer',
+          displayName: 'Live child',
+          liveDelegation: { delegationId: 'delegation-1' }
+        })
+      })
+
+      expect(manager.get('child-1')?.subagentMeta).toEqual({
+        slotId: 'reviewer',
+        displayName: 'Live child',
+        targetAgentId: undefined,
+        liveDelegation: { delegationId: 'delegation-1' }
+      })
+
+      sqlitePresenter.newSessionsTable.get.mockReturnValueOnce({
+        ...baseRow,
+        subagent_meta_json: JSON.stringify({
+          slotId: 'reviewer',
+          displayName: 'Ambiguous child',
+          workflow: {
+            runId: 'run-1',
+            invocationId: 'invocation-1',
+            correlationSlot: 'reviewer'
+          },
+          liveDelegation: { delegationId: 'delegation-1' }
+        })
+      })
+      expect(manager.get('child-1')?.subagentMeta).toEqual({
+        slotId: 'reviewer',
+        displayName: 'Ambiguous child',
+        targetAgentId: undefined,
+        liveDelegation: { delegationId: 'delegation-1' }
+      })
+    })
+
+    it('returns null when not found', () => {
+      sqlitePresenter.newSessionsTable.get.mockReturnValue(undefined)
+      expect(manager.get('missing')).toBeNull()
+    })
+  })
+
+  describe('list', () => {
+    it('returns mapped records', () => {
+      sqlitePresenter.newSessionsTable.list.mockReturnValue([
+        {
+          id: 's1',
+          agent_id: 'deepchat',
+          title: 'Chat 1',
+          project_dir: null,
+          is_pinned: 0,
+          is_draft: 1,
+          created_at: 1000,
+          updated_at: 2000
+        }
+      ])
+
+      const records = manager.list()
+
+      expect(records).toHaveLength(1)
+      expect(records[0].isPinned).toBe(false)
+      expect(records[0].isDraft).toBe(true)
+      expect(records[0].projectDir).toBeNull()
+    })
+
+    it('passes filters through', () => {
+      manager.list({ agentId: 'deepchat' })
+      expect(sqlitePresenter.newSessionsTable.list).toHaveBeenCalledWith({ agentId: 'deepchat' })
+    })
+  })
+
+  describe('update', () => {
+    it('maps camelCase fields to snake_case and syncs affected environment paths', () => {
+      sqlitePresenter.newSessionsTable.get.mockReturnValue({
+        project_dir: '/tmp/current'
+      })
+      sqlitePresenter.newEnvironmentsTable.listPathsForSession
+        .mockReturnValueOnce(['/tmp/current'])
+        .mockReturnValueOnce(['/tmp/current'])
+
+      manager.update('s1', { title: 'New Title', isPinned: true, isDraft: false })
+
+      expect(sqlitePresenter.newSessionsTable.update).toHaveBeenCalledWith('s1', {
+        title: 'New Title',
+        is_pinned: 1,
+        is_draft: 0
+      })
+      expect(sqlitePresenter.deepchatSearchDocumentsTable.refreshSessionTitle).toHaveBeenCalledWith(
+        's1',
+        'New Title'
+      )
+      expect(sqlitePresenter.newEnvironmentsTable.syncPath).toHaveBeenCalledWith('/tmp/current')
+    })
+
+    it('syncs both old and new environment paths when projectDir changes', () => {
+      sqlitePresenter.newSessionsTable.get.mockReturnValue({
+        project_dir: '/old/dir'
+      })
+      sqlitePresenter.newEnvironmentsTable.listPathsForSession
+        .mockReturnValueOnce(['/old/dir'])
+        .mockReturnValueOnce(['/new/dir'])
+
+      manager.update('s1', { projectDir: '/new/dir' })
+
+      expect(sqlitePresenter.newSessionsTable.update).toHaveBeenCalledWith('s1', {
+        project_dir: '/new/dir'
+      })
+      expect(sqlitePresenter.newEnvironmentsTable.syncPath).toHaveBeenNthCalledWith(1, '/old/dir')
+      expect(sqlitePresenter.newEnvironmentsTable.syncPath).toHaveBeenNthCalledWith(2, '/new/dir')
+    })
+
+    it('returns without updating when the session does not exist', () => {
+      sqlitePresenter.newSessionsTable.get.mockReturnValue(undefined)
+
+      manager.update('missing', { title: 'noop' })
+
+      expect(sqlitePresenter.newSessionsTable.update).not.toHaveBeenCalled()
+      expect(sqlitePresenter.newEnvironmentsTable.listPathsForSession).not.toHaveBeenCalled()
+      expect(sqlitePresenter.newEnvironmentsTable.syncPath).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('delete', () => {
+    it('deletes the session and syncs the removed path', () => {
+      sqlitePresenter.newEnvironmentsTable.listPathsForSession.mockReturnValue(['/tmp/to-delete'])
+
+      manager.delete('s1')
+
+      expect(sqlitePresenter.deepchatSearchDocumentsTable.deleteBySession).toHaveBeenCalledWith(
+        's1'
+      )
+      expect(sqlitePresenter.deepchatSessionMetadataTable.delete).toHaveBeenCalledWith('s1')
+      expect(sqlitePresenter.newSessionsTable.delete).toHaveBeenCalledWith('s1')
+      expect(sqlitePresenter.newEnvironmentsTable.syncPath).toHaveBeenCalledWith('/tmp/to-delete')
+    })
+  })
+
+  describe('disabled tools', () => {
+    it('syncs the related environment after updating disabled tools', () => {
+      manager.updateDisabledAgentTools('s1', ['exec'])
+
+      expect(sqlitePresenter.newSessionsTable.updateDisabledAgentTools).toHaveBeenCalledWith('s1', [
+        'exec'
+      ])
+      expect(sqlitePresenter.newEnvironmentsTable.syncForSession).toHaveBeenCalledWith('s1')
+    })
+  })
+})

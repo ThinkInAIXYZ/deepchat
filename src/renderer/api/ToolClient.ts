@@ -3,7 +3,7 @@ import { toolsListDefinitionsRoute } from '@shared/contracts/routes'
 import { getDeepchatBridge } from './core'
 
 export function createToolClient(bridge: DeepchatBridge = getDeepchatBridge()) {
-  async function getAllToolDefinitions(context: {
+  async function getConfigurableAgentToolDefinitions(context: {
     enabledMcpTools?: string[]
     disabledAgentTools?: string[]
     chatMode?: 'agent' | 'acp agent'
@@ -16,7 +16,7 @@ export function createToolClient(bridge: DeepchatBridge = getDeepchatBridge()) {
   }
 
   return {
-    getAllToolDefinitions
+    getConfigurableAgentToolDefinitions
   }
 }
 

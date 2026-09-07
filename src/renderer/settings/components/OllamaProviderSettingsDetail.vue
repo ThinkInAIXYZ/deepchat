@@ -4,7 +4,7 @@
       <div class="flex flex-col items-start p-2 gap-2">
         <div class="flex justify-between items-center w-full">
           <Label :for="`${provider.id}-url`" class="flex-1">API URL</Label>
-          <Button
+          <DcButton
             v-if="provider.custom"
             variant="destructive"
             size="sm"
@@ -13,7 +13,7 @@
           >
             <Icon icon="lucide:trash-2" class="w-4 h-4 mr-1" />
             {{ t('settings.provider.delete') }}
-          </Button>
+          </DcButton>
         </div>
         <Input
           :id="`${provider.id}-url`"
@@ -67,20 +67,21 @@
             @blur="handleApiKeyChange(String($event.target.value))"
             @keyup.enter="handleApiKeyEnter(apiKey)"
           />
-          <Button
+          <DcButton
             variant="ghost"
             size="sm"
             class="absolute right-2 top-1/2 transform -translate-y-1/2 h-7 w-7 p-0 hover:bg-transparent"
+            :tooltip="showApiKey ? t('common.hideValue') : t('common.showValue')"
             @click="showApiKey = !showApiKey"
           >
             <Icon
               :icon="showApiKey ? 'lucide:eye-off' : 'lucide:eye'"
               class="w-4 h-4 text-muted-foreground hover:text-foreground"
             />
-          </Button>
+          </DcButton>
         </div>
         <div class="flex flex-row gap-2">
-          <Button
+          <DcButton
             variant="outline"
             size="sm"
             class="text-xs text-normal rounded-lg"
@@ -89,8 +90,17 @@
           >
             <Icon icon="lucide:check-check" class="w-4 h-4 text-muted-foreground" />
             {{ t('settings.provider.verifyKey') }}
-          </Button>
+          </DcButton>
         </div>
+      </div>
+
+      <div v-if="canConfigureCustomHeaders" class="p-2">
+        <ProviderCustomHeadersEditor
+          :key="provider.id"
+          :provider-id="provider.id"
+          :model-value="provider.customHeaders"
+          :save="saveCustomHeaders"
+        />
       </div>
 
       <div class="flex flex-col items-start p-2 gap-2">
@@ -98,7 +108,7 @@
           {{ t('settings.provider.modelList') }}
         </Label>
         <div class="flex flex-row gap-2 items-center">
-          <Button
+          <DcButton
             variant="outline"
             size="sm"
             class="text-xs text-normal rounded-lg"
@@ -106,8 +116,8 @@
           >
             <Icon icon="lucide:download" class="w-4 h-4 text-muted-foreground" />
             {{ t('settings.provider.pullModels') }}
-          </Button>
-          <Button
+          </DcButton>
+          <DcButton
             variant="outline"
             size="sm"
             class="text-xs text-normal rounded-lg"
@@ -115,7 +125,7 @@
           >
             <Icon icon="lucide:refresh-cw" class="w-4 h-4 text-muted-foreground" />
             {{ t('settings.provider.refreshModels') }}
-          </Button>
+          </DcButton>
           <span class="text-xs text-muted-foreground">
             {{ runningModels.length }}/{{ effectiveLocalModels.length }}
             {{ t('settings.provider.modelsRunning') }}
@@ -224,7 +234,7 @@
               <div class="flex flex-col">
                 <span class="text-sm font-medium">{{ model.name }}</span>
               </div>
-              <Button
+              <DcButton
                 variant="outline"
                 size="sm"
                 class="text-xs rounded-lg"
@@ -233,14 +243,14 @@
               >
                 <Icon icon="lucide:download" class="w-3.5 h-3.5 mr-1" />
                 {{ t('settings.provider.dialog.pullModel.pull') }}
-              </Button>
+              </DcButton>
             </div>
           </div>
         </div>
         <DialogFooter>
-          <Button variant="outline" @click="showPullModelDialog = false">
+          <DcButton variant="outline" @click="showPullModelDialog = false">
             {{ t('dialog.close') }}
-          </Button>
+          </DcButton>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -269,9 +279,9 @@
           </DialogDescription>
         </DialogHeader>
         <DialogFooter>
-          <Button variant="outline" @click="showCheckModelDialog = false">
+          <DcButton variant="outline" @click="showCheckModelDialog = false">
             {{ t('dialog.close') }}
-          </Button>
+          </DcButton>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -285,12 +295,12 @@
           </DialogDescription>
         </DialogHeader>
         <DialogFooter>
-          <Button variant="outline" @click="showDeleteProviderDialog = false">
+          <DcButton variant="outline" @click="showDeleteProviderDialog = false">
             {{ t('dialog.cancel') }}
-          </Button>
-          <Button variant="destructive" @click="confirmDeleteProvider">
+          </DcButton>
+          <DcButton variant="destructive" @click="confirmDeleteProvider">
             {{ t('settings.provider.dialog.deleteProvider.confirm') }}
-          </Button>
+          </DcButton>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -302,7 +312,7 @@ import { useI18n } from 'vue-i18n'
 import { computed, onMounted, ref, watch } from 'vue'
 import { Label } from '@shadcn/components/ui/label'
 import { Input } from '@shadcn/components/ui/input'
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
 import { Progress } from '@shadcn/components/ui/progress'
 import {
   Tooltip,
@@ -324,9 +334,19 @@ import { useOllamaStore } from '@/stores/ollamaStore'
 import { useProviderStore } from '@/stores/providerStore'
 import { useModelCheckStore } from '@/stores/modelCheck'
 import { createModelClient } from '../../api/ModelClient'
-import type { LLM_PROVIDER, MODEL_META, OllamaModel, RENDERER_MODEL_META } from '@shared/presenter'
+import type {
+  LLM_PROVIDER,
+  MODEL_META,
+  OllamaModel,
+  RENDERER_MODEL_META
+} from '@shared/types/provider'
 import ModelConfigItem from '@/components/settings/ModelConfigItem.vue'
 import { ModelType } from '@shared/model'
+import {
+  supportsProviderCustomHeaders,
+  type ProviderCustomHeaders
+} from '@shared/providerCustomHeaders'
+import ProviderCustomHeadersEditor from './ProviderCustomHeadersEditor.vue'
 
 const { t } = useI18n()
 
@@ -353,6 +373,10 @@ const checkResult = ref<boolean>(false)
 const showDeleteProviderDialog = ref(false)
 const defaultBaseUrl = 'http://127.0.0.1:11434'
 const hasDefaultBaseUrl = defaultBaseUrl.length > 0
+const canConfigureCustomHeaders = computed(() => supportsProviderCustomHeaders(props.provider))
+
+const saveCustomHeaders = (customHeaders?: ProviderCustomHeaders) =>
+  providerStore.saveProviderCustomHeaders(props.provider.id, customHeaders)
 
 const isProviderReadyForOnboarding = (
   provider: Pick<LLM_PROVIDER, 'apiKey' | 'baseUrl' | 'custom' | 'enable'>

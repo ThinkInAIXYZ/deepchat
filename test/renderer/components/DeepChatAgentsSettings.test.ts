@@ -68,14 +68,36 @@ const DropdownMenuItemStub = defineComponent({
     '<button v-bind="$attrs" type="button" @click="$emit(\'select\', $event)"><slot /></button>'
 })
 
+const AgentTransferDialogStub = defineComponent({
+  name: 'AgentTransferDialog',
+  props: {
+    open: { type: Boolean, default: false },
+    error: { type: String, default: null }
+  },
+  emits: ['update:open', 'confirm-move', 'confirm-delete'],
+  template:
+    '<div v-if="open"><span v-if="error" data-testid="agent-transfer-error">{{ error }}</span><button data-testid="confirm-delete-agent" @click="$emit(\'confirm-delete\')">confirm</button></div>'
+})
+
 const clientMocks = vi.hoisted(() => ({
   projectClient: {
     listRecent: vi.fn(),
     selectDirectory: vi.fn()
   },
   toolClient: {
-    getAllToolDefinitions: vi.fn()
-  }
+    getConfigurableAgentToolDefinitions: vi.fn()
+  },
+  sessionClient: {
+    getAgentTransferImpact: vi.fn(),
+    deleteAgentSessions: vi.fn(),
+    moveAgentSessions: vi.fn()
+  },
+  uiSettingsStore: {
+    autoCompactionEnabled: true,
+    autoCompactionTriggerThreshold: 80,
+    autoCompactionRetainRecentPairs: 2
+  },
+  notifyRenderer: vi.fn()
 }))
 
 type ProjectClientMockSource = {
@@ -83,12 +105,12 @@ type ProjectClientMockSource = {
   selectDirectory: () => Promise<unknown>
 }
 type ToolClientMockSource = {
-  getAllToolDefinitions: (context: unknown) => Promise<unknown>
+  getConfigurableAgentToolDefinitions: (context: unknown) => Promise<unknown>
 }
 
 const bindClientMocks = (
   projectPresenter: ProjectClientMockSource,
-  toolPresenter: ToolClientMockSource
+  toolService: ToolClientMockSource
 ) => {
   clientMocks.projectClient.listRecent.mockImplementation((limit?: number) =>
     projectPresenter.getRecentProjects(limit)
@@ -96,8 +118,8 @@ const bindClientMocks = (
   clientMocks.projectClient.selectDirectory.mockImplementation(() =>
     projectPresenter.selectDirectory()
   )
-  clientMocks.toolClient.getAllToolDefinitions.mockImplementation((context: unknown) =>
-    toolPresenter.getAllToolDefinitions(context)
+  clientMocks.toolClient.getConfigurableAgentToolDefinitions.mockImplementation(
+    (context: unknown) => toolService.getConfigurableAgentToolDefinitions(context)
   )
 }
 
@@ -106,6 +128,15 @@ vi.mock('@api/ProjectClient', () => ({
 }))
 vi.mock('@api/ToolClient', () => ({
   createToolClient: () => clientMocks.toolClient
+}))
+vi.mock('@api/SessionClient', () => ({
+  createSessionClient: () => clientMocks.sessionClient
+}))
+vi.mock('@renderer-notifications/rendererNotificationPort', () => ({
+  notifyRenderer: clientMocks.notifyRenderer
+}))
+vi.mock('@/stores/uiSettingsStore', () => ({
+  useUiSettingsStore: () => clientMocks.uiSettingsStore
 }))
 
 vi.mock('vue-router', () => ({
@@ -130,7 +161,16 @@ describe('DeepChatAgentsSettings', () => {
     vi.clearAllMocks()
     clientMocks.projectClient.listRecent.mockReset()
     clientMocks.projectClient.selectDirectory.mockReset()
-    clientMocks.toolClient.getAllToolDefinitions.mockReset()
+    clientMocks.toolClient.getConfigurableAgentToolDefinitions.mockReset()
+    clientMocks.sessionClient.getAgentTransferImpact.mockReset()
+    clientMocks.sessionClient.deleteAgentSessions.mockReset()
+    clientMocks.sessionClient.moveAgentSessions.mockReset()
+    clientMocks.sessionClient.getAgentTransferImpact.mockResolvedValue({ totalSessions: 0 })
+    clientMocks.sessionClient.deleteAgentSessions.mockResolvedValue({ removed: 0 })
+    clientMocks.sessionClient.moveAgentSessions.mockResolvedValue({ moved: 0 })
+    clientMocks.uiSettingsStore.autoCompactionEnabled = true
+    clientMocks.uiSettingsStore.autoCompactionTriggerThreshold = 80
+    clientMocks.uiSettingsStore.autoCompactionRetainRecentPairs = 2
   })
 
   const mountSettings = async (options: {
@@ -141,7 +181,7 @@ describe('DeepChatAgentsSettings', () => {
       getRecentProjects: ReturnType<typeof vi.fn>
       selectDirectory: ReturnType<typeof vi.fn>
     }
-    configPresenter?: Partial<{
+    configService?: Partial<{
       listAgents: ReturnType<typeof vi.fn>
       getSystemPrompts: ReturnType<typeof vi.fn>
       updateDeepChatAgent: ReturnType<typeof vi.fn>
@@ -151,16 +191,23 @@ describe('DeepChatAgentsSettings', () => {
   }) => {
     vi.resetModules()
 
-    const configPresenter = {
+    const configService = {
       listAgents: vi.fn().mockResolvedValue(options.agents),
       getSystemPrompts: vi.fn().mockResolvedValue([]),
       updateDeepChatAgent: vi.fn().mockResolvedValue(options.agents[0]),
-      createDeepChatAgent: vi.fn().mockResolvedValue({ id: 'deepchat-new' }),
-      deleteDeepChatAgent: vi.fn().mockResolvedValue(undefined),
-      ...options.configPresenter
+      createDeepChatAgent: vi.fn().mockImplementation(async (input: Record<string, unknown>) => ({
+        id: 'deepchat-new',
+        type: 'deepchat',
+        protected: false,
+        ...input
+      })),
+      deleteDeepChatAgent: vi
+        .fn()
+        .mockResolvedValue({ removed: true, cleanupPendingRestart: false }),
+      ...options.configService
     }
-    const toolPresenter = {
-      getAllToolDefinitions: vi.fn().mockResolvedValue(options.toolDefinitions ?? [])
+    const toolService = {
+      getConfigurableAgentToolDefinitions: vi.fn().mockResolvedValue(options.toolDefinitions ?? [])
     }
     const projectPresenter = options.projectPresenter ?? {
       getRecentProjects: vi.fn().mockResolvedValue([]),
@@ -173,10 +220,10 @@ describe('DeepChatAgentsSettings', () => {
         findModelByIdOrName: vi.fn(() => null)
       } as const)
 
-    bindClientMocks(projectPresenter, toolPresenter)
+    bindClientMocks(projectPresenter, toolService)
 
     vi.doMock('@api/ConfigClient', () => ({
-      createConfigClient: () => configPresenter
+      createConfigClient: () => configService
     }))
     vi.doMock('@/stores/modelStore', () => ({
       useModelStore: () => modelStore
@@ -200,11 +247,18 @@ describe('DeepChatAgentsSettings', () => {
     const wrapper = mount(DeepChatAgentsSettings, {
       global: {
         stubs: {
-          Button: ButtonStub,
+          DcButton: ButtonStub,
           Badge: passthrough('Badge'),
           Input: InputStub,
+          InputGroup: passthrough('InputGroup'),
+          InputGroupAddon: passthrough('InputGroupAddon'),
+          InputGroupInput: InputStub,
+          InputGroupText: passthrough('InputGroupText'),
           Textarea: TextareaStub,
           Switch: SwitchStub,
+          Collapsible: passthrough('Collapsible'),
+          CollapsibleContent: passthrough('CollapsibleContent'),
+          CollapsibleTrigger: passthrough('CollapsibleTrigger'),
           Dialog: DialogStub,
           DialogContent: passthrough('DialogContent'),
           DialogHeader: passthrough('DialogHeader'),
@@ -223,7 +277,7 @@ describe('DeepChatAgentsSettings', () => {
           SelectTrigger: passthrough('SelectTrigger'),
           SelectValue: passthrough('SelectValue'),
           AgentAvatar: passthrough('AgentAvatar'),
-          AgentTransferDialog: passthrough('AgentTransferDialog'),
+          AgentTransferDialog: AgentTransferDialogStub,
           ModelIcon: passthrough('ModelIcon'),
           Icon: true
         }
@@ -234,11 +288,403 @@ describe('DeepChatAgentsSettings', () => {
 
     return {
       wrapper,
-      configPresenter,
-      toolPresenter,
+      configService,
+      toolService,
       projectPresenter
     }
   }
+
+  it('loads, resets, normalizes, and saves per-Agent output limits', async () => {
+    const existingAgent = {
+      id: 'deepchat',
+      type: 'deepchat',
+      name: 'DeepChat',
+      enabled: true,
+      protected: true,
+      avatar: null,
+      config: {
+        readFileAutoTruncateChars: 7_000,
+        toolOutputInlineChars: 8_000,
+        commandOutputInlineChars: 9_000
+      }
+    }
+    const { wrapper, configService } = await mountSettings({ agents: [existingAgent] })
+    const readInput = wrapper.get('[data-testid="read-file-auto-truncate-chars-input"]')
+    const toolInput = wrapper.get('[data-testid="tool-output-inline-chars-input"]')
+    const commandInput = wrapper.get('[data-testid="command-output-inline-chars-input"]')
+
+    expect((readInput.element as HTMLInputElement).value).toBe('7000')
+    expect((toolInput.element as HTMLInputElement).value).toBe('8000')
+    expect((commandInput.element as HTMLInputElement).value).toBe('9000')
+    const units = wrapper.findAll('[data-testid="agent-output-limit-unit"]')
+    expect(units).toHaveLength(3)
+    expect(units.every((unit) => unit.text() === 'settings.common.charactersUnit')).toBe(true)
+
+    await wrapper.get('[data-testid="agent-output-limits-reset"]').trigger('click')
+    expect((readInput.element as HTMLInputElement).value).toBe('4500')
+    expect((toolInput.element as HTMLInputElement).value).toBe('5000')
+    expect((commandInput.element as HTMLInputElement).value).toBe('12000')
+
+    await readInput.setValue('')
+    await toolInput.setValue('8500.6')
+    await commandInput.setValue('250000')
+    await wrapper.get('[data-testid="deepchat-agent-save-button"]').trigger('click')
+    await flushPromises()
+
+    const [, payload] = configService.updateDeepChatAgent.mock.calls[0]
+    expect(payload.config).toEqual({
+      readFileAutoTruncateChars: 4_500,
+      toolOutputInlineChars: 8_501,
+      commandOutputInlineChars: 200_000
+    })
+  })
+
+  it('shows pending and success feedback while deriving save availability from canonical data', async () => {
+    const existingAgent = {
+      id: 'deepchat',
+      type: 'deepchat',
+      name: 'DeepChat',
+      enabled: true,
+      protected: true,
+      description: 'Writer agent',
+      avatar: null,
+      config: {}
+    }
+    const updatedAgent = { ...existingAgent, name: 'DeepChat Renamed' }
+    let resolveSave: ((agent: typeof updatedAgent) => void) | undefined
+    const updateDeepChatAgent = vi.fn(
+      () =>
+        new Promise<typeof updatedAgent>((resolve) => {
+          resolveSave = resolve
+        })
+    )
+    const { wrapper, configService } = await mountSettings({
+      agents: [existingAgent],
+      configService: { updateDeepChatAgent }
+    })
+    const saveButton = wrapper.get('[data-testid="deepchat-agent-save-button"]')
+
+    expect(saveButton.attributes('disabled')).toBeDefined()
+
+    await wrapper.get('[data-testid="deepchat-agent-name-input"]').setValue(updatedAgent.name)
+    await flushPromises()
+    expect(saveButton.attributes('disabled')).toBeUndefined()
+
+    await saveButton.trigger('click')
+    expect(saveButton.attributes('disabled')).toBeDefined()
+    expect(saveButton.attributes('aria-busy')).toBe('true')
+    expect(
+      wrapper.get('[data-testid="deepchat-agent-editor-content"]').attributes()
+    ).toHaveProperty('inert')
+
+    resolveSave?.(updatedAgent)
+    await flushPromises()
+
+    // 成功反馈走按钮 ✅ 态，不再弹 toast
+    expect(clientMocks.notifyRenderer).not.toHaveBeenCalledWith(
+      expect.objectContaining({ code: 'settings.deepchatAgent.saved' })
+    )
+    expect(saveButton.attributes('disabled')).toBeDefined()
+    expect(configService.listAgents).toHaveBeenCalledOnce()
+  })
+
+  it('reports save failures as an inline error, hides raw errors, and retries the same edited data', async () => {
+    const existingAgent = {
+      id: 'deepchat',
+      type: 'deepchat',
+      name: 'DeepChat',
+      enabled: true,
+      protected: true,
+      description: 'Writer agent',
+      avatar: null,
+      config: {}
+    }
+    const updatedAgent = { ...existingAgent, description: 'Updated description' }
+    const updateDeepChatAgent = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('sensitive backend detail'))
+      .mockResolvedValueOnce(updatedAgent)
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    const { wrapper } = await mountSettings({
+      agents: [existingAgent],
+      configService: { updateDeepChatAgent }
+    })
+
+    await wrapper
+      .get('[data-testid="deepchat-agent-description-input"]')
+      .setValue(updatedAgent.description)
+    await wrapper.get('[data-testid="deepchat-agent-save-button"]').trigger('click')
+    await flushPromises()
+
+    expect(clientMocks.notifyRenderer).not.toHaveBeenCalledWith(
+      expect.objectContaining({ code: 'settings.deepchatAgent.saveFailed' })
+    )
+    expect(wrapper.get('[role="alert"]').text()).toContain(
+      'settings.deepchatAgents.saveFeedback.saveFailed'
+    )
+    expect(wrapper.text()).not.toContain('sensitive backend detail')
+    expect(wrapper.get('[data-testid="deepchat-agent-save-button"]').attributes('disabled')).toBe(
+      undefined
+    )
+
+    await wrapper.get('[data-testid="deepchat-agent-save-button"]').trigger('click')
+    await flushPromises()
+
+    expect(updateDeepChatAgent).toHaveBeenCalledTimes(2)
+    // 重试成功走按钮 ✅ 态，内联错误清除
+    expect(clientMocks.notifyRenderer).not.toHaveBeenCalledWith(
+      expect.objectContaining({ code: 'settings.deepchatAgent.saved' })
+    )
+    expect(wrapper.find('[role="alert"]').exists()).toBe(false)
+    consoleError.mockRestore()
+  })
+
+  it('keeps persistence success when the returned agent cannot be projected', async () => {
+    const existingAgent = {
+      id: 'deepchat',
+      type: 'deepchat',
+      name: 'DeepChat',
+      enabled: true,
+      protected: true,
+      description: '',
+      avatar: null,
+      config: {}
+    }
+    const persistedAgent = {
+      ...existingAgent,
+      name: 'Persisted name',
+      config: {
+        disabledAgentTools: 42
+      }
+    }
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    const { wrapper, configService } = await mountSettings({
+      agents: [existingAgent],
+      configService: {
+        updateDeepChatAgent: vi.fn().mockResolvedValue(persistedAgent)
+      }
+    })
+
+    await wrapper.get('[data-testid="deepchat-agent-name-input"]').setValue('Persisted name')
+    await wrapper.get('[data-testid="deepchat-agent-save-button"]').trigger('click')
+    await flushPromises()
+
+    expect(configService.updateDeepChatAgent).toHaveBeenCalledOnce()
+    expect(consoleError).toHaveBeenCalledWith(
+      '[DeepChatAgents] Failed to project saved agent',
+      expect.any(TypeError)
+    )
+    expect(clientMocks.notifyRenderer).not.toHaveBeenCalledWith(
+      expect.objectContaining({ code: 'settings.deepchatAgent.saved' })
+    )
+    expect(wrapper.get('[data-testid="deepchat-agent-save-button"]').attributes('disabled')).toBe(
+      ''
+    )
+
+    await wrapper.get('[data-testid="deepchat-agent-name-input"]').setValue('Unsaved follow-up')
+    const resetButton = wrapper
+      .findAll('button')
+      .find((button) => button.text().includes('common.reset'))
+    await resetButton!.trigger('click')
+
+    expect(
+      (wrapper.get('[data-testid="deepchat-agent-name-input"]').element as HTMLInputElement).value
+    ).toBe('Persisted name')
+    consoleError.mockRestore()
+  })
+
+  it('persists clearing an existing description instead of treating it as an omitted update', async () => {
+    const existingAgent = {
+      id: 'deepchat',
+      type: 'deepchat',
+      name: 'DeepChat',
+      enabled: true,
+      protected: true,
+      description: 'Remove this description',
+      avatar: null,
+      config: {}
+    }
+    const updatedAgent = { ...existingAgent, description: undefined }
+    const updateDeepChatAgent = vi.fn().mockResolvedValue(updatedAgent)
+    const { wrapper } = await mountSettings({
+      agents: [existingAgent],
+      configService: { updateDeepChatAgent }
+    })
+
+    await wrapper.get('[data-testid="deepchat-agent-description-input"]').setValue('')
+    await wrapper.get('[data-testid="deepchat-agent-save-button"]').trigger('click')
+    await flushPromises()
+
+    expect(updateDeepChatAgent).toHaveBeenCalledWith(
+      'deepchat',
+      expect.objectContaining({ description: '' })
+    )
+    expect(
+      (wrapper.get('[data-testid="deepchat-agent-description-input"]').element as HTMLInputElement)
+        .value
+    ).toBe('')
+    expect(clientMocks.notifyRenderer).not.toHaveBeenCalledWith(
+      expect.objectContaining({ code: 'settings.deepchatAgent.saved' })
+    )
+  })
+
+  it('clears the failed-save state from the page as soon as the user edits again', async () => {
+    const existingAgent = {
+      id: 'deepchat',
+      type: 'deepchat',
+      name: 'DeepChat',
+      enabled: true,
+      protected: true,
+      description: '',
+      avatar: null,
+      config: {}
+    }
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    const { wrapper } = await mountSettings({
+      agents: [existingAgent],
+      configService: {
+        updateDeepChatAgent: vi.fn().mockRejectedValue(new Error('save failed'))
+      }
+    })
+
+    await wrapper.get('[data-testid="deepchat-agent-name-input"]').setValue('Changed once')
+    await wrapper.get('[data-testid="deepchat-agent-save-button"]').trigger('click')
+    await flushPromises()
+    expect(wrapper.get('[role="alert"]').text()).toContain(
+      'settings.deepchatAgents.saveFeedback.saveFailed'
+    )
+    expect(clientMocks.notifyRenderer).not.toHaveBeenCalledWith(
+      expect.objectContaining({ code: 'settings.deepchatAgent.saveFailed' })
+    )
+    expect(
+      wrapper.get('[data-testid="deepchat-agent-save-button"]').attributes('disabled')
+    ).toBeUndefined()
+
+    await wrapper.get('[data-testid="deepchat-agent-name-input"]').setValue('Changed again')
+    await flushPromises()
+
+    expect(
+      wrapper.get('[data-testid="deepchat-agent-save-button"]').attributes('disabled')
+    ).toBeUndefined()
+    expect(wrapper.text()).not.toContain('settings.deepchatAgents.saveFeedback.saveFailed')
+    consoleError.mockRestore()
+  })
+
+  it('guards an in-page Agent switch until dirty edits are explicitly discarded', async () => {
+    const builtin = {
+      id: 'deepchat',
+      type: 'deepchat',
+      name: 'DeepChat',
+      enabled: true,
+      protected: true,
+      description: '',
+      avatar: null,
+      config: {}
+    }
+    const child = {
+      id: 'child',
+      type: 'deepchat',
+      name: 'Child',
+      enabled: true,
+      protected: false,
+      description: '',
+      avatar: null,
+      config: {}
+    }
+    const { wrapper } = await mountSettings({ agents: [builtin, child] })
+    const { settingsLeaveGuard } =
+      await import('../../../src/renderer/settings/services/settingsLeaveGuard')
+
+    await wrapper.get('[data-testid="deepchat-agent-name-input"]').setValue('Unsaved name')
+    await wrapper.get('[data-testid="deepchat-agent-row-child"]').trigger('click')
+    await flushPromises()
+
+    expect(settingsLeaveGuard.getSnapshot()).toMatchObject({ promptOpen: true, risk: 'dirty' })
+    expect(
+      (wrapper.get('[data-testid="deepchat-agent-name-input"]').element as HTMLInputElement).value
+    ).toBe('Unsaved name')
+
+    settingsLeaveGuard.cancelLeave()
+    await flushPromises()
+    expect(
+      (wrapper.get('[data-testid="deepchat-agent-name-input"]').element as HTMLInputElement).value
+    ).toBe('Unsaved name')
+
+    await wrapper.get('[data-testid="deepchat-agent-row-child"]').trigger('click')
+    expect(settingsLeaveGuard.discardAndLeave()).toBe(true)
+    await flushPromises()
+
+    expect(
+      (wrapper.get('[data-testid="deepchat-agent-name-input"]').element as HTMLInputElement).value
+    ).toBe('Child')
+    expect(
+      wrapper.get('[data-testid="deepchat-agent-save-button"]').attributes('disabled')
+    ).toBeDefined()
+  })
+
+  it('notifies when deleted agent vector cleanup is deferred until restart', async () => {
+    const agent = {
+      id: 'custom-agent',
+      type: 'deepchat',
+      name: 'Custom Agent',
+      enabled: true,
+      protected: false,
+      description: '',
+      avatar: null,
+      config: {}
+    }
+    const deleteDeepChatAgent = vi
+      .fn()
+      .mockResolvedValue({ removed: true, cleanupPendingRestart: true })
+    const { wrapper } = await mountSettings({
+      agents: [agent],
+      configService: { deleteDeepChatAgent }
+    })
+
+    await wrapper.get('[data-testid="deepchat-agent-delete-button"]').trigger('click')
+    await flushPromises()
+    await wrapper.get('[data-testid="confirm-delete-agent"]').trigger('click')
+    await flushPromises()
+
+    expect(clientMocks.sessionClient.deleteAgentSessions).toHaveBeenCalledWith('custom-agent')
+    expect(deleteDeepChatAgent).toHaveBeenCalledWith('custom-agent')
+    expect(clientMocks.notifyRenderer).toHaveBeenCalledWith({
+      kind: 'info',
+      code: 'settings.deepchatAgent.cleanupPendingRestart',
+      title: 'settings.deepchatAgents.memoryManager.cleanupPendingRestart'
+    })
+    expect(wrapper.find('[data-testid="deepchat-agent-row-custom-agent"]').exists()).toBe(false)
+  })
+
+  it('keeps raw agent deletion failures inside diagnostics', async () => {
+    const agent = {
+      id: 'custom-agent',
+      type: 'deepchat',
+      name: 'Custom Agent',
+      enabled: true,
+      protected: false,
+      description: '',
+      avatar: null,
+      config: {}
+    }
+    const deleteDeepChatAgent = vi.fn().mockRejectedValue(new Error('secret database path'))
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    const { wrapper } = await mountSettings({
+      agents: [agent],
+      configService: { deleteDeepChatAgent }
+    })
+
+    await wrapper.get('[data-testid="deepchat-agent-delete-button"]').trigger('click')
+    await flushPromises()
+    await wrapper.get('[data-testid="confirm-delete-agent"]').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.get('[data-testid="agent-transfer-error"]').text()).toBe(
+      'common.error.operationFailed'
+    )
+    expect(wrapper.text()).not.toContain('secret database path')
+    consoleError.mockRestore()
+  })
 
   it('mounts and saves DeepChat agents with cloneable model selections', async () => {
     vi.resetModules()
@@ -275,15 +721,17 @@ describe('DeepChatAgentsSettings', () => {
       }
     }
 
-    const configPresenter = {
+    const configService = {
       listAgents: vi.fn().mockResolvedValue([existingAgent]),
       getSystemPrompts: vi.fn().mockResolvedValue([]),
       updateDeepChatAgent: vi.fn().mockResolvedValue(existingAgent),
       createDeepChatAgent: vi.fn().mockResolvedValue({ id: 'deepchat-new' }),
-      deleteDeepChatAgent: vi.fn().mockResolvedValue(undefined)
+      deleteDeepChatAgent: vi
+        .fn()
+        .mockResolvedValue({ removed: true, cleanupPendingRestart: false })
     }
-    const toolPresenter = {
-      getAllToolDefinitions: vi.fn().mockResolvedValue([
+    const toolService = {
+      getConfigurableAgentToolDefinitions: vi.fn().mockResolvedValue([
         {
           source: 'agent',
           function: { name: 'tool_alpha', description: 'Alpha tool' },
@@ -300,7 +748,7 @@ describe('DeepChatAgentsSettings', () => {
       getRecentProjects: vi.fn().mockResolvedValue([]),
       selectDirectory: vi.fn().mockResolvedValue(null)
     }
-    bindClientMocks(projectPresenter, toolPresenter)
+    bindClientMocks(projectPresenter, toolService)
     const modelStore = {
       allProviderModels: [
         {
@@ -330,7 +778,7 @@ describe('DeepChatAgentsSettings', () => {
     }
 
     vi.doMock('@api/ConfigClient', () => ({
-      createConfigClient: () => configPresenter
+      createConfigClient: () => configService
     }))
     vi.doMock('@/stores/modelStore', () => ({
       useModelStore: () => modelStore
@@ -354,7 +802,7 @@ describe('DeepChatAgentsSettings', () => {
     const wrapper = mount(DeepChatAgentsSettings, {
       global: {
         stubs: {
-          Button: ButtonStub,
+          DcButton: ButtonStub,
           Badge: passthrough('Badge'),
           Input: InputStub,
           Textarea: TextareaStub,
@@ -419,9 +867,9 @@ describe('DeepChatAgentsSettings', () => {
     await saveButton!.trigger('click')
     await flushPromises()
 
-    expect(configPresenter.updateDeepChatAgent).toHaveBeenCalledTimes(1)
+    expect(configService.updateDeepChatAgent).toHaveBeenCalledTimes(1)
 
-    const [, payload] = configPresenter.updateDeepChatAgent.mock.calls[0]
+    const [, payload] = configService.updateDeepChatAgent.mock.calls[0]
     expect(payload).toMatchObject({
       name: 'DeepChat',
       enabled: true,
@@ -460,7 +908,7 @@ describe('DeepChatAgentsSettings', () => {
       }
     }
 
-    const { wrapper, configPresenter } = await mountSettings({ agents: [existingAgent] })
+    const { wrapper, configService } = await mountSettings({ agents: [existingAgent] })
 
     const systemPromptTextarea = wrapper
       .findAll('textarea')
@@ -480,7 +928,7 @@ describe('DeepChatAgentsSettings', () => {
     await saveButton!.trigger('click')
     await flushPromises()
 
-    const [, payload] = configPresenter.updateDeepChatAgent.mock.calls[0]
+    const [, payload] = configService.updateDeepChatAgent.mock.calls[0]
     expect(payload.config).toEqual({ systemPrompt: 'new system prompt' })
     expect(payload.config).not.toHaveProperty('defaultModelPreset')
     expect(payload.config).not.toHaveProperty('assistantModel')
@@ -502,7 +950,7 @@ describe('DeepChatAgentsSettings', () => {
       }
     }
 
-    const { wrapper, configPresenter } = await mountSettings({ agents: [existingAgent] })
+    const { wrapper, configService } = await mountSettings({ agents: [existingAgent] })
 
     await wrapper.get('[data-testid="deepchat-agent-name-input"]').setValue('DeepChat Renamed')
     await flushPromises()
@@ -513,7 +961,7 @@ describe('DeepChatAgentsSettings', () => {
     await saveButton!.trigger('click')
     await flushPromises()
 
-    const [, payload] = configPresenter.updateDeepChatAgent.mock.calls[0]
+    const [, payload] = configService.updateDeepChatAgent.mock.calls[0]
     expect(payload.name).toBe('DeepChat Renamed')
     expect(payload).not.toHaveProperty('config')
   })
@@ -534,7 +982,7 @@ describe('DeepChatAgentsSettings', () => {
       }
     }
 
-    const { wrapper, configPresenter } = await mountSettings({ agents: [existingAgent] })
+    const { wrapper, configService } = await mountSettings({ agents: [existingAgent] })
 
     const clearButtons = wrapper
       .findAll('button')
@@ -550,7 +998,7 @@ describe('DeepChatAgentsSettings', () => {
     await saveButton!.trigger('click')
     await flushPromises()
 
-    const [, payload] = configPresenter.updateDeepChatAgent.mock.calls[0]
+    const [, payload] = configService.updateDeepChatAgent.mock.calls[0]
     expect(payload.config).toEqual({ defaultModelPreset: null })
   })
 
@@ -575,24 +1023,26 @@ describe('DeepChatAgentsSettings', () => {
         disabledAgentTools: []
       }
     }
-    const configPresenter = {
+    const configService = {
       listAgents: vi.fn().mockResolvedValue([existingAgent]),
       getSystemPrompts: vi.fn().mockResolvedValue([]),
       updateDeepChatAgent: vi.fn().mockResolvedValue(existingAgent),
       createDeepChatAgent: vi.fn().mockResolvedValue({ id: 'deepchat-new' }),
-      deleteDeepChatAgent: vi.fn().mockResolvedValue(undefined)
+      deleteDeepChatAgent: vi
+        .fn()
+        .mockResolvedValue({ removed: true, cleanupPendingRestart: false })
     }
-    const toolPresenter = {
-      getAllToolDefinitions: vi.fn().mockResolvedValue([])
+    const toolService = {
+      getConfigurableAgentToolDefinitions: vi.fn().mockResolvedValue([])
     }
     const projectPresenter = {
       getRecentProjects: vi.fn().mockResolvedValue([]),
       selectDirectory: vi.fn().mockResolvedValue(null)
     }
-    bindClientMocks(projectPresenter, toolPresenter)
+    bindClientMocks(projectPresenter, toolService)
 
     vi.doMock('@api/ConfigClient', () => ({
-      createConfigClient: () => configPresenter
+      createConfigClient: () => configService
     }))
     vi.doMock('@/stores/modelStore', () => ({
       useModelStore: () => ({
@@ -619,7 +1069,7 @@ describe('DeepChatAgentsSettings', () => {
     const wrapper = mount(DeepChatAgentsSettings, {
       global: {
         stubs: {
-          Button: ButtonStub,
+          DcButton: ButtonStub,
           Badge: passthrough('Badge'),
           Input: InputStub,
           Textarea: TextareaStub,
@@ -670,28 +1120,30 @@ describe('DeepChatAgentsSettings', () => {
       config: {}
     }
 
-    const configPresenter = {
+    const configService = {
       listAgents: vi.fn().mockResolvedValue([existingAgent]),
       getSystemPrompts: vi.fn().mockResolvedValue([]),
       updateDeepChatAgent: vi.fn().mockResolvedValue(existingAgent),
       createDeepChatAgent: vi.fn().mockResolvedValue({ id: 'deepchat-new' }),
-      deleteDeepChatAgent: vi.fn().mockResolvedValue(undefined)
+      deleteDeepChatAgent: vi
+        .fn()
+        .mockResolvedValue({ removed: true, cleanupPendingRestart: false })
     }
-    const toolPresenter = {
-      getAllToolDefinitions: vi.fn().mockResolvedValue([])
+    const toolService = {
+      getConfigurableAgentToolDefinitions: vi.fn().mockResolvedValue([])
     }
     const projectPresenter = {
       getRecentProjects: vi.fn().mockResolvedValue([]),
       selectDirectory: vi.fn().mockResolvedValue(null)
     }
-    bindClientMocks(projectPresenter, toolPresenter)
+    bindClientMocks(projectPresenter, toolService)
     const modelStore = {
       allProviderModels: [],
       findModelByIdOrName: vi.fn(() => null)
     }
 
     vi.doMock('@api/ConfigClient', () => ({
-      createConfigClient: () => configPresenter
+      createConfigClient: () => configService
     }))
     vi.doMock('@/stores/modelStore', () => ({
       useModelStore: () => modelStore
@@ -715,7 +1167,7 @@ describe('DeepChatAgentsSettings', () => {
     const wrapper = mount(DeepChatAgentsSettings, {
       global: {
         stubs: {
-          Button: ButtonStub,
+          DcButton: ButtonStub,
           Badge: passthrough('Badge'),
           Input: InputStub,
           Textarea: TextareaStub,
@@ -779,28 +1231,30 @@ describe('DeepChatAgentsSettings', () => {
       }
     }
 
-    const configPresenter = {
+    const configService = {
       listAgents: vi.fn().mockResolvedValue([existingAgent]),
       getSystemPrompts: vi.fn().mockResolvedValue([]),
       updateDeepChatAgent: vi.fn().mockResolvedValue(existingAgent),
       createDeepChatAgent: vi.fn().mockResolvedValue({ id: 'deepchat-new' }),
-      deleteDeepChatAgent: vi.fn().mockResolvedValue(undefined)
+      deleteDeepChatAgent: vi
+        .fn()
+        .mockResolvedValue({ removed: true, cleanupPendingRestart: false })
     }
-    const toolPresenter = {
-      getAllToolDefinitions: vi.fn().mockResolvedValue([])
+    const toolService = {
+      getConfigurableAgentToolDefinitions: vi.fn().mockResolvedValue([])
     }
     const projectPresenter = {
       getRecentProjects: vi.fn().mockResolvedValue([]),
       selectDirectory: vi.fn().mockResolvedValue(null)
     }
-    bindClientMocks(projectPresenter, toolPresenter)
+    bindClientMocks(projectPresenter, toolService)
     const modelStore = {
       allProviderModels: [],
       findModelByIdOrName: vi.fn(() => null)
     }
 
     vi.doMock('@api/ConfigClient', () => ({
-      createConfigClient: () => configPresenter
+      createConfigClient: () => configService
     }))
     vi.doMock('@/stores/modelStore', () => ({
       useModelStore: () => modelStore
@@ -824,7 +1278,7 @@ describe('DeepChatAgentsSettings', () => {
     const wrapper = mount(DeepChatAgentsSettings, {
       global: {
         stubs: {
-          Button: ButtonStub,
+          DcButton: ButtonStub,
           Badge: passthrough('Badge'),
           Input: InputStub,
           Textarea: TextareaStub,
@@ -862,6 +1316,7 @@ describe('DeepChatAgentsSettings', () => {
     wrapper
       .findComponent('[data-testid="auto-compaction-retain-recent-pairs-input"]')
       .vm.$emit('update:modelValue', 6)
+    await flushPromises()
 
     const saveButton = wrapper
       .findAll('button')
@@ -872,13 +1327,67 @@ describe('DeepChatAgentsSettings', () => {
     await saveButton!.trigger('click')
     await flushPromises()
 
-    expect(configPresenter.updateDeepChatAgent).toHaveBeenCalledTimes(1)
+    expect(configService.updateDeepChatAgent).toHaveBeenCalledTimes(1)
 
-    const [, payload] = configPresenter.updateDeepChatAgent.mock.calls[0]
+    const [, payload] = configService.updateDeepChatAgent.mock.calls[0]
     expect(payload.config.autoCompactionTriggerThreshold).toBe(91)
     expect(payload.config.autoCompactionRetainRecentPairs).toBe(6)
     expect(payload.config).not.toHaveProperty('defaultModelPreset')
     expect(payload.config).not.toHaveProperty('assistantModel')
+  })
+
+  it('snapshots app auto-compaction defaults for a new Agent form', async () => {
+    clientMocks.uiSettingsStore.autoCompactionEnabled = false
+    clientMocks.uiSettingsStore.autoCompactionTriggerThreshold = 65
+    clientMocks.uiSettingsStore.autoCompactionRetainRecentPairs = 4
+
+    const existingAgent = {
+      id: 'deepchat',
+      type: 'deepchat',
+      name: 'DeepChat',
+      enabled: true,
+      protected: true,
+      avatar: null,
+      config: {}
+    }
+    const { wrapper, configService } = await mountSettings({ agents: [existingAgent] })
+
+    await wrapper.get('[data-testid="deepchat-agent-add-button"]').trigger('click')
+    await flushPromises()
+
+    const compactionSwitch = wrapper
+      .findAll('button')
+      .find(
+        (button) => button.attributes('aria-label') === 'settings.deepchatAgents.compactionEnabled'
+      )
+    expect(compactionSwitch?.attributes('data-model-value')).toBe('false')
+    await compactionSwitch!.trigger('click')
+    await flushPromises()
+
+    expect(
+      (
+        wrapper.get('[data-testid="auto-compaction-trigger-threshold-input"]')
+          .element as HTMLInputElement
+      ).value
+    ).toBe('65')
+    expect(
+      (
+        wrapper.get('[data-testid="auto-compaction-retain-recent-pairs-input"]')
+          .element as HTMLInputElement
+      ).value
+    ).toBe('4')
+
+    await wrapper.get('[data-testid="deepchat-agent-name-input"]').setValue('Snapshot Agent')
+    await wrapper.get('[data-testid="auto-compaction-trigger-threshold-input"]').setValue('90')
+    await wrapper.get('[data-testid="deepchat-agent-save-button"]').trigger('click')
+    await flushPromises()
+
+    expect(configService.createDeepChatAgent).toHaveBeenCalledOnce()
+    expect(configService.createDeepChatAgent.mock.calls[0][0].config).toMatchObject({
+      autoCompactionEnabled: true,
+      autoCompactionTriggerThreshold: 90,
+      autoCompactionRetainRecentPairs: 4
+    })
   })
 
   it('saves only changed disabled tools without carrying model keys', async () => {
@@ -897,7 +1406,7 @@ describe('DeepChatAgentsSettings', () => {
       }
     }
 
-    const { wrapper, configPresenter } = await mountSettings({
+    const { wrapper, configService } = await mountSettings({
       agents: [existingAgent],
       toolDefinitions: [
         {
@@ -922,13 +1431,13 @@ describe('DeepChatAgentsSettings', () => {
     await saveButton!.trigger('click')
     await flushPromises()
 
-    const [, payload] = configPresenter.updateDeepChatAgent.mock.calls[0]
+    const [, payload] = configService.updateDeepChatAgent.mock.calls[0]
     expect(payload.config).toEqual({ disabledAgentTools: ['tool_alpha'] })
     expect(payload.config).not.toHaveProperty('defaultModelPreset')
     expect(payload.config).not.toHaveProperty('assistantModel')
   })
 
-  it('keeps an inherited memoryEnabled out of the payload when the switch is not toggled', async () => {
+  it('defaults missing memoryEnabled independently and keeps an unchanged form clean', async () => {
     vi.resetModules()
 
     const builtin = {
@@ -950,22 +1459,26 @@ describe('DeepChatAgentsSettings', () => {
       config: {}
     }
 
-    const configPresenter = {
+    const configService = {
       listAgents: vi.fn().mockResolvedValue([builtin, child]),
       getSystemPrompts: vi.fn().mockResolvedValue([]),
       updateDeepChatAgent: vi.fn().mockResolvedValue(child),
       createDeepChatAgent: vi.fn().mockResolvedValue({ id: 'deepchat-new' }),
-      deleteDeepChatAgent: vi.fn().mockResolvedValue(undefined)
+      deleteDeepChatAgent: vi
+        .fn()
+        .mockResolvedValue({ removed: true, cleanupPendingRestart: false })
     }
-    const toolPresenter = { getAllToolDefinitions: vi.fn().mockResolvedValue([]) }
+    const toolService = {
+      getConfigurableAgentToolDefinitions: vi.fn().mockResolvedValue([])
+    }
     const projectPresenter = {
       getRecentProjects: vi.fn().mockResolvedValue([]),
       selectDirectory: vi.fn().mockResolvedValue(null)
     }
-    bindClientMocks(projectPresenter, toolPresenter)
+    bindClientMocks(projectPresenter, toolService)
     const modelStore = { allProviderModels: [], findModelByIdOrName: vi.fn(() => null) }
 
-    vi.doMock('@api/ConfigClient', () => ({ createConfigClient: () => configPresenter }))
+    vi.doMock('@api/ConfigClient', () => ({ createConfigClient: () => configService }))
     vi.doMock('@/stores/modelStore', () => ({ useModelStore: () => modelStore }))
     vi.doMock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
     vi.doMock('@iconify/vue', () => ({ Icon: { name: 'Icon', template: '<span />' } }))
@@ -977,7 +1490,7 @@ describe('DeepChatAgentsSettings', () => {
     const wrapper = mount(DeepChatAgentsSettings, {
       global: {
         stubs: {
-          Button: ButtonStub,
+          DcButton: ButtonStub,
           Badge: passthrough('Badge'),
           Input: InputStub,
           Textarea: TextareaStub,
@@ -1009,28 +1522,25 @@ describe('DeepChatAgentsSettings', () => {
 
     await flushPromises()
 
-    // Select the child agent, which inherits memoryEnabled=true from the builtin deepchat.
     await wrapper.find('[data-testid="deepchat-agent-row-child"]').trigger('click')
     await flushPromises()
 
     const memorySwitch = wrapper
       .findAll('button')
       .find((button) => button.attributes('aria-label') === 'settings.deepchatAgents.memoryEnabled')
-    expect(memorySwitch?.attributes('data-model-value')).toBe('true')
+    expect(memorySwitch?.attributes('data-model-value')).toBe('false')
 
     const saveButton = wrapper
       .findAll('button')
       .find((button) => button.text().includes('common.save'))
+    expect(saveButton?.attributes('disabled')).toBeDefined()
     await saveButton!.trigger('click')
     await flushPromises()
 
-    const [agentId, payload] = configPresenter.updateDeepChatAgent.mock.calls[0]
-    expect(agentId).toBe('child')
-    // The inherited value must not be ossified into an explicit override.
-    expect(payload.config?.memoryEnabled).toBeUndefined()
+    expect(configService.updateDeepChatAgent).not.toHaveBeenCalled()
   })
 
-  it('sends memoryEnabled when an inherited memory switch is explicitly toggled', async () => {
+  it('sends memoryEnabled when an independent memory switch is toggled', async () => {
     const builtin = {
       id: 'deepchat',
       type: 'deepchat',
@@ -1050,9 +1560,9 @@ describe('DeepChatAgentsSettings', () => {
       config: {}
     }
 
-    const { wrapper, configPresenter } = await mountSettings({
+    const { wrapper, configService } = await mountSettings({
       agents: [builtin, child],
-      configPresenter: {
+      configService: {
         updateDeepChatAgent: vi.fn().mockResolvedValue(child)
       }
     })
@@ -1063,7 +1573,7 @@ describe('DeepChatAgentsSettings', () => {
     const memorySwitch = wrapper
       .findAll('button')
       .find((button) => button.attributes('aria-label') === 'settings.deepchatAgents.memoryEnabled')
-    expect(memorySwitch?.attributes('data-model-value')).toBe('true')
+    expect(memorySwitch?.attributes('data-model-value')).toBe('false')
 
     await memorySwitch!.trigger('click')
     await flushPromises()
@@ -1074,9 +1584,9 @@ describe('DeepChatAgentsSettings', () => {
     await saveButton!.trigger('click')
     await flushPromises()
 
-    const [agentId, payload] = configPresenter.updateDeepChatAgent.mock.calls[0]
+    const [agentId, payload] = configService.updateDeepChatAgent.mock.calls[0]
     expect(agentId).toBe('child')
-    expect(payload.config).toEqual({ memoryEnabled: false })
+    expect(payload.config).toEqual({ memoryEnabled: true })
     expect(payload.config).not.toHaveProperty('assistantModel')
     expect(payload.config).not.toHaveProperty('defaultModelPreset')
   })
@@ -1105,28 +1615,30 @@ describe('DeepChatAgentsSettings', () => {
       }
     }
 
-    const configPresenter = {
+    const configService = {
       listAgents: vi.fn().mockResolvedValue([existingAgent]),
       getSystemPrompts: vi.fn().mockResolvedValue([]),
       updateDeepChatAgent: vi.fn().mockResolvedValue(existingAgent),
       createDeepChatAgent: vi.fn().mockResolvedValue({ id: 'deepchat-new' }),
-      deleteDeepChatAgent: vi.fn().mockResolvedValue(undefined)
+      deleteDeepChatAgent: vi
+        .fn()
+        .mockResolvedValue({ removed: true, cleanupPendingRestart: false })
     }
-    const toolPresenter = {
-      getAllToolDefinitions: vi.fn().mockResolvedValue([])
+    const toolService = {
+      getConfigurableAgentToolDefinitions: vi.fn().mockResolvedValue([])
     }
     const projectPresenter = {
       getRecentProjects: vi.fn().mockResolvedValue([]),
       selectDirectory: vi.fn().mockResolvedValue(null)
     }
-    bindClientMocks(projectPresenter, toolPresenter)
+    bindClientMocks(projectPresenter, toolService)
     const modelStore = {
       allProviderModels: [],
       findModelByIdOrName: vi.fn(() => null)
     }
 
     vi.doMock('@api/ConfigClient', () => ({
-      createConfigClient: () => configPresenter
+      createConfigClient: () => configService
     }))
     vi.doMock('@/stores/modelStore', () => ({
       useModelStore: () => modelStore
@@ -1150,7 +1662,7 @@ describe('DeepChatAgentsSettings', () => {
     const wrapper = mount(DeepChatAgentsSettings, {
       global: {
         stubs: {
-          Button: ButtonStub,
+          DcButton: ButtonStub,
           Badge: passthrough('Badge'),
           Input: InputStub,
           Textarea: TextareaStub,
@@ -1188,6 +1700,7 @@ describe('DeepChatAgentsSettings', () => {
     wrapper
       .findComponent('[data-testid="auto-compaction-retain-recent-pairs-input"]')
       .vm.$emit('update:modelValue', 'oops')
+    await flushPromises()
 
     const saveButton = wrapper
       .findAll('button')
@@ -1198,9 +1711,9 @@ describe('DeepChatAgentsSettings', () => {
     await saveButton!.trigger('click')
     await flushPromises()
 
-    expect(configPresenter.updateDeepChatAgent).toHaveBeenCalledTimes(1)
+    expect(configService.updateDeepChatAgent).toHaveBeenCalledTimes(1)
 
-    const [, payload] = configPresenter.updateDeepChatAgent.mock.calls[0]
+    const [, payload] = configService.updateDeepChatAgent.mock.calls[0]
     expect(payload.config.autoCompactionTriggerThreshold).toBe(80)
     expect(payload.config.autoCompactionRetainRecentPairs).toBe(2)
     expect(payload.config).not.toHaveProperty('defaultModelPreset')
@@ -1210,7 +1723,7 @@ describe('DeepChatAgentsSettings', () => {
   it('fills the system prompt field from a prompt template dialog', async () => {
     vi.resetModules()
 
-    const configPresenter = {
+    const configService = {
       listAgents: vi.fn().mockResolvedValue([]),
       getSystemPrompts: vi.fn().mockResolvedValue([
         {
@@ -1226,23 +1739,25 @@ describe('DeepChatAgentsSettings', () => {
       ]),
       updateDeepChatAgent: vi.fn().mockResolvedValue({ id: 'deepchat-new' }),
       createDeepChatAgent: vi.fn().mockResolvedValue({ id: 'deepchat-new' }),
-      deleteDeepChatAgent: vi.fn().mockResolvedValue(undefined)
+      deleteDeepChatAgent: vi
+        .fn()
+        .mockResolvedValue({ removed: true, cleanupPendingRestart: false })
     }
-    const toolPresenter = {
-      getAllToolDefinitions: vi.fn().mockResolvedValue([])
+    const toolService = {
+      getConfigurableAgentToolDefinitions: vi.fn().mockResolvedValue([])
     }
     const projectPresenter = {
       getRecentProjects: vi.fn().mockResolvedValue([]),
       selectDirectory: vi.fn().mockResolvedValue(null)
     }
-    bindClientMocks(projectPresenter, toolPresenter)
+    bindClientMocks(projectPresenter, toolService)
     const modelStore = {
       allProviderModels: [],
       findModelByIdOrName: vi.fn(() => null)
     }
 
     vi.doMock('@api/ConfigClient', () => ({
-      createConfigClient: () => configPresenter
+      createConfigClient: () => configService
     }))
     vi.doMock('@/stores/modelStore', () => ({
       useModelStore: () => modelStore
@@ -1266,7 +1781,7 @@ describe('DeepChatAgentsSettings', () => {
     const wrapper = mount(DeepChatAgentsSettings, {
       global: {
         stubs: {
-          Button: ButtonStub,
+          DcButton: ButtonStub,
           Badge: passthrough('Badge'),
           Input: InputStub,
           Textarea: TextareaStub,
@@ -1307,7 +1822,7 @@ describe('DeepChatAgentsSettings', () => {
     await pickerButton!.trigger('click')
     await flushPromises()
 
-    expect(configPresenter.getSystemPrompts).toHaveBeenCalledTimes(1)
+    expect(configService.getSystemPrompts).toHaveBeenCalledTimes(1)
     expect(wrapper.text()).toContain('Writer')
     expect(wrapper.text()).toContain('Coder')
 
@@ -1356,7 +1871,7 @@ describe('DeepChatAgentsSettings', () => {
       config: {}
     }
 
-    const configPresenter = {
+    const configService = {
       listAgents: vi
         .fn()
         .mockResolvedValueOnce([existingAgent])
@@ -1364,23 +1879,25 @@ describe('DeepChatAgentsSettings', () => {
       getSystemPrompts: vi.fn().mockResolvedValue([]),
       updateDeepChatAgent: vi.fn().mockResolvedValue(existingAgent),
       createDeepChatAgent: vi.fn().mockResolvedValue(createdAgent),
-      deleteDeepChatAgent: vi.fn().mockResolvedValue(undefined)
+      deleteDeepChatAgent: vi
+        .fn()
+        .mockResolvedValue({ removed: true, cleanupPendingRestart: false })
     }
-    const toolPresenter = {
-      getAllToolDefinitions: vi.fn().mockResolvedValue([])
+    const toolService = {
+      getConfigurableAgentToolDefinitions: vi.fn().mockResolvedValue([])
     }
     const projectPresenter = {
       getRecentProjects: vi.fn().mockResolvedValue([]),
       selectDirectory: vi.fn().mockResolvedValue(null)
     }
-    bindClientMocks(projectPresenter, toolPresenter)
+    bindClientMocks(projectPresenter, toolService)
     const modelStore = {
       allProviderModels: [],
       findModelByIdOrName: vi.fn(() => null)
     }
 
     vi.doMock('@api/ConfigClient', () => ({
-      createConfigClient: () => configPresenter
+      createConfigClient: () => configService
     }))
     vi.doMock('@/stores/modelStore', () => ({
       useModelStore: () => modelStore
@@ -1404,7 +1921,7 @@ describe('DeepChatAgentsSettings', () => {
     const wrapper = mount(DeepChatAgentsSettings, {
       global: {
         stubs: {
-          Button: ButtonStub,
+          DcButton: ButtonStub,
           Badge: passthrough('Badge'),
           Input: InputStub,
           Textarea: TextareaStub,
@@ -1439,7 +1956,7 @@ describe('DeepChatAgentsSettings', () => {
     await addButton!.trigger('click')
     await flushPromises()
 
-    expect(configPresenter.createDeepChatAgent).not.toHaveBeenCalled()
+    expect(configService.createDeepChatAgent).not.toHaveBeenCalled()
     expect(
       wrapper
         .findAll('aside button')
@@ -1470,8 +1987,8 @@ describe('DeepChatAgentsSettings', () => {
     await saveButton!.trigger('click')
     await flushPromises()
 
-    expect(configPresenter.createDeepChatAgent).toHaveBeenCalledTimes(1)
-    expect(configPresenter.createDeepChatAgent).toHaveBeenCalledWith(
+    expect(configService.createDeepChatAgent).toHaveBeenCalledTimes(1)
+    expect(configService.createDeepChatAgent).toHaveBeenCalledWith(
       expect.objectContaining({
         name: 'Draft Writer'
       })
@@ -1494,28 +2011,30 @@ describe('DeepChatAgentsSettings', () => {
       }
     }
 
-    const configPresenter = {
+    const configService = {
       listAgents: vi.fn().mockResolvedValue([existingAgent]),
       getSystemPrompts: vi.fn().mockResolvedValue([]),
       updateDeepChatAgent: vi.fn().mockResolvedValue(existingAgent),
       createDeepChatAgent: vi.fn().mockResolvedValue({ id: 'deepchat-new' }),
-      deleteDeepChatAgent: vi.fn().mockResolvedValue(undefined)
+      deleteDeepChatAgent: vi
+        .fn()
+        .mockResolvedValue({ removed: true, cleanupPendingRestart: false })
     }
-    const toolPresenter = {
-      getAllToolDefinitions: vi.fn().mockResolvedValue([])
+    const toolService = {
+      getConfigurableAgentToolDefinitions: vi.fn().mockResolvedValue([])
     }
     const projectPresenter = {
       getRecentProjects: vi.fn().mockResolvedValue([]),
       selectDirectory: vi.fn().mockResolvedValue('/workspaces/selected')
     }
-    bindClientMocks(projectPresenter, toolPresenter)
+    bindClientMocks(projectPresenter, toolService)
     const modelStore = {
       allProviderModels: [],
       findModelByIdOrName: vi.fn(() => null)
     }
 
     vi.doMock('@api/ConfigClient', () => ({
-      createConfigClient: () => configPresenter
+      createConfigClient: () => configService
     }))
     vi.doMock('@/stores/modelStore', () => ({
       useModelStore: () => modelStore
@@ -1539,7 +2058,7 @@ describe('DeepChatAgentsSettings', () => {
     const wrapper = mount(DeepChatAgentsSettings, {
       global: {
         stubs: {
-          Button: ButtonStub,
+          DcButton: ButtonStub,
           Badge: passthrough('Badge'),
           Input: InputStub,
           Textarea: TextareaStub,
@@ -1598,7 +2117,7 @@ describe('DeepChatAgentsSettings', () => {
     await saveButton!.trigger('click')
     await flushPromises()
 
-    expect(configPresenter.updateDeepChatAgent).toHaveBeenCalledWith(
+    expect(configService.updateDeepChatAgent).toHaveBeenCalledWith(
       'deepchat',
       expect.objectContaining({
         config: expect.objectContaining({
@@ -1606,9 +2125,104 @@ describe('DeepChatAgentsSettings', () => {
         })
       })
     )
-    const [, payload] = configPresenter.updateDeepChatAgent.mock.calls[0]
+    const [, payload] = configService.updateDeepChatAgent.mock.calls[0]
     expect(payload.config).not.toHaveProperty('defaultModelPreset')
     expect(payload.config).not.toHaveProperty('assistantModel')
+  })
+
+  it('restores default Subagent slots when enabling an empty legacy policy', async () => {
+    const existingAgent = {
+      id: 'deepchat',
+      type: 'deepchat',
+      name: 'DeepChat',
+      enabled: true,
+      protected: true,
+      description: '',
+      avatar: null,
+      config: { subagentEnabled: false, subagents: [] }
+    }
+    const { wrapper, configService } = await mountSettings({ agents: [existingAgent] })
+    const subagentSwitch = wrapper.get('[aria-label="settings.deepchatAgents.subagentsEnabled"]')
+
+    expect(subagentSwitch.attributes('data-model-value')).toBe('false')
+    expect(wrapper.findAll('select')).toHaveLength(0)
+
+    await subagentSwitch.trigger('click')
+
+    expect(subagentSwitch.attributes('data-model-value')).toBe('true')
+    expect(wrapper.findAll('select')).toHaveLength(3)
+    expect(wrapper.text()).toContain('explorer')
+    expect(wrapper.text()).toContain('implementer')
+    expect(wrapper.text()).toContain('reviewer')
+
+    const saveButton = wrapper
+      .findAll('button')
+      .find((button) => button.text().includes('common.save'))
+    await saveButton!.trigger('click')
+    await flushPromises()
+
+    expect(configService.updateDeepChatAgent).toHaveBeenCalledWith(
+      'deepchat',
+      expect.objectContaining({
+        config: {
+          subagentEnabled: true,
+          subagents: [
+            expect.objectContaining({ id: 'explorer', targetType: 'self' }),
+            expect.objectContaining({ id: 'implementer', targetType: 'self' }),
+            expect.objectContaining({ id: 'reviewer', targetType: 'self' })
+          ]
+        }
+      })
+    )
+  })
+
+  it('protects the final enabled Subagent slot and retains slots while disabled', async () => {
+    const existingAgent = {
+      id: 'deepchat',
+      type: 'deepchat',
+      name: 'DeepChat',
+      enabled: true,
+      protected: true,
+      description: '',
+      avatar: null,
+      config: {
+        subagentEnabled: true,
+        subagents: [
+          {
+            id: 'reviewer',
+            targetType: 'self',
+            displayName: 'Reviewer',
+            description: ''
+          }
+        ]
+      }
+    }
+    const { wrapper, configService } = await mountSettings({ agents: [existingAgent] })
+    const deleteSlotButton = wrapper
+      .findAll('button')
+      .find((button) => button.text() === 'common.delete')
+
+    expect(deleteSlotButton).toBeDefined()
+    expect(deleteSlotButton!.attributes('disabled')).toBeDefined()
+    await deleteSlotButton!.trigger('click')
+    expect(wrapper.findAll('select')).toHaveLength(1)
+
+    const subagentSwitch = wrapper.get('[aria-label="settings.deepchatAgents.subagentsEnabled"]')
+    await subagentSwitch.trigger('click')
+
+    expect(subagentSwitch.attributes('data-model-value')).toBe('false')
+    expect(wrapper.findAll('select')).toHaveLength(1)
+
+    const saveButton = wrapper
+      .findAll('button')
+      .find((button) => button.text().includes('common.save'))
+    await saveButton!.trigger('click')
+    await flushPromises()
+
+    expect(configService.updateDeepChatAgent).toHaveBeenCalledWith(
+      'deepchat',
+      expect.objectContaining({ config: { subagentEnabled: false } })
+    )
   })
 
   it('uses a flat target agent select for subagent slots', async () => {
@@ -1667,28 +2281,30 @@ describe('DeepChatAgentsSettings', () => {
       }
     }
 
-    const configPresenter = {
+    const configService = {
       listAgents: vi.fn().mockResolvedValue([existingAgent, acpAgent, uninstalledRegistryAgent]),
       getSystemPrompts: vi.fn().mockResolvedValue([]),
       updateDeepChatAgent: vi.fn().mockResolvedValue(existingAgent),
       createDeepChatAgent: vi.fn().mockResolvedValue({ id: 'deepchat-new' }),
-      deleteDeepChatAgent: vi.fn().mockResolvedValue(undefined)
+      deleteDeepChatAgent: vi
+        .fn()
+        .mockResolvedValue({ removed: true, cleanupPendingRestart: false })
     }
-    const toolPresenter = {
-      getAllToolDefinitions: vi.fn().mockResolvedValue([])
+    const toolService = {
+      getConfigurableAgentToolDefinitions: vi.fn().mockResolvedValue([])
     }
     const projectPresenter = {
       getRecentProjects: vi.fn().mockResolvedValue([]),
       selectDirectory: vi.fn().mockResolvedValue(null)
     }
-    bindClientMocks(projectPresenter, toolPresenter)
+    bindClientMocks(projectPresenter, toolService)
     const modelStore = {
       allProviderModels: [],
       findModelByIdOrName: vi.fn(() => null)
     }
 
     vi.doMock('@api/ConfigClient', () => ({
-      createConfigClient: () => configPresenter
+      createConfigClient: () => configService
     }))
     vi.doMock('@/stores/modelStore', () => ({
       useModelStore: () => modelStore
@@ -1712,7 +2328,7 @@ describe('DeepChatAgentsSettings', () => {
     const wrapper = mount(DeepChatAgentsSettings, {
       global: {
         stubs: {
-          Button: ButtonStub,
+          DcButton: ButtonStub,
           Badge: passthrough('Badge'),
           Input: InputStub,
           Textarea: TextareaStub,
@@ -1764,7 +2380,7 @@ describe('DeepChatAgentsSettings', () => {
     await saveButton!.trigger('click')
     await flushPromises()
 
-    const [, payload] = configPresenter.updateDeepChatAgent.mock.calls[0]
+    const [, payload] = configService.updateDeepChatAgent.mock.calls[0]
     expect(payload.config.subagents).toEqual([
       {
         id: 'slot-current',

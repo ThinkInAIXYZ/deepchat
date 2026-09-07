@@ -13,19 +13,34 @@
   "notImplementedDesc": "Este fornecedor ainda não está disponível para visualização.",
   "provider": "Fornecedor",
   "model": "Modelo",
-  "title": "Prévia dos parâmetros da solicitação",
+  "title": "Diagnóstico da mensagem",
   "tabs": {
     "request": "Requisição",
     "view": "Visualização",
     "entries": "Entradas",
-    "budget": "Orçamento"
+    "budget": "Orçamento",
+    "execution": "Auditoria de execução"
   },
   "empty": "Sem diagnósticos",
-  "emptyDesc": "Não há rastreamento de requisição nem manifesto de visualização disponível para esta mensagem",
+  "emptyDesc": "Não há rastreamento de requisição, manifesto de visualização do Tape nem auditoria de execução aninhada disponível para esta mensagem",
   "requestUnavailable": "Sem rastreamento de requisição",
   "requestUnavailableDesc": "Esta mensagem não tem rastreamento persistido da requisição ao provedor",
   "manifestUnavailable": "Sem manifesto de visualização",
   "manifestUnavailableDesc": "Esta mensagem não tem manifesto de visualização do Tape persistido",
+  "execution": {
+    "empty": "Nenhuma execução aninhada",
+    "emptyDesc": "Nenhuma operação programática de ferramenta foi registrada para esta requisição",
+    "corrupt": "A auditoria de execução está corrompida",
+    "corruptDesc": "Os fatos aninhados do Journal são conflitantes ou não podem ser verificados",
+    "unavailable": "Auditoria de execução indisponível",
+    "unavailableDesc": "Não foi possível ler os fatos aninhados do Journal",
+    "truncated": "Somente as primeiras 256 operações aninhadas são exibidas",
+    "status": {
+      "success": "Sucesso",
+      "error": "Erro",
+      "indeterminate": "Indeterminado"
+    }
+  },
   "viewId": "ID da visualização",
   "policy": "Política",
   "policyVersion": "Versão da política",

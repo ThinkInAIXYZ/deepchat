@@ -99,24 +99,36 @@ const isOpenAICompatibleProvider = (target: OpenAIImageGenerationSettingsTarget)
     return false
   }
 
-  if (providerKind === 'openai-responses' || providerKind === 'openai-compatible') {
+  if (
+    providerKind === 'openai-codex' ||
+    providerKind === 'openai-responses' ||
+    providerKind === 'openai-compatible'
+  ) {
     return true
   }
 
-  if (providerOptionsKey === 'openai' || providerOptionsKey === 'new-api') {
+  if (providerOptionsKey === 'openai') {
     return true
   }
 
-  if (providerId === 'openai' || providerId === 'openai-responses' || providerId === 'new-api') {
+  if (
+    providerId === 'openai' ||
+    providerId === 'openai-codex' ||
+    providerId === 'openai-responses' ||
+    providerId === 'new-api' ||
+    providerId === 'apimart'
+  ) {
     return true
   }
 
   if (
     providerApiType === 'openai' ||
+    providerApiType === 'openai-codex' ||
     providerApiType === 'openai-responses' ||
     providerApiType === 'openai-compatible' ||
     providerApiType === 'openai-completions' ||
     providerApiType === 'new-api' ||
+    providerApiType === 'apimart' ||
     providerApiType === 'openai_chat'
   ) {
     return true

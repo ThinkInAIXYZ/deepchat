@@ -1,4 +1,4 @@
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { defineStore } from 'pinia'
 import { createMcpClient } from '@api/McpClient'
 import { createConfigClient } from '../../api/ConfigClient'
@@ -6,17 +6,22 @@ import { useIpcQuery } from '@/composables/useIpcQuery'
 import { useIpcMutation } from '@/composables/useIpcMutation'
 import { useI18n } from 'vue-i18n'
 import { useQuery, type UseMutationReturn, type UseQueryReturn } from '@pinia/colada'
+import type { Prompt } from '@shared/types/prompt'
 import type {
   McpClient as McpRuntimeClient,
   MCPConfig,
+  MCPContentItem,
   MCPServerConfig,
   MCPToolDefinition,
   McpServerAuthStatus,
   PromptListEntry,
   Resource,
-  ResourceListEntry,
-  Prompt
-} from '@shared/presenter'
+  ResourceListEntry
+} from '@shared/types/mcp'
+import type {
+  McpServerLifecycleStatus,
+  McpServerStatusChangedPayload
+} from '@shared/types/core/mcp'
 
 const ENABLED_MCP_TOOLS_KEY = 'input_enabledMcpTools'
 
@@ -43,14 +48,27 @@ export const useMcpStore = defineStore('mcp', () => {
 
   // 服务器状态
   const serverStatuses = ref<Record<string, boolean>>({})
+  const serverLifecycleStatuses = ref<Record<string, McpServerLifecycleStatus>>({})
+  const serverStatusMessages = ref<Record<string, string>>({})
   const serverAuthStatuses = ref<Record<string, McpServerAuthStatus>>({})
   const serverLoadingStates = ref<Record<string, boolean>>({})
   const configLoading = ref(false)
+  const serverLifecycleRevisions = new Map<string, number>()
+  let nextServerLifecycleRevision = 0
+
+  const advanceServerLifecycleRevision = (serverName: string): number => {
+    const revision = ++nextServerLifecycleRevision
+    serverLifecycleRevisions.set(serverName, revision)
+    return revision
+  }
+
+  const isCurrentServerLifecycleRevision = (serverName: string, revision: number): boolean =>
+    serverLifecycleRevisions.get(serverName) === revision
 
   // 工具相关状态
   const toolLoadingStates = ref<Record<string, boolean>>({})
   const toolInputs = ref<Record<string, Record<string, string>>>({})
-  const toolResults = ref<Record<string, string | { type: string; text: string }[]>>({})
+  const toolResults = ref<Record<string, string | MCPContentItem[]>>({})
   const enabledToolNames = ref<string[]>([])
 
   type QueryExecuteOptions = { force?: boolean }
@@ -351,6 +369,8 @@ export const useMcpStore = defineStore('mcp', () => {
       } else {
         // MCP disabled: clear state and refresh queries to get empty results
         serverStatuses.value = {}
+        serverLifecycleStatuses.value = {}
+        serverStatusMessages.value = {}
         toolInputs.value = {}
         toolResults.value = {}
         Promise.all([
@@ -428,12 +448,38 @@ export const useMcpStore = defineStore('mcp', () => {
     }
   )
   // ==================== 计算属性 ====================
+  const applyServerLifecycle = (
+    serverName: string,
+    lifecycleStatus: McpServerLifecycleStatus,
+    message?: string
+  ): number => {
+    const revision = advanceServerLifecycleRevision(serverName)
+    serverLifecycleStatuses.value[serverName] = lifecycleStatus
+    serverStatuses.value[serverName] = lifecycleStatus === 'connected'
+
+    if (lifecycleStatus === 'failed' && message) {
+      serverStatusMessages.value[serverName] = message
+    } else if (lifecycleStatus !== 'failed') {
+      delete serverStatusMessages.value[serverName]
+    }
+
+    return revision
+  }
+
+  const applyServerStatusEvent = (payload: McpServerStatusChangedPayload) => {
+    applyServerLifecycle(payload.serverName, payload.lifecycleStatus, payload.message)
+  }
+
   // 服务器列表
   const allServerList = computed(() => {
     const servers = Object.entries(config.value.mcpServers ?? {}).map(([name, serverConfig]) => ({
       name,
       ...serverConfig,
       isRunning: serverStatuses.value[name] || false,
+      lifecycleStatus:
+        serverLifecycleStatuses.value[name] ??
+        (serverStatuses.value[name] ? 'connected' : 'stopped'),
+      errorMessage: serverStatusMessages.value[name],
       authStatus: serverAuthStatuses.value[name],
       isLoading: serverLoadingStates.value[name] || false
     }))
@@ -467,37 +513,19 @@ export const useMcpStore = defineStore('mcp', () => {
   const hasTools = computed(() => toolCount.value > 0)
 
   // ==================== Mutations ====================
-  // Mutations for write operations with automatic cache invalidation
+  // Mutation wrappers for write operations
   const addServerMutation = useIpcMutation({
     mutation: (serverName: string, serverConfig: MCPServerConfig) =>
-      mcpClient.addMcpServer(serverName, serverConfig),
-    invalidateQueries: () => [
-      ['mcp', 'config'],
-      ['mcp', 'tools'],
-      ['mcp', 'clients'],
-      ['mcp', 'resources']
-    ]
+      mcpClient.addMcpServer(serverName, serverConfig)
   })
 
   const updateServerMutation = useIpcMutation({
     mutation: (serverName: string, serverConfig: Partial<MCPServerConfig>) =>
-      mcpClient.updateMcpServer(serverName, serverConfig),
-    invalidateQueries: () => [
-      ['mcp', 'config'],
-      ['mcp', 'tools'],
-      ['mcp', 'clients'],
-      ['mcp', 'resources']
-    ]
+      mcpClient.updateMcpServer(serverName, serverConfig)
   })
 
   const removeServerMutation = useIpcMutation({
-    mutation: (serverName: string) => mcpClient.removeMcpServer(serverName),
-    invalidateQueries: () => [
-      ['mcp', 'config'],
-      ['mcp', 'tools'],
-      ['mcp', 'clients'],
-      ['mcp', 'resources']
-    ]
+    mutation: (serverName: string) => mcpClient.removeMcpServer(serverName)
   })
 
   const setMcpServerEnabledMutation = useIpcMutation({
@@ -510,6 +538,22 @@ export const useMcpStore = defineStore('mcp', () => {
     mutation: (enabled: boolean) => mcpClient.setMcpEnabled(enabled),
     invalidateQueries: () => [['mcp', 'config']]
   })
+
+  const refreshServerMutationQueries = async (): Promise<void> => {
+    const results = await Promise.allSettled([
+      runQuery(configQuery, { force: true }),
+      toolsQuery.refetch(),
+      clientsQuery.refetch(),
+      resourcesQuery.refetch()
+    ])
+    const failures = results.filter((result) => result.status === 'rejected')
+    if (failures.length > 0) {
+      console.warn(
+        `[MCP] Server configuration was saved, but ${failures.length} follow-up queries failed`,
+        failures.map((failure) => failure.reason)
+      )
+    }
+  }
 
   // ==================== 方法 ====================
   // 加载MCP配置
@@ -589,6 +633,16 @@ export const useMcpStore = defineStore('mcp', () => {
             isPluginOwnedServerName(serverName)
           )
         )
+        serverLifecycleStatuses.value = Object.fromEntries(
+          Object.entries(serverLifecycleStatuses.value).filter(([serverName]) =>
+            isPluginOwnedServerName(serverName)
+          )
+        )
+        serverStatusMessages.value = Object.fromEntries(
+          Object.entries(serverStatusMessages.value).filter(([serverName]) =>
+            isPluginOwnedServerName(serverName)
+          )
+        )
         toolInputs.value = {}
         toolResults.value = {}
         // Force refresh queries to get empty results
@@ -622,17 +676,29 @@ export const useMcpStore = defineStore('mcp', () => {
 
   // 更新单个服务器状态
   const updateServerStatus = async (serverName: string, noRefresh: boolean = false) => {
+    let revision = advanceServerLifecycleRevision(serverName)
     try {
       const serverConfig = config.value.mcpServers[serverName]
       if (!config.value.mcpEnabled && !isPluginOwnedServerConfig(serverConfig)) {
-        serverStatuses.value[serverName] = false
+        applyServerLifecycle(serverName, 'stopped')
         return
       }
 
-      serverStatuses.value[serverName] = await mcpClient.isServerRunning(serverName)
+      const diagnostics = await mcpClient.getServerDiagnostics(serverName, serverConfig?.serverId)
+      if (!isCurrentServerLifecycleRevision(serverName, revision)) {
+        return
+      }
+      revision = applyServerLifecycle(
+        serverName,
+        diagnostics.lifecycleStatus,
+        diagnostics.lastError
+      )
       if (!noRefresh) {
         // Refresh tools and clients when server status changes
         await Promise.all([loadTools({ force: true }), loadClients({ force: true })])
+        if (!isCurrentServerLifecycleRevision(serverName, revision)) {
+          return
+        }
       }
       // 根据服务器的状态，关闭或者开启该服务器的所有工具
       const isRunning = serverStatuses.value[serverName] || false
@@ -657,24 +723,40 @@ export const useMcpStore = defineStore('mcp', () => {
         await setEnabledToolNames(filteredTools)
       }
     } catch (error) {
+      if (!isCurrentServerLifecycleRevision(serverName, revision)) {
+        return
+      }
       console.error(t('mcp.errors.getServerStatusFailed', { serverName }), error)
-      serverStatuses.value[serverName] = false
+      try {
+        const isRunning = await mcpClient.isServerRunning(serverName)
+        if (!isCurrentServerLifecycleRevision(serverName, revision)) {
+          return
+        }
+        applyServerLifecycle(serverName, isRunning ? 'connected' : 'stopped')
+      } catch {
+        if (!isCurrentServerLifecycleRevision(serverName, revision)) {
+          return
+        }
+        applyServerLifecycle(serverName, 'stopped')
+      }
     }
   }
 
   // 添加服务器
   const addServer = async (serverName: string, serverConfig: MCPServerConfig) => {
     try {
-      const success = await addServerMutation.mutateAsync([serverName, serverConfig])
-      if (success) {
-        // Cache invalidation happens automatically, trigger config refresh
-        await runQuery(configQuery, { force: true })
-        return { success: true, message: '' }
+      const result = await addServerMutation.mutateAsync([serverName, serverConfig])
+      if (result.status === 'added') {
+        config.value.mcpServers = {
+          ...config.value.mcpServers,
+          [serverName]: { ...serverConfig }
+        }
+        void refreshServerMutationQueries()
       }
-      return { success: false, message: t('mcp.errors.addServerFailed') }
+      return result
     } catch (error) {
-      console.error(t('mcp.errors.addServerFailed'), error)
-      return { success: false, message: t('mcp.errors.addServerFailed') }
+      console.error('[MCP] Failed to add server', error)
+      return { status: 'failed' as const }
     }
   }
 
@@ -682,8 +764,17 @@ export const useMcpStore = defineStore('mcp', () => {
   const updateServer = async (serverName: string, serverConfig: Partial<MCPServerConfig>) => {
     try {
       await updateServerMutation.mutateAsync([serverName, serverConfig])
-      // Cache invalidation happens automatically, trigger config refresh
-      await runQuery(configQuery, { force: true })
+      const currentConfig = config.value.mcpServers[serverName]
+      if (currentConfig) {
+        config.value.mcpServers = {
+          ...config.value.mcpServers,
+          [serverName]: {
+            ...currentConfig,
+            ...serverConfig
+          }
+        }
+      }
+      void refreshServerMutationQueries()
       return true
     } catch (error) {
       console.error(t('mcp.errors.updateServerFailed'), error)
@@ -695,8 +786,16 @@ export const useMcpStore = defineStore('mcp', () => {
   const removeServer = async (serverName: string) => {
     try {
       await removeServerMutation.mutateAsync([serverName])
-      // Cache invalidation happens automatically, trigger config refresh
-      await runQuery(configQuery, { force: true })
+      const nextServers = { ...config.value.mcpServers }
+      delete nextServers[serverName]
+      config.value.mcpServers = nextServers
+      delete serverStatuses.value[serverName]
+      delete serverLifecycleStatuses.value[serverName]
+      delete serverStatusMessages.value[serverName]
+      delete serverAuthStatuses.value[serverName]
+      delete serverLoadingStates.value[serverName]
+      serverLifecycleRevisions.delete(serverName)
+      void refreshServerMutationQueries()
       return true
     } catch (error) {
       console.error(t('mcp.errors.removeServerFailed'), error)
@@ -732,7 +831,7 @@ export const useMcpStore = defineStore('mcp', () => {
       if (nextEnabled) {
         await updateServerAuthStatus(serverName)
         if (isAuthWaitingStatus(serverAuthStatuses.value[serverName])) {
-          serverStatuses.value[serverName] = false
+          applyServerLifecycle(serverName, 'stopped')
           return true
         }
       }
@@ -1007,65 +1106,65 @@ export const useMcpStore = defineStore('mcp', () => {
   }
 
   // ==================== 事件监听 ====================
-  // 初始化事件监听
+  const eventCleanups: Array<() => void> = []
+  let eventsBound = false
+
   const initEvents = () => {
-    mcpClient.onServerStarted(({ serverName }) => {
-      console.log(`MCP server started: ${serverName}`)
-      updateServerStatus(serverName).then(() => {
-        // Force refresh tools after server starts to ensure tool count is updated
-        if (config.value.mcpEnabled) {
-          loadTools({ force: true }).catch((error) => {
-            console.error('Failed to refresh tools after server started:', error)
-          })
-        }
-      })
-    })
-
-    mcpClient.onServerStopped(({ serverName }) => {
-      console.log(`MCP server stopped: ${serverName}`)
-      updateServerStatus(serverName).then(() => {
-        // Force refresh tools after server stops to ensure tool count is updated
-        if (config.value.mcpEnabled) {
-          loadTools({ force: true }).catch((error) => {
-            console.error('Failed to refresh tools after server stopped:', error)
-          })
-        }
-      })
-    })
-
-    mcpClient.onConfigChanged((payload) => {
-      console.log('MCP config changed', payload)
-      syncConfigFromQuery(payload)
-      updateAllServerStatuses().catch((error) => {
-        console.error('Failed to update server statuses after config change:', error)
-      })
-    })
-
-    mcpClient.onServerStatusChanged(({ serverName, isRunning }) => {
-      console.log(`MCP server ${serverName} status changed: ${isRunning}`)
-      serverStatuses.value[serverName] = isRunning
-    })
-
-    mcpClient.onServerAuthChanged(({ serverName, status }) => {
-      serverAuthStatuses.value[serverName] = status
-      if (status.authenticated) {
-        void refreshAfterAuthenticated(serverName).catch((error) => {
-          console.error('Failed to refresh MCP after authentication:', error)
+    if (eventsBound) return
+    eventsBound = true
+    eventCleanups.push(
+      mcpClient.onServerStarted(({ serverName }) => {
+        console.log(`MCP server started: ${serverName}`)
+        updateServerStatus(serverName).then(() => {
+          if (config.value.mcpEnabled) {
+            loadTools({ force: true }).catch((error) => {
+              console.error('Failed to refresh tools after server started:', error)
+            })
+          }
         })
-      }
-    })
-
-    mcpClient.onToolCallResult((result) => {
-      console.log(`MCP tool call result:`, result.functionName)
-      if (result && result.functionName) {
-        toolResults.value[result.functionName] = result.content
-      }
-    })
-
-    configClient.onCustomPromptsChanged(() => {
-      console.log('Custom prompts changed, reloading prompts list')
-      void loadPrompts()
-    })
+      }),
+      mcpClient.onServerStopped(({ serverName }) => {
+        console.log(`MCP server stopped: ${serverName}`)
+        updateServerStatus(serverName).then(() => {
+          if (config.value.mcpEnabled) {
+            loadTools({ force: true }).catch((error) => {
+              console.error('Failed to refresh tools after server stopped:', error)
+            })
+          }
+        })
+      }),
+      mcpClient.onConfigChanged((payload) => {
+        console.log('MCP config changed', payload)
+        syncConfigFromQuery(payload)
+        updateAllServerStatuses().catch((error) => {
+          console.error('Failed to update server statuses after config change:', error)
+        })
+      }),
+      mcpClient.onServerStatusChanged((payload) => {
+        console.log(
+          `MCP server ${payload.serverName} lifecycle changed: ${payload.lifecycleStatus}`
+        )
+        applyServerStatusEvent(payload)
+      }),
+      mcpClient.onServerAuthChanged(({ serverName, status }) => {
+        serverAuthStatuses.value[serverName] = status
+        if (status.authenticated) {
+          void refreshAfterAuthenticated(serverName).catch((error) => {
+            console.error('Failed to refresh MCP after authentication:', error)
+          })
+        }
+      }),
+      mcpClient.onToolCallResult((result) => {
+        console.log(`MCP tool call result:`, result.functionName)
+        if (result && result.functionName) {
+          toolResults.value[result.functionName] = result.content
+        }
+      }),
+      configClient.onCustomPromptsChanged(() => {
+        console.log('Custom prompts changed, reloading prompts list')
+        void loadPrompts()
+      })
+    )
   }
 
   // 初始化
@@ -1087,6 +1186,13 @@ export const useMcpStore = defineStore('mcp', () => {
   // 立即初始化
   onMounted(async () => {
     await init()
+  })
+
+  onUnmounted(() => {
+    while (eventCleanups.length > 0) {
+      eventCleanups.pop()?.()
+    }
+    eventsBound = false
   })
 
   // 获取NPM Registry状态
@@ -1138,6 +1244,8 @@ export const useMcpStore = defineStore('mcp', () => {
     // 状态
     config,
     serverStatuses,
+    serverLifecycleStatuses,
+    serverStatusMessages,
     serverAuthStatuses,
     serverLoadingStates,
     configLoading,

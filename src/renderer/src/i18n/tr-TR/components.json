@@ -37,6 +37,7 @@
       "read": "'{serverName}'den '{toolName}' öğesinin okuma işlemlerini gerçekleştirmesine izin verilsin mi?",
       "write": "'{serverName}'den '{toolName}'nin yazma işlemlerini gerçekleştirmesine izin verilsin mi?",
       "all": "'{serverName}'den '{toolName}' öğesinin okuma ve yazma işlemlerini gerçekleştirmesine izin verilsin mi?",
+      "subagentStart": "Bu Subagent görevi başlatılsın mı? Ek belirteç, zaman ve sistem kaynağı kullanabilir.",
       "command": "Komutu yürütün: {command}",
       "commandWithRisk": "Komutu yürütün: {command}\n\nRisk düzeyi: {riskLevel}\n\nÖneri: {suggestion}"
     },

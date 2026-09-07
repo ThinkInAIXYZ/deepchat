@@ -63,6 +63,27 @@
         "yobrowser": "YoBrowser"
       }
     },
+    "toolMode": {
+      "title": "Modo",
+      "modelDefault": "Padrão do modelo",
+      "options": {
+        "agent": "Agent",
+        "code": "Code",
+        "minimal": "Minimal"
+      },
+      "descriptions": {
+        "agent": "Use o conjunto de ferramentas padrão do agente.",
+        "code": "Combine as ferramentas ativadas por código. Requer o modo de permissão Acesso total.",
+        "minimal": "Simplifica as operações de arquivo e mantém as outras ferramentas ativadas."
+      },
+      "useModelDefault": "Usar padrão do modelo",
+      "saving": "Salvando modo...",
+      "locked": "Você poderá trocar de modo após o fim desta resposta.",
+      "updateFailed": "Não foi possível atualizar o modo de ferramentas.",
+      "codeEntry": "Entrada de código",
+      "codeCallable": "Chamável pelo código",
+      "minimalTools": "Ferramentas de programação"
+    },
     "fileUploadFailed": "Falha ao processar anexo",
     "fileUploadFailedDesc": "Não foi possível processar {count} arquivos: {names}",
     "fileUploadFailedMore": " e mais {count} arquivos",
@@ -71,6 +92,12 @@
     "audioInputUnsupportedDescription": "O modelo {model} não oferece suporte a entrada de áudio. {count} anexo(s) de áudio foram ignorados."
   },
   "pendingInput": {
+    "resume": "Retomar fila",
+    "resumeFailed": "Não foi possível retomar a fila",
+    "retry": "Tentar novamente",
+    "retryRequired": "Nova tentativa necessária",
+    "retryRequiredDescription": "Esta mensagem não foi enviada. Tente novamente para continuar a fila.",
+    "retryFailed": "Não foi possível tentar novamente a mensagem na fila",
     "steer": "Direcionamento",
     "queueCount": "Pendentes {count}/{max}",
     "toSteer": "Interromper e enviar",
@@ -153,7 +180,8 @@
   "mode": {
     "acpAgent": "Agente ACP",
     "agent": "Agente",
-    "current": "Modo atual: {mode}"
+    "current": "Modo atual: {mode}",
+    "saveFailed": "Não foi possível salvar a seleção de modo"
   },
   "topbar": {
     "share": "Compartilhar",
@@ -167,7 +195,6 @@
     "systemPrompt": "Prompt do sistema",
     "systemPromptPlaceholder": "Selecione um preset",
     "temperature": "Temperatura",
-    "temperatureFixedMoonshotKimi": "Moonshot Kimi K2.5/K2.6 fixa a temperatura em {enabled} quando o modo de pensamento está ativado e em {disabled} quando está desativado.",
     "topP": "Top P",
     "topPDescription": "Amostragem nucleus; deixe em branco para usar o padrão do provedor",
     "contextLength": "Tamanho do contexto",
@@ -203,6 +230,12 @@
       "contextMenu": {
         "insertPath": "Insira na caixa de entrada",
         "openFile": "abrir arquivo",
+        "openInApp": "Abrir no {app}",
+        "openInTerminalApp": "Abrir a pasta no {app}",
+        "openFailed": "Não foi possível abrir o arquivo com esse aplicativo",
+        "preferredAppUnavailable": "O aplicativo preferido não está disponível agora. Abrindo com o aplicativo padrão do sistema.",
+        "openWith": "Abrir com",
+        "openWithSystemDefault": "Abrir com o aplicativo padrão do sistema",
         "revealInFolder": "Abrir no gerenciador de arquivos"
       },
       "empty": "Nenhum arquivo ainda",
@@ -301,10 +334,19 @@
   "compaction": {
     "compacting": "Compactando contexto...",
     "compacted": "O contexto foi compactado",
+    "compactedWithoutSummary": "O contexto foi compactado sem um resumo",
+    "compactedWithoutLargerSummary": "O contexto foi compactado sem usar um resumo maior",
     "commandDescription": "Compactar contexto da conversa",
     "noopTitle": "Nenhum contexto para compactar",
     "noopDescription": "Ainda não há novo histórico de conversa para compactar.",
     "failedTitle": "Falha ao compactar"
+  },
+  "contextOccupancy": {
+    "label": "Uso do contexto",
+    "details": "{used} de {capacity} tokens",
+    "provider": "Medido pelo provedor",
+    "estimated": "Estimado pela visualização da solicitação",
+    "stale": "Desatualizado após mudança de modelo, janela ou compactação"
   },
   "newThread": {
     "title": "Criar e explorar"
@@ -348,7 +390,13 @@
     "moveProjectGroupBottom": "Mover para o fim",
     "searchCommand": "Search",
     "chatSection": "Chat",
-    "workspace": "Workspace"
+    "workspace": "Workspace",
+    "addWorkspace": "Adicionar espaço de trabalho",
+    "manageWorkspaces": "Gerenciar espaços de trabalho",
+    "openWorkspaceFolder": "Abrir pasta",
+    "emptyWorkspace": "Vazio",
+    "addWorkspaceFailed": "Falha ao adicionar espaço de trabalho",
+    "searchLoadedRangeDescription": "Mostrando resultados das conversas carregadas. Role para carregar mais histórico."
   },
   "floatingWidget": {
     "title": "Visão geral das tarefas",
@@ -400,6 +448,72 @@
     "firstChat": {
       "description": "Está tudo pronto. Digite sua primeira mensagem aqui para concluir o onboarding.",
       "caption": "O destaque permanece na caixa de entrada até você enviar sua primeira mensagem."
+    }
+  },
+  "messageReceipt": {
+    "unread": "Não lida",
+    "read": "Lida"
+  },
+  "attachments": {
+    "chooseRepresentation": "Escolha como enviar {name}",
+    "representation": "Representação do anexo",
+    "auto": "Automático",
+    "sendImage": "Enviar imagem",
+    "useOcrText": "Usar texto do OCR",
+    "useEmbeddedText": "Usar texto incorporado",
+    "preparing": "Processando anexos…",
+    "actionRequiredTitle": "O anexo precisa de atenção",
+    "actionRequiredDescription": "Um ou mais anexos não podem ser usados. Escolha como continuar.",
+    "attachmentNumber": "Anexo {number}",
+    "moreIssues": "Mais {count} problemas com anexos",
+    "genericUnavailable": "Não há conteúdo de anexo utilizável.",
+    "keepDraft": "Manter rascunho",
+    "switchVisionModel": "Mudar para um modelo com visão",
+    "retry": "Tentar novamente",
+    "sendWithoutImageContent": "Ignorar conteúdo do anexo",
+    "inspectOcrText": "Ver texto do OCR",
+    "ocrBadge": "OCR",
+    "embeddedTextBadge": "Texto",
+    "ocrPartialBadge": "OCR · Parcial",
+    "ocrLimitedBadge": "OCR · Limitado",
+    "imageBadge": "Imagem",
+    "unavailableBadge": "Indisponível",
+    "ocrPreviewTitle": "Texto do OCR — {name}",
+    "ocrPreviewDescription": "Cerca de {tokens} tokens foram enviados como conteúdo de anexo não confiável.",
+    "ocrPageCoverage": "Inclui texto até a página {page}.",
+    "ocrPageCoveragePartial": "Inclui parte da página {page}.",
+    "ocrTextTruncated": "Este texto do OCR foi truncado antes do envio.",
+    "reasons": {
+      "automatic_ocr_disabled": "O OCR automático está desativado.",
+      "document_limit_exceeded": "Apenas um PDF pode usar OCR por solicitação.",
+      "document_too_large": "O PDF excede o limite de tamanho do arquivo.",
+      "image_dimensions_exceeded": "As dimensões da imagem decodificada excedem o limite de segurança.",
+      "image_limit_exceeded": "Este turno contém mais imagens do que o OCR pode processar.",
+      "image_payload_unavailable": "Os dados da imagem original não estão mais disponíveis.",
+      "image_too_large": "A imagem excede o limite de tamanho por arquivo.",
+      "ocr_cancelled": "O OCR foi cancelado.",
+      "ocr_empty": "O OCR não encontrou nenhum texto utilizável.",
+      "ocr_failed": "O OCR não conseguiu processar este anexo.",
+      "ocr_queue_full": "O OCR está ocupado. Tente novamente quando o anexo atual terminar.",
+      "ocr_resource_limited": "O OCR parou no limite de processamento do PDF.",
+      "ocr_runtime_unavailable": "O OCR não está disponível nesta plataforma ou instalação.",
+      "invalid_attachment_snapshot": "Os dados de OCR salvos são inválidos.",
+      "turn_ocr_budget_exhausted": "O texto OCR excede o limite de texto de anexos desta mensagem.",
+      "pdf_text_unavailable": "Não há texto incorporado disponível neste PDF.",
+      "requested_image_requires_vision": "“Enviar imagem” requer um modelo com capacidade de visão.",
+      "turn_image_bytes_exceeded": "As imagens deste turno excedem o limite de tamanho total.",
+      "user_skipped_attachment_content": "O conteúdo do anexo foi omitido conforme sua escolha.",
+      "user_skipped_image_content": "O conteúdo da imagem foi omitido conforme sua escolha.",
+      "unsupported_image_format": "Este formato de imagem não é compatível com o OCR."
+    },
+    "pending": {
+      "blockedCount": "{count} bloqueados",
+      "blocked": "Bloqueado",
+      "retry": "Tentar o OCR novamente",
+      "sendWithoutImageContent": "Ignorar conteúdo do anexo",
+      "blockedDescription": "Este item está aguardando uma decisão sobre o anexo.",
+      "blockedReasonMore": "{reason} Há também mais {count} problemas.",
+      "resolveFailed": "Não foi possível resolver a mensagem bloqueada"
     }
   },
   "skillDraft": {
@@ -459,6 +573,14 @@
       "dropped": "Descartadas",
       "tokens": "Tokens",
       "budget": "Orçamento",
+      "allocation": "Alocação do orçamento de contribuição",
+      "directive": "Diretriz",
+      "persona": "Persona",
+      "working": "Memória de trabalho",
+      "queryRecall": "Recuperação por consulta",
+      "overhead": "Sobrecarga",
+      "unused": "Não utilizado",
+      "overheadSummary": "Sobrecarga {overhead} · Não utilizado {unused}",
       "countOnly": "Este registro contém apenas um resumo de contagem.",
       "unavailable": "Esta memória não está mais disponível.",
       "noSelectedDetails": "Não há detalhes de memória para mostrar neste turno.",
@@ -485,5 +607,29 @@
       "amendRetryable": "A edição falhou. A memória original foi restaurada; tente novamente.",
       "amendRestoreFailed": "A edição falhou e a memória original não pôde ser restaurada."
     }
+  },
+  "orchestration": {
+    "actions": {
+      "openChild": "Abrir Agent filho"
+    },
+    "activityTitle": "Atividade dos Agents",
+    "proactive": {
+      "title": "Colaboração proativa",
+      "description": "Permite que o Agent principal delegue quando o trabalho independente ou paralelo traz um benefício claro. Pode usar mais tempo, tokens e recursos.",
+      "reasons": {
+        "session_unavailable": "Esta sessão não está mais disponível.",
+        "agent_unavailable": "O Agent selecionado não está disponível.",
+        "deepchat_agent_required": "A colaboração proativa requer um DeepChat Agent.",
+        "regular_parent_required": "A colaboração proativa não está disponível em uma sessão filha.",
+        "agent_policy_unavailable": "Não foi possível carregar a política de colaboração.",
+        "subagents_disabled": "Ative Subagents para este Agent antes de usar a colaboração proativa."
+      }
+    }
+  },
+  "guardStop": {
+    "maxToolCalls": "O limite de chamadas de ferramentas foi atingido antes de a tarefa terminar.",
+    "noProgress": "Resultados idênticos e repetidos das ferramentas não geraram progresso, então o Agent parou.",
+    "maxTurns": "O limite de rodadas do provedor foi atingido antes de a tarefa terminar.",
+    "continueMessage": "Continue de onde parou."
   }
 }

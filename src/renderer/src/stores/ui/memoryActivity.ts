@@ -547,7 +547,8 @@ export const useMemoryActivityStore = defineStore('memoryActivity', () => {
     memoryMutationIds.add(memoryId)
     setChipItemBusy(memoryId, true)
     try {
-      const ok = await memoryClient.remove(agentId, memoryId)
+      const result = await memoryClient.remove(agentId, memoryId)
+      const ok = result.action === 'applied'
       if (ok) removeChipItem(memoryId)
       else setChipItemError(memoryId, 'delete_failed')
       return ok
@@ -567,7 +568,8 @@ export const useMemoryActivityStore = defineStore('memoryActivity', () => {
     memoryMutationIds.add(memoryId)
     setChipItemBusy(memoryId, true)
     try {
-      const ok = await memoryClient.archive(agentId, memoryId)
+      const result = await memoryClient.archive(agentId, memoryId)
+      const ok = result.action === 'applied'
       if (ok) {
         markMemoryArchivedInViews(memoryId)
         setChipItemBusy(memoryId, false)
@@ -597,8 +599,8 @@ export const useMemoryActivityStore = defineStore('memoryActivity', () => {
     setChipItemBusy(memoryId, true)
     let archived = false
     try {
-      const archivedOk = await memoryClient.archive(agentId, memoryId)
-      if (!archivedOk) {
+      const archiveResult = await memoryClient.archive(agentId, memoryId)
+      if (archiveResult.action === 'rejected') {
         setChipItemError(memoryId, 'archive_failed')
         return null
       }
@@ -629,8 +631,8 @@ export const useMemoryActivityStore = defineStore('memoryActivity', () => {
         removeChipItem(memoryId)
         return result
       }
-      const restored = await memoryClient.restore(agentId, memoryId)
-      if (restored) {
+      const restoreResult = await memoryClient.restore(agentId, memoryId)
+      if (restoreResult.action === 'applied') {
         markMemoryStatusInViews(memoryId, 'pending_embedding')
         setChipItemError(memoryId, 'amend_failed_retry')
       } else {
@@ -641,8 +643,8 @@ export const useMemoryActivityStore = defineStore('memoryActivity', () => {
       console.warn('[MemoryActivity] failed to amend memory', error)
       if (archived) {
         try {
-          const restored = await memoryClient.restore(agentId, memoryId)
-          if (restored) {
+          const restoreResult = await memoryClient.restore(agentId, memoryId)
+          if (restoreResult.action === 'applied') {
             markMemoryStatusInViews(memoryId, 'pending_embedding')
             setChipItemError(memoryId, 'amend_failed_retry')
           } else {

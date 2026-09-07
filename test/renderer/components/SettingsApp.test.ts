@@ -1,11 +1,32 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
-import { defineComponent, reactive, ref } from 'vue'
+import { defineComponent, nextTick, reactive, ref } from 'vue'
 import { SETTINGS_EVENTS } from '@/events'
+
+vi.mock('../../../src/renderer/settings/components/SettingsLeaveGuardDialog.vue', () => ({
+  default: defineComponent({
+    name: 'SettingsLeaveGuardDialog',
+    template: '<div />'
+  })
+}))
+
+const windowClientListenerImpls = vi.hoisted(() => ({
+  onSettingsNavigate: (listener: (payload: unknown) => void) => {
+    const wrapped = (_event: unknown, payload?: unknown) => listener(payload)
+    window.electron?.ipcRenderer?.on('settings:navigate', wrapped)
+    return () => window.electron?.ipcRenderer?.removeListener('settings:navigate', wrapped)
+  },
+  onSettingsProviderInstall: (listener: () => void) => {
+    const wrapped = () => listener()
+    window.electron?.ipcRenderer?.on('settings:provider-install', wrapped)
+    return () => window.electron?.ipcRenderer?.removeListener('settings:provider-install', wrapped)
+  }
+}))
 
 const windowClientMock = vi.hoisted(() => ({
   closeSettings: vi.fn().mockResolvedValue(true),
   focusMainWindow: vi.fn().mockResolvedValue(true),
+  resumeGuidedOnboarding: vi.fn().mockResolvedValue({ requested: true, focused: true }),
   notifySettingsReady: vi.fn().mockImplementation(async () => {
     window.electron?.ipcRenderer?.send('settings:ready')
     return true
@@ -13,30 +34,10 @@ const windowClientMock = vi.hoisted(() => ({
   consumePendingSettingsProviderInstall: vi.fn().mockResolvedValue(null),
   requeuePendingSettingsProviderInstall: vi.fn().mockResolvedValue(true),
   startGuidedOnboarding: vi.fn().mockResolvedValue({ started: true, focused: true }),
-  onSettingsNavigate: vi.fn().mockImplementation((listener: (payload: unknown) => void) => {
-    const wrapped = (_event: unknown, payload?: unknown) => listener(payload)
-    window.electron?.ipcRenderer?.on('settings:navigate', wrapped)
-    return () => window.electron?.ipcRenderer?.removeListener('settings:navigate', wrapped)
-  }),
-  onSettingsProviderInstall: vi.fn().mockImplementation((listener: () => void) => {
-    const wrapped = () => listener()
-    window.electron?.ipcRenderer?.on('settings:provider-install', wrapped)
-    return () => window.electron?.ipcRenderer?.removeListener('settings:provider-install', wrapped)
-  }),
-  onNotificationError: vi.fn().mockImplementation((listener: (payload: unknown) => void) => {
-    const wrapped = (_event: unknown, payload?: unknown) => listener(payload)
-    window.electron?.ipcRenderer?.on('notification:show-error', wrapped)
-    return () => window.electron?.ipcRenderer?.removeListener('notification:show-error', wrapped)
-  }),
-  onDatabaseRepairSuggested: vi.fn().mockImplementation((listener: (payload: unknown) => void) => {
-    const wrapped = (_event: unknown, payload?: unknown) => listener(payload)
-    window.electron?.ipcRenderer?.on('notification:database-repair-suggested', wrapped)
-    return () =>
-      window.electron?.ipcRenderer?.removeListener(
-        'notification:database-repair-suggested',
-        wrapped
-      )
-  })
+  onSettingsNavigate: vi.fn().mockImplementation(windowClientListenerImpls.onSettingsNavigate),
+  onSettingsProviderInstall: vi
+    .fn()
+    .mockImplementation(windowClientListenerImpls.onSettingsProviderInstall)
 }))
 
 const appRuntimeClientMock = vi.hoisted(() => ({
@@ -48,16 +49,20 @@ const appRuntimeClientMock = vi.hoisted(() => ({
   })
 }))
 
+const configClientMock = vi.hoisted(() => ({
+  getLanguage: vi.fn().mockResolvedValue('zh-CN')
+}))
+
+const deviceClientMock = vi.hoisted(() => ({
+  getDeviceInfo: vi.fn().mockResolvedValue({ platform: 'darwin' })
+}))
+
 vi.mock('@api/DeviceClient', () => ({
-  createDeviceClient: () => ({
-    getDeviceInfo: vi.fn().mockResolvedValue({ platform: 'darwin' })
-  })
+  createDeviceClient: () => deviceClientMock
 }))
 
 vi.mock('@api/ConfigClient', () => ({
-  createConfigClient: () => ({
-    getLanguage: vi.fn().mockResolvedValue('zh-CN')
-  })
+  createConfigClient: () => configClientMock
 }))
 
 vi.mock('@api/WindowClient', () => ({
@@ -68,10 +73,26 @@ vi.mock('@api/AppRuntimeClient', () => ({
   createAppRuntimeClient: () => appRuntimeClientMock
 }))
 
+// The global setup's afterEach runs vi.restoreAllMocks() after this file's
+// hooks, stripping vi.fn() implementations. Rebuild the listener mocks before
+// each test or unmount-time cleanups come back as undefined.
+beforeEach(() => {
+  deviceClientMock.getDeviceInfo.mockReset().mockResolvedValue({ platform: 'darwin' })
+  windowClientMock.onSettingsNavigate
+    .mockReset()
+    .mockImplementation(windowClientListenerImpls.onSettingsNavigate)
+  windowClientMock.onSettingsProviderInstall
+    .mockReset()
+    .mockImplementation(windowClientListenerImpls.onSettingsProviderInstall)
+})
+
 afterEach(() => {
   vi.restoreAllMocks()
   windowClientMock.closeSettings.mockReset().mockResolvedValue(true)
   windowClientMock.focusMainWindow.mockReset().mockResolvedValue(true)
+  windowClientMock.resumeGuidedOnboarding
+    .mockReset()
+    .mockResolvedValue({ requested: true, focused: true })
   windowClientMock.notifySettingsReady.mockClear()
   windowClientMock.consumePendingSettingsProviderInstall.mockReset().mockResolvedValue(null)
   windowClientMock.requeuePendingSettingsProviderInstall.mockReset().mockResolvedValue(true)
@@ -79,18 +100,18 @@ afterEach(() => {
     started: true,
     focused: true
   })
-  windowClientMock.onSettingsNavigate.mockClear()
-  windowClientMock.onSettingsProviderInstall.mockClear()
-  windowClientMock.onNotificationError.mockClear()
-  windowClientMock.onDatabaseRepairSuggested.mockClear()
   appRuntimeClientMock.mcpInstallListener = undefined
   appRuntimeClientMock.cleanupMcpInstall.mockClear()
   appRuntimeClientMock.onMcpInstallRequested.mockClear()
+  configClientMock.getLanguage.mockReset().mockResolvedValue('zh-CN')
+  document.documentElement.lang = ''
+  document.documentElement.dir = ''
 })
 
 describe('Settings App', () => {
-  it('notifies main when the settings router is ready', async () => {
+  it('initializes the settings window and guards dirty close attempts', async () => {
     vi.resetModules()
+    deviceClientMock.getDeviceInfo.mockResolvedValue({ platform: 'win32' })
 
     const push = vi.fn().mockResolvedValue(undefined)
     const isReady = vi.fn().mockResolvedValue(undefined)
@@ -116,6 +137,7 @@ describe('Settings App', () => {
         isReady,
         push,
         replace: vi.fn().mockResolvedValue(undefined),
+        beforeEach: vi.fn(() => vi.fn()),
         getRoutes: vi.fn(() => [
           {
             path: '/common',
@@ -215,7 +237,11 @@ describe('Settings App', () => {
       })
     }))
     vi.doMock('@vueuse/core', () => ({
-      useTitle: () => ref('')
+      useTitle: () => ref(''),
+      useEventListener: (target: EventTarget, event: string, listener: EventListener) => {
+        target.addEventListener(event, listener)
+        return () => target.removeEventListener(event, listener)
+      }
     }))
     vi.doMock('vue-i18n', () => ({
       useI18n: () => ({
@@ -229,17 +255,11 @@ describe('Settings App', () => {
         template: '<span />'
       }
     }))
-    vi.doMock('@/components/use-toast', () => ({
-      useToast: () => ({
-        toast: vi.fn(() => ({ dismiss: vi.fn() }))
-      })
-    }))
-
     const SettingsApp = (await import('../../../src/renderer/settings/App.vue')).default
-    mount(SettingsApp, {
+    const wrapper = mount(SettingsApp, {
       global: {
         stubs: {
-          Button: true,
+          DcButton: true,
           RouterView: true,
           CloseIcon: true,
           ModelCheckDialog: defineComponent({
@@ -270,12 +290,53 @@ describe('Settings App', () => {
     expect(isReady).toHaveBeenCalledTimes(1)
     expect(initializeModelStore).toHaveBeenCalledTimes(1)
     expect(ipcSend).toHaveBeenCalledWith(SETTINGS_EVENTS.READY)
+
+    const { settingsLeaveGuard } =
+      await import('../../../src/renderer/settings/services/settingsLeaveGuard')
+    let leaveLease: ReturnType<typeof settingsLeaveGuard.register>
+    leaveLease = settingsLeaveGuard.register({
+      id: 'test-editor',
+      onDiscard: () => leaveLease.setRisk('clean')
+    })
+    leaveLease.setRisk('dirty')
+
+    await wrapper.get('[aria-label="common.close"]').trigger('click')
+    await flushPromises()
+    expect(windowClientMock.closeSettings).not.toHaveBeenCalled()
+    expect(settingsLeaveGuard.getSnapshot()).toMatchObject({ promptOpen: true, risk: 'dirty' })
+
+    expect(settingsLeaveGuard.discardAndLeave()).toBe(true)
+    await flushPromises()
+    expect(windowClientMock.closeSettings).toHaveBeenCalledOnce()
+
+    leaveLease.release()
+    windowClientMock.closeSettings.mockClear()
+    let nativeLeaveLease: ReturnType<typeof settingsLeaveGuard.register>
+    nativeLeaveLease = settingsLeaveGuard.register({
+      id: 'native-close-test-editor',
+      onDiscard: () => nativeLeaveLease.setRisk('clean')
+    })
+    nativeLeaveLease.setRisk('dirty')
+
+    const beforeUnload = new Event('beforeunload', { cancelable: true })
+    window.dispatchEvent(beforeUnload)
+    expect(beforeUnload.defaultPrevented).toBe(true)
+    expect(beforeUnload.returnValue).toBe(false)
+    expect(windowClientMock.closeSettings).not.toHaveBeenCalled()
+
+    expect(settingsLeaveGuard.discardAndLeave()).toBe(true)
+    await flushPromises()
+    expect(windowClientMock.closeSettings).toHaveBeenCalledOnce()
+
+    nativeLeaveLease.release()
+    wrapper.unmount()
   }, 15000)
 
   it('uses a resolved provider settings path in the sidebar', async () => {
     vi.resetModules()
 
-    const push = vi.fn().mockResolvedValue(undefined)
+    let resolvePush: (() => void) | undefined
+    const push = vi.fn(() => new Promise<void>((resolve) => (resolvePush = resolve)))
     const isReady = vi.fn().mockResolvedValue(undefined)
     const ipcOn = vi.fn()
     const ipcRemoveListener = vi.fn()
@@ -298,6 +359,7 @@ describe('Settings App', () => {
         isReady,
         push,
         replace: vi.fn().mockResolvedValue(undefined),
+        beforeEach: vi.fn(() => vi.fn()),
         getRoutes: vi.fn(() => [
           {
             path: '/common',
@@ -406,7 +468,11 @@ describe('Settings App', () => {
       })
     }))
     vi.doMock('@vueuse/core', () => ({
-      useTitle: () => ref('')
+      useTitle: () => ref(''),
+      useEventListener: (target: EventTarget, event: string, listener: EventListener) => {
+        target.addEventListener(event, listener)
+        return () => target.removeEventListener(event, listener)
+      }
     }))
     vi.doMock('vue-i18n', () => ({
       useI18n: () => ({
@@ -420,17 +486,11 @@ describe('Settings App', () => {
         template: '<span />'
       }
     }))
-    vi.doMock('@/components/use-toast', () => ({
-      useToast: () => ({
-        toast: vi.fn(() => ({ dismiss: vi.fn() }))
-      })
-    }))
-
     const SettingsApp = (await import('../../../src/renderer/settings/App.vue')).default
     const wrapper = mount(SettingsApp, {
       global: {
         stubs: {
-          Button: true,
+          DcButton: true,
           RouterView: true,
           CloseIcon: true,
           ModelCheckDialog: defineComponent({
@@ -465,6 +525,11 @@ describe('Settings App', () => {
 
     expect(push).toHaveBeenCalledWith('/provider')
     expect(push).not.toHaveBeenCalledWith('/provider/:providerId?')
+    expect(providerSidebarItem.attributes('aria-busy')).toBe('true')
+
+    resolvePush?.()
+    await flushPromises()
+    expect(providerSidebarItem.attributes('aria-busy')).toBe('false')
   })
 
   it('navigates to the requested settings route when a navigate event arrives', async () => {
@@ -508,6 +573,7 @@ describe('Settings App', () => {
         isReady,
         push,
         replace: vi.fn().mockResolvedValue(undefined),
+        beforeEach: vi.fn(() => vi.fn()),
         getRoutes: vi.fn(() => [
           {
             path: '/common',
@@ -611,7 +677,11 @@ describe('Settings App', () => {
       })
     }))
     vi.doMock('@vueuse/core', () => ({
-      useTitle: () => ref('')
+      useTitle: () => ref(''),
+      useEventListener: (target: EventTarget, event: string, listener: EventListener) => {
+        target.addEventListener(event, listener)
+        return () => target.removeEventListener(event, listener)
+      }
     }))
     vi.doMock('vue-i18n', () => ({
       useI18n: () => ({
@@ -625,17 +695,11 @@ describe('Settings App', () => {
         template: '<span />'
       }
     }))
-    vi.doMock('@/components/use-toast', () => ({
-      useToast: () => ({
-        toast: vi.fn(() => ({ dismiss: vi.fn() }))
-      })
-    }))
-
     const SettingsApp = (await import('../../../src/renderer/settings/App.vue')).default
     mount(SettingsApp, {
       global: {
         stubs: {
-          Button: true,
+          DcButton: true,
           RouterView: true,
           CloseIcon: true,
           ModelCheckDialog: defineComponent({
@@ -708,6 +772,7 @@ describe('Settings App', () => {
         isReady,
         push,
         replace: vi.fn().mockResolvedValue(undefined),
+        beforeEach: vi.fn(() => vi.fn()),
         getRoutes: vi.fn(() => [
           {
             path: '/common',
@@ -811,7 +876,11 @@ describe('Settings App', () => {
       })
     }))
     vi.doMock('@vueuse/core', () => ({
-      useTitle: () => ref('')
+      useTitle: () => ref(''),
+      useEventListener: (target: EventTarget, event: string, listener: EventListener) => {
+        target.addEventListener(event, listener)
+        return () => target.removeEventListener(event, listener)
+      }
     }))
     vi.doMock('vue-i18n', () => ({
       useI18n: () => ({
@@ -825,17 +894,11 @@ describe('Settings App', () => {
         template: '<span />'
       }
     }))
-    vi.doMock('@/components/use-toast', () => ({
-      useToast: () => ({
-        toast: vi.fn(() => ({ dismiss: vi.fn() }))
-      })
-    }))
-
     const SettingsApp = (await import('../../../src/renderer/settings/App.vue')).default
     mount(SettingsApp, {
       global: {
         stubs: {
-          Button: true,
+          DcButton: true,
           RouterView: true,
           CloseIcon: true,
           ModelCheckDialog: defineComponent({
@@ -929,6 +992,7 @@ describe('Settings App', () => {
         isReady,
         push,
         replace: vi.fn().mockResolvedValue(undefined),
+        beforeEach: vi.fn(() => vi.fn()),
         getRoutes: vi.fn(() => [
           {
             path: '/common',
@@ -1026,7 +1090,11 @@ describe('Settings App', () => {
       })
     }))
     vi.doMock('@vueuse/core', () => ({
-      useTitle: () => ref('')
+      useTitle: () => ref(''),
+      useEventListener: (target: EventTarget, event: string, listener: EventListener) => {
+        target.addEventListener(event, listener)
+        return () => target.removeEventListener(event, listener)
+      }
     }))
     vi.doMock('vue-i18n', () => ({
       useI18n: () => ({
@@ -1040,17 +1108,11 @@ describe('Settings App', () => {
         template: '<span />'
       }
     }))
-    vi.doMock('@/components/use-toast', () => ({
-      useToast: () => ({
-        toast: vi.fn(() => ({ dismiss: vi.fn() }))
-      })
-    }))
-
     const SettingsApp = (await import('../../../src/renderer/settings/App.vue')).default
     mount(SettingsApp, {
       global: {
         stubs: {
-          Button: true,
+          DcButton: true,
           RouterView: true,
           CloseIcon: true,
           ModelCheckDialog: defineComponent({
@@ -1144,6 +1206,7 @@ describe('Settings App', () => {
         isReady,
         push,
         replace: vi.fn().mockResolvedValue(undefined),
+        beforeEach: vi.fn(() => vi.fn()),
         getRoutes: vi.fn(() => [
           {
             path: '/common',
@@ -1237,7 +1300,11 @@ describe('Settings App', () => {
       })
     }))
     vi.doMock('@vueuse/core', () => ({
-      useTitle: () => ref('')
+      useTitle: () => ref(''),
+      useEventListener: (target: EventTarget, event: string, listener: EventListener) => {
+        target.addEventListener(event, listener)
+        return () => target.removeEventListener(event, listener)
+      }
     }))
     vi.doMock('vue-i18n', () => ({
       useI18n: () => ({
@@ -1251,17 +1318,11 @@ describe('Settings App', () => {
         template: '<span />'
       }
     }))
-    vi.doMock('@/components/use-toast', () => ({
-      useToast: () => ({
-        toast: vi.fn(() => ({ dismiss: vi.fn() }))
-      })
-    }))
-
     const SettingsApp = (await import('../../../src/renderer/settings/App.vue')).default
     mount(SettingsApp, {
       global: {
         stubs: {
-          Button: true,
+          DcButton: true,
           RouterView: true,
           CloseIcon: true,
           ModelCheckDialog: defineComponent({
@@ -1307,5 +1368,125 @@ describe('Settings App', () => {
     expect(mcpStore.setMcpEnabled).toHaveBeenCalledTimes(1)
     expect(push).toHaveBeenCalledWith({ name: 'settings-mcp' })
     expect(mcpStore.setMcpInstallCache).toHaveBeenCalledWith(serializedConfig)
+  })
+
+  it('projects locale and direction updates when the requested language is unchanged', async () => {
+    vi.resetModules()
+
+    const languageStore = reactive({
+      language: 'system',
+      dir: 'auto' as 'auto' | 'rtl',
+      initLanguage: vi.fn().mockResolvedValue(undefined)
+    })
+    const locale = ref('zh-CN')
+
+    vi.doMock('vue-router', () => {
+      const currentRoute = ref({ name: 'settings-common', query: {}, params: {}, path: '/common' })
+      const router = {
+        hasRoute: vi.fn(() => true),
+        isReady: vi.fn().mockResolvedValue(undefined),
+        push: vi.fn().mockResolvedValue(undefined),
+        replace: vi.fn().mockResolvedValue(undefined),
+        beforeEach: vi.fn(() => vi.fn()),
+        getRoutes: vi.fn(() => []),
+        currentRoute
+      }
+
+      return {
+        useRouter: () => router,
+        useRoute: () => currentRoute.value,
+        RouterView: { name: 'RouterView', template: '<div />' }
+      }
+    })
+    vi.doMock('../../../src/renderer/src/stores/uiSettingsStore', () => ({
+      useUiSettingsStore: () => ({ fontSizeClass: 'text-base', loadSettings: vi.fn() })
+    }))
+    vi.doMock('../../../src/renderer/src/stores/language', () => ({
+      useLanguageStore: () => languageStore
+    }))
+    vi.doMock('../../../src/renderer/src/stores/modelCheck', () => ({
+      useModelCheckStore: () => ({
+        isDialogOpen: false,
+        currentProviderId: null,
+        closeDialog: vi.fn()
+      })
+    }))
+    vi.doMock('../../../src/renderer/src/stores/theme', () => ({
+      useThemeStore: () => ({ themeMode: 'light', isDark: false })
+    }))
+    vi.doMock('../../../src/renderer/src/stores/providerStore', () => ({
+      useProviderStore: () => ({ providers: [], initialized: ref(false), initialize: vi.fn() })
+    }))
+    vi.doMock('../../../src/renderer/src/stores/providerDeeplinkImport', () => ({
+      useProviderDeeplinkImportStore: () => ({
+        preview: null,
+        previewToken: 0,
+        openPreview: vi.fn(),
+        clearPreview: vi.fn()
+      })
+    }))
+    vi.doMock('../../../src/renderer/src/stores/modelStore', () => ({
+      useModelStore: () => ({ initialize: vi.fn() })
+    }))
+    vi.doMock('../../../src/renderer/src/stores/ollamaStore', () => ({
+      useOllamaStore: () => ({ initialize: vi.fn() })
+    }))
+    vi.doMock('../../../src/renderer/src/stores/mcp', () => ({
+      useMcpStore: () => ({
+        mcpEnabled: false,
+        setMcpEnabled: vi.fn(),
+        setMcpInstallCache: vi.fn()
+      })
+    }))
+    vi.doMock('../../../src/renderer/src/lib/storeInitializer', () => ({
+      useMcpInstallDeeplinkHandler: () => ({ setup: vi.fn(), cleanup: vi.fn() })
+    }))
+    vi.doMock('../../../src/renderer/src/composables/useFontManager', () => ({
+      useFontManager: () => ({ setupFontListener: vi.fn() })
+    }))
+    vi.doMock('../../../src/renderer/src/composables/useDeviceVersion', () => ({
+      useDeviceVersion: () => ({ isMacOS: ref(false), isWinMacOS: true })
+    }))
+    vi.doMock('@vueuse/core', () => ({
+      useTitle: () => ref(''),
+      useEventListener: vi.fn()
+    }))
+    vi.doMock('vue-i18n', () => ({
+      useI18n: () => ({ t: (key: string) => key, locale })
+    }))
+    vi.doMock('@iconify/vue', () => ({ Icon: { name: 'Icon', template: '<span />' } }))
+    const SettingsApp = (await import('../../../src/renderer/settings/App.vue')).default
+    const wrapper = mount(SettingsApp, {
+      global: {
+        stubs: {
+          DcButton: true,
+          RouterView: true,
+          CloseIcon: true,
+          ModelCheckDialog: true,
+          ProviderDeeplinkImportDialog: true,
+          Toaster: true,
+          Icon: true
+        }
+      }
+    })
+
+    expect(configClientMock.getLanguage).not.toHaveBeenCalled()
+    expect(languageStore.initLanguage).toHaveBeenCalledTimes(1)
+
+    // The requested preference remains "system", but its resolved locale and
+    // direction can change when the system locale changes.
+    locale.value = 'fa-IR'
+    languageStore.dir = 'rtl'
+    await nextTick()
+    await flushPromises()
+
+    expect(document.documentElement).toHaveProperty('lang', 'fa-IR')
+    expect(document.documentElement).toHaveProperty('dir', 'rtl')
+    expect(locale.value).toBe('fa-IR')
+    expect(configClientMock.getLanguage).not.toHaveBeenCalled()
+
+    wrapper.unmount()
+    document.documentElement.lang = ''
+    document.documentElement.dir = ''
   })
 })

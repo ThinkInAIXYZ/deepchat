@@ -2,7 +2,7 @@
 import { ref, computed, onMounted, onUnmounted, watch, type Ref } from 'vue'
 
 // === Types ===
-import type { CONVERSATION_SETTINGS } from '@shared/presenter'
+import type { CONVERSATION_SETTINGS } from '@shared/types/session'
 
 // === Composables ===
 import { createProviderClient } from '@api/ProviderClient'

@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { AgentCommandShellConfigSchema } from '../../commandShell'
 import { TimestampMsSchema, defineEventContract } from '../common'
 import { SettingsKeySchema, SettingsSnapshotValuesSchema } from '../routes/settings.routes'
 
@@ -10,19 +11,21 @@ const SettingsRouteNameSchema = z.enum([
   'settings-provider',
   'settings-dashboard',
   'settings-mcp',
+  'settings-ocr',
+  'settings-toolchains',
   'settings-deepchat-agents',
   'settings-acp',
   'settings-remote',
   'settings-notifications-hooks',
   'settings-scheduled-tasks',
   'settings-plugins',
-  'settings-skills',
   'settings-prompt',
   'settings-memory',
   'settings-knowledge-base',
   'settings-database',
   'settings-shortcut',
-  'settings-about'
+  'settings-about',
+  'settings-debug'
 ])
 
 export const SettingsNavigationPayloadSchema = z.object({
@@ -37,6 +40,14 @@ export const settingsChangedEvent = defineEventContract({
     changedKeys: z.array(SettingsKeySchema).min(1),
     version: TimestampMsSchema,
     values: SettingsSnapshotValuesSchema.partial()
+  })
+})
+
+export const settingsCommandShellChangedEvent = defineEventContract({
+  name: 'settings.commandShell.changed',
+  payload: z.object({
+    config: AgentCommandShellConfigSchema,
+    version: TimestampMsSchema
   })
 })
 

@@ -1,5 +1,5 @@
 import { vi, beforeEach, afterEach } from 'vitest'
-import { config } from '@vue/test-utils'
+import { config, enableAutoUnmount } from '@vue/test-utils'
 
 const createDefaultModelConfig = () => ({
   maxTokens: 4096,
@@ -11,14 +11,31 @@ const createDefaultModelConfig = () => ({
   type: 'chat'
 })
 
-const createDefaultReasoningCapabilities = () => ({
+const createDefaultReasoningCapabilities = (providerId = 'openai', modelId = 'gpt-5.4') => ({
+  identity: {
+    providerId,
+    requestModelId: modelId,
+    catalogMatched: false,
+    catalogModelId: null
+  },
+  requestPolicy: {
+    temperature: { mode: 'passthrough' },
+    topP: { mode: 'passthrough' },
+    reasoning: { mode: 'passthrough' },
+    legacyThinking: { mode: 'passthrough' }
+  },
+  supportsAudioInput: false,
   supportsReasoning: true,
   reasoningPortrait: null,
-  thinkingBudgetRange: null,
-  supportsSearch: null,
-  searchDefaults: null,
+  thinkingBudgetRange: {},
+  supportsSearch: false,
+  searchDefaults: {},
   supportsTemperatureControl: true,
-  temperatureCapability: true
+  temperatureCapability: true,
+  supportsReasoningEffort: true,
+  reasoningEffortDefault: 'medium',
+  supportsVerbosity: true,
+  verbosityDefault: 'medium'
 })
 
 const getDefaultDeepchatInvokeResult = (
@@ -138,9 +155,15 @@ const getDefaultDeepchatInvokeResult = (
         version: 0
       }
     case 'config.getDefaultSystemPrompt':
-    case 'config.resetDefaultSystemPrompt':
     case 'config.clearDefaultSystemPrompt':
       return {
+        defaultPromptId: 'empty',
+        prompt: '',
+        version: 0
+      }
+    case 'config.resetDefaultSystemPrompt':
+      return {
+        prompts: [],
         defaultPromptId: 'empty',
         prompt: '',
         version: 0
@@ -354,7 +377,10 @@ const getDefaultDeepchatInvokeResult = (
       }
     case 'models.getCapabilities':
       return {
-        capabilities: createDefaultReasoningCapabilities()
+        capabilities: createDefaultReasoningCapabilities(
+          typeof payload.providerId === 'string' ? payload.providerId : undefined,
+          typeof payload.modelId === 'string' ? payload.modelId : undefined
+        )
       }
     default:
       return {}
@@ -373,6 +399,7 @@ vi.mock('electron', () => ({
 
 // Mock Vue Router
 vi.mock('vue-router', () => ({
+  onBeforeRouteLeave: vi.fn(),
   createRouter: vi.fn(() => ({
     push: vi.fn(),
     replace: vi.fn(),
@@ -536,6 +563,14 @@ beforeEach(() => {
 })
 
 afterEach(() => {
-  // Clean up after each test
+  // Tests must not leak pending fake-timer callbacks, fake timers, or spies into
+  // the next jsdom environment. Clear before restoring real timers so scheduled
+  // callbacks cannot escape into a later test's clock.
+  vi.clearAllTimers()
+  vi.useRealTimers()
   vi.restoreAllMocks()
 })
+
+// Vitest runs cleanup hooks in reverse registration order. Register auto-unmount
+// last so components dispose while their mocked dependencies are still intact.
+enableAutoUnmount(afterEach)

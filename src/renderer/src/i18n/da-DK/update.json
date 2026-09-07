@@ -16,5 +16,9 @@
   "autoUpdate": "Automatisk opdatering",
   "restarting": "Genstarter",
   "alreadyUpToDate": "Allerede opdateret",
-  "alreadyUpToDateDesc": "Din DeepChat er allerede opdateret til den seneste version, ingen opdatering er nødvendig."
+  "alreadyUpToDateDesc": "Din DeepChat er allerede opdateret til den seneste version, ingen opdatering er nødvendig.",
+  "taskRunningTitle": "Opgave i gang",
+  "taskRunningDescription": "Der kører opgaver i øjeblikket. Hvordan vil du fortsætte med opdateringen?",
+  "updateNow": "Opdater nu",
+  "updateAfterTasksComplete": "Opdater efter opgaver"
 }

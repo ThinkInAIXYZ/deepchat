@@ -1,5 +1,5 @@
 {
-  "title": "Önizleme İste",
+  "title": "İleti tanılama",
   "provider": "sağlayıcı",
   "model": "Modeli",
   "endpoint": "API Uç nokta",
@@ -18,14 +18,29 @@
     "request": "İstek",
     "view": "Görünüm",
     "entries": "Girdiler",
-    "budget": "Bütçe"
+    "budget": "Bütçe",
+    "execution": "Yürütme denetimi"
   },
   "empty": "Tanılama yok",
-  "emptyDesc": "Bu ileti için istek izi veya görünüm bildirimi yok",
+  "emptyDesc": "Bu ileti için istek izi, Tape görünüm bildirimi veya iç içe yürütme denetimi yok",
   "requestUnavailable": "İstek izi yok",
   "requestUnavailableDesc": "Bu iletinin kalıcı sağlayıcı istek izi yok",
   "manifestUnavailable": "Görünüm bildirimi yok",
   "manifestUnavailableDesc": "Bu iletinin kalıcı Tape görünüm bildirimi yok",
+  "execution": {
+    "empty": "İç içe yürütme yok",
+    "emptyDesc": "Bu istek için programatik bir araç işlemi kaydedilmemiş",
+    "corrupt": "Yürütme denetimi bozuk",
+    "corruptDesc": "İç içe Journal olguları çelişiyor veya doğrulanamıyor",
+    "unavailable": "Yürütme denetimi kullanılamıyor",
+    "unavailableDesc": "İç içe Journal olguları okunamadı",
+    "truncated": "Yalnızca ilk 256 iç içe işlem gösteriliyor",
+    "status": {
+      "success": "Başarılı",
+      "error": "Hata",
+      "indeterminate": "Belirsiz"
+    }
+  },
   "viewId": "Görünüm Kimliği",
   "policy": "İlke",
   "policyVersion": "İlke sürümü",

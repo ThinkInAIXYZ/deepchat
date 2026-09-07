@@ -37,6 +37,7 @@
       "read": "Autoriser '{toolName}' de '{serverName}' à effectuer des opérations de lecture ?",
       "write": "Autoriser '{toolName}' de '{serverName}' à effectuer des opérations d'écriture ?",
       "all": "Autoriser '{toolName}' de '{serverName}' à lire et écrire ?",
+      "subagentStart": "Démarrer cette tâche de sous-agent ? Cela peut consommer davantage de jetons, de temps et de ressources système.",
       "command": "Exécuter la commande : {command}",
       "commandWithRisk": "Exécuter la commande : {command}\n\nNiveau de risque : {riskLevel}\n\nSuggestion : {suggestion}"
     },

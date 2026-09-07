@@ -1,172 +1,197 @@
-# Agent 系统架构详解
+# Agent 系统
 
-本文档描述 retirement 后仍然有效的 agent system。旧 `AgentPresenter` 细节不再作为仓库内
-长期文档保留；需要对照时用 `git log` / `git show` 查看历史提交。
+本文描述 `2026-08-07` 的当前合同。历史迁移方案、Presenter 拆分过程和已完成的分阶段
+SDD 已删除；需要时从 Git 历史查询。
 
-DeepChat Agent 与 ACP Agent 的当前代码路径对比见
-[deepchat-vs-acp-agents/](./deepchat-vs-acp-agents/)。
+## 两种 Agent backend
 
-## Agent 类型
+`AgentManager` 只按 canonical `AgentDescriptor.kind` 选择 backend：
 
-DeepChat 支持两种 agent 执行架构:
+```text
+kind=deepchat -> DeepChatAgentRuntime -> DeepChatAgentInstance -> DeepChatLoopEngine
+kind=acp      -> AcpAgentRuntime      -> AcpAgentInstance      -> ACP process/protocol
+```
 
-### DeepChat Agent
-- **原生 TypeScript** agent 运行时
-- **Tape-based** 完整对话历史持久化 (受 [tape.systems](https://tape.systems/) 启发)
-- **直接 LLM 集成** 通过 LLMProviderPresenter
-- **完整调试能力** 支持重放、审计、分叉
-- **适用场景**: 需要深度集成、上下文控制、审计追溯
+`kind=deepchat + providerId=acp` 是兼容组合：它仍运行 DeepChat loop，只把 ACP 作为 provider。
+Direct ACP 不进入 `DeepChatLoopEngine`，也不通过 DeepChat ToolService 执行外部 agent 自己的 loop。
 
-### ACP Agent
-- **协议化** agent 系统,遵循 [ACP 官方规范](https://modelcontextprotocol.io/acp)
-- **进程隔离** 外部 agent 进程通过 JSON-RPC 通信
-- **语言无关** 任何实现 ACP 协议的 agent
-- **灵活性优先** agent 自主管理状态和工具
-- **适用场景**: 多语言支持、第三方集成、进程隔离需求
+内部 descriptor 使用 discriminated union。旧 `type` / `agentType` 只允许在 storage、route DTO 和
+renderer compatibility adapter 出现；manager/backend 不做反射式 fallback。
 
-**详细对比** 请参见 [deepchat-vs-acp-agents/spec.md](./deepchat-vs-acp-agents/spec.md)。
+## Agent 身份、默认选择与配置
 
-## 当前运行时所有权
+所有 Agent 平级。`builtin`、默认选择和父子关系是不同概念：
+
+- `deepchat` 是 `source=builtin` 的受保护第一方 Agent，保持启用、不可删除并允许重置；
+- 默认 Agent 只表示入口未显式选择时使用哪个 Agent；硬编码 `deepchat` 只能用于这一兼容默认；
+- 系统不存在主 Agent、父 Agent、`inheritsFrom` 或隐式模板关系；
+- 每个 DeepChat Agent 只从自己的持久化配置和确定性的代码默认值解析 effective config；
+- 应用级默认模型和自动压缩设置属于 app settings，不以 built-in Agent 配置充当别名；
+- 修改 built-in Agent 不得触发其他 Agent 的配置、Memory 或 Skill fan-out。
+
+升级迁移会先按旧规则（包括 built-in 配置和原有 fail-closed fallback）物化每个可读 manual
+Agent 的 effective config，再启用独立解析；无法读取的配置也会尽量保留其旧 effective 值并记录
+恢复证据。迁移完成后的独立 resolver 不再从 built-in Agent 静默补值，损坏配置在该阶段保持
+fail-closed。
+
+## 生命周期和所有权
 
 ```mermaid
 flowchart TD
-    UI["Renderer / IPC"] --> NewAgent["AgentSessionPresenter"]
-    NewAgent --> Registry["AgentRegistry"]
-    Registry --> DeepChat["AgentRuntimePresenter"]
-    DeepChat --> Context["contextBuilder"]
-    DeepChat --> Process["process.ts"]
-    DeepChat --> Dispatch["dispatch.ts"]
-    DeepChat --> SessionStore["sessionStore"]
-    DeepChat --> MessageStore["messageStore"]
-    DeepChat --> ToolPresenter["ToolPresenter"]
-    DeepChat --> Llm["LLMProviderPresenter"]
+    Entry["Desktop / Remote / Scheduler / Subagent"] --> Session["Session Lifecycle / Turn"]
+    Session --> Manager["AgentManager"]
+    Manager --> Deep["DeepChat backend"]
+    Manager --> ACP["ACP backend"]
+    Deep --> Instance["one instance per loaded Session"]
+    Instance --> Run["one LoopRun per provider/tool round sequence"]
+    Run --> Provider["ProviderRuntime"]
+    Run --> Tool["ToolService"]
+    Run --> Memory["Memory ports"]
+    Run --> Tape["Session Tape / transcript"]
 ```
 
-主原则：
+- Session 拥有长期身份、settings、transcript、Tape 和 pending input。
+- DeepChat Agent 拥有自己的配置和物理 Skill root；Session 只保存 Agent assignment 和所选 Skill 名称。
+- 已载入 Session 在一个 backend 中最多有一个 instance。
+- 每次执行创建独立 UUID Run，Run 拥有取消信号、logical round、request sequence、physical attempt 和
+  临时输出；loop、resume 和 deferred tool execution 都不得复用旧 Run identity。
+- Window、Remote endpoint 和 Cron run 只保存各自 binding，不拥有 Agent instance。
+- 只读 list/query 不 hydrate backend；执行、完整 restore 或明确 backend 设置操作才允许 hydrate。
 
-- renderer 只面向 `agentSessionPresenter`
-- `agentSessionPresenter` 只做 session orchestration，不执行聊天 loop
-- `agentRuntimePresenter` 独占聊天 runtime
+## DeepChat 执行合同
 
-## 模块布局
-
-### `agentSessionPresenter/`
+主要实现位于：
 
 ```text
-agentSessionPresenter/
-├── index.ts
-├── agentRegistry.ts
-├── sessionManager.ts
-├── messageManager.ts
-└── legacyImportService.ts
+src/main/agent/deepchat/
+├── instance/   # per-session runtime state
+├── loop/       # LoopRun, input/context coordination and ports
+├── runtime/    # provider/tool loop, interaction, compaction and projection
+├── memory/     # prompt contribution and terminal ingestion
+└── resources/  # system prompt resources
 ```
 
-职责：
+必须保持的合同：
 
-- 注册和解析 agent implementation
-- 创建、删除、激活、分叉会话
-- 绑定窗口与 session
-- 暴露 renderer IPC 方法
-- 保留 legacy import 流程
+- runtime 只通过构造时注入的窄接口访问 Provider、Tool、Memory 和 Session data；不得反向读取 App、
+  Desktop、Remote、Scheduler 或 route registry。
+- `logicalRound` 统计一次模型响应及其工具结算循环；公共 `metadata.providerRounds` 和
+  `maxProviderRounds` 继续保留原名称，但只映射该 logical-round 计数。上限在进入下一 round 前检查，
+  resume 从已持久化 metadata 恢复计数。
+- `requestSeq` 标识一份确定的 provider payload 和 ViewManifest；`physicalAttempt` 标识该 request 的
+  实际发送次数。context recovery 改变 payload，因此推进 requestSeq 并把 physicalAttempt 重置为 1；
+  同 payload 的 transient retry 保持 requestSeq，只推进 physicalAttempt。
+- 每个 logical provider request 发送前都执行 context-pressure preflight。上一条成功 attempt 的
+  provider-reported prompt usage 只在 provider/model/generation/tool schema/消息前缀完全一致时作为
+  anchor，并只估新增 suffix；实际 fitted payload 与 continuation View 不一致或 usage 口径非法时不建立
+  该 attempt 的新 anchor，无法匹配已有 anchor 时回退全量估算。preflight 不得只因启发式估算而丢弃
+  system、当前 user input 或 tool protocol unit。
+- Context compact 推进的是 Tape reconstruction boundary 和 provider View，不改写 raw Tape。semantic
+  summary 失败时仍可提交 boundary-only anchor；semantic boundary recovery 只有在 durable cursor 前进且
+  重新派生的 View 严格变小时才算 applied。已闭合的大 tool result 可独立在当前 View 中稳定 stub 化，
+  原始 fact 保留在 Tape；先保护最新闭合 unit 的直接行动依据，较旧 unit 不足以解除压力时才允许压缩
+  最新 unit。该路径以协议闭合和 projection 确实变化为进度，不冒充 boundary progress。
+- Cache-aware v2 View 把当前 Tape incarnation 第一条 effective user fact 作为 authoritative protected
+  prefix，位于 system 之后、checkpoint 之前；连续 cursor 仍可越过该 fact，View 每次从 raw Tape 重投影。
+  pin 不使用 derivative 的 untrusted fence，不复制原文到 manifest，且只有 effective source entry、
+  source-content hash、identity 与精确前缀 hash 全部匹配时才能跨 provider round 继承。
+- 一次成功 provider response 重置 sequence-level context recovery latch；同一 Run 最多使用三条
+  recovery sequence。恢复不能重放可能已执行副作用的原 user prompt，每个变化后的 payload 都必须写
+  新 requestSeq 与 ViewManifest。
+- 工具 operation identity 为 `(runId, requestSeq, providerToolCallId)`。`run_started` 必须先于 Run
+  registration；dispatch fact 必须位于所有本地拒绝 gate 之后、真实副作用调用之前；known outcome
+  必须先于 result projection；terminal fact 必须先于 transcript、status、hook 和 renderer terminal
+  projection。任一 strict Journal commit 失败都阻止下游边界继续。
+- `DeepChatContextCoordinator.streamProviderAttempts` 是 transient retry 的唯一 owner。每个 logical
+  round 最多重试两次，使用可取消的指数退避并服从有上限的 `Retry-After`；context recovery 不消耗
+  logical-round 或 transient-retry budget，每次实际 attempt 都重新进入 provider rate gate。
+- 透明重放只允许发生在 `outputCommitted` 之前。首个投影的 text、reasoning、tool lifecycle、
+  permission、image、plan 或 provider rate-limit event 会提交输出；usage、stop 和 error 是控制事件，
+  在 retry 决策完成前缓冲。无 stop 且无语义输出视为可重试的 premature EOF，已有 partial output
+  则保留输出并失败，绝不重放。
+- message usage 对同一 logical round 内所有 physical attempt 的最终 usage snapshot 做 checked
+  aggregation；Tape 仍逐 attempt 保存各自 usage。`retry_scheduled`、`retry_started` 和
+  `retry_finished` observer 只用于结构化诊断，不进入 renderer event bus，也不是持久化事实。
+- provider request trace context 必须按 physical attempt 创建并闭合捕获 identity，不能读取后续可变的
+  Run counter。
+- Run `AbortSignal` 必须贯穿 provider 建流和请求。AI SDK chat stream 显式使用 `maxRetries: 0`，由
+  coordinator 统一重试；one-shot text/embedding 保持显式 SDK policy，ACP、image、video 和 TTS 不做
+  DeepChat 透明重放。
+- send input 在 Session 边界正规化为 canonical request；resume 不重新解释旧 route DTO。
+- permission mode 属于 Session assignment/settings；一次 Run 使用开始时的闭合快照，deferred tool
+  execution 仍需重新检查当前安全边界。
+- Run 的 effective Skills 是 Session 持久化选择与当前 Agent 有效、启用 Skill catalog 的交集；不得
+  回退到 built-in Agent catalog。
+- paused interaction 按顺序结算；最后一项完成后创建新的 resume Run，不复用已经 settle 的 Run。
+- paused terminal 只允许 permission/question action 保持 pending。任何其他 `pending` 或 `loading`
+  block 都是 runtime invariant violation，必须在 paused terminal fact 之前转入 error settlement，不能
+  静默改成 success。
+- no-progress tool loop 由 `noProgressToolLoopGuard.ts` 终止；usage 由 runtime accumulator 跨 round
+  累加。
+- provider terminal reason 必须无损正规化；普通 `stop` 只有在确实解析出 tool call 时才能变为
+  `tool_use`。
 
-### `agentRuntimePresenter/`
+## ACP 执行合同
 
-```text
-agentRuntimePresenter/
-├── index.ts
-├── process.ts
-├── dispatch.ts
-├── contextBuilder.ts
-├── sessionStore.ts
-├── messageStore.ts
-├── pendingInputStore.ts
-├── pendingInputCoordinator.ts
-├── compactionService.ts
-├── echo.ts
-└── toolOutputGuard.ts
-```
+ACP 代码集中在 `src/main/agent/acp/`：
 
-职责：
+- `catalog/`：registry、migration 和 settings；
+- `launch/`：安装与 launch spec；
+- `client/`：connection 和 protocol session owner；
+- `runtime/`：capability、process、session、filesystem、terminal、permission 和 persistence；
+- `instance/`：per-session ACP state；
+- `compatibility/`：允许保留的外部格式 adapter。
 
-- 初始化 session runtime 状态
-- 处理 `processMessage()` / `respondToolInteraction()`
-- 执行 stream loop 与 tool loop
-- 持久化消息和运行时状态
-- 做 context compaction、tool output guard、实时 echo
+ACP capability 必须来自 initialize result，未声明能力失败关闭。filesystem 和 terminal 请求受
+workspace/path guard 约束。取消、process exit、permission resolver 和 session persistence 都由 ACP
+runtime 自己处理，不借用 DeepChat loop 状态。
 
-## 关键职责拆分
+## Subagent
 
-| 层 | 主文件 | 责任 |
-| --- | --- | --- |
-| Session orchestration | `src/main/presenter/agentSessionPresenter/index.ts` | session 生命周期与 IPC |
-| Agent runtime | `src/main/presenter/agentRuntimePresenter/index.ts` | run state、取消、恢复、模型/权限切换 |
-| Stream loop | `src/main/presenter/agentRuntimePresenter/process.ts` | 调用 provider、累计 blocks、驱动 tool loop |
-| Tool dispatch | `src/main/presenter/agentRuntimePresenter/dispatch.ts` | 调用 `ToolPresenter`、暂停交互、生成 tool 结果 |
-| Context build | `src/main/presenter/agentRuntimePresenter/contextBuilder.ts` | 历史裁剪、resume context、token budget |
-| Persistence | `src/main/presenter/agentRuntimePresenter/messageStore.ts` | 消息持久化、分页读取、结构化内容重组与故障恢复 |
-| Compaction | `src/main/presenter/agentRuntimePresenter/compactionService.ts` | 手动/自动上下文压缩与压缩状态消息 |
-| Pending input | `src/main/presenter/agentRuntimePresenter/pendingInputStore.ts` | queued input、steer、重排与恢复 |
+Subagent 可用性只由当前 Agent delegation policy、正规化 slot 和 `sessionKind` 决定：
 
-## 持久化热路径
+- 只有 regular DeepChat parent 且存在有效 slot 时才暴露 `subagent_orchestrator`；
+- Subagent child 不能再次创建 Subagent；
+- admission 后的 run 使用已固定的 task/slot snapshot，真正调用前仍重新检查 host policy；
+- child 使用独立 Session、workspace authorization、Tool mapping、Memory namespace、permission state
+  和目标 Agent Skill catalog；不继承 parent Agent 的 Skill 文件或 mutable cache；
+- 完成后父 Session 记录 child Tape 的 frozen-head link，不复制 child entries。
 
-`DeepChatMessageStore` 现在采用“头表 + 结构化子表”的主链路模型：
+每个 Subagent run 有独立 deadline；默认 `300000ms`，允许 `1000-1800000ms`。一个 parent 最多同时
+拥有三个 nonterminal run。deadline 或手动取消会标记未完成 task、请求 child cancellation，并记录
+timeout/deadline/reason；run 的终止不能无限等待被阻塞的 child cleanup。Child handoff 固定包含
+`Result`、`Evidence`、`Changed Files`、`Validation`、`Unresolved`，调用方的 `expectedOutput` 只能追加
+指导，不能替换基本合同。
 
-- `deepchat_messages` 作为消息头表
-- `deepchat_user_messages` / `files` / `links` 存 user 热字段
-- `deepchat_assistant_blocks` 存 assistant blocks
-- `deepchat_search_documents` / `_fts` 存历史搜索索引
+## 删除与 transfer
 
-关键语义：
+删除不依赖当前 agent descriptor 是否仍有效：先清理两个 backend 的 cache/durable binding，再清
+Session data、permission、Skill selection、manual Agent 私有 Skill root 和 app-session row。删除 source
+Agent 不影响已经导入到其他 Agent 的快照副本。ACP 与 DeepChat transfer 必须先验证目标、提交 ownership
+并按目标 Agent catalog 重新过滤 Session Skill selection，再关闭旧 backend；失败时保留原 assignment。
 
-- streaming 期间只增量更新 `deepchat_assistant_blocks`
-- 最终进入 `sent/error` 时才写回稳定的 `deepchat_messages.content`
-- 读路径优先从结构化表重组 `ChatMessageRecord.content`，缺行时再回退旧 JSON
-- `sessions.restore` 默认只恢复最近一页消息，历史继续通过 `sessions.listMessagesPage` 翻页
-- `deepchat_search_documents` / `_fts` 提供历史搜索索引，FTS 不可用时回退 `LIKE`
+DeepChat Agent 删除与 Session create、detached create、Subagent create、transfer、fork 共享按 Agent ID
+的 lifecycle gate。删除先阻止新的 assignment，再等待已进入的 assignment 完成，最后重新检查持久化
+Session 引用；不得留下指向已删除 Agent row 的 Session。
 
-## 运行时能力
+## 防回归
 
-- Session generation settings 随 session 创建和更新持久化，覆盖 system prompt、temperature、
-  topP、max tokens、reasoning effort、verbosity 等设置。
-- Message trace 独立落库，供消息工具栏查看运行时 trace。
-- Subagent 会话以 `sessionKind='subagent'` 进入同一套 session/message store，父会话通过
-  tape merge/discard 吸收或丢弃子会话结果。
-- 本地录音转写、TTS、image generation、video generation 都复用 provider/model capability 判定，
-  不再绕开 provider runtime。
+`scripts/agent-cleanup-guard.mjs` 阻止旧 Agent/Session Presenter 路径和 import 回流。配置物化和独立
+解析、Agent Skill root 隔离、Session/catalog 交集、Backend、Subagent 与 Tape 的行为约束由对应的
+unit/integration tests 验证，不再维护全仓库启发式 architecture guard。
 
-## 兼容边界
+`pnpm run test:agent:eval` 提供离线 deterministic Agent 行为基线，使用 scripted provider/tool 直接
+覆盖 production loop。场景包括 direct completion、多轮 tool、tool failure、permission pause、cancel、
+pending yield、round guard、no-progress、empty output 和 context/provider errors；断言 persisted run
+metadata、usage/cache fields、provider/tool budgets，不调用真实 provider，也不写仓库 artifact。
 
-这轮 retirement 后，以下内容仍保留但不属于活跃 runtime：
+关键入口：
 
-- `LegacyChatImportService`
-- legacy import hook / status
-- 旧 `conversations/messages` 表
-- `SessionPresenter` 的导出、thread list、旧数据查询能力
-
-以下能力已经从活代码里退休：
-
-- `AgentPresenter` runtime 主入口
-- `startStreamCompletion()` 旧流式接口
-- 通过 `presenter.agentPresenter` / `presenter.sessionPresenter` 暴露的 renderer 入口
-
-## 调试入口
-
-如果要追一条真实消息链路，推荐顺序：
-
-1. `src/main/presenter/agentSessionPresenter/index.ts`
-2. `src/main/presenter/agentRuntimePresenter/index.ts`
-3. `src/main/presenter/agentRuntimePresenter/process.ts`
-4. `src/main/presenter/agentRuntimePresenter/dispatch.ts`
-5. `src/main/presenter/toolPresenter/index.ts`
-
-## 历史说明
-
-若你看到旧设计文档、旧 PR 或旧规格里仍提到以下概念，它们都已经退休：
-
-- `AgentPresenter`
-- `agentLoopHandler`
-- `streamGenerationHandler`
-- `permissionHandler`
-- `startStreamCompletion`
-
-需要对照旧实现时，从历史提交中查看旧源码快照，不再把已经删除的历史设计当作活跃导航入口。
+1. `src/main/agent/manager/agentManager.ts`
+2. `src/main/session/turn.ts`
+3. `src/main/agent/deepchat/instance/`
+4. `src/main/agent/deepchat/loop/`
+5. `src/main/agent/deepchat/runtime/`
+6. `src/main/agent/acp/instance/`
+7. `src/main/agent/acp/runtime/`
+8. `test/main/agent/`

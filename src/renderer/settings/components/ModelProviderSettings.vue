@@ -1,24 +1,24 @@
 <template>
-  <div v-if="showProviderSkeleton" class="w-full h-full flex flex-row animate-pulse">
-    <div class="w-80 h-full border-r p-4 space-y-3">
-      <div class="h-9 rounded-md bg-muted/60"></div>
-      <div
+  <div v-if="showProviderSkeleton" class="flex h-full w-full flex-row">
+    <div class="flex h-full w-80 flex-col gap-3 border-r p-4">
+      <Skeleton class="h-9 rounded-md bg-muted/60" />
+      <Skeleton
         v-for="index in 8"
         :key="`provider-skeleton-${index}`"
         class="h-10 rounded-lg bg-muted/40"
-      ></div>
+      />
       <div class="pt-2">
-        <div class="h-10 rounded-lg bg-muted/50"></div>
+        <Skeleton class="h-10 rounded-lg bg-muted/50" />
       </div>
     </div>
-    <div class="flex-1 p-6 space-y-4">
-      <div class="h-6 w-48 rounded-md bg-muted/50"></div>
-      <div class="h-24 rounded-xl bg-muted/40"></div>
+    <div class="flex flex-1 flex-col gap-4 p-6">
+      <Skeleton class="h-6 w-48 rounded-md bg-muted/50" />
+      <Skeleton class="h-24 rounded-xl bg-muted/40" />
       <div class="grid grid-cols-2 gap-4">
-        <div class="h-20 rounded-xl bg-muted/40"></div>
-        <div class="h-20 rounded-xl bg-muted/40"></div>
+        <Skeleton class="h-20 rounded-xl bg-muted/40" />
+        <Skeleton class="h-20 rounded-xl bg-muted/40" />
       </div>
-      <div class="h-72 rounded-xl bg-muted/30"></div>
+      <Skeleton class="h-72 rounded-xl bg-muted/30" />
     </div>
   </div>
   <div
@@ -58,17 +58,16 @@
             />
           </div>
         </div>
-        <div v-if="enabledProviders.length > 0" class="flex flex-col gap-2">
+
+        <div v-if="configuredList.length > 0" class="flex flex-col gap-2">
           <div class="text-xs font-medium text-muted-foreground px-2">
-            {{ t('settings.provider.enabled') }} ({{ enabledProviders.length }})
+            {{ t('settings.provider.sidebar.configured') }} ({{ configuredList.length }})
           </div>
           <draggable
-            v-model="enabledProviders"
+            v-model="sidebarProviders"
             item-key="id"
             handle=".drag-handle"
             class="space-y-2"
-            group="providers"
-            :move="onMoveEnabled"
             @end="handleDragEnd"
           >
             <template #item="{ element: provider }">
@@ -76,7 +75,10 @@
                 :data-provider-id="provider.id"
                 :class="[
                   'flex flex-row hover:bg-accent items-center gap-2 rounded-lg p-2 group',
-                  route.params?.providerId === provider.id ? 'bg-accent text-accent-foreground' : ''
+                  route.params?.providerId === provider.id
+                    ? 'bg-accent text-accent-foreground'
+                    : '',
+                  provider.enable ? '' : 'opacity-60'
                 ]"
                 @click="handleProviderRowClick(provider.id)"
               >
@@ -105,145 +107,146 @@
                     :dir="languageStore.dir"
                     >{{ t(provider.name) }}</span
                   >
-                  <Icon
-                    v-if="provider.custom"
-                    icon="lucide:pencil"
-                    class="w-3.5 h-3.5 text-muted-foreground opacity-0 group-hover:opacity-60 hover:opacity-100! shrink-0"
-                    @click="startEditingName(provider, $event)"
-                  />
                 </template>
-                <Switch
-                  :model-value="provider.enable"
-                  @click.stop="toggleProviderStatus(provider)"
-                />
+                <span
+                  v-if="!provider.enable"
+                  class="shrink-0 rounded-full border border-border/60 px-1.5 text-[10px] text-muted-foreground"
+                >
+                  {{ t('settings.provider.sidebar.disabledTag') }}
+                </span>
+                <DropdownMenu>
+                  <DropdownMenuTrigger as-child>
+                    <DcButton
+                      :data-testid="`provider-menu-trigger-${provider.id}`"
+                      variant="ghost"
+                      size="sm"
+                      class="h-6 w-6 shrink-0 p-0 opacity-0 group-hover:opacity-100 data-[state=open]:opacity-100"
+                      @click.stop
+                    >
+                      <Icon icon="lucide:ellipsis" class="h-4 w-4 text-muted-foreground" />
+                    </DcButton>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" class="w-44">
+                    <DcDropdownActionItem
+                      :data-testid="`provider-menu-toggle-${provider.id}`"
+                      :icon="provider.enable ? 'lucide:pause' : 'lucide:play'"
+                      :label="
+                        provider.enable
+                          ? t('settings.provider.menu.disable')
+                          : t('settings.provider.menu.enable')
+                      "
+                      @select="toggleProviderStatus(provider)"
+                    />
+                    <DcDropdownActionItem
+                      v-if="provider.custom"
+                      icon="lucide:pencil"
+                      :label="t('settings.provider.menu.rename')"
+                      @select="startEditingName(provider)"
+                    />
+                    <template v-if="provider.custom">
+                      <DropdownMenuSeparator />
+                      <DcDropdownActionItem
+                        :data-testid="`provider-menu-delete-${provider.id}`"
+                        icon="lucide:trash-2"
+                        danger
+                        :label="t('settings.provider.menu.delete')"
+                        @select="requestDeleteProvider(provider)"
+                      />
+                    </template>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
             </template>
           </draggable>
         </div>
 
-        <div v-if="disabledProviders.length > 0" class="flex flex-col gap-2">
-          <div class="flex items-center justify-between gap-2 px-2">
-            <div class="text-xs font-medium text-muted-foreground">
-              {{ t('settings.provider.disabled') }} ({{ disabledProviders.length }})
-            </div>
-            <Button
-              data-testid="disabled-providers-toggle"
-              variant="ghost"
-              size="sm"
-              class="h-6 px-2 text-xs text-muted-foreground"
-              @click="isDisabledProvidersExpanded = !isDisabledProvidersExpanded"
-            >
-              <Icon
-                :icon="isDisabledProvidersExpanded ? 'lucide:chevron-up' : 'lucide:chevron-down'"
-                class="mr-1 h-3 w-3"
-              />
-              {{ t(isDisabledProvidersExpanded ? 'common.collapse' : 'common.expand') }}
-            </Button>
-          </div>
-          <draggable
-            v-if="isDisabledProvidersExpanded"
-            v-model="disabledProviders"
-            data-testid="disabled-providers-list"
-            item-key="id"
-            handle=".drag-handle"
-            class="space-y-2"
-            group="providers"
-            :move="onMoveDisabled"
-            @end="handleDragEnd"
+        <div
+          v-else-if="!showClearButton"
+          class="rounded-lg border border-dashed border-border p-4 text-center"
+        >
+          <p class="text-xs text-muted-foreground">
+            {{ t('settings.provider.sidebar.empty') }}
+          </p>
+        </div>
+
+        <div class="flex flex-col gap-2" :dir="languageStore.dir">
+          <DcButton
+            data-testid="provider-browse-all"
+            variant="ghost"
+            class="w-full flex flex-row items-center justify-between gap-2 rounded-lg p-2 hover:bg-accent"
+            @click="openCatalog"
           >
-            <template #item="{ element: provider }">
-              <div
-                :data-provider-id="provider.id"
-                :class="[
-                  'flex flex-row hover:bg-accent items-center gap-2 rounded-lg p-2 group opacity-60',
-                  route.params?.providerId === provider.id ? 'bg-accent text-accent-foreground' : ''
-                ]"
-                @click="handleProviderRowClick(provider.id)"
-              >
-                <Icon
-                  icon="lucide:grip-vertical"
-                  class="w-4 h-4 text-muted-foreground opacity-0 group-hover:opacity-100 cursor-move drag-handle"
-                />
-                <ModelIcon
-                  :model-id="provider.id"
-                  :custom-class="'w-4 h-4 text-muted-foreground'"
-                  :is-dark="themeStore.isDark"
-                />
-                <input
-                  v-if="editingProviderId === provider.id"
-                  ref="editInputRef"
-                  v-model="editingName"
-                  class="text-sm font-medium flex-1 min-w-0 bg-background border border-input rounded px-2 py-0.5 outline-none focus:ring-1 focus:ring-ring"
-                  :dir="languageStore.dir"
-                  @blur="saveEditingName"
-                  @keydown="handleEditKeydown"
-                  @click.stop
-                />
-                <template v-else>
-                  <span
-                    class="text-sm font-medium flex-1 min-w-0 truncate"
-                    :dir="languageStore.dir"
-                    >{{ t(provider.name) }}</span
-                  >
-                  <Icon
-                    v-if="provider.custom"
-                    icon="lucide:pencil"
-                    class="w-3.5 h-3.5 text-muted-foreground opacity-0 group-hover:opacity-60 hover:opacity-100! shrink-0"
-                    @click="startEditingName(provider, $event)"
-                  />
-                </template>
-                <Switch
-                  :model-value="provider.enable"
-                  @click.stop="toggleProviderStatus(provider)"
-                />
-              </div>
-            </template>
-          </draggable>
-        </div>
-
-        <div class="sticky bottom-4 z-10" :dir="languageStore.dir">
-          <Button
+            <span class="flex items-center gap-2">
+              <Icon icon="lucide:layout-grid" class="w-4 h-4 text-muted-foreground" />
+              <span class="text-sm font-medium">{{ t('settings.provider.browseAll') }}</span>
+            </span>
+            <span class="text-xs text-muted-foreground">{{ catalogProviders.length }}</span>
+          </DcButton>
+          <DcButton
             data-testid="provider-add-button"
             variant="outline"
             class="w-full flex flex-row items-center gap-2 rounded-lg p-2 backdrop-blur-lg hover:bg-accent"
-            @click="openAddProviderDialog"
+            @click="openAddProviderFlow"
           >
             <Icon icon="lucide:plus" class="w-4 h-4 text-muted-foreground" />
             <span class="text-sm font-medium">{{ t('settings.provider.addCustomProvider') }}</span>
-          </Button>
+          </DcButton>
         </div>
       </div>
     </ScrollArea>
-    <div v-if="activeProvider" ref="providerDetailRef" class="flex min-w-0 flex-1">
-      <OllamaProviderSettingsDetail
-        v-if="activeProvider.apiType === 'ollama'"
-        :key="`ollama-${activeProvider.id}`"
-        :provider="activeProvider"
+    <div ref="providerDetailRef" class="flex min-w-0 flex-1">
+      <AddProviderFlow
+        v-if="showAddFlow"
+        :key="addFlowKey"
         class="flex-1"
-        @provider-configured="handleProviderConfigured"
-        @provider-model-enabled="handleProviderModelEnabled"
+        @cancel="openCatalog"
+        @created="handleProviderAdded"
       />
-      <BedrockProviderSettingsDetail
-        v-else-if="activeProvider.apiType === 'aws-bedrock'"
-        :key="`bedrock-${activeProvider.id}`"
-        :provider="activeProvider as AWS_BEDROCK_PROVIDER"
+      <ProviderCatalog
+        v-else-if="showCatalog"
         class="flex-1"
-        @provider-configured="handleProviderConfigured"
-        @provider-model-enabled="handleProviderModelEnabled"
+        @select="handleCatalogSelect"
+        @add-custom="openAddProviderFlow"
       />
-      <ModelProviderSettingsDetail
-        v-else
-        :key="`standard-${activeProvider.id}`"
-        :provider="activeProvider"
-        :active-onboarding-step-id="detailGuideStepId"
-        class="flex-1"
-        @provider-configured="handleProviderConfigured"
-        @provider-model-enabled="handleProviderModelEnabled"
-      />
+      <template v-else-if="activeProvider">
+        <OllamaProviderSettingsDetail
+          v-if="activeProvider.apiType === 'ollama'"
+          :key="`ollama-${activeProvider.id}`"
+          :provider="activeProvider"
+          class="flex-1"
+          @provider-configured="handleProviderConfigured"
+          @provider-model-enabled="handleProviderModelEnabled"
+        />
+        <BedrockProviderSettingsDetail
+          v-else-if="activeProvider.apiType === 'aws-bedrock'"
+          :key="`bedrock-${activeProvider.id}`"
+          :provider="activeProvider as AWS_BEDROCK_PROVIDER"
+          class="flex-1"
+          @provider-configured="handleProviderConfigured"
+          @provider-model-enabled="handleProviderModelEnabled"
+        />
+        <ModelProviderSettingsDetail
+          v-else
+          :key="`standard-${activeProvider.id}`"
+          :provider="activeProvider"
+          :active-onboarding-step-id="detailGuideStepId"
+          class="flex-1"
+          @provider-configured="handleProviderConfigured"
+          @provider-model-enabled="handleProviderModelEnabled"
+        />
+      </template>
     </div>
-    <AddCustomProviderDialog
-      v-model:open="isAddProviderDialogOpen"
-      @provider-added="handleProviderAdded"
+    <DcConfirmDialog
+      :open="Boolean(providerPendingDelete)"
+      :title="t('settings.provider.dialog.deleteProvider.title')"
+      :description="
+        t('settings.provider.dialog.deleteProvider.content', {
+          name: providerPendingDelete ? t(providerPendingDelete.name) : ''
+        })
+      "
+      :confirm-label="t('settings.provider.dialog.deleteProvider.confirm')"
+      @update:open="(value: boolean) => !value && (providerPendingDelete = null)"
+      @confirm="confirmDeleteProvider"
     />
   </div>
 
@@ -321,14 +324,23 @@ import { refDebounced } from '@vueuse/core'
 import ModelProviderSettingsDetail from './ModelProviderSettingsDetail.vue'
 import OllamaProviderSettingsDetail from './OllamaProviderSettingsDetail.vue'
 import BedrockProviderSettingsDetail from './BedrockProviderSettingsDetail.vue'
+import ProviderCatalog from './ProviderCatalog.vue'
 import ModelIcon from '@/components/icons/ModelIcon.vue'
 import { Icon } from '@iconify/vue'
-import AddCustomProviderDialog from './AddCustomProviderDialog.vue'
+import AddProviderFlow from './AddProviderFlow.vue'
 import { useI18n } from 'vue-i18n'
-import type { AWS_BEDROCK_PROVIDER, LLM_PROVIDER } from '@shared/presenter'
-import { Switch } from '@shadcn/components/ui/switch'
+import type { AWS_BEDROCK_PROVIDER, LLM_PROVIDER } from '@shared/types/provider'
 import { Input } from '@shadcn/components/ui/input'
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
+import { DcConfirmDialog } from '@dc-ui/components/confirm-dialog'
+import { DcDropdownActionItem } from '@dc-ui/components/dropdown-action-item'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger
+} from '@shadcn/components/ui/dropdown-menu'
+import { Skeleton } from '@shadcn/components/ui/skeleton'
 import draggable from 'vuedraggable'
 import { ScrollArea } from '@shadcn/components/ui/scroll-area'
 import { useThemeStore } from '@/stores/theme'
@@ -382,7 +394,8 @@ const startupWorkloadStore = (() => {
     return null
   }
 })()
-const isAddProviderDialogOpen = ref(false)
+const addFlowCounter = ref(0)
+const providerPendingDelete = ref<LLM_PROVIDER | null>(null)
 
 const continueProviderGuide = async (
   state: Awaited<ReturnType<typeof selectProviderGuide.completeStep>> | null | undefined
@@ -396,7 +409,7 @@ const continueProviderGuide = async (
 }
 
 const handleSelectProviderGuidePrimary = async () => {
-  const firstProviderId = visibleProviders.value[0]?.id
+  const firstProviderId = guideCandidateProviders.value[0]?.id
   if (firstProviderId && activeProvider.value?.id !== firstProviderId) {
     await setActiveProvider(firstProviderId)
     await nextTick()
@@ -493,14 +506,12 @@ const handleProviderModelEnabled = async () => {
 const searchQueryBase = ref('')
 const searchQuery = refDebounced(searchQueryBase, 150)
 const showClearButton = computed(() => searchQueryBase.value.trim().length > 0)
-const isDisabledProvidersExpanded = ref(false)
 
 const editingProviderId = ref<string | null>(null)
 const editingName = ref('')
 const editInputRef = ref<HTMLInputElement | null>(null)
 
-const startEditingName = (provider: LLM_PROVIDER, event: Event) => {
-  event.stopPropagation()
+const startEditingName = (provider: LLM_PROVIDER) => {
   editingProviderId.value = provider.id
   editingName.value = provider.name
   nextTick(() => {
@@ -545,11 +556,21 @@ const filterProviders = (providers: LLM_PROVIDER[]) => {
   return providers.filter((provider) => t(provider.name).toLowerCase().includes(query))
 }
 
-const visibleProviders = computed(() =>
+// Sidebar membership: configured providers only. The full catalog lives behind
+// "Browse all providers" and never adds unconfigured rows to the daily sidebar.
+const configuredList = computed(() =>
+  filterProviders(providerStore.configuredProviders.filter((provider) => provider.id !== 'acp'))
+)
+const catalogProviders = computed(() =>
   providerStore.sortedProviders.filter((provider) => provider.id !== 'acp')
 )
+// Guided onboarding needs a clickable provider row; before anything is
+// configured those rows live in the catalog view instead of the sidebar.
+const guideCandidateProviders = computed(() =>
+  configuredList.value.length > 0 ? configuredList.value : catalogProviders.value
+)
 const canAdvanceProviderSelection = computed(() =>
-  Boolean(activeProvider.value ?? visibleProviders.value[0])
+  Boolean(activeProvider.value ?? guideCandidateProviders.value[0])
 )
 const canAdvanceProviderApiKey = computed(() => Boolean(activeProvider.value?.apiKey?.trim()))
 const getCurrentProviderModels = () => {
@@ -583,7 +604,7 @@ const showProviderSkeleton = computed(
   () =>
     (!providerStore.initialized ||
       startupWorkloadStore?.isTaskRunning('settings.providers.summary')) &&
-    visibleProviders.value.length === 0
+    providerStore.sortedProviders.length === 0
 )
 
 let guideTargetSyncPending = false
@@ -641,7 +662,7 @@ const observeProviderDetailGuideTargets = () => {
 const syncGuideTargets = () => {
   const activeProviderId =
     typeof route.params.providerId === 'string' ? route.params.providerId : null
-  const firstProviderId = visibleProviders.value[0]?.id
+  const firstProviderId = guideCandidateProviders.value[0]?.id
   const detailRoot = providerDetailRef.value
 
   providerListGuideTargetRef.value = firstProviderId
@@ -659,64 +680,43 @@ const syncGuideTargets = () => {
           `[data-testid^="provider-model-toggle-${activeProviderId}-"]`
         ) as HTMLElement | null))
       : null) ??
-    (detailRoot?.querySelector(
-      '[data-testid="provider-models-tab-trigger"]'
-    ) as HTMLElement | null) ??
-    (document.querySelector('[data-testid="provider-models-tab-trigger"]') as HTMLElement | null)
+    (detailRoot?.querySelector('[data-testid="provider-models-section"]') as HTMLElement | null) ??
+    (document.querySelector('[data-testid="provider-models-section"]') as HTMLElement | null)
 }
 
-const allEnabledProviders = computed(() => visibleProviders.value.filter((p) => p.enable))
-const allDisabledProviders = computed(() => visibleProviders.value.filter((p) => !p.enable))
-
-// 分别处理启用和禁用的 providers
-const enabledProviders = computed({
-  get: () => filterProviders(allEnabledProviders.value),
+// Reordering the sidebar only rearranges configured providers; unconfigured
+// catalog entries keep their relative order at the end of the persisted order.
+const sidebarProviders = computed({
+  get: () => configuredList.value,
   set: (newProviders) => {
+    const configuredIds = new Set(providerStore.configuredProviders.map((provider) => provider.id))
     const isFiltered = searchQuery.value.trim().length > 0
+    let reorderedConfigured: LLM_PROVIDER[]
     if (isFiltered) {
       const orderMap = new Map(newProviders.map((provider, index) => [provider.id, index]))
-      const reorderedEnabled = [...allEnabledProviders.value].sort((a, b) => {
+      reorderedConfigured = [...providerStore.configuredProviders].sort((a, b) => {
         const orderA = orderMap.get(a.id) ?? Infinity
         const orderB = orderMap.get(b.id) ?? Infinity
         return orderA - orderB
       })
-      const allProviders = [...reorderedEnabled, ...allDisabledProviders.value]
-      providerStore.updateProvidersOrder(allProviders)
     } else {
-      const allProviders = [...newProviders, ...allDisabledProviders.value]
-      providerStore.updateProvidersOrder(allProviders)
+      reorderedConfigured = [
+        ...newProviders,
+        ...providerStore.configuredProviders.filter(
+          (provider) => !newProviders.some((item) => item.id === provider.id)
+        )
+      ]
     }
-  }
-})
-
-const disabledProviders = computed({
-  get: () => filterProviders(allDisabledProviders.value),
-  set: (newProviders) => {
-    const isFiltered = searchQuery.value.trim().length > 0
-    if (isFiltered) {
-      const orderMap = new Map(newProviders.map((provider, index) => [provider.id, index]))
-      const reorderedDisabled = [...allDisabledProviders.value].sort((a, b) => {
-        const orderA = orderMap.get(a.id) ?? Infinity
-        const orderB = orderMap.get(b.id) ?? Infinity
-        return orderA - orderB
+    const unconfigured = providerStore.sortedProviders.filter(
+      (provider) => !configuredIds.has(provider.id)
+    )
+    void providerStore
+      .updateProvidersOrder([...reorderedConfigured, ...unconfigured])
+      .catch((error) => {
+        console.error('Failed to reorder providers:', error)
       })
-      const allProviders = [...allEnabledProviders.value, ...reorderedDisabled]
-      providerStore.updateProvidersOrder(allProviders)
-    } else {
-      const allProviders = [...allEnabledProviders.value, ...newProviders]
-      providerStore.updateProvidersOrder(allProviders)
-    }
   }
 })
-
-watch(
-  () => [searchQuery.value.trim(), disabledProviders.value.length] as const,
-  ([query, disabledMatchCount]) => {
-    if (query.length > 0 && disabledMatchCount > 0) {
-      isDisabledProvidersExpanded.value = true
-    }
-  }
-)
 
 const setActiveProvider = (providerId: string) => {
   return router.push({
@@ -725,6 +725,18 @@ const setActiveProvider = (providerId: string) => {
       providerId
     }
   })
+}
+
+const openCatalog = () => {
+  return router.push({
+    name: 'settings-provider',
+    params: route.params,
+    query: { view: 'catalog' }
+  })
+}
+
+const handleCatalogSelect = async (providerId: string) => {
+  await handleProviderRowClick(providerId)
 }
 
 const handleProviderRowClick = async (providerId: string) => {
@@ -739,7 +751,7 @@ const handleProviderRowClick = async (providerId: string) => {
     return
   }
 
-  const firstProviderId = visibleProviders.value[0]?.id
+  const firstProviderId = guideCandidateProviders.value[0]?.id
   if (!firstProviderId || providerId !== firstProviderId) {
     return
   }
@@ -762,7 +774,12 @@ const scrollToProvider = (providerId: string) => {
 
 const toggleProviderStatus = async (provider: LLM_PROVIDER) => {
   const willEnable = !provider.enable
-  await providerStore.updateProviderStatus(provider.id, willEnable)
+  try {
+    await providerStore.updateProviderStatus(provider.id, willEnable)
+  } catch (error) {
+    console.error('Failed to update provider status:', error)
+    return
+  }
   // 切换状态后，同时打开该服务商的详情页面
   setActiveProvider(provider.id)
 
@@ -770,6 +787,32 @@ const toggleProviderStatus = async (provider: LLM_PROVIDER) => {
   if (willEnable) {
     await nextTick()
     scrollToProvider(provider.id)
+  }
+}
+
+const requestDeleteProvider = (provider: LLM_PROVIDER) => {
+  providerPendingDelete.value = provider
+}
+
+const confirmDeleteProvider = async () => {
+  const provider = providerPendingDelete.value
+  if (!provider) {
+    return
+  }
+  providerPendingDelete.value = null
+  try {
+    await providerStore.removeProvider(provider.id)
+  } catch (error) {
+    console.error('Failed to delete provider:', error)
+    return
+  }
+  if (route.params.providerId === provider.id) {
+    const fallback = configuredList.value.find((item) => item.id !== provider.id)
+    if (fallback) {
+      await setActiveProvider(fallback.id)
+    } else {
+      await openCatalog()
+    }
   }
 }
 
@@ -782,8 +825,27 @@ const activeProvider = computed(() => {
   return provider
 })
 
-const openAddProviderDialog = () => {
-  isAddProviderDialogOpen.value = true
+const showCatalog = computed(() => {
+  if (route.query.view === 'catalog') {
+    return true
+  }
+  // Use the unfiltered configured set so a no-match search does not replace
+  // the detail pane with the catalog view.
+  const hasConfigured = providerStore.configuredProviders.some((p) => p.id !== 'acp')
+  return !activeProvider.value && !hasConfigured
+})
+
+const showAddFlow = computed(() => route.query.view === 'add-custom')
+// A fresh key per entry gives every add attempt its own draft id.
+const addFlowKey = computed(() => `add-provider-${addFlowCounter.value}`)
+
+const openAddProviderFlow = () => {
+  addFlowCounter.value += 1
+  return router.push({
+    name: 'settings-provider',
+    params: route.params,
+    query: { view: 'add-custom' }
+  })
 }
 
 const handleProviderAdded = (provider: LLM_PROVIDER) => {
@@ -793,8 +855,8 @@ const handleProviderAdded = (provider: LLM_PROVIDER) => {
 
 onMounted(async () => {
   await providerStore.ensureInitialized()
-  if (!route.params.providerId && visibleProviders.value.length > 0) {
-    setActiveProvider(visibleProviders.value[0].id)
+  if (!route.params.providerId && !route.query.view && configuredList.value.length > 0) {
+    setActiveProvider(configuredList.value[0].id)
   }
 
   scheduleGuideTargetSync()
@@ -821,7 +883,8 @@ watch(
   () =>
     [
       route.params.providerId,
-      visibleProviders.value.map((provider) => provider.id).join('|'),
+      guideCandidateProviders.value.map((provider) => provider.id).join('|'),
+      showCatalog.value,
       selectProviderGuide.showGuide.value,
       providerApiKeyGuide.showGuide.value,
       providerModelGuide.showGuide.value,
@@ -852,32 +915,6 @@ watch(
 // 处理拖拽结束事件
 const handleDragEnd = () => {
   // 可以在这里添加额外的处理逻辑
-}
-
-// 处理启用区域的拖拽移动事件
-const onMoveEnabled = (evt: any) => {
-  const draggedProvider = evt.draggedContext.element
-  const relatedProvider = evt.relatedContext?.element
-  if (!draggedProvider || !draggedProvider.enable) {
-    return false
-  }
-  if (relatedProvider && !relatedProvider.enable) {
-    return false
-  }
-  return true
-}
-
-// 处理禁用区域的拖拽移动事件
-const onMoveDisabled = (evt: any) => {
-  const draggedProvider = evt.draggedContext.element
-  const relatedProvider = evt.relatedContext?.element
-  if (!draggedProvider || draggedProvider.enable) {
-    return false
-  }
-  if (relatedProvider && relatedProvider.enable) {
-    return false
-  }
-  return true
 }
 </script>
 

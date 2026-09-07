@@ -3,6 +3,7 @@
   "welcome": "ברוכים הבאים",
   "settings": "הגדרות",
   "settings-common": "הגדרות כלליות",
+  "settings-ocr": "OCR (זיהוי טקסט)",
   "settings-provider": "ספקים",
   "settings-mcp": "הגדרות MCP",
   "settings-database": "נתונים",
@@ -13,7 +14,7 @@
   "settings-prompt": "הנחיות (Prompts)",
   "settings-mcp-market": "חנות MCP",
   "settings-acp": "סוכני ACP",
-  "settings-skills": "Skills",
+  "plugins-skills": "Skills",
   "settings-notifications-hooks": "Hooks",
   "settings-scheduled-tasks": "משימות מתוזמנות",
   "settings-dashboard": "Dashboard",
@@ -23,5 +24,7 @@
   "settings-plugins": "Plugins",
   "settings-overview": "סקירת ההגדרות",
   "settings-memory": "זיכרון",
-  "plugins": "Plugins"
+  "plugins": "Plugins",
+  "settings-debug": "Debug",
+  "settings-toolchains": "Toolchains"
 }

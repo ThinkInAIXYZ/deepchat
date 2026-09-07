@@ -132,3 +132,12 @@ export const windowStartGuidedOnboardingRoute = defineRouteContract({
     focused: z.boolean()
   })
 })
+
+export const windowResumeGuidedOnboardingRoute = defineRouteContract({
+  name: 'window.resumeGuidedOnboarding',
+  input: z.object({}).default({}),
+  output: z.object({
+    requested: z.boolean(),
+    focused: z.boolean()
+  })
+})

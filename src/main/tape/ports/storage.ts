@@ -1,0 +1,253 @@
+import type {
+  DeepChatTapeAppendInput,
+  DeepChatTapeEntryRow,
+  DeepChatTapeReadSource,
+  DeepChatTapeSearchInput,
+  DeepChatTapeSourceType,
+  TapeAnchorAppendInput,
+  TapeEventAppendInput
+} from '../domain/entry'
+import type {
+  ExecutionJournalEventName,
+  ExecutionJournalRecoveryRow
+} from '../domain/executionJournal'
+import type { ContractTapeEventName } from '../domain/contractFacts'
+import type { ToolSurfaceTapeEventName } from '../domain/toolSurfaceFacts'
+import type { TapeSkillMaterializationPayload } from '../domain/skillMaterialization'
+import type { TapeProviderAttemptEventName } from '../domain/providerAttempt'
+import type { TapeCompactionModelCallEventName } from '../domain/compactionUsage'
+import type { TapeInspectorEntryCursor, TapeInspectorSort } from '@shared/types/tape-inspector'
+
+type TapeInspectorEntryScanCursor =
+  | Exclude<TapeInspectorEntryCursor, { sort: 'name' }>
+  | {
+      sort: 'name'
+      direction: 'asc' | 'desc'
+      name: string | null
+      entryId: number
+      snapshotMaxEntryId: number
+    }
+
+export interface TapeMutationProjection {
+  applyAppendedEntry(row: DeepChatTapeEntryRow, previousSessionMaxEntryId: number): boolean
+  invalidateSession(sessionId: string): void
+  deleteBySession(sessionId: string): void
+}
+
+export interface TapeInspectorEntryScanInput {
+  sessionId: string
+  mode: 'tail' | 'older' | 'newer'
+  cursor?: TapeInspectorEntryScanCursor
+  sort: TapeInspectorSort
+  snapshotMaxEntryId: number
+  limit: number
+}
+
+export interface TapeInspectorEntryScanResult {
+  rows: DeepChatTapeEntryRow[]
+  hasMore: boolean
+}
+
+export interface TapeProvenanceEntryRef {
+  entryId: number
+  provenanceKey: string
+}
+
+/** Append/read/query persistence only. Physical deletion belongs to TapeEntryLifecycleStore. */
+export interface TapeEntryStore {
+  append(input: DeepChatTapeAppendInput): DeepChatTapeEntryRow
+  appendAnchor(input: TapeAnchorAppendInput): DeepChatTapeEntryRow
+  appendEvent(input: TapeEventAppendInput): DeepChatTapeEntryRow
+  getBySession(sessionId: string): DeepChatTapeEntryRow[]
+  getByEntryId(sessionId: string, entryId: number): DeepChatTapeEntryRow | undefined
+  listInspectorRows(input: TapeInspectorEntryScanInput): TapeInspectorEntryScanResult
+  getEventsBySource(
+    sessionId: string,
+    name: string,
+    sourceType: DeepChatTapeSourceType,
+    sourceId: string,
+    sourceSeq: number
+  ): DeepChatTapeEntryRow[]
+  getLatestEventBySource(
+    sessionId: string,
+    name: string,
+    sourceType: DeepChatTapeSourceType,
+    sourceId: string,
+    sourceSeq: number
+  ): DeepChatTapeEntryRow | undefined
+  getEventsBySourceId(
+    sessionId: string,
+    name: string,
+    sourceType: DeepChatTapeSourceType,
+    sourceId: string
+  ): DeepChatTapeEntryRow[]
+  listEventsByNamePage(
+    name: string,
+    cursor: { sessionId: string; entryId: number } | null,
+    limit: number
+  ): DeepChatTapeEntryRow[]
+  getBySessionExcludingContext(sessionId: string): DeepChatTapeEntryRow[]
+  /** Rows selected by `isEffectiveViewInputRow`, ordered by entry_id. */
+  getEffectiveViewInputRows(sessionId: string): DeepChatTapeEntryRow[]
+  /** Rows selected by `isEffectiveMessageInputRow`, ordered by entry_id. */
+  getEffectiveMessageInputRows(sessionId: string): DeepChatTapeEntryRow[]
+  getEffectiveMessageInputRowsAfter(sessionId: string, afterEntryId: number): DeepChatTapeEntryRow[]
+  getByEntryIds(sessionId: string, entryIds: readonly number[]): DeepChatTapeEntryRow[]
+  getMessageSourceEntries(sessionId: string, messageId: string): DeepChatTapeEntryRow[]
+  getLatestViewManifestEvent(sessionId: string): DeepChatTapeEntryRow | undefined
+  getViewManifestEventsByMessage(sessionId: string, messageId: string): DeepChatTapeEntryRow[]
+  getMaxEventSourceSeq(
+    sessionId: string,
+    name: string,
+    sourceType: DeepChatTapeSourceType,
+    sourceId: string
+  ): number
+  getLatestProviderContextPressureEvent(
+    sessionId: string,
+    providerId: string,
+    modelId: string,
+    afterEntryId: number
+  ): DeepChatTapeEntryRow | undefined
+  getSubagentLineageEvents(sessionId: string): DeepChatTapeEntryRow[]
+  getFirstEntriesBySessions(sessionIds: string[]): DeepChatTapeEntryRow[]
+  listMemoryViewManifestAnchorsByAgent(
+    agentId: string,
+    options?: { sessionId?: string; limit?: number; messageId?: string }
+  ): DeepChatTapeEntryRow[]
+  getLatestAnchor(sessionId: string): DeepChatTapeEntryRow | undefined
+  getAnchors(sessionId: string, limit?: number): DeepChatTapeEntryRow[]
+  getLatestSummaryAnchor(sessionId: string): DeepChatTapeEntryRow | undefined
+  getLatestReconstructionAnchor(sessionId: string): DeepChatTapeEntryRow | undefined
+  getReconstructionAnchorByCompactionAttemptId(
+    sessionId: string,
+    compactionAttemptId: string
+  ): DeepChatTapeEntryRow | undefined
+  getByProvenanceKey(sessionId: string, provenanceKey: string): DeepChatTapeEntryRow | undefined
+  getEntryRefsByProvenanceKeys(
+    sessionId: string,
+    provenanceKeys: readonly string[]
+  ): TapeProvenanceEntryRef[]
+  getMaxEntryId(sessionId: string): number
+  getMaxEntryIdExcludingContext(sessionId: string): number
+  getMaxEntryIdsBySessions(sessionIds: string[]): Map<string, number>
+  countAnchorsBySession(sessionId: string): number
+  countEntriesAfter(sessionId: string, entryId: number): number
+  countBySession(sessionId: string): number
+  search(
+    sessionId: string,
+    query: string,
+    options?: DeepChatTapeSearchInput
+  ): DeepChatTapeEntryRow[]
+  searchEffectiveSourcesAtHeads(
+    sources: readonly DeepChatTapeReadSource[],
+    query: string,
+    options?: DeepChatTapeSearchInput
+  ): DeepChatTapeEntryRow[]
+  getEffectiveContextRowsAtHead(
+    source: DeepChatTapeReadSource,
+    entryIds: number[],
+    options: { before: number; after: number; limit: number }
+  ): DeepChatTapeEntryRow[]
+}
+
+export interface TapeTransactionRunner {
+  runInTransaction<T>(operation: () => T): T
+  isInTransaction(): boolean
+}
+
+/** Transitional bootstrap capability until bootstrap orchestration lives in application services. */
+export interface TapeBootstrapStore {
+  ensureBootstrapAnchor(sessionId: string): void
+}
+
+/** Provider attempt observations have a dedicated namespace gate and writer capability. */
+export interface ProviderAttemptPersistenceStore extends TapeBootstrapStore {
+  appendProviderAttemptEvent(
+    input: TapeEventAppendInput & { name: TapeProviderAttemptEventName }
+  ): DeepChatTapeEntryRow
+}
+
+/** Compaction usage observations have a dedicated namespace gate and writer capability. */
+export interface CompactionUsagePersistenceStore extends TapeTransactionRunner, TapeBootstrapStore {
+  appendCompactionModelCallEvent(
+    input: TapeEventAppendInput & { name: TapeCompactionModelCallEventName }
+  ): DeepChatTapeEntryRow
+  getByProvenanceKey(sessionId: string, provenanceKey: string): DeepChatTapeEntryRow | undefined
+  getMaxEventSourceSeq(
+    sessionId: string,
+    name: TapeCompactionModelCallEventName,
+    sourceType: DeepChatTapeSourceType,
+    sourceId: string
+  ): number
+}
+
+/** Tool Surface provenance has a dedicated namespace gate and shares the host transaction. */
+export interface ToolSurfacePersistenceStore extends TapeTransactionRunner, TapeBootstrapStore {
+  appendToolSurfaceEvent(
+    input: TapeEventAppendInput & { name: ToolSurfaceTapeEventName }
+  ): DeepChatTapeEntryRow
+  getByProvenanceKey(sessionId: string, provenanceKey: string): DeepChatTapeEntryRow | undefined
+}
+
+export interface TapeBootstrapIncarnationReader {
+  getBootstrapIncarnation(sessionId: string): string | undefined
+}
+
+/** Strict Journal persistence is intentionally absent from the generic Context Tape store port. */
+export interface ExecutionJournalPersistenceStore
+  extends TapeTransactionRunner, TapeBootstrapStore {
+  appendExecutionJournalEvent(
+    input: TapeEventAppendInput & { name: ExecutionJournalEventName }
+  ): DeepChatTapeEntryRow
+  listUnterminatedRunEvents(): Iterable<ExecutionJournalRecoveryRow>
+  listNestedOperationEventsForMessage(
+    sessionId: string,
+    messageId: string,
+    maximumOperations: number
+  ): DeepChatTapeEntryRow[]
+  listMessageIdsWithNestedOperationEvents(
+    sessionId: string,
+    messageIds: readonly string[]
+  ): string[]
+  listNestedOperationEventsForRun(sessionId: string, runId: string): DeepChatTapeEntryRow[]
+  listNestedOperationEventsForParent(
+    sessionId: string,
+    runId: string,
+    requestSeq: number,
+    providerToolCallId: string,
+    parentOperationKey: string
+  ): DeepChatTapeEntryRow[]
+  listDispatchEventsForRecoveryIdentity(
+    sessionId: string,
+    messageId: string,
+    providerToolCallId: string
+  ): DeepChatTapeEntryRow[]
+  getByProvenanceKey(sessionId: string, provenanceKey: string): DeepChatTapeEntryRow | undefined
+}
+
+/** Strict contract facts share the caller's host transaction and have their own namespace gate. */
+export interface ContractPersistenceStore extends TapeTransactionRunner, TapeBootstrapStore {
+  appendContractEvent(
+    input: TapeEventAppendInput & { name: ContractTapeEventName }
+  ): DeepChatTapeEntryRow
+  getByProvenanceKey(sessionId: string, provenanceKey: string): DeepChatTapeEntryRow | undefined
+  getFirstEntriesBySessions(sessionIds: string[]): DeepChatTapeEntryRow[]
+}
+
+/** The reserved Skill context namespace is writable only through the strict materialization path. */
+export interface SkillMaterializationPersistenceStore
+  extends TapeTransactionRunner, TapeBootstrapStore, TapeBootstrapIncarnationReader {
+  appendSkillMaterialization(input: {
+    sessionId: string
+    sourceId: string
+    provenanceKey: string
+    payload: TapeSkillMaterializationPayload
+    payloadHash: string
+  }): DeepChatTapeEntryRow
+  getByProvenanceKey(sessionId: string, provenanceKey: string): DeepChatTapeEntryRow | undefined
+  getByEntryId(sessionId: string, entryId: number): DeepChatTapeEntryRow | undefined
+}
+
+export interface TapeEntryLifecycleStore {
+  deleteBySession(sessionId: string): void
+}

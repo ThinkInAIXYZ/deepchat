@@ -11,6 +11,11 @@ const passthrough = (name: string) =>
     template: '<div><slot /></div>'
   })
 
+const dcSectionCardStub = defineComponent({
+  name: 'DcSectionCard',
+  template: '<section><slot name="actions" /><slot /></section>'
+})
+
 const buttonStub = defineComponent({
   name: 'Button',
   props: {
@@ -35,8 +40,17 @@ const translations: Record<string, string> = {
   'chat.sidebar.remoteControlStatus.disabled': 'Remote disabled',
   'chat.sidebar.remoteControlStatus.running': 'Remote running',
   'common.back': 'Back',
+  'common.disabled': 'Disabled',
   'settings.plugins.disable': 'Disable',
   'settings.plugins.enable': 'Enable',
+  'settings.plugins.quarantineDescription': 'Runtime was quarantined after an unclean exit.',
+  'settings.plugins.retryRuntime': 'Retry runtime',
+  'settings.plugins.testRuntime': 'Test runtime',
+  'settings.plugins.runtimeStates.error': 'Error',
+  'settings.plugins.runtimeStates.installed': 'Installed',
+  'settings.plugins.runtimeStates.quarantined': 'Quarantined',
+  'settings.plugins.runtimeStates.readyOnDemand': 'Ready on demand',
+  'settings.plugins.runtimeStates.running': 'Running',
   'settings.plugins.status.disabled': 'Disabled',
   'settings.plugins.status.enabled': 'Enabled',
   'settings.pluginsHub.actionResult': 'Action result',
@@ -78,7 +92,19 @@ const findRemoteSettingsKey = (wrapper: ReturnType<typeof shallowMount>) =>
   wrapper.findComponent(remoteSettingsStub).vm.$.vnode.key
 
 async function mountDetail(
-  options: { enabled?: boolean; pluginId?: string; remoteEnabled?: boolean } = {}
+  options: {
+    activationError?: string
+    enabled?: boolean
+    mcpServer?: {
+      integrityError?: string
+      lifecycleState?: string
+      lastError?: string
+      running?: boolean
+    }
+    pluginId?: string
+    remoteEnabled?: boolean
+    runtimeState?: 'missing' | 'installed' | 'running' | 'error'
+  } = {}
 ) {
   vi.resetModules()
   vi.clearAllMocks()
@@ -88,18 +114,48 @@ async function mountDetail(
   let remoteEnabled = options.remoteEnabled ?? false
   const pluginName =
     pluginId === 'com.deepchat.plugins.cua' ? 'CUA Computer Use Runtime' : 'Feishu/Lark Integration'
+  const pluginRecord = {
+    id: pluginId,
+    name: pluginName,
+    publisher: 'DeepChat',
+    version: '1.0.4',
+    enabled: options.enabled ?? false,
+    activationError: options.activationError,
+    capabilities: ['runtime.manage'],
+    runtime: options.runtimeState
+      ? {
+          runtimeId: 'cua-driver',
+          displayName: 'CUA Driver',
+          state: options.runtimeState
+        }
+      : undefined,
+    mcpServers: options.mcpServer
+      ? [
+          {
+            serverId: 'cua-driver',
+            enabled: options.enabled ?? false,
+            running: false,
+            ...options.mcpServer
+          }
+        ]
+      : []
+  }
   const pluginClient = {
-    getPlugin: vi.fn().mockResolvedValue({
-      id: pluginId,
-      name: pluginName,
-      publisher: 'DeepChat',
-      version: '1.0.4',
-      enabled: options.enabled ?? false,
-      capabilities: ['runtime.manage'],
-      mcpServers: []
-    }),
+    getPlugin: vi.fn().mockResolvedValue(pluginRecord),
     enablePlugin: vi.fn().mockResolvedValue({ ok: true }),
-    disablePlugin: vi.fn().mockResolvedValue({ ok: true })
+    disablePlugin: vi.fn().mockResolvedValue({ ok: true }),
+    invokeAction: vi.fn().mockResolvedValue({
+      ok: true,
+      status: {
+        ...pluginRecord,
+        mcpServers: pluginRecord.mcpServers.map((server) => ({
+          ...server,
+          running: false,
+          lifecycleState: 'stopped',
+          lastError: undefined
+        }))
+      }
+    })
   }
   const remoteControlClient = {
     getChannelSettings: vi.fn(async () =>
@@ -167,9 +223,13 @@ async function mountDetail(
     global: {
       plugins: [createPinia()],
       stubs: {
-        Button: buttonStub,
+        DcButton: buttonStub,
         ScrollArea: passthrough('ScrollArea'),
-        RemoteSettings: remoteSettingsStub
+        RemoteSettings: remoteSettingsStub,
+        Alert: passthrough('Alert'),
+        AlertTitle: passthrough('AlertTitle'),
+        AlertDescription: passthrough('AlertDescription'),
+        DcSectionCard: dcSectionCardStub
       }
     }
   })
@@ -229,6 +289,121 @@ describe('OfficialPluginDetailPage', () => {
     expect(wrapper.text()).toContain('State')
     expect(wrapper.text()).not.toContain('Capabilities')
     expect(wrapper.text()).not.toContain('runtime.manage')
+  })
+
+  it('tests an enabled CUA runtime without changing plugin intent', async () => {
+    const { wrapper, pluginClient } = await mountDetail({
+      pluginId: 'com.deepchat.plugins.cua',
+      enabled: true,
+      mcpServer: { lifecycleState: 'stopped' }
+    })
+
+    expect(wrapper.text()).toContain('Ready on demand')
+    expect(wrapper.find('[data-testid="cua-runtime-test"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="cua-runtime-retry"]').exists()).toBe(false)
+
+    await wrapper.find('[data-testid="cua-runtime-test"]').trigger('click')
+    await flushPromises()
+
+    expect(pluginClient.invokeAction).toHaveBeenCalledWith({
+      pluginId: 'com.deepchat.plugins.cua',
+      actionId: 'runtime.test'
+    })
+    expect(wrapper.text()).toContain('Enabled')
+  })
+
+  it('exposes retry only for a quarantined CUA runtime', async () => {
+    const { wrapper, pluginClient } = await mountDetail({
+      pluginId: 'com.deepchat.plugins.cua',
+      enabled: true,
+      mcpServer: {
+        lifecycleState: 'quarantined',
+        lastError: 'unclean exit'
+      }
+    })
+
+    expect(wrapper.text()).toContain('Quarantined')
+    expect(wrapper.text()).toContain('Runtime was quarantined after an unclean exit.')
+    expect(wrapper.find('[data-testid="cua-runtime-test"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="cua-runtime-retry"]').exists()).toBe(true)
+
+    await wrapper.find('[data-testid="cua-runtime-retry"]').trigger('click')
+    await flushPromises()
+
+    expect(pluginClient.invokeAction).toHaveBeenCalledWith({
+      pluginId: 'com.deepchat.plugins.cua',
+      actionId: 'runtime.retry'
+    })
+    expect(wrapper.find('[data-testid="cua-runtime-retry"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="cua-runtime-test"]').exists()).toBe(true)
+  })
+
+  it('requires an integrity recheck before offering quarantine retry', async () => {
+    const { wrapper } = await mountDetail({
+      pluginId: 'com.deepchat.plugins.cua',
+      enabled: true,
+      mcpServer: {
+        lifecycleState: 'quarantined',
+        integrityError: 'CUA runtime integrity mismatch'
+      }
+    })
+
+    expect(wrapper.text()).toContain('CUA runtime integrity mismatch')
+    expect(wrapper.find('[data-testid="cua-runtime-test"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="cua-runtime-retry"]').exists()).toBe(false)
+  })
+
+  it('refreshes action eligibility when retry discovers an integrity block', async () => {
+    const { wrapper, pluginClient } = await mountDetail({
+      pluginId: 'com.deepchat.plugins.cua',
+      enabled: true,
+      mcpServer: { lifecycleState: 'quarantined' }
+    })
+    const initialPlugin = await pluginClient.getPlugin.mock.results[0].value
+    pluginClient.invokeAction.mockResolvedValueOnce({
+      ok: false,
+      error: 'CUA runtime integrity mismatch'
+    })
+    pluginClient.getPlugin.mockResolvedValueOnce({
+      ...initialPlugin,
+      mcpServers: initialPlugin.mcpServers.map((server) => ({
+        ...server,
+        integrityError: 'CUA runtime integrity mismatch'
+      }))
+    })
+
+    await wrapper.find('[data-testid="cua-runtime-retry"]').trigger('click')
+    await flushPromises()
+
+    expect(pluginClient.getPlugin).toHaveBeenCalledTimes(2)
+    expect(wrapper.text()).toContain('CUA runtime integrity mismatch')
+    expect(wrapper.find('[data-testid="cua-runtime-test"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="cua-runtime-retry"]').exists()).toBe(false)
+  })
+
+  it('surfaces activation errors separately and blocks runtime actions', async () => {
+    const { wrapper } = await mountDetail({
+      pluginId: 'com.deepchat.plugins.cua',
+      enabled: true,
+      activationError: 'CUA runtime integrity mismatch',
+      mcpServer: { lifecycleState: 'error' }
+    })
+
+    expect(wrapper.text()).toContain('CUA runtime integrity mismatch')
+    expect(wrapper.find('[data-testid="cua-runtime-test"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="cua-runtime-retry"]').exists()).toBe(false)
+  })
+
+  it('does not present a missing CUA runtime as ready on demand', async () => {
+    const { wrapper } = await mountDetail({
+      pluginId: 'com.deepchat.plugins.cua',
+      enabled: true,
+      runtimeState: 'missing',
+      mcpServer: {}
+    })
+
+    expect(wrapper.find('[data-testid="cua-runtime-test"]').exists()).toBe(false)
+    expect(wrapper.text()).not.toContain('Ready on demand')
   })
 
   it('uses the plugin enable button to start Feishu remote too', async () => {

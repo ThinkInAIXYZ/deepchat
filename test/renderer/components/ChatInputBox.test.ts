@@ -1,19 +1,72 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest'
-import { mount } from '@vue/test-utils'
-import { defineComponent, ref, nextTick } from 'vue'
+import { flushPromises, mount } from '@vue/test-utils'
+import { defineComponent, inject, ref, nextTick } from 'vue'
 import { CHAT_INPUT_WORKSPACE_ITEM_MIME } from '@/lib/chatInputWorkspaceReference'
+import {
+  ATTACHMENT_NODE_CONTEXT,
+  INPUT_NODE_ACTIONS,
+  type AttachmentNodeContext,
+  type InputNodeActions
+} from '@/components/chat/nodes/symbols'
 
 const handlePasteMock = vi.fn().mockResolvedValue(undefined)
 const handleDropMock = vi.fn().mockResolvedValue(undefined)
 const openFilePickerMock = vi.fn()
 const deleteFileMock = vi.fn()
+const updateFileMock = vi.fn()
 const insertContentMock = vi.fn()
 const selectedFilesRef = ref<any[]>([])
 const activeSkillsRef = ref<string[]>([])
 const pendingSkillsRef = ref<string[]>([])
+const sessionActiveSkillsRef = ref<string[]>([])
+const sessionActiveSkillsLoadingRef = ref(false)
+const sessionActiveSkillRemovingRef = ref<string | null>(null)
 const activateSkillMock = vi.fn().mockResolvedValue(undefined)
 const deactivateSkillMock = vi.fn().mockResolvedValue(undefined)
+const removeSessionActiveSkillMock = vi.fn().mockResolvedValue(undefined)
+const notifyRendererMock = vi.hoisted(() => vi.fn())
 const closeDialogMock = vi.fn()
+const getOcrRuntimeStatusMock = vi.fn()
+
+function createDeferred<T>() {
+  let resolve!: (value: T) => void
+  const promise = new Promise<T>((innerResolve) => {
+    resolve = innerResolve
+  })
+  return { promise, resolve }
+}
+
+const useChatInputMentionsMock = vi.fn((_options?: unknown) => ({
+  atSuggestion: {},
+  slashSuggestion: {},
+  dialogState: ref(null),
+  submitDialog: vi.fn(),
+  closeDialog: closeDialogMock,
+  isSuggestionMenuOpen: ref(false),
+  shouldSuppressSubmit: vi.fn(() => false)
+}))
+const useSkillsDataMock = vi.fn((_conversationId?: unknown, _agentId?: unknown) => ({
+  skills: ref([]),
+  activeSkills: activeSkillsRef,
+  activeCount: ref(0),
+  activeSkillItems: ref([]),
+  composerActiveSkills: activeSkillsRef,
+  composerActiveCount: ref(0),
+  composerActiveSkillItems: ref([]),
+  availableSkills: ref([]),
+  loading: ref(false),
+  pendingSkills: pendingSkillsRef,
+  sessionActiveSkills: sessionActiveSkillsRef,
+  sessionActiveSkillsLoading: sessionActiveSkillsLoadingRef,
+  sessionActiveSkillRemoving: sessionActiveSkillRemovingRef,
+  loadActiveSkills: vi.fn(),
+  toggleSkill: vi.fn(),
+  activateSkill: activateSkillMock,
+  deactivateSkill: deactivateSkillMock,
+  consumePendingSkills: consumePendingSkillsMock,
+  clearPendingSkills: clearPendingSkillsMock,
+  removeSessionActiveSkill: removeSessionActiveSkillMock
+}))
 let lastEditorOptions: any = null
 let lastEditorInstance: any = null
 let mockEditorText = ''
@@ -68,12 +121,16 @@ vi.mock('@tiptap/vue-3', () => {
       }),
       updateState: vi.fn()
     }
+    public setEditable = vi.fn()
     constructor(options: any) {
       lastEditorOptions = options
       lastEditorInstance = this
     }
     getText() {
       return mockEditorText
+    }
+    getJSON() {
+      return { type: 'doc', content: [{ type: 'paragraph' }] }
     }
     chain() {
       const api = {
@@ -139,6 +196,7 @@ vi.mock('@/components/chat/composables/useChatInputFiles', () => ({
     handlePaste: handlePasteMock,
     handleDrop: handleDropMock,
     deleteFile: deleteFileMock,
+    updateFile: updateFileMock,
     clearFiles: vi.fn(),
     handlePromptFiles: vi.fn(),
     openFilePicker: openFilePickerMock
@@ -146,36 +204,12 @@ vi.mock('@/components/chat/composables/useChatInputFiles', () => ({
 }))
 
 vi.mock('@/components/chat/composables/useChatInputMentions', () => ({
-  useChatInputMentions: () => ({
-    atSuggestion: {},
-    slashSuggestion: {},
-    dialogState: ref(null),
-    submitDialog: vi.fn(),
-    closeDialog: closeDialogMock,
-    isSuggestionMenuOpen: ref(false),
-    shouldSuppressSubmit: vi.fn(() => false)
-  })
+  useChatInputMentions: (options: unknown) => useChatInputMentionsMock(options)
 }))
 
 vi.mock('@/components/chat-input/composables/useSkillsData', () => ({
-  useSkillsData: () => ({
-    skills: ref([]),
-    activeSkills: activeSkillsRef,
-    activeCount: ref(0),
-    activeSkillItems: ref([]),
-    composerActiveSkills: activeSkillsRef,
-    composerActiveCount: ref(0),
-    composerActiveSkillItems: ref([]),
-    availableSkills: ref([]),
-    loading: ref(false),
-    pendingSkills: pendingSkillsRef,
-    loadActiveSkills: vi.fn(),
-    toggleSkill: vi.fn(),
-    activateSkill: activateSkillMock,
-    deactivateSkill: deactivateSkillMock,
-    consumePendingSkills: consumePendingSkillsMock,
-    clearPendingSkills: clearPendingSkillsMock
-  })
+  useSkillsData: (conversationId: unknown, agentId: unknown) =>
+    useSkillsDataMock(conversationId, agentId)
 }))
 
 vi.mock('@/stores/mcp', () => ({
@@ -191,6 +225,16 @@ vi.mock('@/components/chat-input/McpIndicator.vue', () => ({
   })
 }))
 
+vi.mock('@api/OcrClient', () => ({
+  createOcrClient: () => ({
+    getRuntimeStatus: getOcrRuntimeStatusMock
+  })
+}))
+
+vi.mock('@renderer-notifications/rendererNotificationPort', () => ({
+  notifyRenderer: notifyRendererMock
+}))
+
 vi.mock('vue-i18n', () => ({
   useI18n: () => ({
     t: (key: string) => key
@@ -203,10 +247,14 @@ describe('ChatInputBox attachments', () => {
     selectedFilesRef.value = []
     activeSkillsRef.value = []
     pendingSkillsRef.value = []
+    sessionActiveSkillsRef.value = []
+    sessionActiveSkillsLoadingRef.value = false
+    sessionActiveSkillRemovingRef.value = null
     lastEditorOptions = null
     lastEditorInstance = null
     mockEditorText = ''
     closeDialogMock.mockClear()
+    getOcrRuntimeStatusMock.mockReset()
     Object.assign(((window as any).api ??= {}), {
       toRelativePath: vi.fn((filePath: string, basePath?: string) => {
         if (typeof filePath !== 'string' || typeof basePath !== 'string') {
@@ -235,12 +283,13 @@ describe('ChatInputBox attachments', () => {
     })
   })
 
-  const mountComponent = async (options?: { files?: any[] }) => {
+  const mountComponent = async (options?: { files?: any[]; agentId?: string }) => {
     const ChatInputBox = (await import('@/components/chat/ChatInputBox.vue')).default
     return mount(ChatInputBox, {
       props: {
         modelValue: '',
-        files: options?.files ?? []
+        files: options?.files ?? [],
+        agentId: options?.agentId
       },
       global: {
         stubs: {
@@ -249,6 +298,153 @@ describe('ChatInputBox attachments', () => {
       }
     })
   }
+
+  it('passes a reactive Agent scope to Skill picker data and mentions', async () => {
+    const wrapper = await mountComponent({ agentId: 'agent-b' })
+    const skillsAgentId = useSkillsDataMock.mock.calls.at(-1)?.[1] as { value: string } | undefined
+    const mentionOptions = useChatInputMentionsMock.mock.calls.at(-1)?.[0] as
+      | { agentId: { value: string } }
+      | undefined
+
+    expect(skillsAgentId?.value).toBe('agent-b')
+    expect(mentionOptions?.agentId.value).toBe('agent-b')
+
+    await wrapper.setProps({ agentId: 'agent-a' })
+
+    expect(skillsAgentId?.value).toBe('agent-a')
+    expect(mentionOptions?.agentId.value).toBe('agent-a')
+  })
+
+  it('shows persistent Session Skills separately from message Skill chips', async () => {
+    sessionActiveSkillsRef.value = ['database-migration']
+
+    const wrapper = await mountComponent()
+
+    expect(wrapper.get('[data-testid="session-skills-indicator"]').text()).toBe(
+      'chat.skills.indicator.active'
+    )
+    expect(activeSkillsRef.value).toEqual([])
+  })
+
+  it('delegates Session Skill removal and reports route failures', async () => {
+    sessionActiveSkillsRef.value = ['database-migration']
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    removeSessionActiveSkillMock.mockRejectedValueOnce(new Error('generation active'))
+    const wrapper = await mountComponent()
+
+    wrapper
+      .findComponent({ name: 'SessionSkillsIndicator' })
+      .vm.$emit('remove', 'database-migration')
+    await flushPromises()
+
+    expect(removeSessionActiveSkillMock).toHaveBeenCalledWith('database-migration')
+    expect(notifyRendererMock).toHaveBeenCalledWith({
+      kind: 'error',
+      code: 'chat.skill.removeSessionActiveFailed',
+      title: 'common.error.operationFailed',
+      description: 'common.error.requestFailed'
+    })
+    errorSpy.mockRestore()
+  })
+
+  it('provides reactive attachment context and fails open when OCR status cannot be read', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    let attachmentContext: AttachmentNodeContext | undefined
+    let inputNodeActions: InputNodeActions | undefined
+    const Probe = defineComponent({
+      setup() {
+        attachmentContext = inject(ATTACHMENT_NODE_CONTEXT)
+        inputNodeActions = inject(INPUT_NODE_ACTIONS)
+        return () => null
+      }
+    })
+    const ChatInputBox = (await import('@/components/chat/ChatInputBox.vue')).default
+    const wrapper = mount(ChatInputBox, {
+      props: {
+        modelValue: '',
+        isAcpSession: false,
+        supportsVision: null
+      },
+      slots: {
+        toolbar: Probe
+      }
+    })
+
+    expect(attachmentContext?.isAcpSession.value).toBe(false)
+    expect(attachmentContext?.supportsVision.value).toBeNull()
+
+    await wrapper.setProps({ isAcpSession: true, supportsVision: false })
+
+    expect(attachmentContext?.isAcpSession.value).toBe(true)
+    expect(attachmentContext?.supportsVision.value).toBe(false)
+
+    getOcrRuntimeStatusMock.mockRejectedValueOnce(new Error('status unavailable'))
+    await attachmentContext?.refreshOcrAvailability()
+    expect(attachmentContext?.ocrAvailability.value).toEqual({ status: 'unknown' })
+    expect(warnSpy).toHaveBeenCalledWith(
+      '[ChatInputBox] Failed to load OCR availability:',
+      expect.any(Error)
+    )
+
+    inputNodeActions?.switchToVisionModel()
+    await flushPromises()
+    expect(wrapper.emitted('switch-vision-model')).toHaveLength(1)
+    warnSpy.mockRestore()
+  })
+
+  it('retains known OCR availability while refreshing and reuses a short-lived snapshot', async () => {
+    let attachmentContext: AttachmentNodeContext | undefined
+    const Probe = defineComponent({
+      setup() {
+        attachmentContext = inject(ATTACHMENT_NODE_CONTEXT)
+        return () => null
+      }
+    })
+    const unavailable = {
+      status: 'unavailable',
+      reason: 'service_closed',
+      lightOcrVersion: '0.5.5',
+      bundleId: 'test-bundle'
+    } as const
+    const available = {
+      status: 'available',
+      lightOcrVersion: '0.5.5',
+      bundleId: 'test-bundle'
+    } as const
+    const nextStatus = createDeferred<{ availability: typeof available }>()
+    const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(1_000)
+    getOcrRuntimeStatusMock
+      .mockResolvedValueOnce({ availability: unavailable })
+      .mockReturnValueOnce(nextStatus.promise)
+    const ChatInputBox = (await import('@/components/chat/ChatInputBox.vue')).default
+    const wrapper = mount(ChatInputBox, {
+      props: { modelValue: '' },
+      slots: { toolbar: Probe }
+    })
+    const context = attachmentContext!
+
+    try {
+      await context.refreshOcrAvailability()
+      expect(context.ocrAvailability.value).toEqual(unavailable)
+
+      await context.refreshOcrAvailability()
+      expect(getOcrRuntimeStatusMock).toHaveBeenCalledOnce()
+
+      nowSpy.mockReturnValue(31_001)
+      const refresh = context.refreshOcrAvailability()
+      const joinedRefresh = context.refreshOcrAvailability()
+
+      expect(getOcrRuntimeStatusMock).toHaveBeenCalledTimes(2)
+      expect(context.ocrAvailability.value).toEqual(unavailable)
+
+      nextStatus.resolve({ availability: available })
+      await Promise.all([refresh, joinedRefresh])
+      expect(context.ocrAvailability.value).toEqual(available)
+    } finally {
+      wrapper.unmount()
+      nowSpy.mockRestore()
+    }
+  })
 
   const dispatchPaste = async (wrapper: Awaited<ReturnType<typeof mountComponent>>, data: any) => {
     const event = new Event('paste', {
@@ -274,6 +470,44 @@ describe('ChatInputBox attachments', () => {
     const wrapper = await mountComponent()
     ;(wrapper.vm as any).triggerAttach()
     expect(openFilePickerMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('locks editor mutations when editable is disabled', async () => {
+    const wrapper = await mountComponent()
+    expect(lastEditorOptions?.editable).toBe(true)
+
+    await wrapper.setProps({ editable: false })
+
+    expect(lastEditorInstance.setEditable).toHaveBeenCalledWith(false)
+    expect(wrapper.get('[data-testid="chat-input-editor"]').attributes('aria-disabled')).toBe(
+      'true'
+    )
+    ;(wrapper.vm as any).triggerAttach()
+    expect(openFilePickerMock).not.toHaveBeenCalled()
+    expect((wrapper.vm as any).insertWorkspaceReference('/repo/locked.txt')).toBe(false)
+  })
+
+  it('preserves copy, selection, and focus navigation while editing is disabled', async () => {
+    const wrapper = await mountComponent()
+    await wrapper.setProps({ editable: false })
+    const editor = wrapper.get('[data-testid="chat-input-editor"]').element
+    const dispatchKey = (key: string, init: KeyboardEventInit = {}) => {
+      const event = new KeyboardEvent('keydown', {
+        key,
+        bubbles: true,
+        cancelable: true,
+        ...init
+      })
+      editor.dispatchEvent(event)
+      return event.defaultPrevented
+    }
+
+    expect(dispatchKey('Tab')).toBe(false)
+    expect(dispatchKey('ArrowLeft', { shiftKey: true })).toBe(false)
+    expect(dispatchKey('c', { ctrlKey: true })).toBe(false)
+    expect(dispatchKey('a', { metaKey: true })).toBe(false)
+    expect(dispatchKey('x')).toBe(true)
+    expect(dispatchKey('v', { metaKey: true })).toBe(true)
   })
 
   it('exposes insertRecognizedText and inserts text into the editor', async () => {
@@ -463,7 +697,7 @@ describe('ChatInputBox attachments', () => {
   })
 
   it('syncs deleted inline editor nodes back to backing state on editor update', async () => {
-    await mountComponent()
+    const wrapper = await mountComponent()
     activeSkillsRef.value = ['skillA']
     selectedFilesRef.value = [
       { name: 'file.pdf', path: '/tmp/file.pdf', mimeType: 'application/pdf' }
@@ -481,6 +715,7 @@ describe('ChatInputBox attachments', () => {
 
     expect(deactivateSkillMock).toHaveBeenCalledWith('skillA')
     expect(deleteFileMock).toHaveBeenCalledWith(0)
+    expect(wrapper.emitted('draft-change')).toHaveLength(1)
   })
 
   it('clears pending command form data when the inline form node is removed by editor update', async () => {
@@ -500,7 +735,7 @@ describe('ChatInputBox attachments', () => {
   })
 
   it('does not reconcile inline nodes for internal sync transactions', async () => {
-    await mountComponent()
+    const wrapper = await mountComponent()
     activeSkillsRef.value = ['skillA']
     selectedFilesRef.value = [
       { name: 'file.pdf', path: '/tmp/file.pdf', mimeType: 'application/pdf' }
@@ -519,6 +754,7 @@ describe('ChatInputBox attachments', () => {
     expect(deactivateSkillMock).not.toHaveBeenCalled()
     expect(deleteFileMock).not.toHaveBeenCalled()
     expect(closeDialogMock).not.toHaveBeenCalled()
+    expect(wrapper.emitted('draft-change')).toBeUndefined()
   })
 
   it('does not emit stale text while syncing file chips after files are cleared', async () => {
@@ -555,6 +791,36 @@ describe('ChatInputBox attachments', () => {
     pendingSkillsRef.value = ['commit']
     ;(wrapper.vm as any).clearPendingSkills()
     expect(pendingSkillsRef.value).toEqual([])
+  })
+
+  it('restores normalized pending skills for a blocked initial draft', async () => {
+    const wrapper = await mountComponent()
+
+    ;(wrapper.vm as any).setPendingSkills([' review ', '', 'review', 'commit'])
+
+    expect(pendingSkillsRef.value).toEqual(['review', 'commit'])
+    expect((wrapper.vm as any).getPendingSkillsSnapshot()).toEqual(['review', 'commit'])
+  })
+
+  it('exposes editor document snapshots and reports session skill draft changes', async () => {
+    const wrapper = await mountComponent()
+    await wrapper.setProps({ sessionId: 's1' })
+    pendingSkillsRef.value = ['review']
+    await nextTick()
+
+    expect(wrapper.emitted('pending-skills-change')?.at(-1)).toEqual([['review']])
+    expect((wrapper.vm as any).getDocumentSnapshot()).toEqual({
+      type: 'doc',
+      content: [{ type: 'paragraph' }]
+    })
+
+    const restored = {
+      type: 'doc',
+      content: [{ type: 'paragraph', content: [{ type: 'text', text: 'restored' }] }]
+    }
+    ;(wrapper.vm as any).restoreDocumentSnapshot(restored)
+
+    expect(lastEditorInstance.commands.setContent).toHaveBeenCalledWith(restored, false)
   })
 
   it('emits queue-submit on Tab only when queue submit is available', async () => {

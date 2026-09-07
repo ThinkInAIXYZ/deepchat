@@ -19,7 +19,9 @@
   "title": "Chamada de ferramenta",
   "terminalOutput": "Saída terminal",
   "badge": {
-    "rtk": "RTK"
+    "rtk": "RTK",
+    "allowed": "Permitido",
+    "denied": "Negado"
   },
   "replacementsCount": "Substituídas {count} ocorrências"
 }

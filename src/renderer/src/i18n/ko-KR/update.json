@@ -16,5 +16,9 @@
   "topbarButton": "업데이트",
   "restarting": "다시 시작",
   "alreadyUpToDate": "이미 최신 버전입니다",
-  "alreadyUpToDateDesc": "현재 DeepChat은 최신 버전으로 업데이트되어 있으며, 업데이트가 필요하지 않습니다."
+  "alreadyUpToDateDesc": "현재 DeepChat은 최신 버전으로 업데이트되어 있으며, 업데이트가 필요하지 않습니다.",
+  "taskRunningTitle": "진행 중인 작업",
+  "taskRunningDescription": "현재 진행 중인 작업이 있습니다. 업데이트를 어떻게 진행하시겠습니까?",
+  "updateNow": "지금 업데이트",
+  "updateAfterTasksComplete": "작업 완료 후 업데이트"
 }

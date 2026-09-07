@@ -37,6 +37,7 @@
       "read": "Cho phép '{toolName}' từ '{serverName}' thực hiện thao tác đọc?",
       "write": "Cho phép '{toolName}' từ '{serverName}' thực hiện thao tác ghi?",
       "all": "Cho phép '{toolName}' từ '{serverName}' thực hiện thao tác đọc và ghi?",
+      "subagentStart": "Bắt đầu tác vụ Subagent này? Tác vụ có thể dùng thêm token, thời gian và tài nguyên hệ thống.",
       "command": "Thực hiện lệnh: {command}",
       "commandWithRisk": "Thực hiện lệnh: {command}\n\nMức độ rủi ro: {riskLevel}\n\nĐề xuất: {suggestion}"
     },

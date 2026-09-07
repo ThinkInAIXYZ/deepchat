@@ -38,15 +38,15 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
 import { Switch } from '@shadcn/components/ui/switch'
-import { useToast } from '@/components/use-toast'
 import { useUiSettingsStore } from '@/stores/uiSettingsStore'
+import { notifyRenderer } from '@renderer-notifications/rendererNotificationPort'
+import { settingsLeaveGuard } from '../../services/settingsLeaveGuard'
 
 const { t } = useI18n()
-const { toast } = useToast()
 const uiSettingsStore = useUiSettingsStore()
 
 const privacyModeEnabled = computed(() => uiSettingsStore.privacyModeEnabled)
@@ -60,18 +60,37 @@ const handlePrivacyModeChange = async (value: boolean) => {
   }
 
   isUpdatingPrivacyMode.value = true
-
   try {
     await uiSettingsStore.setPrivacyModeEnabled(value)
+    notifyRenderer({
+      kind: 'success',
+      code: 'settings.privacy.updated',
+      title: t('common.saved')
+    })
   } catch (error) {
-    console.error('Failed to update privacy mode:', error)
-    toast({
-      title: t('common.error.operationFailed'),
-      description: error instanceof Error ? error.message : t('common.unknownError'),
-      variant: 'destructive'
+    console.error('[PrivacySettingsSection] Failed to update privacy mode', error)
+    notifyRenderer({
+      kind: 'error',
+      code: 'settings.privacy.updateFailed',
+      title: t('common.error.operationFailed')
     })
   } finally {
     isUpdatingPrivacyMode.value = false
   }
 }
+
+const leaveGuardLease = settingsLeaveGuard.register({
+  id: 'settings-privacy-mode',
+  onDiscard: () => undefined
+})
+const stopLeaveRiskSync = watch(
+  isUpdatingPrivacyMode,
+  (busy) => leaveGuardLease.setRisk(busy ? 'busy' : 'clean'),
+  { immediate: true, flush: 'sync' }
+)
+
+onBeforeUnmount(() => {
+  stopLeaveRiskSync()
+  leaveGuardLease.release()
+})
 </script>

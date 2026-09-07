@@ -63,6 +63,27 @@
         "yobrowser": "YoBrowser"
       }
     },
+    "toolMode": {
+      "title": "Modus",
+      "modelDefault": "Modellstandard",
+      "options": {
+        "agent": "Agent",
+        "code": "Code",
+        "minimal": "Minimal"
+      },
+      "descriptions": {
+        "agent": "Den Standardwerkzeugsatz des Agenten verwenden.",
+        "code": "Aktivierte Werkzeuge über Code zusammenstellen. Erfordert den Berechtigungsmodus Vollzugriff.",
+        "minimal": "Vereinfacht Dateioperationen und behält andere aktivierte Werkzeuge bei."
+      },
+      "useModelDefault": "Modellstandard verwenden",
+      "saving": "Modus wird gespeichert...",
+      "locked": "Der Modus kann nach Abschluss dieser Antwort gewechselt werden.",
+      "updateFailed": "Der Werkzeugmodus konnte nicht aktualisiert werden.",
+      "codeEntry": "Code-Einstieg",
+      "codeCallable": "Per Code aufrufbar",
+      "minimalTools": "Programmierwerkzeuge"
+    },
     "fileUploadFailed": "Anhang konnte nicht verarbeitet werden",
     "fileUploadFailedDesc": "{count} Dateien konnten nicht verarbeitet werden: {names}",
     "fileUploadFailedMore": " und {count} weitere",
@@ -71,6 +92,12 @@
     "audioInputUnsupportedDescription": "Modell {model} unterstützt keine Audioeingabe. {count} Audioanhänge wurden ignoriert."
   },
   "pendingInput": {
+    "resume": "Warteschlange fortsetzen",
+    "resumeFailed": "Warteschlange konnte nicht fortgesetzt werden",
+    "retry": "Erneut versuchen",
+    "retryRequired": "Erneuter Versuch erforderlich",
+    "retryRequiredDescription": "Diese Nachricht wurde nicht gesendet. Versuche es erneut, um die Warteschlange fortzusetzen.",
+    "retryFailed": "Die Nachricht konnte nicht erneut versucht werden",
     "steer": "Steuern",
     "queueCount": "Ausstehend {count}/{max}",
     "toSteer": "Unterbrechen & senden",
@@ -116,10 +143,19 @@
   "compaction": {
     "compacting": "Kontext wird komprimiert...",
     "compacted": "Kontext wurde komprimiert",
+    "compactedWithoutSummary": "Der Kontext wurde ohne Zusammenfassung komprimiert",
+    "compactedWithoutLargerSummary": "Der Kontext wurde komprimiert, ohne eine größere Zusammenfassung zu verwenden",
     "commandDescription": "Chat-Kontext komprimieren",
     "noopTitle": "Kein Kontext zum Komprimieren",
     "noopDescription": "Es gibt noch keinen neuen Chatverlauf, der komprimiert werden muss.",
     "failedTitle": "Komprimierung fehlgeschlagen"
+  },
+  "contextOccupancy": {
+    "label": "Kontextnutzung",
+    "details": "{used} von {capacity} Tokens",
+    "provider": "Vom Anbieter gemessen",
+    "estimated": "Aus der Anfrageansicht geschätzt",
+    "stale": "Veraltet nach Modell-, Fenster- oder Komprimierungsänderung"
   },
   "rateLimit": {
     "queueTooltip": "{count} Anfragen in der Warteschlange, Intervall {interval} Sekunden",
@@ -161,7 +197,8 @@
   "mode": {
     "current": "Aktueller Modus: {mode}",
     "agent": "Agent",
-    "acpAgent": "ACP Agent"
+    "acpAgent": "ACP Agent",
+    "saveFailed": "Modusauswahl konnte nicht gespeichert werden"
   },
   "topbar": {
     "backToParent": "Zur übergeordneten Sitzung zurück",
@@ -178,7 +215,6 @@
     "systemPrompt": "System-Prompt",
     "systemPromptPlaceholder": "Voreinstellung auswählen",
     "temperature": "Temperatur",
-    "temperatureFixedMoonshotKimi": "Moonshot Kimi K2.5/K2.6 ist bei aktiviertem Denken fest auf {enabled} und bei deaktiviertem Denken fest auf {disabled} gesetzt.",
     "topP": "Top P",
     "topPDescription": "Nucleus Sampling; leer lassen, um den Anbieterstandard zu verwenden",
     "contextLength": "Kontextlänge",
@@ -260,8 +296,14 @@
       },
       "contextMenu": {
         "openFile": "Datei öffnen",
+        "openWith": "Öffnen mit",
+        "openInApp": "In {app} öffnen",
+        "openInTerminalApp": "Ordner in {app} öffnen",
+        "openFailed": "Die Datei konnte nicht mit dieser Anwendung geöffnet werden",
+        "preferredAppUnavailable": "Die bevorzugte App ist gerade nicht verfügbar. Es wird mit der Systemstandard-App geöffnet.",
         "revealInFolder": "Im Dateimanager anzeigen",
-        "insertPath": "In Eingabe einfügen"
+        "insertPath": "In Eingabe einfügen",
+        "openWithSystemDefault": "Mit Systemstandard öffnen"
       },
       "watchStatus": {
         "degraded": "Überwachung läuft im Fallback-Modus. Änderungen werden möglicherweise langsamer aktualisiert.",
@@ -364,7 +406,13 @@
     "moveProjectGroupBottom": "Ganz nach unten verschieben",
     "searchCommand": "Search",
     "chatSection": "Chat",
-    "workspace": "Workspace"
+    "workspace": "Workspace",
+    "addWorkspace": "Arbeitsbereich hinzufügen",
+    "manageWorkspaces": "Arbeitsbereiche verwalten",
+    "openWorkspaceFolder": "Ordner öffnen",
+    "emptyWorkspace": "Leer",
+    "addWorkspaceFailed": "Arbeitsbereich konnte nicht hinzugefügt werden",
+    "searchLoadedRangeDescription": "Es werden Treffer aus geladenen Unterhaltungen angezeigt. Scrolle, um weiteren Verlauf zu laden."
   },
   "spotlight": {
     "placeholder": "Chats, Agent, Einstellungen und Aktionen suchen…",
@@ -400,6 +448,72 @@
     "firstChat": {
       "description": "Alles ist bereit. Senden Sie hier Ihre erste Nachricht, um die Einführung abzuschließen.",
       "caption": "Der Fokus bleibt auf dem Eingabefeld, bis Sie die erste Nachricht wirklich senden."
+    }
+  },
+  "messageReceipt": {
+    "unread": "Ungelesen",
+    "read": "Gelesen"
+  },
+  "attachments": {
+    "chooseRepresentation": "Auswählen, wie {name} gesendet werden soll",
+    "representation": "Darstellung des Anhangs",
+    "auto": "Automatisch",
+    "sendImage": "Bild senden",
+    "useOcrText": "OCR-Text verwenden",
+    "useEmbeddedText": "Eingebetteten Text verwenden",
+    "preparing": "Anhänge werden verarbeitet…",
+    "actionRequiredTitle": "Anhang erfordert Aufmerksamkeit",
+    "actionRequiredDescription": "Mindestens ein Anhang kann nicht verwendet werden. Wählen Sie aus, wie fortgefahren werden soll.",
+    "attachmentNumber": "Anhang {number}",
+    "moreIssues": "{count} weitere Anhangprobleme",
+    "genericUnavailable": "Es sind keine verwendbaren Anhangsinhalte verfügbar.",
+    "keepDraft": "Entwurf behalten",
+    "switchVisionModel": "Zu einem Vision-Modell wechseln",
+    "retry": "Erneut versuchen",
+    "sendWithoutImageContent": "Anhangsinhalt überspringen",
+    "inspectOcrText": "OCR-Text anzeigen",
+    "ocrBadge": "OCR",
+    "embeddedTextBadge": "Text",
+    "ocrPartialBadge": "OCR · Teilweise",
+    "ocrLimitedBadge": "OCR · Begrenzt",
+    "imageBadge": "Bild",
+    "unavailableBadge": "Nicht verfügbar",
+    "ocrPreviewTitle": "OCR-Text — {name}",
+    "ocrPreviewDescription": "Etwa {tokens} Token wurden als nicht vertrauenswürdiger Anhanginhalt gesendet.",
+    "ocrPageCoverage": "Enthält Text bis Seite {page}.",
+    "ocrPageCoveragePartial": "Enthält einen Teil von Seite {page}.",
+    "ocrTextTruncated": "Dieser OCR-Text wurde vor dem Senden gekürzt.",
+    "reasons": {
+      "automatic_ocr_disabled": "Automatische OCR ist deaktiviert.",
+      "document_limit_exceeded": "Pro Anfrage kann nur eine PDF-Datei per OCR verarbeitet werden.",
+      "document_too_large": "Die PDF-Datei überschreitet die Dateigrößenbegrenzung.",
+      "image_dimensions_exceeded": "Die Abmessungen des dekodierten Bildes überschreiten das Sicherheitslimit.",
+      "image_limit_exceeded": "Dieser Durchlauf enthält mehr Bilder, als OCR verarbeiten kann.",
+      "image_payload_unavailable": "Die ursprünglichen Bilddaten sind nicht mehr verfügbar.",
+      "image_too_large": "Das Bild überschreitet das Größenlimit pro Datei.",
+      "ocr_cancelled": "OCR wurde abgebrochen.",
+      "ocr_empty": "OCR hat keinen verwendbaren Text gefunden.",
+      "ocr_failed": "OCR konnte diesen Anhang nicht verarbeiten.",
+      "ocr_queue_full": "OCR ist ausgelastet. Versuchen Sie es nach Abschluss des aktuellen Anhangs erneut.",
+      "ocr_resource_limited": "OCR wurde an der Verarbeitungsgrenze für PDF-Dateien gestoppt.",
+      "ocr_runtime_unavailable": "OCR ist auf dieser Plattform oder in dieser Installation nicht verfügbar.",
+      "invalid_attachment_snapshot": "Die gespeicherten OCR-Daten sind ungültig.",
+      "turn_ocr_budget_exhausted": "Der OCR-Text überschreitet das Anhangstextlimit dieser Nachricht.",
+      "pdf_text_unavailable": "In dieser PDF-Datei ist kein eingebetteter Text verfügbar.",
+      "requested_image_requires_vision": "„Bild senden“ erfordert ein Modell mit Vision-Unterstützung.",
+      "turn_image_bytes_exceeded": "Die Bilder in diesem Durchlauf überschreiten das Gesamtgrößenlimit.",
+      "user_skipped_attachment_content": "Der Anhangsinhalt wurde auf Ihre Anforderung hin ausgelassen.",
+      "user_skipped_image_content": "Der Bildinhalt wurde auf Ihre Anforderung hin ausgelassen.",
+      "unsupported_image_format": "Dieses Bildformat wird von OCR nicht unterstützt."
+    },
+    "pending": {
+      "blockedCount": "{count} blockiert",
+      "blocked": "Blockiert",
+      "retry": "OCR erneut versuchen",
+      "sendWithoutImageContent": "Anhangsinhalt überspringen",
+      "blockedDescription": "Dieses Element wartet auf eine Entscheidung zum Anhang.",
+      "blockedReasonMore": "{reason} Außerdem gibt es {count} weitere Probleme.",
+      "resolveFailed": "Die blockierte Nachricht konnte nicht verarbeitet werden"
     }
   },
   "skillDraft": {
@@ -459,6 +573,14 @@
       "dropped": "Verworfen",
       "tokens": "Token",
       "budget": "Budget",
+      "allocation": "Verteilung des Beitragsbudgets",
+      "directive": "Anweisung",
+      "persona": "Persona",
+      "working": "Arbeitsgedächtnis",
+      "queryRecall": "Abfrageabruf",
+      "overhead": "Zusatzaufwand",
+      "unused": "Ungenutzt",
+      "overheadSummary": "Zusatzaufwand {overhead} · Ungenutzt {unused}",
       "countOnly": "Dieser Eintrag enthält nur eine Zählübersicht.",
       "unavailable": "Diese Erinnerung ist nicht mehr verfügbar.",
       "noSelectedDetails": "Für diese Runde gibt es keine Erinnerungsdetails.",
@@ -485,5 +607,29 @@
       "amendRetryable": "Die Änderung ist fehlgeschlagen. Die ursprüngliche Erinnerung wurde wiederhergestellt. Bitte versuche es erneut.",
       "amendRestoreFailed": "Die Änderung ist fehlgeschlagen, und die ursprüngliche Erinnerung konnte nicht wiederhergestellt werden."
     }
+  },
+  "orchestration": {
+    "actions": {
+      "openChild": "Untergeordneten Agent öffnen"
+    },
+    "activityTitle": "Agent-Aktivität",
+    "proactive": {
+      "title": "Proaktive Zusammenarbeit",
+      "description": "Erlaubt dem übergeordneten Agent, Aufgaben zu delegieren, wenn unabhängige oder parallele Arbeit klar hilft. Kann mehr Zeit, Tokens und Ressourcen benötigen.",
+      "reasons": {
+        "session_unavailable": "Diese Sitzung ist nicht mehr verfügbar.",
+        "agent_unavailable": "Der ausgewählte Agent ist nicht verfügbar.",
+        "deepchat_agent_required": "Proaktive Zusammenarbeit erfordert einen DeepChat Agent.",
+        "regular_parent_required": "Proaktive Zusammenarbeit ist in einer untergeordneten Sitzung nicht verfügbar.",
+        "agent_policy_unavailable": "Die Richtlinie für Zusammenarbeit konnte nicht geladen werden.",
+        "subagents_disabled": "Aktivieren Sie Subagents für diesen Agent, um proaktive Zusammenarbeit zu verwenden."
+      }
+    }
+  },
+  "guardStop": {
+    "maxToolCalls": "Das Limit für Werkzeugaufrufe wurde erreicht, bevor die Aufgabe fertig war.",
+    "noProgress": "Wiederholt identische Werkzeugergebnisse brachten keinen Fortschritt, daher wurde der Agent gestoppt.",
+    "maxTurns": "Das Limit für Anbieter-Runden wurde erreicht, bevor die Aufgabe fertig war.",
+    "continueMessage": "Bitte dort fortfahren, wo zuletzt aufgehört wurde."
   }
 }

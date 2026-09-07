@@ -63,6 +63,27 @@
         "yobrowser": "YoBrowser"
       }
     },
+    "toolMode": {
+      "title": "Mode",
+      "modelDefault": "Bawaan model",
+      "options": {
+        "agent": "Agent",
+        "code": "Code",
+        "minimal": "Minimal"
+      },
+      "descriptions": {
+        "agent": "Gunakan perangkat alat standar Agent.",
+        "code": "Rangkai alat yang aktif melalui kode. Memerlukan mode izin Akses penuh.",
+        "minimal": "Sederhanakan operasi file sambil mempertahankan alat lain yang diaktifkan."
+      },
+      "useModelDefault": "Gunakan bawaan model",
+      "saving": "Menyimpan mode...",
+      "locked": "Anda dapat mengganti mode setelah respons ini selesai.",
+      "updateFailed": "Mode alat tidak dapat diperbarui.",
+      "codeEntry": "Entri kode",
+      "codeCallable": "Dapat dipanggil dari kode",
+      "minimalTools": "Alat pengodean"
+    },
     "fileUploadFailed": "Pemrosesan lampiran gagal",
     "fileUploadFailedDesc": "Tidak dapat memproses file {count}: {names}",
     "fileUploadFailedMore": " Tunggu {count}",
@@ -71,6 +92,12 @@
     "audioInputUnsupportedDescription": "Model {model} tidak mendukung input audio, lampiran audio {count} telah diabaikan."
   },
   "pendingInput": {
+    "resume": "Lanjutkan antrean",
+    "resumeFailed": "Gagal melanjutkan antrean",
+    "retry": "Coba lagi",
+    "retryRequired": "Perlu dicoba lagi",
+    "retryRequiredDescription": "Pesan ini tidak terkirim. Coba lagi untuk melanjutkan antrean.",
+    "retryFailed": "Gagal mencoba kembali pesan dalam antrean",
     "steer": "panduan",
     "queueCount": "Siap dikirim {count}/{max}",
     "toSteer": "Sela & kirim",
@@ -116,10 +143,19 @@
   "compaction": {
     "compacting": "Mengompresi konteks...",
     "compacted": "Konteks dikompresi",
+    "compactedWithoutSummary": "Konteks dikompresi tanpa ringkasan",
+    "compactedWithoutLargerSummary": "Konteks dikompresi tanpa menggunakan ringkasan yang lebih besar",
     "commandDescription": "Kompres konteks sesi",
     "noopTitle": "Tidak ada konteks yang dapat dikompres",
     "noopDescription": "Saat ini tidak ada riwayat percakapan baru untuk dikompres.",
     "failedTitle": "Kompresi gagal"
+  },
+  "contextOccupancy": {
+    "label": "Penggunaan konteks",
+    "details": "{used} dari {capacity} token",
+    "provider": "Diukur oleh penyedia",
+    "estimated": "Diperkirakan dari tampilan permintaan",
+    "stale": "Usang setelah perubahan model, jendela, atau kompresi"
   },
   "rateLimit": {
     "queueTooltip": "Ada {count} permintaan dalam antrean, dengan selang waktu {interval} detik",
@@ -161,7 +197,8 @@
   "mode": {
     "current": "Modus saat ini: {mode}",
     "agent": "Agent",
-    "acpAgent": "ACP Agent"
+    "acpAgent": "ACP Agent",
+    "saveFailed": "Gagal menyimpan pilihan mode"
   },
   "topbar": {
     "backToParent": "Kembali ke sesi orang tua",
@@ -178,7 +215,6 @@
     "systemPrompt": "system prompt",
     "systemPromptPlaceholder": "Pilih preset",
     "temperature": "suhu",
-    "temperatureFixedMoonshotKimi": "Moonshot Kimi K2.5/K2.6 ditetapkan ke {enabled} saat pemikiran diaktifkan, dan ditetapkan ke {disabled} saat pemikiran dimatikan.",
     "topP": "Top P",
     "topPDescription": "Nucleus sampling; leave blank to use provider default",
     "contextLength": "panjang konteks",
@@ -260,8 +296,14 @@
       },
       "contextMenu": {
         "openFile": "membuka berkas",
+        "openWith": "Buka dengan",
+        "openInApp": "Buka di {app}",
+        "openInTerminalApp": "Buka folder di {app}",
+        "openFailed": "Tidak dapat membuka file dengan aplikasi tersebut",
+        "preferredAppUnavailable": "Aplikasi pilihan sedang tidak tersedia. Membuka dengan aplikasi bawaan sistem.",
         "revealInFolder": "Buka di pengelola file",
-        "insertPath": "Masukkan ke dalam kotak masukan"
+        "insertPath": "Masukkan ke dalam kotak masukan",
+        "openWithSystemDefault": "Buka dengan aplikasi bawaan sistem"
       },
       "watchStatus": {
         "degraded": "Pemantauan berjalan dalam mode cadangan. Perubahan mungkin dimuat ulang lebih lambat.",
@@ -364,7 +406,13 @@
     "moveProjectGroupBottom": "Pindahkan ke paling bawah",
     "searchCommand": "Search",
     "chatSection": "Chat",
-    "workspace": "Workspace"
+    "workspace": "Workspace",
+    "addWorkspace": "Tambah ruang kerja",
+    "manageWorkspaces": "Kelola ruang kerja",
+    "openWorkspaceFolder": "Buka folder",
+    "emptyWorkspace": "Kosong",
+    "addWorkspaceFailed": "Gagal menambahkan ruang kerja",
+    "searchLoadedRangeDescription": "Menampilkan kecocokan dari percakapan yang dimuat. Gulir untuk memuat riwayat lainnya."
   },
   "spotlight": {
     "placeholder": "Sesi pencarian, Agent, pengaturan dan tindakan…",
@@ -400,6 +448,72 @@
     "firstChat": {
       "description": "Sekarang Anda siap, kirim pesan pertama Anda ke sini untuk menyelesaikan boot.",
       "caption": "Sorotan akan tetap berada di kotak masukan hingga Anda benar-benar mengirim pesan pertama."
+    }
+  },
+  "messageReceipt": {
+    "unread": "Belum dibaca",
+    "read": "Dibaca"
+  },
+  "attachments": {
+    "chooseRepresentation": "Pilih cara mengirim {name}",
+    "representation": "Representasi lampiran",
+    "auto": "Otomatis",
+    "sendImage": "Kirim gambar",
+    "useOcrText": "Gunakan teks OCR",
+    "useEmbeddedText": "Gunakan teks tersemat",
+    "preparing": "Memproses lampiran…",
+    "actionRequiredTitle": "Lampiran memerlukan perhatian",
+    "actionRequiredDescription": "Satu atau beberapa lampiran tidak dapat digunakan. Pilih cara melanjutkan.",
+    "attachmentNumber": "Lampiran {number}",
+    "moreIssues": "{count} masalah lampiran lainnya",
+    "genericUnavailable": "Tidak ada konten lampiran yang dapat digunakan.",
+    "keepDraft": "Simpan draf",
+    "switchVisionModel": "Beralih ke model dengan kemampuan visual",
+    "retry": "Coba lagi",
+    "sendWithoutImageContent": "Lewati konten lampiran",
+    "inspectOcrText": "Lihat teks OCR",
+    "ocrBadge": "OCR",
+    "embeddedTextBadge": "Teks",
+    "ocrPartialBadge": "OCR · Sebagian",
+    "ocrLimitedBadge": "OCR · Terbatas",
+    "imageBadge": "Gambar",
+    "unavailableBadge": "Tidak tersedia",
+    "ocrPreviewTitle": "Teks OCR — {name}",
+    "ocrPreviewDescription": "Sekitar {tokens} token dikirim sebagai konten lampiran yang tidak tepercaya.",
+    "ocrPageCoverage": "Mencakup teks hingga halaman {page}.",
+    "ocrPageCoveragePartial": "Mencakup sebagian halaman {page}.",
+    "ocrTextTruncated": "Teks OCR ini dipotong sebelum dikirim.",
+    "reasons": {
+      "automatic_ocr_disabled": "OCR otomatis dinonaktifkan.",
+      "document_limit_exceeded": "Hanya satu PDF yang dapat menggunakan OCR per permintaan.",
+      "document_too_large": "PDF melampaui batas ukuran berkas.",
+      "image_dimensions_exceeded": "Dimensi gambar yang didekode melampaui batas keamanan.",
+      "image_limit_exceeded": "Giliran ini berisi lebih banyak gambar daripada yang dapat diproses OCR.",
+      "image_payload_unavailable": "Data gambar asli tidak lagi tersedia.",
+      "image_too_large": "Gambar melampaui batas ukuran per berkas.",
+      "ocr_cancelled": "OCR dibatalkan.",
+      "ocr_empty": "OCR tidak menemukan teks yang dapat digunakan.",
+      "ocr_failed": "OCR tidak dapat memproses lampiran ini.",
+      "ocr_queue_full": "OCR sedang sibuk. Coba lagi setelah lampiran saat ini selesai diproses.",
+      "ocr_resource_limited": "OCR berhenti pada batas pemrosesan PDF.",
+      "ocr_runtime_unavailable": "OCR tidak tersedia pada platform atau instalasi ini.",
+      "invalid_attachment_snapshot": "Data OCR yang tersimpan tidak valid.",
+      "turn_ocr_budget_exhausted": "Teks OCR melebihi batas teks lampiran pesan ini.",
+      "pdf_text_unavailable": "Tidak ada teks tersemat yang tersedia dalam PDF ini.",
+      "requested_image_requires_vision": "“Kirim gambar” memerlukan model dengan kemampuan visual.",
+      "turn_image_bytes_exceeded": "Gambar dalam giliran ini melampaui batas ukuran total.",
+      "user_skipped_attachment_content": "Konten lampiran dihilangkan sesuai pilihan Anda.",
+      "user_skipped_image_content": "Konten gambar dihilangkan sesuai pilihan Anda.",
+      "unsupported_image_format": "Format gambar ini tidak didukung untuk OCR."
+    },
+    "pending": {
+      "blockedCount": "{count} diblokir",
+      "blocked": "Diblokir",
+      "retry": "Coba OCR lagi",
+      "sendWithoutImageContent": "Lewati konten lampiran",
+      "blockedDescription": "Item ini menunggu keputusan terkait lampiran.",
+      "blockedReasonMore": "{reason} Ada {count} masalah lainnya.",
+      "resolveFailed": "Pesan yang diblokir tidak dapat ditangani"
     }
   },
   "skillDraft": {
@@ -459,6 +573,14 @@
       "dropped": "Dibuang",
       "tokens": "Token",
       "budget": "Batas",
+      "allocation": "Alokasi anggaran kontribusi",
+      "directive": "Arahan",
+      "persona": "Persona",
+      "working": "Memori kerja",
+      "queryRecall": "Pemanggilan berdasarkan kueri",
+      "overhead": "Beban tambahan",
+      "unused": "Tidak terpakai",
+      "overheadSummary": "Beban tambahan {overhead} · Tidak terpakai {unused}",
       "countOnly": "Catatan ini hanya berisi ringkasan jumlah.",
       "unavailable": "Memori ini tidak lagi tersedia.",
       "noSelectedDetails": "Tidak ada detail memori untuk ditampilkan pada giliran ini.",
@@ -485,5 +607,29 @@
       "amendRetryable": "Pengeditan gagal. Memori asli sudah dipulihkan, silakan coba lagi.",
       "amendRestoreFailed": "Pengeditan gagal, dan memori asli tidak dapat dipulihkan."
     }
+  },
+  "orchestration": {
+    "actions": {
+      "openChild": "Buka Agent anak"
+    },
+    "activityTitle": "Aktivitas Agent",
+    "proactive": {
+      "title": "Kolaborasi proaktif",
+      "description": "Memungkinkan Agent induk mendelegasikan saat pekerjaan mandiri atau paralel jelas membantu. Dapat memakai lebih banyak waktu, token, dan sumber daya.",
+      "reasons": {
+        "session_unavailable": "Sesi ini sudah tidak tersedia.",
+        "agent_unavailable": "Agent yang dipilih tidak tersedia.",
+        "deepchat_agent_required": "Kolaborasi proaktif memerlukan DeepChat Agent.",
+        "regular_parent_required": "Kolaborasi proaktif tidak tersedia di dalam sesi anak.",
+        "agent_policy_unavailable": "Kebijakan kolaborasi tidak dapat dimuat.",
+        "subagents_disabled": "Aktifkan Subagents untuk Agent ini agar dapat menggunakan kolaborasi proaktif."
+      }
+    }
+  },
+  "guardStop": {
+    "maxToolCalls": "Batas pemanggilan alat tercapai sebelum tugas selesai.",
+    "noProgress": "Hasil alat yang sama berulang kali tidak memberi kemajuan, jadi Agent berhenti.",
+    "maxTurns": "Batas putaran penyedia tercapai sebelum tugas selesai.",
+    "continueMessage": "Lanjutkan dari tempat terakhir berhenti."
   }
 }

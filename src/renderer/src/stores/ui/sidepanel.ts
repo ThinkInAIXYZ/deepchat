@@ -1,7 +1,7 @@
-import { computed, onScopeDispose, reactive, ref } from 'vue'
+import { computed, reactive, ref } from 'vue'
 import { defineStore } from 'pinia'
-import { useStorage } from '@vueuse/core'
-import type { SidePanelTab, WorkspaceNavSection, WorkspaceViewMode } from '@shared/presenter'
+import { useEventListener, useStorage } from '@vueuse/core'
+import type { SidePanelTab, WorkspaceNavSection, WorkspaceViewMode } from '@shared/types/workspace'
 
 export interface WorkspaceArtifactContext {
   threadId: string
@@ -15,6 +15,13 @@ export interface WorkspaceSessionState {
   selectedDiffPath: string | null
   viewMode: WorkspaceViewMode
   sections: Record<WorkspaceNavSection, boolean>
+}
+
+export interface TapeInspectorOpenRequest {
+  token: number
+  sessionId: string
+  messageId?: string
+  requestSeq?: number
 }
 
 const createSessionState = (): WorkspaceSessionState => ({
@@ -39,7 +46,7 @@ export const useSidepanelStore = defineStore('sidepanel', () => {
 
   const clampWidth = (nextWidth: number) => {
     const maxWidth = resolveMaxWidth()
-    const minWidth = Math.min(420, maxWidth)
+    const minWidth = Math.min(360, maxWidth)
     const widthValue = Number(nextWidth)
     if (!Number.isFinite(widthValue)) {
       return Math.min(maxWidth, Math.max(minWidth, 520))
@@ -49,6 +56,8 @@ export const useSidepanelStore = defineStore('sidepanel', () => {
 
   const open = ref(false)
   const activeTab = ref<SidePanelTab>('workspace')
+  const mcpAppPreviewOwnerId = ref<string | null>(null)
+  const tapeInspectorOpenRequest = ref<TapeInspectorOpenRequest | null>(null)
   const width = useStorage('chat-sidepanel-width', 520)
   const sessionStates = reactive<Record<string, WorkspaceSessionState>>({})
 
@@ -85,14 +94,12 @@ export const useSidepanelStore = defineStore('sidepanel', () => {
     navCollapsed.value = !navCollapsed.value
   }
 
+  // Keep the original handler semantics; only replace listener lifecycle with VueUse.
   if (typeof window !== 'undefined') {
-    const handleResize = () => {
+    useEventListener(window, 'resize', () => {
       viewportWidth.value = window.innerWidth
       width.value = clampWidth(Number(width.value))
-    }
-
-    window.addEventListener('resize', handleResize)
-    onScopeDispose(() => window.removeEventListener('resize', handleResize))
+    })
   }
 
   const ensureSessionState = (sessionId: string): WorkspaceSessionState => {
@@ -124,6 +131,48 @@ export const useSidepanelStore = defineStore('sidepanel', () => {
   const openBrowser = () => {
     open.value = true
     activeTab.value = 'browser'
+  }
+
+  let nextTapeInspectorRequestToken = 0
+  const openTapeInspector = (
+    sessionId: string,
+    preselection?: { messageId: string; requestSeq?: number }
+  ) => {
+    const normalizedSessionId = sessionId.trim()
+    const messageId = preselection?.messageId.trim()
+    const requestSeq = preselection?.requestSeq
+    if (!normalizedSessionId || (preselection && !messageId)) return
+    tapeInspectorOpenRequest.value = {
+      token: ++nextTapeInspectorRequestToken,
+      sessionId: normalizedSessionId,
+      ...(messageId ? { messageId } : {}),
+      ...(typeof requestSeq === 'number' && Number.isInteger(requestSeq) && requestSeq > 0
+        ? { requestSeq }
+        : {})
+    }
+    open.value = true
+    activeTab.value = 'tape-inspector'
+  }
+
+  const openMcpAppPreview = (ownerId: string) => {
+    const normalizedOwnerId = ownerId.trim()
+    if (!normalizedOwnerId) {
+      return
+    }
+    mcpAppPreviewOwnerId.value = normalizedOwnerId
+    open.value = true
+    activeTab.value = 'mcp-app'
+  }
+
+  const closeMcpAppPreview = (ownerId: string) => {
+    if (mcpAppPreviewOwnerId.value !== ownerId) {
+      return
+    }
+    mcpAppPreviewOwnerId.value = null
+    if (activeTab.value === 'mcp-app') {
+      activeTab.value = 'workspace'
+      open.value = false
+    }
   }
 
   const closePanel = () => {
@@ -223,6 +272,8 @@ export const useSidepanelStore = defineStore('sidepanel', () => {
   return {
     open,
     activeTab,
+    mcpAppPreviewOwnerId,
+    tapeInspectorOpenRequest,
     width: normalizedWidth,
     navCollapsed,
     navWidth,
@@ -235,6 +286,9 @@ export const useSidepanelStore = defineStore('sidepanel', () => {
     setWidth,
     openWorkspace,
     openBrowser,
+    openTapeInspector,
+    openMcpAppPreview,
+    closeMcpAppPreview,
     closePanel,
     toggleWorkspace,
     setViewMode,

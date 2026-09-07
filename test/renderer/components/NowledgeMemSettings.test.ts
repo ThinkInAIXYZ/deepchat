@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { defineComponent } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
 
@@ -57,7 +57,19 @@ const findButtonByText = (wrapper: ReturnType<typeof mount>, text: string) => {
   return button
 }
 
+function deferred<T>() {
+  let resolve!: (value: T) => void
+  const promise = new Promise<T>((next) => {
+    resolve = next
+  })
+  return { promise, resolve }
+}
+
 describe('NowledgeMemSettings', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
   async function setup() {
     vi.resetModules()
 
@@ -67,31 +79,27 @@ describe('NowledgeMemSettings', () => {
         apiKey: 'loaded-key',
         timeout: 45000
       }),
-      updateConfig: vi.fn().mockResolvedValue({
-        baseUrl: 'http://127.0.0.1:14242',
-        apiKey: '',
-        timeout: 30000
-      }),
+      updateConfig: vi.fn(async (config) => config),
       testConnection: vi.fn().mockResolvedValue({
         success: true,
         message: 'Connection successful'
       })
     }
-    const toast = vi.fn()
+    const notifyRenderer = vi.fn(() => true)
 
     vi.doMock('@api/NowledgeMemClient', () => ({
       createNowledgeMemClient: () => nowledgeMemClient
     }))
-    vi.doMock('@/components/use-toast', () => ({
-      useToast: () => ({ toast })
+    vi.doMock('@renderer-notifications/rendererNotificationPort', () => ({
+      notifyRenderer
     }))
     vi.doMock('vue-i18n', () => ({
       useI18n: () => ({
         t: (key: string) => key
       })
     }))
-    vi.doMock('@shadcn/components/ui/button', () => ({
-      Button: buttonStub
+    vi.doMock('@dc-ui/components/button', () => ({
+      DcButton: buttonStub
     }))
     vi.doMock('@shadcn/components/ui/input', () => ({
       Input: inputStub
@@ -110,6 +118,9 @@ describe('NowledgeMemSettings', () => {
       global: {
         mocks: {
           $t: (key: string) => key
+        },
+        stubs: {
+          Icon: iconStub
         }
       }
     })
@@ -118,12 +129,12 @@ describe('NowledgeMemSettings', () => {
     return {
       wrapper,
       nowledgeMemClient,
-      toast
+      notifyRenderer
     }
   }
 
   it('loads, saves, tests, and resets through NowledgeMemClient', async () => {
-    const { wrapper, nowledgeMemClient, toast } = await setup()
+    const { wrapper, nowledgeMemClient, notifyRenderer } = await setup()
 
     await wrapper.find('.cursor-default').trigger('click')
     await flushPromises()
@@ -154,15 +165,105 @@ describe('NowledgeMemSettings', () => {
       apiKey: 'secret',
       timeout: 45000
     })
-    expect(nowledgeMemClient.testConnection).toHaveBeenCalledTimes(1)
-    expect(toast).toHaveBeenCalledWith({
-      title: 'settings.knowledgeBase.nowledgeMem.testConnection',
-      description: 'Connection successful'
+    expect(nowledgeMemClient.testConnection).toHaveBeenCalledWith({
+      baseUrl: 'http://127.0.0.1:14242',
+      apiKey: 'secret',
+      timeout: 45000
     })
     expect(nowledgeMemClient.updateConfig).toHaveBeenNthCalledWith(2, {
       baseUrl: 'http://127.0.0.1:14242',
       apiKey: '',
       timeout: 30000
     })
+    // 成功反馈走按钮 ✅ 态，不再弹 toast
+    expect(notifyRenderer).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
+
+  it('reports failed saves as an inline error and retries the same draft', async () => {
+    const { wrapper, nowledgeMemClient, notifyRenderer } = await setup()
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    const apiError = new Error('request rejected for loaded-key', {
+      cause: new Error('token loaded-key rejected')
+    })
+    nowledgeMemClient.updateConfig.mockRejectedValueOnce(apiError)
+
+    await wrapper.find('.cursor-default').trigger('click')
+    await wrapper.get('#baseUrl').setValue('http://changed.local')
+    await wrapper.get('[data-testid="nowledge-mem-save-button"]').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.get('[role="alert"]').text()).toContain(
+      'settings.knowledgeBase.nowledgeMem.configSaveFailed'
+    )
+    expect(notifyRenderer).not.toHaveBeenCalled()
+    expect(wrapper.text()).not.toContain('loaded-key')
+    expect(JSON.stringify(consoleError.mock.calls)).not.toContain('loaded-key')
+    const diagnosticError = consoleError.mock.calls.find(
+      ([message]) => message === '[NowledgeMemSettings] save configuration failed'
+    )?.[1]
+    expect(diagnosticError).toBeInstanceOf(Error)
+    expect(diagnosticError).toMatchObject({
+      name: 'Error',
+      message: 'request rejected for [redacted]',
+      cause: expect.objectContaining({
+        name: 'Error',
+        message: 'token [redacted] rejected'
+      })
+    })
+    expect((diagnosticError as Error).stack).not.toContain('loaded-key')
+    expect(wrapper.get('[data-testid="nowledge-mem-save-button"]').attributes('disabled')).toBe(
+      undefined
+    )
+
+    await wrapper.get('[data-testid="nowledge-mem-save-button"]').trigger('click')
+    await flushPromises()
+
+    expect(nowledgeMemClient.updateConfig).toHaveBeenCalledTimes(2)
+    // 重试成功走按钮 ✅ 态，内联错误清除
+    expect(notifyRenderer).not.toHaveBeenCalled()
+    expect(wrapper.find('[role="alert"]').exists()).toBe(false)
+    expect(wrapper.html()).not.toContain('settings.knowledgeBase.nowledgeMem.configSaveFailed')
+    wrapper.unmount()
+  })
+
+  it('explains invalid endpoints before save or connection testing', async () => {
+    const { wrapper, nowledgeMemClient } = await setup()
+
+    await wrapper.find('.cursor-default').trigger('click')
+    await wrapper.get('#baseUrl').setValue('file:///private/config')
+
+    expect(wrapper.get('#baseUrl').attributes('aria-invalid')).toBe('true')
+    expect(wrapper.get('[role="alert"]').text()).toBe(
+      'settings.knowledgeBase.nowledgeMem.invalidBaseUrl'
+    )
+    expect(
+      wrapper.get('[data-testid="nowledge-mem-save-button"]').attributes('disabled')
+    ).toBeDefined()
+    expect(
+      wrapper.get('[data-testid="nowledge-mem-test-button"]').attributes('disabled')
+    ).toBeDefined()
+    expect(nowledgeMemClient.updateConfig).not.toHaveBeenCalled()
+    expect(nowledgeMemClient.testConnection).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
+
+  it('locks the draft during a connection test and reports success on the button', async () => {
+    const { wrapper, nowledgeMemClient, notifyRenderer } = await setup()
+    const pending = deferred<{ success: boolean; message: string }>()
+    nowledgeMemClient.testConnection.mockReturnValueOnce(pending.promise)
+
+    await wrapper.find('.cursor-default').trigger('click')
+    await wrapper.get('[data-testid="nowledge-mem-test-button"]').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.get('#baseUrl').attributes('disabled')).toBeDefined()
+
+    pending.resolve({ success: true, message: 'Connection successful' })
+    await flushPromises()
+    // 成功反馈走按钮 ✅ 态
+    expect(notifyRenderer).not.toHaveBeenCalled()
+    expect(wrapper.get('#baseUrl').attributes('disabled')).toBeUndefined()
+    wrapper.unmount()
   })
 })

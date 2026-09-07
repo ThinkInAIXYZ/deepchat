@@ -48,17 +48,30 @@
         </div>
       </div>
 
+      <p
+        v-if="error"
+        role="alert"
+        class="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive"
+      >
+        {{ error }}
+      </p>
+
       <DialogFooter>
-        <Button type="button" variant="outline" @click="emit('update:open', false)">
+        <DcButton
+          type="button"
+          variant="outline"
+          :disabled="submitting"
+          @click="emit('update:open', false)"
+        >
           {{ t('dialog.cancel') }}
-        </Button>
-        <Button type="button" :disabled="confirmDisabled || submitting" @click="emit('confirm')">
+        </DcButton>
+        <DcButton type="button" :disabled="confirmDisabled || submitting" @click="emit('confirm')">
           {{
             submitting
               ? t('settings.provider.dialog.providerDeeplinkImport.confirming')
               : t('dialog.confirm')
           }}
-        </Button>
+        </DcButton>
       </DialogFooter>
     </DialogContent>
   </Dialog>
@@ -66,7 +79,7 @@
 
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
 import {
   Dialog,
   DialogContent,
@@ -75,7 +88,7 @@ import {
   DialogHeader,
   DialogTitle
 } from '@shadcn/components/ui/dialog'
-import type { ProviderInstallPreview } from '@shared/presenter'
+import type { ProviderInstallPreview } from '@shared/providerDeeplink'
 import ModelIcon from '@/components/icons/ModelIcon.vue'
 import { useThemeStore } from '@/stores/theme'
 
@@ -88,10 +101,12 @@ withDefaults(
     preview: ProviderInstallPreview | null
     confirmDisabled?: boolean
     submitting?: boolean
+    error?: string | null
   }>(),
   {
     confirmDisabled: false,
-    submitting: false
+    submitting: false,
+    error: null
   }
 )
 

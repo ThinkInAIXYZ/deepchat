@@ -20,7 +20,7 @@
         <!-- Project selector -->
         <DropdownMenu>
           <DropdownMenuTrigger as-child>
-            <Button
+            <DcButton
               variant="ghost"
               size="sm"
               data-testid="new-thread-project-trigger"
@@ -41,7 +41,7 @@
                 :title="selectedProjectUnavailableTooltip"
               />
               <Icon icon="lucide:chevron-down" class="w-3 h-3" />
-            </Button>
+            </DcButton>
           </DropdownMenuTrigger>
           <DropdownMenuContent
             align="center"
@@ -85,13 +85,12 @@
                 :title="selectedProjectUnavailableTooltip"
               />
             </DropdownMenuItem>
-            <DropdownMenuItem
-              class="gap-2 text-xs py-1.5 px-2"
-              @click="projectStore.openFolderPicker()"
-            >
-              <Icon icon="lucide:folder-open" class="w-3.5 h-3.5 text-muted-foreground" />
-              <span>{{ t('common.project.openFolder') }}</span>
-            </DropdownMenuItem>
+            <DcDropdownActionItem
+              icon="lucide:folder-open"
+              :label="t('common.project.openFolder')"
+              class="text-xs py-1.5 px-2"
+              @select="handleOpenFolderPicker"
+            />
           </DropdownMenuContent>
         </DropdownMenu>
 
@@ -100,16 +99,23 @@
           <ChatInputBox
             ref="chatInputRef"
             :class="activeChatGuide?.key === 'first-chat' ? 'relative z-30 rounded-2xl' : ''"
-            v-model="message"
+            :model-value="message"
             :files="attachedFiles"
             :session-id="acpDraftSessionId"
+            :agent-id="selectedAgent.id"
             :workspace-path="projectStore.selectedProject?.path ?? null"
             :is-acp-session="isAcpSelectedAgent"
-            :submit-disabled="isAcpWorkdirUnavailable"
+            :supports-vision="composerSupportsVision"
+            :editable="!isSubmittingInput"
+            :submit-disabled="isAcpWorkdirUnavailable || isSubmittingInput || isAcpAuthRequired"
+            :is-attachment-preparation-pending="isPreparingAttachments"
+            @update:model-value="onMessageChange"
             @update:files="onFilesChange"
             @pending-skills-change="onPendingSkillsChange"
+            @draft-change="recordComposerChange"
             @command-submit="onCommandSubmit"
             @submit="onSubmit"
+            @switch-vision-model="switchToVisionModel"
             @toggle-voice-input="onToggleVoiceInput"
           >
             <template #toolbar>
@@ -117,17 +123,45 @@
                 :show-voice-input="isVoiceInputEnabled"
                 :is-voice-input-listening="isVoiceInputListening"
                 :is-voice-input-transcribing="isVoiceInputTranscribing"
-                :send-disabled="isAcpWorkdirUnavailable || !message.trim()"
+                :show-search="isSearchAvailable"
+                :search-enabled="isSearchEnabled"
+                :has-input="hasDraftInput"
+                :send-disabled="
+                  isAcpWorkdirUnavailable ||
+                  isSubmittingInput ||
+                  isAcpAuthRequired ||
+                  !hasDraftInput
+                "
+                :is-preparing-attachments="isPreparingAttachments"
                 @attach="onAttach"
+                @toggle-search="toggleSearch"
                 @voice-input="onToggleVoiceInput"
                 @send="onSubmit"
+                @cancel-preparation="cancelSubmissionPreparation"
               />
             </template>
           </ChatInputBox>
         </div>
 
+        <div
+          v-if="acpAuthChallenge"
+          class="mt-3 w-full max-w-4xl flex items-center justify-between gap-4 rounded-lg border px-3 py-2"
+        >
+          <div class="min-w-0">
+            <div class="text-sm font-medium">
+              {{ t('settings.acp.auth.requiredTitle', { name: acpAuthChallenge.agentName }) }}
+            </div>
+            <div class="text-xs text-muted-foreground">
+              {{ t('settings.acp.auth.requiredDescription') }}
+            </div>
+          </div>
+          <DcButton size="sm" class="shrink-0" @click="acpAuthDialogOpen = true">
+            {{ t('settings.mcp.authenticate') }}
+          </DcButton>
+        </div>
+
         <!-- Status bar -->
-        <ChatStatusBar :acp-draft-session-id="acpDraftSessionId" />
+        <ChatStatusBar ref="chatStatusBarRef" :acp-draft-session-id="acpDraftSessionId" />
       </div>
 
       <GuidedOnboardingOverlay
@@ -151,6 +185,12 @@
         @expert="handleActiveChatGuideExpert"
         @primary="handleActiveChatGuidePrimary"
       />
+
+      <AcpAuthDialog
+        v-model:open="acpAuthDialogOpen"
+        :challenge="acpAuthChallenge"
+        @succeeded="handleAcpAuthSucceeded"
+      />
     </div>
   </TooltipProvider>
 </template>
@@ -158,9 +198,11 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref, toRaw, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRouter } from 'vue-router'
+import { nanoid } from 'nanoid'
 import { persistGuidedOnboardingResumeIntent } from '@/lib/onboardingResume'
 import { TooltipProvider } from '@shadcn/components/ui/tooltip'
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -169,30 +211,46 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger
 } from '@shadcn/components/ui/dropdown-menu'
+import { DcDropdownActionItem } from '@dc-ui/components/dropdown-action-item'
 import { Icon } from '@iconify/vue'
 import ChatInputBox from '@/components/chat/ChatInputBox.vue'
 import ChatInputToolbar from '@/components/chat/ChatInputToolbar.vue'
 import ChatStatusBar from '@/components/chat/ChatStatusBar.vue'
-import { useToast } from '@/components/use-toast'
+import AcpAuthDialog from '@/components/acp/AcpAuthDialog.vue'
+import {
+  openChatStatusBarModelPicker,
+  switchAttachmentToVisionModel,
+  type ChatStatusBarModelPicker
+} from '@/components/chat/attachmentModelPicker'
+import { notifyRenderer } from '@renderer-notifications/rendererNotificationPort'
 import { useProjectStore } from '@/stores/ui/project'
 import { useSessionStore } from '@/stores/ui/session'
 import { useAgentStore } from '@/stores/ui/agent'
 import { useModelStore } from '@/stores/modelStore'
 import { useDraftStore, type StartDeeplinkPayload } from '@/stores/ui/draft'
+import {
+  useNewThreadComposerDraft,
+  type ComposerHandle
+} from '@/composables/useNewThreadComposerDraft'
+import type { ComposerSubmissionSnapshot } from '@/features/chat-page/model/composerDraftState'
 import { createConfigClient } from '@api/ConfigClient'
 import { createFileClient } from '@api/FileClient'
 import { createModelClient } from '@api/ModelClient'
+import { createProviderClient } from '@api/ProviderClient'
 import { createSessionClient } from '@api/SessionClient'
+import { createChatClient } from '@api/ChatClient'
 import GuidedOnboardingOverlay from '@/components/onboarding/GuidedOnboardingOverlay.vue'
 import { useGuidedOnboardingStep } from '@/composables/useGuidedOnboardingStep'
 import { resolveGuidedOnboardingStepTarget } from '@shared/guidedOnboarding'
 import { DEFAULT_DISABLED_AGENT_TOOLS } from '@shared/agentTools'
+import { DEFAULT_ORCHESTRATION_POLICY } from '@shared/orchestration/policy'
 import type {
   DeepChatAgentConfig,
   MessageFile,
   UserMessageInlineItem,
   SessionGenerationSettings
 } from '@shared/types/agent-interface'
+import type { AcpAuthChallenge } from '@shared/types/acp'
 import { normalizeDeepChatSubagentConfig } from '@shared/lib/deepchatSubagents'
 import {
   resolveChatModelByQuery,
@@ -202,6 +260,9 @@ import {
 import { scheduleStartupDeferredTask } from '@/lib/startupDeferred'
 import { isManualCompactionCommand } from '@/components/chat/mentions/utils'
 import { filterUnsupportedAudioAttachments } from '@/lib/audioInputSupport'
+import { isAbortError } from '@/lib/errors'
+import { isAttachmentPreparationCandidate } from '@shared/utils/attachmentRepresentation'
+import { normalizeWorkspacePath } from '@shared/utils/filesystem'
 import { useSpeechRecognition } from '@/components/chat/composables/useSpeechRecognition'
 import { cancelChatInputHeroFlight, prepareChatInputHeroFlight } from '@/lib/chatInputHero'
 
@@ -211,44 +272,80 @@ const agentStore = useAgentStore()
 const modelStore = useModelStore()
 const draftStore = useDraftStore()
 const configClient = createConfigClient()
+const router = useRouter()
 const fileClient = createFileClient()
 const modelClient = createModelClient()
+const providerClient = createProviderClient()
 const sessionClient = createSessionClient()
+const chatClient = createChatClient()
 const { t } = useI18n()
-const { toast } = useToast()
 const switchAgentGuide = useGuidedOnboardingStep('switch-agent')
 const switchModelGuide = useGuidedOnboardingStep('switch-model')
 const firstChatGuide = useGuidedOnboardingStep('first-chat')
 
 type SubmissionModelSelection = { providerId: string; modelId: string }
+type ActiveNewThreadSubmission = {
+  submissionId: string
+  agentId: string
+  draft: ComposerSubmissionSnapshot
+  cancelled: boolean
+  mainDispatched: boolean
+}
 
-const message = ref('')
-const attachedFiles = ref<MessageFile[]>([])
-const pendingSkills = ref<string[]>([])
+const isSubmittingInput = ref(false)
+const isPreparingAttachments = ref(false)
+const acpAuthChallenge = ref<AcpAuthChallenge | null>(null)
+const acpAuthDialogOpen = ref(false)
+const isAcpAuthRequired = computed(() => Boolean(acpAuthChallenge.value))
+const activeSubmission = ref<ActiveNewThreadSubmission | null>(null)
 const guideRootRef = ref<HTMLElement | null>(null)
 const agentGuideTargetRef = ref<HTMLElement | null>(null)
 const modelGuideTargetRef = ref<HTMLElement | null>(null)
 const firstChatGuideHostRef = ref<HTMLElement | null>(null)
 const firstChatGuideTargetRef = ref<HTMLElement | null>(null)
 const isVoiceInputEnabled = ref(false)
-const chatInputRef = ref<{
-  triggerAttach: () => void
-  insertRecognizedText?: (text: string) => void
-  getInlineItemsSnapshot?: () => UserMessageInlineItem[]
-  getPendingSkillsSnapshot?: () => string[]
-  clearPendingSkills?: () => void
-  focusInput?: () => void
-} | null>(null)
+const isProviderSearchAvailable = ref(false)
+const searchIntent = ref(false)
+const isSearchAvailable = computed(
+  () => !isAcpSelectedAgent.value && isProviderSearchAvailable.value
+)
+const isSearchEnabled = computed(() => isSearchAvailable.value && searchIntent.value)
+const chatInputRef = ref<
+  | (ComposerHandle & {
+      triggerAttach: () => void
+      insertRecognizedText?: (text: string) => void
+      getInlineItemsSnapshot?: () => UserMessageInlineItem[]
+      focusInput?: () => void
+    })
+  | null
+>(null)
+const {
+  message,
+  attachedFiles,
+  onMessageChange,
+  onPendingSkillsChange,
+  recordComposerChange,
+  captureDraft,
+  acceptSubmission
+} = useNewThreadComposerDraft(() => agentStore.selectedAgentId, chatInputRef)
+const chatStatusBarRef = ref<ChatStatusBarModelPicker | null>(null)
 const acpDraftSessionId = ref<string | null>(null)
 const acpDraftModelSelection = ref<SubmissionModelSelection | null>(null)
 const lastAcpDraftKey = ref<string | null>(null)
 const acpDraftRequestSeq = ref(0)
 const isCompletingSwitchAgentGuide = ref(false)
 let currentDraftDefaultsTask: Promise<void> | null = null
+let draftDefaultsRequestSeq = 0
 let cancelEnsureDraftTask: (() => void) | null = null
 let voiceInputConfigToken = 0
+let searchCapabilityToken = 0
+let resolvedSearchCapabilityKey = ''
 let attachmentFilterToken = 0
 const availableAgents = computed(() => (Array.isArray(agentStore.agents) ? agentStore.agents : []))
+const hasDraftInput = computed(
+  () =>
+    message.value.trim().length > 0 || (!isAcpSelectedAgent.value && attachedFiles.value.length > 0)
+)
 
 const resolveChatInputBoxElement = () =>
   (firstChatGuideHostRef.value?.querySelector(
@@ -261,18 +358,20 @@ const handleVoiceInputError = (code: string) => {
   }
 
   if (code === 'not-allowed' || code === 'service-not-allowed' || code === 'audio-capture') {
-    toast({
+    notifyRenderer({
+      kind: 'error',
+      code: 'chat.voice.permissionDenied',
       title: t('chat.input.voiceRecognitionPermissionDeniedTitle'),
-      description: t('chat.input.voiceRecognitionPermissionDeniedDescription'),
-      variant: 'destructive'
+      description: t('chat.input.voiceRecognitionPermissionDeniedDescription')
     })
     return
   }
 
-  toast({
+  notifyRenderer({
+    kind: 'error',
+    code: 'chat.voice.recognitionFailed',
     title: t('chat.input.voiceRecognitionErrorTitle'),
-    description: t('chat.input.voiceRecognitionErrorDescription'),
-    variant: 'destructive'
+    description: t('chat.input.voiceRecognitionErrorDescription')
   })
 }
 
@@ -281,7 +380,7 @@ const voiceInput = useSpeechRecognition({
     chatInputRef.value?.insertRecognizedText?.(text)
   },
   transcribe: async ({ audioBase64, mimeType, filename }) => {
-    const explicitSelection = resolveVoiceInputSelection()
+    const explicitSelection = resolveExplicitDraftModelSelection()
     const selection = explicitSelection ?? (modelStore.initialized ? await resolveModel() : null)
     if (!selection) {
       throw new Error('transcription-target-unavailable')
@@ -296,10 +395,11 @@ const voiceInput = useSpeechRecognition({
     )
   },
   onUnsupported: () => {
-    toast({
+    notifyRenderer({
+      kind: 'warning',
+      code: 'chat.voice.unsupported',
       title: t('chat.input.voiceRecognitionUnsupportedTitle'),
-      description: t('chat.input.voiceRecognitionUnsupportedDescription'),
-      variant: 'destructive'
+      description: t('chat.input.voiceRecognitionUnsupportedDescription')
     })
   },
   onError: handleVoiceInputError
@@ -338,15 +438,27 @@ const selectedAgent = computed(() => {
 })
 const isAcpSelectedAgent = computed(() => selectedAgent.value.type === 'acp')
 const isDeepChatSelectedAgent = computed(() => selectedAgent.value.type === 'deepchat')
+const composerSupportsVision = computed<boolean | null>(() => {
+  if (
+    isAcpSelectedAgent.value ||
+    !modelStore.initialized ||
+    !draftStore.providerId ||
+    !draftStore.modelId
+  ) {
+    return null
+  }
+  return (
+    modelStore.findChatSelectableModel(draftStore.providerId, draftStore.modelId)?.model.vision ??
+    null
+  )
+})
 const normalizeProjectPath = (value: string | null | undefined) => {
   const normalized = value?.trim()
   return normalized ? normalized : null
 }
-const normalizeComparableProjectPath = (value: string | null | undefined) =>
-  normalizeProjectPath(value)?.replace(/[\\/]+$/, '') ?? null
 const isDefaultChatWorkspaceProject = (path: string | null | undefined) => {
-  const chatWorkspacePath = normalizeComparableProjectPath(projectStore.defaultChatWorkspacePath)
-  return Boolean(chatWorkspacePath) && normalizeComparableProjectPath(path) === chatWorkspacePath
+  const chatWorkspacePath = normalizeWorkspacePath(projectStore.defaultChatWorkspacePath)
+  return Boolean(chatWorkspacePath) && normalizeWorkspacePath(path) === chatWorkspacePath
 }
 const selectedProjectPath = computed(() => normalizeProjectPath(projectStore.selectedProject?.path))
 const archivedProjectPaths = computed(
@@ -533,6 +645,10 @@ const continueChatGuide = async (
 ) => {
   const stepId = state?.status === 'completed' ? 'first-chat' : state?.currentStepId
   const target = resolveGuidedOnboardingStepTarget(stepId)
+  if (target?.surface === 'plugins' && target.routeName === 'plugins-skills') {
+    await router.push({ name: target.routeName })
+    return
+  }
   if (target?.surface !== 'settings' || !target.routeName) {
     return
   }
@@ -663,7 +779,7 @@ async function resolveModel(): Promise<SubmissionModelSelection | null> {
   return null
 }
 
-function resolveVoiceInputSelection(): SubmissionModelSelection | null {
+function resolveExplicitDraftModelSelection(): SubmissionModelSelection | null {
   if (isAcpSelectedAgent.value) {
     return null
   }
@@ -708,7 +824,7 @@ async function refreshVoiceInputAvailability() {
     return
   }
 
-  const explicitSelection = resolveVoiceInputSelection()
+  const explicitSelection = resolveExplicitDraftModelSelection()
   const selection = explicitSelection ?? (modelStore.initialized ? await resolveModel() : null)
 
   if (!selection) {
@@ -738,16 +854,72 @@ async function refreshVoiceInputAvailability() {
   }
 }
 
+function toggleSearch(): void {
+  if (!isSearchAvailable.value) return
+  searchIntent.value = !searchIntent.value
+}
+
+async function refreshSearchAvailability(): Promise<void> {
+  const token = ++searchCapabilityToken
+  let selectionKey = ''
+
+  if (isAcpSelectedAgent.value) {
+    resolvedSearchCapabilityKey = ''
+    isProviderSearchAvailable.value = false
+    return
+  }
+
+  try {
+    const explicitSelection = resolveExplicitDraftModelSelection()
+    const selection = explicitSelection ?? (modelStore.initialized ? await resolveModel() : null)
+    if (token !== searchCapabilityToken || !selection) {
+      if (token === searchCapabilityToken) {
+        resolvedSearchCapabilityKey = ''
+        isProviderSearchAvailable.value = false
+      }
+      return
+    }
+
+    selectionKey = `${selection.providerId}:${selection.modelId}`
+    if (selectionKey !== resolvedSearchCapabilityKey) {
+      isProviderSearchAvailable.value = false
+    }
+    const capabilities = await modelClient.getCapabilities(selection)
+    if (token !== searchCapabilityToken) {
+      return
+    }
+    resolvedSearchCapabilityKey = selectionKey
+    isProviderSearchAvailable.value =
+      capabilities.supportsSearch === true && capabilities.searchExecution === 'provider'
+  } catch (error) {
+    if (token !== searchCapabilityToken) {
+      return
+    }
+    resolvedSearchCapabilityKey = selectionKey
+    isProviderSearchAvailable.value = false
+    console.warn('[NewThreadPage] Failed to resolve provider search capability:', error)
+  }
+}
+
 watch(
   () => [selectedAgent.value.id, draftStore.providerId, draftStore.modelId, modelStore.initialized],
   () => {
     void refreshVoiceInputAvailability()
+    void refreshSearchAvailability()
   },
   { immediate: true }
 )
 
 const removeModelConfigChangedListener = modelClient.onModelConfigChanged(() => {
   void refreshVoiceInputAvailability()
+  void refreshSearchAvailability()
+})
+const removeProvidersChangedListener = providerClient.onProvidersChanged((payload) => {
+  const selection = resolveExplicitDraftModelSelection()
+  if (selection && payload.providerIds && !payload.providerIds.includes(selection.providerId)) {
+    return
+  }
+  void refreshSearchAvailability()
 })
 
 const normalizeStartMention = (mention: string): string => {
@@ -772,54 +944,128 @@ const resolveStartModelSelection = (
     : null
 }
 
+const isCurrentStartDeeplink = (token: number): boolean =>
+  draftStore.pendingStartDeeplink?.token === token
+
 const applyStartDeeplink = async (payload: StartDeeplinkPayload) => {
   const draftDefaultsTask = currentDraftDefaultsTask
   if (draftDefaultsTask) {
     await draftDefaultsTask
+    if (!isCurrentStartDeeplink(payload.token)) return
   }
 
   await nextTick()
+  if (!isCurrentStartDeeplink(payload.token)) return
+
   message.value = buildStartMessage(payload)
   draftStore.systemPrompt = payload.systemPrompt
 
   const modelsReady = await ensureEnabledModelsReady()
+  if (!isCurrentStartDeeplink(payload.token)) return
+
   const matchedModel = modelsReady ? resolveStartModelSelection(payload.modelId) : null
   if (matchedModel) {
     draftStore.providerId = matchedModel.providerId
     draftStore.modelId = matchedModel.modelId
   }
 
-  draftStore.clearPendingStartDeeplink()
+  if (isCurrentStartDeeplink(payload.token)) {
+    draftStore.clearPendingStartDeeplink()
+  }
 }
 
 async function onSubmit() {
-  if (isAcpWorkdirUnavailable.value) return
-
+  if (isAcpWorkdirUnavailable.value || isSubmittingInput.value) return
   const text = message.value.trim()
-  if (!text) return
+  if (!text && (isAcpSelectedAgent.value || attachedFiles.value.length === 0)) return
   if (shouldIgnoreManualCompactionDraft(text)) return
-  const files = (await prepareFilesForCurrentModel([...attachedFiles.value])).map((f) => toRaw(f))
+  const submission: ActiveNewThreadSubmission = {
+    submissionId: nanoid(),
+    agentId: selectedAgent.value.id,
+    draft: {
+      ...captureDraft(),
+      inlineItems: chatInputRef.value?.getInlineItemsSnapshot?.() ?? [],
+      clearText: true
+    },
+    cancelled: false,
+    mainDispatched: false
+  }
+  activeSubmission.value = submission
+  const search = isSearchEnabled.value
+  isSubmittingInput.value = true
+  isPreparingAttachments.value =
+    !isAcpSelectedAgent.value && attachedFiles.value.some(isAttachmentPreparationCandidate)
 
   try {
-    await submitText(text, files)
-    message.value = ''
-    attachedFiles.value = []
+    const files = (await prepareFilesForCurrentModel(submission.draft.files)).map((f) => toRaw(f))
+    if (submission.cancelled) return
+    submission.draft.files = files
+    if (await submitText(text, files, submission, search)) {
+      acceptSubmission(submission.agentId, submission.draft)
+    }
   } catch (e) {
-    console.error('[NewThreadPage] submit failed:', e)
+    if (!(submission.cancelled && isAbortError(e))) {
+      console.error('[NewThreadPage] submit failed:', e)
+      notifyRenderer({
+        kind: 'error',
+        code: 'chat.attachment.uploadFailed',
+        title: t('chat.input.fileUploadFailed'),
+        description: e instanceof Error ? e.message : String(e)
+      })
+    }
+  } finally {
+    if (activeSubmission.value?.submissionId === submission.submissionId) {
+      activeSubmission.value = null
+      isSubmittingInput.value = false
+      isPreparingAttachments.value = false
+    }
   }
 }
 
 async function onCommandSubmit(command: string) {
-  if (isAcpWorkdirUnavailable.value) return
+  if (isAcpWorkdirUnavailable.value || isSubmittingInput.value) return
   const text = command.trim()
   if (!text) return
   if (shouldIgnoreManualCompactionDraft(text)) return
-  const files = (await prepareFilesForCurrentModel([...attachedFiles.value])).map((f) => toRaw(f))
+  const submission: ActiveNewThreadSubmission = {
+    submissionId: nanoid(),
+    agentId: selectedAgent.value.id,
+    draft: {
+      ...captureDraft(),
+      inlineItems: chatInputRef.value?.getInlineItemsSnapshot?.() ?? [],
+      clearText: false
+    },
+    cancelled: false,
+    mainDispatched: false
+  }
+  activeSubmission.value = submission
+  const search = isSearchEnabled.value
+  isSubmittingInput.value = true
+  isPreparingAttachments.value =
+    !isAcpSelectedAgent.value && attachedFiles.value.some(isAttachmentPreparationCandidate)
   try {
-    await submitText(text, files)
-    attachedFiles.value = []
+    const files = (await prepareFilesForCurrentModel(submission.draft.files)).map((f) => toRaw(f))
+    if (submission.cancelled) return
+    submission.draft.files = files
+    if (await submitText(text, files, submission, search)) {
+      acceptSubmission(submission.agentId, submission.draft)
+    }
   } catch (e) {
-    console.error('[NewThreadPage] submit failed:', e)
+    if (!(submission.cancelled && isAbortError(e))) {
+      console.error('[NewThreadPage] submit failed:', e)
+      notifyRenderer({
+        kind: 'error',
+        code: 'chat.attachment.uploadFailed',
+        title: t('chat.input.fileUploadFailed'),
+        description: e instanceof Error ? e.message : String(e)
+      })
+    }
+  } finally {
+    if (activeSubmission.value?.submissionId === submission.submissionId) {
+      activeSubmission.value = null
+      isSubmittingInput.value = false
+      isPreparingAttachments.value = false
+    }
   }
 }
 
@@ -827,36 +1073,47 @@ function shouldIgnoreManualCompactionDraft(text: string): boolean {
   return !isAcpSelectedAgent.value && isManualCompactionCommand(text)
 }
 
-async function submitText(text: string, files: MessageFile[]) {
-  if (!text.trim()) return
-  if (isAcpWorkdirUnavailable.value) return
+async function submitText(
+  text: string,
+  files: MessageFile[],
+  submission: ActiveNewThreadSubmission,
+  search: boolean
+): Promise<boolean> {
+  if (!text.trim() && files.length === 0) return false
+  if (isAcpWorkdirUnavailable.value) return false
+  const isAcp = isAcpSelectedAgent.value
+  if (isAcp && !text.trim()) return false
 
   const preparedHeroFlight = prepareChatInputHeroFlight(resolveChatInputBoxElement())
 
-  const agentId = selectedAgent.value.id
-  const isAcp = isAcpSelectedAgent.value
+  const agentId = submission.agentId
+  const projectDir = selectedSessionProjectDir.value
+  const targetAcpSessionId = acpDraftSessionId.value
   const draftPermissionMode = draftStore.permissionMode
   const draftDisabledAgentTools = [...draftStore.disabledAgentTools]
-  const draftSubagentEnabled = draftStore.subagentEnabled
+  const draftOrchestrationPolicy = draftStore.orchestrationPolicy
+  const draftToolModeOverride = draftStore.toolModeOverride
   const draftGenerationSettings = draftStore.toGenerationSettings()
 
   try {
-    const pendingSkillsSnapshot =
-      chatInputRef.value?.getPendingSkillsSnapshot?.() ?? pendingSkills.value
-    const dedupedPendingSkills = Array.from(new Set(pendingSkillsSnapshot))
-    const inlineItems = chatInputRef.value?.getInlineItemsSnapshot?.() ?? []
+    const dedupedPendingSkills = Array.from(new Set(submission.draft.activeSkills))
+    const inlineItems = submission.draft.inlineItems
     const messagePayload = {
       text,
       files,
+      ...(search ? { search: true } : {}),
       ...(dedupedPendingSkills.length > 0 ? { activeSkills: dedupedPendingSkills } : {}),
       ...(inlineItems.length > 0 ? { inlineItems } : {})
     }
 
-    if (isAcp && acpDraftSessionId.value) {
-      await sessionStore.selectSession(acpDraftSessionId.value)
-      await sessionStore.sendMessage(acpDraftSessionId.value, messagePayload)
-      chatInputRef.value?.clearPendingSkills?.()
-      return
+    if (isAcp && targetAcpSessionId) {
+      await sessionStore.selectSession(targetAcpSessionId)
+      if (submission.cancelled) {
+        if (preparedHeroFlight) cancelChatInputHeroFlight()
+        return false
+      }
+      await sessionStore.sendMessage(targetAcpSessionId, messagePayload)
+      return true
     }
 
     let providerId: string | undefined
@@ -872,32 +1129,64 @@ async function submitText(text: string, files: MessageFile[]) {
         if (preparedHeroFlight) {
           cancelChatInputHeroFlight()
         }
-        return
+        return false
       }
       providerId = resolved.providerId
       modelId = resolved.modelId
     }
 
-    await sessionStore.createSession({
+    if (submission.cancelled) {
+      if (preparedHeroFlight) cancelChatInputHeroFlight()
+      return false
+    }
+
+    const createInput = {
       message: messagePayload.text,
       files: messagePayload.files,
+      ...(messagePayload.search ? { search: true } : {}),
       inlineItems: messagePayload.inlineItems,
-      projectDir: selectedSessionProjectDir.value,
+      projectDir,
       agentId,
       providerId,
       modelId,
       permissionMode: draftPermissionMode,
       disabledAgentTools: isAcp ? undefined : draftDisabledAgentTools,
-      subagentEnabled: isAcp ? false : draftSubagentEnabled,
+      orchestrationPolicy: isAcp ? DEFAULT_ORCHESTRATION_POLICY : draftOrchestrationPolicy,
+      toolModeOverride: isAcp ? undefined : draftToolModeOverride,
       generationSettings: draftGenerationSettings,
       activeSkills: messagePayload.activeSkills
-    })
-    chatInputRef.value?.clearPendingSkills?.()
+    }
+    const submissionOptions =
+      !isAcp && files.some(isAttachmentPreparationCandidate)
+        ? {
+            submissionId: submission.submissionId,
+            isCancellationRequested: () => submission.cancelled
+          }
+        : undefined
+    submission.mainDispatched = Boolean(submissionOptions)
+    if (submissionOptions) {
+      await sessionStore.createSession(createInput, submissionOptions)
+    } else {
+      await sessionStore.createSession(createInput)
+    }
+    return true
   } catch (error) {
     if (preparedHeroFlight) {
       cancelChatInputHeroFlight()
     }
     throw error
+  }
+}
+
+function cancelSubmissionPreparation(): void {
+  const submission = activeSubmission.value
+  if (!submission || !isPreparingAttachments.value) return
+  submission.cancelled = true
+  cancelChatInputHeroFlight()
+  if (submission.mainDispatched) {
+    void chatClient.cancelSubmission(submission.submissionId).catch((error) => {
+      console.warn('[NewThreadPage] cancel attachment preparation failed:', error)
+    })
   }
 }
 
@@ -925,16 +1214,25 @@ const resolveDeepChatAgentConfig = async (agentId: string): Promise<DeepChatAgen
   })
 }
 
-const applyDraftDefaultsForSelectedAgent = async (): Promise<void> => {
+const applyDraftDefaultsForSelectedAgent = async (requestSeq: number): Promise<void> => {
   const agentId = selectedAgent.value.id
   const globalDefaultProjectPath = normalizeProjectPath(projectStore.defaultProjectPath)
   const currentProjectPath = normalizeProjectPath(projectStore.selectedProject?.path)
+  const selectedProjectSource = projectStore.selectionSource
+  const pendingProjectDirIntent = sessionStore.newConversationProjectDirIntent
+  const projectDirIntent =
+    pendingProjectDirIntent && !pendingProjectDirIntent.consumed
+      ? {
+          id: pendingProjectDirIntent.id,
+          projectDir: normalizeProjectPath(pendingProjectDirIntent.projectDir)
+        }
+      : null
   draftStore.agentId = agentId
   draftStore.providerId = undefined
   draftStore.modelId = undefined
   draftStore.permissionMode = 'full_access'
   draftStore.disabledAgentTools = [...DEFAULT_DISABLED_AGENT_TOOLS]
-  draftStore.subagentEnabled = false
+  draftStore.orchestrationPolicy = DEFAULT_ORCHESTRATION_POLICY
   draftStore.systemPrompt = undefined
   draftStore.temperature = undefined
   draftStore.topP = undefined
@@ -950,8 +1248,12 @@ const applyDraftDefaultsForSelectedAgent = async (): Promise<void> => {
   draftStore.videoGeneration = undefined
 
   if (selectedAgent.value.type === 'acp') {
-    const resolvedProjectPath = currentProjectPath ?? globalDefaultProjectPath
-    if (!currentProjectPath && globalDefaultProjectPath) {
+    const resolvedProjectPath = projectDirIntent
+      ? projectDirIntent.projectDir
+      : (currentProjectPath ?? globalDefaultProjectPath)
+    if (projectDirIntent) {
+      projectStore.selectProject(projectDirIntent.projectDir, 'manual')
+    } else if (!currentProjectPath && globalDefaultProjectPath) {
       projectStore.selectProject(globalDefaultProjectPath, 'default')
     }
     draftStore.projectDir = resolvedProjectPath ?? undefined
@@ -959,20 +1261,34 @@ const applyDraftDefaultsForSelectedAgent = async (): Promise<void> => {
     draftStore.modelId = agentId
     draftStore.permissionMode = 'full_access'
     draftStore.disabledAgentTools = []
-    draftStore.subagentEnabled = false
+    if (projectDirIntent) {
+      sessionStore.consumeNewConversationProjectDirIntent(projectDirIntent.id)
+    }
     return
   }
 
   const config = await resolveDeepChatAgentConfig(agentId)
+  if (requestSeq !== draftDefaultsRequestSeq) {
+    return
+  }
   const agentDefaultProjectPath = normalizeProjectPath(config.defaultProjectPath)
-  const resolvedProjectPath =
-    agentDefaultProjectPath ?? currentProjectPath ?? globalDefaultProjectPath
-  if (agentDefaultProjectPath) {
+  const currentSelectedProjectPath = normalizeProjectPath(projectStore.selectedProject?.path)
+  const canApplyProjectDefault =
+    currentSelectedProjectPath === currentProjectPath &&
+    projectStore.selectionSource === selectedProjectSource
+  const resolvedProjectPath = projectDirIntent
+    ? projectDirIntent.projectDir
+    : canApplyProjectDefault
+      ? (agentDefaultProjectPath ?? currentProjectPath ?? globalDefaultProjectPath)
+      : currentSelectedProjectPath
+  if (projectDirIntent) {
+    projectStore.selectProject(projectDirIntent.projectDir, 'manual')
+  } else if (canApplyProjectDefault && agentDefaultProjectPath) {
     projectStore.selectProject(
       agentDefaultProjectPath,
       agentDefaultProjectPath === globalDefaultProjectPath ? 'default' : 'manual'
     )
-  } else if (!currentProjectPath && globalDefaultProjectPath) {
+  } else if (canApplyProjectDefault && !currentProjectPath && globalDefaultProjectPath) {
     projectStore.selectProject(globalDefaultProjectPath, 'default')
   }
   draftStore.projectDir = resolvedProjectPath ?? undefined
@@ -980,12 +1296,22 @@ const applyDraftDefaultsForSelectedAgent = async (): Promise<void> => {
   draftStore.modelId = config.defaultModelPreset?.modelId
   draftStore.permissionMode = config.permissionMode === 'default' ? 'default' : 'full_access'
   draftStore.disabledAgentTools = [...(config.disabledAgentTools ?? DEFAULT_DISABLED_AGENT_TOOLS)]
-  draftStore.subagentEnabled = config.subagentEnabled === true
   Object.assign(draftStore, buildDraftGenerationSettings(config))
+  if (projectDirIntent) {
+    sessionStore.consumeNewConversationProjectDirIntent(projectDirIntent.id)
+  }
 }
 
 function onAttach() {
   chatInputRef.value?.triggerAttach()
+}
+
+function openAttachmentModelPicker(): void {
+  openChatStatusBarModelPicker(chatStatusBarRef, 'NewThreadPage')
+}
+
+function switchToVisionModel(): void {
+  switchAttachmentToVisionModel(cancelSubmissionPreparation, openAttachmentModelPicker)
 }
 
 function onToggleVoiceInput() {
@@ -1008,7 +1334,9 @@ function notifyUnsupportedAudioAttachments(
     modelStore.findChatSelectableModel(selection.providerId, selection.modelId)?.model.name ??
     selection.modelId
 
-  toast({
+  notifyRenderer({
+    kind: 'warning',
+    code: 'chat.audio.unsupported',
     title: t('chat.input.audioInputUnsupportedTitle'),
     description: t('chat.input.audioInputUnsupportedDescription', {
       count: rejectedAudioFiles.length,
@@ -1024,8 +1352,8 @@ async function prepareFilesForCurrentModel(files: MessageFile[]): Promise<Messag
   }
 
   try {
-    const capabilities = await modelClient.getCapabilities(selection.providerId, selection.modelId)
-    if (capabilities.supportsAudioInput !== false) {
+    const capabilities = await modelClient.getCapabilities(selection)
+    if (capabilities.supportsAudioInput) {
       return files
     }
 
@@ -1040,6 +1368,7 @@ async function prepareFilesForCurrentModel(files: MessageFile[]): Promise<Messag
 
 async function onFilesChange(files: MessageFile[]) {
   const token = ++attachmentFilterToken
+  attachedFiles.value = files
   const filteredFiles = await prepareFilesForCurrentModel(files)
   if (token !== attachmentFilterToken) {
     return
@@ -1048,15 +1377,29 @@ async function onFilesChange(files: MessageFile[]) {
   attachedFiles.value = filteredFiles
 }
 
-function onPendingSkillsChange(skills: string[]) {
-  pendingSkills.value = [...skills]
-}
-
 function clearSelectedProject() {
   projectStore.selectProject(null, 'manual')
 }
 
-const ensureAcpDraftSession = async (agentId: string, projectPath: string) => {
+async function handleOpenFolderPicker() {
+  try {
+    await projectStore.openFolderPicker()
+  } catch (error) {
+    console.warn('[NewThreadPage] Failed to open folder picker:', error)
+    notifyRenderer({
+      kind: 'error',
+      code: 'chat.workspace.selectFailed',
+      title: t('common.error.operationFailed'),
+      description: t('common.error.requestFailed')
+    })
+  }
+}
+
+const ensureAcpDraftSession = async (
+  agentId: string,
+  projectPath: string,
+  openAuthDialog = true
+) => {
   const projectDir = projectPath.trim()
   if (!projectDir) return
 
@@ -1073,7 +1416,7 @@ const ensureAcpDraftSession = async (agentId: string, projectPath: string) => {
   const requestSeq = ++acpDraftRequestSeq.value
 
   try {
-    const session = await sessionClient.ensureAcpDraftSession({
+    const result = await sessionClient.ensureAcpDraftSession({
       agentId,
       projectDir,
       permissionMode: draftStore.permissionMode
@@ -1086,6 +1429,15 @@ const ensureAcpDraftSession = async (agentId: string, projectPath: string) => {
     if (currentAgentId !== agentId || currentProjectDir !== projectDir) {
       return
     }
+    if (result.status === 'auth_required') {
+      acpDraftSessionId.value = result.session.id
+      acpDraftModelSelection.value = { providerId: 'acp', modelId: agentId }
+      acpAuthChallenge.value = result.challenge
+      acpAuthDialogOpen.value = openAuthDialog
+      lastAcpDraftKey.value = null
+      return
+    }
+    const session = result.session
     const sessionId = typeof session?.id === 'string' ? session.id.trim() : ''
     if (!sessionId) {
       console.warn('[NewThreadPage] ensureAcpDraftSession returned invalid session:', session)
@@ -1102,6 +1454,8 @@ const ensureAcpDraftSession = async (agentId: string, projectPath: string) => {
       session.modelId.trim()
         ? { providerId: session.providerId.trim(), modelId: session.modelId.trim() }
         : { providerId: 'acp', modelId: agentId }
+    acpAuthChallenge.value = null
+    acpAuthDialogOpen.value = false
     lastAcpDraftKey.value = draftKey
   } catch (error) {
     if (requestSeq !== acpDraftRequestSeq.value) {
@@ -1161,6 +1515,8 @@ watch(
       acpDraftSessionId.value = null
       acpDraftModelSelection.value = null
       lastAcpDraftKey.value = null
+      acpAuthChallenge.value = null
+      acpAuthDialogOpen.value = false
       return
     }
     cancelEnsureDraftTask = scheduleStartupDeferredTask(async () => {
@@ -1170,10 +1526,37 @@ watch(
   { immediate: true }
 )
 
+async function handleAcpAuthSucceeded() {
+  const agentId = agentStore.selectedAgentId
+  const projectPath = projectStore.selectedProject?.path?.trim()
+  acpAuthDialogOpen.value = false
+  acpAuthChallenge.value = null
+  if (!agentId || !projectPath) return
+  await ensureAcpDraftSession(agentId, projectPath, false)
+}
+
 watch(
-  () => [selectedAgent.value.id, selectedAgent.value.type] as const,
+  () => selectedAgent.value.id,
   () => {
-    const task = applyDraftDefaultsForSelectedAgent().finally(() => {
+    attachmentFilterToken += 1
+    cancelSubmissionPreparation()
+    if (activeSubmission.value) activeSubmission.value.cancelled = true
+    activeSubmission.value = null
+    isSubmittingInput.value = false
+    isPreparingAttachments.value = false
+  },
+  { flush: 'sync' }
+)
+
+watch(
+  [
+    () => selectedAgent.value.id,
+    () => selectedAgent.value.type,
+    () => sessionStore.newConversationProjectDirIntent?.id ?? 0
+  ],
+  () => {
+    const requestSeq = ++draftDefaultsRequestSeq
+    const task = applyDraftDefaultsForSelectedAgent(requestSeq).finally(() => {
       if (currentDraftDefaultsTask === task) {
         currentDraftDefaultsTask = null
       }
@@ -1210,7 +1593,14 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  attachmentFilterToken += 1
+  cancelSubmissionPreparation()
+  searchCapabilityToken += 1
+  resolvedSearchCapabilityKey = ''
+  isProviderSearchAvailable.value = false
+  searchIntent.value = false
   removeModelConfigChangedListener()
+  removeProvidersChangedListener()
   voiceInput.cleanup()
   cancelEnsureDraftTask?.()
   cancelEnsureDraftTask = null

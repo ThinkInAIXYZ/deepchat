@@ -13,19 +13,34 @@
   "notImplementedDesc": "このサプライヤーはまだプレビューできません",
   "provider": "サプライヤー",
   "model": "モデル",
-  "title": "リクエストパラメータプレビュー",
+  "title": "メッセージ診断",
   "tabs": {
     "request": "リクエスト",
     "view": "ビュー",
     "entries": "エントリ",
-    "budget": "予算"
+    "budget": "予算",
+    "execution": "実行監査"
   },
   "empty": "診断情報なし",
-  "emptyDesc": "このメッセージにはリクエストトレースまたはビューマニフェストがありません",
+  "emptyDesc": "このメッセージにはリクエストトレース、Tape ビューマニフェスト、ネストされた実行監査がありません",
   "requestUnavailable": "リクエストトレースなし",
   "requestUnavailableDesc": "このメッセージには保存済みのプロバイダーリクエストトレースがありません",
   "manifestUnavailable": "ビューマニフェストなし",
   "manifestUnavailableDesc": "このメッセージには保存済みの Tape ビューマニフェストがありません",
+  "execution": {
+    "empty": "ネストされた実行はありません",
+    "emptyDesc": "このリクエストにはプログラムによるツール操作が記録されていません",
+    "corrupt": "実行監査が破損しています",
+    "corruptDesc": "ネストされた Journal の事実が競合しているか、検証できません",
+    "unavailable": "実行監査を利用できません",
+    "unavailableDesc": "ネストされた Journal の事実を読み取れませんでした",
+    "truncated": "ネストされた操作のうち最初の 256 件のみ表示しています",
+    "status": {
+      "success": "成功",
+      "error": "エラー",
+      "indeterminate": "不確定"
+    }
+  },
   "viewId": "ビュー ID",
   "policy": "ポリシー",
   "policyVersion": "ポリシーバージョン",

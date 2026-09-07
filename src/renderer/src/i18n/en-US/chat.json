@@ -63,12 +63,99 @@
         "yobrowser": "YoBrowser"
       }
     },
+    "toolMode": {
+      "title": "Mode",
+      "modelDefault": "Model default",
+      "options": {
+        "agent": "Agent",
+        "code": "Code",
+        "minimal": "Minimal"
+      },
+      "descriptions": {
+        "agent": "Use the standard Agent tool set.",
+        "code": "Compose enabled tools through code. Requires Full Access permission mode.",
+        "minimal": "Simplify file operations while keeping other enabled tools."
+      },
+      "useModelDefault": "Use model default",
+      "saving": "Saving mode...",
+      "locked": "You can switch modes after this response finishes.",
+      "updateFailed": "The tool mode could not be updated.",
+      "codeEntry": "Code entry",
+      "codeCallable": "Code-callable",
+      "minimalTools": "Coding tools"
+    },
     "fileUploadFailed": "Attachment failed",
     "fileUploadFailedDesc": "Could not process {count} files: {names}",
     "fileUploadFailedMore": " and {count} more",
     "unnamedFile": "unnamed file",
     "audioInputUnsupportedTitle": "Current model does not support audio attachments",
     "audioInputUnsupportedDescription": "Model {model} does not support audio input. Ignored {count} audio attachment(s)."
+  },
+  "messageReceipt": {
+    "unread": "Unread",
+    "read": "Read"
+  },
+  "attachments": {
+    "chooseRepresentation": "Choose how to send {name}",
+    "representation": "Attachment representation",
+    "auto": "Auto",
+    "sendImage": "Send image",
+    "useOcrText": "Use OCR text",
+    "useEmbeddedText": "Use embedded text",
+    "preparing": "Preparing attachments...",
+    "actionRequiredTitle": "Attachment needs attention",
+    "actionRequiredDescription": "One or more attachments cannot be used. Choose how to continue.",
+    "attachmentNumber": "Attachment {number}",
+    "moreIssues": "{count} more attachment issue(s)",
+    "genericUnavailable": "No usable attachment content is available.",
+    "keepDraft": "Keep draft",
+    "switchVisionModel": "Switch vision model",
+    "retry": "Retry",
+    "sendWithoutImageContent": "Skip attachment content",
+    "inspectOcrText": "Inspect OCR text",
+    "ocrBadge": "OCR",
+    "embeddedTextBadge": "Text",
+    "ocrPartialBadge": "OCR · Partial",
+    "ocrLimitedBadge": "OCR · Limited",
+    "imageBadge": "Image",
+    "unavailableBadge": "Unavailable",
+    "ocrPreviewTitle": "OCR text — {name}",
+    "ocrPreviewDescription": "Approximately {tokens} tokens were sent as untrusted attachment content.",
+    "ocrPageCoverage": "Includes text through page {page}.",
+    "ocrPageCoveragePartial": "Includes part of page {page}.",
+    "ocrTextTruncated": "This OCR text was truncated before it was sent.",
+    "reasons": {
+      "automatic_ocr_disabled": "Automatic OCR is turned off.",
+      "document_limit_exceeded": "Only one PDF can use OCR in each request.",
+      "document_too_large": "The PDF exceeds the file size limit.",
+      "image_dimensions_exceeded": "The decoded image dimensions exceed the safety limit.",
+      "image_limit_exceeded": "This turn contains more images than OCR can process.",
+      "image_payload_unavailable": "The original image data is no longer available.",
+      "image_too_large": "The image exceeds the per-file size limit.",
+      "ocr_cancelled": "OCR was cancelled.",
+      "ocr_empty": "OCR did not find any usable text.",
+      "ocr_failed": "OCR could not process this attachment.",
+      "ocr_queue_full": "OCR is busy. Try again after the current attachment finishes.",
+      "ocr_resource_limited": "OCR stopped at the PDF processing limit.",
+      "ocr_runtime_unavailable": "OCR is not available on this platform or installation.",
+      "invalid_attachment_snapshot": "Saved OCR data is invalid.",
+      "turn_ocr_budget_exhausted": "OCR text exceeds this message's attachment text limit.",
+      "pdf_text_unavailable": "No embedded text is available in this PDF.",
+      "requested_image_requires_vision": "Send image requires a model with vision support.",
+      "turn_image_bytes_exceeded": "The images in this turn exceed the total size limit.",
+      "user_skipped_attachment_content": "Attachment content was omitted at your request.",
+      "user_skipped_image_content": "Image content was omitted at your request.",
+      "unsupported_image_format": "This image format is not supported for OCR."
+    },
+    "pending": {
+      "blockedCount": "{count} blocked",
+      "blocked": "Blocked",
+      "retry": "Retry OCR",
+      "sendWithoutImageContent": "Skip attachment content",
+      "blockedDescription": "This item is waiting for an attachment decision.",
+      "blockedReasonMore": "{reason} And {count} more issue(s).",
+      "resolveFailed": "Could not resolve the blocked message"
+    }
   },
   "skillDraft": {
     "confirmationTitle": "Skill Draft",
@@ -101,7 +188,13 @@
     "limitReached": "Waiting lane is full (max {max}).",
     "remove": "Remove",
     "steerUnavailable": "Can't interrupt right now",
-    "steerFailed": "Couldn't interrupt this turn"
+    "steerFailed": "Couldn't interrupt this turn",
+    "resume": "Resume queue",
+    "resumeFailed": "Couldn't resume the queue",
+    "retry": "Retry",
+    "retryRequired": "Retry required",
+    "retryRequiredDescription": "This message wasn't sent. Retry it to continue the queue.",
+    "retryFailed": "Couldn't retry the queued message"
   },
   "features": {
     "webSearch": "Web Search",
@@ -135,10 +228,19 @@
   "compaction": {
     "compacting": "Compacting context...",
     "compacted": "Context was compacted",
+    "compactedWithoutSummary": "Context was compacted without a summary",
+    "compactedWithoutLargerSummary": "Context was compacted without using a larger summary",
     "commandDescription": "Compact conversation context",
     "noopTitle": "No context to compact",
     "noopDescription": "There is no new conversation history to compact yet.",
     "failedTitle": "Compaction failed"
+  },
+  "contextOccupancy": {
+    "label": "Context usage",
+    "details": "{used} of {capacity} tokens",
+    "provider": "Provider measured",
+    "estimated": "Estimated from the request view",
+    "stale": "Stale after a model, window, or compaction change"
   },
   "rateLimit": {
     "queueTooltip": "{count} requests in queue, {interval}s interval",
@@ -180,7 +282,8 @@
   "mode": {
     "current": "Current mode: {mode}",
     "agent": "Agent",
-    "acpAgent": "ACP Agent"
+    "acpAgent": "ACP Agent",
+    "saveFailed": "Failed to save mode selection"
   },
   "topbar": {
     "backToParent": "Back to Parent",
@@ -197,7 +300,6 @@
     "systemPrompt": "System Prompt",
     "systemPromptPlaceholder": "Select a preset",
     "temperature": "Temperature",
-    "temperatureFixedMoonshotKimi": "Moonshot Kimi K2.5/K2.6 fixes temperature to {enabled} when thinking is enabled and {disabled} when it is disabled.",
     "topP": "Top P",
     "topPDescription": "Nucleus sampling; leave blank to use provider default",
     "contextLength": "Context Length",
@@ -279,8 +381,14 @@
       },
       "contextMenu": {
         "openFile": "Open file",
+        "openWith": "Open with",
+        "openInApp": "Open in {app}",
+        "openInTerminalApp": "Open folder in {app}",
+        "openFailed": "Could not open the file with that application",
+        "preferredAppUnavailable": "Preferred app is unavailable right now. Opening with the system default.",
         "revealInFolder": "Show in file manager",
-        "insertPath": "Insert into input"
+        "insertPath": "Insert into input",
+        "openWithSystemDefault": "Open with system default"
       },
       "watchStatus": {
         "degraded": "Watching in fallback mode. Changes may refresh slower.",
@@ -360,6 +468,11 @@
     "searchCommand": "Search",
     "chatSection": "Chat",
     "workspace": "Workspace",
+    "addWorkspace": "Add workspace",
+    "manageWorkspaces": "Manage workspaces",
+    "openWorkspaceFolder": "Open folder",
+    "emptyWorkspace": "Empty",
+    "addWorkspaceFailed": "Failed to add workspace",
     "remoteControlDisabled": "Disabled",
     "remoteControlStatus": {
       "disabled": "Remote control disabled",
@@ -383,7 +496,8 @@
     "searchPlaceholder": "Search chats",
     "searchAriaLabel": "Search chats",
     "searchEmptyTitle": "No matching conversations",
-    "searchEmptyDescription": "Try a different title keyword"
+    "searchEmptyDescription": "Try a different title keyword",
+    "searchLoadedRangeDescription": "Showing matches from loaded conversations. Scroll to load more history."
   },
   "spotlight": {
     "placeholder": "Search chats, agents, settings, actions…",
@@ -459,6 +573,14 @@
       "dropped": "Dropped",
       "tokens": "Tokens",
       "budget": "Budget",
+      "allocation": "Contribution budget allocation",
+      "directive": "Directive",
+      "persona": "Persona",
+      "working": "Working",
+      "queryRecall": "Query recall",
+      "overhead": "Overhead",
+      "unused": "Unused",
+      "overheadSummary": "Overhead {overhead} · Unused {unused}",
       "countOnly": "This record only has a count summary.",
       "unavailable": "This memory is no longer available.",
       "noSelectedDetails": "There are no memory details to show for this turn.",
@@ -485,5 +607,27 @@
       "amendRetryable": "The edit failed. The original memory was restored, so you can retry.",
       "amendRestoreFailed": "The edit failed, and the original memory could not be restored."
     }
+  },
+  "orchestration": {
+    "actions": { "openChild": "Open child" },
+    "activityTitle": "Agent activity",
+    "proactive": {
+      "title": "Proactive collaboration",
+      "description": "Allows the parent Agent to delegate when independent or parallel work would clearly help. May use more time, tokens, and resources.",
+      "reasons": {
+        "session_unavailable": "This session is no longer available.",
+        "agent_unavailable": "The selected Agent is unavailable.",
+        "deepchat_agent_required": "Proactive collaboration requires a DeepChat Agent.",
+        "regular_parent_required": "Proactive collaboration is unavailable inside a child session.",
+        "agent_policy_unavailable": "The collaboration policy could not be loaded.",
+        "subagents_disabled": "Enable Subagents for this Agent to use proactive collaboration."
+      }
+    }
+  },
+  "guardStop": {
+    "maxToolCalls": "The tool-call limit was reached before the task finished.",
+    "noProgress": "Repeated identical tool results produced no progress, so the Agent stopped.",
+    "maxTurns": "The provider-round limit was reached before the task finished.",
+    "continueMessage": "Continue from where you left off."
   }
 }

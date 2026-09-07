@@ -1,40 +1,65 @@
+import type { ProviderSettingsPort } from '@/provider/settings'
+import type { FileServicePort } from '@shared/types/file'
+import type { SkillServicePort } from '@shared/types/skill'
+import type { WorkspaceServicePort } from '@shared/types/workspace'
+import type { SkillSyncServicePort } from '@shared/types/skillSync'
+import type { RemoteServicePort } from '@shared/types/remote'
+import type { IConversationExporter } from '@/exporter/interface'
+import type { McpServicePort } from '@shared/types/mcp'
+import type { ProviderRuntimePort } from '@shared/types/provider'
 import type {
-  IAgentSessionPresenter,
-  IConfigPresenter,
-  IConversationExporter,
-  IDevicePresenter,
-  IFilePresenter,
-  IKnowledgePresenter,
-  ILlmProviderPresenter,
-  IMCPPresenter,
-  IOAuthPresenter,
-  IProjectPresenter,
-  IRemoteControlPresenter,
-  ISQLitePresenter,
   IShortcutPresenter,
-  ISkillPresenter,
   ITabPresenter,
   IWindowPresenter,
-  IWorkspacePresenter,
-  IYoBrowserPresenter,
-  ISkillSyncPresenter
-} from '@shared/presenter'
+  IYoBrowserPresenter
+} from '@shared/types/desktop'
+import type { MainDatabase } from '@/data/mainDatabase'
+import type { TapeInspectionReader } from '@/tape/ports/capabilities'
+import type { OAuthServicePort } from '@shared/types/oauth'
+import type { DialogServicePort } from '@shared/types/dialog'
+import type { DeviceServicePort } from '@shared/types/device'
+import type { KnowledgeServicePort } from '@shared/types/knowledge'
 import type { CronJob, CronJobRun } from '@shared/cronJobs'
-import type { CronJobRunSessionStarter } from '@/presenter/cronJobs'
+import { projectEnvironmentsChangedEvent } from '@shared/contracts/events/project.events'
+import { DEEPCHAT_EVENT_CHANNEL } from '@shared/contracts/channels'
+import { createDeepchatEventEnvelope, type DeepchatEventPublisher } from '@shared/contracts/events'
 import type { ProviderInstallPreview } from '@shared/providerDeeplink'
+import type { AgentCommandShellConfig } from '@shared/commandShell'
 import {
   createEmptyArchiveCandidateLifecyclePreview,
   createEmptyMemoryHealth,
   decodeMemoryPageCursor
 } from '@shared/contracts/routes'
-import { createMainKernelRouteRuntime, dispatchDeepchatRoute } from '@/routes'
-import { setDeepchatEventWindowPresenter } from '@/routes/publishDeepchatEvent'
-import { killTerminal, writeToTerminal } from '@/presenter/configPresenter/acpInitHelper'
-
-vi.mock('@/presenter/configPresenter/acpInitHelper', () => ({
-  writeToTerminal: vi.fn(),
-  killTerminal: vi.fn()
-}))
+import { createRouteDispatcher, dispatchDeepchatRoute } from '@/routes'
+import { createRendererRouteContext, type RouteContext } from '@/routes/routeRegistry'
+import { createNodeScheduler } from '@/routes/scheduler'
+import { ProviderImportService } from '@/provider/providerImportService'
+import { createProviderRoutes } from '@/provider/routes'
+import { createToolRoutes } from '@/tool/routes'
+import { createPluginRoutes } from '@/plugin/routes'
+import { createSkillRoutes } from '@/skill/routes'
+import { createMcpRoutes } from '@/mcp/routes'
+import { createRemoteRoutes } from '@/remote/routes'
+import { createSchedulerRoutes } from '@/scheduler/routes'
+import { createMemoryRoutes } from '@/memory/routes'
+import { createDesktopRoutes } from '@/desktop/routes'
+import { createFileRoutes } from '@/file/routes'
+import { createKnowledgeRoutes } from '@/knowledge/routes'
+import { createWorkspaceRoutes } from '@/workspace/routes'
+import { createProjectRoutes } from '@/project/routes'
+import { createSessionRoutes } from '@/session/routes'
+import { createAgentRoutes } from '@/agent/routes'
+import { createPromptRoutes } from '@/agent/promptRoutes'
+import { createAcpRoutes } from '@/agent/acp/routes'
+import { createDeviceRoutes } from '@/device/routes'
+import { createOnboardingRoutes } from '@/onboarding/routes'
+import { createExporterRoutes } from '@/exporter/routes'
+import { createSyncRoutes } from '@/sync/routes'
+import { createUpgradeRoutes } from '@/upgrade/routes'
+import { createPlatformRoutes } from '@/platform/routes'
+import { createHookRoutes } from '@/hook/routes'
+import { createAppSettingsRoutes } from '@/app/settingsRoutes'
+import { createAppRoutes } from '@/app/routes'
 
 type MockWindow = {
   id: number
@@ -89,6 +114,9 @@ const { browserWindowState } = vi.hoisted(() => {
 })
 
 vi.mock('electron', () => ({
+  app: {
+    isPackaged: false
+  },
   BrowserWindow: {
     fromId: (windowId: number) => browserWindowState.windows.get(windowId) ?? null,
     fromWebContents: (webContents: { id: number }) =>
@@ -113,15 +141,19 @@ function createRuntime() {
     contentProtectionEnabled: false,
     privacyModeEnabled: false,
     notificationsEnabled: true,
+    floatingButtonEnabled: false,
     launchAtLoginEnabled: false,
     traceDebugEnabled: false,
     copyWithCotEnabled: true,
     loggingEnabled: false,
+    ocrAutoExtractForNonVisionModels: true,
+    ocrBackend: 'auto' as 'auto' | 'cpu',
     proxyMode: 'system' as 'system' | 'none' | 'custom',
     customProxyUrl: '',
     updateChannel: 'stable' as 'stable' | 'beta',
     skillDraftSuggestionsEnabled: false,
-    defaultProjectPath: null as string | null
+    defaultProjectPath: null as string | null,
+    agentCommandShell: { preference: 'auto' } as AgentCommandShellConfig
   }
   const knowledgeConfigs = [
     {
@@ -241,52 +273,11 @@ function createRuntime() {
     loading: false
   }
 
-  const configPresenter = {
+  const providerSettings = {
     getSetting: vi.fn((key: keyof typeof settings) => settings[key]),
     setSetting: vi.fn((key: keyof typeof settings, value: unknown) => {
       ;(settings as Record<string, unknown>)[key] = value
     }),
-    getFontFamily: vi.fn(() => settings.fontFamily),
-    setFontFamily: vi.fn((value?: string | null) => {
-      settings.fontFamily = value ?? ''
-    }),
-    getCodeFontFamily: vi.fn(() => settings.codeFontFamily),
-    setCodeFontFamily: vi.fn((value?: string | null) => {
-      settings.codeFontFamily = value ?? ''
-    }),
-    getAutoScrollEnabled: vi.fn(() => settings.autoScrollEnabled),
-    setAutoScrollEnabled: vi.fn((value: boolean) => {
-      settings.autoScrollEnabled = value
-    }),
-    getAutoCompactionEnabled: vi.fn(() => settings.autoCompactionEnabled),
-    setAutoCompactionEnabled: vi.fn((value: boolean) => {
-      settings.autoCompactionEnabled = value
-    }),
-    getAutoCompactionTriggerThreshold: vi.fn(() => settings.autoCompactionTriggerThreshold),
-    setAutoCompactionTriggerThreshold: vi.fn((value: number) => {
-      settings.autoCompactionTriggerThreshold = value
-    }),
-    getAutoCompactionRetainRecentPairs: vi.fn(() => settings.autoCompactionRetainRecentPairs),
-    setAutoCompactionRetainRecentPairs: vi.fn((value: number) => {
-      settings.autoCompactionRetainRecentPairs = value
-    }),
-    getContentProtectionEnabled: vi.fn(() => settings.contentProtectionEnabled),
-    setContentProtectionEnabled: vi.fn((value: boolean) => {
-      settings.contentProtectionEnabled = value
-    }),
-    getPrivacyModeEnabled: vi.fn(() => settings.privacyModeEnabled),
-    setPrivacyModeEnabled: vi.fn((value: boolean) => {
-      settings.privacyModeEnabled = value
-    }),
-    getNotificationsEnabled: vi.fn(() => settings.notificationsEnabled),
-    setNotificationsEnabled: vi.fn((value: boolean) => {
-      settings.notificationsEnabled = value
-    }),
-    getLaunchAtLoginEnabled: vi.fn(() => settings.launchAtLoginEnabled),
-    setLaunchAtLoginEnabled: vi.fn((value: boolean) => {
-      settings.launchAtLoginEnabled = value
-    }),
-    getSystemFonts: vi.fn().mockResolvedValue(['Inter', 'JetBrains Mono']),
     getProviderModels: vi.fn(() => [
       {
         id: 'gpt-5.4',
@@ -297,49 +288,10 @@ function createRuntime() {
     ]),
     getCustomModels: vi.fn(() => []),
     getAgentType: vi.fn(async (agentId: string) => (agentId === 'deepchat' ? 'deepchat' : null)),
-    getCopyWithCotEnabled: vi.fn(() => settings.copyWithCotEnabled),
-    setCopyWithCotEnabled: vi.fn((value: boolean) => {
-      settings.copyWithCotEnabled = value
-    }),
-    getLoggingEnabled: vi.fn(() => settings.loggingEnabled),
-    setLoggingEnabled: vi.fn((value: boolean) => {
-      settings.loggingEnabled = value
-    }),
-    getProxyMode: vi.fn(() => settings.proxyMode),
-    setProxyMode: vi.fn((mode: 'system' | 'none' | 'custom') => {
-      settings.proxyMode = mode
-    }),
-    getCustomProxyUrl: vi.fn(() => settings.customProxyUrl),
-    setCustomProxyUrl: vi.fn((url: string) => {
-      settings.customProxyUrl = url
-    }),
-    getDefaultProjectPath: vi.fn(() => settings.defaultProjectPath),
-    setDefaultProjectPath: vi.fn((projectPath: string | null) => {
-      settings.defaultProjectPath = projectPath
-    }),
-    openLoggingFolder: vi.fn().mockResolvedValue(undefined),
-    getUpdateChannel: vi.fn(() => settings.updateChannel),
-    setUpdateChannel: vi.fn((channel: 'stable' | 'beta') => {
-      settings.updateChannel = channel
-    }),
-    getSkillDraftSuggestionsEnabled: vi.fn(() => settings.skillDraftSuggestionsEnabled),
-    setSkillDraftSuggestionsEnabled: vi.fn((enabled: boolean) => {
-      settings.skillDraftSuggestionsEnabled = enabled
-    }),
     refreshProviderDb: vi.fn().mockResolvedValue({
       status: 'updated',
       lastUpdated: 123,
       providersCount: 2
-    }),
-    getHooksNotificationsConfig: vi.fn(() => hooksNotifications),
-    setHooksNotificationsConfig: vi.fn((config: typeof hooksNotifications) => {
-      hooksNotifications.hooks = [...config.hooks]
-      return hooksNotifications
-    }),
-    testHookCommand: vi.fn().mockResolvedValue({
-      success: true,
-      durationMs: 10,
-      exitCode: 0
     }),
     getAcpEnabled: vi.fn().mockImplementation(async () => acpEnabled),
     setAcpEnabled: vi.fn().mockImplementation(async (enabled: boolean) => {
@@ -372,14 +324,12 @@ function createRuntime() {
         source: 'manual'
       })),
     removeManualAcpAgent: vi.fn().mockResolvedValue(true),
-    setTraceDebugEnabled: vi.fn((value: boolean) => {
-      settings.traceDebugEnabled = value
-    }),
-    getKnowledgeConfigs: vi.fn(() => knowledgeConfigs),
-    setKnowledgeConfigs: vi.fn((configs: typeof knowledgeConfigs) => {
-      knowledgeConfigs.splice(0, knowledgeConfigs.length, ...configs)
-    }),
     listAgents: vi.fn().mockImplementation(async () => agents),
+    getAgent: vi
+      .fn()
+      .mockImplementation(
+        async (agentId: string) => agents.find((agent) => agent.id === agentId) ?? null
+      ),
     createDeepChatAgent: vi.fn().mockImplementation(async (input: { name: string }) => {
       const agent = {
         id: 'writer',
@@ -414,81 +364,214 @@ function createRuntime() {
       }
       agents.splice(index, 1)
       return true
+    }),
+    deleteDeepChatAgentWithCleanup: vi.fn().mockImplementation(async (agentId: string) => {
+      const removed = await providerSettings.deleteDeepChatAgent(agentId)
+      return { removed, cleanupPendingRestart: false }
     })
-  } as unknown as IConfigPresenter
+  } as unknown as ProviderSettingsPort
 
-  const agentSessionPresenter = {
-    getActiveSessionId: vi.fn(() => null),
-    getLightweightSessionsByIds: vi.fn().mockResolvedValue([]),
-    createDetachedSession: vi.fn().mockResolvedValue({
-      id: 'session-1',
-      agentId: 'deepchat',
-      title: 'New Chat',
-      projectDir: '/workspace',
-      isPinned: false,
-      isDraft: false,
-      sessionKind: 'regular',
-      parentSessionId: null,
-      subagentEnabled: false,
-      subagentMeta: null,
-      createdAt: 1,
-      updatedAt: 2,
-      status: 'idle',
-      providerId: 'openai',
-      modelId: 'gpt-5.4'
+  const sessionSnapshot = {
+    id: 'session-1',
+    agentId: 'deepchat',
+    title: 'Restored',
+    projectDir: '/workspace',
+    isPinned: false,
+    isDraft: false,
+    sessionKind: 'regular' as const,
+    parentSessionId: null,
+    subagentMeta: null,
+    orchestrationPolicy: 'explicit' as const,
+    createdAt: 1,
+    updatedAt: 2,
+    status: 'idle' as const,
+    providerId: 'openai',
+    modelId: 'gpt-5.4'
+  }
+  const sessionLifecyclePort = {
+    createSession: vi.fn().mockResolvedValue({ ...sessionSnapshot, title: 'New Chat' }),
+    createDetachedSession: vi.fn().mockResolvedValue(sessionSnapshot),
+    createSubagentSession: vi.fn().mockResolvedValue(sessionSnapshot),
+    ensureAcpDraftSession: vi.fn().mockResolvedValue({
+      status: 'ready',
+      session: sessionSnapshot
     }),
-    createSession: vi.fn().mockResolvedValue({
-      id: 'session-1',
-      agentId: 'deepchat',
-      title: 'New Chat',
-      projectDir: '/workspace',
-      isPinned: false,
-      isDraft: false,
-      sessionKind: 'regular',
-      parentSessionId: null,
-      subagentEnabled: false,
-      subagentMeta: null,
-      createdAt: 1,
-      updatedAt: 2,
-      status: 'idle',
-      providerId: 'openai',
-      modelId: 'gpt-5.4'
+    forkSession: vi.fn().mockResolvedValue(sessionSnapshot),
+    deleteSession: vi.fn().mockResolvedValue(undefined)
+  }
+  const sessionProjectionPort = {
+    getSession: vi.fn().mockResolvedValue(sessionSnapshot),
+    listSessions: vi.fn().mockResolvedValue([]),
+    listMessagesPage: vi.fn().mockResolvedValue({
+      messages: [
+        {
+          id: 'message-1',
+          sessionId: 'session-1',
+          orderSeq: 1,
+          role: 'user' as const,
+          content: '{"text":"hello"}',
+          status: 'sent' as const,
+          isContextEdge: 0,
+          metadata: '{}',
+          createdAt: 1,
+          updatedAt: 1
+        }
+      ],
+      nextCursor: null,
+      hasMore: false
     }),
-    getSession: vi.fn().mockResolvedValue({
-      id: 'session-1',
-      agentId: 'deepchat',
-      title: 'Restored',
-      projectDir: '/workspace',
-      isPinned: false,
-      isDraft: false,
-      sessionKind: 'regular',
-      parentSessionId: null,
-      subagentEnabled: false,
-      subagentMeta: null,
-      createdAt: 1,
-      updatedAt: 2,
-      status: 'idle',
-      providerId: 'openai',
-      modelId: 'gpt-5.4'
+    listLightweight: vi.fn().mockResolvedValue({
+      sessions: [],
+      nextCursor: null,
+      hasMore: false
     }),
-    getMessages: vi.fn().mockResolvedValue([
-      {
-        id: 'message-1',
+    getLightweightByIds: vi.fn().mockResolvedValue([]),
+    getSearchResults: vi.fn().mockResolvedValue([]),
+    requireSession: vi.fn((sessionId: string) => {
+      if (sessionId !== 'session-1') throw new Error(`Session not found: ${sessionId}`)
+      return sessionSnapshot
+    }),
+    getTapeContext: vi.fn().mockResolvedValue({ entries: [] }),
+    listTapeInspectorPage: vi.fn().mockResolvedValue({
+      status: 'ok',
+      tapeIncarnationId: 'incarnation-1',
+      snapshotMaxEntryId: 0,
+      records: [],
+      nextCursor: null
+    }),
+    listTapeInspectorEvidence: vi
+      .fn()
+      .mockResolvedValue({ records: [], nextCursor: null, newerCursor: null }),
+    resolveTapeInspectorEvidenceEntries: vi.fn().mockResolvedValue({
+      status: 'ok',
+      tapeIncarnationId: 'incarnation-1',
+      resolutions: [
+        {
+          messageId: 'message-1',
+          requestSeq: 2,
+          physicalAttempt: 0,
+          entryId: 4
+        }
+      ]
+    }),
+    getTapeInspectorRecordDetail: vi.fn().mockResolvedValue({
+      status: 'not_found',
+      tapeIncarnationId: 'incarnation-1'
+    }),
+    exportTapeInspectorSupportTrace: vi.fn().mockResolvedValue({
+      status: 'reset',
+      tapeIncarnationId: 'incarnation-1',
+      snapshotMaxEntryId: 0
+    }),
+    listMessageTraces: vi.fn().mockResolvedValue([]),
+    listMessageViewManifests: vi.fn().mockResolvedValue([]),
+    listNestedExecutionAudit: vi.fn().mockResolvedValue({
+      schemaVersion: 1,
+      state: 'available',
+      operations: [],
+      truncated: false
+    }),
+    renameSession: vi.fn().mockResolvedValue(undefined),
+    toggleSessionPinned: vi.fn().mockResolvedValue(undefined),
+    getMessage: vi.fn().mockResolvedValue({
+      id: 'message-1',
+      sessionId: 'session-1',
+      orderSeq: 1,
+      role: 'user' as const,
+      content: '{"text":"hello"}',
+      status: 'sent' as const,
+      isContextEdge: 0,
+      metadata: '{}',
+      createdAt: 1,
+      updatedAt: 1
+    })
+  }
+  const desktopSessionBinding = {
+    activate: vi.fn().mockResolvedValue(undefined),
+    deactivate: vi.fn().mockResolvedValue(undefined),
+    getActive: vi.fn().mockResolvedValue(null),
+    getActiveId: vi.fn((): string | null => null)
+  }
+  const sessionTurnPort = {
+    sendMessage: vi.fn().mockResolvedValue({
+      requestId: 'message-2',
+      messageId: 'message-2'
+    }),
+    steerActiveTurn: vi.fn().mockResolvedValue({
+      requestId: null,
+      messageId: null,
+      userMessage: {
+        id: 'steer-user-message',
         sessionId: 'session-1',
-        orderSeq: 1,
-        role: 'user',
-        content: '{"text":"hello"}',
-        status: 'sent',
+        orderSeq: 2,
+        role: 'user' as const,
+        content: '{"text":"refine the active answer"}',
+        status: 'pending' as const,
         isContextEdge: 0,
-        metadata: '{}',
-        createdAt: 1,
-        updatedAt: 1
+        metadata: '{"inputReceipt":{"mode":"steer","readAt":null}}',
+        createdAt: 2,
+        updatedAt: 2
       }
-    ]),
-    getSessionList: vi.fn().mockResolvedValue([]),
-    getActiveSession: vi.fn().mockResolvedValue(null),
-    activateSession: vi.fn().mockResolvedValue(undefined),
-    deactivateSession: vi.fn().mockResolvedValue(undefined),
+    }),
+    listPendingInputs: vi.fn().mockResolvedValue([]),
+    isPendingQueueResumeAvailable: vi.fn().mockResolvedValue(false),
+    resumePendingQueue: vi.fn().mockResolvedValue(false),
+    retryPendingQueueInput: vi.fn().mockResolvedValue({ accepted: false, started: false }),
+    queuePendingInput: vi.fn().mockResolvedValue({}),
+    updateQueuedInput: vi.fn().mockResolvedValue({}),
+    moveQueuedInput: vi.fn().mockResolvedValue([]),
+    convertPendingInputToSteer: vi.fn().mockResolvedValue({}),
+    steerPendingInput: vi.fn().mockResolvedValue({}),
+    resolveBlockedPendingInput: vi.fn().mockResolvedValue({}),
+    deletePendingInput: vi.fn().mockResolvedValue(undefined),
+    retryMessage: vi.fn().mockResolvedValue({ requestId: null, messageId: null }),
+    deleteMessage: vi.fn().mockResolvedValue(undefined),
+    editUserMessage: vi.fn().mockResolvedValue({}),
+    getSessionCompactionSnapshot: vi.fn().mockResolvedValue({
+      state: {
+        status: 'compacted',
+        cursorOrderSeq: 5,
+        summaryUpdatedAt: 123,
+        boundaryReason: null
+      },
+      emitSeq: 7,
+      latestAnchorEntryId: 19
+    }),
+    getSessionContextOccupancy: vi.fn().mockResolvedValue({
+      freshness: 'current',
+      source: 'provider',
+      occupiedTokens: 24_000,
+      contextWindowTokens: 32_000,
+      requestSeq: 3,
+      manifestEntryId: 20,
+      providerAttemptEntryId: 21,
+      measuredAt: 123
+    }),
+    compactSession: vi.fn().mockResolvedValue({
+      compacted: true,
+      state: {
+        status: 'compacted',
+        cursorOrderSeq: 5,
+        summaryUpdatedAt: 123,
+        boundaryReason: null
+      }
+    }),
+    clearSessionMessages: vi.fn().mockResolvedValue(undefined),
+    cancelGeneration: vi.fn().mockResolvedValue(undefined),
+    respondToolInteraction: vi.fn().mockResolvedValue({ resumed: true })
+  }
+  const sessionAssignmentPort = {
+    getAgentTransferImpact: vi.fn().mockResolvedValue({}),
+    moveAgentSessions: vi.fn().mockResolvedValue({ movedSessionIds: [], deletedSessionIds: [] }),
+    deleteAgentSessions: vi.fn().mockResolvedValue([]),
+    moveSessionToAgent: vi.fn().mockResolvedValue(sessionSnapshot),
+    getAcpSessionCommands: vi.fn().mockResolvedValue([]),
+    getAcpSessionConfigOptions: vi.fn().mockResolvedValue(null),
+    setAcpSessionConfigOption: vi.fn().mockResolvedValue(null),
+    getPermissionMode: vi.fn().mockResolvedValue('full_access'),
+    setPermissionMode: vi.fn().mockResolvedValue(undefined),
+    setSessionModel: vi.fn().mockResolvedValue(sessionSnapshot),
+    setSessionProjectDir: vi.fn().mockResolvedValue(sessionSnapshot),
     getSessionGenerationSettings: vi.fn().mockResolvedValue({
       systemPrompt: '',
       temperature: 0.7,
@@ -496,6 +579,8 @@ function createRuntime() {
       maxTokens: 4096,
       timeout: 5000
     }),
+    getSessionDisabledAgentTools: vi.fn().mockResolvedValue([]),
+    updateSessionDisabledAgentTools: vi.fn().mockResolvedValue([]),
     updateSessionGenerationSettings: vi
       .fn()
       .mockImplementation(async (_sessionId: string, settings: { timeout?: number }) => ({
@@ -504,104 +589,17 @@ function createRuntime() {
         contextLength: 32000,
         maxTokens: 4096,
         timeout: settings.timeout ?? 5000
-      })),
-    sendMessage: vi.fn().mockResolvedValue({
-      requestId: 'message-2',
-      messageId: 'message-2'
-    }),
-    steerActiveTurn: vi.fn().mockResolvedValue(undefined),
-    compactSession: vi.fn().mockResolvedValue({
-      compacted: true,
-      state: {
-        status: 'compacted',
-        cursorOrderSeq: 5,
-        summaryUpdatedAt: 123
-      }
-    }),
-    cancelGeneration: vi.fn().mockResolvedValue(undefined),
-    getMessage: vi.fn().mockResolvedValue({
-      id: 'message-1',
-      sessionId: 'session-1'
-    }),
-    respondToolInteraction: vi.fn().mockResolvedValue({
-      resumed: true
-    }),
-    getAgents: vi.fn().mockResolvedValue([
-      {
-        id: 'deepchat',
-        name: 'DeepChat',
-        type: 'deepchat',
-        enabled: true
-      }
-    ]),
-    getUsageDashboard: vi.fn().mockResolvedValue({
-      recordingStartedAt: null,
-      backfillStatus: {
-        status: 'completed',
-        startedAt: null,
-        finishedAt: null,
-        error: null,
-        updatedAt: 123
-      },
-      summary: {
-        messageCount: 1,
-        sessionCount: 1,
-        inputTokens: 10,
-        outputTokens: 20,
-        totalTokens: 30,
-        cachedInputTokens: 0,
-        cacheHitRate: 0,
-        estimatedCostUsd: null,
-        mostActiveDay: {
-          date: '2026-06-11',
-          messageCount: 1
-        }
-      },
-      calendar: [
-        {
-          date: '2026-06-11',
-          messageCount: 1,
-          inputTokens: 10,
-          outputTokens: 20,
-          totalTokens: 30,
-          cachedInputTokens: 0,
-          estimatedCostUsd: null,
-          level: 1
-        }
-      ],
-      providerBreakdown: [],
-      modelBreakdown: [],
-      rtk: {
-        scope: 'deepchat',
-        enabled: true,
-        effectiveEnabled: true,
-        available: true,
-        health: 'healthy',
-        checkedAt: 123,
-        source: 'bundled',
-        failureStage: null,
-        failureMessage: null,
-        summary: {
-          totalCommands: 0,
-          totalInputTokens: 0,
-          totalOutputTokens: 0,
-          totalSavedTokens: 0,
-          avgSavingsPct: 0,
-          totalTimeMs: 0,
-          avgTimeMs: 0
-        },
-        daily: []
-      }
-    }),
-    retryRtkHealthCheck: vi.fn().mockResolvedValue(undefined),
+      }))
+  }
+  const sessionPermissionPort = {
     clearSessionPermissions: vi.fn()
-  } as unknown as IAgentSessionPresenter
+  }
 
   let rateLimitConfig = {
     enabled: false,
     qpsLimit: 1
   }
-  const llmProviderPresenter = {
+  const providerRuntime = {
     check: vi.fn().mockResolvedValue({
       isOk: true,
       errorMsg: null
@@ -637,6 +635,11 @@ function createRuntime() {
       skipped: 0,
       errors: []
     }),
+    refreshModels: vi.fn().mockResolvedValue(undefined)
+  } as unknown as ProviderRuntimePort
+  const acpProviderAdminPort = {
+    warmupAcpProcess: vi.fn().mockResolvedValue(undefined),
+    getAcpProcessConfigOptions: vi.fn().mockResolvedValue(null),
     runAcpDebugAction: vi.fn().mockResolvedValue({
       status: 'ok',
       sessionId: 'debug-session',
@@ -650,9 +653,8 @@ function createRuntime() {
           payload: { ok: true }
         }
       ]
-    }),
-    refreshModels: vi.fn().mockResolvedValue(undefined)
-  } as unknown as ILlmProviderPresenter
+    })
+  }
 
   const mcpRouterItem = {
     uuid: 'router-item-1',
@@ -667,15 +669,25 @@ function createRuntime() {
     config_name: 'Context7',
     server_url: 'https://mcp.context7.com/mcp'
   }
-  const mcpPresenter = {
+  const mcpService = {
+    addMcpServer: vi.fn().mockResolvedValue({ status: 'added' }),
+    getNpmRegistryStatus: vi.fn().mockResolvedValue({
+      currentRegistry: 'https://registry.npmjs.org/',
+      isFromCache: false,
+      autoDetectEnabled: true
+    }),
+    refreshNpmRegistry: vi.fn().mockResolvedValue('https://registry.npmjs.org/'),
+    setCustomNpmRegistry: vi.fn().mockResolvedValue(undefined),
+    setAutoDetectNpmRegistry: vi.fn().mockResolvedValue(undefined),
+    clearNpmRegistryCache: vi.fn().mockResolvedValue(undefined),
     listMcpRouterServers: vi.fn().mockResolvedValue({ servers: [mcpRouterItem] }),
     installMcpRouterServer: vi.fn().mockResolvedValue(true),
     getMcpRouterApiKey: vi.fn().mockResolvedValue('router-key'),
     setMcpRouterApiKey: vi.fn().mockResolvedValue(undefined),
     isServerInstalled: vi.fn().mockResolvedValue(false),
-    updateMcpRouterServersAuth: vi.fn().mockResolvedValue(undefined)
-  } as unknown as IMCPPresenter
-  const remoteControlPresenter = {
+    listInstalledServerIds: vi.fn().mockResolvedValue(['context7'])
+  } as unknown as McpServicePort
+  const remoteService = {
     listRemoteChannels: vi.fn().mockResolvedValue([
       {
         id: 'telegram',
@@ -748,7 +760,7 @@ function createRuntime() {
     }),
     removeWeixinIlinkAccount: vi.fn().mockResolvedValue(undefined),
     restartWeixinIlinkAccount: vi.fn().mockResolvedValue(undefined)
-  } as unknown as IRemoteControlPresenter
+  } as unknown as RemoteServicePort
   const shortcutPresenter = {
     registerShortcuts: vi.fn(),
     unregisterShortcuts: vi.fn(),
@@ -812,6 +824,7 @@ function createRuntime() {
       pendingProviderInstalls.push(preview)
     }),
     sendToAllWindows: vi.fn().mockResolvedValue(undefined),
+    sendToMainWindow: vi.fn().mockResolvedValue(true),
     getFloatingChatWindow: vi.fn(() => ({
       getWindow: () => browserWindowState.windows.get(19) ?? null
     }))
@@ -820,8 +833,12 @@ function createRuntime() {
       getWindow: () => MockWindow | null
     }
   }
+  const dialogService = {
+    handleDialogResponse: vi.fn().mockResolvedValue(undefined),
+    handleDialogError: vi.fn().mockResolvedValue(undefined)
+  }
 
-  const devicePresenter = {
+  const deviceService = {
     getAppVersion: vi.fn().mockResolvedValue('1.2.3'),
     getDeviceInfo: vi.fn().mockResolvedValue({
       platform: 'win32',
@@ -842,10 +859,226 @@ function createRuntime() {
     restartApp: vi.fn().mockResolvedValue(undefined),
     resetDataByType: vi.fn().mockResolvedValue(undefined),
     sanitizeSvgContent: vi.fn().mockResolvedValue('<svg />')
-  } as unknown as IDevicePresenter
+  } as unknown as DeviceServicePort
+  const appDataReset = {
+    resetDataByType: vi.fn().mockResolvedValue(undefined)
+  }
+  const enabledDatabaseSecurityStatus = {
+    enabled: true,
+    cipher: 'sqlcipher' as const,
+    safeStorageAvailable: true,
+    passwordStorage: 'safeStorage' as const,
+    manualUnlockRequired: false,
+    migrationInProgress: false
+  }
+  const appDatabaseMaintenance = {
+    assertRouteAllowed: vi.fn(),
+    enableDatabaseEncryption: vi.fn().mockResolvedValue(enabledDatabaseSecurityStatus),
+    changeDatabasePassword: vi.fn().mockResolvedValue(enabledDatabaseSecurityStatus),
+    disableDatabaseEncryption: vi.fn().mockResolvedValue({
+      ...enabledDatabaseSecurityStatus,
+      enabled: false,
+      passwordStorage: 'none' as const
+    }),
+    importFromSync: vi.fn().mockResolvedValue({
+      success: true,
+      message: 'sync.success.importComplete'
+    }),
+    pullLatestBackupFromCloud: vi.fn().mockResolvedValue({
+      success: true,
+      message: 'sync.success.importComplete',
+      fileName: 'backup-1.zip'
+    })
+  }
+  const startupWorkloadCoordinator = {
+    scheduleTask: vi.fn(async (task: { run: () => Promise<unknown> }) => await task.run()),
+    getRunId: vi.fn(() => 'startup:test'),
+    replayTarget: vi.fn()
+  }
+  const syncService = {
+    getBackupStatus: vi.fn().mockResolvedValue({}),
+    listBackups: vi.fn().mockResolvedValue([]),
+    startBackup: vi.fn().mockResolvedValue(null),
+    openSyncFolder: vi.fn().mockResolvedValue(undefined),
+    testCloudConnection: vi.fn().mockResolvedValue({ success: true }),
+    uploadLatestBackupToCloud: vi.fn().mockResolvedValue({ success: true, fileName: 'backup.zip' })
+  }
+  const syncSettings = {
+    getEnabled: vi.fn(() => false),
+    setEnabled: vi.fn(),
+    getFolderPath: vi.fn(() => '/tmp/deepchat-sync'),
+    setFolderPath: vi.fn(),
+    getCloudConfig: vi.fn(() => ({
+      enabled: false,
+      endpoint: '',
+      bucket: '',
+      region: 'auto',
+      prefix: 'deepchat-backups',
+      accessKeyId: '',
+      hasSecret: false,
+      safeStorageAvailable: true
+    })),
+    setCloudConfig: vi.fn()
+  }
+  const hookSettings = {
+    getHooksNotificationsConfig: vi.fn(() => hooksNotifications),
+    setHooksNotificationsConfig: vi.fn((config: typeof hooksNotifications) => {
+      hooksNotifications.hooks = [...config.hooks]
+      return hooksNotifications
+    })
+  }
+  const updateSettings = {
+    getChannel: vi.fn(() => settings.updateChannel),
+    setChannel: vi.fn((channel: 'stable' | 'beta') => {
+      settings.updateChannel = channel
+    })
+  }
+  const agentDefaults = {
+    getAutoCompactionEnabled: vi.fn(() => settings.autoCompactionEnabled),
+    setAutoCompactionEnabled: vi.fn((value: boolean) => {
+      settings.autoCompactionEnabled = value
+    }),
+    getAutoCompactionTriggerThreshold: vi.fn(() => settings.autoCompactionTriggerThreshold),
+    setAutoCompactionTriggerThreshold: vi.fn((value: number) => {
+      settings.autoCompactionTriggerThreshold = value
+    }),
+    getAutoCompactionRetainRecentPairs: vi.fn(() => settings.autoCompactionRetainRecentPairs),
+    setAutoCompactionRetainRecentPairs: vi.fn((value: number) => {
+      settings.autoCompactionRetainRecentPairs = value
+    })
+  }
+  const skillSettings = {
+    isEnabled: vi.fn(() => true),
+    isDraftSuggestionsEnabled: vi.fn(() => settings.skillDraftSuggestionsEnabled),
+    setDraftSuggestionsEnabled: vi.fn((enabled: boolean) => {
+      settings.skillDraftSuggestionsEnabled = enabled
+    })
+  }
+  const privacySettings = {
+    isEnabled: vi.fn(() => settings.privacyModeEnabled),
+    setEnabled: vi.fn((enabled: boolean) => {
+      settings.privacyModeEnabled = enabled
+    })
+  }
+  const traceSettings = {
+    isEnabled: vi.fn(() => settings.traceDebugEnabled),
+    setEnabled: vi.fn((enabled: boolean) => {
+      settings.traceDebugEnabled = enabled
+    })
+  }
+  const proxySettings = {
+    getMode: vi.fn(() => settings.proxyMode),
+    setMode: vi.fn((mode: 'system' | 'none' | 'custom') => {
+      settings.proxyMode = mode
+    }),
+    getCustomUrl: vi.fn(() => settings.customProxyUrl),
+    setCustomUrl: vi.fn((url: string) => {
+      settings.customProxyUrl = url
+    })
+  }
+  const applyProxyMode = vi.fn()
+  const applyCustomProxyUrl = vi.fn()
+  const desktopSettings = {
+    getCopyWithCotEnabled: vi.fn(() => settings.copyWithCotEnabled),
+    setCopyWithCotEnabled: vi.fn((enabled: boolean) => {
+      settings.copyWithCotEnabled = enabled
+    }),
+    getFontSizeLevel: vi.fn(() => settings.fontSizeLevel),
+    setFontSizeLevel: vi.fn((value: number) => {
+      settings.fontSizeLevel = value
+    }),
+    getArtifactsEffectEnabled: vi.fn(() => settings.artifactsEffectEnabled),
+    setArtifactsEffectEnabled: vi.fn((value: boolean) => {
+      settings.artifactsEffectEnabled = value
+    }),
+    getAutoScrollEnabled: vi.fn(() => settings.autoScrollEnabled),
+    setAutoScrollEnabled: vi.fn((value: boolean) => {
+      settings.autoScrollEnabled = value
+    }),
+    getNotificationsEnabled: vi.fn(() => settings.notificationsEnabled),
+    setNotificationsEnabled: vi.fn((value: boolean) => {
+      settings.notificationsEnabled = value
+    }),
+    getLaunchAtLoginEnabled: vi.fn(() => settings.launchAtLoginEnabled),
+    setLaunchAtLoginEnabled: vi.fn((value: boolean) => {
+      settings.launchAtLoginEnabled = value
+    }),
+    getContentProtectionEnabled: vi.fn(() => settings.contentProtectionEnabled),
+    setContentProtectionEnabled: vi.fn((value: boolean) => {
+      settings.contentProtectionEnabled = value
+    }),
+    getFloatingButtonEnabled: vi.fn(() => settings.floatingButtonEnabled),
+    setFloatingButtonEnabled: vi.fn((value: boolean) => {
+      settings.floatingButtonEnabled = value
+    }),
+    getShortcutKeys: vi.fn(() => ({})),
+    setShortcutKeys: vi.fn(),
+    resetShortcutKeys: vi.fn()
+  }
+  const fontSettings = {
+    getFontFamily: vi.fn(() => settings.fontFamily),
+    setFontFamily: vi.fn((value?: string | null) => {
+      settings.fontFamily = value ?? ''
+    }),
+    getCodeFontFamily: vi.fn(() => settings.codeFontFamily),
+    setCodeFontFamily: vi.fn((value?: string | null) => {
+      settings.codeFontFamily = value ?? ''
+    }),
+    getSystemFonts: vi.fn().mockResolvedValue(['Inter', 'JetBrains Mono'])
+  }
+  const applyContentProtection = vi.fn()
+  const setFloatingButtonEnabled = vi.fn()
+  const loggingService = {
+    getEnabled: vi.fn(() => settings.loggingEnabled),
+    setEnabled: vi.fn((value: boolean) => {
+      settings.loggingEnabled = value
+    }),
+    openFolder: vi.fn().mockResolvedValue(undefined)
+  }
+  const ocrSettings = {
+    getAutomaticExtractionEnabled: vi.fn(() => settings.ocrAutoExtractForNonVisionModels),
+    setAutomaticExtractionEnabled: vi.fn((value: boolean) => {
+      settings.ocrAutoExtractForNonVisionModels = value
+    }),
+    getBackend: vi.fn(() => settings.ocrBackend),
+    setBackend: vi.fn((value: 'auto' | 'cpu') => {
+      settings.ocrBackend = value
+    })
+  }
+  const commandShell = {
+    getConfig: vi.fn(() => settings.agentCommandShell),
+    setConfig: vi.fn((value: AgentCommandShellConfig) => {
+      settings.agentCommandShell = value
+      return value
+    }),
+    checkGitBash: vi.fn(async () => ({
+      supported: true as const,
+      available: false as const,
+      error: 'not-found' as const
+    }))
+  }
+  const testHookCommand = vi.fn().mockResolvedValue({
+    success: true,
+    durationMs: 10,
+    exitCode: 0
+  })
 
   const projectPresenter = {
+    getDefaultProjectPath: vi.fn(() => settings.defaultProjectPath),
+    setDefaultProjectPath: vi.fn((projectPath: string | null) => {
+      settings.defaultProjectPath = projectPath
+    }),
     ensureDefaultWorkspace: vi.fn().mockResolvedValue('C:/Users/test/Documents/DeepChat'),
+    getSnapshotVersion: vi.fn(() => 1),
+    getSnapshot: vi.fn().mockResolvedValue({
+      version: 1,
+      projects: [],
+      environments: [],
+      archivedEnvironments: [],
+      removedEnvironments: [],
+      defaultProjectPath: null,
+      defaultChatWorkspacePath: null
+    }),
     getRecentProjects: vi.fn().mockResolvedValue([
       {
         path: 'C:/workspace',
@@ -870,15 +1103,18 @@ function createRuntime() {
       }
     ]),
     reorderEnvironments: vi.fn().mockResolvedValue(undefined),
-    archiveEnvironment: vi.fn().mockResolvedValue(undefined),
+    archiveEnvironment: vi.fn().mockResolvedValue(1),
     restoreEnvironment: vi.fn().mockResolvedValue(undefined),
     removeEnvironment: vi.fn().mockResolvedValue({ clearedSessionIds: ['session-1'] }),
     openDirectory: vi.fn().mockResolvedValue(undefined),
     pathExists: vi.fn().mockResolvedValue(true),
-    selectDirectory: vi.fn().mockResolvedValue('C:/selected-workspace')
-  } as unknown as IProjectPresenter
+    selectDirectory: vi.fn().mockResolvedValue({
+      path: 'C:/selected-workspace',
+      version: 1
+    })
+  }
 
-  const filePresenter = {
+  const fileService = {
     getMimeType: vi.fn().mockResolvedValue('text/plain'),
     prepareFile: vi.fn().mockResolvedValue(preparedFile),
     prepareDirectory: vi.fn().mockResolvedValue({
@@ -889,7 +1125,7 @@ function createRuntime() {
     readFile: vi.fn().mockResolvedValue('hello world'),
     isDirectory: vi.fn().mockResolvedValue(true),
     writeImageBase64: vi.fn().mockResolvedValue('/tmp/capture.png')
-  } as unknown as IFilePresenter
+  } as unknown as FileServicePort
 
   const knowledgeFile = {
     id: 'file-1',
@@ -903,7 +1139,7 @@ function createRuntime() {
       totalChunks: 3
     }
   }
-  const knowledgePresenter = {
+  const knowledgeService = {
     isSupported: vi.fn().mockResolvedValue(true),
     getSupportedLanguages: vi.fn().mockResolvedValue(['markdown', 'typescript']),
     getSeparatorsForLanguage: vi.fn().mockResolvedValue(['\n\n', '\n', ' ', '']),
@@ -937,7 +1173,7 @@ function createRuntime() {
     }),
     pauseAllRunningTasks: vi.fn().mockResolvedValue(undefined),
     resumeAllPausedTasks: vi.fn().mockResolvedValue(undefined)
-  } as unknown as IKnowledgePresenter
+  } as unknown as KnowledgeServicePort
 
   const externalSkill = {
     name: 'write-tests',
@@ -962,21 +1198,7 @@ function createRuntime() {
     source: externalSkill,
     warnings: []
   }
-  const exportPreview = {
-    skillName: 'write-tests',
-    targetTool: 'codex',
-    targetPath: '/tools/write-tests.md',
-    convertedContent: '# Write tests',
-    warnings: []
-  }
-  const syncResult = {
-    success: true,
-    imported: 1,
-    exported: 0,
-    skipped: 0,
-    failed: []
-  }
-  const skillSyncPresenter = {
+  const skillSyncService = {
     scanExternalTools: vi.fn().mockResolvedValue([scanResult]),
     getNewDiscoveries: vi.fn().mockResolvedValue([
       {
@@ -1005,17 +1227,10 @@ function createRuntime() {
         }
       }
     ]),
-    previewImport: vi.fn().mockResolvedValue([importPreview]),
-    executeImport: vi.fn().mockResolvedValue(syncResult),
-    previewExport: vi.fn().mockResolvedValue([exportPreview]),
-    executeExport: vi.fn().mockResolvedValue({
-      ...syncResult,
-      imported: 0,
-      exported: 1
-    })
-  } as unknown as ISkillSyncPresenter
+    previewImport: vi.fn().mockResolvedValue([importPreview])
+  } as unknown as SkillSyncServicePort
 
-  const oauthPresenter = {
+  const oauthService = {
     startGitHubCopilotLogin: vi.fn().mockResolvedValue(true),
     startGitHubCopilotDeviceFlowLogin: vi.fn().mockResolvedValue(false),
     getOpenAICodexStatus: vi.fn().mockResolvedValue({
@@ -1038,7 +1253,7 @@ function createRuntime() {
       authenticated: false,
       storage: 'safeStorage'
     })
-  } as unknown as IOAuthPresenter
+  } as unknown as OAuthServicePort
   const nowledgeMemConfig = {
     baseUrl: 'http://127.0.0.1:14242',
     apiKey: '',
@@ -1052,15 +1267,15 @@ function createRuntime() {
       message: 'Connection successful'
     })
   } as unknown as IConversationExporter
-  const skillPresenter = {
-    readSkillFile: vi.fn().mockResolvedValue('---\nname: write-tests\n---\nUse tests well')
-  } as unknown as ISkillPresenter
+  const skillService = {
+    readSkillFileForAgent: vi.fn().mockResolvedValue('---\nname: write-tests\n---\nUse tests well'),
+    setActiveSkills: vi.fn().mockResolvedValue(['write-tests']),
+    removeActiveSkill: vi.fn().mockResolvedValue([])
+  } as unknown as SkillServicePort
 
-  const workspacePresenter = {
+  const workspaceService = {
     registerWorkspace: vi.fn().mockResolvedValue(undefined),
-    registerWorkdir: vi.fn().mockResolvedValue(undefined),
     unregisterWorkspace: vi.fn().mockResolvedValue(undefined),
-    unregisterWorkdir: vi.fn().mockResolvedValue(undefined),
     watchWorkspace: vi.fn().mockResolvedValue(undefined),
     unwatchWorkspace: vi.fn().mockResolvedValue(undefined),
     readDirectory: vi.fn().mockResolvedValue([
@@ -1107,7 +1322,7 @@ function createRuntime() {
         isDirectory: false
       }
     ])
-  } as unknown as IWorkspacePresenter
+  } as unknown as WorkspaceServicePort
 
   const yoBrowserPresenter = {
     getBrowserStatus: vi.fn().mockResolvedValue(browserStatus),
@@ -1125,16 +1340,24 @@ function createRuntime() {
     attachSessionBrowser: vi.fn().mockResolvedValue(true),
     updateSessionBrowserBounds: vi.fn().mockResolvedValue(undefined),
     detachSessionBrowser: vi.fn().mockResolvedValue(undefined),
+    setPreviewMode: vi.fn().mockResolvedValue({ updated: true, surface: 'renderer-canvas' }),
+    dismissPreview: vi.fn(() => true),
     destroySessionBrowser: vi.fn().mockResolvedValue(undefined),
     goBack: vi.fn().mockResolvedValue(undefined),
     goForward: vi.fn().mockResolvedValue(undefined),
     reload: vi.fn().mockResolvedValue(undefined),
     clearSandboxData: vi.fn().mockResolvedValue(undefined)
   } as unknown as IYoBrowserPresenter
+  const computerUsePreviewPresenter = {
+    setPreviewMode: vi.fn(async (_sessionId: string, mode: string) => ({
+      updated: true,
+      surface: mode === 'stopped' ? 'none' : 'renderer-canvas'
+    })),
+    dismissPreview: vi.fn(() => true),
+    shutdown: vi.fn()
+  }
 
   const tabPresenter = {
-    onRendererTabReady: vi.fn().mockResolvedValue(undefined),
-    onRendererTabActivated: vi.fn().mockResolvedValue(undefined),
     captureTabArea: vi.fn().mockResolvedValue('data:image/png;base64,capture'),
     stitchImagesWithWatermark: vi.fn().mockResolvedValue('data:image/png;base64,stitched')
   } as unknown as ITabPresenter
@@ -1163,8 +1386,15 @@ function createRuntime() {
   const sqlitePresenter = {
     recordSettingsActivity: vi.fn().mockResolvedValue(undefined),
     listSettingsActivity: vi.fn().mockResolvedValue([]),
-    repairSchema: vi.fn().mockResolvedValue(databaseRepairReport)
-  } as unknown as ISQLitePresenter
+    repairSchema: vi.fn().mockResolvedValue(databaseRepairReport),
+    agentMemoryAuditTable: {
+      listByAgent: vi.fn(() => [])
+    }
+  } as unknown as MainDatabase
+  const tapeInspection: TapeInspectionReader = {
+    getEffectiveMessageSourceSpan: vi.fn(() => []),
+    listMemoryViewManifestsByAgent: vi.fn(() => [])
+  }
   const cronJob = {
     id: 'cron-1',
     name: 'Cron smoke',
@@ -1256,66 +1486,596 @@ function createRuntime() {
     reconcileScheduler: vi.fn(async () => cronStatus),
     restartScheduler: vi.fn(async () => cronStatus),
     validateSchedule: vi.fn(() => ({ valid: true, error: null, nextRunAt: 10 })),
-    previewSchedule: vi.fn(() => ({ runs: [10, 20, 30], error: null })),
-    setRunSessionStarter: vi.fn()
+    previewSchedule: vi.fn(() => ({ runs: [10, 20, 30], error: null }))
+  }
+  const usageStatsService = {
+    getDashboard: vi.fn().mockResolvedValue({
+      recordingStartedAt: null,
+      backfillStatus: {
+        status: 'completed',
+        startedAt: null,
+        finishedAt: null,
+        error: null,
+        updatedAt: 123
+      },
+      summary: {
+        messageCount: 1,
+        sessionCount: 1,
+        inputTokens: 10,
+        outputTokens: 20,
+        totalTokens: 30,
+        cachedInputTokens: 0,
+        cacheHitRate: 0,
+        mostActiveDay: { date: '2026-06-11', messageCount: 1 }
+      },
+      calendar: [],
+      providerBreakdown: [],
+      modelBreakdown: [],
+      rtk: {
+        scope: 'deepchat',
+        enabled: true,
+        effectiveEnabled: true,
+        available: true,
+        health: 'healthy',
+        checkedAt: 123,
+        source: 'bundled',
+        failureStage: null,
+        failureMessage: null,
+        summary: {
+          totalCommands: 0,
+          totalInputTokens: 0,
+          totalOutputTokens: 0,
+          totalSavedTokens: 0,
+          avgSavingsPct: 0,
+          totalTimeMs: 0,
+          avgTimeMs: 0
+        },
+        daily: []
+      }
+    })
+  }
+  const rtkRuntimeService = {
+    retryHealthCheck: vi.fn().mockResolvedValue(undefined)
+  }
+  const sessionHistorySearch = {
+    search: vi.fn().mockResolvedValue([
+      {
+        kind: 'session',
+        sessionId: 'session-1',
+        title: 'Search Hit',
+        projectDir: null,
+        updatedAt: 1
+      }
+    ])
+  }
+  const agentSessionExportService = {
+    export: vi.fn().mockResolvedValue({ filename: 'session.md', content: '# Session' })
+  }
+  const sessionTranslation = {
+    translate: vi.fn().mockResolvedValue('translated')
+  }
+  const toolService = {
+    getAllToolDefinitions: vi.fn().mockResolvedValue([
+      {
+        type: 'function',
+        source: 'agent',
+        function: {
+          name: 'read',
+          description: 'Read a file',
+          parameters: { type: 'object', properties: {} }
+        },
+        server: {
+          name: 'agent-filesystem',
+          icons: '',
+          description: 'Agent filesystem tools'
+        }
+      }
+    ]),
+    getConfigurableAgentToolDefinitions: vi.fn().mockResolvedValue([
+      {
+        type: 'function',
+        source: 'agent',
+        function: {
+          name: 'read',
+          description: 'Read a file',
+          parameters: { type: 'object', properties: {} }
+        },
+        server: {
+          name: 'agent-filesystem',
+          icons: '',
+          description: 'Agent filesystem tools'
+        }
+      }
+    ])
+  }
+  const pluginService = {
+    initialize: vi.fn().mockResolvedValue(undefined),
+    shutdown: vi.fn().mockResolvedValue(undefined),
+    listPlugins: vi.fn().mockResolvedValue([]),
+    getPlugin: vi.fn().mockResolvedValue(undefined),
+    enablePlugin: vi.fn(),
+    disablePlugin: vi.fn(),
+    invokeAction: vi.fn()
   }
 
-  setDeepchatEventWindowPresenter(windowPresenter)
+  const publishDeepchatEvent: DeepchatEventPublisher = (name, payload) => {
+    windowPresenter.sendToAllWindows(
+      DEEPCHAT_EVENT_CHANNEL,
+      createDeepchatEventEnvelope(name, payload)
+    )
+  }
+
+  const providerRoutes = createProviderRoutes({
+    providerSettings,
+    providerRuntime,
+    acpProviderAdminPort,
+    providerImportService: new ProviderImportService(providerSettings as any),
+    oauthService,
+    scheduler: createNodeScheduler(),
+    recordSettingsActivity: (input) => sqlitePresenter.recordSettingsActivity(input)
+  })
+  const toolRoutes = createToolRoutes(toolService)
+  const pluginRoutes = createPluginRoutes(pluginService)
+  const assertSessionActiveSkillsMutable = vi.fn().mockResolvedValue(undefined)
+  const skillRoutes = createSkillRoutes({
+    skillService,
+    skillSyncService,
+    skillSettings,
+    ensureInitialized: vi.fn().mockResolvedValue(undefined),
+    assertSessionActiveSkillsMutable,
+    recordSettingsActivity: (input) => sqlitePresenter.recordSettingsActivity(input)
+  })
+  const mcpRoutes = createMcpRoutes({
+    mcpService,
+    mcpAppHost: {} as any,
+    isSettingsWindow: () => true,
+    recordSettingsActivity: (input) => sqlitePresenter.recordSettingsActivity(input)
+  })
+  const remoteRoutes = createRemoteRoutes(remoteService)
+  const schedulerRoutes = createSchedulerRoutes(cronJobs as any)
+  const memoryService = {} as any
+  const memoryRoutes = createMemoryRoutes({
+    memoryService,
+    getAgentType: (agentId) => providerSettings.getAgentType(agentId),
+    getTapeInspection: () => tapeInspection,
+    getAuditEntries: () => (sqlitePresenter as any).agentMemoryAuditTable
+  })
+  const desktopRoutes = createDesktopRoutes({
+    windowPresenter,
+    shortcutPresenter,
+    browserPresenter: yoBrowserPresenter,
+    computerUsePreviewPresenter,
+    desktopSessionBinding,
+    tabPresenter,
+    dialogService: dialogService as unknown as DialogServicePort,
+    settings: desktopSettings as never,
+    setFloatingButtonEnabled,
+    recordActivity: (input) => {
+      void sqlitePresenter.recordSettingsActivity(input)
+    }
+  })
+  const fileRoutes = createFileRoutes(fileService)
+  const knowledgeSettings = {
+    getKnowledgeConfigs: vi.fn(() => knowledgeConfigs),
+    setKnowledgeConfigs: vi.fn((configs: typeof knowledgeConfigs) => {
+      knowledgeConfigs.splice(0, knowledgeConfigs.length, ...configs)
+    })
+  }
+  const knowledgeRoutes = createKnowledgeRoutes({
+    service: knowledgeService,
+    settings: knowledgeSettings as never,
+    applyConfigChange: vi.fn().mockResolvedValue(undefined),
+    recordActivity: (input) => {
+      void sqlitePresenter.recordSettingsActivity(input)
+    }
+  })
+  const workspaceRoutes = createWorkspaceRoutes(workspaceService)
+  const projectRoutes = createProjectRoutes({
+    projectService: projectPresenter as any,
+    publishEnvironmentsChanged: (action, path) => {
+      publishDeepchatEvent(projectEnvironmentsChangedEvent.name, {
+        action,
+        path,
+        version: Date.now()
+      })
+    }
+  })
+  const tapeInspectorHeadWatcher = {
+    subscribe: vi.fn().mockReturnValue({
+      tapeIncarnationId: 'incarnation-1',
+      maxEntryId: 20
+    }),
+    unsubscribe: vi.fn()
+  }
+  const sessionRoutes = createSessionRoutes({
+    lifecycle: sessionLifecyclePort,
+    projection: sessionProjectionPort,
+    desktop: desktopSessionBinding,
+    turn: sessionTurnPort,
+    assignment: sessionAssignmentPort,
+    permission: sessionPermissionPort,
+    agentSettings: providerSettings,
+    scheduler: createNodeScheduler(),
+    historySearch: sessionHistorySearch,
+    exportService: agentSessionExportService,
+    translation: sessionTranslation,
+    usageStats: usageStatsService,
+    rtkRuntime: rtkRuntimeService,
+    tapeInspectorHeadWatcher
+  })
+  const agentRoutes = createAgentRoutes({
+    agentSettings: providerSettings,
+    recordActivity: (input) => {
+      void sqlitePresenter.recordSettingsActivity(input)
+    },
+    reconcileScheduler: async () => {
+      await cronJobs.reconcileScheduler('agent-change')
+    }
+  })
+  const promptSettings = {
+    getCustomPrompts: vi.fn().mockResolvedValue([]),
+    setCustomPrompts: vi.fn().mockResolvedValue(undefined),
+    addCustomPrompt: vi.fn().mockResolvedValue(undefined),
+    updateCustomPrompt: vi.fn().mockResolvedValue(undefined),
+    deleteCustomPrompt: vi.fn().mockResolvedValue(undefined),
+    getSystemPrompts: vi.fn().mockResolvedValue([]),
+    setSystemPrompts: vi.fn().mockResolvedValue(undefined),
+    addSystemPrompt: vi.fn().mockResolvedValue(undefined),
+    updateSystemPrompt: vi.fn().mockResolvedValue(undefined),
+    deleteSystemPrompt: vi.fn().mockResolvedValue(undefined),
+    getDefaultSystemPromptId: vi.fn().mockResolvedValue('empty'),
+    getDefaultSystemPrompt: vi.fn().mockResolvedValue(''),
+    setDefaultSystemPrompt: vi.fn().mockResolvedValue(undefined),
+    resetToDefaultPrompt: vi.fn().mockResolvedValue(undefined),
+    clearSystemPrompt: vi.fn().mockResolvedValue(undefined),
+    setDefaultSystemPromptId: vi.fn().mockResolvedValue(undefined)
+  }
+  const promptRoutes = createPromptRoutes({
+    settings: promptSettings as never,
+    recordActivity: (input) => {
+      void sqlitePresenter.recordSettingsActivity(input)
+    }
+  })
+  const acpAuth = {
+    inspect: vi.fn().mockResolvedValue({
+      id: 'challenge-1',
+      agentId: 'agent-1',
+      agentName: 'Agent One',
+      workdir: '/tmp',
+      methods: [],
+      origin: 'settings_probe'
+    }),
+    start: vi.fn().mockResolvedValue({ challengeId: 'challenge-1', state: 'running', version: 1 }),
+    write: vi.fn(),
+    cancel: vi.fn().mockReturnValue(true),
+    getStatus: vi
+      .fn()
+      .mockReturnValue({ challengeId: 'challenge-1', state: 'required', version: 1 })
+  }
+  const acpRoutes = createAcpRoutes({ auth: acpAuth as never })
+  const deviceRoutes = createDeviceRoutes({
+    device: deviceService,
+    resetDataByType: appDataReset.resetDataByType,
+    restartApplication: deviceService.restartApp
+  })
+  const onboardingRoutes = createOnboardingRoutes({
+    get: (key) => providerSettings.getSetting(key),
+    set: (key, value) => providerSettings.setSetting(key, value)
+  })
+  const exporterRoutes = createExporterRoutes(exporter)
+  const upgradeRoutes = createUpgradeRoutes({
+    upgrade: {} as never,
+    settings: updateSettings as never
+  })
+  const syncRoutes = createSyncRoutes({
+    sync: syncService,
+    settings: syncSettings as never,
+    importFromSync: appDatabaseMaintenance.importFromSync,
+    pullLatestBackupFromCloud: appDatabaseMaintenance.pullLatestBackupFromCloud,
+    recordActivity: (input) => {
+      void sqlitePresenter.recordSettingsActivity(input)
+    }
+  })
+  const platformRoutes = createPlatformRoutes({
+    proxySettings: proxySettings as never,
+    applyProxyMode,
+    applyCustomProxyUrl
+  })
+  const hookRoutes = createHookRoutes({
+    service: {
+      getConfigSnapshot: () => hookSettings.getHooksNotificationsConfig(),
+      updateConfig: (config) => hookSettings.setHooksNotificationsConfig(config as never),
+      testHookCommand
+    } as never
+  })
+  const appSettingsRoutes = createAppSettingsRoutes({
+    settings: {
+      get: (key) => providerSettings.getSetting(key),
+      set: (key, value) => providerSettings.setSetting(key, value)
+    },
+    agentDefaults: agentDefaults as never,
+    privacy: privacySettings as never,
+    traceSettings: traceSettings as never,
+    updateSettings: updateSettings as never,
+    desktopSettings: desktopSettings as never,
+    fonts: fontSettings as never,
+    applyContentProtection,
+    logging: loggingService as never,
+    ocr: ocrSettings,
+    commandShell,
+    publishEvent: publishDeepchatEvent,
+    recordActivity: (input) => {
+      void sqlitePresenter.recordSettingsActivity(input)
+    },
+    listActivities: (limit) => sqlitePresenter.listSettingsActivity(limit)
+  })
+  const appRoutes = createAppRoutes({
+    logging: loggingService as never,
+    agentSettings: providerSettings,
+    projects: projectPresenter as never,
+    databaseSecurity: {
+      getStatus: vi.fn(() => enabledDatabaseSecurityStatus)
+    } as any,
+    database: sqlitePresenter,
+    startupSession: sessionProjectionPort,
+    desktopSession: desktopSessionBinding,
+    startup: startupWorkloadCoordinator as any,
+    ensureDefaultWorkspace: () => projectPresenter.ensureDefaultWorkspace(),
+    enableDatabaseEncryption: appDatabaseMaintenance.enableDatabaseEncryption,
+    changeDatabasePassword: appDatabaseMaintenance.changeDatabasePassword,
+    disableDatabaseEncryption: appDatabaseMaintenance.disableDatabaseEncryption,
+    recordActivity: (input) => {
+      void sqlitePresenter.recordSettingsActivity(input)
+    },
+    publishSessionsUpdated: vi.fn()
+  })
 
   return {
     settings,
-    runtime: createMainKernelRouteRuntime({
-      configPresenter,
-      llmProviderPresenter,
-      agentSessionPresenter,
-      skillPresenter,
-      skillSyncPresenter,
-      exporter,
-      oauthPresenter,
-      mcpPresenter,
-      remoteControlPresenter,
-      shortcutPresenter,
-      sqlitePresenter,
-      windowPresenter,
-      devicePresenter,
-      projectPresenter,
-      filePresenter,
-      knowledgePresenter,
-      workspacePresenter,
-      yoBrowserPresenter,
-      tabPresenter,
-      cronJobs
-    }),
-    configPresenter,
-    llmProviderPresenter,
-    agentSessionPresenter,
-    skillPresenter,
-    skillSyncPresenter,
+    acpAuth,
+    runtime: (() => {
+      const runtime = createRouteDispatcher({
+        appDatabaseMaintenance,
+        routeMaps: [
+          providerRoutes,
+          toolRoutes,
+          pluginRoutes,
+          skillRoutes,
+          mcpRoutes,
+          remoteRoutes,
+          schedulerRoutes,
+          memoryRoutes,
+          desktopRoutes,
+          fileRoutes,
+          knowledgeRoutes,
+          workspaceRoutes,
+          projectRoutes,
+          sessionRoutes,
+          agentRoutes,
+          promptRoutes,
+          acpRoutes,
+          deviceRoutes,
+          onboardingRoutes,
+          upgradeRoutes,
+          exporterRoutes,
+          syncRoutes,
+          platformRoutes,
+          hookRoutes,
+          appSettingsRoutes,
+          appRoutes
+        ],
+        settingsWindow: windowPresenter,
+        startupWorkloadCoordinator: startupWorkloadCoordinator as any
+      })
+      Object.defineProperties(runtime, {
+        memoryService: {
+          set: (value) => Object.assign(memoryService, value)
+        },
+        sqlitePresenter: {
+          set: (value) => Object.assign(sqlitePresenter, value)
+        }
+      })
+      return runtime
+    })(),
+    providerSettings,
+    skillSettings,
+    privacySettings,
+    traceSettings,
+    proxySettings,
+    applyProxyMode,
+    applyCustomProxyUrl,
+    hookSettings,
+    updateSettings,
+    desktopSettings,
+    fontSettings,
+    applyContentProtection,
+    loggingService,
+    ocrSettings,
+    commandShell,
+    testHookCommand,
+    providerRuntime,
+    acpProviderAdminPort,
+    sessionLifecyclePort,
+    sessionProjectionPort,
+    desktopSessionBinding,
+    sessionTurnPort,
+    sessionAssignmentPort,
+    sessionPermissionPort,
+    memoryService,
+    skillService,
+    skillSyncService,
+    assertSessionActiveSkillsMutable,
     exporter,
-    oauthPresenter,
-    mcpPresenter,
-    remoteControlPresenter,
+    oauthService,
+    mcpService,
+    toolService,
+    remoteService,
     shortcutPresenter,
     sqlitePresenter,
+    tapeInspection,
     windowPresenter,
-    devicePresenter,
+    deviceService,
+    appDataReset,
+    appDatabaseMaintenance,
     projectPresenter,
-    filePresenter,
-    knowledgePresenter,
-    workspacePresenter,
+    fileService,
+    knowledgeService,
+    workspaceService,
     yoBrowserPresenter,
+    computerUsePreviewPresenter,
     tabPresenter,
-    cronJobs
+    cronJobs,
+    usageStatsService,
+    rtkRuntimeService,
+    tapeInspectorHeadWatcher,
+    sessionHistorySearch,
+    agentSessionExportService,
+    sessionTranslation
   }
 }
 
 describe('dispatchDeepchatRoute', () => {
+  it('does not change Session Skills while an execution is active', async () => {
+    const { runtime, skillService, assertSessionActiveSkillsMutable } = createRuntime()
+    const context = createRendererRouteContext(42, 7)
+    assertSessionActiveSkillsMutable.mockRejectedValueOnce(
+      new Error('Cannot change Session Skills while the session is generating.')
+    )
+
+    await expect(
+      dispatchDeepchatRoute(
+        runtime,
+        'skills.setActive',
+        { conversationId: 'session-1', skills: ['write-tests'] },
+        context
+      )
+    ).rejects.toThrow('Cannot change Session Skills while the session is generating.')
+
+    expect(assertSessionActiveSkillsMutable).toHaveBeenCalledWith('session-1')
+    expect(skillService.setActiveSkills).not.toHaveBeenCalled()
+  })
+
+  it('changes Session Skills only after the execution-state guard passes', async () => {
+    const { runtime, skillService, assertSessionActiveSkillsMutable } = createRuntime()
+
+    await expect(
+      dispatchDeepchatRoute(
+        runtime,
+        'skills.setActive',
+        { conversationId: 'session-1', skills: ['write-tests'] },
+        createRendererRouteContext(42, 7)
+      )
+    ).resolves.toEqual({ skills: ['write-tests'] })
+
+    expect(assertSessionActiveSkillsMutable).toHaveBeenCalledWith('session-1')
+    expect(skillService.setActiveSkills).toHaveBeenCalledWith('session-1', ['write-tests'])
+    expect(assertSessionActiveSkillsMutable.mock.invocationCallOrder[0]).toBeLessThan(
+      vi.mocked(skillService.setActiveSkills).mock.invocationCallOrder[0]
+    )
+  })
+
+  it('removes one Session Skill without replacing concurrently added state', async () => {
+    const { runtime, skillService, assertSessionActiveSkillsMutable } = createRuntime()
+
+    await expect(
+      dispatchDeepchatRoute(
+        runtime,
+        'skills.removeActive',
+        { conversationId: 'session-1', skill: 'write-tests' },
+        createRendererRouteContext(42, 7)
+      )
+    ).resolves.toEqual({ skills: [] })
+
+    expect(assertSessionActiveSkillsMutable).toHaveBeenCalledWith('session-1')
+    expect(skillService.removeActiveSkill).toHaveBeenCalledWith('session-1', 'write-tests')
+    expect(skillService.setActiveSkills).not.toHaveBeenCalled()
+  })
+
+  it('routes database imports through the App maintenance owner', async () => {
+    const { runtime, appDatabaseMaintenance } = createRuntime()
+    const context = createRendererRouteContext(42, 7)
+
+    await dispatchDeepchatRoute(
+      runtime,
+      'sync.import',
+      { backupFile: 'backup-1.zip', mode: 'increment' },
+      context
+    )
+    await dispatchDeepchatRoute(runtime, 'sync.pullFromCloud', { mode: 'overwrite' }, context)
+
+    expect(appDatabaseMaintenance.importFromSync).toHaveBeenCalledWith('backup-1.zip', 'increment')
+    expect(appDatabaseMaintenance.pullLatestBackupFromCloud).toHaveBeenCalledWith('overwrite')
+  })
+
+  it('routes database security migrations through the App maintenance owner', async () => {
+    const { runtime, appDatabaseMaintenance } = createRuntime()
+    const context = createRendererRouteContext(42, 7)
+
+    await dispatchDeepchatRoute(
+      runtime,
+      'databaseSecurity.enable',
+      { password: 'secret-1' },
+      context
+    )
+    await dispatchDeepchatRoute(
+      runtime,
+      'databaseSecurity.changePassword',
+      { currentPassword: 'secret-1', newPassword: 'secret-2' },
+      context
+    )
+    await dispatchDeepchatRoute(
+      runtime,
+      'databaseSecurity.disable',
+      { currentPassword: 'secret-2' },
+      context
+    )
+
+    expect(appDatabaseMaintenance.enableDatabaseEncryption).toHaveBeenCalledWith('secret-1')
+    expect(appDatabaseMaintenance.changeDatabasePassword).toHaveBeenCalledWith(
+      'secret-1',
+      'secret-2'
+    )
+    expect(appDatabaseMaintenance.disableDatabaseEncryption).toHaveBeenCalledWith('secret-2')
+  })
+
+  it('checks App maintenance admission before dispatching runtime work', async () => {
+    const { runtime, appDatabaseMaintenance, sessionProjectionPort } = createRuntime()
+    appDatabaseMaintenance.assertRouteAllowed.mockImplementation((routeName: string) => {
+      if (routeName.startsWith('sessions.')) throw new Error('maintenance')
+    })
+
+    await expect(
+      dispatchDeepchatRoute(runtime, 'sessions.list', {}, createRendererRouteContext(42, 7))
+    ).rejects.toThrow('maintenance')
+
+    expect(sessionProjectionPort.listSessions).not.toHaveBeenCalled()
+  })
+
+  it('routes tools.listDefinitions to the configurable Agent catalog', async () => {
+    const { runtime, toolService } = createRuntime()
+    const input = {
+      chatMode: 'agent' as const,
+      conversationId: 'session-1',
+      disabledAgentTools: ['read']
+    }
+
+    const result = await dispatchDeepchatRoute(
+      runtime,
+      'tools.listDefinitions',
+      input,
+      createRendererRouteContext(42, 7)
+    )
+
+    expect(result).toMatchObject({
+      tools: [{ source: 'agent', function: { name: 'read' } }]
+    })
+    expect(toolService.getConfigurableAgentToolDefinitions).toHaveBeenCalledWith(input)
+    expect(toolService.getAllToolDefinitions).not.toHaveBeenCalled()
+  })
+
   it('dispatches Cron Jobs routes through the runtime service', async () => {
     const { runtime, cronJobs } = createRuntime()
-    const context = {
-      webContentsId: 42,
-      windowId: 7
-    }
+    const context = createRendererRouteContext(42, 7)
 
     const listResult = await dispatchDeepchatRoute(runtime, 'cronJobs.list', {}, context)
     const upsertResult = await dispatchDeepchatRoute(
@@ -1494,50 +2254,9 @@ describe('dispatchDeepchatRoute', () => {
     })
   })
 
-  it('wires Cron Job run sessions with source metadata', async () => {
-    const { cronJobs, agentSessionPresenter } = createRuntime()
-    const starter = vi.mocked(cronJobs.setRunSessionStarter).mock.calls[0]?.[0] as
-      | CronJobRunSessionStarter
-      | undefined
-
-    expect(starter).toBeDefined()
-    await starter!.createSessionForRun({
-      job: {
-        id: 'cron-1',
-        name: 'Morning job',
-        agentId: 'deepchat',
-        agentSnapshot: null,
-        modelPolicy: 'follow_agent',
-        permissionPolicy: 'follow_agent',
-        toolPolicy: 'follow_agent',
-        taskSystemInstruction: null
-      } as CronJob,
-      run: {
-        id: 'run-1',
-        scheduledAt: 123
-      } as CronJobRun
-    })
-
-    expect(agentSessionPresenter.createDetachedSession).toHaveBeenCalledWith(
-      expect.objectContaining({
-        agentId: 'deepchat',
-        title: 'Morning job',
-        metadata: {
-          source: 'cron_job',
-          cronJobId: 'cron-1',
-          cronJobRunId: 'run-1',
-          scheduledAt: 123
-        }
-      })
-    )
-  })
-
   it('reconciles Cron Jobs after agent mutation routes', async () => {
     const { runtime, cronJobs } = createRuntime()
-    const context = {
-      webContentsId: 42,
-      windowId: 7
-    }
+    const context = createRendererRouteContext(42, 7)
 
     await dispatchDeepchatRoute(
       runtime,
@@ -1565,10 +2284,7 @@ describe('dispatchDeepchatRoute', () => {
       runtime,
       'startup.getBootstrap',
       {},
-      {
-        webContentsId: 42,
-        windowId: 7
-      }
+      createRendererRouteContext(42, 7)
     )
 
     expect(projectPresenter.ensureDefaultWorkspace).toHaveBeenCalledTimes(1)
@@ -1585,10 +2301,7 @@ describe('dispatchDeepchatRoute', () => {
       {
         keys: ['fontSizeLevel', 'fontFamily']
       },
-      {
-        webContentsId: 42,
-        windowId: 7
-      }
+      createRendererRouteContext(42, 7)
     )
 
     expect(result).toEqual({
@@ -1600,20 +2313,33 @@ describe('dispatchDeepchatRoute', () => {
     })
   })
 
+  it('exposes the same allowlisted settings through the public route', async () => {
+    const { runtime } = createRuntime()
+
+    await expect(
+      dispatchDeepchatRoute(
+        runtime,
+        'settings.getPublic',
+        { keys: ['fontSizeLevel', 'privacyModeEnabled'] },
+        createRendererRouteContext(42, 7)
+      )
+    ).resolves.toEqual({
+      version: expect.any(Number),
+      values: { fontSizeLevel: 2, privacyModeEnabled: false }
+    })
+  })
+
   it('lists system fonts through the settings handler adapter', async () => {
-    const { runtime, configPresenter } = createRuntime()
+    const { runtime, fontSettings } = createRuntime()
 
     const result = await dispatchDeepchatRoute(
       runtime,
       'settings.listSystemFonts',
       {},
-      {
-        webContentsId: 42,
-        windowId: 7
-      }
+      createRendererRouteContext(42, 7)
     )
 
-    expect(configPresenter.getSystemFonts).toHaveBeenCalledTimes(1)
+    expect(fontSettings.getSystemFonts).toHaveBeenCalledTimes(1)
     expect(result).toEqual({
       fonts: ['Inter', 'JetBrains Mono']
     })
@@ -1653,7 +2379,7 @@ describe('dispatchDeepchatRoute', () => {
       runtime,
       'memory.listAuditEvents',
       { agentId: 'deepchat' },
-      { webContentsId: 42, windowId: 7 }
+      createRendererRouteContext(42, 7)
     )
 
     expect(listByAgent).toHaveBeenCalledWith(
@@ -1682,21 +2408,23 @@ describe('dispatchDeepchatRoute', () => {
   })
 
   it('returns no memory audit events for missing or non-DeepChat agents', async () => {
-    const { runtime, configPresenter } = createRuntime()
+    const { runtime, providerSettings } = createRuntime()
     const listByAgent = vi.fn()
     ;(runtime as any).sqlitePresenter = {
       agentMemoryAuditTable: {
         listByAgent
       }
     }
-    vi.mocked(configPresenter.getAgentType).mockResolvedValueOnce(null).mockResolvedValueOnce('acp')
+    vi.mocked(providerSettings.getAgentType)
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce('acp')
 
     await expect(
       dispatchDeepchatRoute(
         runtime,
         'memory.listAuditEvents',
         { agentId: 'deleted' },
-        { webContentsId: 42, windowId: 7 }
+        createRendererRouteContext(42, 7)
       )
     ).resolves.toEqual({ events: [] })
     await expect(
@@ -1704,14 +2432,170 @@ describe('dispatchDeepchatRoute', () => {
         runtime,
         'memory.listAuditEvents',
         { agentId: 'acp-agent' },
-        { webContentsId: 42, windowId: 7 }
+        createRendererRouteContext(42, 7)
       )
     ).resolves.toEqual({ events: [] })
     expect(listByAgent).not.toHaveBeenCalled()
   })
 
+  it('dispatches directive management without exposing persistence identities', async () => {
+    const { runtime, providerSettings } = createRuntime()
+    vi.mocked(providerSettings.getAgentType).mockResolvedValue('deepchat')
+    const row = {
+      agent_id: 'deepchat',
+      id: 'directive-1',
+      kind: 'suppress_topic',
+      status: 'draft',
+      source: 'derived_suggestion',
+      content: 'Do not mention Project Saffron.',
+      normalized_topic: 'project saffron',
+      identity_hash: 'a'.repeat(64),
+      created_at: 1_000,
+      updated_at: 1_000
+    } as const
+    const listDirectives = vi.fn().mockReturnValue([row])
+    const createDirectiveResult = vi.fn().mockReturnValue({
+      action: 'applied',
+      directive: { ...row, status: 'active', source: 'manual' }
+    })
+    const approveDirectiveResult = vi.fn().mockReturnValue({
+      action: 'applied',
+      directive: { ...row, status: 'active' }
+    })
+    const rejectDirectiveResult = vi.fn().mockReturnValue({
+      action: 'applied',
+      directive: { ...row, status: 'rejected' }
+    })
+    const deleteDirectiveResult = vi.fn().mockReturnValue({ action: 'applied' })
+    ;(runtime as any).memoryService = {
+      listDirectives,
+      createDirectiveResult,
+      approveDirectiveResult,
+      rejectDirectiveResult,
+      deleteDirectiveResult
+    }
+
+    const context = createRendererRouteContext(42, 7)
+    const listed = await dispatchDeepchatRoute(
+      runtime,
+      'memory.listDirectives',
+      { agentId: 'deepchat', statuses: ['draft'] },
+      context
+    )
+    const created = await dispatchDeepchatRoute(
+      runtime,
+      'memory.createDirective',
+      {
+        agentId: 'deepchat',
+        directive: {
+          kind: 'suppress_topic',
+          content: 'Do not mention Project Saffron.',
+          topic: 'Project Saffron'
+        }
+      },
+      context
+    )
+    const approved = await dispatchDeepchatRoute(
+      runtime,
+      'memory.approveDirective',
+      { agentId: 'deepchat', directiveId: 'directive-1' },
+      context
+    )
+    const rejected = await dispatchDeepchatRoute(
+      runtime,
+      'memory.rejectDirective',
+      { agentId: 'deepchat', directiveId: 'directive-1' },
+      context
+    )
+    const deleted = await dispatchDeepchatRoute(
+      runtime,
+      'memory.deleteDirective',
+      { agentId: 'deepchat', directiveId: 'directive-1' },
+      context
+    )
+
+    expect(listDirectives).toHaveBeenCalledWith('deepchat', {
+      statuses: ['draft'],
+      limit: 200
+    })
+    expect(createDirectiveResult).toHaveBeenCalledWith(
+      'deepchat',
+      {
+        kind: 'suppress_topic',
+        content: 'Do not mention Project Saffron.',
+        topic: 'Project Saffron'
+      },
+      'manual'
+    )
+    expect(approved).toMatchObject({
+      action: 'applied',
+      directive: { status: 'active' }
+    })
+    expect(rejectDirectiveResult).toHaveBeenCalledWith('deepchat', 'directive-1')
+    expect(rejected).toMatchObject({
+      action: 'applied',
+      directive: { status: 'rejected' }
+    })
+    expect(deleted).toEqual({ action: 'applied' })
+    expect(listed.directives[0]).not.toHaveProperty('identityHash')
+    expect(listed.directives[0]).not.toHaveProperty('identity_hash')
+    expect(created).toMatchObject({
+      action: 'applied',
+      directive: { source: 'manual', topic: 'project saffron' }
+    })
+  })
+
+  it('rejects directive mutations outside DeepChat agents', async () => {
+    const { runtime, providerSettings } = createRuntime()
+    vi.mocked(providerSettings.getAgentType).mockResolvedValue('acp')
+    const createDirectiveResult = vi.fn()
+    const rejectDirectiveResult = vi.fn()
+    const deleteDirectiveResult = vi.fn()
+    ;(runtime as any).memoryService = {
+      createDirectiveResult,
+      rejectDirectiveResult,
+      deleteDirectiveResult
+    }
+    const context = createRendererRouteContext(42, 7)
+
+    await expect(
+      dispatchDeepchatRoute(
+        runtime,
+        'memory.createDirective',
+        {
+          agentId: 'acp-agent',
+          directive: { kind: 'instruction', content: 'Be concise.' }
+        },
+        context
+      )
+    ).resolves.toEqual({ action: 'rejected', directive: null, reason: 'unavailable' })
+    await expect(
+      dispatchDeepchatRoute(
+        runtime,
+        'memory.rejectDirective',
+        { agentId: 'acp-agent', directiveId: 'directive-1' },
+        context
+      )
+    ).resolves.toEqual({
+      action: 'rejected',
+      directive: null,
+      reason: 'unavailable'
+    })
+    await expect(
+      dispatchDeepchatRoute(
+        runtime,
+        'memory.deleteDirective',
+        { agentId: 'acp-agent', directiveId: 'directive-1' },
+        context
+      )
+    ).resolves.toEqual({ action: 'rejected', reason: 'unavailable' })
+    expect(createDirectiveResult).not.toHaveBeenCalled()
+    expect(rejectDirectiveResult).not.toHaveBeenCalled()
+    expect(deleteDirectiveResult).not.toHaveBeenCalled()
+  })
+
   it('dispatches memory health with deepchat guard and zero fallback', async () => {
-    const { runtime, configPresenter } = createRuntime()
+    const { runtime, providerSettings } = createRuntime()
     const health = {
       ...createEmptyMemoryHealth(),
       totalRows: 1,
@@ -1726,32 +2610,32 @@ describe('dispatchDeepchatRoute', () => {
       }
     }
     const getHealth = vi.fn(() => health)
-    ;(runtime as any).memoryPresenter = { getHealth }
+    ;(runtime as any).memoryService = { getHealth }
 
     await expect(
       dispatchDeepchatRoute(
         runtime,
         'memory.getHealth',
         { agentId: 'other' },
-        { webContentsId: 42, windowId: 7 }
+        createRendererRouteContext(42, 7)
       )
     ).resolves.toEqual({ health: createEmptyMemoryHealth() })
     expect(getHealth).not.toHaveBeenCalled()
 
-    vi.mocked(configPresenter.getAgentType).mockResolvedValueOnce('deepchat')
+    vi.mocked(providerSettings.getAgentType).mockResolvedValueOnce('deepchat')
     await expect(
       dispatchDeepchatRoute(
         runtime,
         'memory.getHealth',
         { agentId: 'deepchat' },
-        { webContentsId: 42, windowId: 7 }
+        createRendererRouteContext(42, 7)
       )
     ).resolves.toEqual({ health })
     expect(getHealth).toHaveBeenCalledWith('deepchat')
   })
 
   it('dispatches memory lifecycle with deepchat guard and empty fallback', async () => {
-    const { runtime, configPresenter } = createRuntime()
+    const { runtime, providerSettings } = createRuntime()
     const lifecycle = {
       memoryId: 'm1',
       kind: 'semantic',
@@ -1813,25 +2697,25 @@ describe('dispatchDeepchatRoute', () => {
     }
     const getLifecycle = vi.fn(() => lifecycle)
     const getArchiveCandidateLifecyclePreview = vi.fn(() => preview)
-    ;(runtime as any).memoryPresenter = { getLifecycle, getArchiveCandidateLifecyclePreview }
+    ;(runtime as any).memoryService = { getLifecycle, getArchiveCandidateLifecyclePreview }
 
     await expect(
       dispatchDeepchatRoute(
         runtime,
         'memory.getLifecycle',
         { agentId: 'other', memoryId: 'm1' },
-        { webContentsId: 42, windowId: 7 }
+        createRendererRouteContext(42, 7)
       )
     ).resolves.toEqual({ lifecycle: null })
     expect(getLifecycle).not.toHaveBeenCalled()
 
-    vi.mocked(configPresenter.getAgentType).mockResolvedValueOnce('deepchat')
+    vi.mocked(providerSettings.getAgentType).mockResolvedValueOnce('deepchat')
     await expect(
       dispatchDeepchatRoute(
         runtime,
         'memory.getLifecycle',
         { agentId: 'deepchat', memoryId: 'm1' },
-        { webContentsId: 42, windowId: 7 }
+        createRendererRouteContext(42, 7)
       )
     ).resolves.toEqual({ lifecycle })
     expect(getLifecycle).toHaveBeenCalledWith('deepchat', 'm1')
@@ -1841,18 +2725,18 @@ describe('dispatchDeepchatRoute', () => {
         runtime,
         'memory.getArchiveCandidateLifecyclePreview',
         { agentId: 'other' },
-        { webContentsId: 42, windowId: 7 }
+        createRendererRouteContext(42, 7)
       )
     ).resolves.toEqual({ preview: createEmptyArchiveCandidateLifecyclePreview() })
     expect(getArchiveCandidateLifecyclePreview).not.toHaveBeenCalled()
 
-    vi.mocked(configPresenter.getAgentType).mockResolvedValueOnce('deepchat')
+    vi.mocked(providerSettings.getAgentType).mockResolvedValueOnce('deepchat')
     await expect(
       dispatchDeepchatRoute(
         runtime,
         'memory.getArchiveCandidateLifecyclePreview',
         { agentId: 'deepchat' },
-        { webContentsId: 42, windowId: 7 }
+        createRendererRouteContext(42, 7)
       )
     ).resolves.toEqual({ preview })
     expect(getArchiveCandidateLifecyclePreview).toHaveBeenCalledWith('deepchat')
@@ -1866,67 +2750,35 @@ describe('dispatchDeepchatRoute', () => {
         runtime,
         'memory.listAuditEvents',
         { agentId: 'deepchat' },
-        { webContentsId: 42, windowId: 7 }
+        createRendererRouteContext(42, 7)
       )
     ).resolves.toEqual({ events: [] })
   })
 
   it('filters memory view manifests by message before applying the requested limit', async () => {
-    const { runtime, configPresenter } = createRuntime()
-    vi.mocked(configPresenter.getAgentType).mockResolvedValueOnce('deepchat')
+    const { runtime, providerSettings, tapeInspection } = createRuntime()
+    vi.mocked(providerSettings.getAgentType).mockResolvedValueOnce('deepchat')
     const listSessions = vi.fn()
-    const listMemoryViewManifestAnchorsByAgent = vi.fn().mockReturnValue([
-      {
-        session_id: 's1',
-        entry_id: 20,
-        kind: 'anchor',
-        name: 'memory/view_assembled',
-        source_type: 'memory',
-        source_id: 'msg-new',
-        source_seq: 0,
-        provenance_key: null,
-        payload_json: JSON.stringify({
-          state: {
-            policyVersion: 1,
-            tokenBudget: 1000,
-            estimatedTokens: 10,
-            selected: ['new'],
-            dropped: [],
-            queryHash: 'newhash'
-          }
-        }),
-        meta_json: JSON.stringify({ messageId: 'msg-new' }),
-        created_at: 200
-      },
-      {
-        session_id: 's1',
-        entry_id: 10,
-        kind: 'anchor',
-        name: 'memory/view_assembled',
-        source_type: 'memory',
-        source_id: 'msg-old',
-        source_seq: 0,
-        provenance_key: null,
-        payload_json: JSON.stringify({
-          state: {
-            policyVersion: 1,
-            tokenBudget: 900,
-            estimatedTokens: 9,
-            selected: ['old'],
-            dropped: ['drop'],
-            queryHash: 'oldhash'
-          }
-        }),
-        meta_json: JSON.stringify({ messageId: 'msg-old' }),
-        created_at: 100
-      }
-    ])
+    const listMemoryViewManifestsByAgent = vi
+      .mocked(tapeInspection.listMemoryViewManifestsByAgent)
+      .mockReturnValue([
+        {
+          sessionId: 's1',
+          messageId: 'msg-old',
+          entryId: 10,
+          policyVersion: 1,
+          tokenBudget: 900,
+          estimatedTokens: 9,
+          selectedCount: 1,
+          selectedIds: ['old'],
+          droppedCount: 1,
+          queryHash: 'oldhash',
+          createdAt: 100
+        }
+      ])
     ;(runtime as any).sqlitePresenter = {
       newSessionsTable: {
         list: listSessions
-      },
-      deepchatTapeEntriesTable: {
-        listMemoryViewManifestAnchorsByAgent
       }
     }
 
@@ -1934,11 +2786,11 @@ describe('dispatchDeepchatRoute', () => {
       runtime,
       'memory.listViewManifests',
       { agentId: 'a', sessionId: 's1', messageId: 'msg-old', limit: 1 },
-      { webContentsId: 42, windowId: 7 }
+      createRendererRouteContext(42, 7)
     )
 
     expect(listSessions).not.toHaveBeenCalled()
-    expect(listMemoryViewManifestAnchorsByAgent).toHaveBeenCalledWith('a', {
+    expect(listMemoryViewManifestsByAgent).toHaveBeenCalledWith('a', {
       sessionId: 's1',
       limit: 1,
       messageId: 'msg-old'
@@ -1957,51 +2809,29 @@ describe('dispatchDeepchatRoute', () => {
     })
   })
 
-  it('derives selected memory ids from string and object manifest selections', async () => {
-    const { runtime, configPresenter } = createRuntime()
-    vi.mocked(configPresenter.getAgentType).mockResolvedValueOnce('deepchat')
-    const listMemoryViewManifestAnchorsByAgent = vi.fn().mockReturnValue([
+  it('returns Tape inspection manifest DTOs without exposing raw rows', async () => {
+    const { runtime, providerSettings, tapeInspection } = createRuntime()
+    vi.mocked(providerSettings.getAgentType).mockResolvedValueOnce('deepchat')
+    vi.mocked(tapeInspection.listMemoryViewManifestsByAgent).mockReturnValue([
       {
-        session_id: 's1',
-        entry_id: 30,
-        kind: 'anchor',
-        name: 'memory/view_assembled',
-        source_type: 'memory',
-        source_id: 'msg-1',
-        source_seq: 0,
-        provenance_key: null,
-        payload_json: JSON.stringify({
-          state: {
-            policyVersion: 1,
-            tokenBudget: 1000,
-            estimatedTokens: 10,
-            selected: [
-              'm-string',
-              { id: 'm-object' },
-              'm-string',
-              { id: 'm-object' },
-              { nope: 'ignored' },
-              3
-            ],
-            dropped: [],
-            queryHash: 'hash'
-          }
-        }),
-        meta_json: JSON.stringify({ messageId: 'msg-1' }),
-        created_at: 300
+        sessionId: 's1',
+        messageId: 'msg-1',
+        entryId: 30,
+        policyVersion: 1,
+        tokenBudget: 1000,
+        estimatedTokens: 10,
+        selectedCount: 6,
+        selectedIds: ['m-string', 'm-object'],
+        droppedCount: 0,
+        queryHash: 'hash',
+        createdAt: 300
       }
     ])
-    ;(runtime as any).sqlitePresenter = {
-      deepchatTapeEntriesTable: {
-        listMemoryViewManifestAnchorsByAgent
-      }
-    }
-
     const result = await dispatchDeepchatRoute(
       runtime,
       'memory.listViewManifests',
       { agentId: 'deepchat', sessionId: 's1', messageId: 'msg-1', limit: 1 },
-      { webContentsId: 42, windowId: 7 }
+      createRendererRouteContext(42, 7)
     )
 
     expect(result).toEqual({
@@ -2012,6 +2842,48 @@ describe('dispatchDeepchatRoute', () => {
         })
       ]
     })
+    expect(result.manifests[0]).not.toHaveProperty('payload_json')
+    expect(result.manifests[0]).not.toHaveProperty('meta_json')
+  })
+
+  it('reads memory source spans through the DTO-only Tape inspection port', async () => {
+    const { runtime, tapeInspection } = createRuntime()
+    const getManagementVisibleByIds = vi.fn().mockReturnValue([
+      {
+        id: 'memory-1',
+        agent_id: 'deepchat',
+        source_session: 's1',
+        source_entry_ids: '[2,3]'
+      }
+    ])
+    const getEffectiveMessageSourceSpan = vi
+      .mocked(tapeInspection.getEffectiveMessageSourceSpan)
+      .mockReturnValue([
+        {
+          entryId: 2,
+          record: {
+            role: 'user',
+            orderSeq: 1,
+            content: JSON.stringify({ text: 'source context' })
+          }
+        }
+      ])
+    ;(runtime as any).memoryService = { getManagementVisibleByIds }
+
+    const result = await dispatchDeepchatRoute(
+      runtime,
+      'memory.getSourceSpan',
+      { agentId: 'deepchat', memoryId: 'memory-1' },
+      createRendererRouteContext(42, 7)
+    )
+
+    expect(getEffectiveMessageSourceSpan).toHaveBeenCalledWith('s1', [2, 3])
+    expect(result).toEqual({
+      span: {
+        sessionId: 's1',
+        entries: [{ entryId: 2, role: 'user', content: 'source context', orderSeq: 1 }]
+      }
+    })
   })
 
   it('dispatches memory.getByIds with deepchat guard and input order projection', async () => {
@@ -2021,11 +2893,14 @@ describe('dispatchDeepchatRoute', () => {
         id: 'm2',
         agent_id: 'deepchat',
         user_scope: null,
+        scope_type: 'agent',
+        scope_id: null,
         kind: 'semantic',
         category: 'project_fact',
         content: 'archived memory',
         importance: 0.7,
-        status: 'archived',
+        lifecycle_state: 'archived',
+        embedding_state: 'pending',
         embedding_id: null,
         embedding_dim: null,
         embedding_model: null,
@@ -2048,11 +2923,14 @@ describe('dispatchDeepchatRoute', () => {
         id: 'm1',
         agent_id: 'deepchat',
         user_scope: null,
+        scope_type: 'agent',
+        scope_id: null,
         kind: 'semantic',
         category: null,
         content: 'active memory',
         importance: 0.5,
-        status: 'embedded',
+        lifecycle_state: 'active',
+        embedding_state: 'ready',
         embedding_id: null,
         embedding_dim: null,
         embedding_model: null,
@@ -2072,13 +2950,13 @@ describe('dispatchDeepchatRoute', () => {
         persona_state: null
       }
     ])
-    ;(runtime as any).memoryPresenter = { getByIds }
+    ;(runtime as any).memoryService = { getByIds }
 
     const guarded = await dispatchDeepchatRoute(
       runtime,
       'memory.getByIds',
       { agentId: 'other', memoryIds: ['m1'] },
-      { webContentsId: 42, windowId: 7 }
+      createRendererRouteContext(42, 7)
     )
     expect(guarded).toEqual({ memories: [] })
     expect(getByIds).not.toHaveBeenCalled()
@@ -2087,31 +2965,41 @@ describe('dispatchDeepchatRoute', () => {
       runtime,
       'memory.getByIds',
       { agentId: 'deepchat', memoryIds: ['m2', 'm1'] },
-      { webContentsId: 42, windowId: 7 }
+      createRendererRouteContext(42, 7)
     )
 
     expect(getByIds).toHaveBeenCalledWith('deepchat', ['m2', 'm1'])
     expect(result).toEqual({
       memories: [
-        expect.objectContaining({ id: 'm2', status: 'archived' }),
-        expect.objectContaining({ id: 'm1', status: 'embedded' })
+        expect.objectContaining({
+          id: 'm2',
+          scopeType: 'agent',
+          scopeId: null,
+          status: 'archived'
+        }),
+        expect.objectContaining({
+          id: 'm1',
+          scopeType: 'agent',
+          scopeId: null,
+          status: 'embedded'
+        })
       ]
     })
   })
 
   it('dispatches memory.archive with deepchat guard', async () => {
     const { runtime } = createRuntime()
-    const archiveUserMemory = vi.fn().mockResolvedValue(true)
-    ;(runtime as any).memoryPresenter = { archiveUserMemory }
+    const archiveUserMemory = vi.fn().mockResolvedValue({ action: 'applied' })
+    ;(runtime as any).memoryService = { archiveUserMemory }
 
     await expect(
       dispatchDeepchatRoute(
         runtime,
         'memory.archive',
         { agentId: 'other', memoryId: 'm1' },
-        { webContentsId: 42, windowId: 7 }
+        createRendererRouteContext(42, 7)
       )
-    ).resolves.toEqual({ ok: false })
+    ).resolves.toEqual({ action: 'rejected', reason: 'unavailable' })
     expect(archiveUserMemory).not.toHaveBeenCalled()
 
     await expect(
@@ -2119,25 +3007,25 @@ describe('dispatchDeepchatRoute', () => {
         runtime,
         'memory.archive',
         { agentId: 'deepchat', memoryId: 'm1' },
-        { webContentsId: 42, windowId: 7 }
+        createRendererRouteContext(42, 7)
       )
-    ).resolves.toEqual({ ok: true })
+    ).resolves.toEqual({ action: 'applied' })
     expect(archiveUserMemory).toHaveBeenCalledWith('deepchat', 'm1')
   })
 
   it('dispatches memory.reindex only when a new managed task can start', async () => {
-    const { runtime, configPresenter } = createRuntime()
+    const { runtime, providerSettings } = createRuntime()
     const canReindex = vi.fn(() => true)
     const isReindexing = vi.fn(() => false)
     const reindexEmbeddings = vi.fn().mockResolvedValue(undefined)
-    ;(runtime as any).memoryPresenter = { canReindex, isReindexing, reindexEmbeddings }
+    ;(runtime as any).memoryService = { canReindex, isReindexing, reindexEmbeddings }
 
     await expect(
       dispatchDeepchatRoute(
         runtime,
         'memory.reindex',
         { agentId: 'other' },
-        { webContentsId: 42, windowId: 7 }
+        createRendererRouteContext(42, 7)
       )
     ).resolves.toEqual({ started: false })
     expect(canReindex).not.toHaveBeenCalled()
@@ -2149,7 +3037,7 @@ describe('dispatchDeepchatRoute', () => {
         runtime,
         'memory.reindex',
         { agentId: 'deepchat' },
-        { webContentsId: 42, windowId: 7 }
+        createRendererRouteContext(42, 7)
       )
     ).resolves.toEqual({ started: false })
     expect(canReindex).toHaveBeenCalledWith('deepchat')
@@ -2162,7 +3050,7 @@ describe('dispatchDeepchatRoute', () => {
         runtime,
         'memory.reindex',
         { agentId: 'deepchat' },
-        { webContentsId: 42, windowId: 7 }
+        createRendererRouteContext(42, 7)
       )
     ).resolves.toEqual({ started: false })
     expect(reindexEmbeddings).toHaveBeenCalledTimes(1)
@@ -2174,39 +3062,36 @@ describe('dispatchDeepchatRoute', () => {
         runtime,
         'memory.reindex',
         { agentId: 'deepchat' },
-        { webContentsId: 42, windowId: 7 }
+        createRendererRouteContext(42, 7)
       )
     ).resolves.toEqual({ started: true })
     expect(reindexEmbeddings).toHaveBeenCalledTimes(2)
 
-    vi.mocked(configPresenter.getAgentType).mockResolvedValueOnce('acp')
+    vi.mocked(providerSettings.getAgentType).mockResolvedValueOnce('acp')
     await expect(
       dispatchDeepchatRoute(
         runtime,
         'memory.reindex',
         { agentId: 'deepchat' },
-        { webContentsId: 42, windowId: 7 }
+        createRendererRouteContext(42, 7)
       )
     ).resolves.toEqual({ started: false })
     expect(reindexEmbeddings).toHaveBeenCalledTimes(2)
   })
 
   it('returns no memory view manifests for missing or non-DeepChat agents', async () => {
-    const { runtime, configPresenter } = createRuntime()
-    const listMemoryViewManifestAnchorsByAgent = vi.fn()
-    ;(runtime as any).sqlitePresenter = {
-      deepchatTapeEntriesTable: {
-        listMemoryViewManifestAnchorsByAgent
-      }
-    }
-    vi.mocked(configPresenter.getAgentType).mockResolvedValueOnce(null).mockResolvedValueOnce('acp')
+    const { runtime, providerSettings, tapeInspection } = createRuntime()
+    const listMemoryViewManifestsByAgent = vi.mocked(tapeInspection.listMemoryViewManifestsByAgent)
+    vi.mocked(providerSettings.getAgentType)
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce('acp')
 
     await expect(
       dispatchDeepchatRoute(
         runtime,
         'memory.listViewManifests',
         { agentId: 'deleted' },
-        { webContentsId: 42, windowId: 7 }
+        createRendererRouteContext(42, 7)
       )
     ).resolves.toEqual({ manifests: [] })
     await expect(
@@ -2214,46 +3099,10 @@ describe('dispatchDeepchatRoute', () => {
         runtime,
         'memory.listViewManifests',
         { agentId: 'acp-agent' },
-        { webContentsId: 42, windowId: 7 }
+        createRendererRouteContext(42, 7)
       )
     ).resolves.toEqual({ manifests: [] })
-    expect(listMemoryViewManifestAnchorsByAgent).not.toHaveBeenCalled()
-  })
-
-  it('returns no memory view manifests when the SQLite presenter has no tape table', async () => {
-    const { runtime } = createRuntime()
-
-    await expect(
-      dispatchDeepchatRoute(
-        runtime,
-        'memory.listViewManifests',
-        { agentId: 'deepchat' },
-        { webContentsId: 42, windowId: 7 }
-      )
-    ).resolves.toEqual({ manifests: [] })
-  })
-
-  it('returns a null memory source span when the SQLite presenter has no tape table', async () => {
-    const { runtime } = createRuntime()
-    ;(runtime as any).memoryPresenter = {
-      getManagementVisibleByIds: vi.fn(() => [
-        {
-          id: 'm1',
-          agent_id: 'deepchat',
-          source_session: 's1',
-          source_entry_ids: '[1]'
-        }
-      ])
-    }
-
-    await expect(
-      dispatchDeepchatRoute(
-        runtime,
-        'memory.getSourceSpan',
-        { agentId: 'deepchat', memoryId: 'm1' },
-        { webContentsId: 42, windowId: 7 }
-      )
-    ).resolves.toEqual({ span: null })
+    expect(listMemoryViewManifestsByAgent).not.toHaveBeenCalled()
   })
 
   it('dispatches bounded memory pages and returns an opaque keyset cursor', async () => {
@@ -2264,11 +3113,14 @@ describe('dispatchDeepchatRoute', () => {
           id: 'm1',
           agent_id: 'deepchat',
           user_scope: null,
+          scope_type: 'agent',
+          scope_id: null,
           kind: 'semantic',
           category: null,
           content: 'paged fact',
           importance: 0.5,
-          status: 'embedded',
+          lifecycle_state: 'active',
+          embedding_state: 'ready',
           embedding_id: null,
           embedding_dim: null,
           embedding_model: null,
@@ -2291,17 +3143,19 @@ describe('dispatchDeepchatRoute', () => {
       ],
       nextCursor: { createdAt: 1000, id: 'm1' }
     }))
-    ;(runtime as any).memoryPresenter = { pageMemories }
+    ;(runtime as any).memoryService = { pageMemories }
 
     const result = await dispatchDeepchatRoute(
       runtime,
       'memory.page',
       { agentId: 'deepchat', limit: 25 },
-      { webContentsId: 42, windowId: 7 }
+      createRendererRouteContext(42, 7)
     )
 
     expect(pageMemories).toHaveBeenCalledWith('deepchat', null, 25)
-    expect(result.items.map((item) => item.id)).toEqual(['m1'])
+    expect(result.items).toEqual([
+      expect.objectContaining({ id: 'm1', scopeType: 'agent', scopeId: null })
+    ])
     expect(decodeMemoryPageCursor(result.nextCursor!)).toEqual({
       v: 1,
       createdAt: 1000,
@@ -2312,55 +3166,45 @@ describe('dispatchDeepchatRoute', () => {
   it('returns an empty memory page for a non-DeepChat agent', async () => {
     const { runtime } = createRuntime()
     const pageMemories = vi.fn()
-    ;(runtime as any).memoryPresenter = { pageMemories }
+    ;(runtime as any).memoryService = { pageMemories }
 
     await expect(
       dispatchDeepchatRoute(
         runtime,
         'memory.page',
         { agentId: 'external-agent', limit: 25 },
-        { webContentsId: 42, windowId: 7 }
+        createRendererRouteContext(42, 7)
       )
     ).resolves.toEqual({ items: [], nextCursor: null })
     expect(pageMemories).not.toHaveBeenCalled()
   })
 
   it('does not expand all sessions when listing memory view manifests', async () => {
-    const { runtime, configPresenter } = createRuntime()
-    vi.mocked(configPresenter.getAgentType).mockResolvedValueOnce('deepchat')
+    const { runtime, providerSettings, tapeInspection } = createRuntime()
+    vi.mocked(providerSettings.getAgentType).mockResolvedValueOnce('deepchat')
     const listSessions = vi.fn(() =>
       Array.from({ length: 1200 }, (_, index) => ({ id: `s-${index}` }))
     )
-    const listMemoryViewManifestAnchorsByAgent = vi.fn().mockReturnValue([
-      {
-        session_id: 's-1199',
-        entry_id: 1,
-        kind: 'anchor',
-        name: 'memory/view_assembled',
-        source_type: 'memory',
-        source_id: 'msg-1',
-        source_seq: 0,
-        provenance_key: null,
-        payload_json: JSON.stringify({
-          state: {
-            policyVersion: 1,
-            tokenBudget: 1000,
-            estimatedTokens: 10,
-            selected: ['m1'],
-            dropped: [],
-            queryHash: 'hash'
-          }
-        }),
-        meta_json: JSON.stringify({ messageId: 'msg-1' }),
-        created_at: 100
-      }
-    ])
+    const listMemoryViewManifestsByAgent = vi
+      .mocked(tapeInspection.listMemoryViewManifestsByAgent)
+      .mockReturnValue([
+        {
+          sessionId: 's-1199',
+          messageId: 'msg-1',
+          entryId: 1,
+          policyVersion: 1,
+          tokenBudget: 1000,
+          estimatedTokens: 10,
+          selectedCount: 1,
+          selectedIds: ['m1'],
+          droppedCount: 0,
+          queryHash: 'hash',
+          createdAt: 100
+        }
+      ])
     ;(runtime as any).sqlitePresenter = {
       newSessionsTable: {
         list: listSessions
-      },
-      deepchatTapeEntriesTable: {
-        listMemoryViewManifestAnchorsByAgent
       }
     }
 
@@ -2368,11 +3212,11 @@ describe('dispatchDeepchatRoute', () => {
       runtime,
       'memory.listViewManifests',
       { agentId: 'a', limit: 100 },
-      { webContentsId: 42, windowId: 7 }
+      createRendererRouteContext(42, 7)
     )
 
     expect(listSessions).not.toHaveBeenCalled()
-    expect(listMemoryViewManifestAnchorsByAgent).toHaveBeenCalledWith('a', {
+    expect(listMemoryViewManifestsByAgent).toHaveBeenCalledWith('a', {
       sessionId: undefined,
       limit: 100,
       messageId: undefined
@@ -2382,33 +3226,34 @@ describe('dispatchDeepchatRoute', () => {
     })
   })
 
-  it('dispatches ACP terminal command routes through the terminal helper', async () => {
-    const { runtime } = createRuntime()
-    const context = {
-      webContentsId: 42,
-      windowId: 7
-    }
+  it('dispatches caller-scoped ACP authentication terminal routes', async () => {
+    const { runtime, acpAuth } = createRuntime()
+    const context = createRendererRouteContext(42, 7)
 
+    await dispatchDeepchatRoute(runtime, 'acpAuth.inspect', { agentId: 'agent-1' }, context)
     const inputResult = await dispatchDeepchatRoute(
       runtime,
-      'acpTerminal.input',
-      { data: 'hello\n' },
+      'acpAuth.input',
+      { runId: 'run-1', data: 'hello\n' },
       context
     )
-    const killResult = await dispatchDeepchatRoute(runtime, 'acpTerminal.kill', {}, context)
+    const cancelResult = await dispatchDeepchatRoute(
+      runtime,
+      'acpAuth.cancel',
+      { runId: 'run-1' },
+      context
+    )
 
-    expect(writeToTerminal).toHaveBeenCalledWith('hello\n')
-    expect(killTerminal).toHaveBeenCalledTimes(1)
+    expect(acpAuth.inspect).toHaveBeenCalledWith('agent-1', undefined, 42)
+    expect(acpAuth.write).toHaveBeenCalledWith('run-1', 42, 'hello\n')
+    expect(acpAuth.cancel).toHaveBeenCalledWith('run-1', 42)
     expect(inputResult).toEqual({ sent: true })
-    expect(killResult).toEqual({ killed: true })
+    expect(cancelResult).toEqual({ cancelled: true })
   })
 
   it('dispatches shortcut routes through ShortcutPresenter', async () => {
     const { runtime, shortcutPresenter } = createRuntime()
-    const context = {
-      webContentsId: 42,
-      windowId: 7
-    }
+    const context = createRendererRouteContext(42, 7)
 
     const registerResult = await dispatchDeepchatRoute(runtime, 'shortcut.register', {}, context)
     const unregisterResult = await dispatchDeepchatRoute(
@@ -2427,8 +3272,16 @@ describe('dispatchDeepchatRoute', () => {
     expect(destroyResult).toEqual({ destroyed: true })
   })
 
-  it('applies typed settings updates through presenter adapters', async () => {
-    const { runtime, configPresenter, settings } = createRuntime()
+  it('applies typed settings updates through their owners', async () => {
+    const {
+      runtime,
+      privacySettings,
+      desktopSettings,
+      applyContentProtection,
+      loggingService,
+      ocrSettings,
+      settings
+    } = createRuntime()
 
     const result = await dispatchDeepchatRoute(
       runtime,
@@ -2436,31 +3289,129 @@ describe('dispatchDeepchatRoute', () => {
       {
         changes: [
           { key: 'fontSizeLevel', value: 4 },
-          { key: 'privacyModeEnabled', value: true }
+          { key: 'privacyModeEnabled', value: true },
+          { key: 'notificationsEnabled', value: false },
+          { key: 'contentProtectionEnabled', value: true },
+          { key: 'loggingEnabled', value: true },
+          { key: 'ocrAutoExtractForNonVisionModels', value: false },
+          { key: 'ocrBackend', value: 'cpu' }
         ]
       },
-      {
-        webContentsId: 42,
-        windowId: 7
-      }
+      createRendererRouteContext(42, 7)
     )
 
-    expect(configPresenter.setSetting).toHaveBeenCalledWith('fontSizeLevel', 4)
-    expect(configPresenter.setPrivacyModeEnabled).toHaveBeenCalledWith(true)
+    expect(desktopSettings.setFontSizeLevel).toHaveBeenCalledWith(4)
+    expect(privacySettings.setEnabled).toHaveBeenCalledWith(true)
+    expect(desktopSettings.setNotificationsEnabled).toHaveBeenCalledWith(false)
+    expect(desktopSettings.setContentProtectionEnabled).toHaveBeenCalledWith(true)
+    expect(applyContentProtection).toHaveBeenCalledWith(true)
+    expect(loggingService.setEnabled).toHaveBeenCalledWith(true)
+    expect(ocrSettings.setAutomaticExtractionEnabled).toHaveBeenCalledWith(false)
+    expect(ocrSettings.setBackend).toHaveBeenCalledWith('cpu')
     expect(settings.fontSizeLevel).toBe(4)
     expect(settings.privacyModeEnabled).toBe(true)
+    expect(settings.notificationsEnabled).toBe(false)
+    expect(settings.contentProtectionEnabled).toBe(true)
+    expect(settings.loggingEnabled).toBe(true)
+    expect(settings.ocrAutoExtractForNonVisionModels).toBe(false)
+    expect(settings.ocrBackend).toBe('cpu')
     expect(result).toEqual({
       version: expect.any(Number),
-      changedKeys: ['fontSizeLevel', 'privacyModeEnabled'],
+      changedKeys: [
+        'fontSizeLevel',
+        'privacyModeEnabled',
+        'notificationsEnabled',
+        'contentProtectionEnabled',
+        'loggingEnabled',
+        'ocrAutoExtractForNonVisionModels',
+        'ocrBackend'
+      ],
       values: {
         fontSizeLevel: 4,
-        privacyModeEnabled: true
+        privacyModeEnabled: true,
+        notificationsEnabled: false,
+        contentProtectionEnabled: true,
+        loggingEnabled: true,
+        ocrAutoExtractForNonVisionModels: false,
+        ocrBackend: 'cpu'
       }
     })
   })
 
-  it('dispatches built-in knowledge config routes through ConfigPresenter', async () => {
-    const { runtime, configPresenter } = createRuntime()
+  it('reads, atomically updates, and checks the device command shell', async () => {
+    const { runtime, settings, commandShell, sqlitePresenter, windowPresenter } = createRuntime()
+    const context = createRendererRouteContext(42, 7)
+
+    await expect(
+      dispatchDeepchatRoute(runtime, 'settings.commandShell.get', {}, context)
+    ).resolves.toEqual({ config: { preference: 'auto' } })
+
+    const config = {
+      preference: 'git-bash' as const,
+      gitBashExecutableOverride: 'C:\\Program Files\\Git\\bin\\bash.exe'
+    }
+    await expect(
+      dispatchDeepchatRoute(runtime, 'settings.commandShell.update', { config }, context)
+    ).resolves.toEqual({ config })
+    expect(commandShell.setConfig).toHaveBeenCalledWith(config)
+    expect(settings.agentCommandShell).toEqual(config)
+    expect(sqlitePresenter.recordSettingsActivity).toHaveBeenCalledWith(
+      expect.objectContaining({
+        category: 'agent',
+        targetId: 'agentCommandShell',
+        routeName: 'settings-common'
+      })
+    )
+    expect(windowPresenter.sendToAllWindows).toHaveBeenCalledWith(DEEPCHAT_EVENT_CHANNEL, {
+      name: 'settings.commandShell.changed',
+      payload: {
+        config,
+        version: expect.any(Number)
+      }
+    })
+
+    await expect(
+      dispatchDeepchatRoute(runtime, 'settings.commandShell.check', { forceRefresh: true }, context)
+    ).resolves.toEqual({
+      gitBash: { supported: true, available: false, error: 'not-found' }
+    })
+    expect(commandShell.checkGitBash).toHaveBeenCalledWith({ forceRefresh: true })
+  })
+
+  it('limits each public settings mutation to one typed change', async () => {
+    const { runtime, settings } = createRuntime()
+    const context = createRendererRouteContext(42, 7)
+
+    await expect(
+      dispatchDeepchatRoute(
+        runtime,
+        'settings.updatePublic',
+        { changes: [{ key: 'fontSizeLevel', value: 3 }] },
+        context
+      )
+    ).resolves.toMatchObject({
+      changedKeys: ['fontSizeLevel'],
+      values: { fontSizeLevel: 3 }
+    })
+    await expect(
+      dispatchDeepchatRoute(
+        runtime,
+        'settings.updatePublic',
+        {
+          changes: [
+            { key: 'fontSizeLevel', value: 4 },
+            { key: 'privacyModeEnabled', value: true }
+          ]
+        },
+        context
+      )
+    ).rejects.toThrow()
+    expect(settings.fontSizeLevel).toBe(3)
+    expect(settings.privacyModeEnabled).toBe(false)
+  })
+
+  it('dispatches built-in knowledge config routes through KnowledgeSettings', async () => {
+    const { runtime, providerSettings } = createRuntime()
     const nextConfigs = [
       {
         id: 'knowledge-2',
@@ -2487,10 +3438,7 @@ describe('dispatchDeepchatRoute', () => {
       runtime,
       'config.getKnowledgeConfigs',
       {},
-      {
-        webContentsId: 42,
-        windowId: 7
-      }
+      createRendererRouteContext(42, 7)
     )
     const setResult = await dispatchDeepchatRoute(
       runtime,
@@ -2498,10 +3446,7 @@ describe('dispatchDeepchatRoute', () => {
       {
         configs: nextConfigs
       },
-      {
-        webContentsId: 42,
-        windowId: 7
-      }
+      createRendererRouteContext(42, 7)
     )
 
     expect(getResult).toEqual({
@@ -2511,18 +3456,14 @@ describe('dispatchDeepchatRoute', () => {
         })
       ]
     })
-    expect(configPresenter.setKnowledgeConfigs).toHaveBeenCalledWith(nextConfigs)
     expect(setResult).toEqual({
       configs: nextConfigs
     })
   })
 
-  it('dispatches knowledge file routes through KnowledgePresenter', async () => {
-    const { runtime, knowledgePresenter } = createRuntime()
-    const context = {
-      webContentsId: 42,
-      windowId: 7
-    }
+  it('dispatches knowledge file routes through KnowledgeService', async () => {
+    const { runtime, knowledgeService } = createRuntime()
+    const context = createRendererRouteContext(42, 7)
 
     const supportedResult = await dispatchDeepchatRoute(
       runtime,
@@ -2597,18 +3538,18 @@ describe('dispatchDeepchatRoute', () => {
       context
     )
 
-    expect(knowledgePresenter.isSupported).toHaveBeenCalled()
-    expect(knowledgePresenter.getSupportedLanguages).toHaveBeenCalled()
-    expect(knowledgePresenter.getSeparatorsForLanguage).toHaveBeenCalledWith('markdown')
-    expect(knowledgePresenter.getSupportedFileExtensions).toHaveBeenCalled()
-    expect(knowledgePresenter.listFiles).toHaveBeenCalledWith('knowledge-1')
-    expect(knowledgePresenter.similarityQuery).toHaveBeenCalledWith('knowledge-1', 'hello')
-    expect(knowledgePresenter.validateFile).toHaveBeenCalledWith('/workspace/guide.md')
-    expect(knowledgePresenter.addFile).toHaveBeenCalledWith('knowledge-1', '/workspace/guide.md')
-    expect(knowledgePresenter.deleteFile).toHaveBeenCalledWith('knowledge-1', 'file-1')
-    expect(knowledgePresenter.reAddFile).toHaveBeenCalledWith('knowledge-1', 'file-1')
-    expect(knowledgePresenter.pauseAllRunningTasks).toHaveBeenCalledWith('knowledge-1')
-    expect(knowledgePresenter.resumeAllPausedTasks).toHaveBeenCalledWith('knowledge-1')
+    expect(knowledgeService.isSupported).toHaveBeenCalled()
+    expect(knowledgeService.getSupportedLanguages).toHaveBeenCalled()
+    expect(knowledgeService.getSeparatorsForLanguage).toHaveBeenCalledWith('markdown')
+    expect(knowledgeService.getSupportedFileExtensions).toHaveBeenCalled()
+    expect(knowledgeService.listFiles).toHaveBeenCalledWith('knowledge-1')
+    expect(knowledgeService.similarityQuery).toHaveBeenCalledWith('knowledge-1', 'hello')
+    expect(knowledgeService.validateFile).toHaveBeenCalledWith('/workspace/guide.md')
+    expect(knowledgeService.addFile).toHaveBeenCalledWith('knowledge-1', '/workspace/guide.md')
+    expect(knowledgeService.deleteFile).toHaveBeenCalledWith('knowledge-1', 'file-1')
+    expect(knowledgeService.reAddFile).toHaveBeenCalledWith('knowledge-1', 'file-1')
+    expect(knowledgeService.pauseAllRunningTasks).toHaveBeenCalledWith('knowledge-1')
+    expect(knowledgeService.resumeAllPausedTasks).toHaveBeenCalledWith('knowledge-1')
     expect(supportedResult).toEqual({ supported: true })
     expect(languagesResult).toEqual({ languages: ['markdown', 'typescript'] })
     expect(separatorsResult).toEqual({ separators: ['\n\n', '\n', ' ', ''] })
@@ -2641,35 +3582,9 @@ describe('dispatchDeepchatRoute', () => {
     expect(resumeResult).toEqual({ resumed: true })
   })
 
-  it('dispatches skill sync routes through SkillSyncPresenter', async () => {
-    const { runtime, skillSyncPresenter } = createRuntime()
-    const context = {
-      webContentsId: 42,
-      windowId: 7
-    }
-    const importPreview = {
-      skill: {
-        name: 'write-tests',
-        description: 'Write tests',
-        instructions: 'Write useful tests'
-      },
-      source: {
-        name: 'write-tests',
-        description: 'Write tests',
-        path: '/tools/write-tests.md',
-        format: 'markdown',
-        lastModified: new Date('2024-01-01T00:00:00.000Z')
-      },
-      warnings: []
-    }
-    const exportPreview = {
-      skillName: 'write-tests',
-      targetTool: 'codex',
-      targetPath: '/tools/write-tests.md',
-      convertedContent: '# Write tests',
-      warnings: []
-    }
-
+  it('dispatches skill sync routes through SkillSyncService', async () => {
+    const { runtime, skillSyncService } = createRuntime()
+    const context = createRendererRouteContext(42, 7)
     const scanResult = await dispatchDeepchatRoute(
       runtime,
       'skillSync.scanExternalTools',
@@ -2694,64 +3609,10 @@ describe('dispatchDeepchatRoute', () => {
       {},
       context
     )
-    const importPreviewResult = await dispatchDeepchatRoute(
-      runtime,
-      'skillSync.previewImport',
-      {
-        toolId: 'codex',
-        skillNames: ['write-tests']
-      },
-      context
-    )
-    const importResult = await dispatchDeepchatRoute(
-      runtime,
-      'skillSync.executeImport',
-      {
-        previews: [importPreview],
-        strategies: {
-          'write-tests': 'overwrite'
-        }
-      },
-      context
-    )
-    const exportPreviewResult = await dispatchDeepchatRoute(
-      runtime,
-      'skillSync.previewExport',
-      {
-        skillNames: ['write-tests'],
-        targetToolId: 'codex',
-        options: {
-          inclusion: 'always'
-        }
-      },
-      context
-    )
-    const exportResult = await dispatchDeepchatRoute(
-      runtime,
-      'skillSync.executeExport',
-      {
-        previews: [exportPreview],
-        strategies: {
-          'write-tests': 'overwrite'
-        }
-      },
-      context
-    )
-
-    expect(skillSyncPresenter.scanExternalTools).toHaveBeenCalled()
-    expect(skillSyncPresenter.getNewDiscoveries).toHaveBeenCalled()
-    expect(skillSyncPresenter.acknowledgeDiscoveries).toHaveBeenCalled()
-    expect(skillSyncPresenter.getRegisteredTools).toHaveBeenCalled()
-    expect(skillSyncPresenter.previewImport).toHaveBeenCalledWith('codex', ['write-tests'])
-    expect(skillSyncPresenter.executeImport).toHaveBeenCalledWith([importPreview], {
-      'write-tests': 'overwrite'
-    })
-    expect(skillSyncPresenter.previewExport).toHaveBeenCalledWith(['write-tests'], 'codex', {
-      inclusion: 'always'
-    })
-    expect(skillSyncPresenter.executeExport).toHaveBeenCalledWith([exportPreview], {
-      'write-tests': 'overwrite'
-    })
+    expect(skillSyncService.scanExternalTools).toHaveBeenCalled()
+    expect(skillSyncService.getNewDiscoveries).toHaveBeenCalled()
+    expect(skillSyncService.acknowledgeDiscoveries).toHaveBeenCalled()
+    expect(skillSyncService.getRegisteredTools).toHaveBeenCalled()
     expect(scanResult).toEqual({
       results: [expect.objectContaining({ toolId: 'codex' })]
     })
@@ -2762,40 +3623,11 @@ describe('dispatchDeepchatRoute', () => {
     expect(toolsResult).toEqual({
       tools: [expect.objectContaining({ id: 'codex' })]
     })
-    expect(importPreviewResult).toEqual({
-      previews: [
-        expect.objectContaining({ skill: expect.objectContaining({ name: 'write-tests' }) })
-      ]
-    })
-    expect(importResult).toEqual({
-      result: {
-        success: true,
-        imported: 1,
-        exported: 0,
-        skipped: 0,
-        failed: []
-      }
-    })
-    expect(exportPreviewResult).toEqual({
-      previews: [expect.objectContaining({ skillName: 'write-tests' })]
-    })
-    expect(exportResult).toEqual({
-      result: {
-        success: true,
-        imported: 0,
-        exported: 1,
-        skipped: 0,
-        failed: []
-      }
-    })
   })
 
-  it('dispatches GitHub Copilot OAuth routes through OAuthPresenter', async () => {
-    const { runtime, oauthPresenter } = createRuntime()
-    const context = {
-      webContentsId: 42,
-      windowId: 7
-    }
+  it('dispatches GitHub Copilot OAuth routes through OAuthService', async () => {
+    const { runtime, oauthService } = createRuntime()
+    const context = createRendererRouteContext(42, 7)
 
     const loginResult = await dispatchDeepchatRoute(
       runtime,
@@ -2810,18 +3642,15 @@ describe('dispatchDeepchatRoute', () => {
       context
     )
 
-    expect(oauthPresenter.startGitHubCopilotLogin).toHaveBeenCalledWith('github-copilot')
-    expect(oauthPresenter.startGitHubCopilotDeviceFlowLogin).toHaveBeenCalledWith('github-copilot')
+    expect(oauthService.startGitHubCopilotLogin).toHaveBeenCalledWith('github-copilot')
+    expect(oauthService.startGitHubCopilotDeviceFlowLogin).toHaveBeenCalledWith('github-copilot')
     expect(loginResult).toEqual({ success: true })
     expect(deviceFlowResult).toEqual({ success: false })
   })
 
-  it('dispatches OpenAI Codex OAuth routes through OAuthPresenter', async () => {
-    const { runtime, oauthPresenter } = createRuntime()
-    const context = {
-      webContentsId: 42,
-      windowId: 7
-    }
+  it('dispatches OpenAI Codex OAuth routes through OAuthService', async () => {
+    const { runtime, oauthService } = createRuntime()
+    const context = createRendererRouteContext(42, 7)
 
     const statusResult = await dispatchDeepchatRoute(
       runtime,
@@ -2848,22 +3677,19 @@ describe('dispatchDeepchatRoute', () => {
       context
     )
 
-    expect(oauthPresenter.getOpenAICodexStatus).toHaveBeenCalledTimes(1)
-    expect(oauthPresenter.startOpenAICodexBrowserLogin).toHaveBeenCalledTimes(1)
-    expect(oauthPresenter.cancelOpenAICodexLogin).toHaveBeenCalledTimes(1)
-    expect(oauthPresenter.logoutOpenAICodex).toHaveBeenCalledTimes(1)
+    expect(oauthService.getOpenAICodexStatus).toHaveBeenCalledTimes(1)
+    expect(oauthService.startOpenAICodexBrowserLogin).toHaveBeenCalledTimes(1)
+    expect(oauthService.cancelOpenAICodexLogin).toHaveBeenCalledTimes(1)
+    expect(oauthService.logoutOpenAICodex).toHaveBeenCalledTimes(1)
     expect(statusResult.status.state).toBe('signed-out')
     expect(browserResult.status.authenticated).toBe(true)
     expect(cancelResult.status.state).toBe('signed-out')
     expect(logoutResult.status.state).toBe('signed-out')
   })
 
-  it('dispatches database schema repair through SQLitePresenter', async () => {
+  it('dispatches database schema repair through MainDatabase', async () => {
     const { runtime, sqlitePresenter } = createRuntime()
-    const context = {
-      webContentsId: 42,
-      windowId: 7
-    }
+    const context = createRendererRouteContext(42, 7)
 
     const repairResult = await dispatchDeepchatRoute(
       runtime,
@@ -2884,10 +3710,7 @@ describe('dispatchDeepchatRoute', () => {
 
   it('dispatches NowledgeMem routes through ConversationExporter', async () => {
     const { runtime, exporter } = createRuntime()
-    const context = {
-      webContentsId: 42,
-      windowId: 7
-    }
+    const context = createRendererRouteContext(42, 7)
 
     const getResult = await dispatchDeepchatRoute(runtime, 'nowledgeMem.getConfig', {}, context)
     const updateResult = await dispatchDeepchatRoute(
@@ -2905,7 +3728,13 @@ describe('dispatchDeepchatRoute', () => {
     const testResult = await dispatchDeepchatRoute(
       runtime,
       'nowledgeMem.testConnection',
-      {},
+      {
+        config: {
+          baseUrl: 'http://draft.local',
+          apiKey: 'draft-secret',
+          timeout: 12000
+        }
+      },
       context
     )
 
@@ -2915,7 +3744,11 @@ describe('dispatchDeepchatRoute', () => {
       apiKey: 'secret',
       timeout: 45000
     })
-    expect(exporter.testNowledgeMemConnection).toHaveBeenCalledTimes(1)
+    expect(exporter.testNowledgeMemConnection).toHaveBeenCalledWith({
+      baseUrl: 'http://draft.local',
+      apiKey: 'draft-secret',
+      timeout: 12000
+    })
     expect(getResult).toEqual({
       config: {
         baseUrl: 'http://127.0.0.1:14242',
@@ -2938,32 +3771,70 @@ describe('dispatchDeepchatRoute', () => {
     })
   })
 
-  it('dispatches skill file reads through SkillPresenter', async () => {
-    const { runtime, skillPresenter } = createRuntime()
-    const context = {
-      webContentsId: 42,
-      windowId: 7
-    }
+  it('dispatches scoped skill script requests through SkillService', async () => {
+    const { runtime, skillService } = createRuntime()
+    const context = createRendererRouteContext(42, 7)
+    ;(skillService as any).listSkillScriptsForAgent = vi.fn().mockResolvedValue([])
+
+    const result = await dispatchDeepchatRoute(
+      runtime,
+      'skills.listScripts',
+      { agentId: 'agent-a', name: 'write-tests' },
+      context
+    )
+
+    expect((skillService as any).listSkillScriptsForAgent).toHaveBeenCalledWith(
+      'agent-a',
+      'write-tests'
+    )
+    expect(result).toEqual({ scripts: [] })
+  })
+
+  it('dispatches Agent Skill import source discovery', async () => {
+    const { runtime, skillSyncService, providerSettings } = createRuntime()
+    const context = createRendererRouteContext(42, 7)
+
+    const result = await dispatchDeepchatRoute(
+      runtime,
+      'skills.listAgentImportSources',
+      {},
+      context
+    )
+
+    expect(providerSettings.getAgent).not.toHaveBeenCalled()
+    expect(skillSyncService.scanExternalTools).toHaveBeenCalledOnce()
+    expect(result).toEqual({
+      sources: [
+        expect.objectContaining({
+          id: 'external:codex',
+          source: { kind: 'external', toolId: 'codex' },
+          available: true,
+          skillCount: 1
+        })
+      ]
+    })
+  })
+
+  it('dispatches skill file reads through SkillService', async () => {
+    const { runtime, skillService } = createRuntime()
+    const context = createRendererRouteContext(42, 7)
 
     const result = await dispatchDeepchatRoute(
       runtime,
       'skills.readFile',
-      { name: 'write-tests' },
+      { agentId: 'deepchat', name: 'write-tests' },
       context
     )
 
-    expect(skillPresenter.readSkillFile).toHaveBeenCalledWith('write-tests')
+    expect(skillService.readSkillFileForAgent).toHaveBeenCalledWith('deepchat', 'write-tests')
     expect(result).toEqual({
       content: '---\nname: write-tests\n---\nUse tests well'
     })
   })
 
-  it('dispatches MCP Router marketplace routes through McpPresenter', async () => {
-    const { runtime, mcpPresenter } = createRuntime()
-    const context = {
-      webContentsId: 42,
-      windowId: 7
-    }
+  it('dispatches MCP Router marketplace routes through McpService', async () => {
+    const { runtime, mcpService } = createRuntime()
+    const context = createRendererRouteContext(42, 7)
 
     const listResult = await dispatchDeepchatRoute(
       runtime,
@@ -2983,20 +3854,21 @@ describe('dispatchDeepchatRoute', () => {
       },
       context
     )
-    const authResult = await dispatchDeepchatRoute(
-      runtime,
-      'mcp.router.updateServersAuth',
-      {
-        apiKey: 'new-router-key'
-      },
-      context
-    )
     const installedResult = await dispatchDeepchatRoute(
       runtime,
       'mcp.router.isServerInstalled',
       {
         source: 'mcprouter',
         sourceId: 'context7'
+      },
+      context
+    )
+    const installedIdsResult = await dispatchDeepchatRoute(
+      runtime,
+      'mcp.router.listInstalledServerIds',
+      {
+        source: 'mcprouter',
+        sourceIds: ['context7', 'filesystem']
       },
       context
     )
@@ -3009,12 +3881,15 @@ describe('dispatchDeepchatRoute', () => {
       context
     )
 
-    expect(mcpPresenter.listMcpRouterServers).toHaveBeenCalledWith(1, 20)
-    expect(mcpPresenter.getMcpRouterApiKey).toHaveBeenCalledTimes(1)
-    expect(mcpPresenter.setMcpRouterApiKey).toHaveBeenCalledWith('new-router-key')
-    expect(mcpPresenter.updateMcpRouterServersAuth).toHaveBeenCalledWith('new-router-key')
-    expect(mcpPresenter.isServerInstalled).toHaveBeenCalledWith('mcprouter', 'context7')
-    expect(mcpPresenter.installMcpRouterServer).toHaveBeenCalledWith('context7')
+    expect(mcpService.listMcpRouterServers).toHaveBeenCalledWith(1, 20)
+    expect(mcpService.getMcpRouterApiKey).toHaveBeenCalledTimes(1)
+    expect(mcpService.setMcpRouterApiKey).toHaveBeenCalledWith('new-router-key')
+    expect(mcpService.isServerInstalled).toHaveBeenCalledWith('mcprouter', 'context7')
+    expect(mcpService.listInstalledServerIds).toHaveBeenCalledWith('mcprouter', [
+      'context7',
+      'filesystem'
+    ])
+    expect(mcpService.installMcpRouterServer).toHaveBeenCalledWith('context7')
     expect(listResult).toEqual({
       servers: [
         expect.objectContaining({
@@ -3025,17 +3900,73 @@ describe('dispatchDeepchatRoute', () => {
     })
     expect(keyResult).toEqual({ key: 'router-key' })
     expect(saveResult).toEqual({ saved: true })
-    expect(authResult).toEqual({ updated: true })
     expect(installedResult).toEqual({ installed: false })
+    expect(installedIdsResult).toEqual({ installedSourceIds: ['context7'] })
     expect(installResult).toEqual({ installed: true })
   })
 
-  it('dispatches remote control routes through RemoteControlPresenter', async () => {
-    const { runtime, remoteControlPresenter } = createRuntime()
-    const context = {
-      webContentsId: 42,
-      windowId: 7
-    }
+  it('returns typed MCP add results and records only persisted additions', async () => {
+    const { runtime, mcpService, sqlitePresenter } = createRuntime()
+    const context = createRendererRouteContext(42, 7)
+    const config = {
+      type: 'stdio',
+      command: 'node',
+      args: [],
+      env: {},
+      descriptions: '',
+      icons: '',
+      enabled: false
+    } as const
+
+    const added = await dispatchDeepchatRoute(
+      runtime,
+      'mcp.addServer',
+      { serverName: 'new-server', config },
+      context
+    )
+    vi.mocked(mcpService.addMcpServer).mockResolvedValueOnce({ status: 'duplicate' })
+    const duplicate = await dispatchDeepchatRoute(
+      runtime,
+      'mcp.addServer',
+      { serverName: 'new-server', config },
+      context
+    )
+
+    expect(added).toEqual({ result: { status: 'added' } })
+    expect(duplicate).toEqual({ result: { status: 'duplicate' } })
+    expect(sqlitePresenter.recordSettingsActivity).toHaveBeenCalledOnce()
+  })
+
+  it('dispatches NPM registry routes through McpService', async () => {
+    const { runtime, mcpService } = createRuntime()
+    const context = createRendererRouteContext(42, 7)
+
+    await dispatchDeepchatRoute(runtime, 'mcp.getNpmRegistryStatus', {}, context)
+    await dispatchDeepchatRoute(runtime, 'mcp.refreshNpmRegistry', {}, context)
+    await dispatchDeepchatRoute(
+      runtime,
+      'mcp.setCustomNpmRegistry',
+      { registry: 'https://registry.example.com/' },
+      context
+    )
+    await dispatchDeepchatRoute(
+      runtime,
+      'mcp.setAutoDetectNpmRegistry',
+      { enabled: false },
+      context
+    )
+    await dispatchDeepchatRoute(runtime, 'mcp.clearNpmRegistryCache', {}, context)
+
+    expect(mcpService.getNpmRegistryStatus).toHaveBeenCalledTimes(1)
+    expect(mcpService.refreshNpmRegistry).toHaveBeenCalledTimes(1)
+    expect(mcpService.setCustomNpmRegistry).toHaveBeenCalledWith('https://registry.example.com/')
+    expect(mcpService.setAutoDetectNpmRegistry).toHaveBeenCalledWith(false)
+    expect(mcpService.clearNpmRegistryCache).toHaveBeenCalledTimes(1)
+  })
+
+  it('dispatches remote control routes through RemoteService', async () => {
+    const { runtime, remoteService } = createRuntime()
+    const context = createRendererRouteContext(42, 7)
 
     await dispatchDeepchatRoute(runtime, 'remoteControl.listChannels', {}, context)
     await dispatchDeepchatRoute(
@@ -3154,42 +4085,36 @@ describe('dispatchDeepchatRoute', () => {
       context
     )
 
-    expect(remoteControlPresenter.listRemoteChannels).toHaveBeenCalledTimes(1)
-    expect(remoteControlPresenter.getChannelSettings).toHaveBeenCalledWith('telegram')
-    expect(remoteControlPresenter.saveChannelSettings).toHaveBeenCalledWith(
+    expect(remoteService.listRemoteChannels).toHaveBeenCalledTimes(1)
+    expect(remoteService.getChannelSettings).toHaveBeenCalledWith('telegram')
+    expect(remoteService.saveChannelSettings).toHaveBeenCalledWith(
       'telegram',
       expect.objectContaining({
         remoteEnabled: true
       })
     )
-    expect(remoteControlPresenter.getChannelStatus).toHaveBeenCalledWith('telegram')
-    expect(remoteControlPresenter.getChannelBindings).toHaveBeenCalledWith('telegram')
-    expect(remoteControlPresenter.removeChannelBinding).toHaveBeenCalledWith(
-      'telegram',
-      'telegram:100:0'
-    )
-    expect(remoteControlPresenter.removeChannelPrincipal).toHaveBeenCalledWith('telegram', '123')
-    expect(remoteControlPresenter.getChannelPairingSnapshot).toHaveBeenCalledWith('telegram')
-    expect(remoteControlPresenter.createChannelPairCode).toHaveBeenCalledWith('telegram')
-    expect(remoteControlPresenter.clearChannelPairCode).toHaveBeenCalledWith('telegram')
-    expect(remoteControlPresenter.getTelegramStatus).toHaveBeenCalledTimes(1)
-    expect(remoteControlPresenter.getWeixinIlinkStatus).toHaveBeenCalledTimes(1)
-    expect(remoteControlPresenter.startWeixinIlinkLogin).toHaveBeenCalledWith({ force: true })
-    expect(remoteControlPresenter.waitForWeixinIlinkLogin).toHaveBeenCalledWith({
+    expect(remoteService.getChannelStatus).toHaveBeenCalledWith('telegram')
+    expect(remoteService.getChannelBindings).toHaveBeenCalledWith('telegram')
+    expect(remoteService.removeChannelBinding).toHaveBeenCalledWith('telegram', 'telegram:100:0')
+    expect(remoteService.removeChannelPrincipal).toHaveBeenCalledWith('telegram', '123')
+    expect(remoteService.getChannelPairingSnapshot).toHaveBeenCalledWith('telegram')
+    expect(remoteService.createChannelPairCode).toHaveBeenCalledWith('telegram')
+    expect(remoteService.clearChannelPairCode).toHaveBeenCalledWith('telegram')
+    expect(remoteService.getTelegramStatus).toHaveBeenCalledTimes(1)
+    expect(remoteService.getWeixinIlinkStatus).toHaveBeenCalledTimes(1)
+    expect(remoteService.startWeixinIlinkLogin).toHaveBeenCalledWith({ force: true })
+    expect(remoteService.waitForWeixinIlinkLogin).toHaveBeenCalledWith({
       sessionKey: 'weixin-session',
       timeoutMs: 480000
     })
-    expect(remoteControlPresenter.removeWeixinIlinkAccount).toHaveBeenCalledWith('account-1')
-    expect(remoteControlPresenter.restartWeixinIlinkAccount).toHaveBeenCalledWith('account-1')
+    expect(remoteService.removeWeixinIlinkAccount).toHaveBeenCalledWith('account-1')
+    expect(remoteService.restartWeixinIlinkAccount).toHaveBeenCalledWith('account-1')
     expect(restartResult).toEqual({ restarted: true })
   })
 
-  it('dispatches DeepChat agent config routes through ConfigPresenter', async () => {
-    const { runtime, configPresenter } = createRuntime()
-    const context = {
-      webContentsId: 42,
-      windowId: 7
-    }
+  it('dispatches DeepChat agent config routes through AgentSettings', async () => {
+    const { runtime, providerSettings } = createRuntime()
+    const context = createRendererRouteContext(42, 7)
 
     const listResult = await dispatchDeepchatRoute(
       runtime,
@@ -3237,7 +4162,7 @@ describe('dispatchDeepchatRoute', () => {
         })
       ]
     })
-    expect(configPresenter.createDeepChatAgent).toHaveBeenCalledWith({
+    expect(providerSettings.createDeepChatAgent).toHaveBeenCalledWith({
       name: 'Writer',
       enabled: true,
       config: {
@@ -3250,7 +4175,7 @@ describe('dispatchDeepchatRoute', () => {
         name: 'Writer'
       })
     })
-    expect(configPresenter.updateDeepChatAgent).toHaveBeenCalledWith('writer', {
+    expect(providerSettings.updateDeepChatAgent).toHaveBeenCalledWith('writer', {
       name: 'Writer Pro',
       enabled: false
     })
@@ -3261,18 +4186,27 @@ describe('dispatchDeepchatRoute', () => {
         enabled: false
       })
     })
-    expect(configPresenter.deleteDeepChatAgent).toHaveBeenCalledWith('writer')
+    expect(providerSettings.deleteDeepChatAgent).toHaveBeenCalledWith('writer')
     expect(deleteResult).toEqual({
-      removed: true
+      removed: true,
+      cleanupPendingRestart: false
     })
   })
 
   it('dispatches proxy, logging, update channel, skill draft, provider DB, and hook routes', async () => {
-    const { runtime, configPresenter } = createRuntime()
-    const context = {
-      webContentsId: 42,
-      windowId: 7
-    }
+    const {
+      runtime,
+      providerSettings,
+      proxySettings,
+      applyProxyMode,
+      applyCustomProxyUrl,
+      loggingService,
+      hookSettings,
+      updateSettings,
+      skillSettings,
+      testHookCommand
+    } = createRuntime()
+    const context = createRendererRouteContext(42, 7)
 
     const initialProxy = await dispatchDeepchatRoute(
       runtime,
@@ -3375,35 +4309,37 @@ describe('dispatchDeepchatRoute', () => {
       mode: 'system',
       customProxyUrl: ''
     })
-    expect(configPresenter.setProxyMode).toHaveBeenCalledWith('custom')
+    expect(proxySettings.setMode).toHaveBeenCalledWith('custom')
+    expect(applyProxyMode).toHaveBeenCalledWith('custom')
     expect(updatedMode).toEqual({
       mode: 'custom',
       customProxyUrl: ''
     })
-    expect(configPresenter.setCustomProxyUrl).toHaveBeenCalledWith('http://127.0.0.1:7890')
+    expect(proxySettings.setCustomUrl).toHaveBeenCalledWith('http://127.0.0.1:7890')
+    expect(applyCustomProxyUrl).toHaveBeenCalledWith('http://127.0.0.1:7890')
     expect(updatedUrl).toEqual({
       mode: 'custom',
       customProxyUrl: 'http://127.0.0.1:7890'
     })
-    expect(configPresenter.openLoggingFolder).toHaveBeenCalled()
+    expect(loggingService.openFolder).toHaveBeenCalled()
     expect(loggingResult).toEqual({
       opened: true
     })
     expect(initialUpdateChannel).toEqual({
       channel: 'stable'
     })
-    expect(configPresenter.setUpdateChannel).toHaveBeenCalledWith('beta')
+    expect(updateSettings.setChannel).toHaveBeenCalledWith('beta')
     expect(updatedUpdateChannel).toEqual({
       channel: 'beta'
     })
     expect(initialSkillDraftSuggestions).toEqual({
       enabled: false
     })
-    expect(configPresenter.setSkillDraftSuggestionsEnabled).toHaveBeenCalledWith(true)
+    expect(skillSettings.setDraftSuggestionsEnabled).toHaveBeenCalledWith(true)
     expect(updatedSkillDraftSuggestions).toEqual({
       enabled: true
     })
-    expect(configPresenter.refreshProviderDb).toHaveBeenCalledWith(true)
+    expect(providerSettings.refreshProviderDb).toHaveBeenCalledWith(true)
     expect(refreshProviderDbResult).toEqual({
       result: {
         status: 'updated',
@@ -3416,7 +4352,7 @@ describe('dispatchDeepchatRoute', () => {
         hooks: []
       }
     })
-    expect(configPresenter.setHooksNotificationsConfig).toHaveBeenCalledWith({
+    expect(hookSettings.setHooksNotificationsConfig).toHaveBeenCalledWith({
       hooks: [
         {
           id: 'hook-1',
@@ -3440,7 +4376,7 @@ describe('dispatchDeepchatRoute', () => {
         ]
       }
     })
-    expect(configPresenter.testHookCommand).toHaveBeenCalledWith('hook-1')
+    expect(testHookCommand).toHaveBeenCalledWith('hook-1')
     expect(hookTestResult).toEqual({
       result: {
         success: true,
@@ -3450,12 +4386,9 @@ describe('dispatchDeepchatRoute', () => {
     })
   })
 
-  it('dispatches ACP config routes through ConfigPresenter', async () => {
-    const { runtime, configPresenter } = createRuntime()
-    const context = {
-      webContentsId: 42,
-      windowId: 7
-    }
+  it('dispatches ACP config routes through AgentSettings', async () => {
+    const { runtime, providerSettings } = createRuntime()
+    const context = createRendererRouteContext(42, 7)
 
     const setEnabledResult = await dispatchDeepchatRoute(
       runtime,
@@ -3537,7 +4470,7 @@ describe('dispatchDeepchatRoute', () => {
       context
     )
 
-    expect(configPresenter.setAcpEnabled).toHaveBeenCalledWith(false)
+    expect(providerSettings.setAcpEnabled).toHaveBeenCalledWith(false)
     expect(setEnabledResult).toEqual({ enabled: false })
     expect(registryResult).toEqual({
       agents: [expect.objectContaining({ id: 'codex-acp' })]
@@ -3567,7 +4500,7 @@ describe('dispatchDeepchatRoute', () => {
   })
 
   it('dispatches session and chat routes with renderer context', async () => {
-    const { runtime, agentSessionPresenter } = createRuntime()
+    const { runtime, sessionLifecyclePort, sessionTurnPort } = createRuntime()
 
     const createResult = await dispatchDeepchatRoute(
       runtime,
@@ -3576,13 +4509,10 @@ describe('dispatchDeepchatRoute', () => {
         agentId: 'deepchat',
         message: 'hello world'
       },
-      {
-        webContentsId: 88,
-        windowId: 3
-      }
+      createRendererRouteContext(88, 3)
     )
 
-    expect(agentSessionPresenter.createSession).toHaveBeenCalledWith(
+    expect(sessionLifecyclePort.createSession).toHaveBeenCalledWith(
       {
         agentId: 'deepchat',
         message: 'hello world'
@@ -3595,6 +4525,15 @@ describe('dispatchDeepchatRoute', () => {
       })
     })
 
+    const pendingResult = await dispatchDeepchatRoute(
+      runtime,
+      'sessions.listPendingInputs',
+      { sessionId: 'session-1' },
+      createRendererRouteContext(88, 3)
+    )
+    expect(pendingResult).toEqual({ items: [], resumeAvailable: false })
+    expect(sessionTurnPort.isPendingQueueResumeAvailable).toHaveBeenCalledWith('session-1')
+
     await dispatchDeepchatRoute(
       runtime,
       'chat.sendMessage',
@@ -3602,13 +4541,12 @@ describe('dispatchDeepchatRoute', () => {
         sessionId: 'session-1',
         content: 'follow up'
       },
-      {
-        webContentsId: 88,
-        windowId: 3
-      }
+      createRendererRouteContext(88, 3)
     )
 
-    expect(agentSessionPresenter.sendMessage).toHaveBeenCalledWith('session-1', 'follow up')
+    expect(sessionTurnPort.sendMessage).toHaveBeenCalledWith('session-1', 'follow up', {
+      signal: expect.any(AbortSignal)
+    })
 
     await dispatchDeepchatRoute(
       runtime,
@@ -3617,15 +4555,13 @@ describe('dispatchDeepchatRoute', () => {
         sessionId: 'session-1',
         content: 'refine the active answer'
       },
-      {
-        webContentsId: 88,
-        windowId: 3
-      }
+      createRendererRouteContext(88, 3)
     )
 
-    expect(agentSessionPresenter.steerActiveTurn).toHaveBeenCalledWith(
+    expect(sessionTurnPort.steerActiveTurn).toHaveBeenCalledWith(
       'session-1',
-      'refine the active answer'
+      'refine the active answer',
+      { signal: expect.any(AbortSignal) }
     )
 
     const compactResult = await dispatchDeepchatRoute(
@@ -3634,25 +4570,274 @@ describe('dispatchDeepchatRoute', () => {
       {
         sessionId: 'session-1'
       },
-      {
-        webContentsId: 88,
-        windowId: 3
-      }
+      createRendererRouteContext(88, 3)
     )
 
-    expect(agentSessionPresenter.compactSession).toHaveBeenCalledWith('session-1')
+    expect(sessionTurnPort.compactSession).toHaveBeenCalledWith('session-1')
     expect(compactResult).toEqual({
       compacted: true,
       state: {
         status: 'compacted',
         cursorOrderSeq: 5,
-        summaryUpdatedAt: 123
+        summaryUpdatedAt: 123,
+        boundaryReason: null
       }
+    })
+
+    const compactionSnapshot = await dispatchDeepchatRoute(
+      runtime,
+      'sessions.getCompactionSnapshot',
+      { sessionId: 'session-1' },
+      createRendererRouteContext(88, 3)
+    )
+
+    expect(sessionTurnPort.getSessionCompactionSnapshot).toHaveBeenCalledWith('session-1')
+    expect(compactionSnapshot).toEqual({
+      state: {
+        status: 'compacted',
+        cursorOrderSeq: 5,
+        summaryUpdatedAt: 123,
+        boundaryReason: null
+      },
+      emitSeq: 7,
+      latestAnchorEntryId: 19
+    })
+
+    const contextOccupancy = await dispatchDeepchatRoute(
+      runtime,
+      'sessions.getContextOccupancy',
+      { sessionId: 'session-1' },
+      createRendererRouteContext(88, 3)
+    )
+
+    expect(sessionTurnPort.getSessionContextOccupancy).toHaveBeenCalledWith('session-1')
+    expect(contextOccupancy).toEqual({
+      freshness: 'current',
+      source: 'provider',
+      occupiedTokens: 24_000,
+      contextWindowTokens: 32_000,
+      requestSeq: 3,
+      manifestEntryId: 20,
+      providerAttemptEntryId: 21,
+      measuredAt: 123
+    })
+
+    const retryResult = await dispatchDeepchatRoute(
+      runtime,
+      'sessions.retryMessage',
+      {
+        sessionId: 'session-1',
+        messageId: 'message-1',
+        attachmentFallbackPolicy: 'send_without_image_content'
+      },
+      createRendererRouteContext(88, 3)
+    )
+
+    expect(sessionTurnPort.retryMessage).toHaveBeenCalledWith('session-1', 'message-1', {
+      attachmentFallbackPolicy: 'send_without_image_content'
+    })
+    expect(retryResult).toEqual({ retried: true, accepted: true })
+
+    const blockedSummary = {
+      status: 'needs_user_action' as const,
+      issues: [{ attachmentIndex: 0, reason: 'ocr_empty' as const }],
+      suggestedActions: ['send_without_image_content' as const]
+    }
+    sessionTurnPort.retryMessage.mockResolvedValueOnce({
+      requestId: null,
+      messageId: null,
+      attachmentPreparation: blockedSummary
+    })
+    const blockedRetry = await dispatchDeepchatRoute(
+      runtime,
+      'sessions.retryMessage',
+      { sessionId: 'session-1', messageId: 'message-1' },
+      createRendererRouteContext(88, 3)
+    )
+
+    expect(sessionTurnPort.retryMessage).toHaveBeenLastCalledWith('session-1', 'message-1')
+    expect(blockedRetry).toEqual({
+      retried: false,
+      accepted: false,
+      attachmentPreparation: blockedSummary
     })
   })
 
+  it('enforces renderer ownership when cancelling attachment acceptance', async () => {
+    const { runtime, sessionTurnPort } = createRuntime()
+    let notifyStarted!: () => void
+    const started = new Promise<void>((resolve) => {
+      notifyStarted = resolve
+    })
+    let acceptanceSignal: AbortSignal | undefined
+    sessionTurnPort.sendMessage.mockImplementationOnce(async (_sessionId, _content, options) => {
+      acceptanceSignal = options?.signal
+      notifyStarted()
+      return await new Promise((_, reject) => {
+        options?.signal?.addEventListener(
+          'abort',
+          () => {
+            const error = new Error('Aborted')
+            error.name = 'AbortError'
+            reject(error)
+          },
+          { once: true }
+        )
+      })
+    })
+
+    const pendingSend = dispatchDeepchatRoute(
+      runtime,
+      'chat.sendMessage',
+      {
+        sessionId: 'session-1',
+        content: {
+          text: '',
+          files: [{ name: 'scan.png', path: '/tmp/scan.png', mimeType: 'image/png' }]
+        },
+        submissionId: 'submission-1'
+      },
+      createRendererRouteContext(88, 3)
+    )
+    await started
+
+    await expect(
+      dispatchDeepchatRoute(
+        runtime,
+        'chat.cancelSubmission',
+        { submissionId: 'submission-1' },
+        createRendererRouteContext(99, 4)
+      )
+    ).resolves.toEqual({ cancelled: false })
+    expect(acceptanceSignal?.aborted).toBe(false)
+
+    await expect(
+      dispatchDeepchatRoute(
+        runtime,
+        'chat.cancelSubmission',
+        { submissionId: 'submission-1' },
+        createRendererRouteContext(88, 3)
+      )
+    ).resolves.toEqual({ cancelled: true })
+    await expect(pendingSend).rejects.toMatchObject({ name: 'AbortError' })
+    expect(sessionTurnPort.cancelGeneration).not.toHaveBeenCalled()
+
+    await expect(
+      dispatchDeepchatRoute(
+        runtime,
+        'chat.cancelSubmission',
+        { submissionId: 'submission-1' },
+        createRendererRouteContext(88, 3)
+      )
+    ).resolves.toEqual({ cancelled: false })
+  })
+
+  it('enforces renderer ownership when cancelling steer attachment acceptance', async () => {
+    const { runtime, sessionTurnPort } = createRuntime()
+    let notifyStarted!: () => void
+    const started = new Promise<void>((resolve) => {
+      notifyStarted = resolve
+    })
+    let acceptanceSignal: AbortSignal | undefined
+    sessionTurnPort.steerActiveTurn.mockImplementationOnce(
+      async (_sessionId, _content, options) => {
+        acceptanceSignal = options?.signal
+        notifyStarted()
+        return await new Promise((_, reject) => {
+          options?.signal?.addEventListener(
+            'abort',
+            () => {
+              const error = new Error('Aborted')
+              error.name = 'AbortError'
+              reject(error)
+            },
+            { once: true }
+          )
+        })
+      }
+    )
+
+    const pendingSteer = dispatchDeepchatRoute(
+      runtime,
+      'chat.steerActiveTurn',
+      {
+        sessionId: 'session-1',
+        content: {
+          text: '',
+          files: [{ name: 'scan.png', path: '/tmp/scan.png', mimeType: 'image/png' }]
+        },
+        submissionId: 'steer-submission-1'
+      },
+      createRendererRouteContext(88, 3)
+    )
+    await started
+
+    await expect(
+      dispatchDeepchatRoute(
+        runtime,
+        'chat.cancelSubmission',
+        { submissionId: 'steer-submission-1' },
+        createRendererRouteContext(99, 4)
+      )
+    ).resolves.toEqual({ cancelled: false })
+    expect(acceptanceSignal?.aborted).toBe(false)
+
+    await expect(
+      dispatchDeepchatRoute(
+        runtime,
+        'chat.cancelSubmission',
+        { submissionId: 'steer-submission-1' },
+        createRendererRouteContext(88, 3)
+      )
+    ).resolves.toEqual({ cancelled: true })
+    await expect(pendingSteer).rejects.toMatchObject({ name: 'AbortError' })
+    expect(sessionTurnPort.cancelGeneration).not.toHaveBeenCalled()
+
+    await expect(
+      dispatchDeepchatRoute(
+        runtime,
+        'chat.cancelSubmission',
+        { submissionId: 'steer-submission-1' },
+        createRendererRouteContext(88, 3)
+      )
+    ).resolves.toEqual({ cancelled: false })
+  })
+
+  it('dispatches pending Queue resume requests', async () => {
+    const { runtime, sessionTurnPort } = createRuntime()
+    sessionTurnPort.resumePendingQueue.mockResolvedValueOnce(true)
+
+    await expect(
+      dispatchDeepchatRoute(
+        runtime,
+        'sessions.resumePendingQueue',
+        { sessionId: 'session-1' },
+        createRendererRouteContext(88, 3)
+      )
+    ).resolves.toEqual({ started: true })
+    expect(sessionTurnPort.resumePendingQueue).toHaveBeenCalledWith('session-1')
+  })
+
+  it('dispatches an item-scoped pending Queue retry request', async () => {
+    const { runtime, sessionTurnPort } = createRuntime()
+    sessionTurnPort.retryPendingQueueInput.mockResolvedValueOnce({
+      accepted: true,
+      started: false
+    })
+
+    await expect(
+      dispatchDeepchatRoute(
+        runtime,
+        'sessions.retryPendingQueueInput',
+        { sessionId: 'session-1', itemId: 'pending-1' },
+        createRendererRouteContext(88, 3)
+      )
+    ).resolves.toEqual({ accepted: true, started: false })
+    expect(sessionTurnPort.retryPendingQueueInput).toHaveBeenCalledWith('session-1', 'pending-1')
+  })
+
   it('dispatches session generation settings routes without dropping timeout', async () => {
-    const { runtime, agentSessionPresenter } = createRuntime()
+    const { runtime, sessionAssignmentPort } = createRuntime()
 
     const updateResult = await dispatchDeepchatRoute(
       runtime,
@@ -3663,10 +4848,7 @@ describe('dispatchDeepchatRoute', () => {
           timeout: 5000
         }
       },
-      {
-        webContentsId: 88,
-        windowId: 3
-      }
+      createRendererRouteContext(88, 3)
     )
 
     const getResult = await dispatchDeepchatRoute(
@@ -3675,13 +4857,10 @@ describe('dispatchDeepchatRoute', () => {
       {
         sessionId: 'session-1'
       },
-      {
-        webContentsId: 88,
-        windowId: 3
-      }
+      createRendererRouteContext(88, 3)
     )
 
-    expect(agentSessionPresenter.updateSessionGenerationSettings).toHaveBeenCalledWith(
+    expect(sessionAssignmentPort.updateSessionGenerationSettings).toHaveBeenCalledWith(
       'session-1',
       {
         timeout: 5000
@@ -3696,7 +4875,7 @@ describe('dispatchDeepchatRoute', () => {
         timeout: 5000
       }
     })
-    expect(agentSessionPresenter.getSessionGenerationSettings).toHaveBeenCalledWith('session-1')
+    expect(sessionAssignmentPort.getSessionGenerationSettings).toHaveBeenCalledWith('session-1')
     expect(getResult).toEqual({
       settings: {
         systemPrompt: '',
@@ -3708,12 +4887,9 @@ describe('dispatchDeepchatRoute', () => {
     })
   })
 
-  it('dispatches agent dashboard routes through AgentSessionPresenter', async () => {
-    const { runtime, agentSessionPresenter } = createRuntime()
-    const context = {
-      webContentsId: 88,
-      windowId: 3
-    }
+  it('dispatches dashboard maintenance routes through explicit owners', async () => {
+    const { runtime, providerSettings, usageStatsService, rtkRuntimeService } = createRuntime()
+    const context = createRendererRouteContext(88, 3)
 
     const agentsResult = await dispatchDeepchatRoute(runtime, 'sessions.getAgents', {}, context)
     const dashboardResult = await dispatchDeepchatRoute(
@@ -3729,9 +4905,9 @@ describe('dispatchDeepchatRoute', () => {
       context
     )
 
-    expect(agentSessionPresenter.getAgents).toHaveBeenCalledTimes(1)
-    expect(agentSessionPresenter.getUsageDashboard).toHaveBeenCalledTimes(1)
-    expect(agentSessionPresenter.retryRtkHealthCheck).toHaveBeenCalledTimes(1)
+    expect(providerSettings.listAgents).toHaveBeenCalledTimes(1)
+    expect(usageStatsService.getDashboard).toHaveBeenCalledTimes(1)
+    expect(rtkRuntimeService.retryHealthCheck).toHaveBeenCalledTimes(1)
     expect(agentsResult).toEqual({
       agents: [expect.objectContaining({ id: 'deepchat' })]
     })
@@ -3743,8 +4919,292 @@ describe('dispatchDeepchatRoute', () => {
     expect(retryResult).toEqual({ retried: true })
   })
 
+  it('dispatches moved session read routes through explicit owners', async () => {
+    const {
+      runtime,
+      sessionProjectionPort,
+      sessionHistorySearch,
+      sessionTranslation,
+      agentSessionExportService,
+      providerSettings
+    } = createRuntime()
+    const context = createRendererRouteContext(88, 3)
+
+    await dispatchDeepchatRoute(
+      runtime,
+      'sessions.searchHistory',
+      { query: 'release', options: { limit: 5 } },
+      context
+    )
+    await dispatchDeepchatRoute(
+      runtime,
+      'sessions.translateText',
+      { text: 'hello', locale: 'fr-FR', agentId: 'deepchat' },
+      context
+    )
+    await dispatchDeepchatRoute(
+      runtime,
+      'sessions.export',
+      { sessionId: 'session-1', format: 'markdown' },
+      context
+    )
+    sessionProjectionPort.getTapeContext.mockResolvedValueOnce({
+      sessionId: 'session-1',
+      sourceSessionId: 'acp-child',
+      requestedEntryIds: [7],
+      matchedEntryIds: [7],
+      entries: []
+    })
+    const tapeContext = await dispatchDeepchatRoute(
+      runtime,
+      'sessions.getTapeContext',
+      {
+        sessionId: 'session-1',
+        entryIds: [7],
+        options: { before: 1, sourceSessionId: 'acp-child' }
+      },
+      context
+    )
+    const agents = await dispatchDeepchatRoute(runtime, 'sessions.getAgents', {}, context)
+
+    expect(sessionHistorySearch.search).toHaveBeenCalledWith('release', { limit: 5 })
+    expect(sessionTranslation.translate).toHaveBeenCalledWith('hello', 'fr-FR', 'deepchat')
+    expect(agentSessionExportService.export).toHaveBeenCalledWith('session-1', 'markdown')
+    expect(sessionProjectionPort.getTapeContext).toHaveBeenCalledWith('session-1', [7], {
+      before: 1,
+      sourceSessionId: 'acp-child'
+    })
+    expect(tapeContext).toEqual({
+      context: expect.objectContaining({
+        sessionId: 'session-1',
+        sourceSessionId: 'acp-child'
+      })
+    })
+    expect(providerSettings.listAgents).toHaveBeenCalled()
+    expect(providerSettings.getAcpEnabled).toHaveBeenCalled()
+    expect(agents).toEqual({ agents: [expect.objectContaining({ id: 'deepchat' })] })
+
+    await expect(
+      dispatchDeepchatRoute(
+        runtime,
+        'sessions.getTapeContext',
+        {
+          sessionId: 'session-1',
+          entryIds: [7],
+          options: { sourceSessionId: '   ' }
+        },
+        context
+      )
+    ).rejects.toThrow()
+    expect(sessionProjectionPort.getTapeContext).toHaveBeenCalledTimes(1)
+  })
+
+  it('includes nested execution diagnostics in message trace results', async () => {
+    const { runtime, sessionProjectionPort } = createRuntime()
+    const nestedExecutions = {
+      schemaVersion: 1 as const,
+      state: 'available' as const,
+      operations: [
+        {
+          runId: 'run-1',
+          requestSeq: 1,
+          providerToolCallId: 'provider-call-1',
+          childOrdinal: 0,
+          toolName: 'remote_search',
+          toolSource: 'mcp' as const,
+          target: { serverName: 'remote', originalName: 'search' },
+          argumentsHash: 'a'.repeat(64),
+          definitionHash: 'b'.repeat(64),
+          capabilityHash: 'c'.repeat(64),
+          status: 'success' as const,
+          dispatchEntryId: 10,
+          dispatchCreatedAt: 100,
+          outcomeEntryId: 11,
+          outcomeCreatedAt: 101,
+          responseHash: 'd'.repeat(64),
+          isError: false
+        }
+      ],
+      truncated: false
+    }
+    sessionProjectionPort.listNestedExecutionAudit.mockResolvedValueOnce(nestedExecutions)
+
+    const result = await dispatchDeepchatRoute(
+      runtime,
+      'sessions.listMessageTraces',
+      { messageId: 'message-1' },
+      createRendererRouteContext(88, 3)
+    )
+
+    expect(sessionProjectionPort.listNestedExecutionAudit).toHaveBeenCalledWith('message-1')
+    expect(result).toEqual({ traces: [], manifests: [], nestedExecutions })
+  })
+
+  it('dispatches typed Tape Inspector reads and rejects invalid cursors', async () => {
+    const { runtime, sessionProjectionPort } = createRuntime()
+    const context = createRendererRouteContext(88, 3)
+
+    const page = await dispatchDeepchatRoute(
+      runtime,
+      'sessions.listTapeInspectorPage',
+      {
+        sessionId: 'session-1',
+        expectedTapeIncarnationId: 'incarnation-1',
+        mode: 'tail'
+      },
+      context
+    )
+    const evidence = await dispatchDeepchatRoute(
+      runtime,
+      'sessions.listTapeInspectorEvidence',
+      { sessionId: 'session-1', mode: 'newer', physicalAttempt: null },
+      context
+    )
+    const evidenceEntries = await dispatchDeepchatRoute(
+      runtime,
+      'sessions.resolveTapeInspectorEvidenceEntries',
+      {
+        sessionId: 'session-1',
+        expectedTapeIncarnationId: 'incarnation-1',
+        identities: [{ messageId: 'message-1', requestSeq: 2, physicalAttempt: 0 }]
+      },
+      context
+    )
+    const detail = await dispatchDeepchatRoute(
+      runtime,
+      'sessions.getTapeInspectorRecordDetail',
+      {
+        sessionId: 'session-1',
+        expectedTapeIncarnationId: 'incarnation-1',
+        entryId: 1
+      },
+      context
+    )
+    const supportTrace = await dispatchDeepchatRoute(
+      runtime,
+      'sessions.exportTapeInspectorSupportTrace',
+      {
+        sessionId: 'session-1',
+        expectedTapeIncarnationId: 'incarnation-1'
+      },
+      context
+    )
+
+    expect(page).toMatchObject({ status: 'ok', tapeIncarnationId: 'incarnation-1' })
+    expect(evidence).toEqual({ records: [], nextCursor: null, newerCursor: null })
+    expect(evidenceEntries).toEqual({
+      status: 'ok',
+      tapeIncarnationId: 'incarnation-1',
+      resolutions: [
+        {
+          messageId: 'message-1',
+          requestSeq: 2,
+          physicalAttempt: 0,
+          entryId: 4
+        }
+      ]
+    })
+    expect(detail).toEqual({ status: 'not_found', tapeIncarnationId: 'incarnation-1' })
+    expect(supportTrace).toEqual({
+      status: 'reset',
+      tapeIncarnationId: 'incarnation-1',
+      snapshotMaxEntryId: 0
+    })
+    expect(sessionProjectionPort.listTapeInspectorEvidence).toHaveBeenCalledWith({
+      sessionId: 'session-1',
+      mode: 'newer',
+      physicalAttempt: null
+    })
+    expect(sessionProjectionPort.resolveTapeInspectorEvidenceEntries).toHaveBeenCalledWith({
+      sessionId: 'session-1',
+      expectedTapeIncarnationId: 'incarnation-1',
+      identities: [{ messageId: 'message-1', requestSeq: 2, physicalAttempt: 0 }]
+    })
+    expect(sessionProjectionPort.exportTapeInspectorSupportTrace).toHaveBeenCalledWith({
+      sessionId: 'session-1',
+      expectedTapeIncarnationId: 'incarnation-1'
+    })
+    await expect(
+      dispatchDeepchatRoute(
+        runtime,
+        'sessions.listTapeInspectorPage',
+        {
+          sessionId: 'session-1',
+          mode: 'tail',
+          cursor: { sort: 'entryId', entryId: 1 }
+        },
+        context
+      )
+    ).rejects.toThrow()
+    expect(sessionProjectionPort.listTapeInspectorPage).toHaveBeenCalledTimes(1)
+  })
+
+  it('scopes Tape Inspector head subscriptions to the calling renderer', async () => {
+    const { runtime, tapeInspectorHeadWatcher } = createRuntime()
+    const renderer = createRendererRouteContext(88, 3)
+
+    await expect(
+      dispatchDeepchatRoute(
+        runtime,
+        'sessions.subscribeTapeInspectorHead',
+        { sessionId: 'session-1', subscriptionId: 'subscription-1' },
+        renderer
+      )
+    ).resolves.toEqual({
+      subscribed: true,
+      tapeIncarnationId: 'incarnation-1',
+      maxEntryId: 20
+    })
+    await expect(
+      dispatchDeepchatRoute(
+        runtime,
+        'sessions.unsubscribeTapeInspectorHead',
+        { subscriptionId: 'subscription-1' },
+        renderer
+      )
+    ).resolves.toEqual({ unsubscribed: true })
+
+    expect(tapeInspectorHeadWatcher.subscribe).toHaveBeenCalledWith({
+      sessionId: 'session-1',
+      subscriptionId: 'subscription-1',
+      webContentsId: 88
+    })
+    expect(tapeInspectorHeadWatcher.unsubscribe).toHaveBeenCalledWith({
+      subscriptionId: 'subscription-1',
+      webContentsId: 88
+    })
+
+    const cliContext: RouteContext = {
+      caller: {
+        kind: 'cli',
+        principal: 'human',
+        connectionId: 'cli-1',
+        scopes: ['runs:read']
+      }
+    }
+    await expect(
+      dispatchDeepchatRoute(
+        runtime,
+        'sessions.subscribeTapeInspectorHead',
+        { sessionId: 'session-1', subscriptionId: 'subscription-2' },
+        cliContext
+      )
+    ).rejects.toThrow('Route requires a renderer caller')
+    expect(tapeInspectorHeadWatcher.subscribe).toHaveBeenCalledOnce()
+
+    await expect(
+      dispatchDeepchatRoute(
+        runtime,
+        'sessions.subscribeTapeInspectorHead',
+        { sessionId: 'missing-session', subscriptionId: 'subscription-3' },
+        renderer
+      )
+    ).rejects.toThrow('Session not found: missing-session')
+    expect(tapeInspectorHeadWatcher.subscribe).toHaveBeenCalledOnce()
+  })
+
   it('dispatches provider query and tool interaction routes through typed services', async () => {
-    const { runtime, configPresenter, llmProviderPresenter, agentSessionPresenter } =
+    const { runtime, providerSettings, providerRuntime, acpProviderAdminPort, sessionTurnPort } =
       createRuntime()
 
     const modelsResult = await dispatchDeepchatRoute(
@@ -3753,10 +5213,7 @@ describe('dispatchDeepchatRoute', () => {
       {
         providerId: 'openai'
       },
-      {
-        webContentsId: 88,
-        windowId: 3
-      }
+      createRendererRouteContext(88, 3)
     )
 
     const checkResult = await dispatchDeepchatRoute(
@@ -3766,10 +5223,7 @@ describe('dispatchDeepchatRoute', () => {
         providerId: 'openai',
         modelId: 'gpt-5.4'
       },
-      {
-        webContentsId: 88,
-        windowId: 3
-      }
+      createRendererRouteContext(88, 3)
     )
 
     const keyStatusResult = await dispatchDeepchatRoute(
@@ -3778,10 +5232,7 @@ describe('dispatchDeepchatRoute', () => {
       {
         providerId: 'openai'
       },
-      {
-        webContentsId: 88,
-        windowId: 3
-      }
+      createRendererRouteContext(88, 3)
     )
 
     const rateLimitStatusResult = await dispatchDeepchatRoute(
@@ -3790,10 +5241,7 @@ describe('dispatchDeepchatRoute', () => {
       {
         providerId: 'openai'
       },
-      {
-        webContentsId: 88,
-        windowId: 3
-      }
+      createRendererRouteContext(88, 3)
     )
 
     const updateRateLimitResult = await dispatchDeepchatRoute(
@@ -3804,10 +5252,7 @@ describe('dispatchDeepchatRoute', () => {
         enabled: true,
         qpsLimit: 2
       },
-      {
-        webContentsId: 88,
-        windowId: 3
-      }
+      createRendererRouteContext(88, 3)
     )
 
     const embeddingDimensionsResult = await dispatchDeepchatRoute(
@@ -3817,10 +5262,7 @@ describe('dispatchDeepchatRoute', () => {
         providerId: 'openai',
         modelId: 'text-embedding-3-small'
       },
-      {
-        webContentsId: 88,
-        windowId: 3
-      }
+      createRendererRouteContext(88, 3)
     )
 
     const modelScopeSyncResult = await dispatchDeepchatRoute(
@@ -3833,24 +5275,32 @@ describe('dispatchDeepchatRoute', () => {
           page_size: 50
         }
       },
-      {
-        webContentsId: 88,
-        windowId: 3
-      }
+      createRendererRouteContext(88, 3)
     )
 
     const acpDebugResult = await dispatchDeepchatRoute(
       runtime,
       'providers.runAcpDebugAction',
       {
+        requestId: 'debug-request-1',
         agentId: 'codex-acp',
         action: 'initialize',
         payload: {}
       },
-      {
-        webContentsId: 88,
-        windowId: 3
-      }
+      createRendererRouteContext(88, 3)
+    )
+
+    const acpWarmupResult = await dispatchDeepchatRoute(
+      runtime,
+      'providers.warmupAcpProcess',
+      { agentId: 'codex-acp', workdir: '/repo' },
+      createRendererRouteContext(88, 3)
+    )
+    const acpConfigResult = await dispatchDeepchatRoute(
+      runtime,
+      'providers.getAcpProcessConfigOptions',
+      { agentId: 'codex-acp', workdir: '/repo' },
+      createRendererRouteContext(88, 3)
     )
 
     const interactionResult = await dispatchDeepchatRoute(
@@ -3865,32 +5315,32 @@ describe('dispatchDeepchatRoute', () => {
           granted: true
         }
       },
-      {
-        webContentsId: 88,
-        windowId: 3
-      }
+      createRendererRouteContext(88, 3)
     )
 
-    expect(configPresenter.getProviderModels).toHaveBeenCalledWith('openai')
-    expect(llmProviderPresenter.check).toHaveBeenCalledWith('openai', 'gpt-5.4')
-    expect(llmProviderPresenter.getKeyStatus).toHaveBeenCalledWith('openai')
-    expect(llmProviderPresenter.getProviderRateLimitStatus).toHaveBeenCalledWith('openai')
-    expect(llmProviderPresenter.updateProviderRateLimit).toHaveBeenCalledWith('openai', true, 2)
-    expect(llmProviderPresenter.getDimensions).toHaveBeenCalledWith(
-      'openai',
-      'text-embedding-3-small'
-    )
-    expect(llmProviderPresenter.syncModelScopeMcpServers).toHaveBeenCalledWith('modelscope', {
+    expect(providerSettings.getProviderModels).toHaveBeenCalledWith('openai')
+    expect(providerRuntime.check).toHaveBeenCalledWith('openai', 'gpt-5.4')
+    expect(providerRuntime.getKeyStatus).toHaveBeenCalledWith('openai')
+    expect(providerRuntime.getProviderRateLimitStatus).toHaveBeenCalledWith('openai')
+    expect(providerRuntime.updateProviderRateLimit).toHaveBeenCalledWith('openai', true, 2)
+    expect(providerRuntime.getDimensions).toHaveBeenCalledWith('openai', 'text-embedding-3-small')
+    expect(providerRuntime.syncModelScopeMcpServers).toHaveBeenCalledWith('modelscope', {
       page_number: 1,
       page_size: 50
     })
-    expect(llmProviderPresenter.runAcpDebugAction).toHaveBeenCalledWith({
+    expect(acpProviderAdminPort.runAcpDebugAction).toHaveBeenCalledWith({
+      requestId: 'debug-request-1',
       agentId: 'codex-acp',
       action: 'initialize',
       payload: {},
       webContentsId: 88
     })
-    expect(agentSessionPresenter.respondToolInteraction).toHaveBeenCalledWith(
+    expect(acpProviderAdminPort.warmupAcpProcess).toHaveBeenCalledWith('codex-acp', '/repo')
+    expect(acpProviderAdminPort.getAcpProcessConfigOptions).toHaveBeenCalledWith(
+      'codex-acp',
+      '/repo'
+    )
+    expect(sessionTurnPort.respondToolInteraction).toHaveBeenCalledWith(
       'session-1',
       'message-1',
       'tool-1',
@@ -3974,6 +5424,8 @@ describe('dispatchDeepchatRoute', () => {
         ]
       }
     })
+    expect(acpWarmupResult).toEqual({ warmedUp: true })
+    expect(acpConfigResult).toEqual({ state: null })
     expect(interactionResult).toEqual({
       accepted: true,
       resumed: true
@@ -3981,8 +5433,8 @@ describe('dispatchDeepchatRoute', () => {
   })
 
   it('activates, deactivates, and reads the active session through typed routes', async () => {
-    const { runtime, agentSessionPresenter } = createRuntime()
-    ;(agentSessionPresenter.getActiveSession as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+    const { runtime, desktopSessionBinding } = createRuntime()
+    desktopSessionBinding.getActive.mockResolvedValueOnce({
       id: 'session-1',
       agentId: 'deepchat',
       title: 'Restored',
@@ -3991,8 +5443,8 @@ describe('dispatchDeepchatRoute', () => {
       isDraft: false,
       sessionKind: 'regular',
       parentSessionId: null,
-      subagentEnabled: false,
       subagentMeta: null,
+      orchestrationPolicy: 'explicit',
       createdAt: 1,
       updatedAt: 2,
       status: 'idle',
@@ -4006,35 +5458,26 @@ describe('dispatchDeepchatRoute', () => {
       {
         sessionId: 'session-1'
       },
-      {
-        webContentsId: 88,
-        windowId: 3
-      }
+      createRendererRouteContext(88, 3)
     )
 
     const deactivateResult = await dispatchDeepchatRoute(
       runtime,
       'sessions.deactivate',
       {},
-      {
-        webContentsId: 88,
-        windowId: 3
-      }
+      createRendererRouteContext(88, 3)
     )
 
     const activeResult = await dispatchDeepchatRoute(
       runtime,
       'sessions.getActive',
       {},
-      {
-        webContentsId: 88,
-        windowId: 3
-      }
+      createRendererRouteContext(88, 3)
     )
 
-    expect(agentSessionPresenter.activateSession).toHaveBeenCalledWith(88, 'session-1')
-    expect(agentSessionPresenter.deactivateSession).toHaveBeenCalledWith(88)
-    expect(agentSessionPresenter.getActiveSession).toHaveBeenCalledWith(88)
+    expect(desktopSessionBinding.activate).toHaveBeenCalledWith(88, 'session-1')
+    expect(desktopSessionBinding.deactivate).toHaveBeenCalledWith(88)
+    expect(desktopSessionBinding.getActive).toHaveBeenCalledWith(88)
     expect(activateResult).toEqual({ activated: true })
     expect(deactivateResult).toEqual({ deactivated: true })
     expect(activeResult).toEqual({
@@ -4045,7 +5488,8 @@ describe('dispatchDeepchatRoute', () => {
   })
 
   it('resolves stopStream by requestId when sessionId is omitted', async () => {
-    const { runtime, agentSessionPresenter } = createRuntime()
+    const { runtime, sessionProjectionPort, sessionTurnPort, sessionPermissionPort } =
+      createRuntime()
 
     const result = await dispatchDeepchatRoute(
       runtime,
@@ -4053,14 +5497,12 @@ describe('dispatchDeepchatRoute', () => {
       {
         requestId: 'message-1'
       },
-      {
-        webContentsId: 88,
-        windowId: 3
-      }
+      createRendererRouteContext(88, 3)
     )
 
-    expect(agentSessionPresenter.getMessage).toHaveBeenCalledWith('message-1')
-    expect(agentSessionPresenter.cancelGeneration).toHaveBeenCalledWith('session-1')
+    expect(sessionProjectionPort.getMessage).toHaveBeenCalledWith('message-1')
+    expect(sessionPermissionPort.clearSessionPermissions).toHaveBeenCalledWith('session-1')
+    expect(sessionTurnPort.cancelGeneration).toHaveBeenCalledWith('session-1')
     expect(result).toEqual({ stopped: true })
   })
 
@@ -4071,30 +5513,21 @@ describe('dispatchDeepchatRoute', () => {
       runtime,
       'window.getCurrentState',
       {},
-      {
-        webContentsId: 42,
-        windowId: 7
-      }
+      createRendererRouteContext(42, 7)
     )
 
     const minimizedState = await dispatchDeepchatRoute(
       runtime,
       'window.minimizeCurrent',
       {},
-      {
-        webContentsId: 42,
-        windowId: 7
-      }
+      createRendererRouteContext(42, 7)
     )
 
     const maximizedState = await dispatchDeepchatRoute(
       runtime,
       'window.toggleMaximizeCurrent',
       {},
-      {
-        webContentsId: 42,
-        windowId: 7
-      }
+      createRendererRouteContext(42, 7)
     )
 
     const previewResult = await dispatchDeepchatRoute(
@@ -4103,70 +5536,49 @@ describe('dispatchDeepchatRoute', () => {
       {
         filePath: 'C:/workspace/README.md'
       },
-      {
-        webContentsId: 42,
-        windowId: 7
-      }
+      createRendererRouteContext(42, 7)
     )
 
     const closeFloatingResult = await dispatchDeepchatRoute(
       runtime,
       'window.closeFloatingCurrent',
       {},
-      {
-        webContentsId: 444,
-        windowId: 7
-      }
+      createRendererRouteContext(444, 7)
     )
 
     const closeResult = await dispatchDeepchatRoute(
       runtime,
       'window.closeCurrent',
       {},
-      {
-        webContentsId: 42,
-        windowId: 7
-      }
+      createRendererRouteContext(42, 7)
     )
 
     const closeSettingsResult = await dispatchDeepchatRoute(
       runtime,
       'window.closeSettings',
       {},
-      {
-        webContentsId: 42,
-        windowId: 7
-      }
+      createRendererRouteContext(42, 7)
     )
 
     const focusMainResult = await dispatchDeepchatRoute(
       runtime,
       'window.focusMain',
       {},
-      {
-        webContentsId: 42,
-        windowId: 7
-      }
+      createRendererRouteContext(42, 7)
     )
 
     const notifySettingsReadyResult = await dispatchDeepchatRoute(
       runtime,
       'window.notifySettingsReady',
       {},
-      {
-        webContentsId: 42,
-        windowId: 7
-      }
+      createRendererRouteContext(42, 7)
     )
 
     const pendingProviderInstallResult = await dispatchDeepchatRoute(
       runtime,
       'window.consumePendingSettingsProviderInstall',
       {},
-      {
-        webContentsId: 42,
-        windowId: 7
-      }
+      createRendererRouteContext(42, 7)
     )
 
     const requeueProviderInstallResult = await dispatchDeepchatRoute(
@@ -4175,20 +5587,21 @@ describe('dispatchDeepchatRoute', () => {
       {
         preview: pendingProviderInstallResult.preview
       },
-      {
-        webContentsId: 42,
-        windowId: 7
-      }
+      createRendererRouteContext(42, 7)
+    )
+
+    const resumeGuidedOnboardingResult = await dispatchDeepchatRoute(
+      runtime,
+      'window.resumeGuidedOnboarding',
+      {},
+      createRendererRouteContext(42, 7)
     )
 
     const startGuidedOnboardingResult = await dispatchDeepchatRoute(
       runtime,
       'window.startGuidedOnboarding',
       {},
-      {
-        webContentsId: 42,
-        windowId: 7
-      }
+      createRendererRouteContext(42, 7)
     )
 
     expect(initialState).toEqual({
@@ -4229,7 +5642,7 @@ describe('dispatchDeepchatRoute', () => {
     expect(windowPresenter.getSettingsWindowId).toHaveBeenCalled()
     expect(windowPresenter.closeSettingsWindow).toHaveBeenCalled()
     expect(closeSettingsResult).toEqual({ closed: true })
-    expect(windowPresenter.focusMainWindow).toHaveBeenCalledTimes(2)
+    expect(windowPresenter.focusMainWindow).toHaveBeenCalledTimes(3)
     expect(focusMainResult).toEqual({ focused: true })
     expect(windowPresenter.notifySettingsReady).toHaveBeenCalledWith(42)
     expect(notifySettingsReadyResult).toEqual({ notified: true })
@@ -4249,6 +5662,11 @@ describe('dispatchDeepchatRoute', () => {
       pendingProviderInstallResult.preview
     )
     expect(requeueProviderInstallResult).toEqual({ queued: true })
+    expect(windowPresenter.sendToMainWindow).toHaveBeenCalledWith('deepchat:event', {
+      name: 'appRuntime.guidedOnboardingResumeRequested',
+      payload: {}
+    })
+    expect(resumeGuidedOnboardingResult).toEqual({ requested: true, focused: true })
     expect(windowPresenter.sendToAllWindows).toHaveBeenCalledWith('dev:start-guided-onboarding')
     expect(startGuidedOnboardingResult).toEqual({
       started: true,
@@ -4257,35 +5675,32 @@ describe('dispatchDeepchatRoute', () => {
   })
 
   it('dispatches phase3 device, project, file, and workspace routes', async () => {
-    const { runtime, devicePresenter, projectPresenter, filePresenter, workspacePresenter } =
-      createRuntime()
+    const {
+      runtime,
+      deviceService,
+      appDataReset,
+      projectPresenter,
+      fileService,
+      workspaceService
+    } = createRuntime()
 
     const appVersion = await dispatchDeepchatRoute(
       runtime,
       'device.getAppVersion',
       {},
-      {
-        webContentsId: 42,
-        windowId: 7
-      }
+      createRendererRouteContext(42, 7)
     )
     const deviceInfo = await dispatchDeepchatRoute(
       runtime,
       'device.getInfo',
       {},
-      {
-        webContentsId: 42,
-        windowId: 7
-      }
+      createRendererRouteContext(42, 7)
     )
     const directorySelection = await dispatchDeepchatRoute(
       runtime,
       'device.selectDirectory',
       {},
-      {
-        webContentsId: 42,
-        windowId: 7
-      }
+      createRendererRouteContext(42, 7)
     )
     const fileSelection = await dispatchDeepchatRoute(
       runtime,
@@ -4293,19 +5708,13 @@ describe('dispatchDeepchatRoute', () => {
       {
         filters: [{ name: 'ZIP Files', extensions: ['zip'] }]
       },
-      {
-        webContentsId: 42,
-        windowId: 7
-      }
+      createRendererRouteContext(42, 7)
     )
     const restartResult = await dispatchDeepchatRoute(
       runtime,
       'device.restartApp',
       {},
-      {
-        webContentsId: 42,
-        windowId: 7
-      }
+      createRendererRouteContext(42, 7)
     )
     const resetDataResult = await dispatchDeepchatRoute(
       runtime,
@@ -4313,10 +5722,7 @@ describe('dispatchDeepchatRoute', () => {
       {
         resetType: 'chat'
       },
-      {
-        webContentsId: 42,
-        windowId: 7
-      }
+      createRendererRouteContext(42, 7)
     )
     const sanitizeResult = await dispatchDeepchatRoute(
       runtime,
@@ -4324,10 +5730,7 @@ describe('dispatchDeepchatRoute', () => {
       {
         svgContent: '<svg unsafe="1" />'
       },
-      {
-        webContentsId: 42,
-        windowId: 7
-      }
+      createRendererRouteContext(42, 7)
     )
 
     const recentProjects = await dispatchDeepchatRoute(
@@ -4336,19 +5739,13 @@ describe('dispatchDeepchatRoute', () => {
       {
         limit: 5
       },
-      {
-        webContentsId: 42,
-        windowId: 7
-      }
+      createRendererRouteContext(42, 7)
     )
     const environments = await dispatchDeepchatRoute(
       runtime,
       'project.listEnvironments',
       {},
-      {
-        webContentsId: 42,
-        windowId: 7
-      }
+      createRendererRouteContext(42, 7)
     )
     const reorderEnvironmentsResult = await dispatchDeepchatRoute(
       runtime,
@@ -4356,10 +5753,7 @@ describe('dispatchDeepchatRoute', () => {
       {
         paths: ['C:/workspace', 'C:/other']
       },
-      {
-        webContentsId: 42,
-        windowId: 7
-      }
+      createRendererRouteContext(42, 7)
     )
     const archiveEnvironmentResult = await dispatchDeepchatRoute(
       runtime,
@@ -4367,10 +5761,7 @@ describe('dispatchDeepchatRoute', () => {
       {
         path: 'C:/workspace'
       },
-      {
-        webContentsId: 42,
-        windowId: 7
-      }
+      createRendererRouteContext(42, 7)
     )
     const restoreEnvironmentResult = await dispatchDeepchatRoute(
       runtime,
@@ -4378,10 +5769,7 @@ describe('dispatchDeepchatRoute', () => {
       {
         path: 'C:/workspace'
       },
-      {
-        webContentsId: 42,
-        windowId: 7
-      }
+      createRendererRouteContext(42, 7)
     )
     const removeEnvironmentResult = await dispatchDeepchatRoute(
       runtime,
@@ -4389,10 +5777,7 @@ describe('dispatchDeepchatRoute', () => {
       {
         path: 'C:/workspace'
       },
-      {
-        webContentsId: 42,
-        windowId: 7
-      }
+      createRendererRouteContext(42, 7)
     )
     const openDirectoryResult = await dispatchDeepchatRoute(
       runtime,
@@ -4400,10 +5785,7 @@ describe('dispatchDeepchatRoute', () => {
       {
         path: 'C:/workspace'
       },
-      {
-        webContentsId: 42,
-        windowId: 7
-      }
+      createRendererRouteContext(42, 7)
     )
     const pathExistsResult = await dispatchDeepchatRoute(
       runtime,
@@ -4411,19 +5793,13 @@ describe('dispatchDeepchatRoute', () => {
       {
         path: 'C:/workspace'
       },
-      {
-        webContentsId: 42,
-        windowId: 7
-      }
+      createRendererRouteContext(42, 7)
     )
     const selectedDirectory = await dispatchDeepchatRoute(
       runtime,
       'project.selectDirectory',
       {},
-      {
-        webContentsId: 42,
-        windowId: 7
-      }
+      createRendererRouteContext(42, 7)
     )
 
     const mimeType = await dispatchDeepchatRoute(
@@ -4432,10 +5808,7 @@ describe('dispatchDeepchatRoute', () => {
       {
         path: '/workspace/demo.txt'
       },
-      {
-        webContentsId: 42,
-        windowId: 7
-      }
+      createRendererRouteContext(42, 7)
     )
     const preparedFile = await dispatchDeepchatRoute(
       runtime,
@@ -4444,10 +5817,7 @@ describe('dispatchDeepchatRoute', () => {
         path: '/workspace/demo.txt',
         mimeType: 'text/plain'
       },
-      {
-        webContentsId: 42,
-        windowId: 7
-      }
+      createRendererRouteContext(42, 7)
     )
     const preparedDirectory = await dispatchDeepchatRoute(
       runtime,
@@ -4455,10 +5825,7 @@ describe('dispatchDeepchatRoute', () => {
       {
         path: '/workspace'
       },
-      {
-        webContentsId: 42,
-        windowId: 7
-      }
+      createRendererRouteContext(42, 7)
     )
     const readFile = await dispatchDeepchatRoute(
       runtime,
@@ -4466,10 +5833,7 @@ describe('dispatchDeepchatRoute', () => {
       {
         path: '/workspace/demo.txt'
       },
-      {
-        webContentsId: 42,
-        windowId: 7
-      }
+      createRendererRouteContext(42, 7)
     )
     const isDirectory = await dispatchDeepchatRoute(
       runtime,
@@ -4477,10 +5841,7 @@ describe('dispatchDeepchatRoute', () => {
       {
         path: '/workspace'
       },
-      {
-        webContentsId: 42,
-        windowId: 7
-      }
+      createRendererRouteContext(42, 7)
     )
     const imagePath = await dispatchDeepchatRoute(
       runtime,
@@ -4489,10 +5850,7 @@ describe('dispatchDeepchatRoute', () => {
         name: 'capture.png',
         content: 'data:image/png;base64,abc'
       },
-      {
-        webContentsId: 42,
-        windowId: 7
-      }
+      createRendererRouteContext(42, 7)
     )
 
     const registerWorkspace = await dispatchDeepchatRoute(
@@ -4502,10 +5860,7 @@ describe('dispatchDeepchatRoute', () => {
         workspacePath: '/workspace',
         mode: 'workspace'
       },
-      {
-        webContentsId: 42,
-        windowId: 7
-      }
+      createRendererRouteContext(42, 7)
     )
     const registerWorkdir = await dispatchDeepchatRoute(
       runtime,
@@ -4514,10 +5869,7 @@ describe('dispatchDeepchatRoute', () => {
         workspacePath: '/workspace',
         mode: 'workdir'
       },
-      {
-        webContentsId: 42,
-        windowId: 7
-      }
+      createRendererRouteContext(42, 7)
     )
     const readDirectory = await dispatchDeepchatRoute(
       runtime,
@@ -4525,10 +5877,7 @@ describe('dispatchDeepchatRoute', () => {
       {
         path: '/workspace'
       },
-      {
-        webContentsId: 42,
-        windowId: 7
-      }
+      createRendererRouteContext(42, 7)
     )
     const preview = await dispatchDeepchatRoute(
       runtime,
@@ -4536,10 +5885,7 @@ describe('dispatchDeepchatRoute', () => {
       {
         path: '/workspace/src/app.ts'
       },
-      {
-        webContentsId: 42,
-        windowId: 7
-      }
+      createRendererRouteContext(42, 7)
     )
     const gitStatus = await dispatchDeepchatRoute(
       runtime,
@@ -4547,10 +5893,7 @@ describe('dispatchDeepchatRoute', () => {
       {
         workspacePath: '/workspace'
       },
-      {
-        webContentsId: 42,
-        windowId: 7
-      }
+      createRendererRouteContext(42, 7)
     )
     const gitDiff = await dispatchDeepchatRoute(
       runtime,
@@ -4559,10 +5902,7 @@ describe('dispatchDeepchatRoute', () => {
         workspacePath: '/workspace',
         filePath: '/workspace/src/app.ts'
       },
-      {
-        webContentsId: 42,
-        windowId: 7
-      }
+      createRendererRouteContext(42, 7)
     )
     const resolution = await dispatchDeepchatRoute(
       runtime,
@@ -4572,10 +5912,7 @@ describe('dispatchDeepchatRoute', () => {
         href: './docs/guide.md',
         sourceFilePath: '/workspace/README.md'
       },
-      {
-        webContentsId: 42,
-        windowId: 7
-      }
+      createRendererRouteContext(42, 7)
     )
     const searchResult = await dispatchDeepchatRoute(
       runtime,
@@ -4584,10 +5921,7 @@ describe('dispatchDeepchatRoute', () => {
         workspacePath: '/workspace',
         query: 'app'
       },
-      {
-        webContentsId: 42,
-        windowId: 7
-      }
+      createRendererRouteContext(42, 7)
     )
     const openFileResult = await dispatchDeepchatRoute(
       runtime,
@@ -4595,10 +5929,7 @@ describe('dispatchDeepchatRoute', () => {
       {
         path: '/workspace/src/app.ts'
       },
-      {
-        webContentsId: 42,
-        windowId: 7
-      }
+      createRendererRouteContext(42, 7)
     )
     const revealResult = await dispatchDeepchatRoute(
       runtime,
@@ -4606,10 +5937,7 @@ describe('dispatchDeepchatRoute', () => {
       {
         path: '/workspace/src/app.ts'
       },
-      {
-        webContentsId: 42,
-        windowId: 7
-      }
+      createRendererRouteContext(42, 7)
     )
     const unwatchResult = await dispatchDeepchatRoute(
       runtime,
@@ -4617,10 +5945,7 @@ describe('dispatchDeepchatRoute', () => {
       {
         workspacePath: '/workspace'
       },
-      {
-        webContentsId: 42,
-        windowId: 7
-      }
+      createRendererRouteContext(42, 7)
     )
     const unregisterResult = await dispatchDeepchatRoute(
       runtime,
@@ -4629,13 +5954,10 @@ describe('dispatchDeepchatRoute', () => {
         workspacePath: '/workspace',
         mode: 'workspace'
       },
-      {
-        webContentsId: 42,
-        windowId: 7
-      }
+      createRendererRouteContext(42, 7)
     )
 
-    expect(devicePresenter.getAppVersion).toHaveBeenCalledTimes(1)
+    expect(deviceService.getAppVersion).toHaveBeenCalledTimes(1)
     expect(appVersion).toEqual({ version: '1.2.3' })
     expect(deviceInfo).toEqual({
       info: {
@@ -4651,16 +5973,17 @@ describe('dispatchDeepchatRoute', () => {
       canceled: false,
       filePaths: ['C:/workspace']
     })
-    expect(devicePresenter.selectFiles).toHaveBeenCalledWith({
+    expect(deviceService.selectFiles).toHaveBeenCalledWith({
       filters: [{ name: 'ZIP Files', extensions: ['zip'] }]
     })
     expect(fileSelection).toEqual({
       canceled: false,
       filePaths: ['C:/workspace/skill.zip']
     })
-    expect(devicePresenter.restartApp).toHaveBeenCalledTimes(1)
+    expect(deviceService.restartApp).toHaveBeenCalledTimes(1)
     expect(restartResult).toEqual({ restarted: true })
-    expect(devicePresenter.resetDataByType).toHaveBeenCalledWith('chat')
+    expect(appDataReset.resetDataByType).toHaveBeenCalledWith('chat')
+    expect(deviceService.resetDataByType).not.toHaveBeenCalled()
     expect(resetDataResult).toEqual({ reset: true })
     expect(sanitizeResult).toEqual({ content: '<svg />' })
 
@@ -4695,7 +6018,7 @@ describe('dispatchDeepchatRoute', () => {
     expect(projectPresenter.reorderEnvironments).toHaveBeenCalledWith(['C:/workspace', 'C:/other'])
     expect(reorderEnvironmentsResult).toEqual({ updated: true })
     expect(projectPresenter.archiveEnvironment).toHaveBeenCalledWith('C:/workspace')
-    expect(archiveEnvironmentResult).toEqual({ updated: true })
+    expect(archiveEnvironmentResult).toEqual({ updated: true, version: 1 })
     expect(projectPresenter.restoreEnvironment).toHaveBeenCalledWith('C:/workspace')
     expect(restoreEnvironmentResult).toEqual({ updated: true })
     expect(projectPresenter.removeEnvironment).toHaveBeenCalledWith('C:/workspace')
@@ -4704,9 +6027,9 @@ describe('dispatchDeepchatRoute', () => {
     expect(openDirectoryResult).toEqual({ opened: true })
     expect(projectPresenter.pathExists).toHaveBeenCalledWith('C:/workspace')
     expect(pathExistsResult).toEqual({ exists: true })
-    expect(selectedDirectory).toEqual({ path: 'C:/selected-workspace' })
+    expect(selectedDirectory).toEqual({ path: 'C:/selected-workspace', version: 1 })
 
-    expect(filePresenter.getMimeType).toHaveBeenCalledWith('/workspace/demo.txt')
+    expect(fileService.getMimeType).toHaveBeenCalledWith('/workspace/demo.txt')
     expect(mimeType).toEqual({ mimeType: 'text/plain' })
     expect(preparedFile).toEqual({
       file: {
@@ -4728,9 +6051,10 @@ describe('dispatchDeepchatRoute', () => {
     expect(isDirectory).toEqual({ isDirectory: true })
     expect(imagePath).toEqual({ path: '/tmp/capture.png' })
 
-    expect(workspacePresenter.registerWorkspace).toHaveBeenCalledWith('/workspace')
+    expect(workspaceService.registerWorkspace).toHaveBeenCalledTimes(2)
+    expect(workspaceService.registerWorkspace).toHaveBeenNthCalledWith(1, '/workspace')
+    expect(workspaceService.registerWorkspace).toHaveBeenNthCalledWith(2, '/workspace')
     expect(registerWorkspace).toEqual({ registered: true })
-    expect(workspacePresenter.registerWorkdir).toHaveBeenCalledWith('/workspace')
     expect(registerWorkdir).toEqual({ registered: true })
     expect(readDirectory).toEqual({
       nodes: [
@@ -4783,13 +6107,13 @@ describe('dispatchDeepchatRoute', () => {
         }
       ]
     })
-    expect(workspacePresenter.openFile).toHaveBeenCalledWith('/workspace/src/app.ts')
+    expect(workspaceService.openFile).toHaveBeenCalledWith('/workspace/src/app.ts')
     expect(openFileResult).toEqual({ opened: true })
-    expect(workspacePresenter.revealFileInFolder).toHaveBeenCalledWith('/workspace/src/app.ts')
+    expect(workspaceService.revealFileInFolder).toHaveBeenCalledWith('/workspace/src/app.ts')
     expect(revealResult).toEqual({ revealed: true })
-    expect(workspacePresenter.unwatchWorkspace).toHaveBeenCalledWith('/workspace')
+    expect(workspaceService.unwatchWorkspace).toHaveBeenCalledWith('/workspace')
     expect(unwatchResult).toEqual({ watching: false })
-    expect(workspacePresenter.unregisterWorkspace).toHaveBeenCalledWith('/workspace')
+    expect(workspaceService.unregisterWorkspace).toHaveBeenCalledWith('/workspace')
     expect(unregisterResult).toEqual({ unregistered: true })
   })
 
@@ -4802,10 +6126,7 @@ describe('dispatchDeepchatRoute', () => {
       {
         sessionId: 'session-1'
       },
-      {
-        webContentsId: 88,
-        windowId: 3
-      }
+      createRendererRouteContext(88, 3)
     )
     const loadResult = await dispatchDeepchatRoute(
       runtime,
@@ -4815,10 +6136,7 @@ describe('dispatchDeepchatRoute', () => {
         url: 'https://example.com/docs',
         timeoutMs: 5000
       },
-      {
-        webContentsId: 88,
-        windowId: 3
-      }
+      createRendererRouteContext(88, 3)
     )
     const attachResult = await dispatchDeepchatRoute(
       runtime,
@@ -4826,10 +6144,7 @@ describe('dispatchDeepchatRoute', () => {
       {
         sessionId: 'session-1'
       },
-      {
-        webContentsId: 88,
-        windowId: 3
-      }
+      createRendererRouteContext(88, 3)
     )
     const updateResult = await dispatchDeepchatRoute(
       runtime,
@@ -4844,10 +6159,7 @@ describe('dispatchDeepchatRoute', () => {
         },
         visible: true
       },
-      {
-        webContentsId: 88,
-        windowId: 3
-      }
+      createRendererRouteContext(88, 3)
     )
     const backResult = await dispatchDeepchatRoute(
       runtime,
@@ -4855,10 +6167,7 @@ describe('dispatchDeepchatRoute', () => {
       {
         sessionId: 'session-1'
       },
-      {
-        webContentsId: 88,
-        windowId: 3
-      }
+      createRendererRouteContext(88, 3)
     )
     const detachResult = await dispatchDeepchatRoute(
       runtime,
@@ -4866,10 +6175,7 @@ describe('dispatchDeepchatRoute', () => {
       {
         sessionId: 'session-1'
       },
-      {
-        webContentsId: 88,
-        windowId: 3
-      }
+      createRendererRouteContext(88, 3)
     )
     const destroyResult = await dispatchDeepchatRoute(
       runtime,
@@ -4877,19 +6183,13 @@ describe('dispatchDeepchatRoute', () => {
       {
         sessionId: 'session-1'
       },
-      {
-        webContentsId: 88,
-        windowId: 3
-      }
+      createRendererRouteContext(88, 3)
     )
     const clearSandboxResult = await dispatchDeepchatRoute(
       runtime,
       'browser.clearSandboxData',
       {},
-      {
-        webContentsId: 88,
-        windowId: 3
-      }
+      createRendererRouteContext(88, 3)
     )
 
     expect(statusResult).toEqual({
@@ -4940,29 +6240,69 @@ describe('dispatchDeepchatRoute', () => {
     expect(clearSandboxResult).toEqual({ cleared: true })
   })
 
+  it('scopes Computer Use preview routes to the active sender session', async () => {
+    const { runtime, computerUsePreviewPresenter, desktopSessionBinding, yoBrowserPresenter } =
+      createRuntime()
+    const context = createRendererRouteContext(88, 3)
+    desktopSessionBinding.getActiveId.mockReturnValue('session-1')
+
+    const eligible = await dispatchDeepchatRoute(
+      runtime,
+      'computerUse.setPreviewMode',
+      { sessionId: 'session-1', mode: 'eligible' },
+      context
+    )
+    const browserDismissed = await dispatchDeepchatRoute(
+      runtime,
+      'browser.dismissPreview',
+      { sessionId: 'session-1', runId: 'run-1' },
+      context
+    )
+    const dismissed = await dispatchDeepchatRoute(
+      runtime,
+      'computerUse.dismissPreview',
+      { sessionId: 'session-1', runId: 'run-1' },
+      context
+    )
+
+    desktopSessionBinding.getActiveId.mockReturnValue('session-2')
+    const rejected = await dispatchDeepchatRoute(
+      runtime,
+      'computerUse.setPreviewMode',
+      { sessionId: 'session-1', mode: 'eligible' },
+      context
+    )
+    const cleanup = await dispatchDeepchatRoute(
+      runtime,
+      'computerUse.setPreviewMode',
+      { sessionId: 'session-1', mode: 'stopped' },
+      context
+    )
+
+    expect(eligible).toEqual({ updated: true, surface: 'renderer-canvas' })
+    expect(computerUsePreviewPresenter.setPreviewMode).toHaveBeenNthCalledWith(
+      1,
+      'session-1',
+      'eligible',
+      3
+    )
+    expect(browserDismissed).toEqual({ dismissed: true })
+    expect(yoBrowserPresenter.dismissPreview).toHaveBeenCalledWith('session-1', 'run-1')
+    expect(dismissed).toEqual({ dismissed: true })
+    expect(computerUsePreviewPresenter.dismissPreview).toHaveBeenCalledWith('session-1', 'run-1')
+    expect(rejected).toEqual({ updated: false, surface: 'none' })
+    expect(cleanup).toEqual({ updated: true, surface: 'none' })
+    expect(computerUsePreviewPresenter.setPreviewMode).toHaveBeenNthCalledWith(
+      2,
+      'session-1',
+      'stopped',
+      3
+    )
+  })
+
   it('dispatches phase3 tab routes through the renderer tab adapter', async () => {
     const { runtime, tabPresenter } = createRuntime()
 
-    const readyResult = await dispatchDeepchatRoute(
-      runtime,
-      'tab.notifyRendererReady',
-      {},
-      {
-        webContentsId: 88,
-        windowId: 3
-      }
-    )
-    const activatedResult = await dispatchDeepchatRoute(
-      runtime,
-      'tab.notifyRendererActivated',
-      {
-        sessionId: 'session-1'
-      },
-      {
-        webContentsId: 88,
-        windowId: 3
-      }
-    )
     const captureResult = await dispatchDeepchatRoute(
       runtime,
       'tab.captureCurrentArea',
@@ -4974,10 +6314,7 @@ describe('dispatchDeepchatRoute', () => {
           height: 80
         }
       },
-      {
-        webContentsId: 88,
-        windowId: 3
-      }
+      createRendererRouteContext(88, 3)
     )
     const stitchResult = await dispatchDeepchatRoute(
       runtime,
@@ -4992,16 +6329,9 @@ describe('dispatchDeepchatRoute', () => {
           }
         }
       },
-      {
-        webContentsId: 88,
-        windowId: 3
-      }
+      createRendererRouteContext(88, 3)
     )
 
-    expect(tabPresenter.onRendererTabReady).toHaveBeenCalledWith(88)
-    expect(readyResult).toEqual({ notified: true })
-    expect(tabPresenter.onRendererTabActivated).toHaveBeenCalledWith('session-1')
-    expect(activatedResult).toEqual({ notified: true })
     expect(tabPresenter.captureTabArea).toHaveBeenCalledWith(88, {
       x: 0,
       y: 0,
@@ -5036,10 +6366,7 @@ describe('dispatchDeepchatRoute', () => {
         routeName: 'settings-display',
         section: 'fonts'
       },
-      {
-        webContentsId: 88,
-        windowId: 3
-      }
+      createRendererRouteContext(88, 3)
     )
 
     expect(windowPresenter.createSettingsWindow).toHaveBeenCalledWith({

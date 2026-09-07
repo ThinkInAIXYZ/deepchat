@@ -1,14 +1,9 @@
 import type { z } from 'zod'
 import type { EventContract } from './common'
+import { acpAuthOutputEvent, acpAuthStateChangedEvent } from './events/acp-auth.events'
+import { approvalClosedEvent, approvalRequestedEvent } from './events/approvals.events'
 import {
-  acpTerminalErrorEvent,
-  acpTerminalExitedEvent,
-  acpTerminalExternalDependenciesRequiredEvent,
-  acpTerminalOutputEvent,
-  acpTerminalStartedEvent
-} from './events/acp-terminal.events'
-import {
-  appRuntimeDataResetCompleteDevEvent,
+  appRuntimeGuidedOnboardingResumeRequestedEvent,
   appRuntimeGuidedOnboardingStartRequestedEvent,
   appRuntimeMcpInstallRequestedEvent,
   appRuntimeShortcutRequestedEvent,
@@ -20,8 +15,15 @@ import {
 import {
   browserActivityChangedEvent,
   browserOpenRequestedEvent,
+  browserPreviewActionEvent,
+  browserPreviewFrameEvent,
+  browserPreviewSurfaceChangedEvent,
   browserStatusChangedEvent
 } from './events/browser.events'
+import {
+  computerUsePreviewFrameEvent,
+  computerUsePreviewSurfaceChangedEvent
+} from './events/computerUse.events'
 import {
   chatPlanUpdatedEvent,
   chatStreamCompletedEvent,
@@ -48,7 +50,12 @@ import {
   configThemeChangedEvent
 } from './events/config.events'
 import {
+  mcpAppConsentRequestEvent,
   mcpConfigChangedEvent,
+  mcpElicitationCancelledEvent,
+  mcpElicitationDecisionEvent,
+  mcpElicitationRequestEvent,
+  mcpEnterpriseAuthChangedEvent,
   mcpSamplingCancelledEvent,
   mcpSamplingDecisionEvent,
   mcpSamplingRequestEvent,
@@ -64,8 +71,11 @@ import {
   modelsStatusChangedEvent,
   modelBatchStatusChangedEvent
 } from './events/models.events'
-import { databaseRepairSuggestedEvent, notificationErrorEvent } from './events/notification.events'
-import { oauthOpenAICodexStatusChangedEvent } from './events/oauth.events'
+import { semanticNotificationEvent } from './events/notification.events'
+import {
+  oauthOpenAICodexStatusChangedEvent,
+  oauthXaiGrokStatusChangedEvent
+} from './events/oauth.events'
 import { providersOllamaPullProgressEvent } from './events/misc.providers.events'
 import { projectEnvironmentsChangedEvent } from './events/project.events'
 import {
@@ -78,28 +88,30 @@ import {
 import {
   settingsCheckForUpdatesRequestedEvent,
   settingsChangedEvent,
+  settingsCommandShellChangedEvent,
   settingsNavigateRequestedEvent,
   settingsProviderInstallRequestedEvent
 } from './events/settings.events'
 import { startupWorkloadChangedEvent } from './events/startup.events'
 import {
+  toolchainsChangedEvent,
+  toolchainsMissingEvent,
+  toolchainsProgressEvent
+} from './events/toolchains.events'
+import {
   sessionsAcpCommandsReadyEvent,
   sessionsAcpConfigOptionsReadyEvent,
   sessionsAcpModesReadyEvent,
   sessionsCompactionChangedEvent,
+  sessionsMessagesChangedEvent,
   sessionsPendingInputsChangedEvent,
   sessionsStatusChangedEvent,
+  sessionsTapeInspectorHeadChangedEvent,
   sessionsUpdatedEvent
 } from './events/sessions.events'
 import { skillsCatalogChangedEvent, skillsSessionChangedEvent } from './events/skills.events'
 import {
   skillSyncDiscoveriesChangedEvent,
-  skillSyncExportCompletedEvent,
-  skillSyncExportProgressEvent,
-  skillSyncExportStartedEvent,
-  skillSyncImportCompletedEvent,
-  skillSyncImportProgressEvent,
-  skillSyncImportStartedEvent,
   skillSyncScanCompletedEvent,
   skillSyncScanStartedEvent
 } from './events/skillSync.events'
@@ -123,9 +135,19 @@ import {
   workspaceInvalidatedEvent,
   workspaceWatchStatusChangedEvent
 } from './events/workspace.events'
+import { liveDelegationChangedEvent } from './events/orchestration.events'
+import {
+  runsCancelRequestedEvent,
+  runsCreatedEvent,
+  runsSnapshotEvent,
+  runsTurnAcceptedEvent,
+  runsTurnFailedEvent
+} from './events/runs.events'
 
 export * from './events/browser.events'
-export * from './events/acp-terminal.events'
+export * from './events/computerUse.events'
+export * from './events/acp-auth.events'
+export * from './events/approvals.events'
 export * from './events/app-runtime.events'
 export * from './events/chat.events'
 export * from './events/config.events'
@@ -139,52 +161,68 @@ export * from './events/project.events'
 export * from './events/models.events'
 export * from './events/notification.events'
 export * from './events/oauth.events'
+export * from './events/orchestration.events'
 export * from './events/providers.events'
+export * from './events/runs.events'
 export * from './events/settings.events'
 export * from './events/startup.events'
 export * from './events/sessions.events'
 export * from './events/skills.events'
 export * from './events/skillSync.events'
 export * from './events/sync.events'
+export * from './events/toolchains.events'
 export * from './events/upgrade.events'
 export * from './events/window.events'
 export * from './events/workspace.events'
 
 export const DEEPCHAT_EVENT_CATALOG = {
+  [approvalRequestedEvent.name]: approvalRequestedEvent,
+  [approvalClosedEvent.name]: approvalClosedEvent,
   [windowStateChangedEvent.name]: windowStateChangedEvent,
   [workspaceInvalidatedEvent.name]: workspaceInvalidatedEvent,
   [workspaceWatchStatusChangedEvent.name]: workspaceWatchStatusChangedEvent,
+  [liveDelegationChangedEvent.name]: liveDelegationChangedEvent,
   [browserActivityChangedEvent.name]: browserActivityChangedEvent,
+  [browserPreviewActionEvent.name]: browserPreviewActionEvent,
+  [browserPreviewFrameEvent.name]: browserPreviewFrameEvent,
+  [browserPreviewSurfaceChangedEvent.name]: browserPreviewSurfaceChangedEvent,
+  [computerUsePreviewFrameEvent.name]: computerUsePreviewFrameEvent,
+  [computerUsePreviewSurfaceChangedEvent.name]: computerUsePreviewSurfaceChangedEvent,
   [browserOpenRequestedEvent.name]: browserOpenRequestedEvent,
   [browserStatusChangedEvent.name]: browserStatusChangedEvent,
   [settingsChangedEvent.name]: settingsChangedEvent,
+  [settingsCommandShellChangedEvent.name]: settingsCommandShellChangedEvent,
   [settingsNavigateRequestedEvent.name]: settingsNavigateRequestedEvent,
   [settingsProviderInstallRequestedEvent.name]: settingsProviderInstallRequestedEvent,
   [settingsCheckForUpdatesRequestedEvent.name]: settingsCheckForUpdatesRequestedEvent,
-  [notificationErrorEvent.name]: notificationErrorEvent,
-  [databaseRepairSuggestedEvent.name]: databaseRepairSuggestedEvent,
-  [acpTerminalStartedEvent.name]: acpTerminalStartedEvent,
-  [acpTerminalOutputEvent.name]: acpTerminalOutputEvent,
-  [acpTerminalExitedEvent.name]: acpTerminalExitedEvent,
-  [acpTerminalErrorEvent.name]: acpTerminalErrorEvent,
-  [acpTerminalExternalDependenciesRequiredEvent.name]: acpTerminalExternalDependenciesRequiredEvent,
+  [semanticNotificationEvent.name]: semanticNotificationEvent,
+  [acpAuthOutputEvent.name]: acpAuthOutputEvent,
+  [acpAuthStateChangedEvent.name]: acpAuthStateChangedEvent,
   [appRuntimeStartDeeplinkRequestedEvent.name]: appRuntimeStartDeeplinkRequestedEvent,
   [appRuntimeMcpInstallRequestedEvent.name]: appRuntimeMcpInstallRequestedEvent,
   [appRuntimeGuidedOnboardingStartRequestedEvent.name]:
     appRuntimeGuidedOnboardingStartRequestedEvent,
+  [appRuntimeGuidedOnboardingResumeRequestedEvent.name]:
+    appRuntimeGuidedOnboardingResumeRequestedEvent,
   [appRuntimeWindowFocusedEvent.name]: appRuntimeWindowFocusedEvent,
   [appRuntimeWindowBlurredEvent.name]: appRuntimeWindowBlurredEvent,
   [appRuntimeShortcutRequestedEvent.name]: appRuntimeShortcutRequestedEvent,
-  [appRuntimeDataResetCompleteDevEvent.name]: appRuntimeDataResetCompleteDevEvent,
   [appRuntimeSystemNotificationClickedEvent.name]: appRuntimeSystemNotificationClickedEvent,
   [startupWorkloadChangedEvent.name]: startupWorkloadChangedEvent,
   [sessionsUpdatedEvent.name]: sessionsUpdatedEvent,
   [sessionsStatusChangedEvent.name]: sessionsStatusChangedEvent,
   [sessionsCompactionChangedEvent.name]: sessionsCompactionChangedEvent,
+  [sessionsMessagesChangedEvent.name]: sessionsMessagesChangedEvent,
   [sessionsPendingInputsChangedEvent.name]: sessionsPendingInputsChangedEvent,
+  [sessionsTapeInspectorHeadChangedEvent.name]: sessionsTapeInspectorHeadChangedEvent,
   [sessionsAcpModesReadyEvent.name]: sessionsAcpModesReadyEvent,
   [sessionsAcpCommandsReadyEvent.name]: sessionsAcpCommandsReadyEvent,
   [sessionsAcpConfigOptionsReadyEvent.name]: sessionsAcpConfigOptionsReadyEvent,
+  [runsCreatedEvent.name]: runsCreatedEvent,
+  [runsTurnAcceptedEvent.name]: runsTurnAcceptedEvent,
+  [runsTurnFailedEvent.name]: runsTurnFailedEvent,
+  [runsCancelRequestedEvent.name]: runsCancelRequestedEvent,
+  [runsSnapshotEvent.name]: runsSnapshotEvent,
   [configLanguageChangedEvent.name]: configLanguageChangedEvent,
   [configThemeChangedEvent.name]: configThemeChangedEvent,
   [configSystemThemeChangedEvent.name]: configSystemThemeChangedEvent,
@@ -197,6 +235,7 @@ export const DEEPCHAT_EVENT_CATALOG = {
   [configCustomPromptsChangedEvent.name]: configCustomPromptsChangedEvent,
   [providersChangedEvent.name]: providersChangedEvent,
   [oauthOpenAICodexStatusChangedEvent.name]: oauthOpenAICodexStatusChangedEvent,
+  [oauthXaiGrokStatusChangedEvent.name]: oauthXaiGrokStatusChangedEvent,
   [projectEnvironmentsChangedEvent.name]: projectEnvironmentsChangedEvent,
   [providersRateLimitConfigUpdatedEvent.name]: providersRateLimitConfigUpdatedEvent,
   [providersRateLimitRequestQueuedEvent.name]: providersRateLimitRequestQueuedEvent,
@@ -221,21 +260,20 @@ export const DEEPCHAT_EVENT_CATALOG = {
   [skillSyncDiscoveriesChangedEvent.name]: skillSyncDiscoveriesChangedEvent,
   [skillSyncScanStartedEvent.name]: skillSyncScanStartedEvent,
   [skillSyncScanCompletedEvent.name]: skillSyncScanCompletedEvent,
-  [skillSyncImportStartedEvent.name]: skillSyncImportStartedEvent,
-  [skillSyncImportProgressEvent.name]: skillSyncImportProgressEvent,
-  [skillSyncImportCompletedEvent.name]: skillSyncImportCompletedEvent,
-  [skillSyncExportStartedEvent.name]: skillSyncExportStartedEvent,
-  [skillSyncExportProgressEvent.name]: skillSyncExportProgressEvent,
-  [skillSyncExportCompletedEvent.name]: skillSyncExportCompletedEvent,
   [mcpServerStartedEvent.name]: mcpServerStartedEvent,
   [mcpServerStoppedEvent.name]: mcpServerStoppedEvent,
   [mcpConfigChangedEvent.name]: mcpConfigChangedEvent,
   [mcpServerStatusChangedEvent.name]: mcpServerStatusChangedEvent,
   [mcpServerAuthChangedEvent.name]: mcpServerAuthChangedEvent,
+  [mcpEnterpriseAuthChangedEvent.name]: mcpEnterpriseAuthChangedEvent,
   [mcpToolCallResultEvent.name]: mcpToolCallResultEvent,
   [mcpSamplingRequestEvent.name]: mcpSamplingRequestEvent,
   [mcpSamplingDecisionEvent.name]: mcpSamplingDecisionEvent,
   [mcpSamplingCancelledEvent.name]: mcpSamplingCancelledEvent,
+  [mcpElicitationRequestEvent.name]: mcpElicitationRequestEvent,
+  [mcpElicitationDecisionEvent.name]: mcpElicitationDecisionEvent,
+  [mcpElicitationCancelledEvent.name]: mcpElicitationCancelledEvent,
+  [mcpAppConsentRequestEvent.name]: mcpAppConsentRequestEvent,
   [syncBackupStartedEvent.name]: syncBackupStartedEvent,
   [syncBackupCompletedEvent.name]: syncBackupCompletedEvent,
   [syncBackupErrorEvent.name]: syncBackupErrorEvent,
@@ -247,7 +285,10 @@ export const DEEPCHAT_EVENT_CATALOG = {
   [upgradeProgressEvent.name]: upgradeProgressEvent,
   [upgradeWillRestartEvent.name]: upgradeWillRestartEvent,
   [upgradeErrorEvent.name]: upgradeErrorEvent,
-  [dialogRequestedEvent.name]: dialogRequestedEvent
+  [dialogRequestedEvent.name]: dialogRequestedEvent,
+  [toolchainsProgressEvent.name]: toolchainsProgressEvent,
+  [toolchainsMissingEvent.name]: toolchainsMissingEvent,
+  [toolchainsChangedEvent.name]: toolchainsChangedEvent
 } satisfies Record<string, EventContract>
 
 export type DeepchatEventCatalog = typeof DEEPCHAT_EVENT_CATALOG
@@ -256,6 +297,10 @@ export type DeepchatEventContract<T extends DeepchatEventName> = DeepchatEventCa
 export type DeepchatEventPayload<T extends DeepchatEventName> = z.output<
   DeepchatEventContract<T>['payload']
 >
+export type DeepchatEventPublisher = <T extends DeepchatEventName>(
+  name: T,
+  payload: DeepchatEventPayload<T>
+) => void
 
 export type DeepchatEventEnvelope<T extends DeepchatEventName = DeepchatEventName> = {
   name: T
@@ -270,4 +315,15 @@ export function getDeepchatEventContract<T extends DeepchatEventName>(
   name: T
 ): DeepchatEventContract<T> {
   return DEEPCHAT_EVENT_CATALOG[name]
+}
+
+export function createDeepchatEventEnvelope<T extends DeepchatEventName>(
+  name: T,
+  payload: unknown
+): DeepchatEventEnvelope<T> {
+  const contract = getDeepchatEventContract(name)
+  return {
+    name,
+    payload: contract.payload.parse(payload) as DeepchatEventPayload<T>
+  }
 }

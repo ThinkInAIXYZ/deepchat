@@ -13,7 +13,7 @@ import { useI18n } from 'vue-i18n'
 import { ThinkContent } from '@/components/think-content'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { createConfigClient } from '@api/ConfigClient'
-import type { DisplayAssistantMessageBlock } from '@/components/chat/messageListItems'
+import type { DisplayAssistantMessageBlock } from '@/features/chat-page/model/displayMessage'
 import { useThrottleFn } from '@vueuse/core'
 const props = defineProps<{
   block: DisplayAssistantMessageBlock

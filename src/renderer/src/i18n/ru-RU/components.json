@@ -37,6 +37,7 @@
       "read": "Разрешить '{toolName}' от '{serverName}' выполнять операции чтения?",
       "write": "Разрешить '{toolName}' от '{serverName}' выполнять операции записи?",
       "all": "Разрешить '{toolName}' от '{serverName}' читать и записывать?",
+      "subagentStart": "Запустить эту задачу Subagent? Это может потребовать дополнительных токенов, времени и системных ресурсов.",
       "command": "Выполнить команду: {command}",
       "commandWithRisk": "Выполнить команду: {command}\n\nУровень риска: {riskLevel}\n\nРекомендация: {suggestion}"
     },

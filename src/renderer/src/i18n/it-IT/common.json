@@ -1,4 +1,29 @@
 {
+  "notifications": {
+    "label": "Notifiche",
+    "actionFailed": "Azione non riuscita. Riprova.",
+    "entities": "{count} interessati",
+    "occurrences": "{count} occorrenze",
+    "pending": "{count} altri in attesa",
+    "mcpConnectionFailed": {
+      "title": "Impossibile connettersi a {serverName}",
+      "description": "Controlla le impostazioni del server e riprova."
+    },
+    "mcpToolListFailed": {
+      "title": "Impossibile caricare gli strumenti di {serverName}",
+      "description": "Il server è connesso, ma i suoi strumenti non sono disponibili."
+    },
+    "providerDeeplinkFailed": {
+      "title": "Impossibile aprire la configurazione del provider",
+      "reasons": {
+        "unsupported-version": "Questa versione del link non è supportata.",
+        "invalid-payload": "Questo link del provider non è valido.",
+        "provider-not-found": "Il provider collegato non è stato trovato.",
+        "unsupported-provider": "Questo provider non è supportato.",
+        "settings-unavailable": "Impossibile aprire le impostazioni del provider."
+      }
+    }
+  },
   "loading": "Caricamento...",
   "copy": "Copia",
   "copied": "Copiato",
@@ -14,6 +39,7 @@
   "newChat": "Nuova chat",
   "newTopic": "Nuovo argomento",
   "cancel": "Annulla",
+  "retry": "Riprova",
   "confirm": "Conferma",
   "next": "Avanti",
   "back": "Indietro",
@@ -99,6 +125,9 @@
   "history": "Cronologia",
   "minimize": "Riduci a icona",
   "maximize": "Ingrandisci",
+  "showValue": "Mostra",
+  "hideValue": "Nascondi",
+  "scrollToBottom": "Scorri fino in fondo",
   "restore": "Ripristina",
   "browser": {
     "back": "Indietro",

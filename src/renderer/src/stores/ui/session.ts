@@ -1,10 +1,9 @@
 import { defineStore } from 'pinia'
-import { ref, computed, onScopeDispose, getCurrentScope } from 'vue'
+import { ref, computed, onScopeDispose, getCurrentScope, shallowReactive } from 'vue'
 import { createChatClient } from '../../../api/ChatClient'
 import { createConfigClient } from '../../../api/ConfigClient'
 import { createOnboardingClient } from '../../../api/OnboardingClient'
 import { createSessionClient } from '../../../api/SessionClient'
-import { createTabClient } from '@api/TabClient'
 import { getRuntimeWebContentsId } from '@api/runtime'
 import type { ComputedRef } from 'vue'
 import type { GuidedOnboardingStepId } from '@shared/contracts/routes'
@@ -15,8 +14,14 @@ import type {
   SessionListItem,
   SessionWithState,
   CreateSessionInput,
-  SendMessageInput
+  SendMessageInput,
+  SessionCompactionSnapshot,
+  SessionContextOccupancySnapshot
 } from '@shared/types/agent-interface'
+import {
+  normalizeOrchestrationPolicy,
+  type OrchestrationPolicy
+} from '@shared/orchestration/policy'
 import { downloadBlob } from '@/lib/download'
 import {
   readGuidedOnboardingResumeIntent,
@@ -26,7 +31,12 @@ import { useAgentStore } from './agent'
 import { usePageRouterStore } from './pageRouter'
 import { useMessageStore } from './message'
 import { useAgentPlanStore } from './agentPlan'
-import { bindSessionStoreIpc } from './sessionIpc'
+import { useAttachmentPreparationStore } from './attachmentPreparation'
+import { useLiveDelegationStore } from './liveDelegation'
+import { isAbortError } from '@/lib/errors'
+import { bindSessionStoreIpc, type SessionCompactionChangedPayload } from './sessionIpc'
+import { normalizeWorkspacePath } from '@shared/utils/filesystem'
+import type { ToolModeOverride } from '@shared/toolMode'
 
 export type UISessionStatus = 'completed' | 'working' | 'error' | 'none'
 
@@ -40,11 +50,13 @@ export interface UISession {
   isDraft: boolean
   sessionKind: SessionKind
   parentSessionId: string | null
-  subagentEnabled: boolean
   subagentMeta: DeepChatSubagentMeta | null
+  orchestrationPolicy: OrchestrationPolicy
+  toolModeOverride: ToolModeOverride
   metadata?: SessionMetadata | null
   createdAt: number
   updatedAt: number
+  revision?: number
 }
 
 export interface UIActiveSessionSummary extends UISession {
@@ -60,16 +72,36 @@ export interface SessionGroup {
 }
 
 export type GroupMode = 'time' | 'project'
+export interface NewConversationProjectDirIntent {
+  id: number
+  projectDir: string | null
+  consumed: boolean
+}
 export type StartNewConversationOptions = {
   refresh?: boolean
+  projectDir?: string | null
 }
 export type CloseSessionOptions = {
   refresh?: boolean
+}
+type ActiveCompactionSync = {
+  sessionId: string
+  requestId: number
+  snapshotPending: boolean
+  bufferedEvents: SessionCompactionChangedPayload[]
+}
+type SubmissionRequestOptions = {
+  submissionId?: string
+  isCancellationRequested?: () => boolean
 }
 
 const SIDEBAR_GROUP_MODE_KEY = 'sidebar_group_mode'
 const DEFAULT_GROUP_MODE: GroupMode = 'project'
 const DEFAULT_SESSION_PAGE_SIZE = 30
+const CONTEXT_OCCUPANCY_RETRY_DELAY_MS = 250
+const CONTEXT_OCCUPANCY_MAX_ATTEMPTS = 2
+const COMPACTION_SNAPSHOT_RETRY_DELAY_MS = 250
+const COMPACTION_SNAPSHOT_MAX_ATTEMPTS = 2
 const NO_PROJECT_GROUP_ID = '__no_project__'
 const SESSION_TITLE_COLLATOR = new Intl.Collator(undefined, {
   numeric: true,
@@ -101,11 +133,13 @@ function mapToUISession(session: SessionListItem | SessionWithState): UISession 
     isDraft: Boolean(session.isDraft),
     sessionKind: session.sessionKind,
     parentSessionId: session.parentSessionId ?? null,
-    subagentEnabled: session.subagentEnabled,
     subagentMeta: session.subagentMeta ?? null,
+    orchestrationPolicy: normalizeOrchestrationPolicy(session.orchestrationPolicy),
+    toolModeOverride: session.toolModeOverride,
     ...(metadata ? { metadata } : {}),
     createdAt: session.createdAt,
-    updatedAt: session.updatedAt
+    updatedAt: session.updatedAt,
+    revision: session.revision
   }
 }
 
@@ -171,7 +205,7 @@ function groupByTime(sessions: UISession[]): SessionGroup[] {
 }
 
 function normalizeProjectGroupId(projectDir: string): string {
-  const normalizedDir = projectDir.trim().replace(/[\\/]+$/, '')
+  const normalizedDir = normalizeWorkspacePath(projectDir)
   return normalizedDir || NO_PROJECT_GROUP_ID
 }
 
@@ -183,7 +217,7 @@ function getProjectGroupLabel(projectGroupId: string): { label: string; labelKey
     }
   }
 
-  const label = projectGroupId.split(/[\\/]/).pop() ?? projectGroupId
+  const label = projectGroupId.split(/[\\/]/).pop() || projectGroupId
   return { label }
 }
 
@@ -244,11 +278,40 @@ function sortSessions(items: UISession[]): UISession[] {
   })
 }
 
+function isStaleOrSameSessionUpdate(existing: UISession, update: UISession): boolean {
+  const existingRevision = existing.revision
+  const updateRevision = update.revision
+  const hasExistingRevision = Number.isFinite(existingRevision)
+  const hasUpdateRevision = Number.isFinite(updateRevision)
+
+  // A durable revision is authoritative. A legacy/unversioned read must never
+  // replace a row that has already been ordered by a revision, even if its wall
+  // clock happens to be later.
+  if (hasExistingRevision || hasUpdateRevision) {
+    if (!hasUpdateRevision) return true
+    if (!hasExistingRevision) return false
+    return updateRevision! <= existingRevision!
+  }
+
+  const existingUpdatedAt = existing.updatedAt
+  const updateUpdatedAt = update.updatedAt
+  // During migration, snapshots without a durable revision retain the former
+  // timestamp guard until a revisioned row is observed.
+  return (
+    Number.isFinite(existingUpdatedAt) &&
+    Number.isFinite(updateUpdatedAt) &&
+    updateUpdatedAt <= existingUpdatedAt
+  )
+}
+
 function mergeSessions(current: UISession[], updates: UISession[]): UISession[] {
   const next = new Map(current.map((session) => [session.id, session]))
 
   for (const update of updates) {
     const existing = next.get(update.id)
+    if (existing && isStaleOrSameSessionUpdate(existing, update)) {
+      continue
+    }
     next.set(update.id, existing ? { ...existing, ...update } : update)
   }
 
@@ -266,26 +329,48 @@ export const useSessionStore = defineStore('session', () => {
   const chatClient = createChatClient()
   const configClient = createConfigClient()
   const onboardingClient = createOnboardingClient()
-  const tabClient = createTabClient()
   const agentStore = useAgentStore()
   const pageRouter = usePageRouterStore()
   const messageStore = useMessageStore()
   const agentPlanStore = useAgentPlanStore()
+  const attachmentPreparationStore = useAttachmentPreparationStore()
+  const liveDelegationStore = useLiveDelegationStore()
   const myWebContentsId = ref<number | null>(null)
-  let rendererReadyNotified = false
   let groupModeLoadPromise: Promise<void> | null = null
-  let groupModeWritePromise: Promise<void> = Promise.resolve()
+  let groupModeWriteQueue: Promise<void> = Promise.resolve()
+  let latestGroupModeWrite: Promise<void> = Promise.resolve()
   let hasLoadedGroupMode = false
-  let groupModeUpdateVersion = 0
+  let persistedGroupMode: GroupMode = DEFAULT_GROUP_MODE
+  let requestedGroupMode: GroupMode = DEFAULT_GROUP_MODE
   let initialPageRequestId = 0
   let nextPageRequestId = 0
+  // A list epoch protects the first-page/pagination cursor chain. Targeted updates
+  // only merge individual rows, so they must not invalidate an in-flight next page.
+  let sessionListEpoch = 0
+  let sessionByIdsRefreshRevision = 0
+  const sessionByIdRefreshRevisions = new Map<string, number>()
+  let targetedSessionCommitRevision = 0
+  const targetedSessionCommitRevisions = new Map<string, number>()
+  const observedSessionStatuses = new Map<string, { version: number; status: UISessionStatus }>()
+  // Deleted sessions must stay absent while requests started before their deletion settle.
+  // IDs are stable database identifiers, so they are safe tombstones for this store lifetime.
+  const removedSessionIds = new Set<string>()
+  let sessionByIdsErrorRevision: number | null = null
   let activationNavigationRequestId = 0
+  let compactionSyncRequestId = 0
+  let contextOccupancyRequestId = 0
+  let activeCompactionSync: ActiveCompactionSync | null = null
+  let newConversationProjectDirIntentId = 0
   let sessionFetchPromise: Promise<void> | null = null
 
   const sessions = ref<UISession[]>([])
   const bootstrapActiveSession = ref<UISession | null>(null)
   const activeSessionSummary = ref<UIActiveSessionSummary | null>(null)
   const activeSessionId = ref<string | null>(null)
+  const activeCompactionSnapshot = ref<SessionCompactionSnapshot | null>(null)
+  const activeContextOccupancy = ref<SessionContextOccupancySnapshot | null>(null)
+  const searchIntents = shallowReactive(new Map<string, boolean>())
+  const newConversationProjectDirIntent = ref<NewConversationProjectDirIntent | null>(null)
   const groupMode = ref<GroupMode>(DEFAULT_GROUP_MODE)
   const loading = ref(false)
   const loadingMore = ref(false)
@@ -293,18 +378,169 @@ export const useSessionStore = defineStore('session', () => {
   const hasMore = ref(false)
   const nextCursor = ref<{ updatedAt: number; id: string } | null>(null)
   const error = ref<string | null>(null)
+  let sessionIpcBinding: ReturnType<typeof bindSessionStoreIpc> | null = null
 
   void getCurrentWebContentsId()
     .then((webContentsId) => {
       myWebContentsId.value = webContentsId
+      sessionIpcBinding?.flushPendingTargetedUpdate()
     })
     .catch((identityError) => {
       console.warn('[sessionStore] Failed to resolve runtime webContents id:', identityError)
     })
 
+  const applyCompactionEvent = (payload: SessionCompactionChangedPayload): void => {
+    const current = activeCompactionSnapshot.value
+    if (current && payload.emitSeq <= current.emitSeq) {
+      return
+    }
+
+    activeCompactionSnapshot.value = {
+      state: {
+        status: payload.status,
+        cursorOrderSeq: payload.cursorOrderSeq,
+        summaryUpdatedAt: payload.summaryUpdatedAt,
+        boundaryReason: payload.boundaryReason
+      },
+      emitSeq: payload.emitSeq,
+      latestAnchorEntryId: payload.latestAnchorEntryId
+    }
+    if (payload.status === 'compacted') {
+      synchronizeContextOccupancy(payload.sessionId)
+    }
+  }
+
+  const handleCompactionChanged = (payload: SessionCompactionChangedPayload): void => {
+    if (activeSessionId.value !== payload.sessionId) {
+      return
+    }
+
+    const sync = activeCompactionSync
+    if (
+      sync?.sessionId === payload.sessionId &&
+      sync.requestId === compactionSyncRequestId &&
+      sync.snapshotPending
+    ) {
+      sync.bufferedEvents.push(payload)
+      return
+    }
+
+    applyCompactionEvent(payload)
+  }
+
+  const synchronizeContextOccupancy = (sessionId: string): void => {
+    const requestId = ++contextOccupancyRequestId
+    void (async () => {
+      for (let attempt = 1; attempt <= CONTEXT_OCCUPANCY_MAX_ATTEMPTS; attempt += 1) {
+        try {
+          const snapshot = await sessionClient.getContextOccupancy(sessionId)
+          if (activeSessionId.value !== sessionId || contextOccupancyRequestId !== requestId) {
+            return
+          }
+          activeContextOccupancy.value = snapshot
+          return
+        } catch (snapshotError) {
+          if (activeSessionId.value !== sessionId || contextOccupancyRequestId !== requestId) {
+            return
+          }
+          if (attempt < CONTEXT_OCCUPANCY_MAX_ATTEMPTS) {
+            await new Promise((resolve) => setTimeout(resolve, CONTEXT_OCCUPANCY_RETRY_DELAY_MS))
+            if (activeSessionId.value !== sessionId || contextOccupancyRequestId !== requestId) {
+              return
+            }
+            continue
+          }
+          activeContextOccupancy.value = null
+          console.warn('[sessionStore] Failed to read context occupancy:', snapshotError)
+        }
+      }
+    })()
+  }
+
+  const synchronizeCompactionState = (sessionId: string): void => {
+    const requestId = ++compactionSyncRequestId
+    const sync: ActiveCompactionSync = {
+      sessionId,
+      requestId,
+      snapshotPending: true,
+      bufferedEvents: []
+    }
+    activeCompactionSync = sync
+    activeCompactionSnapshot.value = null
+
+    const ownsSync = (): boolean =>
+      activeCompactionSync === sync &&
+      activeSessionId.value === sessionId &&
+      compactionSyncRequestId === requestId
+    const applyBufferedEvents = (): void => {
+      sync.bufferedEvents.sort((left, right) => left.emitSeq - right.emitSeq)
+      for (const event of sync.bufferedEvents) {
+        applyCompactionEvent(event)
+      }
+      sync.bufferedEvents.length = 0
+    }
+
+    void (async () => {
+      let snapshotError: unknown
+      for (let attempt = 1; attempt <= COMPACTION_SNAPSHOT_MAX_ATTEMPTS; attempt += 1) {
+        try {
+          const snapshot = await sessionClient.getCompactionSnapshot(sessionId)
+          if (!ownsSync()) return
+          activeCompactionSnapshot.value = snapshot
+          applyBufferedEvents()
+          sync.snapshotPending = false
+          return
+        } catch (error) {
+          if (!ownsSync()) return
+          snapshotError = error
+          if (attempt < COMPACTION_SNAPSHOT_MAX_ATTEMPTS) {
+            await new Promise((resolve) => setTimeout(resolve, COMPACTION_SNAPSHOT_RETRY_DELAY_MS))
+            if (!ownsSync()) return
+          }
+        }
+      }
+
+      applyBufferedEvents()
+      sync.snapshotPending = false
+      activeCompactionSync = null
+      console.warn('[sessionStore] Failed to synchronize compaction state:', snapshotError)
+    })()
+  }
+
   const setActiveSessionId = (sessionId: string | null): void => {
+    const changed = activeSessionId.value !== sessionId
     activeSessionId.value = sessionId
     messageStore.setCurrentSessionId(sessionId)
+    if (!sessionId) {
+      compactionSyncRequestId += 1
+      activeCompactionSync = null
+      activeCompactionSnapshot.value = null
+      contextOccupancyRequestId += 1
+      activeContextOccupancy.value = null
+    } else if (changed || !activeCompactionSync) {
+      contextOccupancyRequestId += 1
+      activeContextOccupancy.value = null
+      synchronizeCompactionState(sessionId)
+      synchronizeContextOccupancy(sessionId)
+    }
+  }
+
+  const activeCompactionState = computed(() => activeCompactionSnapshot.value?.state ?? null)
+
+  const getSearchIntent = (sessionId: string): boolean => searchIntents.get(sessionId) === true
+
+  const setSearchIntent = (sessionId: string, enabled: boolean): void => {
+    if (enabled) {
+      searchIntents.set(sessionId, true)
+    } else {
+      searchIntents.delete(sessionId)
+    }
+  }
+
+  const toggleSearchIntent = (sessionId: string): boolean => {
+    const enabled = !getSearchIntent(sessionId)
+    setSearchIntent(sessionId, enabled)
+    return enabled
   }
 
   const createActivationNavigationRequest = (): number => {
@@ -315,31 +551,19 @@ export const useSessionStore = defineStore('session', () => {
   const isCurrentActivationNavigation = (requestId: number, sessionId: string): boolean =>
     activationNavigationRequestId === requestId && activeSessionId.value === sessionId
 
-  const notifyRendererReady = (): void => {
-    if (rendererReadyNotified) return
-    rendererReadyNotified = true
-    void tabClient.notifyRendererReady()
-  }
-
-  notifyRendererReady()
-
   const normalizeGroupMode = (value: unknown): GroupMode =>
     value === 'time' || value === 'project' ? value : DEFAULT_GROUP_MODE
 
   const loadGroupModePreference = async (): Promise<void> => {
-    const loadVersion = groupModeUpdateVersion
-
     try {
       const savedGroupMode = await configClient.getSetting(SIDEBAR_GROUP_MODE_KEY)
-      if (groupModeUpdateVersion === loadVersion) {
-        groupMode.value = normalizeGroupMode(savedGroupMode)
-      }
+      persistedGroupMode = normalizeGroupMode(savedGroupMode)
     } catch (loadError) {
-      if (groupModeUpdateVersion === loadVersion) {
-        groupMode.value = DEFAULT_GROUP_MODE
-      }
+      persistedGroupMode = DEFAULT_GROUP_MODE
       console.warn('[sessionStore] Failed to load sidebar group mode:', loadError)
     } finally {
+      requestedGroupMode = persistedGroupMode
+      groupMode.value = persistedGroupMode
       hasLoadedGroupMode = true
     }
   }
@@ -362,19 +586,103 @@ export const useSessionStore = defineStore('session', () => {
     activeSessionSummary.value = null
   }
 
-  const updateBootstrapActiveSession = (session: UISession | null) => {
-    bootstrapActiveSession.value = session
+  const mergeObservedSessionStatus = <T extends UISession>(session: T): T => {
+    const observed = observedSessionStatuses.get(session.id)
+    if (!observed || session.status === observed.status) {
+      return session
+    }
+
+    return {
+      ...session,
+      status: observed.status
+    }
   }
 
-  const upsertSessions = (updates: UISession[]): void => {
-    sessions.value = mergeSessions(sessions.value, updates)
+  const mapSessionSnapshot = (session: SessionListItem | SessionWithState): UISession =>
+    mergeObservedSessionStatus(mapToUISession(session))
+
+  const mapActiveSessionSnapshot = (session: SessionWithState): UIActiveSessionSummary =>
+    mergeObservedSessionStatus(mapToUIActiveSessionSummary(session))
+
+  const commitSessionSnapshot = (snapshot: SessionListItem | SessionWithState): boolean => {
+    const session = mapSessionSnapshot(snapshot)
+    if (removedSessionIds.has(session.id)) {
+      return false
+    }
+
+    const existing = sessions.value.find((candidate) => candidate.id === session.id)
+    if (existing && isStaleOrSameSessionUpdate(existing, session)) {
+      return false
+    }
+
+    sessions.value = mergeSessions(sessions.value, [session])
+    if (bootstrapActiveSession.value?.id === session.id) {
+      bootstrapActiveSession.value = session
+    }
+    if (activeSessionSummary.value?.id === session.id) {
+      activeSessionSummary.value =
+        'providerId' in snapshot
+          ? mapActiveSessionSnapshot(snapshot)
+          : {
+              ...session,
+              providerId: activeSessionSummary.value.providerId,
+              modelId: activeSessionSummary.value.modelId
+            }
+    }
+    return true
+  }
+
+  const commitSessionSnapshots = (snapshots: Array<SessionListItem | SessionWithState>): void => {
+    for (const snapshot of snapshots) {
+      commitSessionSnapshot(snapshot)
+    }
+  }
+
+  const replaceSessionSnapshot = (
+    snapshot: UISession[],
+    targetedCommitRevisionAtStart: number
+  ): UISession[] => {
+    const next = new Map(snapshot.map((session) => [session.id, session]))
+
+    for (const session of sessions.value) {
+      const incoming = next.get(session.id)
+      if (
+        (incoming && isStaleOrSameSessionUpdate(session, incoming)) ||
+        (targetedSessionCommitRevisions.get(session.id) ?? 0) > targetedCommitRevisionAtStart
+      ) {
+        next.set(session.id, session)
+      }
+    }
+
+    return sortSessions(Array.from(next.values()))
   }
 
   const removeSessions = (sessionIds: string[]): void => {
     const targetIds = new Set(sessionIds)
+    // A dropped in-flight first page must be re-requested, or the sidebar sits
+    // with no skeleton, no rows, and no error until an unrelated event fires.
+    const hadPendingInitialFetch = sessionFetchPromise !== null || loading.value
+    // Invalidate every in-flight list response and per-ID refresh for deleted rows.
+    // This also lets their finally blocks retire loading state without changing it.
+    sessionListEpoch += 1
+    initialPageRequestId += 1
+    nextPageRequestId += 1
+    loading.value = false
+    loadingMore.value = false
+    // A deleted row should not keep a superseded first-page request deduplicated.
+    sessionFetchPromise = null
+    for (const sessionId of targetIds) {
+      removedSessionIds.add(sessionId)
+      searchIntents.delete(sessionId)
+      observedSessionStatuses.delete(sessionId)
+      sessionByIdRefreshRevisions.set(sessionId, ++sessionByIdsRefreshRevision)
+    }
     sessions.value = sessions.value.filter((session) => !targetIds.has(session.id))
     for (const sessionId of targetIds) {
       agentPlanStore.purge(sessionId)
+      liveDelegationStore.purge(sessionId)
+      messageStore.invalidateRecentSessionView(sessionId)
+      messageStore.purgeSessionTracking(sessionId)
     }
 
     if (bootstrapActiveSession.value && targetIds.has(bootstrapActiveSession.value.id)) {
@@ -390,6 +698,10 @@ export const useSessionStore = defineStore('session', () => {
       messageStore.clearStreamingState()
       setActiveSessionId(null)
       pageRouter.goToNewThread()
+    }
+
+    if (hadPendingInitialFetch && !hasLoadedInitialPage.value) {
+      void fetchSessions()
     }
   }
 
@@ -453,7 +765,19 @@ export const useSessionStore = defineStore('session', () => {
     agentStore.setSelectedAgent(targetAgentId)
   }
 
-  const applySessionStatus = (sessionId: string, status: string): void => {
+  const applySessionStatus = (sessionId: string, status: string, version?: number): boolean => {
+    if (version !== undefined) {
+      const observed = observedSessionStatuses.get(sessionId)
+      if (observed && version < observed.version) {
+        return false
+      }
+      observedSessionStatuses.set(sessionId, {
+        version,
+        status: mapSessionStatus(status)
+      })
+    }
+
+    messageStore.invalidateRecentSessionView(sessionId)
     const nextStatus = mapSessionStatus(status)
     const index = sessions.value.findIndex((session) => session.id === sessionId)
     if (index >= 0 && sessions.value[index].status !== nextStatus) {
@@ -482,6 +806,29 @@ export const useSessionStore = defineStore('session', () => {
         status: nextStatus
       }
     }
+    return true
+  }
+
+  const applyConfirmedOrchestrationPolicy = (
+    sessionId: string,
+    policy: OrchestrationPolicy
+  ): void => {
+    const orchestrationPolicy = normalizeOrchestrationPolicy(policy)
+    sessions.value = sessions.value.map((session) =>
+      session.id === sessionId ? { ...session, orchestrationPolicy } : session
+    )
+    if (bootstrapActiveSession.value?.id === sessionId) {
+      bootstrapActiveSession.value = {
+        ...bootstrapActiveSession.value,
+        orchestrationPolicy
+      }
+    }
+    if (activeSessionSummary.value?.id === sessionId) {
+      activeSessionSummary.value = {
+        ...activeSessionSummary.value,
+        orchestrationPolicy
+      }
+    }
   }
 
   const applyRestoredSession = (session: SessionWithState | null): void => {
@@ -492,19 +839,45 @@ export const useSessionStore = defineStore('session', () => {
       return
     }
 
-    activeSessionSummary.value = mapToUIActiveSessionSummary(session)
-    const lightweightSession = mapToUISession(session)
-    upsertSessions([lightweightSession])
-    if (activeSessionId.value === session.id) {
-      bootstrapActiveSession.value = lightweightSession
-      syncSelectedAgentToSession(session.id)
+    const committed = commitSessionSnapshot(session)
+    if (activeSessionId.value !== session.id) return
+
+    const canonical = sessions.value.find((candidate) => candidate.id === session.id)
+    const incoming = mapSessionSnapshot(session)
+    const isSameDurableSnapshot =
+      canonical &&
+      ((Number.isFinite(canonical.revision) && canonical.revision === incoming.revision) ||
+        (!Number.isFinite(canonical.revision) && canonical.updatedAt === incoming.updatedAt))
+    if (!canonical || (!committed && !isSameDurableSnapshot)) {
+      return
     }
+
+    // A same-revision full hydrate may enrich only runtime provider/model data. Its
+    // durable fields always come from the canonical committed row, so a late read
+    // cannot split the active shell from the sidebar.
+    activeSessionSummary.value = {
+      ...canonical,
+      // Session execution state is runtime-only and can be refreshed without a
+      // durable row mutation. Preserve it (with the observed event guard) while
+      // keeping every durable projection on the canonical list row.
+      status: mapActiveSessionSnapshot(session).status,
+      providerId: session.providerId,
+      modelId: session.modelId
+    }
+    bootstrapActiveSession.value = canonical
+    syncSelectedAgentToSession(session.id)
   }
 
-  const hydrateActiveSessionSummary = async (sessionId: string): Promise<void> => {
+  const hydrateActiveSessionSummary = async (
+    sessionId: string,
+    activationRequestId: number
+  ): Promise<void> => {
     try {
       const active = await sessionClient.getActive()
-      if (active.session?.id === sessionId) {
+      if (
+        isCurrentActivationNavigation(activationRequestId, sessionId) &&
+        active.session?.id === sessionId
+      ) {
         applyRestoredSession(active.session)
       }
     } catch (restoreError) {
@@ -526,8 +899,23 @@ export const useSessionStore = defineStore('session', () => {
     }
 
     setActiveSessionId(nextActiveSessionId)
-    clearActiveSessionSummary()
-    updateBootstrapActiveSession(input.activeSession ? mapToUISession(input.activeSession) : null)
+    // A repeated bootstrap shell for the same selected session must not discard
+    // an already hydrated runtime summary before its durable revision guard runs.
+    if (activeSessionSummary.value?.id !== nextActiveSessionId) {
+      clearActiveSessionSummary()
+    }
+
+    if (input.activeSession?.id === nextActiveSessionId) {
+      commitSessionSnapshot(input.activeSession)
+      // Startup shell data is only a hint. Prefer the canonical list row after
+      // its revision guard so a delayed bootstrap response cannot move any of
+      // the three active-session projections back in time.
+      bootstrapActiveSession.value =
+        sessions.value.find((session) => session.id === nextActiveSessionId) ?? null
+    } else {
+      bootstrapActiveSession.value = null
+    }
+
     syncSelectedAgentToSession(nextActiveSessionId)
   }
 
@@ -538,6 +926,9 @@ export const useSessionStore = defineStore('session', () => {
   }): Promise<void> => {
     if (options.reset) {
       const requestId = ++initialPageRequestId
+      const listEpoch = ++sessionListEpoch
+      const targetedCommitRevisionAtStart = targetedSessionCommitRevision
+      loadingMore.value = false
       loading.value = true
       error.value = null
 
@@ -552,20 +943,27 @@ export const useSessionStore = defineStore('session', () => {
           prioritizeSessionId: options.prioritizeSessionId ?? undefined
         })
 
-        if (requestId !== initialPageRequestId) {
+        if (requestId !== initialPageRequestId || listEpoch !== sessionListEpoch) {
           return
         }
 
-        const nextSessions = result.items.map(mapToUISession)
+        // Commit incoming entity snapshots before the first-page replacement so an
+        // active shell receives the same authoritative revision as the sidebar.
+        commitSessionSnapshots(result.items)
+        const nextSessions = result.items
+          .map(mapSessionSnapshot)
+          .filter((session) => !removedSessionIds.has(session.id))
         sessions.value = options.preserveExisting
           ? mergeSessions(sessions.value, nextSessions)
-          : sortSessions(nextSessions)
+          : replaceSessionSnapshot(nextSessions, targetedCommitRevisionAtStart)
         hasLoadedInitialPage.value = true
         hasMore.value = result.hasMore
         nextCursor.value = result.nextCursor
         syncSelectedAgentToSession(activeSessionId.value)
       } catch (loadError) {
-        error.value = `Failed to load sessions: ${loadError}`
+        if (requestId === initialPageRequestId && listEpoch === sessionListEpoch) {
+          error.value = `Failed to load sessions: ${loadError}`
+        }
       } finally {
         if (requestId === initialPageRequestId) {
           loading.value = false
@@ -580,6 +978,7 @@ export const useSessionStore = defineStore('session', () => {
     }
 
     const requestId = ++nextPageRequestId
+    const listEpoch = sessionListEpoch
     loadingMore.value = true
     error.value = null
 
@@ -591,20 +990,22 @@ export const useSessionStore = defineStore('session', () => {
         includeSubagents: false
       })
 
-      if (requestId !== nextPageRequestId) {
+      if (requestId !== nextPageRequestId || listEpoch !== sessionListEpoch) {
         return
       }
 
-      upsertSessions(result.items.map(mapToUISession))
+      commitSessionSnapshots(result.items)
       hasMore.value = result.hasMore
       nextCursor.value = result.nextCursor
       console.info(
         `[Startup][Renderer] startup.session.page.appended count=${result.items.length} total=${sessions.value.length}`
       )
     } catch (loadError) {
-      error.value = `Failed to load more sessions: ${loadError}`
+      if (requestId === nextPageRequestId && listEpoch === sessionListEpoch) {
+        error.value = `Failed to load more sessions: ${loadError}`
+      }
     } finally {
-      if (requestId === nextPageRequestId) {
+      if (requestId === nextPageRequestId && listEpoch === sessionListEpoch) {
         loadingMore.value = false
       }
     }
@@ -646,42 +1047,138 @@ export const useSessionStore = defineStore('session', () => {
       return
     }
 
-    error.value = null
+    const refreshRevision = ++sessionByIdsRefreshRevision
+    const requestedRevisions = new Map<string, number>()
+    for (const sessionId of normalizedIds) {
+      sessionByIdRefreshRevisions.set(sessionId, refreshRevision)
+      requestedRevisions.set(sessionId, refreshRevision)
+      messageStore.invalidateRecentSessionView(sessionId)
+    }
+    const listEpoch = sessionListEpoch
+    const hasCurrentRequestedId = (): boolean =>
+      listEpoch === sessionListEpoch &&
+      normalizedIds.some(
+        (sessionId) =>
+          sessionByIdRefreshRevisions.get(sessionId) === requestedRevisions.get(sessionId)
+      )
+
     try {
       const items = await sessionClient.getLightweightByIds(normalizedIds)
-      upsertSessions(items.map(mapToUISession))
+      if (listEpoch !== sessionListEpoch) {
+        return
+      }
 
-      const activeId = activeSessionId.value
-      if (activeId) {
-        const activeItem = items.find((item) => item.id === activeId)
-        if (activeItem) {
-          updateBootstrapActiveSession(mapToUISession(activeItem))
-          syncSelectedAgentToSession(activeId)
+      // A newer request for the same ID wins, but disjoint IDs from concurrent
+      // targeted refreshes may safely merge independently.
+      const acceptedItems = items.filter(
+        (item) =>
+          requestedRevisions.has(item.id) &&
+          sessionByIdRefreshRevisions.get(item.id) === requestedRevisions.get(item.id)
+      )
+      if (!hasCurrentRequestedId()) {
+        return
+      }
+
+      const acceptedSessions = acceptedItems
+        .map(mapSessionSnapshot)
+        .filter((session) => !removedSessionIds.has(session.id))
+      commitSessionSnapshots(acceptedItems)
+      if (acceptedSessions.length > 0) {
+        const commitRevision = ++targetedSessionCommitRevision
+        for (const session of acceptedSessions) {
+          targetedSessionCommitRevisions.set(session.id, commitRevision)
         }
       }
+
+      // This background refresh may only clear an error it owns; first-page and
+      // pagination errors remain visible until their own request resolves.
+      if (
+        sessionByIdsErrorRevision !== null &&
+        sessionByIdsErrorRevision <= refreshRevision &&
+        error.value?.startsWith('Failed to refresh sessions:')
+      ) {
+        error.value = null
+        sessionByIdsErrorRevision = null
+      }
+
+      const activeId = activeSessionId.value
+      if (activeId && acceptedItems.some((item) => item.id === activeId)) {
+        syncSelectedAgentToSession(activeId)
+      }
     } catch (refreshError) {
-      error.value = `Failed to refresh sessions: ${refreshError}`
+      if (hasCurrentRequestedId()) {
+        const canReplaceError =
+          error.value === null ||
+          (sessionByIdsErrorRevision !== null &&
+            sessionByIdsErrorRevision <= refreshRevision &&
+            error.value.startsWith('Failed to refresh sessions:'))
+        if (canReplaceError) {
+          error.value = `Failed to refresh sessions: ${refreshError}`
+          sessionByIdsErrorRevision = refreshRevision
+        }
+      }
     }
   }
 
-  async function createSession(input: CreateSessionInput): Promise<void> {
+  async function createSession(input: CreateSessionInput, options?: SubmissionRequestOptions) {
     error.value = null
-    createActivationNavigationRequest()
+    const requestId = createActivationNavigationRequest()
     try {
-      const result = await sessionClient.create(input)
+      const result = options?.submissionId
+        ? await sessionClient.create(input, { submissionId: options.submissionId })
+        : await sessionClient.create(input)
       const session = result.session
-      const lightweightSession = mapToUISession(session)
-      upsertSessions([lightweightSession])
+      setSearchIntent(session.id, input.search === true)
+      const hasInitialTurn = input.message.trim().length > 0 || (input.files?.length ?? 0) > 0
+      const attachmentPreparation = result.initialTurn?.attachmentPreparation
+      const initialTurnNeedsUserAction = attachmentPreparation?.status === 'needs_user_action'
+      const hasAcceptedInitialTurn = hasInitialTurn && !initialTurnNeedsUserAction
+      if (initialTurnNeedsUserAction) {
+        attachmentPreparationStore.stageInitialDraftRecovery({
+          sessionId: session.id,
+          input: {
+            text: input.message,
+            ...(input.files ? { files: input.files } : {}),
+            ...(input.search === true ? { search: true } : {}),
+            ...(input.activeSkills ? { activeSkills: input.activeSkills } : {}),
+            ...(input.inlineItems ? { inlineItems: input.inlineItems } : {})
+          },
+          summary: attachmentPreparation
+        })
+      }
+      // Creation is durable even if the user has navigated elsewhere while it was pending.
+      commitSessionSnapshot(session)
+      if (activationNavigationRequestId !== requestId) {
+        return result
+      }
+
       setActiveSessionId(session.id)
-      bootstrapActiveSession.value = lightweightSession
-      activeSessionSummary.value = mapToUIActiveSessionSummary(session)
+      applyRestoredSession(session)
+      if (hasAcceptedInitialTurn) {
+        applySessionStatus(session.id, 'generating')
+      }
       syncSelectedAgentToSession(session.id)
       pageRouter.goToChat(session.id)
-      await completeOnboardingStep('first-chat')
+      if (hasAcceptedInitialTurn) {
+        await completeOnboardingStep('first-chat')
+      }
+      return result
     } catch (createError) {
-      error.value = `Failed to create session: ${createError}`
+      if (
+        activationNavigationRequestId === requestId &&
+        !(options?.isCancellationRequested?.() && isAbortError(createError))
+      ) {
+        error.value = `Failed to create session: ${createError}`
+      }
       throw createError
     }
+  }
+
+  async function setSessionToolMode(override: ToolModeOverride): Promise<void> {
+    const sessionId = activeSessionId.value
+    if (!sessionId) return
+    const session = await sessionClient.setSessionToolMode(sessionId, override)
+    commitSessionSnapshot(session)
   }
 
   async function selectSession(sessionId: string): Promise<void> {
@@ -698,27 +1195,34 @@ export const useSessionStore = defineStore('session', () => {
       clearActiveSessionSummary()
       syncSelectedAgentToSession(sessionId)
       setActiveSessionId(sessionId)
-      await hydrateActiveSessionSummary(sessionId)
+      await hydrateActiveSessionSummary(sessionId, requestId)
       if (!isCurrentActivationNavigation(requestId, sessionId)) {
         return
       }
       pageRouter.goToChat(sessionId)
     } catch (selectError) {
-      error.value = `Failed to select session: ${selectError}`
+      if (activationNavigationRequestId === requestId) {
+        error.value = `Failed to select session: ${selectError}`
+      }
     }
   }
 
   async function closeSession(options: CloseSessionOptions = {}): Promise<void> {
     error.value = null
-    createActivationNavigationRequest()
+    const requestId = createActivationNavigationRequest()
     try {
       messageStore.clearStreamingState()
       await sessionClient.deactivate()
+      if (activationNavigationRequestId !== requestId) {
+        return
+      }
       clearActiveSessionSummary()
       setActiveSessionId(null)
       pageRouter.goToNewThread(options.refresh ? { refresh: true } : {})
     } catch (closeError) {
-      error.value = `Failed to close session: ${closeError}`
+      if (activationNavigationRequestId === requestId) {
+        error.value = `Failed to close session: ${closeError}`
+      }
     }
   }
 
@@ -729,6 +1233,17 @@ export const useSessionStore = defineStore('session', () => {
     if (!targetAgentId) {
       return
     }
+
+    newConversationProjectDirIntent.value = Object.prototype.hasOwnProperty.call(
+      options,
+      'projectDir'
+    )
+      ? {
+          id: ++newConversationProjectDirIntentId,
+          projectDir: options.projectDir?.trim() || null,
+          consumed: false
+        }
+      : null
 
     if (agentStore.selectedAgentId !== targetAgentId) {
       agentStore.setSelectedAgent(targetAgentId)
@@ -741,6 +1256,15 @@ export const useSessionStore = defineStore('session', () => {
 
     pageRouter.goToNewThread({ refresh: options.refresh ?? true })
     createActivationNavigationRequest()
+  }
+
+  function consumeNewConversationProjectDirIntent(intentId: number): void {
+    const intent = newConversationProjectDirIntent.value
+    if (!intent || intent.id !== intentId || intent.consumed) {
+      return
+    }
+
+    newConversationProjectDirIntent.value = { ...intent, consumed: true }
   }
 
   async function completeOnboardingStep(stepId: GuidedOnboardingStepId): Promise<void> {
@@ -775,13 +1299,30 @@ export const useSessionStore = defineStore('session', () => {
     }
   }
 
-  async function sendMessage(sessionId: string, content: string | SendMessageInput): Promise<void> {
+  async function sendMessage(
+    sessionId: string,
+    content: string | SendMessageInput,
+    options?: SubmissionRequestOptions
+  ): Promise<void> {
     error.value = null
+    const previousStatus =
+      sessions.value.find((session) => session.id === sessionId)?.status ??
+      (activeSessionSummary.value?.id === sessionId ? activeSessionSummary.value.status : 'none')
+    applySessionStatus(sessionId, 'generating')
     try {
-      await chatClient.sendMessage(sessionId, content)
+      if (options?.submissionId) {
+        await chatClient.sendMessage(sessionId, content, { submissionId: options.submissionId })
+      } else {
+        await chatClient.sendMessage(sessionId, content)
+      }
       await completeOnboardingStep('first-chat')
     } catch (sendError) {
-      error.value = `Failed to send message: ${sendError}`
+      if (options?.isCancellationRequested?.() && isAbortError(sendError)) {
+        applySessionStatus(sessionId, previousStatus)
+      } else {
+        applySessionStatus(sessionId, 'error')
+        error.value = `Failed to send message: ${sendError}`
+      }
       throw sendError
     }
   }
@@ -794,9 +1335,10 @@ export const useSessionStore = defineStore('session', () => {
     error.value = null
     try {
       const updated = await sessionClient.setSessionModel(sessionId, providerId, modelId)
-      upsertSessions([mapToUISession(updated)])
+      commitSessionSnapshot(updated)
       if (activeSessionId.value === sessionId) {
         applyRestoredSession(updated)
+        synchronizeContextOccupancy(sessionId)
       }
       await completeOnboardingStep('switch-model')
     } catch (updateError) {
@@ -820,25 +1362,11 @@ export const useSessionStore = defineStore('session', () => {
     }
   }
 
-  async function setSessionSubagentEnabled(sessionId: string, enabled: boolean): Promise<void> {
-    error.value = null
-    try {
-      const updated = await sessionClient.setSessionSubagentEnabled(sessionId, enabled)
-      upsertSessions([mapToUISession(updated)])
-      if (activeSessionId.value === sessionId) {
-        applyRestoredSession(updated)
-      }
-    } catch (updateError) {
-      error.value = `Failed to update subagent state: ${updateError}`
-      throw updateError
-    }
-  }
-
   async function setSessionProjectDir(sessionId: string, projectDir: string | null): Promise<void> {
     error.value = null
     try {
       const updated = await sessionClient.setSessionProjectDir(sessionId, projectDir)
-      upsertSessions([mapToUISession(updated)])
+      commitSessionSnapshot(updated)
       if (activeSessionId.value === sessionId) {
         applyRestoredSession(updated)
       }
@@ -852,7 +1380,7 @@ export const useSessionStore = defineStore('session', () => {
     error.value = null
     try {
       const updated = await sessionClient.moveSessionToAgent(sessionId, toAgentId)
-      upsertSessions([mapToUISession(updated)])
+      commitSessionSnapshot(updated)
       if (activeSessionId.value === sessionId) {
         applyRestoredSession(updated)
         syncSelectedAgentToSession(sessionId)
@@ -870,23 +1398,8 @@ export const useSessionStore = defineStore('session', () => {
       if (!normalized) {
         return
       }
-      await sessionClient.renameSession(sessionId, normalized)
-      const target = sessions.value.find((session) => session.id === sessionId)
-      if (target) {
-        target.title = normalized
-      }
-      if (bootstrapActiveSession.value?.id === sessionId) {
-        bootstrapActiveSession.value = {
-          ...bootstrapActiveSession.value,
-          title: normalized
-        }
-      }
-      if (activeSessionSummary.value?.id === sessionId) {
-        activeSessionSummary.value = {
-          ...activeSessionSummary.value,
-          title: normalized
-        }
-      }
+      const updated = await sessionClient.renameSession(sessionId, normalized)
+      commitSessionSnapshot(updated)
     } catch (renameError) {
       error.value = `Failed to rename session: ${renameError}`
       throw renameError
@@ -896,24 +1409,8 @@ export const useSessionStore = defineStore('session', () => {
   async function toggleSessionPinned(sessionId: string, pinned: boolean): Promise<void> {
     error.value = null
     try {
-      await sessionClient.toggleSessionPinned(sessionId, pinned)
-      const target = sessions.value.find((session) => session.id === sessionId)
-      if (target) {
-        target.isPinned = pinned
-      }
-      if (bootstrapActiveSession.value?.id === sessionId) {
-        bootstrapActiveSession.value = {
-          ...bootstrapActiveSession.value,
-          isPinned: pinned
-        }
-      }
-      if (activeSessionSummary.value?.id === sessionId) {
-        activeSessionSummary.value = {
-          ...activeSessionSummary.value,
-          isPinned: pinned
-        }
-      }
-      sessions.value = sortSessions(sessions.value)
+      const updated = await sessionClient.toggleSessionPinned(sessionId, pinned)
+      commitSessionSnapshot(updated)
     } catch (pinError) {
       error.value = `Failed to toggle pinned state: ${pinError}`
       throw pinError
@@ -953,62 +1450,76 @@ export const useSessionStore = defineStore('session', () => {
     }
   }
 
-  async function toggleGroupMode(): Promise<void> {
-    const previousMode = groupMode.value
-    groupMode.value = previousMode === 'time' ? 'project' : 'time'
-    const localVersion = ++groupModeUpdateVersion
+  async function setGroupMode(mode: GroupMode): Promise<void> {
+    if (!hasLoadedGroupMode) {
+      await ensureGroupModeLoaded()
+    }
+    if (requestedGroupMode === mode) {
+      await latestGroupModeWrite
+      return
+    }
 
-    groupModeWritePromise = groupModeWritePromise.then(async () => {
+    requestedGroupMode = mode
+    groupMode.value = mode
+    const writePromise = groupModeWriteQueue.then(async () => {
       try {
-        await configClient.setSetting(SIDEBAR_GROUP_MODE_KEY, groupMode.value)
-        if (localVersion !== groupModeUpdateVersion) {
-          return
-        }
+        await configClient.setSetting(SIDEBAR_GROUP_MODE_KEY, mode)
+        persistedGroupMode = mode
       } catch (persistError) {
-        if (localVersion === groupModeUpdateVersion) {
-          groupMode.value = previousMode
+        if (requestedGroupMode === mode) {
+          requestedGroupMode = persistedGroupMode
+          groupMode.value = persistedGroupMode
         }
         console.warn('[sessionStore] Failed to persist sidebar group mode:', persistError)
+        throw persistError
       }
     })
 
-    await groupModeWritePromise
+    latestGroupModeWrite = writePromise
+    groupModeWriteQueue = writePromise.catch(() => undefined)
+    await writePromise
+  }
+
+  async function toggleGroupMode(): Promise<void> {
+    try {
+      if (!hasLoadedGroupMode) {
+        await ensureGroupModeLoaded()
+      }
+      await setGroupMode(groupMode.value === 'time' ? 'project' : 'time')
+    } catch {
+      // setGroupMode already restores the visible state and records the failure.
+    }
   }
 
   function getPinnedSessions(agentId: string | null): UISession[] {
-    const pinned = sortSessions(
+    return sortSessions(
       sessions.value.filter(
-        (session) => isRegularSession(session) && session.isPinned && !session.isDraft
+        (session) =>
+          isRegularSession(session) &&
+          session.isPinned &&
+          !session.isDraft &&
+          (agentId === null || session.agentId === agentId)
       )
     )
-
-    if (agentId === null) return pinned
-
-    return pinned.filter((session) => session.agentId === agentId)
   }
 
   function getFilteredGroups(agentId: string | null): SessionGroup[] {
     const visibleSessions = sortSessions(
       sessions.value.filter(
-        (session) => isRegularSession(session) && !session.isDraft && !session.isPinned
+        (session) =>
+          isRegularSession(session) &&
+          !session.isDraft &&
+          !session.isPinned &&
+          (agentId === null || session.agentId === agentId)
       )
     )
-    const grouped =
-      groupMode.value === 'time' ? groupByTime(visibleSessions) : groupByProject(visibleSessions)
 
-    if (agentId === null) return grouped
-
-    return grouped
-      .map((group) => ({
-        id: group.id,
-        label: group.label,
-        labelKey: group.labelKey,
-        sessions: group.sessions.filter((session) => session.agentId === agentId)
-      }))
-      .filter((group) => group.sessions.length > 0)
+    return groupMode.value === 'time'
+      ? groupByTime(visibleSessions)
+      : groupByProject(visibleSessions)
   }
 
-  const cleanupIpcBindings = bindSessionStoreIpc({
+  sessionIpcBinding = bindSessionStoreIpc({
     webContentsId: () => myWebContentsId.value,
     fetchSessions,
     refreshSessionsByIds,
@@ -1023,12 +1534,11 @@ export const useSessionStore = defineStore('session', () => {
       }
       syncSelectedAgentToSession(sessionId)
       setActiveSessionId(sessionId)
-      await hydrateActiveSessionSummary(sessionId)
+      await hydrateActiveSessionSummary(sessionId, requestId)
       if (!isCurrentActivationNavigation(requestId, sessionId)) {
         return
       }
       pageRouter.goToChat(sessionId)
-      void tabClient.notifyRendererActivated(sessionId)
     },
     onDeactivated: () => {
       createActivationNavigationRequest()
@@ -1037,23 +1547,40 @@ export const useSessionStore = defineStore('session', () => {
       setActiveSessionId(null)
       pageRouter.goToNewThread()
     },
-    onStatusChanged: (sessionId, status) => {
-      applySessionStatus(sessionId, status)
-    }
+    onStatusChanged: (sessionId, status, version) => {
+      const applied = applySessionStatus(sessionId, status, version)
+      if (applied && activeSessionId.value === sessionId && status !== 'generating') {
+        synchronizeContextOccupancy(sessionId)
+      }
+    },
+    onCompactionChanged: handleCompactionChanged
   })
-  registerStoreCleanup(cleanupIpcBindings)
+  registerStoreCleanup(() => {
+    compactionSyncRequestId += 1
+    activeCompactionSync = null
+    contextOccupancyRequestId += 1
+    sessionIpcBinding?.cleanup()
+  })
   void ensureGroupModeLoaded()
 
   return {
     sessions,
     activeSessionId,
+    activeCompactionSnapshot,
+    activeCompactionState,
+    activeContextOccupancy,
+    newConversationProjectDirIntent,
     groupMode,
     loading,
     loadingMore,
     hasLoadedInitialPage,
     hasMore,
+    nextCursor,
     error,
     activeSession,
+    getSearchIntent,
+    setSearchIntent,
+    toggleSearchIntent,
     sessionGroups,
     hasActiveSession,
     newConversationTargetAgentId,
@@ -1065,17 +1592,21 @@ export const useSessionStore = defineStore('session', () => {
     createSession,
     sendMessage,
     setSessionModel,
+    synchronizeContextOccupancy,
+    setSessionToolMode,
+    applyConfirmedOrchestrationPolicy,
     selectSession,
     closeSession,
     startNewConversation,
+    consumeNewConversationProjectDirIntent,
     renameSession,
     toggleSessionPinned,
     clearSessionMessages,
     exportSession,
     deleteSession,
-    setSessionSubagentEnabled,
     setSessionProjectDir,
     moveSessionToAgent,
+    setGroupMode,
     toggleGroupMode,
     getPinnedSessions,
     getFilteredGroups

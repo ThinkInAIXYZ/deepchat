@@ -2,10 +2,23 @@ import { mount } from '@vue/test-utils'
 import { defineComponent, nextTick } from 'vue'
 import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest'
 import MessageBlockToolCall from '@/components/message/MessageBlockToolCall.vue'
-import type { DisplayAssistantMessageBlock } from '@/components/chat/messageListItems'
+import type { DisplayAssistantMessageBlock } from '@/features/chat-page/model/displayMessage'
+import {
+  LIVE_DELEGATION_AGENT_TOOL_NAME,
+  LIVE_DELEGATION_AGENT_TOOL_SERVER_NAME
+} from '@shared/agentTools'
 
 const { selectSessionMock } = vi.hoisted(() => ({
   selectSessionMock: vi.fn()
+}))
+const liveDelegationStoreMock = vi.hoisted(() => ({
+  seed: vi.fn(),
+  getDelegation: vi.fn(() => null),
+  ensureLoaded: vi.fn().mockResolvedValue(true),
+  confirm: vi.fn(),
+  isAuthoritative: vi.fn(() => true),
+  isInterrupting: vi.fn(() => false),
+  interrupt: vi.fn()
 }))
 
 vi.mock('vue-i18n', () => ({
@@ -58,6 +71,10 @@ vi.mock('@/stores/ui/session', () => ({
   })
 }))
 
+vi.mock('@/stores/ui/liveDelegation', () => ({
+  useLiveDelegationStore: () => liveDelegationStoreMock
+}))
+
 vi.mock('markstream-vue', () => ({
   CodeBlockNode: defineComponent({
     name: 'CodeBlockNode',
@@ -73,10 +90,22 @@ vi.mock('markstream-vue', () => ({
       showHeader: {
         type: Boolean,
         default: true
+      },
+      loading: {
+        type: Boolean,
+        default: true
+      },
+      stream: {
+        type: Boolean,
+        default: true
       }
     },
     template: '<div class="code-block-stub"></div>'
-  })
+  }),
+  normalizeLanguageIdentifier: (language?: string) => {
+    const normalized = language?.trim().toLowerCase() ?? ''
+    return normalized === 'zsh' ? 'shell' : normalized === 'plaintext' ? 'plain' : normalized
+  }
 }))
 
 const createBlock = (
@@ -95,13 +124,184 @@ const createBlock = (
 
 beforeEach(() => {
   selectSessionMock.mockReset()
+  liveDelegationStoreMock.seed.mockReset()
+  liveDelegationStoreMock.getDelegation.mockReset().mockReturnValue(null)
+  liveDelegationStoreMock.ensureLoaded.mockReset().mockResolvedValue(true)
+  liveDelegationStoreMock.confirm.mockReset().mockResolvedValue({
+    childSessionId: 'child-1',
+    slotId: 'reviewer',
+    title: 'Review architecture'
+  })
+  liveDelegationStoreMock.isAuthoritative.mockReset().mockReturnValue(true)
+  liveDelegationStoreMock.isInterrupting.mockReset().mockReturnValue(false)
+  liveDelegationStoreMock.interrupt.mockReset()
 })
 
 afterEach(() => {
   selectSessionMock.mockReset()
+  vi.restoreAllMocks()
 })
 
 describe('MessageBlockToolCall', () => {
+  it('renders a trusted live delegation as a navigable task card with raw disclosure', async () => {
+    const wrapper = mount(MessageBlockToolCall, {
+      props: {
+        threadId: 'parent-1',
+        block: createBlock({
+          extra: { toolSource: 'agent' },
+          tool_call: {
+            id: 'spawn-1',
+            name: LIVE_DELEGATION_AGENT_TOOL_NAME,
+            server_name: LIVE_DELEGATION_AGENT_TOOL_SERVER_NAME,
+            params: JSON.stringify({
+              operation: 'spawn',
+              slotId: 'reviewer',
+              title: 'Review architecture',
+              prompt: 'Inspect module boundaries.'
+            }),
+            response: JSON.stringify({
+              delegation: {
+                schemaVersion: 1,
+                id: 'delegation-1',
+                parentSessionId: 'parent-1',
+                childSessionId: 'child-1',
+                slotId: 'reviewer',
+                targetAgentId: 'deepchat',
+                title: 'Review architecture',
+                status: 'running',
+                lastTurnSeq: 1,
+                createdAt: 10,
+                updatedAt: 20,
+                revision: 2,
+                summaryPreview: null,
+                errorPreview: null
+              },
+              turns: []
+            })
+          }
+        })
+      }
+    })
+
+    expect(wrapper.get('[data-testid="live-delegation-tool-card-delegation-1"]').text()).toContain(
+      'Review architecture'
+    )
+    expect(wrapper.text()).toContain('reviewer')
+    expect(wrapper.find('[data-testid="tool-call-trigger"]').exists()).toBe(false)
+    expect(liveDelegationStoreMock.seed).toHaveBeenCalledOnce()
+
+    await wrapper.get('[data-testid="live-delegation-tool-open-delegation-1"]').trigger('click')
+    expect(selectSessionMock).toHaveBeenCalledWith('child-1')
+
+    await wrapper.get('[data-testid="live-delegation-tool-details"]').trigger('click')
+    expect(wrapper.get('[data-testid="tool-call-details"]').text()).toContain(
+      'Inspect module boundaries.'
+    )
+  })
+
+  it('does not grant native live-delegation controls to spoofed or foreign-parent blocks', () => {
+    const trustedToolCall = {
+      id: 'spawn-1',
+      name: LIVE_DELEGATION_AGENT_TOOL_NAME,
+      server_name: LIVE_DELEGATION_AGENT_TOOL_SERVER_NAME,
+      params: JSON.stringify({
+        operation: 'spawn',
+        slotId: 'reviewer',
+        title: 'Review architecture',
+        prompt: 'Inspect module boundaries.'
+      }),
+      response: JSON.stringify({
+        delegation: {
+          schemaVersion: 1,
+          id: 'delegation-1',
+          parentSessionId: 'original-parent',
+          childSessionId: 'child-1',
+          slotId: 'reviewer',
+          targetAgentId: 'deepchat',
+          title: 'Review architecture',
+          status: 'idle',
+          lastTurnSeq: 1,
+          createdAt: 10,
+          updatedAt: 20,
+          revision: 2,
+          summaryPreview: 'Done.',
+          errorPreview: null
+        },
+        turns: []
+      })
+    }
+    const spoofed = mount(MessageBlockToolCall, {
+      props: {
+        threadId: 'original-parent',
+        block: createBlock({
+          extra: { toolSource: 'mcp' },
+          tool_call: trustedToolCall
+        })
+      }
+    })
+    const foreignParent = mount(MessageBlockToolCall, {
+      props: {
+        threadId: 'forked-parent',
+        block: createBlock({
+          extra: { toolSource: 'agent' },
+          tool_call: trustedToolCall
+        })
+      }
+    })
+
+    expect(spoofed.find('[data-testid^="live-delegation-tool-card-"]').exists()).toBe(false)
+    expect(spoofed.find('[data-testid="tool-call-trigger"]').exists()).toBe(true)
+    expect(foreignParent.find('[data-testid^="live-delegation-tool-card-"]').exists()).toBe(false)
+    expect(foreignParent.find('[data-testid="tool-call-trigger"]').exists()).toBe(true)
+  })
+
+  it('hides the tool disclosure in app-only mode', () => {
+    const wrapper = mount(MessageBlockToolCall, {
+      props: {
+        block: createBlock({
+          tool_call: { id: 'app-1', name: 'render_chart', response: 'done' }
+        }),
+        renderMode: 'app-only'
+      }
+    })
+
+    expect(wrapper.find('[data-testid="tool-call-trigger"]').exists()).toBe(false)
+  })
+
+  it('does not schedule detail cleanup for an initially collapsed tool', () => {
+    const setTimeoutSpy = vi.spyOn(window, 'setTimeout')
+
+    mount(MessageBlockToolCall, {
+      props: {
+        block: createBlock({
+          tool_call: { id: 'read-1', name: 'read', response: 'file contents' }
+        })
+      }
+    })
+
+    expect(setTimeoutSpy.mock.calls.some(([, delay]) => delay === 240)).toBe(false)
+  })
+
+  it('exposes disclosure semantics and keeps the controlled details ID stable', async () => {
+    const wrapper = mount(MessageBlockToolCall, {
+      props: {
+        block: createBlock({
+          tool_call: { id: 'read-1', name: 'read', response: 'file contents' }
+        })
+      }
+    })
+    const trigger = wrapper.get('[data-testid="tool-call-trigger"]')
+
+    expect(trigger.element.tagName).toBe('BUTTON')
+    expect(trigger.attributes('aria-expanded')).toBe('false')
+
+    await trigger.trigger('click')
+
+    const details = wrapper.get('[data-testid="tool-call-details"]')
+    expect(trigger.attributes('aria-expanded')).toBe('true')
+    expect(trigger.attributes('aria-controls')).toBe(details.attributes('id'))
+  })
+
   it('renders reviewing status for auto approve review marker', () => {
     const wrapper = mount(MessageBlockToolCall, {
       props: {
@@ -148,20 +348,53 @@ describe('MessageBlockToolCall', () => {
     const wrapper = mount(MessageBlockToolCall, {
       props: {
         block: createBlock({
-          tool_call: { name: 'edit_text', response }
+          tool_call: {
+            name: 'edit_text',
+            params: '{"path":"/tmp/example.ts"}',
+            response
+          }
         })
       }
     })
 
-    await wrapper.find('div.inline-flex').trigger('click')
+    await wrapper.get('[data-testid="tool-call-trigger"]').trigger('click')
 
     const codeBlock = wrapper.findComponent({ name: 'CodeBlockNode' })
     expect(codeBlock.exists()).toBe(true)
+    expect(codeBlock.element.parentElement?.classList.contains('markstream-vue')).toBe(true)
     expect(codeBlock.props('node')).toMatchObject({
       diff: true,
       language: 'typescript',
       originalCode: 'alpha\nbeta',
       updatedCode: 'alpha\ngamma'
+    })
+    expect(codeBlock.props('loading')).toBe(false)
+    expect(codeBlock.props('stream')).toBe(false)
+  })
+
+  it('uses the file path instead of an unsupported response language for diffs', async () => {
+    const response = JSON.stringify({
+      success: true,
+      originalCode: 'key=before',
+      updatedCode: 'key=after',
+      language: 'unsupported-from-tool'
+    })
+    const wrapper = mount(MessageBlockToolCall, {
+      props: {
+        block: createBlock({
+          tool_call: {
+            name: 'edit_text',
+            params: '{"path":"/tmp/example.conf"}',
+            response
+          }
+        })
+      }
+    })
+
+    await wrapper.get('[data-testid="tool-call-trigger"]').trigger('click')
+
+    expect(wrapper.findComponent({ name: 'CodeBlockNode' }).props('node')).toMatchObject({
+      language: 'ini'
     })
   })
 
@@ -174,7 +407,7 @@ describe('MessageBlockToolCall', () => {
       }
     })
 
-    await wrapper.find('div.inline-flex').trigger('click')
+    await wrapper.get('[data-testid="tool-call-trigger"]').trigger('click')
 
     expect(wrapper.findComponent({ name: 'CodeBlockNode' }).exists()).toBe(false)
     expect(wrapper.find('pre').text()).toContain('plain output')
@@ -205,7 +438,7 @@ describe('MessageBlockToolCall', () => {
     expect(wrapper.get('[data-testid="tool-call-image-badge"]').text()).toContain('1')
     expect(wrapper.find('[data-testid="tool-call-image-preview"]').exists()).toBe(false)
 
-    await wrapper.find('div.inline-flex').trigger('click')
+    await wrapper.get('[data-testid="tool-call-trigger"]').trigger('click')
 
     const params = wrapper.get('[data-testid="tool-call-params"]')
     const response = wrapper.get('pre')
@@ -243,7 +476,7 @@ describe('MessageBlockToolCall', () => {
       }
     })
 
-    await wrapper.find('div.inline-flex').trigger('click')
+    await wrapper.get('[data-testid="tool-call-trigger"]').trigger('click')
 
     expect(wrapper.get('[data-testid="tool-call-image-preview"] img').attributes('src')).toBe('')
   })
@@ -884,5 +1117,119 @@ describe('MessageBlockToolCall', () => {
     await tasks[0].trigger('click')
 
     expect(selectSessionMock).toHaveBeenCalledWith('child-alpha')
+  })
+
+  it('renders the resolved permission badge on the tool pill', () => {
+    const wrapper = mount(MessageBlockToolCall, {
+      props: {
+        block: createBlock(),
+        permissionStatus: 'granted'
+      }
+    })
+
+    const badge = wrapper.find('[data-testid="tool-call-permission-badge"]')
+    expect(badge.exists()).toBe(true)
+    expect(badge.attributes('data-permission-status')).toBe('granted')
+    expect(badge.text()).toBe('toolCall.badge.allowed')
+  })
+
+  it('renders a denied permission badge distinct from success styling', () => {
+    const wrapper = mount(MessageBlockToolCall, {
+      props: {
+        block: createBlock({ status: 'error' }),
+        permissionStatus: 'denied'
+      }
+    })
+
+    const badge = wrapper.find('[data-testid="tool-call-permission-badge"]')
+    expect(badge.attributes('data-permission-status')).toBe('denied')
+    expect(badge.text()).toBe('toolCall.badge.denied')
+  })
+
+  it('renders no permission badge when no permission outcome is associated', () => {
+    const wrapper = mount(MessageBlockToolCall, {
+      props: {
+        block: createBlock()
+      }
+    })
+
+    expect(wrapper.find('[data-testid="tool-call-permission-badge"]').exists()).toBe(false)
+  })
+
+  it('renders the granted outcome inside the live delegation card', () => {
+    const wrapper = mount(MessageBlockToolCall, {
+      props: {
+        threadId: 'parent-1',
+        permissionStatus: 'granted',
+        block: createBlock({
+          extra: { toolSource: 'agent' },
+          tool_call: {
+            id: 'spawn-1',
+            name: LIVE_DELEGATION_AGENT_TOOL_NAME,
+            server_name: LIVE_DELEGATION_AGENT_TOOL_SERVER_NAME,
+            params: JSON.stringify({
+              operation: 'spawn',
+              slotId: 'reviewer',
+              title: 'Review architecture',
+              prompt: 'Inspect module boundaries.'
+            }),
+            response: JSON.stringify({
+              delegation: {
+                schemaVersion: 1,
+                id: 'delegation-1',
+                parentSessionId: 'parent-1',
+                childSessionId: 'child-1',
+                slotId: 'reviewer',
+                targetAgentId: 'deepchat',
+                title: 'Review architecture',
+                status: 'running',
+                lastTurnSeq: 1,
+                createdAt: 10,
+                updatedAt: 20,
+                revision: 2,
+                summaryPreview: null,
+                errorPreview: null
+              },
+              turns: []
+            })
+          }
+        })
+      }
+    })
+
+    const card = wrapper.get('[data-testid="live-delegation-tool-card-delegation-1"]')
+    const badge = card.get('[data-testid="tool-call-permission-badge"]')
+    expect(badge.attributes('data-permission-status')).toBe('granted')
+    expect(badge.text()).toBe('toolCall.badge.allowed')
+  })
+
+  it('renders the denied outcome inside the live delegation card', () => {
+    const wrapper = mount(MessageBlockToolCall, {
+      props: {
+        threadId: 'parent-1',
+        permissionStatus: 'denied',
+        block: createBlock({
+          status: 'error',
+          extra: { toolSource: 'agent' },
+          tool_call: {
+            id: 'spawn-1',
+            name: LIVE_DELEGATION_AGENT_TOOL_NAME,
+            server_name: LIVE_DELEGATION_AGENT_TOOL_SERVER_NAME,
+            params: JSON.stringify({
+              operation: 'spawn',
+              slotId: 'reviewer',
+              title: 'Review architecture',
+              prompt: 'Inspect module boundaries.'
+            }),
+            response: ''
+          }
+        })
+      }
+    })
+
+    const card = wrapper.get('[data-testid="live-delegation-tool-card-pending"]')
+    const badge = card.get('[data-testid="tool-call-permission-badge"]')
+    expect(badge.attributes('data-permission-status')).toBe('denied')
+    expect(badge.text()).toBe('toolCall.badge.denied')
   })
 })

@@ -1,4 +1,29 @@
 {
+  "notifications": {
+    "label": "Notifikasi",
+    "actionFailed": "Tindakan gagal. Coba lagi.",
+    "entities": "{count} terdampak",
+    "occurrences": "{count} kejadian",
+    "pending": "{count} lagi menunggu",
+    "mcpConnectionFailed": {
+      "title": "Tidak dapat terhubung ke {serverName}",
+      "description": "Periksa pengaturan server lalu coba lagi."
+    },
+    "mcpToolListFailed": {
+      "title": "Tidak dapat memuat alat dari {serverName}",
+      "description": "Server terhubung, tetapi alatnya tidak tersedia."
+    },
+    "providerDeeplinkFailed": {
+      "title": "Tidak dapat membuka penyiapan penyedia",
+      "reasons": {
+        "unsupported-version": "Versi tautan ini tidak didukung.",
+        "invalid-payload": "Tautan penyedia ini tidak valid.",
+        "provider-not-found": "Penyedia yang ditautkan tidak ditemukan.",
+        "unsupported-provider": "Penyedia ini tidak didukung.",
+        "settings-unavailable": "Pengaturan penyedia tidak dapat dibuka."
+      }
+    }
+  },
   "loading": "Memuat...",
   "copy": "Salin",
   "copied": "Disalin",
@@ -14,6 +39,7 @@
   "newChat": "sesi baru",
   "newTopic": "topik baru",
   "cancel": "Batalkan",
+  "retry": "Coba lagi",
   "confirm": "Konfirmasikan",
   "next": "Langkah selanjutnya",
   "back": "Langkah sebelumnya",
@@ -99,6 +125,9 @@
   "history": "sejarah",
   "minimize": "meminimalkan",
   "maximize": "maksimalkan",
+  "showValue": "Tampilkan",
+  "hideValue": "Sembunyikan",
+  "scrollToBottom": "Gulir ke bawah",
   "restore": "memulihkan",
   "browser": {
     "back": "Kembali",

@@ -54,7 +54,7 @@ import {
   SafetyCategoryKey,
   SafetySettingValue
 } from '@/lib/gemini'
-import type { LLM_PROVIDER } from '@shared/presenter'
+import type { LLM_PROVIDER } from '@shared/types/provider'
 import { reactive, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 const { t } = useI18n()

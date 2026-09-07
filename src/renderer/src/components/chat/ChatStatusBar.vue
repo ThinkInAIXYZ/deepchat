@@ -12,10 +12,9 @@
               :is-dark="themeStore.isDark"
             />
             <span class="truncate">{{ acpAgentLabel }}</span>
-            <Icon
+            <Spinner
               v-if="isAcpConfigLoading"
-              icon="lucide:loader-2"
-              class="acp-agent-loading-indicator h-3 w-3 shrink-0 animate-spin"
+              class="acp-agent-loading-indicator size-3 shrink-0"
             />
           </div>
 
@@ -26,7 +25,7 @@
             @update:open="onAcpInlineOptionOpenChange(option.id, $event)"
           >
             <PopoverTrigger as-child>
-              <Button
+              <DcButton
                 variant="ghost"
                 size="sm"
                 :title="getAcpOptionDisplayValue(option)"
@@ -36,7 +35,7 @@
               >
                 <span class="truncate">{{ getAcpOptionDisplayValue(option) }}</span>
                 <Icon icon="lucide:chevron-down" class="h-3 w-3 shrink-0" />
-              </Button>
+              </DcButton>
             </PopoverTrigger>
 
             <PopoverContent align="start" class="w-56 overflow-hidden p-0">
@@ -85,7 +84,7 @@
 
         <Popover v-else-if="showModelPopover" v-model:open="isModelPanelOpen">
           <PopoverTrigger as-child>
-            <Button
+            <DcButton
               data-testid="app-model-switcher"
               :data-selected-provider-id="effectiveModelSelection?.providerId ?? ''"
               :data-selected-model-id="effectiveModelSelection?.modelId ?? ''"
@@ -103,29 +102,17 @@
                 :is-dark="themeStore.isDark"
               />
               <span>{{ displayModelText }}</span>
-              <Icon
-                v-if="showModelOptionsLoading"
-                icon="lucide:loader-2"
-                class="h-3 w-3 animate-spin"
-              />
+              <Spinner v-if="showModelOptionsLoading" class="size-3" />
               <Icon v-else icon="lucide:chevron-down" class="w-3 h-3" />
-            </Button>
+            </DcButton>
           </PopoverTrigger>
 
           <PopoverContent
             align="start"
-            :class="[
-              'z-72 max-w-[calc(100vw-1rem)] overflow-hidden p-0',
-              isModelSettingsExpanded ? 'w-[38rem]' : 'w-[20rem]'
-            ]"
+            class="z-72 w-[20rem] max-w-[calc(100vw-1rem)] overflow-hidden p-0"
           >
             <div class="flex max-h-[28rem]">
-              <div
-                :class="[
-                  'flex min-w-0 flex-col',
-                  isModelSettingsExpanded ? 'w-[18rem] border-r' : 'w-full'
-                ]"
-              >
+              <div class="flex w-full min-w-0 flex-col">
                 <div v-if="isModelOptionsReady" class="border-b px-2.5 py-2">
                   <Input
                     data-model-search-input="true"
@@ -142,7 +129,7 @@
                     class="rounded-lg border border-dashed px-3 py-6 text-center text-xs text-muted-foreground"
                   >
                     <div class="flex items-center justify-center gap-2">
-                      <Icon icon="lucide:loader-2" class="h-3.5 w-3.5 animate-spin" />
+                      <Spinner class="size-3.5" />
                       <span>{{ t('common.loading') }}</span>
                     </div>
                   </div>
@@ -153,7 +140,7 @@
                     class="rounded-lg border border-dashed px-3 py-6 text-center text-xs text-muted-foreground"
                   >
                     <div>{{ t('model.error.loadFailed') }}</div>
-                    <Button
+                    <DcButton
                       type="button"
                       variant="outline"
                       size="sm"
@@ -161,7 +148,7 @@
                       @click="retryModelOptionsInitialization"
                     >
                       {{ t('settings.dashboard.rtk.actions.retry') }}
-                    </Button>
+                    </DcButton>
                   </div>
 
                   <div
@@ -187,7 +174,7 @@
                         <div
                           v-for="model in group.models"
                           :key="`${group.providerId}-${model.id}`"
-                          class="flex items-center gap-1"
+                          class="flex items-center"
                         >
                           <button
                             type="button"
@@ -209,54 +196,261 @@
                             />
                             <span class="min-w-0 flex-1 truncate font-medium">{{ model.id }}</span>
                           </button>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            class="h-8 w-8 shrink-0 p-0 text-muted-foreground hover:text-foreground"
-                            :aria-label="t('chat.advancedSettings.button')"
-                            :title="t('chat.advancedSettings.button')"
-                            @click.stop="openModelSettings(group.providerId, model.id)"
-                          >
-                            <Icon icon="lucide:chevron-right" class="h-3.5 w-3.5" />
-                          </Button>
                         </div>
                       </div>
                     </div>
                   </div>
                 </div>
               </div>
+            </div>
+          </PopoverContent>
+        </Popover>
 
-              <div v-if="isModelSettingsExpanded" class="flex w-[21rem] min-w-0 flex-col">
-                <div class="border-b px-3 py-3">
-                  <div class="flex items-start justify-between gap-3">
-                    <div class="min-w-0">
-                      <div class="text-sm font-medium">{{ t('settings.model.title') }}</div>
-                      <div class="mt-1 truncate text-xs font-medium">
-                        {{ modelSettingsModelName }}
-                      </div>
-                      <div class="truncate text-[11px] text-muted-foreground">
-                        {{ modelSettingsProviderText }}
-                      </div>
-                    </div>
+        <DcButton
+          v-else
+          variant="ghost"
+          size="sm"
+          class="h-6 px-2 gap-1 text-xs text-muted-foreground hover:text-foreground dc-blur-panel"
+          :disabled="true"
+        >
+          <ModelIcon
+            :model-id="displayIconId"
+            custom-class="w-3.5 h-3.5"
+            :is-dark="themeStore.isDark"
+          />
+          <span>{{ displayModelText }}</span>
+        </DcButton>
 
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      class="h-7 w-7 shrink-0 p-0 text-muted-foreground hover:text-foreground"
-                      :aria-label="t('common.close')"
-                      :title="t('common.close')"
-                      @click="collapseModelSettings"
-                    >
-                      <Icon icon="lucide:x" class="h-3.5 w-3.5" />
-                    </Button>
-                  </div>
+        <Popover v-if="showReasoningOrchestrationControl" v-model:open="isOrchestrationPanelOpen">
+          <PopoverTrigger as-child>
+            <DcButton
+              data-testid="orchestration-control"
+              variant="ghost"
+              size="sm"
+              :class="[
+                'h-6 gap-1 px-2 text-xs dc-blur-panel',
+                proactiveCollaborationEnabled
+                  ? 'bg-violet-500/10 text-violet-600 ring-1 ring-inset ring-violet-500/30 hover:bg-violet-500/15 hover:text-violet-700 dark:text-violet-300 dark:hover:text-violet-200'
+                  : 'text-muted-foreground hover:text-foreground'
+              ]"
+              :tooltip="orchestrationControlTitle"
+              :aria-label="orchestrationControlTitle"
+              :aria-pressed="proactiveCollaborationEnabled"
+            >
+              <Icon
+                v-if="proactiveCollaborationEnabled"
+                icon="lucide:git-fork"
+                class="h-3.5 w-3.5 shrink-0"
+              />
+              <span>{{ reasoningEffortDisplayLabel }}</span>
+              <Icon icon="lucide:chevron-down" class="h-3 w-3" />
+            </DcButton>
+          </PopoverTrigger>
+
+          <PopoverContent align="start" class="w-[19rem] overflow-hidden p-0">
+            <div class="px-2 py-2">
+              <div v-if="showReasoningEffort && effortOptions.length > 0">
+                <div class="px-2 pb-1 text-[11px] font-medium text-muted-foreground">
+                  {{ t('settings.model.modelConfig.reasoningEffort.label') }}
                 </div>
+                <div class="space-y-0.5">
+                  <button
+                    v-for="option in effortOptions"
+                    :key="option.value"
+                    type="button"
+                    :data-reasoning-effort="option.value"
+                    :class="[
+                      'flex w-full items-center rounded-md px-2 py-1.5 text-left text-xs transition-colors',
+                      effectiveReasoningEffortValue === option.value
+                        ? 'bg-muted/60 text-foreground'
+                        : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground'
+                    ]"
+                    @click="onReasoningEffortSelect(option.value)"
+                  >
+                    <span class="flex-1">{{ option.label }}</span>
+                    <Icon
+                      v-if="effectiveReasoningEffortValue === option.value"
+                      icon="lucide:check"
+                      class="h-3.5 w-3.5"
+                    />
+                  </button>
+                </div>
+              </div>
+              <div v-else class="px-2 py-1.5 text-xs text-muted-foreground">
+                {{ t('chat.advancedSettings.useDefault') }}
+              </div>
+            </div>
 
-                <div class="dc-overscroll-contain max-h-[24rem] overflow-y-auto px-3 py-3">
+            <div v-if="showOrchestrationControl" class="border-t px-3 py-3">
+              <div class="flex items-center justify-between gap-3">
+                <div class="flex min-w-0 items-center gap-2">
+                  <Icon icon="lucide:git-fork" class="h-4 w-4 shrink-0" />
+                  <span class="text-sm font-medium">{{
+                    t('chat.orchestration.proactive.title')
+                  }}</span>
+                </div>
+                <Switch
+                  data-testid="proactive-collaboration-toggle"
+                  :model-value="proactiveCollaborationEnabled"
+                  :disabled="proactiveSwitchDisabled"
+                  :aria-label="t('chat.orchestration.proactive.title')"
+                  @update:model-value="onProactiveCollaborationToggle(Boolean($event))"
+                />
+              </div>
+              <p class="mt-1.5 text-[11px] leading-relaxed text-muted-foreground">
+                {{ t('chat.orchestration.proactive.description') }}
+              </p>
+              <p
+                v-if="orchestrationCapabilityMessage"
+                data-testid="orchestration-capability-message"
+                class="mt-1.5 text-[11px] leading-relaxed text-amber-600 dark:text-amber-400"
+              >
+                {{ orchestrationCapabilityMessage }}
+              </p>
+            </div>
+          </PopoverContent>
+        </Popover>
+      </div>
+
+      <div class="flex items-center gap-1">
+        <div
+          v-if="contextOccupancy"
+          data-testid="context-occupancy"
+          :data-freshness="contextOccupancy.freshness"
+          :data-source="contextOccupancy.source"
+          :title="contextOccupancyTitle"
+          :aria-label="contextOccupancyTitle"
+          class="flex h-6 items-center gap-1.5 px-2 text-xs text-muted-foreground dc-blur-panel"
+        >
+          <Icon icon="lucide:gauge" class="h-3.5 w-3.5 shrink-0" />
+          <span class="h-1 w-8 overflow-hidden rounded-full bg-muted">
+            <span
+              :class="['block h-full rounded-full', contextOccupancyFillClass]"
+              :style="{ width: contextOccupancyFillWidth }"
+            />
+          </span>
+          <span class="tabular-nums">{{ contextOccupancyPercent }}</span>
+          <Icon
+            v-if="contextOccupancy.freshness === 'stale'"
+            icon="lucide:clock-3"
+            class="h-3 w-3 shrink-0 opacity-70"
+          />
+        </div>
+
+        <Popover v-if="isAcpAgent && acpOverflowOptions.length > 0">
+          <PopoverTrigger as-child>
+            <DcButton
+              variant="ghost"
+              size="sm"
+              class="acp-overflow-button h-6 w-6 px-0 text-xs text-muted-foreground hover:text-foreground dc-blur-panel"
+              :tooltip="t('chat.advancedSettings.button')"
+              :aria-label="t('chat.advancedSettings.button')"
+            >
+              <Icon icon="lucide:settings-2" class="h-3.5 w-3.5" />
+            </DcButton>
+          </PopoverTrigger>
+
+          <PopoverContent align="end" class="w-[18rem] p-0">
+            <div class="border-b px-3 py-3">
+              <div class="text-sm font-medium">{{ t('chat.advancedSettings.title') }}</div>
+            </div>
+
+            <div class="dc-overscroll-contain max-h-[24rem] space-y-3 overflow-y-auto px-3 py-3">
+              <div
+                v-for="option in acpOverflowOptions"
+                :key="option.id"
+                :data-option-id="option.id"
+                class="acp-overflow-option flex items-center justify-between gap-3"
+              >
+                <label class="min-w-0 flex-1 truncate text-xs font-medium">
+                  {{ option.label }}
+                </label>
+
+                <Select
+                  v-if="option.type === 'select'"
+                  :model-value="String(option.currentValue)"
+                  @update:model-value="onAcpSelectOption(option.id, $event as string)"
+                >
+                  <SelectTrigger
+                    :disabled="acpConfigReadOnly || isAcpOptionSaving(option.id)"
+                    class="h-8 w-[9rem] text-xs"
+                    :aria-label="option.label"
+                  >
+                    <span class="truncate">{{ getAcpOptionDisplayValue(option) }}</span>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem
+                      v-for="entry in option.options ?? []"
+                      :key="`${option.id}-${entry.value}`"
+                      :value="entry.value"
+                    >
+                      {{ entry.value }}
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+
+                <DcButton
+                  v-else
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  class="h-8 min-w-[6rem] text-xs"
+                  :disabled="acpConfigReadOnly || isAcpOptionSaving(option.id)"
+                  :aria-label="option.label"
+                  @click="onAcpBooleanOption(option.id, !Boolean(option.currentValue))"
+                >
+                  <span class="truncate">{{ getAcpOptionDisplayValue(option) }}</span>
+                </DcButton>
+              </div>
+            </div>
+          </PopoverContent>
+        </Popover>
+
+        <SessionSettingsPopover
+          :show-system-prompt-section="showSystemPromptSection"
+          :system-prompt-options="systemPromptMenuOptions"
+          :selected-system-prompt-id="selectedSystemPromptId"
+          :show-custom-system-prompt-badge="selectedSystemPromptId === '__custom__'"
+          :subagents-available="orchestrationCapability?.available === true"
+          @select-system-prompt="onSystemPromptSelect"
+          @open-change="handleSessionPanelOpenChange"
+        >
+          <template #generation-settings>
+            <Collapsible
+              v-if="!isAcpAgent && generationSettingsModel"
+              v-model:open="isGenerationSettingsExpanded"
+              class="border-b"
+            >
+              <CollapsibleTrigger as-child>
+                <button
+                  type="button"
+                  data-testid="generation-settings-trigger"
+                  class="flex w-full items-center gap-3 px-3 py-3 text-left transition-colors hover:bg-muted/40"
+                >
+                  <Icon
+                    icon="lucide:sliders-horizontal"
+                    class="h-4 w-4 shrink-0 text-muted-foreground"
+                  />
+                  <span class="min-w-0 flex-1">
+                    <span class="block text-xs font-medium">{{ t('settings.model.title') }}</span>
+                    <span class="block truncate text-[11px] text-muted-foreground">
+                      {{ generationSettingsModelText }}
+                    </span>
+                  </span>
+                  <Icon
+                    icon="lucide:chevron-down"
+                    :class="[
+                      'h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform',
+                      isGenerationSettingsExpanded ? 'rotate-180' : ''
+                    ]"
+                  />
+                </button>
+              </CollapsibleTrigger>
+
+              <CollapsibleContent>
+                <div class="space-y-4 px-3 pb-3 pt-1">
                   <div
-                    v-if="!isModelSettingsReady"
+                    v-if="!isGenerationSettingsReady"
                     class="rounded-lg border border-dashed px-3 py-6 text-center text-xs text-muted-foreground"
                   >
                     {{ t('common.loading') }}
@@ -264,6 +458,10 @@
 
                   <div v-else-if="localSettings" class="space-y-4">
                     <TooltipProvider :delay-duration="200">
+                      <GenerationParameterLoadingSkeleton
+                        v-if="temperatureControl.mode === 'loading'"
+                      />
+
                       <div
                         v-if="!showOpenAIMediaGenerationSettings && showTemperatureControl"
                         class="space-y-1.5"
@@ -272,7 +470,7 @@
                           t('chat.advancedSettings.temperature')
                         }}</label>
                         <div class="flex items-center gap-2">
-                          <Button
+                          <DcButton
                             variant="outline"
                             size="icon"
                             class="h-8 w-8 shrink-0"
@@ -283,13 +481,16 @@
                                 label: t('chat.advancedSettings.temperature')
                               })
                             "
-                            :disabled="
-                              isMoonshotKimiTemperatureLocked || hasNumericInputError('temperature')
-                            "
+                            :disabled="isTemperatureFixed || hasNumericInputError('temperature')"
                             @click="stepTemperature(-1)"
+                            :tooltip="
+                              t('chat.advancedSettings.decreaseValue', {
+                                label: t('chat.advancedSettings.temperature')
+                              })
+                            "
                           >
                             <Icon icon="lucide:minus" class="h-3 w-3" />
-                          </Button>
+                          </DcButton>
                           <Input
                             :class="[
                               'h-8 flex-1 text-xs tabular-nums',
@@ -298,7 +499,7 @@
                             data-setting-control="temperature"
                             type="number"
                             :step="TEMPERATURE_STEP"
-                            :disabled="isMoonshotKimiTemperatureLocked"
+                            :disabled="isTemperatureFixed"
                             :aria-invalid="hasNumericInputError('temperature')"
                             :model-value="temperatureInputValue"
                             @focus="startNumericInputEdit('temperature')"
@@ -306,7 +507,7 @@
                             @blur="commitTemperatureInput"
                             @keydown.enter.prevent="commitTemperatureInput"
                           />
-                          <Button
+                          <DcButton
                             variant="outline"
                             size="icon"
                             class="h-8 w-8 shrink-0"
@@ -317,19 +518,19 @@
                                 label: t('chat.advancedSettings.temperature')
                               })
                             "
-                            :disabled="
-                              isMoonshotKimiTemperatureLocked || hasNumericInputError('temperature')
-                            "
+                            :disabled="isTemperatureFixed || hasNumericInputError('temperature')"
                             @click="stepTemperature(1)"
+                            :tooltip="
+                              t('chat.advancedSettings.increaseValue', {
+                                label: t('chat.advancedSettings.temperature')
+                              })
+                            "
                           >
                             <Icon icon="lucide:plus" class="h-3 w-3" />
-                          </Button>
+                          </DcButton>
                         </div>
-                        <p
-                          v-if="moonshotKimiTemperatureHint"
-                          class="text-[11px] text-muted-foreground"
-                        >
-                          {{ moonshotKimiTemperatureHint }}
+                        <p v-if="temperaturePolicyHint" class="text-[11px] text-muted-foreground">
+                          {{ temperaturePolicyHint }}
                         </p>
                         <p
                           v-if="getNumericInputErrorMessage('temperature')"
@@ -364,7 +565,7 @@
                           </Tooltip>
                         </div>
                         <div class="flex items-center gap-2">
-                          <Button
+                          <DcButton
                             variant="outline"
                             size="icon"
                             class="h-8 w-8 shrink-0"
@@ -375,11 +576,18 @@
                                 label: t('chat.advancedSettings.topP')
                               })
                             "
-                            :disabled="hasNumericInputError('topP') || topPDecreaseDisabled"
+                            :disabled="
+                              isTopPFixed || hasNumericInputError('topP') || topPDecreaseDisabled
+                            "
                             @click="stepTopP(-1)"
+                            :tooltip="
+                              t('chat.advancedSettings.decreaseValue', {
+                                label: t('chat.advancedSettings.topP')
+                              })
+                            "
                           >
                             <Icon icon="lucide:minus" class="h-3 w-3" />
-                          </Button>
+                          </DcButton>
                           <Input
                             :class="[
                               'h-8 flex-1 text-xs tabular-nums',
@@ -390,6 +598,7 @@
                             :step="TOP_P_STEP"
                             :min="TOP_P_MIN"
                             :max="TOP_P_MAX"
+                            :disabled="isTopPFixed"
                             :aria-invalid="hasNumericInputError('topP')"
                             :placeholder="t('chat.advancedSettings.useDefault')"
                             :model-value="topPInputValue"
@@ -398,7 +607,7 @@
                             @blur="commitTopPInput"
                             @keydown.enter.prevent="commitTopPInput"
                           />
-                          <Button
+                          <DcButton
                             variant="outline"
                             size="icon"
                             class="h-8 w-8 shrink-0"
@@ -409,12 +618,22 @@
                                 label: t('chat.advancedSettings.topP')
                               })
                             "
-                            :disabled="hasNumericInputError('topP') || topPIncreaseDisabled"
+                            :disabled="
+                              isTopPFixed || hasNumericInputError('topP') || topPIncreaseDisabled
+                            "
                             @click="stepTopP(1)"
+                            :tooltip="
+                              t('chat.advancedSettings.increaseValue', {
+                                label: t('chat.advancedSettings.topP')
+                              })
+                            "
                           >
                             <Icon icon="lucide:plus" class="h-3 w-3" />
-                          </Button>
+                          </DcButton>
                         </div>
+                        <p v-if="topPPolicyHint" class="text-[11px] text-muted-foreground">
+                          {{ topPPolicyHint }}
+                        </p>
                         <p
                           v-if="getNumericInputErrorMessage('topP')"
                           class="text-[11px] text-destructive"
@@ -428,7 +647,7 @@
                           t('chat.advancedSettings.contextLength')
                         }}</label>
                         <div class="flex items-center gap-2">
-                          <Button
+                          <DcButton
                             variant="outline"
                             size="icon"
                             class="h-8 w-8 shrink-0"
@@ -444,9 +663,14 @@
                               localSettings.contextLength <= 0
                             "
                             @click="stepContextLength(-1)"
+                            :tooltip="
+                              t('chat.advancedSettings.decreaseValue', {
+                                label: t('chat.advancedSettings.contextLength')
+                              })
+                            "
                           >
                             <Icon icon="lucide:minus" class="h-3 w-3" />
-                          </Button>
+                          </DcButton>
                           <Input
                             :class="[
                               'h-8 flex-1 text-xs tabular-nums',
@@ -462,7 +686,7 @@
                             @blur="commitContextLengthInput"
                             @keydown.enter.prevent="commitContextLengthInput"
                           />
-                          <Button
+                          <DcButton
                             variant="outline"
                             size="icon"
                             class="h-8 w-8 shrink-0"
@@ -475,9 +699,14 @@
                             "
                             :disabled="hasNumericInputError('contextLength')"
                             @click="stepContextLength(1)"
+                            :tooltip="
+                              t('chat.advancedSettings.increaseValue', {
+                                label: t('chat.advancedSettings.contextLength')
+                              })
+                            "
                           >
                             <Icon icon="lucide:plus" class="h-3 w-3" />
-                          </Button>
+                          </DcButton>
                         </div>
                         <p
                           v-if="getNumericInputErrorMessage('contextLength')"
@@ -492,7 +721,7 @@
                           t('chat.advancedSettings.maxTokens')
                         }}</label>
                         <div class="flex items-center gap-2">
-                          <Button
+                          <DcButton
                             variant="outline"
                             size="icon"
                             class="h-8 w-8 shrink-0"
@@ -507,9 +736,14 @@
                               hasNumericInputError('maxTokens') || localSettings.maxTokens <= 0
                             "
                             @click="stepMaxTokens(-1)"
+                            :tooltip="
+                              t('chat.advancedSettings.decreaseValue', {
+                                label: t('chat.advancedSettings.maxTokens')
+                              })
+                            "
                           >
                             <Icon icon="lucide:minus" class="h-3 w-3" />
-                          </Button>
+                          </DcButton>
                           <Input
                             :class="[
                               'h-8 flex-1 text-xs tabular-nums',
@@ -525,7 +759,7 @@
                             @blur="commitMaxTokensInput"
                             @keydown.enter.prevent="commitMaxTokensInput"
                           />
-                          <Button
+                          <DcButton
                             variant="outline"
                             size="icon"
                             class="h-8 w-8 shrink-0"
@@ -538,9 +772,14 @@
                             "
                             :disabled="hasNumericInputError('maxTokens')"
                             @click="stepMaxTokens(1)"
+                            :tooltip="
+                              t('chat.advancedSettings.increaseValue', {
+                                label: t('chat.advancedSettings.maxTokens')
+                              })
+                            "
                           >
                             <Icon icon="lucide:plus" class="h-3 w-3" />
-                          </Button>
+                          </DcButton>
                         </div>
                         <p
                           v-if="getNumericInputErrorMessage('maxTokens')"
@@ -555,7 +794,7 @@
                           t('settings.model.modelConfig.timeout.label')
                         }}</label>
                         <div class="flex items-center gap-2">
-                          <Button
+                          <DcButton
                             variant="outline"
                             size="icon"
                             class="h-8 w-8 shrink-0"
@@ -571,9 +810,14 @@
                               (localSettings.timeout ?? 0) <= TIMEOUT_MIN
                             "
                             @click="stepTimeout(-1)"
+                            :tooltip="
+                              t('chat.advancedSettings.decreaseValue', {
+                                label: t('settings.model.modelConfig.timeout.label')
+                              })
+                            "
                           >
                             <Icon icon="lucide:minus" class="h-3 w-3" />
-                          </Button>
+                          </DcButton>
                           <Input
                             :class="[
                               'h-8 flex-1 text-xs tabular-nums',
@@ -591,7 +835,7 @@
                             @blur="commitTimeoutInput"
                             @keydown.enter.prevent="commitTimeoutInput"
                           />
-                          <Button
+                          <DcButton
                             variant="outline"
                             size="icon"
                             class="h-8 w-8 shrink-0"
@@ -609,7 +853,7 @@
                             @click="stepTimeout(1)"
                           >
                             <Icon icon="lucide:plus" class="h-3 w-3" />
-                          </Button>
+                          </DcButton>
                         </div>
                         <p
                           v-if="getNumericInputErrorMessage('timeout')"
@@ -632,36 +876,6 @@
                         :model-value="localSettings.videoGeneration"
                         @update:model-value="onVideoGenerationSettingsUpdate"
                       />
-
-                      <div
-                        v-if="!showOpenAIMediaGenerationSettings && showReasoningEffort"
-                        class="space-y-1.5"
-                      >
-                        <label class="text-xs font-medium">{{
-                          t('settings.model.modelConfig.reasoningEffort.label')
-                        }}</label>
-                        <Select
-                          :model-value="localSettings.reasoningEffort ?? effortOptions[0]?.value"
-                          @update:model-value="onReasoningEffortSelect($event as string)"
-                        >
-                          <SelectTrigger class="h-8 text-xs">
-                            <SelectValue
-                              :placeholder="
-                                t('settings.model.modelConfig.reasoningEffort.placeholder')
-                              "
-                            />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem
-                              v-for="option in effortOptions"
-                              :key="option.value"
-                              :value="option.value"
-                            >
-                              {{ option.label }}
-                            </SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
 
                       <div
                         v-if="!showOpenAIMediaGenerationSettings && showReasoningVisibility"
@@ -752,7 +966,7 @@
                           </div>
                         </div>
                         <div v-if="isThinkingBudgetEnabled" class="flex items-center gap-2">
-                          <Button
+                          <DcButton
                             variant="outline"
                             size="icon"
                             class="h-8 w-8 shrink-0"
@@ -768,9 +982,14 @@
                               (localSettings.thinkingBudget ?? 0) <= 0
                             "
                             @click="stepThinkingBudget(-1)"
+                            :tooltip="
+                              t('chat.advancedSettings.decreaseValue', {
+                                label: t('chat.advancedSettings.thinkingBudget')
+                              })
+                            "
                           >
                             <Icon icon="lucide:minus" class="h-3 w-3" />
-                          </Button>
+                          </DcButton>
                           <Input
                             :class="[
                               'h-8 flex-1 text-xs tabular-nums',
@@ -786,7 +1005,7 @@
                             @blur="commitThinkingBudgetInput"
                             @keydown.enter.prevent="commitThinkingBudgetInput"
                           />
-                          <Button
+                          <DcButton
                             variant="outline"
                             size="icon"
                             class="h-8 w-8 shrink-0"
@@ -799,9 +1018,14 @@
                             "
                             :disabled="hasNumericInputError('thinkingBudget')"
                             @click="stepThinkingBudget(1)"
+                            :tooltip="
+                              t('chat.advancedSettings.increaseValue', {
+                                label: t('chat.advancedSettings.thinkingBudget')
+                              })
+                            "
                           >
                             <Icon icon="lucide:plus" class="h-3 w-3" />
-                          </Button>
+                          </DcButton>
                         </div>
                         <p
                           v-if="getNumericInputErrorMessage('thinkingBudget')"
@@ -838,111 +1062,14 @@
                     </TooltipProvider>
                   </div>
                 </div>
-              </div>
-            </div>
-          </PopoverContent>
-        </Popover>
-
-        <Button
-          v-else
-          variant="ghost"
-          size="sm"
-          class="h-6 px-2 gap-1 text-xs text-muted-foreground hover:text-foreground dc-blur-panel"
-          :disabled="true"
-        >
-          <ModelIcon
-            :model-id="displayIconId"
-            custom-class="w-3.5 h-3.5"
-            :is-dark="themeStore.isDark"
-          />
-          <span>{{ displayModelText }}</span>
-        </Button>
-      </div>
-
-      <div class="flex items-center gap-1">
-        <Popover v-if="isAcpAgent && acpOverflowOptions.length > 0">
-          <PopoverTrigger as-child>
-            <Button
-              variant="ghost"
-              size="sm"
-              class="acp-overflow-button h-6 w-6 px-0 text-xs text-muted-foreground hover:text-foreground dc-blur-panel"
-              :title="t('chat.advancedSettings.button')"
-              :aria-label="t('chat.advancedSettings.button')"
-            >
-              <Icon icon="lucide:settings-2" class="h-3.5 w-3.5" />
-            </Button>
-          </PopoverTrigger>
-
-          <PopoverContent align="end" class="w-[18rem] p-0">
-            <div class="border-b px-3 py-3">
-              <div class="text-sm font-medium">{{ t('chat.advancedSettings.title') }}</div>
-            </div>
-
-            <div class="dc-overscroll-contain max-h-[24rem] space-y-3 overflow-y-auto px-3 py-3">
-              <div
-                v-for="option in acpOverflowOptions"
-                :key="option.id"
-                :data-option-id="option.id"
-                class="acp-overflow-option flex items-center justify-between gap-3"
-              >
-                <label class="min-w-0 flex-1 truncate text-xs font-medium">
-                  {{ option.label }}
-                </label>
-
-                <Select
-                  v-if="option.type === 'select'"
-                  :model-value="String(option.currentValue)"
-                  @update:model-value="onAcpSelectOption(option.id, $event as string)"
-                >
-                  <SelectTrigger
-                    :disabled="acpConfigReadOnly || isAcpOptionSaving(option.id)"
-                    class="h-8 w-[9rem] text-xs"
-                  >
-                    <span class="truncate">{{ getAcpOptionDisplayValue(option) }}</span>
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem
-                      v-for="entry in option.options ?? []"
-                      :key="`${option.id}-${entry.value}`"
-                      :value="entry.value"
-                    >
-                      {{ entry.value }}
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-
-                <Button
-                  v-else
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  class="h-8 min-w-[6rem] text-xs"
-                  :disabled="acpConfigReadOnly || isAcpOptionSaving(option.id)"
-                  @click="onAcpBooleanOption(option.id, !Boolean(option.currentValue))"
-                >
-                  <span class="truncate">{{ getAcpOptionDisplayValue(option) }}</span>
-                </Button>
-              </div>
-            </div>
-          </PopoverContent>
-        </Popover>
-
-        <McpIndicator
-          :show-system-prompt-section="showSystemPromptSection"
-          :system-prompt-options="systemPromptMenuOptions"
-          :selected-system-prompt-id="selectedSystemPromptId"
-          :show-custom-system-prompt-badge="selectedSystemPromptId === '__custom__'"
-          :show-subagent-toggle="showSubagentToggle"
-          :subagent-enabled="subagentEnabled"
-          :subagent-toggle-pending="isSubagentToggleUpdating"
-          @select-system-prompt="onSystemPromptSelect"
-          @open-change="handleSessionPanelOpenChange"
-          @toggle-subagents="onSubagentToggle"
-        />
+              </CollapsibleContent>
+            </Collapsible>
+          </template>
+        </SessionSettingsPopover>
 
         <DropdownMenu v-if="!isAcpAgent">
           <DropdownMenuTrigger as-child>
-            <Button
+            <DcButton
               variant="ghost"
               size="sm"
               :class="[
@@ -957,7 +1084,7 @@
               <Icon :icon="permissionIcon" class="w-3.5 h-3.5" />
               <span>{{ permissionModeLabel }}</span>
               <Icon icon="lucide:chevron-down" class="w-3 h-3" />
-            </Button>
+            </DcButton>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" class="min-w-48">
             <DropdownMenuItem
@@ -985,7 +1112,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -1008,24 +1135,23 @@ import {
   SelectValue
 } from '@shadcn/components/ui/select'
 import { Switch } from '@shadcn/components/ui/switch'
-import type { ModelConfig, RENDERER_MODEL_META, SystemPrompt } from '@shared/presenter'
+import { Spinner } from '@shadcn/components/ui/spinner'
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger
+} from '@shadcn/components/ui/collapsible'
+import type { SystemPrompt } from '@shared/types/prompt'
+import type { ModelConfig, RENDERER_MODEL_META } from '@shared/types/provider'
 import type {
   DeepChatAgentConfig,
   PermissionMode,
   SessionGenerationSettings
 } from '@shared/types/agent-interface'
 import { normalizeDeepChatSubagentConfig } from '@shared/lib/deepchatSubagents'
-import { isNewApiEndpointType, resolveProviderCapabilityProviderId } from '@shared/model'
-import {
-  MOONSHOT_KIMI_THINKING_DISABLED_TEMPERATURE,
-  MOONSHOT_KIMI_THINKING_ENABLED_TEMPERATURE,
-  getMoonshotKimiTemperaturePolicy,
-  resolveMoonshotKimiTemperaturePolicy
-} from '@shared/moonshotKimiPolicy'
 import {
   getReasoningEffectiveEnabledForProvider,
   hasAnthropicReasoningToggle,
-  type AnthropicReasoningVisibility,
   type ReasoningPortrait
 } from '@shared/types/model-db'
 import {
@@ -1061,7 +1187,7 @@ import {
   supportsVerbosity
 } from './composables/chatStatusBarReasoningOptions'
 import { useGenerationNumericInputs } from './composables/useGenerationNumericInputs'
-import McpIndicator from '@/components/chat-input/McpIndicator.vue'
+import SessionSettingsPopover from '@/components/chat-input/McpIndicator.vue'
 import ModelIcon from '@/components/icons/ModelIcon.vue'
 import OpenAIImageGenerationSettingsFields from '@/components/settings/OpenAIImageGenerationSettingsFields.vue'
 import OpenAIVideoGenerationSettingsFields from '@/components/settings/OpenAIVideoGenerationSettingsFields.vue'
@@ -1070,6 +1196,7 @@ import { createModelClient } from '@api/ModelClient'
 import { createOnboardingClient } from '@api/OnboardingClient'
 import { createProviderClient } from '@api/ProviderClient'
 import { createSessionClient } from '@api/SessionClient'
+import { createOrchestrationClient } from '@api/OrchestrationClient'
 import { requestGuidedOnboardingResume } from '@/lib/onboardingResume'
 import { useModelStore } from '@/stores/modelStore'
 import { useProviderStore } from '@/stores/providerStore'
@@ -1080,6 +1207,12 @@ import { useProjectStore } from '@/stores/ui/project'
 import { useSessionStore } from '@/stores/ui/session'
 import { scheduleStartupDeferredTask } from '@/lib/startupDeferred'
 import { useChatStatusBarAcpConfig } from './composables/useChatStatusBarAcpConfig'
+import GenerationParameterLoadingSkeleton from '@/components/GenerationParameterLoadingSkeleton.vue'
+import {
+  useModelCapabilities,
+  type RendererModelCapabilities
+} from '@/composables/useModelCapabilities'
+import type { OrchestrationCapability } from '@shared/orchestration/policy'
 
 const props = withDefaults(
   defineProps<{
@@ -1139,26 +1272,35 @@ const modelClient = createModelClient()
 const onboardingClient = createOnboardingClient()
 const providerClient = createProviderClient()
 const sessionClient = createSessionClient()
-const { t } = useI18n()
+const orchestrationClient = createOrchestrationClient()
+const { locale, t } = useI18n()
 
 const draftModelSelection = ref<ModelSelection | null>(null)
 const permissionMode = ref<PermissionMode>('full_access')
-const subagentEnabled = ref(false)
 const localSettings = ref<SessionGenerationSettings | null>(null)
 const loadedSettingsSelection = ref<ModelSelection | null>(null)
 const systemPromptList = ref<SystemPrompt[]>([])
 const isModelPanelOpen = ref(false)
-const isModelSettingsExpanded = ref(false)
+const isOrchestrationPanelOpen = ref(false)
+const orchestrationCapability = ref<OrchestrationCapability | null>(null)
+const isOrchestrationCapabilityLoading = ref(false)
+const orchestrationCapabilityLoadFailed = ref(false)
+const isOrchestrationPolicySaving = ref(false)
+const isGenerationSettingsExpanded = ref(false)
 const modelSearchKeyword = ref('')
-const modelSettingsSelection = ref<ModelSelection | null>(null)
-const modelSettingsTargetConfig = ref<ModelConfig | null>(null)
-const modelSettingsTargetConfigSelection = ref<ModelSelection | null>(null)
-let modelSettingsTargetConfigToken = 0
+const generationSettingsModelConfigState = ref<ModelConfig | null>(null)
+const generationSettingsModelConfigSelection = ref<ModelSelection | null>(null)
+let generationSettingsModelConfigToken = 0
 
-const capabilitySupportsReasoning = ref<boolean | null>(null)
-const capabilityReasoningPortrait = ref<ReasoningPortrait | null>(null)
-const capabilitySupportsTemperature = ref<boolean | null>(null)
-const capabilityProviderId = ref('')
+const modelCapabilities = useModelCapabilities()
+const capabilityReasoningPortrait = computed(
+  () => modelCapabilities.reasoningPortrait.value as ReasoningPortrait | null
+)
+const capabilitySupportsReasoning = computed(() => modelCapabilities.supportsReasoning.value)
+const capabilityProviderId = computed(
+  () =>
+    modelCapabilities.identity.value?.providerId ?? effectiveModelSelection.value?.providerId ?? ''
+)
 
 let draftModelSyncToken = 0
 let permissionSyncToken = 0
@@ -1168,9 +1310,10 @@ let generationPersistTimer: ReturnType<typeof setTimeout> | null = null
 let pendingGenerationPatch: Partial<SessionGenerationSettings> = {}
 let generationPersistRequestToken = 0
 let generationLocalRevision = 0
+let orchestrationCapabilityRequestToken = 0
+let orchestrationPolicyRequestToken = 0
 let unsubscribeAcpConfigOptionsReady: (() => void) | null = null
 let cancelAcpConfigSyncTask: (() => void) | null = null
-const isSubagentToggleUpdating = ref(false)
 
 const {
   numericInputDrafts,
@@ -1238,11 +1381,110 @@ const selectedDeepChatAgentId = computed(() => {
   return agentStore.selectedAgentId ?? 'deepchat'
 })
 
+type OrchestrationCapabilityTarget = { sessionId: string } | { agentId: string }
+
+const executionAgentType = computed(() => {
+  if (hasActiveSession.value) {
+    return inferAgentType(sessionStore.activeSession?.agentId)
+  }
+  return selectedAgentType.value
+})
+const showOrchestrationControl = computed(() => executionAgentType.value === 'deepchat')
+const orchestrationCapabilityTarget = computed<OrchestrationCapabilityTarget | null>(() => {
+  if (!showOrchestrationControl.value) {
+    return null
+  }
+  const sessionId = sessionStore.activeSessionId?.trim()
+  if (sessionId) {
+    return { sessionId }
+  }
+  const agentId = selectedDeepChatAgentId.value?.trim()
+  return agentId ? { agentId } : null
+})
+const orchestrationCapabilityTargetKey = computed(() => {
+  const target = orchestrationCapabilityTarget.value
+  if (!target) {
+    return null
+  }
+  return 'sessionId' in target ? `session:${target.sessionId}` : `agent:${target.agentId}`
+})
+const proactiveCollaborationEnabled = computed(() =>
+  hasActiveSession.value
+    ? sessionStore.activeSession?.orchestrationPolicy === 'proactive'
+    : draftStore.orchestrationPolicy === 'proactive'
+)
+const proactiveSwitchDisabled = computed(
+  () =>
+    isOrchestrationPolicySaving.value ||
+    (!proactiveCollaborationEnabled.value &&
+      (isOrchestrationCapabilityLoading.value ||
+        orchestrationCapabilityLoadFailed.value ||
+        orchestrationCapability.value?.available !== true))
+)
+const orchestrationCapabilityMessage = computed(() => {
+  if (orchestrationCapabilityLoadFailed.value) {
+    return t('chat.orchestration.proactive.reasons.agent_policy_unavailable')
+  }
+  const capability = orchestrationCapability.value
+  if (capability && !capability.available) {
+    return t(`chat.orchestration.proactive.reasons.${capability.reason}`)
+  }
+  return ''
+})
+
 const isAcpAgent = computed(() => {
   if (hasActiveSession.value) {
     return sessionStore.activeSession?.providerId === 'acp'
   }
   return selectedAgentType.value === 'acp'
+})
+
+const contextOccupancy = computed(() => {
+  const snapshot = sessionStore.activeContextOccupancy
+  return hasActiveSession.value &&
+    executionAgentType.value === 'deepchat' &&
+    snapshot?.freshness !== 'unavailable'
+    ? snapshot
+    : null
+})
+const contextOccupancyRatio = computed(() => {
+  const snapshot = contextOccupancy.value
+  return snapshot ? snapshot.occupiedTokens / snapshot.contextWindowTokens : 0
+})
+const contextOccupancyPercent = computed(() => {
+  const snapshot = contextOccupancy.value
+  if (snapshot?.freshness === 'stale') return '—'
+  const percent = `${Math.max(0, Math.round(contextOccupancyRatio.value * 100))}%`
+  return snapshot?.source === 'estimated' ? `≈${percent}` : percent
+})
+const contextOccupancyFillWidth = computed(() =>
+  contextOccupancy.value?.freshness === 'stale'
+    ? '0%'
+    : `${Math.min(100, Math.max(0, contextOccupancyRatio.value * 100))}%`
+)
+const contextOccupancyFillClass = computed(() => {
+  if (contextOccupancy.value?.freshness === 'stale') return 'bg-muted-foreground/40'
+  if (contextOccupancyRatio.value >= 1) return 'bg-destructive'
+  if (contextOccupancyRatio.value >= 0.8) return 'bg-amber-500'
+  return 'bg-primary/70'
+})
+const contextOccupancyNumberFormatter = computed(
+  () =>
+    new Intl.NumberFormat(locale.value, {
+      notation: 'compact',
+      maximumFractionDigits: 1
+    })
+)
+const contextOccupancyTitle = computed(() => {
+  const snapshot = contextOccupancy.value
+  if (!snapshot) return ''
+  const details = t('chat.contextOccupancy.details', {
+    used: contextOccupancyNumberFormatter.value.format(snapshot.occupiedTokens),
+    capacity: contextOccupancyNumberFormatter.value.format(snapshot.contextWindowTokens)
+  })
+  const source = t(`chat.contextOccupancy.${snapshot.source}`)
+  const stale = snapshot.freshness === 'stale' ? ` · ${t('chat.contextOccupancy.stale')}` : ''
+  return `${t('chat.contextOccupancy.label')}: ${details} · ${source}${stale}`
 })
 
 const activeAcpAgentId = computed(() => {
@@ -1303,39 +1545,26 @@ const effectiveModelSelection = computed<ModelSelection | null>(() => {
   return draftModelSelection.value
 })
 
-const moonshotKimiTemperaturePolicy = computed(() =>
-  getMoonshotKimiTemperaturePolicy(
-    effectiveModelSelection.value?.providerId,
-    effectiveModelSelection.value?.modelId
-  )
+const temperatureControl = modelCapabilities.temperatureControl
+const topPControl = modelCapabilities.topPControl
+const isTemperatureFixed = computed(() => temperatureControl.value.mode === 'fixed')
+const isTopPFixed = computed(() => topPControl.value.mode === 'fixed')
+const temperaturePolicyHint = computed(() =>
+  temperatureControl.value.mode === 'fixed'
+    ? t('settings.model.temperatureFixedByPolicy', {
+        value: temperatureControl.value.value
+      })
+    : ''
 )
-const isMoonshotKimiTemperatureLocked = computed(
-  () => moonshotKimiTemperaturePolicy.value?.lockTemperatureControl === true
-)
-const moonshotKimiTemperatureHint = computed(() =>
-  isMoonshotKimiTemperatureLocked.value
-    ? t('chat.advancedSettings.temperatureFixedMoonshotKimi', {
-        enabled: MOONSHOT_KIMI_THINKING_ENABLED_TEMPERATURE.toFixed(1),
-        disabled: MOONSHOT_KIMI_THINKING_DISABLED_TEMPERATURE.toFixed(1)
+const topPPolicyHint = computed(() =>
+  topPControl.value.mode === 'fixed'
+    ? t('settings.model.topPFixedByPolicy', {
+        value: topPControl.value.value
       })
     : ''
 )
 
 const canSelectPermissionMode = computed(() => !isAcpAgent.value)
-const showSubagentToggle = computed(() => {
-  if (isAcpAgent.value) {
-    return false
-  }
-
-  if (hasActiveSession.value) {
-    return (
-      sessionStore.activeSession?.sessionKind === 'regular' &&
-      inferAgentType(sessionStore.activeSession?.agentId) === 'deepchat'
-    )
-  }
-
-  return selectedAgentType.value === 'deepchat'
-})
 
 const providerNameMap = computed(() => {
   const map = new Map<string, string>()
@@ -1386,32 +1615,32 @@ const filteredModelGroups = computed<GroupedModelList[]>(() => {
     .filter((group) => group.models.length > 0)
 })
 
-const modelSettingsTarget = computed<ModelSelection | null>(() => {
-  return modelSettingsSelection.value ?? effectiveModelSelection.value
+const generationSettingsModel = computed<ModelSelection | null>(() => {
+  return effectiveModelSelection.value
 })
 
-const modelSettingsTargetMeta = computed(() => {
-  const target = modelSettingsTarget.value
+const generationSettingsModelMeta = computed(() => {
+  const target = generationSettingsModel.value
   if (!target) {
     return null
   }
   return findEnabledModelMeta(target.providerId, target.modelId)
 })
 
-const modelSettingsTargetResolvedConfig = computed(() =>
-  isSameModelSelection(modelSettingsTarget.value, modelSettingsTargetConfigSelection.value)
-    ? modelSettingsTargetConfig.value
+const generationSettingsModelConfig = computed(() =>
+  isSameModelSelection(generationSettingsModel.value, generationSettingsModelConfigSelection.value)
+    ? generationSettingsModelConfigState.value
     : null
 )
 
 const showOpenAIImageGenerationSettings = computed(() => {
-  const target = modelSettingsTarget.value
+  const target = generationSettingsModel.value
   if (!target) {
     return false
   }
 
-  const modelMeta = modelSettingsTargetMeta.value
-  const modelConfig = modelSettingsTargetResolvedConfig.value
+  const modelMeta = generationSettingsModelMeta.value
+  const modelConfig = generationSettingsModelConfig.value
   return supportsOpenAIImageGenerationSettings({
     providerId: target.providerId,
     providerApiType: resolveProviderApiType(target.providerId),
@@ -1424,13 +1653,13 @@ const showOpenAIImageGenerationSettings = computed(() => {
 })
 
 const showOpenAIVideoGenerationSettings = computed(() => {
-  const target = modelSettingsTarget.value
+  const target = generationSettingsModel.value
   if (!target) {
     return false
   }
 
-  const modelMeta = modelSettingsTargetMeta.value
-  const modelConfig = modelSettingsTargetResolvedConfig.value
+  const modelMeta = generationSettingsModelMeta.value
+  const modelConfig = generationSettingsModelConfig.value
   return supportsOpenAICompatibleVideoGeneration({
     providerId: target.providerId,
     providerApiType: resolveProviderApiType(target.providerId),
@@ -1448,13 +1677,13 @@ const showOpenAIMediaGenerationSettings = computed(
 
 watch(
   () => {
-    const target = modelSettingsTarget.value
+    const target = generationSettingsModel.value
     return target ? { providerId: target.providerId, modelId: target.modelId } : null
   },
   async (target) => {
-    const token = ++modelSettingsTargetConfigToken
-    modelSettingsTargetConfig.value = null
-    modelSettingsTargetConfigSelection.value = null
+    const token = ++generationSettingsModelConfigToken
+    generationSettingsModelConfigState.value = null
+    generationSettingsModelConfigSelection.value = null
 
     if (!target) {
       return
@@ -1462,13 +1691,13 @@ watch(
 
     try {
       const config = await modelClient.getModelConfig(target.modelId, target.providerId)
-      if (token !== modelSettingsTargetConfigToken) {
+      if (token !== generationSettingsModelConfigToken) {
         return
       }
-      modelSettingsTargetConfig.value = config
-      modelSettingsTargetConfigSelection.value = { ...target }
+      generationSettingsModelConfigState.value = config
+      generationSettingsModelConfigSelection.value = { ...target }
     } catch (error) {
-      if (token !== modelSettingsTargetConfigToken) {
+      if (token !== generationSettingsModelConfigToken) {
         return
       }
       console.warn('[ChatStatusBar] Failed to load model settings target config:', error)
@@ -1527,24 +1756,6 @@ const isModelSelection = (value: unknown): value is ModelSelection => {
 
 const findEnabledModelMeta = (providerId: string, modelId: string): RENDERER_MODEL_META | null => {
   return modelStore.findChatSelectableModel(providerId, modelId)?.model ?? null
-}
-
-const resolveCapabilityProviderIdForSelection = (
-  providerId: string,
-  modelId: string,
-  endpointType?: unknown
-): string => {
-  const modelMeta = findEnabledModelMeta(providerId, modelId)
-  return resolveProviderCapabilityProviderId(
-    providerId,
-    {
-      endpointType: isNewApiEndpointType(endpointType) ? endpointType : modelMeta?.endpointType,
-      supportedEndpointTypes: modelMeta?.supportedEndpointTypes,
-      type: modelMeta?.type,
-      providerApiType: resolveProviderApiType(providerId)
-    },
-    modelId
-  )
 }
 
 const resolveModelName = (providerId?: string | null, modelId?: string | null): string => {
@@ -1611,8 +1822,14 @@ const invalidateGenerationPersistResponses = () => {
   generationPersistRequestToken += 1
 }
 
-const temperatureInputValue = computed(() => getNumericInputValue('temperature'))
-const topPInputValue = computed(() => getNumericInputValue('topP'))
+const temperatureInputValue = computed(() =>
+  temperatureControl.value.mode === 'fixed'
+    ? temperatureControl.value.value
+    : getNumericInputValue('temperature')
+)
+const topPInputValue = computed(() =>
+  topPControl.value.mode === 'fixed' ? topPControl.value.value : getNumericInputValue('topP')
+)
 const topPCommittedValue = computed(() => localSettings.value?.topP ?? TOP_P_MAX)
 const topPDecreaseDisabled = computed(
   () => localSettings.value?.topP === undefined || topPCommittedValue.value <= TOP_P_MIN
@@ -1648,16 +1865,13 @@ const showThinkingBudget = computed(() => {
 
 const showTemperatureControl = computed(
   () =>
-    (capabilitySupportsTemperature.value !== false || isMoonshotKimiTemperatureLocked.value) &&
+    (temperatureControl.value.mode === 'editable' || temperatureControl.value.mode === 'fixed') &&
     Boolean(localSettings.value)
-)
-const supportsTopPControl = computed(
-  () => capabilityProviderId.value !== 'anthropic' || capabilitySupportsTemperature.value !== false
 )
 const showTopPControl = computed(
   () =>
     !showOpenAIMediaGenerationSettings.value &&
-    supportsTopPControl.value &&
+    (topPControl.value.mode === 'editable' || topPControl.value.mode === 'fixed') &&
     Boolean(localSettings.value)
 )
 
@@ -1694,6 +1908,9 @@ const showReasoningEffort = computed(
     (!hasAnthropicReasoningToggle(capabilityProviderId.value, capabilityReasoningPortrait.value) ||
       isAnthropicReasoningEnabled.value)
 )
+const showReasoningOrchestrationControl = computed(
+  () => showReasoningEffort.value || showOrchestrationControl.value
+)
 const showReasoningVisibility = computed(
   () =>
     !isAcpAgent.value &&
@@ -1709,6 +1926,29 @@ const effortOptions = computed(() => {
     value,
     label: t(`settings.model.modelConfig.reasoningEffort.options.${value}`)
   }))
+})
+const effectiveReasoningEffortValue = computed(
+  () =>
+    normalizeReasoningEffort(
+      capabilityReasoningPortrait.value,
+      localSettings.value?.reasoningEffort
+    ) ??
+    normalizeReasoningEffort(
+      capabilityReasoningPortrait.value,
+      capabilityReasoningPortrait.value?.effort
+    ) ??
+    effortOptions.value[0]?.value
+)
+const reasoningEffortDisplayLabel = computed(
+  () =>
+    effortOptions.value.find((option) => option.value === effectiveReasoningEffortValue.value)
+      ?.label ?? t('chat.advancedSettings.useDefault')
+)
+const orchestrationControlTitle = computed(() => {
+  const effort = reasoningEffortDisplayLabel.value
+  return proactiveCollaborationEnabled.value
+    ? `${effort} · ${t('chat.orchestration.proactive.title')} ${t('common.enabled')}`
+    : effort
 })
 
 const verbosityOptions = computed(() => {
@@ -1795,15 +2035,8 @@ const showSystemPromptSection = computed(
   () => !isAcpAgent.value && hasLoadedGenerationSettingsForCurrentSelection.value
 )
 
-const modelSettingsModelName = computed(() => {
-  return resolveModelName(
-    modelSettingsTarget.value?.providerId ?? null,
-    modelSettingsTarget.value?.modelId ?? null
-  )
-})
-
-const modelSettingsProviderText = computed(() => {
-  const selection = modelSettingsTarget.value
+const generationSettingsModelText = computed(() => {
+  const selection = generationSettingsModel.value
   if (!selection) {
     return ''
   }
@@ -1811,11 +2044,8 @@ const modelSettingsProviderText = computed(() => {
   return `${providerName} / ${selection.modelId}`
 })
 
-const isModelSettingsReady = computed(() => {
-  if (!isModelSettingsExpanded.value) {
-    return false
-  }
-  const target = modelSettingsTarget.value
+const isGenerationSettingsReady = computed(() => {
+  const target = generationSettingsModel.value
   const effective = effectiveModelSelection.value
   const loadedSelection = loadedSettingsSelection.value
   if (!target || !effective) {
@@ -1943,22 +2173,17 @@ const syncDraftModelSelection = async () => {
 const resolveDefaultGenerationSettings = async (
   providerId: string,
   modelId: string,
-  agentId: string = 'deepchat'
+  agentId: string = 'deepchat',
+  capabilities: RendererModelCapabilities | null = null
 ): Promise<SessionGenerationSettings> => {
-  const agentConfig = await resolveDeepChatAgentConfig(agentId)
-  const modelConfig = await modelClient.getModelConfig(modelId, providerId)
-  const capabilities = await modelClient.getCapabilities(providerId, modelId)
-  const resolvedCapabilityProviderId = resolveCapabilityProviderIdForSelection(
-    providerId,
-    modelId,
-    modelConfig.endpointType
-  )
-  const fixedTemperatureKimi = resolveMoonshotKimiTemperaturePolicy(
-    providerId,
-    modelId,
-    modelConfig.reasoning
-  )
-  const portrait = capabilities.reasoningPortrait ?? null
+  const [agentConfig, modelConfig] = await Promise.all([
+    resolveDeepChatAgentConfig(agentId),
+    modelClient.getModelConfig(modelId, providerId)
+  ])
+  const resolvedCapabilityProviderId = capabilities?.identity.providerId ?? providerId
+  const temperaturePolicy = capabilities?.requestPolicy.temperature
+  const topPPolicy = capabilities?.requestPolicy.topP
+  const portrait = capabilities?.reasoningPortrait ?? null
   const contextLengthDefault = toValidNonNegativeInteger(modelConfig.contextLength) ?? 32000
   const maxTokensDefault =
     toValidNonNegativeInteger(modelConfig.maxTokens) ?? Math.min(4096, contextLengthDefault)
@@ -1967,8 +2192,10 @@ const resolveDefaultGenerationSettings = async (
   const defaults: SessionGenerationSettings = {
     systemPrompt: agentConfig.systemPrompt ?? '',
     temperature:
-      fixedTemperatureKimi?.temperature ?? parseFiniteNumericValue(modelConfig.temperature) ?? 0.7,
-    topP: normalizeTopP(modelConfig.topP),
+      (temperaturePolicy?.mode === 'fixed' ? temperaturePolicy.value : undefined) ??
+      parseFiniteNumericValue(modelConfig.temperature) ??
+      0.7,
+    topP: topPPolicy?.mode === 'fixed' ? topPPolicy.value : normalizeTopP(modelConfig.topP),
     contextLength: contextLengthDefault,
     timeout:
       timeoutDefault >= TIMEOUT_MIN && timeoutDefault <= TIMEOUT_MAX
@@ -2074,33 +2301,6 @@ const resolveDefaultGenerationSettings = async (
   return defaults
 }
 
-const fetchCapabilities = async (providerId: string, modelId: string): Promise<void> => {
-  try {
-    const modelConfig = await modelClient.getModelConfig(modelId, providerId)
-    const capabilities = await modelClient.getCapabilities(providerId, modelId)
-    capabilityProviderId.value = resolveCapabilityProviderIdForSelection(
-      providerId,
-      modelId,
-      modelConfig.endpointType
-    )
-    const portrait = capabilities.reasoningPortrait ?? null
-
-    capabilityReasoningPortrait.value = portrait
-    capabilitySupportsReasoning.value =
-      typeof portrait?.supported === 'boolean' ? portrait.supported : null
-    capabilitySupportsTemperature.value =
-      typeof capabilities.supportsTemperatureControl === 'boolean'
-        ? capabilities.supportsTemperatureControl
-        : capabilities.temperatureCapability
-  } catch (error) {
-    console.warn('[ChatStatusBar] Failed to fetch model capabilities:', error)
-    capabilityProviderId.value = providerId
-    capabilitySupportsReasoning.value = null
-    capabilityReasoningPortrait.value = null
-    capabilitySupportsTemperature.value = null
-  }
-}
-
 const flushGenerationPatch = async () => {
   const patch = pendingGenerationPatch
   pendingGenerationPatch = {}
@@ -2120,6 +2320,12 @@ const flushGenerationPatch = async () => {
   const localRevisionAtRequest = generationLocalRevision
   try {
     const updated = await sessionClient.updateSessionGenerationSettings(sessionId, patch)
+    if (
+      ('contextLength' in patch || 'maxTokens' in patch) &&
+      sessionStore.activeSessionId === sessionId
+    ) {
+      sessionStore.synchronizeContextOccupancy(sessionId)
+    }
     if (requestToken !== generationPersistRequestToken) {
       return
     }
@@ -2157,8 +2363,11 @@ const updateLocalGenerationSettings = (patch: Partial<SessionGenerationSettings>
   generationLocalRevision += 1
 
   const nextPatch = { ...patch }
-  if (isMoonshotKimiTemperatureLocked.value) {
+  if (isTemperatureFixed.value) {
     delete nextPatch.temperature
+  }
+  if (isTopPFixed.value) {
+    delete nextPatch.topP
   }
 
   const next: SessionGenerationSettings = {
@@ -2225,9 +2434,7 @@ const runSyncGenerationSettings = async () => {
   if (isAcpAgent.value) {
     localSettings.value = null
     loadedSettingsSelection.value = null
-    capabilityProviderId.value = ''
-    capabilitySupportsReasoning.value = null
-    capabilityReasoningPortrait.value = null
+    modelCapabilities.clear()
     return
   }
 
@@ -2235,13 +2442,11 @@ const runSyncGenerationSettings = async () => {
   if (!selection) {
     localSettings.value = null
     loadedSettingsSelection.value = null
-    capabilityProviderId.value = ''
-    capabilityReasoningPortrait.value = null
-    capabilitySupportsReasoning.value = null
+    modelCapabilities.clear()
     return
   }
 
-  await fetchCapabilities(selection.providerId, selection.modelId)
+  const capabilities = await modelCapabilities.load(selection)
   if (token !== generationSyncToken) {
     return
   }
@@ -2260,7 +2465,8 @@ const runSyncGenerationSettings = async () => {
         const defaults = await resolveDefaultGenerationSettings(
           selection.providerId,
           selection.modelId,
-          sessionStore.activeSession?.agentId ?? 'deepchat'
+          sessionStore.activeSession?.agentId ?? 'deepchat',
+          capabilities
         )
         if (token !== generationSyncToken) {
           return
@@ -2277,7 +2483,8 @@ const runSyncGenerationSettings = async () => {
   const defaults = await resolveDefaultGenerationSettings(
     selection.providerId,
     selection.modelId,
-    selectedDeepChatAgentId.value ?? 'deepchat'
+    selectedDeepChatAgentId.value ?? 'deepchat',
+    capabilities
   )
   if (token !== generationSyncToken) {
     return
@@ -2307,6 +2514,73 @@ const reloadSystemPrompts = async () => {
     systemPromptList.value = []
   }
 }
+
+async function resolveOrchestrationCapability(
+  target: OrchestrationCapabilityTarget,
+  targetKey: string
+): Promise<OrchestrationCapability | null> {
+  const token = ++orchestrationCapabilityRequestToken
+  orchestrationCapability.value = null
+  orchestrationCapabilityLoadFailed.value = false
+  isOrchestrationCapabilityLoading.value = true
+
+  try {
+    const capability = await orchestrationClient.getCapability(target)
+    if (
+      token !== orchestrationCapabilityRequestToken ||
+      orchestrationCapabilityTargetKey.value !== targetKey
+    ) {
+      return null
+    }
+    orchestrationCapability.value = capability
+    return capability
+  } catch (error) {
+    if (
+      token !== orchestrationCapabilityRequestToken ||
+      orchestrationCapabilityTargetKey.value !== targetKey
+    ) {
+      return null
+    }
+    orchestrationCapabilityLoadFailed.value = true
+    console.warn('[ChatStatusBar] Failed to load orchestration capability:', error)
+    return null
+  } finally {
+    if (token === orchestrationCapabilityRequestToken) {
+      isOrchestrationCapabilityLoading.value = false
+    }
+  }
+}
+
+async function refreshOrchestrationCapability(): Promise<OrchestrationCapability | null> {
+  const target = orchestrationCapabilityTarget.value
+  const targetKey = orchestrationCapabilityTargetKey.value
+  if (!target || !targetKey) {
+    orchestrationCapabilityRequestToken += 1
+    orchestrationCapability.value = null
+    orchestrationCapabilityLoadFailed.value = false
+    isOrchestrationCapabilityLoading.value = false
+    return null
+  }
+  return await resolveOrchestrationCapability(target, targetKey)
+}
+
+watch(
+  orchestrationCapabilityTargetKey,
+  (targetKey, previousTargetKey) => {
+    if (previousTargetKey !== undefined && targetKey !== previousTargetKey) {
+      orchestrationPolicyRequestToken += 1
+      isOrchestrationPolicySaving.value = false
+    }
+    void refreshOrchestrationCapability()
+  },
+  { immediate: true }
+)
+
+watch(isOrchestrationPanelOpen, (open) => {
+  if (open) {
+    void refreshOrchestrationCapability()
+  }
+})
 
 watch(
   [
@@ -2346,29 +2620,6 @@ watch(
       if (token !== permissionSyncToken) return
       permissionMode.value = 'full_access'
     }
-  },
-  { immediate: true }
-)
-
-watch(
-  [
-    () => sessionStore.activeSessionId,
-    showSubagentToggle,
-    () => sessionStore.activeSession?.subagentEnabled,
-    () => draftStore.subagentEnabled
-  ],
-  ([sessionId, canShow, activeEnabled, draftEnabled]) => {
-    if (!canShow) {
-      subagentEnabled.value = false
-      return
-    }
-
-    if (sessionId) {
-      subagentEnabled.value = activeEnabled === true
-      return
-    }
-
-    subagentEnabled.value = draftEnabled === true
   },
   { immediate: true }
 )
@@ -2417,8 +2668,6 @@ function getEffectiveModelSelectionSnapshot(): ModelSelection | null {
 watch(isModelPanelOpen, (open) => {
   if (open) {
     modelSearchKeyword.value = ''
-    isModelSettingsExpanded.value = false
-    modelSettingsSelection.value = getEffectiveModelSelectionSnapshot()
 
     if (isAcpAgent.value) {
       return
@@ -2437,11 +2686,11 @@ watch(isModelPanelOpen, (open) => {
   }
 
   modelSearchKeyword.value = ''
-  isModelSettingsExpanded.value = false
-  modelSettingsSelection.value = getEffectiveModelSelectionSnapshot()
 })
 
 onBeforeUnmount(() => {
+  orchestrationCapabilityRequestToken += 1
+  orchestrationPolicyRequestToken += 1
   clearPendingGenerationPersist()
   invalidateGenerationPersistResponses()
   cancelAcpConfigSyncTask?.()
@@ -2595,29 +2844,15 @@ async function handleModelQuickSelect(providerId: string, modelId: string) {
     await completeSwitchModelOnboardingIfNeeded(result.previousSelection)
   }
 
-  modelSettingsSelection.value = { providerId, modelId }
-  isModelSettingsExpanded.value = false
   isModelPanelOpen.value = false
 }
 
-async function openModelSettings(providerId: string, modelId: string) {
-  const result = await changeModelSelection(providerId, modelId)
-  if (!result.applied) {
-    modelSettingsSelection.value = getEffectiveModelSelectionSnapshot()
-    isModelSettingsExpanded.value = false
-    return
+function openModelPicker(): boolean {
+  if (!showModelPopover.value) {
+    return false
   }
-
-  if (result.selectionChanged) {
-    await completeSwitchModelOnboardingIfNeeded(result.previousSelection)
-  }
-
-  modelSettingsSelection.value = { providerId, modelId }
-  isModelSettingsExpanded.value = true
-}
-
-function collapseModelSettings() {
-  isModelSettingsExpanded.value = false
+  isModelPanelOpen.value = true
+  return true
 }
 
 async function retryModelOptionsInitialization() {
@@ -2690,7 +2925,7 @@ function stepTemperature(direction: -1 | 1) {
   if (!localSettings.value) {
     return
   }
-  if (isMoonshotKimiTemperatureLocked.value) {
+  if (isTemperatureFixed.value) {
     return
   }
   if (hasNumericInputError('temperature')) {
@@ -2714,6 +2949,9 @@ function stepTopP(direction: -1 | 1) {
   if (!localSettings.value) {
     return
   }
+  if (isTopPFixed.value) {
+    return
+  }
   if (hasNumericInputError('topP')) {
     return
   }
@@ -2727,10 +2965,17 @@ function stepTopP(direction: -1 | 1) {
 }
 
 function onTopPInput(value: string | number) {
+  if (isTopPFixed.value) {
+    return
+  }
   setNumericInputDraft('topP', value)
 }
 
 function commitTopPInput() {
+  if (isTopPFixed.value) {
+    resetNumericInputFieldState('topP')
+    return
+  }
   if (numericInputDrafts.value.topP.trim() === '') {
     stopNumericInputEdit('topP')
     clearNumericInputError('topP')
@@ -2757,14 +3002,14 @@ function commitTopPInput() {
 }
 
 function onTemperatureInput(value: string | number) {
-  if (isMoonshotKimiTemperatureLocked.value) {
+  if (isTemperatureFixed.value) {
     return
   }
   setNumericInputDraft('temperature', value)
 }
 
 function commitTemperatureInput() {
-  if (isMoonshotKimiTemperatureLocked.value) {
+  if (isTemperatureFixed.value) {
     resetNumericInputFieldState('temperature')
     return
   }
@@ -2982,6 +3227,76 @@ function onVideoGenerationSettingsUpdate(
   })
 }
 
+async function onProactiveCollaborationToggle(enabled: boolean): Promise<boolean> {
+  if (enabled === proactiveCollaborationEnabled.value) {
+    return true
+  }
+  if (isOrchestrationPolicySaving.value) {
+    return false
+  }
+
+  const target = orchestrationCapabilityTarget.value
+  const targetKey = orchestrationCapabilityTargetKey.value
+  if (!target || !targetKey) {
+    return false
+  }
+
+  const policy = enabled ? 'proactive' : 'explicit'
+  const token = ++orchestrationPolicyRequestToken
+  isOrchestrationPolicySaving.value = true
+
+  try {
+    if (enabled) {
+      const capability = await resolveOrchestrationCapability(target, targetKey)
+      if (
+        token !== orchestrationPolicyRequestToken ||
+        orchestrationCapabilityTargetKey.value !== targetKey ||
+        capability?.available !== true
+      ) {
+        return false
+      }
+    }
+
+    if ('agentId' in target) {
+      if (
+        token === orchestrationPolicyRequestToken &&
+        orchestrationCapabilityTargetKey.value === targetKey
+      ) {
+        draftStore.orchestrationPolicy = policy
+        return true
+      }
+      return false
+    }
+
+    const receipt = await orchestrationClient.setPolicy(target.sessionId, policy)
+    if (
+      token !== orchestrationPolicyRequestToken ||
+      orchestrationCapabilityTargetKey.value !== targetKey ||
+      sessionStore.activeSessionId !== target.sessionId
+    ) {
+      return false
+    }
+    orchestrationCapability.value = receipt.capability
+    orchestrationCapabilityLoadFailed.value = false
+    sessionStore.applyConfirmedOrchestrationPolicy(target.sessionId, receipt.policy)
+    return receipt.applied && receipt.policy === policy
+  } catch (error) {
+    if (
+      token !== orchestrationPolicyRequestToken ||
+      orchestrationCapabilityTargetKey.value !== targetKey
+    ) {
+      return false
+    }
+    orchestrationCapabilityLoadFailed.value = true
+    console.warn('[ChatStatusBar] Failed to set orchestration policy:', error)
+    return false
+  } finally {
+    if (token === orchestrationPolicyRequestToken) {
+      isOrchestrationPolicySaving.value = false
+    }
+  }
+}
+
 async function selectPermissionMode(mode: PermissionMode) {
   if (!canSelectPermissionMode.value) return
   if (permissionMode.value === mode) return
@@ -2999,34 +3314,13 @@ async function selectPermissionMode(mode: PermissionMode) {
   }
 }
 
-async function onSubagentToggle(enabled: boolean) {
-  if (!showSubagentToggle.value || subagentEnabled.value === enabled) {
-    return
-  }
-
-  subagentEnabled.value = enabled
-  const sessionId = sessionStore.activeSessionId
-  if (!sessionId) {
-    draftStore.subagentEnabled = enabled
-    return
-  }
-
-  isSubagentToggleUpdating.value = true
-  try {
-    await sessionStore.setSessionSubagentEnabled(sessionId, enabled)
-  } catch (error) {
-    console.warn('[ChatStatusBar] Failed to set subagent toggle:', error)
-    subagentEnabled.value = sessionStore.activeSession?.subagentEnabled === true
-  } finally {
-    isSubagentToggleUpdating.value = false
-  }
-}
-
 defineExpose({
   acpConfigState,
   localSettings,
   permissionMode,
-  subagentEnabled,
+  orchestrationCapability,
+  proactiveCollaborationEnabled,
+  showOrchestrationControl,
   showSystemPromptSection,
   showReasoningEffort,
   onTemperatureInput,
@@ -3045,9 +3339,8 @@ defineExpose({
   stepMaxTokens,
   stepTimeout,
   stepThinkingBudget,
+  onProactiveCollaborationToggle,
   selectModel: changeModelSelection,
-  openModelSettings,
-  isModelSettingsExpanded,
-  modelSettingsSelection
+  openModelPicker
 })
 </script>

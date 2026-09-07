@@ -2,23 +2,25 @@
   <SettingsPageShell
     :title="t('settings.environments.title')"
     :description="t('settings.environments.description')"
-    :eyebrow="t('settings.controlCenter.groups.models')"
+    :eyebrow="t('settings.controlCenter.groups.setup')"
     data-testid="settings-environments-page"
   >
     <template #actions>
-      <Button variant="outline" size="sm" :disabled="isLoading" @click="void refreshData()">
-        <Icon
-          icon="lucide:refresh-cw"
-          class="mr-2 h-4 w-4"
-          :class="isLoading ? 'animate-spin' : ''"
-        />
+      <DcButton
+        variant="outline"
+        size="sm"
+        :disabled="pageOperationPending"
+        @click="void refreshData()"
+      >
+        <Spinner v-if="refreshPending" class="mr-2 size-4" data-icon="inline-start" />
+        <Icon v-else icon="lucide:refresh-cw" class="mr-2 size-4" data-icon="inline-start" />
         {{ t('settings.environments.actions.refresh') }}
-      </Button>
+      </DcButton>
     </template>
 
     <div class="flex w-full flex-col gap-3">
       <div class="flex flex-wrap items-center gap-2 px-2">
-        <Button
+        <DcButton
           variant="ghost"
           size="sm"
           data-testid="environments-active-tab"
@@ -26,8 +28,8 @@
           @click="currentView = 'active'"
         >
           {{ t('settings.environments.tabs.active', { count: activeEnvironments.length }) }}
-        </Button>
-        <Button
+        </DcButton>
+        <DcButton
           variant="ghost"
           size="sm"
           data-testid="environments-archived-tab"
@@ -37,7 +39,7 @@
           @click="currentView = 'archived'"
         >
           {{ t('settings.environments.tabs.archived', { count: archivedEnvironments.length }) }}
-        </Button>
+        </DcButton>
       </div>
 
       <div v-if="currentView === 'active'" class="flex items-center gap-3 px-2 py-1">
@@ -70,7 +72,7 @@
         :animation="150"
         ghost-class="environment-row-ghost"
         chosen-class="environment-row-chosen"
-        :disabled="isLoading || visibleActiveEnvironments.length < 2"
+        :disabled="pageOperationPending || visibleActiveEnvironments.length < 2"
         @update:model-value="handleVisibleActiveReorder"
       >
         <template #item="{ element: environment }">
@@ -80,6 +82,7 @@
             :view="currentView"
             :can-move-up="canMoveEnvironment(environment, -1)"
             :can-move-down="canMoveEnvironment(environment, 1)"
+            :disabled="pageOperationPending"
             :format-date="formatDate"
             @open="handleOpen"
             @set-default="handleSetDefault"
@@ -112,6 +115,7 @@
             view="archived"
             :can-move-up="false"
             :can-move-down="false"
+            :disabled="pageOperationPending"
             :format-date="formatDate"
             @open="handleOpen"
             @restore="handleRestore"
@@ -129,15 +133,21 @@
         <DialogDescription>{{ confirmDescription }}</DialogDescription>
       </DialogHeader>
       <DialogFooter>
-        <Button variant="outline" @click="confirmDialogOpen = false">
+        <DcButton
+          variant="outline"
+          :disabled="confirmationPending"
+          @click="confirmDialogOpen = false"
+        >
           {{ t('common.cancel') }}
-        </Button>
-        <Button
+        </DcButton>
+        <DcButton
           :variant="pendingAction?.type === 'remove' ? 'destructive' : 'default'"
+          :disabled="confirmationPending"
           @click="void confirmEnvironmentAction()"
         >
+          <Spinner v-if="confirmationPending" class="mr-2 size-4" />
           {{ confirmActionLabel }}
-        </Button>
+        </DcButton>
       </DialogFooter>
     </DialogContent>
   </Dialog>
@@ -148,7 +158,7 @@ import { computed, defineComponent, h, onMounted, ref, watch, type PropType } fr
 import { useI18n } from 'vue-i18n'
 import draggable from 'vuedraggable'
 import { Icon } from '@iconify/vue'
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
 import { Switch } from '@shadcn/components/ui/switch'
 import {
   Dialog,
@@ -165,9 +175,10 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger
 } from '@shadcn/components/ui/dropdown-menu'
-import { useToast } from '@/components/use-toast'
+import { Spinner } from '@shadcn/components/ui/spinner'
 import { createProjectClient } from '@api/ProjectClient'
 import { useProjectStore } from '@/stores/ui/project'
+import { notifyRenderer } from '@renderer-notifications/rendererNotificationPort'
 import type { EnvironmentSummary } from '@shared/types/agent-interface'
 import SettingsPageShell from './control-center/SettingsPageShell.vue'
 
@@ -183,15 +194,17 @@ type PendingEnvironmentAction = {
 type MoveTarget = 'top' | 'up' | 'down' | 'bottom'
 
 const { t, locale } = useI18n()
-const { toast } = useToast()
 const projectStore = useProjectStore()
 const projectClient = createProjectClient()
 
-const isLoading = ref(false)
 const showMissing = ref(false)
 const syntheticDefaultExists = ref(true)
 const currentView = ref<EnvironmentView>('active')
 const pendingAction = ref<PendingEnvironmentAction | null>(null)
+const pendingPageOperationId = ref<string | null>(null)
+const pageOperationPending = computed(() => pendingPageOperationId.value !== null)
+const refreshPending = computed(() => pendingPageOperationId.value === 'refresh')
+const confirmationPending = ref(false)
 
 const defaultProjectPath = computed(() => projectStore.defaultProjectPath)
 const archivedEnvironments = computed<EnvironmentListItem[]>(
@@ -222,10 +235,10 @@ const syncSyntheticDefaultExists = async () => {
       syntheticDefaultExists.value = exists
     }
   } catch (error) {
-    console.warn('[EnvironmentsSettings] Failed to resolve synthetic default path existence:', {
-      path: currentPath,
+    console.warn(
+      '[EnvironmentsSettings] Failed to resolve synthetic default path existence:',
       error
-    })
+    )
     if (defaultProjectPath.value === currentPath) {
       syntheticDefaultExists.value = true
     }
@@ -276,6 +289,9 @@ const confirmDialogOpen = computed({
   get: () => pendingAction.value !== null,
   set: (open: boolean) => {
     if (!open) {
+      if (confirmationPending.value) {
+        return
+      }
       pendingAction.value = null
     }
   }
@@ -319,26 +335,23 @@ const formatDate = (timestamp: number) => {
 }
 
 const refreshData = async () => {
-  try {
-    isLoading.value = true
-    await projectStore.refreshEnvironmentData()
-  } finally {
-    isLoading.value = false
-  }
+  await runPageOperation({
+    operationId: 'refresh',
+    code: 'settings.environments.refresh',
+    failureTitle: t('common.error.operationFailed'),
+    action: projectStore.refreshEnvironmentData
+  })
 }
 
 const getActiveOrderPaths = () => activeEnvironments.value.map((environment) => environment.path)
 
 const reorderActivePaths = async (paths: string[]) => {
-  try {
-    await projectStore.reorderEnvironments(paths)
-  } catch (error) {
-    toast({
-      title: t('settings.environments.errors.reorderTitle'),
-      description: error instanceof Error ? error.message : String(error),
-      variant: 'destructive'
-    })
-  }
+  await runPageOperation({
+    operationId: 'mutate',
+    code: 'settings.environments.reorder',
+    failureTitle: t('settings.environments.errors.reorderTitle'),
+    action: () => projectStore.reorderEnvironments(paths)
+  })
 }
 
 const handleVisibleActiveReorder = (nextVisibleEnvironments: EnvironmentListItem[]) => {
@@ -391,15 +404,12 @@ const handleMove = (environment: EnvironmentListItem, target: MoveTarget) => {
 }
 
 const handleOpen = async (path: string) => {
-  try {
-    await projectStore.openDirectory(path)
-  } catch (error) {
-    toast({
-      title: t('settings.environments.errors.openTitle'),
-      description: error instanceof Error ? error.message : String(error),
-      variant: 'destructive'
-    })
-  }
+  await runPageOperation({
+    operationId: 'open',
+    code: 'settings.environments.open',
+    failureTitle: t('settings.environments.errors.openTitle'),
+    action: () => projectStore.openDirectory(path)
+  })
 }
 
 const handleSetDefault = async (environment: EnvironmentListItem) => {
@@ -407,30 +417,40 @@ const handleSetDefault = async (environment: EnvironmentListItem) => {
     return
   }
 
-  await projectStore.setDefaultProject(environment.path)
+  await runPageOperation({
+    operationId: 'mutate',
+    code: 'settings.environments.setDefault',
+    failureTitle: t('common.error.operationFailed'),
+    action: () => projectStore.setDefaultProject(environment.path)
+  })
 }
 
 const handleClearDefault = async () => {
-  await projectStore.clearDefaultProject()
+  await runPageOperation({
+    operationId: 'mutate',
+    code: 'settings.environments.clearDefault',
+    failureTitle: t('common.error.operationFailed'),
+    action: projectStore.clearDefaultProject
+  })
 }
 
 const requestEnvironmentAction = (
   type: PendingEnvironmentAction['type'],
   environment: EnvironmentListItem
 ) => {
+  if (pageOperationPending.value || confirmationPending.value) {
+    return
+  }
   pendingAction.value = { type, environment }
 }
 
 const handleRestore = async (environment: EnvironmentListItem) => {
-  try {
-    await projectStore.restoreEnvironment(environment.path)
-  } catch (error) {
-    toast({
-      title: t('settings.environments.errors.restoreTitle'),
-      description: error instanceof Error ? error.message : String(error),
-      variant: 'destructive'
-    })
-  }
+  await runPageOperation({
+    operationId: 'mutate',
+    code: 'settings.environments.restore',
+    failureTitle: t('settings.environments.errors.restoreTitle'),
+    action: () => projectStore.restoreEnvironment(environment.path)
+  })
 }
 
 const confirmEnvironmentAction = async () => {
@@ -439,24 +459,76 @@ const confirmEnvironmentAction = async () => {
     return
   }
 
-  pendingAction.value = null
+  if (confirmationPending.value) {
+    return
+  }
 
+  confirmationPending.value = true
   try {
     if (action.type === 'archive') {
       await projectStore.archiveEnvironment(action.environment.path)
-      return
+    } else {
+      await projectStore.removeEnvironment(action.environment.path)
     }
-
-    await projectStore.removeEnvironment(action.environment.path)
+    pendingAction.value = null
   } catch (error) {
-    toast({
+    console.error(
+      '[EnvironmentsSettings] Failed to apply confirmed action',
+      {
+        operation: action.type
+      },
+      error
+    )
+    notifyRenderer({
+      kind: 'error',
+      code: `settings.environments.${action.type}.failed`,
       title:
         action.type === 'archive'
           ? t('settings.environments.errors.archiveTitle')
-          : t('settings.environments.errors.removeTitle'),
-      description: error instanceof Error ? error.message : String(error),
-      variant: 'destructive'
+          : t('settings.environments.errors.removeTitle')
     })
+  } finally {
+    confirmationPending.value = false
+  }
+}
+
+type PageOperationOptions = Readonly<{
+  operationId: string
+  code: string
+  failureTitle: string
+  action: () => Promise<unknown>
+}>
+
+const runPageOperation = async ({
+  operationId,
+  code,
+  failureTitle,
+  action
+}: PageOperationOptions): Promise<boolean> => {
+  if (pageOperationPending.value) {
+    return false
+  }
+
+  pendingPageOperationId.value = operationId
+  try {
+    await action()
+    return true
+  } catch (error) {
+    console.error(
+      '[EnvironmentsSettings] Operation failed',
+      {
+        code
+      },
+      error
+    )
+    notifyRenderer({
+      kind: 'error',
+      code: `${code}.failed`,
+      title: failureTitle
+    })
+    return false
+  } finally {
+    pendingPageOperationId.value = null
   }
 }
 
@@ -480,6 +552,10 @@ const EnvironmentRow = defineComponent({
       default: false
     },
     canMoveDown: {
+      type: Boolean,
+      default: false
+    },
+    disabled: {
       type: Boolean,
       default: false
     },
@@ -508,6 +584,7 @@ const EnvironmentRow = defineComponent({
       props.view === 'active'
         ? {
             type: 'button',
+            disabled: props.disabled,
             class:
               'environment-folder-drag-target flex w-full cursor-grab items-start gap-3 rounded-md text-left active:cursor-grabbing focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
             'aria-label': t('settings.environments.actions.dragTarget', {
@@ -600,10 +677,11 @@ const EnvironmentRow = defineComponent({
             ]),
             h('div', { class: 'flex shrink-0 flex-wrap items-center gap-2 md:pl-4' }, [
               h(
-                Button,
+                DcButton,
                 {
                   variant: 'outline',
                   size: 'sm',
+                  disabled: props.disabled,
                   'aria-label': t('settings.environments.actions.open'),
                   onClick: () => emit('open', props.environment.path)
                 },
@@ -612,31 +690,33 @@ const EnvironmentRow = defineComponent({
               props.view === 'active'
                 ? isDefault()
                   ? h(
-                      Button,
+                      DcButton,
                       {
                         variant: 'ghost',
                         size: 'sm',
+                        disabled: props.disabled,
                         'aria-label': t('settings.environments.actions.clearDefault'),
                         onClick: () => emit('clear-default')
                       },
                       () => t('settings.environments.actions.clearDefault')
                     )
                   : h(
-                      Button,
+                      DcButton,
                       {
                         variant: 'ghost',
                         size: 'sm',
-                        disabled: !props.environment.exists,
+                        disabled: props.disabled || !props.environment.exists,
                         'aria-label': t('settings.environments.actions.setDefault'),
                         onClick: () => emit('set-default', props.environment)
                       },
                       () => t('settings.environments.actions.setDefault')
                     )
                 : h(
-                    Button,
+                    DcButton,
                     {
                       variant: 'ghost',
                       size: 'sm',
+                      disabled: props.disabled,
                       'aria-label': t('settings.environments.actions.restore'),
                       onClick: () => emit('restore', props.environment)
                     },
@@ -645,11 +725,12 @@ const EnvironmentRow = defineComponent({
               h(DropdownMenu, null, () => [
                 h(DropdownMenuTrigger, { asChild: true }, () =>
                   h(
-                    Button,
+                    DcButton,
                     {
                       variant: 'ghost',
                       size: 'icon',
                       class: 'h-8 w-8',
+                      disabled: props.disabled,
                       'aria-label': t('settings.environments.actions.more')
                     },
                     () => h(Icon, { icon: 'lucide:ellipsis', class: 'h-4 w-4' })
@@ -661,7 +742,7 @@ const EnvironmentRow = defineComponent({
                         h(
                           DropdownMenuItem,
                           {
-                            disabled: !props.canMoveUp,
+                            disabled: props.disabled || !props.canMoveUp,
                             onSelect: () => emit('move-top')
                           },
                           () => t('settings.environments.actions.moveTop')
@@ -669,7 +750,7 @@ const EnvironmentRow = defineComponent({
                         h(
                           DropdownMenuItem,
                           {
-                            disabled: !props.canMoveUp,
+                            disabled: props.disabled || !props.canMoveUp,
                             onSelect: () => emit('move-up')
                           },
                           () => t('settings.environments.actions.moveUp')
@@ -677,7 +758,7 @@ const EnvironmentRow = defineComponent({
                         h(
                           DropdownMenuItem,
                           {
-                            disabled: !props.canMoveDown,
+                            disabled: props.disabled || !props.canMoveDown,
                             onSelect: () => emit('move-down')
                           },
                           () => t('settings.environments.actions.moveDown')
@@ -685,7 +766,7 @@ const EnvironmentRow = defineComponent({
                         h(
                           DropdownMenuItem,
                           {
-                            disabled: !props.canMoveDown,
+                            disabled: props.disabled || !props.canMoveDown,
                             onSelect: () => emit('move-bottom')
                           },
                           () => t('settings.environments.actions.moveBottom')
@@ -693,14 +774,20 @@ const EnvironmentRow = defineComponent({
                         h(DropdownMenuSeparator),
                         h(
                           DropdownMenuItem,
-                          { onSelect: () => emit('archive', props.environment) },
+                          {
+                            disabled: props.disabled,
+                            onSelect: () => emit('archive', props.environment)
+                          },
                           () => t('settings.environments.actions.archive')
                         )
                       ]
                     : [
                         h(
                           DropdownMenuItem,
-                          { onSelect: () => emit('restore', props.environment) },
+                          {
+                            disabled: props.disabled,
+                            onSelect: () => emit('restore', props.environment)
+                          },
                           () => t('settings.environments.actions.restore')
                         )
                       ],
@@ -709,6 +796,7 @@ const EnvironmentRow = defineComponent({
                     DropdownMenuItem,
                     {
                       class: 'text-destructive focus:text-destructive',
+                      disabled: props.disabled,
                       onSelect: () => emit('remove', props.environment)
                     },
                     () => t('settings.environments.actions.remove')

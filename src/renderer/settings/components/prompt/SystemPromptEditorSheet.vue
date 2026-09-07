@@ -1,91 +1,70 @@
 <template>
-  <Sheet :open="open" @update:open="handleOpenChange">
-    <SheetContent
-      side="right"
-      class="w-[60vw]! max-w-[90vw]! h-screen flex flex-col p-0 bg-background window-no-drag-region"
-    >
-      <SheetHeader class="px-6 py-4 border-b bg-card/50 shrink-0">
-        <SheetTitle class="flex items-center gap-2">
-          <Icon icon="lucide:settings" class="w-5 h-5 text-primary" />
-          <span>
-            {{
-              isEditing ? t('promptSetting.editSystemPrompt') : t('promptSetting.addSystemPrompt')
-            }}
-          </span>
-        </SheetTitle>
-        <SheetDescription>
-          {{
-            isEditing
-              ? t('promptSetting.editSystemPromptDesc')
-              : t('promptSetting.addSystemPromptDesc')
-          }}
-        </SheetDescription>
-      </SheetHeader>
-
-      <ScrollArea class="flex-1 overflow-hidden">
-        <div class="px-6 py-4 space-y-4">
-          <div class="space-y-2">
-            <Label for="system-prompt-name" class="text-sm font-medium">
-              {{ t('promptSetting.name') }}
-            </Label>
-            <Input
-              id="system-prompt-name"
-              v-model="form.name"
-              :placeholder="t('promptSetting.namePlaceholder')"
-            />
-          </div>
-
-          <div class="space-y-2">
-            <Label for="system-prompt-content" class="text-sm font-medium">
-              {{ t('promptSetting.promptContent') }}
-            </Label>
-            <Textarea
-              id="system-prompt-content"
-              v-model="form.content"
-              class="w-full h-64"
-              :placeholder="t('promptSetting.contentPlaceholder')"
-            />
-          </div>
+  <DcSheetPanel
+    :open="open"
+    :title="isEditing ? t('promptSetting.editSystemPrompt') : t('promptSetting.addSystemPrompt')"
+    :description="
+      isEditing ? t('promptSetting.editSystemPromptDesc') : t('promptSetting.addSystemPromptDesc')
+    "
+    icon="lucide:settings"
+    width-class="w-full sm:w-[min(40rem,92vw)]"
+    @update:open="handleOpenChange"
+  >
+    <fieldset class="contents">
+      <div class="space-y-4 px-5 py-4">
+        <div class="space-y-2">
+          <Label for="system-prompt-name" class="text-sm font-medium">
+            {{ t('promptSetting.name') }}
+          </Label>
+          <Input
+            id="system-prompt-name"
+            v-model="form.name"
+            :placeholder="t('promptSetting.namePlaceholder')"
+          />
         </div>
-      </ScrollArea>
 
-      <SheetFooter class="px-6 py-4 border-t bg-card/50">
-        <div class="flex items-center justify-between w-full">
-          <div class="text-xs text-muted-foreground">
-            {{ form.content.length }} {{ t('promptSetting.characters') }}
-          </div>
-          <div class="flex items-center gap-3">
-            <Button variant="outline" @click="emit('update:open', false)">
-              {{ t('common.cancel') }}
-            </Button>
-            <Button :disabled="!form.name || !form.content" @click="handleSave">
-              <Icon icon="lucide:save" class="w-4 h-4 mr-1" />
-              {{ t('common.confirm') }}
-            </Button>
-          </div>
+        <div class="space-y-2">
+          <Label for="system-prompt-content" class="text-sm font-medium">
+            {{ t('promptSetting.promptContent') }}
+          </Label>
+          <Textarea
+            id="system-prompt-content"
+            v-model="form.content"
+            class="w-full h-64"
+            :placeholder="t('promptSetting.contentPlaceholder')"
+          />
         </div>
-      </SheetFooter>
-    </SheetContent>
-  </Sheet>
+      </div>
+    </fieldset>
+
+    <template #footer>
+      <div class="flex w-full flex-wrap items-center gap-3">
+        <div class="text-xs text-muted-foreground">
+          {{ form.content.length }} {{ t('promptSetting.characters') }}
+        </div>
+        <DcFormActions
+          class="ml-auto"
+          :submit-status="submitStatus"
+          :submit-disabled="!form.name || !form.content"
+          :submit-icon="'lucide:save'"
+          @cancel="requestClose"
+          @submit="saveWithStatus"
+        />
+      </div>
+    </template>
+  </DcSheetPanel>
 </template>
 
 <script setup lang="ts">
-import { computed, reactive, watch } from 'vue'
+import { nanoid } from 'nanoid'
+import { computed, onBeforeUnmount, reactive, shallowRef, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { Icon } from '@iconify/vue'
-import { ScrollArea } from '@shadcn/components/ui/scroll-area'
-import { Button } from '@shadcn/components/ui/button'
+import { DcSheetPanel } from '@dc-ui/components/sheet-panel'
+import { useDcFormSubmit } from '@dc-ui/components/form'
+import { DcFormActions } from '@dc-ui/components/form-actions'
 import { Input } from '@shadcn/components/ui/input'
 import { Label } from '@shadcn/components/ui/label'
 import { Textarea } from '@shadcn/components/ui/textarea'
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetFooter,
-  SheetHeader,
-  SheetTitle
-} from '@shadcn/components/ui/sheet'
+import { settingsLeaveGuard } from '../../services/settingsLeaveGuard'
 
 interface SystemPromptForm {
   id: string
@@ -117,13 +96,38 @@ const form = reactive<SystemPromptForm>({
   name: '',
   content: ''
 })
+const baselineForm = shallowRef<SystemPromptForm | null>(null)
 
 const isEditing = computed(() => Boolean(form.id))
+const draftDirty = computed(
+  () =>
+    props.open &&
+    baselineForm.value !== null &&
+    (form.id !== baselineForm.value.id ||
+      form.name !== baselineForm.value.name ||
+      form.content !== baselineForm.value.content)
+)
+
+const captureBaseline = () => {
+  baselineForm.value = { ...form }
+}
 
 const resetForm = () => {
   form.id = ''
   form.name = ''
   form.content = ''
+  captureBaseline()
+}
+
+const applyPrompt = (prompt: SystemPromptForm | null) => {
+  if (!prompt) {
+    resetForm()
+    return
+  }
+  form.id = prompt.id
+  form.name = prompt.name
+  form.content = prompt.content
+  captureBaseline()
 }
 
 watch(
@@ -134,28 +138,16 @@ watch(
       return
     }
 
-    if (props.prompt) {
-      form.id = props.prompt.id
-      form.name = props.prompt.name
-      form.content = props.prompt.content
-    } else {
-      resetForm()
-    }
-  }
+    applyPrompt(props.prompt)
+  },
+  { immediate: true }
 )
 
 watch(
   () => props.prompt,
   (prompt) => {
     if (!props.open) return
-
-    if (prompt) {
-      form.id = prompt.id
-      form.name = prompt.name
-      form.content = prompt.content
-    } else {
-      resetForm()
-    }
+    applyPrompt(prompt)
   }
 )
 
@@ -163,13 +155,41 @@ const handleOpenChange = (value: boolean) => {
   emit('update:open', value)
 }
 
+const requestClose = () => {
+  resetForm()
+  emit('update:open', false)
+}
+
 const handleSave = () => {
+  if (!form.name || !form.content) {
+    return
+  }
   emit('save', {
-    id: form.id,
+    ...(form.id ? { id: form.id } : {}),
     name: form.name,
     content: form.content
   })
 }
+
+const { status: submitStatus, run: runSubmit } = useDcFormSubmit()
+const saveWithStatus = () => void runSubmit(async () => handleSave())
+
+const leaveGuardLease = settingsLeaveGuard.register({
+  id: `settings.systemPrompts.editor:${nanoid(8)}`,
+  onDiscard: requestClose
+})
+const stopLeaveRiskSync = watch(
+  draftDirty,
+  (dirty) => {
+    leaveGuardLease.setRisk(dirty ? 'dirty' : 'clean')
+  },
+  { immediate: true, flush: 'sync' }
+)
+
+onBeforeUnmount(() => {
+  stopLeaveRiskSync()
+  leaveGuardLease.release()
+})
 </script>
 
 <style scoped>

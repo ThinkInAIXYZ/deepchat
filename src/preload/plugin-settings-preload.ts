@@ -31,6 +31,7 @@ const deepchatPluginApi = Object.freeze({
       platform: process.platform,
       arch: process.arch,
       enabled: Boolean(result.plugin?.enabled),
+      activationError: result.plugin?.activationError,
       runtime: result.plugin?.runtime,
       mcpServers: result.plugin?.mcpServers
     }

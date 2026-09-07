@@ -26,6 +26,11 @@ export const appRuntimeGuidedOnboardingStartRequestedEvent = defineEventContract
   payload: EmptyPayloadSchema
 })
 
+export const appRuntimeGuidedOnboardingResumeRequestedEvent = defineEventContract({
+  name: 'appRuntime.guidedOnboardingResumeRequested',
+  payload: EmptyPayloadSchema
+})
+
 export const appRuntimeWindowFocusedEvent = defineEventContract({
   name: 'appRuntime.windowFocused',
   payload: z.object({
@@ -53,11 +58,6 @@ export const appRuntimeShortcutRequestedEvent = defineEventContract({
       'toggleSpotlight'
     ])
   })
-})
-
-export const appRuntimeDataResetCompleteDevEvent = defineEventContract({
-  name: 'appRuntime.dataResetCompleteDev',
-  payload: EmptyPayloadSchema
 })
 
 export const appRuntimeSystemNotificationClickedEvent = defineEventContract({

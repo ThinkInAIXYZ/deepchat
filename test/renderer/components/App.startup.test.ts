@@ -23,8 +23,10 @@ const mountApp = async (options?: {
     | 'skills'
     | 'plugins'
     | null
+  trackRuntimeLifecycle?: boolean
 }) => {
   vi.resetModules()
+  vi.doUnmock('@/composables/useAppIpcRuntime')
 
   const initComplete = options?.initComplete ?? false
   const routeName = options?.routeName ?? 'chat'
@@ -33,6 +35,11 @@ const mountApp = async (options?: {
   const chatSessionId = options?.chatSessionId ?? (pageRouteName === 'chat' ? 'session-1' : null)
   const onboardingStatus = options?.onboardingStatus ?? 'idle'
   const onboardingCurrentStepId = options?.onboardingCurrentStepId ?? null
+  const trackRuntimeLifecycle = options?.trackRuntimeLifecycle ?? false
+  const setupMcpDeeplink = vi.fn()
+  const cleanupMcpDeeplink = vi.fn()
+  const setupAppIpcRuntime = vi.fn()
+  const cleanupAppIpcRuntime = vi.fn()
   const route = reactive({
     name: routeName,
     path: routeName === 'welcome' ? '/welcome' : '/chat',
@@ -60,7 +67,7 @@ const mountApp = async (options?: {
     currentRoute
   }
 
-  const configPresenter = {
+  const configService = {
     getSetting: vi.fn().mockResolvedValue(initComplete)
   }
   const onboardingClient = {
@@ -240,12 +247,13 @@ const mountApp = async (options?: {
   const agentStore = {
     setSelectedAgent: vi.fn()
   }
+  let nextStartDeeplinkToken = 0
   const draftStore = reactive({
     pendingStartDeeplink: null as null | Record<string, unknown>,
     setPendingStartDeeplink: vi.fn((payload: Record<string, unknown>) => {
       draftStore.pendingStartDeeplink = {
         ...payload,
-        token: 1
+        token: ++nextStartDeeplinkToken
       }
     })
   })
@@ -263,7 +271,6 @@ const mountApp = async (options?: {
   const modelStore = {
     initialize: vi.fn().mockResolvedValue(undefined)
   }
-  const toast = vi.fn(() => ({ dismiss: vi.fn() }))
   const ipcOn = vi.fn(() => vi.fn())
   const ipcRemoveAllListeners = vi.fn()
 
@@ -291,11 +298,12 @@ const mountApp = async (options?: {
         case 'models.getCapabilities':
           return Promise.resolve({
             capabilities: {
-              supportsReasoning: null,
+              supportsAudioInput: false,
+              supportsReasoning: false,
               reasoningPortrait: null,
-              thinkingBudgetRange: null,
-              supportsSearch: null,
-              searchDefaults: null,
+              thinkingBudgetRange: {},
+              supportsSearch: false,
+              searchDefaults: {},
               supportsTemperatureControl: true,
               temperatureCapability: true
             }
@@ -330,12 +338,13 @@ const mountApp = async (options?: {
 
   vi.doMock('vue-i18n', () => ({
     useI18n: () => ({
-      t: (key: string) => key
+      t: (key: string) => key,
+      locale: ref('zh-CN')
     })
   }))
 
   vi.doMock('@api/ConfigClient', () => ({
-    createConfigClient: vi.fn(() => configPresenter)
+    createConfigClient: vi.fn(() => configService)
   }))
   vi.doMock('@api/OnboardingClient', () => ({
     createOnboardingClient: vi.fn(() => onboardingClient)
@@ -365,11 +374,6 @@ const mountApp = async (options?: {
   }))
   vi.doMock('@/stores/ui/spotlight', () => ({
     useSpotlightStore: () => spotlightStore
-  }))
-  vi.doMock('@/components/use-toast', () => ({
-    useToast: () => ({
-      toast
-    })
   }))
   vi.doMock('@/stores/uiSettingsStore', () => ({
     useUiSettingsStore: () => ({
@@ -403,12 +407,20 @@ const mountApp = async (options?: {
     useModelStore: () => modelStore
   }))
   vi.doMock('@/lib/storeInitializer', () => ({
-    initAppStores: vi.fn(),
+    initAppStores: vi.fn().mockResolvedValue(undefined),
     useMcpInstallDeeplinkHandler: () => ({
-      setup: vi.fn(),
-      cleanup: vi.fn()
+      setup: setupMcpDeeplink,
+      cleanup: cleanupMcpDeeplink
     })
   }))
+  if (trackRuntimeLifecycle) {
+    vi.doMock('@/composables/useAppIpcRuntime', () => ({
+      useAppIpcRuntime: () => ({
+        setup: setupAppIpcRuntime,
+        cleanup: cleanupAppIpcRuntime
+      })
+    }))
+  }
   vi.doMock('@/composables/useFontManager', () => ({
     useFontManager: () => ({
       setupFontListener: vi.fn()
@@ -422,7 +434,7 @@ const mountApp = async (options?: {
 
   const App = (await import('@/App.vue')).default
 
-  mount(App, {
+  const wrapper = mount(App, {
     global: {
       stubs: {
         RouterView: true,
@@ -431,6 +443,8 @@ const mountApp = async (options?: {
         UpdateDialog: true,
         MessageDialog: true,
         McpSamplingDialog: true,
+        McpElicitationDialog: true,
+        McpAppConsentDialog: true,
         SelectedTextContextMenu: true,
         TranslatePopup: true,
         SpotlightOverlay: true,
@@ -448,7 +462,7 @@ const mountApp = async (options?: {
   return {
     route,
     router,
-    configPresenter,
+    configService,
     onboardingClient,
     pageRouterStore,
     sidepanelStore,
@@ -457,7 +471,12 @@ const mountApp = async (options?: {
     draftStore,
     sessionStore,
     ipcOn,
-    spotlightStore
+    spotlightStore,
+    wrapper,
+    setupMcpDeeplink,
+    cleanupMcpDeeplink,
+    setupAppIpcRuntime,
+    cleanupAppIpcRuntime
   }
 }
 
@@ -467,26 +486,54 @@ afterEach(() => {
 })
 
 describe('App startup welcome flow', () => {
+  it('registers runtime and MCP deeplink listeners on mount and cleans them up on unmount', async () => {
+    const {
+      wrapper,
+      setupMcpDeeplink,
+      cleanupMcpDeeplink,
+      setupAppIpcRuntime,
+      cleanupAppIpcRuntime
+    } = await mountApp({
+      initComplete: true,
+      routeName: 'chat',
+      trackRuntimeLifecycle: true
+    })
+
+    expect(setupMcpDeeplink).toHaveBeenCalledTimes(1)
+    expect(setupAppIpcRuntime).toHaveBeenCalledTimes(1)
+
+    wrapper.unmount()
+
+    expect(cleanupAppIpcRuntime).toHaveBeenCalledTimes(1)
+    expect(cleanupMcpDeeplink).toHaveBeenCalledTimes(1)
+  })
+
+  it('leaves the initial session request to the chat route host', async () => {
+    const { sessionStore } = await mountApp({ initComplete: true, routeName: 'chat' })
+
+    expect(sessionStore.fetchSessions).not.toHaveBeenCalled()
+  })
+
   it('routes to welcome when init is incomplete', async () => {
-    const { router, configPresenter, onboardingClient } = await mountApp({
+    const { router, configService, onboardingClient } = await mountApp({
       initComplete: false,
       routeName: 'chat'
     })
 
-    expect(configPresenter.getSetting).toHaveBeenCalledWith('init_complete')
+    expect(configService.getSetting).toHaveBeenCalledWith('init_complete')
     expect(onboardingClient.getState).toHaveBeenCalledTimes(1)
     expect(onboardingClient.start).toHaveBeenCalledTimes(1)
     expect(router.replace).toHaveBeenCalledWith({ name: 'welcome' })
   }, 10000)
 
   it('redirects welcome back to chat when init is complete', async () => {
-    const { router, configPresenter, onboardingClient, route } = await mountApp({
+    const { router, configService, onboardingClient, route } = await mountApp({
       initComplete: true,
       routeName: 'welcome',
       onboardingStatus: 'idle'
     })
 
-    expect(configPresenter.getSetting).toHaveBeenCalledWith('init_complete')
+    expect(configService.getSetting).toHaveBeenCalledWith('init_complete')
     expect(onboardingClient.start).not.toHaveBeenCalled()
     expect(router.replace).toHaveBeenCalledWith({ name: 'chat' })
     expect(route.name).toBe('chat')
@@ -539,6 +586,26 @@ describe('App startup welcome flow', () => {
       stepId: 'select-provider'
     })
     expect(route.name).toBe('welcome')
+  })
+
+  it('continues Settings onboarding through the typed main-window event', async () => {
+    const { ipcOn, router } = await mountApp({
+      initComplete: true,
+      routeName: 'chat',
+      onboardingStatus: 'active',
+      onboardingCurrentStepId: 'skills'
+    })
+
+    const resumeHandler = ipcOn.mock.calls.find(
+      ([eventName]: [string]) => eventName === 'appRuntime.guidedOnboardingResumeRequested'
+    )?.[1]
+
+    expect(resumeHandler).toBeTypeOf('function')
+
+    await resumeHandler?.({})
+    await flushPromises()
+
+    expect(router.replace).toHaveBeenLastCalledWith({ name: 'plugins-skills' })
   })
 
   it('returns to welcome when the main window refocuses with a pending onboarding resume', async () => {
@@ -749,7 +816,7 @@ describe('App startup welcome flow', () => {
       modelId: 'deepseek-chat',
       systemPrompt: 'Be concise',
       mentions: ['README.md'],
-      autoSend: false
+      autoSend: true
     })
     await flushPromises()
 
@@ -757,12 +824,47 @@ describe('App startup welcome flow', () => {
       msg: '你好，DeepChat',
       modelId: 'deepseek-chat',
       systemPrompt: 'Be concise',
-      mentions: ['README.md'],
-      autoSend: false
+      mentions: ['README.md']
     })
     expect(agentStore.setSelectedAgent).toHaveBeenCalledWith('deepchat')
     expect(sessionStore.closeSession).toHaveBeenCalledTimes(1)
     expect(pageRouterStore.goToNewThread).not.toHaveBeenCalled()
+  })
+
+  it('does not let a replaced start deeplink overwrite the newer navigation intent', async () => {
+    const { draftStore, pageRouterStore, sessionStore, ipcOn } = await mountApp({
+      initComplete: true,
+      routeName: 'chat',
+      hasActiveSession: true
+    })
+    let releaseFirstClose: (() => void) | undefined
+    const firstClose = new Promise<void>((resolve) => {
+      releaseFirstClose = resolve
+    })
+    sessionStore.closeSession.mockImplementationOnce(() => firstClose)
+
+    const startHandler = ipcOn.mock.calls.find(
+      ([eventName]: [string]) => eventName === 'appRuntime.startDeeplinkRequested'
+    )?.[1]
+
+    expect(startHandler).toBeTypeOf('function')
+
+    startHandler?.({ msg: 'A', autoSend: false })
+    await flushPromises()
+    expect(sessionStore.closeSession).toHaveBeenCalledTimes(1)
+
+    sessionStore.hasActiveSession = false
+    startHandler?.({ msg: 'B', autoSend: false })
+    await flushPromises()
+
+    expect(pageRouterStore.goToNewThread).toHaveBeenCalledTimes(1)
+    expect(draftStore.pendingStartDeeplink).toMatchObject({ msg: 'B', token: 2 })
+
+    releaseFirstClose?.()
+    await flushPromises()
+
+    expect(pageRouterStore.goToNewThread).toHaveBeenCalledTimes(1)
+    expect(draftStore.pendingStartDeeplink).toMatchObject({ msg: 'B', token: 2 })
   })
 
   it('opens spotlight from the global shortcut event', async () => {

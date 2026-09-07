@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { defineComponent } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
-import type { LLM_PROVIDER } from '../../../src/shared/presenter'
+import type { LLM_PROVIDER } from '@shared/types/provider'
 
 const buttonStub = defineComponent({
   name: 'Button',
@@ -51,8 +51,8 @@ async function setup() {
   vi.doMock('@iconify/vue', () => ({
     Icon: passthrough('Icon')
   }))
-  vi.doMock('@shadcn/components/ui/button', () => ({
-    Button: buttonStub
+  vi.doMock('@dc-ui/components/button', () => ({
+    DcButton: buttonStub
   }))
   vi.doMock('@shadcn/components/ui/badge', () => ({
     Badge: passthrough('Badge')

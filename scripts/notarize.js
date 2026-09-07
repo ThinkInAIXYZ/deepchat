@@ -1,33 +1,19 @@
-import { notarize } from '@electron/notarize'
+import {
+  isReleaseNotarizationEnabled,
+  notarizeReleaseArtifact
+} from './apple-notarization.js'
 
 export default async function notarizing(context) {
   const { electronPlatformName, appOutDir } = context
-  const releaseFlag = process.env.build_for_release
-  console.info('releaseFlag', releaseFlag)
-  if (!releaseFlag) {
-    console.info('Skipping notarization as build_for_release is not set')
-    return
-  }
   if (electronPlatformName !== 'darwin') {
     return
   }
-  console.info('start notarize mac app', appOutDir)
-  if (releaseFlag === '2') {
-    // 使用预设的appid、teamid和环境变量中的密码
-    const appleId = process.env.DEEPCHAT_APPLE_NOTARY_USERNAME
-    const teamId = process.env.DEEPCHAT_APPLE_NOTARY_TEAM_ID
-    const appleIdPassword = process.env.DEEPCHAT_APPLE_NOTARY_PASSWORD
-
-    return await notarize({
-      appPath: `${appOutDir}/DeepChat.app`,
-      appleId,
-      appleIdPassword,
-      teamId
-    })
-  } else {
-    return await notarize({
-      appPath: `${appOutDir}/DeepChat.app`,
-      keychainProfile: 'DeepChat' // replace with your keychain
-    })
+  if (!isReleaseNotarizationEnabled()) {
+    console.info('Skipping app notarization because build_for_release is not set')
+    return
   }
+
+  const appPath = `${appOutDir}/DeepChat.app`
+  console.info(`Notarizing macOS app: ${appPath}`)
+  await notarizeReleaseArtifact(appPath)
 }

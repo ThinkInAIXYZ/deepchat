@@ -1,5 +1,305 @@
 # Changelog
 
+## v1.1.2-beta.2 (2026-09-07)
+- Added installation and management of Codex-compatible user plugin packages from Git repositories, ZIP archives, and local folders, with selectable Skills, supported context hooks, and MCP configurations
+- Preserved new conversation drafts across Agent switches and removed drafts when their Agent is deleted
+- Increased the pending message queue limit to 10 and restored queue capacity after messages leave the queue
+- Restored prompt editor scrolling and desktop notifications, and added error feedback when saving the tool mode fails
+- Improved conversation history recovery and prevented duplicated usage totals when forking sessions
+- Refreshed the built-in model and ACP catalogs
+- 新增兼容 Codex 的用户插件包安装与管理，支持 Git 仓库、ZIP 压缩包和本地文件夹，并可选择导入 Skills、受支持的上下文钩子及 MCP 配置
+- 在切换 Agent 时保留新对话草稿，并在删除 Agent 时清理对应草稿
+- 将待处理消息队列上限提升至 10 条，并在消息离开队列后恢复可用容量
+- 恢复提示词编辑器滚动与桌面通知，并在工具模式保存失败时显示错误反馈
+- 改进对话历史恢复，并修复分叉会话重复累计用量的问题
+- 刷新内置模型与 ACP 目录
+
+## v1.1.2-beta.1 (2026-09-04)
+- Added an Open With picker for workspace files, with detected editors and terminals, remembered preferences, and system-default fallback
+- Restored DeepSeek Responses tool streaming, native web search, and follow-up replay
+- Added visible waiting feedback during provider retry delays
+- Made delegated sessions inherit the parent tool mode
+- Improved agent turn performance and session consistency with faster Tape reads and atomic message and fact writes
+- Refreshed the built-in model and ACP catalogs
+- 新增工作区文件“打开方式”选择器，支持检测编辑器与终端、记住所选应用，并在不可用时回退到系统默认应用
+- 恢复 DeepSeek Responses 的工具流式传输、原生网页搜索与后续对话回放
+- 在 Provider 重试等待期间显示明确反馈
+- 使委派会话继承父会话的工具模式
+- 通过更快的 Tape 读取以及消息与事实的原子写入，提升 Agent 回合性能与会话一致性
+- 刷新内置模型与 ACP 目录
+
+## v1.1.1 (2026-08-31)
+- Added Code and Minimal tool modes, on-demand tool discovery, and permission-scoped CLI tool access
+- Added a Tape Trace Inspector for Agent runs, provider requests, tool calls, and Skill usage
+- Improved long-context compaction and overflow recovery while preserving full conversation history
+- Unified Skills into a shared library with per-Agent enablement and progressive loading, and restored manual installation from folders, ZIP archives, URLs, and Git repositories
+- Added managed Node.js and uv toolchains with detection, installation, repair, and recovery, plus terminal authentication for ACP agents
+- Redesigned provider Settings with staged credential verification, API key copying, and direct chat entry; added validated custom request headers with cross-origin protections
+- Added APIMart, Synthorai, and RunInfra providers, native APIMart image and video generation, and Codex image generation support
+- Upgraded Markstream to 2.0.6 and reduced Markdown streaming stalls with split rendering and a managed worker pool
+- Improved workspace navigation, conversation retry, and permission prompt recovery, and reduced startup delays
+- Made Agent stop requests interrupt stalled provider and browser waits, and added configurable Code Mode cell timeouts
+- Repaired usage statistics and MCP startup, retained corrupt databases for recovery, and fixed Ollama context budgets and provider timeout handling
+- Refreshed the built-in model and ACP catalogs
+- 新增 Code 与 Minimal 工具模式、按需工具发现，以及受权限约束的 CLI 工具访问
+- 新增 Tape Trace Inspector，用于查看 Agent 运行、Provider 请求、工具调用与 Skill 使用记录
+- 改进长上下文压缩与溢出恢复，同时保留完整对话历史
+- 将 Skills 统一为共享库，支持逐 Agent 启用与渐进式加载，并恢复从文件夹、ZIP 压缩包、URL 与 Git 仓库手动安装
+- 新增托管式 Node.js 与 uv 工具链，支持检测、安装、修复与恢复，并为 ACP Agent 新增终端身份验证
+- 重做 Provider 设置，支持暂存并验证凭据、复制 API Key 和直接开始聊天；新增经过验证且具备跨域保护的自定义请求头
+- 新增 APIMart、Synthorai 与 RunInfra Provider，支持 APIMart 原生图片与视频生成，以及 Codex 图片生成
+- 将 Markstream 升级至 2.0.6，并通过分段渲染与受控 Worker 池减少 Markdown 流式渲染卡顿
+- 改进工作区导航、对话重试与权限提示恢复，并减少启动延迟
+- 使 Agent 停止请求能够中断卡住的 Provider 与浏览器等待，并支持配置 Code Mode 代码单元超时
+- 修复用量统计与 MCP 启动，保留损坏数据库以便恢复，并修复 Ollama 上下文预算与 Provider 超时处理
+- 刷新内置模型与 ACP 目录
+
+## v1.1.1-beta.5 (2026-08-27)
+- Added built-in APIMart and Synthorai providers, including native APIMart image and video generation
+- Added validated per-provider custom request headers with cross-origin protections
+- Restored manual Skill installation from folders, ZIP archives, URLs, and Git repositories
+- Refreshed the built-in model and ACP catalogs
+- Fixed stale permission and question prompts blocking conversations
+- Reduced startup delays when background tasks occupy the available work lanes
+- 新增内置 APIMart 与 Synthorai Provider，并支持 APIMart 原生图片与视频生成
+- 新增经过验证的 Provider 自定义请求头，并提供跨域保护
+- 恢复从文件夹、ZIP 压缩包、URL 与 Git 仓库手动安装 Skill
+- 刷新内置模型与 ACP 目录
+- 修复过期的权限与问题提示阻塞对话
+- 减少后台任务占满工作通道时的启动延迟
+
+## v1.1.1-beta.4 (2026-08-24)
+- Added Codex image generation support for providers
+- Reduced markdown streaming stalls with split rendering and gentle prefix batching
+- Kept the user message mounted on retry, fixed retry budget double counting and duplicate pinned prompts
+- Fixed decimal value formatting in the memory diagnostics panel
+- 新增 Provider 的 Codex 图片生成支持
+- 通过分段渲染与温和的前缀批处理减少 Markdown 流式渲染卡顿
+- 重试时保留用户消息挂载，修复重试预算重复计算与重复固定提示词
+- 修复内存诊断面板中十进制数值的格式化
+
+## v1.1.1-beta.3 (2026-08-20)
+- Added managed Node.js and uv toolchains with automatic detection, installation, repair, and recovery
+- Added terminal authentication for ACP agents
+- Added verified staged provider credential edits, API key copying, and a Start chatting action after provider setup
+- Upgraded Markstream rendering with a managed stream-diffs worker pool
+- Improved CLI, MCP, and OCR reliability around runtime discovery and toolchain changes
+- 新增托管式 Node.js 与 uv 工具链，支持自动检测、安装、修复与恢复
+- 新增 ACP Agent 终端身份验证
+- 新增经验证的 Provider 凭据暂存编辑、API Key 复制，以及 Provider 配置完成后的“开始聊天”操作
+- 升级 Markstream 渲染，引入受控的 stream-diffs Worker 池
+- 改进 CLI、MCP 与 OCR 在运行时发现和工具链变更场景下的可靠性
+
+## v1.1.1-beta.2 (2026-08-18)
+- Redesigned the Settings provider sidebar and configured-provider page
+- Honored provider model-configured timeouts instead of the default 300s undici header timeout
+- Inherited global fetch timeouts on remaining proxy fetches
+- Repaired usage statistics and MCP startup
+- Allowed ACP apps to be uninstalled while disabled
+- Stopped Agent from silently reading empty files
+- Made body portals non-draggable and improved enabled tool chip visibility in dark mode
+- 重新设计设置页的 Provider 侧边栏与已配置 Provider 页面
+- 修复 Provider 模型超时，改为遵循模型配置的超时而非默认 300s 请求头超时
+- 在剩余代理请求上继承全局 fetch 超时
+- 修复用量统计与 MCP 启动
+- 允许在禁用状态下卸载 ACP 应用
+- 修复 Agent 静默读取空文件的问题
+- 使 body 门户不可拖拽，并改善暗色模式下已启用工具 chip 的可见性
+
+## v1.1.1-beta.1 (2026-08-17)
+- Added virtualized tool surfaces: agents load tools on demand with search, canary performance gates, and permission-gated activation for large catalogs
+- Added a Tape Trace Inspector to audit agent runs, tool calls, and skill usage
+- Added context compaction with occupancy tracking, silent-pressure recovery, pinned context, and summary provenance
+- Added new Agent run modes (code and minimal) and workspace management in the sidebar
+- Added programmatic tool access through the CLI with bounded batches, grants, and trusted discovery
+- Upgraded Markstream code rendering to the v2 language API with normalized language and code block handling
+- Added bounded exec stdin and explicit shell dialect declaration for Agent tools
+- Fixed corrupt database retention, guard-stop terminal surfacing, Ollama runtime context budget handling, and MiniMax-M3 temperature omission
+- Improved skill lifecycle reliability, session restoration, workspace ordering, and tool execution recovery
+- 新增虚拟化工具表面：Agent 按需加载工具，支持搜索、Canary 性能门控，以及针对大型工具目录的按权限激活
+- 新增 Tape Trace Inspector，用于审计 Agent 运行、工具调用与技能使用
+- 新增上下文压缩，支持占用跟踪、静默压力恢复、固定上下文与摘要来源标记
+- 新增 Agent 运行模式（code 与 minimal）及侧边栏工作区管理
+- 新增 CLI 程序化工具访问，支持有界批次、授权授予与可信发现
+- 将 Markstream 代码渲染升级至 v2 语言 API，并规范化语言与代码块处理
+- 为 Agent 工具新增有界 exec 标准输入与显式 Shell 方言声明
+- 修复损坏数据库保留、guard-stop 终止反馈、Ollama 运行时上下文预算处理及 MiniMax-M3 温度参数遗漏
+- 改进技能生命周期可靠性、会话恢复、工作区排序与工具执行恢复
+
+## v1.1.0 (2026-08-11)
+- Added proactive multi-Agent collaboration with live child Sessions, progress controls, result handoff, durable execution journaling, and contract-bound delegation recovery
+- Added a bundled local `deepchat` CLI for inference, media, OCR, artifacts, Agent runs, provider and model administration, Settings, Skills, and MCP operations
+- Expanded Agent Memory with time-aware Directives, persistent corrections and deletions, incremental maintenance, and more reliable vector storage and recovery
+- Added fully offline OCR for image and PDF attachments, with per-attachment modes, cancellation, caching, page-aware truncation, and reuse across history, retry, export, and search
+- Gave every Agent an isolated Skills catalog with explicit imports, and added MCP v2 ecosystem support, a built-in McDonald's server, larger tool catalogs, and resilient schema handling
+- Added native DeepSeek web search and built-in support for AMD GPU Cloud, DaoXE, GreenPT, Modelsell, OrcaRouter, Routerra, Straico, StepFun Token Plan, and Grok OAuth
+- Upgraded Computer Use to 0.19.2 with snapshot-bound targeting, post-action verification, new window, menu, and clipboard tools, native picture-in-picture previews, and stronger runtime integrity checks
+- Added browser session import, sidebar workspace management, persistent composer drafts, configurable Agent output limits, and Windows command shell profiles
+- Improved chat and Agent recovery for pending or released inputs, permission outcomes, interrupted sessions, truncated tool calls, transient provider failures, and long-context prompt caching
+- Refined notifications, Steer conversations, Settings, startup visuals, UI controls, motion, scrolling, search, and message actions while reducing renderer and dashboard overhead
+- Added Linux ARM64 packages and a branded macOS installer, hardened updater metadata and native distribution verification, and rebuilt release assembly around reproducible, fail-closed checks
+- Upgraded Electron to 41.10.4, the bundled Node.js runtime to 24.18.0, Light OCR to 0.5.7, and patched DOMPurify, Nano ID, YAML, and Mermaid security issues
+- 新增主动式多 Agent 协作，支持实时子会话、进度控制、结果回传、持久化执行日志，以及受契约约束的委派恢复
+- 新增内置本地 `deepchat` CLI，覆盖推理、媒体生成、OCR、产物管理、Agent 运行、Provider 与模型管理、设置、Skills 和 MCP 操作
+- 扩展 Agent Memory，新增具备时间感知能力的 Directives、可持久生效的纠正与删除、增量维护，以及更可靠的向量存储与恢复机制
+- 新增完全离线的图片与 PDF 附件 OCR，支持逐附件模式、取消、缓存、按页截断，以及在历史、重试、导出和搜索中复用结果
+- 为每个 Agent 提供隔离的 Skills 目录与显式导入，并新增 MCP v2 生态、内置 McDonald's 服务器、大型工具目录支持和稳健的 Schema 兼容处理
+- 新增 DeepSeek 原生联网搜索，并内置支持 AMD GPU Cloud、DaoXE、GreenPT、Modelsell、OrcaRouter、Routerra、Straico、StepFun Token Plan 和 Grok OAuth
+- 将 Computer Use 升级至 0.19.2，新增基于快照的目标定位、操作后验证、窗口、菜单与剪贴板工具、原生画中画预览，并强化运行时完整性校验
+- 新增浏览器会话导入、侧边栏工作区管理、输入框草稿持久化、Agent 输出上限配置，以及 Windows 命令行 Shell 配置
+- 改进待处理或已释放输入、权限结果、中断会话、截断工具调用、瞬时 Provider 故障和长上下文提示词缓存的恢复与可靠性
+- 优化通知反馈、Steer 对话、设置页、启动视觉、UI 控件、动效、滚动、搜索和消息操作，并降低渲染器与 Dashboard 开销
+- 新增 Linux ARM64 安装包和品牌化 macOS 安装器，强化更新元数据与原生分发校验，并以可复现、失败即关闭的检查重构发布组装流程
+- 将 Electron 升级至 41.10.4、内置 Node.js 运行时升级至 24.18.0、Light OCR 升级至 0.5.7，并修复 DOMPurify、Nano ID、YAML 与 Mermaid 安全问题
+
+## v1.1.0-beta.12 (2026-08-07)
+- Added proactive multi-Agent collaboration with live child Sessions, progress tracking, controls, and result handoff
+- Added a bundled local `deepchat` CLI for inference, media, OCR, artifacts, Agent runs, provider and model administration, Settings, Skills, and MCP operations
+- Added native web search for supported DeepSeek V4 Flash models, with a per-turn toggle, visible search activity, and source links
+- Added OrcaRouter as a built-in provider with live model discovery
+- Upgraded the bundled Computer Use driver to 0.17.0 with snapshot-bound targeting, post-action verification, and new window, menu, and clipboard tools
+- Persisted images generated through MCP tools so they remain available after restart and in follow-up actions
+- Improved compatibility with large MCP tool catalogs and equivalent JSON schemas
+- Standardized UI controls and refined interface motion, hover behavior, and reduced-motion feedback
+- Upgraded Light OCR to 0.5.7, Electron to 41.10.4, and the bundled Node.js runtime to 24.18.0
+- Restored provider database refreshes for larger catalogs and refreshed model and Agent registries
+- Fixed long unbroken text expanding the chat composer, untranslated confirmation labels, and scheduler restart and manual-run feedback
+- 新增主动式多 Agent 协作，支持实时子会话、进度跟踪、控制与结果回传
+- 新增内置本地 `deepchat` CLI，覆盖推理、媒体生成、OCR、产物管理、Agent 运行、Provider 与模型管理、设置、Skills 和 MCP 操作
+- 为支持的 DeepSeek V4 Flash 模型新增原生联网搜索，提供逐轮开关、可见搜索过程与来源链接
+- 新增 OrcaRouter 内置 Provider，并支持动态获取模型列表
+- 将内置 Computer Use 驱动升级至 0.17.0，新增基于快照的目标定位、操作后验证，以及窗口、菜单和剪贴板工具
+- 持久化 MCP 工具生成的图片，确保重启后及后续操作中仍可使用
+- 改进大型 MCP 工具目录及等价 JSON Schema 的兼容性
+- 统一界面控件，并优化动效、悬停行为与减少动态效果反馈
+- 将 Light OCR 升级至 0.5.7、Electron 升级至 41.10.4，并将内置 Node.js 运行时升级至 24.18.0
+- 恢复大型 Provider 数据库的刷新能力，并更新模型与 Agent 注册表
+- 修复无空格长文本撑宽聊天输入框、确认按钮未翻译，以及调度器重启与手动运行反馈异常
+
+## v1.1.0-beta.11 (2026-07-31)
+- Tolerated invalid MCP tool output schemas without rejecting otherwise usable tools
+- 容忍无效的 MCP 工具输出 Schema，避免拒绝其他可用工具
+
+## v1.1.0-beta.10 (2026-07-31)
+- Improved alert confirmations and notification feedback so user actions report reliable results
+- Added MCP v2 ecosystem support and a built-in McDonald's server
+- Upgraded Light OCR to 0.5.6 and moved OCR management into Plugins Hub
+- Redesigned Steer messages as IM-style conversations
+- Deferred automatic updates until active tasks finish
+- Fixed provider image inputs by sending file parts where required
+- Removed dashboard usage cost figures and hardened locale resolution
+- Restored scheduled package regression checks
+- Upgraded the bundled Computer Use driver to v0.14.1
+- 改进提醒确认与通知反馈，确保用户操作能够可靠地显示结果
+- 支持 MCP v2 生态，并新增 McDonald's 内置服务器
+- 将 Light OCR 升级至 0.5.6，并将 OCR 管理移至 Plugins Hub
+- 将 Steer 消息重做为类似即时通讯的对话形式
+- 延迟自动更新安装，避免打断正在执行的任务
+- 修复部分 Provider 的图片输入，按要求改用文件分片发送
+- 移除 Dashboard 费用估算，并强化语言环境解析
+- 恢复定时软件包回归检查
+- 内置 Computer Use 驱动升级至 v0.14.1
+
+## v1.1.0-beta.9 (2026-07-29)
+- Added Directives to Agent Memory: instructions you write take effect immediately, instructions the model suggests stay as drafts until you approve them, and suppression directives keep a topic out of recalled memory. Clearing memories now keeps your directives
+- Made Agent Memory time-aware: it records when a fact was true, so expired plans and outdated states are no longer recalled as current; corrections and deletions now stick instead of reappearing in the next conversation; and memory maintenance runs incrementally instead of rescanning everything
+- Added fully offline PDF OCR (Light-OCR 0.5.5): multi-page recognition with a per-attachment Auto / Text / OCR switch, page-aware truncation that reports which pages were included, and results cached and reused across history, retry, export and search
+- Added GreenPT and Modelsell as built-in providers, with model lists fetched live from the provider
+- Fixed enabling Computer Use blacking out the desktop on Linux/X11: the driver now starts only when a tool actually needs it, its files are verified before every launch, and a runtime that exits uncleanly is quarantined with Test runtime and Retry runtime controls in Settings
+- Upgraded the bundled Computer Use driver to v0.13.1, and added a read-only picture-in-picture showing the latest snapshot of the app being controlled
+- Made native preview support load only on first use so missing dependencies no longer affect startup: Browser opens in the side panel when native preview is unavailable, Computer Use keeps working without picture-in-picture, and Windows x64 now uses a statically linked runtime to reduce missing-DLL launch failures
+- Fixed model context and output limits being overwritten on refresh, reset, restart and backup restore — GPT-5.6-sol on New API was capped at 16000/4096 instead of 1050000/32000 — and fixed Kimi K3 on New API sending temperature and top_p, which it does not support
+- Replaced the startup window with an animated DeepChat splash
+- Redesigned the Settings overview and usage dashboard: hovering a day in the activity calendar now shows that day's input, output and cache-hit tokens. The usage trend chart and estimated cost figures have been removed
+- Fixed confirming a message deletion doing nothing, and delete failures now show an error instead of failing silently
+- Fixed three Agent Skills issues: importing from another Agent failing with "An object could not be cloned", a failed skill snapshot migration blocking startup, and the skill list flickering when toggling a skill on or off
+- Agent Memory 新增 Directives（长期指令）：自己写的指令立即生效，模型建议的指令先存为草稿、经你确认后才生效，抑制类指令可以让某个话题不再被记忆召回。清空记忆时会保留这些指令
+- Agent Memory 现在理解时间：会记录一条信息在什么时间范围内成立，过期的计划和已失效的状态不再被当作当前事实召回；纠正和删除会真正生效，不会在下一次对话里重新冒出来；记忆整理改为增量进行，不再每次全量扫描
+- 新增完全离线的 PDF OCR（Light-OCR 0.5.5）：支持多页识别，每个附件可单独选择 Auto / 文本 / OCR；超出限制时会明确告知识别到了哪些页面。识别结果会缓存，并在历史、重试、导出和搜索中复用
+- 新增 GreenPT 与 Modelsell 两个内置 Provider，模型列表从服务商动态获取
+- 修复 Linux/X11 下启用 Computer Use 导致桌面黑屏的问题：驱动改为在工具真正需要时才启动，每次启动前校验文件完整性；异常退出的运行时会被隔离，并在设置中提供「测试运行时」和「重试运行时」操作
+- 内置 Computer Use 驱动升级至 v0.13.1，并新增只读画中画，显示被操作应用的最新截图
+- 原生预览能力改为首次使用时才加载，避免依赖缺失影响应用启动：原生预览不可用时 Browser 自动打开侧边栏、Computer Use 不显示画中画但功能照常；Windows x64 改用静态链接运行时，减少缺少 DLL 导致的启动失败
+- 修复模型上下文与输出上限在刷新、重置、重启和备份恢复后被覆盖的问题（New API 下 GPT-5.6-sol 会被限制为 16000/4096 而非 1050000/32000），以及 New API 下 Kimi K3 发送了它并不支持的 temperature 和 top_p
+- 启动窗口更换为带动画的 DeepChat 启动页
+- 重做设置概览页与用量面板：在活跃日历上悬停某一天可查看当天的输入、输出与缓存命中 token。已移除用量趋势图和费用估算
+- 修复点击确认删除消息后没有任何反应的问题，删除失败时也会给出错误提示而不再静默失败
+- 修复 Agent Skills 的三个问题：从其他 Agent 导入时报「An object could not be cloned」、技能快照迁移失败会阻塞启动、开关技能时列表闪烁
+
+## v1.1.0-beta.8 (2026-07-26)
+- Added fully offline OCR for image attachments (Light-OCR): images are routed to vision or OCR based on the selected model, OCR text is reused across history, retry, edit and compaction, and per-attachment mode, cancellation and cache controls are available in Settings
+- Gave every Agent its own Skills root and catalog, replacing the shared catalog and its sync workflow with explicit import from another Agent or from an external DeepChat data directory
+- Rebuilt the Agent browser picture-in-picture as a native overlay: open-in-side-panel and close controls, dragging outside the DeepChat window, with the Canvas overlay kept as a fallback
+- Added Routerra, Straico, and StepFun Token Plan as built-in provider presets
+- Added Linux ARM64 installers, and gave the macOS DMG installer a proper drag-to-install window with a background image and the app and Applications icons aligned to it
+- Made long conversations reuse the provider prompt cache: the system prompt no longer changes whenever a summary, handoff state or memory updates, cache markers now reach the request for OpenAI, Anthropic, Bedrock, OpenRouter and Zenmux, and compaction sizes the retained history to the model's context budget
+- Retried transient provider failures with bounded, abortable backoff, and never replayed a request once text, reasoning or tool output was committed
+- Stopped executing tool calls truncated by `max_tokens`: the batch is rejected atomically, matching error results are written, and the request is retried once
+- Restructured the Agent runtime into a one-directional owner graph behind a harness facade, added a typed tool execution contract that keeps write-capable tools sequential, and rebuilt Hooks on a typed event pipeline with bounded command execution
+- Fixed chat search highlights on streamed rows, sidebar search pagination, the invisible pending-assistant row, session-restore scrolling that overrode a search or spotlight jump, and session revision recovery on existing databases
+- Cut Settings startup cost by lazy-loading locales (synchronous JS 4.25 MB to 0.9 MB) and reduced Dashboard CPU with cached formatters and polling that pauses in the background
+- Fixed auto-update failing with `Invalid input: expected string, received Date`: updater metadata is now published with a quoted releaseDate and validated against electron-updater's own parser across all four channel files
+- Fixed the macOS clean-install Gatekeeper failure caused by the bundled Computer Use helper, and added distribution verification for both the app and the macOS updater payload
+- Rebuilt the release pipeline to verify every published package before release, and locked dependencies with a tracked pnpm lockfile for reproducible builds
+- 新增完全离线的图片附件 OCR（Light-OCR）：根据所选模型自动在视觉与 OCR 之间路由，OCR 文本在历史、重试、编辑与压缩中复用，并提供逐附件模式、取消与缓存管理
+- 每个 Agent 拥有独立的 Skills 根目录与目录管理，取消共享目录与同步流程，改为从其他 Agent 或外部 DeepChat 数据目录显式导入
+- 将 Agent 浏览器画中画重构为原生浮窗：提供打开侧边栏与关闭按钮，可拖动到 DeepChat 窗口之外，并保留 Canvas 浮层作为回退方案
+- 新增 Routerra、Straico 与 StepFun Token Plan 内置 Provider
+- 新增 Linux ARM64 安装包；macOS DMG 安装窗口改为带背景图的拖拽安装界面，应用图标与 Applications 快捷方式按背景对齐
+- 让长对话真正复用 Provider 的提示词缓存：系统提示词不再随摘要、handoff 状态与记忆的更新而变化，缓存标记能正确传给 OpenAI、Anthropic、Bedrock、OpenRouter 与 Zenmux，压缩时按模型上下文预算保留近期历史
+- 对瞬时 Provider 失败进行有界、可中断的退避重试，并在已产出文本、思考或工具调用后不再重放请求
+- 不再执行被 `max_tokens` 截断的工具调用：整批原子拒绝并写入对应错误结果，随后仅自动重试一次
+- 将 Agent runtime 重构为 harness facade 之上的单向 owner 图，引入类型化工具执行契约（可写工具强制串行），并将 Hook 重建为类型化事件管道与有界命令执行
+- 修复流式消息的搜索高亮、侧边栏搜索分页、待生成消息行不可见、会话恢复滚动覆盖搜索/聚光跳转，以及已有数据库的 session revision 恢复问题
+- 懒加载语言包降低设置页启动开销（同步 JS 4.25 MB 降至 0.9 MB），并通过缓存 formatter 与后台暂停轮询降低 Dashboard CPU 占用
+- 修复自动更新报错 `Invalid input: expected string, received Date`：发布端强制为 releaseDate 加引号，并用 electron-updater 自身的解析器校验全部四个更新渠道文件
+- 修复由内置 Computer Use 助手导致的 macOS 全新安装 Gatekeeper 失败，并对应用与 macOS 更新包补充分发校验
+- 重构发布流水线，发布前校验每个产物；纳入 pnpm lockfile 锁定依赖，保证构建可复现
+
+## v1.1.0-beta.4 (2026-07-19)
+- Added browser session import and an agent picture-in-picture view
+- Improved Feishu delivery error feedback and test user-data directory handling
+- Reworked the Tape runtime into layered architecture with improved session recall reliability
+- Restructured the chat main renderer and added rendering performance diagnostics
+- 新增浏览器会话导入与 Agent 画中画视图
+- 改进飞书投递错误反馈及测试用户数据目录处理
+- 将 Tape runtime 重构为分层架构，提升会话召回可靠性
+- 重构聊天主渲染器并新增渲染性能诊断
+
+## v1.1.0-beta.3 (2026-07-17)
+- Reworked the overall architecture and improved reliability
+- 重构整体架构，提升可靠性
+
+## v1.1.0-beta.2 (2026-07-16)
+- Centralized Subagent capability policy ownership across the agent runtime and sessions
+- Added explicit subagent tape lineage with linked tape views and cross-tape recall
+- Separated Tape runtime tool capabilities for clearer isolation
+- Split agent runtime lifecycle owners and tightened message, permission, and stop boundaries
+- Improved renderer interaction quality for panels, MCP market, and message actions
+- Stabilized chat scroll ownership and hardened session view ownership
+- Fixed Agent Memory provider cancellation and config ABA fence bypass
+- Upgraded markstream-vue and stream-monaco for streaming render alignment
+- 集中管理 Subagent capability policy 与 ownership，统一 runtime 与 session 边界
+- 新增显式 subagent tape lineage，支持 linked tape 视图与跨 tape 召回
+- 拆分 Tape runtime 工具能力边界，提升隔离性
+- 拆分 agent runtime lifecycle owners，收紧 message、permission 与 stop 边界
+- 改进面板、MCP market 与消息操作等交互体验
+- 稳定聊天滚动归属并强化 session view ownership
+- 修复 Agent Memory provider cancellation 与 config ABA fence 绕过问题
+- 升级 markstream-vue 与 stream-monaco，对齐流式渲染依赖
+
+## v1.1.0-beta.1 (2026-07-14)
+- Added Grok OAuth device login and DaoXE provider support
+- Reworked the agent runtime and session boundaries to improve isolation and lifecycle handling
+- Improved Agent Memory vector storage, embedding reindex recovery, and bounded workload reliability
+- Improved streaming rendering and preserved the active sidebar workspace while navigating chat history
+- Fixed ACP direct-runtime refresh and manual health checks
+- 新增 Grok OAuth 设备登录和 DaoXE Provider 支持
+- 重构 Agent runtime 与 session 边界，提升隔离性和生命周期处理能力
+- 改进 Agent Memory 向量存储、embedding reindex 恢复与有界工作负载的可靠性
+- 优化流式渲染，并在浏览聊天历史时保留侧边栏当前工作区
+- 修复 ACP direct runtime 刷新和手动健康检查问题
+
 ## v1.0.9 (2026-07-10)
 - Fixed Agent Memory correctness edge cases and strengthened record-level privacy controls
 - Fixed chat scroll position jumping to the bottom during streaming output

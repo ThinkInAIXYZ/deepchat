@@ -81,7 +81,7 @@ describe('PluginsSettings', () => {
     const wrapper = mount(PluginsSettings, {
       global: {
         stubs: {
-          Button: buttonStub,
+          DcButton: buttonStub,
           GuidedOnboardingOverlay: true,
           Icon: true
         }
@@ -106,7 +106,7 @@ describe('PluginsSettings', () => {
     const wrapper = mount(PluginsSettings, {
       global: {
         stubs: {
-          Button: buttonStub,
+          DcButton: buttonStub,
           GuidedOnboardingOverlay: true,
           Icon: true
         }

@@ -37,6 +37,7 @@
       "read": "'{serverName}' の '{toolName}' が読み取り操作を行うことを許可しますか？",
       "write": "'{serverName}' の '{toolName}' が書き込み操作を行うことを許可しますか？",
       "all": "'{serverName}' の '{toolName}' が読み取り・書き込みを行うことを許可しますか？",
+      "subagentStart": "この Subagent タスクを開始しますか？追加のトークン、時間、システムリソースを消費する可能性があります。",
       "command": "コマンドを実行: {command}",
       "commandWithRisk": "コマンドを実行: {command}\n\nリスクレベル: {riskLevel}\n\n提案: {suggestion}"
     },

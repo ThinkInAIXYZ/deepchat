@@ -16,5 +16,9 @@
   "topbarButton": "Обновить",
   "restarting": "Перезапуск",
   "alreadyUpToDate": "Уже обновлено",
-  "alreadyUpToDateDesc": "Ваш DeepChat уже обновлен до последней версии, обновление не требуется."
+  "alreadyUpToDateDesc": "Ваш DeepChat уже обновлен до последней версии, обновление не требуется.",
+  "taskRunningTitle": "Выполняется задача",
+  "taskRunningDescription": "В данный момент выполняются задачи. Как вы хотите продолжить обновление?",
+  "updateNow": "Обновить сейчас",
+  "updateAfterTasksComplete": "Обновить после завершения задач"
 }

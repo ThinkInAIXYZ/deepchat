@@ -1,5 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
-import { validateMemoryTestScope } from '../../../scripts/check-memory-test-scope.mjs'
+import {
+  findRequiredNativeTapeTests,
+  validateMemoryTestScope
+} from '../../../scripts/check-memory-test-scope.mjs'
 
 const rootDir = process.cwd()
 const baseManifest = {
@@ -22,12 +25,12 @@ describe('memory test scope guard', () => {
   it('keeps mutable runtime test accessors out of production Memory classes', async () => {
     const { readFileSync } = await vi.importActual<typeof import('node:fs')>('node:fs')
     const files = [
-      'src/main/presenter/memoryPresenter/infra/embeddingPipeline.ts',
-      'src/main/presenter/memoryPresenter/infra/vectorStoreManager.ts',
-      'src/main/presenter/memoryPresenter/services/maintenanceService.ts',
-      'src/main/presenter/memoryPresenter/services/personaService.ts',
-      'src/main/presenter/memoryPresenter/services/reflectionService.ts',
-      'src/main/presenter/memoryPresenter/services/workingMemoryService.ts'
+      'src/main/memory/infra/embeddingPipeline.ts',
+      'src/main/memory/infra/vectorStoreManager.ts',
+      'src/main/memory/services/maintenanceService.ts',
+      'src/main/memory/services/personaService.ts',
+      'src/main/memory/services/reflectionService.ts',
+      'src/main/memory/services/workingMemoryService.ts'
     ]
     for (const file of files) {
       expect(readFileSync(file, 'utf8').includes('getMutableRuntimeStateForTests')).toBe(false)
@@ -119,5 +122,67 @@ describe('memory test scope guard', () => {
       })
     ).toEqual([])
     expect(readFile).not.toHaveBeenCalled()
+  })
+
+  it('requires discovered native Tape tests to stay in the native scope', () => {
+    const requiredPath = 'tape-native.test.ts'
+    const paths = new Set([...existingPaths, requiredPath])
+    const contents = new Map([...fileContents, [requiredPath, 'export {}']])
+
+    expect(
+      validateMemoryTestScope({
+        rootDir,
+        manifest: baseManifest,
+        existingPaths: paths,
+        discoveredPaths: [],
+        requiredNativePaths: [requiredPath],
+        fileContents: contents
+      })
+    ).toContainEqual(expect.stringContaining('not classified as native'))
+
+    const manifest = structuredClone(baseManifest)
+    manifest.native.push(requiredPath)
+    expect(
+      validateMemoryTestScope({
+        rootDir,
+        manifest,
+        existingPaths: paths,
+        discoveredPaths: [],
+        requiredNativePaths: [requiredPath],
+        fileContents: contents
+      })
+    ).toEqual([])
+  })
+
+  it('discovers only split Tape suites with native SQLite gates', () => {
+    const paths = [
+      'test/main/session/data/tapeRecall.test.ts',
+      'test/main/session/data/tapeReplay.spec.ts',
+      'test/main/session/data/tapeReconciler.test.ts',
+      'test/main/session/data/tables/deepchatTapeEntriesTable.test.ts',
+      'test/main/session/data/tables/deepchatTapeEntriesTable.spec.ts',
+      'test/main/memory/agentMemoryTable.test.ts'
+    ]
+    const contents = new Map([
+      ['test/main/session/data/tapeRecall.test.ts', 'itIfSqlite(\'uses SQLite\', () => {})'],
+      ['test/main/session/data/tapeReplay.spec.ts', 'describeIfSqlite(\'uses SQLite\', () => {})'],
+      ['test/main/session/data/tapeReconciler.test.ts', 'it(\'stays portable\', () => {})'],
+      [
+        'test/main/session/data/tables/deepchatTapeEntriesTable.test.ts',
+        'describeIfSqlite(\'uses SQLite\', () => {})'
+      ],
+      [
+        'test/main/session/data/tables/deepchatTapeEntriesTable.spec.ts',
+        'itIfSqlite(\'uses SQLite\', () => {})'
+      ],
+      ['test/main/memory/agentMemoryTable.test.ts', 'itIfSqlite(\'outside Tape\', () => {})']
+    ])
+
+    expect(findRequiredNativeTapeTests(paths, (path) => contents.get(path) ?? '')).toEqual([
+      'test/main/session/data/tapeRecall.test.ts',
+      'test/main/session/data/tapeReplay.spec.ts',
+      'test/main/session/data/tables/deepchatTapeEntriesTable.test.ts',
+      'test/main/session/data/tables/deepchatTapeEntriesTable.spec.ts'
+    ])
   })
 })

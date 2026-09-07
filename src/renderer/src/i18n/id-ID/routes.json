@@ -3,6 +3,7 @@
   "welcome": "selamat datang",
   "settings": "pengaturan",
   "settings-common": "Pengaturan umum",
+  "settings-ocr": "OCR (Pengenalan Teks)",
   "settings-provider": "Pengaturan penyedia layanan",
   "settings-mcp": "Pengaturan MCP",
   "settings-deepchat-agents": "DeepChat Agent",
@@ -14,7 +15,7 @@
   "settings-prompt": "Prompt Manajemen",
   "settings-mcp-market": "MCP Pasar",
   "settings-acp": "ACP Agent",
-  "settings-skills": "Pengaturan Skills",
+  "plugins-skills": "Skills",
   "settings-notifications-hooks": "Kait",
   "settings-dashboard": "Dasbor data",
   "settings-environments": "lingkungan direktori",
@@ -23,5 +24,7 @@
   "settings-overview": "Ikhtisar pengaturan",
   "settings-scheduled-tasks": "Tugas terjadwal",
   "settings-memory": "Memori",
-  "plugins": "Plugins"
+  "plugins": "Plugins",
+  "settings-debug": "Debug",
+  "settings-toolchains": "Toolchains"
 }

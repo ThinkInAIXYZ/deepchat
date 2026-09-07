@@ -9,11 +9,28 @@
     @dragover="onDragOver"
     @drop="onDrop"
   >
-    <input ref="fileInput" type="file" class="hidden" multiple @change="files.handleFileSelect" />
+    <input ref="fileInput" type="file" class="hidden" multiple @change="onFileSelect" />
+
+    <div
+      v-if="skillsData.sessionActiveSkills.value.length > 0"
+      class="flex border-b border-border/50 px-2 py-1"
+    >
+      <SessionSkillsIndicator
+        :active-skills="skillsData.sessionActiveSkills.value"
+        :loading="skillsData.sessionActiveSkillsLoading.value"
+        :removing-skill="skillsData.sessionActiveSkillRemoving.value"
+        :disabled="!editable || isGenerating"
+        @remove="removeSessionActiveSkill"
+      />
+    </div>
 
     <div
       data-testid="chat-input-editor"
-      class="chat-input-editor px-4 pt-4 pb-2 text-sm"
+      :class="[
+        'chat-input-editor px-4 pt-4 pb-2 text-sm',
+        editable ? '' : 'pointer-events-none opacity-80'
+      ]"
+      :aria-disabled="!editable"
       @keydown="handleKeydown"
       @paste.capture="onPaste"
     >
@@ -25,6 +42,17 @@
       />
     </div>
 
+    <div
+      v-if="isAttachmentPreparationPending"
+      data-testid="attachment-preparation-pending"
+      class="flex items-center gap-2 border-t border-border/50 px-4 py-2 text-xs text-muted-foreground"
+      role="status"
+      aria-live="polite"
+    >
+      <Spinner class="size-3.5" />
+      <span>{{ t('chat.attachments.preparing') }}</span>
+    </div>
+
     <slot name="toolbar" />
   </div>
 </template>
@@ -32,7 +60,7 @@
 <script setup lang="ts">
 import { watch, ref, computed, onUnmounted, provide, nextTick } from 'vue'
 import { Editor as VueEditor, EditorContent } from '@tiptap/vue-3'
-import type { Editor } from '@tiptap/core'
+import type { Editor, JSONContent } from '@tiptap/core'
 import Mention from '@tiptap/extension-mention'
 import Document from '@tiptap/extension-document'
 import Paragraph from '@tiptap/extension-paragraph'
@@ -43,6 +71,9 @@ import History from '@tiptap/extension-history'
 import { TextSelection } from '@tiptap/pm/state'
 import type { MessageFile, UserMessageInlineItem } from '@shared/types/agent-interface'
 import { useI18n } from 'vue-i18n'
+import { Spinner } from '@shadcn/components/ui/spinner'
+import { createOcrClient, type OcrClient } from '@api/OcrClient'
+import { notifyRenderer } from '@renderer-notifications/rendererNotificationPort'
 import {
   buildChatInputWorkspaceReferenceText,
   getChatInputWorkspaceItemDragData
@@ -51,10 +82,16 @@ import { extractPlainUrlFromClipboard } from '@/lib/clipboardUrlPaste'
 import { useChatInputMentions } from './composables/useChatInputMentions'
 import { useChatInputFiles } from './composables/useChatInputFiles'
 import { useSkillsData } from '@/components/chat-input/composables/useSkillsData'
+import SessionSkillsIndicator from '@/components/chat-input/SessionSkillsIndicator.vue'
 import { SkillChip } from './nodes/skillChip'
 import { FileAttachment } from './nodes/fileAttachment'
 import { CommandForm } from './nodes/commandForm'
-import { INPUT_NODE_ACTIONS, type InputNodeActions } from './nodes/symbols'
+import {
+  ATTACHMENT_NODE_CONTEXT,
+  INPUT_NODE_ACTIONS,
+  type AttachmentOcrAvailability,
+  type InputNodeActions
+} from './nodes/symbols'
 
 const SlashMention = Mention.extend({
   name: 'slashMention'
@@ -65,12 +102,16 @@ const props = withDefaults(
     modelValue?: string
     placeholder?: string
     sessionId?: string | null
+    agentId?: string | null
     workspacePath?: string | null
     isAcpSession?: boolean
+    supportsVision?: boolean | null
     isGenerating?: boolean
+    editable?: boolean
     submitDisabled?: boolean
     queueSubmitEnabled?: boolean
     queueSubmitDisabled?: boolean
+    isAttachmentPreparationPending?: boolean
     maxWidthClass?: string
     files?: MessageFile[]
   }>(),
@@ -78,12 +119,16 @@ const props = withDefaults(
     modelValue: '',
     placeholder: '',
     sessionId: null,
+    agentId: 'deepchat',
     workspacePath: null,
     isAcpSession: false,
+    supportsVision: null,
     isGenerating: false,
+    editable: true,
     submitDisabled: false,
     queueSubmitEnabled: false,
     queueSubmitDisabled: false,
+    isAttachmentPreparationPending: false,
     maxWidthClass: 'max-w-2xl',
     files: () => []
   }
@@ -96,6 +141,8 @@ const emit = defineEmits<{
   'update:files': [files: MessageFile[]]
   'command-submit': [command: string]
   'pending-skills-change': [skills: string[]]
+  'switch-vision-model': []
+  'draft-change': []
   'toggle-voice-input': []
 }>()
 
@@ -106,18 +153,38 @@ const resolvedPlaceholder = computed(() => props.placeholder?.trim() || t('chat.
 let editorInstance: Editor | null = null
 const getEditor = () => editorInstance
 const conversationId = computed(() => props.sessionId)
-const skillsData = useSkillsData(conversationId)
+const skillAgentId = computed(() => props.agentId?.trim() || 'deepchat')
+const skillsData = useSkillsData(conversationId, skillAgentId)
 const activeSkillNames = computed(() => skillsData.composerActiveSkills.value)
+
+const removeSessionActiveSkill = async (skillName: string) => {
+  try {
+    await skillsData.removeSessionActiveSkill(skillName)
+  } catch (error) {
+    console.error('[ChatInputBox] Failed to remove Session active Skill:', error)
+    notifyRenderer({
+      kind: 'error',
+      code: 'chat.skill.removeSessionActiveFailed',
+      title: t('common.error.operationFailed'),
+      description: t('common.error.requestFailed')
+    })
+  }
+}
 
 const mentions = useChatInputMentions({
   getEditor,
   workspacePath: computed(() => props.workspacePath),
   sessionId: computed(() => props.sessionId),
+  agentId: skillAgentId,
   isAcpSession: computed(() => props.isAcpSession),
   isGenerating: computed(() => props.isGenerating),
   compactCommandDescription: computed(() => t('chat.compaction.commandDescription')),
-  onCommandSubmit: (command) => emit('command-submit', command),
+  onCommandSubmit: (command) => {
+    if (!props.editable) return
+    emit('command-submit', command)
+  },
   onActivateSkill: async (skillName) => {
+    if (!props.editable) return
     await skillsData.activateSkill(skillName)
   }
 })
@@ -136,18 +203,33 @@ let isSubmittingCommandForm = false
 
 const actions: InputNodeActions = {
   prepareCommandFormSubmit: () => {
+    if (!props.editable) return
     isSubmittingCommandForm = true
   },
   removeSkill: (skillName) => {
+    if (!props.editable) return
     void skillsData.deactivateSkill(skillName)
   },
   removeFile: (filePath) => {
+    if (!props.editable) return
     const idx = files.selectedFiles.value.findIndex((f) => (f.path || f.name) === filePath)
     if (idx >= 0) {
       files.deleteFile(idx)
     }
   },
+  setFileRepresentation: (filePath, preference) => {
+    if (!props.editable) return
+    const idx = files.selectedFiles.value.findIndex((f) => (f.path || f.name) === filePath)
+    if (idx >= 0) {
+      files.updateFile(idx, { requestedRepresentation: preference })
+    }
+  },
+  switchToVisionModel: () => {
+    if (!props.editable) return
+    emit('switch-vision-model')
+  },
   submitCommandForm: (values) => {
+    if (!props.editable) return
     mentions.submitDialog(values)
   },
   cancelCommandForm: () => {
@@ -156,6 +238,65 @@ const actions: InputNodeActions = {
 }
 
 provide(INPUT_NODE_ACTIONS, actions)
+
+const attachmentOcrAvailability = ref<AttachmentOcrAvailability>({ status: 'unknown' })
+const attachmentIsAcpSession = computed(() => props.isAcpSession)
+const attachmentSupportsVision = computed(() => props.supportsVision)
+const ATTACHMENT_OCR_AVAILABILITY_TTL_MS = 30_000
+let attachmentOcrClient: OcrClient | null = null
+let attachmentOcrStatusLoadedAt = 0
+let attachmentOcrStatusRequest: Promise<void> | null = null
+let attachmentOcrStatusRequestId = 0
+
+async function refreshAttachmentOcrAvailability(): Promise<void> {
+  const cacheAge = Date.now() - attachmentOcrStatusLoadedAt
+  if (
+    attachmentOcrAvailability.value.status !== 'unknown' &&
+    cacheAge >= 0 &&
+    cacheAge < ATTACHMENT_OCR_AVAILABILITY_TTL_MS
+  ) {
+    return
+  }
+  if (attachmentOcrStatusRequest) {
+    await attachmentOcrStatusRequest
+    return
+  }
+
+  const requestId = ++attachmentOcrStatusRequestId
+  const request = (async () => {
+    try {
+      attachmentOcrClient ??= createOcrClient()
+      const status = await attachmentOcrClient.getRuntimeStatus()
+      if (requestId !== attachmentOcrStatusRequestId) {
+        return
+      }
+      attachmentOcrAvailability.value = status.availability
+      attachmentOcrStatusLoadedAt = Date.now()
+    } catch (error) {
+      if (requestId !== attachmentOcrStatusRequestId) {
+        return
+      }
+      attachmentOcrAvailability.value = { status: 'unknown' }
+      attachmentOcrStatusLoadedAt = 0
+      console.warn('[ChatInputBox] Failed to load OCR availability:', error)
+    }
+  })()
+  attachmentOcrStatusRequest = request
+  try {
+    await request
+  } finally {
+    if (attachmentOcrStatusRequest === request) {
+      attachmentOcrStatusRequest = null
+    }
+  }
+}
+
+provide(ATTACHMENT_NODE_CONTEXT, {
+  isAcpSession: attachmentIsAcpSession,
+  supportsVision: attachmentSupportsVision,
+  ocrAvailability: attachmentOcrAvailability,
+  refreshOcrAvailability: refreshAttachmentOcrAvailability
+})
 
 // ── Editor helpers ─────────────────────────────────────────────
 
@@ -167,6 +308,9 @@ const sameFiles = (a: MessageFile[], b: MessageFile[]) => {
     if (left.name !== right.name) return false
     if ((left.path || '') !== (right.path || '')) return false
     if ((left.mimeType || '') !== (right.mimeType || '')) return false
+    if ((left.requestedRepresentation || 'auto') !== (right.requestedRepresentation || 'auto')) {
+      return false
+    }
   }
   return true
 }
@@ -339,7 +483,8 @@ function syncFileNodes() {
           attrs: {
             fileName: file.name || 'file',
             filePath: path,
-            mimeType: file.mimeType || ''
+            mimeType: file.mimeType || '',
+            requestedRepresentation: file.requestedRepresentation || 'auto'
           }
         }
       })
@@ -366,6 +511,7 @@ function findFileInsertPos(): number {
 // ── Editor setup ───────────────────────────────────────────────
 
 const editor = new VueEditor({
+  editable: props.editable,
   editorProps: {
     attributes: {
       'data-testid': 'chat-input-contenteditable',
@@ -418,12 +564,20 @@ const editor = new VueEditor({
     if (text !== (props.modelValue || '')) {
       emit('update:modelValue', text)
     }
+    emit('draft-change')
   }
 })
 
 editorInstance = editor
 
 // ── Watchers ───────────────────────────────────────────────────
+
+watch(
+  () => props.editable,
+  (editable) => {
+    editor.setEditable(editable)
+  }
+)
 
 watch(
   () => props.modelValue,
@@ -479,9 +633,7 @@ watch(resolvedPlaceholder, () => {
 watch(
   () => [...skillsData.pendingSkills.value],
   (pendingSkills) => {
-    if (!props.sessionId) {
-      emit('pending-skills-change', pendingSkills)
-    }
+    emit('pending-skills-change', pendingSkills)
   },
   { immediate: true }
 )
@@ -495,6 +647,7 @@ watch(
 )
 
 onUnmounted(() => {
+  attachmentOcrStatusRequestId += 1
   editor.destroy()
 })
 
@@ -509,6 +662,26 @@ function onCompositionEnd() {
 }
 
 function handleKeydown(e: KeyboardEvent) {
+  if (!props.editable) {
+    const isCopyOrSelectAll = (e.metaKey || e.ctrlKey) && ['a', 'c'].includes(e.key.toLowerCase())
+    const isNavigationKey = [
+      'ArrowDown',
+      'ArrowLeft',
+      'ArrowRight',
+      'ArrowUp',
+      'End',
+      'Escape',
+      'Home',
+      'PageDown',
+      'PageUp',
+      'Tab'
+    ].includes(e.key)
+    if (!isCopyOrSelectAll && !isNavigationKey) {
+      e.preventDefault()
+    }
+    return
+  }
+
   const isVoiceShortcut = (e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === 'm'
   if (isVoiceShortcut) {
     e.preventDefault()
@@ -549,6 +722,11 @@ function handleKeydown(e: KeyboardEvent) {
 }
 
 function onPaste(event: ClipboardEvent) {
+  if (!props.editable) {
+    event.preventDefault()
+    return
+  }
+
   void files.handlePaste(event, true)
 
   if (event.clipboardData?.files && event.clipboardData.files.length > 0) {
@@ -568,11 +746,13 @@ function onPaste(event: ClipboardEvent) {
 function onDragOver(event: DragEvent) {
   event.preventDefault()
   if (event.dataTransfer) {
-    event.dataTransfer.dropEffect = 'copy'
+    event.dataTransfer.dropEffect = props.editable ? 'copy' : 'none'
   }
 }
 
 function insertWorkspaceReference(targetPath: string) {
+  if (!props.editable) return false
+
   const referenceText = buildChatInputWorkspaceReferenceText(
     targetPath,
     props.workspacePath,
@@ -597,6 +777,7 @@ function insertWorkspaceReference(targetPath: string) {
 
 function onDrop(event: DragEvent) {
   event.preventDefault()
+  if (!props.editable) return
 
   const workspaceItem = getChatInputWorkspaceItemDragData(event.dataTransfer)
   if (workspaceItem && insertWorkspaceReference(workspaceItem.path)) {
@@ -610,16 +791,26 @@ function onDrop(event: DragEvent) {
 }
 
 function triggerAttach() {
+  if (!props.editable) return
   files.openFilePicker()
 }
 
 function insertRecognizedText(text: string) {
+  if (!props.editable) return
   const normalizedText = text.trim()
   if (!normalizedText) {
     return
   }
 
   editor.chain().focus().insertContent(normalizedText).run()
+}
+
+function onFileSelect(event: Event) {
+  if (!props.editable) {
+    ;(event.target as HTMLInputElement).value = ''
+    return
+  }
+  void files.handleFileSelect(event)
 }
 
 function getInlineItemsSnapshot(): UserMessageInlineItem[] {
@@ -678,6 +869,27 @@ function clearPendingSkills() {
   skillsData.clearPendingSkills()
 }
 
+function setPendingSkills(skillNames: string[]) {
+  skillsData.pendingSkills.value = Array.from(
+    new Set(skillNames.map((skillName) => skillName.trim()).filter(Boolean))
+  )
+}
+
+function getDocumentSnapshot(): JSONContent {
+  return editor.getJSON()
+}
+
+function restoreDocumentSnapshot(document: JSONContent) {
+  syncEditorContent(() => {
+    editor.commands.setContent(document, false)
+    setCaretToEnd(editor)
+  })
+  void nextTick(() => {
+    syncSkillNodes()
+    syncFileNodes()
+  })
+}
+
 function focusInput() {
   editor.chain().focus().scrollIntoView().run()
   setCaretToEnd(editor)
@@ -691,6 +903,9 @@ defineExpose({
   getPendingSkillsSnapshot,
   consumePendingSkills,
   clearPendingSkills,
+  setPendingSkills,
+  getDocumentSnapshot,
+  restoreDocumentSnapshot,
   focusInput
 })
 </script>
@@ -702,5 +917,12 @@ defineExpose({
   float: left;
   height: 0;
   pointer-events: none;
+}
+
+/* ProseMirror injects an unlayered `.ProseMirror { overflow-wrap: break-word }` rule, which
+   wins over layered utilities. `anywhere` (unlike `break-word`) also collapses intrinsic
+   min-content, so long unbroken tokens (e.g. pasted paths) wrap instead of widening the composer. */
+:deep(.chat-input-editor .tiptap) {
+  overflow-wrap: anywhere;
 }
 </style>

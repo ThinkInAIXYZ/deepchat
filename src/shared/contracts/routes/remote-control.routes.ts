@@ -15,7 +15,7 @@ import type {
   WeixinIlinkLoginResult,
   WeixinIlinkLoginSession,
   WeixinIlinkRemoteStatus
-} from '@shared/presenter'
+} from '@shared/types/remote'
 import { defineRouteContract } from '../common'
 
 export const RemoteChannelSchema = z.enum([

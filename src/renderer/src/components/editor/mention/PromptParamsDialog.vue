@@ -34,12 +34,12 @@
         </div>
       </ScrollArea>
       <DialogFooter>
-        <Button variant="outline" @click="$emit('close')">
+        <DcButton variant="outline" @click="$emit('close')">
           {{ t('common.cancel') }}
-        </Button>
-        <Button :disabled="hasErrors" @click="handleSubmit">
+        </DcButton>
+        <DcButton :disabled="hasErrors" @click="handleSubmit">
           {{ t('common.confirm') }}
-        </Button>
+        </DcButton>
       </DialogFooter>
     </DialogContent>
   </Dialog>
@@ -56,7 +56,7 @@ import {
   DialogDescription,
   DialogFooter
 } from '@shadcn/components/ui/dialog'
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
 import { Input } from '@shadcn/components/ui/input'
 import { Label } from '@shadcn/components/ui/label'
 import { ScrollArea } from '@shadcn/components/ui/scroll-area'

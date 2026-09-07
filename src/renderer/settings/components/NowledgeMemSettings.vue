@@ -33,8 +33,14 @@
             id="baseUrl"
             data-testid="nowledge-mem-base-url-input"
             v-model="config.baseUrl"
+            :disabled="formDisabled"
+            :aria-invalid="!isBaseUrlValid"
             type="url"
             placeholder="http://127.0.0.1:14242"
+          />
+          <DcInlineError
+            v-if="!isBaseUrlValid"
+            :error="t('settings.knowledgeBase.nowledgeMem.invalidBaseUrl')"
           />
         </div>
 
@@ -48,21 +54,20 @@
               id="apiKey"
               data-testid="nowledge-mem-api-key-input"
               v-model="config.apiKey"
+              :disabled="formDisabled"
               :type="showApiKey ? 'text' : 'password'"
               placeholder="Your API key (optional)"
               style="padding-right: 2.5rem !important"
             />
-            <Button
+            <DcButton
               variant="ghost"
-              size="sm"
+              size="icon-sm"
+              :icon="showApiKey ? 'lucide:eye-off' : 'lucide:eye'"
+              :label="$t('settings.knowledgeBase.nowledgeMem.apiKey')"
+              :tooltip="$t('settings.knowledgeBase.nowledgeMem.apiKey')"
               class="absolute right-2 top-1/2 transform -translate-y-1/2 h-7 w-7 p-0 hover:bg-transparent"
               @click="showApiKey = !showApiKey"
-            >
-              <Icon
-                :icon="showApiKey ? 'lucide:eye-off' : 'lucide:eye'"
-                class="w-4 h-4 text-muted-foreground hover:text-foreground"
-              />
-            </Button>
+            />
           </div>
           <p class="text-xs text-muted-foreground">
             {{ $t('settings.knowledgeBase.nowledgeMem.apiKeyHint') }}
@@ -76,15 +81,17 @@
               {{ $t('settings.knowledgeBase.nowledgeMem.timeout') }}
             </Label>
             <div class="shrink-0 flex items-center gap-1">
-              <Button
+              <DcButton
                 variant="outline"
                 size="icon"
+                icon="lucide:minus"
+                icon-size="3"
+                :label="$t('common.decrease')"
+                :tooltip="$t('common.decrease')"
                 class="h-8 w-8"
                 @click="decreaseTimeout"
-                :disabled="timeoutSeconds <= minTimeoutSeconds"
-              >
-                <Icon icon="lucide:minus" class="h-3 w-3" />
-              </Button>
+                :disabled="formDisabled || timeoutSeconds <= minTimeoutSeconds"
+              />
               <div class="relative">
                 <div
                   v-if="!isEditingTimeout"
@@ -102,6 +109,7 @@
                   :max="maxTimeoutSeconds"
                   :step="timeoutStep"
                   :model-value="timeoutSeconds"
+                  :disabled="formDisabled"
                   @update:model-value="handleTimeoutChange"
                   @blur="stopEditingTimeout"
                   @keydown.enter="stopEditingTimeout"
@@ -110,15 +118,17 @@
                   :class="{ 'bg-accent': isEditingTimeout }"
                 />
               </div>
-              <Button
+              <DcButton
                 variant="outline"
                 size="icon"
+                icon="lucide:plus"
+                icon-size="3"
+                :label="$t('common.increase')"
+                :tooltip="$t('common.increase')"
                 class="h-7 w-7"
                 @click="increaseTimeout"
-                :disabled="timeoutSeconds >= maxTimeoutSeconds"
-              >
-                <Icon icon="lucide:plus" class="h-3 w-3" />
-              </Button>
+                :disabled="formDisabled || timeoutSeconds >= maxTimeoutSeconds"
+              />
               <span class="text-xs text-muted-foreground ml-1">{{
                 $t('settings.knowledgeBase.nowledgeMem.seconds')
               }}</span>
@@ -126,45 +136,51 @@
           </div>
         </div>
         <!-- Save Configuration Button -->
-        <div class="flex gap-2">
-          <Button
+        <div class="flex flex-wrap items-center gap-2">
+          <DcSubmitButton
             data-testid="nowledge-mem-save-button"
-            @click="saveConfiguration"
-            :disabled="savingConfig"
+            :status="saveStatus"
             variant="default"
             size="sm"
             class="text-xs"
+            :disabled="!isDirty || !isConfigValid"
+            @click="saveConfiguration"
           >
-            {{
-              savingConfig
-                ? $t('common.saving')
-                : $t('settings.knowledgeBase.nowledgeMem.saveConfig')
-            }}
-          </Button>
+            {{ $t('settings.knowledgeBase.nowledgeMem.saveConfig') }}
+          </DcSubmitButton>
 
-          <Button
+          <DcSubmitButton
             data-testid="nowledge-mem-reset-button"
-            @click="resetConfiguration"
+            :status="resetStatus"
             variant="outline"
             size="sm"
             class="text-xs"
+            @click="resetConfiguration"
           >
             {{ $t('settings.knowledgeBase.nowledgeMem.resetConfig') }}
-          </Button>
-          <Button
+          </DcSubmitButton>
+          <DcSubmitButton
             data-testid="nowledge-mem-test-button"
-            @click="testConnection"
-            :disabled="testingConnection"
+            :status="testStatus"
             variant="outline"
             size="sm"
             class="text-xs"
+            :disabled="!isConfigValid"
+            @click="testConnection"
           >
-            {{
-              testingConnection
-                ? $t('common.testing')
-                : $t('settings.knowledgeBase.nowledgeMem.testConnection')
-            }}
-          </Button>
+            {{ $t('settings.knowledgeBase.nowledgeMem.testConnection') }}
+          </DcSubmitButton>
+        </div>
+        <DcInlineError v-if="operationError" :error="operationError" class="mt-2" />
+        <div
+          v-if="loadError"
+          role="alert"
+          class="flex items-center justify-between gap-3 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive"
+        >
+          <span>{{ loadError }}</span>
+          <DcButton size="sm" variant="ghost" :disabled="loadingConfig" @click="loadConfiguration">
+            {{ t('common.retry') }}
+          </DcButton>
         </div>
       </div>
     </div>
@@ -172,35 +188,79 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, reactive, computed, nextTick, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { createNowledgeMemClient } from '@api/NowledgeMemClient'
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
+import { DcInlineError } from '@dc-ui/components/inline-error'
+import { DcSubmitButton, useDcFormSubmit } from '@dc-ui/components/form'
 import { Input } from '@shadcn/components/ui/input'
 import { Label } from '@shadcn/components/ui/label'
-import { Icon } from '@iconify/vue'
-import { useToast } from '@/components/use-toast'
+import { settingsLeaveGuard } from '../services/settingsLeaveGuard'
+import type { NowledgeMemConfig } from '@shared/contracts/routes'
 
 const nowledgeMemClient = createNowledgeMemClient()
-const { toast } = useToast()
 const { t } = useI18n()
 
-const testingConnection = ref(false)
-const savingConfig = ref(false)
+const loadingConfig = ref(false)
+const loadError = ref<string | null>(null)
 const showApiKey = ref(false)
 const showConfigPanel = ref(false)
+const operationError = ref<string | null>(null)
+const { status: saveStatus, run: runSave } = useDcFormSubmit()
+const { status: testStatus, run: runTest } = useDcFormSubmit()
+const { status: resetStatus, run: runReset } = useDcFormSubmit()
+const anyOperationPending = computed(
+  () =>
+    saveStatus.value === 'submitting' ||
+    testStatus.value === 'submitting' ||
+    resetStatus.value === 'submitting'
+)
 
-const config = reactive({
+const defaultConfig: NowledgeMemConfig = {
   baseUrl: 'http://127.0.0.1:14242',
   apiKey: '',
   timeout: 30000
-})
+}
+const config = reactive<NowledgeMemConfig>({ ...defaultConfig })
+const persistedConfig = ref<NowledgeMemConfig>({ ...defaultConfig })
 
 const minTimeoutSeconds = 5
 const maxTimeoutSeconds = 120
 const timeoutStep = 5
 const isEditingTimeout = ref(false)
 const timeoutInputRef = ref<{ dom: HTMLInputElement }>()
+const formDisabled = computed(() => loadingConfig.value || anyOperationPending.value)
+const configSignature = computed(() =>
+  JSON.stringify({
+    baseUrl: config.baseUrl.trim(),
+    apiKey: config.apiKey ?? '',
+    timeout: config.timeout
+  })
+)
+const persistedSignature = computed(() => JSON.stringify(persistedConfig.value))
+const isDirty = computed(() => configSignature.value !== persistedSignature.value)
+const isBaseUrlValid = computed(() => {
+  try {
+    const url = new URL(config.baseUrl.trim())
+    return (
+      (url.protocol === 'http:' || url.protocol === 'https:') &&
+      !url.username &&
+      !url.password &&
+      !url.search &&
+      !url.hash
+    )
+  } catch {
+    return false
+  }
+})
+const isConfigValid = computed(
+  () =>
+    isBaseUrlValid.value &&
+    Number.isInteger(config.timeout) &&
+    config.timeout >= minTimeoutSeconds * 1000 &&
+    config.timeout <= maxTimeoutSeconds * 1000
+)
 
 // Computed property for timeout in seconds for UI
 const timeoutSeconds = computed({
@@ -214,22 +274,20 @@ const toggleNowledgeMemConfigPanel = () => {
   showConfigPanel.value = !showConfigPanel.value
 }
 
-onMounted(async () => {
-  await loadConfiguration()
-})
-
 const loadConfiguration = async () => {
+  if (loadingConfig.value || anyOperationPending.value) return
+  loadingConfig.value = true
+  loadError.value = null
   try {
     const savedConfig = await nowledgeMemClient.getConfig()
-    if (savedConfig) {
-      Object.assign(config, savedConfig)
-      // Convert milliseconds to seconds for UI
-      if (savedConfig.timeout && !isNaN(savedConfig.timeout)) {
-        config.timeout = savedConfig.timeout
-      }
-    }
+    const normalized = normalizeConfig(savedConfig)
+    Object.assign(config, normalized)
+    persistedConfig.value = normalized
   } catch (error) {
     console.error('Failed to load nowledge-mem config:', error)
+    loadError.value = t('settings.knowledgeBase.nowledgeMem.configLoadFailed')
+  } finally {
+    loadingConfig.value = false
   }
 }
 
@@ -249,6 +307,7 @@ const decreaseTimeout = () => {
 }
 
 const startEditingTimeout = () => {
+  if (formDisabled.value) return
   isEditingTimeout.value = true
 }
 
@@ -266,57 +325,112 @@ watch(
   }
 )
 
-const testConnection = async () => {
-  testingConnection.value = true
+const testConnection = () => {
+  if (formDisabled.value || !isConfigValid.value) return
 
-  try {
-    const result = await nowledgeMemClient.testConnection()
-    toast({
-      title: t('settings.knowledgeBase.nowledgeMem.testConnection'),
-      description: result.message || 'Connection successful'
-    })
-  } catch (error) {
-    toast({
-      title: t('settings.knowledgeBase.nowledgeMem.testConnection'),
-      description: error instanceof Error ? error.message : 'Connection test failed',
-      variant: 'destructive'
-    })
-  } finally {
-    testingConnection.value = false
-  }
-}
-
-const saveConfiguration = async () => {
-  savingConfig.value = true
-
-  try {
-    await nowledgeMemClient.updateConfig({
-      baseUrl: config.baseUrl,
-      apiKey: config.apiKey,
-      timeout: config.timeout
-    })
-
-    // Success feedback could be added here
-  } catch (error) {
-    console.error('Failed to save nowledge-mem config:', error)
-  } finally {
-    savingConfig.value = false
-  }
-}
-
-const resetConfiguration = async () => {
-  try {
-    const defaultConfig = {
-      baseUrl: 'http://127.0.0.1:14242',
-      apiKey: '',
-      timeout: 30000 // 30 seconds in milliseconds
+  operationError.value = null
+  void runTest(async () => {
+    const result = await nowledgeMemClient.testConnection(normalizeConfig(config))
+    if (!result.success) {
+      throw new Error(t('settings.knowledgeBase.nowledgeMem.connectionFailed'))
     }
-
-    await nowledgeMemClient.updateConfig(defaultConfig)
-
-    Object.assign(config, defaultConfig)
-  } catch (error) {
-    console.error('Failed to reset nowledge-mem config:', error)
-  }
+  }).catch((error: unknown) => {
+    logOperationFailure('test connection', error)
+    operationError.value = t('settings.knowledgeBase.nowledgeMem.connectionFailed')
+  })
 }
+
+const saveConfiguration = () => {
+  if (formDisabled.value || !isDirty.value || !isConfigValid.value) return
+
+  operationError.value = null
+  void runSave(async () => {
+    const savedConfig = normalizeConfig(
+      await nowledgeMemClient.updateConfig(normalizeConfig(config))
+    )
+    Object.assign(config, savedConfig)
+    persistedConfig.value = savedConfig
+    loadError.value = null
+  }).catch((error: unknown) => {
+    logOperationFailure('save configuration', error)
+    operationError.value = t('settings.knowledgeBase.nowledgeMem.configSaveFailed')
+  })
+}
+
+const resetConfiguration = () => {
+  if (formDisabled.value) return
+  operationError.value = null
+  void runReset(async () => {
+    const savedConfig = normalizeConfig(await nowledgeMemClient.updateConfig(defaultConfig))
+    Object.assign(config, savedConfig)
+    persistedConfig.value = savedConfig
+    loadError.value = null
+  }).catch((error: unknown) => {
+    logOperationFailure('reset configuration', error)
+    operationError.value = t('settings.knowledgeBase.nowledgeMem.configResetFailed')
+  })
+}
+
+const normalizeConfig = (value: NowledgeMemConfig): NowledgeMemConfig => ({
+  baseUrl: value.baseUrl.trim().replace(/\/+$/, ''),
+  apiKey: value.apiKey ?? '',
+  timeout: value.timeout
+})
+
+const redactDiagnosticText = (value: string) =>
+  config.apiKey ? value.replaceAll(config.apiKey, '[redacted]') : value
+
+const createRedactedDiagnosticError = (error: unknown, seen = new WeakSet<object>()): Error => {
+  if (!(error instanceof Error)) {
+    return new Error(redactDiagnosticText(String(error)))
+  }
+  if (seen.has(error)) {
+    return new Error('[circular error cause]')
+  }
+
+  seen.add(error)
+  const diagnosticError = new Error(redactDiagnosticText(error.message))
+  diagnosticError.name = redactDiagnosticText(error.name)
+  if (error.stack) {
+    diagnosticError.stack = redactDiagnosticText(error.stack)
+  }
+  if (error.cause !== undefined) {
+    diagnosticError.cause =
+      error.cause instanceof Error
+        ? createRedactedDiagnosticError(error.cause, seen)
+        : typeof error.cause === 'string'
+          ? redactDiagnosticText(error.cause)
+          : '[redacted non-error cause]'
+  }
+  return diagnosticError
+}
+
+const logOperationFailure = (operation: string, error: unknown) => {
+  console.error(`[NowledgeMemSettings] ${operation} failed`, createRedactedDiagnosticError(error))
+}
+
+const discardDraft = () => {
+  Object.assign(config, persistedConfig.value)
+}
+
+const leaveGuardLease = settingsLeaveGuard.register({
+  id: 'nowledge-mem-settings',
+  onDiscard: discardDraft
+})
+const stopLeaveRiskSync = watch(
+  [anyOperationPending, isDirty],
+  ([busy, dirty]) => {
+    leaveGuardLease.setRisk(busy ? 'busy' : dirty ? 'dirty' : 'clean')
+  },
+  { immediate: true, flush: 'sync' }
+)
+
+onMounted(() => {
+  void loadConfiguration()
+})
+
+onBeforeUnmount(() => {
+  stopLeaveRiskSync()
+  leaveGuardLease.release()
+})
 </script>

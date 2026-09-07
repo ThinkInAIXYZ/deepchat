@@ -12,6 +12,7 @@ function parseArgs(argv) {
     name: null,
     platform: process.env.TARGET_PLATFORM || process.platform,
     arch: process.env.TARGET_ARCH || process.arch,
+    purpose: null,
     pluginRoot: null
   }
   args.action = argv[0]
@@ -22,17 +23,25 @@ function parseArgs(argv) {
       args.platform = argv[++i]
     } else if (argv[i] === '--arch') {
       args.arch = argv[++i]
+    } else if (argv[i] === '--purpose') {
+      const purpose = argv[i + 1]
+      if (!purpose || purpose.startsWith('--')) {
+        console.error('Missing required value for --purpose')
+        process.exit(1)
+      }
+      args.purpose = purpose
+      i += 1
     } else if (argv[i] === '--plugin-root') {
       args.pluginRoot = path.resolve(argv[++i])
     }
   }
   if (!args.action || !['validate', 'package', 'bundle', 'verify'].includes(args.action)) {
     console.error(
-      'Usage: node scripts/plugin.mjs <validate|package|bundle|verify> [--name <plugin>] [--platform <p>] [--arch <a>] [--plugin-root <path>]'
+      'Usage: node scripts/plugin.mjs <validate|package|bundle|verify> [--name <plugin>] [--platform <p>] [--arch <a>] [--purpose <distribution|verification>] [--plugin-root <path>]'
     )
     process.exit(1)
   }
-  if (args.action !== 'verify' && !args.name) {
+  if (args.action !== 'verify' && !args.name && !(args.action === 'validate' && args.pluginRoot)) {
     console.error('Missing required --name <plugin> argument')
     process.exit(1)
   }
@@ -158,6 +167,14 @@ function stageCuaManagedHelper(pluginDir, targetPlatform, targetArch) {
 }
 
 try {
+  if (args.action === 'validate' && args.pluginRoot) {
+    if (Number(process.versions.node.split('.')[0]) < 24) {
+      throw new Error('Portable source validation requires Node 24 or later; app inspection is also available')
+    }
+    const { readUserPluginPackage } = await import('../src/main/plugin/userPluginPackage.ts')
+    console.log(JSON.stringify(readUserPluginPackage(args.pluginRoot), null, 2))
+    process.exit(0)
+  }
   if (args.action === 'verify') {
     verifyArtifacts(args)
     process.exit(0)
@@ -171,6 +188,7 @@ try {
     const buildArgs = [nativeBuildScript]
     if (args.platform) buildArgs.push('--platform', args.platform)
     if (args.arch) buildArgs.push('--arch', args.arch)
+    if (args.purpose) buildArgs.push('--purpose', args.purpose)
     execFileSync('node', buildArgs, { stdio: 'inherit' })
   }
 
@@ -184,6 +202,7 @@ try {
   pkgArgs.push('--release-version-from-root')
   if (args.platform) pkgArgs.push('--target-platform', args.platform)
   if (args.arch) pkgArgs.push('--target-arch', args.arch)
+  if (args.purpose) pkgArgs.push('--purpose', args.purpose)
   if (args.action === 'bundle') pkgArgs.push('--out', path.resolve('build/bundled-plugins'))
   pkgArgs.push(pluginDir)
 

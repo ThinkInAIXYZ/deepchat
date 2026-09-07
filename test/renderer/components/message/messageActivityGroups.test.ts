@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import type { DisplayAssistantMessageBlock } from '@/components/chat/messageListItems'
+import type { DisplayAssistantMessageBlock } from '@/features/chat-page/model/displayMessage'
+import {
+  LIVE_DELEGATION_AGENT_TOOL_NAME,
+  LIVE_DELEGATION_AGENT_TOOL_SERVER_NAME
+} from '@shared/agentTools'
 import {
   type ActivityDurationLabels,
   buildAssistantRenderItems,
@@ -15,6 +19,41 @@ const createBlock = (
   timestamp: 1_000,
   ...overrides
 })
+
+const createLiveDelegationSpawnBlock = (): DisplayAssistantMessageBlock =>
+  createBlock('tool_call', {
+    extra: { toolSource: 'agent' },
+    tool_call: {
+      id: 'spawn-1',
+      name: LIVE_DELEGATION_AGENT_TOOL_NAME,
+      server_name: LIVE_DELEGATION_AGENT_TOOL_SERVER_NAME,
+      params: JSON.stringify({
+        operation: 'spawn',
+        slotId: 'reviewer',
+        title: 'Review architecture',
+        prompt: 'Inspect module boundaries.'
+      }),
+      response: JSON.stringify({
+        delegation: {
+          schemaVersion: 1,
+          id: 'delegation-1',
+          parentSessionId: 'parent-1',
+          childSessionId: 'child-1',
+          slotId: 'reviewer',
+          targetAgentId: 'deepchat',
+          title: 'Review architecture',
+          status: 'idle',
+          lastTurnSeq: 1,
+          createdAt: 10,
+          updatedAt: 20,
+          revision: 2,
+          summaryPreview: 'Done.',
+          errorPreview: null
+        },
+        turns: []
+      })
+    }
+  })
 
 const zhDurationLabels: ActivityDurationLabels = {
   day: '天',
@@ -59,6 +98,51 @@ describe('messageActivityGroups', () => {
     })
   })
 
+  it('groups provider search activity without reporting a tool call', () => {
+    const items = buildAssistantRenderItems({
+      messageId: 'm1',
+      messageUpdatedAt: 70_000,
+      shouldGroup: true,
+      blocks: [
+        createBlock('reasoning_content', { content: 'checking sources', timestamp: 10_000 }),
+        createBlock('search', {
+          id: 'ws_1',
+          content: 'DeepChat',
+          timestamp: 20_000,
+          extra: { actionType: 'search' }
+        }),
+        createBlock('content', { content: 'answer', timestamp: 30_000 })
+      ]
+    })
+
+    expect(items).toHaveLength(2)
+    expect(items[0]).toMatchObject({
+      kind: 'activity-group',
+      reasoningCount: 1,
+      toolCallCount: 0,
+      blocks: [{ type: 'reasoning_content' }, { type: 'search', id: 'ws_1' }]
+    })
+    expect(items[1]).toMatchObject({ kind: 'block', block: { type: 'content' } })
+  })
+
+  it('does not group legacy MCP search-result blocks as provider activity', () => {
+    const legacySearch = createBlock('search', {
+      id: 'legacy-search',
+      extra: { label: 'mcp_web_search', total: 3 }
+    })
+
+    const items = buildAssistantRenderItems({
+      messageId: 'm1',
+      messageUpdatedAt: 70_000,
+      shouldGroup: true,
+      blocks: [createBlock('reasoning_content', { content: 'thinking' }), legacySearch]
+    })
+
+    expect(items).toHaveLength(2)
+    expect(items[0]).toMatchObject({ kind: 'activity-group', toolCallCount: 0 })
+    expect(items[1]).toMatchObject({ kind: 'block', block: legacySearch })
+  })
+
   it('splits activity groups around visible content blocks', () => {
     const items = buildAssistantRenderItems({
       messageId: 'm1',
@@ -77,6 +161,134 @@ describe('messageActivityGroups', () => {
     })
 
     expect(items.map((item) => item.kind)).toEqual(['activity-group', 'block', 'activity-group'])
+  })
+
+  it('projects MCP Apps beside their collapsible activity group', () => {
+    const items = buildAssistantRenderItems({
+      messageId: 'm1',
+      messageUpdatedAt: 12_000,
+      shouldGroup: true,
+      blocks: [
+        createBlock('reasoning_content', { content: 'first' }),
+        createBlock('tool_call', {
+          tool_call: {
+            id: 'tc1',
+            name: 'render_chart',
+            mcpResult: {
+              schemaVersion: 1,
+              serverId: 'server-id',
+              configGeneration: 1,
+              bindingHash: 'binding-hash',
+              toolName: 'render_chart',
+              app: {
+                schemaVersion: 1,
+                serverId: 'server-id',
+                configGeneration: 1,
+                bindingHash: 'binding-hash',
+                serverName: 'charts',
+                toolName: 'render_chart',
+                resourceUri: 'ui://chart/index.html',
+                resourceMimeType: 'text/html;profile=mcp-app'
+              }
+            }
+          }
+        }),
+        createBlock('reasoning_content', { content: 'last' })
+      ]
+    })
+
+    expect(items.map((item) => item.kind)).toEqual(['activity-group', 'mcp-app'])
+    expect(items[0]).toMatchObject({
+      kind: 'activity-group',
+      reasoningCount: 2,
+      toolCallCount: 1
+    })
+    expect(items[1]).toMatchObject({
+      kind: 'mcp-app',
+      key: 'm1:tc1:1:app',
+      block: {
+        type: 'tool_call',
+        tool_call: {
+          id: 'tc1'
+        }
+      }
+    })
+  })
+
+  it('keeps a completed live delegation spawn outside collapsed activity groups', () => {
+    const items = buildAssistantRenderItems({
+      messageId: 'm1',
+      messageUpdatedAt: 12_000,
+      shouldGroup: true,
+      blocks: [
+        createBlock('reasoning_content', { content: 'delegate review' }),
+        createLiveDelegationSpawnBlock(),
+        createBlock('tool_call', {
+          tool_call: {
+            id: 'tc2',
+            name: 'read'
+          }
+        })
+      ]
+    })
+
+    expect(items.map((item) => item.kind)).toEqual(['activity-group', 'block', 'activity-group'])
+    expect(items[1]).toMatchObject({
+      kind: 'block',
+      block: {
+        tool_call: {
+          id: 'spawn-1'
+        }
+      }
+    })
+  })
+
+  it('keeps the MCP App render key stable when live activity becomes grouped', () => {
+    const appBlock = createBlock('tool_call', {
+      tool_call: {
+        id: 'tc1',
+        name: 'render_chart',
+        mcpResult: {
+          schemaVersion: 1,
+          serverId: 'server-id',
+          configGeneration: 1,
+          bindingHash: 'binding-hash',
+          toolName: 'render_chart',
+          app: {
+            schemaVersion: 1,
+            serverId: 'server-id',
+            configGeneration: 1,
+            bindingHash: 'binding-hash',
+            serverName: 'charts',
+            toolName: 'render_chart',
+            resourceUri: 'ui://chart/index.html',
+            resourceMimeType: 'text/html;profile=mcp-app'
+          }
+        }
+      }
+    })
+
+    const liveItems = buildAssistantRenderItems({
+      messageId: 'm1',
+      messageUpdatedAt: 12_000,
+      shouldGroup: false,
+      blocks: [appBlock]
+    })
+    const settledItems = buildAssistantRenderItems({
+      messageId: 'm1',
+      messageUpdatedAt: 12_000,
+      shouldGroup: true,
+      blocks: [appBlock]
+    })
+
+    expect(liveItems.map((item) => [item.kind, item.key])).toEqual([
+      ['block', 'm1:tc1:0:tool'],
+      ['mcp-app', 'm1:tc1:0:app']
+    ])
+    expect(settledItems.map((item) => [item.kind, item.key])).toEqual([
+      ['activity-group', 'activity:m1:0:0'],
+      ['mcp-app', 'm1:tc1:0:app']
+    ])
   })
 
   it('ignores empty reasoning signature blocks when merging continuous activity', () => {

@@ -37,6 +37,7 @@
       "read": "Benarkan '{toolName}' daripada '{serverName}' melakukan operasi baca?",
       "write": "Benarkan '{toolName}' daripada '{serverName}' melakukan operasi tulis?",
       "all": "Benarkan '{toolName}' daripada '{serverName}' melakukan operasi baca dan tulis?",
+      "subagentStart": "Mulakan tugas Subagent ini? Tindakan ini mungkin menggunakan token, masa dan sumber sistem tambahan.",
       "command": "Laksanakan arahan: {command}",
       "commandWithRisk": "Laksanakan arahan: {command}\n\nTahap risiko: {riskLevel}\n\nCadangan: {suggestion}"
     },

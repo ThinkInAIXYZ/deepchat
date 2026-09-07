@@ -1,5 +1,6 @@
 import { ref } from 'vue'
-import { beforeEach, describe, it, expect, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 const modelClient = vi.hoisted(() => ({
   getCapabilities: vi.fn()
 }))
@@ -8,15 +9,58 @@ vi.mock('@api/ModelClient', () => ({
   createModelClient: vi.fn(() => modelClient)
 }))
 
-import { useModelCapabilities } from '@/composables/useModelCapabilities'
+import {
+  resolveGenerationParameterControl,
+  useModelCapabilities
+} from '@/composables/useModelCapabilities'
+import {
+  applyRequestParameterPolicy,
+  resolveCapabilityAwareRequestParameterPolicy,
+  type ModelRequestPolicy
+} from '@shared/modelRequestPolicy'
+
+const passthroughPolicy = (): ModelRequestPolicy => ({
+  temperature: { mode: 'passthrough' },
+  topP: { mode: 'passthrough' },
+  reasoning: { mode: 'passthrough' },
+  legacyThinking: { mode: 'passthrough' }
+})
+
+const createCapabilities = (
+  overrides: Record<string, unknown> = {},
+  requestPolicy: ModelRequestPolicy = passthroughPolicy()
+) => ({
+  identity: {
+    providerId: 'openai',
+    requestModelId: 'gpt-4',
+    catalogMatched: false as const,
+    catalogModelId: null
+  },
+  requestPolicy,
+  supportsAudioInput: false,
+  supportsReasoning: false,
+  reasoningPortrait: null,
+  thinkingBudgetRange: {},
+  supportsSearch: false,
+  searchDefaults: {},
+  supportsTemperatureControl: true,
+  temperatureCapability: true,
+  supportsReasoningEffort: false,
+  reasoningEffortDefault: undefined,
+  supportsVerbosity: false,
+  verbosityDefault: undefined,
+  ...overrides
+})
 
 function deferred<T>() {
   let resolve!: (value: T) => void
-  const promise = new Promise<T>((promiseResolve) => {
+  let reject!: (reason?: unknown) => void
+  const promise = new Promise<T>((promiseResolve, promiseReject) => {
     resolve = promiseResolve
+    reject = promiseReject
   })
 
-  return { promise, resolve }
+  return { promise, resolve, reject }
 }
 
 describe('useModelCapabilities', () => {
@@ -24,105 +68,185 @@ describe('useModelCapabilities', () => {
     vi.clearAllMocks()
   })
 
-  it('fetches capabilities and resets when ids missing', async () => {
+  it('fetches one atomic snapshot and resets when ids are missing', async () => {
     const providerId = ref<string | undefined>('openai')
     const modelId = ref<string | undefined>('gpt-4')
-    modelClient.getCapabilities.mockResolvedValue({
-      supportsAudioInput: false,
-      supportsReasoning: true,
-      reasoningPortrait: {
-        budget: { min: 100, max: 200, default: -1, auto: -1, off: 0, unit: 'tokens' }
-      },
-      thinkingBudgetRange: { min: 100, max: 200 },
-      supportsSearch: true,
-      searchDefaults: {
-        default: true,
-        forced: false,
-        strategy: 'turbo'
-      },
-      supportsTemperatureControl: false,
-      temperatureCapability: true
-    })
+    modelClient.getCapabilities.mockResolvedValue(
+      createCapabilities(
+        {
+          supportsReasoning: true,
+          reasoningPortrait: {
+            budget: { min: 100, max: 200, default: -1, auto: -1, off: 0, unit: 'tokens' }
+          },
+          thinkingBudgetRange: { min: 100, max: 200 },
+          supportsSearch: true,
+          searchDefaults: {
+            default: true,
+            forced: false,
+            strategy: 'turbo'
+          },
+          supportsTemperatureControl: false,
+          temperatureCapability: false
+        },
+        {
+          ...passthroughPolicy(),
+          temperature: { mode: 'omit' }
+        }
+      )
+    )
 
     const api = useModelCapabilities({ providerId, modelId })
-    // initial immediate fetch occurs - wait for isLoading to become false
-    await vi.waitFor(() => expect(api.isLoading.value).toBe(false))
+    await vi.waitFor(() => expect(api.status.value).toBe('ready'))
+
     expect(api.supportsReasoning.value).toBe(true)
-    expect(api.budgetRange.value?.max).toBe(200)
-    expect(api.budgetRange.value?.auto).toBe(-1)
-    expect(api.budgetRange.value?.off).toBe(0)
-    expect(api.budgetRange.value?.unit).toBe('tokens')
+    expect(api.budgetRange.value).toMatchObject({
+      max: 200,
+      auto: -1,
+      off: 0,
+      unit: 'tokens'
+    })
     expect(api.supportsSearch.value).toBe(true)
     expect(api.searchDefaults.value?.strategy).toBe('turbo')
-    expect(api.supportsTemperatureControl.value).toBe(false)
+    expect(api.requestPolicy.value?.temperature).toEqual({ mode: 'omit' })
+    expect(api.temperatureControl.value).toEqual({ mode: 'hidden' })
 
-    // reset path
     providerId.value = undefined
-    await vi.waitFor(() => expect(api.isLoading.value).toBe(false))
+    await vi.waitFor(() => expect(api.status.value).toBe('idle'))
+    expect(api.snapshot.value).toBeNull()
     expect(api.supportsReasoning.value).toBeNull()
     expect(api.budgetRange.value).toBeNull()
-    expect(api.supportsTemperatureControl.value).toBeNull()
+    expect(api.temperatureControl.value).toEqual({ mode: 'hidden' })
   })
 
-  it('falls back to temperatureCapability when supportsTemperatureControl is missing', async () => {
-    const providerId = ref<string | undefined>('openai')
-    const modelId = ref<string | undefined>('gpt-5-chat-latest')
-    modelClient.getCapabilities.mockResolvedValue({
-      supportsAudioInput: false,
-      supportsReasoning: false,
-      reasoningPortrait: null,
-      thinkingBudgetRange: null,
-      supportsSearch: false,
-      searchDefaults: null,
-      supportsTemperatureControl: null,
-      temperatureCapability: true
-    })
+  it('preserves successful unknown temperature as editable passthrough', async () => {
+    const providerId = ref<string | undefined>('custom')
+    const modelId = ref<string | undefined>('custom-model')
+    modelClient.getCapabilities.mockResolvedValue(
+      createCapabilities({
+        supportsTemperatureControl: true,
+        temperatureCapability: undefined
+      })
+    )
 
     const api = useModelCapabilities({ providerId, modelId })
 
-    await vi.waitFor(() => expect(api.isLoading.value).toBe(false))
-    expect(api.supportsTemperatureControl.value).toBe(true)
+    await vi.waitFor(() => expect(api.status.value).toBe('ready'))
+    expect(api.requestPolicy.value?.temperature).toEqual({ mode: 'passthrough' })
+    expect(api.temperatureControl.value).toEqual({ mode: 'editable' })
   })
+
+  it('projects the effective policy without reconstructing it from legacy capability flags', async () => {
+    const api = useModelCapabilities()
+    modelClient.getCapabilities.mockResolvedValue(
+      createCapabilities({
+        supportsTemperatureControl: false,
+        temperatureCapability: false
+      })
+    )
+
+    await api.load({ providerId: 'openai', modelId: 'contract-fixture' })
+
+    expect(api.requestPolicy.value?.temperature).toEqual({ mode: 'passthrough' })
+    expect(api.temperatureControl.value).toEqual({ mode: 'editable' })
+  })
+
+  it('hides Aihubmix K3 from explicit policy even when catalog temperature is unknown', async () => {
+    const providerId = ref<string | undefined>('aihubmix')
+    const modelId = ref<string | undefined>('kimi-k3')
+    modelClient.getCapabilities.mockResolvedValue(
+      createCapabilities(
+        {
+          identity: {
+            providerId: 'aihubmix',
+            requestModelId: 'kimi-k3',
+            catalogMatched: true,
+            catalogModelId: 'kimi-k3'
+          },
+          supportsTemperatureControl: true,
+          temperatureCapability: undefined
+        },
+        {
+          temperature: { mode: 'omit' },
+          topP: { mode: 'omit' },
+          reasoning: { mode: 'fixed', value: true },
+          legacyThinking: { mode: 'omit' }
+        }
+      )
+    )
+
+    const api = useModelCapabilities({ providerId, modelId })
+
+    await vi.waitFor(() => expect(api.status.value).toBe('ready'))
+    expect(api.temperatureControl.value).toEqual({ mode: 'hidden' })
+    expect(api.topPControl.value).toEqual({ mode: 'hidden' })
+  })
+
+  it.each([
+    {
+      name: 'passthrough',
+      policy: { mode: 'passthrough' } as const,
+      capability: true,
+      control: { mode: 'editable' },
+      wire: 0.7
+    },
+    {
+      name: 'fixed',
+      policy: { mode: 'fixed', value: 1 } as const,
+      capability: false,
+      control: { mode: 'fixed', value: 1 },
+      wire: 1
+    },
+    {
+      name: 'capability-derived omit',
+      policy: { mode: 'passthrough' } as const,
+      capability: false,
+      control: { mode: 'hidden' },
+      wire: undefined
+    },
+    {
+      name: 'explicit omit',
+      policy: { mode: 'omit' } as const,
+      capability: undefined,
+      control: { mode: 'hidden' },
+      wire: undefined
+    }
+  ])(
+    'keeps renderer and wire decisions aligned for $name',
+    ({ policy, capability, control, wire }) => {
+      const effectivePolicy = resolveCapabilityAwareRequestParameterPolicy(policy, capability)
+
+      expect(resolveGenerationParameterControl(effectivePolicy, 'ready')).toEqual(control)
+      expect(applyRequestParameterPolicy(effectivePolicy, 0.7)).toBe(wire)
+    }
+  )
 
   it('keeps budget range null when capabilities have no budget metadata', async () => {
     const providerId = ref<string | undefined>('openai')
     const modelId = ref<string | undefined>('gpt-4o')
-    modelClient.getCapabilities.mockResolvedValue({
-      supportsAudioInput: false,
-      supportsReasoning: false,
-      reasoningPortrait: null,
-      thinkingBudgetRange: null,
-      supportsSearch: false,
-      searchDefaults: null,
-      supportsTemperatureControl: true,
-      temperatureCapability: true
-    })
+    modelClient.getCapabilities.mockResolvedValue(createCapabilities())
 
     const api = useModelCapabilities({ providerId, modelId })
 
-    await vi.waitFor(() => expect(api.isLoading.value).toBe(false))
+    await vi.waitFor(() => expect(api.status.value).toBe('ready'))
     expect(api.budgetRange.value).toBeNull()
   })
 
   it('merges thinking budget range with reasoning portrait sentinels', async () => {
     const providerId = ref<string | undefined>('openrouter')
     const modelId = ref<string | undefined>('google/gemini-2.5-flash')
-    modelClient.getCapabilities.mockResolvedValue({
-      supportsAudioInput: false,
-      supportsReasoning: true,
-      reasoningPortrait: {
-        budget: { auto: -1, off: 0, unit: 'tokens' }
-      },
-      thinkingBudgetRange: { min: 128, max: 24576, default: 1024 },
-      supportsSearch: false,
-      searchDefaults: null,
-      supportsTemperatureControl: true,
-      temperatureCapability: true
-    })
+    modelClient.getCapabilities.mockResolvedValue(
+      createCapabilities({
+        supportsReasoning: true,
+        reasoningPortrait: {
+          budget: { auto: -1, off: 0, unit: 'tokens' }
+        },
+        thinkingBudgetRange: { min: 128, max: 24576, default: 1024 }
+      })
+    )
 
     const api = useModelCapabilities({ providerId, modelId })
 
-    await vi.waitFor(() => expect(api.isLoading.value).toBe(false))
+    await vi.waitFor(() => expect(api.status.value).toBe('ready'))
     expect(api.budgetRange.value).toEqual({
       min: 128,
       max: 24576,
@@ -133,36 +257,48 @@ describe('useModelCapabilities', () => {
     })
   })
 
-  it('ignores stale capability responses after model changes', async () => {
+  it('keeps failure distinct from passthrough while hiding failed controls', async () => {
+    const pending = deferred<ReturnType<typeof createCapabilities>>()
+    modelClient.getCapabilities
+      .mockReturnValueOnce(pending.promise)
+      .mockRejectedValueOnce(new Error('ipc unavailable'))
+      .mockResolvedValueOnce(createCapabilities())
+    const api = useModelCapabilities()
+
+    const firstLoad = api.load({ providerId: 'openai', modelId: 'gpt-4' })
+    expect(api.status.value).toBe('loading')
+    expect(api.snapshot.value).toBeNull()
+    expect(api.supportsReasoning.value).toBeNull()
+    expect(api.temperatureControl.value).toEqual({ mode: 'loading' })
+    expect(api.topPControl.value).toEqual({ mode: 'loading' })
+    pending.resolve(createCapabilities())
+    await firstLoad
+    expect(api.status.value).toBe('ready')
+
+    await api.load({ providerId: 'openai', modelId: 'gpt-4' })
+    expect(api.status.value).toBe('error')
+    expect(api.queryIdentity.value).toEqual({
+      providerId: 'openai',
+      modelId: 'gpt-4'
+    })
+    expect(api.requestPolicy.value).toBeNull()
+    expect(api.supportsReasoning.value).toBeNull()
+    expect(api.temperatureControl.value).toEqual({ mode: 'hidden' })
+    expect(api.topPControl.value).toEqual({ mode: 'hidden' })
+
+    await api.refresh()
+    expect(api.status.value).toBe('ready')
+    expect(api.temperatureControl.value).toEqual({ mode: 'editable' })
+  })
+
+  it('clears stale presentation and ignores stale capability responses after model changes', async () => {
     const providerId = ref<string | undefined>('openai')
     const modelId = ref<string | undefined>('gpt-old')
-    const oldResponse = {
-      capabilities: deferred<{
-        supportsAudioInput: boolean
-        supportsReasoning: boolean
-        reasoningPortrait: { budget: { min: number; max: number } } | null
-        thinkingBudgetRange: { min: number; max: number } | null
-        supportsSearch: boolean
-        searchDefaults: { strategy: 'turbo' | 'max' }
-        supportsTemperatureControl: boolean
-        temperatureCapability: boolean
-      }>()
-    }
-    const newResponse = {
-      capabilities: deferred<{
-        supportsAudioInput: boolean
-        supportsReasoning: boolean
-        reasoningPortrait: { budget: { min: number; max: number } } | null
-        thinkingBudgetRange: { min: number; max: number } | null
-        supportsSearch: boolean
-        searchDefaults: { strategy: 'turbo' | 'max' }
-        supportsTemperatureControl: boolean
-        temperatureCapability: boolean
-      }>()
-    }
+    const oldResponse = deferred<ReturnType<typeof createCapabilities>>()
+    const newResponse = deferred<ReturnType<typeof createCapabilities>>()
 
-    modelClient.getCapabilities.mockImplementation((_provider, model) =>
-      model === 'gpt-old' ? oldResponse.capabilities.promise : newResponse.capabilities.promise
+    modelClient.getCapabilities.mockImplementation((query) =>
+      query.modelId === 'gpt-old' ? oldResponse.promise : newResponse.promise
     )
 
     const api = useModelCapabilities({ providerId, modelId })
@@ -170,40 +306,40 @@ describe('useModelCapabilities', () => {
 
     modelId.value = 'gpt-new'
     await vi.waitFor(() => expect(modelClient.getCapabilities).toHaveBeenCalledTimes(2))
+    expect(api.snapshot.value).toBeNull()
+    expect(api.temperatureControl.value).toEqual({ mode: 'loading' })
 
-    newResponse.capabilities.resolve({
-      supportsAudioInput: false,
-      supportsReasoning: false,
-      reasoningPortrait: { budget: { min: 10, max: 20 } },
-      thinkingBudgetRange: null,
-      supportsSearch: false,
-      searchDefaults: { strategy: 'max' },
-      supportsTemperatureControl: false,
-      temperatureCapability: true
-    })
+    newResponse.resolve(
+      createCapabilities(
+        {
+          supportsReasoning: false,
+          reasoningPortrait: { budget: { min: 10, max: 20 } },
+          searchDefaults: { strategy: 'max' },
+          supportsTemperatureControl: false,
+          temperatureCapability: false
+        },
+        {
+          ...passthroughPolicy(),
+          temperature: { mode: 'omit' }
+        }
+      )
+    )
 
     await vi.waitFor(() => expect(api.budgetRange.value?.max).toBe(20))
-    expect(api.supportsReasoning.value).toBe(false)
-    expect(api.supportsSearch.value).toBe(false)
-    expect(api.searchDefaults.value?.strategy).toBe('max')
-    expect(api.supportsTemperatureControl.value).toBe(false)
+    expect(api.requestPolicy.value?.temperature).toEqual({ mode: 'omit' })
 
-    oldResponse.capabilities.resolve({
-      supportsAudioInput: false,
-      supportsReasoning: true,
-      reasoningPortrait: { budget: { min: 100, max: 200 } },
-      thinkingBudgetRange: null,
-      supportsSearch: true,
-      searchDefaults: { strategy: 'turbo' },
-      supportsTemperatureControl: true,
-      temperatureCapability: true
-    })
+    oldResponse.resolve(
+      createCapabilities({
+        supportsReasoning: true,
+        reasoningPortrait: { budget: { min: 100, max: 200 } },
+        supportsSearch: true,
+        searchDefaults: { strategy: 'turbo' }
+      })
+    )
     await Promise.resolve()
 
     expect(api.budgetRange.value?.max).toBe(20)
     expect(api.supportsReasoning.value).toBe(false)
-    expect(api.supportsSearch.value).toBe(false)
-    expect(api.searchDefaults.value?.strategy).toBe('max')
-    expect(api.supportsTemperatureControl.value).toBe(false)
+    expect(api.requestPolicy.value?.temperature).toEqual({ mode: 'omit' })
   })
 })

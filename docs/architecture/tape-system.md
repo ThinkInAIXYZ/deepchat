@@ -1,0 +1,452 @@
+# Tape 系统
+
+## 惰性的 Skill materialization fact
+
+Tape 物理支持 `context` entry。`skill/materialized` 当前 schema 3 是完整 effective Skill content
+及其有界 execution package 的保留 canonical fact：它绑定 Session 和 Tape incarnation、按内容寻址，
+并且只能通过由 `SessionTape` 组合的窄 materialization reader/writer 访问。schema 2 的 scripts-only
+payload 保持兼容读取；只存在于未合并开发分支的 schema 1 被显式拒绝。generic append 不能伪造该
+保留 fact name；DeepChat materializer 只获得冻结的窄 capability adapter。复用会在同步事务内验证
+canonical payload 全等和 hash。
+
+`context` 不进入 effective view、transcript、Tape search/context tool 或 search/Memory projection，
+Inspector 也只暴露它的 hash/引用元数据。消息级和 Session 级上下文由 ViewManifest schema 6/hash 4 引用；schema 6 也兼容读取不含可执行权限的早期 runtime
+view occurrence。带 runtime `skill_view` 可执行权限的上下文由 schema 7/hash 5 同时绑定 provider
+可见的 `tool_result` 和 execution package。manifest 只保存引用与证明，不成为内容 sidecar；schemas
+1–5 以及 schema 6 的既有 hash 与语义保持不变。
+
+Tape 是 Session 同寿命的 append-only fact store，在同一个物理 entry 序列中承载三族语义隔离的事实：
+
+- Context Tape 保存可回放消息事实、anchor、ViewManifest、provider attempt 和 Subagent lineage，
+  服务 context assembly、recall、replay 与审计；
+- Execution Journal 保存 Run、工具副作用和终态的原生边界事实，服务失败分类与崩溃后对账；
+- Contract lineage 保存冻结的任务语义和验收裁决，服务 live delegation 的约束、交接、评价与审计。
+
+message transcript 是 Context Tape message fact 的派生投影和 UI read model：终态消息先 append 为
+fact，再在同一事务内由 `TranscriptProjectionApplier` 从该 fact 的 record 派生 transcript 各表；流式
+中间态只留在 transcript 的 pending 区。transcript 不是 Execution Journal 的 authority。transcript
+reconciliation 只在 Session 尚无当前 incarnation 的投影游标时把既有 transcript 一次性回填进 Context
+Tape，不得制造 `execution/*` 或 `contract/*` 事实。live-delegation row 和 mailbox 是 Contract fact 的
+在线 projection；Tape 保存历史事实，但不成为在线权限或编排状态的 authority。
+
+## 所有权和分层
+
+| 能力 | 当前 owner |
+| --- | --- |
+| entry/fact/ref、effective semantics、ViewManifest/replay 纯逻辑 | `src/main/tape/domain/` |
+| 消费方能力和 storage ports | `src/main/tape/ports/` |
+| Fact、Execution Journal、Contract、Reconciler、Recall、Lineage、View/Replay services | `src/main/tape/application/` |
+| `SessionTape` 兼容 facade | `src/main/tape/application/sessionTape.ts` |
+| append/read/query store | `src/main/tape/infrastructure/sqlite/tapeEntryStore.ts` |
+| search projection | `src/main/tape/infrastructure/sqlite/tapeSearchProjectionStore.ts` |
+| 物理 lifecycle delete | `src/main/tape/infrastructure/sqlite/tapeLifecycleAdapter.ts` |
+| runtime assembly | `src/main/agent/deepchat/runtime/tapeViewAssembler.ts` |
+| policy selection | `src/main/agent/deepchat/runtime/tapeViewPolicy.ts` |
+| model-facing tools | `src/main/tool/agentTools/agentTapeTools.ts` |
+
+Tape entry 只能 append。更正、压缩和 handoff 通过新 fact/anchor 表达，不原地改写旧 entry。
+anchor 改变后续读取起点或重建状态，但不删除被覆盖的历史。
+
+```mermaid
+flowchart TD
+    Consumers["Agent / Transcript / Memory / Settings / IPC"] --> Ports["Tape capability ports"]
+    Ports --> Facade["SessionTape compatibility facade"]
+    Facade --> Services["Application services"]
+    Services --> Stores["Entry store / Search projection / Lifecycle adapter"]
+    Stores --> SQLite["Shared Session SQLite connection"]
+```
+
+Tape 代码只从 `src/main/tape/` 或能力 port 导入。`src/main/session/data/tape*.ts` 与旧 table
+modules 曾作为冻结的 deprecated compatibility re-export 存在，生产代码归零后已删除；不得再在
+`src/main/session/data/` 下重建 Tape 的转发路径或 owner。
+
+## 能力端口和组合
+
+| 消费方 | 允许依赖的 Tape 能力 |
+| --- | --- |
+| DeepChat loop runner | `DeepChatLoopTapePort`（manifest、Skill request/runtime-view authority、tool fact、provider attempt 与 Journal 的窄能力组合） |
+| DeepChat Skill materializer | 冻结的 `SkillContextTapePort` adapter（incarnation、materialization、有效 user source 与 Run-manifest 能力） |
+| DeepChat Skill execution authority | 冻结的 `SkillExecutionAuthorityTapePort` adapter（exact execution ViewManifest、incarnation 与 materialization read-only 校验） |
+| DeepChat harness composition | `ExecutionJournalRecoveryReader` |
+| Deferred tool executor | `ExecutionJournalWriter` |
+| Interaction coordinator | deferred approval recovery 所需的 `ExecutionJournalRecoveryReader`、exact execution ViewManifest reader 与 tool-surface fact reader 窄组合 |
+| Live delegation repository | `ParentTaskContractWriter`、`TaskContractWriter`、`TaskEvaluationWriter` |
+| Turn coordinator / ACP compatibility | `TapeReconciliationPort` |
+| Transcript | `TapeMessageFactWriter`、`TapeProjectionHeadReader`；同时实现 reconciliation 依赖的 `TapeTranscriptProjection` |
+| Memory runtime | `TapeNonContextEntryReader`、`TapeAnchorWriter` |
+| Settings / compaction | `TapeAnchorReader`、`TapeAnchorWriter`、`TapeLifecycleAdmin` |
+| Memory routes | `TapeInspectionReader` |
+| IPC / Session data | 现有 `SessionTapePort` |
+
+`createSessionDataFromDatabase` 组合一个 `SessionTape`，把窄能力传给 transcript 和 settings，并在既有
+IPC boundary 按原时序执行 `ensureSessionTapeReady`。facade 只做 service 组合和兼容转发，不承载新的
+domain policy；外部方法的签名、同步/异步行为、异常和 fallback 语义保持稳定。
+
+`TapeNonContextEntryReader` 只暴露 Memory runtime 实际需要的 `getBySession`。Memory routes 使用的
+`TapeInspectionReader` 只返回 effective message source span 与 Memory ViewManifest DTO，不返回
+`DeepChatTapeEntryRow`。完整的 manifest assembly source set 命名为
+`TapeViewManifestAssemblySources`，domain lookup map 命名为 `TapeViewManifestLookupMaps`；历史别名
+`TapeViewManifestSourceMaps` 已随 compatibility path 一起移除。
+`TapeAnchorReader` 只暴露 settings 实际使用的 latest reconstruction anchor；transcript/settings 必须
+由 composition 注入 port，不允许在 consumer 内隐式构造 concrete facade。
+
+## 存储与事务边界
+
+- `TapeEntryStore` 只负责 append/read/query；物理删除由独立 lifecycle adapter 执行，只服务于
+  Session lifecycle，不属于运行中 Tape 语义。
+- Execution Journal 使用同一个 SQLite connection 上的同步 transaction。事务内完成 prerequisite、
+  identity collision、payload equality 和 append 检查；同 identity 同 payload 返回既有 receipt，同
+  identity 异 payload 报 corruption。它记录已越过外部副作用边界的事实，所以必须独立提交并拒绝加入
+  调用方事务；strict commit 失败必须向调用方传播。
+- `contract/*` namespace 由 strict Contract writer 独占，generic Tape append/query projection 不得伪造。
+  Contract writer 校验 canonical payload、当前 Tape identity、因果引用和幂等冲突，并要求加入
+  live-delegation 的宿主事务。每个 Contract fact 分别与它触发或证明的 runtime mutation 原子提交；不同
+  lifecycle boundary 之间不共享一个长事务。
+- transcript message mutation 与 replacement/retraction fact、summary compare-and-set 与 anchor append
+  使用同一个 SQLite connection 和调用方 transaction，拆层不能拆开其原子边界。终态 transcript 写入的顺序
+  固定为 fact append → 表投影 → 推进 `deepchat_transcript_projection_meta` 游标；游标只由 reconciliation
+  的一次性回填创建，写入只能推进已建立的游标。
+- `clearMessages` 在同一外层 transaction 中删除 pending input、transcript projection 并 reset Tape；
+  Tape generation transaction 作为 savepoint 嵌套，任一 hard failure 会同时恢复三类数据。
+- `resetSessionTape` 在同一 transaction 内删除 entry、mutation projection、search/FTS projection 并
+  创建新 bootstrap；lifecycle/cleanup/bootstrap 的 hard failure 会恢复旧 incarnation。既有 mutation
+  projection append fail-open 策略仍可提交新 Tape，但旧 projection row 已删除且 meta 会标 stale。
+- context projection 通过单条 `getByEntryIdsIfCurrent` SQL 校验 projection version、projection meta head
+  与同步调用方提供的 current Tape head，并读取请求行；不 current 时从 effective Tape 重建
+  summary/ref context。
+- search projection 升为 version 3，一次性拒绝可能来自 pre-atomic reset、恰好复用相同 head 的 version
+  2 row；current search 按需重建，linked read-only search 在重建前沿用 effective-Tape fallback。
+- search projection 可以重建；projection 不可用或 coverage 不完整时回退 effective Tape search。
+- legacy chat import 的全表删除是 migration-only 例外，但消息 fact writer 复用 composition 已创建的
+  `SessionTape` capability，不再另建 facade；Memory ingestion projection 为避免并发窗口，可以在一条
+  只读 SQL 中同时比较 Tape head 和 projection head。除此之外消费方不得访问物理 Tape 表。
+- reset 物理删除当前 Session Tape 后重新 bootstrap；本阶段没有 archive-on-reset，不能把 reset 解释成
+  append-only 运行语义的一部分。
+
+写入事务取决于事实所描述的边界，不按 namespace 机械统一：
+
+| Fact/path | 失败策略 | 事务纪律 |
+| --- | --- | --- |
+| Context message/anchor | 沿既有交互 settlement policy | 与对应 transcript/projection mutation 同事务或按既有 fail-open 规则提交 |
+| interactive `view/assembled` + applicable tool-surface provenance | fail-open，记录 bounded diagnostic | provider request 前由 dedicated writer 在一条事务中 append/validate |
+| contract-bearing `view/assembled` + applicable tool-surface provenance | fail-closed | provider request 前由 dedicated writer 在一条事务中 durable append/validate |
+| `execution/*` | fail-closed | 跨外部副作用边界独立提交，拒绝宿主事务 |
+| parent `contract/task_frozen` | fail-closed | 与 delegation/turn 创建同一事务 |
+| child `contract/task_frozen` inherited copy | fail-closed | 与 dispatch preparation projection 同一事务，先于 Handoff/provider dispatch |
+| `contract/evaluated` | fail-closed | 与 terminal turn/delegation projection 和 mailbox event 同一事务 |
+
+## Execution Journal
+
+每个 loop 或 deferred tool execution 都创建新的 UUID `runId`。一次工具 operation 使用结构化身份：
+
+```text
+(runId, requestSeq, providerToolCallId)
+```
+
+`requestSeq` 复用 provider payload 的现有序号；provider tool call ID 只在该 Run/request namespace 内
+解释，不能假定跨响应或跨 provider 全局唯一。v1 使用四类 immutable event：
+
+| event | commit boundary |
+| --- | --- |
+| `execution/run_started` | Run 注册、provider 调用或 deferred tool 执行之前 |
+| `execution/dispatch_committed` | 最后一条本地 policy/argument/abort/refusal gate 之后，真实副作用调用之前 |
+| `execution/tool_outcome` | 已知 success/error outcome 之后，任何 transcript/context/UI result projection 之前 |
+| `execution/run_terminal` | terminal transcript、status、hook 和 renderer projection 之前 |
+
+Journal commit 使用 strict fail-closed contract；它不继承 Context Tape producer 的 warn-only/fail-open
+策略。dispatch 只保存 canonical arguments hash 与已解析 target，不保存原始参数；terminal error 只保存
+hash；tool outcome 按 detailed Journal spec 和当前 `responseHash + isError` 合同只保存 canonical response
+hash 与 error bit。Journal 不复制 response/error text、MCP envelope、binary 或 temporary/offload path。
+Journal events 默认从 effective Context Tape view 和 search 排除，只在显式 audit view 中可见。
+
+T1/T2 不承诺任意外部系统的 exactly-once。它把本地可证明状态限定为：
+
+- `not_dispatched`：Run 已开始，但没有 Journal 覆盖的工具调用越过 dispatch boundary；
+- `completed`：每个 dispatch 都有 outcome；
+- `indeterminate`：至少一个 dispatch 没有 outcome，外部效果无法仅凭本地事实证明；
+- `corruption`：identity、causal prerequisite、payload、terminal ordering 或 fact shape 冲突。
+
+DeepChat harness 构造时先读取原生 v1 Journal facts，随后构建 runtime graph，并在之后执行 pending-input
+与 transcript recovery。
+`indeterminate`、`corruption` 或缺少 terminal fact 的报告会输出结构化 `parked` 诊断，且不会依据该
+报告自动重放遗留 operation；明细日志最多 100 条并清理控制字符，超出部分只记分类汇总；Journal
+读取失败会阻止 harness 构造。v1 的 `parked` 是 recovery disposition，不是新的持久化 Session
+状态。后续显式继续执行必须创建新 Run，不复用已结束或崩溃遗留的 Run identity。
+
+Journal v2 在保留上述 v1 provider operation identity 的同时新增 discriminated nested identity：
+`(runId, requestSeq, providerToolCallId, childOrdinal)`。`childOrdinal` 是独立 child operation，不是
+attempt；由 controller 按 canonical batch plan index 在任何 child approval/T1 前连续分配并冻结完整
+step/template mapping，有界、不可复用。nested canonical payload 绑定真实 target、
+definition/arguments/capability hash；同 identity 异 payload 是 corruption。v1/v2 并存读取且不重写历史。
+outer exec T1 是 child T1 的前置，所有已开始 child 必须在 outer T2 前提交 T2，outer T2 或
+`run_terminal` 后禁止 child。包含 Programmatic outer operation 的 Run 只有在 outer T2 和所有 outer/child
+T1 都有 T2 时才可提交 `run_terminal`；未配对 T1 同时禁止 outer T2 和 `run_terminal`，Run 保持
+unterminated/parked，不能从 startup recovery 消失。process-live parent controller/settlement receipt 是跨
+CLI authority，stdout 和 Tape 都不是在线 dispatch authority。nested Journal failure/corruption 对 Run
+fatal。
+
+### Tool Surface provenance
+
+`view/tool_catalog` 和 `view/tool_surface` 继续只描述 provider exposure。新增有界
+`view/programmatic_tool_surface`，记录 request/manifest/catalog reference、programmatic capability 与
+surface hash、policy/canonicalization version、bounded target/definition projection 和 degradation。三个
+fact 都是同 identity 同 payload 幂等、异 payload corruption，并排除 effective View、Memory ingestion 和
+普通 search。strict V5 在 provider admission 前 durable bind 且 fail closed；V4 provenance 可沿既有
+fail-open，但不得冒充 verified。durable surface fact 只证明该 View 的 exposure provenance 已提交，不证明
+provider request 已发送或被上游接收。正常 dispatch 不读 Tape。
+
+`skill_run` 是窄化的安全例外：`SkillExecutionAuthorityResolver` 只能通过冻结的
+`SkillExecutionAuthorityTapePort` 读取 exact execution ViewManifest、当前 incarnation 和被 manifest
+引用的 materialization，并在进程 spawn 前再次校验。该读取只验证 provider-request-bound Skill
+authority，不得枚举 dispatch history、从 Tape 重建 process-live authority，或授权其他工具；generic
+tool dispatch 仍不得读取 Tape。
+
+每个 View 的 Provider Active Surface 与 Programmatic Surface immutable 且 stable-target 互斥；V5
+ExecutionContract ceilings 仍只含 provider-visible tools。Programmatic capability 的完整 canonical value
+只存在于 process-live View/runtime；persistence 从同值派生完整 capability hash、exact bounded
+ceilings/quotas 和 bounded provenance projection。Tape 不能重建 capability，也不能授权 search、call、batch
+或恢复 current authority。
+
+## View 和 provenance
+
+每次 provider request 使用一个明确的 effective view：
+
+```text
+Tape entries + anchors + linked child head
+  -> selected policy and version
+  -> TapeViewAssembler
+  -> ordered provider messages
+  -> ViewManifest
+  -> provider request trace
+```
+
+`ViewManifest` 记录 policy、version、context builder、selection reason、included/excluded entry、
+synthetic contribution、anchor、token budget provenance；contract-bearing DeepChat child 的 manifest
+还记录该请求的 `ExecutionContract`。正常 chat、resume、tool loop 和 context pressure recovery 都必须
+记录自己的 view；不得依赖无法复现的隐式 context builder 状态。summary、reconstruction 和 Memory
+生成的 synthetic user contribution 只记录 source entry ID 与 content hash，不在 manifest 中复制原文。
+
+新的 cache-aware View 使用 `cache_aware_context_v2` / `cache-aware-v2`。它从同一次 effective Tape
+projection 选择当前 incarnation 第一条有效 user fact，按 system、pinned first user、checkpoint、retained
+tail、active turn 的顺序构造请求；pin 不复制或改写 Tape，也不改变连续 reconstruction cursor。该
+authoritative ref 必须携带最新 effective source entry、message/order identity 与精确 provider-message
+hash；写入前还必须用 Run-local raw source-content hash 校验 effective source。只有该消息仍位于受保护
+前缀时才能跨 tool loop 或 context pressure 继承。缺失 Tape source、前缀漂移、raw source-content hash
+变化或 protected budget 无法容纳时失败关闭，不得伪装成 synthetic provenance 或把其他同文消息归因
+给首条 user fact。初始 View 固定该 Run 的 pin identity；后续 recovery 只能验证并继承，不能从变化后
+的 history 重新选择另一个 pin，初始无 pin 时也不能在同一 Run 中临时引入。
+
+Contract-bearing DeepChat child 使用对应请求的 cache-aware builder、schema version 5 和 manifest hash
+version 3。普通 interactive chat 与 ACP compatibility 继续写 schema version 4，不构造或执行
+ExecutionContract；schema version 1-4 与其历史 hash 语义继续兼容读取且不得原地重写。
+`cache_aware_context_v1` / `cache-aware-v1` 与 `legacy_context_v1` / `legacy-v1` builder 均保留显式兼容
+路径。tool loop 和 context pressure 必须继承初始 projection 的 synthetic 与 pinned provenance，不能
+退化为仅按 message role 或内容相等猜测来源。
+
+每个 schema-v5 manifest 内嵌一个与 provider payload 同时构造的 immutable `ExecutionContract`，包含：
+
+- `ceilings`：稳定 tool target、effect、规范化 workdir binding 和 Subagent depth 上限；
+- `dynamicControlSnapshot`：View 构造时的 permission、admission 和 cancellation 观测；
+- `provenance`：结构化 prompt sections、provider/model、generation config、provider-visible tool
+  definitions、内部 execution policy、assembler version 和可选 TaskContract ref 的 hash/identity。
+
+同一个 contract value 绑定 request、loop run、tool batch、dispatch guard 和 manifest writer；不得用
+Session-global latest-contract cache 代替。dispatch 以 typed meet 计算有效权限：集合取交集、数值上限取
+`min`、effect 取偏序中更保守的一侧；workdir 则要求当前 Session 的规范化值与 frozen View 精确一致，
+变化后必须构造新 View。`workspace` 字段在 V1 只表达 workdir identity/stale-View guard，不检查 tool
+arguments，也不替代各工具的路径授权或 filesystem sandbox。permission、删除、撤权和 cancellation 继续
+读取当前 runtime authority；frozen ceiling 只允许收缩，扩权必须等待新 View。
+暂停 action 保存 request identity 与 contract hash，进程内继续使用原 value；重启后只可从该 binding 指向
+且 hash 验证通过的唯一 schema-v5 manifest 恢复。contract-bearing child 的 binding 缺失、冲突或不可恢复
+时 fail closed；legacy interactive action 保留兼容行为。
+
+每份确定的 provider payload 只写一个 `view/assembled`，以 request sequence 标识；context recovery
+改变 payload 并写新 manifest，transient retry 复用原 manifest。每个真正启动的 physical attempt 另
+append 一个幂等 `provider/attempt_completed` event，provenance key 由 Session、message、requestSeq 和
+physicalAttempt 组成，`source.seq` 继续等于 requestSeq。
+
+Skill 渐进披露的目标合同由 `docs/architecture/skill-progressive-disclosure/` 定义。进入 provider 的
+消息级或 Session 级完整 Skill 指令必须先成为 Session Tape 中内容寻址、物理 kind 为 `context` 的
+materialization fact；Agent runtime 只能通过窄 writer/reader capability 写入和恢复。ViewManifest
+schema 6/hash 4 记录消息级、Session 级和早期无可执行权限 runtime view 上下文的
+run/request/incarnation binding、activation scope、source entry ref 与 projected hash；schema 7/hash 5
+还把 runtime `skill_view` 的 exact tool-result fact 与执行物化 ref 绑定到同一 occurrence。不能用 hash
+代替内容，也不能用“最新 manifest”恢复某次 Run。同一 Run 的 retry、context recovery、tool loop 和
+进程内暂停续跑复用原 fact，禁止重读可变 Skill 文件；崩溃 Run 继续沿用现有 parked 语义，用户显式
+发起的新 Run 才 fresh resolve 当前内容。materialization fact 默认从 transcript、effective view、
+搜索、Memory 和普通 renderer 排除，避免历史行为指令通过召回重新激活。
+
+新 attempt event 使用 schema version 2，记录 logicalRound、physicalAttempt、request/attempt origin、
+failure classification、retry decision、受限错误标识、终态、stop reason、最后一个 cumulative usage
+snapshot、cache read/write token 与合法的命中比率；schema version 1 保持可读。它不保存 prompt、
+header、secret、raw response 或 error stack。Tape append 失败不能反向把已启动的生成改成失败。
+
+`DeepChatContextCoordinator.streamProviderAttempts` 在 retry 决策完成后写 attempt outcome。可重试的
+error control event 在决定不重放前不得进入 message projection；首个语义输出提交后，即使后续出现
+transient failure 也只能保留 partial output 并结束。message metadata 汇总该 logical round 所有
+physical attempt 的最终 usage snapshot，Tape outcome 则始终保留 attempt-local usage，不能用 message
+aggregate 反推单次请求。retry lifecycle observer 只写诊断日志，不写 Tape。
+
+DeepChat message trace 通过 nullable identity 列兼容旧行和 ACP trace。同一 requestSeq 的 replay 选择
+physicalAttempt 最大的 trace，再按 createdAt 和 ID 稳定排序；attempt-local trace callback 必须捕获
+不可变 identity。
+
+## Context compact 与压力恢复
+
+Tape 自身不做物理 compact。运行时 compact 的对象是 provider-visible View：reconstruction anchor
+单调推进默认读取边界，旧 entry 仍留在 append-only Tape 中供 recall、replay 和审计。semantic summary
+是挂在该边界上的可选重建提示，不是边界前进或 View 缩小的前置条件。
+
+自动和压力恢复使用以下有序降级；前一步已经得到可发送的更小 projection 时跳过后续模型调用：
+
+```text
+provider candidate
+  -> usage anchor + suffix estimate（信封变化时回退全量估算）
+  -> compact 较旧的已闭合超大 tool result，保留最新闭合 unit 的完整证据
+  -> 仍有压力：允许 compact 最新闭合 unit
+  -> 仍有压力：尝试 semantic summary
+  -> canonical checkpoint 严格小于它替换的当前 checkpoint + 新隐藏 View 时才提交
+  -> summary 不可用或不收缩：原子写 boundary-only reconstruction anchor
+  -> 从 Tape 与当前内存 active turn 重建 View
+  -> semantic recovery 仅在新 View 严格更小时生效
+  -> 必要时缩小 output reserve 做一次 strict retry
+  -> 每个通过 fit/change 或显式 output-reduction guard 的新 payload 创建新的 requestSeq / ViewManifest
+```
+
+boundary-only anchor 使用 allowlisted 的 `summary_unavailable` 或
+`summary_rejected_larger` reason 和有界 `summaryGap` coverage；不保存 provider error、stack、时间戳或
+secret。连续 gap 合并为最新边界上的一个区间；旧有效 summary 只以 `priorSummary` 作为部分上下文，
+不能伪装成该边界新生成的 summary。两类 gap 都保留 Tape recall 指引并在后续成功 summary 时回填；
+取消 summary 时不提交边界。
+
+成功 summary 的 checkpoint 仅在 owning reconstruction anchor 带合法 `range` 时渲染稳定的
+orderSeq coverage 和 `tape_search` / `tape_context` recall 指引；legacy、仅有 `priorSummary` 或无
+range anchor 不推测来源。provenance 与 summary 一起进入 synthetic contribution hash 和收缩比较，
+不能成为未计预算的隐式 prompt。
+
+active turn 不能通过重放原 user prompt 恢复，因为 tool 可能已经产生外部副作用。运行时只能压缩
+assistant tool-call 与其全部结果均已闭合的 unit，保留 call/result 配对，并保护 runtime Skill、provider
+replay 和 projection identity。第一阶段还保护最新闭合 unit，避免模型因丢失直接行动依据而重复有副作用的
+tool；只有较旧 unit 已不足以解除压力时才能压缩它。原始 tool fact 仍在 Tape；stub 是当前 provider View
+的非持久化派生投影，不推进 reconstruction cursor。
+
+每次成功 provider attempt 可以在当前 Run 内建立 prompt usage anchor。仅当 provider、model、generation
+config、provider-visible tools 和完整消息前缀 hash 全部一致时，下一次 preflight 才以 provider-reported
+prompt usage 为基线，只估新增 suffix。anchor 使用请求级 generation config，不把压力下临时缩小的有效输出
+上限误判为配置变化；实际发送的 fitted projection 与 continuation View 不一致、cache-read usage 超过 prompt
+usage 时不建立该 attempt 的新 anchor；任一信封/前缀无法匹配已有 anchor 时回退保守全量估算。一次成功
+响应会重置当前 recovery sequence latch，使后续 tool step 可再次恢复；每个 Run 最多使用三条 recovery
+sequence，避免无限循环。
+
+## Contract lineage 与评价
+
+每个 live-delegation turn 在 parent Tape 冻结一个 `TaskContract`，内容由 `taskSchema`、`taskConfig`、
+`taskDescription` 和 `taskHarness` 四部分组成。v1 harness 只验证 required Markdown level-two Handoff
+sections 是否存在非空正文；它不判断任务是否完成、内容是否正确或 parent 是否接受，不支持自动 repair、
+retry 或 override。follow-up 创建新 turn 和新 TaskContract，并引用同一 parent Session 的前一次
+`evaluationRef`，不是复用旧 turn 或重放旧 Run；跨 Session predecessor ref 不能通过 canonical contract
+校验。
+
+parent 在创建 turn 的事务内 append `contract/task_frozen`，同时把同一 canonical contract 和完整 ref 写入
+turn projection。child 在首次 provider dispatch 前把该 value strict append 到自己的 Tape，并以
+`originRef` 记录 parent Session、Tape incarnation、entry 和 contract hash。这个 inherited copy 只表示
+child 收到的最小任务状态，不复制 parent transcript，也不要求 child 热路径回读 parent Tape。parent 或
+child Tape reset 后，runtime 可用 row 中 hash-verified canonical value 在新 incarnation append
+`projection_recovery` fact 并替换 projection ref；完成前不得跨下一个 strict boundary。
+
+每个 contract-bearing terminal settlement 必须生成一个 `contract/evaluated`。执行状态和 Handoff 格式
+状态相互独立：
+
+```text
+executionStatus = completed | failed | cancelled | interrupted
+evaluationKind  = handoff_format
+formatStatus    = valid | invalid | indeterminate
+```
+
+`formatStatus=valid` 只证明固定 Handoff 结构满足要求，child 内容仍是不可信 evidence。一个生成成功但格式
+无效的 child 仍是 `completed`，delegation 回到 `idle`，由 parent 显式 `follow_up` 决定是否继续。
+settlement 在同一 SQLite transaction 中提交 Tape fact、turn/delegation projection 与 terminal mailbox
+event，三者使用同一 canonical evaluation；Tape 是历史证据，row/event 是 parent 在线消费的 projection，
+不构成双重 authority。
+
+TaskContract、ExecutionContract 与 evaluation 都有独立 schema/hash/evaluator version 和 UTF-8 上限。
+unknown legacy turn 不补造评价；contract-bearing turn 若无法原子写入评价则保持 recoverable，不得静默
+terminal。Inspector 等派生读取只从事实和 manifests 派生；当前 schema-v5 View 已携带 per-View execution
+contract，后续若扩展 task contract、attempts、evaluations 与 lineage ref，也不得成为新的事实源或在线
+authority。
+
+## Message projection 与 Context facts
+
+- user/assistant terminal result 先写入对应 Context Tape fact，再由同一事务内的投影派生 transcript
+  表；tool fact 由 loop runner 在每轮结算后写入，终态 message fact 以幂等 provenance 补齐其
+  `tool_call`/`tool_result` 事实；
+- provider/tool retry 不得重复提交 terminal fact；
+- Context Tape 写失败按当前 settlement policy 记录/隔离，不能把已经完成的用户回复变成无限挂起；同事务
+  的 fact append 失败会连带回滚 transcript 写入；
+- readiness 以投影游标比对 Tape head：游标缺失或 incarnation 不匹配时把 transcript 一次性回填进 Context
+  Tape、把 Tape 中 transcript 没有的有效消息投影回表，再建立游标；否则只重放游标之后的 message fact 与
+  retraction。classifier 只读取原生 `execution/*` v1 events，二者不得互相伪造；
+- replay 从 manifest 和 facts 重建 provider-visible context，不从 renderer block 猜测执行语义。
+
+## Model capability
+
+模型只可调用：
+
+- `tape_search`：在授权 view 内查找；
+- `tape_context`：读取已找到 entry 周边上下文。
+
+`tape_info`、`tape_anchors` 是 diagnostic；`tape_handoff` 是 runtime-only。五个名称全部 reserved，
+MCP 不能 shadow，持久化 disabled-tool 配置也不能关闭 system capability。
+
+Skills 启用时，`skill_list`、`skill_view`、`skill_manage`、`skill_run` 同样是 reserved 的 system-model
+capability；MCP 不能 shadow，持久化 disabled-tool 配置不能逐项关闭。全局 Skills 设置仍是其产品级
+availability gate。`skill_view`/`skill_run` 的 provider-visible 结果和执行权限仍必须遵守上文的
+materialization、ViewManifest、Journal 与 source fence，不因 reserved/exposure 身份获得额外 authority。
+
+## Subagent lineage
+
+Subagent 使用独立 Session 和独立 Tape。完成后父 Session append 一个 link，固定 child Tape head：
+
+- 查询时只读该 frozen head，不自动读取 child 后续 entry；
+- child entries 不复制进父 Tape；
+- 只有显式授权的直接 child 可以跨 Tape 读取；missing、recreated 或 incarnation 不匹配必须 fail
+  closed；
+- 非直接 child、未授权 Session 或递归 Subagent 不能通过 Tape tool 越权读取。
+
+Tape 没有 `fork/*` 写入方。v1.0.5–v1.0.9 的 Subagent 收尾曾在父 Tape 写 `fork/merge` /
+`fork/discard` 事件（provenance `fork:<parent>:<child>:external-merge|external-discard:event`），lineage
+reader 对这些历史行只读兼容：`fork/merge` 解析为已完成的 child link，`fork/discard` 仅作审计，
+Inspector 仍把 `fork/*` 归入 lineage family。曾经的进程内 delta-merge fork（`fork/start` anchor、复制
+delta、merge receipt）从未接入产品路径，其 merge 语义也未覆盖后来新增的 reserved namespace，已整体
+移除；若将来需要同 Tape 内的并行探索，必须为每个 reserved namespace 重新定义合并语义，而不是恢复
+旧实现。
+
+## 回放和兼容
+
+Replay 必须保持 entry order、role、tool call/result pairing、anchor cursor、policy version、builder
+version 和 synthetic contribution provenance。未知旧 fact 可以按兼容规则跳过或映射，但不能静默改变
+已知 fact 的含义。测试至少覆盖正常 chat、resume、tool interaction、compaction、context pressure、
+Subagent frozen head、provider attempt outcome 和旧 manifest 读取。
+
+hash 算法、`hashVersion` 与 provenance key 前缀都是落盘合同的一部分。ViewManifest 的 hashable 是 stored 字段去掉
+`assembledAt`、`viewId`，并把 `hashes` 缩成 `{ promptHash, toolDefinitionsHash }`，其余字段全部进 `manifestHash`；
+reader 原样透传 stored 字段后重算，所以改 hashable 变换或 canonicalizer 会让历史 manifest 校验变 `invalid`，
+shape 校验要求的字段离开写入端则必须伴随新 schemaVersion；ExecutionContract、
+tool surface fact 与 Journal payload 用 exact-key 校验，删除任一字段或新增必填字段都会让历史行 malformed。两类
+失效都会让 `skill_run`、paused dispatch 与 pending action 恢复 fail closed，Journal 历史则被归类为 corruption。
+legacy `hashJson` 不是只读兼容路径，它仍在产出 schema-4 manifest hash、tool fact provenance key 与 Execution
+Journal v1 key/`responseHash`/`errorHash`，不得替换；schema 5 起的新 identity 一律用 `hashJsonData`。Tape 中的
+hash 分两类：
+fact 信封与 payload 的自校验（tool surface 三个 fact 的信封 hash、materialization meta `payloadHash`），以及把
+Tape 之外的对象（provider 投影、process-live capability、执行包临时目录、projection row、pause binding）绑定到
+entry 的凭据；后者不是对不可变 entry 的双重保证，entryId 无法替代它们。
+
+stored manifest validation、legacy `hashVersion` normalization 和 entry-id collection 属于
+`src/main/tape/domain/replay.ts` 的纯逻辑；SQLite row parsing 仍属于 `TapeViewReplayService`，不能反向放进
+domain。
+
+关键行为测试位于 `test/main/session/data/tape*.test.ts`、`transcriptAtomicity.test.ts`、
+`transcriptProjection.test.ts` 与 `messageContent.test.ts`，分层守护位于
+`test/main/tape/layerBoundaries.test.ts`；runtime 和 tool 契约继续位于
+`test/main/agent/deepchat/` 与 `test/main/tool/`。历史的 Tape increment SDD 已合并到本文，详细实施
+顺序从 Git 历史查询。

@@ -1,7 +1,7 @@
 import { expect } from 'vitest'
 
-import { DeepChatMessagesTable } from '@/presenter/sqlitePresenter/tables/deepchatMessages'
-import { DeepChatMessageTracesTable } from '@/presenter/sqlitePresenter/tables/deepchatMessageTraces'
+import { DeepChatMessagesTable } from '@/session/data/tables/deepchatMessages'
+import { DeepChatMessageTracesTable } from '@/session/data/tables/deepchatMessageTraces'
 
 import { describeIfNativeSqlite, requireDatabase } from '../../nativeSqliteHarness'
 import { measurePerformance, reportPerformance } from './timing'

@@ -1,4 +1,4 @@
-import type { CloudSyncConfigInput } from '@shared/presenter'
+import type { CloudSyncConfigInput } from '@shared/types/sync'
 
 export const CLOUD_SYNC_DEFAULTS = {
   region: 'auto',

@@ -1,36 +1,39 @@
 <template>
   <div class="flex h-full min-w-0 flex-1 flex-col bg-background">
     <div class="flex h-11 items-center gap-2 border-b px-3">
-      <Button
+      <DcButton
         variant="outline"
         size="icon"
         class="h-7 w-7"
         :aria-label="t('common.browser.back')"
         :disabled="!canGoBack"
+        :tooltip="t('common.browser.back')"
         @click="goBack"
       >
         <Icon icon="lucide:arrow-left" class="h-4 w-4" />
-      </Button>
-      <Button
+      </DcButton>
+      <DcButton
         variant="outline"
         size="icon"
         class="h-7 w-7"
         :aria-label="t('common.browser.forward')"
         :disabled="!canGoForward"
+        :tooltip="t('common.browser.forward')"
         @click="goForward"
       >
         <Icon icon="lucide:arrow-right" class="h-4 w-4" />
-      </Button>
-      <Button
+      </DcButton>
+      <DcButton
         variant="outline"
         size="icon"
         class="h-7 w-7"
         :aria-label="t('common.browser.reload')"
+        :tooltip="t('common.browser.reload')"
         @click="reloadPage"
       >
         <Icon icon="lucide:refresh-ccw" class="h-4 w-4" />
-      </Button>
-      <form class="flex min-w-0 flex-1" @submit.prevent="navigate">
+      </DcButton>
+      <DcForm class="flex min-w-0 flex-1" @submit="navigate">
         <Input
           v-model="urlInput"
           :aria-label="t('common.browser.addressLabel')"
@@ -40,7 +43,20 @@
           autocomplete="off"
           spellcheck="false"
         />
-      </form>
+      </DcForm>
+      <DcButton
+        variant="outline"
+        size="icon"
+        class="h-7 w-7 shrink-0"
+        :aria-label="props.isFullscreen ? t('common.restore') : t('common.expand')"
+        :tooltip="props.isFullscreen ? t('common.restore') : t('common.expand')"
+        @click="emit('toggle-fullscreen')"
+      >
+        <Icon
+          :icon="props.isFullscreen ? 'lucide:minimize-2' : 'lucide:maximize-2'"
+          class="h-4 w-4"
+        />
+      </DcButton>
     </div>
 
     <div ref="containerRef" class="relative min-h-0 flex-1 overflow-hidden">
@@ -55,21 +71,22 @@ import type { Rectangle } from 'electron'
 import { useResizeObserver } from '@vueuse/core'
 import { Icon } from '@iconify/vue'
 import { useI18n } from 'vue-i18n'
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
+import { DcForm } from '@dc-ui/components/form'
 import { Input } from '@shadcn/components/ui/input'
 import { createBrowserClient } from '@api/BrowserClient'
 import BrowserPlaceholder from './BrowserPlaceholder.vue'
 import type { YoBrowserStatus } from '@shared/types/browser'
 import { useSidepanelStore } from '@/stores/ui/sidepanel'
-import { useSessionStore } from '@/stores/ui/session'
 
 const props = defineProps<{
   sessionId: string | null
+  isFullscreen?: boolean
 }>()
+const emit = defineEmits<{ (event: 'toggle-fullscreen'): void }>()
 
 const { t } = useI18n()
 const sidepanelStore = useSidepanelStore()
-const sessionStore = useSessionStore()
 const browserClient = createBrowserClient()
 
 const containerRef = ref<HTMLElement | null>(null)
@@ -86,7 +103,6 @@ const urlInput = ref('')
 const canGoBack = ref(false)
 const canGoForward = ref(false)
 let lastSyncedBounds: Rectangle | null = null
-const pendingBrowserDestroySessionIds = new Set<string>()
 let visibilityRunId = 0
 let stopOpenRequestedListener: (() => void) | null = null
 let stopStatusChangedListener: (() => void) | null = null
@@ -102,10 +118,6 @@ const showPlaceholder = computed(
 const isBrowserPanelVisible = computed(
   () => sidepanelStore.open && sidepanelStore.activeTab === 'browser'
 )
-
-const getSessionUiStatus = (sessionId: string) => {
-  return sessionStore.sessions.find((session) => session.id === sessionId)?.status ?? null
-}
 
 const callBrowserAction = async <T>(action: string, run: () => Promise<T>): Promise<T | null> => {
   try {
@@ -337,6 +349,8 @@ const handleOpenRequested = async (payload: {
   sessionId: string
   windowId: number
   url: string
+  source: 'agent' | 'user'
+  runId?: string
   version: number
 }) => {
   if (payload.sessionId !== currentSessionId.value) {
@@ -442,24 +456,6 @@ const cleanupInactiveSession = async (sessionId: string) => {
   }
 
   await hideEmbedded(sessionId)
-  if (getSessionUiStatus(sessionId) === 'working') {
-    pendingBrowserDestroySessionIds.add(sessionId)
-    return
-  }
-
-  pendingBrowserDestroySessionIds.delete(sessionId)
-  await callBrowserAction('destroy', () => browserClient.destroy(sessionId))
-}
-
-const flushPendingSessionDestroys = async () => {
-  for (const sessionId of Array.from(pendingBrowserDestroySessionIds)) {
-    if (getSessionUiStatus(sessionId) === 'working') {
-      continue
-    }
-
-    pendingBrowserDestroySessionIds.delete(sessionId)
-    await callBrowserAction('destroy', () => browserClient.destroy(sessionId))
-  }
 }
 
 useResizeObserver(containerRef, () => {
@@ -494,16 +490,6 @@ watch(
     }
   },
   { immediate: true }
-)
-
-watch(
-  () => sessionStore.sessions.map((session) => `${session.id}:${session.status}`).join('|'),
-  () => {
-    void flushPendingSessionDestroys()
-    if (currentSessionId.value) {
-      void loadState(currentSessionId.value)
-    }
-  }
 )
 
 onMounted(async () => {

@@ -2,10 +2,10 @@
   <TransitionGroup
     tag="div"
     class="absolute bottom-3 right-3 flex flex-col items-center gap-2 will-change-transform"
-    enter-active-class="transition-all duration-[var(--dc-motion-default)] ease-[var(--dc-ease-out-express)]"
+    enter-active-class="transition-[opacity,translate] duration-[var(--dc-motion-default)] ease-[var(--dc-ease-out-express)]"
     enter-from-class="opacity-0 translate-y-1"
     enter-to-class="opacity-100 translate-y-0"
-    leave-active-class="transition-all duration-[var(--dc-motion-default)] ease-[var(--dc-ease-out-express)]"
+    leave-active-class="transition-[opacity,translate] duration-[var(--dc-motion-default)] ease-[var(--dc-ease-out-express)]"
     leave-from-class="opacity-100 translate-y-0"
     leave-to-class="opacity-0 translate-y-1"
     move-class="message-actions-move"
@@ -13,44 +13,46 @@
     @after-leave="handleAfterLeave"
     @leave-cancelled="handleAfterLeave"
   >
-    <Button
+    <DcButton
       v-if="showWorkspaceButton"
       key="open-workspace"
       variant="outline"
       size="icon"
       class="dc-blur-panel w-8 h-8 shrink-0 opacity-100 bg-card z-[var(--dc-z-sidepanel)]"
-      :title="t('chat.workspace.title')"
+      :tooltip="t('chat.workspace.title')"
       @click="$emit('open-workspace')"
     >
       <Icon icon="lucide:layout-dashboard" class="w-5 h-5 text-foreground" />
-    </Button>
+    </DcButton>
 
-    <Button
+    <DcButton
       v-if="showCleanButton"
       key="new-chat"
       variant="outline"
       size="icon"
       class="dc-blur-panel w-8 h-8 shrink-0 opacity-100 bg-card z-[var(--dc-z-float)]"
+      :tooltip="t('common.newChat')"
       @click="$emit('clean')"
     >
       <Icon icon="lucide:brush-cleaning" class="w-6 h-6 text-foreground" />
-    </Button>
+    </DcButton>
 
-    <Button
+    <DcButton
       v-if="showScrollButton"
       key="scroll-bottom"
       variant="outline"
       size="icon"
       class="dc-blur-panel w-8 h-8 shrink-0 relative z-[var(--dc-z-sticky)]"
+      :tooltip="t('common.scrollToBottom')"
       @click="$emit('scroll-to-bottom')"
     >
       <Icon icon="lucide:arrow-down" class="w-5 h-5 text-foreground" />
-    </Button>
+    </DcButton>
   </TransitionGroup>
 </template>
 
 <script setup lang="ts">
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
 import { Icon } from '@iconify/vue'
 import { useI18n } from 'vue-i18n'
 
@@ -93,7 +95,7 @@ const handleAfterLeave = (el: Element) => {
 
 <style scoped>
 .message-actions-move {
-  transition: transform 0.3s ease;
+  transition: transform var(--dc-motion-default) var(--dc-ease-out-express);
 }
 
 /* 当元素离开时切换到这个 class，由 CSS 控制定位与过渡 */
@@ -106,7 +108,7 @@ const handleAfterLeave = (el: Element) => {
   pointer-events: none;
   /* 控制离场的属性过渡（和 template 中的 leave-* class 一起工作） */
   transition:
-    opacity 0.3s ease,
-    transform 0.3s ease;
+    opacity var(--dc-motion-default) var(--dc-ease-out-express),
+    translate var(--dc-motion-default) var(--dc-ease-out-express);
 }
 </style>

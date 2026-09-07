@@ -49,6 +49,16 @@
             :block="block"
             :message-id="messageId"
             :thread-id="threadId"
+            :read-only="readOnly"
+            render-mode="tool-only"
+            :permission-status="
+              block.tool_call?.id ? permissionStatusByToolCallId?.[block.tool_call.id] : undefined
+            "
+          />
+          <MessageBlockSearch
+            v-else-if="block.type === 'search'"
+            :block="block"
+            :thread-id="threadId"
           />
         </template>
       </div>
@@ -62,11 +72,13 @@ import { Icon } from '@iconify/vue'
 import { useI18n } from 'vue-i18n'
 import type {
   DisplayAssistantMessageBlock,
-  DisplayMessageUsage
-} from '@/components/chat/messageListItems'
+  DisplayMessageUsage,
+  ResolvedPermissionStatus
+} from '@/features/chat-page/model/displayMessage'
 import { formatActivityDuration } from './messageActivityGroups'
 import MessageBlockThink from './MessageBlockThink.vue'
 import MessageBlockToolCall from './MessageBlockToolCall.vue'
+import MessageBlockSearch from './MessageBlockSearch.vue'
 
 const props = defineProps<{
   blocks: DisplayAssistantMessageBlock[]
@@ -76,6 +88,8 @@ const props = defineProps<{
   durationMs: number
   reasoningCount: number
   toolCallCount: number
+  readOnly?: boolean
+  permissionStatusByToolCallId?: Record<string, ResolvedPermissionStatus>
 }>()
 
 const emit = defineEmits<{

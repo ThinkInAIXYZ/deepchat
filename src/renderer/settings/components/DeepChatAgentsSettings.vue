@@ -8,9 +8,14 @@
             {{ t('settings.deepchatAgents.description') }}
           </div>
         </div>
-        <Button data-testid="deepchat-agent-add-button" size="sm" @click="startCreate">
+        <DcButton
+          data-testid="deepchat-agent-add-button"
+          size="sm"
+          :disabled="saving"
+          @click="startCreate"
+        >
           {{ t('common.add') }}
-        </Button>
+        </DcButton>
       </div>
 
       <div class="flex-1 space-y-3 overflow-y-auto px-4 pb-4">
@@ -18,6 +23,7 @@
           v-for="agent in sidebarAgents"
           :key="agent.id"
           :data-testid="`deepchat-agent-row-${agent.id}`"
+          :disabled="saving"
           class="w-full rounded-2xl border p-4 text-left transition-colors"
           :class="
             selectedAgentId === agent.id
@@ -45,9 +51,9 @@
             <div class="min-w-0 flex-1">
               <div class="flex items-center gap-2">
                 <div class="truncate text-sm font-semibold">{{ agent.name }}</div>
-                <Badge v-if="agent.protected" variant="secondary">
+                <DcBadge v-if="agent.protected" variant="secondary">
                   {{ t('settings.deepchatAgents.builtIn') }}
-                </Badge>
+                </DcBadge>
               </div>
               <div class="mt-1 text-xs text-muted-foreground">
                 {{ agent.enabled ? t('common.enabled') : t('common.disabled') }}
@@ -58,13 +64,15 @@
       </div>
     </aside>
 
-    <main class="min-w-0 flex-1 overflow-y-auto">
+    <main class="agent-editor-main min-w-0 flex-1 overflow-y-auto">
       <div
         data-testid="deepchat-agents-sticky-header"
         class="sticky top-0 z-20 border-b border-border/80 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/85"
       >
-        <div class="mx-auto flex w-full max-w-5xl items-start justify-between gap-4 px-6 py-4">
-          <div class="flex items-center gap-4">
+        <div
+          class="agent-header-layout mx-auto flex w-full max-w-5xl flex-col items-stretch justify-between gap-3 px-6 py-4"
+        >
+          <div class="flex min-w-0 items-center gap-4">
             <div
               class="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-border/70 bg-muted/40"
             >
@@ -74,7 +82,7 @@
                 fallback-class-name="rounded-xl"
               />
             </div>
-            <div>
+            <div class="min-w-0">
               <div class="text-xl font-semibold">
                 {{
                   form.id
@@ -82,17 +90,19 @@
                     : t('settings.deepchatAgents.createTitle')
                 }}
               </div>
-              <div class="text-sm text-muted-foreground">
+              <div class="truncate text-sm text-muted-foreground">
                 {{ form.name.trim() || t('settings.deepchatAgents.unnamed') }}
               </div>
             </div>
           </div>
 
-          <div class="flex items-center gap-2">
-            <Button variant="outline" :disabled="saving" @click="resetEditor">
+          <div
+            class="agent-header-actions flex w-full min-w-0 flex-wrap items-center justify-end gap-2"
+          >
+            <DcButton variant="outline" :disabled="saving" @click="resetEditor">
               {{ t('common.reset') }}
-            </Button>
-            <Button
+            </DcButton>
+            <DcButton
               v-if="form.id && !form.protected"
               data-testid="deepchat-agent-delete-button"
               variant="destructive"
@@ -100,22 +110,27 @@
               @click="removeAgent"
             >
               {{ t('common.delete') }}
-            </Button>
-            <Button
+            </DcButton>
+            <DcSubmitButton
               data-testid="deepchat-agent-save-button"
-              :disabled="saving || !form.name.trim()"
+              :status="saveStatus"
+              :disabled="!isDirty || !form.name.trim()"
+              :aria-busy="saving"
               @click="saveAgent"
             >
-              {{ saving ? t('common.saving') : t('common.save') }}
-            </Button>
+              {{ t('common.save') }}
+            </DcSubmitButton>
           </div>
-        </div>
-        <div v-if="saveError" class="mx-auto w-full max-w-5xl px-6 pb-3">
-          <p class="text-xs text-destructive">{{ saveError }}</p>
+          <DcInlineError v-if="saveError" :error="saveError" class="mt-2" />
         </div>
       </div>
 
-      <div class="mx-auto flex w-full max-w-5xl flex-col gap-6 px-6 py-6">
+      <div
+        data-testid="deepchat-agent-editor-content"
+        class="mx-auto flex w-full max-w-5xl flex-col gap-6 px-6 py-6"
+        :inert="saving"
+        :aria-busy="saving"
+      >
         <section class="grid gap-4 rounded-2xl border border-border p-5 md:grid-cols-2">
           <label class="space-y-2">
             <div class="text-sm font-medium">{{ t('settings.deepchatAgents.name') }}</div>
@@ -174,7 +189,7 @@
               <Input v-model="form.lucideIcon" placeholder="bot" />
             </label>
             <div class="flex flex-wrap gap-2 md:col-span-2">
-              <Button
+              <DcButton
                 v-for="iconName in lucideIcons"
                 :key="iconName"
                 size="sm"
@@ -184,7 +199,7 @@
               >
                 <Icon :icon="`lucide:${iconName}`" class="h-4 w-4" />
                 <span>{{ iconName }}</span>
-              </Button>
+              </DcButton>
             </div>
             <label class="space-y-2">
               <div class="text-sm font-medium">{{ t('settings.deepchatAgents.lightColor') }}</div>
@@ -233,7 +248,7 @@
               <div class="text-[11px] font-medium text-muted-foreground">{{ field.label }}</div>
               <Popover v-model:open="field.open.value">
                 <PopoverTrigger as-child>
-                  <Button
+                  <DcButton
                     variant="outline"
                     size="sm"
                     class="h-8 w-full min-w-0 justify-between gap-1.5 rounded-lg px-2.5 text-xs"
@@ -255,12 +270,12 @@
                       icon="lucide:chevron-down"
                       class="h-3 w-3 shrink-0 text-muted-foreground"
                     />
-                  </Button>
+                  </DcButton>
                 </PopoverTrigger>
                 <PopoverContent class="w-[320px] p-0" align="start">
                   <div class="flex items-center justify-between border-b px-3 py-2">
                     <div class="text-sm font-medium">{{ field.label }}</div>
-                    <Button
+                    <DcButton
                       v-if="form[field.key]"
                       variant="ghost"
                       size="sm"
@@ -268,7 +283,7 @@
                       @click="clearModel(field.key)"
                     >
                       {{ t('common.clear') }}
-                    </Button>
+                    </DcButton>
                   </div>
                   <ModelSelect
                     :exclude-providers="['acp']"
@@ -287,7 +302,7 @@
               </div>
               <DropdownMenu>
                 <DropdownMenuTrigger as-child>
-                  <Button
+                  <DcButton
                     variant="outline"
                     size="sm"
                     class="h-8 w-full min-w-0 justify-between gap-1.5 rounded-lg px-2.5 text-xs"
@@ -304,7 +319,7 @@
                       icon="lucide:chevron-down"
                       class="h-3 w-3 shrink-0 text-muted-foreground"
                     />
-                  </Button>
+                  </DcButton>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="start" class="w-[20rem]">
                   <DropdownMenuItem
@@ -327,24 +342,19 @@
                     />
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem
-                    class="gap-2 px-2 py-1.5 text-xs"
+                  <DcDropdownActionItem
+                    icon="lucide:folder-open"
+                    :label="t('common.project.openFolder')"
+                    class="text-xs"
                     @select="pickDefaultProjectPath"
-                  >
-                    <Icon
-                      icon="lucide:folder-open"
-                      class="h-3.5 w-3.5 shrink-0 text-muted-foreground"
-                    />
-                    <span>{{ t('common.project.openFolder') }}</span>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
+                  />
+                  <DcDropdownActionItem
                     v-if="form.defaultProjectPath"
-                    class="gap-2 px-2 py-1.5 text-xs"
+                    icon="lucide:x"
+                    :label="t('common.clear')"
+                    class="text-xs"
                     @select="clearDefaultProjectPath"
-                  >
-                    <Icon icon="lucide:x" class="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                    <span>{{ t('common.clear') }}</span>
-                  </DropdownMenuItem>
+                  />
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
@@ -355,7 +365,7 @@
               </div>
               <DropdownMenu>
                 <DropdownMenuTrigger as-child>
-                  <Button
+                  <DcButton
                     variant="outline"
                     size="sm"
                     :class="[
@@ -373,7 +383,7 @@
                       icon="lucide:chevron-down"
                       class="h-3 w-3 shrink-0 text-muted-foreground"
                     />
-                  </Button>
+                  </DcButton>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="start" class="min-w-48">
                   <DropdownMenuItem
@@ -400,10 +410,10 @@
           <div class="space-y-2">
             <div class="flex items-center justify-between gap-3">
               <div class="text-sm font-medium">{{ t('settings.deepchatAgents.systemPrompt') }}</div>
-              <Button variant="outline" size="sm" class="gap-2" @click="openSystemPromptPicker">
+              <DcButton variant="outline" size="sm" class="gap-2" @click="openSystemPromptPicker">
                 <Icon icon="lucide:library-big" class="h-4 w-4" />
                 <span>{{ t('promptSetting.selectSystemPrompt') }}</span>
-              </Button>
+              </DcButton>
             </div>
             <Textarea
               v-model="form.systemPrompt"
@@ -426,7 +436,7 @@
             <Switch
               :model-value="form.subagentEnabled"
               :aria-label="t('settings.deepchatAgents.subagentsEnabled')"
-              @update:model-value="form.subagentEnabled = $event"
+              @update:model-value="setSubagentEnabled"
             />
           </div>
 
@@ -442,14 +452,15 @@
                 >
                   {{ slot.id }}
                 </div>
-                <Button
+                <DcButton
                   variant="ghost"
                   size="sm"
                   class="h-7 px-2 text-xs"
+                  :disabled="form.subagentEnabled && form.subagents.length <= 1"
                   @click="removeSubagentSlot(index)"
                 >
                   {{ t('common.delete') }}
-                </Button>
+                </DcButton>
               </div>
 
               <div class="mt-4 grid gap-4 md:grid-cols-2">
@@ -497,14 +508,14 @@
                   })
                 }}
               </span>
-              <Button
+              <DcButton
                 size="sm"
                 variant="outline"
                 :disabled="form.subagents.length >= subagentSlotLimit"
                 @click="addSubagentSlot"
               >
                 {{ t('settings.deepchatAgents.addSubagentSlot') }}
-              </Button>
+              </DcButton>
             </div>
           </div>
         </section>
@@ -532,25 +543,149 @@
               </div>
 
               <div class="flex flex-wrap gap-2">
-                <Button
+                <DcButton
                   v-for="tool in group.tools"
                   :key="tool.function.name"
                   type="button"
-                  variant="outline"
+                  :variant="isToolEnabled(tool.function.name) ? 'default' : 'outline'"
                   size="sm"
-                  class="h-10 rounded-xl px-4 text-sm shadow-none transition-colors"
+                  class="h-10 rounded-xl border px-4 text-sm shadow-none transition-colors"
                   :class="
                     isToolEnabled(tool.function.name)
-                      ? 'border-primary bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground'
+                      ? 'border-primary'
                       : 'border-border bg-background text-foreground hover:bg-muted'
                   "
                   @click="toggleTool(tool.function.name)"
                 >
                   {{ tool.function.name }}
-                </Button>
+                </DcButton>
               </div>
             </div>
           </div>
+
+          <Collapsible v-model:open="outputLimitsOpen" class="rounded-xl border border-border/70">
+            <CollapsibleTrigger
+              data-testid="agent-output-limits-trigger"
+              class="flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left"
+            >
+              <span>
+                <span class="block text-sm font-medium">
+                  {{ t('settings.deepchatAgents.outputLimitsTitle') }}
+                </span>
+                <span class="mt-0.5 block text-xs text-muted-foreground">
+                  {{ t('settings.deepchatAgents.outputLimitsDescription') }}
+                </span>
+              </span>
+              <Icon
+                :icon="outputLimitsOpen ? 'lucide:chevron-up' : 'lucide:chevron-down'"
+                class="h-4 w-4 shrink-0 text-muted-foreground"
+              />
+            </CollapsibleTrigger>
+
+            <CollapsibleContent class="space-y-4 border-t border-border/70 p-3">
+              <div class="flex items-start justify-between gap-3">
+                <p class="text-xs text-muted-foreground">
+                  {{ t('settings.deepchatAgents.outputLimitsSafetyHint') }}
+                </p>
+                <DcButton
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  class="h-7 shrink-0 px-2 text-xs"
+                  data-testid="agent-output-limits-reset"
+                  @click="resetOutputLimits"
+                >
+                  {{ t('settings.deepchatAgents.outputLimitsReset') }}
+                </DcButton>
+              </div>
+
+              <div class="grid gap-4 md:grid-cols-3">
+                <label class="space-y-2">
+                  <span class="block text-sm font-medium">
+                    {{ t('settings.deepchatAgents.outputLimitsReadFile') }}
+                  </span>
+                  <InputGroup>
+                    <InputGroupInput
+                      v-model="form.readFileAutoTruncateChars"
+                      data-testid="read-file-auto-truncate-chars-input"
+                      type="number"
+                      :min="AGENT_OUTPUT_LIMIT_MIN_CHARS"
+                      :max="AGENT_OUTPUT_LIMIT_MAX_CHARS"
+                      step="1"
+                      aria-describedby="read-file-auto-truncate-chars-hint"
+                    />
+                    <InputGroupAddon align="inline-end">
+                      <InputGroupText data-testid="agent-output-limit-unit">
+                        {{ t('settings.common.charactersUnit') }}
+                      </InputGroupText>
+                    </InputGroupAddon>
+                  </InputGroup>
+                  <span
+                    id="read-file-auto-truncate-chars-hint"
+                    class="block text-[11px] text-muted-foreground"
+                  >
+                    {{ t('settings.deepchatAgents.outputLimitsReadFileHint') }}
+                  </span>
+                </label>
+
+                <label class="space-y-2">
+                  <span class="block text-sm font-medium">
+                    {{ t('settings.deepchatAgents.outputLimitsTool') }}
+                  </span>
+                  <InputGroup>
+                    <InputGroupInput
+                      v-model="form.toolOutputInlineChars"
+                      data-testid="tool-output-inline-chars-input"
+                      type="number"
+                      :min="AGENT_OUTPUT_LIMIT_MIN_CHARS"
+                      :max="AGENT_OUTPUT_LIMIT_MAX_CHARS"
+                      step="1"
+                      aria-describedby="tool-output-inline-chars-hint"
+                    />
+                    <InputGroupAddon align="inline-end">
+                      <InputGroupText data-testid="agent-output-limit-unit">
+                        {{ t('settings.common.charactersUnit') }}
+                      </InputGroupText>
+                    </InputGroupAddon>
+                  </InputGroup>
+                  <span
+                    id="tool-output-inline-chars-hint"
+                    class="block text-[11px] text-muted-foreground"
+                  >
+                    {{ t('settings.deepchatAgents.outputLimitsToolHint') }}
+                  </span>
+                </label>
+
+                <label class="space-y-2">
+                  <span class="block text-sm font-medium">
+                    {{ t('settings.deepchatAgents.outputLimitsCommand') }}
+                  </span>
+                  <InputGroup>
+                    <InputGroupInput
+                      v-model="form.commandOutputInlineChars"
+                      data-testid="command-output-inline-chars-input"
+                      type="number"
+                      :min="AGENT_OUTPUT_LIMIT_MIN_CHARS"
+                      :max="AGENT_OUTPUT_LIMIT_MAX_CHARS"
+                      step="1"
+                      aria-describedby="command-output-inline-chars-hint"
+                    />
+                    <InputGroupAddon align="inline-end">
+                      <InputGroupText data-testid="agent-output-limit-unit">
+                        {{ t('settings.common.charactersUnit') }}
+                      </InputGroupText>
+                    </InputGroupAddon>
+                  </InputGroup>
+                  <span
+                    id="command-output-inline-chars-hint"
+                    class="block text-[11px] text-muted-foreground"
+                  >
+                    {{ t('settings.deepchatAgents.outputLimitsCommandHint') }}
+                  </span>
+                </label>
+              </div>
+            </CollapsibleContent>
+          </Collapsible>
         </section>
 
         <section class="space-y-4 rounded-2xl border border-border p-5">
@@ -614,7 +749,7 @@
             v-if="form.memoryEnabled && form.id && form.id !== DRAFT_AGENT_ID"
             class="space-y-1.5"
           >
-            <Button
+            <DcButton
               variant="outline"
               size="sm"
               class="h-8 gap-1.5 rounded-lg text-xs"
@@ -622,7 +757,7 @@
             >
               <Icon icon="lucide:brain" class="h-3.5 w-3.5" />
               {{ t('settings.deepchatAgents.memoryManageLink') }}
-            </Button>
+            </DcButton>
             <p class="text-[11px] text-muted-foreground">
               {{ t('settings.deepchatAgents.memoryManageLinkHint') }}
             </p>
@@ -680,11 +815,13 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
-import { Button } from '@shadcn/components/ui/button'
-import { Badge } from '@shadcn/components/ui/badge'
+import { DcButton } from '@dc-ui/components/button'
+import { DcBadge } from '@dc-ui/components/badge'
+import { DcInlineError } from '@dc-ui/components/inline-error'
+import { DcSubmitButton, useDcFormSubmit } from '@dc-ui/components/form'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -692,12 +829,25 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger
 } from '@shadcn/components/ui/dropdown-menu'
+import { DcDropdownActionItem } from '@dc-ui/components/dropdown-action-item'
 import { Input } from '@shadcn/components/ui/input'
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupInput,
+  InputGroupText
+} from '@shadcn/components/ui/input-group'
 import { Textarea } from '@shadcn/components/ui/textarea'
 import { Switch } from '@shadcn/components/ui/switch'
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger
+} from '@shadcn/components/ui/collapsible'
 import { Popover, PopoverContent, PopoverTrigger } from '@shadcn/components/ui/popover'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@shadcn/components/ui/dialog'
 import { useRouter } from 'vue-router'
+import { notifyRenderer } from '@renderer-notifications/rendererNotificationPort'
 import AgentTransferDialog from '@/components/agent/AgentTransferDialog.vue'
 import ModelSelect from '@/components/ModelSelect.vue'
 import AgentAvatar from '@/components/icons/AgentAvatar.vue'
@@ -707,6 +857,7 @@ import { createProjectClient } from '@api/ProjectClient'
 import { createSessionClient } from '@api/SessionClient'
 import { createToolClient } from '@api/ToolClient'
 import { useModelStore } from '@/stores/modelStore'
+import { useUiSettingsStore } from '@/stores/uiSettingsStore'
 import { ModelType } from '@shared/model'
 import { DEFAULT_DISABLED_AGENT_TOOLS } from '@shared/agentTools'
 import type { MCPToolDefinition } from '@shared/types/core/mcp'
@@ -722,12 +873,19 @@ import type {
   Project,
   UpdateDeepChatAgentInput
 } from '@shared/types/agent-interface'
-import type { RENDERER_MODEL_META, SystemPrompt } from '@shared/presenter'
+import type { SystemPrompt } from '@shared/types/prompt'
+import type { RENDERER_MODEL_META } from '@shared/types/provider'
 import {
   DEEPCHAT_SUBAGENT_SLOT_LIMIT,
   createDefaultDeepChatSubagentSlots,
   normalizeDeepChatSubagentSlots
 } from '@shared/lib/deepchatSubagents'
+import {
+  AGENT_OUTPUT_LIMIT_MAX_CHARS,
+  AGENT_OUTPUT_LIMIT_MIN_CHARS,
+  DEFAULT_AGENT_OUTPUT_LIMITS
+} from '@shared/lib/agentOutputLimits'
+import { settingsLeaveGuard } from '../services/settingsLeaveGuard'
 
 type ModelKey = 'chatModel' | 'assistantModel' | 'visionModel' | 'imageGenerationModel'
 type AvatarKind = 'default' | 'lucide' | 'monogram'
@@ -776,6 +934,9 @@ type FormState = {
   autoCompactionEnabled: boolean
   autoCompactionTriggerThreshold: EditableNumberValue
   autoCompactionRetainRecentPairs: EditableNumberValue
+  readFileAutoTruncateChars: EditableNumberValue
+  toolOutputInlineChars: EditableNumberValue
+  commandOutputInlineChars: EditableNumberValue
   memoryEnabled: boolean
 }
 
@@ -802,6 +963,9 @@ const CONFIG_DIFF_KEYS: readonly (keyof DeepChatAgentConfig)[] = [
   'autoCompactionEnabled',
   'autoCompactionTriggerThreshold',
   'autoCompactionRetainRecentPairs',
+  'readFileAutoTruncateChars',
+  'toolOutputInlineChars',
+  'commandOutputInlineChars',
   'memoryEnabled'
 ]
 const GROUP_ORDER = [
@@ -818,19 +982,22 @@ const configClient = createConfigClient()
 const projectClient = createProjectClient()
 const toolClient = createToolClient()
 const modelStore = useModelStore()
+const uiSettingsStore = useUiSettingsStore()
 const subagentSlotLimit = DEEPCHAT_SUBAGENT_SLOT_LIMIT
 
 const allAgents = ref<Agent[]>([])
 const tools = ref<MCPToolDefinition[]>([])
 const recentProjects = ref<Project[]>([])
-const saving = ref(false)
 const saveError = ref<string | null>(null)
+const { status: saveStatus, run: runSave } = useDcFormSubmit()
+const saving = computed(() => saveStatus.value === 'submitting')
 const deleting = ref(false)
 const selectedAgentId = ref<string | null>(null)
 const chatOpen = ref(false)
 const assistantOpen = ref(false)
 const visionOpen = ref(false)
 const imageGenerationOpen = ref(false)
+const outputLimitsOpen = ref(false)
 const systemPromptDialogOpen = ref(false)
 const loadingSystemPrompts = ref(false)
 const systemPromptTemplates = ref<SystemPrompt[]>([])
@@ -841,6 +1008,7 @@ const transferDialogError = ref<string | null>(null)
 const transferImpact = ref<AgentTransferImpact | null>(null)
 const pendingDeleteAgent = ref<{ id: string; name: string } | null>(null)
 const originalForm = ref<FormState | null>(null)
+const originalFormSignature = ref<string | null>(null)
 
 const form = reactive<FormState>({
   id: null,
@@ -864,9 +1032,12 @@ const form = reactive<FormState>({
   subagentEnabled: true,
   subagents: normalizeDeepChatSubagentSlots(createDefaultDeepChatSubagentSlots()),
   disabledAgentTools: [...DEFAULT_DISABLED_AGENT_TOOLS],
-  autoCompactionEnabled: true,
-  autoCompactionTriggerThreshold: '80',
-  autoCompactionRetainRecentPairs: '2',
+  autoCompactionEnabled: uiSettingsStore.autoCompactionEnabled,
+  autoCompactionTriggerThreshold: String(uiSettingsStore.autoCompactionTriggerThreshold),
+  autoCompactionRetainRecentPairs: String(uiSettingsStore.autoCompactionRetainRecentPairs),
+  readFileAutoTruncateChars: String(DEFAULT_AGENT_OUTPUT_LIMITS.readFileAutoTruncateChars),
+  toolOutputInlineChars: String(DEFAULT_AGENT_OUTPUT_LIMITS.toolOutputInlineChars),
+  commandOutputInlineChars: String(DEFAULT_AGENT_OUTPUT_LIMITS.commandOutputInlineChars),
   memoryEnabled: false
 })
 
@@ -1021,10 +1192,6 @@ const deepchatAgents = computed(() =>
       a.id === 'deepchat' ? -1 : b.id === 'deepchat' ? 1 : a.name.localeCompare(b.name)
     )
 )
-// The builtin deepchat agent is the inheritance base, so an agent without its own override resolves
-// memoryEnabled from it. Used to display the inherited value without ossifying it on save.
-const inheritedMemoryEnabled = () =>
-  allAgents.value.find((agent) => agent.id === 'deepchat')?.config?.memoryEnabled ?? false
 const isAvailableSubagentTargetAgent = (agent: Agent) => {
   if (agent.type === 'deepchat') {
     return true
@@ -1121,18 +1288,20 @@ const emptyForm = (): FormState => ({
   subagentEnabled: true,
   subagents: normalizeDeepChatSubagentSlots(createDefaultDeepChatSubagentSlots()),
   disabledAgentTools: [...DEFAULT_DISABLED_AGENT_TOOLS],
-  autoCompactionEnabled: true,
-  autoCompactionTriggerThreshold: '80',
-  autoCompactionRetainRecentPairs: '2',
-  memoryEnabled: inheritedMemoryEnabled()
+  autoCompactionEnabled: uiSettingsStore.autoCompactionEnabled,
+  autoCompactionTriggerThreshold: String(uiSettingsStore.autoCompactionTriggerThreshold),
+  autoCompactionRetainRecentPairs: String(uiSettingsStore.autoCompactionRetainRecentPairs),
+  readFileAutoTruncateChars: String(DEFAULT_AGENT_OUTPUT_LIMITS.readFileAutoTruncateChars),
+  toolOutputInlineChars: String(DEFAULT_AGENT_OUTPUT_LIMITS.toolOutputInlineChars),
+  commandOutputInlineChars: String(DEFAULT_AGENT_OUTPUT_LIMITS.commandOutputInlineChars),
+  memoryEnabled: false
 })
 
-const memoryEnabledTouched = ref(false)
 const cloneForm = (state: FormState): FormState => JSON.parse(JSON.stringify(state)) as FormState
 const assignForm = (next: FormState) => {
   Object.assign(form, next)
   originalForm.value = cloneForm(next)
-  memoryEnabledTouched.value = false
+  originalFormSignature.value = serializeCanonicalForm(next)
 }
 const normalizePath = (value: string | null | undefined) => {
   const normalized = value?.trim()
@@ -1176,10 +1345,14 @@ const normalizeAutoCompactionRetainRecentPairs = (value: EditableNumberValue | n
     max: AUTO_COMPACTION_RETAIN_RECENT_PAIRS_MAX,
     integer: true
   })
-const buildEditableConfig = (
-  state: FormState,
-  options: { includeMemoryEnabled: boolean }
-): DeepChatAgentConfig => {
+const normalizeOutputLimit = (value: EditableNumberValue | null | undefined, fallback: number) =>
+  normalizeNumericInput(value, {
+    fallback,
+    min: AGENT_OUTPUT_LIMIT_MIN_CHARS,
+    max: AGENT_OUTPUT_LIMIT_MAX_CHARS,
+    integer: true
+  })
+const buildEditableConfig = (state: FormState): DeepChatAgentConfig => {
   const config: DeepChatAgentConfig = {
     defaultModelPreset: buildModelSelection(state.chatModel),
     assistantModel: buildModelSelection(state.assistantModel),
@@ -1190,20 +1363,28 @@ const buildEditableConfig = (
     permissionMode: state.permissionMode,
     subagentEnabled: state.subagentEnabled,
     subagents: normalizeDeepChatSubagentSlots(state.subagents),
-    disabledAgentTools: [...state.disabledAgentTools],
+    disabledAgentTools: [...state.disabledAgentTools].sort(),
     autoCompactionEnabled: state.autoCompactionEnabled,
     autoCompactionTriggerThreshold: normalizeAutoCompactionTriggerThreshold(
       state.autoCompactionTriggerThreshold
     ),
     autoCompactionRetainRecentPairs: normalizeAutoCompactionRetainRecentPairs(
       state.autoCompactionRetainRecentPairs
-    )
+    ),
+    readFileAutoTruncateChars: normalizeOutputLimit(
+      state.readFileAutoTruncateChars,
+      DEFAULT_AGENT_OUTPUT_LIMITS.readFileAutoTruncateChars
+    ),
+    toolOutputInlineChars: normalizeOutputLimit(
+      state.toolOutputInlineChars,
+      DEFAULT_AGENT_OUTPUT_LIMITS.toolOutputInlineChars
+    ),
+    commandOutputInlineChars: normalizeOutputLimit(
+      state.commandOutputInlineChars,
+      DEFAULT_AGENT_OUTPUT_LIMITS.commandOutputInlineChars
+    ),
+    memoryEnabled: state.memoryEnabled
   }
-
-  if (options.includeMemoryEnabled) {
-    config.memoryEnabled = state.memoryEnabled
-  }
-
   return config
 }
 const hasOwn = (value: object, key: PropertyKey): boolean =>
@@ -1217,14 +1398,14 @@ const setConfigValue = <K extends keyof DeepChatAgentConfig>(
 ) => {
   patch[key] = value
 }
-const buildUpdateConfigPatch = (): DeepChatAgentConfig | undefined => {
+const buildUpdateConfigPatch = (state: FormState = form): DeepChatAgentConfig | undefined => {
   const baselineForm = originalForm.value
   if (!baselineForm) {
-    return buildEditableConfig(form, { includeMemoryEnabled: memoryEnabledTouched.value })
+    return buildEditableConfig(state)
   }
 
-  const current = buildEditableConfig(form, { includeMemoryEnabled: memoryEnabledTouched.value })
-  const baseline = buildEditableConfig(baselineForm, { includeMemoryEnabled: true })
+  const current = buildEditableConfig(state)
+  const baseline = buildEditableConfig(baselineForm)
   const patch: DeepChatAgentConfig = {}
 
   for (const key of CONFIG_DIFF_KEYS) {
@@ -1240,24 +1421,39 @@ const createAgentSlotId = () =>
   `slot-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`
 const numText = (value: unknown) =>
   typeof value === 'number' && Number.isFinite(value) ? String(value) : ''
-const buildAvatar = (): AgentAvatarValue | null => {
-  if (form.avatarKind === 'lucide' && form.lucideIcon.trim()) {
+const buildAvatar = (state: FormState = form): AgentAvatarValue | null => {
+  if (state.avatarKind === 'lucide' && state.lucideIcon.trim()) {
     return {
       kind: 'lucide',
-      icon: form.lucideIcon.trim(),
-      lightColor: form.lightColor || null,
-      darkColor: form.darkColor || null
+      icon: state.lucideIcon.trim(),
+      lightColor: state.lightColor || null,
+      darkColor: state.darkColor || null
     }
   }
-  if (form.avatarKind === 'monogram' && form.monogramText.trim()) {
+  if (state.avatarKind === 'monogram' && state.monogramText.trim()) {
     return {
       kind: 'monogram',
-      text: form.monogramText.trim(),
-      backgroundColor: form.monogramBackgroundColor || null
+      text: state.monogramText.trim(),
+      backgroundColor: state.monogramBackgroundColor || null
     }
   }
   return null
 }
+const buildCanonicalAgentInput = (state: FormState) => ({
+  name: state.name.trim(),
+  enabled: state.enabled,
+  description: state.description.trim(),
+  avatar: buildAvatar(state),
+  config: buildEditableConfig(state)
+})
+const serializeCanonicalForm = (state: FormState): string =>
+  JSON.stringify(buildCanonicalAgentInput(state))
+const currentFormSignature = computed(() => serializeCanonicalForm(form))
+const isDirty = computed(
+  () =>
+    originalFormSignature.value !== null &&
+    currentFormSignature.value !== originalFormSignature.value
+)
 const fromAgent = (agent?: Agent | null): FormState => {
   if (!agent) return emptyForm()
   const config = agent.config ?? {}
@@ -1308,8 +1504,16 @@ const fromAgent = (agent?: Agent | null): FormState => {
     autoCompactionRetainRecentPairs: numText(
       config.autoCompactionRetainRecentPairs ?? AUTO_COMPACTION_RETAIN_RECENT_PAIRS_DEFAULT
     ),
-    memoryEnabled:
-      'memoryEnabled' in config ? Boolean(config.memoryEnabled) : inheritedMemoryEnabled()
+    readFileAutoTruncateChars: numText(
+      config.readFileAutoTruncateChars ?? DEFAULT_AGENT_OUTPUT_LIMITS.readFileAutoTruncateChars
+    ),
+    toolOutputInlineChars: numText(
+      config.toolOutputInlineChars ?? DEFAULT_AGENT_OUTPUT_LIMITS.toolOutputInlineChars
+    ),
+    commandOutputInlineChars: numText(
+      config.commandOutputInlineChars ?? DEFAULT_AGENT_OUTPUT_LIMITS.commandOutputInlineChars
+    ),
+    memoryEnabled: config.memoryEnabled ?? false
   }
 }
 const modelText = (selection: EditableModel | undefined) => {
@@ -1369,8 +1573,14 @@ const addSubagentSlot = () => {
     description: ''
   })
 }
+const setSubagentEnabled = (enabled: boolean) => {
+  if (enabled && normalizeDeepChatSubagentSlots(form.subagents).length === 0) {
+    form.subagents = normalizeDeepChatSubagentSlots(createDefaultDeepChatSubagentSlots())
+  }
+  form.subagentEnabled = enabled
+}
 const removeSubagentSlot = (index: number) => {
-  if (!form.subagents[index]) {
+  if (!form.subagents[index] || (form.subagentEnabled && form.subagents.length <= 1)) {
     return
   }
 
@@ -1381,7 +1591,11 @@ const clearModel = (key: ModelKey) => {
 }
 const setMemoryEnabled = (value: boolean) => {
   form.memoryEnabled = value
-  memoryEnabledTouched.value = true
+}
+const resetOutputLimits = () => {
+  form.readFileAutoTruncateChars = String(DEFAULT_AGENT_OUTPUT_LIMITS.readFileAutoTruncateChars)
+  form.toolOutputInlineChars = String(DEFAULT_AGENT_OUTPUT_LIMITS.toolOutputInlineChars)
+  form.commandOutputInlineChars = String(DEFAULT_AGENT_OUTPUT_LIMITS.commandOutputInlineChars)
 }
 const openMemorySettings = () => {
   if (!form.id || form.id === DRAFT_AGENT_ID) return
@@ -1468,7 +1682,7 @@ const loadRecentProjects = async () => {
 }
 const loadTools = async () => {
   try {
-    const definitions = await toolClient.getAllToolDefinitions({ chatMode: 'agent' })
+    const definitions = await toolClient.getConfigurableAgentToolDefinitions({ chatMode: 'agent' })
     tools.value = Array.isArray(definitions)
       ? definitions
           .filter((tool) => tool.source === 'agent')
@@ -1488,61 +1702,114 @@ const loadAgents = async (preferredId?: string | null) => {
   selectedAgentId.value = nextId
   assignForm(fromAgent(deepchatAgents.value.find((agent) => agent.id === nextId) ?? null))
 }
-const selectAgent = (agentId: string) => {
+const upsertSavedAgent = (savedAgent: Agent) => {
+  const existingIndex = allAgents.value.findIndex((agent) => agent.id === savedAgent.id)
+  allAgents.value =
+    existingIndex === -1
+      ? [...allAgents.value, savedAgent]
+      : allAgents.value.map((agent, index) => (index === existingIndex ? savedAgent : agent))
+}
+const applySavedAgent = (savedAgent: Agent) => {
+  const savedForm = fromAgent(savedAgent)
+  upsertSavedAgent(savedAgent)
+  selectedAgentId.value = savedAgent.id
+  assignForm(savedForm)
+}
+const applyPersistedFormFallback = (savedAgent: Agent, submittedForm: FormState) => {
+  const persistedForm = cloneForm(submittedForm)
+  persistedForm.id = savedAgent.id
+  persistedForm.protected = Boolean(savedAgent.protected)
+  const persistedInput = buildCanonicalAgentInput(submittedForm)
+  const fallbackAgent: Agent = {
+    ...savedAgent,
+    ...persistedInput,
+    id: savedAgent.id,
+    type: 'deepchat',
+    config: {
+      ...savedAgent.config,
+      ...persistedInput.config
+    }
+  }
+  upsertSavedAgent(fallbackAgent)
+  selectedAgentId.value = savedAgent.id
+  assignForm(persistedForm)
+}
+const activateDraft = () => {
+  selectedAgentId.value = DRAFT_AGENT_ID
+  assignForm(emptyForm())
+}
+const activateAgent = (agentId: string) => {
   if (agentId === DRAFT_AGENT_ID) {
-    selectedAgentId.value = DRAFT_AGENT_ID
+    activateDraft()
     return
   }
 
   selectedAgentId.value = agentId
   assignForm(fromAgent(deepchatAgents.value.find((agent) => agent.id === agentId) ?? null))
 }
-const startCreate = () => {
-  selectedAgentId.value = DRAFT_AGENT_ID
-  assignForm(emptyForm())
+const selectAgent = async (agentId: string) => {
+  if (saving.value || selectedAgentId.value === agentId) return
+  if (await settingsLeaveGuard.requestLeave()) {
+    activateAgent(agentId)
+  }
+}
+const startCreate = async () => {
+  if (saving.value || selectedAgentId.value === DRAFT_AGENT_ID) return
+  if (await settingsLeaveGuard.requestLeave()) {
+    activateDraft()
+  }
 }
 const resetEditor = () => {
+  if (saving.value) return
   const agentId = selectedAgentId.value
   if (!agentId || agentId === DRAFT_AGENT_ID) {
-    startCreate()
+    activateDraft()
     return
   }
 
-  selectAgent(agentId)
+  activateAgent(agentId)
 }
-const saveAgent = async () => {
-  if (!form.name.trim()) return
-  saving.value = true
+const saveAgent = () => {
+  if (saving.value || !isDirty.value || !form.name.trim()) return
+
   saveError.value = null
-  try {
-    const basePayload = {
-      name: form.name.trim(),
-      enabled: form.enabled,
-      description: form.description.trim() || undefined,
-      avatar: buildAvatar()
-    }
-    if (form.id) {
-      const configPatch = buildUpdateConfigPatch()
+  void runSave(async () => {
+    const submittedForm = cloneForm(form)
+    const canonicalInput = buildCanonicalAgentInput(submittedForm)
+    const { config, ...basePayload } = canonicalInput
+    let savedAgent: Agent
+    if (submittedForm.id) {
+      const configPatch = buildUpdateConfigPatch(submittedForm)
       const payload: UpdateDeepChatAgentInput = {
         ...basePayload,
         ...(configPatch ? { config: configPatch } : {})
       }
-      const updated = await configClient.updateDeepChatAgent(form.id, payload)
-      await loadAgents(updated?.id ?? form.id)
+      const updated = await configClient.updateDeepChatAgent(submittedForm.id, payload)
+      if (!updated) {
+        throw new Error(`Agent "${submittedForm.id}" no longer exists`)
+      }
+      savedAgent = updated
     } else {
       const payload: CreateDeepChatAgentInput = {
         ...basePayload,
-        config: buildEditableConfig(form, { includeMemoryEnabled: memoryEnabledTouched.value })
+        config
       }
-      const created = await configClient.createDeepChatAgent(payload)
-      await loadAgents(created.id)
+      savedAgent = await configClient.createDeepChatAgent(payload)
     }
-  } catch (error) {
-    console.error('[DeepChatAgents] save failed:', error)
-    saveError.value = error instanceof Error ? error.message : String(error)
-  } finally {
-    saving.value = false
-  }
+    try {
+      applySavedAgent(savedAgent)
+    } catch (error) {
+      console.error('[DeepChatAgents] Failed to project saved agent', error)
+      try {
+        applyPersistedFormFallback(savedAgent, submittedForm)
+      } catch (fallbackError) {
+        console.error('[DeepChatAgents] Failed to apply persisted form fallback', fallbackError)
+      }
+    }
+  }).catch((error: unknown) => {
+    console.error('[DeepChatAgents] Save failed', error)
+    saveError.value = t('settings.deepchatAgents.saveFeedback.saveFailed')
+  })
 }
 const removeAgent = async () => {
   if (!form.id || form.protected) return
@@ -1560,20 +1827,37 @@ const removeAgent = async () => {
     transferImpact.value = impact
     allAgents.value = list
   } catch (error) {
-    transferDialogError.value = error instanceof Error ? error.message : String(error)
+    console.error('[DeepChatAgents] Failed to load transfer impact', error)
+    transferDialogError.value = t('common.error.operationFailed')
   } finally {
     transferDialogLoading.value = false
   }
 }
 
 const finishDeleteAgent = async (agentId: string) => {
-  const removed = await configClient.deleteDeepChatAgent(agentId)
-  if (!removed) {
-    throw new Error(t('dialog.agentTransfer.agentDeleteBlocked'))
+  const result = await configClient.deleteDeepChatAgent(agentId)
+  if (!result.removed) {
+    transferDialogError.value = t('dialog.agentTransfer.agentDeleteBlocked')
+    return
   }
-  await loadAgents('deepchat')
+  allAgents.value = allAgents.value.filter((agent) => agent.id !== agentId)
+  const nextAgent =
+    deepchatAgents.value.find((agent) => agent.id === 'deepchat') ?? deepchatAgents.value[0] ?? null
+  selectedAgentId.value = nextAgent?.id ?? null
+  assignForm(fromAgent(nextAgent))
   transferDialogOpen.value = false
   pendingDeleteAgent.value = null
+  if (result.cleanupPendingRestart) {
+    try {
+      notifyRenderer({
+        kind: 'info',
+        code: 'settings.deepchatAgent.cleanupPendingRestart',
+        title: t('settings.deepchatAgents.memoryManager.cleanupPendingRestart')
+      })
+    } catch (error) {
+      console.error('[DeepChatAgents] Failed to present cleanup notice', error)
+    }
+  }
 }
 
 const handleDeleteAgentWithMove = async (payload: { targetAgentId: string }) => {
@@ -1587,7 +1871,8 @@ const handleDeleteAgentWithMove = async (payload: { targetAgentId: string }) => 
     await sessionClient.moveAgentSessions(agent.id, payload.targetAgentId)
     await finishDeleteAgent(agent.id)
   } catch (error) {
-    transferDialogError.value = error instanceof Error ? error.message : String(error)
+    console.error('[DeepChatAgents] Failed to move sessions before deletion', error)
+    transferDialogError.value = t('common.error.operationFailed')
   } finally {
     deleting.value = false
     transferDialogBusy.value = false
@@ -1605,14 +1890,56 @@ const handleDeleteAgentWithSessions = async () => {
     await sessionClient.deleteAgentSessions(agent.id)
     await finishDeleteAgent(agent.id)
   } catch (error) {
-    transferDialogError.value = error instanceof Error ? error.message : String(error)
+    console.error('[DeepChatAgents] Failed to delete agent sessions', error)
+    transferDialogError.value = t('common.error.operationFailed')
   } finally {
     deleting.value = false
     transferDialogBusy.value = false
   }
 }
 
+const leaveGuardLease = settingsLeaveGuard.register({
+  id: 'deepchat-agent-editor',
+  onDiscard: resetEditor
+})
+const stopLeaveRiskSync = watch(
+  [isDirty, saving],
+  ([dirty, busy]) => {
+    leaveGuardLease.setRisk(busy ? 'busy' : dirty ? 'dirty' : 'clean')
+  },
+  { immediate: true, flush: 'sync' }
+)
+
+// 失败的内联错误随下一次表单编辑清除
+const stopSaveErrorSync = watch(currentFormSignature, () => {
+  saveError.value = null
+})
+
+onBeforeUnmount(() => {
+  stopLeaveRiskSync()
+  stopSaveErrorSync()
+  leaveGuardLease.release()
+})
+
 onMounted(async () => {
   await Promise.all([loadTools(), loadRecentProjects(), loadAgents('deepchat')])
 })
 </script>
+
+<style scoped>
+.agent-editor-main {
+  container-type: inline-size;
+}
+
+@container (min-width: 720px) {
+  .agent-header-layout {
+    flex-direction: row;
+    align-items: flex-start;
+    gap: 1rem;
+  }
+
+  .agent-header-actions {
+    width: auto;
+  }
+}
+</style>

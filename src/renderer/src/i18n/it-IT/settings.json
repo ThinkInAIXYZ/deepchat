@@ -1,6 +1,34 @@
 {
   "title": "Impostazioni",
   "common": {
+    "commandShell": {
+      "title": "Shell dei comandi dell'agente",
+      "auto": "Automatico",
+      "windowsPowerShell": "Windows PowerShell",
+      "powerShellCore": "PowerShell 7",
+      "commandPrompt": "Command Prompt",
+      "gitBash": "Git Bash",
+      "bash": "Bash",
+      "zsh": "Zsh",
+      "fish": "Fish",
+      "executable": "Eseguibile Git Bash",
+      "autoDetect": "Rileva automaticamente",
+      "browse": "Seleziona Git Bash",
+      "clearOverride": "Cancella percorso personalizzato",
+      "checking": "Verifica di Git Bash...",
+      "available": "Disponibile: {path}",
+      "refresh": "Verifica di nuovo",
+      "updateFailed": "Impossibile aggiornare l'impostazione della shell dei comandi.",
+      "checkFailed": "Impossibile verificare la disponibilità di Git Bash.",
+      "browseFailed": "Impossibile selezionare l'eseguibile Git Bash.",
+      "loadFailed": "Impossibile caricare l'impostazione della shell dei comandi.",
+      "errors": {
+        "unsupported-platform": "Git Bash può essere selezionato solo su Windows.",
+        "override-invalid": "Il percorso personalizzato deve puntare a un bash.exe esistente.",
+        "not-found": "Git Bash non è stato trovato su questo dispositivo.",
+        "validation-failed": "L'eseguibile rilevato non ha superato la convalida di Git Bash."
+      }
+    },
     "title": "Impostazioni generali",
     "resetData": "Ripristina dati",
     "language": "Lingua",
@@ -18,18 +46,6 @@
     "privacyModeNpmRegistry": "Rilevamento automatico registry npm MCP",
     "privacyModeManualActions": "Controlli e aggiornamenti manuali restano disponibili.",
     "privacyModeIntegrations": "Le integrazioni di terze parti configurate, come MCP / Remote, non sono interessate",
-    "autoCompaction": {
-      "title": "Compressione automatica",
-      "enabled": "Attiva compressione automatica",
-      "description": "Quando una conversazione si avvicina al limite della finestra di contesto del modello, DeepChat può riassumere automaticamente la cronologia più vecchia per mantenere attiva la sessione. Se disattivata, DeepChat non genererà riepiloghi, ma continuerà a ridurre la vista della richiesta quando necessario per evitare errori context-window grezzi del fornitore.",
-      "thresholdLabel": "Soglia di attivazione",
-      "thresholdMin": "Prima ({value}%)",
-      "thresholdMax": "Dopo ({value}%)",
-      "thresholdDescription": "Avvia la compressione quando il prompt raggiunge questa quota del budget effettivo di cronologia. Valori più bassi creano più margine; valori più alti mantengono più contesto originale.",
-      "retainPairsLabel": "Mantieni coppie messaggi recenti",
-      "retainPairsValue": "{count} coppie",
-      "retainPairsDescription": "Mantiene sempre le coppie user e assistant completate più recenti fuori dalla compressione. L'ultima query corrente non è inclusa."
-    },
     "searchAssistantModel": "Modello assistente",
     "selectModel": "Seleziona modello",
     "proxyMode": "Modalità proxy",
@@ -41,7 +57,7 @@
     "customProxyUrlPlaceholder": "Esempio: http://127.0.0.1:7890",
     "invalidProxyUrl": "URL proxy non valido, inserisci un URL http/https valido",
     "addCustomSearchEngine": "Aggiungi motore di ricerca personalizzato",
-    "addCustomSearchEngineDesc": "Aggiungi un nuovo motore di ricerca fornendo nome e URL di ricerca. L'URL deve contenere {query} come placeholder della query.",
+    "addCustomSearchEngineDesc": "Aggiungi un nuovo motore di ricerca fornendo nome e URL di ricerca. L'URL deve contenere {'{'}query{'}'} come placeholder della query.",
     "searchEngineName": "Nome motore di ricerca",
     "searchEngineNamePlaceholder": "Inserisci il nome del motore di ricerca",
     "searchEngineUrl": "URL di ricerca",
@@ -69,6 +85,7 @@
     "contentProtectionRestartNotice": "Cambiare questa impostazione riavvierà l'applicazione. Continuare?",
     "copyWithCotEnabled": "Copia informazioni COT",
     "traceDebugEnabled": "Traccia chiamate",
+    "traceDebugEnabledDesc": "Quando è attivo, salva localmente il contenuto delle richieste al modello. Le intestazioni di autenticazione dei provider noti e i campi delle chiavi API vengono mascherati, ma i prompt possono contenere dati sensibili.",
     "loggingEnabled": "Attiva log",
     "loggingDialogTitle": "Conferma modifica impostazioni log",
     "loggingEnableDesc": "Attivare i log ci aiuta a diagnosticare problemi e migliorare l'applicazione. I file di log potrebbero contenere informazioni sensibili.",
@@ -85,7 +102,95 @@
       "chatModel": "Modello chat predefinito"
     }
   },
+  "ocr": {
+    "description": "Estrai automaticamente il testo dalle immagini quando il modello selezionato non può visualizzarle. Il riconoscimento avviene solo su questo dispositivo.",
+    "autoExtract": "Riconosci automaticamente il testo nelle immagini",
+    "autoExtractDescription": "Viene usato quando il modello selezionato non può visualizzare immagini.",
+    "advancedTitle": "Impostazioni avanzate",
+    "advancedDescription": "Di solito non è necessario modificarle.",
+    "backend": "Metodo di riconoscimento",
+    "backendDescription": "Automatico sceglie il metodo migliore per questo dispositivo. Usa solo la CPU per risolvere problemi di compatibilità.",
+    "backendAuto": "Automatico (consigliato)",
+    "backendCpu": "Solo CPU",
+    "diagnosticsTitle": "Informazioni diagnostiche",
+    "diagnosticsDescription": "Servono solo per la risoluzione dei problemi.",
+    "refresh": "Riprova",
+    "loading": "Caricamento dello stato OCR…",
+    "statusUnavailable": "Lo stato OCR è temporaneamente non disponibile.",
+    "availability": "Disponibilità",
+    "available": "Disponibile",
+    "unavailable": "Non disponibile",
+    "process": "Processo ausiliario",
+    "version": "Versione di Light OCR",
+    "notStarted": "Su richiesta",
+    "nodeNotStarted": "Si avvia su richiesta",
+    "queuedRequests": "{count} richiesta/e in coda",
+    "strategy": "Strategia di riconoscimento",
+    "nodeVersion": "Runtime Node",
+    "detectionBackend": "Backend di rilevamento",
+    "recognitionBackend": "Backend di riconoscimento",
+    "cacheTitle": "Cache locale",
+    "cacheMode": "Modalità di archiviazione",
+    "cacheEntries": "Immagini",
+    "cacheUsage": "Spazio usato",
+    "cacheNotStarted": "Nessuna cache al momento.",
+    "cacheProtected": "Cache derivata locale crittografata.",
+    "clearCache": "Svuota",
+    "clearCacheTitle": "Svuotare la cache locale?",
+    "clearCacheDescription": "I risultati di riconoscimento memorizzati nella cache verranno rimossi. Il testo già salvato nelle chat non verrà modificato.",
+    "clearCacheConfirm": "Svuota",
+    "cacheCleared": "Cache OCR svuotata",
+    "cacheClearedDescription": "Il testo già salvato nelle chat non è stato modificato.",
+    "loadFailed": "Impossibile caricare le impostazioni OCR.",
+    "updateFailed": "Impossibile aggiornare l’impostazione OCR.",
+    "statusLoadFailed": "Impossibile verificare lo stato OCR.",
+    "clearCacheFailed": "Impossibile svuotare la cache OCR.",
+    "unavailableReasons": {
+      "asset_identity_mismatch": "Le risorse OCR integrate non corrispondono alla versione bloccata.",
+      "assets_missing": "In questa installazione mancano risorse OCR offline necessarie.",
+      "runtime_manifest_invalid": "Il manifesto del runtime OCR integrato non è valido.",
+      "service_closed": "Il servizio OCR è in fase di arresto.",
+      "unsupported_platform": "L’OCR non è disponibile per questa piattaforma e architettura.",
+      "toolchain_unavailable": "OCR richiede Node.js ufficiale v24.18.0. Apri Impostazioni → Toolchain e installa il runtime ufficiale.",
+      "version_mismatch": "OCR richiede Node.js v24.18.0. Questa versione è fuori intervallo. Apri Impostazioni → Toolchain e installa il runtime ufficiale.",
+      "abi_mismatch": "OCR richiede Node.js ABI 137 (v24.18.0). Apri Impostazioni → Toolchain e installa il runtime ufficiale."
+    },
+    "processStates": {
+      "idle": "Inattivo",
+      "starting": "Avvio",
+      "ready": "Pronto",
+      "busy": "Riconoscimento",
+      "stopping": "Arresto",
+      "closed": "Chiuso"
+    },
+    "strategies": {
+      "bounded-960": "Immagine delimitata",
+      "tiled-v1": "Documento suddiviso"
+    },
+    "cacheModes": {
+      "persistent": "Crittografata su disco",
+      "memory": "Solo memoria"
+    },
+    "cacheFallbackReasons": {
+      "database_error": "La cache persistente non è disponibile perché non è stato possibile aprire il database.",
+      "safe_storage_unavailable": "La cache persistente non è disponibile perché non è disponibile l’archiviazione sicura delle chiavi."
+    }
+  },
+  "leaveGuard": {
+    "dirtyTitle": "Modifiche non salvate",
+    "dirtyDescription": "Uscire e scartare le modifiche?",
+    "busyTitle": "Salvataggio in corso",
+    "busyDescription": "Attendi il completamento del salvataggio prima di uscire.",
+    "stay": "Continua a modificare",
+    "discard": "Scarta modifiche"
+  },
   "deepchatAgents": {
+    "saveFeedback": {
+      "saving": "Salvataggio…",
+      "saved": "Salvato",
+      "saveFailed": "Salvataggio non riuscito. Le modifiche sono state mantenute.",
+      "retry": "Riprova"
+    },
     "title": "DeepChat Agents",
     "description": "Gestisci DeepChat Agent e i valori predefiniti per le nuove sessioni.",
     "builtIn": "Integrato",
@@ -130,8 +235,8 @@
     "permissionFullAccess": "Tutto attivo",
     "permissionDefault": "Permesso predefinito",
     "subagentsTitle": "subagent",
-    "subagentsDescription": "Configura gli slot di sessione subagent riutilizzabili da `subagent_orchestrator`.",
-    "subagentsEnabled": "Attiva subagent",
+    "subagentsDescription": "Consenti a questo agente di delegare sottoattività indipendenti. Il modello decide quando usare gli slot configurati; la delega richiede token, tempo e risorse di sistema aggiuntivi.",
+    "subagentsEnabled": "Consenti a questo agente di delegare sottoattività",
     "subagentTargetType": "Tipo target",
     "subagentTargetSelf": "Agent corrente",
     "subagentTargetAgent": "Agent specifico",
@@ -141,6 +246,16 @@
     "subagentLimit": "{count}/{max} slot",
     "addSubagentSlot": "+ Aggiungi slot",
     "toolsTitle": "Strumenti integrati",
+    "outputLimitsTitle": "Limiti di output avanzati",
+    "outputLimitsDescription": "Controlla la quantità di output degli strumenti mantenuta inline per questo agente.",
+    "outputLimitsSafetyHint": "Il controllo del contesto del modello può comunque trasferire su file o rifiutare i risultati che non rientrano.",
+    "outputLimitsReset": "Ripristina valori predefiniti",
+    "outputLimitsReadFile": "Lettura file",
+    "outputLimitsReadFileHint": "Caratteri restituiti quando la lettura non specifica un limite esplicito.",
+    "outputLimitsTool": "Output degli strumenti",
+    "outputLimitsToolHint": "Limite inline per gli strumenti supportati con output voluminoso.",
+    "outputLimitsCommand": "Output dei comandi",
+    "outputLimitsCommandHint": "Anteprima in primo piano per exec e gli script delle skill.",
     "compactionTitle": "Compressione automatica",
     "compactionEnabled": "Attiva compressione automatica",
     "compactionDescription": "Queste impostazioni influenzano solo le nuove sessioni DeepChat create in futuro.",
@@ -160,14 +275,23 @@
       "tabMemories": "Memorie",
       "tabPersona": "Cronologia persona",
       "memoriesCount": "{count} memorie",
-      "clearAll": "Cancella tutto",
-      "clearConfirmTitle": "Cancellare tutte le memorie?",
-      "clearConfirmBody": "Questo rimuove permanentemente tutte le memorie di questo agente. Non può essere annullato.",
+      "clearAll": "Cancella memorie",
+      "clearConfirmTitle": "Cancellare memorie fattuali e persona?",
+      "clearConfirmBody": "Questo rimuove permanentemente le memorie fattuali e la persona di questo agente. Le direttive permanenti vengono mantenute e possono essere gestite separatamente. Non può essere annullato.",
+      "cleanupPendingRestart": "I file vettoriali bloccati verranno eliminati dopo il riavvio",
       "emptyMemories": "Ancora nessuna memoria. Si accumulano mentre chatti con questo agente.",
       "emptyPersona": "Ancora nessuna versione dell'automodello.",
       "personaActive": "Attiva",
       "rollback": "Ripristina",
       "actionFailed": "Azione non riuscita",
+      "commandRejected": {
+        "unavailable": "La memoria non è temporaneamente disponibile. Riprova.",
+        "notFound": "Questa memoria non esiste più. La vista è stata aggiornata.",
+        "invalidState": "Questa azione non è più valida. La vista è stata aggiornata.",
+        "conflict": "Risolvi il conflitto di memoria prima di riprovare.",
+        "stale": "Questa memoria è cambiata. La vista è stata aggiornata; riprova.",
+        "anchored": "Rimuovi l’ancoraggio dalla persona attiva prima del ripristino."
+      },
       "conflict": "Conflitto",
       "restore": "Ripristina",
       "sourceLine": "Dalla sessione {session} · {count} voci",
@@ -211,6 +335,7 @@
       "searchPlaceholder": "Cerca memorie",
       "noSearchResults": "Nessuna memoria corrisponde alla tua ricerca.",
       "addMemory": "Aggiungi memoria",
+      "loadMore": "Carica altro",
       "addContentPlaceholder": "Ciò che vuoi che questo assistente ricordi…",
       "addCategoryLabel": "Categoria della memoria",
       "addCategoryNone": "Nessuna categoria",
@@ -446,8 +571,6 @@
     "resetAllDesc": "Elimina tutti i dati, inclusi cronologia chat, configurazioni e file cache",
     "resetting": "Ripristino...",
     "confirmReset": "Conferma ripristino",
-    "resetCompleteDevTitle": "Ripristino dati completato",
-    "resetCompleteDevMessage": "In ambiente di sviluppo riavvia manualmente l'app per vedere l'effetto. Ferma il processo corrente ed esegui di nuovo pnpm run dev",
     "toast": {
       "backupSuccessTitle": "Backup riuscito",
       "backupSuccessMessage": "Dati salvati correttamente"
@@ -548,7 +671,33 @@
       "clearedTitle": "Dati YoBrowser cancellati",
       "clearedDescription": "La sessione sandbox è stata ripristinata e le schede correlate verranno ricaricate.",
       "clearFailedTitle": "Cancellazione non riuscita",
-      "clearFailedDescription": "Riprova o controlla i log per altre informazioni."
+      "clearFailedDescription": "Riprova o controlla i log per altre informazioni.",
+      "import": {
+        "button": "Importa dati dei siti web",
+        "title": "Importa dati della sessione del browser",
+        "description": "Scegli un profilo Chrome o Arc. macOS potrebbe chiederti di autorizzare l'accesso al Portachiavi. La sorgente non viene mai modificata.",
+        "scanning": "Ricerca dei profili del browser...",
+        "unsupportedTitle": "Non supportato su questa piattaforma",
+        "unsupportedDescription": "L'importazione diretta dei dati del browser è attualmente disponibile solo su macOS. Windows non è supportato perché i dati correnti di Chrome sono vincolati all'applicazione.",
+        "profileLabel": "Profilo sorgente",
+        "profilePlaceholder": "Seleziona un profilo",
+        "noProfiles": "Non sono stati trovati profili Chrome o Arc supportati con dati dei cookie.",
+        "cookies": "Cookie e sessioni",
+        "supported": "Inclusi in questa importazione",
+        "otherData": "Password e archiviazione web",
+        "notIncluded": "Non inclusi in questa versione",
+        "preview": "Autorizza e visualizza l'anteprima",
+        "previewTitle": "Pronto a sostituire i cookie di YoBrowser",
+        "previewDescription": "È possibile importare {count} cookie. I cookie esistenti di YoBrowser verranno sostituiti.",
+        "skipped": "Ignorati: {expired} scaduti, {partitioned} partizionati.",
+        "confirm": "Sostituisci e importa",
+        "doneTitle": "Importazione completata",
+        "doneDescription": "Importati {count} cookie. Le pagine del browser aperte sono state ricaricate.",
+        "keyDenied": "L'accesso al Portachiavi è stato negato oppure non è stato possibile leggere la chiave del browser.",
+        "previewExpired": "La sorgente è cambiata o l'anteprima è scaduta. Crea una nuova anteprima.",
+        "encryptionUnsupported": "Questo profilo usa un formato di crittografia non supportato dallo strumento di importazione.",
+        "failed": "L'importazione non è stata completata. I cookie esistenti di YoBrowser sono stati ripristinati se la modifica era già iniziata."
+      }
     },
     "privacyTitle": "Dati e privacy",
     "privacyDescription": "Gestisci backup, sincronizzazione, modalità privacy, manutenzione dati e operazioni rischiose.",
@@ -690,7 +839,7 @@
   "dashboard": {
     "badge": "Dashboard utilizzo",
     "title": "Dashboard utilizzo",
-    "description": "Statistiche su consumo token, hit cache e costo stimato. Token e costi sono stimati da informazioni pubbliche; per alcuni provider o messaggi precedenti i dati potrebbero essere incompleti, quindi sono solo indicativi.",
+    "description": "Tieni traccia dell’utilizzo dei token e dei cache hit.",
     "actions": {
       "refresh": "Aggiorna"
     },
@@ -706,8 +855,8 @@
     },
     "empty": {
       "title": "Nessuna statistica disponibile",
-      "description": "Quando saranno disponibili dati di utilizzo, qui vedrai consumo token, hit cache e costo stimato.",
-      "historyNote": "Token e costi sono stimati da informazioni pubbliche. Per alcuni provider o messaggi precedenti i dati potrebbero essere incompleti, quindi sono solo indicativi."
+      "description": "L’utilizzo dei token e i cache hit saranno visibili qui quando i dati di utilizzo saranno disponibili.",
+      "historyNote": "I dati di utilizzo di alcuni provider o dei messaggi precedenti potrebbero essere incompleti."
     },
     "summary": {
       "totalTokens": "Token totali",
@@ -719,11 +868,7 @@
       "cachedTokensCachedLabel": "Hit cache",
       "cachedTokensUncachedLabel": "Non in cache",
       "cacheHitRate": "Tasso hit cache",
-      "cacheHitRateDescription": "Quota di prompt token in cache sul totale dei token di input.",
-      "estimatedCost": "Costo stimato",
-      "estimatedCostDescription": "Costo stimato in USD usando i prezzi provider correnti o i prezzi fallback AIHubMix.",
-      "estimatedCostTrendLabel": "Trend ultimi 30 giorni",
-      "estimatedCostTrendEmpty": "Nessun costo registrato negli ultimi 30 giorni.",
+      "cacheHitRateDescription": "Token del prompt memorizzati nella cache divisi per i token di input dei record con metriche della cache.",
       "recordingStartedAt": "Inizio registrazione statistiche",
       "recordingStartedAtDescription": "Ora del primo record usage presente nella dashboard corrente.",
       "withDeepChatDaysLabel": "Giorni insieme",
@@ -753,9 +898,18 @@
     },
     "breakdown": {
       "providerTitle": "Classifica provider",
-      "providerDescription": "Ordinata prima per costo stimato, poi per token totali.",
+      "providerDescription": "Classificati per numero totale di token.",
       "modelTitle": "Classifica modelli",
-      "modelDescription": "I primi 10 modelli ordinati per costo stimato e token totali.",
+      "modelDescription": "I 10 migliori modelli per numero totale di token.",
+      "categoryTitle": "Utilizzo per attività",
+      "categoryDescription": "Separa l’utilizzo delle conversazioni dalle chiamate interne al modello per la compattazione del contesto.",
+      "category": {
+        "chat": "Conversazione",
+        "compaction": "Compattazione del contesto"
+      },
+      "chatEvents": "{count} messaggi",
+      "compactionEvents": "{count} chiamate al modello",
+      "unknownUsage": "{count} utilizzi sconosciuti",
       "messages": "{count} messaggi",
       "empty": "Nessun dettaglio disponibile per ora."
     },
@@ -791,9 +945,17 @@
     "unavailable": "N/D"
   },
   "modelConfigItem": {
-    "chatFallbackWarning": "Capacità Agent debole: supporta solo chiamate strumenti legacy fallback"
+    "chatFallbackWarning": "Capacità Agent debole: supporta solo chiamate strumenti legacy fallback",
+    "capability": {
+      "vision": "Capacità di visione",
+      "functionCall": "Capacità di chiamata a funzione",
+      "reasoning": "Capacità di ragionamento",
+      "search": "Capacità di ricerca web"
+    }
   },
   "model": {
+    "temperatureFixedByPolicy": "Questo modello fissa la temperatura a {value}.",
+    "topPFixedByPolicy": "Questo modello fissa Top P a {value}.",
     "title": "Impostazioni modello",
     "systemPrompt": {
       "label": "Prompt di sistema",
@@ -857,8 +1019,7 @@
       },
       "temperature": {
         "label": "Temperatura",
-        "description": "Controlla la casualità dell'output. La maggior parte dei modelli usa 0-1, alcuni supportano 0-2; più alto significa più casuale",
-        "fixedMoonshotKimi": "Moonshot Kimi K2.5/K2.6 usa {enabled} quando il ragionamento è attivo e {disabled} quando è disattivo."
+        "description": "Controlla la casualità dell'output. La maggior parte dei modelli usa 0-1, alcuni supportano 0-2; più alto significa più casuale"
       },
       "topP": {
         "label": "Top P",
@@ -1080,6 +1241,11 @@
     }
   },
   "provider": {
+    "customHeaders": {
+      "title": "Header richiesta personalizzati",
+      "description": "Inserisci un oggetto JSON con valori stringa.",
+      "parseError": "Analisi Header personalizzati non riuscita"
+    },
     "search": "Cerca piattaforme provider…",
     "enable": "Attiva servizio",
     "enabled": "Attivo",
@@ -1114,6 +1280,7 @@
     "urlFormat": "Esempio API: {defaultUrl}",
     "urlFormatFill": "Compila in API URL",
     "openaiResponsesNotice": "Il servizio ufficiale OpenAI usa di default Responses API; se una terza parte supporta solo Chat Completions, usa il provider OpenAI Completions.",
+    "amdDeveloperHint": "AMD GPU Cloud fornisce API pubbliche per i modelli tramite Radeon Token Factory. Ottieni una chiave API da AMD per accedere ai modelli attualmente disponibili.",
     "modifyBaseUrl": "Modifica",
     "baseUrlLockedHint": "Questo tipo di provider ha una Base URL consigliata bloccata per impostazione predefinita, così si evitano errori di richiesta dovuti a modifiche accidentali.",
     "refreshModelsWithMetadataHint": "Aggiornando questo provider verranno prima sincronizzati i metadati upstream, poi ricostruita la lista modelli locale.",
@@ -1394,7 +1561,63 @@
     "openaiCodexCallbackTitle": "Completa autenticazione",
     "openaiCodexCallbackDescription": "Dopo il completamento nel browser, torna a DeepChat. Se DeepChat non si aggiorna, incolla qui l'URL di callback completo.",
     "openaiCodexCallbackPlaceholder": "Incolla l'URL di callback completo",
-    "openaiCodexCompleteAuthentication": "Completa autenticazione"
+    "openaiCodexCompleteAuthentication": "Completa autenticazione",
+    "xaiGrokAuth": "xAI Grok OAuth",
+    "xaiGrokConnected": "xAI Grok connesso",
+    "xaiGrokNotConnected": "xAI Grok non connesso",
+    "xaiGrokPendingDevice": "In attesa dell’autorizzazione del dispositivo",
+    "xaiGrokDisabled": "OAuth xAI Grok è disabilitato",
+    "xaiGrokError": "Autorizzazione xAI Grok non riuscita",
+    "xaiGrokAccount": "Account",
+    "xaiGrokSignInDevice": "Accedi con SuperGrok / Premium+",
+    "xaiGrokReconnect": "Riconnetti",
+    "xaiGrokSignOut": "Esci",
+    "xaiGrokCancel": "Annulla",
+    "xaiGrokOpenVerification": "Apri la pagina di verifica",
+    "xaiGrokLoginTip": "Usa OAuth con codice dispositivo di xAI per SuperGrok o X Premium+. I token vengono archiviati separatamente dalle chiavi API. Le chiavi API di Console restano supportate qui sotto.",
+    "xaiGrokApiKeyAlternative": "Oppure usa una chiave API xAI Console:",
+    "browseAll": "Sfoglia tutti i provider",
+    "updateKey": "Aggiorna chiave",
+    "sidebar": {
+      "configured": "Configurati",
+      "disabledTag": "Spento",
+      "empty": "Nessun provider configurato. Sfoglia tutti i provider per configurarne uno."
+    },
+    "menu": {
+      "enable": "Abilita",
+      "disable": "Disabilita",
+      "rename": "Rinomina",
+      "delete": "Elimina"
+    },
+    "health": {
+      "verified": "Verificato",
+      "checking": "Verifica in corso",
+      "needsAttention": "Richiede attenzione",
+      "notChecked": "Non verificato",
+      "lastChecked": "Ultimo controllo {time}"
+    },
+    "catalog": {
+      "title": "Sfoglia tutti i provider",
+      "description": "Scegli un provider per iniziare la configurazione. Comparirà nella barra laterale una volta configurato.",
+      "searchPlaceholder": "Cerca provider...",
+      "noResults": "Nessun provider corrispondente",
+      "configured": "Configurato"
+    },
+    "addFlow": {
+      "connect": "Connetti e carica i modelli",
+      "validating": "Verifica della connessione...",
+      "loadingModels": "Caricamento dei modelli...",
+      "failed": "Connessione non riuscita. Controlla la configurazione e riprova.",
+      "successTitle": "{name} è connesso",
+      "successDescription": "Caricati {count} modelli e preselezionati {selected}. Puoi modificare la selezione qui sotto.",
+      "successNoModels": "Connesso. Nessun modello disponibile per ora.",
+      "startChatting": "Inizia a chattare",
+      "viewModels": "Vedi modelli"
+    },
+    "stagedUpdate": {
+      "failedTitle": "Aggiornamento non applicato",
+      "failedDescription": "La nuova configurazione non ha superato la verifica; è stata mantenuta la configurazione funzionante precedente."
+    }
   },
   "knowledgeBase": {
     "title": "Impostazioni base di conoscenza",
@@ -1510,7 +1733,15 @@
       "seconds": "secondi",
       "testConnection": "Testa connessione",
       "timeout": "Timeout",
-      "title": "Configurazione esportazione Nowledge Mem"
+      "title": "Configurazione esportazione Nowledge Mem",
+      "configLoadFailed": "Impossibile caricare la configurazione",
+      "configSaved": "Configurazione salvata",
+      "configSaveFailed": "Impossibile salvare la configurazione",
+      "configReset": "Configurazione reimpostata",
+      "configResetFailed": "Impossibile reimpostare la configurazione",
+      "connectionSucceeded": "Connessione riuscita",
+      "connectionFailed": "Impossibile connettersi con la configurazione corrente",
+      "invalidBaseUrl": "Inserisci un indirizzo HTTP o HTTPS senza credenziali o parametri di query"
     }
   },
   "mcp": {
@@ -1556,13 +1787,14 @@
       "name": "Nome server",
       "namePlaceholder": "Inserisci nome server",
       "nameRequired": "Il nome server non può essere vuoto",
+      "nameDuplicate": "Esiste già un server con questo nome.",
       "type": "Tipo server",
       "typePlaceholder": "Seleziona tipo server",
       "typeStdio": "Input/output standard (Stdio)",
       "typeSse": "Server-Sent Events (SSE)",
       "typeInMemory": "In memoria (InMemory)",
       "typeHttp": "Richieste HTTP streaming (HTTP)",
-      "baseUrl": "Base URL",
+      "baseUrl": "URL di base",
       "baseUrlPlaceholder": "Inserisci Base URL del server (es.: http://localhost:3000)",
       "command": "Comando",
       "commandPlaceholder": "Inserisci comando",
@@ -1583,11 +1815,6 @@
       "iconPlaceholder": "Inserisci icona",
       "icons": "Icone",
       "iconsPlaceholder": "Inserisci icone",
-      "autoApprove": "Autorizzazione automatica",
-      "autoApproveAll": "Tutto",
-      "autoApproveRead": "Lettura",
-      "autoApproveWrite": "Scrittura",
-      "autoApproveHelp": "Seleziona i tipi di operazione da autorizzare automaticamente senza conferma dell'utente",
       "submit": "Invia",
       "add": "Aggiungi",
       "update": "Aggiorna",
@@ -1620,7 +1847,42 @@
       "e2bApiKey": "E2B ApiKey",
       "e2bApiKeyPlaceholder": "Inserisci qui le tue E2B Api Keys, es. e2b_1111xx*****",
       "e2bApiKeyHelp": "Vai su e2b.dev per ottenere la tua ApiKey",
-      "e2bApiKeyRequired": "Per attivare E2B è necessario inserire ApiKey"
+      "e2bApiKeyRequired": "Per attivare E2B è necessario inserire ApiKey",
+      "sseCompatibilityBadge": "Compatibilità",
+      "sseMigrationHint": "SSE è disponibile solo per compatibilità con sistemi legacy. Migra questo server a Streamable HTTP quando possibile.",
+      "authorizationMode": "Modalità di autorizzazione",
+      "authorizationInteractive": "OAuth interattivo",
+      "authorizationNone": "Nessun OAuth",
+      "authorizationClientCredentials": "Credenziali client (bozza)",
+      "authorizationPrivateKeyJwt": "JWT con chiave privata",
+      "authorizationEnterprise": "Accesso aziendale tra app",
+      "authorizationHelp": {
+        "none": "Non usare alcun flusso OAuth. Un header Authorization statico, se configurato, mantiene la priorità.",
+        "interactive": "Apri il browser di sistema e completa un flusso con codice di autorizzazione e PKCE.",
+        "client_credentials": "Autentica questo server come client macchina con un segreto protetto.",
+        "private_key_jwt": "Autentica questo server come client macchina con una chiave privata protetta.",
+        "cross_app_access": "Scambia un’identità aziendale approvata con l’accesso a questa risorsa protetta."
+      },
+      "authorizationHeaderOverride": "È configurato un header Authorization statico che ha priorità su questa modalità OAuth.",
+      "protectedResourceUrl": "URL della risorsa protetta",
+      "protectedResourceUrlPlaceholder": "https://mcp.example.com",
+      "authorizationServerIssuer": "Emittente del server di autorizzazione",
+      "authorizationServerIssuerPlaceholder": "https://auth.example.com",
+      "clientMetadataUrl": "URL dei metadati client",
+      "authorizationClientId": "ID client",
+      "authorizationScopes": "Ambiti",
+      "authorizationScopesPlaceholder": "read write",
+      "keyAlgorithm": "Algoritmo della chiave",
+      "identityProfile": "Profilo identità aziendale",
+      "identityProfilePlaceholder": "Seleziona un profilo identità",
+      "privateKey": "Chiave privata",
+      "clientSecret": "Segreto client",
+      "removeCredential": "Rimuovi credenziale salvata",
+      "credentialConfiguredPlaceholder": "È già configurata una credenziale protetta",
+      "credentialConfigured": "Credenziale configurata",
+      "credentialMemoryOnly": "Questa credenziale viene conservata solo in memoria e andrà persa alla chiusura di DeepChat.",
+      "credentialRemoveError": "Impossibile rimuovere la credenziale protetta",
+      "credentialSaveError": "Impossibile salvare la credenziale protetta"
     },
     "deleteServer": "Elimina server",
     "editServer": "Modifica server",
@@ -1698,19 +1960,19 @@
     "managedServerReadOnly": "Servizio gestito da DeepChat",
     "managedServerReadOnlyDesc": "Gestisci attivazione e permessi nelle impostazioni del plugin corrispondente",
     "center": {
-      "title": "MCP Center",
-      "running": "Running",
-      "builtIn": "Built-in",
-      "custom": "Custom",
+      "title": "Centro MCP",
+      "running": "In esecuzione",
+      "builtIn": "Integrato",
+      "custom": "Personalizzato",
       "searchPlaceholder": "Cerca MCP servers...",
       "noResults": "Nessun MCP server corrispondente",
-      "command": "Command / URL",
+      "command": "Comando / URL",
       "filters": {
-        "all": "All",
-        "running": "Running",
-        "stopped": "Stopped",
-        "builtIn": "Built-in",
-        "custom": "Custom"
+        "all": "Tutti",
+        "running": "In esecuzione",
+        "stopped": "Arrestato",
+        "builtIn": "Integrato",
+        "custom": "Personalizzato"
       }
     },
     "authRequired": "Autenticazione richiesta",
@@ -1721,7 +1983,53 @@
     "authCallbackPlaceholder": "Incolla l'URL di callback completo",
     "completeAuthentication": "Completa autenticazione",
     "saveSuccess": "Configurazione salvata",
-    "saveFailed": "Impossibile salvare la configurazione"
+    "saveFailed": "Impossibile salvare la configurazione",
+    "enterpriseProfiles": {
+      "title": "Identità aziendali",
+      "description": "Gestisci identità OpenID Connect riutilizzabili per l’autorizzazione aziendale MCP.",
+      "label": "Nome profilo",
+      "issuer": "Emittente OpenID",
+      "clientId": "ID client",
+      "scopes": "Ambiti",
+      "clientAuthentication": "Autenticazione client del provider di identità",
+      "publicClient": "Client pubblico",
+      "confidentialClient": "Segreto client",
+      "clientSecret": "Segreto client del provider di identità",
+      "clientSecretMissing": "È necessario configurare un segreto client prima dell’accesso.",
+      "authenticated": "Autenticato",
+      "signIn": "Accedi",
+      "signOut": "Esci",
+      "callbackUrl": "URL di callback",
+      "empty": "Nessun profilo di identità aziendale.",
+      "loadError": "Impossibile caricare le identità aziendali",
+      "saveError": "Impossibile salvare l’identità aziendale",
+      "authError": "Accesso aziendale non riuscito",
+      "removeError": "Impossibile rimuovere l’identità aziendale",
+      "removeTitle": "Rimuovere l’identità aziendale?",
+      "removeDescription": "Rimuovere {name} e tutte le credenziali associate?",
+      "status": {
+        "signed_out": "Disconnesso",
+        "authenticating": "Autenticazione",
+        "authenticated": "Autenticato",
+        "error": "Errore"
+      }
+    },
+    "diagnostics": {
+      "title": "Diagnostica MCP",
+      "serverId": "ID server",
+      "owner": "Proprietario",
+      "transport": "Transport",
+      "connectionState": "Connessione",
+      "era": "Era del protocollo",
+      "serverImplementation": "Implementazione server",
+      "probe": "Verifica della negoziazione",
+      "extensions": "Estensioni server",
+      "clientExtensions": "Estensioni client",
+      "cache": "Cache",
+      "subscriptions": "Sottoscrizioni",
+      "auth": "Autorizzazione",
+      "copy": "Copia diagnostica"
+    }
   },
   "about": {
     "title": "Chi siamo",
@@ -1779,8 +2087,6 @@
     "description": "Gestisci ACP Agent locali avviati da DeepChat.",
     "enabledTitle": "Attiva ACP",
     "enabledDescription": "Dopo l'attivazione, gli ACP Agent configurati appariranno nella lista modelli.",
-    "useBuiltinRuntimeTitle": "Usa ambiente integrato DeepChat",
-    "useBuiltinRuntimeDescription": "Se selezionato, bypassa i comandi node e uv di sistema e usa le versioni incluse in DeepChat.",
     "enableToAccess": "Attiva ACP per configurare Agent.",
     "registryInstallEntry": "Installa Agent",
     "registryInstallEntryDescription": "Cerca e installa Agent da ACP Registry; al termine torna qui per attivarli e configurarli.",
@@ -1885,6 +2191,25 @@
       "cannotDeleteTitle": "Mantieni almeno una configurazione",
       "cannotDeleteDesc": "Gli Agent integrati richiedono almeno una configurazione.",
       "noAgent": "Seleziona l'Agent da gestire."
+    },
+    "auth": {
+      "title": "Sign in to {name}",
+      "description": "Choose an authentication method. Credentials stay with the agent process.",
+      "requiredTitle": "{name} needs sign-in",
+      "requiredDescription": "Authenticate before starting this chat.",
+      "checkSignIn": "Check sign-in",
+      "openTerminal": "Open terminal",
+      "cancelSignIn": "Cancel sign-in",
+      "unsupported": "This authentication method is not supported. Configure its environment variables manually.",
+      "noMethods": "The agent did not provide an authentication method that DeepChat can use.",
+      "status": {
+        "required": "Authentication required",
+        "running": "Signing in",
+        "reconnecting": "Reconnecting",
+        "succeeded": "Ready",
+        "cancelled": "Cancelled",
+        "failed": "Failed"
+      }
     },
     "terminal": {
       "title": "Terminale inizializzazione",
@@ -1993,8 +2318,8 @@
     "resetToDefaultFailed": "Ripristino non riuscito, riprova"
   },
   "skills": {
-    "title": "Impostazioni Skills",
-    "description": "Gestisci e configura i moduli skill dell'assistente AI",
+    "title": "Skills",
+    "description": "Sfoglia tutti gli Skill. Apri uno Skill per visualizzarlo in anteprima e gestire gli Agent abilitati.",
     "draftSuggestions": {
       "title": "Suggerisci Skill Draft dopo le attività",
       "description": "Al termine di un'attività, consenti all'Agent di suggerire skill draft temporanei quando rileva flussi riutilizzabili. I draft vengono salvati prima in una directory temporanea e richiedono una tua decisione manuale per essere importati e installati."
@@ -2002,7 +2327,7 @@
     "openFolder": "Apri cartella",
     "addSkill": "Aggiungi skill",
     "empty": "Nessuna skill",
-    "emptyHint": "Fai clic su \"Aggiungi skill\" per installare una nuova skill",
+    "emptyHint": "Importa Skill da un Agent esterno.",
     "noResults": "Nessuna skill corrispondente trovata",
     "search": "Cerca skill...",
     "count": "{count} skill totali",
@@ -2040,8 +2365,6 @@
       "env": "{count} variabili d'ambiente",
       "pythonShort": "Py",
       "nodeShort": "Node",
-      "enabled": "Enabled",
-      "disabled": "Disabled",
       "enable": "Enable in DeepChat",
       "disable": "Disable in DeepChat",
       "viewDetails": "Vedi dettagli",
@@ -2097,6 +2420,32 @@
       "title": "skill già esistente",
       "description": "Esiste già una skill chiamata \"{name}\". Vuoi sovrascriverla?",
       "overwrite": "Sovrascrivi"
+    },
+    "agentImport": {
+      "menuItem": "Importa da un Agent esterno",
+      "title": "Importa da un Agent esterno",
+      "description": "Importa Skills convalidati in DeepChat. Attiva gli Agents dall’anteprima di ogni Skill.",
+      "resultPartial": "Importazione completata con errori",
+      "resultSuccess": "Importazione completata",
+      "sourceTitle": "Agent di origine",
+      "emptySources": "Nessuna origine di importazione",
+      "skillCount": "{count} Skills",
+      "previewTitle": "Skills da importare",
+      "emptyPreview": "Nessuno Skill disponibile",
+      "status": {
+        "ready": "Pronto",
+        "conflict": "Conflitto",
+        "unavailable": "Non disponibile",
+        "same": "Già aggiunto"
+      },
+      "strategy": {
+        "skip": "Ignora",
+        "rename": "Rinomina",
+        "overwrite": "Sovrascrivi"
+      },
+      "overwriteImpact": "La sovrascrittura di questo Skill interessa gli Agents attivati: {agents}.",
+      "resultSummaryV3": "Importati: {imported}, riutilizzati: {reused}, ignorati: {skipped}, non riusciti: {failed}.",
+      "execute": "Importa selezionati"
     },
     "sync": {
       "title": "Sincronizza",
@@ -2188,111 +2537,6 @@
       "skip": "Salta",
       "importSelected": "Importa selezionate"
     },
-    "tabs": {
-      "library": "Library",
-      "agents": "Agents",
-      "syncDirectory": "Directory di sincronizzazione"
-    },
-    "agents": {
-      "title": "Agents",
-      "summary": "{count} supported agent(s)",
-      "refresh": "Refresh",
-      "empty": "No supported agents found.",
-      "emptySkills": "No skills found for this agent.",
-      "loadFailed": "Failed to load agent skills",
-      "conflictCount": "{count} conflict",
-      "table": {
-        "skill": "Skill",
-        "owner": "Owner",
-        "status": "Status",
-        "action": "Action",
-        "preview": "Anteprima"
-      },
-      "owner": {
-        "deepchat": "DeepChat",
-        "external-link": "External",
-        "broken-link": "Broken link",
-        "unknown": "Unknown"
-      },
-      "status": {
-        "linked": "Linked",
-        "agent-owned": "Agent owned",
-        "linked-out": "Linked out",
-        "broken-link": "Broken link",
-        "conflict": "Conflict",
-        "empty": "Empty"
-      },
-      "actions": {
-        "adopt": "Adopt",
-        "resolve-conflict": "Resolve",
-        "repair-link": "Repair",
-        "remove-link": "Remove",
-        "open": "Open",
-        "pending": "Write actions are enabled in a later phase.",
-        "view": "Vedi"
-      },
-      "agentStatus": {
-        "ready": "Ready",
-        "detected-no-skills-dir": "No skills directory",
-        "permission-denied": "Permission denied"
-      },
-      "counts": {
-        "skills": "{count} skill(s)",
-        "linked": "{count} linked",
-        "agentOwned": "{count} agent owned",
-        "conflicts": "{count} conflict(s)",
-        "broken": "{count} broken"
-      },
-      "adoptDialog": {
-        "adoptTitle": "Adopt Skill",
-        "conflictTitle": "Resolve Conflict",
-        "adoptDescription": "Copy this skill into DeepChat, back up the original, and replace the agent entry with a link.",
-        "conflictDescription": "{skill} already exists in DeepChat. The default action keeps the current DeepChat skill and adopts this agent skill as a renamed copy.",
-        "loading": "Preparing adoption preview...",
-        "previewFailed": "Failed to prepare adoption preview",
-        "executeFailed": "Failed to adopt skill",
-        "currentLocation": "Current location",
-        "afterAdoption": "After adoption",
-        "backup": "Backup",
-        "chooseAction": "Choose action",
-        "adoptAs": "Adopt as {name}",
-        "replaceDeepChat": "Replace existing DeepChat skill",
-        "keepCurrent": "Keep current state",
-        "unsupportedStrategies": "Replace and keep strategies are not available in this build.",
-        "warnings": "Warnings",
-        "apply": "Apply",
-        "linkArrow": "-> DeepChat skill",
-        "successTitle": "Skill adopted",
-        "successDescription": "{name} is now managed by DeepChat."
-      },
-      "syncToAgent": "Sync to Agent",
-      "syncDialog": {
-        "title": "Sync to {agent}",
-        "description": "Create DeepChat-owned links for selected skills. Existing agent content is skipped.",
-        "target": "Target",
-        "deepchatSkills": "DeepChat skills",
-        "empty": "No linkable DeepChat skills.",
-        "preview": "Preview",
-        "loading": "Preparing link preview...",
-        "noSelection": "Select at least one skill.",
-        "apply": "Apply",
-        "failed": "Failed to sync skills",
-        "successTitle": "Skills synced",
-        "successDescription": "{count} skill(s) linked.",
-        "status": {
-          "ready": "Ready",
-          "already-linked": "Already linked",
-          "conflict": "Conflict",
-          "missing": "Missing"
-        }
-      },
-      "linkAction": {
-        "repairSuccess": "Link repaired",
-        "removeSuccess": "Link removed",
-        "successDescription": "{name} updated.",
-        "failed": "Failed to update link"
-      }
-    },
     "git": {
       "title": "Git",
       "description": "Scansiona un repository Git e installa le skill selezionate in DeepChat.",
@@ -2324,7 +2568,6 @@
       "saved": "Directory di sincronizzazione salvata",
       "export": "Esporta nella directory",
       "import": "Importa dalla directory",
-      "includeDisabled": "Includi skill disabilitate",
       "previewExport": "Anteprima esportazione",
       "exportNow": "Esporta ora",
       "previewImport": "Anteprima importazione",
@@ -2377,7 +2620,13 @@
       "edit": "Modifica",
       "delete": "Elimina",
       "confirmDeleteTitle": "Elimina skill",
-      "confirmDeleteDescription": "Eliminare lo skill \"{name}\"? Questa azione non può essere annullata."
+      "confirmDeleteDescription": "Eliminare lo skill \"{name}\"? Questa azione non può essere annullata.",
+      "enabledAgents": "Enabled Agents",
+      "enabledAgentsHint": "These Agents can use this Skill.",
+      "noEnabledAgents": "No Agent uses this Skill yet.",
+      "addAgent": "Add Agent",
+      "removeAgent": "Remove {agent}",
+      "agentUpdateFailed": "Failed to update enabled Agents"
     },
     "installToAgent": {
       "title": "Installa {name} in Agent",
@@ -2395,6 +2644,17 @@
       "disconnectSuccess": "Disconnesso da Agent",
       "disconnectSuccessMessage": "{name} non è più collegato all’Agent di destinazione.",
       "disconnectFailed": "Disconnessione da Agent non riuscita"
+    },
+    "impact": {
+      "changed": "Enabled Agents changed. Review the impact and try again.",
+      "editEnabled": "Content changes apply to these Agents on their next Run: {agents}.",
+      "editUnused": "No Agent currently uses this Skill.",
+      "confirmDeleteEnabled": "Delete {name}? It is enabled for: {agents}.",
+      "confirmDeleteUnused": "Delete {name}? No Agent currently uses it."
+    },
+    "syncDirectory": {
+      "action": "Sync directory",
+      "back": "Back to Skills"
     }
   },
   "environments": {
@@ -2691,6 +2951,9 @@
     "enable": "Attiva",
     "disable": "Disattiva",
     "openSettings": "Impostazioni",
+    "testRuntime": "Testa runtime",
+    "retryRuntime": "Riprova runtime",
+    "quarantineDescription": "DeepChat ha arrestato questo runtime dopo una chiusura anomala. Riprova solo quando è sicuro controllare il desktop.",
     "runtime": "Runtime",
     "runtimeState": "Stato",
     "version": "Versione",
@@ -2704,6 +2967,8 @@
       "missing": "Non installato",
       "installed": "Installato",
       "running": "In esecuzione",
+      "readyOnDemand": "Pronto su richiesta",
+      "quarantined": "In quarantena",
       "error": "Errore"
     }
   },
@@ -2833,7 +3098,7 @@
       "error": "Errore",
       "invalidAgent": "Agent mancante o disattivato. Scegli un altro Agent."
     },
-    "runNowSuccess": "Attività pianificata avviata"
+    "runNowSuccess": "Attività pianificata completata"
   },
   "memory": {
     "description": "Esamina, configura e gestisci ciò che ogni agente ricorda tra le sessioni. La memoria è separata per ogni agente.",
@@ -2842,13 +3107,13 @@
     "tabConfig": "Configurazione",
     "tabManage": "Gestisci",
     "config": {
-      "rootHint": "deepchat è l’agente integrato e la radice di configurazione: i valori impostati qui diventano i predefiniti ereditati dagli altri agenti.",
+      "rootHint": "deepchat è un agente integrato protetto. La sua configurazione è indipendente da quella di tutti gli altri agenti.",
       "extractionModel": "Modello dello strumento di memoria",
       "extractionModelHint": "Modello usato per estrarre e deduplicare i ricordi. Se non selezionato, viene usato il modello di chat.",
       "injectionBudget": "Budget di iniezione (token)",
-      "injectionBudgetHint": "Limite approssimativo di token per l’iniezione di memoria assemblata. Lascia vuoto per ereditare il valore predefinito ({default}).",
+      "injectionBudgetHint": "Limite approssimativo di token per l’iniezione di memoria assemblata. Lascia vuoto per usare il valore predefinito ({default}).",
       "retrievalTitle": "Classificazione del recupero",
-      "retrievalHint": "Sostituisce l’ordinamento dei ricordi recuperati; eredita i valori predefiniti quando disattivato.",
+      "retrievalHint": "Personalizza l’ordinamento dei ricordi recuperati; quando è disattivato viene usato l’ordinamento predefinito.",
       "retrievalOverride": "Sostituisci i parametri di recupero",
       "topK": "Numero di recuperi (topK)",
       "rrfK": "Costante di fusione (rrfK)",
@@ -2857,14 +3122,16 @@
       "weightRecency": "Peso · recency",
       "weightImportance": "Peso · importanza",
       "advancedTitle": "Impostazioni avanzate della memoria",
-      "advancedHint": "Regola estrazione, budget del prompt e ranking del recupero. Lascia i campi vuoti per ereditare i valori predefiniti.",
-      "inheritedHint": "Vuoto usa il valore ereditato/predefinito.",
+      "advancedHint": "Regola estrazione, budget del prompt e ranking del recupero. Lascia i campi vuoti per usare i valori predefiniti.",
+      "inheritedHint": "Un campo vuoto usa il valore predefinito.",
       "topKHint": "Intervallo 1-100. Predefinito: {default}.",
       "rrfKHint": "Intervallo 1-1000. Predefinito: {default}.",
       "similarityThresholdHint": "Intervallo 0-1. Predefinito: {default}.",
       "weightHint": "Peso di ranking non negativo. Predefinito: {default}."
     },
     "redesign": {
+      "reindexIncomplete": "La ricostruzione dell’indice vettoriale non è stata completata: {reason}. Nessun contenuto della memoria è andato perso; al momento viene usato il recupero per parole chiave.",
+      "reindexInternalReason": "La pipeline locale degli embedding non ha potuto completare la ricostruzione.",
       "tabMemories": "Memorie",
       "tabPersona": "Profilo",
       "tabDiagnostics": "Diagnostica",
@@ -2908,7 +3175,7 @@
       "archivedMatches": "Corrispondenze archiviate",
       "refresh": "Aggiorna",
       "inboxTitle": "Richiede attenzione",
-      "inboxDescription": "Risolvi i conflitti di memoria e le bozze profilo prima che escano dalla vista.",
+      "inboxDescription": "Risolvi i conflitti di memoria, le bozze profilo e le direttive suggerite prima che escano dalla vista.",
       "conflictBadge": "{count} conflitti",
       "personaDraftBadge": "{count} bozze profilo",
       "conflictSectionTitle": "Conflitti di memoria ({count})",
@@ -2955,7 +3222,48 @@
         "memory-persona-rollback": "Profilo ripristinato",
         "memory-persona-anchor": "Ancora profilo aggiornata",
         "memory-reindex": "Memoria reindicizzata"
-      }
+      },
+      "tabDirectives": "Direttive",
+      "directiveDraftBadge": "{count} bozze di direttiva",
+      "directiveDraftSectionTitle": "Direttive suggerite ({count})",
+      "directiveCreateTitle": "Crea una direttiva permanente",
+      "directiveCreateDescription": "Le direttive manuali diventano subito attive. I suggerimenti del modello restano bozze finché non li approvi.",
+      "directiveRuntimeEnabled": "Applicata durante l’esecuzione",
+      "directiveRuntimeDisabled": "Inattiva quando la memoria è disattivata",
+      "directiveKindLabel": "Tipo di direttiva",
+      "directiveKind": {
+        "instruction": "Istruzione permanente",
+        "suppress_topic": "Sopprimi argomento"
+      },
+      "directiveTopicLabel": "Argomento corrispondente",
+      "directiveTopicPlaceholder": "Argomento o frase esatta da escludere dalla memoria richiamata",
+      "directiveTopicTooBroad": "Gli argomenti con caratteri CJK richiedono almeno {min} caratteri visibili per non escludere ricordi non correlati.",
+      "directiveContentLabel": "Istruzione",
+      "directiveInstructionPlaceholder": "Scrivi un’istruzione permanente per questo agente.",
+      "directiveSuppressPlaceholder": "Spiega come l’agente deve gestire questo argomento.",
+      "directiveInstructionHint": "Questa è una guida a livello utente e non può ignorare le regole di sistema o di sicurezza.",
+      "directiveSuppressHint": "L’argomento filtra la memoria richiamata; l’istruzione guida la risposta. Non è un filtro dell’output.",
+      "directiveLength": "Istruzione {content}/{contentMax} · Argomento {topic}/{topicMax}",
+      "directiveCreateAction": "Attiva direttiva",
+      "directiveCapacityTitle": "Limite di direttive attive raggiunto",
+      "directiveCapacityDescription": "Ogni agente può avere fino a {max} direttive attive. Elimina una direttiva attiva prima di aggiungerne o approvarne un’altra.",
+      "directiveListTitle": "Direttive salvate",
+      "directiveListDescription": "{active} attive · {draft} in attesa di approvazione",
+      "directiveEmptyTitle": "Nessuna direttiva",
+      "directiveEmptyDescription": "Crea qui un’istruzione permanente oppure approva un suggerimento dalla posta in arrivo.",
+      "directiveStatus": {
+        "active": "Attiva",
+        "draft": "Bozza",
+        "rejected": "Rifiutata"
+      },
+      "directiveSource": {
+        "explicit_user": "Azione esplicita dell’utente",
+        "manual": "Impostazioni",
+        "derived_suggestion": "Suggerita dalla conversazione"
+      },
+      "directiveTopicValue": "Argomento: {topic}",
+      "directiveDeleteTitle": "Eliminare questa direttiva?",
+      "directiveDeleteDescription": "La direttiva smetterà di essere applicata immediatamente. Potrai ricrearla in seguito."
     }
   },
   "pluginsHub": {
@@ -2963,12 +3271,122 @@
     "available": "Plugin disponibili",
     "add": "Aggiungi",
     "manage": "Manage",
+    "builtinCapability": "Funzionalità integrata",
     "emptySearch": "Nessun plugin disponibile.",
     "pluginNotFound": "Plugin not found.",
     "actionResult": "Action result",
     "cuaDescription": "Plugin ComputerUse di DeepChat implementato sulla base del progetto trycua/cua.",
     "acpUnavailableTitle": "I plugin non sono disponibili per gli agenti ACP",
     "acpUnavailableDescription": "Gli agenti ACP gestiscono strumenti ed estensioni nel proprio ambiente di esecuzione. Seleziona un agente DeepChat per usare i plugin.",
-    "agentScopeUnsupported": "Le estensioni specifiche per agente sono disponibili solo per gli agenti DeepChat."
+    "agentScopeUnsupported": "Le estensioni specifiche per agente sono disponibili solo per gli agenti DeepChat.",
+    "scopeGlobalPlugins": "Questa pagina è globale all’app: installazione, abilitazione e stato dei processi dei plugin ufficiali sono condivisi da tutti gli agenti DeepChat.",
+    "scopeCurrentAgent": "Questa pagina è policy dell’agente: le modifiche riguardano solo la disponibilità Skills/MCP di «{agent}», non le installazioni globali.",
+    "currentAgentFallback": "agente corrente"
+  },
+  "debug": {
+    "description": "Strumenti riservati allo sviluppo per visualizzare in anteprima stati simulati e flussi guidati.",
+    "unavailableTitle": "Strumenti di debug non disponibili",
+    "unavailableDescription": "Questa azione è disponibile solo in modalità sviluppo.",
+    "splash": {
+      "title": "Finestra di avvio",
+      "description": "Visualizza in anteprima gli stati della finestra di avvio senza avviare un reale flusso di sblocco del database.",
+      "loading": "Anteprima del caricamento",
+      "systemUnlock": "Anteprima dello sblocco del sistema",
+      "unlock": "Anteprima dello sblocco manuale",
+      "recovery": "Anteprima del ripristino del database",
+      "failed": "Impossibile mostrare lo scenario della finestra di avvio.",
+      "previewHint": "Anteprima di sviluppo — l'invio della password è disabilitato."
+    },
+    "guidance": {
+      "title": "Guida e dati",
+      "description": "Crea simulazioni di onboarding, conversazioni e aggiornamenti riservate allo sviluppo.",
+      "failed": "Impossibile avviare il flusso guidato di debug."
+    }
+  },
+  "toolchains": {
+    "description": "Scegli da dove DeepChat ottiene Node e uv. L’origine non cambia da sola dopo la scelta.",
+    "nodeTitle": "Node.js",
+    "uvTitle": "uv",
+    "source": "Origine",
+    "sources": {
+      "bundled": "Incluso nell’app",
+      "managed": "Installato da DeepChat",
+      "system": "Installazione di sistema",
+      "custom": "Percorso personalizzato",
+      "unconfigured": "Non configurato",
+      "autoNamed": "Automatico ({source})"
+    },
+    "systemDetected": "Trovato binario di sistema: {path}",
+    "systemDetectedHint": "Se esiste già un’installazione funzionante, viene usata quella. Non viene scaricato nulla.",
+    "install": "Installa il runtime ufficiale",
+    "repair": "Ripara",
+    "revert": "Ripristina",
+    "cancelInstall": "Annulla",
+    "installing": "Installazione…",
+    "version": "Versione",
+    "path": "Percorso",
+    "bannerTitle": "Manca un runtime necessario",
+    "bannerDescription": "Node o uv non è disponibile per MCP, ACP, Skills o OCR.",
+    "bannerAction": "Apri toolchain",
+    "availability": {
+      "ready": "Pronto",
+      "missing": "Mancante",
+      "incomplete": "Incompleto",
+      "unconfigured": "Non configurato"
+    },
+    "downloadReasons": {
+      "dns": "Impossibile risolvere l’host del download.",
+      "timeout": "Il download è scaduto.",
+      "http": "Il server di download ha restituito un errore.",
+      "proxy": "Il download tramite il proxy configurato non è riuscito.",
+      "checksum_mismatch": "Il file scaricato non ha superato la verifica di integrità.",
+      "disk": "Impossibile scrivere il runtime su disco.",
+      "cancelled": "Il download è stato annullato.",
+      "activation_failed": "Impossibile attivare il runtime.",
+      "unsupported_platform": "Questa piattaforma non ha un runtime ufficiale."
+    },
+    "ocrPinHint": "OCR richiede Node ufficiale v24.18.0 (ABI 137). Questo runtime va bene per chat e MCP, ma non per OCR. Installa il runtime ufficiale."
+  },
+  "userPlugins": {
+    "install": "Installa un plugin",
+    "update": "Esamina aggiornamento",
+    "installDescription": "Installa un pacchetto in formato Codex direttamente da Git o ZIP. Esaminalo prima di attivare i componenti.",
+    "gitUrl": "URL Git HTTPS pubblico",
+    "gitRef": "Branch, tag o commit (facoltativo)",
+    "subdirectory": "Sottodirectory del pacchetto (facoltativa)",
+    "chooseZip": "Scegli file ZIP",
+    "chooseDirectory": "Scegli directory del plugin",
+    "inspect": "Ispeziona pacchetto",
+    "executionNotice": "Gli hook e i server MCP stdio eseguono codice locale con i permessi di accesso ai file e alla rete del tuo account. Attiva solo codice affidabile. Comandi come npx o uvx possono scaricare dipendenze all’avvio del server.",
+    "useSkills": "Usa le Skills incluse",
+    "allowHooks": "Ho esaminato questi comandi e autorizzo gli hook di contesto automatici",
+    "allowMcp": "Ho esaminato questi comandi, endpoint e associazioni delle variabili e autorizzo le connessioni MCP",
+    "sharedData": "I dati del plugin sono condivisi tra le sessioni di questa installazione.",
+    "requiredVariables": "Variabili d’ambiente o credenziali richieste",
+    "applyUpdate": "Applica aggiornamento esaminato",
+    "uninstall": "Disinstalla",
+    "source": "Origine dell’installazione",
+    "selected": "Selezionato",
+    "notSelected": "Non selezionato",
+    "reviewed": "Comandi esaminati",
+    "hooksNotEnabled": "Gli hook automatici non sono autorizzati. Esamina un aggiornamento per attivarli; le Skills da sole non attivano gli hook automatici.",
+    "diagnostics": "Attività recente degli hook",
+    "noInvocations": "Nessuna chiamata a hook registrata dall’avvio dell’app.",
+    "retryHook": "Esegui di nuovo l’hook",
+    "mcpSetupDescription": "Attiva il plugin per registrare i server. Inserisci o sostituisci qui i valori delle variabili; le variabili d’ambiente dell’host non vengono mai condivise automaticamente. Gestisci l’autenticazione nelle impostazioni MCP.",
+    "saveMcp": "Salva e riconnetti",
+    "manageMcp": "Apri impostazioni MCP",
+    "uninstallDescription": "Rimuovi questo plugin, i suoi dati privati, le assegnazioni delle Skills e i server MCP associati. La cronologia delle conversazioni viene conservata.",
+    "fromGit": "Installa da Git",
+    "fromZip": "Installa da ZIP",
+    "userPlugin": "Plugin utente",
+    "hookStatus": {
+      "started": "In esecuzione",
+      "completed": "Completato",
+      "failed": "Non riuscito",
+      "uncertain": "Interrotto; esito sconosciuto"
+    },
+    "technicalDetails": "Dettagli tecnici",
+    "hooks": "Hook"
   }
 }

@@ -63,6 +63,27 @@
         "yobrowser": "YoBrowser"
       }
     },
+    "toolMode": {
+      "title": "حالت",
+      "modelDefault": "پیش‌فرض مدل",
+      "options": {
+        "agent": "Agent",
+        "code": "Code",
+        "minimal": "Minimal"
+      },
+      "descriptions": {
+        "agent": "از مجموعه ابزار استاندارد عامل استفاده کنید.",
+        "code": "ابزارهای فعال را از طریق کد ترکیب کنید. به حالت مجوز دسترسی کامل نیاز دارد.",
+        "minimal": "عملیات فایل را ساده می‌کند و سایر ابزارهای فعال را نگه می‌دارد."
+      },
+      "useModelDefault": "استفاده از پیش‌فرض مدل",
+      "saving": "در حال ذخیره حالت...",
+      "locked": "پس از پایان این پاسخ می‌توانید حالت را تغییر دهید.",
+      "updateFailed": "حالت ابزار به‌روزرسانی نشد.",
+      "codeEntry": "ورودی کد",
+      "codeCallable": "قابل فراخوانی از کد",
+      "minimalTools": "ابزارهای کدنویسی"
+    },
     "fileUploadFailed": "خطا در پردازش پیوست",
     "fileUploadFailedDesc": "امکان پردازش {count} فایل وجود نداشت: {names}",
     "fileUploadFailedMore": " و {count} مورد دیگر",
@@ -71,6 +92,12 @@
     "audioInputUnsupportedDescription": "مدل {model} از ورودی صوتی پشتیبانی نمی‌کند. {count} پیوست صوتی نادیده گرفته شد."
   },
   "pendingInput": {
+    "resume": "ادامه صف",
+    "resumeFailed": "ازسرگیری صف انجام نشد",
+    "retry": "تلاش مجدد",
+    "retryRequired": "نیاز به تلاش مجدد",
+    "retryRequiredDescription": "این پیام ارسال نشد. برای ادامه صف دوباره تلاش کنید.",
+    "retryFailed": "تلاش مجدد برای پیام صف‌شده انجام نشد",
     "steer": "هدایت",
     "queueCount": "در انتظار ارسال {count}/{max}",
     "toSteer": "وقفه و ارسال",
@@ -153,7 +180,8 @@
   "mode": {
     "acpAgent": "نماینده ACP",
     "agent": "عامل",
-    "current": "حالت فعلی: {mode}"
+    "current": "حالت فعلی: {mode}",
+    "saveFailed": "ذخیره انتخاب حالت ناموفق بود"
   },
   "topbar": {
     "share": "اشتراک‌گذاری",
@@ -167,7 +195,6 @@
     "systemPrompt": "پرامپت سیستم",
     "systemPromptPlaceholder": "یک پیش‌تنظیم را انتخاب کنید",
     "temperature": "دما",
-    "temperatureFixedMoonshotKimi": "Moonshot Kimi K2.5/K2.6 وقتی تفکر فعال باشد دما را روی {enabled} و وقتی غیرفعال باشد روی {disabled} ثابت نگه می‌دارد.",
     "topP": "Top P",
     "topPDescription": "Nucleus sampling; leave blank to use provider default",
     "contextLength": "طول زمینه",
@@ -203,6 +230,12 @@
       "contextMenu": {
         "insertPath": "در جعبه ورودی وارد کنید",
         "openFile": "باز کردن فایل",
+        "openInApp": "باز کردن در {app}",
+        "openInTerminalApp": "باز کردن پوشه در {app}",
+        "openFailed": "باز کردن فایل با آن برنامه ممکن نشد",
+        "preferredAppUnavailable": "برنامه ترجیحی فعلاً در دسترس نیست. با برنامه پیش‌فرض سیستم باز می‌شود.",
+        "openWith": "باز کردن با",
+        "openWithSystemDefault": "باز کردن با برنامه پیش‌فرض سیستم",
         "revealInFolder": "در فایل منیجر باز کنید"
       },
       "empty": "هنوز فایلی وجود ندارد",
@@ -301,10 +334,19 @@
   "compaction": {
     "compacting": "در حال فشرده سازی زمینه...",
     "compacted": "زمینه فشرده شد",
+    "compactedWithoutSummary": "زمینه بدون خلاصه فشرده شد",
+    "compactedWithoutLargerSummary": "زمینه بدون استفاده از خلاصه بزرگ تر فشرده شد",
     "commandDescription": "فشرده سازی زمینه گفتگو",
     "noopTitle": "زمینه ای برای فشرده سازی نیست",
     "noopDescription": "هنوز تاریخچه گفت وگوی جدیدی برای فشرده سازی وجود ندارد.",
     "failedTitle": "فشرده سازی ناموفق بود"
+  },
+  "contextOccupancy": {
+    "label": "میزان استفاده از زمینه",
+    "details": "{used} از {capacity} توکن",
+    "provider": "اندازه گیری شده توسط ارائه دهنده",
+    "estimated": "برآورد شده از نمای درخواست",
+    "stale": "پس از تغییر مدل، پنجره یا فشرده سازی قدیمی شده است"
   },
   "newThread": {
     "title": "بسازید و کاوش کنید"
@@ -348,7 +390,13 @@
     "moveProjectGroupBottom": "انتقال به پایین‌ترین جایگاه",
     "searchCommand": "Search",
     "chatSection": "Chat",
-    "workspace": "Workspace"
+    "workspace": "Workspace",
+    "addWorkspace": "افزودن فضای کاری",
+    "manageWorkspaces": "مدیریت فضاهای کاری",
+    "openWorkspaceFolder": "باز کردن پوشه",
+    "emptyWorkspace": "خالی",
+    "addWorkspaceFailed": "افزودن فضای کاری ناموفق بود",
+    "searchLoadedRangeDescription": "نتایج گفت‌وگوهای بارگذاری‌شده نمایش داده می‌شوند. برای بارگذاری تاریخچه بیشتر پیمایش کنید."
   },
   "floatingWidget": {
     "title": "نمای کلی کارها",
@@ -400,6 +448,72 @@
     "firstChat": {
       "description": "همه‌چیز آماده است. برای پایان دادن به فرایند راه‌اندازی، اولین پیام خود را اینجا بنویسید.",
       "caption": "تا زمانی که اولین پیام خود را ارسال کنید، نورافکن روی کادر ورودی می‌ماند."
+    }
+  },
+  "messageReceipt": {
+    "unread": "خوانده‌نشده",
+    "read": "خوانده‌شده"
+  },
+  "attachments": {
+    "chooseRepresentation": "نحوهٔ ارسال {name} را انتخاب کنید",
+    "representation": "شیوهٔ نمایش پیوست",
+    "auto": "خودکار",
+    "sendImage": "ارسال تصویر",
+    "useOcrText": "استفاده از متن OCR",
+    "useEmbeddedText": "استفاده از متن تعبیه‌شده",
+    "preparing": "در حال پردازش پیوست‌ها…",
+    "actionRequiredTitle": "پیوست نیاز به بررسی دارد",
+    "actionRequiredDescription": "یک یا چند پیوست قابل‌استفاده نیست. نحوهٔ ادامه را انتخاب کنید.",
+    "attachmentNumber": "پیوست {number}",
+    "moreIssues": "{count} مشکل دیگر برای پیوست‌ها",
+    "genericUnavailable": "هیچ محتوای پیوست قابل‌استفاده‌ای وجود ندارد.",
+    "keepDraft": "نگه‌داشتن پیش‌نویس",
+    "switchVisionModel": "تغییر به مدل دارای قابلیت بینایی",
+    "retry": "تلاش دوباره",
+    "sendWithoutImageContent": "نادیده‌گرفتن محتوای پیوست",
+    "inspectOcrText": "مشاهدهٔ متن OCR",
+    "ocrBadge": "OCR",
+    "embeddedTextBadge": "متن",
+    "ocrPartialBadge": "OCR · بخشی",
+    "ocrLimitedBadge": "OCR · محدود",
+    "imageBadge": "تصویر",
+    "unavailableBadge": "در دسترس نیست",
+    "ocrPreviewTitle": "متن OCR — {name}",
+    "ocrPreviewDescription": "حدود {tokens} توکن به‌صورت محتوای پیوست نامطمئن ارسال شد.",
+    "ocrPageCoverage": "متن تا صفحهٔ {page} را شامل می‌شود.",
+    "ocrPageCoveragePartial": "بخشی از صفحهٔ {page} را شامل می‌شود.",
+    "ocrTextTruncated": "این متن OCR پیش از ارسال کوتاه شد.",
+    "reasons": {
+      "automatic_ocr_disabled": "OCR خودکار خاموش است.",
+      "document_limit_exceeded": "در هر درخواست فقط یک PDF می‌تواند از OCR استفاده کند.",
+      "document_too_large": "اندازهٔ PDF از محدودیت فایل بیشتر است.",
+      "image_dimensions_exceeded": "ابعاد تصویر رمزگشایی‌شده از حد ایمنی بیشتر است.",
+      "image_limit_exceeded": "تعداد تصاویر این نوبت بیشتر از ظرفیت پردازش OCR است.",
+      "image_payload_unavailable": "داده‌های تصویر اصلی دیگر در دسترس نیست.",
+      "image_too_large": "اندازهٔ تصویر از محدودیت هر فایل بیشتر است.",
+      "ocr_cancelled": "OCR لغو شد.",
+      "ocr_empty": "OCR هیچ متن قابل‌استفاده‌ای پیدا نکرد.",
+      "ocr_failed": "OCR نتوانست این پیوست را پردازش کند.",
+      "ocr_queue_full": "OCR مشغول است. پس از پایان پردازش پیوست فعلی دوباره تلاش کنید.",
+      "ocr_resource_limited": "OCR در محدودیت پردازش PDF متوقف شد.",
+      "ocr_runtime_unavailable": "OCR در این پلتفرم یا نصب در دسترس نیست.",
+      "invalid_attachment_snapshot": "دادهٔ ذخیره‌شدهٔ OCR نامعتبر است.",
+      "turn_ocr_budget_exhausted": "متن OCR از محدودیت متن پیوست این پیام فراتر رفته است.",
+      "pdf_text_unavailable": "هیچ متن تعبیه‌شده‌ای در این PDF موجود نیست.",
+      "requested_image_requires_vision": "گزینهٔ «ارسال تصویر» به مدلی با قابلیت بینایی نیاز دارد.",
+      "turn_image_bytes_exceeded": "حجم کل تصاویر این نوبت از محدودیت بیشتر است.",
+      "user_skipped_attachment_content": "محتوای پیوست بنا به انتخاب شما حذف شد.",
+      "user_skipped_image_content": "محتوای تصویر بنا به انتخاب شما حذف شد.",
+      "unsupported_image_format": "این قالب تصویر توسط OCR پشتیبانی نمی‌شود."
+    },
+    "pending": {
+      "blockedCount": "{count} مورد مسدود",
+      "blocked": "مسدود",
+      "retry": "تلاش دوباره برای OCR",
+      "sendWithoutImageContent": "نادیده‌گرفتن محتوای پیوست",
+      "blockedDescription": "این مورد در انتظار تصمیم دربارهٔ پیوست است.",
+      "blockedReasonMore": "{reason} همچنین {count} مشکل دیگر وجود دارد.",
+      "resolveFailed": "پیام مسدودشده قابل‌رسیدگی نبود"
     }
   },
   "skillDraft": {
@@ -459,6 +573,14 @@
       "dropped": "کنارگذاشته‌شده",
       "tokens": "توکن",
       "budget": "بودجه",
+      "allocation": "تخصیص بودجهٔ مشارکت",
+      "directive": "دستورالعمل",
+      "persona": "پرسونا",
+      "working": "حافظهٔ کاری",
+      "queryRecall": "بازیابی بر اساس پرس‌وجو",
+      "overhead": "سربار",
+      "unused": "استفاده‌نشده",
+      "overheadSummary": "سربار {overhead} · استفاده‌نشده {unused}",
       "countOnly": "این رکورد فقط خلاصهٔ شمارشی دارد.",
       "unavailable": "این حافظه دیگر در دسترس نیست.",
       "noSelectedDetails": "برای این نوبت جزئیات حافظه‌ای برای نمایش وجود ندارد.",
@@ -485,5 +607,29 @@
       "amendRetryable": "ویرایش ناموفق بود. حافظه اصلی بازیابی شد؛ دوباره تلاش کنید.",
       "amendRestoreFailed": "ویرایش ناموفق بود و حافظه اصلی هم بازیابی نشد."
     }
+  },
+  "orchestration": {
+    "actions": {
+      "openChild": "باز کردن Agent فرزند"
+    },
+    "activityTitle": "فعالیت Agent",
+    "proactive": {
+      "title": "همکاری فعال",
+      "description": "به Agent اصلی اجازه می‌دهد وقتی کار مستقل یا موازی سود روشنی دارد، وظایف را واگذار کند. ممکن است زمان، Token و منابع بیشتری مصرف شود.",
+      "reasons": {
+        "session_unavailable": "این نشست دیگر در دسترس نیست.",
+        "agent_unavailable": "Agent انتخاب‌شده در دسترس نیست.",
+        "deepchat_agent_required": "همکاری فعال به یک DeepChat Agent نیاز دارد.",
+        "regular_parent_required": "همکاری فعال در نشست فرزند در دسترس نیست.",
+        "agent_policy_unavailable": "خط‌مشی همکاری بارگیری نشد.",
+        "subagents_disabled": "برای استفاده از همکاری فعال، Subagentها را برای این Agent فعال کنید."
+      }
+    }
+  },
+  "guardStop": {
+    "maxToolCalls": "قبل از اتمام کار، به سقف تعداد فراخوانی ابزار رسید.",
+    "noProgress": "نتایج یکسان و تکراری ابزار پیشرفتی نداشت، بنابراین Agent متوقف شد.",
+    "maxTurns": "قبل از اتمام کار، به سقف نوبت‌های ارائه‌دهنده رسید.",
+    "continueMessage": "از همان‌جا که متوقف شد ادامه بده."
   }
 }

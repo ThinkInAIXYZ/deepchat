@@ -11,6 +11,8 @@ const messageNode = document.getElementById('message')
 const messageDetailNode = document.getElementById('message-detail')
 const messageDetailTextNode = document.getElementById('message-detail-text')
 const projectLinkNode = document.getElementById('project-link')
+const testRuntimeNode = document.getElementById('test-runtime')
+const retryRuntimeNode = document.getElementById('retry-runtime')
 
 let currentPlatform = 'unknown'
 let currentArch = 'unknown'
@@ -62,6 +64,9 @@ function normalizeStatus(value) {
   if (normalized === 'available' || normalized === 'ready' || normalized === 'ok') {
     return { text: 'Ready', className: 'permission-pill permission-ok' }
   }
+  if (normalized === 'ready on demand') {
+    return { text: 'Ready on demand', className: 'permission-pill permission-ok' }
+  }
   if (normalized === 'running' || normalized === 'installed') {
     return { text: value, className: 'permission-pill permission-ok' }
   }
@@ -70,6 +75,9 @@ function normalizeStatus(value) {
   }
   if (normalized === 'error') {
     return { text: 'Error', className: 'permission-pill permission-denied' }
+  }
+  if (normalized === 'quarantined') {
+    return { text: 'Quarantined', className: 'permission-pill permission-denied' }
   }
   if (normalized === 'unavailable' || normalized === 'failed') {
     return { text: 'Unavailable', className: 'permission-pill permission-denied' }
@@ -84,6 +92,24 @@ function setStatusNode(node, value) {
   const status = normalizeStatus(value)
   node.textContent = status.text
   node.className = status.className
+}
+
+function setRuntimeActionState({ enabled, quarantined, integrityBlocked, unavailable }) {
+  if (testRuntimeNode) {
+    testRuntimeNode.hidden = !enabled || (quarantined && !integrityBlocked) || unavailable
+  }
+  if (retryRuntimeNode) {
+    retryRuntimeNode.hidden = !enabled || !quarantined || integrityBlocked || unavailable
+  }
+}
+
+function setRuntimeActionsDisabled(disabled) {
+  if (testRuntimeNode) {
+    testRuntimeNode.disabled = disabled
+  }
+  if (retryRuntimeNode) {
+    retryRuntimeNode.disabled = disabled
+  }
 }
 
 function createRow(label, value, statusValue) {
@@ -160,6 +186,14 @@ function friendlyErrorMessage(value) {
   const raw = String(value || '').trim()
   if (!raw) {
     return ''
+  }
+  if (
+    currentPlatform === 'win32' &&
+    /(runtime|artifact).*(integrity|missing|modified|mismatch)|integrity.*(runtime|artifact)/i.test(
+      raw
+    )
+  ) {
+    return 'The CUA runtime is missing or modified. Reinstall DeepChat or the CUA plugin, then check Windows Security > Protection history.'
   }
   if (/PowerShell 5\.1|positional JSON arg|deepchat-permission-probe/i.test(raw)) {
     return 'Permission status could not be read from this CUA build. Open setup, then check again.'
@@ -249,9 +283,53 @@ async function refreshStatus() {
   renderInitialDiagnostics(currentPlatform)
 
   const cuaMcp = status.mcpServers?.find((server) => server.serverId === 'cua-driver')
-  if (!cuaMcp) {
+  const quarantined = cuaMcp?.lifecycleState === 'quarantined'
+  const runtimeUnavailable =
+    status.runtime?.state === 'missing' || status.runtime?.state === 'error'
+  setRuntimeActionState({
+    enabled: status.enabled === true,
+    quarantined,
+    integrityBlocked: Boolean(cuaMcp?.integrityError),
+    unavailable: Boolean(status.activationError || runtimeUnavailable || !cuaMcp)
+  })
+
+  if (status.activationError) {
+    setStatusNode(mcpStateNode, 'Error')
+    setMessage(
+      friendlyErrorMessage(status.activationError) ||
+        'CUA runtime validation failed. Repair or reinstall DeepChat or the CUA plugin.',
+      'error',
+      status.activationError
+    )
+  } else if (runtimeUnavailable || !cuaMcp) {
     setStatusNode(mcpStateNode, 'Unavailable')
-    setMessage('')
+    if (status.runtime?.state === 'missing') {
+      setMessage(
+        currentPlatform === 'win32'
+          ? 'The CUA runtime is missing. Reinstall DeepChat or the CUA plugin, then check Windows Security > Protection history.'
+          : 'The CUA runtime is missing. Repair or reinstall DeepChat or the CUA plugin.',
+        'error'
+      )
+    } else if (status.runtime?.lastError) {
+      setMessage('The CUA runtime is unavailable.', 'error', status.runtime.lastError)
+    } else {
+      setMessage('')
+    }
+  } else if (cuaMcp.integrityError) {
+    setStatusNode(mcpStateNode, 'Error')
+    setMessage(
+      friendlyErrorMessage(cuaMcp.integrityError) ||
+        'CUA runtime validation failed. Repair or reinstall DeepChat or the CUA plugin.',
+      'error',
+      cuaMcp.integrityError
+    )
+  } else if (quarantined) {
+    setStatusNode(mcpStateNode, 'Quarantined')
+    setMessage(
+      'DeepChat stopped this runtime after an unclean exit. Retry only when the desktop is safe to control.',
+      'warning',
+      cuaMcp.lastError
+    )
   } else if (cuaMcp.lastError) {
     setStatusNode(mcpStateNode, 'Error')
     setMessage('MCP server is not running correctly.', 'error', cuaMcp.lastError)
@@ -259,13 +337,57 @@ async function refreshStatus() {
     setStatusNode(mcpStateNode, 'Running')
     setMessage('')
   } else if (cuaMcp.enabled) {
-    setStatusNode(mcpStateNode, 'Stopped')
+    setStatusNode(mcpStateNode, 'Ready on demand')
     setMessage('')
   } else {
     setStatusNode(mcpStateNode, 'Disabled')
     setMessage('')
   }
 }
+
+async function runRuntimeAction(actionId, progressMessage, successMessage) {
+  setRuntimeActionsDisabled(true)
+  setMessage(progressMessage)
+  try {
+    const result = await getPluginApi().invokeAction(actionId)
+    if (!result.ok) {
+      try {
+        await refreshStatus()
+      } catch (refreshError) {
+        console.warn('[CUA Settings] Failed to refresh status after runtime action:', refreshError)
+      }
+      setMessage(
+        friendlyErrorMessage(result.error || 'Runtime operation failed'),
+        'error',
+        result.error
+      )
+      return
+    }
+    await refreshStatus()
+    setMessage(successMessage)
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    setMessage(friendlyErrorMessage(message), 'error', message)
+  } finally {
+    setRuntimeActionsDisabled(false)
+  }
+}
+
+testRuntimeNode?.addEventListener('click', async () => {
+  await runRuntimeAction(
+    'runtime.test',
+    'Testing the CUA runtime...',
+    'Runtime test completed successfully.'
+  )
+})
+
+retryRuntimeNode?.addEventListener('click', async () => {
+  await runRuntimeAction(
+    'runtime.retry',
+    'Retrying the quarantined CUA runtime...',
+    'Runtime retry completed and the quarantine was cleared.'
+  )
+})
 
 async function checkPermissions() {
   setMessage('Checking permissions...')

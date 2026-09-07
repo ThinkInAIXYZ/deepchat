@@ -23,7 +23,8 @@ import {
   modelsTranscribeAudioRoute,
   modelsUpdateCustomRoute
 } from '@shared/contracts/routes'
-import type { IModelConfig, ModelConfig, RENDERER_MODEL_META } from '@shared/presenter'
+import type { IModelConfig, ModelConfig, RENDERER_MODEL_META } from '@shared/types/provider'
+import type { CapabilitySnapshotQuery } from '@shared/types/model-capabilities'
 import { getDeepchatBridge } from './core'
 
 export function createModelClient(bridge: DeepchatBridge = getDeepchatBridge()) {
@@ -32,11 +33,8 @@ export function createModelClient(bridge: DeepchatBridge = getDeepchatBridge()) 
     return result.catalog
   }
 
-  async function fetchCapabilities(providerId: string, modelId: string) {
-    return await bridge.invoke(modelsGetCapabilitiesRoute.name, {
-      providerId,
-      modelId
-    })
+  async function fetchCapabilities(query: CapabilitySnapshotQuery) {
+    return await bridge.invoke(modelsGetCapabilitiesRoute.name, query)
   }
 
   type ProviderCatalog = Awaited<ReturnType<typeof fetchProviderCatalog>>
@@ -202,14 +200,18 @@ export function createModelClient(bridge: DeepchatBridge = getDeepchatBridge()) 
     })
   }
 
-  async function getCapabilities(providerId: string, modelId: string) {
-    const cacheKey = `${providerId}:${modelId}`
+  async function getCapabilities(query: CapabilitySnapshotQuery) {
+    if (query.routeOverride || query.reasoningEnabled !== undefined) {
+      return (await fetchCapabilities(query)).capabilities
+    }
+
+    const cacheKey = JSON.stringify([query.providerId, query.modelId])
     const cached = capabilitiesCache.get(cacheKey)
     if (cached) {
       return (await cached).capabilities
     }
 
-    const promise = fetchCapabilities(providerId, modelId)
+    const promise = fetchCapabilities(query)
     capabilitiesCache.set(cacheKey, promise)
 
     try {
@@ -237,31 +239,31 @@ export function createModelClient(bridge: DeepchatBridge = getDeepchatBridge()) 
   }
 
   async function supportsReasoningCapability(providerId: string, modelId: string) {
-    return (await getCapabilities(providerId, modelId)).supportsReasoning
+    return (await getCapabilities({ providerId, modelId })).supportsReasoning
   }
 
   async function getReasoningPortrait(providerId: string, modelId: string) {
-    return (await getCapabilities(providerId, modelId)).reasoningPortrait
+    return (await getCapabilities({ providerId, modelId })).reasoningPortrait
   }
 
   async function getThinkingBudgetRange(providerId: string, modelId: string) {
-    return (await getCapabilities(providerId, modelId)).thinkingBudgetRange
+    return (await getCapabilities({ providerId, modelId })).thinkingBudgetRange
   }
 
   async function supportsSearchCapability(providerId: string, modelId: string) {
-    return (await getCapabilities(providerId, modelId)).supportsSearch
+    return (await getCapabilities({ providerId, modelId })).supportsSearch
   }
 
   async function getSearchDefaults(providerId: string, modelId: string) {
-    return (await getCapabilities(providerId, modelId)).searchDefaults
+    return (await getCapabilities({ providerId, modelId })).searchDefaults
   }
 
   async function supportsTemperatureControl(providerId: string, modelId: string) {
-    return (await getCapabilities(providerId, modelId)).supportsTemperatureControl
+    return (await getCapabilities({ providerId, modelId })).supportsTemperatureControl
   }
 
   async function getTemperatureCapability(providerId: string, modelId: string) {
-    return (await getCapabilities(providerId, modelId)).temperatureCapability
+    return (await getCapabilities({ providerId, modelId })).temperatureCapability
   }
 
   function onModelsChanged(

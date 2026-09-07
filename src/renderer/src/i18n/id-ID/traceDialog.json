@@ -1,5 +1,5 @@
 {
-  "title": "Minta pratinjau parameter",
+  "title": "Diagnostik pesan",
   "provider": "pemasok",
   "model": "model",
   "endpoint": "API Endpoint",
@@ -18,14 +18,29 @@
     "request": "Permintaan",
     "view": "Tampilan",
     "entries": "Entri",
-    "budget": "Anggaran"
+    "budget": "Anggaran",
+    "execution": "Audit eksekusi"
   },
   "empty": "Tidak ada diagnostik",
-  "emptyDesc": "Tidak ada jejak permintaan atau manifes tampilan untuk pesan ini",
+  "emptyDesc": "Tidak ada jejak permintaan, manifes tampilan Tape, atau audit eksekusi bertingkat untuk pesan ini",
   "requestUnavailable": "Tidak ada jejak permintaan",
   "requestUnavailableDesc": "Pesan ini tidak memiliki jejak permintaan penyedia yang tersimpan",
   "manifestUnavailable": "Tidak ada manifes tampilan",
   "manifestUnavailableDesc": "Pesan ini tidak memiliki manifes tampilan Tape yang tersimpan",
+  "execution": {
+    "empty": "Tidak ada eksekusi bertingkat",
+    "emptyDesc": "Tidak ada operasi alat terprogram yang tercatat untuk permintaan ini",
+    "corrupt": "Audit eksekusi rusak",
+    "corruptDesc": "Fakta Journal bertingkat bertentangan atau tidak dapat diverifikasi",
+    "unavailable": "Audit eksekusi tidak tersedia",
+    "unavailableDesc": "Fakta Journal bertingkat tidak dapat dibaca",
+    "truncated": "Hanya 256 operasi bertingkat pertama yang ditampilkan",
+    "status": {
+      "success": "Berhasil",
+      "error": "Kesalahan",
+      "indeterminate": "Tidak tentu"
+    }
+  },
   "viewId": "ID tampilan",
   "policy": "Kebijakan",
   "policyVersion": "Versi kebijakan",

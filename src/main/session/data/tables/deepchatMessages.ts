@@ -1,0 +1,505 @@
+import Database from 'better-sqlite3-multiple-ciphers'
+import { BaseTable } from '@/data/baseTable'
+
+export interface DeepChatMessageRow {
+  id: string
+  session_id: string
+  order_seq: number
+  role: 'user' | 'assistant'
+  content: string
+  status: 'pending' | 'sent' | 'error'
+  is_context_edge: number
+  metadata: string
+  created_at: number
+  updated_at: number
+  trace_count?: number
+}
+
+export interface DeepChatMessageUsageCandidateRow {
+  id: string
+  session_id: string
+  metadata: string
+  created_at: number
+  updated_at: number
+  provider_id: string | null
+  model_id: string | null
+}
+
+export interface DeepChatAssistantMessageIdentityRow {
+  id: string
+  session_id: string
+  status: 'pending' | 'sent' | 'error'
+  updated_at: number
+}
+
+const COMPACTION_RECOVERY_PREDICATE = `
+  role = 'assistant'
+  AND status = 'sent'
+  AND (CASE WHEN json_valid(metadata)
+    THEN json_extract(metadata, '$.messageType') END) = 'compaction'
+  AND (CASE WHEN json_valid(metadata)
+    THEN json_extract(metadata, '$.compactionStatus') END) = 'compacting'
+`
+
+const COMPACTION_RECOVERY_INDEX_SQL = `
+  CREATE INDEX IF NOT EXISTS idx_deepchat_messages_compaction_recovery
+    ON deepchat_messages(session_id, order_seq, id)
+    WHERE ${COMPACTION_RECOVERY_PREDICATE};
+`
+
+/**
+ * Every UPDATE here must stamp `updated_at = Date.now()`: the Tape reconciler treats unchanged
+ * per-row `(id, order_seq, status, updated_at)` as proof the session transcript did not change.
+ */
+export class DeepChatMessagesTable extends BaseTable {
+  constructor(db: Database.Database) {
+    super(db, 'deepchat_messages')
+  }
+
+  getCreateTableSQL(): string {
+    return `
+      CREATE TABLE IF NOT EXISTS deepchat_messages (
+        id TEXT PRIMARY KEY,
+        session_id TEXT NOT NULL,
+        order_seq INTEGER NOT NULL,
+        role TEXT NOT NULL,
+        content TEXT NOT NULL,
+        status TEXT DEFAULT 'pending',
+        is_context_edge INTEGER DEFAULT 0,
+        metadata TEXT DEFAULT '{}',
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_deepchat_messages_session ON deepchat_messages(session_id, order_seq);
+      ${COMPACTION_RECOVERY_INDEX_SQL}
+    `
+  }
+
+  override createTable(): void {
+    if (!this.tableExists()) {
+      this.db.exec(this.getCreateTableSQL())
+      return
+    }
+    this.db.exec(COMPACTION_RECOVERY_INDEX_SQL)
+  }
+
+  getMigrationSQL(_version: number): string | null {
+    return null
+  }
+
+  getLatestVersion(): number {
+    return 0
+  }
+
+  insert(row: {
+    id: string
+    sessionId: string
+    orderSeq: number
+    role: 'user' | 'assistant'
+    content: string
+    status: 'pending' | 'sent' | 'error'
+    isContextEdge?: number
+    metadata?: string
+    createdAt?: number
+    updatedAt?: number
+  }): void {
+    const now = Date.now()
+    const createdAt = row.createdAt ?? now
+    const updatedAt = row.updatedAt ?? createdAt
+    this.db
+      .prepare(
+        `INSERT INTO deepchat_messages (
+           id,
+           session_id,
+           order_seq,
+           role,
+           content,
+           status,
+           is_context_edge,
+           metadata,
+           created_at,
+           updated_at
+         )
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      )
+      .run(
+        row.id,
+        row.sessionId,
+        row.orderSeq,
+        row.role,
+        row.content,
+        row.status,
+        row.isContextEdge ?? 0,
+        row.metadata ?? '{}',
+        createdAt,
+        updatedAt
+      )
+  }
+
+  /**
+   * Writes the whole row from a terminal message record. The record is authoritative for every
+   * column, including `created_at`, so a replayed fact reproduces the row it was appended from.
+   * A row never moves between Sessions: an id that already belongs to another Session is refused,
+   * the way `insert` refused the duplicate key.
+   */
+  upsert(row: {
+    id: string
+    sessionId: string
+    orderSeq: number
+    role: 'user' | 'assistant'
+    content: string
+    status: 'pending' | 'sent' | 'error'
+    isContextEdge: number
+    metadata: string
+    createdAt: number
+    updatedAt: number
+  }): void {
+    const result = this.db
+      .prepare(
+        `INSERT INTO deepchat_messages (
+           id,
+           session_id,
+           order_seq,
+           role,
+           content,
+           status,
+           is_context_edge,
+           metadata,
+           created_at,
+           updated_at
+         )
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT(id) DO UPDATE SET
+           order_seq = excluded.order_seq,
+           role = excluded.role,
+           content = excluded.content,
+           status = excluded.status,
+           is_context_edge = excluded.is_context_edge,
+           metadata = excluded.metadata,
+           created_at = excluded.created_at,
+           updated_at = excluded.updated_at
+         WHERE deepchat_messages.session_id = excluded.session_id`
+      )
+      .run(
+        row.id,
+        row.sessionId,
+        row.orderSeq,
+        row.role,
+        row.content,
+        row.status,
+        row.isContextEdge,
+        row.metadata,
+        row.createdAt,
+        row.updatedAt
+      )
+    if (result.changes === 0) {
+      throw new Error(`Message ${row.id} belongs to another session; refusing to move it.`)
+    }
+  }
+
+  updateContent(messageId: string, content: string): void {
+    this.db
+      .prepare('UPDATE deepchat_messages SET content = ?, updated_at = ? WHERE id = ?')
+      .run(content, Date.now(), messageId)
+  }
+
+  updateStatus(messageId: string, status: 'pending' | 'sent' | 'error'): void {
+    this.db
+      .prepare('UPDATE deepchat_messages SET status = ?, updated_at = ? WHERE id = ?')
+      .run(status, Date.now(), messageId)
+  }
+
+  updateMetadata(messageId: string, metadata: string): void {
+    this.db
+      .prepare('UPDATE deepchat_messages SET metadata = ?, updated_at = ? WHERE id = ?')
+      .run(metadata, Date.now(), messageId)
+  }
+
+  incrementOrderSeqFrom(sessionId: string, fromOrderSeq: number, updatedAt: number): void {
+    this.db
+      .prepare(
+        'UPDATE deepchat_messages SET order_seq = order_seq + 1, updated_at = ? WHERE session_id = ? AND order_seq >= ?'
+      )
+      .run(updatedAt, sessionId, fromOrderSeq)
+  }
+
+  updateContentAndStatus(
+    messageId: string,
+    content: string,
+    status: 'sent' | 'error',
+    metadata?: string
+  ): void {
+    const parts = ['content = ?', 'status = ?', 'updated_at = ?']
+    const params: unknown[] = [content, status, Date.now()]
+
+    if (metadata !== undefined) {
+      parts.push('metadata = ?')
+      params.push(metadata)
+    }
+
+    params.push(messageId)
+    this.db.prepare(`UPDATE deepchat_messages SET ${parts.join(', ')} WHERE id = ?`).run(...params)
+  }
+
+  getBySession(sessionId: string): DeepChatMessageRow[] {
+    return this.db
+      .prepare('SELECT * FROM deepchat_messages WHERE session_id = ? ORDER BY order_seq')
+      .all(sessionId) as DeepChatMessageRow[]
+  }
+
+  getPendingAssistantBySession(sessionId: string): DeepChatMessageRow[] {
+    return this.db
+      .prepare(
+        `SELECT * FROM deepchat_messages
+         WHERE session_id = ? AND role = 'assistant' AND status = 'pending'
+         ORDER BY order_seq, id`
+      )
+      .all(sessionId) as DeepChatMessageRow[]
+  }
+
+  getCompactionRecoveryCandidates(): DeepChatMessageRow[] {
+    return this.db
+      .prepare(
+        `SELECT *
+         FROM deepchat_messages
+         WHERE ${COMPACTION_RECOVERY_PREDICATE}
+         ORDER BY session_id, order_seq, id`
+      )
+      .all() as DeepChatMessageRow[]
+  }
+
+  hasBySession(sessionId: string): boolean {
+    return Boolean(
+      this.db.prepare('SELECT 1 FROM deepchat_messages WHERE session_id = ? LIMIT 1').get(sessionId)
+    )
+  }
+
+  listPageBySession(
+    sessionId: string,
+    options?: {
+      limit?: number
+      cursor?: {
+        orderSeq: number
+        id: string
+      } | null
+    }
+  ): DeepChatMessageRow[] {
+    // Allow the internal helper to fetch one extra row for hasMore detection while
+    // keeping the public page size contract capped at 500.
+    const limit = Math.min(Math.max(Math.floor(options?.limit ?? 100), 1), 501)
+    const cursor = options?.cursor ?? null
+
+    if (!cursor) {
+      return this.db
+        .prepare(
+          `SELECT
+             m.*,
+             COALESCE((
+               SELECT COUNT(*)
+               FROM deepchat_message_traces t
+               WHERE t.message_id = m.id
+             ), 0) AS trace_count
+           FROM deepchat_messages m
+           WHERE m.session_id = ?
+           ORDER BY m.order_seq DESC, m.id DESC
+           LIMIT ?`
+        )
+        .all(sessionId, limit) as DeepChatMessageRow[]
+    }
+
+    return this.db
+      .prepare(
+        `SELECT
+           m.*,
+           COALESCE((
+             SELECT COUNT(*)
+             FROM deepchat_message_traces t
+             WHERE t.message_id = m.id
+           ), 0) AS trace_count
+         FROM deepchat_messages m
+         WHERE m.session_id = ?
+           AND (
+             m.order_seq < ?
+             OR (m.order_seq = ? AND m.id < ?)
+           )
+         ORDER BY m.order_seq DESC, m.id DESC
+         LIMIT ?`
+      )
+      .all(sessionId, cursor.orderSeq, cursor.orderSeq, cursor.id, limit) as DeepChatMessageRow[]
+  }
+
+  getBySessionUpToOrderSeq(sessionId: string, maxOrderSeq: number): DeepChatMessageRow[] {
+    return this.db
+      .prepare(
+        'SELECT * FROM deepchat_messages WHERE session_id = ? AND order_seq <= ? ORDER BY order_seq'
+      )
+      .all(sessionId, maxOrderSeq) as DeepChatMessageRow[]
+  }
+
+  getBySessionAndIds(sessionId: string, messageIds: string[]): DeepChatMessageRow[] {
+    if (messageIds.length === 0) return []
+    const placeholders = messageIds.map(() => '?').join(', ')
+    return this.db
+      .prepare(
+        `SELECT *
+         FROM deepchat_messages
+         WHERE session_id = ? AND id IN (${placeholders})
+         ORDER BY order_seq, id`
+      )
+      .all(sessionId, ...messageIds) as DeepChatMessageRow[]
+  }
+
+  getByStatus(status: 'pending' | 'sent' | 'error'): DeepChatMessageRow[] {
+    return this.db
+      .prepare('SELECT * FROM deepchat_messages WHERE status = ? ORDER BY updated_at DESC')
+      .all(status) as DeepChatMessageRow[]
+  }
+
+  getIdsBySession(sessionId: string): string[] {
+    const rows = this.db
+      .prepare('SELECT id FROM deepchat_messages WHERE session_id = ? ORDER BY order_seq')
+      .all(sessionId) as { id: string }[]
+    return rows.map((r) => r.id)
+  }
+
+  get(messageId: string): DeepChatMessageRow | undefined {
+    const row = this.db.prepare('SELECT * FROM deepchat_messages WHERE id = ?').get(messageId)
+    return row as DeepChatMessageRow | undefined
+  }
+
+  getAssistantIdentity(messageId: string): DeepChatAssistantMessageIdentityRow | undefined {
+    return this.db
+      .prepare(
+        `SELECT id, session_id, status, updated_at
+         FROM deepchat_messages
+         WHERE id = ? AND role = 'assistant'`
+      )
+      .get(messageId) as DeepChatAssistantMessageIdentityRow | undefined
+  }
+
+  getLatestAssistantIdentity(sessionId: string): DeepChatAssistantMessageIdentityRow | undefined {
+    return this.db
+      .prepare(
+        `SELECT id, session_id, status, updated_at
+         FROM deepchat_messages
+         WHERE session_id = ? AND role = 'assistant'
+         ORDER BY order_seq DESC, id DESC
+         LIMIT 1`
+      )
+      .get(sessionId) as DeepChatAssistantMessageIdentityRow | undefined
+  }
+
+  getMaxOrderSeq(sessionId: string): number {
+    const row = this.db
+      .prepare('SELECT MAX(order_seq) as max_seq FROM deepchat_messages WHERE session_id = ?')
+      .get(sessionId) as { max_seq: number | null }
+    return row.max_seq ?? 0
+  }
+
+  iterAssistantUsageCandidates(): IterableIterator<DeepChatMessageUsageCandidateRow> {
+    return this.db
+      .prepare<[], DeepChatMessageUsageCandidateRow>(
+        `SELECT
+          m.id,
+          m.session_id,
+          m.metadata,
+          m.created_at,
+          m.updated_at,
+          s.provider_id,
+          s.model_id
+        FROM deepchat_messages m
+        LEFT JOIN deepchat_sessions s
+          ON s.id = m.session_id
+        WHERE m.role = 'assistant'
+        ORDER BY m.created_at ASC`
+      )
+      .iterate()
+  }
+
+  listAssistantUsageCandidatesPage(
+    cursor: { createdAt: number; id: string } | null,
+    limit: number
+  ): DeepChatMessageUsageCandidateRow[] {
+    const baseQuery = `SELECT
+        m.id,
+        m.session_id,
+        m.metadata,
+        m.created_at,
+        m.updated_at,
+        s.provider_id,
+        s.model_id
+      FROM deepchat_messages m
+      LEFT JOIN deepchat_sessions s
+        ON s.id = m.session_id
+      WHERE m.role = 'assistant'`
+
+    if (!cursor) {
+      return this.db
+        .prepare<[number], DeepChatMessageUsageCandidateRow>(
+          `${baseQuery}
+           ORDER BY m.created_at ASC, m.id ASC
+           LIMIT ?`
+        )
+        .all(limit)
+    }
+
+    return this.db
+      .prepare<[number, number, string, number], DeepChatMessageUsageCandidateRow>(
+        `${baseQuery}
+         AND (m.created_at > ? OR (m.created_at = ? AND m.id > ?))
+         ORDER BY m.created_at ASC, m.id ASC
+         LIMIT ?`
+      )
+      .all(cursor.createdAt, cursor.createdAt, cursor.id, limit)
+  }
+
+  listAssistantUsageCandidates(): DeepChatMessageUsageCandidateRow[] {
+    return Array.from(this.iterAssistantUsageCandidates())
+  }
+
+  getLastUserMessageBeforeOrAtOrderSeq(
+    sessionId: string,
+    orderSeq: number
+  ): DeepChatMessageRow | undefined {
+    return this.db
+      .prepare(
+        "SELECT * FROM deepchat_messages WHERE session_id = ? AND role = 'user' AND order_seq <= ? ORDER BY order_seq DESC LIMIT 1"
+      )
+      .get(sessionId, orderSeq) as DeepChatMessageRow | undefined
+  }
+
+  deleteBySession(sessionId: string): void {
+    this.db.prepare('DELETE FROM deepchat_messages WHERE session_id = ?').run(sessionId)
+  }
+
+  delete(messageId: string): void {
+    this.db.prepare('DELETE FROM deepchat_messages WHERE id = ?').run(messageId)
+  }
+
+  deleteByIds(messageIds: string[]): void {
+    // Chunked below SQLite's bound-variable floor; a range delete can hand over a whole Session.
+    for (let offset = 0; offset < messageIds.length; offset += 500) {
+      const chunk = messageIds.slice(offset, offset + 500)
+      const placeholders = chunk.map(() => '?').join(', ')
+      this.db.prepare(`DELETE FROM deepchat_messages WHERE id IN (${placeholders})`).run(...chunk)
+    }
+  }
+
+  deleteFromOrderSeq(sessionId: string, fromOrderSeq: number): void {
+    this.db
+      .prepare('DELETE FROM deepchat_messages WHERE session_id = ? AND order_seq >= ?')
+      .run(sessionId, fromOrderSeq)
+  }
+
+  getIdsFromOrderSeq(sessionId: string, fromOrderSeq: number): string[] {
+    const rows = this.db
+      .prepare(
+        `SELECT id
+         FROM deepchat_messages
+         WHERE session_id = ? AND order_seq >= ?
+         ORDER BY order_seq, id`
+      )
+      .all(sessionId, fromOrderSeq) as Array<{ id: string }>
+    return rows.map((row) => row.id)
+  }
+}

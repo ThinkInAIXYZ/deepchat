@@ -1,0 +1,351 @@
+import type { ChatMessageRecord } from '@shared/types/agent-interface'
+import type { DeepChatTapeEntryKind, DeepChatTapeEntryRow, DeepChatTapeSearchInput } from './entry'
+import { isContractTapeReservedName } from './contractFacts'
+import { RESERVED_AUDIT_TAPE_EVENT_NAMES } from './reservedNamespaces'
+import { TAPE_VIEW_MANIFEST_EVENT_NAME } from './viewManifest'
+import {
+  TAPE_MESSAGE_RETRACTED_EVENT_NAME,
+  parseNestedTapeJsonObject,
+  parseTapeJsonObject,
+  readTapeMessageRetractionId,
+  readTapeToolIdentityFromPayload,
+  readTapeToolStatus,
+  tapeEntryToMessageRecord,
+  tapeMessageRank,
+  tapeToolRankFromStatus
+} from './effectiveSemantics'
+import {
+  parseTapeProviderAttemptEvent,
+  toTapeProviderAttemptCacheMetrics,
+  type TapeProviderAttemptCacheMetrics
+} from './providerAttempt'
+
+export interface EffectiveMessageEntry {
+  entryId: number
+  record: ChatMessageRecord
+}
+
+export interface EffectiveTapeView {
+  rows: DeepChatTapeEntryRow[]
+  messageRecords: ChatMessageRecord[]
+  /** Effective messages paired with their tape entry_id, ordered by orderSeq (for lineage). */
+  messageEntries: EffectiveMessageEntry[]
+}
+
+export interface EffectiveTapeMetrics {
+  lastTokenUsage: number | null
+  lastProviderAttemptCacheMetrics: TapeProviderAttemptCacheMetrics | null
+}
+
+interface EffectiveTapeViewOptions {
+  includePending?: boolean
+  includeAuditEvents?: boolean
+}
+
+/**
+ * Event names hidden from effective views and ordinary search. Retractions, compaction markers,
+ * backfill receipts and View manifests are bookkeeping written through the generic append path;
+ * every other audit event is declared by the strict writer that owns it.
+ */
+export const DEFAULT_EXCLUDED_TAPE_EVENT_NAMES: readonly string[] = [
+  TAPE_MESSAGE_RETRACTED_EVENT_NAME,
+  'message/compaction_indicator',
+  'migration/backfill',
+  TAPE_VIEW_MANIFEST_EVENT_NAME,
+  ...RESERVED_AUDIT_TAPE_EVENT_NAMES
+]
+
+const DEFAULT_EXCLUDED_TAPE_EVENT_NAME_SET = new Set<string>(DEFAULT_EXCLUDED_TAPE_EVENT_NAMES)
+
+type EffectiveMessageCandidate = {
+  row: DeepChatTapeEntryRow
+  record: ChatMessageRecord
+}
+
+/** A tool row with everything the fold needs already parsed, so no JSON is parsed twice. */
+type EffectiveToolCandidate = {
+  row: DeepChatTapeEntryRow
+  messageId: string
+  rank: number
+  /** `payload.orderSeq` as stored; when it already matches the message, projection is a no-op. */
+  storedOrderSeq: unknown
+}
+
+export function projectTapeToolOrderSeq(
+  row: DeepChatTapeEntryRow,
+  effectiveMessageOrderSeqById: ReadonlyMap<string, number>
+): DeepChatTapeEntryRow {
+  const payload = parseTapeJsonObject(row.payload_json)
+  const identity = readTapeToolIdentityFromPayload(row.kind, payload)
+  if (!identity) return row
+
+  const effectiveOrderSeq = effectiveMessageOrderSeqById.get(identity.messageId)
+  if (effectiveOrderSeq === undefined || payload.orderSeq === effectiveOrderSeq) return row
+  return {
+    ...row,
+    payload_json: JSON.stringify({ ...payload, orderSeq: effectiveOrderSeq })
+  }
+}
+
+function compareSqliteBinaryText(left: string, right: string): number {
+  return Buffer.compare(Buffer.from(left, 'utf8'), Buffer.from(right, 'utf8'))
+}
+
+function toNonNegativeInteger(value: unknown): number | null {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) {
+    return null
+  }
+  return Math.floor(value)
+}
+
+function readTokenUsage(metadata: Record<string, unknown>): number | null {
+  const totalTokens = toNonNegativeInteger(metadata.totalTokens ?? metadata.total_tokens)
+  if (totalTokens !== null) {
+    return totalTokens
+  }
+
+  const inputTokens = toNonNegativeInteger(metadata.inputTokens ?? metadata.input_tokens)
+  const outputTokens = toNonNegativeInteger(metadata.outputTokens ?? metadata.output_tokens)
+  if (inputTokens !== null || outputTokens !== null) {
+    return (inputTokens ?? 0) + (outputTokens ?? 0)
+  }
+
+  return null
+}
+
+function shouldReplaceMessage(
+  current: EffectiveMessageCandidate | undefined,
+  next: EffectiveMessageCandidate,
+  includePending: boolean
+): boolean {
+  if (!current) {
+    return true
+  }
+
+  const currentRank = tapeMessageRank(current.record, includePending)
+  const nextRank = tapeMessageRank(next.record, includePending)
+  if (nextRank > currentRank) {
+    return true
+  }
+  if (nextRank < currentRank) {
+    return false
+  }
+  return next.row.entry_id > current.row.entry_id
+}
+
+function isAuditEvent(row: DeepChatTapeEntryRow): boolean {
+  return (
+    row.name !== null &&
+    (DEFAULT_EXCLUDED_TAPE_EVENT_NAME_SET.has(row.name) || isContractTapeReservedName(row.name))
+  )
+}
+
+function shouldReplaceToolRow(
+  current: EffectiveToolCandidate | undefined,
+  next: EffectiveToolCandidate
+): boolean {
+  if (!current) {
+    return true
+  }
+  if (next.rank !== current.rank) {
+    return next.rank > current.rank
+  }
+  return next.row.entry_id > current.row.entry_id
+}
+
+function matchesKinds(
+  row: DeepChatTapeEntryRow,
+  kinds: DeepChatTapeEntryKind[] | undefined
+): boolean {
+  return !kinds?.length || kinds.includes(row.kind)
+}
+
+function matchesCreatedAt(row: DeepChatTapeEntryRow, options: DeepChatTapeSearchInput): boolean {
+  if (
+    Number.isFinite(options.startCreatedAt) &&
+    row.created_at < (options.startCreatedAt as number)
+  ) {
+    return false
+  }
+  if (Number.isFinite(options.endCreatedAt) && row.created_at > (options.endCreatedAt as number)) {
+    return false
+  }
+  return true
+}
+
+function matchesQuery(row: DeepChatTapeEntryRow, normalizedQuery: string): boolean {
+  const haystack = `${row.payload_json}\n${row.meta_json}\n${row.name ?? ''}`.toLowerCase()
+  return haystack.includes(normalizedQuery)
+}
+
+export function buildEffectiveTapeView(
+  rows: DeepChatTapeEntryRow[],
+  options: EffectiveTapeViewOptions = {}
+): EffectiveTapeView {
+  const includePending = options.includePending === true
+  const includeAuditEvents = options.includeAuditEvents === true
+  const messageCandidates = new Map<string, EffectiveMessageCandidate>()
+  const retractedMessageIds = new Set<string>()
+  const toolCandidates = new Map<string, EffectiveToolCandidate>()
+  const anchorRows: DeepChatTapeEntryRow[] = []
+  const eventRows: DeepChatTapeEntryRow[] = []
+
+  for (const row of [...rows].sort((left, right) => left.entry_id - right.entry_id)) {
+    // Context facts are behavioral evidence, never transcript/effective/search content.
+    if (row.kind === 'context') {
+      continue
+    }
+    if (row.kind === 'anchor') {
+      anchorRows.push(row)
+      continue
+    }
+
+    if (row.kind === 'event') {
+      const retractedMessageId = readTapeMessageRetractionId(row)
+      if (retractedMessageId) {
+        messageCandidates.delete(retractedMessageId)
+        retractedMessageIds.add(retractedMessageId)
+      }
+      if (includeAuditEvents || !isAuditEvent(row)) {
+        eventRows.push(row)
+      }
+      continue
+    }
+
+    if (row.kind === 'message') {
+      const record = tapeEntryToMessageRecord(row)
+      if (!record) {
+        continue
+      }
+      const rank = tapeMessageRank(record, includePending)
+      if (rank === 0) {
+        continue
+      }
+      const candidate = { row, record }
+      if (shouldReplaceMessage(messageCandidates.get(record.id), candidate, includePending)) {
+        messageCandidates.set(record.id, candidate)
+        retractedMessageIds.delete(record.id)
+      }
+      continue
+    }
+
+    const payload = parseTapeJsonObject(row.payload_json)
+    const identity = readTapeToolIdentityFromPayload(row.kind, payload)
+    if (!identity) {
+      continue
+    }
+    const rank = tapeToolRankFromStatus(readTapeToolStatus(row), includePending)
+    if (rank === 0) {
+      continue
+    }
+    const candidate = { row, messageId: identity.messageId, rank, storedOrderSeq: payload.orderSeq }
+    if (shouldReplaceToolRow(toolCandidates.get(identity.key), candidate)) {
+      toolCandidates.set(identity.key, candidate)
+    }
+  }
+
+  const messageRows = [...messageCandidates.values()]
+    .filter((candidate) => !retractedMessageIds.has(candidate.record.id))
+    .sort(
+      (left, right) =>
+        left.record.orderSeq - right.record.orderSeq ||
+        compareSqliteBinaryText(left.record.id, right.record.id)
+    )
+  const effectiveMessageOrderSeqById = new Map(
+    messageRows.map((candidate) => [candidate.record.id, candidate.record.orderSeq])
+  )
+  // Tool rows only survive when their message did; the stored orderSeq matches unless a
+  // compaction shift moved the message, so the re-serialising projection is the rare path.
+  const effectiveToolRows: DeepChatTapeEntryRow[] = []
+  for (const candidate of toolCandidates.values()) {
+    const effectiveOrderSeq = effectiveMessageOrderSeqById.get(candidate.messageId)
+    if (effectiveOrderSeq === undefined) continue
+    effectiveToolRows.push(
+      candidate.storedOrderSeq === effectiveOrderSeq
+        ? candidate.row
+        : projectTapeToolOrderSeq(candidate.row, effectiveMessageOrderSeqById)
+    )
+  }
+  const effectiveRows = [
+    ...anchorRows,
+    ...eventRows,
+    ...messageRows.map((candidate) => candidate.row),
+    ...effectiveToolRows
+  ].sort((left, right) => left.entry_id - right.entry_id)
+
+  return {
+    rows: effectiveRows,
+    messageRecords: messageRows.map((candidate) => candidate.record),
+    messageEntries: messageRows.map((candidate) => ({
+      entryId: candidate.row.entry_id,
+      record: candidate.record
+    }))
+  }
+}
+
+export function searchEffectiveTapeRows(
+  rows: DeepChatTapeEntryRow[],
+  query: string,
+  options: DeepChatTapeSearchInput = {}
+): DeepChatTapeEntryRow[] {
+  const normalizedQuery = query.trim().toLowerCase()
+  if (!normalizedQuery) {
+    return []
+  }
+
+  const limit = Number.isFinite(options.limit) ? (options.limit as number) : 20
+  const cappedLimit = Math.min(Math.max(Math.floor(limit), 1), 100)
+  return buildEffectiveTapeView(rows, { includePending: false })
+    .rows.filter((row) => matchesKinds(row, options.kinds))
+    .filter((row) => matchesCreatedAt(row, options))
+    .filter((row) => matchesQuery(row, normalizedQuery))
+    .sort((left, right) => right.entry_id - left.entry_id)
+    .slice(0, cappedLimit)
+}
+
+function getLastTokenUsageFromEffectiveRows(effectiveRows: DeepChatTapeEntryRow[]): number | null {
+  for (let index = effectiveRows.length - 1; index >= 0; index -= 1) {
+    const record = tapeEntryToMessageRecord(effectiveRows[index])
+    if (!record || record.role !== 'assistant') {
+      continue
+    }
+    const usage = readTokenUsage(parseNestedTapeJsonObject(record.metadata))
+    if (usage !== null) {
+      return usage
+    }
+  }
+  return null
+}
+
+function getLastProviderAttemptCacheMetricsFromEffectiveRows(
+  effectiveRows: DeepChatTapeEntryRow[]
+): TapeProviderAttemptCacheMetrics | null {
+  for (let index = effectiveRows.length - 1; index >= 0; index -= 1) {
+    const attempt = parseTapeProviderAttemptEvent(effectiveRows[index])
+    if (attempt) {
+      return toTapeProviderAttemptCacheMetrics(attempt)
+    }
+  }
+  return null
+}
+
+export function getLastEffectiveTapeMetrics(rows: DeepChatTapeEntryRow[]): EffectiveTapeMetrics {
+  const effectiveRows = buildEffectiveTapeView(rows, { includePending: false }).rows
+  return {
+    lastTokenUsage: getLastTokenUsageFromEffectiveRows(effectiveRows),
+    lastProviderAttemptCacheMetrics:
+      getLastProviderAttemptCacheMetricsFromEffectiveRows(effectiveRows)
+  }
+}
+
+export function getLastEffectiveTokenUsage(rows: DeepChatTapeEntryRow[]): number | null {
+  const effectiveRows = buildEffectiveTapeView(rows, { includePending: false }).rows
+  return getLastTokenUsageFromEffectiveRows(effectiveRows)
+}
+
+export function getLastEffectiveProviderAttemptCacheMetrics(
+  rows: DeepChatTapeEntryRow[]
+): TapeProviderAttemptCacheMetrics | null {
+  const effectiveRows = buildEffectiveTapeView(rows, { includePending: false }).rows
+  return getLastProviderAttemptCacheMetricsFromEffectiveRows(effectiveRows)
+}

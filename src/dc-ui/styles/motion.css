@@ -1,0 +1,12 @@
+/* Shared motion overrides for Reka primitives consumed through dc-ui. */
+[data-slot='tooltip-content'] {
+  transform-origin: var(--reka-tooltip-content-transform-origin);
+}
+
+[data-slot='select-content'] {
+  transform-origin: var(--reka-select-content-transform-origin);
+}
+
+[data-slot='context-menu-content'] {
+  transform-origin: var(--reka-context-menu-content-transform-origin);
+}

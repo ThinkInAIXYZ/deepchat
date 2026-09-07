@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { defineComponent, ref } from 'vue'
+import { defineComponent, nextTick, ref } from 'vue'
 import type { PropType } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
 import type { UsageDashboardData } from '@shared/types/agent-interface'
@@ -125,7 +125,6 @@ function buildDashboard(overrides: Partial<UsageDashboardData> = {}): UsageDashb
       totalTokens: 1200,
       cachedInputTokens: 200,
       cacheHitRate: 0.25,
-      estimatedCostUsd: 0.0123,
       mostActiveDay: {
         date: '2026-03-09',
         messageCount: 2
@@ -138,7 +137,6 @@ function buildDashboard(overrides: Partial<UsageDashboardData> = {}): UsageDashb
       outputTokens: index % 4 === 0 ? 20 : 0,
       totalTokens: index % 4 === 0 ? 60 : 0,
       cachedInputTokens: index % 8 === 0 ? 10 : 0,
-      estimatedCostUsd: index % 4 === 0 ? 0.0006 : null,
       level: index % 4 === 0 ? 3 : 0
     })),
     providerBreakdown: [
@@ -149,8 +147,7 @@ function buildDashboard(overrides: Partial<UsageDashboardData> = {}): UsageDashb
         inputTokens: 800,
         outputTokens: 400,
         totalTokens: 1200,
-        cachedInputTokens: 200,
-        estimatedCostUsd: 0.0123
+        cachedInputTokens: 200
       }
     ],
     modelBreakdown: [
@@ -161,8 +158,18 @@ function buildDashboard(overrides: Partial<UsageDashboardData> = {}): UsageDashb
         inputTokens: 800,
         outputTokens: 400,
         totalTokens: 1200,
-        cachedInputTokens: 200,
-        estimatedCostUsd: 0.0123
+        cachedInputTokens: 200
+      }
+    ],
+    categoryBreakdown: [
+      {
+        id: 'chat',
+        eventCount: 2,
+        knownUsageCount: 2,
+        unknownUsageCount: 0,
+        inputTokens: 800,
+        outputTokens: 400,
+        totalTokens: 1200
       }
     ],
     rtk: {
@@ -195,6 +202,7 @@ async function setup(
   options: {
     getUsageDashboard?: ReturnType<typeof vi.fn>
     retryRtkHealthCheck?: ReturnType<typeof vi.fn>
+    hideNostalgia?: boolean
   } = {}
 ) {
   vi.resetModules()
@@ -230,6 +238,19 @@ async function setup(
         if (key === 'settings.dashboard.unavailable') return 'N/A'
         if (key === 'settings.dashboard.breakdown.messages') {
           return `${params?.count ?? 0} messages`
+        }
+        if (key === 'settings.dashboard.breakdown.chatEvents') {
+          return `${params?.count ?? 0} messages`
+        }
+        if (key === 'settings.dashboard.breakdown.compactionEvents') {
+          return `${params?.count ?? 0} model calls`
+        }
+        if (key === 'settings.dashboard.breakdown.unknownUsage') {
+          return `${params?.count ?? 0} usage unknown`
+        }
+        if (key === 'settings.dashboard.breakdown.category.chat') return 'Conversation'
+        if (key === 'settings.dashboard.breakdown.category.compaction') {
+          return 'Context compaction'
         }
         if (key === 'settings.dashboard.rtk.title') return 'RTK Savings'
         if (key === 'settings.dashboard.rtk.description') {
@@ -273,12 +294,6 @@ async function setup(
         }
         if (key === 'settings.dashboard.summary.tokenUsage') {
           return 'Token usage'
-        }
-        if (key === 'settings.dashboard.summary.estimatedCostTrendLabel') {
-          return 'Trend over the last 30 days'
-        }
-        if (key === 'settings.dashboard.summary.estimatedCostTrendEmpty') {
-          return 'No cost recorded in the last 30 days.'
         }
         if (key === 'settings.dashboard.summary.nostalgiaLabel') {
           return 'Echoes'
@@ -329,10 +344,13 @@ async function setup(
   ).default
 
   const wrapper = mount(DashboardSettings, {
+    props: {
+      hideNostalgia: options.hideNostalgia
+    },
     global: {
       stubs: {
         ScrollArea: passthrough('ScrollArea'),
-        Button: buttonStub,
+        DcButton: buttonStub,
         Badge: passthrough('Badge'),
         Card: passthrough('Card'),
         CardContent: passthrough('CardContent'),
@@ -353,11 +371,16 @@ async function setup(
   }
 }
 
+let mockedDocumentVisibility: DocumentVisibilityState
+
 describe('DashboardSettings', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     vi.useFakeTimers()
     vi.setSystemTime(new Date(2026, 2, 17, 12, 0, 0))
+    mockedDocumentVisibility = 'visible'
+    vi.spyOn(document, 'hasFocus').mockReturnValue(true)
+    vi.spyOn(document, 'visibilityState', 'get').mockImplementation(() => mockedDocumentVisibility)
   })
 
   afterEach(() => {
@@ -375,14 +398,14 @@ describe('DashboardSettings', () => {
           totalTokens: 0,
           cachedInputTokens: 0,
           cacheHitRate: 0,
-          estimatedCostUsd: null,
           mostActiveDay: {
             date: null,
             messageCount: 0
           }
         },
         providerBreakdown: [],
-        modelBreakdown: []
+        modelBreakdown: [],
+        categoryBreakdown: []
       })
     )
 
@@ -403,6 +426,116 @@ describe('DashboardSettings', () => {
     )
 
     expect(wrapper.find('[data-testid="dashboard-backfill-banner"]').exists()).toBe(true)
+  })
+
+  it('polls every three seconds while backfill is running', async () => {
+    const { getUsageDashboard } = await setup(
+      buildDashboard({
+        backfillStatus: {
+          status: 'running',
+          startedAt: new Date(2026, 2, 1, 12, 0, 0).getTime(),
+          finishedAt: null,
+          error: null,
+          updatedAt: new Date(2026, 2, 1, 12, 0, 5).getTime()
+        }
+      })
+    )
+
+    await vi.advanceTimersByTimeAsync(2_999)
+    expect(getUsageDashboard).toHaveBeenCalledTimes(1)
+
+    await vi.advanceTimersByTimeAsync(1)
+    expect(getUsageDashboard).toHaveBeenCalledTimes(2)
+  })
+
+  it('polls every sixty seconds after backfill completes', async () => {
+    const { getUsageDashboard } = await setup(buildDashboard())
+
+    await vi.advanceTimersByTimeAsync(59_999)
+    expect(getUsageDashboard).toHaveBeenCalledTimes(1)
+
+    await vi.advanceTimersByTimeAsync(1)
+    expect(getUsageDashboard).toHaveBeenCalledTimes(2)
+  })
+
+  it('pauses while hidden and refreshes immediately when stale and visible again', async () => {
+    const { getUsageDashboard } = await setup(buildDashboard())
+
+    mockedDocumentVisibility = 'hidden'
+    document.dispatchEvent(new Event('visibilitychange'))
+    await vi.advanceTimersByTimeAsync(120_000)
+    expect(getUsageDashboard).toHaveBeenCalledTimes(1)
+
+    mockedDocumentVisibility = 'visible'
+    document.dispatchEvent(new Event('visibilitychange'))
+    await flushPromises()
+    expect(getUsageDashboard).toHaveBeenCalledTimes(2)
+  })
+
+  it('pauses while unfocused and preserves the remaining delay after an early focus', async () => {
+    const { getUsageDashboard } = await setup(buildDashboard())
+
+    window.dispatchEvent(new Event('blur'))
+    await vi.advanceTimersByTimeAsync(30_000)
+    expect(getUsageDashboard).toHaveBeenCalledTimes(1)
+
+    window.dispatchEvent(new Event('focus'))
+    await flushPromises()
+    expect(getUsageDashboard).toHaveBeenCalledTimes(1)
+
+    await vi.advanceTimersByTimeAsync(29_999)
+    expect(getUsageDashboard).toHaveBeenCalledTimes(1)
+
+    await vi.advanceTimersByTimeAsync(1)
+    expect(getUsageDashboard).toHaveBeenCalledTimes(2)
+  })
+
+  it('deduplicates manual refreshes while a dashboard request is in flight', async () => {
+    let resolveDashboard: ((value: UsageDashboardData) => void) | null = null
+    const getUsageDashboard = vi.fn().mockImplementation(
+      () =>
+        new Promise<UsageDashboardData>((resolve) => {
+          resolveDashboard = resolve
+        })
+    )
+    const { wrapper } = await setup(buildDashboard(), { getUsageDashboard })
+
+    await wrapper.get('[data-testid="dashboard-header"] button').trigger('click')
+    await wrapper.get('[data-testid="dashboard-header"] button').trigger('click')
+    expect(getUsageDashboard).toHaveBeenCalledTimes(1)
+
+    resolveDashboard?.(buildDashboard())
+    await flushPromises()
+    expect(getUsageDashboard).toHaveBeenCalledTimes(1)
+  })
+
+  it('reuses a bounded set of Intl formatters for a full calendar render', async () => {
+    const numberFormat = vi.spyOn(Intl, 'NumberFormat')
+    const dateTimeFormat = vi.spyOn(Intl, 'DateTimeFormat')
+    const firstDay = new Date(2025, 0, 1)
+    const calendar = Array.from({ length: 365 }, (_, index) => {
+      const date = new Date(firstDay)
+      date.setDate(firstDay.getDate() + index)
+      return {
+        date: date.toISOString().slice(0, 10),
+        messageCount: 1,
+        inputTokens: 40,
+        outputTokens: 20,
+        totalTokens: 60,
+        cachedInputTokens: 10,
+        level: 3 as const
+      }
+    })
+
+    const { wrapper } = await setup(buildDashboard({ calendar }), { hideNostalgia: true })
+
+    expect(numberFormat).toHaveBeenCalledTimes(4)
+    expect(dateTimeFormat).toHaveBeenCalledTimes(3)
+
+    wrapper.vm.$forceUpdate()
+    await nextTick()
+    expect(numberFormat).toHaveBeenCalledTimes(4)
+    expect(dateTimeFormat).toHaveBeenCalledTimes(3)
   })
 
   it('renders summary cards and breakdown rows when stats exist', async () => {
@@ -434,25 +567,21 @@ describe('DashboardSettings', () => {
     expect(header.classes()).toContain('sm:flex-row')
     expect(wrapper.find('[data-testid="summary-card-tokenUsage"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="summary-card-nostalgia"]').exists()).toBe(true)
-    expect(wrapper.find('[data-testid="token-usage-trend-chart"]').exists()).toBe(true)
-    expect(wrapper.findComponent({ name: 'ChartTooltip' }).exists()).toBe(true)
-    expect(wrapper.findComponent({ name: 'ChartCrosshair' }).exists()).toBe(true)
+    expect(wrapper.find('[data-testid="token-usage-trend-chart"]').exists()).toBe(false)
     expect(wrapper.find('[data-testid="token-usage-input-dot"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="token-usage-input-dot"]').attributes('style')).toContain(
       'var(--primary-600)'
     )
     expect(wrapper.find('[data-testid="token-usage-output-dot"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="token-usage-cached-dot"]').exists()).toBe(true)
-    expect(wrapper.find('[data-testid="token-usage-cost-dot"]').exists()).toBe(true)
-    expect(wrapper.findAllComponents({ name: 'VisArea' })).toHaveLength(4)
+    expect(wrapper.find('[data-testid="token-usage-cost-dot"]').exists()).toBe(false)
     expect(wrapper.find('[data-testid="token-usage-total-row"]').exists()).toBe(true)
-    expect(wrapper.find('[data-testid="token-usage-cost-row"]').text()).toContain(
-      'Trend over the last 30 days'
-    )
+    expect(wrapper.find('[data-testid="token-usage-cost-row"]').exists()).toBe(false)
     expect(wrapper.find('[data-testid="token-usage-list"]').text()).not.toContain('Uncached')
     expect(wrapper.find('[data-testid="cached-tokens-bar"]').exists()).toBe(false)
     expect(wrapper.find('[data-testid="provider-breakdown-chart"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="model-breakdown-chart"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="category-breakdown-chart"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="provider-breakdown-scroll"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="model-breakdown-scroll"]').exists()).toBe(true)
     expect(wrapper.find('[title="1,200"]').exists()).toBe(true)
@@ -463,10 +592,10 @@ describe('DashboardSettings', () => {
     expect(wrapper.find('[data-testid="summary-card-nostalgia"]').html()).toContain(
       'whitespace-normal'
     )
-    expect(wrapper.find('[data-testid="summary-card-nostalgia"]').html()).toContain('md:col-span-2')
-    expect(wrapper.find('[data-testid="summary-card-nostalgia"]').html()).toContain(
-      'lg:grid-cols-[minmax(0,13rem)_minmax(0,1fr)]'
-    )
+    expect(wrapper.find('[data-testid="usage-summary-panel"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="usage-summary-panel"]').classes()).toContain('bg-card')
+    expect(wrapper.find('[data-testid="usage-summary-panel"]').classes()).not.toContain('bg-accent')
+    expect(wrapper.find('[data-testid="summary-card-tokenUsage"]').html()).toContain('lg:border-l')
     expect(wrapper.find('[data-testid="nostalgia-details"]').html()).toContain('space-y-2')
     expect(wrapper.find('[data-testid="nostalgia-rotating-value"]').text()).toBe('17 days')
 
@@ -475,6 +604,84 @@ describe('DashboardSettings', () => {
 
     await vi.advanceTimersByTimeAsync(4000)
     expect(wrapper.find('[data-testid="nostalgia-rotating-value"]').text()).toBe('2 messages')
+  })
+
+  it('shows unknown compaction calls even when no chat usage has been recorded', async () => {
+    const { wrapper } = await setup(
+      buildDashboard({
+        summary: {
+          messageCount: 0,
+          sessionCount: 1,
+          inputTokens: 0,
+          outputTokens: 0,
+          totalTokens: 0,
+          cachedInputTokens: 0,
+          cacheHitRate: 0,
+          mostActiveDay: { date: null, messageCount: 0 }
+        },
+        providerBreakdown: [],
+        modelBreakdown: [],
+        categoryBreakdown: [
+          {
+            id: 'compaction',
+            eventCount: 1,
+            knownUsageCount: 0,
+            unknownUsageCount: 1,
+            inputTokens: 0,
+            outputTokens: 0,
+            totalTokens: 0
+          }
+        ]
+      })
+    )
+
+    expect(wrapper.find('[data-testid="dashboard-empty"]').exists()).toBe(false)
+    expect(wrapper.get('[data-testid="category-breakdown-chart"]').text()).toContain(
+      'Context compaction'
+    )
+    expect(wrapper.get('[data-testid="category-breakdown-chart"]').text()).toContain(
+      '1 usage unknown'
+    )
+    expect(wrapper.get('[data-testid="category-breakdown-chart"]').text()).toContain('N/A')
+  })
+
+  it('keeps compaction input with unknown cache detail out of the displayed cache rate', async () => {
+    const { wrapper } = await setup(
+      buildDashboard({
+        summary: {
+          messageCount: 1,
+          sessionCount: 1,
+          inputTokens: 300,
+          outputTokens: 30,
+          totalTokens: 330,
+          cachedInputTokens: 50,
+          cacheHitRate: 0.5,
+          mostActiveDay: { date: '2026-03-03', messageCount: 1 }
+        },
+        categoryBreakdown: [
+          {
+            id: 'chat',
+            eventCount: 1,
+            knownUsageCount: 1,
+            unknownUsageCount: 0,
+            inputTokens: 100,
+            outputTokens: 20,
+            totalTokens: 120
+          },
+          {
+            id: 'compaction',
+            eventCount: 1,
+            knownUsageCount: 1,
+            unknownUsageCount: 0,
+            inputTokens: 200,
+            outputTokens: 10,
+            totalTokens: 210
+          }
+        ]
+      })
+    )
+
+    expect(wrapper.get('[data-testid="cached-tokens-cached-ratio"]').text()).toBe('50%')
   })
 
   it('renders RTK savings summary when RTK is healthy', async () => {
@@ -511,7 +718,7 @@ describe('DashboardSettings', () => {
     expect(getUsageDashboard).toHaveBeenCalledTimes(2)
   })
 
-  it('renders token usage tooltip content with raw values for all series', async () => {
+  it('renders calendar tooltip content with raw values for all series on hover', async () => {
     const { wrapper } = await setup(
       buildDashboard({
         calendar: [
@@ -522,7 +729,6 @@ describe('DashboardSettings', () => {
             outputTokens: 20,
             totalTokens: 70,
             cachedInputTokens: 10,
-            estimatedCostUsd: 0.0012,
             level: 1
           },
           {
@@ -532,56 +738,22 @@ describe('DashboardSettings', () => {
             outputTokens: 5,
             totalTokens: 30,
             cachedInputTokens: 4,
-            estimatedCostUsd: 0.0007,
             level: 1
           }
         ]
       })
     )
 
-    const crosshair = wrapper.getComponent({ name: 'ChartCrosshair' })
-    const template = crosshair.props('template') as (
-      datum: {
-        index: number
-        date: string
-        inputTokens: number
-        outputTokens: number
-        cachedTokens: number
-        cost: number
-        inputValue: number
-        outputValue: number
-        cachedValue: number
-        costValue: number
-      },
-      x: number | Date,
-      data: unknown[],
-      leftNearestDatumIndex?: number
-    ) => HTMLElement | undefined
+    const cells = wrapper.findAll('[data-testid="calendar-cell"].opacity-100')
+    await cells[cells.length - 1].trigger('mouseenter', { clientX: 40, clientY: 40 })
 
-    const tooltip = template(
-      {
-        index: 1,
-        date: '2026-03-02',
-        inputTokens: 25,
-        outputTokens: 5,
-        cachedTokens: 4,
-        cost: 0.0007,
-        inputValue: 50,
-        outputValue: 25,
-        cachedValue: 40,
-        costValue: 58.3
-      },
-      1,
-      [],
-      1
-    )
-
-    expect(tooltip).toBeInstanceOf(HTMLElement)
+    const tooltip = document.body.querySelector('[data-testid="calendar-tooltip"]')
+    expect(tooltip).not.toBeNull()
     expect(tooltip?.textContent).toContain('Mar 2, 2026')
     expect(tooltip?.textContent).toContain('input:25')
     expect(tooltip?.textContent).toContain('output:5')
     expect(tooltip?.textContent).toContain('cached:4')
-    expect(tooltip?.textContent).toContain('cost:$0.0007')
+    expect(tooltip?.textContent).not.toContain('$0.0007')
     expect(tooltip?.textContent).not.toContain('input:50')
   })
 
@@ -596,7 +768,6 @@ describe('DashboardSettings', () => {
           totalTokens: 0,
           cachedInputTokens: 0,
           cacheHitRate: 0,
-          estimatedCostUsd: null,
           mostActiveDay: {
             date: null,
             messageCount: 0
@@ -606,7 +777,6 @@ describe('DashboardSettings', () => {
     )
 
     expect(wrapper.find('[data-testid="summary-card-tokenUsage"]').text()).toContain('0')
-    expect(wrapper.find('[data-testid="token-usage-trend-chart"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="total-tokens-input-ratio"]').text()).toBe('0%')
     expect(wrapper.find('[data-testid="total-tokens-output-ratio"]').text()).toBe('0%')
     expect(wrapper.find('[data-testid="cached-tokens-cached-ratio"]').text()).toBe('0%')
@@ -623,7 +793,6 @@ describe('DashboardSettings', () => {
           totalTokens: 400,
           cachedInputTokens: 0,
           cacheHitRate: 0,
-          estimatedCostUsd: 0.0123,
           mostActiveDay: {
             date: '2026-03-10',
             messageCount: 1
@@ -637,7 +806,7 @@ describe('DashboardSettings', () => {
     expect(wrapper.find('[data-testid="cached-tokens-uncached-ratio"]').exists()).toBe(false)
   })
 
-  it('keeps the merged token usage chart when the last 30 days have no cost data', async () => {
+  it('keeps the token usage summary when the last 30 days have no cost data', async () => {
     const { wrapper } = await setup(
       buildDashboard({
         calendar: Array.from({ length: 28 }, (_, index) => ({
@@ -647,16 +816,13 @@ describe('DashboardSettings', () => {
           outputTokens: 0,
           totalTokens: 0,
           cachedInputTokens: 0,
-          estimatedCostUsd: null,
           level: 0 as const
         }))
       })
     )
 
-    expect(wrapper.find('[data-testid="token-usage-trend-chart"]').exists()).toBe(true)
-    expect(wrapper.find('[data-testid="token-usage-cost-row"]').text()).toContain(
-      'Trend over the last 30 days'
-    )
+    expect(wrapper.find('[data-testid="token-usage-trend-chart"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="token-usage-cost-row"]').exists()).toBe(false)
   })
 
   it('renders N/A for days together when the first usage record is unavailable', async () => {
@@ -685,7 +851,6 @@ describe('DashboardSettings', () => {
           totalTokens: 1200,
           cachedInputTokens: 200,
           cacheHitRate: 0.25,
-          estimatedCostUsd: 0.0123,
           mostActiveDay: {
             date: null,
             messageCount: 0

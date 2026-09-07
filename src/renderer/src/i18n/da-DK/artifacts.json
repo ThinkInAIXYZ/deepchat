@@ -6,6 +6,7 @@
   "code": "kode",
   "codeSnippet": "kodeudsnit",
   "copy": "kopiér",
+  "generating": "Genererer artifact...",
   "copyAsImage": "Kopier som billede",
   "copyFailed": "Kopiering mislykkedes",
   "copyFailedDesc": "Kan ikke kopiere indhold til udklipsholderen",

@@ -1,6 +1,6 @@
 ---
 name: deepchat-sdd
-description: Use before substantial DeepChat code, configuration, documentation, test, build, feature, issue, refactor, or architecture changes that need a durable spec. Skip trivial style fixes, small localized logic changes, routine docs edits, and simple bugs unless the developer asks for SDD. Classify substantial work into feature SDD, complex-bug issue spec, or architecture SDD; ask before optional GitHub issue sync unless the developer explicitly requested sync.
+description: Use before substantial DeepChat code, configuration, documentation, test, build, feature, issue, refactor, or architecture changes that need a durable RFC and an explicit execution path. Skip trivial style fixes, small localized logic changes, routine docs edits, and simple bugs unless the developer asks for SDD. Use plan.md as the only separate tracker when needed, default to implementation-first validation, and ask before optional GitHub issue sync unless the developer explicitly requested sync.
 ---
 
 # DeepChat SDD
@@ -43,19 +43,36 @@ cross-module redesign, classify the work as feature or architecture instead.
 
 ## Required Artifacts
 
-Feature and architecture goals use the full SDD set:
+Feature and architecture goals use two artifacts:
 
-- `spec.md`: user need, goal, acceptance criteria, constraints, non-goals, open questions
-- `plan.md`: implementation approach, affected interfaces, data flow, compatibility, test strategy
-- `tasks.md`: ordered tasks that can map to commits or review slices
+- `spec.md`: the normative RFC covering context, goals, non-goals, design, ownership, interfaces,
+  data flow, invariants, compatibility, acceptance criteria, and open questions
+- `plan.md`: ordered implementation steps and live completion state, followed by whole-change
+  review, validation selection, cleanup, and quality gates
 
-Complex bug goals use one file only:
+Do not create `tasks.md`. The plan is the only execution tracker.
 
-- `spec.md`: issue description, impact, root cause or suspected location, fix plan, task checklist,
-  validation, and linked GitHub issue if one exists
+Complex bug goals normally use one file:
+
+- `spec.md`: issue description, impact, root cause or suspected location, fix design, concise
+  implementation checklist, validation outcome, and linked GitHub issue if one exists
+
+Add `plan.md` only when a complex bug has multiple independently trackable implementation slices.
+Never add `tasks.md`.
 
 Resolve every `[NEEDS CLARIFICATION]` marker before implementation. If the requested change is tiny,
 prefer skipping SDD over creating a token artifact.
+
+## Artifact Boundaries
+
+Write `spec.md` as an RFC. It must explain enough implementation direction to constrain local code
+decisions without becoming a file-by-file task list. Acceptance criteria describe observable
+outcomes or independently verifiable contracts, not a test inventory.
+
+Use `plan.md` as both plan and task tracker. Organize it into ordered checkbox sections whose steps
+are coherent, reviewable implementation slices. Include the objective, ownership boundary,
+essential guidance, dependencies when any, and completion condition. Reference the spec instead of
+repeating its design.
 
 ## GitHub Issue Sync
 
@@ -91,25 +108,59 @@ automatically after merge.
 1. Inspect the current code and docs first.
 2. Decide whether the work is substantial enough for SDD; skip artifacts for trivial/local changes.
 3. Pick the target folder from the classification rules when SDD is needed.
-4. Create or update the required artifact set for that classification.
-5. Keep the implementation aligned with existing DeepChat patterns:
+4. Write or update the RFC and resolve every question that could change the implementation.
+5. For feature, architecture, or multi-slice bug work, write one ordered implementation plan
+   without a separate task list or upfront test matrix.
+6. Keep the implementation aligned with existing DeepChat patterns:
    - main process Presenter boundaries
    - typed `shared/contracts/*`
    - renderer `api/*Client`
    - Vue 3 Composition API and i18n for UI strings
-6. For architecture work that changes or replaces a historical feature, update that feature's
+7. For architecture work that changes or replaces a historical feature, update that feature's
    retained `spec.md` if it is still a maintained contract.
-7. Implement the change after the SDD artifacts are complete.
-8. Update `tasks.md` or the issue spec checklist as work lands.
-9. Ask whether to sync an eligible GitHub issue only after the docs or implementation clarify the
+8. Complete the planned implementation before deciding whether to author new test code. Existing
+   checks may run at any time.
+9. Review the whole change against the spec for hidden side effects, compatibility, failure
+   behavior, performance, security, naming, and maintenance cost.
+10. Select the smallest useful validation, remove temporary verification, and add durable tests
+    only for qualifying behavior or contracts.
+11. Update `plan.md` or the complex-bug spec checklist as coherent implementation slices land.
+12. Ask whether to sync an eligible GitHub issue only after the docs or implementation clarify the
    scope, unless the developer already requested issue sync.
-10. Run `pnpm run format`, `pnpm run i18n`, and `pnpm run lint` before handoff when app code,
-    tests, i18n, or project docs changed.
+13. Run `pnpm run format`, `pnpm run i18n`, `pnpm run lint`, and `pnpm run typecheck` before handoff
+    when app code, tests, i18n, or project docs changed.
+
+## Implementation-First Validation
+
+Implementation-first means finishing the planned implementation before deciding whether to author
+new tests. It does not prohibit running existing tests, type checking, linting, builds, or manual
+checks during development.
+
+New test code before implementation is exceptional. Use it only when the developer requests TDD, a
+minimal executable reproduction is required to understand a complex failure, or migration,
+concurrency, recovery, or protocol compatibility needs characterization of current behavior. Record
+the reason in one sentence in `plan.md` or the complex-bug spec.
+
+After implementation, choose among:
+
+- existing tests and static or build checks;
+- temporary probes, scripts, or tests that must be removed before handoff; and
+- the smallest durable regression tests for user-visible behavior, documented cross-module
+  contracts, persistence or migration, lifecycle or concurrency, recovery, security boundaries, or
+  proven regressions.
+
+Do not retain tests that mirror private control flow, assert incidental call order, duplicate the
+implementation through mocks, or exist only to increase coverage. Prefer no new test to a
+low-value implementation-coupled test.
 
 ## Documentation Hygiene
 
 - Do not perform broad SDD cleanup during ordinary feature, bug, or architecture work.
 - Use the separate `deepchat-sdd-cleanup` skill only when the developer explicitly asks to clean or
   organize SDD documentation.
+- Treat existing `tasks.md` files as legacy and migrate them only when that goal is actively
+  updated. Merge remaining work into an existing `plan.md`; without one, keep a single-slice complex
+  bug checklist in `spec.md` and create `plan.md` for feature, architecture, or multi-slice bug work.
+  Do not perform a repository-wide migration during unrelated work.
 - During the current goal, update directly affected historical specs when they remain active
   contracts.

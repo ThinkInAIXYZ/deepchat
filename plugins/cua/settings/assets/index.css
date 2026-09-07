@@ -144,6 +144,13 @@ h1 {
   border-bottom: 1px solid #e2e8f0;
 }
 
+.runtime-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
 .section-title {
   color: #111827;
   font-size: 14px;
@@ -270,6 +277,15 @@ button:hover {
   border-color: #2563eb;
 }
 
+button[hidden] {
+  display: none;
+}
+
+button:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}
+
 button.danger:hover {
   border-color: #dc2626;
   color: #991b1b;
@@ -304,6 +320,14 @@ a:hover {
   .footer {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .runtime-actions {
+    justify-content: stretch;
+  }
+
+  .runtime-actions button {
+    flex: 1 1 auto;
   }
 }
 

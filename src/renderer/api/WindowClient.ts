@@ -1,8 +1,6 @@
 import type { DeepchatBridge } from '@shared/contracts/bridge'
 import {
   type DeepchatEventPayload,
-  databaseRepairSuggestedEvent,
-  notificationErrorEvent,
   settingsCheckForUpdatesRequestedEvent,
   settingsNavigateRequestedEvent,
   settingsProviderInstallRequestedEvent,
@@ -19,6 +17,7 @@ import {
   windowNotifySettingsReadyRoute,
   windowPreviewFileRoute,
   windowRequeuePendingSettingsProviderInstallRoute,
+  windowResumeGuidedOnboardingRoute,
   windowStartGuidedOnboardingRoute,
   windowToggleMaximizeCurrentRoute
 } from '@shared/contracts/routes'
@@ -83,6 +82,10 @@ export function createWindowClient(bridge: DeepchatBridge = getDeepchatBridge())
 
   async function startGuidedOnboarding() {
     return await bridge.invoke(windowStartGuidedOnboardingRoute.name, {})
+  }
+
+  async function resumeGuidedOnboarding() {
+    return await bridge.invoke(windowResumeGuidedOnboardingRoute.name, {})
   }
 
   function onStateChanged(
@@ -160,18 +163,6 @@ export function createWindowClient(bridge: DeepchatBridge = getDeepchatBridge())
     return bridge.on(settingsCheckForUpdatesRequestedEvent.name, listener)
   }
 
-  function onNotificationError(
-    listener: (payload: DeepchatEventPayload<typeof notificationErrorEvent.name>) => void
-  ) {
-    return bridge.on(notificationErrorEvent.name, listener)
-  }
-
-  function onDatabaseRepairSuggested(
-    listener: (payload: DeepchatEventPayload<typeof databaseRepairSuggestedEvent.name>) => void
-  ) {
-    return bridge.on(databaseRepairSuggestedEvent.name, listener)
-  }
-
   return {
     getCurrentState,
     minimizeCurrent,
@@ -185,13 +176,12 @@ export function createWindowClient(bridge: DeepchatBridge = getDeepchatBridge())
     consumePendingSettingsProviderInstall,
     requeuePendingSettingsProviderInstall,
     startGuidedOnboarding,
+    resumeGuidedOnboarding,
     onStateChanged,
     onCurrentStateChanged,
     onSettingsNavigate,
     onSettingsProviderInstall,
-    onSettingsCheckForUpdates,
-    onNotificationError,
-    onDatabaseRepairSuggested
+    onSettingsCheckForUpdates
   }
 }
 

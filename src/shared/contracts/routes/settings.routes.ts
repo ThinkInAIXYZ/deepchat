@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { AgentCommandShellConfigSchema, GitBashAvailabilitySchema } from '../../commandShell'
 import { TimestampMsSchema, defineRouteContract } from '../common'
 
 export const SETTINGS_KEYS = [
@@ -16,7 +17,9 @@ export const SETTINGS_KEYS = [
   'launchAtLoginEnabled',
   'traceDebugEnabled',
   'copyWithCotEnabled',
-  'loggingEnabled'
+  'loggingEnabled',
+  'ocrAutoExtractForNonVisionModels',
+  'ocrBackend'
 ] as const
 
 export const SettingsKeySchema = z.enum(SETTINGS_KEYS)
@@ -36,7 +39,9 @@ export const SettingsSnapshotValuesSchema = z.object({
   launchAtLoginEnabled: z.boolean(),
   traceDebugEnabled: z.boolean(),
   copyWithCotEnabled: z.boolean(),
-  loggingEnabled: z.boolean()
+  loggingEnabled: z.boolean(),
+  ocrAutoExtractForNonVisionModels: z.boolean(),
+  ocrBackend: z.enum(['auto', 'cpu'])
 })
 
 export const SettingsChangeSchema = z.discriminatedUnion('key', [
@@ -99,6 +104,14 @@ export const SettingsChangeSchema = z.discriminatedUnion('key', [
   z.object({
     key: z.literal('loggingEnabled'),
     value: z.boolean()
+  }),
+  z.object({
+    key: z.literal('ocrAutoExtractForNonVisionModels'),
+    value: z.boolean()
+  }),
+  z.object({
+    key: z.literal('ocrBackend'),
+    value: z.enum(['auto', 'cpu'])
   })
 ])
 
@@ -123,6 +136,36 @@ export const settingsListSystemFontsRoute = defineRouteContract({
   })
 })
 
+export const settingsGetCommandShellRoute = defineRouteContract({
+  name: 'settings.commandShell.get',
+  input: z.object({}).default({}),
+  output: z.object({
+    config: AgentCommandShellConfigSchema
+  })
+})
+
+export const settingsUpdateCommandShellRoute = defineRouteContract({
+  name: 'settings.commandShell.update',
+  input: z.object({
+    config: AgentCommandShellConfigSchema
+  }),
+  output: z.object({
+    config: AgentCommandShellConfigSchema
+  })
+})
+
+export const settingsCheckCommandShellRoute = defineRouteContract({
+  name: 'settings.commandShell.check',
+  input: z
+    .object({
+      forceRefresh: z.boolean().optional()
+    })
+    .default({}),
+  output: z.object({
+    gitBash: GitBashAvailabilitySchema
+  })
+})
+
 export const settingsUpdateRoute = defineRouteContract({
   name: 'settings.update',
   input: z.object({
@@ -133,6 +176,22 @@ export const settingsUpdateRoute = defineRouteContract({
     changedKeys: z.array(SettingsKeySchema).min(1),
     values: SettingsSnapshotValuesSchema.partial()
   })
+})
+
+export const settingsGetPublicRoute = defineRouteContract({
+  name: 'settings.getPublic',
+  input: settingsGetSnapshotRoute.input,
+  output: settingsGetSnapshotRoute.output
+})
+
+export const settingsUpdatePublicRoute = defineRouteContract({
+  name: 'settings.updatePublic',
+  input: z
+    .object({
+      changes: z.array(SettingsChangeSchema).length(1)
+    })
+    .strict(),
+  output: settingsUpdateRoute.output
 })
 
 export const SettingsActivityCategorySchema = z.enum([

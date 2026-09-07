@@ -8,16 +8,14 @@ const migratedSettingsSurfaces = [
     pageTestId: 'settings-knowledge-base-page'
   },
   {
-    tabTestId: 'settings-tab-skills',
-    pageTestId: 'settings-skills-page'
-  },
-  {
     tabTestId: 'settings-tab-remote',
-    pageTestId: 'settings-remote-page'
+    pageTestId: 'settings-remote-page',
+    routeName: 'settings-remote'
   },
   {
     tabTestId: 'settings-tab-mcp',
-    pageTestId: 'settings-mcp-page'
+    pageTestId: 'settings-mcp-page',
+    routeName: 'settings-mcp'
   },
   {
     tabTestId: 'settings-tab-database',
@@ -68,7 +66,11 @@ test('settings IPC boundary rejects legacy presenter transport @smoke', async ({
   expect(boundary.legacyInvokeError).toContain('Unknown deepchat route: presenter:call')
 
   for (const surface of migratedSettingsSurfaces) {
-    await openSettingsTab(settingsPage, surface.tabTestId)
+    await openSettingsTab(
+      settingsPage,
+      surface.tabTestId,
+      'routeName' in surface ? surface.routeName : undefined
+    )
     await expect(settingsPage.getByTestId(surface.pageTestId)).toBeVisible({ timeout: 30_000 })
   }
 })

@@ -1,742 +1,160 @@
-# DeepChat Skills Management
+# DeepChat Skills Management Contract
 
-## Current-State Corrections
+Status: implemented. The normative architecture is
+[Shared Skills](../../architecture/shared-skills/spec.md).
 
-The source draft describes the right product direction, but several parts need to be corrected for
-the current codebase before implementation:
+## Product contract
 
-- This is not a greenfield skills system. `SkillPresenter` already owns local skill discovery,
-  install/uninstall, hot reload, built-in skill installation, legacy sidecar runtime config, and
-  session activation.
-- This is not a generic "all agents are sync targets" feature. V1 link/adopt operations are only
-  valid for user-level folder-format tools that use `<skillsDir>/<name>/SKILL.md`. Project-level
-  and single-file tools remain import/export conversion targets only.
-- Git install is not the same as current `installFromUrl`. The existing URL path downloads ZIP
-  files; Git install needs clone/scan/select/install provenance.
-- The settings UX should stay in the existing `settings-skills` route, but V1.1 must remove the
-  over-split five-tab surface. Library owns add/install-to-agent actions, Agents owns inspection and
-  adoption, and sync directory remains a separate local repository workflow.
-- A command-copy Discover tab is not useful enough to keep. Remove it and do not bundle
-  `find-skills` as a built-in skill.
+DeepChat exposes one application-level `Skills` set. A Skill package exists once; each DeepChat
+Agent can independently be enabled to use it, and each Session can independently activate an
+enabled Skill for a Run.
 
-## User Need
+The Plugins-hub Skills page defaults to every available Skill. A card contains only the Skill name
+and a two-line description; the whole card opens Preview. It never displays source,
+assigned/unassigned state, or Agent grouping.
 
-Users need DeepChat to act as the local control center for skills: see local DeepChat skills, disable
-them for DeepChat without deleting files, install new skills from the top add menu, install a
-specific DeepChat skill to a detected local agent from that skill row, inspect existing
-folder-format skills from installed agents, adopt those skills into DeepChat safely, and move skills
-in or out of a user-selected sync directory.
+Opening a Skill shows:
 
-## Goals
+- its rendered content and source path;
+- the DeepChat Agents currently enabled for it;
+- `Add Agent`, listing only eligible Agents not already enabled;
+- one remove action for every enabled Agent; and
+- shared edit/delete actions when package ownership permits them.
 
-- Keep DeepChat runtime skills canonical under the configured skills path, defaulting to
-  `~/.deepchat/skills`.
-- Store source provenance, DeepChat-only disabled state, runtime extension settings, sync directory
-  settings, and DeepChat-created agent links in the application database.
-- Keep the configured DeepChat skills path as a pure content directory: only skill folders and their
-  files belong under it.
-- Preserve the existing `SkillPresenter` runtime behavior while adding a Library catalog that can
-  show disabled skills.
-- Add an Agents tab that scans detected user-level folder-format tools and classifies each skill as
-  DeepChat-linked, agent-owned, external-link, broken-link, or conflict.
-- Adopt agent-owned folder-format skills by copying the skill into DeepChat, backing up the original
-  under `~/.deepchat/backups`, and replacing the agent path with a link to the DeepChat canonical
-  skill.
-- Link a selected DeepChat skill to a supported local agent from the Library row action by creating a
-  symlink or Windows junction.
-- Add Git repository installation for single-skill repos with root `SKILL.md` and multi-skill repos
-  with `skills/<name>/SKILL.md` through the top add menu.
-- Add manual import/export to a user-selected multi-skill sync directory.
-- Add a reusable skill detail dialog that clamps list/table descriptions and renders the selected
-  `SKILL.md` body as Markdown.
-- Remove the top-level Install and Discover tabs; remove the old external-tool import block from the
-  Library tab.
+Agent changes commit immediately. ACP and missing Agents never appear as targets.
 
-## Existing Capabilities To Preserve
+## Storage and ownership
 
-- `SkillPresenter` discovers `SKILL.md` files under the configured skills path.
-- `SkillPresenter` installs from folder, ZIP, and ZIP URL.
-- `SkillPresenter` installs built-in skills from `resources/skills`.
-- `SkillPresenter` currently stores per-skill runtime extension config under `.deepchat-meta`; the
-  target design migrates this state into the database and treats `.deepchat-meta` as legacy input.
-- `SkillPresenter` watches skill file changes and publishes `skills.catalog.changed`.
-- `SkillSyncPresenter` scans registered external tools, imports external skills into DeepChat, and
-  exports DeepChat skills to external tool formats.
-- Renderer-main communication uses typed route contracts and renderer API clients.
-- Skills settings currently live at `settings-skills` in `SkillsSettings.vue`.
+Mutable packages use one canonical directory:
 
-## Directory Layout
-
-DeepChat-managed skills use the configured skills path. When the user has not changed it, the path
-is:
-
-```txt
-~/.deepchat/
-  skills/
-    skill-a/
-      SKILL.md
-      assets/
-      references/
-      scripts/
-    skill-b/
-      SKILL.md
-  backups/
-    skill-adoptions/
-      claude-code/
-        old-review/
-          20260626-153000/
-            original/
-              SKILL.md
-            adoption.json
-  tmp/
-    skill-adoptions/
-    skill-installs/
-    skill-imports/
+```text
+<skillsRoot>/<skillName>/
 ```
 
-Database-backed management state:
+Read-only bundled and Plugin Skills remain in provider-owned roots and appear in the same global
+list. Their provider retains content and lifecycle ownership.
 
-```txt
-application database
-  skill metadata/provenance
-  DeepChat-only disabled flags
-  runtime extension settings
-  agent link ownership
-  sync directory config and timestamps
+Management state version 3 stores global provenance in `skills` and per-Agent
+`assigned + extension` bindings in `agents`. `assigned` is internal terminology; UI describes the
+Agent as enabled for the Skill. Per-Agent environment, runtime, and script override state remains
+independent even when Agents share a package root. Secret-bearing environment values stay in the
+binding; Tape records only its opaque `runtimeBindingId` revision.
+
+Legacy `<skillsRoot>/.agent-scopes/<agentId>/` directories and the historically named
+`.library-migration-v3` recovery directory are migration evidence only. Runtime discovery never
+uses them after migration.
+
+## Catalog and runtime
+
+```text
+AgentCatalog(agentId)
+  = AvailableGlobalSkills intersect EnabledBindings(agentId)
+
+EffectiveSessionSkills(sessionId)
+  = PersistedSessionSelection intersect AgentCatalog(Session.agentId)
 ```
 
-After adoption or Library install-to-agent, supported agent directories should contain final skills
-or links only:
+The derived Agent catalog authorizes Skill list/view/manage tools, prompt assembly, allowed tools,
+scripts, and filesystem roots. The global `skills.listAll` management result never grants Agent
+access.
 
-```txt
-~/.claude/skills/
-  old-review -> ~/.deepchat/skills/old-review
-  guizang-ppt -> ~/.deepchat/skills/guizang-ppt
-```
+The runtime applies the bounded progressive-disclosure contract from
+[Skill Progressive Disclosure](../../architecture/skill-progressive-disclosure/spec.md) to that
+derived catalog:
 
-Manual sync directory layout:
+- Route renders bounded deterministic cards from enabled Skills only;
+- Discover searches and paginates the same bounded catalog;
+- message and Session activation materialize effective content into Tape; and
+- `skill_view` and `skill_run` bind provider-visible content and execution to the same
+  request-scoped package evidence.
 
-```txt
-~/Documents/deepchat-skills/
-  README.md
-  skills/
-    old-review/
-      SKILL.md
-      assets/
-      references/
-      scripts/
-    guizang-ppt/
-      SKILL.md
-```
+A Run snapshots effective names, content identity, and executable package authority at start.
+Transfer, rebind, fork, and Subagent creation recompute the destination Agent intersection. Direct
+ACP compatibility receives bounded Route metadata but never local full Skill bodies without
+DeepChat Tape authority.
 
-## Ownership Rules
+An Agent-binding change affects later Runs. A Skill already authorized in the current Run remains
+viewable and executable from that Run snapshot, even if the binding is removed concurrently.
 
-| Location | Owner |
-| --- | --- |
-| Real directory under configured DeepChat skills path | DeepChat |
-| Real directory under a supported agent skills path | Agent |
-| Agent path is a symlink/junction to DeepChat skills path | DeepChat |
-| Agent path is a symlink to another location | External link |
-| Agent path is a symlink/junction whose target is missing | Broken link |
+## Operations
 
-DeepChat runtime reads only managed DeepChat skills and plugin-contributed runtime skills. It must
-not require any metadata directory inside the skills path. Legacy `.deepchat-meta`, backups, temp
-directories, and agent backup residue must be ignored during migration/scanning.
+- Adding an Agent validates a live DeepChat Agent and available Skill.
+- Removing an Agent retains extension state and filters affected persisted Session selections.
+- Shared edits show currently enabled Agent impact.
+- Shared deletion revalidates acknowledged Agent IDs, moves content to a recovery backup, removes
+  bindings and Session selections, commits state, then removes the backup.
+- Public and CLI Agent-scoped enable/disable or uninstall remain compatibility operations mapped to
+  binding changes rather than package deletion.
+- Agent deletion removes only that Agent's bindings.
 
-## Supported Agent Management Targets
+All package and binding mutations pass through one main-process mutation gate. Package replacement
+uses staging, validation, containment, recoverable rename, and rollback.
 
-V1 link/adopt supports only user-level folder-format tools:
+File-watcher deletion is not a package mutation. It only invalidates an exact cached manifest that
+is still absent and retains provenance, bindings, extension configuration, and runtime binding
+identity. This makes ordinary atomic editor saves transparent. Only the explicit delete operation
+and startup reconciliation remove persistent state.
 
-- `claude-code`
-- `codex`
-- `cursor`
-- `opencode`
-- `goose`
-- `kilocode`
-- `copilot-user`
+## Import and interoperability
 
-V1 does not link/adopt project-level or single-file tools:
+The primary Skills action is `Import from external Agent`. Internal DeepChat Agents are not
+sources because all DeepChat Agents already reference the same global Skills.
 
-- `cursor-project`
-- `windsurf`
-- `copilot`
-- `kiro`
-- `antigravity`
+External import accepts a supported tool ID, selected Skill names, conflict strategies, and
+acknowledged overwrite impact. It does not accept target Agent IDs and does not enable an Agent.
+Main re-scans the source and recomputes conflicts at execution time; renderer paths are never
+authoritative.
 
-Those tools remain available through the existing import/export conversion flow.
+Conflict states are `ready`, `same`, `conflict`, and `unavailable`. Rename is the default. `same`
+keeps existing content and Agent bindings. Overwrite requires the current enabled-Agent impact.
+Partial failures are returned per Skill.
 
-## Functional Requirements
+Sync directory is a secondary view reached from the Skills page. It imports and exports packages,
+never Agent bindings, and provides an explicit return to the default Skills list. Pending writes
+block both that return action and route navigation until their result is visible.
 
-### Library
+## Migration
 
-- Users can view all DeepChat-managed skills, including disabled skills.
-- Users can toggle a DeepChat-only disabled state.
-- Users can open a reusable skill detail dialog from each row.
-- Users can install a single DeepChat skill to a detected local agent from that skill row.
-- Users can add skills from folder, ZIP, URL, or Git repository from the top add menu.
-- The Library list uses a responsive card grid so wide settings panes show multiple skills per row
-  while narrow panes fall back to one column.
-- The Library tab must not show the old external-tool import grid.
-- Disabled skills remain on disk and remain eligible for agent links and manual export when the user
-  explicitly includes them.
-- Disabled skills are excluded from DeepChat runtime prompt injection, automatic validation, and
-  active skill tool permissions.
+Startup migration from versions 1 and 2:
 
-### Agents
+1. treats existing global packages as canonical;
+2. compares complete private-package snapshots;
+3. deduplicates identical packages and renames different variants;
+4. journals and validates copies before canonical renames;
+5. translates disabled state and extensions into Agent bindings;
+6. remaps DeepChat Agent Session selections;
+7. leaves ACP and orphaned Sessions untouched; and
+8. commits version 3 only after package commits succeed.
 
-- Users can see detected supported agents as icon tab buttons matching the Library/external tool
-  button style.
-- Users can select an agent and see the agent's skills directory, counts, and skill rows.
-- Agent rows classify ownership and status without mutating files during scan.
-- Agent rows clamp descriptions to a short preview and expose full content through the reusable
-  skill detail dialog.
-- Agent-owned folder skills can be adopted into DeepChat after a preview and confirmation.
-- DeepChat-linked skills show link details and do not offer a primary mutation button.
-- Broken DeepChat-created links can be repaired when the canonical DeepChat skill still exists.
-- DeepChat-created links can be removed without deleting the canonical DeepChat skill.
-- Agents tab must not show a bulk "Sync to Agent" action; installing DeepChat skills to agents is a
-  Library row action.
+The journal itself is written to a sibling temporary file and atomically renamed into place before
+canonical package renames begin.
 
-### Add Skill
+Version 3 development state using the former `library` property is decoded into `skills` before it
+is written again.
 
-- Users can install selected skills from a Git repository.
-- Folder, ZIP, URL, and Git installation share the top add menu instead of a separate Install tab.
-- Git scan detects root `SKILL.md` as `single-skill`.
-- Git scan detects `skills/<name>/SKILL.md` entries as `multi-skill`.
-- Git install records source provenance in database state.
+## UI contract
 
-### Sync Directory
-
-- Users can set a sync directory.
-- Export writes selected skills to `<syncDir>/skills/<name>`.
-- Import reads selected skills from `<syncDir>/skills/<name>`.
-- Import/export previews show new, same, modified, conflict, skipped, and failed items.
-- Import/export updates database sync timestamps.
-- This workflow is for local multi-skill repository backup/migration, not for installing a skill to
-  an agent.
-
-## UX Shape
-
-The existing `settings-skills` route becomes a smaller tabbed work surface:
-
-```txt
-+--------------------------------------------------------------------------+
-| Skills                                      [Search_______] [+ Add Skill] |
-| Manage DeepChat skills and local agent links.                            |
-+--------------------------------------------------------------------------+
-| [ Library ] [ Agents ] [ Sync Directory ]                                |
-+--------------------------------------------------------------------------+
-| active tab content                                                       |
-+--------------------------------------------------------------------------+
-```
-
-Style contract:
-
-- Use the existing settings shell, shadcn controls, Iconify/lucide icons, and Tailwind utilities.
-- Keep the page dense and operational. No hero, marketing panel, gradient background, or nested
-  cards.
-- Use compact rows, 8px or smaller radius, semantic badges, and icon buttons with tooltips for
-  refresh/open/remove actions.
-- Agent selector buttons use the same icon-leading button style as the Library external tool tiles:
-  icon, name, count badge, selected border.
-- Use semantic color only as a secondary signal:
-  - Enabled/linked/success: green semantic badge.
-  - Disabled/skipped/neutral: muted badge.
-  - Conflict/warning: amber badge.
-  - Broken/failed/destructive: destructive badge.
-- Every status must also have text; color alone is not enough.
-- Long paths and descriptions truncate or clamp instead of wrapping over action controls.
-- Primary action per row goes in the right column; secondary actions go in a row menu.
-
-Top add menu:
-
-```txt
-+----------------------------------+
-| + Add Skill                      |
-+----------------------------------+
-| Folder...                        |
-| ZIP...                           |
-| URL...                           |
-| Git repository...                |
-+----------------------------------+
-```
-
-Git repository install opens from the top add menu, not from a tab:
-
-```txt
-+--------------------------------------------------------------------------+
-| Install from Git                                                         |
-+--------------------------------------------------------------------------+
-| Repository URL                                                           |
-| [https://github.com/op7418/guizang-ppt-skill______________] [Scan]       |
-|                                                                          |
-| Detected format: single-skill                                            |
-| [x] guizang-ppt-skill        No conflict                                 |
-|                                                                          |
-| Conflict strategy                                                        |
-| (*) Rename new skill   ( ) Replace existing   ( ) Skip existing          |
-|                                                                          |
-| [Cancel]                                           [Install to DeepChat] |
-+--------------------------------------------------------------------------+
-```
-
-Library tab:
-
-```txt
-+--------------------------------------------------------------------------+
-| Library                                                    [Open Folder] |
-+--------------------------------------------------------------------------+
-| Summary: 18 skills - 15 enabled - 3 disabled - 4 agent links             |
-|                                                                          |
-| +----------------------------------+ +----------------------------------+ |
-| | [wand] guizang-ppt         [on] | | [wand] frontend-design     [on] | |
-| | Create PowerPoint decks...      | | UI and UX guidance.             | |
-| | Git install  Enabled           | | Built-in  Enabled               | |
-| |              [Install to Agent] | |              [Install to Agent] | |
-| +----------------------------------+ +----------------------------------+ |
-| +----------------------------------+                                      |
-| | [wand] old-review         [off] |                                      |
-| | Review legacy code paths.       |                                      |
-| | Adopted  Disabled              |                                      |
-| |              [Install to Agent] |                                      |
-| +----------------------------------+                                      |
-|                                                                          |
-| Empty: No skills installed. Use Add Skill to add folder, ZIP, URL, Git.  |
-+--------------------------------------------------------------------------+
-```
-
-Library row interaction:
-
-```txt
-Click a non-control area of a Library row -> open Skill Detail.
-The exposed hot controls are:
-
-[Install to Agent] Install to Agent
-[on/off] Enable or disable in DeepChat
-```
-
-Skill detail:
-
-```txt
-+--------------------------------------------------------------------------+
-| G  guizang-ppt                                             Enabled [on]  |
-|    Create PowerPoint decks from structured plans.                        |
-| /Users/.../.deepchat/skills/guizang-ppt/SKILL.md                          |
-|                         [Edit] [Install to Agent] [Delete]               |
-|                                                                          |
-| +----------------------------------------------------------------------+ |
-| | Rendered Markdown preview of SKILL.md without YAML frontmatter        | |
-| +----------------------------------------------------------------------+ |
-+--------------------------------------------------------------------------+
-
-Edit mode keeps the same dialog:
-
-+--------------------------------------------------------------------------+
-| G  guizang-ppt                                             Enabled [on]  |
-| /Users/.../.deepchat/skills/guizang-ppt/SKILL.md                          |
-|                      [Preview] [Install to Agent] [Delete]               |
-|                                                                          |
-| Name: guizang-ppt (read-only)                                            |
-| Description: [.........................................................] |
-| Allowed tools: [Read, Bash]                                              |
-| Content:                                                                 |
-| +----------------------------------------------------------------------+ |
-| | # guizang-ppt                                                        | |
-| | ...                                                                  | |
-| +----------------------------------------------------------------------+ |
-|                                                    [Cancel] [Save]       |
-+--------------------------------------------------------------------------+
-```
-
-Install one skill to a detected local agent:
-
-```txt
-+--------------------------------------------------+
-| Install guizang-ppt to Agent                     |
-+--------------------------------------------------+
-| Target agent                                     |
-| [ Claude Code  ] [ OpenAI Codex ] [ Cursor ]     |
-| [ OpenCode     ] [ Goose        ] [ Kilo Code ]  |
-|                                                  |
-| Result                                           |
-| ~/.codex/skills/guizang-ppt -> DeepChat skill    |
-|                                                  |
-| Conflict strategy                                |
-| (*) Rename link   ( ) Replace DeepChat-owned link |
-| ( ) Skip                                               |
-|                                                  |
-| [Cancel]                              [Install]  |
-+--------------------------------------------------+
-```
-
-Library row behavior:
-
-- Enabled/disabled toggle changes only DeepChat runtime state.
-- Disabled rows remain visible and editable, but their badge is muted and activation controls are
-  disabled where runtime selection appears.
-- Built-in or plugin-owned rows do not show destructive actions unless the existing system already
-  supports that action.
-- The old external-tool import grid is removed from this tab.
-
-Agents tab:
-
-```txt
-+--------------------------------------------------------------------------+
-| Agents                                                    [Refresh]      |
-+--------------------------------------------------------------------------+
-| [ icon Claude Code 0 ] [ icon OpenAI Codex 2 ] [ icon Cursor 0 ]         |
-| [ icon OpenCode 0    ] [ icon Goose 0        ] [ icon Kilo Code 0 ]      |
-+--------------------------------------------------------------------------+
-| OpenAI Codex                                      Available              |
-| /Users/me/.codex/skills                                                  |
-| 2 skills - 0 linked - 2 agent owned - 0 conflict - 0 broken              |
-+------------------+--------------+--------------+----------+------------+
-| Skill            | Owner        | Status       | Preview  | Action     |
-+------------------+--------------+--------------+----------+------------+
-| hatch-pet        | Codex        | Agent owned  | View     | Adopt      |
-| native-feel      | Codex        | Agent owned  | View     | Adopt      |
-+------------------+--------------+--------------+----------+------------+
-```
-
-Agent row rules:
-
-- Description stays clamped to one line or is omitted from the table.
-- Full description and `SKILL.md` body are shown through the reusable detail dialog.
-- The tab does not show "Sync to Agent"; linking DeepChat skills to agents starts from Library.
-
-Agent row states:
-
-```txt
-Agent owned:
-+------------------+--------------+--------------+----------+------------+
-| old-review       | Claude Code  | Agent owned  | View     | Adopt      |
-+------------------+--------------+--------------+----------+------------+
-
-DeepChat linked:
-+------------------+--------------+--------------+----------+------------+
-| guizang-ppt      | DeepChat     | Linked       | View     | ...        |
-+------------------+--------------+--------------+----------+------------+
-menu: Open in Finder, Remove link
-
-External link:
-+------------------+--------------+--------------+----------+------------+
-| docs-writer      | External     | Linked out   | View     | Adopt      |
-+------------------+--------------+--------------+----------+------------+
-
-Conflict:
-+------------------+--------------+--------------+----------+------------+
-| frontend-helper  | Claude Code  | Conflict     | View     | Resolve    |
-+------------------+--------------+--------------+----------+------------+
-
-Broken link:
-+------------------+--------------+--------------+----------+------------+
-| broken-ppt       | DeepChat     | Broken link  | View     | Repair     |
-+------------------+--------------+--------------+----------+------------+
-```
-
-Adopt confirmation:
-
-```txt
-+--------------------------------------------------+
-| Adopt Skill                                      |
-+--------------------------------------------------+
-| old-review                                       |
-|                                                  |
-| Current location                                 |
-| ~/.claude/skills/old-review                      |
-|                                                  |
-| After adoption                                   |
-| ~/.deepchat/skills/old-review                    |
-| ~/.claude/skills/old-review -> DeepChat skill    |
-|                                                  |
-| Backup                                           |
-| ~/.deepchat/backups/skill-adoptions/...          |
-|                                                  |
-| [Cancel]                              [Adopt]    |
-+--------------------------------------------------+
-```
-
-Conflict resolver:
-
-```txt
-+--------------------------------------------------+
-| Resolve Conflict                                 |
-+--------------------------------------------------+
-| frontend-helper                                  |
-|                                                  |
-| Agent                                            |
-| ~/.claude/skills/frontend-helper                 |
-|                                                  |
-| DeepChat                                         |
-| ~/.deepchat/skills/frontend-helper               |
-|                                                  |
-| Choose action                                    |
-| (*) Adopt as frontend-helper-claude              |
-| ( ) Replace DeepChat frontend-helper             |
-| ( ) Keep current state                           |
-|                                                  |
-| [Cancel]                              [Apply]    |
-+--------------------------------------------------+
-```
-
-Custom path:
-
-```txt
-+--------------------------------------------------+
-| Add Custom Agent Path                            |
-+--------------------------------------------------+
-| Display name                                     |
-| [My Agent                                      ] |
-|                                                  |
-| Skills directory                                 |
-| [/Users/me/.my-agent/skills                    ] |
-|                                                  |
-| Format                                           |
-| (*) SKILL.md folder format                       |
-|                                                  |
-| [Cancel]                           [Scan path]   |
-+--------------------------------------------------+
-```
-
-Reusable skill detail:
-
-```txt
+```text
+Skills
 +----------------------------------------------------------+
-| C                                                        |
-| ComputerUse skill                           [Switch] [...]|
-| Drive the user's desktop GUI through ...                 |
-|                                                          |
-| +------------------------------------------------------+ |
-| | Computer Use                                         | |
-| | Rendered Markdown from SKILL.md                      | |
-| | ...                                                  | |
-| +------------------------------------------------------+ |
-|                                                          |
-|                                      [Try in Chat]      |
+| Suggest Skill Drafts                               [off] |
 +----------------------------------------------------------+
+[Search] [Sync directory] [Import from external Agent]
+
+[Skill card] [Skill card] [Skill card]
+
+Open Skill
+┌──────────────────────────────────────────────────────────┐
+│ Enabled Agents                           [+ Add Agent]   │
+│ [DeepChat ×] [Writer ×]                                 │
+│                                                         │
+│ Skill content preview                    [Edit] [Delete] │
+└──────────────────────────────────────────────────────────┘
 ```
 
-The same dialog is used from Library rows and Agents rows. It receives a source descriptor and
-renders the manifest summary plus sanitized Markdown body.
-
-Sync Directory tab:
-
-```txt
-+--------------------------------------------------------------------------+
-| Sync Directory                                                           |
-+--------------------------------------------------------------------------+
-| Local multi-skill repository                                             |
-| [~/Documents/deepchat-skills____________________________] [Browse] [Save] |
-+--------------------------------------------------------------------------+
-| [ Export to directory ] [ Import from directory ]                        |
-+--------------------------------------------------------------------------+
-| Export selected skills                                                   |
-| [x] guizang-ppt        Enabled    Git install                            |
-| [x] frontend-design    Enabled    Built-in                               |
-| [ ] old-review         Disabled   Adopted                                |
-|                                                                          |
-| [Preview Export]                                           [Export Now]  |
-+--------------------------------------------------------------------------+
-```
-
-Import preview:
-
-```txt
-+--------------------------------------------------------------------------+
-| Import from ~/Documents/deepchat-skills                                  |
-+----------------------+-------------+---------------+---------------------+
-| Skill                | State       | Source        | Action              |
-+----------------------+-------------+---------------+---------------------+
-| guizang-ppt          | Same        | sync dir      | Skip                |
-| frontend-design      | New         | sync dir      | Import              |
-| skill-x              | Conflict    | sync dir      | Rename              |
-| broken-skill         | Invalid     | sync dir      | View error          |
-+----------------------+-------------+---------------+---------------------+
-| Conflict strategy: (*) Rename imported  ( ) Replace local  ( ) Skip      |
-| [Cancel]                                             [Import Selected]   |
-+--------------------------------------------------------------------------+
-```
-
-## Non-Goals
-
-- No automatic scheduled sync.
-- No built-in Git commit, pull, or push.
-- No marketplace search or command-copy Discover tab.
-- No project-level agent link/adopt.
-- No conversion of single-file prompt formats into linked folder-format skills during adoption.
-- No cloud sync.
-- No separate Install tab; install flows start from the top add menu.
-- No new dependency unless an existing standard library or installed dependency is insufficient.
-
-## Acceptance Criteria
-
-- Database state is created or migrated without deleting existing skills or legacy sidecar runtime
-  configs.
-- Disabling a skill persists across restart, remains visible in Library, and excludes that skill
-  from DeepChat runtime metadata prompt and active-skill validation.
-- The configured DeepChat skills path contains only skill content directories. It must not contain
-  `.deepchat-meta`, metadata files, backups, temp files, or other management metadata after
-  migration.
-- Legacy `.deepchat-meta` runtime config files are migrated into the database and removed only after
-  the database write succeeds.
-- Supported agents are shown only when detected locally.
-- Supported agents use icon-leading tab buttons with counts.
-- Project-level and single-file tools are not offered link/adopt actions.
-- Scanning an agent never creates, deletes, or moves files.
-- Agents table descriptions are clamped or omitted, and full skill content is available through the
-  reusable skill detail dialog with Markdown rendering.
-- Adopting an agent-owned skill creates `~/.deepchat/skills/<name>/SKILL.md`, stores the original
-  under `~/.deepchat/backups/skill-adoptions/...`, and replaces the agent path with a link to the
-  canonical DeepChat skill.
-- Agent skills directories do not receive backup, temp, rollback, or metadata folders.
-- Same-name conflicts default to creating a unique adopted skill name instead of overwriting the
-  existing DeepChat skill.
-- Installing one Library skill to an agent creates or repairs only DeepChat-owned links and does not
-  delete agent-owned skill directories unless the user explicitly chooses a conflict strategy.
-- The top add menu exposes folder, ZIP, URL, and Git install paths.
-- Git single-skill and multi-skill repositories install selected skills into DeepChat and write
-  `git-install` provenance.
-- Manual export creates a valid multi-skill repository layout.
-- Manual import handles new, same, modified, and conflict states before writing.
-- The old external-tool import grid, separate Install tab, Discover tab, and `find-skills` bundled
-  skill are removed from the settings surface.
-
-## Critical Acceptance Scenarios
-
-### Agent-Owned Adoption
-
-```txt
-Given ~/.claude/skills/old-review/SKILL.md exists
-And ~/.deepchat/skills/old-review does not exist
-When the user adopts old-review from Claude Code
-Then ~/.deepchat/skills/old-review/SKILL.md exists
-And ~/.claude/skills/old-review links to ~/.deepchat/skills/old-review
-And the original is backed up under ~/.deepchat/backups/skill-adoptions
-And database state source.type is adopted
-```
-
-### Clean Agent Directory
-
-```txt
-Given a user adopts ~/.claude/skills/old-review
-Then ~/.claude/skills contains old-review as a link
-And ~/.claude/skills does not contain old-review.deepchat-backup-*
-And scan shows one old-review row
-```
-
-### DeepChat Linked Display
-
-```txt
-Given ~/.claude/skills/guizang-ppt links to ~/.deepchat/skills/guizang-ppt
-Then the Agents table shows:
-Skill = guizang-ppt
-Owner = DeepChat
-Status = Linked
-Action = row menu only
-```
-
-### Conflict Adoption
-
-```txt
-Given ~/.claude/skills/frontend-helper exists
-And ~/.deepchat/skills/frontend-helper exists
-And their content hashes differ
-When the user chooses "Adopt as frontend-helper-claude"
-Then ~/.deepchat/skills/frontend-helper remains unchanged
-And ~/.deepchat/skills/frontend-helper-claude is created
-And ~/.claude/skills/frontend-helper links to the renamed DeepChat skill
-```
-
-### Git Installation
-
-```txt
-Given a repo root contains SKILL.md
-When the user opens Add Skill -> Git repository, scans, and installs it
-Then the selected skill is copied to the DeepChat skills path
-And database state source.type is git-install
-And database state source.repoFormat is single-skill
-
-Example: `https://github.com/op7418/guizang-ppt-skill` is a root `SKILL.md` repository whose
-frontmatter skill name is `guizang-ppt-skill`.
-
-Given a repo contains skills/a/SKILL.md and skills/b/SKILL.md
-When the user selects a and b
-Then both skills are installed
-And database state source.repoFormat is multi-skill
-```
-
-### Library Install To Agent
-
-```txt
-Given ~/.deepchat/skills/guizang-ppt/SKILL.md exists
-And ~/.codex/skills is detected
-When the user chooses Install to Agent from the guizang-ppt Library row
-Then ~/.codex/skills/guizang-ppt links to ~/.deepchat/skills/guizang-ppt
-And database state records the Codex agent link
-And the Agents tab later shows guizang-ppt as DeepChat linked
-
-Given guizang-ppt is already linked to ~/.codex/skills/guizang-ppt
-When the user opens Install to Agent and selects Codex
-Then the dialog shows a Disconnect action
-And Disconnect removes the DeepChat-owned Agent link
-And database state removes the Codex agent link record
-```
-
-### Library Row And Detail Interaction
-
-```txt
-Given a Library skill row is visible
-When the user clicks any non-control area of the row
-Then the Skill Detail dialog opens
-And the row does not expose a standalone View details action
-And the row keeps Install to Agent and DeepChat enable/disable as visible controls
-
-Given the Skill Detail dialog is open for a mutable skill
-When the user chooses Edit
-Then the dialog switches to editable name, description, allowed tools, and Markdown content fields
-And Delete is next to Edit/Preview inside the same dialog
-And Delete requires a second confirmation before removing the skill
-And Install to Agent sits beside Edit/Preview in the action row
-And DeepChat enable/disable stays in the header with spacing from the dialog close button
-```
-
-### Skill Detail Preview
-
-```txt
-Given an agent skill has a long description
-When the user views the agent row
-Then the table does not expand horizontally for the full description
-And clicking the row detail affordance opens a detail dialog
-And the dialog renders the selected SKILL.md body as Markdown
-```
-
-### Manual Export
-
-```txt
-Given sync directory is ~/Documents/deepchat-skills
-And selected skills are a and b
-When the user exports
-Then ~/Documents/deepchat-skills/skills/a/SKILL.md exists
-And ~/Documents/deepchat-skills/skills/b/SKILL.md exists
-And database sync lastExportAt is updated
-```
-
-### DeepChat-Only Disable
-
-```txt
-Given skill a exists in the DeepChat skills path
-When the user disables a in Library
-Then database state marks skill a as DeepChat-disabled
-And Library still shows a
-And getMetadataPrompt excludes a
-And existing agent links remain unchanged
-```
-
-## Resolved Assumptions
-
-- `~/.deepchat/skills` means the configured skills path when the user changed `skillsPath`.
-- Skill management database state is local-only and not automatically synchronized.
-- Existing `.deepchat-meta/<skill>.json` runtime config is legacy migration input; new writes go to
-  the database.
-- Plugin-contributed skills remain read-only runtime contributions and are not adopted, linked,
-  exported by default, or moved into database-owned management state.
+The Plugins-hub Skills route renders the same global surface. Loading, empty, error, retry,
+stale-impact, partial-result, keyboard, focus, and dirty-close states use existing UI primitives
+and vue-i18n copy. Unsaved preview edits require an explicit discard decision before route
+navigation. Background catalog refreshes use that same decision before closing a removed Skill.
+The Settings window has no Skills navigation item or route. Settings-to-main onboarding
+continuation uses typed IPC and a typed runtime event rather than window-local storage.

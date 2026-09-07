@@ -5,13 +5,45 @@ import fs from 'node:fs'
 import fsp from 'node:fs/promises'
 import path from 'node:path'
 import process from 'node:process'
+import { pathToFileURL } from 'node:url'
 
 const DEFAULT_URL =
   'https://raw.githubusercontent.com/ThinkInAIXYZ/PublicProviderConf/refs/heads/dev/dist/all.json'
+const MAX_PROVIDER_DB_PAYLOAD_BYTES = 10 * 1024 * 1024
 
 const log = (...args) => console.log('[fetch-provider-db]', ...args)
 const warn = (...args) => console.warn('[fetch-provider-db]', ...args)
 const error = (...args) => console.error('[fetch-provider-db]', ...args)
+
+async function readResponseTextWithLimit(response, maxBytes) {
+  if (!response.body) {
+    const text = await response.text()
+    return Buffer.byteLength(text, 'utf8') <= maxBytes ? text : null
+  }
+
+  const reader = response.body.getReader()
+  const decoder = new TextDecoder()
+  const textChunks = []
+  let bytesRead = 0
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+
+      bytesRead += value.byteLength
+      if (bytesRead > maxBytes) {
+        await reader.cancel().catch(() => undefined)
+        return null
+      }
+      textChunks.push(decoder.decode(value, { stream: true }))
+    }
+    textChunks.push(decoder.decode())
+    return textChunks.join('')
+  } finally {
+    reader.releaseLock()
+  }
+}
 
 async function ensureDir(dir) {
   await fsp.mkdir(dir, { recursive: true })
@@ -23,6 +55,7 @@ const REASONING_EFFORT_VALUES = ['none', 'minimal', 'low', 'medium', 'high', 'xh
 const VERBOSITY_VALUES = ['low', 'medium', 'high']
 const REASONING_MODE_VALUES = ['budget', 'effort', 'level', 'fixed', 'mixed']
 const REASONING_VISIBILITY_VALUES = ['hidden', 'summary', 'full', 'mixed', 'omitted', 'summarized']
+const TOOL_MODE_VALUES = ['agent', 'code', 'minimal']
 const isValidLowercaseProviderId = (id) =>
   typeof id === 'string' && id === id.toLowerCase() && PROVIDER_ID_REGEX.test(id)
 const isValidModelId = (id) =>
@@ -91,7 +124,16 @@ const sanitizeExtraReasoning = (value) => {
   return Object.keys(reasoning).length ? reasoning : undefined
 }
 
-function sanitizeAggregateJson(json) {
+const inferTtsModelTypeFromId = (modelId) => {
+  const normalized = modelId.trim().toLowerCase().split('/').at(-1) ?? ''
+  return /^(?:tts-1(?:-hd)?(?:-\d+)?|gpt-4o-mini-tts(?:-\d{4}-\d{2}-\d{2})?)$/.test(
+    normalized
+  )
+    ? 'tts'
+    : undefined
+}
+
+export function sanitizeAggregateJson(json) {
   if (!json || typeof json !== 'object') return null
   const providers = json.providers
   if (!providers || typeof providers !== 'object' || Array.isArray(providers)) return null
@@ -173,8 +215,7 @@ function sanitizeAggregateJson(json) {
         if (Object.keys(so).length) search = so
       }
 
-      // type (model type: chat, embedding, rerank, imageGeneration)
-      // Normalize type values to handle variants like image_generation, image-generation, etc.
+      // Normalize model type variants while preserving every type understood by the app.
       let modelType
       const t = m.type
       if (typeof t === 'string') {
@@ -188,8 +229,13 @@ function sanitizeAggregateJson(json) {
           modelType = 'rerank'
         } else if (normalized === 'imagegeneration' || normalized === 'imagegen') {
           modelType = 'imageGeneration'
+        } else if (normalized === 'videogeneration' || normalized === 'videogen') {
+          modelType = 'videoGeneration'
+        } else if (normalized === 'tts') {
+          modelType = 'tts'
         }
       }
+      modelType ??= inferTtsModelTypeFromId(mid)
 
       sanitizedModels.push({
         id: mid,
@@ -199,6 +245,10 @@ function sanitizeAggregateJson(json) {
         limit,
         temperature: typeof m.temperature === 'boolean' ? m.temperature : undefined,
         tool_call: typeof m.tool_call === 'boolean' ? m.tool_call : undefined,
+        default_tool_mode:
+          typeof m.default_tool_mode === 'string' && TOOL_MODE_VALUES.includes(m.default_tool_mode)
+            ? m.default_tool_mode
+            : undefined,
         reasoning,
         extra_capabilities,
         search,
@@ -207,7 +257,6 @@ function sanitizeAggregateJson(json) {
         knowledge: typeof m.knowledge === 'string' ? m.knowledge : undefined,
         release_date: typeof m.release_date === 'string' ? m.release_date : undefined,
         last_updated: typeof m.last_updated === 'string' ? m.last_updated : undefined,
-        cost: typeof m.cost === 'object' ? m.cost : undefined,
         type: modelType
       })
     }
@@ -236,14 +285,13 @@ async function main() {
   await ensureDir(outDir)
 
   let text
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 20000)
   try {
     log('Fetching', url)
-    const controller = new AbortController()
-    const timeout = setTimeout(() => controller.abort(), 20000)
     const res = await fetch(url, { signal: controller.signal })
-    clearTimeout(timeout)
     if (!res.ok) throw new Error(`HTTP ${res.status}`)
-    text = await res.text()
+    text = await readResponseTextWithLimit(res, MAX_PROVIDER_DB_PAYLOAD_BYTES)
   } catch (e) {
     warn('Fetch failed:', e?.message || e)
     if (fs.existsSync(outFile)) {
@@ -252,10 +300,14 @@ async function main() {
     }
     error('No existing snapshot found. Failing the build step.')
     process.exit(1)
+  } finally {
+    clearTimeout(timeout)
   }
 
-  if (text.length > 5 * 1024 * 1024) {
-    error('Downloaded file too large (>5MB). Aborting.')
+  if (text === null) {
+    error(
+      `Downloaded file exceeds ${MAX_PROVIDER_DB_PAYLOAD_BYTES / (1024 * 1024)} MiB limit. Aborting.`
+    )
     if (!fs.existsSync(outFile)) process.exit(1)
     return
   }
@@ -292,7 +344,9 @@ async function main() {
   }
 }
 
-main().catch((e) => {
-  error('Unexpected error:', e)
-  process.exit(1)
-})
+if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {
+  main().catch((e) => {
+    error('Unexpected error:', e)
+    process.exit(1)
+  })
+}

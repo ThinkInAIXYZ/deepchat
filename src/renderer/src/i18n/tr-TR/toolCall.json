@@ -13,7 +13,9 @@
   "imagePreviewCount": "Resim önizlemesi yok | {count} resim önizlemesi | {count} resim önizlemesi",
   "terminalOutput": "Terminal Çıkışı",
   "badge": {
-    "rtk": "RTK"
+    "rtk": "RTK",
+    "allowed": "İzin verildi",
+    "denied": "Reddedildi"
   },
   "replacementsCount": "{count} değiştirmeleri tamamlandı",
   "fileOperation": "Dosya İşlemi",

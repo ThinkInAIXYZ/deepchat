@@ -12,6 +12,7 @@ export type GenerationNumericField =
 export type GenerationNumericValidationCode =
   | 'finite_number'
   | 'non_negative_integer'
+  | 'context_length_non_positive'
   | 'context_length_below_max_tokens'
   | 'max_tokens_exceed_context_length'
   | 'timeout_too_small'
@@ -72,6 +73,9 @@ export const validateGenerationNumericField = (
   }
 
   if (field === 'contextLength') {
+    if (numeric === 0) {
+      return 'context_length_non_positive'
+    }
     const maxTokens = context.maxTokens
     if (isNonNegativeInteger(maxTokens) && numeric < maxTokens) {
       return 'context_length_below_max_tokens'

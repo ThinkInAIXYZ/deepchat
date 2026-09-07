@@ -16,5 +16,9 @@
   "autoUpdate": "Auto Update",
   "restarting": "Restarting",
   "alreadyUpToDate": "Already Up to Date",
-  "alreadyUpToDateDesc": "Your DeepChat is already updated to the latest version, no update is required."
+  "alreadyUpToDateDesc": "Your DeepChat is already updated to the latest version, no update is required.",
+  "taskRunningTitle": "Task In Progress",
+  "taskRunningDescription": "There are tasks currently running. How would you like to proceed with the update?",
+  "updateNow": "Update Now",
+  "updateAfterTasksComplete": "Update After Tasks Complete"
 }

@@ -1,0 +1,185 @@
+{
+  "title": "Tape 检查器",
+  "actions": {
+    "apply": "应用",
+    "expand": "展开",
+    "collapse": "折叠",
+    "refresh": "刷新",
+    "loadOlder": "加载更早的 Tape Entry",
+    "loadMore": "加载更多",
+    "loadEvidence": "加载更多模型请求",
+    "loadMatchingEntries": "加载对应 Entry",
+    "openSession": "打开 Tape 检查器",
+    "openMessage": "在 Tape 检查器中打开",
+    "pause": "暂停实时更新",
+    "resume": "恢复实时更新"
+  },
+  "columns": {
+    "name": "名称",
+    "kind": "类型",
+    "status": "状态",
+    "start": "开始时间",
+    "duration": "时长",
+    "waterfall": "瀑布图"
+  },
+  "search": {
+    "loadedLabel": "搜索已加载的 Tape Entry 和模型请求",
+    "loadedPlaceholder": "搜索已加载的 Tape Entry 和模型请求",
+    "loadedScope": "文本搜索仅覆盖已加载范围"
+  },
+  "filters": {
+    "title": "筛选",
+    "allFamilies": "全部类别",
+    "errorsOnly": "仅显示错误"
+  },
+  "groups": {
+    "run": "执行",
+    "request": "模型请求",
+    "attempt": "Provider 尝试",
+    "tool": "工具操作"
+  },
+  "families": {
+    "context": "上下文材料",
+    "journal": "执行日志",
+    "contract": "任务契约",
+    "view": "View",
+    "attempt": "Provider 尝试",
+    "anchor": "Anchor",
+    "message": "消息",
+    "lineage": "谱系",
+    "tool": "工具",
+    "other": "其他"
+  },
+  "activity": {
+    "userMessage": "用户消息",
+    "assistantMessage": "助手消息",
+    "user": "用户",
+    "assistant": "助手",
+    "reasoning": "思考",
+    "media": "媒体",
+    "memoryView": "已组装 Memory 上下文",
+    "directiveView": "已组装 Memory 指令",
+    "toolCall": "工具调用",
+    "toolResult": "工具结果",
+    "memorySelection": "选择 {selected} 项 · 舍弃 {dropped} 项",
+    "tokenUse": "{used} / {budget} tokens",
+    "relations": {
+      "input": "输入",
+      "output": "可观察结果",
+      "later": "后续活动"
+    }
+  },
+  "evidence": {
+    "request": "模型请求",
+    "earlierSummary": "更早的 Tape 历史中已有精确对应的父 Entry",
+    "standaloneSummary": "当前视图中没有可显示的精确父 Entry",
+    "earlierHint": "这些模型请求在更早的 Tape 历史中有精确对应的 Provider 尝试 Entry。加载对应 Entry 会连续补入相关历史，不会改变模型请求顺序。",
+    "standaloneHint": "这些模型请求按时间顺序独立显示，因为精确父 Entry 被当前筛选隐藏、比可见范围更新、尚未记录，或请求没有尝试身份。系统绝不会用时间戳猜测父 Entry。",
+    "lanes": {
+      "earlier": "对应 Entry 位于更早历史的模型请求（{count}）",
+      "request": "独立显示的模型请求（{count}）",
+      "diagnostic": "内部诊断（{count}）"
+    },
+    "scope": {
+      "request": "请求级",
+      "diagnostic": "内部诊断",
+      "earlier": "更早的 Entry",
+      "filtered": "被当前视图隐藏",
+      "newer": "等待实时视图载入",
+      "not_recorded": "尚无完成 Entry"
+    }
+  },
+  "kinds": {
+    "evidence": "模型请求",
+    "lane": "请求集合",
+    "group": "派生分组"
+  },
+  "states": {
+    "unknown": "未知",
+    "statusPending": "结果 Entry 尚未加载",
+    "timingPending": "起止 Entry 尚未配对",
+    "timingEarlierHistory": "配对的边界位于更早的 Tape 历史",
+    "timingFiltered": "配对的边界被当前筛选隐藏",
+    "timingAwaitingLive": "正在等待实时会话记录配对边界",
+    "timingNotRecorded": "这份记录没有同时保存两个时序边界",
+    "timingInconsistent": "已记录的时序边界不一致",
+    "notApplicable": "此项目不适用",
+    "empty": "没有匹配的 Tape Entry 或模型请求",
+    "loadedCounts": "{entries} 个 Tape Entry · {evidence} 个模型请求",
+    "pageLoaded": "已加载 {count} 个 Tape Entry。当前位置已保留，请继续滚动查看。",
+    "pageLoadedComplete": "已加载 {count} 个 Tape Entry，现已到达 Tape 起点。",
+    "pageNoMatches": "已扫描下一段有界范围，但没有符合当前条件的 Tape Entry。",
+    "pageNoMatchesComplete": "已到达 Tape 起点，没有更早且符合当前条件的 Entry。",
+    "matchingEntriesUnavailable": "请使用 Tape 顺序并清除 Entry 筛选后加载对应历史",
+    "live": "实时",
+    "paused": "已暂停",
+    "liveUnavailable": "实时更新不可用"
+  },
+  "waterfall": {
+    "sequence": "Tape 追加顺序中的位置（entryId）",
+    "point": "单时刻项目，不计算时长"
+  },
+  "timeline": {
+    "title": "概览",
+    "actual": "时间",
+    "sequence": "序列",
+    "session": "会话",
+    "model": "模型",
+    "tools": "工具",
+    "duration": "时段",
+    "point": "时点",
+    "error": "错误",
+    "earlierNotLoaded": "更早的 Tape Entry 尚未加载"
+  },
+  "detail": {
+    "title": "详情",
+    "selectPrompt": "选择一行以查看其可用详情",
+    "contextTail": "本次请求前的近期可见活动",
+    "observedResult": "可观察结果",
+    "finalSnapshot": "与本次模型请求精确关联的最终累计内容块；系统未保留逐 token 事件。",
+    "resultBlocksTruncated": "这里只展示了有界范围内最新的结果内容块。",
+    "memoryManifestHint": "这份 manifest 记录当时选择了哪些 Memory 项及其预算；精确的历史 Prompt 内容请查看相关模型请求。",
+    "subsequentActivity": "请求后的会话活动",
+    "subsequentActivityHint": "这些内容块发生在请求之后，但旧记录缺少足够身份，不能归属为本次请求的输出。",
+    "integrity": "完整性",
+    "provenance": "来源",
+    "timing": "时序",
+    "payload": "允许披露的载荷",
+    "raw": "脱敏后的原始记录",
+    "truncated": "已截断",
+    "hashes": "哈希与大小",
+    "sources": {
+      "tape": "Tape Entry",
+      "message_trace": "模型请求",
+      "derived": "派生 View"
+    }
+  },
+  "fields": {
+    "entryId": "Entry ID",
+    "family": "类别",
+    "name": "名称",
+    "kind": "类型",
+    "status": "Entry 状态",
+    "disclosure": "披露级别",
+    "traceId": "Trace ID",
+    "messageId": "消息 ID",
+    "requestSeq": "请求序号",
+    "attempt": "物理尝试",
+    "provider": "供应商",
+    "model": "模型",
+    "endpoint": "端点",
+    "group": "分组",
+    "identity": "身份",
+    "records": "项目数"
+  },
+  "integrity": {
+    "valid": "有效",
+    "invalid": "无效",
+    "unverified": "未验证"
+  },
+  "errors": {
+    "load_failed": "无法加载检查器数据",
+    "detail_failed": "无法加载项目详情",
+    "record_not_found": "所选项目已不可用"
+  }
+}

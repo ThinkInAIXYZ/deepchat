@@ -55,6 +55,53 @@
           </div>
 
           <div
+            v-if="allocation"
+            data-testid="memory-budget-allocation"
+            class="rounded-md border p-3"
+          >
+            <div class="flex items-center justify-between gap-3">
+              <p class="text-xs font-medium">{{ t('chat.memory.turn.allocation') }}</p>
+              <p class="text-xs tabular-nums text-muted-foreground">
+                {{ allocation.estimatedTotalTokens }} / {{ allocation.totalTokenBudget }}
+              </p>
+            </div>
+            <div class="mt-2 grid grid-cols-2 gap-x-4 gap-y-2 text-xs sm:grid-cols-4">
+              <div>
+                <p class="text-muted-foreground">{{ t('chat.memory.turn.directive') }}</p>
+                <p class="mt-0.5 font-medium tabular-nums">
+                  {{ allocation.used.directive }} / {{ allocation.allocated.directive }}
+                </p>
+              </div>
+              <div>
+                <p class="text-muted-foreground">{{ t('chat.memory.turn.persona') }}</p>
+                <p class="mt-0.5 font-medium tabular-nums">
+                  {{ allocation.used.persona }} / {{ allocation.allocated.persona }}
+                </p>
+              </div>
+              <div>
+                <p class="text-muted-foreground">{{ t('chat.memory.turn.working') }}</p>
+                <p class="mt-0.5 font-medium tabular-nums">
+                  {{ allocation.used.working }} / {{ allocation.allocated.working }}
+                </p>
+              </div>
+              <div>
+                <p class="text-muted-foreground">{{ t('chat.memory.turn.queryRecall') }}</p>
+                <p class="mt-0.5 font-medium tabular-nums">
+                  {{ allocation.used.queryRecall }} / {{ allocation.allocated.queryRecall }}
+                </p>
+              </div>
+            </div>
+            <p class="mt-2 text-[11px] text-muted-foreground">
+              {{
+                t('chat.memory.turn.overheadSummary', {
+                  overhead: allocation.overheadTokens,
+                  unused: allocation.unusedTokens
+                })
+              }}
+            </p>
+          </div>
+
+          <div
             v-if="turn.manifest.selectedIds === null"
             class="rounded-md border p-3 text-sm text-muted-foreground"
           >
@@ -67,38 +114,52 @@
               :key="detail.id"
               class="rounded-md border border-border/70 p-3"
             >
-              <div v-if="detail.memory" class="flex items-start justify-between gap-3">
-                <div class="min-w-0 flex-1">
-                  <p class="line-clamp-4 text-sm leading-5">{{ detail.memory.content }}</p>
-                  <div class="mt-1.5 flex flex-wrap gap-1.5">
-                    <Badge variant="outline" class="text-[10px]">{{ detail.memory.kind }}</Badge>
-                    <Badge v-if="detail.memory.category" variant="secondary" class="text-[10px]">
-                      {{ detail.memory.category }}
-                    </Badge>
-                    <Badge
-                      v-if="detail.memory.status === 'archived'"
-                      variant="secondary"
-                      class="text-[10px]"
-                    >
-                      {{ t('chat.memory.status.archived') }}
-                    </Badge>
+              <template v-if="detail.memory">
+                <div class="flex items-start justify-between gap-3">
+                  <div class="min-w-0 flex-1">
+                    <p class="line-clamp-4 text-sm leading-5">{{ detail.memory.content }}</p>
+                    <div class="mt-1.5 flex flex-wrap gap-1.5">
+                      <DcBadge variant="outline" class="text-[10px]">{{
+                        detail.memory.kind
+                      }}</DcBadge>
+                      <DcBadge
+                        v-if="detail.memory.category"
+                        variant="secondary"
+                        class="text-[10px]"
+                      >
+                        {{ detail.memory.category }}
+                      </DcBadge>
+                      <DcBadge
+                        v-if="detail.memory.status === 'archived'"
+                        variant="secondary"
+                        class="text-[10px]"
+                      >
+                        {{ t('chat.memory.status.archived') }}
+                      </DcBadge>
+                    </div>
                   </div>
+                  <DcButton
+                    variant="ghost"
+                    size="icon"
+                    class="h-7 w-7"
+                    :disabled="
+                      mutationDisabled ||
+                      detail.memory.status === 'archived' ||
+                      isForgetting(detail.id)
+                    "
+                    :aria-label="t('chat.memory.actions.forget')"
+                    @click="handleForget(detail.id)"
+                    :tooltip="t('chat.memory.actions.forget')"
+                  >
+                    <Icon icon="lucide:archive" class="h-3.5 w-3.5" />
+                  </DcButton>
                 </div>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  class="h-7 w-7"
-                  :disabled="
-                    mutationDisabled ||
-                    detail.memory.status === 'archived' ||
-                    isForgetting(detail.id)
-                  "
-                  :aria-label="t('chat.memory.actions.forget')"
-                  @click="handleForget(detail.id)"
-                >
-                  <Icon icon="lucide:archive" class="h-3.5 w-3.5" />
-                </Button>
-              </div>
+                <DcInlineError
+                  v-if="forgetErrors[detail.id]"
+                  :error="forgetErrors[detail.id]"
+                  class="mt-2"
+                />
+              </template>
               <p v-else class="text-sm text-muted-foreground">
                 {{ t('chat.memory.turn.unavailable') }}
               </p>
@@ -114,13 +175,13 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { Icon } from '@iconify/vue'
 import { useI18n } from 'vue-i18n'
-import { Badge } from '@shadcn/components/ui/badge'
-import { Button } from '@shadcn/components/ui/button'
+import { DcBadge } from '@dc-ui/components/badge'
+import { DcInlineError } from '@dc-ui/components/inline-error'
+import { DcButton } from '@dc-ui/components/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@shadcn/components/ui/dialog'
-import { useToast } from '@/components/use-toast'
 import { useMemoryActivityStore } from '@/stores/ui/memoryActivity'
 
 const props = defineProps<{
@@ -128,13 +189,24 @@ const props = defineProps<{
 }>()
 const memoryActivity = useMemoryActivityStore()
 const { t } = useI18n()
-const { toast } = useToast()
 const turn = computed(() => memoryActivity.selectedTurn)
+const allocation = computed(() => turn.value?.manifest?.allocation ?? null)
 const mutationDisabled = computed(() => props.readOnly === true || memoryActivity.readOnly)
 const forgettingIds = ref(new Set<string>())
+const forgetErrors = ref<Record<string, string>>({})
+
+watch(
+  () => turn.value?.messageId,
+  () => {
+    forgetErrors.value = {}
+  }
+)
 
 function onOpenChange(open: boolean): void {
-  if (!open) memoryActivity.closeTurnPanel()
+  if (!open) {
+    forgetErrors.value = {}
+    memoryActivity.closeTurnPanel()
+  }
 }
 
 function isForgetting(memoryId: string): boolean {
@@ -150,13 +222,19 @@ function setForgetting(memoryId: string, forgetting: boolean): void {
 
 async function handleForget(memoryId: string): Promise<void> {
   if (mutationDisabled.value || isForgetting(memoryId)) return
+  const turnMessageId = turn.value?.messageId
   setForgetting(memoryId, true)
+  const remainingErrors = { ...forgetErrors.value }
+  delete remainingErrors[memoryId]
+  forgetErrors.value = remainingErrors
   try {
     const ok = await memoryActivity.forget(memoryId)
-    toast({
-      title: ok ? t('chat.memory.toast.forgetSuccess') : t('chat.memory.toast.forgetFailed'),
-      variant: ok ? 'default' : 'destructive'
-    })
+    if (!ok && turn.value?.messageId === turnMessageId) {
+      forgetErrors.value = {
+        ...forgetErrors.value,
+        [memoryId]: t('chat.memory.toast.forgetFailed')
+      }
+    }
   } finally {
     setForgetting(memoryId, false)
   }

@@ -1,7 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { defineComponent } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
-import type { LLM_PROVIDER } from '../../../src/shared/presenter'
+import type { LLM_PROVIDER } from '@shared/types/provider'
+
+const notifyRenderer = vi.hoisted(() => vi.fn())
 
 const switchStub = defineComponent({
   name: 'Switch',
@@ -48,7 +50,12 @@ const createProvider = (): LLM_PROVIDER =>
     }
   }) as LLM_PROVIDER
 
-async function setup() {
+async function setup(
+  options: {
+    provider?: LLM_PROVIDER
+    realAlertDialog?: boolean
+  } = {}
+) {
   vi.resetModules()
 
   let rateLimitListener: ((payload: { providerId: string; version: number }) => void) | null = null
@@ -78,6 +85,9 @@ async function setup() {
   vi.doMock('@api/ProviderClient', () => ({
     createProviderClient: () => providerClient
   }))
+  vi.doMock('@renderer-notifications/rendererNotificationPort', () => ({
+    notifyRenderer
+  }))
   vi.doMock('vue-i18n', () => ({
     useI18n: () => ({
       t: (key: string) => key
@@ -92,29 +102,29 @@ async function setup() {
   vi.doMock('@shadcn/components/ui/label', () => ({
     Label: passthrough('Label')
   }))
-  vi.doMock('@shadcn/components/ui/alert-dialog', () => ({
-    AlertDialog: passthrough('AlertDialog'),
-    AlertDialogAction: passthrough('AlertDialogAction'),
-    AlertDialogCancel: passthrough('AlertDialogCancel'),
-    AlertDialogContent: passthrough('AlertDialogContent'),
-    AlertDialogDescription: passthrough('AlertDialogDescription'),
-    AlertDialogFooter: passthrough('AlertDialogFooter'),
-    AlertDialogHeader: passthrough('AlertDialogHeader'),
-    AlertDialogTitle: passthrough('AlertDialogTitle')
-  }))
-  vi.doMock('@/components/use-toast', () => ({
-    useToast: () => ({
-      toast: vi.fn()
-    })
-  }))
-
+  if (options.realAlertDialog) {
+    vi.doUnmock('@shadcn/components/ui/alert-dialog')
+  } else {
+    vi.doMock('@shadcn/components/ui/alert-dialog', () => ({
+      AlertDialog: passthrough('AlertDialog'),
+      AlertDialogAction: passthrough('AlertDialogAction'),
+      AlertDialogAsyncAction: passthrough('AlertDialogAsyncAction'),
+      AlertDialogCancel: passthrough('AlertDialogCancel'),
+      AlertDialogContent: passthrough('AlertDialogContent'),
+      AlertDialogDescription: passthrough('AlertDialogDescription'),
+      AlertDialogFooter: passthrough('AlertDialogFooter'),
+      AlertDialogHeader: passthrough('AlertDialogHeader'),
+      AlertDialogTitle: passthrough('AlertDialogTitle')
+    }))
+  }
   const ProviderRateLimitConfig = (
     await import('../../../src/renderer/settings/components/ProviderRateLimitConfig.vue')
   ).default
 
   const wrapper = mount(ProviderRateLimitConfig, {
+    ...(options.realAlertDialog ? { attachTo: document.body } : {}),
     props: {
-      provider: createProvider()
+      provider: options.provider ?? createProvider()
     }
   })
   await flushPromises()
@@ -122,6 +132,7 @@ async function setup() {
   return {
     wrapper,
     providerClient,
+    notifyRenderer,
     stopRateLimitEvents,
     emitRateLimitEvent: (payload: { providerId: string; version: number }) =>
       rateLimitListener?.(payload)
@@ -156,5 +167,147 @@ describe('ProviderRateLimitConfig', () => {
 
     wrapper.unmount()
     expect(stopRateLimitEvents).toHaveBeenCalledTimes(1)
+  })
+
+  it('rolls back failed updates and retries the submitted value from a new toggle', async () => {
+    const { wrapper, providerClient, notifyRenderer } = await setup()
+    providerClient.updateProviderRateLimit.mockRejectedValueOnce(new Error('transport details'))
+
+    await wrapper.get('[data-testid="rate-limit-switch"]').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.getComponent(switchStub).props('modelValue')).toBe(false)
+    expect(wrapper.emitted('configChanged')).toBeUndefined()
+    expect(notifyRenderer).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'error',
+        code: 'settings.providerRateLimit.updateFailed',
+        title: 'common.error.operationFailed'
+      })
+    )
+    expect(wrapper.text()).not.toContain('transport details')
+
+    await wrapper.get('[data-testid="rate-limit-switch"]').trigger('click')
+    await flushPromises()
+
+    expect(providerClient.updateProviderRateLimit).toHaveBeenCalledTimes(2)
+    expect(wrapper.getComponent(switchStub).props('modelValue')).toBe(true)
+    expect(notifyRenderer).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'success',
+        code: 'settings.providerRateLimit.updated',
+        title: 'common.saved'
+      })
+    )
+  })
+
+  it('keeps a successful save truthful when status projection refresh fails', async () => {
+    const { wrapper, providerClient, notifyRenderer } = await setup()
+    providerClient.getProviderRateLimitStatus.mockRejectedValueOnce(new Error('status unavailable'))
+
+    await wrapper.get('[data-testid="rate-limit-switch"]').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.emitted('configChanged')).toHaveLength(1)
+    expect(wrapper.getComponent(switchStub).props('modelValue')).toBe(true)
+    expect(notifyRenderer).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'success',
+        code: 'settings.providerRateLimit.updated',
+        title: 'common.saved'
+      })
+    )
+  })
+
+  it('blocks settings navigation while a rate-limit write is in flight', async () => {
+    const { wrapper, providerClient } = await setup()
+    let resolveUpdate!: (value: { enabled: boolean; qpsLimit: number }) => void
+    providerClient.updateProviderRateLimit.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveUpdate = resolve
+      })
+    )
+    const { settingsLeaveGuard } =
+      await import('../../../src/renderer/settings/services/settingsLeaveGuard')
+
+    await wrapper.get('[data-testid="rate-limit-switch"]').trigger('click')
+    await flushPromises()
+
+    expect(settingsLeaveGuard.getSnapshot().risk).toBe('busy')
+    expect(wrapper.get('[data-testid="rate-limit-switch"]').attributes('disabled')).toBeDefined()
+
+    resolveUpdate({ enabled: true, qpsLimit: 0.5 })
+    await flushPromises()
+
+    expect(settingsLeaveGuard.getSnapshot().risk).toBe('clean')
+  })
+
+  it('keeps the disable confirmation open with real primitives when persistence fails', async () => {
+    const provider = createProvider()
+    provider.rateLimit = {
+      enabled: true,
+      qpsLimit: 0.5
+    }
+    const { wrapper, providerClient, notifyRenderer } = await setup({
+      provider,
+      realAlertDialog: true
+    })
+    providerClient.updateProviderRateLimit.mockRejectedValueOnce(new Error('transport details'))
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+
+    wrapper.getComponent(inputStub).vm.$emit('update:modelValue', 0)
+    await wrapper.get('input').trigger('blur')
+    await flushPromises()
+    document.querySelector<HTMLButtonElement>('[data-testid="rate-limit-disable-confirm"]')!.click()
+    await flushPromises()
+
+    expect(document.querySelector('[data-testid="rate-limit-disable-confirm"]')).not.toBeNull()
+    expect(notifyRenderer).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'error',
+        code: 'settings.providerRateLimit.updateFailed',
+        title: 'common.error.operationFailed'
+      })
+    )
+    expect(document.body.textContent).not.toContain('transport details')
+
+    document.querySelector<HTMLButtonElement>('[data-testid="rate-limit-disable-confirm"]')!.click()
+    await flushPromises()
+
+    expect(providerClient.updateProviderRateLimit).toHaveBeenCalledTimes(2)
+    expect(document.querySelector('[data-testid="rate-limit-disable-confirm"]')).toBeNull()
+    consoleError.mockRestore()
+    wrapper.unmount()
+  })
+
+  it('coalesces polling and event refreshes while status IPC is slow', async () => {
+    const { providerClient, emitRateLimitEvent } = await setup()
+    let resolveStatus!: (value: {
+      config: { enabled: boolean; qpsLimit: number }
+      currentQps: number
+      queueLength: number
+      lastRequestTime: number
+    }) => void
+    providerClient.getProviderRateLimitStatus.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveStatus = resolve
+      })
+    )
+
+    emitRateLimitEvent({ providerId: 'deepseek', version: 1 })
+    emitRateLimitEvent({ providerId: 'deepseek', version: 2 })
+    await flushPromises()
+
+    expect(providerClient.getProviderRateLimitStatus).toHaveBeenCalledTimes(2)
+
+    resolveStatus({
+      config: { enabled: false, qpsLimit: 0.5 },
+      currentQps: 0,
+      queueLength: 0,
+      lastRequestTime: 0
+    })
+    await flushPromises()
+
+    expect(providerClient.getProviderRateLimitStatus).toHaveBeenCalledTimes(3)
   })
 })

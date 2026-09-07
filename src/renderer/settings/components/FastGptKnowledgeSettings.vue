@@ -20,11 +20,12 @@
             <TooltipTrigger>
               <Switch
                 :model-value="isFastGptMcpEnabled"
-                :disabled="!mcpStore.mcpEnabled"
+                :disabled="!mcpEnabled || operationPending"
+                @click.stop
                 @update:model-value="toggleFastGptMcpServer"
               />
             </TooltipTrigger>
-            <TooltipContent v-if="!mcpStore.mcpEnabled">
+            <TooltipContent v-if="!mcpEnabled">
               <p>{{ t('settings.mcp.enableToAccess') }}</p>
             </TooltipContent>
           </Tooltip>
@@ -40,6 +41,7 @@
     <Collapsible v-model:open="isFastGptConfigPanelOpen">
       <CollapsibleContent>
         <div class="p-4 border-t space-y-4">
+          <DcInlineError v-if="loadError" :error="loadError" />
           <!-- 已添加的配置列表 -->
           <div v-if="fastGptConfigs.length > 0" class="space-y-3">
             <div
@@ -49,12 +51,14 @@
             >
               <div class="absolute top-2 right-2 flex gap-2">
                 <Switch
-                  :checked="config.enabled === true"
+                  :model-value="config.enabled === true"
+                  :disabled="operationPending"
                   size="sm"
-                  @update:checked="toggleConfigEnabled(index, $event)"
+                  @update:model-value="toggleConfigEnabled(index, $event)"
                 />
                 <button
                   type="button"
+                  :disabled="operationPending"
                   class="text-muted-foreground hover:text-primary"
                   @click="editFastGptConfig(index)"
                 >
@@ -62,6 +66,7 @@
                 </button>
                 <button
                   type="button"
+                  :disabled="operationPending"
                   class="text-muted-foreground hover:text-destructive"
                   @click="removeFastGptConfig(index)"
                 >
@@ -93,8 +98,9 @@
 
           <!-- 添加配置按钮 -->
           <div class="flex justify-center">
-            <Button
+            <DcButton
               type="button"
+              :disabled="operationPending"
               size="sm"
               class="w-full flex items-center justify-center gap-2"
               variant="outline"
@@ -102,14 +108,14 @@
             >
               <Icon icon="lucide:plus" class="w-8 h-4" />
               {{ t('settings.knowledgeBase.addFastGptConfig') }}
-            </Button>
+            </DcButton>
           </div>
         </div>
       </CollapsibleContent>
     </Collapsible>
 
     <!-- FastGPT配置对话框 -->
-    <Dialog v-model:open="isFastGptConfigDialogOpen">
+    <Dialog :open="isFastGptConfigDialogOpen" @update:open="handleDialogOpenChange">
       <DialogContent>
         <DialogHeader>
           <DialogTitle>{{
@@ -129,6 +135,7 @@
             <Input
               id="edit-fastgpt-description"
               v-model="editingFastGptConfig.description"
+              :disabled="operationPending"
               :placeholder="t('settings.knowledgeBase.descriptionPlaceholder')"
             />
           </div>
@@ -140,6 +147,7 @@
             <Input
               id="edit-fastgpt-api-key"
               v-model="editingFastGptConfig.apiKey"
+              :disabled="operationPending"
               type="password"
               placeholder="FastGPT API Key"
             />
@@ -152,6 +160,7 @@
             <Input
               id="edit-fastgpt-dataset-id"
               v-model="editingFastGptConfig.datasetId"
+              :disabled="operationPending"
               placeholder="FastGPT Dataset ID"
             />
           </div>
@@ -163,28 +172,32 @@
             <Input
               id="edit-fastgpt-endpoint"
               v-model="editingFastGptConfig.endpoint"
+              :disabled="operationPending"
               placeholder="http://localhost:3000/api"
             />
           </div>
         </div>
         <DialogFooter>
-          <Button variant="outline" @click="closeFastGptConfigDialog">{{
-            t('common.cancel')
-          }}</Button>
-          <Button type="button" :disabled="!isEditingFastGptConfigValid" @click="saveFastGptConfig">
-            {{ isEditing ? t('common.confirm') : t('settings.knowledgeBase.addConfig') }}
-          </Button>
+          <DcFormActions
+            :submit-status="saveStatus"
+            :submit-disabled="operationPending || !isEditingFastGptConfigValid"
+            :cancel-disabled="operationPending"
+            :submit-label="isEditing ? t('common.confirm') : t('settings.knowledgeBase.addConfig')"
+            @cancel="closeFastGptConfigDialog"
+            @submit="saveFastGptConfig"
+          />
         </DialogFooter>
+        <DcInlineError v-if="operationError" :error="operationError" class="mt-2" />
       </DialogContent>
     </Dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch, toRaw, onUnmounted } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
 import { Input } from '@shadcn/components/ui/input'
 import { Label } from '@shadcn/components/ui/label'
 import { Switch } from '@shadcn/components/ui/switch'
@@ -197,20 +210,20 @@ import {
   DialogDescription
 } from '@shadcn/components/ui/dialog'
 import { Collapsible, CollapsibleContent } from '@shadcn/components/ui/collapsible'
-import { useMcpStore } from '@/stores/mcp'
-import { useToast } from '@/components/use-toast'
+import { DcInlineError } from '@dc-ui/components/inline-error'
+import { useDcFormSubmit } from '@dc-ui/components/form'
+import { DcFormActions } from '@dc-ui/components/form-actions'
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger
 } from '@shadcn/components/ui/tooltip'
+import { useRoute } from 'vue-router'
+import { useExternalKnowledgeConfigs } from '../lib/useExternalKnowledgeConfigs'
+import { settingsLeaveGuard } from '../services/settingsLeaveGuard'
 
 const { t } = useI18n()
-const mcpStore = useMcpStore()
-const { toast } = useToast()
-import { useRoute } from 'vue-router'
-
 const route = useRoute()
 
 // 对话框状态
@@ -227,7 +240,6 @@ interface FastGptConfig {
   enabled?: boolean
 }
 
-const fastGptConfigs = ref<FastGptConfig[]>([])
 const editingFastGptConfig = ref<FastGptConfig>({
   description: '',
   apiKey: '',
@@ -236,6 +248,41 @@ const editingFastGptConfig = ref<FastGptConfig>({
   enabled: true
 })
 const editingConfigIndex = ref<number>(-1)
+const dialogInitialSignature = ref('')
+const editingSignature = computed(() => JSON.stringify(editingFastGptConfig.value))
+const dialogDirty = computed(
+  () => isFastGptConfigDialogOpen.value && editingSignature.value !== dialogInitialSignature.value
+)
+
+const isFastGptConfig = (value: unknown): value is FastGptConfig => {
+  if (typeof value !== 'object' || value === null) return false
+  const config = value as Record<string, unknown>
+  return (
+    typeof config.description === 'string' &&
+    typeof config.apiKey === 'string' &&
+    typeof config.datasetId === 'string' &&
+    typeof config.endpoint === 'string' &&
+    (config.enabled === undefined || typeof config.enabled === 'boolean')
+  )
+}
+
+const cloneConfig = (config: FastGptConfig): FastGptConfig => ({ ...config })
+const knowledgeConfigs = useExternalKnowledgeConfigs({
+  serverName: 'fastGptKnowledge',
+  codePrefix: 'settings.knowledgeBase.fastGpt',
+  diagnosticName: 'FastGPTKnowledge',
+  isConfig: isFastGptConfig,
+  clone: cloneConfig
+})
+const fastGptConfigs = knowledgeConfigs.configs
+const loadError = knowledgeConfigs.loadError
+const knowledgeOperation = knowledgeConfigs.operation
+const operationPending = knowledgeConfigs.pending
+const isFastGptMcpEnabled = knowledgeConfigs.serverEnabled
+const mcpEnabled = knowledgeConfigs.globalEnabled
+
+const operationError = ref<string | null>(null)
+const { status: saveStatus, run: runSave } = useDcFormSubmit()
 
 // 验证配置是否有效
 const isEditingFastGptConfigValid = computed(() => {
@@ -248,6 +295,7 @@ const isEditingFastGptConfigValid = computed(() => {
 
 // 打开添加配置对话框
 const openAddConfig = () => {
+  if (operationPending.value) return
   isEditing.value = false
   editingConfigIndex.value = -1
   editingFastGptConfig.value = {
@@ -257,6 +305,7 @@ const openAddConfig = () => {
     endpoint: 'http://localhost:3000/api',
     enabled: true
   }
+  dialogInitialSignature.value = editingSignature.value
   isFastGptConfigDialogOpen.value = true
 }
 
@@ -266,15 +315,16 @@ defineExpose({
 
 // 打开编辑配置对话框
 const editFastGptConfig = (index: number) => {
+  if (operationPending.value) return
   isEditing.value = true
   editingConfigIndex.value = index
   const config = fastGptConfigs.value[index]
   editingFastGptConfig.value = { ...config }
+  dialogInitialSignature.value = editingSignature.value
   isFastGptConfigDialogOpen.value = true
 }
 
-// 关闭配置对话框
-const closeFastGptConfigDialog = () => {
+const resetFastGptConfigDialog = () => {
   isFastGptConfigDialogOpen.value = false
   editingConfigIndex.value = -1
   editingFastGptConfig.value = {
@@ -284,99 +334,62 @@ const closeFastGptConfigDialog = () => {
     endpoint: 'http://localhost:3000/api',
     enabled: true
   }
+  operationError.value = null
+  dialogInitialSignature.value = editingSignature.value
+}
+
+// 关闭配置对话框
+const closeFastGptConfigDialog = () => {
+  if (operationPending.value) return
+  resetFastGptConfigDialog()
+}
+
+const handleDialogOpenChange = (open: boolean) => {
+  if (open) {
+    isFastGptConfigDialogOpen.value = true
+  } else {
+    closeFastGptConfigDialog()
+  }
 }
 
 // 保存配置
 const saveFastGptConfig = async () => {
-  if (!isEditingFastGptConfigValid.value) return
-
-  if (isEditing.value) {
-    // 更新配置
-    if (editingConfigIndex.value !== -1) {
-      fastGptConfigs.value[editingConfigIndex.value] = { ...editingFastGptConfig.value }
-    }
-    toast({
-      title: t('settings.knowledgeBase.configUpdated'),
-      description: t('settings.knowledgeBase.configUpdatedDesc', {
-        name: t('settings.knowledgeBase.fastgptTitle')
-      })
-    })
-  } else {
-    // 添加配置
-    fastGptConfigs.value.push({ ...editingFastGptConfig.value })
-    toast({
-      title: t('settings.knowledgeBase.configAdded'),
-      description: t('settings.knowledgeBase.configAddedDesc', {
-        name: t('settings.knowledgeBase.fastgptTitle')
-      })
-    })
+  if (operationPending.value || !isEditingFastGptConfigValid.value) return
+  operationError.value = null
+  const config: FastGptConfig = {
+    ...editingFastGptConfig.value,
+    description: editingFastGptConfig.value.description.trim(),
+    endpoint: editingFastGptConfig.value.endpoint.trim()
   }
 
-  // 更新到MCP配置
-  await updateFastGptConfigToMcp()
-
-  // 关闭对话框
-  closeFastGptConfigDialog()
+  try {
+    await runSave(async () => {
+      const saved = await knowledgeConfigs.save(
+        isEditing.value ? editingConfigIndex.value : null,
+        config,
+        resetFastGptConfigDialog
+      )
+      if (!saved) {
+        throw new Error('save configuration rejected')
+      }
+    })
+  } catch (error) {
+    console.error('[FastGPTKnowledgeSettings] save configuration failed', error)
+    operationError.value =
+      knowledgeOperation.lastError.value?.title ?? t('common.error.operationFailed')
+  }
 }
 
 // 移除FastGPT配置
 const removeFastGptConfig = async (index: number) => {
-  fastGptConfigs.value.splice(index, 1)
-  await updateFastGptConfigToMcp()
+  if (operationPending.value) return
+  await knowledgeConfigs.remove(index)
 }
 
 // 切换配置启用状态
 const toggleConfigEnabled = async (index: number, enabled: boolean) => {
-  fastGptConfigs.value[index].enabled = enabled
-  await updateFastGptConfigToMcp()
-}
-
-// 更新FastGPT配置到MCP
-const updateFastGptConfigToMcp = async () => {
-  try {
-    // 将配置转换为MCP需要的格式 - 转换为JSON字符串
-    const envJson = {
-      configs: toRaw(fastGptConfigs.value)
-    }
-    // 更新到MCP服务器
-    await mcpStore.updateServer('fastGptKnowledge', {
-      env: envJson
-    })
-
-    return true
-  } catch (error) {
-    console.error('更新FastGPT配置失败:', error)
-    toast({
-      title: t('common.error.operationFailed'),
-      description: String(error),
-      variant: 'destructive'
-    })
-    return false
-  }
-}
-
-// 从MCP加载FastGPT配置
-const loadFastGptConfigFromMcp = async () => {
-  try {
-    // 获取fastGptKnowledge服务器配置
-    console.log(mcpStore.config)
-    const serverConfig = mcpStore.config.mcpServers['fastGptKnowledge']
-    if (serverConfig && serverConfig.env) {
-      // 解析配置 - env可能是JSON字符串
-      try {
-        // 尝试解析JSON字符串
-        const envObj =
-          typeof serverConfig.env === 'string' ? JSON.parse(serverConfig.env) : serverConfig.env
-        if (envObj.configs && Array.isArray(envObj.configs)) {
-          fastGptConfigs.value = envObj.configs
-        }
-      } catch (parseError) {
-        console.error('解析FastGPT配置JSON失败:', parseError)
-      }
-    }
-  } catch (error) {
-    console.error('加载FastGPT配置失败:', error)
-  }
+  if (operationPending.value) return
+  await knowledgeConfigs.setEnabled(index, enabled)
 }
 
 // 切换FastGPT配置面板
@@ -384,26 +397,10 @@ const toggleFastGptConfigPanel = () => {
   isFastGptConfigPanelOpen.value = !isFastGptConfigPanelOpen.value
 }
 
-// 计算FastGPT MCP服务器是否启用
-const isFastGptMcpEnabled = computed(() => {
-  return mcpStore.serverStatuses['fastGptKnowledge'] || false
-})
-
 // 切换FastGPT MCP服务器状态
 const toggleFastGptMcpServer = async () => {
-  if (!mcpStore.mcpEnabled) return
-  await mcpStore.toggleServer('fastGptKnowledge')
+  await knowledgeConfigs.toggleServer()
 }
-
-// 监听MCP全局状态变化
-watch(
-  () => mcpStore.mcpEnabled,
-  async (enabled) => {
-    if (!enabled && isFastGptMcpEnabled.value) {
-      await mcpStore.toggleServer('fastGptKnowledge')
-    }
-  }
-)
 
 // 监听URL查询参数，设置活动标签页
 watch(
@@ -416,23 +413,20 @@ watch(
   { immediate: true }
 )
 
-// 组件挂载时加载配置
-let unwatch: (() => void) | undefined
-onMounted(async () => {
-  unwatch = watch(
-    () => mcpStore.config.ready,
-    async (ready) => {
-      if (ready) {
-        unwatch?.() // only run once to avoid multiple calls
-        await loadFastGptConfigFromMcp()
-      }
-    },
-    { immediate: true }
-  )
+const leaveGuardLease = settingsLeaveGuard.register({
+  id: 'fastgpt-knowledge-config',
+  onDiscard: closeFastGptConfigDialog
 })
+const stopLeaveRiskSync = watch(
+  [operationPending, dialogDirty],
+  ([busy, dirty]) => {
+    leaveGuardLease.setRisk(busy ? 'busy' : dirty ? 'dirty' : 'clean')
+  },
+  { immediate: true, flush: 'sync' }
+)
 
-// cancel the watch to avoid memory leaks
-onUnmounted(() => {
-  unwatch?.()
+onBeforeUnmount(() => {
+  stopLeaveRiskSync()
+  leaveGuardLease.release()
 })
 </script>

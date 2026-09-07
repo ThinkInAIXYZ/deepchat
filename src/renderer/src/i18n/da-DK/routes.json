@@ -3,6 +3,7 @@
   "welcome": "Velkomst",
   "settings": "Indstillinger",
   "settings-common": "Generelle indstillinger",
+  "settings-ocr": "OCR (tekstgenkendelse)",
   "settings-provider": "Udbydere",
   "settings-mcp": "MCP-indstillinger",
   "settings-database": "Data",
@@ -13,7 +14,7 @@
   "settings-prompt": "Prompter",
   "settings-mcp-market": "MCP-marked",
   "settings-acp": "ACP-agenter",
-  "settings-skills": "Skills",
+  "plugins-skills": "Skills",
   "settings-notifications-hooks": "Hooks",
   "settings-scheduled-tasks": "Planlagte opgaver",
   "settings-dashboard": "Dashboard",
@@ -23,5 +24,7 @@
   "settings-plugins": "Plugins",
   "settings-overview": "Indstillingsoversigt",
   "settings-memory": "Hukommelse",
-  "plugins": "Plugins"
+  "plugins": "Plugins",
+  "settings-debug": "Debug",
+  "settings-toolchains": "Toolchains"
 }

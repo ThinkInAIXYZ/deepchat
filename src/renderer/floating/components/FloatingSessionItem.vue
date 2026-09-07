@@ -120,10 +120,10 @@ const dotClass = computed(() => {
   backface-visibility: hidden;
   transform: translateZ(0);
   transition:
-    transform 140ms ease,
-    border-color 180ms ease,
-    background-color 180ms ease,
-    box-shadow 180ms ease;
+    transform var(--dc-motion-fast) var(--dc-ease-out-soft),
+    border-color 180ms var(--dc-ease-out-soft),
+    background-color 180ms var(--dc-ease-out-soft),
+    box-shadow 180ms var(--dc-ease-out-soft);
 }
 
 .session-card::before {
@@ -133,7 +133,9 @@ const dotClass = computed(() => {
   pointer-events: none;
 }
 
-.session-card:hover {
-  transform: translateY(-1px);
+@media (hover: hover) and (pointer: fine) {
+  .session-card:hover {
+    transform: translateY(-1px);
+  }
 }
 </style>

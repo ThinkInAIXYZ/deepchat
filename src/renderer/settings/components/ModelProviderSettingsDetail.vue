@@ -1,9 +1,12 @@
 <template>
   <ProviderSettingsShell
-    v-model:active-tab="activeTab"
     :title="t(provider.name)"
     :subtitle="provider.baseUrl"
     :enabled-count="enabledModels.length"
+    :enabled="provider.enable"
+    :enabled-updating="isProviderStatusUpdating"
+    :health="providerHealth"
+    @enabled-change="handleProviderEnabledChange"
   >
     <template #connection>
       <ProviderApiConfig
@@ -38,6 +41,14 @@
 
     <template #advanced>
       <ProviderRateLimitConfig :provider="provider" @config-changed="handleConfigChanged" />
+
+      <ProviderCustomHeadersEditor
+        v-if="canConfigureCustomHeaders"
+        :key="provider.id"
+        :provider-id="provider.id"
+        :model-value="provider.customHeaders"
+        :save="saveCustomHeaders"
+      />
 
       <VertexProviderSettingsDetail
         v-if="provider.apiType === 'vertex'"
@@ -88,7 +99,7 @@ import { useI18n } from 'vue-i18n'
 import { useProviderStore } from '@/stores/providerStore'
 import { useModelStore } from '@/stores/modelStore'
 import { useUiSettingsStore } from '@/stores/uiSettingsStore'
-import type { LLM_PROVIDER, RENDERER_MODEL_META, VERTEX_PROVIDER } from '@shared/presenter'
+import type { LLM_PROVIDER, RENDERER_MODEL_META, VERTEX_PROVIDER } from '@shared/types/provider'
 import ProviderSettingsShell from './ProviderSettingsShell.vue'
 import ProviderApiConfig from './ProviderApiConfig.vue'
 import AzureProviderConfig from './AzureProviderConfig.vue'
@@ -102,6 +113,12 @@ import { useModelCheckStore } from '@/stores/modelCheck'
 import { levelToValueMap, safetyCategories } from '@/lib/gemini'
 import type { SafetyCategoryKey, SafetySettingValue } from '@/lib/gemini'
 import VoiceAIProviderConfig from './VoiceAIProviderConfig.vue'
+import { notifyRenderer } from '@renderer-notifications/rendererNotificationPort'
+import {
+  supportsProviderCustomHeaders,
+  type ProviderCustomHeaders
+} from '@shared/providerCustomHeaders'
+import ProviderCustomHeadersEditor from './ProviderCustomHeadersEditor.vue'
 
 interface ProviderWebsites {
   official: string
@@ -144,6 +161,7 @@ const providerModels = ref<RENDERER_MODEL_META[]>([])
 const customModels = ref<RENDERER_MODEL_META[]>([])
 const isModelListLoading = ref(true)
 const isRefreshingModels = ref(false)
+const isProviderStatusUpdating = ref(false)
 const hasInitializedModelList = ref(false)
 
 const modelToDisable = ref<RENDERER_MODEL_META | null>(null)
@@ -167,9 +185,19 @@ const enabledModels = computed(() => {
 })
 const checkResult = ref<boolean>(false)
 const showCheckModelDialog = ref(false)
-const activeTab = ref<'connection' | 'models' | 'advanced'>('connection')
-const syncActiveTabFromOnboardingStep = (stepId?: string | null) => {
-  activeTab.value = stepId === 'provider-model' ? 'models' : 'connection'
+const providerHealth = computed(() => providerStore.getProviderHealth(props.provider.id))
+const canConfigureCustomHeaders = computed(() => supportsProviderCustomHeaders(props.provider))
+// The vertical page keeps every section mounted; onboarding steps scroll to the
+// relevant section instead of switching tabs.
+const scrollToOnboardingSection = (stepId?: string | null) => {
+  if (stepId !== 'provider-model') {
+    return
+  }
+  void nextTick(() => {
+    document
+      .querySelector('[data-testid="provider-models-section"]')
+      ?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  })
 }
 
 const providerWebsites = computed<ProviderWebsites | undefined>(
@@ -214,6 +242,21 @@ const maybeEmitProviderConfigured = (provider: LLM_PROVIDER) => {
   }
 }
 
+const handleProviderEnabledChange = async (enabled: boolean) => {
+  if (isProviderStatusUpdating.value || enabled === props.provider.enable) {
+    return
+  }
+
+  isProviderStatusUpdating.value = true
+  try {
+    await providerStore.updateProviderStatus(props.provider.id, enabled)
+  } catch (error) {
+    console.error('Failed to update provider status:', error)
+  } finally {
+    isProviderStatusUpdating.value = false
+  }
+}
+
 const validateApiKey = async () => {
   if (!props.provider.enable) {
     return false
@@ -227,6 +270,8 @@ const validateApiKey = async () => {
       showCheckModelDialog.value = true
       // 验证成功后刷新当前provider的模型列表
       await modelStore.refreshProviderModels(props.provider.id)
+      // 首次配置成功且用户尚未勾选任何模型时，应用确定性的初始推荐
+      await modelStore.applyInitialModelRecommendations(props.provider.id)
       return true
     } else {
       console.log('验证失败', resp.errorMsg)
@@ -314,7 +359,7 @@ const initProviderSettings = async () => {
 watch(
   () => props.provider.id,
   () => {
-    syncActiveTabFromOnboardingStep(props.activeOnboardingStepId)
+    scrollToOnboardingSection(props.activeOnboardingStepId)
     initProviderSettings()
   },
   { immediate: true }
@@ -323,17 +368,58 @@ watch(
 watch(
   () => props.activeOnboardingStepId,
   (stepId) => {
-    syncActiveTabFromOnboardingStep(stepId)
+    scrollToOnboardingSection(stepId)
   },
   { immediate: true }
 )
 
+// A provider with a working credential gets staged verification: the edited
+// configuration must verify before it atomically replaces the stored one. The
+// first-time setup path keeps the immediate save so onboarding stays fluid.
+const shouldStageApiChanges = computed(() => Boolean(props.provider.apiKey?.trim()))
+
+const applyStagedApiChange = async (updates: { apiKey?: string; baseUrl?: string }) => {
+  try {
+    const result = await providerStore.stageProviderApiChange(props.provider.id, updates)
+    if (!result.isOk) {
+      notifyRenderer({
+        kind: 'error',
+        code: 'settings.provider.stagedUpdateFailed',
+        title: t('settings.provider.stagedUpdate.failedTitle'),
+        description: result.errorMsg || t('settings.provider.stagedUpdate.failedDescription')
+      })
+      return false
+    }
+    return true
+  } catch (error) {
+    console.error('Failed to stage provider api change:', error)
+    notifyRenderer({
+      kind: 'error',
+      code: 'settings.provider.stagedUpdateFailed',
+      title: t('settings.provider.stagedUpdate.failedTitle'),
+      description: t('settings.provider.stagedUpdate.failedDescription')
+    })
+    return false
+  }
+}
+
+const saveCustomHeaders = (customHeaders?: ProviderCustomHeaders) =>
+  providerStore.saveProviderCustomHeaders(props.provider.id, customHeaders)
+
 const handleApiKeyChange = async (value: string) => {
+  if (shouldStageApiChanges.value && value.trim() && value !== props.provider.apiKey) {
+    await applyStagedApiChange({ apiKey: value })
+    return
+  }
   const result = await providerStore.updateProviderApi(props.provider.id, value, undefined)
   maybeEmitProviderConfigured(result.updated as LLM_PROVIDER)
 }
 
 const handleApiHostChange = async (value: string) => {
+  if (shouldStageApiChanges.value && value.trim() && value !== props.provider.baseUrl) {
+    await applyStagedApiChange({ baseUrl: value })
+    return
+  }
   const result = await providerStore.updateProviderApi(props.provider.id, undefined, value)
   maybeEmitProviderConfigured(result.updated as LLM_PROVIDER)
 }

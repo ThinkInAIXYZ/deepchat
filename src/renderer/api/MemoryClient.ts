@@ -1,10 +1,13 @@
 import type { DeepchatBridge } from '@shared/contracts/bridge'
 import {
   memoryAddRoute,
+  memoryApproveDirectiveRoute,
   memoryArchiveRoute,
   memoryApprovePersonaDraftRoute,
   memoryClearRoute,
+  memoryCreateDirectiveRoute,
   memoryDeleteRoute,
+  memoryDeleteDirectiveRoute,
   memoryGetArchiveCandidateLifecyclePreviewRoute,
   memoryGetByIdsRoute,
   memoryGetSourceSpanRoute,
@@ -13,11 +16,13 @@ import {
   memoryGetStatusRoute,
   memoryListAuditEventsRoute,
   memoryListConflictsRoute,
+  memoryListDirectivesRoute,
   memoryListPersonaDraftsRoute,
   memoryListPersonaVersionsRoute,
   memoryPageRoute,
   memoryListRoute,
   memoryListViewManifestsRoute,
+  memoryRejectDirectiveRoute,
   memoryRejectPersonaDraftRoute,
   memoryReindexRoute,
   memoryResolveConflictRoute,
@@ -30,11 +35,17 @@ import {
   type MemoryArchiveCandidateLifecyclePreview,
   type MemoryConflictItem,
   type MemoryAuditEvent,
+  type MemoryDirectiveCreateInput,
+  type MemoryDirectiveCommandResult,
+  type MemoryDirectiveItem,
   type MemoryHealthDto,
   type MemoryItem,
   type MemoryPage,
   type MemoryLifecycle,
+  type MemoryCommandResult,
   type MemorySearchResult,
+  type MemoryScopeContextInput,
+  type MemoryScopeInput,
   type MemorySourceSpan,
   type MemoryStatusDto,
   type MemoryUpdateResult,
@@ -51,6 +62,7 @@ type MemoryAddInputBase = {
   content: string
   importance?: number
   sessionId?: string
+  scope?: MemoryScopeInput
 }
 type MemoryAddByKindInput = MemoryAddInputBase & {
   kind?: MemoryAddKind
@@ -68,6 +80,7 @@ type MemoryAddPayload = {
   category?: AgentMemoryCategory
   importance?: number
   sessionId?: string
+  scope?: MemoryScopeInput
 }
 type MemoryUpdateInput = {
   content?: string
@@ -120,12 +133,13 @@ export function createMemoryClient(bridge: DeepchatBridge = getDeepchatBridge())
   async function search(
     agentId: string,
     query: string,
-    options?: { limit?: number }
+    options?: { limit?: number; scopeContext?: MemoryScopeContextInput }
   ): Promise<MemorySearchResult[]> {
     const result = await bridge.invoke(memorySearchRoute.name, {
       agentId,
       query,
-      limit: options?.limit
+      limit: options?.limit,
+      scopeContext: options?.scopeContext
     })
     return result.results
   }
@@ -135,7 +149,8 @@ export function createMemoryClient(bridge: DeepchatBridge = getDeepchatBridge())
       agentId,
       content: input.content,
       importance: input.importance,
-      sessionId: input.sessionId
+      sessionId: input.sessionId,
+      scope: input.scope
     }
     if (input.category !== undefined) {
       payload.category = input.category
@@ -190,24 +205,22 @@ export function createMemoryClient(bridge: DeepchatBridge = getDeepchatBridge())
     return result.manifests
   }
 
-  async function remove(agentId: string, memoryId: string): Promise<boolean> {
-    const result = await bridge.invoke(memoryDeleteRoute.name, { agentId, memoryId })
-    return result.ok
+  async function remove(agentId: string, memoryId: string): Promise<MemoryCommandResult> {
+    return bridge.invoke(memoryDeleteRoute.name, { agentId, memoryId })
   }
 
-  async function archive(agentId: string, memoryId: string): Promise<boolean> {
-    const result = await bridge.invoke(memoryArchiveRoute.name, { agentId, memoryId })
-    return result.ok
+  async function archive(agentId: string, memoryId: string): Promise<MemoryCommandResult> {
+    return bridge.invoke(memoryArchiveRoute.name, { agentId, memoryId })
   }
 
-  async function clear(agentId: string): Promise<number> {
-    const result = await bridge.invoke(memoryClearRoute.name, { agentId })
-    return result.removed
+  async function clear(
+    agentId: string
+  ): Promise<{ removed: number; cleanupPendingRestart: boolean }> {
+    return bridge.invoke(memoryClearRoute.name, { agentId })
   }
 
-  async function restore(agentId: string, memoryId: string): Promise<boolean> {
-    const result = await bridge.invoke(memoryRestoreRoute.name, { agentId, memoryId })
-    return result.ok
+  async function restore(agentId: string, memoryId: string): Promise<MemoryCommandResult> {
+    return bridge.invoke(memoryRestoreRoute.name, { agentId, memoryId })
   }
 
   async function reindex(agentId: string): Promise<{ started: boolean }> {
@@ -228,13 +241,12 @@ export function createMemoryClient(bridge: DeepchatBridge = getDeepchatBridge())
     agentId: string,
     challengerId: string,
     outcome: 'keep_target' | 'keep_challenger' | 'keep_both'
-  ): Promise<boolean> {
-    const result = await bridge.invoke(memoryResolveConflictRoute.name, {
+  ): Promise<MemoryCommandResult> {
+    return bridge.invoke(memoryResolveConflictRoute.name, {
       agentId,
       challengerId,
       outcome
     })
-    return result.ok
   }
 
   async function listPersonaVersions(agentId: string): Promise<MemoryItem[]> {
@@ -242,9 +254,8 @@ export function createMemoryClient(bridge: DeepchatBridge = getDeepchatBridge())
     return result.versions
   }
 
-  async function rollbackPersona(agentId: string, versionId: string): Promise<boolean> {
-    const result = await bridge.invoke(memoryRollbackPersonaRoute.name, { agentId, versionId })
-    return result.ok
+  async function rollbackPersona(agentId: string, versionId: string): Promise<MemoryCommandResult> {
+    return bridge.invoke(memoryRollbackPersonaRoute.name, { agentId, versionId })
   }
 
   async function listPersonaDrafts(agentId: string): Promise<MemoryItem[]> {
@@ -252,27 +263,73 @@ export function createMemoryClient(bridge: DeepchatBridge = getDeepchatBridge())
     return result.drafts
   }
 
-  async function approvePersonaDraft(agentId: string, draftId: string): Promise<boolean> {
-    const result = await bridge.invoke(memoryApprovePersonaDraftRoute.name, { agentId, draftId })
-    return result.ok
+  async function approvePersonaDraft(
+    agentId: string,
+    draftId: string
+  ): Promise<MemoryCommandResult> {
+    return bridge.invoke(memoryApprovePersonaDraftRoute.name, { agentId, draftId })
   }
 
-  async function rejectPersonaDraft(agentId: string, draftId: string): Promise<boolean> {
-    const result = await bridge.invoke(memoryRejectPersonaDraftRoute.name, { agentId, draftId })
-    return result.ok
+  async function rejectPersonaDraft(
+    agentId: string,
+    draftId: string
+  ): Promise<MemoryCommandResult> {
+    return bridge.invoke(memoryRejectPersonaDraftRoute.name, { agentId, draftId })
   }
 
   async function setPersonaAnchor(
     agentId: string,
     versionId: string,
     anchored: boolean
-  ): Promise<boolean> {
-    const result = await bridge.invoke(memorySetPersonaAnchorRoute.name, {
+  ): Promise<MemoryCommandResult> {
+    return bridge.invoke(memorySetPersonaAnchorRoute.name, {
       agentId,
       versionId,
       anchored
     })
-    return result.ok
+  }
+
+  async function listDirectives(
+    agentId: string,
+    options: {
+      statuses?: MemoryDirectiveItem['status'][]
+      limit?: number
+    } = {}
+  ): Promise<MemoryDirectiveItem[]> {
+    const result = await bridge.invoke(memoryListDirectivesRoute.name, {
+      agentId,
+      statuses: options.statuses,
+      limit: options.limit
+    })
+    return result.directives
+  }
+
+  async function createDirective(
+    agentId: string,
+    directive: MemoryDirectiveCreateInput
+  ): Promise<MemoryDirectiveCommandResult> {
+    return bridge.invoke(memoryCreateDirectiveRoute.name, { agentId, directive })
+  }
+
+  async function approveDirective(
+    agentId: string,
+    directiveId: string
+  ): Promise<MemoryDirectiveCommandResult> {
+    return bridge.invoke(memoryApproveDirectiveRoute.name, { agentId, directiveId })
+  }
+
+  async function rejectDirective(
+    agentId: string,
+    directiveId: string
+  ): Promise<MemoryDirectiveCommandResult> {
+    return bridge.invoke(memoryRejectDirectiveRoute.name, { agentId, directiveId })
+  }
+
+  async function deleteDirective(
+    agentId: string,
+    directiveId: string
+  ): Promise<MemoryCommandResult> {
+    return bridge.invoke(memoryDeleteDirectiveRoute.name, { agentId, directiveId })
   }
 
   function onUpdated(listener: (payload: MemoryUpdatedPayload) => void): () => void {
@@ -306,6 +363,11 @@ export function createMemoryClient(bridge: DeepchatBridge = getDeepchatBridge())
     approvePersonaDraft,
     rejectPersonaDraft,
     setPersonaAnchor,
+    listDirectives,
+    createDirective,
+    approveDirective,
+    rejectDirective,
+    deleteDirective,
     onUpdated
   }
 }

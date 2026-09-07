@@ -63,6 +63,27 @@
         "yobrowser": "YoBrowser"
       }
     },
+    "toolMode": {
+      "title": "모드",
+      "modelDefault": "모델 기본값",
+      "options": {
+        "agent": "Agent",
+        "code": "Code",
+        "minimal": "Minimal"
+      },
+      "descriptions": {
+        "agent": "표준 Agent 도구 모음을 사용합니다.",
+        "code": "활성화된 도구를 코드로 조합합니다. 전체 액세스 권한 모드가 필요합니다.",
+        "minimal": "파일 작업은 간소화하고 활성화된 다른 도구는 유지합니다."
+      },
+      "useModelDefault": "모델 기본값 사용",
+      "saving": "모드 저장 중...",
+      "locked": "이 응답이 끝나면 모드를 전환할 수 있습니다.",
+      "updateFailed": "도구 모드를 업데이트하지 못했습니다.",
+      "codeEntry": "코드 진입점",
+      "codeCallable": "코드에서 호출 가능",
+      "minimalTools": "코딩 도구"
+    },
     "fileUploadFailed": "첨부 파일 처리 실패",
     "fileUploadFailedDesc": "파일 {count}개를 처리할 수 없습니다: {names}",
     "fileUploadFailedMore": " 외 {count}개",
@@ -71,6 +92,12 @@
     "audioInputUnsupportedDescription": "모델 {model}은 오디오 입력을 지원하지 않습니다. 오디오 첨부 {count}개를 무시했습니다."
   },
   "pendingInput": {
+    "resume": "대기열 재개",
+    "resumeFailed": "대기열을 재개하지 못했습니다",
+    "retry": "다시 시도",
+    "retryRequired": "다시 시도 필요",
+    "retryRequiredDescription": "이 메시지는 전송되지 않았습니다. 대기열을 계속하려면 다시 시도하세요.",
+    "retryFailed": "대기 중인 메시지를 다시 시도하지 못했습니다",
     "steer": "유도",
     "queueCount": "전송 대기 {count}/{max}",
     "toSteer": "중단하고 보내기",
@@ -153,7 +180,8 @@
   "mode": {
     "acpAgent": "ACP 에이전트",
     "agent": "대리인",
-    "current": "현재 모드: {mode}"
+    "current": "현재 모드: {mode}",
+    "saveFailed": "모드 선택을 저장하지 못했습니다"
   },
   "topbar": {
     "share": "공유",
@@ -167,7 +195,6 @@
     "systemPrompt": "시스템 프롬프트",
     "systemPromptPlaceholder": "프리셋 선택",
     "temperature": "온도",
-    "temperatureFixedMoonshotKimi": "Moonshot Kimi K2.5/K2.6은 생각이 활성화되면 온도를 {enabled}로, 비활성화되면 {disabled}로 고정합니다.",
     "topP": "Top P",
     "topPDescription": "핵 샘플링입니다. 비워 두면 제공업체 기본값을 사용합니다",
     "contextLength": "컨텍스트 길이",
@@ -203,6 +230,12 @@
       "contextMenu": {
         "insertPath": "입력창에 삽입",
         "openFile": "파일 열기",
+        "openInApp": "{app}에서 열기",
+        "openInTerminalApp": "{app}에서 폴더 열기",
+        "openFailed": "해당 앱으로 파일을 열 수 없습니다",
+        "preferredAppUnavailable": "기본 앱을 지금은 사용할 수 없어 시스템 기본 앱으로 엽니다.",
+        "openWith": "연결 프로그램",
+        "openWithSystemDefault": "시스템 기본 앱으로 열기",
         "revealInFolder": "파일 관리자에서 열기"
       },
       "empty": "아직 파일이 없습니다",
@@ -301,10 +334,19 @@
   "compaction": {
     "compacting": "컨텍스트를 압축하는 중...",
     "compacted": "컨텍스트가 압축되었습니다",
+    "compactedWithoutSummary": "요약 없이 컨텍스트가 압축되었습니다",
+    "compactedWithoutLargerSummary": "더 큰 요약을 사용하지 않고 컨텍스트가 압축되었습니다",
     "commandDescription": "대화 컨텍스트 압축",
     "noopTitle": "압축할 컨텍스트가 없습니다",
     "noopDescription": "아직 압축할 새 대화 기록이 없습니다.",
     "failedTitle": "압축 실패"
+  },
+  "contextOccupancy": {
+    "label": "컨텍스트 사용량",
+    "details": "{capacity} 토큰 중 {used}",
+    "provider": "프로바이더 측정값",
+    "estimated": "요청 뷰에서 추정",
+    "stale": "모델, 창 또는 압축 변경 후의 오래된 값"
   },
   "newThread": {
     "title": "만들고 탐색하기"
@@ -348,7 +390,13 @@
     "moveProjectGroupBottom": "맨 아래로 이동",
     "searchCommand": "Search",
     "chatSection": "Chat",
-    "workspace": "Workspace"
+    "workspace": "Workspace",
+    "addWorkspace": "작업 공간 추가",
+    "manageWorkspaces": "작업 공간 관리",
+    "openWorkspaceFolder": "폴더 열기",
+    "emptyWorkspace": "비어 있음",
+    "addWorkspaceFailed": "작업 공간을 추가하지 못했습니다",
+    "searchLoadedRangeDescription": "불러온 대화의 일치 항목을 표시하고 있습니다. 스크롤하여 이전 기록을 더 불러오세요."
   },
   "floatingWidget": {
     "title": "작업 개요",
@@ -400,6 +448,72 @@
     "firstChat": {
       "description": "모든 준비가 완료되었습니다. 첫 메시지를 입력해 온보딩을 완료하세요.",
       "caption": "첫 메시지를 보낼 때까지 스포트라이트가 입력창에 유지됩니다."
+    }
+  },
+  "messageReceipt": {
+    "unread": "읽지 않음",
+    "read": "읽음"
+  },
+  "attachments": {
+    "chooseRepresentation": "{name} 전송 방법 선택",
+    "representation": "첨부 파일 전송 형식",
+    "auto": "자동",
+    "sendImage": "이미지 보내기",
+    "useOcrText": "OCR 텍스트 사용",
+    "useEmbeddedText": "내장 텍스트 사용",
+    "preparing": "첨부 파일을 처리하는 중…",
+    "actionRequiredTitle": "첨부 파일을 확인해야 합니다",
+    "actionRequiredDescription": "하나 이상의 첨부 파일을 사용할 수 없습니다. 계속할 방법을 선택하세요.",
+    "attachmentNumber": "첨부 파일 {number}",
+    "moreIssues": "첨부 파일 문제 {count}개 더 있음",
+    "genericUnavailable": "사용할 수 있는 첨부 파일 내용이 없습니다.",
+    "keepDraft": "초안 유지",
+    "switchVisionModel": "비전 모델로 전환",
+    "retry": "다시 시도",
+    "sendWithoutImageContent": "첨부 내용 건너뛰기",
+    "inspectOcrText": "OCR 텍스트 보기",
+    "ocrBadge": "OCR",
+    "embeddedTextBadge": "텍스트",
+    "ocrPartialBadge": "OCR · 일부",
+    "ocrLimitedBadge": "OCR · 제한",
+    "imageBadge": "이미지",
+    "unavailableBadge": "사용할 수 없음",
+    "ocrPreviewTitle": "OCR 텍스트 — {name}",
+    "ocrPreviewDescription": "약 {tokens}개의 토큰이 신뢰할 수 없는 첨부 파일 내용으로 전송되었습니다.",
+    "ocrPageCoverage": "{page}페이지까지의 텍스트를 포함합니다.",
+    "ocrPageCoveragePartial": "{page}페이지의 일부를 포함합니다.",
+    "ocrTextTruncated": "이 OCR 텍스트는 전송 전에 잘렸습니다.",
+    "reasons": {
+      "automatic_ocr_disabled": "자동 OCR이 꺼져 있습니다.",
+      "document_limit_exceeded": "요청당 하나의 PDF만 OCR을 사용할 수 있습니다.",
+      "document_too_large": "PDF가 파일 크기 제한을 초과합니다.",
+      "image_dimensions_exceeded": "디코딩된 이미지 크기가 안전 제한을 초과합니다.",
+      "image_limit_exceeded": "이 턴의 이미지 수가 OCR 처리 한도를 초과합니다.",
+      "image_payload_unavailable": "원본 이미지 데이터를 더 이상 사용할 수 없습니다.",
+      "image_too_large": "이미지가 파일당 크기 제한을 초과합니다.",
+      "ocr_cancelled": "OCR이 취소되었습니다.",
+      "ocr_empty": "OCR에서 사용할 수 있는 텍스트를 찾지 못했습니다.",
+      "ocr_failed": "OCR에서 이 첨부 파일을 처리하지 못했습니다.",
+      "ocr_queue_full": "OCR이 사용 중입니다. 현재 첨부 파일 처리가 끝난 후 다시 시도하세요.",
+      "ocr_resource_limited": "PDF 처리 제한에 도달하여 OCR이 중지되었습니다.",
+      "ocr_runtime_unavailable": "이 플랫폼 또는 설치 환경에서는 OCR을 사용할 수 없습니다.",
+      "invalid_attachment_snapshot": "저장된 OCR 데이터가 올바르지 않습니다.",
+      "turn_ocr_budget_exhausted": "OCR 텍스트가 이 메시지의 첨부 텍스트 한도를 초과합니다.",
+      "pdf_text_unavailable": "이 PDF에는 사용할 수 있는 내장 텍스트가 없습니다.",
+      "requested_image_requires_vision": "‘이미지 보내기’에는 비전 기능을 지원하는 모델이 필요합니다.",
+      "turn_image_bytes_exceeded": "이 턴의 이미지가 전체 크기 제한을 초과합니다.",
+      "user_skipped_attachment_content": "사용자 선택에 따라 첨부 파일 내용을 생략했습니다.",
+      "user_skipped_image_content": "사용자 선택에 따라 이미지 내용을 생략했습니다.",
+      "unsupported_image_format": "이 이미지 형식은 OCR에서 지원되지 않습니다."
+    },
+    "pending": {
+      "blockedCount": "{count}개 보류",
+      "blocked": "보류됨",
+      "retry": "OCR 다시 시도",
+      "sendWithoutImageContent": "첨부 내용 건너뛰기",
+      "blockedDescription": "이 항목은 첨부 파일 처리 방법을 기다리고 있습니다.",
+      "blockedReasonMore": "{reason} 그 밖에 {count}개의 문제가 있습니다.",
+      "resolveFailed": "보류된 메시지를 처리하지 못했습니다"
     }
   },
   "skillDraft": {
@@ -459,6 +573,14 @@
       "dropped": "제외됨",
       "tokens": "토큰",
       "budget": "예산",
+      "allocation": "기여 예산 할당",
+      "directive": "지침",
+      "persona": "페르소나",
+      "working": "작업 메모리",
+      "queryRecall": "쿼리 회상",
+      "overhead": "오버헤드",
+      "unused": "미사용",
+      "overheadSummary": "오버헤드 {overhead} · 미사용 {unused}",
       "countOnly": "이 기록에는 개수 요약만 포함되어 있습니다.",
       "unavailable": "이 메모리는 더 이상 사용할 수 없습니다.",
       "noSelectedDetails": "이번 턴에 표시할 메모리 세부 정보가 없습니다.",
@@ -485,5 +607,29 @@
       "amendRetryable": "수정에 실패했습니다. 원래 기억은 복원되었으니 다시 시도하세요.",
       "amendRestoreFailed": "수정에 실패했고 원래 기억도 복원하지 못했습니다."
     }
+  },
+  "orchestration": {
+    "actions": {
+      "openChild": "하위 Agent 열기"
+    },
+    "activityTitle": "Agent 활동",
+    "proactive": {
+      "title": "능동형 협업",
+      "description": "독립 또는 병렬 작업이 분명히 도움이 될 때 상위 Agent가 작업을 위임할 수 있습니다. 시간, Token, 시스템 리소스를 더 사용할 수 있습니다.",
+      "reasons": {
+        "session_unavailable": "이 세션은 더 이상 사용할 수 없습니다.",
+        "agent_unavailable": "선택한 Agent를 사용할 수 없습니다.",
+        "deepchat_agent_required": "능동형 협업에는 DeepChat Agent가 필요합니다.",
+        "regular_parent_required": "하위 세션에서는 능동형 협업을 사용할 수 없습니다.",
+        "agent_policy_unavailable": "협업 정책을 불러오지 못했습니다.",
+        "subagents_disabled": "능동형 협업을 사용하려면 이 Agent의 Subagent를 활성화하세요."
+      }
+    }
+  },
+  "guardStop": {
+    "maxToolCalls": "작업이 끝나기 전에 도구 호출 한도에 도달했습니다.",
+    "noProgress": "동일한 도구 결과가 반복되어 진전이 없어 Agent가 중지되었습니다.",
+    "maxTurns": "작업이 끝나기 전에 제공자 라운드 한도에 도달했습니다.",
+    "continueMessage": "멈춘 지점부터 이어서 진행하세요."
   }
 }

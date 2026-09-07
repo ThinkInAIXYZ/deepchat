@@ -10,7 +10,7 @@ const router = createRouter({
     {
       path: '/chat',
       name: 'chat',
-      component: () => import('@/views/ChatTabView.vue'),
+      component: () => import('@/apps/chat-main/ChatTabView.vue'),
       meta: {
         titleKey: 'routes.chat',
         icon: 'lucide:message-square'
@@ -38,7 +38,7 @@ const router = createRouter({
           name: 'plugins-skills',
           component: () => import('@/pages/plugins/SkillsPluginsPage.vue'),
           meta: {
-            titleKey: 'routes.settings-skills',
+            titleKey: 'routes.plugins-skills',
             icon: 'lucide:wand-sparkles'
           }
         },
@@ -49,6 +49,15 @@ const router = createRouter({
           meta: {
             titleKey: 'routes.settings-mcp',
             icon: 'lucide:server'
+          }
+        },
+        {
+          path: 'builtin/ocr',
+          name: 'plugins-builtin-ocr',
+          component: () => import('@/pages/plugins/OcrPluginsPage.vue'),
+          meta: {
+            titleKey: 'routes.settings-ocr',
+            icon: 'lucide:scan-text'
           }
         },
         {

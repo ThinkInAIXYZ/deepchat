@@ -1,0 +1,169 @@
+{
+  "title": "Tape Inspector",
+  "actions": {
+    "apply": "Apply",
+    "expand": "Expand",
+    "collapse": "Collapse",
+    "refresh": "Refresh",
+    "loadOlder": "Load earlier Tape Entries",
+    "loadMore": "Wczytaj więcej",
+    "loadEvidence": "Load more model requests",
+    "loadMatchingEntries": "Load matching Entries",
+    "openSession": "Open Tape Inspector",
+    "openMessage": "Open in Tape Inspector",
+    "pause": "Pause live updates",
+    "resume": "Resume live updates"
+  },
+  "columns": {
+    "name": "Name",
+    "kind": "Kind",
+    "status": "Status",
+    "start": "Start",
+    "duration": "Duration",
+    "waterfall": "Waterfall"
+  },
+  "search": {
+    "loadedLabel": "Search loaded Tape Entries and model requests",
+    "loadedPlaceholder": "Search loaded Tape Entries and model requests",
+    "loadedScope": "Text search only covers the loaded range"
+  },
+  "filters": { "title": "Filters", "allFamilies": "All families", "errorsOnly": "Errors only" },
+  "groups": {
+    "run": "Execution run",
+    "request": "Model request",
+    "attempt": "Provider attempt",
+    "tool": "Tool operation"
+  },
+  "families": {
+    "context": "Context material",
+    "journal": "Execution journal",
+    "contract": "Task contract",
+    "view": "View",
+    "attempt": "Provider attempt",
+    "anchor": "Anchor",
+    "message": "Message",
+    "lineage": "Lineage",
+    "tool": "Tool",
+    "other": "Other"
+  },
+  "activity": {
+    "userMessage": "User message",
+    "assistantMessage": "Assistant message",
+    "user": "User",
+    "assistant": "Assistant",
+    "reasoning": "Reasoning",
+    "media": "Media",
+    "memoryView": "Memory context assembled",
+    "directiveView": "Memory directives assembled",
+    "toolCall": "Tool call",
+    "toolResult": "Tool result",
+    "memorySelection": "{selected} selected · {dropped} dropped",
+    "tokenUse": "{used} / {budget} tokens",
+    "relations": { "input": "Input", "output": "Observed result", "later": "Later activity" }
+  },
+  "evidence": {
+    "request": "Model request",
+    "earlierSummary": "Matching Entry is earlier in Tape",
+    "standaloneSummary": "No matching completed Entry is available",
+    "earlierHint": "These requests have an exact matching Entry outside the loaded range. Load bounded earlier pages to bring them into context.",
+    "standaloneHint": "These requests are diagnostics, are still being recorded, or do not contain an exact attempt identity. They remain visible without guessing a match.",
+    "lanes": {
+      "earlier": "Requests with earlier Entries ({count})",
+      "request": "Standalone model requests ({count})",
+      "diagnostic": "Diagnostics ({count})"
+    },
+    "scope": {
+      "request": "request-scoped",
+      "diagnostic": "diagnostic",
+      "earlier": "earlier Entry",
+      "filtered": "hidden by current view",
+      "newer": "waiting for live view",
+      "not_recorded": "no completion Entry yet"
+    }
+  },
+  "kinds": { "evidence": "model request", "lane": "request collection", "group": "derived group" },
+  "states": {
+    "unknown": "unknown",
+    "statusPending": "Outcome Entry not loaded",
+    "timingPending": "Start and end Entries not paired",
+    "timingEarlierHistory": "The matching boundary is in earlier Tape history",
+    "timingFiltered": "The matching boundary is hidden by current filters",
+    "timingAwaitingLive": "Waiting for the matching boundary from the live session",
+    "timingNotRecorded": "This recording does not contain both timing boundaries",
+    "timingInconsistent": "Recorded timing boundaries are inconsistent",
+    "notApplicable": "Not applicable to this item",
+    "empty": "No matching Tape Entries or model requests",
+    "loadedCounts": "{entries} Tape Entries · {evidence} model requests",
+    "pageLoaded": "Loaded {count} more Tape Entries. Position preserved; continue scrolling to view them.",
+    "pageLoadedComplete": "Loaded {count} more Tape Entries. Beginning of Tape reached.",
+    "pageNoMatches": "The next bounded range contained no matching Tape Entries.",
+    "pageNoMatchesComplete": "Beginning of Tape reached; no earlier Entries match the current filters.",
+    "matchingEntriesUnavailable": "Use Tape order and clear Entry filters to load matching history",
+    "live": "Live",
+    "paused": "Paused",
+    "liveUnavailable": "Live updates unavailable"
+  },
+  "waterfall": {
+    "sequence": "Position in Tape append order (entryId)",
+    "point": "Point-in-time item; duration does not apply"
+  },
+  "timeline": {
+    "title": "Overview",
+    "actual": "Time",
+    "sequence": "Sequence",
+    "session": "Session",
+    "model": "Model",
+    "tools": "Tools",
+    "duration": "Duration",
+    "point": "Point",
+    "error": "Error",
+    "earlierNotLoaded": "Earlier Tape Entries not loaded"
+  },
+  "detail": {
+    "title": "Details",
+    "selectPrompt": "Select a row to inspect its available details",
+    "contextTail": "Recent visible activity before this request",
+    "observedResult": "Observed result",
+    "finalSnapshot": "Final accumulated blocks associated with this model request; token-by-token events are not retained.",
+    "resultBlocksTruncated": "Only the latest bounded result blocks are shown.",
+    "memoryManifestHint": "This manifest records which Memory items were selected and budgeted. The exact historical prompt content is available in the related model request.",
+    "subsequentActivity": "Subsequent conversation activity",
+    "subsequentActivityHint": "These blocks occurred after the request, but older records do not carry enough identity to attribute them to it.",
+    "integrity": "Integrity",
+    "provenance": "Provenance",
+    "timing": "Timing",
+    "payload": "Permitted payload",
+    "raw": "Sanitized raw record",
+    "truncated": "truncated",
+    "hashes": "Hashes and sizes",
+    "sources": {
+      "tape": "Tape Entry",
+      "message_trace": "Model request",
+      "derived": "Derived view"
+    }
+  },
+  "fields": {
+    "entryId": "Entry ID",
+    "family": "Family",
+    "name": "Name",
+    "kind": "Kind",
+    "status": "Entry status",
+    "disclosure": "Disclosure",
+    "traceId": "Trace ID",
+    "messageId": "Message ID",
+    "requestSeq": "Request sequence",
+    "attempt": "Physical attempt",
+    "provider": "Provider",
+    "model": "Model",
+    "endpoint": "Endpoint",
+    "group": "Group",
+    "identity": "Identity",
+    "records": "Items"
+  },
+  "integrity": { "valid": "valid", "invalid": "invalid", "unverified": "unverified" },
+  "errors": {
+    "load_failed": "Unable to load Inspector data",
+    "detail_failed": "Unable to load item details",
+    "record_not_found": "The selected item is no longer available"
+  }
+}

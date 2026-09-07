@@ -1,5 +1,5 @@
 {
-  "title": "Solicitar vista previa",
+  "title": "Diagnóstico del mensaje",
   "provider": "Proveedor",
   "model": "modelo",
   "endpoint": "API Endpoint",
@@ -18,14 +18,29 @@
     "request": "Solicitud",
     "view": "Vista",
     "entries": "Entradas",
-    "budget": "Presupuesto"
+    "budget": "Presupuesto",
+    "execution": "Auditoría de ejecución"
   },
   "empty": "Sin diagnósticos",
-  "emptyDesc": "No hay traza de solicitud ni manifiesto de vista disponible para este mensaje",
+  "emptyDesc": "No hay traza de solicitud, manifiesto de vista Tape ni auditoría de ejecución anidada disponible para este mensaje",
   "requestUnavailable": "Sin traza de solicitud",
   "requestUnavailableDesc": "Este mensaje no tiene una traza de solicitud del proveedor guardada",
   "manifestUnavailable": "Sin manifiesto de vista",
   "manifestUnavailableDesc": "Este mensaje no tiene un manifiesto de vista de Tape guardado",
+  "execution": {
+    "empty": "No hay ejecuciones anidadas",
+    "emptyDesc": "No se ha registrado ninguna operación programática de herramientas para esta solicitud",
+    "corrupt": "La auditoría de ejecución está dañada",
+    "corruptDesc": "Los datos anidados de Journal presentan conflictos o no se pueden verificar",
+    "unavailable": "Auditoría de ejecución no disponible",
+    "unavailableDesc": "No se pudieron leer los datos anidados de Journal",
+    "truncated": "Solo se muestran las primeras 256 operaciones anidadas",
+    "status": {
+      "success": "Correcto",
+      "error": "Error",
+      "indeterminate": "Indeterminado"
+    }
+  },
   "viewId": "ID de vista",
   "policy": "Política",
   "policyVersion": "Versión de política",

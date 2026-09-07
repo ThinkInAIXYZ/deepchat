@@ -3,6 +3,7 @@
   "welcome": "خوش آمدید",
   "settings": "تنظیمات",
   "settings-common": "تنظیمات عمومی",
+  "settings-ocr": "OCR (تشخیص متن)",
   "settings-provider": "تنظیمات فراهم‌کننده",
   "settings-mcp": "تنظیمات MCP",
   "settings-database": "تنظیمات پایگاه داده",
@@ -13,7 +14,7 @@
   "settings-prompt": "مدیریت پرامپت‌ها",
   "settings-mcp-market": "بازار MCP",
   "settings-acp": "نماینده ACP",
-  "settings-skills": "Skills",
+  "plugins-skills": "Skills",
   "settings-notifications-hooks": "هوک‌ها",
   "settings-scheduled-tasks": "وظایف زمان‌بندی‌شده",
   "settings-dashboard": "داشبورد",
@@ -23,5 +24,7 @@
   "settings-plugins": "افزونه‌ها",
   "settings-overview": "نمای کلی تنظیمات",
   "settings-memory": "حافظه",
-  "plugins": "Plugins"
+  "plugins": "Plugins",
+  "settings-debug": "Debug",
+  "settings-toolchains": "Toolchains"
 }

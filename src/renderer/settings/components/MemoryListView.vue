@@ -33,14 +33,15 @@
           <Checkbox v-model:checked="includeArchived" />
           {{ t('settings.memory.redesign.includeArchived') }}
         </label>
-        <Button size="sm" class="h-9" :disabled="memoryDisabled" @click="openCreate">
+        <DcButton size="sm" class="h-9" :disabled="memoryDisabled || panelBusy" @click="openCreate">
           <Icon icon="lucide:plus" class="mr-1.5 h-3.5 w-3.5" />
           {{ t('settings.memory.redesign.addMemory') }}
-        </Button>
+        </DcButton>
       </div>
     </div>
 
-    <p v-if="searchError" class="text-xs text-destructive">{{ searchError }}</p>
+    <DcInlineError v-if="searchError" :error="searchError" />
+    <MemoryInlineFeedback v-if="feedback" :feedback="feedback" @clear="clearFeedback" />
 
     <div
       v-if="expandedMode === 'create'"
@@ -54,6 +55,9 @@
         :discard-prompt="panelDiscardPrompt"
         @close="requestClosePanel"
         @saved="handlePanelSaved"
+        @reconcile="refreshLoadedPages"
+        @feedback="handlePanelFeedback"
+        @busy="panelBusy = $event"
         @dirty="panelDirty = $event"
         @discard-pending="discardAndSwitch"
         @cancel-pending="cancelPendingAction"
@@ -82,6 +86,7 @@
             <MemoryListRow
               :memory="memory"
               :selected="memory.id === expandedMemory?.id"
+              :pending="panelBusy || pendingIds.has(memory.id)"
               @select="selectMemory(memory)"
               @edit="editMemory(memory)"
               @archive="archive(memory)"
@@ -101,6 +106,9 @@
                 @close="requestClosePanel"
                 @edit="editMemory(memory)"
                 @saved="handlePanelSaved"
+                @reconcile="refreshLoadedPages"
+                @feedback="handlePanelFeedback"
+                @busy="panelBusy = $event"
                 @dirty="panelDirty = $event"
                 @discard-pending="discardAndSwitch"
                 @cancel-pending="cancelPendingAction"
@@ -118,6 +126,7 @@
               <MemoryListRow
                 :memory="memory"
                 :selected="memory.id === expandedMemory?.id"
+                :pending="panelBusy || pendingIds.has(memory.id)"
                 @select="selectMemory(memory)"
                 @edit="editMemory(memory)"
                 @archive="archive(memory)"
@@ -137,6 +146,9 @@
                   @close="requestClosePanel"
                   @edit="editMemory(memory)"
                   @saved="handlePanelSaved"
+                  @reconcile="refreshLoadedPages"
+                  @feedback="handlePanelFeedback"
+                  @busy="panelBusy = $event"
                   @dirty="panelDirty = $event"
                   @discard-pending="discardAndSwitch"
                   @cancel-pending="cancelPendingAction"
@@ -152,7 +164,7 @@
       v-if="!initialLoading && nextCursor && (!searchActive || includeArchived)"
       class="flex justify-center pt-1"
     >
-      <Button
+      <DcButton
         variant="outline"
         size="sm"
         data-testid="memory-load-more"
@@ -160,49 +172,48 @@
         @click="loadMore"
       >
         {{ loadingMore ? t('common.loading') : t('settings.memory.redesign.loadMore') }}
-      </Button>
+      </DcButton>
     </div>
 
-    <AlertDialog :open="deleteTarget !== null" @update:open="onDeleteDialogOpen">
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>
-            {{ t('settings.deepchatAgents.memoryManager.deleteConfirmTitle') }}
-          </AlertDialogTitle>
-          <AlertDialogDescription>
-            {{ t('settings.deepchatAgents.memoryManager.deleteConfirmBody') }}
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel>{{ t('common.cancel') }}</AlertDialogCancel>
-          <AlertDialogAction
-            class="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            @click="confirmRemove"
-          >
-            {{ t('settings.deepchatAgents.memoryManager.deletePermanent') }}
-          </AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
+    <DcConfirmDialog
+      :open="deleteDialogOpen"
+      :title="t('settings.deepchatAgents.memoryManager.deleteConfirmTitle')"
+      :description="t('settings.deepchatAgents.memoryManager.deleteConfirmBody')"
+      :confirm-label="t('settings.deepchatAgents.memoryManager.deletePermanent')"
+      :busy="deleteRequest.status === 'pending'"
+      :confirm-attrs="{ 'data-testid': 'memory-list-delete-confirm' }"
+      :cancel-attrs="{ 'data-testid': 'memory-list-delete-cancel' }"
+      busy-data-testid="memory-list-delete-spinner"
+      @update:open="onDeleteDialogOpen"
+      @confirm="confirmRemove"
+    >
+      <MemoryInlineFeedback
+        v-if="deleteFeedback"
+        :feedback="deleteFeedback"
+        @clear="clearDeleteFeedback"
+      />
+    </DcConfirmDialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, defineComponent, h, nextTick, onUnmounted, ref, watch } from 'vue'
+import {
+  computed,
+  defineComponent,
+  h,
+  nextTick,
+  onBeforeUnmount,
+  ref,
+  shallowRef,
+  watch
+} from 'vue'
+import { useDebounceFn } from '@vueuse/core'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
-import { Button } from '@shadcn/components/ui/button'
+import { DcInlineError } from '@dc-ui/components/inline-error'
+import { DcButton } from '@dc-ui/components/button'
 import { Checkbox } from '@shadcn/components/ui/checkbox'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle
-} from '@shadcn/components/ui/alert-dialog'
+import { DcConfirmDialog } from '@dc-ui/components/confirm-dialog'
 import { Input } from '@shadcn/components/ui/input'
 import { ScrollArea } from '@shadcn/components/ui/scroll-area'
 import {
@@ -212,18 +223,23 @@ import {
   SelectTrigger,
   SelectValue
 } from '@shadcn/components/ui/select'
-import { useToast } from '@/components/use-toast'
 import { createMemoryClient } from '@api/MemoryClient'
 import { AGENT_MEMORY_CATEGORIES, type AgentMemoryCategory } from '@shared/types/agent-memory'
 import type { MemoryItem, MemorySearchResult } from '@shared/contracts/routes'
+import {
+  shouldReconcileMemoryCommandRejection,
+  useMemoryInlineFeedback,
+  type MemoryInlineFeedbackState
+} from '../lib/useMemoryInlineFeedback'
+import { settingsLeaveGuard } from '../services/settingsLeaveGuard'
 import MemoryEmptyState from './MemoryEmptyState.vue'
+import MemoryInlineFeedback from './MemoryInlineFeedback.vue'
 import MemoryInlinePanel from './MemoryInlinePanel.vue'
 import {
   categoryLabelKey,
   importanceDots,
   matchesCategoryFilter,
   formatRelativeTime,
-  notifyMemoryActionFailed,
   sourceLabelKey,
   type MemoryCategoryFilter
 } from './memoryRedesignUtils'
@@ -237,11 +253,17 @@ const props = defineProps<{
 defineEmits<{ enable: [] }>()
 
 const { t, locale } = useI18n()
-const { toast } = useToast()
 const memoryClient = createMemoryClient()
+const panelFeedback = useMemoryInlineFeedback('MemoryListView')
+const feedback = panelFeedback.feedback
+const clearFeedback = panelFeedback.clear
+const deleteOperationFeedback = useMemoryInlineFeedback('MemoryListView.delete')
+const deleteFeedback = deleteOperationFeedback.feedback
+const clearDeleteFeedback = deleteOperationFeedback.clear
 
 const loading = ref(false)
 const loadingMore = ref(false)
+const pendingIds = ref<ReadonlySet<string>>(new Set())
 const memories = ref<MemoryItem[]>([])
 const nextCursor = ref<string | null>(null)
 const searchQuery = ref('')
@@ -254,6 +276,10 @@ type PendingPanelAction =
   | { type: 'expand'; memory: MemoryItem; mode: Exclude<PanelMode, 'create'> }
   | { type: 'create' }
   | { type: 'close' }
+type DeleteRequest =
+  | { status: 'idle' }
+  | { status: 'confirming'; target: MemoryItem }
+  | { status: 'pending'; target: MemoryItem; agentId: string }
 
 const expandedMode = ref<PanelMode | null>(null)
 const expandedMemory = ref<MemoryItem | null>(null)
@@ -261,13 +287,16 @@ const expandedPanelEl = ref<HTMLElement | null>(null)
 const pendingAction = ref<PendingPanelAction | null>(null)
 const closePrompt = ref(false)
 const panelDirty = ref(false)
-const deleteTarget = ref<MemoryItem | null>(null)
+const panelBusy = ref(false)
+// Preserve request identity so stale async completions cannot overwrite a newer state.
+const deleteRequest = shallowRef<DeleteRequest>({ status: 'idle' })
 let pageGeneration = 0
 let loadedPageCount = 0
-let searchTimer: ReturnType<typeof setTimeout> | null = null
 let searchRequestId = 0
 
 const memoryDisabled = computed(() => props.memoryEnabled === false)
+const panelLocked = computed(() => panelBusy.value || panelDirty.value)
+const deleteDialogOpen = computed(() => deleteRequest.value.status !== 'idle')
 // Only block the whole view with a spinner when there's nothing to show yet
 // (initial/agent-switch load); background refreshes keep the list mounted.
 const initialLoading = computed(() => loading.value && memories.value.length === 0)
@@ -276,18 +305,26 @@ const categoryFilterActive = computed(() => categoryFilter.value !== 'all')
 const baseRows = computed<MemoryItem[]>(() =>
   searchActive.value ? searchResults.value : memories.value
 )
-const visibleMemories = computed(() =>
-  baseRows.value.filter((memory) => {
+const pinnedExpandedMemory = computed(() =>
+  panelLocked.value && expandedMode.value !== 'create' ? expandedMemory.value : null
+)
+const visibleMemories = computed(() => {
+  const visible = baseRows.value.filter((memory) => {
     if (!includeArchived.value && memory.status === 'archived') return false
     if (searchActive.value && memory.status === 'archived') return false
     return matchesCategoryFilter(memory, categoryFilter.value)
   })
-)
+  const pinned = pinnedExpandedMemory.value
+  if (pinned && !visible.some((memory) => memory.id === pinned.id)) visible.push(pinned)
+  return visible
+})
 const archivedSearchMatches = computed(() => {
   if (!searchActive.value || !includeArchived.value) return []
   const query = searchQuery.value.trim().toLocaleLowerCase()
+  const pinnedId = pinnedExpandedMemory.value?.id
   return memories.value.filter(
     (memory) =>
+      memory.id !== pinnedId &&
       memory.status === 'archived' &&
       memory.content.toLocaleLowerCase().includes(query) &&
       matchesCategoryFilter(memory, categoryFilter.value)
@@ -305,7 +342,8 @@ const MemoryListRow = defineComponent({
   name: 'MemoryListRow',
   props: {
     memory: { type: Object as () => MemoryItem, required: true },
-    selected: { type: Boolean, default: false }
+    selected: { type: Boolean, default: false },
+    pending: { type: Boolean, default: false }
   },
   emits: ['select', 'edit', 'archive', 'restore', 'remove'],
   setup(rowProps, { emit: rowEmit }) {
@@ -314,14 +352,19 @@ const MemoryListRow = defineComponent({
         'div',
         {
           role: 'button',
-          tabindex: 0,
+          tabindex: rowProps.pending ? -1 : 0,
+          'aria-disabled': rowProps.pending ? 'true' : undefined,
           class: [
             'group w-full rounded-lg border px-3 py-2 text-left transition hover:bg-muted/60',
             rowProps.selected ? 'rounded-b-none border-border bg-muted/40' : 'border-border',
-            rowProps.memory.status === 'archived' ? 'opacity-65' : ''
+            rowProps.memory.status === 'archived' ? 'opacity-65' : '',
+            rowProps.pending ? 'pointer-events-none' : ''
           ],
-          onClick: () => rowEmit('select'),
+          onClick: () => {
+            if (!rowProps.pending) rowEmit('select')
+          },
           onKeydown: (event: KeyboardEvent) => {
+            if (rowProps.pending) return
             if (event.key === 'Enter' || event.key === ' ') {
               event.preventDefault()
               rowEmit('select')
@@ -361,12 +404,13 @@ const MemoryListRow = defineComponent({
                 rowProps.memory.conflictState !== 'challenged' &&
                 (rowProps.memory.kind === 'episodic' || rowProps.memory.kind === 'semantic')
                   ? h(
-                      Button,
+                      DcButton,
                       {
                         variant: 'ghost',
                         size: 'sm',
                         class: 'h-7 px-2 text-xs',
                         'data-testid': 'memory-row-edit',
+                        disabled: rowProps.pending,
                         onClick: (event: MouseEvent) => {
                           event.stopPropagation()
                           rowEmit('edit')
@@ -376,7 +420,7 @@ const MemoryListRow = defineComponent({
                     )
                   : null,
                 h(
-                  Button,
+                  DcButton,
                   {
                     variant: 'ghost',
                     size: 'sm',
@@ -385,6 +429,7 @@ const MemoryListRow = defineComponent({
                       rowProps.memory.status === 'archived'
                         ? 'memory-row-restore'
                         : 'memory-row-archive',
+                    disabled: rowProps.pending,
                     onClick: (event: MouseEvent) => {
                       event.stopPropagation()
                       rowEmit(rowProps.memory.status === 'archived' ? 'restore' : 'archive')
@@ -401,7 +446,7 @@ const MemoryListRow = defineComponent({
                   ]
                 ),
                 h(
-                  Button,
+                  DcButton,
                   {
                     variant: 'ghost',
                     size: 'sm',
@@ -410,6 +455,7 @@ const MemoryListRow = defineComponent({
                     'aria-label': t('settings.deepchatAgents.memoryManager.deletePermanent'),
                     title: t('settings.deepchatAgents.memoryManager.deletePermanent'),
                     'data-testid': 'memory-row-delete',
+                    disabled: rowProps.pending,
                     onClick: (event: MouseEvent) => {
                       event.stopPropagation()
                       rowEmit('remove')
@@ -429,14 +475,11 @@ function categoryLabel(category: AgentMemoryCategory | null | undefined): string
   return t(categoryLabelKey(category))
 }
 
-function notifyFailed(error?: unknown): void {
-  notifyMemoryActionFailed(toast, t, error)
-}
-
-function clearSearchTimer(): void {
-  if (!searchTimer) return
-  clearTimeout(searchTimer)
-  searchTimer = null
+function setPending(memoryId: string, pending: boolean): void {
+  const next = new Set(pendingIds.value)
+  if (pending) next.add(memoryId)
+  else next.delete(memoryId)
+  pendingIds.value = next
 }
 
 function isCurrentSearch(agentId: string, query: string, requestId: number): boolean {
@@ -446,6 +489,8 @@ function isCurrentSearch(agentId: string, query: string, requestId: number): boo
 }
 
 async function runSearch(agentId: string, query: string, requestId: number): Promise<void> {
+  // Bail before mutating state or hitting the network when superseded.
+  if (requestId !== searchRequestId || props.agentId !== agentId) return
   searchError.value = null
   try {
     const results = await memoryClient.search(agentId, query)
@@ -454,25 +499,33 @@ async function runSearch(agentId: string, query: string, requestId: number): Pro
     }
   } catch (error) {
     if (!isCurrentSearch(agentId, query, requestId)) return
+    console.error('[MemoryListView] Search failed', error)
     searchResults.value = []
-    searchError.value =
-      error instanceof Error
-        ? error.message
-        : t('settings.deepchatAgents.memoryManager.searchFailed')
+    searchError.value = t('settings.deepchatAgents.memoryManager.searchFailed')
   }
 }
 
-function queueSearch(value: string, delay = 200): void {
+// useDebounceFn (VueUse 14) has no cancel(); requestId guards skip stale runs.
+const debouncedRunSearch = useDebounceFn((agentId: string, query: string, requestId: number) => {
+  if (requestId !== searchRequestId) return
+  void runSearch(agentId, query, requestId)
+}, 200)
+
+function queueSearch(value: string, options?: { immediate?: boolean }): void {
   const query = value.trim()
-  clearSearchTimer()
+  // useDebounceFn (VueUse 14) has no cancel(); bump requestId so any pending
+  // debounced runSearch becomes a no-op via isCurrentSearch.
   const requestId = ++searchRequestId
   if (!query) {
     searchResults.value = []
     searchError.value = null
     return
   }
-  const agentId = props.agentId
-  searchTimer = setTimeout(() => void runSearch(agentId, query, requestId), delay)
+  if (options?.immediate) {
+    void runSearch(props.agentId, query, requestId)
+    return
+  }
+  debouncedRunSearch(props.agentId, query, requestId)
 }
 
 function mergePageRows(current: MemoryItem[], incoming: MemoryItem[]): MemoryItem[] {
@@ -499,7 +552,7 @@ async function loadPage(append: boolean, generation: number): Promise<void> {
     const nextRows = append ? mergePageRows(memories.value, page.items) : [...page.items]
     if (
       !append &&
-      panelDirty.value &&
+      panelLocked.value &&
       expandedMemory.value &&
       !nextRows.some((row) => row.id === expandedMemory.value?.id)
     ) {
@@ -512,14 +565,14 @@ async function loadPage(append: boolean, generation: number): Promise<void> {
     if (!append && expandedMemory.value) {
       const refreshed = page.items.find((row) => row.id === expandedMemory.value?.id)
       if (refreshed) {
-        if (!panelDirty.value) expandedMemory.value = refreshed
-      } else if (!panelDirty.value) {
+        if (!panelLocked.value) expandedMemory.value = refreshed
+      } else if (!panelLocked.value) {
         closePanel()
       }
     }
   } catch (error) {
     if (generation !== pageGeneration || props.agentId !== agentId) return
-    notifyFailed(error)
+    panelFeedback.fail(error)
   } finally {
     if (generation === pageGeneration && props.agentId === agentId) {
       if (append) loadingMore.value = false
@@ -560,7 +613,7 @@ async function refreshLoadedPages(): Promise<void> {
       cursor = page.nextCursor
     }
     if (
-      panelDirty.value &&
+      panelLocked.value &&
       expandedMemory.value &&
       !refreshedRows.some((row) => row.id === expandedMemory.value?.id)
     ) {
@@ -571,12 +624,12 @@ async function refreshLoadedPages(): Promise<void> {
     loadedPageCount = refreshedPageCount
     if (expandedMemory.value) {
       const refreshed = refreshedRows.find((row) => row.id === expandedMemory.value?.id)
-      if (refreshed && !panelDirty.value) expandedMemory.value = refreshed
-      else if (!refreshed && !panelDirty.value) closePanel()
+      if (refreshed && !panelLocked.value) expandedMemory.value = refreshed
+      else if (!refreshed && !panelLocked.value) closePanel()
     }
-    if (searchActive.value) queueSearch(searchQuery.value, 0)
+    if (searchActive.value) queueSearch(searchQuery.value, { immediate: true })
   } catch (error) {
-    if (generation === pageGeneration && props.agentId === agentId) notifyFailed(error)
+    if (generation === pageGeneration && props.agentId === agentId) panelFeedback.fail(error)
   } finally {
     if (generation === pageGeneration && props.agentId === agentId) loading.value = false
   }
@@ -591,7 +644,7 @@ function resetForAgentChange(): void {
   searchQuery.value = ''
   searchResults.value = []
   searchError.value = null
-  clearSearchTimer()
+  // Invalidate any pending debounced search (no cancel API on useDebounceFn).
   searchRequestId += 1
   categoryFilter.value = 'all'
   includeArchived.value = false
@@ -599,13 +652,17 @@ function resetForAgentChange(): void {
   expandedMemory.value = null
   pendingAction.value = null
   closePrompt.value = false
-  deleteTarget.value = null
+  deleteRequest.value = { status: 'idle' }
+  pendingIds.value = new Set()
+  clearFeedback()
+  clearDeleteFeedback()
   expandedMode.value = null
   panelDirty.value = false
+  panelBusy.value = false
 }
 
 function openCreate(): void {
-  if (memoryDisabled.value) return
+  if (memoryDisabled.value || panelBusy.value) return
   if (panelDirty.value && expandedMode.value) {
     pendingAction.value = { type: 'create' }
     closePrompt.value = false
@@ -624,6 +681,7 @@ function setCreate(): void {
 }
 
 function selectMemory(memory: MemoryItem): void {
+  if (panelBusy.value) return
   if (isExpanded(memory)) {
     requestClosePanel()
     return
@@ -632,10 +690,12 @@ function selectMemory(memory: MemoryItem): void {
 }
 
 function editMemory(memory: MemoryItem): void {
+  if (panelBusy.value) return
   requestExpand(memory, 'edit')
 }
 
 function requestExpand(memory: MemoryItem, mode: Exclude<PanelMode, 'create'>): void {
+  if (panelBusy.value) return
   if (panelDirty.value && expandedMode.value) {
     pendingAction.value = { type: 'expand', memory, mode }
     closePrompt.value = false
@@ -691,6 +751,11 @@ function handlePanelSaved(memory?: MemoryItem): void {
     return
   }
   closePanel()
+  void refreshLoadedPages()
+}
+
+function handlePanelFeedback(nextFeedback: MemoryInlineFeedbackState): void {
+  panelFeedback.show(nextFeedback.tone, nextFeedback.title, nextFeedback.description)
 }
 
 function setExpandedPanelEl(element: unknown): void {
@@ -707,6 +772,7 @@ function scrollExpandedPanelIntoView(): void {
 }
 
 function discardAndSwitch(): void {
+  if (panelBusy.value) return
   const action = pendingAction.value
   pendingAction.value = null
   const shouldClose = closePrompt.value
@@ -723,6 +789,7 @@ function cancelPendingAction(): void {
 }
 
 function requestClosePanel(): void {
+  if (panelBusy.value) return
   if (panelDirty.value && expandedMode.value) {
     pendingAction.value = { type: 'close' }
     closePrompt.value = true
@@ -737,65 +804,111 @@ function closePanel(): void {
   pendingAction.value = null
   closePrompt.value = false
   panelDirty.value = false
+  panelBusy.value = false
 }
 
 async function archive(memory: MemoryItem): Promise<void> {
+  if (pendingIds.value.has(memory.id)) return
   const agentId = props.agentId
+  clearFeedback()
+  setPending(memory.id, true)
+  let shouldReload = false
   try {
-    const ok = await memoryClient.archive(agentId, memory.id)
+    const result = await memoryClient.archive(agentId, memory.id)
     if (props.agentId !== agentId) return
-    if (!ok) {
-      notifyFailed()
+    if (result.action === 'rejected') {
+      panelFeedback.rejectCommand(result.reason)
+      shouldReload = shouldReconcileMemoryCommandRejection(result.reason)
       return
     }
     upsertMemory({ ...memory, status: 'archived' })
   } catch (error) {
     if (props.agentId !== agentId) return
-    notifyFailed(error)
+    panelFeedback.fail(error)
+  } finally {
+    if (props.agentId === agentId) {
+      setPending(memory.id, false)
+      if (shouldReload) void refreshLoadedPages()
+    }
   }
 }
 
 async function restore(memory: MemoryItem): Promise<void> {
+  if (pendingIds.value.has(memory.id)) return
   const agentId = props.agentId
+  clearFeedback()
+  setPending(memory.id, true)
+  let shouldReload = false
   try {
-    const ok = await memoryClient.restore(agentId, memory.id)
+    const result = await memoryClient.restore(agentId, memory.id)
     if (props.agentId !== agentId) return
-    if (!ok) {
-      notifyFailed()
+    if (result.action === 'rejected') {
+      panelFeedback.rejectCommand(result.reason)
+      shouldReload = shouldReconcileMemoryCommandRejection(result.reason)
       return
     }
     upsertMemory({ ...memory, status: 'pending_embedding' })
   } catch (error) {
     if (props.agentId !== agentId) return
-    notifyFailed(error)
+    panelFeedback.fail(error)
+  } finally {
+    if (props.agentId === agentId) {
+      setPending(memory.id, false)
+      if (shouldReload) void refreshLoadedPages()
+    }
   }
 }
 
 function remove(memory: MemoryItem): void {
-  deleteTarget.value = memory
+  if (deleteRequest.value.status !== 'idle' || pendingIds.value.has(memory.id)) return
+  clearDeleteFeedback()
+  deleteRequest.value = { status: 'confirming', target: memory }
 }
 
 function onDeleteDialogOpen(open: boolean): void {
-  if (!open) deleteTarget.value = null
+  if (open || deleteRequest.value.status !== 'confirming') return
+  deleteRequest.value = { status: 'idle' }
+  clearDeleteFeedback()
 }
 
 async function confirmRemove(): Promise<void> {
-  const memory = deleteTarget.value
-  if (!memory) return
-  const agentId = props.agentId
+  const request = deleteRequest.value
+  if (request.status !== 'confirming' || pendingIds.value.has(request.target.id)) return
+  const memory = request.target
+  const pendingRequest = {
+    status: 'pending' as const,
+    target: memory,
+    agentId: props.agentId
+  }
+  clearDeleteFeedback()
+  deleteRequest.value = pendingRequest
+  setPending(memory.id, true)
+  let shouldReload = false
   try {
-    const ok = await memoryClient.remove(agentId, memory.id)
-    if (props.agentId !== agentId) return
-    if (!ok) {
-      notifyFailed()
+    const result = await memoryClient.remove(pendingRequest.agentId, memory.id)
+    if (props.agentId !== pendingRequest.agentId || deleteRequest.value !== pendingRequest) return
+    if (result.action === 'rejected') {
+      if (shouldReconcileMemoryCommandRejection(result.reason)) {
+        deleteRequest.value = { status: 'idle' }
+        panelFeedback.rejectCommand(result.reason)
+        shouldReload = true
+      } else {
+        deleteRequest.value = { status: 'confirming', target: memory }
+        deleteOperationFeedback.rejectCommand(result.reason)
+      }
       return
     }
+    deleteRequest.value = { status: 'idle' }
     removeMemory(memory.id)
   } catch (error) {
-    if (props.agentId !== agentId) return
-    notifyFailed(error)
+    if (props.agentId !== pendingRequest.agentId || deleteRequest.value !== pendingRequest) return
+    deleteRequest.value = { status: 'confirming', target: memory }
+    deleteOperationFeedback.fail(error)
   } finally {
-    if (props.agentId === agentId) deleteTarget.value = null
+    if (props.agentId === pendingRequest.agentId) {
+      setPending(memory.id, false)
+      if (shouldReload) void refreshLoadedPages()
+    }
   }
 }
 
@@ -831,5 +944,20 @@ watch(
   }
 )
 
-onUnmounted(() => clearSearchTimer())
+const leaveGuardLease = settingsLeaveGuard.register({
+  id: 'memory-list-editor',
+  onDiscard: closePanel
+})
+const stopLeaveRiskSync = watch(
+  [panelBusy, panelDirty],
+  ([busy, dirty]) => {
+    leaveGuardLease.setRisk(busy ? 'busy' : dirty ? 'dirty' : 'clean')
+  },
+  { immediate: true, flush: 'sync' }
+)
+
+onBeforeUnmount(() => {
+  stopLeaveRiskSync()
+  leaveGuardLease.release()
+})
 </script>

@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { defineComponent } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
-import type { LLM_PROVIDER } from '../../../src/shared/presenter'
+import type { LLM_PROVIDER } from '@shared/types/provider'
 
 const passthrough = (name: string) =>
   defineComponent({
@@ -41,6 +41,19 @@ const buttonStub = defineComponent({
   template: '<button v-bind="$attrs" type="button" @click="$emit(\'click\')"><slot /></button>'
 })
 
+const copyButtonStub = defineComponent({
+  name: 'CopyButton',
+  inheritAttrs: false,
+  emits: ['copied', 'error'],
+  props: {
+    copyText: {
+      type: String,
+      default: ''
+    }
+  },
+  template: '<button v-bind="$attrs" type="button" @click="$emit(\'copied\')"><slot /></button>'
+})
+
 const labelStub = defineComponent({
   name: 'Label',
   inheritAttrs: false,
@@ -70,7 +83,6 @@ async function setup(options?: {
 }) {
   vi.resetModules()
 
-  const toast = vi.fn()
   const providerClient = {
     getKeyStatus: vi.fn().mockResolvedValue(null),
     refreshModels: vi.fn().mockResolvedValue(undefined)
@@ -78,6 +90,7 @@ async function setup(options?: {
   const modelCheckStore = {
     openDialog: vi.fn()
   }
+  const notifyRenderer = vi.fn(() => true)
 
   vi.doMock('vue-i18n', () => ({
     useI18n: () => ({
@@ -92,6 +105,9 @@ async function setup(options?: {
         }
         if (key === 'settings.provider.urlFormatFill') return 'Fill into API URL'
         if (key === 'settings.provider.dialog.baseUrlUnlock.confirm') return 'Continue'
+        if (key === 'settings.provider.amdDeveloperHint') {
+          return 'AMD GPU Cloud provides public model APIs through Radeon Token Factory. Get an API key from AMD to access the currently available models.'
+        }
         return key
       }
     })
@@ -104,17 +120,15 @@ async function setup(options?: {
   vi.doMock('@/stores/modelCheck', () => ({
     useModelCheckStore: () => modelCheckStore
   }))
-  vi.doMock('@/components/use-toast', () => ({
-    useToast: () => ({
-      toast
-    })
+  vi.doMock('@renderer-notifications/rendererNotificationPort', () => ({
+    notifyRenderer
   }))
-
   vi.doMock('@shadcn/components/ui/input', () => ({
     Input: createInputStub()
   }))
-  vi.doMock('@shadcn/components/ui/button', () => ({
-    Button: buttonStub
+  vi.doMock('@dc-ui/components/button', () => ({
+    DcButton: buttonStub,
+    DcCopyButton: copyButtonStub
   }))
   vi.doMock('@shadcn/components/ui/label', () => ({
     Label: labelStub
@@ -150,7 +164,8 @@ async function setup(options?: {
     global: {
       stubs: {
         GitHubCopilotOAuth: true,
-        OpenAICodexOAuth: true
+        OpenAICodexOAuth: true,
+        GrokOAuth: true
       }
     }
   })
@@ -159,9 +174,9 @@ async function setup(options?: {
 
   return {
     wrapper,
-    toast,
     providerClient,
-    modelCheckStore
+    modelCheckStore,
+    notifyRenderer
   }
 }
 
@@ -247,6 +262,38 @@ describe('ProviderApiConfig', () => {
     expect(wrapper.find('[data-testid="provider-api-key-input"]').exists()).toBe(false)
   })
 
+  it('shows Grok OAuth alongside the API key fallback', async () => {
+    const { wrapper } = await setup({
+      provider: createProvider({
+        id: 'grok',
+        name: 'Grok',
+        apiType: 'grok',
+        apiKey: '',
+        baseUrl: 'https://api.x.ai/v1'
+      })
+    })
+
+    expect(wrapper.findComponent({ name: 'GrokOAuth' }).exists()).toBe(true)
+    expect(wrapper.find('[data-testid="provider-api-key-input"]').exists()).toBe(true)
+    expect(wrapper.text()).toContain('settings.provider.xaiGrokApiKeyAlternative')
+  })
+
+  it('hides Grok OAuth when the API URL is not an xAI endpoint', async () => {
+    const { wrapper } = await setup({
+      provider: createProvider({
+        id: 'grok',
+        name: 'Grok',
+        apiType: 'grok',
+        apiKey: '',
+        baseUrl: 'https://grok-compatible.example.com/v1'
+      })
+    })
+
+    expect(wrapper.findComponent({ name: 'GrokOAuth' }).exists()).toBe(false)
+    expect(wrapper.find('[data-testid="provider-api-key-input"]').exists()).toBe(true)
+    expect(wrapper.text()).not.toContain('settings.provider.xaiGrokApiKeyAlternative')
+  })
+
   it('keeps custom providers editable by default', async () => {
     const { wrapper } = await setup({
       provider: createProvider({
@@ -261,8 +308,35 @@ describe('ProviderApiConfig', () => {
     expect(findButtonByText(wrapper, 'Modify')).toBeUndefined()
   })
 
+  it('shows the AMD GPU Cloud hint and attributed Token Factory link', async () => {
+    const tokenFactoryUrl = 'https://developer.amd.com.cn/radeon/tokenfactory?source=deepchat'
+    const { wrapper } = await setup({
+      provider: createProvider({
+        id: 'amd-developer',
+        name: 'AMD GPU Cloud',
+        apiType: 'openai-completions',
+        baseUrl: 'https://developer.amd.com.cn/radeon/api/v1'
+      }),
+      providerWebsites: {
+        official: 'https://developer.amd.com.cn/radeon/',
+        apiKey: tokenFactoryUrl,
+        docs: 'https://developer.amd.com.cn/radeon/',
+        models: tokenFactoryUrl,
+        defaultBaseUrl: 'https://developer.amd.com.cn/radeon/api/v1'
+      }
+    })
+
+    expect(wrapper.get('[data-testid="amd-developer-hint"]').text()).toBe(
+      'AMD GPU Cloud provides public model APIs through Radeon Token Factory. Get an API key from AMD to access the currently available models.'
+    )
+    const tokenFactoryLink = wrapper
+      .findAll('a')
+      .find((link) => link.attributes('href') === tokenFactoryUrl)
+    expect(tokenFactoryLink?.attributes('target')).toBe('_blank')
+  })
+
   it('shows the metadata sync hint for DB-backed providers and delegates refresh to the provider client', async () => {
-    const { wrapper, toast, providerClient } = await setup({
+    const { wrapper, providerClient, notifyRenderer } = await setup({
       provider: createProvider({
         id: 'doubao',
         name: 'Doubao',
@@ -280,15 +354,17 @@ describe('ProviderApiConfig', () => {
     await flushPromises()
 
     expect(providerClient.refreshModels).toHaveBeenCalledWith('doubao')
-    expect(toast).toHaveBeenCalledWith({
+    expect(notifyRenderer).toHaveBeenCalledWith({
+      kind: 'success',
+      code: 'settings.provider.modelsRefreshed',
       title: 'settings.provider.toast.refreshModelsSuccessTitle',
-      description: 'settings.provider.toast.refreshModelsSuccessDescriptionWithMetadata',
-      duration: 4000
+      description: 'settings.provider.toast.refreshModelsSuccessDescriptionWithMetadata'
     })
+    expect(wrapper.find('[data-testid="inline-operation-feedback"]').exists()).toBe(false)
   })
 
   it('refreshes only models for non DB-backed providers', async () => {
-    const { wrapper, toast, providerClient } = await setup()
+    const { wrapper, providerClient, notifyRenderer } = await setup()
 
     expect(wrapper.text()).not.toContain('settings.provider.refreshModelsWithMetadataHint')
 
@@ -299,11 +375,12 @@ describe('ProviderApiConfig', () => {
     await flushPromises()
 
     expect(providerClient.refreshModels).toHaveBeenCalledWith('deepseek')
-    expect(toast).toHaveBeenCalledWith({
-      title: 'settings.provider.toast.refreshModelsSuccessTitle',
-      description: 'settings.provider.toast.refreshModelsSuccessDescription',
-      duration: 4000
-    })
+    expect(notifyRenderer).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'success',
+        code: 'settings.provider.modelsRefreshed'
+      })
+    )
   })
 
   it('disables provider verification when the provider is not enabled', async () => {
@@ -326,7 +403,8 @@ describe('ProviderApiConfig', () => {
   it('does not emit validation from the API key enter shortcut when the provider is disabled', async () => {
     const { wrapper } = await setup({
       provider: createProvider({
-        enable: false
+        enable: false,
+        apiKey: ''
       })
     })
 
@@ -336,8 +414,56 @@ describe('ProviderApiConfig', () => {
     expect(wrapper.emitted('validate-key')).toBeUndefined()
   })
 
-  it('shows a destructive toast when metadata-backed refresh fails', async () => {
-    const { wrapper, toast, providerClient } = await setup({
+  it('renders a masked key summary once configured and edits via Update key', async () => {
+    const { wrapper } = await setup({
+      provider: createProvider({ apiKey: 'sk-1234567890abcd' })
+    })
+
+    const summary = wrapper.get('[data-testid="provider-api-key-summary"]')
+    expect(summary.text()).toContain('••••••••abcd')
+    expect(summary.text()).not.toContain('sk-1234567890abcd')
+    expect(wrapper.find('[data-testid="provider-api-key-input"]').exists()).toBe(false)
+
+    await wrapper.get('[data-testid="provider-update-key-button"]').trigger('click')
+
+    const input = wrapper.get('[data-testid="provider-api-key-input"]')
+    expect((input.element as HTMLInputElement).value).toBe('')
+  })
+
+  it('renders a hover-revealed copy button in the masked key summary', async () => {
+    const { wrapper } = await setup({
+      provider: createProvider({ apiKey: 'sk-1234567890abcd' })
+    })
+
+    const summary = wrapper.get('[data-testid="provider-api-key-summary"]')
+    const copyButton = wrapper.get('[data-testid="provider-copy-key-button"]')
+
+    // The button lives inside the summary and stays hidden until hovered or focused.
+    expect(summary.find('[data-testid="provider-copy-key-button"]').exists()).toBe(true)
+    expect(copyButton.classes()).toContain('opacity-0')
+    expect(copyButton.classes()).toContain('pointer-events-none')
+    expect(copyButton.classes()).toContain('group-hover:opacity-100')
+    expect(copyButton.classes()).toContain('group-hover:pointer-events-auto')
+    expect(copyButton.classes()).toContain('focus-visible:opacity-100')
+    expect(copyButton.attributes('tooltip')).toBe('common.copy')
+    expect(wrapper.findComponent(copyButtonStub).props('copyText')).toBe('sk-1234567890abcd')
+  })
+
+  it('keeps the stored key when the Update key editor is left empty', async () => {
+    const { wrapper } = await setup({
+      provider: createProvider({ apiKey: 'sk-1234567890abcd' })
+    })
+
+    await wrapper.get('[data-testid="provider-update-key-button"]').trigger('click')
+    await wrapper.get('[data-testid="provider-api-key-input"]').trigger('blur')
+    await flushPromises()
+
+    expect(wrapper.emitted('api-key-change')).toBeUndefined()
+    expect(wrapper.find('[data-testid="provider-api-key-summary"]').exists()).toBe(true)
+  })
+
+  it('reports metadata-backed refresh failures as transient feedback', async () => {
+    const { wrapper, providerClient, notifyRenderer } = await setup({
       provider: createProvider({
         id: 'doubao',
         name: 'Doubao',
@@ -354,17 +480,17 @@ describe('ProviderApiConfig', () => {
     await flushPromises()
 
     expect(providerClient.refreshModels).toHaveBeenCalledWith('doubao')
-    expect(toast).toHaveBeenCalledWith({
+    expect(notifyRenderer).toHaveBeenCalledWith({
+      kind: 'error',
+      code: 'settings.provider.modelRefreshFailed',
       title: 'settings.provider.toast.refreshModelsFailedTitle',
-      description:
-        'settings.provider.toast.refreshModelsFailedDescriptionWithMetadata: network down',
-      variant: 'destructive',
-      duration: 4000
+      description: 'settings.provider.toast.refreshModelsFailedDescriptionWithMetadata'
     })
+    expect(wrapper.text()).not.toContain('network down')
   })
 
-  it('extracts nested API error messages for refresh failures', async () => {
-    const { wrapper, toast, providerClient } = await setup({
+  it('does not expose nested provider errors in refresh feedback', async () => {
+    const { wrapper, providerClient, notifyRenderer } = await setup({
       provider: createProvider({
         id: 'custom-anthropic',
         name: 'Custom Anthropic',
@@ -383,12 +509,13 @@ describe('ProviderApiConfig', () => {
     await refreshButton!.trigger('click')
     await flushPromises()
 
-    expect(toast).toHaveBeenCalledWith({
+    expect(notifyRenderer).toHaveBeenCalledWith({
+      kind: 'error',
+      code: 'settings.provider.modelRefreshFailed',
       title: 'settings.provider.toast.refreshModelsFailedTitle',
-      description: 'settings.provider.toast.refreshModelsFailedDescription: Invalid API key',
-      variant: 'destructive',
-      duration: 4000
+      description: 'settings.provider.toast.refreshModelsFailedDescription'
     })
+    expect(wrapper.text()).not.toContain('Invalid API key')
   })
 
   it('creates ProviderClient for provider API actions', async () => {
@@ -409,11 +536,11 @@ describe('ProviderApiConfig', () => {
     vi.doMock('@/stores/modelCheck', () => ({
       useModelCheckStore: () => ({ openDialog: vi.fn() })
     }))
-    vi.doMock('@/components/use-toast', () => ({
-      useToast: () => ({ toast: vi.fn() })
-    }))
     vi.doMock('@shadcn/components/ui/input', () => ({ Input: createInputStub() }))
-    vi.doMock('@shadcn/components/ui/button', () => ({ Button: buttonStub }))
+    vi.doMock('@dc-ui/components/button', () => ({
+      DcButton: buttonStub,
+      DcCopyButton: copyButtonStub
+    }))
     vi.doMock('@shadcn/components/ui/label', () => ({ Label: labelStub }))
     vi.doMock('@shadcn/components/ui/tooltip', () => ({
       Tooltip: passthrough('Tooltip'),

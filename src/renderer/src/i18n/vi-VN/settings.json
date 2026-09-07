@@ -1,6 +1,34 @@
 {
   "title": "Cài đặt",
   "common": {
+    "commandShell": {
+      "title": "Shell lệnh của tác nhân",
+      "auto": "Tự động",
+      "windowsPowerShell": "Windows PowerShell",
+      "powerShellCore": "PowerShell 7",
+      "commandPrompt": "Dấu nhắc lệnh",
+      "gitBash": "Git Bash",
+      "bash": "Bash",
+      "zsh": "Zsh",
+      "fish": "Fish",
+      "executable": "Tệp thực thi Git Bash",
+      "autoDetect": "Tự động phát hiện",
+      "browse": "Tìm Git Bash",
+      "clearOverride": "Xóa đường dẫn tùy chỉnh",
+      "checking": "Đang kiểm tra Git Bash...",
+      "available": "Khả dụng: {path}",
+      "refresh": "Kiểm tra lại",
+      "updateFailed": "Không thể cập nhật cài đặt shell lệnh.",
+      "checkFailed": "Không thể kiểm tra tính khả dụng của Git Bash.",
+      "browseFailed": "Không thể chọn tệp thực thi Git Bash.",
+      "loadFailed": "Không thể tải cài đặt shell lệnh.",
+      "errors": {
+        "unsupported-platform": "Chỉ có thể chọn Git Bash trên Windows.",
+        "override-invalid": "Đường dẫn tùy chỉnh phải trỏ đến tệp bash.exe hiện có.",
+        "not-found": "Không tìm thấy Git Bash trên thiết bị này.",
+        "validation-failed": "Tệp thực thi được phát hiện không vượt qua xác thực Git Bash."
+      }
+    },
     "title": "Cài đặt chung",
     "resetData": "Đặt lại dữ liệu",
     "language": "Ngôn ngữ",
@@ -18,18 +46,6 @@
     "privacyModeNpmRegistry": "Tự động phát hiện đăng ký MCP npm",
     "privacyModeManualActions": "Kiểm tra thủ công và hành động làm mới thủ công vẫn có sẵn.",
     "privacyModeIntegrations": "Tích hợp bên thứ ba được định cấu hình vẫn có sẵn.",
-    "autoCompaction": {
-      "title": "Tự động nén",
-      "enabled": "Bật tự động nén",
-      "description": "Khi một cuộc trò chuyện tiến gần giới hạn cửa sổ ngữ cảnh của mô hình, DeepChat có thể tự động tóm tắt lịch sử cũ hơn để phiên tiếp tục diễn ra. Nếu tắt, DeepChat sẽ không tạo bản tóm tắt, nhưng vẫn cắt bớt chế độ xem yêu cầu khi cần để tránh lỗi context-window thô từ nhà cung cấp.",
-      "thresholdLabel": "Ngưỡng kích hoạt",
-      "thresholdMin": "Sớm ({value}%)",
-      "thresholdMax": "Muộn ({value}%)",
-      "thresholdDescription": "Bắt đầu nén khi mức sử dụng prompt đạt đến mức chia sẻ này trong ngân sách lịch sử hiệu quả. Giá trị thấp hơn tạo ra nhiều khoảng trống hơn; giá trị cao hơn bảo tồn bối cảnh thô hơn.",
-      "retainPairsLabel": "Giữ lại các cặp tin nhắn gần đây",
-      "retainPairsValue": "(Các) cặp {count}",
-      "retainPairsDescription": "Giữ các cặp người dùng và trợ lý đã hoàn thành gần đây nhất bên ngoài quá trình nén. Truy vấn hiện tại không được bao gồm."
-    },
     "searchAssistantModel": "Trợ lý người mẫu",
     "selectModel": "Chọn mẫu",
     "proxyMode": "Chế độ ủy nhiệm",
@@ -41,7 +57,7 @@
     "customProxyUrlPlaceholder": "Ví dụ: http://127.0.0.1:7890",
     "invalidProxyUrl": "Proxy URL không hợp lệ, vui lòng nhập http/https URL hợp lệ",
     "addCustomSearchEngine": "Thêm công cụ tìm kiếm tùy chỉnh",
-    "addCustomSearchEngineDesc": "Thêm công cụ tìm kiếm mới bằng cách cung cấp tên và tìm kiếm URL. URL phải bao gồm {query} làm phần giữ chỗ truy vấn.",
+    "addCustomSearchEngineDesc": "Thêm công cụ tìm kiếm mới bằng cách cung cấp tên và tìm kiếm URL. URL phải bao gồm {'{'}query{'}'} làm phần giữ chỗ truy vấn.",
     "searchEngineName": "Tên công cụ tìm kiếm",
     "searchEngineNamePlaceholder": "Nhập tên công cụ tìm kiếm",
     "searchEngineUrl": "Tìm kiếm URL",
@@ -64,6 +80,7 @@
     "contentProtectionRestartNotice": "Việc thay đổi cài đặt này sẽ khởi động lại ứng dụng. Bạn có muốn tiếp tục không?",
     "copyWithCotEnabled": "Sao chép chi tiết COT",
     "traceDebugEnabled": "Cuộc gọi theo dõi",
+    "traceDebugEnabledDesc": "Khi bật, nội dung yêu cầu mô hình được lưu cục bộ. Các tiêu đề xác thực của nhà cung cấp đã biết và trường khóa API được che, nhưng lời nhắc vẫn có thể chứa dữ liệu nhạy cảm.",
     "loggingEnabled": "Bật ghi nhật ký",
     "loggingDialogTitle": "Xác nhận thay đổi cài đặt ghi nhật ký",
     "loggingEnableDesc": "Việc bật ghi nhật ký sẽ giúp chúng tôi chẩn đoán sự cố và cải thiện ứng dụng. Tệp nhật ký có thể chứa thông tin nhạy cảm.",
@@ -85,7 +102,95 @@
       "chatModel": "Mô hình trò chuyện mặc định"
     }
   },
+  "ocr": {
+    "description": "Tự động trích xuất văn bản từ hình ảnh khi mô hình đã chọn không thể xem chúng. Việc nhận dạng chỉ diễn ra trên thiết bị này.",
+    "autoExtract": "Tự động nhận dạng văn bản trong hình ảnh",
+    "autoExtractDescription": "Được dùng khi mô hình đã chọn không thể xem hình ảnh.",
+    "advancedTitle": "Cài đặt nâng cao",
+    "advancedDescription": "Thông thường bạn không cần thay đổi các mục này.",
+    "backend": "Phương thức nhận dạng",
+    "backendDescription": "Tự động chọn phương thức tốt nhất cho thiết bị này. Chỉ dùng CPU khi khắc phục sự cố tương thích.",
+    "backendAuto": "Tự động (Khuyên dùng)",
+    "backendCpu": "Chỉ CPU",
+    "diagnosticsTitle": "Thông tin chẩn đoán",
+    "diagnosticsDescription": "Chỉ cần khi khắc phục sự cố.",
+    "refresh": "Thử lại",
+    "loading": "Đang tải trạng thái OCR…",
+    "statusUnavailable": "Trạng thái OCR tạm thời không khả dụng.",
+    "availability": "Khả dụng",
+    "available": "Có thể sử dụng",
+    "unavailable": "Không khả dụng",
+    "process": "Tiến trình phụ",
+    "version": "Phiên bản Light OCR",
+    "notStarted": "Khi cần",
+    "nodeNotStarted": "Khởi động khi cần",
+    "queuedRequests": "{count} yêu cầu đang chờ",
+    "strategy": "Chiến lược nhận dạng",
+    "nodeVersion": "Runtime Node",
+    "detectionBackend": "Backend phát hiện",
+    "recognitionBackend": "Backend nhận dạng",
+    "cacheTitle": "Bộ nhớ đệm cục bộ",
+    "cacheMode": "Chế độ lưu trữ",
+    "cacheEntries": "Hình ảnh",
+    "cacheUsage": "Dung lượng đã dùng",
+    "cacheNotStarted": "Chưa có bộ nhớ đệm.",
+    "cacheProtected": "Bộ nhớ đệm phái sinh cục bộ đã mã hóa.",
+    "clearCache": "Xóa",
+    "clearCacheTitle": "Xóa bộ nhớ đệm cục bộ?",
+    "clearCacheDescription": "Các kết quả nhận dạng đã lưu đệm sẽ bị xóa. Văn bản đã lưu trong cuộc trò chuyện sẽ không bị ảnh hưởng.",
+    "clearCacheConfirm": "Xóa",
+    "cacheCleared": "Đã xóa bộ nhớ đệm OCR",
+    "cacheClearedDescription": "Văn bản đã lưu trong cuộc trò chuyện không bị thay đổi.",
+    "loadFailed": "Không thể tải cài đặt OCR.",
+    "updateFailed": "Không thể cập nhật cài đặt OCR.",
+    "statusLoadFailed": "Không thể kiểm tra trạng thái OCR.",
+    "clearCacheFailed": "Không thể xóa bộ nhớ đệm OCR.",
+    "unavailableReasons": {
+      "asset_identity_mismatch": "Tài nguyên OCR tích hợp không khớp với bản phát hành đã ghim.",
+      "assets_missing": "Bản cài đặt này thiếu tài nguyên OCR ngoại tuyến bắt buộc.",
+      "runtime_manifest_invalid": "Tệp kê khai runtime OCR tích hợp không hợp lệ.",
+      "service_closed": "Dịch vụ OCR đang tắt.",
+      "unsupported_platform": "OCR không khả dụng cho nền tảng và kiến trúc này.",
+      "toolchain_unavailable": "OCR cần Node.js chính thức v24.18.0. Mở Cài đặt → Toolchain và cài runtime chính thức.",
+      "version_mismatch": "OCR cần Node.js v24.18.0. Phiên bản hiện tại nằm ngoài phạm vi. Mở Cài đặt → Toolchain và cài runtime chính thức.",
+      "abi_mismatch": "OCR cần Node.js ABI 137 (v24.18.0). Mở Cài đặt → Toolchain và cài runtime chính thức."
+    },
+    "processStates": {
+      "idle": "Không hoạt động",
+      "starting": "Đang khởi động",
+      "ready": "Sẵn sàng",
+      "busy": "Đang nhận dạng",
+      "stopping": "Đang dừng",
+      "closed": "Đã đóng"
+    },
+    "strategies": {
+      "bounded-960": "Ảnh giới hạn",
+      "tiled-v1": "Tài liệu chia ô"
+    },
+    "cacheModes": {
+      "persistent": "Mã hóa trên đĩa",
+      "memory": "Chỉ trong bộ nhớ"
+    },
+    "cacheFallbackReasons": {
+      "database_error": "Bộ nhớ đệm lâu dài không khả dụng vì không thể mở cơ sở dữ liệu.",
+      "safe_storage_unavailable": "Bộ nhớ đệm lâu dài không khả dụng vì không có kho khóa an toàn."
+    }
+  },
+  "leaveGuard": {
+    "dirtyTitle": "Thay đổi chưa lưu",
+    "dirtyDescription": "Rời đi và bỏ các thay đổi?",
+    "busyTitle": "Đang lưu",
+    "busyDescription": "Hãy chờ lưu xong trước khi rời đi.",
+    "stay": "Tiếp tục chỉnh sửa",
+    "discard": "Bỏ thay đổi"
+  },
   "deepchatAgents": {
+    "saveFeedback": {
+      "saving": "Đang lưu…",
+      "saved": "Đã lưu",
+      "saveFailed": "Không thể lưu. Các thay đổi vẫn được giữ.",
+      "retry": "Thử lại"
+    },
     "title": "DeepChat Agent",
     "description": "Quản lý các tác nhân DeepChat và các giá trị mặc định mà chúng đưa vào các phiên mới.",
     "builtIn": "Tích hợp sẵn",
@@ -130,8 +235,8 @@
     "permissionFullAccess": "Toàn quyền truy cập",
     "permissionDefault": "Quyền mặc định",
     "subagentsTitle": "Chất phụ",
-    "subagentsDescription": "Định cấu hình các vị trí phiên con có thể tái sử dụng được hiển thị cho subagent_orchestrator.",
-    "subagentsEnabled": "Kích hoạt subagent",
+    "subagentsDescription": "Cho phép Agent này ủy quyền các tác vụ con độc lập. Mô hình quyết định khi nào dùng các vị trí đã cấu hình; việc ủy quyền tiêu tốn thêm token, thời gian và tài nguyên hệ thống.",
+    "subagentsEnabled": "Cho phép Agent này ủy quyền tác vụ con",
     "subagentTargetType": "Loại mục tiêu",
     "subagentTargetSelf": "bản thân",
     "subagentTargetAgent": "Agent",
@@ -141,6 +246,16 @@
     "subagentLimit": "Khe cắm {count}/{max}",
     "addSubagentSlot": "+ Thêm khe cắm",
     "toolsTitle": "Công cụ tích hợp",
+    "outputLimitsTitle": "Giới hạn đầu ra nâng cao",
+    "outputLimitsDescription": "Kiểm soát lượng đầu ra của công cụ được giữ trực tiếp cho Tác nhân này.",
+    "outputLimitsSafetyHint": "Kiểm tra ngữ cảnh mô hình vẫn có thể chuyển kết quả sang tệp hoặc từ chối kết quả không vừa.",
+    "outputLimitsReset": "Đặt lại mặc định",
+    "outputLimitsReadFile": "Đọc tệp",
+    "outputLimitsReadFileHint": "Số ký tự được trả về khi thao tác đọc không chỉ định giới hạn rõ ràng.",
+    "outputLimitsTool": "Đầu ra công cụ",
+    "outputLimitsToolHint": "Giới hạn trực tiếp cho các công cụ được hỗ trợ có đầu ra lớn.",
+    "outputLimitsCommand": "Đầu ra lệnh",
+    "outputLimitsCommandHint": "Bản xem trước ở tiền cảnh cho exec và các tập lệnh kỹ năng.",
     "compactionTitle": "Tự động nén",
     "compactionEnabled": "Bật tự động nén",
     "compactionDescription": "Các giá trị mặc định này chỉ ảnh hưởng đến các phiên DeepChat trong tương lai.",
@@ -160,14 +275,23 @@
       "tabMemories": "Ký ức",
       "tabPersona": "Dòng thời gian persona",
       "memoriesCount": "{count} ký ức",
-      "clearAll": "Xóa tất cả",
-      "clearConfirmTitle": "Xóa tất cả ký ức?",
-      "clearConfirmBody": "Thao tác này xóa vĩnh viễn mọi ký ức của tác nhân này. Không thể hoàn tác.",
+      "clearAll": "Xóa ký ức",
+      "clearConfirmTitle": "Xóa ký ức thực tế và persona?",
+      "clearConfirmBody": "Thao tác này xóa vĩnh viễn ký ức thực tế và persona của tác nhân này. Các chỉ thị lâu dài được giữ lại và có thể quản lý riêng. Không thể hoàn tác.",
+      "cleanupPendingRestart": "Các tệp vectơ bị khóa sẽ được xóa sau khi khởi động lại",
       "emptyMemories": "Chưa có ký ức. Chúng được tích lũy khi bạn trò chuyện với tác nhân này.",
       "emptyPersona": "Chưa có phiên bản mô hình bản thân.",
       "personaActive": "Đang dùng",
       "rollback": "Khôi phục",
       "actionFailed": "Hành động thất bại",
+      "commandRejected": {
+        "unavailable": "Bộ nhớ tạm thời không khả dụng. Hãy thử lại.",
+        "notFound": "Bộ nhớ này không còn tồn tại. Chế độ xem đã được làm mới.",
+        "invalidState": "Hành động này không còn hợp lệ. Chế độ xem đã được làm mới.",
+        "conflict": "Hãy giải quyết xung đột bộ nhớ trước khi thử lại.",
+        "stale": "Bộ nhớ này đã thay đổi. Chế độ xem đã được làm mới; hãy thử lại.",
+        "anchored": "Hãy bỏ neo nhân dạng đang hoạt động trước khi khôi phục."
+      },
       "conflict": "Xung đột",
       "restore": "Khôi phục",
       "sourceLine": "Từ phiên {session} · {count} bản ghi",
@@ -211,6 +335,7 @@
       "searchPlaceholder": "Tìm kiếm ký ức",
       "noSearchResults": "Không có ký ức nào khớp với tìm kiếm của bạn.",
       "addMemory": "Thêm ký ức",
+      "loadMore": "Tải thêm",
       "addContentPlaceholder": "Nội dung bạn muốn trợ lý này ghi nhớ…",
       "addCategoryLabel": "Danh mục bộ nhớ",
       "addCategoryNone": "Không có danh mục",
@@ -446,8 +571,6 @@
     "resetAllDesc": "Xóa tất cả dữ liệu bao gồm lịch sử trò chuyện, cấu hình và tệp bộ đệm",
     "resetting": "Đang đặt lại...",
     "confirmReset": "Xác nhận đặt lại",
-    "resetCompleteDevTitle": "Hoàn tất thiết lập lại dữ liệu",
-    "resetCompleteDevMessage": "Vui lòng khởi động lại ứng dụng theo cách thủ công ở chế độ phát triển. Dừng quá trình hiện tại và chạy lại pnpm run dev",
     "toast": {
       "backupSuccessTitle": "Sao lưu thành công",
       "backupSuccessMessage": "Sao lưu dữ liệu thành công"
@@ -548,7 +671,33 @@
       "confirmDescription": "Cookie, bộ nhớ đệm, LocalStorage, IndexedDB và các dữ liệu khác của phiên YoBrowser sẽ bị xóa và bạn có thể cần phải đăng nhập lại vào trang web.",
       "confirmTitle": "Xác nhận xóa dữ liệu YoBrowser?",
       "description": "Hộp cát trình duyệt độc lập không chia sẻ cookie và bộ nhớ cục bộ với ứng dụng chính. \nDữ liệu YoBrowser có thể bị xóa chỉ bằng một cú nhấp chuột vào đây.",
-      "title": "Hộp cát YoBrowser"
+      "title": "Hộp cát YoBrowser",
+      "import": {
+        "button": "Import website data",
+        "title": "Import browser session data",
+        "description": "Choose a Chrome or Arc profile. macOS may ask you to authorize Keychain access. The source is never modified.",
+        "scanning": "Looking for browser profiles...",
+        "unsupportedTitle": "Not supported on this platform",
+        "unsupportedDescription": "Direct browser data import is currently available only on macOS. Windows remains unsupported because current Chrome data is app-bound.",
+        "profileLabel": "Source profile",
+        "profilePlaceholder": "Select a profile",
+        "noProfiles": "No supported Chrome or Arc profiles with cookie data were found.",
+        "cookies": "Cookies and sessions",
+        "supported": "Included in this import",
+        "otherData": "Passwords and web storage",
+        "notIncluded": "Not included in this version",
+        "preview": "Authorize and preview",
+        "previewTitle": "Ready to replace YoBrowser cookies",
+        "previewDescription": "{count} cookies can be imported. Existing YoBrowser cookies will be replaced.",
+        "skipped": "Skipped: {expired} expired, {partitioned} partitioned.",
+        "confirm": "Replace and import",
+        "doneTitle": "Import complete",
+        "doneDescription": "Imported {count} cookies. Open browser pages were reloaded.",
+        "keyDenied": "Keychain access was denied or the browser key could not be read.",
+        "previewExpired": "The source changed or the preview expired. Create a new preview.",
+        "encryptionUnsupported": "This profile uses an encryption format that this importer does not support.",
+        "failed": "Import failed before completion. Existing YoBrowser cookies were restored when mutation had started."
+      }
     },
     "privacyTitle": "Dữ liệu & Quyền riêng tư",
     "privacyDescription": "Quản lý sao lưu, đồng bộ hóa, chế độ riêng tư, bảo trì và các hoạt động nguy hiểm.",
@@ -690,7 +839,7 @@
   "dashboard": {
     "badge": "Trang tổng quan sử dụng",
     "title": "Trang tổng quan sử dụng",
-    "description": "Theo dõi việc sử dụng token, số lần truy cập bộ đệm và chi phí ước tính. Token và số liệu chi phí được ước tính từ thông tin công khai và một số nhà cung cấp hoặc thông báo trước đó có thể không đầy đủ, vì vậy hãy coi những số liệu này chỉ mang tính chất tham khảo.",
+    "description": "Theo dõi việc sử dụng token và số lần truy cập bộ đệm.",
     "actions": {
       "refresh": "Làm mới"
     },
@@ -706,8 +855,8 @@
     },
     "empty": {
       "title": "Chưa có số liệu thống kê sử dụng",
-      "description": "Mức sử dụng Token, số lần truy cập bộ nhớ đệm và chi phí ước tính sẽ xuất hiện ở đây sau khi có dữ liệu sử dụng.",
-      "historyNote": "Token và số liệu chi phí được ước tính từ thông tin công khai. Một số nhà cung cấp hoặc tin nhắn trước đó có thể không đầy đủ, vì vậy hãy coi những số liệu này chỉ mang tính chất tham khảo."
+      "description": "Mức sử dụng token và số lần truy cập bộ đệm sẽ xuất hiện ở đây khi có dữ liệu sử dụng.",
+      "historyNote": "Dữ liệu sử dụng từ một số nhà cung cấp hoặc các tin nhắn trước đó có thể không đầy đủ."
     },
     "summary": {
       "totalTokens": "Tổng tokens",
@@ -719,11 +868,7 @@
       "cachedTokensCachedLabel": "Đã lưu vào bộ nhớ đệm",
       "cachedTokensUncachedLabel": "Không được lưu vào bộ nhớ đệm",
       "cacheHitRate": "Tỷ lệ truy cập bộ đệm",
-      "cacheHitRateDescription": "prompt tokens được lưu vào bộ nhớ đệm chia cho tổng đầu vào tokens.",
-      "estimatedCost": "Chi phí ước tính",
-      "estimatedCostDescription": "Ước tính bằng USD sử dụng giá của nhà cung cấp hoặc giá dự phòng AIHubMix.",
-      "estimatedCostTrendLabel": "Xu hướng trong 30 ngày qua",
-      "estimatedCostTrendEmpty": "Không có chi phí nào được ghi lại trong 30 ngày qua.",
+      "cacheHitRateDescription": "Token lời nhắc được lưu trong bộ đệm chia cho token đầu vào của các bản ghi có số liệu bộ đệm.",
       "recordingStartedAt": "Đã bắt đầu ghi",
       "recordingStartedAtDescription": "Bản ghi sử dụng sớm nhất hiện được lưu trữ trong bảng thông tin này.",
       "withDeepChatDaysLabel": "Ngày bên nhau",
@@ -753,9 +898,18 @@
     },
     "breakdown": {
       "providerTitle": "Nhà cung cấp hàng đầu",
-      "providerDescription": "Xếp hạng theo chi phí ước tính, sau đó theo tổng tokens.",
+      "providerDescription": "Xếp hạng theo tổng số token.",
       "modelTitle": "Người mẫu hàng đầu",
-      "modelDescription": "10 mẫu hàng đầu theo chi phí ước tính, sau đó là tổng tokens.",
+      "modelDescription": "10 mẫu hàng đầu theo tổng số token.",
+      "categoryTitle": "Mức sử dụng theo hoạt động",
+      "categoryDescription": "Tách mức sử dụng hội thoại khỏi các lệnh gọi mô hình nội bộ để nén ngữ cảnh.",
+      "category": {
+        "chat": "Hội thoại",
+        "compaction": "Nén ngữ cảnh"
+      },
+      "chatEvents": "{count} tin nhắn",
+      "compactionEvents": "{count} lượt gọi mô hình",
+      "unknownUsage": "{count} lượt không rõ mức sử dụng",
       "messages": "Tin nhắn {count}",
       "empty": "Chưa có dữ liệu phân tích."
     },
@@ -791,9 +945,17 @@
     "unavailable": "N/A"
   },
   "modelConfigItem": {
-    "chatFallbackWarning": "Khả năng Agent yếu: chỉ hỗ trợ các lệnh gọi công cụ dự phòng cũ"
+    "chatFallbackWarning": "Khả năng Agent yếu: chỉ hỗ trợ các lệnh gọi công cụ dự phòng cũ",
+    "capability": {
+      "vision": "Khả năng thị giác",
+      "functionCall": "Khả năng gọi hàm",
+      "reasoning": "Khả năng suy luận",
+      "search": "Khả năng tìm kiếm web"
+    }
   },
   "model": {
+    "temperatureFixedByPolicy": "Mô hình này cố định nhiệt độ ở {value}.",
+    "topPFixedByPolicy": "Mô hình này cố định Top P ở {value}.",
     "title": "Cài đặt mẫu",
     "systemPrompt": {
       "label": "System Prompt",
@@ -921,7 +1083,6 @@
       "currentUsingModelDefault": "Hiện đang sử dụng cấu hình mặc định của mô hình",
       "temperature": {
         "description": "Kiểm soát tính ngẫu nhiên của đầu ra. Hầu hết các mô hình là 0-1 và một số hỗ trợ trong khoảng 0-2. Giá trị cao hơn làm tăng tính ngẫu nhiên.",
-        "fixedMoonshotKimi": "Moonshot Kimi K2.5/K2.6 sửa nhiệt độ thành {enabled} khi tính năng suy nghĩ được bật và {disabled} khi tính năng này bị tắt.",
         "label": "Nhiệt độ"
       },
       "topP": {
@@ -1080,6 +1241,11 @@
     }
   },
   "provider": {
+    "customHeaders": {
+      "title": "Tiêu đề yêu cầu tùy chỉnh",
+      "description": "Nhập một đối tượng JSON với các giá trị chuỗi.",
+      "parseError": "Phân tích cú pháp tiêu đề tùy chỉnh không thành công"
+    },
     "search": "Nền tảng nhà cung cấp tìm kiếm…",
     "enable": "Kích hoạt dịch vụ",
     "enabled": "Đã bật",
@@ -1113,6 +1279,7 @@
     "urlFormat": "API Ví dụ: {defaultUrl}",
     "urlFormatFill": "Điền vào API URL",
     "openaiResponsesNotice": "OpenAI mặc định là Phản hồi API. Nếu điểm cuối của bên thứ ba chỉ hỗ trợ Hoàn thành trò chuyện, hãy sử dụng nhà cung cấp Hoàn thành OpenAI.",
+    "amdDeveloperHint": "AMD GPU Cloud cung cấp các API mô hình công khai thông qua Radeon Token Factory. Hãy lấy khóa API từ AMD để truy cập các mô hình hiện có.",
     "modifyBaseUrl": "sửa đổi",
     "baseUrlLockedHint": "Nhà cung cấp này được ghim vào Base URL được đề xuất để giảm cấu hình sai.",
     "refreshModelsWithMetadataHint": "Việc làm mới nhà cung cấp này sẽ đồng bộ hóa siêu dữ liệu ngược dòng trước, sau đó xây dựng lại danh sách mô hình cục bộ.",
@@ -1139,7 +1306,7 @@
       },
       "disableAllModels": {
         "title": "Xác nhận Tắt tất cả các kiểu máy",
-        "content": "Bạn có chắc chắn muốn tắt tất cả các kiểu máy không?",
+        "content": "Bạn có chắc chắn muốn tắt tất cả mô hình của \"{name}\" không?",
         "confirm": "Vô hiệu hóa tất cả"
       },
       "configModels": {
@@ -1394,7 +1561,63 @@
     "openaiCodexCallbackTitle": "Hoàn tất xác thực",
     "openaiCodexCallbackDescription": "Sau khi trình duyệt hoàn tất, hãy quay lại DeepChat. Nếu DeepChat không cập nhật, hãy dán URL callback đầy đủ vào đây.",
     "openaiCodexCallbackPlaceholder": "Dán URL callback đầy đủ",
-    "openaiCodexCompleteAuthentication": "Hoàn tất xác thực"
+    "openaiCodexCompleteAuthentication": "Hoàn tất xác thực",
+    "xaiGrokAuth": "xAI Grok OAuth",
+    "xaiGrokConnected": "xAI Grok đã kết nối",
+    "xaiGrokNotConnected": "xAI Grok chưa kết nối",
+    "xaiGrokPendingDevice": "Đang chờ cấp quyền thiết bị",
+    "xaiGrokDisabled": "OAuth xAI Grok đã bị tắt",
+    "xaiGrokError": "Cấp quyền xAI Grok thất bại",
+    "xaiGrokAccount": "Tài khoản",
+    "xaiGrokSignInDevice": "Đăng nhập bằng SuperGrok / Premium+",
+    "xaiGrokReconnect": "Kết nối lại",
+    "xaiGrokSignOut": "Đăng xuất",
+    "xaiGrokCancel": "Hủy",
+    "xaiGrokOpenVerification": "Mở trang xác minh",
+    "xaiGrokLoginTip": "Sử dụng OAuth mã thiết bị của xAI cho SuperGrok hoặc X Premium+. Token được lưu riêng với khóa API. Khóa API Console vẫn được hỗ trợ bên dưới.",
+    "xaiGrokApiKeyAlternative": "Hoặc sử dụng khóa API xAI Console:",
+    "browseAll": "Duyệt tất cả nhà cung cấp",
+    "updateKey": "Cập nhật khóa",
+    "sidebar": {
+      "configured": "Đã cấu hình",
+      "disabledTag": "Tắt",
+      "empty": "Chưa có nhà cung cấp nào được cấu hình. Duyệt tất cả nhà cung cấp để bắt đầu thiết lập."
+    },
+    "menu": {
+      "enable": "Bật",
+      "disable": "Tắt",
+      "rename": "Đổi tên",
+      "delete": "Xóa"
+    },
+    "health": {
+      "verified": "Đã xác minh",
+      "checking": "Đang kiểm tra",
+      "needsAttention": "Cần chú ý",
+      "notChecked": "Chưa kiểm tra",
+      "lastChecked": "Kiểm tra lần cuối {time}"
+    },
+    "catalog": {
+      "title": "Duyệt tất cả nhà cung cấp",
+      "description": "Chọn một nhà cung cấp để bắt đầu thiết lập. Sau khi cấu hình xong sẽ hiển thị ở thanh bên.",
+      "searchPlaceholder": "Tìm nhà cung cấp...",
+      "noResults": "Không có nhà cung cấp phù hợp",
+      "configured": "Đã cấu hình"
+    },
+    "addFlow": {
+      "connect": "Kết nối và tải mô hình",
+      "validating": "Đang xác minh kết nối...",
+      "loadingModels": "Đang tải mô hình...",
+      "failed": "Kết nối thất bại. Kiểm tra cấu hình và thử lại.",
+      "successTitle": "Đã kết nối {name}",
+      "successDescription": "Đã tải {count} mô hình và chọn sẵn {selected}. Bạn có thể điều chỉnh bên dưới.",
+      "successNoModels": "Đã kết nối. Chưa có mô hình nào khả dụng.",
+      "startChatting": "Bắt đầu trò chuyện",
+      "viewModels": "Xem mô hình"
+    },
+    "stagedUpdate": {
+      "failedTitle": "Cập nhật chưa được áp dụng",
+      "failedDescription": "Cấu hình mới không vượt qua bước xác minh; cấu hình hoạt động trước đó đã được giữ lại."
+    }
   },
   "knowledgeBase": {
     "title": "Cài đặt cơ sở kiến thức",
@@ -1499,7 +1722,15 @@
       "timeout": "Hết giờ",
       "saveConfig": "Lưu",
       "resetConfig": "Đặt lại",
-      "seconds": "giây"
+      "seconds": "giây",
+      "configLoadFailed": "Không thể tải cấu hình",
+      "configSaved": "Đã lưu cấu hình",
+      "configSaveFailed": "Không thể lưu cấu hình",
+      "configReset": "Đã đặt lại cấu hình",
+      "configResetFailed": "Không thể đặt lại cấu hình",
+      "connectionSucceeded": "Kết nối thành công",
+      "connectionFailed": "Không thể kết nối bằng cấu hình hiện tại",
+      "invalidBaseUrl": "Nhập địa chỉ HTTP hoặc HTTPS không chứa thông tin đăng nhập hay tham số truy vấn"
     },
     "deleteFile": {
       "title": "Xóa xác nhận tập tin",
@@ -1557,6 +1788,7 @@
       "name": "Tên máy chủ",
       "namePlaceholder": "Nhập tên máy chủ",
       "nameRequired": "Tên máy chủ là bắt buộc",
+      "nameDuplicate": "Đã tồn tại máy chủ có tên này.",
       "type": "Loại máy chủ",
       "typePlaceholder": "Chọn loại máy chủ",
       "typeStdio": "Đầu vào và đầu ra tiêu chuẩn (Stdio)",
@@ -1584,11 +1816,6 @@
       "iconPlaceholder": "Biểu tượng nhập",
       "icons": "Biểu tượng",
       "iconsPlaceholder": "Biểu tượng nhập",
-      "autoApprove": "Tự động phê duyệt",
-      "autoApproveAll": "Tất cả",
-      "autoApproveRead": "Đọc",
-      "autoApproveWrite": "Viết",
-      "autoApproveHelp": "Chọn loại hoạt động để tự động phê duyệt mà không cần xác nhận của người dùng",
       "submit": "Gửi",
       "add": "Thêm",
       "update": "cập nhật",
@@ -1621,7 +1848,42 @@
       "e2bApiKey": "ApiKey E2B",
       "e2bApiKeyPlaceholder": "Nhập Khóa Api E2B của bạn tại đây, chẳng hạn như e2b_1111xx*******",
       "e2bApiKeyHelp": "Truy cập e2b.dev để lấy ApiKey của bạn",
-      "e2bApiKeyRequired": "Phải nhập ApiKey để kích hoạt chức năng E2B"
+      "e2bApiKeyRequired": "Phải nhập ApiKey để kích hoạt chức năng E2B",
+      "sseCompatibilityBadge": "Tương thích",
+      "sseMigrationHint": "SSE chỉ dành cho khả năng tương thích cũ. Hãy chuyển máy chủ này sang Streamable HTTP khi có thể.",
+      "authorizationMode": "Chế độ ủy quyền",
+      "authorizationInteractive": "OAuth tương tác",
+      "authorizationNone": "Không dùng OAuth",
+      "authorizationClientCredentials": "Thông tin xác thực của máy khách (bản nháp)",
+      "authorizationPrivateKeyJwt": "JWT khóa riêng",
+      "authorizationEnterprise": "Quyền truy cập liên ứng dụng cho doanh nghiệp",
+      "authorizationHelp": {
+        "none": "Không dùng quy trình OAuth. Nếu đã cấu hình tiêu đề Authorization tĩnh, tiêu đề này vẫn được ưu tiên.",
+        "interactive": "Mở trình duyệt hệ thống và hoàn tất quy trình mã ủy quyền với PKCE.",
+        "client_credentials": "Xác thực máy chủ này như một máy khách tự động bằng bí mật được bảo vệ.",
+        "private_key_jwt": "Xác thực máy chủ này như một máy khách tự động bằng khóa riêng được bảo vệ.",
+        "cross_app_access": "Trao đổi danh tính doanh nghiệp đã được phê duyệt để lấy quyền truy cập vào tài nguyên được bảo vệ này."
+      },
+      "authorizationHeaderOverride": "Tiêu đề Authorization tĩnh đã được cấu hình và được ưu tiên hơn chế độ OAuth này.",
+      "protectedResourceUrl": "URL tài nguyên được bảo vệ",
+      "protectedResourceUrlPlaceholder": "https://mcp.example.com",
+      "authorizationServerIssuer": "Nhà phát hành máy chủ ủy quyền",
+      "authorizationServerIssuerPlaceholder": "https://auth.example.com",
+      "clientMetadataUrl": "URL siêu dữ liệu máy khách",
+      "authorizationClientId": "ID máy khách",
+      "authorizationScopes": "Phạm vi",
+      "authorizationScopesPlaceholder": "read write",
+      "keyAlgorithm": "Thuật toán khóa",
+      "identityProfile": "Hồ sơ danh tính doanh nghiệp",
+      "identityProfilePlaceholder": "Chọn một hồ sơ danh tính",
+      "privateKey": "Khóa riêng",
+      "clientSecret": "Bí mật máy khách",
+      "removeCredential": "Xóa thông tin xác thực đã lưu",
+      "credentialConfiguredPlaceholder": "Thông tin xác thực được bảo vệ đã được cấu hình",
+      "credentialConfigured": "Đã cấu hình thông tin xác thực",
+      "credentialMemoryOnly": "Thông tin xác thực này chỉ được lưu trong bộ nhớ và sẽ mất khi DeepChat thoát.",
+      "credentialRemoveError": "Không thể xóa thông tin xác thực được bảo vệ",
+      "credentialSaveError": "Không thể lưu thông tin xác thực được bảo vệ"
     },
     "deleteServer": "Xóa máy chủ",
     "editServer": "Chỉnh sửa máy chủ",
@@ -1721,7 +1983,53 @@
     "authCallbackPlaceholder": "Dán URL callback đầy đủ",
     "completeAuthentication": "Hoàn tất xác thực",
     "saveSuccess": "Đã lưu cấu hình",
-    "saveFailed": "Lưu cấu hình thất bại"
+    "saveFailed": "Lưu cấu hình thất bại",
+    "enterpriseProfiles": {
+      "title": "Danh tính doanh nghiệp",
+      "description": "Quản lý các danh tính OpenID Connect có thể tái sử dụng cho hoạt động ủy quyền doanh nghiệp của MCP.",
+      "label": "Tên hồ sơ",
+      "issuer": "Nhà phát hành OpenID",
+      "clientId": "ID máy khách",
+      "scopes": "Phạm vi",
+      "clientAuthentication": "Xác thực máy khách của nhà cung cấp danh tính",
+      "publicClient": "Máy khách công khai",
+      "confidentialClient": "Bí mật máy khách",
+      "clientSecret": "Bí mật máy khách của nhà cung cấp danh tính",
+      "clientSecretMissing": "Phải cấu hình bí mật máy khách trước khi đăng nhập.",
+      "authenticated": "Đã xác thực",
+      "signIn": "Đăng nhập",
+      "signOut": "Đăng xuất",
+      "callbackUrl": "URL gọi lại",
+      "empty": "Không có hồ sơ danh tính doanh nghiệp.",
+      "loadError": "Không thể tải danh tính doanh nghiệp",
+      "saveError": "Không thể lưu danh tính doanh nghiệp",
+      "authError": "Đăng nhập doanh nghiệp không thành công",
+      "removeError": "Không thể xóa danh tính doanh nghiệp",
+      "removeTitle": "Xóa danh tính doanh nghiệp?",
+      "removeDescription": "Xóa {name} và tất cả thông tin xác thực được liên kết với hồ sơ này?",
+      "status": {
+        "signed_out": "Đã đăng xuất",
+        "authenticating": "Đang xác thực",
+        "authenticated": "Đã xác thực",
+        "error": "Lỗi"
+      }
+    },
+    "diagnostics": {
+      "title": "Chẩn đoán MCP",
+      "serverId": "ID máy chủ",
+      "owner": "Chủ sở hữu",
+      "transport": "Phương thức truyền tải",
+      "connectionState": "Kết nối",
+      "era": "Thế hệ giao thức",
+      "serverImplementation": "Phần triển khai máy chủ",
+      "probe": "Thăm dò thương lượng",
+      "extensions": "Tiện ích mở rộng máy chủ",
+      "clientExtensions": "Tiện ích mở rộng máy khách",
+      "cache": "Bộ nhớ đệm",
+      "subscriptions": "Gói đăng ký",
+      "auth": "Ủy quyền",
+      "copy": "Sao chép chẩn đoán"
+    }
   },
   "about": {
     "title": "Về chúng tôi",
@@ -1779,8 +2087,6 @@
     "description": "Quản lý các tác nhân Giao thức Máy khách Agent cục bộ do DeepChat bắt đầu.",
     "enabledTitle": "Kích hoạt ACP",
     "enabledDescription": "Khi được bật, các tác nhân ACP được định cấu hình sẽ xuất hiện dưới dạng mô hình trong bộ chọn.",
-    "useBuiltinRuntimeTitle": "Sử dụng Thời gian chạy tích hợp DeepChat",
-    "useBuiltinRuntimeDescription": "Khi được bật, bỏ qua các lệnh uv và nút hệ thống, sử dụng các phiên bản đi kèm của DeepChat.",
     "enableToAccess": "Kích hoạt ACP để định cấu hình các tác nhân.",
     "registryInstallEntry": "Cài đặt Agent",
     "registryInstallEntryDescription": "Tìm kiếm và cài đặt các tác nhân từ ACP Register, sau đó quay lại đây để kích hoạt và định cấu hình chúng.",
@@ -1866,6 +2172,25 @@
       "cannotDeleteTitle": "Giữ ít nhất một hồ sơ",
       "cannotDeleteDesc": "Các tác nhân tích hợp yêu cầu ít nhất một cấu hình.",
       "noAgent": "Chọn một đại lý để quản lý hồ sơ của nó."
+    },
+    "auth": {
+      "title": "Sign in to {name}",
+      "description": "Choose an authentication method. Credentials stay with the agent process.",
+      "requiredTitle": "{name} needs sign-in",
+      "requiredDescription": "Authenticate before starting this chat.",
+      "checkSignIn": "Check sign-in",
+      "openTerminal": "Open terminal",
+      "cancelSignIn": "Cancel sign-in",
+      "unsupported": "This authentication method is not supported. Configure its environment variables manually.",
+      "noMethods": "The agent did not provide an authentication method that DeepChat can use.",
+      "status": {
+        "required": "Authentication required",
+        "running": "Signing in",
+        "reconnecting": "Reconnecting",
+        "succeeded": "Ready",
+        "cancelled": "Cancelled",
+        "failed": "Failed"
+      }
     },
     "terminal": {
       "title": "Thiết bị đầu cuối khởi tạo",
@@ -1994,7 +2319,7 @@
   },
   "skills": {
     "title": "Skills",
-    "description": "Quản lý và cấu hình các kỹ năng trợ lý AI",
+    "description": "Duyệt tất cả Skill. Mở một Skill để xem trước và quản lý các Agent đã bật.",
     "draftSuggestions": {
       "title": "Đề xuất bản thảo kỹ năng",
       "description": "Sau khi hoàn thành một nhiệm vụ, hãy cho phép nhân viên đề xuất các bản nháp kỹ năng có thể sử dụng lại tạm thời. Các bản nháp vẫn nằm trong thư mục tạm thời cho đến khi bạn chọn nhập chúng theo cách thủ công."
@@ -2002,7 +2327,7 @@
     "openFolder": "Mở thư mục",
     "addSkill": "Thêm kỹ năng",
     "empty": "Chưa có kỹ năng",
-    "emptyHint": "Nhấp vào \"Thêm kỹ năng\" để cài đặt kỹ năng mới",
+    "emptyHint": "Nhập Skill từ một Agent bên ngoài.",
     "noResults": "Không tìm thấy kỹ năng phù hợp",
     "search": "Kỹ năng tìm kiếm...",
     "count": "Kỹ năng {count}",
@@ -2040,8 +2365,6 @@
       "env": "{count} môi trường",
       "pythonShort": "Py",
       "nodeShort": "nút",
-      "enabled": "Enabled",
-      "disabled": "Disabled",
       "enable": "Enable in DeepChat",
       "disable": "Disable in DeepChat",
       "viewDetails": "Xem chi tiet",
@@ -2097,6 +2420,32 @@
       "title": "Kỹ năng đã tồn tại",
       "description": "Một kỹ năng có tên \"{name}\" đã tồn tại. Bạn có muốn ghi đè lên nó không?",
       "overwrite": "Ghi đè"
+    },
+    "agentImport": {
+      "menuItem": "Nhập từ Agent bên ngoài",
+      "title": "Nhập từ Agent bên ngoài",
+      "description": "Nhập các Skills đã xác thực vào DeepChat. Bật Agents từ phần xem trước của từng Skill.",
+      "resultPartial": "Nhập hoàn tất nhưng có lỗi",
+      "resultSuccess": "Nhập hoàn tất",
+      "sourceTitle": "Agent nguồn",
+      "emptySources": "Không có nguồn nhập",
+      "skillCount": "{count} Skills",
+      "previewTitle": "Skills sẽ nhập",
+      "emptyPreview": "Không có Skills khả dụng",
+      "status": {
+        "ready": "Sẵn sàng",
+        "conflict": "Xung đột",
+        "unavailable": "Không khả dụng",
+        "same": "Đã thêm"
+      },
+      "strategy": {
+        "skip": "Bỏ qua",
+        "rename": "Đổi tên",
+        "overwrite": "Ghi đè"
+      },
+      "overwriteImpact": "Ghi đè Skill này sẽ ảnh hưởng đến các Agents đang bật: {agents}.",
+      "resultSummaryV3": "Đã nhập {imported}, tái sử dụng {reused}, bỏ qua {skipped}, thất bại {failed}.",
+      "execute": "Nhập mục đã chọn"
     },
     "sync": {
       "title": "Đồng bộ hóa",
@@ -2188,111 +2537,6 @@
       "skip": "Bỏ qua",
       "importSelected": "Nhập đã chọn"
     },
-    "tabs": {
-      "library": "Library",
-      "agents": "Agents",
-      "syncDirectory": "Thu muc dong bo"
-    },
-    "agents": {
-      "title": "Agents",
-      "summary": "{count} supported agent(s)",
-      "refresh": "Refresh",
-      "empty": "No supported agents found.",
-      "emptySkills": "No skills found for this agent.",
-      "loadFailed": "Failed to load agent skills",
-      "conflictCount": "{count} conflict",
-      "table": {
-        "skill": "Skill",
-        "owner": "Owner",
-        "status": "Status",
-        "action": "Action",
-        "preview": "Xem truoc"
-      },
-      "owner": {
-        "deepchat": "DeepChat",
-        "external-link": "External",
-        "broken-link": "Broken link",
-        "unknown": "Unknown"
-      },
-      "status": {
-        "linked": "Linked",
-        "agent-owned": "Agent owned",
-        "linked-out": "Linked out",
-        "broken-link": "Broken link",
-        "conflict": "Conflict",
-        "empty": "Empty"
-      },
-      "actions": {
-        "adopt": "Adopt",
-        "resolve-conflict": "Resolve",
-        "repair-link": "Repair",
-        "remove-link": "Remove",
-        "open": "Open",
-        "pending": "Write actions are enabled in a later phase.",
-        "view": "Xem"
-      },
-      "agentStatus": {
-        "ready": "Ready",
-        "detected-no-skills-dir": "No skills directory",
-        "permission-denied": "Permission denied"
-      },
-      "counts": {
-        "skills": "{count} skill(s)",
-        "linked": "{count} linked",
-        "agentOwned": "{count} agent owned",
-        "conflicts": "{count} conflict(s)",
-        "broken": "{count} broken"
-      },
-      "adoptDialog": {
-        "adoptTitle": "Adopt Skill",
-        "conflictTitle": "Resolve Conflict",
-        "adoptDescription": "Copy this skill into DeepChat, back up the original, and replace the agent entry with a link.",
-        "conflictDescription": "{skill} already exists in DeepChat. The default action keeps the current DeepChat skill and adopts this agent skill as a renamed copy.",
-        "loading": "Preparing adoption preview...",
-        "previewFailed": "Failed to prepare adoption preview",
-        "executeFailed": "Failed to adopt skill",
-        "currentLocation": "Current location",
-        "afterAdoption": "After adoption",
-        "backup": "Backup",
-        "chooseAction": "Choose action",
-        "adoptAs": "Adopt as {name}",
-        "replaceDeepChat": "Replace existing DeepChat skill",
-        "keepCurrent": "Keep current state",
-        "unsupportedStrategies": "Replace and keep strategies are not available in this build.",
-        "warnings": "Warnings",
-        "apply": "Apply",
-        "linkArrow": "-> DeepChat skill",
-        "successTitle": "Skill adopted",
-        "successDescription": "{name} is now managed by DeepChat."
-      },
-      "syncToAgent": "Sync to Agent",
-      "syncDialog": {
-        "title": "Sync to {agent}",
-        "description": "Create DeepChat-owned links for selected skills. Existing agent content is skipped.",
-        "target": "Target",
-        "deepchatSkills": "DeepChat skills",
-        "empty": "No linkable DeepChat skills.",
-        "preview": "Preview",
-        "loading": "Preparing link preview...",
-        "noSelection": "Select at least one skill.",
-        "apply": "Apply",
-        "failed": "Failed to sync skills",
-        "successTitle": "Skills synced",
-        "successDescription": "{count} skill(s) linked.",
-        "status": {
-          "ready": "Ready",
-          "already-linked": "Already linked",
-          "conflict": "Conflict",
-          "missing": "Missing"
-        }
-      },
-      "linkAction": {
-        "repairSuccess": "Link repaired",
-        "removeSuccess": "Link removed",
-        "successDescription": "{name} updated.",
-        "failed": "Failed to update link"
-      }
-    },
     "git": {
       "title": "Git",
       "description": "Quét kho Git và cài các skill đã chọn vào DeepChat.",
@@ -2324,7 +2568,6 @@
       "saved": "Đã lưu thư mục đồng bộ",
       "export": "Xuat vao thu muc",
       "import": "Nhap tu thu muc",
-      "includeDisabled": "Bao gồm skill đã tắt",
       "previewExport": "Xem trước xuất",
       "exportNow": "Xuất ngay",
       "previewImport": "Xem trước nhập",
@@ -2377,7 +2620,13 @@
       "edit": "Chỉnh sửa",
       "delete": "Xóa",
       "confirmDeleteTitle": "Xóa skill",
-      "confirmDeleteDescription": "Xóa skill \"{name}\"? Không thể hoàn tác thao tác này."
+      "confirmDeleteDescription": "Xóa skill \"{name}\"? Không thể hoàn tác thao tác này.",
+      "enabledAgents": "Enabled Agents",
+      "enabledAgentsHint": "These Agents can use this Skill.",
+      "noEnabledAgents": "No Agent uses this Skill yet.",
+      "addAgent": "Add Agent",
+      "removeAgent": "Remove {agent}",
+      "agentUpdateFailed": "Failed to update enabled Agents"
     },
     "installToAgent": {
       "title": "Cai {name} vao Agent",
@@ -2395,6 +2644,17 @@
       "disconnectSuccess": "Đã ngắt khỏi Agent",
       "disconnectSuccessMessage": "{name} không còn được liên kết với Agent đích.",
       "disconnectFailed": "Không thể ngắt khỏi Agent"
+    },
+    "impact": {
+      "changed": "Enabled Agents changed. Review the impact and try again.",
+      "editEnabled": "Content changes apply to these Agents on their next Run: {agents}.",
+      "editUnused": "No Agent currently uses this Skill.",
+      "confirmDeleteEnabled": "Delete {name}? It is enabled for: {agents}.",
+      "confirmDeleteUnused": "Delete {name}? No Agent currently uses it."
+    },
+    "syncDirectory": {
+      "action": "Sync directory",
+      "back": "Back to Skills"
     }
   },
   "environments": {
@@ -2691,6 +2951,9 @@
     "enable": "Kích hoạt",
     "disable": "Vô hiệu hóa",
     "openSettings": "Cài đặt",
+    "testRuntime": "Kiểm tra runtime",
+    "retryRuntime": "Thử lại runtime",
+    "quarantineDescription": "DeepChat đã dừng runtime này sau khi thoát không sạch. Chỉ thử lại khi việc điều khiển màn hình nền là an toàn.",
     "runtime": "Thời gian chạy",
     "runtimeState": "Trạng thái",
     "version": "Phiên bản",
@@ -2704,6 +2967,8 @@
       "missing": "Thiếu",
       "installed": "Đã cài đặt",
       "running": "Đang chạy",
+      "readyOnDemand": "Sẵn sàng theo yêu cầu",
+      "quarantined": "Đã cách ly",
       "error": "Lỗi"
     }
   },
@@ -2833,7 +3098,7 @@
       "error": "Lỗi",
       "invalidAgent": "Agent bị thiếu hoặc đã tắt. Hãy chọn agent khác."
     },
-    "runNowSuccess": "Tác vụ đã lên lịch đã bắt đầu"
+    "runNowSuccess": "Tác vụ đã lên lịch đã hoàn tất"
   },
   "memory": {
     "description": "Xem lại, cấu hình và quản lý những gì mỗi tác nhân ghi nhớ qua các phiên. Bộ nhớ được tách riêng theo từng tác nhân.",
@@ -2842,13 +3107,13 @@
     "tabConfig": "Cấu hình",
     "tabManage": "Quản lý",
     "config": {
-      "rootHint": "deepchat là tác nhân tích hợp và gốc cấu hình: các giá trị đặt ở đây trở thành mặc định mà các tác nhân khác kế thừa.",
+      "rootHint": "deepchat là Agent tích hợp được bảo vệ. Cấu hình của nó độc lập với mọi Agent khác.",
       "extractionModel": "Mô hình công cụ bộ nhớ",
       "extractionModelHint": "Mô hình dùng để trích xuất và loại trùng các ký ức. Nếu không chọn, sẽ dùng mô hình trò chuyện.",
       "injectionBudget": "Ngân sách chèn (token)",
-      "injectionBudgetHint": "Giới hạn token gần đúng cho phần bộ nhớ được chèn. Để trống để kế thừa giá trị mặc định ({default}).",
+      "injectionBudgetHint": "Giới hạn token gần đúng cho phần bộ nhớ được chèn. Để trống để dùng giá trị mặc định ({default}).",
       "retrievalTitle": "Xếp hạng truy hồi",
-      "retrievalHint": "Ghi đè cách xếp hạng các ký ức được truy hồi; kế thừa mặc định khi tắt.",
+      "retrievalHint": "Tùy chỉnh cách xếp hạng các ký ức được truy hồi; khi tắt sẽ dùng cách xếp hạng mặc định.",
       "retrievalOverride": "Ghi đè tham số truy hồi",
       "topK": "Số lượng truy hồi (topK)",
       "rrfK": "Hằng số hợp nhất (rrfK)",
@@ -2857,14 +3122,16 @@
       "weightRecency": "Trọng số · gần đây",
       "weightImportance": "Trọng số · quan trọng",
       "advancedTitle": "Cài đặt bộ nhớ nâng cao",
-      "advancedHint": "Tinh chỉnh trích xuất, ngân sách prompt và xếp hạng truy xuất. Để trống để kế thừa mặc định.",
-      "inheritedHint": "Để trống sẽ dùng giá trị kế thừa/mặc định.",
+      "advancedHint": "Tinh chỉnh trích xuất, ngân sách prompt và xếp hạng truy xuất. Để trống các trường để dùng giá trị mặc định.",
+      "inheritedHint": "Trường trống dùng giá trị mặc định.",
       "topKHint": "Phạm vi 1-100. Mặc định: {default}.",
       "rrfKHint": "Phạm vi 1-1000. Mặc định: {default}.",
       "similarityThresholdHint": "Phạm vi 0-1. Mặc định: {default}.",
       "weightHint": "Trọng số xếp hạng không âm. Mặc định: {default}."
     },
     "redesign": {
+      "reindexIncomplete": "Quá trình xây dựng lại chỉ mục vectơ chưa hoàn tất: {reason}. Nội dung bộ nhớ không bị mất; hiện hệ thống đang sử dụng truy xuất theo từ khóa.",
+      "reindexInternalReason": "Quy trình embedding cục bộ không thể hoàn tất việc xây dựng lại.",
       "tabMemories": "Bộ nhớ",
       "tabPersona": "Chân dung",
       "tabDiagnostics": "Chẩn đoán",
@@ -2908,7 +3175,7 @@
       "archivedMatches": "Kết quả trong lưu trữ",
       "refresh": "Làm mới",
       "inboxTitle": "Cần chú ý",
-      "inboxDescription": "Giải quyết xung đột bộ nhớ và bản nháp chân dung trước khi chúng khuất khỏi tầm nhìn.",
+      "inboxDescription": "Giải quyết xung đột bộ nhớ, bản nháp chân dung và chỉ dẫn được đề xuất trước khi chúng khuất khỏi tầm nhìn.",
       "conflictBadge": "{count} xung đột",
       "personaDraftBadge": "{count} bản nháp chân dung",
       "conflictSectionTitle": "Xung đột bộ nhớ ({count})",
@@ -2955,7 +3222,48 @@
         "memory-persona-rollback": "Đã khôi phục chân dung",
         "memory-persona-anchor": "Đã cập nhật neo chân dung",
         "memory-reindex": "Đã lập chỉ mục lại bộ nhớ"
-      }
+      },
+      "tabDirectives": "Chỉ dẫn",
+      "directiveDraftBadge": "{count} bản nháp chỉ dẫn",
+      "directiveDraftSectionTitle": "Chỉ dẫn được đề xuất ({count})",
+      "directiveCreateTitle": "Tạo chỉ dẫn thường trực",
+      "directiveCreateDescription": "Chỉ dẫn thủ công có hiệu lực ngay lập tức. Đề xuất của mô hình vẫn là bản nháp cho đến khi bạn phê duyệt.",
+      "directiveRuntimeEnabled": "Được áp dụng khi chạy",
+      "directiveRuntimeDisabled": "Không hoạt động khi bộ nhớ tắt",
+      "directiveKindLabel": "Loại chỉ dẫn",
+      "directiveKind": {
+        "instruction": "Hướng dẫn thường trực",
+        "suppress_topic": "Ẩn chủ đề"
+      },
+      "directiveTopicLabel": "Chủ đề khớp",
+      "directiveTopicPlaceholder": "Chủ đề hoặc cụm từ chính xác cần ẩn khỏi bộ nhớ được truy hồi",
+      "directiveTopicTooBroad": "Chủ đề chứa ký tự CJK cần ít nhất {min} ký tự hiển thị để không ẩn các bộ nhớ không liên quan.",
+      "directiveContentLabel": "Hướng dẫn",
+      "directiveInstructionPlaceholder": "Viết hướng dẫn thường trực cho tác nhân này.",
+      "directiveSuppressPlaceholder": "Giải thích cách tác nhân nên xử lý chủ đề này.",
+      "directiveInstructionHint": "Đây là hướng dẫn ở cấp người dùng và không thể ghi đè quy tắc hệ thống hoặc an toàn.",
+      "directiveSuppressHint": "Chủ đề lọc bộ nhớ được truy hồi; hướng dẫn định hướng câu trả lời. Đây không phải bộ lọc đầu ra.",
+      "directiveLength": "Hướng dẫn {content}/{contentMax} · Chủ đề {topic}/{topicMax}",
+      "directiveCreateAction": "Kích hoạt chỉ dẫn",
+      "directiveCapacityTitle": "Đã đạt giới hạn chỉ dẫn hoạt động",
+      "directiveCapacityDescription": "Mỗi tác nhân có thể có tối đa {max} chỉ dẫn hoạt động. Hãy xóa một chỉ dẫn hoạt động trước khi thêm hoặc phê duyệt chỉ dẫn khác.",
+      "directiveListTitle": "Chỉ dẫn đã lưu",
+      "directiveListDescription": "{active} đang hoạt động · {draft} chờ phê duyệt",
+      "directiveEmptyTitle": "Chưa có chỉ dẫn",
+      "directiveEmptyDescription": "Tạo hướng dẫn thường trực tại đây hoặc phê duyệt một đề xuất từ hộp thư đến.",
+      "directiveStatus": {
+        "active": "Đang hoạt động",
+        "draft": "Bản nháp",
+        "rejected": "Đã từ chối"
+      },
+      "directiveSource": {
+        "explicit_user": "Thao tác rõ ràng của người dùng",
+        "manual": "Cài đặt",
+        "derived_suggestion": "Được đề xuất từ cuộc trò chuyện"
+      },
+      "directiveTopicValue": "Chủ đề: {topic}",
+      "directiveDeleteTitle": "Xóa chỉ dẫn này?",
+      "directiveDeleteDescription": "Chỉ dẫn sẽ ngừng áp dụng ngay lập tức. Bạn có thể tạo lại sau."
     }
   },
   "pluginsHub": {
@@ -2963,12 +3271,122 @@
     "available": "Plugin khả dụng",
     "add": "Thêm",
     "manage": "Manage",
+    "builtinCapability": "Tính năng tích hợp",
     "emptySearch": "Không có plugin khả dụng.",
     "pluginNotFound": "Plugin not found.",
     "actionResult": "Action result",
     "cuaDescription": "Plugin ComputerUse của DeepChat được triển khai dựa trên dự án trycua/cua.",
     "acpUnavailableTitle": "Plugin không khả dụng cho tác nhân ACP",
     "acpUnavailableDescription": "Tác nhân ACP quản lý công cụ và tiện ích mở rộng trong môi trường chạy riêng. Chọn một tác nhân DeepChat để sử dụng plugin.",
-    "agentScopeUnsupported": "Tiện ích mở rộng theo từng tác nhân chỉ khả dụng cho tác nhân DeepChat."
+    "agentScopeUnsupported": "Tiện ích mở rộng theo từng tác nhân chỉ khả dụng cho tác nhân DeepChat.",
+    "scopeGlobalPlugins": "Trang này mang tính toàn ứng dụng: cài đặt, bật/tắt và trạng thái tiến trình của plugin chính thức được chia sẻ cho mọi tác nhân DeepChat.",
+    "scopeCurrentAgent": "Trang này là chính sách tác nhân: thay đổi chỉ ảnh hưởng đến khả dụng Skills/MCP của “{agent}”, không ảnh hưởng cài đặt toàn cục.",
+    "currentAgentFallback": "tác nhân hiện tại"
+  },
+  "debug": {
+    "description": "Công cụ chỉ dành cho phát triển để xem trước các trạng thái giả lập và quy trình có hướng dẫn.",
+    "unavailableTitle": "Công cụ gỡ lỗi không khả dụng",
+    "unavailableDescription": "Thao tác này chỉ khả dụng trong chế độ phát triển.",
+    "splash": {
+      "title": "Cửa sổ khởi động",
+      "description": "Xem trước các trạng thái của cửa sổ khởi động mà không bắt đầu quy trình mở khóa cơ sở dữ liệu thực.",
+      "loading": "Xem trước đang tải",
+      "systemUnlock": "Xem trước mở khóa hệ thống",
+      "unlock": "Xem trước mở khóa thủ công",
+      "recovery": "Xem trước khôi phục cơ sở dữ liệu",
+      "failed": "Không thể hiển thị kịch bản khởi động.",
+      "previewHint": "Bản xem trước dành cho phát triển — việc gửi mật khẩu đã bị vô hiệu hóa."
+    },
+    "guidance": {
+      "title": "Hướng dẫn và dữ liệu",
+      "description": "Tạo các mô phỏng chỉ dành cho phát triển cho quá trình làm quen, cuộc trò chuyện và cập nhật.",
+      "failed": "Không thể bắt đầu quy trình gỡ lỗi có hướng dẫn."
+    }
+  },
+  "toolchains": {
+    "description": "Chọn nguồn DeepChat lấy Node và uv. Nguồn đã chọn sẽ không tự đổi.",
+    "nodeTitle": "Node.js",
+    "uvTitle": "uv",
+    "source": "Nguồn",
+    "sources": {
+      "bundled": "Đi kèm ứng dụng",
+      "managed": "Do DeepChat cài đặt",
+      "system": "Cài đặt hệ thống",
+      "custom": "Đường dẫn tùy chỉnh",
+      "unconfigured": "Chưa cấu hình",
+      "autoNamed": "Tự động ({source})"
+    },
+    "systemDetected": "Đã tìm thấy nhị phân hệ thống: {path}",
+    "systemDetectedHint": "Nếu đã có bản cài đặt hoạt động, sẽ dùng bản đó. Không tải thêm.",
+    "install": "Cài runtime chính thức",
+    "repair": "Sửa",
+    "revert": "Hoàn nguyên",
+    "cancelInstall": "Hủy",
+    "installing": "Đang cài…",
+    "version": "Phiên bản",
+    "path": "Đường dẫn",
+    "bannerTitle": "Thiếu runtime bắt buộc",
+    "bannerDescription": "Node hoặc uv không khả dụng cho MCP, ACP, Skills hoặc OCR.",
+    "bannerAction": "Mở toolchain",
+    "availability": {
+      "ready": "Sẵn sàng",
+      "missing": "Thiếu",
+      "incomplete": "Chưa đủ",
+      "unconfigured": "Chưa cấu hình"
+    },
+    "downloadReasons": {
+      "dns": "Không phân giải được máy chủ tải xuống.",
+      "timeout": "Tải xuống hết thời gian.",
+      "http": "Máy chủ tải xuống trả về lỗi.",
+      "proxy": "Tải xuống qua proxy đã cấu hình thất bại.",
+      "checksum_mismatch": "Tệp đã tải không vượt qua kiểm tra toàn vẹn.",
+      "disk": "Không ghi được runtime ra đĩa.",
+      "cancelled": "Đã hủy tải xuống.",
+      "activation_failed": "Không kích hoạt được runtime.",
+      "unsupported_platform": "Nền tảng này không có runtime chính thức."
+    },
+    "ocrPinHint": "OCR cần Node chính thức v24.18.0 (ABI 137). Runtime này dùng được cho chat và MCP, nhưng không dùng cho OCR. Hãy cài runtime chính thức."
+  },
+  "userPlugins": {
+    "install": "Cài đặt plugin",
+    "update": "Xem xét bản cập nhật",
+    "installDescription": "Cài đặt gói định dạng Codex trực tiếp từ Git hoặc ZIP. Xem xét gói trước khi bật các thành phần.",
+    "gitUrl": "URL Git HTTPS công khai",
+    "gitRef": "Nhánh, thẻ hoặc commit (không bắt buộc)",
+    "subdirectory": "Thư mục con của gói (không bắt buộc)",
+    "chooseZip": "Chọn tệp ZIP",
+    "chooseDirectory": "Chọn thư mục plugin",
+    "inspect": "Kiểm tra gói",
+    "executionNotice": "Hook và máy chủ MCP stdio chạy mã cục bộ với quyền truy cập tệp và mạng của tài khoản bạn. Chỉ bật mã đáng tin cậy. Các lệnh như npx hoặc uvx có thể tải phần phụ thuộc khi máy chủ khởi động.",
+    "useSkills": "Sử dụng các Skills đi kèm",
+    "allowHooks": "Tôi đã xem xét các lệnh này và cho phép hook ngữ cảnh tự động",
+    "allowMcp": "Tôi đã xem xét các lệnh, điểm cuối và liên kết biến này, đồng thời cho phép kết nối MCP",
+    "sharedData": "Dữ liệu của bản cài đặt plugin này được chia sẻ giữa các phiên.",
+    "requiredVariables": "Biến môi trường hoặc biến thông tin xác thực bắt buộc",
+    "applyUpdate": "Áp dụng bản cập nhật đã xem xét",
+    "uninstall": "Gỡ cài đặt",
+    "source": "Nguồn cài đặt",
+    "selected": "Đã chọn",
+    "notSelected": "Chưa chọn",
+    "reviewed": "Đã xem xét các lệnh",
+    "hooksNotEnabled": "Hook tự động chưa được cho phép. Xem xét bản cập nhật để bật chúng; chỉ sử dụng Skills không kích hoạt hook tự động.",
+    "diagnostics": "Hoạt động hook gần đây",
+    "noInvocations": "Chưa có lần gọi hook nào được ghi nhận kể từ khi ứng dụng khởi động.",
+    "retryHook": "Chạy lại hook",
+    "mcpSetupDescription": "Bật plugin để đăng ký các máy chủ. Nhập hoặc thay thế giá trị biến tại đây; biến môi trường của máy chủ cục bộ không bao giờ được chia sẻ tự động. Quản lý xác thực trong cài đặt MCP.",
+    "saveMcp": "Lưu và kết nối lại",
+    "manageMcp": "Mở cài đặt MCP",
+    "uninstallDescription": "Xóa plugin này, dữ liệu riêng, các phân công Skills và máy chủ MCP thuộc plugin. Lịch sử hội thoại được giữ lại.",
+    "fromGit": "Cài đặt từ Git",
+    "fromZip": "Cài đặt từ ZIP",
+    "userPlugin": "Plugin người dùng",
+    "hookStatus": {
+      "started": "Đang chạy",
+      "completed": "Hoàn tất",
+      "failed": "Thất bại",
+      "uncertain": "Bị gián đoạn; chưa rõ kết quả"
+    },
+    "technicalDetails": "Chi tiết kỹ thuật",
+    "hooks": "Hook"
   }
 }

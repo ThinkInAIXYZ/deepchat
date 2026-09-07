@@ -31,4 +31,17 @@ describe('draft store generation settings', () => {
 
     expect(draftStore.toCreateInput('hello').generationSettings).toBeUndefined()
   })
+
+  it('carries proactive policy into session creation and resets it to explicit', async () => {
+    const { setActivePinia, createPinia } = await import('pinia')
+    setActivePinia(createPinia())
+    const { useDraftStore } = await import('@/stores/ui/draft')
+    const draftStore = useDraftStore()
+
+    draftStore.orchestrationPolicy = 'proactive'
+    expect(draftStore.toCreateInput('hello').orchestrationPolicy).toBe('proactive')
+
+    draftStore.reset()
+    expect(draftStore.orchestrationPolicy).toBe('explicit')
+  })
 })

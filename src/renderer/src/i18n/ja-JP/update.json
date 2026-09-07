@@ -16,5 +16,9 @@
   "topbarButton": "更新",
   "restarting": "再起動",
   "alreadyUpToDate": "すでに最新です",
-  "alreadyUpToDateDesc": "現在、DeepChatは最新バージョンに更新されており、更新は必要ありません。"
+  "alreadyUpToDateDesc": "現在、DeepChatは最新バージョンに更新されており、更新は必要ありません。",
+  "taskRunningTitle": "実行中のタスクがあります",
+  "taskRunningDescription": "現在実行中のタスクがあります。アップデートをどのように進めますか？",
+  "updateNow": "今すぐアップデート",
+  "updateAfterTasksComplete": "タスク完了後にアップデート"
 }

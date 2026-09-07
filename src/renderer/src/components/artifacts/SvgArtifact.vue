@@ -8,7 +8,7 @@
       v-if="isLoading"
       class="flex min-h-full w-full flex-1 flex-col items-center justify-center p-8 text-center"
     >
-      <Icon icon="lucide:loader-2" class="w-6 h-6 animate-spin text-blue-500" />
+      <Spinner class="size-6 text-blue-500" />
       <p class="text-sm text-muted-foreground mt-2">{{ t('artifacts.sanitizingSvg') }}</p>
     </div>
 
@@ -44,6 +44,7 @@
 import { ref, watch, onMounted } from 'vue'
 import { createDeviceClient } from '@api/DeviceClient'
 import { Icon } from '@iconify/vue'
+import { Spinner } from '@shadcn/components/ui/spinner'
 import { useI18n } from 'vue-i18n'
 
 const { t } = useI18n()

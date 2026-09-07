@@ -10,18 +10,34 @@
       <div class="mb-1.5 flex items-center justify-between gap-2" data-testid="pending-rail-header">
         <div class="flex min-w-0 flex-wrap items-center gap-1.5">
           <span
-            v-if="steerItems.length > 0"
-            class="inline-flex items-center rounded-full border border-border/60 bg-background/70 px-2 py-0.5 text-[11px] font-medium text-muted-foreground"
-          >
-            {{ t('chat.pendingInput.steer') }} {{ steerItems.length }}
-          </span>
-          <span
             v-if="queueItems.length > 0"
             class="inline-flex items-center rounded-full border border-border/60 bg-background/70 px-2 py-0.5 text-[11px] font-medium text-muted-foreground"
           >
             {{ t('chat.pendingInput.queueCount', { count: queueItems.length, max: activeLimit }) }}
           </span>
+          <span
+            v-if="blockedCount > 0"
+            class="inline-flex items-center rounded-full border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-[11px] font-medium text-amber-700 dark:text-amber-300"
+          >
+            {{ t('chat.attachments.pending.blockedCount', { count: blockedCount }) }}
+          </span>
         </div>
+        <DcButton
+          v-if="showResumeAction"
+          variant="ghost"
+          size="sm"
+          data-testid="pending-resume-queue"
+          class="h-7 shrink-0 rounded-full px-2 text-xs"
+          :disabled="resumeDisabled || resumeLoading"
+          @click="emit('resume-queue')"
+        >
+          <Icon
+            icon="lucide:play"
+            class="mr-1 h-3.5 w-3.5"
+            :class="resumeLoading ? 'animate-pulse' : ''"
+          />
+          {{ t('chat.pendingInput.resume') }}
+        </DcButton>
       </div>
 
       <div
@@ -34,58 +50,12 @@
         data-testid="pending-rail-list"
         :data-scrollable="isScrollable ? 'true' : 'false'"
       >
-        <div
-          v-for="item in steerItems"
-          :key="item.id"
-          data-testid="pending-row"
-          data-mode="steer"
-          class="group flex items-center gap-1.5 rounded-lg border border-border/50 bg-background/65 px-1.5 py-1 transition hover:border-border/80 hover:bg-background/80"
-        >
-          <Icon
-            icon="lucide:corner-down-right"
-            class="h-3.5 w-3.5 shrink-0 text-muted-foreground/80"
-          />
-          <div class="min-w-0 flex-1">
-            <div
-              class="truncate text-[13px] leading-5 text-foreground"
-              :title="formatPayloadTitle(item)"
-            >
-              {{ formatPayloadText(item) }}
-            </div>
-          </div>
-          <div class="flex shrink-0 items-center gap-1">
-            <span
-              v-if="(item.payload.files?.length ?? 0) > 0"
-              class="inline-flex items-center rounded-full border border-border/60 bg-muted/35 px-1.5 py-0.5 text-[11px] leading-none text-muted-foreground"
-            >
-              {{ t('chat.pendingInput.files', { count: item.payload.files?.length ?? 0 }) }}
-            </span>
-            <span
-              class="inline-flex items-center rounded-full border border-border/60 bg-muted/45 px-1.5 py-0.5 text-[11px] leading-none text-muted-foreground"
-            >
-              {{ t('chat.pendingInput.locked') }}
-            </span>
-            <Button
-              v-if="item.state === 'pending'"
-              variant="ghost"
-              size="icon"
-              data-testid="pending-steer-delete"
-              class="h-6 w-6 rounded-full text-muted-foreground hover:text-foreground"
-              :title="t('chat.pendingInput.remove')"
-              :aria-label="t('chat.pendingInput.remove')"
-              @click.stop="emit('delete-queue', item.id)"
-            >
-              <Icon icon="lucide:x" class="h-3.5 w-3.5" />
-            </Button>
-          </div>
-        </div>
-
         <draggable
           :list="localQueueItems"
           item-key="id"
           handle=".pending-input-drag"
           :animation="150"
-          :disabled="Boolean(editingItemId)"
+          :disabled="Boolean(editingItemId) || hasBlockedQueueItem || hasRetryRequiredQueueItem"
           ghost-class="pending-input-ghost"
           class="space-y-1"
           @end="onDragEnd"
@@ -94,6 +64,7 @@
             <div
               data-testid="pending-row"
               data-mode="queue"
+              :data-state="element.state"
               :data-editing="editingItemId === element.id ? 'true' : 'false'"
               :class="[
                 'group rounded-lg border border-border/50 bg-background/65 px-1.5 transition hover:border-border/80 hover:bg-background/80 focus-within:border-border/80 focus-within:bg-background/80',
@@ -111,7 +82,11 @@
                   type="button"
                   class="pending-input-drag inline-flex h-6 w-5 shrink-0 items-center justify-center rounded-md text-muted-foreground transition hover:bg-muted/80 hover:text-foreground"
                   :title="t('chat.pendingInput.reorder')"
-                  :disabled="Boolean(editingItemId)"
+                  :disabled="
+                    Boolean(editingItemId) ||
+                    element.state === 'blocked' ||
+                    element.state === 'retry_required'
+                  "
                 >
                   <Icon icon="lucide:grip-vertical" class="h-3.5 w-3.5" />
                 </button>
@@ -137,22 +112,22 @@
                         </span>
                       </div>
                       <div class="flex items-center gap-1">
-                        <Button
+                        <DcButton
                           variant="ghost"
                           size="sm"
                           class="h-7 rounded-full px-2 text-xs"
                           @click.stop="cancelEdit"
                         >
                           {{ t('common.cancel') }}
-                        </Button>
-                        <Button
+                        </DcButton>
+                        <DcButton
                           size="sm"
                           class="h-7 rounded-full px-2 text-xs"
                           :disabled="!canSaveEdit"
                           @click.stop="saveEdit"
                         >
                           {{ t('common.save') }}
-                        </Button>
+                        </DcButton>
                       </div>
                     </div>
                   </template>
@@ -163,10 +138,23 @@
                     data-testid="pending-row-main"
                     class="block w-full min-w-0 rounded-md px-1 py-0.5 text-left outline-none transition hover:bg-muted/35 focus-visible:bg-muted/35"
                     :title="formatPayloadTitle(element)"
+                    :disabled="element.state === 'blocked'"
                     @click="beginEdit(element)"
                   >
                     <span class="block truncate text-[13px] leading-5 text-foreground">
                       {{ formatPayloadText(element) }}
+                    </span>
+                    <span
+                      v-if="element.state === 'blocked'"
+                      class="block truncate text-[11px] leading-4 text-amber-600"
+                    >
+                      {{ formatBlockingText(element) }}
+                    </span>
+                    <span
+                      v-else-if="element.state === 'retry_required'"
+                      class="block truncate text-[11px] leading-4 text-amber-600"
+                    >
+                      {{ t('chat.pendingInput.retryRequiredDescription') }}
                     </span>
                   </button>
                 </div>
@@ -183,12 +171,70 @@
                       t('chat.pendingInput.files', { count: element.payload.files?.length ?? 0 })
                     }}
                   </span>
-                  <Button
+                  <template v-if="element.state === 'blocked'">
+                    <span
+                      class="inline-flex items-center rounded-full border border-amber-500/40 bg-amber-500/10 px-1.5 py-0.5 text-[11px] leading-none text-amber-700 dark:text-amber-300"
+                    >
+                      {{ t('chat.attachments.pending.blocked') }}
+                    </span>
+                    <DcButton
+                      variant="ghost"
+                      size="icon"
+                      data-testid="pending-blocked-retry"
+                      class="h-6 w-6 rounded-full text-muted-foreground hover:text-foreground"
+                      :tooltip="t('chat.attachments.pending.retry')"
+                      :aria-label="t('chat.attachments.pending.retry')"
+                      @click.stop="emit('resolve-blocked', { itemId: element.id, action: 'retry' })"
+                    >
+                      <Icon icon="lucide:refresh-cw" class="h-3.5 w-3.5" />
+                    </DcButton>
+                    <DcButton
+                      variant="ghost"
+                      size="icon"
+                      data-testid="pending-blocked-send-without"
+                      class="h-6 w-6 rounded-full text-muted-foreground hover:text-foreground"
+                      :tooltip="t('chat.attachments.pending.sendWithoutImageContent')"
+                      :aria-label="t('chat.attachments.pending.sendWithoutImageContent')"
+                      @click.stop="
+                        emit('resolve-blocked', {
+                          itemId: element.id,
+                          action: 'send_without_image_content'
+                        })
+                      "
+                    >
+                      <Icon icon="lucide:file-x-2" class="h-3.5 w-3.5" />
+                    </DcButton>
+                  </template>
+                  <template v-else-if="element.state === 'retry_required'">
+                    <span
+                      class="inline-flex items-center rounded-full border border-amber-500/40 bg-amber-500/10 px-1.5 py-0.5 text-[11px] leading-none text-amber-700 dark:text-amber-300"
+                    >
+                      {{ t('chat.pendingInput.retryRequired') }}
+                    </span>
+                    <DcButton
+                      variant="ghost"
+                      size="icon"
+                      data-testid="pending-released-retry"
+                      class="h-6 w-6 rounded-full text-muted-foreground hover:text-foreground"
+                      :tooltip="t('chat.pendingInput.retry')"
+                      :aria-label="t('chat.pendingInput.retry')"
+                      :disabled="retryingItemId === element.id"
+                      @click.stop="emit('retry-queue', element.id)"
+                    >
+                      <Icon
+                        icon="lucide:refresh-cw"
+                        class="h-3.5 w-3.5"
+                        :class="retryingItemId === element.id ? 'animate-spin' : ''"
+                      />
+                    </DcButton>
+                  </template>
+                  <DcButton
+                    v-else
                     variant="ghost"
                     size="icon"
                     data-testid="pending-row-steer"
                     class="h-6 w-6 rounded-full text-muted-foreground hover:text-foreground"
-                    :title="
+                    :tooltip="
                       disableQueueSteerAction
                         ? t('chat.pendingInput.steerUnavailable')
                         : t('chat.pendingInput.toSteer')
@@ -202,16 +248,16 @@
                     @click.stop="emit('steer-queue', element.id)"
                   >
                     <Icon icon="lucide:compass" class="h-3.5 w-3.5" />
-                  </Button>
-                  <Button
+                  </DcButton>
+                  <DcButton
                     variant="ghost"
                     size="icon"
                     class="h-6 w-6 rounded-full text-muted-foreground"
-                    :title="t('chat.pendingInput.remove')"
+                    :tooltip="t('chat.pendingInput.remove')"
                     @click.stop="emit('delete-queue', element.id)"
                   >
                     <Icon icon="lucide:x" class="h-3.5 w-3.5" />
-                  </Button>
+                  </DcButton>
                 </div>
               </div>
             </div>
@@ -230,22 +276,30 @@
 import { computed, ref, watch } from 'vue'
 import draggable from 'vuedraggable'
 import { Icon } from '@iconify/vue'
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
 import { useI18n } from 'vue-i18n'
 import type { PendingSessionInputRecord } from '@shared/types/agent-interface'
+import { MAX_PENDING_INPUTS } from '@shared/pendingInput'
 
 const props = withDefaults(
   defineProps<{
-    steerItems: PendingSessionInputRecord[]
     queueItems: PendingSessionInputRecord[]
     activeLimit?: number
     disableSteerAction?: boolean
     disableQueueSteerAction?: boolean
+    showResumeAction?: boolean
+    resumeDisabled?: boolean
+    resumeLoading?: boolean
+    retryingItemId?: string | null
   }>(),
   {
-    activeLimit: 5,
+    activeLimit: MAX_PENDING_INPUTS,
     disableSteerAction: false,
-    disableQueueSteerAction: false
+    disableQueueSteerAction: false,
+    showResumeAction: false,
+    resumeDisabled: false,
+    resumeLoading: false,
+    retryingItemId: null
   }
 )
 
@@ -254,6 +308,9 @@ const emit = defineEmits<{
   'move-queue': [payload: { itemId: string; toIndex: number }]
   'steer-queue': [itemId: string]
   'delete-queue': [itemId: string]
+  'resume-queue': []
+  'retry-queue': [itemId: string]
+  'resolve-blocked': [payload: { itemId: string; action: 'retry' | 'send_without_image_content' }]
 }>()
 const { t } = useI18n()
 
@@ -261,9 +318,17 @@ const localQueueItems = ref<PendingSessionInputRecord[]>([])
 const editingItemId = ref<string | null>(null)
 const editingText = ref('')
 
-const showLane = computed(() => props.steerItems.length > 0 || props.queueItems.length > 0)
-const totalItems = computed(() => props.steerItems.length + props.queueItems.length)
-const isScrollable = computed(() => totalItems.value > 3 || Boolean(editingItemId.value))
+const showLane = computed(() => props.queueItems.length > 0)
+const blockedCount = computed(
+  () => props.queueItems.filter((item) => item.state === 'blocked').length
+)
+const hasBlockedQueueItem = computed(() =>
+  props.queueItems.some((item) => item.state === 'blocked')
+)
+const hasRetryRequiredQueueItem = computed(() =>
+  props.queueItems.some((item) => item.state === 'retry_required')
+)
+const isScrollable = computed(() => props.queueItems.length > 3 || Boolean(editingItemId.value))
 const listMaxHeightClass = computed(() => (editingItemId.value ? 'max-h-[220px]' : 'max-h-[116px]'))
 const editingQueueItem = computed(
   () => props.queueItems.find((item) => item.id === editingItemId.value) ?? null
@@ -302,12 +367,34 @@ function formatPayloadText(item: PendingSessionInputRecord): string {
 }
 
 function formatPayloadTitle(item: PendingSessionInputRecord): string {
+  if (item.state === 'blocked') {
+    return `${formatPayloadText(item)} — ${formatBlockingText(item)}`
+  }
+  if (item.state === 'retry_required') {
+    return `${formatPayloadText(item)} — ${t('chat.pendingInput.retryRequiredDescription')}`
+  }
   return formatPayloadText(item)
 }
 
 function beginEdit(item: PendingSessionInputRecord): void {
+  if (item.state === 'blocked') {
+    return
+  }
   editingItemId.value = item.id
   editingText.value = item.payload.text ?? ''
+}
+
+function formatBlockingText(item: PendingSessionInputRecord): string {
+  const firstIssue = item.blocking?.issues[0]
+  if (!firstIssue) {
+    return t('chat.attachments.pending.blockedDescription')
+  }
+
+  const reason = t(`chat.attachments.reasons.${firstIssue.reason}`)
+  const remaining = Math.max(0, (item.blocking?.issues.length ?? 0) - 1)
+  return remaining > 0
+    ? t('chat.attachments.pending.blockedReasonMore', { reason, count: remaining })
+    : reason
 }
 
 function cancelEdit(): void {

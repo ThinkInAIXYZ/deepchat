@@ -1,7 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { defineComponent } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
-import type { MemoryItem, MemorySourceSpan } from '../../../src/shared/contracts/routes'
+import type {
+  MemoryCommandResult,
+  MemoryItem,
+  MemorySourceSpan
+} from '../../../src/shared/contracts/routes'
 
 const passthrough = (name: string) => defineComponent({ name, template: '<div><slot /></div>' })
 
@@ -43,7 +47,7 @@ const CollapsibleStub = defineComponent({
 })
 
 const stubs = {
-  Button: ButtonStub,
+  DcButton: ButtonStub,
   Textarea: TextareaStub,
   Select: SelectStub,
   SelectContent: passthrough('SelectContent'),
@@ -55,6 +59,7 @@ const stubs = {
   CollapsibleTrigger: passthrough('CollapsibleTrigger'),
   AlertDialog: DialogStub,
   AlertDialogAction: ButtonStub,
+  AlertDialogAsyncAction: ButtonStub,
   AlertDialogCancel: ButtonStub,
   AlertDialogContent: passthrough('AlertDialogContent'),
   AlertDialogDescription: passthrough('AlertDialogDescription'),
@@ -63,15 +68,18 @@ const stubs = {
   AlertDialogTitle: passthrough('AlertDialogTitle'),
   AlertDialogTrigger: passthrough('AlertDialogTrigger'),
   MemoryLifecyclePanel: passthrough('MemoryLifecyclePanel'),
+  Spinner: passthrough('Spinner'),
   Icon: passthrough('Icon')
 }
 
 function deferred<T>() {
   let resolve!: (value: T) => void
-  const promise = new Promise<T>((next) => {
+  let reject!: (reason?: unknown) => void
+  const promise = new Promise<T>((next, fail) => {
     resolve = next
+    reject = fail
   })
-  return { promise, resolve }
+  return { promise, resolve, reject }
 }
 
 function memory(overrides: Partial<MemoryItem> = {}): MemoryItem {
@@ -95,6 +103,7 @@ async function setup(
   options: {
     item?: MemoryItem | null
     mode?: 'view' | 'edit' | 'create'
+    realAlertDialog?: boolean
     sourceSpans?: Array<Promise<MemorySourceSpan>>
     discardPrompt?: boolean
   } = {}
@@ -104,19 +113,16 @@ async function setup(
     add: vi.fn().mockResolvedValue({ action: 'created', memoryId: 'created' }),
     update: vi.fn().mockResolvedValue({ action: 'updated', memoryId: options.item?.id ?? 'm1' }),
     getByIds: vi.fn().mockResolvedValue([]),
-    archive: vi.fn().mockResolvedValue(true),
-    restore: vi.fn().mockResolvedValue(true),
-    remove: vi.fn().mockResolvedValue(true),
+    archive: vi.fn().mockResolvedValue({ action: 'applied' }),
+    restore: vi.fn().mockResolvedValue({ action: 'applied' }),
+    remove: vi.fn().mockResolvedValue({ action: 'applied' }),
     getSourceSpan: vi.fn(),
     getLifecycle: vi.fn().mockResolvedValue(null)
   }
   for (const span of options.sourceSpans ?? []) {
     memoryClient.getSourceSpan.mockReturnValueOnce(span)
   }
-  const toast = vi.fn()
-
   vi.doMock('@api/MemoryClient', () => ({ createMemoryClient: () => memoryClient }))
-  vi.doMock('@/components/use-toast', () => ({ useToast: () => ({ toast }) }))
   vi.doMock('vue-i18n', () => ({
     useI18n: () => ({ t: (key: string) => key, locale: 'en-US' })
   }))
@@ -126,19 +132,37 @@ async function setup(
     await import('../../../src/renderer/settings/components/MemoryInlinePanel.vue')
   ).default
   const wrapper = mount(MemoryInlinePanel, {
+    ...(options.realAlertDialog ? { attachTo: document.body } : {}),
     props: {
       agentId: 'deepchat',
       memory: options.item === undefined ? memory() : options.item,
       mode: options.mode ?? 'edit',
       discardPrompt: options.discardPrompt ?? false
     },
-    global: { stubs }
+    global: {
+      stubs: options.realAlertDialog
+        ? {
+            ...stubs,
+            AlertDialog: false,
+            AlertDialogAction: false,
+            AlertDialogAsyncAction: false,
+            AlertDialogCancel: false,
+            AlertDialogContent: false,
+            AlertDialogDescription: false,
+            AlertDialogFooter: false,
+            AlertDialogHeader: false,
+            AlertDialogTitle: false,
+            AlertDialogTrigger: false
+          }
+        : stubs
+    }
   })
   await flushPromises()
-  return { wrapper, memoryClient, toast }
+  return { wrapper, memoryClient }
 }
 
 afterEach(() => {
+  vi.restoreAllMocks()
   vi.clearAllMocks()
 })
 
@@ -179,8 +203,29 @@ describe('MemoryInlinePanel', () => {
     wrapper.unmount()
   })
 
-  it('shows a toast and keeps the panel open when the edit is refused as a noop', async () => {
-    const { wrapper, memoryClient, toast } = await setup()
+  it('keeps save progress visible and locks the editor until persistence settles', async () => {
+    const pending = deferred<{ action: 'updated'; memoryId: string }>()
+    const { wrapper, memoryClient } = await setup()
+    memoryClient.update.mockReturnValueOnce(pending.promise)
+
+    await wrapper.find('textarea').setValue('user likes valkey')
+    const saveButton = wrapper.findAll('button').find((button) => button.text() === 'common.save')!
+    await saveButton.trigger('click')
+    await flushPromises()
+
+    expect(saveButton.text()).toContain('common.saving')
+    expect(saveButton.attributes('disabled')).toBeDefined()
+    expect(wrapper.get('textarea').attributes('disabled')).toBeDefined()
+    expect(wrapper.get('button[aria-label="common.close"]').attributes('disabled')).toBeDefined()
+
+    pending.resolve({ action: 'updated', memoryId: 'm1' })
+    await flushPromises()
+
+    expect(wrapper.emitted('saved')).toBeDefined()
+  })
+
+  it('shows inline feedback and keeps the panel open when an edit is refused', async () => {
+    const { wrapper, memoryClient } = await setup()
     memoryClient.update.mockResolvedValueOnce({ action: 'noop', reason: 'conflict' })
 
     await wrapper.find('textarea').setValue('user likes valkey')
@@ -189,7 +234,9 @@ describe('MemoryInlinePanel', () => {
     await saveButton!.trigger('click')
     await flushPromises()
 
-    expect(toast).toHaveBeenCalledWith({ title: 'settings.memory.redesign.editRejected' })
+    const feedback = wrapper.get('[data-testid="memory-inline-feedback"]')
+    expect(feedback.attributes('data-tone')).toBe('warning')
+    expect(feedback.text()).toContain('settings.memory.redesign.editRejected')
     expect(wrapper.emitted('close')).toBeUndefined()
     expect(wrapper.emitted('saved')).toBeUndefined()
     wrapper.unmount()
@@ -219,7 +266,7 @@ describe('MemoryInlinePanel', () => {
   )
 
   it('surfaces create outcomes without silently closing duplicates or conflicts', async () => {
-    const { wrapper, memoryClient, toast } = await setup({ item: null, mode: 'create' })
+    const { wrapper, memoryClient } = await setup({ item: null, mode: 'create' })
     memoryClient.add.mockResolvedValueOnce({ action: 'noop', reason: 'duplicate' })
 
     await wrapper.find('textarea').setValue('remember this')
@@ -229,9 +276,9 @@ describe('MemoryInlinePanel', () => {
     await addButton!.trigger('click')
     await flushPromises()
 
-    expect(toast).toHaveBeenCalledWith({
-      title: 'settings.deepchatAgents.memoryManager.addDuplicate'
-    })
+    const duplicateFeedback = wrapper.get('[data-testid="memory-inline-feedback"]')
+    expect(duplicateFeedback.attributes('data-tone')).toBe('info')
+    expect(duplicateFeedback.text()).toContain('settings.deepchatAgents.memoryManager.addDuplicate')
     expect(wrapper.emitted('saved')).toBeUndefined()
 
     const challenged = memory({ id: 'challenger', content: 'challenged memory' })
@@ -240,9 +287,12 @@ describe('MemoryInlinePanel', () => {
     await addButton!.trigger('click')
     await flushPromises()
 
-    expect(toast).toHaveBeenCalledWith({
-      title: 'settings.deepchatAgents.memoryManager.addConflict'
-    })
+    expect(wrapper.emitted('feedback')?.[0]).toEqual([
+      {
+        tone: 'warning',
+        title: 'settings.deepchatAgents.memoryManager.addConflict'
+      }
+    ])
     expect(wrapper.emitted('saved')?.[0]).toEqual([challenged])
     wrapper.unmount()
   })
@@ -257,7 +307,7 @@ describe('MemoryInlinePanel', () => {
     await flushPromises()
 
     expect(memoryClient.archive).toHaveBeenCalledWith('deepchat', 'm1')
-    expect(wrapper.emitted('changed')).toHaveLength(1)
+    expect(wrapper.emitted('changed')).toBeUndefined()
     expect(wrapper.emitted('close')).toHaveLength(1)
     wrapper.unmount()
   })
@@ -272,7 +322,7 @@ describe('MemoryInlinePanel', () => {
     await flushPromises()
 
     expect(memoryClient.restore).toHaveBeenCalledWith('deepchat', 'm1')
-    expect(wrapper.emitted('changed')).toHaveLength(1)
+    expect(wrapper.emitted('changed')).toBeUndefined()
     expect(wrapper.emitted('close')).toBeUndefined()
     wrapper.unmount()
   })
@@ -289,8 +339,93 @@ describe('MemoryInlinePanel', () => {
     await flushPromises()
 
     expect(memoryClient.remove).toHaveBeenCalledWith('deepchat', 'm1')
-    expect(wrapper.emitted('changed')).toHaveLength(1)
+    expect(wrapper.emitted('changed')).toBeUndefined()
     expect(wrapper.emitted('close')).toHaveLength(1)
+    wrapper.unmount()
+  })
+
+  it('keeps real delete confirmation progress and errors visible until dismissal', async () => {
+    const pending = deferred<MemoryCommandResult>()
+    const { wrapper, memoryClient } = await setup({ realAlertDialog: true })
+    memoryClient.remove.mockReturnValueOnce(pending.promise)
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+
+    await wrapper.get('[data-testid="memory-inline-delete-trigger"]').trigger('click')
+    await flushPromises()
+    document
+      .querySelector<HTMLButtonElement>('[data-testid="memory-inline-delete-confirm"]')!
+      .click()
+    await flushPromises()
+
+    const confirm = document.querySelector<HTMLButtonElement>(
+      '[data-testid="memory-inline-delete-confirm"]'
+    )
+    expect(confirm).not.toBeNull()
+    expect(confirm?.disabled).toBe(true)
+    expect(
+      document.querySelector<HTMLButtonElement>('[data-testid="memory-inline-delete-cancel"]')
+        ?.disabled
+    ).toBe(true)
+    expect(document.querySelector('[data-testid="memory-inline-delete-spinner"]')).not.toBeNull()
+
+    pending.reject(new Error('delete failed'))
+    await flushPromises()
+
+    expect(document.querySelector('[data-testid="memory-inline-delete-confirm"]')).not.toBeNull()
+    const deleteContent = document
+      .querySelector('[data-testid="memory-inline-delete-confirm"]')
+      ?.closest('[data-slot="alert-dialog-content"]')
+    expect(
+      deleteContent
+        ?.querySelector('[data-testid="memory-inline-feedback"]')
+        ?.getAttribute('data-tone')
+    ).toBe('error')
+    expect(wrapper.find('[data-testid="memory-inline-feedback"]').exists()).toBe(false)
+    expect(wrapper.emitted('close')).toBeUndefined()
+
+    document
+      .querySelector<HTMLButtonElement>('[data-testid="memory-inline-delete-confirm"]')!
+      .click()
+    await flushPromises()
+
+    expect(memoryClient.remove).toHaveBeenCalledTimes(2)
+    expect(document.querySelector('[data-testid="memory-inline-delete-confirm"]')).toBeNull()
+    expect(wrapper.emitted('close')).toHaveLength(1)
+    consoleError.mockRestore()
+    wrapper.unmount()
+  })
+
+  it('keeps unrelated panel feedback outside the delete confirmation and preserves it on cancel', async () => {
+    const { wrapper, memoryClient } = await setup({ realAlertDialog: true })
+    memoryClient.archive.mockResolvedValueOnce({ action: 'rejected', reason: 'conflict' })
+    const consoleWarn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+
+    const archiveButton = wrapper
+      .findAll('button')
+      .find((button) => button.text() === 'settings.memory.redesign.archive')!
+    await archiveButton.trigger('click')
+    await flushPromises()
+    expect(wrapper.get('[data-testid="memory-inline-feedback"]').text()).toContain(
+      'settings.deepchatAgents.memoryManager.commandRejected.conflict'
+    )
+
+    await wrapper.get('[data-testid="memory-inline-delete-trigger"]').trigger('click')
+    await flushPromises()
+
+    const deleteContent = document
+      .querySelector('[data-testid="memory-inline-delete-confirm"]')
+      ?.closest('[data-slot="alert-dialog-content"]')
+    expect(deleteContent?.querySelector('[data-testid="memory-inline-feedback"]')).toBeNull()
+
+    document
+      .querySelector<HTMLButtonElement>('[data-testid="memory-inline-delete-cancel"]')!
+      .click()
+    await flushPromises()
+
+    expect(wrapper.get('[data-testid="memory-inline-feedback"]').text()).toContain(
+      'settings.deepchatAgents.memoryManager.commandRejected.conflict'
+    )
+    consoleWarn.mockRestore()
     wrapper.unmount()
   })
 
@@ -298,21 +433,33 @@ describe('MemoryInlinePanel', () => {
     ['archive', 'settings.memory.redesign.archive'],
     ['restore', 'settings.deepchatAgents.memoryManager.restore'],
     ['remove', 'settings.deepchatAgents.memoryManager.deletePermanent']
-  ] as const)('shows a toast when the footer %s action returns false', async (action, label) => {
-    const { wrapper, memoryClient, toast } = await setup({
-      item: action === 'restore' ? memory({ status: 'archived' }) : memory()
-    })
-    memoryClient[action].mockResolvedValueOnce(false)
+  ] as const)(
+    'promotes feedback when the footer %s action requires parent reconciliation',
+    async (action, label) => {
+      const { wrapper, memoryClient } = await setup({
+        item: action === 'restore' ? memory({ status: 'archived' }) : memory()
+      })
+      memoryClient[action].mockResolvedValueOnce({ action: 'rejected', reason: 'stale' })
 
-    const button = wrapper.findAll('button').find((candidate) => candidate.text().includes(label))
-    await button!.trigger('click')
-    await flushPromises()
+      const button = wrapper.findAll('button').find((candidate) => candidate.text().includes(label))
+      await button!.trigger('click')
+      await flushPromises()
 
-    expect(toast).toHaveBeenCalled()
-    expect(wrapper.emitted('changed')).toBeUndefined()
-    expect(wrapper.emitted('close')).toBeUndefined()
-    wrapper.unmount()
-  })
+      expect(wrapper.find('[data-testid="memory-inline-feedback"]').exists()).toBe(false)
+      expect(wrapper.emitted('feedback')).toEqual([
+        [
+          {
+            tone: 'error',
+            title: 'settings.deepchatAgents.memoryManager.commandRejected.stale'
+          }
+        ]
+      ])
+      expect(wrapper.emitted('reconcile')).toHaveLength(1)
+      expect(wrapper.emitted('changed')).toBeUndefined()
+      expect(wrapper.emitted('close')).toBeUndefined()
+      wrapper.unmount()
+    }
+  )
 
   it('drops stale source responses after switching to another memory', async () => {
     const sourceA = deferred<MemorySourceSpan>()
@@ -342,6 +489,29 @@ describe('MemoryInlinePanel', () => {
 
     expect(wrapper.text()).toContain('current source text')
     wrapper.unmount()
+  })
+
+  it('keeps source failures local and does not render backend exception text', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    const source = deferred<MemorySourceSpan>()
+    const { wrapper } = await setup({
+      item: memory({ sourceSession: 'session-a' }),
+      sourceSpans: [source.promise]
+    })
+
+    wrapper.findAllComponents({ name: 'Collapsible' })[0].vm.$emit('update:open', true)
+    await flushPromises()
+    source.reject(new Error('secret source failure'))
+    await flushPromises()
+
+    const sourceAlert = wrapper.get('[data-testid="memory-source-scroll"] [role="alert"]')
+    expect(sourceAlert.text()).toContain('settings.deepchatAgents.memoryManager.actionFailed')
+    expect(sourceAlert.text()).not.toContain('secret source failure')
+    expect(consoleError).toHaveBeenCalledWith(
+      '[MemoryInlinePanel] Failed to load source span',
+      expect.any(Error)
+    )
+    consoleError.mockRestore()
   })
 
   it('keeps source and lifecycle details bounded inside the inline panel', async () => {

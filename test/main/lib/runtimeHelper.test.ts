@@ -61,4 +61,26 @@ describe('RuntimeHelper', () => {
       PATH: 'C:\\Windows\\System32'
     })
   })
+
+  it('does not own bundled Node or uv even when those files exist', () => {
+    Object.defineProperty(process, 'platform', {
+      configurable: true,
+      value: 'darwin'
+    })
+
+    vi.spyOn(fs, 'existsSync').mockReturnValue(true)
+
+    const helper = RuntimeHelper.getInstance()
+    helper.setNodeRuntimePath('/mock/runtime/node')
+    helper.setUvRuntimePath('/mock/runtime/uv')
+    helper.initializeRuntimes(true)
+
+    expect(helper.getNodeRuntimePath()).toBeNull()
+    expect(helper.getUvRuntimePath()).toBeNull()
+    expect(helper.replaceWithRuntimeCommand('npx', true, true)).toBe('npx')
+    expect(helper.replaceWithRuntimeCommand('uvx', true, true)).toBe('uvx')
+    const bins = helper.getBundledRuntimeBinPaths()
+    expect(bins).toEqual([expect.stringMatching(/rtk$/)])
+    expect(helper.prependBundledRuntimeToEnv({ PATH: '/usr/bin' }).PATH).toBe(`${bins[0]}:/usr/bin`)
+  })
 })

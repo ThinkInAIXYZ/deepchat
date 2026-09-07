@@ -49,6 +49,11 @@ import daoxeColorIcon from '@/assets/llm-icons/daoxe.png?url'
 import kimiColorIcon from '@/assets/llm-icons/kimi-color.svg?url'
 import moonshotColorIcon from '@/assets/llm-icons/moonshot.svg?url'
 import openrouterColorIcon from '@/assets/llm-icons/openrouter.svg?url'
+import orcarouterColorIcon from '@/assets/llm-icons/orcarouter.svg?url'
+import synthoraiColorIcon from '@/assets/llm-icons/synthorai.svg?url'
+import routerraColorIcon from '@/assets/llm-icons/routerra.svg?url'
+import modelsellColorIcon from '@/assets/llm-icons/modelsell.png?url'
+import straicoColorIcon from '@/assets/llm-icons/straico.svg?url'
 import poeColorIcon from '@/assets/llm-icons/poe-color.svg?url'
 import geminiColorIcon from '@/assets/llm-icons/gemini-color.svg?url'
 import githubColorIcon from '@/assets/llm-icons/github.svg?url'
@@ -58,6 +63,9 @@ import googleColorIcon from '@/assets/llm-icons/google-color.svg?url'
 import qiniuIcon from '@/assets/llm-icons/qiniu.svg?url'
 import grokColorIcon from '@/assets/llm-icons/grok.svg?url'
 import groqColorIcon from '@/assets/llm-icons/groq.svg?url'
+import greenptColorIcon from '@/assets/llm-icons/greenpt.svg?url'
+import runinfraIcon from '@/assets/llm-icons/runinfra.svg?url'
+import amdIcon from '@/assets/llm-icons/amd.svg?url'
 import nvidiaColorIcon from '@/assets/llm-icons/nvidia-color.svg?url'
 import huggingfaceColorIcon from '@/assets/llm-icons/huggingface-color.svg?url'
 import hunyuanColorIcon from '@/assets/llm-icons/hunyuan-color.svg?url'
@@ -77,6 +85,7 @@ import o3fanColorIcon from '@/assets/llm-icons/o3-fan.png?url'
 import voiceAiColorIcon from '@/assets/llm-icons/voiceai.svg?url'
 import novitaAiIcon from '@/assets/llm-icons/novitaai.svg?url'
 import astraflowIcon from '@/assets/llm-icons/astraflow.png?url'
+import apimartIcon from '@/assets/llm-icons/apimart.ico?url'
 
 export const modelIcons = {
   'kimi-for-coding': kimiColorIcon,
@@ -97,10 +106,14 @@ export const modelIcons = {
   'alibaba-token-plan-cn': dashscopeColorIcon,
   alibaba: dashscopeColorIcon,
   aihubmix: aihubmixColorIcon,
+  apimart: apimartIcon,
   dashscope: dashscopeColorIcon,
   hunyuan: hunyuanColorIcon,
   grok: grokColorIcon,
   groq: groqColorIcon,
+  greenpt: greenptColorIcon,
+  runinfra: runinfraIcon,
+  'amd-developer': amdIcon,
   nvidia: nvidiaColorIcon,
   huggingface: huggingfaceColorIcon,
   qiniu: qiniuIcon,
@@ -156,6 +169,11 @@ export const modelIcons = {
   qwen: qwenColorIcon,
   moonshot: moonshotColorIcon,
   openrouter: openrouterColorIcon,
+  orcarouter: orcarouterColorIcon,
+  synthorai: synthoraiColorIcon,
+  routerra: routerraColorIcon,
+  modelsell: modelsellColorIcon,
+  straico: straicoColorIcon,
   poe: poeColorIcon,
   gemini: geminiColorIcon,
   github: githubColorIcon,
@@ -226,12 +244,15 @@ const monoIconUrls = new Set<string>([
   qiniuIcon,
   grokColorIcon,
   groqColorIcon,
+  runinfraIcon,
   metaColorIcon,
   lmstudioColorIcon,
   _302aiIcon,
   awsBedrockIcon,
   voiceAiColorIcon,
-  novitaAiIcon
+  novitaAiIcon,
+  amdIcon,
+  apimartIcon
 ])
 
 export const isMonoModelIconUrl = (iconUrl: string): boolean => monoIconUrls.has(iconUrl)

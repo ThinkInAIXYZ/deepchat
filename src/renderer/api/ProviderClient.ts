@@ -30,19 +30,18 @@ import {
   providersSyncModelScopeMcpServersRoute,
   providersTestConnectionRoute,
   providersUpdateRoute,
+  providersValidateDraftRoute,
   providersUpdateRateLimitRoute,
   providersWarmupAcpProcessRoute
 } from '@shared/contracts/routes'
 import type { ProviderImportSelection } from '@shared/providerImport'
 import type {
-  AcpDebugEventEntry,
-  AcpDebugRequest,
-  AcpDebugRunResult,
   KeyStatus,
   LLM_PROVIDER,
   ModelScopeMcpSyncOptions,
   ModelScopeMcpSyncResult
-} from '@shared/presenter'
+} from '@shared/types/provider'
+import type { AcpDebugEventEntry, AcpDebugRequest, AcpDebugRunResult } from '@shared/types/acp'
 import { getDeepchatBridge } from './core'
 
 type ProviderModelScopeMcpSyncOptions = ModelScopeMcpSyncOptions & {
@@ -85,6 +84,13 @@ export function createProviderClient(bridge: DeepchatBridge = getDeepchatBridge(
   async function addProviderAtomic(provider: LLM_PROVIDER) {
     const result = await bridge.invoke(providersAddRoute.name, { provider })
     return result.provider
+  }
+
+  async function validateDraftProvider(provider: LLM_PROVIDER, options?: { loadModels?: boolean }) {
+    return await bridge.invoke(providersValidateDraftRoute.name, {
+      provider,
+      ...(options?.loadModels === undefined ? {} : { loadModels: options.loadModels })
+    })
   }
 
   async function removeProviderAtomic(providerId: string) {
@@ -145,6 +151,7 @@ export function createProviderClient(bridge: DeepchatBridge = getDeepchatBridge(
 
   async function runAcpDebugAction(request: AcpDebugRequest): Promise<AcpDebugRunResult> {
     const result = await bridge.invoke(providersRunAcpDebugActionRoute.name, {
+      requestId: request.requestId,
       agentId: request.agentId,
       action: request.action,
       payload: request.payload,
@@ -294,6 +301,7 @@ export function createProviderClient(bridge: DeepchatBridge = getDeepchatBridge(
     setProviderById,
     updateProviderAtomic,
     addProviderAtomic,
+    validateDraftProvider,
     removeProviderAtomic,
     reorderProvidersAtomic,
     listModels,

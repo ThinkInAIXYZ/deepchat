@@ -93,7 +93,9 @@ export function useArtifactExport(captureAndCopy: (options: CaptureOptions) => P
   }
 
   /**
-   * Copy content as text to clipboard
+   * Copy content as text to clipboard.
+   * Keep navigator.clipboard.writeText so Electron/Chromium and unit tests
+   * retain a reliable failure contract (VueUse legacy path can silent-succeed).
    */
   const copyContent = async (artifact: ArtifactState | null): Promise<void> => {
     if (!artifact?.content) return

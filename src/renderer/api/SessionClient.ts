@@ -4,9 +4,12 @@ import {
   sessionsAcpConfigOptionsReadyEvent,
   sessionsAcpModesReadyEvent,
   sessionsCompactionChangedEvent,
+  sessionsMessagesChangedEvent,
   sessionsPendingInputsChangedEvent,
   sessionsStatusChangedEvent,
-  sessionsUpdatedEvent
+  sessionsTapeInspectorHeadChangedEvent,
+  sessionsUpdatedEvent,
+  type DeepchatEventPayload
 } from '@shared/contracts/events'
 import type { DeepchatRouteInput } from '@shared/contracts/routes'
 import {
@@ -21,7 +24,7 @@ import {
   sessionsDeactivateRoute,
   sessionsEditUserMessageRoute,
   sessionsEnsureAcpDraftRoute,
-  sessionsExportMessageTapeReplaySliceRoute,
+  sessionsExportTapeInspectorSupportTraceRoute,
   sessionsExportRoute,
   sessionsForkRoute,
   sessionsGetAcpSessionCommandsRoute,
@@ -29,7 +32,10 @@ import {
   sessionsGetActiveRoute,
   sessionsGetAgentsRoute,
   sessionsGetAgentTransferImpactRoute,
+  sessionsGetCompactionSnapshotRoute,
+  sessionsGetContextOccupancyRoute,
   sessionsGetDisabledAgentToolsRoute,
+  sessionsGetTapeInspectorRecordDetailRoute,
   sessionsGetLightweightByIdsRoute,
   sessionsGetGenerationSettingsRoute,
   sessionsGetPermissionModeRoute,
@@ -41,11 +47,19 @@ import {
   sessionsListRoute,
   sessionsListMessageTracesRoute,
   sessionsListPendingInputsRoute,
+  sessionsListTapeInspectorEvidenceRoute,
+  sessionsListTapeInspectorPageRoute,
+  sessionsResolveTapeInspectorEvidenceEntriesRoute,
+  sessionsSubscribeTapeInspectorHeadRoute,
+  sessionsUnsubscribeTapeInspectorHeadRoute,
   sessionsMoveAgentSessionsRoute,
   sessionsMoveQueuedInputRoute,
   sessionsMoveToAgentRoute,
   sessionsQueuePendingInputRoute,
   sessionsRenameRoute,
+  sessionsResolveBlockedPendingInputRoute,
+  sessionsResumePendingQueueRoute,
+  sessionsRetryPendingQueueInputRoute,
   sessionsRetryRtkHealthCheckRoute,
   sessionsRetryMessageRoute,
   sessionsRestoreRoute
@@ -54,9 +68,9 @@ import {
   sessionsSearchHistoryRoute,
   sessionsSetAcpSessionConfigOptionRoute,
   sessionsSetModelRoute,
+  sessionsSetToolModeRoute,
   sessionsSetPermissionModeRoute,
   sessionsSetProjectDirRoute,
-  sessionsSetSubagentEnabledRoute,
   sessionsSteerPendingInputRoute,
   sessionsTogglePinnedRoute,
   sessionsTranslateTextRoute,
@@ -66,21 +80,30 @@ import {
 } from '@shared/contracts/routes'
 import type {
   AgentTapeContextOptions,
+  AttachmentFallbackPolicy,
+  ChatMessageRecord,
   CreateSessionInput,
   PermissionMode,
   SendMessageInput
 } from '@shared/types/agent-interface'
+import type { ToolModeOverride } from '@shared/toolMode'
 import type {
-  DeepChatTapeReplayExportOptions,
-  DeepChatTapeReplaySlice
-} from '@shared/types/tape-replay'
+  ExportTapeInspectorSupportTraceInput,
+  GetTapeInspectorRecordDetailInput,
+  ListTapeInspectorEvidenceInput,
+  ListTapeInspectorPageInput,
+  ResolveTapeInspectorEvidenceEntriesInput
+} from '@shared/types/tape-inspector'
 import { getDeepchatBridge } from './core'
 
 export function createSessionClient(bridge: DeepchatBridge = getDeepchatBridge()) {
-  async function create(input: CreateSessionInput) {
+  async function create(input: CreateSessionInput, options?: { submissionId?: string }) {
     return await bridge.invoke(
       sessionsCreateRoute.name,
-      input as DeepchatRouteInput<typeof sessionsCreateRoute.name>
+      sessionsCreateRoute.input.parse({
+        ...input,
+        ...(options?.submissionId ? { submissionId: options.submissionId } : {})
+      })
     )
   }
 
@@ -144,19 +167,24 @@ export function createSessionClient(bridge: DeepchatBridge = getDeepchatBridge()
     permissionMode?: PermissionMode
   }) {
     const result = await bridge.invoke(sessionsEnsureAcpDraftRoute.name, input)
-    return result.session
+    return result
   }
 
   async function listPendingInputs(sessionId: string) {
-    const result = await bridge.invoke(sessionsListPendingInputsRoute.name, { sessionId })
-    return result.items
+    return await bridge.invoke(sessionsListPendingInputsRoute.name, { sessionId })
+  }
+
+  async function resumePendingQueue(sessionId: string) {
+    return await bridge.invoke(sessionsResumePendingQueueRoute.name, { sessionId })
+  }
+
+  async function retryPendingQueueInput(sessionId: string, itemId: string) {
+    return await bridge.invoke(sessionsRetryPendingQueueInputRoute.name, { sessionId, itemId })
   }
 
   async function queuePendingInput(sessionId: string, content: string | SendMessageInput) {
-    const result = await bridge.invoke(sessionsQueuePendingInputRoute.name, {
-      sessionId,
-      content
-    })
+    const input = sessionsQueuePendingInputRoute.input.parse({ sessionId, content })
+    const result = await bridge.invoke(sessionsQueuePendingInputRoute.name, input)
     return result.item
   }
 
@@ -165,11 +193,8 @@ export function createSessionClient(bridge: DeepchatBridge = getDeepchatBridge()
     itemId: string,
     content: string | SendMessageInput
   ) {
-    const result = await bridge.invoke(sessionsUpdateQueuedInputRoute.name, {
-      sessionId,
-      itemId,
-      content
-    })
+    const input = sessionsUpdateQueuedInputRoute.input.parse({ sessionId, itemId, content })
+    const result = await bridge.invoke(sessionsUpdateQueuedInputRoute.name, input)
     return result.item
   }
 
@@ -197,8 +222,31 @@ export function createSessionClient(bridge: DeepchatBridge = getDeepchatBridge()
     })
   }
 
-  async function retryMessage(sessionId: string, messageId: string) {
-    await bridge.invoke(sessionsRetryMessageRoute.name, { sessionId, messageId })
+  async function resolveBlockedPendingInput(
+    sessionId: string,
+    itemId: string,
+    action: 'retry' | 'send_without_image_content'
+  ) {
+    const result = await bridge.invoke(sessionsResolveBlockedPendingInputRoute.name, {
+      sessionId,
+      itemId,
+      action
+    })
+    return result.item
+  }
+
+  async function retryMessage(
+    sessionId: string,
+    messageId: string,
+    options?: { attachmentFallbackPolicy?: AttachmentFallbackPolicy }
+  ) {
+    return await bridge.invoke(sessionsRetryMessageRoute.name, {
+      sessionId,
+      messageId,
+      ...(options?.attachmentFallbackPolicy
+        ? { attachmentFallbackPolicy: options.attachmentFallbackPolicy }
+        : {})
+    })
   }
 
   async function deleteMessage(sessionId: string, messageId: string) {
@@ -252,6 +300,39 @@ export function createSessionClient(bridge: DeepchatBridge = getDeepchatBridge()
     return result.context
   }
 
+  async function listTapeInspectorPage(input: ListTapeInspectorPageInput) {
+    return await bridge.invoke(sessionsListTapeInspectorPageRoute.name, input)
+  }
+
+  async function listTapeInspectorEvidence(input: ListTapeInspectorEvidenceInput) {
+    return await bridge.invoke(sessionsListTapeInspectorEvidenceRoute.name, input)
+  }
+
+  async function resolveTapeInspectorEvidenceEntries(
+    input: ResolveTapeInspectorEvidenceEntriesInput
+  ) {
+    return await bridge.invoke(sessionsResolveTapeInspectorEvidenceEntriesRoute.name, input)
+  }
+
+  async function getTapeInspectorRecordDetail(input: GetTapeInspectorRecordDetailInput) {
+    return await bridge.invoke(sessionsGetTapeInspectorRecordDetailRoute.name, input)
+  }
+
+  async function exportTapeInspectorSupportTrace(input: ExportTapeInspectorSupportTraceInput) {
+    return await bridge.invoke(sessionsExportTapeInspectorSupportTraceRoute.name, input)
+  }
+
+  async function subscribeTapeInspectorHead(sessionId: string, subscriptionId: string) {
+    return await bridge.invoke(sessionsSubscribeTapeInspectorHeadRoute.name, {
+      sessionId,
+      subscriptionId
+    })
+  }
+
+  async function unsubscribeTapeInspectorHead(subscriptionId: string) {
+    return await bridge.invoke(sessionsUnsubscribeTapeInspectorHeadRoute.name, { subscriptionId })
+  }
+
   async function listMessageTraces(messageId: string) {
     const result = await bridge.invoke(sessionsListMessageTracesRoute.name, { messageId })
     return result.traces
@@ -262,7 +343,8 @@ export function createSessionClient(bridge: DeepchatBridge = getDeepchatBridge()
     const manifests = Array.isArray(result.manifests) ? result.manifests : []
     return {
       traces: result.traces,
-      manifests
+      manifests,
+      nestedExecutions: result.nestedExecutions
     }
   }
 
@@ -270,17 +352,6 @@ export function createSessionClient(bridge: DeepchatBridge = getDeepchatBridge()
     const result = await bridge.invoke(sessionsListMessageTracesRoute.name, { messageId })
     const manifests = Array.isArray(result.manifests) ? result.manifests : []
     return manifests
-  }
-
-  async function exportMessageTapeReplaySlice(
-    messageId: string,
-    options?: DeepChatTapeReplayExportOptions
-  ): Promise<DeepChatTapeReplaySlice | null> {
-    const result = await bridge.invoke(sessionsExportMessageTapeReplaySliceRoute.name, {
-      messageId,
-      options
-    })
-    return result.slice
   }
 
   async function translateText(text: string, locale?: string, agentId?: string) {
@@ -308,11 +379,13 @@ export function createSessionClient(bridge: DeepchatBridge = getDeepchatBridge()
   }
 
   async function renameSession(sessionId: string, title: string) {
-    await bridge.invoke(sessionsRenameRoute.name, { sessionId, title })
+    const result = await bridge.invoke(sessionsRenameRoute.name, { sessionId, title })
+    return result.session
   }
 
   async function toggleSessionPinned(sessionId: string, pinned: boolean) {
-    await bridge.invoke(sessionsTogglePinnedRoute.name, { sessionId, pinned })
+    const result = await bridge.invoke(sessionsTogglePinnedRoute.name, { sessionId, pinned })
+    return result.session
   }
 
   async function clearSessionMessages(sessionId: string) {
@@ -321,6 +394,14 @@ export function createSessionClient(bridge: DeepchatBridge = getDeepchatBridge()
 
   async function compactSession(sessionId: string) {
     return await bridge.invoke(sessionsCompactRoute.name, { sessionId })
+  }
+
+  async function getCompactionSnapshot(sessionId: string) {
+    return await bridge.invoke(sessionsGetCompactionSnapshotRoute.name, { sessionId })
+  }
+
+  async function getContextOccupancy(sessionId: string) {
+    return await bridge.invoke(sessionsGetContextOccupancyRoute.name, { sessionId })
   }
 
   async function exportSession(
@@ -396,19 +477,19 @@ export function createSessionClient(bridge: DeepchatBridge = getDeepchatBridge()
     await bridge.invoke(sessionsSetPermissionModeRoute.name, { sessionId, mode })
   }
 
-  async function setSessionSubagentEnabled(sessionId: string, enabled: boolean) {
-    const result = await bridge.invoke(sessionsSetSubagentEnabledRoute.name, {
-      sessionId,
-      enabled
-    })
-    return result.session
-  }
-
   async function setSessionModel(sessionId: string, providerId: string, modelId: string) {
     const result = await bridge.invoke(sessionsSetModelRoute.name, {
       sessionId,
       providerId,
       modelId
+    })
+    return result.session
+  }
+
+  async function setSessionToolMode(sessionId: string, override: ToolModeOverride) {
+    const result = await bridge.invoke(sessionsSetToolModeRoute.name, {
+      sessionId,
+      override
     })
     return result.session
   }
@@ -472,13 +553,7 @@ export function createSessionClient(bridge: DeepchatBridge = getDeepchatBridge()
   }
 
   function onCompactionChanged(
-    listener: (payload: {
-      sessionId: string
-      status: 'idle' | 'compacting' | 'compacted'
-      cursorOrderSeq: number
-      summaryUpdatedAt: number | null
-      version: number
-    }) => void
+    listener: (payload: DeepchatEventPayload<typeof sessionsCompactionChangedEvent.name>) => void
   ) {
     return bridge.on(sessionsCompactionChangedEvent.name, listener)
   }
@@ -487,6 +562,24 @@ export function createSessionClient(bridge: DeepchatBridge = getDeepchatBridge()
     listener: (payload: { sessionId: string; version: number }) => void
   ) {
     return bridge.on(sessionsPendingInputsChangedEvent.name, listener)
+  }
+
+  function onMessagesChanged(
+    listener: (payload: {
+      sessionId: string
+      messages: ChatMessageRecord[]
+      version: number
+    }) => void
+  ) {
+    return bridge.on(sessionsMessagesChangedEvent.name, listener)
+  }
+
+  function onTapeInspectorHeadChanged(
+    listener: (
+      payload: DeepchatEventPayload<typeof sessionsTapeInspectorHeadChangedEvent.name>
+    ) => void
+  ) {
+    return bridge.on(sessionsTapeInspectorHeadChangedEvent.name, listener)
   }
 
   function onAcpCommandsReady(
@@ -558,11 +651,14 @@ export function createSessionClient(bridge: DeepchatBridge = getDeepchatBridge()
     getLightweightByIds,
     ensureAcpDraftSession,
     listPendingInputs,
+    resumePendingQueue,
+    retryPendingQueueInput,
     queuePendingInput,
     updateQueuedInput,
     moveQueuedInput,
     steerPendingInput,
     deletePendingInput,
+    resolveBlockedPendingInput,
     retryMessage,
     deleteMessage,
     editUserMessage,
@@ -570,10 +666,16 @@ export function createSessionClient(bridge: DeepchatBridge = getDeepchatBridge()
     searchHistory,
     getSearchResults,
     getTapeContext,
+    listTapeInspectorPage,
+    listTapeInspectorEvidence,
+    resolveTapeInspectorEvidenceEntries,
+    getTapeInspectorRecordDetail,
+    exportTapeInspectorSupportTrace,
+    subscribeTapeInspectorHead,
+    unsubscribeTapeInspectorHead,
     listMessageTraces,
     listMessageTraceDiagnostics,
     listMessageViewManifests,
-    exportMessageTapeReplaySlice,
     translateText,
     getAgents,
     getUsageDashboard,
@@ -582,6 +684,8 @@ export function createSessionClient(bridge: DeepchatBridge = getDeepchatBridge()
     toggleSessionPinned,
     clearSessionMessages,
     compactSession,
+    getCompactionSnapshot,
+    getContextOccupancy,
     exportSession,
     deleteSession,
     getAgentTransferImpact,
@@ -593,8 +697,8 @@ export function createSessionClient(bridge: DeepchatBridge = getDeepchatBridge()
     setAcpSessionConfigOption,
     getPermissionMode,
     setPermissionMode,
-    setSessionSubagentEnabled,
     setSessionModel,
+    setSessionToolMode,
     setSessionProjectDir,
     getSessionGenerationSettings,
     getSessionDisabledAgentTools,
@@ -604,6 +708,8 @@ export function createSessionClient(bridge: DeepchatBridge = getDeepchatBridge()
     onStatusChanged,
     onCompactionChanged,
     onPendingInputsChanged,
+    onMessagesChanged,
+    onTapeInspectorHeadChanged,
     onAcpModesReady,
     onAcpCommandsReady,
     onAcpConfigOptionsReady

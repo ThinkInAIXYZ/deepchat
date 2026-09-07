@@ -12,6 +12,11 @@ test('provider settings read-only routes expose provider and model snapshots @sm
   await expect(settingsPage.getByTestId('settings-provider-page')).toBeVisible({
     timeout: 30_000
   })
+
+  if ((await settingsPage.locator('[data-provider-id]').count()) === 0) {
+    await settingsPage.getByTestId('disabled-providers-toggle').click()
+  }
+
   await expect
     .poll(async () => await settingsPage.locator('[data-provider-id]').count(), {
       timeout: 30_000,

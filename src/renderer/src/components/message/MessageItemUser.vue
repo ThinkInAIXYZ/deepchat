@@ -17,10 +17,13 @@
         class="flex-row-reverse"
         :name="message.name ?? 'user'"
         :timestamp="message.timestamp"
+        :receipt="receipt"
+        :receipt-label="receiptLabel"
       />
       <div
         v-if="standaloneActiveSkills.length"
         class="flex max-w-full flex-wrap justify-end gap-1.5 pr-1"
+        data-chat-search-exclude="true"
         data-testid="user-message-active-skills"
       >
         <span
@@ -38,7 +41,11 @@
         class="text-sm bg-muted dark:bg-muted rounded-lg p-2 border flex flex-col gap-1.5"
         data-message-content="true"
       >
-        <div v-show="standaloneFiles.length > 0" class="flex flex-wrap gap-1.5">
+        <div
+          v-show="standaloneFiles.length > 0"
+          class="flex flex-wrap gap-1.5"
+          data-chat-search-exclude="true"
+        >
           <ChatAttachmentItem
             v-for="(file, index) in standaloneFiles"
             :key="file.path || `${file.name}-${index}`"
@@ -70,14 +77,10 @@
               :class="{ 'user-message-content--clamped': shouldClampContent }"
             >
               <MessageContent
-                v-if="inlineContentBlocks.length > 0"
-                :content="inlineContentBlocks"
+                v-if="visibleContentBlocks.length > 0"
+                :content="visibleContentBlocks"
                 @mention-click="handleMentionClick"
-              />
-              <MessageContent
-                v-else-if="message.content.content && message.content.content.length > 0"
-                :content="message.content.content"
-                @mention-click="handleMentionClick"
+                @file-click="previewFile"
               />
               <MessageTextContent v-else :content="message.content.text || ''" />
             </div>
@@ -105,7 +108,8 @@
         :is-assistant="false"
         :is-edit-mode="isEditMode"
         :is-capturing-image="false"
-        :is-read-only="isReadOnly"
+        :is-read-only="effectiveReadOnly"
+        :copy-text="copyText"
         @retry="onRetryAction"
         @delete="handleAction('delete')"
         @copy="handleAction('copy')"
@@ -120,11 +124,13 @@
 <script setup lang="ts">
 import type {
   DisplayUserMessage,
-  DisplayUserMessageFileBlock,
   DisplayUserMessageInlineBlock,
-  DisplayUserMessageMentionBlock,
-  DisplayUserMessageSkillBlock
-} from '@/components/chat/messageListItems'
+  DisplayUserMessageMentionBlock
+} from '@/features/chat-page/model/displayMessage'
+import {
+  collectVisibleUserMessageText,
+  getVisibleUserContentBlocks
+} from '@/features/chat-page/model/displayUserMessageText'
 import { Icon } from '@iconify/vue'
 import { useI18n } from 'vue-i18n'
 import MessageInfo from './MessageInfo.vue'
@@ -138,37 +144,7 @@ import { computed, ref, watch, nextTick, onBeforeUnmount } from 'vue'
 
 const COLLAPSE_CHAR_THRESHOLD = 600
 const COLLAPSE_EXPLICIT_LINE_THRESHOLD = 8
-
-type DisplayUserMessageRichBlock = NonNullable<DisplayUserMessage['content']['content']>[number]
-
-const getVisibleMentionLabel = (block: DisplayUserMessageMentionBlock) => {
-  if (block.category === 'prompts') {
-    return block.id || block.content
-  }
-  if (block.category === 'context') {
-    return block.id || block.category
-  }
-  return block.content
-}
-
-const getVisibleBlockText = (block: DisplayUserMessageRichBlock) => {
-  if (block.type === 'mention') {
-    return getVisibleMentionLabel(block)
-  }
-  return block.content
-}
-
-const getVisibleMessageText = (message: DisplayUserMessage) => {
-  const blocks = message.content.content
-  const baseText =
-    blocks && blocks.length > 0
-      ? blocks.map((block) => getVisibleBlockText(block)).join('')
-      : message.content.text || ''
-  const inlineText = (message.content.inlineItems ?? [])
-    .map((item) => (item.type === 'skill' ? item.skillName : item.fileName))
-    .join('')
-  return `${baseText}${inlineText}`
-}
+const READ_RECEIPT_VISIBLE_MS = 1500
 
 const countExplicitLines = (value: string) => {
   if (!value) {
@@ -205,40 +181,39 @@ const editedText = ref('')
 const editTextarea = ref<HTMLTextAreaElement | null>(null)
 const isExpanded = ref(true)
 const hasManualCollapsePreference = ref(false)
-const visibleMessageText = computed(() => getVisibleMessageText(props.message))
+const receipt = ref<'unread' | 'read' | null>(null)
+let receiptTimer: ReturnType<typeof setTimeout> | null = null
 
-const inlineBaseText = computed(() => {
-  const blocks = props.message.content.content
-  if (blocks && blocks.length > 0) {
-    return blocks.map((block) => getVisibleBlockText(block)).join('')
-  }
-
-  return props.message.content.text || ''
-})
-
-const canRenderInlineItems = computed(
-  () => !(props.message.content.content && props.message.content.content.length > 0)
+const effectiveReadOnly = computed(() => props.isReadOnly || props.message.status === 'pending')
+const receiptLabel = computed(() =>
+  receipt.value ? t(`chat.messageReceipt.${receipt.value}`) : undefined
 )
 
-const inlineItems = computed(() => {
-  if (!canRenderInlineItems.value) {
-    return []
+const messageFileByKey = computed(() => {
+  const files = new Map<string, (typeof props.message.content.files)[number]>()
+  for (const file of props.message.content.files) {
+    if (file.path) files.set(file.path, file)
+    if (file.name) files.set(file.name, file)
   }
-
-  const textLength = inlineBaseText.value.length
-  return (props.message.content.inlineItems ?? [])
-    .map((item, index) => ({ item, index }))
-    .filter(
-      ({ item }) => Number.isInteger(item.offset) && item.offset >= 0 && item.offset <= textLength
-    )
-    .sort((left, right) => left.item.offset - right.item.offset || left.index - right.index)
+  return files
 })
+
+const visibleContentBlocks = computed<DisplayUserMessageInlineBlock[]>(() =>
+  getVisibleUserContentBlocks(props.message.content).map((block) => {
+    if (block.type !== 'file') return block
+    const file =
+      messageFileByKey.value.get(block.filePath) ?? messageFileByKey.value.get(block.fileName)
+    return file ? { ...block, file } : block
+  })
+)
+const visibleMessageText = computed(() => collectVisibleUserMessageText(props.message.content))
 
 const inlineSkillNames = computed(
   () =>
     new Set(
-      inlineItems.value
-        .map(({ item }) => (item.type === 'skill' ? item.skillName : ''))
+      visibleContentBlocks.value
+        .filter((block) => block.type === 'skill')
+        .map((block) => block.skillName)
         .filter(Boolean)
     )
 )
@@ -246,8 +221,9 @@ const inlineSkillNames = computed(
 const inlineFileKeys = computed(
   () =>
     new Set(
-      inlineItems.value
-        .map(({ item }) => (item.type === 'file' ? item.filePath || item.fileName : ''))
+      visibleContentBlocks.value
+        .filter((block) => block.type === 'file')
+        .map((block) => block.filePath || block.fileName)
         .filter(Boolean)
     )
 )
@@ -261,44 +237,6 @@ const standaloneActiveSkills = computed(() =>
 const standaloneFiles = computed(() =>
   props.message.content.files.filter((file) => !inlineFileKeys.value.has(file.path || file.name))
 )
-
-const inlineContentBlocks = computed<DisplayUserMessageInlineBlock[]>(() => {
-  const text = inlineBaseText.value
-  if (inlineItems.value.length === 0) {
-    return []
-  }
-
-  const blocks: DisplayUserMessageInlineBlock[] = []
-  let cursor = 0
-
-  for (const { item } of inlineItems.value) {
-    if (item.offset > cursor) {
-      blocks.push({ type: 'text', content: text.slice(cursor, item.offset) })
-    }
-
-    if (item.type === 'skill') {
-      blocks.push({
-        type: 'skill',
-        skillName: item.skillName
-      } satisfies DisplayUserMessageSkillBlock)
-    } else {
-      blocks.push({
-        type: 'file',
-        fileName: item.fileName,
-        filePath: item.filePath,
-        mimeType: item.mimeType
-      } satisfies DisplayUserMessageFileBlock)
-    }
-
-    cursor = item.offset
-  }
-
-  if (cursor < text.length) {
-    blocks.push({ type: 'text', content: text.slice(cursor) })
-  }
-
-  return blocks
-})
 
 const explicitLineCount = computed(() => countExplicitLines(visibleMessageText.value))
 const isCollapsible = computed(
@@ -330,7 +268,7 @@ const toggleExpanded = () => {
 }
 
 const startEdit = () => {
-  if (props.isReadOnly) {
+  if (effectiveReadOnly.value) {
     return
   }
 
@@ -345,7 +283,7 @@ const startEdit = () => {
 }
 
 const saveEdit = async () => {
-  if (props.isReadOnly) {
+  if (effectiveReadOnly.value) {
     return
   }
 
@@ -366,7 +304,7 @@ const saveEdit = async () => {
 }
 
 const onRetryAction = () => {
-  if (props.isReadOnly) {
+  if (effectiveReadOnly.value) {
     return
   }
   emit('retry', props.message.id)
@@ -387,13 +325,15 @@ const getCopyText = () => {
   return props.message.content.text || ''
 }
 
+const copyText = computed(() => getCopyText())
+
 const cancelEdit = () => {
   isEditMode.value = false
 }
 
 const handleAction = (action: 'delete' | 'copy') => {
   if (action === 'delete') {
-    if (props.isReadOnly) {
+    if (effectiveReadOnly.value) {
       return
     }
     emit('delete', props.message.id)
@@ -458,7 +398,45 @@ watch(
   { immediate: true }
 )
 
+watch(
+  () => [props.message.id, props.message.status, props.message.inputReceipt?.readAt] as const,
+  ([, status, readAt]) => {
+    if (receiptTimer) {
+      clearTimeout(receiptTimer)
+      receiptTimer = null
+    }
+    if (!props.message.inputReceipt) {
+      receipt.value = null
+      return
+    }
+    if (status === 'error') {
+      receipt.value = null
+      return
+    }
+    if (readAt === null || readAt === undefined) {
+      receipt.value = 'unread'
+      return
+    }
+
+    const remaining = readAt + READ_RECEIPT_VISIBLE_MS - Date.now()
+    if (remaining <= 0) {
+      receipt.value = null
+      return
+    }
+    receipt.value = 'read'
+    receiptTimer = setTimeout(() => {
+      receipt.value = null
+      receiptTimer = null
+    }, remaining)
+  },
+  { immediate: true }
+)
+
 onBeforeUnmount(() => {
+  if (receiptTimer) {
+    clearTimeout(receiptTimer)
+    receiptTimer = null
+  }
   if (pendingResizeFrame !== null) {
     window.cancelAnimationFrame(pendingResizeFrame)
     pendingResizeFrame = null

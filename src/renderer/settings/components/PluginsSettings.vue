@@ -6,16 +6,16 @@
     data-testid="settings-plugins-page"
   >
     <template #actions>
-      <Button
+      <DcButton
         variant="outline"
         size="icon"
         :disabled="loading"
         :aria-label="t('settings.plugins.refresh')"
-        :title="t('settings.plugins.refresh')"
+        :tooltip="t('settings.plugins.refresh')"
         @click="loadPlugins"
       >
         <Icon icon="lucide:refresh-cw" class="w-4 h-4" />
-      </Button>
+      </DcButton>
     </template>
 
     <div
@@ -89,6 +89,10 @@
           {{ plugin.runtime.lastError }}
         </div>
 
+        <div v-if="plugin.activationError" class="text-xs text-destructive">
+          {{ plugin.activationError }}
+        </div>
+
         <div
           v-if="getPluginMcpErrors(plugin).length > 0"
           class="space-y-1 text-xs text-destructive"
@@ -99,7 +103,7 @@
         </div>
 
         <div class="flex flex-wrap gap-2">
-          <Button
+          <DcButton
             v-if="!plugin.enabled"
             :data-testid="`plugin-enable-${plugin.id}`"
             size="sm"
@@ -108,8 +112,8 @@
           >
             <Icon icon="lucide:power" class="w-4 h-4 mr-2" />
             {{ t('settings.plugins.enable') }}
-          </Button>
-          <Button
+          </DcButton>
+          <DcButton
             v-if="plugin.settings"
             :data-testid="`plugin-settings-${plugin.id}`"
             size="sm"
@@ -119,8 +123,8 @@
           >
             <Icon icon="lucide:settings" class="w-4 h-4 mr-2" />
             {{ t('settings.plugins.openSettings') }}
-          </Button>
-          <Button
+          </DcButton>
+          <DcButton
             v-if="plugin.enabled"
             :data-testid="`plugin-disable-${plugin.id}`"
             size="sm"
@@ -130,7 +134,7 @@
           >
             <Icon icon="lucide:power-off" class="w-4 h-4 mr-2" />
             {{ t('settings.plugins.disable') }}
-          </Button>
+          </DcButton>
         </div>
       </article>
     </div>
@@ -141,7 +145,7 @@
 import { onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
 import { createPluginClient } from '@api/PluginClient'
 import type { PluginActionResult, PluginListItem, PluginRuntimeState } from '@shared/types/plugin'
 import SettingsPageShell from './control-center/SettingsPageShell.vue'
@@ -165,9 +169,18 @@ function formatRuntimeState(state?: PluginRuntimeState): string {
 }
 
 function getPluginMcpErrors(plugin: PluginListItem): string[] {
-  return (plugin.mcpServers ?? [])
-    .filter((server) => Boolean(server.lastError))
-    .map((server) => `${server.serverId}: ${server.lastError}`)
+  return (plugin.mcpServers ?? []).flatMap((server) => {
+    if (server.integrityError) {
+      return [`${server.serverId}: ${server.integrityError}`]
+    }
+    if (server.lastError) {
+      return [`${server.serverId}: ${server.lastError}`]
+    }
+    if (server.lifecycleState === 'quarantined') {
+      return [`${server.serverId}: ${t('settings.plugins.runtimeStates.quarantined')}`]
+    }
+    return []
+  })
 }
 
 async function loadPlugins(): Promise<void> {

@@ -21,8 +21,8 @@ vi.mock('@iconify/vue', () => ({
   })
 }))
 
-vi.mock('@shadcn/components/ui/button', () => ({
-  Button: defineComponent({
+vi.mock('@dc-ui/components/button', () => ({
+  DcButton: defineComponent({
     name: 'Button',
     inheritAttrs: false,
     props: {
@@ -33,15 +33,31 @@ vi.mock('@shadcn/components/ui/button', () => ({
       variant: {
         type: String,
         default: 'default'
+      },
+      icon: {
+        type: String,
+        default: ''
+      },
+      tooltip: {
+        type: String,
+        default: ''
+      },
+      label: {
+        type: String,
+        default: ''
       }
     },
     emits: ['click'],
     template:
-      '<button type="button" :disabled="disabled" :data-variant="variant" v-bind="$attrs" @click="$emit(\'click\')"><slot /></button>'
+      '<button type="button" :disabled="disabled" :data-variant="variant" :title="tooltip || undefined" :aria-label="label || tooltip || undefined" v-bind="$attrs" @click="$emit(\'click\')"><i v-if="icon" :data-icon="icon" /><slot /><span v-if="tooltip">{{ tooltip }}</span></button>'
   })
 }))
 
 vi.mock('@shadcn/components/ui/tooltip', () => ({
+  TooltipProvider: defineComponent({
+    name: 'TooltipProvider',
+    template: '<div><slot /></div>'
+  }),
   Tooltip: defineComponent({
     name: 'Tooltip',
     template: '<div><slot /></div>'
@@ -110,6 +126,82 @@ describe('ChatInputToolbar', () => {
     expect(wrapper.emitted('steer')).toEqual([[]])
   })
 
+  it('cancels steer attachment preparation without stopping the active generation', async () => {
+    const ChatInputToolbar = (await import('@/components/chat/ChatInputToolbar.vue')).default
+    const wrapper = mount(ChatInputToolbar, {
+      props: {
+        isGenerating: true,
+        hasInput: true,
+        isPreparingAttachments: true,
+        sendDisabled: true,
+        queueDisabled: true
+      }
+    })
+
+    const primaryButton = wrapper.get('[data-testid="chat-cancel-preparation-button"]')
+    expect((primaryButton.element as HTMLButtonElement).disabled).toBe(false)
+    expect(wrapper.find('[data-icon="lucide:square"]').exists()).toBe(true)
+
+    await primaryButton.trigger('click')
+    expect(wrapper.emitted('cancel-preparation')).toEqual([[]])
+    expect(wrapper.emitted('stop')).toBeUndefined()
+    expect(wrapper.emitted('queue')).toBeUndefined()
+  })
+
+  it('keeps an active voice input stoppable while attachments are being prepared', async () => {
+    const ChatInputToolbar = (await import('@/components/chat/ChatInputToolbar.vue')).default
+    const wrapper = mount(ChatInputToolbar, {
+      props: {
+        showVoiceInput: true,
+        isVoiceInputListening: true,
+        isPreparingAttachments: true
+      }
+    })
+
+    const voiceButton = wrapper.get('[data-testid="chat-voice-input-button"]')
+    expect((voiceButton.element as HTMLButtonElement).disabled).toBe(false)
+
+    await voiceButton.trigger('click')
+    expect(wrapper.emitted('voice-input')).toEqual([[]])
+  })
+
+  it('disables steer when the active turn cannot be interrupted', async () => {
+    const ChatInputToolbar = (await import('@/components/chat/ChatInputToolbar.vue')).default
+    const wrapper = mount(ChatInputToolbar, {
+      props: {
+        isGenerating: true,
+        hasInput: true,
+        steerDisabled: true
+      }
+    })
+
+    const steerButton = wrapper.get('[data-testid="chat-steer-button"]')
+    expect(steerButton.attributes('disabled')).toBeDefined()
+    expect(wrapper.text()).toContain('chat.pendingInput.steerUnavailable')
+
+    await steerButton.trigger('click')
+    expect(wrapper.emitted('steer')).toBeUndefined()
+  })
+
+  it('renders progress and blocks repeated stop clicks while pending', async () => {
+    const ChatInputToolbar = (await import('@/components/chat/ChatInputToolbar.vue')).default
+    const wrapper = mount(ChatInputToolbar, {
+      props: {
+        isGenerating: true,
+        hasInput: false,
+        isStopping: true
+      }
+    })
+
+    const stopButton = wrapper.get('[data-testid="chat-stop-button"]')
+    expect(stopButton.attributes('disabled')).toBeDefined()
+    expect(stopButton.attributes('aria-busy')).toBe('true')
+    expect(stopButton.find('[role="status"]').exists()).toBe(true)
+
+    await stopButton.trigger('click')
+    expect(wrapper.emitted('stop')).toBeUndefined()
+  })
+
   it('emits voice-input and switches icon while listening', async () => {
     const ChatInputToolbar = (await import('@/components/chat/ChatInputToolbar.vue')).default
     const wrapper = mount(ChatInputToolbar, {
@@ -124,5 +216,35 @@ describe('ChatInputToolbar', () => {
 
     await wrapper.setProps({ isVoiceInputListening: true })
     expect(wrapper.find('[data-testid="chat-voice-recording-wave"]').exists()).toBe(true)
+  })
+
+  it('shows a capability-gated search toggle with pressed state', async () => {
+    const ChatInputToolbar = (await import('@/components/chat/ChatInputToolbar.vue')).default
+    const wrapper = mount(ChatInputToolbar, {
+      props: {
+        showSearch: true,
+        searchEnabled: false
+      }
+    })
+
+    const toggle = wrapper.get('[data-testid="chat-search-toggle"]')
+    expect(toggle.attributes('aria-pressed')).toBe('false')
+    expect(toggle.attributes('aria-label')).toBe('chat.features.webSearch')
+    expect(toggle.find('[data-icon="lucide:globe-2"]').exists()).toBe(true)
+    expect(wrapper.text()).toContain('chat.features.webSearch')
+
+    await toggle.trigger('click')
+    expect(wrapper.emitted('toggle-search')).toEqual([[]])
+    await wrapper.setProps({ searchEnabled: true })
+    expect(wrapper.get('[data-testid="chat-search-toggle"]').attributes('aria-pressed')).toBe(
+      'true'
+    )
+  })
+
+  it('hides search when the active route has no provider execution path', async () => {
+    const ChatInputToolbar = (await import('@/components/chat/ChatInputToolbar.vue')).default
+    const wrapper = mount(ChatInputToolbar, { props: { showSearch: false } })
+
+    expect(wrapper.find('[data-testid="chat-search-toggle"]').exists()).toBe(false)
   })
 })

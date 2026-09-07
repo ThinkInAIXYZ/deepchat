@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
 import { ScrollArea } from '@shadcn/components/ui/scroll-area'
 import {
   DropdownMenu,
@@ -457,9 +457,14 @@ const selectEmoji = (emoji: string) => {
 <template>
   <DropdownMenu v-model:open="isOpen">
     <DropdownMenuTrigger as-child>
-      <Button variant="outline" size="icon" class="w-10 flex items-center justify-center text-sm">
+      <DcButton
+        variant="outline"
+        size="icon"
+        class="w-10 flex items-center justify-center text-sm"
+        :tooltip="t('settings.mcp.serverForm.icons')"
+      >
         {{ modelValue || '📁' }}
-      </Button>
+      </DcButton>
     </DropdownMenuTrigger>
     <DropdownMenuContent align="start" class="w-80 p-0">
       <div class="p-2">
@@ -483,7 +488,7 @@ const selectEmoji = (emoji: string) => {
           >
             <ScrollArea class="h-40">
               <div class="grid grid-cols-8 gap-1">
-                <Button
+                <DcButton
                   v-for="emoji in filteredEmojis[category.id]"
                   :key="emoji"
                   variant="ghost"
@@ -491,7 +496,7 @@ const selectEmoji = (emoji: string) => {
                   @click="selectEmoji(emoji)"
                 >
                   {{ emoji }}
-                </Button>
+                </DcButton>
               </div>
             </ScrollArea>
           </TabsContent>

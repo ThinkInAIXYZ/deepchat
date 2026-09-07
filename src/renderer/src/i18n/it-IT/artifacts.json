@@ -30,6 +30,7 @@
   "htmlPreviewTitle": "Anteprima HTML",
   "svgPreviewTitle": "Anteprima SVG",
   "copy": "Copia",
+  "generating": "Generazione dell'artifact...",
   "copyAsImage": "Copia come immagine",
   "copyImageSuccessDesc": "Immagine copiata negli appunti",
   "copyImageFailedDesc": "Impossibile copiare l'immagine negli appunti",

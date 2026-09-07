@@ -3,6 +3,7 @@
   "welcome": "Добро пожаловать",
   "settings": "Настройки",
   "settings-common": "Общие настройки",
+  "settings-ocr": "OCR (распознавание текста)",
   "settings-provider": "Настройки провайдера",
   "settings-about": "О программе",
   "settings-database": "Настройки данных",
@@ -13,7 +14,7 @@
   "settings-prompt": "Управление промптами",
   "settings-mcp-market": "MCP Market",
   "settings-acp": "ACP-агент",
-  "settings-skills": "Skills",
+  "plugins-skills": "Skills",
   "settings-notifications-hooks": "Хуки",
   "settings-scheduled-tasks": "Запланированные задачи",
   "settings-dashboard": "Панель",
@@ -23,5 +24,7 @@
   "settings-plugins": "Plugins",
   "settings-overview": "Обзор настроек",
   "settings-memory": "Память",
-  "plugins": "Plugins"
+  "plugins": "Plugins",
+  "settings-debug": "Debug",
+  "settings-toolchains": "Toolchains"
 }

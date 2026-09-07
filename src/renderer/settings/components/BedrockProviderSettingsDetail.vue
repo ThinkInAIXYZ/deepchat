@@ -1,9 +1,12 @@
 <template>
   <ProviderSettingsShell
-    v-model:active-tab="activeTab"
     :title="t(provider.name)"
     :subtitle="region"
     :enabled-count="enabledModels.length"
+    :enabled="provider.enable"
+    :enabled-updating="isProviderStatusUpdating"
+    :health="providerHealth"
+    @enabled-change="handleProviderEnabledChange"
   >
     <template #connection>
       <div class="flex flex-col gap-4">
@@ -46,17 +49,18 @@
                 @keyup.enter="handleAccessKeyIdChange(accessKeyId)"
                 @update:model-value="accessKeyId = String($event)"
               />
-              <Button
+              <DcButton
                 variant="ghost"
                 size="sm"
                 class="absolute right-2 top-1/2 transform -translate-y-1/2 h-7 w-7 p-0 hover:bg-transparent"
+                :tooltip="showAccessKeyId ? t('common.hideValue') : t('common.showValue')"
                 @click="showAccessKeyId = !showAccessKeyId"
               >
                 <Icon
                   :icon="showAccessKeyId ? 'lucide:eye-off' : 'lucide:eye'"
                   class="w-4 h-4 text-muted-foreground hover:text-foreground"
                 />
-              </Button>
+              </DcButton>
             </div>
           </div>
           <div class="flex flex-col items-start gap-2">
@@ -74,17 +78,18 @@
                 @keyup.enter="handleSecretAccessKeyChange(secretAccessKey)"
                 @update:model-value="secretAccessKey = String($event)"
               />
-              <Button
+              <DcButton
                 variant="ghost"
                 size="sm"
                 class="absolute right-2 top-1/2 transform -translate-y-1/2 h-7 w-7 p-0 hover:bg-transparent"
+                :tooltip="showSecretAccessKey ? t('common.hideValue') : t('common.showValue')"
                 @click="showSecretAccessKey = !showSecretAccessKey"
               >
                 <Icon
                   :icon="showSecretAccessKey ? 'lucide:eye-off' : 'lucide:eye'"
                   class="w-4 h-4 text-muted-foreground hover:text-foreground"
                 />
-              </Button>
+              </DcButton>
             </div>
           </div>
         </template>
@@ -120,7 +125,7 @@
         </div>
 
         <div class="flex flex-row gap-2">
-          <Button
+          <DcButton
             variant="outline"
             size="sm"
             class="text-xs text-normal rounded-lg"
@@ -130,7 +135,7 @@
             <Icon icon="lucide:check-check" class="w-4 h-4 text-muted-foreground" />{{
               t('settings.provider.verifyKey')
             }}
-          </Button>
+          </DcButton>
           <TooltipProvider :delayDuration="200">
             <Tooltip>
               <TooltipTrigger>
@@ -187,12 +192,12 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { AWS_BEDROCK_PROVIDER, RENDERER_MODEL_META } from '@shared/presenter'
+import type { AWS_BEDROCK_PROVIDER, RENDERER_MODEL_META } from '@shared/types/provider'
 import { useProviderStore } from '@/stores/providerStore'
 import { useModelStore } from '@/stores/modelStore'
 import { Label } from '@shadcn/components/ui/label'
 import { Input } from '@shadcn/components/ui/input'
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
 import { RadioGroup, RadioGroupItem } from '@shadcn/components/ui/radio-group'
 import {
   Tooltip,
@@ -226,7 +231,8 @@ const region = ref(props.provider.credential?.region || '')
 const profile = ref(props.provider.credential?.profile || '')
 const showAccessKeyId = ref(false)
 const showSecretAccessKey = ref(false)
-const activeTab = ref<'connection' | 'models' | 'advanced'>('connection')
+const isProviderStatusUpdating = ref(false)
+const providerHealth = computed(() => providerStore.getProviderHealth(props.provider.id))
 const providerModels = ref<RENDERER_MODEL_META[]>([])
 const customModels = computed(() => {
   const providerCustomModels = modelStore.customModels.find(
@@ -257,6 +263,21 @@ const isProviderReadyForOnboarding = (
 const maybeEmitProviderConfigured = (provider: AWS_BEDROCK_PROVIDER) => {
   if (isProviderReadyForOnboarding(provider)) {
     emit('provider-configured')
+  }
+}
+
+const handleProviderEnabledChange = async (enabled: boolean) => {
+  if (isProviderStatusUpdating.value || enabled === props.provider.enable) {
+    return
+  }
+
+  isProviderStatusUpdating.value = true
+  try {
+    await providerStore.updateProviderStatus(props.provider.id, enabled)
+  } catch (error) {
+    console.error('Failed to update provider status:', error)
+  } finally {
+    isProviderStatusUpdating.value = false
   }
 }
 

@@ -15,6 +15,8 @@ const props = defineProps<{
   min: number
   max: number
   step: number
+  disabled?: boolean
+  hint?: string
   formatter?: (value: number) => string
 }>()
 
@@ -25,7 +27,11 @@ const emit = defineEmits<{
 // Slider expects array format
 const sliderValue = computed({
   get: () => [props.modelValue],
-  set: (value) => emit('update:modelValue', value[0])
+  set: (value) => {
+    if (!props.disabled) {
+      emit('update:modelValue', value[0])
+    }
+  }
 })
 
 const displayValue = computed(() => {
@@ -41,6 +47,7 @@ const displayValue = computed(() => {
       :description="description"
       :value="displayValue"
     />
-    <Slider v-model="sliderValue" :min="min" :max="max" :step="step" />
+    <Slider v-model="sliderValue" :min="min" :max="max" :step="step" :disabled="disabled" />
+    <p v-if="hint" class="text-xs text-muted-foreground">{{ hint }}</p>
   </div>
 </template>

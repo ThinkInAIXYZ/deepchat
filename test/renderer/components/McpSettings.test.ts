@@ -36,7 +36,7 @@ const setup = async (
     push: vi.fn()
   }
 
-  const toast = vi.fn()
+  const notifyRenderer = vi.fn()
   const configClient = {
     listAgents: vi.fn().mockResolvedValue([
       {
@@ -93,14 +93,14 @@ const setup = async (
         }
       }
     },
-    setMcpEnabled: vi.fn().mockResolvedValue(undefined),
+    setMcpEnabled: vi.fn().mockResolvedValue(true),
     getNpmRegistryStatus: vi.fn().mockResolvedValue({
       currentRegistry: null,
       isFromCache: false,
       autoDetectEnabled: true,
       customRegistry: undefined
     }),
-    refreshNpmRegistry: vi.fn().mockResolvedValue(undefined),
+    refreshNpmRegistry: vi.fn().mockResolvedValue('https://registry.npmjs.org/'),
     setAutoDetectNpmRegistry: vi.fn().mockResolvedValue(undefined),
     setCustomNpmRegistry: vi.fn().mockResolvedValue(undefined),
     clearNpmRegistryCache: vi.fn().mockResolvedValue(undefined)
@@ -141,13 +141,12 @@ const setup = async (
   }))
   vi.doMock('@api/WindowClient', () => ({
     createWindowClient: () => ({
-      focusMainWindow: vi.fn().mockResolvedValue(true)
+      focusMainWindow: vi.fn().mockResolvedValue(true),
+      resumeGuidedOnboarding: vi.fn().mockResolvedValue({ requested: true, focused: true })
     })
   }))
-  vi.doMock('@/components/use-toast', () => ({
-    useToast: () => ({
-      toast
-    })
+  vi.doMock('@renderer-notifications/rendererNotificationPort', () => ({
+    notifyRenderer
   }))
   vi.doMock('vue-i18n', () => ({
     useI18n: () => ({
@@ -163,7 +162,7 @@ const setup = async (
     global: {
       stubs: {
         Switch: true,
-        Button: buttonStub,
+        DcButton: buttonStub,
         Input: true,
         Icon: true,
         Separator: true,
@@ -186,11 +185,13 @@ const setup = async (
           name: 'McpServers',
           props: {
             serverEnabledOverrides: { type: Object, default: () => ({}) },
-            agentScopedToggle: { type: Boolean, default: false }
+            serverLoadingOverrides: { type: Object, default: () => ({}) },
+            agentScopedToggle: { type: Boolean, default: false },
+            agentScopedBusy: { type: Boolean, default: false }
           },
           emits: ['toggle-agent-server'],
           template:
-            '<button data-testid="servers-view" @click="$emit(\'toggle-agent-server\', \'Custom\', true)">{{ agentScopedToggle }}:{{ serverEnabledOverrides.Custom }}</button>'
+            '<button data-testid="servers-view" :disabled="agentScopedBusy" @click="$emit(\'toggle-agent-server\', \'Custom\', true)">{{ agentScopedToggle }}:{{ serverEnabledOverrides.Custom }}:{{ serverLoadingOverrides.Custom }}</button>'
         }),
         McpBuiltinMarket: defineComponent({
           name: 'McpBuiltinMarket',
@@ -207,7 +208,8 @@ const setup = async (
     wrapper,
     router,
     configClient,
-    mcpStore
+    mcpStore,
+    notifyRenderer
   }
 }
 
@@ -246,9 +248,9 @@ describe('McpSettings', () => {
   })
 
   it('saves MCP server toggles to the current agent in agent scope', async () => {
-    const { wrapper, configClient, mcpStore } = await setup({}, { scope: 'agent' })
+    const { wrapper, configClient, mcpStore, notifyRenderer } = await setup({}, { scope: 'agent' })
 
-    expect(wrapper.find('[data-testid="servers-view"]').text()).toContain('true:false')
+    expect(wrapper.find('[data-testid="servers-view"]').text()).toContain('true:false:')
 
     await wrapper.find('[data-testid="servers-view"]').trigger('click')
     await flushPromises()
@@ -259,6 +261,131 @@ describe('McpSettings', () => {
         enabledMcpServerIds: ['Artifacts', 'Custom']
       }
     })
+    expect(notifyRenderer).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'success',
+        code: 'settings.agentMcpPolicy.saved',
+        title: 'settings.mcp.saveSuccess'
+      })
+    )
+  })
+
+  it('optimistically reflects one agent policy write and blocks overlapping toggles', async () => {
+    const { wrapper, configClient } = await setup({}, { scope: 'agent' })
+    let resolveUpdate: (agent: Record<string, unknown>) => void = () => undefined
+    configClient.updateDeepChatAgent.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveUpdate = resolve
+        })
+    )
+    const serverView = wrapper.get('[data-testid="servers-view"]')
+
+    await serverView.trigger('click')
+    await wrapper.vm.$nextTick()
+
+    expect(serverView.text()).toContain('true:true:true')
+    expect(serverView.attributes('disabled')).toBeDefined()
+    await serverView.trigger('click')
+    expect(configClient.updateDeepChatAgent).toHaveBeenCalledTimes(1)
+
+    resolveUpdate({
+      id: 'deepchat',
+      type: 'deepchat',
+      name: 'DeepChat',
+      enabled: true,
+      config: {
+        enabledMcpServerIds: ['Artifacts', 'Custom']
+      }
+    })
+    await flushPromises()
+
+    expect(serverView.attributes('disabled')).toBeUndefined()
+  })
+
+  it('rolls back failed agent-scoped toggles and reports the failure toast', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    const { wrapper, configClient, notifyRenderer } = await setup({}, { scope: 'agent' })
+    configClient.updateDeepChatAgent.mockRejectedValueOnce(new Error('write failed'))
+
+    await wrapper.find('[data-testid="servers-view"]').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="servers-view"]').text()).toContain('true:false:')
+    expect(notifyRenderer).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'error',
+        code: 'settings.agentMcpPolicy.saveFailed',
+        title: 'settings.mcp.saveFailed',
+        description: 'common.error.requestFailed'
+      })
+    )
+    consoleError.mockRestore()
+  })
+
+  it('reports a failed global master toggle through the semantic port', async () => {
+    const { wrapper, mcpStore, notifyRenderer } = await setup()
+    mcpStore.setMcpEnabled.mockResolvedValueOnce(false)
+    const viewModel = wrapper.vm as unknown as {
+      handleMcpEnabledChange(enabled: boolean): Promise<void>
+    }
+
+    await viewModel.handleMcpEnabledChange(false)
+
+    expect(notifyRenderer).toHaveBeenCalledWith({
+      kind: 'error',
+      code: 'settings.mcp.masterToggleFailed',
+      title: 'common.error.operationFailed',
+      description: 'common.error.requestFailed'
+    })
+  })
+
+  it('keeps npm registry refresh failures inside the advanced settings surface', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    const { wrapper, mcpStore, notifyRenderer } = await setup()
+    mcpStore.refreshNpmRegistry.mockRejectedValueOnce(new Error('offline'))
+    const viewModel = wrapper.vm as unknown as {
+      npmRegistryFeedback: { kind: string; message: string } | null
+      refreshNpmRegistry(): Promise<void>
+    }
+
+    await viewModel.refreshNpmRegistry()
+
+    expect(viewModel.npmRegistryFeedback).toEqual({
+      kind: 'error',
+      message: 'settings.mcp.npmRegistry.refreshFailed'
+    })
+    expect(notifyRenderer).not.toHaveBeenCalled()
+    consoleError.mockRestore()
+  })
+
+  it('keeps a successful registry write authoritative when status refresh fails', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+      ok: true
+    } as Response)
+    const { wrapper, mcpStore, notifyRenderer } = await setup()
+    mcpStore.getNpmRegistryStatus.mockRejectedValueOnce(new Error('status unavailable'))
+    const viewModel = wrapper.vm as unknown as {
+      customRegistryInput: string
+      npmRegistryStatus: {
+        currentRegistry: string | null
+        customRegistry?: string
+      }
+      npmRegistryFeedback: { kind: string; message: string } | null
+      saveCustomNpmRegistry(): Promise<void>
+    }
+    viewModel.customRegistryInput = 'https://registry.example.test'
+
+    await viewModel.saveCustomNpmRegistry()
+
+    expect(mcpStore.setCustomNpmRegistry).toHaveBeenCalledWith('https://registry.example.test')
+    expect(viewModel.npmRegistryStatus.currentRegistry).toBe('https://registry.example.test/')
+    expect(viewModel.npmRegistryStatus.customRegistry).toBe('https://registry.example.test/')
+    expect(viewModel.npmRegistryFeedback).toBeNull()
+    expect(notifyRenderer).not.toHaveBeenCalled()
+    fetchMock.mockRestore()
+    consoleError.mockRestore()
   })
 
   it('renders the market subview and clears only the market query on back', async () => {

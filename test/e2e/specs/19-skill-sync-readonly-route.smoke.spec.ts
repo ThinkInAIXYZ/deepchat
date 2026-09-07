@@ -1,29 +1,18 @@
 import { test, expect } from '../fixtures/electronApp'
-import { openSettings, openSettingsTab } from '../helpers/settings'
 import { waitForAppReady } from '../helpers/wait'
 
-test('skills sync read-only routes and scan events work from settings @smoke', async ({ app }) => {
+test('Skills sync routes and scan events work from Plugins @smoke', async ({ app }) => {
   await waitForAppReady(app.page)
 
-  const settingsPage = await openSettings(app)
-  await openSettingsTab(settingsPage, 'settings-tab-skills', 'settings-skills')
-  await expect(settingsPage.getByTestId('settings-skills-page')).toBeVisible({
+  await app.page.evaluate(() => {
+    window.location.hash = '#/plugins/skills'
+  })
+  const skillsPage = app.page
+  await expect(skillsPage.getByTestId('plugins-skills-page')).toBeVisible({
     timeout: 30_000
   })
-  await expect(settingsPage.getByTestId('skills-sync-status-section')).toBeVisible({
-    timeout: 30_000
-  })
-  await expect(settingsPage.getByTestId('skills-sync-refresh-button')).toBeVisible({
-    timeout: 30_000
-  })
-  await expect
-    .poll(async () => await settingsPage.getByTestId('skills-sync-scanning').isVisible(), {
-      timeout: 30_000,
-      intervals: [500, 1_000, 2_000]
-    })
-    .toBe(false)
 
-  const snapshot = await settingsPage.evaluate(async () => {
+  const snapshot = await skillsPage.evaluate(async () => {
     type RegisteredTool = {
       id?: unknown
       name?: unknown

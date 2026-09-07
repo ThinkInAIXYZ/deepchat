@@ -1,79 +1,93 @@
 <template>
-  <div
-    data-testid="settings-page"
-    class="w-full h-screen flex flex-col"
-    :class="isWinMacOS ? '' : 'bg-background'"
-  >
+  <TooltipProvider :delay-duration="200">
     <div
-      class="w-full h-9 window-drag-region shrink-0 justify-end flex flex-row relative border border-b-0 border-window-inner-border box-border rounded-t-[10px]"
-      :class="[
-        isMacOS ? '' : ' ounded-t-none',
-        isMacOS ? 'bg-window-background' : 'bg-window-background/10'
-      ]"
+      data-testid="settings-page"
+      class="w-full h-screen flex flex-col"
+      :class="isWinMacOS ? '' : 'bg-background'"
     >
-      <div class="absolute bottom-0 left-0 w-full h-[1px] bg-border z-10"></div>
-      <Button
-        v-if="!isMacOS"
-        class="window-no-drag-region shrink-0 w-12 bg-transparent shadow-none rounded-none hover:bg-red-700/80 hover:text-white text-xs font-medium text-foreground flex items-center justify-center transition-all duration-200 group"
-        @click="closeWindow"
-      >
-        <CloseIcon class="h-3! w-3!" />
-      </Button>
-    </div>
-    <div class="w-full h-0 flex-1 flex flex-row bg-background relative">
       <div
-        class="border-x border-b border-window-inner-border rounded-b-[10px] absolute z-10 top-0 left-0 bottom-0 right-0 pointer-events-none"
-      ></div>
-      <div
-        data-testid="settings-navigation"
-        class="w-60 h-full border-r border-border shrink-0 overflow-y-auto bg-muted/10"
+        class="w-full h-9 window-drag-region shrink-0 justify-end flex flex-row relative border border-b-0 border-window-inner-border box-border rounded-t-[10px]"
+        :class="[
+          isMacOS ? '' : 'rounded-t-none',
+          isMacOS ? 'bg-window-background' : 'bg-window-background/10'
+        ]"
       >
-        <div class="flex flex-col gap-4 p-3">
-          <div v-for="group in settingGroups" :key="group.key" class="flex flex-col gap-1">
-            <div class="px-2 text-xs font-medium text-muted-foreground">
-              {{ t(group.titleKey) }}
-            </div>
-            <div class="flex flex-col gap-1">
-              <button
-                v-for="setting in group.items"
-                :key="setting.name"
-                type="button"
-                :data-testid="getSettingsTabTestId(setting.name)"
-                :class="[
-                  'flex w-full min-w-0 flex-row items-center gap-2 rounded-md px-2 py-2 text-start transition-colors hover:bg-accent',
-                  route.name === setting.name ? 'bg-accent text-accent-foreground' : ''
-                ]"
-                @click="handleClick(setting.path)"
-              >
-                <Icon :icon="setting.icon" class="size-4 shrink-0 text-muted-foreground" />
-                <span class="min-w-0 truncate text-sm font-medium">{{ t(setting.title) }}</span>
-              </button>
+        <div class="absolute bottom-0 left-0 w-full h-[1px] bg-border z-10"></div>
+        <DcButton
+          v-if="!isMacOS"
+          class="window-no-drag-region shrink-0 w-12 bg-transparent shadow-none rounded-none hover:bg-red-700/80 hover:text-white text-xs font-medium text-foreground flex items-center justify-center transition-all duration-200 group"
+          :tooltip="t('common.close')"
+          :aria-label="t('common.close')"
+          @click="closeWindow"
+        >
+          <CloseIcon class="h-3! w-3!" />
+        </DcButton>
+      </div>
+      <div class="w-full h-0 flex-1 flex flex-row bg-background relative">
+        <div
+          class="border-x border-b border-window-inner-border rounded-b-[10px] absolute z-10 top-0 left-0 bottom-0 right-0 pointer-events-none"
+        ></div>
+        <div
+          data-testid="settings-navigation"
+          class="w-60 h-full border-r border-border shrink-0 overflow-y-auto bg-muted/10"
+        >
+          <div class="flex flex-col gap-4 p-3">
+            <div v-for="group in settingGroups" :key="group.key" class="flex flex-col gap-1">
+              <div class="px-2 text-xs font-medium text-muted-foreground">
+                {{ t(group.titleKey) }}
+              </div>
+              <div class="flex flex-col gap-1">
+                <button
+                  v-for="setting in group.items"
+                  :key="setting.name"
+                  type="button"
+                  :data-testid="getSettingsTabTestId(setting.name)"
+                  :class="[
+                    'flex w-full min-w-0 flex-row items-center gap-2 rounded-md px-2 py-2 text-start transition-colors hover:bg-accent',
+                    route.name === setting.name ? 'bg-accent text-accent-foreground' : '',
+                    pendingRouteName === setting.name ? 'cursor-wait' : ''
+                  ]"
+                  :aria-busy="pendingRouteName === setting.name"
+                  @pointerenter="prefetchSetting(setting.name)"
+                  @focus="prefetchSetting(setting.name)"
+                  @click="handleClick(setting)"
+                >
+                  <Spinner
+                    v-if="pendingRouteName === setting.name"
+                    class="size-4 shrink-0 text-muted-foreground"
+                  />
+                  <Icon v-else :icon="setting.icon" class="size-4 shrink-0 text-muted-foreground" />
+                  <span class="min-w-0 truncate text-sm font-medium">{{ t(setting.title) }}</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>
+        <RouterView />
       </div>
-      <RouterView />
+      <ModelCheckDialog
+        :open="modelCheckStore.isDialogOpen"
+        :provider-id="modelCheckStore.currentProviderId"
+        @update:open="
+          (open) => {
+            if (!open) modelCheckStore.closeDialog()
+          }
+        "
+      />
+      <ProviderDeeplinkImportDialog
+        :key="pendingProviderImportToken"
+        :open="Boolean(pendingProviderImportPreview)"
+        :preview="pendingProviderImportPreview"
+        :confirm-disabled="providerImportConfirmDisabled"
+        :submitting="isImportingProvider"
+        :error="providerImportError"
+        @update:open="handleProviderImportDialogOpenChange"
+        @confirm="confirmProviderImport"
+      />
+      <SettingsLeaveGuardDialog />
+      <NotificationHost surface="settings" :theme="toasterTheme" :dir="languageStore.dir" />
     </div>
-    <ModelCheckDialog
-      :open="modelCheckStore.isDialogOpen"
-      :provider-id="modelCheckStore.currentProviderId"
-      @update:open="
-        (open) => {
-          if (!open) modelCheckStore.closeDialog()
-        }
-      "
-    />
-    <ProviderDeeplinkImportDialog
-      :key="pendingProviderImportToken"
-      :open="Boolean(pendingProviderImportPreview)"
-      :preview="pendingProviderImportPreview"
-      :confirm-disabled="providerImportConfirmDisabled"
-      :submitting="isImportingProvider"
-      @update:open="handleProviderImportDialogOpenChange"
-      @confirm="confirmProviderImport"
-    />
-    <Toaster :theme="toasterTheme" />
-  </div>
+  </TooltipProvider>
 </template>
 
 <script setup lang="ts">
@@ -81,21 +95,23 @@ import { Icon } from '@iconify/vue'
 import { useRouter, useRoute, RouterView } from 'vue-router'
 import { onMounted, onBeforeUnmount, Ref, ref, watch, computed, nextTick, unref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useTitle } from '@vueuse/core'
-import { createConfigClient } from '@api/ConfigClient'
+import { useEventListener, useTitle } from '@vueuse/core'
 import { createDeviceClient } from '@api/DeviceClient'
+import { createNotificationClient } from '@api/NotificationClient'
 import { createWindowClient } from '@api/WindowClient'
 import { getRuntimeArch, getRuntimePlatform } from '@api/runtime'
 import CloseIcon from './icons/CloseIcon.vue'
 import { useUiSettingsStore } from '../src/stores/uiSettingsStore'
 import { useLanguageStore } from '../src/stores/language'
 import { useModelCheckStore } from '../src/stores/modelCheck'
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
 import ModelCheckDialog from '@/components/settings/ModelCheckDialog.vue'
 import { useDeviceVersion } from '../src/composables/useDeviceVersion'
-import { Toaster } from '@shadcn/components/ui/sonner'
-import 'vue-sonner/style.css'
-import { useToast } from '@/components/use-toast'
+import NotificationHost from '@renderer-notifications/NotificationHost.vue'
+import { rendererNotificationManager } from '@renderer-notifications/rendererNotificationRuntime'
+import { SemanticNotificationController } from '@renderer-notifications/semanticNotificationController'
+import { Spinner } from '@shadcn/components/ui/spinner'
+import { TooltipProvider } from '@shadcn/components/ui/tooltip'
 import { useThemeStore } from '@/stores/theme'
 import { useProviderStore } from '@/stores/providerStore'
 import { useModelStore } from '@/stores/modelStore'
@@ -104,10 +120,14 @@ import { useProviderDeeplinkImportStore } from '@/stores/providerDeeplinkImport'
 import { useMcpInstallDeeplinkHandler } from '../src/lib/storeInitializer'
 import { ensureIconsLoaded } from '../src/lib/iconLoader'
 import { useFontManager } from '../src/composables/useFontManager'
+import { applyDocumentAppearance } from '../src/foundation/appearance/documentAppearance'
 import { markStartupInteractive } from '../src/lib/startupDeferred'
-import type { DatabaseRepairSuggestedPayload, LLM_PROVIDER } from '@shared/presenter'
+import type { LLM_PROVIDER } from '@shared/types/provider'
 import type { ProviderInstallPreview } from '@shared/providerDeeplink'
 import ProviderDeeplinkImportDialog from './components/ProviderDeeplinkImportDialog.vue'
+import SettingsLeaveGuardDialog from './components/SettingsLeaveGuardDialog.vue'
+import { settingsLeaveGuard } from './services/settingsLeaveGuard'
+import { installSettingsRouteLeaveGuard } from './services/settingsRouteLeaveGuard'
 import { nanoid } from 'nanoid'
 import {
   getSettingsNavigationGroups,
@@ -116,6 +136,7 @@ import {
 } from '@shared/settingsNavigation'
 import type { SettingsNavigationPayload } from '@shared/settingsNavigation'
 import { useStartupWorkloadStore } from '@/stores/startupWorkloadStore'
+import { preloadSettingsRoute } from './settingsRouteComponents'
 
 const DATABASE_REPAIR_SECTION = 'database-repair'
 const SETTINGS_SECTION_EVENT = 'deepchat:settings-section'
@@ -125,10 +146,9 @@ type SettingsWindowState = Window & {
   __deepchatSettingsPendingSection?: string | null
 }
 
-const configClient = createConfigClient()
 const deviceClient = createDeviceClient()
+const notificationClient = createNotificationClient()
 const windowClient = createWindowClient()
-const settingsEventCleanups: Array<() => void> = []
 
 // Initialize stores
 const uiSettingsStore = useUiSettingsStore()
@@ -137,7 +157,6 @@ setupFontListener()
 
 const languageStore = useLanguageStore()
 const modelCheckStore = useModelCheckStore()
-const { toast } = useToast()
 const themeStore = useThemeStore()
 const providerStore = useProviderStore()
 const modelStore = useModelStore()
@@ -154,10 +173,8 @@ const { setup: setupMcpDeeplink, cleanup: cleanupMcpDeeplink } = useMcpInstallDe
 // Register MCP deeplink listener immediately to avoid race with incoming IPC
 setupMcpDeeplink()
 
-const errorQueue = ref<Array<{ id: string; title: string; message: string; type: string }>>([])
-const currentErrorId = ref<string | null>(null)
-const errorDisplayTimer = ref<number | null>(null)
 const isImportingProvider = ref(false)
+const providerImportError = ref<string | null>(null)
 const toasterTheme = computed(() =>
   themeStore.themeMode === 'system' ? (themeStore.isDark ? 'dark' : 'light') : themeStore.themeMode
 )
@@ -167,12 +184,14 @@ const { isMacOS, isWinMacOS } = useDeviceVersion()
 const { t, locale } = useI18n()
 const router = useRouter()
 const route = useRoute()
+const removeSettingsRouteGuard = installSettingsRouteLeaveGuard(router, settingsLeaveGuard)
 const title = useTitle()
 const pendingProviderImportPreview = computed(() => providerDeeplinkImportStore.preview)
 const pendingProviderImportToken = computed(() => providerDeeplinkImportStore.previewToken)
 const isProcessingProviderPreview = ref(false)
 const startupTimeOrigin = typeof performance !== 'undefined' ? performance.now() : Date.now()
 const hasLoggedFirstRouteResolved = ref(false)
+const pendingRouteName = ref<string | null>(null)
 
 const logSettingsStartup = (phase: string) => {
   const now = typeof performance !== 'undefined' ? performance.now() : Date.now()
@@ -247,20 +266,13 @@ const openDatabaseRepairSection = async () => {
   await publishSettingsSection(DATABASE_REPAIR_SECTION)
 }
 
-const showDatabaseRepairSuggestedToast = (payload: DatabaseRepairSuggestedPayload) => {
-  toast({
-    title: t(payload.title),
-    description: t(payload.message, {
-      reason: t(`settings.data.databaseRepair.reasons.${payload.reason}`)
-    }),
-    action: {
-      label: t('settings.data.databaseRepair.toastAction'),
-      onClick: () => {
-        void openDatabaseRepairSection()
-      }
-    }
-  })
-}
+const semanticNotificationController = new SemanticNotificationController({
+  notifications: rendererNotificationManager,
+  translate: (key, params) => t(key, params ?? {}),
+  acknowledgePresentation: (episodeId) => notificationClient.acknowledgePresentation(episodeId),
+  openSettings: () => openDatabaseRepairSection()
+})
+let cleanupSemanticNotifications: (() => void) | undefined
 
 const handleSettingsNavigate = async (payload?: SettingsNavigationPayload) => {
   const routeName = payload?.routeName
@@ -340,6 +352,7 @@ const applyProviderInstallPreview = async (preview: ProviderInstallPreview) => {
   }
 
   await nextTick()
+  providerImportError.value = null
   providerDeeplinkImportStore.openPreview(preview)
 }
 
@@ -370,11 +383,11 @@ const syncPendingProviderInstall = async () => {
       try {
         windowClient.requeuePendingSettingsProviderInstall(preview)
       } catch (requeueError) {
-        console.error('Failed to requeue pending provider install preview:', requeueError)
+        console.error('[SettingsApp] Failed to requeue provider install preview', requeueError)
       }
     }
 
-    console.error('Failed to sync pending provider install preview:', error)
+    console.error('[SettingsApp] Failed to sync provider install preview', error)
   } finally {
     isProcessingProviderPreview.value = false
   }
@@ -386,8 +399,47 @@ const handleProviderInstall = async () => {
 
 const handleProviderImportDialogOpenChange = (open: boolean) => {
   if (!open) {
+    providerImportError.value = null
     providerDeeplinkImportStore.clearPreview()
     releaseProviderPreviewProcessing()
+  }
+}
+
+const notifyProviderImportWarning = (code: string, title: string, description?: string) => {
+  try {
+    rendererNotificationManager.notify({
+      kind: 'warning',
+      code,
+      title,
+      description
+    })
+  } catch (error) {
+    console.error('[SettingsApp] Failed to present provider import warning', error)
+  }
+}
+
+const refreshImportedProviderModels = async (providerId: string) => {
+  try {
+    await modelStore.refreshProviderModels(providerId)
+  } catch (error) {
+    console.error('[SettingsApp] Imported provider model refresh failed', error)
+    notifyProviderImportWarning(
+      'settings.provider.importModelRefreshFailed',
+      t('settings.provider.toast.refreshModelsFailedTitle'),
+      t('settings.provider.toast.refreshModelsFailedDescription')
+    )
+  }
+}
+
+const navigateAfterProviderImport = async (providerId: string) => {
+  try {
+    await navigateToProviderSettings(providerId)
+  } catch (error) {
+    console.error('[SettingsApp] Imported provider navigation failed', error)
+    notifyProviderImportWarning(
+      'settings.provider.importNavigationFailed',
+      t('common.error.operationFailed')
+    )
   }
 }
 
@@ -398,11 +450,14 @@ const confirmProviderImport = async () => {
   }
 
   isImportingProvider.value = true
+  providerImportError.value = null
 
   try {
+    let importedProviderId: string
     if (preview.kind === 'builtin') {
       const targetProvider = providerStore.providers.find((provider) => provider.id === preview.id)
       if (!targetProvider) {
+        providerImportError.value = t('common.error.operationFailed')
         return
       }
 
@@ -411,8 +466,7 @@ const confirmProviderImport = async () => {
         await providerStore.updateProviderStatus(preview.id, true)
       }
 
-      await modelStore.refreshProviderModels(preview.id)
-      await navigateToProviderSettings(preview.id)
+      importedProviderId = preview.id
     } else {
       const providerId = nanoid()
       const newProvider: LLM_PROVIDER = {
@@ -426,19 +480,17 @@ const confirmProviderImport = async () => {
       }
 
       await providerStore.addCustomProvider(newProvider)
-      await modelStore.refreshProviderModels(providerId)
-      await navigateToProviderSettings(providerId)
+      importedProviderId = providerId
     }
 
+    await navigateAfterProviderImport(importedProviderId)
+    providerImportError.value = null
     providerDeeplinkImportStore.clearPreview()
     releaseProviderPreviewProcessing()
+    void refreshImportedProviderModels(importedProviderId)
   } catch (error) {
-    console.error('Failed to import provider from deeplink:', error)
-    toast({
-      title: t('common.error.operationFailed'),
-      description: error instanceof Error ? error.message : String(error),
-      variant: 'destructive'
-    })
+    console.error('[SettingsApp] Provider import failed', error)
+    providerImportError.value = t('common.error.operationFailed')
   } finally {
     isImportingProvider.value = false
   }
@@ -462,23 +514,35 @@ const settings: Ref<
     path: string
   }[]
 > = ref(
-  getSettingsRouteItems(runtimePlatform, runtimeArch).map((item) => ({
+  getSettingsRouteItems(runtimePlatform, runtimeArch, import.meta.env.DEV).map((item) => ({
     title: item.titleKey,
     name: item.routeName,
     icon: item.icon,
-    path: resolveSettingsNavigationPath(item.routeName, undefined, runtimePlatform, runtimeArch)
+    path: resolveSettingsNavigationPath(
+      item.routeName,
+      undefined,
+      runtimePlatform,
+      runtimeArch,
+      import.meta.env.DEV
+    )
   }))
 )
 
 const settingGroups = ref(
-  getSettingsNavigationGroups(runtimePlatform, runtimeArch).map((group) => ({
+  getSettingsNavigationGroups(runtimePlatform, runtimeArch, import.meta.env.DEV).map((group) => ({
     key: group.key,
     titleKey: group.titleKey,
     items: group.items.map((item) => ({
       title: item.titleKey,
       name: item.routeName,
       icon: item.icon,
-      path: resolveSettingsNavigationPath(item.routeName, undefined, runtimePlatform, runtimeArch)
+      path: resolveSettingsNavigationPath(
+        item.routeName,
+        undefined,
+        runtimePlatform,
+        runtimeArch,
+        import.meta.env.DEV
+      )
     }))
   }))
 )
@@ -517,8 +581,33 @@ watch(
   { immediate: true }
 )
 
-const handleClick = (path: string) => {
-  router.push(path)
+type SettingsNavigationItem = {
+  name: string
+  path: string
+}
+
+const handleClick = async (setting: SettingsNavigationItem) => {
+  if (pendingRouteName.value || route.path === setting.path) return
+
+  pendingRouteName.value = setting.name
+  try {
+    await router.push(setting.path)
+  } catch (error) {
+    console.error(`[Settings] Failed to navigate to ${setting.name}:`, error)
+  } finally {
+    if (pendingRouteName.value === setting.name) {
+      pendingRouteName.value = null
+    }
+  }
+}
+
+const prefetchSetting = (routeName: string) => {
+  const preload = preloadSettingsRoute(routeName)
+  if (preload) {
+    void preload.catch((error) => {
+      console.debug(`[Settings] Failed to prefetch ${routeName}:`, error)
+    })
+  }
 }
 
 const SETTINGS_TAB_TEST_IDS: Record<string, string> = {
@@ -534,77 +623,38 @@ const SETTINGS_TAB_TEST_IDS: Record<string, string> = {
 const getSettingsTabTestId = (name: string) =>
   SETTINGS_TAB_TEST_IDS[name] ?? `settings-tab-${name.replace(/^settings-/, '')}`
 
-// Watch language changes and update i18n + HTML dir
 watch(
-  () => languageStore.language,
-  async () => {
-    locale.value = await configClient.getLanguage()
-    document.documentElement.dir = languageStore.dir
-  }
+  [() => themeStore.themeMode, () => themeStore.isDark, () => uiSettingsStore.fontSizeClass],
+  ([themeMode, isDark, fontSizeClass], previous) => {
+    const theme = themeMode === 'system' ? (isDark ? 'dark' : 'light') : themeMode
+    const previousTheme = previous
+      ? previous[0] === 'system'
+        ? previous[1]
+          ? 'dark'
+          : 'light'
+        : previous[0]
+      : null
+
+    applyDocumentAppearance({
+      theme,
+      fontSizeClass,
+      disableThemeTransition: previousTheme === null || previousTheme !== theme
+    })
+  },
+  { immediate: true }
 )
 
-// Watch font size changes and update classes
+// The language store owns the sole initial IPC snapshot and its change listener.
+// Settings only projects that resolved state onto this window's document.
+void languageStore.initLanguage?.()
+
 watch(
-  () => uiSettingsStore.fontSizeClass,
-  (newClass, oldClass) => {
-    if (oldClass) document.documentElement.classList.remove(oldClass)
-    document.documentElement.classList.add(newClass)
-  }
+  [() => locale.value, () => languageStore.dir],
+  ([language, direction]) => {
+    applyDocumentAppearance({ language, direction })
+  },
+  { immediate: true }
 )
-
-const handleErrorClosed = () => {
-  currentErrorId.value = null
-
-  if (errorQueue.value.length > 0) {
-    const nextError = errorQueue.value.shift()
-    if (nextError) {
-      displayError(nextError)
-    }
-  } else if (errorDisplayTimer.value) {
-    clearTimeout(errorDisplayTimer.value)
-    errorDisplayTimer.value = null
-  }
-}
-
-const displayError = (error: { id: string; title: string; message: string; type: string }) => {
-  currentErrorId.value = error.id
-
-  const { dismiss } = toast({
-    title: error.title,
-    description: error.message,
-    variant: 'destructive',
-    onOpenChange: (open) => {
-      if (!open) {
-        handleErrorClosed()
-      }
-    }
-  })
-
-  if (errorDisplayTimer.value) {
-    clearTimeout(errorDisplayTimer.value)
-  }
-
-  errorDisplayTimer.value = window.setTimeout(() => {
-    dismiss()
-  }, 3000)
-}
-
-const showErrorToast = (error: { id: string; title: string; message: string; type: string }) => {
-  const exists = errorQueue.value.findIndex((item) => item.id === error.id)
-  if (exists !== -1) {
-    return
-  }
-
-  if (currentErrorId.value) {
-    if (errorQueue.value.length > 5) {
-      errorQueue.value.shift()
-    }
-    errorQueue.value.push(error)
-    return
-  }
-
-  displayError(error)
-}
 
 const handleWindowFocus = () => {
   void syncPendingProviderInstall()
@@ -612,19 +662,24 @@ const handleWindowFocus = () => {
 
 onMounted(async () => {
   startupWorkloadStore?.connect()
+  cleanupSemanticNotifications = notificationClient.onSemanticNotification((delivery) => {
+    semanticNotificationController.handle(delivery)
+  })
+  void notificationClient
+    .notifyRendererReady()
+    .then((ready) => {
+      if (!ready) {
+        console.warn('[Notification] Settings renderer was not accepted as a delivery target')
+      }
+    })
+    .catch((error) => {
+      console.error('[Notification] Failed to register settings renderer', error)
+    })
 
   // Listen for window maximize/unmaximize events
   deviceClient.getDeviceInfo().then((deviceInfo) => {
     isMacOS.value = deviceInfo.platform === 'darwin'
   })
-
-  const cleanupNotificationError = windowClient.onNotificationError((error) => {
-    showErrorToast(error)
-  })
-  const cleanupDatabaseRepairSuggested = windowClient.onDatabaseRepairSuggested((payload) => {
-    showDatabaseRepairSuggestedToast(payload as DatabaseRepairSuggestedPayload)
-  })
-  settingsEventCleanups.push(cleanupNotificationError, cleanupDatabaseRepairSuggested)
 
   const [settingsLoadResult, routerReadyResult] = await Promise.allSettled([
     uiSettingsStore.loadSettings(),
@@ -660,27 +715,56 @@ onMounted(async () => {
   }
 
   markStartupInteractive()
-  window.addEventListener('focus', handleWindowFocus)
   await syncPendingProviderInstall()
   notifySettingsReady()
   logSettingsStartup('settings window ready IPC sent')
 })
 
-const closeWindow = async () => {
-  await windowClient.closeSettings()
+// Same focus handler as before; VueUse manages lifecycle cleanup.
+useEventListener(window, 'focus', handleWindowFocus)
+
+const performWindowClose = async () => {
+  try {
+    await windowClient.closeSettings()
+  } catch (error) {
+    console.error('[Settings] Failed to close settings window:', error)
+  }
 }
 
-onBeforeUnmount(() => {
-  if (errorDisplayTimer.value) {
-    clearTimeout(errorDisplayTimer.value)
-    errorDisplayTimer.value = null
+const closeWindow = async () => {
+  if (await settingsLeaveGuard.requestLeave()) {
+    await performWindowClose()
   }
+}
 
+let nativeCloseRetryPending = false
+const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+  if (!settingsLeaveGuard.isBlocking()) return
+
+  event.preventDefault()
+  event.returnValue = false
+  if (nativeCloseRetryPending) return
+
+  nativeCloseRetryPending = true
+  void settingsLeaveGuard
+    .requestLeave()
+    .then((allowed) => {
+      if (allowed) void performWindowClose()
+    })
+    .finally(() => {
+      nativeCloseRetryPending = false
+    })
+}
+useEventListener(window, 'beforeunload', handleBeforeUnload)
+
+onBeforeUnmount(() => {
   cleanupSettingsNavigate()
   cleanupSettingsProviderInstall()
-  settingsEventCleanups.splice(0).forEach((cleanup) => cleanup())
-  window.removeEventListener('focus', handleWindowFocus)
+  removeSettingsRouteGuard()
   cleanupMcpDeeplink()
+  cleanupSemanticNotifications?.()
+  cleanupSemanticNotifications = undefined
+  semanticNotificationController.dispose()
 })
 </script>
 

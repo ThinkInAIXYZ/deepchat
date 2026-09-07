@@ -31,6 +31,28 @@ vi.mock('vue-i18n', () => ({
           return "Can't interrupt right now"
         case 'chat.pendingInput.steerFailed':
           return 'Steer failed'
+        case 'chat.pendingInput.resume':
+          return 'Resume queue'
+        case 'chat.pendingInput.retry':
+          return 'Retry'
+        case 'chat.pendingInput.retryRequired':
+          return 'Retry required'
+        case 'chat.pendingInput.retryRequiredDescription':
+          return "This message wasn't sent. Retry it to continue the queue."
+        case 'chat.attachments.pending.blockedCount':
+          return `${params?.count} blocked`
+        case 'chat.attachments.pending.blocked':
+          return 'Blocked'
+        case 'chat.attachments.pending.retry':
+          return 'Retry OCR'
+        case 'chat.attachments.pending.sendWithoutImageContent':
+          return 'Send without image content'
+        case 'chat.attachments.pending.blockedDescription':
+          return 'Waiting for a decision'
+        case 'chat.attachments.pending.blockedReasonMore':
+          return `${String(params?.reason)} and ${params?.count} more`
+        case 'chat.attachments.reasons.ocr_empty':
+          return 'No text found'
         case 'common.cancel':
           return 'Cancel'
         case 'common.save':
@@ -55,8 +77,8 @@ vi.mock('@iconify/vue', () => ({
   })
 }))
 
-vi.mock('@shadcn/components/ui/button', () => ({
-  Button: defineComponent({
+vi.mock('@dc-ui/components/button', () => ({
+  DcButton: defineComponent({
     name: 'Button',
     props: {
       disabled: {
@@ -108,9 +130,12 @@ function buildPendingInput(
       text: `${mode}-${id}`,
       files: []
     },
+    messageIds: [],
+    assistantMessageId: null,
     queueOrder: mode === 'queue' ? Number(id.replace(/\D+/g, '') || '1') : null,
     claimedAt: null,
     consumedAt: null,
+    blocking: null,
     createdAt: 1,
     updatedAt: 1,
     ...overrides
@@ -118,28 +143,57 @@ function buildPendingInput(
 }
 
 describe('PendingInputLane', () => {
-  it('renders a single pending rail with compact rows for steer and queue items', () => {
+  it('shows every recovered input and its actual count even above the admission limit', async () => {
+    const queueItems = Array.from({ length: 11 }, (_, index) =>
+      buildPendingInput(`queue-${index + 1}`, 'queue')
+    )
+    const wrapper = mount(PendingInputLane, {
+      props: { queueItems, disableSteerAction: true }
+    })
+
+    expect(wrapper.findAll('[data-testid="pending-row"]')).toHaveLength(11)
+    expect(wrapper.text()).toContain('Queue 11/10')
+    expect(wrapper.text()).toContain('Waiting lane is full (10).')
+
+    await wrapper.setProps({ queueItems: queueItems.slice(2), disableSteerAction: false })
+    expect(wrapper.text()).toContain('Queue 9/10')
+    expect(wrapper.text()).not.toContain('Waiting lane is full')
+  })
+
+  it('exposes one disabled-aware Queue resume action in the lane header', async () => {
     const wrapper = mount(PendingInputLane, {
       props: {
-        steerItems: [buildPendingInput('steer-1', 'steer')],
+        queueItems: [buildPendingInput('queue-1', 'queue')],
+        showResumeAction: true
+      }
+    })
+
+    const resume = wrapper.get('[data-testid="pending-resume-queue"]')
+    expect(resume.text()).toContain('Resume queue')
+    await resume.trigger('click')
+    expect(wrapper.emitted('resume-queue')).toEqual([[]])
+
+    await wrapper.setProps({ resumeDisabled: true })
+    expect((resume.element as HTMLButtonElement).disabled).toBe(true)
+  })
+
+  it('renders compact rows only for queued inputs', () => {
+    const wrapper = mount(PendingInputLane, {
+      props: {
         queueItems: [buildPendingInput('queue-1', 'queue'), buildPendingInput('queue-2', 'queue')]
       }
     })
 
     expect(wrapper.findAll('[data-testid="pending-rail"]')).toHaveLength(1)
-    expect(wrapper.findAll('[data-testid="pending-row"]')).toHaveLength(3)
+    expect(wrapper.findAll('[data-testid="pending-row"]')).toHaveLength(2)
 
     const queueMain = wrapper.find('[data-mode="queue"] [data-testid="pending-row-main"] span')
     expect(queueMain.classes()).toContain('truncate')
-
-    const steerText = wrapper.find('[data-mode="steer"] [title]')
-    expect(steerText.classes()).toContain('truncate')
   })
 
   it('shows inline file badges and becomes internally scrollable when more than three items exist', () => {
     const wrapper = mount(PendingInputLane, {
       props: {
-        steerItems: [buildPendingInput('steer-1', 'steer')],
         queueItems: [
           buildPendingInput('queue-1', 'queue', {
             payload: {
@@ -163,7 +217,6 @@ describe('PendingInputLane', () => {
   it('expands only the active queue item for inline editing and disables drag while editing', async () => {
     const wrapper = mount(PendingInputLane, {
       props: {
-        steerItems: [],
         queueItems: [buildPendingInput('queue-1', 'queue'), buildPendingInput('queue-2', 'queue')]
       }
     })
@@ -181,7 +234,6 @@ describe('PendingInputLane', () => {
   it('emits steer-queue with the item id when the queue row interrupt button is clicked', async () => {
     const wrapper = mount(PendingInputLane, {
       props: {
-        steerItems: [],
         queueItems: [buildPendingInput('queue-1', 'queue')]
       }
     })
@@ -195,27 +247,9 @@ describe('PendingInputLane', () => {
     expect(wrapper.emitted('steer-queue')).toEqual([['queue-1']])
   })
 
-  it('lets a stranded pending steer item be removed via delete-queue', async () => {
-    const wrapper = mount(PendingInputLane, {
-      props: {
-        steerItems: [buildPendingInput('steer-1', 'steer')],
-        queueItems: []
-      }
-    })
-
-    const deleteButton = wrapper.find('[data-testid="pending-steer-delete"]')
-    expect(deleteButton.exists()).toBe(true)
-    expect(deleteButton.attributes('aria-label')).toBe('Remove')
-
-    await deleteButton.trigger('click')
-
-    expect(wrapper.emitted('delete-queue')).toEqual([['steer-1']])
-  })
-
   it('disables the queue row interrupt button when disableQueueSteerAction is set', () => {
     const wrapper = mount(PendingInputLane, {
       props: {
-        steerItems: [],
         queueItems: [buildPendingInput('queue-1', 'queue')],
         disableQueueSteerAction: true
       }
@@ -224,5 +258,67 @@ describe('PendingInputLane', () => {
     const steerButton = wrapper.get('[data-testid="pending-row-steer"]')
     expect((steerButton.element as HTMLButtonElement).disabled).toBe(true)
     expect(steerButton.attributes('aria-label')).toBe("Can't interrupt right now")
+  })
+
+  it('renders blocked reasons and emits retry and explicit degradation actions', async () => {
+    const blocked = buildPendingInput('queue-1', 'queue', {
+      state: 'blocked',
+      blocking: {
+        status: 'needs_user_action',
+        issues: [{ attachmentIndex: 0, reason: 'ocr_empty' }],
+        suggestedActions: ['retry', 'send_without_image_content']
+      }
+    })
+    const wrapper = mount(PendingInputLane, {
+      props: {
+        queueItems: [blocked]
+      }
+    })
+
+    expect(wrapper.text()).toContain('No text found')
+    expect(wrapper.get('[data-testid="draggable"]').attributes('data-disabled')).toBe('true')
+    expect(wrapper.find('[data-testid="pending-row-steer"]').exists()).toBe(false)
+
+    await wrapper.get('[data-testid="pending-blocked-retry"]').trigger('click')
+    await wrapper.get('[data-testid="pending-blocked-send-without"]').trigger('click')
+
+    expect(wrapper.emitted('resolve-blocked')).toEqual([
+      [{ itemId: 'queue-1', action: 'retry' }],
+      [{ itemId: 'queue-1', action: 'send_without_image_content' }]
+    ])
+  })
+
+  it('exposes retry only for a retry-required Queue head and keeps edit-as-retry available', async () => {
+    const released = buildPendingInput('queue-1', 'queue', { state: 'retry_required' })
+    const wrapper = mount(PendingInputLane, {
+      props: {
+        queueItems: [released],
+        retryingItemId: 'queue-1'
+      }
+    })
+
+    expect(wrapper.text()).toContain("This message wasn't sent")
+    expect(wrapper.get('[data-testid="draggable"]').attributes('data-disabled')).toBe('true')
+    expect(wrapper.find('[data-testid="pending-row-steer"]').exists()).toBe(false)
+    expect(
+      (wrapper.get('[data-testid="pending-released-retry"]').element as HTMLButtonElement).disabled
+    ).toBe(true)
+
+    await wrapper.setProps({ retryingItemId: null })
+    await wrapper.get('[data-testid="pending-released-retry"]').trigger('click')
+    expect(wrapper.emitted('retry-queue')).toEqual([['queue-1']])
+
+    await wrapper.get('[data-testid="pending-row-main"]').trigger('click')
+    expect(wrapper.find('[data-testid="pending-edit-textarea"]').exists()).toBe(true)
+  })
+
+  it('does not show explicit retry for an ordinary pending Queue row', () => {
+    const wrapper = mount(PendingInputLane, {
+      props: {
+        queueItems: [buildPendingInput('queue-1', 'queue')]
+      }
+    })
+
+    expect(wrapper.find('[data-testid="pending-released-retry"]').exists()).toBe(false)
   })
 })

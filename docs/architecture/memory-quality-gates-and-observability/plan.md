@@ -183,6 +183,6 @@ and CAS contention are verified through controlled asynchronous behavior and obs
 Local validation covers type checking, the full main suite, focused Memory scope and behavior, deterministic
 eval primitives, performance bounds, the renderer suite, formatting, localization parity, and linting.
 
-The updated `memory-native-validation` workflow is the final external gate. It must demonstrate that required
+The updated `test-native-memory` workflow job is the final external gate. It must demonstrate that required
 Native storage, FTS, retrieval evaluation, and performance paths run without skip or fallback after the change
 is submitted to CI.

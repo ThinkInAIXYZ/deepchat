@@ -89,15 +89,11 @@ import {
   type ConfigEntryValues,
   type DeepchatRouteInput
 } from '@shared/contracts/routes'
-import type {
-  AcpAgentInstallState,
-  AcpManualAgent,
-  AcpRegistryAgent,
-  BuiltinKnowledgeConfig,
-  Prompt,
-  ShortcutKeySetting,
-  SystemPrompt
-} from '@shared/presenter'
+import type { Prompt, SystemPrompt } from '@shared/types/prompt'
+import type { AcpAgentInstallState } from '@shared/types/acp'
+import type { AcpManualAgent, AcpRegistryAgent } from '@shared/types/acp'
+import type { ShortcutKeySetting } from '@shared/types/desktop'
+import type { BuiltinKnowledgeConfig } from '@shared/types/knowledge'
 import type { HookTestResult, HooksNotificationsSettings } from '@shared/hooksNotifications'
 import type {
   Agent,
@@ -394,8 +390,11 @@ export function createConfigClient(bridge: DeepchatBridge = getDeepchatBridge())
   }
 
   async function getSystemPrompts(): Promise<SystemPrompt[]> {
-    const result = await bridge.invoke(configGetSystemPromptsRoute.name, {})
-    return result.prompts as unknown as SystemPrompt[]
+    return (await getSystemPromptState()).prompts
+  }
+
+  async function getSystemPromptState() {
+    return await bridge.invoke(configGetSystemPromptsRoute.name, {})
   }
 
   async function getDefaultSystemPromptId() {
@@ -548,9 +547,10 @@ export function createConfigClient(bridge: DeepchatBridge = getDeepchatBridge())
     return result.agent
   }
 
-  async function deleteDeepChatAgent(agentId: string): Promise<boolean> {
-    const result = await bridge.invoke(configDeleteDeepChatAgentRoute.name, { agentId })
-    return result.removed
+  async function deleteDeepChatAgent(
+    agentId: string
+  ): Promise<{ removed: boolean; cleanupPendingRestart: boolean }> {
+    return bridge.invoke(configDeleteDeepChatAgentRoute.name, { agentId })
   }
 
   async function resolveDeepChatAgentConfig(agentId: string) {
@@ -771,6 +771,7 @@ export function createConfigClient(bridge: DeepchatBridge = getDeepchatBridge())
     updateCustomPrompt,
     deleteCustomPrompt,
     getSystemPrompts,
+    getSystemPromptState,
     getDefaultSystemPromptId,
     getDefaultSystemPrompt,
     setDefaultSystemPrompt,

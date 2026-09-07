@@ -1,6 +1,32 @@
 {
+  "notifications": {
+    "label": "Notifikationer",
+    "actionFailed": "Handlingen mislykkedes. Prøv igen.",
+    "entities": "{count} berørt",
+    "occurrences": "{count} forekomster",
+    "pending": "{count} mere venter",
+    "mcpConnectionFailed": {
+      "title": "Kunne ikke oprette forbindelse til {serverName}",
+      "description": "Kontrollér serverindstillingerne, og prøv igen."
+    },
+    "mcpToolListFailed": {
+      "title": "Kunne ikke indlæse værktøjer fra {serverName}",
+      "description": "Serveren er forbundet, men dens værktøjer er ikke tilgængelige."
+    },
+    "providerDeeplinkFailed": {
+      "title": "Kunne ikke åbne udbyderopsætningen",
+      "reasons": {
+        "unsupported-version": "Denne linkversion understøttes ikke.",
+        "invalid-payload": "Dette udbyderlink er ugyldigt.",
+        "provider-not-found": "Den tilknyttede udbyder blev ikke fundet.",
+        "unsupported-provider": "Denne udbyder understøttes ikke.",
+        "settings-unavailable": "Udbyderindstillingerne kunne ikke åbnes."
+      }
+    }
+  },
   "add": "tilføjet",
   "cancel": "Annuller",
+  "retry": "Prøv igen",
   "clear": "ryd op",
   "close": "lukke",
   "open": "Åbn",
@@ -99,6 +125,9 @@
   "history": "Historik",
   "minimize": "Minimer",
   "maximize": "Maksimer",
+  "showValue": "Vis",
+  "hideValue": "Skjul",
+  "scrollToBottom": "Rul til bunden",
   "restore": "Gendan",
   "browser": {
     "back": "Back",

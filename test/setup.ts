@@ -22,6 +22,14 @@ function getDefaultDeepchatInvokeResult(
       return { attached: true }
     case 'browser.updateCurrentWindowBounds':
       return { updated: true }
+    case 'browser.setPreviewMode':
+      return { updated: true, surface: 'renderer-canvas' }
+    case 'browser.dismissPreview':
+      return { dismissed: true }
+    case 'computerUse.setPreviewMode':
+      return { updated: true, surface: 'renderer-canvas' }
+    case 'computerUse.dismissPreview':
+      return { dismissed: true }
     case 'browser.detach':
       return { detached: true }
     case 'browser.destroy':
@@ -173,9 +181,36 @@ vi.mock('electron', () => ({
     removeAllListeners: vi.fn(),
     send: vi.fn()
   },
+  protocol: {
+    registerSchemesAsPrivileged: vi.fn(),
+    handle: vi.fn()
+  },
+  session: {
+    defaultSession: {
+      setPermissionRequestHandler: vi.fn(),
+      setPermissionCheckHandler: vi.fn()
+    }
+  },
   shell: {
     openExternal: vi.fn(),
     openPath: vi.fn()
+  },
+  webContents: {
+    fromId: vi.fn(() => null)
+  },
+  safeStorage: {
+    isEncryptionAvailable: vi.fn(() => false),
+    getSelectedStorageBackend: vi.fn(() => 'keychain'),
+    encryptString: vi.fn((value: string) =>
+      Buffer.from(`mock-safe-storage:${Buffer.from(value, 'utf8').toString('base64')}`, 'utf8')
+    ),
+    decryptString: vi.fn((value: Buffer) => {
+      const wrapped = value.toString('utf8')
+      if (!wrapped.startsWith('mock-safe-storage:')) {
+        throw new Error('Invalid mock safeStorage payload')
+      }
+      return Buffer.from(wrapped.slice('mock-safe-storage:'.length), 'base64').toString('utf8')
+    })
   }
 }))
 
@@ -213,14 +248,20 @@ vi.mock('fs', () => {
     writeFileSync: vi.fn(),
     mkdirSync: vi.fn(),
     mkdtempSync: vi.fn(),
+    openSync: vi.fn(),
+    readSync: vi.fn(),
+    closeSync: vi.fn(),
     rmSync: vi.fn(),
+    unlinkSync: vi.fn(),
     readdirSync: vi.fn(),
     renameSync: vi.fn(),
     constants: {
+      F_OK: 0,
       X_OK: 1
     },
     promises: {
       access: vi.fn(),
+      realpath: vi.fn(async (target: string) => target),
       readFile: vi.fn(),
       writeFile: vi.fn(),
       mkdir: vi.fn(),

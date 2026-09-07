@@ -4,17 +4,13 @@
     :eyebrow="t('settings.controlCenter.groups.knowledge')"
     data-testid="settings-knowledge-base-page"
   >
-    <div v-show="!showBuiltinKnowledgeDetail" class="flex w-full flex-col gap-4">
+    <div v-if="!showBuiltinKnowledgeDetail" class="flex w-full flex-col gap-4">
       <div class="space-y-4">
-        <RagflowKnowledgeSettings ref="ragflowSettingsRef" />
-        <DifyKnowledgeSettings ref="difySettingsRef" />
-        <FastGptKnowledgeSettings ref="fastGptSettingsRef" />
-        <BuiltinKnowledgeSettings
-          v-if="enableBuiltinKnowledge"
-          ref="builtinSettingsRef"
-          @showDetail="showDetail"
-        />
-        <NowledgeMemSettings ref="nowledgeMemSettingsRef" />
+        <RagflowKnowledgeSettings />
+        <DifyKnowledgeSettings />
+        <FastGptKnowledgeSettings />
+        <BuiltinKnowledgeSettings v-if="enableBuiltinKnowledge" @showDetail="showDetail" />
+        <NowledgeMemSettings />
       </div>
     </div>
     <div v-if="showBuiltinKnowledgeDetail">
@@ -36,15 +32,10 @@ import FastGptKnowledgeSettings from './FastGptKnowledgeSettings.vue'
 import NowledgeMemSettings from './NowledgeMemSettings.vue'
 import BuiltinKnowledgeSettings from './BuiltinKnowledgeSettings.vue'
 import KnowledgeFile from './KnowledgeFile.vue'
-import { BuiltinKnowledgeConfig } from '@shared/presenter'
+import type { BuiltinKnowledgeConfig } from '@shared/types/knowledge'
 import { createKnowledgeClient } from '@api/KnowledgeClient'
 import SettingsPageShell from './control-center/SettingsPageShell.vue'
-
-const difySettingsRef = ref<InstanceType<typeof DifyKnowledgeSettings> | null>(null)
-const ragflowSettingsRef = ref<InstanceType<typeof RagflowKnowledgeSettings> | null>(null)
-const fastGptSettingsRef = ref<InstanceType<typeof FastGptKnowledgeSettings> | null>(null)
-const nowledgeMemSettingsRef = ref<InstanceType<typeof NowledgeMemSettings> | null>(null)
-const builtinSettingsRef = ref<InstanceType<typeof BuiltinKnowledgeSettings> | null>(null)
+import { settingsLeaveGuard } from '../services/settingsLeaveGuard'
 
 const knowledgeClient = createKnowledgeClient()
 const enableBuiltinKnowledge = ref(false)
@@ -55,7 +46,8 @@ knowledgeClient.isSupported().then((res) => {
 const { t } = useI18n()
 const showBuiltinKnowledgeDetail = ref(false)
 const builtinKnowledgeDetail = ref<BuiltinKnowledgeConfig | null>(null)
-const showDetail = (detail: BuiltinKnowledgeConfig) => {
+const showDetail = async (detail: BuiltinKnowledgeConfig) => {
+  if (!(await settingsLeaveGuard.requestLeave())) return
   showBuiltinKnowledgeDetail.value = true
   builtinKnowledgeDetail.value = detail
 }

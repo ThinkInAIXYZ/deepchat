@@ -6,7 +6,8 @@
 
     <div :class="['w-full rounded-md border px-3 py-2', statusClass]">
       <div class="flex items-start gap-2">
-        <Icon :icon="statusIcon" class="mt-0.5 h-4 w-4 shrink-0" />
+        <Spinner v-if="isPending" class="mt-0.5 size-4 shrink-0" />
+        <Icon v-else :icon="statusIcon" class="mt-0.5 size-4 shrink-0" />
         <div class="min-w-0 flex-1">
           <div class="text-sm font-medium leading-5">
             {{ statusText }}
@@ -33,7 +34,7 @@
     </div>
 
     <div class="flex flex-wrap gap-2">
-      <Button
+      <DcButton
         v-if="status.authenticated"
         data-testid="codex-test-connection-button"
         variant="outline"
@@ -44,9 +45,9 @@
       >
         <Icon icon="lucide:check-check" class="h-4 w-4 text-muted-foreground" />
         {{ t('settings.provider.verifyKey') }}
-      </Button>
+      </DcButton>
 
-      <Button
+      <DcButton
         data-testid="codex-browser-login-button"
         variant="default"
         size="sm"
@@ -54,14 +55,12 @@
         :disabled="isBusy || status.state === 'disabled'"
         @click="startBrowserLogin"
       >
-        <Icon
-          :icon="isBrowserBusy ? 'lucide:loader-2' : 'lucide:globe'"
-          :class="['h-4 w-4', { 'animate-spin': isBrowserBusy }]"
-        />
+        <Spinner v-if="isBrowserBusy" class="size-4" data-icon="inline-start" />
+        <Icon v-else icon="lucide:globe" class="size-4" data-icon="inline-start" />
         {{ browserButtonText }}
-      </Button>
+      </DcButton>
 
-      <Button
+      <DcButton
         v-if="isPending"
         data-testid="codex-paste-callback-button"
         variant="outline"
@@ -71,9 +70,9 @@
       >
         <Icon icon="lucide:clipboard-paste" class="h-4 w-4" />
         {{ t('settings.provider.openaiCodexPasteCallback') }}
-      </Button>
+      </DcButton>
 
-      <Button
+      <DcButton
         v-if="isPending"
         data-testid="codex-cancel-login-button"
         variant="outline"
@@ -83,9 +82,9 @@
       >
         <Icon icon="lucide:x" class="h-4 w-4" />
         {{ t('settings.provider.openaiCodexCancel') }}
-      </Button>
+      </DcButton>
 
-      <Button
+      <DcButton
         v-if="status.authenticated"
         data-testid="codex-logout-button"
         variant="outline"
@@ -95,7 +94,7 @@
       >
         <Icon icon="lucide:unlink" class="h-4 w-4 text-destructive" />
         {{ t('settings.provider.openaiCodexSignOut') }}
-      </Button>
+      </DcButton>
     </div>
 
     <div class="text-xs leading-5 text-muted-foreground">
@@ -119,21 +118,17 @@
             @keydown.enter.prevent="completeBrowserLoginFromUrl"
           />
           <div class="flex justify-end gap-2">
-            <Button variant="outline" size="sm" @click="isCallbackDialogOpen = false">
+            <DcButton variant="outline" size="sm" @click="isCallbackDialogOpen = false">
               {{ t('common.cancel') }}
-            </Button>
-            <Button
+            </DcButton>
+            <DcButton
               size="sm"
               :disabled="!callbackUrl.trim() || busyAction === 'callback'"
               @click="completeBrowserLoginFromUrl"
             >
-              <Icon
-                v-if="busyAction === 'callback'"
-                icon="lucide:loader-2"
-                class="h-4 w-4 animate-spin"
-              />
+              <Spinner v-if="busyAction === 'callback'" class="size-4" data-icon="inline-start" />
               {{ t('settings.provider.openaiCodexCompleteAuthentication') }}
-            </Button>
+            </DcButton>
           </div>
         </div>
       </DialogContent>
@@ -145,7 +140,7 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Label } from '@shadcn/components/ui/label'
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
 import {
   Dialog,
   DialogContent,
@@ -154,10 +149,11 @@ import {
   DialogTitle
 } from '@shadcn/components/ui/dialog'
 import { Input } from '@shadcn/components/ui/input'
+import { Spinner } from '@shadcn/components/ui/spinner'
 import { Icon } from '@iconify/vue'
 import { createOAuthClient } from '@api/OAuthClient'
 import { useModelCheckStore } from '@/stores/modelCheck'
-import type { LLM_PROVIDER } from '@shared/presenter'
+import type { LLM_PROVIDER } from '@shared/types/provider'
 import type { OpenAICodexAuthStatus } from '@shared/contracts/routes'
 
 const { t } = useI18n()
@@ -209,9 +205,6 @@ const statusIcon = computed(() => {
   }
   if (status.value.state === 'error' || status.value.state === 'disabled') {
     return 'lucide:circle-alert'
-  }
-  if (isPending.value) {
-    return 'lucide:loader-2'
   }
   return 'lucide:info'
 })

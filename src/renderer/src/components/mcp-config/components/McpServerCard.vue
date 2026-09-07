@@ -1,24 +1,22 @@
 <script setup lang="ts">
 import { Icon } from '@iconify/vue'
-import { Button } from '@shadcn/components/ui/button'
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger
-} from '@shadcn/components/ui/tooltip'
+import { DcButton } from '@dc-ui/components/button'
+import { DcStatusPill } from '@dc-ui/components/status-pill'
+import { DcTooltip } from '@dc-ui/components/tooltip'
 import { Switch } from '@shadcn/components/ui/switch'
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuItem,
   DropdownMenuTrigger,
   DropdownMenuSeparator
 } from '@shadcn/components/ui/dropdown-menu'
+import { DcDropdownActionItem } from '@dc-ui/components/dropdown-action-item'
 import { useI18n } from 'vue-i18n'
 import { computed, ref, nextTick, onMounted, watch } from 'vue'
 import { Separator } from '@shadcn/components/ui/separator'
-import type { McpServerAuthStatus } from '@shared/presenter'
+import { Spinner } from '@shadcn/components/ui/spinner'
+import type { McpServerAuthStatus } from '@shared/types/mcp'
+import type { McpServerLifecycleStatus } from '@shared/types/core/mcp'
 
 interface ServerInfo {
   name: string
@@ -28,6 +26,7 @@ interface ServerInfo {
   args: string[]
   enabled: boolean
   isRunning: boolean
+  lifecycleStatus?: McpServerLifecycleStatus
   type?: string
   baseUrl?: string
   errorMessage?: string
@@ -57,6 +56,7 @@ interface Emits {
   (e: 'viewPrompts'): void
   (e: 'viewResources'): void
   (e: 'authenticate'): void
+  (e: 'diagnostics'): void
 }
 
 const props = defineProps<Props>()
@@ -81,14 +81,21 @@ const serverStatus = computed(() => {
   if (props.server.authStatus?.state === 'authenticating') return 'loading'
   if (props.server.authStatus?.state === 'required') return 'auth-required'
   if (props.server.authStatus?.state === 'error') return 'auth-error'
-  if (props.server.errorMessage) return 'error'
-  if (props.server.isRunning) return 'running'
+  if (['connecting', 'timeout', 'retrying'].includes(props.server.lifecycleStatus ?? '')) {
+    return 'loading'
+  }
+  if (props.server.lifecycleStatus === 'failed' || props.server.errorMessage) return 'error'
+  if (props.server.lifecycleStatus === 'connected' || props.server.isRunning) return 'running'
   return 'stopped'
 })
 
-const showAuthenticateButton = computed(() =>
-  ['required', 'error', 'authenticating'].includes(props.server.authStatus?.state || '')
-)
+const showAuthenticateButton = computed(() => {
+  const auth = props.server.authStatus
+  if (!auth || !['required', 'error', 'authenticating'].includes(auth.state)) {
+    return false
+  }
+  return auth.mode === 'interactive' || auth.credential?.configured === true
+})
 
 const isAuthenticating = computed(() => props.server.authStatus?.state === 'authenticating')
 
@@ -142,7 +149,6 @@ const fullDescription = computed(() => {
 })
 
 const canEdit = computed(() => !props.isManaged)
-const hasMenuActions = computed(() => canEdit.value || !props.isBuiltIn)
 
 // 检查文本是否溢出
 const checkTextOverflow = async () => {
@@ -184,32 +190,41 @@ watch(watchDescription, () => {
         </div>
 
         <!-- 操作菜单 -->
-        <DropdownMenu v-if="hasMenuActions">
+        <DropdownMenu>
           <DropdownMenuTrigger as-child>
-            <Button
+            <DcButton
               variant="ghost"
               size="icon"
               class="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+              :tooltip="t('common.more')"
               @click.stop
             >
               <Icon icon="lucide:more-horizontal" class="h-3 w-3" />
-            </Button>
+            </DcButton>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <DropdownMenuItem v-if="canEdit" :disabled="disabled" @click.stop="$emit('edit')">
-              <Icon icon="lucide:edit-3" class="h-4 w-4 mr-2" />
-              {{ t('settings.mcp.editServer') }}
-            </DropdownMenuItem>
-            <DropdownMenuSeparator v-if="canEdit && !isBuiltIn" />
-            <DropdownMenuItem
-              v-if="!isBuiltIn"
+            <DcDropdownActionItem
+              icon="lucide:activity"
+              :label="t('settings.mcp.diagnostics.title')"
+              @select="$emit('diagnostics')"
+            />
+            <DropdownMenuSeparator v-if="canEdit || !isBuiltIn" />
+            <DcDropdownActionItem
+              v-if="canEdit"
+              icon="lucide:edit-3"
+              :label="t('settings.mcp.editServer')"
               :disabled="disabled"
-              class="text-red-600 dark:text-red-400/90 focus:bg-red-50 focus:text-red-700 dark:focus:bg-red-950/40 dark:focus:text-red-300 [&_svg]:text-current"
-              @click.stop="$emit('remove')"
-            >
-              <Icon icon="lucide:trash-2" class="h-4 w-4 mr-2" />
-              {{ t('settings.mcp.removeServer') }}
-            </DropdownMenuItem>
+              @select="$emit('edit')"
+            />
+            <DropdownMenuSeparator v-if="canEdit && !isBuiltIn" />
+            <DcDropdownActionItem
+              v-if="!isBuiltIn"
+              icon="lucide:trash-2"
+              :label="t('settings.mcp.removeServer')"
+              :disabled="disabled"
+              danger
+              @select="$emit('remove')"
+            />
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
@@ -232,38 +247,25 @@ watch(watchDescription, () => {
       <div class="flex items-center justify-between">
         <!-- 状态 -->
         <div class="flex items-center space-x-1.5">
-          <div :class="['w-2 h-2 rounded-full', statusConfig.dot]" />
-          <span :class="['text-xs', statusConfig.color]">
-            {{ statusConfig.text }}
-          </span>
+          <DcStatusPill
+            :status="serverStatus"
+            :label="statusConfig.text"
+            :pulse="serverStatus === 'loading'"
+          />
 
           <!-- 错误提示 -->
-          <TooltipProvider v-if="server.errorMessage">
-            <Tooltip>
-              <TooltipTrigger>
-                <Icon icon="lucide:alert-circle" class="w-3 h-3 text-red-500" />
-              </TooltipTrigger>
-              <TooltipContent>
-                <p class="text-xs max-w-xs">{{ server.errorMessage }}</p>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
+          <DcTooltip v-if="server.errorMessage" :content="server.errorMessage" side="top">
+            <Icon icon="lucide:alert-circle" class="w-3 h-3 text-red-500" />
+          </DcTooltip>
 
-          <TooltipProvider v-if="server.authStatus?.error">
-            <Tooltip>
-              <TooltipTrigger>
-                <Icon icon="lucide:key-round" class="w-3 h-3 text-yellow-500" />
-              </TooltipTrigger>
-              <TooltipContent>
-                <p class="text-xs max-w-xs">{{ server.authStatus.error }}</p>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
+          <DcTooltip v-if="server.authStatus?.error" :content="server.authStatus.error" side="top">
+            <Icon icon="lucide:key-round" class="w-3 h-3 text-yellow-500" />
+          </DcTooltip>
         </div>
 
         <!-- 开关 -->
         <div class="flex shrink-0 items-center gap-2" @click.stop @keydown.stop>
-          <Button
+          <DcButton
             v-if="showAuthenticateButton"
             variant="outline"
             size="sm"
@@ -271,12 +273,10 @@ watch(watchDescription, () => {
             :disabled="disabled || isAuthenticating"
             @click.stop="$emit('authenticate')"
           >
-            <Icon
-              :icon="isAuthenticating ? 'lucide:loader-2' : 'lucide:key-round'"
-              :class="['h-3 w-3', { 'animate-spin': isAuthenticating }]"
-            />
+            <Spinner v-if="isAuthenticating" class="size-3" data-icon="inline-start" />
+            <Icon v-else icon="lucide:key-round" class="size-3" data-icon="inline-start" />
             {{ t('settings.mcp.authenticate') }}
-          </Button>
+          </DcButton>
           <Switch
             :model-value="server.enabled"
             :disabled="disabled || isLoading"
@@ -287,7 +287,7 @@ watch(watchDescription, () => {
     </div>
     <div class="flex flex-row border-t h-9 items-center">
       <!-- 工具按钮 -->
-      <Button
+      <DcButton
         v-if="toolsCount !== undefined"
         variant="ghost"
         class="h-full flex-1 text-xs hover:bg-secondary rounded-none"
@@ -296,10 +296,10 @@ watch(watchDescription, () => {
       >
         <Icon icon="lucide:wrench" class="h-3 w-3 mr-1" />
         {{ toolsCount }}
-      </Button>
+      </DcButton>
       <!-- 提示词按钮 -->
       <Separator orientation="vertical" class="h-5" />
-      <Button
+      <DcButton
         v-if="promptsCount !== undefined"
         variant="ghost"
         class="h-full flex-1 text-xs hover:bg-secondary rounded-none"
@@ -308,10 +308,10 @@ watch(watchDescription, () => {
       >
         <Icon icon="lucide:message-square-quote" class="h-3 w-3 mr-1" />
         {{ promptsCount }}
-      </Button>
+      </DcButton>
       <Separator orientation="vertical" class="h-5" />
       <!-- 资源按钮 -->
-      <Button
+      <DcButton
         v-if="resourcesCount !== undefined"
         variant="ghost"
         class="h-full flex-1 text-xs hover:bg-secondary rounded-none"
@@ -320,7 +320,7 @@ watch(watchDescription, () => {
       >
         <Icon icon="lucide:folder" class="h-3 w-3 mr-1" />
         {{ resourcesCount }}
-      </Button>
+      </DcButton>
     </div>
   </div>
 </template>

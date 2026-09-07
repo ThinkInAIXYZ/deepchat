@@ -1,5 +1,5 @@
 import { createDialogClient } from '@api/DialogClient'
-import { DialogRequest, DialogResponse } from '@shared/presenter'
+import type { DialogRequest, DialogResponse } from '@shared/types/dialog'
 import { defineStore } from 'pinia'
 import { onMounted, onUnmounted, ref } from 'vue'
 

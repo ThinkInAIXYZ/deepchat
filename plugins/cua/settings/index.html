@@ -50,9 +50,13 @@
         <div class="panel-heading">
           <div>
             <div class="section-title">Permission Setup</div>
-            <p class="section-copy">Open the managed helper when macOS needs a grant.</p>
+            <p class="section-copy">Open DeepChat's macOS privacy settings for missing grants.</p>
           </div>
-          <button id="guide">Open Setup</button>
+          <div class="runtime-actions">
+            <button id="test-runtime" hidden>Test Runtime</button>
+            <button id="retry-runtime" class="primary" hidden>Retry Runtime</button>
+            <button id="guide">Open Setup</button>
+          </div>
         </div>
         <p id="message" class="message" role="status"></p>
         <details id="message-detail" class="details message-detail" hidden>
@@ -68,7 +72,7 @@
           <strong id="runtime-version">Unknown</strong>
         </div>
         <div class="row">
-          <span>Helper App</span>
+          <span>Runtime Bundle</span>
           <code id="runtime-helper-app">Unknown</code>
         </div>
         <div class="row">

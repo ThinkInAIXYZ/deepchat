@@ -62,7 +62,7 @@ const mountCard = (onClick = vi.fn(), serverOverrides: Record<string, unknown> =
     },
     global: {
       stubs: {
-        Button: buttonStub,
+        DcButton: buttonStub,
         Switch: switchStub,
         DropdownMenu: passthrough('DropdownMenu'),
         DropdownMenuTrigger: passthrough('DropdownMenuTrigger'),
@@ -126,5 +126,22 @@ describe('McpServerCard', () => {
 
     expect(wrapper.text()).toContain('settings.mcp.authFailed')
     expect(wrapper.text()).not.toContain('settings.mcp.authRequired')
+  })
+
+  it('renders startup lifecycle separately from stopped and failed states', async () => {
+    const { wrapper } = mountCard(vi.fn(), { lifecycleStatus: 'connecting' })
+
+    expect(wrapper.text()).toContain('settings.mcp.starting')
+    expect(wrapper.text()).not.toContain('settings.mcp.stopped')
+
+    await wrapper.setProps({
+      server: {
+        ...server,
+        lifecycleStatus: 'failed',
+        errorMessage: 'connection failed'
+      }
+    })
+
+    expect(wrapper.text()).toContain('settings.mcp.error')
   })
 })

@@ -24,6 +24,57 @@
   <a href="./README.zh.md">中文</a> / <a href="./README.md">English</a> / <a href="./README.jp.md">日本語</a>
 </div>
 
+## ❤️ スポンサー
+
+<table>
+  <tr>
+    <td width="25%" align="center">
+      <a href="https://go.apimart.ai/gh-deepchat">
+        <img src="./assets/sponsors/apimart.png" alt="APIMart" width="240" />
+      </a>
+    </td>
+    <td width="75%">
+      APIMart のご支援に感謝します！APIMart は、AI による画像・動画生成に特化した低価格な API
+      プラットフォームです。GPT-Image-2 は 1 枚あたり $0.006 から利用でき、1 ドルで 160
+      枚以上を生成できます。画像と動画を共通の非同期 API で扱い、タスクを送信して ID
+      を取得した後、ポーリングまたはコールバックで結果を受け取れます。
+      数万枚規模のバッチ処理でもタイムアウトせず、コードを変更せずにモデルを切り替えられます。月額料金なしの従量課金制です。<a
+      href="https://go.apimart.ai/gh-deepchat">こちらから登録</a>して利用を開始できます。
+    </td>
+  </tr>
+  <tr>
+    <td width="25%" align="center">
+      <a href="https://www.openmodel.ai?ref=ZGLyq8YQ">
+        <img src="./assets/sponsors/openmodel.png" alt="OpenModel" width="240" />
+      </a>
+    </td>
+    <td width="75%">
+      本プロジェクトをご支援いただいている OpenModel に感謝します！OpenModel は、対応モデルで
+      Codex に最大 90%、Claude Code に最大 60%
+      のクライアント専用割引を提供し、開発者が作業方法を変えずに API
+      コストを削減できるよう支援します。OpenModel API キーを接続するだけで、これまでどおり Codex
+      または Claude Code
+      を使用できます。対応クライアントは自動的に検出され、追加パラメーターや手動ルーティングなしで割引ルートが適用されます。また、API
+      キーごとにフォールバック動作を設定し、割引ルートが一時的に利用できない場合に、標準料金で利用を続けるか停止するかを選択できます。DeepChat
+      ユーザーは<a href="https://www.openmodel.ai?ref=ZGLyq8YQ">こちら</a>から登録できます。
+    </td>
+  </tr>
+  <tr>
+    <td width="25%" align="center">
+      <a href="https://www.packyapi.ai/register?aff=0A33">
+        <img src="./assets/sponsors/packycode.png" alt="PackyCode" width="240" />
+      </a>
+    </td>
+    <td width="75%">
+      PackyCode は、Claude Code、Codex、Gemini
+      などの中継サービスを提供する、安定性と高いパフォーマンスを備えた API
+      中継プロバイダーです。自動フェイルオーバー、スマートルーティング、無制限の同時実行などの機能により、AI
+      を真の生産性向上ツールにします。<a
+      href="https://www.packyapi.ai/register?aff=0A33">こちら</a>から登録して、今すぐ利用を開始できます。
+    </td>
+  </tr>
+</table>
+
 ## 📑 目次
 
 - [📑 目次](#-目次)
@@ -364,6 +415,14 @@ DeepChatはメッセージアプリからリモート操作できるため、デ
       <img src="./src/renderer/src/assets/llm-icons/siliconcloud-color.svg" width="50" height="50" alt="SiliconFlow Icon"><br/>
       <a href="https://www.siliconflow.cn/">SiliconFlow</a>
     </td>
+    <td>
+      <img src="./src/renderer/src/assets/llm-icons/orcarouter.svg" width="50" height="50" alt="OrcaRouter Icon"><br/>
+      <a href="https://www.orcarouter.ai/">OrcaRouter</a>
+    </td>
+    <td>
+      <img src="./src/renderer/src/assets/llm-icons/synthorai.svg" width="50" height="50" alt="Synthorai Icon"><br/>
+      <a href="https://synthorai.io/">Synthorai</a>
+    </td>
   </tr>
 
 </table>
@@ -478,7 +537,7 @@ DeepChatはアクティブなオープンソースコミュニティプロジェ
 
 ## ⭐ スター履歴
 
-[![Star History Chart](https://api.star-history.com/svg?repos=ThinkInAIXYZ/deepchat&type=Timeline)](https://www.star-history.com/#ThinkInAIXYZ/deepchat&Timeline)
+[![Star History Chart](https://star-history.dera.page/svg?repos=ThinkInAIXYZ/deepchat&type=Timeline)](https://star-history.dera.page/#ThinkInAIXYZ/deepchat&Timeline)
 
 ## 👨‍💻 貢献者
 

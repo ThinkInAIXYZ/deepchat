@@ -1,0 +1,255 @@
+{
+  "version": 1,
+  "clock": {
+    "now": 2000000,
+    "timeZone": "UTC"
+  },
+  "scenarios": [
+    {
+      "id": "carry-forward-working-projection",
+      "axis": "carry_forward",
+      "mode": "working",
+      "query": "",
+      "rows": [
+        {
+          "id": "stable-workflow",
+          "kind": "semantic",
+          "content": "Project Atlas uses pnpm workspaces.",
+          "importance": 0.9
+        }
+      ],
+      "expected": {
+        "selectedMemoryIds": [],
+        "excludedMemoryIds": [],
+        "sectionIncludes": ["## Working Memory", "Project Atlas uses pnpm workspaces."],
+        "sectionExcludes": []
+      }
+    },
+    {
+      "id": "preference-query-recall",
+      "axis": "preference_directive",
+      "mode": "recall",
+      "query": "concise technical answers",
+      "rows": [
+        {
+          "id": "concise-preference",
+          "kind": "semantic",
+          "content": "The user prefers concise technical answers.",
+          "importance": 0.95
+        },
+        {
+          "id": "unrelated-preference",
+          "kind": "semantic",
+          "content": "The user enjoys Redis internals.",
+          "importance": 0.5
+        }
+      ],
+      "expected": {
+        "selectedMemoryIds": ["concise-preference"],
+        "excludedMemoryIds": ["unrelated-preference"],
+        "sectionIncludes": ["The user prefers concise technical answers."],
+        "sectionExcludes": ["The user enjoys Redis internals."]
+      }
+    },
+    {
+      "id": "explicit-directive-trust-boundary",
+      "axis": "preference_directive",
+      "mode": "recall",
+      "query": "",
+      "rows": [],
+      "directives": [
+        {
+          "kind": "instruction",
+          "content": "Keep technical answers concise.",
+          "state": "active"
+        },
+        {
+          "kind": "instruction",
+          "content": "Mention every implementation detail.",
+          "state": "draft"
+        }
+      ],
+      "expected": {
+        "selectedMemoryIds": [],
+        "excludedMemoryIds": [],
+        "sectionIncludes": [],
+        "sectionExcludes": [],
+        "directiveIncludes": ["Keep technical answers concise."],
+        "directiveExcludes": ["Mention every implementation detail."]
+      }
+    },
+    {
+      "id": "temporal-claim-interpretation",
+      "axis": "temporal",
+      "mode": "recall",
+      "query": "Project Orion schedule status",
+      "rows": [
+        {
+          "id": "expired-state",
+          "kind": "semantic",
+          "content": "Project Orion is in private beta.",
+          "importance": 1,
+          "temporal": {
+            "temporalKind": "state",
+            "validFrom": 1000000,
+            "validUntil": 1500000,
+            "temporalConfidence": 0.95,
+            "temporalPrecision": "exact",
+            "temporalTimeZone": "UTC"
+          }
+        },
+        {
+          "id": "uncertain-state",
+          "kind": "semantic",
+          "content": "Project Orion may still use the legacy scheduler.",
+          "importance": 0.9,
+          "temporal": {
+            "temporalKind": "state",
+            "validFrom": 1000000,
+            "validUntil": 1500000,
+            "temporalConfidence": 0.6,
+            "temporalPrecision": "exact",
+            "temporalTimeZone": "UTC"
+          }
+        },
+        {
+          "id": "future-plan",
+          "kind": "semantic",
+          "content": "Project Orion plans a scheduler migration.",
+          "importance": 0.85,
+          "temporal": {
+            "temporalKind": "plan",
+            "validFrom": 2500000,
+            "validUntil": 3000000,
+            "temporalConfidence": 0.95,
+            "temporalPrecision": "exact",
+            "temporalTimeZone": "UTC"
+          }
+        },
+        {
+          "id": "previous-plan",
+          "kind": "semantic",
+          "content": "Project Orion planned a June launch.",
+          "importance": 0.8,
+          "temporal": {
+            "temporalKind": "plan",
+            "validFrom": 1000000,
+            "validUntil": 1500000,
+            "temporalConfidence": 0.95,
+            "temporalPrecision": "exact",
+            "temporalTimeZone": "UTC"
+          }
+        },
+        {
+          "id": "historical-event",
+          "kind": "episodic",
+          "content": "Project Orion completed a scheduler design review.",
+          "importance": 0.75,
+          "temporal": {
+            "temporalKind": "event",
+            "validFrom": 1000000,
+            "validUntil": 1100000,
+            "temporalConfidence": 0.95,
+            "temporalPrecision": "exact",
+            "temporalTimeZone": "UTC"
+          }
+        }
+      ],
+      "expected": {
+        "selectedMemoryIds": [
+          "uncertain-state",
+          "future-plan",
+          "previous-plan",
+          "historical-event"
+        ],
+        "excludedMemoryIds": ["expired-state"],
+        "sectionIncludes": ["possibly outdated state", "previously planned", "historical event"],
+        "sectionExcludes": ["Project Orion is in private beta."],
+        "annotationIncludes": {
+          "uncertain-state": "possibly outdated state",
+          "future-plan": "plan",
+          "previous-plan": "previously planned",
+          "historical-event": "historical event"
+        }
+      }
+    },
+    {
+      "id": "correction-prefers-current-state",
+      "axis": "correction_forgetting",
+      "mode": "recall",
+      "query": "office location",
+      "rows": [
+        {
+          "id": "old-office",
+          "kind": "semantic",
+          "content": "The user's office location is Paris.",
+          "importance": 1,
+          "temporal": {
+            "temporalKind": "state",
+            "validFrom": 1000000,
+            "validUntil": 1500000,
+            "temporalConfidence": 0.95,
+            "temporalPrecision": "exact",
+            "temporalTimeZone": "UTC"
+          }
+        },
+        {
+          "id": "current-office",
+          "kind": "semantic",
+          "content": "The user's office location is Berlin.",
+          "importance": 0.8,
+          "temporal": {
+            "temporalKind": "state",
+            "validFrom": 1500000,
+            "validUntil": null,
+            "temporalConfidence": 0.95,
+            "temporalPrecision": "exact",
+            "temporalTimeZone": "UTC"
+          }
+        }
+      ],
+      "expected": {
+        "selectedMemoryIds": ["current-office"],
+        "excludedMemoryIds": ["old-office"],
+        "sectionIncludes": ["The user's office location is Berlin."],
+        "sectionExcludes": ["The user's office location is Paris."]
+      }
+    },
+    {
+      "id": "explicit-delete-removes-claim",
+      "axis": "correction_forgetting",
+      "mode": "recall",
+      "query": "Project Saffron language",
+      "rows": [
+        {
+          "id": "forgotten-language",
+          "kind": "semantic",
+          "content": "Project Saffron uses Rust.",
+          "importance": 1
+        },
+        {
+          "id": "retained-language",
+          "kind": "semantic",
+          "content": "Project Saffron documentation uses Markdown.",
+          "importance": 0.8
+        }
+      ],
+      "deleteIds": ["forgotten-language"],
+      "replayRows": [
+        {
+          "id": "forgotten-language-replay",
+          "kind": "semantic",
+          "content": " Project   Saffron uses Rust. ",
+          "importance": 1
+        }
+      ],
+      "expected": {
+        "replayCreatedCount": 0,
+        "selectedMemoryIds": ["retained-language"],
+        "excludedMemoryIds": ["forgotten-language"],
+        "sectionIncludes": ["Project Saffron documentation uses Markdown."],
+        "sectionExcludes": ["Project Saffron uses Rust."]
+      }
+    }
+  ]
+}

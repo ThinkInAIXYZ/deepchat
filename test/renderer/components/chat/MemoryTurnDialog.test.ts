@@ -11,14 +11,8 @@ const memoryActivity = vi.hoisted(() => ({
   forget: vi.fn()
 }))
 
-const toast = vi.hoisted(() => vi.fn())
-
 vi.mock('@/stores/ui/memoryActivity', () => ({
   useMemoryActivityStore: () => memoryActivity
-}))
-
-vi.mock('@/components/use-toast', () => ({
-  useToast: () => ({ toast })
 }))
 
 vi.mock('vue-i18n', () => ({
@@ -47,8 +41,8 @@ vi.mock('@shadcn/components/ui/badge', () => ({
   })
 }))
 
-vi.mock('@shadcn/components/ui/button', () => ({
-  Button: defineComponent({
+vi.mock('@dc-ui/components/button', () => ({
+  DcButton: defineComponent({
     name: 'Button',
     props: {
       disabled: {
@@ -88,7 +82,10 @@ vi.mock('@shadcn/components/ui/dialog', () => ({
   })
 }))
 
-function makeTurn(overrides: Record<string, unknown> = {}) {
+function makeTurn(
+  overrides: Record<string, unknown> = {},
+  manifestOverrides: Record<string, unknown> = {}
+) {
   return {
     messageId: 'assistant-1',
     userMessageId: 'user-1',
@@ -104,7 +101,8 @@ function makeTurn(overrides: Record<string, unknown> = {}) {
       selectedIds: ['m1'],
       droppedCount: 0,
       queryHash: 'hash',
-      createdAt: 200
+      createdAt: 200,
+      ...manifestOverrides
     },
     details: [
       {
@@ -147,7 +145,6 @@ describe('MemoryTurnDialog', () => {
     memoryActivity.readOnly = false
     memoryActivity.closeTurnPanel.mockClear()
     memoryActivity.forget.mockReset()
-    toast.mockClear()
   })
 
   it('shows an explicit error state instead of the empty state', () => {
@@ -179,6 +176,35 @@ describe('MemoryTurnDialog', () => {
     expect(wrapper.text()).not.toContain('db down')
   })
 
+  it('shows the assembled contribution budget allocation when available', () => {
+    memoryActivity.selectedTurn = makeTurn(
+      {},
+      {
+        allocation: {
+          policyVersion: 1,
+          totalTokenBudget: 1000,
+          overheadTokens: 40,
+          demand: { directive: 50, persona: 100, working: 200, queryRecall: 500 },
+          allocated: { directive: 50, persona: 100, working: 200, queryRecall: 500 },
+          used: { directive: 49, persona: 90, working: 180, queryRecall: 450 },
+          borrowed: { directive: 0, persona: 0, working: 8, queryRecall: 194 },
+          unallocatedTokens: 110,
+          estimatedTotalTokens: 809,
+          unusedTokens: 191,
+          constrained: false
+        }
+      }
+    )
+
+    const wrapper = mount(MemoryTurnDialog)
+    const allocationText = wrapper.get('[data-testid="memory-budget-allocation"]').text()
+
+    expect(allocationText).toContain('chat.memory.turn.allocation')
+    expect(allocationText).toContain('809 / 1000')
+    expect(allocationText).toContain('450 / 500')
+    expect(allocationText).toContain('chat.memory.turn.overheadSummary')
+  })
+
   it('disables forget mutations in read-only mode', async () => {
     const wrapper = mount(MemoryTurnDialog, {
       props: {
@@ -193,17 +219,25 @@ describe('MemoryTurnDialog', () => {
     expect(memoryActivity.forget).not.toHaveBeenCalled()
   })
 
-  it('allows forget mutations when the dialog is writable', async () => {
+  it('uses the visible archived state as successful forget feedback', async () => {
     memoryActivity.forget.mockResolvedValue(true)
     const wrapper = mount(MemoryTurnDialog)
 
     await wrapper.find('button[aria-label="chat.memory.actions.forget"]').trigger('click')
+    await flushPromises()
 
     expect(memoryActivity.forget).toHaveBeenCalledWith('m1')
-    expect(toast).toHaveBeenCalledWith({
-      title: 'chat.memory.toast.forgetSuccess',
-      variant: 'default'
-    })
+    expect(wrapper.find('[role="alert"]').exists()).toBe(false)
+  })
+
+  it('keeps forget failures inline with the affected memory', async () => {
+    memoryActivity.forget.mockResolvedValue(false)
+    const wrapper = mount(MemoryTurnDialog)
+
+    await wrapper.find('button[aria-label="chat.memory.actions.forget"]').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.get('[role="alert"]').text()).toBe('chat.memory.toast.forgetFailed')
   })
 
   it('prevents duplicate forget mutations while a memory is busy', async () => {
@@ -221,9 +255,6 @@ describe('MemoryTurnDialog', () => {
     pending.resolve(true)
     await flushPromises()
 
-    expect(toast).toHaveBeenCalledWith({
-      title: 'chat.memory.toast.forgetSuccess',
-      variant: 'default'
-    })
+    expect(wrapper.find('[role="alert"]').exists()).toBe(false)
   })
 })

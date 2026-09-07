@@ -1,5 +1,10 @@
 # CUA Cross-Platform Computer Use Plan
 
+> Historical implementation plan for the 0.7.1 cross-platform rollout. The 0.12.6 upgrade,
+> on-demand discovery, lifecycle ownership, migration, environment, and integrity work are
+> implemented under `docs/architecture/plugin-external-runtime-lifecycle/plan.md`; its native
+> release gates remain pending.
+
 ## Design Principles
 
 - Keep the DeepChat integration model unchanged: official plugin, skill, and DeepChat-owned tool
@@ -149,7 +154,7 @@ pnpm run format
 pnpm run i18n
 pnpm run lint
 pnpm run typecheck
-pnpm test -- test/main/presenter/pluginPresenter.test.ts
+pnpm test -- test/main/plugin.test.ts
 pnpm test -- test/main/scripts
 ```
 
@@ -168,9 +173,9 @@ pnpm run plugin:bundle -- --name cua --platform darwin --arch x64
 pnpm run plugin:verify -- --name cua --platform darwin --arch x64
 ```
 
-On Windows, also verify the built `.dcplugin` contains both `cua-driver.exe` and
-`cua-driver-uia.exe`. On Linux, verify `cua-driver` is executable after extraction. On macOS,
-verify the helper app executable path and signing state.
+For the replacement 0.12.6 contract, verify a Windows `.dcplugin` contains `cua-driver.exe` and does
+not contain `cua-driver-uia.exe`. On Linux, verify `cua-driver` is executable after extraction. On
+macOS, verify the helper app executable path, exact entitlements, and signing state.
 
 ## Rollout Notes
 

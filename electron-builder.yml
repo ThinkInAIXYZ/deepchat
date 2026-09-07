@@ -12,6 +12,8 @@ files:
   - '!vendor/**'
   - '!docs/*'
   - '!plugins/**'
+  - '!out/main/lightOcrHelper.js'
+  - '!out/cli/**'
   - '!keys/*'
   - '!scripts/*'
   - '!.github/*'
@@ -38,7 +40,12 @@ asarUnpack:
   - '**/node_modules/@yuuang/ffi-rs-*/**/*'
   - '**/node_modules/@parcel/watcher/**/*'
   - '**/node_modules/@parcel/watcher-*/**/*'
+  - '**/node_modules/@arcships/light-ocr*/**/*'
+  - '**/node_modules/@zerob13/nativekit/prebuilds/**/*'
 extraResources:
+  - from: ./out/cli/
+    to: app.asar.unpacked/cli
+    filter: ['deepchat', 'deepchat.cmd', 'deepchat.mjs']
   - from: ./runtime/
     to: app.asar.unpacked/runtime
     filter: ['**/*']
@@ -87,8 +94,11 @@ nsis:
   oneClick: false
   include: build/nsis-installer.nsh
 afterSign: scripts/notarize.js
+artifactBuildCompleted: scripts/notarize-dmg.js
 afterPack: scripts/afterPack.js
 mac:
+  signIgnore:
+    - '/Contents/Helpers/DeepChat Computer Use[.]app(?:/|$)'
   entitlementsInherit: build/entitlements.mac.plist
   extraFiles:
     - from: ./build/managed-helpers/
@@ -105,6 +115,20 @@ mac:
     - target: dmg
     - target: zip
   artifactName: ${name}-${version}-mac-${arch}.${ext}
+dmg:
+  background: build/dmg-background.png
+  iconSize: 96
+  iconTextSize: 13
+  contents:
+    - x: 157
+      y: 213
+      type: file
+    - x: 507
+      y: 213
+      type: link
+      path: /Applications
+  sign: true
+  writeUpdateInfo: false
 linux:
   target:
     - AppImage

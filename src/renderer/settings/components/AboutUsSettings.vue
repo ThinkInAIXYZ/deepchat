@@ -51,7 +51,11 @@
       <div class="mt-4 flex items-center gap-4">
         <label class="text-sm font-medium">{{ t('about.updateChannel') }}:</label>
         <div class="min-w-32 max-w-48">
-          <Select v-model="updateChannel" @update:model-value="setUpdateChannel">
+          <Select
+            :model-value="updateChannel"
+            :disabled="!updateChannelReady || updateChannelSaving"
+            @update:model-value="setUpdateChannel"
+          >
             <SelectTrigger>
               <SelectValue :placeholder="t('about.updateChannel')" />
             </SelectTrigger>
@@ -82,6 +86,7 @@
             :isDark="themeStore.isDark"
             :content="upgrade.updateInfo.releaseNotes"
             :typewriter="false"
+            :final="true"
             :codeBlockStream="false"
           ></NodeRenderer>
         </div>
@@ -94,13 +99,10 @@
         <p class="text-center text-xs text-muted-foreground">
           {{ t('update.autoUpdateFailed') }}
         </p>
-        <p v-if="upgrade.updateError" class="text-center text-xs text-muted-foreground/80">
-          {{ upgrade.updateError }}
-        </p>
       </div>
 
       <div class="mt-2 flex flex-wrap justify-center gap-2">
-        <Button
+        <DcButton
           variant="outline"
           size="sm"
           class="mb-2 text-xs"
@@ -108,60 +110,14 @@
         >
           <Icon icon="lucide:message-square" class="mr-1 h-3 w-3" />
           {{ t('about.feedbackButton') }}
-        </Button>
+        </DcButton>
 
-        <Button variant="outline" size="sm" class="mb-2 text-xs" @click="openDisclaimerDialog">
+        <DcButton variant="outline" size="sm" class="mb-2 text-xs" @click="openDisclaimerDialog">
           <Icon icon="lucide:info" class="mr-1 h-3 w-3" />
           {{ t('about.disclaimerButton') }}
-        </Button>
+        </DcButton>
 
-        <Button
-          v-if="showMockUpdateControls && !upgrade.isMockUpdate"
-          variant="outline"
-          size="sm"
-          class="mb-2 text-xs"
-          @click="handleMockDownloadedUpdate"
-        >
-          {{ t('about.mockUpdateButton') }}
-        </Button>
-
-        <Button
-          v-if="showMockUpdateControls && upgrade.isMockUpdate"
-          variant="outline"
-          size="sm"
-          class="mb-2 text-xs"
-          @click="handleClearMockUpdate"
-        >
-          {{ t('about.clearMockUpdateButton') }}
-        </Button>
-
-        <Button
-          v-if="showMockUpdateControls"
-          variant="outline"
-          size="sm"
-          class="mb-2 text-xs"
-          @click="handleStartMockOnboarding"
-        >
-          {{ t('about.mockOnboardingButton') }}
-        </Button>
-
-        <Button
-          v-if="showMockUpdateControls"
-          variant="outline"
-          size="sm"
-          class="mb-2 text-xs"
-          :disabled="isCreatingMockChat"
-          @click="handleCreateMockChat"
-        >
-          <Icon
-            icon="lucide:database"
-            class="mr-1 h-3 w-3"
-            :class="{ 'animate-pulse': isCreatingMockChat }"
-          />
-          {{ isCreatingMockChat ? t('about.mockChatCreating') : t('about.mockChatButton') }}
-        </Button>
-
-        <Button
+        <DcButton
           v-if="upgrade.showManualDownloadOptions"
           variant="outline"
           size="sm"
@@ -169,9 +125,9 @@
           @click="handleManualDownload('github')"
         >
           {{ t('update.githubDownload') }}
-        </Button>
+        </DcButton>
 
-        <Button
+        <DcButton
           v-if="upgrade.showManualDownloadOptions"
           variant="outline"
           size="sm"
@@ -179,23 +135,27 @@
           @click="handleManualDownload('official')"
         >
           {{ t('update.officialDownload') }}
-        </Button>
+        </DcButton>
 
-        <Button
+        <DcButton
           v-if="!upgrade.showManualDownloadOptions"
           variant="outline"
           size="sm"
           class="mb-2 text-xs"
-          :disabled="upgrade.isChecking || upgrade.isDownloading || upgrade.isRestarting"
+          :disabled="
+            upgrade.isChecking ||
+            upgrade.isDownloading ||
+            upgrade.isRestarting ||
+            updateCheckPending
+          "
           @click="handlePrimaryAction"
         >
-          <Icon
-            icon="lucide:refresh-cw"
-            class="mr-1 h-3 w-3"
-            :class="{
-              'animate-spin': upgrade.isChecking || upgrade.isDownloading
-            }"
+          <Spinner
+            v-if="upgrade.isChecking || upgrade.isDownloading"
+            class="mr-1 size-3"
+            data-icon="inline-start"
           />
+          <Icon v-else icon="lucide:refresh-cw" class="mr-1 size-3" data-icon="inline-start" />
           <span v-if="upgrade.isDownloading">
             <template v-if="upgrade.updateProgress">
               {{ t('update.downloading') }}: {{ Math.round(upgrade.updateProgress.percent) }}%
@@ -214,9 +174,16 @@
           <span v-else>
             {{ t('about.checkUpdateButton') }}
           </span>
-        </Button>
+        </DcButton>
       </div>
     </div>
+
+    <UpdateTaskCheckDialog
+      :open="upgrade.showTaskRunningDialog ?? false"
+      @cancel="upgrade.cancelUpdate()"
+      @update-now="upgrade.confirmUpdateNow()"
+      @update-after-tasks="upgrade.scheduleUpdateAfterTasks()"
+    />
   </SettingsPageShell>
 
   <Dialog :open="isDisclaimerOpen" @update:open="isDisclaimerOpen = $event">
@@ -229,12 +196,13 @@
             :isDark="themeStore.isDark"
             :content="t('searchDisclaimer')"
             :typewriter="false"
+            :final="true"
             :codeBlockStream="false"
           ></NodeRenderer>
         </DialogDescription>
       </DialogHeader>
       <DialogFooter>
-        <Button @click="isDisclaimerOpen = false">{{ t('common.close') }}</Button>
+        <DcButton @click="isDisclaimerOpen = false">{{ t('common.close') }}</DcButton>
       </DialogFooter>
     </DialogContent>
   </Dialog>
@@ -243,12 +211,11 @@
 <script setup lang="ts">
 import { createBrowserClient } from '@api/BrowserClient'
 import { createConfigClient } from '@api/ConfigClient'
-import { createDebugClient } from '@api/DebugClient'
 import { createDeviceClient } from '@api/DeviceClient'
 import { createWindowClient } from '@api/WindowClient'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
 import { Icon } from '@iconify/vue'
 import {
   Dialog,
@@ -265,32 +232,33 @@ import {
   SelectTrigger,
   SelectValue
 } from '@shadcn/components/ui/select'
+import { Spinner } from '@shadcn/components/ui/spinner'
 import NodeRenderer from 'markstream-vue'
 import { useUpgradeStore } from '@/stores/upgrade'
 import { useLanguageStore } from '@/stores/language'
 import type { AcceptableValue } from 'reka-ui'
 import { useThemeStore } from '@/stores/theme'
-import { useToast } from '@/components/use-toast'
 import { useRoute } from 'vue-router'
 import SettingsPageShell from './control-center/SettingsPageShell.vue'
+import { notifyRenderer } from '@renderer-notifications/rendererNotificationPort'
+import UpdateTaskCheckDialog from '@/components/ui/UpdateTaskCheckDialog.vue'
 
 const { t } = useI18n()
-const { toast } = useToast()
 const themeStore = useThemeStore()
 const languageStore = useLanguageStore()
 const route = useRoute()
 const browserClient = createBrowserClient()
 const configClient = createConfigClient()
-const debugClient = createDebugClient()
 const deviceClient = createDeviceClient()
 const windowClient = createWindowClient()
 const appVersion = ref('')
 const upgrade = useUpgradeStore()
 const updateChannel = ref('stable')
+const updateChannelReady = ref(false)
 const isDisclaimerOpen = ref(false)
-const isCreatingMockChat = ref(false)
-const showMockUpdateControls = computed(() => import.meta.env.DEV)
 let cleanupCheckForUpdates: (() => void) | null = null
+const updateChannelSaving = ref(false)
+const updateCheckPending = ref(false)
 
 const formattedUpdateVersion = computed(() => {
   const version = upgrade.updateInfo?.version ?? ''
@@ -302,98 +270,103 @@ const openDisclaimerDialog = () => {
   isDisclaimerOpen.value = true
 }
 
-const showUpToDateToast = () => {
-  toast({
-    title: t('update.alreadyUpToDate'),
-    description: t('update.alreadyUpToDateDesc')
-  })
-}
-
-const showUpdateErrorToast = (message: string) => {
-  toast({
-    title: t('common.error.operationFailed'),
-    description: message,
-    variant: 'destructive'
-  })
-}
-
 const setUpdateChannel = async (channel: AcceptableValue) => {
-  if (channel !== 'stable' && channel !== 'beta') {
+  if (
+    (channel !== 'stable' && channel !== 'beta') ||
+    updateChannelSaving.value ||
+    channel === updateChannel.value
+  ) {
     return
   }
+
+  updateChannelSaving.value = true
   try {
-    await configClient.setUpdateChannel(channel)
+    updateChannel.value = await configClient.setUpdateChannel(channel)
+    notifyRenderer({
+      kind: 'success',
+      code: 'settings.about.updateChannelSaved',
+      title: t('common.saved')
+    })
   } catch (error) {
-    console.error('updateChannelSetError:', error)
+    console.error('[AboutUsSettings] Failed to update channel', error)
+    notifyRenderer({
+      kind: 'error',
+      code: 'settings.about.updateChannelSaveFailed',
+      title: t('common.error.operationFailed')
+    })
+  } finally {
+    updateChannelSaving.value = false
+  }
+}
+
+const loadUpdateChannel = async () => {
+  if (updateChannelSaving.value) return
+
+  updateChannelSaving.value = true
+  try {
+    updateChannel.value = await configClient.getUpdateChannel()
+    updateChannelReady.value = true
+  } catch (error) {
+    updateChannelReady.value = false
+    console.error('[AboutUsSettings] Failed to load update channel', error)
+    notifyRenderer({
+      kind: 'error',
+      code: 'settings.about.updateChannelLoadFailed',
+      title: t('common.error.operationFailed')
+    })
+  } finally {
+    updateChannelSaving.value = false
   }
 }
 
 const handlePrimaryAction = async () => {
-  if (upgrade.isChecking || upgrade.isDownloading || upgrade.isRestarting) {
+  if (
+    upgrade.isChecking ||
+    upgrade.isDownloading ||
+    upgrade.isRestarting ||
+    updateCheckPending.value
+  ) {
     return
   }
 
   if (upgrade.updateState === 'available' || upgrade.isReadyToInstall) {
-    await upgrade.handleUpdate('auto')
+    upgrade.checkRunningTasksAndUpdate(() => {
+      void upgrade.handleUpdate('auto')
+    })
     return
   }
 
-  const status = await upgrade.checkUpdate(false)
-  if (status === 'not-available') {
-    showUpToDateToast()
-  } else if (status === 'error' && upgrade.updateError) {
-    showUpdateErrorToast(upgrade.updateError)
+  updateCheckPending.value = true
+  try {
+    const status = await upgrade.checkUpdate(false)
+    if (status === 'not-available') {
+      notifyRenderer({
+        kind: 'success',
+        code: 'settings.about.alreadyUpToDate',
+        title: t('update.alreadyUpToDate'),
+        description: t('update.alreadyUpToDateDesc')
+      })
+    } else if (status === 'error') {
+      notifyRenderer({
+        kind: 'error',
+        code: 'settings.about.updateCheckFailed',
+        title: t('common.error.operationFailed')
+      })
+    }
+  } catch (error) {
+    console.error('[AboutUsSettings] Failed to check for updates', error)
+    notifyRenderer({
+      kind: 'error',
+      code: 'settings.about.updateCheckFailed',
+      title: t('common.error.operationFailed')
+    })
+  } finally {
+    updateCheckPending.value = false
   }
 }
 
 const handleManualDownload = async (type: 'github' | 'official') => {
   await upgrade.handleUpdate(type)
-}
-
-const handleMockDownloadedUpdate = async () => {
-  const status = await upgrade.mockDownloadedUpdate()
-  if (status === 'error' && upgrade.updateError) {
-    showUpdateErrorToast(upgrade.updateError)
-  }
-}
-
-const handleClearMockUpdate = async () => {
-  const status = await upgrade.clearMockUpdate()
-  if (status === 'error' && upgrade.updateError) {
-    showUpdateErrorToast(upgrade.updateError)
-  }
-}
-
-const handleStartMockOnboarding = async () => {
-  await windowClient.startGuidedOnboarding()
-}
-
-const handleCreateMockChat = async () => {
-  if (isCreatingMockChat.value) {
-    return
-  }
-
-  isCreatingMockChat.value = true
-  try {
-    const result = await debugClient.createMockChatSession()
-    if (!result.created || !result.sessionId) {
-      showUpdateErrorToast(t('about.mockChatCreateUnavailable'))
-      return
-    }
-
-    toast({
-      title: t('about.mockChatCreated'),
-      description: t('about.mockChatCreatedDesc', {
-        title: result.title ?? result.sessionId,
-        count: result.messageCount
-      })
-    })
-  } catch (error) {
-    console.error('mockChatCreateError:', error)
-    showUpdateErrorToast(error instanceof Error ? error.message : t('about.mockChatCreateFailed'))
-  } finally {
-    isCreatingMockChat.value = false
-  }
 }
 
 const handleExternalCheckUpdate = async () => {
@@ -409,7 +382,11 @@ const handleExternalCheckUpdate = async () => {
 }
 
 const syncUpdateStatus = async () => {
-  await upgrade.refreshStatus()
+  try {
+    await upgrade.refreshStatus()
+  } catch (error) {
+    console.error('[AboutUsSettings] Failed to synchronize update status', error)
+  }
 }
 
 const openExternalLink = (url: string) => {
@@ -418,13 +395,21 @@ const openExternalLink = (url: string) => {
   })
 }
 
-onMounted(async () => {
+const loadAppVersion = async () => {
+  try {
+    appVersion.value = await deviceClient.getAppVersion()
+  } catch (error) {
+    console.error('[AboutUsSettings] Failed to load app version', error)
+  }
+}
+
+onMounted(() => {
   cleanupCheckForUpdates = windowClient.onSettingsCheckForUpdates(() => {
     void handleExternalCheckUpdate()
   })
-  appVersion.value = await deviceClient.getAppVersion()
-  updateChannel.value = await configClient.getUpdateChannel()
-  await syncUpdateStatus()
+  void loadAppVersion()
+  void loadUpdateChannel()
+  void syncUpdateStatus()
 })
 
 watch(

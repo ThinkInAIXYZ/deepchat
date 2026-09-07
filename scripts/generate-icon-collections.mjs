@@ -33,7 +33,6 @@ const rendererRoots = [
   'src/shared',
   'src/renderer/src',
   'src/renderer/settings',
-  'src/renderer/browser',
   'src/renderer/floating',
   'src/renderer/splash'
 ].map((sourcePath) => path.join(repoRoot, sourcePath))
@@ -110,11 +109,13 @@ function createSubsetCollection(collection, iconNames) {
     addIcon(iconName)
   }
 
-  return {
+  const subset = {
     ...collection,
     icons,
     aliases
   }
+  delete subset.lastModified
+  return subset
 }
 
 function assertKnownIcons(collection, prefix, iconNames) {

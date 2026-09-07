@@ -78,6 +78,7 @@ describe('MessageListRow', () => {
 
     await nextTick()
 
+    expect(wrapper.get('[data-message-id="m1"]').classes()).toContain('pb-1')
     expect(wrapper.emitted('measure')).toEqual([[{ messageId: 'm1', height: 114 }]])
   })
 

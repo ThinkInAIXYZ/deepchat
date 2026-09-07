@@ -13,7 +13,9 @@
   "imagePreviewCount": "Brak podglądów obrazów | Jeden podgląd obrazu | {count} podglądy obrazów | {count} podglądów obrazów",
   "terminalOutput": "Wyjście terminala",
   "badge": {
-    "rtk": "RTK"
+    "rtk": "RTK",
+    "allowed": "Zezwolono",
+    "denied": "Odmówiono"
   },
   "replacementsCount": "Zakończono wymianę {count}",
   "fileOperation": "Operacja na pliku",

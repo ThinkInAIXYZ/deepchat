@@ -1,6 +1,34 @@
 {
   "title": "Ayarlar",
   "common": {
+    "commandShell": {
+      "title": "Agent komut kabuğu",
+      "auto": "Otomatik",
+      "windowsPowerShell": "Windows PowerShell",
+      "powerShellCore": "PowerShell 7",
+      "commandPrompt": "Komut İstemi",
+      "gitBash": "Git Bash",
+      "bash": "Bash",
+      "zsh": "Zsh",
+      "fish": "Fish",
+      "executable": "Git Bash yürütülebilir dosyası",
+      "autoDetect": "Otomatik algıla",
+      "browse": "Git Bash'i bul",
+      "clearOverride": "Özel yolu temizle",
+      "checking": "Git Bash kontrol ediliyor...",
+      "available": "Kullanılabilir: {path}",
+      "refresh": "Tekrar kontrol et",
+      "updateFailed": "Komut kabuğu ayarı güncellenemedi.",
+      "checkFailed": "Git Bash kullanılabilirliği kontrol edilemedi.",
+      "browseFailed": "Git Bash yürütülebilir dosyası seçilemedi.",
+      "loadFailed": "Komut kabuğu ayarı yüklenemedi.",
+      "errors": {
+        "unsupported-platform": "Git Bash seçimi yalnızca Windows'ta kullanılabilir.",
+        "override-invalid": "Özel yol mevcut bir bash.exe dosyasına işaret etmelidir.",
+        "not-found": "Bu cihazda Git Bash bulunamadı.",
+        "validation-failed": "Algılanan yürütülebilir dosya Git Bash doğrulamasını geçemedi."
+      }
+    },
     "title": "Ortak Ayarlar",
     "resetData": "Verileri Sıfırla",
     "language": "Dil",
@@ -18,18 +46,6 @@
     "privacyModeNpmRegistry": "MCP npm kayıt defteri otomatik algılama",
     "privacyModeManualActions": "Manuel kontroller ve manuel yenileme eylemleri kullanılabilir durumda kalır.",
     "privacyModeIntegrations": "Yapılandırılmış üçüncü taraf entegrasyonları kullanılabilir durumda kalır.",
-    "autoCompaction": {
-      "title": "Otomatik Sıkıştırma",
-      "enabled": "Otomatik sıkıştırmayı etkinleştir",
-      "description": "Bir konuşma model bağlam penceresi sınırına yaklaştığında, DeepChat eski geçmişi otomatik olarak özetleyerek oturumun devam etmesini sağlayabilir. Devre dışı bırakılırsa DeepChat özet oluşturmaz, ancak ham sağlayıcı context-window hatalarından kaçınmak için gerektiğinde istek görünümünü yine de kırpar.",
-      "thresholdLabel": "Tetik eşiği",
-      "thresholdMin": "Erken ({value}%)",
-      "thresholdMax": "Geç ({value}%)",
-      "thresholdDescription": "prompt kullanımı etkin geçmiş bütçesinin bu payına ulaştığında sıkıştırmayı başlatın. Daha düşük değerler daha fazla boşluk yaratır; daha yüksek değerler daha fazla ham bağlamı korur.",
-      "retainPairsLabel": "Son mesaj çiftlerini koru",
-      "retainPairsValue": "{count} çift(ler)i",
-      "retainPairsDescription": "En son tamamlanan kullanıcı ve asistan çiftlerini sıkıştırmanın dışında tutun. Geçerli sorgu dahil edilmedi."
-    },
     "searchAssistantModel": "Asistan Modeli",
     "selectModel": "Modeli Seçin",
     "proxyMode": "Proxy Modu",
@@ -41,7 +57,7 @@
     "customProxyUrlPlaceholder": "Örnek: http://127.0.0.1:7890",
     "invalidProxyUrl": "Geçersiz proxy URL, lütfen geçerli http/https URL girin",
     "addCustomSearchEngine": "Özel Arama Motoru Ekle",
-    "addCustomSearchEngineDesc": "Bir ad girerek yeni bir arama motoru ekleyin ve URL'yi arayın. URL, sorgu yer tutucusu olarak {query} öğesini içermelidir.",
+    "addCustomSearchEngineDesc": "Bir ad girerek yeni bir arama motoru ekleyin ve URL'yi arayın. URL, sorgu yer tutucusu olarak {'{'}query{'}'} öğesini içermelidir.",
     "searchEngineName": "Arama Motoru Adı",
     "searchEngineNamePlaceholder": "Arama motoru adını girin",
     "searchEngineUrl": "URL'da ara",
@@ -69,6 +85,7 @@
     "contentProtectionRestartNotice": "Bu ayarın değiştirilmesi uygulamayı yeniden başlatacaktır. Devam etmek istiyor musun?",
     "copyWithCotEnabled": "COT Ayrıntılarını Kopyala",
     "traceDebugEnabled": "Aramayı Takip Et",
+    "traceDebugEnabledDesc": "Etkin olduğunda model isteği içeriğini yerel olarak saklar. Bilinen sağlayıcıların kimlik doğrulama başlıkları ve API anahtarı alanları maskelenir, ancak istemler hassas veriler içerebilir.",
     "loggingEnabled": "Günlük Kaydını Etkinleştir",
     "loggingDialogTitle": "Günlük Ayarı Değişikliğini Onayla",
     "loggingEnableDesc": "Günlüğe kaydetmeyi etkinleştirmek sorunları teşhis etmemize ve uygulamayı geliştirmemize yardımcı olacaktır. Günlük dosyaları hassas bilgiler içerebilir.",
@@ -85,7 +102,95 @@
       "chatModel": "Varsayılan Sohbet Modeli"
     }
   },
+  "ocr": {
+    "description": "Seçilen model görüntüleri göremediğinde görüntülerdeki metni otomatik olarak çıkarın. Tanıma yalnızca bu cihazda yapılır.",
+    "autoExtract": "Görüntülerdeki metni otomatik tanı",
+    "autoExtractDescription": "Seçilen model görüntüleri göremediğinde kullanılır.",
+    "advancedTitle": "Gelişmiş ayarlar",
+    "advancedDescription": "Çoğu kullanıcının bunları değiştirmesi gerekmez.",
+    "backend": "Tanıma yöntemi",
+    "backendDescription": "Otomatik, bu cihaz için en iyi yöntemi seçer. CPU’yu yalnızca uyumluluk sorunlarını giderirken kullanın.",
+    "backendAuto": "Otomatik (Önerilen)",
+    "backendCpu": "Yalnızca CPU",
+    "diagnosticsTitle": "Tanılama bilgileri",
+    "diagnosticsDescription": "Yalnızca sorun giderirken gereklidir.",
+    "refresh": "Yeniden dene",
+    "loading": "OCR durumu yükleniyor…",
+    "statusUnavailable": "OCR durumu geçici olarak kullanılamıyor.",
+    "availability": "Kullanılabilirlik",
+    "available": "Kullanılabilir",
+    "unavailable": "Kullanılamıyor",
+    "process": "Yardımcı işlem",
+    "version": "Light OCR sürümü",
+    "notStarted": "Gerektiğinde",
+    "nodeNotStarted": "Gerektiğinde başlar",
+    "queuedRequests": "{count} istek kuyrukta",
+    "strategy": "Tanıma stratejisi",
+    "nodeVersion": "Node çalışma zamanı",
+    "detectionBackend": "Algılama arka ucu",
+    "recognitionBackend": "Tanıma arka ucu",
+    "cacheTitle": "Yerel önbellek",
+    "cacheMode": "Depolama modu",
+    "cacheEntries": "Görüntüler",
+    "cacheUsage": "Kullanılan alan",
+    "cacheNotStarted": "Henüz önbellek yok.",
+    "cacheProtected": "Şifreli yerel türetilmiş önbellek.",
+    "clearCache": "Temizle",
+    "clearCacheTitle": "Yerel önbellek temizlensin mi?",
+    "clearCacheDescription": "Önbelleğe alınmış tanıma sonuçları silinir. Sohbetlere kaydedilmiş metinler etkilenmez.",
+    "clearCacheConfirm": "Temizle",
+    "cacheCleared": "OCR önbelleği temizlendi",
+    "cacheClearedDescription": "Sohbetlere kaydedilmiş metinler değiştirilmedi.",
+    "loadFailed": "OCR ayarları yüklenemedi.",
+    "updateFailed": "OCR ayarı güncellenemedi.",
+    "statusLoadFailed": "OCR durumu denetlenemedi.",
+    "clearCacheFailed": "OCR önbelleği temizlenemedi.",
+    "unavailableReasons": {
+      "asset_identity_mismatch": "Yerleşik OCR varlıkları sabitlenmiş sürümle eşleşmiyor.",
+      "assets_missing": "Bu kurulumda gerekli çevrimdışı OCR varlıkları eksik.",
+      "runtime_manifest_invalid": "Yerleşik OCR çalışma zamanı bildirimi geçersiz.",
+      "service_closed": "OCR hizmeti kapatılıyor.",
+      "unsupported_platform": "OCR bu platform ve mimari için kullanılamıyor.",
+      "toolchain_unavailable": "OCR resmi Node.js v24.18.0 gerektirir. Ayarlar → Araç zincirleri ögesini açıp resmi çalışma zamanını yükleyin.",
+      "version_mismatch": "OCR Node.js v24.18.0 gerektirir. Bu sürüm aralık dışında. Ayarlar → Araç zincirleri ögesini açıp resmi çalışma zamanını yükleyin.",
+      "abi_mismatch": "OCR Node.js ABI 137 (v24.18.0) gerektirir. Ayarlar → Araç zincirleri ögesini açıp resmi çalışma zamanını yükleyin."
+    },
+    "processStates": {
+      "idle": "Boşta",
+      "starting": "Başlatılıyor",
+      "ready": "Hazır",
+      "busy": "Tanınıyor",
+      "stopping": "Durduruluyor",
+      "closed": "Kapalı"
+    },
+    "strategies": {
+      "bounded-960": "Sınırlandırılmış görsel",
+      "tiled-v1": "Döşenmiş belge"
+    },
+    "cacheModes": {
+      "persistent": "Diskte şifreli",
+      "memory": "Yalnızca bellek"
+    },
+    "cacheFallbackReasons": {
+      "database_error": "Veritabanı açılamadığı için kalıcı önbellek kullanılamıyor.",
+      "safe_storage_unavailable": "Güvenli anahtar depolama kullanılamadığı için kalıcı önbellek kullanılamıyor."
+    }
+  },
+  "leaveGuard": {
+    "dirtyTitle": "Kaydedilmemiş değişiklikler",
+    "dirtyDescription": "Çıkıp değişiklikleri atmak istiyor musunuz?",
+    "busyTitle": "Kaydetme sürüyor",
+    "busyDescription": "Çıkmadan önce kaydetmenin bitmesini bekleyin.",
+    "stay": "Düzenlemeye devam et",
+    "discard": "Değişiklikleri at"
+  },
   "deepchatAgents": {
+    "saveFeedback": {
+      "saving": "Kaydediliyor…",
+      "saved": "Kaydedildi",
+      "saveFailed": "Kaydedilemedi. Değişiklikler korundu.",
+      "retry": "Yeniden dene"
+    },
     "title": "DeepChat Agent",
     "description": "DeepChat agents ve bunların yeni oturumlara ektiği varsayılanları yönetin.",
     "builtIn": "Yerleşik",
@@ -130,8 +235,8 @@
     "permissionFullAccess": "Tam erişim",
     "permissionDefault": "Varsayılan izin",
     "subagentsTitle": "Alt temsilciler",
-    "subagentsDescription": "Subagent_orchestrator'a sunulan yeniden kullanılabilir alt oturum yuvalarını yapılandırın.",
-    "subagentsEnabled": "subagents'yi etkinleştir",
+    "subagentsDescription": "Bu Agent'ın bağımsız alt görevleri devretmesine izin verin. Model, yapılandırılmış yuvaları ne zaman kullanacağına karar verir; devretme ek token, zaman ve sistem kaynağı kullanır.",
+    "subagentsEnabled": "Bu Agent'ın alt görevleri devretmesine izin ver",
     "subagentTargetType": "Hedef türü",
     "subagentTargetSelf": "öz",
     "subagentTargetAgent": "Agent",
@@ -141,6 +246,16 @@
     "subagentLimit": "{count}/{max} yuvaları",
     "addSubagentSlot": "+ Yuva Ekle",
     "toolsTitle": "Yerleşik Araçlar",
+    "outputLimitsTitle": "Gelişmiş çıktı sınırları",
+    "outputLimitsDescription": "Bu Ajan için satır içinde tutulacak araç çıktısı miktarını denetleyin.",
+    "outputLimitsSafetyHint": "Model bağlamı denetimi, sığmayan sonuçları yine de dosyaya aktarabilir veya reddedebilir.",
+    "outputLimitsReset": "Varsayılanları sıfırla",
+    "outputLimitsReadFile": "Dosya okuma",
+    "outputLimitsReadFileHint": "Okuma işleminde açık bir sınır belirtilmediğinde döndürülecek karakter sayısı.",
+    "outputLimitsTool": "Araç çıktısı",
+    "outputLimitsToolHint": "Desteklenen yüksek çıktılı araçlar için satır içi sınır.",
+    "outputLimitsCommand": "Komut çıktısı",
+    "outputLimitsCommandHint": "exec ve beceri betikleri için ön plan önizlemesi.",
     "compactionTitle": "Otomatik Sıkıştırma",
     "compactionEnabled": "Otomatik sıkıştırmayı etkinleştir",
     "compactionDescription": "Bu varsayılanlar yalnızca gelecekteki DeepChat oturumlarını etkiler.",
@@ -160,14 +275,23 @@
       "tabMemories": "Anılar",
       "tabPersona": "Persona zaman çizelgesi",
       "memoriesCount": "{count} anı",
-      "clearAll": "Tümünü temizle",
-      "clearConfirmTitle": "Tüm anılar temizlensin mi?",
-      "clearConfirmBody": "Bu, bu aracının tüm anılarını kalıcı olarak kaldırır. Geri alınamaz.",
+      "clearAll": "Anıları temizle",
+      "clearConfirmTitle": "Olgusal anılar ve persona temizlensin mi?",
+      "clearConfirmBody": "Bu, bu aracının olgusal anılarını ve personasını kalıcı olarak kaldırır. Kalıcı yönergeler korunur ve ayrı olarak yönetilebilir. Geri alınamaz.",
+      "cleanupPendingRestart": "Kilitli vektör dosyaları yeniden başlatmanın ardından silinecek",
       "emptyMemories": "Henüz anı yok. Bu aracıyla sohbet ettikçe birikir.",
       "emptyPersona": "Henüz öz-model sürümü yok.",
       "personaActive": "Etkin",
       "rollback": "Geri al",
       "actionFailed": "İşlem başarısız",
+      "commandRejected": {
+        "unavailable": "Bellek geçici olarak kullanılamıyor. Tekrar deneyin.",
+        "notFound": "Bu bellek artık mevcut değil. Görünüm yenilendi.",
+        "invalidState": "Bu işlem artık geçerli değil. Görünüm yenilendi.",
+        "conflict": "Tekrar denemeden önce bellek çakışmasını çözün.",
+        "stale": "Bu bellek değişti. Görünüm yenilendi; tekrar deneyin.",
+        "anchored": "Geri almadan önce etkin kişiliğin sabitlemesini kaldırın."
+      },
       "conflict": "Çakışma",
       "restore": "Geri yükle",
       "sourceLine": "{session} oturumundan · {count} kayıt",
@@ -211,6 +335,7 @@
       "searchPlaceholder": "Anılarda ara",
       "noSearchResults": "Aramanızla eşleşen anı yok.",
       "addMemory": "Anı ekle",
+      "loadMore": "Daha fazla yükle",
       "addContentPlaceholder": "Bu asistanın hatırlamasını istediğiniz şey…",
       "addCategoryLabel": "Bellek kategorisi",
       "addCategoryNone": "Kategori yok",
@@ -446,8 +571,6 @@
     "resetAllDesc": "Sohbet geçmişi, yapılandırmalar ve önbellek dosyaları dahil tüm verileri silin",
     "resetting": "Sıfırlanıyor...",
     "confirmReset": "Sıfırlamayı Onayla",
-    "resetCompleteDevTitle": "Veri Sıfırlama Tamamlandı",
-    "resetCompleteDevMessage": "Lütfen uygulamayı geliştirme modunda manuel olarak yeniden başlatın. Mevcut işlemi durdurun ve pnpm run dev'i tekrar çalıştırın",
     "toast": {
       "backupSuccessTitle": "Yedekleme başarılı",
       "backupSuccessMessage": "Veriler başarıyla yedeklendi"
@@ -548,7 +671,33 @@
       "clearedTitle": "YoBrowser verileri temizlendi",
       "clearedDescription": "Korumalı alan oturumu sıfırlandı ve ilgili sekme yeniden yüklenecek.",
       "clearFailedTitle": "Temizleme başarısız oldu",
-      "clearFailedDescription": "Lütfen tekrar deneyin veya daha fazla bilgi için günlükleri kontrol edin."
+      "clearFailedDescription": "Lütfen tekrar deneyin veya daha fazla bilgi için günlükleri kontrol edin.",
+      "import": {
+        "button": "Import website data",
+        "title": "Import browser session data",
+        "description": "Choose a Chrome or Arc profile. macOS may ask you to authorize Keychain access. The source is never modified.",
+        "scanning": "Looking for browser profiles...",
+        "unsupportedTitle": "Not supported on this platform",
+        "unsupportedDescription": "Direct browser data import is currently available only on macOS. Windows remains unsupported because current Chrome data is app-bound.",
+        "profileLabel": "Source profile",
+        "profilePlaceholder": "Select a profile",
+        "noProfiles": "No supported Chrome or Arc profiles with cookie data were found.",
+        "cookies": "Cookies and sessions",
+        "supported": "Included in this import",
+        "otherData": "Passwords and web storage",
+        "notIncluded": "Not included in this version",
+        "preview": "Authorize and preview",
+        "previewTitle": "Ready to replace YoBrowser cookies",
+        "previewDescription": "{count} cookies can be imported. Existing YoBrowser cookies will be replaced.",
+        "skipped": "Skipped: {expired} expired, {partitioned} partitioned.",
+        "confirm": "Replace and import",
+        "doneTitle": "Import complete",
+        "doneDescription": "Imported {count} cookies. Open browser pages were reloaded.",
+        "keyDenied": "Keychain access was denied or the browser key could not be read.",
+        "previewExpired": "The source changed or the preview expired. Create a new preview.",
+        "encryptionUnsupported": "This profile uses an encryption format that this importer does not support.",
+        "failed": "Import failed before completion. Existing YoBrowser cookies were restored when mutation had started."
+      }
     },
     "privacyTitle": "Veri ve Gizlilik",
     "privacyDescription": "Yedeklemeyi, senkronizasyonu, gizlilik modunu, bakımı ve tehlikeli işlemleri yönetin.",
@@ -690,7 +839,7 @@
   "dashboard": {
     "badge": "Kullanım Kontrol Paneli",
     "title": "Kullanım Kontrol Paneli",
-    "description": "token kullanımını, önbellek isabetlerini ve tahmini maliyeti izleyin. token ve maliyet rakamları kamuya açık bilgilere dayanılarak tahmin edilmiştir ve bazı sağlayıcılar veya daha önceki mesajlar eksik olabilir; dolayısıyla bu rakamları yalnızca referans olarak değerlendirin.",
+    "description": "Token kullanımını ve önbellek isabetlerini izleyin.",
     "actions": {
       "refresh": "Yenile"
     },
@@ -706,8 +855,8 @@
     },
     "empty": {
       "title": "Henüz kullanım istatistiği yok",
-      "description": "token kullanımı, önbellek isabetleri ve tahmini maliyet, kullanım verileri hazır olduğunda burada görünecektir.",
-      "historyNote": "token ve maliyet rakamları kamuya açık bilgilerden tahmin edilmektedir. Bazı sağlayıcılar veya daha önceki mesajlar eksik olabilir; dolayısıyla bu rakamları yalnızca referans olarak değerlendirin."
+      "description": "Kullanım verileri hazır olduğunda token kullanımı ve önbellek isabetleri burada görünür.",
+      "historyNote": "Bazı sağlayıcıların veya önceki mesajların kullanım verileri eksik olabilir."
     },
     "summary": {
       "totalTokens": "Toplam tokens",
@@ -719,11 +868,7 @@
       "cachedTokensCachedLabel": "Önbelleğe alındı",
       "cachedTokensUncachedLabel": "Önbelleğe alınmamış",
       "cacheHitRate": "Önbellek isabet oranı",
-      "cacheHitRateDescription": "Önbelleğe alınan prompt tokens toplam giriş tokens'ye bölünür.",
-      "estimatedCost": "Tahmini maliyet",
-      "estimatedCostDescription": "Sağlayıcı fiyatlandırması veya AIHubMix geri dönüş fiyatlandırması kullanılarak ABD doları cinsinden tahmin edilir.",
-      "estimatedCostTrendLabel": "Son 30 gündeki trend",
-      "estimatedCostTrendEmpty": "Son 30 gün içinde hiçbir maliyet kaydedilmedi.",
+      "cacheHitRateDescription": "Önbelleğe alınmış istem tokenlerinin, önbellek ölçümleri bildiren kullanım kayıtlarındaki giriş tokenlerine oranı.",
       "recordingStartedAt": "Kayıt başladı",
       "recordingStartedAtDescription": "Şu anda bu kontrol panelinde saklanan en eski kullanım kaydı.",
       "withDeepChatDaysLabel": "Birlikte geçirdiğimiz günler",
@@ -753,9 +898,18 @@
     },
     "breakdown": {
       "providerTitle": "En iyi sağlayıcılar",
-      "providerDescription": "Tahmini maliyete ve ardından toplam tokens'ye göre sıralanır.",
+      "providerDescription": "Toplam token sayısına göre sıralanır.",
       "modelTitle": "En iyi modeller",
-      "modelDescription": "Tahmini maliyete göre ilk 10 model, ardından toplam tokens.",
+      "modelDescription": "Toplam token sayısına göre en iyi 10 model.",
+      "categoryTitle": "Etkinliğe göre kullanım",
+      "categoryDescription": "Konuşma kullanımını bağlam sıkıştırmaya yönelik dahili model çağrılarından ayırır.",
+      "category": {
+        "chat": "Konuşma",
+        "compaction": "Bağlam sıkıştırma"
+      },
+      "chatEvents": "{count} mesaj",
+      "compactionEvents": "{count} model çağrısı",
+      "unknownUsage": "{count} kullanım bilinmiyor",
       "messages": "{count} mesajları",
       "empty": "Henüz arıza verisi yok."
     },
@@ -791,9 +945,17 @@
     "unavailable": "N/A"
   },
   "modelConfigItem": {
-    "chatFallbackWarning": "Zayıf Agent özelliği: yalnızca eski geri dönüş aracı çağrılarını destekler"
+    "chatFallbackWarning": "Zayıf Agent özelliği: yalnızca eski geri dönüş aracı çağrılarını destekler",
+    "capability": {
+      "vision": "Görsel yetenek",
+      "functionCall": "Fonksiyon çağırma yeteneği",
+      "reasoning": "Akıl yürütme yeteneği",
+      "search": "Web arama yeteneği"
+    }
   },
   "model": {
+    "temperatureFixedByPolicy": "Bu model sıcaklığı {value} olarak sabitler.",
+    "topPFixedByPolicy": "Bu model Top P değerini {value} olarak sabitler.",
     "title": "Modeli Ayarları",
     "systemPrompt": {
       "label": "Sistem prompt",
@@ -857,8 +1019,7 @@
       },
       "temperature": {
         "label": "Sıcaklık",
-        "description": "Çıktının rastgeleliğini kontrol edin. Çoğu model 0-1'dir ve bazıları 0-2 arasındadır. Daha yüksek değerler rastgeleliği artırır.",
-        "fixedMoonshotKimi": "Moonshot Kimi K2.5/K2.6, düşünme etkinleştirildiğinde sıcaklığı {enabled}'ye ve devre dışı bırakıldığında {disabled}'ye sabitler."
+        "description": "Çıktının rastgeleliğini kontrol edin. Çoğu model 0-1'dir ve bazıları 0-2 arasındadır. Daha yüksek değerler rastgeleliği artırır."
       },
       "topP": {
         "label": "Top P",
@@ -1080,6 +1241,11 @@
     }
   },
   "provider": {
+    "customHeaders": {
+      "title": "Özel İstek Başlıkları",
+      "description": "Dize değerleri içeren bir JSON nesnesi girin.",
+      "parseError": "Özel Başlık ayrıştırma işlemi başarısız oldu"
+    },
     "search": "Sağlayıcı platformlarında arama yapın…",
     "enable": "Hizmeti Etkinleştir",
     "enabled": "Etkinleştirilmiş",
@@ -1114,6 +1280,7 @@
     "urlFormat": "API örneği: {defaultUrl}",
     "urlFormatFill": "API URL alanını doldurun",
     "openaiResponsesNotice": "OpenAI varsayılan olarak Responses API değerine sahiptir. Üçüncü taraf uç noktası yalnızca Chat Completions'yi destekliyorsa OpenAI Completions sağlayıcısını kullanın.",
+    "amdDeveloperHint": "AMD GPU Cloud, Radeon Token Factory üzerinden genel kullanıma açık model API'leri sunar. Şu anda kullanılabilen modellere erişmek için AMD'den bir API anahtarı alın.",
     "modifyBaseUrl": "Değiştir",
     "baseUrlLockedHint": "Bu sağlayıcı, yanlış yapılandırmayı azaltmak için önerilen Base URL'ye sabitlenmiştir.",
     "refreshModelsWithMetadataHint": "Bu sağlayıcının yenilenmesi, önce yukarı akış meta verilerini senkronize edecek, ardından yerel model listesini yeniden oluşturacaktır.",
@@ -1394,7 +1561,63 @@
     "openaiCodexCallbackTitle": "Kimlik doğrulamayı tamamla",
     "openaiCodexCallbackDescription": "Tarayıcı işlemi tamamladıktan sonra DeepChat'e dönün. DeepChat güncellenmezse tam geri çağırma URL'sini buraya yapıştırın.",
     "openaiCodexCallbackPlaceholder": "Tam geri çağırma URL'sini yapıştır",
-    "openaiCodexCompleteAuthentication": "Kimlik doğrulamayı tamamla"
+    "openaiCodexCompleteAuthentication": "Kimlik doğrulamayı tamamla",
+    "xaiGrokAuth": "xAI Grok OAuth",
+    "xaiGrokConnected": "xAI Grok bağlı",
+    "xaiGrokNotConnected": "xAI Grok bağlı değil",
+    "xaiGrokPendingDevice": "Cihaz yetkilendirmesi bekleniyor",
+    "xaiGrokDisabled": "xAI Grok OAuth devre dışı",
+    "xaiGrokError": "xAI Grok yetkilendirmesi başarısız oldu",
+    "xaiGrokAccount": "Hesap",
+    "xaiGrokSignInDevice": "SuperGrok / Premium+ ile oturum aç",
+    "xaiGrokReconnect": "Yeniden bağlan",
+    "xaiGrokSignOut": "Oturumu kapat",
+    "xaiGrokCancel": "İptal",
+    "xaiGrokOpenVerification": "Doğrulama sayfasını aç",
+    "xaiGrokLoginTip": "SuperGrok veya X Premium+ için xAI cihaz kodu OAuth kullanır. Token'lar API anahtarlarından ayrı saklanır. Console API anahtarları aşağıda desteklenmeye devam eder.",
+    "xaiGrokApiKeyAlternative": "Veya bir xAI Console API anahtarı kullanın:",
+    "browseAll": "Tüm sağlayıcılara göz at",
+    "updateKey": "Anahtarı güncelle",
+    "sidebar": {
+      "configured": "Yapılandırılmış",
+      "disabledTag": "Kapalı",
+      "empty": "Henüz yapılandırılmış sağlayıcı yok. Birini kurmak için tüm sağlayıcılara göz atın."
+    },
+    "menu": {
+      "enable": "Etkinleştir",
+      "disable": "Devre dışı bırak",
+      "rename": "Yeniden adlandır",
+      "delete": "Sil"
+    },
+    "health": {
+      "verified": "Doğrulandı",
+      "checking": "Kontrol ediliyor",
+      "needsAttention": "İlgilenilmeli",
+      "notChecked": "Kontrol edilmedi",
+      "lastChecked": "Son kontrol {time}"
+    },
+    "catalog": {
+      "title": "Tüm sağlayıcılara göz at",
+      "description": "Kurulumu başlatmak için bir sağlayıcı seçin. Yapılandırıldıktan sonra kenar çubuğunda görünecek.",
+      "searchPlaceholder": "Sağlayıcı ara...",
+      "noResults": "Eşleşen sağlayıcı yok",
+      "configured": "Yapılandırıldı"
+    },
+    "addFlow": {
+      "connect": "Bağlan ve modelleri yükle",
+      "validating": "Bağlantı doğrulanıyor...",
+      "loadingModels": "Modeller yükleniyor...",
+      "failed": "Bağlantı başarısız. Yapılandırmayı kontrol edip yeniden deneyin.",
+      "successTitle": "{name} bağlandı",
+      "successDescription": "{count} model yüklendi ve {selected} tanesi önceden seçildi. Seçimi aşağıdan ayarlayabilirsiniz.",
+      "successNoModels": "Bağlandı. Henüz kullanılabilir model yok.",
+      "startChatting": "Sohbete başla",
+      "viewModels": "Modelleri görüntüle"
+    },
+    "stagedUpdate": {
+      "failedTitle": "Güncelleme uygulanmadı",
+      "failedDescription": "Yeni yapılandırma doğrulamayı geçemedi; önceki çalışan yapılandırma korundu."
+    }
   },
   "knowledgeBase": {
     "title": "Bilgi Bankası Ayarları",
@@ -1510,7 +1733,15 @@
       "seconds": "saniye",
       "testConnection": "Bağlantıyı Test Et",
       "timeout": "Zaman aşımı",
-      "title": "Nowledge Bellek Dışa Aktarma"
+      "title": "Nowledge Bellek Dışa Aktarma",
+      "configLoadFailed": "Yapılandırma yüklenemedi",
+      "configSaved": "Yapılandırma kaydedildi",
+      "configSaveFailed": "Yapılandırma kaydedilemedi",
+      "configReset": "Yapılandırma sıfırlandı",
+      "configResetFailed": "Yapılandırma sıfırlanamadı",
+      "connectionSucceeded": "Bağlantı başarılı",
+      "connectionFailed": "Mevcut yapılandırmayla bağlantı kurulamadı",
+      "invalidBaseUrl": "Kimlik bilgileri veya sorgu parametreleri içermeyen bir HTTP ya da HTTPS adresi girin"
     }
   },
   "mcp": {
@@ -1556,13 +1787,14 @@
       "name": "Sunucu Adı",
       "namePlaceholder": "Sunucu adını girin",
       "nameRequired": "Sunucu adı gerekli",
+      "nameDuplicate": "Bu ada sahip bir sunucu zaten var.",
       "type": "Sunucu Türü",
       "typePlaceholder": "Sunucu türünü seçin",
       "typeStdio": "Standart giriş ve çıkış (Stdio)",
       "typeSse": "Sunucu Tarafından Gönderilen Etkinlikler (SSE)",
       "typeInMemory": "Bellek İçi",
       "typeHttp": "HTTP İsteklerinin Akışı (HTTP)",
-      "baseUrl": "Base URL",
+      "baseUrl": "Temel URL",
       "baseUrlPlaceholder": "URL sunucu tabanını girin (ör. http://localhost:3000)",
       "command": "Emretmek",
       "commandPlaceholder": "Komutu girin",
@@ -1583,11 +1815,6 @@
       "iconPlaceholder": "Simgeyi girin",
       "icons": "Simge",
       "iconsPlaceholder": "Simgeyi girin",
-      "autoApprove": "Otomatik Onayla",
-      "autoApproveAll": "Tüm",
-      "autoApproveRead": "Okumak",
-      "autoApproveWrite": "Yazmak",
-      "autoApproveHelp": "Kullanıcı onayı olmadan otomatik onaylanacak işlem türlerini seçin",
       "submit": "Göndermek",
       "add": "Eklemek",
       "update": "Güncelleme",
@@ -1620,7 +1847,42 @@
       "e2bApiKey": "E2B APIKey",
       "e2bApiKeyPlaceholder": "E2B API Anahtarlarınızı buraya girin, örneğin e2b_1111xx*******",
       "e2bApiKeyHelp": "APIKey'inizi almak için e2b.dev'e gidin",
-      "e2bApiKeyRequired": "E2B işlevini etkinleştirmek için APIKey girilmelidir"
+      "e2bApiKeyRequired": "E2B işlevini etkinleştirmek için APIKey girilmelidir",
+      "sseCompatibilityBadge": "Uyumluluk",
+      "sseMigrationHint": "SSE yalnızca eski sürümlerle uyumluluk içindir. Kullanılabildiğinde bu sunucuyu Streamable HTTP'ye taşıyın.",
+      "authorizationMode": "Yetkilendirme modu",
+      "authorizationInteractive": "Etkileşimli OAuth",
+      "authorizationNone": "OAuth yok",
+      "authorizationClientCredentials": "İstemci kimlik bilgileri (taslak)",
+      "authorizationPrivateKeyJwt": "Özel anahtar JWT",
+      "authorizationEnterprise": "Kurumsal uygulamalar arası erişim",
+      "authorizationHelp": {
+        "none": "OAuth akışı kullanmayın. Yapılandırılmışsa statik Authorization üstbilgisi önceliğini korur.",
+        "interactive": "Sistem tarayıcısını açın ve PKCE ile yetkilendirme kodu akışını tamamlayın.",
+        "client_credentials": "Bu sunucuyu korumalı bir gizli değerle makine istemcisi olarak doğrulayın.",
+        "private_key_jwt": "Bu sunucuyu korumalı bir özel anahtarla makine istemcisi olarak doğrulayın.",
+        "cross_app_access": "Onaylanmış bir kurumsal kimliği bu korumalı kaynağa erişimle değiştirin."
+      },
+      "authorizationHeaderOverride": "Statik bir Authorization üstbilgisi yapılandırılmıştır ve bu OAuth modundan önceliklidir.",
+      "protectedResourceUrl": "Korumalı kaynak URL'si",
+      "protectedResourceUrlPlaceholder": "https://mcp.example.com",
+      "authorizationServerIssuer": "Yetkilendirme sunucusu yayıncısı",
+      "authorizationServerIssuerPlaceholder": "https://auth.example.com",
+      "clientMetadataUrl": "İstemci meta verisi URL'si",
+      "authorizationClientId": "İstemci kimliği",
+      "authorizationScopes": "Kapsamlar",
+      "authorizationScopesPlaceholder": "read write",
+      "keyAlgorithm": "Anahtar algoritması",
+      "identityProfile": "Kurumsal kimlik profili",
+      "identityProfilePlaceholder": "Bir kimlik profili seçin",
+      "privateKey": "Özel anahtar",
+      "clientSecret": "İstemci gizli değeri",
+      "removeCredential": "Kayıtlı kimlik bilgisini kaldır",
+      "credentialConfiguredPlaceholder": "Korumalı bir kimlik bilgisi zaten yapılandırılmış",
+      "credentialConfigured": "Kimlik bilgisi yapılandırıldı",
+      "credentialMemoryOnly": "Bu kimlik bilgisi yalnızca bellekte saklanır ve DeepChat kapatıldığında kaybolur.",
+      "credentialRemoveError": "Korumalı kimlik bilgisi kaldırılamadı",
+      "credentialSaveError": "Korumalı kimlik bilgisi kaydedilemedi"
     },
     "deleteServer": "Sunucuyu Sil",
     "editServer": "Sunucuyu Düzenle",
@@ -1721,7 +1983,53 @@
     "authCallbackPlaceholder": "Tam geri çağırma URL'sini yapıştır",
     "completeAuthentication": "Kimlik doğrulamayı tamamla",
     "saveSuccess": "Yapılandırma kaydedildi",
-    "saveFailed": "Yapılandırma kaydedilemedi"
+    "saveFailed": "Yapılandırma kaydedilemedi",
+    "enterpriseProfiles": {
+      "title": "Kurumsal kimlikler",
+      "description": "MCP kurumsal yetkilendirmesinde kullanılan yeniden kullanılabilir OpenID Connect kimliklerini yönetin.",
+      "label": "Profil adı",
+      "issuer": "OpenID yayıncısı",
+      "clientId": "İstemci kimliği",
+      "scopes": "Kapsamlar",
+      "clientAuthentication": "Kimlik sağlayıcı istemci doğrulaması",
+      "publicClient": "Genel istemci",
+      "confidentialClient": "İstemci gizli değeri",
+      "clientSecret": "Kimlik sağlayıcının istemci gizli değeri",
+      "clientSecretMissing": "Oturum açmadan önce bir istemci gizli değeri yapılandırılmalıdır.",
+      "authenticated": "Doğrulandı",
+      "signIn": "Oturum aç",
+      "signOut": "Oturumu kapat",
+      "callbackUrl": "Geri çağırma URL'si",
+      "empty": "Kurumsal kimlik profili yok.",
+      "loadError": "Kurumsal kimlikler yüklenemedi",
+      "saveError": "Kurumsal kimlik kaydedilemedi",
+      "authError": "Kurumsal oturum açma başarısız",
+      "removeError": "Kurumsal kimlik kaldırılamadı",
+      "removeTitle": "Kurumsal kimlik kaldırılsın mı?",
+      "removeDescription": "{name} ve ona bağlı tüm kimlik bilgileri kaldırılsın mı?",
+      "status": {
+        "signed_out": "Oturum kapalı",
+        "authenticating": "Doğrulanıyor",
+        "authenticated": "Doğrulandı",
+        "error": "Hata"
+      }
+    },
+    "diagnostics": {
+      "title": "MCP tanılama",
+      "serverId": "Sunucu kimliği",
+      "owner": "Sahip",
+      "transport": "Aktarım",
+      "connectionState": "Bağlantı",
+      "era": "Protokol dönemi",
+      "serverImplementation": "Sunucu uygulaması",
+      "probe": "Müzakere yoklaması",
+      "extensions": "Sunucu uzantıları",
+      "clientExtensions": "İstemci uzantıları",
+      "cache": "Önbellek",
+      "subscriptions": "Abonelikler",
+      "auth": "Yetkilendirme",
+      "copy": "Tanılamayı kopyala"
+    }
   },
   "about": {
     "title": "Hakkımızda",
@@ -1779,8 +2087,6 @@
     "description": "DeepChat tarafından başlatılan yerel Agent İstemci Protokolü agents'yi yönetin.",
     "enabledTitle": "ACP'yi etkinleştir",
     "enabledDescription": "Etkinleştirildiğinde, yapılandırılmış ACP agents seçicide model olarak görünecektir.",
-    "useBuiltinRuntimeTitle": "DeepChat Yerleşik Çalışma Zamanını Kullan",
-    "useBuiltinRuntimeDescription": "Etkinleştirildiğinde, DeepChat'nin paketlenmiş sürümlerini kullanarak sistem node ve uv komutlarını atlar.",
     "enableToAccess": "agents'yi yapılandırmak için ACP'yi etkinleştirin.",
     "registryInstallEntry": "Agent'yi yükleyin",
     "registryInstallEntryDescription": "ACP Registry'den agents'yi arayın ve yükleyin, ardından bunları etkinleştirmek ve yapılandırmak için buraya geri dönün.",
@@ -1885,6 +2191,25 @@
       "cannotDeleteTitle": "En az bir profili koruyun",
       "cannotDeleteDesc": "Yerleşik agents en az bir yapılandırma gerektirir.",
       "noAgent": "Profillerini yönetmek için bir agent seçin."
+    },
+    "auth": {
+      "title": "Sign in to {name}",
+      "description": "Choose an authentication method. Credentials stay with the agent process.",
+      "requiredTitle": "{name} needs sign-in",
+      "requiredDescription": "Authenticate before starting this chat.",
+      "checkSignIn": "Check sign-in",
+      "openTerminal": "Open terminal",
+      "cancelSignIn": "Cancel sign-in",
+      "unsupported": "This authentication method is not supported. Configure its environment variables manually.",
+      "noMethods": "The agent did not provide an authentication method that DeepChat can use.",
+      "status": {
+        "required": "Authentication required",
+        "running": "Signing in",
+        "reconnecting": "Reconnecting",
+        "succeeded": "Ready",
+        "cancelled": "Cancelled",
+        "failed": "Failed"
+      }
     },
     "terminal": {
       "title": "Başlatma Terminali",
@@ -1994,7 +2319,7 @@
   },
   "skills": {
     "title": "Skills",
-    "description": "Yapay zeka asistanını yönetin ve yapılandırın skills",
+    "description": "Tüm Skill'lere göz atın. Bir Skill'i açarak önizleyin ve etkin Agents'ı yönetin.",
     "draftSuggestions": {
       "title": "Skill Taslakları Önerin",
       "description": "Bir görev tamamlandıktan sonra, agent'nin geçici olarak yeniden kullanılabilir skill taslakları önermesine izin verin. Taslaklar, siz bunları manuel olarak içe aktarmayı seçene kadar geçici klasörde kalır."
@@ -2002,7 +2327,7 @@
     "openFolder": "Klasörü Aç",
     "addSkill": "Skill ekle",
     "empty": "Henüz skills yok",
-    "emptyHint": "Yeni bir skill yüklemek için \"Skill Ekle\"ye tıklayın",
+    "emptyHint": "Harici bir Agent'tan Skills içe aktarın.",
     "noResults": "Eşleşen skills bulunamadı",
     "search": "skills'da ara...",
     "count": "{count} skills",
@@ -2040,8 +2365,6 @@
       "env": "{count} ortam",
       "pythonShort": "Py",
       "nodeShort": "Node",
-      "enabled": "Enabled",
-      "disabled": "Disabled",
       "enable": "Enable in DeepChat",
       "disable": "Disable in DeepChat",
       "viewDetails": "Ayrintilari gor",
@@ -2097,6 +2420,32 @@
       "title": "Skill Zaten Var",
       "description": "\"{name}\" adlı bir skill zaten mevcut. Üzerine yazmak istiyor musunuz?",
       "overwrite": "Üzerine yaz"
+    },
+    "agentImport": {
+      "menuItem": "Harici Agent’tan içe aktar",
+      "title": "Harici Agent’tan içe aktar",
+      "description": "Doğrulanmış Skills öğelerini DeepChat’e aktarın. Her Skill önizlemesinden Agents öğelerini etkinleştirin.",
+      "resultPartial": "İçe aktarma hatalarla tamamlandı",
+      "resultSuccess": "İçe aktarma tamamlandı",
+      "sourceTitle": "Kaynak Agent",
+      "emptySources": "İçe aktarma kaynağı yok",
+      "skillCount": "{count} Skills",
+      "previewTitle": "İçe aktarılacak Skills",
+      "emptyPreview": "Kullanılabilir Skills yok",
+      "status": {
+        "ready": "Hazır",
+        "conflict": "Çakışma",
+        "unavailable": "Kullanılamıyor",
+        "same": "Zaten eklendi"
+      },
+      "strategy": {
+        "skip": "Atla",
+        "rename": "Yeniden adlandır",
+        "overwrite": "Üzerine yaz"
+      },
+      "overwriteImpact": "Bu Skill’in üzerine yazmak etkin Agents öğelerini etkiler: {agents}.",
+      "resultSummaryV3": "İçe aktarılan: {imported}, yeniden kullanılan: {reused}, atlanan: {skipped}, başarısız: {failed}.",
+      "execute": "Seçilenleri içe aktar"
     },
     "sync": {
       "title": "Senkronizasyon",
@@ -2188,111 +2537,6 @@
       "skip": "Atlamak",
       "importSelected": "Seçileni İçe Aktar"
     },
-    "tabs": {
-      "library": "Library",
-      "agents": "Agents",
-      "syncDirectory": "Senkron dizini"
-    },
-    "agents": {
-      "title": "Agents",
-      "summary": "{count} supported agent(s)",
-      "refresh": "Refresh",
-      "empty": "No supported agents found.",
-      "emptySkills": "No skills found for this agent.",
-      "loadFailed": "Failed to load agent skills",
-      "conflictCount": "{count} conflict",
-      "table": {
-        "skill": "Skill",
-        "owner": "Owner",
-        "status": "Status",
-        "action": "Action",
-        "preview": "Onizleme"
-      },
-      "owner": {
-        "deepchat": "DeepChat",
-        "external-link": "External",
-        "broken-link": "Broken link",
-        "unknown": "Unknown"
-      },
-      "status": {
-        "linked": "Linked",
-        "agent-owned": "Agent owned",
-        "linked-out": "Linked out",
-        "broken-link": "Broken link",
-        "conflict": "Conflict",
-        "empty": "Empty"
-      },
-      "actions": {
-        "adopt": "Adopt",
-        "resolve-conflict": "Resolve",
-        "repair-link": "Repair",
-        "remove-link": "Remove",
-        "open": "Open",
-        "pending": "Write actions are enabled in a later phase.",
-        "view": "Gor"
-      },
-      "agentStatus": {
-        "ready": "Ready",
-        "detected-no-skills-dir": "No skills directory",
-        "permission-denied": "Permission denied"
-      },
-      "counts": {
-        "skills": "{count} skill(s)",
-        "linked": "{count} linked",
-        "agentOwned": "{count} agent owned",
-        "conflicts": "{count} conflict(s)",
-        "broken": "{count} broken"
-      },
-      "adoptDialog": {
-        "adoptTitle": "Adopt Skill",
-        "conflictTitle": "Resolve Conflict",
-        "adoptDescription": "Copy this skill into DeepChat, back up the original, and replace the agent entry with a link.",
-        "conflictDescription": "{skill} already exists in DeepChat. The default action keeps the current DeepChat skill and adopts this agent skill as a renamed copy.",
-        "loading": "Preparing adoption preview...",
-        "previewFailed": "Failed to prepare adoption preview",
-        "executeFailed": "Failed to adopt skill",
-        "currentLocation": "Current location",
-        "afterAdoption": "After adoption",
-        "backup": "Backup",
-        "chooseAction": "Choose action",
-        "adoptAs": "Adopt as {name}",
-        "replaceDeepChat": "Replace existing DeepChat skill",
-        "keepCurrent": "Keep current state",
-        "unsupportedStrategies": "Replace and keep strategies are not available in this build.",
-        "warnings": "Warnings",
-        "apply": "Apply",
-        "linkArrow": "-> DeepChat skill",
-        "successTitle": "Skill adopted",
-        "successDescription": "{name} is now managed by DeepChat."
-      },
-      "syncToAgent": "Sync to Agent",
-      "syncDialog": {
-        "title": "Sync to {agent}",
-        "description": "Create DeepChat-owned links for selected skills. Existing agent content is skipped.",
-        "target": "Target",
-        "deepchatSkills": "DeepChat skills",
-        "empty": "No linkable DeepChat skills.",
-        "preview": "Preview",
-        "loading": "Preparing link preview...",
-        "noSelection": "Select at least one skill.",
-        "apply": "Apply",
-        "failed": "Failed to sync skills",
-        "successTitle": "Skills synced",
-        "successDescription": "{count} skill(s) linked.",
-        "status": {
-          "ready": "Ready",
-          "already-linked": "Already linked",
-          "conflict": "Conflict",
-          "missing": "Missing"
-        }
-      },
-      "linkAction": {
-        "repairSuccess": "Link repaired",
-        "removeSuccess": "Link removed",
-        "successDescription": "{name} updated.",
-        "failed": "Failed to update link"
-      }
-    },
     "git": {
       "title": "Git",
       "description": "Bir Git deposunu tara ve seçili skill’leri DeepChat’e yükle.",
@@ -2324,7 +2568,6 @@
       "saved": "Eşitleme dizini kaydedildi",
       "export": "Dizine aktar",
       "import": "Dizinden ice aktar",
-      "includeDisabled": "Devre dışı skill’leri dahil et",
       "previewExport": "Dışa aktarmayı önizle",
       "exportNow": "Şimdi dışa aktar",
       "previewImport": "İçe aktarmayı önizle",
@@ -2377,7 +2620,13 @@
       "edit": "Düzenle",
       "delete": "Sil",
       "confirmDeleteTitle": "skill sil",
-      "confirmDeleteDescription": "\"{name}\" skill silinsin mi? Bu işlem geri alınamaz."
+      "confirmDeleteDescription": "\"{name}\" skill silinsin mi? Bu işlem geri alınamaz.",
+      "enabledAgents": "Enabled Agents",
+      "enabledAgentsHint": "These Agents can use this Skill.",
+      "noEnabledAgents": "No Agent uses this Skill yet.",
+      "addAgent": "Add Agent",
+      "removeAgent": "Remove {agent}",
+      "agentUpdateFailed": "Failed to update enabled Agents"
     },
     "installToAgent": {
       "title": "{name} skillini Agent a yukle",
@@ -2395,6 +2644,17 @@
       "disconnectSuccess": "Agent bağlantısı kesildi",
       "disconnectSuccessMessage": "{name} artık hedef Agent ile bağlantılı değil.",
       "disconnectFailed": "Agent bağlantısı kesilemedi"
+    },
+    "impact": {
+      "changed": "Enabled Agents changed. Review the impact and try again.",
+      "editEnabled": "Content changes apply to these Agents on their next Run: {agents}.",
+      "editUnused": "No Agent currently uses this Skill.",
+      "confirmDeleteEnabled": "Delete {name}? It is enabled for: {agents}.",
+      "confirmDeleteUnused": "Delete {name}? No Agent currently uses it."
+    },
+    "syncDirectory": {
+      "action": "Sync directory",
+      "back": "Back to Skills"
     }
   },
   "environments": {
@@ -2691,6 +2951,9 @@
     "enable": "Olanak vermek",
     "disable": "Devre dışı bırakmak",
     "openSettings": "Ayarlar",
+    "testRuntime": "Çalışma zamanını test et",
+    "retryRuntime": "Çalışma zamanını yeniden dene",
+    "quarantineDescription": "DeepChat, düzgün olmayan bir çıkıştan sonra bu çalışma zamanını durdurdu. Yalnızca masaüstünü denetlemek güvenliyken yeniden deneyin.",
     "runtime": "Çalışma zamanı",
     "runtimeState": "Durum",
     "version": "Sürüm",
@@ -2704,6 +2967,8 @@
       "missing": "Eksik",
       "installed": "Yüklendi",
       "running": "Koşma",
+      "readyOnDemand": "İstek üzerine hazır",
+      "quarantined": "Karantinada",
       "error": "Hata"
     }
   },
@@ -2833,7 +3098,7 @@
       "error": "Hata",
       "invalidAgent": "Ajan eksik veya devre dışı. Başka bir ajan seçin."
     },
-    "runNowSuccess": "Zamanlanmış görev başlatıldı"
+    "runNowSuccess": "Zamanlanmış görev tamamlandı"
   },
   "memory": {
     "description": "Her aracının oturumlar arasında neyi hatırladığını inceleyin, yapılandırın ve yönetin. Bellek her aracı için ayrıdır.",
@@ -2842,13 +3107,13 @@
     "tabConfig": "Yapılandırma",
     "tabManage": "Yönet",
     "config": {
-      "rootHint": "deepchat yerleşik aracıdır ve yapılandırma kökü: burada ayarlanan değerler, diğer aracıların devraldığı varsayılanlar olur.",
+      "rootHint": "deepchat korumalı, yerleşik bir aracıdır. Yapılandırması diğer tüm aracılardan bağımsızdır.",
       "extractionModel": "Bellek aracı modeli",
       "extractionModelHint": "Anıları çıkarmak ve yinelenenleri kaldırmak için kullanılan model. Seçilmezse sohbet modeline geri döner.",
       "injectionBudget": "Enjeksiyon bütçesi (token)",
-      "injectionBudgetHint": "Birleştirilmiş bellek enjeksiyonu için yaklaşık token üst sınırı. Varsayılanı ({default}) devralmak için boş bırakın.",
+      "injectionBudgetHint": "Birleştirilmiş bellek enjeksiyonu için yaklaşık token üst sınırı. Varsayılan değeri ({default}) kullanmak için boş bırakın.",
       "retrievalTitle": "Getirme sıralaması",
-      "retrievalHint": "Getirilen anıların nasıl sıralandığını geçersiz kılar; kapalıyken varsayılanları devralır.",
+      "retrievalHint": "Getirilen anıların nasıl sıralandığını özelleştirin; kapalıyken varsayılan sıralama kullanılır.",
       "retrievalOverride": "Getirme parametrelerini geçersiz kıl",
       "topK": "Getirme sayısı (topK)",
       "rrfK": "Füzyon sabiti (rrfK)",
@@ -2857,14 +3122,16 @@
       "weightRecency": "Ağırlık · güncellik",
       "weightImportance": "Ağırlık · önem",
       "advancedTitle": "Gelişmiş bellek ayarları",
-      "advancedHint": "Çıkarımı, istem bütçesini ve geri çağırma sıralamasını ayarlayın. Varsayılanları devralmak için alanları boş bırakın.",
-      "inheritedHint": "Boş bırakılırsa devralınan/varsayılan değer kullanılır.",
+      "advancedHint": "Çıkarımı, istem bütçesini ve geri çağırma sıralamasını ayarlayın. Varsayılanları kullanmak için alanları boş bırakın.",
+      "inheritedHint": "Boş alan varsayılan değeri kullanır.",
       "topKHint": "Aralık 1-100. Varsayılan: {default}.",
       "rrfKHint": "Aralık 1-1000. Varsayılan: {default}.",
       "similarityThresholdHint": "Aralık 0-1. Varsayılan: {default}.",
       "weightHint": "Negatif olmayan sıralama ağırlığı. Varsayılan: {default}."
     },
     "redesign": {
+      "reindexIncomplete": "Vektör dizini yeniden oluşturulamadı: {reason}. Bellek içeriği kaybolmadı; şu anda anahtar kelimeyle geri çağırma kullanılıyor.",
+      "reindexInternalReason": "Yerel gömme işlem hattı yeniden oluşturmayı tamamlayamadı.",
       "tabMemories": "Bellek",
       "tabPersona": "Kişilik",
       "tabDiagnostics": "Tanılama",
@@ -2908,7 +3175,7 @@
       "archivedMatches": "Arşivdeki eşleşmeler",
       "refresh": "Yenile",
       "inboxTitle": "Dikkat gerekiyor",
-      "inboxDescription": "Bellek çakışmalarını ve kişilik taslaklarını gözden kaybolmadan önce çözün.",
+      "inboxDescription": "Bellek çakışmalarını, kişilik taslaklarını ve önerilen yönergeleri gözden kaybolmadan önce çözün.",
       "conflictBadge": "{count} çakışma",
       "personaDraftBadge": "{count} kişilik taslağı",
       "conflictSectionTitle": "Bellek çakışmaları ({count})",
@@ -2955,7 +3222,48 @@
         "memory-persona-rollback": "Kişilik geri alındı",
         "memory-persona-anchor": "Kişilik çapası güncellendi",
         "memory-reindex": "Bellek yeniden indekslendi"
-      }
+      },
+      "tabDirectives": "Yönergeler",
+      "directiveDraftBadge": "{count} yönerge taslağı",
+      "directiveDraftSectionTitle": "Önerilen yönergeler ({count})",
+      "directiveCreateTitle": "Kalıcı yönerge oluştur",
+      "directiveCreateDescription": "Elle oluşturulan yönergeler hemen etkinleşir. Model önerileri siz onaylayana kadar taslak olarak kalır.",
+      "directiveRuntimeEnabled": "Çalışma zamanında uygulanır",
+      "directiveRuntimeDisabled": "Bellek kapalıyken etkin değil",
+      "directiveKindLabel": "Yönerge türü",
+      "directiveKind": {
+        "instruction": "Kalıcı talimat",
+        "suppress_topic": "Konuyu bastır"
+      },
+      "directiveTopicLabel": "Eşleşen konu",
+      "directiveTopicPlaceholder": "Geri çağrılan bellekten bastırılacak tam konu veya ifade",
+      "directiveTopicTooBroad": "CJK karakterleri içeren konuların ilgisiz anıları bastırmaması için en az {min} görünür karakter içermesi gerekir.",
+      "directiveContentLabel": "Talimat",
+      "directiveInstructionPlaceholder": "Bu ajan için kalıcı bir talimat yazın.",
+      "directiveSuppressPlaceholder": "Ajanın bu konuyu nasıl ele alması gerektiğini açıklayın.",
+      "directiveInstructionHint": "Bu, kullanıcı düzeyinde bir yönlendirmedir ve sistem ya da güvenlik kurallarını geçersiz kılamaz.",
+      "directiveSuppressHint": "Konu geri çağrılan belleği filtreler; talimat yanıtı yönlendirir. Bu bir çıktı filtresi değildir.",
+      "directiveLength": "Talimat {content}/{contentMax} · Konu {topic}/{topicMax}",
+      "directiveCreateAction": "Yönergeyi etkinleştir",
+      "directiveCapacityTitle": "Etkin yönerge sınırına ulaşıldı",
+      "directiveCapacityDescription": "Her ajanın en fazla {max} etkin yönergesi olabilir. Yeni bir yönerge eklemeden veya onaylamadan önce etkin bir yönergeyi silin.",
+      "directiveListTitle": "Kaydedilmiş yönergeler",
+      "directiveListDescription": "{active} etkin · {draft} onay bekliyor",
+      "directiveEmptyTitle": "Henüz yönerge yok",
+      "directiveEmptyDescription": "Burada kalıcı bir talimat oluşturun veya gelen kutusundaki bir öneriyi onaylayın.",
+      "directiveStatus": {
+        "active": "Etkin",
+        "draft": "Taslak",
+        "rejected": "Reddedildi"
+      },
+      "directiveSource": {
+        "explicit_user": "Açık kullanıcı işlemi",
+        "manual": "Ayarlar",
+        "derived_suggestion": "Konuşmadan önerildi"
+      },
+      "directiveTopicValue": "Konu: {topic}",
+      "directiveDeleteTitle": "Bu yönerge silinsin mi?",
+      "directiveDeleteDescription": "Yönerge hemen uygulanmayı bırakır. Daha sonra yeniden oluşturabilirsiniz."
     }
   },
   "pluginsHub": {
@@ -2963,12 +3271,122 @@
     "available": "Kullanılabilir eklentiler",
     "add": "Ekle",
     "manage": "Manage",
+    "builtinCapability": "Yerleşik özellik",
     "emptySearch": "Kullanılabilir eklenti yok.",
     "pluginNotFound": "Plugin not found.",
     "actionResult": "Action result",
     "cuaDescription": "DeepChat'in trycua/cua projesi temel alınarak uygulanmış ComputerUse eklentisi.",
     "acpUnavailableTitle": "Eklentiler ACP ajanları için kullanılamaz",
     "acpUnavailableDescription": "ACP ajanları araçları ve uzantıları kendi çalışma ortamlarında yönetir. Eklentileri kullanmak için bir DeepChat ajanı seçin.",
-    "agentScopeUnsupported": "Ajan düzeyindeki uzantılar yalnızca DeepChat ajanları tarafından kullanılabilir."
+    "agentScopeUnsupported": "Ajan düzeyindeki uzantılar yalnızca DeepChat ajanları tarafından kullanılabilir.",
+    "scopeGlobalPlugins": "Bu sayfa uygulama genelindedir: resmi eklentilerin kurulumu, etkinleştirilmesi ve süreç durumu tüm DeepChat ajanları arasında paylaşılır.",
+    "scopeCurrentAgent": "Bu sayfa ajan politikasıdır: değişiklikler yalnızca “{agent}” için Skills/MCP kullanılabilirliğini etkiler, global kurulumları etkilemez.",
+    "currentAgentFallback": "geçerli ajan"
+  },
+  "debug": {
+    "description": "Sahte durumları ve rehberli akışları önizlemek için yalnızca geliştirmeye yönelik araçlar.",
+    "unavailableTitle": "Hata ayıklama araçları kullanılamıyor",
+    "unavailableDescription": "Bu eylem yalnızca geliştirme modunda kullanılabilir.",
+    "splash": {
+      "title": "Açılış penceresi",
+      "description": "Gerçek bir veritabanı kilit açma akışını başlatmadan açılış penceresi durumlarını önizleyin.",
+      "loading": "Yükleme önizlemesi",
+      "systemUnlock": "Sistem kilit açma önizlemesi",
+      "unlock": "Manuel kilit açma önizlemesi",
+      "recovery": "Veritabanı kurtarma önizlemesi",
+      "failed": "Açılış senaryosu gösterilemiyor.",
+      "previewHint": "Geliştirme önizlemesi — parola gönderimi devre dışı."
+    },
+    "guidance": {
+      "title": "Rehberlik ve veriler",
+      "description": "Yalnızca geliştirme için işe alıştırma, konuşma ve güncelleme sahte verileri oluşturun.",
+      "failed": "Hata ayıklama rehberli akışı başlatılamıyor."
+    }
+  },
+  "toolchains": {
+    "description": "DeepChat’in Node ve uv’yi nereden alacağını seçin. Kaynak daha sonra kendiliğinden değişmez.",
+    "nodeTitle": "Node.js",
+    "uvTitle": "uv",
+    "source": "Kaynak",
+    "sources": {
+      "bundled": "Uygulamayla birlikte",
+      "managed": "DeepChat tarafından yüklendi",
+      "system": "Sistem kurulumu",
+      "custom": "Özel yol",
+      "unconfigured": "Yapılandırılmadı",
+      "autoNamed": "Otomatik ({source})"
+    },
+    "systemDetected": "Sistem ikili dosyası bulundu: {path}",
+    "systemDetectedHint": "Çalışan bir kurulum varsa o kullanılır. Yeniden indirme yapılmaz.",
+    "install": "Resmi çalışma zamanını yükle",
+    "repair": "Onar",
+    "revert": "Geri al",
+    "cancelInstall": "İptal",
+    "installing": "Yükleniyor…",
+    "version": "Sürüm",
+    "path": "Yol",
+    "bannerTitle": "Gerekli çalışma zamanı eksik",
+    "bannerDescription": "MCP, ACP, Skills veya OCR için Node ya da uv kullanılamıyor.",
+    "bannerAction": "Araç zincirlerini aç",
+    "availability": {
+      "ready": "Hazır",
+      "missing": "Eksik",
+      "incomplete": "Eksik bileşenli",
+      "unconfigured": "Yapılandırılmadı"
+    },
+    "downloadReasons": {
+      "dns": "İndirme ana bilgisayarı çözülemedi.",
+      "timeout": "İndirme zaman aşımına uğradı.",
+      "http": "İndirme sunucusu bir hata döndürdü.",
+      "proxy": "Yapılandırılmış vekil üzerinden indirme başarısız oldu.",
+      "checksum_mismatch": "İndirilen dosya bütünlük doğrulamasından geçmedi.",
+      "disk": "Çalışma zamanı diske yazılamadı.",
+      "cancelled": "İndirme iptal edildi.",
+      "activation_failed": "Çalışma zamanı etkinleştirilemedi.",
+      "unsupported_platform": "Bu platform için resmi bir çalışma zamanı yok."
+    },
+    "ocrPinHint": "OCR resmi Node v24.18.0 (ABI 137) gerektirir. Bu çalışma zamanı sohbet ve MCP için hazırdır, OCR için değildir. Resmi çalışma zamanını yükleyin."
+  },
+  "userPlugins": {
+    "install": "Eklenti yükle",
+    "update": "Güncellemeyi incele",
+    "installDescription": "Codex biçimindeki bir paketi doğrudan Git veya ZIP üzerinden yükleyin. Bileşenlerini etkinleştirmeden önce paketi inceleyin.",
+    "gitUrl": "Herkese açık HTTPS Git adresi",
+    "gitRef": "Dal, etiket veya commit (isteğe bağlı)",
+    "subdirectory": "Paket alt dizini (isteğe bağlı)",
+    "chooseZip": "ZIP dosyası seç",
+    "chooseDirectory": "Eklenti dizini seç",
+    "inspect": "Paketi incele",
+    "executionNotice": "Kancalar ve stdio MCP sunucuları, hesabınızın dosya ve ağ erişim izinleriyle yerel kod çalıştırır. Yalnızca güvendiğiniz kodu etkinleştirin. npx veya uvx gibi komutlar sunucu başlatılırken bağımlılık indirebilir.",
+    "useSkills": "Paketteki Skills öğelerini kullan",
+    "allowHooks": "Bu komutları inceledim ve otomatik bağlam kancalarına izin veriyorum",
+    "allowMcp": "Bu komutları, uç noktaları ve değişken bağlamalarını inceledim; MCP bağlantılarına izin veriyorum",
+    "sharedData": "Bu eklenti kurulumunun verileri oturumlar arasında paylaşılır.",
+    "requiredVariables": "Gerekli ortam veya kimlik bilgisi değişkenleri",
+    "applyUpdate": "İncelenen güncellemeyi uygula",
+    "uninstall": "Kaldır",
+    "source": "Yükleme kaynağı",
+    "selected": "Seçili",
+    "notSelected": "Seçili değil",
+    "reviewed": "Komutlar incelendi",
+    "hooksNotEnabled": "Otomatik kancalara izin verilmedi. Etkinleştirmek için bir güncellemeyi inceleyin; Skills öğeleri tek başına otomatik kancaları etkinleştirmez.",
+    "diagnostics": "Son kanca etkinlikleri",
+    "noInvocations": "Uygulama başlatıldığından beri kanca çağrısı kaydedilmedi.",
+    "retryHook": "Kancayı yeniden çalıştır",
+    "mcpSetupDescription": "Sunucularını kaydetmek için eklentiyi etkinleştirin. Değişken değerlerini burada girin veya değiştirin; ana sistemin ortam değişkenleri asla otomatik paylaşılmaz. Kimlik doğrulamayı MCP ayarlarından yönetin.",
+    "saveMcp": "Kaydet ve yeniden bağlan",
+    "manageMcp": "MCP ayarlarını aç",
+    "uninstallDescription": "Bu eklentiyi, özel verilerini, Skill atamalarını ve kendisine ait MCP sunucularını kaldırın. Konuşma geçmişi korunur.",
+    "fromGit": "Git üzerinden yükle",
+    "fromZip": "ZIP üzerinden yükle",
+    "userPlugin": "Kullanıcı eklentisi",
+    "hookStatus": {
+      "started": "Çalışıyor",
+      "completed": "Tamamlandı",
+      "failed": "Başarısız",
+      "uncertain": "Kesintiye uğradı; sonuç bilinmiyor"
+    },
+    "technicalDetails": "Teknik ayrıntılar",
+    "hooks": "Kancalar"
   }
 }

@@ -1,4 +1,29 @@
 {
+  "notifications": {
+    "label": "通知",
+    "actionFailed": "操作に失敗しました。もう一度お試しください。",
+    "entities": "{count} 件に影響",
+    "occurrences": "{count} 回発生",
+    "pending": "ほか {count} 件が待機中",
+    "mcpConnectionFailed": {
+      "title": "{serverName} に接続できませんでした",
+      "description": "サーバー設定を確認して、もう一度お試しください。"
+    },
+    "mcpToolListFailed": {
+      "title": "{serverName} のツールを読み込めませんでした",
+      "description": "サーバーには接続済みですが、ツールを利用できません。"
+    },
+    "providerDeeplinkFailed": {
+      "title": "プロバイダー設定を開けませんでした",
+      "reasons": {
+        "unsupported-version": "このリンクのバージョンはサポートされていません。",
+        "invalid-payload": "このプロバイダーリンクは無効です。",
+        "provider-not-found": "リンク先のプロバイダーが見つかりません。",
+        "unsupported-provider": "このプロバイダーはサポートされていません。",
+        "settings-unavailable": "プロバイダー設定を開けませんでした。"
+      }
+    }
+  },
   "enabled": "有効",
   "disabled": "無効",
   "loading": "読み込み中...",
@@ -16,6 +41,7 @@
   "newChat": "新しいチャット",
   "newTopic": "新しいトピック",
   "cancel": "キャンセル",
+  "retry": "再試行",
   "confirm": "確認",
   "close": "閉じる",
   "open": "開く",
@@ -99,6 +125,9 @@
   "history": "履歴",
   "minimize": "最小化",
   "maximize": "最大化",
+  "showValue": "表示",
+  "hideValue": "非表示",
+  "scrollToBottom": "一番下までスクロール",
   "restore": "元に戻す",
   "browser": {
     "back": "戻る",

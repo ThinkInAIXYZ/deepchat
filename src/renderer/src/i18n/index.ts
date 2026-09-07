@@ -1,102 +1,54 @@
-import zhCN from './zh-CN'
-import enUS from './en-US'
-import jaJP from './ja-JP'
-import koKR from './ko-KR'
-import zhHK from './zh-HK'
-import zhTW from './zh-TW'
-import ruRU from './ru-RU'
-import frFR from './fr-FR'
-import faIR from './fa-IR'
-import ptBR from './pt-BR'
-import daDK from './da-DK'
-import heIL from './he-IL'
-import esES from './es-ES'
-import deDE from './de-DE'
-import trTR from './tr-TR'
-import idID from './id-ID'
-import msMY from './ms-MY'
-import itIT from './it-IT'
-import plPL from './pl-PL'
-import viVN from './vi-VN'
+import type { LocaleMessageValue } from 'vue-i18n'
+import { resolveSupportedLocale, type SupportedLocale } from '@shared/locales'
 
-const locales = {
-  'zh-CN': zhCN,
-  'en-US': enUS,
-  'zh-HK': zhHK,
-  'zh-TW': zhTW,
-  'ja-JP': jaJP,
-  'ko-KR': koKR,
-  'ru-RU': ruRU,
-  'fr-FR': frFR,
-  'fa-IR': faIR,
-  'pt-BR': ptBR,
-  'da-DK': daDK,
-  'he-IL': heIL,
-  'es-ES': esES,
-  'de-DE': deDE,
-  'tr-TR': trTR,
-  'id-ID': idID,
-  'ms-MY': msMY,
-  'it-IT': itIT,
-  'pl-PL': plPL,
-  'vi-VN': viVN,
-  zh: zhCN,
-  en: enUS,
-  fr: frFR,
-  pt: ptBR,
-  da: daDK,
-  he: heIL,
-  es: esES,
-  de: deDE,
-  tr: trTR,
-  id: idID,
-  ms: msMY,
-  it: itIT,
-  pl: plPL,
-  vi: viVN
+export { pluralRules } from './pluralRules'
+export {
+  FALLBACK_LOCALE,
+  SUPPORTED_LOCALES,
+  resolveSupportedLocale,
+  type SupportedLocale
+} from '@shared/locales'
+export type RendererLocaleMessages = Record<string, LocaleMessageValue>
+
+type LocaleModule = { default: RendererLocaleMessages }
+type LocaleLoader = () => Promise<LocaleModule>
+
+const localeLoaders: Record<SupportedLocale, LocaleLoader> = {
+  'zh-CN': () => import('./zh-CN'),
+  'en-US': () => import('./en-US'),
+  'zh-HK': () => import('./zh-HK'),
+  'zh-TW': () => import('./zh-TW'),
+  'ja-JP': () => import('./ja-JP'),
+  'ko-KR': () => import('./ko-KR'),
+  'ru-RU': () => import('./ru-RU'),
+  'fr-FR': () => import('./fr-FR'),
+  'fa-IR': () => import('./fa-IR'),
+  'pt-BR': () => import('./pt-BR'),
+  'da-DK': () => import('./da-DK'),
+  'he-IL': () => import('./he-IL'),
+  'es-ES': () => import('./es-ES'),
+  'de-DE': () => import('./de-DE'),
+  'tr-TR': () => import('./tr-TR'),
+  'id-ID': () => import('./id-ID'),
+  'ms-MY': () => import('./ms-MY'),
+  'it-IT': () => import('./it-IT'),
+  'pl-PL': () => import('./pl-PL'),
+  'vi-VN': () => import('./vi-VN')
 }
 
-export const pluralRules = {
-  'ru-RU': (choice: number, choicesLength: number) => {
-    if (choicesLength !== 4) {
-      return Math.min(Math.abs(choice), choicesLength - 1)
-    }
+const localeMessagePromises = new Map<SupportedLocale, Promise<RendererLocaleMessages>>()
 
-    const absoluteChoice = Math.abs(choice)
-    if (absoluteChoice === 0) {
-      return 0
-    }
+export function loadLocaleMessages(locale: string): Promise<RendererLocaleMessages> {
+  const resolvedLocale = resolveSupportedLocale(locale)
+  const cachedPromise = localeMessagePromises.get(resolvedLocale)
+  if (cachedPromise) return cachedPromise
 
-    const mod10 = absoluteChoice % 10
-    const mod100 = absoluteChoice % 100
-    if (mod10 === 1 && mod100 !== 11) {
-      return 1
+  const messagesPromise = localeLoaders[resolvedLocale]().then((module) => module.default)
+  localeMessagePromises.set(resolvedLocale, messagesPromise)
+  void messagesPromise.catch(() => {
+    if (localeMessagePromises.get(resolvedLocale) === messagesPromise) {
+      localeMessagePromises.delete(resolvedLocale)
     }
-    if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) {
-      return 2
-    }
-    return 3
-  },
-  'pl-PL': (choice: number, choicesLength: number) => {
-    if (choicesLength !== 4) {
-      return Math.min(Math.abs(choice), choicesLength - 1)
-    }
-
-    const absoluteChoice = Math.abs(choice)
-    if (absoluteChoice === 0) {
-      return 0
-    }
-
-    const mod10 = absoluteChoice % 10
-    const mod100 = absoluteChoice % 100
-    if (absoluteChoice === 1) {
-      return 1
-    }
-    if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) {
-      return 2
-    }
-    return 3
-  }
+  })
+  return messagesPromise
 }
-
-export default locales

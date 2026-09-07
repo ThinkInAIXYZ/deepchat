@@ -4,6 +4,7 @@
   "welcome": "欢迎",
   "settings": "设置",
   "settings-common": "通用设置",
+  "settings-ocr": "OCR（文字识别）",
   "settings-provider": "服务商设置",
   "settings-mcp": "MCP设置",
   "settings-deepchat-agents": "DeepChat Agent",
@@ -15,7 +16,7 @@
   "settings-prompt": "Prompt管理",
   "settings-mcp-market": "MCP市场",
   "settings-acp": "ACP Agent",
-  "settings-skills": "Skills设置",
+  "plugins-skills": "Skills",
   "settings-notifications-hooks": "Hooks",
   "settings-scheduled-tasks": "定时任务",
   "settings-dashboard": "数据看板",
@@ -23,5 +24,7 @@
   "settings-remote": "远程",
   "settings-plugins": "插件",
   "settings-overview": "设置概览",
-  "settings-memory": "记忆"
+  "settings-memory": "记忆",
+  "settings-debug": "调试",
+  "settings-toolchains": "工具链"
 }

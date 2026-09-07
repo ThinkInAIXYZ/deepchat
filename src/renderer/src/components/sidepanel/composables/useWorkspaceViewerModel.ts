@@ -1,6 +1,6 @@
 import { computed, type ComputedRef } from 'vue'
 import type { ArtifactState } from '@/stores/artifact'
-import type { WorkspaceFilePreview, WorkspaceViewMode } from '@shared/presenter'
+import type { WorkspaceFilePreview, WorkspaceViewMode } from '@shared/types/workspace'
 
 export type WorkspaceViewerSource = 'artifact' | 'file' | 'git-diff' | null
 export type WorkspaceViewerPane = 'empty' | 'git-diff' | 'code' | 'preview' | 'info'

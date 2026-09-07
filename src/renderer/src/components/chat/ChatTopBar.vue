@@ -1,7 +1,7 @@
 <template>
   <div
     v-bind="attrs"
-    class="dc-blur-panel sticky top-0 z-[var(--dc-z-sticky)] flex h-12 items-center justify-between bg-background/60 px-4 window-drag-region transition-[padding] duration-[var(--dc-motion-default)] ease-[var(--dc-ease-out-express)]"
+    class="dc-blur-panel sticky top-0 z-[var(--dc-z-sticky)] flex h-12 items-center justify-between bg-background/60 px-4 window-drag-region transition-[padding] duration-[var(--dc-motion-fast)] ease-[var(--dc-ease-out-express)] motion-reduce:transition-none"
     :class="{ 'pl-12': showCollapsedNewChatSpacer }"
   >
     <div class="flex min-w-0 flex-1 items-center gap-2">
@@ -11,30 +11,28 @@
           class="pointer-events-none absolute inset-x-0 top-0 h-12"
           style="z-index: var(--dc-z-sidepanel)"
         >
-          <Button
-            variant="ghost"
-            size="icon"
+          <DcButton
+            icon="lucide:plus"
+            size="icon-sm"
+            :label="t('common.newChat')"
+            :tooltip="t('common.newChat')"
             data-testid="collapsed-new-chat-button"
-            class="collapsed-new-chat-button pointer-events-auto absolute left-4 top-2.5 h-7 w-7 text-muted-foreground hover:text-foreground"
-            :title="t('common.newChat')"
-            :aria-label="t('common.newChat')"
+            class="collapsed-new-chat-button pointer-events-auto absolute left-4 top-2.5"
             @click="handleCollapsedNewChat"
-          >
-            <Icon icon="lucide:plus" class="h-4 w-4" />
-          </Button>
+          />
         </div>
       </Transition>
-      <Button
+      <DcButton
         v-if="parentSessionId"
         variant="ghost"
         size="sm"
-        class="h-7 gap-1 px-2 text-xs text-muted-foreground hover:text-foreground"
+        icon="lucide:corner-up-left"
+        class="no-drag h-7 gap-1 px-2 text-xs text-muted-foreground hover:text-foreground"
         :title="t('chat.topbar.backToParent')"
         @click="handleBackToParent"
       >
-        <Icon icon="lucide:corner-up-left" class="h-3.5 w-3.5" />
         <span>{{ t('chat.topbar.backToParent') }}</span>
-      </Button>
+      </DcButton>
       <div v-if="project" class="flex items-center gap-1.5 text-muted-foreground">
         <Icon icon="lucide:folder" class="w-3.5 h-3.5 shrink-0" />
         <span class="text-xs truncate">{{ projectName }}</span>
@@ -76,143 +74,152 @@
           />
 
           <div class="flex shrink-0 items-center gap-0.5">
-            <Button
-              variant="ghost"
-              size="icon"
+            <DcButton
+              icon="lucide:x"
+              size="icon-sm"
+              :label="t('dialog.cancel')"
+              :tooltip="t('dialog.cancel')"
               data-testid="chat-topbar-title-cancel"
-              class="title-inline-action h-7 w-7 text-muted-foreground hover:text-foreground"
-              :title="t('dialog.cancel')"
-              :aria-label="t('dialog.cancel')"
+              class="title-inline-action"
               @click="handleRenameCancel"
-            >
-              <Icon icon="lucide:x" class="h-3.5 w-3.5" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
+            />
+            <DcButton
+              icon="lucide:check"
+              size="icon-sm"
+              :label="t('dialog.confirm')"
+              :tooltip="t('dialog.confirm')"
               data-testid="chat-topbar-title-save"
-              class="title-inline-action h-7 w-7 text-primary hover:text-primary disabled:text-muted-foreground"
-              :title="t('dialog.confirm')"
-              :aria-label="t('dialog.confirm')"
+              class="title-inline-action text-primary hover:text-primary disabled:text-muted-foreground"
               :disabled="!canSubmitRename"
               @click="handleRenameConfirm"
-            >
-              <Icon icon="lucide:check" class="h-3.5 w-3.5" />
-            </Button>
+            />
           </div>
         </div>
       </div>
     </div>
 
     <div class="flex items-center gap-1 no-drag">
-      <Button
+      <DcButton
         variant="ghost"
-        size="icon"
-        class="h-7 w-7 text-muted-foreground hover:text-foreground"
-        :title="t('chat.workspace.title')"
+        icon="lucide:folder-tree"
+        size="icon-sm"
+        :label="t('chat.workspace.title')"
+        :tooltip="t('chat.workspace.title')"
         @click="sidepanelStore.toggleWorkspace(props.sessionId)"
-      >
-        <Icon icon="lucide:folder-tree" class="w-4 h-4" />
-      </Button>
+      />
+
+      <DcButton
+        v-if="uiSettingsStore.traceDebugEnabled"
+        variant="ghost"
+        icon="lucide:scan-search"
+        size="icon-sm"
+        :label="t('tapeInspector.actions.openSession')"
+        :tooltip="t('tapeInspector.actions.openSession')"
+        data-testid="open-tape-inspector-button"
+        @click="sidepanelStore.openTapeInspector(props.sessionId)"
+      />
 
       <DropdownMenu>
         <DropdownMenuTrigger as-child>
-          <Button
+          <DcButton
             variant="ghost"
             size="icon"
             class="h-7 w-7 text-muted-foreground hover:text-foreground"
-            :title="t('chat.topbar.share')"
+            :tooltip="t('chat.topbar.share')"
+            :label="t('chat.topbar.share')"
           >
             <Icon icon="lucide:share" class="w-4 h-4" />
-          </Button>
+          </DcButton>
         </DropdownMenuTrigger>
 
         <DropdownMenuContent align="end" class="w-52">
-          <DropdownMenuItem @select="handleExport('markdown')">
-            <Icon icon="lucide:file-text" class="mr-2 h-4 w-4" />
-            <span>{{ t('artifacts.markdownDocument') }} (.md)</span>
-          </DropdownMenuItem>
-          <DropdownMenuItem @select="handleExport('html')">
-            <Icon icon="lucide:globe" class="mr-2 h-4 w-4" />
-            <span>{{ t('artifacts.htmlDocument') }} (.html)</span>
-          </DropdownMenuItem>
-          <DropdownMenuItem @select="handleExport('txt')">
-            <Icon icon="lucide:file-type" class="mr-2 h-4 w-4" />
-            <span>{{ t('thread.actions.exportText') }} (.txt)</span>
-          </DropdownMenuItem>
-          <DropdownMenuItem @select="handleExport('nowledge-mem')">
-            <Icon icon="lucide:brain" class="mr-2 h-4 w-4" />
-            <span>{{ t('thread.actions.exportNowledgeMem') }} (.json)</span>
-          </DropdownMenuItem>
+          <DcDropdownActionItem
+            icon="lucide:file-text"
+            :label="`${t('artifacts.markdownDocument')} (.md)`"
+            @select="handleExport('markdown')"
+          />
+          <DcDropdownActionItem
+            icon="lucide:globe"
+            :label="`${t('artifacts.htmlDocument')} (.html)`"
+            @select="handleExport('html')"
+          />
+          <DcDropdownActionItem
+            icon="lucide:file-type"
+            :label="`${t('thread.actions.exportText')} (.txt)`"
+            @select="handleExport('txt')"
+          />
+          <DcDropdownActionItem
+            icon="lucide:brain"
+            :label="`${t('thread.actions.exportNowledgeMem')} (.json)`"
+            @select="handleExport('nowledge-mem')"
+          />
         </DropdownMenuContent>
       </DropdownMenu>
 
       <DropdownMenu v-if="!isReadOnly">
         <DropdownMenuTrigger as-child>
-          <Button
+          <DcButton
             variant="ghost"
             size="icon"
             class="h-7 w-7 text-muted-foreground hover:text-foreground"
-            :title="t('chat.topbar.more')"
+            :tooltip="t('chat.topbar.more')"
           >
             <Icon icon="lucide:ellipsis" class="w-4 h-4" />
-          </Button>
+          </DcButton>
         </DropdownMenuTrigger>
 
         <DropdownMenuContent align="end" class="w-48">
-          <DropdownMenuItem @select="handleTogglePin">
-            <Icon :icon="isPinned ? 'lucide:pin-off' : 'lucide:pin'" class="mr-2 h-4 w-4" />
-            <span>{{ isPinned ? t('thread.actions.unpin') : t('thread.actions.pin') }}</span>
-          </DropdownMenuItem>
-          <DropdownMenuItem :disabled="!canMoveConversation" @select="openMoveDialog">
-            <Icon icon="lucide:move-right" class="mr-2 h-4 w-4" />
-            <span>{{ t('thread.actions.moveConversation') }}</span>
-          </DropdownMenuItem>
-          <DropdownMenuItem @select="openClearDialog">
-            <Icon icon="lucide:eraser" class="mr-2 h-4 w-4" />
-            <span>{{ t('thread.actions.cleanMessages') }}</span>
-          </DropdownMenuItem>
+          <DcDropdownActionItem
+            :icon="isPinned ? 'lucide:pin-off' : 'lucide:pin'"
+            :label="isPinned ? t('thread.actions.unpin') : t('thread.actions.pin')"
+            @select="handleTogglePin"
+          />
+          <DcDropdownActionItem
+            icon="lucide:move-right"
+            :label="t('thread.actions.moveConversation')"
+            :disabled="!canMoveConversation"
+            @select="openMoveDialog"
+          />
+          <DcDropdownActionItem
+            icon="lucide:eraser"
+            :label="t('thread.actions.cleanMessages')"
+            @select="openClearDialog"
+          />
           <DropdownMenuSeparator />
-          <DropdownMenuItem class="text-destructive" @select="openDeleteDialog">
-            <Icon icon="lucide:trash-2" class="mr-2 h-4 w-4" />
-            <span>{{ t('thread.actions.delete') }}</span>
-          </DropdownMenuItem>
+          <DcDropdownActionItem
+            icon="lucide:trash-2"
+            :label="t('thread.actions.delete')"
+            danger
+            @select="openDeleteDialog"
+          />
         </DropdownMenuContent>
       </DropdownMenu>
     </div>
   </div>
 
-  <Dialog v-model:open="clearDialogOpen">
-    <DialogContent>
-      <DialogHeader>
-        <DialogTitle>{{ t('dialog.cleanMessages.title') }}</DialogTitle>
-        <DialogDescription>{{ t('dialog.cleanMessages.description') }}</DialogDescription>
-      </DialogHeader>
-      <DialogFooter>
-        <Button variant="outline" @click="clearDialogOpen = false">{{ t('dialog.cancel') }}</Button>
-        <Button variant="destructive" @click="handleClearConfirm">{{
-          t('dialog.cleanMessages.confirm')
-        }}</Button>
-      </DialogFooter>
-    </DialogContent>
-  </Dialog>
+  <DcConfirmDialog
+    :open="clearDialogOpen"
+    :title="t('dialog.cleanMessages.title')"
+    :description="t('dialog.cleanMessages.description')"
+    :confirm-label="t('dialog.cleanMessages.confirm')"
+    :busy="clearDialogBusy"
+    @update:open="handleClearDialogOpenChange"
+    @confirm="handleClearConfirm"
+  >
+    <DcInlineError v-if="clearDialogError" :error="clearDialogError" />
+  </DcConfirmDialog>
 
-  <Dialog v-model:open="deleteDialogOpen">
-    <DialogContent>
-      <DialogHeader>
-        <DialogTitle>{{ t('dialog.delete.title') }}</DialogTitle>
-        <DialogDescription>{{ t('dialog.delete.description') }}</DialogDescription>
-      </DialogHeader>
-      <DialogFooter>
-        <Button variant="outline" @click="deleteDialogOpen = false">{{
-          t('dialog.cancel')
-        }}</Button>
-        <Button variant="destructive" @click="handleDeleteConfirm">{{
-          t('dialog.delete.confirm')
-        }}</Button>
-      </DialogFooter>
-    </DialogContent>
-  </Dialog>
+  <DcConfirmDialog
+    :open="deleteDialogOpen"
+    :title="t('dialog.delete.title')"
+    :description="t('dialog.delete.description')"
+    :confirm-label="t('dialog.delete.confirm')"
+    :busy="deleteDialogBusy"
+    @update:open="handleDeleteDialogOpenChange"
+    @confirm="handleDeleteConfirm"
+  >
+    <DcInlineError v-if="deleteDialogError" :error="deleteDialogError" />
+  </DcConfirmDialog>
 
   <AgentTransferDialog
     v-model:open="moveDialogOpen"
@@ -231,28 +238,23 @@
 import { computed, nextTick, ref, useAttrs, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
-import { Button } from '@shadcn/components/ui/button'
+import { DcButton } from '@dc-ui/components/button'
+import { DcConfirmDialog } from '@dc-ui/components/confirm-dialog'
+import { DcInlineError } from '@dc-ui/components/inline-error'
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger
 } from '@shadcn/components/ui/dropdown-menu'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle
-} from '@shadcn/components/ui/dialog'
+import { DcDropdownActionItem } from '@dc-ui/components/dropdown-action-item'
 import AgentTransferDialog from '@/components/agent/AgentTransferDialog.vue'
 import { useAgentStore } from '@/stores/ui/agent'
 import { useSessionStore } from '@/stores/ui/session'
 import { useSidepanelStore } from '@/stores/ui/sidepanel'
 import { useSidebarStore } from '@/stores/ui/sidebar'
-import { useToast } from '@/components/use-toast'
+import { useUiSettingsStore } from '@/stores/uiSettingsStore'
+import { notifyRenderer } from '@renderer-notifications/rendererNotificationPort'
 
 defineOptions({
   inheritAttrs: false
@@ -271,11 +273,15 @@ const sessionStore = useSessionStore()
 const agentStore = useAgentStore()
 const sidepanelStore = useSidepanelStore()
 const sidebarStore = useSidebarStore()
-const { toast } = useToast()
+const uiSettingsStore = useUiSettingsStore()
 
 const isRenaming = ref(false)
 const clearDialogOpen = ref(false)
+const clearDialogBusy = ref(false)
+const clearDialogError = ref<string | null>(null)
 const deleteDialogOpen = ref(false)
+const deleteDialogBusy = ref(false)
+const deleteDialogError = ref<string | null>(null)
 const moveDialogOpen = ref(false)
 const moveDialogBusy = ref(false)
 const moveDialogError = ref<string | null>(null)
@@ -371,6 +377,7 @@ const openClearDialog = () => {
   if (isReadOnly.value) {
     return
   }
+  clearDialogError.value = null
   clearDialogOpen.value = true
 }
 
@@ -378,6 +385,7 @@ const openDeleteDialog = () => {
   if (isReadOnly.value) {
     return
   }
+  deleteDialogError.value = null
   deleteDialogOpen.value = true
 }
 
@@ -400,6 +408,12 @@ const handleTogglePin = async () => {
     await sessionStore.toggleSessionPinned(props.sessionId, !isPinned.value)
   } catch (error) {
     console.error('Failed to toggle pin status:', error)
+    notifyRenderer({
+      kind: 'error',
+      code: 'chat.session.pinFailed',
+      title: t('common.error.operationFailed'),
+      description: t('common.error.requestFailed')
+    })
   }
 }
 
@@ -424,6 +438,12 @@ const handleRenameConfirm = async () => {
     isRenaming.value = false
   } catch (error) {
     console.error(t('common.error.renameChatFailed'), error)
+    notifyRenderer({
+      kind: 'error',
+      code: 'chat.session.renameFailed',
+      title: t('common.error.operationFailed'),
+      description: t('common.error.renameChatFailed')
+    })
   }
 }
 
@@ -444,29 +464,49 @@ watch(
 )
 
 const handleClearConfirm = async () => {
-  if (isReadOnly.value) {
+  if (isReadOnly.value || clearDialogBusy.value) {
     return
   }
+  clearDialogBusy.value = true
+  clearDialogError.value = null
   try {
     await sessionStore.clearSessionMessages(props.sessionId)
+    clearDialogOpen.value = false
   } catch (error) {
     console.error(t('common.error.cleanMessagesFailed'), error)
+    clearDialogError.value = t('common.error.requestFailed')
+  } finally {
+    clearDialogBusy.value = false
   }
-
-  clearDialogOpen.value = false
 }
 
 const handleDeleteConfirm = async () => {
-  if (isReadOnly.value) {
+  if (isReadOnly.value || deleteDialogBusy.value) {
     return
   }
+  deleteDialogBusy.value = true
+  deleteDialogError.value = null
   try {
     await sessionStore.deleteSession(props.sessionId)
+    deleteDialogOpen.value = false
   } catch (error) {
     console.error(t('common.error.deleteChatFailed'), error)
+    deleteDialogError.value = t('common.error.requestFailed')
+  } finally {
+    deleteDialogBusy.value = false
   }
+}
 
-  deleteDialogOpen.value = false
+const handleClearDialogOpenChange = (open: boolean) => {
+  if (!open && clearDialogBusy.value) return
+  clearDialogOpen.value = open
+  if (open) clearDialogError.value = null
+}
+
+const handleDeleteDialogOpenChange = (open: boolean) => {
+  if (!open && deleteDialogBusy.value) return
+  deleteDialogOpen.value = open
+  if (open) deleteDialogError.value = null
 }
 
 const handleMoveConfirm = async (payload: { targetAgentId: string }) => {
@@ -490,19 +530,21 @@ const handleExport = async (format: 'markdown' | 'html' | 'txt' | 'nowledge-mem'
     await sessionStore.exportSession(props.sessionId, format)
 
     const isNowledgeMem = format === 'nowledge-mem'
-    toast({
+    notifyRenderer({
+      kind: 'success',
+      code: 'chat.session.exported',
       title: isNowledgeMem ? t('thread.export.nowledgeMemSuccess') : t('thread.export.success'),
       description: isNowledgeMem
         ? t('thread.export.nowledgeMemSuccessDesc')
-        : t('thread.export.successDesc'),
-      variant: 'default'
+        : t('thread.export.successDesc')
     })
   } catch (error) {
     console.error('Export failed:', error)
-    toast({
+    notifyRenderer({
+      kind: 'error',
+      code: 'chat.session.exportFailed',
       title: t('thread.export.failed'),
-      description: t('thread.export.failedDesc'),
-      variant: 'destructive'
+      description: t('thread.export.failedDesc')
     })
   }
 }
@@ -524,8 +566,8 @@ const handleBackToParent = async () => {
 .collapsed-new-chat-button-enter-active,
 .collapsed-new-chat-button-leave-active {
   transition:
-    opacity 200ms ease-out,
-    transform 200ms ease-out;
+    opacity var(--dc-motion-fast) var(--dc-ease-out-soft),
+    transform var(--dc-motion-fast) var(--dc-ease-out-soft);
 }
 
 .collapsed-new-chat-button-enter-from,
@@ -538,6 +580,13 @@ const handleBackToParent = async () => {
 .collapsed-new-chat-button-leave-from {
   opacity: 1;
   transform: translateX(0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .collapsed-new-chat-button-enter-active,
+  .collapsed-new-chat-button-leave-active {
+    transition: none;
+  }
 }
 
 .collapsed-new-chat-button {

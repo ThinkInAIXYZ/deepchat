@@ -13,7 +13,11 @@
     "runtime/**",
     "docs/**",
     "test/**",
-    "src/shared/**",
+    "src/shared/**/*",
+    "!src/shared/contracts/events/mcp.events.ts",
+    "!src/shared/contracts/routes/mcp.routes.ts",
+    "!src/shared/types/core/mcp.ts",
+    "!src/shared/types/mcp.ts",
     "src/shadcn/**"
   ],
   "overrides": [
@@ -21,6 +25,34 @@
       "files": ["src/main/**/*.ts"],
       "rules": {
         "no-console": ["error", { "allow": ["warn", "error", "info", "debug", "trace"] }]
+      }
+    },
+    {
+      "files": [
+        "src/main/mcp/**/*.ts",
+        "src/shared/contracts/events/mcp.events.ts",
+        "src/shared/contracts/routes/mcp.routes.ts",
+        "src/shared/types/core/mcp.ts",
+        "src/shared/types/mcp.ts"
+      ],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              {
+                "name": "@modelcontextprotocol/sdk",
+                "message": "MCP v2 code must use the split packages."
+              }
+            ],
+            "patterns": [
+              {
+                "group": ["@modelcontextprotocol/sdk/*"],
+                "message": "MCP v2 code must use the split packages."
+              }
+            ]
+          }
+        ]
       }
     }
   ]

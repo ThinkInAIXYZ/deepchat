@@ -273,27 +273,27 @@ const titleSegments = computed(() => {
 }
 
 .session-item[data-pin-fx='pinning']::after {
-  animation: session-item-pin-glow 420ms cubic-bezier(0.24, 0.84, 0.24, 1);
+  animation: session-item-pin-glow 420ms var(--dc-ease-out-express);
 }
 
 .session-item[data-pin-fx='unpinning']::after {
-  animation: session-item-unpin-glow 360ms cubic-bezier(0.28, 0.11, 0.32, 1);
+  animation: session-item-unpin-glow 360ms var(--dc-ease-out-express);
 }
 
 .session-content {
   position: relative;
   z-index: 1;
   min-width: 0;
-  margin-left: 0;
-  transition: margin-left 280ms;
+  transform: translateX(0);
+  transition: transform var(--dc-motion-default) var(--dc-ease-out-express);
 }
 
 .session-item[data-pin-state='docked'] .session-content {
-  margin-left: var(--pin-text-shift);
+  transform: translateX(var(--pin-text-shift));
 }
 
 .session-item[data-pin-fx] .session-content {
-  will-change: margin-left;
+  will-change: transform;
 }
 
 .session-action-button {
@@ -414,19 +414,19 @@ const titleSegments = computed(() => {
 }
 
 .session-item[data-pin-fx='pinning'] .pin-button::before {
-  animation: pin-button-bloom 560ms cubic-bezier(0.18, 0.88, 0.24, 1);
+  animation: pin-button-bloom 560ms var(--dc-ease-out-soft);
 }
 
 .session-item[data-pin-fx='pinning'] .pin-button__icon {
-  animation: pin-icon-twist-in 560ms cubic-bezier(0.18, 0.88, 0.24, 1);
+  animation: pin-icon-twist-in 560ms var(--dc-ease-out-soft);
 }
 
 .session-item[data-pin-fx='unpinning'] .pin-button::before {
-  animation: pin-button-release 460ms cubic-bezier(0.3, 0.07, 0.34, 1);
+  animation: pin-button-release 460ms var(--dc-ease-out-express);
 }
 
 .session-item[data-pin-fx='unpinning'] .pin-button__icon {
-  animation: pin-icon-twist-out 460ms cubic-bezier(0.3, 0.07, 0.34, 1);
+  animation: pin-icon-twist-out 460ms var(--dc-ease-out-express);
 }
 
 .session-title {

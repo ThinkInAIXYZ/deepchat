@@ -9,19 +9,21 @@ export const SettingsRouteNameSchema = z.enum([
   'settings-provider',
   'settings-dashboard',
   'settings-mcp',
+  'settings-ocr',
+  'settings-toolchains',
   'settings-deepchat-agents',
   'settings-acp',
   'settings-remote',
   'settings-notifications-hooks',
   'settings-scheduled-tasks',
   'settings-plugins',
-  'settings-skills',
   'settings-prompt',
   'settings-memory',
   'settings-knowledge-base',
   'settings-database',
   'settings-shortcut',
-  'settings-about'
+  'settings-about',
+  'settings-debug'
 ])
 
 export const systemOpenSettingsRoute = defineRouteContract({

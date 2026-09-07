@@ -1,5 +1,11 @@
 # ACP v1 Reliability Implementation Plan
 
+> Status: active historical plan. Module assignments below capture the pre-ASLR implementation context and
+> must not override the current direct ACP ownership documented in
+> `docs/architecture/agent-system.md`. Direct `kind=acp` work belongs to
+> `AcpAgentRuntime` / `AcpAgentInstance`; `AcpProvider` only serves the DeepChat + ACP-provider compatibility
+> path. Keep remaining product gaps and tests in this plan until they are explicitly reconciled.
+
 ## 总体策略
 
 本次不重写 ACP 子系统，而是在现有模块上补齐协议边界和状态闭环：
@@ -91,6 +97,8 @@ interface AcpSessionLink {
 - 在 diagnostics 中显示实际 command、args count、distribution type、registry version、local/global version hint。
 - 每个初始化、认证、list/resume/close probe 都必须带 timeout；timeout 后清理子进程和其子进程树。
 - MCP transport 继续按 `mcpCapabilities` 过滤：`stdio` 默认可用，`http`/`sse` 仅 agent 声明后启用。
+- Host-owned MCP v2 probing 和 extension adapter 在 ACP 边界停止：不为 ACP agent 自己管理的 MCP
+  连接创建第二个 client、不协商 wire era、不持久化 Tasks，也不渲染 Apps。
 - 对 Claude/Codex 这种可能拉起二级 CLI 的 wrapper，E2E probe 需要固定短超时和 cleanup 审计，避免残留进程。
 
 ### 2. Initialization and Capability Snapshot
@@ -118,7 +126,9 @@ interface AcpCapabilitySnapshot {
 ```
 
 - `buildClientCapabilities` 只声明 DeepChat 已真实支持的能力。
-- 首轮实现中，`fs`、`terminal` 继续声明；`auth.terminal` 只能在 terminal auth flow 完成后声明。
+- `fs`、`terminal` 继续声明；`auth.terminal` 只在交互 runner、typed route/event 和 renderer
+  surface 已实现且可用时随 `initialize` 声明。Terminal auth 的规范以
+  `docs/features/acp-terminal-auth/spec.md` 为准。
 - 初始化失败分三类展示：protocol version mismatch、process exited、timeout。
 - 初始化返回的 `models`、`modes`、`configOptions` 统一走 `normalizeAcpConfigState`，并发布 ready event。
 
@@ -135,8 +145,8 @@ interface AcpCapabilitySnapshot {
 | Auth type | 对接方式 |
 | --- | --- |
 | `agent` 或默认类型 | 直接调用 `connection.authenticate({ methodId })`，成功后刷新 status；失败保留错误详情 |
-| `env_var` | 在 agent settings 中标出必需 env var；缺失时不启动 prompt；设置后重启 agent 并重新 initialize |
-| `terminal` | 在 DeepChat 控制的 terminal/auth runner 中执行 agent 指定流程；完成后重新 initialize；只有该能力完成后才声明 `auth.terminal=true` |
+| legacy `env_var` | 首轮不新增凭证表单；显示为 unsupported，并引导使用现有 manual env override |
+| `terminal` | 直接运行当前连接的同一 materialized command/base args，加上 method args/env；exit 0 后重连并重新 initialize；不得把 terminal method ID 传给 `authenticate` |
 
 `logout` 只在 `agentCapabilities.auth.logout` 存在时启用。logout 成功后关闭或失效当前 ACP session handle，避免继续使用旧认证上下文。
 
@@ -266,7 +276,7 @@ no AcpSessionLink                                 -> session/new
 
 ## Shared Types and IPC Surface
 
-优先扩展已有 shared presenter/debug 类型：
+优先扩展已有 shared contract/debug 类型：
 
 - `AcpDebugActionType` 增加 `authenticate`、`logout`、`sessionList`、`sessionImport`、`sessionResume`、`sessionDetach`、`sessionCloseRemote`、`sessionFork`。
 - 增加 renderer-safe status payload：`authMethods`、`authRequired`、`capabilities`、`externalSessions`、`sessionLinks`、`lastUsage`、`lastSessionInfo`。
@@ -342,8 +352,8 @@ pnpm run format
 pnpm run i18n
 pnpm run lint
 pnpm run typecheck
-pnpm test -- test/main/presenter/llmProviderPresenter
-pnpm test -- test/main/presenter/acpProvider.test.ts
+pnpm test -- test/main/agent/acp
+pnpm test -- test/main/provider/acpProvider.test.ts
 ```
 
 ## Risks and Mitigations

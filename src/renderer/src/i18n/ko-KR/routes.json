@@ -3,6 +3,7 @@
   "welcome": "환영합니다",
   "settings": "설정",
   "settings-common": "일반 설정",
+  "settings-ocr": "OCR(문자 인식)",
   "settings-provider": "제공자 설정",
   "settings-about": "정보",
   "settings-database": "데이터 설정",
@@ -13,7 +14,7 @@
   "settings-prompt": "프롬프트 관리",
   "settings-mcp-market": "MCP 시장",
   "settings-acp": "ACP 프록시",
-  "settings-skills": "Skills",
+  "plugins-skills": "Skills",
   "settings-notifications-hooks": "훅",
   "settings-scheduled-tasks": "예약 작업",
   "settings-dashboard": "Dashboard",
@@ -23,5 +24,7 @@
   "settings-plugins": "Plugins",
   "settings-overview": "설정 개요",
   "settings-memory": "메모리",
-  "plugins": "Plugins"
+  "plugins": "Plugins",
+  "settings-debug": "디버그",
+  "settings-toolchains": "Toolchains"
 }

@@ -3,6 +3,7 @@
   "welcome": "ようこそ",
   "settings": "設定",
   "settings-common": "一般設定",
+  "settings-ocr": "OCR（文字認識）",
   "settings-provider": "プロバイダー設定",
   "settings-about": "について",
   "settings-database": "データ設定",
@@ -13,7 +14,7 @@
   "settings-prompt": "プロンプト管理",
   "settings-mcp-market": "MCP市場",
   "settings-acp": "ACPエージェント",
-  "settings-skills": "Skills",
+  "plugins-skills": "Skills",
   "settings-notifications-hooks": "フック",
   "settings-scheduled-tasks": "スケジュール済みタスク",
   "settings-dashboard": "Dashboard",
@@ -23,5 +24,7 @@
   "settings-plugins": "プラグイン",
   "settings-overview": "設定の概要",
   "settings-memory": "メモリ",
-  "plugins": "Plugins"
+  "plugins": "Plugins",
+  "settings-debug": "デバッグ",
+  "settings-toolchains": "Toolchains"
 }

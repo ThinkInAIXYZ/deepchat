@@ -3,6 +3,7 @@
   "welcome": "歡迎",
   "settings": "設定",
   "settings-common": "一般設定",
+  "settings-ocr": "OCR（文字辨識）",
   "settings-database": "資料設定",
   "settings-provider": "大型語言模型設定",
   "settings-mcp": "MCP設定",
@@ -13,7 +14,7 @@
   "settings-prompt": "Prompt管理",
   "settings-mcp-market": "MCP市場",
   "settings-acp": "ACP Agent",
-  "settings-skills": "Skills設定",
+  "plugins-skills": "Skills",
   "settings-notifications-hooks": "Hooks",
   "settings-scheduled-tasks": "定時任務",
   "settings-dashboard": "資料看板",
@@ -23,5 +24,7 @@
   "settings-plugins": "插件",
   "settings-overview": "設定概覽",
   "settings-memory": "記憶",
-  "plugins": "插件"
+  "plugins": "插件",
+  "settings-debug": "偵錯",
+  "settings-toolchains": "工具鏈"
 }

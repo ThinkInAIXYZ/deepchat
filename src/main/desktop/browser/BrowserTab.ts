@@ -1,0 +1,1059 @@
+import { WebContents } from 'electron'
+import { nanoid } from 'nanoid'
+import { awaitWithAbort } from '@/lib/awaitWithAbort'
+import {
+  BrowserPageStatus,
+  type BrowserPageInfo,
+  type ScreenshotOptions
+} from '@shared/types/browser'
+import { CDPManager } from './CDPManager'
+import { ScreenshotManager } from './ScreenshotManager'
+
+const INTERACTIVE_READY_WAIT_TIMEOUT_MS = 2000
+const INTERACTIVE_READY_TIMEOUT_MESSAGE_PREFIX = 'Timed out waiting for dom-ready:'
+const NAVIGATION_CDP_METHODS = new Set(['Page.navigate', 'Page.reload'])
+
+export class BrowserTab {
+  readonly pageId: string
+  readonly createdAt: number
+  url = 'about:blank'
+  title = ''
+  favicon = ''
+  status: BrowserPageStatus = BrowserPageStatus.Idle
+  updatedAt: number
+  private readonly webContents: WebContents
+  private readonly cdpManager: CDPManager
+  private readonly screenshotManager: ScreenshotManager
+  private isAttached = false
+  private awaitingMainFrameInteractive = false
+  private interactiveReady = false
+  private lastInteractiveAt: number | null = null
+  private loadingStartedAt: number | null = null
+  private fullReady = false
+
+  constructor(
+    webContents: WebContents,
+    cdpManager: CDPManager,
+    screenshotManager: ScreenshotManager
+  ) {
+    this.pageId = nanoid(12)
+    this.createdAt = Date.now()
+    this.updatedAt = this.createdAt
+    this.webContents = webContents
+    this.cdpManager = cdpManager
+    this.screenshotManager = screenshotManager
+    this.url = webContents.getURL() || 'about:blank'
+    this.title = webContents.getTitle() || ''
+    this.bindLifecycleEvents()
+  }
+
+  get contents(): WebContents {
+    return this.webContents
+  }
+
+  get tabId(): string {
+    return this.pageId
+  }
+
+  async navigate(url: string, timeoutMs?: number): Promise<void> {
+    this.beginMainFrameNavigation(url)
+    try {
+      await this.withTimeout(this.webContents.loadURL(url), timeoutMs ?? 30000)
+      this.title = this.webContents.getTitle() || url
+      this.fullReady = true
+      this.status = BrowserPageStatus.Ready
+      this.updatedAt = Date.now()
+    } catch (error) {
+      this.markNavigationError(error)
+      throw error
+    }
+  }
+
+  async navigateUntilDomReady(
+    url: string,
+    timeoutMs: number = 30000,
+    beforeDispatch?: () => void,
+    onDispatched?: () => void,
+    signal?: AbortSignal
+  ): Promise<void> {
+    signal?.throwIfAborted()
+    this.ensureAvailable()
+    beforeDispatch?.()
+    signal?.throwIfAborted()
+    this.beginMainFrameNavigation(url)
+
+    const loadPromise = this.webContents.loadURL(url)
+    void loadPromise.catch((error) => {
+      if (this.interactiveReady) {
+        console.warn(`[YoBrowser][${this.pageId}] background load rejected after dom-ready`, {
+          url,
+          error
+        })
+      }
+    })
+    onDispatched?.()
+
+    try {
+      await Promise.race([this.waitForInteractiveReady(timeoutMs, signal), loadPromise])
+      signal?.throwIfAborted()
+      if (!this.interactiveReady) {
+        throw new Error(`Navigation finished before dom-ready for ${url}`)
+      }
+      this.title = this.webContents.getTitle() || url
+      this.updatedAt = Date.now()
+    } catch (error) {
+      signal?.throwIfAborted()
+      this.markNavigationError(error)
+      throw error
+    }
+  }
+
+  async extractDOM(selector?: string): Promise<string> {
+    await this.ensureInteractiveReadyOrWait('extract DOM')
+    const session = await this.ensureSession()
+    return await this.cdpManager.getDOM(session, selector)
+  }
+
+  async evaluateScript(script: string): Promise<unknown> {
+    await this.ensureInteractiveReadyOrWait('evaluate script')
+    const session = await this.ensureSession()
+    return await this.cdpManager.evaluateScript(session, script)
+  }
+
+  async sendCdpCommand(
+    method: string,
+    params?: Record<string, unknown>,
+    beforeDispatch?: () => void,
+    onDispatched?: () => void,
+    signal?: AbortSignal
+  ): Promise<unknown> {
+    signal?.throwIfAborted()
+    if (NAVIGATION_CDP_METHODS.has(method)) {
+      this.ensureAvailable()
+    } else {
+      await this.ensureInteractiveReadyOrWait(`send CDP command ${method}`, undefined, signal)
+    }
+
+    const session = await awaitWithAbort(this.ensureSession(), signal)
+    signal?.throwIfAborted()
+    beforeDispatch?.()
+    signal?.throwIfAborted()
+    const responsePromise = session.sendCommand(method, params ?? {})
+    onDispatched?.()
+    const response = await awaitWithAbort(responsePromise, signal)
+    signal?.throwIfAborted()
+
+    if (method === 'Page.navigate') {
+      const navigationResponse = response as {
+        loaderId?: string
+        errorText?: string
+      }
+      const hasCommittedCrossDocumentNavigation =
+        typeof navigationResponse.loaderId === 'string' &&
+        navigationResponse.loaderId.trim() !== '' &&
+        !navigationResponse.errorText
+
+      if (hasCommittedCrossDocumentNavigation) {
+        this.beginMainFrameNavigation(
+          typeof params?.url === 'string' && params.url.trim() ? params.url : this.url
+        )
+      }
+    } else if (method === 'Page.reload') {
+      this.beginMainFrameNavigation(this.url)
+    }
+
+    return response
+  }
+
+  async takeScreenshot(options?: ScreenshotOptions): Promise<string> {
+    await this.ensureInteractiveReadyOrWait('capture screenshot')
+    await this.ensureSession()
+    this.ensureAvailable()
+
+    // Handle selector-based screenshot
+    if (options?.selector) {
+      const rect = await this.evaluate((selector) => {
+        const element = document.querySelector<HTMLElement>(selector)
+        if (!element) {
+          return null
+        }
+        const { x, y, width, height } = element.getBoundingClientRect()
+        return {
+          x: Math.round(x + window.scrollX),
+          y: Math.round(y + window.scrollY),
+          width: Math.round(width),
+          height: Math.round(height)
+        }
+      }, options.selector)
+
+      if (!rect) {
+        throw new Error(`Element not found for selector: ${options.selector}`)
+      }
+
+      const image = await this.webContents.capturePage(rect)
+      return image.toPNG().toString('base64')
+    }
+
+    // Handle highlight selectors
+    let cleanup: (() => Promise<void>) | null = null
+    if (options?.highlightSelectors && options.highlightSelectors.length > 0) {
+      cleanup = await this.highlightElements(options.highlightSelectors)
+    }
+
+    try {
+      // Handle full page screenshot
+      if (options?.fullPage) {
+        const dimensions = await this.evaluate(() => ({
+          width: Math.max(
+            document.documentElement.scrollWidth,
+            document.body?.scrollWidth || 0,
+            window.innerWidth
+          ),
+          height: Math.max(
+            document.documentElement.scrollHeight,
+            document.body?.scrollHeight || 0,
+            window.innerHeight
+          )
+        }))
+
+        const image = await this.webContents.capturePage({
+          x: 0,
+          y: 0,
+          width: Math.min(dimensions.width, 20000),
+          height: Math.min(dimensions.height, 20000)
+        })
+        return image.toPNG().toString('base64')
+      }
+
+      // Default screenshot
+      const session = await this.ensureSession()
+      return await this.screenshotManager.captureScreenshot(session, options)
+    } finally {
+      if (cleanup) {
+        await cleanup()
+      }
+    }
+  }
+
+  async goBack(): Promise<void> {
+    this.ensureAvailable()
+    if (this.webContents.navigationHistory.canGoBack()) {
+      this.webContents.goBack()
+      await this.waitForNetworkIdle()
+    }
+  }
+
+  async goForward(): Promise<void> {
+    this.ensureAvailable()
+    if (this.webContents.navigationHistory.canGoForward()) {
+      this.webContents.goForward()
+      await this.waitForNetworkIdle()
+    }
+  }
+
+  async reload(): Promise<void> {
+    this.ensureAvailable()
+    this.webContents.reload()
+    await this.waitForNetworkIdle()
+  }
+
+  async click(selector: string): Promise<void> {
+    await this.evaluate((sel) => {
+      const element = document.querySelector<HTMLElement>(sel)
+      if (!element) {
+        throw new Error(`Element not found for selector: ${sel}`)
+      }
+      element.click()
+    }, selector)
+  }
+
+  async hover(selector: string): Promise<void> {
+    await this.evaluate((sel) => {
+      const element = document.querySelector<HTMLElement>(sel)
+      if (!element) {
+        throw new Error(`Element not found for selector: ${sel}`)
+      }
+      element.dispatchEvent(
+        new MouseEvent('mouseover', {
+          bubbles: true,
+          cancelable: true,
+          view: window
+        })
+      )
+    }, selector)
+  }
+
+  async fill(selector: string, value: string, append: boolean = false): Promise<void> {
+    await this.evaluate(
+      (sel, text, shouldAppend) => {
+        const element = document.querySelector<HTMLInputElement | HTMLTextAreaElement>(sel)
+        if (!element) {
+          throw new Error(`Element not found for selector: ${sel}`)
+        }
+        element.focus()
+        if (shouldAppend) {
+          element.value = `${element.value}${text}`
+        } else {
+          element.value = text
+        }
+        element.dispatchEvent(new Event('input', { bubbles: true }))
+        element.dispatchEvent(new Event('change', { bubbles: true }))
+      },
+      selector,
+      value,
+      append
+    )
+  }
+
+  async select(selector: string, values: string | string[]): Promise<void> {
+    const normalizedValues = Array.isArray(values) ? values : [values]
+    await this.evaluate(
+      (sel, targetValues) => {
+        const element = document.querySelector<HTMLSelectElement>(sel)
+        if (!element) {
+          throw new Error(`Element not found for selector: ${sel}`)
+        }
+        const options = Array.from(element.options)
+        let changed = false
+
+        for (const option of options) {
+          const shouldSelect =
+            targetValues.includes(option.value) || targetValues.includes(option.text)
+          if (option.selected !== shouldSelect) {
+            option.selected = shouldSelect
+            changed = true
+          }
+        }
+
+        if (changed) {
+          element.dispatchEvent(new Event('input', { bubbles: true }))
+          element.dispatchEvent(new Event('change', { bubbles: true }))
+        }
+      },
+      selector,
+      normalizedValues
+    )
+  }
+
+  async scroll(options?: { x?: number; y?: number; behavior?: 'auto' | 'smooth' }): Promise<void> {
+    const x = options?.x ?? 0
+    const y = options?.y ?? 0
+    const behavior = options?.behavior ?? 'auto'
+
+    await this.evaluate(
+      (deltaX, deltaY, scrollBehavior) => {
+        window.scrollBy({
+          left: deltaX,
+          top: deltaY,
+          behavior: scrollBehavior
+        })
+      },
+      x,
+      y,
+      behavior
+    )
+  }
+
+  async pressKey(key: string, count: number = 1): Promise<void> {
+    this.ensureAvailable()
+    const normalizedKey = this.validateKeyInput(key, count)
+
+    for (let i = 0; i < count; i += 1) {
+      this.webContents.sendInputEvent({ type: 'keyDown', keyCode: normalizedKey })
+      this.webContents.sendInputEvent({ type: 'char', keyCode: normalizedKey })
+      this.webContents.sendInputEvent({ type: 'keyUp', keyCode: normalizedKey })
+    }
+  }
+
+  async getInnerText(selector?: string): Promise<string> {
+    return this.evaluate((sel) => {
+      const target = sel ? document.querySelector<HTMLElement>(sel) : document.body
+      return target?.innerText || ''
+    }, selector)
+  }
+
+  async getHtml(selector?: string): Promise<string> {
+    return this.evaluate((sel) => {
+      const target = sel ? document.querySelector<HTMLElement>(sel) : document.documentElement
+      return target?.outerHTML || ''
+    }, selector)
+  }
+
+  async getLinks(maxCount: number = 50): Promise<Array<{ text: string; href: string }>> {
+    const links = await this.evaluate(() => {
+      const elements = Array.from(document.querySelectorAll<HTMLAnchorElement>('a[href]'))
+      return elements.map((el) => ({
+        text: (el.innerText || el.title || el.getAttribute('aria-label') || '').trim(),
+        href: el.href
+      }))
+    })
+
+    return links.filter((item) => item.href).slice(0, maxCount)
+  }
+
+  async getClickableElements(
+    maxCount: number = 50
+  ): Promise<Array<{ selector: string; tag: string; text: string; ariaLabel?: string }>> {
+    const elements = await this.evaluate(() => {
+      const candidates = Array.from(
+        document.querySelectorAll<HTMLElement>(
+          'a[href], button, input, textarea, select, option, [role="button"], [onclick]'
+        )
+      )
+
+      const buildSelector = (element: Element): string => {
+        if (element.id) return `#${element.id}`
+        const parts: string[] = []
+        let current: Element | null = element
+        while (current && current.nodeType === Node.ELEMENT_NODE && parts.length < 5) {
+          let selector = current.nodeName.toLowerCase()
+          if (current.classList.length > 0) {
+            selector += `.${Array.from(current.classList)
+              .slice(0, 2)
+              .map((cls) => cls.replace(/\s+/g, '-'))
+              .join('.')}`
+          }
+          const parent = current.parentElement
+          if (parent) {
+            const siblings = Array.from(parent.children) as Element[]
+            const matchingSiblings = siblings.filter(
+              (child: Element) => child.nodeName === current!.nodeName
+            )
+            if (matchingSiblings.length > 1) {
+              const index = matchingSiblings.indexOf(current) + 1
+              selector += `:nth-of-type(${index})`
+            }
+          }
+          parts.unshift(selector)
+          current = parent
+        }
+        return parts.join(' > ')
+      }
+
+      return candidates.map((element) => ({
+        selector: buildSelector(element),
+        tag: element.tagName.toLowerCase(),
+        text: (element.innerText || '').trim(),
+        ariaLabel: element.getAttribute('aria-label') || undefined
+      }))
+    })
+
+    return elements.slice(0, maxCount)
+  }
+
+  async waitForSelector(selector: string, options?: { timeout?: number }): Promise<boolean> {
+    this.ensureAvailable()
+    const timeout = options?.timeout ?? 5000
+
+    return this.evaluate(
+      (sel, maxWait) =>
+        new Promise<boolean>((resolve) => {
+          const start = performance.now()
+          const check = () => {
+            if (document.querySelector(sel)) {
+              resolve(true)
+              return
+            }
+            if (performance.now() - start > maxWait) {
+              resolve(false)
+              return
+            }
+            requestAnimationFrame(check)
+          }
+          check()
+        }),
+      selector,
+      timeout
+    )
+  }
+
+  async waitForNetworkIdle(options?: { timeout?: number; idleTime?: number }): Promise<void> {
+    this.ensureAvailable()
+    const timeout = options?.timeout ?? 15000
+    const idleTime = options?.idleTime ?? 800
+
+    return new Promise((resolve, reject) => {
+      if (this.webContents.isDestroyed()) {
+        reject(new Error('Page was destroyed while waiting for network idle'))
+        return
+      }
+
+      let lastActivity = Date.now()
+      let resolved = false
+
+      const onActivity = () => {
+        lastActivity = Date.now()
+      }
+
+      const onDidStartLoading = () => onActivity()
+      const onDidStopLoading = () => onActivity()
+      const onDomReady = () => onActivity()
+
+      const idleChecker = setInterval(() => {
+        if (Date.now() - lastActivity >= idleTime && !resolved && !this.webContents.isLoading()) {
+          cleanup()
+          resolved = true
+          resolve()
+        }
+      }, 200)
+
+      const timer = setTimeout(() => {
+        if (!resolved) {
+          cleanup()
+          reject(new Error('Timed out waiting for network idle'))
+        }
+      }, timeout)
+
+      const cleanup = () => {
+        clearInterval(idleChecker)
+        clearTimeout(timer)
+        this.webContents.removeListener('did-start-loading', onDidStartLoading)
+        this.webContents.removeListener('did-stop-loading', onDidStopLoading)
+        this.webContents.removeListener('dom-ready', onDomReady)
+      }
+
+      this.webContents.on('did-start-loading', onDidStartLoading)
+      this.webContents.on('did-stop-loading', onDidStopLoading)
+      this.webContents.on('dom-ready', onDomReady)
+      onActivity()
+    })
+  }
+
+  private async highlightElements(selectors: string[]): Promise<() => Promise<void>> {
+    await this.evaluate((list) => {
+      list.forEach((selector, index) => {
+        const element = document.querySelector<HTMLElement>(selector)
+        if (element) {
+          element.dataset.__deepchatOriginalOutline = element.style.outline
+          element.style.outline = '2px solid #ff5f6d'
+          element.style.outlineOffset = '2px'
+          element.dataset.__deepchatHighlightIndex = String(index)
+        }
+      })
+    }, selectors)
+
+    return async () => {
+      await this.evaluate(() => {
+        document
+          .querySelectorAll<HTMLElement>('[data-__deepchat-highlight-index]')
+          .forEach((el) => {
+            if (el.dataset.__deepchatOriginalOutline !== undefined) {
+              el.style.outline = el.dataset.__deepchatOriginalOutline
+            } else {
+              el.style.outline = ''
+            }
+            delete el.dataset.__deepchatHighlightIndex
+            delete el.dataset.__deepchatOriginalOutline
+          })
+      })
+    }
+  }
+
+  private async evaluate<T>(fn: (...args: any[]) => T, ...args: any[]): Promise<T> {
+    this.ensureAvailable()
+    await this.ensureInteractiveReadyOrWait('evaluate script')
+    const session = await this.ensureSession()
+    const serializedArgs = JSON.stringify(args, (_key, value) =>
+      value === undefined ? null : value
+    )
+    const script = `(${fn.toString()})(...${serializedArgs})`
+    const result = await this.cdpManager.evaluateScript(session, script)
+    return result as T
+  }
+
+  private ensureAvailable(): void {
+    if (this.webContents.isDestroyed()) {
+      throw new Error('Page is no longer available')
+    }
+  }
+
+  private async ensureInteractiveReadyOrWait(
+    action: string,
+    timeoutMs: number = INTERACTIVE_READY_WAIT_TIMEOUT_MS,
+    signal?: AbortSignal
+  ): Promise<void> {
+    signal?.throwIfAborted()
+    this.ensureAvailable()
+
+    if (this.interactiveReady) {
+      return
+    }
+
+    if (this.awaitingMainFrameInteractive || this.status === BrowserPageStatus.Loading) {
+      try {
+        await this.waitForInteractiveReady(timeoutMs, signal)
+      } catch (error) {
+        if (!this.isInteractiveReadyTimeoutError(error)) {
+          throw error
+        }
+      }
+
+      if (this.interactiveReady) {
+        return
+      }
+
+      if (await this.probeInteractiveReadiness(signal)) {
+        return
+      }
+    }
+
+    throw this.buildNotReadyError(action)
+  }
+
+  private validateKeyInput(key: string, count: number): string {
+    if (!Number.isInteger(count) || count <= 0) {
+      throw new Error('pressKey count must be a positive integer')
+    }
+
+    const supportedKeysDescription =
+      'Supported keys include: Enter, Space, Tab, ArrowUp/ArrowDown/ArrowLeft/ArrowRight, Backspace, digits 0-9, letters A-Z, function keys F1-F12, modifiers Shift/Control/Alt/Meta, or any single printable ASCII character (e.g., punctuation like `~!@#$%^&*()_+-={}[];:\\\'",.<>/?|`).'
+    const rawKey = key
+    const trimmedKey = rawKey.trim()
+    if (!rawKey) {
+      throw new Error(`Invalid key provided. ${supportedKeysDescription}`)
+    }
+
+    const namedKeys = new Map(
+      [
+        'Enter',
+        'Space',
+        'Tab',
+        'Backspace',
+        'Escape',
+        'ArrowUp',
+        'ArrowDown',
+        'ArrowLeft',
+        'ArrowRight',
+        'Shift',
+        'Control',
+        'Alt',
+        'Meta'
+      ].map((value) => [value.toLowerCase(), value])
+    )
+
+    const singleCharCandidate =
+      rawKey.length === 1 ? rawKey : trimmedKey.length === 1 ? trimmedKey : ''
+
+    const lowerKey = trimmedKey.toLowerCase()
+    const namedMatch = namedKeys.get(lowerKey)
+    if (namedMatch) {
+      return namedMatch
+    }
+
+    if (/^[a-z]$/i.test(trimmedKey)) {
+      return trimmedKey.toUpperCase()
+    }
+
+    if (/^\d$/.test(trimmedKey)) {
+      return trimmedKey
+    }
+
+    const functionKeyMatch = /^f(?:[1-9]|1[0-2])$/i.test(trimmedKey)
+    if (functionKeyMatch) {
+      return trimmedKey.toUpperCase()
+    }
+
+    if (
+      singleCharCandidate.length === 1 &&
+      /^[\x20-\x7E]$/.test(singleCharCandidate) // printable ASCII, includes space and punctuation
+    ) {
+      const char = singleCharCandidate
+      return /^[a-z]$/i.test(char) ? char.toUpperCase() : char
+    }
+
+    throw new Error(`Unsupported key "${key}". ${supportedKeysDescription}`)
+  }
+
+  async waitForLoad(timeoutMs: number = 30000): Promise<void> {
+    if (this.webContents.isDestroyed()) {
+      throw new Error('WebContents destroyed')
+    }
+
+    if (this.fullReady && !this.webContents.isLoading()) {
+      return
+    }
+
+    let settled = false
+    let timeoutId: NodeJS.Timeout | null = null
+    let onFinishLoad: (() => void) | null = null
+    let onFailLoad: ((...args: any[]) => void) | null = null
+
+    const cleanup = () => {
+      if (timeoutId) {
+        clearTimeout(timeoutId)
+        timeoutId = null
+      }
+      if (onFinishLoad) {
+        this.webContents.removeListener('did-finish-load', onFinishLoad)
+      }
+      if (onFailLoad) {
+        this.webContents.removeListener('did-fail-load', onFailLoad as any)
+      }
+    }
+
+    const settle = (handler: () => void) => {
+      if (settled) return
+      settled = true
+      cleanup()
+      handler()
+    }
+
+    try {
+      await new Promise<void>((resolvePromise, rejectPromise) => {
+        onFinishLoad = () => settle(resolvePromise)
+
+        onFailLoad = (
+          _event: unknown,
+          errorCode: number,
+          errorDescription: string,
+          _validatedURL: string,
+          isMainFrame: boolean
+        ) => {
+          if (!isMainFrame) {
+            return
+          }
+          settle(() =>
+            rejectPromise(new Error(`Navigation failed ${errorCode}: ${errorDescription}`))
+          )
+        }
+
+        timeoutId = setTimeout(() => {
+          settle(() => rejectPromise(new Error('Timed out waiting for page load')))
+        }, timeoutMs)
+
+        this.webContents.once('did-finish-load', onFinishLoad)
+        this.webContents.once('did-fail-load', onFailLoad as any)
+      })
+    } catch (error) {
+      if (!settled) {
+        cleanup()
+      }
+      throw error
+    }
+  }
+
+  destroy(): void {
+    try {
+      if (this.webContents.isDestroyed()) {
+        return
+      }
+
+      const debuggerSession = this.webContents.debugger
+      if (debuggerSession && debuggerSession.isAttached()) {
+        debuggerSession.detach()
+      }
+    } catch (error) {
+      if (!this.isDestroyedObjectError(error)) {
+        console.warn(`[YoBrowser][${this.pageId}] failed to detach debugger:`, error)
+      }
+    } finally {
+      this.isAttached = false
+    }
+  }
+
+  private isDestroyedObjectError(error: unknown): boolean {
+    return error instanceof Error && /Object has been destroyed/i.test(error.message)
+  }
+
+  private async ensureSession() {
+    if (this.webContents.isDestroyed()) {
+      throw new Error('WebContents destroyed')
+    }
+
+    // 安全检查：只有加载外部网页的 browser tab 才允许绑定 CDP
+    const currentUrl = this.webContents.getURL()
+    if (currentUrl.startsWith('local://')) {
+      throw new Error('CDP is not allowed for local:// URLs')
+    }
+
+    if (!this.isAttached) {
+      try {
+        await this.cdpManager.createSession(this.webContents)
+        this.isAttached = true
+      } catch (error) {
+        console.error(`[YoBrowser][${this.pageId}] failed to create CDP session`, error)
+        throw error
+      }
+    }
+    return this.webContents.debugger
+  }
+
+  private beginMainFrameNavigation(url: string): void {
+    const now = Date.now()
+    this.url = url
+    this.awaitingMainFrameInteractive = true
+    this.interactiveReady = false
+    this.fullReady = false
+    this.loadingStartedAt = now
+    this.status = BrowserPageStatus.Loading
+    this.updatedAt = now
+  }
+
+  private markNavigationError(error: unknown): void {
+    this.awaitingMainFrameInteractive = false
+    this.interactiveReady = false
+    this.fullReady = false
+    this.loadingStartedAt = null
+    this.status = BrowserPageStatus.Error
+    this.updatedAt = Date.now()
+    console.error(`[YoBrowser][${this.pageId}] navigation failed`, {
+      url: this.url,
+      status: this.status,
+      error
+    })
+  }
+
+  private async waitForInteractiveReady(timeoutMs: number, signal?: AbortSignal): Promise<void> {
+    signal?.throwIfAborted()
+    if (this.interactiveReady) {
+      return
+    }
+
+    this.ensureAvailable()
+
+    await new Promise<void>((resolve, reject) => {
+      let timeoutId: NodeJS.Timeout | null = null
+
+      const cleanup = () => {
+        if (timeoutId) {
+          clearTimeout(timeoutId)
+          timeoutId = null
+        }
+        this.webContents.removeListener('dom-ready', onDomReady)
+        this.webContents.removeListener('did-fail-load', onFailLoad as any)
+        this.webContents.removeListener('destroyed', onDestroyed)
+        signal?.removeEventListener('abort', onAbort)
+      }
+
+      const onDomReady = () => {
+        cleanup()
+        resolve()
+      }
+
+      const onFailLoad = (
+        _event: unknown,
+        errorCode: number,
+        errorDescription: string,
+        _validatedURL: string,
+        isMainFrame: boolean
+      ) => {
+        if (!isMainFrame) {
+          return
+        }
+        cleanup()
+        reject(new Error(`Navigation failed ${errorCode}: ${errorDescription}`))
+      }
+
+      const onDestroyed = () => {
+        cleanup()
+        reject(new Error('Page was destroyed before dom-ready'))
+      }
+
+      const onAbort = () => {
+        cleanup()
+        reject(signal?.reason ?? new DOMException('Aborted', 'AbortError'))
+      }
+
+      timeoutId = setTimeout(() => {
+        cleanup()
+        reject(new Error(`${INTERACTIVE_READY_TIMEOUT_MESSAGE_PREFIX} ${this.url}`))
+      }, timeoutMs)
+
+      this.webContents.once('dom-ready', onDomReady)
+      this.webContents.on('did-fail-load', onFailLoad as any)
+      this.webContents.once('destroyed', onDestroyed)
+      signal?.addEventListener('abort', onAbort, { once: true })
+      if (signal?.aborted) onAbort()
+    })
+  }
+
+  private isInteractiveReadyTimeoutError(error: unknown): error is Error {
+    return (
+      error instanceof Error && error.message.startsWith(INTERACTIVE_READY_TIMEOUT_MESSAGE_PREFIX)
+    )
+  }
+
+  private async probeInteractiveReadiness(signal?: AbortSignal): Promise<boolean> {
+    try {
+      signal?.throwIfAborted()
+      const session = await awaitWithAbort(this.ensureSession(), signal)
+      signal?.throwIfAborted()
+      const probe = (await awaitWithAbort(
+        this.cdpManager.evaluateScript(
+          session,
+          `(() => {
+          try {
+            return {
+              readyState: document.readyState,
+              hasBody: Boolean(document.body),
+              href: location.href
+            }
+          } catch {
+            return null
+          }
+        })()`
+        ),
+        signal
+      )) as { readyState?: unknown; hasBody?: unknown; href?: unknown } | null
+      signal?.throwIfAborted()
+
+      const readyState = typeof probe?.readyState === 'string' ? probe.readyState : ''
+      const hasBody = probe?.hasBody === true
+      if (readyState !== 'interactive' && readyState !== 'complete') {
+        return false
+      }
+
+      if (!hasBody) {
+        return false
+      }
+
+      this.awaitingMainFrameInteractive = false
+      this.interactiveReady = true
+      this.lastInteractiveAt = Date.now()
+      this.updatedAt = this.lastInteractiveAt
+      if (typeof probe?.href === 'string' && probe.href) {
+        this.url = probe.href
+      }
+      return true
+    } catch {
+      signal?.throwIfAborted()
+      return false
+    }
+  }
+
+  private buildNotReadyError(action: string): Error {
+    const error = new Error(
+      `YoBrowser page is not ready to ${action}. Retry this request. url=${this.url} status=${this.status}`
+    )
+    error.name = 'YoBrowserNotReadyError'
+    Object.assign(error, {
+      retryable: true,
+      url: this.url,
+      status: this.status,
+      lastInteractiveAt: this.lastInteractiveAt,
+      loadingStartedAt: this.loadingStartedAt
+    })
+    return error
+  }
+
+  private async withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+    return await new Promise<T>((resolve, reject) => {
+      const timeoutId = setTimeout(() => {
+        reject(new Error(`Timed out waiting for page load: ${this.url}`))
+      }, timeoutMs)
+
+      promise.then(
+        (value) => {
+          clearTimeout(timeoutId)
+          resolve(value)
+        },
+        (error) => {
+          clearTimeout(timeoutId)
+          reject(error)
+        }
+      )
+    })
+  }
+
+  private bindLifecycleEvents(): void {
+    this.webContents.on('did-start-navigation', (details) => {
+      if (!details.isMainFrame || details.isSameDocument) {
+        return
+      }
+
+      this.beginMainFrameNavigation(details.url || this.url)
+    })
+
+    this.webContents.on('did-navigate-in-page', (_event, url: string, isMainFrame: boolean) => {
+      if (!isMainFrame) {
+        return
+      }
+
+      this.url = url || this.url
+      this.updatedAt = Date.now()
+    })
+
+    this.webContents.on('did-start-loading', () => {
+      this.loadingStartedAt = Date.now()
+      this.status = BrowserPageStatus.Loading
+      this.updatedAt = this.loadingStartedAt
+    })
+
+    this.webContents.on('dom-ready', () => {
+      const now = Date.now()
+      this.awaitingMainFrameInteractive = false
+      this.interactiveReady = true
+      this.lastInteractiveAt = now
+      this.updatedAt = now
+      console.info(`[YoBrowser][${this.pageId}] page dom-ready`, {
+        url: this.url,
+        status: this.status
+      })
+    })
+
+    this.webContents.on('did-stop-loading', () => {
+      this.loadingStartedAt = null
+      if (this.interactiveReady) {
+        this.fullReady = true
+        this.status = BrowserPageStatus.Ready
+      }
+      this.updatedAt = Date.now()
+    })
+
+    this.webContents.on('did-finish-load', () => {
+      const now = Date.now()
+      this.awaitingMainFrameInteractive = false
+      this.interactiveReady = true
+      this.lastInteractiveAt = now
+      this.fullReady = true
+      this.status = BrowserPageStatus.Ready
+      this.title = this.webContents.getTitle() || this.url
+      this.updatedAt = now
+      console.info(`[YoBrowser][${this.pageId}] page did-finish-load`, {
+        url: this.url,
+        status: this.status
+      })
+    })
+
+    this.webContents.on(
+      'did-fail-load',
+      (
+        _event,
+        errorCode: number,
+        errorDescription: string,
+        validatedURL: string,
+        isMainFrame: boolean
+      ) => {
+        if (!isMainFrame || errorCode === -3) {
+          return
+        }
+
+        this.url = validatedURL || this.url
+        this.awaitingMainFrameInteractive = false
+        this.interactiveReady = false
+        this.fullReady = false
+        this.loadingStartedAt = null
+        this.status = BrowserPageStatus.Error
+        this.updatedAt = Date.now()
+        console.error(`[YoBrowser][${this.pageId}] navigation failed`, {
+          url: this.url,
+          status: this.status,
+          errorCode,
+          errorDescription
+        })
+      }
+    )
+  }
+
+  toPageInfo(): BrowserPageInfo {
+    return {
+      id: this.pageId,
+      url: this.url,
+      title: this.title,
+      favicon: this.favicon,
+      status: this.status,
+      createdAt: this.createdAt,
+      updatedAt: this.updatedAt
+    }
+  }
+}

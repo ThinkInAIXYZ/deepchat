@@ -2,7 +2,7 @@ import { ref } from 'vue'
 import { defineStore } from 'pinia'
 import { createProviderClient } from '../../api/ProviderClient'
 import { createModelClient } from '../../api/ModelClient'
-import type { OllamaModel } from '@shared/presenter'
+import type { OllamaModel } from '@shared/types/provider'
 import { useModelStore } from '@/stores/modelStore'
 import { useProviderStore } from '@/stores/providerStore'
 

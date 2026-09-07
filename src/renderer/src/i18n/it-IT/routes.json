@@ -3,6 +3,7 @@
   "welcome": "Benvenuto",
   "settings": "Impostazioni",
   "settings-common": "Impostazioni generali",
+  "settings-ocr": "OCR (riconoscimento del testo)",
   "settings-provider": "Impostazioni provider",
   "settings-mcp": "Impostazioni MCP",
   "settings-deepchat-agents": "DeepChat Agent",
@@ -14,7 +15,7 @@
   "settings-prompt": "Gestione prompt",
   "settings-mcp-market": "Mercato MCP",
   "settings-acp": "ACP Agent",
-  "settings-skills": "Impostazioni Skills",
+  "plugins-skills": "Skills",
   "settings-notifications-hooks": "Hooks",
   "settings-dashboard": "Dashboard",
   "settings-environments": "Ambienti directory",
@@ -23,5 +24,7 @@
   "settings-overview": "Panoramica impostazioni",
   "settings-scheduled-tasks": "Attività pianificate",
   "settings-memory": "Memoria",
-  "plugins": "Plugins"
+  "plugins": "Plugins",
+  "settings-debug": "Debug",
+  "settings-toolchains": "Toolchains"
 }

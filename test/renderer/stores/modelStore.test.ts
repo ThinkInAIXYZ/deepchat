@@ -1037,3 +1037,96 @@ describe('modelStore.initialize', () => {
     ])
   })
 })
+
+describe('modelStore.applyInitialModelRecommendations', () => {
+  const providerModels = [
+    {
+      id: 'chat-1',
+      name: 'Chat 1',
+      group: 'g',
+      providerId: 'openai',
+      isCustom: false,
+      type: ModelType.Chat
+    },
+    {
+      id: 'embed-1',
+      name: 'Embed 1',
+      group: 'g',
+      providerId: 'openai',
+      isCustom: false,
+      type: ModelType.Embedding
+    },
+    { id: 'chat-2', name: 'Chat 2', group: 'g', providerId: 'openai', isCustom: false },
+    {
+      id: 'chat-3',
+      name: 'Chat 3',
+      group: 'g',
+      providerId: 'openai',
+      isCustom: false,
+      type: ModelType.Chat
+    },
+    {
+      id: 'chat-4',
+      name: 'Chat 4',
+      group: 'g',
+      providerId: 'openai',
+      isCustom: false,
+      type: ModelType.Chat
+    }
+  ]
+
+  it('preselects up to three chat-typed models when nothing is enabled yet', async () => {
+    const { store, modelClient } = await setupStore({
+      modelClient: {
+        getProviderModels: vi.fn(async () => providerModels),
+        getBatchModelStatus: vi.fn(async (_providerId: string, ids: string[]) =>
+          Object.fromEntries(ids.map((id) => [id, false]))
+        )
+      }
+    })
+
+    const applied = await store.applyInitialModelRecommendations('openai')
+
+    expect(modelClient.updateModelStatus.mock.calls.map((call: unknown[]) => call[1])).toEqual([
+      'chat-1',
+      'chat-2',
+      'chat-3'
+    ])
+    expect(applied).toBe(3)
+  })
+
+  it('counts only models whose activation actually succeeds', async () => {
+    const { store, modelClient } = await setupStore({
+      modelClient: {
+        getProviderModels: vi.fn(async () => providerModels),
+        getBatchModelStatus: vi.fn(async (_providerId: string, ids: string[]) =>
+          Object.fromEntries(ids.map((id) => [id, false]))
+        ),
+        updateModelStatus: vi.fn(async (_providerId: string, modelId: string) => {
+          if (modelId === 'chat-2') {
+            throw new Error('ipc failed')
+          }
+        })
+      }
+    })
+
+    const applied = await store.applyInitialModelRecommendations('openai')
+
+    expect(applied).toBe(2)
+  })
+
+  it('never overwrites an existing selection', async () => {
+    const { store, modelClient } = await setupStore({
+      modelClient: {
+        getProviderModels: vi.fn(async () => providerModels),
+        getBatchModelStatus: vi.fn(async (_providerId: string, ids: string[]) =>
+          Object.fromEntries(ids.map((id) => [id, id === 'chat-4']))
+        )
+      }
+    })
+
+    await store.applyInitialModelRecommendations('openai')
+
+    expect(modelClient.updateModelStatus).not.toHaveBeenCalled()
+  })
+})

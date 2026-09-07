@@ -17,6 +17,7 @@
         source: 'chat',
         sessionId: threadId
       }"
+      :hidden-image-sources="hiddenMarkdownImageSources"
     />
 
     <ArtifactThinking v-else-if="part.type === 'thinking' && part.loading" />
@@ -47,7 +48,7 @@ import ToolCallPreview from '../artifacts/ToolCallPreview.vue'
 import { useBlockContent, type ProcessedPart } from '@/composables/useArtifacts'
 import { useArtifactStore } from '@/stores/artifact'
 import MarkdownRenderer from '@/components/markdown/MarkdownRenderer.vue'
-import type { DisplayAssistantMessageBlock } from '@/components/chat/messageListItems'
+import type { DisplayAssistantMessageBlock } from '@/features/chat-page/model/displayMessage'
 
 const artifactStore = useArtifactStore()
 const props = defineProps<{
@@ -56,6 +57,7 @@ const props = defineProps<{
   threadId: string
   isSearchResult?: boolean
   disableMarkdownVirtualization?: boolean
+  hiddenMarkdownImageSources?: readonly string[]
 }>()
 
 const { processedContent } = useBlockContent(props)
@@ -64,11 +66,8 @@ const shouldSmoothStream = computed(
   () => props.block.status === 'pending' || props.block.status === 'loading'
 )
 const isStreamingPart = (part: ProcessedPart) => shouldSmoothStream.value || Boolean(part.loading)
-const hasStreamingContent = computed(() =>
-  processedContent.value.some((part) => part.type === 'text' && isStreamingPart(part))
-)
 const shouldVirtualizeNodes = computed(
-  () => !props.disableMarkdownVirtualization && !props.isSearchResult && !hasStreamingContent.value
+  () => !props.disableMarkdownVirtualization && !props.isSearchResult
 )
 
 const artifactSnapshot = computed(() =>

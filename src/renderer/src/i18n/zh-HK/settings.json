@@ -1,6 +1,34 @@
 {
   "title": "設置",
   "common": {
+    "commandShell": {
+      "title": "Agent 命令 Shell",
+      "auto": "自動",
+      "windowsPowerShell": "Windows PowerShell",
+      "powerShellCore": "PowerShell 7",
+      "commandPrompt": "命令提示字元",
+      "gitBash": "Git Bash",
+      "bash": "Bash",
+      "zsh": "Zsh",
+      "fish": "Fish",
+      "executable": "Git Bash 可執行檔",
+      "autoDetect": "自動偵測",
+      "browse": "選擇 Git Bash",
+      "clearOverride": "清除自訂路徑",
+      "checking": "正在檢查 Git Bash...",
+      "available": "可用：{path}",
+      "refresh": "重新檢查",
+      "updateFailed": "無法更新命令 Shell 設定。",
+      "checkFailed": "無法檢查 Git Bash 是否可用。",
+      "browseFailed": "無法選擇 Git Bash 可執行檔。",
+      "loadFailed": "無法載入命令 Shell 設定。",
+      "errors": {
+        "unsupported-platform": "只有 Windows 支援選擇 Git Bash。",
+        "override-invalid": "自訂路徑必須指向現有的 bash.exe。",
+        "not-found": "未在此裝置上找到 Git Bash。",
+        "validation-failed": "偵測到的可執行檔未通過 Git Bash 驗證。"
+      }
+    },
     "title": "通用設置",
     "resetData": "重置數據",
     "language": "語言",
@@ -29,12 +57,12 @@
     "customProxyUrlPlaceholder": "例如: http://127.0.0.1:7890",
     "invalidProxyUrl": "無效的代理地址，請輸入有效的 http/https URL",
     "addCustomSearchEngine": "添加自訂搜尋引擎",
-    "addCustomSearchEngineDesc": "添加一個新的搜尋引擎，需要提供名稱和搜尋URL。URL中必須包含{\"{\"}query{\"}\"}作為查詢佔位符。",
+    "addCustomSearchEngineDesc": "添加一個新的搜尋引擎，需要提供名稱和搜尋URL。URL中必須包含{'{'}query{'}'}作為查詢佔位符。",
     "searchEngineName": "搜尋引擎名稱",
     "searchEngineNamePlaceholder": "請輸入搜尋引擎名稱",
     "searchEngineUrl": "搜尋URL",
-    "searchEngineUrlPlaceholder": "如: https://a.com/search?q={\"{\"}query{\"}\"}",
-    "searchEngineUrlError": "URL必須包含{\"{\"}query{\"}\"}作為查詢占位符",
+    "searchEngineUrlPlaceholder": "如: https://a.com/search?q={'{'}query{'}'}",
+    "searchEngineUrlError": "URL必須包含{'{'}query{'}'}作為查詢占位符",
     "deleteCustomSearchEngine": "刪除自定義搜索引擎",
     "deleteCustomSearchEngineDesc": "確定要刪除自定義搜索引擎 \"{name}\" 嗎？此操作無法撤銷。",
     "testSearchEngine": "測試搜索引擎",
@@ -66,23 +94,12 @@
     "notifications": "系統通知",
     "notificationsDesc": "當 DeepChat 不在前台時，如有會話生成完畢會發送系統通知",
     "traceDebugEnabled": "Trace 除錯功能",
+    "traceDebugEnabledDesc": "啟用後會在本機儲存模型請求內容。已知服務商的認證請求標頭和 API Key 欄位會被遮蓋，但提示詞仍可能包含敏感資料。",
     "fileMaxSize": "檔案最大大小",
     "fileMaxSizeHint": "限制單個檔案的最大上傳大小",
     "defaultModel": {
       "title": "預設模型",
       "chatModel": "預設聊天模型"
-    },
-    "autoCompaction": {
-      "title": "自動壓縮",
-      "enabled": "啟用自動壓縮",
-      "description": "當對話接近模型上下文視窗限制時，DeepChat 會自動摘要較早的歷史記錄，讓會話可以繼續。關閉後，DeepChat 不會產生摘要，但仍會在有需要時裁剪請求視圖，盡量避免供應商原始 context-window 錯誤。",
-      "thresholdLabel": "觸發閾值",
-      "thresholdMin": "提早（{value}%）",
-      "thresholdMax": "延後（{value}%）",
-      "thresholdDescription": "當提示所佔用達到有效歷史預算的這個比例時開始壓縮。數值越低可留出更多緩衝，數值越高則可保留更多原始上下文。",
-      "retainPairsLabel": "保留最近訊息對",
-      "retainPairsValue": "{count} 對",
-      "retainPairsDescription": "始終保留最近完成的使用者和助手訊息對，不參與壓縮。當前最後一次查詢不計入其中。"
     }
   },
   "notificationsHooks": {
@@ -187,8 +204,6 @@
     "resetAllDesc": "刪除所有數據，包括聊天記錄、配置和快取檔案",
     "resetting": "重置中...",
     "confirmReset": "確認重置",
-    "resetCompleteDevTitle": "數據重置完成",
-    "resetCompleteDevMessage": "開發環境下請手動重新啟動應用程式。請停止當前進程並重新執行 pnpm run dev",
     "toast": {
       "backupSuccessTitle": "備份成功",
       "backupSuccessMessage": "成功備份了數據"
@@ -221,7 +236,33 @@
       "confirmDescription": "將刪除 YoBrowser 會話的 Cookie、緩存、LocalStorage、IndexedDB 等數據，可能需要重新登錄網站。",
       "confirmTitle": "確認清空 YoBrowser 數據？",
       "description": "獨立的瀏覽器沙盒，不與主應用共享 Cookie 和本地存儲。\n可在此一鍵清空 YoBrowser 數據。",
-      "title": "YoBrowser 沙盒"
+      "title": "YoBrowser 沙盒",
+      "import": {
+        "button": "Import website data",
+        "title": "Import browser session data",
+        "description": "Choose a Chrome or Arc profile. macOS may ask you to authorize Keychain access. The source is never modified.",
+        "scanning": "Looking for browser profiles...",
+        "unsupportedTitle": "Not supported on this platform",
+        "unsupportedDescription": "Direct browser data import is currently available only on macOS. Windows remains unsupported because current Chrome data is app-bound.",
+        "profileLabel": "Source profile",
+        "profilePlaceholder": "Select a profile",
+        "noProfiles": "No supported Chrome or Arc profiles with cookie data were found.",
+        "cookies": "Cookies and sessions",
+        "supported": "Included in this import",
+        "otherData": "Passwords and web storage",
+        "notIncluded": "Not included in this version",
+        "preview": "Authorize and preview",
+        "previewTitle": "Ready to replace YoBrowser cookies",
+        "previewDescription": "{count} cookies can be imported. Existing YoBrowser cookies will be replaced.",
+        "skipped": "Skipped: {expired} expired, {partitioned} partitioned.",
+        "confirm": "Replace and import",
+        "doneTitle": "Import complete",
+        "doneDescription": "Imported {count} cookies. Open browser pages were reloaded.",
+        "keyDenied": "Keychain access was denied or the browser key could not be read.",
+        "previewExpired": "The source changed or the preview expired. Create a new preview.",
+        "encryptionUnsupported": "This profile uses an encryption format that this importer does not support.",
+        "failed": "Import failed before completion. Existing YoBrowser cookies were restored when mutation had started."
+      }
     },
     "databaseRepair": {
       "title": "資料庫修復",
@@ -431,7 +472,7 @@
   "dashboard": {
     "badge": "使用看板",
     "title": "使用看板",
-    "description": "統計 token 消耗、緩存命中與估算價格。token 和費用資料基於公開資訊估算，部分供應商或較早訊息資料可能缺失，僅供參考。",
+    "description": "統計 token 消耗與快取命中。",
     "actions": {
       "refresh": "刷新"
     },
@@ -447,8 +488,8 @@
     },
     "empty": {
       "title": "暫無統計資料",
-      "description": "有使用數據後，這裡會顯示 token 消耗、緩存命中和估算價格。",
-      "historyNote": "token 和費用資料基於公開資訊估算，部分供應商或較早訊息資料可能缺失，僅供參考。"
+      "description": "有使用資料後，這裡會顯示 token 消耗與快取命中。",
+      "historyNote": "部分供應商或較早訊息的使用資料可能缺失，僅供參考。"
     },
     "summary": {
       "totalTokens": "總 Token",
@@ -460,11 +501,7 @@
       "cachedTokensCachedLabel": "緩存命中",
       "cachedTokensUncachedLabel": "未命中",
       "cacheHitRate": "緩存命中率",
-      "cacheHitRateDescription": "緩存 prompt token 佔總輸入 token 的比例。",
-      "estimatedCost": "估算價格",
-      "estimatedCostDescription": "按目前 provider 價格或 AIHubMix 回退價格估算的美元成本。",
-      "estimatedCostTrendLabel": "最近 30 天趨勢",
-      "estimatedCostTrendEmpty": "最近 30 天還沒有成本記錄。",
+      "cacheHitRateDescription": "緩存 prompt token 佔有緩存指標的 usage 記錄中輸入 token 的比例。",
       "recordingStartedAt": "統計開始時間",
       "recordingStartedAtDescription": "目前看板中最早一條 usage 記錄的時間。",
       "withDeepChatDaysLabel": "陪伴天數",
@@ -494,9 +531,18 @@
     },
     "breakdown": {
       "providerTitle": "供應商排行",
-      "providerDescription": "先按估算價格排序，再按總 token 排序。",
+      "providerDescription": "按總 token 排序。",
       "modelTitle": "模型排行",
-      "modelDescription": "按估算價格和總 token 排序的前 10 個模型。",
+      "modelDescription": "按總 token 排序的前 10 個模型。",
+      "categoryTitle": "按活動查看用量",
+      "categoryDescription": "將對話用量與用於內容壓縮的內部模型呼叫分開統計。",
+      "category": {
+        "chat": "對話",
+        "compaction": "內容壓縮"
+      },
+      "chatEvents": "{count} 條訊息",
+      "compactionEvents": "{count} 次模型呼叫",
+      "unknownUsage": "{count} 條用量不明",
       "messages": "{count} 條消息",
       "empty": "暫時還沒有可展示的明細資料。"
     },
@@ -532,9 +578,17 @@
     "unavailable": "暫無"
   },
   "modelConfigItem": {
-    "chatFallbackWarning": "弱 Agent 能力：僅支援 legacy fallback 工具呼叫"
+    "chatFallbackWarning": "弱 Agent 能力：僅支援 legacy fallback 工具呼叫",
+    "capability": {
+      "vision": "視覺能力",
+      "functionCall": "函數調用能力",
+      "reasoning": "推理能力",
+      "search": "聯網搜尋能力"
+    }
   },
   "model": {
+    "temperatureFixedByPolicy": "此模型將溫度固定為 {value}。",
+    "topPFixedByPolicy": "此模型將 Top P 固定為 {value}。",
     "title": "模型設置",
     "systemPrompt": {
       "label": "系統提示詞",
@@ -662,7 +716,6 @@
       "currentUsingModelDefault": "目前使用模型預設配置",
       "temperature": {
         "description": "控制輸出的隨機性，大部分模型0-1，部分支持0-2之間，越高越隨機",
-        "fixedMoonshotKimi": "Moonshot Kimi K2.5/K2.6 在開啟思考時固定為 {enabled}，關閉思考時固定為 {disabled}。",
         "label": "溫度"
       },
       "topP": {
@@ -821,6 +874,11 @@
     }
   },
   "provider": {
+    "customHeaders": {
+      "title": "自定義請求頭",
+      "description": "請輸入值為字串的 JSON 物件",
+      "parseError": "自定義Header解析失敗"
+    },
     "search": "搜尋服務商平台…",
     "enable": "開啟服務",
     "enabled": "已啟用",
@@ -854,6 +912,7 @@
     "urlFormat": "API範例：{defaultUrl}",
     "urlFormatFill": "填入 API URL",
     "openaiResponsesNotice": "OpenAI 官方服務預設使用 Responses API；若第三方僅支援 Chat Completions，請使用 OpenAI Completions 服務商。",
+    "amdDeveloperHint": "AMD GPU Cloud 透過 Radeon Token Factory 提供公共模型 API。請向 AMD 取得 API Key，以存取目前可用的模型。",
     "modifyBaseUrl": "修改",
     "baseUrlLockedHint": "此類 provider 預設固定為建議的 Base URL，避免誤修改導致請求異常。",
     "refreshModelsWithMetadataHint": "刷新該服務商時會先同步上游元資料，再重建本地模型列表。",
@@ -1135,7 +1194,63 @@
     "openaiCodexCallbackTitle": "完成認證",
     "openaiCodexCallbackDescription": "瀏覽器完成後返回 DeepChat。如果 DeepChat 沒有更新，請在此貼上完整回調 URL。",
     "openaiCodexCallbackPlaceholder": "貼上完整回調 URL",
-    "openaiCodexCompleteAuthentication": "完成認證"
+    "openaiCodexCompleteAuthentication": "完成認證",
+    "xaiGrokAuth": "xAI Grok OAuth",
+    "xaiGrokConnected": "xAI Grok 已連線",
+    "xaiGrokNotConnected": "xAI Grok 未連線",
+    "xaiGrokPendingDevice": "正在等待裝置授權",
+    "xaiGrokDisabled": "xAI Grok OAuth 已停用",
+    "xaiGrokError": "xAI Grok 授權失敗",
+    "xaiGrokAccount": "帳戶",
+    "xaiGrokSignInDevice": "使用 SuperGrok / Premium+ 登入",
+    "xaiGrokReconnect": "重新連線",
+    "xaiGrokSignOut": "登出",
+    "xaiGrokCancel": "取消",
+    "xaiGrokOpenVerification": "開啟驗證頁面",
+    "xaiGrokLoginTip": "透過 xAI 裝置代碼 OAuth 使用 SuperGrok 或 X Premium+。Token 會與 API Key 分開儲存，下方仍支援 Console API Key。",
+    "xaiGrokApiKeyAlternative": "或使用 xAI Console API Key：",
+    "browseAll": "瀏覽全部服務商",
+    "updateKey": "更新金鑰",
+    "sidebar": {
+      "configured": "已設定",
+      "disabledTag": "停用",
+      "empty": "尚未設定任何服務商。瀏覽全部服務商開始設定。"
+    },
+    "menu": {
+      "enable": "啟用",
+      "disable": "停用",
+      "rename": "重新命名",
+      "delete": "刪除"
+    },
+    "health": {
+      "verified": "已驗證",
+      "checking": "檢查中",
+      "needsAttention": "需要處理",
+      "notChecked": "未檢查",
+      "lastChecked": "上次檢查於 {time}"
+    },
+    "catalog": {
+      "title": "瀏覽全部服務商",
+      "description": "選擇一個服務商開始設定，設定完成後會出現在側邊欄。",
+      "searchPlaceholder": "搜尋服務商...",
+      "noResults": "沒有符合的服務商",
+      "configured": "已設定"
+    },
+    "addFlow": {
+      "connect": "連線並載入模型",
+      "validating": "正在驗證連線...",
+      "loadingModels": "正在載入模型...",
+      "failed": "連線失敗，請檢查設定後重試。",
+      "successTitle": "{name} 已連線",
+      "successDescription": "已載入 {count} 個模型，預選 {selected} 個，可在下方繼續調整。",
+      "successNoModels": "已連線，暫無可用的模型。",
+      "startChatting": "開始聊天",
+      "viewModels": "檢視模型"
+    },
+    "stagedUpdate": {
+      "failedTitle": "更新未生效",
+      "failedDescription": "新設定未通過驗證，已保留先前可用的設定。"
+    }
   },
   "knowledgeBase": {
     "fastgptTitle": "FastGPT知識庫",
@@ -1251,7 +1366,15 @@
       "seconds": "秒",
       "testConnection": "測試連接",
       "timeout": "超時",
-      "title": "Nowledge Mem 導出配置"
+      "title": "Nowledge Mem 導出配置",
+      "configLoadFailed": "無法載入配置",
+      "configSaved": "配置已保存",
+      "configSaveFailed": "無法保存配置",
+      "configReset": "配置已重置",
+      "configResetFailed": "無法重置配置",
+      "connectionSucceeded": "連接成功",
+      "connectionFailed": "無法使用目前配置建立連接",
+      "invalidBaseUrl": "請輸入不含帳號或查詢參數的 HTTP(S) 地址"
     }
   },
   "mcp": {
@@ -1287,6 +1410,7 @@
       "name": "伺服器名稱",
       "namePlaceholder": "輸入伺服器名稱",
       "nameRequired": "伺服器名稱不能為空",
+      "nameDuplicate": "已存在同名伺服器，請使用其他名稱。",
       "type": "伺服器類型",
       "typePlaceholder": "選擇伺服器類型",
       "typeStdio": "標準輸入輸出(Stdio)",
@@ -1313,11 +1437,6 @@
       "iconPlaceholder": "輸入圖標",
       "icons": "圖標",
       "iconsPlaceholder": "輸入圖標",
-      "autoApprove": "自動授權",
-      "autoApproveAll": "全部",
-      "autoApproveRead": "讀取",
-      "autoApproveWrite": "寫入",
-      "autoApproveHelp": "選擇需要自動授權的操作類型，無需用戶確認即可執行",
       "submit": "提交",
       "add": "添加",
       "update": "更新",
@@ -1351,7 +1470,42 @@
       "e2bApiKeyPlaceholder": "這裡輸入你的E2B Api Keys，如 e2b_1111xx*****",
       "e2bApiKeyHelp": "前往 e2b.dev 獲取你的 ApiKey",
       "e2bApiKeyRequired": "啟用E2B功能必須要輸入 ApiKey",
-      "clickToEdit": "點擊編輯以查看完整內容"
+      "clickToEdit": "點擊編輯以查看完整內容",
+      "sseCompatibilityBadge": "相容模式",
+      "sseMigrationHint": "SSE 僅保留舊版相容。伺服器支援後請遷移至 Streamable HTTP。",
+      "authorizationMode": "授權模式",
+      "authorizationInteractive": "互動式 OAuth",
+      "authorizationNone": "不使用 OAuth",
+      "authorizationClientCredentials": "用戶端憑證（草案）",
+      "authorizationPrivateKeyJwt": "私鑰 JWT",
+      "authorizationEnterprise": "企業跨應用程式存取",
+      "authorizationHelp": {
+        "none": "不啟動 OAuth 流程。若已設定靜態 Authorization 標頭，它仍然優先。",
+        "interactive": "開啟系統瀏覽器，透過含 PKCE 的授權碼流程完成驗證。",
+        "client_credentials": "使用受保護的用戶端密鑰，以機器身分驗證此伺服器。",
+        "private_key_jwt": "使用受保護的私鑰，以機器身分驗證此伺服器。",
+        "cross_app_access": "使用已核准的企業身分換取此受保護資源的存取權。"
+      },
+      "authorizationHeaderOverride": "已設定靜態 Authorization 標頭，它優先於此處選擇的 OAuth 模式。",
+      "protectedResourceUrl": "受保護資源 URL",
+      "protectedResourceUrlPlaceholder": "https://mcp.example.com",
+      "authorizationServerIssuer": "授權伺服器簽發者",
+      "authorizationServerIssuerPlaceholder": "https://auth.example.com",
+      "clientMetadataUrl": "用戶端中繼資料 URL",
+      "authorizationClientId": "用戶端 ID",
+      "authorizationScopes": "權限範圍",
+      "authorizationScopesPlaceholder": "read write",
+      "keyAlgorithm": "密鑰演算法",
+      "identityProfile": "企業身分設定",
+      "identityProfilePlaceholder": "選擇企業身分設定",
+      "privateKey": "私鑰",
+      "clientSecret": "用戶端密鑰",
+      "removeCredential": "移除已儲存憑證",
+      "credentialConfiguredPlaceholder": "已設定受保護憑證",
+      "credentialConfigured": "憑證已設定",
+      "credentialMemoryOnly": "此憑證僅儲存在記憶體中，結束 DeepChat 後會遺失。",
+      "credentialRemoveError": "移除受保護憑證失敗",
+      "credentialSaveError": "儲存受保護憑證失敗"
     },
     "deleteServer": "刪除伺服器",
     "editServer": "編輯伺服器",
@@ -1436,22 +1590,22 @@
     "viewLogs": "查看日誌",
     "starting": "啟動中",
     "error": "錯誤",
-    "managedServerReadOnly": "DeepChat托管服务",
-    "managedServerReadOnlyDesc": "請在對應插件設定中管理啟用和權限",
+    "managedServerReadOnly": "DeepChat 託管服務",
+    "managedServerReadOnlyDesc": "請在對應外掛程式設定中管理啟用狀態和權限。",
     "center": {
-      "title": "MCP Center",
-      "running": "Running",
-      "builtIn": "Built-in",
-      "custom": "Custom",
-      "searchPlaceholder": "搜索 MCP servers...",
-      "noResults": "没有匹配的 MCP server",
-      "command": "Command / URL",
+      "title": "MCP 中心",
+      "running": "運行中",
+      "builtIn": "內置",
+      "custom": "自訂",
+      "searchPlaceholder": "搜尋 MCP 伺服器...",
+      "noResults": "沒有相符的 MCP 伺服器",
+      "command": "命令 / URL",
       "filters": {
-        "all": "All",
-        "running": "Running",
-        "stopped": "Stopped",
-        "builtIn": "Built-in",
-        "custom": "Custom"
+        "all": "全部",
+        "running": "運行中",
+        "stopped": "已停止",
+        "builtIn": "內置",
+        "custom": "自訂"
       }
     },
     "authRequired": "需要認證",
@@ -1462,7 +1616,53 @@
     "authCallbackPlaceholder": "貼上完整回調 URL",
     "completeAuthentication": "完成認證",
     "saveSuccess": "已儲存配置",
-    "saveFailed": "儲存失敗"
+    "saveFailed": "儲存失敗",
+    "enterpriseProfiles": {
+      "title": "企業身分",
+      "description": "管理供 MCP 企業授權重複使用的 OpenID Connect 身分。",
+      "label": "設定名稱",
+      "issuer": "OpenID 簽發者",
+      "clientId": "用戶端 ID",
+      "scopes": "權限範圍",
+      "clientAuthentication": "身分提供者用戶端驗證",
+      "publicClient": "公開用戶端",
+      "confidentialClient": "用戶端密鑰",
+      "clientSecret": "身分提供者用戶端密鑰",
+      "clientSecretMissing": "登入前必須先設定用戶端密鑰。",
+      "authenticated": "已驗證",
+      "signIn": "登入",
+      "signOut": "登出",
+      "callbackUrl": "回呼 URL",
+      "empty": "沒有企業身分設定。",
+      "loadError": "載入企業身分失敗",
+      "saveError": "儲存企業身分失敗",
+      "authError": "企業身分登入失敗",
+      "removeError": "移除企業身分失敗",
+      "removeTitle": "移除企業身分？",
+      "removeDescription": "移除 {name} 及與其繫結的所有憑證？",
+      "status": {
+        "signed_out": "未登入",
+        "authenticating": "驗證中",
+        "authenticated": "已驗證",
+        "error": "錯誤"
+      }
+    },
+    "diagnostics": {
+      "title": "MCP 診斷",
+      "serverId": "伺服器 ID",
+      "owner": "擁有者",
+      "transport": "傳輸",
+      "connectionState": "連線狀態",
+      "era": "協定世代",
+      "serverImplementation": "伺服器實作",
+      "probe": "協商探測",
+      "extensions": "伺服器擴充",
+      "clientExtensions": "用戶端擴充",
+      "cache": "快取",
+      "subscriptions": "訂閱",
+      "auth": "授權",
+      "copy": "複製診斷"
+    }
   },
   "cronJobs": {
     "title": "定時任務",
@@ -1516,7 +1716,7 @@
       "error": "錯誤",
       "invalidAgent": "Agent 不存在或已停用，請重新選擇 Agent。"
     },
-    "runNowSuccess": "定時任務已觸發"
+    "runNowSuccess": "定時任務已完成"
   },
   "about": {
     "title": "關於我們",
@@ -1600,8 +1800,6 @@
     "description": "管理由 DeepChat 啟動嘅本地 ACP Agent。",
     "enabledTitle": "啟用 ACP",
     "enabledDescription": "啟用後，設定好嘅 ACP Agent 會出現在模型清單。",
-    "useBuiltinRuntimeTitle": "使用 DeepChat 內建環境",
-    "useBuiltinRuntimeDescription": "勾選後會繞過系統嘅 node 同 uv 命令，使用 DeepChat 自帶嘅版本。",
     "enableToAccess": "啟用 ACP 後先可以設定 Agent。",
     "addCustomAgent": "新增自訂 Agent",
     "customEmpty": "仲未有自訂 Agent。",
@@ -1661,6 +1859,25 @@
     "initializeFailed": "初始化失敗",
     "initializeSuccess": "初始化已啟動",
     "initializing": "正在初始化...",
+    "auth": {
+      "title": "Sign in to {name}",
+      "description": "Choose an authentication method. Credentials stay with the agent process.",
+      "requiredTitle": "{name} needs sign-in",
+      "requiredDescription": "Authenticate before starting this chat.",
+      "checkSignIn": "Check sign-in",
+      "openTerminal": "Open terminal",
+      "cancelSignIn": "Cancel sign-in",
+      "unsupported": "This authentication method is not supported. Configure its environment variables manually.",
+      "noMethods": "The agent did not provide an authentication method that DeepChat can use.",
+      "status": {
+        "required": "Authentication required",
+        "running": "Signing in",
+        "reconnecting": "Reconnecting",
+        "succeeded": "Ready",
+        "cancelled": "Cancelled",
+        "failed": "Failed"
+      }
+    },
     "terminal": {
       "close": "關閉",
       "closing": "正在關閉...",
@@ -1806,7 +2023,7 @@
       "successMessage": "skill {name} 已成功刪除",
       "title": "刪除 skill"
     },
-    "description": "管理及設定 AI 助手的 skill 模組",
+    "description": "管理全部 Skills。開啟 Skill 可預覽內容並管理啟用它的 Agent。",
     "edit": {
       "allowedTools": "額外工具",
       "allowedToolsHint": "逗號分隔的工具名稱列表",
@@ -1843,7 +2060,7 @@
       }
     },
     "empty": "暫無 skill",
-    "emptyHint": "點擊「新增 skill」按鈕安裝新 skill",
+    "emptyHint": "從外部 Agent 匯入 Skills。",
     "install": {
       "description": "選擇 skill 安裝方式",
       "dragInvalid": "不支援的拖放內容，請拖入 skill 資料夾或單一 .zip 檔案。",
@@ -1869,6 +2086,32 @@
     "noResults": "未找到匹配的 skill",
     "openFolder": "開啟資料夾",
     "search": "搜尋 skill...",
+    "agentImport": {
+      "menuItem": "從外部 Agent 匯入",
+      "title": "從外部 Agent 匯入",
+      "description": "將驗證後的 Skills 匯入 DeepChat。可在每個 Skill 的預覽中啟用 Agent。",
+      "resultPartial": "匯入完成，但有部分錯誤",
+      "resultSuccess": "匯入完成",
+      "sourceTitle": "來源 Agent",
+      "emptySources": "沒有可匯入的來源",
+      "skillCount": "{count} 個 Skills",
+      "previewTitle": "要匯入的 Skills",
+      "emptyPreview": "沒有可用的 Skills",
+      "status": {
+        "ready": "可匯入",
+        "conflict": "衝突",
+        "unavailable": "不可用",
+        "same": "已加入"
+      },
+      "strategy": {
+        "skip": "略過",
+        "rename": "重新命名",
+        "overwrite": "覆寫"
+      },
+      "overwriteImpact": "覆寫此 Skill 會影響已啟用的 Agent：{agents}。",
+      "resultSummaryV3": "已匯入 {imported} 個、重用 {reused} 個、略過 {skipped} 個、失敗 {failed} 個。",
+      "execute": "匯入所選項目"
+    },
     "sync": {
       "batchAction": "批次處理",
       "conflict": "衝突",
@@ -1965,8 +2208,6 @@
       "env": "{count} 個環境變量",
       "pythonShort": "Py",
       "nodeShort": "Node",
-      "enabled": "已啟用",
-      "disabled": "已停用",
       "enable": "在 DeepChat 中啟用",
       "disable": "在 DeepChat 中停用",
       "viewDetails": "查看詳情",
@@ -1982,111 +2223,6 @@
       "success": "已停用 skill",
       "successMessage": "skill {name} 已在 DeepChat 中停用",
       "failed": "停用失敗"
-    },
-    "tabs": {
-      "library": "技能库",
-      "agents": "Agents",
-      "syncDirectory": "同步目錄"
-    },
-    "agents": {
-      "title": "Agents",
-      "summary": "{count} 个支持的 Agent",
-      "refresh": "刷新",
-      "empty": "未检测到支持的 Agent。",
-      "emptySkills": "该 Agent 暂无 skill。",
-      "loadFailed": "加载 Agent skills 失败",
-      "conflictCount": "{count} 冲突",
-      "table": {
-        "skill": "Skill",
-        "owner": "归属",
-        "status": "状态",
-        "action": "操作",
-        "preview": "預覽"
-      },
-      "owner": {
-        "deepchat": "DeepChat",
-        "external-link": "外部链接",
-        "broken-link": "断开的链接",
-        "unknown": "未知"
-      },
-      "status": {
-        "linked": "已链接",
-        "agent-owned": "Agent 所有",
-        "linked-out": "链接到外部",
-        "broken-link": "链接断开",
-        "conflict": "冲突",
-        "empty": "空"
-      },
-      "actions": {
-        "adopt": "接管",
-        "resolve-conflict": "解决",
-        "repair-link": "修复",
-        "remove-link": "移除",
-        "open": "打开",
-        "pending": "写入操作将在后续阶段启用。",
-        "view": "查看"
-      },
-      "agentStatus": {
-        "ready": "可用",
-        "detected-no-skills-dir": "无 skills 目录",
-        "permission-denied": "无权限"
-      },
-      "counts": {
-        "skills": "{count} 个 skill",
-        "linked": "{count} 已链接",
-        "agentOwned": "{count} Agent 所有",
-        "conflicts": "{count} 冲突",
-        "broken": "{count} 断开"
-      },
-      "adoptDialog": {
-        "adoptTitle": "接管 Skill",
-        "conflictTitle": "解决冲突",
-        "adoptDescription": "将该 skill 复制到 DeepChat，备份原始内容，并把 Agent 入口替换为链接。",
-        "conflictDescription": "{skill} 已存在于 DeepChat。默认操作会保留当前 DeepChat skill，并将该 Agent skill 以重命名副本接管。",
-        "loading": "正在准备接管预览...",
-        "previewFailed": "准备接管预览失败",
-        "executeFailed": "接管 skill 失败",
-        "currentLocation": "当前位置",
-        "afterAdoption": "接管后",
-        "backup": "备份",
-        "chooseAction": "选择操作",
-        "adoptAs": "接管为 {name}",
-        "replaceDeepChat": "替换现有 DeepChat skill",
-        "keepCurrent": "保持当前状态",
-        "unsupportedStrategies": "当前版本暂不支持替换和保持策略。",
-        "warnings": "警告",
-        "apply": "应用",
-        "linkArrow": "-> DeepChat skill",
-        "successTitle": "Skill 已接管",
-        "successDescription": "{name} 现在由 DeepChat 管理。"
-      },
-      "syncToAgent": "同步到 Agent",
-      "syncDialog": {
-        "title": "同步到 {agent}",
-        "description": "为所选 skill 创建 DeepChat 拥有的链接。已有 Agent 内容会被跳过。",
-        "target": "目标",
-        "deepchatSkills": "DeepChat skills",
-        "empty": "没有可链接的 DeepChat skill。",
-        "preview": "预览",
-        "loading": "正在准备链接预览...",
-        "noSelection": "至少选择一个 skill。",
-        "apply": "应用",
-        "failed": "同步 skills 失败",
-        "successTitle": "Skills 已同步",
-        "successDescription": "已链接 {count} 个 skill。",
-        "status": {
-          "ready": "可用",
-          "already-linked": "已链接",
-          "conflict": "冲突",
-          "missing": "缺失"
-        }
-      },
-      "linkAction": {
-        "repairSuccess": "链接已修复",
-        "removeSuccess": "链接已移除",
-        "successDescription": "{name} 已更新。",
-        "failed": "更新链接失败"
-      }
     },
     "git": {
       "title": "Git",
@@ -2119,7 +2255,6 @@
       "saved": "同步目錄已儲存",
       "export": "匯出到目錄",
       "import": "從目錄匯入",
-      "includeDisabled": "包含已停用 skills",
       "previewExport": "預覽匯出",
       "exportNow": "立即匯出",
       "previewImport": "預覽匯入",
@@ -2172,7 +2307,13 @@
       "edit": "編輯",
       "delete": "刪除",
       "confirmDeleteTitle": "刪除 skill",
-      "confirmDeleteDescription": "確定要刪除 skill「{name}」嗎？此操作無法復原。"
+      "confirmDeleteDescription": "確定要刪除 skill「{name}」嗎？此操作無法復原。",
+      "enabledAgents": "已啟用的 Agent",
+      "enabledAgentsHint": "這些 Agent 可以使用此 Skill。",
+      "noEnabledAgents": "尚未有 Agent 使用此 Skill。",
+      "addAgent": "加入 Agent",
+      "removeAgent": "移除 {agent}",
+      "agentUpdateFailed": "更新啟用 Agent 失敗"
     },
     "installToAgent": {
       "title": "安裝 {name} 到 Agent",
@@ -2190,6 +2331,17 @@
       "disconnectSuccess": "已從 Agent 斷開",
       "disconnectSuccessMessage": "{name} 已從目標 Agent 斷開。",
       "disconnectFailed": "從 Agent 斷開失敗"
+    },
+    "impact": {
+      "changed": "啟用此 Skill 的 Agent 已變更，請確認影響後再試。",
+      "editEnabled": "內容修改會在下次執行時影響這些 Agent：{agents}。",
+      "editUnused": "目前沒有 Agent 使用此 Skill。",
+      "confirmDeleteEnabled": "刪除 {name}？已啟用此 Skill 的 Agent：{agents}。",
+      "confirmDeleteUnused": "刪除 {name}？目前沒有 Agent 使用此 Skill。"
+    },
+    "syncDirectory": {
+      "action": "同步目錄",
+      "back": "返回 Skills"
     }
   },
   "environments": {
@@ -2362,11 +2514,7 @@
       "accessRules": "存取規則"
     },
     "remoteControl": {
-      "title": "遠端控制",
       "description": "將每個遠端入口綁定到一個 DeepChat 會話，並在不同指令之間持續沿用該會話。",
-      "streamMode": "串流模式",
-      "streamModeDraft": "草稿串流",
-      "streamModeFinal": "僅最終結果",
       "allowedUserIds": "允許的使用者 ID",
       "allowedUserIdsPlaceholder": "例如 123456789, 987654321",
       "defaultAgent": "預設 DeepChat 智能體",
@@ -2378,19 +2526,14 @@
       "manageBindings": "管理綁定",
       "pairCode": "配對碼",
       "noPairCode": "目前沒有有效配對碼",
-      "generatePairCode": "產生",
-      "clearPairCode": "清除",
       "pairCodeExpiresAt": "到期時間：{time}",
-      "pairDialogTitle": "Telegram 配對",
-      "pairDialogDescription": "生成配對碼後，請到 Telegram 機器人內完成配對。",
-      "pairDialogInstruction": "到對應的機器人送出這條指令：",
-      "bindingsDialogTitle": "已綁定會話",
+      "pairDialogTitle": "{channel} 配對",
+      "pairDialogDescription": "生成配對碼後，請到 {channel} 機器人內完成配對。",
+      "bindingsDialogTitle": "{channel} 已綁定會話",
       "bindingsDialogDescription": "逐條移除遠端入口與 DeepChat 會話的綁定關係。",
       "bindingsEmpty": "目前還沒有已綁定的會話。",
       "pairingSuccessTitle": "配對成功",
       "pairingSuccessDescription": "允許的使用者 ID 已刷新。",
-      "clearBindings": "清除綁定",
-      "clearBindingsResult": "已清除 {count} 個綁定。",
       "pairDialogInstructionTelegram": "到 Telegram Bot 傳送這條指令：",
       "pairDialogInstructionFeishu": "在飛書 / Lark 機器人私聊中發送這條命令；它會把目前發送者加入與掃碼授權相同的授權主體列表：",
       "pairDialogInstructionDiscord": "去 Discord 機器人的私聊或目標頻道裡發送這條命令：",
@@ -2480,7 +2623,95 @@
       "loginConnected": "微信 iLink 帳號已連接。"
     }
   },
+  "ocr": {
+    "description": "當所選模型無法查看圖片時，自動擷取圖片中的文字。辨識只會在本機進行。",
+    "autoExtract": "自動辨識圖片文字",
+    "autoExtractDescription": "所選模型無法查看圖片時使用。",
+    "advancedTitle": "進階設定",
+    "advancedDescription": "一般無需調整。",
+    "backend": "辨識方式",
+    "backendDescription": "自動會選擇適合目前裝置的方式；只在相容性疑難排解時使用 CPU。",
+    "backendAuto": "自動（建議）",
+    "backendCpu": "僅 CPU",
+    "diagnosticsTitle": "診斷資料",
+    "diagnosticsDescription": "僅在疑難排解時需要。",
+    "refresh": "重試",
+    "loading": "正在讀取 OCR 狀態…",
+    "statusUnavailable": "暫時無法取得 OCR 狀態。",
+    "availability": "可用性",
+    "available": "可用",
+    "unavailable": "不可用",
+    "process": "Helper 程序",
+    "version": "Light OCR 版本",
+    "notStarted": "按需執行",
+    "nodeNotStarted": "按需啟動",
+    "queuedRequests": "{count} 個請求正在排隊",
+    "strategy": "辨識策略",
+    "nodeVersion": "Node 執行階段",
+    "detectionBackend": "文字偵測後端",
+    "recognitionBackend": "文字辨識後端",
+    "cacheTitle": "本機快取",
+    "cacheMode": "儲存模式",
+    "cacheEntries": "圖片",
+    "cacheUsage": "佔用空間",
+    "cacheNotStarted": "尚無快取。",
+    "cacheProtected": "加密儲存在本機的衍生快取。",
+    "clearCache": "清除",
+    "clearCacheTitle": "清除本機快取？",
+    "clearCacheDescription": "快取的辨識結果將被刪除。聊天中已儲存的文字不會受影響。",
+    "clearCacheConfirm": "清除",
+    "cacheCleared": "OCR 快取已清除",
+    "cacheClearedDescription": "聊天中已儲存的文字未受影響。",
+    "loadFailed": "無法載入 OCR 設定。",
+    "updateFailed": "無法更新 OCR 設定。",
+    "statusLoadFailed": "暫時無法檢查 OCR 狀態。",
+    "clearCacheFailed": "無法清除 OCR 快取。",
+    "unavailableReasons": {
+      "asset_identity_mismatch": "內建 OCR 資產與鎖定的版本不一致。",
+      "assets_missing": "目前安裝缺少必要的離線 OCR 資產。",
+      "runtime_manifest_invalid": "內建 OCR 執行階段清單無效。",
+      "service_closed": "OCR 服務正在關閉。",
+      "unsupported_platform": "目前平台與架構暫不支援 OCR。",
+      "toolchain_unavailable": "OCR 需要官方 Node.js v24.18.0。請到設定 → 工具鏈安裝官方執行環境。",
+      "version_mismatch": "OCR 需要 Node.js v24.18.0，目前版本不在此範圍。請到設定 → 工具鏈安裝官方執行環境。",
+      "abi_mismatch": "OCR 需要 Node.js ABI 137（v24.18.0）。請到設定 → 工具鏈安裝官方執行環境。"
+    },
+    "processStates": {
+      "idle": "閒置",
+      "starting": "啟動中",
+      "ready": "就緒",
+      "busy": "辨識中",
+      "stopping": "停止中",
+      "closed": "已關閉"
+    },
+    "strategies": {
+      "bounded-960": "有界圖片",
+      "tiled-v1": "分塊文件"
+    },
+    "cacheModes": {
+      "persistent": "磁碟加密儲存",
+      "memory": "僅記憶體"
+    },
+    "cacheFallbackReasons": {
+      "database_error": "快取資料庫無法開啟，持久化快取不可用。",
+      "safe_storage_unavailable": "系統安全金鑰儲存不可用，持久化快取已停用。"
+    }
+  },
+  "leaveGuard": {
+    "dirtyTitle": "變更尚未儲存",
+    "dirtyDescription": "現在離開並放棄這些變更嗎？",
+    "busyTitle": "正在儲存",
+    "busyDescription": "請等待儲存完成後再離開。",
+    "stay": "繼續編輯",
+    "discard": "放棄變更"
+  },
   "deepchatAgents": {
+    "saveFeedback": {
+      "saving": "正在儲存…",
+      "saved": "已儲存",
+      "saveFailed": "儲存失敗，變更仍保留",
+      "retry": "重試"
+    },
     "title": "DeepChat 智能體",
     "description": "管理 DeepChat 智能體，以及它們為新會話帶入的預設值。",
     "builtIn": "內建",
@@ -2525,6 +2756,16 @@
     "permissionFullAccess": "完整權限",
     "permissionDefault": "預設權限",
     "toolsTitle": "內建工具",
+    "outputLimitsTitle": "進階輸出限制",
+    "outputLimitsDescription": "控制此 Agent 在上下文中保留多少工具輸出。",
+    "outputLimitsSafetyHint": "當結果無法放入模型上下文時，執行階段仍會轉存或拒絕該結果。",
+    "outputLimitsReset": "還原預設值",
+    "outputLimitsReadFile": "檔案讀取",
+    "outputLimitsReadFileHint": "read 未明確指定 limit 時傳回的字元數。",
+    "outputLimitsTool": "工具輸出",
+    "outputLimitsToolHint": "支援大型結果轉存的工具所使用的行內上限。",
+    "outputLimitsCommand": "命令輸出",
+    "outputLimitsCommandHint": "exec 與技能指令碼的前景輸出預覽上限。",
     "compactionTitle": "自動壓縮",
     "compactionEnabled": "啟用自動壓縮",
     "compactionDescription": "這些預設值只會影響之後新建立的 DeepChat 會話。",
@@ -2532,8 +2773,8 @@
     "compactionRetainPairs": "保留最近訊息對",
     "deleteConfirm": "確定要刪除智能體「{name}」嗎？它的歷史會話會自動回退到內建 DeepChat 智能體。",
     "subagentsTitle": "子代理",
-    "subagentsDescription": "設定 `subagent_orchestrator` 可重用的 subagent 會話槽位。",
-    "subagentsEnabled": "啟用 subagent",
+    "subagentsDescription": "允許此智能體委派獨立子任務。模型會自行判斷何時使用已設定的槽位；委派會消耗額外的 token、時間與系統資源。",
+    "subagentsEnabled": "允許此智能體委派子任務",
     "subagentTargetType": "目標類型",
     "subagentTargetSelf": "目前智能體",
     "subagentTargetAgent": "指定智能體",
@@ -2555,14 +2796,23 @@
       "tabMemories": "記憶",
       "tabPersona": "人格時間線",
       "memoriesCount": "{count} 條記憶",
-      "clearAll": "清空全部",
-      "clearConfirmTitle": "清空全部記憶？",
-      "clearConfirmBody": "將永久刪除此助手的所有記憶，此操作無法復原。",
+      "clearAll": "清空記憶",
+      "clearConfirmTitle": "清空事實記憶與人格？",
+      "clearConfirmBody": "這將永久刪除此助手的事實記憶與人格。長期指令會保留，可獨立管理。此操作無法復原。",
+      "cleanupPendingRestart": "已鎖定的向量檔案將在重新啟動後刪除",
       "emptyMemories": "尚無記憶。隨着與此助手對話會逐漸累積。",
       "emptyPersona": "尚無自我模型版本。",
       "personaActive": "目前生效",
       "rollback": "回滾",
       "actionFailed": "操作失敗",
+      "commandRejected": {
+        "unavailable": "記憶功能暫時無法使用，請重試。",
+        "notFound": "這條記憶已不存在，檢視已重新整理。",
+        "invalidState": "此操作已不再有效，檢視已重新整理。",
+        "conflict": "請先解決記憶衝突，再重試。",
+        "stale": "這條記憶已發生變更，檢視已重新整理，請重試。",
+        "anchored": "回滾前請先取消目前人格的錨定。"
+      },
       "conflict": "衝突",
       "restore": "復原",
       "sourceLine": "來自會話 {session} · {count} 條記錄",
@@ -2606,6 +2856,7 @@
       "searchPlaceholder": "搜尋記憶",
       "noSearchResults": "沒有符合的記憶。",
       "addMemory": "新增記憶",
+      "loadMore": "載入更多",
       "addContentPlaceholder": "想讓此助手記住的內容…",
       "addCategoryLabel": "記憶分類",
       "addCategoryNone": "不指定分類",
@@ -2750,6 +3001,9 @@
     "enable": "启用",
     "disable": "停用",
     "openSettings": "设置",
+    "testRuntime": "測試執行階段",
+    "retryRuntime": "重試執行階段",
+    "quarantineDescription": "DeepChat 偵測到執行階段上次未正常結束，已阻止其自動啟動。請只在桌面可安全受控時重試。",
     "runtime": "运行时",
     "runtimeState": "狀態",
     "version": "版本",
@@ -2763,6 +3017,8 @@
       "missing": "未安装",
       "installed": "已安装",
       "running": "运行中",
+      "readyOnDemand": "按需就緒",
+      "quarantined": "已隔離",
       "error": "错误"
     },
     "emptyTitle": "No built-in plugins available",
@@ -2851,13 +3107,13 @@
     "tabConfig": "設定",
     "tabManage": "管理",
     "config": {
-      "rootHint": "deepchat 是內建 Agent，也是設定繼承根：在此設定的值會成為其他 Agent 的預設值。",
+      "rootHint": "deepchat 是受保護的內建 Agent，其設定與其他 Agent 彼此獨立。",
       "extractionModel": "記憶工具模型",
       "extractionModelHint": "用於擷取與去重記憶的模型。未選擇則回退至對話模型。",
       "injectionBudget": "注入預算（tokens）",
-      "injectionBudgetHint": "組合記憶注入的大致 token 上限。留空則繼承預設值（{default}）。",
+      "injectionBudgetHint": "組合記憶注入的大致 token 上限。留空則使用預設值（{default}）。",
       "retrievalTitle": "檢索排序",
-      "retrievalHint": "覆寫記憶召回的排序參數；關閉則繼承預設。",
+      "retrievalHint": "自訂記憶召回的排序參數；關閉則使用預設排序。",
       "retrievalOverride": "覆寫檢索參數",
       "topK": "召回數量 (topK)",
       "rrfK": "融合常數 (rrfK)",
@@ -2866,14 +3122,16 @@
       "weightRecency": "權重 · 時近度",
       "weightImportance": "權重 · 重要度",
       "advancedTitle": "進階記憶設定",
-      "advancedHint": "調整擷取、提示詞預算和檢索排序。欄位留空則繼承預設值。",
-      "inheritedHint": "留空會使用繼承值/預設值。",
+      "advancedHint": "調整擷取、提示詞預算和檢索排序。欄位留空則使用預設值。",
+      "inheritedHint": "留空會使用預設值。",
       "topKHint": "範圍 1-100。預設：{default}。",
       "rrfKHint": "範圍 1-1000。預設：{default}。",
       "similarityThresholdHint": "範圍 0-1。預設：{default}。",
       "weightHint": "非負排序權重。預設：{default}。"
     },
     "redesign": {
+      "reindexIncomplete": "向量索引重建未完成：{reason}。記憶內容未丟失，目前使用關鍵詞召回。",
+      "reindexInternalReason": "本機向量處理流程未能完成今次重建。",
       "tabMemories": "記憶",
       "tabPersona": "人格",
       "tabDiagnostics": "診斷",
@@ -2917,7 +3175,7 @@
       "archivedMatches": "已封存中的匹配",
       "refresh": "重新整理",
       "inboxTitle": "待處理",
-      "inboxDescription": "優先處理記憶衝突和人格草稿，避免它們被列表淹沒。",
+      "inboxDescription": "優先處理記憶衝突、人格草稿和建議指令，避免它們淹沒在清單中。",
       "conflictBadge": "{count} 個衝突",
       "personaDraftBadge": "{count} 個人格草稿",
       "conflictSectionTitle": "記憶衝突（{count}）",
@@ -2964,7 +3222,48 @@
         "memory-persona-rollback": "回復人格",
         "memory-persona-anchor": "更新人格錨點",
         "memory-reindex": "重建記憶索引"
-      }
+      },
+      "tabDirectives": "指令",
+      "directiveDraftBadge": "{count} 個指令草稿",
+      "directiveDraftSectionTitle": "建議指令（{count}）",
+      "directiveCreateTitle": "建立常駐指令",
+      "directiveCreateDescription": "手動建立的指令會立即生效；模型建議會維持草稿狀態，直至你批准。",
+      "directiveRuntimeEnabled": "執行時生效",
+      "directiveRuntimeDisabled": "記憶關閉時不生效",
+      "directiveKindLabel": "指令類型",
+      "directiveKind": {
+        "instruction": "常駐指令",
+        "suppress_topic": "封鎖主題"
+      },
+      "directiveTopicLabel": "匹配主題",
+      "directiveTopicPlaceholder": "要從召回記憶中排除的準確主題或詞組",
+      "directiveTopicTooBroad": "含中日韓字元的主題至少需要 {min} 個可見字元，以免誤排除無關記憶。",
+      "directiveContentLabel": "指令內容",
+      "directiveInstructionPlaceholder": "寫下此代理應長期遵循的指令。",
+      "directiveSuppressPlaceholder": "說明代理應如何處理此主題。",
+      "directiveInstructionHint": "這是用戶層級的指引，不能覆寫系統指令或安全規則。",
+      "directiveSuppressHint": "主題會篩除召回記憶，指令用於引導回應；這不是輸出防火牆。",
+      "directiveLength": "指令 {content}/{contentMax} · 主題 {topic}/{topicMax}",
+      "directiveCreateAction": "啟用指令",
+      "directiveCapacityTitle": "已達生效指令上限",
+      "directiveCapacityDescription": "每個代理最多可有 {max} 條生效指令。請先刪除一條生效指令，再新增或批准其他指令。",
+      "directiveListTitle": "已儲存的指令",
+      "directiveListDescription": "{active} 個生效中 · {draft} 個待批准",
+      "directiveEmptyTitle": "暫無指令",
+      "directiveEmptyDescription": "可在此建立常駐指令，或在待處理區批准建議。",
+      "directiveStatus": {
+        "active": "生效中",
+        "draft": "草稿",
+        "rejected": "已拒絕"
+      },
+      "directiveSource": {
+        "explicit_user": "用戶明確操作",
+        "manual": "設定頁",
+        "derived_suggestion": "從對話中建議"
+      },
+      "directiveTopicValue": "主題：{topic}",
+      "directiveDeleteTitle": "要刪除此指令嗎？",
+      "directiveDeleteDescription": "此指令會立即停止生效，之後仍可重新建立。"
     }
   },
   "pluginsHub": {
@@ -2972,12 +3271,122 @@
     "available": "可用插件",
     "add": "新增",
     "manage": "管理",
+    "builtinCapability": "內置能力",
     "emptySearch": "沒有可用插件。",
     "pluginNotFound": "找不到插件。",
     "actionResult": "操作結果",
     "cuaDescription": "DeepChat 基於 trycua/cua 專案實作的 ComputerUse 插件",
     "acpUnavailableTitle": "ACP Agent 無法使用插件",
     "acpUnavailableDescription": "ACP Agent 透過自身的執行環境管理工具和擴充功能。請選擇 DeepChat Agent 後再使用插件。",
-    "agentScopeUnsupported": "Agent 層級的擴充功能只適用於 DeepChat Agent。"
+    "agentScopeUnsupported": "Agent 層級的擴充功能只適用於 DeepChat Agent。",
+    "scopeGlobalPlugins": "外掛的安裝、啟用與程序狀態由所有 DeepChat Agent 共用。",
+    "scopeCurrentAgent": "目前頁面為 Agent 策略：僅影響「{agent}」可用的 Skills / MCP，不會全域停用資源。",
+    "currentAgentFallback": "目前 Agent"
+  },
+  "debug": {
+    "description": "僅在開發模式下顯示的情境與引導偵錯工具。",
+    "unavailableTitle": "偵錯工具無法使用",
+    "unavailableDescription": "此操作僅能在開發模式下使用。",
+    "splash": {
+      "title": "啟動視窗",
+      "description": "不觸發真實資料庫解鎖流程，即可預覽啟動視窗狀態。",
+      "loading": "預覽載入中",
+      "systemUnlock": "預覽系統解鎖",
+      "unlock": "預覽手動解鎖",
+      "recovery": "預覽資料庫復原",
+      "failed": "無法顯示啟動視窗情境。",
+      "previewHint": "開發預覽 — 已停用密碼提交。"
+    },
+    "guidance": {
+      "title": "引導與資料",
+      "description": "建立僅供開發環境使用的引導、對話和更新模擬。",
+      "failed": "無法啟動偵錯引導。"
+    }
+  },
+  "toolchains": {
+    "description": "選擇 DeepChat 使用的 Node 和 uv。來源選定後不會再偷偷切換。",
+    "nodeTitle": "Node.js",
+    "uvTitle": "uv",
+    "source": "來源",
+    "sources": {
+      "bundled": "應用內置",
+      "managed": "由 DeepChat 安裝",
+      "system": "系統既有安裝",
+      "custom": "自定義路徑",
+      "unconfigured": "未設定",
+      "autoNamed": "自動（{source}）"
+    },
+    "systemDetected": "檢測到系統二進位檔：{path}",
+    "systemDetectedHint": "已有可用安裝時優先使用，不必再下載一份。",
+    "install": "安裝官方執行階段",
+    "repair": "修復",
+    "revert": "還原",
+    "cancelInstall": "取消",
+    "installing": "正在安裝…",
+    "version": "版本",
+    "path": "路徑",
+    "bannerTitle": "缺少所需執行階段",
+    "bannerDescription": "MCP、ACP、Skills 或 OCR 目前沒有可用的 Node 或 uv。",
+    "bannerAction": "開啟工具鏈",
+    "availability": {
+      "ready": "可用",
+      "missing": "缺失",
+      "incomplete": "不完整",
+      "unconfigured": "未設定"
+    },
+    "downloadReasons": {
+      "dns": "無法解析下載地址。",
+      "timeout": "下載逾時。",
+      "http": "下載伺服器返回了錯誤。",
+      "proxy": "經由代理下載失敗。",
+      "checksum_mismatch": "下載檔案未通過完整性檢查。",
+      "disk": "無法把執行階段寫入磁碟。",
+      "cancelled": "下載已取消。",
+      "activation_failed": "無法啟用該執行階段。",
+      "unsupported_platform": "目前平台沒有官方執行階段建置。"
+    },
+    "ocrPinHint": "OCR 需要官方 Node v24.18.0（ABI 137）。目前執行環境可供聊天和 MCP 使用，但不能用於 OCR。請安裝官方執行環境。"
+  },
+  "userPlugins": {
+    "install": "安裝外掛",
+    "update": "檢查並檢閱更新",
+    "installDescription": "從 Git 或 ZIP 直接安裝 Codex 格式的外掛套件。啟用前請檢閱外掛內容。",
+    "gitUrl": "公開的 HTTPS Git 網址",
+    "gitRef": "分支、標籤或提交（選填）",
+    "subdirectory": "外掛子目錄（選填）",
+    "chooseZip": "選擇 ZIP 檔案",
+    "chooseDirectory": "選擇外掛目錄",
+    "inspect": "檢查外掛套件",
+    "executionNotice": "Hooks 和 stdio MCP 服務會執行本機程式碼，具有您帳號的檔案系統與網絡存取權限。請只啟用您信任的程式碼。npx 或 uvx 等指令可能在服務啟動時下載依賴套件。",
+    "useSkills": "使用內含的 Skills",
+    "allowHooks": "我已檢閱這些指令，允許自動執行上下文 hooks",
+    "allowMcp": "我已檢閱這些指令、端點及變數綁定，允許建立 MCP 連線",
+    "sharedData": "此外掛安裝的資料會在不同對話間共用。",
+    "requiredVariables": "所需的環境或憑證變數",
+    "applyUpdate": "套用已檢閱的更新",
+    "uninstall": "解除安裝",
+    "source": "安裝來源",
+    "selected": "已選取",
+    "notSelected": "未選取",
+    "reviewed": "指令已檢閱",
+    "hooksNotEnabled": "尚未授權自動 hooks。請檢閱更新以啟用；僅使用 Skills 不會自動啟動 hooks。",
+    "diagnostics": "最近的 hook 活動",
+    "noInvocations": "本次應用程式執行中尚無 hook 呼叫記錄。",
+    "retryHook": "重新執行 hook",
+    "mcpSetupDescription": "啟用外掛以註冊伺服器。在此填寫或更換變數值；主機環境變數不會自動共用。驗證方式可在 MCP 設定中管理。",
+    "saveMcp": "儲存並重新連線",
+    "manageMcp": "開啟 MCP 設定",
+    "uninstallDescription": "刪除此外掛、私有資料、Skill 分配及所屬 MCP 服務。對話歷史會保留。",
+    "fromGit": "從 Git 安裝",
+    "fromZip": "從 ZIP 安裝",
+    "userPlugin": "使用者外掛",
+    "technicalDetails": "技術詳細資料",
+    "hookStatus": {
+      "started": "執行中",
+      "completed": "已完成",
+      "failed": "失敗",
+      "uncertain": "已中斷，結果未知"
+    },
+    "hooks": "自動掛鉤"
   }
 }

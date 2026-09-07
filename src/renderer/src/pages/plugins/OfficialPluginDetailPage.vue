@@ -2,10 +2,10 @@
   <ScrollArea v-if="remoteChannel" class="h-full w-full">
     <div class="mx-auto flex w-full max-w-4xl flex-col gap-6 px-6 py-8">
       <div class="flex items-center gap-2">
-        <Button variant="ghost" size="sm" @click="router.push({ name: 'plugins' })">
+        <DcButton variant="ghost" size="sm" @click="router.push({ name: 'plugins' })">
           <Icon icon="lucide:arrow-left" class="mr-2 size-4" />
           {{ t('common.back') }}
-        </Button>
+        </DcButton>
       </div>
 
       <div v-if="remoteLoading" class="space-y-3">
@@ -62,11 +62,16 @@
           </div>
 
           <div class="flex shrink-0 flex-wrap gap-2">
-            <Button v-if="!remoteEnabled" :disabled="pending" size="sm" @click="enableRemotePlugin">
+            <DcButton
+              v-if="!remoteEnabled"
+              :disabled="pending"
+              size="sm"
+              @click="enableRemotePlugin"
+            >
               <Icon icon="lucide:power" class="mr-2 size-4" />
               {{ t('settings.plugins.enable') }}
-            </Button>
-            <Button
+            </DcButton>
+            <DcButton
               v-if="remoteEnabled"
               :disabled="pending"
               size="sm"
@@ -75,7 +80,7 @@
             >
               <Icon icon="lucide:power-off" class="mr-2 size-4" />
               {{ t('settings.plugins.disable') }}
-            </Button>
+            </DcButton>
           </div>
         </header>
 
@@ -101,10 +106,10 @@
   <ScrollArea v-else class="h-full w-full">
     <div class="mx-auto flex w-full max-w-4xl flex-col gap-6 px-6 py-8">
       <div class="flex items-center gap-2">
-        <Button variant="ghost" size="sm" @click="router.push({ name: 'plugins' })">
+        <DcButton variant="ghost" size="sm" @click="router.push({ name: 'plugins' })">
           <Icon icon="lucide:arrow-left" class="mr-2 size-4" />
           {{ t('common.back') }}
-        </Button>
+        </DcButton>
       </div>
 
       <div v-if="loading" class="space-y-3">
@@ -157,11 +162,11 @@
           </div>
 
           <div class="flex shrink-0 flex-wrap gap-2">
-            <Button v-if="!plugin.enabled" :disabled="pending" size="sm" @click="enablePlugin">
+            <DcButton v-if="!plugin.enabled" :disabled="pending" size="sm" @click="enablePlugin">
               <Icon icon="lucide:power" class="mr-2 size-4" />
               {{ t('settings.plugins.enable') }}
-            </Button>
-            <Button
+            </DcButton>
+            <DcButton
               v-if="plugin.enabled"
               :disabled="pending"
               size="sm"
@@ -170,7 +175,7 @@
             >
               <Icon icon="lucide:power-off" class="mr-2 size-4" />
               {{ t('settings.plugins.disable') }}
-            </Button>
+            </DcButton>
           </div>
         </header>
 
@@ -181,8 +186,55 @@
           {{ errorMessage }}
         </div>
 
-        <section class="rounded-lg border border-border p-4">
-          <div class="mb-3 text-sm font-semibold">{{ t('settings.plugins.runtime') }}</div>
+        <Alert v-if="plugin.activationError" variant="destructive">
+          <Icon icon="lucide:shield-alert" />
+          <AlertTitle>{{ t('settings.plugins.runtimeStates.error') }}</AlertTitle>
+          <AlertDescription class="break-all">{{ plugin.activationError }}</AlertDescription>
+        </Alert>
+
+        <Alert v-else-if="cuaRuntimeIntegrityError" variant="destructive">
+          <Icon icon="lucide:shield-alert" />
+          <AlertTitle>{{ t('settings.plugins.runtimeStates.error') }}</AlertTitle>
+          <AlertDescription class="break-all">{{ cuaRuntimeIntegrityError }}</AlertDescription>
+        </Alert>
+
+        <Alert v-else-if="cuaRuntimeQuarantined" variant="destructive">
+          <Icon icon="lucide:shield-alert" />
+          <AlertTitle>{{ t('settings.plugins.runtimeStates.quarantined') }}</AlertTitle>
+          <AlertDescription>
+            {{ t('settings.plugins.quarantineDescription') }}
+          </AlertDescription>
+        </Alert>
+
+        <UserPluginDetails v-if="plugin.userPlugin" :key="plugin.id" :plugin="plugin" />
+
+        <DcSectionCard v-else :title="t('settings.plugins.runtime')">
+          <template #actions>
+            <div v-if="showCuaRuntimeActions" class="flex flex-wrap gap-2">
+              <DcButton
+                v-if="cuaRuntimeQuarantined && !cuaRuntimeIntegrityError"
+                data-testid="cua-runtime-retry"
+                size="sm"
+                variant="outline"
+                :disabled="pending"
+                @click="runCuaRuntimeAction('runtime.retry')"
+              >
+                <Icon icon="lucide:rotate-ccw" class="mr-2 size-4" />
+                {{ t('settings.plugins.retryRuntime') }}
+              </DcButton>
+              <DcButton
+                v-else
+                data-testid="cua-runtime-test"
+                size="sm"
+                variant="outline"
+                :disabled="pending"
+                @click="runCuaRuntimeAction('runtime.test')"
+              >
+                <Icon icon="lucide:play" class="mr-2 size-4" />
+                {{ t('settings.plugins.testRuntime') }}
+              </DcButton>
+            </div>
+          </template>
           <dl class="grid grid-cols-[7rem_minmax(0,1fr)] gap-x-3 gap-y-2 text-sm">
             <dt class="text-muted-foreground">{{ t('settings.plugins.runtimeState') }}</dt>
             <dd>{{ formatRuntimeState(plugin.runtime?.state) }}</dd>
@@ -194,10 +246,9 @@
           <p v-if="plugin.runtime?.lastError" class="mt-3 break-all text-xs text-destructive">
             {{ plugin.runtime.lastError }}
           </p>
-        </section>
+        </DcSectionCard>
 
-        <section v-if="plugin.mcpServers?.length" class="rounded-lg border border-border p-4">
-          <div class="mb-3 text-sm font-semibold">{{ t('routes.settings-mcp') }}</div>
+        <DcSectionCard v-if="plugin.mcpServers?.length" :title="t('routes.settings-mcp')">
           <div class="divide-y divide-border/70">
             <div
               v-for="server in plugin.mcpServers"
@@ -211,15 +262,11 @@
                 </div>
               </div>
               <span class="shrink-0 text-xs text-muted-foreground">
-                {{
-                  server.running
-                    ? t('settings.plugins.runtimeStates.running')
-                    : t('common.disabled')
-                }}
+                {{ formatMcpRuntimeState(server) }}
               </span>
             </div>
           </div>
-        </section>
+        </DcSectionCard>
 
         <RemoteSettings
           v-if="isFeishuPlugin"
@@ -231,30 +278,37 @@
           single-channel
         />
 
-        <section v-if="lastActionData" class="rounded-lg border border-border p-4">
-          <div class="mb-3 text-sm font-semibold">{{ t('settings.pluginsHub.actionResult') }}</div>
+        <DcSectionCard v-if="lastActionData" :title="t('settings.pluginsHub.actionResult')">
           <pre class="max-h-64 overflow-auto rounded-md bg-muted p-3 text-xs">{{
             lastActionData
           }}</pre>
-        </section>
+        </DcSectionCard>
       </template>
     </div>
   </ScrollArea>
 </template>
 
 <script setup lang="ts">
+import UserPluginDetails from './UserPluginDetails.vue'
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
-import { Button } from '@shadcn/components/ui/button'
+import { DcSectionCard } from '@dc-ui/components/section-card'
+import { Alert, AlertDescription, AlertTitle } from '@shadcn/components/ui/alert'
+import { DcButton } from '@dc-ui/components/button'
 import { ScrollArea } from '@shadcn/components/ui/scroll-area'
 import { createPluginClient } from '@api/PluginClient'
 import { createRemoteControlClient } from '@api/RemoteControlClient'
 import { usePluginCatalogStore } from '@/stores/pluginCatalog'
 import RemoteSettings from '../../../settings/components/RemoteSettings.vue'
-import type { ChannelSettingsMap, RemoteChannel } from '@shared/presenter'
-import type { PluginActionResult, PluginRuntimeState } from '@shared/types/plugin'
+import type { ChannelSettingsMap, RemoteChannel } from '@shared/types/remote'
+import {
+  CUA_PLUGIN_ID,
+  type PluginActionResult,
+  type PluginMcpRuntimeStatus,
+  type PluginRuntimeState
+} from '@shared/types/plugin'
 
 const { t } = useI18n()
 const route = useRoute()
@@ -292,7 +346,6 @@ const remoteIconClassByChannel: Record<RemoteChannel, string> = {
   discord: 'text-indigo-500',
   'weixin-ilink': 'text-green-500'
 }
-const CUA_PLUGIN_ID = 'com.deepchat.plugins.cua'
 const CUA_PLUGIN_ICON = 'lucide:laptop-minimal-check'
 
 const pluginId = computed(() => String(route.params.pluginId ?? ''))
@@ -350,14 +403,53 @@ const pluginDescription = computed(() => {
   if (isFeishuPlugin.value) {
     return t('settings.remote.feishu.description')
   }
+  if (plugin.value?.userPlugin) return plugin.value.userPlugin.package.description
   return plugin.value ? `${plugin.value.publisher} · ${plugin.value.id}` : ''
 })
+const cuaMcpRuntime = computed(() =>
+  plugin.value?.mcpServers?.find((server) => server.serverId === 'cua-driver')
+)
+const cuaRuntimeQuarantined = computed(() => cuaMcpRuntime.value?.lifecycleState === 'quarantined')
+const cuaRuntimeIntegrityError = computed(() => cuaMcpRuntime.value?.integrityError)
+const cuaRuntimeUnavailable = computed(
+  () => plugin.value?.runtime?.state === 'missing' || plugin.value?.runtime?.state === 'error'
+)
+const showCuaRuntimeActions = computed(
+  () =>
+    isCuaPlugin.value &&
+    plugin.value?.enabled === true &&
+    !plugin.value.activationError &&
+    !cuaRuntimeUnavailable.value &&
+    Boolean(cuaMcpRuntime.value)
+)
 
 function formatRuntimeState(state?: PluginRuntimeState): string {
   if (!state) {
     return '-'
   }
   return t(`settings.plugins.runtimeStates.${state}`)
+}
+
+function formatMcpRuntimeState(server: PluginMcpRuntimeStatus): string {
+  if (server.lifecycleState === 'quarantined') {
+    return t('settings.plugins.runtimeStates.quarantined')
+  }
+  if (server.running) {
+    return t('settings.plugins.runtimeStates.running')
+  }
+  if (!server.enabled) {
+    return t('common.disabled')
+  }
+  if (isCuaPlugin.value && cuaRuntimeUnavailable.value) {
+    return formatRuntimeState(plugin.value?.runtime?.state)
+  }
+  if (server.lifecycleState === 'error') {
+    return t('settings.plugins.runtimeStates.error')
+  }
+  if (isCuaPlugin.value && server.serverId === 'cua-driver') {
+    return t('settings.plugins.runtimeStates.readyOnDemand')
+  }
+  return t('settings.plugins.runtimeStates.installed')
 }
 
 async function loadPlugin(): Promise<void> {
@@ -442,6 +534,37 @@ async function runPluginAction(
       pluginCatalogStore.rollbackPluginMutation(previous)
     }
     errorMessage.value = error instanceof Error ? error.message : t('settings.plugins.actionFailed')
+  } finally {
+    pending.value = false
+  }
+}
+
+async function runCuaRuntimeAction(actionId: 'runtime.test' | 'runtime.retry'): Promise<void> {
+  const currentPlugin = plugin.value
+  if (!currentPlugin) {
+    return
+  }
+
+  pending.value = true
+  errorMessage.value = ''
+  lastActionData.value = ''
+  try {
+    const result = await pluginClient.invokeAction({
+      pluginId: currentPlugin.id,
+      actionId
+    })
+    if (!result.ok) {
+      throw new Error(result.error || t('settings.plugins.actionFailed'))
+    }
+    if (result.status) {
+      pluginCatalogStore.commitPluginMutation(result.status)
+    } else {
+      await loadPlugin()
+    }
+  } catch (error) {
+    const actionError = error instanceof Error ? error.message : t('settings.plugins.actionFailed')
+    await loadPlugin()
+    errorMessage.value = actionError
   } finally {
     pending.value = false
   }

@@ -3,12 +3,23 @@ import { defineComponent, nextTick, reactive, ref } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
 import type { ReasoningPortrait } from '../../../src/shared/types/model-db'
 import { ApiEndpointType, ModelType } from '../../../src/shared/model'
+import type { ModelRequestPolicy } from '../../../src/shared/modelRequestPolicy'
 
 const passthrough = (name: string) =>
   defineComponent({
     name,
     template: '<div><slot /></div>'
   })
+
+const confirmDialogStub = defineComponent({
+  name: 'DcConfirmDialog',
+  props: {
+    confirmLabel: String,
+    cancelLabel: String
+  },
+  template:
+    '<div data-testid="confirm-dialog" :data-confirm-label="confirmLabel" :data-cancel-label="cancelLabel" />'
+})
 
 type SetupOptions = {
   providerId: string
@@ -19,11 +30,16 @@ type SetupOptions = {
   modelConfig?: Record<string, unknown>
   reasoningPortrait?: ReasoningPortrait | null
   temperatureCapability?: boolean | undefined
+  requestPolicy?: ModelRequestPolicy
   mode?: 'create' | 'edit'
   isCustomModel?: boolean
   providerModels?: Array<Record<string, unknown>>
   customModels?: Array<Record<string, unknown>>
   getModelConfig?: (...args: string[]) => Promise<Record<string, unknown>> | Record<string, unknown>
+  getCapabilities?: (query: {
+    providerId: string
+    modelId: string
+  }) => Promise<Record<string, unknown>>
 }
 
 const createDeferred = <T>() => {
@@ -34,6 +50,45 @@ const createDeferred = <T>() => {
     reject = promiseReject
   })
   return { promise, resolve, reject }
+}
+
+const createCapabilityResult = (options: SetupOptions, modelId = options.modelId) => {
+  const temperatureCapability =
+    'temperatureCapability' in options ? options.temperatureCapability : true
+
+  return {
+    identity: {
+      providerId: options.capabilityProviderId ?? options.providerId,
+      requestModelId: modelId,
+      catalogMatched: false as const,
+      catalogModelId: null
+    },
+    requestPolicy: options.requestPolicy ?? {
+      temperature:
+        temperatureCapability === false
+          ? ({ mode: 'omit' } as const)
+          : ({ mode: 'passthrough' } as const),
+      topP:
+        (options.capabilityProviderId ?? options.providerId) === 'anthropic' &&
+        temperatureCapability === false
+          ? ({ mode: 'omit' } as const)
+          : ({ mode: 'passthrough' } as const),
+      reasoning: { mode: 'passthrough' as const },
+      legacyThinking: { mode: 'passthrough' as const }
+    },
+    supportsAudioInput: false,
+    supportsReasoning: options.reasoningPortrait?.supported ?? true,
+    reasoningPortrait: options.reasoningPortrait ?? null,
+    thinkingBudgetRange: options.reasoningPortrait?.budget ?? {},
+    supportsSearch: false,
+    searchDefaults: {},
+    supportsTemperatureControl: temperatureCapability !== false,
+    temperatureCapability,
+    supportsReasoningEffort: Boolean(options.reasoningPortrait?.effort),
+    reasoningEffortDefault: options.reasoningPortrait?.effort,
+    supportsVerbosity: Boolean(options.reasoningPortrait?.verbosity),
+    verbosityDefault: options.reasoningPortrait?.verbosity
+  }
 }
 
 const setup = async (options: SetupOptions) => {
@@ -82,16 +137,10 @@ const setup = async (options: SetupOptions) => {
     providers: [{ id: options.providerId, apiType: options.providerApiType ?? 'openai-compatible' }]
   })
 
+  const defaultGetCapabilities = ({ modelId }: { providerId: string; modelId: string }) =>
+    Promise.resolve(createCapabilityResult(options, modelId))
   const modelClient = {
-    getCapabilities: vi.fn().mockResolvedValue({
-      supportsReasoning: options.reasoningPortrait?.supported ?? true,
-      reasoningPortrait: options.reasoningPortrait ?? null,
-      thinkingBudgetRange: options.reasoningPortrait?.budget ?? null,
-      supportsSearch: null,
-      searchDefaults: null,
-      supportsTemperatureControl: options.temperatureCapability ?? true,
-      temperatureCapability: options.temperatureCapability ?? true
-    })
+    getCapabilities: vi.fn().mockImplementation(options.getCapabilities ?? defaultGetCapabilities)
   }
 
   vi.doMock('@/stores/modelConfigStore', () => ({
@@ -147,7 +196,8 @@ const setup = async (options: SetupOptions) => {
         AlertDialogFooter: passthrough('AlertDialogFooter'),
         AlertDialogHeader: passthrough('AlertDialogHeader'),
         AlertDialogTitle: passthrough('AlertDialogTitle'),
-        Button: passthrough('Button'),
+        DcConfirmDialog: confirmDialogStub,
+        DcButton: passthrough('Button'),
         Input: passthrough('Input'),
         Label: passthrough('Label'),
         Switch: passthrough('Switch'),
@@ -164,6 +214,24 @@ const setup = async (options: SetupOptions) => {
 
   return { wrapper, modelConfigStore, modelStore, modelClient }
 }
+
+describe('ModelConfigDialog confirmation labels', () => {
+  it('passes translated labels to confirmation dialogs', async () => {
+    const { wrapper } = await setup({
+      providerId: 'openai',
+      modelId: 'gpt-4.1',
+      modelName: 'GPT-4.1'
+    })
+
+    const dialogs = wrapper.findAll('[data-testid="confirm-dialog"]')
+    expect(dialogs[0].attributes('data-confirm-label')).toBe(
+      'settings.model.modelConfig.resetConfirm.confirm'
+    )
+    expect(dialogs[0].attributes('data-cancel-label')).toBe('settings.model.modelConfig.cancel')
+    expect(dialogs[1].attributes('data-confirm-label')).toBe('dialog.mutualExclusive.confirmEnable')
+    expect(dialogs[1].attributes('data-cancel-label')).toBe('dialog.cancel')
+  })
+})
 
 describe('ModelConfigDialog reasoning portraits', () => {
   it('renders the speech recognition model setting for chat models', async () => {
@@ -279,6 +347,63 @@ describe('ModelConfigDialog reasoning portraits', () => {
     expect(wrapper.text()).toContain('settings.model.modelConfig.reasoningEffort.options.xhigh')
   })
 
+  it('uses the resolved New API route for GPT-5.6 defaults until the route is edited', async () => {
+    const { wrapper, modelClient } = await setup({
+      providerId: 'new-api',
+      modelId: 'gpt-5.6-sol',
+      modelName: 'GPT-5.6 Sol',
+      providerApiType: 'new-api',
+      providerModels: [
+        {
+          id: 'gpt-5.6-sol',
+          name: 'GPT-5.6 Sol',
+          type: ModelType.Chat,
+          endpointType: 'openai',
+          supportedEndpointTypes: ['openai', 'openai-response'],
+          ownedBy: 'openai'
+        }
+      ],
+      modelConfig: {
+        endpointType: 'openai',
+        reasoning: true,
+        reasoningEffort: 'medium',
+        verbosity: 'medium'
+      },
+      reasoningPortrait: {
+        supported: true,
+        defaultEnabled: true,
+        mode: 'effort',
+        effort: 'medium',
+        effortOptions: ['none', 'low', 'medium', 'high', 'xhigh', 'max'],
+        verbosity: 'medium',
+        verbosityOptions: ['low', 'medium', 'high']
+      }
+    })
+
+    expect(modelClient.getCapabilities).toHaveBeenCalledTimes(1)
+    expect(modelClient.getCapabilities).toHaveBeenCalledWith({
+      providerId: 'new-api',
+      modelId: 'gpt-5.6-sol',
+      reasoningEnabled: true
+    })
+    expect(wrapper.text()).toContain('settings.model.modelConfig.reasoningEffort.options.none')
+    expect(wrapper.text()).toContain('settings.model.modelConfig.reasoningEffort.options.max')
+    expect(wrapper.text()).toContain('settings.model.modelConfig.verbosity.label')
+
+    ;(wrapper.vm as any).config.endpointType = 'openai-response'
+    await vi.waitFor(() => expect(modelClient.getCapabilities).toHaveBeenCalledTimes(2))
+
+    expect(modelClient.getCapabilities).toHaveBeenLastCalledWith({
+      providerId: 'new-api',
+      modelId: 'gpt-5.6-sol',
+      routeOverride: {
+        endpointType: 'openai-response',
+        type: ModelType.Chat
+      },
+      reasoningEnabled: true
+    })
+  })
+
   it('shows effort-based reasoning support as a disabled capability indicator', async () => {
     const { wrapper } = await setup({
       providerId: 'openai',
@@ -367,6 +492,7 @@ describe('ModelConfigDialog reasoning portraits', () => {
 
     ;(wrapper.vm as any).config.reasoning = true
     await nextTick()
+    await flushPromises()
 
     expect((wrapper.vm as any).showReasoningEffort).toBe(true)
     expect((wrapper.vm as any).showReasoningVisibility).toBe(true)
@@ -419,6 +545,7 @@ describe('ModelConfigDialog reasoning portraits', () => {
 
     ;(wrapper.vm as any).config.reasoning = true
     await nextTick()
+    await flushPromises()
 
     expect((wrapper.vm as any).showReasoningEffort).toBe(true)
     expect((wrapper.vm as any).showReasoningVisibility).toBe(true)
@@ -436,6 +563,7 @@ describe('ModelConfigDialog reasoning portraits', () => {
       modelId: 'anthropic/claude-opus-4-7',
       modelName: 'Claude Opus 4.7',
       providerApiType: 'openai',
+      capabilityProviderId: 'anthropic',
       providerModels: [
         {
           id: 'anthropic/claude-opus-4-7',
@@ -463,6 +591,7 @@ describe('ModelConfigDialog reasoning portraits', () => {
 
     ;(wrapper.vm as any).config.reasoning = true
     await nextTick()
+    await flushPromises()
 
     expect((wrapper.vm as any).showReasoningEffort).toBe(true)
     expect((wrapper.vm as any).showReasoningVisibility).toBe(true)
@@ -528,7 +657,7 @@ describe('ModelConfigDialog reasoning portraits', () => {
     expect(wrapper.text()).not.toContain('settings.model.modelConfig.thinkingBudget.label')
   })
 
-  it('hides temperature controls when the model capability disables temperature', async () => {
+  it('keeps model defaults visible when the model capability disables sampling', async () => {
     const { wrapper } = await setup({
       providerId: 'anthropic',
       modelId: 'claude-opus-4-7',
@@ -545,18 +674,27 @@ describe('ModelConfigDialog reasoning portraits', () => {
     })
 
     expect((wrapper.vm as any).capabilityProviderId).toBe('anthropic')
-    expect((wrapper.vm as any).capabilitySupportsTemperature).toBe(false)
-    expect((wrapper.vm as any).showTopPControl).toBe(false)
-    expect(wrapper.text()).not.toContain('settings.model.modelConfig.temperature.label')
-    expect(wrapper.text()).not.toContain('settings.model.modelConfig.topP.label')
+    expect((wrapper.vm as any).temperatureControl).toEqual({ mode: 'hidden' })
+    expect((wrapper.vm as any).showTemperatureControl).toBe(true)
+    expect((wrapper.vm as any).showTopPControl).toBe(true)
+    expect((wrapper.vm as any).temperatureSettingReadOnly).toBe(true)
+    expect((wrapper.vm as any).topPSettingReadOnly).toBe(true)
+    expect(wrapper.find('#temperature').attributes('disabled')).toBeDefined()
+    expect(wrapper.find('#topP').attributes('disabled')).toBeDefined()
+    expect(wrapper.text()).toContain('settings.model.modelConfig.temperature.label')
+    expect(wrapper.text()).toContain('settings.model.modelConfig.topP.label')
+    expect(wrapper.text()).toContain('settings.model.modelConfig.maxTokens.label')
+    expect(wrapper.text()).toContain('settings.model.modelConfig.contextLength.label')
+    expect(wrapper.text()).toContain('settings.model.modelConfig.timeout.label')
   })
 
-  it('hides sampling controls for new-api anthropic routes when temperature is disabled', async () => {
+  it('keeps model defaults visible for new-api anthropic routes', async () => {
     const { wrapper } = await setup({
       providerId: 'new-api',
       modelId: 'claude-opus-4-8',
       modelName: 'Claude Opus 4.8',
       providerApiType: 'new-api',
+      capabilityProviderId: 'anthropic',
       temperatureCapability: false,
       providerModels: [
         {
@@ -578,13 +716,16 @@ describe('ModelConfigDialog reasoning portraits', () => {
     })
 
     expect((wrapper.vm as any).capabilityProviderId).toBe('anthropic')
-    expect((wrapper.vm as any).capabilitySupportsTemperature).toBe(false)
-    expect((wrapper.vm as any).showTopPControl).toBe(false)
-    expect(wrapper.text()).not.toContain('settings.model.modelConfig.temperature.label')
-    expect(wrapper.text()).not.toContain('settings.model.modelConfig.topP.label')
+    expect((wrapper.vm as any).temperatureControl).toEqual({ mode: 'hidden' })
+    expect((wrapper.vm as any).showTemperatureControl).toBe(true)
+    expect((wrapper.vm as any).showTopPControl).toBe(true)
+    expect(wrapper.find('#temperature').attributes('disabled')).toBeDefined()
+    expect(wrapper.find('#topP').attributes('disabled')).toBeDefined()
+    expect(wrapper.text()).toContain('settings.model.modelConfig.temperature.label')
+    expect(wrapper.text()).toContain('settings.model.modelConfig.topP.label')
   })
 
-  it('locks Moonshot Kimi temperatures and treats :thinking variants as indicator-only reasoning', async () => {
+  it('renders fixed temperature policy without rewriting stored intent', async () => {
     const { wrapper } = await setup({
       providerId: 'moonshot',
       modelId: 'moonshotai/kimi-k2.6:thinking',
@@ -592,6 +733,12 @@ describe('ModelConfigDialog reasoning portraits', () => {
       modelConfig: {
         reasoning: false,
         temperature: 0.6
+      },
+      requestPolicy: {
+        temperature: { mode: 'fixed', value: 1 },
+        topP: { mode: 'passthrough' },
+        reasoning: { mode: 'fixed', value: true },
+        legacyThinking: { mode: 'fixed', value: 'enabled' }
       },
       reasoningPortrait: {
         supported: true,
@@ -601,17 +748,18 @@ describe('ModelConfigDialog reasoning portraits', () => {
       }
     })
 
-    expect((wrapper.vm as any).isMoonshotKimiTemperatureLocked).toBe(true)
-    expect((wrapper.vm as any).moonshotKimiTemperatureHint).toBe(
-      'settings.model.modelConfig.temperature.fixedMoonshotKimi'
+    expect((wrapper.vm as any).temperatureControl).toEqual({ mode: 'fixed', value: 1 })
+    expect((wrapper.vm as any).temperaturePolicyHint).toBe(
+      'settings.model.temperatureFixedByPolicy'
     )
-    expect((wrapper.vm as any).config.temperature).toBe(1)
-    expect((wrapper.vm as any).config.reasoning).toBe(true)
+    expect((wrapper.vm as any).temperatureInputValue).toBe(1)
+    expect((wrapper.vm as any).config.temperature).toBe(0.6)
+    expect((wrapper.vm as any).config.reasoning).toBe(false)
     expect((wrapper.vm as any).reasoningToggleMode).toBe('indicator')
     expect((wrapper.vm as any).reasoningToggleValue).toBe(true)
   })
 
-  it('locks Kimi temperatures for proxy-style providers too, not only the official Moonshot provider', async () => {
+  it('uses fixed policy for proxy-style providers without a provider-specific UI branch', async () => {
     const { wrapper } = await setup({
       providerId: 'new-api',
       providerApiType: 'new-api',
@@ -621,6 +769,12 @@ describe('ModelConfigDialog reasoning portraits', () => {
         reasoning: true,
         temperature: 1.4
       },
+      requestPolicy: {
+        temperature: { mode: 'fixed', value: 1 },
+        topP: { mode: 'passthrough' },
+        reasoning: { mode: 'fixed', value: true },
+        legacyThinking: { mode: 'fixed', value: 'enabled' }
+      },
       reasoningPortrait: {
         supported: true,
         defaultEnabled: true,
@@ -629,18 +783,231 @@ describe('ModelConfigDialog reasoning portraits', () => {
       }
     })
 
-    expect((wrapper.vm as any).isMoonshotKimiTemperatureLocked).toBe(true)
-    expect((wrapper.vm as any).config.temperature).toBe(1)
+    expect((wrapper.vm as any).temperatureControl).toEqual({ mode: 'fixed', value: 1 })
+    expect((wrapper.vm as any).temperatureInputValue).toBe(1)
+    expect((wrapper.vm as any).config.temperature).toBe(1.4)
+  })
+
+  it('locks generic fixed top-p policy without overwriting stored intent', async () => {
+    const { wrapper } = await setup({
+      providerId: 'proxy',
+      modelId: 'fixed-sampling-model',
+      modelName: 'Fixed Sampling Model',
+      modelConfig: {
+        topP: 0.4
+      },
+      requestPolicy: {
+        temperature: { mode: 'passthrough' },
+        topP: { mode: 'fixed', value: 0.8 },
+        reasoning: { mode: 'passthrough' },
+        legacyThinking: { mode: 'passthrough' }
+      }
+    })
+
+    expect((wrapper.vm as any).topPControl).toEqual({ mode: 'fixed', value: 0.8 })
+    expect((wrapper.vm as any).topPInputValue).toBe('0.8')
+    expect((wrapper.vm as any).config.topP).toBe(0.4)
+    expect((wrapper.vm as any).topPPolicyHint).toBe('settings.model.topPFixedByPolicy')
+    expect(wrapper.find('#topP').attributes('disabled')).toBeDefined()
+  })
+
+  it('renders K3 request policy without rewriting stored generation intent', async () => {
+    const { wrapper, modelConfigStore, modelClient } = await setup({
+      providerId: 'new-api',
+      providerApiType: 'new-api',
+      capabilityProviderId: 'moonshot',
+      modelId: 'kimi-k3',
+      modelName: 'Kimi K3',
+      modelConfig: {
+        isUserDefined: true,
+        reasoning: false,
+        reasoningEffort: 'medium',
+        temperature: 0.6,
+        topP: 0.8
+      },
+      temperatureCapability: false,
+      requestPolicy: {
+        temperature: { mode: 'omit' },
+        topP: { mode: 'omit' },
+        reasoning: { mode: 'fixed', value: true },
+        legacyThinking: { mode: 'omit' }
+      },
+      reasoningPortrait: {
+        supported: true,
+        defaultEnabled: true,
+        mode: 'effort',
+        effort: 'max',
+        effortOptions: ['low', 'high', 'max']
+      }
+    })
+
+    expect((wrapper.vm as any).showTemperatureControl).toBe(true)
+    expect((wrapper.vm as any).showTopPControl).toBe(true)
+    expect((wrapper.vm as any).temperatureSettingReadOnly).toBe(true)
+    expect((wrapper.vm as any).topPSettingReadOnly).toBe(true)
+    expect((wrapper.vm as any).reasoningToggleMode).toBe('indicator')
+    expect((wrapper.vm as any).reasoningToggleValue).toBe(true)
+    expect((wrapper.vm as any).config.reasoning).toBe(false)
+    expect((wrapper.vm as any).config.reasoningEffort).toBe('medium')
+    expect((wrapper.vm as any).effectiveReasoningEffort).toBe('max')
+    expect((wrapper.vm as any).config.temperature).toBe(0.6)
+    expect((wrapper.vm as any).config.topP).toBe(0.8)
+    expect(wrapper.text()).toContain('settings.model.modelConfig.reasoningEffort.options.max')
+    expect(wrapper.text()).not.toContain(
+      'settings.model.modelConfig.reasoningEffort.options.medium'
+    )
+    expect(modelConfigStore.getModelConfig).toHaveBeenCalledTimes(1)
+    expect(modelClient.getCapabilities).toHaveBeenCalledTimes(1)
+
+    await (wrapper.vm as any).handleSave()
+    expect(modelConfigStore.setModelConfig).toHaveBeenCalledWith(
+      'kimi-k3',
+      'new-api',
+      expect.objectContaining({
+        reasoning: false,
+        reasoningEffort: 'medium',
+        temperature: 0.6,
+        topP: 0.8
+      })
+    )
+  })
+
+  it('shows Aihubmix K3 defaults as read-only when policy omits them', async () => {
+    const { wrapper } = await setup({
+      providerId: 'aihubmix',
+      capabilityProviderId: 'aihubmix',
+      modelId: 'kimi-k3',
+      modelName: 'Kimi K3',
+      requestPolicy: {
+        temperature: { mode: 'omit' },
+        topP: { mode: 'omit' },
+        reasoning: { mode: 'fixed', value: true },
+        legacyThinking: { mode: 'omit' }
+      },
+      temperatureCapability: undefined
+    })
+
+    expect((wrapper.vm as any).temperatureControl).toEqual({ mode: 'hidden' })
+    expect((wrapper.vm as any).showTemperatureControl).toBe(true)
+    expect((wrapper.vm as any).temperatureSettingReadOnly).toBe(true)
+    expect(wrapper.find('#temperature').attributes('disabled')).toBeDefined()
+    expect(wrapper.text()).toContain('settings.model.modelConfig.temperature.label')
+  })
+
+  it('shows temperature for effort models when effective policy permits it', async () => {
+    const { wrapper } = await setup({
+      providerId: 'custom-effort',
+      modelId: 'effort-with-temperature',
+      modelName: 'Effort With Temperature',
+      temperatureCapability: true,
+      reasoningPortrait: {
+        supported: true,
+        defaultEnabled: true,
+        mode: 'effort',
+        effort: 'high',
+        effortOptions: ['low', 'medium', 'high']
+      }
+    })
+
+    expect((wrapper.vm as any).supportsReasoningEffort).toBe(true)
+    expect((wrapper.vm as any).temperatureControl).toEqual({ mode: 'editable' })
+    expect((wrapper.vm as any).showTemperatureControl).toBe(true)
+    expect(wrapper.text()).toContain('settings.model.modelConfig.temperature.label')
+  })
+
+  it('keeps model defaults stable and read-only while capability policy loads', async () => {
+    const pending = createDeferred<Record<string, unknown>>()
+    const options: SetupOptions = {
+      providerId: 'aihubmix',
+      modelId: 'kimi-k3',
+      modelName: 'Kimi K3',
+      getCapabilities: () => pending.promise
+    }
+    const { wrapper } = await setup(options)
+
+    expect((wrapper.vm as any).temperatureControl).toEqual({ mode: 'loading' })
+    expect((wrapper.vm as any).temperatureSettingReadOnly).toBe(true)
+    expect(wrapper.find('#temperature').attributes('disabled')).toBeDefined()
+    expect(wrapper.text()).toContain('settings.model.modelConfig.temperature.label')
+
+    pending.resolve(
+      createCapabilityResult({
+        ...options,
+        requestPolicy: {
+          temperature: { mode: 'omit' },
+          topP: { mode: 'omit' },
+          reasoning: { mode: 'fixed', value: true },
+          legacyThinking: { mode: 'omit' }
+        }
+      })
+    )
+    await flushPromises()
+
+    expect((wrapper.vm as any).temperatureControl).toEqual({ mode: 'hidden' })
+    expect((wrapper.vm as any).temperatureSettingReadOnly).toBe(true)
+    expect(wrapper.find('#temperature').attributes('disabled')).toBeDefined()
+  })
+
+  it('keeps model defaults editable when capability resolution fails', async () => {
+    const options: SetupOptions = {
+      providerId: 'aihubmix',
+      modelId: 'kimi-k3',
+      modelName: 'Kimi K3',
+      isCustomModel: true,
+      customModels: [{ id: 'kimi-k3', name: 'Kimi K3' }],
+      modelConfig: {
+        temperature: 0.6,
+        topP: 0.4
+      },
+      requestPolicy: {
+        temperature: { mode: 'omit' },
+        topP: { mode: 'omit' },
+        reasoning: { mode: 'fixed', value: true },
+        legacyThinking: { mode: 'omit' }
+      },
+      getCapabilities: () => Promise.reject(new Error('ipc unavailable'))
+    }
+    const { wrapper, modelConfigStore } = await setup(options)
+
+    expect((wrapper.vm as any).temperatureControl).toEqual({ mode: 'hidden' })
+    expect((wrapper.vm as any).topPControl).toEqual({ mode: 'hidden' })
+    expect((wrapper.vm as any).capabilityResolutionSettledForCurrentModel).toBe(true)
+    expect((wrapper.vm as any).isValid).toBe(true)
+    expect((wrapper.vm as any).temperatureSettingReadOnly).toBe(false)
+    expect((wrapper.vm as any).topPSettingReadOnly).toBe(false)
+    expect(wrapper.text()).toContain('settings.model.modelConfig.temperature.label')
+    expect(wrapper.text()).toContain('settings.model.modelConfig.topP.label')
+
+    ;(wrapper.vm as any).temperatureInputValue = 0.9
+    ;(wrapper.vm as any).topPInputValue = '0.6'
+    await (wrapper.vm as any).handleSave()
+
+    expect(modelConfigStore.setModelConfig).toHaveBeenCalledWith(
+      'kimi-k3',
+      'aihubmix',
+      expect.objectContaining({
+        temperature: 0.9,
+        topP: 0.6
+      })
+    )
+
+    ;(wrapper.vm as any).modelIdField = 'other-model'
+    await nextTick()
+    expect((wrapper.vm as any).capabilityResolutionSettledForCurrentModel).toBe(false)
+    expect((wrapper.vm as any).isValid).toBe(false)
   })
 })
 
 describe('ModelConfigDialog OpenAI image generation settings', () => {
-  it('uses the image settings form for gpt-image-2', async () => {
+  it.each([
+    { providerId: 'openai', providerApiType: 'openai' },
+    { providerId: 'openai-codex', providerApiType: 'openai-codex' }
+  ])('uses the image settings form for gpt-image-2 on $providerId', async (provider) => {
     const { wrapper } = await setup({
-      providerId: 'openai',
+      providerId: provider.providerId,
       modelId: 'gpt-image-2',
       modelName: 'GPT Image 2',
-      providerApiType: 'openai',
+      providerApiType: provider.providerApiType,
       modelConfig: {
         imageGeneration: {
           size: '1024x1024'
@@ -675,12 +1042,18 @@ describe('ModelConfigDialog OpenAI image generation settings', () => {
     expect(wrapper.text()).toContain('settings.model.modelConfig.maxTokens.label')
   })
 
-  it('saves normalized image settings for gpt-image-2', async () => {
+  it.each([
+    { providerId: 'openai', providerApiType: 'openai' },
+    { providerId: 'openai-codex', providerApiType: 'openai-codex' }
+  ])('saves normalized image settings for gpt-image-2 on $providerId', async (provider) => {
     const { wrapper, modelConfigStore } = await setup({
-      providerId: 'openai',
+      providerId: provider.providerId,
       modelId: 'gpt-image-2',
       modelName: 'GPT Image 2',
-      providerApiType: 'openai'
+      providerApiType: provider.providerApiType,
+      modelConfig: {
+        topP: 0.4
+      }
     })
 
     ;(wrapper.vm as any).config.imageGeneration = {
@@ -695,8 +1068,9 @@ describe('ModelConfigDialog OpenAI image generation settings', () => {
 
     expect(modelConfigStore.setModelConfig).toHaveBeenCalledWith(
       'gpt-image-2',
-      'openai',
+      provider.providerId,
       expect.objectContaining({
+        topP: 0.4,
         imageGeneration: {
           size: '1792x1024',
           quality: 'high',
@@ -848,6 +1222,8 @@ describe('ModelConfigDialog new-api endpoint normalization', () => {
 
     ;(wrapper.vm as any).modelIdField = 'custom-image-model'
     ;(wrapper.vm as any).modelNameField = 'Custom Image Model'
+    ;(wrapper.vm as any).queueCapabilityRefresh()
+    await flushPromises()
     await (wrapper.vm as any).handleSave()
 
     expect(modelConfigStore.setModelConfig).toHaveBeenCalledWith(
@@ -859,6 +1235,70 @@ describe('ModelConfigDialog new-api endpoint normalization', () => {
         type: ModelType.Chat
       })
     )
+  })
+
+  it('refreshes capability policy after a create-mode model ID is entered', async () => {
+    const capabilityRequest = createDeferred<Record<string, unknown>>()
+    const options: SetupOptions = {
+      providerId: 'new-api',
+      modelId: '',
+      modelName: '',
+      providerApiType: 'new-api',
+      mode: 'create',
+      getCapabilities: () => capabilityRequest.promise
+    }
+    const { wrapper, modelClient } = await setup(options)
+
+    ;(wrapper.vm as any).modelIdField = 'kimi-k3'
+    await vi.waitFor(() =>
+      expect(modelClient.getCapabilities).toHaveBeenCalledWith(
+        expect.objectContaining({
+          providerId: 'new-api',
+          modelId: 'kimi-k3',
+          reasoningEnabled: expect.any(Boolean)
+        })
+      )
+    )
+    expect(modelClient.getCapabilities).toHaveBeenCalledTimes(1)
+
+    ;(wrapper.vm as any).queueCapabilityRefreshForIdentityChange()
+    await nextTick()
+    expect(modelClient.getCapabilities).toHaveBeenCalledTimes(1)
+
+    capabilityRequest.resolve(createCapabilityResult(options, 'kimi-k3'))
+    await flushPromises()
+
+    ;(wrapper.vm as any).queueCapabilityRefreshForIdentityChange()
+    await nextTick()
+    await flushPromises()
+    expect(modelClient.getCapabilities).toHaveBeenCalledTimes(1)
+  })
+
+  it('resolves capabilities for the edited identity when a custom model is renamed', async () => {
+    const { wrapper, modelClient } = await setup({
+      providerId: 'new-api',
+      modelId: 'old-custom-model',
+      modelName: 'Old Custom Model',
+      providerApiType: 'new-api',
+      isCustomModel: true,
+      customModels: [{ id: 'old-custom-model', name: 'Old Custom Model' }]
+    })
+
+    ;(wrapper.vm as any).modelIdField = 'renamed-custom-model'
+    expect((wrapper.vm as any).capabilitySnapshotMatchesCurrentModel).toBe(false)
+    expect((wrapper.vm as any).temperatureControl).toEqual({ mode: 'loading' })
+    expect((wrapper.vm as any).isValid).toBe(false)
+
+    await vi.waitFor(() => expect(modelClient.getCapabilities).toHaveBeenCalledTimes(2))
+
+    expect(modelClient.getCapabilities).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        providerId: 'new-api',
+        modelId: 'renamed-custom-model'
+      })
+    )
+    expect((wrapper.vm as any).currentModelLookupId).toBe('renamed-custom-model')
+    expect((wrapper.vm as any).capabilitySnapshotMatchesCurrentModel).toBe(true)
   })
 
   it('does not expose media endpoints for explicit chat models', async () => {
@@ -1050,6 +1490,9 @@ describe('ModelConfigDialog new-api endpoint normalization', () => {
       ],
       getModelConfig
     })
+
+    void (wrapper.vm as any).loadConfig()
+    await nextTick()
 
     expect(modelConfigStore.getModelConfig).toHaveBeenCalledTimes(2)
     expect((wrapper.vm as any).isLoadingModelConfig).toBe(true)

@@ -1,6 +1,16 @@
-import { FileMetaData } from './presenter'
+import type { FileMetaData } from './types/file'
 import type { ToolCallImagePreview } from './types/core/mcp'
 import type { AgentPlanDisplayItem, AgentPlanTerminalReason } from './types/agent-plan'
+import type {
+  AttachmentRepresentationPreference,
+  AttachmentResolvedRepresentation,
+  PdfEmbeddedTextCoverage
+} from './types/attachment'
+
+export type {
+  AttachmentRepresentationPreference,
+  AttachmentResolvedRepresentation
+} from './types/attachment'
 
 export type Message = {
   id: string
@@ -96,6 +106,9 @@ export type MessageFile = {
   token: number
   path: string
   thumbnail?: string
+  requestedRepresentation?: AttachmentRepresentationPreference
+  resolvedRepresentation?: AttachmentResolvedRepresentation
+  pdfTextCoverage?: PdfEmbeddedTextCoverage
 }
 
 export type AssistantMessageBlock = {
@@ -178,10 +191,16 @@ export type AssistantMessageExtra = Record<string, string | number | object[] | 
   permissionType?: PermissionType
   grantedPermissions?: PermissionType
   toolName?: string
+  toolSource?: 'agent' | 'mcp'
   serverName?: string
   providerId?: string
+  providerLogicalRound?: number
+  providerRequestSeq?: number
+  providerPhysicalAttempt?: number
   permissionRequestId?: string
   permissionRequest?: string
+  executionContractBinding?: string
+  toolSurfaceBinding?: string
   commandInfo?: string
   rememberable?: boolean
   questionHeader?: string
@@ -195,6 +214,7 @@ export type AssistantMessageExtra = Record<string, string | number | object[] | 
   questionMultiple?: boolean
   questionCustom?: boolean
   questionResolution?: 'asked' | 'replied' | 'rejected'
+  questionFollowUpPending?: boolean
   answerText?: string
   answerMessageId?: string
   skillDraftAction?: string
@@ -211,6 +231,8 @@ export type AssistantMessageExtra = Record<string, string | number | object[] | 
   plan_terminal_reason?: AgentPlanTerminalReason
   subagentProgress?: string
   subagentFinal?: string
+  toolCallSkippedReason?: 'max_tool_calls' | 'max_tokens'
+  toolCallIncompleteReason?: 'max_tokens'
 }
 // Search-related message block types
 export type SearchBlock = {

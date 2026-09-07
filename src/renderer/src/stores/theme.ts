@@ -1,6 +1,6 @@
 import { useDark, useToggle } from '@vueuse/core'
 import { defineStore } from 'pinia'
-import { ref } from 'vue'
+import { onScopeDispose, ref } from 'vue'
 import { createConfigClient } from '../../api/ConfigClient'
 
 export type ThemeMode = 'dark' | 'light' | 'system'
@@ -9,42 +9,27 @@ export const useThemeStore = defineStore('theme', () => {
   const isDark = useDark()
   const toggleDark = useToggle(isDark)
   const configClient = createConfigClient()
-  let listenersRegistered = false
-
-  // 存储当前主题模式
   const themeMode = ref<ThemeMode>('system')
+  let listenersRegistered = false
+  let stateRevision = 0
+  let themeInitialization: Promise<void> | null = null
+  let removeThemeListeners: (() => void) | null = null
 
-  // 初始化主题
-  const initTheme = async () => {
-    const currentTheme = (await configClient.getTheme()) as ThemeMode
-    themeMode.value = currentTheme
-
-    // 获取当前实际的深色模式状态
-    const isDarkMode = await configClient.getCurrentThemeIsDark()
-    console.log('initTheme - theme:', currentTheme, 'isDark:', isDarkMode)
-    toggleDark(isDarkMode)
-    setupThemeListeners()
+  const applyThemeState = (theme: ThemeMode, dark: boolean) => {
+    themeMode.value = theme
+    toggleDark(dark)
   }
-
-  initTheme()
 
   const handleSystemThemeChange = (payload: { isDark: boolean }) => {
-    const isDarkMode = payload.isDark
-    console.log('handleSystemThemeChange', isDarkMode)
-    // 只有在系统模式下才跟随系统主题变化
+    stateRevision += 1
     if (themeMode.value === 'system') {
-      toggleDark(isDarkMode)
+      toggleDark(payload.isDark)
     }
   }
-  const handleUserThemeChange = (payload: { theme: ThemeMode }) => {
-    const theme = payload.theme
-    if (themeMode.value !== theme) {
-      configClient.getCurrentThemeIsDark().then((isDark) => {
-        console.log('handleUserThemeChange', theme, isDark)
-        themeMode.value = theme
-        toggleDark(isDark)
-      })
-    }
+
+  const handleUserThemeChange = (payload: { theme: ThemeMode; isDark: boolean }) => {
+    stateRevision += 1
+    applyThemeState(payload.theme, payload.isDark)
   }
 
   const setupThemeListeners = () => {
@@ -53,31 +38,72 @@ export const useThemeStore = defineStore('theme', () => {
     }
 
     listenersRegistered = true
-    configClient.onSystemThemeChanged(handleSystemThemeChange)
-    configClient.onThemeChanged(handleUserThemeChange)
+    const unsubscribeSystemTheme = configClient.onSystemThemeChanged(handleSystemThemeChange)
+    const unsubscribeTheme = configClient.onThemeChanged(handleUserThemeChange)
+    removeThemeListeners = () => {
+      unsubscribeSystemTheme()
+      unsubscribeTheme()
+      removeThemeListeners = null
+      listenersRegistered = false
+      stateRevision += 1
+    }
   }
 
-  // 设置主题模式
+  // Register listeners before reading the snapshot so updates from another window cannot be lost.
+  const initTheme = async () => {
+    if (themeInitialization) {
+      return themeInitialization
+    }
+
+    const initialization = (async () => {
+      try {
+        setupThemeListeners()
+        const snapshotRevision = stateRevision
+        const themeState = await configClient.getThemeState()
+        if (snapshotRevision !== stateRevision) {
+          return
+        }
+
+        applyThemeState(themeState.theme, themeState.isDark)
+      } catch (error) {
+        themeInitialization = null
+        console.error('初始化主题失败:', error)
+      }
+    })()
+
+    themeInitialization = initialization
+    return initialization
+  }
+
   const setThemeMode = async (mode: ThemeMode) => {
+    const requestRevision = ++stateRevision
     themeMode.value = mode
     const isDarkMode = await configClient.setTheme(mode)
+    if (requestRevision !== stateRevision) {
+      return
+    }
 
-    // 设置界面深色/浅色状态
     toggleDark(isDarkMode)
   }
 
   // 循环切换主题：light -> dark -> system -> light
   const cycleTheme = async () => {
-    console.log('cycleTheme', themeMode.value)
     if (themeMode.value === 'light') await setThemeMode('dark')
     else if (themeMode.value === 'dark') await setThemeMode('system')
     else await setThemeMode('light')
   }
 
+  onScopeDispose(() => {
+    removeThemeListeners?.()
+  })
+
+  void initTheme()
+
   return {
     isDark,
     toggleDark,
     themeMode,
+    initTheme,
     cycleTheme,
     setThemeMode
   }

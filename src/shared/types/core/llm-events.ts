@@ -2,6 +2,7 @@
 
 import type { ChatMessageProviderOptions } from './chat-message'
 import type { AgentPlanItem, AgentPlanTerminalReason } from '../agent-plan'
+import type { SearchResult } from './search'
 
 export type StreamEventType =
   | 'text'
@@ -15,6 +16,8 @@ export type StreamEventType =
   | 'stop'
   | 'image_data'
   | 'rate_limit'
+  | 'provider_search'
+  | 'provider_url_source'
   | 'plan'
 
 export interface TextStreamEvent {
@@ -29,10 +32,13 @@ export interface ReasoningStreamEvent {
   provider_options?: ChatMessageProviderOptions
 }
 
+export type ToolCallExecutionOwner = 'deepchat' | 'provider'
+
 export interface ToolCallStartEvent {
   type: 'tool_call_start'
   tool_call_id: string
   tool_call_name: string
+  tool_call_execution_owner?: ToolCallExecutionOwner
   provider_options?: ChatMessageProviderOptions
 }
 
@@ -47,6 +53,8 @@ export interface ToolCallEndEvent {
   type: 'tool_call_end'
   tool_call_id: string
   tool_call_arguments_complete?: string
+  tool_call_response?: string
+  tool_call_status?: 'success' | 'error'
   provider_options?: ChatMessageProviderOptions
 }
 
@@ -55,9 +63,19 @@ export interface PermissionRequestEvent {
   permission: PermissionRequestPayload
 }
 
+export type ProviderRetryHeaderName = 'retry-after' | 'retry-after-ms' | 'x-should-retry'
+
+export interface ProviderFailureMetadata {
+  statusCode?: number
+  code?: string
+  retryable?: boolean
+  retryHeaders?: Partial<Record<ProviderRetryHeaderName, string>>
+}
+
 export interface ErrorStreamEvent {
   type: 'error'
   error_message: string
+  failure?: ProviderFailureMetadata
 }
 
 export interface UsageStreamEvent {
@@ -71,9 +89,16 @@ export interface UsageStreamEvent {
   }
 }
 
+export type ProviderRoundStopReason =
+  | 'tool_use'
+  | 'max_tokens'
+  | 'max_turn_requests'
+  | 'error'
+  | 'complete'
+
 export interface StopStreamEvent {
   type: 'stop'
-  stop_reason: 'tool_use' | 'max_tokens' | 'stop_sequence' | 'error' | 'complete'
+  stop_reason: ProviderRoundStopReason
 }
 
 export interface ImageDataStreamEvent {
@@ -93,6 +118,38 @@ export interface RateLimitStreamEvent {
     queueLength: number
     estimatedWaitTime?: number
   }
+}
+
+export type ProviderSearchAction = {
+  type: 'search' | 'open_page' | 'find_in_page'
+  target: string
+  url?: string
+}
+
+export type ProviderSearchPayload = {
+  id: string
+  action: ProviderSearchAction
+  label: string
+  provider: string
+  results: SearchResult[]
+  providerReplayJson: string
+}
+
+export interface ProviderSearchStreamEvent {
+  type: 'provider_search'
+  provider_search: ProviderSearchPayload
+}
+
+export type ProviderUrlSourcePayload = {
+  searchId: string
+  title: string
+  url: string
+  rank: number
+}
+
+export interface ProviderUrlSourceStreamEvent {
+  type: 'provider_url_source'
+  provider_url_source: ProviderUrlSourcePayload
 }
 
 export interface PlanStreamEvent {
@@ -116,12 +173,15 @@ export type LLMCoreStreamEvent =
   | StopStreamEvent
   | ImageDataStreamEvent
   | RateLimitStreamEvent
+  | ProviderSearchStreamEvent
+  | ProviderUrlSourceStreamEvent
   | PlanStreamEvent
 
 export type {
   ChatMessage,
   ChatMessageContent,
   ChatMessageProviderOptions,
+  ChatMessageProviderReplay,
   ChatMessageRole,
   ChatMessageToolCall
 } from './chat-message'
@@ -159,11 +219,13 @@ export const createStreamEvent = {
   toolCallStart: (
     tool_call_id: string,
     tool_call_name: string,
-    provider_options?: ChatMessageProviderOptions
+    provider_options?: ChatMessageProviderOptions,
+    tool_call_execution_owner?: ToolCallExecutionOwner
   ): ToolCallStartEvent => ({
     type: 'tool_call_start',
     tool_call_id,
     tool_call_name,
+    ...(tool_call_execution_owner ? { tool_call_execution_owner } : {}),
     ...(provider_options ? { provider_options } : {})
   }),
   toolCallChunk: (
@@ -179,18 +241,25 @@ export const createStreamEvent = {
   toolCallEnd: (
     tool_call_id: string,
     tool_call_arguments_complete?: string,
-    provider_options?: ChatMessageProviderOptions
+    provider_options?: ChatMessageProviderOptions,
+    result?: { response?: string; status?: 'success' | 'error' }
   ): ToolCallEndEvent => ({
     type: 'tool_call_end',
     tool_call_id,
     tool_call_arguments_complete,
+    ...(result?.response !== undefined ? { tool_call_response: result.response } : {}),
+    ...(result?.status ? { tool_call_status: result.status } : {}),
     ...(provider_options ? { provider_options } : {})
   }),
   permission: (permission: PermissionRequestPayload): PermissionRequestEvent => ({
     type: 'permission',
     permission
   }),
-  error: (error_message: string): ErrorStreamEvent => ({ type: 'error', error_message }),
+  error: (error_message: string, failure?: ProviderFailureMetadata): ErrorStreamEvent => ({
+    type: 'error',
+    error_message,
+    ...(failure ? { failure } : {})
+  }),
   usage: (usage: {
     prompt_tokens: number
     completion_tokens: number
@@ -201,9 +270,7 @@ export const createStreamEvent = {
     type: 'usage',
     usage
   }),
-  stop: (
-    stop_reason: 'tool_use' | 'max_tokens' | 'stop_sequence' | 'error' | 'complete'
-  ): StopStreamEvent => ({
+  stop: (stop_reason: ProviderRoundStopReason): StopStreamEvent => ({
     type: 'stop',
     stop_reason
   }),
@@ -220,6 +287,16 @@ export const createStreamEvent = {
   }): RateLimitStreamEvent => ({
     type: 'rate_limit',
     rate_limit
+  }),
+  providerSearch: (provider_search: ProviderSearchPayload): ProviderSearchStreamEvent => ({
+    type: 'provider_search',
+    provider_search
+  }),
+  providerUrlSource: (
+    provider_url_source: ProviderUrlSourcePayload
+  ): ProviderUrlSourceStreamEvent => ({
+    type: 'provider_url_source',
+    provider_url_source
   })
 }
 
@@ -252,6 +329,7 @@ export interface PermissionRequestPayload {
   server_icons?: string
   command?: string
   commandSignature?: string
+  shellProfile?: import('../../commandShell').CommandShellProfile
   paths?: string[]
   commandInfo?: {
     command: string

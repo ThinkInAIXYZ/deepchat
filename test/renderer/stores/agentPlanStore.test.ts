@@ -28,18 +28,18 @@ describe('agentPlanStore', () => {
     setActivePinia(createPinia())
   })
 
-  it('defaults new session progress panels to expanded and ignores stale snapshots', async () => {
+  it('defaults new session progress panels to collapsed and ignores stale snapshots', async () => {
     const { useAgentPlanStore } = await import('@/stores/ui/agentPlan')
     const store = useAgentPlanStore()
 
-    expect(store.isCollapsed('s1')).toBe(false)
+    expect(store.isCollapsed('s1')).toBe(true)
     expect(getViewStateBySession(store).s1).toBeUndefined()
     expect(store.isVisible('missing')).toBe(false)
     expect(getViewStateBySession(store).missing).toBeUndefined()
 
     store.toggleCollapsed('s1')
-    expect(store.isCollapsed('s1')).toBe(true)
-    expect(getViewStateBySession(store).s1).toEqual({ collapsed: true })
+    expect(store.isCollapsed('s1')).toBe(false)
+    expect(getViewStateBySession(store).s1).toEqual({ collapsed: false })
 
     store.applySnapshot({
       sessionId: 's1',
@@ -115,8 +115,8 @@ describe('agentPlanStore', () => {
     expect(store.snapshots.s1.messageId).toBe('m2')
     expect(store.snapshots.s1.plan[0]?.step).toBe('Auto queued turn')
     expect(store.isVisible('s1')).toBe(true)
-    expect(store.isCollapsed('s1')).toBe(false)
-    expect(getViewStateBySession(store).s1).toEqual({ collapsed: false })
+    expect(store.isCollapsed('s1')).toBe(true)
+    expect(getViewStateBySession(store).s1).toEqual({ collapsed: true })
   })
 
   it('auto-collapses only when the same message first becomes fully completed', async () => {
@@ -131,6 +131,9 @@ describe('agentPlanStore', () => {
       updatedAt: '2026-05-18T00:00:00.000Z'
     })
 
+    expect(store.isCollapsed('s1')).toBe(true)
+
+    store.setCollapsed('s1', false)
     expect(store.isCollapsed('s1')).toBe(false)
 
     store.applySnapshot({

@@ -26,11 +26,22 @@ vi.mock('vue-i18n', () => ({
 }))
 
 vi.mock(
-  '@shadcn/components/ui/button',
+  '@dc-ui/components',
   () => ({
-    Button: {
+    DcButton: {
       name: 'Button',
-      template: '<button @click="$emit(\'click\')"><slot /></button>'
+      inheritAttrs: false,
+      props: ['icon'],
+      template:
+        '<button v-bind="$attrs" @click="$emit(\'click\')"><span v-if="icon" :data-icon="icon"></span><slot /></button>'
+    },
+    DcCopyButton: {
+      name: 'CopyButton',
+      inheritAttrs: false,
+      props: ['icon', 'copyText'],
+      emits: ['copied'],
+      template:
+        '<button v-bind="$attrs" @click="$emit(\'copied\')"><span :data-icon="icon || \'lucide:copy\'"></span><slot /></button>'
     }
   }),
   { virtual: true }
@@ -76,7 +87,8 @@ const baseProps = {
   isCapturingImage: false,
   showTrace: true,
   isInGeneratingThread: false,
-  isReadOnly: false
+  isReadOnly: false,
+  copyText: 'copy me'
 }
 
 const mountToolbar = () =>
@@ -85,6 +97,40 @@ const mountToolbar = () =>
   })
 
 describe('MessageToolbar trace button visibility', () => {
+  it('reveals actions for focus-within and supports both keyboard image capture variants', async () => {
+    const wrapper = mountToolbar()
+    const toolbar = wrapper.get('.message-toolbar')
+    const copyButton = wrapper
+      .findAll('button')
+      .find((button) => button.find('[data-icon="lucide:copy"]').exists())
+    const imageButton = wrapper
+      .findAll('button')
+      .find((button) => button.find('[data-icon="lucide:images"]').exists())
+
+    expect(toolbar.classes()).toContain('group-focus-within:opacity-100')
+    expect(copyButton?.classes()).toContain('relative')
+    expect(copyButton?.attributes('size')).toBe(imageButton?.attributes('size'))
+    expect(imageButton).toBeDefined()
+    expect(imageButton?.classes()).toContain('relative')
+    expect(imageButton?.attributes('aria-keyshortcuts')).toBe('Enter Space Shift+Enter Shift+Space')
+
+    await imageButton?.trigger('keydown', { key: 'Enter' })
+    await imageButton?.trigger('keydown', { key: ' ' })
+    await imageButton?.trigger('keydown', { key: 'Enter', shiftKey: true })
+    await imageButton?.trigger('keydown', { key: ' ', shiftKey: true })
+
+    expect(wrapper.emitted().copyImage).toHaveLength(2)
+    expect(wrapper.emitted().copyImageFromTop).toHaveLength(2)
+  })
+
+  it('preserves the copy event contract', async () => {
+    const wrapper = mountToolbar()
+
+    await wrapper.find('[data-icon="lucide:copy"]').trigger('click')
+
+    expect(wrapper.emitted().copy).toHaveLength(1)
+  })
+
   it('shows trace button only when trace debug is enabled and message allows trace', async () => {
     traceDebugEnabled = true
     const wrapper = mountToolbar()
@@ -96,11 +142,29 @@ describe('MessageToolbar trace button visibility', () => {
     expect(wrapper.emitted().trace).toBeTruthy()
   })
 
+  it('opens the Inspector independently of persisted request evidence', async () => {
+    traceDebugEnabled = true
+    const wrapper = mount(MessageToolbar, {
+      props: {
+        ...baseProps,
+        showTrace: false
+      }
+    })
+
+    const inspectorIcon = wrapper.find('[data-icon="lucide:scan-search"]')
+    expect(inspectorIcon.exists()).toBe(true)
+
+    await inspectorIcon.trigger('click')
+    expect(wrapper.emitted().tapeInspector).toBeTruthy()
+    expect(wrapper.emitted().trace).toBeUndefined()
+  })
+
   it('hides trace button when trace debug is disabled', () => {
     traceDebugEnabled = false
     const wrapper = mountToolbar()
 
     expect(wrapper.find('[data-icon="lucide:bug"]').exists()).toBe(false)
+    expect(wrapper.find('[data-icon="lucide:scan-search"]').exists()).toBe(false)
   })
 
   it('hides trace button when message does not have trace', () => {
@@ -128,6 +192,20 @@ describe('MessageToolbar trace button visibility', () => {
     expect(wrapper.find('[data-icon="lucide:git-branch"]').exists()).toBe(false)
     expect(wrapper.find('[data-icon="lucide:trash-2"]').exists()).toBe(false)
     expect(wrapper.find('[data-icon="lucide:copy"]').exists()).toBe(true)
+  })
+
+  it('does not mount assistant-only controls for user messages', () => {
+    const wrapper = mount(MessageToolbar, {
+      props: {
+        ...baseProps,
+        isAssistant: false,
+        totalVariants: 2
+      }
+    })
+
+    expect(wrapper.find('[data-icon="lucide:chevron-left"]').exists()).toBe(false)
+    expect(wrapper.find('[data-icon="lucide:chevron-right"]').exists()).toBe(false)
+    expect(wrapper.find('[data-icon="lucide:images"]').exists()).toBe(false)
   })
 
   it('shows memory button only for assistant messages that allow memory details', async () => {

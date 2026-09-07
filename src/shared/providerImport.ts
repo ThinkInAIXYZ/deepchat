@@ -1,4 +1,4 @@
-import type { LLM_PROVIDER, MODEL_META } from './presenter'
+import type { LLM_PROVIDER, MODEL_META } from './types/provider'
 
 export const PROVIDER_IMPORT_SOURCE_IDS = [
   'cc-switch',

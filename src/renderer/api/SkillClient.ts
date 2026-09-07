@@ -1,11 +1,17 @@
 import type { DeepchatBridge } from '@shared/contracts/bridge'
-import { skillsCatalogChangedEvent, skillsSessionChangedEvent } from '@shared/contracts/events'
+import {
+  skillsCatalogChangedEvent,
+  skillsSessionChangedEvent,
+  type DeepchatEventPayload
+} from '@shared/contracts/events'
 import {
   skillsGetActiveRoute,
   skillsGetDirectoryRoute,
   skillsGetExtensionRoute,
   skillsGetFolderTreeRoute,
   skillsGetSyncConfigRoute,
+  skillsExecuteAgentImportRoute,
+  skillsDeleteRoute,
   skillsExecuteSyncDirectoryExportRoute,
   skillsExecuteSyncDirectoryImportRoute,
   skillsInstallFromGitRoute,
@@ -13,17 +19,22 @@ import {
   skillsInstallFromUrlRoute,
   skillsInstallFromZipRoute,
   skillsListCatalogRoute,
+  skillsListAllRoute,
+  skillsListAgentImportSourcesRoute,
   skillsListMetadataRoute,
   skillsListScriptsRoute,
   skillsOpenFolderRoute,
   skillsPreviewSyncDirectoryExportRoute,
   skillsPreviewSyncDirectoryImportRoute,
+  skillsPreviewAgentImportRoute,
   skillsReadFileRoute,
+  skillsRemoveActiveRoute,
   skillsScanGitRepoRoute,
   skillsSaveExtensionRoute,
   skillsSaveWithExtensionRoute,
   skillsSetActiveRoute,
   skillsSetDisabledRoute,
+  skillsSetAssignmentsRoute,
   skillsSetSyncDirectoryRoute,
   skillsUninstallRoute,
   skillsUpdateFileRoute
@@ -35,55 +46,93 @@ import type {
   SkillSyncDirectoryExportInput,
   SkillSyncDirectoryImportInput
 } from '@shared/types/skill'
+import type {
+  AgentSkillImportSelection,
+  AgentSkillImportSource
+} from '@shared/types/agentSkillImport'
 import { getDeepchatBridge } from './core'
 
+const BUILTIN_SKILL_AGENT_ID = 'deepchat'
+
 export function createSkillClient(bridge: DeepchatBridge = getDeepchatBridge()) {
-  async function getMetadataList() {
-    const result = await bridge.invoke(skillsListMetadataRoute.name, {})
+  async function getMetadataList(agentId: string = BUILTIN_SKILL_AGENT_ID) {
+    const result = await bridge.invoke(skillsListMetadataRoute.name, { agentId })
     return result.skills
   }
 
-  async function getUnifiedSkillCatalog() {
-    const result = await bridge.invoke(skillsListCatalogRoute.name, {})
+  async function getUnifiedSkillCatalog(agentId: string = BUILTIN_SKILL_AGENT_ID) {
+    const result = await bridge.invoke(skillsListCatalogRoute.name, { agentId })
     return result.skills
   }
 
-  async function getSkillsDir() {
-    const result = await bridge.invoke(skillsGetDirectoryRoute.name, {})
+  async function getAllSkills() {
+    const result = await bridge.invoke(skillsListAllRoute.name, {})
+    return result.skills
+  }
+
+  async function setSkillAssignments(agentId: string, skillNames: string[]) {
+    const result = await bridge.invoke(skillsSetAssignmentsRoute.name, { agentId, skillNames })
+    return result.skillNames
+  }
+
+  async function deleteSkill(name: string, acknowledgedAgentIds: string[]) {
+    const result = await bridge.invoke(skillsDeleteRoute.name, {
+      name,
+      acknowledgedAgentIds
+    })
+    return result.result
+  }
+
+  async function getSkillsDir(agentId: string = BUILTIN_SKILL_AGENT_ID) {
+    const result = await bridge.invoke(skillsGetDirectoryRoute.name, { agentId })
     return result.path
   }
 
-  async function installFromFolder(folderPath: string, options?: SkillInstallOptions) {
+  async function installFromFolder(
+    folderPath: string,
+    options?: SkillInstallOptions,
+    agentId?: string
+  ) {
     const result = await bridge.invoke(skillsInstallFromFolderRoute.name, {
       folderPath,
-      options
+      options,
+      agentId: agentId ?? BUILTIN_SKILL_AGENT_ID,
+      assignToAgent: Boolean(agentId)
     })
     return result.result
   }
 
-  async function installFromZip(zipPath: string, options?: SkillInstallOptions) {
+  async function installFromZip(zipPath: string, options?: SkillInstallOptions, agentId?: string) {
     const result = await bridge.invoke(skillsInstallFromZipRoute.name, {
       zipPath,
-      options
+      options,
+      agentId: agentId ?? BUILTIN_SKILL_AGENT_ID,
+      assignToAgent: Boolean(agentId)
     })
     return result.result
   }
 
-  async function installFromUrl(url: string, options?: SkillInstallOptions) {
+  async function installFromUrl(url: string, options?: SkillInstallOptions, agentId?: string) {
     const result = await bridge.invoke(skillsInstallFromUrlRoute.name, {
       url,
-      options
+      options,
+      agentId: agentId ?? BUILTIN_SKILL_AGENT_ID,
+      assignToAgent: Boolean(agentId)
     })
     return result.result
   }
 
-  async function scanGitSkillRepo(repoUrl: string) {
-    const result = await bridge.invoke(skillsScanGitRepoRoute.name, { repoUrl })
+  async function scanGitSkillRepo(repoUrl: string, agentId: string = BUILTIN_SKILL_AGENT_ID) {
+    const result = await bridge.invoke(skillsScanGitRepoRoute.name, { repoUrl, agentId })
     return result.result
   }
 
-  async function installFromGit(input: GitSkillInstallInput) {
-    const result = await bridge.invoke(skillsInstallFromGitRoute.name, input)
+  async function installFromGit(input: GitSkillInstallInput, agentId?: string) {
+    const result = await bridge.invoke(skillsInstallFromGitRoute.name, {
+      ...input,
+      agentId: agentId ?? BUILTIN_SKILL_AGENT_ID,
+      assignToAgent: Boolean(agentId)
+    })
     return result.results
   }
 
@@ -117,58 +166,101 @@ export function createSkillClient(bridge: DeepchatBridge = getDeepchatBridge()) 
     return result.result
   }
 
-  async function uninstallSkill(name: string) {
-    const result = await bridge.invoke(skillsUninstallRoute.name, { name })
+  async function listAgentImportSources() {
+    const result = await bridge.invoke(skillsListAgentImportSourcesRoute.name, {})
+    return result.sources
+  }
+
+  async function previewAgentImport(input: {
+    source: AgentSkillImportSource
+    skillNames?: string[]
+  }) {
+    const result = await bridge.invoke(skillsPreviewAgentImportRoute.name, input)
+    return result.preview
+  }
+
+  async function executeAgentImport(input: {
+    source: AgentSkillImportSource
+    items: AgentSkillImportSelection[]
+  }) {
+    const result = await bridge.invoke(skillsExecuteAgentImportRoute.name, input)
     return result.result
   }
 
-  async function readSkillFile(name: string) {
-    const result = await bridge.invoke(skillsReadFileRoute.name, { name })
+  async function uninstallSkill(name: string, agentId: string = BUILTIN_SKILL_AGENT_ID) {
+    const result = await bridge.invoke(skillsUninstallRoute.name, { name, agentId })
+    return result.result
+  }
+
+  async function readSkillFile(name: string, agentId: string = BUILTIN_SKILL_AGENT_ID) {
+    const result = await bridge.invoke(skillsReadFileRoute.name, { name, agentId })
     return result.content
   }
 
-  async function updateSkillFile(name: string, content: string) {
-    const result = await bridge.invoke(skillsUpdateFileRoute.name, { name, content })
+  async function updateSkillFile(
+    name: string,
+    content: string,
+    agentId: string = BUILTIN_SKILL_AGENT_ID
+  ) {
+    const result = await bridge.invoke(skillsUpdateFileRoute.name, { name, content, agentId })
     return result.result
   }
 
   async function saveSkillWithExtension(
     name: string,
     content: string,
-    config: SkillExtensionConfig
+    config: SkillExtensionConfig,
+    agentId: string = BUILTIN_SKILL_AGENT_ID
   ) {
     const result = await bridge.invoke(skillsSaveWithExtensionRoute.name, {
       name,
       content,
-      config
+      config,
+      agentId
     })
     return result.result
   }
 
-  async function getSkillFolderTree(name: string) {
-    const result = await bridge.invoke(skillsGetFolderTreeRoute.name, { name })
+  async function getSkillFolderTree(name: string, agentId: string = BUILTIN_SKILL_AGENT_ID) {
+    const result = await bridge.invoke(skillsGetFolderTreeRoute.name, { name, agentId })
     return result.nodes
   }
 
-  async function openSkillsFolder() {
-    await bridge.invoke(skillsOpenFolderRoute.name, {})
+  async function openSkillsFolder(agentId: string = BUILTIN_SKILL_AGENT_ID) {
+    await bridge.invoke(skillsOpenFolderRoute.name, { agentId })
   }
 
-  async function getSkillExtension(name: string) {
-    const result = await bridge.invoke(skillsGetExtensionRoute.name, { name })
+  async function getSkillExtension(name: string, agentId: string = BUILTIN_SKILL_AGENT_ID) {
+    const result = await bridge.invoke(skillsGetExtensionRoute.name, { name, agentId })
     return result.config
   }
 
-  async function saveSkillExtension(name: string, config: SkillExtensionConfig) {
-    await bridge.invoke(skillsSaveExtensionRoute.name, { name, config })
+  async function saveSkillExtension(
+    name: string,
+    config: SkillExtensionConfig,
+    agentId: string = BUILTIN_SKILL_AGENT_ID
+  ) {
+    await bridge.invoke(skillsSaveExtensionRoute.name, { name, config, agentId })
   }
 
-  async function setSkillDisabled(name: string, disabled: boolean) {
-    await bridge.invoke(skillsSetDisabledRoute.name, { name, disabled })
+  async function setSkillDisabled(
+    name: string,
+    disabled: boolean,
+    agentId: string = BUILTIN_SKILL_AGENT_ID
+  ) {
+    await bridge.invoke(skillsSetDisabledRoute.name, { name, disabled, agentId })
   }
 
-  async function listSkillScripts(name: string) {
-    const result = await bridge.invoke(skillsListScriptsRoute.name, { name })
+  async function setSkillAssigned(
+    name: string,
+    assigned: boolean,
+    agentId: string = BUILTIN_SKILL_AGENT_ID
+  ) {
+    await setSkillDisabled(name, !assigned, agentId)
+  }
+
+  async function listSkillScripts(name: string, agentId: string = BUILTIN_SKILL_AGENT_ID) {
+    const result = await bridge.invoke(skillsListScriptsRoute.name, { name, agentId })
     return result.scripts
   }
 
@@ -185,20 +277,16 @@ export function createSkillClient(bridge: DeepchatBridge = getDeepchatBridge()) 
     return result.skills
   }
 
+  async function removeActiveSkill(conversationId: string, skill: string) {
+    const result = await bridge.invoke(skillsRemoveActiveRoute.name, {
+      conversationId,
+      skill
+    })
+    return result.skills
+  }
+
   function onCatalogChanged(
-    listener: (payload: {
-      reason:
-        | 'discovered'
-        | 'installed'
-        | 'uninstalled'
-        | 'metadata-updated'
-        | 'disabled-updated'
-        | 'management-state-updated'
-        | 'git-installed'
-        | 'sync-directory-updated'
-      name?: string
-      version: number
-    }) => void
+    listener: (payload: DeepchatEventPayload<typeof skillsCatalogChangedEvent.name>) => void
   ) {
     return bridge.on(skillsCatalogChangedEvent.name, listener)
   }
@@ -217,6 +305,9 @@ export function createSkillClient(bridge: DeepchatBridge = getDeepchatBridge()) 
   return {
     getMetadataList,
     getUnifiedSkillCatalog,
+    getAllSkills,
+    setSkillAssignments,
+    deleteSkill,
     getSkillsDir,
     installFromFolder,
     installFromZip,
@@ -229,6 +320,9 @@ export function createSkillClient(bridge: DeepchatBridge = getDeepchatBridge()) 
     executeSyncDirectoryExport,
     previewSyncDirectoryImport,
     executeSyncDirectoryImport,
+    listAgentImportSources,
+    previewAgentImport,
+    executeAgentImport,
     uninstallSkill,
     readSkillFile,
     updateSkillFile,
@@ -237,10 +331,12 @@ export function createSkillClient(bridge: DeepchatBridge = getDeepchatBridge()) 
     openSkillsFolder,
     getSkillExtension,
     saveSkillExtension,
+    setSkillAssigned,
     setSkillDisabled,
     listSkillScripts,
     getActiveSkills,
     setActiveSkills,
+    removeActiveSkill,
     onCatalogChanged,
     onSessionChanged
   }

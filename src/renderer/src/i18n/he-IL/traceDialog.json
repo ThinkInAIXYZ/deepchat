@@ -1,5 +1,5 @@
 {
-  "title": "תצוגה מקדימה של הבקשה",
+  "title": "אבחון הודעה",
   "provider": "ספק",
   "model": "מודל",
   "endpoint": "נקודת קצה (API Endpoint)",
@@ -18,14 +18,29 @@
     "request": "בקשה",
     "view": "תצוגה",
     "entries": "רשומות",
-    "budget": "תקציב"
+    "budget": "תקציב",
+    "execution": "ביקורת ביצוע"
   },
   "empty": "אין אבחון",
-  "emptyDesc": "אין מעקב בקשה או מניפסט תצוגה זמינים עבור הודעה זו",
+  "emptyDesc": "אין מעקב בקשה, מניפסט תצוגת Tape או ביקורת ביצוע מקוננת זמינים עבור הודעה זו",
   "requestUnavailable": "אין מעקב בקשה",
   "requestUnavailableDesc": "להודעה זו אין מעקב בקשת ספק שנשמר",
   "manifestUnavailable": "אין מניפסט תצוגה",
   "manifestUnavailableDesc": "להודעה זו אין מניפסט תצוגת Tape שנשמר",
+  "execution": {
+    "empty": "אין ביצועים מקוננים",
+    "emptyDesc": "לא תועדה פעולת כלי תכנותית עבור בקשה זו",
+    "corrupt": "ביקורת הביצוע פגומה",
+    "corruptDesc": "עובדות ה-Journal המקוננות סותרות זו את זו או שאינן ניתנות לאימות",
+    "unavailable": "ביקורת הביצוע אינה זמינה",
+    "unavailableDesc": "לא ניתן לקרוא את עובדות ה-Journal המקוננות",
+    "truncated": "מוצגות רק 256 הפעולות המקוננות הראשונות",
+    "status": {
+      "success": "הצלחה",
+      "error": "שגיאה",
+      "indeterminate": "לא ודאי"
+    }
+  },
   "viewId": "מזהה תצוגה",
   "policy": "מדיניות",
   "policyVersion": "גרסת מדיניות",

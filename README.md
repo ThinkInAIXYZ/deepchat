@@ -24,6 +24,56 @@
   <a href="./README.zh.md">中文</a> / <a href="./README.md">English</a> / <a href="./README.jp.md">日本語</a>
 </div>
 
+## ❤️ Sponsor
+
+<table>
+  <tr>
+    <td width="25%" align="center">
+      <a href="https://go.apimart.ai/gh-deepchat">
+        <img src="./assets/sponsors/apimart.png" alt="APIMart" width="240" />
+      </a>
+    </td>
+    <td width="75%">
+      Thanks to APIMart for sponsoring this project! APIMart is a low-cost API platform for AI image
+      &amp; video generation — GPT-Image-2 from $0.006/image, 160+ images per dollar. One async API
+      covers both image and video: submit a task, get an ID, fetch results via polling or callback.
+      Batch tens of thousands of images without timeouts, switch models without changing code.
+      Pay-as-you-go with no monthly fee — <a href="https://go.apimart.ai/gh-deepchat">sign up
+      here</a> to get started.
+    </td>
+  </tr>
+  <tr>
+    <td width="25%" align="center">
+      <a href="https://www.openmodel.ai?ref=ZGLyq8YQ">
+        <img src="./assets/sponsors/openmodel.png" alt="OpenModel" width="240" />
+      </a>
+    </td>
+    <td width="75%">
+      Thanks to OpenModel for sponsoring this project! OpenModel offers client-specific discounts of
+      up to 90% for Codex and 60% for Claude Code across supported models, helping developers cut API
+      costs without changing how they work. Just connect your OpenModel API key and keep using Codex
+      or Claude Code as usual — supported clients are detected automatically and discounted routes
+      are applied with no extra parameters or manual routing required. You can also configure
+      fallback behavior per API key, choosing whether to continue at standard pricing or stop when a
+      discounted route is temporarily unavailable. DeepChat users can register via <a
+      href="https://www.openmodel.ai?ref=ZGLyq8YQ">this link</a>.
+    </td>
+  </tr>
+  <tr>
+    <td width="25%" align="center">
+      <a href="https://www.packyapi.ai/register?aff=0A33">
+        <img src="./assets/sponsors/packycode.png" alt="PackyCode" width="240" />
+      </a>
+    </td>
+    <td width="75%">
+      PackyCode is a stable, high-performance API relay provider, offering relay services for Claude
+      Code, Codex, Gemini, and more. With automatic failover, smart routing, and unlimited
+      concurrency, it turns AI into a real productivity tool. Register via <a
+      href="https://www.packyapi.ai/register?aff=0A33">this link</a> and get started!
+    </td>
+  </tr>
+</table>
+
 ## 📑 Table of Contents
 
 - [📑 Table of Contents](#-table-of-contents)
@@ -119,7 +169,7 @@ Compared to other AI tools, DeepChat offers the following unique advantages:
 - 🔧 **Strong MCP (Model Context Protocol) Support**
   - Full support for Resources / Prompts / Tools
   - Supports StreamableHTTP, SSE, Stdio, and other transports
-  - Built-in Node.js runtime so npx/node-style services work out of the box
+  - Official Node.js toolchain for npx/node-style services, installed from Settings when needed
   - inMemory services for code execution, web information retrieval, file operations, and other common utilities
   - Clear tool-call display with parameter and return-data debugging
   - DeepLink support for one-click MCP service installation
@@ -366,6 +416,14 @@ Common commands include `/start`, `/help`, `/pair`, `/new`, `/sessions`, `/use`,
       <img src="./src/renderer/src/assets/llm-icons/siliconcloud-color.svg" width="50" height="50" alt="SiliconFlow Icon"><br/>
       <a href="https://www.siliconflow.cn/">SiliconFlow</a>
     </td>
+    <td>
+      <img src="./src/renderer/src/assets/llm-icons/orcarouter.svg" width="50" height="50" alt="OrcaRouter Icon"><br/>
+      <a href="https://www.orcarouter.ai/">OrcaRouter</a>
+    </td>
+    <td>
+      <img src="./src/renderer/src/assets/llm-icons/synthorai.svg" width="50" height="50" alt="Synthorai Icon"><br/>
+      <a href="https://synthorai.io/">Synthorai</a>
+    </td>
   </tr>
 
 </table>
@@ -484,7 +542,7 @@ Check the [Contribution Guidelines](./CONTRIBUTING.md) to learn more about ways 
 
 ## ⭐ Star History
 
-[![Star History Chart](https://api.star-history.com/svg?repos=ThinkInAIXYZ/deepchat&type=Timeline)](https://www.star-history.com/#ThinkInAIXYZ/deepchat&Timeline)
+[![Star History Chart](https://star-history.dera.page/svg?repos=ThinkInAIXYZ/deepchat&type=Timeline)](https://star-history.dera.page/#ThinkInAIXYZ/deepchat&Timeline)
 
 ## 👨‍💻 Contributors
 

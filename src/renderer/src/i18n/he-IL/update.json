@@ -16,5 +16,9 @@
   "autoUpdate": "עדכון אוטומטי",
   "restarting": "מפעיל מחדש",
   "alreadyUpToDate": "התוכנה מעודכנת",
-  "alreadyUpToDateDesc": "ה-DeepChat שלך כבר מעודכן לגרסה האחרונה, אין צורך בעדכון."
+  "alreadyUpToDateDesc": "ה-DeepChat שלך כבר מעודכן לגרסה האחרונה, אין צורך בעדכון.",
+  "taskRunningTitle": "משימה בתהליך",
+  "taskRunningDescription": "ישנן משימות שמתבצעות כעת. כיצד תרצה להמשיך עם העדכון?",
+  "updateNow": "עדכן כעת",
+  "updateAfterTasksComplete": "עדכן לאחר סיום המשימות"
 }

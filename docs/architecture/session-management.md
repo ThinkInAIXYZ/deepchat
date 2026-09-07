@@ -1,93 +1,170 @@
-# 会话管理架构详解
+# Session 管理
 
-retirement 之后，会话管理被明确拆成两层：
+Session 是可长期保存的产品对象；window、renderer、Remote endpoint、Agent instance 和单次 Run
+都比它短命。
 
-- 活跃聊天层：`agentSessionPresenter` + `NewSessionManager`
-- 兼容数据层：`SessionPresenter`
+## 当前所有权
 
-## 当前职责边界
+| 能力 | Owner |
+| --- | --- |
+| create、draft、close | `src/main/session/lifecycle.ts` |
+| send、queue、stop、interaction response | `src/main/session/turn.ts` |
+| Agent/model/project/transfer/subagent assignment | `src/main/session/assignment.ts` |
+| list、restore、status、projection query | `src/main/session/query.ts` |
+| full delete transaction | `src/main/session/deletion.ts` |
+| transcript | `src/main/session/data/transcript.ts` |
+| Tape public port / composition | `src/main/session/data/index.ts` |
+| Tape domain / application / SQLite adapters | `src/main/tape/` |
+| generation settings / Memory cursor | `src/main/session/data/settings.ts` |
+| pending input | `src/main/session/data/pendingInputs.ts` |
+| renderer binding | `src/main/desktop/sessionBinding.ts` |
+| backend selection | `src/main/agent/manager/agentManager.ts` |
 
-| 组件 | 位置 | 当前职责 |
-| --- | --- | --- |
-| `AgentSessionPresenter` | `src/main/presenter/agentSessionPresenter/index.ts` | renderer 唯一 session 入口 |
-| `NewSessionManager` | `src/main/presenter/agentSessionPresenter/sessionManager.ts` | `new_sessions` 记录、窗口绑定、session CRUD |
-| `DeepChatSessionStore` | `src/main/presenter/agentRuntimePresenter/sessionStore.ts` | 活跃 runtime 状态 |
-| `DeepChatMessageStore` | `src/main/presenter/agentRuntimePresenter/messageStore.ts` | 新消息持久化、分页读取、结构化内容重组 |
-| `SessionPresenter` | `src/main/presenter/sessionPresenter/index.ts` | legacy conversation/thread/export 兼容层 |
-| `sessionPresenter/messageFormatter.ts` | `src/main/presenter/sessionPresenter/messageFormatter.ts` | 用户消息上下文格式化与 exporter 复用 |
+各入口只接收自己需要的 Session port。不存在聚合全部能力的 Session facade，也不允许 window
+binding 进入持久化 Session 数据。
 
-## 主链路中的 session 生命周期
+## 创建与发送
 
 ```mermaid
 sequenceDiagram
-    participant R as Renderer
-    participant N as AgentSessionPresenter
-    participant S as NewSessionManager
-    participant D as AgentRuntimePresenter
+    participant E as Desktop / Remote / Scheduler
+    participant S as SessionLifecycle / SessionTurn
+    participant D as Session data
+    participant M as AgentManager
+    participant B as DeepChat or ACP backend
 
-    R->>N: createSession()
-    N->>S: create()
-    N->>D: initSession()
-    N->>S: bindWindow()
-    R->>N: sendMessage()
-    R->>N: activateSession()
-    N->>S: bindWindow(webContentsId, sessionId)
-    R->>N: deleteSession()
-    N->>D: destroySession()
-    N->>S: delete()
+    E->>S: create / send canonical input
+    S->>D: persist Session and user input
+    S->>M: resolveSessionHandle(sessionId)
+    M-->>S: typed backend handle
+    S->>B: initialize / send / cancel
+    B->>D: persist projection and Tape
+    B-->>E: typed state events
 ```
 
-## `SessionPresenter` 现在做什么
+route 只做 schema 和 transport adapter。所有入口在进入 `SessionTurn` 前必须得到同一种 canonical
+send input；Remote、Scheduler 和 renderer 不得各自维护不同的默认值或 permission 语义。
 
-`SessionPresenter` 仍然保留，但只在 main 内部承担这些事情：
+## Queue 与 Steer
 
-- 旧 `conversations/messages` 数据访问
-- 旧线程列表广播
-- 旧 conversation 导出
-- tab 关闭时的兼容清理挂钩
-- 旧消息格式化 helper 复用
+Queue 和 Steer 共用 pending-input persistence，但产品语义不同：
 
-它不再承担：
+```text
+Queue: bottom draft lane -> claim -> user message -> assistant message
+Steer: user message (Unread) -> claim (Read) -> new assistant message
+```
 
-- renderer 主聊天入口
-- 旧 runtime session memory
-- `AgentPresenter` stream/loop 协调
+- Queue 在 claim 前不是 transcript fact，可编辑、排序、删除；容量只计算 active Queue。
+- Steer 接受时由 `SessionPendingInputs` 在一个 SQLite transaction 中同时写入 user message 和
+  pending batch。快速连续 Steer 各有独立 user message，但复用当前 pending batch 的合并 payload。
+- Steer claim 是不可回退的读取边界：同一 transaction 更新 batch、写入所有 linked message 的
+  `readAt`，并预留新的 assistant message ID。claim 后不允许走 Queue 的 release/retry 语义。
+- DeepChat 在现有安全 yield boundary 结束旧 assistant；ACP 使用 `pending_input` cancel cause
+  结束旧 projection。两个 backend 都把后续输出写入 claim 预留的新 assistant message。
+- renderer 只把 Queue 渲染在 `PendingInputLane`。Steer 通过 typed route result 和
+  `sessions.messages.changed` 进入正常 message list；event 是 cache update，SQLite transcript
+  仍是 source of truth。
+- receipt 只由持久化 `readAt` 派生为 `Unread` 或 `Read`。`Read` 的短时显示和淡出属于 renderer，
+  不产生延迟数据库写入。
+- 冷启动是单独的终止边界：上个进程尚未 claim 的 Steer 会消费 pending row，并把 linked user
+  message 内部终止为 `error`。renderer 不展示恢复专用 receipt 或按钮，仍保留普通消息工具栏；已经
+  claim 的 Steer 保留 sent user fact，由中断的 assistant message 承载失败。
 
-## 清理后的关键变化
+## 恢复与查询
 
-- `SessionPresenter.toSession()` 不再依赖 legacy runtime 内存态。
-- 旧 `cleanupLegacyConversationRuntime()` 已收口为中性内部清理方法。
-- renderer IPC 不再公开 `sessionPresenter`。
+- `sessions.restore` 返回最近一页，`sessions.listMessagesPage` 使用 keyset pagination 拉取旧历史。
+- 普通 list/history/binding query 不 hydrate Agent instance。
+- DeepChat harness 构造时会先 reconcile active pending inputs。历史 Queue row 保持 durable，并进入
+  process-local restart hold；Session 打开、hydrate、消息查询和 pending-input list 都不会释放 hold
+  或触发执行。用户通过 Queue lane 的 `Resume queue` 显式释放当前 Session 的 hold，之后继续沿用
+  Steer-first 与 Queue FIFO drain 规则。手动恢复的 Queue head 在写入 user/assistant fact 并进入
+  provider Run 前消费；manual 标记绑定 Queue item ID，附件 block 后的 retry/degrade 不会丢失该语义。
+  此后的 provider error 只保留在 transcript，不会把同一条目放回 Queue。pending-input list 同时返回
+  后端计算的 resume availability；普通 live Queue 不显示该操作，无 hold 的 Resume 不触发 drain。
+- 重启前尚未 claim 的 Steer 不再自动 drain：reconciliation 消费对应 pending row，并把 linked
+  pending user message、Tape replacement 与 row 消费在同一事务内终结为 `error`，UI 不显示
+  receipt。用户通过普通消息工具栏 Retry 时走普通 turn，且不会释放同 Session 的历史 Queue hold。
+- claimed Queue 创建 user message 时会在同一事务内回写 pending row 的 message ID，使冷启动可以
+  明确区分尚未开始的 draft 与已物化的 transcript fact。
+- restart hold 仅由现有 active Queue ID 派生，不持久化、不改变 Queue 排序和容量，也不新增 schema；
+  再次重启会从剩余 durable row 重建。pending-input list 是纯读。
+- DeepChat harness 构造时在 pending-input 与 transcript recovery 之前分类 Execution Journal。存在
+  dispatch-without-outcome、corruption 或缺失 terminal 的 Run 只输出结构化 parked 诊断，不依据该报告
+  自动重放遗留 operation；分类先于 runtime graph 构建，Journal 读取失败会阻止 harness 构造。诊断最多
+  输出 100 条清理过控制字符的明细，超出部分只输出分类汇总。v1 不新增持久化 Session parking 状态。
+- Session status 不持久化：已载入时来自 backend snapshot，未载入为 `idle`。
+- structured transcript 是当前 read model；legacy conversations/messages 仅用于一次性 import 和明确的
+  export conversion。
+- history search 优先使用 search document / FTS path，失败时回退受控 SQL search；坐标和 scroll
+  归 renderer viewport owner，不写回 Session。
 
-## 什么时候还需要看 `SessionPresenter`
+## Tape boundary
 
-只有在以下场景才需要继续进入 `src/main/presenter/sessionPresenter/`：
+Session data composition 创建一个 `SessionTape`，对外继续暴露现有 `SessionTapePort`，并按每个 IPC
+操作原有的条件和时序调用 `ensureSessionTapeReady`。Tape policy 与 persistence 全部位于
+`src/main/tape/`；`src/main/session/data/` 下不再有 Tape 的 compatibility re-export 或 table path。
 
-- 维护旧 conversation 导出
-- 调整 legacy import 后的兼容读取
-- 排查 thread list 广播与窗口清理
-- 维护 exporter 使用的用户消息归一化
+- transcript 只接收 `TapeMessageFactWriter`；message replace/retract 与对应 Tape fact 继续共享调用方
+  SQLite transaction；
+- settings/compaction 只接收 anchor reader/writer 与 lifecycle admin；summary 更新和 anchor append
+  继续使用同一个 connection；
+- loop runner 接收 Context Tape、provider attempt 与 strict Execution Journal writer；harness composition
+  只接收 Journal recovery reader。Turn coordinator 与 ACP compatibility 只接收 reconciliation；Memory
+  和 routes 分别接收自己的最小 Tape capability，不接收物理 table；
+- transcript backfill 只可生成 legacy Context facts，不能创建 `execution/*`；Run、dispatch、outcome 与
+  terminal facts 只能由 runtime 的 strict writer 在原生边界提交；
+- Tape 的运行中修订通过 append 表达；物理 delete/reset 只由 Session lifecycle 触发。
 
-如果是当前聊天会话创建、发送消息、取消生成、tool interaction，请直接从
-`agentSessionPresenter` 和 `agentRuntimePresenter` 开始读。
+`SessionTranscript` 和 `SessionSettingsStore` 不提供隐式 `new SessionTape(...)` fallback，必须由正常
+composition 注入共享 connection 上的最小 capability。legacy import 作为 migration consumer 复用
+`sessionData.tapeStore` 的 message fact writer，不再构造第二个 facade，避免隐藏的独立 writer 或事务
+上下文。
 
-## 恢复与历史分页
+`clearSessionMessages` 会创建新的 Tape incarnation：pending input 删除、transcript 删除和 Tape reset
+位于同一个外层 SQLite transaction；Tape 内部的 entry、mutation projection、search/FTS projection
+删除和新 bootstrap 作为 savepoint 嵌套。lifecycle、cleanup 或 bootstrap hard failure 会同时恢复上述
+数据并完整保留旧 incarnation。mutation projection 沿用 fail-open：新 bootstrap 的 projection apply
+失败时旧 projection row 已删除且 meta 标 stale。最终 Session delete 不创建新 incarnation，继续遵循
+下面的 staged cleanup 顺序。
 
-新的聊天恢复链路已经不再假设“打开会话 = 一次性读取全量消息”：
+## Binding
 
-- `sessions.restore` 只返回最近一页消息，默认 `100` 条
-- `sessions.listMessagesPage` 负责继续向更老消息翻页
-- renderer `messageStore` 首屏只加载第一页，`ChatPage` 在接近顶部时再拉旧历史
+`DesktopSessionBinding` 维护 `webContentsId -> sessionId`：
 
-这样可以让大会话恢复保持稳定首屏时间，也把“历史很长”和“首屏可用”两个目标解耦开。
+- activate 读取 projection 并绑定 renderer；
+- deactivate、tab close 或 window destroy 只删除 Desktop binding；
+- 关闭最后一个 window 不默认 cancel Turn、clear permission、evict runtime 或 delete Session；
+- Remote 和 Scheduler 有自己的 binding/run identity，不能复用 Desktop 状态。
 
-## 当前会话能力
+## Close、delete 和 transfer
 
-- 会话列表支持 lightweight 分页、按 agent/project/subagent 过滤、固定字母排序和置顶优先。
-- `generationSettings` 保存在 session runtime 中，renderer 可通过 `sessions.getGenerationSettings`
-  / `sessions.updateGenerationSettings` 读取和更新。
-- `sessions.compact` 提供手动上下文压缩；自动压缩默认值来自 agent/settings 配置。
-- `sessions.listMessageTraces` 提供消息 trace 查询，不再把 trace 混在消息正文里。
-- `sessions.searchHistory` 通过结构化搜索文档表优先走 FTS5，失败时回退 `LIKE`。
-- Subagent session 与普通 session 共用表结构，但通过 `sessionKind`、`parentSessionId`、
-  `subagentMeta` 区分生命周期和展示。
+`handle.close()` 停止并驱逐所选 backend runtime，但保留 app-session shell。Full delete 的顺序是：
+
+```text
+cleanup both backend caches without hydration
+  -> remove ACP durable binding
+  -> remove transcript / Tape lifecycle data / pending / settings
+  -> clear permission and active Skill state
+  -> delete app-session row
+```
+
+因此 missing、disabled 或 malformed agent row 不会阻止旧 Session 被删除。
+
+Transfer 先验证 target descriptor 和 kind-specific setting，再提交 assignment，最后关闭旧 runtime。
+失败不得留下半迁移 Session。删除 Agent 时使用相同的 descriptor-independent cleanup，不直接删除用户
+Session 数据，除非用户执行明确的 Session 删除操作。
+
+## Project 和目录
+
+Session 只保存 `projectDir`。目录生命周期、默认目录、archive/remove/reorder 和文件是否存在由
+`src/main/project/` 负责；Workspace 负责访问授权与文件能力。移除目录不会删除真实文件，相关 Session
+按产品合同转为 no-project 或保留 ACP resume 所需 workdir。
+
+## 防回归
+
+- Agent 或 Session 不得依赖 Desktop、Remote、Scheduler、Routes 或 App。
+- query 不得偷偷 launch ACP process 或 hydrate DeepChat instance。
+- app-session row 必须在所有 owned data 清理完成后最后删除。
+- `new_sessions.subagent_enabled` 只作为旧数据库兼容列，不能重新成为授权来源。
+- 当前入口从 `src/main/session/routes.ts`、`sessionService.ts`、`chatService.ts` 追踪；不要恢复
+  `SessionPresenter` 或 `AgentSessionPresenter`。
