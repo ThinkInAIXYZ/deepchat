@@ -37,6 +37,8 @@ export async function probeArtifactUrl(
       redirect: 'follow',
       signal
     })
+    // Probes only need headers; a server may ignore Range and send the whole archive.
+    void response.body?.cancel().catch(() => undefined)
     if (response.status === 200 || response.status === 206) {
       successfulProbeCache.set(url, url)
       return true
