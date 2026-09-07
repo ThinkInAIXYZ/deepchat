@@ -63,6 +63,7 @@ type SessionBrowserState = {
   owner: 'agent' | 'user'
   agentRunId?: string
   previewHost: BaseWindow | null
+  previewThrottlingDisabled: boolean
   previewMode: BrowserPreviewMode
   previewSurface: BrowserPreviewSurface
   previewTargetWindowId: number | null
@@ -660,6 +661,7 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
       lastBounds: null,
       owner: 'user',
       previewHost: null,
+      previewThrottlingDisabled: false,
       previewMode: 'stopped',
       previewSurface: 'none',
       previewTargetWindowId: null,
@@ -1499,8 +1501,9 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
         // The shown host keeps frames active. Unthrottling while hidden breaks capture on macOS.
         // https://github.com/electron/electron/pull/52844
         host.showInactive()
-      } else {
+      } else if (state.page.contents.backgroundThrottling) {
         state.page.contents.setBackgroundThrottling(false)
+        state.previewThrottlingDisabled = true
       }
       state.previewHost = host
       host.once('closed', () => {
@@ -1512,9 +1515,10 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
           state.previewTargetWindowId = null
           state.previewEpoch += 1
           state.view.setVisible(false)
-          if (!state.page.contents.isDestroyed() && !state.page.contents.backgroundThrottling) {
+          if (state.previewThrottlingDisabled && !state.page.contents.isDestroyed()) {
             state.page.contents.setBackgroundThrottling(true)
           }
+          state.previewThrottlingDisabled = false
         }
       })
       return true
@@ -1580,9 +1584,10 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
       // Ignore already detached views during shutdown.
     }
     state.view.setVisible(false)
-    if (!state.page.contents.isDestroyed() && !state.page.contents.backgroundThrottling) {
+    if (state.previewThrottlingDisabled && !state.page.contents.isDestroyed()) {
       state.page.contents.setBackgroundThrottling(true)
     }
+    state.previewThrottlingDisabled = false
     host.destroy()
   }
 
