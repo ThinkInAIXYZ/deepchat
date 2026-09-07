@@ -956,9 +956,13 @@ export const useSessionStore = defineStore('session', () => {
         sessions.value = options.preserveExisting
           ? mergeSessions(sessions.value, nextSessions)
           : replaceSessionSnapshot(nextSessions, targetedCommitRevisionAtStart)
+        // Retained history belongs to the existing cursor chain. Refreshing its
+        // first page must not rewind pagination over rows that are already loaded.
+        if (!options.preserveExisting || !hasLoadedInitialPage.value) {
+          hasMore.value = result.hasMore
+          nextCursor.value = result.nextCursor
+        }
         hasLoadedInitialPage.value = true
-        hasMore.value = result.hasMore
-        nextCursor.value = result.nextCursor
         syncSelectedAgentToSession(activeSessionId.value)
       } catch (loadError) {
         if (requestId === initialPageRequestId && listEpoch === sessionListEpoch) {
@@ -973,7 +977,7 @@ export const useSessionStore = defineStore('session', () => {
       return
     }
 
-    if (loadingMore.value || !hasMore.value || !nextCursor.value) {
+    if (loading.value || loadingMore.value || !hasMore.value || !nextCursor.value) {
       return
     }
 
@@ -1018,6 +1022,7 @@ export const useSessionStore = defineStore('session', () => {
 
     const loadPromise = loadSessionPage({
       reset: true,
+      preserveExisting: hasLoadedInitialPage.value,
       prioritizeSessionId: activeSessionId.value ?? bootstrapActiveSession.value?.id ?? null
     })
     const currentFetchPromise = loadPromise.finally(() => {

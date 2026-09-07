@@ -2576,7 +2576,7 @@ describe('sessionStore pagination', () => {
     expect(sessionClient.listLightweight).toHaveBeenCalledTimes(2)
   })
 
-  it('invalidates a pending pagination response when an initial refresh starts', async () => {
+  it('invalidates pending pagination without discarding loaded history on refresh', async () => {
     const { store, sessionClient } = await setupStore()
     const stalePage = createDeferred<{
       items: ReturnType<typeof createSession>[]
@@ -2609,9 +2609,9 @@ describe('sessionStore pagination', () => {
     })
     await loadMore
 
-    expect(store.sessions.value.map((session) => session.id)).toEqual(['session-c'])
+    expect(store.sessions.value.map((session) => session.id)).toEqual(['session-a', 'session-c'])
     expect(store.hasMore.value).toBe(true)
-    expect(store.nextCursor.value).toEqual({ updatedAt: 40, id: 'session-c' })
+    expect(store.nextCursor.value).toEqual({ updatedAt: 30, id: 'session-a' })
     expect(store.error.value).toBeNull()
     expect(store.loadingMore.value).toBe(false)
   })
@@ -2730,47 +2730,105 @@ describe('sessionStore pagination', () => {
     expect(store.loadingMore.value).toBe(false)
   })
 
-  it('does not deduplicate next-page loading while an initial fetch is in flight', async () => {
-    const { store, sessionClient } = await setupStore()
-
-    sessionClient.listLightweight.mockResolvedValueOnce({
-      items: [createSession({ id: 'session-a', title: 'Alpha', updatedAt: 30 })],
-      hasMore: true,
-      nextCursor: { updatedAt: 30, id: 'session-a' }
-    })
+  it('preserves workspace history and resumes pagination after a background refresh', async () => {
+    const { store, sessionClient, emitSessionUpdate } = await setupStore()
+    const recent = Array.from({ length: 30 }, (_, index) =>
+      createSession({
+        id: `recent-${index}`,
+        projectDir: '/work/recent',
+        updatedAt: 200 - index
+      })
+    )
+    const history = Array.from({ length: 30 }, (_, index) =>
+      createSession({ id: `history-${index}`, updatedAt: 100 - index })
+    )
+    const historyCursor = { updatedAt: 71, id: 'history-29' }
+    sessionClient.listLightweight
+      .mockResolvedValueOnce({
+        items: recent,
+        hasMore: true,
+        nextCursor: { updatedAt: 171, id: 'recent-29' }
+      })
+      .mockResolvedValueOnce({ items: history, hasMore: true, nextCursor: historyCursor })
     await store.fetchSessions()
+    await store.loadNextPage()
 
-    let resolveInitialFetch: (value: {
-      items: unknown[]
-      hasMore: boolean
-      nextCursor: null
-    }) => void = () => undefined
-    const initialFetchPromise = new Promise<{
-      items: unknown[]
-      hasMore: boolean
-      nextCursor: null
-    }>((resolve) => {
-      resolveInitialFetch = resolve
-    })
+    const created = createSession({ id: 'created', updatedAt: 300 })
+    sessionClient.create.mockResolvedValueOnce({ session: created })
+    await store.createSession({ message: '', agentId: 'deepchat', projectDir: '/tmp/workspace' })
 
-    sessionClient.listLightweight.mockReturnValueOnce(initialFetchPromise).mockResolvedValueOnce({
-      items: [createSession({ id: 'session-b', title: 'Bravo', updatedAt: 20 })],
+    const firstPage = createDeferred<{
+      items: ReturnType<typeof createSession>[]
+      hasMore: boolean
+      nextCursor: { updatedAt: number; id: string } | null
+    }>()
+    sessionClient.listLightweight.mockReturnValueOnce(firstPage.promise).mockResolvedValueOnce({
+      items: [createSession({ id: 'older', updatedAt: 50 })],
       hasMore: false,
       nextCursor: null
     })
 
-    const initialFetch = store.fetchSessions()
+    emitSessionUpdate({ reason: 'list-refreshed', sessionIds: [] })
+    const refresh = store.fetchSessions()
     await Promise.resolve()
     await store.loadNextPage()
 
     expect(sessionClient.listLightweight).toHaveBeenCalledTimes(3)
-    expect(sessionClient.listLightweight.mock.calls.at(-1)?.[0]).toMatchObject({
-      includeSubagents: false,
-      cursor: { updatedAt: 30, id: 'session-a' }
+    expect(store.loading.value).toBe(true)
+    firstPage.resolve({
+      items: [created, ...recent.slice(0, 29)],
+      hasMore: true,
+      nextCursor: { updatedAt: 172, id: 'recent-28' }
     })
+    await refresh
 
-    resolveInitialFetch({ items: [], hasMore: false, nextCursor: null })
-    await initialFetch
+    const workspaceIds = () =>
+      store
+        .getFilteredGroups('deepchat')
+        .find((group) => group.id === '/tmp/workspace')
+        ?.sessions.map((session) => session.id)
+    expect(workspaceIds()).toEqual(['created', ...history.map((session) => session.id)])
+    expect(store.nextCursor.value).toEqual(historyCursor)
+    expect(store.hasMore.value).toBe(true)
+
+    await store.loadNextPage()
+
+    expect(sessionClient.listLightweight.mock.calls.at(-1)?.[0].cursor).toEqual(historyCursor)
+    expect(workspaceIds()).toEqual(['created', ...history.map((session) => session.id), 'older'])
+    expect(store.sessions.value).toHaveLength(62)
+    expect(store.hasMore.value).toBe(false)
+    expect(store.nextCursor.value).toBeNull()
+    expect(store.loadingMore.value).toBe(false)
+    expect(store.error.value).toBeNull()
+  })
+
+  it('keeps exhausted pagination complete when refreshing the first page', async () => {
+    const { store, sessionClient } = await setupStore()
+    const sessions = Array.from({ length: 31 }, (_, index) =>
+      createSession({ id: `session-${index}`, updatedAt: 100 - index })
+    )
+    const firstPage = {
+      items: sessions.slice(0, 30),
+      hasMore: true,
+      nextCursor: { updatedAt: 71, id: 'session-29' }
+    }
+    sessionClient.listLightweight
+      .mockResolvedValueOnce(firstPage)
+      .mockResolvedValueOnce({
+        items: sessions.slice(30),
+        hasMore: false,
+        nextCursor: null
+      })
+      .mockResolvedValueOnce(firstPage)
+    await store.fetchSessions()
+    await store.loadNextPage()
+    await store.fetchSessions()
+    await store.loadNextPage()
+
+    expect(store.sessions.value).toHaveLength(31)
+    expect(store.hasMore.value).toBe(false)
+    expect(store.nextCursor.value).toBeNull()
+    expect(sessionClient.listLightweight).toHaveBeenCalledTimes(3)
   })
 
   it('excludes subagent sessions from the initial sidebar page request', async () => {
