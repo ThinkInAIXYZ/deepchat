@@ -619,7 +619,12 @@ const toggleExpanded = () => {
 
 const statusIconName = computed(() => {
   if (statusVariant.value === 'error') return 'lucide:circle-alert'
-  if (isUpdatePlan.value) return 'lucide:list-checks'
+  if (matchesToolContractName(rawToolName.value, UPDATE_PLAN_TOOL_NAME)) return 'lucide:list-todo'
+  if (
+    /(^|_)browser_/.test(rawToolName.value) ||
+    ['load_url', 'cdp_send'].some((name) => matchesToolContractName(rawToolName.value, name))
+  )
+    return 'lucide:compass'
   if (isTerminalTool.value || isProcessTool.value) return 'lucide:terminal'
   if (matchesToolContractName(rawToolName.value, 'read')) return 'lucide:book-open'
   if (
