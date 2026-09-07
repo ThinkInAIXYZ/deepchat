@@ -779,27 +779,35 @@ export class SessionTranscript implements TapeTranscriptProjection {
           row.status === 'sent' && parseMessageMetadata(row.metadata).messageType !== 'compaction'
       )
     const sourceRecords = this.toRecords(sourceRows)
+    const sourceMemoryCursor =
+      this.database.deepchatSessionsTable.getMemoryCursorOrderSeq(sourceSessionId) ?? 0
     const forkedAt = Date.now()
 
+    // Map the successfully extracted prefix onto the densely renumbered clone.
+    // Unprocessed source rows must remain eligible for extraction in the fork.
+    let clonedTailOrderSeq = 0
+    let clonedMemoryCursorOrderSeq = 0
     this.runInDatabaseTransaction(() => {
-      let nextOrderSeq = 1
       for (const record of sourceRecords) {
+        clonedTailOrderSeq += 1
+        if (record.orderSeq <= sourceMemoryCursor) {
+          clonedMemoryCursorOrderSeq = clonedTailOrderSeq
+        }
         this.commitRecord(
           this.terminalRecord({
             ...record,
             id: nanoid(),
             sessionId: targetSessionId,
-            orderSeq: nextOrderSeq,
+            orderSeq: clonedTailOrderSeq,
             status: 'sent',
             createdAt: forkedAt,
             updatedAt: forkedAt
           })
         )
-        nextOrderSeq += 1
       }
     })
 
-    return sourceRecords.length
+    return clonedMemoryCursorOrderSeq
   }
 
   recoverPendingMessages(options?: {

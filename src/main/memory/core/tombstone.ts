@@ -45,6 +45,16 @@ function hashScopedContentTombstoneIdentity(
     .digest('hex')
 }
 
+export function buildMemoryProvenanceTombstoneIdentity(
+  agentId: string,
+  provenanceKey: string
+): MemoryTombstoneIdentity {
+  return {
+    identityKind: 'provenance',
+    identityHash: hashMemoryTombstoneIdentity(agentId, 'provenance', provenanceKey)
+  }
+}
+
 export function buildMemoryTombstoneIdentities(input: {
   agentId: string
   content: string
@@ -53,10 +63,7 @@ export function buildMemoryTombstoneIdentities(input: {
 }): MemoryTombstoneIdentity[] {
   const identities: MemoryTombstoneIdentity[] = []
   if (input.provenanceKey) {
-    identities.push({
-      identityKind: 'provenance',
-      identityHash: hashMemoryTombstoneIdentity(input.agentId, 'provenance', input.provenanceKey)
-    })
+    identities.push(buildMemoryProvenanceTombstoneIdentity(input.agentId, input.provenanceKey))
   }
   const scope = normalizeMemoryScope(input.scope)
   const normalizedContent = normalizeForProvenanceV2(input.content)

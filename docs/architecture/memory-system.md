@@ -152,11 +152,28 @@ terminal turn projection
 ```
 
 - terminal extraction 在后台运行，不延迟已完成回复；
+- A fork keeps native `message/<role>` facts for its cloned messages. Its Memory cursor maps only
+  the source's successfully extracted prefix onto the densely renumbered clone, excluding failed
+  messages and compaction markers. Later terminal turns extract the unprocessed cloned tail and
+  new messages even if the source never resumes, without replaying the processed prefix.
+  Cursor seeding fences older extraction work. Target delete/edit/retry retains the existing
+  `invalidateFromOrderSeq` behavior, rewinding the cursor and extracting again from that point;
 - malformed temporal metadata 只拒绝该 candidate，不让它变成永久事实，也不让整个 extraction batch
   失败；
 - startup 发现 legacy/corrupt external claim 的非法 temporal metadata 时，先归一化字段并将 claim
   archive；不得把损坏状态提升成可召回的永久 atemporal fact。Persona/working 则归一化到其强制
   atemporal 形式；
+- Startup repairs invalid scope pairs before asserting integrity, without widening applicability.
+  Agent rows drop stray `scope_id` values; User rows resync the shadow from a valid `scope_id`, or
+  recover a missing or malformed ID from a valid shadow; Project/Session rows drop stray shadows.
+  Narrow-scope rows with unrecoverable identities, including persona/working rows, are deleted
+  with a warning and an FTS rebuild instead of being promoted to Agent scope. Before deleting a
+  row covered by a pending clear, persist its recoverable provenance tombstone and increment
+  the job's removed count in the same transaction, using the clear job's timestamp. Count every
+  deleted row covered by the clear, including rows without provenance. An unknown scope cannot
+  produce a content tombstone or widen suppression. Both temporal and scope repairs suspend the
+  clear-job guard within their transaction and restore it before returning, so pending clears cannot block
+  startup repairs while ordinary domain writes remain fenced;
 - 同 content 在不同 scope 可独立存在；update、supersede、conflict 和 merge 不得跨 scope；
 - exact tombstone lookup 与 insert 位于同一 transaction，关闭 delete/re-extraction race；
 - model 发起的 `memory_remember` 不是用户重新授权，不得释放 tombstone；只有 renderer 中的显式
@@ -232,6 +249,12 @@ Maintenance 只处理有界 seed batch 和有界 same-scope vector neighbors；�
 
 Maintenance 使用有界 batch、deadline 和 ingestion fence。Database maintenance 顺序为：停止新任务、
 fence Memory、drain accepted work、关闭 store/SQLite、执行操作、reopen、恢复后台任务。
+`stopBackgroundMaintenance` 同步清空全部 prewarm/startup/consolidation timer、拒绝新的 arm 与 pass，
+并对每个持有 in-flight pass 的 Agent 推进 execution fence、中止其 provider 请求，让 pass 及其委托的
+challenge/reflection/persona 子步骤在下一个 checkpoint 停止，而不是等完一个 provider deadline；
+`drainBackgroundMaintenance` 在有界超时内等待这些 pass 落定，超时即让 database maintenance 失败而不是
+带着未落定的 pass 关闭 SQLite。`startBackgroundMaintenance` 在 stop 之后可以重新 arm，startup pass
+不会因此丢失。
 启动恢复按 Agent 顺序处理 pending clear job，避免多个遗留 namespace 在同一个 event-loop tick
 同时执行首批同步事务。Shutdown 只等待当前有界 batch；未完成 job 保持可恢复。
 

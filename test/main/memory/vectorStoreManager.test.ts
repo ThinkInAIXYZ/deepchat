@@ -728,6 +728,118 @@ describe('VectorStoreManager query deadlines', () => {
     await manager.closeAllStores()
   })
 
+  it('resumes admission when an identity transition outlives a timed-out query', async () => {
+    vi.useFakeTimers()
+    const nativeQuery = createControlledPromise<MemoryVectorMatch[]>()
+    const close = vi.fn(async () => undefined)
+    const { config, embedding, manager, markVectorStoreQuarantined } = createQueryManager({
+      ...createStore(),
+      query: vi
+        .fn<IMemoryVectorStore['query']>()
+        .mockReturnValueOnce(nativeQuery.promise)
+        .mockResolvedValue([]),
+      close
+    })
+
+    const pending = manager.query('agent', embedding, 4, [1, 2, 3, 4], 4)
+    const timedOut = expect(pending).rejects.toBeInstanceOf(VectorStoreQueryTimeoutError)
+    await flushPromiseContinuations()
+    const nextEmbedding = { providerId: 'p', modelId: 'm2' }
+    config.current = {
+      memoryEnabled: true,
+      memoryEmbedding: nextEmbedding
+    } as DeepChatAgentConfig
+    expect(manager.noteEmbeddingConfig('agent', nextEmbedding)).toBe(true)
+    await flushPromiseContinuations()
+    await vi.advanceTimersByTimeAsync(RECALL_VECTOR_QUERY_TIMEOUT_MS)
+    await timedOut
+    nativeQuery.resolve([])
+
+    // The stale store is converged before admission reopens, not by the next lease.
+    await vi.waitFor(() => expect(close).toHaveBeenCalledTimes(1))
+    expect(manager.getRecallHealth('agent')).toBe('available')
+    await expect(manager.query('agent', nextEmbedding, 4, [1, 2, 3, 4], 4)).resolves.toEqual([])
+    expect(close).toHaveBeenCalledTimes(1)
+    expect(markVectorStoreQuarantined).not.toHaveBeenCalled()
+    await manager.closeAllStores()
+  })
+
+  it('does not deadlock a transition on recalls parked behind it when they time out', async () => {
+    vi.useFakeTimers()
+    const nativeQuery = createControlledPromise<MemoryVectorMatch[]>()
+    const close = vi.fn(async () => undefined)
+    const { config, embedding, manager, markVectorStoreQuarantined } = createQueryManager({
+      ...createStore(),
+      query: vi
+        .fn<IMemoryVectorStore['query']>()
+        .mockReturnValueOnce(nativeQuery.promise)
+        .mockResolvedValue([]),
+      close
+    })
+
+    const wedged = manager.query('agent', embedding, 4, [1, 2, 3, 4], 4)
+    const wedgedTimedOut = expect(wedged).rejects.toBeInstanceOf(VectorStoreQueryTimeoutError)
+    await flushPromiseContinuations()
+    const nextEmbedding = { providerId: 'p', modelId: 'm2' }
+    config.current = {
+      memoryEnabled: true,
+      memoryEmbedding: nextEmbedding
+    } as DeepChatAgentConfig
+    expect(manager.noteEmbeddingConfig('agent', nextEmbedding)).toBe(true)
+    await flushPromiseContinuations()
+    const parked = manager.query('agent', nextEmbedding, 4, [1, 2, 3, 4], 4)
+    const parkedTimedOut = expect(parked).rejects.toBeInstanceOf(VectorStoreQueryTimeoutError)
+    await flushPromiseContinuations()
+    await vi.advanceTimersByTimeAsync(RECALL_VECTOR_QUERY_TIMEOUT_MS)
+    await wedgedTimedOut
+    await parkedTimedOut
+    nativeQuery.resolve([])
+    await flushPromiseContinuations()
+    await vi.advanceTimersByTimeAsync(RECALL_VECTOR_QUERY_GRACE_MS)
+
+    expect(manager.isQuarantined('agent')).toBe(false)
+    expect(manager.getRecallHealth('agent')).toBe('available')
+    await expect(manager.query('agent', nextEmbedding, 4, [1, 2, 3, 4], 4)).resolves.toEqual([])
+    expect(close).toHaveBeenCalledTimes(1)
+    expect(markVectorStoreQuarantined).not.toHaveBeenCalled()
+    await manager.closeAllStores()
+  })
+
+  it('resumes admission after an in-lease identity switch meets a timed-out sibling', async () => {
+    vi.useFakeTimers()
+    const nativeQuery = createControlledPromise<MemoryVectorMatch[]>()
+    const close = vi.fn(async () => undefined)
+    const { embedding, manager, markVectorStoreQuarantined } = createQueryManager({
+      ...createStore(),
+      query: vi
+        .fn<IMemoryVectorStore['query']>()
+        .mockReturnValueOnce(nativeQuery.promise)
+        .mockResolvedValue([]),
+      close
+    })
+
+    const pending = manager.query('agent', embedding, 4, [1, 2, 3, 4], 4)
+    const timedOut = expect(pending).rejects.toBeInstanceOf(VectorStoreQueryTimeoutError)
+    await flushPromiseContinuations()
+    const switching = manager.withStoreLease('agent', embedding, 8, async () => 'opened')
+    const switchRejected = expect(switching).rejects.toMatchObject({ reason: 'admission-closed' })
+    await flushPromiseContinuations()
+    await vi.advanceTimersByTimeAsync(RECALL_VECTOR_QUERY_TIMEOUT_MS)
+    await timedOut
+    nativeQuery.resolve([])
+    await switchRejected
+
+    // The abandoned 4-dim store is converged before admission reopens.
+    await vi.waitFor(() => expect(close).toHaveBeenCalledTimes(1))
+    expect(manager.getRecallHealth('agent')).toBe('available')
+    await expect(
+      manager.query('agent', embedding, 8, [1, 2, 3, 4, 5, 6, 7, 8], 4)
+    ).resolves.toEqual([])
+    expect(close).toHaveBeenCalledTimes(1)
+    expect(markVectorStoreQuarantined).not.toHaveBeenCalled()
+    await manager.closeAllStores()
+  })
+
   it('quarantines a fatal native rejection observed during grace', async () => {
     vi.useFakeTimers()
     const nativeQuery = createControlledPromise<MemoryVectorMatch[]>()

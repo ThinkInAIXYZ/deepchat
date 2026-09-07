@@ -172,6 +172,16 @@ export class MemoryRuntimeCoordinator implements MemoryPromptContributor, Memory
     this.deps.rewindMemoryCursorOrderSeq(sessionId, 0)
   }
 
+  /**
+   * Skips only the cloned prefix already extracted by the source session, so
+   * forks do not replay superseded claims or lose the unprocessed source tail.
+   * Fence older extraction work before advancing the target cursor.
+   */
+  seedExtractionCursor(sessionId: string, orderSeq: number): void {
+    this.bumpSessionEpoch(sessionId)
+    this.deps.updateMemoryCursorOrderSeq(sessionId, orderSeq)
+  }
+
   invalidateFromOrderSeq(sessionId: string, orderSeq: number): void {
     this.bumpSessionEpoch(sessionId)
     const memoryCursor = this.deps.getMemoryCursorOrderSeq(sessionId) ?? 0

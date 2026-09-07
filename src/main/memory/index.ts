@@ -383,6 +383,10 @@ export class MemoryService implements MemoryRuntimePort {
     this.maintenance.stopBackgroundMaintenance()
   }
 
+  drainBackgroundMaintenance(timeoutMs?: number): Promise<string[]> {
+    return this.maintenance.drainBackgroundMaintenance(timeoutMs)
+  }
+
   warmActiveAgents(): void {
     this.maintenance.warmActiveAgents()
   }
