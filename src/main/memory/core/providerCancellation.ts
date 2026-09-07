@@ -24,3 +24,7 @@ export function createMemoryProviderCapacityError(message: string): Error {
 export function isMemoryProviderCancellationError(error: unknown): boolean {
   return (error as { code?: string } | null)?.code === MEMORY_PROVIDER_CANCELLATION_CODE
 }
+
+export function isMemoryProviderDeadlineError(error: unknown): boolean {
+  return (error as { code?: string } | null)?.code === MEMORY_PROVIDER_DEADLINE_CODE
+}

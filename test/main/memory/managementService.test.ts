@@ -6,6 +6,8 @@ import { buildMemoryProvenanceKey } from '@/memory/core/scoring'
 import {
   RECALL_QUERY_EMBEDDING_BREAKER_COOLDOWN_MS,
   RECALL_QUERY_EMBEDDING_BREAKER_FAILURE_WINDOW_MS,
+  RECALL_QUERY_EMBEDDING_TIMEOUT_MAX_MS,
+  RECALL_QUERY_EMBEDDING_TIMEOUT_MS,
   WARM_DIMENSION_FAILURE_COOLDOWN_MS
 } from '@/memory/runtimeConstants'
 import { type IMemoryVectorStore } from '@/memory/types'
@@ -1074,12 +1076,22 @@ describe('MemoryService management', () => {
 
       queryMode = 'timeout'
       const first = presenter.recall('a', 'redis setup')
-      await vi.advanceTimersByTimeAsync(801)
+      await vi.advanceTimersByTimeAsync(RECALL_QUERY_EMBEDDING_TIMEOUT_MS + 1)
       expect((await first).map((item) => item.id)).toEqual([memoryId])
       expect(queryEmbeddingCalls).toBe(1)
 
-      const second = presenter.recall('a', 'redis setup')
-      await vi.advanceTimersByTimeAsync(801)
+      // A deadline miss relaxes the next attempt to the ceiling once, so the second recall is
+      // still waiting on the provider after the floor has passed.
+      let secondSettled = false
+      const second = presenter.recall('a', 'redis setup').then((items) => {
+        secondSettled = true
+        return items
+      })
+      await vi.advanceTimersByTimeAsync(RECALL_QUERY_EMBEDDING_TIMEOUT_MS + 1)
+      expect(secondSettled).toBe(false)
+      await vi.advanceTimersByTimeAsync(
+        RECALL_QUERY_EMBEDDING_TIMEOUT_MAX_MS - RECALL_QUERY_EMBEDDING_TIMEOUT_MS
+      )
 
       expect((await second).map((item) => item.id)).toEqual([memoryId])
       expect(queryEmbeddingCalls).toBe(2)
@@ -1094,10 +1106,11 @@ describe('MemoryService management', () => {
         openCount: 1,
         skipped: 1
       })
-      expect(
+      const degradationCounts =
         presenter.getHealth('a').runtime.agent.retrieval.recall.degradationCounts
-          .embeddingCircuitOpen
-      ).toBe(1)
+      expect(degradationCounts.embeddingCircuitOpen).toBe(1)
+      expect(degradationCounts.embeddingTimeout).toBe(2)
+      expect(degradationCounts.embeddingError).toBe(0)
 
       await vi.advanceTimersByTimeAsync(RECALL_QUERY_EMBEDDING_BREAKER_COOLDOWN_MS)
       const failedProbe = presenter.recall('a', 'redis setup')
@@ -1105,7 +1118,7 @@ describe('MemoryService management', () => {
       await expect(presenter.recall('a', 'redis setup')).resolves.toEqual([
         expect.objectContaining({ id: memoryId, sources: { fts: true } })
       ])
-      await vi.advanceTimersByTimeAsync(801)
+      await vi.advanceTimersByTimeAsync(RECALL_QUERY_EMBEDDING_TIMEOUT_MAX_MS + 1)
       await expect(failedProbe).resolves.toEqual([
         expect.objectContaining({ id: memoryId, sources: { fts: true } })
       ])
@@ -1687,20 +1700,21 @@ describe('MemoryService management', () => {
 
       blockQueryEmbedding = true
       const first = presenter.recall('a', 'redis setup')
-      await vi.advanceTimersByTimeAsync(801)
+      await vi.advanceTimersByTimeAsync(RECALL_QUERY_EMBEDDING_TIMEOUT_MS + 1)
       expect((await first).map((item) => item.id)).toEqual([memoryId])
       expect(queryEmbeddingCalls).toBe(1)
 
+      // Every attempt after a miss runs at the ceiling until one succeeds inside its deadline.
       await vi.advanceTimersByTimeAsync(30_001)
       const second = presenter.recall('a', 'redis setup')
-      await vi.advanceTimersByTimeAsync(801)
+      await vi.advanceTimersByTimeAsync(RECALL_QUERY_EMBEDDING_TIMEOUT_MAX_MS + 1)
       expect((await second).map((item) => item.id)).toEqual([memoryId])
       expect(queryEmbeddingCalls).toBe(2)
 
       pendingQueryEmbeddings[0]?.([textToVector('redis setup')])
       await flushMicrotasks()
       const third = presenter.recall('a', 'redis setup')
-      await vi.advanceTimersByTimeAsync(801)
+      await vi.advanceTimersByTimeAsync(RECALL_QUERY_EMBEDDING_TIMEOUT_MAX_MS + 1)
       expect((await third).map((item) => item.id)).toEqual([memoryId])
       expect(queryEmbeddingCalls).toBe(3)
     } finally {

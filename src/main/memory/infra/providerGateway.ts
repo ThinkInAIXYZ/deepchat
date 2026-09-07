@@ -10,9 +10,15 @@ import {
   createMemoryProviderCapacityError,
   createMemoryProviderDeadlineError
 } from '../core/providerCancellation'
+import {
+  RECALL_QUERY_EMBEDDING_DEADLINE_HEADROOM,
+  RECALL_QUERY_EMBEDDING_LATENCY_SMOOTHING,
+  RECALL_QUERY_EMBEDDING_TIMEOUT_MAX_MS,
+  RECALL_QUERY_EMBEDDING_TIMEOUT_MS
+} from '../runtimeConstants'
 
 const DEADLINE_MS: Record<MemoryProviderPurpose, number> = {
-  'query-embedding': 800,
+  'query-embedding': RECALL_QUERY_EMBEDDING_TIMEOUT_MS,
   dimension: 15_000,
   'embedding-batch': 30_000,
   'embedding-warm': 30_000,
@@ -24,9 +30,50 @@ const DEADLINE_MS: Record<MemoryProviderPurpose, number> = {
 const MAX_UNSETTLED_REQUESTS_PER_KEY = 2
 const MAX_UNSETTLED_REQUESTS_GLOBAL = 64
 
+/**
+ * Wall time of single-text embedding calls for one provider model. Warm-up calls feed it too, so
+ * the first recall after startup already knows the network it is on. A deadline miss relaxes the
+ * next attempt to the ceiling once: a slow-but-alive provider then reports a real latency instead of
+ * failing at the floor forever, while a dead one still costs at most one ceiling wait per miss.
+ */
+class QueryEmbeddingLatencyProfile {
+  private smoothedMs: number | null = null
+  private relaxNext = false
+
+  deadlineMs(): number {
+    if (this.relaxNext) return RECALL_QUERY_EMBEDDING_TIMEOUT_MAX_MS
+    if (this.smoothedMs === null) return RECALL_QUERY_EMBEDDING_TIMEOUT_MS
+    return Math.min(
+      RECALL_QUERY_EMBEDDING_TIMEOUT_MAX_MS,
+      Math.max(
+        RECALL_QUERY_EMBEDDING_TIMEOUT_MS,
+        Math.round(this.smoothedMs * RECALL_QUERY_EMBEDDING_DEADLINE_HEADROOM)
+      )
+    )
+  }
+
+  observeSuccess(elapsedMs: number): void {
+    this.relaxNext = false
+    this.smoothedMs =
+      this.smoothedMs === null
+        ? elapsedMs
+        : this.smoothedMs + (elapsedMs - this.smoothedMs) * RECALL_QUERY_EMBEDDING_LATENCY_SMOOTHING
+  }
+
+  observeDeadlineExceeded(): void {
+    this.relaxNext = true
+  }
+}
+
+const QUERY_LATENCY_SAMPLE_PURPOSES: ReadonlySet<MemoryProviderPurpose> = new Set([
+  'query-embedding',
+  'embedding-warm'
+])
+
 export class MemoryProviderGateway implements MemoryProviderGatewayPort {
   private readonly activeControllersByAgent = new Map<string, Set<AbortController>>()
   private readonly generationByAgent = new Map<string, number>()
+  private readonly queryLatencyByModel = new Map<string, QueryEmbeddingLatencyProfile>()
   private readonly unsettledByKey = new Map<string, number>()
   private unsettledTotal = 0
   private admissionWaiting = 0
@@ -107,7 +154,12 @@ export class MemoryProviderGateway implements MemoryProviderGatewayPort {
       this.activeControllersByAgent.set(agentId, controllers)
     }
     controllers.add(controller)
-    const deadline = DEADLINE_MS[purpose]
+    const latencyProfile = this.queryLatencyProfile(purpose, providerId, modelId)
+    const deadline =
+      purpose === 'query-embedding' && latencyProfile
+        ? latencyProfile.deadlineMs()
+        : DEADLINE_MS[purpose]
+    const startedAt = Date.now()
     let timer: ReturnType<typeof setTimeout> | undefined
     let admissionPending = true
     let raceSettled = false
@@ -185,6 +237,7 @@ export class MemoryProviderGateway implements MemoryProviderGatewayPort {
       timer = setTimeout(() => {
         deadlineRecorded = true
         this.deps.diagnostics?.recordProviderRaceEvent('deadline')
+        if (purpose === 'query-embedding') latencyProfile?.observeDeadlineExceeded()
         reject(
           createMemoryProviderDeadlineError(`[Memory] ${purpose} deadline exceeded (${deadline}ms)`)
         )
@@ -192,6 +245,12 @@ export class MemoryProviderGateway implements MemoryProviderGatewayPort {
       }, deadline)
       if (typeof timer.unref === 'function') timer.unref()
     })
+    if (latencyProfile) {
+      void task.then(
+        () => latencyProfile.observeSuccess(Date.now() - startedAt),
+        () => undefined
+      )
+    }
     const aborted = new Promise<never>((_resolve, reject) => {
       controller.signal.addEventListener(
         'abort',
@@ -213,6 +272,21 @@ export class MemoryProviderGateway implements MemoryProviderGatewayPort {
       current?.delete(controller)
       if (current?.size === 0) this.activeControllersByAgent.delete(agentId)
     })
+  }
+
+  private queryLatencyProfile(
+    purpose: MemoryProviderPurpose,
+    providerId: string,
+    modelId: string
+  ): QueryEmbeddingLatencyProfile | undefined {
+    if (!QUERY_LATENCY_SAMPLE_PURPOSES.has(purpose)) return undefined
+    const key = `${providerId}\0${modelId}`
+    let profile = this.queryLatencyByModel.get(key)
+    if (!profile) {
+      profile = new QueryEmbeddingLatencyProfile()
+      this.queryLatencyByModel.set(key, profile)
+    }
+    return profile
   }
 
   private assertCurrent(agentId: string, generation: number, signal: AbortSignal): void {

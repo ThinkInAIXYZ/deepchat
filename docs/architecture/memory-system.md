@@ -93,6 +93,11 @@ Memory contribution 必须等待到 soft deadline，成功时限制 token/字符
 文本、selection manifest 与成功持久化的 `memory/view_assembled` anchor ID；不能接收或重写 base
 system prompt。
 
+Query embedding 只送用户消息的前 2000 个 code point，deadline 由 provider gateway 单独持有：按同一
+provider/model 最近 warm-up 与 query 调用的平滑耗时乘以 headroom，夹在 800ms 下限与 2s 上限之间；
+一次 deadline miss 让下一次尝试放宽到上限，成功后回到观测值。Retrieval 不再叠加第二个 soft deadline，
+gateway 的 deadline 错误在 degradation 中归类为 `embeddingTimeout`。
+
 Warm recall 的 query embedding 按 Agent 与当前 provider/model identity 使用进程内有界熔断：短窗口内
 连续 deadline/transport failure 会临时跳过 vector path 并直接使用已生成的 FTS candidates；冷却后只
 允许一个 half-open probe，成功自动恢复。取消和本地 capacity rejection 不计 provider health failure；

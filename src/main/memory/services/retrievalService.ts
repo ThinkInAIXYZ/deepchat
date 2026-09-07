@@ -18,10 +18,9 @@ import {
   MEMORY_RETRIEVAL_MAX_CANDIDATES,
   nextMemoryRetrievalCandidateLimit
 } from '../core/retrievalBudget'
-import { withSoftDeadline } from '../core/asyncDeadline'
 import {
-  MEMORY_PROVIDER_DEADLINE_CODE,
-  isMemoryProviderCancellationError
+  isMemoryProviderCancellationError,
+  isMemoryProviderDeadlineError
 } from '../core/providerCancellation'
 import { evaluateNormalizedMemoryTemporalPolicy, temporalMetadataFromRow } from '../core/temporal'
 import {
@@ -54,7 +53,6 @@ import {
   RECALL_QUERY_EMBEDDING_MAX_CODE_POINTS,
   RECALL_QUERY_EMBEDDING_MAX_CONCURRENT,
   RECALL_QUERY_EMBEDDING_STALE_MS,
-  RECALL_QUERY_EMBEDDING_TIMEOUT_MS,
   SCOPE_VECTOR_OVERSAMPLE_MULTIPLIER
 } from '../runtimeConstants'
 import {
@@ -198,7 +196,8 @@ function vectorStoreDegradation(
   ) {
     return 'storeUnusable'
   }
-  return activeStage === 'queryEmbedding' ? 'embeddingError' : 'storeError'
+  if (activeStage !== 'queryEmbedding') return 'storeError'
+  return isMemoryProviderDeadlineError(error) ? 'embeddingTimeout' : 'embeddingError'
 }
 
 function isStaleExecutionCancellation(error: unknown, isDisposed: boolean): boolean {
@@ -733,7 +732,7 @@ export class RetrievalService {
   }
 
   private isQueryEmbeddingCircuitFailure(error: unknown): boolean {
-    if ((error as { code?: string } | null)?.code === MEMORY_PROVIDER_DEADLINE_CODE) return true
+    if (isMemoryProviderDeadlineError(error)) return true
     if ((error as { name?: string } | null)?.name === 'AbortError') return false
     return !isProviderRequestRejection(error)
   }
@@ -979,78 +978,67 @@ export class RetrievalService {
             } else {
               const embeddingStartedAt = performance.now()
               activeStage = 'queryEmbedding'
-              const vectorsResult = await withSoftDeadline(
-                queryEmbedding.entry.promise,
-                RECALL_QUERY_EMBEDDING_TIMEOUT_MS
-              )
+              // The gateway owns the deadline; its rejection lands in the catch below.
+              const vectors = await queryEmbedding.entry.promise
               throwIfAborted(options.signal)
               latencyMs.queryEmbedding = performance.now() - embeddingStartedAt
-              if (vectorsResult.timedOut) {
-                this.settleQueryEmbeddingCircuitFailure(queryEmbedding.entry)
-                degradations.add('embeddingTimeout')
-                logger.warn(
-                  `[Memory] query embedding timed out for ${agentId}; vector recall skipped this turn`
-                )
-              } else {
-                const vectors = vectorsResult.value
+              if (!this.ctx.canContinueOperation(operationFence)) {
+                outcome = 'cancelled'
+                return []
+              }
+              const vector = vectors[0]
+              if (vector?.length) {
                 if (!this.ctx.canContinueOperation(operationFence)) {
                   outcome = 'cancelled'
                   return []
                 }
-                const vector = vectors[0]
-                if (vector?.length) {
+                const vectorStartedAt = performance.now()
+                activeStage = 'vector'
+                const matches = await this.ports.vectorStore.query(
+                  agentId,
+                  currentEmbedding,
+                  vector.length,
+                  vector,
+                  vectorCandidateLimit
+                )
+                throwIfAborted(options.signal)
+                latencyMs.vector = performance.now() - vectorStartedAt
+                if (!this.ctx.canContinueOperation(operationFence)) {
+                  outcome = 'cancelled'
+                  return []
+                }
+                if (
+                  this.ports.vectorStore.hasReadyCertificate(agentId, currentEmbedding) &&
+                  this.ctx.canUseCurrentMemoryEmbedding(agentId, currentEmbedding)
+                ) {
                   if (!this.ctx.canContinueOperation(operationFence)) {
                     outcome = 'cancelled'
                     return []
                   }
-                  const vectorStartedAt = performance.now()
-                  activeStage = 'vector'
-                  const matches = await this.ports.vectorStore.query(
-                    agentId,
-                    currentEmbedding,
-                    vector.length,
-                    vector,
-                    vectorCandidateLimit
-                  )
-                  throwIfAborted(options.signal)
-                  latencyMs.vector = performance.now() - vectorStartedAt
-                  if (!this.ctx.canContinueOperation(operationFence)) {
-                    outcome = 'cancelled'
-                    return []
+                  vectorContext = { embedding: currentEmbedding, dimensions: vector.length }
+                  vectorQuery = { embedding: currentEmbedding, vector }
+                  rawVectorMatches = matches
+                  for (const match of matches) {
+                    const similarity = distanceToSimilarity(match.distance)
+                    if (similarity < similarityThreshold) continue
+                    vecCandidates.push({ memoryId: match.memoryId, similarity })
                   }
                   if (
-                    this.ports.vectorStore.hasReadyCertificate(agentId, currentEmbedding) &&
-                    this.ctx.canUseCurrentMemoryEmbedding(agentId, currentEmbedding)
-                  ) {
-                    if (!this.ctx.canContinueOperation(operationFence)) {
-                      outcome = 'cancelled'
-                      return []
-                    }
-                    vectorContext = { embedding: currentEmbedding, dimensions: vector.length }
-                    vectorQuery = { embedding: currentEmbedding, vector }
-                    rawVectorMatches = matches
-                    for (const match of matches) {
-                      const similarity = distanceToSimilarity(match.distance)
-                      if (similarity < similarityThreshold) continue
-                      vecCandidates.push({ memoryId: match.memoryId, similarity })
-                    }
-                    if (
-                      this.ctx.canContinueOperation(operationFence) &&
-                      !this.ports.isReindexing(agentId)
-                    ) {
-                      void this.ports.backfillEmbeddings(agentId).catch((error) => {
-                        logger.warn(`[Memory] backfill failed for ${agentId}: ${String(error)}`)
-                      })
-                    }
-                  } else if (
                     this.ctx.canContinueOperation(operationFence) &&
                     !this.ports.isReindexing(agentId)
                   ) {
-                    degradations.add('revisionChanged')
-                    void this.ports.reindexEmbeddings(agentId, true).catch((error) => {
-                      logger.warn(`[Memory] store rebuild failed for ${agentId}: ${String(error)}`)
+                    void this.ports.backfillEmbeddings(agentId).catch((error) => {
+                      logger.warn(`[Memory] backfill failed for ${agentId}: ${String(error)}`)
                     })
                   }
+                } else if (
+                  this.ctx.canContinueOperation(operationFence) &&
+                  !this.ports.isReindexing(agentId)
+                ) {
+                  degradations.add('revisionChanged')
+                  void this.ports.reindexEmbeddings(agentId, true).catch((error) => {
+                    logger.warn(`[Memory] store rebuild failed for ${agentId}: ${String(error)}`)
+                  })
                 }
               }
             }
