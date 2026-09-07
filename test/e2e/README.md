@@ -1,71 +1,67 @@
 # DeepChat E2E Smoke
 
-This suite runs manual smoke regression against the real local desktop environment by default.
+The suite launches the built Electron application. By default, each fixture creates a temporary
+`userData` profile, seeds completed onboarding and diagnostic logging, and removes the profile
+after closing the app. It does not use your normal desktop profile by default.
 
-It does not use mock providers, alternate `userData` directories, or E2E-only bootstrap state.
-The default `pnpm run e2e:smoke` command runs against the same local profile that the app normally
-uses.
+## Coverage
 
-## Scope
+The default suite covers startup, Settings navigation, typed IPC boundaries, workspace watchers,
+provider configuration, agent and plugin management, composer drafts, and local streaming.
+The plugin and streaming specs use loopback HTTP/MCP fixtures through the real application routes.
+They require no external provider credentials.
 
-- Launch the Electron app
-- Select an agent and start a real conversation
-- Send messages with the configured provider and model
-- Verify session persistence after restart
-- Open the Settings window and check core tabs
-- Optionally verify provider connectivity from the Settings window
+Five specs require `RUN_PROVIDER_INTEGRATION=true`: basic chat, session persistence, provider
+connectivity, chat scrollbar ownership, and composer width. Their default provider/model is
+`minimax` / `MiniMax-M2.7`; override these with `DEEPCHAT_E2E_PROVIDER_ID` and
+`DEEPCHAT_E2E_MODEL_ID`. The target model must be configured and enabled in the selected profile.
 
-## Defaults
-
-The smoke suite currently targets the following real provider setup:
-
-- Provider: `minimax`
-- Model: `MiniMax-M2.7`
-
-If you want to use a different provider or model, set `DEEPCHAT_E2E_PROVIDER_ID` and
-`DEEPCHAT_E2E_MODEL_ID`, or edit [testData.ts](./helpers/testData.ts).
-
-The CI command runs only the launch and Settings navigation smoke specs. It does not send chat
-requests and does not require provider credentials.
-
-## Prerequisites
-
-Before running the suite:
-
-1. Complete the app onboarding flow.
-2. Configure the target provider in your normal local profile.
-3. Make sure the target model is enabled and selectable.
-4. Build the app.
+The CI subset runs only launch and Settings navigation, using the same profile isolation.
 
 ## Commands
+
+Use Node >=20.19 and pnpm >=10.11. Build before running:
 
 ```bash
 pnpm run build
 pnpm run e2e:smoke
 ```
 
-For CI-style validation without real credentials:
+Run the smaller CI subset:
 
 ```bash
-pnpm run build
 pnpm run e2e:smoke:ci
 ```
 
-Set `RUN_PROVIDER_INTEGRATION=true` before running `pnpm run e2e:smoke` if you also want the
-live provider connectivity check in `05-settings-provider.smoke.spec.ts`.
+Run a specific deterministic workflow:
 
-## Artifacts
+```bash
+pnpm exec playwright test -c test/e2e/playwright.config.ts 36-chat-streaming
+```
 
-- `test-results/e2e`
-- `playwright-report`
+For live provider checks, select a dedicated configured test profile:
 
-The suite also attaches renderer console output and page errors to each test run.
+```bash
+DEEPCHAT_E2E_USER_DATA_DIR=/absolute/path/to/test-profile \
+RUN_PROVIDER_INTEGRATION=true \
+pnpm run e2e:smoke
+```
 
-## Notes
+`DEEPCHAT_E2E_USER_DATA_DIR` disables fixture ownership and automatic profile removal. Tests can
+create sessions and change application state in that directory. The fixture seeds settings only
+when `app-settings.json` does not already exist.
 
-- The suite creates real chat sessions in the current profile.
-- Tests are additive only and avoid deleting existing user data.
-- Settings checks use the real Settings window and the real provider configuration.
-- The provider connectivity check is opt-in because it requires live credentials and network access.
-- `pnpm run e2e:smoke:ci` uses the current profile and only runs non-provider smoke coverage; it is
-  intended for CI and Windows ARM64 validation.
+For a packaged executable, set `DEEPCHAT_E2E_APP_MODE=packaged` and
+`DEEPCHAT_E2E_EXECUTABLE_PATH` to its absolute path. Windows defaults to the matching unpacked
+architecture under `dist` when no executable override is supplied.
+
+## Artifacts and state contracts
+
+Results are written to `test-results/e2e` and `playwright-report`. Each test attaches renderer
+console output, page errors, and available main-process logs; failures retain screenshots,
+video, and traces.
+
+`chat-page-shell` owns `data-generating`. `chat-page` is the message scroll viewport.
+The generation helper observes the shell's generating-to-idle transition. The local streaming
+spec holds its response open while checking composer input, then releases it and verifies both
+completion and preservation of the draft.
