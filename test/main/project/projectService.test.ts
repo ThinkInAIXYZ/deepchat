@@ -104,7 +104,8 @@ describe('ProjectService', () => {
     it('returns projects, all environment states, and default path from one versioned snapshot', async () => {
       const settingsStore = createMockSettingsStore('/work/default')
       sqlitePresenter.newProjectsTable.getAll.mockReturnValue([
-        { path: '/work/project', name: 'project', icon: null, last_accessed_at: 10 }
+        { path: '/work/project', name: 'project', icon: null, last_accessed_at: 10 },
+        { path: ' /work/removed ', name: 'removed', icon: null, last_accessed_at: 5 }
       ])
       sqlitePresenter.newEnvironmentsTable.list.mockReturnValue([
         { path: '/work/project', session_count: 2, last_used_at: 20 }
@@ -146,6 +147,8 @@ describe('ProjectService', () => {
       expect(initial.defaultProjectPath).toBe('/work/default')
       expect(initial.defaultChatWorkspacePath).toBeNull()
       expect(updated.version).toBe(1)
+      expect(sqlitePresenter.newEnvironmentPreferencesTable.list).toHaveBeenCalledTimes(2)
+      expect(sqlitePresenter.newEnvironmentPreferencesTable.get).not.toHaveBeenCalled()
     })
 
     it('persists the snapshot version across ProjectService reconstruction', () => {
@@ -408,19 +411,38 @@ describe('ProjectService', () => {
       expect(projects[0].exists).toBe(true)
     })
 
-    it('filters removed projects from recent rows', async () => {
-      sqlitePresenter.newProjectsTable.getAll.mockReturnValue([
-        { path: '/recent1', name: 'recent1', icon: null, last_accessed_at: 3000 },
-        { path: '/removed', name: 'removed', icon: null, last_accessed_at: 2000 }
-      ])
-      sqlitePresenter.newEnvironmentPreferencesTable.get.mockImplementation((projectPath: string) =>
-        projectPath === '/removed' ? { status: 'removed' } : undefined
-      )
+    it.each(['getProjects', 'getRecentProjects'] as const)(
+      '%s filters removed rows with one preference read regardless of project count',
+      async (method) => {
+        const removed = Array.from({ length: 1000 }, (_, index) => ({
+          path: `/removed/${index}`,
+          name: `removed-${index}`,
+          icon: null,
+          last_accessed_at: 4000 + index
+        }))
+        sqlitePresenter.newProjectsTable.getAll.mockReturnValue([
+          ...removed,
+          { path: '/recent1', name: 'recent1', icon: null, last_accessed_at: 3000 },
+          { path: '/archived', name: 'archived', icon: null, last_accessed_at: 2000 }
+        ])
+        const preferences = [
+          ...removed.map(({ path }) => ({ path, status: 'removed' })),
+          { path: '/archived', status: 'archived' }
+        ]
+        sqlitePresenter.newEnvironmentPreferencesTable.list.mockReturnValue(preferences)
+        sqlitePresenter.newEnvironmentPreferencesTable.get.mockImplementation((path: string) =>
+          preferences.find((preference) => preference.path === path)
+        )
 
-      const projects = await presenter.getRecentProjects(2)
+        const projects = await (method === 'getProjects'
+          ? presenter.getProjects()
+          : presenter.getRecentProjects(2))
 
-      expect(projects.map((project) => project.path)).toEqual(['/recent1'])
-    })
+        expect(projects.map((project) => project.path)).toEqual(['/recent1', '/archived'])
+        expect(sqlitePresenter.newEnvironmentPreferencesTable.list).toHaveBeenCalledTimes(1)
+        expect(sqlitePresenter.newEnvironmentPreferencesTable.get).not.toHaveBeenCalled()
+      }
+    )
   })
 
   describe('getEnvironments', () => {
