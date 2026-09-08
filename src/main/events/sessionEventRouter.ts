@@ -18,6 +18,15 @@ const RENDERER_BOUND_STREAM_EVENTS = new Set<DeepchatEventName>([
   'chat.plan.updated'
 ])
 
+// The cross-window activity signal is throttled per session so high-frequency
+// stream snapshots do not wake every other window/tab on each ~120ms flush.
+const STREAM_ACTIVITY_INTERVAL_MS = 1_000
+// Terminal transitions are rare; they always notify other windows immediately.
+const STREAM_ACTIVITY_ALWAYS_PUBLISH = new Set<DeepchatEventName>([
+  'chat.stream.completed',
+  'chat.stream.failed'
+])
+
 type SessionEventRouterOptions = Readonly<{
   hub: TypedEventHub
   // string: CLI run root; null: known renderer session; undefined: unknown/deleted session.
@@ -45,13 +54,17 @@ function sessionIdsForEvent(name: DeepchatEventName, payload: unknown): string[]
 
 export class SessionEventRouter {
   private readonly ownershipCache = new Map<string, string | null>()
+  private readonly streamActivityAt = new Map<string, number>()
 
   constructor(private readonly options: SessionEventRouterOptions) {}
 
   publish(name: DeepchatEventName, payload: unknown): void {
     const sessionIds = sessionIdsForEvent(name, payload)
     if (name === 'sessions.updated') {
-      for (const sessionId of sessionIds) this.ownershipCache.delete(sessionId)
+      for (const sessionId of sessionIds) {
+        this.ownershipCache.delete(sessionId)
+        this.streamActivityAt.delete(sessionId)
+      }
     }
     const ownership = sessionIds.map((sessionId) => ({
       sessionId,
@@ -72,8 +85,9 @@ export class SessionEventRouter {
           }
           // Other windows no longer receive the full event; keep their
           // recent-session views (sidebar status) fresh with the lightweight
-          // activity signal instead.
-          this.publishStreamActivity(sessionIds)
+          // activity signal instead. It is throttled per session (see
+          // publishStreamActivity) so it stays low-frequency.
+          this.publishStreamActivity(sessionIds, STREAM_ACTIVITY_ALWAYS_PUBLISH.has(name))
           return
         }
         // No renderer is bound yet: keep the broadcast fallback so early stream
@@ -146,8 +160,19 @@ export class SessionEventRouter {
     )
   }
 
-  private publishStreamActivity(sessionIds: readonly string[]): void {
+  private publishStreamActivity(sessionIds: readonly string[], force: boolean): void {
+    const now = Date.now()
     for (const sessionId of new Set(sessionIds)) {
+      if (!force) {
+        const lastAt = this.streamActivityAt.get(sessionId)
+        if (lastAt !== undefined && now - lastAt < STREAM_ACTIVITY_INTERVAL_MS) continue
+      }
+      this.streamActivityAt.set(sessionId, now)
+      while (this.streamActivityAt.size > MAX_OWNERSHIP_CACHE_ENTRIES) {
+        const oldest = this.streamActivityAt.keys().next().value
+        if (oldest === undefined) break
+        this.streamActivityAt.delete(oldest)
+      }
       this.options.hub.publish(
         chatStreamActivityEvent.name,
         { sessionId },

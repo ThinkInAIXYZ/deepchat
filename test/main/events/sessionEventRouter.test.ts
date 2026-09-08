@@ -70,4 +70,40 @@ describe('SessionEventRouter', () => {
       expect.anything()
     )
   })
+
+  it('throttles the activity signal: repeated stream snapshots do not broadcast once per update', () => {
+    vi.useFakeTimers()
+    try {
+      const { hub, router } = createRouter()
+
+      router.publish('chat.stream.updated', streamSnapshot)
+      router.publish('chat.stream.updated', streamSnapshot)
+      router.publish('chat.stream.updated', streamSnapshot)
+
+      // 3 bound deliveries + 1 throttled activity broadcast for the whole burst.
+      expect(hub.publish).toHaveBeenCalledTimes(4)
+      expect(hub.publish).toHaveBeenCalledWith(
+        'chat.stream.activity',
+        { sessionId: 'session-1' },
+        { kind: 'renderer-all' }
+      )
+
+      // Terminal transitions always notify other windows immediately.
+      router.publish('chat.stream.failed', {
+        requestId: 'req-1',
+        sessionId: 'session-1',
+        messageId: 'msg-1',
+        failedAt: 2,
+        error: 'boom'
+      })
+      expect(hub.publish).toHaveBeenCalledTimes(6)
+
+      // Once the throttle window elapses, the next snapshot emits again.
+      vi.advanceTimersByTime(1_000)
+      router.publish('chat.stream.updated', streamSnapshot)
+      expect(hub.publish).toHaveBeenCalledTimes(8)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
 })
