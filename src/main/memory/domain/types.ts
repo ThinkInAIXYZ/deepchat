@@ -614,6 +614,20 @@ export type ProvenanceHitResult =
   | { action: 'continue' }
   | { action: 'noop'; reason: string }
 
+/**
+ * Side-effect-free classification of who currently owns a candidate's provenance key.
+ * `archived` owners may be restored, `duplicate` owners may only absorb temporal metadata,
+ * `suppressed` owners must stay untouched, `challenged` chains reject new evidence, and a
+ * `superseded` owner exposes its live chain head (or null) for correction decisions.
+ */
+export type ClaimOwnership =
+  | { state: 'unowned' }
+  | { state: 'archived'; owner: CanonicalAgentMemoryRow }
+  | { state: 'duplicate'; owner: CanonicalAgentMemoryRow }
+  | { state: 'suppressed'; owner: CanonicalAgentMemoryRow; reason: string }
+  | { state: 'challenged'; owner: CanonicalAgentMemoryRow; head: CanonicalAgentMemoryRow }
+  | { state: 'superseded'; owner: CanonicalAgentMemoryRow; head: CanonicalAgentMemoryRow | null }
+
 export type ContentUpdateResult =
   | { action: 'updated'; id: string }
   | { action: 'folded'; id: string; retiredHeadId?: string }

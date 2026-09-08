@@ -51,6 +51,7 @@ import type {
   WriteMemoriesOptions
 } from '../types'
 import type { MemoryDirectiveInput } from '../domain/directives'
+import { isLiveDecisionTarget } from '../domain/stateModel'
 import {
   type MemoryModelRef,
   type MemoryOperationFence,
@@ -147,29 +148,6 @@ function userAddAuditFromOutcome(outcome: MemoryWriteOutcome): {
     case 'noop':
       return { status: 'skipped', reason: outcome.reason, outputRefs: { action: 'noop' } }
   }
-}
-
-function isLiveDecisionTarget(
-  agentId: string,
-  row: AgentMemoryRow | undefined
-): row is AgentMemoryRow {
-  return (
-    !!row &&
-    row.agent_id === agentId &&
-    row.superseded_by === null &&
-    row.lifecycle_state === 'active' &&
-    row.conflict_state === null
-  )
-}
-
-function isChallengedDecisionHead(agentId: string, row: AgentMemoryRow | undefined): boolean {
-  return (
-    !!row &&
-    row.agent_id === agentId &&
-    row.lifecycle_state === 'active' &&
-    row.superseded_by === null &&
-    row.conflict_state === 'challenged'
-  )
 }
 
 class DecisionRevisionConflictError extends Error {}
@@ -333,25 +311,30 @@ export class WriteCoordinator {
       const normalized = normalizeMemoryCandidate(candidate)
       if (!normalized) continue
       const content = normalized.content
-      const duplicate = this.ports.rows.resolveProvenance(
+      const ownership = this.ports.rows.resolveClaimOwnership(
         options.agentId,
         normalized.kind,
         content,
-        scope
+        scope,
+        { allowSuperseded: false }
       )
-      if (duplicate) {
-        const hit = this.ports.rows.handleProvenanceHit(options.agentId, duplicate)
-        if (hit.action === 'absorbed') {
-          if (this.absorbArchivedProvenanceOwner(options.agentId, duplicate, normalized.temporal)) {
-            created.push(duplicate.id)
+      if (ownership.state !== 'unowned') {
+        if (ownership.state === 'archived') {
+          if (
+            this.absorbArchivedProvenanceOwner(
+              options.agentId,
+              ownership.owner,
+              normalized.temporal
+            )
+          ) {
+            created.push(ownership.owner.id)
             touched = true
           }
         } else if (
-          hit.action === 'noop' &&
-          hit.reason === 'duplicate' &&
+          ownership.state === 'duplicate' &&
           this.ports.rows.enrichEquivalentClaimTemporalMetadata(
             options.agentId,
-            duplicate,
+            ownership.owner,
             normalized.temporal
           )
         ) {
@@ -583,48 +566,33 @@ export class WriteCoordinator {
     indexed: IndexedCandidate,
     scope: MemoryScope
   ): PrepareCoordinateCandidateResult {
-    const content = indexed.candidate.content
-    const duplicate = this.ports.rows.resolveProvenance(
+    const ownership = this.ports.rows.resolveClaimOwnership(
       agentId,
       indexed.candidate.kind,
-      content,
-      scope
+      indexed.candidate.content,
+      scope,
+      { allowSuperseded: true }
     )
-    let decisionHeadId: string | null = null
-    if (duplicate) {
-      const hit = this.ports.rows.handleProvenanceHit(agentId, duplicate, {
-        allowDecisionForSuperseded: true
-      })
-      if (hit.action === 'absorbed') {
+    const immediate = (outcome: MemoryWriteOutcome): PrepareCoordinateCandidateResult => ({
+      candidateIndex: indexed.candidateIndex,
+      candidate: indexed.candidate,
+      outcome
+    })
+    switch (ownership.state) {
+      case 'archived':
+        return immediate({ action: 'updated', id: ownership.owner.id })
+      case 'duplicate':
+        return immediate({ action: 'noop', reason: 'duplicate', id: ownership.owner.id })
+      case 'suppressed':
+        return immediate({ action: 'noop', reason: ownership.reason, id: ownership.owner.id })
+      case 'challenged':
+        return immediate({ action: 'noop', reason: 'conflict', id: ownership.head.id })
+      case 'superseded':
         return {
-          candidateIndex: indexed.candidateIndex,
-          candidate: indexed.candidate,
-          outcome: { action: 'updated', id: duplicate.id }
+          prepared: { ...indexed, decisionHeadId: ownership.head?.id ?? null, neighbors: [] }
         }
-      }
-      if (hit.action === 'noop') {
-        return {
-          candidateIndex: indexed.candidateIndex,
-          candidate: indexed.candidate,
-          outcome: { action: 'noop', reason: hit.reason, id: duplicate.id }
-        }
-      }
-      const head = this.ports.rows.supersedeHead(agentId, duplicate)
-      if (isChallengedDecisionHead(agentId, head)) {
-        return {
-          candidateIndex: indexed.candidateIndex,
-          candidate: indexed.candidate,
-          outcome: { action: 'noop', reason: 'conflict', id: head.id }
-        }
-      }
-      if (isLiveDecisionTarget(agentId, head)) decisionHeadId = head.id
-    }
-    return {
-      prepared: {
-        ...indexed,
-        decisionHeadId,
-        neighbors: []
-      }
+      case 'unowned':
+        return { prepared: { ...indexed, decisionHeadId: null, neighbors: [] } }
     }
   }
 
@@ -649,17 +617,16 @@ export class WriteCoordinator {
     const scope = normalizeMemoryScope(options.scope)
     let outcome: MemoryWriteOutcome = { action: 'noop', reason: 'concurrent-update' }
     this.ports.repository.runInTransaction(() => {
-      const owner = this.ports.rows.resolveProvenance(
+      const ownership = this.ports.rows.resolveClaimOwnership(
         agentId,
         candidate.kind,
         candidate.content,
-        scope
+        scope,
+        { allowSuperseded: true }
       )
-      if (owner) {
-        const hit = this.ports.rows.handleProvenanceHit(agentId, owner, {
-          allowDecisionForSuperseded: true
-        })
-        if (hit.action === 'absorbed') {
+      switch (ownership.state) {
+        case 'archived': {
+          const owner = ownership.owner
           const restored = this.ports.repository.restoreArchivedMemory({
             agentId,
             id: owner.id,
@@ -680,31 +647,32 @@ export class WriteCoordinator {
             : { action: 'noop', reason: 'concurrent-update' }
           return
         }
-        if (hit.action === 'noop') {
-          outcome =
-            hit.reason === 'duplicate' &&
-            this.ports.rows.enrichEquivalentClaimTemporalMetadata(
-              agentId,
-              owner,
-              candidate.temporal
-            )
-              ? { action: 'updated', id: owner.id }
-              : { action: 'noop', reason: hit.reason, id: owner.id }
+        case 'duplicate':
+          outcome = this.ports.rows.enrichEquivalentClaimTemporalMetadata(
+            agentId,
+            ownership.owner,
+            candidate.temporal
+          )
+            ? { action: 'updated', id: ownership.owner.id }
+            : { action: 'noop', reason: 'duplicate', id: ownership.owner.id }
           return
-        }
-        const head = this.ports.rows.supersedeHead(agentId, owner)
-        if (isChallengedDecisionHead(agentId, head)) {
-          outcome = { action: 'noop', reason: 'conflict', id: head.id }
+        case 'suppressed':
+          outcome = { action: 'noop', reason: ownership.reason, id: ownership.owner.id }
           return
-        }
-        outcome = this.reviveProvenanceOwner(
-          agentId,
-          owner,
-          now,
-          candidate.category,
-          candidate.temporal
-        )
-        return
+        case 'challenged':
+          outcome = { action: 'noop', reason: 'conflict', id: ownership.head.id }
+          return
+        case 'superseded':
+          outcome = this.reviveProvenanceOwner(
+            agentId,
+            ownership.owner,
+            now,
+            candidate.category,
+            candidate.temporal
+          )
+          return
+        case 'unowned':
+          break
       }
       if (!allowInsert) return
       const insert = this.ports.rows.insertMemory(
@@ -1100,51 +1068,46 @@ export class WriteCoordinator {
       return { action: 'noop', reason: 'disposed' }
     }
 
-    const duplicate = this.ports.rows.resolveProvenance(
+    const ownership = this.ports.rows.resolveClaimOwnership(
       agentId,
       normalized.kind,
       content,
       scope,
-      beforeMutation
+      { allowSuperseded: true, beforeMutation }
     )
     let decisionHead: AgentMemoryRow | null = null
-    if (duplicate) {
-      const hit = this.ports.rows.handleProvenanceHit(agentId, duplicate, {
-        allowDecisionForSuperseded: true
-      })
-      if (hit.action === 'absorbed') {
+    switch (ownership.state) {
+      case 'archived':
         return this.absorbArchivedProvenanceOwner(
           agentId,
-          duplicate,
+          ownership.owner,
           normalized.temporal,
           beforeMutation
         )
-          ? { action: 'updated', id: duplicate.id }
-          : { action: 'noop', reason: 'concurrent-update', id: duplicate.id }
-      }
-      if (hit.action === 'noop') {
-        if (
-          hit.reason === 'duplicate' &&
-          this.ports.rows.enrichEquivalentClaimTemporalMetadata(
-            agentId,
-            duplicate,
-            normalized.temporal,
-            beforeMutation
-          )
-        ) {
-          return { action: 'updated', id: duplicate.id }
-        }
-        return { action: 'noop', reason: hit.reason, id: duplicate.id }
-      }
-      const head = this.ports.rows.supersedeHead(agentId, duplicate)
-      if (isChallengedDecisionHead(agentId, head)) {
-        return { action: 'noop', reason: 'conflict', id: head.id }
-      }
-      if (isLiveDecisionTarget(agentId, head)) decisionHead = head
+          ? { action: 'updated', id: ownership.owner.id }
+          : { action: 'noop', reason: 'concurrent-update', id: ownership.owner.id }
+      case 'duplicate':
+        return this.ports.rows.enrichEquivalentClaimTemporalMetadata(
+          agentId,
+          ownership.owner,
+          normalized.temporal,
+          beforeMutation
+        )
+          ? { action: 'updated', id: ownership.owner.id }
+          : { action: 'noop', reason: 'duplicate', id: ownership.owner.id }
+      case 'suppressed':
+        return { action: 'noop', reason: ownership.reason, id: ownership.owner.id }
+      case 'challenged':
+        return { action: 'noop', reason: 'conflict', id: ownership.head.id }
+      case 'superseded':
+        decisionHead = ownership.head
+        break
+      case 'unowned':
+        break
     }
 
     if (
-      !duplicate &&
+      ownership.state === 'unowned' &&
       this.ports.repository.hasTombstoneForClaim({
         agentId,
         kind: normalized.kind,
@@ -1495,18 +1458,19 @@ export class WriteCoordinator {
     ) {
       return { action: 'retry' }
     }
-    const hit = this.ports.rows.handleProvenanceHit(agentId, owner, {
-      allowDecisionForSuperseded: true
+    const ownership = this.ports.rows.classifyClaimOwner(agentId, owner, {
+      allowSuperseded: true
     })
-    if (hit.action === 'noop' && hit.reason !== 'duplicate') {
-      return { action: 'noop', reason: hit.reason, id: owner.id }
+    if (ownership.state === 'suppressed') {
+      return { action: 'noop', reason: ownership.reason, id: owner.id }
     }
+    const ownerIsSuperseded = ownership.state === 'superseded' || ownership.state === 'challenged'
+    // Only a live chain head can coincide with the (live) decision target.
+    const ownerHeadIsTarget = ownership.state === 'superseded' && ownership.head?.id === target.id
 
     try {
       this.ports.repository.runInTransaction(() => {
         let ownerRevision = owner.decision_revision
-        const ownerHead =
-          hit.action === 'continue' ? this.ports.rows.supersedeHead(agentId, owner) : undefined
         let retiredHeadId: string | null = null
         if (
           !this.ports.repository.markSupersededIfRevision(
@@ -1518,7 +1482,7 @@ export class WriteCoordinator {
         ) {
           throw new DecisionRevisionConflictError()
         }
-        if (hit.action === 'absorbed') {
+        if (ownership.state === 'archived') {
           if (
             !this.ports.repository.restoreArchivedMemory({
               agentId,
@@ -1530,8 +1494,8 @@ export class WriteCoordinator {
           }
           ownerRevision += 1
         }
-        if (hit.action === 'continue') {
-          if (ownerHead?.id === target.id) {
+        if (ownerIsSuperseded) {
+          if (ownerHeadIsTarget) {
             if (
               !this.ports.repository.reviveSupersededMemory({
                 agentId,
@@ -1712,39 +1676,40 @@ export class WriteCoordinator {
     if (!normalized) return { action: 'noop', reason: 'empty' }
     const content = normalized.content
     const scope = normalizeMemoryScope(options.scope)
-    const duplicate = this.ports.rows.resolveProvenance(
+    const ownership = this.ports.rows.resolveClaimOwnership(
       agentId,
       normalized.kind,
       content,
       scope,
-      beforeMutation
+      { allowSuperseded: false, beforeMutation }
     )
-    if (duplicate) {
-      const hit = this.ports.rows.handleProvenanceHit(agentId, duplicate)
-      if (hit.action === 'absorbed') {
+    switch (ownership.state) {
+      case 'archived':
         return this.absorbArchivedProvenanceOwner(
           agentId,
-          duplicate,
+          ownership.owner,
           normalized.temporal,
           beforeMutation
         )
-          ? { action: 'updated', id: duplicate.id }
-          : { action: 'noop', reason: 'concurrent-update', id: duplicate.id }
-      }
-      if (
-        hit.action === 'noop' &&
-        hit.reason === 'duplicate' &&
-        this.ports.rows.enrichEquivalentClaimTemporalMetadata(
+          ? { action: 'updated', id: ownership.owner.id }
+          : { action: 'noop', reason: 'concurrent-update', id: ownership.owner.id }
+      case 'duplicate':
+        return this.ports.rows.enrichEquivalentClaimTemporalMetadata(
           agentId,
-          duplicate,
+          ownership.owner,
           normalized.temporal,
           beforeMutation
         )
-      ) {
-        return { action: 'updated', id: duplicate.id }
-      }
-      const reason = hit.action === 'noop' ? hit.reason : 'duplicate'
-      return { action: 'noop', reason, id: duplicate.id }
+          ? { action: 'updated', id: ownership.owner.id }
+          : { action: 'noop', reason: 'duplicate', id: ownership.owner.id }
+      case 'suppressed':
+        return { action: 'noop', reason: ownership.reason, id: ownership.owner.id }
+      case 'challenged':
+      case 'superseded':
+        // Unreachable without allowSuperseded; a superseded chain stays a conservative no-op here.
+        return { action: 'noop', reason: 'duplicate', id: ownership.owner.id }
+      case 'unowned':
+        break
     }
     if (
       this.ports.repository.hasTombstoneForClaim({
