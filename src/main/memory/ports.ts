@@ -63,7 +63,6 @@ import type {
   MemoryVectorRef,
   NormalizedMemoryCandidate,
   ClaimOwnership,
-  ProvenanceHitResult,
   WriteMemoriesOptions
 } from './domain/types'
 
@@ -507,12 +506,8 @@ export interface MemoryWriteMutationPort extends MemoryProvenanceResolverPort {
     incoming: MemoryTemporalMetadata,
     beforeMutation?: () => void
   ): boolean
-  supersedeHead(agentId: string, row: AgentMemoryRow): AgentMemoryRow
-  handleProvenanceHit(
-    agentId: string,
-    existing: AgentMemoryRow,
-    options?: { allowDecisionForSuperseded?: boolean }
-  ): ProvenanceHitResult
+  // Ownership is classified in one place; callers switch on ClaimOwnership instead of composing
+  // the provenance-hit and chain-head primitives themselves.
   resolveClaimOwnership(
     agentId: string,
     kind: string,

@@ -468,7 +468,7 @@ export class MemoryRowMutations {
         }
   }
 
-  supersedeHead(agentId: string, row: AgentMemoryRow): AgentMemoryRow {
+  private supersedeHead(agentId: string, row: AgentMemoryRow): AgentMemoryRow {
     let current = row
     const seen = new Set<string>([row.id])
     while (current.superseded_by) {
@@ -486,7 +486,7 @@ export class MemoryRowMutations {
     return current
   }
 
-  handleProvenanceHit(
+  private handleProvenanceHit(
     agentId: string,
     existing: AgentMemoryRow,
     options: { allowDecisionForSuperseded?: boolean } = {}

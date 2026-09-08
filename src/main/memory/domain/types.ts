@@ -615,10 +615,12 @@ export type ProvenanceHitResult =
   | { action: 'noop'; reason: string }
 
 /**
- * Side-effect-free classification of who currently owns a candidate's provenance key.
- * `archived` owners may be restored, `duplicate` owners may only absorb temporal metadata,
- * `suppressed` owners must stay untouched, `challenged` chains reject new evidence, and a
- * `superseded` owner exposes its live chain head (or null) for correction decisions.
+ * Who currently owns a candidate's provenance key. Classification itself never writes; the
+ * lookup that precedes it may lazily re-key a legacy owner, which is why resolvers accept the
+ * caller's dispatch-commit callback. `archived` owners may be restored, `duplicate` owners may
+ * only absorb temporal metadata, `suppressed` owners must stay untouched, `challenged` chains
+ * reject new evidence, and a `superseded` owner exposes its live chain head (or null) for
+ * correction decisions.
  */
 export type ClaimOwnership =
   | { state: 'unowned' }
