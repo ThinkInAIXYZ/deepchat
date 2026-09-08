@@ -21,6 +21,7 @@
             <div class="shrink-0">
               <Switch
                 :model-value="syncEnabled"
+                :aria-label="t('settings.data.syncEnable')"
                 :disabled="isSyncInteractionDisabled"
                 @update:model-value="handleSyncEnabledChange"
               />
@@ -36,13 +37,15 @@
               <span class="text-sm font-medium">{{ t('settings.data.syncFolder') }}</span>
             </span>
             <div class="flex w-full gap-2 lg:w-96">
-              <Input
-                :model-value="syncFolderPath"
+              <button
+                type="button"
                 :disabled="!syncStore.syncEnabled || isSyncInteractionDisabled"
-                readonly
-                class="h-8!"
+                class="h-8 w-full truncate rounded-md border border-input bg-background px-3 text-left text-sm focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
                 @click="handleSelectSyncFolder"
-              />
+              >
+                <span class="sr-only">{{ t('settings.data.syncFolder') }}: </span
+                >{{ syncFolderPath }}
+              </button>
               <DcButton
                 size="icon-sm"
                 variant="outline"
@@ -119,7 +122,11 @@
                       v-model="selectedBackup"
                       :disabled="syncStore.isImporting || !availableBackups.length"
                     >
-                      <SelectTrigger class="h-8!" :dir="languageStore.dir">
+                      <SelectTrigger
+                        :aria-label="t('settings.data.selectBackupPlaceholder')"
+                        class="h-8!"
+                        :dir="languageStore.dir"
+                      >
                         <SelectValue :placeholder="t('settings.data.selectBackupPlaceholder')" />
                       </SelectTrigger>
                       <SelectContent>

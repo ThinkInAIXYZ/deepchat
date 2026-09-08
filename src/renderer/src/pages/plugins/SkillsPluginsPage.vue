@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { Icon } from '@iconify/vue'
@@ -61,6 +61,7 @@ const skillDetail = ref<SkillDetail | null>(null)
 const detailDialogRef = ref<InstanceType<typeof SkillDetailDialog> | null>(null)
 let loadRequestId = 0
 let detailRequestId = 0
+let detailOpener: HTMLElement | null = null
 
 const filteredSkills = computed(() => {
   const query = searchQuery.value.trim().toLowerCase()
@@ -82,6 +83,7 @@ const closeDetail = (open: boolean) => {
     detailRequestId += 1
     selectedSkill.value = null
     skillDetail.value = null
+    void nextTick(() => detailOpener?.isConnected && detailOpener.focus({ preventScroll: true }))
   }
 }
 
@@ -113,6 +115,7 @@ const loadPage = async (silent = false) => {
 }
 
 const openSkill = async (skill: UnifiedSkillItem) => {
+  detailOpener = document.activeElement as HTMLElement | null
   const requestId = ++detailRequestId
   operationPending.value = true
   try {
@@ -346,6 +349,7 @@ onUnmounted(() => {
             </div>
             <Switch
               :model-value="draftSuggestionsEnabled"
+              :aria-label="t('settings.skills.draftSuggestions.title')"
               :disabled="!draftSuggestionsLoaded"
               @update:model-value="toggleDraftSuggestions"
             />

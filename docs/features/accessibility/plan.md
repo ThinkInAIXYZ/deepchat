@@ -65,3 +65,14 @@ The side-panel owner excludes closed content with `inert` and hidden accessibili
 BEFORE  Closed panel remains reachable; file activation → lost focus
 AFTER   Open panel → named region → file preview → Back → original file
 ```
+
+## Settings operation context
+
+Existing settings owners retain their data operations. Field and switch names use their visible localized labels; repeated actions include their target. Knowledge provider headers become disclosure buttons, with independent named switches instead of nested tooltip buttons. Data sync folder selection becomes a keyboard button. New scheduled jobs focus their name; agent saves announce persisted success/failure and recover focus when disabling Save removed it. The settings shell restores its main landmark after internal route changes invalidate focus. The plugin hub focuses its named content region after installation/removal. Programmatic dialogs restore their opener, including skills loaded asynchronously. Memory panels focus their named create/details region and return to the independent row button on Escape. Provider selection and reordering use native buttons and the existing persisted order; successful connection focuses the result region. Model controls expose their names and values.
+
+```text
+BEFORE  Switch / combo value; unnamed provider button; save → lost focus
+AFTER   Field name + state; provider disclosure + enable; saved → Name
+```
+
+The exploration agent accepted all 22 primary settings routes, keyboard knowledge disclosures, scheduled-job creation, saved-agent feedback, memory creation/edit/details/return, plugin installation/removal, skill details, and provider connection/model configuration/persisted keyboard reordering. Settings and dialog regression suites pass (223 tests, including the updated provider-button selectors). Format, i18n, lint, typecheck, and the production Electron build pass. Follow-up A36 covers font selection state and upload-limit value semantics.

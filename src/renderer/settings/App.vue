@@ -197,6 +197,19 @@ const { t, locale } = useI18n()
 const settingsContent = ref<HTMLElement | null>(null)
 const router = useRouter()
 const route = useRoute()
+watch(
+  () => route.fullPath,
+  async () => {
+    const previous = document.activeElement
+    await nextTick()
+    if (
+      (!previous?.isConnected || previous === document.body) &&
+      document.activeElement === document.body
+    ) {
+      settingsContent.value?.focus()
+    }
+  }
+)
 const removeSettingsRouteGuard = installSettingsRouteLeaveGuard(router, settingsLeaveGuard)
 const title = useTitle()
 const pendingProviderImportPreview = computed(() => providerDeeplinkImportStore.preview)

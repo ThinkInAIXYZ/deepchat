@@ -56,7 +56,7 @@
             :disabled="!updateChannelReady || updateChannelSaving"
             @update:model-value="setUpdateChannel"
           >
-            <SelectTrigger>
+            <SelectTrigger :aria-label="t('about.updateChannel')">
               <SelectValue :placeholder="t('about.updateChannel')" />
             </SelectTrigger>
             <SelectContent>

@@ -96,6 +96,7 @@
                   }}</span>
                   <Switch
                     data-testid="remote-channel-toggle-telegram"
+                    :aria-label="channelTitle('telegram')"
                     :model-value="telegramSettings.remoteEnabled"
                     :disabled="saving.telegram"
                     @update:model-value="(value) => updateTelegramRemoteEnabled(value === true)"
@@ -164,7 +165,11 @@
                       :model-value="telegramSettings.defaultAgentId"
                       @update:model-value="(value) => updateTelegramDefaultAgentId(String(value))"
                     >
-                      <SelectTrigger data-testid="remote-default-agent-select" class="h-8!">
+                      <SelectTrigger
+                        :aria-label="t('settings.remote.remoteControl.defaultAgent')"
+                        data-testid="remote-default-agent-select"
+                        class="h-8!"
+                      >
                         <SelectValue
                           :placeholder="t('settings.remote.remoteControl.defaultAgentPlaceholder')"
                         />
@@ -309,6 +314,7 @@
                   }}</span>
                   <Switch
                     data-testid="remote-channel-toggle-feishu"
+                    :aria-label="channelTitle('feishu')"
                     :model-value="feishuSettings.remoteEnabled"
                     :disabled="saving.feishu"
                     @update:model-value="(value) => updateFeishuRemoteEnabled(value === true)"
@@ -342,7 +348,7 @@
                         }
                       "
                     >
-                      <SelectTrigger class="h-8!">
+                      <SelectTrigger :aria-label="t('settings.remote.feishu.brand')" class="h-8!">
                         <SelectValue :placeholder="t('settings.remote.feishu.brand')" />
                       </SelectTrigger>
                       <SelectContent>
@@ -606,6 +612,7 @@
                   </div>
                   <Switch
                     data-testid="feishu-streaming-cards-toggle"
+                    :aria-label="t('settings.remote.feishu.streamingCards')"
                     :model-value="feishuSettings.enableStreamingCards"
                     :disabled="saving.feishu"
                     @update:model-value="
@@ -629,7 +636,10 @@
                       :model-value="feishuSettings.defaultAgentId"
                       @update:model-value="(value) => updateFeishuDefaultAgentId(String(value))"
                     >
-                      <SelectTrigger class="h-8!">
+                      <SelectTrigger
+                        :aria-label="t('settings.remote.remoteControl.defaultAgent')"
+                        class="h-8!"
+                      >
                         <SelectValue
                           :placeholder="t('settings.remote.remoteControl.defaultAgentPlaceholder')"
                         />
@@ -760,6 +770,7 @@
                   }}</span>
                   <Switch
                     data-testid="remote-channel-toggle-qqbot"
+                    :aria-label="channelTitle('qqbot')"
                     :model-value="qqbotSettings.remoteEnabled"
                     :disabled="saving.qqbot"
                     @update:model-value="(value) => updateQQBotRemoteEnabled(value === true)"
@@ -823,7 +834,10 @@
                       :model-value="qqbotSettings.defaultAgentId"
                       @update:model-value="(value) => updateQQBotDefaultAgentId(String(value))"
                     >
-                      <SelectTrigger class="h-8!">
+                      <SelectTrigger
+                        :aria-label="t('settings.remote.remoteControl.defaultAgent')"
+                        class="h-8!"
+                      >
                         <SelectValue
                           :placeholder="t('settings.remote.remoteControl.defaultAgentPlaceholder')"
                         />
@@ -966,6 +980,7 @@
                   }}</span>
                   <Switch
                     data-testid="remote-channel-toggle-discord"
+                    :aria-label="channelTitle('discord')"
                     :model-value="discordSettings.remoteEnabled"
                     :disabled="saving.discord"
                     @update:model-value="(value) => updateDiscordRemoteEnabled(value === true)"
@@ -1038,7 +1053,10 @@
                       :model-value="discordSettings.defaultAgentId"
                       @update:model-value="(value) => updateDiscordDefaultAgentId(String(value))"
                     >
-                      <SelectTrigger class="h-8!">
+                      <SelectTrigger
+                        :aria-label="t('settings.remote.remoteControl.defaultAgent')"
+                        class="h-8!"
+                      >
                         <SelectValue
                           :placeholder="t('settings.remote.remoteControl.defaultAgentPlaceholder')"
                         />
@@ -1183,6 +1201,7 @@
                   }}</span>
                   <Switch
                     data-testid="remote-channel-toggle-weixin-ilink"
+                    :aria-label="channelTitle('weixin-ilink')"
                     :model-value="weixinIlinkSettings.remoteEnabled"
                     :disabled="saving['weixin-ilink']"
                     @update:model-value="(value) => updateWeixinIlinkRemoteEnabled(value === true)"
@@ -1285,6 +1304,7 @@
                         }}</span>
                         <Switch
                           :model-value="account.enabled"
+                          :aria-label="`${t('common.enabled')}: ${account.accountId}`"
                           :disabled="saving['weixin-ilink']"
                           @update:model-value="
                             (value) =>
@@ -1360,7 +1380,10 @@
                         (value) => updateWeixinIlinkDefaultAgentId(String(value))
                       "
                     >
-                      <SelectTrigger class="h-8!">
+                      <SelectTrigger
+                        :aria-label="t('settings.remote.remoteControl.defaultAgent')"
+                        class="h-8!"
+                      >
                         <SelectValue
                           :placeholder="t('settings.remote.remoteControl.defaultAgentPlaceholder')"
                         />

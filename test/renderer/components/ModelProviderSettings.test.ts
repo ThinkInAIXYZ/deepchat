@@ -419,7 +419,7 @@ describe('ModelProviderSettings', () => {
   it('navigates to the selected provider when a provider row is clicked', async () => {
     const { wrapper, router } = await setup()
 
-    await wrapper.get('[data-provider-id="anthropic"]').trigger('click')
+    await wrapper.get('[data-provider-id="anthropic"] button').trigger('click')
 
     expect(router.push).toHaveBeenCalledWith({
       name: 'settings-provider',
@@ -435,7 +435,7 @@ describe('ModelProviderSettings', () => {
       visibleGuideStepId: 'select-provider'
     })
 
-    await wrapper.get('[data-provider-id="anthropic"]').trigger('click')
+    await wrapper.get('[data-provider-id="anthropic"] button').trigger('click')
     await flushPromises()
 
     expect(completeStep).toHaveBeenCalledTimes(1)

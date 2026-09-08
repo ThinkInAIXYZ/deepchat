@@ -17,7 +17,11 @@
           </span>
           <div class="ml-auto w-auto">
             <Select v-model="selectedLanguage">
-              <SelectTrigger data-testid="language-select" class="h-8!">
+              <SelectTrigger
+                data-testid="language-select"
+                :aria-label="t('settings.common.language')"
+                class="h-8!"
+              >
                 <SelectValue :placeholder="t('settings.common.languageSelect')" />
               </SelectTrigger>
               <SelectContent>

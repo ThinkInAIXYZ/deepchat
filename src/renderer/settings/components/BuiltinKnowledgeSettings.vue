@@ -1,27 +1,32 @@
 <template>
   <div class="border rounded-lg overflow-hidden">
-    <div
-      class="flex items-center p-4 hover:bg-accent cursor-default"
-      @click="toggleBuiltinConfigPanel"
-    >
-      <div class="flex-1">
-        <div class="flex items-center">
+    <div class="flex items-center p-4 hover:bg-accent cursor-default">
+      <button
+        type="button"
+        class="flex-1 text-left rounded-sm focus-visible:ring-2 focus-visible:ring-ring"
+        :aria-label="t('settings.knowledgeBase.builtInKnowledgeTitle')"
+        :aria-expanded="isBuiltinConfigPanelOpen"
+        :aria-controls="knowledgePanelId"
+        @click="toggleBuiltinConfigPanel"
+      >
+        <span class="flex items-center">
           <Icon icon="lucide:book-open" class="h-5 mr-2 text-primary" />
           <span class="text-base font-medium">{{
             $t('settings.knowledgeBase.builtInKnowledgeTitle')
           }}</span>
-        </div>
-        <p class="text-sm text-muted-foreground mt-1">
+        </span>
+        <span class="block text-sm text-muted-foreground mt-1">
           {{ t('settings.knowledgeBase.builtInKnowledgeDescription') }}
-        </p>
-      </div>
+        </span>
+      </button>
       <div class="flex items-center gap-2">
         <!-- MCP开关 -->
         <TooltipProvider>
           <Tooltip :delay-duration="200">
-            <TooltipTrigger>
+            <TooltipTrigger as-child>
               <Switch
                 :model-value="isBuiltinMcpEnabled"
+                :aria-label="t('settings.knowledgeBase.builtInKnowledgeTitle')"
                 :disabled="!mcpStore.mcpEnabled || operationPending"
                 @click.stop
                 @update:model-value="toggleBuiltinMcpServer"
@@ -39,7 +44,7 @@
       </div>
     </div>
     <Collapsible v-model:open="isBuiltinConfigPanelOpen">
-      <CollapsibleContent>
+      <CollapsibleContent :id="knowledgePanelId">
         <div class="p-4 border-t space-y-4">
           <div v-if="panelError" role="alert" class="space-y-0.5 text-xs text-destructive">
             <p>{{ panelError.title }}</p>
@@ -56,6 +61,7 @@
               <div class="absolute top-2 right-2 flex gap-2">
                 <Switch
                   :model-value="config.enabled === true"
+                  :aria-label="`${t('common.enabled')}: ${config.description}`"
                   :disabled="operationPending"
                   size="sm"
                   @update:model-value="(value) => toggleConfigEnabled(index, value)"
@@ -64,6 +70,7 @@
                   type="button"
                   :disabled="operationPending"
                   class="text-muted-foreground hover:text-primary"
+                  :aria-label="`${t('settings.knowledgeBase.builtInKnowledgeTitle')}: ${config.description}`"
                   @click="handleSetting(config)"
                 >
                   <Icon icon="lucide:file-diff" class="h-4 w-4" />
@@ -72,6 +79,7 @@
                   type="button"
                   :disabled="operationPending"
                   class="text-muted-foreground hover:text-primary"
+                  :aria-label="`${t('common.edit')}: ${config.description}`"
                   @click="editBuiltinConfig(index)"
                 >
                   <Icon icon="lucide:edit" class="h-4 w-4" />
@@ -81,6 +89,7 @@
                   :disabled="operationPending"
                   class="text-muted-foreground hover:text-destructive"
                   data-testid="builtin-knowledge-remove-trigger"
+                  :aria-label="`${t('common.delete')}: ${config.description}`"
                   @click="requestRemoveBuiltinConfig(config)"
                 >
                   <Icon icon="lucide:trash-2" class="h-4 w-4" />
@@ -564,7 +573,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
+import { useId, computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
 import { DcButton } from '@dc-ui/components/button'
@@ -616,6 +625,7 @@ import { useKnowledgeConfigOperation } from '../lib/useKnowledgeConfigOperation'
 import { settingsLeaveGuard } from '../services/settingsLeaveGuard'
 // 全局对象
 const { t } = useI18n()
+const knowledgePanelId = useId()
 const mcpStore = useMcpStore()
 const modelStore = useModelStore()
 const themeStore = useThemeStore()

@@ -121,6 +121,7 @@
               {{ t('common.save') }}
             </DcSubmitButton>
           </div>
+          <span role="status" class="sr-only" aria-atomic="true">{{ saveAnnouncement }}</span>
           <DcInlineError v-if="saveError" :error="saveError" class="mt-2" />
         </div>
       </div>
@@ -128,11 +129,11 @@
       <div
         data-testid="deepchat-agent-editor-content"
         class="mx-auto flex w-full max-w-5xl flex-col gap-6 px-6 py-6"
-        :inert="saving"
+        :inert="saving ? true : undefined"
         :aria-busy="saving"
       >
         <section class="grid gap-4 rounded-2xl border border-border p-5 md:grid-cols-2">
-          <label class="space-y-2">
+          <label ref="agentNameField" class="space-y-2">
             <div class="text-sm font-medium">{{ t('settings.deepchatAgents.name') }}</div>
             <Input
               data-testid="deepchat-agent-name-input"
@@ -815,7 +816,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
 import { DcButton } from '@dc-ui/components/button'
@@ -991,6 +992,19 @@ const recentProjects = ref<Project[]>([])
 const saveError = ref<string | null>(null)
 const { status: saveStatus, run: runSave } = useDcFormSubmit()
 const saving = computed(() => saveStatus.value === 'submitting')
+const agentNameField = ref<HTMLElement | null>(null)
+const saveAnnouncement = computed(() => {
+  if (saveStatus.value === 'submitting') return t('settings.deepchatAgents.saveFeedback.saving')
+  if (saveStatus.value === 'success') return t('settings.deepchatAgents.saveFeedback.saved')
+  if (saveStatus.value === 'error') return saveError.value ?? ''
+  return ''
+})
+watch(saveStatus, async (status) => {
+  if (status !== 'success' && status !== 'error') return
+  await nextTick()
+  if (document.activeElement === document.body)
+    agentNameField.value?.querySelector('input')?.focus()
+})
 const deleting = ref(false)
 const selectedAgentId = ref<string | null>(null)
 const chatOpen = ref(false)

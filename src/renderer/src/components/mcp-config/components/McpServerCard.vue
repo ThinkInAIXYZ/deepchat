@@ -279,6 +279,7 @@ watch(watchDescription, () => {
           </DcButton>
           <Switch
             :model-value="server.enabled"
+            :aria-label="isBuiltIn ? getLocalizedServerName(server.name) : server.name"
             :disabled="disabled || isLoading"
             @update:model-value="$emit('toggle')"
           />

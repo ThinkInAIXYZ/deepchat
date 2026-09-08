@@ -132,7 +132,12 @@
       </div>
 
       <div v-else class="max-w-5xl overflow-hidden rounded-lg border bg-card/30">
-        <div v-for="(job, index) in jobs" :key="job.id" class="border-b p-4 last:border-b-0">
+        <div
+          v-for="(job, index) in jobs"
+          :key="job.id"
+          :data-job-id="job.id"
+          class="border-b p-4 last:border-b-0"
+        >
           <div class="flex flex-col gap-3 lg:flex-row lg:items-start">
             <div
               class="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-primary/10 text-xs font-semibold text-primary"
@@ -146,6 +151,7 @@
                 </Label>
                 <Input
                   :model-value="job.name"
+                  :aria-label="t('settings.cronJobs.fields.name')"
                   :disabled="jobInteractionDisabled(job.id)"
                   class="h-8!"
                   @update:model-value="(value) => updateJobField(job.id, 'name', String(value))"
@@ -161,7 +167,10 @@
                   :disabled="jobInteractionDisabled(job.id)"
                   @update:model-value="(value) => updateAgentSelection(job.id, String(value))"
                 >
-                  <SelectTrigger class="h-8! w-full min-w-0">
+                  <SelectTrigger
+                    :aria-label="t('settings.cronJobs.fields.agent')"
+                    class="h-8! w-full min-w-0"
+                  >
                     <SelectValue class="min-w-0 truncate" />
                   </SelectTrigger>
                   <SelectContent>
@@ -183,7 +192,10 @@
                   :disabled="jobInteractionDisabled(job.id)"
                   @update:model-value="(value) => updateTimezone(job.id, String(value))"
                 >
-                  <SelectTrigger class="h-8! w-full min-w-0">
+                  <SelectTrigger
+                    :aria-label="t('settings.cronJobs.fields.timezone')"
+                    class="h-8! w-full min-w-0"
+                  >
                     <SelectValue class="min-w-0 truncate" />
                   </SelectTrigger>
                   <SelectContent class="max-h-72">
@@ -202,7 +214,7 @@
               <Switch
                 :model-value="job.enabled"
                 :disabled="jobInteractionDisabled(job.id)"
-                :aria-label="job.enabled ? t('common.enabled') : t('common.disabled')"
+                :aria-label="`${t('common.enabled')}: ${job.name}`"
                 @update:model-value="(value) => toggleJob(job.id, value === true)"
               />
               <DcButton
@@ -211,6 +223,7 @@
                 class="h-8 w-8"
                 :disabled="jobInteractionDisabled(job.id)"
                 :title="t('settings.cronJobs.actions.runNow')"
+                :aria-label="`${t('settings.cronJobs.actions.runNow')}: ${job.name}`"
                 @click="runJobNow(job.id)"
               >
                 <Spinner v-if="runningId === job.id" class="size-4" />
@@ -236,6 +249,7 @@
             </Label>
             <Input
               :model-value="job.cronExpr"
+              :aria-label="t('settings.cronJobs.fields.cronExpr')"
               :disabled="jobInteractionDisabled(job.id)"
               class="h-8! max-w-xl font-mono text-xs"
               @update:model-value="(value) => updateJobField(job.id, 'cronExpr', String(value))"
@@ -263,6 +277,7 @@
               </Label>
               <Textarea
                 :model-value="job.taskPrompt"
+                :aria-label="t('settings.cronJobs.fields.taskPrompt')"
                 :disabled="jobInteractionDisabled(job.id)"
                 class="max-h-[13.5rem] min-h-[72px] resize-none overflow-y-auto text-sm"
                 @update:model-value="(value) => updateJobField(job.id, 'taskPrompt', String(value))"
@@ -278,7 +293,10 @@
                 :disabled="pageOperationPending"
                 @update:model-value="(value) => updateRuntimePolicy(job.id, String(value))"
               >
-                <SelectTrigger class="h-8! w-full min-w-0">
+                <SelectTrigger
+                  :aria-label="t('settings.cronJobs.fields.runtimePolicy')"
+                  class="h-8! w-full min-w-0"
+                >
                   <SelectValue class="min-w-0 truncate" />
                 </SelectTrigger>
                 <SelectContent>
@@ -321,7 +339,10 @@
               "
               @update:model-value="(value) => updateRemoteDeliveryTarget(job.id, String(value))"
             >
-              <SelectTrigger class="h-8! w-72 max-w-full min-w-0">
+              <SelectTrigger
+                :aria-label="t('settings.cronJobs.fields.remoteChannel')"
+                class="h-8! w-72 max-w-full min-w-0"
+              >
                 <SelectValue
                   class="min-w-0 truncate"
                   :placeholder="t('settings.cronJobs.fields.remoteChannel')"
@@ -449,7 +470,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, toRaw, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, toRaw, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
 import { DcBadge } from '@dc-ui/components/badge'
@@ -1233,6 +1254,7 @@ const addJob = async () => {
   if (!beginPageOperation(operationIds.add)) {
     return
   }
+  let createdJobId: string | null = null
   try {
     const response = await client.upsert({
       name: t('settings.cronJobs.defaults.name'),
@@ -1250,12 +1272,20 @@ const addJob = async () => {
       permissionPolicy: 'follow_agent',
       delivery: createDefaultDelivery()
     })
+    createdJobId = response.job.id
     applyPersistedJob(response.job)
     setSchedulerStatus(response.schedulerStatus)
   } catch (error) {
     failPageOperation('Failed to add job', 'settings.cronJobs.addFailed', error)
   } finally {
     pendingPageOperationId.value = null
+    await nextTick()
+    if (createdJobId) {
+      const row = Array.from(document.querySelectorAll<HTMLElement>('[data-job-id]')).find(
+        (element) => element.dataset.jobId === createdJobId
+      )
+      row?.querySelector<HTMLInputElement>('input')?.focus()
+    }
   }
 }
 
