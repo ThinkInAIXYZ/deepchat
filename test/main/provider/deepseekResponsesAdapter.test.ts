@@ -650,6 +650,39 @@ describe('DeepSeek Responses replay', () => {
     })
   })
 
+  it('treats empty reasoningContent arrays as un-replayable instead of content: []', () => {
+    const emptyArray: ChatMessage = {
+      role: 'assistant',
+      content: 'answer',
+      reasoning_content: 'concise summary',
+      reasoning_provider_options: {
+        'open-responses': {
+          itemId: 'rsn_empty_array',
+          reasoningSummary: [{ type: 'summary_text', text: 'concise summary' }],
+          reasoningContent: []
+        }
+      }
+    }
+
+    const prepared = createAdapter().prepareMessages([emptyArray])
+
+    expect(prepared[0]).not.toBe(emptyArray)
+    expect(prepared[0]?.reasoning_content).toBe('concise summary')
+    expect(prepared[0]?.reasoning_provider_options).toEqual({
+      'open-responses': {
+        itemId: 'rsn_empty_array',
+        reasoningSummary: [{ type: 'summary_text', text: 'concise summary' }]
+      }
+    })
+    expect(emptyArray.reasoning_provider_options).toEqual({
+      'open-responses': {
+        itemId: 'rsn_empty_array',
+        reasoningSummary: [{ type: 'summary_text', text: 'concise summary' }],
+        reasoningContent: []
+      }
+    })
+  })
+
   it('fails unmatched markers before network I/O', async () => {
     const baseFetch = vi.fn(async () => new Response(null, { status: 204 }))
     const wrappedFetch = createAdapter().wrapFetch(baseFetch)

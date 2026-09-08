@@ -210,6 +210,7 @@ const OPEN_RESPONSES_PROVIDER_OPTIONS_KEY = 'open-responses'
 function isReplayableReasoningContent(value: unknown): boolean {
   return (
     Array.isArray(value) &&
+    value.length > 0 &&
     value.every(
       (part) => isRecord(part) && part.type === 'reasoning_text' && typeof part.text === 'string'
     )
