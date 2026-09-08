@@ -76,15 +76,10 @@ jobs:
     with:
       source-sha: ${{ github.sha }}
       arch: ${{ matrix.arch }}
-      artifact-purpose: distribution
+      artifact-purpose: verification
       enforce-installer-size: false
     secrets:
       RTK_GITHUB_TOKEN: ${{ secrets.RTK_GITHUB_TOKEN }}
       DC_GITHUB_CLIENT_ID: ${{ secrets.DC_GITHUB_CLIENT_ID }}
       DC_GITHUB_CLIENT_SECRET: ${{ secrets.DC_GITHUB_CLIENT_SECRET }}
       DC_GITHUB_REDIRECT_URI: ${{ secrets.DC_GITHUB_REDIRECT_URI }}
-      DEEPCHAT_CSC_LINK: ${{ secrets.DEEPCHAT_CSC_LINK }}
-      DEEPCHAT_CSC_KEY_PASS: ${{ secrets.DEEPCHAT_CSC_KEY_PASS }}
-      DEEPCHAT_APPLE_NOTARY_USERNAME: ${{ secrets.DEEPCHAT_APPLE_NOTARY_USERNAME }}
-      DEEPCHAT_APPLE_NOTARY_TEAM_ID: ${{ secrets.DEEPCHAT_APPLE_NOTARY_TEAM_ID }}
-      DEEPCHAT_APPLE_NOTARY_PASSWORD: ${{ secrets.DEEPCHAT_APPLE_NOTARY_PASSWORD }}
