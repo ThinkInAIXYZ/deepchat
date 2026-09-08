@@ -35,6 +35,14 @@ export function cloneBlocksForRenderer(
   blocks: AssistantMessageBlock[]
 ): DeepchatEventPayload<'chat.stream.updated'>['blocks'] {
   const rendererBlocks = projectBlocksForClient(blocks)
+  // Hot path (streaming flush every ~120ms): Zod's parse already builds a fresh
+  // object tree, so the JSON round-trip is redundant for well-formed blocks.
+  const direct = RenderedAssistantBlocksSchema.safeParse(rendererBlocks)
+  if (direct.success) {
+    return direct.data
+  }
+  // Blocks can carry undefined-valued keys (e.g. inside `extra`) that JSON encoding
+  // normalizes away; only pay the round-trip in that rare case.
   return RenderedAssistantBlocksSchema.parse(JSON.parse(JSON.stringify(rendererBlocks)))
 }
 

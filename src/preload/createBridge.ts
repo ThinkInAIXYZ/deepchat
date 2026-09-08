@@ -35,6 +35,24 @@ function isDeepchatEventEnvelope(value: unknown): value is DeepchatEventEnvelope
 
 type SharedEventListener = (payload: unknown) => void
 
+// The main process already validates `chat.stream.updated` blocks before publishing
+// (cloneBlocksForRenderer), and this is a trusted same-app channel. The payload is the
+// full block snapshot resent every ~120ms during streaming, so the per-listener Zod
+// deep-parse here is a measurable hot-path cost. Only a structural shape check runs.
+const STREAM_VALIDATION_BYPASS_EVENTS: ReadonlySet<string> = new Set(['chat.stream.updated'])
+
+function isPlausibleStreamSnapshot(payload: unknown): boolean {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+    return false
+  }
+  const snapshot = payload as { sessionId?: unknown; requestId?: unknown; blocks?: unknown }
+  return (
+    typeof snapshot.sessionId === 'string' &&
+    typeof snapshot.requestId === 'string' &&
+    Array.isArray(snapshot.blocks)
+  )
+}
+
 type BridgeEventRuntime = {
   attached: boolean
   dispatch: (event: IpcRendererEvent, envelope: unknown) => void
@@ -65,7 +83,15 @@ function getBridgeEventRuntime(ipcRenderer: IpcRendererLike): BridgeEventRuntime
       const contract = getDeepchatEventContract(envelope.name)
       let payload: unknown
       try {
-        payload = contract.payload.parse(envelope.payload)
+        if (STREAM_VALIDATION_BYPASS_EVENTS.has(envelope.name)) {
+          if (!isPlausibleStreamSnapshot(envelope.payload)) {
+            console.error(`[DeepchatBridge] Malformed ${envelope.name} payload: shape check failed`)
+            return
+          }
+          payload = envelope.payload
+        } else {
+          payload = contract.payload.parse(envelope.payload)
+        }
       } catch (error) {
         console.error(`[DeepchatBridge] Invalid event payload for ${envelope.name}:`, error)
         return

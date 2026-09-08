@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onMounted, ref, watch, onBeforeUnmount, computed, provide } from 'vue'
-import { useEventListener } from '@vueuse/core'
+import { useEventListener, useMediaQuery } from '@vueuse/core'
 import { RouterView, useRoute, useRouter } from 'vue-router'
 import { createConfigClient } from '@api/ConfigClient'
 import { createNotificationClient } from '@api/NotificationClient'
@@ -442,6 +442,20 @@ useEventListener(
   window,
   GUIDED_ONBOARDING_RESUME_REQUESTED_EVENT,
   handleGuidedOnboardingResumeRequested as EventListener
+)
+
+// 窄窗口（≤1024px）下自动折叠左侧会话栏，避免内容区被过度压缩。
+// 仅在进入窄屏时折叠，恢复宽屏时保持用户手动选择的状态，不做反向自动展开。
+// immediate 覆盖"窄窗口下启动"的初始折叠，无需额外的 onMounted 检查。
+const isNarrowWindow = useMediaQuery('(max-width: 1024px)')
+watch(
+  isNarrowWindow,
+  (narrow) => {
+    if (narrow) {
+      sidebarStore.setCollapsed(true)
+    }
+  },
+  { immediate: true }
 )
 
 void ensureStartupWelcomeState()
