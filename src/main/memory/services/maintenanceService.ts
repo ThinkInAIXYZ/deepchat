@@ -126,7 +126,7 @@ export class MaintenanceService {
       run: async ({ agentId, model, budget }) => {
         const pass = await this.ports.maybeReflect(agentId, model, budget)
         if (pass.result) {
-          this.writePassAudit(agentId, 'reflection', {
+          this.writePassAudit(agentId, {
             eventType: 'memory/reflect',
             actorType: 'scheduler',
             status: 'completed',
@@ -143,7 +143,7 @@ export class MaintenanceService {
       run: async ({ agentId, model, budget }) => {
         const pass = await this.ports.maybeEvolvePersona(agentId, model, budget)
         if (pass.result) {
-          this.writePassAudit(agentId, 'persona', {
+          this.writePassAudit(agentId, {
             eventType: 'persona/evolve',
             actorType: 'scheduler',
             status: 'completed',
@@ -165,13 +165,12 @@ export class MaintenanceService {
   // otherwise a successful reflection could be counted as an all-steps-failed pass.
   private writePassAudit(
     agentId: string,
-    step: MaintenanceBudgetStep,
     input: Parameters<MemoryRuntimeContext['writeAudit']>[1]
   ): void {
     try {
       this.ctx.writeAudit(agentId, input)
     } catch (error) {
-      logger.warn(`[Memory] ${step} audit write failed for ${agentId}: ${String(error)}`)
+      logger.warn(`[Memory] ${input.eventType} audit failed for ${agentId}: ${String(error)}`)
     }
   }
 
