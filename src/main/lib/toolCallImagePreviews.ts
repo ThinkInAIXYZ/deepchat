@@ -350,3 +350,37 @@ export async function extractToolCallImagePreviews(
 ): Promise<ToolCallImagePreview[]> {
   return (await prepareToolCallImageContent(params)).imagePreviews
 }
+
+/**
+ * Backstop for tools that return `imagePreviews` directly (bypassing extraction): rewrites any
+ * inline base64 data URL to an on-disk `imgcache://` reference so multi-MB payloads never reach
+ * message persistence, IPC, or the renderer. Previews that cannot be cached are left unchanged.
+ */
+export async function cacheToolCallImagePreviews(params: {
+  imagePreviews: ToolCallImagePreview[]
+  cacheImage?: (data: string) => Promise<string>
+  signal?: AbortSignal
+}): Promise<ToolCallImagePreview[]> {
+  const { imagePreviews, cacheImage, signal } = params
+  if (!cacheImage || imagePreviews.length === 0) {
+    return imagePreviews
+  }
+
+  let changed = false
+  const resolved: ToolCallImagePreview[] = []
+  for (const preview of imagePreviews) {
+    const data = preview.data?.trim()
+    if (!data || !data.toLowerCase().startsWith('data:image/')) {
+      resolved.push(preview)
+      continue
+    }
+    const cached = await cachePreviewData(data, cacheImage, signal)
+    if (!cached) {
+      resolved.push(preview)
+      continue
+    }
+    changed = true
+    resolved.push({ ...preview, data: cached, mimeType: inferMimeType(cached, preview.mimeType) })
+  }
+  return changed ? resolved : imagePreviews
+}

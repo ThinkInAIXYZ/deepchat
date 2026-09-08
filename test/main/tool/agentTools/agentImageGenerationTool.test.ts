@@ -23,28 +23,8 @@ describe('Agent image generation tool', () => {
   let resolveConversationSessionInfo: ReturnType<typeof vi.fn>
   let manager: AgentToolManager
 
-  beforeEach(() => {
-    vi.clearAllMocks()
-    generateImageStandalone = vi.fn()
-    resolveConversationSessionInfo = vi.fn().mockResolvedValue({
-      agentId: 'deepchat',
-      agentType: 'deepchat'
-    })
-    providerSettings = {
-      resolveDeepChatAgentConfig: vi.fn().mockResolvedValue({
-        imageGenerationModel: { providerId: 'openai', modelId: 'gpt-image-1' }
-      }),
-      getModelConfig: vi.fn().mockReturnValue({
-        type: ModelType.ImageGeneration,
-        apiEndpoint: ApiEndpointType.Image,
-        vision: false,
-        functionCall: false,
-        reasoning: false,
-        maxTokens: 1024,
-        contextLength: 4096
-      })
-    }
-    manager = new AgentToolManager({
+  const buildManager = (cacheImage?: (data: string) => Promise<string>) =>
+    new AgentToolManager({
       skillSettings: { isEnabled: () => false } as any,
       settings: { get: vi.fn() },
       commandPermissionHandler: new CommandPermissionService(),
@@ -76,9 +56,33 @@ describe('Agent image generation tool', () => {
         createSettingsWindow: vi.fn(),
         sendToWindow: vi.fn().mockReturnValue(true),
         getApprovedFilePaths: vi.fn().mockReturnValue([]),
-        consumeSettingsApproval: vi.fn().mockReturnValue(false)
+        consumeSettingsApproval: vi.fn().mockReturnValue(false),
+        ...(cacheImage ? { cacheImage } : {})
       })
     })
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    generateImageStandalone = vi.fn()
+    resolveConversationSessionInfo = vi.fn().mockResolvedValue({
+      agentId: 'deepchat',
+      agentType: 'deepchat'
+    })
+    providerSettings = {
+      resolveDeepChatAgentConfig: vi.fn().mockResolvedValue({
+        imageGenerationModel: { providerId: 'openai', modelId: 'gpt-image-1' }
+      }),
+      getModelConfig: vi.fn().mockReturnValue({
+        type: ModelType.ImageGeneration,
+        apiEndpoint: ApiEndpointType.Image,
+        vision: false,
+        functionCall: false,
+        reasoning: false,
+        maxTokens: 1024,
+        contextLength: 4096
+      })
+    }
+    manager = buildManager()
   })
 
   it('shows image_generate in settings context without a conversation', async () => {
@@ -144,6 +148,58 @@ describe('Agent image generation tool', () => {
     ])
     expect(result.content).not.toContain('imgcache://generated.png')
     expect(result.rawData.toolResult.ok).toBe(true)
+  })
+
+  it('caches raw base64 image data to an imgcache reference', async () => {
+    const cacheImage = vi.fn().mockResolvedValue('imgcache://cached.png')
+    manager = buildManager(cacheImage)
+    generateImageStandalone.mockResolvedValue({
+      providerId: 'openai',
+      modelId: 'gpt-image-1',
+      images: [{ data: 'aGVsbG8=', mimeType: 'image/png' }]
+    })
+
+    const result = (await manager.callTool(
+      IMAGE_GENERATE_TOOL_NAME,
+      { prompt: 'A warm sunset over the ocean' },
+      'conv-1'
+    )) as any
+
+    expect(cacheImage).toHaveBeenCalledWith('data:image/png;base64,aGVsbG8=')
+    expect(result.rawData.imagePreviews).toEqual([
+      {
+        id: 'generated-image-1',
+        data: 'imgcache://cached.png',
+        mimeType: 'image/png',
+        title: 'Generated image 1',
+        source: 'tool_output'
+      }
+    ])
+    expect(result.rawData.toolResult.ok).toBe(true)
+  })
+
+  it('fails the tool call when a large image cannot be cached', async () => {
+    manager = buildManager(vi.fn(async (data: string) => data))
+    generateImageStandalone.mockResolvedValue({
+      providerId: 'openai',
+      modelId: 'gpt-image-1',
+      images: [
+        { data: `data:image/png;base64,${'A'.repeat(3 * 1024 * 1024)}`, mimeType: 'image/png' }
+      ]
+    })
+
+    const result = (await manager.callTool(
+      IMAGE_GENERATE_TOOL_NAME,
+      { prompt: 'A warm sunset over the ocean' },
+      'conv-1'
+    )) as any
+
+    expect(result.rawData.isError).toBe(true)
+    expect(result.rawData.toolResult.error).toMatchObject({
+      code: 'IMAGE_GENERATION_FAILED',
+      recoverable: true
+    })
+    expect(result.rawData.imagePreviews).toBeUndefined()
   })
 
   it('returns a recoverable tool error when no image model is configured', async () => {

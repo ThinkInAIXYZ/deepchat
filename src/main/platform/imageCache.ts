@@ -7,7 +7,13 @@ import { nanoid } from 'nanoid'
 import axios, { type AxiosRequestConfig } from 'axios'
 
 const IMGCACHE_URL_PREFIX = 'imgcache://'
-const MAX_CACHED_IMAGE_BYTES = 8 * 1024 * 1024
+// Write side: how large a generated/downloaded image may be and still land on disk. Anything
+// larger stays an inline base64 payload, which then flows through the main process and renderer.
+const MAX_CACHED_IMAGE_BYTES = 32 * 1024 * 1024
+// Read side: how large a cached image may be when expanded back into a base64 data URL as model
+// or MCP tool input. Providers reject much smaller payloads; keep this tight independently of
+// the on-disk cache budget.
+const MAX_CACHED_IMAGE_INPUT_BYTES = 8 * 1024 * 1024
 const IMAGE_CACHE_TIMEOUT_MS = 10_000
 const MAX_IMAGE_REDIRECTS = 5
 const REDIRECT_STATUS_CODES = new Set([301, 302, 303, 307, 308])
@@ -332,7 +338,7 @@ export async function resolveCachedImageDataUrl(
   if (!fileStat.isFile() || fileStat.isSymbolicLink()) {
     throw new Error('Cached image reference is not a regular file')
   }
-  if (fileStat.size > MAX_CACHED_IMAGE_BYTES) {
+  if (fileStat.size > MAX_CACHED_IMAGE_INPUT_BYTES) {
     throw new Error('Cached image exceeds the MCP image input limit')
   }
 

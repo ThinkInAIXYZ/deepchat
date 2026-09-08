@@ -66,6 +66,17 @@ type ImageGenerationModelSelection = {
   modelId: string
 }
 
+// Inline base64 payloads below this size are allowed to pass through uncached; anything larger
+// that could not be written to the image cache fails the tool call instead of flowing multi-MB
+// strings through message persistence, IPC and the renderer.
+const MAX_INLINE_IMAGE_BASE64_CHARS = 2 * 1024 * 1024
+
+const estimateDataUrlBytes = (dataUrl: string): number => {
+  const commaIndex = dataUrl.indexOf(',')
+  const base64Length = commaIndex === -1 ? dataUrl.length : dataUrl.length - commaIndex - 1
+  return Math.floor((base64Length * 3) / 4)
+}
+
 type AgentImageGenerationToolCallResult = {
   content: string
   rawData: {
@@ -83,6 +94,7 @@ export class AgentImageGenerationTool {
       agentSettings: Pick<AgentSettingsPort, 'resolveDeepChatAgentConfig'>
       sessions: AgentToolSessionPort
       provider: AgentProviderToolPort
+      cacheImage?: (data: string) => Promise<string>
     }
   ) {}
 
@@ -157,7 +169,13 @@ export class AgentImageGenerationTool {
         imageOptions,
         { signal: options?.signal }
       )
-      const imagePreviews = result.images.map<ToolCallImagePreview>((image, index) => ({
+      const images = await Promise.all(
+        result.images.map(async (image) => ({
+          mimeType: image.mimeType,
+          data: await this.cacheGeneratedImageData(image.data, image.mimeType)
+        }))
+      )
+      const imagePreviews = images.map<ToolCallImagePreview>((image, index) => ({
         id: `generated-image-${index + 1}`,
         data: image.data,
         mimeType: image.mimeType,
@@ -196,6 +214,37 @@ export class AgentImageGenerationTool {
       const message = error instanceof Error ? error.message : String(error)
       return this.buildErrorResult('IMAGE_GENERATION_FAILED', message, parsed.data, model)
     }
+  }
+
+  private async cacheGeneratedImageData(data: string, mimeType: string): Promise<string> {
+    const trimmed = data.trim()
+    if (trimmed.toLowerCase().startsWith('imgcache://')) {
+      return trimmed
+    }
+
+    const source =
+      trimmed.startsWith('data:') || /^https?:\/\//i.test(trimmed)
+        ? trimmed
+        : `data:${mimeType || 'image/png'};base64,${trimmed}`
+
+    let resolved = source
+    if (this.options.cacheImage) {
+      try {
+        resolved = await this.options.cacheImage(source)
+      } catch (error) {
+        logger.warn('[AgentImageGenerationTool] Failed to cache generated image', { error })
+      }
+    }
+
+    if (
+      resolved.startsWith('data:') &&
+      estimateDataUrlBytes(resolved) > MAX_INLINE_IMAGE_BASE64_CHARS
+    ) {
+      throw new Error(
+        'Generated image could not be written to the image cache and is too large to return inline.'
+      )
+    }
+    return resolved
   }
 
   private async resolveImageGenerationModel(

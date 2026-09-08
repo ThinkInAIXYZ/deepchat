@@ -9,7 +9,10 @@ import type {
 } from '@shared/types/core/mcp'
 import type { ToolExecutionPort, ToolResultPort } from '@/agent/deepchat/loop/ports'
 import { awaitWithAbort } from '@/lib/awaitWithAbort'
-import { extractToolCallImagePreviews } from '@/lib/toolCallImagePreviews'
+import {
+  cacheToolCallImagePreviews,
+  extractToolCallImagePreviews
+} from '@/lib/toolCallImagePreviews'
 import {
   CommittedToolOutcomeProjectionError,
   ExecutionJournalCorruptionError,
@@ -657,15 +660,19 @@ export class DeferredToolExecutor {
           )
         )
       }
-      const imagePreviews =
-        rawData.imagePreviews ??
-        (await extractToolCallImagePreviews({
-          toolName,
-          toolArgs: toolCall.params || '{}',
-          content: rawData.content,
-          cacheImage: this.dependencies.cacheImage,
-          signal: deferredAbortSignal
-        }))
+      const imagePreviews = await cacheToolCallImagePreviews({
+        imagePreviews:
+          rawData.imagePreviews ??
+          (await extractToolCallImagePreviews({
+            toolName,
+            toolArgs: toolCall.params || '{}',
+            content: rawData.content,
+            cacheImage: this.dependencies.cacheImage,
+            signal: deferredAbortSignal
+          })),
+        cacheImage: this.dependencies.cacheImage,
+        signal: deferredAbortSignal
+      })
       throwIfAbortRequested(deferredAbortSignal)
       const normalizedContent = await this.dependencies.toolResultPort.normalize({
         sessionId,

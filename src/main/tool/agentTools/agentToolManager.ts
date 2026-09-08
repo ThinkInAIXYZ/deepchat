@@ -541,7 +541,8 @@ export class AgentToolManager {
       providerSettings: this.providerSettings,
       agentSettings: this.agentSettings,
       sessions: this.dependencies.sessions,
-      provider: this.dependencies.provider
+      provider: this.dependencies.provider,
+      cacheImage: this.dependencies.cacheImage
     })
     this.planTool = new AgentPlanTool()
     this.tapeToolHandler = new AgentTapeToolHandler(

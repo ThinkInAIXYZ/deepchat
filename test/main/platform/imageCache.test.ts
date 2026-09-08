@@ -95,8 +95,8 @@ describe('imageCache', () => {
     expect(axiosMock).toHaveBeenCalledWith(
       expect.objectContaining({
         maxRedirects: 0,
-        maxContentLength: 8 * 1024 * 1024,
-        maxBodyLength: 8 * 1024 * 1024,
+        maxContentLength: 32 * 1024 * 1024,
+        maxBodyLength: 32 * 1024 * 1024,
         signal: expect.any(AbortSignal)
       })
     )
@@ -124,7 +124,7 @@ describe('imageCache', () => {
     axiosMock.mockResolvedValueOnce({
       status: 200,
       headers: { 'content-type': 'image/png' },
-      data: Buffer.alloc(8 * 1024 * 1024 + 1)
+      data: Buffer.alloc(32 * 1024 * 1024 + 1)
     })
 
     await expect(cacheImage(sourceUrl, { allowPrivateNetwork: true })).resolves.toBe(sourceUrl)

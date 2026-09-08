@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import {
+  cacheToolCallImagePreviews,
   extractToolCallImagePreviews,
   prepareToolCallImageContent
 } from '@/lib/toolCallImagePreviews'
@@ -286,5 +287,69 @@ describe('extractToolCallImagePreviews', () => {
     } finally {
       process.off('unhandledRejection', unhandled)
     }
+  })
+})
+
+describe('cacheToolCallImagePreviews', () => {
+  it('rewrites inline base64 previews to imgcache references', async () => {
+    const cacheImage = vi.fn(async () => 'imgcache://cached.png')
+
+    const previews = await cacheToolCallImagePreviews({
+      imagePreviews: [
+        {
+          id: 'tool_output-1',
+          data: 'data:image/png;base64,AAAA',
+          mimeType: 'image/png',
+          source: 'tool_output'
+        }
+      ],
+      cacheImage
+    })
+
+    expect(cacheImage).toHaveBeenCalledWith('data:image/png;base64,AAAA')
+    expect(previews).toEqual([
+      {
+        id: 'tool_output-1',
+        data: 'imgcache://cached.png',
+        mimeType: 'image/png',
+        source: 'tool_output'
+      }
+    ])
+  })
+
+  it('leaves references and uncacheable previews unchanged', async () => {
+    const cacheImage = vi.fn(async (data: string) => data)
+    const input = [
+      {
+        id: 'tool_output-1',
+        data: 'imgcache://already-cached.png',
+        mimeType: 'image/png',
+        source: 'tool_output' as const
+      },
+      {
+        id: 'tool_output-2',
+        data: 'data:image/png;base64,AAAA',
+        mimeType: 'image/png',
+        source: 'tool_output' as const
+      }
+    ]
+
+    const previews = await cacheToolCallImagePreviews({ imagePreviews: input, cacheImage })
+
+    expect(cacheImage).toHaveBeenCalledOnce()
+    expect(previews).toBe(input)
+  })
+
+  it('returns the input unchanged without a cacheImage function', async () => {
+    const input = [
+      {
+        id: 'tool_output-1',
+        data: 'data:image/png;base64,AAAA',
+        mimeType: 'image/png',
+        source: 'tool_output' as const
+      }
+    ]
+
+    await expect(cacheToolCallImagePreviews({ imagePreviews: input })).resolves.toBe(input)
   })
 })
