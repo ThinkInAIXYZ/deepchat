@@ -159,6 +159,25 @@ describe('basic API-key provider registrations', () => {
     })
   })
 
+  it('resolves API Route through authenticated OpenAI-compatible model discovery', () => {
+    expect(
+      resolveAiSdkProviderDefinition(
+        createProvider({
+          id: 'api-route',
+          name: 'API Route',
+          baseUrl: 'https://global.api-route.com/v1'
+        })
+      )
+    ).toMatchObject({
+      runtimeKind: 'openai-compatible',
+      modelSource: 'openai',
+      checkStrategy: 'fetch-models',
+      credentialStrategy: 'api-key',
+      routeStrategy: 'none',
+      embeddingStrategy: 'none'
+    })
+  })
+
   it('discovers RunInfra models and checks credentials without generating text', async () => {
     const defaults = DEFAULT_PROVIDERS.find((provider) => provider.id === 'runinfra')!
     expect(defaults).toBeDefined()
