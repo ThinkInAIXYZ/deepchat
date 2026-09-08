@@ -55,3 +55,14 @@ export const chatPlanUpdatedEvent = defineEventContract({
     terminalReason: agentPlanTerminalReasonSchema.optional()
   })
 })
+
+// Lightweight per-session stream activity signal. When a stream event is routed
+// only to renderers bound to the session, other windows still need to refresh
+// their recent-session views (sidebar status badges); this event carries just
+// the sessionId so the full block snapshot is not resent to them.
+export const chatStreamActivityEvent = defineEventContract({
+  name: 'chat.stream.activity',
+  payload: z.object({
+    sessionId: EntityIdSchema
+  })
+})

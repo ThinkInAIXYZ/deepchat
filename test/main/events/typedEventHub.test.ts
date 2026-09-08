@@ -291,7 +291,7 @@ describe('SessionEventRouter', () => {
     })
   })
 
-  it('delivers local session stream events to bound renderers without broadcasting', () => {
+  it('delivers local session stream events to bound renderers, broadcasting only stream activity', () => {
     const { hub, broadcast, send } = createHub()
     const router = new SessionEventRouter({
       hub,
@@ -309,7 +309,13 @@ describe('SessionEventRouter', () => {
     }
     router.publish('chat.stream.updated', payload)
 
-    expect(broadcast).not.toHaveBeenCalled()
+    // The full snapshot is scoped to the bound renderer; only the lightweight
+    // activity signal reaches the other windows via broadcast.
+    expect(broadcast).toHaveBeenCalledTimes(1)
+    expect(broadcast).toHaveBeenCalledWith({
+      name: 'chat.stream.activity',
+      payload: { sessionId: 'session-1' }
+    })
     expect(send).toHaveBeenCalledWith(7, {
       name: 'chat.stream.updated',
       payload

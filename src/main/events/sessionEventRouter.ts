@@ -1,5 +1,6 @@
 import {
   SESSION_RUN_STREAM_EVENT_NAMES,
+  chatStreamActivityEvent,
   sessionsUpdatedEvent,
   type DeepchatEventName
 } from '@shared/contracts/events'
@@ -69,6 +70,10 @@ export class SessionEventRouter {
           for (const webContentsId of rendererIds) {
             this.options.hub.publish(name, payload, { kind: 'renderer', webContentsId })
           }
+          // Other windows no longer receive the full event; keep their
+          // recent-session views (sidebar status) fresh with the lightweight
+          // activity signal instead.
+          this.publishStreamActivity(sessionIds)
           return
         }
         // No renderer is bound yet: keep the broadcast fallback so early stream
@@ -139,6 +144,16 @@ export class SessionEventRouter {
     return new Set(
       sessionIds.flatMap((sessionId) => [...this.options.getBoundRendererIds(sessionId)])
     )
+  }
+
+  private publishStreamActivity(sessionIds: readonly string[]): void {
+    for (const sessionId of new Set(sessionIds)) {
+      this.options.hub.publish(
+        chatStreamActivityEvent.name,
+        { sessionId },
+        { kind: 'renderer-all' }
+      )
+    }
   }
 
   private publishToBoundRenderers(

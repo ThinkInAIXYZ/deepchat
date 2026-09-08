@@ -60,6 +60,9 @@ export class WindowPresenter implements IWindowPresenter {
   private readonly startupWorkloadCoordinator?: StartupWorkloadCoordinator
   private readonly restartApp: () => void
   private tabPresenter!: TabPresenter
+  // Serializes async tab lookups/deliveries per window so consecutive broadcasts
+  // cannot reorder against each other when a delayed `getTab` resolves out of turn.
+  private readonly windowTabDeliveryQueues = new Map<number, Promise<void>>()
 
   private publishWindowStateChanged(windowId: number, existsOverride?: boolean): void {
     const window = BrowserWindow.fromId(windowId)
@@ -343,6 +346,44 @@ export class WindowPresenter implements IWindowPresenter {
   }
 
   /**
+   * 向窗口内所有标签页的 WebContents 投递消息。按窗口串行排队：一次投递完成后才
+   * 开始下一次，保证连续多次 broadcast 对同一 tab 的到达顺序与调用顺序一致；
+   * 不同窗口之间仍然并行投递。
+   */
+  private queueWindowTabDelivery(
+    windowId: number,
+    channel: string,
+    args: unknown[]
+  ): Promise<void> {
+    const previous = this.windowTabDeliveryQueues.get(windowId) ?? Promise.resolve()
+    const delivery = previous
+      .then(async () => {
+        const tabPresenterInstance = this.tabPresenter
+        const tabsData = await tabPresenterInstance.getWindowTabsData(windowId)
+        if (tabsData && tabsData.length > 0) {
+          await Promise.all(
+            tabsData.map(async (tabData) => {
+              const tab = await tabPresenterInstance.getTab(tabData.id)
+              if (tab && !tab.webContents.isDestroyed()) {
+                this.sendToWebContentsTarget(tab.webContents, channel, args)
+              }
+            })
+          )
+        }
+      })
+      .catch((error) => {
+        console.error(`Error sending message "${channel}" to tabs of window ${windowId}:`, error)
+      })
+    this.windowTabDeliveryQueues.set(windowId, delivery)
+    void delivery.then(() => {
+      if (this.windowTabDeliveryQueues.get(windowId) === delivery) {
+        this.windowTabDeliveryQueues.delete(windowId)
+      }
+    })
+    return delivery
+  }
+
+  /**
    * 向所有有效窗口的主 WebContents 和所有标签页的 WebContents 发送消息。
    * @param channel IPC 通道名。
    * @param args 消息参数。
@@ -355,28 +396,8 @@ export class WindowPresenter implements IWindowPresenter {
         // 向窗口主 WebContents 发送
         this.sendToWebContentsTarget(window.webContents, channel, args)
 
-        // 向窗口内所有标签页的 WebContents 发送 (异步执行)
-        tabDeliveries.push(
-          (async () => {
-            const tabPresenterInstance = this.tabPresenter
-            const tabsData = await tabPresenterInstance.getWindowTabsData(window.id)
-            if (tabsData && tabsData.length > 0) {
-              await Promise.all(
-                tabsData.map(async (tabData) => {
-                  const tab = await tabPresenterInstance.getTab(tabData.id)
-                  if (tab && !tab.webContents.isDestroyed()) {
-                    this.sendToWebContentsTarget(tab.webContents, channel, args)
-                  }
-                })
-              )
-            }
-          })().catch((error) => {
-            console.error(
-              `Error sending message "${channel}" to tabs of window ${window.id}:`,
-              error
-            )
-          })
-        )
+        // 向窗口内所有标签页的 WebContents 发送 (按窗口排队，异步执行)
+        tabDeliveries.push(this.queueWindowTabDelivery(window.id, channel, args))
       } else {
         console.warn(`Skipping sending message "${channel}" to destroyed window ${window.id}.`)
       }
@@ -457,23 +478,8 @@ export class WindowPresenter implements IWindowPresenter {
       // 向窗口主 WebContents 发送
       this.sendToWebContentsTarget(window.webContents, channel, args)
 
-      // 向窗口内所有标签页的 WebContents 发送 (异步执行)
-      const tabPresenterInstance = this.tabPresenter
-      tabPresenterInstance
-        .getWindowTabsData(windowId)
-        .then((tabsData) => {
-          if (tabsData && tabsData.length > 0) {
-            tabsData.forEach(async (tabData) => {
-              const tab = await tabPresenterInstance.getTab(tabData.id)
-              if (tab && !tab.webContents.isDestroyed()) {
-                this.sendToWebContentsTarget(tab.webContents, channel, args)
-              }
-            })
-          }
-        })
-        .catch((error) => {
-          console.error(`Error sending message "${channel}" to tabs of window ${windowId}:`, error)
-        })
+      // 向窗口内所有标签页的 WebContents 发送 (按窗口排队，异步执行)
+      void this.queueWindowTabDelivery(windowId, channel, args)
       return true
     } else {
       console.warn(

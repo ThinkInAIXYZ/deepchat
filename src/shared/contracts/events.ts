@@ -26,6 +26,7 @@ import {
 } from './events/computerUse.events'
 import {
   chatPlanUpdatedEvent,
+  chatStreamActivityEvent,
   chatStreamCompletedEvent,
   chatStreamFailedEvent,
   chatStreamUpdatedEvent
@@ -253,6 +254,7 @@ export const DEEPCHAT_EVENT_CATALOG = {
   [chatStreamCompletedEvent.name]: chatStreamCompletedEvent,
   [chatStreamFailedEvent.name]: chatStreamFailedEvent,
   [chatPlanUpdatedEvent.name]: chatPlanUpdatedEvent,
+  [chatStreamActivityEvent.name]: chatStreamActivityEvent,
   [contextMenuTranslateRequestedEvent.name]: contextMenuTranslateRequestedEvent,
   [contextMenuAskAiRequestedEvent.name]: contextMenuAskAiRequestedEvent,
   [skillsCatalogChangedEvent.name]: skillsCatalogChangedEvent,

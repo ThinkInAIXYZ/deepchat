@@ -67,7 +67,9 @@ const setupStore = async () => {
     onStreamFailed: vi.fn((listener: (payload: any) => void) => {
       streamListeners.failed.push(listener)
       return () => undefined
-    })
+    }),
+    onPlanUpdated: vi.fn(() => () => undefined),
+    onStreamActivity: vi.fn(() => () => undefined)
   }
 
   vi.doMock('pinia', async () => {
