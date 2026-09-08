@@ -104,7 +104,7 @@ describe('AiSdkProvider openai-compatible', () => {
     }
   )
 
-  it('fetches models over the provider HTTP endpoint instead of the legacy SDK client', async () => {
+  it('shares model discovery across initialization and concurrent queries, then refreshes', async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
       json: vi.fn().mockResolvedValue({
@@ -113,9 +113,10 @@ describe('AiSdkProvider openai-compatible', () => {
     })
     vi.stubGlobal('fetch', fetchMock)
 
-    const provider = new AiSdkProvider(createProvider(), createProviderSettings())
-    const models = await provider.fetchModels()
+    const provider = new AiSdkProvider(createProvider({ enable: true }), createProviderSettings())
+    const results = await Promise.all(Array.from({ length: 8 }, () => provider.fetchModels()))
 
+    expect(fetchMock).toHaveBeenCalledTimes(1)
     expect(fetchMock).toHaveBeenCalledWith(
       'https://mock.example.com/v1/models',
       expect.objectContaining({
@@ -125,12 +126,17 @@ describe('AiSdkProvider openai-compatible', () => {
         })
       })
     )
-    expect(models).toEqual([
-      expect.objectContaining({
-        id: 'gpt-4o',
-        providerId: 'novita'
-      })
-    ])
+    for (const models of results) {
+      expect(models).toEqual([
+        expect.objectContaining({
+          id: 'gpt-4o',
+          providerId: 'novita'
+        })
+      ])
+    }
+
+    await provider.fetchModels({ suppressErrors: false })
+    expect(fetchMock).toHaveBeenCalledTimes(2)
   })
 
   it.each([

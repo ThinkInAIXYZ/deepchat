@@ -113,6 +113,7 @@
   },
   "features": {
     "webSearch": "Ricerca web",
+    "thoughtForLessThanOneSecond": "Ha ragionato per meno di 1 secondo",
     "thoughtForSeconds": "Ha ragionato per {seconds} secondi",
     "thoughtForSecondsLoading": "Ragionamento in corso ({seconds}° secondo)",
     "artifactThinking": "Ragionamento artifact",

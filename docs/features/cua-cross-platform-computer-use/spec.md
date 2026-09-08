@@ -2,47 +2,26 @@
 
 ## Status
 
-The supervised embedded lifecycle and driver 0.17.0 model-facing compatibility are implemented and
-host-native validated under `docs/architecture/cua-driver-0-17-contract-migration/`. Native
-Windows/Linux behavior, release-signed macOS behavior, and preinstalled custom cursor themes remain
-release-gated.
+The official CUA plugin uses a supervised embedded lifecycle, driver `0.19.2`, and embedded
+contract `0.6.0`. Native Windows/Linux behavior, release-signed macOS behavior, and preinstalled
+custom cursor themes remain release-gated. Previously recorded validation does not establish
+acceptance for every current binary or platform.
 
-The maintained runtime and process-ownership contract now lives in
-`docs/architecture/plugin-external-runtime-lifecycle/`. Where this historical feature document
-conflicts with that architecture specification, the architecture specification is authoritative.
+The [runtime lifecycle contract](../../architecture/plugin-external-runtime-lifecycle/spec.md)
+and [driver contract and platform gates](../../architecture/cua-driver-0-17-contract-migration/spec.md)
+define process ownership and outstanding validation.
 
 ## Background
 
-DeepChat currently ships the CUA computer-use capability as an official plugin under
-`plugins/cua`. The integration is DeepChat-managed: the plugin declares a skill and a bundled
-tool server that DeepChat starts internally. Users do not configure an external MCP server, install
-the CUA driver manually, or rely on PATH for the bundled experience.
+DeepChat ships computer use as the official plugin in `plugins/cua`. The plugin declares a Skill
+and a bundled tool server started by DeepChat on demand. Its static catalog supports discovery
+without eagerly opening a desktop connection. Crash quarantine, controlled environment inheritance,
+and integrity checks precede process startup. Users do not configure an external MCP server or
+install the bundled driver through `PATH`.
 
-The original implementation was macOS-only:
-
-- `plugins/cua/plugin.json` limited `engines.platforms` to `darwin`.
-- The runtime build script built the older Swift driver from the vendored CUA fork.
-- The package script special-cased only `runtime/darwin/<arch>`.
-- Build and release workflows only included the CUA plugin in macOS artifacts.
-- Skill docs, runtime permission wording, tests, and packaging docs assumed macOS.
-
-The completed 0.7.1 rollout expanded that distribution to the five supported targets. The current
-work changes the lifecycle and runtime version without collapsing the application and optional
-plugin build matrices.
-
-Upstream `trycua/cua` now publishes the Rust CUA driver as cross-platform release artifacts. The
-previously shipped driver was `cua-driver-rs-v0.7.1`. Issue #2039 demonstrated that retaining its
-eager Linux/X11 startup is unsafe. The current integration pins `cua-driver-rs-v0.17.0` and adds a
-DeepChat-owned embedded lifecycle adapter, static tool discovery, crash quarantine, controlled
-environment inheritance, and pre-spawn integrity checks.
-
-- macOS arm64 and x86_64, plus universal variants.
-- Windows x86_64 and arm64.
-- Linux x86_64.
-
-Linux arm64 remains unsupported for this DeepChat integration until it passes the same native
-packaging and desktop-session gates as the existing targets. Upstream asset availability alone
-does not expand DeepChat support.
+Supported targets are macOS arm64/x64, Windows arm64/x64, and Linux x64. macOS universal packaging
+contains the appropriate native variants. Linux arm64 remains unsupported until it passes the same
+packaging and desktop-session gates; upstream asset availability alone does not expand support.
 
 ## Goal
 
@@ -64,14 +43,14 @@ DeepChat the single owner of the bundled external process lifecycle.
 
 The implementation must support these packaged plugin targets:
 
-| DeepChat platform | DeepChat arch | Upstream asset status | Required behavior |
-| --- | --- | --- | --- |
-| `darwin` | `arm64` | Available | Bundle and verify CUA runtime |
-| `darwin` | `x64` | Available | Bundle and verify CUA runtime |
-| `win32` | `x64` | Available | Bundle and verify CUA runtime |
-| `win32` | `arm64` | Available | Bundle and verify CUA runtime |
-| `linux` | `x64` | Available | Bundle and verify CUA runtime |
-| `linux` | `arm64` | Unsupported for DeepChat | Do not bundle or show CUA; fail clearly if requested directly |
+| DeepChat platform | DeepChat arch | Upstream asset status    | Required behavior                                             |
+| ----------------- | ------------- | ------------------------ | ------------------------------------------------------------- |
+| `darwin`          | `arm64`       | Available                | Bundle and verify CUA runtime                                 |
+| `darwin`          | `x64`         | Available                | Bundle and verify CUA runtime                                 |
+| `win32`           | `x64`         | Available                | Bundle and verify CUA runtime                                 |
+| `win32`           | `arm64`       | Available                | Bundle and verify CUA runtime                                 |
+| `linux`           | `x64`         | Available                | Bundle and verify CUA runtime                                 |
+| `linux`           | `arm64`       | Unsupported for DeepChat | Do not bundle or show CUA; fail clearly if requested directly |
 
 ## Visibility Scope
 
@@ -109,11 +88,12 @@ DeepChat must continue to own the integration boundary:
 
 ## Upstream Runtime Contract
 
-The replacement runtime is pinned to:
+The runtime pin is defined in `plugins/cua/vendor/cua-driver/upstream.json`:
 
-- Tag: `cua-driver-rs-v0.17.0`.
-- Commit: `10279552e2bbe479e367a082f78b1b98ee85a697`.
-- Version: `0.17.0`.
+- Tag: `cua-driver-rs-v0.19.2`.
+- Commit: `20bb34b16ad7c6c56221c332e46b1875e9d8af8c`.
+- Version: `0.19.2`.
+- Embedded contract: `0.6.0` in `plugins/cua/plugin.json`.
 
 The build step must stage release artifacts instead of relying on local Swift-only source builds.
 Every staged asset must be validated before packaging:
@@ -154,7 +134,7 @@ still consuming verified upstream release artifacts.
 ## Tool Surface
 
 The plugin policy, skill docs, and packaged static catalog must exactly match the pinned upstream
-0.17.0 tool surface. The catalog keeps CUA tools discoverable without eagerly starting the native
+0.19.2 tool surface. The catalog keeps CUA tools discoverable without eagerly starting the native
 runtime.
 
 Removed or renamed assumptions:
@@ -288,7 +268,7 @@ The packaged app must keep CUA usable after Electron packaging:
 - Optional MCP capabilities not implemented by the CUA driver, such as prompts and resources, are
   treated as absent capabilities and must not produce error-level log spam.
 - Skill docs describe DeepChat usage and platform caveats, not upstream manual installer workflows.
-- Tool policies and the static catalog exactly cover the pinned upstream 0.17.0 tools.
+- Tool policies and the static catalog exactly cover the pinned upstream 0.19.2 tools.
 - Packaging docs and tests no longer describe CUA as macOS-only.
 - Build, lint, i18n, and focused test suites pass after implementation.
 

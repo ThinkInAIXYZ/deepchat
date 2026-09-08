@@ -1054,7 +1054,7 @@ export class EmbeddingPipeline {
       }
       if (!coverage.verified) {
         this.ports.vectorStore.clearReady(agentId)
-        if (coverage.missingAuthoritativeVector && !this.reindexing.has(agentId)) {
+        if (coverage.authoritativeListingTruncated && !this.reindexing.has(agentId)) {
           void this.ports.reindexEmbeddings(agentId, true).catch((error) => {
             logger.warn(
               `[Memory] incomplete vector store rebuild failed for ${agentId}: ${String(error)}`
@@ -1127,14 +1127,14 @@ export class EmbeddingPipeline {
     fingerprint: string
   ): Promise<{
     verified: boolean
-    missingAuthoritativeVector: boolean
+    authoritativeListingTruncated: boolean
     generation: number
   }> {
     return this.ports.vectorStore.withVectorMutation(agentId, async () => {
       const readEpoch = this.ctx.captureReadEpoch(agentId)
       const authoritative = this.collectCurrentEmbeddedIds(agentId, dimensions, fingerprint)
       if (!authoritative.complete) {
-        return { verified: false, missingAuthoritativeVector: true, generation: -1 }
+        return { verified: false, authoritativeListingTruncated: true, generation: -1 }
       }
       const outcome = await this.ports.vectorStore.withStoreLease(
         agentId,
@@ -1144,7 +1144,7 @@ export class EmbeddingPipeline {
           if (!store.isUsable()) {
             return {
               verified: false,
-              missingAuthoritativeVector: false,
+              authoritativeListingTruncated: false,
               generation
             }
           }
@@ -1154,7 +1154,7 @@ export class EmbeddingPipeline {
           for (let guard = 0; guard < REINDEX_MAX_BATCHES; guard += 1) {
             const page = await store.listMemoryIds(afterId, ORPHAN_RECONCILE_BATCH)
             if (!this.ports.vectorStore.isGenerationCurrent(agentId, generation)) {
-              return { verified: false, missingAuthoritativeVector: false, generation }
+              return { verified: false, authoritativeListingTruncated: false, generation }
             }
             sidecarIds.push(...page)
             if (page.length < ORPHAN_RECONCILE_BATCH) {
@@ -1164,22 +1164,28 @@ export class EmbeddingPipeline {
             afterId = page[page.length - 1]
           }
           if (!complete) {
-            return { verified: false, missingAuthoritativeVector: false, generation }
+            return { verified: false, authoritativeListingTruncated: false, generation }
           }
           const authoritativeSet = new Set(authoritative.ids)
           const sidecarSet = new Set(sidecarIds)
-          const missingAuthoritativeVector = authoritative.ids.some((id) => !sidecarSet.has(id))
-          if (missingAuthoritativeVector) {
-            return { verified: false, missingAuthoritativeVector: true, generation }
+          // A ready row without a vector only needs its own embedding again. Requeueing exactly
+          // those rows removes them from the ready set, so the certificate below stays truthful
+          // and the ordinary backfill drain repairs them without resetting the store.
+          const missingIds = authoritative.ids.filter((id) => !sidecarSet.has(id))
+          if (missingIds.length > 0) {
+            const requeued = this.ports.repository.requeueReadyEmbeddingsByIds(agentId, missingIds)
+            logger.warn(
+              `[Memory] requeued ${requeued} of ${missingIds.length} ready rows whose vectors were missing for ${agentId}`
+            )
           }
           const extras = sidecarIds.filter((id) => !authoritativeSet.has(id))
           for (let start = 0; start < extras.length; start += ORPHAN_RECONCILE_BATCH) {
             await store.deleteByMemoryIds(extras.slice(start, start + ORPHAN_RECONCILE_BATCH))
             if (!this.ports.vectorStore.isGenerationCurrent(agentId, generation)) {
-              return { verified: false, missingAuthoritativeVector: false, generation }
+              return { verified: false, authoritativeListingTruncated: false, generation }
             }
           }
-          return { verified: true, missingAuthoritativeVector: false, generation }
+          return { verified: true, authoritativeListingTruncated: false, generation }
         }
       )
       if (
@@ -1189,7 +1195,7 @@ export class EmbeddingPipeline {
       ) {
         return {
           verified: false,
-          missingAuthoritativeVector: false,
+          authoritativeListingTruncated: false,
           generation: outcome.generation
         }
       }

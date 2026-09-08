@@ -1,103 +1,156 @@
+import fs from 'node:fs'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-
+import type { KnowledgeFileMessage } from '@shared/types/knowledge'
 import { KnowledgeBase } from '@/knowledge/knowledgeBase'
+import type {
+  KnowledgeDatabasePort,
+  KnowledgeEmbeddingPort,
+  KnowledgeFilePort
+} from '@/knowledge/ports'
+import { KnowledgeTaskQueue } from '@/knowledge/taskQueue'
 
 function createStore() {
-  const fileMessage = {
-    id: 'file-1',
-    name: 'notes.md',
-    path: '/tmp/notes.md',
-    mimeType: 'text/markdown',
-    status: 'processing',
-    uploadedAt: Date.now(),
-    metadata: {
-      size: 100,
-      totalChunks: 1
-    }
+  const files = new Map<string, KnowledgeFileMessage>()
+  const saveFile = async (file: KnowledgeFileMessage) => {
+    files.set(file.id, structuredClone(file))
   }
-
   const database = {
-    queryFile: vi.fn(async () => fileMessage),
-    updateFile: vi.fn(async () => undefined),
-    updateChunkStatus: vi.fn(async () => undefined)
+    queryFile: vi.fn(async (id: string) => files.get(id) ?? null),
+    queryFiles: vi.fn(async () => []),
+    insertFile: vi.fn(saveFile),
+    updateFile: vi.fn(saveFile),
+    deleteFile: vi.fn(async (id: string) => {
+      files.delete(id)
+    }),
+    insertChunks: vi.fn(async () => undefined),
+    updateChunkStatus: vi.fn(async () => undefined),
+    insertVector: vi.fn(async () => undefined)
   }
-
-  const taskQueue = {
-    cancelTasksByFile: vi.fn()
-  }
-
+  const taskQueue = new KnowledgeTaskQueue(1)
   const events = {
     publishFileUpdated: vi.fn(),
     publishFileProgress: vi.fn()
   }
-
+  const embeddings = {
+    getEmbeddings: vi.fn<KnowledgeEmbeddingPort['getEmbeddings']>(async () => [[0.1, 0.2]])
+  }
+  const filePort = {
+    getMimeType: async () => 'text/markdown',
+    prepareFileCompletely: async () => ({
+      name: 'notes.md',
+      content: 'A short note.',
+      metadata: { fileSize: 13 }
+    })
+  }
   const store = new KnowledgeBase(
-    database as any,
+    database as unknown as KnowledgeDatabasePort,
     {
       id: 'knowledge-1',
+      description: 'Notes',
+      embedding: { providerId: 'provider-1', modelId: 'embedding-1' },
+      dimensions: 2,
+      normalized: false,
+      fragmentsNumber: 5,
+      enabled: true,
       chunkSize: 1000,
       chunkOverlap: 100,
       separators: ['\n']
-    } as any,
-    taskQueue as any,
-    {} as any,
-    {} as any,
+    },
+    taskQueue,
+    filePort as KnowledgeFilePort,
+    embeddings,
     events
   )
-
-  return { database, events, fileMessage, store }
+  return { database, embeddings, events, store, taskQueue }
 }
 
-describe('KnowledgeBase events', () => {
+describe('KnowledgeBase file processing', () => {
+  let context: ReturnType<typeof createStore>
+
   beforeEach(() => {
-    vi.useFakeTimers()
-    vi.clearAllMocks()
-    vi.setSystemTime(new Date('2026-04-01T00:00:00.000Z'))
+    vi.spyOn(fs, 'existsSync').mockReturnValue(true)
+    context = createStore()
   })
 
   afterEach(() => {
-    vi.useRealTimers()
+    context.taskQueue.destroy()
   })
 
-  it('publishes typed progress and file update events when a file finishes', async () => {
-    const { database, events, fileMessage, store } = createStore()
-    ;(store as any).fileProgressMap.set('file-1', {
-      completed: 0,
-      error: 0,
-      total: 1
+  it('stores vectors and publishes progress when an imported file finishes', async () => {
+    const { database, events, store } = context
+    const { data: file } = await store.addFile('/tmp/notes.md')
+
+    await vi.waitFor(() =>
+      expect(events.publishFileUpdated).toHaveBeenCalledWith(
+        expect.objectContaining({ id: file!.id, status: 'completed' })
+      )
+    )
+
+    expect(database.insertVector).toHaveBeenCalledWith({
+      vector: [0.1, 0.2],
+      fileId: file!.id,
+      chunkId: `${file!.id}_0`
     })
-
-    await (store as any).handleChunkCompletion('file-1_0', 'file-1')
-
-    expect(events.publishFileProgress).toHaveBeenCalledWith('file-1', {
+    expect(events.publishFileProgress).toHaveBeenCalledWith(file!.id, {
       completed: 1,
       error: 0,
       total: 1
     })
-    expect(database.updateFile).toHaveBeenCalledWith({
-      ...fileMessage,
-      status: 'completed'
-    })
-    expect(events.publishFileUpdated).toHaveBeenCalledWith(
-      expect.objectContaining({ id: 'file-1', status: 'completed' })
-    )
+    expect((await store.queryFile(file!.id))?.status).toBe('completed')
   })
 
-  it('publishes typed progress when a chunk fails', async () => {
-    const { database, events, store } = createStore()
-    ;(store as any).fileProgressMap.set('file-1', {
-      completed: 0,
-      error: 0,
-      total: 2
-    })
+  it('records embedding failures and publishes failed chunk progress', async () => {
+    const { database, embeddings, events, store } = context
+    embeddings.getEmbeddings.mockRejectedValueOnce(new Error('embedding failed'))
+    const { data: file } = await store.addFile('/tmp/notes.md')
 
-    await (store as any).handleChunkError('file-1_0', 'file-1', 'embedding failed')
+    await vi.waitFor(() =>
+      expect(events.publishFileProgress).toHaveBeenCalledWith(file!.id, {
+        completed: 0,
+        error: 1,
+        total: 1
+      })
+    )
+    expect(database.updateChunkStatus).toHaveBeenCalledWith(
+      `${file!.id}_0`,
+      'error',
+      'embedding failed'
+    )
+    expect(database.insertVector).not.toHaveBeenCalled()
+  })
 
-    expect(database.updateChunkStatus).toHaveBeenCalledWith('file-1_0', 'error', 'embedding failed')
-    expect(events.publishFileProgress).toHaveBeenCalledWith('file-1', {
-      completed: 0,
-      error: 1,
-      total: 2
-    })
+  it('aborts an in-flight embedding request when its file is deleted', async () => {
+    const { database, embeddings, events, store, taskQueue } = context
+    const aborted = vi.fn()
+    let finishRequest!: (vectors: number[][]) => void
+    embeddings.getEmbeddings.mockImplementationOnce(
+      (_providerId, _modelId, _texts, signal) =>
+        new Promise((resolve, reject) => {
+          finishRequest = resolve
+          signal?.addEventListener(
+            'abort',
+            () => {
+              aborted()
+              reject(signal.reason)
+            },
+            { once: true }
+          )
+        })
+    )
+
+    try {
+      const { data: file } = await store.addFile('/tmp/notes.md')
+      await vi.waitFor(() => expect(embeddings.getEmbeddings).toHaveBeenCalledTimes(1))
+      await store.deleteFile(file!.id)
+
+      expect(aborted).toHaveBeenCalledTimes(1)
+      expect(await store.queryFile(file!.id)).toBeNull()
+      expect(taskQueue.getStatus().totalTasks).toBe(0)
+      expect(database.insertVector).not.toHaveBeenCalled()
+      expect(database.updateChunkStatus).not.toHaveBeenCalled()
+      expect(events.publishFileProgress).not.toHaveBeenCalled()
+    } finally {
+      finishRequest?.([[0.1, 0.2]])
+    }
   })
 })

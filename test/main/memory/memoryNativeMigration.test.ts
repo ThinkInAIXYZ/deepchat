@@ -54,6 +54,7 @@ function dropV42CanonicalArtifacts(db: InstanceType<typeof DatabaseCtor>): void 
     DROP INDEX IF EXISTS idx_agent_memory_management_page_v3;
     DROP INDEX IF EXISTS idx_agent_memory_recall_importance_v5;
     DROP INDEX IF EXISTS idx_agent_memory_recall_scope_v6;
+    DROP INDEX IF EXISTS idx_agent_memory_working_candidates_v1;
     DROP INDEX IF EXISTS idx_agent_memory_archive_eligible_v3;
     DROP INDEX IF EXISTS idx_agent_memory_cognitive_top_v3;
     DROP INDEX IF EXISTS idx_agent_memory_conflict_fairness_v3;

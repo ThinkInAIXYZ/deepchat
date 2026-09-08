@@ -1,23 +1,14 @@
 # Tape Layering Refactor Specification
 
-## Background
+## Ownership
 
-Before this refactor, DeepChat's Tape implementation had strong runtime semantics but weak module
-boundaries. The main `SessionTape` implementation combined fact writing, migration and
-reconciliation, search and context recall, ViewManifest and replay assembly, subagent lineage,
-and fork management in one large module. The SQLite entry table also exposed destructive
-lifecycle operations beside normal append and read operations.
+Tape separates pure domain policy, narrow storage capabilities, application services, and independent
+View selection. `SessionTape` composes the public boundary; consumers receive only the capabilities
+they require for transcript writes, Memory ingestion/query, settings, migration, or lifecycle work.
 
-Several consumers bypassed `SessionTape` and depended directly on the SQLite table. Transcript
-writes, Memory ingestion, Memory management routes, Session settings, and startup migration each
-used a different subset of Tape behavior, but the table-shaped dependency gave them more
-authority than they needed. Tape types also flowed in the wrong direction because the Tape layer
-imported Agent loop port types.
-
-This refactor adopts Bub's useful dependency pattern—domain primitives, narrow store protocols,
-application services, and independent view selection—without copying Bub's simpler schema or
-reset semantics. DeepChat retains its stronger revision, retraction, ViewManifest, frozen-head,
-and fork contracts.
+The SQLite table is not a general-purpose capability exported to business consumers. Domain types
+do not import Agent loop ports. Revision, retraction, ViewManifest, frozen-head, and fork contracts
+remain intact across the domain/application/storage layers.
 
 ## Goals
 
@@ -36,11 +27,11 @@ and fork contracts.
 
 The refactor keeps three distinct data families:
 
-| Data family | Role | Authority |
-| --- | --- | --- |
-| Tape facts | Append-only execution facts, anchors, manifests, lineage, and fork receipts | Tape |
-| Transcript projection | UI-oriented structured messages and a legacy backfill source | Session data |
-| Trace evidence | Provider request and terminal execution evidence used by replay | Session trace storage |
+| Data family           | Role                                                                        | Authority             |
+| --------------------- | --------------------------------------------------------------------------- | --------------------- |
+| Tape facts            | Append-only execution facts, anchors, manifests, lineage, and fork receipts | Tape                  |
+| Transcript projection | UI-oriented structured messages and a legacy backfill source                | Session data          |
+| Trace evidence        | Provider request and terminal execution evidence used by replay             | Session trace storage |
 
 Replay may combine Tape facts with trace evidence through explicit read ports. This is not a reason
 to treat trace evidence as transcript data or to move it into the Tape entry schema.
@@ -65,15 +56,15 @@ to treat trace evidence as transcript data or to move it into the Tape entry sch
 
 ## Capability Boundaries
 
-| Consumer | Allowed capability |
-| --- | --- |
-| DeepChat loop runner | `TapeReconciliationPort`, `TapeViewManifestReader`, `TapeViewManifestWriter`, and `TapeToolFactWriter` |
-| Turn coordinator and ACP compatibility adapter | `TapeReconciliationPort` |
-| Session transcript | `TapeMessageFactWriter` |
-| Memory runtime | `TapeRawEntryReader` and `TapeAnchorWriter` |
-| Session settings and compaction | `TapeAnchorReader`, `TapeAnchorWriter`, and `TapeLifecycleAdmin` |
-| Memory management routes | `TapeInspectionReader` |
-| Session IPC | Existing `SessionTapePort` facade |
+| Consumer                                       | Allowed capability                                                                                     |
+| ---------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| DeepChat loop runner                           | `TapeReconciliationPort`, `TapeViewManifestReader`, `TapeViewManifestWriter`, and `TapeToolFactWriter` |
+| Turn coordinator and ACP compatibility adapter | `TapeReconciliationPort`                                                                               |
+| Session transcript                             | `TapeMessageFactWriter`                                                                                |
+| Memory runtime                                 | `TapeRawEntryReader` and `TapeAnchorWriter`                                                            |
+| Session settings and compaction                | `TapeAnchorReader`, `TapeAnchorWriter`, and `TapeLifecycleAdmin`                                       |
+| Memory management routes                       | `TapeInspectionReader`                                                                                 |
+| Session IPC                                    | Existing `SessionTapePort` facade                                                                      |
 
 A single implementation may satisfy several ports, but each consumer receives only the
 structural type it needs. `TapeRawEntryReader` exposes only `getBySession`. The inspection port
@@ -180,13 +171,12 @@ coverage.
     concrete facade imports from capability-scoped consumers, Memory route capability expansion,
     the actual SQLite driver, and new physical-table bypasses. Negative fixtures prove that each
     guard recognizes the prohibited dependency.
-12. No remote Git operations are performed as part of this work.
-13. Native Memory CI discovers and executes every SQLite-gated Tape suite after test splitting.
-14. Corrupt FTS cleanup cannot leave transcript, Tape entries, and base search projection in
+12. Native Memory CI discovers and executes every SQLite-gated Tape suite after test splitting.
+13. Corrupt FTS cleanup cannot leave transcript, Tape entries, and base search projection in
     different generations; pre-version-3 projection data is removed during schema initialization.
-15. Legacy Tape modules expose frozen deprecated export lists, while canonical modules use
+14. Legacy Tape modules expose frozen deprecated export lists, while canonical modules use
     unambiguous ViewManifest source-map names.
-16. Historical concrete SQLite-class methods remain available through the frozen legacy class
+15. Historical concrete SQLite-class methods remain available through the frozen legacy class
     exports, but non-historical raw-row helpers are absent from the `SessionTape` facade and every
     application-facing port.
 
@@ -196,8 +186,6 @@ coverage.
   artificial asynchronous transaction boundaries.
 - Preserve ordering, idempotency keys, hashes, error classes, and fallback logging semantics.
 - Compatibility re-exports may remain at old module paths to control import churn.
-- New SDD artifacts in this directory must use English prose.
-- Every local commit requires a complete unstaged and staged diff review plus relevant validation.
 
 ## Non-Goals
 
@@ -206,7 +194,6 @@ coverage.
 - No change to compaction, context selection, or ViewManifest policy.
 - No redesign of transcript or trace storage.
 - No renderer or IPC feature change.
-- No GitHub issue, pull request, branch push, or other remote mutation.
 
 ## Open Questions
 

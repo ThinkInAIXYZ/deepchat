@@ -268,6 +268,7 @@ declare module 'vue-i18n' {
     }
     features: {
       webSearch: string
+      thoughtForLessThanOneSecond: string
       thoughtForSeconds: string
       thoughtForSecondsLoading: string
       artifactThinking: string

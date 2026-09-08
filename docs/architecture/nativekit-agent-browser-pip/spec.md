@@ -102,7 +102,7 @@ honestly as a bounded snapshot stream rather than 60 FPS browser video.
 ```text
 Agent WebContentsView at 1280 x 800
   -> webContents.capturePage()
-  -> NativeImage.resize(480 x 300)
+  -> NativeImage.resize(400 x 250)
   -> JPEG quality 72 Buffer
   -> typed main-to-renderer event
   -> structured clone / Uint8Array
@@ -112,8 +112,10 @@ Agent WebContentsView at 1280 x 800
   -> Vue DOM card, toolbar, halo, and pointer drag
 ```
 
-Active capture is currently capped at 4 FPS and idle capture at 1 FPS. There is one capture in
-flight, so frames do not queue.
+Browser preview schedules its next capture 500 ms after an active capture completes and 2000 ms
+after an idle capture completes, giving upper bounds of 2 FPS and 0.5 FPS before capture cost. There
+is one capture in flight, so frames do not queue. These runtime settings do not demonstrate that the
+first-frame, frame-age, or high-refresh-rate acceptance budgets below have been met.
 
 ### Diagnosis
 
@@ -180,19 +182,19 @@ When an Agent operates YoBrowser in the background, the user needs a preview tha
 
 ### Useful API
 
-| API | DeepChat use |
-| --- | --- |
-| `overlay.start({ toolbar })` | Configure a high-contrast dark toolbar with **Open in panel** then **Close** |
-| `overlay.attachHost()` | Bind one chat `BrowserWindow` by content bounds and native handle |
-| `overlay.setMaxSize(360)` | Render the 480 x 300 source in a sharper 360 x 225 DIP panel |
-| `overlay.pushImage()` | Create or replace the active Agent browser JPEG |
-| `overlay.setActiveSession()` | Keep the current logical Agent session first before showing |
-| `overlay.setVisible()` | Hide without deleting the current presentation during temporary ineligibility |
-| `overlay.removeImage()` | Clear a terminal, destroyed, or replaced presentation |
-| `overlay.detachHost()` | Release a closed chat window |
-| `overlay.stop()` | Release all native resources during presenter shutdown |
-| `activate` | Double-click intent to focus DeepChat and open the existing Browser panel |
-| `control` | Configured control ID, mapped to open-panel or current-run dismissal |
+| API                          | DeepChat use                                                                  |
+| ---------------------------- | ----------------------------------------------------------------------------- |
+| `overlay.start({ toolbar })` | Configure a high-contrast dark toolbar with **Open in panel** then **Close**  |
+| `overlay.attachHost()`       | Bind one chat `BrowserWindow` by content bounds and native handle             |
+| `overlay.setMaxSize(360)`    | Render the 400 x 250 source in a 360 x 225 DIP panel                          |
+| `overlay.pushImage()`        | Create or replace the active Agent browser JPEG                               |
+| `overlay.setActiveSession()` | Keep the current logical Agent session first before showing                   |
+| `overlay.setVisible()`       | Hide without deleting the current presentation during temporary ineligibility |
+| `overlay.removeImage()`      | Clear a terminal, destroyed, or replaced presentation                         |
+| `overlay.detachHost()`       | Release a closed chat window                                                  |
+| `overlay.stop()`             | Release all native resources during presenter shutdown                        |
+| `activate`                   | Double-click intent to focus DeepChat and open the existing Browser panel     |
+| `control`                    | Configured control ID, mapped to open-panel or current-run dismissal          |
 
 `suppressSessions`, `completeSession`, app-icon lookup, and system-window query are not required for
 this migration. One visible PiP and one current target make them unnecessary.
@@ -214,15 +216,15 @@ this migration. One visible PiP and one current target make them unnecessary.
 
 ### Published Capability Matrix
 
-| Runtime | Preferred surface | Reason |
-| --- | --- | --- |
-| macOS arm64/x64 | Native overlay | Published prebuild; non-activating `NSPanel` |
-| Windows x64 | Native overlay | Published prebuild; owned layered topmost `HWND` |
-| Windows arm64 | Browser side panel; no Computer Use PiP | NativeKit 0.6.3 publishes no win32-arm64 prebuild |
-| Linux x64/arm64 under X11/integrated XWayland | Native overlay | Published prebuild and global XCB window model |
-| Linux x64/arm64 under `xwayland-satellite` | Native overlay | 0.5.4 embeds the XCB panel in the Electron host; dragging is clipped to host bounds |
-| Linux native Wayland | Browser side panel; no Computer Use PiP | No global positioning or compatible X11 window handle |
-| Missing/corrupt addon or native startup failure | Browser side panel; no Computer Use PiP | App startup and Agent tools remain usable |
+| Runtime                                         | Preferred surface                       | Reason                                                                              |
+| ----------------------------------------------- | --------------------------------------- | ----------------------------------------------------------------------------------- |
+| macOS arm64/x64                                 | Native overlay                          | Published prebuild; non-activating `NSPanel`                                        |
+| Windows x64                                     | Native overlay                          | Published prebuild; owned layered topmost `HWND`                                    |
+| Windows arm64                                   | Browser side panel; no Computer Use PiP | NativeKit 0.6.3 publishes no win32-arm64 prebuild                                   |
+| Linux x64/arm64 under X11/integrated XWayland   | Native overlay                          | Published prebuild and global XCB window model                                      |
+| Linux x64/arm64 under `xwayland-satellite`      | Native overlay                          | 0.5.4 embeds the XCB panel in the Electron host; dragging is clipped to host bounds |
+| Linux native Wayland                            | Browser side panel; no Computer Use PiP | No global positioning or compatible X11 window handle                               |
+| Missing/corrupt addon or native startup failure | Browser side panel; no Computer Use PiP | App startup and Agent tools remain usable                                           |
 
 DeepChat will not change the user's Linux display backend merely to enable PiP.
 
@@ -238,7 +240,7 @@ focusless render-host BaseWindow -> Agent WebContentsView at 1280 x 800
                                    capturePage (one in flight)
                                              |
                                              v
-                                resize 480 x 300 / JPEG 72
+                                resize 400 x 250 / JPEG 72
                                              |
                          +-------------------+-------------------+
                          |                                       |
@@ -346,8 +348,8 @@ session/page destruction, host close, and shutdown remove it.
 The existing capture safety rules remain:
 
 - 1280 x 800 source viewport;
-- 480 x 300 output;
-- 360 x 225 maximum native panel size, downsampling the 480 x 300 frame for a sharper preview;
+- 400 x 250 output;
+- 360 x 225 maximum native panel size, downsampling the 400 x 250 frame;
 - JPEG quality 72;
 - 512 KiB DeepChat frame ceiling, well below NativeKit's 32 MiB input ceiling;
 - one capture in flight;
@@ -451,22 +453,22 @@ Windows arm64 / native Wayland / unavailable addon
 
 ## Lifecycle Matrix
 
-| Event | Native action | Page action |
-| --- | --- | --- |
-| Eligible capture starts | Attach/update host; push current frame; show | Keep in 1280 x 800 render host |
-| New frame | Replace same presentation only; preserve manual origin | No reparent |
-| Browser panel opens | Hide presentation; stop capture | Reparent same View into panel |
-| Browser panel closes during eligible run | Push current frame before show | Reparent into render host |
-| Native **Close** control | Hide, remember run dismissal | Keep render host; stop capture |
-| Native **Open in panel** control | Focus host; request Browser panel | Reparent after stable bounds |
-| Native double-click | Focus host; request Browser panel | Reparent after stable bounds |
-| Host moves/resizes/display changes | Debounced `attachHost()` refresh | No page change |
-| Host blur/hide/minimize | Hide synchronously | Keep rendering only if Agent still needs it |
-| Host refocus | Re-evaluate; push-before-show | No reload |
-| Run terminal | Remove presentation | Stop capture; release render host |
-| Session/page destroyed | Remove presentation | Destroy existing page resources |
-| Host closed | Remove presentation; detach host | Clear target |
-| App shutdown | `overlay.stop()` once | Existing presenter shutdown |
+| Event                                    | Native action                                          | Page action                                 |
+| ---------------------------------------- | ------------------------------------------------------ | ------------------------------------------- |
+| Eligible capture starts                  | Attach/update host; push current frame; show           | Keep in 1280 x 800 render host              |
+| New frame                                | Replace same presentation only; preserve manual origin | No reparent                                 |
+| Browser panel opens                      | Hide presentation; stop capture                        | Reparent same View into panel               |
+| Browser panel closes during eligible run | Push current frame before show                         | Reparent into render host                   |
+| Native **Close** control                 | Hide, remember run dismissal                           | Keep render host; stop capture              |
+| Native **Open in panel** control         | Focus host; request Browser panel                      | Reparent after stable bounds                |
+| Native double-click                      | Focus host; request Browser panel                      | Reparent after stable bounds                |
+| Host moves/resizes/display changes       | Debounced `attachHost()` refresh                       | No page change                              |
+| Host blur/hide/minimize                  | Hide synchronously                                     | Keep rendering only if Agent still needs it |
+| Host refocus                             | Re-evaluate; push-before-show                          | No reload                                   |
+| Run terminal                             | Remove presentation                                    | Stop capture; release render host           |
+| Session/page destroyed                   | Remove presentation                                    | Destroy existing page resources             |
+| Host closed                              | Remove presentation; detach host                       | Clear target                                |
+| App shutdown                             | `overlay.stop()` once                                  | Existing presenter shutdown                 |
 
 Although macOS NativeKit panels can join all Spaces, DeepChat preserves the current product policy:
 the Agent page preview is hidden when its owning chat window is not foreground. Making it persist
@@ -484,10 +486,10 @@ Native feel is split into two measurable promises.
   area;
 - capture work must not produce visible drag hitching on 60 Hz or 120 Hz reference displays.
 
-### Page freshness
+### Page Freshness Acceptance Targets
 
 - active Agent activity: target at most 8 FPS, scheduled 125 ms after the previous full cycle;
-- idle page: 1 FPS;
+- idle page target: 1 FPS;
 - never queue or overlap captures;
 - warm eligible-to-first-visible-frame p95: at most 300 ms;
 - active end-to-end frame age p95: at most 250 ms;
@@ -495,8 +497,10 @@ Native feel is split into two measurable promises.
   platform;
 - no main-process task longer than 50 ms attributable to PiP frame presentation.
 
-The initial implementation may fall back to the current 4 FPS active cap if the synchronous
-NativeKit decode/present gate fails. It must not raise the cap above 8 FPS with NativeKit 0.6.3.
+The current Browser schedule remains 500 ms active and 2000 ms idle after each complete cycle.
+Increasing cadence requires the synchronous NativeKit decode/present and physical-display gates;
+the current schedule is not evidence that the freshness targets have passed. The target cap must
+not exceed 8 FPS with NativeKit 0.6.3.
 
 These are release gates, not runtime promises for arbitrary hardware. The visible claim is
 "native movement with a fresh read-only preview," not "native-rate browser video."
@@ -582,8 +586,8 @@ so rollback does not navigate pages, migrate user data, or change stored setting
 - Host blur/hide/minimize, panel open, run terminal, page destruction, and shutdown hide or remove
   the panel deterministically.
 - Dragging performs no renderer `mousemove` IPC and passes the native movement QA gate.
-- Frame delivery passes the stated latency and synchronous-call budgets, or active capture remains
-  capped at 4 FPS.
+- Frame delivery must satisfy the stated latency and synchronous-call budgets before higher
+  capture cadence is enabled. The current lower cadence does not close the unverified gates.
 - The packaged app contains the correct prebuild on every supported target.
 - Renderer/preload security boundaries remain unchanged.
 - Tests cover on-demand loading, process-stable disablement, Browser side-panel handoff, Computer

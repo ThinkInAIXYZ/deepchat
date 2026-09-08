@@ -4,9 +4,10 @@ Status: implemented.
 
 ## Context
 
-DeepChat already treats `openai-codex` as a dedicated runtime that uses ChatGPT OAuth credentials
-against `https://chatgpt.com/backend-api/codex`. Its curated model catalog currently exposes only
-text-output Codex models, and its AI SDK context only creates a Responses language model.
+DeepChat treats `openai-codex` as a dedicated runtime that uses ChatGPT OAuth credentials against
+`https://chatgpt.com/backend-api/codex`. Its curated catalog includes text-output Codex models and
+`gpt-image-2` when that model exists in the provider database. The AI SDK context supplies both
+the Responses language model and the image-generation endpoint through the same OAuth owner.
 
 OpenAI documents that Codex built-in image generation uses `gpt-image-2` and counts against general
 Codex usage limits. The model supports text input and image output through
@@ -96,12 +97,11 @@ base64 image -> existing DeepChat image cache and message preview
 ### User-visible layout
 
 ```text
-BEFORE                              AFTER
-OpenAI Codex                        OpenAI Codex
-  GPT-5.6 Luna       [chat]           GPT-5.6 Luna       [chat]
-  GPT-5.6 Sol        [chat]           GPT-5.6 Sol        [chat]
-  ...                                   ...
-                                      GPT Image 2        [imageGeneration]
+OpenAI Codex
+  GPT-5.6 Luna       [chat]
+  GPT-5.6 Sol        [chat]
+  ...
+  GPT Image 2        [imageGeneration]
 ```
 
 Selecting `GPT Image 2` uses the existing image settings panel and image result rendering; no new

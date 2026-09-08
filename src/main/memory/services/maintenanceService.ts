@@ -34,6 +34,7 @@ import {
   CONSOLIDATION_IDLE_MS,
   CONSOLIDATION_MERGE_SIMILARITY,
   DECISION_NEIGHBOR_TOP_S,
+  MAINTENANCE_DRAIN_TIMEOUT_MS,
   MAINTENANCE_HEAVY_MAX_CONCURRENCY,
   MAINTENANCE_MAX_INPUT_TOKENS,
   MAINTENANCE_START_DELAY_MS,
@@ -84,13 +85,13 @@ export class MaintenanceService {
   private readonly consolidationTimerDueAt = new Map<string, number>()
   private readonly lastConsolidationAt = new Map<string, number>()
   private readonly lastConsolidationFailureAt = new Map<string, number>()
-  private readonly consolidationRuns = new Set<Promise<unknown>>()
   private readonly consolidationPasses = new Map<string, Promise<void>>()
   private readonly heavySemaphore = new AsyncSemaphore(MAINTENANCE_HEAVY_MAX_CONCURRENCY)
   private maintenanceStartTimer: NodeJS.Timeout | null = null
   private prewarmStartTimer: NodeJS.Timeout | null = null
   private readonly prewarmTimers = new Map<string, NodeJS.Timeout>()
   private maintenanceStarted = false
+  private maintenancePaused = false
 
   constructor(
     private readonly ports: {
@@ -165,6 +166,7 @@ export class MaintenanceService {
   startBackgroundMaintenance(): void {
     if (this.ctx.isDisposed || this.maintenanceStarted) return
     this.maintenanceStarted = true
+    this.maintenancePaused = false
     this.prewarmStartTimer = setTimeout(() => {
       this.prewarmStartTimer = null
       if (this.ctx.isDisposed) return
@@ -179,7 +181,18 @@ export class MaintenanceService {
     if (typeof this.maintenanceStartTimer.unref === 'function') this.maintenanceStartTimer.unref()
   }
 
+  /**
+   * Synchronously fences background maintenance: no timer stays armed, no new
+   * pass is admitted, and every agent with an in-flight pass has its execution
+   * fence invalidated and its provider requests aborted, so the pass and the
+   * sub-services it delegates to stop at their next checkpoint instead of
+   * waiting out a provider deadline. `startBackgroundMaintenance` re-arms after
+   * the caller's maintenance window; `drainBackgroundMaintenance` waits for the
+   * fenced passes to settle.
+   */
   stopBackgroundMaintenance(): void {
+    this.maintenanceStarted = false
+    this.maintenancePaused = true
     if (this.prewarmStartTimer) {
       clearTimeout(this.prewarmStartTimer)
       this.prewarmStartTimer = null
@@ -190,16 +203,34 @@ export class MaintenanceService {
       clearTimeout(this.maintenanceStartTimer)
       this.maintenanceStartTimer = null
     }
+    for (const timer of this.consolidationTimers.values()) clearTimeout(timer)
+    this.consolidationTimers.clear()
+    this.consolidationTimerDueAt.clear()
+    for (const agentId of this.consolidationPasses.keys()) {
+      this.ctx.invalidateAgentOperations(agentId)
+    }
+  }
+
+  /** Waits for in-flight passes and returns the agents whose pass is still running. */
+  async drainBackgroundMaintenance(
+    timeoutMs: number = MAINTENANCE_DRAIN_TIMEOUT_MS
+  ): Promise<string[]> {
+    let timer: ReturnType<typeof setTimeout> | undefined
+    await Promise.race([
+      Promise.allSettled(this.consolidationPasses.values()),
+      new Promise<void>((resolve) => {
+        timer = setTimeout(resolve, timeoutMs)
+        if (typeof timer.unref === 'function') timer.unref()
+      })
+    ])
+    if (timer) clearTimeout(timer)
+    return [...this.consolidationPasses.keys()].sort()
   }
 
   prepareDispose(): void {
     this.stopBackgroundMaintenance()
-    for (const timer of this.consolidationTimers.values()) clearTimeout(timer)
-    this.consolidationTimers.clear()
-    this.consolidationTimerDueAt.clear()
     this.lastConsolidationAt.clear()
     this.lastConsolidationFailureAt.clear()
-    this.consolidationPasses.clear()
   }
 
   private shouldArmMaintenance(agentId: string): boolean {
@@ -289,7 +320,7 @@ export class MaintenanceService {
     delayMs: number = CONSOLIDATION_IDLE_MS,
     options: { preserveEarlier?: boolean } = {}
   ): void {
-    if (this.ctx.isDisposed) return
+    if (this.ctx.isDisposed || this.maintenancePaused) return
     const dueAt = Date.now() + delayMs
     const existing = this.consolidationTimers.get(agentId)
     const existingDueAt = this.consolidationTimerDueAt.get(agentId)
@@ -306,11 +337,9 @@ export class MaintenanceService {
     const timer = setTimeout(() => {
       this.consolidationTimers.delete(agentId)
       this.consolidationTimerDueAt.delete(agentId)
-      const run = this.ports.runConsolidationPass(agentId).catch((error) => {
+      void this.ports.runConsolidationPass(agentId).catch((error) => {
         logger.warn(`[Memory] consolidation pass failed for ${agentId}: ${String(error)}`)
       })
-      this.consolidationRuns.add(run)
-      void run.finally(() => this.consolidationRuns.delete(run))
     }, delayMs)
     if (typeof timer.unref === 'function') timer.unref()
     this.consolidationTimers.set(agentId, timer)
@@ -321,6 +350,7 @@ export class MaintenanceService {
     const effectiveNow = now ?? this.ctx.now()
     const existing = this.consolidationPasses.get(agentId)
     if (existing) return existing
+    if (this.maintenancePaused) return
     const tracked = this.runConsolidationPassInternal(agentId, effectiveNow).finally(() => {
       if (this.consolidationPasses.get(agentId) === tracked) {
         this.consolidationPasses.delete(agentId)
@@ -539,6 +569,9 @@ export class MaintenanceService {
       }
 
       for (const seed of dirtySeeds) {
+        // A fenced pass must not issue another decision request after its
+        // in-flight one was aborted.
+        if (!this.ctx.canContinueOperation(operationFence)) return result
         if (budget.snapshot().inputTokens >= MAINTENANCE_MAX_INPUT_TOKENS) break
         if (processedMemoryIds.has(seed.memoryId)) {
           settleSeed(seed)
@@ -972,14 +1005,15 @@ export class MaintenanceService {
     this.consolidationTimerDueAt.delete(agentId)
     this.lastConsolidationAt.delete(agentId)
     this.lastConsolidationFailureAt.delete(agentId)
-    this.consolidationPasses.delete(agentId)
+    // An in-flight pass stays tracked until it settles so drain and dispose
+    // keep waiting for it; its own `finally` removes the entry.
   }
 
   getInFlight(): Promise<unknown>[] {
-    return [...this.consolidationRuns]
+    return [...this.consolidationPasses.values()]
   }
 
   clearInFlight(): void {
-    this.consolidationRuns.clear()
+    this.consolidationPasses.clear()
   }
 }

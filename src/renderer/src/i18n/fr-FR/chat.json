@@ -114,6 +114,7 @@
   "features": {
     "webSearch": "Recherche web",
     "artifactThinking": "Réflexion sur les artefacts",
+    "thoughtForLessThanOneSecond": "Réflexion pendant moins de 1 s",
     "thoughtForSeconds": "Réflexion pendant {seconds}s",
     "thoughtForSecondsLoading": "Réflexion en cours ({seconds}s)",
     "modeChanged": "Mode commuté sur : {mode}"

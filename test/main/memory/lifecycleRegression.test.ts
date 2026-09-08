@@ -14,6 +14,7 @@ import {
   DAY,
   decisionCalls,
   embeddingConfig,
+  flushMicrotasks,
   makeLLMPresenter,
   routedLLM,
   seedEmbedded
@@ -505,12 +506,14 @@ describe('MemoryService lifecycle revival (SDD-8)', () => {
         extraction: '[{"kind":"semantic","content":"user likes redis","importance":0.8}]',
         decision: '{"decision":"ADD","targetIndex":null,"mergedContent":null}'
       })
-      const { presenter } = makeLLMPresenter(generateText)
-      let resolvePass = (): void => {}
-      const passGate = new Promise<void>((resolve) => {
-        resolvePass = resolve
+      const { presenter, store } = makeLLMPresenter(generateText)
+      // Block the real pass inside its vector neighbor query: dispose aborts provider
+      // requests, so an LLM gate would release the pass on its own.
+      let releaseNeighborQuery = (): void => {}
+      const neighborQueryGate = new Promise<MemoryVectorMatch[]>((resolve) => {
+        releaseNeighborQuery = () => resolve([])
       })
-      vi.spyOn(presenter, 'runConsolidationPass').mockReturnValue(passGate)
+      const neighborQuery = vi.spyOn(store, 'queryByMemoryId').mockReturnValue(neighborQueryGate)
 
       await presenter.extractAndStore({
         agentId: 'a',
@@ -518,15 +521,16 @@ describe('MemoryService lifecycle revival (SDD-8)', () => {
         model: { providerId: 'main', modelId: 'main' }
       })
       await vi.advanceTimersByTimeAsync(5 * 60 * 1000)
+      expect(neighborQuery).toHaveBeenCalledTimes(1)
 
       let disposed = false
       const disposePromise = presenter.dispose().then(() => {
         disposed = true
       })
-      await Promise.resolve()
+      await flushMicrotasks(20)
       expect(disposed).toBe(false)
 
-      resolvePass()
+      releaseNeighborQuery()
       await disposePromise
       expect(disposed).toBe(true)
     } finally {

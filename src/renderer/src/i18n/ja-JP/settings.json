@@ -3214,7 +3214,7 @@
         "memory-reflect": "記憶を振り返り",
         "persona-evolve": "人格を進化",
         "memory-repair": "記憶を修復",
-        "memory-forget": "記憶を完全に削除",
+        "memory-forget": "記憶を忘却（アーカイブ済み・復元可能）",
         "memory-manual-edit": "メモリを編集しました",
         "memory-challenge-resolved": "競合を解決しました",
         "memory-persona-approve": "ペルソナ下書きを承認しました",

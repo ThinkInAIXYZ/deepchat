@@ -52,6 +52,7 @@ const MAX_COMPACTION_ATTEMPT_ID_CHARACTERS = 128
 type CompactionMessageOptions = {
   compactionAttemptId: string
   boundaryReason?: SessionCompactionBoundaryReason | null
+  error?: string
 }
 
 function normalizeCompactionAttemptId(value: unknown): string | null {
@@ -448,7 +449,7 @@ export class SessionTranscript implements TapeTranscriptProjection {
 
   updateCompactionMessage(
     messageId: string,
-    status: 'compacting' | 'compacted',
+    status: 'compacting' | 'compacted' | 'failed',
     summaryUpdatedAt: number | null,
     options: CompactionMessageOptions
   ): void {
@@ -459,14 +460,15 @@ export class SessionTranscript implements TapeTranscriptProjection {
         this.terminalRecord({
           ...this.recordFromRow(row),
           role: 'assistant',
-          content: JSON.stringify(this.buildCompactionBlocks(status)),
-          status: 'sent',
+          content: JSON.stringify(this.buildCompactionBlocks(status, options.error)),
+          status: status === 'failed' ? 'error' : 'sent',
           metadata: JSON.stringify(
             this.buildCompactionMetadata(
               status,
               summaryUpdatedAt,
               options.compactionAttemptId,
-              options.boundaryReason
+              options.boundaryReason,
+              options.error
             )
           ),
           updatedAt: Date.now()
@@ -777,27 +779,35 @@ export class SessionTranscript implements TapeTranscriptProjection {
           row.status === 'sent' && parseMessageMetadata(row.metadata).messageType !== 'compaction'
       )
     const sourceRecords = this.toRecords(sourceRows)
+    const sourceMemoryCursor =
+      this.database.deepchatSessionsTable.getMemoryCursorOrderSeq(sourceSessionId) ?? 0
     const forkedAt = Date.now()
 
+    // Map the successfully extracted prefix onto the densely renumbered clone.
+    // Unprocessed source rows must remain eligible for extraction in the fork.
+    let clonedTailOrderSeq = 0
+    let clonedMemoryCursorOrderSeq = 0
     this.runInDatabaseTransaction(() => {
-      let nextOrderSeq = 1
       for (const record of sourceRecords) {
+        clonedTailOrderSeq += 1
+        if (record.orderSeq <= sourceMemoryCursor) {
+          clonedMemoryCursorOrderSeq = clonedTailOrderSeq
+        }
         this.commitRecord(
           this.terminalRecord({
             ...record,
             id: nanoid(),
             sessionId: targetSessionId,
-            orderSeq: nextOrderSeq,
+            orderSeq: clonedTailOrderSeq,
             status: 'sent',
             createdAt: forkedAt,
             updatedAt: forkedAt
           })
         )
-        nextOrderSeq += 1
       }
     })
 
-    return sourceRecords.length
+    return clonedMemoryCursorOrderSeq
   }
 
   recoverPendingMessages(options?: {
@@ -1033,11 +1043,30 @@ export class SessionTranscript implements TapeTranscriptProjection {
       content: this.materializeContent(row, maps),
       status: row.status,
       isContextEdge: row.is_context_edge,
-      metadata: row.metadata,
+      metadata: this.materializeCompactionMetadata(row),
       traceCount: row.trace_count ?? 0,
       createdAt: row.created_at,
       updatedAt: row.updated_at
     }))
+  }
+
+  private materializeCompactionMetadata(row: DeepChatMessageRow): string {
+    const metadata = parseMessageMetadata(row.metadata)
+    if (metadata.messageType !== 'compaction' || metadata.compactionStatus !== 'compacted') {
+      return row.metadata
+    }
+    const attemptId = normalizeCompactionAttemptId(metadata.compactionAttemptId)
+    const anchor = attemptId
+      ? this.compactionAnchors?.getReconstructionAnchorByCompactionAttemptId(
+          row.session_id,
+          attemptId
+        )
+      : undefined
+    const state = anchor ? parseTapeAnchorState(anchor) : null
+    const summary = state?.summary ?? state?.summaryText
+    return typeof summary === 'string' && summary.trim()
+      ? JSON.stringify({ ...metadata, compactionSummary: summary })
+      : row.metadata
   }
 
   private materializeContent(row: DeepChatMessageRow, maps?: StructuredMessageMaps): string {
@@ -1077,31 +1106,38 @@ export class SessionTranscript implements TapeTranscriptProjection {
     return JSON.stringify(assistantRows.map((blockRow) => toAssistantBlock(blockRow)))
   }
 
-  private buildCompactionBlocks(status: 'compacting' | 'compacted'): AssistantMessageBlock[] {
+  private buildCompactionBlocks(
+    status: 'compacting' | 'compacted' | 'failed',
+    error?: string
+  ): AssistantMessageBlock[] {
     return [
       {
-        type: 'content',
+        type: status === 'failed' ? 'error' : 'content',
         content:
-          status === 'compacting'
-            ? 'Compacting conversation context...'
-            : 'Conversation context compacted.',
-        status: status === 'compacting' ? 'loading' : 'success',
+          status === 'failed'
+            ? error || 'chat.compaction.failedTitle'
+            : status === 'compacting'
+              ? 'Compacting conversation context...'
+              : 'Conversation context compacted.',
+        status: status === 'failed' ? 'error' : status === 'compacting' ? 'loading' : 'success',
         timestamp: Date.now()
       }
     ]
   }
 
   private buildCompactionMetadata(
-    status: 'compacting' | 'compacted',
+    status: 'compacting' | 'compacted' | 'failed',
     summaryUpdatedAt: number | null,
     compactionAttemptId: string,
-    boundaryReason: SessionCompactionBoundaryReason | null = null
+    boundaryReason: SessionCompactionBoundaryReason | null = null,
+    error?: string
   ): MessageMetadata {
     return {
       messageType: 'compaction',
       compactionStatus: status,
       compactionAttemptId,
       compactionBoundaryReason: boundaryReason,
+      ...(error ? { compactionError: error } : {}),
       summaryUpdatedAt
     }
   }

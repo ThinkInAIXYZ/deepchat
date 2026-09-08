@@ -99,8 +99,7 @@ export class UserPluginHooks implements PluginContextPort {
     let history = cached?.incarnationId === incarnationId ? cached.history : undefined
     if (!history) {
       history = new Map()
-      for (const row of this.tape.getBySession(sessionId)) {
-        if (row.name !== 'plugin/context-hook') continue
+      for (const row of this.tape.getBySession(sessionId, 'plugin/context-hook')) {
         let invocation: Invocation
         try {
           invocation = JSON.parse(row.payload_json)?.state

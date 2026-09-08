@@ -459,8 +459,8 @@ export class SessionTape implements SessionTapeCapabilities {
     return this.lineage.linkSubagentTape(input)
   }
 
-  getBySession(sessionId: string): DeepChatTapeEntryRow[] {
-    return this.providers.getEntryStore().getBySessionExcludingContext(sessionId)
+  getBySession(sessionId: string, name?: string): DeepChatTapeEntryRow[] {
+    return this.providers.getEntryStore().getBySessionExcludingContext(sessionId, name)
   }
 
   getTapeInspectorHead(sessionId: string): TapeInspectorHead | null {

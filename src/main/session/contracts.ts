@@ -226,6 +226,8 @@ export interface SessionLightweightOptions {
   limit?: number
   cursor?: SessionPageCursor | null
   includeSubagents?: boolean
+  includeDrafts?: boolean
+  projectDir?: string
   agentId?: string
   prioritizeSessionId?: string
 }

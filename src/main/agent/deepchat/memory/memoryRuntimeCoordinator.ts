@@ -86,7 +86,7 @@ export interface MemoryIngestionProjection {
 export interface MemoryRuntimeCoordinatorDependencies {
   memoryPort: MemoryRuntimePort
   registry: SessionScopeRegistry
-  identity: Pick<SessionIdentityService, 'getAgentId'>
+  identity: Pick<SessionIdentityService, 'getAgentId' | 'getSessionKind'>
   getNextMessageOrderSeq(sessionId: string): number
   getMessagesUpToOrderSeq(sessionId: string, orderSeq: number): ChatMessageRecord[]
   getMemoryCursorOrderSeq(sessionId: string): number | null
@@ -170,6 +170,16 @@ export class MemoryRuntimeCoordinator implements MemoryPromptContributor, Memory
   resetExtractionCursor(sessionId: string): void {
     this.bumpSessionEpoch(sessionId)
     this.deps.rewindMemoryCursorOrderSeq(sessionId, 0)
+  }
+
+  /**
+   * Skips only the cloned prefix already extracted by the source session, so
+   * forks do not replay superseded claims or lose the unprocessed source tail.
+   * Fence older extraction work before advancing the target cursor.
+   */
+  seedExtractionCursor(sessionId: string, orderSeq: number): void {
+    this.bumpSessionEpoch(sessionId)
+    this.deps.updateMemoryCursorOrderSeq(sessionId, orderSeq)
   }
 
   invalidateFromOrderSeq(sessionId: string, orderSeq: number): void {
@@ -443,7 +453,7 @@ export class MemoryRuntimeCoordinator implements MemoryPromptContributor, Memory
     try {
       this.assertCurrentSessionHandle(input.session)
       const sessionId = input.session.sessionId
-      if (!this.isMemoryEnabled(sessionId)) return
+      if (!this.isIngestionEnabled(sessionId)) return
       const toOrderSeq = Math.max(1, input.targetCursorOrderSeq)
       this.enqueueSessionExtraction(sessionId, async (epoch, executionToken) => {
         if (!this.isSessionEpochCurrent(sessionId, epoch)) return
@@ -712,7 +722,7 @@ export class MemoryRuntimeCoordinator implements MemoryPromptContributor, Memory
   }
 
   private enqueueFallbackExtraction(sessionId: string): void {
-    if (!this.isMemoryEnabled(sessionId)) return
+    if (!this.isIngestionEnabled(sessionId)) return
 
     this.enqueueSessionExtraction(sessionId, async (epoch, executionToken) => {
       if (!this.isSessionEpochCurrent(sessionId, epoch)) return
@@ -743,9 +753,15 @@ export class MemoryRuntimeCoordinator implements MemoryPromptContributor, Memory
     )
   }
 
-  private isMemoryEnabled(sessionId: string): boolean {
-    const agentId = this.resolveSessionAgentId(sessionId)
-    return this.memoryPort.isEnabled(agentId)
+  /**
+   * Injection follows the Agent switch alone, but extraction also skips Subagent sessions: their
+   * "user" turns are task descriptions written by the parent Agent, so extracting them would file
+   * the parent's instructions as the user's own facts. The parent session already extracts the
+   * child's outcome from the parent Agent's reply, which is the granularity worth remembering.
+   */
+  private isIngestionEnabled(sessionId: string): boolean {
+    if (this.deps.identity.getSessionKind(sessionId) === 'subagent') return false
+    return this.memoryPort.isEnabled(this.resolveSessionAgentId(sessionId))
   }
 
   private resolveSessionAgentId(sessionId: string): string {

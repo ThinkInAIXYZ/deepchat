@@ -3371,6 +3371,12 @@ export async function createMainProcessControl(dependencies: {
           `Memory ingestion did not drain for sessions: ${drain.pendingSessions.join(', ')}`
         )
       }
+      const pendingMaintenanceAgents = await memoryService.drainBackgroundMaintenance()
+      if (pendingMaintenanceAgents.length > 0) {
+        throw new Error(
+          `Memory maintenance did not drain for agents: ${pendingMaintenanceAgents.join(', ')}`
+        )
+      }
       await suspendSessionRuntimes()
       operationResult = await operation({
         getDatabasePath: () => mainDatabase.getDatabasePath(),

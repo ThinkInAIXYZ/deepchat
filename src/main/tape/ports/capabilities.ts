@@ -358,7 +358,7 @@ export interface TapeMessageFactWriter {
 }
 
 export interface TapeNonContextEntryReader {
-  getBySession(sessionId: string): DeepChatTapeEntryRow[]
+  getBySession(sessionId: string, name?: string): DeepChatTapeEntryRow[]
 }
 
 export interface TapeAnchorReader {

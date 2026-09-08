@@ -30,7 +30,8 @@ export const useAgentStore = defineStore('agent', () => {
 
   // --- State ---
   const agents = ref<UIAgent[]>([])
-  const selectedAgentId = ref<string | null>(null) // null = "All Agents"
+  const selectedAgentId = ref<string | null>(null)
+  const filterAgentId = ref<string | null>(null) // null = "All Agents"
   const loading = ref(false)
   const error = ref<string | null>(null)
 
@@ -62,13 +63,10 @@ export const useAgentStore = defineStore('agent', () => {
   }
 
   function syncSelectedAgent(): void {
-    if (selectedAgentId.value === null) {
-      return
-    }
-
-    const currentSelectedAgent = agents.value.find((agent) => agent.id === selectedAgentId.value)
-    if (!currentSelectedAgent || !currentSelectedAgent.enabled) {
-      selectedAgentId.value = null
+    for (const selection of [selectedAgentId, filterAgentId]) {
+      if (selection.value && !enabledAgents.value.some((agent) => agent.id === selection.value)) {
+        selection.value = null
+      }
     }
   }
 
@@ -185,12 +183,15 @@ export const useAgentStore = defineStore('agent', () => {
     }
   }
 
-  function setSelectedAgent(id: string | null): void {
+  function setSelectedAgent(id: string | null, options?: { preserveFilter?: boolean }): void {
     selectedAgentId.value = id
+    if (!options?.preserveFilter) {
+      filterAgentId.value = id
+    }
   }
 
   function selectAgent(id: string | null): void {
-    selectedAgentId.value = selectedAgentId.value === id ? null : id
+    setSelectedAgent(filterAgentId.value === id ? null : id)
   }
 
   if (!listenersRegistered) {
@@ -218,6 +219,7 @@ export const useAgentStore = defineStore('agent', () => {
   return {
     agents,
     selectedAgentId,
+    filterAgentId,
     loading,
     error,
     enabledAgents,

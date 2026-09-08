@@ -150,6 +150,8 @@ export function createSessionClient(bridge: DeepchatBridge = getDeepchatBridge()
     limit?: number
     cursor?: { updatedAt: number; id: string } | null
     includeSubagents?: boolean
+    includeDrafts?: boolean
+    projectDir?: string
     agentId?: string
     prioritizeSessionId?: string
   }) {

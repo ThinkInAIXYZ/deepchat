@@ -825,7 +825,7 @@ describe('CompactionRuntimeCoordinator', () => {
     )
   })
 
-  it('retracts a failed marker without masking the failure after runtime replacement', async () => {
+  it('retains a failed marker without masking the failure after runtime replacement', async () => {
     const {
       applyCompaction,
       coordinator,
@@ -846,7 +846,13 @@ describe('CompactionRuntimeCoordinator', () => {
     completion.reject(failure)
 
     await expect(applying).rejects.toBe(failure)
-    expect(messageStore.deleteMessage).toHaveBeenCalledWith('compaction-message')
+    expect(messageStore.deleteMessage).not.toHaveBeenCalled()
+    expect(messageStore.updateCompactionMessage).toHaveBeenCalledWith(
+      'compaction-message',
+      'failed',
+      null,
+      { compactionAttemptId: 'compaction-attempt-1', error: 'provider failed' }
+    )
     expect(publishedEvents.map(({ payload }) => payload)).toEqual([
       expect.objectContaining({ status: 'compacting' })
     ])
@@ -914,12 +920,38 @@ describe('CompactionRuntimeCoordinator', () => {
       coordinator.apply(SESSION_ID, createIntent(100), undefined, initialInstance)
     ).rejects.toBe(failure)
 
-    expect(messageStore.deleteMessage).toHaveBeenCalledWith('compaction-message')
+    expect(messageStore.deleteMessage).not.toHaveBeenCalled()
+    expect(messageStore.updateCompactionMessage).toHaveBeenCalledWith(
+      'compaction-message',
+      'failed',
+      null,
+      { compactionAttemptId: 'compaction-attempt-1', error: 'compaction failed' }
+    )
     expect(initialInstance?.getCompactionState()).toEqual({
       status: 'compacted',
       cursorOrderSeq: 3,
       summaryUpdatedAt: 100,
       boundaryReason: null
     })
+  })
+
+  it('retains a summary error while publishing the committed fallback boundary', async () => {
+    const { applyCompaction, coordinator, messageStore, initialInstance } = createHarness()
+    const summaryState = { summaryText: null, summaryCursorOrderSeq: 5, summaryUpdatedAt: null }
+    applyCompaction.mockResolvedValueOnce({
+      outcome: 'boundary_only',
+      anchorCommitted: true,
+      summaryState,
+      summaryError: 'Summary provider unavailable'
+    })
+
+    await expect(coordinator.apply(SESSION_ID, createIntent())).resolves.toEqual(summaryState)
+
+    expect(messageStore.deleteMessage).not.toHaveBeenCalled()
+    expect(messageStore.updateCompactionMessage).toHaveBeenCalledWith(
+      'compaction-message', 'failed', null,
+      { compactionAttemptId: 'compaction-attempt-1', boundaryReason: null, error: 'Summary provider unavailable' }
+    )
+    expect(initialInstance?.getCompactionState()).toMatchObject({ status: 'compacted', cursorOrderSeq: 5 })
   })
 })

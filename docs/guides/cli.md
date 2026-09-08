@@ -7,9 +7,11 @@ MCP、OCR、Artifact 和 Agent 状态仍由正在运行的 DeepChat main 进程�
 
 - 不提供 CLI 开关。DeepChat 启动时自动启动本机 control plane。
 - server 监听成功后，DeepChat 自动、幂等地安装或修复自己拥有的 `deepchat` launcher。
-- 用户命令位置中的 launcher 是普通文件；它固定引用当前应用中校验过的 CLI 与 bundled Node，
-  应用移动或升级后由下次启动原子刷新。旧版 owned symlink 会自动迁移。
-- launcher 不会回退到 `PATH` 中的系统 Node；bundled runtime 缺失时以 `127` 失败关闭。
+- The owned launcher is a regular file that references the validated CLI and packaged Electron
+  executable. It sets `ELECTRON_RUN_AS_NODE=1` for the CLI host and refreshes atomically after an
+  application move or upgrade; owned legacy symlinks migrate automatically.
+- The launcher does not fall back to a system Node on `PATH`; a missing packaged host fails closed
+  with exit code `127`.
 - launcher 冲突时保持失败关闭：不会覆盖同名的外部命令、被修改的 managed block、符号链接
   profile 或不属于 DeepChat 的文件。
 - launcher 不是 daemon。DeepChat 未运行时，命令返回 `unavailable`，退出码为 `3`。
@@ -62,35 +64,35 @@ deepchat image generate --help
 
 稳定退出码：
 
-| Code | Meaning |
-| --- | --- |
-| `0` | success |
-| `2` | invalid command or input |
-| `3` | DeepChat unavailable or protocol/surface mismatch |
-| `4` | authentication or authorization failure |
-| `5` | renderer approval denied or timed out |
-| `6` | domain operation failed |
-| `7` | timeout, signal, or cancellation |
-| `8` | internal or protocol failure |
+| Code | Meaning                                           |
+| ---- | ------------------------------------------------- |
+| `0`  | success                                           |
+| `2`  | invalid command or input                          |
+| `3`  | DeepChat unavailable or protocol/surface mismatch |
+| `4`  | authentication or authorization failure           |
+| `5`  | renderer approval denied or timed out             |
+| `6`  | domain operation failed                           |
+| `7`  | timeout, signal, or cancellation                  |
+| `8`  | internal or protocol failure                      |
 
 ## V1 能力清单
 
-| # | 能力 | 命令域 | 关键边界 |
-| --- | --- | --- | --- |
-| 1 | 文本模型调用 | `model invoke` | raw provider stream，无 Session、Tool、Memory 或 Skill 副作用 |
-| 2 | 图片生成 | `image generate` | 二进制结果进入 ArtifactSpool |
-| 3 | 音频生成与识别 | `audio speak`, `audio transcribe` | speech 为正式 standalone 能力；转写支持上传或 owned artifact |
-| 4 | 视频生成 | `video generate` | 二进制结果进入 ArtifactSpool |
-| 5 | 离线 OCR | `ocr status`, `ocr extract`, `ocr clear-cache` | 图片/PDF，文本内联返回，不进入 ArtifactSpool |
-| 6 | 完整 Agent run | `agent run`, `run get/watch/cancel` | durable detached Session，可恢复、订阅和幂等取消 |
-| 7 | 公共设置 | `settings get/set` | 只读写 typed allowlist，不是任意配置通道 |
-| 8 | Provider 管理 | `provider list/test/add/update/set-credential/clear-credential/remove` | 公共 DTO 脱敏；凭据只从 stdin 进入 main |
-| 9 | Model 管理 | `model list/enable/disable/config-get/config-set/config-reset` | 运行时列表与严格公共配置分离 |
-| 10 | Skill 管理 | `skill list/install/enable/disable/remove` | ZIP/HTTPS 安装有边界与供应链批准 |
-| 11 | MCP 管理 | `mcp list/add/update/enable/disable/start/stop/remove` | 仅公开管理面，不暴露 raw MCP tool tunnel |
-| 12 | Artifact 管理 | `artifact describe/get/delete` | ownership、TTL、hash、配额与跨文件系统 no-overwrite |
-| 13 | 诊断和 benchmark 输出 | `system ...`, JSON/JSONL、stdin、timeout | 外部 harness 负责数据集、重复、打分和冷启动 |
-| 14 | Agent scoped CLI | bundled `deepchat-cli` Skill | main 签发短期、按调用和字节限额的 token，不暴露 human descriptor |
+| #   | 能力                  | 命令域                                                                 | 关键边界                                                         |
+| --- | --------------------- | ---------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| 1   | 文本模型调用          | `model invoke`                                                         | raw provider stream，无 Session、Tool、Memory 或 Skill 副作用    |
+| 2   | 图片生成              | `image generate`                                                       | 二进制结果进入 ArtifactSpool                                     |
+| 3   | 音频生成与识别        | `audio speak`, `audio transcribe`                                      | speech 为正式 standalone 能力；转写支持上传或 owned artifact     |
+| 4   | 视频生成              | `video generate`                                                       | 二进制结果进入 ArtifactSpool                                     |
+| 5   | 离线 OCR              | `ocr status`, `ocr extract`, `ocr clear-cache`                         | 图片/PDF，文本内联返回，不进入 ArtifactSpool                     |
+| 6   | 完整 Agent run        | `agent run`, `run get/watch/cancel`                                    | durable detached Session，可恢复、订阅和幂等取消                 |
+| 7   | 公共设置              | `settings get/set`                                                     | 只读写 typed allowlist，不是任意配置通道                         |
+| 8   | Provider 管理         | `provider list/test/add/update/set-credential/clear-credential/remove` | 公共 DTO 脱敏；凭据只从 stdin 进入 main                          |
+| 9   | Model 管理            | `model list/enable/disable/config-get/config-set/config-reset`         | 运行时列表与严格公共配置分离                                     |
+| 10  | Skill 管理            | `skill list/install/enable/disable/remove`                             | ZIP/HTTPS 安装有边界与供应链批准                                 |
+| 11  | MCP 管理              | `mcp list/add/update/enable/disable/start/stop/remove`                 | 仅公开管理面，不暴露 raw MCP tool tunnel                         |
+| 12  | Artifact 管理         | `artifact describe/get/delete`                                         | ownership、TTL、hash、配额与跨文件系统 no-overwrite              |
+| 13  | 诊断和 benchmark 输出 | `system ...`, JSON/JSONL、stdin、timeout                               | 外部 harness 负责数据集、重复、打分和冷启动                      |
+| 14  | Agent scoped CLI      | bundled `deepchat-cli` Skill                                           | main 签发短期、按调用和字节限额的 token，不暴露 human descriptor |
 
 ## 模型、媒体与 OCR
 
@@ -238,15 +240,15 @@ human-only。Skill/MCP 的脱敏列表可直接读取。
 
 ## Coredev 入口
 
-| Owner | Path |
-| --- | --- |
-| thin CLI、argv、输出和本地文件 I/O | `src/cli` |
-| server、surface、policy、domain adapters、ArtifactSpool | `src/main/cli` |
-| 唯一 composition/start/stop owner | `src/main/app/composition.ts` |
-| canonical protocol 与 route contracts | `src/shared/contracts` |
-| 通用批准状态机 | `src/main/approval` |
-| Agent shell gate | `src/main/tool/permission/commandPermissionService.ts` |
-| bundled Agent instructions | `resources/skills/deepchat-cli/SKILL.md` |
+| Owner                                                   | Path                                                   |
+| ------------------------------------------------------- | ------------------------------------------------------ |
+| thin CLI、argv、输出和本地文件 I/O                      | `src/cli`                                              |
+| server、surface、policy、domain adapters、ArtifactSpool | `src/main/cli`                                         |
+| 唯一 composition/start/stop owner                       | `src/main/app/composition.ts`                          |
+| canonical protocol 与 route contracts                   | `src/shared/contracts`                                 |
+| 通用批准状态机                                          | `src/main/approval`                                    |
+| Agent shell gate                                        | `src/main/tool/permission/commandPermissionService.ts` |
+| bundled Agent instructions                              | `resources/skills/deepchat-cli/SKILL.md`               |
 
 main 只监听 UDS 或 named pipe，不开放 TCP fallback。CLI surface 引用 canonical typed contracts，但
 不是内部 route registry 的通用代理。新增能力必须显式加入 surface，并同时定义 caller、scope、

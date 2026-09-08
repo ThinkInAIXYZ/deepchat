@@ -1,42 +1,24 @@
-# CUA Driver 0.17 Contract Migration
+# CUA Driver Contract
 
 ## Status
 
-Implementation and host-native validation are complete. This goal upgrades the bundled CUA
-runtime from `0.14.1` to `0.17.0` without changing DeepChat's supported target matrix or
-external-runtime ownership model. Native cross-platform and release-signing gates remain pending.
+The bundled driver pin is `0.19.2` with embedded contract `0.6.0`. Runtime ownership, strict catalog
+validation, snapshot-safe addressing, and bounded model projections are implemented. Native
+cross-platform behavior and release-signed/notarized macOS remain explicit validation gates; the
+current version pin does not imply that those gates have passed.
 
-## Context
+## Contract
 
-Before this migration, DeepChat pinned `cua-driver-rs-v0.14.1` and validated an exact embedded
-handshake before exposing its MCP tools. The native catalog is generated from the release binary,
-and packaging requires the catalog and closed tool policy to match exactly. Model-visible tool
-content is separate from raw MCP `structuredContent`, so upstream structured contract changes need
-an explicit DeepChat projection.
+DeepChat generates its native tool catalog from the pinned release binary and requires exact
+platform-scoped policy coverage. Model-visible content is separate from raw MCP `structuredContent`.
+Successful action tools use the closed `ActionResult` shape. Native element actions require an
+opaque `element_token` or the exact `element_index + snapshot_id` pair from one current window
+snapshot; a bare index is rejected before dispatch.
 
-Upstream `0.15.0` and `0.17.0` introduce two breaking contracts:
-
-- successful action tools now return the closed `ActionResult` shape instead of legacy per-tool
-  structured fields;
-- native element actions reject a bare `element_index` and require either `element_token` or the
-  exact `element_index` plus `snapshot_id` pair from one current window snapshot.
-
-The `0.17.0` release also adds `verify_state`, `set_window_frame`, `invoke_menu`,
-`clipboard_read`, and `clipboard_write`. Existing tools are not removed. The embedded
-daemon/proxy commands, tools-list schema, capability version, MCP protocol, packaged application
-layout, and minimum macOS version remain compatible with the current DeepChat architecture.
-
-## Goals
-
-1. Pin and attest the exact `cua-driver-rs-v0.17.0` release assets.
-2. Update the exact embedded handshake from driver/contract `0.14.1/0.2.0` to `0.17.0/0.6.0`.
-3. Keep catalog generation and closed policy coverage exact for every supported target.
-4. Fail closed before dispatch when a native element action uses a bare `element_index`.
-5. Expose bounded, typed `ActionResult` and `verify_state` facts to the model without promoting
-   arbitrary runtime prose or raw application content.
-6. Make the packaged Computer Use loop consume action effects and perform deterministic,
-   window-scoped postcondition checks when the task has an expressible predicate.
-7. Preserve current runtime supervision, integrity verification, signing, and target support.
+The maintained tool surface includes `verify_state`, `set_window_frame`, `invoke_menu`,
+`clipboard_read`, and `clipboard_write` with the explicit policies below. Driver changes must preserve
+runtime supervision, integrity verification, signing, and the supported target matrix. A delivered
+action alone is never evidence that the user's requested postcondition is satisfied.
 
 ## Non-goals
 
@@ -44,7 +26,7 @@ layout, and minimum macOS version remain compatible with the current DeepChat ar
 - Do not change the embedded daemon/proxy lifecycle or generic MCP result contract.
 - Do not persist a DeepChat-owned “latest snapshot” cache or auto-inject a snapshot id.
 - Do not expose raw clipboard plaintext to the model or add a new sensitive-data persistence
-  path in this migration.
+  path.
 - Do not make `verify_state` a desktop or visual-image interpretation engine.
 - Do not infer task completion from a delivered action.
 - Do not sync this SDD to a GitHub issue unless explicitly requested.
@@ -53,9 +35,9 @@ layout, and minimum macOS version remain compatible with the current DeepChat ar
 
 The runtime pin is:
 
-- tag: `cua-driver-rs-v0.17.0`;
-- commit: `10279552e2bbe479e367a082f78b1b98ee85a697`;
-- driver version: `0.17.0`;
+- tag: `cua-driver-rs-v0.19.2`;
+- commit: `20bb34b16ad7c6c56221c332e46b1875e9d8af8c`;
+- driver version: `0.19.2`;
 - contract version: `0.6.0`;
 - tools-list schema version: `1`;
 - capability version: `1`;
@@ -67,16 +49,15 @@ publishes an asset.
 
 ## Tool Policy
 
-Every target-local catalog tool must have one explicit policy entry after platform scoping. The
-five new cross-platform tools use these reviewed defaults:
+Every target-local catalog tool must have one explicit policy entry after platform scoping. The following cross-platform tools use these defaults:
 
-| Tool | Policy | Reason |
-| --- | --- | --- |
-| `verify_state` | `allow` | Bounded, read-only observation of one exact window |
-| `set_window_frame` | `ask` | User-visible window mutation |
-| `invoke_menu` | `ask` | User-visible native action that can trigger consequential commands |
-| `clipboard_write` | `ask` | Mutates privacy-sensitive shared system state |
-| `clipboard_read` | `deny` | Can return privacy-sensitive plaintext that DeepChat currently persists as raw MCP structured content |
+| Tool               | Policy  | Reason                                                                                                |
+| ------------------ | ------- | ----------------------------------------------------------------------------------------------------- |
+| `verify_state`     | `allow` | Bounded, read-only observation of one exact window                                                    |
+| `set_window_frame` | `ask`   | User-visible window mutation                                                                          |
+| `invoke_menu`      | `ask`   | User-visible native action that can trigger consequential commands                                    |
+| `clipboard_write`  | `ask`   | Mutates privacy-sensitive shared system state                                                         |
+| `clipboard_read`   | `deny`  | Can return privacy-sensitive plaintext that DeepChat currently persists as raw MCP structured content |
 
 Explicit denial keeps the tool in the closed catalog and policy while preventing an accidental
 sensitive-data path. Enabling reads later requires a separate design for consent, bounded
@@ -104,7 +85,7 @@ DeepChat must preserve these invariants:
 `get_window_state` model projection must label the exact pair explicitly. The projected token map
 is capped at 256 bounded handles and does not duplicate the accessibility tree. When the map is
 truncated, an unlisted element remains addressable through its same-result index-plus-snapshot
-pair. Only the pinned 0.17 lexical snapshot/token forms whose snapshot and element-index parts
+pair. Only the pinned runtime's lexical snapshot/token forms whose snapshot and element-index parts
 agree with the structured row enter model-visible content; this boundary check does not decode,
 derive, or synthesize either opaque handle for a caller.
 
@@ -177,8 +158,8 @@ validation so packaging fails if the source declaration drifts from the reviewed
 
 ## Acceptance Criteria
 
-- The exact `0.17.0/0.6.0` embedded handshake starts; older or mismatched metadata is rejected.
-- All five new tools are present with the reviewed policy, and target-local package policy equals
+- The exact `0.19.2/0.6.0` embedded handshake starts; older or mismatched metadata is rejected.
+- The five policy-listed tools are present, and target-local package policy equals
   the generated catalog exactly.
 - Empty tokens are removed, bare indices fail before dispatch, and index-plus-snapshot or token
   inputs are preserved unchanged.
@@ -193,9 +174,8 @@ validation so packaging fails if the source declaration drifts from the reviewed
 - Native Windows/Linux behavior, macOS x64, and release-signed/notarized macOS remain explicit
   release gates unless run in their matching environments.
 
-## Rollback
+## Pin Consistency
 
-Rollback requires reverting the version/contract pin, all release hashes, the five policy entries,
-model projections, snapshot argument guard, skill contract, and regenerated catalog as one unit.
-Mixing a `0.17.0` binary with the `0.14.1` handshake or skill is intentionally unsupported and
-must fail closed rather than degrade silently.
+The version/contract declaration, upstream release hashes, closed tool policy, model projections,
+snapshot argument guard, Skill instructions, and generated catalog form one compatibility unit.
+Mixed binary and host-contract versions must fail closed rather than degrade silently.

@@ -46,7 +46,7 @@
 
 将现有主窗口 composition implementation 从根目录 `App.vue` 移至 `src/renderer/src/apps/chat-main/ChatMainApp.vue`。根目录 `App.vue` 保留为只渲染 `ChatMainApp` 的兼容 facade；`src/renderer/src/main.ts` 与 `src/renderer/index.html` 不改变，继续作为稳定 entry shim。
 
-本切片保留 `src/renderer/src/router/index.ts` 与 `src/renderer/src/views/ChatTabView.vue` 的路径、路由契约和启动职责：
+本切片保留 `src/renderer/src/router/index.ts` 与 `src/renderer/src/apps/chat-main/ChatTabView.vue` 的路径、路由契约和启动职责：
 
 - `ChatMainApp` 继续承载主窗口的全局 chrome、runtime listener、MCP deeplink、welcome/onboarding 路由协调与 cleanup；
 - `ChatTabView` 继续独占 bootstrap snapshot、shell hydration、route init、首屏 session request 与 deferred hydration；

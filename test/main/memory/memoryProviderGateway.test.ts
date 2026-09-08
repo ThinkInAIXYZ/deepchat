@@ -90,6 +90,149 @@ describe('MemoryProviderGateway', () => {
     }
   })
 
+  describe('adaptive query embedding deadline', () => {
+    /** Provider whose latency is scripted per call; `undefined` never settles. */
+    function makeLatencyGateway(latenciesMs: Array<number | undefined>) {
+      let call = 0
+      const getEmbeddings = vi.fn(
+        (_providerId: string, _modelId: string, _texts: string[], signal?: AbortSignal) =>
+          new Promise<number[][]>((resolve, reject) => {
+            const latency = latenciesMs[call++]
+            signal?.addEventListener('abort', () => reject(signal.reason), { once: true })
+            if (latency !== undefined) setTimeout(() => resolve([[1, 2, 3]]), latency)
+          })
+      )
+      return { ...makeGateway({ getEmbeddings }), getEmbeddings }
+    }
+
+    async function settle<T>(promise: Promise<T>, advanceMs: number): Promise<T> {
+      const guarded = promise.then(
+        (value) => ({ ok: true as const, value }),
+        (error) => ({ ok: false as const, error })
+      )
+      await vi.advanceTimersByTimeAsync(advanceMs)
+      const outcome = await guarded
+      if (outcome.ok === true) return outcome.value
+      throw outcome.error
+    }
+
+    it('keeps the floor for fast providers so their behaviour is unchanged', async () => {
+      vi.useFakeTimers()
+      try {
+        const { gateway } = makeLatencyGateway([100, 150, undefined])
+        await settle(gateway.getEmbeddings('a', 'p', 'm', ['warm'], 'embedding-warm'), 100)
+        await settle(gateway.getEmbeddings('a', 'p', 'm', ['q1'], 'query-embedding'), 150)
+
+        const hung = gateway.getEmbeddings('a', 'p', 'm', ['q2'], 'query-embedding')
+        await expect(settle(hung, 800)).rejects.toMatchObject({
+          code: MEMORY_PROVIDER_DEADLINE_CODE,
+          message: '[Memory] query-embedding deadline exceeded (800ms)'
+        })
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('raises the deadline from the warm-up latency before the first query', async () => {
+      vi.useFakeTimers()
+      try {
+        const { gateway } = makeLatencyGateway([700, 1200])
+        await settle(gateway.getEmbeddings('a', 'p', 'm', ['warm'], 'embedding-warm'), 700)
+
+        // 700ms smoothed × 2 headroom = 1400ms, so a 1200ms query succeeds where 800ms failed.
+        await expect(
+          settle(gateway.getEmbeddings('a', 'p', 'm', ['q'], 'query-embedding'), 1200)
+        ).resolves.toEqual([[1, 2, 3]])
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('relaxes to the ceiling once after a miss and then converges on the observed latency', async () => {
+      vi.useFakeTimers()
+      try {
+        const { gateway } = makeLatencyGateway([undefined, 1200, undefined, 1200, undefined])
+
+        await expect(
+          settle(gateway.getEmbeddings('a', 'p', 'm', ['q1'], 'query-embedding'), 800)
+        ).rejects.toMatchObject({ message: '[Memory] query-embedding deadline exceeded (800ms)' })
+
+        await expect(
+          settle(gateway.getEmbeddings('a', 'p', 'm', ['q2'], 'query-embedding'), 1200)
+        ).resolves.toEqual([[1, 2, 3]])
+
+        // One sample of 1200ms: deadline is clamp(1200 × 2) = 2000ms, no longer the relaxation.
+        await expect(
+          settle(gateway.getEmbeddings('a', 'p', 'm', ['q3'], 'query-embedding'), 2000)
+        ).rejects.toMatchObject({ message: '[Memory] query-embedding deadline exceeded (2000ms)' })
+
+        await expect(
+          settle(gateway.getEmbeddings('a', 'p', 'm', ['q4'], 'query-embedding'), 1200)
+        ).resolves.toEqual([[1, 2, 3]])
+        await expect(
+          settle(gateway.getEmbeddings('a', 'p', 'm', ['q5'], 'query-embedding'), 2000)
+        ).rejects.toMatchObject({ message: '[Memory] query-embedding deadline exceeded (2000ms)' })
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('tracks latency per provider model and leaves other purposes alone', async () => {
+      vi.useFakeTimers()
+      try {
+        const { gateway } = makeLatencyGateway([1000, undefined, undefined])
+        await settle(gateway.getEmbeddings('a', 'p', 'slow', ['warm'], 'embedding-warm'), 1000)
+
+        await expect(
+          settle(gateway.getEmbeddings('a', 'p', 'fast', ['q'], 'query-embedding'), 800)
+        ).rejects.toMatchObject({ message: '[Memory] query-embedding deadline exceeded (800ms)' })
+        await expect(
+          settle(gateway.getEmbeddings('a', 'p', 'slow', ['batch'], 'embedding-batch'), 30_000)
+        ).rejects.toMatchObject({ message: '[Memory] embedding-batch deadline exceeded (30000ms)' })
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('keeps multi-text decision batches on the fixed deadline without touching the profile', async () => {
+      vi.useFakeTimers()
+      try {
+        const { gateway } = makeLatencyGateway([undefined, 1500, undefined])
+        // A batch miss must not relax the next single-text query.
+        await expect(
+          settle(gateway.getEmbeddings('a', 'p', 'm', ['c1', 'c2', 'c3'], 'query-embedding'), 800)
+        ).rejects.toMatchObject({ message: '[Memory] query-embedding deadline exceeded (800ms)' })
+        // A slow batch success must not raise the single-text deadline either.
+        await expect(
+          settle(gateway.getEmbeddings('a', 'p', 'm', ['c1', 'c2'], 'query-embedding'), 1500)
+        ).rejects.toMatchObject({ message: '[Memory] query-embedding deadline exceeded (800ms)' })
+
+        await expect(
+          settle(gateway.getEmbeddings('a', 'p', 'm', ['q'], 'query-embedding'), 800)
+        ).rejects.toMatchObject({ message: '[Memory] query-embedding deadline exceeded (800ms)' })
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('caps a cold warm-up sample at the ceiling so fast queries recover the floor quickly', async () => {
+      vi.useFakeTimers()
+      try {
+        const { gateway } = makeLatencyGateway([25_000, 300, 300, undefined])
+        await settle(gateway.getEmbeddings('a', 'p', 'm', ['warm'], 'embedding-warm'), 25_000)
+        // Sample capped to 2000 → smoothed 2000 → 1150 → 725 → deadline clamp(1450) after two queries.
+        await settle(gateway.getEmbeddings('a', 'p', 'm', ['q1'], 'query-embedding'), 300)
+        await settle(gateway.getEmbeddings('a', 'p', 'm', ['q2'], 'query-embedding'), 300)
+
+        await expect(
+          settle(gateway.getEmbeddings('a', 'p', 'm', ['q3'], 'query-embedding'), 1450)
+        ).rejects.toMatchObject({ message: '[Memory] query-embedding deadline exceeded (1450ms)' })
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+  })
+
   it('aborts queued or active requests during disposal without waiting for provider support', async () => {
     const { gateway } = makeGateway({
       executeWithRateLimit: vi.fn(() => new Promise<void>(() => undefined))

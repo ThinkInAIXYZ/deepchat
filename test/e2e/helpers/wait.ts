@@ -39,7 +39,7 @@ export async function waitForChatSurface(page: Page): Promise<void> {
 }
 
 export async function waitForGenerationDone(page: Page): Promise<void> {
-  const chatPage = page.getByTestId('chat-page')
+  const chatPage = page.getByTestId('chat-page-shell')
   await expect(chatPage).toBeVisible({ timeout: 60_000 })
 
   await expect
@@ -56,5 +56,5 @@ export async function waitForGenerationDone(page: Page): Promise<void> {
     })
     .toBe('false')
 
-  await expect(page.getByTestId('chat-send-button')).toBeVisible({ timeout: 30_000 })
+  await expect(chatPage.getByTestId('chat-send-button')).toBeVisible({ timeout: 30_000 })
 }

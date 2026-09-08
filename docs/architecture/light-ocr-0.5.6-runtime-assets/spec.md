@@ -1,62 +1,33 @@
-# Light OCR 0.5.6 Runtime Assets
+# Light OCR Runtime Assets
 
-Status: implemented and locally validated
+## Contract
 
-Upstream release:
-[arcships/light-ocr v0.5.6](https://github.com/arcships/light-ocr/releases/tag/v0.5.6)
+DeepChat ships an exact, integrity-checked Light OCR package closure. Every native PDFium package
+includes a checksum-pinned Noto Sans SC fallback font and its license. The loader resolves these
+resources relative to its own directory. Encoded macOS runtimes materialize verified resources beside
+the private PDFium loader before starting the helper.
 
-## Context
-
-Before this increment, DeepChat pinned the Light OCR 0.5.5 facade, 0.1.5 runtime,
-0.3.4 Small model, and six 0.5.5 native packages. Light OCR 0.5.6 keeps the public
-image, PDF, and multi-page APIs unchanged, but changes the native PDFium runtime
-closure: every platform package now carries a checksum-pinned Noto Sans SC
-fallback font and its license. The PDFium loader resolves those files relative to
-its own directory.
-
-The existing DeepChat package contract permits exactly three files directly below
-`pdfium/`. It rejects the new `pdfium/fonts/` directory. On macOS, DeepChat also
-materializes encoded native code and the PDFium loader into a private temporary
-runtime; copying the loader without its relative font resources would either fail
-module loading or silently lose the upstream rendering fix.
-
-## Goals
-
-- Upgrade the stable Light OCR closure to facade 0.5.6, runtime 0.1.6, and native
-  0.5.6 while retaining model 0.3.4 and bundle
-  `ppocrv6-small-native-20260719.1`.
-- Preserve the exact, fail-closed package inventory and integrity boundaries.
-- Package and validate the fallback font and OFL assets on all six supported
-  targets.
-- Materialize verified PDFium font resources beside the loader on encoded macOS
-  runtimes.
-- Add a packaged smoke fixture that proves a PDF with a non-embedded Chinese font
-  renders and survives OCR.
-- Preserve existing image OCR, scanned-PDF OCR, helper protocol, cache, attachment,
-  and UI behavior.
-
-## Non-Goals
-
-- No Light OCR API adapter, helper-protocol change, renderer change, or new setting.
-- No model, bundled Node, PDF resource-limit, or OCR text-budget change.
-- No generic recursive acceptance of future files under `pdfium/`.
-- No system-font fallback, runtime download, postinstall script, or symlink from the
-  private runtime back into the packaged application.
-- No claim that the bundled Simplified Chinese fallback covers every CJK script or
-  typography requirement.
+The package inventory remains explicit and fail-closed. This contract does not allow arbitrary new
+files under `pdfium/`, system-font fallback, runtime resource downloads, postinstall scripts, or
+symlinks back into the packaged application. The bundled Simplified Chinese font does not imply
+coverage for every CJK script or typography requirement.
 
 ## Version Closure
 
-| Component | Package | Version |
-| --- | --- | --- |
-| Stable facade | `@arcships/light-ocr` | `0.5.6` |
-| Model-free runtime | `@arcships/light-ocr-runtime` | `0.1.6` |
-| Small model | `@arcships/light-ocr-model-ppocrv6-small` | `0.3.4` |
-| Native packages | six `@arcships/light-ocr-<platform>` packages | `0.5.6` |
+`resources/runtime-versions.json` owns the OCR runtime inventory; `package.json` and `pnpm-lock.yaml`
+resolve the matching facade and native packages:
 
-The bundled Node remains `v24.14.1`. The package manager lockfile must resolve the
-facade to runtime 0.1.6 and the runtime to the matching 0.5.6 native package for
-every supported target.
+| Component          | Package                                       | Version |
+| ------------------ | --------------------------------------------- | ------- |
+| Stable facade      | `@arcships/light-ocr`                         | `0.5.7` |
+| Model-free runtime | `@arcships/light-ocr-runtime`                 | `0.1.7` |
+| Small model        | `@arcships/light-ocr-model-ppocrv6-small`     | `0.3.4` |
+| Native packages    | six `@arcships/light-ocr-<platform>` packages | `0.5.7` |
+
+The model bundle is `ppocrv6-small-native-20260719.1`. OCR obtains a compatible official Node runtime
+through the ToolchainService; it does not use Electron's Node runtime. A clean installation requires
+the user to install the managed Node pin or select a compatible system runtime before offline OCR is
+available. Once the runtime is available, OCR asset resolution and execution require no network access.
 
 ## PDFium Resource Contract
 
@@ -111,14 +82,14 @@ symlinks so integrity, lifetime, and containment stay explicit.
 - The facade/runtime/native version fields naturally invalidate derived OCR cache
   entries. No database migration or artifact-revision bump is needed.
 - Persisted attachment OCR snapshots remain immutable and are not recomputed.
-- The settings UI reports 0.5.6 through the existing availability contract.
+- The settings UI reports the resolved facade version through the existing availability contract.
 - The expected compressed OCR asset total remains below the existing 90 MiB
   component budget; the budget must not be raised without measured evidence.
 
 ## Acceptance Criteria
 
 - A version-only upgrade is impossible: the package and runtime checks require the
-  exact v0.5.6 closure and all font resources.
+  exact manifest-pinned closure and all font resources.
 - Direct Linux and Windows layouts load the package-local font resources.
 - Encoded macOS layouts materialize exact verified font bytes beside the PDFium
   loader and contain no raw Mach-O OCR artifacts.

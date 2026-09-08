@@ -113,6 +113,7 @@
   },
   "features": {
     "webSearch": "carian internet",
+    "thoughtForLessThanOneSecond": "Berfikir kurang daripada 1 saat",
     "thoughtForSeconds": "Terfikir tentang {seconds} saat",
     "thoughtForSecondsLoading": "Berfikir ({seconds} kedua)",
     "artifactThinking": "artifact Fikiran",

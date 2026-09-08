@@ -4,7 +4,7 @@
     :expanded="!collapse"
     :thinking="block.status === 'loading'"
     :content="block.content"
-    @toggle="collapse = !collapse"
+    @toggle="toggleExpanded"
   />
 </template>
 
@@ -15,16 +15,21 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { createConfigClient } from '@api/ConfigClient'
 import type { DisplayAssistantMessageBlock } from '@/features/chat-page/model/displayMessage'
 import { useThrottleFn } from '@vueuse/core'
-const props = defineProps<{
-  block: DisplayAssistantMessageBlock
-  usage: {
-    reasoning_start_time: number
-    reasoning_end_time: number
-  }
-}>()
+const props = withDefaults(
+  defineProps<{
+    block: DisplayAssistantMessageBlock
+    initiallyExpanded?: boolean
+    usage: {
+      reasoning_start_time: number
+      reasoning_end_time: number
+    }
+  }>(),
+  { initiallyExpanded: undefined }
+)
 
 const emit = defineEmits<{
   (e: 'toggle-collapse', isCollapsed: boolean): void
+  (e: 'manual-toggle', expanded: boolean): void
 }>()
 const { t } = useI18n()
 
@@ -32,7 +37,16 @@ const configClient = createConfigClient()
 
 // kept for potential future scroll anchoring; currently unused
 
-const collapse = ref(false)
+const collapse = ref(props.initiallyExpanded === false)
+let hasManualToggle = props.initiallyExpanded !== undefined
+
+const toggleExpanded = () => {
+  hasManualToggle = true
+  collapse.value = !collapse.value
+  void configClient.setSetting('think_collapse', collapse.value)
+  emit('manual-toggle', !collapse.value)
+}
+
 const displayedSeconds = ref(0)
 const UPDATE_INTERVAL = 1000
 const UPDATE_OFFSET = 80
@@ -65,8 +79,7 @@ const reasoningDuration = computed(() => {
   } else {
     duration = (props.usage.reasoning_end_time - props.usage.reasoning_start_time) / 1000
   }
-  // 保留小数点后最多两位，去除尾随的0
-  return parseFloat(duration.toFixed(2))
+  return duration
 })
 
 const updateDisplayedSeconds = () => {
@@ -114,15 +127,17 @@ const headerText = computed(() => {
     return t('chat.features.modeChanged', { mode: modeChangeId.value })
   }
   const seconds = displayedSeconds.value
-  return props.block.status === 'loading'
-    ? t('chat.features.thoughtForSecondsLoading', { seconds })
+  if (props.block.status === 'loading') {
+    return t('chat.features.thoughtForSecondsLoading', { seconds })
+  }
+  return seconds === 0
+    ? t('chat.features.thoughtForLessThanOneSecond')
     : t('chat.features.thoughtForSeconds', { seconds })
 })
 
 watch(
   () => collapse.value,
   (newValue) => {
-    void configClient.setSetting('think_collapse', newValue)
     emit('toggle-collapse', !newValue)
   }
 )
@@ -162,7 +177,8 @@ watch(
 )
 
 onMounted(async () => {
-  collapse.value = Boolean(await configClient.getSetting('think_collapse'))
+  const savedCollapse = Boolean(await configClient.getSetting('think_collapse'))
+  if (!hasManualToggle) collapse.value = savedCollapse
 })
 
 onBeforeUnmount(() => {

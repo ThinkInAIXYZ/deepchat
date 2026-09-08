@@ -3214,7 +3214,7 @@
         "memory-reflect": "Bellek yansıtması",
         "persona-evolve": "Persona geliştirildi",
         "memory-repair": "Bellek onarıldı",
-        "memory-forget": "Bellek kalıcı olarak silindi",
+        "memory-forget": "Bellek unutuldu (arşivlendi, geri alınabilir)",
         "memory-manual-edit": "Bellek düzenlendi",
         "memory-challenge-resolved": "Çakışma çözüldü",
         "memory-persona-approve": "Kişilik taslağı onaylandı",

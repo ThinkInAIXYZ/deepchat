@@ -213,7 +213,10 @@ describe('MessageList', () => {
         'data-compaction-status': 'compacting'
       }
     )
-    expect(compactingWrapper.find('.compaction-divider__label--compacting').exists()).toBe(true)
+    expect(
+      compactingWrapper.get<HTMLButtonElement>('[data-testid="compaction-trigger"]').element
+        .disabled
+    ).toBe(true)
 
     const compactedWrapper = mount(MessageList, {
       props: {
@@ -224,7 +227,9 @@ describe('MessageList', () => {
     expect(compactedWrapper.find('[data-compaction-indicator="true"]').attributes()).toMatchObject({
       'data-compaction-status': 'compacted'
     })
-    expect(compactedWrapper.find('.compaction-divider__label--compacting').exists()).toBe(false)
+    expect(
+      compactedWrapper.get<HTMLButtonElement>('[data-testid="compaction-trigger"]').element.disabled
+    ).toBe(false)
   })
 
   it.each([

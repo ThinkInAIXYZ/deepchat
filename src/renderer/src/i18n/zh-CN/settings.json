@@ -3272,7 +3272,7 @@
         "memory-reflect": "记忆反思",
         "persona-evolve": "演化人格",
         "memory-repair": "修复记忆",
-        "memory-forget": "永久删除记忆",
+        "memory-forget": "遗忘记忆（已归档，可恢复）",
         "memory-manual-edit": "手动编辑记忆",
         "memory-challenge-resolved": "解决冲突",
         "memory-persona-approve": "批准人格草稿",

@@ -113,6 +113,7 @@
   },
   "features": {
     "webSearch": "חיפוש אינטרנט",
+    "thoughtForLessThanOneSecond": "חשב במשך פחות משנייה",
     "thoughtForSeconds": "חשב במשך {seconds} שניות",
     "thoughtForSecondsLoading": "חושב במשך {seconds} שניות...",
     "artifactThinking": "חשיבת תוצר (Artifact Thinking)",
