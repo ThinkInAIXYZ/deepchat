@@ -587,6 +587,69 @@ describe('DeepSeek Responses replay', () => {
     })
   })
 
+  it('sanitizes un-replayable open-responses reasoning metadata while keeping the text', () => {
+    const summaryOnly: ChatMessage = {
+      role: 'assistant',
+      content: 'answer',
+      reasoning_content: 'concise summary',
+      reasoning_provider_options: {
+        'open-responses': {
+          itemId: 'rsn_summary_only',
+          reasoningSummary: [{ type: 'summary_text', text: 'concise summary' }],
+          reasoningContent: null
+        }
+      }
+    }
+    const fullContent: ChatMessage = {
+      role: 'assistant',
+      content: 'answer',
+      reasoning_content: 'full thinking',
+      reasoning_provider_options: {
+        'open-responses': {
+          itemId: 'rsn_full',
+          reasoningContent: [{ type: 'reasoning_text', text: 'full thinking' }]
+        }
+      }
+    }
+    const emptyText: ChatMessage = {
+      role: 'assistant',
+      content: 'tool call without reasoning',
+      reasoning_content: '',
+      reasoning_provider_options: {
+        'open-responses': { itemId: 'rsn_empty', reasoningContent: null }
+      }
+    }
+
+    const prepared = createAdapter().prepareMessages([summaryOnly, fullContent, emptyText])
+
+    expect(prepared[0]).not.toBe(summaryOnly)
+    expect(prepared[0]?.reasoning_content).toBe('concise summary')
+    expect(prepared[0]?.reasoning_provider_options).toEqual({
+      'open-responses': {
+        itemId: 'rsn_summary_only',
+        reasoningSummary: [{ type: 'summary_text', text: 'concise summary' }]
+      }
+    })
+    expect(prepared[1]).toBe(fullContent)
+    expect(prepared[1]?.reasoning_provider_options).toEqual({
+      'open-responses': {
+        itemId: 'rsn_full',
+        reasoningContent: [{ type: 'reasoning_text', text: 'full thinking' }]
+      }
+    })
+    expect(prepared[2]).toEqual({
+      role: 'assistant',
+      content: 'tool call without reasoning'
+    })
+    expect(summaryOnly.reasoning_provider_options).toEqual({
+      'open-responses': {
+        itemId: 'rsn_summary_only',
+        reasoningSummary: [{ type: 'summary_text', text: 'concise summary' }],
+        reasoningContent: null
+      }
+    })
+  })
+
   it('fails unmatched markers before network I/O', async () => {
     const baseFetch = vi.fn(async () => new Response(null, { status: 204 }))
     const wrappedFetch = createAdapter().wrapFetch(baseFetch)
