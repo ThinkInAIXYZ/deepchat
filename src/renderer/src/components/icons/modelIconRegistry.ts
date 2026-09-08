@@ -86,6 +86,7 @@ import voiceAiColorIcon from '@/assets/llm-icons/voiceai.svg?url'
 import novitaAiIcon from '@/assets/llm-icons/novitaai.svg?url'
 import astraflowIcon from '@/assets/llm-icons/astraflow.png?url'
 import apimartIcon from '@/assets/llm-icons/apimart.ico?url'
+import apiRouteIcon from '@/assets/llm-icons/api-route.svg?url'
 
 export const modelIcons = {
   'kimi-for-coding': kimiColorIcon,
@@ -106,6 +107,7 @@ export const modelIcons = {
   'alibaba-token-plan-cn': dashscopeColorIcon,
   alibaba: dashscopeColorIcon,
   aihubmix: aihubmixColorIcon,
+  'api-route': apiRouteIcon,
   apimart: apimartIcon,
   dashscope: dashscopeColorIcon,
   hunyuan: hunyuanColorIcon,

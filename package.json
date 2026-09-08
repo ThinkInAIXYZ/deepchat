@@ -37,8 +37,8 @@
     "architecture:baseline": "node scripts/generate-architecture-baseline.mjs",
     "architecture:renderer-baseline": "node scripts/generate-renderer-architecture-baseline.mjs",
     "architecture:renderer-baseline:check": "node scripts/generate-renderer-architecture-baseline.mjs --check",
-    "typecheck:node": "tsc --noEmit -p tsconfig.node.json --composite false",
-    "typecheck:web": "vue-tsc --noEmit -p tsconfig.app.json --composite false",
+    "typecheck:node": "tsc --noEmit -p tsconfig.node.json --composite false --incremental --tsBuildInfoFile node_modules/.cache/tsc-node.tsbuildinfo",
+    "typecheck:web": "vue-tsc --noEmit -p tsconfig.app.json --composite false --incremental --tsBuildInfoFile node_modules/.cache/tsc-web.tsbuildinfo",
     "typecheck": "pnpm run typecheck:node && pnpm run typecheck:web",
     "start": "electron-vite preview",
     "dev": "electron-vite dev --watch",
@@ -255,7 +255,7 @@
     "overrides": {
       "monaco-editor>dompurify": "3.4.13",
       "postcss>nanoid": "3.3.17",
-      "typescript": "npm:typescript-native-bridge@6.0.3-bridge.7.tsgo.7.0.2"
+      "typescript": "npm:typescript-native-bridge@6.0.3-bridge.16.tsgo.7.0.2"
     },
     "onlyBuiltDependencies": [
       "@tailwindcss/oxide",
