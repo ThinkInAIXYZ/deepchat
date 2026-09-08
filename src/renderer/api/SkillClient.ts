@@ -183,7 +183,10 @@ export function createSkillClient(bridge: DeepchatBridge = getDeepchatBridge()) 
     source: AgentSkillImportSource
     items: AgentSkillImportSelection[]
   }) {
-    const result = await bridge.invoke(skillsExecuteAgentImportRoute.name, input)
+    const result = await bridge.invoke(
+      skillsExecuteAgentImportRoute.name,
+      skillsExecuteAgentImportRoute.input.parse(input)
+    )
     return result.result
   }
 

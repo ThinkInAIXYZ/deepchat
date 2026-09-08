@@ -2773,7 +2773,13 @@ describe('renderer api clients', () => {
     })
     const result = await skillClient.executeAgentImport({
       source,
-      items: [{ skillName: 'write-tests', strategy: 'overwrite' }]
+      items: [
+        {
+          skillName: 'write-tests',
+          strategy: 'overwrite',
+          acknowledgedAgentIds: reactive(['deepchat'])
+        }
+      ]
     })
 
     expect(sources).toEqual([expect.objectContaining({ id: 'external:codex', skillCount: 1 })])
@@ -2793,8 +2799,15 @@ describe('renderer api clients', () => {
     })
     expect(bridge.invoke).toHaveBeenNthCalledWith(3, 'skills.executeAgentImport', {
       source,
-      items: [{ skillName: 'write-tests', strategy: 'overwrite' }]
+      items: [
+        {
+          skillName: 'write-tests',
+          strategy: 'overwrite',
+          acknowledgedAgentIds: ['deepchat']
+        }
+      ]
     })
+    expect(() => structuredClone(vi.mocked(bridge.invoke).mock.calls[2]?.[1])).not.toThrow()
   })
 
   it('routes MCP Router marketplace calls through the shared registry names', async () => {

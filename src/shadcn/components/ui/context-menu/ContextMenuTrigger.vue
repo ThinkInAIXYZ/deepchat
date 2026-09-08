@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import type { ContextMenuTriggerProps } from "reka-ui"
-import { ContextMenuTrigger, useForwardProps } from "reka-ui"
+import type { ContextMenuTriggerProps } from 'reka-ui'
+import { ContextMenuTrigger, useForwardProps } from 'reka-ui'
 
 const props = defineProps<ContextMenuTriggerProps>()
 
@@ -13,12 +13,14 @@ function openFromKeyboard(event: KeyboardEvent) {
   event.preventDefault()
   event.stopPropagation()
   const rect = target.getBoundingClientRect()
-  target.dispatchEvent(new MouseEvent('contextmenu', {
-    bubbles: true,
-    cancelable: true,
-    clientX: rect.left,
-    clientY: rect.bottom
-  }))
+  target.dispatchEvent(
+    new MouseEvent('contextmenu', {
+      bubbles: true,
+      cancelable: true,
+      clientX: rect.left,
+      clientY: rect.bottom
+    })
+  )
 }
 </script>
 
