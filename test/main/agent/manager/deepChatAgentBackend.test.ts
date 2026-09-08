@@ -86,7 +86,7 @@ describe('DeepChatAgentBackend', () => {
     )
   })
 
-  it('delegates explicit Queue retry through the MioAgent control facet', async () => {
+  it('delegates explicit Queue retry through the MioWork control facet', async () => {
     const port = createPort()
     const handle = createDeepChatAgentBackendFixture(port).open(toAppSessionId('session'))
 

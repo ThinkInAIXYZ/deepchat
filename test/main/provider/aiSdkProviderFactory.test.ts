@@ -654,8 +654,8 @@ describe('AI SDK provider factory', () => {
       } as any,
       providerSettings: {} as any,
       defaultHeaders: {
-        'HTTP-Referer': 'https://github.com/chenjiaqiangmax/mioagent',
-        'X-Title': 'MioAgent'
+        'HTTP-Referer': 'https://github.com/chenjiaqiangmax/miowork',
+        'X-Title': 'MioWork'
       },
       modelId: 'gemini-3.1-flash-lite-preview',
       cleanHeaders: true
@@ -783,7 +783,7 @@ describe('AI SDK provider factory', () => {
       providerSettings: {
         getAzureApiVersion: () => undefined
       } as any,
-      defaultHeaders: { 'X-Title': 'MioAgent' },
+      defaultHeaders: { 'X-Title': 'MioWork' },
       modelId: 'llama3',
       wrapThinkReasoning: false
     })

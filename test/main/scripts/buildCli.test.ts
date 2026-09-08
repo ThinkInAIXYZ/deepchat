@@ -30,10 +30,10 @@ async function runGeneratedLauncher(outputDirectory: string) {
 
 async function provisionElectronHost(outputDirectory: string): Promise<void> {
   const appRoot = path.resolve(outputDirectory, '..', '..', '..')
-  const hostName = process.platform === 'win32' ? 'MioAgent.exe' : 'MioAgent'
+  const hostName = process.platform === 'win32' ? 'MioWork.exe' : 'MioWork'
   const hosts = [
     path.join(appRoot, hostName),
-    path.join(appRoot, 'MacOS', 'MioAgent'),
+    path.join(appRoot, 'MacOS', 'MioWork'),
     path.join(appRoot, 'deepchat')
   ]
   for (const host of hosts) {
@@ -42,7 +42,7 @@ async function provisionElectronHost(outputDirectory: string): Promise<void> {
       await symlink(process.execPath, host)
     } catch (error) {
       // On case-insensitive filesystems (macOS default) 'deepchat' collides with the
-      // already-provisioned 'MioAgent'; the copy fallback would then write through that
+      // already-provisioned 'MioWork'; the copy fallback would then write through that
       // symlink onto the running Node binary, so treat EEXIST as already provisioned.
       if ((error as { code?: string }).code === 'EEXIST') continue
       await copyFile(process.execPath, host)
@@ -82,9 +82,9 @@ describe('CLI bundle', () => {
         WINDOWS_LAUNCHER
       )
       expect(POSIX_LAUNCHER).toContain('ELECTRON_RUN_AS_NODE=1')
-      expect(POSIX_LAUNCHER).toContain('../../../MacOS/MioAgent')
+      expect(POSIX_LAUNCHER).toContain('../../../MacOS/MioWork')
       expect(POSIX_LAUNCHER).toContain('../../../deepchat.bin')
-      expect(POSIX_LAUNCHER).toContain('../../../MioAgent')
+      expect(POSIX_LAUNCHER).toContain('../../../MioWork')
       expect(POSIX_LAUNCHER).toContain('[ -f "$candidate" ] && [ -x "$candidate" ]')
       expect(POSIX_LAUNCHER).toContain(
         'node_modules/electron/dist/Electron.app/Contents/MacOS/Electron'
@@ -94,7 +94,7 @@ describe('CLI bundle', () => {
       expect(WINDOWS_LAUNCHER).toContain('setlocal')
       expect(WINDOWS_LAUNCHER).toContain('ELECTRON_RUN_AS_NODE=1')
       expect(WINDOWS_LAUNCHER).toContain('node_modules\\electron\\dist\\electron.exe')
-      expect(WINDOWS_LAUNCHER).toContain('..\\..\\..\\MioAgent.exe')
+      expect(WINDOWS_LAUNCHER).toContain('..\\..\\..\\MioWork.exe')
       expect(WINDOWS_LAUNCHER).toContain('if exist "%electron_host%\\" goto missing_runtime')
       expect(WINDOWS_LAUNCHER).not.toContain('where node')
       expect(WINDOWS_LAUNCHER).not.toContain('runtime\\node')
@@ -109,7 +109,7 @@ describe('CLI bundle', () => {
     async () => {
       const temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), 'deepchat-cli-dir-host-'))
       const outputDirectory = path.join(temporaryDirectory, 'workspace', 'out', 'cli')
-      const decoy = path.resolve(outputDirectory, '../../../MioAgent')
+      const decoy = path.resolve(outputDirectory, '../../../MioWork')
       const electronHost = path.resolve(
         outputDirectory,
         '../../node_modules/electron/dist/electron'
@@ -184,7 +184,7 @@ describe('CLI bundle', () => {
         'app.asar.unpacked',
         'cli'
       )
-      const electronHost = path.join(temporaryDirectory, 'MioAgent')
+      const electronHost = path.join(temporaryDirectory, 'MioWork')
       try {
         await mkdir(outputDirectory, { recursive: true })
         await mkdir(path.dirname(electronHost), { recursive: true })

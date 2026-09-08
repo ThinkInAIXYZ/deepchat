@@ -151,7 +151,7 @@ const createBundledFixture = async (
     id: pluginId,
     name: options.name ?? 'Fixture Runtime',
     version: '0.2.3',
-    publisher: 'MioAgent',
+    publisher: 'MioWork',
     engines: {
       deepchat: '>=0.2.3',
       platforms: ['darwin']
@@ -163,7 +163,7 @@ const createBundledFixture = async (
     source: {
       type: 'deepchat-official',
       url: 'https://github.com/ThinkInAIXYZ/deepchat/releases/download/v0.2.3/deepchat-plugin-fixture-0.2.3-darwin-x64.dcplugin',
-      publisher: 'MioAgent'
+      publisher: 'MioWork'
     },
     runtime: {
       id: 'fixture-runtime',
@@ -280,7 +280,7 @@ const createOfficialPackage = async (options: {
     id: options.pluginId,
     name: options.name,
     version: '0.2.3',
-    publisher: 'MioAgent',
+    publisher: 'MioWork',
     engines: {
       deepchat: '>=0.2.3',
       platforms: ['win32'],
@@ -291,7 +291,7 @@ const createOfficialPackage = async (options: {
     source: {
       type: 'deepchat-official',
       url: `https://github.com/ThinkInAIXYZ/deepchat/releases/download/v0.2.3/${path.basename(options.packagePath)}`,
-      publisher: 'MioAgent'
+      publisher: 'MioWork'
     }
   }
   const files: Record<string, Uint8Array> = {
@@ -327,7 +327,7 @@ const createDirectoryFixture = async (
     id: pluginId,
     name: options.name ?? 'Fixture Settings Plugin',
     version: '0.2.3',
-    publisher: 'MioAgent',
+    publisher: 'MioWork',
     engines: {
       deepchat: '>=0.2.3',
       platforms: ['darwin']
@@ -337,7 +337,7 @@ const createDirectoryFixture = async (
     source: {
       type: 'deepchat-official',
       url: 'https://github.com/ThinkInAIXYZ/deepchat/releases/download/v0.2.3/deepchat-plugin-fixture-0.2.3-darwin-x64.dcplugin',
-      publisher: 'MioAgent'
+      publisher: 'MioWork'
     },
     mcpServers: [
       {
@@ -1366,9 +1366,9 @@ describe('PluginService', () => {
   it('resolves packaged macOS CUA helpers from the managed app bundle', async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), 'deepchat-managed-helper-'))
     tempRoots.push(root)
-    const resourcesPath = path.join(root, 'MioAgent.app', 'Contents', 'Resources')
+    const resourcesPath = path.join(root, 'MioWork.app', 'Contents', 'Resources')
     const presenter = await createPluginService('darwin', {
-      appPath: path.join(root, 'MioAgent.app'),
+      appPath: path.join(root, 'MioWork.app'),
       isPackaged: true,
       resourcesPath
     })
@@ -1381,7 +1381,7 @@ describe('PluginService', () => {
     expect(command).toBe(
       path.join(
         root,
-        'MioAgent.app',
+        'MioWork.app',
         'Contents',
         'Helpers',
         'DeepChat Computer Use.app',
@@ -1395,7 +1395,7 @@ describe('PluginService', () => {
   it('skips managed app helpers outside packaged macOS', async () => {
     const presenter = await createPluginService('win32', {
       isPackaged: true,
-      resourcesPath: path.join('C:', 'MioAgent', 'resources')
+      resourcesPath: path.join('C:', 'MioWork', 'resources')
     })
 
     const command = (presenter as any).resolveRuntimeCandidate(
@@ -1988,7 +1988,7 @@ describe('PluginService', () => {
     expect(policy.tools.set_electron_accessibility).toBeUndefined()
   })
 
-  it('keeps the CUA skill instructions aligned with MioAgent bundled tools', async () => {
+  it('keeps the CUA skill instructions aligned with MioWork bundled tools', async () => {
     const manifest = JSON.parse(await readFile('plugins/cua/plugin.json', 'utf8'))
     const files = ['SKILL.md', 'README.md', 'WEB_APPS.md', 'RECORDING.md', 'TESTS.md']
     const contents = await Promise.all(

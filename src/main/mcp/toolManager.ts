@@ -1002,7 +1002,7 @@ export class ToolManager {
         return this.createPreDispatchErrorResponse(
           toolCall.id,
           'tool_not_allowed',
-          `MCP server '${toolServerName}' is not allowed for MioAgent agent '${accessContext.agentId ?? 'unknown'}'. Configure MCP access in MioAgent agent settings.`,
+          `MCP server '${toolServerName}' is not allowed for MioWork agent '${accessContext.agentId ?? 'unknown'}'. Configure MCP access in MioWork agent settings.`,
           access?.throwPreDispatchErrors
         )
       }

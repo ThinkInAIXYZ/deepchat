@@ -76,7 +76,7 @@ const setup = async () => {
 
   const agentStore = reactive({
     selectedAgentId: 'deepchat',
-    selectedAgent: { id: 'deepchat', name: 'MioAgent', type: 'deepchat' as const, enabled: true },
+    selectedAgent: { id: 'deepchat', name: 'MioWork', type: 'deepchat' as const, enabled: true },
     agents: [{ id: 'deepchat', type: 'deepchat' as const }]
   })
 

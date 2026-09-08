@@ -26,7 +26,7 @@ vi.mock('@/remote/channels/feishu/feishuRuntime', () => ({
         lastError: null,
         botUser: {
           openId: 'ou_bot',
-          name: 'MioAgent Bot'
+          name: 'MioWork Bot'
         }
       })
     })

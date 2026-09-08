@@ -56,7 +56,7 @@ export class QQBotAuthGuard {
     return {
       ok: false,
       message:
-        'This QQ group is not authorized. Generate a /pair code in MioAgent Remote settings, then send /pair <code> in this group.'
+        'This QQ group is not authorized. Generate a /pair code in MioWork Remote settings, then send /pair <code> in this group.'
     }
   }
 
@@ -69,13 +69,13 @@ export class QQBotAuthGuard {
     const pairing = this.bindingStore.getQQBotPairingState()
     if (!pairing.code || !pairing.expiresAt || pairing.expiresAt <= Date.now()) {
       this.bindingStore.clearPairCode('qqbot')
-      return 'Pairing code is missing or expired. Generate a new code from MioAgent Remote settings.'
+      return 'Pairing code is missing or expired. Generate a new code from MioWork Remote settings.'
     }
 
     if (pairing.code !== normalizedCode) {
       const result = this.bindingStore.recordPairCodeFailure('qqbot', REMOTE_PAIR_CODE_MAX_FAILURES)
       if (result.exhausted) {
-        return 'Too many invalid pairing attempts. The current pairing code has expired. Generate a new code from MioAgent Remote settings.'
+        return 'Too many invalid pairing attempts. The current pairing code has expired. Generate a new code from MioWork Remote settings.'
       }
       return 'Pairing code is invalid.'
     }

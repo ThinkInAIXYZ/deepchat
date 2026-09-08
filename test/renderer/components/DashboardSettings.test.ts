@@ -254,7 +254,7 @@ async function setup(
         }
         if (key === 'settings.dashboard.rtk.title') return 'RTK Savings'
         if (key === 'settings.dashboard.rtk.description') {
-          return 'Estimated tokens prevented from reaching the model context by RTK during MioAgent native command execution.'
+          return 'Estimated tokens prevented from reaching the model context by RTK during MioWork native command execution.'
         }
         if (key === 'settings.dashboard.rtk.actions.retry') return 'Retry check'
         if (key === 'settings.dashboard.rtk.status.disabled') return 'Disabled'
@@ -265,7 +265,7 @@ async function setup(
           return 'RTK is disabled for this app session.'
         }
         if (key === 'settings.dashboard.rtk.descriptionChecking') {
-          return 'MioAgent is verifying whether RTK can run.'
+          return 'MioWork is verifying whether RTK can run.'
         }
         if (key === 'settings.dashboard.rtk.descriptionUnhealthy') {
           return 'RTK failed startup health checks.'
@@ -311,7 +311,7 @@ async function setup(
           return 'Days together'
         }
         if (key === 'settings.dashboard.summary.nostalgiaDaysDetail') {
-          return `You and MioAgent have spent ${params?.days ?? '0'} days together.`
+          return `You and MioWork have spent ${params?.days ?? '0'} days together.`
         }
         if (key === 'settings.dashboard.summary.nostalgiaSessionsDetailLabel') {
           return 'Sessions'
@@ -557,7 +557,7 @@ describe('DashboardSettings', () => {
     expect(wrapper.text()).toContain('Cached')
     expect(wrapper.text()).toContain('25%')
     expect(wrapper.text()).toContain('17 days')
-    expect(wrapper.text()).toContain('You and MioAgent have spent 17 days together.')
+    expect(wrapper.text()).toContain('You and MioWork have spent 17 days together.')
     expect(wrapper.text()).toContain('You have shared 3 sessions together.')
     expect(wrapper.text()).toContain('You have exchanged 2 messages.')
     expect(wrapper.text()).toContain('Mar 9, 2026 was your most active day, with 2 messages.')

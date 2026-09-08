@@ -2,7 +2,7 @@
   "steps": {
     "welcome": {
       "title": "selamat datang",
-      "description": "Mari mulakan menyediakan MioAgent"
+      "description": "Mari mulakan menyediakan MioWork"
     },
     "provider": {
       "title": "Pembekal perkhidmatan model",
@@ -17,7 +17,7 @@
       "description": "Semuanya sedia untuk mula digunakan!"
     }
   },
-  "title": "Selamat datang ke MioAgent",
+  "title": "Selamat datang ke MioWork",
   "description": "Mari kita lalui proses persediaan bersama-sama",
   "provider": {
     "select": "Pilih pembekal perkhidmatan",
@@ -35,7 +35,7 @@
     "back": "kembali"
   },
   "page": {
-    "title": "Selamat datang ke MioAgent Agent",
+    "title": "Selamat datang ke MioWork Agent",
     "description": "Sambung kepada pembekal perkhidmatan model untuk bermula",
     "guide": {
       "title": "kemajuan but",
@@ -72,8 +72,8 @@
   },
   "agentPage": {
     "title": "Pilih Agent untuk mula mencipta",
-    "deepchatType": "MioAgent Agent",
+    "deepchatType": "MioWork Agent",
     "acpType": "ACP Agent",
-    "manageAgents": "Pengurusan MioAgent Agent"
+    "manageAgents": "Pengurusan MioWork Agent"
   }
 }

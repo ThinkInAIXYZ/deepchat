@@ -55,7 +55,7 @@ describe('floating widget layout helpers', () => {
       [
         {
           id: 'deepchat',
-          name: 'MioAgent',
+          name: 'MioWork',
           type: 'deepchat',
           enabled: true,
           icon: undefined,

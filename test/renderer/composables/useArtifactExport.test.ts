@@ -67,7 +67,7 @@ describe('useArtifactExport', () => {
     const ok = await api.copyAsImage(mkArtifact('text/plain', 'content'), {
       isDark: false,
       version: '1.0.0',
-      texts: { brand: 'MioAgent', tip: 'tip' }
+      texts: { brand: 'MioWork', tip: 'tip' }
     })
     expect(ok).toBe(true)
     expect(capture).toHaveBeenCalled()

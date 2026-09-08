@@ -225,7 +225,7 @@ describe('MessageBlockActivityGroup', () => {
         {
           id: 'ws_1',
           type: 'search',
-          content: 'MioAgent latest release',
+          content: 'MioWork latest release',
           status: 'success',
           timestamp: 1_000
         }
@@ -237,6 +237,6 @@ describe('MessageBlockActivityGroup', () => {
     expect(wrapper.get('[data-testid="activity-group-toggle"]').text()).not.toContain('tool call')
     await wrapper.get('[data-testid="activity-group-toggle"]').trigger('click')
 
-    expect(wrapper.get('[data-testid="search-block"]').text()).toBe('MioAgent latest release')
+    expect(wrapper.get('[data-testid="search-block"]').text()).toBe('MioWork latest release')
   })
 })

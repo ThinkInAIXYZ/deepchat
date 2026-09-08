@@ -529,7 +529,7 @@ describe('sessionStore.getFilteredGroups', () => {
         title: 'Windows Chat',
         agentId: 'deepchat',
         status: 'none',
-        projectDir: 'C:\\Users\\MioAgent\\workspace',
+        projectDir: 'C:\\Users\\MioWork\\workspace',
         providerId: 'openai',
         modelId: 'gpt-4',
         isPinned: false,
@@ -542,7 +542,7 @@ describe('sessionStore.getFilteredGroups', () => {
     const groups = store.getFilteredGroups(null)
 
     expect(groups).toHaveLength(1)
-    expect(groups[0]?.id).toBe('C:\\Users\\MioAgent\\workspace')
+    expect(groups[0]?.id).toBe('C:\\Users\\MioWork\\workspace')
     expect(groups[0]?.label).toBe('workspace')
   })
 

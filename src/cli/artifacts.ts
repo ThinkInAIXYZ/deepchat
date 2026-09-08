@@ -41,10 +41,10 @@ function abortReason(signal: AbortSignal): Error {
 function singularHeader(response: IncomingMessage, name: string): string | undefined {
   const values = response.headersDistinct[name]
   if (values && values.length !== 1) {
-    throw protocolFailure(`MioAgent returned multiple ${name} headers`)
+    throw protocolFailure(`MioWork returned multiple ${name} headers`)
   }
   const value = values?.[0] ?? response.headers[name]
-  if (Array.isArray(value)) throw protocolFailure(`MioAgent returned an invalid ${name} header`)
+  if (Array.isArray(value)) throw protocolFailure(`MioWork returned an invalid ${name} header`)
   return value
 }
 
@@ -73,7 +73,7 @@ async function readRemoteFailure(response: IncomingMessage): Promise<CliClientEr
     const chunk = Buffer.from(rawChunk)
     size += chunk.length
     if (size > MAX_ERROR_RESPONSE_BYTES) {
-      throw protocolFailure('MioAgent artifact error response exceeds the byte limit')
+      throw protocolFailure('MioWork artifact error response exceeds the byte limit')
     }
     chunks.push(chunk)
   }
@@ -83,7 +83,7 @@ async function readRemoteFailure(response: IncomingMessage): Promise<CliClientEr
       JSON.parse(Buffer.concat(chunks, size).toString('utf8'))
     )
     if (parsed.ok)
-      throw protocolFailure('MioAgent returned a success envelope with an error status')
+      throw protocolFailure('MioWork returned a success envelope with an error status')
     return new CliClientError(
       parsed.error.code,
       parsed.error.message,
@@ -92,7 +92,7 @@ async function readRemoteFailure(response: IncomingMessage): Promise<CliClientEr
     )
   } catch (error) {
     if (error instanceof CliClientError) return error
-    return protocolFailure('MioAgent returned an invalid artifact error response')
+    return protocolFailure('MioWork returned an invalid artifact error response')
   }
 }
 
@@ -118,7 +118,7 @@ async function receiveArtifact(input: ArtifactDownloadInput, handle: FileHandle)
       headers: {
         authorization: `Bearer ${input.token}`,
         connection: 'close',
-        'user-agent': `MioAgent-CLI/${CLI_VERSION}`
+        'user-agent': `MioWork-CLI/${CLI_VERSION}`
       }
     })
 
@@ -133,16 +133,16 @@ async function receiveArtifact(input: ArtifactDownloadInput, handle: FileHandle)
         const artifactId = singularHeader(response, 'x-deepchat-artifact-id')
         const expectedHash = singularHeader(response, 'x-content-sha256')
         if (!contentLength || !/^(0|[1-9][0-9]*)$/.test(contentLength)) {
-          throw protocolFailure('MioAgent returned an invalid artifact Content-Length')
+          throw protocolFailure('MioWork returned an invalid artifact Content-Length')
         }
         if (Number(contentLength) !== input.metadata.size) {
-          throw protocolFailure('MioAgent artifact size changed after description')
+          throw protocolFailure('MioWork artifact size changed after description')
         }
         if (contentType?.trim().toLowerCase() !== input.metadata.mimeType.toLowerCase()) {
-          throw protocolFailure('MioAgent artifact MIME type changed after description')
+          throw protocolFailure('MioWork artifact MIME type changed after description')
         }
         if (artifactId !== input.metadata.id || expectedHash !== input.metadata.sha256) {
-          throw protocolFailure('MioAgent artifact identity changed after description')
+          throw protocolFailure('MioWork artifact identity changed after description')
         }
 
         const hash = createHash('sha256')
@@ -151,16 +151,16 @@ async function receiveArtifact(input: ArtifactDownloadInput, handle: FileHandle)
           if (input.signal.aborted) throw abortReason(input.signal)
           const chunk = Buffer.from(rawChunk)
           if (bytesWritten + chunk.length > input.metadata.size) {
-            throw protocolFailure('MioAgent artifact exceeded its declared size')
+            throw protocolFailure('MioWork artifact exceeded its declared size')
           }
           hash.update(chunk)
           bytesWritten += await writeAll(handle, chunk, bytesWritten)
         }
         if (bytesWritten !== input.metadata.size) {
-          throw protocolFailure('MioAgent artifact was truncated')
+          throw protocolFailure('MioWork artifact was truncated')
         }
         if (hash.digest('hex') !== input.metadata.sha256) {
-          throw protocolFailure('MioAgent artifact checksum did not match')
+          throw protocolFailure('MioWork artifact checksum did not match')
         }
       })().then(
         () => finish(resolve),

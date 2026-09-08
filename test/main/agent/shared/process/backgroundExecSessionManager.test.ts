@@ -878,7 +878,7 @@ describe('backgroundExecSessionManager utility proxy', () => {
       ),
       ['--deepchat-exec-utility-host'],
       expect.objectContaining({
-        serviceName: 'MioAgent Exec Utility',
+        serviceName: 'MioWork Exec Utility',
         env: expect.objectContaining({
           DEEPCHAT_EXEC_UTILITY_HOST: '1'
         })

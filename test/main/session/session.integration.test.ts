@@ -202,7 +202,7 @@ function createMockProviderSettings() {
     getAcpEnabled: vi.fn().mockResolvedValue(true),
     listAgents: vi
       .fn()
-      .mockResolvedValue([{ id: 'deepchat', name: 'MioAgent', type: 'deepchat', enabled: true }]),
+      .mockResolvedValue([{ id: 'deepchat', name: 'MioWork', type: 'deepchat', enabled: true }]),
     getDeepChatAgentConfig: vi.fn().mockResolvedValue({}),
     updateDeepChatAgent: vi.fn().mockResolvedValue(null),
     getAgentType: vi.fn().mockImplementation(async (agentId: string) => {
@@ -793,7 +793,7 @@ describe('Session application coordinators', () => {
           id: 'deepchat',
           agent_type: 'deepchat',
           source: 'builtin',
-          name: 'MioAgent',
+          name: 'MioWork',
           enabled: 1,
           protected: 1,
           description: null,
@@ -1243,7 +1243,7 @@ describe('Session application coordinators', () => {
     expect(harness.sessions.size).toBe(0)
   })
 
-  it('keeps hydrated MioAgent deletion on the descriptor-independent cleanup path', async () => {
+  it('keeps hydrated MioWork deletion on the descriptor-independent cleanup path', async () => {
     const harness = createDescriptorIndependentDeleteHarness({
       sessions: [{ id: 'deepchat-session', agentId: 'deepchat' }],
       agents: [
@@ -1421,7 +1421,7 @@ describe('Session application coordinators', () => {
       )
     })
 
-    it('uses the MioAgent agent default directory when createSession does not provide one', async () => {
+    it('uses the MioWork agent default directory when createSession does not provide one', async () => {
       providerSettings.resolveDeepChatAgentConfig.mockResolvedValue({
         defaultProjectPath: '/workspaces/agent-default'
       })
@@ -1443,7 +1443,7 @@ describe('Session application coordinators', () => {
       )
     })
 
-    it('falls back to the global default directory when the MioAgent agent has none', async () => {
+    it('falls back to the global default directory when the MioWork agent has none', async () => {
       providerSettings.resolveDeepChatAgentConfig.mockResolvedValue({})
       providerSettings.getDefaultProjectPath.mockReturnValue('/workspaces/global-default')
 
@@ -3287,7 +3287,7 @@ describe('Session application coordinators', () => {
   })
 
   describe('getSessionCompactionSnapshot', () => {
-    it('delegates to the MioAgent backend', async () => {
+    it('delegates to the MioWork backend', async () => {
       sqlitePresenter.newSessionsTable.get.mockReturnValue({
         id: 's1',
         agent_id: 'deepchat',
@@ -3323,7 +3323,7 @@ describe('Session application coordinators', () => {
       })
     })
 
-    it('returns a fixed idle state for direct ACP without invoking MioAgent compaction', async () => {
+    it('returns a fixed idle state for direct ACP without invoking MioWork compaction', async () => {
       sqlitePresenter.newSessionsTable.get.mockReturnValue({
         id: 's-acp',
         agent_id: 'acp-coder',
@@ -3380,12 +3380,12 @@ describe('Session application coordinators', () => {
       })
 
       await expect(turn.compactSession('s-compat')).rejects.toThrow(
-        'Manual compaction is only available for MioAgent agent sessions.'
+        'Manual compaction is only available for MioWork agent sessions.'
       )
       expect(deepChatAgent.compactSession).not.toHaveBeenCalled()
     })
 
-    it('propagates MioAgent compaction failures unchanged', async () => {
+    it('propagates MioWork compaction failures unchanged', async () => {
       const compactError = new Error('compaction failed')
       sqlitePresenter.newSessionsTable.get.mockReturnValue({
         id: 's1',
@@ -4242,7 +4242,7 @@ describe('Session application coordinators', () => {
       expect(sqlitePresenter.newSessionsTable.delete).not.toHaveBeenCalled()
     })
 
-    it('moves a direct ACP conversation to MioAgent without entering compatibility cleanup', async () => {
+    it('moves a direct ACP conversation to MioWork without entering compatibility cleanup', async () => {
       const row = {
         id: 's-acp',
         agent_id: 'acp-coder',
@@ -4465,11 +4465,11 @@ describe('Session application coordinators', () => {
       expectSessionsUpdated({ reason: 'updated' })
     })
 
-    it('rejects moving a MioAgent conversation to an ACP target', async () => {
+    it('rejects moving a MioWork conversation to an ACP target', async () => {
       const row = {
         id: 's-deepchat',
         agent_id: 'deepchat-writer',
-        title: 'MioAgent session',
+        title: 'MioWork session',
         project_dir: '/repo',
         is_pinned: 0,
         is_draft: 0,
@@ -4521,11 +4521,11 @@ describe('Session application coordinators', () => {
       expect(sqlitePresenter.newSessionsTable.delete).not.toHaveBeenCalled()
     })
 
-    it('rejects MioAgent targets whose default provider is ACP', async () => {
+    it('rejects MioWork targets whose default provider is ACP', async () => {
       const row = {
         id: 's-deepchat',
         agent_id: 'deepchat-writer',
-        title: 'MioAgent session',
+        title: 'MioWork session',
         project_dir: '/repo',
         is_pinned: 0,
         is_draft: 0,
@@ -4742,7 +4742,7 @@ describe('Session application coordinators', () => {
       expect(commands[0].name).toBe('review')
     })
 
-    it('keeps commands available for MioAgent sessions selecting the ACP provider', async () => {
+    it('keeps commands available for MioWork sessions selecting the ACP provider', async () => {
       sqlitePresenter.newSessionsTable.get.mockReturnValue({
         id: 's-compat',
         agent_id: 'deepchat',
@@ -4839,7 +4839,7 @@ describe('Session application coordinators', () => {
       expect(result?.options[0].currentValue).toBe('gpt-5-mini')
     })
 
-    it('keeps config controls available for MioAgent sessions selecting the ACP provider', async () => {
+    it('keeps config controls available for MioWork sessions selecting the ACP provider', async () => {
       sqlitePresenter.newSessionsTable.get.mockReturnValue({
         id: 's-compat',
         agent_id: 'deepchat',

@@ -32,7 +32,7 @@ test('notification hooks can save test command and restore config @smoke', async
         ...(originalConfig?.hooks ?? []).filter((hook) => hook.id !== hookId),
         {
           id: hookId,
-          name: 'MioAgent E2E Hook',
+          name: 'MioWork E2E Hook',
           enabled: true,
           command: 'node -e "console.log(\'deepchat-hook-e2e-ok\')"',
           events: ['SessionStart']

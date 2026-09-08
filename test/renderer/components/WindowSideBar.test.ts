@@ -199,7 +199,7 @@ const setup = async (options: SetupOptions = {}) => {
   }
   const agentStore = reactive({
     selectedAgentId: (options.selectedAgentId ?? 'deepchat') as string | null,
-    selectedAgentName: 'MioAgent',
+    selectedAgentName: 'MioWork',
     enabledAgents: (options.enabledAgents ?? [
       { id: 'acp-a', name: 'ACP A', type: 'acp' as const, enabled: true }
     ]) as Array<{ id: string; name: string; type: 'deepchat' | 'acp'; enabled: boolean }>,
@@ -656,7 +656,7 @@ describe('WindowSideBar agent switch', () => {
           agentId: 'deepchat'
         },
         enabledAgents: [
-          { id: 'deepchat', name: 'MioAgent', type: 'deepchat', enabled: true },
+          { id: 'deepchat', name: 'MioWork', type: 'deepchat', enabled: true },
           { id: 'acp-a', name: 'ACP A', type: 'acp', enabled: true }
         ]
       })
@@ -698,7 +698,7 @@ describe('WindowSideBar agent switch', () => {
           agentId: 'acp-a'
         },
         enabledAgents: [
-          { id: 'deepchat', name: 'MioAgent', type: 'deepchat', enabled: true },
+          { id: 'deepchat', name: 'MioWork', type: 'deepchat', enabled: true },
           { id: 'acp-a', name: 'ACP A', type: 'acp', enabled: true }
         ]
       })
@@ -786,12 +786,12 @@ describe('WindowSideBar agent switch', () => {
     async () => {
       const { wrapper, router, sessionStore, projectStore } = await setup({
         currentRouteName: 'plugins',
-        defaultChatWorkspacePath: '/Users/test/Documents/MioAgent',
+        defaultChatWorkspacePath: '/Users/test/Documents/MioWork',
         groupMode: 'project',
         groups: [
           {
-            id: '/Users/test/Documents/MioAgent',
-            label: 'MioAgent',
+            id: '/Users/test/Documents/MioWork',
+            label: 'MioWork',
             sessions: [
               {
                 id: 'chat-1',
@@ -813,13 +813,13 @@ describe('WindowSideBar agent switch', () => {
       await flushPromises()
 
       expect(projectStore.selectProject).toHaveBeenCalledWith(
-        '/Users/test/Documents/MioAgent',
+        '/Users/test/Documents/MioWork',
         'manual'
       )
       expect(router.push).toHaveBeenCalledWith({ name: 'chat' })
       expect(sessionStore.startNewConversation).toHaveBeenCalledWith({
         refresh: true,
-        projectDir: '/Users/test/Documents/MioAgent'
+        projectDir: '/Users/test/Documents/MioWork'
       })
       expect(wrapper.get('[data-group-id="__chat__"]').attributes('aria-expanded')).toBe('true')
 
@@ -1184,7 +1184,7 @@ describe('WindowSideBar agent switch', () => {
 
   it('reveals the built-in Chat action without duplicating it as a workspace', async () => {
     const focusSpy = vi.spyOn(HTMLElement.prototype, 'focus')
-    const chatWorkspacePath = '/Users/test/Documents/MioAgent'
+    const chatWorkspacePath = '/Users/test/Documents/MioWork'
     const { wrapper, projectStore, sessionStore } = await setup({
       groupMode: 'time',
       defaultChatWorkspacePath: chatWorkspacePath,
@@ -1872,7 +1872,7 @@ describe('WindowSideBar agent switch', () => {
         groups: [
           {
             id: 'project:/tmp/deepchat',
-            label: 'MioAgent',
+            label: 'MioWork',
             sessions: [
               {
                 id: 'project-1',
@@ -1886,7 +1886,7 @@ describe('WindowSideBar agent switch', () => {
 
       await wrapper.vm.$nextTick()
 
-      expect(wrapper.text()).toContain('MioAgent')
+      expect(wrapper.text()).toContain('MioWork')
       expect(wrapper.text()).toContain('Project Session')
 
       await wrapper.find('[data-group-id="project:/tmp/deepchat"]').trigger('click')
@@ -2284,8 +2284,8 @@ describe('WindowSideBar agent switch', () => {
     'labels the built-in chat workspace separately from reorderable project groups',
     async () => {
       const chatGroup = {
-        id: '/Users/test/Documents/MioAgent',
-        label: 'MioAgent',
+        id: '/Users/test/Documents/MioWork',
+        label: 'MioWork',
         sessions: [
           {
             id: 'chat-default',
@@ -2326,9 +2326,9 @@ describe('WindowSideBar agent switch', () => {
             isPinned: true
           }
         ],
-        defaultChatWorkspacePath: '/Users/test/Documents/MioAgent',
+        defaultChatWorkspacePath: '/Users/test/Documents/MioWork',
         projectEnvironments: [
-          { path: '/Users/test/Documents/MioAgent' },
+          { path: '/Users/test/Documents/MioWork' },
           { path: '/work/alpha' },
           { path: '/work/beta' }
         ],
@@ -2351,7 +2351,7 @@ describe('WindowSideBar agent switch', () => {
       await flushPromises()
 
       expect(projectStore.reorderEnvironments).toHaveBeenCalledWith([
-        '/Users/test/Documents/MioAgent',
+        '/Users/test/Documents/MioWork',
         '/work/beta',
         '/work/alpha'
       ])

@@ -188,7 +188,7 @@ describe('bundled CLI client', () => {
     })
 
     await expect(invocation.result).resolves.toBe(0)
-    expect(invocation.stdout.read()).toContain('MioAgent 9.8.7')
+    expect(invocation.stdout.read()).toContain('MioWork 9.8.7')
     expect(invocation.stdout.read()).toContain('Protocol 1, surface 2')
     expect(invocation.stderr.read()).toBe('')
     expect(dispatch).toHaveBeenCalledOnce()

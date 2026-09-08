@@ -39,7 +39,7 @@ export const XAI_GROK_API_BASE_URL = normalizeBaseUrl(
 export const XAI_GROK_DEVICE_CODE_GRANT_TYPE = 'urn:ietf:params:oauth:grant-type:device_code'
 
 export const XAI_GROK_OAUTH_USER_AGENT =
-  process.env.XAI_GROK_OAUTH_USER_AGENT?.trim() || 'MioAgent/xai-grok-oauth'
+  process.env.XAI_GROK_OAUTH_USER_AGENT?.trim() || 'MioWork/xai-grok-oauth'
 
 // Access tokens are short-lived (~6h). Refresh up to one hour early so chat/cron
 // workloads that touch Grok infrequently stay warm.

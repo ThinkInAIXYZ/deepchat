@@ -227,7 +227,7 @@ describe('CuaRuntimeIntegrityVerifier', () => {
     const runtimeRoot = path.join(pluginRoot, 'runtime', 'darwin', 'arm64')
     const externalApp = path.join(
       root,
-      'MioAgent.app',
+      'MioWork.app',
       'Contents',
       'Helpers',
       'DeepChat Computer Use.app'

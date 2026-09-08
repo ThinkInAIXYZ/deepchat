@@ -173,11 +173,11 @@
     },
     "buildInFileSystem": {
       "name": "Dosya Sistemi",
-      "desc": "MioAgent öğesinin yerel dosya sistemiyle etkileşime girmesine izin verin."
+      "desc": "MioWork öğesinin yerel dosya sistemiyle etkileşime girmesine izin verin."
     },
     "Artifacts": {
       "name": "Artifacts",
-      "desc": "MioAgent'de daha zengin Artifacts üretin"
+      "desc": "MioWork'de daha zengin Artifacts üretin"
     },
     "braveSearch": {
       "name": "Brave Ara",
@@ -197,15 +197,15 @@
     },
     "builtinKnowledge": {
       "name": "Yerleşik bilgi tabanı araması",
-      "desc": "MioAgent MioAgent belgeleri ve kılavuzları için yerleşik bilgi tabanında arama."
+      "desc": "MioWork MioWork belgeleri ve kılavuzları için yerleşik bilgi tabanında arama."
     },
     "deepchat-inmemory/custom-prompts-server": {
       "name": "Özel prompt",
-      "desc": "MioAgent yerleşik özel prompts hizmeti"
+      "desc": "MioWork yerleşik özel prompts hizmeti"
     },
     "deepchat-inmemory/deep-research-server": {
       "name": "Derin Araştırma",
-      "desc": "MioAgent Bocha Arama tarafından desteklenen yerleşik derin araştırma. Uzun bağlamlı modeller tavsiye edilir."
+      "desc": "MioWork Bocha Arama tarafından desteklenen yerleşik derin araştırma. Uzun bağlamlı modeller tavsiye edilir."
     },
     "deepchat-inmemory/auto-prompting-server": {
       "name": "Otomatik Şablon İstemi",
@@ -213,7 +213,7 @@
     },
     "deepchat-inmemory/conversation-search-server": {
       "name": "Konuşma Geçmişi Araması",
-      "desc": "MioAgent geçmiş sohbetler ve mesajlar için yerleşik konuşma geçmişi araması."
+      "desc": "MioWork geçmiş sohbetler ve mesajlar için yerleşik konuşma geçmişi araması."
     },
     "deepchat/apple-server": {
       "name": "macOS Sistem Asistanı",

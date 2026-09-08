@@ -2,7 +2,7 @@
   "steps": {
     "welcome": {
       "title": "Chào mừng",
-      "description": "Hãy bắt đầu thiết lập MioAgent"
+      "description": "Hãy bắt đầu thiết lập MioWork"
     },
     "provider": {
       "title": "nhà cung cấp",
@@ -17,7 +17,7 @@
       "description": "Tất cả đã sẵn sàng và sẵn sàng để đi!"
     }
   },
-  "title": "Chào mừng đến với MioAgent",
+  "title": "Chào mừng đến với MioWork",
   "description": "Hãy hướng dẫn bạn cách thiết lập.",
   "provider": {
     "select": "Chọn nhà cung cấp",
@@ -35,7 +35,7 @@
     "back": "Quay lại"
   },
   "page": {
-    "title": "Chào mừng đến với MioAgent Agent",
+    "title": "Chào mừng đến với MioWork Agent",
     "description": "Kết nối nhà cung cấp mô hình để bắt đầu",
     "guide": {
       "title": "Hướng dẫn thiết lập",
@@ -72,8 +72,8 @@
   },
   "agentPage": {
     "title": "Chọn Agent để bắt đầu tạo",
-    "deepchatType": "MioAgent Agent",
+    "deepchatType": "MioWork Agent",
     "acpType": "ACP Agent",
-    "manageAgents": "Quản lý MioAgent Agent"
+    "manageAgents": "Quản lý MioWork Agent"
   }
 }

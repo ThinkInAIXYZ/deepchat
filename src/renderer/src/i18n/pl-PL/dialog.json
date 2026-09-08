@@ -69,7 +69,7 @@
     "moveAndDeleteAgent": "Przenieś i usuń agenta",
     "moveConversation": "Przenieś rozmowę",
     "agentType": {
-      "deepchat": "MioAgent",
+      "deepchat": "MioWork",
       "acp": "ACP"
     },
     "blockReason": {
@@ -84,7 +84,7 @@
       "draft": "Wersja robocza",
       "subagent": "Podagent"
     },
-    "deepChatTargetOnly": "Jako cele przenoszenia można wybrać tylko agentów MioAgent. Rozmowy ACP można przenieść do MioAgent, ale nie do ACP."
+    "deepChatTargetOnly": "Jako cele przenoszenia można wybrać tylko agentów MioWork. Rozmowy ACP można przenieść do MioWork, ale nie do ACP."
   },
   "deleteMessage": {
     "title": "Usunąć tę wiadomość?",

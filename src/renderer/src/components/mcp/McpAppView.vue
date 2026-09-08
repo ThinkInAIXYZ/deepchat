@@ -144,7 +144,7 @@ const hostContext = computed<McpUiHostContext>(() => {
     locale: locale.value,
     timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
     platform: 'desktop',
-    userAgent: 'MioAgent',
+    userAgent: 'MioWork',
     deviceCapabilities: {
       touch: navigator.maxTouchPoints > 0,
       hover: window.matchMedia('(hover: hover)').matches
@@ -235,7 +235,7 @@ const connectBridge = async () => {
 
   const nextBridge = new AppBridge(
     null,
-    { name: 'MioAgent', version: hostVersion },
+    { name: 'MioWork', version: hostVersion },
     {
       openLinks: {},
       serverTools: {},

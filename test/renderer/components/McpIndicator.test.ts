@@ -256,7 +256,7 @@ const setup = async (options?: {
           'chat.input.tools.groups.agentFilesystem': 'Agent Filesystem',
           'chat.input.tools.groups.agentCore': 'Agent Core',
           'chat.input.tools.groups.agentSkills': 'Agent Skills',
-          'chat.input.tools.groups.deepchatSettings': 'MioAgent Settings',
+          'chat.input.tools.groups.deepchatSettings': 'MioWork Settings',
           'chat.input.tools.groups.yobrowser': 'YoBrowser',
           'chat.input.toolMode.title': 'Mode',
           'chat.input.toolMode.modelDefault': 'Model default',

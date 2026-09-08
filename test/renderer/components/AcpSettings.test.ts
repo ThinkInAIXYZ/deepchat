@@ -154,7 +154,7 @@ async function setup(options: SetupOptions = {}) {
     listAgents: vi.fn().mockResolvedValue([
       {
         id: 'deepchat',
-        name: 'MioAgent',
+        name: 'MioWork',
         type: 'deepchat',
         enabled: true
       }

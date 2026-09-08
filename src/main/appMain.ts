@@ -17,7 +17,7 @@ import { classifyMainLogError, type MainLogShutdownReason } from './logging/main
 import { elapsedMonotonicMs, readMonotonicNow } from './lib/monotonicTime'
 
 let appStarted = false
-const APP_NAME = 'MioAgent'
+const APP_NAME = 'MioWork'
 
 export function startApp(): void {
   if (appStarted) {

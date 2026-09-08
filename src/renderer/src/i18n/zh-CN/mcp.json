@@ -173,11 +173,11 @@
     },
     "buildInFileSystem": {
       "name": "文件系统",
-      "desc": "让 MioAgent 能够操作本地文件"
+      "desc": "让 MioWork 能够操作本地文件"
     },
     "Artifacts": {
       "name": "Artifacts",
-      "desc": "让你的 MioAgent 输出的多样化的 Artifacts 内容"
+      "desc": "让你的 MioWork 输出的多样化的 Artifacts 内容"
     },
     "braveSearch": {
       "name": "Brave搜索",
@@ -197,15 +197,15 @@
     },
     "builtinKnowledge": {
       "name": "内置知识库检索",
-      "desc": "MioAgent内置知识库检索服务，可以对MioAgent内置知识库内容进行检索"
+      "desc": "MioWork内置知识库检索服务，可以对MioWork内置知识库内容进行检索"
     },
     "deepchat-inmemory/custom-prompts-server": {
       "name": "自定义提示词",
-      "desc": "MioAgent内置自定义提示词服务"
+      "desc": "MioWork内置自定义提示词服务"
     },
     "deepchat-inmemory/deep-research-server": {
       "name": "DeepResearch",
-      "desc": "基于博查搜索的MioAgent内置深度研究服务，（注意需要长上下文模型才能使用，上下文不足的模型可能会失败）"
+      "desc": "基于博查搜索的MioWork内置深度研究服务，（注意需要长上下文模型才能使用，上下文不足的模型可能会失败）"
     },
     "deepchat-inmemory/auto-prompting-server": {
       "name": "自动模板提示词",
@@ -213,7 +213,7 @@
     },
     "deepchat-inmemory/conversation-search-server": {
       "name": "对话历史搜索",
-      "desc": "MioAgent内置对话历史搜索服务，可搜索历史对话记录和消息内容"
+      "desc": "MioWork内置对话历史搜索服务，可搜索历史对话记录和消息内容"
     },
     "deepchat/apple-server": {
       "name": "macOS系统助手",

@@ -812,7 +812,7 @@ describe('App startup welcome flow', () => {
     expect(startHandler).toBeTypeOf('function')
 
     await startHandler?.({
-      msg: '你好，MioAgent',
+      msg: '你好，MioWork',
       modelId: 'deepseek-chat',
       systemPrompt: 'Be concise',
       mentions: ['README.md'],
@@ -821,7 +821,7 @@ describe('App startup welcome flow', () => {
     await flushPromises()
 
     expect(draftStore.setPendingStartDeeplink).toHaveBeenCalledWith({
-      msg: '你好，MioAgent',
+      msg: '你好，MioWork',
       modelId: 'deepseek-chat',
       systemPrompt: 'Be concise',
       mentions: ['README.md']

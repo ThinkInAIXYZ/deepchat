@@ -202,7 +202,7 @@ export class SessionAssignmentPolicy implements SessionAssignmentPolicyPort {
     const modelId =
       agentConfig?.defaultModelPreset?.modelId?.trim() || defaultModel?.modelId?.trim() || ''
     if (!providerId || !modelId) {
-      throw new Error('Target MioAgent agent does not have a default model.')
+      throw new Error('Target MioWork agent does not have a default model.')
     }
     if (providerId.toLowerCase() === 'acp') {
       throw new Error('Conversation history cannot be moved to ACP agents.')

@@ -36,10 +36,10 @@
     "searchEngine": "Motore di ricerca",
     "searchEngineSelect": "Seleziona motore di ricerca",
     "searchPreview": "Anteprima ricerca",
-    "launchAtLoginEnabled": "Avvia MioAgent all'accesso",
+    "launchAtLoginEnabled": "Avvia MioWork all'accesso",
     "autoScrollEnabled": "Scorrimento automatico durante la generazione",
     "privacyMode": "Modalità privacy",
-    "privacyModeDescription": "Quando la modalità privacy è attiva, MioAgent non avvierà automaticamente queste richieste:",
+    "privacyModeDescription": "Quando la modalità privacy è attiva, MioWork non avvierà automaticamente queste richieste:",
     "privacyModeAutoUpdate": "Controllo aggiornamenti app",
     "privacyModeProviderDb": "Aggiornamento metadati provider e modelli",
     "privacyModeAcpRegistry": "Aggiornamento ACP Registry e sincronizzazione icone",
@@ -80,8 +80,8 @@
     },
     "contentProtection": "Protezione condivisione schermo",
     "contentProtectionDialogTitle": "Conferma cambio protezione condivisione schermo",
-    "contentProtectionEnableDesc": "Attivando la protezione, le app di condivisione schermo non potranno catturare la finestra principale di MioAgent, aiutando a proteggere la privacy dei contenuti. Questa funzione non nasconde completamente tutte le interfacce: usala in modo corretto e conforme. Non tutte le app di condivisione schermo rispettano le impostazioni privacy, quindi la funzione può non avere effetto in alcuni software e in certi ambienti potrebbe restare una finestra nera.",
-    "contentProtectionDisableDesc": "Disattivare la protezione consentirà alle app di condivisione schermo di catturare la finestra MioAgent.",
+    "contentProtectionEnableDesc": "Attivando la protezione, le app di condivisione schermo non potranno catturare la finestra principale di MioWork, aiutando a proteggere la privacy dei contenuti. Questa funzione non nasconde completamente tutte le interfacce: usala in modo corretto e conforme. Non tutte le app di condivisione schermo rispettano le impostazioni privacy, quindi la funzione può non avere effetto in alcuni software e in certi ambienti potrebbe restare una finestra nera.",
+    "contentProtectionDisableDesc": "Disattivare la protezione consentirà alle app di condivisione schermo di catturare la finestra MioWork.",
     "contentProtectionRestartNotice": "Cambiare questa impostazione riavvierà l'applicazione. Continuare?",
     "copyWithCotEnabled": "Copia informazioni COT",
     "traceDebugEnabled": "Traccia chiamate",
@@ -94,7 +94,7 @@
     "loggingRestartNotice": "Cambiare questa impostazione riavvierà l'applicazione. Continuare?",
     "openLogFolder": "Apri cartella log",
     "notifications": "Notifiche di sistema",
-    "notificationsDesc": "Quando MioAgent non è in primo piano, invia una notifica di sistema al termine della generazione di una sessione",
+    "notificationsDesc": "Quando MioWork non è in primo piano, invia una notifica di sistema al termine della generazione di una sessione",
     "fileMaxSize": "Dimensione massima file",
     "fileMaxSizeHint": "Limita la dimensione massima di un singolo file caricato",
     "defaultModel": {
@@ -191,11 +191,11 @@
       "saveFailed": "Salvataggio non riuscito. Le modifiche sono state mantenute.",
       "retry": "Riprova"
     },
-    "title": "MioAgent Agents",
-    "description": "Gestisci MioAgent Agent e i valori predefiniti per le nuove sessioni.",
+    "title": "MioWork Agents",
+    "description": "Gestisci MioWork Agent e i valori predefiniti per le nuove sessioni.",
     "builtIn": "Integrato",
-    "editTitle": "Modifica MioAgent Agent",
-    "createTitle": "Crea MioAgent Agent",
+    "editTitle": "Modifica MioWork Agent",
+    "createTitle": "Crea MioWork Agent",
     "unnamed": "Agent senza nome",
     "name": "Nome",
     "namePlaceholder": "Es.: Writer / Research / Translate",
@@ -204,7 +204,7 @@
     "descriptionPlaceholder": "Opzionale, per spiegare lo scopo di questo Agent",
     "avatarTitle": "Avatar",
     "avatarDefault": "Predefinito",
-    "avatarDefaultDesc": "MioAgent usa l'icona predefinita, gli altri Agent usano un avatar testuale.",
+    "avatarDefaultDesc": "MioWork usa l'icona predefinita, gli altri Agent usano un avatar testuale.",
     "avatarLucide": "Icona Lucide",
     "avatarLucideDesc": "Scegli un'icona Lucide e imposta colori chiari/scuri separati.",
     "avatarMonogram": "Avatar testuale",
@@ -258,10 +258,10 @@
     "outputLimitsCommandHint": "Anteprima in primo piano per exec e gli script delle skill.",
     "compactionTitle": "Compressione automatica",
     "compactionEnabled": "Attiva compressione automatica",
-    "compactionDescription": "Queste impostazioni influenzano solo le nuove sessioni MioAgent create in futuro.",
+    "compactionDescription": "Queste impostazioni influenzano solo le nuove sessioni MioWork create in futuro.",
     "compactionThreshold": "Soglia di attivazione",
     "compactionRetainPairs": "Mantieni coppie messaggi recenti",
-    "deleteConfirm": "Eliminare l'Agent \"{name}\"? Le sue sessioni storiche passeranno automaticamente al MioAgent integrato.",
+    "deleteConfirm": "Eliminare l'Agent \"{name}\"? Le sue sessioni storiche passeranno automaticamente al MioWork integrato.",
     "memoryTitle": "Memoria a lungo termine",
     "memoryEnabled": "Abilita memoria a lungo termine",
     "memoryDescription": "Consenti a questo agente di ricordare fatti duraturi tra le sessioni e di evolvere un automodello. Disattivato per impostazione predefinita per la privacy.",
@@ -495,7 +495,7 @@
       "empty": "Nessun Hook. Fai clic in alto a destra per crearne uno.",
       "defaultName": "Hook {index}",
       "guideTitle": "Istruzioni",
-      "guideDescription": "Quando un evento selezionato viene attivato, MioAgent esegue il comando. L'evento corrente è disponibile tramite stdin JSON, variabili d'ambiente e placeholder da riga di comando.",
+      "guideDescription": "Quando un evento selezionato viene attivato, MioWork esegue il comando. L'evento corrente è disponibile tramite stdin JSON, variabili d'ambiente e placeholder da riga di comando.",
       "deliveryTitle": "Modalità parametri",
       "deliveryStdin": "Il payload completo viene scritto su stdin come JSON.",
       "deliveryPlaceholder": "Puoi usare i placeholder direttamente nella riga di comando.",
@@ -590,7 +590,7 @@
       "summaryManualOnly": "{manual} problemi richiedono intervento manuale",
       "manualHint": "{count} problemi non sono stati riparati automaticamente e richiedono intervento manuale.",
       "toastSuggestedTitle": "Riparazione database consigliata",
-      "toastSuggestedDescription": "MioAgent ha rilevato un problema di schema nel database ({reason}); puoi eseguire ora la riparazione.",
+      "toastSuggestedDescription": "MioWork ha rilevato un problema di schema nel database ({reason}); puoi eseguire ora la riparazione.",
       "toastAction": "Vai alla riparazione",
       "toastHealthyTitle": "Struttura database corretta",
       "toastHealthyDescription": "Nessun problema di schema da riparare.",
@@ -626,7 +626,7 @@
       "newPassword": "Nuova password SQLite",
       "confirmPassword": "Conferma password",
       "passwordMismatch": "Le due password non coincidono",
-      "systemCredentialStore": "Quando l'archivio sicuro di sistema è disponibile, MioAgent salva la password SQLite cifrata nel vault delle credenziali del sistema (ad esempio macOS Keychain, Windows Credential Vault o Linux secret store). Dopo il primo sblocco riuscito, gli avvii successivi di solito si aprono automaticamente; la chiave di cifratura va reinserita solo dopo migrazione dati, se la credenziale di sistema manca o non può essere decifrata, oppure se l'archivio sicuro non è disponibile.",
+      "systemCredentialStore": "Quando l'archivio sicuro di sistema è disponibile, MioWork salva la password SQLite cifrata nel vault delle credenziali del sistema (ad esempio macOS Keychain, Windows Credential Vault o Linux secret store). Dopo il primo sblocco riuscito, gli avvii successivi di solito si aprono automaticamente; la chiave di cifratura va reinserita solo dopo migrazione dati, se la credenziale di sistema manca o non può essere decifrata, oppure se l'archivio sicuro non è disponibile.",
       "safeStorageUnavailable": "Electron safeStorage non è disponibile su questo sistema. Dopo l'attivazione sarà necessario inserire manualmente la password a ogni avvio.",
       "enableButton": "Attiva cifratura",
       "changeButton": "Modifica password",
@@ -710,7 +710,7 @@
       "entryDescription": "Scansiona le configurazioni provider locali di CC Switch, Alma, Cherry Studio, Hermes e OpenClaw per migrare rapidamente chiavi e liste modelli.",
       "entryButton": "Importa da altri Agent",
       "dialogTitle": "Importa da altri Agent",
-      "dialogDescription": "Seleziona prima le app rilevate, poi conferma uno per uno i provider da importare in MioAgent.",
+      "dialogDescription": "Seleziona prima le app rilevate, poi conferma uno per uno i provider da importare in MioWork.",
       "toastTitle": "Importazione Provider completata",
       "toastDescription": "{count} provider importati.",
       "steps": {
@@ -719,23 +719,23 @@
         "done": "Completato"
       },
       "scanningTitle": "Scansione Agent installati",
-      "scanningDescription": "MioAgent legge solo file di configurazione locali noti e non carica alcun dato.",
+      "scanningDescription": "MioWork legge solo file di configurazione locali noti e non carica alcun dato.",
       "scanFailedTitle": "Scansione non riuscita",
       "sourcesTitle": "Origini rilevate",
-      "sourcesDescription": "Puoi scegliere uno o più Agent; MioAgent li elaborerà nell'ordine della lista.",
+      "sourcesDescription": "Puoi scegliere uno o più Agent; MioWork li elaborerà nell'ordine della lista.",
       "selectedSources": "Selezionati {selected}/{total}",
       "noSourcesTitle": "Nessuna configurazione provider importabile trovata",
       "noSourcesDescription": "Installa prima un Agent supportato o configura le chiavi provider nel relativo Agent.",
       "providersFound": "{count} provider",
       "sourceProgress": "{current}/{total}",
-      "overwriteNote": "Se più provider selezionati vengono mappati allo stesso provider MioAgent, l'origine successiva sovrascriverà quella precedente.",
+      "overwriteNote": "Se più provider selezionati vengono mappati allo stesso provider MioWork, l'origine successiva sovrascriverà quella precedente.",
       "noProvidersTitle": "Questa origine non contiene dati provider",
       "noProvidersDescription": "L'Agent è stato selezionato, ma non è stata trovata alcuna voce provider importabile.",
       "apiKey": "Chiave {value}",
       "noModels": "Nessuna lista modelli",
       "modelsImported": "{count} modelli",
       "importingTitle": "Importazione provider",
-      "importingDescription": "MioAgent sta scrivendo i provider selezionati e le voci dei modelli personalizzati.",
+      "importingDescription": "MioWork sta scrivendo i provider selezionati e le voci dei modelli personalizzati.",
       "doneTitle": "Riepilogo importazione",
       "doneDescription": "{count} provider importati. Puoi vedere sotto il risultato di ciascun provider.",
       "badges": {
@@ -753,14 +753,14 @@
         "unsupported": "Non supportato"
       },
       "warnings": {
-        "already_configured": "Configurazione già presente in MioAgent, per impostazione predefinita non viene selezionata.",
+        "already_configured": "Configurazione già presente in MioWork, per impostazione predefinita non viene selezionata.",
         "missing_api_key": "API Key o endpoint necessario mancante.",
-        "unsupported_provider": "MioAgent non può ancora importare automaticamente questo provider.",
+        "unsupported_provider": "MioWork non può ancora importare automaticamente questo provider.",
         "overwrites_previous_selection": "Questa selezione è in conflitto con un'origine precedente.",
-        "credential_only_import": "Viene importata solo la API Key; MioAgent mantiene endpoint e runtime integrati del provider."
+        "credential_only_import": "Viene importata solo la API Key; MioWork mantiene endpoint e runtime integrati del provider."
       },
       "conflicts": {
-        "overridesPrevious": "Questa selezione sovrascriverà un provider MioAgent omonimo selezionato prima.",
+        "overridesPrevious": "Questa selezione sovrascriverà un provider MioWork omonimo selezionato prima.",
         "overwrittenByLater": "Un'origine selezionata successivamente sovrascriverà questo provider."
       },
       "summary": {
@@ -873,7 +873,7 @@
       "recordingStartedAtDescription": "Ora del primo record usage presente nella dashboard corrente.",
       "withDeepChatDaysLabel": "Giorni insieme",
       "withDeepChatDaysValue": "{days} giorni",
-      "withDeepChatDaysSentence": "Hai passato {days} giorni insieme a MioAgent",
+      "withDeepChatDaysSentence": "Hai passato {days} giorni insieme a MioWork",
       "withDeepChatDaysDescription": "In base al tuo primo record di utilizzo: {date}.",
       "withDeepChatDaysDescriptionUnavailable": "Nessun record di utilizzo per ora.",
       "tokenUsage": "Consumo Token",
@@ -882,7 +882,7 @@
       "nostalgiaSessionsValue": "{count} sessioni",
       "nostalgiaMessagesValue": "{count} messaggi",
       "nostalgiaDaysDetailLabel": "Tempo insieme",
-      "nostalgiaDaysDetail": "Hai passato {days} giorni insieme a MioAgent.",
+      "nostalgiaDaysDetail": "Hai passato {days} giorni insieme a MioWork.",
       "nostalgiaSessionsDetailLabel": "Sessioni totali",
       "nostalgiaSessionsDetail": "Avete svolto insieme {count} sessioni.",
       "nostalgiaMessagesDetailLabel": "Messaggi totali",
@@ -915,7 +915,7 @@
     },
     "rtk": {
       "title": "Risparmio RTK",
-      "description": "Mostra quanti token RTK ha stimato di intercettare prima che entrassero nel contesto modello nel flusso nativo di esecuzione comandi MioAgent.",
+      "description": "Mostra quanti token RTK ha stimato di intercettare prima che entrassero nel contesto modello nel flusso nativo di esecuzione comandi MioWork.",
       "actions": {
         "retry": "Riprova controllo"
       },
@@ -926,8 +926,8 @@
         "unhealthy": "Non disponibile"
       },
       "descriptionDisabled": "RTK è disattivato nella sessione app corrente; i comandi continueranno sul percorso di esecuzione originale.",
-      "descriptionChecking": "MioAgent sta verificando se RTK può funzionare correttamente nell'ambiente corrente.",
-      "descriptionHealthy": "RTK è collegato all'esecuzione comandi nativa di MioAgent.",
+      "descriptionChecking": "MioWork sta verificando se RTK può funzionare correttamente nell'ambiente corrente.",
+      "descriptionHealthy": "RTK è collegato all'esecuzione comandi nativa di MioWork.",
       "descriptionUnhealthy": "Il controllo di salute all'avvio di RTK non è riuscito ed è stato disattivato per la sessione app corrente.",
       "sourceLabel": "Origine runtime: {source}",
       "source": {
@@ -1035,7 +1035,7 @@
       },
       "functionCall": {
         "label": "Chiamata funzione",
-        "description": "Indica se il modello supporta nativamente le chiamate funzione (se disattivato, MioAgent simulerà automaticamente le chiamate funzione)"
+        "description": "Indica se il modello supporta nativamente le chiamate funzione (se disattivato, MioWork simulerà automaticamente le chiamate funzione)"
       },
       "reasoning": {
         "label": "Capacità reasoning",
@@ -1510,7 +1510,7 @@
     "loggingIn": "Accesso...",
     "githubCopilotClientId": "Client ID personalizzato",
     "githubCopilotClientIdHint": "Opzionale, lascia vuoto per usare il Client ID predefinito; influisce solo sull'autorizzazione GitHub Copilot.",
-    "githubCopilotLoginTip": "Fai clic per autorizzare MioAgent ad accedere al tuo abbonamento GitHub Copilot",
+    "githubCopilotLoginTip": "Fai clic per autorizzare MioWork ad accedere al tuo abbonamento GitHub Copilot",
     "openaiCodexAuth": "Autenticazione OpenAI Codex",
     "openaiCodexConnected": "OpenAI Codex connesso",
     "openaiCodexNotConnected": "OpenAI Codex non connesso",
@@ -1538,7 +1538,7 @@
     "apiKeyLabel": "API Key",
     "apiUrlLabel": "API URL",
     "bedrockLimitTip": "* Supporta solo Anthropic Claude (inclusi modelli Opus, Sonnet, Haiku)",
-    "bedrockVerifyTip": "MioAgent usa il modello Claude 3.5 Sonnet per la verifica; se non hai permesso di chiamare questo modello, la verifica fallirà. Questo non influisce sull'uso degli altri modelli.",
+    "bedrockVerifyTip": "MioWork usa il modello Claude 3.5 Sonnet per la verifica; se non hai permesso di chiamare questo modello, la verifica fallirà. Questo non influisce sull'uso degli altri modelli.",
     "center": {
       "title": "Provider Center",
       "description": "Gestisci connessioni provider, modelli e configurazioni avanzate.",
@@ -1559,7 +1559,7 @@
     },
     "openaiCodexPasteCallback": "Incolla URL di callback",
     "openaiCodexCallbackTitle": "Completa autenticazione",
-    "openaiCodexCallbackDescription": "Dopo il completamento nel browser, torna a MioAgent. Se MioAgent non si aggiorna, incolla qui l'URL di callback completo.",
+    "openaiCodexCallbackDescription": "Dopo il completamento nel browser, torna a MioWork. Se MioWork non si aggiorna, incolla qui l'URL di callback completo.",
     "openaiCodexCallbackPlaceholder": "Incolla l'URL di callback completo",
     "openaiCodexCompleteAuthentication": "Completa autenticazione",
     "xaiGrokAuth": "xAI Grok OAuth",
@@ -1880,7 +1880,7 @@
       "removeCredential": "Rimuovi credenziale salvata",
       "credentialConfiguredPlaceholder": "È già configurata una credenziale protetta",
       "credentialConfigured": "Credenziale configurata",
-      "credentialMemoryOnly": "Questa credenziale viene conservata solo in memoria e andrà persa alla chiusura di MioAgent.",
+      "credentialMemoryOnly": "Questa credenziale viene conservata solo in memoria e andrà persa alla chiusura di MioWork.",
       "credentialRemoveError": "Impossibile rimuovere la credenziale protetta",
       "credentialSaveError": "Impossibile salvare la credenziale protetta"
     },
@@ -1957,7 +1957,7 @@
       "redetectFailed": "Nuovo rilevamento non riuscito",
       "redetectFailedDesc": "Impossibile rilevare nuovamente la sorgente ottimale, verrà usata la configurazione predefinita"
     },
-    "managedServerReadOnly": "Servizio gestito da MioAgent",
+    "managedServerReadOnly": "Servizio gestito da MioWork",
     "managedServerReadOnlyDesc": "Gestisci attivazione e permessi nelle impostazioni del plugin corrispondente",
     "center": {
       "title": "Centro MCP",
@@ -1979,7 +1979,7 @@
     "authenticate": "Autentica",
     "authFailed": "Autenticazione non riuscita",
     "authCallbackTitle": "Completa autenticazione",
-    "authCallbackDescription": "Dopo il completamento nel browser, torna a MioAgent. Se MioAgent non si aggiorna, incolla qui l'URL di callback completo.",
+    "authCallbackDescription": "Dopo il completamento nel browser, torna a MioWork. Se MioWork non si aggiorna, incolla qui l'URL di callback completo.",
     "authCallbackPlaceholder": "Incolla l'URL di callback completo",
     "completeAuthentication": "Completa autenticazione",
     "saveSuccess": "Configurazione salvata",
@@ -2084,7 +2084,7 @@
   },
   "acp": {
     "title": "ACP Agent",
-    "description": "Gestisci ACP Agent locali avviati da MioAgent.",
+    "description": "Gestisci ACP Agent locali avviati da MioWork.",
     "enabledTitle": "Attiva ACP",
     "enabledDescription": "Dopo l'attivazione, gli ACP Agent configurati appariranno nella lista modelli.",
     "enableToAccess": "Attiva ACP per configurare Agent.",
@@ -2122,7 +2122,7 @@
     "registryInstallAction": "Installa",
     "registryUninstallAction": "Disinstalla",
     "registryUninstallConfirm": "Disinstallare \"{name}\"?",
-    "registryUninstallDescription": "MioAgent disattiverà questo Agent e, se applicabile, pulirà i dati di installazione gestiti localmente. Potrai reinstallarlo in seguito da ACP Registry.",
+    "registryUninstallDescription": "MioWork disattiverà questo Agent e, se applicabile, pulirà i dati di installazione gestiti localmente. Potrai reinstallarlo in seguito da ACP Registry.",
     "registryUninstallFailed": "Disinstallazione Agent non riuscita",
     "registryInstallTitle": "ACP Registry",
     "registryInstallDescription": "Cerca, filtra e installa ACP Agent. Dopo l'installazione torna alla pagina impostazioni per configurarli.",
@@ -2201,7 +2201,7 @@
       "openTerminal": "Open terminal",
       "cancelSignIn": "Cancel sign-in",
       "unsupported": "This authentication method is not supported. Configure its environment variables manually.",
-      "noMethods": "The agent did not provide an authentication method that MioAgent can use.",
+      "noMethods": "The agent did not provide an authentication method that MioWork can use.",
       "status": {
         "required": "Authentication required",
         "running": "Signing in",
@@ -2365,20 +2365,20 @@
       "env": "{count} variabili d'ambiente",
       "pythonShort": "Py",
       "nodeShort": "Node",
-      "enable": "Enable in MioAgent",
-      "disable": "Disable in MioAgent",
+      "enable": "Enable in MioWork",
+      "disable": "Disable in MioWork",
       "viewDetails": "Vedi dettagli",
       "edit": "Modifica",
       "installToAgent": "Installa in Agent"
     },
     "enable": {
       "success": "Skill Enabled",
-      "successMessage": "Skill {name} is enabled in MioAgent",
+      "successMessage": "Skill {name} is enabled in MioWork",
       "failed": "Enable Failed"
     },
     "disable": {
       "success": "Skill Disabled",
-      "successMessage": "Skill {name} is disabled in MioAgent",
+      "successMessage": "Skill {name} is disabled in MioWork",
       "failed": "Disable Failed"
     },
     "edit": {
@@ -2424,7 +2424,7 @@
     "agentImport": {
       "menuItem": "Importa da un Agent esterno",
       "title": "Importa da un Agent esterno",
-      "description": "Importa Skills convalidati in MioAgent. Attiva gli Agents dall’anteprima di ogni Skill.",
+      "description": "Importa Skills convalidati in MioWork. Attiva gli Agents dall’anteprima di ogni Skill.",
       "resultPartial": "Importazione completata con errori",
       "resultSuccess": "Importazione completata",
       "sourceTitle": "Agent di origine",
@@ -2539,7 +2539,7 @@
     },
     "git": {
       "title": "Git",
-      "description": "Scansiona un repository Git e installa le skill selezionate in MioAgent.",
+      "description": "Scansiona un repository Git e installa le skill selezionate in MioWork.",
       "placeholder": "https://github.com/user/repo",
       "scan": "Scansiona",
       "detectedFormat": "Formato rilevato:",
@@ -2555,7 +2555,7 @@
       "rename": "Rinomina nuova skill",
       "overwrite": "Sostituisci esistente",
       "skip": "Salta esistente",
-      "install": "Installa in MioAgent",
+      "install": "Installa in MioWork",
       "failed": "Installazione Git non riuscita",
       "success": "Installazione Git completata",
       "successMessage": "{count} installate, {failed} non riuscite",
@@ -2614,8 +2614,8 @@
       "installToAgent": "Installa in Agent",
       "enabled": "Attivo",
       "disabled": "Disattivato",
-      "enable": "Attiva in MioAgent",
-      "disable": "Disattiva in MioAgent",
+      "enable": "Attiva in MioWork",
+      "disable": "Disattiva in MioWork",
       "preview": "Anteprima",
       "edit": "Modifica",
       "delete": "Elimina",
@@ -2630,7 +2630,7 @@
     },
     "installToAgent": {
       "title": "Installa {name} in Agent",
-      "description": "Crea un link gestito da MioAgent per questo skill nella directory skills di un agent locale.",
+      "description": "Crea un link gestito da MioWork per questo skill nella directory skills di un agent locale.",
       "failed": "Installazione in Agent non riuscita",
       "emptyAgents": "Nessun agent locale disponibile rilevato.",
       "target": "Agent di destinazione",
@@ -2689,7 +2689,7 @@
       "moveBottom": "Sposta in fondo",
       "archive": "Archivia",
       "restore": "Ripristina",
-      "remove": "Rimuovi da MioAgent"
+      "remove": "Rimuovi da MioWork"
     },
     "badges": {
       "default": "Predefinita",
@@ -2722,7 +2722,7 @@
     "confirm": {
       "archiveTitle": "Archiviare \"{name}\"?",
       "archiveDescription": "Uscirà dall’elenco delle directory attive e dal selettore delle nuove chat, mentre sessioni, messaggi e cartella reale resteranno intatti.",
-      "removeTitle": "Rimuovere \"{name}\" da MioAgent?",
+      "removeTitle": "Rimuovere \"{name}\" da MioWork?",
       "removeDescription": "La cartella reale e i messaggi non vengono eliminati. Le sessioni normali passano a Nessun progetto; i record della directory di lavoro ACP vengono conservati così le sessioni esistenti possono riprendere."
     }
   },
@@ -2758,7 +2758,7 @@
       "accessRule1": "Authorize yourself with /pair [code] in a direct bot chat, or use OAuth scan authorization for a manually configured app.",
       "accessRule2": "In groups and topics, the bot only reacts when an authorized user {'@'} mentions it.",
       "setupGuideTitle": "Finish app setup from the Echo Bot guide",
-      "setupGuideDescription": "MioAgent can open the console and bot chat, but app creation, permission grants, event subscription, and version publishing still need confirmation in the Feishu / Lark console.",
+      "setupGuideDescription": "MioWork can open the console and bot chat, but app creation, permission grants, event subscription, and version publishing still need confirmation in the Feishu / Lark console.",
       "setupStepCreateApp": "Create a self-built app and add the bot capability.",
       "setupStepPermissions": "Grant im:message.p2p_msg:readonly, im:message.group_at_msg:readonly, im:message:send_as_bot, plus the user-info permission required for scan binding.",
       "setupStepEvents": "Use long-connection event subscription and add im.message.receive_v1.",
@@ -2798,18 +2798,18 @@
       "installSessionMissing": "Install session is missing or has ended.",
       "installUserCode": "User code: {code}",
       "manualSetupTitle": "Manual app setup fallback",
-      "manualSetupDescription": "If PersonalAgent install is unavailable in your tenant, keep using the developer console flow below. MioAgent no longer requires the local OAuth redirect URI for the primary install path.",
+      "manualSetupDescription": "If PersonalAgent install is unavailable in your tenant, keep using the developer console flow below. MioWork no longer requires the local OAuth redirect URI for the primary install path.",
       "openInstallWeb": "Open web install",
       "showInstallQr": "QR install",
       "installQrTitle": "Scan official install QR",
       "installQrDescription": "This QR code is generated directly from the official install link returned by Feishu / Lark. Scan it in the mobile client and keep this dialog open.",
       "installQrAlt": "Feishu / Lark install QR code",
       "userAuthTitle": "Authorize remote-control users",
-      "userAuthDescription": "After the bot app is installed, authorized Feishu / Lark users can control MioAgent. Use /pair in the bot chat, or use OAuth scan authorization for an existing manually configured app; both update the same authorized-principal list.",
+      "userAuthDescription": "After the bot app is installed, authorized Feishu / Lark users can control MioWork. Use /pair in the bot chat, or use OAuth scan authorization for an existing manually configured app; both update the same authorized-principal list.",
       "pairAuthTitle": "/pair command",
       "pairAuthDescription": "Fai clic su Associa qui sotto, poi invia il codice /pair in una chat diretta con il bot. Questo è il percorso di autorizzazione consigliato e funziona ancora con le app PersonalAgent installate.",
       "streamingCards": "Schede streaming CardKit",
-      "streamingCardsDescription": "Trasmetti le risposte AI tramite Feishu / Lark CardKit in tempo reale. Richiede le autorizzazioni im:message e cardkit:card:write; MioAgent torna ai messaggi normali se CardKit fallisce."
+      "streamingCardsDescription": "Trasmetti le risposte AI tramite Feishu / Lark CardKit in tempo reale. Richiede le autorizzazioni im:message e cardkit:card:write; MioWork torna ai messaggi normali se CardKit fallisce."
     },
     "discord": {
       "title": "Discord",
@@ -2817,7 +2817,7 @@
       "botToken": "Bot Token",
       "botTokenPlaceholder": "Discord Bot Token",
       "remoteControlDescription": "Il controllo remoto Discord usa un Bot Token, Gateway e flusso REST separati.",
-      "accessRule1": "Invia /pair [codice] in DM o nel canale target per autorizzare il DM o canale corrente a MioAgent.",
+      "accessRule1": "Invia /pair [codice] in DM o nel canale target per autorizzare il DM o canale corrente a MioWork.",
       "accessRule2": "I messaggi del canale entrano nella conversazione solo quando il bot viene menzionato, evitando di processare chat normali."
     },
     "sections": {
@@ -2846,7 +2846,7 @@
       "pairDialogInstructionFeishu": "Send this command in a Feishu / Lark bot direct chat; it adds the sender to the same authorized-principal list used by scan authorization:",
       "pairDialogInstructionDiscord": "Invia questo comando al bot Discord in DM o nel canale target:",
       "bindingsDialogTitle": "Binding {channel}",
-      "bindingsDialogDescription": "Rimuovi uno per uno i binding tra ingressi remoti e sessioni MioAgent.",
+      "bindingsDialogDescription": "Rimuovi uno per uno i binding tra ingressi remoti e sessioni MioWork.",
       "bindingsEmpty": "Nessuna sessione associata.",
       "pairingSuccessTitle": "Associazione riuscita",
       "pairingSuccessDescription": "L'elenco dei soggetti associati è stato aggiornato.",
@@ -2855,7 +2855,7 @@
       "authorizedPrincipalsDescription": "Questi account {channel} sono autorizzati ad associarsi e controllare le sessioni.",
       "authorizedPrincipalsEmpty": "Nessun soggetto autorizzato al momento.",
       "sessionBindingsTitle": "Binding sessioni",
-      "sessionBindingsDescription": "Ogni ingresso remoto qui sotto è attualmente associato a una sessione MioAgent.",
+      "sessionBindingsDescription": "Ogni ingresso remoto qui sotto è attualmente associato a una sessione MioWork.",
       "acpDefaultWorkdirRequiredTitle": "Directory predefinita richiesta",
       "acpDefaultWorkdirRequiredDescription": "Gli agenti ACP necessitano di un’area di lavoro locale. Scegli una directory predefinita prima di salvare."
     },
@@ -2909,8 +2909,8 @@
     "weixinIlink": {
       "title": "WeChat iLink",
       "description": "Collega il Bot ufficiale WeChat iLink con scansione QR e usa l'adapter integrato per gestire le sessioni di controllo remoto.",
-      "loginDescription": "Dopo il clic sul pulsante sotto, MioAgent aprirà la finestra di login ufficiale WeChat. Completa lì l'autorizzazione iLink Bot con QR. Gli account connessi verranno aggiunti automaticamente alla lista sotto.",
-      "ownerOnlyNotice": "La prima versione consente il controllo di MioAgent solo al proprietario dell'account corrispondente al login QR.",
+      "loginDescription": "Dopo il clic sul pulsante sotto, MioWork aprirà la finestra di login ufficiale WeChat. Completa lì l'autorizzazione iLink Bot con QR. Gli account connessi verranno aggiunti automaticamente alla lista sotto.",
+      "ownerOnlyNotice": "La prima versione consente il controllo di MioWork solo al proprietario dell'account corrispondente al login QR.",
       "connectButton": "Apri finestra login",
       "refreshQrCode": "Riapri finestra login",
       "loginDialogTitle": "Connetti WeChat iLink",
@@ -2938,11 +2938,11 @@
   },
   "plugins": {
     "title": "Plugin",
-    "officialOnly": "Gestisci lo stato di attivazione dei plugin ufficiali integrati nella versione corrente di MioAgent",
+    "officialOnly": "Gestisci lo stato di attivazione dei plugin ufficiali integrati nella versione corrente di MioWork",
     "refresh": "Aggiorna",
     "empty": "Nessun plugin ufficiale disponibile",
     "emptyTitle": "Nessun plugin integrato",
-    "emptyDescription": "La piattaforma corrente non include plugin ufficiali integrati in questa versione di MioAgent.",
+    "emptyDescription": "La piattaforma corrente non include plugin ufficiali integrati in questa versione di MioWork.",
     "loadFailed": "Caricamento plugin non riuscito",
     "actionFailed": "Operazione plugin non riuscita",
     "install": "Installa",
@@ -2953,7 +2953,7 @@
     "openSettings": "Impostazioni",
     "testRuntime": "Testa runtime",
     "retryRuntime": "Riprova runtime",
-    "quarantineDescription": "MioAgent ha arrestato questo runtime dopo una chiusura anomala. Riprova solo quando è sicuro controllare il desktop.",
+    "quarantineDescription": "MioWork ha arrestato questo runtime dopo una chiusura anomala. Riprova solo quando è sicuro controllare il desktop.",
     "runtime": "Runtime",
     "runtimeState": "Stato",
     "version": "Versione",
@@ -2987,7 +2987,7 @@
       "searchPlaceholder": "Cerca impostazioni, provider, modelli, Agent, MCP...",
       "providers": "Providers",
       "mcp": "MCP",
-      "deepchatAgents": "MioAgent Agents",
+      "deepchatAgents": "MioWork Agents",
       "data": "Ultimo backup",
       "enabledCount": "{count} attivi",
       "runningCount": "{count} in esecuzione",
@@ -3102,7 +3102,7 @@
   },
   "memory": {
     "description": "Esamina, configura e gestisci ciò che ogni agente ricorda tra le sessioni. La memoria è separata per ogni agente.",
-    "empty": "Nessun agente MioAgent ancora disponibile.",
+    "empty": "Nessun agente MioWork ancora disponibile.",
     "agentPicker": "Agente",
     "tabConfig": "Configurazione",
     "tabManage": "Gestisci",
@@ -3267,7 +3267,7 @@
     }
   },
   "pluginsHub": {
-    "subtitle": "Work with MioAgent across skills, MCP servers, official plugins, and remote channels.",
+    "subtitle": "Work with MioWork across skills, MCP servers, official plugins, and remote channels.",
     "available": "Plugin disponibili",
     "add": "Aggiungi",
     "manage": "Manage",
@@ -3275,11 +3275,11 @@
     "emptySearch": "Nessun plugin disponibile.",
     "pluginNotFound": "Plugin not found.",
     "actionResult": "Action result",
-    "cuaDescription": "Plugin ComputerUse di MioAgent implementato sulla base del progetto trycua/cua.",
+    "cuaDescription": "Plugin ComputerUse di MioWork implementato sulla base del progetto trycua/cua.",
     "acpUnavailableTitle": "I plugin non sono disponibili per gli agenti ACP",
-    "acpUnavailableDescription": "Gli agenti ACP gestiscono strumenti ed estensioni nel proprio ambiente di esecuzione. Seleziona un agente MioAgent per usare i plugin.",
-    "agentScopeUnsupported": "Le estensioni specifiche per agente sono disponibili solo per gli agenti MioAgent.",
-    "scopeGlobalPlugins": "Questa pagina è globale all’app: installazione, abilitazione e stato dei processi dei plugin ufficiali sono condivisi da tutti gli agenti MioAgent.",
+    "acpUnavailableDescription": "Gli agenti ACP gestiscono strumenti ed estensioni nel proprio ambiente di esecuzione. Seleziona un agente MioWork per usare i plugin.",
+    "agentScopeUnsupported": "Le estensioni specifiche per agente sono disponibili solo per gli agenti MioWork.",
+    "scopeGlobalPlugins": "Questa pagina è globale all’app: installazione, abilitazione e stato dei processi dei plugin ufficiali sono condivisi da tutti gli agenti MioWork.",
     "scopeCurrentAgent": "Questa pagina è policy dell’agente: le modifiche riguardano solo la disponibilità Skills/MCP di «{agent}», non le installazioni globali.",
     "currentAgentFallback": "agente corrente"
   },
@@ -3304,13 +3304,13 @@
     }
   },
   "toolchains": {
-    "description": "Scegli da dove MioAgent ottiene Node e uv. L’origine non cambia da sola dopo la scelta.",
+    "description": "Scegli da dove MioWork ottiene Node e uv. L’origine non cambia da sola dopo la scelta.",
     "nodeTitle": "Node.js",
     "uvTitle": "uv",
     "source": "Origine",
     "sources": {
       "bundled": "Incluso nell’app",
-      "managed": "Installato da MioAgent",
+      "managed": "Installato da MioWork",
       "system": "Installazione di sistema",
       "custom": "Percorso personalizzato",
       "unconfigured": "Non configurato",

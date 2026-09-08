@@ -1145,7 +1145,7 @@ export class RunCodeRuntimeManager {
       if (value) env[name] = value
     }
     return utilityProcess.fork(modulePath, ['--deepchat-code-mode-host'], {
-      serviceName: 'MioAgent Code Mode Cell',
+      serviceName: 'MioWork Code Mode Cell',
       stdio: 'ignore',
       env,
       execArgv: ['--max-old-space-size=64'],

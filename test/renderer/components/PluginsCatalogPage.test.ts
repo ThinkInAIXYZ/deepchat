@@ -34,7 +34,7 @@ const translations: Record<string, string> = {
   'settings.pluginsHub.builtinCapability': 'Built-in capability',
   'settings.pluginsHub.cuaDescription': 'CUA localized description',
   'settings.pluginsHub.manage': 'Manage',
-  'settings.pluginsHub.subtitle': 'Manage MioAgent plugins.',
+  'settings.pluginsHub.subtitle': 'Manage MioWork plugins.',
   'settings.plugins.status.disabled': 'Disabled',
   'settings.plugins.status.enabled': 'Enabled',
   'settings.remote.feishu.description': 'Feishu localized description',
@@ -62,7 +62,7 @@ async function mountCatalog(options?: { ocrStatus?: OcrRuntimeStatus | Error }) 
       {
         id: 'com.deepchat.plugins.feishu',
         name: 'Feishu/Lark Integration',
-        publisher: 'MioAgent',
+        publisher: 'MioWork',
         version: '1.0.4',
         enabled: false,
         capabilities: [],
@@ -71,7 +71,7 @@ async function mountCatalog(options?: { ocrStatus?: OcrRuntimeStatus | Error }) 
       {
         id: 'com.deepchat.plugins.cua',
         name: 'CUA Computer Use Runtime',
-        publisher: 'MioAgent',
+        publisher: 'MioWork',
         version: '1.0.4',
         enabled: true,
         capabilities: [],
@@ -164,7 +164,7 @@ describe('PluginsCatalogPage', () => {
     const { wrapper } = await mountCatalog()
 
     expect(wrapper.text()).toContain('Feishu localized description')
-    expect(wrapper.text()).not.toContain('MioAgent · com.deepchat.plugins.feishu')
+    expect(wrapper.text()).not.toContain('MioWork · com.deepchat.plugins.feishu')
   })
 
   it('uses the CUA laptop icon in the catalog', async () => {

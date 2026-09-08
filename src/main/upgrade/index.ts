@@ -11,8 +11,8 @@ import type { UpdateSettings } from './settings'
 const { autoUpdater } = electronUpdater
 
 const GITHUB_OWNER = 'chenjiaqiangmax'
-const GITHUB_REPO = 'mioagent'
-const OFFICIAL_DOWNLOAD_URL = 'https://github.com/chenjiaqiangmax/mioagent/releases'
+const GITHUB_REPO = 'miowork'
+const OFFICIAL_DOWNLOAD_URL = 'https://github.com/chenjiaqiangmax/miowork/releases'
 const UPDATE_CHANNEL_STABLE = 'stable'
 const UPDATE_CHANNEL_BETA = 'beta'
 const PRERELEASE_VERSION_REGEX = /-(?:alpha|beta|rc|canary)(?:[.-]\d+)?$/i

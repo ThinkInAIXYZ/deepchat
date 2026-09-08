@@ -177,10 +177,10 @@ export class AgentBashHandler {
       isProgrammaticInvocation &&
       (!options.conversationId || background || yieldMs !== undefined)
     ) {
-      throw new Error('MioAgent Programmatic Tool commands must remain attached and foreground.')
+      throw new Error('MioWork Programmatic Tool commands must remain attached and foreground.')
     }
     if (!isProgrammaticInvocation && options.stdin !== undefined) {
-      throw new Error('Owned stdin is limited to MioAgent Programmatic Tool commands.')
+      throw new Error('Owned stdin is limited to MioWork Programmatic Tool commands.')
     }
     const cwd = this.resolveWorkingDirectory(
       requestedCwd,

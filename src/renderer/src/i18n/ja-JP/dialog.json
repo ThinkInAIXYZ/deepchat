@@ -69,7 +69,7 @@
     "moveAndDeleteAgent": "移動してエージェントを削除",
     "moveConversation": "会話を移動",
     "agentType": {
-      "deepchat": "MioAgent",
+      "deepchat": "MioWork",
       "acp": "ACP"
     },
     "blockReason": {
@@ -84,7 +84,7 @@
       "draft": "下書き",
       "subagent": "サブエージェント"
     },
-    "deepChatTargetOnly": "移動先として選択できるのは MioAgent エージェントのみです。ACP の会話は MioAgent へ移動できますが、ACP へは移動できません。"
+    "deepChatTargetOnly": "移動先として選択できるのは MioWork エージェントのみです。ACP の会話は MioWork へ移動できますが、ACP へは移動できません。"
   },
   "deleteMessage": {
     "title": "このメッセージを削除しますか？",

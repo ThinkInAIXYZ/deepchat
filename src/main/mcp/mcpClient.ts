@@ -649,7 +649,7 @@ export class McpClient {
           this.serverConfig as Partial<MCPServerConfig>
         ) ?? []
       this.client = new Client(
-        { name: 'MioAgent', version: app.getVersion() },
+        { name: 'MioWork', version: app.getVersion() },
         {
           capabilities: {
             sampling: {},

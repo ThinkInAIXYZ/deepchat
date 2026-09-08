@@ -36,18 +36,18 @@ describe('DeviceService', () => {
   })
 
   describe('getDefaultHeaders', () => {
-    it('should include User-Agent header with MioAgent/ prefix', () => {
+    it('should include User-Agent header with MioWork/ prefix', () => {
       const headers = DeviceService.getDefaultHeaders()
 
       expect(headers).toHaveProperty('User-Agent')
-      expect(headers['User-Agent']).toMatch(/^MioAgent\//)
+      expect(headers['User-Agent']).toMatch(/^MioWork\//)
     })
 
     it('should include HTTP-Referer and X-Title headers', () => {
       const headers = DeviceService.getDefaultHeaders()
 
-      expect(headers['HTTP-Referer']).toBe('https://github.com/chenjiaqiangmax/mioagent')
-      expect(headers['X-Title']).toBe('MioAgent')
+      expect(headers['HTTP-Referer']).toBe('https://github.com/chenjiaqiangmax/miowork')
+      expect(headers['X-Title']).toBe('MioWork')
     })
   })
 

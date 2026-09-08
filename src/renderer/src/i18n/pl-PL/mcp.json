@@ -182,7 +182,7 @@
   "title": "Ustawienia MCP",
   "inmemory": {
     "Artifacts": {
-      "desc": "Twórz bogatsze artefakty w MioAgent",
+      "desc": "Twórz bogatsze artefakty w MioWork",
       "name": "Artefakty"
     },
     "bochaSearch": {
@@ -190,7 +190,7 @@
       "name": "Wyszukiwanie Bocha"
     },
     "buildInFileSystem": {
-      "desc": "Zezwól MioAgent na interakcję z lokalnym systemem plików.",
+      "desc": "Zezwól MioWork na interakcję z lokalnym systemem plików.",
       "name": "System plików"
     },
     "braveSearch": {
@@ -210,11 +210,11 @@
       "desc": "Usługa wyszukiwania bazy wiedzy FastGPT, umożliwia przeszukiwanie zawartości bazy wiedzy FastGPT"
     },
     "deepchat-inmemory/custom-prompts-server": {
-      "desc": "Wbudowana niestandardowa usługa MioAgent prompts",
+      "desc": "Wbudowana niestandardowa usługa MioWork prompts",
       "name": "Niestandardowe Prompt"
     },
     "deepchat-inmemory/deep-research-server": {
-      "desc": "Wbudowane głębokie badania MioAgent obsługiwane przez wyszukiwanie Bocha. Zalecane są modele o długim kontekście.",
+      "desc": "Wbudowane głębokie badania MioWork obsługiwane przez wyszukiwanie Bocha. Zalecane są modele o długim kontekście.",
       "name": "Głębokie badania"
     },
     "deepchat-inmemory/auto-prompting-server": {
@@ -223,10 +223,10 @@
     },
     "deepchat-inmemory/conversation-search-server": {
       "name": "Przeszukiwanie historii rozmów",
-      "desc": "Wbudowane wyszukiwanie historii rozmów MioAgent dla przeszłych czatów i wiadomości."
+      "desc": "Wbudowane wyszukiwanie historii rozmów MioWork dla przeszłych czatów i wiadomości."
     },
     "builtinKnowledge": {
-      "desc": "Wbudowane wyszukiwanie bazy wiedzy MioAgent w celu uzyskania dokumentów i przewodników MioAgent.",
+      "desc": "Wbudowane wyszukiwanie bazy wiedzy MioWork w celu uzyskania dokumentów i przewodników MioWork.",
       "name": "Wbudowane wyszukiwanie w bazie wiedzy"
     },
     "deepchat/apple-server": {

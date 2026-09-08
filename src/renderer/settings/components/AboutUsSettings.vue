@@ -25,21 +25,21 @@
           >
           <a
             class="flex items-center text-xs text-muted-foreground hover:text-primary"
-            href="https://github.com/chenjiaqiangmax/mioagent"
+            href="https://github.com/chenjiaqiangmax/miowork"
             target="_blank"
             rel="noopener noreferrer"
-            @click.prevent="openExternalLink('https://github.com/chenjiaqiangmax/mioagent')"
+            @click.prevent="openExternalLink('https://github.com/chenjiaqiangmax/miowork')"
           >
             <Icon icon="lucide:github" class="mr-1 h-3 w-3" />
             GitHub
           </a>
           <a
             class="flex items-center text-xs text-muted-foreground hover:text-primary"
-            href="https://github.com/chenjiaqiangmax/mioagent/blob/main/LICENSE"
+            href="https://github.com/chenjiaqiangmax/miowork/blob/main/LICENSE"
             target="_blank"
             rel="noopener noreferrer"
             @click.prevent="
-              openExternalLink('https://github.com/chenjiaqiangmax/mioagent/blob/main/LICENSE')
+              openExternalLink('https://github.com/chenjiaqiangmax/miowork/blob/main/LICENSE')
             "
           >
             <Icon icon="lucide:scale" class="mr-1 h-3 w-3" />
@@ -106,7 +106,7 @@
           variant="outline"
           size="sm"
           class="mb-2 text-xs"
-          @click="openExternalLink('https://github.com/chenjiaqiangmax/mioagent/issues')"
+          @click="openExternalLink('https://github.com/chenjiaqiangmax/miowork/issues')"
         >
           <Icon icon="lucide:message-square" class="mr-1 h-3 w-3" />
           {{ t('about.feedbackButton') }}

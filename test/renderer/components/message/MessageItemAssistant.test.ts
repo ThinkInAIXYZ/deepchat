@@ -258,7 +258,7 @@ describe('MessageItemAssistant', () => {
     const providerBlock: DisplayAssistantMessageBlock = {
       id: 'provider-search',
       type: 'search',
-      content: 'MioAgent',
+      content: 'MioWork',
       status: 'success',
       timestamp: 2,
       extra: { actionType: 'search', provider: 'deepseek' }
@@ -549,7 +549,7 @@ describe('MessageItemAssistant', () => {
           {
             id: 'ws_1',
             type: 'search',
-            content: 'MioAgent',
+            content: 'MioWork',
             status: 'success',
             timestamp: 2,
             extra: { actionType: 'search', provider: 'deepseek' }

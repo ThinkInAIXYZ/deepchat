@@ -32,7 +32,7 @@ export function formatHumanResult(
     case 'cli.status': {
       const result = contract.output.parse(value)
       return [
-        result.running ? 'MioAgent is running' : 'MioAgent is stopped',
+        result.running ? 'MioWork is running' : 'MioWork is stopped',
         `PID: ${result.pid}`,
         `Uptime: ${formatDuration(result.uptimeMs)}`,
         `Endpoint: ${result.endpointKind}`,
@@ -43,7 +43,7 @@ export function formatHumanResult(
     case 'cli.version': {
       const result = contract.output.parse(value)
       return [
-        `MioAgent ${result.appVersion}`,
+        `MioWork ${result.appVersion}`,
         `CLI ${CLI_VERSION}`,
         `Protocol ${result.protocolVersion}, surface ${result.surfaceVersion}`
       ].join('\n')
@@ -61,7 +61,7 @@ export function formatHumanResult(
     case 'cli.doctor': {
       const result = contract.output.parse(value)
       return [
-        `MioAgent CLI doctor: ${result.healthy ? 'healthy' : 'unhealthy'}`,
+        `MioWork CLI doctor: ${result.healthy ? 'healthy' : 'unhealthy'}`,
         ...result.checks.map(
           (check) => `[${check.status.toUpperCase()}] ${check.id}: ${check.message}`
         )

@@ -124,7 +124,7 @@ export class SkillSyncService implements SkillSyncServicePort {
     // 1. Get cached scan results
     const cache = await this.getScanCache()
 
-    // 3. Get current MioAgent skills
+    // 3. Get current MioWork skills
     const existingSkills = await this.skillService.getAllSkills()
     const existingSkillNames = new Set(existingSkills.map((s) => s.name))
 
@@ -181,7 +181,7 @@ export class SkillSyncService implements SkillSyncServicePort {
       for (const skill of result.skills) {
         // A skill is "new" if:
         // 1. It's not in the cache (newly discovered)
-        // 2. It's not already imported into MioAgent
+        // 2. It's not already imported into MioWork
         const isInCache = cachedSkillNames.has(skill.name)
         const isAlreadyImported = existingSkillNames.has(skill.name)
 
@@ -295,7 +295,7 @@ export class SkillSyncService implements SkillSyncServicePort {
   }
 
   // ============================================================================
-  // Import Operations (External Tool → MioAgent)
+  // Import Operations (External Tool → MioWork)
   // ============================================================================
 
   /**
@@ -316,7 +316,7 @@ export class SkillSyncService implements SkillSyncServicePort {
       return []
     }
 
-    // Get existing skills in MioAgent
+    // Get existing skills in MioWork
     const existingSkills = await this.skillService.getAllSkills()
     const existingNames = new Set(existingSkills.map((s) => s.name))
 
@@ -614,8 +614,8 @@ export class SkillSyncService implements SkillSyncServicePort {
   private getImportWarnings(skill: CanonicalSkill, _sourceToolId: string): string[] {
     const warnings: string[] = []
 
-    // Check if source has features that MioAgent also supports
-    // (no warnings needed for import since MioAgent supports most features)
+    // Check if source has features that MioWork also supports
+    // (no warnings needed for import since MioWork supports most features)
 
     if (!skill.name || skill.name === 'unnamed-skill') {
       warnings.push('Skill name could not be determined')

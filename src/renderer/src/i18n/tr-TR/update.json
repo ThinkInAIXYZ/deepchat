@@ -16,7 +16,7 @@
   "autoUpdate": "Otomatik Güncelleme",
   "restarting": "Yeniden başlatılıyor",
   "alreadyUpToDate": "Zaten Güncel",
-  "alreadyUpToDateDesc": "MioAgent cihazınız zaten en son sürüme güncellenmiştir, herhangi bir güncelleme gerekmez.",
+  "alreadyUpToDateDesc": "MioWork cihazınız zaten en son sürüme güncellenmiştir, herhangi bir güncelleme gerekmez.",
   "taskRunningTitle": "Devam Eden Görev",
   "taskRunningDescription": "Şu anda devam eden görevler var. Güncellemeye nasıl devam etmek istersiniz?",
   "updateNow": "Şimdi Güncelle",

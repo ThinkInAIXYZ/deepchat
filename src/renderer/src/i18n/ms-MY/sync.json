@@ -9,7 +9,7 @@
     "notEnabled": "Penyegerakan tidak didayakan",
     "folderNotExists": "Folder penyegerakan tidak wujud",
     "noValidBackup": "Tiada fail sandaran yang sah dalam folder penyegerakan",
-    "unsupportedBackupVersion": "Sandaran ini dibuat oleh versi MioAgent yang lebih baharu, versi semasa tidak boleh diimport",
+    "unsupportedBackupVersion": "Sandaran ini dibuat oleh versi MioWork yang lebih baharu, versi semasa tidak boleh diimport",
     "dbNotExists": "Fail pangkalan data tidak wujud",
     "configNotExists": "Fail konfigurasi tidak wujud",
     "tempDbFailed": "Penciptaan fail sandaran pangkalan data sementara gagal",

@@ -69,7 +69,7 @@
     "moveAndDeleteAgent": "이동 후 에이전트 삭제",
     "moveConversation": "대화 이동",
     "agentType": {
-      "deepchat": "MioAgent",
+      "deepchat": "MioWork",
       "acp": "ACP"
     },
     "blockReason": {
@@ -84,7 +84,7 @@
       "draft": "초안",
       "subagent": "하위 에이전트"
     },
-    "deepChatTargetOnly": "이동 대상으로는 MioAgent 에이전트만 선택할 수 있습니다. ACP 대화는 MioAgent으로 이동할 수 있지만 ACP로는 이동할 수 없습니다."
+    "deepChatTargetOnly": "이동 대상으로는 MioWork 에이전트만 선택할 수 있습니다. ACP 대화는 MioWork으로 이동할 수 있지만 ACP로는 이동할 수 없습니다."
   },
   "deleteMessage": {
     "title": "이 메시지를 삭제할까요?",

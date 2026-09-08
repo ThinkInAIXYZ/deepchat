@@ -958,7 +958,7 @@ export class McpOAuthManager {
         new ClientCredentialsProvider({
           clientId,
           clientSecret: credential.secret,
-          clientName: 'MioAgent',
+          clientName: 'MioWork',
           scope,
           expectedIssuer: issuer
         }),
@@ -979,7 +979,7 @@ export class McpOAuthManager {
           clientId,
           privateKey: credential.privateKey,
           algorithm: credential.algorithm,
-          clientName: 'MioAgent',
+          clientName: 'MioWork',
           scope,
           expectedIssuer: issuer
         }),

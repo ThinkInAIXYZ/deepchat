@@ -429,7 +429,7 @@ describe('SessionAssignment', () => {
     expect(harness.projection.notify).not.toHaveBeenCalled()
   })
 
-  it('keeps direct ACP models locked before invoking MioAgent model control', async () => {
+  it('keeps direct ACP models locked before invoking MioWork model control', async () => {
     const harness = createHarness([createSession({ agentId: 'claude-acp' })])
 
     await expect(harness.coordinator.setSessionModel('s1', 'openai', 'gpt-5')).rejects.toThrow(
@@ -475,7 +475,7 @@ describe('SessionAssignment', () => {
 
     await expect(
       harness.coordinator.updateOrchestrationPolicy('direct', 'proactive')
-    ).rejects.toThrow('requires a MioAgent session')
+    ).rejects.toThrow('requires a MioWork session')
     await expect(
       harness.coordinator.updateOrchestrationPolicy('child', 'proactive')
     ).rejects.toThrow('requires a regular parent session')
@@ -499,7 +499,7 @@ describe('SessionAssignment', () => {
 
     mutationRelease.resolve(undefined)
     await mutation
-    await expect(policyUpdate).rejects.toThrow('requires a MioAgent session')
+    await expect(policyUpdate).rejects.toThrow('requires a MioWork session')
     expect(harness.sessions.updateOrchestrationPolicy).not.toHaveBeenCalled()
   })
 
@@ -606,7 +606,7 @@ describe('SessionAssignment', () => {
     await deletionStarted.promise
 
     await expect(harness.coordinator.moveSessionToAgent('s1', 'target')).rejects.toThrow(
-      'MioAgent Agent is being deleted: target'
+      'MioWork Agent is being deleted: target'
     )
     expect(harness.deepchat.setSessionAgentContext).not.toHaveBeenCalled()
     expect(harness.sessions.updateAgentId).not.toHaveBeenCalled()

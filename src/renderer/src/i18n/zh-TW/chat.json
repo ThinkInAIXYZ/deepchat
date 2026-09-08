@@ -1,6 +1,6 @@
 {
   "input": {
-    "placeholder": "向 MioAgent 傳送訊息，{'@'} 可引用檔案，/ 可使用指令",
+    "placeholder": "向 MioWork 傳送訊息，{'@'} 可引用檔案，/ 可使用指令",
     "fileArea": "檔案區域",
     "inputArea": "輸入區域",
     "functionSwitch": "功能切換",
@@ -33,7 +33,7 @@
     "voiceRecognitionUnsupportedTitle": "目前環境不支援本地錄音",
     "voiceRecognitionUnsupportedDescription": "請在支援麥克風錄音的瀏覽器或桌面環境中使用此功能。",
     "voiceRecognitionPermissionDeniedTitle": "無法存取麥克風",
-    "voiceRecognitionPermissionDeniedDescription": "請允許 MioAgent 使用麥克風後再試一次。",
+    "voiceRecognitionPermissionDeniedDescription": "請允許 MioWork 使用麥克風後再試一次。",
     "voiceRecognitionErrorTitle": "音訊轉寫失敗",
     "voiceRecognitionErrorDescription": "無法完成音訊轉寫，請稍後再試。",
     "send": "傳送",
@@ -59,7 +59,7 @@
         "agentCore": "核心工具",
         "agentImageGeneration": "圖像生成",
         "agentSkills": "技能工具",
-        "deepchatSettings": "MioAgent 設定",
+        "deepchatSettings": "MioWork 設定",
         "yobrowser": "YoBrowser"
       }
     },
@@ -436,12 +436,12 @@
   },
   "onboarding": {
     "agentSwitch": {
-      "title": "切換到 MioAgent Agent",
-      "description": "開始聊天前，先從 ACP Agent 切回 MioAgent 對話流程。",
+      "title": "切換到 MioWork Agent",
+      "description": "開始聊天前，先從 ACP Agent 切回 MioWork 對話流程。",
       "caption": "點擊側邊欄中高亮的 Agent 按鈕即可繼續。"
     },
     "switchModel": {
-      "description": "為第一次 MioAgent 對話選擇你想使用的模型。",
+      "description": "為第一次 MioWork 對話選擇你想使用的模型。",
       "caption": "使用高亮的模型切換器，選擇任意可用模型即可。"
     },
     "firstChat": {
@@ -618,7 +618,7 @@
       "reasons": {
         "session_unavailable": "目前對話已不可用。",
         "agent_unavailable": "目前選取的 Agent 不可用。",
-        "deepchat_agent_required": "主動協作需要使用 MioAgent Agent。",
+        "deepchat_agent_required": "主動協作需要使用 MioWork Agent。",
         "regular_parent_required": "子對話中不能啟用主動協作。",
         "agent_policy_unavailable": "無法載入協作策略。",
         "subagents_disabled": "請先為此 Agent 啟用 Subagent，再使用主動協作。"

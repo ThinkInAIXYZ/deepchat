@@ -69,7 +69,7 @@ describe('createCronJobRunSessionStarter', () => {
       agentSnapshot: {
         version: 1,
         capturedAt: 100,
-        agent: { id: 'deepchat', name: 'MioAgent', type: 'deepchat' },
+        agent: { id: 'deepchat', name: 'MioWork', type: 'deepchat' },
         config: {
           defaultModelPreset: { providerId: 'anthropic', modelId: 'claude-sonnet' },
           permissionMode: 'full_access',

@@ -2,7 +2,7 @@
  * Markdown style optimization for Feishu post messages.
  *
  * Ported from openclaw-lark (src/card/markdown-style.ts) and adapted
- * to MioAgent coding conventions.
+ * to MioWork coding conventions.
  *
  * Optimizations:
  * - Heading demotion: H1 -> H4, H2~H6 -> H5

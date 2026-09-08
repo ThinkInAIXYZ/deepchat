@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * MioAgent OEM 品牌层重放脚本（幂等，可反复执行）。
+ * MioWork OEM 品牌层重放脚本（幂等，可反复执行）。
  *
  * 为什么存在：OEM 与官方 DeepChat 同步更新时，冲突面 = 本脚本覆盖的文件集合。
  * 同步流程见仓库根 README.md：merge 上游 → pnpm install → pnpm run oem:apply → 跑验证。
@@ -86,67 +86,93 @@ editFile('src/renderer/settings/index.html', [
 ])
 
 editFile('src/main/upgrade/index.ts', [
-  { old: "const GITHUB_OWNER = 'ThinkInAIXYZ'", new: `const GITHUB_OWNER = '${cfg.githubOwner}'`, must: true },
-  { old: "const GITHUB_REPO = 'deepchat'", new: `const GITHUB_REPO = '${cfg.githubRepo}'`, must: true },
-  { old: "const OFFICIAL_DOWNLOAD_URL = 'https://deepchatai.cn/#/download'", new: `const OFFICIAL_DOWNLOAD_URL = '${cfg.officialDownloadUrl}'`, must: true }
+  // 三种盘面形态并存：上游原文 / 历史重放（MioAgent） / 当前目标
+  { re: /const GITHUB_OWNER = '(?:ThinkInAIXYZ|chenjiaqiangmax)'/, new: `const GITHUB_OWNER = '${cfg.githubOwner}'`, must: true, okIf: `const GITHUB_OWNER = '${cfg.githubOwner}'` },
+  { re: /const GITHUB_REPO = '(?:deepchat|mioagent|mioclaw)'/, new: `const GITHUB_REPO = '${cfg.githubRepo}'`, must: true, okIf: `const GITHUB_REPO = '${cfg.githubRepo}'` },
+  {
+    re: /const OFFICIAL_DOWNLOAD_URL = '(?:https:\/\/deepchatai\.cn\/#\/download|https:\/\/github\.com\/chenjiaqiangmax\/(?:mioagent|mioclaw|miowork)\/releases)'/,
+    new: `const OFFICIAL_DOWNLOAD_URL = '${cfg.officialDownloadUrl}'`,
+    must: true,
+    okIf: `const OFFICIAL_DOWNLOAD_URL = '${cfg.officialDownloadUrl}'`
+  }
 ])
 
 editFile('src/main/device/index.ts', [
-  { old: "'https://deepchatai.cn'", new: `'${cfg.httpReferer}'` },
+  { re: /'https:\/\/(?:deepchatai\.cn|github\.com\/chenjiaqiangmax\/(?:mioagent|mioclaw|miowork))'/g, new: `'${cfg.httpReferer}'` },
   { re: /'X-Title': 'DeepChat'/g, new: `'X-Title': '${cfg.productName}'` },
   { re: /`DeepChat\/\$\{version\}`/g, new: `\`${cfg.productName}/\${version}\`` }
 ])
 
 editFile('src/main/provider/baseProvider.ts', [
-  { re: /'HTTP-Referer': 'https:\/\/deepchatai\.cn'/g, new: `'HTTP-Referer': '${cfg.httpReferer}'` },
+  { re: /'HTTP-Referer': 'https:\/\/(?:deepchatai\.cn|github\.com\/chenjiaqiangmax\/(?:mioagent|mioclaw|miowork))'/g, new: `'HTTP-Referer': '${cfg.httpReferer}'` },
   { re: /'X-Title': 'DeepChat'/g, new: `'X-Title': '${cfg.productName}'` },
   { re: /`DeepChat\/\$\{version\}`/g, new: `\`${cfg.productName}/\${version}\`` }
 ])
 
 editFile('src/main/mcp/mcprouterManager.ts', [
-  { old: "'HTTP-Referer': 'deepchatai.cn',", new: `'HTTP-Referer': 'github.com/${cfg.githubOwner}/${cfg.githubRepo}',` },
+  {
+    re: /'HTTP-Referer': '(?:deepchatai\.cn|github\.com\/chenjiaqiangmax\/(?:mioagent|mioclaw|miowork))',/g,
+    new: `'HTTP-Referer': 'github.com/${cfg.githubOwner}/${cfg.githubRepo}',`
+  },
   { old: "'X-Title': 'DeepChat'", new: `'X-Title': '${cfg.productName}'` }
 ])
 
 editFile('src/main/mcp/inMemoryServers/artifactsServer.ts', [
   {
-    old: 'Generated with [DeepChat](https://github.com/ThinkInAIXYZ/deepchat)',
+    re: /Generated with \[DeepChat\]\(https:\/\/github\.com\/ThinkInAIXYZ\/deepchat\)|Generated with \[Mio(?:Agent|Claw|Work)\]\(https:\/\/github\.com\/chenjiaqiangmax\/(?:mioagent|mioclaw|miowork)\)/,
     new: `Generated with [${cfg.productName}](${repoUrl})`,
-    must: true
+    must: true,
+    okIf: `Generated with [${cfg.productName}](${repoUrl})`
   },
   {
-    old: '<a href="https://github.com/ThinkInAIXYZ/deepchat">DeepChat</a>',
+    re: /<a href="https:\/\/github\.com\/(?:ThinkInAIXYZ\/deepchat|chenjiaqiangmax\/(?:mioagent|mioclaw|miowork))">(?:DeepChat|Mio(?:Agent|Claw|Work))<\/a>/,
     new: `<a href="${repoUrl}">${cfg.productName}</a>`,
-    must: true
+    must: true,
+    okIf: `<a href="${repoUrl}">${cfg.productName}</a>`
   }
 ])
 
 editFile('src/renderer/settings/components/AboutUsSettings.vue', [
-  { old: 'https://github.com/ThinkInAIXYZ/deepchat/blob/dev/LICENSE', new: `${repoUrl}/blob/main/LICENSE` },
-  { old: 'https://github.com/ThinkInAIXYZ/deepchat/discussions/1226', new: cfg.issuesUrl },
-  { old: 'https://github.com/ThinkInAIXYZ/deepchat', new: repoUrl }
+  // 盘面形态并存：上游原文 / 历史重放（mioagent/mioclaw）/ 当前目标（含目标形态以保幂等）
+  {
+    re: /https:\/\/github\.com\/(?:ThinkInAIXYZ\/deepchat|chenjiaqiangmax\/(?:mioagent|mioclaw|miowork))\/blob\/(?:dev|main)\/LICENSE/g,
+    new: `${repoUrl}/blob/main/LICENSE`
+  },
+  {
+    re: /https:\/\/github\.com\/(?:ThinkInAIXYZ\/deepchat|chenjiaqiangmax\/(?:mioagent|mioclaw|miowork))\/(?:discussions\/\d+|issues)/g,
+    new: cfg.issuesUrl
+  },
+  {
+    re: /https:\/\/github\.com\/(?:ThinkInAIXYZ\/deepchat|chenjiaqiangmax\/(?:mioagent|mioclaw|miowork))(?!\/)/g,
+    new: repoUrl
+  }
 ])
 
 editFile('src/renderer/src/components/mcp-config/McpServerForm.vue', [
-  { old: 'HTTP-Referer=deepchatai.cn', new: `HTTP-Referer=github.com/${cfg.githubOwner}/${cfg.githubRepo}` }
+  {
+    re: /HTTP-Referer=(?:deepchatai\.cn|github\.com\/chenjiaqiangmax\/(?:mioagent|mioclaw|miowork))/g,
+    new: `HTTP-Referer=github.com/${cfg.githubOwner}/${cfg.githubRepo}`
+  }
 ])
 
 // Windows AUMID 必须与 electron-builder.yml 的 appId 一致，否则通知/跳转列表归因错乱
 editFile('src/main/app/mainProcess.ts', [
-  { old: "electronApp.setAppUserModelId('com.wefonk.deepchat')", new: `electronApp.setAppUserModelId('${cfg.appId}')`, must: true }
+  // 三种盘面形态并存：上游原文 / 历史重放（MioAgent） / 当前目标（okIf 兼容 MioClaw）
+  { re: /electronApp\.setAppUserModelId\('(?:com\.wefonk\.deepchat|com\.mioagent\.app|com\.mioclaw\.app)'\)/, new: `electronApp.setAppUserModelId('${cfg.appId}')`, must: true, okIf: `setAppUserModelId('${cfg.appId}')` }
 ])
 
 // ---------- 2. electron-builder.yml ----------
 
 editFile('electron-builder.yml', [
-  { old: 'appId: com.wefonk.deepchat', new: `appId: ${cfg.appId}`, must: true },
-  { old: 'productName: DeepChat', new: `productName: ${cfg.productName}`, must: true },
-  { old: 'executableName: DeepChat', new: `executableName: ${cfg.winExecutableName}` },
-  { old: 'maintainer: ThinkInAIXYZ', new: `maintainer: ${cfg.maintainer}` },
+  { re: /^appId: (?:com\.wefonk\.deepchat|com\.mioagent\.app|com\.mioclaw\.app)$/m, new: `appId: ${cfg.appId}`, must: true, okIf: `appId: ${cfg.appId}` },
+  { re: /^productName: (?:DeepChat|MioAgent|MioClaw)$/m, new: `productName: ${cfg.productName}`, must: true, okIf: `productName: ${cfg.productName}` },
+  { re: /^  executableName: (?:DeepChat|MioAgent|MioClaw|MioWork)$/m, new: `  executableName: ${cfg.winExecutableName}`, okIf: `  executableName: ${cfg.winExecutableName}` },
+  { re: /^maintainer: (?:ThinkInAIXYZ|chenjiaqiangmax)$/m, new: `maintainer: ${cfg.maintainer}`, okIf: `maintainer: ${cfg.maintainer}` },
   {
-    old: 'publish:\n  provider: github\n  owner: ThinkInAIXYZ\n  repo: deepchat',
+    re: /publish:\n  provider: github\n  owner: (?:ThinkInAIXYZ|chenjiaqiangmax)\n  repo: (?:deepchat|mioagent|mioclaw)/,
     new: `publish:\n  provider: github\n  owner: ${cfg.githubOwner}\n  repo: ${cfg.githubRepo}`,
-    must: true
+    must: true,
+    okIf: `owner: ${cfg.githubOwner}\n  repo: ${cfg.githubRepo}`
   }
 ])
 
@@ -181,6 +207,10 @@ if (pkgDirty) {
 // ---------- 4. i18n：20 个语言包，只改 value，键与结构原样 ----------
 
 const I18N_VALUE_REPLACES = [
+  // 历史品牌名（MioAgent/MioClaw）排在最前：改名后重放时先把旧品牌收敛到当前品牌，
+  // 否则 must 锚点的「已应用」检查（找 cfg.productName）会把盘面上的旧品牌误判为未命中
+  ['MioAgent', cfg.productName],
+  ['MioClaw', cfg.productName],
   ['DeepChat Agents', `${cfg.productName} Agents`],
   ['DeepChat', cfg.productName],
   // 上游部分语言包混用 'Deepchat'（ja-JP/ko-KR/fa-IR/fr-FR 的 MCP 描述等），一并收敛
@@ -251,6 +281,8 @@ for (const entry of readdirSync(i18nDir)) {
   }
   // 独立词元替换：不误伤 DeepchatXxx 类标识符；小写 deepchat（数据库标识）不受影响
   const next = text
+    .replace(/MioAgent(?![A-Za-z0-9_])/g, cfg.productName)
+    .replace(/MioClaw(?![A-Za-z0-9_])/g, cfg.productName)
     .replace(/DeepChat(?![A-Za-z0-9_])/g, cfg.productName)
     .replace(/Deepchat(?![A-Za-z0-9_])/g, cfg.productName)
   if (next === text) continue
@@ -268,7 +300,10 @@ const TEST_DATA_EDITS = [
   { old: ".toBe('DeepChat')", new: `.toBe('${cfg.productName}')` },
   { old: 'with DeepChat/ prefix', new: `with ${cfg.productName}/ prefix` },
   { old: '/^DeepChat\\//', new: `/^${cfg.productName}\\//` },
-  { re: /`DeepChat\/\$\{version\}`/g, new: `\`${cfg.productName}/\${version}\`` }
+  { re: /`DeepChat\/\$\{version\}`/g, new: `\`${cfg.productName}/\${version}\`` },
+  // 历史重放残留的小写仓库 slug（二轮清扫只认驼峰形态，URL 里的 slug 由这里收敛）
+  { old: 'chenjiaqiangmax/mioagent', new: `${cfg.githubOwner}/${cfg.githubRepo}` },
+  { old: 'chenjiaqiangmax/mioclaw', new: `${cfg.githubOwner}/${cfg.githubRepo}` }
 ]
 for (const f of [
   'test/main/upgrade/upgradeService.test.ts',
@@ -316,19 +351,72 @@ editFile('test/main/scripts/packageContract.test.ts', [
   }
 ])
 
+// 夹具串里的字面量 \n 使 'nMioAgent' 形似驼峰后缀标识符，被清扫的
+// SWEEP_SUFFIX_IDENT 保护并原样还原，只能在这里显式收敛为合法单根形态
+editFile('test/main/scripts/packageContract.test.ts', [
+  {
+    old: "stdout: 'MioWork.app/\\nMioAgent.app/Contents/Info.plist\\n',",
+    new: `stdout: '${cfg.productName}.app/\\n${cfg.productName}.app/Contents/Info.plist\\n',`
+  },
+  {
+    old: "validateMacZipEntries('MioWork.app/\\nMioAgent.app/Contents/Info.plist\\n')",
+    new: `validateMacZipEntries('${cfg.productName}.app/\\n${cfg.productName}.app/Contents/Info.plist\\n')`
+  },
+  {
+    old: `).toEqual(['MioWork.app/', 'MioAgent.app/Contents/Info.plist'])`,
+    new: `).toEqual(['${cfg.productName}.app/', '${cfg.productName}.app/Contents/Info.plist'])`
+  }
+])
+
 // OCR 冒烟夹具锚点：全大写 DEEPCHAT 不匹配清扫规则（清扫只命中大小写混排的 DeepChat），
 // 必须显式改锚点，与测试夹具词（MioAgent）保持同步；DEEPCHAT_* 环境变量名是受保护前缀，不能整词替换
 editFile('scripts/smoke-light-ocr.js', [
-  { old: "normalized.includes('DEEPCHAT')", new: "normalized.includes('MIOAGENT')" },
-  { old: '>DEEPCHAT</text>', new: '>MIOAGENT</text>' }
+  // 两种历史形态并存：上游原文（DEEPCHAT）与改名前重放产物（MIOAGENT/MIOCLAW）
+  { old: "normalized.includes('DEEPCHAT')", new: `normalized.includes('${cfg.productName.toUpperCase()}')` },
+  { old: "normalized.includes('MIOAGENT')", new: `normalized.includes('${cfg.productName.toUpperCase()}')` },
+  { old: "normalized.includes('MIOCLAW')", new: `normalized.includes('${cfg.productName.toUpperCase()}')` },
+  { old: '>DEEPCHAT</text>', new: `>${cfg.productName.toUpperCase()}</text>` },
+  { old: '>MIOAGENT</text>', new: `>${cfg.productName.toUpperCase()}</text>` },
+  { old: '>MIOCLAW</text>', new: `>${cfg.productName.toUpperCase()}</text>` }
+])
+
+// DMG 背景生成脚本：.py 不在清扫扩展名内，品牌串在这里显式跟随（含历史形态，保幂等）
+editFile('build/generate-dmg-backgrounds.py', [
+  { old: '生成 MioAgent DMG 背景图', new: `生成 ${cfg.productName} DMG 背景图` },
+  { old: '生成 MioWork DMG 背景图', new: `生成 ${cfg.productName} DMG 背景图` },
+  { old: '生成 MioClaw DMG 背景图', new: `生成 ${cfg.productName} DMG 背景图` },
+  { old: 'product_name = "MioAgent"', new: `product_name = '${cfg.productName}'` },
+  { old: "product_name = 'MioWork'", new: `product_name = '${cfg.productName}'` },
+  { old: "product_name = 'MioClaw'", new: `product_name = '${cfg.productName}'` },
+  { old: '将「MioAgent」拖动进「应用程序」文件夹', new: `将「${cfg.productName}」拖动进「应用程序」文件夹` },
+  { old: '将「MioWork」拖动进「应用程序」文件夹', new: `将「${cfg.productName}」拖动进「应用程序」文件夹` }
 ])
 
 // 该测试位于 test/main/agent/deepchat/ 清扫排除区内（保护标识符），但其断言的是
 // src/shared/lib/deepchatSubagents.ts 的用户可见报错文案，需要显式跟随品牌化
 editFile('test/main/agent/deepchat/deepChatAgentRepository.test.ts', [
   {
-    old: 'Enabled DeepChat Subagents require at least one valid slot.',
+    // 该文件在清扫排除区内，历史重放残留的 MioAgent/MioClaw 形态必须在这里一并收敛
+    re: /Enabled (?:DeepChat|MioAgent|MioClaw) Subagents require at least one valid slot\./g,
     new: `Enabled ${cfg.productName} Subagents require at least one valid slot.`
+  }
+])
+
+// OEM 分叉：build.yml 的 macOS caller 以 verification 模式跑包（本仓无签名证书，跳过签名）。
+// caller 级契约测试跟随分叉；_package-macos.yml 自身的 secrets 声明不动。上游若恢复
+// distribution 默认，删除本块即可回到上游契约。
+editFile('test/main/scripts/packageWorkflow.test.ts', [
+  {
+    old: "        'artifact-purpose': 'distribution',\n        'enforce-installer-size': false\n      })\n    }\n    expect(source).not.toContain('secrets: inherit')",
+    new: "        'artifact-purpose': name === 'package-macos' ? 'verification' : 'distribution',\n        'enforce-installer-size': false\n      })\n    }\n    expect(source).not.toContain('secrets: inherit')"
+  },
+  {
+    old: "    expect(macSecrets).toEqual([\n      ...Object.keys(commonSecrets),\n      'DEEPCHAT_CSC_LINK',\n      'DEEPCHAT_CSC_KEY_PASS',\n      'DEEPCHAT_APPLE_NOTARY_USERNAME',\n      'DEEPCHAT_APPLE_NOTARY_TEAM_ID',\n      'DEEPCHAT_APPLE_NOTARY_PASSWORD'\n    ])",
+    new: "    expect(macSecrets).toEqual(Object.keys(commonSecrets))"
+  },
+  {
+    old: "it('passes Apple credentials only to the macOS distribution caller', () => {",
+    new: "it('macOS caller runs in verification mode without signing credentials', () => {"
   }
 ])
 
@@ -395,8 +483,8 @@ report.changed.push('README.md (fork 版)')
 // DeepChat.app 保留：packageContract 的「另一个 app」非法夹具依赖它与 MioAgent.app 并存，
 // 清成双 MioAgent 根会让夹具语义从「异包」退化成「重复根」
 const SWEEP_MASKS = ['DeepChat Computer Use', 'X-DeepChat-Artifact-Id', 'x-deepchat-artifact-id', 'DeepChat.app']
-const SWEEP_STANDALONE = /DeepChat(?![A-Za-z0-9_])/g
-const SWEEP_SUFFIX_IDENT = /[A-Za-z]DeepChat(?![A-Za-z0-9_])/g
+const SWEEP_STANDALONE = /(?:DeepChat|MioAgent|MioClaw)(?![A-Za-z0-9_])/g
+const SWEEP_SUFFIX_IDENT = /[A-Za-z](?:DeepChat|MioAgent|MioClaw)(?![A-Za-z0-9_])/g
 
 function sweepTokens(relPath) {
   const abs = join(root, relPath)

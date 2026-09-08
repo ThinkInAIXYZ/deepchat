@@ -10,7 +10,7 @@ const setup = async () => {
     id: 'session:1',
     kind: 'session' as const,
     icon: 'lucide:message-square',
-    title: 'MioAgent Session',
+    title: 'MioWork Session',
     subtitle: '/workspace/demo',
     score: 100,
     sessionId: 'session-1'

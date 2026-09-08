@@ -1319,7 +1319,7 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
           enableTerminal: true,
           enableTerminalAuth: this.terminalAuthAvailable
         }),
-        clientInfo: { name: 'MioAgent', version: app.getVersion() }
+        clientInfo: { name: 'MioWork', version: app.getVersion() }
       }
       this.debugLog.append(agent.id, {
         kind: 'request',

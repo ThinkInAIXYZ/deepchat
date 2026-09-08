@@ -2,7 +2,7 @@
   "steps": {
     "welcome": {
       "title": "ברוכים הבאים",
-      "description": "בוא נתחיל להגדיר את MioAgent"
+      "description": "בוא נתחיל להגדיר את MioWork"
     },
     "provider": {
       "title": "ספק",
@@ -17,7 +17,7 @@
       "description": "הכל מוכן ואפשר לצאת לדרך!"
     }
   },
-  "title": "ברוכים הבאים ל-MioAgent",
+  "title": "ברוכים הבאים ל-MioWork",
   "description": "בוא נעבור יחד על ההתקנה.",
   "provider": {
     "select": "בחר ספק",
@@ -35,7 +35,7 @@
     "back": "חזור"
   },
   "page": {
-    "title": "ברוכים הבאים ל-MioAgent Agent",
+    "title": "ברוכים הבאים ל-MioWork Agent",
     "description": "חברו ספק מודלים כדי להתחיל",
     "guide": {
       "title": "מדריך הגדרה",
@@ -72,8 +72,8 @@
   },
   "agentPage": {
     "title": "בחרו סוכן כדי להתחיל ליצור",
-    "deepchatType": "סוכן MioAgent",
+    "deepchatType": "סוכן MioWork",
     "acpType": "סוכן ACP",
-    "manageAgents": "ניהול סוכני MioAgent"
+    "manageAgents": "ניהול סוכני MioWork"
   }
 }

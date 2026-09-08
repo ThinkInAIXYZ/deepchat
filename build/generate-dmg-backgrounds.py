@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-生成 MioAgent DMG 背景图
+生成 MioWork DMG 背景图
 - dmg-background.png (660x400)
 - dmg-background@2x.png (1320x800)
 """
@@ -71,7 +71,7 @@ def create_dmg_background(width, height, logo_path, output_path, scale=1):
             title_font = ImageFont.load_default()
         
         # 产品名称（英文）
-        product_name = "MioAgent"
+        product_name = "MioWork"
         
         # 获取文字边界框
         try:
@@ -90,7 +90,7 @@ def create_dmg_background(width, height, logo_path, output_path, scale=1):
         draw.text((text_x, text_y), product_name, fill='#ffffff', font=title_font)
         
         # 副标题（安装提示）
-        subtitle = "将「MioAgent」拖动进「应用程序」文件夹"
+        subtitle = "将「MioWork」拖动进「应用程序」文件夹"
         subtitle_font_size = int(16 * scale)
         subtitle_font = None
         

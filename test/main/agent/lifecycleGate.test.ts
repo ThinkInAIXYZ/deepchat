@@ -37,7 +37,7 @@ describe('AgentLifecycleGate', () => {
 
     await expect(
       gate.runWithAgentOperation('writer', async () => 'late-operation')
-    ).rejects.toThrow('MioAgent Agent is being deleted: writer')
+    ).rejects.toThrow('MioWork Agent is being deleted: writer')
     expect(deletionEntered).toBe(false)
 
     operationRelease.resolve(undefined)

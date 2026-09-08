@@ -63,7 +63,7 @@ describe('PluginsHubPage', () => {
     agentStore.applyBootstrapAgents([
       {
         id: 'deepchat',
-        name: 'MioAgent',
+        name: 'MioWork',
         type: 'deepchat',
         enabled: true
       },

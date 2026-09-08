@@ -216,7 +216,7 @@ describe('session data migrations', () => {
       'custom_tool'
     ])
     fixture.providerSettings.listAgents.mockResolvedValue([
-      { id: 'deepchat', type: 'deepchat', name: 'MioAgent', enabled: true }
+      { id: 'deepchat', type: 'deepchat', name: 'MioWork', enabled: true }
     ])
     fixture.providerSettings.getDeepChatAgentConfig.mockResolvedValue({
       disabledAgentTools: ['ls', 'exec', ...Object.values(TAPE_TOOL_NAMES)]

@@ -69,7 +69,7 @@
     "moveAndDeleteAgent": "移動並刪除 Agent",
     "moveConversation": "移動會話",
     "agentType": {
-      "deepchat": "MioAgent",
+      "deepchat": "MioWork",
       "acp": "ACP"
     },
     "blockReason": {
@@ -84,7 +84,7 @@
       "draft": "草稿",
       "subagent": "子會話"
     },
-    "deepChatTargetOnly": "只能選擇 MioAgent Agent 作為遷移目標。ACP 會話可以遷移到 MioAgent，但不能遷移到 ACP。"
+    "deepChatTargetOnly": "只能選擇 MioWork Agent 作為遷移目標。ACP 會話可以遷移到 MioWork，但不能遷移到 ACP。"
   },
   "deleteMessage": {
     "title": "刪除這條訊息？",

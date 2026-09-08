@@ -179,7 +179,7 @@ export class RemoteCommandRouter {
               openResult.status === 'ok'
                 ? `Opened on desktop: ${this.formatSessionLabel(openResult.session)}`
                 : openResult.status === 'windowNotFound'
-                  ? 'Could not find a MioAgent desktop window. Open MioAgent and try /open again.'
+                  ? 'Could not find a MioWork desktop window. Open MioWork and try /open again.'
                   : 'No bound session. Send a message, /new, or /use first.'
             ]
           }
@@ -268,7 +268,7 @@ export class RemoteCommandRouter {
           return {
             replies: [
               [
-                'MioAgent Telegram Remote',
+                'MioWork Telegram Remote',
                 `Runtime: ${runtime.state}`,
                 `Default agent: ${defaultAgentId}`,
                 `Default workdir: ${defaultWorkdir ?? 'none'}`,
@@ -979,10 +979,10 @@ export class RemoteCommandRouter {
   private formatStartMessage(isAuthorized: boolean): string {
     const statusLine = isAuthorized
       ? 'Status: paired'
-      : 'Status: not paired. Use /pair <code> from MioAgent Remote settings.'
+      : 'Status: not paired. Use /pair <code> from MioWork Remote settings.'
 
     return [
-      'MioAgent Telegram remote control is ready.',
+      'MioWork Telegram remote control is ready.',
       statusLine,
       'Use /help to see the available commands.'
     ].join('\n')
@@ -995,7 +995,7 @@ export class RemoteCommandRouter {
         item.command === 'pair'
           ? '/pair <code> - Authorize this Telegram account'
           : item.command === 'new'
-            ? '/new [title] - Start a new MioAgent session'
+            ? '/new [title] - Start a new MioWork session'
             : item.command === 'use'
               ? '/use <index> - Bind a listed session'
               : `/${item.command} - ${item.description}`
@@ -1045,7 +1045,7 @@ export class RemoteCommandRouter {
   }
 
   private formatAgentButtonLabel(agent: TelegramAgentOption): string {
-    const typeLabel = agent.agentType === 'acp' ? 'ACP' : 'MioAgent'
+    const typeLabel = agent.agentType === 'acp' ? 'ACP' : 'MioWork'
     return `${agent.agentName} · ${typeLabel}`
   }
 
@@ -1053,7 +1053,7 @@ export class RemoteCommandRouter {
     agent: TelegramAgentOption,
     session: { title: string; id: string; providerId: string; modelId: string }
   ): string {
-    const typeLabel = agent.agentType === 'acp' ? 'ACP' : 'MioAgent'
+    const typeLabel = agent.agentType === 'acp' ? 'ACP' : 'MioWork'
     const providerLine = session.providerId
       ? `Provider / Model: ${session.providerId} / ${session.modelId || 'none'}`
       : `Provider / Model: none`

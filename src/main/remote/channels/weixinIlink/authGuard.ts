@@ -18,14 +18,14 @@ export class WeixinIlinkAuthGuard {
     if (!account) {
       return {
         ok: false,
-        message: 'This Weixin iLink account is no longer available in MioAgent.'
+        message: 'This Weixin iLink account is no longer available in MioWork.'
       }
     }
 
     if (!account.enabled) {
       return {
         ok: false,
-        message: 'This Weixin iLink account is disabled in MioAgent.'
+        message: 'This Weixin iLink account is disabled in MioWork.'
       }
     }
 

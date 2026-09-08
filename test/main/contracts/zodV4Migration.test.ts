@@ -101,7 +101,7 @@ describe('Zod 4 migration contracts', () => {
           })
         )
       )
-    ).toThrow('MioAgent tool schemas cannot safely represent intersection object schemas.')
+    ).toThrow('MioWork tool schemas cannot safely represent intersection object schemas.')
   })
 
   it('preserves meaningful root additionalProperties values', () => {
@@ -248,13 +248,13 @@ describe('Zod 4 migration contracts', () => {
 
   it('rejects non-object JSON Schema conversion results for tool schemas', () => {
     expect(() => toDeepChatJsonSchema(z.string())).toThrow(
-      'MioAgent tool schemas must convert to JSON object schemas.'
+      'MioWork tool schemas must convert to JSON object schemas.'
     )
   })
 
   it('rejects top-level record schemas for tool schemas', () => {
     expect(() => toDeepChatJsonSchema(z.record(z.string(), z.string()))).toThrow(
-      'MioAgent tool schemas must convert to JSON object schemas.'
+      'MioWork tool schemas must convert to JSON object schemas.'
     )
   })
 
@@ -268,7 +268,7 @@ describe('Zod 4 migration contracts', () => {
           z.string()
         ])
       )
-    ).toThrow('MioAgent tool schemas must convert to JSON object schemas.')
+    ).toThrow('MioWork tool schemas must convert to JSON object schemas.')
   })
 
   it('lets Zod reject unrepresentable tool schema members', () => {

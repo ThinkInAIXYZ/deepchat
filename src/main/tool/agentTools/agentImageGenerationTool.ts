@@ -104,7 +104,7 @@ export class AgentImageGenerationTool {
       function: {
         name: IMAGE_GENERATE_TOOL_NAME,
         description:
-          'Generate a new image from a text prompt using the MioAgent Agent configured image generation model. Use this when the user asks to create, draw, render, or generate an image. The generated image is returned as a MioAgent image preview, not as text.',
+          'Generate a new image from a text prompt using the MioWork Agent configured image generation model. Use this when the user asks to create, draw, render, or generate an image. The generated image is returned as a MioWork image preview, not as text.',
         parameters: toDeepChatJsonSchema(imageGenerateSchema) as {
           type: string
           properties: Record<string, unknown>
@@ -136,7 +136,7 @@ export class AgentImageGenerationTool {
     if (!model) {
       return this.buildErrorResult(
         'IMAGE_GENERATION_MODEL_UNAVAILABLE',
-        'No available image generation model is configured for this MioAgent Agent.',
+        'No available image generation model is configured for this MioWork Agent.',
         parsed.data
       )
     }

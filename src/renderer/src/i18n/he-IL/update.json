@@ -16,7 +16,7 @@
   "autoUpdate": "עדכון אוטומטי",
   "restarting": "מפעיל מחדש",
   "alreadyUpToDate": "התוכנה מעודכנת",
-  "alreadyUpToDateDesc": "ה-MioAgent שלך כבר מעודכן לגרסה האחרונה, אין צורך בעדכון.",
+  "alreadyUpToDateDesc": "ה-MioWork שלך כבר מעודכן לגרסה האחרונה, אין צורך בעדכון.",
   "taskRunningTitle": "משימה בתהליך",
   "taskRunningDescription": "ישנן משימות שמתבצעות כעת. כיצד תרצה להמשיך עם העדכון?",
   "updateNow": "עדכן כעת",

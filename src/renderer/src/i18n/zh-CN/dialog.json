@@ -56,7 +56,7 @@
     "moveAndDeleteAgent": "移动并删除 Agent",
     "moveConversation": "移动会话",
     "agentType": {
-      "deepchat": "MioAgent",
+      "deepchat": "MioWork",
       "acp": "ACP"
     },
     "blockReason": {
@@ -71,7 +71,7 @@
       "draft": "草稿",
       "subagent": "子会话"
     },
-    "deepChatTargetOnly": "只能选择 MioAgent Agent 作为迁移目标。ACP 会话可以迁移到 MioAgent，但不能迁移到 ACP。"
+    "deepChatTargetOnly": "只能选择 MioWork Agent 作为迁移目标。ACP 会话可以迁移到 MioWork，但不能迁移到 ACP。"
   },
   "error": {
     "title": "错误"

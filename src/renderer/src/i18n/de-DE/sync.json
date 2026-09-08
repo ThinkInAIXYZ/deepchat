@@ -9,7 +9,7 @@
     "notEnabled": "Synchronisierung ist nicht aktiviert",
     "folderNotExists": "Synchronisierungsordner existiert nicht",
     "noValidBackup": "Im Synchronisierungsordner wurde kein gültiges Backup gefunden",
-    "unsupportedBackupVersion": "Dieses Backup wurde von einer neueren MioAgent-Version erstellt und kann von der aktuellen Version nicht importiert werden",
+    "unsupportedBackupVersion": "Dieses Backup wurde von einer neueren MioWork-Version erstellt und kann von der aktuellen Version nicht importiert werden",
     "dbNotExists": "Datenbankdatei existiert nicht",
     "configNotExists": "Konfigurationsdatei existiert nicht",
     "tempDbFailed": "Temporäre Datenbank-Backupdatei konnte nicht erstellt werden",

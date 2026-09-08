@@ -175,14 +175,14 @@ describe('fail-closed release assembly', () => {
     }
 
     expect(windows.files.map(({ url }) => url)).toEqual([
-      `MioAgent-${version}-windows-x64.exe`,
-      `MioAgent-${version}-windows-arm64.exe`
+      `MioWork-${version}-windows-x64.exe`,
+      `MioWork-${version}-windows-arm64.exe`
     ])
     expect(windows.path).toBe(windows.files[0].url)
 
     expect(macOS.files.map(({ url }) => url)).toEqual([
-      `MioAgent-${version}-mac-x64.zip`,
-      `MioAgent-${version}-mac-arm64.zip`
+      `MioWork-${version}-mac-x64.zip`,
+      `MioWork-${version}-mac-arm64.zip`
     ])
     expect(macOS.files.every(({ url }) => !url.endsWith('.dmg'))).toBe(true)
     expect(macOS.path).toBe(macOS.files[0].url)
@@ -455,7 +455,7 @@ describe('fail-closed release assembly', () => {
   it('rejects incomplete updater metadata and invalid macOS evidence', async () => {
     await updateRawMetadata('darwin-x64', (metadata) => {
       const files = metadata.files as Array<Record<string, unknown>>
-      files[0].url = `MioAgent-${version}-mac-x64.dmg`
+      files[0].url = `MioWork-${version}-mac-x64.dmg`
       metadata.path = files[0].url
     })
     await expect(assemble()).rejects.toThrow(/URL mismatch|must not contain a DMG/)
@@ -536,7 +536,7 @@ async function createOnePackageArtifact(
   const fileRecords: PackageManifest['files'] = []
   for (const role of definition.roles.filter(({ name }) => name !== 'update-metadata')) {
     const suffix = role.suffixes[0]
-    const name = `MioAgent-${version}${suffix}`
+    const name = `MioWork-${version}${suffix}`
     const storagePath = `${role.directory}/${name}`
     const filePath = path.join(root, storagePath)
     await writeFile(filePath, `${definition.id}/${role.name}`)

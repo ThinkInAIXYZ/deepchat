@@ -33,17 +33,17 @@ describe('CLI descriptor discovery', () => {
   it('mirrors Electron default and explicit profile paths', () => {
     expect(
       resolveCliUserDataPath({ platform: 'darwin', homeDirectory: '/Users/test', env: {} })
-    ).toBe('/Users/test/Library/Application Support/MioAgent')
+    ).toBe('/Users/test/Library/Application Support/MioWork')
     expect(
       resolveCliUserDataPath({ platform: 'linux', homeDirectory: '/home/test', env: {} })
-    ).toBe('/home/test/.config/MioAgent')
+    ).toBe('/home/test/.config/MioWork')
     expect(
       resolveCliUserDataPath({
         platform: 'win32',
         homeDirectory: 'C:\\Users\\test',
         env: { APPDATA: 'D:\\Profiles' }
       })
-    ).toBe(path.join('D:\\Profiles', 'MioAgent'))
+    ).toBe(path.join('D:\\Profiles', 'MioWork'))
     expect(
       resolveCliUserDataPath({
         env: { DEEPCHAT_E2E_USER_DATA_DIR: '  ./profile  ' },

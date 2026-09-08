@@ -386,7 +386,7 @@ export class AgentPreviewCoordinator {
     try {
       const attached = overlay.attachHost({
         id: this.hostId(host.id),
-        title: host.getTitle().trim() || app.getName() || 'MioAgent',
+        title: host.getTitle().trim() || app.getName() || 'MioWork',
         bounds: this.normalizeBounds(host.getContentBounds()),
         windowHandle: host.getNativeWindowHandle(),
         anchor: {

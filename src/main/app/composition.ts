@@ -1802,7 +1802,7 @@ export async function createMainProcessControl(dependencies: {
         ? { providerId: model.providerId, modelId: model.modelId }
         : null
     },
-    // Management memory APIs only read/write real MioAgent agents.
+    // Management memory APIs only read/write real MioWork agents.
     isManagedAgent: (agentId) => agentRepository.getDeepChatAgentConfig(agentId) !== null,
     listManagedAgentConfigs: () => agentRepository.listResolvedDeepChatAgentConfigs(),
     listManagedMemoryAgentIds: () =>

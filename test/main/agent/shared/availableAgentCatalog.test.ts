@@ -2,12 +2,12 @@ import { describe, expect, it, vi } from 'vitest'
 import { listAvailableAgents } from '@/agent/shared/availableAgentCatalog'
 
 const agents = [
-  { id: 'deepchat', name: 'MioAgent', type: 'deepchat' as const, enabled: true },
+  { id: 'deepchat', name: 'MioWork', type: 'deepchat' as const, enabled: true },
   { id: 'acp-coder', name: 'ACP Coder', type: 'acp' as const, enabled: true }
 ]
 
 describe('listAvailableAgents', () => {
-  it('always includes MioAgent agents and hides ACP agents when ACP is disabled', async () => {
+  it('always includes MioWork agents and hides ACP agents when ACP is disabled', async () => {
     const result = await listAvailableAgents({
       listAgents: vi.fn(async () => agents),
       getAcpEnabled: vi.fn(async () => false)

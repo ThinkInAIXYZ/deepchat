@@ -31,7 +31,7 @@ const WINDOWS_PACKAGED_EXECUTABLE = resolve(
   REPO_ROOT,
   'dist',
   arch() === 'arm64' ? 'win-arm64-unpacked' : 'win-unpacked',
-  'MioAgent.exe'
+  'MioWork.exe'
 )
 const MAX_MAIN_LOG_ATTACHMENT_BYTES = 512 * 1024
 const APP_CLOSE_TIMEOUT_MS = 10_000
@@ -60,7 +60,7 @@ const isMainAppWindow = async (page: Page): Promise<boolean> => {
   }
 
   const title = await page.title().catch(() => '')
-  return title === 'MioAgent' && !url.includes('/renderer/')
+  return title === 'MioWork' && !url.includes('/renderer/')
 }
 
 const waitForMainAppWindow = async (electronApp: ElectronApplication): Promise<Page> => {
@@ -136,14 +136,14 @@ const getDefaultUserDataDir = (): string => {
   }
 
   if (process.platform === 'win32') {
-    return resolve(process.env.APPDATA ?? resolve(homedir(), 'AppData', 'Roaming'), 'MioAgent')
+    return resolve(process.env.APPDATA ?? resolve(homedir(), 'AppData', 'Roaming'), 'MioWork')
   }
 
   if (process.platform === 'darwin') {
-    return resolve(homedir(), 'Library', 'Application Support', 'MioAgent')
+    return resolve(homedir(), 'Library', 'Application Support', 'MioWork')
   }
 
-  return resolve(process.env.XDG_CONFIG_HOME ?? resolve(homedir(), '.config'), 'MioAgent')
+  return resolve(process.env.XDG_CONFIG_HOME ?? resolve(homedir(), '.config'), 'MioWork')
 }
 
 const readTextFileTail = (filePath: string): string => {

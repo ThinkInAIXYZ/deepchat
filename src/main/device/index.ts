@@ -14,9 +14,9 @@ export class DeviceService implements DeviceServicePort {
   static getDefaultHeaders(): Record<string, string> {
     const version = app.getVersion()
     return {
-      'HTTP-Referer': 'https://github.com/chenjiaqiangmax/mioagent',
-      'X-Title': 'MioAgent',
-      'User-Agent': `MioAgent/${version}`
+      'HTTP-Referer': 'https://github.com/chenjiaqiangmax/miowork',
+      'X-Title': 'MioWork',
+      'User-Agent': `MioWork/${version}`
     }
   }
   async getAppVersion(): Promise<string> {

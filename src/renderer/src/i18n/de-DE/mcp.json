@@ -173,11 +173,11 @@
     },
     "buildInFileSystem": {
       "name": "Dateisystem",
-      "desc": "Ermöglicht MioAgent den Zugriff auf lokale Dateien"
+      "desc": "Ermöglicht MioWork den Zugriff auf lokale Dateien"
     },
     "Artifacts": {
       "name": "Artifacts",
-      "desc": "Ermöglicht vielfältigere Artifacts-Inhalte in MioAgent-Ausgaben"
+      "desc": "Ermöglicht vielfältigere Artifacts-Inhalte in MioWork-Ausgaben"
     },
     "braveSearch": {
       "name": "Brave Search",
@@ -197,15 +197,15 @@
     },
     "builtinKnowledge": {
       "name": "Integrierte Wissensdatenbanksuche",
-      "desc": "Integrierte MioAgent-Wissensdatenbanksuche zum Durchsuchen integrierter MioAgent-Wissensdatenbanken"
+      "desc": "Integrierte MioWork-Wissensdatenbanksuche zum Durchsuchen integrierter MioWork-Wissensdatenbanken"
     },
     "deepchat-inmemory/custom-prompts-server": {
       "name": "Benutzerdefinierte Prompts",
-      "desc": "Integrierter MioAgent-Dienst für benutzerdefinierte Prompts"
+      "desc": "Integrierter MioWork-Dienst für benutzerdefinierte Prompts"
     },
     "deepchat-inmemory/deep-research-server": {
       "name": "DeepResearch",
-      "desc": "Integrierter MioAgent-Dienst für Deep Research auf Basis von Bocha Search. Modelle mit langem Kontext werden empfohlen."
+      "desc": "Integrierter MioWork-Dienst für Deep Research auf Basis von Bocha Search. Modelle mit langem Kontext werden empfohlen."
     },
     "deepchat-inmemory/auto-prompting-server": {
       "name": "Automatische Prompt-Vorlagen",
@@ -213,7 +213,7 @@
     },
     "deepchat-inmemory/conversation-search-server": {
       "name": "Chatverlaufssuche",
-      "desc": "Integrierte MioAgent-Suche für frühere Chats und Nachrichteninhalte"
+      "desc": "Integrierte MioWork-Suche für frühere Chats und Nachrichteninhalte"
     },
     "deepchat/apple-server": {
       "name": "macOS-Systemassistent",

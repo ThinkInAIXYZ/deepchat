@@ -1,6 +1,6 @@
 {
   "input": {
-    "placeholder": "Envía un mensaje a MioAgent, {'@'} para mencionar archivos, / para comandos",
+    "placeholder": "Envía un mensaje a MioWork, {'@'} para mencionar archivos, / para comandos",
     "fileArea": "Área de archivos",
     "inputArea": "Área de entrada",
     "functionSwitch": "Selector de funciones",
@@ -10,7 +10,7 @@
     "voiceRecognitionUnsupportedTitle": "La grabación local no está disponible aquí",
     "voiceRecognitionUnsupportedDescription": "Usa esta función en un navegador o entorno de escritorio que admita grabación con micrófono.",
     "voiceRecognitionPermissionDeniedTitle": "No se puede acceder al micrófono",
-    "voiceRecognitionPermissionDeniedDescription": "Permite que MioAgent use el micrófono e inténtalo de nuevo.",
+    "voiceRecognitionPermissionDeniedDescription": "Permite que MioWork use el micrófono e inténtalo de nuevo.",
     "voiceRecognitionErrorTitle": "La transcripción de audio ha fallado",
     "voiceRecognitionErrorDescription": "No se ha podido completar la transcripción de audio. Inténtalo de nuevo más tarde.",
     "send": "Enviar",
@@ -59,7 +59,7 @@
         "agentCore": "Núcleo del Agent",
         "agentImageGeneration": "Generación de imágenes",
         "agentSkills": "Agent Skills",
-        "deepchatSettings": "Ajustes de MioAgent",
+        "deepchatSettings": "Ajustes de MioWork",
         "yobrowser": "YoBrowser"
       }
     },
@@ -436,12 +436,12 @@
   },
   "onboarding": {
     "agentSwitch": {
-      "title": "Cambiar a MioAgent Agent",
-      "description": "Antes de chatear, vuelve de ACP Agent al flujo de conversación de MioAgent.",
+      "title": "Cambiar a MioWork Agent",
+      "description": "Antes de chatear, vuelve de ACP Agent al flujo de conversación de MioWork.",
       "caption": "Haz clic en el botón de Agent resaltado en la barra lateral para continuar."
     },
     "switchModel": {
-      "description": "Elige el modelo que quieres usar para tu primera conversación en MioAgent.",
+      "description": "Elige el modelo que quieres usar para tu primera conversación en MioWork.",
       "caption": "Usa el selector de modelo resaltado y elige cualquier modelo disponible."
     },
     "firstChat": {
@@ -618,7 +618,7 @@
       "reasons": {
         "session_unavailable": "Esta sesión ya no está disponible.",
         "agent_unavailable": "El Agent seleccionado no está disponible.",
-        "deepchat_agent_required": "La colaboración proactiva requiere un MioAgent Agent.",
+        "deepchat_agent_required": "La colaboración proactiva requiere un MioWork Agent.",
         "regular_parent_required": "La colaboración proactiva no está disponible en una sesión secundaria.",
         "agent_policy_unavailable": "No se pudo cargar la política de colaboración.",
         "subagents_disabled": "Activa Subagents para este Agent antes de usar la colaboración proactiva."

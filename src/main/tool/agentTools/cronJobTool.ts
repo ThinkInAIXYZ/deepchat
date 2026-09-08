@@ -248,7 +248,7 @@ export class CronJobToolHandler {
       server: {
         name: CRON_JOB_TOOL_SERVER_NAME,
         icons: '⏱️',
-        description: 'MioAgent Scheduled tasks'
+        description: 'MioWork Scheduled tasks'
       }
     }
   }

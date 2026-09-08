@@ -710,7 +710,7 @@ export class AgentSettings implements AgentSettingsPort {
 
   private initializeUnifiedAgents(): void {
     this.repository.ensureBuiltinDeepChatAgent({
-      name: 'MioAgent',
+      name: 'MioWork',
       config: this.buildLegacyBuiltinDeepChatConfig()
     })
 
@@ -757,7 +757,7 @@ export class AgentSettings implements AgentSettingsPort {
     )
     if (result.recoveredAgentIds.length > 0) {
       logger.warn(
-        `[AgentSettings] Recovered unreadable MioAgent Agent configs with their legacy effective values during independence migration: ${result.recoveredAgentIds.join(', ')}`
+        `[AgentSettings] Recovered unreadable MioWork Agent configs with their legacy effective values during independence migration: ${result.recoveredAgentIds.join(', ')}`
       )
     }
     const builtinConfig = this.getBuiltinDeepChatConfig()

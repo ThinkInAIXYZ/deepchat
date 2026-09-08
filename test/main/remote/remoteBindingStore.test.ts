@@ -543,7 +543,7 @@ describe('RemoteBindingStore', () => {
     const agents = [
       {
         agentId: 'deepchat',
-        agentName: 'MioAgent',
+        agentName: 'MioWork',
         agentType: 'deepchat' as const,
         source: 'builtin' as const
       },

@@ -429,7 +429,7 @@ describe('direct ACP agent backend', () => {
     expect(harness.sessionState.destroySession).toHaveBeenCalledWith(sessionId)
   })
 
-  it('does not fall back to MioAgent when direct ACP input resolution fails', async () => {
+  it('does not fall back to MioWork when direct ACP input resolution fails', async () => {
     const harness = createHarness()
     harness.resolveInput.mockRejectedValue(new Error('ACP config missing'))
     const deepchatOpen = vi.fn()
@@ -451,7 +451,7 @@ describe('direct ACP agent backend', () => {
     expect(deepchatOpen).not.toHaveBeenCalled()
   })
 
-  it('keeps MioAgent providerId=acp sessions on the MioAgent backend', () => {
+  it('keeps MioWork providerId=acp sessions on the MioWork backend', () => {
     const harness = createHarness()
     const deepchatHandle = { kind: 'deepchat' }
     const deepchatOpen = vi.fn().mockReturnValue(deepchatHandle)
@@ -461,7 +461,7 @@ describe('direct ACP agent backend', () => {
           id: 'deepchat-acp',
           kind: 'deepchat',
           source: 'manual',
-          name: 'MioAgent ACP',
+          name: 'MioWork ACP',
           enabled: true,
           protected: false,
           description: null,

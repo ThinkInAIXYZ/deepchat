@@ -287,7 +287,7 @@ export class ProjectService {
       return null
     }
 
-    this.sqlitePresenter.newProjectsTable.upsert(defaultPath, 'MioAgent')
+    this.sqlitePresenter.newProjectsTable.upsert(defaultPath, 'MioWork')
     this.sqlitePresenter.newEnvironmentPreferencesTable.markActive(defaultPath)
 
     if (currentDefault !== defaultPath) {
@@ -427,7 +427,7 @@ export class ProjectService {
   private getDefaultWorkspaceCandidates(): string[] {
     const candidates: string[] = []
     const addCandidate = (basePath: string) => {
-      candidates.push(path.resolve(path.join(basePath, 'MioAgent')))
+      candidates.push(path.resolve(path.join(basePath, 'MioWork')))
     }
 
     try {
@@ -442,7 +442,7 @@ export class ProjectService {
       console.warn('[ProjectService] Failed to resolve Home path:', error)
     }
 
-    candidates.push(path.resolve(path.join(this.userDataWorkspacesRoot, 'MioAgent')))
+    candidates.push(path.resolve(path.join(this.userDataWorkspacesRoot, 'MioWork')))
     return this.normalizeUniqueEnvironmentPaths(candidates)
   }
 

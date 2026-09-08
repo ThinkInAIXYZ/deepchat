@@ -443,27 +443,20 @@ describe('Build Application caller', () => {
       expect(job.with).toEqual({
         'source-sha': '${{ github.sha }}',
         arch: '${{ matrix.arch }}',
-        'artifact-purpose': 'distribution',
+        'artifact-purpose': name === 'package-macos' ? 'verification' : 'distribution',
         'enforce-installer-size': false
       })
     }
     expect(source).not.toContain('secrets: inherit')
   })
 
-  it('passes Apple credentials only to the macOS distribution caller', () => {
+  it('macOS caller runs in verification mode without signing credentials', () => {
     const windowsSecrets = Object.keys(workflow.jobs['package-windows'].secrets)
     const linuxSecrets = Object.keys(workflow.jobs['package-linux'].secrets)
     const macSecrets = Object.keys(workflow.jobs['package-macos'].secrets)
     expect(windowsSecrets).toEqual(Object.keys(commonSecrets))
     expect(linuxSecrets).toEqual(Object.keys(commonSecrets))
-    expect(macSecrets).toEqual([
-      ...Object.keys(commonSecrets),
-      'DEEPCHAT_CSC_LINK',
-      'DEEPCHAT_CSC_KEY_PASS',
-      'DEEPCHAT_APPLE_NOTARY_USERNAME',
-      'DEEPCHAT_APPLE_NOTARY_TEAM_ID',
-      'DEEPCHAT_APPLE_NOTARY_PASSWORD'
-    ])
+    expect(macSecrets).toEqual(Object.keys(commonSecrets))
   })
 })
 

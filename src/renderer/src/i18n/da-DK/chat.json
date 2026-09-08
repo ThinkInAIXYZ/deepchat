@@ -19,7 +19,7 @@
     "historyPlaceholder": "(Udfyld med Tab)",
     "inputArea": "Indtastningsområde",
     "pasteFiles": "Understøtter kopiering og indsættelse af filer",
-    "placeholder": "Spørg MioAgent om hvad som helst, {'@'} for at nævne filer, / for kommandoer",
+    "placeholder": "Spørg MioWork om hvad som helst, {'@'} for at nævne filer, / for kommandoer",
     "promptFilesAdded": "Prompt-filen er blevet tilføjet",
     "promptFilesAddedDesc": "{count} filer er blevet tilføjet successfully",
     "promptFilesError": "Filbehandlingsfejl",
@@ -40,7 +40,7 @@
     "voiceRecognitionUnsupportedTitle": "Det aktuelle miljø understøtter ikke stemmegenkendelse",
     "voiceRecognitionUnsupportedDescription": "Brug denne funktion i en browser eller skrivebordsmiljø, der understøtter stemmegenkendelse.",
     "voiceRecognitionPermissionDeniedTitle": "Kan ikke få adgang til mikrofonen",
-    "voiceRecognitionPermissionDeniedDescription": "Giv MioAgent adgang til mikrofonen, og prøv igen.",
+    "voiceRecognitionPermissionDeniedDescription": "Giv MioWork adgang til mikrofonen, og prøv igen.",
     "voiceRecognitionErrorTitle": "Stemmegenkendelse mislykkedes",
     "voiceRecognitionErrorDescription": "Stemmegenkendelsen kunne ikke fuldføres. Prøv igen senere.",
     "send": "Send",
@@ -66,7 +66,7 @@
         "agentCore": "Agent Core",
         "agentImageGeneration": "Billedgenerering",
         "agentSkills": "Agent Skills",
-        "deepchatSettings": "MioAgent Settings",
+        "deepchatSettings": "MioWork Settings",
         "yobrowser": "YoBrowser"
       }
     },
@@ -436,12 +436,12 @@
   },
   "onboarding": {
     "agentSwitch": {
-      "title": "Switch to MioAgent Agent",
-      "description": "Before chatting, switch away from ACP and return to the built-in MioAgent flow.",
+      "title": "Switch to MioWork Agent",
+      "description": "Before chatting, switch away from ACP and return to the built-in MioWork flow.",
       "caption": "Click the highlighted agent button in the sidebar to continue."
     },
     "switchModel": {
-      "description": "Pick the model you want to use for your first MioAgent conversation.",
+      "description": "Pick the model you want to use for your first MioWork conversation.",
       "caption": "Use the highlighted model switcher and choose any available model."
     },
     "firstChat": {
@@ -618,7 +618,7 @@
       "reasons": {
         "session_unavailable": "Denne samtale er ikke længere tilgængelig.",
         "agent_unavailable": "Den valgte Agent er ikke tilgængelig.",
-        "deepchat_agent_required": "Proaktivt samarbejde kræver en MioAgent Agent.",
+        "deepchat_agent_required": "Proaktivt samarbejde kræver en MioWork Agent.",
         "regular_parent_required": "Proaktivt samarbejde er ikke tilgængeligt i en undersamtale.",
         "agent_policy_unavailable": "Samarbejdspolitikken kunne ikke indlæses.",
         "subagents_disabled": "Aktivér Subagents for denne Agent for at bruge proaktivt samarbejde."

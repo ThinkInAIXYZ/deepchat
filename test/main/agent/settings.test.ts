@@ -414,7 +414,7 @@ describe('AgentSettings app defaults', () => {
   })
 })
 
-describe('AgentSettings MioAgent mutations', () => {
+describe('AgentSettings MioWork mutations', () => {
   it('snapshots app auto-compaction defaults when creating an Agent', async () => {
     const createDeepChatAgent = vi.fn((input: CreateDeepChatAgentInput) => ({
       id: 'writer',

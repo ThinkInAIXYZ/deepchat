@@ -53,14 +53,14 @@ describe('OpenAI Codex adapter', () => {
     })
 
     const { createOpenAICodexFetch } = await import('../../../src/main/provider/openaiCodexAdapter')
-    const fetcher = createOpenAICodexFetch({ 'X-Client': 'MioAgent' })
+    const fetcher = createOpenAICodexFetch({ 'X-Client': 'MioWork' })
 
     const response = await fetcher('https://chatgpt.com/backend-api/codex/responses', {
       method: 'POST',
       headers: {
         'api-key': 'old-api-key',
         'x-api-key': 'old-x-api-key',
-        'User-Agent': 'MioAgent/1.0.0'
+        'User-Agent': 'MioWork/1.0.0'
       }
     })
 

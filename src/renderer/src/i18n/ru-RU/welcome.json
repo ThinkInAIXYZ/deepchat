@@ -2,7 +2,7 @@
   "steps": {
     "welcome": {
       "title": "Добро пожаловать",
-      "description": "Начнем настройку MioAgent"
+      "description": "Начнем настройку MioWork"
     },
     "provider": {
       "title": "Провайдер моделей",
@@ -17,7 +17,7 @@
       "description": "Всё готово к работе!"
     }
   },
-  "title": "Добро пожаловать в MioAgent",
+  "title": "Добро пожаловать в MioWork",
   "description": "Давайте завершим процесс настройки",
   "provider": {
     "select": "Выбрать провайдера",
@@ -35,7 +35,7 @@
     "back": "Назад"
   },
   "page": {
-    "title": "Добро пожаловать в MioAgent Agent",
+    "title": "Добро пожаловать в MioWork Agent",
     "description": "Подключите провайдера моделей, чтобы начать",
     "guide": {
       "title": "Гид по настройке",
@@ -72,8 +72,8 @@
   },
   "agentPage": {
     "title": "Выберите агента, чтобы начать работу",
-    "deepchatType": "Агент MioAgent",
+    "deepchatType": "Агент MioWork",
     "acpType": "Агент ACP",
-    "manageAgents": "Управление агентами MioAgent"
+    "manageAgents": "Управление агентами MioWork"
   }
 }

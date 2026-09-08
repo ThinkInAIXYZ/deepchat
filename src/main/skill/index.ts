@@ -467,7 +467,7 @@ export class SkillService implements SkillServicePort {
     const normalizedAgentId = assertSafeSkillAgentId(agentId)
     this.assertAgentScopeActive(normalizedAgentId)
     if (this.agentScopePort && !(await this.agentScopePort.isDeepChatAgent(normalizedAgentId))) {
-      throw new Error(`MioAgent Agent not found: ${normalizedAgentId}`)
+      throw new Error(`MioWork Agent not found: ${normalizedAgentId}`)
     }
     this.assertServiceActive()
     this.assertAgentScopeActive(normalizedAgentId)
@@ -509,7 +509,7 @@ export class SkillService implements SkillServicePort {
 
   private assertAgentScopeActive(agentId: string): void {
     if (this.deletedAgentScopes.has(agentId)) {
-      throw new Error(`MioAgent Agent Skill bindings are being deleted: ${agentId}`)
+      throw new Error(`MioWork Agent Skill bindings are being deleted: ${agentId}`)
     }
   }
 
@@ -2891,7 +2891,7 @@ export class SkillService implements SkillServicePort {
         action: 'install',
         draftId: normalizedDraftId,
         skillName: viewed.skillName,
-        error: 'No MioAgent Agent context available for draft installation'
+        error: 'No MioWork Agent context available for draft installation'
       }
     }
     const result = await this.installFromDirectory(draftPath, {
@@ -2968,7 +2968,7 @@ export class SkillService implements SkillServicePort {
   ): string {
     const scripts = scriptInventory.filter((script) => script.enabled)
     const lines = [
-      '## MioAgent Runtime Context',
+      '## MioWork Runtime Context',
       `- Skill root: \`${metadata.skillRoot}\`.`,
       '- Relative paths mentioned by this skill are relative to the skill root unless stated otherwise.',
       '- When this skill needs script execution, prefer `skill_run` over `exec`.'
@@ -4522,7 +4522,7 @@ export class SkillService implements SkillServicePort {
     if (!fs.existsSync(readmePath)) {
       fs.writeFileSync(
         readmePath,
-        '# MioAgent Skills\n\nThis directory stores portable MioAgent skills under `skills/`.\n',
+        '# MioWork Skills\n\nThis directory stores portable MioWork skills under `skills/`.\n',
         'utf-8'
       )
     }
@@ -4813,7 +4813,7 @@ export class SkillService implements SkillServicePort {
   async cleanupAgentSkills(agentId: string): Promise<void> {
     const normalizedAgentId = assertSafeSkillAgentId(agentId)
     if (normalizedAgentId === BUILTIN_SKILL_AGENT_ID) {
-      throw new Error('The built-in MioAgent Agent Skill bindings cannot be deleted')
+      throw new Error('The built-in MioWork Agent Skill bindings cannot be deleted')
     }
 
     this.deletedAgentScopes.add(normalizedAgentId)

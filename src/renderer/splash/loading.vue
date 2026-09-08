@@ -15,7 +15,7 @@
           <div class="unlock-logo unlock-logo--dark" v-html="darkLogo" />
           <div class="unlock-logo unlock-logo--light" v-html="lightLogo" />
         </div>
-        <div class="unlock-title">MioAgent</div>
+        <div class="unlock-title">MioWork</div>
         <div class="unlock-subtitle">Local database is encrypted</div>
         <label class="unlock-label" for="database-password">SQLite password</label>
         <input
@@ -64,7 +64,7 @@
           <div class="unlock-logo unlock-logo--dark" v-html="darkLogo" />
           <div class="unlock-logo unlock-logo--light" v-html="lightLogo" />
         </div>
-        <div class="unlock-title">MioAgent</div>
+        <div class="unlock-title">MioWork</div>
         <div class="unlock-subtitle">{{ recoverySubtitle }}</div>
         <template v-if="recoveryNeedsPassword">
           <label class="unlock-label" for="database-recovery-password">SQLite password</label>
@@ -123,10 +123,10 @@
           <div class="unlock-logo unlock-logo--dark" v-html="darkLogo" />
           <div class="unlock-logo unlock-logo--light" v-html="lightLogo" />
         </div>
-        <div class="unlock-title">MioAgent</div>
+        <div class="unlock-title">MioWork</div>
         <div class="unlock-subtitle">Unlocking local database</div>
         <p class="unlock-hint">
-          MioAgent is reading the saved password from the system credential store.
+          MioWork is reading the saved password from the system credential store.
         </p>
       </div>
     </div>
@@ -135,7 +135,7 @@
       v-else
       class="loader-stage loader-stage--orb"
       :class="{ 'loader-stage--animating': animationStarted }"
-      aria-label="MioAgent is starting"
+      aria-label="MioWork is starting"
     >
       <div class="aurora-background" aria-hidden="true">
         <span class="aurora-ribbon aurora-ribbon--top"></span>

@@ -173,11 +173,11 @@
     },
     "buildInFileSystem": {
       "name": "File system",
-      "desc": "Permette a MioAgent di operare sui file locali"
+      "desc": "Permette a MioWork di operare sui file locali"
     },
     "Artifacts": {
       "name": "Artifacts",
-      "desc": "Permette a MioAgent di produrre contenuti Artifacts più vari"
+      "desc": "Permette a MioWork di produrre contenuti Artifacts più vari"
     },
     "braveSearch": {
       "name": "Brave Search",
@@ -197,15 +197,15 @@
     },
     "builtinKnowledge": {
       "name": "Ricerca base di conoscenza integrata",
-      "desc": "Servizio di ricerca base di conoscenza integrato in MioAgent, può cercare nei contenuti della base di conoscenza integrata di MioAgent"
+      "desc": "Servizio di ricerca base di conoscenza integrato in MioWork, può cercare nei contenuti della base di conoscenza integrata di MioWork"
     },
     "deepchat-inmemory/custom-prompts-server": {
       "name": "Prompt personalizzati",
-      "desc": "Servizio prompt personalizzati integrato in MioAgent"
+      "desc": "Servizio prompt personalizzati integrato in MioWork"
     },
     "deepchat-inmemory/deep-research-server": {
       "name": "DeepResearch",
-      "desc": "Servizio di ricerca approfondita integrato in MioAgent basato su Bocha Search (richiede un modello con contesto lungo; i modelli con contesto insufficiente potrebbero fallire)"
+      "desc": "Servizio di ricerca approfondita integrato in MioWork basato su Bocha Search (richiede un modello con contesto lungo; i modelli con contesto insufficiente potrebbero fallire)"
     },
     "deepchat-inmemory/auto-prompting-server": {
       "name": "Prompt template automatico",
@@ -213,7 +213,7 @@
     },
     "deepchat-inmemory/conversation-search-server": {
       "name": "Ricerca cronologia conversazioni",
-      "desc": "Servizio di ricerca cronologia conversazioni integrato in MioAgent, può cercare conversazioni e messaggi precedenti"
+      "desc": "Servizio di ricerca cronologia conversazioni integrato in MioWork, può cercare conversazioni e messaggi precedenti"
     },
     "deepchat/apple-server": {
       "name": "Assistente di sistema macOS",

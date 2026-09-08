@@ -52,8 +52,8 @@ describe('parseQuestionToolArgs', () => {
         question: 'Your message seems incomplete. What would you like help with?',
         options: [
           {
-            header: 'Continue working on MioAgent',
-            description: 'Proceed with the current MioAgent project work'
+            header: 'Continue working on MioWork',
+            description: 'Proceed with the current MioWork project work'
           },
           { header: 'Something else', description: 'I will clarify what I need' }
         ]
@@ -66,8 +66,8 @@ describe('parseQuestionToolArgs', () => {
         question: 'Your message seems incomplete. What would you like help with?',
         options: [
           {
-            label: 'Continue working on MioAgent',
-            description: 'Proceed with the current MioAgent project work'
+            label: 'Continue working on MioWork',
+            description: 'Proceed with the current MioWork project work'
           },
           { label: 'Something else', description: 'I will clarify what I need' }
         ],

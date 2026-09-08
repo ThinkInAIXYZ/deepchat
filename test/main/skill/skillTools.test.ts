@@ -145,7 +145,7 @@ describe('SkillTools', () => {
       )
     })
 
-    it('returns an empty catalog when the conversation has no MioAgent Agent scope', async () => {
+    it('returns an empty catalog when the conversation has no MioWork Agent scope', async () => {
       ;(mockSkillService.resolveSessionAgentId as Mock).mockResolvedValue(null)
 
       await expect(skillTools.handleSkillList('acp-session')).resolves.toEqual({

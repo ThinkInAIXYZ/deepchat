@@ -824,7 +824,7 @@ describe('ChatPage', () => {
     expect(wrapper.findComponent({ name: 'ChatInputBox' }).props('agentId')).toBe('agent-b')
   })
 
-  it('passes the active MioAgent model vision capability to the composer', async () => {
+  it('passes the active MioWork model vision capability to the composer', async () => {
     const { wrapper } = await setup({
       activeSessionPatch: {
         providerId: 'openai',
@@ -1850,7 +1850,7 @@ describe('ChatPage', () => {
     expect(wrapper.findAll('.message-item-stub')).toHaveLength(1)
   })
 
-  it('runs manual compaction instead of sending exact /compact in MioAgent sessions', async () => {
+  it('runs manual compaction instead of sending exact /compact in MioWork sessions', async () => {
     const { wrapper, chatClient, sessionClient, messageStore } = await setup({
       activeSessionPatch: {
         providerId: 'openai',

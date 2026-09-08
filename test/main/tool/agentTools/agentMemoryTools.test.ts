@@ -9,7 +9,7 @@ const buildRuntimePort = (overrides: Record<string, unknown> = {}) =>
     resolveConversationSessionInfo: vi.fn().mockResolvedValue({
       sessionId: 'conv-1',
       agentId: 'deepchat',
-      agentName: 'MioAgent',
+      agentName: 'MioWork',
       agentType: 'deepchat',
       providerId: 'openai',
       modelId: 'gpt-4.1',

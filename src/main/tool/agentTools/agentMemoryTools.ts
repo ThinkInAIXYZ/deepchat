@@ -81,7 +81,7 @@ function buildToolDefinition(
     server: {
       name: AGENT_MEMORY_TOOL_SERVER_NAME,
       icons: '🧠',
-      description: 'MioAgent long-term memory tools'
+      description: 'MioWork long-term memory tools'
     }
   }
 }

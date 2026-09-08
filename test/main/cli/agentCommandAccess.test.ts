@@ -179,7 +179,7 @@ describe('AgentCliCommandAccess', () => {
         stdin,
         POSIX_COMMAND_SHELL
       )
-    ).toThrow(/Bundled MioAgent CLI is unavailable/)
+    ).toThrow(/Bundled MioWork CLI is unavailable/)
   })
 
   it('injects an exact discovery grant without stdin or human-token fallback', async () => {

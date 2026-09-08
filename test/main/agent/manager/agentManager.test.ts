@@ -200,7 +200,7 @@ describe('AgentManager', () => {
     }
   )
 
-  it('requires a MioAgent transfer target without inspecting provider selection', () => {
+  it('requires a MioWork transfer target without inspecting provider selection', () => {
     const deepchat = implementation('deepchat')
     const manager = new AgentManager(
       { resolveExecutableDescriptor: vi.fn(() => descriptor('deepchat')) },

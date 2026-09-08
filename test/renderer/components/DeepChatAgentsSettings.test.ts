@@ -298,7 +298,7 @@ describe('DeepChatAgentsSettings', () => {
     const existingAgent = {
       id: 'deepchat',
       type: 'deepchat',
-      name: 'MioAgent',
+      name: 'MioWork',
       enabled: true,
       protected: true,
       avatar: null,
@@ -343,14 +343,14 @@ describe('DeepChatAgentsSettings', () => {
     const existingAgent = {
       id: 'deepchat',
       type: 'deepchat',
-      name: 'MioAgent',
+      name: 'MioWork',
       enabled: true,
       protected: true,
       description: 'Writer agent',
       avatar: null,
       config: {}
     }
-    const updatedAgent = { ...existingAgent, name: 'MioAgent Renamed' }
+    const updatedAgent = { ...existingAgent, name: 'MioWork Renamed' }
     let resolveSave: ((agent: typeof updatedAgent) => void) | undefined
     const updateDeepChatAgent = vi.fn(
       () =>
@@ -392,7 +392,7 @@ describe('DeepChatAgentsSettings', () => {
     const existingAgent = {
       id: 'deepchat',
       type: 'deepchat',
-      name: 'MioAgent',
+      name: 'MioWork',
       enabled: true,
       protected: true,
       description: 'Writer agent',
@@ -443,7 +443,7 @@ describe('DeepChatAgentsSettings', () => {
     const existingAgent = {
       id: 'deepchat',
       type: 'deepchat',
-      name: 'MioAgent',
+      name: 'MioWork',
       enabled: true,
       protected: true,
       description: '',
@@ -497,7 +497,7 @@ describe('DeepChatAgentsSettings', () => {
     const existingAgent = {
       id: 'deepchat',
       type: 'deepchat',
-      name: 'MioAgent',
+      name: 'MioWork',
       enabled: true,
       protected: true,
       description: 'Remove this description',
@@ -532,7 +532,7 @@ describe('DeepChatAgentsSettings', () => {
     const existingAgent = {
       id: 'deepchat',
       type: 'deepchat',
-      name: 'MioAgent',
+      name: 'MioWork',
       enabled: true,
       protected: true,
       description: '',
@@ -574,7 +574,7 @@ describe('DeepChatAgentsSettings', () => {
     const builtin = {
       id: 'deepchat',
       type: 'deepchat',
-      name: 'MioAgent',
+      name: 'MioWork',
       enabled: true,
       protected: true,
       description: '',
@@ -686,13 +686,13 @@ describe('DeepChatAgentsSettings', () => {
     consoleError.mockRestore()
   })
 
-  it('mounts and saves MioAgent agents with cloneable model selections', async () => {
+  it('mounts and saves MioWork agents with cloneable model selections', async () => {
     vi.resetModules()
 
     const existingAgent = {
       id: 'deepchat',
       type: 'deepchat',
-      name: 'MioAgent',
+      name: 'MioWork',
       enabled: true,
       protected: true,
       description: 'Writer agent',
@@ -871,7 +871,7 @@ describe('DeepChatAgentsSettings', () => {
 
     const [, payload] = configService.updateDeepChatAgent.mock.calls[0]
     expect(payload).toMatchObject({
-      name: 'MioAgent',
+      name: 'MioWork',
       enabled: true,
       description: 'Writer agent'
     })
@@ -894,7 +894,7 @@ describe('DeepChatAgentsSettings', () => {
     const existingAgent = {
       id: 'deepchat',
       type: 'deepchat',
-      name: 'MioAgent',
+      name: 'MioWork',
       enabled: true,
       protected: true,
       description: 'Writer agent',
@@ -938,7 +938,7 @@ describe('DeepChatAgentsSettings', () => {
     const existingAgent = {
       id: 'deepchat',
       type: 'deepchat',
-      name: 'MioAgent',
+      name: 'MioWork',
       enabled: true,
       protected: true,
       description: 'Writer agent',
@@ -952,7 +952,7 @@ describe('DeepChatAgentsSettings', () => {
 
     const { wrapper, configService } = await mountSettings({ agents: [existingAgent] })
 
-    await wrapper.get('[data-testid="deepchat-agent-name-input"]').setValue('MioAgent Renamed')
+    await wrapper.get('[data-testid="deepchat-agent-name-input"]').setValue('MioWork Renamed')
     await flushPromises()
 
     const saveButton = wrapper
@@ -962,7 +962,7 @@ describe('DeepChatAgentsSettings', () => {
     await flushPromises()
 
     const [, payload] = configService.updateDeepChatAgent.mock.calls[0]
-    expect(payload.name).toBe('MioAgent Renamed')
+    expect(payload.name).toBe('MioWork Renamed')
     expect(payload).not.toHaveProperty('config')
   })
 
@@ -970,7 +970,7 @@ describe('DeepChatAgentsSettings', () => {
     const existingAgent = {
       id: 'deepchat',
       type: 'deepchat',
-      name: 'MioAgent',
+      name: 'MioWork',
       enabled: true,
       protected: true,
       description: 'Writer agent',
@@ -1008,7 +1008,7 @@ describe('DeepChatAgentsSettings', () => {
     const existingAgent = {
       id: 'deepchat',
       type: 'deepchat',
-      name: 'MioAgent',
+      name: 'MioWork',
       enabled: true,
       protected: true,
       description: 'Writer agent',
@@ -1112,7 +1112,7 @@ describe('DeepChatAgentsSettings', () => {
     const existingAgent = {
       id: 'deepchat',
       type: 'deepchat',
-      name: 'MioAgent',
+      name: 'MioWork',
       enabled: true,
       protected: true,
       description: 'Writer agent',
@@ -1213,7 +1213,7 @@ describe('DeepChatAgentsSettings', () => {
     const existingAgent = {
       id: 'deepchat',
       type: 'deepchat',
-      name: 'MioAgent',
+      name: 'MioWork',
       enabled: true,
       protected: true,
       description: 'Writer agent',
@@ -1344,7 +1344,7 @@ describe('DeepChatAgentsSettings', () => {
     const existingAgent = {
       id: 'deepchat',
       type: 'deepchat',
-      name: 'MioAgent',
+      name: 'MioWork',
       enabled: true,
       protected: true,
       avatar: null,
@@ -1394,7 +1394,7 @@ describe('DeepChatAgentsSettings', () => {
     const existingAgent = {
       id: 'deepchat',
       type: 'deepchat',
-      name: 'MioAgent',
+      name: 'MioWork',
       enabled: true,
       protected: true,
       description: 'Writer agent',
@@ -1443,7 +1443,7 @@ describe('DeepChatAgentsSettings', () => {
     const builtin = {
       id: 'deepchat',
       type: 'deepchat',
-      name: 'MioAgent',
+      name: 'MioWork',
       enabled: true,
       protected: true,
       avatar: null,
@@ -1544,7 +1544,7 @@ describe('DeepChatAgentsSettings', () => {
     const builtin = {
       id: 'deepchat',
       type: 'deepchat',
-      name: 'MioAgent',
+      name: 'MioWork',
       enabled: true,
       protected: true,
       avatar: null,
@@ -1597,7 +1597,7 @@ describe('DeepChatAgentsSettings', () => {
     const existingAgent = {
       id: 'deepchat',
       type: 'deepchat',
-      name: 'MioAgent',
+      name: 'MioWork',
       enabled: true,
       protected: true,
       description: 'Writer agent',
@@ -1853,7 +1853,7 @@ describe('DeepChatAgentsSettings', () => {
     const existingAgent = {
       id: 'deepchat',
       type: 'deepchat',
-      name: 'MioAgent',
+      name: 'MioWork',
       enabled: true,
       protected: true,
       description: 'Writer agent',
@@ -2001,7 +2001,7 @@ describe('DeepChatAgentsSettings', () => {
     const existingAgent = {
       id: 'deepchat',
       type: 'deepchat',
-      name: 'MioAgent',
+      name: 'MioWork',
       enabled: true,
       protected: true,
       description: '',
@@ -2134,7 +2134,7 @@ describe('DeepChatAgentsSettings', () => {
     const existingAgent = {
       id: 'deepchat',
       type: 'deepchat',
-      name: 'MioAgent',
+      name: 'MioWork',
       enabled: true,
       protected: true,
       description: '',
@@ -2180,7 +2180,7 @@ describe('DeepChatAgentsSettings', () => {
     const existingAgent = {
       id: 'deepchat',
       type: 'deepchat',
-      name: 'MioAgent',
+      name: 'MioWork',
       enabled: true,
       protected: true,
       description: '',
@@ -2231,7 +2231,7 @@ describe('DeepChatAgentsSettings', () => {
     const existingAgent = {
       id: 'deepchat',
       type: 'deepchat',
-      name: 'MioAgent',
+      name: 'MioWork',
       enabled: true,
       protected: true,
       description: 'Writer agent',

@@ -451,10 +451,10 @@ describe('NewThreadPage ACP draft session bootstrap', () => {
   it('labels the built-in default workspace as chats instead of its folder name', async () => {
     const { wrapper } = await setup({
       selectedProject: {
-        path: '/Users/test/Documents/MioAgent',
-        name: 'MioAgent'
+        path: '/Users/test/Documents/MioWork',
+        name: 'MioWork'
       },
-      defaultChatWorkspacePath: '/Users/test/Documents/MioAgent/'
+      defaultChatWorkspacePath: '/Users/test/Documents/MioWork/'
     })
 
     expect(wrapper.get('[data-testid="new-thread-project-trigger"]').text()).toContain(
@@ -472,14 +472,14 @@ describe('NewThreadPage ACP draft session bootstrap', () => {
     ).toBe('lucide:message-square')
   })
 
-  it('labels an explicit no-project MioAgent draft as chats and submits null projectDir', async () => {
+  it('labels an explicit no-project MioWork draft as chats and submits null projectDir', async () => {
     const { wrapper, sessionStore, agentStore, modelStore } = await setup({
       selectedProject: {
-        path: '/Users/test/Documents/MioAgent',
-        name: 'MioAgent'
+        path: '/Users/test/Documents/MioWork',
+        name: 'MioWork'
       },
-      defaultProjectPath: '/Users/test/Documents/MioAgent',
-      defaultChatWorkspacePath: '/Users/test/Documents/MioAgent'
+      defaultProjectPath: '/Users/test/Documents/MioWork',
+      defaultChatWorkspacePath: '/Users/test/Documents/MioWork'
     })
 
     agentStore.selectedAgentId = 'deepchat'
@@ -526,14 +526,14 @@ describe('NewThreadPage ACP draft session bootstrap', () => {
     expect((wrapper.vm as any).acpDraftSessionId).toBe('draft-1')
   })
 
-  it('passes the resolved MioAgent draft model capability to the composer', async () => {
+  it('passes the resolved MioWork draft model capability to the composer', async () => {
     const { agentStore, draftStore, modelStore, wrapper } = await setup({
       selectedAgentId: 'deepchat',
       selectedAgentType: 'deepchat'
     })
     agentStore.selectedAgent = {
       id: 'deepchat',
-      name: 'MioAgent',
+      name: 'MioWork',
       type: 'deepchat',
       enabled: true
     }
@@ -552,7 +552,7 @@ describe('NewThreadPage ACP draft session bootstrap', () => {
     )
   })
 
-  it('captures provider-native search intent in the first MioAgent turn', async () => {
+  it('captures provider-native search intent in the first MioWork turn', async () => {
     const { wrapper, sessionStore, draftStore, modelStore } = await setup({
       selectedAgentId: 'deepchat',
       selectedAgentType: 'deepchat',
@@ -576,7 +576,7 @@ describe('NewThreadPage ACP draft session bootstrap', () => {
 
     expect((wrapper.vm as any).isSearchAvailable).toBe(true)
     ;(wrapper.vm as any).toggleSearch()
-    ;(wrapper.vm as any).message = 'Find the latest MioAgent release'
+    ;(wrapper.vm as any).message = 'Find the latest MioWork release'
     await (wrapper.vm as any).onSubmit()
 
     expect(sessionStore.createSession).toHaveBeenCalledWith(
@@ -683,7 +683,7 @@ describe('NewThreadPage ACP draft session bootstrap', () => {
     expect(sessionStore.sendMessage).not.toHaveBeenCalled()
   })
 
-  it('shows the same invalid-directory warning for MioAgent without blocking send', async () => {
+  it('shows the same invalid-directory warning for MioWork without blocking send', async () => {
     const { wrapper, sessionStore, agentStore, modelStore, draftStore } = await setup({
       isDirectory: false
     })
@@ -771,7 +771,7 @@ describe('NewThreadPage ACP draft session bootstrap', () => {
     })
   })
 
-  it('allows a MioAgent image-only initial turn', async () => {
+  it('allows a MioWork image-only initial turn', async () => {
     const { wrapper, sessionStore, modelStore, draftStore } = await setup({
       selectedAgentId: 'deepchat',
       selectedAgentType: 'deepchat'

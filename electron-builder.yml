@@ -1,5 +1,5 @@
-appId: com.mioagent.app
-productName: MioAgent
+appId: com.miowork.app
+productName: MioWork
 directories:
   buildResources: build
 files:
@@ -84,7 +84,7 @@ electronLanguages:
   - he-IL
   - he
 win:
-  executableName: MioAgent
+  executableName: MioWork
 nsis:
   artifactName: ${name}-${version}-windows-${arch}.${ext}
   shortcutName: ${productName}
@@ -142,4 +142,4 @@ npmRebuild: true
 publish:
   provider: github
   owner: chenjiaqiangmax
-  repo: mioagent
+  repo: miowork

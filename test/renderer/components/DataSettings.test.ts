@@ -199,7 +199,7 @@ const setup = async (
               'common.unknownError': 'Unknown error',
               'settings.common.privacyMode': 'Privacy Mode',
               'settings.common.privacyModeDescription':
-                'Stop automatic outbound requests owned by MioAgent:',
+                'Stop automatic outbound requests owned by MioWork:',
               'settings.common.privacyModeAutoUpdate': 'App update checks',
               'settings.common.privacyModeProviderDb': 'Provider and model metadata refresh',
               'settings.common.privacyModeAcpRegistry': 'ACP Registry refresh and icon sync',
@@ -617,7 +617,7 @@ describe('DataSettings', () => {
     expect(privacySwitch.attributes('aria-describedby')).toBe('privacy-mode-desc')
     expect(wrapper.get('#privacy-mode-label').text()).toContain('Privacy Mode')
     expect(wrapper.get('#privacy-mode-desc').text()).toContain(
-      'Stop automatic outbound requests owned by MioAgent:'
+      'Stop automatic outbound requests owned by MioWork:'
     )
   })
 

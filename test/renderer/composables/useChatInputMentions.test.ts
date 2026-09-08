@@ -156,7 +156,7 @@ describe('resolveSlashSelectionAction', () => {
 })
 
 describe('manual compaction slash visibility', () => {
-  it('only shows manual compaction for idle MioAgent sessions', () => {
+  it('only shows manual compaction for idle MioWork sessions', () => {
     expect(
       shouldShowManualCompactionCommand({
         sessionId: 's1',

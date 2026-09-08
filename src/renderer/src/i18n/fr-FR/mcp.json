@@ -143,7 +143,7 @@
   "title": "Paramètres MCP",
   "inmemory": {
     "Artifacts": {
-      "desc": "Rendez votre sortie MioAgent diversifiée avec du contenu d'Artifacts",
+      "desc": "Rendez votre sortie MioWork diversifiée avec du contenu d'Artifacts",
       "name": "Artifacts"
     },
     "bochaSearch": {
@@ -151,7 +151,7 @@
       "name": "Recherche Bocha"
     },
     "buildInFileSystem": {
-      "desc": "Permettre à MioAgent de manipuler des fichiers locaux",
+      "desc": "Permettre à MioWork de manipuler des fichiers locaux",
       "name": "Système de fichiers"
     },
     "braveSearch": {
@@ -171,7 +171,7 @@
       "desc": "Service de recherche dans la base de connaissances FastGPT, peut rechercher le contenu de la base de connaissances FastGPT"
     },
     "deepchat-inmemory/custom-prompts-server": {
-      "desc": "Service de prompts personnalisés intégré à MioAgent",
+      "desc": "Service de prompts personnalisés intégré à MioWork",
       "name": "Prompts personnalisés"
     },
     "deepchat-inmemory/deep-research-server": {
@@ -184,10 +184,10 @@
     },
     "deepchat-inmemory/conversation-search-server": {
       "name": "Recherche d’historique",
-      "desc": "Rechercher les conversations et messages passés (intégré à MioAgent)"
+      "desc": "Rechercher les conversations et messages passés (intégré à MioWork)"
     },
     "builtinKnowledge": {
-      "desc": "Recherche dans la base de connaissances intégrée de MioAgent (docs, contenus intégrés).",
+      "desc": "Recherche dans la base de connaissances intégrée de MioWork (docs, contenus intégrés).",
       "name": "Base de connaissances intégrée"
     },
     "deepchat/apple-server": {

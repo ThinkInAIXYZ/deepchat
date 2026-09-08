@@ -53,8 +53,8 @@ export abstract class BaseLLMProvider {
   private readonly locale: ProviderLocalePort
 
   protected defaultHeaders: Record<string, string> = {
-    'HTTP-Referer': 'https://github.com/chenjiaqiangmax/mioagent',
-    'X-Title': 'MioAgent'
+    'HTTP-Referer': 'https://github.com/chenjiaqiangmax/miowork',
+    'X-Title': 'MioWork'
   }
 
   constructor(

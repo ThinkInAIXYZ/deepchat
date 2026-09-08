@@ -24,7 +24,7 @@ const displayData = computed(() => {
 const description = computed(() =>
   t('components.messageBlockPermissionRequest.description.write', {
     toolName: store.request?.operation ?? '',
-    serverName: 'MioAgent CLI'
+    serverName: 'MioWork CLI'
   })
 )
 

@@ -9,7 +9,7 @@
     "notEnabled": "Sinkronisasi tidak diaktifkan",
     "folderNotExists": "Folder sinkronisasi tidak ada",
     "noValidBackup": "Tidak ada file cadangan yang valid di folder sinkronisasi",
-    "unsupportedBackupVersion": "Cadangan ini dibuat oleh versi MioAgent yang lebih baru dan versi saat ini tidak dapat diimpor",
+    "unsupportedBackupVersion": "Cadangan ini dibuat oleh versi MioWork yang lebih baru dan versi saat ini tidak dapat diimpor",
     "dbNotExists": "File basis data tidak ada",
     "configNotExists": "File konfigurasi tidak ada",
     "tempDbFailed": "Pembuatan file cadangan database sementara gagal",

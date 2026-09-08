@@ -16,7 +16,7 @@
   "topbarButton": "Обновить",
   "restarting": "Перезапуск",
   "alreadyUpToDate": "Уже обновлено",
-  "alreadyUpToDateDesc": "Ваш MioAgent уже обновлен до последней версии, обновление не требуется.",
+  "alreadyUpToDateDesc": "Ваш MioWork уже обновлен до последней версии, обновление не требуется.",
   "taskRunningTitle": "Выполняется задача",
   "taskRunningDescription": "В данный момент выполняются задачи. Как вы хотите продолжить обновление?",
   "updateNow": "Обновить сейчас",

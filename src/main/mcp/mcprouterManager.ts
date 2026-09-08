@@ -47,8 +47,8 @@ export class McpRouterManager {
   private getCommonHeaders(): Record<string, string> {
     return {
       'Content-Type': 'application/json',
-      'HTTP-Referer': 'github.com/chenjiaqiangmax/mioagent',
-      'X-Title': 'MioAgent'
+      'HTTP-Referer': 'github.com/chenjiaqiangmax/miowork',
+      'X-Title': 'MioWork'
     }
   }
 
@@ -112,8 +112,8 @@ export class McpRouterManager {
       customHeaders: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${apiKey}`,
-        'HTTP-Referer': 'github.com/chenjiaqiangmax/mioagent',
-        'X-Title': 'MioAgent'
+        'HTTP-Referer': 'github.com/chenjiaqiangmax/miowork',
+        'X-Title': 'MioWork'
       },
       source: 'mcprouter',
       sourceId: serverKey

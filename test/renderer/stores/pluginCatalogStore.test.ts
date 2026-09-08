@@ -11,7 +11,7 @@ const plugin = (enabled = false): PluginListItem => ({
   id: 'com.deepchat.plugins.test',
   name: 'Test plugin',
   version: '1.0.0',
-  publisher: 'MioAgent',
+  publisher: 'MioWork',
   installed: true,
   enabled,
   trusted: true,

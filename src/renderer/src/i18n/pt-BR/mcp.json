@@ -143,7 +143,7 @@
   "title": "Configurações MCP",
   "inmemory": {
     "Artifacts": {
-      "desc": "Produzir Artifacts mais ricos no MioAgent",
+      "desc": "Produzir Artifacts mais ricos no MioWork",
       "name": "Artifacts"
     },
     "bochaSearch": {
@@ -151,7 +151,7 @@
       "name": "Pesquisa Bocha"
     },
     "buildInFileSystem": {
-      "desc": "Permitir que o MioAgent interaja com o sistema de arquivos local.",
+      "desc": "Permitir que o MioWork interaja com o sistema de arquivos local.",
       "name": "Sistema de Arquivos"
     },
     "braveSearch": {
@@ -171,11 +171,11 @@
       "desc": "Serviço de pesquisa da base de conhecimento FastGPT, pode pesquisar conteúdo da base de conhecimento FastGPT"
     },
     "deepchat-inmemory/custom-prompts-server": {
-      "desc": "Serviço de prompts personalizados integrado ao MioAgent",
+      "desc": "Serviço de prompts personalizados integrado ao MioWork",
       "name": "Prompts Personalizados"
     },
     "deepchat-inmemory/deep-research-server": {
-      "desc": "Pesquisa profunda integrada ao MioAgent alimentada pela Pesquisa Bocha. Modelos de contexto longo são recomendados.",
+      "desc": "Pesquisa profunda integrada ao MioWork alimentada pela Pesquisa Bocha. Modelos de contexto longo são recomendados.",
       "name": "DeepResearch"
     },
     "deepchat-inmemory/auto-prompting-server": {
@@ -184,10 +184,10 @@
     },
     "deepchat-inmemory/conversation-search-server": {
       "name": "Pesquisa no Histórico de Conversas",
-      "desc": "Pesquisa integrada ao MioAgent para histórico de conversas e mensagens anteriores."
+      "desc": "Pesquisa integrada ao MioWork para histórico de conversas e mensagens anteriores."
     },
     "builtinKnowledge": {
-      "desc": "Pesquisa na base de conhecimento integrada do MioAgent para documentação e guias.",
+      "desc": "Pesquisa na base de conhecimento integrada do MioWork para documentação e guias.",
       "name": "Pesquisa na base de conhecimento integrada"
     },
     "deepchat/apple-server": {

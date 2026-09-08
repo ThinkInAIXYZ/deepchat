@@ -379,7 +379,7 @@ export class DiscordRuntime {
 
     if (routed.conversation) {
       await this.safeRespondToInteraction(message, [
-        'Slash commands do not support free-form prompts. Send a regular message to chat with MioAgent.'
+        'Slash commands do not support free-form prompts. Send a regular message to chat with MioWork.'
       ])
       return
     }

@@ -53,7 +53,7 @@ const {
     agents: [
       {
         id: 'deepchat',
-        name: 'MioAgent',
+        name: 'MioWork',
         type: 'deepchat' as const,
         enabled: true,
         avatar: null

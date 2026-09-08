@@ -655,7 +655,7 @@ describe('ProviderImportService', () => {
     )
   })
 
-  it('does not select providers by default when MioAgent already has a config', async () => {
+  it('does not select providers by default when MioWork already has a config', async () => {
     homeDir = createHome()
     writeFile(
       path.join(homeDir, '.hermes/config.yaml'),

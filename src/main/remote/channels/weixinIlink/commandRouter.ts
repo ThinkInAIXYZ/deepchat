@@ -190,7 +190,7 @@ export class WeixinIlinkCommandRouter {
               openResult.status === 'ok'
                 ? `Opened on desktop: ${this.formatSessionLabel(openResult.session)}`
                 : openResult.status === 'windowNotFound'
-                  ? 'Could not find a MioAgent desktop window. Open MioAgent and try /open again.'
+                  ? 'Could not find a MioWork desktop window. Open MioWork and try /open again.'
                   : 'No bound session. Send a message, /new, or /use first.'
             ]
           }
@@ -211,7 +211,7 @@ export class WeixinIlinkCommandRouter {
           return {
             replies: [
               [
-                'MioAgent Weixin iLink Remote',
+                'MioWork Weixin iLink Remote',
                 `Runtime: ${runtime.state}`,
                 `Account: ${message.accountId}`,
                 `Owner: ${account?.ownerUserId ?? 'unknown'}`,
@@ -351,7 +351,7 @@ export class WeixinIlinkCommandRouter {
     return {
       replies: [
         [
-          `Agent switched to ${result.agent.agentName} [${result.agent.agentId}] (${result.agent.agentType === 'acp' ? 'ACP' : 'MioAgent'}).`,
+          `Agent switched to ${result.agent.agentName} [${result.agent.agentId}] (${result.agent.agentType === 'acp' ? 'ACP' : 'MioWork'}).`,
           `Started a new session: ${this.formatSessionLabel(result.session)}`,
           result.session.providerId
             ? `Provider / Model: ${result.session.providerId} / ${result.session.modelId || 'none'}`
@@ -495,7 +495,7 @@ export class WeixinIlinkCommandRouter {
 
   private formatStartMessage(isAuthorized: boolean, accountId: string): string {
     return [
-      'MioAgent Weixin iLink Remote',
+      'MioWork Weixin iLink Remote',
       `Account: ${accountId}`,
       isAuthorized
         ? 'This owner account is authorized to control the current bot.'
@@ -540,7 +540,7 @@ export class WeixinIlinkCommandRouter {
       'Available agents:',
       ...agents.map(
         (agent) =>
-          `- ${agent.agentName} [${agent.agentId}] (${agent.agentType === 'acp' ? 'ACP' : 'MioAgent'}${agent.source ? `, ${agent.source}` : ''})`
+          `- ${agent.agentName} [${agent.agentId}] (${agent.agentType === 'acp' ? 'ACP' : 'MioWork'}${agent.source ? `, ${agent.source}` : ''})`
       )
     ].join('\n')
   }

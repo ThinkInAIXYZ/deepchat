@@ -683,8 +683,8 @@ describe('UpgradeService', () => {
         version: '1.1.0',
         releaseDate: '2026-07-25T11:28:19.451Z',
         releaseNotes: 'Release notes',
-        githubUrl: 'https://github.com/chenjiaqiangmax/mioagent/releases/tag/v1.1.0',
-        downloadUrl: 'https://github.com/chenjiaqiangmax/mioagent/releases',
+        githubUrl: 'https://github.com/chenjiaqiangmax/miowork/releases/tag/v1.1.0',
+        downloadUrl: 'https://github.com/chenjiaqiangmax/miowork/releases',
         timestamp: Date.now()
       })
     )

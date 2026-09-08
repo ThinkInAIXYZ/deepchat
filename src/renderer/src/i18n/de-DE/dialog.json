@@ -69,7 +69,7 @@
     "moveAndDeleteAgent": "Verschieben und Agent löschen",
     "moveConversation": "Unterhaltung verschieben",
     "agentType": {
-      "deepchat": "MioAgent",
+      "deepchat": "MioWork",
       "acp": "ACP"
     },
     "blockReason": {
@@ -84,7 +84,7 @@
       "draft": "Entwurf",
       "subagent": "Unteragent"
     },
-    "deepChatTargetOnly": "Nur MioAgent-Agents können als Verschiebeziele ausgewählt werden. ACP-Unterhaltungen können zu MioAgent verschoben werden, aber nicht in ACP."
+    "deepChatTargetOnly": "Nur MioWork-Agents können als Verschiebeziele ausgewählt werden. ACP-Unterhaltungen können zu MioWork verschoben werden, aber nicht in ACP."
   },
   "deleteMessage": {
     "title": "Diese Nachricht löschen?",

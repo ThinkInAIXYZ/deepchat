@@ -117,7 +117,7 @@ async function mountDetail(
   const pluginRecord = {
     id: pluginId,
     name: pluginName,
-    publisher: 'MioAgent',
+    publisher: 'MioWork',
     version: '1.0.4',
     enabled: options.enabled ?? false,
     activationError: options.activationError,
@@ -256,7 +256,7 @@ describe('OfficialPluginDetailPage', () => {
     const { wrapper } = await mountDetail()
 
     expect(wrapper.text()).toContain('Feishu localized description')
-    expect(wrapper.text()).not.toContain('MioAgent · com.deepchat.plugins.feishu')
+    expect(wrapper.text()).not.toContain('MioWork · com.deepchat.plugins.feishu')
   })
 
   it('uses the remote channel icon color on remote virtual plugin details', async () => {
@@ -279,7 +279,7 @@ describe('OfficialPluginDetailPage', () => {
     const { wrapper } = await mountDetail({ pluginId: 'com.deepchat.plugins.cua' })
 
     expect(wrapper.text()).toContain('CUA localized description')
-    expect(wrapper.text()).not.toContain('MioAgent · com.deepchat.plugins.cua')
+    expect(wrapper.text()).not.toContain('MioWork · com.deepchat.plugins.cua')
   })
 
   it('uses a distinct runtime state label without internal capabilities', async () => {

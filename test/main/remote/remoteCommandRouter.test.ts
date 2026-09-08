@@ -367,7 +367,7 @@ describe('RemoteCommandRouter', () => {
     )
 
     expect(result).toEqual({
-      replies: ['Could not find a MioAgent desktop window. Open MioAgent and try /open again.']
+      replies: ['Could not find a MioWork desktop window. Open MioWork and try /open again.']
     })
   })
 
@@ -934,7 +934,7 @@ describe('RemoteCommandRouter', () => {
       listAvailableAgents: vi.fn().mockResolvedValue([
         {
           agentId: 'deepchat',
-          agentName: 'MioAgent',
+          agentName: 'MioWork',
           agentType: 'deepchat',
           source: 'builtin'
         },
@@ -975,7 +975,7 @@ describe('RemoteCommandRouter', () => {
         text: expect.stringContaining('Choose an agent'),
         replyMarkup: {
           inline_keyboard: expect.arrayContaining([
-            [expect.objectContaining({ text: expect.stringContaining('MioAgent') })]
+            [expect.objectContaining({ text: expect.stringContaining('MioWork') })]
           ])
         }
       })

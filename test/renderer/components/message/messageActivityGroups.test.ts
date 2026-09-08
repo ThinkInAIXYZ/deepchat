@@ -107,7 +107,7 @@ describe('messageActivityGroups', () => {
         createBlock('reasoning_content', { content: 'checking sources', timestamp: 10_000 }),
         createBlock('search', {
           id: 'ws_1',
-          content: 'MioAgent',
+          content: 'MioWork',
           timestamp: 20_000,
           extra: { actionType: 'search' }
         }),

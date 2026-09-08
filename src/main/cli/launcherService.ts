@@ -43,8 +43,8 @@ export type CliLauncherStatus = Readonly<{
 
 const LAUNCHER_MARKER_VERSION = 1
 const LAUNCHER_MARKER_FILENAME = 'launcher.json'
-const MANAGED_BLOCK_START = '# >>> MioAgent CLI >>>'
-const MANAGED_BLOCK_END = '# <<< MioAgent CLI <<<'
+const MANAGED_BLOCK_START = '# >>> MioWork CLI >>>'
+const MANAGED_BLOCK_END = '# <<< MioWork CLI <<<'
 const MAX_MARKER_BYTES = 16 * 1024
 const MAX_SHELL_CONFIG_BYTES = 1024 * 1024
 
@@ -237,7 +237,7 @@ function createPosixCommand(source: CliSource): string {
     'electron_host=' + quotePosixLiteral(source.electronHost),
     'cli_module=' + quotePosixLiteral(source.modulePath),
     'if [ ! -f "$electron_host" ] || [ ! -x "$electron_host" ] || [ ! -f "$cli_module" ]; then',
-    '  echo "MioAgent CLI bundled resources are unavailable." >&2',
+    '  echo "MioWork CLI bundled resources are unavailable." >&2',
     '  exit 127',
     'fi',
     'ELECTRON_RUN_AS_NODE=1 exec "$electron_host" "$cli_module" "$@"',
@@ -260,7 +260,7 @@ function createWindowsCommand(source: CliSource): string {
     '"%electron_host%" "%cli_module%" %*',
     'exit /b %errorlevel%',
     ':missing_runtime',
-    'echo MioAgent CLI bundled resources are unavailable. 1>&2',
+    'echo MioWork CLI bundled resources are unavailable. 1>&2',
     'exit /b 127',
     ''
   ].join('\r\n')
@@ -336,10 +336,10 @@ export class CliLauncherService {
     const resolvedDirectory = path.resolve(directory)
     const appRoot = resolveCliAppRoot(resolvedDirectory)
     const hostCandidates = [
-      path.join(appRoot, 'MacOS', 'MioAgent'),
+      path.join(appRoot, 'MacOS', 'MioWork'),
       path.join(appRoot, 'deepchat.bin'),
-      path.join(appRoot, 'MioAgent.exe'),
-      path.join(appRoot, 'MioAgent'),
+      path.join(appRoot, 'MioWork.exe'),
+      path.join(appRoot, 'MioWork'),
       path.join(appRoot, 'deepchat'),
       path.join(
         appRoot,
@@ -564,16 +564,16 @@ export class CliLauncherService {
 
   private async installOrRepair(): Promise<void> {
     if (!this.isSupportedPlatform || !this.commandPath) {
-      throw new Error('MioAgent CLI launcher installation is not supported on this platform')
+      throw new Error('MioWork CLI launcher installation is not supported on this platform')
     }
     const source = await this.resolveSource()
-    if (!source) throw new Error('The bundled MioAgent CLI is unavailable')
+    if (!source) throw new Error('The bundled MioWork CLI is unavailable')
     if (this.platform === 'win32' && !this.isCommandDirectoryOnPath()) {
       throw new Error('The Windows user command directory is not available on PATH')
     }
     const markerResult = await this.readMarker()
     if (markerResult.state === 'invalid') {
-      throw new Error('The MioAgent CLI ownership marker is invalid')
+      throw new Error('The MioWork CLI ownership marker is invalid')
     }
 
     let previousMarker: LauncherMarker | null = null
@@ -587,29 +587,29 @@ export class CliLauncherService {
         previousMarker.platform !== expectedPlatform ||
         !pathsEqual(previousMarker.commandPath, this.commandPath, this.platform)
       ) {
-        throw new Error('The MioAgent CLI ownership marker does not match this installation')
+        throw new Error('The MioWork CLI ownership marker does not match this installation')
       }
       profileKind = previousMarker.platform === 'posix' ? previousMarker.profileKind : null
     } else {
       if (await this.pathEntryExists(this.commandPath)) {
-        throw new Error('A MioAgent CLI command or shell block exists without an ownership marker')
+        throw new Error('A MioWork CLI command or shell block exists without an ownership marker')
       }
       profileKind = this.platform === 'win32' ? null : await this.selectProfileKind()
       const orphanedProfile = await this.findUnownedProfileConflict(profileKind)
       if (orphanedProfile && orphanedProfile.blockState !== 'too-large') {
-        throw new Error('A MioAgent CLI command or shell block exists without an ownership marker')
+        throw new Error('A MioWork CLI command or shell block exists without an ownership marker')
       }
       if (orphanedProfile?.blockState === 'too-large') {
-        throw new Error('The MioAgent CLI shell configuration exceeds the supported size')
+        throw new Error('The MioWork CLI shell configuration exceeds the supported size')
       }
     }
 
     const profile = this.platform === 'win32' ? null : await this.inspectProfile(profileKind)
     if (profile?.blockState === 'too-large') {
-      throw new Error('The MioAgent CLI shell configuration exceeds the supported size')
+      throw new Error('The MioWork CLI shell configuration exceeds the supported size')
     }
     if (profile?.blockState === 'modified') {
-      throw new Error('The managed MioAgent CLI shell block has been modified')
+      throw new Error('The managed MioWork CLI shell block has been modified')
     }
 
     const previousCommand = await this.captureOwnedCommand(previousMarker)
@@ -634,7 +634,7 @@ export class CliLauncherService {
         previousMarker.profilePrefixLength
       )
     ) {
-      throw new Error('The managed MioAgent CLI shell block prefix has been modified')
+      throw new Error('The managed MioWork CLI shell block prefix has been modified')
     }
     const nextProfileContent = appendedProfile?.content ?? previousProfileContent
     const nextMarker = this.markerForSource(
@@ -676,11 +676,11 @@ export class CliLauncherService {
   private async uninstall(): Promise<void> {
     const commandPath = this.commandPath
     if (!this.isSupportedPlatform || !commandPath) {
-      throw new Error('MioAgent CLI launcher removal is not supported on this platform')
+      throw new Error('MioWork CLI launcher removal is not supported on this platform')
     }
     const markerResult = await this.readMarker()
     if (markerResult.state === 'invalid') {
-      throw new Error('The MioAgent CLI ownership marker is invalid')
+      throw new Error('The MioWork CLI ownership marker is invalid')
     }
     if (markerResult.state === 'missing') {
       if (await this.pathEntryExists(commandPath)) {
@@ -693,7 +693,7 @@ export class CliLauncherService {
       }
       if (orphanedProfile?.blockState === 'too-large') {
         throw new Error(
-          'Cannot inspect the MioAgent CLI shell configuration because it is too large'
+          'Cannot inspect the MioWork CLI shell configuration because it is too large'
         )
       }
       return
@@ -705,12 +705,12 @@ export class CliLauncherService {
       marker.platform !== expectedPlatform ||
       !pathsEqual(marker.commandPath, commandPath, this.platform)
     ) {
-      throw new Error('The MioAgent CLI ownership marker does not match this installation')
+      throw new Error('The MioWork CLI ownership marker does not match this installation')
     }
     const profile =
       marker.platform === 'posix' ? await this.inspectProfile(marker.profileKind) : null
     if (profile?.blockState === 'too-large') {
-      throw new Error('Cannot inspect the MioAgent CLI shell configuration because it is too large')
+      throw new Error('Cannot inspect the MioWork CLI shell configuration because it is too large')
     }
     if (
       profile?.blockState === 'modified' ||
@@ -722,7 +722,7 @@ export class CliLauncherService {
           marker.profilePrefixLength
         ))
     ) {
-      throw new Error('Refusing to edit a modified MioAgent CLI shell block')
+      throw new Error('Refusing to edit a modified MioWork CLI shell block')
     }
     const previousCommand = await this.captureOwnedCommand(marker)
     const previousProfileContent = profile?.exists ? profile.content : null
@@ -941,7 +941,7 @@ export class CliLauncherService {
     const command = await this.readOwnedCommand()
     if (command === null) return null
     if (!marker || !this.commandMatchesMarker(command, marker)) {
-      throw new Error('Refusing to replace an unowned MioAgent CLI command')
+      throw new Error('Refusing to replace an unowned MioWork CLI command')
     }
     return command
   }
@@ -1041,7 +1041,7 @@ export class CliLauncherService {
         return { kind: 'link', value: path.resolve(path.dirname(commandPath), target) }
       }
       if (!stats.isFile() || stats.size > 64 * 1024) {
-        throw new Error('MioAgent CLI command is not an owned launcher')
+        throw new Error('MioWork CLI command is not an owned launcher')
       }
       return {
         kind: 'text',
@@ -1060,7 +1060,7 @@ export class CliLauncherService {
     try {
       const stats = await lstat(commandPath)
       if (!stats.isFile() || stats.size > 64 * 1024) {
-        throw new Error('MioAgent CLI command is not an owned launcher file')
+        throw new Error('MioWork CLI command is not an owned launcher file')
       }
       return await readFile(commandPath, 'utf8')
     } catch (error) {

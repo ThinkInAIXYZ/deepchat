@@ -1,6 +1,6 @@
-# MioAgent
+# MioWork
 
-MioAgent，一个简单易用的 Agent 客户端。基于开源项目 [DeepChat](https://github.com/ThinkInAIXYZ/deepchat)（Apache-2.0）的二次开发发行版，品牌与发布渠道由本仓库的 OEM 层管理。
+MioWork，一个简单易用的 Agent 客户端。基于开源项目 [DeepChat](https://github.com/ThinkInAIXYZ/deepchat)（Apache-2.0）的二次开发发行版，品牌与发布渠道由本仓库的 OEM 层管理。
 
 ## OEM 结构
 

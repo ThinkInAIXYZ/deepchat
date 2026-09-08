@@ -50,7 +50,7 @@ const createHarness = async (options?: {
   const client = {
     probeBot: vi.fn().mockResolvedValue({
       openId: 'ou_bot',
-      name: 'MioAgent Bot'
+      name: 'MioWork Bot'
     }),
     startMessageStream: vi
       .fn()
@@ -954,7 +954,7 @@ describe('FeishuRuntime', () => {
     }
   })
 
-  it('appends later process and answer segments in MioAgent order instead of rewriting the first answer', async () => {
+  it('appends later process and answer segments in MioWork order instead of rewriting the first answer', async () => {
     vi.useFakeTimers()
 
     try {

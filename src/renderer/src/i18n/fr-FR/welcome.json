@@ -2,7 +2,7 @@
   "steps": {
     "welcome": {
       "title": "Bienvenue",
-      "description": "Commençons la configuration de MioAgent"
+      "description": "Commençons la configuration de MioWork"
     },
     "provider": {
       "title": "Fournisseur de modèles",
@@ -17,7 +17,7 @@
       "description": "Tout est prêt !"
     }
   },
-  "title": "Bienvenue sur MioAgent",
+  "title": "Bienvenue sur MioWork",
   "description": "Terminons le processus de configuration",
   "provider": {
     "select": "Sélectionner le fournisseur",
@@ -35,7 +35,7 @@
     "back": "Retour"
   },
   "page": {
-    "title": "Bienvenue dans MioAgent Agent",
+    "title": "Bienvenue dans MioWork Agent",
     "description": "Connectez un fournisseur de modèles pour commencer",
     "guide": {
       "title": "Guide de configuration",
@@ -72,8 +72,8 @@
   },
   "agentPage": {
     "title": "Choisissez un agent pour commencer à créer",
-    "deepchatType": "Agent MioAgent",
+    "deepchatType": "Agent MioWork",
     "acpType": "Agent ACP",
-    "manageAgents": "Gérer les agents MioAgent"
+    "manageAgents": "Gérer les agents MioWork"
   }
 }

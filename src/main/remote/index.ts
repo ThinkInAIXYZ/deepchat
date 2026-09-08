@@ -2365,11 +2365,11 @@ export class RemoteService {
 <html>
   <head>
     <meta charset="utf-8">
-    <title>MioAgent Feishu Authorization</title>
+    <title>MioWork Feishu Authorization</title>
   </head>
   <body style="font-family: system-ui, sans-serif; padding: 32px;">
     <h2>${success ? 'Authorization complete' : 'Authorization failed'}</h2>
-    <p>${success ? 'You can close this window and return to MioAgent.' : 'Return to MioAgent and try again.'}</p>
+    <p>${success ? 'You can close this window and return to MioWork.' : 'Return to MioWork and try again.'}</p>
   </body>
 </html>`)
   }
@@ -2583,7 +2583,7 @@ export class RemoteService {
     void notifications
       .showNotification({
         id: `remote-delivery-error:${channel}`,
-        title: `MioAgent ${channelLabel} Remote`,
+        title: `MioWork ${channelLabel} Remote`,
         body: message
       })
       .then((notificationId) => {

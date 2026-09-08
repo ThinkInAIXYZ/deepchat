@@ -60,32 +60,32 @@ class ExposedProvider extends Provider {
 describe.sequential('installed electron-updater architecture compatibility', () => {
   it('selects the architecture-specific Windows NSIS executable', () => {
     const files = resolvedFiles([
-      'MioAgent-1.2.3-windows-x64.exe',
-      'MioAgent-1.2.3-windows-arm64.exe'
+      'MioWork-1.2.3-windows-x64.exe',
+      'MioWork-1.2.3-windows-arm64.exe'
     ])
 
     expect(withProcessArch('x64', () => findFile(files, 'exe')?.info.url)).toBe(
-      'MioAgent-1.2.3-windows-x64.exe'
+      'MioWork-1.2.3-windows-x64.exe'
     )
     expect(withProcessArch('arm64', () => findFile(files, 'exe')?.info.url)).toBe(
-      'MioAgent-1.2.3-windows-arm64.exe'
+      'MioWork-1.2.3-windows-arm64.exe'
     )
   })
 
   it('filters macOS by architecture and keeps ZIP as the updater payload', () => {
     const files = resolvedFiles([
-      'MioAgent-1.2.3-mac-x64.dmg',
-      'MioAgent-1.2.3-mac-x64.zip',
-      'MioAgent-1.2.3-mac-arm64.dmg',
-      'MioAgent-1.2.3-mac-arm64.zip'
+      'MioWork-1.2.3-mac-x64.dmg',
+      'MioWork-1.2.3-mac-x64.zip',
+      'MioWork-1.2.3-mac-arm64.dmg',
+      'MioWork-1.2.3-mac-arm64.zip'
     ])
     const filterFilesForArch = MacUpdater.filterFilesForArch.bind(MacUpdater)
 
     expect(findFile(filterFilesForArch(files, false), 'zip', ['pkg', 'dmg'])?.info.url).toBe(
-      'MioAgent-1.2.3-mac-x64.zip'
+      'MioWork-1.2.3-mac-x64.zip'
     )
     expect(findFile(filterFilesForArch(files, true), 'zip', ['pkg', 'dmg'])?.info.url).toBe(
-      'MioAgent-1.2.3-mac-arm64.zip'
+      'MioWork-1.2.3-mac-arm64.zip'
     )
   })
 

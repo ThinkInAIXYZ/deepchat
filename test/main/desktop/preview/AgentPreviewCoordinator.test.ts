@@ -25,7 +25,7 @@ class MockBrowserWindow extends EventEmitter {
   }
 
   getTitle() {
-    return 'MioAgent'
+    return 'MioWork'
   }
 
   getContentBounds() {
@@ -64,7 +64,7 @@ describe('AgentPreviewCoordinator', () => {
 
     vi.doMock('electron', () => ({
       app: {
-        getName: () => 'MioAgent'
+        getName: () => 'MioWork'
       },
       screen
     }))

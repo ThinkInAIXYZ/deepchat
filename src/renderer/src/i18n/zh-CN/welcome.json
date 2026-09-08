@@ -2,7 +2,7 @@
   "steps": {
     "welcome": {
       "title": "欢迎",
-      "description": "让我们开始设置 MioAgent"
+      "description": "让我们开始设置 MioWork"
     },
     "provider": {
       "title": "模型服务商",
@@ -17,7 +17,7 @@
       "description": "一切就绪，可以开始使用了！"
     }
   },
-  "title": "欢迎使用 MioAgent",
+  "title": "欢迎使用 MioWork",
   "description": "让我们一起完成设置过程",
   "provider": {
     "select": "选择服务商",
@@ -35,7 +35,7 @@
     "back": "返回"
   },
   "page": {
-    "title": "欢迎使用 MioAgent Agent",
+    "title": "欢迎使用 MioWork Agent",
     "description": "连接一个模型服务商即可开始使用",
     "guide": {
       "title": "引导进度",
@@ -72,8 +72,8 @@
   },
   "agentPage": {
     "title": "选择 Agent 开始创作",
-    "deepchatType": "MioAgent Agent",
+    "deepchatType": "MioWork Agent",
     "acpType": "ACP Agent",
-    "manageAgents": "管理 MioAgent Agent"
+    "manageAgents": "管理 MioWork Agent"
   }
 }

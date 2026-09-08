@@ -2,7 +2,7 @@
   "steps": {
     "welcome": {
       "title": "환영합니다",
-      "description": "MioAgent 설정을 시작합시다"
+      "description": "MioWork 설정을 시작합시다"
     },
     "provider": {
       "title": "모델 서비스 제공업체",
@@ -17,7 +17,7 @@
       "description": "모든 설정이 완료되었습니다!"
     }
   },
-  "title": "MioAgent에 오신 것을 환영합니다",
+  "title": "MioWork에 오신 것을 환영합니다",
   "description": "설정 과정을 완료합시다",
   "provider": {
     "select": "서비스 제공업체 선택",
@@ -35,7 +35,7 @@
     "back": "뒤로"
   },
   "page": {
-    "title": "MioAgent Agent에 오신 것을 환영합니다",
+    "title": "MioWork Agent에 오신 것을 환영합니다",
     "description": "시작하려면 모델 제공자를 연결하세요",
     "guide": {
       "title": "설정 가이드",
@@ -72,8 +72,8 @@
   },
   "agentPage": {
     "title": "에이전트를 선택해 제작 시작",
-    "deepchatType": "MioAgent 에이전트",
+    "deepchatType": "MioWork 에이전트",
     "acpType": "ACP 에이전트",
-    "manageAgents": "MioAgent 에이전트 관리"
+    "manageAgents": "MioWork 에이전트 관리"
   }
 }

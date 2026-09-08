@@ -80,7 +80,7 @@ describe('agent store incremental refresh', () => {
   it('refreshes only scoped ACP agents when agentIds are provided', async () => {
     const { store, sessionClient, configClient, emitAgentsChanged } = await setupStore({
       initialAgents: [
-        createAgent('deepchat', { name: 'MioAgent' }),
+        createAgent('deepchat', { name: 'MioWork' }),
         createAgent('acp-1', { name: 'ACP Agent One', description: 'before' })
       ],
       listAgentsResult: [createAgent('acp-1', { name: 'ACP Agent One+', description: 'after' })]
@@ -102,7 +102,7 @@ describe('agent store incremental refresh', () => {
       ids: ['acp-1']
     })
     expect(store.agents.value.map((agent) => [agent.id, agent.name])).toEqual([
-      ['deepchat', 'MioAgent'],
+      ['deepchat', 'MioWork'],
       ['acp-1', 'ACP Agent One+']
     ])
   })
@@ -110,7 +110,7 @@ describe('agent store incremental refresh', () => {
   it('removes deleted ACP agents without refetching the full agent list', async () => {
     const { store, sessionClient, configClient, emitAgentsChanged } = await setupStore({
       initialAgents: [
-        createAgent('deepchat', { name: 'MioAgent' }),
+        createAgent('deepchat', { name: 'MioWork' }),
         createAgent('acp-1', { name: 'ACP Agent One' }),
         createAgent('acp-2', { name: 'ACP Agent Two' })
       ],
@@ -137,7 +137,7 @@ describe('agent store incremental refresh', () => {
 
   it('falls back to a full refresh when the change is not scoped', async () => {
     const { store, sessionClient, emitAgentsChanged } = await setupStore({
-      initialAgents: [createAgent('deepchat', { name: 'MioAgent' })]
+      initialAgents: [createAgent('deepchat', { name: 'MioWork' })]
     })
 
     await store.fetchAgents()

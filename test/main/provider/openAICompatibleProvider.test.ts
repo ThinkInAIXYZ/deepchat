@@ -23,7 +23,7 @@ const {
 
 vi.mock('electron', () => ({
   app: {
-    getName: vi.fn(() => 'MioAgent'),
+    getName: vi.fn(() => 'MioWork'),
     getVersion: vi.fn(() => '0.0.0-test'),
     getPath: vi.fn(() => '/mock/path'),
     isReady: vi.fn(() => true),

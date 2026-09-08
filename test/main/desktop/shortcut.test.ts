@@ -23,7 +23,7 @@ const presenterMock = vi.hoisted(() => ({
 
 vi.mock('electron', () => ({
   app: {
-    getName: vi.fn(() => 'MioAgent'),
+    getName: vi.fn(() => 'MioWork'),
     getLocale: vi.fn(() => 'en-US'),
     getSystemLocale: vi.fn(() => 'en-US'),
     quit: vi.fn()

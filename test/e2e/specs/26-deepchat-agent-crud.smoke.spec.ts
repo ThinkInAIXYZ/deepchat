@@ -3,7 +3,7 @@ import { test, expect } from '../fixtures/electronApp'
 import { openSettings, openSettingsTab } from '../helpers/settings'
 import { waitForAppReady } from '../helpers/wait'
 
-const TEST_AGENT_PREFIX = 'MioAgent E2E Temp Agent'
+const TEST_AGENT_PREFIX = 'MioWork E2E Temp Agent'
 
 type AgentSnapshot = {
   id?: unknown

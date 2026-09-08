@@ -93,12 +93,12 @@ function createRawSearchItem() {
     status: 'completed',
     action: {
       type: 'search',
-      query: 'MioAgent',
+      query: 'MioWork',
       sources: [
         {
           type: 'url',
           url: 'https://deepchat.thinkinai.xyz/',
-          title: 'MioAgent',
+          title: 'MioWork',
           snippet: 'A privacy-first AI chat client.'
         }
       ]
@@ -230,12 +230,12 @@ describe('DeepSeek Responses stream projection', () => {
 
     expect(projected).toMatchObject({
       id: 'ws_1',
-      action: { type: 'search', target: 'MioAgent' },
-      label: 'MioAgent',
+      action: { type: 'search', target: 'MioWork' },
+      label: 'MioWork',
       provider: 'deepseek',
       results: [
         {
-          title: 'MioAgent',
+          title: 'MioWork',
           url: 'https://deepchat.thinkinai.xyz/',
           snippet: 'A privacy-first AI chat client.',
           rank: 0,
@@ -716,7 +716,7 @@ describe('DeepSeek Responses replay', () => {
     await expect(
       generateText({
         model: createProviderContext(adapter).model,
-        messages: [{ role: 'user', content: 'Find the latest MioAgent release.' }],
+        messages: [{ role: 'user', content: 'Find the latest MioWork release.' }],
         maxRetries: 0
       })
     ).rejects.toThrow('request captured')
@@ -870,7 +870,7 @@ describe('DeepSeek Responses replay', () => {
     if (!replay) throw new Error('Expected DeepSeek replay marker')
 
     const messages: ChatMessage[] = [
-      { role: 'user', content: 'Find MioAgent.' },
+      { role: 'user', content: 'Find MioWork.' },
       {
         role: 'assistant',
         content: 'Before the search item.',
@@ -890,7 +890,7 @@ describe('DeepSeek Responses replay', () => {
           }
         ]
       },
-      { role: 'tool', tool_call_id: 'tc_1', content: '# MioAgent' },
+      { role: 'tool', tool_call_id: 'tc_1', content: '# MioWork' },
       { role: 'assistant', content: 'The tool confirmed the result.' },
       { role: 'user', content: 'What was the result?' }
     ]
@@ -1161,7 +1161,7 @@ describe('DeepSeek Responses replay', () => {
             id: 'tc_1',
             name: 'read_file',
             params: '{"path":"README.md"}',
-            response: '# MioAgent'
+            response: '# MioWork'
           }
         },
         {
@@ -1172,7 +1172,7 @@ describe('DeepSeek Responses replay', () => {
         },
         {
           type: 'content',
-          content: 'MioAgent is a desktop AI client.',
+          content: 'MioWork is a desktop AI client.',
           status: 'success',
           timestamp: 1
         }

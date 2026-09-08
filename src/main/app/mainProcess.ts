@@ -35,7 +35,7 @@ export async function startMainProcess(
   await splashWindow.create()
 
   try {
-    electronApp.setAppUserModelId('com.mioagent.app')
+    electronApp.setAppUserModelId('com.miowork.app')
     const settingsStore = createSettingsStore()
     setMainLoggingEnabled(settingsStore.get<boolean>('loggingEnabled') ?? false)
     const secretStore = new SecretStore(settingsStore)

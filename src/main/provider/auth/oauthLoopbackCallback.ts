@@ -2,7 +2,7 @@ import * as http from 'http'
 import { URL } from 'url'
 
 export const OAUTH_CALLBACK_COMPLETE_TEXT =
-  'Authentication complete. You can return to MioAgent. If MioAgent does not update, copy the full URL from your browser and paste it into MioAgent.'
+  'Authentication complete. You can return to MioWork. If MioWork does not update, copy the full URL from your browser and paste it into MioWork.'
 
 export type OAuthLoopbackCallbackResolution =
   | { kind: 'not-found' }
@@ -32,7 +32,7 @@ function writeCallbackPage(response: http.ServerResponse, success: boolean): voi
   const title = success ? 'Authentication complete' : 'Authentication failed'
   const message = success
     ? OAUTH_CALLBACK_COMPLETE_TEXT
-    : 'MioAgent rejected this authentication callback. Return to MioAgent and try again.'
+    : 'MioWork rejected this authentication callback. Return to MioWork and try again.'
   response.writeHead(success ? 200 : 400, {
     'Content-Type': 'text/html; charset=utf-8',
     'Cache-Control': 'no-store',

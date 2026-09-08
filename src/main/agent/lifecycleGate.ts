@@ -11,7 +11,7 @@ export class AgentLifecycleGate implements AgentLifecycleGatePort {
   async runWithAgentOperation<T>(agentId: string, operation: () => Promise<T>): Promise<T> {
     const normalizedAgentId = this.normalizeAgentId(agentId)
     if (this.deletingAgentIds.has(normalizedAgentId)) {
-      throw new Error(`MioAgent Agent is being deleted: ${normalizedAgentId}`)
+      throw new Error(`MioWork Agent is being deleted: ${normalizedAgentId}`)
     }
 
     this.activeOperations.set(
@@ -28,7 +28,7 @@ export class AgentLifecycleGate implements AgentLifecycleGatePort {
   async runWithAgentDeletion<T>(agentId: string, deletion: () => Promise<T>): Promise<T> {
     const normalizedAgentId = this.normalizeAgentId(agentId)
     if (this.deletingAgentIds.has(normalizedAgentId)) {
-      throw new Error(`MioAgent Agent deletion is already in progress: ${normalizedAgentId}`)
+      throw new Error(`MioWork Agent deletion is already in progress: ${normalizedAgentId}`)
     }
 
     this.deletingAgentIds.add(normalizedAgentId)

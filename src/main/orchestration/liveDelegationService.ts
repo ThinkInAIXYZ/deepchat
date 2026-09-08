@@ -1982,7 +1982,7 @@ export class LiveDelegationService {
 function buildTurnHandoff(delegation: LiveDelegation, turn: LiveDelegationTurn): string {
   const [handoffSection, ...remainingSections] = LIVE_DELEGATION_REQUIRED_HANDOFF_SECTIONS
   return [
-    '# MioAgent Live Delegation',
+    '# MioWork Live Delegation',
     '',
     `Delegation: ${delegation.id}`,
     `Turn: ${turn.seq}`,

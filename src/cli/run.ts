@@ -188,7 +188,7 @@ function parseStreamEventData(
   if (!parsed?.success) {
     throw new CliClientError(
       'internal_error',
-      'MioAgent emitted an invalid stream event',
+      'MioWork emitted an invalid stream event',
       CLI_EXIT_CODES.internal
     )
   }
@@ -196,7 +196,7 @@ function parseStreamEventData(
   if (!data.success) {
     throw new CliClientError(
       'internal_error',
-      'MioAgent emitted a non-JSON stream event',
+      'MioWork emitted a non-JSON stream event',
       CLI_EXIT_CODES.internal
     )
   }
@@ -206,7 +206,7 @@ function parseStreamEventData(
   ) {
     throw new CliClientError(
       'internal_error',
-      'MioAgent emitted an event for another run',
+      'MioWork emitted an event for another run',
       CLI_EXIT_CODES.internal
     )
   }
@@ -456,7 +456,7 @@ export async function runCli(
     if (!result.success) {
       throw new CliClientError(
         'internal_error',
-        'MioAgent result did not match the command contract',
+        'MioWork result did not match the command contract',
         CLI_EXIT_CODES.internal
       )
     }

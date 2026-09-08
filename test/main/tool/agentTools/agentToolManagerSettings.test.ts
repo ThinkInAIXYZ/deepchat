@@ -52,7 +52,7 @@ vi.mock('electron', () => ({
   }
 }))
 
-describe('AgentToolManager MioAgent settings tool gating', () => {
+describe('AgentToolManager MioWork settings tool gating', () => {
   const providerSettings = {} as any
   const skillService = {
     getActiveSkills: vi.fn(),
@@ -746,7 +746,7 @@ describe('AgentToolManager MioAgent settings tool gating', () => {
     resolveConversationSessionInfo.mockResolvedValue({
       sessionId: 'conv-1',
       agentId: 'deepchat',
-      agentName: 'MioAgent',
+      agentName: 'MioWork',
       agentType: 'deepchat',
       sessionKind: 'regular',
       subagentCapability

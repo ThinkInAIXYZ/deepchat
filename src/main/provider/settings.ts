@@ -735,7 +735,7 @@ export class ProviderSettings implements ProviderSettingsPort {
           } else {
             prompts.push({
               id: 'default',
-              name: 'MioAgent',
+              name: 'MioWork',
               content: legacyDefault,
               isDefault: true,
               createdAt: now,

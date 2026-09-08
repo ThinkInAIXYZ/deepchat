@@ -43,7 +43,7 @@ function createHarness() {
 }
 
 describe('SessionAssignmentPolicy', () => {
-  it('resolves MioAgent creation precedence and normalizes persisted settings', async () => {
+  it('resolves MioWork creation precedence and normalizes persisted settings', async () => {
     const { policy } = createHarness()
 
     await expect(
@@ -162,7 +162,7 @@ describe('SessionAssignmentPolicy', () => {
     )
   })
 
-  it('inherits parent surface for self-target MioAgent subagents', async () => {
+  it('inherits parent surface for self-target MioWork subagents', async () => {
     const { policy } = createHarness()
 
     await expect(
@@ -273,7 +273,7 @@ describe('SessionAssignmentPolicy', () => {
     ).resolves.toMatchObject({ permissionMode: 'default' })
   })
 
-  it('rejects MioAgent transfer targets backed by ACP defaults', async () => {
+  it('rejects MioWork transfer targets backed by ACP defaults', async () => {
     const { policy, configs } = createHarness()
     configs.set('reviewer', {
       defaultModelPreset: { providerId: 'acp', modelId: 'claude-acp' }

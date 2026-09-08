@@ -70,7 +70,7 @@ async function setup(config: DeepChatAgentConfig = {}, resolved: DeepChatAgentCo
       {
         id: 'deepchat',
         type: 'deepchat',
-        name: 'MioAgent',
+        name: 'MioWork',
         config
       }
     ]),
@@ -298,7 +298,7 @@ describe('MemoryConfigInlinePanel', () => {
     const configClient = {
       listAgents: vi
         .fn()
-        .mockResolvedValue([{ id: 'deepchat', type: 'deepchat', name: 'MioAgent', config: {} }]),
+        .mockResolvedValue([{ id: 'deepchat', type: 'deepchat', name: 'MioWork', config: {} }]),
       resolveDeepChatAgentConfig: vi.fn().mockResolvedValue({ memoryEnabled: true }),
       updateDeepChatAgent
     }

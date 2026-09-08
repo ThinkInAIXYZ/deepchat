@@ -35,8 +35,8 @@ export class DiscordAuthGuard {
       ok: false,
       message:
         message.chatType === 'dm'
-          ? 'This Discord DM is not paired. Generate a pair code in MioAgent Remote settings, then use /pair <code>.'
-          : 'This Discord channel is not authorized. Generate a pair code in MioAgent Remote settings, then use /pair <code> in this channel.'
+          ? 'This Discord DM is not paired. Generate a pair code in MioWork Remote settings, then use /pair <code>.'
+          : 'This Discord channel is not authorized. Generate a pair code in MioWork Remote settings, then use /pair <code> in this channel.'
     }
   }
 
@@ -49,7 +49,7 @@ export class DiscordAuthGuard {
     const pairing = this.bindingStore.getDiscordPairingState()
     if (!pairing.code || !pairing.expiresAt || pairing.expiresAt <= Date.now()) {
       this.bindingStore.clearPairCode('discord')
-      return 'Pairing code is missing or expired. Generate a new code from MioAgent Remote settings.'
+      return 'Pairing code is missing or expired. Generate a new code from MioWork Remote settings.'
     }
 
     if (pairing.code !== normalizedCode) {
@@ -58,7 +58,7 @@ export class DiscordAuthGuard {
         REMOTE_PAIR_CODE_MAX_FAILURES
       )
       if (result.exhausted) {
-        return 'Too many invalid pairing attempts. The current pairing code has expired. Generate a new code from MioAgent Remote settings.'
+        return 'Too many invalid pairing attempts. The current pairing code has expired. Generate a new code from MioWork Remote settings.'
       }
       return 'Pairing code is invalid.'
     }

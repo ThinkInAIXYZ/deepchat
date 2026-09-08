@@ -76,7 +76,7 @@ export class SkillTools {
       return {
         success: false,
         name: requestedSkillName,
-        error: 'No MioAgent Agent context available'
+        error: 'No MioWork Agent context available'
       }
     }
 

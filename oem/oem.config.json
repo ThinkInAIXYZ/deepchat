@@ -1,18 +1,18 @@
 {
   "brand": {
-    "productName": "MioAgent",
-    "npmName": "mioagent",
-    "appId": "com.mioagent.app",
-    "winExecutableName": "MioAgent",
+    "productName": "MioWork",
+    "npmName": "miowork",
+    "appId": "com.miowork.app",
+    "winExecutableName": "MioWork",
     "author": "chenjiaqiangmax",
     "maintainer": "chenjiaqiangmax",
     "githubOwner": "chenjiaqiangmax",
-    "githubRepo": "mioagent",
-    "repoUrl": "https://github.com/chenjiaqiangmax/mioagent",
-    "httpReferer": "https://github.com/chenjiaqiangmax/mioagent",
-    "officialDownloadUrl": "https://github.com/chenjiaqiangmax/mioagent/releases",
-    "issuesUrl": "https://github.com/chenjiaqiangmax/mioagent/issues",
-    "description": "MioAgent，一个简单易用的 Agent 客户端"
+    "githubRepo": "miowork",
+    "repoUrl": "https://github.com/chenjiaqiangmax/miowork",
+    "httpReferer": "https://github.com/chenjiaqiangmax/miowork",
+    "officialDownloadUrl": "https://github.com/chenjiaqiangmax/miowork/releases",
+    "issuesUrl": "https://github.com/chenjiaqiangmax/miowork/issues",
+    "description": "MioWork，一个简单易用的 Agent 客户端"
   },
   "upstream": {
     "remote": "upstream",

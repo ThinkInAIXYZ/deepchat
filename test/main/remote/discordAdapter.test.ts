@@ -26,7 +26,7 @@ vi.mock('@/remote/channels/discord/discordRuntime', () => ({
         botUser: {
           id: 'bot-1',
           username: 'deepchat',
-          displayName: 'MioAgent'
+          displayName: 'MioWork'
         }
       })
     })
@@ -143,7 +143,7 @@ describe('DiscordAdapter', () => {
       botUser: {
         id: 'bot-1',
         username: 'deepchat',
-        displayName: 'MioAgent'
+        displayName: 'MioWork'
       }
     })
 

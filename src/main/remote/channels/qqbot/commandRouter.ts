@@ -152,7 +152,7 @@ export class QQBotCommandRouter {
               openResult.status === 'ok'
                 ? `Opened on desktop: ${this.formatSessionLabel(openResult.session)}`
                 : openResult.status === 'windowNotFound'
-                  ? 'Could not find a MioAgent desktop window. Open MioAgent and try /open again.'
+                  ? 'Could not find a MioWork desktop window. Open MioWork and try /open again.'
                   : 'No bound session. Send a message, /new, or /use first.'
             ]
           }
@@ -179,7 +179,7 @@ export class QQBotCommandRouter {
           return {
             replies: [
               [
-                'MioAgent QQBot Remote',
+                'MioWork QQBot Remote',
                 `Runtime: ${runtime.state}`,
                 `Default agent: ${defaultAgentId}`,
                 `Default workdir: ${normalizedWorkdir}`,
@@ -321,7 +321,7 @@ export class QQBotCommandRouter {
     return {
       replies: [
         [
-          `Agent switched to ${result.agent.agentName} [${result.agent.agentId}] (${result.agent.agentType === 'acp' ? 'ACP' : 'MioAgent'}).`,
+          `Agent switched to ${result.agent.agentName} [${result.agent.agentId}] (${result.agent.agentType === 'acp' ? 'ACP' : 'MioWork'}).`,
           `Started a new session: ${this.formatSessionLabel(result.session)}`,
           result.session.providerId
             ? `Provider / Model: ${result.session.providerId} / ${result.session.modelId || 'none'}`
@@ -459,7 +459,7 @@ export class QQBotCommandRouter {
       'Available agents:',
       ...agents.map(
         (agent) =>
-          `- ${agent.agentName} [${agent.agentId}] (${agent.agentType === 'acp' ? 'ACP' : 'MioAgent'}${agent.source ? `, ${agent.source}` : ''})`
+          `- ${agent.agentName} [${agent.agentId}] (${agent.agentType === 'acp' ? 'ACP' : 'MioWork'}${agent.source ? `, ${agent.source}` : ''})`
       )
     ].join('\n')
   }
@@ -495,27 +495,27 @@ export class QQBotCommandRouter {
   ): string {
     if (auth.ok) {
       return [
-        'MioAgent QQBot Remote is ready.',
+        'MioWork QQBot Remote is ready.',
         'Send any message to continue the bound session, or /help for commands.'
       ].join('\n')
     }
 
     if (chatType === 'group') {
       return [
-        'MioAgent QQBot Remote is online.',
+        'MioWork QQBot Remote is online.',
         'Authorize this group with /pair <code> before using group control.'
       ].join('\n')
     }
 
     return [
-      'MioAgent QQBot Remote is online.',
+      'MioWork QQBot Remote is online.',
       'Pair first from a direct message with /pair <code> before using remote control.'
     ].join('\n')
   }
 
   private formatHelpMessage(): string {
     return [
-      'MioAgent QQBot Remote commands:',
+      'MioWork QQBot Remote commands:',
       ...QQBOT_REMOTE_COMMANDS.map((item) => `/${item.command} - ${item.description}`),
       'Plain text sends to the current bound session unless a tool interaction is waiting.'
     ].join('\n')

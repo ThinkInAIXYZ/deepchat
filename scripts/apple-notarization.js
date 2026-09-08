@@ -45,7 +45,7 @@ export function createNotarizationOptions(artifactPath, env = process.env) {
 
   return {
     appPath: artifactPath,
-    keychainProfile: 'MioAgent'
+    keychainProfile: 'MioWork'
   }
 }
 

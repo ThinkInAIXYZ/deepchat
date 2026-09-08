@@ -154,7 +154,7 @@ const createProviderSettings = () => {
     }),
     getAgentType: vi.fn(async (agentId: string) => (agentId === 'acp-agent' ? 'acp' : 'deepchat')),
     listAgents: vi.fn().mockResolvedValue([
-      { id: 'deepchat', name: 'MioAgent', type: 'deepchat', enabled: true },
+      { id: 'deepchat', name: 'MioWork', type: 'deepchat', enabled: true },
       { id: 'acp-agent', name: 'ACP Agent', type: 'acp', enabled: true }
     ])
   }
@@ -228,7 +228,7 @@ describe('RemoteService', () => {
     await vi.waitFor(() => {
       expect(notifications.showNotification).toHaveBeenCalledWith({
         id: 'remote-delivery-error:feishu',
-        title: 'MioAgent Feishu Remote',
+        title: 'MioWork Feishu Remote',
         body: 'Failed to deliver reply to Feishu.'
       })
     })
@@ -908,7 +908,7 @@ describe('RemoteService', () => {
   it('falls back to the built-in deepchat agent when saving an invalid default agent', async () => {
     const providerSettings = createProviderSettings()
     const listAgents = vi.fn().mockResolvedValue([
-      { id: 'deepchat', name: 'MioAgent', type: 'deepchat', enabled: true },
+      { id: 'deepchat', name: 'MioWork', type: 'deepchat', enabled: true },
       { id: 'deepchat-alt', name: 'Alt', type: 'deepchat', enabled: false }
     ])
 
@@ -969,7 +969,7 @@ describe('RemoteService', () => {
   it('returns the SQLite agent id when candidate uses the legacy alias key', async () => {
     const providerSettings = createProviderSettings()
     const listAgents = vi.fn().mockResolvedValue([
-      { id: 'deepchat', name: 'MioAgent', type: 'deepchat', enabled: true },
+      { id: 'deepchat', name: 'MioWork', type: 'deepchat', enabled: true },
       { id: 'claude-acp', name: 'Claude (ACP)', type: 'acp', enabled: true }
     ])
     const getAgentType = vi.fn(async (agentId: string) =>
@@ -993,7 +993,7 @@ describe('RemoteService', () => {
   it('keeps a legacy SQLite agent id intact when the candidate matches it', async () => {
     const providerSettings = createProviderSettings()
     const listAgents = vi.fn().mockResolvedValue([
-      { id: 'deepchat', name: 'MioAgent', type: 'deepchat', enabled: true },
+      { id: 'deepchat', name: 'MioWork', type: 'deepchat', enabled: true },
       { id: 'claude-code-acp', name: 'Claude Code (ACP)', type: 'acp', enabled: true }
     ])
     const getAgentType = vi.fn(async (agentId: string) =>
@@ -1018,7 +1018,7 @@ describe('RemoteService', () => {
     const providerSettings = createProviderSettings()
     const listAgents = vi
       .fn()
-      .mockResolvedValue([{ id: 'deepchat', name: 'MioAgent', type: 'deepchat', enabled: true }])
+      .mockResolvedValue([{ id: 'deepchat', name: 'MioWork', type: 'deepchat', enabled: true }])
 
     const presenter = createRemoteService(providerSettings, {
       catalog: createCatalog({ listAgents, getAgentType: providerSettings.getAgentType })

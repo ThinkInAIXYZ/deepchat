@@ -175,7 +175,7 @@ export class LiveDelegationAgentTool {
       server: {
         name: LIVE_DELEGATION_AGENT_TOOL_SERVER_NAME,
         icons: '⑂',
-        description: 'MioAgent persistent live Subagents'
+        description: 'MioWork persistent live Subagents'
       }
     }
   }

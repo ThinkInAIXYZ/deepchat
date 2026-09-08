@@ -16,7 +16,7 @@
   "autoUpdate": "Automatisches Update",
   "restarting": "Wird neu gestartet",
   "alreadyUpToDate": "Bereits aktuell",
-  "alreadyUpToDateDesc": "Ihr MioAgent ist bereits auf dem neuesten Stand. Kein Update erforderlich.",
+  "alreadyUpToDateDesc": "Ihr MioWork ist bereits auf dem neuesten Stand. Kein Update erforderlich.",
   "taskRunningTitle": "Aufgabe läuft",
   "taskRunningDescription": "Es laufen derzeit Aufgaben. Wie möchten Sie mit dem Update fortfahren?",
   "updateNow": "Jetzt aktualisieren",

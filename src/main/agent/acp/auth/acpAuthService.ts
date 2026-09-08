@@ -65,7 +65,7 @@ export class AcpAuthService {
     const method = challenge.methods.find((candidate) => candidate.id === methodId)
     if (!method) throw new Error('ACP authentication method is unavailable')
     if (method.type === 'unsupported') {
-      throw new Error('ACP authentication method is not supported by MioAgent')
+      throw new Error('ACP authentication method is not supported by MioWork')
     }
 
     if (method.type === 'agent') {
