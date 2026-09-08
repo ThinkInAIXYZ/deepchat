@@ -193,6 +193,30 @@ interface BatchWriteResult {
   casRetries: number
 }
 
+// Mutable bookkeeping for one coordinateBatchWrites call.
+interface BatchRun {
+  ctx: WriteContext
+  operationFence: MemoryOperationFence
+  result: BatchWriteResult
+  outcomesByIndex: Map<number, MemoryWriteOutcome>
+}
+
+function collectOutcomes(
+  candidates: readonly IndexedCandidate[],
+  outcomesByIndex: ReadonlyMap<number, MemoryWriteOutcome>
+): MemoryWriteOutcome[] {
+  return candidates.flatMap((candidate) => {
+    const outcome = outcomesByIndex.get(candidate.candidateIndex)
+    return outcome ? [outcome] : []
+  })
+}
+
+function failBatch(run: BatchRun, error: unknown, stage: string): void {
+  logger.warn(`[Memory] candidate ${stage} failed: ${String(error)}`)
+  run.result.failed = true
+  run.result.error = error
+}
+
 type TombstoneReleasePolicy = 'preserve' | 'explicit-user-action'
 
 function resolveContentMergeTemporalMetadata(
@@ -789,6 +813,35 @@ export class WriteCoordinator {
     return { decisions, fallbackCandidateIndexes, calls }
   }
 
+  // Resolves ownership for each candidate and settles the provenance-decided ones right away,
+  // before any provider round trip can age their owner snapshot. Settling may write (restore or
+  // temporal enrichment), so it runs under the same failure accounting as every other apply.
+  // Returns the candidates that still need neighbors and a decision.
+  private settleImmediateCandidates(
+    run: BatchRun,
+    candidates: readonly IndexedCandidate[],
+    stage: string
+  ): PreparedCoordinateCandidate[] {
+    const prepared: PreparedCoordinateCandidate[] = []
+    for (const indexed of candidates) {
+      if (!this.ctx.canContinueOperation(run.operationFence)) break
+      try {
+        const preparation = this.prepareCoordinateCandidate(run.ctx, indexed)
+        if ('prepared' in preparation) prepared.push(preparation.prepared)
+        else {
+          run.outcomesByIndex.set(
+            indexed.candidateIndex,
+            this.applyImmediate(run.ctx, preparation.immediate)
+          )
+        }
+      } catch (error) {
+        failBatch(run, error, stage)
+        break
+      }
+    }
+    return prepared
+  }
+
   // The single decision kernel for extraction batches and one-off remembers alike: settle
   // provenance-decided candidates synchronously, recall neighbors and ask the decision model once
   // for the rest, apply, then give CAS losers one bounded retry that reuses their query vectors.
@@ -807,30 +860,9 @@ export class WriteCoordinator {
     }
     if (!candidates.length) return result
     const outcomesByIndex = new Map<number, MemoryWriteOutcome>()
-    const fail = (error: unknown, stage: string): void => {
-      logger.warn(`[Memory] candidate ${stage} failed: ${String(error)}`)
-      result.failed = true
-      result.error = error
-    }
+    const run: BatchRun = { ctx, operationFence, result, outcomesByIndex }
 
-    // Settle immediate candidates before any provider round trip can age their owner snapshot.
-    const toPrepare: PreparedCoordinateCandidate[] = []
-    for (const indexed of candidates) {
-      if (!this.ctx.canContinueOperation(operationFence)) break
-      try {
-        const preparation = this.prepareCoordinateCandidate(ctx, indexed)
-        if ('prepared' in preparation) toPrepare.push(preparation.prepared)
-        else
-          outcomesByIndex.set(
-            indexed.candidateIndex,
-            this.applyImmediate(ctx, preparation.immediate)
-          )
-      } catch (error) {
-        fail(error, 'preparation')
-        break
-      }
-    }
-
+    const toPrepare = this.settleImmediateCandidates(run, candidates, 'preparation')
     const retryCandidates: PreparedCoordinateCandidate[] = []
     if (!result.failed && toPrepare.length) {
       const prepared = await this.retrievePreparedCandidates(ctx, toPrepare)
@@ -857,7 +889,7 @@ export class WriteCoordinator {
           if (applied.action === 'retry') retryCandidates.push(item)
           else outcomesByIndex.set(item.candidateIndex, applied)
         } catch (error) {
-          fail(error, 'apply')
+          failBatch(run, error, 'apply')
           break
         }
       }
@@ -889,19 +921,16 @@ export class WriteCoordinator {
       const oldVectors = new Map(
         retryEligible.map((candidate) => [candidate.candidateIndex, candidate.queryVector])
       )
-      const retryBase: PreparedCoordinateCandidate[] = []
-      for (const candidate of retryEligible) {
-        const preparation = this.prepareCoordinateCandidate(ctx, {
-          candidateIndex: candidate.candidateIndex,
-          candidate: candidate.candidate
-        })
-        if ('prepared' in preparation) retryBase.push(preparation.prepared)
-        else {
-          outcomesByIndex.set(
-            candidate.candidateIndex,
-            this.applyImmediate(ctx, preparation.immediate)
-          )
-        }
+      // Ownership may have moved since the first pass, so retried candidates are re-resolved and
+      // may settle immediately instead of asking the model again.
+      const retryBase = this.settleImmediateCandidates(
+        run,
+        retryEligible.map(({ candidateIndex, candidate }) => ({ candidateIndex, candidate })),
+        'retry preparation'
+      )
+      if (result.failed || !retryBase.length) {
+        result.outcomes = collectOutcomes(candidates, outcomesByIndex)
+        return result
       }
       const retryPrepared = await this.retrievePreparedCandidates(
         ctx,
@@ -933,16 +962,13 @@ export class WriteCoordinator {
             applied.action === 'retry' ? { action: 'noop', reason: 'concurrent-update' } : applied
           )
         } catch (error) {
-          fail(error, 'retry apply')
+          failBatch(run, error, 'retry apply')
           break
         }
       }
     }
 
-    result.outcomes = candidates.flatMap((candidate) => {
-      const outcome = outcomesByIndex.get(candidate.candidateIndex)
-      return outcome ? [outcome] : []
-    })
+    result.outcomes = collectOutcomes(candidates, outcomesByIndex)
     return result
   }
 

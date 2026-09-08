@@ -7,6 +7,7 @@ import {
 } from '@/memory/core/scoring'
 import type { DeepChatAgentConfig } from '@shared/types/agent-interface'
 import {
+  FakeAuditRepository,
   FakeVectorStore,
   createFakeRepository,
   enabledConfig,
@@ -731,6 +732,98 @@ describe('MemoryService change events (onMemoryChanged)', () => {
       expect.objectContaining({
         sessionId: 'session-1',
         createdIds: chipCreatedIds
+      })
+    )
+  })
+})
+
+describe('extraction batch recovery', () => {
+  it('finalizes committed candidates when a retried candidate fails while settling', async () => {
+    const repo = createFakeRepository()
+    const auditRepo = new FakeAuditRepository()
+    const onMemoryChanged = vi.fn()
+    const retried = 'user changed redis preference'
+    let targetId = ''
+    let decisionRounds = 0
+    const generateText = vi.fn(async (_providerId: string, _modelId: string, prompt: string) => {
+      if (prompt.includes('KEEP or SKIP')) return 'KEEP'
+      if (prompt.includes('JSON array')) {
+        return JSON.stringify([
+          { kind: 'semantic', content: 'first durable fact', importance: 0.9 },
+          { kind: 'semantic', content: retried, importance: 0.8 }
+        ])
+      }
+      if (!prompt.includes('Choose exactly ONE decision')) return ''
+      decisionRounds += 1
+      if (decisionRounds === 1) {
+        // While the model decides, another writer bumps the target revision (forcing a retry) and
+        // leaves an archived claim on the retried candidate's provenance key.
+        repo.updateUserMetadataIfRevision({
+          agentId: 'a',
+          id: targetId,
+          expectedRevision: repo.getById(targetId)!.decision_revision,
+          importance: 0.7
+        })
+        repo.insert({
+          id: 'archived-twin',
+          agentId: 'a',
+          kind: 'semantic',
+          content: retried,
+          status: 'embedded',
+          provenanceKey: buildScopedMemoryProvenanceKey('a', 'semantic', retried, {
+            type: 'agent'
+          })
+        })
+        repo.archiveActiveMemory({ agentId: 'a', id: 'archived-twin', expectedRevision: 1 })
+      }
+      const candidates = [...prompt.matchAll(/^Candidate (\d+) /gmu)]
+      return JSON.stringify(
+        candidates.map((match) => ({
+          candidateIndex: Number(match[1]),
+          decision: 'UPDATE',
+          targetIndex: 0,
+          mergedContent: 'user prefers redis'
+        }))
+      )
+    })
+    const presenter = new MemoryService({
+      repository: repo,
+      auditRepository: auditRepo,
+      resolveAgentConfig: () => enabledConfig,
+      getEmbeddings: async (_p: string, _m: string, texts: string[]) =>
+        texts.map((text) => textToVector(text)),
+      getDimensions: embeddingDimensions,
+      generateText,
+      createVectorStore: async () => new FakeVectorStore(),
+      resetVectorStore: async () => undefined,
+      onMemoryChanged
+    })
+    targetId = await seedEmbedded(presenter, 'user likes redis')
+    vi.spyOn(repo, 'restoreArchivedMemory').mockImplementation(() => {
+      throw new Error('injected restore failure')
+    })
+
+    await expect(
+      presenter.extractAndStore({
+        agentId: 'a',
+        spanText: 'User: two facts, one of them about redis',
+        model: { providerId: 'main', modelId: 'main' },
+        sourceSession: 'session-1'
+      })
+    ).resolves.toEqual({ ok: false })
+
+    expect(decisionRounds).toBe(1)
+    expect(repo.listByAgent('a').some((row) => row.content === 'first durable fact')).toBe(true)
+    expect(onMemoryChanged).toHaveBeenCalledWith(
+      'a',
+      'extract',
+      expect.objectContaining({ sessionId: 'session-1' })
+    )
+    expect(auditRepo.listByAgent('a')).toContainEqual(
+      expect.objectContaining({
+        event_type: 'memory/extract',
+        status: 'failed',
+        reason: 'partial-apply-failed'
       })
     )
   })
