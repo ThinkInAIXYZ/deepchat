@@ -105,9 +105,8 @@ interface RecallState {
   rawVectorMatches: MemoryVectorMatch[]
   vecCandidates: { memoryId: string; similarity: number }[]
   vectorContext: { embedding: MemoryModelRef; dimensions: number } | null
-}
-
-interface RecallRefillResult {
+  // Output of the latest revalidation round: authoritative rows for every candidate id, the vector
+  // matches whose rows are still live, and the temporally eligible rows that reach fusion.
   authoritativeRows: AgentMemoryRow[]
   structurallyValidVecMatches: Array<{ row: AgentMemoryRow; similarity: number }>
   authoritativeFtsRows: AgentMemoryRow[]
@@ -619,36 +618,6 @@ export class RetrievalService {
     return results
   }
 
-  // Per-request recall state shared by the keyword, vector, refill, and prune stages. Every
-  // stage reads the same fence and read epoch so a cancelled request never reaches assembly.
-  private createRecallState(input: {
-    agentId: string
-    now: number
-    signal?: AbortSignal
-    scopeFilter: readonly MemoryScope[]
-    operationFence: MemoryOperationFence
-    readEpoch: number | null
-    latencyMs: Partial<Record<MemoryRecallLatencyStage, number>>
-    degradations: Set<MemoryRetrievalDegradationCause>
-    keywordQuery: string
-    keywordMatchMode: 'all' | 'any'
-    candidateLimit: number
-    similarityThreshold: number
-  }): RecallState {
-    return {
-      ...input,
-      activeStage: 'idle',
-      ftsCandidates: 0,
-      vectorCandidates: 0,
-      ftsRows: [],
-      vectorCandidateLimit: scopeAwareVectorCandidateLimit(input.candidateLimit),
-      vectorPool: null,
-      rawVectorMatches: [],
-      vecCandidates: [],
-      vectorContext: null
-    }
-  }
-
   private isRecallCurrent(state: RecallState): boolean {
     return (
       this.ctx.canContinueOperation(state.operationFence) &&
@@ -810,16 +779,10 @@ export class RetrievalService {
       temporalMode: MemoryTemporalPolicyMode
       suppressionPolicy: ReturnType<typeof createMemoryTopicSuppressionPolicy> | null
     }
-  ): RecallRefillResult | null {
+  ): boolean {
     const { agentId, now } = state
-    const result: RecallRefillResult = {
-      authoritativeRows: [],
-      structurallyValidVecMatches: [],
-      authoritativeFtsRows: [],
-      authoritativeVecMatches: []
-    }
     while (true) {
-      if (!this.isRecallCurrent(state)) return null
+      if (!this.isRecallCurrent(state)) return false
       throwIfAborted(state.signal)
       const candidateIds = [
         ...state.ftsRows.map((row) => row.id),
@@ -827,7 +790,7 @@ export class RetrievalService {
       ]
       const revalidationStartedAt = performance.now()
       state.activeStage = 'authoritativeRevalidation'
-      result.authoritativeRows = candidateIds.length
+      state.authoritativeRows = candidateIds.length
         ? this.ports.repository.listApplicableByIds(
             agentId,
             [...new Set(candidateIds)],
@@ -837,7 +800,7 @@ export class RetrievalService {
       state.latencyMs.authoritativeRevalidation =
         (state.latencyMs.authoritativeRevalidation ?? 0) +
         (performance.now() - revalidationStartedAt)
-      const rowsById = new Map(result.authoritativeRows.map((row) => [row.id, row]))
+      const rowsById = new Map(state.authoritativeRows.map((row) => [row.id, row]))
       const structurallyValidFtsRows = state.ftsRows
         .map((row) => rowsById.get(row.id))
         .filter((row): row is AgentMemoryRow => isLiveRecallRow(agentId, row))
@@ -845,7 +808,7 @@ export class RetrievalService {
       const vectorFingerprint = vectorContext
         ? embeddingFingerprint(vectorContext.embedding.providerId, vectorContext.embedding.modelId)
         : null
-      result.structurallyValidVecMatches = state.vecCandidates
+      state.structurallyValidVecMatches = state.vecCandidates
         .map((candidate) => {
           const row = rowsById.get(candidate.memoryId)
           return vectorContext && vectorFingerprint
@@ -861,32 +824,32 @@ export class RetrievalService {
         ? structurallyValidFtsRows.filter((row) => !suppressionPolicy.suppresses(row.content))
         : structurallyValidFtsRows
       const directiveEligibleVecMatches = suppressionPolicy
-        ? result.structurallyValidVecMatches.filter(
+        ? state.structurallyValidVecMatches.filter(
             (match) => !suppressionPolicy.suppresses(match.row.content)
           )
-        : result.structurallyValidVecMatches
-      result.authoritativeFtsRows = selectTemporalCandidates(
+        : state.structurallyValidVecMatches
+      state.authoritativeFtsRows = selectTemporalCandidates(
         directiveEligibleFtsRows,
         (row) => row,
         limits.fusionCandidateLimit,
         now,
         limits.temporalMode
       )
-      result.authoritativeVecMatches = selectTemporalCandidates(
+      state.authoritativeVecMatches = selectTemporalCandidates(
         directiveEligibleVecMatches,
         (match) => match.row,
         limits.fusionCandidateLimit,
         now,
         limits.temporalMode
       )
-      state.ftsCandidates = result.authoritativeFtsRows.length
-      state.vectorCandidates = result.authoritativeVecMatches.length
+      state.ftsCandidates = state.authoritativeFtsRows.length
+      state.vectorCandidates = state.authoritativeVecMatches.length
 
       const eligibleIds = new Set([
-        ...result.authoritativeFtsRows.map((row) => row.id),
-        ...result.authoritativeVecMatches.map((match) => match.row.id)
+        ...state.authoritativeFtsRows.map((row) => row.id),
+        ...state.authoritativeVecMatches.map((match) => match.row.id)
       ])
-      if (eligibleIds.size >= limits.effectiveTopK) return result
+      if (eligibleIds.size >= limits.effectiveTopK) return true
 
       const ftsSourceSaturated =
         Boolean(state.keywordQuery) && state.ftsRows.length >= state.candidateLimit
@@ -905,7 +868,7 @@ export class RetrievalService {
         ) {
           state.degradations.add('candidateBudgetExhausted')
         }
-        return result
+        return true
       }
 
       if (canRefillFts) {
@@ -925,12 +888,11 @@ export class RetrievalService {
    */
   private pruneStaleVectors(
     state: RecallState,
-    vectorContext: { embedding: MemoryModelRef; dimensions: number },
-    refill: RecallRefillResult
+    vectorContext: { embedding: MemoryModelRef; dimensions: number }
   ): void {
     const { agentId } = state
-    const liveVectorIds = new Set(refill.structurallyValidVecMatches.map((match) => match.row.id))
-    const applicableIds = new Set(refill.authoritativeRows.map((row) => row.id))
+    const liveVectorIds = new Set(state.structurallyValidVecMatches.map((match) => match.row.id))
+    const applicableIds = new Set(state.authoritativeRows.map((row) => row.id))
     const candidateIds = state.vecCandidates.map((candidate) => candidate.memoryId)
     const unmatchedVectorIds = [
       ...new Set(candidateIds.filter((memoryId) => !applicableIds.has(memoryId)))
@@ -1025,7 +987,10 @@ export class RetrievalService {
           : suppressionTopics.length > 0
             ? DIRECTIVE_RETRIEVAL_CANDIDATE_MULTIPLIER
             : LEGACY_RETRIEVAL_CANDIDATE_MULTIPLIER
-      state = this.createRecallState({
+      const candidateLimit = effectiveTopK * candidateMultiplier
+      // Shared by the keyword, vector, refill, and prune stages; every stage reads the same fence
+      // and read epoch so a cancelled request never reaches assembly.
+      state = {
         agentId,
         now,
         signal: options.signal,
@@ -1034,11 +999,24 @@ export class RetrievalService {
         readEpoch,
         latencyMs,
         degradations,
+        activeStage: 'idle',
+        ftsCandidates: 0,
+        vectorCandidates: 0,
         keywordQuery: (options.keywordQuery ?? normalizedQuery).trim(),
         keywordMatchMode: options.keywordMatchMode ?? 'all',
-        candidateLimit: effectiveTopK * candidateMultiplier,
-        similarityThreshold
-      })
+        candidateLimit,
+        ftsRows: [],
+        similarityThreshold,
+        vectorCandidateLimit: scopeAwareVectorCandidateLimit(candidateLimit),
+        vectorPool: null,
+        rawVectorMatches: [],
+        vecCandidates: [],
+        vectorContext: null,
+        authoritativeRows: [],
+        structurallyValidVecMatches: [],
+        authoritativeFtsRows: [],
+        authoritativeVecMatches: []
+      }
 
       state.activeStage = 'keyword'
       state.ftsRows = this.searchKeywordCandidates(state, state.candidateLimit)
@@ -1057,7 +1035,7 @@ export class RetrievalService {
         outcome = 'cancelled'
         return []
       }
-      const refill = this.refillCandidates(state, {
+      const refilled = this.refillCandidates(state, {
         effectiveTopK,
         fusionCandidateLimit: effectiveTopK * LEGACY_RETRIEVAL_CANDIDATE_MULTIPLIER,
         temporalMode,
@@ -1065,7 +1043,7 @@ export class RetrievalService {
           ? createMemoryTopicSuppressionPolicy(suppressionTopics)
           : null
       })
-      if (!refill) {
+      if (!refilled) {
         outcome = 'cancelled'
         return []
       }
@@ -1077,13 +1055,13 @@ export class RetrievalService {
         this.ctx.canContinueOperation(operationFence)
       ) {
         throwIfAborted(options.signal)
-        this.pruneStaleVectors(state, state.vectorContext, refill)
+        this.pruneStaleVectors(state, state.vectorContext)
       }
 
       const assemblyStartedAt = performance.now()
       state.activeStage = 'assembly'
       throwIfAborted(options.signal)
-      const results = fuse(refill.authoritativeFtsRows, refill.authoritativeVecMatches, {
+      const results = fuse(state.authoritativeFtsRows, state.authoritativeVecMatches, {
         topK: effectiveTopK,
         rrfK,
         weights,
