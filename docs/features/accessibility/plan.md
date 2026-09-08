@@ -99,3 +99,17 @@ The embedded-browser toolbar exposes an Enter webpage action and an F6 return hi
 BEFORE  Address -> Expand -> host sidebar (webpage skipped)
 AFTER   Enter webpage -> page controls -> F6 -> browser controls
 ```
+
+## Knowledge, memory directives, MCP and backup actions
+
+Knowledge documents expose a native upload action, named search, contextual result copy/retry/delete controls, named detail/overview regions and focus on Return. Memory directives focus the created row and preserve its DOM while background refreshes run; confirmed deletion returns to Instruction. MCP capability actions identify the server, feature and count. Tool and prompt debugging names JSON parameters, associates validation errors, announces execution and focuses named results. Custom prompt actions include their target, and configuration events invalidate the suggestion cache immediately. Local backup restores its action focus; import modes form a named radio group with associated option labels.
+
+```text
+BEFORE  MCP "1" -> "{}" -> result text / lost focus
+AFTER   Server + Tools -> Parameters + name -> Result region
+
+BEFORE  Create directive -> refresh removes focus; unnamed import choices
+AFTER   Created row survives refresh; Import Data -> named import modes
+```
+
+The independent explorer accepted local document upload/search/copy/delete/Return, directive creation/deletion, local MCP tool/prompt execution, immediate custom-prompt application and local backup/incremental import. Relevant MCP/directive tests pass, including invalid JSON and focused results and preservation during refresh. The Data & Privacy suite passes (36 tests). A complete renderer run passes all 2447 tests across 274 files; subsequent draft, scheduled-task and memory-lifecycle changes have separate targeted checks and acceptance.

@@ -151,16 +151,21 @@
 
                   <RadioGroup
                     v-model="importMode"
+                    :aria-label="t('settings.data.importData')"
                     :disabled="syncStore.isImporting"
                     class="flex flex-col gap-2"
                   >
                     <div class="flex items-center space-x-2">
-                      <RadioGroupItem value="increment" />
-                      <Label>{{ t('settings.data.incrementImport') }}</Label>
+                      <RadioGroupItem :id="`${importModeId}-increment`" value="increment" />
+                      <Label :for="`${importModeId}-increment`">{{
+                        t('settings.data.incrementImport')
+                      }}</Label>
                     </div>
                     <div class="flex items-center space-x-2">
-                      <RadioGroupItem value="overwrite" />
-                      <Label>{{ t('settings.data.overwriteImport') }}</Label>
+                      <RadioGroupItem :id="`${importModeId}-overwrite`" value="overwrite" />
+                      <Label :for="`${importModeId}-overwrite`">{{
+                        t('settings.data.overwriteImport')
+                      }}</Label>
                     </div>
                   </RadioGroup>
                 </div>
@@ -500,6 +505,7 @@
               <div class="flex items-center gap-3">
                 <RadioGroup
                   v-model="cloudPullMode"
+                  :aria-label="t('settings.data.cloudSync.pull')"
                   :disabled="isCloudInteractionDisabled"
                   class="flex flex-row gap-3"
                 >
@@ -1039,7 +1045,7 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
-import { ref, onMounted, onBeforeUnmount, computed, watch } from 'vue'
+import { ref, onMounted, onBeforeUnmount, computed, watch, nextTick, useId } from 'vue'
 import { storeToRefs } from 'pinia'
 import type { ProviderImportApplyResult } from '@shared/providerImport'
 import type { DatabaseRepairReport, DatabaseSecurityStatus } from '@shared/contracts/routes'
@@ -2020,8 +2026,11 @@ const formatBackupLabel = (fileName: string, createdAt: number, size: number) =>
   return formatted
 }
 
+const importModeId = useId()
+
 const handleBackup = async () => {
   if (!syncStore.syncEnabled || isSyncInteractionDisabled.value) return
+  const opener = document.activeElement as HTMLElement | null
   try {
     const backupInfo = await syncStore.startBackup()
     if (!backupInfo) {
@@ -2044,6 +2053,14 @@ const handleBackup = async () => {
       code: 'settings.data.sync.backupFailed',
       title: t('common.error.operationFailed')
     })
+  } finally {
+    await nextTick()
+    if (
+      opener?.isConnected &&
+      (document.activeElement === document.body || document.activeElement === opener)
+    ) {
+      opener.focus({ preventScroll: true })
+    }
   }
 }
 

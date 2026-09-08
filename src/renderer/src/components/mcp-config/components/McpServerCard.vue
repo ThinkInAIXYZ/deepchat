@@ -195,8 +195,9 @@ watch(watchDescription, () => {
             <DcButton
               variant="ghost"
               size="icon"
-              class="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+              class="h-6 w-6 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity shrink-0"
               :tooltip="t('common.more')"
+              :aria-label="`${t('common.more')}: ${server.name}`"
               @click.stop
             >
               <Icon icon="lucide:more-horizontal" class="h-3 w-3" />
@@ -253,6 +254,8 @@ watch(watchDescription, () => {
             :pulse="serverStatus === 'loading'"
           />
 
+          <span v-if="server.errorMessage" class="sr-only">{{ server.errorMessage }}</span>
+          <span v-if="server.authStatus?.error" class="sr-only">{{ server.authStatus.error }}</span>
           <!-- 错误提示 -->
           <DcTooltip v-if="server.errorMessage" :content="server.errorMessage" side="top">
             <Icon icon="lucide:alert-circle" class="w-3 h-3 text-red-500" />
@@ -290,6 +293,7 @@ watch(watchDescription, () => {
       <!-- 工具按钮 -->
       <DcButton
         v-if="toolsCount !== undefined"
+        :aria-label="`${server.name}: ${t('settings.mcp.tabs.tools')} (${toolsCount})`"
         variant="ghost"
         class="h-full flex-1 text-xs hover:bg-secondary rounded-none"
         :disabled="disabled || toolsCount === 0"
@@ -302,6 +306,7 @@ watch(watchDescription, () => {
       <Separator orientation="vertical" class="h-5" />
       <DcButton
         v-if="promptsCount !== undefined"
+        :aria-label="`${server.name}: ${t('settings.mcp.tabs.prompts')} (${promptsCount})`"
         variant="ghost"
         class="h-full flex-1 text-xs hover:bg-secondary rounded-none"
         :disabled="disabled || promptsCount === 0"
@@ -314,6 +319,7 @@ watch(watchDescription, () => {
       <!-- 资源按钮 -->
       <DcButton
         v-if="resourcesCount !== undefined"
+        :aria-label="`${server.name}: ${t('settings.mcp.tabs.resources')} (${resourcesCount})`"
         variant="ghost"
         class="h-full flex-1 text-xs hover:bg-secondary rounded-none"
         :disabled="disabled || resourcesCount === 0"

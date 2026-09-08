@@ -73,6 +73,8 @@
                       ? t('promptSetting.clickToDisable')
                       : t('promptSetting.clickToEnable')
                   "
+                  :aria-label="`${prompt.name}: ${prompt.enabled ? t('promptSetting.active') : t('promptSetting.inactive')}`"
+                  :aria-pressed="prompt.enabled ?? true"
                   @click="togglePromptEnabled(index)"
                 >
                   {{ prompt.enabled ? t('promptSetting.active') : t('promptSetting.inactive') }}
@@ -86,6 +88,7 @@
               icon="lucide:pencil"
               size="icon-sm"
               :label="t('common.edit')"
+              :aria-label="`${t('common.edit')}: ${prompt.name}`"
               :tooltip="t('common.edit')"
               :disabled="interactionBlocked"
               @click="editPrompt(index)"
@@ -95,6 +98,7 @@
               icon="lucide:trash-2"
               size="icon-sm"
               :label="t('common.delete')"
+              :aria-label="`${t('common.delete')}: ${prompt.name}`"
               :tooltip="t('common.delete')"
               class="hover:text-destructive hover:bg-destructive/10"
               :disabled="interactionBlocked"
@@ -121,6 +125,8 @@
             variant="ghost"
             size="sm"
             class="h-6 px-2 text-xs text-primary mt-1"
+            :aria-expanded="isExpanded(prompt.id)"
+            :aria-label="`${isExpanded(prompt.id) ? t('promptSetting.showLess') : t('promptSetting.showMore')}: ${prompt.name}`"
             @click="toggleShowMore(prompt.id)"
           >
             {{ isExpanded(prompt.id) ? t('promptSetting.showLess') : t('promptSetting.showMore') }}
