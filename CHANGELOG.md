@@ -1,10 +1,12 @@
 # Changelog
 
-## v1.1.2-beta.3 (2026-09-07)
+## v1.1.2-beta.3 (2026-09-08)
 - Simplified tool, reasoning, and compaction activity with persistent expand/collapse state, readable historical plans, and restored parent-session navigation
 - Preserved workspace conversation history and pagination, kept Agent filters stable, and reused the workspace's latest Agent for new conversations
 - Restored browser preview frames and screenshots on macOS
 - Repaired vector recall recovery, prevented repeated memory extraction when forking conversations, recovered invalid memory records, and coordinated background maintenance with database operations
+- Improved memory recall on slow networks with adaptive timeouts and bounded embedding input, reduced repeated searches, and repaired missing vectors without rebuilding healthy data
+- Hardened recalled text against forged prompt markers, stopped extracting memories from Subagent task instructions, and clarified that forgetting a memory archives it for recovery
 - Restored partially migrated legacy databases and preserved conversation recency during migration
 - Reduced duplicate model discovery requests, project preference lookups, and plugin history scans; canceled abandoned embedding requests and released download probe responses
 - Refreshed the built-in model catalog
@@ -12,6 +14,8 @@
 - 保留工作区对话历史与分页状态，保持 Agent 筛选稳定，并为新对话沿用工作区最近使用的 Agent
 - 恢复 macOS 浏览器预览画面与截图
 - 修复向量召回恢复、分叉对话重复提取记忆及异常记忆记录问题，并协调后台维护与数据库操作
+- 通过自适应超时和嵌入输入长度限制改善慢速网络下的记忆召回，减少重复搜索，并在保留健康数据的同时修复缺失向量
+- 强化召回文本对伪造提示词标记的防护，停止从 Subagent 任务指令中提取记忆，并明确遗忘记忆会将其归档且可恢复
 - 恢复部分迁移的旧版数据库，并在迁移时保留对话最近活动时间
 - 减少重复模型发现请求、项目偏好读取和插件历史扫描；取消已放弃的嵌入请求，并释放下载探测响应
 - 刷新内置模型目录
