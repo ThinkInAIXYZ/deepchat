@@ -7,7 +7,7 @@ const mocks = vi.hoisted(() => ({ routeName: 'plugins' }))
 vi.mock('pinia', async () => vi.importActual<typeof import('pinia')>('pinia'))
 
 vi.mock('vue-router', () => ({
-  useRoute: () => ({ name: mocks.routeName }),
+  useRoute: () => ({ name: mocks.routeName, meta: {}, fullPath: `/${mocks.routeName}` }),
   RouterLink: {
     name: 'RouterLink',
     template: '<a><slot /></a>'

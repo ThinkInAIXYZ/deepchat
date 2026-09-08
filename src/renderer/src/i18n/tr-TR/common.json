@@ -138,7 +138,9 @@
     "addressPlaceholder": "Bir URL girin",
     "enterUrlToStart": "Göz atmaya başlamak için bir URL girin",
     "enterUrlDescription": "Bir web sitesini ziyaret etmek için yukarıdaki adres çubuğuna URL yazın",
-    "name": "Tarayıcınız"
+    "name": "Tarayıcınız",
+    "enterContent": "Web sayfasına gir",
+    "returnFocus": "F6 tarayıcı denetimlerine döner"
   },
   "size": {
     "bytes": "{count} bayt"
@@ -154,5 +156,16 @@
     "none": "Proje yok",
     "recent": "Son projeler",
     "openFolder": "Klasörü aç..."
+  },
+  "diff": {
+    "oldLine": "Eski satır",
+    "newLine": "Yeni satır",
+    "change": "Değişiklik",
+    "content": "İçerik",
+    "add": "Eklendi",
+    "del": "Kaldırıldı",
+    "context": "Değişmedi",
+    "hunk": "Değişiklik aralığı",
+    "meta": "Meta veriler"
   }
 }

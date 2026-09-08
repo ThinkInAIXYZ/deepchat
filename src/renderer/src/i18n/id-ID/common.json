@@ -138,7 +138,9 @@
     "addressPlaceholder": "Masukkan URL",
     "enterUrlToStart": "Masukkan URL untuk mulai mengunjungi",
     "enterUrlDescription": "Masukkan URL di bilah alamat di atas untuk mengakses situs web",
-    "name": "Yo Browser"
+    "name": "Yo Browser",
+    "enterContent": "Masuk ke halaman web",
+    "returnFocus": "F6 kembali ke kontrol browser"
   },
   "size": {
     "bytes": "{count} bita"
@@ -154,5 +156,16 @@
     "none": "Tidak ada proyek terkait",
     "recent": "Proyek terbaru",
     "openFolder": "Buka map..."
+  },
+  "diff": {
+    "oldLine": "Baris lama",
+    "newLine": "Baris baru",
+    "change": "Perubahan",
+    "content": "Konten",
+    "add": "Ditambahkan",
+    "del": "Dihapus",
+    "context": "Tidak berubah",
+    "hunk": "Rentang perubahan",
+    "meta": "Metadata"
   }
 }

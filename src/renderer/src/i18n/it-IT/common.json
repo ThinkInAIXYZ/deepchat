@@ -138,7 +138,9 @@
     "addressPlaceholder": "Inserisci un URL",
     "enterUrlToStart": "Inserisci un URL per iniziare",
     "enterUrlDescription": "Digita un URL nella barra degli indirizzi in alto per visitare un sito",
-    "name": "Yo Browser"
+    "name": "Yo Browser",
+    "enterContent": "Accedi alla pagina web",
+    "returnFocus": "F6 torna ai controlli del browser"
   },
   "size": {
     "bytes": "{count} byte"
@@ -154,5 +156,16 @@
     "none": "Nessun progetto associato",
     "recent": "Progetti recenti",
     "openFolder": "Apri cartella..."
+  },
+  "diff": {
+    "oldLine": "Riga precedente",
+    "newLine": "Nuova riga",
+    "change": "Modifica",
+    "content": "Contenuto",
+    "add": "Aggiunta",
+    "del": "Rimozione",
+    "context": "Invariato",
+    "hunk": "Intervallo modificato",
+    "meta": "Metadati"
   }
 }

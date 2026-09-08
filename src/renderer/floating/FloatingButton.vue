@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { FloatingWidgetSnapshot } from '@shared/types/floating-widget'
 import FloatingSessionItem from './components/FloatingSessionItem.vue'
@@ -29,6 +29,8 @@ const CLOSE_MOTION_SETTLE_MS = 240
 
 const { t } = useI18n()
 
+const expandButton = ref<HTMLButtonElement | null>(null)
+const collapseButton = ref<HTMLButtonElement | null>(null)
 const isDragging = ref(false)
 const isHovering = ref(false)
 const isClosing = ref(false)
@@ -208,7 +210,7 @@ const handleMouseUp = (event: MouseEvent) => {
   document.removeEventListener('mouseup', handleMouseUp)
 }
 
-const handleRightClick = (event: MouseEvent) => {
+const handleRightClick = (event: Event) => {
   event.preventDefault()
   clearDragTimer()
   dragState.value.isMouseDown = false
@@ -229,6 +231,14 @@ const handleWindowBlur = () => {
   }
 }
 
+watch(
+  () => snapshot.value.expanded,
+  async (expanded) => {
+    await nextTick()
+    ;(expanded ? collapseButton.value : expandButton.value)?.focus({ preventScroll: true })
+  }
+)
+
 onMounted(async () => {
   try {
     snapshot.value = await window.floatingButtonAPI.getSnapshot()
@@ -238,6 +248,10 @@ onMounted(async () => {
 
   unsubscribeSnapshotUpdate = window.floatingButtonAPI.onSnapshotUpdate(handleSnapshotUpdate)
   window.addEventListener('blur', handleWindowBlur)
+  await nextTick()
+  ;(snapshot.value.expanded ? collapseButton.value : expandButton.value)?.focus({
+    preventScroll: true
+  })
 })
 
 onUnmounted(() => {
@@ -271,7 +285,19 @@ onUnmounted(() => {
       @contextmenu="handleRightClick"
     >
       <div class="relative h-full w-full overflow-hidden">
-        <div
+        <button
+          ref="expandButton"
+          type="button"
+          :inert="snapshot.expanded ? true : undefined"
+          :aria-hidden="snapshot.expanded"
+          :aria-expanded="snapshot.expanded"
+          aria-controls="floating-task-panel"
+          :aria-label="`${t('chat.floatingWidget.title')}: ${t('common.expand')}. ${t('chat.floatingWidget.executing')}: ${snapshot.activeCount}`"
+          @click="$event.detail === 0 && toggleExpanded()"
+          @keydown="
+            ($event.key === 'ContextMenu' || ($event.key === 'F10' && $event.shiftKey)) &&
+            handleRightClick($event)
+          "
           class="collapsed-layer absolute inset-0 flex h-full w-full items-center justify-center overflow-hidden"
           :class="[
             snapshot.expanded
@@ -280,28 +306,28 @@ onUnmounted(() => {
             { 'floating-shell-dragging': isDragging }
           ]"
         >
-          <div
+          <span
             class="logo-orb logo-orb-hero relative isolate flex h-full w-full items-center justify-center overflow-hidden rounded-full"
             :class="hasActiveTasks ? 'status-orb-busy' : 'status-orb-idle'"
           >
-            <div
+            <span
               class="status-orb-face status-orb-logo absolute inset-0 flex items-center justify-center"
             >
               <img
                 src="../src/assets/logo.png"
-                :alt="t('chat.floatingWidget.title')"
+                alt=""
                 class="logo-orb-image status-orb-logo-image h-9 w-9"
               />
-            </div>
+            </span>
 
-            <div
+            <span
               class="status-orb-face status-orb-active absolute inset-0 flex items-center justify-center"
               :aria-label="t('chat.floatingWidget.executing')"
             >
-              <div
+              <span
                 class="status-orb-orbit-shell flex h-[46px] w-[46px] items-center justify-center rounded-full"
               >
-                <div class="relative flex h-8 w-8 items-center justify-center">
+                <span class="relative flex h-8 w-8 items-center justify-center">
                   <span class="busy-orbit-ring status-orb-ring"></span>
                   <span
                     class="busy-orbit-ring busy-orbit-ring-delayed status-orb-ring status-orb-ring-inner"
@@ -319,13 +345,17 @@ onUnmounted(() => {
                       {{ activeCountDisplay }}
                     </span>
                   </span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+                </span>
+              </span>
+            </span>
+          </span>
+        </button>
 
         <div
+          id="floating-task-panel"
+          :inert="!snapshot.expanded ? true : undefined"
+          :aria-hidden="!snapshot.expanded"
+          @keydown.esc.stop="setExpanded(false)"
           class="floating-shell floating-shell-expanded absolute inset-0 flex h-full w-full flex-col overflow-hidden p-3"
           :class="[
             snapshot.expanded
@@ -366,6 +396,7 @@ onUnmounted(() => {
             <button
               type="button"
               data-no-drag
+              ref="collapseButton"
               class="panel-close flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-all duration-200"
               :aria-label="t('chat.floatingWidget.collapse')"
               @click.stop="setExpanded(false)"

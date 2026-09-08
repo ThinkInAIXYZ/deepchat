@@ -138,7 +138,9 @@
     "addressPlaceholder": "Saisir une URL",
     "enterUrlDescription": "Entrez l'URL dans la barre d'adresse ci-dessus pour accéder au site Web",
     "enterUrlToStart": "Entrez l'URL pour commencer la visite",
-    "name": "Votre navigateur"
+    "name": "Votre navigateur",
+    "enterContent": "Accéder à la page web",
+    "returnFocus": "F6 revient aux commandes du navigateur"
   },
   "size": {
     "bytes": "{count} octets"
@@ -154,5 +156,16 @@
     "none": "Aucun projet",
     "recent": "Projets récents",
     "openFolder": "Ouvrir un dossier..."
+  },
+  "diff": {
+    "oldLine": "Ancienne ligne",
+    "newLine": "Nouvelle ligne",
+    "change": "Modification",
+    "content": "Contenu",
+    "add": "Ajout",
+    "del": "Suppression",
+    "context": "Inchangé",
+    "hunk": "Plage modifiée",
+    "meta": "Métadonnées"
   }
 }

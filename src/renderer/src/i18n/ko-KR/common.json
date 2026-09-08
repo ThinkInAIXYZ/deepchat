@@ -138,7 +138,9 @@
     "addressPlaceholder": "URL을 입력하세요",
     "enterUrlDescription": "위 주소창에 URL을 입력하시면 해당 홈페이지에 접속하실 수 있습니다.",
     "enterUrlToStart": "방문을 시작하려면 URL을 입력하세요.",
-    "name": "요 브라우저"
+    "name": "요 브라우저",
+    "enterContent": "웹페이지로 이동",
+    "returnFocus": "F6 키로 브라우저 컨트롤로 돌아갑니다"
   },
   "size": {
     "bytes": "{count} 바이트"
@@ -154,5 +156,16 @@
     "none": "프로젝트 없음",
     "recent": "최근 프로젝트",
     "openFolder": "폴더 열기..."
+  },
+  "diff": {
+    "oldLine": "이전 줄",
+    "newLine": "새 줄",
+    "change": "변경",
+    "content": "내용",
+    "add": "추가됨",
+    "del": "삭제됨",
+    "context": "변경 없음",
+    "hunk": "변경 범위",
+    "meta": "메타데이터"
   }
 }

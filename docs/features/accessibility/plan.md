@@ -13,7 +13,7 @@ The behavior contract is in [spec.md](spec.md). The dedicated exploration agent 
 
 ## Current engineering context
 
-The main shell (`ChatMainApp` → `WindowSideBar` / `ChatTabView`) and settings shell own navigation landmarks. Session state remains in the existing session/page-router stores. `WindowSideBarSessionItem` currently attaches selection to a non-focusable wrapper; its existing sibling pin/delete buttons must remain independent. `DcButton` owns shared button naming; rich editor semantics belong to `ChatInputBox` and TipTap editor attributes. No main-process API changes are planned until exploration establishes a need.
+The main shell (`ChatMainApp` → `WindowSideBar` / `ChatTabView`) and settings shell own navigation landmarks. Session state remains in the existing session/page-router stores. `WindowSideBarSessionItem` uses a native selection button with independent sibling pin/delete controls. `DcButton` owns shared button naming; rich editor semantics belong to `ChatInputBox` and TipTap editor attributes. The main process publishes native assistive-technology state and owns the guarded embedded-browser focus boundary.
 
 ## Phase 1 validation
 
@@ -21,7 +21,7 @@ The exploration agent accepted keyboard session selection with Enter and Space, 
 
 ## Conversation feedback context
 
-`ChatPage` owns session generation state and pending interactions; a persistent polite status region announces running, waiting for permission/input, completed, and failed states. It depends on semantic state rather than token content. The transcript gains a named focusable region so keyboard users can reach and scroll responses. Existing message toolbar keyboard actions remain at their owners. Long-history virtualization and pagination require independent exploration before selecting their repair.
+`ChatPage` owns session generation state and pending interactions; a persistent polite status region announces running, waiting for permission/input, completed, and failed states. It depends on semantic state rather than token content. The transcript gains a named focusable region so keyboard users can reach and scroll responses. Existing message toolbar keyboard actions remain at their owners. History pagination preserves the reading position; assistive-technology mode retains all loaded message and Markdown nodes.
 
 ## Conversation feedback and history validation
 
@@ -75,4 +75,27 @@ BEFORE  Switch / combo value; unnamed provider button; save → lost focus
 AFTER   Field name + state; provider disclosure + enable; saved → Name
 ```
 
-The exploration agent accepted all 22 primary settings routes, keyboard knowledge disclosures, scheduled-job creation, saved-agent feedback, memory creation/edit/details/return, plugin installation/removal, skill details, and provider connection/model configuration/persisted keyboard reordering. Settings and dialog regression suites pass (223 tests, including the updated provider-button selectors). Format, i18n, lint, typecheck, and the production Electron build pass. Follow-up A36 covers font selection state and upload-limit value semantics.
+The exploration agent accepted all 22 primary settings routes, keyboard knowledge disclosures, scheduled-job creation, saved-agent feedback, memory creation/edit/details/return, plugin installation/removal, skill details, and provider connection/model configuration/persisted keyboard reordering. Settings and dialog regression suites pass (223 tests, including the updated provider-button selectors). Format, i18n, lint, typecheck, and the production Electron build pass. Font selection exposes contextual names and pressed state; the upload limit is a named native spinbutton.
+
+## Auxiliary control semantics and validation
+
+Welcome and shared setup guides expose named nonmodal dialogs, focus each active step, and return to the underlying task when dismissed. The floating overview uses native expand/collapse controls and excludes its inactive layer. Diff tables identify old/new lines and describe changes in words. Calendar dates expose exact daily input, output and cached-token values without hundreds of additional Tab stops. Font controls expose purpose and selection; file-size limits use a named spinbutton. Hook creation focuses Name, and local test execution announces its outcome, names its output region and restores the Test control.
+
+```text
+BEFORE  Unnamed guide; hidden floating controls; punctuation-only diff
+AFTER   Named guide -> task; Expand -> sessions -> Escape; named diff columns
+
+BEFORE  Static size number; hover-only calendar; hook test -> lost focus
+AFTER   Size spinbutton; readable date + usage; test status -> Test
+```
+
+The independent explorer accepted A19, A29, A31, A34, A36 and A37 in the production Electron build. Relevant floating, dashboard, display and hook suites pass. Format, i18n, lint and both TypeScript checks pass. Full renderer verification identified stale route fixtures and a knowledge-overview unmount contract; the corrected cases pass in their targeted suites. Complete-suite verification remains pending until the remaining repairs are accepted.
+
+## Native browser focus acceptance
+
+The embedded-browser toolbar exposes an Enter webpage action and an F6 return hint. The typed main-process route only focuses the active session's visible browser attached to the caller's focused window. F6 returns from browser content to the host controls. Unit checks cover valid focus, hidden/wrong-window rejection, return keys and detached content. Native keyboard acceptance remains pending because the macOS UI controller reports the machine is locked; this is not a passing browser journey.
+
+```text
+BEFORE  Address -> Expand -> host sidebar (webpage skipped)
+AFTER   Enter webpage -> page controls -> F6 -> browser controls
+```

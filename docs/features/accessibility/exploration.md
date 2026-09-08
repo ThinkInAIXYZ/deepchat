@@ -35,7 +35,7 @@ Evidence dates: 2026-09-08–2026-09-09. Baseline: current `codex/accessibility`
 | A16 | Prompt attachments | Add Custom Prompt opens a correctly named dialog, but Upload from device is only a paragraph, absent from interactive controls. | File attachment is not a discoverable keyboard action. | Accepted: named Upload from device button invokes native file chooser with Enter |
 | A17 | Long Markdown response | A local response containing 200 numbered headings and paragraphs retains only 129 headings in the completed DOM/accessibility tree, beginning at Section 71. Section 0 is absent while Section 199 exists. | Reading the completed answer sequentially can omit earlier content. | Accepted: isolated app AT activation exposes all 200 headings and all 222 loaded messages |
 | A18 | Workspace sections | Keyboard Enter expands/collapses Files and a temporary folder; chevrons change while their buttons expose no aria-expanded or controlled-region association. | The section state is visual only. | Accepted: expanded/controls semantics, nested file lists, and keyboard context menus |
-| A19 | First-run setup guide | Start with a completely empty profile. The welcome route exposes an unnamed dialog containing the Select a Provider heading. It declares aria-modal=true, but First Tab begins at the app sidebar rather than the guide and background controls remain in the Tab order. | The automatic guide and its current step are not identified as the active task. | Open |
+| A19 | First-run setup guide | Start with a completely empty profile. The welcome route exposes an unnamed dialog containing the Select a Provider heading. It declares aria-modal=true, but First Tab begins at the app sidebar rather than the guide and background controls remain in the Tab order. | The automatic guide and its current step are not identified as the active task. | Accepted: empty-profile welcome and shared settings guide are named nonmodal dialogs and receive initial focus. |
 | A20 | Closed side panel | After a chat, before opening Workspace, the accessibility tree and Tab order include its Workspace/Yo Browser/Close/Files controls. The visually closed panel uses opacity and pointer-event styles without inert/hidden semantics. | Keyboard users can enter a closed panel and encounter inactive empty content. | Accepted: closed panel excluded; opening focuses named panel and closing restores opener |
 | A21 | Message editing | Activate the user message Edit message button with Enter. The inline editor appears as an unnamed textbox. | The editor cannot be distinguished from other textboxes by purpose. | Accepted: textbox named Edit message |
 | A22 | Blocking agent question | A local `deepchat_question` tool call produces Waiting for input, but focus moves to body. Its question radiogroup and Option A/Option B radios have no names. Selecting a radio immediately submits and removes the choices. | The user cannot identify choices and may submit while navigating them. | Accepted: named question/choices, deliberate Confirm, and composer focus restoration |
@@ -45,62 +45,70 @@ Evidence dates: 2026-09-08–2026-09-09. Baseline: current `codex/accessibility`
 | A26 | File viewer focus | Open Workspace and activate a temporary readme.md file with Enter. Preview renders readable headings, but focus falls to body when the file button unmounts. Activating Back also returns to body instead of the file. | Opening and leaving a preview loses the user's working position. | Accepted: file preview region receives focus and Back restores the file button |
 | A27 | Embedded browser focus | Load a local page containing a Test action button, open Yo Browser, focus Address bar and press Tab. Focus proceeds to Expand and then the host sidebar; the native browser WebContents never receives focus. | Website controls have no keyboard entry from the host toolbar. | Open |
 | A28 | Agent save focus | Add an agent, fill its named Name field and activate Save with Enter. The new agent appears in the list, but the disabled Save control loses focus to body and no save status is exposed. | Saving loses the editor position without an announced completion. | Accepted: Saved status and focus returns to Name |
-| A29 | Floating task overview | Enable the floating widget from Display using Space. Its AX exposes Task Overview images and the visually hidden expanded panel, including Collapse floating sessions, but no keyboard control expands the collapsed widget. | The floating task list has no nonvisual keyboard entry, and hidden content remains exposed. | Open |
+| A29 | Floating task overview | Enable the floating widget from Display using Space. Its AX exposes Task Overview images and the visually hidden expanded panel, including Collapse floating sessions, but no keyboard control expands the collapsed widget. | The floating task list has no nonvisual keyboard entry, and hidden content remains exposed. | Accepted: native Expand/Collapse buttons receive focus after Enter/Escape and the inactive layer is absent from AX. |
 | A30 | Plugin lifecycle navigation | Install a local ZIP through its named review dialog, enable/disable it, then confirm its named Uninstall alertdialog. Installation opens details and uninstall returns to catalog, but both route transitions drop focus to body. | The resulting plugin page has no stable keyboard reading position. | Accepted: plugin install/uninstall routes focus the named Plugins region |
-| A31 | Git diff semantics | Open a changed file from the Git section of a temporary repository. The named viewer is focused and all diff text is present, but the table has no column headers; old/new line numbers are unlabeled and change type is represented only by punctuation. | Column meaning and added/removed state require visual layout or punctuation pronunciation. | Open |
+| A31 | Git diff semantics | Open a changed file from the Git section of a temporary repository. The named viewer is focused and all diff text is present, but the table has no column headers; old/new line numbers are unlabeled and change type is represented only by punctuation. | Column meaning and added/removed state require visual layout or punctuation pronunciation. | Accepted: diff exposes Old line, New line, Change and Content headers, with Added/Removed cell text. |
 | A32 | Skill detail focus | Open the private fixture Skill card with Enter and close its named dialog with Escape. The dialog disappears, but focus falls to body instead of returning to the card. | Closing a Skill loses the catalog position. | Accepted: Escape returns to the original Skill card |
 | A33 | Memory creation and row actions | Enable memory, add a local Content entry and submit Add memory with Enter. The record is created and its details open, but focus falls to body. Its row is a button containing nested buttons, two unnamed. | The saved entry and its actions are difficult to navigate independently. | Accepted: named focused creation/details panels, independent named row actions, and Escape returns to the row |
-| A34 | Usage calendar | Settings Overview renders 371 calendar-cell divs with no role, name, text or tabindex. The calendar AX contains only month and weekday labels. | Daily dates and usage values are available only through mouse hover. | Open |
+| A34 | Usage calendar | Settings Overview renders 371 calendar-cell divs with no role, name, text or tabindex. The calendar AX contains only month and weekday labels. | Daily dates and usage values are available only through mouse hover. | Accepted: non-padding calendar cells expose image names containing full dates and input/output/cached values. |
 | A35 | Provider connection focus | Add a custom localhost provider through its named form and activate Connect and load models with Enter. One model loads successfully, but focus falls to body; the configured provider rail exposes an unnamed button beside detached provider text. Configured model toggles and model-dialog type/capability controls are unnamed; configured-provider order only has a drag handle. | Connection completion, provider selection and model settings lack stable named controls. | Accepted: connected-result focus, named provider/model controls and dialogs, keyboard provider reordering |
-| A36 | Setting value and selection state | Display text-size buttons have no selected/pressed state or group name; interface/monospace font buttons share the same current-value name. Common file-size controls expose generic Decrease/Increase buttons around a static number. | Current selections, field purpose and updated numeric values lack control semantics. | Open |
+| A36 | Setting value and selection state | Display text-size buttons have no selected/pressed state or group name; interface/monospace font buttons share the same current-value name. Common file-size controls expose generic Decrease/Increase buttons around a static number. | Current selections, field purpose and updated numeric values lack control semantics. | Accepted: text size has a named group and pressed selection, fonts have contextual names, and the named file-size spinbutton changes 30 to 31 with ArrowUp. |
+| A37 | Hook test feedback | Create a hook with `printf hook-fixture` and activate Test with Enter. Success, exit 0 and stdout appear as plain text, while focus falls to body; the only live text is an unrelated Saved toast. | Test completion and output are not announced and the action loses focus. | Accepted: New Hook focuses Name; Test announces Hook 1: Success, exposes a named output region, and restores Test focus. |
+| A38 | Memory directive creation | Enter an instruction and activate Activate directive with Enter. The Active row appears, but the now-disabled creation button loses focus to body. | Successful creation leaves the next keyboard step without a meaningful location; repeated Delete buttons also lack directive context. | Open |
+| A39 | Knowledge search result actions | Upload a local text file, query keyboard, and inspect the returned result. The copy icon is an unnamed button next to score and source text. | The search result action cannot be identified nonvisually. | Open |
+| A40 | MCP capability entry points | Enable a local stdio server exposing one tool and one prompt. Its capability buttons are named only 1, 1 and 0, and More has no server context. Tool/prompt JSON textareas are named only {}. Executing echo_fixture returns text without a live completion announcement and drops focus to body. | The actions cannot be distinguished by purpose from their accessible names. | Open |
+| A41 | Composer chip keyboard events | Upload a text attachment, focus its Delete button and press Enter. The input sends the attachment as a new message before the delete click runs. | A removal action unexpectedly submits conversation content. | Open |
 
 ## Coverage matrix
 
 `Tree inspected` means the route rendered and its ARIA snapshot was examined. It is not a completed feature journey. `Pending` means no runtime claim is made. The settings inventory includes hidden routes and aliases from `src/shared/settingsNavigation.ts`.
 
-| Surface | Coverage | Remaining work |
+| Surface | Runtime evidence | Outstanding first-party journey |
 | --- | --- | --- |
-| Initial agent selection | Keyboard activation and tree inspected | Focus/state acceptance after fixes |
-| Guided onboarding and first-run setup | Empty-profile welcome and Tab order inspected; OpenAI Enter opens Providers window with unfocused shared guide; A19 | Guide semantics/focus and step navigation/completion |
-| Main sidebar | Keyboard Tab traversal and named buttons inspected | Session selection/actions, search results, workspace groups |
-| New chat and composer | Keyboard agent/model selection and Enter send; slash/empty mention accepted; named file options accept ArrowDown/Enter and insert readme.md; Attach opens native chooser | Advanced settings and attachment removal |
-| Chat responses | Progress/complete/error/stop accepted; edit/delete/More inspected; blocking questions and permissions exercised with local tool fixtures; A21/A22 | Branch to New Chat preserves messages and focuses composer; export/save invocation |
-| Search/command palette | Global dialog/combobox/option keyboard semantics and focus return accepted; Meta+F conversation search returns 1/1 and Escape restores composer | Result activation and navigation |
-| Workspace panel and file viewer | Opened actual panel and expanded temporary folder with Enter; nested file visible; A18/A20; Shift+F10 does not open context menu | Preview/Code/Maximize/Back and Git diff exercised; Code has named Editor content textbox; preview focus accepted; A31 diff semantics |
-| Plugins catalog | Local ZIP chooser/review/install/enable/disable/uninstall exercised with keyboard; named dialogs/checkboxes; A30 | Lifecycle route focus; official configuration boundaries |
-| Plugins skills | Private installed Skill detail and remove/add Agent menu exercised; named controls; A05/A32 | Draft toggle label and dialog focus return; standalone editing/import |
-| Plugins MCP | Tree inspected | Enable/configuration/dialog flow |
-| Plugins built-in OCR | Tree inspected | Engine selection/configuration |
-| Settings overview | Tree inspected | Filter and navigation controls |
-| Settings common | Tree inspected; A03 | Form keyboard operation |
-| Settings display | Tree inspected; A06 | Language/theme/font controls |
-| Settings environments | Named filter/menu verified; Move to Bottom reorders two directories and persists sort order | Archive/restore removal dialog |
-| Settings provider | Custom provider created through named UI fields and localhost model discovery; A35 | Connection focus and configured provider/model actions |
-| Settings DeepChat agents | Add/Name/Save creates a local agent; named tool toggles and settings inspected; A06/A28 | Save focus/status, deletion, advanced settings |
-| Settings ACP | Enabled with Space; Add Custom Agent named dialog opened with Enter; Enabled switch unnamed; A05 | Registry dialog and persistence |
-| Settings dashboard alias | Verified redirect to overview usage | Same as overview |
-| Settings MCP (hidden) | Enabled with Space; server cards inspected; Add Server named dialog and JSON field verified; master/per-server switches unnamed | Manual server configuration and tool controls |
-| Settings OCR (hidden) | Tree inspected | Same as plugins OCR |
-| Settings toolchains | Tree inspected | Runtime action feedback |
-| Settings remote (hidden) | All five tabs and named bindings dialogs exercised with keyboard; credential fields inspected; A06 | Default-agent/brand labels and meaningful enable-toggle names; live account flows outside fixture |
-| Settings hooks | New Hook inserted with Enter; named command/name/event controls inspected | Save/edit lifecycle and action feedback |
-| Settings scheduled tasks | New job inserted with Enter; A15 | Named form, focus, edit/enable/run actions |
-| Settings plugins (hidden) | Tree inspected | Plugin detail configuration |
-| Settings prompts | System/custom dialogs opened with Enter; named dialog/form inspected; A06/A16 | CRUD, parameter and attachment actions |
-| Settings memory | Enabled in isolated profile, created local memory, inspected Directives/Diagnostics; A06/A33 | Memory row actions/focus and directive save |
-| Settings knowledge base | RAGFlow expanded via unnamed wrapper; named Add Configuration dialog and labels verified; config enable/edit/delete unnamed; A07 | Dify/FastGPT/built-in/Nowledge form journeys |
-| Settings data/privacy | Tree inspected; Set password and Reset Data dialogs opened with Enter; initial focus and Escape return verified; A08 | Sync, encryption persistence, import/export |
-| Settings shortcuts | Tree inspected; A09 | Shortcut capture/cancel/reset |
-| Settings about | Disclaimer opened with Enter; named dialog and Close focus verified; A06 | Update status |
-| Settings debug | Route excluded from production build; renders no content | Development-only, no production feature claim |
-| Browser window/overlay | Local data URL and browser AX inspected; named host controls; Tab from Address bar skips embedded content; A27 | Keyboard entry/return bridge and preview modes |
-| Floating window | Enabled from Display using Space; focusable native window and AX inspected; A29 | Expand/collapse keyboard entry and hidden-content semantics |
-| Plugin settings window | Pending | Host-provided controls and content boundary |
-| Native file/save dialogs | Chat Attach and prompt Upload from device invoke native file chooser with Enter | Save invocation/focus return; OS screen-reader speech remains unverified |
+| Initial agent selection | Named agent buttons, pressed state and keyboard selection accepted | None in the exercised entry path |
+| Guided onboarding and first-run setup | Empty-profile welcome has a focused named nonmodal dialog | Shared guide step navigation and completion |
+| Main sidebar | Session title Tab/Enter/Space, selected state, navigation and skip accepted | Pin/delete confirmation, session search, workspace grouping |
+| New chat and composer | Model selection, Enter send, focus retention, slash and file mention selection, permission mode, native attachment chooser accepted | Advanced settings and attachment removal |
+| Chat responses | Start/complete/error/stop, complete AT reading, history loading, editing, question/permission flow, exec output, branching and Markdown export accepted | No open issue in exercised text/tool/media paths |
+| Generated audio | Silent WAV plays/pauses with Space; full Chromium AX exposes native play/seek/volume/mute controls | Speech output and native media-control navigation across OSes remain unverified |
+| Search/command palette | Named global dialog/list/options and selection feedback; close focus return; conversation find/close accepted | Session-title result activates with Enter and returns the original chat; previous/next conversation match navigation remains |
+| Workspace files and viewer | Panel visibility/focus, resize, file/folder disclosure, context menu, preview/code/maximize/back and Git diff exercised | Artifact entries and remaining file actions |
+| Plugins catalog/detail | Local ZIP review/install/enable/disable/uninstall and route focus accepted | Official plugin configuration panels |
+| Plugins skills | Private Skill detail, agent assignment/removal, dialog return and slash insertion accepted | Standalone import/edit UI; draft suggestion review |
+| Plugins MCP | Local stdio fixture starts and exposes one tool and one prompt; tool execution returns expected text | A40 capability names, JSON argument purpose, execution feedback and focus |
+| Plugins OCR | Shared OCR route rendered; master switch is named | Backend selection persistence |
+| Settings overview/dashboard | Route/search fields inspected; calendar dates and usage now in AX | Search result activation; nonempty usage chart/table semantics |
+| Settings common | Named switches/selectors; file-size spinbutton keyboard update accepted | Proxy custom-URL edit and shell selector |
+| Settings display | Language selector, text-size pressed state, contextual font buttons and switches accepted | Font picker and language/theme keyboard selection |
+| Settings environments | Named filter/menu; two-directory Move to Bottom persists after keyboard activation | Archive/restore/remove confirmation |
+| Settings provider/model | Local provider created through UI; connected-result focus, model fields/toggles and provider ordering accepted | Custom model save/delete and provider advanced options |
+| Settings DeepChat agents | Add/Name/Save creates an agent, Saved status and Name focus accepted; tool/model controls inspected | Agent deletion and advanced output settings |
+| Settings ACP | Master toggle and Add Custom Agent dialog exercised | Registry/custom-agent edit/save; actual ACP runtime requires separate fixture |
+| Settings dashboard alias | Redirect to overview usage verified | Shared overview coverage |
+| Settings MCP (hidden) | Master/per-server toggle semantics and named Add Server/JSON dialog inspected | Shared MCP server/tool workflow |
+| Settings OCR (hidden) | Same first-party OCR component as Plugins OCR | Shared backend selection coverage |
+| Settings toolchains | Runtime status and actions inspected | Local runtime check feedback; installation requires downloads |
+| Settings remote (hidden) | All five channel tabs, credentials/default controls and named bindings dialogs exercised | Setup dialogs that do not require live account authentication |
+| Settings hooks | New Hook fields/events exercised; local Test command returns output | Accepted: local command test announces completion and retains focus |
+| Settings scheduled tasks | New job focuses Name; all schedule fields named | Save/edit/run result feedback with local provider |
+| Settings plugins (hidden) | Settings route rendered | Official plugin configuration boundary |
+| Settings prompts | Custom prompt with a subject parameter saved through the UI; fields and native attachment action inspected | Edit/delete and applying a saved parameterized prompt |
+| Settings memory | Enable/create/edit/details/Escape focus, independent row actions, Directives/Diagnostics inspected | Directive creation succeeds; A38 focus and delete lifecycle remain |
+| Settings knowledge base | Provider disclosures/toggles and RAGFlow Add Configuration fields accepted | Built-in local document upload/search/delete/Return completed; A39 copy-name acceptance and other provider forms remain |
+| Settings data/privacy | Sync controls named; password/reset dialogs focus and cancel accepted | Local import/export and sync invocation; destructive/encryption persistence not exercised |
+| Settings shortcuts | Contextual Edit/Clear names; capture status and Escape return accepted | Reset confirmation |
+| Settings about | Named Disclaimer dialog/Close focus and channel selector inspected | Update-check feedback |
+| Settings debug | Excluded from production build | No production-feature claim |
+| Embedded browser | Local page and host controls inspected | Native focus acceptance pending: the native UI controller confirms macOS is locked; the host remains unfocused and the focus route correctly rejects entry. Awaiting user unlock |
+| Floating task overview | Keyboard Expand/Escape collapse, focus return and inactive-layer exclusion accepted | Session-row activation |
+| Plugin settings window | Source inventory: native titled BrowserWindow directly loads plugin-owned HTML | Native focus activation awaits unlock; plugin HTML is an external content boundary |
+| Native file/save dialogs | Chat/prompt file chooser invoked through keyboard; export redirected to isolated file | OS-owned dialog speech is outside this simulation |
+
+External boundaries are recorded separately from first-party coverage: third-party account authentication/pairing, remote provider/model behavior, the externally loaded Voice.ai widget, real microphone input, OS permission/file-dialog speech, and human VoiceOver/NVDA use have not been certified by these probes. Local fixtures exercise the app-owned controls and protocol paths without requiring those external services.
 
 ## Nonvisual experience notes
 
-The application already exposes many sidebar icon actions as properly named buttons, and Tab followed by Enter successfully selects the DeepChat agent and opens Settings. The first significant break is the composer: the instructions can be read, but the editable surface does not identify itself as a textbox. Settings are inconsistent: several toggles have good labels, while neighboring toggles expose only their role. Navigating by control type therefore loses the context available visually.
+In this keyboard simulation, I can identify the composer, select an agent and model, send a message, hear a status contract in the accessibility tree, inspect the response, load earlier history, and return to my place after common dialogs. Named landmarks reduce repeated sidebar traversal. The remaining work is concentrated in less frequent setup and management flows; a successful initial-page inspection does not establish that newly created rows, nested forms or asynchronous operation results are accessible.
 
 ## Accepted keyboard contracts
 
@@ -137,3 +145,9 @@ Memory creation focuses its named Add memory region, then focuses Memory details
 Installing or uninstalling the private ZIP fixture focuses the named Plugins region on the resulting route. Closing its Skill detail dialog with Escape restores the original card. Creating a provider through the local UI connection flow focuses its named connected-result region; entering View models focuses the Providers main landmark.
 
 Configured providers have separate named selection and More buttons in the Tab order. Move Down changes their order and the order survives reload. Model Configure/Add dialogs expose named model type, visual ability, speech recognition, function calls and reasoning controls.
+
+Share opens a named menu with Markdown/HTML/Text/Nowledge export choices. Selecting Markdown with Enter generates a file containing the fixture conversation and restores focus to Share. The test redirects Electron download output to the isolated profile; it does not certify native save-dialog speech. A harmless local exec permission fixture accepts Allow with Enter, resumes the assistant, and returns focus to the composer.
+
+The completed exec tool disclosure exposes expanded state, named parameter/output headings, the printed accessibility text and exit code. A silent WAV fixture supports Space playback/pause; Chromium's full AX tree exposes native play, time-scrubber, volume, mute and more-controls actions, although Playwright's simplified ARIA snapshot omits them.
+
+Auxiliary runtime evidence: `/tmp/deepchat-a11y-onboarding-provider-accept.log`, `/tmp/deepchat-a11y-floating-accept.log`, `/tmp/deepchat-a11y-gitdiff-accept.log`, `/tmp/deepchat-a11y-dashboard-accept.log`, `/tmp/deepchat-a11y-values-accept.log` and `/tmp/deepchat-a11y-hook-accept.log`. Knowledge upload and search use a temporary text file and a localhost embeddings fixture; the returned text and 100% score are verified in `/tmp/deepchat-a11y-knowledge.log`. Memory directive creation focus is captured in `/tmp/deepchat-a11y-directive.log`. These are isolated runtime probes, not human screen-reader acceptance.

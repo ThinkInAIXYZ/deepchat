@@ -13,6 +13,11 @@
 
     <div
       ref="panelRef"
+      role="dialog"
+      tabindex="-1"
+      :aria-label="title"
+      :aria-describedby="descriptionId"
+      @keydown.esc.stop="$emit('close')"
       class="guided-onboarding-panel pointer-events-auto absolute rounded-2xl border border-border/80 bg-background/96 p-4 shadow-2xl backdrop-blur"
       :style="panelStyle"
     >
@@ -30,7 +35,7 @@
       <h2 class="mt-3 text-sm font-semibold text-foreground">
         {{ title }}
       </h2>
-      <p class="mt-2 text-xs leading-5 text-muted-foreground">
+      <p :id="descriptionId" class="mt-2 text-xs leading-5 text-muted-foreground">
         {{ description }}
       </p>
 
@@ -96,7 +101,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, nextTick, ref, useId, watch } from 'vue'
 import { useElementBounding } from '@vueuse/core'
 import OnBoardingSpotlight from './OnBoardingSpotlight.vue'
 import { useOnBoarding } from '@/composables/useOnBoarding'
@@ -149,8 +154,31 @@ defineEmits<{
   expert: []
 }>()
 
+const descriptionId = useId()
 const PANEL_MIN_HEIGHT = 156
 const panelRef = ref<HTMLElement | null>(null)
+
+let opener: HTMLElement | null = null
+watch(
+  [() => props.visible, () => props.stepIndex],
+  async ([visible], [wasVisible]) => {
+    if (visible && !wasVisible) opener = document.activeElement as HTMLElement | null
+    const ownedFocus = panelRef.value?.contains(document.activeElement)
+    await nextTick()
+    if (visible) panelRef.value?.focus({ preventScroll: true })
+    else if (ownedFocus || document.activeElement === document.body) {
+      const target =
+        opener && opener !== document.body && opener.isConnected ? opener : props.targetEl
+      if (target?.matches('button, input, select, textarea, [tabindex]'))
+        target.focus({ preventScroll: true })
+      else
+        target
+          ?.querySelector<HTMLElement>('button, input, select, textarea, [tabindex]')
+          ?.focus({ preventScroll: true })
+    }
+  },
+  { immediate: true }
+)
 
 const { spotlightRect, viewportWidth, viewportHeight, pathD, cutoutPathD } = useOnBoarding(
   () => props.targetEl,

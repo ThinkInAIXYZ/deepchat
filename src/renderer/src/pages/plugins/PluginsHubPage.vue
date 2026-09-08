@@ -32,7 +32,7 @@
       v-if="!isAcpUnavailable"
       ref="routeContent"
       role="region"
-      :aria-label="t(String(route.meta.title || 'routes.plugins'))"
+      :aria-label="t(String(route.meta.titleKey || 'routes.plugins'))"
       tabindex="-1"
       class="min-h-0 flex-1"
     >

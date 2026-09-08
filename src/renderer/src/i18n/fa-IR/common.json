@@ -138,7 +138,9 @@
     "addressPlaceholder": "Enter a URL",
     "enterUrlDescription": "برای دسترسی به وب سایت، آدرس اینترنتی را در نوار آدرس بالا وارد کنید",
     "enterUrlToStart": "برای شروع بازدید، URL را وارد کنید",
-    "name": "مرورگر یو"
+    "name": "مرورگر یو",
+    "enterContent": "ورود به صفحهٔ وب",
+    "returnFocus": "با F6 به کنترل‌های مرورگر برگردید"
   },
   "size": {
     "bytes": "{count} بایت"
@@ -154,5 +156,16 @@
     "none": "بدون پروژه",
     "recent": "پروژه‌های اخیر",
     "openFolder": "باز کردن پوشه..."
+  },
+  "diff": {
+    "oldLine": "خط قدیمی",
+    "newLine": "خط جدید",
+    "change": "تغییر",
+    "content": "محتوا",
+    "add": "اضافه‌شده",
+    "del": "حذف‌شده",
+    "context": "بدون تغییر",
+    "hunk": "محدودهٔ تغییر",
+    "meta": "فراداده"
   }
 }

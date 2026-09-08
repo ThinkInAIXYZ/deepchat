@@ -138,7 +138,9 @@
     "addressPlaceholder": "Nhập URL",
     "enterUrlToStart": "Nhập URL để bắt đầu duyệt",
     "enterUrlDescription": "Nhập URL vào thanh địa chỉ bên trên để truy cập trang web",
-    "name": "Trình duyệt Yo"
+    "name": "Trình duyệt Yo",
+    "enterContent": "Vào trang web",
+    "returnFocus": "F6 quay lại các điều khiển trình duyệt"
   },
   "size": {
     "bytes": "{count} byte"
@@ -154,5 +156,16 @@
     "none": "Không có dự án",
     "recent": "dự án gần đây",
     "openFolder": "Mở thư mục..."
+  },
+  "diff": {
+    "oldLine": "Dòng cũ",
+    "newLine": "Dòng mới",
+    "change": "Thay đổi",
+    "content": "Nội dung",
+    "add": "Đã thêm",
+    "del": "Đã xóa",
+    "context": "Không đổi",
+    "hunk": "Phạm vi thay đổi",
+    "meta": "Siêu dữ liệu"
   }
 }

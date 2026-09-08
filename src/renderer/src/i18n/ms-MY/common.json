@@ -138,7 +138,9 @@
     "addressPlaceholder": "Masukkan URL",
     "enterUrlToStart": "Masukkan URL untuk mula melawat",
     "enterUrlDescription": "Masukkan URL dalam bar alamat di atas untuk mengakses tapak web",
-    "name": "Yo Browser"
+    "name": "Yo Browser",
+    "enterContent": "Masuk ke halaman web",
+    "returnFocus": "F6 kembali ke kawalan pelayar"
   },
   "size": {
     "bytes": "{count} Bait"
@@ -154,5 +156,16 @@
     "none": "Tiada projek berkaitan",
     "recent": "Projek terkini",
     "openFolder": "Buka folder..."
+  },
+  "diff": {
+    "oldLine": "Baris lama",
+    "newLine": "Baris baharu",
+    "change": "Perubahan",
+    "content": "Kandungan",
+    "add": "Ditambah",
+    "del": "Dibuang",
+    "context": "Tidak berubah",
+    "hunk": "Julat perubahan",
+    "meta": "Metadata"
   }
 }

@@ -15,7 +15,7 @@
         size="icon"
         icon="lucide:minus"
         icon-size="3"
-        :label="t('common.decrease')"
+        :aria-label="`${t('common.decrease')}: ${t('settings.common.fileMaxSize')}`"
         :tooltip="t('common.decrease')"
         class="h-8 w-8"
         @click="decreaseFileMaxSize"
@@ -24,26 +24,14 @@
 
       <!-- 当前值 / 输入框 -->
       <div class="relative">
-        <div
-          v-if="!isEditing"
-          @click="startEditing"
-          class="min-w-16 h-8 flex items-center justify-center text-sm font-semibold hover:bg-accent rounded px-2"
-        >
-          {{ fileMaxSize }}
-        </div>
         <Input
-          v-else
-          ref="inputRef"
+          :aria-label="`${t('settings.common.fileMaxSize')} (MB)`"
           type="number"
           :min="minSize"
           :max="maxSize"
           :model-value="fileMaxSize"
           @update:model-value="handleChange"
-          @blur="stopEditing"
-          @keydown.enter="stopEditing"
-          @keydown.escape="stopEditing"
           class="min-w-16 h-8 text-center text-sm font-semibold rounded px-2"
-          :class="{ 'bg-accent': isEditing }"
         />
       </div>
 
@@ -53,12 +41,14 @@
         size="icon"
         icon="lucide:plus"
         icon-size="3"
-        :label="t('common.increase')"
+        :aria-label="`${t('common.increase')}: ${t('settings.common.fileMaxSize')}`"
         :tooltip="t('common.increase')"
         class="h-8 w-8"
         @click="increaseFileMaxSize"
         :disabled="fileMaxSize >= maxSize"
       />
+
+      <span role="status" class="sr-only">{{ fileMaxSize }} MB</span>
 
       <!-- 单位 -->
       <span class="text-xs text-muted-foreground ml-1">{{ 'MB' }}</span>
@@ -67,7 +57,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, nextTick, onMounted, watch } from 'vue'
+import { ref, onMounted } from 'vue'
 import { Icon } from '@iconify/vue'
 import { DcButton } from '@dc-ui/components/button'
 import { Input } from '@shadcn/components/ui/input'
@@ -81,8 +71,6 @@ const minSize = 1
 const maxSize = 1024 // 1024MB
 
 const fileMaxSize = ref(30) // 默认值
-const isEditing = ref(false)
-const inputRef = ref<{ dom: HTMLInputElement }>()
 
 const handleChange = async (value: string | number) => {
   const numValue = typeof value === 'string' ? parseInt(value, 10) : value
@@ -105,24 +93,6 @@ const decreaseFileMaxSize = () => {
   const newValue = Math.max(fileMaxSize.value - 50, minSize)
   handleChange(newValue)
 }
-
-const startEditing = () => {
-  isEditing.value = true
-}
-
-const stopEditing = () => {
-  isEditing.value = false
-}
-
-watch(
-  () => isEditing.value,
-  async (newVal) => {
-    if (newVal) {
-      await nextTick()
-      inputRef.value?.dom?.focus?.()
-    }
-  }
-)
 
 onMounted(async () => {
   try {
