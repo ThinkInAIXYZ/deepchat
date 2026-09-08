@@ -1,0 +1,50 @@
+name: Manual Build
+
+on:
+  workflow_dispatch:
+    inputs:
+      platforms:
+        description: '选择要构建的平台'
+        required: true
+        type: choice
+        options:
+          - 'all'
+          - 'macos'
+          - 'windows'
+          - 'linux'
+      arch:
+        description: '选择架构'
+        required: true
+        type: choice
+        options:
+          - 'both'
+          - 'x64'
+          - 'arm64'
+
+permissions:
+  contents: read
+
+env:
+  CI: 'true'
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+
+jobs:
+  build-macos:
+    name: Build macOS (${{ matrix.arch }})
+    if: inputs.platforms == 'all' || inputs.platforms == 'macos'
+    runs-on: ${{ matrix.arch == 'arm64' && 'macos-15' || 'macos-15-intel' }}
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: ${{ (inputs.arch == 'both' && fromJSON('["x64", "arm64"]')) || fromJSON(format('["{0}"]', inputs.arch)) }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
+        with:
+          node-version: '24.18.0'
