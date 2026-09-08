@@ -657,6 +657,8 @@ export class WindowPresenter implements IWindowPresenter {
     const appWindow = new BrowserWindow({
       width: managedWindowState.width,
       height: managedWindowState.height,
+      minWidth: 900, // 与设置窗口保持一致，防止内容区被过度压缩
+      minHeight: 640,
       x: initialX,
       y: initialY,
       show: false, // 先隐藏窗口，等待 ready-to-show 以避免白屏
