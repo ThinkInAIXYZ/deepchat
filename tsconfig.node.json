@@ -13,9 +13,6 @@
     "types": ["electron-vite/node"],
     "moduleResolution": "bundler",
     "paths": {
-      "*": [
-        "./*"
-      ],
       "@/*": [
         "./src/main/*"
       ],
