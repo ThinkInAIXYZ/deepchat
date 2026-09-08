@@ -1,5 +1,8 @@
 import type { MCPContentItem, ToolCallImagePreview } from '@shared/types/core/mcp'
+import type { CacheImageOptions } from '@/platform/imageCache'
 import { awaitWithAbort } from './awaitWithAbort'
+
+export type CacheImageCallback = (data: string, options?: CacheImageOptions) => Promise<string>
 
 type ImagePreviewInput = {
   data: string
@@ -13,7 +16,7 @@ type ExtractToolCallImagePreviewsParams = {
   toolName?: string
   toolArgs?: string
   content: string | MCPContentItem[]
-  cacheImage?: (data: string) => Promise<string>
+  cacheImage?: CacheImageCallback
   signal?: AbortSignal
 }
 
@@ -93,10 +96,10 @@ function extractEmbeddedHttpImageReferences(content: string): string[] {
 function normalizeImagePayload(data: string, mimeType: string): string {
   const trimmed = data.trim()
   if (
-    trimmed.startsWith('data:image/') ||
-    trimmed.startsWith('imgcache://') ||
-    trimmed.startsWith('http://') ||
-    trimmed.startsWith('https://')
+    trimmed.toLowerCase().startsWith('data:image/') ||
+    trimmed.toLowerCase().startsWith('imgcache://') ||
+    trimmed.toLowerCase().startsWith('http://') ||
+    trimmed.toLowerCase().startsWith('https://')
   ) {
     return trimmed
   }
@@ -104,9 +107,25 @@ function normalizeImagePayload(data: string, mimeType: string): string {
   return `data:${mimeType || 'image/png'};base64,${trimmed}`
 }
 
+/**
+ * Normalizes a preview payload before it is handed to the image cache: lowercases a case-insensitive
+ * `data:` scheme so `imageCache`'s base64 router recognizes it, and wraps bare base64 into a full
+ * data URL. Non-base64 references (HTTP(S) URLs, `imgcache://`) are returned unchanged.
+ */
+function normalizeBackstopPreviewData(data: string, mimeType: string): string {
+  const trimmed = data.trim()
+  if (/^data:/i.test(trimmed)) {
+    return `data:${trimmed.slice('data:'.length)}`
+  }
+  if (/^https?:\/\//i.test(trimmed) || trimmed.toLowerCase().startsWith('imgcache://')) {
+    return trimmed
+  }
+  return `data:${mimeType || 'image/png'};base64,${trimmed}`
+}
+
 async function cachePreviewData(
   data: string,
-  cacheImage?: (data: string) => Promise<string>,
+  cacheImage?: CacheImageCallback,
   signal?: AbortSignal
 ): Promise<string | undefined> {
   if (data.trim().toLowerCase().startsWith('imgcache://')) {
@@ -118,7 +137,7 @@ async function cachePreviewData(
 
   try {
     signal?.throwIfAborted()
-    const cachedData = await awaitWithAbort(cacheImage(data), signal)
+    const cachedData = await awaitWithAbort(cacheImage(data, { signal }), signal)
     const cachedDataTrimmed = cachedData.trim()
     return cachedDataTrimmed.toLowerCase().startsWith('imgcache://') ? cachedDataTrimmed : undefined
   } catch (error) {
@@ -353,12 +372,18 @@ export async function extractToolCallImagePreviews(
 
 /**
  * Backstop for tools that return `imagePreviews` directly (bypassing extraction): rewrites any
- * inline base64 data URL to an on-disk `imgcache://` reference so multi-MB payloads never reach
- * message persistence, IPC, or the renderer. Previews that cannot be cached are left unchanged.
+ * inline base64 payload (data URL or bare base64, in any casing) to an on-disk `imgcache://`
+ * reference so multi-MB payloads never reach message persistence, IPC, or the renderer. Previews
+ * that cannot be cached are left unchanged. Mirroring the extraction path, at most
+ * `MAX_TOOL_CALL_IMAGE_PREVIEWS` distinct payloads are written per call and duplicates are dropped.
+ *
+ * Note: like the extraction path this only rewrites the `imagePreviews` array — a tool that also
+ * embeds the same base64 in its textual `content` is expected to use the extraction path (which
+ * rewrites content references) instead of returning `imagePreviews` directly.
  */
 export async function cacheToolCallImagePreviews(params: {
   imagePreviews: ToolCallImagePreview[]
-  cacheImage?: (data: string) => Promise<string>
+  cacheImage?: CacheImageCallback
   signal?: AbortSignal
 }): Promise<ToolCallImagePreview[]> {
   const { imagePreviews, cacheImage, signal } = params
@@ -368,17 +393,38 @@ export async function cacheToolCallImagePreviews(params: {
 
   let changed = false
   const resolved: ToolCallImagePreview[] = []
+  const seenInputs = new Set<string>()
+  const seen = new Set<string>()
   for (const preview of imagePreviews) {
-    const data = preview.data?.trim()
-    if (!data || !data.toLowerCase().startsWith('data:image/')) {
+    const rawData = preview.data?.trim()
+    if (
+      !rawData ||
+      rawData.toLowerCase().startsWith('imgcache://') ||
+      /^https?:\/\//i.test(rawData)
+    ) {
       resolved.push(preview)
       continue
     }
-    const cached = await cachePreviewData(data, cacheImage, signal)
-    if (!cached) {
+    const normalized = normalizeBackstopPreviewData(rawData, preview.mimeType)
+    if (!/^data:image\//i.test(normalized)) {
       resolved.push(preview)
       continue
     }
+    const inputKey = normalized.toLowerCase()
+    if (seenInputs.has(inputKey)) {
+      continue
+    }
+    if (seenInputs.size >= MAX_TOOL_CALL_IMAGE_PREVIEWS) {
+      resolved.push(preview)
+      continue
+    }
+    seenInputs.add(inputKey)
+    const cached = await cachePreviewData(normalized, cacheImage, signal)
+    if (!cached || seen.has(cached)) {
+      resolved.push(preview)
+      continue
+    }
+    seen.add(cached)
     changed = true
     resolved.push({ ...preview, data: cached, mimeType: inferMimeType(cached, preview.mimeType) })
   }

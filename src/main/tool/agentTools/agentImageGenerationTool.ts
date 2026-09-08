@@ -22,6 +22,7 @@ import {
   IMAGE_GENERATION_TOOL_SERVER_NAME
 } from '@shared/agentImageGenerationTool'
 import logger from '@shared/logger'
+import type { CacheImageCallback } from '@/lib/toolCallImagePreviews'
 import type { AgentProviderToolPort, AgentToolSessionPort } from '../runtimePorts'
 import type { AgentSettingsPort } from '@/agent/settings'
 
@@ -68,13 +69,13 @@ type ImageGenerationModelSelection = {
 
 // Inline base64 payloads below this size are allowed to pass through uncached; anything larger
 // that could not be written to the image cache fails the tool call instead of flowing multi-MB
-// strings through message persistence, IPC and the renderer.
+// strings through message persistence, IPC and the renderer. The limit applies to the encoded
+// base64 character length of the payload (not its decoded byte size).
 const MAX_INLINE_IMAGE_BASE64_CHARS = 2 * 1024 * 1024
 
-const estimateDataUrlBytes = (dataUrl: string): number => {
+const estimateBase64PayloadChars = (dataUrl: string): number => {
   const commaIndex = dataUrl.indexOf(',')
-  const base64Length = commaIndex === -1 ? dataUrl.length : dataUrl.length - commaIndex - 1
-  return Math.floor((base64Length * 3) / 4)
+  return commaIndex === -1 ? dataUrl.length : dataUrl.length - commaIndex - 1
 }
 
 type AgentImageGenerationToolCallResult = {
@@ -94,7 +95,7 @@ export class AgentImageGenerationTool {
       agentSettings: Pick<AgentSettingsPort, 'resolveDeepChatAgentConfig'>
       sessions: AgentToolSessionPort
       provider: AgentProviderToolPort
-      cacheImage?: (data: string) => Promise<string>
+      cacheImage?: CacheImageCallback
     }
   ) {}
 
@@ -172,7 +173,7 @@ export class AgentImageGenerationTool {
       const images = await Promise.all(
         result.images.map(async (image) => ({
           mimeType: image.mimeType,
-          data: await this.cacheGeneratedImageData(image.data, image.mimeType)
+          data: await this.cacheGeneratedImageData(image.data, image.mimeType, options?.signal)
         }))
       )
       const imagePreviews = images.map<ToolCallImagePreview>((image, index) => ({
@@ -216,7 +217,11 @@ export class AgentImageGenerationTool {
     }
   }
 
-  private async cacheGeneratedImageData(data: string, mimeType: string): Promise<string> {
+  private async cacheGeneratedImageData(
+    data: string,
+    mimeType: string,
+    signal?: AbortSignal
+  ): Promise<string> {
     const trimmed = data.trim()
     if (trimmed.toLowerCase().startsWith('imgcache://')) {
       return trimmed
@@ -230,15 +235,31 @@ export class AgentImageGenerationTool {
     let resolved = source
     if (this.options.cacheImage) {
       try {
-        resolved = await this.options.cacheImage(source)
+        // Provider-returned HTTP(S) URLs are cached with private-network access disabled and the
+        // tool-call abort signal forwarded, so cancellation cannot leave an unmanaged download
+        // running. `allowPrivateNetwork: false` is passed unconditionally so an omitted signal
+        // cannot re-enable private-network access.
+        resolved = await this.options.cacheImage(source, {
+          signal,
+          allowPrivateNetwork: false
+        })
       } catch (error) {
+        if (signal?.aborted) throw error
         logger.warn('[AgentImageGenerationTool] Failed to cache generated image', { error })
       }
+    }
+    signal?.throwIfAborted()
+
+    // A provider-returned HTTP(S) URL that could not be written to the cache must not flow through
+    // the tool-result pipeline as an unmanaged remote reference; fail the call instead so the
+    // agent can surface a recoverable error.
+    if (/^https?:\/\//i.test(resolved)) {
+      throw new Error('Generated image URL could not be written to the image cache.')
     }
 
     if (
       resolved.startsWith('data:') &&
-      estimateDataUrlBytes(resolved) > MAX_INLINE_IMAGE_BASE64_CHARS
+      estimateBase64PayloadChars(resolved) > MAX_INLINE_IMAGE_BASE64_CHARS
     ) {
       throw new Error(
         'Generated image could not be written to the image cache and is too large to return inline.'

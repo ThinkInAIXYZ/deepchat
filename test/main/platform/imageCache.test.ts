@@ -153,6 +153,15 @@ describe('imageCache', () => {
     expect(requestSignal?.aborted).toBe(true)
   })
 
+  it('caches base64 data URLs with an uppercase scheme prefix', async () => {
+    const cached = await cacheImage('DATA:IMAGE/PNG;BASE64,aW1hZ2U=')
+
+    expect(cached).toMatch(/^imgcache:\/\/.+\.png$/)
+    await expect(
+      fs.readFile(path.join(electronMock.userDataPath, 'images', cached.slice('imgcache://'.length)))
+    ).resolves.toEqual(Buffer.from('image'))
+  })
+
   it('resolves a cached image to a MIME-correct data URL', async () => {
     await fs.writeFile(path.join(electronMock.userDataPath, 'images', 'generated.png'), 'image')
 

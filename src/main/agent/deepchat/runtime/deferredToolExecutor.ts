@@ -8,6 +8,7 @@ import type {
   ToolOutcomeProjection
 } from '@shared/types/core/mcp'
 import type { ToolExecutionPort, ToolResultPort } from '@/agent/deepchat/loop/ports'
+import type { CacheImageOptions } from '@/platform/imageCache'
 import { awaitWithAbort } from '@/lib/awaitWithAbort'
 import {
   cacheToolCallImagePreviews,
@@ -82,7 +83,7 @@ export interface DeferredToolExecutorDependencies {
   toolExecutionPort: ToolExecutionPort
   toolResultPort: ToolResultPort
   toolResolver: DeepChatToolResolver
-  cacheImage(data: string): Promise<string>
+  cacheImage(data: string, options?: CacheImageOptions): Promise<string>
   runLifecycle: Pick<
     RunLifecycleCoordinator,
     'registerDeferredToolController' | 'clearDeferredToolController' | 'getAbortSignal'

@@ -165,7 +165,10 @@ describe('Agent image generation tool', () => {
       'conv-1'
     )) as any
 
-    expect(cacheImage).toHaveBeenCalledWith('data:image/png;base64,aGVsbG8=')
+    expect(cacheImage).toHaveBeenCalledWith('data:image/png;base64,aGVsbG8=', {
+      signal: undefined,
+      allowPrivateNetwork: false
+    })
     expect(result.rawData.imagePreviews).toEqual([
       {
         id: 'generated-image-1',
@@ -176,6 +179,113 @@ describe('Agent image generation tool', () => {
       }
     ])
     expect(result.rawData.toolResult.ok).toBe(true)
+  })
+
+  it('fails the tool call when a generated HTTP image URL cannot be cached', async () => {
+    manager = buildManager(vi.fn(async (data: string) => data))
+    generateImageStandalone.mockResolvedValue({
+      providerId: 'openai',
+      modelId: 'gpt-image-1',
+      images: [{ data: 'https://example.com/generated.png', mimeType: 'image/png' }]
+    })
+
+    const result = (await manager.callTool(
+      IMAGE_GENERATE_TOOL_NAME,
+      { prompt: 'A warm sunset over the ocean' },
+      'conv-1'
+    )) as any
+
+    expect(result.rawData.isError).toBe(true)
+    expect(result.rawData.toolResult.error).toMatchObject({
+      code: 'IMAGE_GENERATION_FAILED',
+      recoverable: true
+    })
+  })
+
+  it('caches generated HTTP image URLs with private-network access disabled', async () => {
+    const cacheImage = vi.fn().mockResolvedValue('imgcache://cached.png')
+    manager = buildManager(cacheImage)
+    generateImageStandalone.mockResolvedValue({
+      providerId: 'openai',
+      modelId: 'gpt-image-1',
+      images: [{ data: 'https://example.com/generated.png', mimeType: 'image/png' }]
+    })
+
+    const result = (await manager.callTool(
+      IMAGE_GENERATE_TOOL_NAME,
+      { prompt: 'A warm sunset over the ocean' },
+      'conv-1'
+    )) as any
+
+    expect(cacheImage).toHaveBeenCalledWith('https://example.com/generated.png', {
+      signal: undefined,
+      allowPrivateNetwork: false
+    })
+    expect(result.rawData.imagePreviews).toEqual([
+      {
+        id: 'generated-image-1',
+        data: 'imgcache://cached.png',
+        mimeType: 'image/png',
+        title: 'Generated image 1',
+        source: 'tool_output'
+      }
+    ])
+    expect(result.rawData.toolResult.ok).toBe(true)
+  })
+
+  it('fails the tool call above the inline base64 character limit even when decoded bytes are smaller', async () => {
+    manager = buildManager(vi.fn(async (data: string) => data))
+    // Encoded character length is just above the 2 MiB limit while the decoded payload is only
+    // ~1.5 MiB — the limit is enforced on the encoded base64 payload, not decoded byte size.
+    const payload = 'A'.repeat(2 * 1024 * 1024 + 1)
+    generateImageStandalone.mockResolvedValue({
+      providerId: 'openai',
+      modelId: 'gpt-image-1',
+      images: [{ data: `data:image/png;base64,${payload}`, mimeType: 'image/png' }]
+    })
+
+    const result = (await manager.callTool(
+      IMAGE_GENERATE_TOOL_NAME,
+      { prompt: 'A warm sunset over the ocean' },
+      'conv-1'
+    )) as any
+
+    expect(result.rawData.isError).toBe(true)
+    expect(result.rawData.toolResult.error).toMatchObject({
+      code: 'IMAGE_GENERATION_FAILED',
+      recoverable: true
+    })
+  })
+
+  it('does not return a success result when the cache write is aborted', async () => {
+    const controller = new AbortController()
+    const cacheImage = vi.fn(async () => {
+      controller.abort()
+      throw new DOMException('The operation was aborted.', 'AbortError')
+    })
+    manager = buildManager(cacheImage)
+    generateImageStandalone.mockResolvedValue({
+      providerId: 'openai',
+      modelId: 'gpt-image-1',
+      images: [{ data: 'aGVsbG8=', mimeType: 'image/png' }]
+    })
+
+    const result = (await manager.callTool(
+      IMAGE_GENERATE_TOOL_NAME,
+      { prompt: 'A warm sunset over the ocean' },
+      'conv-1',
+      { signal: controller.signal }
+    )) as any
+
+    expect(cacheImage).toHaveBeenCalledWith('data:image/png;base64,aGVsbG8=', {
+      signal: controller.signal,
+      allowPrivateNetwork: false
+    })
+    expect(result.rawData.isError).toBe(true)
+    expect(result.rawData.toolResult.error).toMatchObject({
+      code: 'IMAGE_GENERATION_FAILED',
+      recoverable: true
+    })
   })
 
   it('fails the tool call when a large image cannot be cached', async () => {

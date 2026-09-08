@@ -28,6 +28,7 @@ import type {
 } from '@shared/orchestration/liveDelegation'
 import type { AgentInvocationAdmissionPort } from '@/agent/invocationAdmission'
 import type { SkillServicePort } from '@shared/types/skill'
+import type { CacheImageOptions } from '@/platform/imageCache'
 import type { AgentMemoryCategory } from '@shared/types/agent-memory'
 import type { MemoryCommandResult } from '@shared/contracts/routes/memory.routes'
 import type { SessionRuntimeUpdate } from '@/session/runtimeEvents'
@@ -275,5 +276,5 @@ export interface AgentToolDependencies {
   provider: AgentProviderToolPort
   desktop: AgentDesktopToolPort
   permissions: AgentToolPermissionPort
-  cacheImage(data: string): Promise<string>
+  cacheImage(data: string, options?: CacheImageOptions): Promise<string>
 }
