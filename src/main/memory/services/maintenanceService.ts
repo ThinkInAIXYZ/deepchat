@@ -142,7 +142,6 @@ export class MaintenanceService {
         budget: MaintenanceBudget
       ) => Promise<MemoryMaintenanceStepResult>
       repairConflictIntegrity: (agentId: string) => boolean
-      runConsolidationPass: (agentId: string) => Promise<void>
       diagnostics?: {
         recordMaintenance(
           agentId: string,
@@ -337,7 +336,7 @@ export class MaintenanceService {
     const timer = setTimeout(() => {
       this.consolidationTimers.delete(agentId)
       this.consolidationTimerDueAt.delete(agentId)
-      void this.ports.runConsolidationPass(agentId).catch((error) => {
+      void this.runConsolidationPass(agentId).catch((error) => {
         logger.warn(`[Memory] consolidation pass failed for ${agentId}: ${String(error)}`)
       })
     }, delayMs)
