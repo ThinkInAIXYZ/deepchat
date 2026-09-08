@@ -587,13 +587,13 @@ describe('DeepSeek Responses replay', () => {
     })
   })
 
-  it('sanitizes un-replayable open-responses reasoning metadata while keeping the text', () => {
+  it('sanitizes un-replayable deepseek reasoning metadata while keeping the text', () => {
     const summaryOnly: ChatMessage = {
       role: 'assistant',
       content: 'answer',
       reasoning_content: 'concise summary',
       reasoning_provider_options: {
-        'open-responses': {
+        deepseek: {
           itemId: 'rsn_summary_only',
           reasoningSummary: [{ type: 'summary_text', text: 'concise summary' }],
           reasoningContent: null
@@ -605,7 +605,7 @@ describe('DeepSeek Responses replay', () => {
       content: 'answer',
       reasoning_content: 'full thinking',
       reasoning_provider_options: {
-        'open-responses': {
+        deepseek: {
           itemId: 'rsn_full',
           reasoningContent: [{ type: 'reasoning_text', text: 'full thinking' }]
         }
@@ -616,7 +616,7 @@ describe('DeepSeek Responses replay', () => {
       content: 'tool call without reasoning',
       reasoning_content: '',
       reasoning_provider_options: {
-        'open-responses': { itemId: 'rsn_empty', reasoningContent: null }
+        deepseek: { itemId: 'rsn_empty', reasoningContent: null }
       }
     }
 
@@ -625,14 +625,14 @@ describe('DeepSeek Responses replay', () => {
     expect(prepared[0]).not.toBe(summaryOnly)
     expect(prepared[0]?.reasoning_content).toBe('concise summary')
     expect(prepared[0]?.reasoning_provider_options).toEqual({
-      'open-responses': {
+      deepseek: {
         itemId: 'rsn_summary_only',
         reasoningSummary: [{ type: 'summary_text', text: 'concise summary' }]
       }
     })
     expect(prepared[1]).toBe(fullContent)
     expect(prepared[1]?.reasoning_provider_options).toEqual({
-      'open-responses': {
+      deepseek: {
         itemId: 'rsn_full',
         reasoningContent: [{ type: 'reasoning_text', text: 'full thinking' }]
       }
@@ -642,7 +642,7 @@ describe('DeepSeek Responses replay', () => {
       content: 'tool call without reasoning'
     })
     expect(summaryOnly.reasoning_provider_options).toEqual({
-      'open-responses': {
+      deepseek: {
         itemId: 'rsn_summary_only',
         reasoningSummary: [{ type: 'summary_text', text: 'concise summary' }],
         reasoningContent: null
@@ -656,7 +656,7 @@ describe('DeepSeek Responses replay', () => {
       content: 'answer',
       reasoning_content: 'concise summary',
       reasoning_provider_options: {
-        'open-responses': {
+        deepseek: {
           itemId: 'rsn_empty_array',
           reasoningSummary: [{ type: 'summary_text', text: 'concise summary' }],
           reasoningContent: []
@@ -669,13 +669,13 @@ describe('DeepSeek Responses replay', () => {
     expect(prepared[0]).not.toBe(emptyArray)
     expect(prepared[0]?.reasoning_content).toBe('concise summary')
     expect(prepared[0]?.reasoning_provider_options).toEqual({
-      'open-responses': {
+      deepseek: {
         itemId: 'rsn_empty_array',
         reasoningSummary: [{ type: 'summary_text', text: 'concise summary' }]
       }
     })
     expect(emptyArray.reasoning_provider_options).toEqual({
-      'open-responses': {
+      deepseek: {
         itemId: 'rsn_empty_array',
         reasoningSummary: [{ type: 'summary_text', text: 'concise summary' }],
         reasoningContent: []
@@ -1077,6 +1077,79 @@ describe('DeepSeek Responses replay', () => {
         headers: {},
         body
       }
+    ])
+  })
+
+  it('sanitizes deepseek reasoning metadata before real SDK serialization', async () => {
+    const messages: ChatMessage[] = [
+      { role: 'user', content: 'What was the result?' },
+      {
+        role: 'assistant',
+        content: 'Summary-only round.',
+        reasoning_content: 'concise summary',
+        reasoning_provider_options: {
+          deepseek: {
+            itemId: 'rsn_review_null',
+            reasoningSummary: [{ type: 'summary_text', text: 'concise summary' }],
+            reasoningContent: null
+          }
+        }
+      },
+      {
+        role: 'assistant',
+        content: 'Empty array round.',
+        reasoning_content: 'empty array thinking',
+        reasoning_provider_options: {
+          deepseek: {
+            itemId: 'rsn_review_empty',
+            reasoningSummary: [{ type: 'summary_text', text: 'empty array thinking' }],
+            reasoningContent: []
+          }
+        }
+      }
+    ]
+    const fetchMock = vi.fn(async () => {
+      throw new Error('request captured')
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const firstEvent = await runAiSdkCoreStream(
+      createRuntimeContext(),
+      messages,
+      DEEPSEEK_RESPONSES_MODEL_ID,
+      { ...deepSeekModelConfig, reasoningEffort: 'max' },
+      0.7,
+      1024,
+      [
+        {
+          type: 'function',
+          function: {
+            name: 'read_file',
+            description: 'Read a file.',
+            parameters: {
+              type: 'object',
+              properties: { path: { type: 'string' } },
+              required: ['path']
+            }
+          },
+          server: { name: 'filesystem' }
+        } as any
+      ]
+    ).next()
+    expect(firstEvent).toMatchObject({
+      done: false,
+      value: { type: 'error', error_message: 'request captured' }
+    })
+
+    const body = JSON.parse(String((fetchMock.mock.calls[0]?.[1] as RequestInit).body)) as {
+      input: Array<Record<string, unknown>>
+    }
+    const reasoningItems = body.input.filter((item) => item.type === 'reasoning')
+    expect(reasoningItems).toHaveLength(2)
+    const contents = reasoningItems.map((item) => (item as { content: unknown }).content)
+    expect(contents).toEqual([
+      [{ type: 'reasoning_text', text: 'concise summary' }],
+      [{ type: 'reasoning_text', text: 'empty array thinking' }]
     ])
   })
 

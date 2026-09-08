@@ -198,11 +198,11 @@ export function createDeepSeekResponsesReplayProjector(
   }
 }
 
-const OPEN_RESPONSES_PROVIDER_OPTIONS_KEY = 'open-responses'
+const DEEPSEEK_PROVIDER_OPTIONS_KEY = 'deepseek'
 
 /**
  * `@ai-sdk/open-responses` re-serializes an assistant `reasoning` part as a Responses `reasoning`
- * item. When the part's provider options carry an un-replayable `open-responses.reasoningContent`
+ * item. When the part's provider options carry an un-replayable `deepseek.reasoningContent`
  * (a summary-only reasoning round from DeepSeek), its converter emits an item with no `content` at
  * all (`{}`), which the upstream thinking protocol rejects. Deleting the key lets the converter
  * fall back to materializing `reasoning_text` from the part text instead.
@@ -219,21 +219,21 @@ function isReplayableReasoningContent(value: unknown): boolean {
 
 function sanitizeReasoningProviderOptions(message: ChatMessage): ChatMessage {
   const providerOptions = message.reasoning_provider_options
-  const openResponses = providerOptions?.[OPEN_RESPONSES_PROVIDER_OPTIONS_KEY]
+  const deepseekOptions = providerOptions?.[DEEPSEEK_PROVIDER_OPTIONS_KEY]
   if (
-    !isRecord(openResponses) ||
-    !Object.prototype.hasOwnProperty.call(openResponses, 'reasoningContent') ||
-    isReplayableReasoningContent(openResponses.reasoningContent)
+    !isRecord(deepseekOptions) ||
+    !Object.prototype.hasOwnProperty.call(deepseekOptions, 'reasoningContent') ||
+    isReplayableReasoningContent(deepseekOptions.reasoningContent)
   ) {
     return message
   }
 
   const nextMessage = { ...message }
-  const sanitizedOpenResponses = { ...openResponses }
-  delete sanitizedOpenResponses.reasoningContent
+  const sanitizedDeepseekOptions = { ...deepseekOptions }
+  delete sanitizedDeepseekOptions.reasoningContent
   nextMessage.reasoning_provider_options = {
     ...providerOptions,
-    [OPEN_RESPONSES_PROVIDER_OPTIONS_KEY]: sanitizedOpenResponses
+    [DEEPSEEK_PROVIDER_OPTIONS_KEY]: sanitizedDeepseekOptions
   }
   return nextMessage
 }
