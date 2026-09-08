@@ -22,10 +22,10 @@ on:
           - 'arm64'
   push:
     tags:
-      - 'v*'
+      - 'miowork-v*'
 
 permissions:
-  contents: read
+  contents: write
 
 env:
   CI: 'true'
@@ -84,9 +84,10 @@ jobs:
           pnpm run build
           pnpm run plugin:bundle:clean
           pnpm run plugin:bundle -- --name feishu --platform darwin --arch ${{ matrix.arch }} || echo "Feishu plugin build failed, skipping"
-          pnpm exec electron-builder --mac --${{ matrix.arch }} --publish=never
+          pnpm exec electron-builder --mac --${{ matrix.arch }} --publish=${{ github.event_name == 'push' && 'always' || 'never' }}
         env:
           NODE_OPTIONS: '--max-old-space-size=4096'
+          GH_TOKEN: ${{ github.token }}
 
       - name: Upload package
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
@@ -144,9 +145,10 @@ jobs:
           pnpm run build
           pnpm run plugin:bundle:clean
           pnpm run plugin:bundle -- --name feishu --platform win32 --arch ${{ matrix.arch }}
-          pnpm exec electron-builder --win --${{ matrix.arch }} --publish=never
+          pnpm exec electron-builder --win --${{ matrix.arch }} --publish=${{ github.event_name == 'push' && 'always' || 'never' }}
         env:
           NODE_OPTIONS: '--max-old-space-size=4096'
+          GH_TOKEN: ${{ github.token }}
 
       - name: Upload package
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
@@ -204,9 +206,10 @@ jobs:
           pnpm run build
           pnpm run plugin:bundle:clean
           pnpm run plugin:bundle -- --name feishu --platform linux --arch ${{ matrix.arch }} || echo "Feishu plugin build failed, skipping"
-          pnpm exec electron-builder --linux --${{ matrix.arch }} --publish=never
+          pnpm exec electron-builder --linux --${{ matrix.arch }} --publish=${{ github.event_name == 'push' && 'always' || 'never' }}
         env:
           NODE_OPTIONS: '--max-old-space-size=4096'
+          GH_TOKEN: ${{ github.token }}
 
       - name: Upload package
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
