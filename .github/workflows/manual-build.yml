@@ -20,6 +20,9 @@ on:
           - 'both'
           - 'x64'
           - 'arm64'
+  push:
+    tags:
+      - 'v*'
 
 permissions:
   contents: read
@@ -31,13 +34,13 @@ env:
 jobs:
   build-macos:
     name: Build macOS (${{ matrix.arch }})
-    if: inputs.platforms == 'all' || inputs.platforms == 'macos'
+    if: github.event_name == 'push' || inputs.platforms == 'all' || inputs.platforms == 'macos'
     runs-on: ${{ matrix.arch == 'arm64' && 'macos-15' || 'macos-15-intel' }}
     timeout-minutes: 90
     strategy:
       fail-fast: false
       matrix:
-        arch: ${{ (inputs.arch == 'both' && fromJSON('["x64", "arm64"]')) || fromJSON(format('["{0}"]', inputs.arch)) }}
+        arch: ${{ fromJSON(inputs.arch == 'x64' && '["x64"]' || inputs.arch == 'arm64' && '["arm64"]' || '["x64", "arm64"]') }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
         with:
@@ -88,19 +91,19 @@ jobs:
       - name: Upload package
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
         with:
-          name: mioagent-darwin-${{ matrix.arch }}
+          name: miowork-darwin-${{ matrix.arch }}
           path: dist/*.dmg
           if-no-files-found: error
 
   build-windows:
     name: Build Windows (${{ matrix.arch }})
-    if: inputs.platforms == 'all' || inputs.platforms == 'windows'
+    if: github.event_name == 'push' || inputs.platforms == 'all' || inputs.platforms == 'windows'
     runs-on: windows-2022
     timeout-minutes: 90
     strategy:
       fail-fast: false
       matrix:
-        arch: ${{ (inputs.arch == 'both' && fromJSON('["x64", "arm64"]')) || fromJSON(format('["{0}"]', inputs.arch)) }}
+        arch: ${{ fromJSON(inputs.arch == 'x64' && '["x64"]' || inputs.arch == 'arm64' && '["arm64"]' || '["x64", "arm64"]') }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
         with:
@@ -148,19 +151,19 @@ jobs:
       - name: Upload package
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
         with:
-          name: mioagent-win32-${{ matrix.arch }}
+          name: miowork-win32-${{ matrix.arch }}
           path: dist/*.exe
           if-no-files-found: error
 
   build-linux:
     name: Build Linux (${{ matrix.arch }})
-    if: inputs.platforms == 'all' || inputs.platforms == 'linux'
+    if: github.event_name == 'push' || inputs.platforms == 'all' || inputs.platforms == 'linux'
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     strategy:
       fail-fast: false
       matrix:
-        arch: ${{ (inputs.arch == 'both' && fromJSON('["x64", "arm64"]')) || fromJSON(format('["{0}"]', inputs.arch)) }}
+        arch: ${{ fromJSON(inputs.arch == 'x64' && '["x64"]' || inputs.arch == 'arm64' && '["arm64"]' || '["x64", "arm64"]') }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
         with:
@@ -208,7 +211,7 @@ jobs:
       - name: Upload package
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
         with:
-          name: mioagent-linux-${{ matrix.arch }}
+          name: miowork-linux-${{ matrix.arch }}
           path: |
             dist/*.AppImage
             dist/*.deb
