@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { extractArtifactsFromContent, generatePart } from '@/composables/useArtifacts'
+import {
+  extractArtifactsFromBlock,
+  extractArtifactsFromContent,
+  generatePart
+} from '@/composables/useArtifacts'
 
 describe('useArtifacts generatePart', () => {
   it('parses closed thinking and artifact tags', () => {
@@ -83,5 +87,42 @@ describe('useArtifacts generatePart', () => {
         loading: false
       }
     ])
+  })
+
+  it('extractArtifactsFromBlock memoizes per block reference and re-extracts on change', () => {
+    const block = (content: string, status: 'loading' | 'success') => ({
+      type: 'content' as const,
+      content,
+      status,
+      timestamp: 0
+    })
+
+    // Same block reference: cache hit, same frozen array.
+    const settled = block(
+      '<antArtifact type="text/markdown" identifier="a" title="T">c</antArtifact>',
+      'success'
+    )
+    const first = extractArtifactsFromBlock(settled)
+    expect(first).toBe(extractArtifactsFromBlock(settled))
+    expect(Object.isFrozen(first)).toBe(true)
+
+    // New reference with different content (streaming tail): re-extracted.
+    const streaming = block(
+      '<antArtifact type="text/markdown" identifier="a" title="T">c2',
+      'loading'
+    )
+    const streamed = extractArtifactsFromBlock(streaming)
+    expect(streamed[0]).toMatchObject({ content: 'c2', loading: true })
+    expect(streamed).not.toBe(first)
+
+    // Yet another reference gets its own cached result.
+    const next = block(
+      '<antArtifact type="text/markdown" identifier="b" title="T2">c3</antArtifact>',
+      'success'
+    )
+    const nextResult = extractArtifactsFromBlock(next)
+    expect(nextResult[0]).toMatchObject({ identifier: 'b' })
+    expect(nextResult).not.toBe(first)
+    expect(nextResult).not.toBe(streamed)
   })
 })
