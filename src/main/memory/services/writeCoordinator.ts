@@ -158,8 +158,9 @@ interface IndexedCandidate {
 }
 
 // Everything a single write shares across preparation, decision, and apply. `options.scope`
-// is already normalized; `beforeMutation` is the caller's dispatch-commit boundary and must run
-// outside any store transaction.
+// is already normalized; `beforeMutation` is the caller's dispatch-commit boundary: it fires at
+// most once, always outside any store transaction, and never for a candidate that a local gate
+// (provenance, tombstone, challenged head) already rejected.
 interface WriteContext {
   agentId: string
   scope: MemoryScope
@@ -231,13 +232,32 @@ function resolveContentMergeTemporalMetadata(
   })
 }
 
+// Several write sites may reach the boundary in one call (a legacy re-key, then the row write),
+// and the dispatch journal rejects a second commit for the same call, so the callback is armed once
+// here rather than trusting every caller to wrap it.
+function once(callback?: () => void): (() => void) | undefined {
+  if (!callback) return undefined
+  let fired = false
+  return () => {
+    if (fired) return
+    fired = true
+    callback()
+  }
+}
+
 function createWriteContext(
   options: WriteMemoriesOptions,
   now: number,
   beforeMutation?: () => void
 ): WriteContext {
   const scope = normalizeMemoryScope(options.scope)
-  return { agentId: options.agentId, scope, options: { ...options, scope }, now, beforeMutation }
+  return {
+    agentId: options.agentId,
+    scope,
+    options: { ...options, scope },
+    now,
+    beforeMutation: once(beforeMutation)
+  }
 }
 
 function temporalDecisionAnnotation(
