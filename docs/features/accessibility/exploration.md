@@ -6,7 +6,7 @@ The exploration agent, 糸锯圭介, simulates nonvisual discovery using the act
 
 All runtime exploration uses a fresh `DEEPCHAT_E2E_USER_DATA_DIR`, the repository Electron executable, and temporary scripts outside the repository. User credentials are neither needed nor recorded. Local mock providers may supply deterministic chat responses. Direct route navigation or fixture seeding is recorded as setup; it does not count as successful keyboard discovery.
 
-Evidence date: 2026-09-08. Baseline: current `codex/accessibility` build before product accessibility changes. The initial stale build was discarded and findings were reproduced against the fresh build.
+Evidence dates: 2026-09-08–2026-09-09. Baseline: current `codex/accessibility` build before product accessibility changes. The initial stale build was discarded and findings were reproduced against the fresh build.
 
 ## Confirmed barriers
 
@@ -28,9 +28,9 @@ Evidence date: 2026-09-08. Baseline: current `codex/accessibility` build before 
 | ID | Surface | Actual evidence | Impact | State |
 | --- | --- | --- | --- | --- |
 | A11 | Long conversation history | A fixture with 222 stored messages initially exposes only the latest 100, beginning at item 123. No button offers earlier messages. The scroll container has no role/tabindex; Skip to content then Control+Home leaves scrollTop at 43174. | Earlier history has no explicit discoverable keyboard loading action. | Accepted: Enter/Space loads earlier pages and focuses the conversation at the new first message |
-| A12 | Slash suggestions | Typing `/` creates a tooltip containing command/skill buttons. ArrowDown leaves focus in the editor, whose aria-expanded/controls/activedescendant are absent; highlighted selection has no accessible state. | Keyboard users cannot hear which suggestion will be accepted. | Open |
-| A13 | File mentions | Typing `@` with no files exposes a detached No result tooltip without editor association or live feedback. | No result state is not announced or associated with the input. | Open |
-| A14 | Global search | Enter opens search; typing `fixture` finds a named provider result. ArrowDown keeps focus on the input without aria-activedescendant. No dialog/listbox/option/aria-selected semantics exist. | Search result selection changes are visual only. | Open |
+| A12 | Slash suggestions | Typing `/` creates a tooltip containing command/skill buttons. ArrowDown leaves focus in the editor, whose aria-expanded/controls/activedescendant are absent; highlighted selection has no accessible state. | Keyboard users cannot hear which suggestion will be accepted. | Accepted: linked listbox/options and active descendant; Escape clears association and hidden candidates do not consume Enter |
+| A13 | File mentions | Typing `@` with no files exposes a detached No result tooltip without editor association or live feedback. | No result state is not announced or associated with the input. | Accepted: associated localized empty-result status |
+| A14 | Global and conversation search | Enter opens search; typing `fixture` finds a named provider result. ArrowDown keeps focus on the input without aria-activedescendant. No dialog/listbox/option/aria-selected semantics exist. Separately, Meta+F conversation search has named controls and a 1/1 result indicator, but Escape drops focus to body. | Global selection changes are visual only; closing conversation search loses the task focus. | Accepted: named dialog/combobox/options, active selection, contained Tab order, and opener focus restoration |
 | A15 | Scheduled task form | Activate New job. Focus falls to body, and the resulting Name, Cron expression and Task prompt textboxes and Agent/Timezone/Runtime comboboxes are unnamed. | The newly inserted editor and its fields cannot be identified through control navigation. | Open |
 | A16 | Prompt attachments | Add Custom Prompt opens a correctly named dialog, but Upload from device is only a paragraph, absent from interactive controls. | File attachment is not a discoverable keyboard action. | Open |
 | A17 | Long Markdown response | A local response containing 200 numbered headings and paragraphs retains only 129 headings in the completed DOM/accessibility tree, beginning at Section 71. Section 0 is absent while Section 199 exists. | Reading the completed answer sequentially can omit earlier content. | Accepted: isolated app AT activation exposes all 200 headings and all 222 loaded messages |
@@ -40,8 +40,8 @@ Evidence date: 2026-09-08. Baseline: current `codex/accessibility` build before 
 | A21 | Message editing | Activate the user message Edit message button with Enter. The inline editor appears as an unnamed textbox. | The editor cannot be distinguished from other textboxes by purpose. | Open |
 | A22 | Blocking agent question | A local `deepchat_question` tool call produces Waiting for input, but focus moves to body. Its question radiogroup and Option A/Option B radios have no names. Selecting a radio immediately submits and removes the choices. | The user cannot identify choices and may submit while navigating them. | Accepted: named question/choices, deliberate Confirm, and composer focus restoration |
 | A23 | Tool permission request | A local `exec` request in Default permissions produces Waiting for permission with named Deny/Allow controls, but focus falls to body. | The blocking decision is announced without a usable focus destination. | Accepted: named permission region receives focus; Tab to Deny and Enter restores composer |
-
 | A24 | Generated image action | Append a local PNG image block and reopen the session. The image appears as `img picture`, with no button role or tabindex; only a click handler opens the full-image dialog and its save action. | The original-image/save journey has no keyboard entry point. | Open |
+| A25 | First message focus | Type into the new-thread composer and send with Enter. After the session opens and streams a normal text response, the active element is body rather than the replacement composer. | A user cannot continue typing a draft without finding the input again. | Accepted: replacement composer retains focus after first send |
 
 ## Coverage matrix
 
@@ -52,9 +52,9 @@ Evidence date: 2026-09-08. Baseline: current `codex/accessibility` build before 
 | Initial agent selection | Keyboard activation and tree inspected | Focus/state acceptance after fixes |
 | Guided onboarding and first-run setup | Empty-profile welcome route and actual Tab order inspected; A19 | Provider setup, guided-step navigation, completion |
 | Main sidebar | Keyboard Tab traversal and named buttons inspected | Session selection/actions, search results, workspace groups |
-| New chat and composer | Keyboard agent activation, model-menu selection, input and Enter send | Attachments, mentions, settings, permissions |
+| New chat and composer | Keyboard agent/model selection and Enter send; slash/empty mention accepted; Attach opens native file chooser and local file has named Delete control | Mention selection with files, advanced settings, attachment removal |
 | Chat responses | Progress/complete/error/stop accepted; edit/delete/More inspected; blocking questions and permissions exercised with local tool fixtures; A21/A22 | Branching/export and media actions |
-| Search/command palette | Opened with Enter; queried local fixture; ArrowDown inspected; A14 | Result activation and focus return after fixes |
+| Search/command palette | Global dialog/combobox/option keyboard semantics and focus return accepted; Meta+F conversation search returns 1/1 and Escape restores composer | Result activation and navigation |
 | Workspace panel and file viewer | Opened actual panel and expanded temporary folder with Enter; nested file visible; A18/A20; Shift+F10 does not open context menu | File actions, preview, diff and accessible disclosure state |
 | Plugins catalog | Tree inspected; Install from Git opens named dialog with named fields | Detail/configuration navigation and ZIP invocation |
 | Plugins skills | Tree inspected | Import/install/detail/enable/remove dialogs |
@@ -108,3 +108,7 @@ A deterministic local streaming run also verifies a persistent polite, atomic st
 Only within the isolated Electron process, enabling its accessibility-support flag exposes all 200 headings of a completed long Markdown response and all 222 already loaded messages. This tests the app response to assistive-technology activation; it does not activate macOS VoiceOver or certify speech output.
 
 A local blocking-question fixture verifies its named region receives focus, its question labels the radio group, and multiword options retain names and descriptions. ArrowDown moves to Option B without submission; Space selects it, and Tab to Confirm followed by Enter sends the answer. The assistant resumes and the composer regains focus. A separate Default permissions fixture verifies the named permission region receives focus and Tab followed by Enter on Deny returns focus to the composer.
+
+Slash completion keeps focus in the composer while `aria-controls` identifies the listbox and `aria-activedescendant` follows ArrowDown to the selected option. Escape removes both associations; pressing Enter afterwards sends the typed slash instead of accepting a hidden candidate. An empty file mention exposes the localized No matching results status without a stale active descendant.
+
+Global search opens a named dialog with a focused named combobox, listbox and options. ArrowDown updates active selection, Tab cycles between the combobox and Close, and both Escape and Close restore the opening control. Conversation search opened with Meta+F returns focus to the original composer on Escape. Sending the first message from a new thread preserves focus in the replacement composer after the chat route opens.

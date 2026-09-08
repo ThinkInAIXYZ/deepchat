@@ -394,6 +394,7 @@ import type { UserMessageInlineItem } from '@shared/types/agent-interface'
 import { findLatestAssistantMessageId } from '@/features/chat-page/model/displayMessage'
 
 const props = defineProps<{
+  focusComposerOnMount?: boolean
   sessionId: string
 }>()
 
@@ -1166,6 +1167,24 @@ async function onToolInteractionRespond(response: ToolInteractionResponse) {
   if (isReadOnlySession.value) scrollContainer.value?.focus({ preventScroll: true })
   else chatInputRef.value?.focusInput?.()
 }
+
+let composerFocusRequested = props.focusComposerOnMount === true
+watch(
+  isSessionViewPreparing,
+  async (preparing) => {
+    if (preparing || !composerFocusRequested) return
+    composerFocusRequested = false
+    await nextTick()
+    if (
+      !activePendingInteraction.value &&
+      !isReadOnlySession.value &&
+      document.activeElement === document.body
+    ) {
+      chatInputRef.value?.focusInput?.()
+    }
+  },
+  { immediate: true, flush: 'post' }
+)
 
 // Announce state transitions, not token updates; users read response content in the transcript.
 const generationAnnouncement = computed(() => {

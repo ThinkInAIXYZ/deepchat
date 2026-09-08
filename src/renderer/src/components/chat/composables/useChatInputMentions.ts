@@ -1,4 +1,5 @@
-import { computed, onMounted, onUnmounted, ref, watch, type Ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref, useId, watch, type Ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { VueRenderer } from '@tiptap/vue-3'
 import type { Editor, Range } from '@tiptap/core'
 import tippy from 'tippy.js'
@@ -75,6 +76,9 @@ const normalizeAcpCommands = (commands: unknown): AcpSessionCommand[] => {
 }
 
 export function useChatInputMentions(options: UseChatInputMentionsOptions) {
+  const { t } = useI18n()
+  const suggestionListId = useId()
+  const activeSuggestionId = ref<string | null>(null)
   const workspaceClient = createWorkspaceClient()
   const sessionClient = createSessionClient()
   const mcpStore = useMcpStore()
@@ -83,6 +87,17 @@ export function useChatInputMentions(options: UseChatInputMentionsOptions) {
   const acpCommands = ref<AcpSessionCommand[]>([])
   const acpCommandFetchSeq = ref(0)
   const isSuggestionMenuOpen = ref(false)
+  const suggestionAttributes = computed<Record<string, string>>(() => {
+    if (!isSuggestionMenuOpen.value) return {}
+    return {
+      'aria-autocomplete': 'list',
+      'aria-haspopup': 'listbox',
+      'aria-controls': suggestionListId,
+      ...(activeSuggestionId.value
+        ? { 'aria-activedescendant': activeSuggestionId.value }
+        : { 'aria-describedby': `${suggestionListId}-status` })
+    }
+  })
   const suppressSubmitUntil = ref(0)
   const registeredWorkspacePath = ref<string | null>(null)
   const normalizedAgentId = computed(() => options.agentId.value?.trim() || 'deepchat')
@@ -384,12 +399,26 @@ export function useChatInputMentions(options: UseChatInputMentionsOptions) {
     let component: VueRenderer | null = null
     let popup: ReturnType<typeof tippy> | null = null
 
+    const close = () => {
+      isSuggestionMenuOpen.value = false
+      activeSuggestionId.value = null
+      popup?.[0]?.destroy()
+      popup = null
+      component?.destroy()
+      component = null
+    }
     return {
       onStart: (props: any) => {
         isSuggestionMenuOpen.value = true
         component = new VueRenderer(SuggestionList, {
           editor: props.editor,
           props: {
+            listId: suggestionListId,
+            label: t('chat.input.suggestions'),
+            emptyLabel: t('chat.spotlight.emptyTitle'),
+            onActiveChange: (id: string | null) => {
+              activeSuggestionId.value = id
+            },
             items: props.items,
             query: props.query,
             command: (item: SuggestionItem) => props.command(item)
@@ -407,6 +436,8 @@ export function useChatInputMentions(options: UseChatInputMentionsOptions) {
           showOnCreate: true,
           interactive: true,
           trigger: 'manual',
+          role: '',
+          aria: { content: null, expanded: false },
           placement: 'top-start',
           zIndex: 90
         })
@@ -430,19 +461,13 @@ export function useChatInputMentions(options: UseChatInputMentionsOptions) {
         }
 
         if (props.event.key === 'Escape') {
-          popup[0].hide()
+          close()
           return true
         }
 
         return component?.ref?.onKeyDown(props) ?? false
       },
-      onExit: () => {
-        isSuggestionMenuOpen.value = false
-        popup?.[0]?.destroy()
-        popup = null
-        component?.destroy()
-        component = null
-      }
+      onExit: close
     }
   }
 
@@ -539,6 +564,7 @@ export function useChatInputMentions(options: UseChatInputMentionsOptions) {
     atSuggestion,
     slashSuggestion,
     isSuggestionMenuOpen,
+    suggestionAttributes,
     shouldSuppressSubmit,
     submitDialog,
     closeDialog

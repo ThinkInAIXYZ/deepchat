@@ -1,5 +1,6 @@
 {
   "input": {
+    "suggestions": "Gợi ý",
     "placeholder": "Hỏi DeepChat bất cứ điều gì, {'@'} đề cập đến các tập tin, / cho các lệnh",
     "fileArea": "Vùng tệp",
     "inputArea": "Khu vực đầu vào",

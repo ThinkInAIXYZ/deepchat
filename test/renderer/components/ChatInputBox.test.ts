@@ -43,6 +43,7 @@ const useChatInputMentionsMock = vi.fn((_options?: unknown) => ({
   submitDialog: vi.fn(),
   closeDialog: closeDialogMock,
   isSuggestionMenuOpen: ref(false),
+  suggestionAttributes: ref({}),
   shouldSuppressSubmit: vi.fn(() => false)
 }))
 const useSkillsDataMock = vi.fn((_conversationId?: unknown, _agentId?: unknown) => ({

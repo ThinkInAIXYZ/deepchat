@@ -42,3 +42,16 @@ AFTER   Question → named options → Confirm → composer
 ```
 
 The exploration agent accepted named question/permission regions, multiword option names and descriptions, arrow/Space selection without submission, explicit confirmation, successful continuation, permission denial, and restored composer focus. Both single- and multiple-choice label regressions pass. Relevant MessageBlock/ChatPage suites, format, i18n, lint, and typecheck pass.
+
+## Autocomplete and search context
+
+TipTap retains textbox focus while `SuggestionList` exposes a named listbox, selected option, and a stable active-descendant relationship. `useChatInputMentions` owns popup lifetime and reactive editor attributes; Escape removes both the popup and its keyboard/ARIA state. Empty suggestions use localized status text. Global Spotlight uses the existing Reka dialog focus scope, a combobox/listbox relationship, a keyboard close control, and restoration to the opener. Existing result execution and store ownership remain unchanged.
+
+```text
+BEFORE  Editor → visual highlight only; search overlay → page focus can escape
+AFTER   Editor → announced active option; search dialog → Close → opener
+```
+
+## Files and secondary controls context
+
+Message editing receives its existing localized action name. Image preview and prompt attachment upload use native buttons with visible keyboard focus and existing dialog/file APIs; image dialogs restore their trigger. The shared context-menu trigger translates Menu/Shift+F10 into the existing anchored context-menu path because Reka's installed trigger only handles pointer events. No separate menus or action implementations are introduced.

@@ -47,6 +47,7 @@ const createHeroClone = (sourceElement: HTMLElement, sourceRect: DOMRect) => {
   const sourceStyle = window.getComputedStyle(sourceElement)
 
   clone.setAttribute('aria-hidden', 'true')
+  clone.inert = true
   clone.dataset.heroClone = 'chat-input'
   clone.querySelectorAll('[contenteditable]').forEach((element) => {
     element.setAttribute('contenteditable', 'false')

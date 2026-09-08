@@ -1,5 +1,6 @@
 {
   "input": {
+    "suggestions": "補全建議",
     "placeholder": "向 DeepChat 傳送訊息，{'@'} 可引用檔案，/ 可使用指令",
     "fileArea": "檔案區域",
     "inputArea": "輸入區域",

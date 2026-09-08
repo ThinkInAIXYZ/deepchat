@@ -518,6 +518,7 @@ const editor = new VueEditor({
       role: 'textbox',
       'aria-multiline': 'true',
       'aria-label': resolvedPlaceholder.value,
+      ...mentions.suggestionAttributes.value,
       class: 'outline-none min-h-[60px] max-h-[240px] overflow-y-auto overscroll-contain'
     })
   },
@@ -629,7 +630,7 @@ watch(
   { deep: true, immediate: true }
 )
 
-watch(resolvedPlaceholder, () => {
+watch([resolvedPlaceholder, mentions.suggestionAttributes], () => {
   editor.view.updateState(editor.state)
 })
 

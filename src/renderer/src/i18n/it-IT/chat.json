@@ -1,5 +1,6 @@
 {
   "input": {
+    "suggestions": "Suggerimenti",
     "placeholder": "Invia un messaggio a DeepChat, {'@'} per citare file, / per usare comandi",
     "fileArea": "Area file",
     "inputArea": "Area input",

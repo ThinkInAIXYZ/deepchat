@@ -1,5 +1,6 @@
 {
   "input": {
+    "suggestions": "Sugestie",
     "placeholder": "Zapytaj DeepChat o cokolwiek, {'@'} o wzmiankę o plikach, / o polecenia",
     "fileArea": "Obszar pliku",
     "inputArea": "Obszar wejściowy",

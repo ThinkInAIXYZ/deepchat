@@ -8,6 +8,7 @@
     "modeChanged": "Tilstand skiftet til: {mode}"
   },
   "input": {
+    "suggestions": "Forslag",
     "acpWorkdir": "arbejdskatalog",
     "acpWorkdirCurrent": "Nuværende arbejdsmappe: {path}",
     "acpWorkdirSelect": "Vælg arbejdsmappe",

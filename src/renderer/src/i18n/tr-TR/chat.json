@@ -1,5 +1,6 @@
 {
   "input": {
+    "suggestions": "Öneriler",
     "placeholder": "DeepChat'ye herhangi bir şey sor, {'@'}'a dosyalardan bahsetmesini ve / komutlarını sor",
     "fileArea": "Dosya Alanı",
     "inputArea": "Giriş Alanı",

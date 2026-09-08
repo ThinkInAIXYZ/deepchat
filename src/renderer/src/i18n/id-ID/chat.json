@@ -1,5 +1,6 @@
 {
   "input": {
+    "suggestions": "Saran",
     "placeholder": "Kirim pesan ke DeepChat, {'@'} bisa referensi filenya, / bisa pakai perintah",
     "fileArea": "wilayah berkas",
     "inputArea": "daerah masukan",
