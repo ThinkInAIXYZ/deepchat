@@ -834,9 +834,23 @@ function closePanel(): void {
   })
 }
 
+async function recoverRowFocus(agentId: string, memoryId: string, opener: Element | null) {
+  await nextTick()
+  if (
+    props.agentId !== agentId ||
+    (document.activeElement !== document.body && document.activeElement !== opener)
+  )
+    return
+  const row = Array.from(
+    memoryListRoot.value?.querySelectorAll<HTMLElement>('[data-memory-trigger]') ?? []
+  ).find((element) => element.dataset.memoryTrigger === memoryId)
+  ;(row ?? memoryListRoot.value?.querySelector<HTMLElement>('[data-testid=memory-add]'))?.focus()
+}
+
 async function archive(memory: MemoryItem): Promise<void> {
   if (pendingIds.value.has(memory.id)) return
   const agentId = props.agentId
+  const opener = document.activeElement
   clearFeedback()
   setPending(memory.id, true)
   let shouldReload = false
@@ -855,6 +869,7 @@ async function archive(memory: MemoryItem): Promise<void> {
   } finally {
     if (props.agentId === agentId) {
       setPending(memory.id, false)
+      await recoverRowFocus(agentId, memory.id, opener)
       if (shouldReload) void refreshLoadedPages()
     }
   }
@@ -863,6 +878,7 @@ async function archive(memory: MemoryItem): Promise<void> {
 async function restore(memory: MemoryItem): Promise<void> {
   if (pendingIds.value.has(memory.id)) return
   const agentId = props.agentId
+  const opener = document.activeElement
   clearFeedback()
   setPending(memory.id, true)
   let shouldReload = false
@@ -881,6 +897,7 @@ async function restore(memory: MemoryItem): Promise<void> {
   } finally {
     if (props.agentId === agentId) {
       setPending(memory.id, false)
+      await recoverRowFocus(agentId, memory.id, opener)
       if (shouldReload) void refreshLoadedPages()
     }
   }

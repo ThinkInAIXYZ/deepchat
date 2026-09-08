@@ -686,6 +686,13 @@ function handleKeydown(e: KeyboardEvent) {
     return
   }
 
+  // Embedded controls own Enter/Space activation and Tab navigation.
+  if (
+    e.target instanceof HTMLElement &&
+    e.target.closest('button, input, textarea, select, [role="combobox"]')
+  )
+    return
+
   const isVoiceShortcut = (e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === 'm'
   if (isVoiceShortcut) {
     e.preventDefault()

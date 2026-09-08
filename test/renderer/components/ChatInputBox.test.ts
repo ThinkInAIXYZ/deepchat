@@ -824,6 +824,23 @@ describe('ChatInputBox attachments', () => {
     expect(lastEditorInstance.commands.setContent).toHaveBeenCalledWith(restored, false)
   })
 
+  it('does not submit or queue when keyboard events originate in embedded controls', async () => {
+    const wrapper = await mountComponent()
+    await wrapper.setProps({ queueSubmitEnabled: true, queueSubmitDisabled: false })
+    for (const tag of ['button', 'input']) {
+      const control = document.createElement(tag)
+      wrapper.get('[data-testid="editor-content"]').element.append(control)
+      for (const key of ['Enter', 'Tab', ' ']) {
+        const event = new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true })
+        control.dispatchEvent(event)
+        expect(event.defaultPrevented).toBe(false)
+      }
+      control.remove()
+    }
+    expect(wrapper.emitted('submit')).toBeUndefined()
+    expect(wrapper.emitted('queue-submit')).toBeUndefined()
+  })
+
   it('emits queue-submit on Tab only when queue submit is available', async () => {
     const wrapper = await mountComponent()
 

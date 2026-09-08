@@ -113,3 +113,17 @@ AFTER   Created row survives refresh; Import Data -> named import modes
 ```
 
 The independent explorer accepted local document upload/search/copy/delete/Return, directive creation/deletion, local MCP tool/prompt execution, immediate custom-prompt application and local backup/incremental import. Relevant MCP/directive tests pass, including invalid JSON and focused results and preservation during refresh. The Data & Privacy suite passes (36 tests). A complete renderer run passes all 2447 tests across 274 files; subsequent draft, scheduled-task and memory-lifecycle changes have separate targeted checks and acceptance.
+
+## Composer controls and asynchronous management
+
+Embedded controls retain native Enter/Space activation and Tab navigation without triggering composer submission. Attachment and Skill removal returns focus to the editor. New-thread draft synchronization compares document content and restores snapshots only for external changes or replacement input handles, preserving freshly inserted Skill nodes and drafts across agents. Memory archive/restore returns to the surviving row or Add memory. Scheduled tasks announce their latest state, expose output previews, retain Run now focus, and refresh unfinished manual runs even when the next scheduled time is unchanged. MCP resources have named selection, loading feedback and a focused result region.
+
+```text
+BEFORE  Delete attachment + Enter -> sends message; Skill state and DOM disagree
+AFTER   Delete + Enter/Space -> removal -> composer; draft and Skill remain consistent
+
+BEFORE  Run now -> lost focus; History shows only a time and can stay stale
+AFTER   Run now -> same control; Running -> Completed -> readable Preview
+```
+
+The independent explorer accepted attachment/Skill deletion without an extra message, Skill insertion and agent-switch draft restoration, memory archive focus, scheduled completion and keyboard Preview, and local MCP resource reads. Relevant editor, draft, memory and scheduled-task suites pass; the draft regression covers selection changes with a cloned saved document, and the scheduled regression covers completion without a changed next-run time. Electron streaming verification also removes real local attachments with both Enter and Space while preserving the draft and original message count; the keyboard navigation smoke test passes. Browser focus and transfer-error acceptance remain separate pending items.

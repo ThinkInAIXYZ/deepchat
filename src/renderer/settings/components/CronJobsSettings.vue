@@ -234,7 +234,7 @@
                 size="icon"
                 class="h-8 w-8"
                 :disabled="jobInteractionDisabled(job.id)"
-                :aria-label="t('common.delete')"
+                :aria-label="`${t('common.delete')}: ${job.name}`"
                 :tooltip="t('common.delete')"
                 @click="requestDeleteJob(job.id)"
               >
@@ -401,6 +401,16 @@
           <div class="mt-3 flex flex-wrap items-center gap-2 lg:pl-11">
             <Icon icon="lucide:history" class="h-4 w-4 text-muted-foreground" />
             <span class="text-xs text-muted-foreground">{{ t('common.history') }}</span>
+            <span role="status" aria-atomic="true" class="text-xs">
+              <template v-if="getLatestRun(job.id)">
+                <span class="sr-only">{{ job.name }}: </span>
+                {{
+                  t(
+                    `chat.toolCall.subagents.status.${getLatestRun(job.id)?.status === 'failed' ? 'error' : getLatestRun(job.id)?.status}`
+                  )
+                }}
+              </template>
+            </span>
             <DcBadge v-if="runsLoadingByJobId[job.id]" variant="outline">
               {{ t('common.loading') }}
             </DcBadge>
@@ -420,6 +430,13 @@
               {{ t('common.error.requestFailed') }}
             </span>
           </div>
+
+          <details v-if="getLatestRun(job.id)?.outputPreview" class="mt-2 text-xs lg:ml-11">
+            <summary>{{ t('common.preview') }}</summary>
+            <pre class="mt-2 whitespace-pre-wrap break-words">{{
+              getLatestRun(job.id)?.outputPreview
+            }}</pre>
+          </details>
 
           <div
             v-if="getLatestRunDeliveries(job.id).length > 0 || getLatestRunDeliveryError(job.id)"
@@ -932,6 +949,11 @@ const refreshSchedulerStatus = async () => {
     schedulerStatusStale.value = false
     if (nextStatus.nextRunAt !== previousNextRunAt) {
       refreshVisibleJobRuns()
+    } else {
+      for (const job of jobs.value) {
+        const status = getLatestRun(job.id)?.status
+        if (status === 'queued' || status === 'running') void refreshJobRuns(job.id, true)
+      }
     }
   } catch (error) {
     if (requestGeneration === schedulerStatusGeneration && !disposed) {
@@ -1373,6 +1395,7 @@ const runJobNow = async (id: string) => {
   if (jobInteractionDisabled(id)) {
     return
   }
+  const opener = document.activeElement as HTMLElement | null
   if (dirtyJobIds.value.has(id) && !(await commitJob(id))) {
     return
   }
@@ -1419,6 +1442,13 @@ const runJobNow = async (id: string) => {
   } finally {
     if (runningId.value === id) {
       runningId.value = null
+    }
+    await nextTick()
+    if (
+      opener?.isConnected &&
+      (document.activeElement === document.body || document.activeElement === opener)
+    ) {
+      opener.focus({ preventScroll: true })
     }
   }
 }
