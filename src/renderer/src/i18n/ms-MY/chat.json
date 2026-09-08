@@ -129,6 +129,7 @@
     "error": "Carian gagal"
   },
   "messages": {
+    "loadEarlier": "Muatkan mesej terdahulu",
     "thinking": "Berfikir...",
     "rateLimitWaiting": "Minta had kekerapan, menunggu dalam baris gilir...",
     "rateLimitCompactLoading": "Had kelajuan ({seconds} saat)",

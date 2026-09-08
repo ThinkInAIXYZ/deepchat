@@ -129,6 +129,7 @@
     "error": "החיפוש נכשל"
   },
   "messages": {
+    "loadEarlier": "טעינת הודעות קודמות",
     "thinking": "חושב...",
     "rateLimitWaiting": "הגעת למגבלת הקצב, ממתין בתור...",
     "rateLimitCompactLoading": "מוגבל קצב ({seconds}ש׳)",

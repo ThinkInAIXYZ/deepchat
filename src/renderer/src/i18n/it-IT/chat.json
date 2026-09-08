@@ -129,6 +129,7 @@
     "error": "Ricerca non riuscita"
   },
   "messages": {
+    "loadEarlier": "Carica messaggi precedenti",
     "thinking": "Ragionamento in corso...",
     "rateLimitWaiting": "Limite di frequenza raggiunto, attesa in coda...",
     "rateLimitCompactLoading": "Limitazione attiva ({seconds} secondi)",

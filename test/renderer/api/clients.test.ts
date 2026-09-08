@@ -1303,6 +1303,16 @@ describe('renderer api clients', () => {
     expect(bridge.on).toHaveBeenCalledWith('settings.commandShell.changed', expect.any(Function))
   })
 
+  it('sends a cloneable history cursor from reactive message state', async () => {
+    const bridge = createBridge()
+    const cursor = reactive({ orderSeq: 101, id: 'message-101' })
+    await createSessionClient(bridge).listMessagesPage('session-1', { cursor, limit: 100 })
+
+    const payload = vi.mocked(bridge.invoke).mock.calls[0][1]
+    expect(() => structuredClone(payload)).not.toThrow()
+    expect(payload).toEqual({ sessionId: 'session-1', cursor: { ...cursor }, limit: 100 })
+  })
+
   it('routes sessions.steerPendingInput through the registry name', async () => {
     const bridge = createBridge()
     const sessionClient = createSessionClient(bridge)

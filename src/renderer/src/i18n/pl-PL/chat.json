@@ -129,6 +129,7 @@
     "error": "Wyszukiwanie nie powiodło się"
   },
   "messages": {
+    "loadEarlier": "Wczytaj wcześniejsze wiadomości",
     "thinking": "Myśląc...",
     "rateLimitWaiting": "Osiągnięto limit stawek, czekam w kolejce...",
     "rateLimitCompactLoading": "Stawka ograniczona dla {seconds}...",

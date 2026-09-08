@@ -129,6 +129,7 @@
     "error": "Arama başarısız oldu"
   },
   "messages": {
+    "loadEarlier": "Önceki mesajları yükle",
     "thinking": "Düşünüyorum...",
     "rateLimitWaiting": "Oran sınırına ulaşıldı, kuyrukta bekleniyor...",
     "rateLimitCompactLoading": "{seconds}s için oran sınırlı...",

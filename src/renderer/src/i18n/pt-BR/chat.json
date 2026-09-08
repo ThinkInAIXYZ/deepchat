@@ -129,6 +129,7 @@
     "error": "Falha na busca"
   },
   "messages": {
+    "loadEarlier": "Carregar mensagens anteriores",
     "thinking": "Pensando...",
     "rateLimitWaiting": "Limite de taxa atingido, aguardando na fila...",
     "rateLimitCompactLoading": "Limitado por taxa ({seconds}s)",

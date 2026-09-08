@@ -129,6 +129,7 @@
     "error": "Tìm kiếm không thành công"
   },
   "messages": {
+    "loadEarlier": "Tải tin nhắn trước đó",
     "thinking": "Đang suy nghĩ...",
     "rateLimitWaiting": "Đã đạt đến giới hạn tốc độ, đang chờ xếp hàng...",
     "rateLimitCompactLoading": "Tỷ lệ giới hạn cho {seconds}...",

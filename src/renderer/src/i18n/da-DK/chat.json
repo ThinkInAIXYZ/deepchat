@@ -120,6 +120,7 @@
     "steerFailed": "Kunne ikke afbryde denne tur"
   },
   "messages": {
+    "loadEarlier": "Indlæs tidligere beskeder",
     "rateLimitEstimated": "Forventet ventetid",
     "rateLimitImmediately": "med det samme",
     "rateLimitMinutes": "minut",

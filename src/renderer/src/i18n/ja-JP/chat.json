@@ -129,6 +129,7 @@
     "error": "検索に失敗しました"
   },
   "messages": {
+    "loadEarlier": "以前のメッセージを読み込む",
     "thinking": "思考中...",
     "rateLimitWaiting": "レート制限により、キューで待機中...",
     "rateLimitCompactLoading": "制限中（{seconds}秒）",

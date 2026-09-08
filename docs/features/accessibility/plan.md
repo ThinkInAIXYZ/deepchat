@@ -18,3 +18,16 @@ The main shell (`ChatMainApp` → `WindowSideBar` / `ChatTabView`) and settings 
 ## Phase 1 validation
 
 The exploration agent accepted keyboard session selection with Enter and Space, named multiline input, main/settings skip controls, unique main landmarks, and settings navigation focus in an isolated Electron profile with a local streaming provider. The accessibility Electron smoke test passed. The relevant sidebar/editor/button renderer suites passed (108 tests). Format, i18n, lint, and both TypeScript checks passed.
+
+## Conversation feedback context
+
+`ChatPage` owns session generation state and pending interactions; a persistent polite status region announces running, waiting for permission/input, completed, and failed states. It depends on semantic state rather than token content. The transcript gains a named focusable region so keyboard users can reach and scroll responses. Existing message toolbar keyboard actions remain at their owners. Long-history virtualization and pagination require independent exploration before selecting their repair.
+
+## Conversation feedback and history validation
+
+- [x] Persistent generation/interaction status accepted with a local streaming provider.
+- [x] Explicit earlier-history navigation accepted across 222 messages with Enter/Space, focus restoration, exhausted pagination, and a window resize that preserves reading position.
+- [x] Reactive pagination cursors are serialized through the typed API contract; the cloneability regression passes.
+- [x] Relevant message/API/scroll/ChatPage tests and streaming/keyboard Electron checks pass; format, i18n, lint, and typecheck pass.
+- [ ] Preserve complete message and Markdown content while assistive technology is active.
+- [ ] Repair autocomplete/search active selection and remaining conversation surface barriers.

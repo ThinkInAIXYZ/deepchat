@@ -105,6 +105,10 @@ test('local streaming preserves an editable composer and completes the response 
     await sendMessage(app.page, 'Render the local streaming fixture.')
     const shell = app.page.getByTestId('chat-page-shell')
     await expect(shell).toHaveAttribute('data-generating', 'true')
+    const status = shell.getByTestId('chat-generation-status')
+    await expect(status).toHaveAttribute('role', 'status')
+    await expect(status).toHaveAttribute('aria-live', 'polite')
+    await expect(status).toHaveText(/Running|运行中/)
     const completion = waitForGenerationDone(app.page)
     void completion.catch(() => {})
     const editor = shell.getByTestId('chat-input-contenteditable')
@@ -116,6 +120,7 @@ test('local streaming preserves an editable composer and completes the response 
     await completion
     await expect(app.page.getByTestId('chat-message-assistant')).toContainText('Stream complete.')
     await expect(editor).toHaveText(draft)
+    await expect(status).toHaveText(/Generation is complete|生成已完成|生成完成/)
     expect(app.pageErrors).toEqual([])
   } finally {
     releaseResponse()

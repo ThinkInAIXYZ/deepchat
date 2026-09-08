@@ -129,6 +129,7 @@
     "error": "Suche fehlgeschlagen"
   },
   "messages": {
+    "loadEarlier": "Frühere Nachrichten laden",
     "thinking": "Denkt nach...",
     "rateLimitWaiting": "Anfragelimit erreicht, wartet in der Warteschlange...",
     "rateLimitCompactLoading": "Rate Limit aktiv ({seconds} Sekunden)",

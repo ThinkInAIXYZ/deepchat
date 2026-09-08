@@ -5,6 +5,15 @@
       :data-generating="String(isGenerating)"
       class="chat-page-shell relative grid h-full min-h-0 w-full min-w-0 grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden"
     >
+      <div
+        data-testid="chat-generation-status"
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+        class="sr-only"
+      >
+        {{ generationAnnouncement }}
+      </div>
       <ChatTopBar
         class="chat-capture-hide"
         :session-id="props.sessionId"
@@ -34,6 +43,9 @@
         <div
           ref="scrollContainer"
           data-testid="chat-page"
+          role="region"
+          :aria-label="sessionTitle"
+          tabindex="0"
           class="message-list-container relative h-full min-h-0 w-full min-w-0 overflow-y-auto"
           :class="{ 'dc-list-scrolling': isListScrolling }"
           @scroll.passive="onScroll"
@@ -82,6 +94,19 @@
                   {{ t('thread.toolbar.retry') }}
                 </DcButton>
               </div>
+            </div>
+            <div v-if="messageStore.hasMoreHistory" class="px-6 pt-3 text-center">
+              <DcButton
+                type="button"
+                variant="outline"
+                size="sm"
+                data-testid="history-load-earlier"
+                :disabled="messageStore.isLoadingHistory"
+                :aria-busy="messageStore.isLoadingHistory"
+                @click="loadEarlierMessagesForReading"
+              >
+                {{ t('chat.messages.loadEarlier') }}
+              </DcButton>
             </div>
             <MessageList
               ref="messageListRef"
@@ -685,6 +710,15 @@ async function retryOlderMessages(): Promise<void> {
   await loadOlderMessagesAtTop({ force: true })
 }
 
+async function loadEarlierMessagesForReading() {
+  const sessionId = props.sessionId
+  await loadOlderMessagesAtTop({ force: true })
+  if (sessionId !== props.sessionId || messageStore.historyLoadError) return
+  requestChatScroll('history-navigation', { kind: 'absolute', top: 0 }, true)
+  await nextTick()
+  scrollContainer.value?.focus({ preventScroll: true })
+}
+
 async function loadOlderMessagesAtTop(options: { force?: boolean } = {}): Promise<void> {
   if (chatScrollController.activeOperation.value?.reason === 'history-prepend') {
     return
@@ -1111,6 +1145,27 @@ const {
   applyRestoredSessionSummary,
   currentRestoreRequestId,
   canWriteSessionView
+})
+
+// Announce state transitions, not token updates; users read response content in the transcript.
+const generationAnnouncement = computed(() => {
+  if (isSessionViewPreparing.value) return ''
+  if (activePendingInteraction.value) {
+    return activePendingInteraction.value.actionType === 'tool_call_permission'
+      ? t('chat.toolCall.subagents.status.waiting_permission')
+      : t('chat.toolCall.subagents.status.waiting_question')
+  }
+  if (isGenerating.value) return t('chat.toolCall.subagents.status.running')
+  const latestResponse = displayMessages.value.find(
+    (message) => message.id === latestAssistantMessageId.value
+  )
+  if (latestResponse?.role === 'assistant' && latestResponse.runStopReason === 'user_stop') {
+    return t('common.error.userCanceledGeneration')
+  }
+  if (sessionStore.activeSession?.status === 'error' || latestResponse?.status === 'error') {
+    return t('chat.notify.generationError')
+  }
+  return latestResponse?.status === 'sent' ? t('chat.notify.generationComplete') : ''
 })
 
 const {

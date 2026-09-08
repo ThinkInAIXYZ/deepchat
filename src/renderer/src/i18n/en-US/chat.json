@@ -214,6 +214,7 @@
     "error": "Search failed"
   },
   "messages": {
+    "loadEarlier": "Load earlier messages",
     "thinking": "Thinking...",
     "rateLimitWaiting": "Rate limit reached, waiting in queue...",
     "rateLimitCompactLoading": "Rate limited for {seconds}s...",
