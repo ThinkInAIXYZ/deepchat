@@ -114,6 +114,7 @@
   "features": {
     "webSearch": "網路搜尋",
     "artifactThinking": "Artifact 思考",
+    "thoughtForLessThanOneSecond": "思考不足 1 秒",
     "thoughtForSeconds": "思考了 {seconds} 秒",
     "thoughtForSecondsLoading": "正在思考（第 {seconds} 秒）",
     "modeChanged": "模式已切換至：{mode}"
@@ -197,7 +198,8 @@
   "mode": {
     "acpAgent": "ACP Agent",
     "agent": "Agent",
-    "current": "當前模式：{mode}"
+    "current": "當前模式：{mode}",
+    "saveFailed": "無法儲存模式選擇"
   },
   "topbar": {
     "share": "分享",

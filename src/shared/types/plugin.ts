@@ -1,4 +1,5 @@
 import type { JsonValue } from '../contracts/common'
+import type { UserPluginDetails } from './userPlugin'
 
 export const OFFICIAL_PLUGIN_SOURCE = 'deepchat-official'
 export const CUA_PLUGIN_ID = 'com.deepchat.plugins.cua'
@@ -192,6 +193,7 @@ export interface PluginSettingsContribution {
 }
 
 export interface PluginListItem {
+  userPlugin?: UserPluginDetails
   id: string
   name: string
   version: string

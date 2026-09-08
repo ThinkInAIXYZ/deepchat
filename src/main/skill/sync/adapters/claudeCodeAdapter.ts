@@ -10,7 +10,7 @@
  * - Field name: allowed-tools (with hyphen)
  */
 
-import matter from 'gray-matter'
+import { parseSkillFrontmatter as matter } from '@/skill/frontmatter'
 import type {
   IFormatAdapter,
   CanonicalSkill,

@@ -71,6 +71,12 @@ function createMockSqlitePresenter() {
   let tapeIncarnationSequence = 0
   let messagesList: any[] = []
 
+  const sessionMaxEntryId = (sessionId: string) =>
+    tapeEntries.reduce(
+      (maxEntryId, entry) =>
+        entry.session_id === sessionId ? Math.max(maxEntryId, entry.entry_id) : maxEntryId,
+      0
+    )
   const tapeTable = {
     runInTransaction: vi.fn((operation: () => unknown) => operation()),
     isInTransaction: vi.fn(() => false),
@@ -99,9 +105,10 @@ function createMockSqlitePresenter() {
         )
         if (existing) return existing
       }
+      // Entry ids are per Session, like the store: the Session's current maximum plus one.
       const row = {
         session_id: input.sessionId,
-        entry_id: tapeEntries.length + 1,
+        entry_id: sessionMaxEntryId(input.sessionId) + 1,
         kind: input.kind,
         name: input.name ?? null,
         source_type: input.source?.type ?? null,
@@ -187,6 +194,14 @@ function createMockSqlitePresenter() {
         (entry) => entry.session_id === sessionId && isEffectiveMessageInputRow(entry)
       )
     ),
+    getEffectiveMessageInputRowsAfter: vi.fn((sessionId: string, afterEntryId: number) =>
+      tapeEntries.filter(
+        (entry) =>
+          entry.session_id === sessionId &&
+          entry.entry_id > afterEntryId &&
+          isEffectiveMessageInputRow(entry)
+      )
+    ),
     getByEntryIds: vi.fn((sessionId: string, entryIds: readonly number[]) => {
       const requestedIds = new Set(entryIds)
       return tapeEntries.filter(
@@ -241,9 +256,7 @@ function createMockSqlitePresenter() {
             .map((entry) => entry.source_seq)
         )
     ),
-    getMaxEntryId: vi.fn(
-      (sessionId: string) => tapeEntries.filter((entry) => entry.session_id === sessionId).length
-    ),
+    getMaxEntryId: vi.fn((sessionId: string) => sessionMaxEntryId(sessionId)),
     getLatestAnchor: vi.fn().mockReturnValue(undefined),
     getLatestSummaryAnchor: vi.fn().mockReturnValue(undefined),
     getLatestReconstructionAnchor: vi.fn().mockReturnValue(undefined),
@@ -550,6 +563,24 @@ function createMockSqlitePresenter() {
         messagesStore.set(row.id, record)
         messagesList.push(record)
       }),
+      upsert: vi.fn((row: any) => {
+        const existing = messagesStore.get(row.id)
+        const record = {
+          ...row,
+          session_id: row.sessionId,
+          order_seq: row.orderSeq,
+          is_context_edge: row.isContextEdge,
+          metadata: row.metadata,
+          created_at: row.createdAt,
+          updated_at: row.updatedAt
+        }
+        if (existing) {
+          Object.assign(existing, record)
+          return
+        }
+        messagesStore.set(row.id, record)
+        messagesList.push(record)
+      }),
       updateContent: vi.fn((id: string, content: string) => {
         const msg = messagesStore.get(id)
         if (msg) msg.content = content
@@ -629,6 +660,10 @@ function createMockSqlitePresenter() {
       delete: vi.fn((id: string) => {
         messagesStore.delete(id)
         messagesList = messagesList.filter((item) => item.id !== id)
+      }),
+      deleteByIds: vi.fn((ids: string[]) => {
+        for (const id of ids) messagesStore.delete(id)
+        messagesList = messagesList.filter((item) => !ids.includes(item.id))
       }),
       deleteFromOrderSeq: vi.fn((sessionId: string, fromOrderSeq: number) => {
         const idsToDelete = messagesList
@@ -802,6 +837,20 @@ function createMockSqlitePresenter() {
     deepchatTapeEntriesTable: tapeTable,
     deepchatExecutionJournalStore: tapeTable,
     tapeLifecycle: tapeTable,
+    deepchatTranscriptProjectionMetaTable: (() => {
+      const cursors = new Map<string, { tapeIncarnationId: string; maxEntryId: number }>()
+      return {
+        get: vi.fn((sessionId: string) => cursors.get(sessionId) ?? null),
+        upsert: vi.fn(
+          (sessionId: string, cursor: { tapeIncarnationId: string; maxEntryId: number }) => {
+            cursors.set(sessionId, { ...cursor })
+          }
+        ),
+        delete: vi.fn((sessionId: string) => {
+          cursors.delete(sessionId)
+        })
+      }
+    })(),
     deepchatTapeSearchProjectionTable: {
       deleteBySession: vi.fn(),
       isCurrent: vi.fn().mockReturnValue(false),
@@ -1134,21 +1183,24 @@ describe('Integration: createSession end-to-end', () => {
       })
     )
 
-    // 3. Messages created (user + assistant)
-    expect(sqlitePresenter.deepchatMessagesTable.insert).toHaveBeenCalledTimes(2)
-
-    const userInsert = sqlitePresenter.deepchatMessagesTable.insert.mock.calls[0][0]
-    expect(userInsert.role).toBe('user')
+    // 3. Messages created: the user prompt is a terminal record, the assistant a pending shell
+    const userInsert = sqlitePresenter.deepchatMessagesTable.upsert.mock.calls
+      .map(([row]: any[]) => row)
+      .find((row: any) => row.role === 'user')
+    expect(userInsert).toBeTruthy()
     const userContent = JSON.parse(userInsert.content)
     expect(userContent.text).toBe('Tell me a joke')
     expect(userContent.files).toHaveLength(1)
 
-    const assistantInsert = sqlitePresenter.deepchatMessagesTable.insert.mock.calls[1][0]
+    expect(sqlitePresenter.deepchatMessagesTable.insert).toHaveBeenCalledTimes(1)
+    const assistantInsert = sqlitePresenter.deepchatMessagesTable.insert.mock.calls[0][0]
     expect(assistantInsert.role).toBe('assistant')
     expect(assistantInsert.status).toBe('pending')
 
     // 4. Assistant message finalized with content
-    expect(sqlitePresenter.deepchatMessagesTable.updateContentAndStatus).toHaveBeenCalled()
+    expect(sqlitePresenter.deepchatMessagesTable.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({ role: 'assistant', status: 'sent' })
+    )
 
     // 5. Typed events emitted with conversationId
     const activatedCalls = publishDeepchatEventMock.mock.calls.filter(
@@ -2046,9 +2098,12 @@ describe('Integration: crash recovery', () => {
     })
 
     expect(sqlitePresenter.deepchatMessagesTable.getByStatus).toHaveBeenCalledWith('pending')
-    expect(sqlitePresenter.deepchatMessagesTable.updateContentAndStatus).toHaveBeenCalledTimes(2)
-    const [messageId, contentJson, status] =
-      sqlitePresenter.deepchatMessagesTable.updateContentAndStatus.mock.calls[0]
+    expect(sqlitePresenter.deepchatMessagesTable.upsert).toHaveBeenCalledTimes(2)
+    const {
+      id: messageId,
+      content: contentJson,
+      status
+    } = sqlitePresenter.deepchatMessagesTable.upsert.mock.calls[0][0]
     expect(messageId).toBe('m1')
     expect(status).toBe('error')
     expect(JSON.parse(contentJson)).toEqual([

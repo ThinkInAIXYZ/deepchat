@@ -5,6 +5,7 @@ import type {
   MemoryRetrievalOutcome,
   MemoryRetrievalPurpose
 } from '@shared/types/agent-memory'
+import { truncateUnicodeCodePoints } from '@shared/lib/unicodeText'
 
 import {
   buildMemoryProvenanceKey,
@@ -16,10 +17,9 @@ import {
   MEMORY_RETRIEVAL_MAX_CANDIDATES,
   nextMemoryRetrievalCandidateLimit
 } from '../core/retrievalBudget'
-import { withSoftDeadline } from '../core/asyncDeadline'
 import {
-  MEMORY_PROVIDER_DEADLINE_CODE,
-  isMemoryProviderCancellationError
+  isMemoryProviderCancellationError,
+  isMemoryProviderDeadlineError
 } from '../core/providerCancellation'
 import { evaluateNormalizedMemoryTemporalPolicy, temporalMetadataFromRow } from '../core/temporal'
 import {
@@ -49,9 +49,9 @@ import {
   RECALL_QUERY_EMBEDDING_BREAKER_COOLDOWN_MS,
   RECALL_QUERY_EMBEDDING_BREAKER_FAILURE_THRESHOLD,
   RECALL_QUERY_EMBEDDING_BREAKER_FAILURE_WINDOW_MS,
+  RECALL_QUERY_EMBEDDING_MAX_CODE_POINTS,
   RECALL_QUERY_EMBEDDING_MAX_CONCURRENT,
   RECALL_QUERY_EMBEDDING_STALE_MS,
-  RECALL_QUERY_EMBEDDING_TIMEOUT_MS,
   SCOPE_VECTOR_OVERSAMPLE_MULTIPLIER
 } from '../runtimeConstants'
 import {
@@ -195,7 +195,8 @@ function vectorStoreDegradation(
   ) {
     return 'storeUnusable'
   }
-  return activeStage === 'queryEmbedding' ? 'embeddingError' : 'storeError'
+  if (activeStage !== 'queryEmbedding') return 'storeError'
+  return isMemoryProviderDeadlineError(error) ? 'embeddingTimeout' : 'embeddingError'
 }
 
 function isStaleExecutionCancellation(error: unknown, isDisposed: boolean): boolean {
@@ -590,9 +591,10 @@ export class RetrievalService {
   private startQueryEmbedding(
     agentId: string,
     embedding: MemoryModelRef,
-    query: string,
+    fullQuery: string,
     signal?: AbortSignal
   ): QueryEmbeddingStartResult {
+    const query = truncateUnicodeCodePoints(fullQuery, RECALL_QUERY_EMBEDDING_MAX_CODE_POINTS)
     const fingerprint = embeddingFingerprint(embedding.providerId, embedding.modelId)
     const key = `${agentId}::${fingerprint}`
     const now = Date.now()
@@ -717,8 +719,14 @@ export class RetrievalService {
     )
   }
 
+  /**
+   * Every provider failure except a cancellation counts, including 4xx rejections: a persistent
+   * 400 from a misconfigured model or proxy costs a failed round trip on every turn, and only the
+   * breaker bounds that to one probe per cooldown. Query truncation already keeps well-formed
+   * requests inside provider input limits, so a rejection is a health signal, not a request quirk.
+   */
   private isQueryEmbeddingCircuitFailure(error: unknown): boolean {
-    if ((error as { code?: string } | null)?.code === MEMORY_PROVIDER_DEADLINE_CODE) return true
+    if (isMemoryProviderDeadlineError(error)) return true
     return (error as { name?: string } | null)?.name !== 'AbortError'
   }
 
@@ -866,7 +874,6 @@ export class RetrievalService {
         return []
       }
       operationFence = this.ctx.captureOperationFence(agentId)
-      const retrievalFence = operationFence
       throwIfAborted(options.signal)
       const config = this.ports.policy.resolveAgentConfig(agentId)
       const scopeFilter = normalizeMemoryScopeFilter(
@@ -926,12 +933,19 @@ export class RetrievalService {
       const vecCandidates: { memoryId: string; similarity: number }[] = []
       let rawVectorMatches: MemoryVectorMatch[] = []
       let vectorContext: { embedding: MemoryModelRef; dimensions: number } | null = null
-      let vectorQuery:
-        | {
-            embedding: MemoryModelRef
-            vector: number[]
-          }
-        | undefined
+      // The exact scan costs the same for any top-K, so one query fetches the whole candidate
+      // budget and adaptive refills widen the visible page locally instead of rescanning the store.
+      let vectorPool: MemoryVectorMatch[] | null = null
+      const takeVectorCandidates = (limit: number): void => {
+        vectorCandidateLimit = limit
+        rawVectorMatches = vectorPool?.slice(0, limit) ?? []
+        vecCandidates.splice(0, vecCandidates.length)
+        for (const match of rawVectorMatches) {
+          const similarity = distanceToSimilarity(match.distance)
+          if (similarity < similarityThreshold) continue
+          vecCandidates.push({ memoryId: match.memoryId, similarity })
+        }
+      }
       const embedding = config?.memoryEmbedding
       if (embedding?.providerId && embedding?.modelId) {
         const currentEmbedding = { providerId: embedding.providerId, modelId: embedding.modelId }
@@ -963,78 +977,62 @@ export class RetrievalService {
             } else {
               const embeddingStartedAt = performance.now()
               activeStage = 'queryEmbedding'
-              const vectorsResult = await withSoftDeadline(
-                queryEmbedding.entry.promise,
-                RECALL_QUERY_EMBEDDING_TIMEOUT_MS
-              )
+              // The gateway owns the deadline; its rejection lands in the catch below.
+              const vectors = await queryEmbedding.entry.promise
               throwIfAborted(options.signal)
               latencyMs.queryEmbedding = performance.now() - embeddingStartedAt
-              if (vectorsResult.timedOut) {
-                this.settleQueryEmbeddingCircuitFailure(queryEmbedding.entry)
-                degradations.add('embeddingTimeout')
-                logger.warn(
-                  `[Memory] query embedding timed out for ${agentId}; vector recall skipped this turn`
-                )
-              } else {
-                const vectors = vectorsResult.value
+              if (!this.ctx.canContinueOperation(operationFence)) {
+                outcome = 'cancelled'
+                return []
+              }
+              const vector = vectors[0]
+              if (vector?.length) {
                 if (!this.ctx.canContinueOperation(operationFence)) {
                   outcome = 'cancelled'
                   return []
                 }
-                const vector = vectors[0]
-                if (vector?.length) {
+                const vectorStartedAt = performance.now()
+                activeStage = 'vector'
+                const matches = await this.ports.vectorStore.query(
+                  agentId,
+                  currentEmbedding,
+                  vector.length,
+                  vector,
+                  MEMORY_RETRIEVAL_MAX_CANDIDATES
+                )
+                throwIfAborted(options.signal)
+                latencyMs.vector = performance.now() - vectorStartedAt
+                if (!this.ctx.canContinueOperation(operationFence)) {
+                  outcome = 'cancelled'
+                  return []
+                }
+                if (
+                  this.ports.vectorStore.hasReadyCertificate(agentId, currentEmbedding) &&
+                  this.ctx.canUseCurrentMemoryEmbedding(agentId, currentEmbedding)
+                ) {
                   if (!this.ctx.canContinueOperation(operationFence)) {
                     outcome = 'cancelled'
                     return []
                   }
-                  const vectorStartedAt = performance.now()
-                  activeStage = 'vector'
-                  const matches = await this.ports.vectorStore.query(
-                    agentId,
-                    currentEmbedding,
-                    vector.length,
-                    vector,
-                    vectorCandidateLimit
-                  )
-                  throwIfAborted(options.signal)
-                  latencyMs.vector = performance.now() - vectorStartedAt
-                  if (!this.ctx.canContinueOperation(operationFence)) {
-                    outcome = 'cancelled'
-                    return []
-                  }
+                  vectorContext = { embedding: currentEmbedding, dimensions: vector.length }
+                  vectorPool = matches
+                  takeVectorCandidates(vectorCandidateLimit)
                   if (
-                    this.ports.vectorStore.hasReadyCertificate(agentId, currentEmbedding) &&
-                    this.ctx.canUseCurrentMemoryEmbedding(agentId, currentEmbedding)
-                  ) {
-                    if (!this.ctx.canContinueOperation(operationFence)) {
-                      outcome = 'cancelled'
-                      return []
-                    }
-                    vectorContext = { embedding: currentEmbedding, dimensions: vector.length }
-                    vectorQuery = { embedding: currentEmbedding, vector }
-                    rawVectorMatches = matches
-                    for (const match of matches) {
-                      const similarity = distanceToSimilarity(match.distance)
-                      if (similarity < similarityThreshold) continue
-                      vecCandidates.push({ memoryId: match.memoryId, similarity })
-                    }
-                    if (
-                      this.ctx.canContinueOperation(operationFence) &&
-                      !this.ports.isReindexing(agentId)
-                    ) {
-                      void this.ports.backfillEmbeddings(agentId).catch((error) => {
-                        logger.warn(`[Memory] backfill failed for ${agentId}: ${String(error)}`)
-                      })
-                    }
-                  } else if (
                     this.ctx.canContinueOperation(operationFence) &&
                     !this.ports.isReindexing(agentId)
                   ) {
-                    degradations.add('revisionChanged')
-                    void this.ports.reindexEmbeddings(agentId, true).catch((error) => {
-                      logger.warn(`[Memory] store rebuild failed for ${agentId}: ${String(error)}`)
+                    void this.ports.backfillEmbeddings(agentId).catch((error) => {
+                      logger.warn(`[Memory] backfill failed for ${agentId}: ${String(error)}`)
                     })
                   }
+                } else if (
+                  this.ctx.canContinueOperation(operationFence) &&
+                  !this.ports.isReindexing(agentId)
+                ) {
+                  degradations.add('revisionChanged')
+                  void this.ports.reindexEmbeddings(agentId, true).catch((error) => {
+                    logger.warn(`[Memory] store rebuild failed for ${agentId}: ${String(error)}`)
+                  })
                 }
               }
             }
@@ -1086,69 +1084,6 @@ export class RetrievalService {
       let structurallyValidVecMatches: Array<{ row: AgentMemoryRow; similarity: number }> = []
       let authoritativeFtsRows: AgentMemoryRow[] = []
       let authoritativeVecMatches: Array<{ row: AgentMemoryRow; similarity: number }> = []
-
-      const refillVectorCandidates = async (limit: number): Promise<boolean> => {
-        if (!vectorQuery) return false
-        const query = vectorQuery
-        try {
-          const vectorStartedAt = performance.now()
-          activeStage = 'vector'
-          const matches = await this.ports.vectorStore.query(
-            agentId,
-            query.embedding,
-            query.vector.length,
-            query.vector,
-            limit
-          )
-          throwIfAborted(options.signal)
-          latencyMs.vector = (latencyMs.vector ?? 0) + (performance.now() - vectorStartedAt)
-          if (!this.ctx.canContinueOperation(retrievalFence)) return false
-          if (
-            !this.ports.vectorStore.hasReadyCertificate(agentId, query.embedding) ||
-            !this.ctx.canUseCurrentMemoryEmbedding(agentId, query.embedding)
-          ) {
-            vectorQuery = undefined
-            vectorContext = null
-            rawVectorMatches = []
-            vecCandidates.splice(0, vecCandidates.length)
-            degradations.add('revisionChanged')
-            if (!this.ports.isReindexing(agentId)) {
-              void this.ports.reindexEmbeddings(agentId, true).catch((error) => {
-                logger.warn(`[Memory] store rebuild failed for ${agentId}: ${String(error)}`)
-              })
-            }
-            return false
-          }
-          vectorCandidateLimit = limit
-          rawVectorMatches = matches
-          vecCandidates.splice(0, vecCandidates.length)
-          for (const match of matches) {
-            const similarity = distanceToSimilarity(match.distance)
-            if (similarity < similarityThreshold) continue
-            vecCandidates.push({ memoryId: match.memoryId, similarity })
-          }
-          return true
-        } catch (error) {
-          if (options.signal?.aborted) throwIfAborted(options.signal)
-          const executionIsCurrent = this.ctx.canContinueOperation(retrievalFence)
-          if (!executionIsCurrent && isStaleExecutionCancellation(error, this.ctx.isDisposed)) {
-            throw error
-          }
-          const errorName = (error as { name?: string } | null)?.name
-          if (errorName !== 'AbortError' && !(error instanceof VectorStoreLeaseUnavailableError)) {
-            this.ports.vectorStore.clearReady(agentId)
-          }
-          vectorQuery = undefined
-          degradations.add(
-            vectorStoreDegradation(error, this.ports.vectorStore.getRecallHealth(agentId), 'vector')
-          )
-          logger.warn(
-            `[Memory] adaptive vector refill degraded to existing candidates for ${agentId}: ${String(error)}`
-          )
-          if (!executionIsCurrent) throw error
-          return false
-        }
-      }
 
       while (true) {
         if (
@@ -1233,14 +1168,13 @@ export class RetrievalService {
         const ftsSourceSaturated =
           Boolean(normalizedKeywordQuery) && ftsRows.length >= candidateLimit
         const vectorSourceSaturated =
-          Boolean(vectorQuery) &&
+          vectorPool !== null &&
           rawVectorMatches.length >= vectorCandidateLimit &&
           vecCandidates.length === rawVectorMatches.length
         const nextFtsLimit = nextMemoryRetrievalCandidateLimit(candidateLimit)
         const nextVectorLimit = nextMemoryRetrievalCandidateLimit(vectorCandidateLimit)
         const canRefillFts = ftsSourceSaturated && nextFtsLimit > candidateLimit
-        const canRefillVector =
-          vectorSourceSaturated && nextVectorLimit > vectorCandidateLimit && Boolean(vectorQuery)
+        const canRefillVector = vectorSourceSaturated && nextVectorLimit > vectorCandidateLimit
         if (!canRefillFts && !canRefillVector) {
           if (
             (ftsSourceSaturated && candidateLimit >= MEMORY_RETRIEVAL_MAX_CANDIDATES) ||
@@ -1256,9 +1190,7 @@ export class RetrievalService {
           activeStage = 'keyword'
           ftsRows = searchKeywordCandidates(candidateLimit)
         }
-        if (canRefillVector) {
-          await refillVectorCandidates(nextVectorLimit)
-        }
+        if (canRefillVector) takeVectorCandidates(nextVectorLimit)
       }
       throwIfAborted(options.signal)
 

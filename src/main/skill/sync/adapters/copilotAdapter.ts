@@ -11,7 +11,7 @@
  * - Tool names need mapping (read ↔ Read, runCommands ↔ Bash)
  */
 
-import matter from 'gray-matter'
+import { parseSkillFrontmatter as matter } from '@/skill/frontmatter'
 import type {
   IFormatAdapter,
   CanonicalSkill,

@@ -10,7 +10,7 @@
  * - Single file per workflow (no subfolder support)
  */
 
-import matter from 'gray-matter'
+import { parseSkillFrontmatter as matter } from '@/skill/frontmatter'
 import type {
   IFormatAdapter,
   CanonicalSkill,

@@ -1,5 +1,39 @@
 # Changelog
 
+## v1.1.2-beta.3 (2026-09-08)
+- Simplified tool, reasoning, and compaction activity with persistent expand/collapse state, readable historical plans, and restored parent-session navigation
+- Preserved workspace conversation history and pagination, kept Agent filters stable, and reused the workspace's latest Agent for new conversations
+- Restored browser preview frames and screenshots on macOS
+- Repaired vector recall recovery, prevented repeated memory extraction when forking conversations, recovered invalid memory records, and coordinated background maintenance with database operations
+- Improved memory recall on slow networks with adaptive timeouts and bounded embedding input, reduced repeated searches, and repaired missing vectors without rebuilding healthy data
+- Hardened recalled text against forged prompt markers, stopped extracting memories from Subagent task instructions, and clarified that forgetting a memory archives it for recovery
+- Restored partially migrated legacy databases and preserved conversation recency during migration
+- Reduced duplicate model discovery requests, project preference lookups, and plugin history scans; canceled abandoned embedding requests and released download probe responses
+- Refreshed the built-in model catalog
+- 简化工具、思考与上下文压缩活动展示，保留展开与折叠状态、提供可读的历史计划，并恢复返回父会话的导航
+- 保留工作区对话历史与分页状态，保持 Agent 筛选稳定，并为新对话沿用工作区最近使用的 Agent
+- 恢复 macOS 浏览器预览画面与截图
+- 修复向量召回恢复、分叉对话重复提取记忆及异常记忆记录问题，并协调后台维护与数据库操作
+- 通过自适应超时和嵌入输入长度限制改善慢速网络下的记忆召回，减少重复搜索，并在保留健康数据的同时修复缺失向量
+- 强化召回文本对伪造提示词标记的防护，停止从 Subagent 任务指令中提取记忆，并明确遗忘记忆会将其归档且可恢复
+- 恢复部分迁移的旧版数据库，并在迁移时保留对话最近活动时间
+- 减少重复模型发现请求、项目偏好读取和插件历史扫描；取消已放弃的嵌入请求，并释放下载探测响应
+- 刷新内置模型目录
+
+## v1.1.2-beta.2 (2026-09-07)
+- Added installation and management of Codex-compatible user plugin packages from Git repositories, ZIP archives, and local folders, with selectable Skills, supported context hooks, and MCP configurations
+- Preserved new conversation drafts across Agent switches and removed drafts when their Agent is deleted
+- Increased the pending message queue limit to 10 and restored queue capacity after messages leave the queue
+- Restored prompt editor scrolling and desktop notifications, and added error feedback when saving the tool mode fails
+- Improved conversation history recovery and prevented duplicated usage totals when forking sessions
+- Refreshed the built-in model and ACP catalogs
+- 新增兼容 Codex 的用户插件包安装与管理，支持 Git 仓库、ZIP 压缩包和本地文件夹，并可选择导入 Skills、受支持的上下文钩子及 MCP 配置
+- 在切换 Agent 时保留新对话草稿，并在删除 Agent 时清理对应草稿
+- 将待处理消息队列上限提升至 10 条，并在消息离开队列后恢复可用容量
+- 恢复提示词编辑器滚动与桌面通知，并在工具模式保存失败时显示错误反馈
+- 改进对话历史恢复，并修复分叉会话重复累计用量的问题
+- 刷新内置模型与 ACP 目录
+
 ## v1.1.2-beta.1 (2026-09-04)
 - Added an Open With picker for workspace files, with detected editors and terminals, remembered preferences, and system-default fallback
 - Restored DeepSeek Responses tool streaming, native web search, and follow-up replay

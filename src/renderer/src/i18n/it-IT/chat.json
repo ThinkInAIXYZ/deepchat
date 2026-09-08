@@ -113,6 +113,7 @@
   },
   "features": {
     "webSearch": "Ricerca web",
+    "thoughtForLessThanOneSecond": "Ha ragionato per meno di 1 secondo",
     "thoughtForSeconds": "Ha ragionato per {seconds} secondi",
     "thoughtForSecondsLoading": "Ragionamento in corso ({seconds}° secondo)",
     "artifactThinking": "Ragionamento artifact",
@@ -197,7 +198,8 @@
   "mode": {
     "current": "Modalità corrente: {mode}",
     "agent": "Agent",
-    "acpAgent": "ACP Agent"
+    "acpAgent": "ACP Agent",
+    "saveFailed": "Impossibile salvare la modalità selezionata"
   },
   "topbar": {
     "backToParent": "Torna alla conversazione padre",

@@ -2,7 +2,7 @@
 
 ## Status
 
-Lifecycle ownership and the CUA 0.17 model-facing contract migration are complete and host-native
+Lifecycle ownership and the CUA `0.19.2/0.6.0` model-facing contract are complete and host-native
 validated; native cross-platform release gates remain pending.
 
 ## 1. Freeze the contracts
@@ -142,10 +142,10 @@ validated; native cross-platform release gates remain pending.
 - Keep the optional GNOME Wayland helper outside DeepChat packaging and validate both fresh and
   manually installed helper states separately.
 
-## 13. Upgrade the closed CUA contract to 0.17.0
+## 13. Maintain the Closed CUA Contract
 
 - Follow `docs/architecture/cua-driver-0-17-contract-migration/` as the authoritative goal SDD.
-- Pin the `0.17.0/0.6.0` release and handshake without changing lifecycle or supported targets.
+- Keep the `0.19.2/0.6.0` release and handshake consistent without changing lifecycle or supported targets.
 - Close the five new tools under explicit policy; deny privacy-sensitive clipboard reads.
 - Reject bare indices, require current token or index-plus-snapshot addressing, and never maintain
   a DeepChat-owned latest-snapshot cache.

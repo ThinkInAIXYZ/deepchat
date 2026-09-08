@@ -1,8 +1,9 @@
+import { beforeEach, vi } from 'vitest'
+import logger from '@shared/logger'
 import {
   describe,
   expect,
   it,
-  vi,
   buildContext,
   toAppSessionId,
   SessionTape,
@@ -11,13 +12,23 @@ import {
   appendMessageRetractionToTape,
   createTapeTableMock,
   createRecord,
-  createTapeService
+  createTapeService,
+  createTranscriptProjectionMock
 } from './tapeTestHarness'
 import {
   TAPE_TOOL_RESULT_PAYLOAD_HASH_VERSION,
   buildTapeToolResultPayloadHash
 } from '@/tape/domain/toolSurfaceFacts'
 import { TOOL_SEARCH_AGENT_TOOL_NAME } from '@shared/agentTools'
+
+vi.mock('@shared/logger', () => ({
+  default: {
+    error: vi.fn(),
+    warn: vi.fn(),
+    info: vi.fn(),
+    debug: vi.fn()
+  }
+}))
 
 describe('SessionTape reconciliation and facts', () => {
   it('uses the explicit replacement revision kind instead of the reason text', () => {
@@ -79,9 +90,7 @@ describe('SessionTape reconciliation and facts', () => {
       }),
       createRecord({ id: 'u1', orderSeq: 1 })
     ]
-    const messageStore = {
-      getMessages: vi.fn().mockReturnValue(records)
-    }
+    const messageStore = createTranscriptProjectionMock(records)
     const service = new SessionTape({
       deepchatTapeEntriesTable: table,
       deepchatSessionsTable: { getSummaryState: vi.fn().mockReturnValue(null) }
@@ -99,117 +108,204 @@ describe('SessionTape reconciliation and facts', () => {
     expect(entries.filter((entry) => entry.name === 'migration/backfill')).toHaveLength(1)
   })
 
-  describe('backfill short-circuit', () => {
+  describe('sent message fact re-append', () => {
+    beforeEach(() => {
+      vi.mocked(logger.warn).mockClear()
+    })
+
+    it('stays silent while the existing entry carries the same record', () => {
+      const { table, entries } = createTapeTableMock()
+      const record = createRecord({ id: 'u1', orderSeq: 1 })
+
+      appendMessageRecordToTape(table as any, record, 'live')
+      appendMessageRecordToTape(table as any, { ...record, traceCount: 3 }, 'live')
+
+      expect(entries.filter((entry) => entry.kind === 'message')).toHaveLength(1)
+      expect(logger.warn).not.toHaveBeenCalled()
+    })
+
+    it('does not report a backfill that meets a fact written by an earlier version', () => {
+      const { table } = createTapeTableMock()
+      const record = createRecord({ id: 'u1', orderSeq: 1 })
+
+      appendMessageRecordToTape(table as any, record, 'live')
+      appendMessageRecordToTape(
+        table as any,
+        { ...record, content: JSON.stringify({ text: 'hello', files: [], links: [] }) },
+        'backfill'
+      )
+
+      expect(logger.warn).not.toHaveBeenCalled()
+    })
+
+    it('warns once and names the field when the existing entry holds a different record', () => {
+      const { table, entries } = createTapeTableMock()
+      const record = createRecord({ id: 'u1', orderSeq: 1 })
+
+      appendMessageRecordToTape(table as any, record, 'live')
+      appendMessageRecordToTape(
+        table as any,
+        {
+          ...record,
+          content: JSON.stringify({
+            text: 'edited without a replacement fact',
+            files: [],
+            links: [],
+            search: false,
+            think: false
+          }),
+          updatedAt: 200
+        },
+        'live'
+      )
+
+      expect(entries.filter((entry) => entry.kind === 'message')).toHaveLength(1)
+      expect(logger.warn).toHaveBeenCalledTimes(1)
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('different record'),
+        expect.objectContaining({
+          sessionId: 's1',
+          messageId: 'u1',
+          entryId: entries.find((entry) => entry.kind === 'message')?.entry_id,
+          fields: ['content']
+        })
+      )
+      expect(vi.mocked(logger.warn).mock.calls[0]?.[1]).not.toHaveProperty('content')
+    })
+  })
+
+  describe('transcript projection cursor', () => {
     function createReconcileHarness(initialRecords: any[]) {
       const { table, entries } = createTapeTableMock()
-      let records = initialRecords
-      const messageStore = { getMessages: vi.fn(() => records) }
+      const transcript = createTranscriptProjectionMock(initialRecords)
       const service = new SessionTape({
         deepchatTapeEntriesTable: table,
         deepchatSessionsTable: { getSummaryState: vi.fn().mockReturnValue(null) }
       } as any)
       const backfillAttempts = () => table.append.mock.calls.length
-      return {
-        table,
-        entries,
-        service,
-        messageStore,
-        backfillAttempts,
-        setRecords: (next: any[]) => {
-          records = next
-        }
-      }
+      return { table, entries, service, transcript, backfillAttempts }
     }
 
-    it('skips the backfill while the transcript and Tape incarnation are unchanged', () => {
-      const { service, messageStore, backfillAttempts } = createReconcileHarness([
+    it('backfills a Session without a cursor once and leaves the cursor at the head', () => {
+      const { service, transcript, table, backfillAttempts } = createReconcileHarness([
         createRecord({ id: 'u1', orderSeq: 1, updatedAt: 100 }),
         createRecord({ id: 'a1', orderSeq: 2, role: 'assistant', content: '[]', updatedAt: 200 })
       ])
 
-      const first = service.ensureSessionTapeReady('s1', messageStore as any)
+      const first = service.ensureSessionTapeReady('s1', transcript as any)
       const attemptsAfterFirst = backfillAttempts()
-      const second = service.ensureSessionTapeReady('s1', messageStore as any)
+      const second = service.ensureSessionTapeReady('s1', transcript as any)
 
       expect(first.appendedFactCount).toBe(2)
       expect(second).toEqual({ ...first, appendedFactCount: 0 })
       expect(backfillAttempts()).toBe(attemptsAfterFirst)
+      expect(transcript.getMessages).toHaveBeenCalledTimes(1)
+      expect(transcript.cursor).toEqual({
+        tapeIncarnationId: table.getBootstrapIncarnation('s1'),
+        maxEntryId: table.getMaxEntryId('s1')
+      })
+      expect(transcript.applied).toEqual([])
     })
 
-    it('backfills again after a transcript write that bypassed Tape', () => {
-      // Retrying a failed steer restores its prompt with updateMessageStatus, which does not write
-      // Tape; the next backfill must pick the new status up or the prompt drops out of context.
-      const failed = createRecord({ id: 'u1', orderSeq: 1, status: 'error', updatedAt: 100 })
-      const { service, messageStore, entries, setRecords } = createReconcileHarness([failed])
-      service.ensureSessionTapeReady('s1', messageStore as any)
+    it('replays only the message rows appended past the cursor', () => {
+      const { service, transcript, table, entries } = createReconcileHarness([])
+      service.ensureSessionTapeReady('s1', transcript as any)
+      const cursorAfterBootstrap = transcript.cursor!
 
-      setRecords([{ ...failed, status: 'sent', updatedAt: 150 }])
-      const result = service.ensureSessionTapeReady('s1', messageStore as any)
+      // A manifest-like event moves the head without adding a message.
+      table.appendEvent({
+        sessionId: 's1',
+        name: 'view/assembled',
+        source: { type: 'runtime_event', id: 'r1', seq: 1 },
+        payload: {},
+        data: {},
+        idempotent: false
+      })
+      service.ensureSessionTapeReady('s1', transcript as any)
+      expect(transcript.applied).toEqual([])
+      expect(transcript.cursor!.maxEntryId).toBe(table.getMaxEntryId('s1'))
 
-      expect(entries.filter((entry) => entry.kind === 'message')).toHaveLength(2)
-      expect(result.historyRecords.map((record) => record.status)).toEqual(['sent'])
+      // A message fact appended directly to Tape reaches the transcript on the next readiness.
+      appendMessageRecordToTape(table as any, createRecord({ id: 'u9', orderSeq: 9 }), 'live')
+      appendMessageRetractionToTape(
+        table as any,
+        createRecord({ id: 'u8', orderSeq: 8 }),
+        'message_deleted'
+      )
+      const result = service.ensureSessionTapeReady('s1', transcript as any)
+
+      expect(transcript.applied.map((row) => [row.kind, row.name])).toEqual([
+        ['message', 'message/user'],
+        ['event', 'message/retracted']
+      ])
+      expect(
+        transcript.applied.every((row) => row.entry_id > cursorAfterBootstrap.maxEntryId)
+      ).toBe(true)
+      expect(transcript.cursor!.maxEntryId).toBe(entries[entries.length - 1].entry_id)
+      expect(result.historyRecords.map((record) => record.id)).toEqual(['u9'])
+      expect(transcript.getMessages).toHaveBeenCalledTimes(1)
     })
 
-    it('backfills again when the Tape was reset under an unchanged transcript', () => {
-      const { service, messageStore, table, entries } = createReconcileHarness([
+    it('backfills again when the Tape was reset under a cursor from the old incarnation', () => {
+      const { service, transcript, table, entries } = createReconcileHarness([
         createRecord({ id: 'u1', orderSeq: 1, updatedAt: 100 })
       ])
-      service.ensureSessionTapeReady('s1', messageStore as any)
+      service.ensureSessionTapeReady('s1', transcript as any)
+      const staleCursor = transcript.cursor!
 
       table.deleteBySession('s1')
       expect(entries).toEqual([])
-      const result = service.ensureSessionTapeReady('s1', messageStore as any)
+      const result = service.ensureSessionTapeReady('s1', transcript as any)
 
       expect(result.appendedFactCount).toBe(1)
       expect(result.historyRecords.map((record) => record.id)).toEqual(['u1'])
+      expect(transcript.cursor!.tapeIncarnationId).not.toBe(staleCursor.tapeIncarnationId)
+      expect(transcript.applied).toEqual([])
     })
 
-    it('backfills again after a bypass write stamped by a clock that had stepped back', () => {
-      // u2 is restored while the clock is behind u1's stamp, so count and max(updated_at) are
-      // unchanged; only a per-row comparison can see the write once the clock recovers.
-      const newest = createRecord({ id: 'u1', orderSeq: 1, updatedAt: 4_000 })
-      const failed = createRecord({ id: 'u2', orderSeq: 2, status: 'error', updatedAt: 2_000 })
-      const { service, messageStore, entries, setRecords } = createReconcileHarness([
-        newest,
-        failed
+    it('projects Tape messages the transcript lacks before writing the first cursor', () => {
+      const { service, transcript, table } = createReconcileHarness([])
+      appendMessageRecordToTape(
+        table as any,
+        createRecord({ id: 'tape-only', orderSeq: 1 }),
+        'live'
+      )
+
+      const result = service.ensureSessionTapeReady('s1', transcript as any)
+
+      expect(transcript.applied.map((row) => [row.kind, row.source_id])).toEqual([
+        ['message', 'tape-only']
       ])
-      service.ensureSessionTapeReady('s1', messageStore as any)
-
-      setRecords([newest, { ...failed, status: 'sent', updatedAt: 3_000 }])
-      const result = service.ensureSessionTapeReady('s1', messageStore as any)
-
-      expect(
-        entries.filter((entry) => entry.kind === 'message' && entry.source_id === 'u2')
-      ).toHaveLength(2)
-      expect(result.historyRecords.map((record) => record.status)).toEqual(['sent', 'sent'])
+      expect(result.historyRecords.map((record) => record.id)).toEqual(['tape-only'])
+      expect(transcript.cursor!.maxEntryId).toBe(table.getMaxEntryId('s1'))
     })
 
-    it('backfills again when the Tape head moved under an unchanged transcript', () => {
-      // A restored backup keeps the copied incarnation but carries a different Tape.
-      const { service, messageStore, table, entries, backfillAttempts } = createReconcileHarness([
-        createRecord({ id: 'u1', orderSeq: 1, updatedAt: 100 })
-      ])
-      service.ensureSessionTapeReady('s1', messageStore as any)
-      const attemptsAfterFirst = backfillAttempts()
-      const headAfterFirst = table.getMaxEntryId('s1')
+    it('keeps a transcript row whose Tape fact was retracted when there is no cursor yet', () => {
+      // Unreachable by construction (delete removes the row and appends the retraction in one
+      // transaction); pinned because the first projection must only add.
+      const stale = createRecord({ id: 'u1', orderSeq: 1 })
+      const { service, transcript, table } = createReconcileHarness([stale])
+      appendMessageRecordToTape(table as any, stale, 'live')
+      appendMessageRetractionToTape(table as any, stale, 'test_delete')
 
-      entries.splice(entries.length - 1, 1)
-      expect(table.getMaxEntryId('s1')).toBeLessThan(headAfterFirst)
-      service.ensureSessionTapeReady('s1', messageStore as any)
+      const result = service.ensureSessionTapeReady('s1', transcript as any)
 
-      expect(backfillAttempts()).toBeGreaterThan(attemptsAfterFirst)
+      expect(transcript.applyTapeEntries).not.toHaveBeenCalled()
+      expect(result.historyRecords).toEqual([])
+      expect(transcript.cursor!.maxEntryId).toBe(table.getMaxEntryId('s1'))
     })
 
-    it('does not remember a backfill performed inside a host transaction', () => {
-      const { service, messageStore, table, backfillAttempts } = createReconcileHarness([
-        createRecord({ id: 'u1', orderSeq: 1, updatedAt: 100 })
+    it('does not delete a transcript row the backfill did not find a fact for', () => {
+      // The upgrade case: rows written before the projection existed, Tape behind or empty.
+      const { service, transcript } = createReconcileHarness([
+        createRecord({ id: 'u1', orderSeq: 1 }),
+        createRecord({ id: 'a1', orderSeq: 2, role: 'assistant', content: '[]' })
       ])
-      table.runInTransaction(() => service.ensureSessionTapeReady('s1', messageStore as any))
-      const attemptsAfterFirst = backfillAttempts()
 
-      service.ensureSessionTapeReady('s1', messageStore as any)
+      const result = service.ensureSessionTapeReady('s1', transcript as any)
 
-      expect(backfillAttempts()).toBeGreaterThan(attemptsAfterFirst)
+      expect(result.historyRecords.map((record) => record.id)).toEqual(['u1', 'a1'])
+      expect(transcript.applyTapeEntries).not.toHaveBeenCalled()
     })
   })
 
@@ -217,30 +313,32 @@ describe('SessionTape reconciliation and facts', () => {
     const { table, entries } = createTapeTableMock()
     let response = 'response-a'
     let updatedAt = 100
-    const messageStore = {
-      getMessages: vi.fn(() => [
-        createRecord({
-          id: 'a1',
-          orderSeq: 2,
-          role: 'assistant',
-          status: 'error',
-          content: JSON.stringify([
-            {
-              type: 'tool_call',
-              status: 'error',
-              timestamp: 90,
-              tool_call: {
-                id: 'tc1',
-                name: 'search',
-                params: '{"q":"x"}',
-                response
-              }
+    // Three backfills of a changing transcript, as a Session whose Tape keeps being reset would
+    // see: the cursor stays absent so each readiness call backfills again.
+    const messageStore = createTranscriptProjectionMock()
+    messageStore.readProjectionCursor.mockReturnValue(null)
+    messageStore.getMessages.mockImplementation(() => [
+      createRecord({
+        id: 'a1',
+        orderSeq: 2,
+        role: 'assistant',
+        status: 'error',
+        content: JSON.stringify([
+          {
+            type: 'tool_call',
+            status: 'error',
+            timestamp: 90,
+            tool_call: {
+              id: 'tc1',
+              name: 'search',
+              params: '{"q":"x"}',
+              response
             }
-          ]),
-          updatedAt
-        })
-      ])
-    }
+          }
+        ]),
+        updatedAt
+      })
+    ])
     const service = new SessionTape({
       deepchatTapeEntriesTable: table,
       deepchatSessionsTable: { getSummaryState: vi.fn().mockReturnValue(null) }
@@ -540,9 +638,7 @@ describe('SessionTape reconciliation and facts', () => {
         updatedAt: 121
       })
     ]
-    const legacyMessageStore = {
-      getMessages: vi.fn().mockReturnValue(records)
-    }
+    const legacyMessageStore = createTranscriptProjectionMock(records)
     const service = new SessionTape({
       deepchatTapeEntriesTable: table,
       deepchatSessionsTable: { getSummaryState: vi.fn().mockReturnValue(null) }
@@ -600,17 +696,15 @@ describe('SessionTape reconciliation and facts', () => {
 
   it('migrates legacy session summary into a tape anchor during backfill', () => {
     const { table, entries } = createTapeTableMock()
-    const messageStore = {
-      getMessages: vi.fn().mockReturnValue([
-        createRecord({ id: 'u1', orderSeq: 1 }),
-        createRecord({
-          id: 'a1',
-          orderSeq: 2,
-          role: 'assistant',
-          content: JSON.stringify([{ type: 'content', content: 'answer', status: 'success' }])
-        })
-      ])
-    }
+    const messageStore = createTranscriptProjectionMock([
+      createRecord({ id: 'u1', orderSeq: 1 }),
+      createRecord({
+        id: 'a1',
+        orderSeq: 2,
+        role: 'assistant',
+        content: JSON.stringify([{ type: 'content', content: 'answer', status: 'success' }])
+      })
+    ])
     const service = new SessionTape({
       deepchatTapeEntriesTable: table,
       deepchatSessionsTable: {
@@ -653,18 +747,16 @@ describe('SessionTape reconciliation and facts', () => {
         }
       }
     ]
-    const messageStore = {
-      getMessages: vi.fn().mockReturnValue([
-        createRecord({
-          id: 'a1',
-          orderSeq: 1,
-          role: 'assistant',
-          status: 'pending',
-          content: JSON.stringify(pendingBlocks),
-          updatedAt: 100
-        })
-      ])
-    }
+    const messageStore = createTranscriptProjectionMock([
+      createRecord({
+        id: 'a1',
+        orderSeq: 1,
+        role: 'assistant',
+        status: 'pending',
+        content: JSON.stringify(pendingBlocks),
+        updatedAt: 100
+      })
+    ])
     const service = new SessionTape({
       deepchatTapeEntriesTable: table,
       deepchatSessionsTable: { getSummaryState: vi.fn().mockReturnValue(null) }
@@ -704,32 +796,33 @@ describe('SessionTape reconciliation and facts', () => {
         }
       }
     ]
-    const messageStore = {
-      getMessages: vi
-        .fn()
-        .mockReturnValueOnce([
-          createRecord({
-            id: 'a1',
-            orderSeq: 1,
-            role: 'assistant',
-            status: 'pending',
-            content: JSON.stringify(pendingBlocks),
-            metadata: JSON.stringify({ totalTokens: 1 }),
-            updatedAt: 100
-          })
-        ])
-        .mockReturnValue([
-          createRecord({
-            id: 'a1',
-            orderSeq: 1,
-            role: 'assistant',
-            status: 'sent',
-            content: JSON.stringify(finalBlocks),
-            metadata: JSON.stringify({ totalTokens: 7 }),
-            updatedAt: 200
-          })
-        ])
-    }
+    // Two backfills of the same message, pending then final: the cursor is kept absent so the
+    // second readiness call backfills the terminal record over the pending fact.
+    const messageStore = createTranscriptProjectionMock()
+    messageStore.readProjectionCursor.mockReturnValue(null)
+    messageStore.getMessages
+      .mockReturnValueOnce([
+        createRecord({
+          id: 'a1',
+          orderSeq: 1,
+          role: 'assistant',
+          status: 'pending',
+          content: JSON.stringify(pendingBlocks),
+          metadata: JSON.stringify({ totalTokens: 1 }),
+          updatedAt: 100
+        })
+      ])
+      .mockReturnValue([
+        createRecord({
+          id: 'a1',
+          orderSeq: 1,
+          role: 'assistant',
+          status: 'sent',
+          content: JSON.stringify(finalBlocks),
+          metadata: JSON.stringify({ totalTokens: 7 }),
+          updatedAt: 200
+        })
+      ])
     const service = new SessionTape({
       deepchatTapeEntriesTable: table,
       deepchatSessionsTable: { getSummaryState: vi.fn().mockReturnValue(null) }
@@ -760,9 +853,7 @@ describe('SessionTape reconciliation and facts', () => {
   it('uses effective message facts after replacement and retraction events', () => {
     const { table, entries } = createTapeTableMock()
     const original = createRecord({ id: 'u1', orderSeq: 1 })
-    const messageStore = {
-      getMessages: vi.fn().mockReturnValue([original])
-    }
+    const messageStore = createTranscriptProjectionMock([original])
     const service = new SessionTape({
       deepchatTapeEntriesTable: table,
       deepchatSessionsTable: { getSummaryState: vi.fn().mockReturnValue(null) }

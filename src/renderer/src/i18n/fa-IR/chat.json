@@ -114,6 +114,7 @@
   "features": {
     "webSearch": "جستجوی وب",
     "artifactThinking": "تفکر مصنوعی",
+    "thoughtForLessThanOneSecond": "تفکر به مدت کمتر از ۱ ثانیه",
     "thoughtForSeconds": "تفکر به مدت {seconds} ثانیه",
     "thoughtForSecondsLoading": "در حال تفکر ({seconds} ثانیه)",
     "modeChanged": "تغییر حالت به: {mode}"
@@ -180,7 +181,8 @@
   "mode": {
     "acpAgent": "نماینده ACP",
     "agent": "عامل",
-    "current": "حالت فعلی: {mode}"
+    "current": "حالت فعلی: {mode}",
+    "saveFailed": "ذخیره انتخاب حالت ناموفق بود"
   },
   "topbar": {
     "share": "اشتراک‌گذاری",

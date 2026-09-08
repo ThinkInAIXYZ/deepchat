@@ -22,6 +22,7 @@ import { DeepChatPendingInputsTable } from '@/session/data/tables/deepchatPendin
 import { DeepChatUsageStatsTable } from '@/session/data/tables/deepchatUsageStats'
 import { DeepChatTapeEntriesTable } from '@/tape/infrastructure/sqlite/tapeEntryStore'
 import { DeepChatMemoryIngestionProjectionTable } from '@/memory/data/tables/deepchatMemoryIngestionProjection'
+import { DeepChatTranscriptProjectionMetaTable } from '@/session/data/tables/deepchatTranscriptProjectionMeta'
 import { DeepChatTapeSearchProjectionTable } from '@/tape/infrastructure/sqlite/tapeSearchProjectionStore'
 import { DeepChatSessionMetadataTable } from '@/session/data/tables/deepchatSessionMetadata'
 import { LegacyImportStatusTable } from '@/app/data/tables/legacyImportStatus'
@@ -130,6 +131,14 @@ const CATALOG_DEFINITIONS: CatalogDefinition[] = [
   {
     name: 'new_sessions',
     createTable: (db) => new NewSessionsTable(db),
+    afterRepair: (db) => {
+      const delegations = db
+        .prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'live_delegations'")
+        .get()
+      if (delegations) {
+        new LiveDelegationsTable(db).createTable()
+      }
+    },
     repairableColumns: {
       is_draft: 'ALTER TABLE new_sessions ADD COLUMN is_draft INTEGER NOT NULL DEFAULT 0;',
       active_skills:
@@ -274,6 +283,10 @@ const CATALOG_DEFINITIONS: CatalogDefinition[] = [
   {
     name: 'deepchat_memory_ingestion_projection_meta',
     createTable: (db) => new DeepChatMemoryIngestionProjectionTable(db)
+  },
+  {
+    name: 'deepchat_transcript_projection_meta',
+    createTable: (db) => new DeepChatTranscriptProjectionMetaTable(db)
   },
   {
     name: 'deepchat_tape_search_projection',
@@ -481,6 +494,7 @@ export function createMainSchemaCatalog(db: Database.Database): MainSchemaCatalo
   const usageStats = new DeepChatUsageStatsTable(db)
   const memoryIngestionProjection = new DeepChatMemoryIngestionProjectionTable(db)
   const tapeEntries = new DeepChatTapeEntriesTable(db, memoryIngestionProjection)
+  const transcriptProjectionMeta = new DeepChatTranscriptProjectionMetaTable(db)
   const tapeSearchProjection = new DeepChatTapeSearchProjectionTable(db)
   const sessionMetadata = new DeepChatSessionMetadataTable(db)
   const legacyImportStatus = new LegacyImportStatusTable(db)
@@ -522,6 +536,7 @@ export function createMainSchemaCatalog(db: Database.Database): MainSchemaCatalo
     usageStats,
     memoryIngestionProjection,
     tapeEntries,
+    transcriptProjectionMeta,
     tapeSearchProjection,
     sessionMetadata,
     legacyImportStatus,

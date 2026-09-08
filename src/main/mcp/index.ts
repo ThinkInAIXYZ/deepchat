@@ -223,6 +223,7 @@ export class McpService implements McpServicePort {
       inMemoryServerFactory,
       {
         sampling: this,
+        resolveMcpBindings: (config) => this.mcpSettings.getMcpVariableBindings(config),
         elicitation: this,
         completion: providerRuntime,
         config: this.providerSettings

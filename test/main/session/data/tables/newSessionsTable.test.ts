@@ -1,5 +1,8 @@
 import { afterEach, beforeEach, expect, it } from 'vitest'
 import { Database, nativeSqliteDescribeIf } from '../../../nativeSqliteHarness'
+import { AppSessionService } from '@/agent/shared/appSessionService'
+import { SessionQuery, type SessionQueryDependencies } from '@/session/query'
+import { sessionsListLightweightRoute } from '@shared/contracts/routes/sessions.routes'
 
 const sqliteModule = await import('better-sqlite3-multiple-ciphers').catch(() => null)
 const tableModule = sqliteModule
@@ -39,6 +42,69 @@ describeIfSqlite('NewSessionsTable', () => {
   afterEach(() => {
     db?.close()
     db = null
+  })
+
+  it('finds persisted workspace history before pagination and filters prioritized records', async () => {
+    const insert = db!.prepare(`INSERT INTO new_sessions
+      (id, agent_id, title, project_dir, session_kind, is_draft, is_pinned, created_at, updated_at)
+      VALUES (?, ?, 'Session', ?, ?, ?, ?, 100, ?)`)
+    insert.run('old', 'deepchat', '/work/app', 'regular', 0, 0, 100)
+    insert.run('latest', 'acp-a', '/work/app', 'regular', 0, 1, 200)
+    insert.run('child', 'child-agent', '/work/app', 'subagent', 0, 0, 300)
+    insert.run('draft', 'draft-agent', '/work/app', 'regular', 1, 0, 400)
+    for (let index = 0; index < 40; index++) {
+      insert.run(`other-${index}`, 'other-agent', '/work/other', 'regular', 0, 0, 500 + index)
+    }
+
+    const sessions = new AppSessionService(
+      {} as ConstructorParameters<typeof AppSessionService>[0],
+      { newSessionsTable: table } as ConstructorParameters<typeof AppSessionService>[1]
+    )
+    const query = new SessionQuery({
+      sessions,
+      runtime: { snapshotIfHydrated: async () => null }
+    } as unknown as SessionQueryDependencies)
+    const options = sessionsListLightweightRoute.input.parse({
+      projectDir: '/work/app',
+      includeDrafts: false,
+      includeSubagents: false,
+      limit: 1
+    })
+
+    const first = await query.listLightweight(options)
+    expect(first).toMatchObject({
+      items: [{ id: 'latest', agentId: 'acp-a', isPinned: true }],
+      hasMore: true,
+      nextCursor: { id: 'latest', updatedAt: 200 }
+    })
+    await expect(
+      query.listLightweight({ ...options, cursor: first.nextCursor })
+    ).resolves.toMatchObject({
+      items: [{ id: 'old' }],
+      hasMore: false,
+      nextCursor: null
+    })
+    for (const prioritizeSessionId of ['draft', 'child', 'other-0']) {
+      expect(await query.listLightweight({ ...options, prioritizeSessionId })).toEqual(first)
+    }
+
+    await expect(
+      query.listLightweight({ ...options, includeDrafts: undefined })
+    ).resolves.toMatchObject({
+      items: [{ id: 'draft' }]
+    })
+    await expect(
+      query.listLightweight({ ...options, includeSubagents: true })
+    ).resolves.toMatchObject({
+      items: [{ id: 'child' }]
+    })
+    await expect(query.listLightweight({ ...options, projectDir: '/work/empty' })).resolves.toEqual(
+      {
+        items: [],
+        hasMore: false,
+        nextCursor: null
+      }
+    )
   })
 
   it('clears regular project_dir, advances revision, and leaves subagent rows untouched', () => {

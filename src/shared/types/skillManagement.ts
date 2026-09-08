@@ -50,6 +50,7 @@ export interface SkillManagementItem {
 }
 
 export interface SharedSkillManagementItem {
+  ownerPluginId?: string
   name: string
   canonicalPath: string
   source: SkillSource

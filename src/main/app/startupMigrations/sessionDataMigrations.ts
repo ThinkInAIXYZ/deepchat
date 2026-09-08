@@ -161,7 +161,8 @@ const backfillNormalizedMessageRow = (
   } else {
     sqlitePresenter.deepchatAssistantBlocksTable.replaceForMessage(
       row.id,
-      parseAssistantBlocks(row.content)
+      parseAssistantBlocks(row.content),
+      row.updated_at
     )
   }
 
@@ -441,16 +442,12 @@ export async function runDisabledAgentToolCapabilityCleanupMigration(
        ORDER BY id ASC
        LIMIT ?`
     )
-    const updateSessionDisabledTools = db.prepare<[string, number, string]>(
-      'UPDATE new_sessions SET disabled_agent_tools = ?, updated_at = ?, revision = revision + 1 WHERE id = ?'
+    const updateSessionDisabledTools = db.prepare<[string, string]>(
+      'UPDATE new_sessions SET disabled_agent_tools = ?, revision = revision + 1 WHERE id = ?'
     )
     const persistSessionDisabledTools = db.transaction(
       (sessionId: string, disabledAgentTools: string[]): boolean => {
-        const result = updateSessionDisabledTools.run(
-          JSON.stringify(disabledAgentTools),
-          Date.now(),
-          sessionId
-        )
+        const result = updateSessionDisabledTools.run(JSON.stringify(disabledAgentTools), sessionId)
         if (result.changes === 0) return false
         sqlitePresenter.newSessionDisabledAgentToolsTable.replaceForSession(
           sessionId,

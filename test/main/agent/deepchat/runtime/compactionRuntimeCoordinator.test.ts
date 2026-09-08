@@ -156,6 +156,9 @@ function createHarness(options?: {
     createCompactionMessageAtOrderSeq: vi.fn().mockReturnValue('compaction-message'),
     deleteMessage: vi.fn(),
     getMessages: vi.fn().mockReturnValue([]),
+    readProjectionCursor: vi.fn().mockReturnValue(null),
+    writeProjectionCursor: vi.fn(),
+    applyTapeEntries: vi.fn(),
     getNextOrderSeq: vi.fn().mockReturnValue(7),
     recordCompactionModelCall: vi.fn(),
     updateCompactionMessage: vi.fn()
@@ -638,6 +641,29 @@ describe('CompactionRuntimeCoordinator', () => {
     ])
   })
 
+  it('finishes compaction projection after a post-commit hook dispatch rejects', async () => {
+    const f = createHarness()
+    f.prepareForManualCompaction.mockResolvedValueOnce(createIntent())
+    f.deps.pluginContext = {
+      hasHooks: () => true,
+      accept: vi.fn().mockRejectedValue(new Error('Hook history unavailable')),
+      getContext: () => []
+    }
+    await expect(f.coordinator.compact(SESSION_ID)).resolves.toMatchObject({
+      compacted: true,
+      state: { status: 'compacted' }
+    })
+    expect(f.deps.pluginContext.accept).toHaveBeenCalled()
+    expect(f.messageStore.updateCompactionMessage).toHaveBeenCalledWith(
+      'compaction-message',
+      'compacted',
+      1,
+      expect.any(Object)
+    )
+    expect(f.initialInstance?.getCompactionState().status).toBe('compacted')
+    expect(f.publishedEvents.at(-1)?.payload).toMatchObject({ status: 'compacted' })
+  })
+
   it('persists each observed summary call against the compaction marker identity', async () => {
     const { applyCompaction, coordinator, messageStore } = createHarness()
     const intent = createIntent()
@@ -799,7 +825,7 @@ describe('CompactionRuntimeCoordinator', () => {
     )
   })
 
-  it('retracts a failed marker without masking the failure after runtime replacement', async () => {
+  it('retains a failed marker without masking the failure after runtime replacement', async () => {
     const {
       applyCompaction,
       coordinator,
@@ -820,7 +846,13 @@ describe('CompactionRuntimeCoordinator', () => {
     completion.reject(failure)
 
     await expect(applying).rejects.toBe(failure)
-    expect(messageStore.deleteMessage).toHaveBeenCalledWith('compaction-message')
+    expect(messageStore.deleteMessage).not.toHaveBeenCalled()
+    expect(messageStore.updateCompactionMessage).toHaveBeenCalledWith(
+      'compaction-message',
+      'failed',
+      null,
+      { compactionAttemptId: 'compaction-attempt-1', error: 'provider failed' }
+    )
     expect(publishedEvents.map(({ payload }) => payload)).toEqual([
       expect.objectContaining({ status: 'compacting' })
     ])
@@ -888,12 +920,38 @@ describe('CompactionRuntimeCoordinator', () => {
       coordinator.apply(SESSION_ID, createIntent(100), undefined, initialInstance)
     ).rejects.toBe(failure)
 
-    expect(messageStore.deleteMessage).toHaveBeenCalledWith('compaction-message')
+    expect(messageStore.deleteMessage).not.toHaveBeenCalled()
+    expect(messageStore.updateCompactionMessage).toHaveBeenCalledWith(
+      'compaction-message',
+      'failed',
+      null,
+      { compactionAttemptId: 'compaction-attempt-1', error: 'compaction failed' }
+    )
     expect(initialInstance?.getCompactionState()).toEqual({
       status: 'compacted',
       cursorOrderSeq: 3,
       summaryUpdatedAt: 100,
       boundaryReason: null
     })
+  })
+
+  it('retains a summary error while publishing the committed fallback boundary', async () => {
+    const { applyCompaction, coordinator, messageStore, initialInstance } = createHarness()
+    const summaryState = { summaryText: null, summaryCursorOrderSeq: 5, summaryUpdatedAt: null }
+    applyCompaction.mockResolvedValueOnce({
+      outcome: 'boundary_only',
+      anchorCommitted: true,
+      summaryState,
+      summaryError: 'Summary provider unavailable'
+    })
+
+    await expect(coordinator.apply(SESSION_ID, createIntent())).resolves.toEqual(summaryState)
+
+    expect(messageStore.deleteMessage).not.toHaveBeenCalled()
+    expect(messageStore.updateCompactionMessage).toHaveBeenCalledWith(
+      'compaction-message', 'failed', null,
+      { compactionAttemptId: 'compaction-attempt-1', boundaryReason: null, error: 'Summary provider unavailable' }
+    )
+    expect(initialInstance?.getCompactionState()).toMatchObject({ status: 'compacted', cursorOrderSeq: 5 })
   })
 })

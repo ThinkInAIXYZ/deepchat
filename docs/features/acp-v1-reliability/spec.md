@@ -1,102 +1,140 @@
 # ACP v1 Reliability Specification
 
-> Status: active. This specification predates the layered agent-runtime migration, and its unchecked
-> reliability scope remains open until the task ledger is reconciled against current code and real-agent
-> validation. Canonical ownership now places direct `kind=acp` execution in `AcpAgentRuntime` /
-> `AcpAgentInstance`; `AcpProvider` is retained only for `kind=deepchat + providerId=acp` compatibility.
-> Terminal authentication is specified separately in `docs/features/acp-terminal-auth/spec.md`; that
-> focused specification is authoritative where this broad reliability document conflicts with it.
+Status: active. Direct `kind=acp` execution belongs to `AcpAgentRuntime` and `AcpAgentInstance`.
+`AcpProvider` serves only `kind=deepchat + providerId=acp` compatibility. The remaining reliability
+and real-agent validation scope is tracked in this goal’s implementation records.
 
-Last reviewed: 2026-06-02
+[Terminal authentication](../acp-terminal-auth/spec.md) is implemented and authoritative for
+authentication method selection, direct PTY execution, caller ownership, reconnect, and one-shot
+session-preparation retry. It does not establish completion of logout or the broader session
+lifecycle and interoperability scope.
 
-## 背景
+## Product Contract
 
-DeepChat 已经具备 ACP agent 的基本启动、初始化、`session/new`、`session/load`、`session/prompt`、文件系统、终端、模式、模型和部分 session update 映射能力。但按 ACP v1 官方协议逐项核对后，当前实现仍有几个影响可靠性的缺口：认证流程未产品化，session lifecycle 不完整，部分通知会丢，Prompt 会重复发送历史，Terminal 输出截断方向不符合规范，部分状态更新没有进入 DeepChat 状态层。
+DeepChat launches Registry and manually configured ACP agents, negotiates their capabilities, and
+exposes supported authentication and session operations through typed application boundaries.
+Optional methods are enabled by the initialized agent’s capabilities, never by its display name
+or a guessed package version.
 
-本目标是把 DeepChat 的 ACP 能力修到“全功能可靠”的 v1 版本：按 agent 初始化返回的 capability 精准启用功能，能稳定接入 registry agent、本地 DimCode、Claude Code ACP 和 Codex ACP，且所有协议行为都有测试或手工矩阵覆盖。
+DeepChat records remain the durable source of truth for local conversations. An agent’s remote
+session list is a workspace-scoped resource catalog. Importing or resuming a remote session must
+not duplicate local messages, overwrite a user-edited title, or silently write to other remote
+sessions.
 
-会话数据事实源以 DeepChat records 为准。远端 ACP agent 返回的 session 是外部资源目录，DeepChat 只做 workspace 维度的导入、同步和绑定；导入后必须转换成 DeepChat 自己的消息格式并持久化。同步不得反复重复导入，也不得把远端 metadata 直接覆盖用户在 DeepChat 内手工维护的会话数据。
+Users must be able to understand readiness, authentication requirements, launch failures, and
+session recovery. Diagnostics identify the failing protocol boundary without exposing credentials
+or introducing agent-specific product branches.
 
-## 资料来源
+## Ownership
 
-- ACP v1 官方入口：[Overview](https://agentclientprotocol.com/protocol/v1/overview)
-- 关键协议页：[Initialization](https://agentclientprotocol.com/protocol/v1/initialization)、[Authentication](https://agentclientprotocol.com/protocol/v1/authentication)、[Session Setup](https://agentclientprotocol.com/protocol/v1/session-setup)、[Session List](https://agentclientprotocol.com/protocol/v1/session-list)、[Prompt Turn](https://agentclientprotocol.com/protocol/v1/prompt-turn)
-- 客户端能力页：[Content](https://agentclientprotocol.com/protocol/v1/content)、[Tool Calls](https://agentclientprotocol.com/protocol/v1/tool-calls)、[File System](https://agentclientprotocol.com/protocol/v1/file-system)、[Terminals](https://agentclientprotocol.com/protocol/v1/terminals)
-- 状态增强页：[Agent Plan](https://agentclientprotocol.com/protocol/v1/agent-plan)、[Session Modes](https://agentclientprotocol.com/protocol/v1/session-modes)、[Session Config Options](https://agentclientprotocol.com/protocol/v1/session-config-options)、[Slash Commands](https://agentclientprotocol.com/protocol/v1/slash-commands)、[Extensibility](https://agentclientprotocol.com/protocol/v1/extensibility)、[Transports](https://agentclientprotocol.com/protocol/v1/transports)
-- 本仓库 registry snapshot：`resources/acp-registry/registry.json`
-- 现有 ACP 入口：`src/main/agent/acp/*`、`src/main/provider/providers/acpProvider.ts`
+- `src/main/agent/acp/` owns direct ACP process, connection, session, authentication, terminal, and
+  state adaptation behavior.
+- `src/main/provider/providers/acpProvider.ts` delegates compatibility requests to the shared ACP
+  runtime.
+- Main owns capability checks, process cleanup, filesystem authorization, and remote operations.
+- Renderer clients and typed routes/events expose supported actions and normalized state.
+- Session persistence owns local messages and remote-session associations; renderer state is not
+  an independent persistence authority.
 
-## 用户故事
+## Capability And Protocol Requirements
 
-- 作为 DeepChat 用户，我可以从 ACP registry 或本地命令启动 agent，并清楚看到该 agent 支持哪些 ACP v1 能力。
-- 作为使用 Claude Code ACP 或 Codex ACP 的用户，我可以在 DeepChat 内完成 agent 暴露的认证流程，而不是只看到失败或需要手工猜测环境变量。
-- 作为使用 DimCode 的用户，我可以按 workspace 看到远端已有 session，把需要的 session 导入或绑定到 DeepChat 会话，并持续收到 slash commands、模式、配置项和标题更新。
-- 作为开发者，我可以通过 ACP diagnostics/debug action 复现每个协议方法，定位 agent、registry、认证、session 或 terminal 问题。
-- 作为 reviewer，我可以用固定测试矩阵判断 ACP 是否符合 v1 协议，而不是只依赖单 agent 的 happy path。
+The table defines the complete reliability acceptance contract. It is not a claim that every
+operation has completed product and real-agent validation.
 
-## 成功标准
+| Area                   | Required behavior                                                                                                                                                                                                                                                                                                                                                          |
+| ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Transport and launch   | Use JSON-RPC over the selected agent subprocess transport. Prefer the Registry launch specification; record local/global version differences in diagnostics. Initialization, authentication, and diagnostic probes have timeouts and owned-process cleanup. Filter MCP transports by the ACP agent’s capabilities.                                                         |
+| Initialization         | Send the supported protocol version, client information, and actual client capabilities. Preserve agent information, authentication methods, and capability snapshots. Close unsupported protocol connections and surface a useful error.                                                                                                                                  |
+| Authentication         | Missing method type means `agent` and calls `authenticate({ methodId })`. A supported `terminal` method runs the materialized agent command interactively, then reconnects and reinitializes after exit status `0`; it never calls `authenticate`. Advertise terminal auth only when the desktop flow is available. Logout requires the advertised auth logout capability. |
+| `session/new`          | Create a remote session only when needed for a local conversation. Pass the authorized `cwd` and compatible MCP servers. Preserve returned modes/models/config options and associate the remote identity with the local conversation.                                                                                                                                      |
+| `session/load`         | Require `loadSession`. Register or buffer updates before history replay, stage the replay, convert it to DeepChat message/block records, and persist it idempotently.                                                                                                                                                                                                      |
+| `session/resume`       | Require the resume capability. Resume an existing association without treating remote state as permission to replace local message history.                                                                                                                                                                                                                                |
+| `session/close`        | Require the close capability and explicit user intent. Local close/delete detaches the association by default; stopping a turn uses `session/cancel`.                                                                                                                                                                                                                      |
+| Additional directories | Keep one `cwd` unless additional workspace roots are explicitly supported. Send only absolute paths and only when the corresponding capability exists.                                                                                                                                                                                                                     |
+| Session catalog        | Require the list capability; support `cwd` filtering and cursor pagination. Identify remote records by `agentId + canonicalWorkdir + remoteSessionId`. Repeated import reuses the same local association.                                                                                                                                                                  |
+| Prompt turns           | Send the current user turn and capability-supported content. Do not repeat the full local history or inject temperature/max-token prose. Apply system context once when a local conversation binds to a new remote session. Cancellation targets the active turn.                                                                                                          |
+| Content                | Preserve text and resource links. Gate image, audio, and embedded resources by prompt capabilities. Preserve structured output metadata and provide clear fallbacks for unsupported presentation.                                                                                                                                                                          |
+| Tool progress          | Preserve tool-call identity, updates, parameters, results, locations, raw metadata, terminal output, and diffs. Ordinary progress must not be presented as a permission request.                                                                                                                                                                                           |
+| Permission requests    | Only `session/request_permission` enters the permission flow. Reuse DeepChat’s permission surface; cancellation, timeout, stale requests, and missing resolvers settle without leaving an orphaned overlay.                                                                                                                                                                |
+| Filesystem             | Advertised read/write capabilities correspond to real handlers. Preserve absolute-path, session-workdir, binary, size, and write-authorization checks. Line handling is one-based.                                                                                                                                                                                         |
+| Terminals              | Execute `command` and `args` directly unless the requested executable is itself a shell. Resolve `env` and `cwd` through the session boundary. Keep the latest output within `outputByteLimit` without splitting UTF-8 characters. Kill/release are idempotent, and already rendered output may remain visible after release.                                              |
+| Plans                  | Each plan update replaces the current plan entries instead of appending duplicate plans to the transcript.                                                                                                                                                                                                                                                                 |
+| Modes                  | Preserve initial modes, mode changes, and current-mode updates. Prefer a config-option equivalent in UI when available while keeping legacy mode compatibility.                                                                                                                                                                                                            |
+| Config options         | Normalize state after initialize/new/load/resume and later updates. Failed changes retain or recover the last authoritative state.                                                                                                                                                                                                                                         |
+| Slash commands         | Retain `available_commands_update`, including notifications received before session listener registration. Suggestions derive from session state; execution sends ordinary prompt text.                                                                                                                                                                                    |
+| Usage                  | Preserve available usage/cost/token metadata in diagnostics and turn metadata without fabricating missing values.                                                                                                                                                                                                                                                          |
+| Session information    | Update remote association metadata from title, update-time, and `_meta` notifications. Never replace a user-edited local title.                                                                                                                                                                                                                                            |
+| Extensions             | Preserve supported `_meta` and diagnostic extension data. Unknown updates must not crash the session. Custom methods retain their protocol prefix and capability boundary.                                                                                                                                                                                                 |
+| Experimental methods   | Capability-gated fork support belongs in diagnostics until independently supported by the normal chat flow. It is not a prerequisite for ordinary conversations.                                                                                                                                                                                                           |
 
-- `initialize` 会声明 DeepChat 实际支持的 client capabilities，并保存 agent 返回的完整 capabilities、auth methods、agent info。
-- 所有可选协议方法都按 capability gate 调用；没有 capability 时不调用、不误报。
-- `authenticate`、`logout`、`session/list`、`session/resume`、`session/close` 有可复用 typed route/debug 入口。
-- `session/update` 不会因为 listener 注册时序丢失早期通知，尤其是 DimCode 的 `available_commands_update`。
-- `session/prompt` 只发送当前用户 turn，按 prompt capabilities 发送 text/image/audio/resource/resource_link。
-- `terminal/create/output/wait_for_exit/kill/release` 符合 output byte limit 和 command args 语义。
-- `usage_update`、`session_info_update`、plan、mode、config options、slash commands 都能进入 DeepChat 状态或 debug log。
-- DeepChat conversation 是最终持久化事实源；远端 session list/load/resume 只建立或更新 `AcpSessionLink`，不会重复创建同一远端 session 的本地会话。
-- 远端历史消息导入会先转换为 DeepChat message/block 格式，再按稳定 fingerprint 去重持久化。
-- 完成后运行 `pnpm run format`、`pnpm run i18n`、`pnpm run lint`、`pnpm run typecheck` 和 ACP 相关 Vitest。
+## Session And Notification Invariants
 
-## 本地 agent 样本
+- Imported remote messages are converted into local message/block format before persistence.
+- Stable fingerprints prevent duplicate messages when import or replay repeats.
+- Early notifications remain ordered across session preparation and listener registration.
+- Notification buffering has a TTL and entry bound; discarded notifications are diagnosable.
+- A process crash preserves a recoverable local/remote association.
+- Remote catalog synchronization updates association metadata without creating duplicate local
+  conversations or overwriting local edits.
+- Numeric authentication-required errors stop session fallback and enter the typed auth flow.
+- Successful authentication retries only blocked pre-prompt session preparation, at most once.
+- Local session removal never implicitly performs bulk remote deletion or synchronization.
 
-| Agent | Registry/local observation | 需要覆盖的关键路径 |
-| --- | --- | --- |
-| DimCode | registry `dimcode@0.0.75`，本地 `dimcode 0.0.75`；`loadSession=true`；`sessionCapabilities.list/resume/close`；`promptCapabilities.image=true`、`embeddedContext=true`；`mcpCapabilities.http=true`、`sse=false` | `session/list`、`session/new`、早期 `available_commands_update`、`session/close`、`session/resume`、config options、slash commands |
-| Claude Code ACP | registry `@agentclientprotocol/claude-agent-acp@0.39.0`；本地存在 `claude` 和 global `@zed-industries/claude-code-acp@0.11.0`；有 `claude-login` auth method | initialization、auth required、authenticate、process cleanup、HTTP/SSE MCP filtering |
-| Codex ACP | registry `@zed-industries/codex-acp@0.15.0`，global wrapper 观察到旧版本 `0.6.0`；auth methods 包含 ChatGPT/API key 类 | registry 优先、版本漂移诊断、auth methods、no session list fallback |
-| acpx | 本机 PATH 未发现名为 `acpx` 的可执行命令 | 不阻塞本目标；若后续提供准确命令名或路径，加入同一 diagnostics matrix |
+## Interoperability Matrix
 
-## Protocol 覆盖矩阵
+| Agent sample                    | Required paths                                                                                                                                                                                                           |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| DimCode                         | Workspace session list/import, repeated-import deduplication, new/resume/close when advertised, early slash-command updates, modes, and config options.                                                                  |
+| Claude Code ACP                 | Initialization, authentication-required and authenticate flows, timeout/process cleanup, and capability-filtered MCP transport handoff.                                                                                  |
+| Codex ACP                       | Registry launch selection, local/global version drift diagnostics, advertised auth methods, and graceful behavior when session listing is unavailable.                                                                   |
+| Deterministic local ACP fixture | Capability combinations, early notifications, direct terminal auth, reconnect failures, cancellation, stale challenges, and one-shot retry.                                                                              |
+| Additional local agents         | Include only when an exact executable/package is available; record the resolved command, version, capabilities, and outcome. An unavailable optional sample does not imply protocol support or block unrelated coverage. |
 
-| Protocol | ACP v1 期望 | DeepChat 当前状态 | 修复/对接目标 |
-| --- | --- | --- | --- |
-| Transports | ACP 使用 JSON-RPC 2.0；常见 client 以 agent subprocess + stdio 通信；MCP stdio 必须支持，HTTP/SSE 按 agent capability 过滤 | 已有 subprocess/stdout/stderr 连接、registry launch spec、MCP transport filter；需要加强版本漂移和进程树清理 | registry launch spec 仍为首选；global/local 命令只做 fallback/diagnostics；初始化、认证、E2E probe 都有 timeout 和 process tree cleanup |
-| Initialization | Client 调 `initialize`，发送 `protocolVersion`、`clientCapabilities`、`clientInfo`；Agent 返回 `agentCapabilities`、`authMethods`、`agentInfo` | 已发送 `fs`、`terminal`；未声明/实现 auth capability；只解析部分 capability | 解析并保存完整 capability snapshot；不支持协议版本时关闭连接并展示错误；只声明已实现 client capabilities |
-| Authentication | Agent 用 `authMethods` 暴露方法；默认 `agent` 方法走 `authenticate({ methodId })`；Preview `terminal` 方法走独立交互进程，成功后重连且不得调用 `authenticate`；`logout` 只能在 `agentCapabilities.auth.logout` 存在时调用 | 有 auth method 日志字段，但没有产品化 authenticate/logout/terminal auth 入口 | 按 `docs/features/acp-terminal-auth/spec.md` 实现 terminal auth；增加 agent authenticate/logout typed route/debug/UI 入口；auth required 错误转成可操作状态 |
-| Session Setup: `session/new` | 创建新 session，传 `cwd` 和 MCP servers，返回 `sessionId`，可带初始 modes/models/config options | 已支持；但 listener 通常在返回后注册，早期 update 可能丢 | 新 DeepChat 会话首次使用 ACP agent 时才创建远端 session；返回后写入本地 `AcpSessionLink`；缓冲并 flush 早期 update |
-| Session Setup: `session/load` | 仅 `loadSession=true` 时调用；agent 会重放历史 update，再响应 load 完成 | 已支持并在 load 前注册 listener | 用作远端 session 历史导入/重放；进入 staging buffer，转换为 DeepChat message/block 后按 fingerprint 幂等落库 |
-| Session Setup: `session/resume` | 仅 `sessionCapabilities.resume` 存在时调用；不重放历史，恢复上下文后返回 | 未接入 | 用于已绑定 DeepChat conversation 的继续对话；不把远端 session 当事实源覆盖本地消息 |
-| Session Setup: `session/close` | 仅 `sessionCapabilities.close` 存在时调用；agent 取消该 session 活动并释放资源 | 当前 clearSession 主要 cancel/unbind/clear persistence，没有 close 协议 | 默认本地关闭/删除只 detach link；只有用户显式选择 close remote 时才调用 `session/close` |
-| Session Setup: additional directories | 仅 `sessionCapabilities.additionalDirectories` 存在时发送；必须为绝对路径 | 当前主要使用单 `cwd` | 首版保留单 `cwd`；后续若 workspace 多根目录可从能力 gate 接入，不默认发送 |
-| Session List | 仅 `sessionCapabilities.list` 存在时调用；支持 `cwd` filter、cursor pagination；`session_info_update` 同步标题/更新时间 | 未接入 list；`session_info_update` 被忽略 | 按 workspace 同步远端 session catalog；用 `agentId + canonicalWorkdir + remoteSessionId` 去重；只更新 link metadata，不直接覆盖 DeepChat conversation |
-| Prompt Turn | `session/prompt` 发送当前用户 message 的 ContentBlock[]；`session/cancel` 中断当前 turn；prompt content 必须受 capabilities 限制 | 已 prompt/cancel；formatter 会拼温度、maxTokens 和历史 USER/ASSISTANT 文本，容易重复上下文 | formatter 改为当前 turn only；system prompt 只作为首次 session context；cancel 只针对活跃 turn |
-| Content | Baseline 支持 text/resource_link；image/audio/resource 由 `promptCapabilities` 决定 | 输入侧 image 多数降级为 resource_link；输出侧 image 可转为 image block，audio/resource 偏文本化 | 输入侧按 capability 发送 image/audio/resource/resource_link/text；输出侧保留结构，不能显示的内容给清晰文本 fallback |
-| Tool Calls | Agent 通过 `tool_call`、`tool_call_update` 汇报工具状态、内容、locations、raw input/output；可嵌入 terminal/diff/content | 已映射 tool_call/update，参数与结果分别投影；raw output、content、terminal snapshot 和 diff 可进入工具响应；普通状态仍被当作 permission block，locations/raw metadata 展示不完整 | 保留工具 call 生命周期；补 location 和 raw metadata；不要把普通 tool progress 误标为权限 |
-| Client Permission | Client baseline method `session/request_permission` 用于工具权限确认 | 主进程已有 resolver 分发底座；需要 UI/超时/debug/test 闭环 | 复用现有 DeepChat permission overlay；补 timeout/cancel 默认 outcome；debug log 记录 permission request/result |
-| File System | `fs/read_text_file`、`fs/write_text_file` 只在 client capability 声明后可用；路径绝对；line 为 1-based | 已有 handler，包含 workspace guard、二进制/大小控制 | 保持安全边界；补 1-based、越界、二进制、跨 workspace 写入测试；声明能力与真实 handler 绑定 |
-| Terminals | `terminal/create` 用 `command` + `args` + `env` + `cwd`；`outputByteLimit` 超限时从开头截断，保留最新输出且字符边界有效 | 已有 terminal manager；当前把 command/args 拼进 shell，输出超限时保留开头 | 改为直接 spawn command + args；仅显式 shell 场景使用 shell；输出 buffer 保留尾部；release 后仍允许已渲染内容留在 tool call |
-| Agent Plan | `plan` update 每次发送完整 entries，client 应替换当前 plan | 已映射为 live plan event / float，不写正文 plan block | 保持替换语义，补测试；plan update 不追加成重复计划 |
-| Session Modes | Session 返回 modes；client 可调 `session/set_mode`；agent 可发 `current_mode_update`；官方建议逐步转向 config options | 已支持 mode 初始状态、set mode、mode update | 保持兼容；当 config options 提供 mode 等价项时，UI 优先统一展示 config options，legacy mode 继续可用 |
-| Session Config Options | Session 返回 `configOptions`；client 可设置配置；agent 可发 `config_option_update` | 已有 normalize 和 state update | 补初始化/new/load/resume 全路径同步；debug action 覆盖设置失败和状态回滚 |
-| Slash Commands | Agent 用 `available_commands_update` 发布命令；用户执行时作为普通 prompt 文本如 `/web query` | 已解析 available commands；早期通知可能丢 | 通过 update buffer 保证 commands 到达；UI 输入框命令候选来自 session state；执行仍走普通 prompt |
-| Usage Update | Agent 可发 usage/cost/token 类状态 | 当前 mapper 明确忽略 | 增加 metadata/event/state 映射，至少在 debug 和 turn metadata 可见；后续 UI 可展示 token/cost |
-| Session Info Update | Agent 可发 title、updatedAt、`_meta` 更新 session metadata | 当前 mapper 明确忽略 | 更新 `AcpSessionLink` metadata；只在本地标题仍为自动标题时建议更新，不覆盖用户手工标题 |
-| Extensibility | `_meta` 可携带自定义数据；自定义 method 以前缀 `_` 命名；未知字段应兼容 | 已有 ext debug action 和部分 passthrough；未知 update 多为 warn | 保留 `_meta` 到 debug/state；未知 official update 不崩溃；未知 custom update 记录 diagnostics |
-| Experimental schema fields | SDK 可能出现官网主流程未文档化的字段，例如 `sessionCapabilities.fork` | 未接入 | 只在 capability 存在时提供 debug-only 支持；不作为主 chat flow 前置条件 |
+Record package and executable versions at the time of each interoperability run. Registry contents
+come from `resources/acp-registry/registry.json`.
 
-## 非目标
+## Non-Goals And Constraints
 
-- 不在本目标内实现 ACP v2 或未发布协议。
-- 不为某个单独 agent 写硬编码行为；DimCode、Claude Code ACP、Codex ACP 只作为兼容样本。
-- 不改变非 ACP provider 的现有 prompt、MCP、权限或 terminal 行为。
-- DeepChat host 侧的 MCP v2 negotiation、Apps、Tasks 和 authorization extensions 不包装或重新解释
-  ACP agent 自己管理的 MCP 连接；ACP 仍只按自身声明的 `mcpCapabilities` 接收 transport。
-- 不默认扩大文件系统权限；ACP fs/terminal 继续受 session workdir 和 DeepChat 安全策略约束。
-- 不做远端 session 的主动批量写入或双向同步；远端 session catalog 是可导入资源，DeepChat conversation 才是本地事实源。
+- No ACP v2 implementation or undeclared protocol capability.
+- No hard-coded behavior for a particular agent; named agents are compatibility samples.
+- No change to non-ACP provider prompt, MCP, permission, or terminal behavior.
+- DeepChat host MCP negotiation, Apps, Tasks, and authorization extensions do not wrap or
+  reinterpret MCP connections owned by an ACP agent. Handoff follows that agent’s declared
+  `mcpCapabilities`.
+- No automatic expansion of filesystem access; session workdir and existing security policy remain
+  authoritative.
+- No proactive bulk remote writes or bidirectional session synchronization.
+- Renderer-main operations use typed routes, typed events, and renderer API clients. The retired
+  legacy presenter transport is not an extension point.
+- User-visible strings use i18n, and diagnostics retain the existing Settings/ChatStatusBar density.
+- Code, comments, types, commits, and technical documentation use English.
 
-## 约束
+## Validation Contract
 
-- 新 renderer-main 能力优先走 typed route / typed event / renderer API client，不复制新的 `useLegacyPresenter()` 调用模式。
-- 用户可见字符串必须加 i18n。
-- UI 改动需要保持 ChatStatusBar/Settings 现有视觉密度，不做大面积营销式页面。
-- 代码、注释、类型名、commit message 使用英文；面向 reviewer 的 SDD 文档使用中文。
+Retain focused regression coverage for capability truthfulness, authentication ownership and
+cleanup, ordered notification delivery, idempotent import, recovery, bounded terminal output,
+filesystem authorization, and user-visible state. Existing auth suites cover direct terminal
+launch, reconnect, timeout, renderer closure, stale responses, and caller isolation.
+
+The open reliability scope requires the relevant ACP main/provider/renderer suites and real-agent
+matrix, together with format, i18n, lint, and type checks. A completed terminal-authentication
+implementation alone does not close those broader validation requirements.
+
+## Protocol References
+
+- [ACP v1 overview](https://agentclientprotocol.com/protocol/v1/overview)
+- [Initialization](https://agentclientprotocol.com/protocol/v1/initialization)
+- [Authentication](https://agentclientprotocol.com/protocol/v1/authentication)
+- [Session setup](https://agentclientprotocol.com/protocol/v1/session-setup)
+- [Session list](https://agentclientprotocol.com/protocol/v1/session-list)
+- [Prompt turns](https://agentclientprotocol.com/protocol/v1/prompt-turn)
+- [Content](https://agentclientprotocol.com/protocol/v1/content)
+- [Tool calls](https://agentclientprotocol.com/protocol/v1/tool-calls)
+- [Filesystem](https://agentclientprotocol.com/protocol/v1/file-system)
+- [Terminals](https://agentclientprotocol.com/protocol/v1/terminals)
+- [Plans](https://agentclientprotocol.com/protocol/v1/agent-plan)
+- [Modes](https://agentclientprotocol.com/protocol/v1/session-modes)
+- [Config options](https://agentclientprotocol.com/protocol/v1/session-config-options)
+- [Slash commands](https://agentclientprotocol.com/protocol/v1/slash-commands)
+- [Extensibility](https://agentclientprotocol.com/protocol/v1/extensibility)
+- [Transports](https://agentclientprotocol.com/protocol/v1/transports)

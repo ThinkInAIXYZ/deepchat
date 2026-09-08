@@ -654,7 +654,7 @@ const handleBackToParent = async () => {
   color: hsl(var(--muted-foreground));
 }
 
-button {
+.window-drag-region :deep(button) {
   -webkit-app-region: no-drag;
 }
 </style>

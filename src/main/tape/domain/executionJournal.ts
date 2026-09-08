@@ -1,6 +1,6 @@
 import type { DeepChatTapeEntryRow } from './entry'
 import { hashJson, hashJsonData, stableJsonStringify } from './canonicalJson'
-import { canonicalUuid, SHA256_HEX_PATTERN } from './primitives'
+import { canonicalUuid, hasExactKeys, SHA256_HEX_PATTERN } from './primitives'
 export const EXECUTION_JOURNAL_PROTOCOL_VERSION = 1 as const
 export const EXECUTION_JOURNAL_NESTED_PROTOCOL_VERSION = 2 as const
 export const MAX_EXECUTION_JOURNAL_NESTED_CHILDREN = 128
@@ -445,12 +445,7 @@ function requireExactKeys(
   label: string,
   expectedKeys: readonly string[]
 ): void {
-  const actualKeys = Object.keys(record).sort()
-  const normalizedExpectedKeys = [...expectedKeys].sort()
-  if (
-    actualKeys.length !== normalizedExpectedKeys.length ||
-    actualKeys.some((key, index) => key !== normalizedExpectedKeys[index])
-  ) {
+  if (!hasExactKeys(record, expectedKeys)) {
     throw new ExecutionJournalError(`${label} has unsupported or missing fields.`, 'invalid_fact')
   }
 }

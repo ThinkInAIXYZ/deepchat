@@ -1,7 +1,7 @@
 {
   "schemaVersion": 2,
   "goal": "agent-system-layered-runtime",
-  "headCommit": "ed7adc34c5fa87a681f324de2f5f1ac1a66b50ef",
+  "headCommit": "c197fe2353f978e357b1bc991730248ba52cf99e",
   "relevantWorkingTree": {
     "dirty": false,
     "files": []
@@ -505,7 +505,7 @@
         "src/main/data/schemaTypes.ts"
       ],
       "tableIdentifiers": [],
-      "sha256": "2fc461f7d57c80f60c0ce3598ade2ebc0d0d4fae8470869ac2f2ebeb44e9fa14"
+      "sha256": "6e42c951463b29919331fe327d5f59a20736ba4b5297f31de48eb2c60f0aa8bf"
     },
     "memoryDuckDbSidecar": {
       "files": [

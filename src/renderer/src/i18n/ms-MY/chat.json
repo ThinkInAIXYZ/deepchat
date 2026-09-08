@@ -113,6 +113,7 @@
   },
   "features": {
     "webSearch": "carian internet",
+    "thoughtForLessThanOneSecond": "Berfikir kurang daripada 1 saat",
     "thoughtForSeconds": "Terfikir tentang {seconds} saat",
     "thoughtForSecondsLoading": "Berfikir ({seconds} kedua)",
     "artifactThinking": "artifact Fikiran",
@@ -197,7 +198,8 @@
   "mode": {
     "current": "Mod semasa: {mode}",
     "agent": "Agent",
-    "acpAgent": "ACP Agent"
+    "acpAgent": "ACP Agent",
+    "saveFailed": "Gagal menyimpan pilihan mod"
   },
   "topbar": {
     "backToParent": "Kembali ke sesi ibu bapa",

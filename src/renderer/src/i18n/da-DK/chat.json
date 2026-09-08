@@ -1,6 +1,7 @@
 {
   "features": {
     "artifactThinking": "artifact tænkning",
+    "thoughtForLessThanOneSecond": "Tænkte i under 1 sekund",
     "thoughtForSeconds": "Tænkte i {seconds} sekunder",
     "thoughtForSecondsLoading": "Tænker (sekund {seconds})",
     "webSearch": "Netværkssøgning",
@@ -180,7 +181,8 @@
   "mode": {
     "acpAgent": "ACP-agent",
     "agent": "Agent",
-    "current": "Aktuel tilstand: {mode}"
+    "current": "Aktuel tilstand: {mode}",
+    "saveFailed": "Kunne ikke gemme tilstandsvalget"
   },
   "topbar": {
     "share": "Del",

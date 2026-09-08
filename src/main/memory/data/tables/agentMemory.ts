@@ -68,7 +68,11 @@ import {
   buildStatusProjectionFromExpressionsSql
 } from './agentMemoryStateSql'
 import { normalizeMemoryTemporalMetadata, temporalMetadataFromRow } from '../../core/temporal'
-import { buildMemoryTombstoneIdentities, isTombstoneEligibleMemoryKind } from '../../core/tombstone'
+import {
+  buildMemoryProvenanceTombstoneIdentity,
+  buildMemoryTombstoneIdentities,
+  isTombstoneEligibleMemoryKind
+} from '../../core/tombstone'
 import { MEMORY_RETRIEVAL_MAX_CANDIDATES } from '../../core/retrievalBudget'
 import {
   AGENT_MEMORY_AGENT_SCOPE_FILTER,
@@ -380,29 +384,34 @@ const AGENT_MEMORY_SCOPE_TRIGGER_DROP_SQL = `
   DROP TRIGGER IF EXISTS ${AGENT_MEMORY_SCOPE_TRIGGER_INSERT_NAME};
   DROP TRIGGER IF EXISTS ${AGENT_MEMORY_SCOPE_TRIGGER_UPDATE_NAME};
 `
-const AGENT_MEMORY_SCOPE_INVALID_SQL = `
-  NEW.scope_type NOT IN ('agent', 'user', 'project', 'session')
+const AGENT_MEMORY_SCOPE_ID_MALFORMED_SQL = `
+  scope_id IS NULL
+  OR length(scope_id) NOT BETWEEN 1 AND ${AGENT_MEMORY_SCOPE_ID_MAX_CHARS}
+  OR scope_id != trim(scope_id)
+`
+const AGENT_MEMORY_SCOPE_INVALID_ROW_SQL = `
+  scope_type NOT IN ('agent', 'user', 'project', 'session')
   OR (
-    NEW.scope_type = 'agent'
-    AND NEW.scope_id IS NOT NULL
+    scope_type = 'agent'
+    AND scope_id IS NOT NULL
   )
   OR (
-    NEW.scope_type != 'agent'
-    AND (
-      NEW.scope_id IS NULL
-      OR length(NEW.scope_id) NOT BETWEEN 1 AND ${AGENT_MEMORY_SCOPE_ID_MAX_CHARS}
-      OR NEW.scope_id != trim(NEW.scope_id)
-    )
+    scope_type != 'agent'
+    AND (${AGENT_MEMORY_SCOPE_ID_MALFORMED_SQL})
   )
   OR (
-    NEW.scope_type = 'user'
-    AND NEW.user_scope IS NOT NEW.scope_id
+    scope_type = 'user'
+    AND user_scope IS NOT scope_id
   )
   OR (
-    NEW.scope_type IN ('project', 'session')
-    AND NEW.user_scope IS NOT NULL
+    scope_type IN ('project', 'session')
+    AND user_scope IS NOT NULL
   )
 `
+const AGENT_MEMORY_SCOPE_INVALID_SQL = AGENT_MEMORY_SCOPE_INVALID_ROW_SQL.replaceAll(
+  /\b(scope_type|scope_id|user_scope)\b/gu,
+  'NEW.$1'
+)
 const AGENT_MEMORY_SCOPE_TRIGGER_SQL = `
   CREATE TRIGGER IF NOT EXISTS ${AGENT_MEMORY_SCOPE_TRIGGER_INSERT_NAME}
   BEFORE INSERT ON agent_memory
@@ -426,6 +435,13 @@ const AGENT_MEMORY_SCOPE_INDEX_SQL = `
     WHERE lifecycle_state = 'active'
       AND superseded_by IS NULL
       AND kind NOT IN ('persona', 'working');
+  CREATE INDEX IF NOT EXISTS idx_agent_memory_working_candidates_v1
+    ON agent_memory(agent_id, importance DESC, access_count DESC, created_at DESC, id DESC)
+    WHERE lifecycle_state = 'active'
+      AND superseded_by IS NULL
+      AND scope_type = 'agent'
+      AND scope_id IS NULL
+      AND kind IN ('semantic', 'reflection', 'episodic');
 `
 
 function embeddingRefsState(
@@ -503,6 +519,120 @@ export function buildManagementPageSelectSql(hasCursor: boolean): string {
           LIMIT ?`
 }
 
+/**
+ * FTS recall runs the MATCH once and materializes the agent-scoped hits with their BM25 score. The
+ * lexical leg ranks those hits by score after the authoritative row filter; the importance leg
+ * intersects the same hits with the top importance candidates. Both legs used to repeat the MATCH,
+ * which walked the posting lists twice per recall.
+ */
+export function buildFtsSearchSql(
+  agentId: string,
+  match: string,
+  limit: number,
+  scopeFilter: readonly MemoryScope[]
+): { sql: string; params: unknown[] } {
+  const lexicalLimit = Math.min(MEMORY_RETRIEVAL_MAX_CANDIDATES, Math.max(1, limit))
+  const importanceCandidateLimit = Math.min(800, Math.max(64, limit * 8))
+  const scopePredicate = buildMemoryScopePredicateSql('am', scopeFilter)
+  const importanceCandidates = buildScopedImportanceCandidatesSql(
+    agentId,
+    scopeFilter,
+    importanceCandidateLimit
+  )
+  return {
+    sql: `WITH fts_hits AS MATERIALIZED (
+            SELECT rowid AS memory_rowid,
+                   bm25(agent_memory_fts, 1.0, 0.0) AS lexical_score
+            FROM agent_memory_fts
+            WHERE agent_memory_fts MATCH ?
+          ), lexical AS MATERIALIZED (
+            SELECT am.rowid AS memory_rowid,
+                   am.id,
+                   am.importance,
+                   am.created_at,
+                   hit.lexical_score
+            FROM fts_hits hit
+            CROSS JOIN agent_memory am NOT INDEXED
+            WHERE am.rowid = hit.memory_rowid
+              AND am.agent_id = ?
+              AND ${buildRecallablePredicate('am')}
+              AND ${scopePredicate.sql}
+            ORDER BY hit.lexical_score ASC,
+                     am.importance DESC,
+                     am.created_at DESC,
+                     am.id ASC
+            LIMIT ?
+          ), importance_candidates AS MATERIALIZED (
+            ${importanceCandidates.sql}
+          ), importance AS MATERIALIZED (
+            SELECT candidate.memory_rowid,
+                   candidate.id,
+                   candidate.importance,
+                   candidate.created_at
+            FROM importance_candidates candidate
+            WHERE EXISTS (
+              SELECT 1 FROM fts_hits hit WHERE hit.memory_rowid = candidate.memory_rowid
+            )
+            ORDER BY candidate.importance DESC,
+                     candidate.created_at DESC,
+                     candidate.id ASC
+            LIMIT ?
+          ), combined AS (
+            SELECT memory_rowid, 0 AS source_order, lexical_score, importance, created_at, id
+            FROM lexical
+            UNION ALL
+            SELECT importance.memory_rowid, 1, NULL, importance.importance,
+                   importance.created_at, importance.id
+            FROM importance
+            WHERE NOT EXISTS (
+              SELECT 1 FROM lexical WHERE lexical.memory_rowid = importance.memory_rowid
+            )
+          )
+          SELECT am.*
+          FROM combined
+          JOIN agent_memory am ON am.rowid = combined.memory_rowid
+          ORDER BY combined.source_order ASC,
+                   combined.lexical_score ASC,
+                   combined.importance DESC,
+                   combined.created_at DESC,
+                   combined.id ASC`,
+    params: [
+      match,
+      agentId,
+      ...scopePredicate.params,
+      lexicalLimit,
+      ...importanceCandidates.params,
+      limit
+    ]
+  }
+}
+
+/**
+ * Working-blob candidates in their stable ordering. The pinned partial index carries the same
+ * predicate and sort, so each page is an index range read rather than a sort of every active claim.
+ */
+export function buildWorkingCandidatesSelectSql(hasCursor: boolean): string {
+  const cursorPredicate = hasCursor
+    ? `AND (
+           importance < ?
+           OR (importance = ? AND access_count < ?)
+           OR (importance = ? AND access_count = ? AND created_at < ?)
+           OR (importance = ? AND access_count = ? AND created_at = ? AND id < ?)
+         )`
+    : ''
+  return `SELECT *
+          FROM agent_memory INDEXED BY idx_agent_memory_working_candidates_v1
+          WHERE agent_id = ?
+            AND scope_type = 'agent'
+            AND scope_id IS NULL
+            AND superseded_by IS NULL
+            AND lifecycle_state = 'active'
+            AND kind IN ('semantic', 'reflection', 'episodic')
+            ${cursorPredicate}
+          ORDER BY importance DESC, access_count DESC, created_at DESC, id DESC
+          LIMIT ?`
+}
+
 export function buildScopedImportanceCandidatesSql(
   agentId: string,
   scopeFilter: readonly MemoryScope[],
@@ -555,6 +685,18 @@ export function buildScopedImportanceCandidatesSql(
 function isTransientFtsError(error: unknown): boolean {
   const code = (error as { code?: string } | null)?.code
   return code === 'SQLITE_BUSY' || code === 'SQLITE_LOCKED' || code === 'SQLITE_INTERRUPT'
+}
+
+/**
+ * Query failures that prove the FTS mirror itself is unusable, as opposed to I/O, memory or disk
+ * pressure that would fail a rebuild just the same. Only these may mark the mirror dirty; other
+ * failures fall back to LIKE and re-validate the existing index after the recovery cooldown.
+ */
+function isFtsIndexBrokenError(error: unknown): boolean {
+  const code = String((error as { code?: string } | null)?.code ?? '')
+  if (code.startsWith('SQLITE_CORRUPT')) return true
+  const message = String((error as { message?: string } | null)?.message ?? '')
+  return /\bno such (?:table|column|module)\b|database disk image is malformed/i.test(message)
 }
 
 const AGENT_MEMORY_BASE_INDEX_SQL = `
@@ -863,6 +1005,7 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
   private ftsReady = false
   private ftsRecoveryAfter = 0
   private temporalArtifactsEnsured = false
+  private scopeArtifactsEnsured = false
 
   getCreateTableSQL(): string {
     return `
@@ -959,6 +1102,7 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
     if (!this.tableExists()) {
       this.db.exec(this.getCreateTableSQL())
       this.temporalArtifactsEnsured = true
+      this.scopeArtifactsEnsured = true
     } else {
       this.db.exec(AGENT_MEMORY_TOMBSTONE_TABLE_SQL)
       this.db.exec(AGENT_MEMORY_BASE_INDEX_SQL)
@@ -1029,6 +1173,22 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
     })()
   }
 
+  /**
+   * Runs a startup repair in one transaction with the clear-job guard suspended.
+   * The guard is the last defense against domain writes during a pending Agent
+   * clear; a schema repair is not a domain write, and letting the guard veto it
+   * would keep the app from starting until a clear that needs the app to start.
+   */
+  private runRepairWithClearGuardSuspended<T>(repair: () => T): T {
+    return this.db.transaction(() => {
+      this.db.exec(AGENT_MEMORY_CLEAR_GUARD_TRIGGER_DROP_SQL)
+      this.db.exec(AGENT_MEMORY_CLEAR_JOB_TABLE_SQL)
+      const result = repair()
+      this.db.exec(AGENT_MEMORY_CLEAR_ARTIFACT_SQL)
+      return result
+    })()
+  }
+
   private ensureTemporalArtifacts(): void {
     if (this.temporalArtifactsEnsured) return
     const columns = new Set(
@@ -1042,7 +1202,7 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
       columns.has('lifecycle_state') ? "lifecycle_state = 'archived'" : null,
       columns.has('status') ? "status = 'archived'" : null
     ].filter((assignment): assignment is string => assignment !== null)
-    const repair = this.db.transaction(() => {
+    const repair = this.runRepairWithClearGuardSuspended(() => {
       this.db.exec(AGENT_MEMORY_TEMPORAL_TRIGGER_DROP_SQL)
       const quarantinedIds = (
         this.db
@@ -1099,7 +1259,7 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
         normalizedInternal,
         repaired: quarantined + normalizedInternal
       }
-    })()
+    })
     this.temporalArtifactsEnsured = true
     if (repair.repaired > 0) {
       const idSample = repair.quarantinedIds.length
@@ -1111,7 +1271,17 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
     }
   }
 
+  /**
+   * Repairs persisted scope pairs the triggers would reject, then rebuilds the
+   * triggers and scope index. Repairs never widen applicability: an Agent row
+   * drops a stray id, a User row resyncs its shadow from the authoritative
+   * `scope_id` (or recovers the id from the shadow), Project/Session rows drop
+   * a stray shadow. A narrow-scope row whose identity cannot be recovered is
+   * deleted: it is unrecallable under every scope, and keeping it would make
+   * `memoryScopeFromRow` throw on any listing, forget or restore that reads it.
+   */
   private ensureScopeArtifacts(): void {
+    if (this.scopeArtifactsEnsured) return
     const columns = new Set(
       (
         this.db.prepare('PRAGMA table_info(agent_memory)').all() as Array<{
@@ -1119,17 +1289,31 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
         }>
       ).map((column) => column.name)
     )
-    if (!columns.has('scope_type') || !columns.has('scope_id')) return
+    // The pair invariant spans all three columns; `user_scope` has shipped with the
+    // table since its first version, so this only skips synthetic partial schemas.
+    if (!['scope_type', 'scope_id', 'user_scope'].every((column) => columns.has(column))) return
 
-    this.db.transaction(() => {
+    const repair = this.runRepairWithClearGuardSuspended(() => {
       this.db.exec(AGENT_MEMORY_SCOPE_TRIGGER_DROP_SQL)
+      const summary = this.repairInvalidScopeRows()
       this.db.exec(AGENT_MEMORY_SCOPE_TRIGGER_SQL)
-    })()
+      return summary
+    })
+    this.scopeArtifactsEnsured = true
+    if (repair) {
+      const idSample = repair.deletedIds.length
+        ? ` deletedIds=${JSON.stringify(repair.deletedIds)}${repair.deletedRows > repair.deletedIds.length ? '…' : ''}`
+        : ''
+      logger.warn(
+        `[Memory] repaired invalid scope rows: detachedAgentRows=${repair.detachedAgentRows} recoveredUserRows=${repair.recoveredUserRows} resyncedShadowRows=${repair.resyncedShadowRows} deletedUnrecoverableRows=${repair.deletedRows}${idSample}`
+      )
+    }
     const indexColumns = [
       'agent_id',
       'scope_type',
       'scope_id',
       'importance',
+      'access_count',
       'created_at',
       'id',
       'lifecycle_state',
@@ -1139,6 +1323,131 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
     if (indexColumns.every((column) => columns.has(column))) {
       this.db.exec(AGENT_MEMORY_SCOPE_INDEX_SQL)
     }
+  }
+
+  /**
+   * Runs inside `ensureScopeArtifacts`' transaction with the scope triggers
+   * dropped. Returns null when every row already satisfies the invariant, which
+   * is the common case and costs a single scan.
+   */
+  private repairInvalidScopeRows(): {
+    detachedAgentRows: number
+    recoveredUserRows: number
+    resyncedShadowRows: number
+    deletedRows: number
+    deletedIds: string[]
+  } | null {
+    const dirty = this.db
+      .prepare(
+        `SELECT EXISTS (
+           SELECT 1 FROM agent_memory WHERE ${AGENT_MEMORY_SCOPE_INVALID_ROW_SQL}
+         ) AS dirty`
+      )
+      .get() as { dirty: number }
+    if (!dirty.dirty) return null
+
+    const detachedAgentRows = this.db
+      .prepare(
+        `UPDATE agent_memory
+         SET scope_id = NULL
+         WHERE scope_type = 'agent' AND scope_id IS NOT NULL`
+      )
+      .run().changes
+    // Only User-scope writes populate the shadow, so a well-formed shadow is the
+    // row's own id whenever the authoritative column is missing or malformed.
+    const recoveredUserRows = this.db
+      .prepare(
+        `UPDATE agent_memory
+         SET scope_id = user_scope
+         WHERE scope_type = 'user'
+           AND (${AGENT_MEMORY_SCOPE_ID_MALFORMED_SQL})
+           AND user_scope IS NOT NULL
+           AND length(user_scope) BETWEEN 1 AND ${AGENT_MEMORY_SCOPE_ID_MAX_CHARS}
+           AND user_scope = trim(user_scope)`
+      )
+      .run().changes
+    const resyncedShadowRows = this.db
+      .prepare(
+        `UPDATE agent_memory
+         SET user_scope = CASE WHEN scope_type = 'user' THEN scope_id ELSE NULL END
+         WHERE (
+             scope_type = 'user'
+             AND NOT (${AGENT_MEMORY_SCOPE_ID_MALFORMED_SQL})
+             AND user_scope IS NOT scope_id
+           )
+           OR (scope_type IN ('project', 'session') AND user_scope IS NOT NULL)`
+      )
+      .run().changes
+    const deletedIds = (
+      this.db
+        .prepare(
+          `SELECT id
+           FROM agent_memory
+           WHERE (${AGENT_MEMORY_SCOPE_INVALID_ROW_SQL})
+           ORDER BY id
+           LIMIT 20`
+        )
+        .all() as Array<{ id: string }>
+    ).map((row) => row.id)
+    let deletedRows = 0
+    if (deletedIds.length) {
+      // A pending clear still owns exact forgetting for these rows. Provenance
+      // survives scope loss; inventing a content scope would widen suppression.
+      const insertTombstone = this.db.prepare(
+        `INSERT OR IGNORE INTO agent_memory_tombstone (
+           agent_id, identity_kind, identity_hash, created_at, reason
+         ) VALUES (?, ?, ?, ?, 'agent_clear')`
+      )
+      const clearingRows = this.db
+        .prepare(
+          `SELECT agent_memory.agent_id, kind, provenance_key, job.created_at
+           FROM agent_memory
+           JOIN agent_memory_clear_job AS job ON job.agent_id = agent_memory.agent_id
+           WHERE job.phase = 'claims' AND agent_memory.rowid <= job.cutoff_rowid
+             AND provenance_key IS NOT NULL
+             AND (${AGENT_MEMORY_SCOPE_INVALID_ROW_SQL})`
+        )
+        .all() as Array<{
+        agent_id: string
+        kind: AgentMemoryKind
+        provenance_key: string
+        created_at: number
+      }>
+      for (const row of clearingRows) {
+        if (!row.provenance_key || !isTombstoneEligibleMemoryKind(row.kind)) continue
+        const identity = buildMemoryProvenanceTombstoneIdentity(row.agent_id, row.provenance_key)
+        insertTombstone.run(
+          row.agent_id,
+          identity.identityKind,
+          identity.identityHash,
+          row.created_at
+        )
+      }
+      this.db
+        .prepare(
+          `UPDATE agent_memory_clear_job
+           SET removed_count = removed_count + (
+             SELECT COUNT(*) FROM agent_memory
+             WHERE agent_memory.agent_id = agent_memory_clear_job.agent_id
+               AND agent_memory.rowid <= agent_memory_clear_job.cutoff_rowid
+               AND (${AGENT_MEMORY_SCOPE_INVALID_ROW_SQL})
+           )
+           WHERE phase = 'claims'`
+        )
+        .run()
+      deletedRows = this.db
+        .prepare(
+          `DELETE FROM agent_memory
+           WHERE (${AGENT_MEMORY_SCOPE_INVALID_ROW_SQL})`
+        )
+        .run().changes
+      // The FTS mirror is external-content: a raw DELETE leaves the old tokens on
+      // a rowid the next insert reuses, so force the index to rebuild before any
+      // recall mutation could stamp the current generation as indexed.
+      this.ftsReady = false
+      this.markFtsDirty()
+    }
+    return { detachedAgentRows, recoveredUserRows, resyncedShadowRows, deletedRows, deletedIds }
   }
 
   private insertTombstonesForRows(
@@ -1309,6 +1618,7 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
       }
     }
     this.ensureTemporalArtifacts()
+    this.ensureScopeArtifacts()
     const tableSql = (
       this.db
         .prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'agent_memory'")
@@ -1384,20 +1694,9 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
         .prepare(
           `SELECT COUNT(*) AS count
            FROM agent_memory
-           WHERE scope_type NOT IN ('agent', 'user', 'project', 'session')
-              OR (scope_type = 'agent' AND scope_id IS NOT NULL)
-              OR (
-                scope_type != 'agent'
-                AND (
-                  scope_id IS NULL
-                  OR length(scope_id) NOT BETWEEN 1 AND ?
-                  OR scope_id != trim(scope_id)
-                )
-              )
-              OR (scope_type = 'user' AND user_scope IS NOT scope_id)
-              OR (scope_type IN ('project', 'session') AND user_scope IS NOT NULL)`
+           WHERE ${AGENT_MEMORY_SCOPE_INVALID_ROW_SQL}`
         )
-        .get(AGENT_MEMORY_SCOPE_ID_MAX_CHARS) as { count: number }
+        .get() as { count: number }
     ).count
     if (invalidScopeRows !== 0) {
       throw new Error(`[Memory] agent_memory contains ${invalidScopeRows} invalid scope rows`)
@@ -1406,7 +1705,6 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
     this.db.exec(AGENT_MEMORY_RETIRED_INDEX_SQL)
     this.db.exec(AGENT_MEMORY_CONFLICT_INDEX_SQL)
     this.db.exec(AGENT_MEMORY_CANONICAL_INDEX_SQL)
-    this.ensureScopeArtifacts()
     this.ensureCurrentLegacyStatusBridge(options?.backupBeforeLegacyBridgeRecovery)
     const tombstoneSql = (
       this.db
@@ -1543,7 +1841,8 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
     for (const indexName of [
       'idx_agent_memory_derivation_child_v1',
       'idx_agent_memory_dirty_order_v1',
-      'idx_agent_memory_recall_scope_v6'
+      'idx_agent_memory_recall_scope_v6',
+      'idx_agent_memory_working_candidates_v1'
     ]) {
       if (
         !this.db
@@ -1774,6 +2073,7 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
       this.replaceLegacyStatusBridge()
     }
     if (addedColumns.has('scope_type') || addedColumns.has('scope_id')) {
+      this.scopeArtifactsEnsured = false
       this.ensureScopeArtifacts()
     }
     if (
@@ -2057,9 +2357,14 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
       })()
       this.ftsReady = true
     } catch (error) {
-      try {
-        this.dropFtsIndex()
-      } catch {}
+      // The transaction already rolled back any partial build. Dropping the surviving mirror is
+      // only a repair when the mirror itself is broken; after I/O or disk pressure it would just
+      // force a full backfill on the recall path once the pressure clears.
+      if (isFtsIndexBrokenError(error)) {
+        try {
+          this.dropFtsIndex()
+        } catch {}
+      }
       this.ftsReady = false
       if (process.env.DEEPCHAT_REQUIRE_NATIVE_SQLITE === '1') throw error
     }
@@ -2704,14 +3009,17 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
 
     try {
       const match = this.buildFtsMatch(agentId, terms, matchMode)
+      const query = buildFtsSearchSql(agentId, match, cappedLimit, scopeFilter)
       return finish({
-        rows: this.searchFts(agentId, match, cappedLimit, scopeFilter),
+        rows: this.db.prepare(query.sql).all(...query.params) as AgentMemoryRow[],
         strategy: 'fts-only'
       })
     } catch (error) {
       if (!isTransientFtsError(error)) {
         this.ftsReady = false
-        this.markFtsDirty()
+        // A dirty generation makes the next recovery drop and backfill the whole mirror for every
+        // Agent, so reserve it for a mirror that is actually broken.
+        if (isFtsIndexBrokenError(error)) this.markFtsDirty()
       }
       return finish({
         rows: this.searchLike(agentId, terms, cappedLimit, matchMode, scopeFilter),
@@ -2728,99 +3036,6 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
     // Keep the selective content postings first. FTS5 evaluates the expression left-to-right for
     // this shape; leading with the per-agent scope would walk every row for a large single agent.
     return `content : (${contentMatch}) AND agent_id : "${agentFtsScope(agentId)}"`
-  }
-
-  private searchFts(
-    agentId: string,
-    match: string,
-    limit: number,
-    scopeFilter: readonly MemoryScope[] = AGENT_MEMORY_AGENT_SCOPE_FILTER
-  ): AgentMemoryRow[] {
-    const lexicalScanLimit = Math.min(MEMORY_RETRIEVAL_MAX_CANDIDATES, Math.max(1, limit))
-    const importanceCandidateLimit = Math.min(800, Math.max(64, limit * 8))
-    const scopePredicate = buildMemoryScopePredicateSql('am', scopeFilter)
-    const importanceCandidates = buildScopedImportanceCandidatesSql(
-      agentId,
-      scopeFilter,
-      importanceCandidateLimit
-    )
-    return this.db
-      .prepare(
-        `WITH lexical_hits AS MATERIALIZED (
-           SELECT am.rowid AS memory_rowid,
-                  am.id,
-                  am.importance,
-                  am.created_at,
-                  bm25(agent_memory_fts, 1.0, 0.0) AS lexical_score
-           FROM agent_memory_fts
-           CROSS JOIN agent_memory am NOT INDEXED
-           WHERE agent_memory_fts MATCH ?
-             AND am.rowid = agent_memory_fts.rowid
-             AND am.agent_id = ?
-             AND ${buildRecallablePredicate('am')}
-             AND ${scopePredicate.sql}
-           ORDER BY lexical_score ASC,
-                    am.importance DESC,
-                    am.created_at DESC,
-                    am.id ASC
-           LIMIT ?
-         ), lexical AS MATERIALIZED (
-           SELECT memory_rowid,
-                  id,
-                  importance,
-                  created_at,
-                  lexical_score
-           FROM lexical_hits
-           ORDER BY lexical_score ASC,
-                    importance DESC,
-                    created_at DESC,
-                    id ASC
-           LIMIT ?
-         ), importance_candidates AS MATERIALIZED (
-           ${importanceCandidates.sql}
-         ), importance AS MATERIALIZED (
-           SELECT candidate.memory_rowid,
-                  candidate.id,
-                  candidate.importance,
-                  candidate.created_at
-           FROM agent_memory_fts f
-           CROSS JOIN importance_candidates candidate
-           WHERE agent_memory_fts MATCH ?
-             AND f.rowid = candidate.memory_rowid
-           ORDER BY candidate.importance DESC,
-                    candidate.created_at DESC,
-                    candidate.id ASC
-           LIMIT ?
-         ), combined AS (
-           SELECT memory_rowid, 0 AS source_order, lexical_score, importance, created_at, id
-           FROM lexical
-           UNION ALL
-           SELECT importance.memory_rowid, 1, NULL, importance.importance,
-                  importance.created_at, importance.id
-           FROM importance
-           WHERE NOT EXISTS (
-             SELECT 1 FROM lexical WHERE lexical.memory_rowid = importance.memory_rowid
-           )
-         )
-         SELECT am.*
-         FROM combined
-         JOIN agent_memory am ON am.rowid = combined.memory_rowid
-         ORDER BY combined.source_order ASC,
-                  combined.lexical_score ASC,
-                  combined.importance DESC,
-                  combined.created_at DESC,
-                  combined.id ASC`
-      )
-      .all(
-        match,
-        agentId,
-        ...scopePredicate.params,
-        lexicalScanLimit,
-        limit,
-        ...importanceCandidates.params,
-        match,
-        limit
-      ) as AgentMemoryRow[]
   }
 
   private searchLike(
@@ -3401,6 +3616,26 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
       )
       .run(agentId, ...states)
     return result.changes
+  }
+
+  requeueReadyEmbeddingsByIds(agentId: string, ids: readonly string[]): number {
+    if (!ids.length) return 0
+    // One JSON parameter keeps a full-coverage id list clear of the bound-parameter limit.
+    return this.db
+      .prepare(
+        `UPDATE agent_memory
+         SET embedding_state = 'pending', status = 'pending_embedding',
+             embedding_id = NULL,
+             embedding_dim = NULL,
+             embedding_model = NULL
+         WHERE agent_id = ?
+           AND superseded_by IS NULL
+           AND kind NOT IN ('persona', 'working')
+           AND lifecycle_state = 'active'
+           AND embedding_state = 'ready'
+           AND id IN (SELECT value FROM json_each(?))`
+      )
+      .run(agentId, JSON.stringify(ids)).changes
   }
 
   listEmbeddingStateIds(
@@ -4767,14 +5002,6 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
   ): AgentMemoryRow[] {
     const cappedLimit = Math.max(0, Math.floor(limit))
     if (cappedLimit === 0) return []
-    const cursorSql = after
-      ? `AND (
-           importance < ?
-           OR (importance = ? AND access_count < ?)
-           OR (importance = ? AND access_count = ? AND created_at < ?)
-           OR (importance = ? AND access_count = ? AND created_at = ? AND id < ?)
-         )`
-      : ''
     const params: unknown[] = [agentId]
     if (after) {
       params.push(
@@ -4792,19 +5019,7 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
     }
     params.push(cappedLimit)
     return this.db
-      .prepare(
-        `SELECT *
-         FROM agent_memory
-         WHERE agent_id = ?
-           AND scope_type = 'agent'
-           AND scope_id IS NULL
-           AND superseded_by IS NULL
-           AND lifecycle_state = 'active'
-           AND kind IN ('semantic', 'reflection', 'episodic')
-           ${cursorSql}
-         ORDER BY importance DESC, access_count DESC, created_at DESC, id DESC
-         LIMIT ?`
-      )
+      .prepare(buildWorkingCandidatesSelectSql(after !== undefined))
       .all(...params) as AgentMemoryRow[]
   }
 

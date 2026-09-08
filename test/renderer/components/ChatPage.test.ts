@@ -99,6 +99,7 @@ const setup = async (options: SetupOptions = {}) => {
       ...options.activeSessionPatch
     },
     activeSessionId: 's1',
+    activeCompactionState: null as { status: 'idle' | 'compacting' | 'compacted' } | null,
     sessions: options.sessions ?? [
       {
         id: 's1',
@@ -298,6 +299,7 @@ const setup = async (options: SetupOptions = {}) => {
   const chatInputInsertWorkspaceReference = vi.fn().mockReturnValue(true)
   const chatInputTriggerAttach = vi.fn()
   const chatInputGetPendingSkillsSnapshot = vi.fn((): string[] => [])
+  const chatInputGetDocumentSnapshot = vi.fn()
   const chatInputClearPendingSkills = vi.fn()
   const chatStatusBarOpenModelPicker = vi.fn(() => true)
   const attachmentPreparationStore = reactive({
@@ -512,6 +514,7 @@ const setup = async (options: SetupOptions = {}) => {
           triggerAttach: chatInputTriggerAttach,
           insertWorkspaceReference: chatInputInsertWorkspaceReference,
           getPendingSkillsSnapshot: chatInputGetPendingSkillsSnapshot,
+          getDocumentSnapshot: chatInputGetDocumentSnapshot,
           clearPendingSkills: chatInputClearPendingSkills
         })
       },
@@ -705,6 +708,7 @@ const setup = async (options: SetupOptions = {}) => {
     chatInputInsertWorkspaceReference,
     chatInputTriggerAttach,
     chatInputGetPendingSkillsSnapshot,
+    chatInputGetDocumentSnapshot,
     chatInputClearPendingSkills,
     chatStatusBarOpenModelPicker,
     recentMessageMeasurementCache,
@@ -1851,13 +1855,15 @@ describe('ChatPage', () => {
   })
 
   it('runs manual compaction instead of sending exact /compact in MioWork sessions', async () => {
-    const { wrapper, chatClient, sessionClient, messageStore } = await setup({
+    const { wrapper, chatClient, sessionClient, messageStore, sessionStore } = await setup({
       activeSessionPatch: {
         providerId: 'openai',
         modelId: 'gpt-4'
       }
     })
     const input = wrapper.findComponent({ name: 'ChatInputBox' })
+    const deferredCompaction = createDeferred<{ compacted: boolean }>()
+    sessionClient.compactSession.mockReturnValueOnce(deferredCompaction.promise)
 
     input.vm.$emit('update:files', [
       {
@@ -1872,10 +1878,48 @@ describe('ChatPage', () => {
     await flushPromises()
 
     expect(sessionClient.compactSession).toHaveBeenCalledWith('s1')
+    sessionStore.activeSession.status = 'working'
+    await flushPromises()
+    const messageList = wrapper.findComponent({ name: 'MessageList' })
+    expect(messageList.props('messages').map((message: { id: string }) => message.id)).toEqual([
+      'm1'
+    ])
+    expect(input.props('isGenerating')).toBe(true)
+
+    const compaction = {
+      ...buildAssistantMessage([]),
+      id: 'compaction-1',
+      orderSeq: 2,
+      metadata: JSON.stringify({ messageType: 'compaction', compactionStatus: 'compacting' })
+    }
+    messageStore.messages.push(compaction)
+    messageStore.messageIds.push(compaction.id)
+    messageStore.messageCache.set(compaction.id, compaction)
+    messageStore.lastPersistedRevision += 1
+    await flushPromises()
+    expect(messageList.props('messages').map((message: { id: string }) => message.id)).toEqual([
+      'm1',
+      'compaction-1'
+    ])
+
+    compaction.metadata = JSON.stringify({
+      messageType: 'compaction',
+      compactionStatus: 'compacted',
+      compactionSummary: 'Saved summary'
+    })
+    messageStore.lastPersistedRevision += 1
+    await flushPromises()
+    expect(messageList.props('messages').map((message: { id: string }) => message.id)).toEqual([
+      'm1',
+      'compaction-1'
+    ])
+
+    sessionStore.activeSession.status = 'idle'
+    deferredCompaction.resolve({ compacted: true })
+    await flushPromises()
     expect(messageStore.loadMessages).toHaveBeenCalledWith('s1', 100)
     expect(chatClient.sendMessage).not.toHaveBeenCalled()
     expect(messageStore.addOptimisticUserMessage).not.toHaveBeenCalled()
-    const messageList = wrapper.findComponent({ name: 'MessageList' })
     const messages = messageList.props('messages') as Array<{ id: string }>
     expect(messages.some((message) => message.id.startsWith('__pending_assistant_'))).toBe(false)
     expect(input.props('files')).toEqual([
@@ -1884,6 +1928,78 @@ describe('ChatPage', () => {
         path: '/repo/notes.md',
         mimeType: 'text/markdown'
       }
+    ])
+
+    sessionStore.activeSession.status = 'working'
+    await flushPromises()
+    expect(messageList.props('messages').at(-1).id).toBe('__pending_assistant_generating_s1')
+  })
+
+  it.each(['unchanged', 'failed'] as const)(
+    'clears manual compaction feedback after %s without suppressing another session',
+    async (outcome) => {
+      const { wrapper, sessionClient, sessionStore } = await setup({
+        activeSessionPatch: { providerId: 'openai', modelId: 'gpt-4' }
+      })
+      const deferredCompaction = createDeferred<void>()
+      sessionClient.compactSession.mockImplementationOnce(async () => {
+        await deferredCompaction.promise
+        if (outcome === 'failed') throw new Error('Summary provider unavailable')
+        return { compacted: false }
+      })
+
+      wrapper.findComponent({ name: 'ChatInputBox' }).vm.$emit('command-submit', '/compact')
+      await flushPromises()
+      expect(sessionClient.compactSession).toHaveBeenCalledWith('s1')
+      sessionStore.activeSession.status = 'working'
+      sessionStore.activeSession.id = 's2'
+      sessionStore.activeSessionId = 's2'
+      await wrapper.setProps({ sessionId: 's2' })
+      await flushPromises()
+      const messageList = wrapper.findComponent({ name: 'MessageList' })
+      expect(messageList.props('messages').at(-1).id).toBe('__pending_assistant_generating_s2')
+
+      deferredCompaction.resolve()
+      await flushPromises()
+      sessionStore.activeSession.id = 's1'
+      sessionStore.activeSessionId = 's1'
+      await wrapper.setProps({ sessionId: 's1' })
+      await flushPromises()
+      expect(messageList.props('messages').at(-1).id).toBe('__pending_assistant_generating_s1')
+    }
+  )
+
+  it('uses restored compaction state without hiding a real assistant reply', async () => {
+    const compaction = {
+      ...buildAssistantMessage([]),
+      id: 'compaction-1',
+      metadata: JSON.stringify({ messageType: 'compaction', compactionStatus: 'compacting' })
+    }
+    const { wrapper, sessionStore, messageStore } = await setup({
+      activeSessionPatch: { status: 'working', providerId: 'openai' },
+      messages: [compaction]
+    })
+    sessionStore.activeCompactionState = { status: 'compacting' }
+    await flushPromises()
+    const messageList = wrapper.findComponent({ name: 'MessageList' })
+    expect(messageList.props('messages').map((message: { id: string }) => message.id)).toEqual([
+      'compaction-1'
+    ])
+
+    const reply = {
+      ...buildAssistantMessage([{ type: 'content', content: 'Real reply', status: 'pending' }]),
+      id: 'reply-1',
+      orderSeq: 2,
+      status: 'pending'
+    }
+    messageStore.messages.push(reply)
+    messageStore.messageIds.push(reply.id)
+    messageStore.messageCache.set(reply.id, reply)
+    messageStore.lastPersistedRevision += 1
+    await flushPromises()
+    expect(messageList.props('messages').map((message: { id: string }) => message.id)).toEqual([
+      'compaction-1',
+      'reply-1'
     ])
   })
 
@@ -3764,11 +3880,19 @@ describe('ChatPage', () => {
     // (covered by the useComposerSubmit remount test) can restore it.
     const first = await setup()
     const firstInput = first.wrapper.findComponent({ name: 'ChatInputBox' })
+    const document = {
+      type: 'doc',
+      content: [{ type: 'paragraph', content: [{ type: 'mention', attrs: { id: 'reference' } }] }]
+    }
+    first.chatInputGetDocumentSnapshot.mockReturnValue(document)
+    first.chatInputGetPendingSkillsSnapshot.mockReturnValue(['review'])
     firstInput.vm.$emit('update:modelValue', 'draft from previous page')
     await flushPromises()
     first.wrapper.unmount()
 
     const stored = JSON.parse(localStorage.getItem('deepchat.composerDraft.v1.s1') ?? 'null')
     expect(stored?.rawMessage).toBe('draft from previous page')
+    expect(stored?.activeSkills).toEqual(['review'])
+    expect(stored?.document).toEqual(document)
   })
 })

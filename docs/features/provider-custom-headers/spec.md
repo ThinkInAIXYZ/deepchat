@@ -2,24 +2,21 @@
 
 ## Status
 
-Implemented and validated on 2026-08-26.
+Implemented and maintained.
 
 ## Context
 
-DeepChat provider profiles currently persist an API type, API key, base URL, model settings, and a
-small number of provider-specific fields. Runtime requests add DeepChat device headers and
-transport-owned authentication headers, but users cannot attach supplemental HTTP headers required
-by an API gateway, tenant router, or self-hosted proxy.
+DeepChat provider profiles persist optional supplemental HTTP headers for API gateways, tenant
+routers, and self-hosted proxies. The main process merges those headers into requests to the
+configured provider origin while preserving transport-owned authentication and redirect isolation.
 
 The settings renderer already owns provider configuration drafts, while the main process owns
 provider persistence, validation, runtime instances, and outbound HTTP. Custom headers therefore
 belong to the persisted provider profile and must cross the existing typed provider route; the
 renderer must not implement request behavior.
 
-The shell-backed provider settings page lets the model list grow with every model and currently
-places Advanced after it. A large catalog therefore pushes unrelated provider settings far down the
-page. Advanced belongs before Models so configuration remains reachable without changing the model
-list's established outer-page scrolling behavior.
+Shell-backed provider pages place Advanced before Models so configuration remains reachable with
+a large catalog. The model list retains its established outer-page scrolling and virtualization.
 
 ## Goals
 
@@ -57,26 +54,6 @@ gateway-protected provider can be created successfully.
 The row shows only `Not configured` or the configured header count and an Edit action. It never
 previews values. This keeps credentials out of the normal settings surface and avoids making
 Advanced tall merely because the JSON is long.
-
-Before:
-
-```text
-+ Provider ---------------------------------------------------+
-| Connection                                                  |
-| API URL   [ https://gateway.example.com/v1              ]   |
-| API Key   [ ******************************************** ]   |
-|                                                             |
-| Models                                                      |
-| model-1                                                    | |
-| model-2                                                    | |
-| ...                                                        | |
-| model-80                                                   | |
-|                                                             |
-| Advanced                                                [v] |
-+-------------------------------------------------------------+
-```
-
-After:
 
 ```text
 + Provider ---------------------------------------------------+
@@ -144,7 +121,7 @@ outer settings page remains the single vertical scroll owner.
 
 ## Data Contract
 
-Add one optional provider field:
+Provider profiles carry one optional field:
 
 ```ts
 customHeaders?: Record<string, string>

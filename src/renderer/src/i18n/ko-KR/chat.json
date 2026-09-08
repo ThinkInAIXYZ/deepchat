@@ -114,6 +114,7 @@
   "features": {
     "webSearch": "웹 검색",
     "artifactThinking": "아티팩트 추론",
+    "thoughtForLessThanOneSecond": "1초 미만 동안 생각했습니다",
     "thoughtForSeconds": "{seconds}초 동안 생각했습니다",
     "thoughtForSecondsLoading": "{seconds}초째 생각 중...",
     "modeChanged": "모드가 다음으로 전환되었습니다: {mode}"
@@ -180,7 +181,8 @@
   "mode": {
     "acpAgent": "ACP 에이전트",
     "agent": "대리인",
-    "current": "현재 모드: {mode}"
+    "current": "현재 모드: {mode}",
+    "saveFailed": "모드 선택을 저장하지 못했습니다"
   },
   "topbar": {
     "share": "공유",

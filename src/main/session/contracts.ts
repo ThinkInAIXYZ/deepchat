@@ -142,7 +142,6 @@ export type SessionProjectionTapePort = Pick<
   | 'handoffTape'
   | 'listMessageViewManifests'
   | 'listNestedExecutionAuditForMessage'
-  | 'exportMessageTapeReplaySlice'
   | 'listTapeInspectorPage'
   | 'resolveTapeInspectorEvidenceEntries'
   | 'getTapeInspectorRecordDetail'
@@ -227,6 +226,8 @@ export interface SessionLightweightOptions {
   limit?: number
   cursor?: SessionPageCursor | null
   includeSubagents?: boolean
+  includeDrafts?: boolean
+  projectDir?: string
   agentId?: string
   prioritizeSessionId?: string
 }

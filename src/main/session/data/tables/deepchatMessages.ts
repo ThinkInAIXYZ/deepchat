@@ -136,6 +136,67 @@ export class DeepChatMessagesTable extends BaseTable {
       )
   }
 
+  /**
+   * Writes the whole row from a terminal message record. The record is authoritative for every
+   * column, including `created_at`, so a replayed fact reproduces the row it was appended from.
+   * A row never moves between Sessions: an id that already belongs to another Session is refused,
+   * the way `insert` refused the duplicate key.
+   */
+  upsert(row: {
+    id: string
+    sessionId: string
+    orderSeq: number
+    role: 'user' | 'assistant'
+    content: string
+    status: 'pending' | 'sent' | 'error'
+    isContextEdge: number
+    metadata: string
+    createdAt: number
+    updatedAt: number
+  }): void {
+    const result = this.db
+      .prepare(
+        `INSERT INTO deepchat_messages (
+           id,
+           session_id,
+           order_seq,
+           role,
+           content,
+           status,
+           is_context_edge,
+           metadata,
+           created_at,
+           updated_at
+         )
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT(id) DO UPDATE SET
+           order_seq = excluded.order_seq,
+           role = excluded.role,
+           content = excluded.content,
+           status = excluded.status,
+           is_context_edge = excluded.is_context_edge,
+           metadata = excluded.metadata,
+           created_at = excluded.created_at,
+           updated_at = excluded.updated_at
+         WHERE deepchat_messages.session_id = excluded.session_id`
+      )
+      .run(
+        row.id,
+        row.sessionId,
+        row.orderSeq,
+        row.role,
+        row.content,
+        row.status,
+        row.isContextEdge,
+        row.metadata,
+        row.createdAt,
+        row.updatedAt
+      )
+    if (result.changes === 0) {
+      throw new Error(`Message ${row.id} belongs to another session; refusing to move it.`)
+    }
+  }
+
   updateContent(messageId: string, content: string): void {
     this.db
       .prepare('UPDATE deepchat_messages SET content = ?, updated_at = ? WHERE id = ?')
@@ -154,12 +215,12 @@ export class DeepChatMessagesTable extends BaseTable {
       .run(metadata, Date.now(), messageId)
   }
 
-  incrementOrderSeqFrom(sessionId: string, fromOrderSeq: number): void {
+  incrementOrderSeqFrom(sessionId: string, fromOrderSeq: number, updatedAt: number): void {
     this.db
       .prepare(
         'UPDATE deepchat_messages SET order_seq = order_seq + 1, updated_at = ? WHERE session_id = ? AND order_seq >= ?'
       )
-      .run(Date.now(), sessionId, fromOrderSeq)
+      .run(updatedAt, sessionId, fromOrderSeq)
   }
 
   updateContentAndStatus(
@@ -415,6 +476,15 @@ export class DeepChatMessagesTable extends BaseTable {
     this.db.prepare('DELETE FROM deepchat_messages WHERE id = ?').run(messageId)
   }
 
+  deleteByIds(messageIds: string[]): void {
+    // Chunked below SQLite's bound-variable floor; a range delete can hand over a whole Session.
+    for (let offset = 0; offset < messageIds.length; offset += 500) {
+      const chunk = messageIds.slice(offset, offset + 500)
+      const placeholders = chunk.map(() => '?').join(', ')
+      this.db.prepare(`DELETE FROM deepchat_messages WHERE id IN (${placeholders})`).run(...chunk)
+    }
+  }
+
   deleteFromOrderSeq(sessionId: string, fromOrderSeq: number): void {
     this.db
       .prepare('DELETE FROM deepchat_messages WHERE session_id = ? AND order_seq >= ?')
@@ -431,14 +501,5 @@ export class DeepChatMessagesTable extends BaseTable {
       )
       .all(sessionId, fromOrderSeq) as Array<{ id: string }>
     return rows.map((row) => row.id)
-  }
-
-  recoverPendingMessages(): number {
-    const result = this.db
-      .prepare(
-        "UPDATE deepchat_messages SET status = 'error', updated_at = ? WHERE status = 'pending'"
-      )
-      .run(Date.now())
-    return result.changes
   }
 }

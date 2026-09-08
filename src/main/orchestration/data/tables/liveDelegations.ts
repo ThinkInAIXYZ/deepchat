@@ -131,7 +131,7 @@ export class LiveDelegationsTable extends BaseTable {
 
   finalizeMigration(version: number): void {
     if (version === LIVE_DELEGATION_INITIAL_DATABASE_SCHEMA_VERSION) {
-      this.db.exec(LIVE_DELEGATIONS_TRIGGER_SQL)
+      this.createTable()
     }
   }
 

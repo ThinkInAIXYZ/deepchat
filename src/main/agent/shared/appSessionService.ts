@@ -110,6 +110,8 @@ export class AppSessionService implements AppSessionReadPort {
     limit?: number
     cursor?: SessionPageCursor | null
     agentId?: string
+    projectDir?: string
+    includeDrafts?: boolean
     includeSubagents?: boolean
     parentSessionId?: string
   }): {
@@ -121,6 +123,8 @@ export class AppSessionService implements AppSessionReadPort {
       limit: options?.limit,
       cursor: options?.cursor as SessionListPageCursor | null | undefined,
       agentId: options?.agentId,
+      projectDir: options?.projectDir,
+      includeDrafts: options?.includeDrafts,
       includeSubagents: options?.includeSubagents,
       parentSessionId: options?.parentSessionId
     })

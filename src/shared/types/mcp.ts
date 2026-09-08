@@ -118,6 +118,9 @@ export interface MCPServerConfig {
   sourceId?: string
   ownerPluginId?: string
   inheritEnv?: 'legacy' | 'minimal'
+  cwd?: string
+  /** Explicitly reviewed process-environment bindings for imported configurations. */
+  environmentVariables?: string[]
   /**
    * Host-owned identity. Importers must not use a mutable display name as durable identity.
    */

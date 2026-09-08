@@ -91,6 +91,22 @@ function normalizeJsonData(
   }
 }
 
+/**
+ * Legacy canonicalizer: plain-object accumulator (an own `__proto__` key is dropped), `undefined`
+ * properties are omitted, non-finite numbers serialize as `null`, and non-plain objects are
+ * expanded by their enumerable keys.
+ *
+ * It is an on-disk contract, not a read-only compatibility path. It still produces persisted
+ * identities that are UNIQUE provenance keys or inputs to stored hashes: schema-4 ViewManifest
+ * `manifestHash` / `promptHash` / `toolDefinitionsHash` (the default interactive-chat manifest),
+ * tool fact provenance keys, and Execution Journal v1 operation keys, run keys, `responseHash`
+ * and `errorHash`. Those producers depend on this exact coercion (tool fact payloads carry
+ * `undefined` optional fields that `hashJsonData` rejects). Any digest drift makes an old Session
+ * append duplicate tool facts on backfill, fail stored-manifest verification, and classify its
+ * Journal history as corruption because fact parsing rebuilds each provenance key and compares
+ * it with the stored one. New fact families must use `hashJsonData`; existing producers stay on
+ * this function.
+ */
 export function stableJsonStringify(value: unknown): string {
   return JSON.stringify(normalizeForStableJson(value))
 }
@@ -99,8 +115,13 @@ export function hashJson(value: unknown): string {
   return createHash('sha256').update(stableJsonStringify(value)).digest('hex')
 }
 
-// Legacy ViewManifest hashes keep the old object accumulator. New persisted identities use a
-// null-prototype accumulator so JSON keys such as "__proto__" remain identity-bearing.
+/**
+ * Strict canonicalizer for ViewManifest hash version 3 and later, contract hashes, tool surface
+ * facts, Execution Journal `argumentsHash` and v2 nested operation keys, and skill
+ * materialization payloads. It rejects non-JSON values instead of coercing them and keeps
+ * `__proto__` identity-bearing through a null-prototype accumulator. Provider payloads that may
+ * carry `undefined` opt in to `omitUndefinedProperties`.
+ */
 export function canonicalJsonStringifyData(
   value: unknown,
   options: CanonicalJsonDataOptions = {}

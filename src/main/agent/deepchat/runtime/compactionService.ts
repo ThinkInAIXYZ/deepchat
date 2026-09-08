@@ -99,6 +99,7 @@ export type CompactionExecutionResult = {
   outcome: 'summarized' | 'boundary_only' | 'unchanged'
   anchorCommitted: boolean
   summaryState: SessionSummaryState
+  summaryError?: string
 }
 
 export type CompactionModelCallObservation = {
@@ -632,6 +633,7 @@ export class CompactionService {
   ): Promise<CompactionExecutionResult> {
     assertValidContextLength(intent.currentModel.contextLength)
     let nextSummary: string | null = null
+    let summaryError: string | undefined
     try {
       throwIfAbortRequested(signal)
       nextSummary = await this.generateRollingSummary({
@@ -653,11 +655,15 @@ export class CompactionService {
         `[CompactionService] Summary generation failed for session ${intent.sessionId}; advancing a boundary-only reconstruction anchor.`,
         redactRuntimeErrorForLog(error)
       )
+      summaryError = error instanceof Error ? error.message || error.name : String(error)
     }
 
     throwIfAbortRequested(signal)
     if (!nextSummary) {
-      return this.commitBoundaryOnly(intent)
+      return {
+        ...this.commitBoundaryOnly(intent),
+        ...(summaryError ? { summaryError } : {})
+      }
     }
 
     const summaryAnchor = this.buildSummaryAnchor(intent, nextSummary)

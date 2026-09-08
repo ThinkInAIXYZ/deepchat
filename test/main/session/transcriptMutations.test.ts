@@ -17,7 +17,7 @@ describe('SessionTranscriptMutations', () => {
     }
     const transcript = {
       getMessage: vi.fn(() => message),
-      updateMessageStatus: vi.fn()
+      restoreUserMessage: vi.fn()
     }
     const mutations = new SessionTranscriptMutations({
       transcript,
@@ -36,7 +36,7 @@ describe('SessionTranscriptMutations', () => {
     })
     // The failed Steer prompt is kept as the pre-stream anchor, so it must be
     // restored to 'sent' to remain visible to context history filtering.
-    expect(transcript.updateMessageStatus).toHaveBeenCalledWith('steer-1', 'sent')
+    expect(transcript.restoreUserMessage).toHaveBeenCalledWith('steer-1')
   })
 
   it('keeps the user prompt in place when retrying a user message directly', async () => {
@@ -238,5 +238,25 @@ describe('SessionTranscriptMutations', () => {
     )
     expect(runtime.invalidateTranscriptFrom).not.toHaveBeenCalled()
     expect(transcript.updateMessageContent).not.toHaveBeenCalled()
+  })
+
+  it('hands the extracted cloned prefix cursor to the fork target reset', async () => {
+    const runtime = { resetForkTarget: vi.fn() }
+    const transcript = {
+      getMessage: vi.fn(() => ({
+        id: 'message-9',
+        sessionId: 'source',
+        orderSeq: 9,
+        role: 'assistant',
+        content: '[]'
+      })),
+      cloneSentMessagesToSession: vi.fn(() => 7)
+    }
+    const mutations = new SessionTranscriptMutations({ transcript, runtime } as any)
+
+    await mutations.forkSessionFromMessage('source', 'target', 'message-9')
+
+    expect(transcript.cloneSentMessagesToSession).toHaveBeenCalledWith('source', 'target', 9)
+    expect(runtime.resetForkTarget).toHaveBeenCalledWith('target', 7)
   })
 })

@@ -217,7 +217,8 @@ export class KnowledgeBase {
       const vectors = await this.embeddingPort.getEmbeddings(
         this.config.embedding.providerId,
         this.config.embedding.modelId,
-        [chunkMsg.content]
+        [chunkMsg.content],
+        signal
       )
 
       if (!vectors || vectors.length === 0) {

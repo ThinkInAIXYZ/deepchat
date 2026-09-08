@@ -266,20 +266,25 @@ const EXECUTION_JOURNAL_EVENT_NAMES_SQL = EXECUTION_JOURNAL_EVENT_NAMES.map(
  * are disjoint because `EffectiveInputKind` cannot name `event`; the kind lists are the same
  * constants the JS predicates test.
  */
-function effectiveInputRowsSql(kinds: readonly EffectiveInputKind[]): string {
+function effectiveInputRowsSql(kinds: readonly EffectiveInputKind[], afterEntryId = false): string {
+  const lowerBound = afterEntryId ? ' AND entry_id > $afterEntryId' : ''
   const ranges = [
     ...kinds.map(
       (kind) =>
-        `SELECT * FROM deepchat_tape_entries WHERE session_id = $session AND kind = '${kind}'`
+        `SELECT * FROM deepchat_tape_entries WHERE session_id = $session AND kind = '${kind}'${lowerBound}`
     ),
     `SELECT * FROM deepchat_tape_entries
-     WHERE session_id = $session AND kind = 'event' AND name = '${TAPE_MESSAGE_RETRACTED_EVENT_NAME}'`
+     WHERE session_id = $session AND kind = 'event' AND name = '${TAPE_MESSAGE_RETRACTED_EVENT_NAME}'${lowerBound}`
   ]
   return `SELECT * FROM (${ranges.join(' UNION ALL ')}) ORDER BY entry_id ASC`
 }
 
 const EFFECTIVE_VIEW_INPUT_ROWS_SQL = effectiveInputRowsSql(EFFECTIVE_VIEW_INPUT_KINDS)
 const EFFECTIVE_MESSAGE_INPUT_ROWS_SQL = effectiveInputRowsSql(EFFECTIVE_MESSAGE_INPUT_KINDS)
+const EFFECTIVE_MESSAGE_INPUT_ROWS_AFTER_SQL = effectiveInputRowsSql(
+  EFFECTIVE_MESSAGE_INPUT_KINDS,
+  true
+)
 
 export const UNTERMINATED_EXECUTION_JOURNAL_EVENTS_SQL = `
   WITH unterminated_runs AS (
@@ -1222,15 +1227,15 @@ export class DeepChatTapeEntriesTable
       ) as DeepChatTapeEntryRow[]
   }
 
-  getBySessionExcludingContext(sessionId: string): DeepChatTapeEntryRow[] {
+  getBySessionExcludingContext(sessionId: string, name?: string): DeepChatTapeEntryRow[] {
     return this.db
       .prepare(
         `SELECT *
          FROM deepchat_tape_entries
-         WHERE session_id = ? AND kind != 'context'
+         WHERE session_id = ? AND kind != 'context'${name === undefined ? '' : ' AND name = ?'}
          ORDER BY entry_id ASC`
       )
-      .all(sessionId) as DeepChatTapeEntryRow[]
+      .all(...(name === undefined ? [sessionId] : [sessionId, name])) as DeepChatTapeEntryRow[]
   }
 
   getEffectiveViewInputRows(sessionId: string): DeepChatTapeEntryRow[] {
@@ -1243,6 +1248,16 @@ export class DeepChatTapeEntriesTable
     return this.db
       .prepare(EFFECTIVE_MESSAGE_INPUT_ROWS_SQL)
       .all({ session: sessionId }) as DeepChatTapeEntryRow[]
+  }
+
+  /** The message facts and retractions appended after `afterEntryId`, in entry order. */
+  getEffectiveMessageInputRowsAfter(
+    sessionId: string,
+    afterEntryId: number
+  ): DeepChatTapeEntryRow[] {
+    return this.db
+      .prepare(EFFECTIVE_MESSAGE_INPUT_ROWS_AFTER_SQL)
+      .all({ session: sessionId, afterEntryId }) as DeepChatTapeEntryRow[]
   }
 
   getByEntryIds(sessionId: string, entryIds: readonly number[]): DeepChatTapeEntryRow[] {

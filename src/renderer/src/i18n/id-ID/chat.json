@@ -113,6 +113,7 @@
   },
   "features": {
     "webSearch": "Pencarian internet",
+    "thoughtForLessThanOneSecond": "Berpikir kurang dari 1 detik",
     "thoughtForSeconds": "Berpikir selama {seconds} detik",
     "thoughtForSecondsLoading": "Berpikir (kedua {seconds})",
     "artifactThinking": "pemikiran artefak",
@@ -197,7 +198,8 @@
   "mode": {
     "current": "Modus saat ini: {mode}",
     "agent": "Agent",
-    "acpAgent": "ACP Agent"
+    "acpAgent": "ACP Agent",
+    "saveFailed": "Gagal menyimpan pilihan mode"
   },
   "topbar": {
     "backToParent": "Kembali ke sesi orang tua",

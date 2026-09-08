@@ -12,7 +12,13 @@ import type { DeepChatExecutionToolTargetIdentity } from '@shared/types/executio
 import type { DeepChatTaskContractRef } from '@shared/types/task-contract'
 import { canonicalJsonStringifyData, hashJsonData } from './canonicalJson'
 import { buildExecutionToolTargetKey, isDetachedStoredToolTarget } from './executionContract'
-import { CANONICAL_UUID_PATTERN, compareUtf16, deepFreeze, SHA256_HEX_PATTERN } from './primitives'
+import {
+  CANONICAL_UUID_PATTERN,
+  compareUtf16,
+  deepFreeze,
+  hasExactKeys,
+  SHA256_HEX_PATTERN
+} from './primitives'
 import { isDeepChatTaskContractRef } from './taskContract'
 import { normalizeAbsoluteWorkspacePath } from './workspacePath'
 
@@ -358,11 +364,6 @@ function isPlainRecord(value: unknown): value is Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false
   const prototype = Object.getPrototypeOf(value)
   return prototype === Object.prototype || prototype === null
-}
-
-function hasExactKeys(value: Record<string, unknown>, keys: readonly string[]): boolean {
-  const actualKeys = Object.keys(value)
-  return actualKeys.length === keys.length && keys.every((key) => actualKeys.includes(key))
 }
 
 // JavaScript has no bounded own-key enumeration primitive. These limits bound accepted detached

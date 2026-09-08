@@ -134,8 +134,13 @@ No path ever discards a committed v2, and no path can leave a half-built file at
 All paths converge on a healthy v2 store; the only difference is whether embeddings were
 preserved or recomputed. `resetVectorStore` / `destroyFile` target the v2 paths and also sweep
 staging and legacy v1 files if present. Manager state has a single
-`health: 'healthy' | 'quarantined'`; `accepting` is only a temporary admission gate. Reset and
-retirement return `completed` or `pending-restart`. A quarantined agent is never drained,
+`health: 'healthy' | 'suspect' | 'quarantined'`; `accepting` is only a temporary admission gate
+owned through a hold count: every owner that closes admission (identity transition, in-lease
+identity switch, timeout observation, drain-and-close) takes one hold and releases it when it
+settles, and admission reopens only when the last hold is released on a healthy state. Owners
+never infer ownership from the lease epoch alone, so a timeout observed while a transition is
+draining cannot leave admission closed with a healthy report. Reset and retirement return
+`completed` or `pending-restart`. A quarantined agent is never drained,
 closed, deleted, or awaited in-process; once its marker is durable, clear/delete may finish
 their logical work and report `cleanupPendingRestart = true`. Agent deletion performs this
 cleanup preflight before repository deletion, and a marker persistence failure aborts deletion.

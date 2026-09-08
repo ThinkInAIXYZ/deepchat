@@ -1,25 +1,18 @@
 # Light OCR PDF Support
 
-Status: implemented and locally validated
-
-Current runtime increment:
-[arcships/light-ocr v0.5.6](https://github.com/arcships/light-ocr/releases/tag/v0.5.6)
-
-Initial PDF support release:
-[arcships/light-ocr v0.5.5](https://github.com/arcships/light-ocr/releases/tag/v0.5.5)
+Status: implemented and maintained. Exact facade, runtime, model, native-package, and bundle pins
+come from [`resources/runtime-versions.json`](../../../resources/runtime-versions.json).
 
 ## User Need
 
-DeepChat already extracts embedded PDF text through `pdf-parse-new`, but scanned PDFs and PDFs with
-little usable text remain effectively empty. Light OCR 0.5.5 adds built-in, offline PDF OCR through
-the same facade and model used for image OCR. Light OCR 0.5.6 adds a package-local Noto Sans SC
-fallback so PDFium can render documents that reference common non-embedded Chinese fonts. DeepChat
-needs to ship that runtime correctly, expose PDF representation choices in the attachment UI, and
-preserve the exact bounded PDF text used by the provider.
+DeepChat supports embedded PDF text through `pdf-parse-new` and bundled offline OCR for scanned or
+text-poor PDFs. Image and PDF OCR share the runtime facade and model. The packaged PDFium runtime
+includes a local font fallback for common non-embedded Chinese fonts. Attachment controls expose
+the representation choice, and persistence retains the exact bounded PDF text used by the provider.
 
 ## Goals
 
-- Upgrade the stable Light OCR facade to 0.5.6 without changing the existing image-recognition
+- Use the stable Light OCR facade pinned by the runtime manifest without changing image-recognition
   semantics.
 - Package the model-free runtime and the matching six native packages, including each platform's
   PDFium payload and fallback-font resources, with no postinstall download or runtime network
@@ -52,12 +45,12 @@ preserve the exact bounded PDF text used by the provider.
 
 The four independently versioned components are pinned exactly:
 
-| Component | Package | Version |
-| --- | --- | --- |
-| Stable facade | `@arcships/light-ocr` | `0.5.6` |
-| Model-free runtime | `@arcships/light-ocr-runtime` | `0.1.6` |
-| Small model | `@arcships/light-ocr-model-ppocrv6-small` | `0.3.4` |
-| Native packages | six `@arcships/light-ocr-<platform>` packages | `0.5.6` |
+| Component          | Package                                       | Version |
+| ------------------ | --------------------------------------------- | ------- |
+| Stable facade      | `@arcships/light-ocr`                         | `0.5.7` |
+| Model-free runtime | `@arcships/light-ocr-runtime`                 | `0.1.7` |
+| Small model        | `@arcships/light-ocr-model-ppocrv6-small`     | `0.3.4` |
+| Native packages    | six `@arcships/light-ocr-<platform>` packages | `0.5.7` |
 
 The facade entry point is `src/index.cjs`. The runtime is a required packaged dependency because the
 facade imports `@arcships/light-ocr-runtime/facade`, and native-package resolution belongs to that
@@ -65,11 +58,11 @@ runtime rather than to the facade.
 
 Each supported native package must contain its existing OCR runtime inventory plus:
 
-| Platform | Required PDFium inventory |
-| --- | --- |
-| macOS | `pdfium/index.cjs`, `pdfium/pdfium.node`, `pdfium/libpdfium.dylib`, `pdfium/fonts/NotoSansSC-Regular.otf`, `pdfium/fonts/OFL.txt` |
-| Linux | `pdfium/index.cjs`, `pdfium/pdfium.node`, `pdfium/libpdfium.so`, `pdfium/fonts/NotoSansSC-Regular.otf`, `pdfium/fonts/OFL.txt` |
-| Windows | `pdfium/index.cjs`, `pdfium/pdfium.node`, `pdfium/pdfium.dll`, `pdfium/fonts/NotoSansSC-Regular.otf`, `pdfium/fonts/OFL.txt` |
+| Platform | Required PDFium inventory                                                                                                         |
+| -------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| macOS    | `pdfium/index.cjs`, `pdfium/pdfium.node`, `pdfium/libpdfium.dylib`, `pdfium/fonts/NotoSansSC-Regular.otf`, `pdfium/fonts/OFL.txt` |
+| Linux    | `pdfium/index.cjs`, `pdfium/pdfium.node`, `pdfium/libpdfium.so`, `pdfium/fonts/NotoSansSC-Regular.otf`, `pdfium/fonts/OFL.txt`    |
+| Windows  | `pdfium/index.cjs`, `pdfium/pdfium.node`, `pdfium/pdfium.dll`, `pdfium/fonts/NotoSansSC-Regular.otf`, `pdfium/fonts/OFL.txt`      |
 
 Inventory checks group descriptor-owned OCR runtime code and manifest-owned `pdfium/` files
 separately. The complete recursive `pdfium/` tree is an explicit allowlist and rejects missing,
@@ -100,11 +93,11 @@ resolution, and smoke validation must reject a partial or mixed-version closure.
 
 PDF attachments support:
 
-| Requested representation | Effective behavior |
-| --- | --- |
-| `auto` | Use embedded text when at least 90% of pages are substantive; otherwise OCR the whole requested range. |
-| `embedded_text` | Use the existing `file.content` snapshot without OCR. |
-| `ocr_text` | OCR the whole requested range regardless of embedded coverage. |
+| Requested representation | Effective behavior                                                                                     |
+| ------------------------ | ------------------------------------------------------------------------------------------------------ |
+| `auto`                   | Use embedded text when at least 90% of pages are substantive; otherwise OCR the whole requested range. |
+| `embedded_text`          | Use the existing `file.content` snapshot without OCR.                                                  |
+| `ocr_text`               | OCR the whole requested range regardless of embedded coverage.                                         |
 
 Image choices remain `auto`, `image`, and `ocr_text`. Contextually invalid legacy pairings fall back
 to `auto` rather than changing existing persisted drafts into hard failures.
@@ -264,15 +257,15 @@ the artifact that is compatible with larger future requests.
 
 Cache outcomes:
 
-| Outcome | Cache | Attachment behavior |
-| --- | --- | --- |
-| Complete with text | yes | usable OCR text |
-| Complete with zero usable text | yes, including empty text | `ocr_empty`, not retryable |
-| Output-limited with text | yes | usable truncated OCR text |
-| Resource-limited after validated pages | yes | usable partial text plus `ocr_resource_limited`, not retryable |
-| Resource-limited after validated pages but zero text | yes | `ocr_resource_limited` unavailable, not retryable |
-| Resource-limited before any page | no | unavailable and not retryable under the same configuration |
-| Cancel, timeout, protocol error, helper crash | no | abort or retryable failure according to the explicit reason |
+| Outcome                                              | Cache                     | Attachment behavior                                            |
+| ---------------------------------------------------- | ------------------------- | -------------------------------------------------------------- |
+| Complete with text                                   | yes                       | usable OCR text                                                |
+| Complete with zero usable text                       | yes, including empty text | `ocr_empty`, not retryable                                     |
+| Output-limited with text                             | yes                       | usable truncated OCR text                                      |
+| Resource-limited after validated pages               | yes                       | usable partial text plus `ocr_resource_limited`, not retryable |
+| Resource-limited after validated pages but zero text | yes                       | `ocr_resource_limited` unavailable, not retryable              |
+| Resource-limited before any page                     | no                        | unavailable and not retryable under the same configuration     |
+| Cancel, timeout, protocol error, helper crash        | no                        | abort or retryable failure according to the explicit reason    |
 
 Caching deterministic resource-limited prefixes is safe only under exact resource identity. The
 constraint protects result determinism: the same PDF and configuration must not return more pages
@@ -317,7 +310,7 @@ If turn-level attachment packing cannot retain any otherwise valid PDF OCR text,
 ## Acceptance Criteria
 
 - Existing image OCR routing, cache behavior, cancellation, and real packaged image smoke still pass
-  with the 0.5.6 facade.
+  with the facade version pinned by the runtime manifest.
 - A textual PDF in `Auto` uses its embedded snapshot without starting the OCR helper.
 - A scanned PDF in `Auto`, and any PDF explicitly set to `ocr_text`, streams offline OCR text into
   the provider context.

@@ -77,6 +77,41 @@ const setupStore = async (options?: {
 }
 
 describe('agent store incremental refresh', () => {
+  it('keeps history filtering explicit when conversation selection changes', async () => {
+    const { store } = await setupStore()
+
+    store.setSelectedAgent('deepchat', { preserveFilter: true })
+    expect(store.selectedAgentId.value).toBe('deepchat')
+    expect(store.filterAgentId.value).toBeNull()
+
+    store.setSelectedAgent('acp-1')
+    store.setSelectedAgent('deepchat', { preserveFilter: true })
+    expect(store.selectedAgentId.value).toBe('deepchat')
+    expect(store.filterAgentId.value).toBe('acp-1')
+
+    store.selectAgent('acp-1')
+    expect(store.selectedAgentId.value).toBeNull()
+    expect(store.filterAgentId.value).toBeNull()
+  })
+
+  it('clears unavailable Agent selections independently', async () => {
+    const { store } = await setupStore({ initialAgents: [createAgent('deepchat')] })
+    store.setSelectedAgent('removed-agent')
+    store.setSelectedAgent('deepchat', { preserveFilter: true })
+
+    await store.fetchAgents()
+
+    expect(store.selectedAgentId.value).toBe('deepchat')
+    expect(store.filterAgentId.value).toBeNull()
+
+    store.setSelectedAgent('deepchat')
+    store.setSelectedAgent('removed-agent', { preserveFilter: true })
+    await store.fetchAgents()
+
+    expect(store.selectedAgentId.value).toBeNull()
+    expect(store.filterAgentId.value).toBe('deepchat')
+  })
+
   it('refreshes only scoped ACP agents when agentIds are provided', async () => {
     const { store, sessionClient, configClient, emitAgentsChanged } = await setupStore({
       initialAgents: [

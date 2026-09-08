@@ -2,10 +2,8 @@
 
 ## Status
 
-Active. DeepChat has one Subagent execution plane: durable live delegation through child Sessions.
-The unreleased QuickJS-based durable Workflow runtime is retired before merge.
-
-Last reviewed: 2026-08-15.
+Implemented. DeepChat has one Subagent execution plane: durable live delegation through child
+Sessions. A separate QuickJS-based durable Workflow runtime is not part of the supported architecture.
 
 ## Decision
 

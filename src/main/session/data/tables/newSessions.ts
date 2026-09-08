@@ -271,6 +271,8 @@ export class NewSessionsTable extends BaseTable {
     limit?: number
     cursor?: SessionListPageCursor | null
     agentId?: string
+    projectDir?: string
+    includeDrafts?: boolean
     includeSubagents?: boolean
     parentSessionId?: string
   }): SessionListPageResult {
@@ -278,6 +280,15 @@ export class NewSessionsTable extends BaseTable {
     let sql = 'SELECT * FROM new_sessions'
     const conditions: string[] = []
     const params: unknown[] = []
+
+    if (options?.projectDir !== undefined) {
+      conditions.push('project_dir = ?')
+      params.push(options.projectDir)
+    }
+
+    if (options?.includeDrafts === false) {
+      conditions.push('is_draft = 0')
+    }
 
     if (options?.agentId) {
       conditions.push('agent_id = ?')

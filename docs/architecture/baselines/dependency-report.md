@@ -1,28 +1,28 @@
 # Dependency Baseline
 
-Generated on 2026-09-04.
+Generated on 2026-09-06.
 
 ## main
 
-- Total files: 859
-- Internal dependency edges: 3021
-- Cycles detected: 13
+- Total files: 862
+- Internal dependency edges: 3035
+- Cycles detected: 14
 
 ### Top outgoing dependencies
 
 - `app/composition.ts`: 183
 - `agent/deepchat/runtime/deepChatLoopRunner.ts`: 61
 - `agent/deepchat/runtime/turnCoordinator.ts`: 53
-- `data/schemaCatalog.ts`: 45
+- `data/schemaCatalog.ts`: 46
 - `agent/deepchat/harness/createDeepChatAgentHarness.ts`: 42
 - `tool/agentTools/agentToolManager.ts`: 37
 - `agent/deepchat/harness/runtimeServices.ts`: 35
 - `agent/deepchat/runtime/dispatch.ts`: 27
 - `agent/deepchat/runtime/interactionCoordinator.ts`: 27
 - `agent/deepchat/runtime/compactionRuntimeCoordinator.ts`: 24
+- `session/data/database.ts`: 24
 - `tool/index.ts`: 24
 - `memory/index.ts`: 23
-- `session/data/database.ts`: 23
 - `tape/application/sessionTape.ts`: 22
 - `agent/deepchat/runtime/deferredToolExecutor.ts`: 20
 
@@ -30,13 +30,13 @@ Generated on 2026-09-04.
 
 - `provider/settings.ts`: 49
 - `agent/shared/agentSessionIds.ts`: 46
-- `data/baseTable.ts`: 44
+- `data/baseTable.ts`: 45
 - `routes/routeRegistry.ts`: 43
 - `remote/types.ts`: 39
 - `tape/ports/capabilities.ts`: 36
 - `agent/settings.ts`: 35
 - `config/settingsStore.ts`: 35
-- `tape/domain/entry.ts`: 34
+- `tape/domain/entry.ts`: 35
 - `tape/domain/canonicalJson.ts`: 31
 - `agent/deepchat/runtime/types.ts`: 28
 - `agent/deepchat/runtime/toolSurface.ts`: 25
@@ -46,6 +46,7 @@ Generated on 2026-09-04.
 
 ### Cycle samples
 
+- `session/data/tables/deepchatAssistantBlocks.ts -> session/data/messageContent.ts -> session/data/tables/deepchatAssistantBlocks.ts`
 - `memory/types.ts -> memory/injection.ts -> memory/core/injectionPort.ts -> memory/types.ts`
 - `memory/core/injectionPort.ts -> memory/core/directiveContribution.ts -> memory/core/injectionPort.ts`
 - `agent/acp/runtime/acpProcessManager.ts -> agent/deepchat/runtime/types.ts -> session/contracts.ts -> agent/manager/sessionHandles.ts -> agent/acp/instance/index.ts -> agent/acp/instance/acpAgentInstance.ts -> agent/acp/runtime/acpSessionManager.ts -> agent/acp/runtime/acpProcessManager.ts`

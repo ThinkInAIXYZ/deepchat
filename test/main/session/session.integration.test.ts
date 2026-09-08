@@ -144,7 +144,6 @@ function createMockDeepChatAgent() {
     listTapeAnchors: vi.fn().mockResolvedValue([]),
     handoffTape: vi.fn().mockResolvedValue({}),
     listMessageViewManifests: vi.fn().mockResolvedValue([]),
-    exportMessageTapeReplaySlice: vi.fn().mockResolvedValue(null),
     prepareRetryMessage: vi.fn().mockResolvedValue({
       content: { text: 'retry', files: [] },
       projectDir: null,
@@ -3501,7 +3500,7 @@ describe('Session application coordinators', () => {
       warnSpy.mockRestore()
     })
 
-    it('returns empty manifest and replay fallbacks when Tape reads fail', async () => {
+    it('returns an empty manifest fallback when Tape reads fail', async () => {
       sqlitePresenter.deepchatMessagesTable.get.mockReturnValue({
         id: 'message-1',
         session_id: 's1'
@@ -3521,17 +3520,10 @@ describe('Session application coordinators', () => {
         updated_at: 2000
       })
       deepChatAgent.listMessageViewManifests.mockRejectedValueOnce(new Error('manifest failed'))
-      deepChatAgent.exportMessageTapeReplaySlice.mockRejectedValueOnce(new Error('replay failed'))
 
       await expect(projection.listMessageViewManifests('message-1')).resolves.toEqual([])
-      await expect(projection.exportMessageTapeReplaySlice('message-1')).resolves.toBeNull()
 
       expect(deepChatAgent.listMessageViewManifests).toHaveBeenCalledWith('s1', 'message-1')
-      expect(deepChatAgent.exportMessageTapeReplaySlice).toHaveBeenCalledWith(
-        's1',
-        'message-1',
-        undefined
-      )
     })
   })
 

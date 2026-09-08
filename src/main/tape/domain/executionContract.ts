@@ -35,6 +35,8 @@ import {
   canonicalUuid,
   compareUtf16,
   deepFreeze,
+  hasExactKeys,
+  isRecordObject,
   SHA256_HEX_PATTERN,
   utf8Length
 } from './primitives'
@@ -293,25 +295,6 @@ function hashData(value: unknown, label: string, omitUndefinedProperties = false
       cause: error
     })
   }
-}
-
-function isRecordObject(value: unknown): value is Record<string, unknown> {
-  return Boolean(value && typeof value === 'object' && !Array.isArray(value))
-}
-
-function hasExactKeys(
-  value: unknown,
-  requiredKeys: readonly string[],
-  optionalKeys: readonly string[] = []
-): value is Record<string, unknown> {
-  if (!isRecordObject(value)) return false
-  const actualKeys = Object.keys(value)
-  const allowedKeys = new Set([...requiredKeys, ...optionalKeys])
-  return (
-    requiredKeys.every((key) => Object.hasOwn(value, key)) &&
-    actualKeys.every((key) => allowedKeys.has(key)) &&
-    actualKeys.length >= requiredKeys.length
-  )
 }
 
 function matchesNormalizedString(
@@ -799,8 +782,7 @@ function isStoredDynamicControlSnapshot(
 }
 
 function isStoredExecutionProvenance(
-  value: unknown,
-  ceilings: DeepChatExecutionContract['ceilings']
+  value: unknown
 ): value is DeepChatExecutionContract['provenance'] {
   return (
     hasExactKeys(value, EXECUTION_PROVENANCE_KEYS) &&
@@ -813,7 +795,6 @@ function isStoredExecutionProvenance(
     isSha256(value.effectiveGenerationConfigHash) &&
     isSha256(value.providerVisibleToolDefinitionsHash) &&
     isSha256(value.internalExecutionPolicyHash) &&
-    value.internalExecutionPolicyHash === hashData(ceilings, 'internal execution policy') &&
     matchesNormalizedString(
       value.assemblerVersion,
       'provenance.assemblerVersion',
@@ -1096,23 +1077,6 @@ export function buildExecutionContract(
   return deepFreeze(contract)
 }
 
-export function verifyExecutionContractHash(contract: DeepChatExecutionContract): boolean {
-  if (
-    contract?.schemaVersion !== DEEPCHAT_EXECUTION_CONTRACT_SCHEMA_VERSION ||
-    contract?.hashVersion !== DEEPCHAT_EXECUTION_CONTRACT_HASH_VERSION ||
-    typeof contract.contractHash !== 'string' ||
-    !SHA256_HEX_PATTERN.test(contract.contractHash)
-  ) {
-    return false
-  }
-  try {
-    const { contractHash, ...draft } = contract
-    return buildContractHash(draft) === contractHash
-  } catch {
-    return false
-  }
-}
-
 export function isDeepChatExecutionContract(value: unknown): value is DeepChatExecutionContract {
   try {
     const serialized = canonicalJsonStringifyData(value)
@@ -1124,7 +1088,7 @@ export function isDeepChatExecutionContract(value: unknown): value is DeepChatEx
       !isStoredExecutionContractRequest(value.request) ||
       !isStoredExecutionCeilings(value.ceilings) ||
       !isStoredDynamicControlSnapshot(value.dynamicControlSnapshot) ||
-      !isStoredExecutionProvenance(value.provenance, value.ceilings) ||
+      !isStoredExecutionProvenance(value.provenance) ||
       !isSha256(value.contractHash)
     ) {
       return false

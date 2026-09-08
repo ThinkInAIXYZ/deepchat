@@ -81,23 +81,6 @@ export class DeepChatSessionsTable extends BaseTable {
     return this.getCreateTableSQLForVersion(this.getLatestVersion())
   }
 
-  override createTable(): void {
-    if (this.tableExists()) {
-      return
-    }
-
-    const recordedVersion = this.getRecordedSchemaVersion()
-    const latestVersion = this.getLatestVersion()
-
-    if (recordedVersion > latestVersion) {
-      const message = `Recorded deepchat_sessions schema version ${recordedVersion} exceeds supported version ${latestVersion}. Refusing to create table from a downgraded schema.`
-      console.error(message)
-      throw new Error(message)
-    }
-
-    this.db.exec(this.getCreateTableSQL())
-  }
-
   private getCreateTableSQLForVersion(version: number): string {
     const columns = [
       'id TEXT PRIMARY KEY',

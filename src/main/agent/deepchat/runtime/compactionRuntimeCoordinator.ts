@@ -1,3 +1,5 @@
+import type { PluginContextPort } from '@shared/types/userPlugin'
+import logger from '@shared/logger'
 import type { ProviderModelResolutionPort } from '@/provider/settings'
 import type {
   SessionCompactionSnapshot,
@@ -17,7 +19,7 @@ import type { DeepChatToolResolver } from './toolResolver'
 import type { RunLifecycleCoordinator } from './runLifecycleCoordinator'
 import type { SessionSettingsCoordinator } from './sessionSettingsCoordinator'
 import type { TapeReconciliationPort } from '@/tape/ports/capabilities'
-import type { TapeTranscriptReader } from '@/tape/ports/capabilities'
+import type { TapeTranscriptProjection } from '@/tape/ports/capabilities'
 import type { SessionScopeRegistry } from '@/agent/deepchat/instance/deepChatAgentRuntime'
 import type { MessageProjectionService } from './messageProjectionService'
 import type { PromptAssemblyService } from './promptAssemblyService'
@@ -72,7 +74,7 @@ type CompactionSessionStore = Pick<
   | 'resetSummaryState'
 >
 
-type CompactionTranscript = TapeTranscriptReader &
+type CompactionTranscript = TapeTranscriptProjection &
   Pick<
     SessionTranscript,
     | 'createCompactionMessage'
@@ -84,6 +86,7 @@ type CompactionTranscript = TapeTranscriptReader &
   >
 
 export interface CompactionRuntimeCoordinatorDependencies {
+  pluginContext?: PluginContextPort
   compactionService: CompactionServicePort
   sessionStore: CompactionSessionStore
   messageStore: CompactionTranscript
@@ -390,7 +393,14 @@ export class CompactionRuntimeCoordinator {
           })
       )
     } catch (error) {
-      this.deps.messageStore.deleteMessage(compactionMessageId)
+      if (isAbortError(error) || options?.signal?.aborted) {
+        this.deps.messageStore.deleteMessage(compactionMessageId)
+      } else {
+        this.deps.messageStore.updateCompactionMessage(compactionMessageId, 'failed', null, {
+          compactionAttemptId: intent.compactionAttemptId,
+          error: error instanceof Error ? error.message || error.name : String(error)
+        })
+      }
       this.deps.messageProjection.refresh(sessionId, compactionMessageId)
       if (scope.isCurrent()) {
         this.emit(
@@ -405,6 +415,21 @@ export class CompactionRuntimeCoordinator {
       throw error
     }
 
+    if (result.anchorCommitted && result.outcome !== 'unchanged' && scope.isCurrent() && this.deps.pluginContext?.hasHooks()) {
+      const state = expectedInstance.getRuntimeState()
+      if (state && state.providerId !== 'acp') {
+        try {
+          await this.deps.pluginContext.accept({
+            sessionId, messageId: compactionMessageId, prompt: '', model: state.modelId,
+            cwd: this.deps.sessionSettings.resolveProjectDir(sessionId, undefined, expectedInstance),
+            source: 'compact', boundaryId: intent.compactionAttemptId, signal: options?.signal
+          })
+        } catch (error) {
+          logger.warn('[PluginHooks] Compaction hook dispatch failed', { sessionId, error })
+        }
+      }
+    }
+
     const projectedState =
       result.outcome !== 'unchanged'
         ? this.projectSummaryState(sessionId, result.summaryState, 'compacted')
@@ -412,10 +437,11 @@ export class CompactionRuntimeCoordinator {
     if (result.anchorCommitted && result.outcome !== 'unchanged') {
       this.deps.messageStore.updateCompactionMessage(
         compactionMessageId,
-        'compacted',
+        result.summaryError ? 'failed' : 'compacted',
         result.summaryState.summaryUpdatedAt,
         {
           compactionAttemptId: intent.compactionAttemptId,
+          ...(result.summaryError ? { error: result.summaryError } : {}),
           boundaryReason:
             result.outcome === 'boundary_only'
               ? this.resolveBoundaryReason(

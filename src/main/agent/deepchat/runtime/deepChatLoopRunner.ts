@@ -1,3 +1,5 @@
+import type { PluginContextPort } from '@shared/types/userPlugin'
+import { projectPluginContext } from './pluginContext'
 import type { ProviderModelResolutionPort } from '@/provider/settings'
 import logger from '@shared/logger'
 import type {
@@ -464,6 +466,7 @@ export interface DeepChatLoopRunnerPorts {
   sessionPermissionPort: SessionPermissionPort
   reviewToolPermission: ToolPermissionReviewer
   hookSink: Pick<RuntimeHookSink, 'scope'>
+  pluginContext?: PluginContextPort
   compaction: Pick<CompactionRuntimeCoordinator, 'apply'>
   runJournalObserver?: RunJournalObserver
   diagnosticNow?: MonotonicClock
@@ -692,6 +695,18 @@ export class DeepChatLoopRunner {
       onRunRegistered,
       abortController: providedAbortController
     } = args
+    const anchorMessage =
+      !viewContext && this.ports.pluginContext
+        ? this.ports.messageStore.getMessage(messageId)
+        : undefined
+    const pluginInputMessageId =
+      viewContext?.selection.newUserMessageId ??
+      viewContext?.selection.includedRecords.findLast(({ record }) => record.role === 'user')
+        ?.record.id ??
+      (anchorMessage?.sessionId === sessionId
+        ? this.ports.messageStore.getLastUserMessageBeforeOrAt(sessionId, anchorMessage.orderSeq)?.id
+        : undefined) ??
+      ''
     let activeContextContributions = contextContributions
     const getOrCreateContextContributions = (): ContextRuntimeContributions => {
       activeContextContributions ??= createEmptyContextRuntimeContributions()
@@ -1547,7 +1562,10 @@ export class DeepChatLoopRunner {
       })
     }
 
+    let pluginRunStarted = false
     try {
+      this.ports.pluginContext?.beginRun?.(sessionId)
+      pluginRunStarted = true
       const activeGeneration = this.ports.runLifecycle.registerRun(resourceScope, loopRun)
       onRunRegistered?.(activeGeneration.runId)
       const rateLimitMessageId = `${RATE_LIMIT_STREAM_MESSAGE_PREFIX}${activeGeneration.runId}`
@@ -1643,6 +1661,22 @@ export class DeepChatLoopRunner {
                 currentRuntimeContextLimitTokens
               ).contextLength
             )
+          }
+          if (!acpBackedSubagent && state.providerId !== 'acp' && ports.pluginContext) {
+            const assembly = projectPluginContext(
+              loopRun.resources.promptAssembly ??
+                createOpaquePromptAssembly(activeBaseSystemPrompt ?? ''),
+              ports.pluginContext,
+              sessionId,
+              pluginInputMessageId
+            )
+            requestMessages.splice(
+              0,
+              requestMessages.length,
+              ...projectSystemPrompt(requestMessages, assembly.prompt)
+            )
+            loopRun.resources.promptAssembly = assembly
+            activeBaseSystemPrompt = assembly.prompt
           }
           const getEffectiveContextBudget = (requestedMaxTokens: number) =>
             resolveRequestContextBudget(
@@ -1917,6 +1951,23 @@ export class DeepChatLoopRunner {
             },
             authority: {
               assertCurrent: ({ authority, messages, tools }) => {
+                if (
+                  !acpBackedSubagent &&
+                  state.providerId !== 'acp' &&
+                  ports.pluginContext &&
+                  loopRun.resources.promptAssembly
+                ) {
+                  const current = projectPluginContext(
+                    loopRun.resources.promptAssembly,
+                    ports.pluginContext,
+                    sessionId,
+                    pluginInputMessageId
+                  )
+                  if (current.prompt !== loopRun.resources.promptAssembly.prompt)
+                    throw new Error(
+                      'Plugin context changed before provider dispatch; retry this input'
+                    )
+                }
                 ports.tape.assertSkillRequestAuthority({
                   ...authority,
                   promptHash: buildProviderMessagesHash(messages),
@@ -2432,6 +2483,7 @@ export class DeepChatLoopRunner {
       }
       throw errorToPropagate
     } finally {
+      if (pluginRunStarted) this.ports.pluginContext?.endRun?.(sessionId)
       clearProviderRetryWaitingMessage?.()
       removeProviderRetryAbortListener?.()
       if (

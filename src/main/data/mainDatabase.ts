@@ -206,8 +206,14 @@ export class MainDatabase {
 
     const initTablesStart = performance.now()
     this.schemaCatalog = createMainSchemaCatalog(this.db)
-    this.schemaCatalog.createTables()
     this.initVersionTable()
+    const latestVersion = this.getLatestSchemaVersion()
+    if (this.currentVersion > latestVersion) {
+      throw new Error(
+        `Recorded database schema version ${this.currentVersion} exceeds supported version ${latestVersion}. Refusing to initialize a downgraded schema.`
+      )
+    }
+    this.schemaCatalog.createTables()
     logger.info(
       `MainDatabase: phase=initTables duration=${(performance.now() - initTablesStart).toFixed(2)}ms`
     )

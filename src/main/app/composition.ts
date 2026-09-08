@@ -1751,6 +1751,7 @@ export async function createMainProcessControl(dependencies: {
   // Plugin activation is a shared startup barrier for Skill migration and MCP startup.
   const pluginSettingsWindow = new PluginSettingsWindow()
   pluginService = new PluginService({
+    contextTape: sessionData.tapeStore,
     mcpSettings: dependencies.mcpSettings,
     mcpService: mcpService,
     skillService: skillService,
@@ -1855,6 +1856,7 @@ export async function createMainProcessControl(dependencies: {
     sessionData,
     toolService,
     hookObserver: hookService,
+    pluginContext: pluginService.contextHooks,
     onSessionCompleted: (sessionId) => {
       const session = appSessionService.get(sessionId)
       if (session?.sessionKind !== 'regular' || resolveSessionRunId(sessionId) !== null) return
@@ -3367,6 +3369,12 @@ export async function createMainProcessControl(dependencies: {
       if (drain.timedOut) {
         throw new Error(
           `Memory ingestion did not drain for sessions: ${drain.pendingSessions.join(', ')}`
+        )
+      }
+      const pendingMaintenanceAgents = await memoryService.drainBackgroundMaintenance()
+      if (pendingMaintenanceAgents.length > 0) {
+        throw new Error(
+          `Memory maintenance did not drain for agents: ${pendingMaintenanceAgents.join(', ')}`
         )
       }
       await suspendSessionRuntimes()

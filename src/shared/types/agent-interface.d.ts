@@ -4,7 +4,6 @@ import type { VideoGenerationOptions } from '../videoGenerationSettings'
 import type { PersistedMcpToolResult, ToolCallImagePreview } from './core/mcp'
 import type { AgentPlanDisplayItem, AgentPlanTerminalReason } from './agent-plan'
 import type { DeepChatTapeViewManifestRecord } from './tape-view-manifest'
-import type { DeepChatTapeReplayExportOptions, DeepChatTapeReplaySlice } from './tape-replay'
 import type {
   AttachmentFallbackPolicy,
   AttachmentPreparationSummary,
@@ -440,9 +439,11 @@ export interface MessageMetadata {
   model?: string
   provider?: string
   messageType?: 'compaction' | 'workflow_result'
-  compactionStatus?: 'compacting' | 'compacted'
+  compactionStatus?: 'compacting' | 'compacted' | 'failed'
   compactionAttemptId?: string
   compactionBoundaryReason?: SessionCompactionBoundaryReason | null
+  compactionSummary?: string
+  compactionError?: string
   summaryUpdatedAt?: number | null
   workflowRunId?: string
   workflowResultDeliveryId?: string

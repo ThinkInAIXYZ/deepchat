@@ -32,6 +32,8 @@ import {
 } from '@/tape/domain/reservedNamespaces'
 import { SqliteTapeLifecycleAdapter } from '@/tape/infrastructure/sqlite/tapeLifecycleAdapter'
 import type { TapeTransactionRunner } from '@/tape/ports/storage'
+import type { TapeProjectionCursor } from '@/tape/ports/capabilities'
+import type { DeepChatTapeEntryRow } from '@/tape/domain/entry'
 import {
   DEEPCHAT_TAPE_SEARCH_PROJECTION_VERSION,
   DeepChatTapeSearchProjectionTable
@@ -446,6 +448,14 @@ function createTapeTableMock() {
     getEffectiveMessageInputRows: vi.fn((sessionId: string) =>
       entries.filter((entry) => entry.session_id === sessionId && isEffectiveMessageInputRow(entry))
     ),
+    getEffectiveMessageInputRowsAfter: vi.fn((sessionId: string, afterEntryId: number) =>
+      entries.filter(
+        (entry) =>
+          entry.session_id === sessionId &&
+          entry.entry_id > afterEntryId &&
+          isEffectiveMessageInputRow(entry)
+      )
+    ),
     getByEntryIds: vi.fn((sessionId: string, entryIds: readonly number[]) => {
       const selected = new Set(entryIds)
       return entries.filter(
@@ -708,38 +718,26 @@ function createRecord(overrides: Partial<ChatMessageRecord>): ChatMessageRecord 
   }
 }
 
-function createTraceRow(overrides: Record<string, unknown> = {}) {
+/**
+ * A transcript standing in for `TapeTranscriptProjection`: `getMessages` feeds the one-time
+ * backfill, the cursor lives in memory, and replayed rows are collected in `applied`.
+ */
+function createTranscriptProjectionMock(records: ChatMessageRecord[] = []) {
+  let cursor: TapeProjectionCursor | null = null
+  const applied: DeepChatTapeEntryRow[] = []
   return {
-    id: 'trace-1',
-    message_id: 'a1',
-    session_id: 's1',
-    provider_id: 'openai',
-    model_id: 'gpt-4o',
-    request_seq: 1,
-    logical_round: null,
-    physical_attempt: null,
-    endpoint: 'https://api.openai.test/v1/chat/completions',
-    headers_json: '{"authorization":"[redacted]"}',
-    body_json: '{"messages":[{"role":"user","content":"hello"}]}',
-    truncated: 0,
-    created_at: 300,
-    ...overrides
-  }
-}
-
-function createMessageRow(overrides: Record<string, unknown> = {}) {
-  return {
-    id: 'a1',
-    session_id: 's1',
-    order_seq: 2,
-    role: 'assistant',
-    content: '[{"type":"content","content":"done","status":"success"}]',
-    status: 'sent',
-    is_context_edge: 0,
-    metadata: '{"totalTokens":10}',
-    created_at: 200,
-    updated_at: 300,
-    ...overrides
+    getMessages: vi.fn(() => records),
+    readProjectionCursor: vi.fn(() => cursor),
+    writeProjectionCursor: vi.fn((_sessionId: string, next: TapeProjectionCursor) => {
+      cursor = { ...next }
+    }),
+    applyTapeEntries: vi.fn((rows: readonly DeepChatTapeEntryRow[]) => {
+      applied.push(...rows)
+    }),
+    applied,
+    get cursor() {
+      return cursor
+    }
   }
 }
 
@@ -777,11 +775,7 @@ function createObservationManifest(
   })
 }
 
-function createTapeService(
-  table: unknown,
-  traceRows: Array<Record<string, unknown>> = [],
-  messageRows: Array<Record<string, unknown>> = []
-) {
+function createTapeService(table: unknown) {
   return new SessionTape({
     deepchatTapeEntriesTable: table,
     deepchatExecutionJournalStore: table,
@@ -793,14 +787,7 @@ function createTapeService(
       }),
       getByEntryIdsIfCurrent: vi.fn().mockReturnValue([])
     },
-    deepchatMessageTracesTable: {
-      listByMessageId: vi.fn((messageId: string) =>
-        traceRows.filter((row) => row.message_id === messageId)
-      )
-    },
-    deepchatMessagesTable: {
-      get: vi.fn((messageId: string) => messageRows.find((row) => row.id === messageId))
-    },
+    deepchatMessageTracesTable: { listByMessageId: vi.fn().mockReturnValue([]) },
     deepchatSessionsTable: { getSummaryState: vi.fn().mockReturnValue(null) }
   } as any)
 }
@@ -848,133 +835,6 @@ function createSubagentLinkInput(parentSessionId: string, childSessionId: string
   }
 }
 
-function appendObservationIsolationFacts(table: unknown) {
-  const original = createRecord({ id: 'u1', orderSeq: 1, createdAt: 100, updatedAt: 100 })
-  const edited = createRecord({
-    id: 'u1',
-    orderSeq: 1,
-    content: JSON.stringify({
-      text: 'edited',
-      files: [],
-      links: [],
-      search: false,
-      think: false
-    }),
-    createdAt: 100,
-    updatedAt: 150
-  })
-  const retracted = createRecord({ id: 'u2', orderSeq: 2, createdAt: 160, updatedAt: 160 })
-  const pending = createRecord({
-    id: 'a1',
-    orderSeq: 3,
-    role: 'assistant',
-    status: 'pending',
-    content: JSON.stringify([
-      {
-        type: 'tool_call',
-        status: 'pending',
-        timestamp: 200,
-        tool_call: { id: 'tc1', name: 'search', params: '{"q":"x"}' }
-      }
-    ]),
-    createdAt: 200,
-    updatedAt: 200
-  })
-  const final = createRecord({
-    id: 'a1',
-    orderSeq: 3,
-    role: 'assistant',
-    status: 'sent',
-    content: JSON.stringify([
-      {
-        type: 'tool_call',
-        status: 'success',
-        timestamp: 300,
-        tool_call: {
-          id: 'tc1',
-          name: 'search',
-          params: '{"q":"x"}',
-          response: 'tape-result-secret'
-        }
-      }
-    ]),
-    metadata: '{"totalTokens":12}',
-    createdAt: 200,
-    updatedAt: 300
-  })
-
-  appendMessageRecordToTape(table as any, original, 'live')
-  appendMessageReplacementToTape(table as any, edited, {
-    reason: 'test_edit',
-    revisionKind: 'record'
-  })
-  appendMessageRecordToTape(table as any, retracted, 'live')
-  appendMessageRetractionToTape(table as any, retracted, 'test_delete')
-  appendMessageRecordToTape(table as any, pending, 'live')
-  appendMessageRecordToTape(table as any, final, 'live')
-
-  return { edited, final }
-}
-
-function stripObservationPayloadOptIns<T>(value: T): T {
-  const copy = structuredClone(value) as any
-  const stripEntryPayloads = (entries: any[] | undefined) => {
-    for (const entry of entries ?? []) {
-      delete entry.payload
-      delete entry.meta
-    }
-  }
-
-  if (copy.request?.state === 'manifest_bound') {
-    stripEntryPayloads(copy.request.replay.entries)
-    delete copy.request.replay.hashes.sliceHash
-    if (copy.request.replay.trace) {
-      delete copy.request.replay.trace.headersJson
-      delete copy.request.replay.trace.bodyJson
-    }
-  } else if (copy.request?.trace) {
-    delete copy.request.trace.headersJson
-    delete copy.request.trace.bodyJson
-  }
-  stripEntryPayloads(copy.output?.entries)
-  return copy
-}
-
-function createSpies(names: string[]) {
-  return Object.fromEntries(names.map((name) => [name, vi.fn()])) as Record<
-    string,
-    ReturnType<typeof vi.fn>
-  >
-}
-
-function trackMemoryPropertyAccess<T extends object>(target: T) {
-  const memoryPropertyAccess = vi.fn()
-  return {
-    memoryPropertyAccess,
-    presenter: new Proxy(target, {
-      get(value, property, receiver) {
-        if (typeof property === 'string' && /memory/i.test(property)) {
-          memoryPropertyAccess(property)
-        }
-        return Reflect.get(value, property, receiver)
-      }
-    })
-  }
-}
-
-function readObservationMatrix(service: SessionTape) {
-  return {
-    defaultObservation: service.readCausalObservationSlice('s1', 'a1'),
-    repeatedObservation: service.readCausalObservationSlice('s1', 'a1'),
-    explicitObservation: service.readCausalObservationSlice('s1', 'a1', { requestSeq: 1 }),
-    optInObservation: service.readCausalObservationSlice('s1', 'a1', {
-      includeTapePayloads: true,
-      includeTracePayload: true
-    }),
-    traceOnlyObservation: service.readCausalObservationSlice('s1', 'a-trace')
-  }
-}
-
 export {
   performance,
   describe,
@@ -1008,15 +868,9 @@ export {
   itIfSqlite,
   createTapeTableMock,
   createRecord,
-  createTraceRow,
-  createMessageRow,
+  createTranscriptProjectionMock,
   createObservationManifest,
   createTapeService,
   createLinkedTapeService,
-  createSubagentLinkInput,
-  appendObservationIsolationFacts,
-  stripObservationPayloadOptIns,
-  createSpies,
-  trackMemoryPropertyAccess,
-  readObservationMatrix
+  createSubagentLinkInput
 }

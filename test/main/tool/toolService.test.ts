@@ -4136,7 +4136,7 @@ describe('ToolService', () => {
     expect(withoutProgress).not.toContain('## Progress Checklist Tool')
     expect(withProgress).toContain('## Progress Checklist Tool')
     expect(withProgress).toContain('Use `update_plan` for non-trivial multi-step tasks.')
-    expect(withProgress).toContain('At most one step may be in_progress at a time.')
+    expect(withProgress).toContain('Multiple steps may be in_progress when work runs in parallel')
     expect(withProgress).toContain('Before ending the turn, reconcile the checklist')
   })
 

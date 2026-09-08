@@ -263,6 +263,28 @@ describe('pendingInput store', () => {
     expect(store.isAtCapacity).toBe(false)
   })
 
+  it('keeps recovery overflow visible and frees capacity only below ten waiting inputs', async () => {
+    const { store, sessionClient } = await setupStore()
+    const items = Array.from({ length: 11 }, (_, index) => createPendingItem(`q${index}`, 's1'))
+    sessionClient.listPendingInputs
+      .mockResolvedValueOnce(createPendingResult(items))
+      .mockResolvedValueOnce(createPendingResult(items.slice(1)))
+      .mockResolvedValueOnce(createPendingResult(items.slice(2)))
+
+    await store.loadPendingInputs('s1')
+    expect(store.queueItems).toHaveLength(11)
+    expect(store.activeCount).toBe(11)
+    expect(store.isAtCapacity).toBe(true)
+
+    await store.deleteInput('s1', 'q0')
+    expect(store.activeCount).toBe(10)
+    expect(store.isAtCapacity).toBe(true)
+
+    await store.deleteInput('s1', 'q1')
+    expect(store.activeCount).toBe(9)
+    expect(store.isAtCapacity).toBe(false)
+  })
+
   it('steers a queued input through the session client and reloads', async () => {
     const { store, sessionClient } = await setupStore()
     sessionClient.listPendingInputs.mockResolvedValueOnce(

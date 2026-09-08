@@ -129,7 +129,10 @@ function createHarness() {
   const appendTapeAnchor = vi.fn(toTapeAnchorRow)
   const deps = {
     memoryPort: port as any,
-    identity: { getAgentId: vi.fn(() => 'agent-a') },
+    identity: {
+      getAgentId: vi.fn(() => 'agent-a'),
+      getSessionKind: vi.fn<() => 'regular' | 'subagent' | null>(() => 'regular')
+    },
     registry,
     getNextMessageOrderSeq: vi.fn(() => Math.max(0, ...rows.map((row) => row.orderSeq)) + 1),
     getMessagesUpToOrderSeq: vi.fn((_sessionId: string, orderSeq: number) =>
@@ -1077,6 +1080,57 @@ describe('MemoryRuntimeCoordinator', () => {
     expect(port.extractAndStore).toHaveBeenCalledTimes(expectedExtraction ? 1 : 0)
   })
 
+  it('never extracts from a Subagent session while still injecting Agent memory into it', async () => {
+    const { coordinator, deps, memorySession, port, setRows } = createHarness()
+    deps.identity.getSessionKind.mockReturnValue('subagent')
+    const observer: MemoryIngestionObserver = coordinator
+    setRows(
+      Array.from({ length: 6 }, (_, index) =>
+        createRecord(`u${index + 1}`, index + 1, `task step ${index + 1}`)
+      )
+    )
+
+    observer.afterTurnSettled({
+      session: memorySession,
+      origin: 'initial',
+      outcome: { kind: 'returned', status: 'completed' }
+    })
+    observer.afterCompactionApplyReturned({
+      session: memorySession,
+      origin: 'initial',
+      targetCursorOrderSeq: 4
+    })
+    await coordinator.waitForSession('s1')
+    expect(port.extractAndStore).not.toHaveBeenCalled()
+    expect(deps.updateMemoryCursorOrderSeq).not.toHaveBeenCalled()
+    expect(deps.appendTapeAnchor).not.toHaveBeenCalled()
+
+    port.buildInjection.mockResolvedValue({
+      payload: {
+        selfModel: null,
+        working: null,
+        memories: [{ id: 'selected', kind: 'semantic', content: 'Always use pnpm.' }]
+      },
+      manifest: {
+        policyVersion: 1,
+        selected: [{ id: 'selected', kind: 'semantic' }],
+        dropped: [],
+        tokenBudget: 1_200,
+        estimatedTokens: 20,
+        queryHash: 'query-hash'
+      }
+    })
+    const contribution = await coordinator.contribute({
+      session: memorySession,
+      query: 'install dependencies',
+      messageId: 'message-1'
+    })
+    expect(contribution.memory.content).toContain('Always use pnpm.')
+    expect(deps.appendTapeAnchor).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'memory/view_assembled' })
+    )
+  })
+
   it.each(['initial', 'context-pressure'] as const)(
     'captures the MEM-14 upper bound for %s only after normal apply return',
     async (origin) => {
@@ -1143,6 +1197,59 @@ describe('MemoryRuntimeCoordinator', () => {
     expect(port.extractAndStore).toHaveBeenLastCalledWith(
       expect.objectContaining({ sourceEntryIds: [7, 8, 9, 10, 11, 12] })
     )
+  })
+
+  it.each([
+    [0, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]],
+    [3, [4, 5, 6, 7, 8, 9, 10, 11, 12]],
+    [6, [7, 8, 9, 10, 11, 12]]
+  ] as const)(
+    'extracts the unprocessed cloned tail after seeding cursor %s',
+    async (cursor, sourceEntryIds) => {
+      const { coordinator, memorySession, port, setRows } = createHarness()
+      const observer: MemoryIngestionObserver = coordinator
+      const clonedRows = Array.from({ length: 6 }, (_, index) =>
+        createRecord(`c${index + 1}`, index + 1, `cloned ${index + 1}`)
+      )
+      setRows([
+        ...clonedRows,
+        ...Array.from({ length: 6 }, (_, index) =>
+          createRecord(`n${index + 1}`, index + 7, `new ${index + 1}`)
+        )
+      ])
+
+      coordinator.seedExtractionCursor('s1', cursor)
+      observer.afterTurnSettled({
+        session: memorySession,
+        origin: 'initial',
+        outcome: { kind: 'returned', status: 'completed' }
+      })
+      await coordinator.waitForSession('s1')
+
+      expect(port.extractAndStore).toHaveBeenCalledOnce()
+      expect(port.extractAndStore).toHaveBeenCalledWith(expect.objectContaining({ sourceEntryIds }))
+    }
+  )
+
+  it('fences in-flight extraction when seeding a fork cursor', async () => {
+    const harness = createHarness()
+    const { coordinator, memorySession, deps, port } = harness
+    const pending = deferred<{ ok: true; createdIds: string[] }>()
+    port.extractAndStore.mockImplementationOnce(() => pending.promise)
+    coordinator.afterCompactionApplyReturned({
+      session: memorySession,
+      origin: 'initial',
+      targetCursorOrderSeq: 1
+    })
+    await tick()
+    expect(port.extractAndStore).toHaveBeenCalledOnce()
+
+    coordinator.seedExtractionCursor('s1', 0)
+    pending.resolve({ ok: true, createdIds: ['late'] })
+    await coordinator.waitForSession('s1')
+
+    expect(harness.cursor).toBe(0)
+    expect(deps.appendTapeAnchor).not.toHaveBeenCalled()
   })
 
   it('fences new admission and drains queued and running jobs without late commits', async () => {

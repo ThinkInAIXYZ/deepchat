@@ -9,16 +9,24 @@
           </p>
         </div>
 
-        <DcButton
-          variant="outline"
-          size="icon"
-          icon="lucide:refresh-cw"
-          :loading="loading"
-          :disabled="loading"
-          :label="t('common.browser.reload')"
-          :tooltip="t('common.browser.reload')"
-          @click="loadCatalog"
-        />
+        <div class="flex flex-wrap items-center gap-2">
+          <DcButton variant="outline" size="sm" @click="openInstall('git')">{{
+            t('settings.userPlugins.fromGit')
+          }}</DcButton>
+          <DcButton variant="outline" size="sm" @click="openInstall('zip')">{{
+            t('settings.userPlugins.fromZip')
+          }}</DcButton>
+          <DcButton
+            variant="outline"
+            size="icon"
+            icon="lucide:refresh-cw"
+            :loading="loading"
+            :disabled="loading"
+            :label="t('common.browser.reload')"
+            :tooltip="t('common.browser.reload')"
+            @click="loadCatalog"
+          />
+        </div>
       </header>
 
       <div
@@ -90,9 +98,15 @@
       </section>
     </div>
   </ScrollArea>
+  <UserPluginInstallDialog
+    v-model:open="installOpen"
+    :kind="installKind"
+    @installed="onInstalled"
+  />
 </template>
 
 <script setup lang="ts">
+import UserPluginInstallDialog from './UserPluginInstallDialog.vue'
 import { computed, onMounted, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useRouter } from 'vue-router'
@@ -177,6 +191,8 @@ const pluginCatalogStore = usePluginCatalogStore()
 const { plugins, remoteChannels, remoteStatuses, ocrStatus, ocrStatusHasError } =
   storeToRefs(pluginCatalogStore)
 
+const installOpen = ref(false)
+const installKind = ref<'git' | 'zip'>('git')
 const loading = ref(false)
 const errorMessage = ref('')
 const pendingItemId = ref<string | null>(null)
@@ -230,7 +246,8 @@ const catalogItems = computed<CatalogItem[]>(() => {
       plugin,
       enabled,
       title: pluginTitle(plugin),
-      description: pluginDescription(plugin),
+      description: plugin.userPlugin?.package.description || pluginDescription(plugin),
+      typeBadge: plugin.userPlugin ? t('settings.userPlugins.userPlugin') : undefined,
       badge: {
         text: enabled
           ? t('settings.plugins.status.enabled')
@@ -239,7 +256,10 @@ const catalogItems = computed<CatalogItem[]>(() => {
       },
       icon: pluginIcon(plugin),
       iconClass: isFeishuOfficialPlugin(plugin) ? remoteIconClassByChannel.feishu : undefined,
-      actionLabel: enabled ? t('settings.pluginsHub.manage') : t('settings.pluginsHub.add')
+      actionLabel:
+        enabled || plugin.userPlugin
+          ? t('settings.pluginsHub.manage')
+          : t('settings.pluginsHub.add')
     }
   })
 
@@ -351,7 +371,7 @@ function handleCatalogAction(item: CatalogItem): void {
 
   if (item.kind === 'official') {
     const plugin = item.plugin
-    if (item.enabled || isFeishuOfficialPlugin(plugin)) {
+    if (item.enabled || plugin.userPlugin || isFeishuOfficialPlugin(plugin)) {
       void router.push({ name: 'plugins-detail', params: { pluginId: plugin.id } })
     } else {
       void runPluginAction(item.id, plugin, true, () => pluginClient.enablePlugin(plugin.id))
@@ -362,6 +382,16 @@ function handleCatalogAction(item: CatalogItem): void {
   if (item.kind === 'remote') {
     void router.push({ name: 'plugins-detail', params: { pluginId: remotePluginId(item.channel) } })
   }
+}
+
+function openInstall(kind: 'git' | 'zip'): void {
+  installKind.value = kind
+  installOpen.value = true
+}
+
+function onInstalled(plugin: PluginListItem): void {
+  pluginCatalogStore.commitPluginMutation(plugin)
+  void router.push({ name: 'plugins-detail', params: { pluginId: plugin.id } })
 }
 
 onMounted(() => {

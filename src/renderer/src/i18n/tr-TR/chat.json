@@ -113,6 +113,7 @@
   },
   "features": {
     "webSearch": "Web Araması",
+    "thoughtForLessThanOneSecond": "1 saniyeden az düşündü",
     "thoughtForSeconds": "{seconds}s için düşünceler",
     "thoughtForSecondsLoading": "{seconds}s için düşünüyorum...",
     "artifactThinking": "Yapay Düşünce",
@@ -197,7 +198,8 @@
   "mode": {
     "current": "Geçerli mod: {mode}",
     "agent": "Agent",
-    "acpAgent": "ACP Agent"
+    "acpAgent": "ACP Agent",
+    "saveFailed": "Mod seçimi kaydedilemedi"
   },
   "topbar": {
     "backToParent": "Ebeveyne Geri Dön",

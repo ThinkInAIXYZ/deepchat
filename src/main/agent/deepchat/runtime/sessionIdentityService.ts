@@ -27,6 +27,10 @@ export class SessionIdentityService {
     return undefined
   }
 
+  getParentSessionId(sessionId: string): string | undefined {
+    return this.deps.database.newSessionsTable?.get(sessionId)?.parent_session_id ?? undefined
+  }
+
   getSessionKind(sessionId: string): SessionKind | null {
     return this.deps.database.newSessionsTable?.get(sessionId)?.session_kind ?? null
   }

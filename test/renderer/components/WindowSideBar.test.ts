@@ -9,6 +9,7 @@ vi.mock('pinia', async () => vi.importActual<typeof import('pinia')>('pinia'))
 type SetupOptions = {
   groupMode?: 'time' | 'project'
   selectedAgentId?: string | null
+  filterAgentId?: string | null
   enabledAgents?: Array<{ id: string; name: string; type?: 'deepchat' | 'acp'; enabled?: boolean }>
   activeSession?: { id: string; agentId: string } | null
   hasActiveSession?: boolean
@@ -198,7 +199,11 @@ const setup = async (options: SetupOptions = {}) => {
     state: 'disabled' as const
   }
   const agentStore = reactive({
-    selectedAgentId: (options.selectedAgentId ?? 'deepchat') as string | null,
+    selectedAgentId: options.selectedAgentId !== undefined ? options.selectedAgentId : 'deepchat',
+    filterAgentId:
+      options.filterAgentId !== undefined
+        ? options.filterAgentId
+        : (options.selectedAgentId ?? 'deepchat'),
     selectedAgentName: 'MioWork',
     enabledAgents: (options.enabledAgents ?? [
       { id: 'acp-a', name: 'ACP A', type: 'acp' as const, enabled: true }
@@ -206,6 +211,7 @@ const setup = async (options: SetupOptions = {}) => {
     setSelectedAgent: vi.fn((id: string | null) => {
       operations.push(`set:${id ?? 'all'}`)
       agentStore.selectedAgentId = id
+      agentStore.filterAgentId = id
     })
   })
 
@@ -688,11 +694,12 @@ describe('WindowSideBar agent switch', () => {
     expect(sessionStore.startNewConversation).toHaveBeenCalledWith({ refresh: true })
   })
 
-  it(
-    'prefers the active session agent for selection state and filtering',
-    async () => {
+  it.each([null, 'deepchat'])(
+    'preserves the explicit %s filter when the active conversation uses another Agent',
+    async (filterAgentId) => {
       const { wrapper, sessionStore } = await setup({
-        selectedAgentId: 'deepchat',
+        selectedAgentId: 'acp-a',
+        filterAgentId,
         activeSession: {
           id: 'session-acp',
           agentId: 'acp-a'
@@ -705,9 +712,12 @@ describe('WindowSideBar agent switch', () => {
 
       await wrapper.vm.$nextTick()
 
-      expect(wrapper.text()).toContain('ACP A')
-      expect(sessionStore.getPinnedSessions).toHaveBeenCalledWith('acp-a')
-      expect(sessionStore.getFilteredGroups).toHaveBeenCalledWith('acp-a')
+      expect(
+        wrapper.get(`[data-agent-id="${filterAgentId ?? '__all__'}"]`).attributes('data-selected')
+      ).toBe('true')
+      expect(wrapper.get('[data-agent-id="acp-a"]').attributes('data-selected')).toBe('false')
+      expect(sessionStore.getPinnedSessions).toHaveBeenCalledWith(filterAgentId)
+      expect(sessionStore.getFilteredGroups).toHaveBeenCalledWith(filterAgentId)
     },
     TEST_TIMEOUT_MS
   )

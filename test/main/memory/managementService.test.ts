@@ -6,6 +6,8 @@ import { buildMemoryProvenanceKey } from '@/memory/core/scoring'
 import {
   RECALL_QUERY_EMBEDDING_BREAKER_COOLDOWN_MS,
   RECALL_QUERY_EMBEDDING_BREAKER_FAILURE_WINDOW_MS,
+  RECALL_QUERY_EMBEDDING_TIMEOUT_MAX_MS,
+  RECALL_QUERY_EMBEDDING_TIMEOUT_MS,
   WARM_DIMENSION_FAILURE_COOLDOWN_MS
 } from '@/memory/runtimeConstants'
 import { type IMemoryVectorStore } from '@/memory/types'
@@ -367,6 +369,51 @@ describe('MemoryService management', () => {
 
     expect(resetVectorStore).toHaveBeenCalledTimes(2)
     expect(repo.listByAgent('a')[0]?.status).toBe('embedded')
+  })
+
+  it('reconciles vectors left by a failed reset after a restart loses the deferred retry', async () => {
+    const repo = createFakeRepository()
+    const store = new FakeVectorStore()
+    const getEmbeddings = async (_p: string, _m: string, texts: string[]) =>
+      texts.map((text) => textToVector(text))
+    const first = new MemoryService({
+      repository: repo,
+      resolveAgentConfig: () => enabledConfig,
+      getEmbeddings,
+      getDimensions: embeddingDimensions,
+      createVectorStore: async () => store,
+      resetVectorStore: vi.fn(async () => {
+        throw new Error('sidecar file is busy')
+      })
+    })
+    first.writeMemoriesSync([{ kind: 'semantic', content: 'redis before clear' }], {
+      agentId: 'a'
+    })
+    await first.processPendingEmbeddings('a')
+    expect(store.vectors.size).toBe(1)
+
+    // The clear completes fail-open: claims are gone, the reset is deferred to the next lease.
+    await expect(first.clearMemories('a')).resolves.toBe(1)
+    expect(repo.listByAgent('a')).toEqual([])
+    expect(store.vectors.size).toBe(1)
+    await first.dispose()
+
+    // A fresh runtime over the same repository and sidecar has no memory of that deferral.
+    const second = new MemoryService({
+      repository: repo,
+      resolveAgentConfig: () => enabledConfig,
+      getEmbeddings,
+      getDimensions: embeddingDimensions,
+      createVectorStore: async () => store,
+      resetVectorStore: async () => undefined
+    })
+    const internals = memoryRuntimeForTests(second)
+    await expect(second.recall('a', 'redis')).resolves.toEqual([])
+    await waitForMemoryCondition(
+      () => store.vectors.size === 0 && internals.isVectorReady('a'),
+      'warm-up coverage did not reconcile the residual vectors'
+    )
+    await second.dispose()
   })
 
   it('cleanupDeletedAgentResources clears runtime state even when vector reset fails', async () => {
@@ -1074,12 +1121,22 @@ describe('MemoryService management', () => {
 
       queryMode = 'timeout'
       const first = presenter.recall('a', 'redis setup')
-      await vi.advanceTimersByTimeAsync(801)
+      await vi.advanceTimersByTimeAsync(RECALL_QUERY_EMBEDDING_TIMEOUT_MS + 1)
       expect((await first).map((item) => item.id)).toEqual([memoryId])
       expect(queryEmbeddingCalls).toBe(1)
 
-      const second = presenter.recall('a', 'redis setup')
-      await vi.advanceTimersByTimeAsync(801)
+      // A deadline miss relaxes the next attempt to the ceiling once, so the second recall is
+      // still waiting on the provider after the floor has passed.
+      let secondSettled = false
+      const second = presenter.recall('a', 'redis setup').then((items) => {
+        secondSettled = true
+        return items
+      })
+      await vi.advanceTimersByTimeAsync(RECALL_QUERY_EMBEDDING_TIMEOUT_MS + 1)
+      expect(secondSettled).toBe(false)
+      await vi.advanceTimersByTimeAsync(
+        RECALL_QUERY_EMBEDDING_TIMEOUT_MAX_MS - RECALL_QUERY_EMBEDDING_TIMEOUT_MS
+      )
 
       expect((await second).map((item) => item.id)).toEqual([memoryId])
       expect(queryEmbeddingCalls).toBe(2)
@@ -1094,10 +1151,11 @@ describe('MemoryService management', () => {
         openCount: 1,
         skipped: 1
       })
-      expect(
+      const degradationCounts =
         presenter.getHealth('a').runtime.agent.retrieval.recall.degradationCounts
-          .embeddingCircuitOpen
-      ).toBe(1)
+      expect(degradationCounts.embeddingCircuitOpen).toBe(1)
+      expect(degradationCounts.embeddingTimeout).toBe(2)
+      expect(degradationCounts.embeddingError).toBe(0)
 
       await vi.advanceTimersByTimeAsync(RECALL_QUERY_EMBEDDING_BREAKER_COOLDOWN_MS)
       const failedProbe = presenter.recall('a', 'redis setup')
@@ -1105,7 +1163,7 @@ describe('MemoryService management', () => {
       await expect(presenter.recall('a', 'redis setup')).resolves.toEqual([
         expect.objectContaining({ id: memoryId, sources: { fts: true } })
       ])
-      await vi.advanceTimersByTimeAsync(801)
+      await vi.advanceTimersByTimeAsync(RECALL_QUERY_EMBEDDING_TIMEOUT_MAX_MS + 1)
       await expect(failedProbe).resolves.toEqual([
         expect.objectContaining({ id: memoryId, sources: { fts: true } })
       ])
@@ -1234,6 +1292,82 @@ describe('MemoryService management', () => {
     const callsBeforeSkip = getEmbeddings.mock.calls.length
     await presenter.recall('a', 'redis alpha')
     expect(getEmbeddings).toHaveBeenCalledTimes(callsBeforeSkip)
+    await presenter.dispose()
+  })
+
+  it('embeds only the leading span of an oversized recall query', async () => {
+    const repo = createFakeRepository()
+    const store = new FakeVectorStore()
+    const getEmbeddings = vi.fn(async (_p: string, _m: string, texts: string[]) =>
+      texts.map((text) => textToVector(text))
+    )
+    const presenter = new MemoryService({
+      repository: repo,
+      resolveAgentConfig: () => enabledConfig,
+      getEmbeddings,
+      getDimensions: embeddingDimensions,
+      createVectorStore: async () => store,
+      resetVectorStore: async () => undefined
+    })
+    presenter.writeMemoriesSync([{ kind: 'semantic', content: 'redis setup' }], { agentId: 'a' })
+    await presenter.processPendingEmbeddings('a')
+
+    const callsBeforeRecall = getEmbeddings.mock.calls.length
+    const pastedDocument = `redis setup ${'😀字'.repeat(1500)}`
+    await presenter.recall('a', pastedDocument)
+
+    const queryTexts = getEmbeddings.mock.calls
+      .slice(callsBeforeRecall)
+      .map(([, , texts]) => texts[0])
+      .filter((text) => text !== 'memory warmup')
+    expect(queryTexts).toHaveLength(1)
+    expect(Array.from(queryTexts[0]).length).toBe(2000)
+    expect(pastedDocument.startsWith(queryTexts[0])).toBe(true)
+    await presenter.dispose()
+  })
+
+  it('opens the query embedding circuit on persistent provider rejections', async () => {
+    const repo = createFakeRepository()
+    const store = new FakeVectorStore()
+    let rejectQueries = false
+    const getEmbeddings = vi.fn(async (_p: string, _m: string, texts: string[]) => {
+      if (rejectQueries && texts[0] !== 'memory warmup') {
+        // A misconfigured deployment answers every request this way; it must not cost a
+        // failing round trip on every turn.
+        throw Object.assign(new Error('The model `text-embedding-9` does not exist'), {
+          name: 'AI_APICallError',
+          statusCode: 400
+        })
+      }
+      return texts.map((text) => textToVector(text))
+    })
+    const presenter = new MemoryService({
+      repository: repo,
+      resolveAgentConfig: () => enabledConfig,
+      getEmbeddings,
+      getDimensions: embeddingDimensions,
+      createVectorStore: async () => store,
+      resetVectorStore: async () => undefined
+    })
+    const [memoryId] = presenter.writeMemoriesSync([{ kind: 'semantic', content: 'redis setup' }], {
+      agentId: 'a'
+    })
+    await presenter.processPendingEmbeddings('a')
+
+    rejectQueries = true
+    const queryCallsBefore = getEmbeddings.mock.calls.length
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      const recalled = await presenter.recall('a', 'redis setup')
+      expect(recalled.map((item) => item.id)).toEqual([memoryId])
+    }
+    expect(presenter.getHealth('a').runtime.agent.queryEmbeddingCircuit).toEqual({
+      state: 'open',
+      failures: 2,
+      openCount: 1,
+      skipped: 1
+    })
+    // Two probes reached the provider; the third recall was served from FTS without a round trip.
+    expect(getEmbeddings.mock.calls.length - queryCallsBefore).toBe(2)
     await presenter.dispose()
   })
 
@@ -1609,20 +1743,21 @@ describe('MemoryService management', () => {
 
       blockQueryEmbedding = true
       const first = presenter.recall('a', 'redis setup')
-      await vi.advanceTimersByTimeAsync(801)
+      await vi.advanceTimersByTimeAsync(RECALL_QUERY_EMBEDDING_TIMEOUT_MS + 1)
       expect((await first).map((item) => item.id)).toEqual([memoryId])
       expect(queryEmbeddingCalls).toBe(1)
 
+      // Every attempt after a miss runs at the ceiling until one succeeds inside its deadline.
       await vi.advanceTimersByTimeAsync(30_001)
       const second = presenter.recall('a', 'redis setup')
-      await vi.advanceTimersByTimeAsync(801)
+      await vi.advanceTimersByTimeAsync(RECALL_QUERY_EMBEDDING_TIMEOUT_MAX_MS + 1)
       expect((await second).map((item) => item.id)).toEqual([memoryId])
       expect(queryEmbeddingCalls).toBe(2)
 
       pendingQueryEmbeddings[0]?.([textToVector('redis setup')])
       await flushMicrotasks()
       const third = presenter.recall('a', 'redis setup')
-      await vi.advanceTimersByTimeAsync(801)
+      await vi.advanceTimersByTimeAsync(RECALL_QUERY_EMBEDDING_TIMEOUT_MAX_MS + 1)
       expect((await third).map((item) => item.id)).toEqual([memoryId])
       expect(queryEmbeddingCalls).toBe(3)
     } finally {

@@ -4,19 +4,12 @@ Status: implemented.
 
 ## Context
 
-DeepChat previously stored mutable Skills per Agent:
+DeepChat has one application-level set of mutable Skill packages. Agents own logical bindings and
+extension state; Sessions select which assigned entries are active for a Run. Physical package
+location is not Agent ownership, and package reuse does not create an Agent-to-Agent live link.
 
-```text
-<skillsRoot>/                              # built-in DeepChat Agent
-<skillsRoot>/.agent-scopes/<agentId>/      # manual DeepChat Agent
-```
-
-That model duplicated packages and made a filesystem location look like product ownership. A
-symbolic link would remove duplicate bytes but would retain the wrong lifecycle and add
-cross-platform link, watcher, realpath, and recovery problems.
-
-The product needs one application-level set of Skills. Agents only decide which entries they can
-use, and Sessions separately decide which enabled entries are active for a Run.
+Legacy `.agent-scopes` roots remain migration evidence only. The migration and compatibility rules
+below preserve user data without reintroducing runtime discovery or CRUD under private Agent roots.
 
 ## Decision
 
@@ -66,11 +59,11 @@ flowchart LR
 The three runtime decisions remain distinct even though only the first two appear on the Skills
 surface:
 
-| Decision | Owner | Meaning | Product interaction |
-| --- | --- | --- | --- |
-| Skill exists | application | one canonical package is available globally | list, preview, import, edit, delete |
-| Agent can use Skill | DeepChat Agent | one logical binding is enabled | add or remove Agent in Skill preview |
-| Skill is active | Session | the next Run loads an enabled Skill | separate Session control |
+| Decision            | Owner          | Meaning                                     | Product interaction                  |
+| ------------------- | -------------- | ------------------------------------------- | ------------------------------------ |
+| Skill exists        | application    | one canonical package is available globally | list, preview, import, edit, delete  |
+| Agent can use Skill | DeepChat Agent | one logical binding is enabled              | add or remove Agent in Skill preview |
+| Skill is active     | Session        | the next Run loads an enabled Skill         | separate Session control             |
 
 Invariants:
 
@@ -98,7 +91,13 @@ write cannot become the next startup input. It is excluded from discovery and ne
 or public contracts.
 
 Bundled and Plugin Skills remain in provider-owned roots. Providers control their lifecycle and
-mutability; global listing does not transfer ownership.
+mutability; global listing does not transfer ownership. User plugin metadata retains
+`ownerPluginId` while temporarily unavailable. Plugin disable/update unregisters active
+contributions while preserving Agent assignments and overrides; uninstall removes owned
+management state. A reserved plugin Skill name cannot be overwritten by another source.
+Execution authority validates the current plugin owner/root against the materialized source ID,
+so an older Tape view cannot execute a disabled, uninstalled or replaced plugin revision.
+See [User Plugins](../../features/user-plugins/spec.md).
 
 ### Management state
 

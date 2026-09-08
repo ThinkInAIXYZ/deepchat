@@ -1,3 +1,4 @@
+import { resolveMcpEnvironmentBinding } from './environmentBindings'
 import type { ProviderSettingsPort } from '@/provider/settings'
 import logger from '@shared/logger'
 import { StdioClientTransport } from '@modelcontextprotocol/client/stdio'
@@ -189,6 +190,7 @@ interface ServerStatusChangedOptions {
 }
 
 export type McpClientRuntime = {
+  resolveMcpBindings?(config: Partial<MCPServerConfig>): Record<string, string>
   sampling: Pick<McpServicePort, 'handleSamplingRequest' | 'cancelSamplingRequest'>
   elicitation: Pick<McpServicePort, 'handleElicitationRequest' | 'cancelElicitationRequest'>
   completion: Pick<ProviderRuntimePort, 'generateCompletionStandalone'>
@@ -466,7 +468,28 @@ export class McpClient {
 
       // Handle customHeaders and AuthProvider
       let authProvider: SimpleOAuthProvider | null = null
-      const customHeaders = normalizeCustomHeaders(this.serverConfig.customHeaders)
+      const userPlugin =
+        typeof this.serverConfig.ownerPluginId === 'string' &&
+        this.serverConfig.ownerPluginId.startsWith('user.')
+      const bindingEnvironment = userPlugin
+        ? (this.runtime.resolveMcpBindings?.(this.serverConfig as Partial<MCPServerConfig>) ?? {})
+        : process.env
+      const resolveBinding = (value: string) =>
+        resolveMcpEnvironmentBinding(
+          value,
+          this.serverConfig.environmentVariables,
+          bindingEnvironment
+        )
+      if (userPlugin && Array.isArray(this.serverConfig.environmentVariables)) {
+        for (const name of this.serverConfig.environmentVariables) resolveBinding(`\${${name}}`)
+      }
+      const customHeaders = normalizeCustomHeaders(
+        Object.fromEntries(
+          Object.entries(normalizeCustomHeaders(this.serverConfig.customHeaders)).map(
+            ([name, value]) => [name, resolveBinding(value)]
+          )
+        )
+      )
 
       const authorizationHeaderKeys = Object.keys(customHeaders).filter(
         (key) => key.toLowerCase() === 'authorization'
@@ -505,8 +528,8 @@ export class McpClient {
         this.runtimeHelper.initializeRuntimes()
 
         // Create appropriate transport
-        let command = this.serverConfig.command as string
-        let args = this.serverConfig.args as string[]
+        let command = resolveBinding(this.serverConfig.command as string)
+        let args = (this.serverConfig.args as string[]).map(resolveBinding)
 
         // Handle path expansion (including ~ and environment variables)
         command = this.runtimeHelper.expandPath(command)
@@ -590,7 +613,7 @@ export class McpClient {
           Object.entries(this.serverConfig.env as Record<string, unknown>).forEach(
             ([key, value]) => {
               if (value !== undefined) {
-                const stringValue = String(value ?? '')
+                const stringValue = resolveBinding(String(value ?? ''))
                 // 如果是PATH相关变量，合并到主PATH中
                 if (['PATH', 'Path', 'path'].includes(key)) {
                   setPathEntriesOnEnv(env, [stringValue, getPathEntriesFromEnv(env)], {
@@ -613,11 +636,18 @@ export class McpClient {
           env.PIP_INDEX_URL = this.uvRegistry
         }
 
+        const configuredCwd =
+          typeof this.serverConfig.cwd === 'string'
+            ? resolveBinding(this.serverConfig.cwd)
+            : undefined
+        const pluginRoot = this.serverConfig.source === 'plugin' ? env.PLUGIN_ROOT : undefined
         this.transport = new StdioClientTransport({
           command,
           args,
           env,
           stderr: 'pipe',
+          cwd:
+            configuredCwd && pluginRoot ? path.resolve(pluginRoot, configuredCwd) : configuredCwd,
           maxBufferSize: MCP_STDIO_MAX_BUFFER_BYTES
         })
         ;(this.transport as StdioClientTransport).stderr?.on('data', (data) => {

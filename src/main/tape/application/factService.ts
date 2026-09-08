@@ -23,6 +23,8 @@ import type {
   TapeAnchorWriter,
   TapeIncarnationReader,
   TapeMessageFactWriter,
+  TapeProjectionCursor,
+  TapeProjectionHeadReader,
   TapeToolFactAppendReceipt,
   TapeSkillViewResultFactWriter,
   TapeToolFactWriter
@@ -106,6 +108,7 @@ export class TapeFactService
     TapeSkillViewResultFactWriter,
     TapeIncarnationReader,
     TapeMessageFactWriter,
+    TapeProjectionHeadReader,
     TapeAnchorWriter
 {
   constructor(private readonly providers: TapeFactProviders) {}
@@ -283,6 +286,12 @@ export class TapeFactService
     return buildEffectiveTapeView(this.table.getEffectiveMessageInputRows(sessionId), {
       includePending: true
     }).messageRecords
+  }
+
+  getProjectionHead(sessionId: string): TapeProjectionCursor | null {
+    const tapeIncarnationId = this.table.getBootstrapIncarnation(sessionId)
+    if (!tapeIncarnationId) return null
+    return { tapeIncarnationId, maxEntryId: this.table.getMaxEntryId(sessionId) }
   }
 
   appendAnchor(input: TapeAnchorAppendInput): DeepChatTapeEntryRow {

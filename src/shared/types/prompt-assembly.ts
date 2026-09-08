@@ -1,5 +1,6 @@
 export const DEEPCHAT_PROMPT_SECTION_KINDS = [
   'configured_prompt',
+  'plugin_context',
   'runtime_capabilities',
   'system_environment',
   'agents_instructions',

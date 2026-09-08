@@ -10,11 +10,10 @@ payload 保持兼容读取；只存在于未合并开发分支的 schema 1 被�
 canonical payload 全等和 hash。
 
 `context` 不进入 effective view、transcript、Tape search/context tool 或 search/Memory projection，
-Replay 导出即使显式请求普通 payload 也只暴露它的 hash/引用元数据。消息级和 Session
-级上下文由 ViewManifest schema 6/hash 4 引用；schema 6 也兼容读取不含可执行权限的早期 runtime
+Inspector 也只暴露它的 hash/引用元数据。消息级和 Session 级上下文由 ViewManifest schema 6/hash 4 引用；schema 6 也兼容读取不含可执行权限的早期 runtime
 view occurrence。带 runtime `skill_view` 可执行权限的上下文由 schema 7/hash 5 同时绑定 provider
 可见的 `tool_result` 和 execution package。manifest 只保存引用与证明，不成为内容 sidecar；schemas
-1–5 以及 schema 6 的既有 hash、Replay 结构和语义保持不变。
+1–5 以及 schema 6 的既有 hash 与语义保持不变。
 
 Tape 是 Session 同寿命的 append-only fact store，在同一个物理 entry 序列中承载三族语义隔离的事实：
 
@@ -23,10 +22,12 @@ Tape 是 Session 同寿命的 append-only fact store，在同一个物理 entry 
 - Execution Journal 保存 Run、工具副作用和终态的原生边界事实，服务失败分类与崩溃后对账；
 - Contract lineage 保存冻结的任务语义和验收裁决，服务 live delegation 的约束、交接、评价与审计。
 
-message transcript 是活跃 message state 和 UI read model，也是当前 Context Tape message fact 的生产
-来源；它不是 Execution Journal 的 authority。legacy transcript reconciliation 只可重建 Context Tape，
-不得制造 `execution/*` 或 `contract/*` 事实。live-delegation row 和 mailbox 是 Contract fact 的在线
-projection；Tape 保存历史事实，但不成为在线权限或编排状态的 authority。
+message transcript 是 Context Tape message fact 的派生投影和 UI read model：终态消息先 append 为
+fact，再在同一事务内由 `TranscriptProjectionApplier` 从该 fact 的 record 派生 transcript 各表；流式
+中间态只留在 transcript 的 pending 区。transcript 不是 Execution Journal 的 authority。transcript
+reconciliation 只在 Session 尚无当前 incarnation 的投影游标时把既有 transcript 一次性回填进 Context
+Tape，不得制造 `execution/*` 或 `contract/*` 事实。live-delegation row 和 mailbox 是 Contract fact 的
+在线 projection；Tape 保存历史事实，但不成为在线权限或编排状态的 authority。
 
 ## 所有权和分层
 
@@ -71,7 +72,7 @@ modules 曾作为冻结的 deprecated compatibility re-export 存在，生产代
 | Interaction coordinator | deferred approval recovery 所需的 `ExecutionJournalRecoveryReader`、exact execution ViewManifest reader 与 tool-surface fact reader 窄组合 |
 | Live delegation repository | `ParentTaskContractWriter`、`TaskContractWriter`、`TaskEvaluationWriter` |
 | Turn coordinator / ACP compatibility | `TapeReconciliationPort` |
-| Transcript | `TapeMessageFactWriter` |
+| Transcript | `TapeMessageFactWriter`、`TapeProjectionHeadReader`；同时实现 reconciliation 依赖的 `TapeTranscriptProjection` |
 | Memory runtime | `TapeNonContextEntryReader`、`TapeAnchorWriter` |
 | Settings / compaction | `TapeAnchorReader`、`TapeAnchorWriter`、`TapeLifecycleAdmin` |
 | Memory routes | `TapeInspectionReader` |
@@ -102,7 +103,9 @@ domain policy；外部方法的签名、同步/异步行为、异常和 fallback
   live-delegation 的宿主事务。每个 Contract fact 分别与它触发或证明的 runtime mutation 原子提交；不同
   lifecycle boundary 之间不共享一个长事务。
 - transcript message mutation 与 replacement/retraction fact、summary compare-and-set 与 anchor append
-  使用同一个 SQLite connection 和调用方 transaction，拆层不能拆开其原子边界。
+  使用同一个 SQLite connection 和调用方 transaction，拆层不能拆开其原子边界。终态 transcript 写入的顺序
+  固定为 fact append → 表投影 → 推进 `deepchat_transcript_projection_meta` 游标；游标只由 reconciliation
+  的一次性回填创建，写入只能推进已建立的游标。
 - `clearMessages` 在同一外层 transaction 中删除 pending input、transcript projection 并 reset Tape；
   Tape generation transaction 作为 savepoint 嵌套，任一 hard failure 会同时恢复三类数据。
 - `resetSessionTape` 在同一 transaction 内删除 entry、mutation projection、search/FTS projection 并
@@ -368,17 +371,21 @@ event，三者使用同一 canonical evaluation；Tape 是历史证据，row/eve
 
 TaskContract、ExecutionContract 与 evaluation 都有独立 schema/hash/evaluator version 和 UTF-8 上限。
 unknown legacy turn 不补造评价；contract-bearing turn 若无法原子写入评价则保持 recoverable，不得静默
-terminal。ReplaySlice 只从事实和 manifests 派生；当前 schema-v5 View 已携带 per-View execution
+terminal。Inspector 等派生读取只从事实和 manifests 派生；当前 schema-v5 View 已携带 per-View execution
 contract，后续若扩展 task contract、attempts、evaluations 与 lineage ref，也不得成为新的事实源或在线
 authority。
 
 ## Message projection 与 Context facts
 
-- user/assistant/reasoning/tool terminal result 在 projection 完成后写入对应 Context Tape fact；
+- user/assistant terminal result 先写入对应 Context Tape fact，再由同一事务内的投影派生 transcript
+  表；tool fact 由 loop runner 在每轮结算后写入，终态 message fact 以幂等 provenance 补齐其
+  `tool_call`/`tool_result` 事实；
 - provider/tool retry 不得重复提交 terminal fact；
-- Context Tape 写失败按当前 settlement policy 记录/隔离，不能把已经完成的用户回复变成无限挂起；
-- transcript reconciliation 可以回填 legacy Context facts，但 classifier 只读取原生 `execution/*` v1
-  events，二者不得互相伪造；
+- Context Tape 写失败按当前 settlement policy 记录/隔离，不能把已经完成的用户回复变成无限挂起；同事务
+  的 fact append 失败会连带回滚 transcript 写入；
+- readiness 以投影游标比对 Tape head：游标缺失或 incarnation 不匹配时把 transcript 一次性回填进 Context
+  Tape、把 Tape 中 transcript 没有的有效消息投影回表，再建立游标；否则只重放游标之后的 message fact 与
+  retraction。classifier 只读取原生 `execution/*` v1 events，二者不得互相伪造；
 - replay 从 manifest 和 facts 重建 provider-visible context，不从 renderer block 猜测执行语义。
 
 ## Model capability
@@ -404,7 +411,9 @@ Subagent 使用独立 Session 和独立 Tape。完成后父 Session append 一�
 - child entries 不复制进父 Tape；
 - 只有显式授权的直接 child 可以跨 Tape 读取；missing、recreated 或 incarnation 不匹配必须 fail
   closed；
-- 非直接 child、未授权 Session 或递归 Subagent 不能通过 Tape tool 越权读取。
+- 非直接 child、未授权 Session 或递归 Subagent 不能通过 Tape tool 越权读取；
+- child Tape 只承载 Memory injection 的 `memory/view_assembled` anchor，不产生 `memory/extract`
+  anchor：Memory runtime 不从 Subagent 会话抽取事实，parent Tape 上的事实由 parent 会话自行抽取。
 
 Tape 没有 `fork/*` 写入方。v1.0.5–v1.0.9 的 Subagent 收尾曾在父 Tape 写 `fork/merge` /
 `fork/discard` 事件（provenance `fork:<parent>:<child>:external-merge|external-discard:event`），lineage
@@ -421,11 +430,25 @@ version 和 synthetic contribution provenance。未知旧 fact 可以按兼容�
 已知 fact 的含义。测试至少覆盖正常 chat、resume、tool interaction、compaction、context pressure、
 Subagent frozen head、provider attempt outcome 和旧 manifest 读取。
 
-stored manifest validation、legacy `hashVersion` normalization、entry-id collection 和 replay slice hash
-属于 `src/main/tape/domain/replay.ts` 的纯逻辑；SQLite row parsing、message trace 和 terminal evidence
-读取仍属于 `TapeViewReplayService`，不能反向放进 domain。
+hash 算法、`hashVersion` 与 provenance key 前缀都是落盘合同的一部分。ViewManifest 的 hashable 是 stored 字段去掉
+`assembledAt`、`viewId`，并把 `hashes` 缩成 `{ promptHash, toolDefinitionsHash }`，其余字段全部进 `manifestHash`；
+reader 原样透传 stored 字段后重算，所以改 hashable 变换或 canonicalizer 会让历史 manifest 校验变 `invalid`，
+shape 校验要求的字段离开写入端则必须伴随新 schemaVersion；ExecutionContract、
+tool surface fact 与 Journal payload 用 exact-key 校验，删除任一字段或新增必填字段都会让历史行 malformed。两类
+失效都会让 `skill_run`、paused dispatch 与 pending action 恢复 fail closed，Journal 历史则被归类为 corruption。
+legacy `hashJson` 不是只读兼容路径，它仍在产出 schema-4 manifest hash、tool fact provenance key 与 Execution
+Journal v1 key/`responseHash`/`errorHash`，不得替换；schema 5 起的新 identity 一律用 `hashJsonData`。Tape 中的
+hash 分两类：
+fact 信封与 payload 的自校验（tool surface 三个 fact 的信封 hash、materialization meta `payloadHash`），以及把
+Tape 之外的对象（provider 投影、process-live capability、执行包临时目录、projection row、pause binding）绑定到
+entry 的凭据；后者不是对不可变 entry 的双重保证，entryId 无法替代它们。
 
-关键行为测试位于 `test/main/session/data/tape*.test.ts`，分层守护位于
+stored manifest validation、legacy `hashVersion` normalization 和 entry-id collection 属于
+`src/main/tape/domain/replay.ts` 的纯逻辑；SQLite row parsing 仍属于 `TapeViewReplayService`，不能反向放进
+domain。
+
+关键行为测试位于 `test/main/session/data/tape*.test.ts`、`transcriptAtomicity.test.ts`、
+`transcriptProjection.test.ts` 与 `messageContent.test.ts`，分层守护位于
 `test/main/tape/layerBoundaries.test.ts`；runtime 和 tool 契约继续位于
 `test/main/agent/deepchat/` 与 `test/main/tool/`。历史的 Tape increment SDD 已合并到本文，详细实施
 顺序从 Git 历史查询。

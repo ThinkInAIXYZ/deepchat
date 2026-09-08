@@ -3,6 +3,7 @@ import { isDeepStrictEqual } from 'node:util'
 import { BaseTable } from '@/data/baseTable'
 import type { AssistantMessageBlock } from '@shared/types/agent-interface'
 import type { McpAppDescriptor } from '@shared/types/mcp'
+import { toAssistantBlockRowInput, type PersistedBlockExtra } from '../messageContent'
 
 export interface DeepChatAssistantBlockRow {
   message_id: string
@@ -32,44 +33,10 @@ export interface DeepChatAssistantResultBlockRow {
 
 const NORMALIZATION_SCHEMA_VERSION = 26
 
-type PersistedBlockExtra = {
-  id?: string
-  timestamp?: number
-  imageData?: string
-  extra?: AssistantMessageBlock['extra']
-  toolCallExtra?: Omit<
-    NonNullable<AssistantMessageBlock['tool_call']>,
-    'id' | 'name' | 'params' | 'response'
-  >
-  reasoningTime?: number
-}
-
 type McpAppSourceRow = Pick<
   DeepChatAssistantBlockRow,
   'tool_call_id' | 'tool_params' | 'extra_json'
 >
-
-function buildPersistedExtra(block: AssistantMessageBlock): PersistedBlockExtra {
-  return {
-    id: block.id,
-    timestamp: block.timestamp,
-    imageData: block.image_data?.data,
-    extra: block.extra,
-    toolCallExtra: block.tool_call
-      ? {
-          rtkApplied: block.tool_call.rtkApplied,
-          rtkMode: block.tool_call.rtkMode,
-          rtkFallbackReason: block.tool_call.rtkFallbackReason,
-          imagePreviews: block.tool_call.imagePreviews,
-          server_name: block.tool_call.server_name,
-          server_icons: block.tool_call.server_icons,
-          server_description: block.tool_call.server_description,
-          mcpResult: block.tool_call.mcpResult
-        }
-      : undefined,
-    reasoningTime: typeof block.reasoning_time === 'number' ? block.reasoning_time : undefined
-  }
-}
 
 export class DeepChatAssistantBlocksTable extends BaseTable {
   constructor(db: Database.Database) {
@@ -112,7 +79,15 @@ export class DeepChatAssistantBlocksTable extends BaseTable {
     return NORMALIZATION_SCHEMA_VERSION
   }
 
-  replaceForMessage(messageId: string, blocks: AssistantMessageBlock[]): void {
+  /**
+   * `updatedAt` is what a block without its own timestamp reports back; the projection passes the
+   * record's time so replaying a fact reproduces the rows it wrote the first time.
+   */
+  replaceForMessage(
+    messageId: string,
+    blocks: AssistantMessageBlock[],
+    updatedAt: number = Date.now()
+  ): void {
     const insert = this.db.prepare(
       `INSERT INTO deepchat_assistant_blocks (
         message_id,
@@ -136,30 +111,23 @@ export class DeepChatAssistantBlocksTable extends BaseTable {
     this.db.transaction(() => {
       this.delete(messageId)
       blocks.forEach((block, index) => {
-        const reasoningRange =
-          block.reasoning_time &&
-          typeof block.reasoning_time === 'object' &&
-          typeof block.reasoning_time.start === 'number' &&
-          typeof block.reasoning_time.end === 'number'
-            ? block.reasoning_time
-            : null
-
+        const row = toAssistantBlockRowInput(block, updatedAt)
         insert.run(
           messageId,
           index,
-          block.type,
-          block.status,
-          block.content ?? null,
-          block.tool_call?.id ?? null,
-          block.tool_call?.name ?? null,
-          block.tool_call?.params ?? null,
-          block.tool_call?.response ?? null,
-          block.action_type ?? null,
-          block.image_data?.mimeType ?? null,
-          reasoningRange?.start ?? null,
-          reasoningRange?.end ?? null,
-          JSON.stringify(buildPersistedExtra(block)),
-          Date.now()
+          row.block_type,
+          row.status,
+          row.text_content,
+          row.tool_call_id,
+          row.tool_name,
+          row.tool_params,
+          row.tool_response,
+          row.action_type,
+          row.image_mime_type,
+          row.reasoning_start_at,
+          row.reasoning_end_at,
+          row.extra_json,
+          row.updated_at
         )
       })
     })()

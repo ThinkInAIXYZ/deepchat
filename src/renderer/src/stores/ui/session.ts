@@ -725,6 +725,10 @@ export const useSessionStore = defineStore('session', () => {
   const hasActiveSession: ComputedRef<boolean> = computed(() => activeSessionId.value !== null)
 
   const newConversationTargetAgentId = computed(() => {
+    if (agentStore.filterAgentId) {
+      return agentStore.filterAgentId
+    }
+
     const selectedAgentId =
       typeof agentStore.selectedAgentId === 'string' ? agentStore.selectedAgentId.trim() : ''
     if (selectedAgentId) {
@@ -762,7 +766,7 @@ export const useSessionStore = defineStore('session', () => {
       return
     }
 
-    agentStore.setSelectedAgent(targetAgentId)
+    agentStore.setSelectedAgent(targetAgentId, { preserveFilter: true })
   }
 
   const applySessionStatus = (sessionId: string, status: string, version?: number): boolean => {
@@ -956,9 +960,13 @@ export const useSessionStore = defineStore('session', () => {
         sessions.value = options.preserveExisting
           ? mergeSessions(sessions.value, nextSessions)
           : replaceSessionSnapshot(nextSessions, targetedCommitRevisionAtStart)
+        // Retained history belongs to the existing cursor chain. Refreshing its
+        // first page must not rewind pagination over rows that are already loaded.
+        if (!options.preserveExisting || !hasLoadedInitialPage.value) {
+          hasMore.value = result.hasMore
+          nextCursor.value = result.nextCursor
+        }
         hasLoadedInitialPage.value = true
-        hasMore.value = result.hasMore
-        nextCursor.value = result.nextCursor
         syncSelectedAgentToSession(activeSessionId.value)
       } catch (loadError) {
         if (requestId === initialPageRequestId && listEpoch === sessionListEpoch) {
@@ -973,7 +981,7 @@ export const useSessionStore = defineStore('session', () => {
       return
     }
 
-    if (loadingMore.value || !hasMore.value || !nextCursor.value) {
+    if (loading.value || loadingMore.value || !hasMore.value || !nextCursor.value) {
       return
     }
 
@@ -1018,6 +1026,7 @@ export const useSessionStore = defineStore('session', () => {
 
     const loadPromise = loadSessionPage({
       reset: true,
+      preserveExisting: hasLoadedInitialPage.value,
       prioritizeSessionId: activeSessionId.value ?? bootstrapActiveSession.value?.id ?? null
     })
     const currentFetchPromise = loadPromise.finally(() => {
@@ -1229,7 +1238,36 @@ export const useSessionStore = defineStore('session', () => {
   async function startNewConversation(options: StartNewConversationOptions = {}): Promise<void> {
     error.value = null
 
-    const targetAgentId = newConversationTargetAgentId.value
+    const requestId = createActivationNavigationRequest()
+    const filterAgentId = agentStore.filterAgentId
+    const projectDir = options.projectDir?.trim()
+    let targetAgentId: string | null = null
+
+    if (!filterAgentId && projectDir) {
+      try {
+        const { items } = await sessionClient.listLightweight({
+          projectDir,
+          includeDrafts: false,
+          includeSubagents: false,
+          limit: 1
+        })
+        const latestAgentId = items[0]?.agentId
+        if (latestAgentId && agentStore.enabledAgents.some((agent) => agent.id === latestAgentId)) {
+          targetAgentId = latestAgentId
+        }
+      } catch (lookupError) {
+        console.warn('[sessionStore] Failed to resolve workspace Agent:', lookupError)
+      }
+
+      if (
+        activationNavigationRequestId !== requestId ||
+        agentStore.filterAgentId !== filterAgentId
+      ) {
+        return
+      }
+    }
+
+    targetAgentId ??= newConversationTargetAgentId.value
     if (!targetAgentId) {
       return
     }
@@ -1246,7 +1284,7 @@ export const useSessionStore = defineStore('session', () => {
       : null
 
     if (agentStore.selectedAgentId !== targetAgentId) {
-      agentStore.setSelectedAgent(targetAgentId)
+      agentStore.setSelectedAgent(targetAgentId, { preserveFilter: true })
     }
 
     if (hasActiveSession.value) {
@@ -1255,7 +1293,6 @@ export const useSessionStore = defineStore('session', () => {
     }
 
     pageRouter.goToNewThread({ refresh: options.refresh ?? true })
-    createActivationNavigationRequest()
   }
 
   function consumeNewConversationProjectDirIntent(intentId: number): void {

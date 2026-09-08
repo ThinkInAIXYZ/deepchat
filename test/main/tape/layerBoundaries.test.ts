@@ -506,7 +506,7 @@ describe('Tape layer boundaries', () => {
   it.each([
     ['domain sibling', './entry'],
     ['domain alias', '@/tape/domain/effectiveView'],
-    ['shared type', '@shared/types/tape-replay'],
+    ['shared type', '@shared/types/tape-view-manifest'],
     ['Node crypto', 'node:crypto']
   ])('allows pure %s imports in the Tape domain', (_category, specifier) => {
     const importingFile = path.join(TAPE_DOMAIN_ROOT, 'allowed-case.ts')

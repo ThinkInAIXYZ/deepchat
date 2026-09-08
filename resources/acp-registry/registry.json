@@ -943,6 +943,68 @@
       }
     },
     {
+      "id": "kimchi",
+      "name": "Kimchi",
+      "version": "1.1.11",
+      "description": "Coding agent powered by multi-model orchestration",
+      "repository": "https://github.com/getkimchi/kimchi",
+      "website": "https://kimchi.dev",
+      "authors": [
+        "Kimchi"
+      ],
+      "license": "Apache-2.0",
+      "distribution": {
+        "binary": {
+          "darwin-aarch64": {
+            "archive": "https://github.com/getkimchi/kimchi/releases/download/v1.1.11/kimchi_darwin_arm64.tar.gz",
+            "sha256": "9614064e7ff5d96163b9faca4306f2fb05a82a0185bb791f60928adc73b168b0",
+            "cmd": "./bin/kimchi",
+            "args": [
+              "--mode",
+              "acp"
+            ]
+          },
+          "darwin-x86_64": {
+            "archive": "https://github.com/getkimchi/kimchi/releases/download/v1.1.11/kimchi_darwin_amd64.tar.gz",
+            "sha256": "788e505afbdfee0d05fce68b5c978cd7cd93386fa0d473c47b50480603a4207c",
+            "cmd": "./bin/kimchi",
+            "args": [
+              "--mode",
+              "acp"
+            ]
+          },
+          "linux-aarch64": {
+            "archive": "https://github.com/getkimchi/kimchi/releases/download/v1.1.11/kimchi_linux_arm64.tar.gz",
+            "sha256": "625f41ac3dda2fc9f4efaedf75877c567283f0db2815aeb36eea1df6bd77fdf4",
+            "cmd": "./bin/kimchi",
+            "args": [
+              "--mode",
+              "acp"
+            ]
+          },
+          "linux-x86_64": {
+            "archive": "https://github.com/getkimchi/kimchi/releases/download/v1.1.11/kimchi_linux_amd64.tar.gz",
+            "sha256": "4c571aa2653c3409e9d27c66ec230eb3e6b9684d3ea01d3313e9d082031faa93",
+            "cmd": "./bin/kimchi",
+            "args": [
+              "--mode",
+              "acp"
+            ]
+          },
+          "windows-x86_64": {
+            "archive": "https://github.com/getkimchi/kimchi/releases/download/v1.1.11/kimchi_windows_amd64.zip",
+            "sha256": "c0432cc4cf9aa9494674a1bba6f92398654a31b8ac38e85d0ef56086750986f5",
+            "cmd": "./bin/kimchi.exe",
+            "args": [
+              "--mode",
+              "acp"
+            ]
+          }
+        }
+      },
+      "icon": "https://cdn.agentclientprotocol.com/registry/v1/latest/kimchi.svg"
+    },
+    {
       "id": "kimi",
       "name": "Kimi CLI",
       "version": "1.50.0",

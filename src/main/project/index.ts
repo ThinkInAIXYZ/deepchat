@@ -50,22 +50,19 @@ export class ProjectService {
   }
 
   async getProjects(): Promise<Project[]> {
-    const rows = this.sqlitePresenter.newProjectsTable.getAll()
-    return rows
-      .filter((row) => !this.isRemovedEnvironment(row.path))
-      .map((row) => ({
-        path: row.path,
-        name: row.name,
-        icon: row.icon,
-        lastAccessedAt: row.last_accessed_at,
-        exists: fs.existsSync(row.path)
-      }))
+    return this.getRecentProjects(Number.POSITIVE_INFINITY)
   }
 
   async getRecentProjects(limit: number = 10): Promise<Project[]> {
     const rows = this.sqlitePresenter.newProjectsTable.getAll()
+    const removedPaths = new Set(
+      this.sqlitePresenter.newEnvironmentPreferencesTable
+        .list()
+        .filter((preference) => preference.status === 'removed')
+        .map((preference) => preference.path)
+    )
     return rows
-      .filter((row) => !this.isRemovedEnvironment(row.path))
+      .filter((row) => !removedPaths.has(row.path.trim()))
       .slice(0, limit)
       .map((row) => ({
         path: row.path,
@@ -114,9 +111,11 @@ export class ProjectService {
     // All reads are synchronous SQLite/settings reads in this process. Keep them in
     // one uninterrupted turn and stamp the resulting projection with its version.
     const version = this.snapshotVersion
+    const preferences = this.sqlitePresenter.newEnvironmentPreferencesTable.list()
+    const preferenceByPath = new Map(preferences.map((row) => [row.path, row]))
     const rows = this.sqlitePresenter.newProjectsTable
       .getAll()
-      .filter((row) => !this.isRemovedEnvironment(row.path))
+      .filter((row) => preferenceByPath.get(row.path.trim())?.status !== 'removed')
       .slice(0, limit)
     const projects = rows.map((row) => ({
       path: row.path,
@@ -126,9 +125,7 @@ export class ProjectService {
       exists: fs.existsSync(row.path)
     }))
     const environmentRows = this.sqlitePresenter.newEnvironmentsTable.list()
-    const preferences = this.sqlitePresenter.newEnvironmentPreferencesTable.list()
     const usageByPath = new Map(environmentRows.map((row) => [row.path, row]))
-    const preferenceByPath = new Map(preferences.map((row) => [row.path, row]))
     const paths = new Set<string>(environmentRows.map((row) => row.path))
     for (const preference of preferences) {
       paths.add(preference.path)

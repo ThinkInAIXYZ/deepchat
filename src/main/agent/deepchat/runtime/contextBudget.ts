@@ -81,6 +81,7 @@ export interface RequestContextLedgerRuntimeSkill {
 const MAX_LEDGER_SKILL_CONTRIBUTORS = 8
 const PROMPT_SECTION_LEDGER_CATEGORIES: Record<DeepChatPromptSectionKind, string> = {
   configured_prompt: 'Configured prompt',
+  plugin_context: 'Installed plugin context',
   runtime_capabilities: 'Runtime capabilities',
   system_environment: 'System environment',
   agents_instructions: 'Project instructions',

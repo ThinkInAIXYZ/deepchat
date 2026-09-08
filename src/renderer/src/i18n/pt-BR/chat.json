@@ -113,6 +113,7 @@
   },
   "features": {
     "webSearch": "Busca na Web",
+    "thoughtForLessThanOneSecond": "Pensou por menos de 1s",
     "thoughtForSeconds": "Pensou por {seconds}s",
     "thoughtForSecondsLoading": "Pensando por {seconds}s...",
     "artifactThinking": "Processando Artefato",
@@ -180,7 +181,8 @@
   "mode": {
     "acpAgent": "Agente ACP",
     "agent": "Agente",
-    "current": "Modo atual: {mode}"
+    "current": "Modo atual: {mode}",
+    "saveFailed": "Não foi possível salvar a seleção de modo"
   },
   "topbar": {
     "share": "Compartilhar",

@@ -22,10 +22,6 @@ import type {
 import type { SearchResult } from '@shared/types/core/search'
 import type { DeepChatTapeViewManifestRecord } from '@shared/types/tape-view-manifest'
 import type {
-  DeepChatTapeReplayExportOptions,
-  DeepChatTapeReplaySlice
-} from '@shared/types/tape-replay'
-import type {
   DeepChatNestedExecutionAudit,
   DeepChatNestedExecutionAuditState
 } from '@shared/types/execution-journal-audit'
@@ -125,6 +121,8 @@ export class SessionQuery implements SessionProjectionReadPort, SessionProjectio
       limit: options?.limit,
       cursor: options?.cursor,
       agentId: options?.agentId,
+      projectDir: options?.projectDir,
+      includeDrafts: options?.includeDrafts,
       includeSubagents: options?.includeSubagents
     })
     const items = await Promise.all(
@@ -323,31 +321,6 @@ export class SessionQuery implements SessionProjectionReadPort, SessionProjectio
         error
       })
       return unavailableNestedExecutionAudit(state)
-    }
-  }
-
-  async exportMessageTapeReplaySlice(
-    messageId: string,
-    options?: DeepChatTapeReplayExportOptions
-  ): Promise<DeepChatTapeReplaySlice | null> {
-    const normalizedMessageId = messageId?.trim()
-    if (!normalizedMessageId) return null
-
-    const message = this.dependencies.messages.get(normalizedMessageId)
-    if (!message || !this.dependencies.sessions.get(message.session_id)) return null
-
-    try {
-      return await this.dependencies.tape.exportMessageTapeReplaySlice(
-        message.session_id,
-        normalizedMessageId,
-        options
-      )
-    } catch (error) {
-      logger.warn('[SessionQuery] Failed to export tape replay slice', {
-        messageId: normalizedMessageId,
-        error
-      })
-      return null
     }
   }
 
@@ -562,9 +535,11 @@ export class SessionQuery implements SessionProjectionReadPort, SessionProjectio
 
   private matchesLightweightFilter(
     record: SessionRecord,
-    options?: Pick<SessionLightweightOptions, 'includeSubagents' | 'agentId'>
+    options?: SessionLightweightOptions
   ): boolean {
     if (options?.agentId && record.agentId !== options.agentId) return false
+    if (options?.projectDir !== undefined && record.projectDir !== options.projectDir) return false
+    if (options?.includeDrafts === false && record.isDraft) return false
     return options?.includeSubagents === true || record.sessionKind !== 'subagent'
   }
 

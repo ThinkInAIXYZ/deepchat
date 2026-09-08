@@ -113,6 +113,7 @@
   },
   "features": {
     "webSearch": "Websuche",
+    "thoughtForLessThanOneSecond": "Weniger als 1 Sekunde nachgedacht",
     "thoughtForSeconds": "{seconds} Sekunden nachgedacht",
     "thoughtForSecondsLoading": "Denkt nach ({seconds}. Sekunde)",
     "artifactThinking": "artifact-Denken",
@@ -197,7 +198,8 @@
   "mode": {
     "current": "Aktueller Modus: {mode}",
     "agent": "Agent",
-    "acpAgent": "ACP Agent"
+    "acpAgent": "ACP Agent",
+    "saveFailed": "Modusauswahl konnte nicht gespeichert werden"
   },
   "topbar": {
     "backToParent": "Zur übergeordneten Sitzung zurück",

@@ -23,7 +23,19 @@ const liveDelegationStoreMock = vi.hoisted(() => ({
 
 vi.mock('vue-i18n', () => ({
   useI18n: () => ({
-    t: (key: string, params?: { count?: number; mode?: string }) => {
+    t: (key: string, params?: Record<string, string | number>) => {
+      const planMessages: Record<string, string> = {
+        'chat.workspace.plan.section': 'Plan',
+        'chat.workspace.plan.completedCount': '{completed}/{total} completed',
+        'chat.workspace.plan.itemAriaLabel': '{status}: {step}',
+        'chat.workspace.plan.status.completed': 'Completed',
+        'chat.workspace.plan.status.in_progress': 'In Progress',
+        'chat.workspace.plan.status.pending': 'Pending',
+        'chat.workspace.plan.empty': 'No tasks yet'
+      }
+      if (key in planMessages) {
+        return planMessages[key].replace(/\{(\w+)\}/g, (_, name) => String(params?.[name] ?? ''))
+      }
       if (key === 'toolCall.replacementsCount') {
         return `${params?.count ?? 0} replacements`
       }
@@ -481,6 +493,129 @@ describe('MessageBlockToolCall', () => {
     expect(wrapper.get('[data-testid="tool-call-image-preview"] img').attributes('src')).toBe('')
   })
 
+  it('renders each completed plan call as its own checklist without raw JSON', async () => {
+    const plan = [
+      { step: 'Inspect code', status: 'completed' },
+      { step: 'Adjust layout', status: 'in_progress' },
+      { step: 'Delegate UI review', status: 'in_progress' },
+      { step: 'Verify screenshots', status: 'pending' }
+    ]
+    const first = createBlock({
+      tool_call: {
+        id: 'plan-1',
+        name: 'update_plan',
+        params: JSON.stringify({ explanation: 'Implement the compact layout', plan }),
+        response: '{}'
+      }
+    })
+    const second = createBlock({
+      tool_call: {
+        id: 'plan-2',
+        name: 'update_plan',
+        params: JSON.stringify({
+          plan: plan.map((entry) => ({ ...entry, status: 'completed' }))
+        }),
+        response: '{}'
+      }
+    })
+    const wrapper = mount(
+      defineComponent({
+        components: { MessageBlockToolCall },
+        setup: () => ({ first, second }),
+        template:
+          '<div><MessageBlockToolCall :block="first" /><MessageBlockToolCall :block="second" /></div>'
+      })
+    )
+    const calls = wrapper.findAllComponents(MessageBlockToolCall)
+    expect(wrapper.find('[data-testid="tool-call-summary"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="tool-call-plan"]').exists()).toBe(false)
+
+    for (const call of calls) await call.get('[data-testid="tool-call-trigger"]').trigger('click')
+
+    const previousPlan = calls[0].get('[data-testid="tool-call-plan"]')
+    expect(previousPlan.text()).toContain('Implement the compact layout')
+    expect(previousPlan.text()).toContain('1/4 completed')
+    expect(previousPlan.findAll('li').map((item) => item.attributes('aria-label'))).toEqual([
+      'Completed: Inspect code',
+      'In Progress: Adjust layout',
+      'In Progress: Delegate UI review',
+      'Pending: Verify screenshots'
+    ])
+    expect(calls[1].get('[data-testid="tool-call-plan"]').text()).toContain('4/4 completed')
+    expect(wrapper.find('[data-testid="tool-call-params"]').exists()).toBe(false)
+    expect(wrapper.find('pre').exists()).toBe(false)
+
+    await calls[0].get('[data-testid="tool-call-trigger"]').trigger('click')
+    expect(calls[0].get('[data-testid="tool-call-trigger"]').attributes('aria-expanded')).toBe(
+      'false'
+    )
+    expect(calls[1].get('[data-testid="tool-call-trigger"]').attributes('aria-expanded')).toBe(
+      'true'
+    )
+    wrapper.unmount()
+  })
+
+  it('renders an empty plan update as an empty checklist', async () => {
+    const wrapper = mount(MessageBlockToolCall, {
+      props: {
+        block: createBlock({
+          tool_call: { name: 'update_plan', params: '{"plan":[]}', response: '{}' }
+        })
+      }
+    })
+    await wrapper.get('[data-testid="tool-call-trigger"]').trigger('click')
+    expect(wrapper.get('[data-testid="tool-call-plan"]').text()).toContain('0/0 completed')
+    expect(wrapper.get('[data-testid="tool-call-plan"]').text()).toContain('No tasks yet')
+    expect(wrapper.find('[data-testid="tool-call-params"]').exists()).toBe(false)
+    wrapper.unmount()
+  })
+
+  it.each([
+    { status: 'loading', params: '{"plan":[{"step":"Inspect code","status":"pending"}]}' },
+    { status: 'error', params: '{"plan":[{"step":"Inspect code","status":"pending"}]}' },
+    { status: 'cancel', params: '{"plan":[{"step":"Inspect code","status":"pending"}]}' },
+    { status: 'success', params: '{"plan":' },
+    { status: 'success', params: '{"plan":[null]}' }
+  ] as const)(
+    'keeps diagnostic details for an unwritten or unreadable plan: %j',
+    async ({ status, params }) => {
+      const wrapper = mount(MessageBlockToolCall, {
+        props: {
+          block: createBlock({
+            status,
+            tool_call: { name: 'update_plan', params, response: 'Plan update did not complete' }
+          })
+        }
+      })
+      expect(wrapper.find('[data-testid="tool-call-summary"]').exists()).toBe(false)
+      await wrapper.get('[data-testid="tool-call-trigger"]').trigger('click')
+      expect(wrapper.find('[data-testid="tool-call-plan"]').exists()).toBe(false)
+      expect(wrapper.get('[data-testid="tool-call-params"]').text()).toBe(params)
+      expect(wrapper.get('pre').text()).toBe('Plan update did not complete')
+      wrapper.unmount()
+    }
+  )
+
+  it('keeps normal details for MCP tools named update_plan', async () => {
+    const wrapper = mount(MessageBlockToolCall, {
+      props: {
+        block: createBlock({
+          extra: { toolSource: 'mcp' },
+          tool_call: {
+            name: 'update_plan',
+            params: '{"plan":[]}',
+            response: 'Remote plan response'
+          }
+        })
+      }
+    })
+    expect(wrapper.find('[data-testid="tool-call-summary"]').exists()).toBe(true)
+    await wrapper.get('[data-testid="tool-call-trigger"]').trigger('click')
+    expect(wrapper.find('[data-testid="tool-call-plan"]').exists()).toBe(false)
+    expect(wrapper.get('pre').text()).toBe('Remote plan response')
+    wrapper.unmount()
+  })
+
   it('shows the first string parameter value as summary text', () => {
     const wrapper = mount(MessageBlockToolCall, {
       props: {
@@ -556,7 +691,7 @@ describe('MessageBlockToolCall', () => {
     expect(wrapper.get('[data-testid="tool-call-summary"]').text()).toBe(
       'today bilibili hot videos'
     )
-    expect(wrapper.get('[data-testid="tool-call-name"]').classes()).toContain('shrink-0')
+    expect(wrapper.get('[data-testid="tool-call-name"]').attributes('title')).toBe('search')
   })
 
   it('stringifies nested first parameter values into a single-line summary', () => {
@@ -774,6 +909,48 @@ describe('MessageBlockToolCall', () => {
     await nextTick()
 
     expect(wrapper.find('[data-testid="tool-call-details"]').exists()).toBe(false)
+  })
+
+  it.each([
+    { status: 'error' as const },
+    { status: 'cancel' as const },
+    { status: 'success' as const, extra: { needsUserAction: true } }
+  ])('keeps automatically opened output visible when attention is needed: %j', async (outcome) => {
+    const block = createBlock({
+      status: 'loading',
+      tool_call: { id: 'process-attention', name: 'process', response: 'running' }
+    })
+    const wrapper = mount(MessageBlockToolCall, { props: { block } })
+
+    expect(wrapper.get('[data-testid="tool-call-trigger"]').attributes('aria-expanded')).toBe(
+      'true'
+    )
+    await wrapper.setProps({ block: { ...block, ...outcome } })
+    expect(wrapper.get('[data-testid="tool-call-trigger"]').attributes('aria-expanded')).toBe(
+      'true'
+    )
+
+    await wrapper.setProps({ block: { ...block, status: 'success' } })
+    expect(wrapper.get('[data-testid="tool-call-trigger"]').attributes('aria-expanded')).toBe(
+      'false'
+    )
+    expect(wrapper.emitted('manual-toggle')).toBeUndefined()
+  })
+
+  it('keeps manually reopened output expanded after successful completion', async () => {
+    const block = createBlock({
+      status: 'loading',
+      tool_call: { id: 'process-manual', name: 'process', response: 'running' }
+    })
+    const wrapper = mount(MessageBlockToolCall, { props: { block } })
+    const trigger = wrapper.get('[data-testid="tool-call-trigger"]')
+
+    await trigger.trigger('click')
+    await trigger.trigger('click')
+    await wrapper.setProps({ block: { ...block, status: 'success' } })
+
+    expect(trigger.attributes('aria-expanded')).toBe('true')
+    expect(wrapper.emitted('manual-toggle')).toEqual([[false], [true]])
   })
 
   it('auto expands background exec calls while loading and collapses them when finished', async () => {

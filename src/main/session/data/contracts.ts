@@ -21,10 +21,6 @@ import type {
   SubagentTapeLinkReceipt
 } from '@shared/types/agent-interface'
 import type { DeepChatTapeViewManifestRecord } from '@shared/types/tape-view-manifest'
-import type {
-  DeepChatTapeReplayExportOptions,
-  DeepChatTapeReplaySlice
-} from '@shared/types/tape-replay'
 import type { DeepChatNestedExecutionAudit } from '@shared/types/execution-journal-audit'
 import type {
   ExportTapeInspectorSupportFactsInput,
@@ -163,11 +159,6 @@ export interface SessionTapePort {
     sessionId: string,
     messageId: string
   ): Promise<DeepChatNestedExecutionAudit>
-  exportMessageTapeReplaySlice(
-    sessionId: string,
-    messageId: string,
-    options?: DeepChatTapeReplayExportOptions
-  ): Promise<DeepChatTapeReplaySlice | null>
   listTapeInspectorPage(input: ListTapeInspectorPageInput): ListTapeInspectorPageOutput
   resolveTapeInspectorEvidenceEntries(
     input: ResolveTapeInspectorEvidenceEntriesInput

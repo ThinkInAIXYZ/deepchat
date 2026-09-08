@@ -95,10 +95,6 @@ export function createSessionDataFromDatabase(
       ensureTape(sessionId)
       return Promise.resolve(sessionTape.listNestedExecutionAuditForMessage(sessionId, messageId))
     },
-    exportMessageTapeReplaySlice(sessionId, messageId, options) {
-      ensureTape(sessionId)
-      return Promise.resolve(sessionTape.exportReplaySlice(sessionId, messageId, options))
-    },
     // Inspector reads must not bootstrap or write Tape state. Incarnation mismatches are returned
     // through the read contract instead.
     listTapeInspectorPage(input) {

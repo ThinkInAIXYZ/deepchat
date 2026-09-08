@@ -1,63 +1,37 @@
-# CUA Driver 0.17 Contract Migration Plan
+# CUA Driver Contract Validation Plan
 
-## Status
+## Scope
 
-Implementation and host-native validation are complete. Native cross-platform and release-signing
-gates remain pending.
+The maintained contract is [CUA Driver Contract](./spec.md). The current source pin is
+`0.19.2/0.6.0`; every validation artifact must identify the binary and metadata it actually exercised.
+Adapter implementation does not close the native cross-platform or release-signing gates.
 
-## 1. Freeze the reviewed contract
+## Pin and Package Consistency
 
-- Record the exact upstream tag, commit, contract metadata, supported targets, tool additions, and
-  breaking semantics.
-- Keep clipboard reads denied until DeepChat has an explicit sensitive-result lifecycle.
-- Define closed, bounded model projections and the snapshot-addressing invariant.
+Verify the upstream tag/commit, checksums, archive inventory, embedded handshake, target-local
+catalog, and platform-scoped closed policy as one unit. Preserve the five supported targets,
+Linux arm64 exclusion, direct embedded daemon/proxy lifecycle, and denied clipboard reads.
 
-## 2. Update the release and host handshake
+## Adapter Regression Boundaries
 
-- Replace the pinned tag, commit, release URL, checksums asset hash, archive names, and archive
-  hashes in `upstream.json`.
-- Update the manifest and package-time embedded adapter contract to driver `0.17.0` and contract
-  `0.6.0`.
-- Keep tools-list schema, capability version, MCP protocol, supported targets, and runtime layout
-  unchanged.
+Use the focused adapter, ToolManager, plugin/runtime, catalog, integrity, build-runtime, and packaging
+suites to protect these contracts:
 
-## 3. Close the new tool surface
+- Reject a bare native `element_index` before dispatch; preserve an opaque token or exact
+  index-plus-snapshot pair, pixel addressing, zero values, and unrelated fields.
+- Remove only empty optional tokens and retain one-refresh/one-retry handling for stale handles.
+- Keep `ActionResult` and `verify_state` projections closed and bounded; exclude `observed_json`
+  and preserve window-handle, browser-chrome, and structured-refusal behavior.
+- Keep the Computer Use Skill's delivery/effect/completion distinction and supported window/native
+  predicate limits aligned with the adapter.
 
-- Add the five new tools to both policy copies with the reviewed defaults.
-- Regenerate target-local catalogs from the pinned native release binary.
-- Retain strict package failure for missing or extra policy entries after platform scoping.
+## Outstanding Native Evidence
 
-## 4. Adapt element arguments
+Run native action and verification scenarios on macOS x64, Windows x64/arm64, and Linux x64 in their
+matching desktop environments. Run signed/notarized macOS validation and retain the platform gates
+for TCC, capture, input, restart, crash/recovery, and supported cursor themes. A host-only or unsigned
+result cannot stand in for another platform or the release-signing gate.
 
-- Continue removing only an empty optional `element_token` on the seven affected native tools.
-- Add a pure guard that rejects a remaining bare `element_index` before dispatch.
-- Preserve valid token, index-plus-snapshot, pixel, zero-valued, and unrelated arguments.
-- Add unit and ToolManager dispatch tests for all modes.
-
-## 5. Adapt model-visible results
-
-- Project the closed `ActionResult` fields only for the reviewed action-tool set.
-- Project bounded `verify_state` control facts without `observed_json`.
-- Preserve existing window-handle, browser-chrome, and structured-refusal projections.
-- Test valid shapes, enum drift, malformed nested values, bounded evidence, and composition with
-  existing MCP content.
-
-## 6. Update the Computer Use contract
-
-- Require `element_token` or `element_index + snapshot_id` from the latest same-window snapshot.
-- Add all relevant snapshot refusal codes and one-refresh/one-retry recovery.
-- Explain `ActionResult` effect, route, delivery, evidence, and escalation semantics.
-- Add deterministic `verify_state` to the post-action loop only for supported window/native AX
-  predicates; retain fresh state tools for desktop, browser DOM, canvas, and visual checks.
-- Document the new window/menu tools and the conservative clipboard policy.
-
-## 7. Validate and review
-
-- Run focused adapter, ToolManager, plugin, runtime, catalog, integrity, build-runtime, and package
-  tests first.
-- Build, validate, and verify the host-native CUA plugin artifact.
-- Run formatting, i18n, lint, Node/Web type checks, and the appropriate broader suites.
-- Review the complete diff for hidden side effects, backward compatibility, edge cases,
-  performance, security, misleading names, missing tests, and maintenance cost.
-- Sort findings by severity, fix every real finding, rerun affected validation, and only then
-  create one concrete Conventional Commit. Do not push.
+For the current host artifact, build, validate, and verify the CUA plugin and record its exact pin.
+Run formatting, i18n, lint, Node/Web type checks, and the relevant focused/broader suites for any
+implementation change. Resolve confirmed failures before accepting the corresponding gate.

@@ -1,21 +1,27 @@
 # Light OCR Follow-up Hardening
 
-Status: deferred follow-ups; vision image-limit compatibility resolved.
+Status: open persistence, scheduling, and lifecycle follow-ups.
 
 GitHub issue: not created; this is a local SDD record by explicit decision.
 
 ## Issue
 
-The Light OCR integration review found additional performance, compatibility, privacy and
-maintenance risks that are real but do not block the current offline chat-attachment release. They
-must remain visible as concrete follow-up work rather than being implied by the implementation or
-left only in review discussion.
+The remaining items require focused reproduction and a defined persistence, compatibility, or
+scheduling contract before implementation. Current source behavior and outstanding acceptance work
+are distinguished below; an unchecked item is not evidence of measured application latency.
 
-## Resolved Findings
+## Current Behavior
 
 - The eight-image resource limit now applies only to actual OCR candidates. Vision-only images and
   the vision-routed images in a mixed turn retain their image representation beyond the eighth
   attachment, while explicit and automatic OCR remain bounded to eight candidates.
+- `OcrRuntimeService.getAvailability()` retries unavailable results. Toolchain changes invalidate
+  availability and retire stale resources after active owners release them.
+- `clearCache()` reports `OcrRuntimeBusyError` while extraction owns resources. It no longer silently
+  ignores that request.
+- `OcrExtractionScheduler` provides bounded interactive/background queues, cancellation, FIFO within
+  each priority, and a four-interactive-task fairness bound. Snapshot byte reservation still occurs
+  before scheduling; queue admission and memory admission remain separate.
 
 ## Deferred Findings
 
@@ -30,9 +36,9 @@ left only in review discussion.
 - Cache hits currently start the OCR helper to discover the effective engine identity. Retain a
   trustworthy last-known identity across clean idle shutdown, perform a cache lookup before spawn,
   and recheck after startup on a miss or identity drift.
-- The global eight-image/120 MiB reservation rejects concurrent sessions instead of providing
-  cancellable admission. Introduce an interactive/background priority queue with FIFO ordering
-  inside each priority and reserve bytes only after admission.
+- Evaluate moving snapshot byte reservation behind bounded cancellable memory admission. Preserve
+  immutable input snapshots and the existing extraction scheduler's priority/fairness contract;
+  measure retained bytes and concurrent-session behavior before changing admission order.
 - OCR-presence detection reparses the full transcript. Fold the flag into the existing tape/chat
   projection pass instead of adding another history traversal.
 - Current-turn routing repeats base64 parsing and normalization. Reuse a trusted prepared payload
@@ -42,10 +48,9 @@ left only in review discussion.
 
 ### Compatibility and lifecycle
 
-- Availability failures are negatively cached for the process lifetime. Add an invalidation trigger
-  for asset repair or runtime-state change.
-- Cache clearing can silently do nothing while an extraction owns a lease. Return an explicit
-  partial/busy result and refresh statistics after owners release.
+- Verify availability recovery after asset repair beyond toolchain changes, and cache statistics
+  refresh after busy extraction owners release. The existing retry and explicit busy behavior must
+  remain covered.
 - Clean stale private OCR temporary directories after abnormal application termination without
   touching live process directories.
 - Avoid rebuilding tape projection v4 when the source message set cannot contain OCR metadata.

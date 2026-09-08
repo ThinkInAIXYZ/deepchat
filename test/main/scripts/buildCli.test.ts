@@ -30,26 +30,15 @@ async function runGeneratedLauncher(outputDirectory: string) {
 
 async function provisionElectronHost(outputDirectory: string): Promise<void> {
   const appRoot = path.resolve(outputDirectory, '..', '..', '..')
-  const hostName = process.platform === 'win32' ? 'MioWork.exe' : 'MioWork'
-  const hosts = [
-    path.join(appRoot, hostName),
-    path.join(appRoot, 'MacOS', 'MioWork'),
-    path.join(appRoot, 'deepchat')
-  ]
-  for (const host of hosts) {
-    await mkdir(path.dirname(host), { recursive: true })
-    try {
-      await symlink(process.execPath, host)
-    } catch (error) {
-      // On case-insensitive filesystems (macOS default) 'deepchat' collides with the
-      // already-provisioned 'MioWork'; the copy fallback would then write through that
-      // symlink onto the running Node binary, so treat EEXIST as already provisioned.
-      if ((error as { code?: string }).code === 'EEXIST') continue
-      await copyFile(process.execPath, host)
-      if (process.platform !== 'win32') {
-        await chmod(host, 0o755)
-      }
-    }
+  const host =
+    process.platform === 'darwin'
+      ? path.join(appRoot, 'MacOS', 'MioWork')
+      : path.join(appRoot, process.platform === 'win32' ? 'MioWork.exe' : 'deepchat.bin')
+  await mkdir(path.dirname(host), { recursive: true })
+  // Keep the running interpreter outside the fixture, including on case-insensitive filesystems.
+  await copyFile(process.execPath, host)
+  if (process.platform !== 'win32') {
+    await chmod(host, 0o755)
   }
 }
 

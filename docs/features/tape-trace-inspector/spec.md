@@ -525,7 +525,6 @@ sanitized raw representation rather than the unfiltered database JSON.
 | Provider evidence | Existing message trace diagnostics |
 | View manifest | Existing manifest diagnostics |
 | Nested execution | Existing nested execution audit |
-| Message replay/export | Existing bounded ReplaySlice route |
 | Message Entry | Hash/metadata plus transcript navigation |
 | Context/Skill | Hash and approved references only |
 | Unknown/no-message Entry | Identity, provenance, hash, size, and timestamp only |
@@ -547,7 +546,7 @@ sessions.exportTapeInspectorSupportTrace({
 })
 ```
 
-The export is a versioned diagnostic document, not a ReplaySlice and not a lossless history dump.
+The export is a versioned diagnostic document, not a lossless history dump.
 It contains two separate arrays and never invents a total order across them:
 
 - at most 200 of the most recent Tape Entries, returned in chronological `entryId` order;

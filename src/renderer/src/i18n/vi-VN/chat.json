@@ -113,6 +113,7 @@
   },
   "features": {
     "webSearch": "Tìm kiếm trên web",
+    "thoughtForLessThanOneSecond": "Đã suy nghĩ chưa đến 1 giây",
     "thoughtForSeconds": "Suy nghĩ cho {seconds}",
     "thoughtForSecondsLoading": "Đang suy nghĩ về {seconds}...",
     "artifactThinking": "Tư duy tạo tác",
@@ -197,7 +198,8 @@
   "mode": {
     "current": "Chế độ hiện tại: {mode}",
     "agent": "Agent",
-    "acpAgent": "ACP Agent"
+    "acpAgent": "ACP Agent",
+    "saveFailed": "Không thể lưu lựa chọn chế độ"
   },
   "topbar": {
     "backToParent": "Quay lại trang gốc",

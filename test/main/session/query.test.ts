@@ -87,7 +87,6 @@ function createHarness() {
       operations: [],
       truncated: false
     }),
-    exportMessageTapeReplaySlice: vi.fn().mockResolvedValue(null),
     listTapeInspectorPage: vi.fn(),
     getTapeInspectorRecordDetail: vi.fn(),
     exportTapeInspectorSupportFacts: vi.fn()
@@ -234,7 +233,6 @@ describe('SessionQuery', () => {
       operations: [{ toolName: 'search', status: 'success' }],
       truncated: false
     })
-    harness.tape.exportMessageTapeReplaySlice.mockResolvedValue({ version: 1 })
     harness.searchResults.listByMessageId.mockReturnValue([
       { content: '{', rank: 1, search_id: 'new' },
       {
@@ -281,9 +279,6 @@ describe('SessionQuery', () => {
         operations: [expect.objectContaining({ toolName: 'search', status: 'success' })]
       })
     )
-    await expect(harness.coordinator.exportMessageTapeReplaySlice('m1')).resolves.toEqual({
-      version: 1
-    })
     await expect(harness.coordinator.getSearchResults(' m1 ', 'missing')).resolves.toEqual([
       expect.objectContaining({ title: 'Legacy', rank: 2, searchId: undefined })
     ])
@@ -569,21 +564,19 @@ describe('SessionQuery', () => {
     warn.mockRestore()
   })
 
-  it('falls back when manifest and replay projections fail or lose their session', async () => {
+  it('falls back when manifest projections fail or lose their session', async () => {
     const harness = createHarness()
     harness.messages.get.mockReturnValue({ session_id: 's1' })
     harness.tape.listMessageViewManifests.mockRejectedValue(new Error('manifest failed'))
     harness.tape.listNestedExecutionAuditForMessage.mockRejectedValue(
       new Error('nested audit failed')
     )
-    harness.tape.exportMessageTapeReplaySlice.mockRejectedValue(new Error('replay failed'))
 
     await expect(harness.coordinator.listMessageViewManifests('m1')).resolves.toEqual([])
     await expect(harness.coordinator.listNestedExecutionAudit('m1')).resolves.toMatchObject({
       state: 'unavailable',
       operations: []
     })
-    await expect(harness.coordinator.exportMessageTapeReplaySlice('m1')).resolves.toBeNull()
 
     harness.records.delete('s1')
     harness.tape.listMessageViewManifests.mockClear()

@@ -474,7 +474,10 @@ export interface SkillServicePort {
     skillRoot: string
     pluginRoot?: string
   }): Promise<void> | void
-  unregisterPluginSkillsByOwner(ownerPluginId: string): Promise<void> | void
+  unregisterPluginSkillsByOwner(
+    ownerPluginId: string,
+    options?: { preserveAssignments?: boolean }
+  ): Promise<void> | void
 
   // File operations
   readSkillFile(name: string): Promise<string>
@@ -505,7 +508,8 @@ export interface SkillServicePort {
   resolveSkillRuntimeEnvironmentBinding(
     agentId: string,
     name: string,
-    expectedBindingId: string | null
+    expectedBindingId: string | null,
+    expectedSourceId?: string
   ): Promise<Record<string, string>>
   saveSkillExtension(name: string, config: SkillExtensionConfig): Promise<void>
   saveSkillExtensionForAgent(

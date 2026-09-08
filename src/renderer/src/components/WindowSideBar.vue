@@ -807,16 +807,7 @@ const pluginsRouteActive = computed(() =>
 let agentSwitchSeq = 0
 let agentSwitchQueue: Promise<void> = Promise.resolve()
 
-const sidebarSelectedAgentId = computed(() => {
-  const activeSessionAgentId = sessionStore.activeSession?.agentId?.trim()
-  if (sessionStore.hasActiveSession && activeSessionAgentId) {
-    return activeSessionAgentId
-  }
-
-  const selectedAgentId =
-    typeof agentStore.selectedAgentId === 'string' ? agentStore.selectedAgentId.trim() : ''
-  return selectedAgentId || null
-})
+const sidebarSelectedAgentId = computed(() => agentStore.filterAgentId)
 
 const selectedAgentName = computed(() => {
   if (sidebarSelectedAgentId.value === null) {

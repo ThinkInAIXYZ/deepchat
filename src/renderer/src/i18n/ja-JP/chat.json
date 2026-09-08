@@ -114,6 +114,7 @@
   "features": {
     "webSearch": "ウェブ検索",
     "artifactThinking": "アーティファクト思考",
+    "thoughtForLessThanOneSecond": "思考時間は1秒未満",
     "thoughtForSeconds": "{seconds}秒間思考しました",
     "thoughtForSecondsLoading": "{seconds}秒間思考中...",
     "modeChanged": "モードが次のように切り替わりました: {mode}"
@@ -180,7 +181,8 @@
   "mode": {
     "acpAgent": "ACPエージェント",
     "agent": "エージェント",
-    "current": "現在のモード: {mode}"
+    "current": "現在のモード: {mode}",
+    "saveFailed": "モードの選択を保存できませんでした"
   },
   "topbar": {
     "share": "共有",
