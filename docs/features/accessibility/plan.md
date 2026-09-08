@@ -126,4 +126,19 @@ BEFORE  Run now -> lost focus; History shows only a time and can stay stale
 AFTER   Run now -> same control; Running -> Completed -> readable Preview
 ```
 
-The independent explorer accepted attachment/Skill deletion without an extra message, Skill insertion and agent-switch draft restoration, memory archive focus, scheduled completion and keyboard Preview, and local MCP resource reads. Relevant editor, draft, memory and scheduled-task suites pass; the draft regression covers selection changes with a cloned saved document, and the scheduled regression covers completion without a changed next-run time. Electron streaming verification also removes real local attachments with both Enter and Space while preserving the draft and original message count; the keyboard navigation smoke test passes. Browser focus and transfer-error acceptance remain separate pending items.
+The independent explorer accepted attachment/Skill deletion without an extra message, Skill insertion and agent-switch draft restoration, memory archive focus, scheduled completion and keyboard Preview, and local MCP resource reads. Relevant editor, draft, memory and scheduled-task suites pass; the draft regression covers selection changes with a cloned saved document, and the scheduled regression covers completion without a changed next-run time. Electron streaming verification also removes real local attachments with both Enter and Space while preserving the draft and original message count; the keyboard navigation smoke test passes. Transfer failure and successful transfer have independent runtime acceptance. Browser focus remains pending native acceptance.
+
+
+## Complete catalogs, artifacts and transition recovery
+
+Provider model catalogs retain every filtered row while assistive technology is active, using the same row template as the existing virtual scroller. Capability/type/sort controls expose pressed state. Model deletion focuses the named Model List region; rate-limit controls expose their purpose and units and preserve focus across saves. Message Artifact cards use native buttons; HTML and React preview frames identify their document. Transfer failures focus a named alert, and leaving onboarding for chat recovers the main landmark when route replacement removes focus.
+
+```text
+BEFORE  250 models -> 19 readable rows; delete -> lost focus
+AFTER   AT mode -> 250 readable rows; delete -> Model List
+
+BEFORE  Click-only Artifact; unnamed frame; transfer error -> lost focus
+AFTER   Artifact button + Enter -> titled preview; failure -> named alert
+```
+
+The independent explorer accepted all 250 model switches, model deletion, named rate controls with an actual interval save, HTML Artifact entry and frame title, transfer failure/success, and Skip All focus recovery. React uses the same message entry and has a frame-title regression assertion; React runtime execution is not counted as independently accepted. Provider/rate/Artifact tests pass (10 tests), and onboarding/startup/Skills route tests pass (29 tests). The complete renderer suite passes 2448 tests across 274 files. Format, i18n, lint, typecheck and the production build pass.

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref, watch, onBeforeUnmount, computed, provide } from 'vue'
+import { onMounted, ref, watch, onBeforeUnmount, computed, provide, nextTick } from 'vue'
 import { useEventListener, useMediaQuery } from '@vueuse/core'
 import { RouterView, useRoute, useRouter } from 'vue-router'
 import { createConfigClient } from '@api/ConfigClient'
@@ -62,6 +62,17 @@ provide(RENDERER_PERFORMANCE_REPORTER, performanceReporter)
 
 const mainContent = ref<HTMLElement | null>(null)
 const route = useRoute()
+watch(
+  () => route.name,
+  async (name, previousName) => {
+    if (previousName !== 'welcome' || name !== 'chat') return
+    await nextTick()
+    if (route.name === name && document.activeElement === document.body) {
+      mainContent.value?.focus({ preventScroll: true })
+    }
+  },
+  { flush: 'post' }
+)
 const configClient = createConfigClient()
 const notificationClient = createNotificationClient()
 const onboardingClient = createOnboardingClient()

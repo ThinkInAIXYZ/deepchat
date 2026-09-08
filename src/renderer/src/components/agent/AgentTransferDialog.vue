@@ -12,6 +12,10 @@
       <div class="min-h-0 flex-1 overflow-y-auto px-5 py-4">
         <div
           v-if="error"
+          ref="errorRegion"
+          role="alert"
+          tabindex="-1"
+          :aria-label="t('common.error.operationFailed')"
           class="mb-4 rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive"
         >
           {{ error }}
@@ -54,7 +58,12 @@
             </div>
           </div>
 
-          <RadioGroup v-if="mode === 'delete-agent'" v-model="action" class="flex flex-col gap-2">
+          <RadioGroup
+            v-if="mode === 'delete-agent'"
+            v-model="action"
+            :aria-label="title"
+            class="flex flex-col gap-2"
+          >
             <label
               class="flex cursor-pointer gap-3 rounded-lg border p-3 transition-colors hover:bg-muted/40"
             >
@@ -167,7 +176,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { DcButton } from '@dc-ui/components/button'
 import {
@@ -228,6 +237,17 @@ const emit = defineEmits<{
 const { t } = useI18n()
 const action = ref<'move' | 'delete'>('move')
 const selectedTargetAgentId = ref('')
+const errorRegion = ref<HTMLElement | null>(null)
+watch(
+  () => props.error,
+  async (error) => {
+    if (!error || !props.open) return
+    await nextTick()
+    if (document.activeElement === document.body || document.activeElement?.matches(':disabled')) {
+      errorRegion.value?.focus()
+    }
+  }
+)
 
 const availableTargets = computed(() =>
   props.agents.filter(

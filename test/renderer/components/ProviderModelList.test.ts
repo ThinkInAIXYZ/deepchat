@@ -43,7 +43,7 @@ const RecycleScrollerStub = defineComponent({
     }
   },
   template:
-    '<div><slot v-for="(item, index) in items" :key="item.id" :item="item" :index="index" :active="true" /></div>'
+    '<div><slot v-for="(item, index) in items.slice(0, 19)" :key="item.id" :item="item" :index="index" :active="true" /></div>'
 })
 
 const ModelConfigItemStub = defineComponent({
@@ -83,7 +83,12 @@ describe('ProviderModelList', () => {
         traceDebugEnabled: false
       })
     }))
-    vi.doMock('@vueuse/core', () => ({
+    const accessibilityEnabled = ref(false)
+    vi.doMock('@/composables/useAccessibilitySupport', () => ({
+      useAccessibilitySupport: () => ({ accessibilityEnabled })
+    }))
+    vi.doMock('@vueuse/core', async (importOriginal) => ({
+      ...(await importOriginal<typeof import('@vueuse/core')>()),
       refDebounced: (source: unknown) => source,
       useDebounceFn: (fn: (...args: unknown[]) => unknown) => fn,
       useElementSize: () => ({ height: ref(48) })
@@ -185,5 +190,31 @@ describe('ProviderModelList', () => {
     await flushPromises()
 
     expect(getVisibleIds()).toEqual(['alpha-vision', 'zeta-vision'])
+
+    await wrapper.get('[data-testid="model-capability-filter-vision"]').trigger('click')
+    await wrapper.get('[data-testid="model-type-filter-chat"]').trigger('click')
+    await wrapper.setProps({
+      customModels: [],
+      providerModels: [
+        {
+          providerId: 'anthropic',
+          models: Array.from({ length: 250 }, (_, index) => ({
+            id: `model-${String(index + 1).padStart(3, '0')}`,
+            name: `Model ${String(index + 1).padStart(3, '0')}`,
+            group: 'default',
+            providerId: 'anthropic',
+            enabled: true,
+            type: ModelType.Chat
+          }))
+        }
+      ]
+    })
+    await flushPromises()
+    expect(getVisibleIds().length).toBeLessThan(250)
+    accessibilityEnabled.value = true
+    await flushPromises()
+    expect(getVisibleIds()).toHaveLength(250)
+    expect(getVisibleIds().at(-1)).toBe('model-250')
+    wrapper.unmount()
   })
 })
