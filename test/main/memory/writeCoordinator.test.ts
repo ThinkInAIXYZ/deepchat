@@ -1169,3 +1169,107 @@ describe('writeMemoriesSync insert error classification (C2, AC-2.2)', () => {
     expect(result.ok).toBe(false)
   })
 })
+
+describe('rememberMemory decision-ring contracts', () => {
+  const model = { providerId: 'main', modelId: 'main' }
+  const addDecision = '{"decision":"ADD","targetIndex":null,"mergedContent":null}'
+
+  it('keeps a forgotten claim out of recall, the decision model, and the journal boundary', async () => {
+    const generateText = routedLLM({ decision: addDecision })
+    const { presenter, repo, getEmbeddings } = makeLLMPresenter(generateText)
+    const content = 'user prefers explicit recovery'
+    const forgottenId = await seedEmbedded(presenter, content)
+    await presenter.deleteMemory('a', forgottenId)
+    getEmbeddings.mockClear()
+    generateText.mockClear()
+    const beforeMutation = vi.fn()
+
+    await expect(
+      presenter.rememberMemory(
+        { kind: 'semantic', content },
+        { agentId: 'a' },
+        model,
+        beforeMutation
+      )
+    ).resolves.toEqual({ action: 'noop', reason: 'forgotten' })
+
+    expect(getEmbeddings).not.toHaveBeenCalled()
+    expect(generateText).not.toHaveBeenCalled()
+    expect(beforeMutation).not.toHaveBeenCalled()
+    expect(repo.countByAgent('a')).toBe(0)
+  })
+
+  it('commits the journal boundary once before the first row write and keeps the source session', async () => {
+    const generateText = routedLLM({ decision: addDecision })
+    const { presenter, repo } = makeLLMPresenter(generateText)
+    await seedEmbedded(presenter, 'user likes redis')
+    const order: string[] = []
+    const originalInsert = repo.insertClaimUnlessTombstoned.bind(repo)
+    vi.spyOn(repo, 'insertClaimUnlessTombstoned').mockImplementation((input) => {
+      order.push('mutation')
+      return originalInsert(input)
+    })
+    const beforeMutation = vi.fn(() => order.push('commit'))
+
+    const outcome = await presenter.rememberMemory(
+      { kind: 'semantic', content: 'user prefers redis for caching' },
+      { agentId: 'a', sourceSession: 'session-1' },
+      model,
+      beforeMutation
+    )
+
+    expect(outcome).toMatchObject({ action: 'created' })
+    expect(order).toEqual(['commit', 'mutation'])
+    expect(beforeMutation).toHaveBeenCalledOnce()
+    const createdId = outcome.action === 'created' ? outcome.id : ''
+    expect(repo.getById(createdId)?.source_session).toBe('session-1')
+  })
+
+  it('SUPERSEDE keeps the superseded claim and records the derivation edge', async () => {
+    const generateText = routedLLM({
+      decision: '{"decision":"SUPERSEDE","targetIndex":0,"mergedContent":"user moved to Shanghai"}'
+    })
+    const { presenter, repo } = makeLLMPresenter(generateText)
+    const oldId = await seedEmbedded(presenter, 'user lives in Beijing')
+
+    const outcome = await presenter.rememberMemory(
+      { kind: 'semantic', content: 'user moved to Shanghai' },
+      { agentId: 'a' },
+      model
+    )
+
+    expect(outcome).toMatchObject({ action: 'superseded', supersededId: oldId, created: true })
+    const newId = outcome.action === 'superseded' ? outcome.id : ''
+    expect(repo.getById(oldId)).toMatchObject({
+      superseded_by: newId,
+      content: 'user lives in Beijing'
+    })
+    expect(repo.listDerivationsByChild('a', newId)).toEqual([
+      expect.objectContaining({
+        parent_memory_id: oldId,
+        child_memory_id: newId,
+        derivation_kind: 'supersede'
+      })
+    ])
+  })
+
+  it('extractAndStore reports a forgotten candidate as a no-op without recreating the claim', async () => {
+    const content = 'user prefers explicit recovery'
+    const generateText = routedLLM({
+      extraction: `[{"kind":"semantic","content":"${content}","importance":0.8}]`,
+      decision: addDecision
+    })
+    const { presenter, repo } = makeLLMPresenter(generateText)
+    const forgottenId = await seedEmbedded(presenter, content)
+    await presenter.deleteMemory('a', forgottenId)
+
+    const result = await presenter.extractAndStore({
+      agentId: 'a',
+      spanText: 'User: I prefer explicit recovery',
+      model
+    })
+
+    expect(result).toEqual({ ok: true, createdIds: [] })
+    expect(repo.countByAgent('a')).toBe(0)
+  })
+})
