@@ -86,7 +86,6 @@ import {
   providersRateLimitRequestQueuedEvent
 } from './events/providers.events'
 import {
-  settingsCheckForUpdatesRequestedEvent,
   settingsChangedEvent,
   settingsCommandShellChangedEvent,
   settingsNavigateRequestedEvent,
@@ -194,7 +193,6 @@ export const DEEPCHAT_EVENT_CATALOG = {
   [settingsCommandShellChangedEvent.name]: settingsCommandShellChangedEvent,
   [settingsNavigateRequestedEvent.name]: settingsNavigateRequestedEvent,
   [settingsProviderInstallRequestedEvent.name]: settingsProviderInstallRequestedEvent,
-  [settingsCheckForUpdatesRequestedEvent.name]: settingsCheckForUpdatesRequestedEvent,
   [semanticNotificationEvent.name]: semanticNotificationEvent,
   [acpAuthOutputEvent.name]: acpAuthOutputEvent,
   [acpAuthStateChangedEvent.name]: acpAuthStateChangedEvent,

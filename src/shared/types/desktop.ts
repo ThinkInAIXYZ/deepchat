@@ -69,7 +69,6 @@ export interface IWindowPresenter {
   isMainWindowFocused(windowId: number): boolean
   sendToAllWindows(channel: string, ...args: unknown[]): void
   sendSettingsNavigation(windowId: number, navigation: SettingsNavigationPayload): boolean
-  sendSettingsCheckForUpdates(windowId: number): boolean
   sendToWindow(windowId: number, channel: string, ...args: unknown[]): boolean
   sendToDefaultWindow(
     channel: string,

@@ -132,22 +132,6 @@ editFile('src/main/mcp/inMemoryServers/artifactsServer.ts', [
   }
 ])
 
-editFile('src/renderer/settings/components/AboutUsSettings.vue', [
-  // 盘面形态并存：上游原文 / 历史重放（mioagent/mioclaw）/ 当前目标（含目标形态以保幂等）
-  {
-    re: /https:\/\/github\.com\/(?:ThinkInAIXYZ\/deepchat|chenjiaqiangmax\/(?:mioagent|mioclaw|miowork))\/blob\/(?:dev|main)\/LICENSE/g,
-    new: `${repoUrl}/blob/main/LICENSE`
-  },
-  {
-    re: /https:\/\/github\.com\/(?:ThinkInAIXYZ\/deepchat|chenjiaqiangmax\/(?:mioagent|mioclaw|miowork))\/(?:discussions\/\d+|issues)/g,
-    new: cfg.issuesUrl
-  },
-  {
-    re: /https:\/\/github\.com\/(?:ThinkInAIXYZ\/deepchat|chenjiaqiangmax\/(?:mioagent|mioclaw|miowork))(?!\/)/g,
-    new: repoUrl
-  }
-])
-
 editFile('src/renderer/src/components/mcp-config/McpServerForm.vue', [
   {
     re: /HTTP-Referer=(?:deepchatai\.cn|github\.com\/chenjiaqiangmax\/(?:mioagent|mioclaw|miowork))/g,
@@ -219,7 +203,6 @@ const I18N_VALUE_REPLACES = [
   // 历史品牌名（MioAgent/MioClaw）排在最前：改名后重放时先把旧品牌收敛到当前品牌，
   // 否则 must 锚点的「已应用」检查（找 cfg.productName）会把盘面上的旧品牌误判为未命中
   ['MioAgent', cfg.productName],
-  ['MioClaw', cfg.productName],
   ['DeepChat Agents', `${cfg.productName} Agents`],
   ['DeepChat', cfg.productName],
   // 上游部分语言包混用 'Deepchat'（ja-JP/ko-KR/fa-IR/fr-FR 的 MCP 描述等），一并收敛

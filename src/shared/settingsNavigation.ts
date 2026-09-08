@@ -20,7 +20,6 @@ export interface SettingsNavigationItem {
     | 'settings-knowledge-base'
     | 'settings-database'
     | 'settings-shortcut'
-    | 'settings-about'
     | 'settings-debug'
   path: string
   titleKey: string
@@ -287,15 +286,6 @@ export const SETTINGS_NAVIGATION_ITEMS: SettingsNavigationItem[] = [
     position: 10,
     groupKey: 'system',
     keywords: ['shortcut', 'hotkey', 'keybinding', '快捷键']
-  },
-  {
-    routeName: 'settings-about',
-    path: '/about',
-    titleKey: 'routes.settings-about',
-    icon: 'lucide:info',
-    position: 11,
-    groupKey: 'system',
-    keywords: ['about', 'version', 'info', '关于', '版本']
   },
   {
     routeName: 'settings-debug',

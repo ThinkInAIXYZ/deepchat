@@ -9,8 +9,7 @@ const createFromPathMock = vi.hoisted(() => vi.fn(() => ({ resize: resizeMock })
 const buildFromTemplateMock = vi.hoisted(() => vi.fn((template) => ({ template })))
 const windowPresenterMock = vi.hoisted(() => ({
   toggleMainWindowVisibility: vi.fn(),
-  createSettingsWindow: vi.fn(),
-  sendSettingsCheckForUpdates: vi.fn()
+  createSettingsWindow: vi.fn()
 }))
 
 vi.mock('electron', () => ({

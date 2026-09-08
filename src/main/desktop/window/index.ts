@@ -409,14 +409,6 @@ export class WindowPresenter implements IWindowPresenter {
     )
   }
 
-  sendSettingsCheckForUpdates(windowId: number): boolean {
-    return this.sendToWindow(
-      windowId,
-      DEEPCHAT_EVENT_CHANNEL,
-      createDeepchatEventEnvelope('settings.checkForUpdatesRequested', {})
-    )
-  }
-
   sendToWindow(windowId: number, channel: string, ...args: unknown[]): boolean {
     logger.info(`Sending message "${channel}" to window ${windowId}.`)
 

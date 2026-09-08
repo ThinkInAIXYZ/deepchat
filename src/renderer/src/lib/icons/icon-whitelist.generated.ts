@@ -209,7 +209,6 @@ export const GENERATED_ICON_WHITELIST: Record<GeneratedIconCollectionKey, readon
     'rotate-cw',
     'route',
     'save',
-    'scale',
     'scan-eye',
     'scan-line',
     'scan-search',

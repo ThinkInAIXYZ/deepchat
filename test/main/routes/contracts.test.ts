@@ -2093,7 +2093,6 @@ describe('main kernel contracts', () => {
         'sessions.status.changed',
         'sessions.tapeInspector.head.changed',
         'sessions.updated',
-        'settings.checkForUpdatesRequested',
         'settings.changed',
         'settings.commandShell.changed',
         'settings.navigateRequested',

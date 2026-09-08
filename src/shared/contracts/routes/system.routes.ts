@@ -22,7 +22,6 @@ export const SettingsRouteNameSchema = z.enum([
   'settings-knowledge-base',
   'settings-database',
   'settings-shortcut',
-  'settings-about',
   'settings-debug'
 ])
 

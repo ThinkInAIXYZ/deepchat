@@ -77,8 +77,7 @@ const OPEN_SECTIONS = [
   'memory',
   'knowledge-base',
   'database',
-  'shortcut',
-  'about'
+  'shortcut'
 ] as const satisfies readonly OpenChatSettingsSection[]
 
 const OPEN_SECTION_ALIASES = [
@@ -111,8 +110,7 @@ const SETTINGS_ROUTE_NAMES = {
   memory: 'settings-memory',
   'knowledge-base': 'settings-knowledge-base',
   database: 'settings-database',
-  shortcut: 'settings-shortcut',
-  about: 'settings-about'
+  shortcut: 'settings-shortcut'
 } as const satisfies Record<OpenChatSettingsSection, string>
 
 const normalizeSection = (section?: string): OpenChatSettingsSection | undefined => {

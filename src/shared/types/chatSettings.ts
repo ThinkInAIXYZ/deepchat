@@ -65,7 +65,6 @@ export type OpenChatSettingsSection =
   | 'knowledge-base'
   | 'database'
   | 'shortcut'
-  | 'about'
 
 export type OpenChatSettingsRequest = {
   section?: OpenChatSettingsSection

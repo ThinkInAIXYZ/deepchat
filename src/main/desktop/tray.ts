@@ -48,12 +48,6 @@ export class TrayPresenter {
         }
       },
       {
-        label: labels.checkForUpdates,
-        click: () => {
-          void this.openUpdateSettings()
-        }
-      },
-      {
         label: labels.quit,
         click: async () => {
           app.quit() // Exit trigger: tray menu
@@ -74,22 +68,6 @@ export class TrayPresenter {
 
   public init(): void {
     this.createTray()
-  }
-
-  private async openUpdateSettings(): Promise<void> {
-    try {
-      const settingsWindowId = await this.windowPresenter.createSettingsWindow({
-        routeName: 'settings-about'
-      })
-      if (settingsWindowId == null) {
-        console.warn('Failed to open settings window for update check')
-        return
-      }
-
-      this.windowPresenter.sendSettingsCheckForUpdates(settingsWindowId)
-    } catch (error) {
-      console.error('Failed to open update settings from tray:', error)
-    }
   }
 
   destroy() {

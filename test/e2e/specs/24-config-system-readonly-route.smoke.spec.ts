@@ -1,5 +1,5 @@
 import { test, expect } from '../fixtures/electronApp'
-import { openSettings, openSettingsTab } from '../helpers/settings'
+import { openSettings } from '../helpers/settings'
 import { waitForAppReady } from '../helpers/wait'
 
 test('config system read-only routes expose proxy sync update and model defaults @smoke', async ({
@@ -8,8 +8,6 @@ test('config system read-only routes expose proxy sync update and model defaults
   await waitForAppReady(app.page)
 
   const settingsPage = await openSettings(app)
-  await openSettingsTab(settingsPage, 'settings-tab-about')
-  await expect(settingsPage.getByTestId('settings-about-page')).toBeVisible({ timeout: 30_000 })
 
   const snapshot = await settingsPage.evaluate(async () => {
     type ModelSelection = {
@@ -54,9 +52,6 @@ test('config system read-only routes expose proxy sync update and model defaults
       value == null || (typeof value.providerId === 'string' && typeof value.modelId === 'string')
 
     return {
-      aboutPageHasChannelOptions:
-        document.body.textContent?.includes('stable') ||
-        document.body.textContent?.includes('beta'),
       assistantModelValid: isModelSelection(entries.values?.assistantModel),
       customProxyUrlType: typeof proxy.customProxyUrl,
       defaultModelValid: isModelSelection(entries.values?.defaultModel),
@@ -81,7 +76,6 @@ test('config system read-only routes expose proxy sync update and model defaults
     }
   })
 
-  expect(snapshot.aboutPageHasChannelOptions).toBe(true)
   expect(['system', 'none', 'custom']).toContain(snapshot.proxyMode)
   expect(snapshot.customProxyUrlType).toBe('string')
   expect(['stable', 'beta']).toContain(snapshot.updateChannel)

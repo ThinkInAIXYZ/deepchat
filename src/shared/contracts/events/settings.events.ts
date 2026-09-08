@@ -24,7 +24,6 @@ const SettingsRouteNameSchema = z.enum([
   'settings-knowledge-base',
   'settings-database',
   'settings-shortcut',
-  'settings-about',
   'settings-debug'
 ])
 
@@ -58,10 +57,5 @@ export const settingsNavigateRequestedEvent = defineEventContract({
 
 export const settingsProviderInstallRequestedEvent = defineEventContract({
   name: 'settings.providerInstallRequested',
-  payload: z.object({})
-})
-
-export const settingsCheckForUpdatesRequestedEvent = defineEventContract({
-  name: 'settings.checkForUpdatesRequested',
   payload: z.object({})
 })

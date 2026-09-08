@@ -2048,7 +2048,6 @@ declare module 'vue-i18n' {
     'settings-mcp': string
     'settings-deepchat-agents': string
     'settings-database': string
-    'settings-about': string
     'settings-shortcut': string
     'settings-display': string
     'settings-knowledge-base': string

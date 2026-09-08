@@ -1,7 +1,6 @@
 import type { DeepchatBridge } from '@shared/contracts/bridge'
 import {
   type DeepchatEventPayload,
-  settingsCheckForUpdatesRequestedEvent,
   settingsNavigateRequestedEvent,
   settingsProviderInstallRequestedEvent,
   windowStateChangedEvent
@@ -155,14 +154,6 @@ export function createWindowClient(bridge: DeepchatBridge = getDeepchatBridge())
     return bridge.on(settingsProviderInstallRequestedEvent.name, listener)
   }
 
-  function onSettingsCheckForUpdates(
-    listener: (
-      payload: DeepchatEventPayload<typeof settingsCheckForUpdatesRequestedEvent.name>
-    ) => void
-  ) {
-    return bridge.on(settingsCheckForUpdatesRequestedEvent.name, listener)
-  }
-
   return {
     getCurrentState,
     minimizeCurrent,
@@ -180,8 +171,7 @@ export function createWindowClient(bridge: DeepchatBridge = getDeepchatBridge())
     onStateChanged,
     onCurrentStateChanged,
     onSettingsNavigate,
-    onSettingsProviderInstall,
-    onSettingsCheckForUpdates
+    onSettingsProviderInstall
   }
 }
 

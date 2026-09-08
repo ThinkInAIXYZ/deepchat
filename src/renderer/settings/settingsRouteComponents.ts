@@ -19,7 +19,6 @@ export const settingsRouteComponents = {
   'settings-knowledge-base': () => import('./components/KnowledgeBaseSettings.vue'),
   'settings-database': () => import('./components/DataSettings.vue'),
   'settings-shortcut': () => import('./components/ShortcutSettings.vue'),
-  'settings-about': () => import('./components/AboutUsSettings.vue'),
   'settings-debug': () => import('./components/DebugSettings.vue')
 } as const
 

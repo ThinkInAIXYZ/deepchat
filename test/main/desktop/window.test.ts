@@ -57,7 +57,7 @@ describe('WindowPresenter', () => {
     ).toBe(true)
     expect(
       presenter.sendToWindow(9, SETTINGS_EVENTS.NAVIGATE, {
-        routeName: 'settings-about'
+        routeName: 'settings-debug'
       })
     ).toBe(true)
     expect(send).not.toHaveBeenCalled()
@@ -69,7 +69,7 @@ describe('WindowPresenter', () => {
       routeName: 'settings-deepchat-agents'
     })
     expect(send).toHaveBeenNthCalledWith(2, SETTINGS_EVENTS.NAVIGATE, {
-      routeName: 'settings-about'
+      routeName: 'settings-debug'
     })
     expect((presenter as any).pendingSettingsMessages).toHaveLength(0)
   })
@@ -95,7 +95,7 @@ describe('WindowPresenter', () => {
     }
 
     ;(presenter as any).pendingSettingsMessages = [
-      { channel: SETTINGS_EVENTS.NAVIGATE, args: [{ routeName: 'settings-about' }] }
+      { channel: SETTINGS_EVENTS.NAVIGATE, args: [{ routeName: 'settings-debug' }] }
     ]
     ;(presenter as any).pendingSettingsProviderInstalls = [queuedPreview]
     ;(presenter as any).settingsWindowReady = true

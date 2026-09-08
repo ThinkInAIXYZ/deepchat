@@ -116,22 +116,6 @@
       "specifier": "@/stores/theme"
     },
     {
-      "file": "src/renderer/settings/components/AboutUsSettings.vue",
-      "specifier": "@/components/ui/UpdateTaskCheckDialog.vue"
-    },
-    {
-      "file": "src/renderer/settings/components/AboutUsSettings.vue",
-      "specifier": "@/stores/language"
-    },
-    {
-      "file": "src/renderer/settings/components/AboutUsSettings.vue",
-      "specifier": "@/stores/theme"
-    },
-    {
-      "file": "src/renderer/settings/components/AboutUsSettings.vue",
-      "specifier": "@/stores/upgrade"
-    },
-    {
       "file": "src/renderer/settings/components/AcpDebugDialog.vue",
       "specifier": "@/stores/uiSettingsStore"
     },
@@ -560,5 +544,5 @@
       "specifier": "@/i18n/bootstrap"
     }
   ],
-  "settingsToChatAppImportCount": 127
+  "settingsToChatAppImportCount": 123
 }

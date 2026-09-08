@@ -109,12 +109,6 @@ const settingsPages = [
     routeName: 'settings-database',
     tabTestId: 'settings-tab-database',
     pageTestId: 'settings-data-page'
-  },
-  {
-    name: 'about',
-    routeName: 'settings-about',
-    tabTestId: 'settings-tab-about',
-    pageTestId: 'settings-about-page'
   }
 ] as const satisfies ReadonlyArray<SettingsPageSmokeItem>
 
