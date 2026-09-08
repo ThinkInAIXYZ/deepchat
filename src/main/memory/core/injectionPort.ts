@@ -185,14 +185,16 @@ const ZERO_WIDTH = '\u200b'
  * opening bracket only; inserting a zero-width space right after it breaks the marker while keeping
  * the visible text intact. Runtime containers (`<context-data>`, `<runtime-directives>`) are the
  * trust boundaries this module and directiveContribution.ts emit; the rest are chat-template control
- * tokens (ChatML/Llama 3 `<|…|>`, Llama 2 `[INST]`/`<<SYS>>`/`<s>`, Gemma `<start_of_turn>`).
+ * tokens: ChatML/Llama 3 `<|…|>`, DeepSeek `<｜…｜>` (fullwidth bar), Llama 2 `[INST]`/`<<SYS>>`,
+ * Mistral `[SYSTEM_PROMPT]`/`[AVAILABLE_TOOLS]`/`[TOOL_CALLS]`/`[TOOL_RESULTS]`, GLM `[gMASK]`/`<sop>`,
+ * and the sentence/turn delimiters `<s>`, `<bos>`, `<eos>`, `<start_of_turn>`.
  */
 const FORGEABLE_MARKER_OPENERS: readonly RegExp[] = [
   /<(?=\/?(?:context-data|runtime-directives)\b)/gi,
-  /<(?=\|)/g,
-  /\[(?=\/?INST\])/gi,
+  /<(?=[|\uff5c])/g,
+  /\[(?=\/?(?:INST|SYSTEM_PROMPT|AVAILABLE_TOOLS|TOOL_CALLS|TOOL_RESULTS|gMASK)\])/gi,
   /<(?=<\/?SYS>>)/gi,
-  /<(?=\/?s>)/gi,
+  /<(?=\/?(?:s|bos|eos|sop|eop)>)/gi,
   /<(?=\/?(?:start|end)_of_turn>)/gi
 ]
 
