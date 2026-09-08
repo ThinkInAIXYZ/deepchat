@@ -8,6 +8,7 @@ import {
   deviceSelectDirectoryRoute,
   deviceSelectFilesRoute
 } from '@shared/contracts/routes'
+import { appRuntimeAccessibilityChangedEvent } from '@shared/contracts/events'
 import { getDeepchatBridge } from './core'
 import { copyRuntimeImage, copyRuntimeText, readRuntimeClipboardText } from './runtime'
 
@@ -58,7 +59,12 @@ export function createDeviceClient(bridge: DeepchatBridge = getDeepchatBridge())
     return readRuntimeClipboardText()
   }
 
+  function onAccessibilityChanged(handler: (enabled: boolean) => void) {
+    return bridge.on(appRuntimeAccessibilityChangedEvent.name, ({ enabled }) => handler(enabled))
+  }
+
   return {
+    onAccessibilityChanged,
     getAppVersion,
     getDeviceInfo,
     selectDirectory,

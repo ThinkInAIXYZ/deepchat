@@ -326,6 +326,7 @@ import {
 } from 'vue'
 import type { JSONContent } from '@tiptap/core'
 import { useI18n } from 'vue-i18n'
+import { useAccessibilitySupport } from '@/composables/useAccessibilitySupport'
 import { TooltipProvider } from '@shadcn/components/ui/tooltip'
 import { DcButton } from '@dc-ui/components/button'
 import { DcConfirmDialog } from '@dc-ui/components/confirm-dialog'
@@ -422,6 +423,7 @@ const modelClient = createModelClient()
 const providerClient = createProviderClient()
 const sessionClient = createSessionClient()
 const { t } = useI18n()
+const { accessibilityEnabled } = useAccessibilitySupport()
 const isSessionViewCommitted = computed(
   () =>
     messageStore.currentSessionId === props.sessionId &&
@@ -771,8 +773,9 @@ async function loadOlderMessagesAtTop(options: { force?: boolean } = {}): Promis
     ? messageWindow.getEntry(historyAnchor.messageId)
     : undefined
   const usesWindowedMessages =
-    previousEntryCount > MESSAGE_WINDOWING_THRESHOLD ||
-    messageWindow.entries.value.length > MESSAGE_WINDOWING_THRESHOLD
+    !accessibilityEnabled.value &&
+    (previousEntryCount > MESSAGE_WINDOWING_THRESHOLD ||
+      messageWindow.entries.value.length > MESSAGE_WINDOWING_THRESHOLD)
 
   if (!usesWindowedMessages || !historyAnchor || !nextAnchorEntry) {
     await nextTick()
@@ -947,6 +950,7 @@ const virtualization = useMessageVirtualization({
   viewport: scrollContainer,
   displayMessages,
   messageWindow,
+  disableWindowing: accessibilityEnabled,
   windowingThreshold: MESSAGE_WINDOWING_THRESHOLD,
   initialWindowCount: MESSAGE_INITIAL_WINDOW_COUNT,
   overscanPx: MESSAGE_WINDOW_OVERSCAN_PX,

@@ -3,6 +3,7 @@ import type { EventContract } from './common'
 import { acpAuthOutputEvent, acpAuthStateChangedEvent } from './events/acp-auth.events'
 import { approvalClosedEvent, approvalRequestedEvent } from './events/approvals.events'
 import {
+  appRuntimeAccessibilityChangedEvent,
   appRuntimeGuidedOnboardingResumeRequestedEvent,
   appRuntimeGuidedOnboardingStartRequestedEvent,
   appRuntimeMcpInstallRequestedEvent,
@@ -203,8 +204,9 @@ export const DEEPCHAT_EVENT_CATALOG = {
   [appRuntimeMcpInstallRequestedEvent.name]: appRuntimeMcpInstallRequestedEvent,
   [appRuntimeGuidedOnboardingStartRequestedEvent.name]:
     appRuntimeGuidedOnboardingStartRequestedEvent,
-  [appRuntimeGuidedOnboardingResumeRequestedEvent.name]:
-    appRuntimeGuidedOnboardingResumeRequestedEvent,
+  [appRuntimeGuidedOnboardingResumeRequestedEvent.name]: appRuntimeAccessibilityChangedEvent,
+  appRuntimeGuidedOnboardingResumeRequestedEvent,
+  [appRuntimeAccessibilityChangedEvent.name]: appRuntimeAccessibilityChangedEvent,
   [appRuntimeWindowFocusedEvent.name]: appRuntimeWindowFocusedEvent,
   [appRuntimeWindowBlurredEvent.name]: appRuntimeWindowBlurredEvent,
   [appRuntimeShortcutRequestedEvent.name]: appRuntimeShortcutRequestedEvent,

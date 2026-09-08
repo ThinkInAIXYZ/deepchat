@@ -45,3 +45,11 @@ The implementation is complete when this inventory has been explored, all reprod
 - [W3C APG keyboard interface](https://www.w3.org/WAI/ARIA/apg/practices/keyboard-interface/)
 - [W3C APG accessible names](https://www.w3.org/WAI/ARIA/apg/practices/names-and-descriptions/)
 - [W3C APG landmarks](https://www.w3.org/WAI/ARIA/apg/patterns/landmarks/)
+
+## Assistive-technology rendering
+
+The device snapshot reports Electron accessibility support on macOS and Windows, and a typed application event reports changes. One shared renderer subscription feeds Markdown and conversation windowing. When support is active, retain all loaded message rows and all Markdown nodes, including streaming prefixes, in the accessibility tree. Keep explicit pagination for older stored messages. Linux has no reliable Electron detection API, so use complete rendering there. Snapshot failure also preserves complete rendering. Do not change operating-system settings or force native accessibility support in production.
+
+The tradeoff is increased DOM/memory use for long conversations while complete rendering is needed. Existing windowing remains enabled when native support is known to be off. Subscribers release listeners with their Vue scope, and a late snapshot cannot overwrite a newer native event.
+
+Reference: [Electron accessibility support](https://www.electronjs.org/docs/latest/api/app#appisaccessibilitysupportenabled-macos-windows).

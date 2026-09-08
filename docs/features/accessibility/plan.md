@@ -29,5 +29,5 @@ The exploration agent accepted keyboard session selection with Enter and Space, 
 - [x] Explicit earlier-history navigation accepted across 222 messages with Enter/Space, focus restoration, exhausted pagination, and a window resize that preserves reading position.
 - [x] Reactive pagination cursors are serialized through the typed API contract; the cloneability regression passes.
 - [x] Relevant message/API/scroll/ChatPage tests and streaming/keyboard Electron checks pass; format, i18n, lint, and typecheck pass.
-- [ ] Preserve complete message and Markdown content while assistive technology is active.
+- [x] Preserve complete message and Markdown content while assistive technology is active. Independent Electron acceptance exposed all 200 Markdown headings and all 222 loaded history rows after enabling the isolated app accessibility flag. Native state subscription, lifecycle/race, virtualization, Markdown, and ChatPage regressions pass; format, i18n, lint, and typecheck pass.
 - [ ] Repair autocomplete/search active selection and remaining conversation surface barriers.

@@ -3104,6 +3104,10 @@ export async function createMainProcessControl(dependencies: {
   }
 
   function setupApplicationListeners(): void {
+    app.on('accessibility-support-changed', (_event, enabled) => {
+      publishDeepchatEvent('appRuntime.accessibilityChanged', { enabled })
+    })
+
     app.on('browser-window-created', (_, window) => {
       optimizer.watchWindowShortcuts(window)
     })

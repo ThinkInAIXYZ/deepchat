@@ -33,11 +33,13 @@ Evidence date: 2026-09-08. Baseline: current `codex/accessibility` build before 
 | A14 | Global search | Enter opens search; typing `fixture` finds a named provider result. ArrowDown keeps focus on the input without aria-activedescendant. No dialog/listbox/option/aria-selected semantics exist. | Search result selection changes are visual only. | Open |
 | A15 | Scheduled task form | Activate New job. Focus falls to body, and the resulting Name, Cron expression and Task prompt textboxes and Agent/Timezone/Runtime comboboxes are unnamed. | The newly inserted editor and its fields cannot be identified through control navigation. | Open |
 | A16 | Prompt attachments | Add Custom Prompt opens a correctly named dialog, but Upload from device is only a paragraph, absent from interactive controls. | File attachment is not a discoverable keyboard action. | Open |
-| A17 | Long Markdown response | A local response containing 200 numbered headings and paragraphs retains only 129 headings in the completed DOM/accessibility tree, beginning at Section 71. Section 0 is absent while Section 199 exists. | Reading the completed answer sequentially can omit earlier content. | Open |
-| A18 | Workspace sections | Keyboard Enter expands/collapses the Files section; its chevron changes while the button exposes no aria-expanded or controlled-region association. | The section state is visual only. | Open |
+| A17 | Long Markdown response | A local response containing 200 numbered headings and paragraphs retains only 129 headings in the completed DOM/accessibility tree, beginning at Section 71. Section 0 is absent while Section 199 exists. | Reading the completed answer sequentially can omit earlier content. | Accepted: isolated app AT activation exposes all 200 headings and all 222 loaded messages |
+| A18 | Workspace sections | Keyboard Enter expands/collapses Files and a temporary folder; chevrons change while their buttons expose no aria-expanded or controlled-region association. | The section state is visual only. | Open |
 | A19 | First-run setup guide | Start with a completely empty profile. The welcome route exposes an unnamed dialog containing the Select a Provider heading. First Tab begins at the app sidebar rather than the guide. | The automatic guide and its current step are not identified as the active task. | Open |
 | A20 | Closed side panel | After a chat, before opening Workspace, the accessibility tree and Tab order include its Workspace/Yo Browser/Close/Files controls. The visually closed panel uses opacity and pointer-event styles without inert/hidden semantics. | Keyboard users can enter a closed panel and encounter inactive empty content. | Open |
 | A21 | Message editing | Activate the user message Edit message button with Enter. The inline editor appears as an unnamed textbox. | The editor cannot be distinguished from other textboxes by purpose. | Open |
+| A22 | Blocking agent question | A local `deepchat_question` tool call produces Waiting for input, but focus moves to body. Its question radiogroup and Option A/Option B radios have no names. Selecting a radio immediately submits and removes the choices. | The user cannot identify choices and may submit while navigating them. | Open |
+| A23 | Tool permission request | A local `exec` request in Default permissions produces Waiting for permission with named Deny/Allow controls, but focus falls to body. | The blocking decision is announced without a usable focus destination. | Open |
 
 ## Coverage matrix
 
@@ -51,7 +53,7 @@ Evidence date: 2026-09-08. Baseline: current `codex/accessibility` build before 
 | New chat and composer | Keyboard agent activation, model-menu selection, input and Enter send | Attachments, mentions, settings, permissions |
 | Chat responses | Local keyboard fixture; progress/completion accepted; edit, delete confirmation and More menu opened with Enter; A21 | Branching/export, error and permission journeys |
 | Search/command palette | Opened with Enter; queried local fixture; ArrowDown inspected; A14 | Result activation and focus return after fixes |
-| Workspace panel and file viewer | Pending | Tree navigation, file open, tabs, preview, diff |
+| Workspace panel and file viewer | Opened actual panel and expanded temporary folder with Enter; nested file visible; A18/A20; Shift+F10 does not open context menu | File actions, preview, diff and accessible disclosure state |
 | Plugins catalog | Tree inspected; Install from Git opens named dialog with named fields | Detail/configuration navigation and ZIP invocation |
 | Plugins skills | Tree inspected | Import/install/detail/enable/remove dialogs |
 | Plugins MCP | Tree inspected | Enable/configuration/dialog flow |
@@ -62,9 +64,9 @@ Evidence date: 2026-09-08. Baseline: current `codex/accessibility` build before 
 | Settings environments | Tree inspected; A04 | Actions and keyboard reordering |
 | Settings provider | Tree inspected | Provider/model CRUD dialogs, connection checking |
 | Settings DeepChat agents | Tree inspected | Agent CRUD and tool/model settings |
-| Settings ACP | Enabled with Space; installed/custom entry controls inspected; A05 | Custom agent and registry dialogs |
+| Settings ACP | Enabled with Space; Add Custom Agent named dialog opened with Enter; Enabled switch unnamed; A05 | Registry dialog and persistence |
 | Settings dashboard alias | Verified redirect to overview usage | Same as overview |
-| Settings MCP (hidden) | Enabled with Space; server cards inspected; master and per-server switches unnamed | Server add/edit/tool controls |
+| Settings MCP (hidden) | Enabled with Space; server cards inspected; Add Server named dialog and JSON field verified; master/per-server switches unnamed | Manual server configuration and tool controls |
 | Settings OCR (hidden) | Tree inspected | Same as plugins OCR |
 | Settings toolchains | Tree inspected | Runtime action feedback |
 | Settings remote (hidden) | Tree inspected | Channel setup and secrets controls |
@@ -73,7 +75,7 @@ Evidence date: 2026-09-08. Baseline: current `codex/accessibility` build before 
 | Settings plugins (hidden) | Tree inspected | Plugin detail configuration |
 | Settings prompts | System/custom dialogs opened with Enter; named dialog/form inspected; A06/A16 | CRUD, parameter and attachment actions |
 | Settings memory | Tree inspected; A06 | Enable, memory/directive CRUD, diagnostics |
-| Settings knowledge base | RAGFlow expanded by keyboard through an unnamed wrapper button; config enable/edit/delete controls unnamed; A07 | All provider configuration dialogs |
+| Settings knowledge base | RAGFlow expanded via unnamed wrapper; named Add Configuration dialog and labels verified; config enable/edit/delete unnamed; A07 | Dify/FastGPT/built-in/Nowledge form journeys |
 | Settings data/privacy | Tree inspected; Set password and Reset Data dialogs opened with Enter; initial focus and Escape return verified; A08 | Sync, encryption persistence, import/export |
 | Settings shortcuts | Tree inspected; A09 | Shortcut capture/cancel/reset |
 | Settings about | Disclaimer opened with Enter; named dialog and Close focus verified; A06 | Update status |
@@ -99,4 +101,6 @@ A fresh isolated Electron run with a localhost SSE provider verified these final
 
 A 222-message fixture verifies Load earlier messages works with Enter and Space: the first loaded item advances from 123 to 023 and then to the original first message. Each action focuses the conversation region at the newly available history; the load control disappears when the history is exhausted. Resizing the viewport to 1180 × 760 after loading preserves item 023 at the top and does not resume following the bottom.
 
-A deterministic local streaming run also verifies a persistent polite, atomic status region changes from Running to Generation is complete without announcing each response token. The user and assistant content remain available in a named focusable conversation region.
+A deterministic local streaming run also verifies a persistent polite, atomic status region changes from Running to Generation is complete without announcing each response token. An HTTP 400 fixture produces Generation failed; activating Stop with Enter produces User canceled generation. The user and assistant content remain available in a named focusable conversation region.
+
+Only within the isolated Electron process, enabling its accessibility-support flag exposes all 200 headings of a completed long Markdown response and all 222 already loaded messages. This tests the app response to assistive-technology activation; it does not activate macOS VoiceOver or certify speech output.

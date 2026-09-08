@@ -49,6 +49,9 @@ export class DeviceService implements DeviceServicePort {
     }
 
     return {
+      // Electron cannot report assistive-technology detection on Linux.
+      accessibilitySupportEnabled:
+        process.platform === 'linux' || app.isAccessibilitySupportEnabled(),
       platform,
       arch: process.arch,
       cpuModel: os.cpus()[0].model,

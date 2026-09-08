@@ -61,13 +61,17 @@ function createStreamingAssistant(content = 'streaming', updatedAt = 200): Messa
   }
 }
 
-function createVirtualization(messages: ReturnType<typeof ref<MessageListItem[]>>) {
+function createVirtualization(
+  messages: ReturnType<typeof ref<MessageListItem[]>>,
+  disableWindowing = ref(false)
+) {
   const displayMessages = computed(() => messages.value)
   const messageWindow = useMessageWindow({ messages: displayMessages })
   const virtualization = useMessageVirtualization({
     viewport: ref(null),
     displayMessages,
     messageWindow,
+    disableWindowing,
     windowingThreshold: 160,
     initialWindowCount: 90,
     overscanPx: 2400,
@@ -93,6 +97,24 @@ describe('useMessageVirtualization', () => {
     expect(visible).toHaveLength(90)
     expect(visible[0]?.id).toBe('message-110')
     expect(visible.at(-1)?.id).toBe('message-199')
+  })
+
+  it('exposes every loaded message while assistive technology is active', () => {
+    const messages = ref<MessageListItem[]>(
+      Array.from({ length: 200 }, (_, index) => createUserMessage(`message-${index}`, index))
+    )
+    const accessibilityEnabled = ref(false)
+    const { virtualization } = createVirtualization(messages, accessibilityEnabled)
+
+    accessibilityEnabled.value = true
+    expect(virtualization.visibleDisplayMessages.value).toHaveLength(200)
+    expect(virtualization.visibleDisplayMessages.value[0]?.id).toBe('message-0')
+    expect(virtualization.visibleDisplayMessages.value.at(-1)?.id).toBe('message-199')
+    expect(virtualization.messageWindowBeforeHeight.value).toBe(0)
+    expect(virtualization.messageWindowAfterHeight.value).toBe(0)
+
+    accessibilityEnabled.value = false
+    expect(virtualization.visibleDisplayMessages.value).toHaveLength(90)
   })
 
   it('updates a streaming row in the window without expanding the mounted history', () => {
