@@ -7,6 +7,16 @@ import type { TypedEventHub } from './typedEventHub'
 
 const RUN_STREAM_EVENTS = new Set<DeepchatEventName>(SESSION_RUN_STREAM_EVENT_NAMES)
 
+// High-frequency per-token content events. For known local sessions these go to the
+// renderers actually bound to the session instead of every window/tab; renderers drop
+// stream events for non-active sessions anyway (see renderer messageIpc.ts).
+const RENDERER_BOUND_STREAM_EVENTS = new Set<DeepchatEventName>([
+  'chat.stream.updated',
+  'chat.stream.completed',
+  'chat.stream.failed',
+  'chat.plan.updated'
+])
+
 type SessionEventRouterOptions = Readonly<{
   hub: TypedEventHub
   // string: CLI run root; null: known renderer session; undefined: unknown/deleted session.
@@ -53,6 +63,17 @@ export class SessionEventRouter {
       runId === undefined ? [sessionId] : []
     )
     if (cliRunOwnership.length === 0 && unknownSessionIds.length === 0) {
+      if (RENDERER_BOUND_STREAM_EVENTS.has(name)) {
+        const rendererIds = this.boundRendererIdsFor(sessionIds)
+        if (rendererIds.size > 0) {
+          for (const webContentsId of rendererIds) {
+            this.options.hub.publish(name, payload, { kind: 'renderer', webContentsId })
+          }
+          return
+        }
+        // No renderer is bound yet: keep the broadcast fallback so early stream
+        // events still reach whatever window owns the session.
+      }
       this.options.hub.publish(name, payload, { kind: 'renderer-all' })
       return
     }
@@ -114,15 +135,18 @@ export class SessionEventRouter {
     }
   }
 
+  private boundRendererIdsFor(sessionIds: readonly string[]): Set<number> {
+    return new Set(
+      sessionIds.flatMap((sessionId) => [...this.options.getBoundRendererIds(sessionId)])
+    )
+  }
+
   private publishToBoundRenderers(
     name: DeepchatEventName,
     payload: unknown,
     sessionIds: readonly string[]
   ): void {
-    const rendererIds = new Set(
-      sessionIds.flatMap((sessionId) => [...this.options.getBoundRendererIds(sessionId)])
-    )
-    for (const webContentsId of rendererIds) {
+    for (const webContentsId of this.boundRendererIdsFor(sessionIds)) {
       this.options.hub.publish(name, payload, { kind: 'renderer', webContentsId })
     }
   }

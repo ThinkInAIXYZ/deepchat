@@ -291,6 +291,52 @@ describe('SessionEventRouter', () => {
     })
   })
 
+  it('delivers local session stream events to bound renderers without broadcasting', () => {
+    const { hub, broadcast, send } = createHub()
+    const router = new SessionEventRouter({
+      hub,
+      resolveSessionRunId: () => null,
+      getBoundRendererIds: (sessionId) => (sessionId === 'session-1' ? [7] : [])
+    })
+
+    const payload = {
+      kind: 'snapshot',
+      requestId: 'request-1',
+      sessionId: 'session-1',
+      messageId: 'message-1',
+      updatedAt: 123,
+      blocks: []
+    }
+    router.publish('chat.stream.updated', payload)
+
+    expect(broadcast).not.toHaveBeenCalled()
+    expect(send).toHaveBeenCalledWith(7, {
+      name: 'chat.stream.updated',
+      payload
+    })
+  })
+
+  it('falls back to all-window broadcast when a local stream event has no bound renderer', () => {
+    const { hub, broadcast, send } = createHub()
+    const router = new SessionEventRouter({
+      hub,
+      resolveSessionRunId: () => null,
+      getBoundRendererIds: () => []
+    })
+
+    router.publish('chat.stream.updated', {
+      kind: 'snapshot',
+      requestId: 'request-1',
+      sessionId: 'session-1',
+      messageId: 'message-1',
+      updatedAt: 123,
+      blocks: []
+    })
+
+    expect(broadcast).toHaveBeenCalledTimes(1)
+    expect(send).not.toHaveBeenCalled()
+  })
+
   it('keeps CLI runs discoverable without broadcasting their transcript content', () => {
     const { hub, broadcast, send } = createHub()
     const router = new SessionEventRouter({

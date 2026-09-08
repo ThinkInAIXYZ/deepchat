@@ -349,30 +349,40 @@ export class WindowPresenter implements IWindowPresenter {
    */
   async sendToAllWindows(channel: string, ...args: unknown[]): Promise<void> {
     // 遍历 Map 的值副本，避免迭代过程中 Map 被修改
+    const tabDeliveries: Promise<void>[] = []
     for (const window of Array.from(this.windows.values())) {
       if (!window.isDestroyed()) {
         // 向窗口主 WebContents 发送
         this.sendToWebContentsTarget(window.webContents, channel, args)
 
         // 向窗口内所有标签页的 WebContents 发送 (异步执行)
-        try {
-          const tabPresenterInstance = this.tabPresenter
-          const tabsData = await tabPresenterInstance.getWindowTabsData(window.id)
-          if (tabsData && tabsData.length > 0) {
-            for (const tabData of tabsData) {
-              const tab = await tabPresenterInstance.getTab(tabData.id)
-              if (tab && !tab.webContents.isDestroyed()) {
-                this.sendToWebContentsTarget(tab.webContents, channel, args)
-              }
+        tabDeliveries.push(
+          (async () => {
+            const tabPresenterInstance = this.tabPresenter
+            const tabsData = await tabPresenterInstance.getWindowTabsData(window.id)
+            if (tabsData && tabsData.length > 0) {
+              await Promise.all(
+                tabsData.map(async (tabData) => {
+                  const tab = await tabPresenterInstance.getTab(tabData.id)
+                  if (tab && !tab.webContents.isDestroyed()) {
+                    this.sendToWebContentsTarget(tab.webContents, channel, args)
+                  }
+                })
+              )
             }
-          }
-        } catch (error) {
-          console.error(`Error sending message "${channel}" to tabs of window ${window.id}:`, error)
-        }
+          })().catch((error) => {
+            console.error(
+              `Error sending message "${channel}" to tabs of window ${window.id}:`,
+              error
+            )
+          })
+        )
       } else {
         console.warn(`Skipping sending message "${channel}" to destroyed window ${window.id}.`)
       }
     }
+
+    await Promise.all(tabDeliveries)
 
     if (this.settingsWindow && !this.settingsWindow.isDestroyed()) {
       try {

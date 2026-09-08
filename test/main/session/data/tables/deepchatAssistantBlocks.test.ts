@@ -179,6 +179,41 @@ describeIfSqlite('DeepChatAssistantBlocksTable MCP App source binding', () => {
 })
 
 describeIfSqlite('DeepChatAssistantBlocksTable provider replay persistence', () => {
+  it('replaces rows incrementally: appends, updates, and prunes stale indexes', () => {
+    const db = new DatabaseCtor(':memory:')
+    const table = new DeepChatAssistantBlocksTableCtor(db)
+    table.createTable()
+
+    // First streaming flush: one content block.
+    table.replaceForMessage('message-1', [
+      { id: 'block-1', type: 'content', content: 'Hello', status: 'pending', timestamp: 100 }
+    ])
+    // Growing stream: tail grows, new block appended.
+    table.replaceForMessage('message-1', [
+      { id: 'block-1', type: 'content', content: 'Hello world', status: 'pending', timestamp: 100 },
+      { id: 'block-2', type: 'content', content: 'Tail', status: 'pending', timestamp: 110 }
+    ])
+
+    let rows = table.listByMessageId('message-1')
+    expect(rows.map((row) => row.block_index)).toEqual([0, 1])
+    expect(rows[0]?.text_content).toBe('Hello world')
+    expect(rows[1]?.text_content).toBe('Tail')
+
+    // Regenerated shorter content: stale indexes must disappear.
+    table.replaceForMessage('message-1', [
+      { id: 'block-1', type: 'content', content: 'Reset', status: 'pending', timestamp: 120 }
+    ])
+    rows = table.listByMessageId('message-1')
+    expect(rows.map((row) => row.block_index)).toEqual([0])
+    expect(rows[0]?.text_content).toBe('Reset')
+
+    // Cleared placeholder: all rows removed.
+    table.replaceForMessage('message-1', [])
+    expect(table.listByMessageId('message-1')).toEqual([])
+
+    db.close()
+  })
+
   it('round-trips an opaque replay envelope through extra_json into the real projector', () => {
     const db = new DatabaseCtor(':memory:')
     const table = new DeepChatAssistantBlocksTableCtor(db)
