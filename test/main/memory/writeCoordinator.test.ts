@@ -13,7 +13,7 @@ import {
   makePresenter,
   textToVector
 } from './support/memoryFakes'
-import { makeLLMPresenter, routedLLM, seedEmbedded } from './serviceTestSupport'
+import { decisionCalls, makeLLMPresenter, routedLLM, seedEmbedded } from './serviceTestSupport'
 
 import { MemoryService, embeddingDimensions, waitForMemoryCondition } from './serviceTestSupport'
 
@@ -1225,6 +1225,26 @@ describe('rememberMemory decision-ring contracts', () => {
     expect(repo.getById(createdId)?.source_session).toBe('session-1')
   })
 
+  it('fails closed when the journal boundary throws on the decision ring', async () => {
+    const generateText = routedLLM({ decision: addDecision })
+    const { presenter, repo } = makeLLMPresenter(generateText)
+    await seedEmbedded(presenter, 'user likes redis')
+    const journalError = new Error('journal unavailable')
+
+    await expect(
+      presenter.rememberMemory(
+        { kind: 'semantic', content: 'user prefers redis for caching' },
+        { agentId: 'a' },
+        model,
+        () => {
+          throw journalError
+        }
+      )
+    ).rejects.toBe(journalError)
+
+    expect(repo.countByAgent('a')).toBe(1)
+  })
+
   it('SUPERSEDE keeps the superseded claim and records the derivation edge', async () => {
     const generateText = routedLLM({
       decision: '{"decision":"SUPERSEDE","targetIndex":0,"mergedContent":"user moved to Shanghai"}'
@@ -1253,15 +1273,16 @@ describe('rememberMemory decision-ring contracts', () => {
     ])
   })
 
-  it('extractAndStore reports a forgotten candidate as a no-op without recreating the claim', async () => {
+  it('extractAndStore settles a forgotten candidate before recall or the decision model', async () => {
     const content = 'user prefers explicit recovery'
     const generateText = routedLLM({
       extraction: `[{"kind":"semantic","content":"${content}","importance":0.8}]`,
       decision: addDecision
     })
-    const { presenter, repo } = makeLLMPresenter(generateText)
+    const { presenter, repo, getEmbeddings } = makeLLMPresenter(generateText)
     const forgottenId = await seedEmbedded(presenter, content)
     await presenter.deleteMemory('a', forgottenId)
+    getEmbeddings.mockClear()
 
     const result = await presenter.extractAndStore({
       agentId: 'a',
@@ -1271,5 +1292,43 @@ describe('rememberMemory decision-ring contracts', () => {
 
     expect(result).toEqual({ ok: true, createdIds: [] })
     expect(repo.countByAgent('a')).toBe(0)
+    expect(decisionCalls(generateText)).toBe(0)
+    expect(getEmbeddings).not.toHaveBeenCalled()
+  })
+
+  it('reuses the query vector instead of re-embedding when a stale decision is retried', async () => {
+    let targetId = ''
+    let decisionCallCount = 0
+    const generateText = vi.fn(async (_providerId: string, _modelId: string, prompt: string) => {
+      if (!prompt.includes('Choose exactly ONE decision')) return ''
+      decisionCallCount += 1
+      if (decisionCallCount === 1) {
+        // Another writer bumps the target revision while the model is deciding.
+        repo.updateUserMetadataIfRevision({
+          agentId: 'a',
+          id: targetId,
+          expectedRevision: repo.getById(targetId)!.decision_revision,
+          importance: 0.7
+        })
+      }
+      return '{"decision":"UPDATE","targetIndex":0,"mergedContent":"user prefers redis"}'
+    })
+    const { presenter, repo, getEmbeddings } = makeLLMPresenter(generateText)
+    targetId = await seedEmbedded(presenter, 'user likes redis')
+    getEmbeddings.mockClear()
+
+    const outcome = await presenter.rememberMemory(
+      { kind: 'semantic', content: 'user changed redis preference' },
+      { agentId: 'a' },
+      model
+    )
+
+    expect(outcome).toEqual({ action: 'updated', id: targetId })
+    expect(decisionCallCount).toBe(2)
+    const candidateEmbeddingCalls = getEmbeddings.mock.calls.filter(([, , texts]) =>
+      texts.includes('user changed redis preference')
+    )
+    expect(candidateEmbeddingCalls).toHaveLength(1)
+    expect(repo.getById(targetId)?.content).toBe('user prefers redis')
   })
 })

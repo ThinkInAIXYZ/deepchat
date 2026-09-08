@@ -246,22 +246,6 @@ export class RetrievalService {
     })
   }
 
-  async retrieveForDecision(
-    agentId: string,
-    query: string,
-    now: number,
-    scopeFilter: readonly MemoryScope[] = AGENT_MEMORY_AGENT_SCOPE_FILTER
-  ): Promise<MemoryRecallItem[]> {
-    return this.retrieve(agentId, query, now, false, {
-      purpose: 'decision',
-      keywordQuery: this.buildAgentFacingRecallKeywordQuery(query),
-      keywordMatchMode: 'any',
-      enableInlinePrune: false,
-      excludeConflictParticipants: true,
-      scopeFilter
-    })
-  }
-
   async retrieveForDecisions(
     agentId: string,
     candidates: readonly NormalizedMemoryCandidate[],
@@ -332,35 +316,6 @@ export class RetrievalService {
           ? Array.from(snapshot.vector)
           : undefined
       })
-      // A supplied vector array is a retry snapshot. Undefined slots stay FTS-only so contention
-      // never performs a second embedding provider call after the first attempt failed or omitted one.
-      if (currentEmbedding && queryVectors === undefined) {
-        const missingIndexes = vectors
-          .map((vector, index) => (vector ? -1 : index))
-          .filter((index) => index >= 0)
-        if (missingIndexes.length) {
-          try {
-            const embeddingStartedAt = performance.now()
-            activeStage = 'queryEmbedding'
-            const embedded = await this.ports.embeddingGateway.getEmbeddings(
-              agentId,
-              currentEmbedding.providerId,
-              currentEmbedding.modelId,
-              missingIndexes.map((index) => candidates[index].content),
-              'query-embedding'
-            )
-            missingIndexes.forEach((candidateIndex, embeddedIndex) => {
-              const vector = embedded[embeddedIndex]
-              if (vector?.length) vectors[candidateIndex] = vector
-            })
-            latencyMs.queryEmbedding = performance.now() - embeddingStartedAt
-          } catch (error) {
-            degradations.add('embeddingError')
-            logger.warn(`[Memory] batch query embedding failed for ${agentId}: ${String(error)}`)
-          }
-        }
-      }
-
       const vectorMatches: Array<Array<{ memoryId: string; similarity: number }>> = candidates.map(
         () => []
       )
@@ -378,6 +333,37 @@ export class RetrievalService {
             })
           this.ports.warmEmbeddingConnection(agentId, currentEmbedding)
         } else {
+          // Query embeddings are only worth a provider round trip once the store can answer. A
+          // supplied vector array is a retry snapshot: undefined slots stay FTS-only so contention
+          // never performs a second embedding call after the first attempt failed or omitted one.
+          if (queryVectors === undefined) {
+            const missingIndexes = vectors
+              .map((vector, index) => (vector ? -1 : index))
+              .filter((index) => index >= 0)
+            if (missingIndexes.length) {
+              try {
+                const embeddingStartedAt = performance.now()
+                activeStage = 'queryEmbedding'
+                const embedded = await this.ports.embeddingGateway.getEmbeddings(
+                  agentId,
+                  currentEmbedding.providerId,
+                  currentEmbedding.modelId,
+                  missingIndexes.map((index) => candidates[index].content),
+                  'query-embedding'
+                )
+                missingIndexes.forEach((candidateIndex, embeddedIndex) => {
+                  const vector = embedded[embeddedIndex]
+                  if (vector?.length) vectors[candidateIndex] = vector
+                })
+                latencyMs.queryEmbedding = performance.now() - embeddingStartedAt
+              } catch (error) {
+                degradations.add('embeddingError')
+                logger.warn(
+                  `[Memory] batch query embedding failed for ${agentId}: ${String(error)}`
+                )
+              }
+            }
+          }
           const dimensions = vectors.find((vector) => vector?.length)?.length ?? 0
           const queryIndexes = vectors
             .map((vector, index) => (vector?.length === dimensions ? index : -1))
@@ -612,7 +598,6 @@ export class RetrievalService {
       keywordMatchMode?: 'all' | 'any'
       topKOverride?: number
       enableInlinePrune?: boolean
-      excludeConflictParticipants?: boolean
       degradationCollector?: Set<MemoryRetrievalDegradationCause>
       signal?: AbortSignal
       scopeFilter?: readonly MemoryScope[]
@@ -834,9 +819,7 @@ export class RetrievalService {
         outcome = 'cancelled'
         return []
       }
-      const isEligibleRow = options.excludeConflictParticipants
-        ? isLiveDecisionRow
-        : isLiveRecallRow
+      const isEligibleRow = isLiveRecallRow
       const suppressionPolicy = directiveSuppressionApplies
         ? createMemoryTopicSuppressionPolicy(suppressionTopics)
         : null

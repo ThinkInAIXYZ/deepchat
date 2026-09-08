@@ -319,8 +319,6 @@ export class MemoryService implements MemoryRuntimePort {
       policy,
       textGeneration: providerGateway,
       rows: this.rows,
-      retrieveForDecision: (agentId, query, now, scopeFilter) =>
-        this.retrieval.retrieveForDecision(agentId, query, now, scopeFilter),
       retrieveForDecisions: (
         agentId,
         candidates,
