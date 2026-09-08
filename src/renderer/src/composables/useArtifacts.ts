@@ -89,6 +89,31 @@ export function extractArtifactsFromContent(
     }))
 }
 
+/**
+ * Block-reference memo for artifact extraction. The message store reuses block
+ * object references for settled blocks (reuseStableAssistantBlocks in
+ * stores/ui/message.ts), so a per-stream-chunk rescan only re-extracts blocks
+ * whose reference actually changed — typically the streaming tail. A status
+ * change always yields a new block object, so status is covered by the key.
+ * Returned arrays are shared between callers and must not be mutated.
+ */
+const artifactExtractionCache = new WeakMap<
+  DisplayAssistantMessageBlock,
+  readonly ParsedArtifactPart[]
+>()
+
+export function extractArtifactsFromBlock(
+  block: DisplayAssistantMessageBlock
+): readonly ParsedArtifactPart[] {
+  const cached = artifactExtractionCache.get(block)
+  if (cached) {
+    return cached
+  }
+  const result = Object.freeze(extractArtifactsFromContent(block.content ?? '', block.status))
+  artifactExtractionCache.set(block, result)
+  return result
+}
+
 // Precompiled once — never construct RegExp inside the scan loop.
 const ATTRIBUTE_REGEX = /(\w+)="([^"]*)"/g
 const THINKING_CLOSED_RE = /<antThinking>(.*?)<\/antThinking>/s

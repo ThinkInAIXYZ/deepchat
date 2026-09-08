@@ -196,7 +196,7 @@ import { useI18n } from 'vue-i18n'
 import { createFileClient } from '@api/FileClient'
 import { createProjectClient } from '@api/ProjectClient'
 import { createWorkspaceClient } from '@api/WorkspaceClient'
-import { extractArtifactsFromContent } from '@/composables/useArtifacts'
+import { extractArtifactsFromBlock } from '@/composables/useArtifacts'
 import WorkspaceFileNode from '@/components/workspace/WorkspaceFileNode.vue'
 import LiveDelegationPanel from './LiveDelegationPanel.vue'
 import WorkspaceViewer from './WorkspaceViewer.vue'
@@ -279,7 +279,7 @@ const artifactItems = computed<ArtifactItem[]>(() => {
     }
 
     for (const block of messageStore.getAssistantMessageBlocks(message)) {
-      for (const artifact of extractArtifactsFromContent(block.content ?? '', block.status)) {
+      for (const artifact of extractArtifactsFromBlock(block)) {
         items.push({
           key: `${message.id}:${artifact.identifier}`,
           threadId: props.sessionId,
