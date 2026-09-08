@@ -21,7 +21,8 @@ export const SUPPORTED_LOCALES = [
   'it-IT',
   'pl-PL',
   'vi-VN',
-  'bo-CN'
+  'bo-CN',
+  'ug-CN'
 ] as const
 
 export type SupportedLocale = (typeof SUPPORTED_LOCALES)[number]
@@ -51,7 +52,8 @@ export const LOCALE_DISPLAY_NAMES = {
   'it-IT': 'Italiano',
   'pl-PL': 'Polski',
   'vi-VN': 'Tiếng Việt',
-  'bo-CN': 'བོད་ཡིག'
+  'bo-CN': 'བོད་ཡིག',
+  'ug-CN': 'ئۇيغۇرچە'
 } as const satisfies Record<SupportedLocale, string>
 
 const localeLookup = new Map<string, SupportedLocale>(
@@ -77,10 +79,11 @@ const languageFallbacks: Readonly<Record<string, SupportedLocale>> = {
   it: 'it-IT',
   pl: 'pl-PL',
   vi: 'vi-VN',
-  bo: 'bo-CN'
+  bo: 'bo-CN',
+  ug: 'ug-CN'
 }
 
-const rtlLocales = new Set<SupportedLocale>(['fa-IR', 'he-IL'])
+const rtlLocales = new Set<SupportedLocale>(['fa-IR', 'he-IL', 'ug-CN'])
 
 const resolveChineseLocale = (subtags: readonly string[]): SupportedLocale => {
   const subtagSet = new Set(subtags)

@@ -34,7 +34,7 @@ describe('renderer locale loading', () => {
     expect(await firstLoad).toHaveProperty('common')
   })
 
-  it.each(['bo-CN'])('loads %s and interpolates translated messages', async (locale) => {
+  it.each(['bo-CN', 'ug-CN'])('loads %s and interpolates translated messages', async (locale) => {
     const messages = await loadLocaleMessages(locale)
     const { i18n } = await createRendererI18n({
       getLanguageState: async () => ({

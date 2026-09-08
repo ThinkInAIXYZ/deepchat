@@ -34,7 +34,8 @@ const localeLoaders: Record<SupportedLocale, LocaleLoader> = {
   'it-IT': () => import('./it-IT'),
   'pl-PL': () => import('./pl-PL'),
   'vi-VN': () => import('./vi-VN'),
-  'bo-CN': () => import('./bo-CN')
+  'bo-CN': () => import('./bo-CN'),
+  'ug-CN': () => import('./ug-CN')
 }
 
 const localeMessagePromises = new Map<SupportedLocale, Promise<RendererLocaleMessages>>()

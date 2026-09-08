@@ -20,6 +20,8 @@ describe('shared locale manifest', () => {
     expect(resolveSupportedLocale('de-AT')).toBe('de-DE')
     expect(resolveSupportedLocale('bo_CN')).toBe('bo-CN')
     expect(resolveSupportedLocale('bo-Tibt-CN')).toBe('bo-CN')
+    expect(resolveSupportedLocale('ug_CN')).toBe('ug-CN')
+    expect(resolveSupportedLocale('ug-Arab-CN')).toBe('ug-CN')
     expect(resolveSupportedLocale('unknown')).toBe(FALLBACK_LOCALE)
   })
 
@@ -30,6 +32,7 @@ describe('shared locale manifest', () => {
     expect(getLocaleDirection('he')).toBe('rtl')
     expect(getLocaleDirection('en-US')).toBe('auto')
     expect(getLocaleDirection('bo')).toBe('auto')
+    expect(getLocaleDirection('ug')).toBe('rtl')
   })
 
   it('only exposes native translation maps for supported locales', () => {
@@ -42,7 +45,7 @@ describe('shared locale manifest', () => {
 })
 
 describe('native menu translations', () => {
-  it.each(['bo-CN'] as const)('provides every native menu label for %s', (locale) => {
+  it.each(['bo-CN', 'ug-CN'] as const)('provides every native menu label for %s', (locale) => {
     expect(Object.keys(contextMenuTranslations[locale] ?? {}).sort()).toEqual(
       Object.keys(contextMenuTranslations['en-US']).sort()
     )
