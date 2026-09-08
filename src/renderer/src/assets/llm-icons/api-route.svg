@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="API Route">
+  <rect x="5" y="5" width="118" height="118" rx="31" fill="#fffaf5" stroke="#d97852" stroke-width="7"/>
+  <circle cx="29" cy="64" r="12" fill="#e77d56"/>
+  <path d="M43 64h15m0 0 24-25m-24 25 24 25" fill="none" stroke="#31251e" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="91" cy="34" r="10" fill="#fffaf5" stroke="#31251e" stroke-width="6"/>
+  <circle cx="91" cy="94" r="10" fill="#fffaf5" stroke="#31251e" stroke-width="6"/>
+  <circle cx="86" cy="64" r="4" fill="#d97852"/>
+  <circle cx="101" cy="64" r="4" fill="#d97852"/>
+  <circle cx="116" cy="64" r="4" fill="#d97852"/>
+</svg>

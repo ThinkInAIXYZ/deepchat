@@ -32,6 +32,21 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
     }
   },
   {
+    id: 'api-route',
+    name: 'API Route',
+    apiType: 'openai-completions',
+    apiKey: '',
+    baseUrl: 'https://global.api-route.com/v1',
+    enable: false,
+    websites: {
+      official: 'https://www.api-route.com/',
+      apiKey: 'https://www.api-route.com/api-keys',
+      docs: 'https://www.api-route.com/docs/quickstart',
+      models: 'https://www.api-route.com/pricing',
+      defaultBaseUrl: 'https://global.api-route.com/v1'
+    }
+  },
+  {
     id: 'runinfra',
     name: 'RunInfra',
     apiType: 'openai-completions',
