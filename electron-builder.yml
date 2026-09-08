@@ -130,6 +130,9 @@ dmg:
   sign: true
   writeUpdateInfo: false
 linux:
+  # 内部二进制标识保持 deepchat：afterPack 的启动包装脚本按此名重写入口；
+  # app-builder-lib 默认取 productName 小写，OEM 改名后必须显式钉回
+  executableName: deepchat
   target:
     - AppImage
     - tar.gz

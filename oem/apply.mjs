@@ -167,6 +167,15 @@ editFile('electron-builder.yml', [
   { re: /^appId: (?:com\.wefonk\.deepchat|com\.mioagent\.app|com\.mioclaw\.app)$/m, new: `appId: ${cfg.appId}`, must: true, okIf: `appId: ${cfg.appId}` },
   { re: /^productName: (?:DeepChat|MioAgent|MioClaw)$/m, new: `productName: ${cfg.productName}`, must: true, okIf: `productName: ${cfg.productName}` },
   { re: /^  executableName: (?:DeepChat|MioAgent|MioClaw|MioWork)$/m, new: `  executableName: ${cfg.winExecutableName}`, okIf: `  executableName: ${cfg.winExecutableName}` },
+  // Linux 主二进制名必须钉回内部标识 deepchat：app-builder-lib 默认取 productName 小写，
+  // 而 afterPack 的 LINUX_APP_NAME 启动包装合同按 deepchat 命名——上游 productName 恰为
+  // DeepChat 所以从不显式声明，OEM 改名后缺此行 Linux 打包必挂（ENOENT rename deepchat）
+  {
+    re: /^(linux:\n)(  target:)/m,
+    new: '$1  executableName: deepchat\n$2',
+    must: true,
+    okIf: 'executableName: deepchat'
+  },
   { re: /^maintainer: (?:ThinkInAIXYZ|chenjiaqiangmax)$/m, new: `maintainer: ${cfg.maintainer}`, okIf: `maintainer: ${cfg.maintainer}` },
   {
     re: /publish:\n  provider: github\n  owner: (?:ThinkInAIXYZ|chenjiaqiangmax)\n  repo: (?:deepchat|mioagent|mioclaw)/,

@@ -217,5 +217,5 @@ jobs:
           name: miowork-linux-${{ matrix.arch }}
           path: |
             dist/*.AppImage
-            dist/*.deb
+            dist/*.tar.gz
           if-no-files-found: error
