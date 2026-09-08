@@ -16,6 +16,8 @@ const ftsPolicyModule = Database
 const AgentMemoryTable = tableModule?.AgentMemoryTable
 const buildPendingEmbeddingSelectSql = tableModule?.buildPendingEmbeddingSelectSql
 const buildScopedImportanceCandidatesSql = tableModule?.buildScopedImportanceCandidatesSql
+const buildWorkingCandidatesSelectSql = tableModule?.buildWorkingCandidatesSelectSql
+const buildFtsSearchSql = tableModule?.buildFtsSearchSql
 const AgentMemoryAuditTable = auditTableModule?.AgentMemoryAuditTable
 const agentFtsScope = ftsPolicyModule?.agentFtsScope
 const buildRecallablePredicate = ftsPolicyModule?.buildRecallablePredicate
@@ -28,6 +30,8 @@ const describeIfSqlite = nativeSqliteDescribeIf(
     AgentMemoryTable &&
     buildPendingEmbeddingSelectSql &&
     buildScopedImportanceCandidatesSql &&
+    buildWorkingCandidatesSelectSql &&
+    buildFtsSearchSql &&
     AgentMemoryAuditTable &&
     agentFtsScope &&
     buildRecallablePredicate &&
@@ -3322,6 +3326,19 @@ describeIfSqlite('AgentMemoryTable', () => {
         id: cursorRow.id
       })
       expect(secondPage.map((row) => row.id)).toEqual(['m2', 'm1'])
+
+      for (const hasCursor of [false, true]) {
+        const params = hasCursor
+          ? ['a', 0.9, 0.9, 1, 0.9, 1, 3000, 0.9, 1, 3000, 'm3', 2]
+          : ['a', 2]
+        const plan = db
+          .prepare(`EXPLAIN QUERY PLAN ${buildWorkingCandidatesSelectSql!(hasCursor)}`)
+          .all(...params) as Array<{ detail: string }>
+        expect(
+          plan.some((row) => row.detail.includes('idx_agent_memory_working_candidates_v1'))
+        ).toBe(true)
+        expect(plan.some((row) => row.detail.includes('TEMP B-TREE'))).toBe(false)
+      }
     } finally {
       db.close()
     }
@@ -3824,6 +3841,7 @@ describeIfSqlite('AgentMemoryTable FTS5 + migration', () => {
           kind TEXT NOT NULL,
           content TEXT NOT NULL,
           importance REAL NOT NULL DEFAULT 0.5,
+          access_count INTEGER NOT NULL DEFAULT 0,
           lifecycle_state TEXT NOT NULL DEFAULT 'active',
           superseded_by TEXT,
           created_at INTEGER NOT NULL
@@ -4351,6 +4369,107 @@ describeIfSqlite('AgentMemoryTable FTS5 + migration', () => {
     }
   })
 
+  it.each([
+    {
+      name: 'keeps the FTS index when a query fails on I/O pressure',
+      error: Object.assign(new Error('disk I/O error'), { code: 'SQLITE_IOERR' }),
+      rebuilds: false
+    },
+    {
+      name: 'rebuilds the FTS index when a query reports corruption',
+      error: Object.assign(new Error('database disk image is malformed'), {
+        code: 'SQLITE_CORRUPT_VTAB'
+      }),
+      rebuilds: true
+    }
+  ])('$name', ({ error, rebuilds }) => {
+    vi.useFakeTimers()
+    const db = new DatabaseCtor(':memory:')
+    try {
+      const table = new AgentMemoryTableCtor(db)
+      table.createTable()
+      table.insert({ id: 'm1', agentId: 'a', kind: 'semantic', content: 'redis fallback' })
+      if (!ftsActive(db)) return
+      const readMeta = () =>
+        db
+          .prepare(
+            `SELECT mutation_generation, indexed_generation
+             FROM agent_memory_fts_meta WHERE key = 'agent_memory_fts'`
+          )
+          .get() as { mutation_generation: number; indexed_generation: number }
+      const originalPrepare = db.prepare.bind(db)
+      const prepareSpy = vi.spyOn(db, 'prepare').mockImplementation((sql: string) => {
+        if (sql.includes('fts_hits')) throw error
+        return originalPrepare(sql)
+      })
+
+      const degraded = table.searchWithStrategy('a', 'redis', 20)
+      expect(degraded.strategy).toBe('like-fallback')
+      expect(degraded.rows.map((row) => row.id)).toEqual(['m1'])
+      const dirtyMeta = readMeta()
+      expect(dirtyMeta.mutation_generation > dirtyMeta.indexed_generation).toBe(rebuilds)
+
+      prepareSpy.mockRestore()
+      const execSpy = vi.spyOn(db, 'exec')
+      vi.advanceTimersByTime(30_001)
+      const recovered = table.searchWithStrategy('a', 'redis', 20)
+      expect(recovered.strategy).toBe('fts-only')
+      expect(recovered.rows.map((row) => row.id)).toEqual(['m1'])
+      const dropped = execSpy.mock.calls.some(([sql]) =>
+        String(sql).includes('DROP TABLE IF EXISTS agent_memory_fts;')
+      )
+      expect(dropped).toBe(rebuilds)
+      const recoveredMeta = readMeta()
+      expect(recoveredMeta.mutation_generation).toBe(recoveredMeta.indexed_generation)
+    } finally {
+      vi.useRealTimers()
+      db.close()
+    }
+  })
+
+  it('keeps the FTS mirror when recovery itself fails on I/O pressure', () => {
+    vi.useFakeTimers()
+    vi.stubEnv('DEEPCHAT_REQUIRE_NATIVE_SQLITE', '0')
+    const db = new DatabaseCtor(':memory:')
+    try {
+      const table = new AgentMemoryTableCtor(db)
+      table.createTable()
+      table.insert({ id: 'm1', agentId: 'a', kind: 'semantic', content: 'redis fallback' })
+      if (!ftsActive(db)) return
+      const ioError = Object.assign(new Error('disk I/O error'), { code: 'SQLITE_IOERR' })
+      const originalPrepare = db.prepare.bind(db)
+      let failing: 'query' | 'recovery' | 'none' = 'query'
+      vi.spyOn(db, 'prepare').mockImplementation((sql: string) => {
+        if (failing === 'query' && sql.includes('fts_hits')) throw ioError
+        if (failing === 'recovery' && sql.includes('INSERT INTO agent_memory_fts_meta')) {
+          throw ioError
+        }
+        return originalPrepare(sql)
+      })
+      const execSpy = vi.spyOn(db, 'exec')
+
+      expect(table.searchWithStrategy('a', 'redis', 20).strategy).toBe('like-fallback')
+
+      failing = 'recovery'
+      vi.advanceTimersByTime(30_001)
+      expect(table.searchWithStrategy('a', 'redis', 20).strategy).toBe('like-fallback')
+      expect(ftsActive(db)).toBe(true)
+
+      failing = 'none'
+      vi.advanceTimersByTime(30_001)
+      expect(table.searchWithStrategy('a', 'redis', 20)).toMatchObject({ strategy: 'fts-only' })
+      const executed = execSpy.mock.calls.map(([sql]) => String(sql))
+      expect(executed.some((sql) => sql.includes('DROP TABLE IF EXISTS agent_memory_fts;'))).toBe(
+        false
+      )
+      expect(executed.some((sql) => sql.includes('INSERT INTO agent_memory_fts(rowid'))).toBe(false)
+    } finally {
+      vi.unstubAllEnvs()
+      vi.useRealTimers()
+      db.close()
+    }
+  })
+
   it('drops a partial FTS build and fails open to one bounded LIKE query', () => {
     const db = new DatabaseCtor(':memory:')
     vi.stubEnv('DEEPCHAT_REQUIRE_NATIVE_SQLITE', '0')
@@ -4476,6 +4595,32 @@ describeIfSqlite('AgentMemoryTable FTS5 + migration', () => {
     }
   })
 
+  it('walks the FTS posting lists once for both recall legs', () => {
+    const db = new DatabaseCtor(':memory:')
+    try {
+      const table = new AgentMemoryTableCtor(db)
+      table.createTable()
+      table.insert({ id: 'm1', agentId: 'a', kind: 'semantic', content: 'redis setup notes' })
+      if (!ftsActive(db)) return
+
+      const query = buildFtsSearchSql!(
+        'a',
+        `content : ("redis") AND agent_id : "${agentFtsScope!('a')}"`,
+        2,
+        [{ type: 'agent' }]
+      )
+      expect(db.prepare(query.sql).all(...query.params)).toHaveLength(1)
+
+      const plan = db.prepare(`EXPLAIN QUERY PLAN ${query.sql}`).all(...query.params) as Array<{
+        detail: string
+      }>
+      const ftsScans = plan.filter((row) => row.detail.includes('agent_memory_fts VIRTUAL TABLE'))
+      expect(ftsScans).toHaveLength(1)
+    } finally {
+      db.close()
+    }
+  })
+
   it('applies multi-scope filtering to both lexical and importance FTS legs', () => {
     const db = new DatabaseCtor(':memory:')
     try {
@@ -4555,6 +4700,53 @@ describeIfSqlite('AgentMemoryTable FTS5 + migration', () => {
       expect(table.search('a', 'redis').map((row) => row.id)).toEqual(
         expect.arrayContaining(['emb', 'fts'])
       )
+    } finally {
+      db.close()
+    }
+  })
+
+  it('requeueReadyEmbeddingsByIds touches only the listed live ready rows', () => {
+    const db = new DatabaseCtor(':memory:')
+    try {
+      const table = new AgentMemoryTableCtor(db)
+      table.createTable()
+      const embedded = { embeddingId: 'v', embeddingDim: 3, embeddingModel: 'p:m' }
+      for (const id of ['keep', 'lost', 'other-agent-lost']) {
+        table.insert({
+          id,
+          agentId: id === 'other-agent-lost' ? 'b' : 'a',
+          kind: 'semantic',
+          content: `redis ${id}`
+        })
+        setTestMemoryStatus(db, table, id, 'embedded', embedded)
+      }
+      table.insert({ id: 'pending', agentId: 'a', kind: 'semantic', content: 'redis pending' })
+      const sup = table.insert({ id: 'sup', agentId: 'a', kind: 'semantic', content: 'redis old' })
+      setTestMemoryStatus(db, table, 'sup', 'embedded', embedded)
+      seedTestSupersession(db, sup.id, 'keep')
+      // A full-coverage id list travels as one JSON parameter, clear of the bound-parameter limit.
+      const noise = Array.from({ length: 40_000 }, (_, index) => `missing-${index}`)
+
+      const changed = table.requeueReadyEmbeddingsByIds('a', [
+        'lost',
+        'pending',
+        'sup',
+        'other-agent-lost',
+        ...noise
+      ])
+
+      expect(changed).toBe(1)
+      expect(table.getById('lost')).toMatchObject({
+        embedding_state: 'pending',
+        status: 'pending_embedding',
+        embedding_id: null,
+        embedding_dim: null,
+        embedding_model: null
+      })
+      expect(table.getById('keep')?.embedding_state).toBe('ready')
+      expect(table.getById('sup')?.embedding_state).toBe('ready')
+      expect(table.getById('other-agent-lost')?.embedding_state).toBe('ready')
+      expect(table.getById('pending')?.embedding_state).toBe('pending')
     } finally {
       db.close()
     }

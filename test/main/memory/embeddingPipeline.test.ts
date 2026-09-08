@@ -569,6 +569,47 @@ describe('MemoryService embedding reindex (T5, AC-3.x)', () => {
     expect(deleteSpy.mock.calls.every(([ids]) => ids.length <= 512)).toBe(true)
   })
 
+  it('requeues only the ready rows whose vectors are missing instead of rebuilding the store', async () => {
+    const { presenter, repo, store, getEmbeddings, resetVectorStore } = makePresenter(enabledConfig)
+    const ids = presenter.writeMemoriesSync(
+      [
+        { kind: 'semantic', content: 'redis alpha' },
+        { kind: 'semantic', content: 'redis beta' },
+        { kind: 'semantic', content: 'redis gamma' }
+      ],
+      { agentId: 'a' }
+    )
+    await presenter.processPendingEmbeddings('a')
+    const internals = memoryRuntimeForTests(presenter)
+    await presenter.recall('a', 'redis')
+    await waitForMemoryCondition(() => internals.isVectorReady('a'))
+
+    // Simulate a sidecar that lost one vector after the row was already marked ready.
+    store.vectors.delete(ids[1])
+    internals.vectorStoreService.clearReady('a')
+    const reindexSpy = vi.spyOn(presenter, 'reindexEmbeddings')
+    const resetCallsBefore = resetVectorStore.mock.calls.length
+    const embeddingCallsBefore = getEmbeddings.mock.calls.length
+
+    await presenter.recall('a', 'redis')
+    await waitForMemoryCondition(
+      () => store.vectors.has(ids[1]) && internals.isVectorReady('a'),
+      'missing vector was not re-embedded'
+    )
+
+    expect(reindexSpy).not.toHaveBeenCalled()
+    expect(resetVectorStore.mock.calls.length).toBe(resetCallsBefore)
+    const reEmbedded = getEmbeddings.mock.calls
+      .slice(embeddingCallsBefore)
+      .flatMap(([, , texts]) => texts)
+      .filter((text) => text !== 'memory warmup')
+    expect(reEmbedded).toEqual(['redis beta'])
+    expect(repo.getById(ids[0])?.embedding_state).toBe('ready')
+    expect(repo.getById(ids[1])?.embedding_state).toBe('ready')
+    expect(repo.getById(ids[2])?.embedding_state).toBe('ready')
+    expect(store.vectors.size).toBe(3)
+  })
+
   it('withholds readiness when coverage cleanup fails and retries on the next warm', async () => {
     const { presenter, store } = makePresenter(enabledConfig)
     store.vectors.set('orphan-0001', textToVector('orphan redis'))

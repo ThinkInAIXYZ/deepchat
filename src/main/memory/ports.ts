@@ -166,6 +166,8 @@ export interface MemoryEmbeddingRepositoryPort {
     limit?: number,
     afterId?: string | null
   ): number
+  /** Returns the listed rows that are still `ready` to `pending`, clearing their vector refs. */
+  requeueReadyEmbeddingsByIds(agentId: string, ids: readonly string[]): number
   listEmbeddingStateIds(
     agentId: string,
     states: AgentMemoryEmbeddingState[],

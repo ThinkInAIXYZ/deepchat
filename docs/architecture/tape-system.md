@@ -411,7 +411,9 @@ Subagent 使用独立 Session 和独立 Tape。完成后父 Session append 一�
 - child entries 不复制进父 Tape；
 - 只有显式授权的直接 child 可以跨 Tape 读取；missing、recreated 或 incarnation 不匹配必须 fail
   closed；
-- 非直接 child、未授权 Session 或递归 Subagent 不能通过 Tape tool 越权读取。
+- 非直接 child、未授权 Session 或递归 Subagent 不能通过 Tape tool 越权读取；
+- child Tape 只承载 Memory injection 的 `memory/view_assembled` anchor，不产生 `memory/extract`
+  anchor：Memory runtime 不从 Subagent 会话抽取事实，parent Tape 上的事实由 parent 会话自行抽取。
 
 Tape 没有 `fork/*` 写入方。v1.0.5–v1.0.9 的 Subagent 收尾曾在父 Tape 写 `fork/merge` /
 `fork/discard` 事件（provenance `fork:<parent>:<child>:external-merge|external-discard:event`），lineage

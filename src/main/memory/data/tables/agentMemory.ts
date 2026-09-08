@@ -435,6 +435,13 @@ const AGENT_MEMORY_SCOPE_INDEX_SQL = `
     WHERE lifecycle_state = 'active'
       AND superseded_by IS NULL
       AND kind NOT IN ('persona', 'working');
+  CREATE INDEX IF NOT EXISTS idx_agent_memory_working_candidates_v1
+    ON agent_memory(agent_id, importance DESC, access_count DESC, created_at DESC, id DESC)
+    WHERE lifecycle_state = 'active'
+      AND superseded_by IS NULL
+      AND scope_type = 'agent'
+      AND scope_id IS NULL
+      AND kind IN ('semantic', 'reflection', 'episodic');
 `
 
 function embeddingRefsState(
@@ -512,6 +519,120 @@ export function buildManagementPageSelectSql(hasCursor: boolean): string {
           LIMIT ?`
 }
 
+/**
+ * FTS recall runs the MATCH once and materializes the agent-scoped hits with their BM25 score. The
+ * lexical leg ranks those hits by score after the authoritative row filter; the importance leg
+ * intersects the same hits with the top importance candidates. Both legs used to repeat the MATCH,
+ * which walked the posting lists twice per recall.
+ */
+export function buildFtsSearchSql(
+  agentId: string,
+  match: string,
+  limit: number,
+  scopeFilter: readonly MemoryScope[]
+): { sql: string; params: unknown[] } {
+  const lexicalLimit = Math.min(MEMORY_RETRIEVAL_MAX_CANDIDATES, Math.max(1, limit))
+  const importanceCandidateLimit = Math.min(800, Math.max(64, limit * 8))
+  const scopePredicate = buildMemoryScopePredicateSql('am', scopeFilter)
+  const importanceCandidates = buildScopedImportanceCandidatesSql(
+    agentId,
+    scopeFilter,
+    importanceCandidateLimit
+  )
+  return {
+    sql: `WITH fts_hits AS MATERIALIZED (
+            SELECT rowid AS memory_rowid,
+                   bm25(agent_memory_fts, 1.0, 0.0) AS lexical_score
+            FROM agent_memory_fts
+            WHERE agent_memory_fts MATCH ?
+          ), lexical AS MATERIALIZED (
+            SELECT am.rowid AS memory_rowid,
+                   am.id,
+                   am.importance,
+                   am.created_at,
+                   hit.lexical_score
+            FROM fts_hits hit
+            CROSS JOIN agent_memory am NOT INDEXED
+            WHERE am.rowid = hit.memory_rowid
+              AND am.agent_id = ?
+              AND ${buildRecallablePredicate('am')}
+              AND ${scopePredicate.sql}
+            ORDER BY hit.lexical_score ASC,
+                     am.importance DESC,
+                     am.created_at DESC,
+                     am.id ASC
+            LIMIT ?
+          ), importance_candidates AS MATERIALIZED (
+            ${importanceCandidates.sql}
+          ), importance AS MATERIALIZED (
+            SELECT candidate.memory_rowid,
+                   candidate.id,
+                   candidate.importance,
+                   candidate.created_at
+            FROM importance_candidates candidate
+            WHERE EXISTS (
+              SELECT 1 FROM fts_hits hit WHERE hit.memory_rowid = candidate.memory_rowid
+            )
+            ORDER BY candidate.importance DESC,
+                     candidate.created_at DESC,
+                     candidate.id ASC
+            LIMIT ?
+          ), combined AS (
+            SELECT memory_rowid, 0 AS source_order, lexical_score, importance, created_at, id
+            FROM lexical
+            UNION ALL
+            SELECT importance.memory_rowid, 1, NULL, importance.importance,
+                   importance.created_at, importance.id
+            FROM importance
+            WHERE NOT EXISTS (
+              SELECT 1 FROM lexical WHERE lexical.memory_rowid = importance.memory_rowid
+            )
+          )
+          SELECT am.*
+          FROM combined
+          JOIN agent_memory am ON am.rowid = combined.memory_rowid
+          ORDER BY combined.source_order ASC,
+                   combined.lexical_score ASC,
+                   combined.importance DESC,
+                   combined.created_at DESC,
+                   combined.id ASC`,
+    params: [
+      match,
+      agentId,
+      ...scopePredicate.params,
+      lexicalLimit,
+      ...importanceCandidates.params,
+      limit
+    ]
+  }
+}
+
+/**
+ * Working-blob candidates in their stable ordering. The pinned partial index carries the same
+ * predicate and sort, so each page is an index range read rather than a sort of every active claim.
+ */
+export function buildWorkingCandidatesSelectSql(hasCursor: boolean): string {
+  const cursorPredicate = hasCursor
+    ? `AND (
+           importance < ?
+           OR (importance = ? AND access_count < ?)
+           OR (importance = ? AND access_count = ? AND created_at < ?)
+           OR (importance = ? AND access_count = ? AND created_at = ? AND id < ?)
+         )`
+    : ''
+  return `SELECT *
+          FROM agent_memory INDEXED BY idx_agent_memory_working_candidates_v1
+          WHERE agent_id = ?
+            AND scope_type = 'agent'
+            AND scope_id IS NULL
+            AND superseded_by IS NULL
+            AND lifecycle_state = 'active'
+            AND kind IN ('semantic', 'reflection', 'episodic')
+            ${cursorPredicate}
+          ORDER BY importance DESC, access_count DESC, created_at DESC, id DESC
+          LIMIT ?`
+}
+
 export function buildScopedImportanceCandidatesSql(
   agentId: string,
   scopeFilter: readonly MemoryScope[],
@@ -564,6 +685,18 @@ export function buildScopedImportanceCandidatesSql(
 function isTransientFtsError(error: unknown): boolean {
   const code = (error as { code?: string } | null)?.code
   return code === 'SQLITE_BUSY' || code === 'SQLITE_LOCKED' || code === 'SQLITE_INTERRUPT'
+}
+
+/**
+ * Query failures that prove the FTS mirror itself is unusable, as opposed to I/O, memory or disk
+ * pressure that would fail a rebuild just the same. Only these may mark the mirror dirty; other
+ * failures fall back to LIKE and re-validate the existing index after the recovery cooldown.
+ */
+function isFtsIndexBrokenError(error: unknown): boolean {
+  const code = String((error as { code?: string } | null)?.code ?? '')
+  if (code.startsWith('SQLITE_CORRUPT')) return true
+  const message = String((error as { message?: string } | null)?.message ?? '')
+  return /\bno such (?:table|column|module)\b|database disk image is malformed/i.test(message)
 }
 
 const AGENT_MEMORY_BASE_INDEX_SQL = `
@@ -1180,6 +1313,7 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
       'scope_type',
       'scope_id',
       'importance',
+      'access_count',
       'created_at',
       'id',
       'lifecycle_state',
@@ -1707,7 +1841,8 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
     for (const indexName of [
       'idx_agent_memory_derivation_child_v1',
       'idx_agent_memory_dirty_order_v1',
-      'idx_agent_memory_recall_scope_v6'
+      'idx_agent_memory_recall_scope_v6',
+      'idx_agent_memory_working_candidates_v1'
     ]) {
       if (
         !this.db
@@ -2222,9 +2357,14 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
       })()
       this.ftsReady = true
     } catch (error) {
-      try {
-        this.dropFtsIndex()
-      } catch {}
+      // The transaction already rolled back any partial build. Dropping the surviving mirror is
+      // only a repair when the mirror itself is broken; after I/O or disk pressure it would just
+      // force a full backfill on the recall path once the pressure clears.
+      if (isFtsIndexBrokenError(error)) {
+        try {
+          this.dropFtsIndex()
+        } catch {}
+      }
       this.ftsReady = false
       if (process.env.DEEPCHAT_REQUIRE_NATIVE_SQLITE === '1') throw error
     }
@@ -2869,14 +3009,17 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
 
     try {
       const match = this.buildFtsMatch(agentId, terms, matchMode)
+      const query = buildFtsSearchSql(agentId, match, cappedLimit, scopeFilter)
       return finish({
-        rows: this.searchFts(agentId, match, cappedLimit, scopeFilter),
+        rows: this.db.prepare(query.sql).all(...query.params) as AgentMemoryRow[],
         strategy: 'fts-only'
       })
     } catch (error) {
       if (!isTransientFtsError(error)) {
         this.ftsReady = false
-        this.markFtsDirty()
+        // A dirty generation makes the next recovery drop and backfill the whole mirror for every
+        // Agent, so reserve it for a mirror that is actually broken.
+        if (isFtsIndexBrokenError(error)) this.markFtsDirty()
       }
       return finish({
         rows: this.searchLike(agentId, terms, cappedLimit, matchMode, scopeFilter),
@@ -2893,99 +3036,6 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
     // Keep the selective content postings first. FTS5 evaluates the expression left-to-right for
     // this shape; leading with the per-agent scope would walk every row for a large single agent.
     return `content : (${contentMatch}) AND agent_id : "${agentFtsScope(agentId)}"`
-  }
-
-  private searchFts(
-    agentId: string,
-    match: string,
-    limit: number,
-    scopeFilter: readonly MemoryScope[] = AGENT_MEMORY_AGENT_SCOPE_FILTER
-  ): AgentMemoryRow[] {
-    const lexicalScanLimit = Math.min(MEMORY_RETRIEVAL_MAX_CANDIDATES, Math.max(1, limit))
-    const importanceCandidateLimit = Math.min(800, Math.max(64, limit * 8))
-    const scopePredicate = buildMemoryScopePredicateSql('am', scopeFilter)
-    const importanceCandidates = buildScopedImportanceCandidatesSql(
-      agentId,
-      scopeFilter,
-      importanceCandidateLimit
-    )
-    return this.db
-      .prepare(
-        `WITH lexical_hits AS MATERIALIZED (
-           SELECT am.rowid AS memory_rowid,
-                  am.id,
-                  am.importance,
-                  am.created_at,
-                  bm25(agent_memory_fts, 1.0, 0.0) AS lexical_score
-           FROM agent_memory_fts
-           CROSS JOIN agent_memory am NOT INDEXED
-           WHERE agent_memory_fts MATCH ?
-             AND am.rowid = agent_memory_fts.rowid
-             AND am.agent_id = ?
-             AND ${buildRecallablePredicate('am')}
-             AND ${scopePredicate.sql}
-           ORDER BY lexical_score ASC,
-                    am.importance DESC,
-                    am.created_at DESC,
-                    am.id ASC
-           LIMIT ?
-         ), lexical AS MATERIALIZED (
-           SELECT memory_rowid,
-                  id,
-                  importance,
-                  created_at,
-                  lexical_score
-           FROM lexical_hits
-           ORDER BY lexical_score ASC,
-                    importance DESC,
-                    created_at DESC,
-                    id ASC
-           LIMIT ?
-         ), importance_candidates AS MATERIALIZED (
-           ${importanceCandidates.sql}
-         ), importance AS MATERIALIZED (
-           SELECT candidate.memory_rowid,
-                  candidate.id,
-                  candidate.importance,
-                  candidate.created_at
-           FROM agent_memory_fts f
-           CROSS JOIN importance_candidates candidate
-           WHERE agent_memory_fts MATCH ?
-             AND f.rowid = candidate.memory_rowid
-           ORDER BY candidate.importance DESC,
-                    candidate.created_at DESC,
-                    candidate.id ASC
-           LIMIT ?
-         ), combined AS (
-           SELECT memory_rowid, 0 AS source_order, lexical_score, importance, created_at, id
-           FROM lexical
-           UNION ALL
-           SELECT importance.memory_rowid, 1, NULL, importance.importance,
-                  importance.created_at, importance.id
-           FROM importance
-           WHERE NOT EXISTS (
-             SELECT 1 FROM lexical WHERE lexical.memory_rowid = importance.memory_rowid
-           )
-         )
-         SELECT am.*
-         FROM combined
-         JOIN agent_memory am ON am.rowid = combined.memory_rowid
-         ORDER BY combined.source_order ASC,
-                  combined.lexical_score ASC,
-                  combined.importance DESC,
-                  combined.created_at DESC,
-                  combined.id ASC`
-      )
-      .all(
-        match,
-        agentId,
-        ...scopePredicate.params,
-        lexicalScanLimit,
-        limit,
-        ...importanceCandidates.params,
-        match,
-        limit
-      ) as AgentMemoryRow[]
   }
 
   private searchLike(
@@ -3566,6 +3616,26 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
       )
       .run(agentId, ...states)
     return result.changes
+  }
+
+  requeueReadyEmbeddingsByIds(agentId: string, ids: readonly string[]): number {
+    if (!ids.length) return 0
+    // One JSON parameter keeps a full-coverage id list clear of the bound-parameter limit.
+    return this.db
+      .prepare(
+        `UPDATE agent_memory
+         SET embedding_state = 'pending', status = 'pending_embedding',
+             embedding_id = NULL,
+             embedding_dim = NULL,
+             embedding_model = NULL
+         WHERE agent_id = ?
+           AND superseded_by IS NULL
+           AND kind NOT IN ('persona', 'working')
+           AND lifecycle_state = 'active'
+           AND embedding_state = 'ready'
+           AND id IN (SELECT value FROM json_each(?))`
+      )
+      .run(agentId, JSON.stringify(ids)).changes
   }
 
   listEmbeddingStateIds(
@@ -4932,14 +5002,6 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
   ): AgentMemoryRow[] {
     const cappedLimit = Math.max(0, Math.floor(limit))
     if (cappedLimit === 0) return []
-    const cursorSql = after
-      ? `AND (
-           importance < ?
-           OR (importance = ? AND access_count < ?)
-           OR (importance = ? AND access_count = ? AND created_at < ?)
-           OR (importance = ? AND access_count = ? AND created_at = ? AND id < ?)
-         )`
-      : ''
     const params: unknown[] = [agentId]
     if (after) {
       params.push(
@@ -4957,19 +5019,7 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
     }
     params.push(cappedLimit)
     return this.db
-      .prepare(
-        `SELECT *
-         FROM agent_memory
-         WHERE agent_id = ?
-           AND scope_type = 'agent'
-           AND scope_id IS NULL
-           AND superseded_by IS NULL
-           AND lifecycle_state = 'active'
-           AND kind IN ('semantic', 'reflection', 'episodic')
-           ${cursorSql}
-         ORDER BY importance DESC, access_count DESC, created_at DESC, id DESC
-         LIMIT ?`
-      )
+      .prepare(buildWorkingCandidatesSelectSql(after !== undefined))
       .all(...params) as AgentMemoryRow[]
   }
 

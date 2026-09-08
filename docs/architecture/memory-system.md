@@ -93,6 +93,11 @@ Memory contribution 必须等待到 soft deadline，成功时限制 token/字符
 文本、selection manifest 与成功持久化的 `memory/view_assembled` anchor ID；不能接收或重写 base
 system prompt。
 
+Query embedding 只送用户消息的前 2000 个 code point，deadline 由 provider gateway 单独持有：按同一
+provider/model 最近 warm-up 与 query 调用的平滑耗时乘以 headroom，夹在 800ms 下限与 2s 上限之间；
+一次 deadline miss 让下一次尝试放宽到上限，成功后回到观测值。Retrieval 不再叠加第二个 soft deadline，
+gateway 的 deadline 错误在 degradation 中归类为 `embeddingTimeout`。
+
 Warm recall 的 query embedding 按 Agent 与当前 provider/model identity 使用进程内有界熔断：短窗口内
 连续 deadline/transport failure 会临时跳过 vector path 并直接使用已生成的 FTS candidates；冷却后只
 允许一个 half-open probe，成功自动恢复。取消和本地 capacity rejection 不计 provider health failure；
@@ -152,6 +157,9 @@ terminal turn projection
 ```
 
 - terminal extraction 在后台运行，不延迟已完成回复；
+- Subagent 会话（`sessionKind: 'subagent'`）仍接收其 Agent 的 memory injection，但不进入 terminal 或
+  compaction extraction：子会话的 "user" turn 是 parent Agent 写下的任务描述，抽取会把 parent 的指令
+  当作用户事实；子任务的结论由 parent 会话从 parent Agent 的回复中抽取；
 - A fork keeps native `message/<role>` facts for its cloned messages. Its Memory cursor maps only
   the source's successfully extracted prefix onto the densely renumbered clone, excluding failed
   messages and compaction markers. Later terminal turns extract the unprocessed cloned tail and
@@ -214,7 +222,10 @@ lifecycle、persona、conflict、projection 和 maintenance 路径。每个同�
 tombstone 并删除 256 行，同时原子维护 FTS；batch 之间让出 event loop。最后一个 claim batch 删除
 derivation/dirty state 并进入 vector phase，vector cleanup 完成或被 vector manager 明确延后后才
 移除 job。进程中断时，已提交 batch 不回滚；下次启动从持久 phase 继续，期间 claim 始终不可见且
-SQLite trigger 拒绝 INSERT/UPDATE 逃逸。
+SQLite trigger 拒绝 INSERT/UPDATE 逃逸。vector reset 遇到非 quarantine 的失败时 clear 仍以 fail-open
+结束：manager 在进程内于下一次 lease 前重试 reset，不因此 fence 该 Agent 的后续写入。该重试是进程内
+状态；若重启后 sidecar 仍残留已清除 claim 的向量，它们没有 ready certificate 因而不会被 recall
+使用，并在首次 warm-up coverage 校验时作为 orphan 被批量删除。
 
 该操作保留 tombstone，防止既有 Tape replay 重新填充，并删除 factual claim、persona 和 working
 projection；它不删除 standing directive，directive trust plane 在清理期间仍可读取和管理。UI 必须

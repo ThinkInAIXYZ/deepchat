@@ -3214,7 +3214,7 @@
         "memory-reflect": "메모리 회고",
         "persona-evolve": "페르소나 진화",
         "memory-repair": "메모리 복구",
-        "memory-forget": "메모리 영구 삭제",
+        "memory-forget": "메모리 잊음 (보관됨, 복구 가능)",
         "memory-manual-edit": "메모리 편집됨",
         "memory-challenge-resolved": "충돌 해결됨",
         "memory-persona-approve": "페르소나 초안 승인됨",

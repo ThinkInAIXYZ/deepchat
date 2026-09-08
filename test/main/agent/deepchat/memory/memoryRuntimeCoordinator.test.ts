@@ -129,7 +129,10 @@ function createHarness() {
   const appendTapeAnchor = vi.fn(toTapeAnchorRow)
   const deps = {
     memoryPort: port as any,
-    identity: { getAgentId: vi.fn(() => 'agent-a') },
+    identity: {
+      getAgentId: vi.fn(() => 'agent-a'),
+      getSessionKind: vi.fn<() => 'regular' | 'subagent' | null>(() => 'regular')
+    },
     registry,
     getNextMessageOrderSeq: vi.fn(() => Math.max(0, ...rows.map((row) => row.orderSeq)) + 1),
     getMessagesUpToOrderSeq: vi.fn((_sessionId: string, orderSeq: number) =>
@@ -1075,6 +1078,57 @@ describe('MemoryRuntimeCoordinator', () => {
     expect(deps.getMemoryCursorOrderSeq).not.toHaveBeenCalled()
     await coordinator.waitForSession('s1')
     expect(port.extractAndStore).toHaveBeenCalledTimes(expectedExtraction ? 1 : 0)
+  })
+
+  it('never extracts from a Subagent session while still injecting Agent memory into it', async () => {
+    const { coordinator, deps, memorySession, port, setRows } = createHarness()
+    deps.identity.getSessionKind.mockReturnValue('subagent')
+    const observer: MemoryIngestionObserver = coordinator
+    setRows(
+      Array.from({ length: 6 }, (_, index) =>
+        createRecord(`u${index + 1}`, index + 1, `task step ${index + 1}`)
+      )
+    )
+
+    observer.afterTurnSettled({
+      session: memorySession,
+      origin: 'initial',
+      outcome: { kind: 'returned', status: 'completed' }
+    })
+    observer.afterCompactionApplyReturned({
+      session: memorySession,
+      origin: 'initial',
+      targetCursorOrderSeq: 4
+    })
+    await coordinator.waitForSession('s1')
+    expect(port.extractAndStore).not.toHaveBeenCalled()
+    expect(deps.updateMemoryCursorOrderSeq).not.toHaveBeenCalled()
+    expect(deps.appendTapeAnchor).not.toHaveBeenCalled()
+
+    port.buildInjection.mockResolvedValue({
+      payload: {
+        selfModel: null,
+        working: null,
+        memories: [{ id: 'selected', kind: 'semantic', content: 'Always use pnpm.' }]
+      },
+      manifest: {
+        policyVersion: 1,
+        selected: [{ id: 'selected', kind: 'semantic' }],
+        dropped: [],
+        tokenBudget: 1_200,
+        estimatedTokens: 20,
+        queryHash: 'query-hash'
+      }
+    })
+    const contribution = await coordinator.contribute({
+      session: memorySession,
+      query: 'install dependencies',
+      messageId: 'message-1'
+    })
+    expect(contribution.memory.content).toContain('Always use pnpm.')
+    expect(deps.appendTapeAnchor).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'memory/view_assembled' })
+    )
   })
 
   it.each(['initial', 'context-pressure'] as const)(

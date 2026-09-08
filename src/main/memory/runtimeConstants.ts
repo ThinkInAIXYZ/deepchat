@@ -67,7 +67,20 @@ export const MEMORY_HEALTH_AUDIT_SCAN_LIMIT = MEMORY_HEALTH_DEFAULT_AUDIT_SCAN_L
 export const MEMORY_HEALTH_RECENT_FAILURES_LIMIT = 5
 export const MEMORY_CREATED_IDS_EVENT_LIMIT = 50
 
+/**
+ * Recall embeds the user's message only to locate atomic claims, so the leading span carries the
+ * intent; capping it keeps the request inside every provider's input limit and bounds latency.
+ */
+export const RECALL_QUERY_EMBEDDING_MAX_CODE_POINTS = 2000
+/**
+ * The query embedding deadline adapts to the provider: twice the smoothed wall time of recent
+ * single-text embedding calls, never below the floor (fast providers keep today's behaviour) and
+ * never above the ceiling, which leaves the vector query its own 2s inside the 4s injection budget.
+ */
 export const RECALL_QUERY_EMBEDDING_TIMEOUT_MS = 800
+export const RECALL_QUERY_EMBEDDING_TIMEOUT_MAX_MS = 2000
+export const RECALL_QUERY_EMBEDDING_DEADLINE_HEADROOM = 2
+export const RECALL_QUERY_EMBEDDING_LATENCY_SMOOTHING = 0.5
 export const RECALL_QUERY_EMBEDDING_BREAKER_FAILURE_THRESHOLD = 2
 export const RECALL_QUERY_EMBEDDING_BREAKER_FAILURE_WINDOW_MS = 30 * 1000
 export const RECALL_QUERY_EMBEDDING_BREAKER_COOLDOWN_MS = 30 * 1000
