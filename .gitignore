@@ -25,3 +25,6 @@ plugins/*/runtime/**/*
 playwright-report/
 test-results/
 .deepchat/
+
+# tsc incremental build info
+*.tsbuildinfo
