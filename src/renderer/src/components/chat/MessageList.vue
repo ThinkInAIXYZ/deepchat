@@ -18,9 +18,9 @@
         :is-read-only="isReadOnly"
         :allow-guard-stop-continue="item.id === latestAssistantMessageId"
         :disable-markdown-virtualization="shouldDisableMarkdownVirtualization"
-        :class="{ 'message-row-entrance': shouldAnimateEntrance(item) }"
+        :class="entranceClassFor(item)"
         :data-entrance-feedback="shouldAnimateEntrance(item) || undefined"
-        @animationend="onEntranceAnimationEnd(item, $event)"
+        @animationend="onRowAnimationEnd"
         @retry="onRetry"
         @delete="onDelete"
         @fork="onFork"
@@ -154,9 +154,21 @@ watch(
 
 const shouldAnimateEntrance = (item: MessageListItem) => animatingMessageIds.value.has(item.id)
 
-const onEntranceAnimationEnd = (item: MessageListItem, event: AnimationEvent) => {
-  if (event.target === event.currentTarget) {
-    animatingMessageIds.value.delete(item.id)
+// Stable string (not an object literal) so MessageListRow's props stay
+// referentially equal across parent re-renders and rows bail out of updates.
+const entranceClassFor = (item: MessageListItem) =>
+  shouldAnimateEntrance(item) ? 'message-row-entrance' : ''
+
+// Stable handler (no per-item closure): the row root carries data-message-id,
+// so the listener can resolve the message from the event itself. Inline
+// per-item handlers create a fresh function each render, which defeats the
+// MessageListRow props bailout and re-patches every mounted row per stream
+// chunk.
+const onRowAnimationEnd = (event: AnimationEvent) => {
+  if (event.target !== event.currentTarget) return
+  const messageId = (event.currentTarget as HTMLElement | null)?.getAttribute('data-message-id')
+  if (messageId) {
+    animatingMessageIds.value.delete(messageId)
   }
 }
 
