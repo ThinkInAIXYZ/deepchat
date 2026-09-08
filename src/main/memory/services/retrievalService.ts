@@ -91,6 +91,10 @@ interface RecallState {
   readonly latencyMs: Partial<Record<MemoryRecallLatencyStage, number>>
   readonly degradations: Set<MemoryRetrievalDegradationCause>
   activeStage: MemoryRecallLatencyStage | 'idle'
+  // Eligible candidates after the latest revalidation round; reported even when a later round
+  // is cancelled so diagnostics reflect the work that was actually done.
+  ftsCandidates: number
+  vectorCandidates: number
   readonly keywordQuery: string
   readonly keywordMatchMode: 'all' | 'any'
   candidateLimit: number
@@ -634,6 +638,8 @@ export class RetrievalService {
     return {
       ...input,
       activeStage: 'idle',
+      ftsCandidates: 0,
+      vectorCandidates: 0,
       ftsRows: [],
       vectorCandidateLimit: scopeAwareVectorCandidateLimit(input.candidateLimit),
       vectorPool: null,
@@ -873,6 +879,8 @@ export class RetrievalService {
         now,
         limits.temporalMode
       )
+      state.ftsCandidates = result.authoritativeFtsRows.length
+      state.vectorCandidates = result.authoritativeVecMatches.length
 
       const eligibleIds = new Set([
         ...result.authoritativeFtsRows.map((row) => row.id),
@@ -975,8 +983,6 @@ export class RetrievalService {
     const latencyMs: Partial<Record<MemoryRecallLatencyStage, number>> = {}
     const degradations = options.degradationCollector ?? new Set<MemoryRetrievalDegradationCause>()
     let outcome: MemoryRetrievalOutcome = 'failed'
-    let ftsCandidates = 0
-    let vectorCandidates = 0
     let selected = 0
     let operationFence: MemoryOperationFence | null = null
     let setupStage: MemoryRecallLatencyStage | 'idle' = 'idle'
@@ -1063,8 +1069,6 @@ export class RetrievalService {
         outcome = 'cancelled'
         return []
       }
-      ftsCandidates = refill.authoritativeFtsRows.length
-      vectorCandidates = refill.authoritativeVecMatches.length
       throwIfAborted(options.signal)
 
       if (
@@ -1118,8 +1122,8 @@ export class RetrievalService {
       this.ports.diagnostics?.recordRecall(agentId, {
         purpose: options.purpose,
         latencyMs,
-        ftsCandidates,
-        vectorCandidates,
+        ftsCandidates: state?.ftsCandidates ?? 0,
+        vectorCandidates: state?.vectorCandidates ?? 0,
         selected,
         outcome,
         degradations: [...degradations]
