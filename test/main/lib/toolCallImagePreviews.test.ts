@@ -428,8 +428,6 @@ describe('cacheToolCallImagePreviews', () => {
     expect(previews).toHaveLength(7)
     expect(previews.find((preview) => preview.id === 'tool_output-dup')).toBeUndefined()
     expect(previews.filter((preview) => preview.data?.startsWith('imgcache://'))).toHaveLength(4)
-    expect(
-      previews.filter((preview) => preview.data?.startsWith('data:image/'))
-    ).toHaveLength(3)
+    expect(previews.filter((preview) => preview.data?.startsWith('data:image/'))).toHaveLength(3)
   })
 })

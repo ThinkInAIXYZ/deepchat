@@ -158,7 +158,9 @@ describe('imageCache', () => {
 
     expect(cached).toMatch(/^imgcache:\/\/.+\.png$/)
     await expect(
-      fs.readFile(path.join(electronMock.userDataPath, 'images', cached.slice('imgcache://'.length)))
+      fs.readFile(
+        path.join(electronMock.userDataPath, 'images', cached.slice('imgcache://'.length))
+      )
     ).resolves.toEqual(Buffer.from('image'))
   })
 
