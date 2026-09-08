@@ -22,6 +22,8 @@ describe('ChatSidePanel', () => {
       mcpAppPreviewOwnerId: options?.mcpAppPreviewOwnerId ?? null,
       tapeInspectorOpenRequest: null as { sessionId: string; token: number } | null,
       width: 520,
+      minWidth: 360,
+      maxWidth: 960,
       openWorkspace: vi.fn(),
       openBrowser: vi.fn(() => {
         sidepanelStore.activeTab = 'browser'
@@ -150,6 +152,24 @@ describe('ChatSidePanel', () => {
       emitOpenRequested: (payload: unknown) => openRequestedHandler?.(payload)
     }
   }
+
+  it('excludes a closed panel and supports keyboard resizing when open', async () => {
+    const { wrapper, sidepanelStore } = await setup({ open: false })
+    expect(wrapper.get('aside').attributes('inert')).toBeDefined()
+    expect(wrapper.get('aside').attributes('aria-hidden')).toBe('true')
+    sidepanelStore.open = true
+    await nextTick()
+    await new Promise((resolve) => requestAnimationFrame(resolve))
+    await nextTick()
+    expect(wrapper.get('aside').attributes('inert')).toBeUndefined()
+    const separator = wrapper.get('[role="separator"]')
+    expect(separator.attributes('aria-label')).toBe('chat.workspace.title')
+    await separator.trigger('keydown', { key: 'ArrowLeft' })
+    expect(sidepanelStore.setWidth).toHaveBeenLastCalledWith(552)
+    await separator.trigger('keydown', { key: 'Home' })
+    expect(sidepanelStore.setWidth).toHaveBeenLastCalledWith(360)
+    wrapper.unmount()
+  })
 
   it('unmounts workspace content before mounting browser content', async () => {
     vi.useFakeTimers()

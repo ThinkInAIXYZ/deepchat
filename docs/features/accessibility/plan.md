@@ -30,7 +30,8 @@ The exploration agent accepted keyboard session selection with Enter and Space, 
 - [x] Reactive pagination cursors are serialized through the typed API contract; the cloneability regression passes.
 - [x] Relevant message/API/scroll/ChatPage tests and streaming/keyboard Electron checks pass; format, i18n, lint, and typecheck pass.
 - [x] Preserve complete message and Markdown content while assistive technology is active. Independent Electron acceptance exposed all 200 Markdown headings and all 222 loaded history rows after enabling the isolated app accessibility flag. Native state subscription, lifecycle/race, virtualization, Markdown, and ChatPage regressions pass; format, i18n, lint, and typecheck pass.
-- [ ] Repair autocomplete/search active selection and remaining conversation surface barriers.
+- [x] Repair autocomplete/search active selection, Escape cleanup, modal search focus, conversation-find focus return, and first-send composer continuity. Independent Electron acceptance and relevant renderer regression suites pass.
+- [ ] Complete remaining conversation surfaces and settings/auxiliary journeys.
 
 ## Blocking tool interaction context
 
@@ -55,3 +56,12 @@ AFTER   Editor → announced active option; search dialog → Close → opener
 ## Files and secondary controls context
 
 Message editing receives its existing localized action name. Image preview and prompt attachment upload use native buttons with visible keyboard focus and existing dialog/file APIs; image dialogs restore their trigger. The shared context-menu trigger translates Menu/Shift+F10 into the existing anchored context-menu path because Reka's installed trigger only handles pointer events. No separate menus or action implementations are introduced.
+
+## Workspace navigation context and validation
+
+The side-panel owner excludes closed content with `inert` and hidden accessibility semantics, focuses the named panel when opened, and returns to its opener when closed. Its separator uses the store's existing width limits and supports arrows/Home/End. Workspace sections expose disclosure state; recursive files use native nested lists and disclosure buttons. The viewer receives focus after a selected file replaces the list, and Back returns to that file. The exploration agent accepted these paths, image preview/menu/return, named message editing, and prompt upload's actual filechooser invocation. Keyboard context-menu activation and relevant side-panel/workspace/prompt/message regressions pass.
+
+```text
+BEFORE  Closed panel remains reachable; file activation → lost focus
+AFTER   Open panel → named region → file preview → Back → original file
+```

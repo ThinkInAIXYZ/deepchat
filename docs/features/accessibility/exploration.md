@@ -32,16 +32,21 @@ Evidence dates: 2026-09-08–2026-09-09. Baseline: current `codex/accessibility`
 | A13 | File mentions | Typing `@` with no files exposes a detached No result tooltip without editor association or live feedback. | No result state is not announced or associated with the input. | Accepted: associated localized empty-result status |
 | A14 | Global and conversation search | Enter opens search; typing `fixture` finds a named provider result. ArrowDown keeps focus on the input without aria-activedescendant. No dialog/listbox/option/aria-selected semantics exist. Separately, Meta+F conversation search has named controls and a 1/1 result indicator, but Escape drops focus to body. | Global selection changes are visual only; closing conversation search loses the task focus. | Accepted: named dialog/combobox/options, active selection, contained Tab order, and opener focus restoration |
 | A15 | Scheduled task form | Activate New job. Focus falls to body, and the resulting Name, Cron expression and Task prompt textboxes and Agent/Timezone/Runtime comboboxes are unnamed. | The newly inserted editor and its fields cannot be identified through control navigation. | Open |
-| A16 | Prompt attachments | Add Custom Prompt opens a correctly named dialog, but Upload from device is only a paragraph, absent from interactive controls. | File attachment is not a discoverable keyboard action. | Open |
+| A16 | Prompt attachments | Add Custom Prompt opens a correctly named dialog, but Upload from device is only a paragraph, absent from interactive controls. | File attachment is not a discoverable keyboard action. | Accepted: named Upload from device button invokes native file chooser with Enter |
 | A17 | Long Markdown response | A local response containing 200 numbered headings and paragraphs retains only 129 headings in the completed DOM/accessibility tree, beginning at Section 71. Section 0 is absent while Section 199 exists. | Reading the completed answer sequentially can omit earlier content. | Accepted: isolated app AT activation exposes all 200 headings and all 222 loaded messages |
-| A18 | Workspace sections | Keyboard Enter expands/collapses Files and a temporary folder; chevrons change while their buttons expose no aria-expanded or controlled-region association. | The section state is visual only. | Open |
-| A19 | First-run setup guide | Start with a completely empty profile. The welcome route exposes an unnamed dialog containing the Select a Provider heading. First Tab begins at the app sidebar rather than the guide. | The automatic guide and its current step are not identified as the active task. | Open |
-| A20 | Closed side panel | After a chat, before opening Workspace, the accessibility tree and Tab order include its Workspace/Yo Browser/Close/Files controls. The visually closed panel uses opacity and pointer-event styles without inert/hidden semantics. | Keyboard users can enter a closed panel and encounter inactive empty content. | Open |
-| A21 | Message editing | Activate the user message Edit message button with Enter. The inline editor appears as an unnamed textbox. | The editor cannot be distinguished from other textboxes by purpose. | Open |
+| A18 | Workspace sections | Keyboard Enter expands/collapses Files and a temporary folder; chevrons change while their buttons expose no aria-expanded or controlled-region association. | The section state is visual only. | Accepted: expanded/controls semantics, nested file lists, and keyboard context menus |
+| A19 | First-run setup guide | Start with a completely empty profile. The welcome route exposes an unnamed dialog containing the Select a Provider heading. It declares aria-modal=true, but First Tab begins at the app sidebar rather than the guide and background controls remain in the Tab order. | The automatic guide and its current step are not identified as the active task. | Open |
+| A20 | Closed side panel | After a chat, before opening Workspace, the accessibility tree and Tab order include its Workspace/Yo Browser/Close/Files controls. The visually closed panel uses opacity and pointer-event styles without inert/hidden semantics. | Keyboard users can enter a closed panel and encounter inactive empty content. | Accepted: closed panel excluded; opening focuses named panel and closing restores opener |
+| A21 | Message editing | Activate the user message Edit message button with Enter. The inline editor appears as an unnamed textbox. | The editor cannot be distinguished from other textboxes by purpose. | Accepted: textbox named Edit message |
 | A22 | Blocking agent question | A local `deepchat_question` tool call produces Waiting for input, but focus moves to body. Its question radiogroup and Option A/Option B radios have no names. Selecting a radio immediately submits and removes the choices. | The user cannot identify choices and may submit while navigating them. | Accepted: named question/choices, deliberate Confirm, and composer focus restoration |
 | A23 | Tool permission request | A local `exec` request in Default permissions produces Waiting for permission with named Deny/Allow controls, but focus falls to body. | The blocking decision is announced without a usable focus destination. | Accepted: named permission region receives focus; Tab to Deny and Enter restores composer |
-| A24 | Generated image action | Append a local PNG image block and reopen the session. The image appears as `img picture`, with no button role or tabindex; only a click handler opens the full-image dialog and its save action. | The original-image/save journey has no keyboard entry point. | Open |
+| A24 | Generated image action | Append a local PNG image block and reopen the session. The image appears as `img picture`, with no button role or tabindex; only a click handler opens the full-image dialog and its save action. | The original-image/save journey has no keyboard entry point. | Accepted: Preview image button, dialog focus return, and keyboard context menu |
 | A25 | First message focus | Type into the new-thread composer and send with Enter. After the session opens and streams a normal text response, the active element is body rather than the replacement composer. | A user cannot continue typing a draft without finding the input again. | Accepted: replacement composer retains focus after first send |
+| A26 | File viewer focus | Open Workspace and activate a temporary readme.md file with Enter. Preview renders readable headings, but focus falls to body when the file button unmounts. Activating Back also returns to body instead of the file. | Opening and leaving a preview loses the user's working position. | Accepted: file preview region receives focus and Back restores the file button |
+| A27 | Embedded browser focus | Load a local page containing a Test action button, open Yo Browser, focus Address bar and press Tab. Focus proceeds to Expand and then the host sidebar; the native browser WebContents never receives focus. | Website controls have no keyboard entry from the host toolbar. | Open |
+| A28 | Agent save focus | Add an agent, fill its named Name field and activate Save with Enter. The new agent appears in the list, but the disabled Save control loses focus to body and no save status is exposed. | Saving loses the editor position without an announced completion. | Open |
+| A29 | Floating task overview | Enable the floating widget from Display using Space. Its AX exposes Task Overview images and the visually hidden expanded panel, including Collapse floating sessions, but no keyboard control expands the collapsed widget. | The floating task list has no nonvisual keyboard entry, and hidden content remains exposed. | Open |
+| A30 | Plugin lifecycle navigation | Install a local ZIP through its named review dialog, enable/disable it, then confirm its named Uninstall alertdialog. Installation opens details and uninstall returns to catalog, but both route transitions drop focus to body. | The resulting plugin page has no stable keyboard reading position. | Open |
 
 ## Coverage matrix
 
@@ -50,13 +55,13 @@ Evidence dates: 2026-09-08–2026-09-09. Baseline: current `codex/accessibility`
 | Surface | Coverage | Remaining work |
 | --- | --- | --- |
 | Initial agent selection | Keyboard activation and tree inspected | Focus/state acceptance after fixes |
-| Guided onboarding and first-run setup | Empty-profile welcome route and actual Tab order inspected; A19 | Provider setup, guided-step navigation, completion |
+| Guided onboarding and first-run setup | Empty-profile welcome and Tab order inspected; OpenAI Enter opens Providers window with unfocused shared guide; A19 | Guide semantics/focus and step navigation/completion |
 | Main sidebar | Keyboard Tab traversal and named buttons inspected | Session selection/actions, search results, workspace groups |
 | New chat and composer | Keyboard agent/model selection and Enter send; slash/empty mention accepted; Attach opens native file chooser and local file has named Delete control | Mention selection with files, advanced settings, attachment removal |
 | Chat responses | Progress/complete/error/stop accepted; edit/delete/More inspected; blocking questions and permissions exercised with local tool fixtures; A21/A22 | Branching/export and media actions |
 | Search/command palette | Global dialog/combobox/option keyboard semantics and focus return accepted; Meta+F conversation search returns 1/1 and Escape restores composer | Result activation and navigation |
-| Workspace panel and file viewer | Opened actual panel and expanded temporary folder with Enter; nested file visible; A18/A20; Shift+F10 does not open context menu | File actions, preview, diff and accessible disclosure state |
-| Plugins catalog | Tree inspected; Install from Git opens named dialog with named fields | Detail/configuration navigation and ZIP invocation |
+| Workspace panel and file viewer | Opened actual panel and expanded temporary folder with Enter; nested file visible; A18/A20; Shift+F10 does not open context menu | Preview/Code/Maximize/Back exercised; Code has named Editor content textbox; A26 focus return; file actions/diff and disclosure acceptance |
+| Plugins catalog | Local ZIP chooser/review/install/enable/disable/uninstall exercised with keyboard; named dialogs/checkboxes; A30 | Lifecycle route focus; official configuration boundaries |
 | Plugins skills | Tree inspected | Import/install/detail/enable/remove dialogs |
 | Plugins MCP | Tree inspected | Enable/configuration/dialog flow |
 | Plugins built-in OCR | Tree inspected | Engine selection/configuration |
@@ -65,7 +70,7 @@ Evidence dates: 2026-09-08–2026-09-09. Baseline: current `codex/accessibility`
 | Settings display | Tree inspected; A06 | Language/theme/font controls |
 | Settings environments | Tree inspected; A04 | Actions and keyboard reordering |
 | Settings provider | Tree inspected | Provider/model CRUD dialogs, connection checking |
-| Settings DeepChat agents | Tree inspected | Agent CRUD and tool/model settings |
+| Settings DeepChat agents | Add/Name/Save creates a local agent; named tool toggles and settings inspected; A06/A28 | Save focus/status, deletion, advanced settings |
 | Settings ACP | Enabled with Space; Add Custom Agent named dialog opened with Enter; Enabled switch unnamed; A05 | Registry dialog and persistence |
 | Settings dashboard alias | Verified redirect to overview usage | Same as overview |
 | Settings MCP (hidden) | Enabled with Space; server cards inspected; Add Server named dialog and JSON field verified; master/per-server switches unnamed | Manual server configuration and tool controls |
@@ -82,10 +87,10 @@ Evidence dates: 2026-09-08–2026-09-09. Baseline: current `codex/accessibility`
 | Settings shortcuts | Tree inspected; A09 | Shortcut capture/cancel/reset |
 | Settings about | Disclaimer opened with Enter; named dialog and Close focus verified; A06 | Update status |
 | Settings debug | Route excluded from production build; renders no content | Development-only, no production feature claim |
-| Browser window/overlay | Local data URL loaded; browser content AX and named navigation/address controls inspected; one host icon button unnamed | Cross-WebContents keyboard focus, preview modes |
-| Floating window | Pending | Entry controls and keyboard behavior |
+| Browser window/overlay | Local data URL and browser AX inspected; named host controls; Tab from Address bar skips embedded content; A27 | Keyboard entry/return bridge and preview modes |
+| Floating window | Enabled from Display using Space; focusable native window and AX inspected; A29 | Expand/collapse keyboard entry and hidden-content semantics |
 | Plugin settings window | Pending | Host-provided controls and content boundary |
-| Native file/save dialogs | Pending | OS-owned dialogs; test invocation and focus return |
+| Native file/save dialogs | Chat Attach and prompt Upload from device invoke native file chooser with Enter | Save invocation/focus return; OS screen-reader speech remains unverified |
 
 ## Nonvisual experience notes
 
@@ -112,3 +117,7 @@ A local blocking-question fixture verifies its named region receives focus, its 
 Slash completion keeps focus in the composer while `aria-controls` identifies the listbox and `aria-activedescendant` follows ArrowDown to the selected option. Escape removes both associations; pressing Enter afterwards sends the typed slash instead of accepting a hidden candidate. An empty file mention exposes the localized No matching results status without a stale active descendant.
 
 Global search opens a named dialog with a focused named combobox, listbox and options. ArrowDown updates active selection, Tab cycles between the combobox and Close, and both Escape and Close restore the opening control. Conversation search opened with Meta+F returns focus to the original composer on Escape. Sending the first message from a new thread preserves focus in the replacement composer after the chat route opens.
+
+Workspace opens as a named focused complementary region and is excluded from accessibility traversal when closed. Files and folder controls expose expanded state and associated content. Shift+F10 opens the folder context menu and Escape restores its trigger. Activating readme.md focuses its named preview region; Back restores the file button, and closing Workspace restores its opener. The named separator supports Home/End resizing; ArrowRight reduces the width from 558 to 526.
+
+Generated images have a Preview image button: Enter opens the image dialog, Escape restores the trigger, and Shift+F10 opens Copy as Image/Save Image As actions. Inline message editing exposes a textbox named Edit message. The custom-prompt Upload from device button invokes a native file chooser with Enter.
