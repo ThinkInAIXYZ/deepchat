@@ -126,7 +126,7 @@ export class MaintenanceService {
       run: async ({ agentId, model, budget }) => {
         const pass = await this.ports.maybeReflect(agentId, model, budget)
         if (pass.result) {
-          this.ctx.writeAudit(agentId, {
+          this.writePassAudit(agentId, 'reflection', {
             eventType: 'memory/reflect',
             actorType: 'scheduler',
             status: 'completed',
@@ -143,7 +143,7 @@ export class MaintenanceService {
       run: async ({ agentId, model, budget }) => {
         const pass = await this.ports.maybeEvolvePersona(agentId, model, budget)
         if (pass.result) {
-          this.ctx.writeAudit(agentId, {
+          this.writePassAudit(agentId, 'persona', {
             eventType: 'persona/evolve',
             actorType: 'scheduler',
             status: 'completed',
@@ -160,6 +160,20 @@ export class MaintenanceService {
       }
     }
   ]
+
+  // Audit is observability. A failed audit insert must not erase the step's LLM accounting,
+  // otherwise a successful reflection could be counted as an all-steps-failed pass.
+  private writePassAudit(
+    agentId: string,
+    step: MaintenanceBudgetStep,
+    input: Parameters<MemoryRuntimeContext['writeAudit']>[1]
+  ): void {
+    try {
+      this.ctx.writeAudit(agentId, input)
+    } catch (error) {
+      logger.warn(`[Memory] ${step} audit write failed for ${agentId}: ${String(error)}`)
+    }
+  }
 
   constructor(
     private readonly ports: {
