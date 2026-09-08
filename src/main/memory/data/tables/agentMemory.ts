@@ -111,8 +111,6 @@ const AGENT_MEMORY_FTS_META_VERSION = 4
 const AGENT_MEMORY_FTS_RECOVERY_COOLDOWN_MS = 30_000
 const PREVIOUS_AGENT_MEMORY_FTS_POLICY_VERSION = 2
 const AGENT_MEMORY_CLEAR_BATCH_SIZE = 256
-// Keeps `IN (...)` lists far below SQLite's bound-parameter limit when callers pass a full scan.
-const AGENT_MEMORY_ID_LIST_BATCH_SIZE = 512
 
 type FtsCapability = { available: boolean; tokenizer: 'trigram' | 'unicode61' }
 type SearchMatchMode = 'all' | 'any'
@@ -437,11 +435,6 @@ const AGENT_MEMORY_SCOPE_INDEX_SQL = `
     WHERE lifecycle_state = 'active'
       AND superseded_by IS NULL
       AND kind NOT IN ('persona', 'working');
-`
-
-// Ensured at startup next to the scope index rather than shipped inside the v51 migration text, so
-// the historical migration stays byte-stable while migrated databases still gain it on next open.
-const AGENT_MEMORY_WORKING_CANDIDATES_INDEX_SQL = `
   CREATE INDEX IF NOT EXISTS idx_agent_memory_working_candidates_v1
     ON agent_memory(agent_id, importance DESC, access_count DESC, created_at DESC, id DESC)
     WHERE lifecycle_state = 'active'
@@ -1097,7 +1090,6 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
       ${AGENT_MEMORY_CANONICAL_INDEX_SQL}
       ${AGENT_MEMORY_TEMPORAL_TRIGGER_SQL}
       ${AGENT_MEMORY_SCOPE_INDEX_SQL}
-      ${AGENT_MEMORY_WORKING_CANDIDATES_INDEX_SQL}
       ${AGENT_MEMORY_SCOPE_TRIGGER_SQL}
       ${AGENT_MEMORY_LEGACY_STATUS_BRIDGE_SQL}
     `
@@ -1321,6 +1313,7 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
       'scope_type',
       'scope_id',
       'importance',
+      'access_count',
       'created_at',
       'id',
       'lifecycle_state',
@@ -1329,7 +1322,6 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
     ]
     if (indexColumns.every((column) => columns.has(column))) {
       this.db.exec(AGENT_MEMORY_SCOPE_INDEX_SQL)
-      if (columns.has('access_count')) this.db.exec(AGENT_MEMORY_WORKING_CANDIDATES_INDEX_SQL)
     }
   }
 
@@ -1849,7 +1841,8 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
     for (const indexName of [
       'idx_agent_memory_derivation_child_v1',
       'idx_agent_memory_dirty_order_v1',
-      'idx_agent_memory_recall_scope_v6'
+      'idx_agent_memory_recall_scope_v6',
+      'idx_agent_memory_working_candidates_v1'
     ]) {
       if (
         !this.db
@@ -2364,9 +2357,14 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
       })()
       this.ftsReady = true
     } catch (error) {
-      try {
-        this.dropFtsIndex()
-      } catch {}
+      // The transaction already rolled back any partial build. Dropping the surviving mirror is
+      // only a repair when the mirror itself is broken; after I/O or disk pressure it would just
+      // force a full backfill on the recall path once the pressure clears.
+      if (isFtsIndexBrokenError(error)) {
+        try {
+          this.dropFtsIndex()
+        } catch {}
+      }
       this.ftsReady = false
       if (process.env.DEEPCHAT_REQUIRE_NATIVE_SQLITE === '1') throw error
     }
@@ -3011,8 +3009,9 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
 
     try {
       const match = this.buildFtsMatch(agentId, terms, matchMode)
+      const query = buildFtsSearchSql(agentId, match, cappedLimit, scopeFilter)
       return finish({
-        rows: this.searchFts(agentId, match, cappedLimit, scopeFilter),
+        rows: this.db.prepare(query.sql).all(...query.params) as AgentMemoryRow[],
         strategy: 'fts-only'
       })
     } catch (error) {
@@ -3037,16 +3036,6 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
     // Keep the selective content postings first. FTS5 evaluates the expression left-to-right for
     // this shape; leading with the per-agent scope would walk every row for a large single agent.
     return `content : (${contentMatch}) AND agent_id : "${agentFtsScope(agentId)}"`
-  }
-
-  private searchFts(
-    agentId: string,
-    match: string,
-    limit: number,
-    scopeFilter: readonly MemoryScope[] = AGENT_MEMORY_AGENT_SCOPE_FILTER
-  ): AgentMemoryRow[] {
-    const query = buildFtsSearchSql(agentId, match, limit, scopeFilter)
-    return this.db.prepare(query.sql).all(...query.params) as AgentMemoryRow[]
   }
 
   private searchLike(
@@ -3631,8 +3620,9 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
 
   requeueReadyEmbeddingsByIds(agentId: string, ids: readonly string[]): number {
     if (!ids.length) return 0
-    const statement = (count: number) =>
-      this.db.prepare(
+    // One JSON parameter keeps a full-coverage id list clear of the bound-parameter limit.
+    return this.db
+      .prepare(
         `UPDATE agent_memory
          SET embedding_state = 'pending', status = 'pending_embedding',
              embedding_id = NULL,
@@ -3643,16 +3633,9 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
            AND kind NOT IN ('persona', 'working')
            AND lifecycle_state = 'active'
            AND embedding_state = 'ready'
-           AND id IN (${Array.from({ length: count }, () => '?').join(', ')})`
+           AND id IN (SELECT value FROM json_each(?))`
       )
-    return this.db.transaction(() => {
-      let changes = 0
-      for (let start = 0; start < ids.length; start += AGENT_MEMORY_ID_LIST_BATCH_SIZE) {
-        const chunk = ids.slice(start, start + AGENT_MEMORY_ID_LIST_BATCH_SIZE)
-        changes += statement(chunk.length).run(agentId, ...chunk).changes
-      }
-      return changes
-    })()
+      .run(agentId, JSON.stringify(ids)).changes
   }
 
   listEmbeddingStateIds(
