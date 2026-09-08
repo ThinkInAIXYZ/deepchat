@@ -38,8 +38,10 @@ Evidence date: 2026-09-08. Baseline: current `codex/accessibility` build before 
 | A19 | First-run setup guide | Start with a completely empty profile. The welcome route exposes an unnamed dialog containing the Select a Provider heading. First Tab begins at the app sidebar rather than the guide. | The automatic guide and its current step are not identified as the active task. | Open |
 | A20 | Closed side panel | After a chat, before opening Workspace, the accessibility tree and Tab order include its Workspace/Yo Browser/Close/Files controls. The visually closed panel uses opacity and pointer-event styles without inert/hidden semantics. | Keyboard users can enter a closed panel and encounter inactive empty content. | Open |
 | A21 | Message editing | Activate the user message Edit message button with Enter. The inline editor appears as an unnamed textbox. | The editor cannot be distinguished from other textboxes by purpose. | Open |
-| A22 | Blocking agent question | A local `deepchat_question` tool call produces Waiting for input, but focus moves to body. Its question radiogroup and Option A/Option B radios have no names. Selecting a radio immediately submits and removes the choices. | The user cannot identify choices and may submit while navigating them. | Open |
-| A23 | Tool permission request | A local `exec` request in Default permissions produces Waiting for permission with named Deny/Allow controls, but focus falls to body. | The blocking decision is announced without a usable focus destination. | Open |
+| A22 | Blocking agent question | A local `deepchat_question` tool call produces Waiting for input, but focus moves to body. Its question radiogroup and Option A/Option B radios have no names. Selecting a radio immediately submits and removes the choices. | The user cannot identify choices and may submit while navigating them. | Accepted: named question/choices, deliberate Confirm, and composer focus restoration |
+| A23 | Tool permission request | A local `exec` request in Default permissions produces Waiting for permission with named Deny/Allow controls, but focus falls to body. | The blocking decision is announced without a usable focus destination. | Accepted: named permission region receives focus; Tab to Deny and Enter restores composer |
+
+| A24 | Generated image action | Append a local PNG image block and reopen the session. The image appears as `img picture`, with no button role or tabindex; only a click handler opens the full-image dialog and its save action. | The original-image/save journey has no keyboard entry point. | Open |
 
 ## Coverage matrix
 
@@ -51,7 +53,7 @@ Evidence date: 2026-09-08. Baseline: current `codex/accessibility` build before 
 | Guided onboarding and first-run setup | Empty-profile welcome route and actual Tab order inspected; A19 | Provider setup, guided-step navigation, completion |
 | Main sidebar | Keyboard Tab traversal and named buttons inspected | Session selection/actions, search results, workspace groups |
 | New chat and composer | Keyboard agent activation, model-menu selection, input and Enter send | Attachments, mentions, settings, permissions |
-| Chat responses | Local keyboard fixture; progress/completion accepted; edit, delete confirmation and More menu opened with Enter; A21 | Branching/export, error and permission journeys |
+| Chat responses | Progress/complete/error/stop accepted; edit/delete/More inspected; blocking questions and permissions exercised with local tool fixtures; A21/A22 | Branching/export and media actions |
 | Search/command palette | Opened with Enter; queried local fixture; ArrowDown inspected; A14 | Result activation and focus return after fixes |
 | Workspace panel and file viewer | Opened actual panel and expanded temporary folder with Enter; nested file visible; A18/A20; Shift+F10 does not open context menu | File actions, preview, diff and accessible disclosure state |
 | Plugins catalog | Tree inspected; Install from Git opens named dialog with named fields | Detail/configuration navigation and ZIP invocation |
@@ -104,3 +106,5 @@ A 222-message fixture verifies Load earlier messages works with Enter and Space:
 A deterministic local streaming run also verifies a persistent polite, atomic status region changes from Running to Generation is complete without announcing each response token. An HTTP 400 fixture produces Generation failed; activating Stop with Enter produces User canceled generation. The user and assistant content remain available in a named focusable conversation region.
 
 Only within the isolated Electron process, enabling its accessibility-support flag exposes all 200 headings of a completed long Markdown response and all 222 already loaded messages. This tests the app response to assistive-technology activation; it does not activate macOS VoiceOver or certify speech output.
+
+A local blocking-question fixture verifies its named region receives focus, its question labels the radio group, and multiword options retain names and descriptions. ArrowDown moves to Option B without submission; Space selects it, and Tab to Confirm followed by Enter sends the answer. The assistant resumes and the composer regains focus. A separate Default permissions fixture verifies the named permission region receives focus and Tab followed by Enter on Deny returns focus to the composer.

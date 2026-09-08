@@ -31,3 +31,14 @@ The exploration agent accepted keyboard session selection with Enter and Space, 
 - [x] Relevant message/API/scroll/ChatPage tests and streaming/keyboard Electron checks pass; format, i18n, lint, and typecheck pass.
 - [x] Preserve complete message and Markdown content while assistive technology is active. Independent Electron acceptance exposed all 200 Markdown headings and all 222 loaded history rows after enabling the isolated app accessibility flag. Native state subscription, lifecycle/race, virtualization, Markdown, and ChatPage regressions pass; format, i18n, lint, and typecheck pass.
 - [ ] Repair autocomplete/search active selection and remaining conversation surface barriers.
+
+## Blocking tool interaction context
+
+`ChatToolInteractionOverlay` owns question/permission presentation and is reused by the interaction dock and read-only sessions. Shared choice groups must use whitespace-free IDs independent of user-supplied values. Questions name the group and describe options. The overlay receives focus when it appears; resolving the active interaction returns focus to the composer (or read-only transcript) unless the user moved elsewhere. Radio navigation only changes selection; an explicit confirmation submits it. This prevents arrow-key exploration from answering a question accidentally. Existing asynchronous response, stale-interaction recovery, and raw translated action values remain at their current owners.
+
+```text
+BEFORE  Waiting → lost focus → unnamed radio → selection submits
+AFTER   Question → named options → Confirm → composer
+```
+
+The exploration agent accepted named question/permission regions, multiword option names and descriptions, arrow/Space selection without submission, explicit confirmation, successful continuation, permission denial, and restored composer focus. Both single- and multiple-choice label regressions pass. Relevant MessageBlock/ChatPage suites, format, i18n, lint, and typecheck pass.

@@ -314,6 +314,7 @@
 </template>
 
 <script setup lang="ts">
+import type { ToolInteractionResponse } from '@shared/types/agent-interface'
 import {
   ref,
   computed,
@@ -1120,6 +1121,7 @@ function handleWindowKeydown(event: KeyboardEvent) {
 
 const chatInputRef = ref<{
   triggerAttach: () => void
+  focusInput?: () => void
   insertRecognizedText?: (text: string) => void
   insertWorkspaceReference?: (targetPath: string) => boolean
   getInlineItemsSnapshot?: () => UserMessageInlineItem[]
@@ -1140,7 +1142,7 @@ const {
   pendingInteractions,
   activePendingInteraction,
   isHandlingInteraction,
-  onToolInteractionRespond
+  onToolInteractionRespond: submitToolInteraction
 } = useToolInteraction({
   sessionId: () => props.sessionId,
   messageStore,
@@ -1150,6 +1152,20 @@ const {
   currentRestoreRequestId,
   canWriteSessionView
 })
+
+async function onToolInteractionRespond(response: ToolInteractionResponse) {
+  const sessionId = props.sessionId
+  await submitToolInteraction(response)
+  await nextTick()
+  if (sessionId !== props.sessionId || activePendingInteraction.value) return
+  // Do not steal focus if the user moved elsewhere while the response was saving.
+  const active = document.activeElement
+  if (active !== document.body && !active?.closest('[data-testid="agent-interaction-dock"]')) {
+    return
+  }
+  if (isReadOnlySession.value) scrollContainer.value?.focus({ preventScroll: true })
+  else chatInputRef.value?.focusInput?.()
+}
 
 // Announce state transitions, not token updates; users read response content in the transcript.
 const generationAnnouncement = computed(() => {
