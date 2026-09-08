@@ -6,7 +6,6 @@ import type {
   MemoryRetrievalPurpose
 } from '@shared/types/agent-memory'
 import { truncateUnicodeCodePoints } from '@shared/lib/unicodeText'
-import { extractProviderFailureMetadata } from '@/provider/providerFailure'
 
 import {
   buildMemoryProvenanceKey,
@@ -205,17 +204,6 @@ function isStaleExecutionCancellation(error: unknown, isDisposed: boolean): bool
     isMemoryProviderCancellationError(error) ||
     (isDisposed && error instanceof VectorStoreLeaseUnavailableError && error.reason === 'stopped')
   )
-}
-
-/**
- * HTTP statuses that reject this request's shape rather than report provider health. They return
- * fast, so skipping the vector path for them would only hide recall without saving any latency.
- */
-const PROVIDER_REQUEST_REJECTION_STATUSES: ReadonlySet<number> = new Set([400, 413, 422])
-
-function isProviderRequestRejection(error: unknown): boolean {
-  const statusCode = extractProviderFailureMetadata(error)?.statusCode
-  return statusCode !== undefined && PROVIDER_REQUEST_REJECTION_STATUSES.has(statusCode)
 }
 
 export class RetrievalService {
@@ -731,10 +719,15 @@ export class RetrievalService {
     )
   }
 
+  /**
+   * Every provider failure except a cancellation counts, including 4xx rejections: a persistent
+   * 400 from a misconfigured model or proxy costs a failed round trip on every turn, and only the
+   * breaker bounds that to one probe per cooldown. Query truncation already keeps well-formed
+   * requests inside provider input limits, so a rejection is a health signal, not a request quirk.
+   */
   private isQueryEmbeddingCircuitFailure(error: unknown): boolean {
     if (isMemoryProviderDeadlineError(error)) return true
-    if ((error as { name?: string } | null)?.name === 'AbortError') return false
-    return !isProviderRequestRejection(error)
+    return (error as { name?: string } | null)?.name !== 'AbortError'
   }
 
   private settleQueryEmbeddingCircuitSuccess(entry: QueryEmbeddingInFlight): void {

@@ -1326,19 +1326,18 @@ describe('MemoryService management', () => {
     await presenter.dispose()
   })
 
-  it('keeps the query embedding circuit closed when the provider rejects the request shape', async () => {
+  it('opens the query embedding circuit on persistent provider rejections', async () => {
     const repo = createFakeRepository()
     const store = new FakeVectorStore()
-    let queryMode: 'healthy' | 'reject' | 'transport' = 'healthy'
+    let rejectQueries = false
     const getEmbeddings = vi.fn(async (_p: string, _m: string, texts: string[]) => {
-      if (queryMode === 'reject' && texts[0] !== 'memory warmup') {
-        throw Object.assign(new Error('input exceeds the model context length'), {
+      if (rejectQueries && texts[0] !== 'memory warmup') {
+        // A misconfigured deployment answers every request this way; it must not cost a
+        // failing round trip on every turn.
+        throw Object.assign(new Error('The model `text-embedding-9` does not exist'), {
           name: 'AI_APICallError',
-          statusCode: 413
+          statusCode: 400
         })
-      }
-      if (queryMode === 'transport' && texts[0] !== 'memory warmup') {
-        throw new Error('transport unavailable')
       }
       return texts.map((text) => textToVector(text))
     })
@@ -1355,21 +1354,20 @@ describe('MemoryService management', () => {
     })
     await presenter.processPendingEmbeddings('a')
 
-    queryMode = 'reject'
+    rejectQueries = true
+    const queryCallsBefore = getEmbeddings.mock.calls.length
     for (let attempt = 0; attempt < 3; attempt += 1) {
       const recalled = await presenter.recall('a', 'redis setup')
       expect(recalled.map((item) => item.id)).toEqual([memoryId])
     }
     expect(presenter.getHealth('a').runtime.agent.queryEmbeddingCircuit).toEqual({
-      state: 'closed',
-      failures: 0,
-      openCount: 0,
-      skipped: 0
+      state: 'open',
+      failures: 2,
+      openCount: 1,
+      skipped: 1
     })
-
-    queryMode = 'transport'
-    await presenter.recall('a', 'redis setup')
-    expect(presenter.getHealth('a').runtime.agent.queryEmbeddingCircuit.failures).toBe(1)
+    // Two probes reached the provider; the third recall was served from FTS without a round trip.
+    expect(getEmbeddings.mock.calls.length - queryCallsBefore).toBe(2)
     await presenter.dispose()
   })
 
