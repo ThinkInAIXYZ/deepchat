@@ -20,7 +20,8 @@ export const SUPPORTED_LOCALES = [
   'ms-MY',
   'it-IT',
   'pl-PL',
-  'vi-VN'
+  'vi-VN',
+  'bo-CN'
 ] as const
 
 export type SupportedLocale = (typeof SUPPORTED_LOCALES)[number]
@@ -49,7 +50,8 @@ export const LOCALE_DISPLAY_NAMES = {
   'ms-MY': 'Bahasa Melayu',
   'it-IT': 'Italiano',
   'pl-PL': 'Polski',
-  'vi-VN': 'Tiếng Việt'
+  'vi-VN': 'Tiếng Việt',
+  'bo-CN': 'བོད་ཡིག'
 } as const satisfies Record<SupportedLocale, string>
 
 const localeLookup = new Map<string, SupportedLocale>(
@@ -74,7 +76,8 @@ const languageFallbacks: Readonly<Record<string, SupportedLocale>> = {
   ms: 'ms-MY',
   it: 'it-IT',
   pl: 'pl-PL',
-  vi: 'vi-VN'
+  vi: 'vi-VN',
+  bo: 'bo-CN'
 }
 
 const rtlLocales = new Set<SupportedLocale>(['fa-IR', 'he-IL'])

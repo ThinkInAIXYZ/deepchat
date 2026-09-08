@@ -1,0 +1,48 @@
+{
+  "actions": {
+    "rename": "བསྐྱར་མིང་བཏགས་པ།",
+    "delete": "བསུབ་པ།",
+    "switchWithShortcut": "{shortcut} བེད་སྤྱད་ནས་ཐེངས་འདིའི་གྲོས་ཚོགས་ལ་བརྗེ་དགོས།",
+    "cleanMessages": "བརྡ་འཕྲིན་ཁ་གསལ་བཟོ་བ།",
+    "pin": "ཁབ་རྒྱག་པ།",
+    "unpin": "ཁྱེར་མ་ཕྱེ་",
+    "moveConversation": "སྤོ་བའི་གླེང་མོལ།",
+    "export": "ཕྱིར་འདྲེན།",
+    "exportText": "རྐྱང་པའི་ཡི་གེ",
+    "exportNowledgeMem": "Nowledge-mem"
+  },
+  "export": {
+    "failed": "ཕྱིར་འདྲེན་འཐུས་ཤོར་བྱུང་བ།",
+    "failedDesc": "ཕྱིར་གཏོང་བྱེད་རིང་ནོར་འཁྲུལ་བྱུང་བས་ཡང་བསྐྱར་ཚོད་ལྟ་ཞིག་གནང་རོགས།",
+    "nowledgeMemSubmitFailed": "ཕམ་ཉེས་Nowledge-mem",
+    "nowledgeMemSubmitFailedDesc": "གྲོས་ཚོགས་ལ་ཕུལ་བའི་དུས་ཚོད་nowledge-mem ཕམ་ཉེས་བྱུང་བ།",
+    "nowledgeMemSubmitPrompt": "སྐབས་འདིའི་གྲོས་ཚོགས་དེ་ཕྱིར་གཏོང་བྱེད་དགོས་མིན་nowledge-mem",
+    "nowledgeMemSubmitSuccess": "ལེགས་འགྲུབ་བྱུང་བའི་Nowledge-mem ལ་ཞུ་འབུལ་བྱས།",
+    "nowledgeMemSubmitSuccessDesc": "གྲོས་ཚོགས་བདེ་བླག་ངང་Nowledge-mem",
+    "nowledgeMemSuccessDesc": "གླེང་མོལ་ Nowledge-mem རྣམ་གཞག་ཏུ་ཕྱིར་འདྲེན་ལེགས་གྲུབ།",
+    "success": "ཕྱིར་གཏོང་ལེགས་འགྲུབ་བྱུང་བ།",
+    "nowledgeMemSuccess": "རྒྱལ་ཁའི་ངང་ཕྱིར་གཏོང་Nowledge-mem",
+    "successDesc": "གླེང་མོལ་ཕྱིར་འདྲེན་ལེགས་གྲུབ།"
+  },
+  "message": {
+    "toolbar": {
+      "save": "ཉར།"
+    }
+  },
+  "toolbar": {
+    "save": "ཉར།",
+    "cancel": "རྩིས་མེད་གཏོང་།",
+    "previousVariant": "པར་གཞི་སྔོན་མ་ལ་བསྒྱུར།",
+    "nextVariant": "པར་གཞི་རྗེས་མར་བསྒྱུར་དགོས།",
+    "copy": "དྲིས་ལན་འདྲ་བཤུས་Markdown",
+    "copyImage": "པར་རིས་སུ་འདྲ་བཤུས།",
+    "copyImageWithLongPress": "པར་རིས་སུ་འདྲ་བཤུས་བྱེད་དགོས (གོང་ནས་པར་ལེན་བྱེད་འགོ་བརྩམས)",
+    "copyFromTopSuccess": "ཁ་བརྡའི་པར་རིས་ཆ་ཚང་བཤུས་པ།",
+    "capturing": "པར་རིས་འབྲི་བཞིན་པའི་སྒང་རེད།",
+    "retry": "བསྐྱར་སྐྱེས་",
+    "fork": "ཁ་དབྲག་གི་ཁ་བརྡ་གསར་པ།",
+    "edit": "རྩོམ་སྒྲིག་བརྡ་འཕྲིན་",
+    "delete": "བརྡ་འཕྲིན་བསུབ་པ།",
+    "trace": "རེ་ཞུའི་གྲངས་ཀ་ལ་ལྟ་བ།"
+  }
+}

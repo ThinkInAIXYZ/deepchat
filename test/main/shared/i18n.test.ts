@@ -18,6 +18,8 @@ describe('shared locale manifest', () => {
     expect(resolveSupportedLocale('zh-Hans-HK')).toBe('zh-CN')
     expect(resolveSupportedLocale('fr-CA')).toBe('fr-FR')
     expect(resolveSupportedLocale('de-AT')).toBe('de-DE')
+    expect(resolveSupportedLocale('bo_CN')).toBe('bo-CN')
+    expect(resolveSupportedLocale('bo-Tibt-CN')).toBe('bo-CN')
     expect(resolveSupportedLocale('unknown')).toBe(FALLBACK_LOCALE)
   })
 
@@ -27,6 +29,7 @@ describe('shared locale manifest', () => {
     expect(getLocaleDirection('fa-IR')).toBe('rtl')
     expect(getLocaleDirection('he')).toBe('rtl')
     expect(getLocaleDirection('en-US')).toBe('auto')
+    expect(getLocaleDirection('bo')).toBe('auto')
   })
 
   it('only exposes native translation maps for supported locales', () => {
@@ -39,6 +42,12 @@ describe('shared locale manifest', () => {
 })
 
 describe('native menu translations', () => {
+  it.each(['bo-CN'] as const)('provides every native menu label for %s', (locale) => {
+    expect(Object.keys(contextMenuTranslations[locale] ?? {}).sort()).toEqual(
+      Object.keys(contextMenuTranslations['en-US']).sort()
+    )
+  })
+
   it('uses the exact Traditional Chinese map', () => {
     expect(getContextMenuLabels('zh-TW')).toMatchObject({
       copy: '複製',

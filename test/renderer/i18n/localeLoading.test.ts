@@ -34,6 +34,24 @@ describe('renderer locale loading', () => {
     expect(await firstLoad).toHaveProperty('common')
   })
 
+  it.each(['bo-CN'])('loads %s and interpolates translated messages', async (locale) => {
+    const messages = await loadLocaleMessages(locale)
+    const { i18n } = await createRendererI18n({
+      getLanguageState: async () => ({
+        requestedLanguage: locale,
+        locale,
+        direction: 'auto'
+      })
+    })
+
+    expect(i18n.global.locale.value).toBe(locale)
+    expect(messages).toHaveProperty('common.cancel', i18n.global.t('common.cancel'))
+    expect(i18n.global.t('common.cancel')).not.toBe('Cancel')
+    expect(
+      i18n.global.t('settings.provider.dialog.disableAllModels.content', { name: 'Example' })
+    ).toContain('Example')
+  })
+
   it('renders literal search placeholders and named confirmation parameters', async () => {
     const messages = await loadLocaleMessages('en-US')
     const { i18n } = await createRendererI18n({
