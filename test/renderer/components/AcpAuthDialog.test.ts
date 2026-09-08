@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { defineComponent } from 'vue'
+import { defineComponent, ref } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
 import type { AcpAuthChallenge } from '@shared/types/acp'
 
@@ -11,11 +11,29 @@ const authClient = vi.hoisted(() => ({
   stateListener: null as ((payload: unknown) => void) | null
 }))
 const terminalWrite = vi.hoisted(() => vi.fn())
-const terminalData = vi.hoisted(() => ({ listener: null as ((data: string) => void) | null }))
+const terminalData = vi.hoisted(() => ({
+  listener: null as ((data: string) => void) | null,
+  options: {} as { screenReaderMode?: boolean },
+  keyHandler: null as ((event: KeyboardEvent) => boolean) | null
+}))
+
+vi.mock('@/composables/useAccessibilitySupport', () => ({
+  useAccessibilitySupport: () => ({ accessibilityEnabled: ref(true) })
+}))
 
 vi.mock('@xterm/xterm', () => ({
   Terminal: class {
+    options: { screenReaderMode?: boolean }
+    textarea = document.createElement('textarea')
+    constructor(options: { screenReaderMode?: boolean }) {
+      this.options = options
+      terminalData.options = options
+    }
     open() {}
+    focus() {}
+    attachCustomKeyEventHandler(handler: (event: KeyboardEvent) => boolean) {
+      terminalData.keyHandler = handler
+    }
     onData(listener: (data: string) => void) {
       terminalData.listener = listener
     }
@@ -86,6 +104,7 @@ beforeEach(() => {
   authClient.stateListener = null
   terminalWrite.mockReset()
   terminalData.listener = null
+  terminalData.keyHandler = null
 })
 
 describe('AcpAuthDialog', () => {
@@ -125,6 +144,30 @@ describe('AcpAuthDialog', () => {
 
     expect(authClient.start).toHaveBeenCalledWith('challenge-1', 'agent')
     expect(wrapper.emitted('succeeded')).toHaveLength(1)
+  })
+
+  it('enables terminal accessibility and keeps F6 local to the dialog', async () => {
+    authClient.start.mockResolvedValue({
+      challengeId: 'challenge-1',
+      runId: 'run-1',
+      state: 'running',
+      version: 1
+    })
+    const wrapper = await mountDialog(
+      baseChallenge([{ id: 'browser', name: 'Browser login', type: 'terminal' }])
+    )
+    document.body.append(wrapper.element)
+    await (wrapper.vm as any).startAuthentication()
+    await flushPromises()
+
+    expect(terminalData.options.screenReaderMode).toBe(true)
+    expect(wrapper.get('[role="status"]').text()).toBe('settings.acp.auth.status.running')
+    const key = new KeyboardEvent('keydown', { key: 'F6', cancelable: true })
+    expect(terminalData.keyHandler?.(key)).toBe(false)
+    expect(key.defaultPrevented).toBe(true)
+    expect(document.activeElement?.contains(wrapper.get('[role="status"]').element)).toBe(true)
+    expect(authClient.sendInput).not.toHaveBeenCalled()
+    wrapper.unmount()
   })
 
   it('cancels only the current terminal run', async () => {

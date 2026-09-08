@@ -65,7 +65,7 @@ const route = useRoute()
 watch(
   () => route.name,
   async (name, previousName) => {
-    if (previousName !== 'welcome' || name !== 'chat') return
+    if (!previousName || name === previousName) return
     await nextTick()
     if (route.name === name && document.activeElement === document.body) {
       mainContent.value?.focus({ preventScroll: true })

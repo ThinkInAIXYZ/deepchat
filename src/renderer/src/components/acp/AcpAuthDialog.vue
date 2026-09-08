@@ -9,22 +9,34 @@
       </DialogHeader>
 
       <div v-if="challenge" class="space-y-4">
-        <RadioGroup v-model="selectedMethodId" class="space-y-2" :disabled="authPending">
+        <RadioGroup
+          v-model="selectedMethodId"
+          :aria-label="t('settings.acp.auth.title', { name: challenge.agentName })"
+          class="space-y-2"
+          :disabled="authPending"
+        >
           <label
-            v-for="method in challenge.methods"
+            v-for="(method, index) in challenge.methods"
             :key="method.id"
+            :for="`${authId}-method-${index}`"
             class="flex items-start gap-3 rounded-lg border px-3 py-3"
             :class="method.type === 'unsupported' ? 'opacity-60' : 'cursor-pointer'"
           >
             <RadioGroupItem
-              :id="`acp-auth-${method.id}`"
+              :id="`${authId}-method-${index}`"
+              :aria-label="method.name"
+              :aria-describedby="method.description ? `${authId}-description-${index}` : undefined"
               :value="method.id"
               :disabled="method.type === 'unsupported'"
               class="mt-0.5"
             />
             <span class="min-w-0 flex-1">
               <span class="block text-sm font-medium">{{ method.name }}</span>
-              <span v-if="method.description" class="block text-xs text-muted-foreground mt-1">
+              <span
+                :id="`${authId}-description-${index}`"
+                v-if="method.description"
+                class="block text-xs text-muted-foreground mt-1"
+              >
                 {{ method.description }}
               </span>
               <span
@@ -45,12 +57,23 @@
         </div>
 
         <div v-show="runId" class="overflow-hidden rounded-lg border bg-[#111318]">
-          <div ref="terminalHost" class="h-[320px] p-2" />
+          <p :id="terminalHintId" class="px-2 pt-2 text-xs text-white">
+            {{ t('settings.acp.auth.terminalHint') }}
+          </p>
+          <div ref="terminalHost" role="region" :aria-label="terminalLabel" class="h-[320px] p-2" />
         </div>
 
-        <div class="flex items-center justify-between gap-3 text-xs">
-          <span :class="statusClass">{{ statusLabel }}</span>
-          <span v-if="error" class="text-destructive text-right">{{ error }}</span>
+        <div
+          ref="authenticationControls"
+          tabindex="-1"
+          role="group"
+          :aria-label="t('settings.acp.auth.title', { name: challenge.agentName })"
+          class="flex items-center justify-between gap-3 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <span role="status" aria-live="polite" aria-atomic="true" :class="statusClass">{{
+            statusLabel
+          }}</span>
+          <span v-if="error" role="alert" class="text-destructive text-right">{{ error }}</span>
         </div>
       </div>
 
@@ -74,11 +97,12 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, useId, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { Terminal as XtermTerminal } from '@xterm/xterm'
 import '@xterm/xterm/css/xterm.css'
 import type { AcpAuthChallenge, AcpAuthRunState } from '@shared/types/acp'
+import { useAccessibilitySupport } from '@/composables/useAccessibilitySupport'
 import { createAcpAuthClient } from '@api/AcpAuthClient'
 import { DcButton } from '@dc-ui/components/button'
 import {
@@ -102,6 +126,11 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
+const { accessibilityEnabled } = useAccessibilitySupport()
+const authId = useId()
+const terminalHintId = useId()
+const terminalLabel = computed(() => t('settings.acp.auth.terminalLabel'))
+const authenticationControls = ref<HTMLElement | null>(null)
 const client = createAcpAuthClient()
 const selectedMethodId = ref('')
 const state = ref<AcpAuthRunState>('required')
@@ -114,6 +143,18 @@ let terminalInputTimer: ReturnType<typeof setTimeout> | null = null
 let emittedSuccess = false
 let authenticationAttempt = 0
 let latestStateVersion = 0
+
+watch([accessibilityEnabled, terminalLabel], ([enabled, label]) => {
+  if (!terminal) return
+  terminal.options.screenReaderMode = enabled
+  terminal.textarea?.setAttribute('aria-label', label)
+})
+watch(state, async () => {
+  await nextTick()
+  if (props.open && document.activeElement === document.body) {
+    authenticationControls.value?.focus({ preventScroll: true })
+  }
+})
 
 const selectedMethod = computed(() =>
   props.challenge?.methods.find((method) => method.id === selectedMethodId.value)
@@ -149,8 +190,11 @@ function resetDialog() {
 async function ensureTerminal() {
   await nextTick()
   if (terminal || !terminalHost.value) return
+  const challengeId = props.challenge?.id
   const { Terminal } = await import('@xterm/xterm')
+  if (terminal || !terminalHost.value || !props.open || props.challenge?.id !== challengeId) return
   terminal = new Terminal({
+    screenReaderMode: accessibilityEnabled.value,
     cursorBlink: true,
     convertEol: true,
     fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
@@ -158,6 +202,22 @@ async function ensureTerminal() {
     theme: { background: '#111318', foreground: '#e5e7eb' }
   })
   terminal.open(terminalHost.value)
+  terminal.textarea?.setAttribute('aria-label', terminalLabel.value)
+  terminal.textarea?.setAttribute('aria-describedby', terminalHintId)
+  terminal.attachCustomKeyEventHandler((event) => {
+    if (event.key !== 'F6' || event.altKey || event.ctrlKey || event.metaKey) return true
+    if (event.type === 'keydown') {
+      event.preventDefault()
+      event.stopPropagation()
+      authenticationControls.value?.focus({ preventScroll: true })
+    }
+    return false
+  })
+  if (
+    document.activeElement === document.body ||
+    document.activeElement === authenticationControls.value
+  )
+    terminal.focus()
   terminal.onData((data) => {
     if (!runId.value) return
     terminalInput += data

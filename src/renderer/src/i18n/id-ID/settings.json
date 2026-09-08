@@ -2209,7 +2209,9 @@
         "succeeded": "Ready",
         "cancelled": "Cancelled",
         "failed": "Failed"
-      }
+      },
+      "terminalLabel": "Terminal masuk",
+      "terminalHint": "Tekan F6 untuk kembali ke kontrol autentikasi."
     },
     "terminal": {
       "title": "Inisialisasi terminal",

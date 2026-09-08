@@ -213,7 +213,7 @@ import { createBrowserClient } from '@api/BrowserClient'
 import { createConfigClient } from '@api/ConfigClient'
 import { createDeviceClient } from '@api/DeviceClient'
 import { createWindowClient } from '@api/WindowClient'
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { DcButton } from '@dc-ui/components/button'
 import { Icon } from '@iconify/vue'
@@ -336,6 +336,7 @@ const handlePrimaryAction = async () => {
     return
   }
 
+  const opener = document.activeElement as HTMLElement | null
   updateCheckPending.value = true
   try {
     const status = await upgrade.checkUpdate(false)
@@ -362,6 +363,10 @@ const handlePrimaryAction = async () => {
     })
   } finally {
     updateCheckPending.value = false
+    await nextTick()
+    if (document.activeElement === document.body && opener?.isConnected) {
+      opener.focus({ preventScroll: true })
+    }
   }
 }
 

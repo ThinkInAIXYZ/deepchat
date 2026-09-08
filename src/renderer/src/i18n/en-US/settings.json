@@ -2244,7 +2244,9 @@
         "succeeded": "Ready",
         "cancelled": "Cancelled",
         "failed": "Failed"
-      }
+      },
+      "terminalLabel": "Sign-in terminal",
+      "terminalHint": "Press F6 to return to authentication controls."
     },
     "terminal": {
       "title": "Initialization Terminal",

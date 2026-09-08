@@ -76,10 +76,10 @@ export function createSkillClient(bridge: DeepchatBridge = getDeepchatBridge()) 
   }
 
   async function deleteSkill(name: string, acknowledgedAgentIds: string[]) {
-    const result = await bridge.invoke(skillsDeleteRoute.name, {
-      name,
-      acknowledgedAgentIds
-    })
+    const result = await bridge.invoke(
+      skillsDeleteRoute.name,
+      skillsDeleteRoute.input.parse({ name, acknowledgedAgentIds })
+    )
     return result.result
   }
 

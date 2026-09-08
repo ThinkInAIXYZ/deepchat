@@ -3,7 +3,7 @@
 The behavior contract is in [spec.md](spec.md). The dedicated exploration agent owns [exploration.md](exploration.md); the implementation agent owns product changes, validation, commits, and the PR. Each phase requires a concrete exploration report, implementation, independent acceptance, and a commit before advancing.
 
 - [x] Phase 1 — Entry, shell navigation, session selection, accessible controls, and focus. Inspect ownership and callers, repair reported barriers, and obtain keyboard/AX acceptance.
-- [ ] Phase 2 — Conversation input and output, history, streaming, search, attachments, model options, message actions, and approval/recovery flows.
+- [x] Phase 2 — Conversation input and output, history, streaming, search, attachments, model options, message actions, and approval/recovery flows.
 - [ ] Phase 3 — Onboarding, all settings pages, provider/agent/model forms, plugin/MCP/skill installation and configuration.
 - [ ] Phase 4 — Projects, workspace files, artifacts, terminal, browser, auxiliary windows, and remaining feature inventory.
 - [ ] Review the complete change for semantic correctness, focus restoration, localization, lifecycle/performance effects, and scope.
@@ -142,3 +142,40 @@ AFTER   Artifact button + Enter -> titled preview; failure -> named alert
 ```
 
 The independent explorer accepted all 250 model switches, model deletion, named rate controls with an actual interval save, HTML Artifact entry and frame title, transfer failure/success, and Skip All focus recovery. React uses the same message entry and has a frame-title regression assertion; React runtime execution is not counted as independently accepted. Provider/rate/Artifact tests pass (10 tests), and onboarding/startup/Skills route tests pass (29 tests). The complete renderer suite passes 2448 tests across 274 files. Format, i18n, lint, typecheck and the production build pass.
+
+
+## Installation, authentication and operation recovery
+
+Local Skill Folder and ZIP selection uses native buttons with visible focus and disabled state. Installation exposes progress, URL validation and errors. Git scanning names its repository and conflict strategy, announces selection counts, and focuses the discovered Skills. Skill deletion serializes acknowledged agent IDs through its typed contract before Electron IPC. Pending confirmation dialogs recover their initiating control after failure when focus was lost; About update checks apply the same ownership rule at their feature boundary.
+
+ACP authentication names methods from their visible labels, identifies their descriptions, and announces authentication state and errors. Its xterm instance uses the shared native accessibility state, exposes a named terminal input and output region, and retains a visible F6 return instruction. F6 returns to the authentication controls without sending the key to the authentication process. Concurrent terminal initialization rechecks the live instance and challenge after loading xterm.
+
+The application event catalog binds onboarding resume and accessibility changes to their distinct schemas. Contract validation checks that each catalog key matches its event name. Browser keyboard entry remains restricted to the requesting renderer's active session and native host window.
+
+```text
+BEFORE  Folder/ZIP drop area -> no keyboard chooser
+AFTER   Folder/ZIP button -> native chooser -> installation feedback
+
+BEFORE  Authentication method ID -> terminal input without readable output
+AFTER   Named method -> readable sign-in terminal -> F6 -> authentication controls
+
+BEFORE  Delete Skill -> IPC clone failure; update check -> lost focus
+AFTER   Typed deletion input; failed confirmation/check -> initiating control
+```
+
+Independent acceptance covers Folder installation, editable Skill content, Git scanning/strategy/install, advanced System Prompt naming, ACP terminal output and F6/Cancel, and model/agent/settings persistence. Independent acceptance also covers successful and controlled-failure Skill deletion, ZIP and sync-directory import/export, update-check focus, resumed onboarding with an existing key, the full first-chat completion journey, named session model parameters with persisted edits, QR readiness status, and named model connectivity testing with announced success. Relevant API/dialog/About tests pass (57 tests); ACP/advanced/Skills tests pass (31 tests); main browser, dispatcher and route contracts pass (164 tests), and device/composition tests pass (32 tests). Both Electron keyboard navigation and streaming/real-attachment smoke tests pass. Repository quality gates and the production build pass.
+
+
+## Setup navigation and parameter context
+
+The main shell restores its named main landmark when outer route navigation removes the active element, including Skills-to-chat onboarding. Existing provider credentials retain a reachable guide anchored to Update key. Session numeric parameters have visible-label names and associated validation errors; optional reasoning/verbosity selectors are named. Directory imports identify their conflict strategy, preserve Refresh focus and focus their results after import. Remote QR installation and model connectivity checks expose persistent status and explicit errors.
+
+```text
+BEFORE  Saved API key -> missing guide; Skills -> chat -> lost focus
+AFTER   Update key anchor -> Next; Skills -> chat -> main -> agent selection
+
+BEFORE  Unnamed parameter value; directory import -> lost focus
+AFTER   Named parameter + validation; Import -> named result region
+```
+
+All these paths have independent runtime acceptance. The complete renderer suite passes 2450 tests across 274 files; setup-focused tests pass (121 tests), Remote Settings passes (34 tests), affected main suites pass (196 tests), and both Electron smoke tests pass. Format, i18n, lint, typecheck and production build pass. Settings activity-row keyboard activation and external-Agent import source labeling remain in the exploration queue, alongside native focus acceptance after macOS unlock.

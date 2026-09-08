@@ -1850,7 +1850,9 @@
         "succeeded": "מוכן",
         "cancelled": "בוטל",
         "failed": "נכשל"
-      }
+      },
+      "terminalLabel": "מסוף התחברות",
+      "terminalHint": "לחצו על F6 כדי לחזור לפקדי האימות."
     },
     "terminal": {
       "title": "טרמינל אתחול",

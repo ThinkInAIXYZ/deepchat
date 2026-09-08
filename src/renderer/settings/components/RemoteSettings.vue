@@ -409,18 +409,24 @@
                   <p class="mt-1 text-muted-foreground">
                     {{ t('settings.remote.feishu.installDescription') }}
                   </p>
-                  <div v-if="feishuInstallUserCode" class="mt-2 text-xs text-muted-foreground">
-                    {{
-                      t('settings.remote.feishu.installUserCode', { code: feishuInstallUserCode })
-                    }}
+                  <div role="status" aria-live="polite" aria-atomic="true">
+                    <div v-if="feishuInstallUserCode" class="mt-2 text-xs text-muted-foreground">
+                      {{
+                        t('settings.remote.feishu.installUserCode', { code: feishuInstallUserCode })
+                      }}
+                    </div>
+                    <div
+                      v-if="feishuInstallMessage && !feishuInstallError"
+                      class="mt-2 text-xs text-muted-foreground"
+                    >
+                      {{ feishuInstallMessage }}
+                    </div>
                   </div>
                   <div
-                    v-if="feishuInstallMessage && !feishuInstallError"
-                    class="mt-2 text-xs text-muted-foreground"
+                    v-if="feishuInstallError"
+                    role="alert"
+                    class="mt-2 break-all text-xs text-destructive"
                   >
-                    {{ feishuInstallMessage }}
-                  </div>
-                  <div v-if="feishuInstallError" class="mt-2 break-all text-xs text-destructive">
                     {{ feishuInstallError }}
                   </div>
                   <div class="mt-3 flex flex-wrap gap-2">
@@ -1580,16 +1586,18 @@
               {{ t('common.loading') }}
             </div>
           </div>
-          <div v-if="feishuInstallUserCode" class="text-xs text-muted-foreground">
-            {{ t('settings.remote.feishu.installUserCode', { code: feishuInstallUserCode }) }}
+          <div role="status" aria-live="polite" aria-atomic="true" class="space-y-2">
+            <div v-if="feishuInstallUserCode" class="text-xs text-muted-foreground">
+              {{ t('settings.remote.feishu.installUserCode', { code: feishuInstallUserCode }) }}
+            </div>
+            <div
+              v-if="feishuInstallMessage && !feishuInstallError"
+              class="text-xs text-muted-foreground"
+            >
+              {{ feishuInstallMessage }}
+            </div>
           </div>
-          <div
-            v-if="feishuInstallMessage && !feishuInstallError"
-            class="text-xs text-muted-foreground"
-          >
-            {{ feishuInstallMessage }}
-          </div>
-          <div v-if="feishuInstallError" class="break-all text-xs text-destructive">
+          <div v-if="feishuInstallError" role="alert" class="break-all text-xs text-destructive">
             {{ feishuInstallError }}
           </div>
         </div>

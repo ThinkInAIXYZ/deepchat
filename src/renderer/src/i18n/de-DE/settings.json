@@ -2209,7 +2209,9 @@
         "succeeded": "Ready",
         "cancelled": "Cancelled",
         "failed": "Failed"
-      }
+      },
+      "terminalLabel": "Anmeldeterminal",
+      "terminalHint": "Mit F6 zu den Anmeldesteuerelementen zurückkehren."
     },
     "terminal": {
       "title": "Initialisierungsterminal",

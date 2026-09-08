@@ -12,6 +12,7 @@
         <div class="flex gap-2">
           <Input
             v-model="repoUrl"
+            :aria-label="t('settings.skills.git.menuItem')"
             :placeholder="t('settings.skills.git.placeholder')"
             :disabled="scanning || installing"
           />
@@ -22,7 +23,11 @@
           </DcButton>
         </div>
 
-        <div v-if="error" class="rounded-md border border-destructive/30 px-3 py-2 text-sm">
+        <div
+          v-if="error"
+          role="alert"
+          class="rounded-md border border-destructive/30 px-3 py-2 text-sm"
+        >
           <div class="font-medium text-destructive">{{ t('settings.skills.git.failed') }}</div>
           <div class="mt-1 text-xs text-muted-foreground">
             {{ t('common.error.requestFailed') }}
@@ -31,7 +36,23 @@
 
         <DcInlineError v-if="operationError" :error="operationError" class="mb-2" />
 
-        <div v-if="scanResult" class="space-y-3">
+        <p role="status" aria-live="polite" aria-atomic="true" class="sr-only">
+          {{
+            scanning
+              ? t('common.loading')
+              : scanResult
+                ? t('settings.skills.git.selectedCount', { count: selectedNames.size })
+                : ''
+          }}
+        </p>
+        <div
+          v-if="scanResult"
+          ref="scanResults"
+          role="region"
+          tabindex="-1"
+          :aria-label="t('settings.skills.sync.step2Title')"
+          class="space-y-3"
+        >
           <div class="flex items-center justify-between gap-2 text-sm">
             <div>
               {{ t('settings.skills.git.detectedFormat') }}
@@ -92,7 +113,11 @@
 
           <div class="space-y-2 rounded-md border px-3 py-3">
             <div class="text-sm font-medium">{{ t('settings.skills.git.strategy') }}</div>
-            <RadioGroup v-model="strategy" class="grid gap-2 sm:grid-cols-3">
+            <RadioGroup
+              v-model="strategy"
+              :aria-label="t('settings.skills.git.strategy')"
+              class="grid gap-2 sm:grid-cols-3"
+            >
               <label class="flex items-center gap-2 text-sm">
                 <RadioGroupItem value="rename" :disabled="installing" />
                 {{ t('settings.skills.git.rename') }}
@@ -126,7 +151,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
 import { DcBadge } from '@dc-ui/components/badge'
@@ -162,6 +187,7 @@ const skillClient = createSkillClient()
 
 const repoUrl = ref('https://github.com/op7418/guizang-ppt-skill') // sample repo pre-filled for convenience
 const scanResult = ref<GitSkillRepoScanResult | null>(null)
+const scanResults = ref<HTMLElement | null>(null)
 const selectedNames = ref<Set<string>>(new Set())
 const strategy = ref<SkillInstallConflictStrategy>('rename')
 const scanning = ref(false)
@@ -204,6 +230,7 @@ const canInstall = computed(
 )
 
 const scan = async () => {
+  const opener = document.activeElement as HTMLElement | null
   const requestId = ++scanRequestId
   const requestedRepoUrl = repoUrl.value.trim()
   error.value = false
@@ -227,6 +254,14 @@ const scan = async () => {
   } finally {
     if (requestId === scanRequestId && isCurrentContext(contextVersion.value)) {
       scanning.value = false
+      await nextTick()
+      if (
+        requestId === scanRequestId &&
+        props.open &&
+        (document.activeElement === document.body || document.activeElement === opener)
+      ) {
+        ;(scanResults.value ?? opener)?.focus({ preventScroll: true })
+      }
     }
   }
 }

@@ -1876,7 +1876,9 @@
         "succeeded": "Ready",
         "cancelled": "Cancelled",
         "failed": "Failed"
-      }
+      },
+      "terminalLabel": "ログイン端末",
+      "terminalHint": "F6 を押すと認証コントロールに戻ります。"
     },
     "terminal": {
       "close": "閉鎖",

@@ -2209,7 +2209,9 @@
         "succeeded": "Ready",
         "cancelled": "Cancelled",
         "failed": "Failed"
-      }
+      },
+      "terminalLabel": "Terminal de inicio de sesión",
+      "terminalHint": "Pulsa F6 para volver a los controles de autenticación."
     },
     "terminal": {
       "title": "Terminal de inicialización",

@@ -687,8 +687,12 @@ const syncGuideTargets = () => {
     ? (document.querySelector(`[data-provider-id="${firstProviderId}"]`) as HTMLElement | null)
     : null
   providerApiKeyTargetRef.value =
-    (detailRoot?.querySelector('[data-testid="provider-api-key-input"]') as HTMLElement | null) ??
-    (document.querySelector('[data-testid="provider-api-key-input"]') as HTMLElement | null)
+    (detailRoot?.querySelector(
+      '[data-testid="provider-api-key-input"], [data-testid="provider-update-key-button"]'
+    ) as HTMLElement | null) ??
+    (document.querySelector(
+      '[data-testid="provider-api-key-input"], [data-testid="provider-update-key-button"]'
+    ) as HTMLElement | null)
   providerModelTargetRef.value =
     (activeProviderId
       ? ((detailRoot?.querySelector(

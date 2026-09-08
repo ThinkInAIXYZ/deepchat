@@ -204,8 +204,8 @@ export const DEEPCHAT_EVENT_CATALOG = {
   [appRuntimeMcpInstallRequestedEvent.name]: appRuntimeMcpInstallRequestedEvent,
   [appRuntimeGuidedOnboardingStartRequestedEvent.name]:
     appRuntimeGuidedOnboardingStartRequestedEvent,
-  [appRuntimeGuidedOnboardingResumeRequestedEvent.name]: appRuntimeAccessibilityChangedEvent,
-  appRuntimeGuidedOnboardingResumeRequestedEvent,
+  [appRuntimeGuidedOnboardingResumeRequestedEvent.name]:
+    appRuntimeGuidedOnboardingResumeRequestedEvent,
   [appRuntimeAccessibilityChangedEvent.name]: appRuntimeAccessibilityChangedEvent,
   [appRuntimeWindowFocusedEvent.name]: appRuntimeWindowFocusedEvent,
   [appRuntimeWindowBlurredEvent.name]: appRuntimeWindowBlurredEvent,

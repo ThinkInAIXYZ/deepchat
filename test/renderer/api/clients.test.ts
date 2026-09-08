@@ -2684,7 +2684,7 @@ describe('renderer api clients', () => {
 
     await skillClient.getAllSkills()
     await skillClient.setSkillAssignments('writer', ['write-tests'])
-    await skillClient.deleteSkill('write-tests', ['writer'])
+    await skillClient.deleteSkill('write-tests', reactive(['writer']))
 
     expect(bridge.invoke).toHaveBeenNthCalledWith(1, 'skills.listAll', {})
     expect(bridge.invoke).toHaveBeenNthCalledWith(2, 'skills.setAssignments', {
@@ -2695,6 +2695,7 @@ describe('renderer api clients', () => {
       name: 'write-tests',
       acknowledgedAgentIds: ['writer']
     })
+    expect(() => structuredClone(vi.mocked(bridge.invoke).mock.calls[2][1])).not.toThrow()
   })
 
   it('routes skill management catalog calls through shared registry names', async () => {

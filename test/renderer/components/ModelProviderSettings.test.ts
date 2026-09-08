@@ -219,6 +219,7 @@ const setup = async (options?: {
       },
       template: `
         <div data-testid="generic-detail">
+          <button data-testid="provider-update-key-button" type="button">Update key</button>
           <button data-testid="generic-detail-complete" @click="$emit('provider-configured')">
             complete
           </button>
@@ -532,6 +533,17 @@ describe('ModelProviderSettings', () => {
 
     expect(route.params.providerId).toBe('anthropic')
     expect(wrapper.find('[data-testid="provider-catalog"]').exists()).toBe(false)
+  })
+
+  it('keeps the API key guide available when the saved key is summarized', async () => {
+    const { wrapper } = await setup({
+      guideCurrentStepId: 'provider-api-key',
+      visibleGuideStepId: 'provider-api-key'
+    })
+    expect(wrapper.get('[data-testid="guided-overlay"]').attributes('data-target-testid')).toBe(
+      'provider-update-key-button'
+    )
+    wrapper.unmount()
   })
 
   it('auto-continues onboarding after the provider is configured', async () => {
