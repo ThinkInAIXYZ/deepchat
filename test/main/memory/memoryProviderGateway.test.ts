@@ -193,6 +193,44 @@ describe('MemoryProviderGateway', () => {
         vi.useRealTimers()
       }
     })
+
+    it('keeps multi-text decision batches on the fixed deadline without touching the profile', async () => {
+      vi.useFakeTimers()
+      try {
+        const { gateway } = makeLatencyGateway([undefined, 1500, undefined])
+        // A batch miss must not relax the next single-text query.
+        await expect(
+          settle(gateway.getEmbeddings('a', 'p', 'm', ['c1', 'c2', 'c3'], 'query-embedding'), 800)
+        ).rejects.toMatchObject({ message: '[Memory] query-embedding deadline exceeded (800ms)' })
+        // A slow batch success must not raise the single-text deadline either.
+        await expect(
+          settle(gateway.getEmbeddings('a', 'p', 'm', ['c1', 'c2'], 'query-embedding'), 1500)
+        ).rejects.toMatchObject({ message: '[Memory] query-embedding deadline exceeded (800ms)' })
+
+        await expect(
+          settle(gateway.getEmbeddings('a', 'p', 'm', ['q'], 'query-embedding'), 800)
+        ).rejects.toMatchObject({ message: '[Memory] query-embedding deadline exceeded (800ms)' })
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('caps a cold warm-up sample at the ceiling so fast queries recover the floor quickly', async () => {
+      vi.useFakeTimers()
+      try {
+        const { gateway } = makeLatencyGateway([25_000, 300, 300, undefined])
+        await settle(gateway.getEmbeddings('a', 'p', 'm', ['warm'], 'embedding-warm'), 25_000)
+        // Sample capped to 2000 → smoothed 2000 → 1150 → 725 → deadline clamp(1450) after two queries.
+        await settle(gateway.getEmbeddings('a', 'p', 'm', ['q1'], 'query-embedding'), 300)
+        await settle(gateway.getEmbeddings('a', 'p', 'm', ['q2'], 'query-embedding'), 300)
+
+        await expect(
+          settle(gateway.getEmbeddings('a', 'p', 'm', ['q3'], 'query-embedding'), 1450)
+        ).rejects.toMatchObject({ message: '[Memory] query-embedding deadline exceeded (1450ms)' })
+      } finally {
+        vi.useRealTimers()
+      }
+    })
   })
 
   it('aborts queued or active requests during disposal without waiting for provider support', async () => {

@@ -32,9 +32,11 @@ const MAX_UNSETTLED_REQUESTS_GLOBAL = 64
 
 /**
  * Wall time of single-text embedding calls for one provider model. Warm-up calls feed it too, so
- * the first recall after startup already knows the network it is on. A deadline miss relaxes the
- * next attempt to the ceiling once: a slow-but-alive provider then reports a real latency instead of
- * failing at the floor forever, while a dead one still costs at most one ceiling wait per miss.
+ * the first recall after startup already knows the network it is on. After a deadline miss every
+ * attempt runs at the ceiling until one succeeds, so a slow-but-alive provider reports a real
+ * latency instead of failing at the floor forever; the recall breaker bounds what a dead provider
+ * can cost. Samples are capped at the ceiling: a cold model load or a long admission queue must
+ * not leave the smoothed value so far above it that fast queries take many turns to pull it back.
  */
 class QueryEmbeddingLatencyProfile {
   private smoothedMs: number | null = null
@@ -54,21 +56,17 @@ class QueryEmbeddingLatencyProfile {
 
   observeSuccess(elapsedMs: number): void {
     this.relaxNext = false
+    const sample = Math.min(RECALL_QUERY_EMBEDDING_TIMEOUT_MAX_MS, Math.max(0, elapsedMs))
     this.smoothedMs =
       this.smoothedMs === null
-        ? elapsedMs
-        : this.smoothedMs + (elapsedMs - this.smoothedMs) * RECALL_QUERY_EMBEDDING_LATENCY_SMOOTHING
+        ? sample
+        : this.smoothedMs + (sample - this.smoothedMs) * RECALL_QUERY_EMBEDDING_LATENCY_SMOOTHING
   }
 
   observeDeadlineExceeded(): void {
     this.relaxNext = true
   }
 }
-
-const QUERY_LATENCY_SAMPLE_PURPOSES: ReadonlySet<MemoryProviderPurpose> = new Set([
-  'query-embedding',
-  'embedding-warm'
-])
 
 export class MemoryProviderGateway implements MemoryProviderGatewayPort {
   private readonly activeControllersByAgent = new Map<string, Set<AbortController>>()
@@ -119,8 +117,17 @@ export class MemoryProviderGateway implements MemoryProviderGatewayPort {
       'query-embedding' | 'embedding-batch' | 'embedding-warm'
     >
   ): Promise<number[][]> {
-    return this.execute(agentId, providerId, modelId, purpose, (signal) =>
-      this.deps.getEmbeddings(providerId, modelId, texts, signal)
+    // Only a single text describes the round trip a recall query will see. Decision batches embed
+    // many claims under the same purpose and must neither learn nor consume its adaptive deadline.
+    const latencyProfile =
+      texts.length === 1 ? this.queryLatencyProfile(purpose, providerId, modelId) : undefined
+    return this.execute(
+      agentId,
+      providerId,
+      modelId,
+      purpose,
+      (signal) => this.deps.getEmbeddings(providerId, modelId, texts, signal),
+      latencyProfile
     )
   }
 
@@ -139,7 +146,8 @@ export class MemoryProviderGateway implements MemoryProviderGatewayPort {
     providerId: string,
     modelId: string,
     purpose: MemoryProviderPurpose,
-    operation: (signal: AbortSignal) => Promise<T>
+    operation: (signal: AbortSignal) => Promise<T>,
+    latencyProfile?: QueryEmbeddingLatencyProfile
   ): Promise<T> {
     if (this.stopped) {
       return Promise.reject(
@@ -154,7 +162,6 @@ export class MemoryProviderGateway implements MemoryProviderGatewayPort {
       this.activeControllersByAgent.set(agentId, controllers)
     }
     controllers.add(controller)
-    const latencyProfile = this.queryLatencyProfile(purpose, providerId, modelId)
     const deadline =
       purpose === 'query-embedding' && latencyProfile
         ? latencyProfile.deadlineMs()
@@ -279,7 +286,7 @@ export class MemoryProviderGateway implements MemoryProviderGatewayPort {
     providerId: string,
     modelId: string
   ): QueryEmbeddingLatencyProfile | undefined {
-    if (!QUERY_LATENCY_SAMPLE_PURPOSES.has(purpose)) return undefined
+    if (purpose !== 'query-embedding' && purpose !== 'embedding-warm') return undefined
     const key = `${providerId}\0${modelId}`
     let profile = this.queryLatencyByModel.get(key)
     if (!profile) {
