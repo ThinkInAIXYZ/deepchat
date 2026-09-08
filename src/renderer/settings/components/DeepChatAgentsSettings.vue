@@ -64,7 +64,7 @@
       </div>
     </aside>
 
-    <main class="agent-editor-main min-w-0 flex-1 overflow-y-auto">
+    <section class="agent-editor-main min-w-0 flex-1 overflow-y-auto">
       <div
         data-testid="deepchat-agents-sticky-header"
         class="sticky top-0 z-20 border-b border-border/80 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/85"
@@ -764,7 +764,7 @@
           </div>
         </section>
       </div>
-    </main>
+    </section>
 
     <Dialog
       :open="systemPromptDialogOpen"

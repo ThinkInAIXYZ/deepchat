@@ -69,7 +69,7 @@ if (import.meta.env.DEV && !accessibleName.value && isIconOnly.value && !slots.d
           :as="as"
           :as-child="asChild"
           :disabled="disabled"
-          :aria-label="accessibleName || undefined"
+          :aria-label="$attrs['aria-label'] ?? (accessibleName || undefined)"
           :class="buttonClass"
         >
           <Spinner v-if="loading" data-icon="inline-start" :class="iconSizeClass" />
@@ -92,7 +92,7 @@ if (import.meta.env.DEV && !accessibleName.value && isIconOnly.value && !slots.d
       :as="as"
       :as-child="asChild"
       :disabled="disabled"
-      :aria-label="accessibleName || undefined"
+      :aria-label="$attrs['aria-label'] ?? (accessibleName || undefined)"
       :class="buttonClass"
     >
       <Spinner v-if="loading" data-icon="inline-start" :class="iconSizeClass" />

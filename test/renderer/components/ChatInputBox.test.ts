@@ -598,10 +598,10 @@ describe('ChatInputBox attachments', () => {
 
   it('configures the editor with a bounded scrollable input area', async () => {
     await mountComponent()
-    expect(lastEditorOptions?.editorProps?.attributes?.class).toContain('min-h-[60px]')
-    expect(lastEditorOptions?.editorProps?.attributes?.class).toContain('max-h-[240px]')
-    expect(lastEditorOptions?.editorProps?.attributes?.class).toContain('overflow-y-auto')
-    expect(lastEditorOptions?.editorProps?.attributes?.class).toContain('overscroll-contain')
+    expect(lastEditorOptions?.editorProps?.attributes()?.class).toContain('min-h-[60px]')
+    expect(lastEditorOptions?.editorProps?.attributes()?.class).toContain('max-h-[240px]')
+    expect(lastEditorOptions?.editorProps?.attributes()?.class).toContain('overflow-y-auto')
+    expect(lastEditorOptions?.editorProps?.attributes()?.class).toContain('overscroll-contain')
   })
 
   it('handles drop files via composable', async () => {

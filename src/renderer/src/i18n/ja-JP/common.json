@@ -1,4 +1,5 @@
 {
+  "skipToContent": "メインコンテンツへ移動",
   "notifications": {
     "label": "通知",
     "actionFailed": "操作に失敗しました。もう一度お試しください。",

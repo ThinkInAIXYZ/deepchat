@@ -1,4 +1,5 @@
 {
+  "skipToContent": "Saltar al contenido",
   "notifications": {
     "label": "Notificaciones",
     "actionFailed": "La acción falló. Inténtalo de nuevo.",

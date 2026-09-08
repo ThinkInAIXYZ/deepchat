@@ -313,7 +313,7 @@ onUnmounted(() => {
 
 <template>
   <ScrollArea class="h-full w-full">
-    <main
+    <section
       data-testid="plugins-skills-page"
       class="mx-auto flex min-h-full w-full max-w-7xl min-w-0 flex-col gap-4 p-4 lg:p-6"
     >
@@ -507,7 +507,7 @@ onUnmounted(() => {
         @save="saveSkill"
         @delete="deleteSkill"
       />
-    </main>
+    </section>
   </ScrollArea>
 
   <GuidedOnboardingOverlay

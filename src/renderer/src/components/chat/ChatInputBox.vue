@@ -513,10 +513,13 @@ function findFileInsertPos(): number {
 const editor = new VueEditor({
   editable: props.editable,
   editorProps: {
-    attributes: {
+    attributes: () => ({
       'data-testid': 'chat-input-contenteditable',
+      role: 'textbox',
+      'aria-multiline': 'true',
+      'aria-label': resolvedPlaceholder.value,
       class: 'outline-none min-h-[60px] max-h-[240px] overflow-y-auto overscroll-contain'
-    }
+    })
   },
   extensions: [
     Document,
