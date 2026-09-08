@@ -5,7 +5,6 @@ import type {
   MemoryRetrievalOutcome,
   MemoryRetrievalPurpose
 } from '@shared/types/agent-memory'
-import { truncateUnicodeCodePoints } from '@shared/lib/unicodeText'
 
 import {
   buildMemoryProvenanceKey,
@@ -46,12 +45,6 @@ import {
 import {
   DECISION_NEIGHBOR_TOP_S,
   MEMORY_SEARCH_DEFAULT_LIMIT,
-  RECALL_QUERY_EMBEDDING_BREAKER_COOLDOWN_MS,
-  RECALL_QUERY_EMBEDDING_BREAKER_FAILURE_THRESHOLD,
-  RECALL_QUERY_EMBEDDING_BREAKER_FAILURE_WINDOW_MS,
-  RECALL_QUERY_EMBEDDING_MAX_CODE_POINTS,
-  RECALL_QUERY_EMBEDDING_MAX_CONCURRENT,
-  RECALL_QUERY_EMBEDDING_STALE_MS,
   SCOPE_VECTOR_OVERSAMPLE_MULTIPLIER
 } from '../runtimeConstants'
 import {
@@ -82,29 +75,11 @@ import type {
   VectorStoreRetrievalPort,
   WorkingMemoryReadPort
 } from '../ports'
-
-type QueryEmbeddingInFlight = {
-  agentId: string
-  startedAt: number
-  promise: Promise<number[][]>
-  circuit: QueryEmbeddingCircuit
-  recoveryProbe: boolean
-  consumerSignals: Set<AbortSignal | undefined>
-  circuitSettled: boolean
-}
-
-type QueryEmbeddingCircuit = {
-  fingerprint: string
-  failuresInWindow: number
-  failureWindowStartedAt: number | null
-  openUntil: number
-  halfOpenProbe: boolean
-}
-
-type QueryEmbeddingStartResult =
-  | { status: 'started'; entry: QueryEmbeddingInFlight }
-  | { status: 'capacity' }
-  | { status: 'circuitOpen' }
+import {
+  QueryEmbeddingCircuitBreaker,
+  type QueryEmbeddingCircuitDiagnostics,
+  type QueryEmbeddingCircuitState
+} from '../infra/queryEmbeddingCircuit'
 
 const LEGACY_RETRIEVAL_CANDIDATE_MULTIPLIER = 2
 const TEMPORAL_RETRIEVAL_CANDIDATE_MULTIPLIER = 4
@@ -208,8 +183,7 @@ function isStaleExecutionCancellation(error: unknown, isDisposed: boolean): bool
 
 export class RetrievalService {
   private readonly ctx: MemoryRuntimeContext
-  private readonly queryEmbeddingInFlight = new Map<string, Map<string, QueryEmbeddingInFlight>>()
-  private readonly queryEmbeddingCircuits = new Map<string, QueryEmbeddingCircuit>()
+  private readonly queryEmbeddingCircuit: QueryEmbeddingCircuitBreaker
 
   constructor(
     private readonly ports: {
@@ -235,7 +209,7 @@ export class RetrievalService {
         memoryIds: string[]
       ) => Promise<string[]>
       getActiveSuppressionTopics: (agentId: string) => readonly string[]
-      diagnostics?: {
+      diagnostics?: QueryEmbeddingCircuitDiagnostics & {
         recordRecall(
           agentId: string,
           sample: {
@@ -248,15 +222,14 @@ export class RetrievalService {
             degradations: readonly MemoryRetrievalDegradationCause[]
           }
         ): void
-        recordQueryEmbeddingCircuitEvent?(
-          agentId: string,
-          event: 'failure' | 'opened' | 'halfOpen' | 'closed' | 'probeCancelled' | 'skipped'
-        ): void
-        resetQueryEmbeddingCircuit?(agentId: string): void
       }
     }
   ) {
     this.ctx = ports.ctx
+    this.queryEmbeddingCircuit = new QueryEmbeddingCircuitBreaker({
+      embeddingGateway: ports.embeddingGateway,
+      diagnostics: ports.diagnostics
+    })
   }
 
   async recall(
@@ -588,219 +561,6 @@ export class RetrievalService {
     return buildRecallKeywordQuery(selectRecallKeywordTerms(candidates))
   }
 
-  private startQueryEmbedding(
-    agentId: string,
-    embedding: MemoryModelRef,
-    fullQuery: string,
-    signal?: AbortSignal
-  ): QueryEmbeddingStartResult {
-    const query = truncateUnicodeCodePoints(fullQuery, RECALL_QUERY_EMBEDDING_MAX_CODE_POINTS)
-    const fingerprint = embeddingFingerprint(embedding.providerId, embedding.modelId)
-    const key = `${agentId}::${fingerprint}`
-    const now = Date.now()
-    const circuit = this.queryEmbeddingCircuit(agentId, fingerprint)
-    let group = this.queryEmbeddingInFlight.get(key)
-    let replacedStale = false
-    if (group) {
-      for (const [trackedQuery, entry] of group) {
-        if (entry.circuitSettled) {
-          group.delete(trackedQuery)
-        } else if (now - entry.startedAt >= RECALL_QUERY_EMBEDDING_STALE_MS) {
-          this.settleQueryEmbeddingCircuitCancellation(entry)
-          group.delete(trackedQuery)
-          replacedStale = true
-        }
-      }
-      if (group.size === 0) {
-        this.queryEmbeddingInFlight.delete(key)
-        group = undefined
-      }
-    }
-    if (replacedStale) logger.warn(`[Memory] stale query embedding replaced for ${agentId}`)
-
-    if (circuit.halfOpenProbe || circuit.openUntil > now) {
-      this.ports.diagnostics?.recordQueryEmbeddingCircuitEvent?.(agentId, 'skipped')
-      return { status: 'circuitOpen' }
-    }
-
-    const recoveryProbe = circuit.openUntil > 0
-    const existing = group?.get(query)
-    if (!recoveryProbe && existing) {
-      existing.consumerSignals.add(signal)
-      return { status: 'started', entry: existing }
-    }
-    if ((group?.size ?? 0) >= RECALL_QUERY_EMBEDDING_MAX_CONCURRENT) {
-      return { status: 'capacity' }
-    }
-
-    if (recoveryProbe) {
-      circuit.halfOpenProbe = true
-      this.ports.diagnostics?.recordQueryEmbeddingCircuitEvent?.(agentId, 'halfOpen')
-    }
-    if (!group) {
-      group = new Map()
-      this.queryEmbeddingInFlight.set(key, group)
-    }
-
-    let promise: Promise<number[][]>
-    try {
-      promise = this.ports.embeddingGateway.getEmbeddings(
-        agentId,
-        embedding.providerId,
-        embedding.modelId,
-        [query],
-        'query-embedding'
-      )
-    } catch (error) {
-      promise = Promise.reject(error)
-    }
-    const entry: QueryEmbeddingInFlight = {
-      agentId,
-      startedAt: now,
-      promise,
-      circuit,
-      recoveryProbe,
-      consumerSignals: new Set([signal]),
-      circuitSettled: false
-    }
-    group.set(query, entry)
-    void promise
-      .then(
-        () => {
-          if (this.queryEmbeddingConsumersCancelled(entry)) {
-            this.settleQueryEmbeddingCircuitCancellation(entry)
-          } else {
-            this.settleQueryEmbeddingCircuitSuccess(entry)
-          }
-        },
-        (error) => {
-          if (this.queryEmbeddingConsumersCancelled(entry)) {
-            this.settleQueryEmbeddingCircuitCancellation(entry)
-          } else if (this.isQueryEmbeddingCircuitFailure(error)) {
-            this.settleQueryEmbeddingCircuitFailure(entry)
-          } else {
-            this.settleQueryEmbeddingCircuitCancellation(entry)
-          }
-        }
-      )
-      .finally(() => {
-        const currentGroup = this.queryEmbeddingInFlight.get(key)
-        if (currentGroup?.get(query) === entry) {
-          currentGroup.delete(query)
-          if (currentGroup.size === 0) this.queryEmbeddingInFlight.delete(key)
-        }
-      })
-      .catch(() => undefined)
-    return { status: 'started', entry }
-  }
-
-  private queryEmbeddingCircuit(agentId: string, fingerprint: string): QueryEmbeddingCircuit {
-    const existing = this.queryEmbeddingCircuits.get(agentId)
-    if (existing?.fingerprint === fingerprint) return existing
-    if (existing) {
-      this.clearQueryEmbeddingInFlight(agentId)
-      this.ports.diagnostics?.resetQueryEmbeddingCircuit?.(agentId)
-    }
-    const circuit: QueryEmbeddingCircuit = {
-      fingerprint,
-      failuresInWindow: 0,
-      failureWindowStartedAt: null,
-      openUntil: 0,
-      halfOpenProbe: false
-    }
-    this.queryEmbeddingCircuits.set(agentId, circuit)
-    return circuit
-  }
-
-  private queryEmbeddingConsumersCancelled(entry: QueryEmbeddingInFlight): boolean {
-    return (
-      entry.consumerSignals.size > 0 &&
-      [...entry.consumerSignals].every((signal) => signal?.aborted === true)
-    )
-  }
-
-  /**
-   * Every provider failure except a cancellation counts, including 4xx rejections: a persistent
-   * 400 from a misconfigured model or proxy costs a failed round trip on every turn, and only the
-   * breaker bounds that to one probe per cooldown. Query truncation already keeps well-formed
-   * requests inside provider input limits, so a rejection is a health signal, not a request quirk.
-   */
-  private isQueryEmbeddingCircuitFailure(error: unknown): boolean {
-    if (isMemoryProviderDeadlineError(error)) return true
-    return (error as { name?: string } | null)?.name !== 'AbortError'
-  }
-
-  private settleQueryEmbeddingCircuitSuccess(entry: QueryEmbeddingInFlight): void {
-    if (entry.circuitSettled) return
-    entry.circuitSettled = true
-    if (this.queryEmbeddingCircuits.get(entry.agentId) !== entry.circuit) return
-    if (!entry.recoveryProbe && entry.circuit.openUntil > 0) return
-    entry.circuit.failuresInWindow = 0
-    entry.circuit.failureWindowStartedAt = null
-    entry.circuit.openUntil = 0
-    entry.circuit.halfOpenProbe = false
-    this.ports.diagnostics?.recordQueryEmbeddingCircuitEvent?.(entry.agentId, 'closed')
-  }
-
-  private settleQueryEmbeddingCircuitFailure(entry: QueryEmbeddingInFlight): void {
-    if (entry.circuitSettled) return
-    entry.circuitSettled = true
-    const circuit = entry.circuit
-    if (this.queryEmbeddingCircuits.get(entry.agentId) !== circuit) return
-    this.ports.diagnostics?.recordQueryEmbeddingCircuitEvent?.(entry.agentId, 'failure')
-    const now = Date.now()
-    if (entry.recoveryProbe) {
-      circuit.halfOpenProbe = false
-      this.openQueryEmbeddingCircuit(entry.agentId, circuit, now)
-      return
-    }
-    if (circuit.openUntil > now) return
-    if (
-      circuit.failureWindowStartedAt === null ||
-      now - circuit.failureWindowStartedAt > RECALL_QUERY_EMBEDDING_BREAKER_FAILURE_WINDOW_MS
-    ) {
-      circuit.failureWindowStartedAt = now
-      circuit.failuresInWindow = 1
-    } else {
-      circuit.failuresInWindow += 1
-    }
-    if (circuit.failuresInWindow >= RECALL_QUERY_EMBEDDING_BREAKER_FAILURE_THRESHOLD) {
-      this.openQueryEmbeddingCircuit(entry.agentId, circuit, now)
-    }
-  }
-
-  private openQueryEmbeddingCircuit(
-    agentId: string,
-    circuit: QueryEmbeddingCircuit,
-    now: number
-  ): void {
-    circuit.openUntil = now + RECALL_QUERY_EMBEDDING_BREAKER_COOLDOWN_MS
-    this.ports.diagnostics?.recordQueryEmbeddingCircuitEvent?.(agentId, 'opened')
-    logger.warn(`[Memory] query embedding circuit opened for ${agentId}; vector recall paused`)
-  }
-
-  private settleQueryEmbeddingCircuitCancellation(entry: QueryEmbeddingInFlight): void {
-    if (entry.circuitSettled) return
-    entry.circuitSettled = true
-    if (this.queryEmbeddingCircuits.get(entry.agentId) !== entry.circuit) return
-    if (!entry.recoveryProbe) return
-    entry.circuit.halfOpenProbe = false
-    this.ports.diagnostics?.recordQueryEmbeddingCircuitEvent?.(entry.agentId, 'probeCancelled')
-  }
-
-  private clearQueryEmbeddingInFlight(agentId: string): void {
-    for (const key of this.queryEmbeddingInFlight.keys()) {
-      if (key.startsWith(`${agentId}::`)) this.queryEmbeddingInFlight.delete(key)
-    }
-  }
-
-  getQueryEmbeddingCircuitState(agentId: string): 'closed' | 'open' | 'halfOpen' {
-    const circuit = this.queryEmbeddingCircuits.get(agentId)
-    if (!circuit) return 'closed'
-    if (circuit.halfOpenProbe) return 'halfOpen'
-    return circuit.openUntil > 0 ? 'open' : 'closed'
-  }
-
   async searchMemories(
     agentId: string,
     query: string,
@@ -962,7 +722,7 @@ export class RetrievalService {
           this.ports.warmEmbeddingConnection(agentId, currentEmbedding)
         } else {
           try {
-            const queryEmbedding = this.startQueryEmbedding(
+            const queryEmbedding = this.queryEmbeddingCircuit.start(
               agentId,
               currentEmbedding,
               normalizedQuery,
@@ -978,7 +738,7 @@ export class RetrievalService {
               const embeddingStartedAt = performance.now()
               activeStage = 'queryEmbedding'
               // The gateway owns the deadline; its rejection lands in the catch below.
-              const vectors = await queryEmbedding.entry.promise
+              const vectors = await queryEmbedding.promise
               throwIfAborted(options.signal)
               latencyMs.queryEmbedding = performance.now() - embeddingStartedAt
               if (!this.ctx.canContinueOperation(operationFence)) {
@@ -1369,18 +1129,19 @@ export class RetrievalService {
     return { payload, manifest }
   }
 
+  getQueryEmbeddingCircuitState(agentId: string): QueryEmbeddingCircuitState {
+    return this.queryEmbeddingCircuit.state(agentId)
+  }
+
   cleanupAgent(agentId: string): void {
     this.onEmbeddingConfigChanged(agentId)
   }
 
   onEmbeddingConfigChanged(agentId: string): void {
-    this.clearQueryEmbeddingInFlight(agentId)
-    this.queryEmbeddingCircuits.delete(agentId)
-    this.ports.diagnostics?.resetQueryEmbeddingCircuit?.(agentId)
+    this.queryEmbeddingCircuit.reset(agentId)
   }
 
   clearAll(): void {
-    this.queryEmbeddingInFlight.clear()
-    this.queryEmbeddingCircuits.clear()
+    this.queryEmbeddingCircuit.clear()
   }
 }
