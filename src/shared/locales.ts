@@ -22,7 +22,8 @@ export const SUPPORTED_LOCALES = [
   'pl-PL',
   'vi-VN',
   'bo-CN',
-  'ug-CN'
+  'ug-CN',
+  'mn-Mong-CN'
 ] as const
 
 export type SupportedLocale = (typeof SUPPORTED_LOCALES)[number]
@@ -53,7 +54,8 @@ export const LOCALE_DISPLAY_NAMES = {
   'pl-PL': 'Polski',
   'vi-VN': 'Tiếng Việt',
   'bo-CN': 'བོད་ཡིག',
-  'ug-CN': 'ئۇيغۇرچە'
+  'ug-CN': 'ئۇيغۇرچە',
+  'mn-Mong-CN': 'ᠮᠣᠩᠭᠣᠯ ᠬᠡᠯᠡ'
 } as const satisfies Record<SupportedLocale, string>
 
 const localeLookup = new Map<string, SupportedLocale>(
@@ -80,7 +82,8 @@ const languageFallbacks: Readonly<Record<string, SupportedLocale>> = {
   pl: 'pl-PL',
   vi: 'vi-VN',
   bo: 'bo-CN',
-  ug: 'ug-CN'
+  ug: 'ug-CN',
+  mn: 'mn-Mong-CN'
 }
 
 const rtlLocales = new Set<SupportedLocale>(['fa-IR', 'he-IL', 'ug-CN'])

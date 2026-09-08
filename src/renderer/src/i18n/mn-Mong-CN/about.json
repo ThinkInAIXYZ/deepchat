@@ -1,0 +1,29 @@
+{
+  "title": "DeepChat",
+  "description": "DeepChat ᠨᠢ ᠰᠦᠯᠵᠢᠶᠡᠨ ᠳᠡᠭᠡᠷ᠎ᠡ AI ᠦᠢᠯᠡᠴᠢᠯᠡᠭᠡᠨ ᠦ ᠵᠣᠴᠢᠨ ᠡᠷᠦᠬᠡ ᠶᠢᠨ AI ᠃",
+  "website": "ᠮᠠᠨ ᠤ ᠰᠦᠯᠵᠢᠶᠡᠨ ᠳᠦ ᠢᠷᠡᠭᠡᠷᠡᠢ",
+  "disclaimerButton": "ᠮᠡᠳᠡᠷᠡᠯ ᠦᠨ ᠲᠣᠳᠣᠷᠬᠠᠶᠢᠯᠠᠯ",
+  "feedbackButton": "ᠬᠠᠷᠢᠭᠤ ᠲᠤᠰᠬᠠᠬᠤ",
+  "disclaimerTitle": "ᠬᠡᠷᠡᠭ᠍ᠯᠡᠬᠦ ᠵᠦᠢᠯ ᠵᠤᠷᠪᠤᠰ ᠢ",
+  "checkUpdateButton": "ᠢ ᠪᠠᠢ᠌ᠴᠠᠭᠠᠬᠤ",
+  "mockUpdateButton": "ᠶᠢᠨ ᠰᠢᠨᠡᠴᠢᠯᠡᠯᠲᠡ ᠶᠢ ᠳᠠᠭᠤᠷᠢᠶᠠᠮᠠᠯ",
+  "clearMockUpdateButton": "ᠶᠢ ᠢᠯᠡ ᠲᠣᠳᠣ ᠳᠠᠭᠤᠷᠢᠶᠠᠮᠠᠯ ᠴᠢᠨᠠᠷᠲᠠᠶ ᠰᠢᠨᠡᠳᠬᠡᠬᠦ",
+  "mockOnboardingButton": "ᠠᠩᠬ᠎ᠠ ᠣᠳᠠᠭ ᠤᠨ ᠵᠢᠯᠣᠭᠣᠴᠢ ᠳᠠᠭᠤᠷᠢᠶᠠᠬᠤ",
+  "mockChatButton": "ᠤᠷᠲᠤ ᠶᠠᠷᠢᠯᠴᠠᠭ᠎ᠠ ᠶᠢᠨ Mock ᠥᠭᠭᠥᠭᠳᠡᠯ ᠦᠦᠰᠬᠡᠬᠦ",
+  "mockChatCreating": "ᠵᠣᠬᠢᠶᠠᠵᠤ ᠪᠠᠶᠢᠨ᠎ᠠ᠁",
+  "mockChatCreated": "Mock ᠶᠢᠨ ᠬᠤᠷᠠᠯ ᠡᠷᠬᠢᠯᠡᠪᠡ",
+  "mockChatCreatedDesc": "{title} ᠮᠡᠳᠡᠭᠡ ᠶᠢ ᠵᠣᠬᠢᠶᠠᠨ ᠪᠦᠲᠦᠭᠡᠭᠰᠡᠨ ᠂ {count}",
+  "mockChatCreateFailed": "ᠢ Mock ᠢ ᠪᠥᠲᠥᠭᠡᠵᠦ ᠴᠢᠳᠠᠭᠰᠠᠨ ᠦᠭᠡᠢ",
+  "mockChatCreateUnavailable": "Mock ᠢ ᠵᠥᠪᠬᠡᠨ ᠨᠡᠭᠡᠭᠡᠨ ᠠᠰᠢᠭᠯᠠᠬᠤ ᠬᠡᠯᠪᠡᠷᠢ ᠪᠡᠷ ᠣᠷᠣᠭᠤᠯᠤᠨ᠎ᠠ",
+  "updateChannel": "ᠶᠢ ᠰᠢᠨᠡᠳᠬᠡᠬᠦ ᠳᠠᠪᠲᠠᠮᠵᠢ",
+  "stableChannel": "ᠵᠢᠩᠬᠢᠨᠢ ᠬᠡᠪᠯᠡᠯ",
+  "betaChannel": "Beta ᠬᠡᠪᠯᠡᠯ",
+  "deviceInfo": {
+    "title": "ᠲᠣᠨᠣᠭᠯᠠᠯ ᠤᠨ ᠮᠡᠳᠡᠭᠡ",
+    "platform": "ᠲᠠᠪᠴᠠᠩ",
+    "arch": "ᠪᠠᠷᠢᠯᠭ᠎ᠠ ᠶᠢᠨ ᠦᠢᠯᠡᠰ",
+    "cpuModel": "CPU ᠵᠠᠭᠪᠤᠷ",
+    "totalMemory": "ᠶᠢᠨ ᠶᠡᠷᠦᠩᠬᠡᠢ ᠴᠡᠭᠡᠵᠢ ᠶᠢᠨ ᠬᠡᠮᠵᠢᠶ᠎ᠡ",
+    "osVersion": "ᠰᠢᠰᠲ᠋ᠧᠮ ᠦᠨ"
+  }
+}
