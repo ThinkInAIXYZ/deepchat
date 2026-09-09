@@ -59,6 +59,7 @@ import { ReflectionService } from './services/reflectionService'
 import { PersonaService } from './services/personaService'
 import { ConflictService } from './services/conflictService'
 import { MaintenanceService } from './services/maintenanceService'
+import { MergeService } from './services/mergeService'
 import { WriteCoordinator } from './services/writeCoordinator'
 import { ManagementService } from './services/managementService'
 import { DirectiveService } from './services/directiveService'
@@ -270,16 +271,26 @@ export class MemoryService implements MemoryRuntimePort {
       triggerEmbedding: (agentId) => this.embedding.processPendingEmbeddings(agentId)
     })
 
-    this.maintenance = new MaintenanceService({
+    const merge = new MergeService({
       ctx: this.runtime,
       repository,
       policy,
       textGeneration: providerGateway,
-      auditReader: deps.auditRepository,
-      auditMaintenance: deps.auditRepository,
       rows: this.rows,
       queryNeighborsByMemoryId: (agentId, embedding, dimensions, memoryId, topK) =>
         this.vectorStore.queryNeighborsByMemoryId(agentId, embedding, dimensions, memoryId, topK),
+      syncWorkingMemoryAfterMutation: (agentId) =>
+        this.workingMemory.syncWorkingMemoryAfterMutation(agentId),
+      triggerEmbedding: (agentId) => this.embedding.processPendingEmbeddings(agentId),
+      warmVectorStore: (agentId, embedding) => this.embedding.warmVectorStore(agentId, embedding)
+    })
+
+    this.maintenance = new MaintenanceService({
+      ctx: this.runtime,
+      repository,
+      policy,
+      auditReader: deps.auditRepository,
+      auditMaintenance: deps.auditRepository,
       getReadyCertificateDimension: (agentId, embedding) =>
         this.vectorStore.getReadyCertificateDimension(agentId, embedding),
       deletePrunableVectorsForMemoryIds: (agentId, embedding, dimensions, memoryIds) =>
@@ -291,7 +302,6 @@ export class MemoryService implements MemoryRuntimePort {
         ),
       syncWorkingMemoryAfterMutation: (agentId) =>
         this.workingMemory.syncWorkingMemoryAfterMutation(agentId),
-      triggerEmbedding: (agentId) => this.embedding.processPendingEmbeddings(agentId),
       warmVectorStore: (agentId, embedding) => this.embedding.warmVectorStore(agentId, embedding),
       warmEmbeddingConnection: (agentId, embedding) =>
         this.embedding.warmEmbeddingConnection(agentId, embedding),
@@ -301,6 +311,8 @@ export class MemoryService implements MemoryRuntimePort {
         this.persona.runMaintenancePersonaPass(agentId, model, undefined, budget),
       runChallengeResolutionPass: (agentId, model, budget, onApplied) =>
         this.conflict.runChallengeResolutionPass(agentId, model, budget, onApplied),
+      runMergePass: (agentId, now, model, operationFence, budget) =>
+        merge.mergeNearDuplicates(agentId, now, model, operationFence, budget),
       repairConflictIntegrity: (agentId) => {
         const result = this.conflict.repairConflictIntegrity(agentId)
         return Object.values(result).some((count) => count > 0)
