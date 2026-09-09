@@ -1103,6 +1103,9 @@ describe('SyncService backup import', () => {
     const result = await runImport(backupFile, ImportMode.OVERWRITE)
 
     expect(result.success).toBe(true)
+    expect(getPublishedEventPayloads('sync.import.completed')).toEqual([
+      expect.objectContaining({ mode: 'overwrite' })
+    ])
     expect(result.count).toBe(1)
     expect(result.sourceDbType).toBe('agent')
     expect(result.importedSessions).toBe(1)

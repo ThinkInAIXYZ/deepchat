@@ -1,4 +1,5 @@
 import { createSessionClient } from '../../../api/SessionClient'
+import { createSyncClient } from '../../../api/SyncClient'
 import type { DeepchatEventPayload } from '@shared/contracts/events'
 
 export type SessionCompactionChangedPayload = DeepchatEventPayload<'sessions.compaction.changed'>
@@ -12,6 +13,7 @@ interface BindSessionStoreIpcOptions {
   onDeactivated: () => void
   onStatusChanged: (sessionId: string, status: string, version: number) => void
   onCompactionChanged: (payload: SessionCompactionChangedPayload) => void
+  onImported: (mode?: 'increment' | 'overwrite') => void | Promise<void>
 }
 
 type TargetedSessionUpdate = {
@@ -27,6 +29,7 @@ export interface SessionStoreIpcBinding {
 
 export function bindSessionStoreIpc(options: BindSessionStoreIpcOptions): SessionStoreIpcBinding {
   const sessionClient = createSessionClient()
+  const syncClient = createSyncClient()
   const pendingTargetedUpdates = new Map<number, TargetedSessionUpdate>()
 
   const applyTargetedUpdate = (payload: TargetedSessionUpdate): void => {
@@ -60,6 +63,9 @@ export function bindSessionStoreIpc(options: BindSessionStoreIpcOptions): Sessio
   }
 
   const cleanups = [
+    syncClient.onImportCompleted(({ mode }) => {
+      void options.onImported(mode)
+    }),
     sessionClient.onUpdated((payload) => {
       if (
         (payload.reason === 'activated' || payload.reason === 'deactivated') &&
