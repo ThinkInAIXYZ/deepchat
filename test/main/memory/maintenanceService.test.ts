@@ -762,6 +762,45 @@ describe('MemoryService offline consolidation (T-B4..T-B6)', () => {
     expect(repo.countDirtySeeds('a')).toBe(2)
   })
 
+  it('keeps reflection accounting when its audit write fails', async () => {
+    const generateText = vi.fn(async (_providerId: string, _modelId: string, prompt: string) => {
+      if (prompt.includes('Choose exactly ONE decision')) throw new Error('decision unavailable')
+      if (prompt.includes('durable, high-level insights')) {
+        return '["user consistently prefers redis"]'
+      }
+      return ''
+    })
+    const { presenter, repo, auditRepo } = makeLLMPresenter(generateText)
+    const now = 1_000 * DAY
+    // Two embedded near-duplicates make the merge step call (and fail) the decision model; the
+    // recent importance below lets reflection run and succeed in the same pass.
+    const firstId = await seedEmbedded(presenter, 'user likes redis a')
+    const secondId = await seedEmbedded(presenter, 'user likes redis b')
+    repo.rows.get(firstId)!.created_at = now
+    repo.rows.get(secondId)!.created_at = now + 1
+    presenter.writeMemoriesSync(
+      Array.from({ length: 6 }, (_, index) => ({
+        kind: 'semantic' as const,
+        content: `durable fact ${index}`,
+        importance: 0.9
+      })),
+      { agentId: 'a' }
+    )
+    const originalInsert = auditRepo.insert.bind(auditRepo)
+    vi.spyOn(auditRepo, 'insert').mockImplementation((row) => {
+      if (row.eventType === 'memory/reflect') throw new Error('audit insert failed')
+      return originalInsert(row)
+    })
+
+    await presenter.runConsolidationPass('a', now)
+
+    expect(decisionCalls(generateText)).toBeGreaterThan(0)
+    expect(auditRepo.getLatestCompletedEventAt('a', 'memory/maintenance_llm')).toBe(now)
+    expect(auditRepo.listByAgent('a')).not.toContainEqual(
+      expect.objectContaining({ reason: 'all-llm-steps-failed' })
+    )
+  })
+
   it('does not keep completed cooldown when heavy maintenance aborts after memory is disabled', async () => {
     const config: DeepChatAgentConfig = { ...embeddingConfig }
     const generateText = vi.fn(async (_p: string, _m: string, prompt: string) => {
@@ -1038,7 +1077,9 @@ describe('MemoryService offline consolidation (T-B4..T-B6)', () => {
         return ''
       })
       const { presenter } = makeLLMPresenter(generateText)
-      const passSpy = vi.spyOn(presenter, 'runConsolidationPass').mockResolvedValue()
+      const passSpy = vi
+        .spyOn(memoryRuntimeForTests(presenter).maintenanceService, 'runConsolidationPass')
+        .mockResolvedValue()
 
       const span = (text: string) => ({
         agentId: 'a',
@@ -1079,7 +1120,9 @@ describe('MemoryService offline consolidation (T-B4..T-B6)', () => {
         return ''
       })
       const { presenter } = makeLLMPresenter(generateText)
-      const passSpy = vi.spyOn(presenter, 'runConsolidationPass').mockResolvedValue()
+      const passSpy = vi
+        .spyOn(memoryRuntimeForTests(presenter).maintenanceService, 'runConsolidationPass')
+        .mockResolvedValue()
 
       await presenter.extractAndStore({
         agentId: 'a',
@@ -1120,7 +1163,9 @@ describe('MemoryService offline consolidation (T-B4..T-B6)', () => {
         createVectorStore: async () => new FakeVectorStore(),
         resetVectorStore: async () => undefined
       })
-      const passSpy = vi.spyOn(presenter, 'runConsolidationPass').mockResolvedValue()
+      const passSpy = vi
+        .spyOn(memoryRuntimeForTests(presenter).maintenanceService, 'runConsolidationPass')
+        .mockResolvedValue()
 
       presenter.startBackgroundMaintenance()
       presenter.startBackgroundMaintenance()
@@ -1154,7 +1199,9 @@ describe('MemoryService offline consolidation (T-B4..T-B6)', () => {
         createVectorStore: async () => new FakeVectorStore(),
         resetVectorStore: async () => undefined
       })
-      const passSpy = vi.spyOn(presenter, 'runConsolidationPass').mockResolvedValue()
+      const passSpy = vi
+        .spyOn(memoryRuntimeForTests(presenter).maintenanceService, 'runConsolidationPass')
+        .mockResolvedValue()
 
       presenter.startBackgroundMaintenance()
       await vi.advanceTimersByTimeAsync(30 * 1000)
@@ -1183,7 +1230,9 @@ describe('MemoryService offline consolidation (T-B4..T-B6)', () => {
         createVectorStore: async () => new FakeVectorStore(),
         resetVectorStore: async () => undefined
       })
-      const passSpy = vi.spyOn(presenter, 'runConsolidationPass').mockResolvedValue()
+      const passSpy = vi
+        .spyOn(memoryRuntimeForTests(presenter).maintenanceService, 'runConsolidationPass')
+        .mockResolvedValue()
 
       presenter.startBackgroundMaintenance()
       presenter.onAgentMemoryMaintenanceConfigChanged('agent-a')
@@ -1405,7 +1454,9 @@ describe('MemoryService offline consolidation (T-B4..T-B6)', () => {
         createVectorStore: async () => new FakeVectorStore(),
         resetVectorStore: async () => undefined
       })
-      const passSpy = vi.spyOn(presenter, 'runConsolidationPass').mockResolvedValue()
+      const passSpy = vi
+        .spyOn(memoryRuntimeForTests(presenter).maintenanceService, 'runConsolidationPass')
+        .mockResolvedValue()
 
       presenter.startBackgroundMaintenance()
       await presenter.dispose()
@@ -1433,7 +1484,9 @@ describe('MemoryService offline consolidation (T-B4..T-B6)', () => {
         createVectorStore: async () => new FakeVectorStore(),
         resetVectorStore: async () => undefined
       })
-      const passSpy = vi.spyOn(presenter, 'runConsolidationPass').mockResolvedValue()
+      const passSpy = vi
+        .spyOn(memoryRuntimeForTests(presenter).maintenanceService, 'runConsolidationPass')
+        .mockResolvedValue()
 
       presenter.startBackgroundMaintenance()
       await vi.advanceTimersByTimeAsync(60 * 1000 + 5 * 60 * 1000)
@@ -1458,7 +1511,9 @@ describe('MemoryService offline consolidation (T-B4..T-B6)', () => {
         createVectorStore: async () => new FakeVectorStore(),
         resetVectorStore: async () => undefined
       })
-      const passSpy = vi.spyOn(presenter, 'runConsolidationPass').mockResolvedValue()
+      const passSpy = vi
+        .spyOn(memoryRuntimeForTests(presenter).maintenanceService, 'runConsolidationPass')
+        .mockResolvedValue()
 
       presenter.onAgentMemoryMaintenanceConfigChanged('agent-a')
       presenter.onAgentMemoryMaintenanceConfigChanged('agent-b')
@@ -1520,7 +1575,9 @@ describe('MemoryService offline consolidation (T-B4..T-B6)', () => {
         createVectorStore: async () => new FakeVectorStore(),
         resetVectorStore: async () => undefined
       })
-      const passSpy = vi.spyOn(presenter, 'runConsolidationPass').mockResolvedValue()
+      const passSpy = vi
+        .spyOn(memoryRuntimeForTests(presenter).maintenanceService, 'runConsolidationPass')
+        .mockResolvedValue()
 
       presenter.onAgentMemoryMaintenanceConfigChanged('empty')
       presenter.onAgentMemoryMaintenanceConfigChanged('archived')
@@ -1549,7 +1606,9 @@ describe('MemoryService offline consolidation (T-B4..T-B6)', () => {
         createVectorStore: async () => new FakeVectorStore(),
         resetVectorStore: async () => undefined
       })
-      const passSpy = vi.spyOn(presenter, 'runConsolidationPass').mockResolvedValue()
+      const passSpy = vi
+        .spyOn(memoryRuntimeForTests(presenter).maintenanceService, 'runConsolidationPass')
+        .mockResolvedValue()
 
       await presenter.dispose()
       presenter.onAgentMemoryMaintenanceConfigChanged('agent-a')

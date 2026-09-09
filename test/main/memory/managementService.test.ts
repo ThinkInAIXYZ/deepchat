@@ -1060,8 +1060,14 @@ describe('MemoryService management', () => {
 
       blockQueryEmbedding = true
       const clearReadySpy = vi.spyOn(internals.vectorStoreService, 'clearReady')
-      const backfillSpy = vi.spyOn(presenter, 'backfillEmbeddings')
-      const reindexSpy = vi.spyOn(presenter, 'reindexEmbeddings')
+      const backfillSpy = vi.spyOn(
+        memoryRuntimeForTests(presenter).embeddingService,
+        'backfillEmbeddings'
+      )
+      const reindexSpy = vi.spyOn(
+        memoryRuntimeForTests(presenter).embeddingService,
+        'reindexEmbeddings'
+      )
       const recall = presenter.recall('a', 'Could you explain the redis setup again?')
 
       await vi.advanceTimersByTimeAsync(801)

@@ -70,13 +70,15 @@ type MemoryServiceRuntimeTestSeams = {
     ): void
     abandonAgent(agentId: string): void
     cleanupAgent(agentId: string): Promise<void>
+    reindexEmbeddings(agentId: string, force?: boolean): Promise<void>
+    backfillEmbeddings(agentId: string): Promise<void>
   }
   vectorStore: VectorStoreManager
   conflict: Pick<
     ConflictService,
     'repairConflictIntegrity' | 'resolveConflict' | 'runChallengeResolutionPass'
   >
-  maintenance: Pick<MaintenanceService, 'clearCooldown'>
+  maintenance: Pick<MaintenanceService, 'clearCooldown' | 'runConsolidationPass'>
   diagnostics: Pick<MemoryDiagnosticsCollector, 'cleanupAgent' | 'recordRecall'>
 }
 

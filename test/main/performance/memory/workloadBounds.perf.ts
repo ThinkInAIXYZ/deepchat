@@ -191,7 +191,10 @@ describe('Agent Memory #28 bounded workloads', () => {
       const snapshot = observer.snapshot()
       expect(snapshot.counters.providerCalls).toBe(4)
       expect(snapshot.counters.providerCalls).toBeLessThanOrEqual(5)
-      expect(snapshot.counters.repositoryCalls).toBeLessThanOrEqual(64)
+      // Per unowned candidate: two provenance reads while preparing, one tombstone lookup before
+      // recall, the keyword search, then two provenance reads, the insert and its transaction
+      // when applying; the remainder is the fixed per-batch bookkeeping.
+      expect(snapshot.counters.repositoryCalls).toBeLessThanOrEqual(72)
       expect(snapshot.counters.materializedRows).toBeLessThanOrEqual(72)
     } finally {
       await presenter.dispose()
