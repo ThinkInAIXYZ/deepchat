@@ -10,7 +10,7 @@ The behavior contract is in [spec.md](spec.md). The dedicated exploration agent 
 - [x] Retain behavior-focused regression protection; keep exploratory fixtures and probes outside the repository.
 - [x] Run format, i18n, lint, typecheck, relevant renderer/main suites, production build and Electron smoke tests.
 - [x] Accept post-import session refresh and same-process restored-message reading; all reported repairs have independent acceptance.
-- [ ] Open a PR against `dev` with behavior, validation, coverage boundaries, and BEFORE/AFTER ASCII.
+- [x] Publish [PR #2276](https://github.com/ThinkInAIXYZ/deepchat/pull/2276) against `dev` with behavior, validation, coverage boundaries, and BEFORE/AFTER ASCII.
 
 ## Ownership and implementation
 
