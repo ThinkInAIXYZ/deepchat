@@ -7745,10 +7745,11 @@ describe('DeepChatAgentHarness', () => {
         activeSkills: ['owned-skill', 'foreign-skill']
       })
 
-      expect(skillService.validateSkillNames).toHaveBeenCalledWith('writer', [
-        'foreign-skill',
-        'owned-skill'
-      ])
+      expect(skillService.validateSkillNames).toHaveBeenCalledWith(
+        'writer',
+        ['foreign-skill', 'owned-skill'],
+        { conversationId: 's1' }
+      )
       const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
       expect(callArgs.run.resources.activeSkillNames).toEqual(['owned-skill'])
       expect(callArgs.run.resources.materializedSkillContexts).toHaveLength(1)

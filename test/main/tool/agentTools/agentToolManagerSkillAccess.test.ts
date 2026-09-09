@@ -179,7 +179,9 @@ describe('AgentToolManager skill file access', () => {
 
     const rules = await (manager as any).buildProtectedSkillDirectoryRules('conv1', ['skill-a'])
 
-    expect(skillService.getMetadataList).not.toHaveBeenCalled()
+    expect(skillService.getMetadataList).toHaveBeenCalledWith(expect.any(String), {
+      conversationId: 'conv1'
+    })
     expect(skillService.getAllSkills).toHaveBeenCalledOnce()
     expect(rules).toEqual([{ root: skillsDir, allowedDirectories: [skillRoot] }])
   })

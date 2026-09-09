@@ -8,7 +8,8 @@ export const SKILL_SOURCE_TYPES = [
   'url-install',
   'git-install',
   'adopted',
-  'imported'
+  'imported',
+  'project'
 ] as const
 
 export type SkillSourceType = (typeof SKILL_SOURCE_TYPES)[number]

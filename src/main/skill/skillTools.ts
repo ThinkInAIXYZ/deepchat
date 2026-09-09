@@ -39,7 +39,7 @@ export class SkillTools {
       return buildSkillListResult([], [], [], input)
     }
     const agentId = resolvedAgentId
-    const assignedSkills = await this.skillService.getMetadataList(agentId)
+    const assignedSkills = await this.skillService.getMetadataList(agentId, { conversationId })
     const allSkills = [...assignedSkills]
     if (activeSkillNames !== undefined) {
       const listedNames = new Set(allSkills.map((skill) => skill.name))

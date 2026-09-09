@@ -26,7 +26,10 @@ import {
   type SlashSuggestionItem
 } from '../mentions/utils'
 
+import type { SkillMetadata } from '@shared/types/skill'
+
 export interface UseChatInputMentionsOptions {
+  skills?: Ref<SkillMetadata[]>
   getEditor: () => Editor | null
   workspacePath: Ref<string | null>
   sessionId: Ref<string | null>
@@ -204,7 +207,8 @@ export function useChatInputMentions(options: UseChatInputMentionsOptions) {
       })
     }
 
-    for (const skill of skillsStore.getSkillsForAgent(normalizedAgentId.value)) {
+    for (const skill of options.skills?.value ??
+      skillsStore.getSkillsForAgent(normalizedAgentId.value)) {
       items.push({
         id: `skill:${skill.name}`,
         category: 'skill',
@@ -535,7 +539,7 @@ export function useChatInputMentions(options: UseChatInputMentionsOptions) {
       if (previousAgentId && previousAgentId !== nextAgentId) {
         closeDialog()
       }
-      void skillsStore.ensureSkillsLoaded(nextAgentId)
+      if (!options.skills) void skillsStore.ensureSkillsLoaded(nextAgentId)
     },
     { immediate: true }
   )

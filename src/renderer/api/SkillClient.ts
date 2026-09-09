@@ -60,8 +60,11 @@ export function createSkillClient(bridge: DeepchatBridge = getDeepchatBridge()) 
     return result.skills
   }
 
-  async function getUnifiedSkillCatalog(agentId: string = BUILTIN_SKILL_AGENT_ID) {
-    const result = await bridge.invoke(skillsListCatalogRoute.name, { agentId })
+  async function getUnifiedSkillCatalog(
+    agentId: string = BUILTIN_SKILL_AGENT_ID,
+    workspacePath?: string
+  ) {
+    const result = await bridge.invoke(skillsListCatalogRoute.name, { agentId, workspacePath })
     return result.skills
   }
 
