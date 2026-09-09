@@ -229,7 +229,14 @@ export const skillsListMetadataRoute = defineRouteContract({
 export const skillsListCatalogRoute = defineRouteContract({
   name: 'skills.listCatalog',
   input: AgentSkillScopeSchema.extend({
-    workspacePath: z.string().trim().min(1).max(4096).optional()
+    workspacePath: z
+      .string()
+      .trim()
+      .min(1)
+      .max(4096)
+      .regex(/^(?:\/|[A-Za-z]:[\\/]|\\\\)/, 'Workspace path must be absolute')
+      .refine((value) => !value.includes('\0'), 'Workspace path must not contain null bytes')
+      .optional()
   }),
   output: z.object({
     skills: z.array(UnifiedSkillItemSchema)

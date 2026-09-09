@@ -3,6 +3,7 @@ import { ref, computed, watch, onMounted, onUnmounted, type Ref, type ComputedRe
 
 // === Types ===
 import type { SkillMetadata } from '@shared/types/skill'
+import type { UnifiedSkillItem } from '@shared/types/skillManagement'
 
 // === Composables ===
 import { createSkillClient } from '@api/SkillClient'
@@ -30,7 +31,7 @@ export function useSkillsData(
   let unsubscribeSkillSessionChanged: (() => void) | null = null
   let unsubscribeCatalogChanged: (() => void) | null = null
   let projectLoadSequence = 0
-  const projectSkills = ref<SkillMetadata[]>([])
+  const projectSkills = ref<UnifiedSkillItem[]>([])
   const projectLoading = ref(false)
   const normalizedWorkspacePath = computed(() => workspacePath?.value?.trim() || null)
   let activeSkillsLoadSequence = 0
@@ -251,6 +252,10 @@ export function useSkillsData(
     }
   }
 
+  const handleWindowFocus = () => {
+    if (!projectLoading.value) void refreshProjectSkills()
+  }
+
   // === Watchers ===
   // Watch for conversation changes and reload active skills
   watch(
@@ -290,13 +295,13 @@ export function useSkillsData(
     unsubscribeCatalogChanged = skillClient.onCatalogChanged(() => {
       if (normalizedWorkspacePath.value) void refreshProjectSkills()
     })
-    window.addEventListener('focus', refreshProjectSkills)
+    window.addEventListener('focus', handleWindowFocus)
   })
 
   onUnmounted(() => {
     projectLoadSequence += 1
     unsubscribeCatalogChanged?.()
-    window.removeEventListener('focus', refreshProjectSkills)
+    window.removeEventListener('focus', handleWindowFocus)
     unsubscribeSkillSessionChanged?.()
     unsubscribeSkillSessionChanged = null
   })

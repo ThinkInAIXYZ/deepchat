@@ -2003,6 +2003,7 @@ export class SkillService implements SkillServicePort {
         )
       : undefined
     if (freshManifestBytes) {
+      // Both shared and project Skills must keep identical manifest bytes during package capture.
       const confirmedManifestBytes = await this.readStableRegularFile(
         confinedSkillPath,
         SKILL_CONFIG.SKILL_FILE_MAX_SIZE

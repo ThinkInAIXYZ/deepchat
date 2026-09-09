@@ -16,7 +16,8 @@ Missing roots and malformed skills are skipped. Symbolic links cannot escape the
 or a skill package. The first project skill with a given name wins; project skills override shared
 skills of the same name within that workspace only.
 
-Project catalogs are read on workspace selection, window focus, and runtime resolution. Requests
+Project catalogs are read on workspace selection, window focus, and runtime resolution. Focus events
+reuse an in-flight refresh within a composer; later focus events trigger a fresh request. Requests
 carry explicit scope; no process-wide current project is mutated. Late UI responses cannot replace
 the catalog for another workspace. Project skills are never added to global assignments, exported,
 uninstalled, or edited by skill-management operations. Switching workspace clears pending composer
@@ -34,6 +35,8 @@ A project skill carries its project root and `project` source type. Its immutabl
 records its actual skill root, content, and script package using existing Tape contracts. Project
 skills use default runtime configuration and never inherit a same-named shared skill's environment,
 script overrides, or plugin ownership. Existing execution permission checks remain authoritative.
+Shared and project sources both compare manifest bytes before and after execution-package capture;
+a change during capture rejects materialization. Project catalogs have no persistent cache identity.
 
 ## Acceptance
 

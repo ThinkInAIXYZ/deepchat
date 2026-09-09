@@ -136,6 +136,13 @@ describe('chat input Skill Agent scope', () => {
       const wrapper = mount(Harness, { props: initialProps })
       await flushPromises()
       expect(catalogResolvers.has(initialKey)).toBe(true)
+      if (scope === 'workspace') {
+        const requestCount = skillClient.getUnifiedSkillCatalog.mock.calls.length
+        window.dispatchEvent(new Event('focus'))
+        window.dispatchEvent(new Event('focus'))
+        await flushPromises()
+        expect(skillClient.getUnifiedSkillCatalog).toHaveBeenCalledTimes(requestCount)
+      }
       await wrapper.vm.activateSkill('shared-skill')
 
       await wrapper.setProps(nextProps)
@@ -176,8 +183,11 @@ describe('chat input Skill Agent scope', () => {
       expect(wrapper.find('[data-testid="picker-b-only-skill"]').exists()).toBe(true)
       expect(wrapper.find('[data-testid="mention-skill:b-only-skill"]').exists()).toBe(true)
       if (scope === 'workspace') {
+        const requestCount = skillClient.getUnifiedSkillCatalog.mock.calls.length
+        window.dispatchEvent(new Event('focus'))
         window.dispatchEvent(new Event('focus'))
         await flushPromises()
+        expect(skillClient.getUnifiedSkillCatalog).toHaveBeenCalledTimes(requestCount + 1)
         catalogResolvers.get(nextKey)?.([])
         await flushPromises()
         await wrapper.get('[data-testid="refresh-mentions"]').trigger('click')
@@ -185,6 +195,10 @@ describe('chat input Skill Agent scope', () => {
         expect(wrapper.find('[data-testid="mention-skill:b-only-skill"]').exists()).toBe(false)
       }
       wrapper.unmount()
+      const requestCount = skillClient.getUnifiedSkillCatalog.mock.calls.length
+      window.dispatchEvent(new Event('focus'))
+      await flushPromises()
+      expect(skillClient.getUnifiedSkillCatalog).toHaveBeenCalledTimes(requestCount)
     }
   )
 })

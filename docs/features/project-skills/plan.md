@@ -9,6 +9,7 @@
       and relevant main/renderer suites.
 
 Validation: format, i18n, lint, and main/renderer type checks pass. The full main suite passes
-8531 tests (493 skipped); the selected renderer suites pass 17 tests. Regression coverage includes
+8533 tests (493 skipped); the targeted composer suites pass 9 tests. Regression coverage includes
 workspace discovery, precedence, unsafe paths, content and credential isolation, session selection,
-shared deletion, and stale composer responses.
+shared deletion, stale composer responses, focus refresh coalescing, route path validation, and
+project catalog overflow degradation.
