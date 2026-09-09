@@ -441,7 +441,9 @@ describe('AgentToolManager DeepChat settings tool gating', () => {
     const roots = await (manager as any).resolveActiveSkillRoots('conv-1')
 
     expect(skillService.resolveSessionAgentId).toHaveBeenCalledWith('conv-1')
-    expect(skillService.getMetadataList).toHaveBeenCalledWith('agent-a')
+    expect(skillService.getMetadataList).toHaveBeenCalledWith('agent-a', {
+      conversationId: 'conv-1'
+    })
     expect(roots).toEqual([])
   })
 

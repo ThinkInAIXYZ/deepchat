@@ -8,7 +8,7 @@
 - [x] Add focused regression protection after implementation; run format, i18n, lint, typecheck,
       and relevant main/renderer suites.
 
-Validation: format, i18n, lint, and main/renderer type checks pass. The selected main suites pass
-677 tests (2 skipped); the selected renderer suites pass 17 tests. Regression coverage includes
+Validation: format, i18n, lint, and main/renderer type checks pass. The full main suite passes
+8531 tests (493 skipped); the selected renderer suites pass 17 tests. Regression coverage includes
 workspace discovery, precedence, unsafe paths, content and credential isolation, session selection,
 shared deletion, and stale composer responses.
