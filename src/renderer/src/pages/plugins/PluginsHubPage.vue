@@ -78,7 +78,8 @@ watch(
   async () => {
     await nextTick()
     routeContent.value?.focus({ preventScroll: true })
-  }
+  },
+  { immediate: true }
 )
 
 const tabs = [

@@ -25,7 +25,14 @@
             <RadioGroupItem
               :id="`${authId}-method-${index}`"
               :aria-label="method.name"
-              :aria-describedby="method.description ? `${authId}-description-${index}` : undefined"
+              :aria-describedby="
+                [
+                  method.description ? `${authId}-description-${index}` : null,
+                  method.type === 'unsupported' ? `${authId}-unsupported-${index}` : null
+                ]
+                  .filter(Boolean)
+                  .join(' ') || undefined
+              "
               :value="method.id"
               :disabled="method.type === 'unsupported'"
               class="mt-0.5"
@@ -41,6 +48,7 @@
               </span>
               <span
                 v-if="method.type === 'unsupported'"
+                :id="`${authId}-unsupported-${index}`"
                 class="block text-xs text-muted-foreground mt-1"
               >
                 {{ t('settings.acp.auth.unsupported') }}

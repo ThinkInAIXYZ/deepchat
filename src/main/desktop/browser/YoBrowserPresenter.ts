@@ -744,6 +744,7 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
       if (
         input.type !== 'keyDown' ||
         input.key !== 'F6' ||
+        input.shift ||
         input.alt ||
         input.control ||
         input.meta

@@ -114,7 +114,7 @@ const setup = async (options?: {
     updateProviderApi: vi.fn().mockResolvedValue(undefined),
     updateProviderStatus: vi.fn().mockResolvedValue(undefined),
     addCustomProvider: vi.fn().mockResolvedValue(undefined),
-    updateProvidersOrder: vi.fn(),
+    updateProvidersOrder: vi.fn().mockResolvedValue(undefined),
     defaultProviders: []
   })
 
@@ -393,7 +393,7 @@ const setup = async (options?: {
 
   await waitForGuideTargetSync()
 
-  return { wrapper, router, completeStep, modelStore, route }
+  return { wrapper, router, completeStep, modelStore, route, providerStore }
 }
 
 describe('ModelProviderSettings', () => {
@@ -413,6 +413,43 @@ describe('ModelProviderSettings', () => {
 
       expect(wrapper.find('[data-testid="generic-detail"]').exists()).toBe(true)
       expect(wrapper.find('[data-testid="anthropic-detail"]').exists()).toBe(false)
+    },
+    TEST_TIMEOUT_MS
+  )
+
+  it.each(['menu', 'drag'])(
+    'preserves hidden provider positions during a filtered %s move',
+    async (input) => {
+      const providers = ['A', 'B', 'C', 'catalog'].map((id) => ({
+        id,
+        name: id === 'A' || id === 'C' ? `Matching ${id}` : id,
+        apiType: 'openai',
+        apiKey: '',
+        baseUrl: '',
+        enable: id !== 'catalog'
+      }))
+      const { wrapper, providerStore } = await setup({ providers, routeProviderId: 'A' })
+      await wrapper.get('input[placeholder="settings.provider.search"]').setValue('Matching')
+      expect(wrapper.find('[data-provider-id="B"]').exists()).toBe(false)
+
+      if (input === 'menu') {
+        const row = wrapper.get('[data-provider-id="C"]')
+        await row
+          .findAll('button')
+          .find((button) => button.text() === 'settings.environments.actions.moveUp')!
+          .trigger('click')
+      } else {
+        wrapper
+          .getComponent(draggableStub)
+          .vm.$emit('update:modelValue', [providers[2], providers[0]])
+      }
+      await flushPromises()
+      expect(providerStore.updateProvidersOrder).toHaveBeenCalledWith([
+        providers[2],
+        providers[1],
+        providers[0],
+        providers[3]
+      ])
     },
     TEST_TIMEOUT_MS
   )

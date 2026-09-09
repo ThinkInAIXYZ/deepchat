@@ -166,7 +166,7 @@ watch(
     const ownedFocus = panelRef.value?.contains(document.activeElement)
     await nextTick()
     if (visible) panelRef.value?.focus({ preventScroll: true })
-    else if (ownedFocus || document.activeElement === document.body) {
+    else if (wasVisible && (ownedFocus || document.activeElement === document.body)) {
       const target =
         opener && opener !== document.body && opener.isConnected ? opener : props.targetEl
       if (target?.matches('button, input, select, textarea, [tabindex]'))

@@ -244,6 +244,7 @@ const getContent = (prompt: PromptItem) => prompt.content ?? ''
 const applyPrompts = (items: PromptItem[]) => {
   prompts.value = items.map((prompt) => ({
     ...prompt,
+    enabled: prompt.enabled ?? true,
     parameters: prompt.parameters?.map((parameter) => ({ ...parameter })),
     files: prompt.files?.map((file) => ({ ...file })),
     messages: prompt.messages?.map((message) => ({

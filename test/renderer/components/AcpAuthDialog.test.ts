@@ -111,12 +111,23 @@ describe('AcpAuthDialog', () => {
   it('preselects exactly one supported method', async () => {
     const wrapper = await mountDialog(
       baseChallenge([
-        { id: 'env', name: 'Environment', type: 'unsupported' },
+        {
+          id: 'env',
+          name: 'Environment',
+          type: 'unsupported',
+          description: 'Set credentials externally'
+        },
         { id: 'browser', name: 'Browser login', type: 'terminal' }
       ])
     )
 
     expect((wrapper.vm as any).selectedMethodId).toBe('browser')
+    const method = wrapper.get('[aria-label="Environment"]')
+    const descriptions = method.attributes('aria-describedby').split(' ')
+    expect(descriptions.map((id) => wrapper.get(`[id="${id}"]`).text())).toEqual([
+      'Set credentials externally',
+      'settings.acp.auth.unsupported'
+    ])
   })
 
   it('requires an explicit choice when multiple methods are supported', async () => {

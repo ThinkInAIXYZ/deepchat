@@ -715,12 +715,11 @@ const sidebarProviders = computed({
     const isFiltered = searchQuery.value.trim().length > 0
     let reorderedConfigured: LLM_PROVIDER[]
     if (isFiltered) {
-      const orderMap = new Map(newProviders.map((provider, index) => [provider.id, index]))
-      reorderedConfigured = [...providerStore.configuredProviders].sort((a, b) => {
-        const orderA = orderMap.get(a.id) ?? Infinity
-        const orderB = orderMap.get(b.id) ?? Infinity
-        return orderA - orderB
-      })
+      const movedIds = new Set(newProviders.map((provider) => provider.id))
+      let nextIndex = 0
+      reorderedConfigured = providerStore.configuredProviders.map((provider) =>
+        movedIds.has(provider.id) ? newProviders[nextIndex++] : provider
+      )
     } else {
       reorderedConfigured = [
         ...newProviders,

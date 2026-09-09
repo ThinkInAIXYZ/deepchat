@@ -78,11 +78,14 @@ describe('PluginsHubPage', () => {
 
     const PluginsHubPage = (await import('@/pages/plugins/PluginsHubPage.vue')).default
     const wrapper = shallowMount(PluginsHubPage, {
+      attachTo: document.body,
       global: {
         plugins: [pinia]
       }
     })
 
+    await flushPromises()
+    expect(document.activeElement).toBe(wrapper.get('[role="region"]').element)
     expect(wrapper.find('[data-testid="plugins-acp-unavailable"]').exists()).toBe(false)
     expect(wrapper.find('nav').exists()).toBe(true)
     expect(wrapper.findComponent({ name: 'RouterView' }).exists()).toBe(true)

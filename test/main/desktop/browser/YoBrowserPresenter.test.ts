@@ -366,6 +366,7 @@ describe('YoBrowserPresenter', () => {
     expect(host.webContents.focus).toHaveBeenCalledTimes(1)
     contents.emit('before-input-event', event, { type: 'keyDown', key: 'Tab' })
     contents.emit('before-input-event', event, { type: 'keyDown', key: 'F6', control: true })
+    contents.emit('before-input-event', event, { type: 'keyDown', key: 'F6', shift: true })
     expect(event.preventDefault).toHaveBeenCalledTimes(1)
     await presenter.detachSessionBrowser('session-a')
     expect(presenter.focusSessionBrowser('session-a', 1)).toBe(false)

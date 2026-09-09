@@ -1,13 +1,16 @@
 <template>
   <div class="border rounded-lg overflow-hidden">
-    <div class="flex items-center p-4 hover:bg-accent cursor-default">
+    <div
+      class="flex items-center p-4 hover:bg-accent cursor-default"
+      @click="toggleBuiltinConfigPanel"
+    >
       <button
         type="button"
         class="flex-1 text-left rounded-sm focus-visible:ring-2 focus-visible:ring-ring"
         :aria-label="t('settings.knowledgeBase.builtInKnowledgeTitle')"
         :aria-expanded="isBuiltinConfigPanelOpen"
         :aria-controls="knowledgePanelId"
-        @click="toggleBuiltinConfigPanel"
+        @click.stop="toggleBuiltinConfigPanel"
       >
         <span class="flex items-center">
           <Icon icon="lucide:book-open" class="h-5 mr-2 text-primary" />
