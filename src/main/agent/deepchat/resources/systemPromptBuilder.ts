@@ -384,6 +384,7 @@ export async function buildSystemPromptAssemblyWithSkills(
       kind: 'pinned_skills',
       sourceRef: 'skills:active',
       content: skillsPrompt,
+      normalize: 'none',
       degradationCodes: pinnedSkillsDegradations
     }),
     createPromptAssemblySection({

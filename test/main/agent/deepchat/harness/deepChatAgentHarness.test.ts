@@ -1306,8 +1306,10 @@ function makeDeepchatAssistantRow(
   }
 }
 
-function makeRecoveredMessageSkillProjection(agentId: string) {
-  const effectiveContent = 'RECOVERED_SKILL_BODY'
+function makeRecoveredMessageSkillProjection(
+  agentId: string,
+  effectiveContent = 'RECOVERED_SKILL_BODY'
+) {
   return {
     scope: 'message' as const,
     effectiveContent,
@@ -14960,40 +14962,57 @@ describe('DeepChatAgentHarness', () => {
       expect(processStream).not.toHaveBeenCalled()
     })
 
-    it('resumes from the exact materialized Skill without resolving mutable source content', async () => {
-      const skillService = getSkillServiceMock()
-      skillService.getMetadataList.mockResolvedValue([
-        { name: 'runtime-skill', description: 'Runtime skill' }
-      ])
-      skillService.getActiveSkills.mockResolvedValue([])
-      vi.spyOn(SkillContextMaterializer.prototype, 'recoverResume').mockReturnValue({
-        foundSkillManifest: true,
-        projections: [makeRecoveredMessageSkillProjection('deepchat')]
-      })
-      let streamParams: any
-      ;(processStream as ReturnType<typeof vi.fn>).mockImplementationOnce(async (params: any) => {
-        streamParams = params
-        return { status: 'completed' }
-      })
-      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
-      const assistantRow = installPendingQuestion()
-      assistantRow.metadata = JSON.stringify({
-        runId: '019feecb-8e55-7757-b555-4f53e8b602a7'
-      })
+    it.each(['message', 'session'] as const)(
+      'resumes from the exact materialized %s Skill without trimming its body',
+      async (scope) => {
+        const skillService = getSkillServiceMock()
+        skillService.getMetadataList.mockResolvedValue([
+          { name: 'runtime-skill', description: 'Runtime skill' }
+        ])
+        const effectiveContent = 'RECOVERED_SKILL_BODY \t\r\n\r\n\r\n'
+        const recovered = makeRecoveredMessageSkillProjection('deepchat', effectiveContent)
+        const projection = {
+          ...recovered,
+          scope,
+          context: {
+            ...recovered.context,
+            activationScope: scope,
+            providerRole: scope === 'session' ? ('system' as const) : ('user' as const),
+            sourceEntryIds: scope === 'session' ? [] : recovered.context.sourceEntryIds,
+            deduplicationSource: scope
+          }
+        }
+        skillService.getActiveSkills.mockResolvedValue(scope === 'session' ? ['runtime-skill'] : [])
+        vi.spyOn(SkillContextMaterializer.prototype, 'recoverResume').mockReturnValue({
+          foundSkillManifest: true,
+          projections: [projection]
+        })
+        let streamParams: any
+        ;(processStream as ReturnType<typeof vi.fn>).mockImplementationOnce(async (params: any) => {
+          streamParams = params
+          return { status: 'completed' }
+        })
+        await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+        const assistantRow = installPendingQuestion()
+        assistantRow.metadata = JSON.stringify({
+          runId: '019feecb-8e55-7757-b555-4f53e8b602a7'
+        })
 
-      await expect(answerPendingQuestion()).resolves.toEqual({ resumed: true })
+        await expect(answerPendingQuestion()).resolves.toEqual({ resumed: true })
 
-      const providerText = streamParams.run.messages
-        .map((message: { content?: unknown }) => String(message.content ?? ''))
-        .join('\n')
-      expect(providerText.match(/RECOVERED_SKILL_BODY/g)).toHaveLength(1)
-      expect(String(streamParams.run.messages[0]?.content ?? '')).not.toContain(
-        'RECOVERED_SKILL_BODY'
-      )
-      expect(streamParams.run.resources.materializedSkillContexts).toHaveLength(1)
-      expect(skillService.resolveFreshEffectiveSkillContents).not.toHaveBeenCalled()
-      expect(skillService.loadSkillContent).not.toHaveBeenCalled()
-    })
+        const providerText = streamParams.run.messages
+          .map((message: { content?: unknown }) => String(message.content ?? ''))
+          .join('\n')
+        expect(providerText.match(/RECOVERED_SKILL_BODY/g)).toHaveLength(1)
+        const boundMessage = streamParams.run.messages.find(
+          (message: ChatMessage) => message.role === projection.context.providerRole
+        )
+        expect(boundMessage?.content).toContain(projection.completeBodyFragment)
+        expect(streamParams.run.resources.materializedSkillContexts).toHaveLength(1)
+        expect(skillService.resolveFreshEffectiveSkillContents).not.toHaveBeenCalled()
+        expect(skillService.loadSkillContent).not.toHaveBeenCalled()
+      }
+    )
 
     it('handles question_option and resumes assistant message', async () => {
       const prepareForResumeTurn = vi.spyOn(CompactionService.prototype, 'prepareForResumeTurn')
