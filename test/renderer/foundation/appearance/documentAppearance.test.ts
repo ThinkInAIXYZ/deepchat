@@ -16,6 +16,7 @@ describe('applyDocumentAppearance', () => {
 
   it('resolves direction from the persisted locale', () => {
     expect(resolveDocumentDirection('he-IL')).toBe('rtl')
+    expect(resolveDocumentDirection('ug-CN')).toBe('rtl')
     expect(resolveDocumentDirection('zh-CN')).toBe('auto')
   })
 

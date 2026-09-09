@@ -1,0 +1,54 @@
+{
+  "search": {
+    "placeholder": "مودېل ئىزدەش..."
+  },
+  "error": {
+    "loadFailed": "مودېللارنى يۈكلىيەلمىدى"
+  },
+  "type": {
+    "custom": "ئىختىيارىي مودېل",
+    "official": "رەسمىي مودېل"
+  },
+  "add": {
+    "namePlaceholder": "مودېل نامى",
+    "idPlaceholder": "مودېل ID سى",
+    "contextLengthPlaceholder": "مەزمۇن دائىرىسى ئۇزۇنلۇقى",
+    "maxTokensPlaceholder": "ئەڭ كۆپ توكېن سانى"
+  },
+  "actions": {
+    "add": "مودېل قوشۇش",
+    "enableAll": "ھەممىنى قوزغىتىش",
+    "disableAll": "ھەممىنى چەكلەش"
+  },
+  "sort": {
+    "status": "ھالەت بويىچە",
+    "name": "نام بويىچە"
+  },
+  "filter": {
+    "label": "سۈزۈش",
+    "clearAll": "سۈزگۈچلەرنى تازىلاش",
+    "visibleCount": "{visible} / {total} كۆرسىتىلدى",
+    "capabilities": "ئىقتىدارلار",
+    "types": "تۈرلەر",
+    "capabilityOptions": {
+      "vision": "كۆرۈش",
+      "functionCall": "فۇنكسىيە چاقىرىش",
+      "reasoning": "پىكىر يۈرگۈزۈش",
+      "search": "توردىن ئىزدەش"
+    },
+    "typeOptions": {
+      "chat": "سۆھبەت",
+      "embedding": "ۋېكتورلاشتۇرۇش",
+      "rerank": "قايتا رەتلەش",
+      "imageGeneration": "رەسىم ھاسىل قىلىش",
+      "videoGeneration": "سىن ھاسىل قىلىش"
+    }
+  },
+  "tags": {
+    "reasoning": "پىكىر يۈرگۈزۈش",
+    "chat": "سۆھبەت",
+    "code": "كود",
+    "writing": "يېزىش",
+    "analysis": "تەھلىل"
+  }
+}

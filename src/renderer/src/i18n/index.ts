@@ -33,7 +33,10 @@ const localeLoaders: Record<SupportedLocale, LocaleLoader> = {
   'ms-MY': () => import('./ms-MY'),
   'it-IT': () => import('./it-IT'),
   'pl-PL': () => import('./pl-PL'),
-  'vi-VN': () => import('./vi-VN')
+  'vi-VN': () => import('./vi-VN'),
+  'bo-CN': () => import('./bo-CN'),
+  'ug-CN': () => import('./ug-CN'),
+  'mn-Mong-CN': () => import('./mn-Mong-CN')
 }
 
 const localeMessagePromises = new Map<SupportedLocale, Promise<RendererLocaleMessages>>()

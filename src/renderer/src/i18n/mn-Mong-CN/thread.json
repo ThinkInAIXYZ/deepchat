@@ -1,0 +1,48 @@
+{
+  "actions": {
+    "rename": "ᠢ ᠬᠠᠯᠠᠬᠤ",
+    "delete": "ᠢ ᠬᠠᠰᠤᠬᠤ",
+    "switchWithShortcut": "ᠢ ᠬᠡᠷᠡᠭ᠍ᠯᠡᠨ ᠡᠨᠡ ᠤᠳᠠᠭᠠᠨ ᠤ ᠬᠤᠷᠠᠯ ᠳᠤ {shortcut}",
+    "cleanMessages": "ᠶᠢ ᠲᠣᠳᠣᠷᠬᠠᠶᠢᠯᠠᠬᠤ",
+    "pin": "ᠳᠤ ᠵᠡᠭᠦᠯᠲᠡ ᠲᠠᠯᠪᠢᠬᠤ",
+    "unpin": "ᠡᠴᠡ ᠵᠠᠶᠢᠷᠠᠬᠤ",
+    "moveConversation": "ᠰᠢᠯᠵᠢᠬᠦ ᠬᠤᠷᠠᠯ",
+    "export": "ᠭᠠᠷᠭᠠᠬᠤ",
+    "exportText": "ᠳᠥᠭᠥᠮ ᠦᠭᠡ",
+    "exportNowledgeMem": "Nowledge-mem"
+  },
+  "export": {
+    "failed": "ᠡᠴᠡ ᠭᠠᠳᠠᠭᠰᠢ ᠭᠠᠷᠭᠠᠬᠤ ᠢᠯᠠᠭᠳᠠᠭᠰᠠᠨ",
+    "failedDesc": "ᠭᠠᠷᠭᠠᠬᠤ ᠳᠤ ᠪᠤᠷᠤᠭᠤ ᠭᠠᠷᠪᠠᠯ ᠳᠠᠬᠢᠵᠤ ᠲᠤᠷᠰᠢᠭᠠᠷᠠᠢ",
+    "nowledgeMemSubmitFailed": "ᠳᠤ Nowledge-mem ᠢᠯᠠᠭᠳᠠᠭᠰᠠᠨ ᠢ",
+    "nowledgeMemSubmitFailedDesc": "ᠳᠤ ᠲᠤᠰᠢᠶᠠᠭᠰᠠᠨ nowledge-mem ᠢᠯᠠᠭᠳᠠᠭᠰᠠᠨ",
+    "nowledgeMemSubmitPrompt": "ᠤᠨ ᠬᠤᠷᠠᠯ ᠤᠨ ᠬᠢ ᠶᠢ nowledge-mem ᠳᠦ ᠭᠠᠷᠭᠠᠬᠤ ᠶᠢ ᠨᠤᠲᠠᠯᠠᠨ᠎ᠠ ᠤᠤ ?",
+    "nowledgeMemSubmitSuccess": "ᠳᠤ Nowledge-mem ᠠᠮᠵᠢᠯᠲᠠ ᠣᠯᠪᠠ",
+    "nowledgeMemSubmitSuccessDesc": "ᠤᠨ ᠬᠤᠷᠠᠯ ᠢ ᠠᠮᠵᠢᠯᠲᠠ ᠲᠠᠢ ᠪᠡᠷ ᠲᠡᠪᠰᠢᠭᠦᠯᠪᠡ Nowledge-mem",
+    "nowledgeMemSuccessDesc": "ᠢ ᠠᠮᠵᠢᠯᠲᠠ ᠲᠠᠢ ᠪᠠᠷ Nowledge-mem",
+    "success": "ᠭᠠᠷᠭᠠᠯᠲᠠ ᠶᠢᠨ ᠠᠮᠵᠢᠯᠲᠠ ᠣᠯᠣᠨ᠎ᠠ",
+    "nowledgeMemSuccess": "ᠳᠤ ᠠᠮᠵᠢᠯᠲᠠ ᠲᠠᠶ ᠪᠠᠷ ᠭᠠᠳᠠᠭᠠᠳᠤ ᠳᠤ ᠭᠠᠷᠭᠠᠨ᠎ᠠ Nowledge-mem",
+    "successDesc": "ᠤᠨ ᠬᠤᠷᠠᠯ ᠢ ᠭᠠᠳᠠᠭᠠᠳᠤ ᠳᠤ ᠭᠠᠷᠭᠠᠬᠤ ᠶᠢ ᠠᠮᠵᠢᠯᠲᠠ ᠣᠯᠪᠠ"
+  },
+  "message": {
+    "toolbar": {
+      "save": "ᠬᠠᠳᠠᠭᠠᠯᠠᠬᠤ"
+    }
+  },
+  "toolbar": {
+    "save": "ᠬᠠᠳᠠᠭᠠᠯᠠᠬᠤ",
+    "cancel": "ᠢ ᠬᠦᠴᠦᠨ ᠦᠭᠡᠢ ᠪᠣᠯᠭᠠᠬᠤ",
+    "previousVariant": "ᠶᠢᠨ ᠬᠡᠪᠯᠡᠯ ᠢ ᠰᠣᠯᠢᠬᠤ",
+    "nextVariant": "ᠶᠢᠨ ᠬᠡᠪᠯᠡᠯ ᠢ ᠰᠣᠯᠢᠬᠤ",
+    "copy": "ᠶᠢᠨ ᠬᠠᠷᠢᠭᠤ ᠦᠭᠡ ᠶᠢ ᠬᠠᠭᠤᠯᠪᠤᠷᠢᠯᠠᠨ Markdown",
+    "copyImage": "ᠢ ᠵᠢᠷᠤᠭ ᠢᠶᠠᠷ ᠺᠣᠭᠤᠯᠤᠨ᠎ᠠ",
+    "copyImageWithLongPress": "ᠢ ᠵᠢᠷᠤᠭ ᠢᠶᠠᠷ ᠬᠠᠭᠤᠯᠤᠨ᠎ᠠ ( ᠳᠡᠭᠡᠷᠡᠬᠢ ᠳᠡᠭᠡᠷ᠎ᠡ ᠡᠴᠡ ᠨᠢ ᠰᠡᠭᠦᠳᠡᠷᠯᠡᠬᠦ ᠶᠢ ᠤᠷᠲᠤ ᠳᠠᠷᠤᠨ᠎ᠠ ）",
+    "copyFromTopSuccess": "ᠢ ᠪᠥᠬᠥᠯᠢ ᠵᠢᠷᠤᠭ ᠬᠠᠭᠤᠯᠪᠤᠷᠢᠯᠠᠭᠤᠯᠪᠠᠯ",
+    "capturing": "ᠵᠢᠷᠤᠭ ᠲᠠᠲᠠᠵᠤ ᠪᠠᠶᠢᠨ᠎ᠠ᠁",
+    "retry": "ᠪᠠᠨ ᠰᠣᠯᠢᠬᠤ",
+    "fork": "ᠰᠢᠨ᠎ᠡ ᠬᠤᠷᠠᠯ ᠳᠤ ᠣᠴᠢᠬᠤ",
+    "edit": "ᠳᠤ ᠵᠠᠰᠠᠪᠤᠷᠢ ᠣᠷᠣᠭᠤᠯᠬᠤ ᠴᠠᠭᠠᠰᠤ",
+    "delete": "ᠶᠢᠨ ᠮᠡᠳᠡᠭᠡ ᠶᠢ ᠬᠠᠰᠤᠬᠤ",
+    "trace": "ᠬᠦᠰᠡᠯᠲᠡ ᠶᠢᠨ ᠫᠠᠷᠠᠮᠧᠲᠷ ᠢ ᠦᠵᠡᠬᠦ"
+  }
+}

@@ -1,0 +1,54 @@
+{
+  "search": {
+    "placeholder": "དཔེ་དབྱིབས་འཚོལ་ཞིབ..."
+  },
+  "error": {
+    "loadFailed": "དཔེ་དབྱིབས་ནང་འཇུག་བྱེད་མ་ཐུབ་པ།"
+  },
+  "type": {
+    "custom": "རང་བཟོས་དཔེ་དབྱིབས་",
+    "official": "དངོས་གཞིའི་དཔེ་དབྱིབས་"
+  },
+  "add": {
+    "namePlaceholder": "དཔེ་དབྱིབས་ཀྱི་མིང་།",
+    "idPlaceholder": "དཔེ་དབྱིབས་ID",
+    "contextLengthPlaceholder": "རྒྱབ་ལྗོངས་ཀྱི་རིང་ཚད།",
+    "maxTokensPlaceholder": "token མང་ཤོས།"
+  },
+  "actions": {
+    "add": "དཔེ་དབྱིབས་ཁ་སྣོན་བྱས་པ།",
+    "enableAll": "ཚང་མ་ལྕོགས་གྲུབ་བཏང་",
+    "disableAll": "ཚང་མ་མེད་པར་བཟོ་དགོས།"
+  },
+  "sort": {
+    "status": "གནས་ཚུལ་ལྟར་ན།",
+    "name": "མིང་ལྟར་ན།"
+  },
+  "filter": {
+    "label": "འཚག་ཆས་",
+    "clearAll": "འཚག་ཆས་གཙང་སེལ་",
+    "visibleCount": "སྟོན་{visible} / {total}",
+    "capabilities": "ནུས་པ།",
+    "types": "རིགས་དབྱིབས་",
+    "capabilityOptions": {
+      "vision": "མཐོང་ཚོར་",
+      "functionCall": "རྟེན་གྲངས་འབོད་སྤྱོད།",
+      "reasoning": "རིགས་འདེད་བྱེད་ཐབས།",
+      "search": "དྲ་ཐོག་ནས་འཚོལ་ཞིབ།"
+    },
+    "typeOptions": {
+      "chat": "ལྒིང་མོལ་",
+      "embedding": "མཉམ་ཐིག་",
+      "rerank": "བསྐྱར་སྒྲིག་བྱས་པ།",
+      "imageGeneration": "པར་རིས་སྐྱེད་པ།",
+      "videoGeneration": "བརྙན་རིས་བཟོ་སྐྲུན།"
+    }
+  },
+  "tags": {
+    "reasoning": "རིགས་འདེད་བྱེད་ཐབས།",
+    "chat": "ལྒིང་མོལ་",
+    "code": "ཚབ་ཨང་།",
+    "writing": "རྩོམ་འབྲི།",
+    "analysis": "དབྱེ་ཞིབ།"
+  }
+}
