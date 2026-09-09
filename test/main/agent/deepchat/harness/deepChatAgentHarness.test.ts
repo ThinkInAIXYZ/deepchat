@@ -15014,6 +15014,69 @@ describe('DeepChatAgentHarness', () => {
       }
     )
 
+    it.each(['missing', 'stale'] as const)(
+      'resumes a Skill turn with a %s Tape assistant using the answered live blocks',
+      async (tapeState) => {
+        const skillService = getSkillServiceMock()
+        skillService.getMetadataList.mockResolvedValue([
+          { name: 'runtime-skill', description: 'Runtime skill' }
+        ])
+        skillService.getActiveSkills.mockResolvedValue([])
+        skillService.loadSkillContent.mockResolvedValue({ content: 'RECOVERED_SKILL_BODY' })
+        await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+        installSessionRows([])
+        let messageSequence = 0
+        vi.mocked(nanoid).mockImplementation(() => `resume-message-${++messageSequence}`)
+        let runId = ''
+        let invocation = 0
+        let requestMessages: ChatMessage[] = []
+        ;(processStream as ReturnType<typeof vi.fn>).mockImplementation(async (params: any) => {
+          runId = params.run.runId
+          requestMessages = params.run.messages
+          for await (const _event of params.coreStream(
+            params.run.messages,
+            params.modelId,
+            params.modelConfig,
+            params.temperature,
+            params.maxTokens,
+            params.run.resources.toolDefinitions
+          )) {
+          }
+          return { status: ++invocation === 1 ? 'paused' : 'completed' }
+        })
+
+        const started = await agent.processMessage('s1', {
+          text: 'resume query',
+          activeSkills: ['runtime-skill']
+        })
+        const messageId = started.messageId!
+        if (tapeState === 'stale') {
+          sessionData.transcript.finalizeAssistantMessage(messageId, [
+            { type: 'content', content: 'OLD_REPLY', status: 'success', timestamp: 0 }
+          ])
+        }
+        const assistantRow = installPendingQuestion(messageId, [
+          { type: 'content', content: 'CURRENT_REPLY', status: 'success', timestamp: 0 }
+        ])
+        assistantRow.metadata = JSON.stringify({ runId })
+
+        await expect(answerPendingQuestion(messageId)).resolves.toEqual({ resumed: true })
+
+        expect(llmProvider.providerInstance.coreStream).toHaveBeenCalledTimes(2)
+        expect(requestMessages.find((message) => message.role === 'user')?.content).toContain(
+          'RECOVERED_SKILL_BODY'
+        )
+        expect(requestMessages.find((message) => message.role === 'assistant')).toMatchObject({
+          content: 'CURRENT_REPLY',
+          tool_calls: [expect.objectContaining({ id: 'pending-question' })]
+        })
+        expect(requestMessages.find((message) => message.role === 'tool')).toMatchObject({
+          tool_call_id: 'pending-question',
+          content: 'Yes'
+        })
+      }
+    )
+
     it('handles question_option and resumes assistant message', async () => {
       const prepareForResumeTurn = vi.spyOn(CompactionService.prototype, 'prepareForResumeTurn')
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
