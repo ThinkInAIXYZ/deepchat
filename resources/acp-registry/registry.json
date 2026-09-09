@@ -204,6 +204,7 @@
         "Tencent Cloud"
       ],
       "license": "Proprietary",
+      "license_url": "https://www.codebuddy.cn/agreement/",
       "distribution": {
         "npx": {
           "package": "@tencent-ai/codebuddy-code@2.147.0",
@@ -244,6 +245,7 @@
         "Snowflake"
       ],
       "license": "proprietary",
+      "license_url": "https://www.snowflake.com/en/legal/terms-of-service/",
       "distribution": {
         "binary": {
           "darwin-aarch64": {
@@ -474,6 +476,7 @@
         "Cognition"
       ],
       "license": "proprietary",
+      "license_url": "https://cognition.com/legal/platform-terms-of-service",
       "repository": "https://github.com/CognitionAI/devin-cli",
       "distribution": {
         "binary": {
@@ -526,7 +529,7 @@
     {
       "id": "dimcode",
       "name": "DimCode",
-      "version": "0.3.29",
+      "version": "0.3.30",
       "description": "A coding agent that puts leading models at your command.",
       "website": "https://dimcode.dev/docs/acp.html",
       "authors": [
@@ -535,7 +538,7 @@
       "license": "proprietary",
       "distribution": {
         "npx": {
-          "package": "dimcode@0.3.29",
+          "package": "dimcode@0.3.30",
           "args": [
             "acp"
           ]
@@ -546,7 +549,7 @@
     {
       "id": "dirac",
       "name": "Dirac",
-      "version": "0.5.10",
+      "version": "0.5.11",
       "description": "Reduces API costs by more than 50%, produces better and faster work. Uses Hash anchored parallel edits, AST manipulation and a whole lot of neat optimizations. Fully Open Source.",
       "repository": "https://github.com/dirac-run/dirac",
       "website": "https://dirac.run",
@@ -558,7 +561,7 @@
       "icon": "https://cdn.agentclientprotocol.com/registry/v1/latest/dirac.svg",
       "distribution": {
         "npx": {
-          "package": "dirac-cli@0.5.10",
+          "package": "dirac-cli@0.5.11",
           "args": [
             "--acp"
           ]
@@ -568,16 +571,17 @@
     {
       "id": "factory-droid",
       "name": "Factory Droid",
-      "version": "0.213.0",
+      "version": "0.215.0",
       "description": "Factory Droid - AI coding agent powered by Factory AI",
       "website": "https://factory.ai/product/cli",
       "authors": [
         "Factory AI"
       ],
       "license": "proprietary",
+      "license_url": "https://factory.ai/legal/terms",
       "distribution": {
         "npx": {
-          "package": "droid@0.213.0",
+          "package": "droid@0.215.0",
           "args": [
             "exec",
             "--output-format",
@@ -619,7 +623,7 @@
     {
       "id": "gemini",
       "name": "Gemini CLI",
-      "version": "0.58.0",
+      "version": "0.59.0",
       "description": "Google's official CLI for Gemini",
       "repository": "https://github.com/google-gemini/gemini-cli",
       "website": "https://geminicli.com",
@@ -630,7 +634,7 @@
       "license_url": "https://github.com/google-gemini/gemini-cli/blob/main/LICENSE",
       "distribution": {
         "npx": {
-          "package": "@google/gemini-cli@0.58.0",
+          "package": "@google/gemini-cli@0.59.0",
           "args": [
             "--acp"
           ]
@@ -649,6 +653,7 @@
         "GitHub"
       ],
       "license": "proprietary",
+      "license_url": "https://github.com/github/copilot-cli/blob/main/LICENSE.md",
       "distribution": {
         "npx": {
           "package": "@github/copilot@1.0.83",
@@ -680,7 +685,7 @@
     {
       "id": "goose",
       "name": "goose",
-      "version": "1.49.0",
+      "version": "1.50.0",
       "description": "A local, extensible, open source AI agent that automates engineering tasks",
       "repository": "https://github.com/block/goose",
       "website": "https://block.github.io/goose/",
@@ -692,44 +697,44 @@
       "distribution": {
         "binary": {
           "darwin-aarch64": {
-            "archive": "https://github.com/block/goose/releases/download/v1.49.0/goose-aarch64-apple-darwin.tar.bz2",
+            "archive": "https://github.com/block/goose/releases/download/v1.50.0/goose-aarch64-apple-darwin.tar.bz2",
             "cmd": "./goose",
             "args": [
               "acp"
             ],
-            "sha256": "b0d29c99b310cfd58281ea50be6287be461438689506d6d4e994e4b05332fddb"
+            "sha256": "2ac186f03e547057a7d8aaa28c2ec34bef0c3718ead98bbbda50945273f93147"
           },
           "darwin-x86_64": {
-            "archive": "https://github.com/block/goose/releases/download/v1.49.0/goose-x86_64-apple-darwin.tar.bz2",
+            "archive": "https://github.com/block/goose/releases/download/v1.50.0/goose-x86_64-apple-darwin.tar.bz2",
             "cmd": "./goose",
             "args": [
               "acp"
             ],
-            "sha256": "c3186169787164b165688a805a8fb0a8ef05a21ecd49d499e9043f01c0f3bb0a"
+            "sha256": "1c7932a6cd83a90f1c05f5d86c1a4c0125f12fe7db1a4bf84252a0eec562261d"
           },
           "linux-aarch64": {
-            "archive": "https://github.com/block/goose/releases/download/v1.49.0/goose-aarch64-unknown-linux-gnu.tar.bz2",
+            "archive": "https://github.com/block/goose/releases/download/v1.50.0/goose-aarch64-unknown-linux-gnu.tar.bz2",
             "cmd": "./goose",
             "args": [
               "acp"
             ],
-            "sha256": "246de5a95c5b283bca8419334d1a6088bbb6d2540170c26cec1ce97764bb8735"
+            "sha256": "21918884e8c755e46f66c9476a03e846cb02a73edf8ca958e41291efe9845ab9"
           },
           "linux-x86_64": {
-            "archive": "https://github.com/block/goose/releases/download/v1.49.0/goose-x86_64-unknown-linux-gnu.tar.bz2",
+            "archive": "https://github.com/block/goose/releases/download/v1.50.0/goose-x86_64-unknown-linux-gnu.tar.bz2",
             "cmd": "./goose",
             "args": [
               "acp"
             ],
-            "sha256": "c631a55e7d826d28c3bcd87b71a0aaecc9612f5a44e6c0d01e7a5b82dd8b7143"
+            "sha256": "8b5dfae07d16e352fbabe3122339a9270ea30e3b29246c81d6a227ed5f35e904"
           },
           "windows-x86_64": {
-            "archive": "https://github.com/block/goose/releases/download/v1.49.0/goose-x86_64-pc-windows-msvc.zip",
+            "archive": "https://github.com/block/goose/releases/download/v1.50.0/goose-x86_64-pc-windows-msvc.zip",
             "cmd": "./goose-package\\goose.exe",
             "args": [
               "acp"
             ],
-            "sha256": "ff763fc1daf547b0cc56c40250935f0dffa929ea49ebaab7b6231e7d65374d6d"
+            "sha256": "1bcb644e9dd9eeae60ec0491c0687b3378d32365e7cb5c3edeab8db6aa923829"
           }
         }
       },
@@ -745,6 +750,7 @@
         "xAI"
       ],
       "license": "proprietary",
+      "license_url": "https://x.ai/legal/terms-of-service",
       "distribution": {
         "npx": {
           "package": "@xai-official/grok@1.0.24",
@@ -830,6 +836,7 @@
         "JetBrains"
       ],
       "license": "proprietary",
+      "license_url": "https://www.jetbrains.com/legal/docs/terms/jetbrains-ai-service/",
       "distribution": {
         "binary": {
           "darwin-aarch64": {
@@ -881,7 +888,7 @@
     {
       "id": "kilo",
       "name": "Kilo",
-      "version": "7.5.15",
+      "version": "7.5.16",
       "description": "The open source coding agent",
       "repository": "https://github.com/Kilo-Org/kilocode",
       "website": "https://kilo.ai/",
@@ -894,48 +901,48 @@
       "distribution": {
         "binary": {
           "darwin-aarch64": {
-            "archive": "https://github.com/Kilo-Org/kilocode/releases/download/v7.5.15/kilo-darwin-arm64.zip",
+            "archive": "https://github.com/Kilo-Org/kilocode/releases/download/v7.5.16/kilo-darwin-arm64.zip",
             "cmd": "./kilo",
             "args": [
               "acp"
             ],
-            "sha256": "7e723d083bc433543399a5903cd90ab1322edc686011f8a58c7333ec2a28e17a"
+            "sha256": "6315a896baabb36e02749920b5d103cdaff5ee1983e16bcbd965a8405e7e4a2f"
           },
           "darwin-x86_64": {
-            "archive": "https://github.com/Kilo-Org/kilocode/releases/download/v7.5.15/kilo-darwin-x64.zip",
+            "archive": "https://github.com/Kilo-Org/kilocode/releases/download/v7.5.16/kilo-darwin-x64.zip",
             "cmd": "./kilo",
             "args": [
               "acp"
             ],
-            "sha256": "40912af6429eeb29a0ec0cc2bf697934280ebca66f362ba9135df76fb3eaa059"
+            "sha256": "8f39b47420a01cdf9c81ca1676193ea5d8d4fbcfaa349016c9e0ee6a884fae38"
           },
           "linux-aarch64": {
-            "archive": "https://github.com/Kilo-Org/kilocode/releases/download/v7.5.15/kilo-linux-arm64.tar.gz",
+            "archive": "https://github.com/Kilo-Org/kilocode/releases/download/v7.5.16/kilo-linux-arm64.tar.gz",
             "cmd": "./kilo",
             "args": [
               "acp"
             ],
-            "sha256": "23ed28ee2e705c699454c7197776d876e95842042131030ed92e8b82af42d8b2"
+            "sha256": "3479e1167d71663f2af92a0a01075ef905b73f1935b7be63f8c38bc38927c547"
           },
           "linux-x86_64": {
-            "archive": "https://github.com/Kilo-Org/kilocode/releases/download/v7.5.15/kilo-linux-x64.tar.gz",
+            "archive": "https://github.com/Kilo-Org/kilocode/releases/download/v7.5.16/kilo-linux-x64.tar.gz",
             "cmd": "./kilo",
             "args": [
               "acp"
             ],
-            "sha256": "830b770fc6b8cb3e24e290c3b703df74e1decb7d7a43fafdbc2304f54b1149ce"
+            "sha256": "09a40cc8db76bc52b6a0227f51267eaf3c969066e1888c1493f2d5ffaffbb71d"
           },
           "windows-x86_64": {
-            "archive": "https://github.com/Kilo-Org/kilocode/releases/download/v7.5.15/kilo-windows-x64.zip",
+            "archive": "https://github.com/Kilo-Org/kilocode/releases/download/v7.5.16/kilo-windows-x64.zip",
             "cmd": "./kilo.exe",
             "args": [
               "acp"
             ],
-            "sha256": "b335c65d409874660069da2ef47410f344f2138a88744ea9ca405cf23931e28a"
+            "sha256": "e68690fdbe764dfd0800b4444b0812347d5ff3a6e71d3b68d6a9d24315158308"
           }
         },
         "npx": {
-          "package": "@kilocode/cli@7.5.15",
+          "package": "@kilocode/cli@7.5.16",
           "args": [
             "acp"
           ]
@@ -945,7 +952,7 @@
     {
       "id": "kimchi",
       "name": "Kimchi",
-      "version": "1.1.11",
+      "version": "1.1.13",
       "description": "Coding agent powered by multi-model orchestration",
       "repository": "https://github.com/getkimchi/kimchi",
       "website": "https://kimchi.dev",
@@ -953,11 +960,12 @@
         "Kimchi"
       ],
       "license": "Apache-2.0",
+      "license_url": "https://github.com/getkimchi/kimchi/blob/master/LICENSE",
       "distribution": {
         "binary": {
           "darwin-aarch64": {
-            "archive": "https://github.com/getkimchi/kimchi/releases/download/v1.1.11/kimchi_darwin_arm64.tar.gz",
-            "sha256": "9614064e7ff5d96163b9faca4306f2fb05a82a0185bb791f60928adc73b168b0",
+            "archive": "https://github.com/getkimchi/kimchi/releases/download/v1.1.13/kimchi_darwin_arm64.tar.gz",
+            "sha256": "6210b93b90ceab646939d9f3cf5e8fa80bcc7dc041255cce23376a4bef6de2e2",
             "cmd": "./bin/kimchi",
             "args": [
               "--mode",
@@ -965,8 +973,8 @@
             ]
           },
           "darwin-x86_64": {
-            "archive": "https://github.com/getkimchi/kimchi/releases/download/v1.1.11/kimchi_darwin_amd64.tar.gz",
-            "sha256": "788e505afbdfee0d05fce68b5c978cd7cd93386fa0d473c47b50480603a4207c",
+            "archive": "https://github.com/getkimchi/kimchi/releases/download/v1.1.13/kimchi_darwin_amd64.tar.gz",
+            "sha256": "fccf16f34fa3aaf77b31069064518ff3dad286d1ad4c22f18aad514483161962",
             "cmd": "./bin/kimchi",
             "args": [
               "--mode",
@@ -974,8 +982,8 @@
             ]
           },
           "linux-aarch64": {
-            "archive": "https://github.com/getkimchi/kimchi/releases/download/v1.1.11/kimchi_linux_arm64.tar.gz",
-            "sha256": "625f41ac3dda2fc9f4efaedf75877c567283f0db2815aeb36eea1df6bd77fdf4",
+            "archive": "https://github.com/getkimchi/kimchi/releases/download/v1.1.13/kimchi_linux_arm64.tar.gz",
+            "sha256": "f7be7f7937fc534abaf6cab0d440d314ddbf166ca5484d2dbf6859bf27a0eb54",
             "cmd": "./bin/kimchi",
             "args": [
               "--mode",
@@ -983,8 +991,8 @@
             ]
           },
           "linux-x86_64": {
-            "archive": "https://github.com/getkimchi/kimchi/releases/download/v1.1.11/kimchi_linux_amd64.tar.gz",
-            "sha256": "4c571aa2653c3409e9d27c66ec230eb3e6b9684d3ea01d3313e9d082031faa93",
+            "archive": "https://github.com/getkimchi/kimchi/releases/download/v1.1.13/kimchi_linux_amd64.tar.gz",
+            "sha256": "c151b09165b2e7997dcf7439904b97f80762d216edf524ec4be1a5da97da6d6d",
             "cmd": "./bin/kimchi",
             "args": [
               "--mode",
@@ -992,8 +1000,8 @@
             ]
           },
           "windows-x86_64": {
-            "archive": "https://github.com/getkimchi/kimchi/releases/download/v1.1.11/kimchi_windows_amd64.zip",
-            "sha256": "c0432cc4cf9aa9494674a1bba6f92398654a31b8ac38e85d0ef56086750986f5",
+            "archive": "https://github.com/getkimchi/kimchi/releases/download/v1.1.13/kimchi_windows_amd64.zip",
+            "sha256": "8a76aa31ad0979a792d5499fd0f0a491c7bd432a4271817afa1e6943d1a0036c",
             "cmd": "./bin/kimchi.exe",
             "args": [
               "--mode",
@@ -1308,6 +1316,7 @@
         "Qoder AI"
       ],
       "license": "proprietary",
+      "license_url": "https://qoder.com/product-service?lang=en",
       "icon": "https://cdn.agentclientprotocol.com/registry/v1/latest/qoder.svg",
       "distribution": {
         "npx": {
@@ -1321,7 +1330,7 @@
     {
       "id": "qwen-code",
       "name": "Qwen Code",
-      "version": "0.23.0",
+      "version": "0.23.1",
       "description": "Alibaba's Qwen coding assistant",
       "repository": "https://github.com/QwenLM/qwen-code",
       "website": "https://qwenlm.github.io/qwen-code-docs/en/users/overview",
@@ -1332,7 +1341,7 @@
       "license_url": "https://github.com/QwenLM/qwen-code/blob/main/LICENSE",
       "distribution": {
         "npx": {
-          "package": "@qwen-code/qwen-code@0.23.0",
+          "package": "@qwen-code/qwen-code@0.23.1",
           "args": [
             "--acp",
             "--experimental-skills"
