@@ -299,7 +299,7 @@ export async function cacheImage(
   if (!fs.existsSync(cacheDir)) fs.mkdirSync(cacheDir, { recursive: true })
   const fileName = `img_${Date.now()}_${nanoid(8)}`
 
-  if (imageData.startsWith('http://') || imageData.startsWith('https://')) {
+  if (/^https?:\/\//i.test(imageData)) {
     return cacheImageFromUrl(imageData, cacheDir, fileName, options)
   }
   if (/^data:image\//i.test(imageData)) {

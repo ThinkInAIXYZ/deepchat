@@ -373,13 +373,12 @@ export async function extractToolCallImagePreviews(
 /**
  * Backstop for tools that return `imagePreviews` directly (bypassing extraction): rewrites any
  * inline base64 payload (data URL or bare base64, in any casing) to an on-disk `imgcache://`
- * reference so multi-MB payloads never reach message persistence, IPC, or the renderer. Previews
- * that cannot be cached are left unchanged. Mirroring the extraction path, at most
- * `MAX_TOOL_CALL_IMAGE_PREVIEWS` distinct payloads are written per call and duplicates are dropped.
+ * reference to reduce payloads reaching message persistence, IPC, and the renderer. Previews
+ * that cannot be cached are left unchanged. At most `MAX_TOOL_CALL_IMAGE_PREVIEWS` distinct
+ * inline payloads are processed per call; duplicates and excess inline previews are dropped.
  *
- * Note: like the extraction path this only rewrites the `imagePreviews` array — a tool that also
- * embeds the same base64 in its textual `content` is expected to use the extraction path (which
- * rewrites content references) instead of returning `imagePreviews` directly.
+ * Tools returning `imagePreviews` directly must keep inline image data out of textual `content`;
+ * this helper only rewrites the preview array.
  */
 export async function cacheToolCallImagePreviews(params: {
   imagePreviews: ToolCallImagePreview[]
@@ -387,6 +386,7 @@ export async function cacheToolCallImagePreviews(params: {
   signal?: AbortSignal
 }): Promise<ToolCallImagePreview[]> {
   const { imagePreviews, cacheImage, signal } = params
+  signal?.throwIfAborted()
   if (!cacheImage || imagePreviews.length === 0) {
     return imagePreviews
   }
@@ -396,6 +396,7 @@ export async function cacheToolCallImagePreviews(params: {
   const seenInputs = new Set<string>()
   const seen = new Set<string>()
   for (const preview of imagePreviews) {
+    signal?.throwIfAborted()
     const rawData = preview.data?.trim()
     if (
       !rawData ||
@@ -410,23 +411,29 @@ export async function cacheToolCallImagePreviews(params: {
       resolved.push(preview)
       continue
     }
-    const inputKey = normalized.toLowerCase()
+    const inputKey = normalized
     if (seenInputs.has(inputKey)) {
+      changed = true
       continue
     }
     if (seenInputs.size >= MAX_TOOL_CALL_IMAGE_PREVIEWS) {
-      resolved.push(preview)
+      changed = true
       continue
     }
     seenInputs.add(inputKey)
     const cached = await cachePreviewData(normalized, cacheImage, signal)
-    if (!cached || seen.has(cached)) {
+    if (!cached) {
       resolved.push(preview)
+      continue
+    }
+    if (seen.has(cached)) {
+      changed = true
       continue
     }
     seen.add(cached)
     changed = true
     resolved.push({ ...preview, data: cached, mimeType: inferMimeType(cached, preview.mimeType) })
   }
+  signal?.throwIfAborted()
   return changed ? resolved : imagePreviews
 }

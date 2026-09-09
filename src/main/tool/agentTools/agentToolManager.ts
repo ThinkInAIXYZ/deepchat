@@ -2481,13 +2481,15 @@ export class AgentToolManager {
     let previewData: string | undefined
     let dispatchCommitFailed = false
     try {
-      const cachedPreviewData = await this.dependencies.cacheImage(dataUrl)
+      const cachedPreviewData = await this.dependencies.cacheImage(dataUrl, { signal })
       if (cachedPreviewData && !cachedPreviewData.startsWith('data:image/')) {
         previewData = cachedPreviewData
       }
     } catch (error) {
+      throwIfAbortRequested(signal)
       logger.warn('[AgentToolManager] Failed to cache image preview', { filePath, error })
     }
+    throwIfAbortRequested(signal)
     const imagePreviews: ToolCallImagePreview[] = [
       {
         id: 'file_read-1',

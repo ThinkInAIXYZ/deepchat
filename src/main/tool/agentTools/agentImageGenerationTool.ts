@@ -23,6 +23,7 @@ import {
 } from '@shared/agentImageGenerationTool'
 import logger from '@shared/logger'
 import type { CacheImageCallback } from '@/lib/toolCallImagePreviews'
+import { awaitWithAbort } from '@/lib/awaitWithAbort'
 import type { AgentProviderToolPort, AgentToolSessionPort } from '../runtimePorts'
 import type { AgentSettingsPort } from '@/agent/settings'
 
@@ -176,6 +177,7 @@ export class AgentImageGenerationTool {
           data: await this.cacheGeneratedImageData(image.data, image.mimeType, options?.signal)
         }))
       )
+      options?.signal?.throwIfAborted()
       const imagePreviews = images.map<ToolCallImagePreview>((image, index) => ({
         id: `generated-image-${index + 1}`,
         data: image.data,
@@ -222,13 +224,14 @@ export class AgentImageGenerationTool {
     mimeType: string,
     signal?: AbortSignal
   ): Promise<string> {
+    signal?.throwIfAborted()
     const trimmed = data.trim()
     if (trimmed.toLowerCase().startsWith('imgcache://')) {
       return trimmed
     }
 
     const source =
-      trimmed.startsWith('data:') || /^https?:\/\//i.test(trimmed)
+      /^data:/i.test(trimmed) || /^https?:\/\//i.test(trimmed)
         ? trimmed
         : `data:${mimeType || 'image/png'};base64,${trimmed}`
 
@@ -239,10 +242,10 @@ export class AgentImageGenerationTool {
         // tool-call abort signal forwarded, so cancellation cannot leave an unmanaged download
         // running. `allowPrivateNetwork: false` is passed unconditionally so an omitted signal
         // cannot re-enable private-network access.
-        resolved = await this.options.cacheImage(source, {
-          signal,
-          allowPrivateNetwork: false
-        })
+        resolved = await awaitWithAbort(
+          this.options.cacheImage(source, { signal, allowPrivateNetwork: false }),
+          signal
+        )
       } catch (error) {
         if (signal?.aborted) throw error
         logger.warn('[AgentImageGenerationTool] Failed to cache generated image', { error })
@@ -258,7 +261,7 @@ export class AgentImageGenerationTool {
     }
 
     if (
-      resolved.startsWith('data:') &&
+      /^data:/i.test(resolved) &&
       estimateBase64PayloadChars(resolved) > MAX_INLINE_IMAGE_BASE64_CHARS
     ) {
       throw new Error(

@@ -403,31 +403,54 @@ describe('cacheToolCallImagePreviews', () => {
     expect(previews).toEqual([{ ...input[0], data: 'imgcache://cached.png' }])
   })
 
-  it('dedupes identical payloads and caps cache writes', async () => {
-    const cacheImage = vi.fn(async (data: string) => `imgcache://cached-${data.length}.png`)
-    const duplicate = {
-      id: 'tool_output-1',
-      data: 'data:image/png;base64,QUFBQQ==',
-      mimeType: 'image/png',
-      source: 'tool_output' as const
-    }
-    const input = [
-      duplicate,
-      { ...duplicate, id: 'tool_output-dup' },
-      ...Array.from({ length: 6 }, (_, index) => ({
-        id: `tool_output-${index + 2}`,
-        data: `data:image/png;base64,${'A'.repeat(index + 1)}`,
+  it.each([true, false])(
+    'dedupes and caps inline previews when caching succeeds: %s',
+    async (succeeds) => {
+      const cacheImage = vi.fn(async (data: string) =>
+        succeeds ? `imgcache://cached-${data.length}.png` : data
+      )
+      const duplicate = {
+        id: 'tool_output-1',
+        data: 'data:image/png;base64,QUFBQQ==',
         mimeType: 'image/png',
         source: 'tool_output' as const
-      }))
-    ]
+      }
+      const input = [
+        duplicate,
+        { ...duplicate, id: 'tool_output-dup' },
+        ...Array.from({ length: 6 }, (_, index) => ({
+          id: `tool_output-${index + 2}`,
+          data: `data:image/png;base64,${'A'.repeat(index + 1)}`,
+          mimeType: 'image/png',
+          source: 'tool_output' as const
+        }))
+      ]
 
-    const previews = await cacheToolCallImagePreviews({ imagePreviews: input, cacheImage })
+      const previews = await cacheToolCallImagePreviews({ imagePreviews: input, cacheImage })
 
-    expect(cacheImage).toHaveBeenCalledTimes(4)
-    expect(previews).toHaveLength(7)
-    expect(previews.find((preview) => preview.id === 'tool_output-dup')).toBeUndefined()
-    expect(previews.filter((preview) => preview.data?.startsWith('imgcache://'))).toHaveLength(4)
-    expect(previews.filter((preview) => preview.data?.startsWith('data:image/'))).toHaveLength(3)
+      expect(cacheImage).toHaveBeenCalledTimes(4)
+      expect(previews).toHaveLength(4)
+      expect(previews.find((preview) => preview.id === 'tool_output-dup')).toBeUndefined()
+      expect(
+        previews.every((preview) =>
+          preview.data?.startsWith(succeeds ? 'imgcache://' : 'data:image/')
+        )
+      ).toBe(true)
+    }
+  )
+
+  it('drops duplicate cache results without restoring inline data', async () => {
+    const previews = await cacheToolCallImagePreviews({
+      imagePreviews: ['AAAA', 'BBBB'].map((data, index) => ({
+        id: `image-${index}`,
+        data: `data:image/png;base64,${data}`,
+        mimeType: 'image/png',
+        source: 'tool_output'
+      })),
+      cacheImage: async () => 'imgcache://same.png'
+    })
+
+    expect(previews).toHaveLength(1)
+    expect(previews[0].data).toBe('imgcache://same.png')
   })
 })
