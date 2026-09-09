@@ -800,7 +800,7 @@ export function buildUserMessageContent(
   const imageMetadata = shouldBuildImageParts ? '' : buildImageMetadataContext(imagePayloadFiles)
   const resolvedImageContext = buildResolvedImageRepresentationContext(imageFiles)
   const resolvedPdfContext = buildResolvedPdfRepresentationContext(files)
-  const leadingContext = options.leadingContext?.trim() ?? ''
+  const leadingContext = options.leadingContext?.trim() ? options.leadingContext : ''
   const baseText = (
     leadingContext
       ? [
