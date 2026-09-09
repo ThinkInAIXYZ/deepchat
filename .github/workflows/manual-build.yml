@@ -219,3 +219,45 @@ jobs:
             dist/*.AppImage
             dist/*.tar.gz
           if-no-files-found: error
+
+  publish:
+    name: Publish GitHub Release
+    if: github.event_name == 'push'
+    needs: [build-macos, build-windows, build-linux]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Publish the electron-builder draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          # electron-builder 的 GitHub publisher 按 package.json version 生成
+          # release tag（v${version}），与触发用的 miowork-v* 前缀 tag 无关。
+          TAG="v$(node -p "require('./package.json').version")"
+          echo "Looking for draft release ${TAG}"
+          for attempt in 1 2 3 4 5 6 7 8 9 10; do
+            if gh release view "${TAG}" --json isDraft -q .isDraft 2>/dev/null | grep -qi 'true'; then
+              if [[ "${TAG}" == *-* ]]; then
+                gh release edit "${TAG}" --prerelease
+              fi
+              gh release publish "${TAG}"
+              echo "Published draft release ${TAG}"
+              exit 0
+            fi
+            if gh release view "${TAG}" >/dev/null 2>&1; then
+              echo "Release ${TAG} already published; nothing to do."
+              exit 0
+            fi
+            echo "Draft ${TAG} not visible yet (attempt ${attempt}/10), waiting 15s..."
+            sleep 15
+          done
+          echo "Draft release ${TAG} was never created by the package jobs." >&2
+          exit 1
