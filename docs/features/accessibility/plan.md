@@ -5,11 +5,11 @@ The behavior contract is in [spec.md](spec.md). The dedicated exploration agent 
 - [x] Entry, shell navigation, session selection, accessible controls, and focus.
 - [x] Conversation input/output, history, streaming, search, attachments, model options, message actions, and approval/recovery flows.
 - [x] Onboarding, settings, provider/agent/model forms, plugin/MCP/skill installation and configuration, including external-Agent import and activity navigation.
-- [ ] Projects, workspace files, artifacts, terminal, browser and auxiliary windows: plugin settings close/return recovery remains under repair.
+- [x] Projects, workspace files, artifacts, terminal, browser and auxiliary windows, including native entry/return and plugin settings close shortcuts.
 - [x] Review shared semantics, focus ownership, localization, lifecycle, rendering and IPC boundaries.
 - [x] Retain behavior-focused regression protection; keep exploratory fixtures and probes outside the repository.
 - [x] Run format, i18n, lint, typecheck, relevant renderer/main suites, production build and Electron smoke tests.
-- [ ] Accept plugin settings close/return recovery and post-import session refresh; commit and push each accepted phase.
+- [ ] Accept post-import session refresh and commit/push the final repair; other phases have independent acceptance.
 - [ ] Open a PR against `dev` with behavior, validation, coverage boundaries, and BEFORE/AFTER ASCII.
 
 ## Ownership and implementation
@@ -67,4 +67,4 @@ The explorer's matrix records completed operations, shared-component evidence an
 
 The complete renderer suite passes 2450 tests across 274 files. The final external-Agent import/API suites pass 51 tests, including cloneability of nested reactive overwrite acknowledgements. Shared dialog/context-menu checks pass. Independent acceptance confirms Source Agent and conflict group names, announced import totals, persisted overwrite results, and activity navigation through Tab plus Enter/Space with focus on the destination main region. Relevant main browser/dispatcher/contracts suites pass 164 tests, with 32 device/composition checks. Both Electron keyboard-navigation and streaming smoke tests pass; streaming verification removes real attachments with Enter and Space without adding a message or losing the draft. Format, i18n, lint, both TypeScript checks and the production build pass.
 
-Plugin settings entry and content interaction work, but closing the window must recover its opener and obey the configured close shortcut. Data overwrite persists correctly but must refresh already-open session lists; both findings remain under repair. Human VoiceOver/NVDA speech, OS-owned dialog speech, external service authorization and third-party content remain explicit verification boundaries, not accepted first-party workflows.
+Plugin settings entry, content interaction, native Close and Cmd+W have independent acceptance, with return to the named initiating control. Enable/Disable and Refresh retain useful focus. HTML/Text export produces readable files, and the React Artifact fixture renders and responds to its button. Data overwrite persists correctly; refreshing already-open session lists and messages remains under repair. Human VoiceOver/NVDA speech, OS-owned dialog speech, external service authorization and third-party content remain explicit verification boundaries, not accepted first-party workflows.
