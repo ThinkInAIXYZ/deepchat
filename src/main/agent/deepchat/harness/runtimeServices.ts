@@ -14,6 +14,7 @@ import type { SessionData } from '@/session/data'
 import type { SessionDatabase } from '@/session/data/database'
 import type { SessionPermissionPort, SessionUiPort } from '@/session/contracts'
 import type { SkillSettingsPort } from '@/skill/settings'
+import type { CacheImageOptions } from '@/platform/imageCache'
 import type { AcpAgentInstanceDependencyFactory } from '@/agent/acp/instance'
 import type { DeepChatAgentRuntime } from '@/agent/deepchat/instance/deepChatAgentRuntime'
 import type { CommandShellService } from '@/agent/shared/process/commandShellService'
@@ -81,7 +82,7 @@ export interface DeepChatHarnessDependencies {
   sessionUiPort: SessionUiPort
   memoryPort: MemoryRuntimePort
   getMemoryIngestionProjection(): MemoryIngestionProjection
-  cacheImage(data: string): Promise<string>
+  cacheImage(data: string, options?: CacheImageOptions): Promise<string>
   skillService: DeepChatHarnessSkillPort
   skillSettings: SkillSettingsPort
   traceSettings: AgentTraceSettingsPort

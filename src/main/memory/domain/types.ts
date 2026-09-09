@@ -614,6 +614,22 @@ export type ProvenanceHitResult =
   | { action: 'continue' }
   | { action: 'noop'; reason: string }
 
+/**
+ * Who currently owns a candidate's provenance key. Classification itself never writes; the
+ * lookup that precedes it may lazily re-key a legacy owner, which is why resolvers accept the
+ * caller's dispatch-commit callback. `archived` owners may be restored, `duplicate` owners may
+ * only absorb temporal metadata, `suppressed` owners must stay untouched, `challenged` chains
+ * reject new evidence, and a `superseded` owner exposes its live chain head (or null) for
+ * correction decisions.
+ */
+export type ClaimOwnership =
+  | { state: 'unowned' }
+  | { state: 'archived'; owner: CanonicalAgentMemoryRow }
+  | { state: 'duplicate'; owner: CanonicalAgentMemoryRow }
+  | { state: 'suppressed'; owner: CanonicalAgentMemoryRow; reason: string }
+  | { state: 'challenged'; owner: CanonicalAgentMemoryRow; head: CanonicalAgentMemoryRow }
+  | { state: 'superseded'; owner: CanonicalAgentMemoryRow; head: CanonicalAgentMemoryRow | null }
+
 export type ContentUpdateResult =
   | { action: 'updated'; id: string }
   | { action: 'folded'; id: string; retiredHeadId?: string }

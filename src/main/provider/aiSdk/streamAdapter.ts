@@ -1,6 +1,7 @@
 import { createStreamEvent, type LLMCoreStreamEvent } from '@shared/types/core/llm-events'
 import type { ChatMessageProviderOptions } from '@shared/types/core/chat-message'
 import type { ToolSet, TextStreamPart } from 'ai'
+import type { CacheImageOptions } from '@/platform/imageCache'
 import { parseLegacyFunctionCalls } from './toolProtocol'
 import { extractProviderFailureMetadata } from '../providerFailure'
 
@@ -89,7 +90,8 @@ function toProviderOptions(value: unknown): ChatMessageProviderOptions | undefin
 
 export interface AdaptAiSdkStreamOptions {
   supportsNativeTools: boolean
-  cacheImage?: (data: string) => Promise<string>
+  cacheImage?: (data: string, options?: CacheImageOptions) => Promise<string>
+  signal?: AbortSignal
   projectRawChunk?: (rawValue: unknown) => LLMCoreStreamEvent | null
 }
 
@@ -322,12 +324,14 @@ export async function* adaptAiSdkStream(
 
         if (options.cacheImage) {
           try {
-            cachedImage = await options.cacheImage(dataUrl)
+            cachedImage = await options.cacheImage(dataUrl, { signal: options.signal })
           } catch (error) {
+            options.signal?.throwIfAborted()
             console.warn('[AI SDK Stream Adapter] Failed to cache image part:', error)
           }
         }
 
+        options.signal?.throwIfAborted()
         yield createStreamEvent.imageData({
           data: cachedImage,
           mimeType: mediaType

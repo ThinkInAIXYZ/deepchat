@@ -20,6 +20,7 @@ import type { DeepChatProviderAttemptIdentity } from '@shared/types/provider-att
 import type { DeepchatEventName } from '@shared/contracts/events'
 import type { DeepChatInternalSessionUpdate } from './sessionUpdates'
 import type { SessionTranscript } from '@/session/data/transcript'
+import type { CacheImageOptions } from '@/platform/imageCache'
 import type { AgentPlanSnapshot, AgentPlanTerminalReason } from '@shared/types/agent-plan'
 import type { LoopRun } from '@/agent/deepchat/loop/loopRun'
 import type {
@@ -206,7 +207,7 @@ export interface ProcessControlCollaborators {
     operation: ExecutionOperationIdentity
     outcomeEntryId: number
   }) => Promise<void> | void
-  cacheImage?: (data: string) => Promise<string>
+  cacheImage?: (data: string, options?: CacheImageOptions) => Promise<string>
 }
 
 export interface ProcessInternalDiagnostics {

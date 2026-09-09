@@ -64,8 +64,6 @@ export interface EmbeddingPipelinePorts {
       options?: { allowHistoricalIdentity?: boolean }
     ): Promise<T>
   }
-  reindexEmbeddings: (agentId: string, force?: boolean) => Promise<void>
-  backfillEmbeddings: (agentId: string) => Promise<void>
   diagnostics?: {
     observeEmbeddingBacklog(pending: number, activeAgents: number): void
     recordEmbedding(
@@ -1017,7 +1015,7 @@ export class EmbeddingPipeline {
       if (!leaseResult.usable) {
         this.ports.vectorStore.clearReady(agentId)
         if (!this.reindexing.has(agentId)) {
-          void this.ports.reindexEmbeddings(agentId, true).catch((error) => {
+          void this.reindexEmbeddings(agentId, true).catch((error) => {
             logger.warn(`[Memory] store rebuild failed for ${agentId}: ${String(error)}`)
           })
         }
@@ -1033,7 +1031,7 @@ export class EmbeddingPipeline {
       const fingerprint = embeddingFingerprint(embedding.providerId, embedding.modelId)
       if (this.ports.repository.hasStaleEmbeddings(agentId, dimensions, fingerprint)) {
         this.ports.vectorStore.clearReady(agentId)
-        void this.ports.reindexEmbeddings(agentId).catch((error) => {
+        void this.reindexEmbeddings(agentId).catch((error) => {
           logger.warn(`[Memory] reindex failed for ${agentId}: ${String(error)}`)
         })
         return {
@@ -1055,7 +1053,7 @@ export class EmbeddingPipeline {
       if (!coverage.verified) {
         this.ports.vectorStore.clearReady(agentId)
         if (coverage.authoritativeListingTruncated && !this.reindexing.has(agentId)) {
-          void this.ports.reindexEmbeddings(agentId, true).catch((error) => {
+          void this.reindexEmbeddings(agentId, true).catch((error) => {
             logger.warn(
               `[Memory] incomplete vector store rebuild failed for ${agentId}: ${String(error)}`
             )
@@ -1072,7 +1070,7 @@ export class EmbeddingPipeline {
 
       this.ports.vectorStore.markReady(agentId, embedding, dimensions, coverage.generation)
       if (!this.reindexing.has(agentId)) {
-        void this.ports.backfillEmbeddings(agentId).catch((error) => {
+        void this.backfillEmbeddings(agentId).catch((error) => {
           logger.warn(`[Memory] backfill failed for ${agentId}: ${String(error)}`)
         })
       }

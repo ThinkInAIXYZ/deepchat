@@ -1441,7 +1441,8 @@ export async function* runAiSdkCoreStream(
           )
 
     const dataUrl = `data:${mimeType};base64,${base64}`
-    const cachedAudio = await cacheImage(dataUrl)
+    const cachedAudio = await cacheImage(dataUrl, { signal })
+    signal?.throwIfAborted()
     yield {
       type: 'image_data',
       image_data: {
@@ -1546,7 +1547,8 @@ export async function* runAiSdkCoreStream(
 
     for (const image of result.images) {
       const dataUrl = `data:${image.mediaType};base64,${image.base64}`
-      const cachedImage = await cacheImage(dataUrl)
+      const cachedImage = await cacheImage(dataUrl, { signal: requestSignal })
+      requestSignal?.throwIfAborted()
       yield {
         type: 'image_data',
         image_data: {
@@ -1605,6 +1607,7 @@ export async function* runAiSdkCoreStream(
   yield* adaptAiSdkStream(result.stream, {
     supportsNativeTools: runtime.supportsNativeTools,
     cacheImage,
+    signal: requestSignal,
     projectRawChunk: runtime.providerAdapter?.projectRawChunk
   })
 }

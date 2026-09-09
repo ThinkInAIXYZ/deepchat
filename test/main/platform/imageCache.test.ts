@@ -21,6 +21,7 @@ vi.mock('electron', () => ({
 vi.mock('axios', () => ({ default: axiosMock }))
 
 import { cacheImage, resolveCachedImageDataUrl } from '@/platform/imageCache'
+import { cacheToolCallImagePreviews } from '@/lib/toolCallImagePreviews'
 
 describe('imageCache', () => {
   const tempDirectories: string[] = []
@@ -40,6 +41,40 @@ describe('imageCache', () => {
         .map((directory) => fs.rm(directory, { recursive: true, force: true }))
     )
     vi.mocked(console.error).mockRestore()
+  })
+
+  it('preserves distinct valid images whose base64 differs only by case', async () => {
+    const black = Buffer.alloc(58)
+    black.write('BM')
+    black.writeUInt32LE(58, 2)
+    black.writeUInt32LE(54, 10)
+    black.writeUInt32LE(40, 14)
+    black.writeInt32LE(1, 18)
+    black.writeInt32LE(1, 22)
+    black.writeUInt16LE(1, 26)
+    black.writeUInt16LE(24, 28)
+    black.writeUInt32LE(4, 34)
+    const blue = Buffer.from(black)
+    blue[54] = 104
+    const dataUrls = [black, blue].map((data) => `data:image/bmp;base64,${data.toString('base64')}`)
+    expect(dataUrls[0]).not.toBe(dataUrls[1])
+    expect(dataUrls[0].toLowerCase()).toBe(dataUrls[1].toLowerCase())
+
+    const previews = await cacheToolCallImagePreviews({
+      imagePreviews: dataUrls.map((data, index) => ({
+        id: `image-${index}`,
+        data,
+        mimeType: 'image/bmp',
+        source: 'tool_output'
+      })),
+      cacheImage
+    })
+
+    expect(previews).toHaveLength(2)
+    expect(previews[0].data).not.toBe(previews[1].data)
+    await expect(
+      Promise.all(previews.map((preview) => resolveCachedImageDataUrl(preview.data!)))
+    ).resolves.toEqual(dataUrls)
   })
 
   it('blocks a public image redirect to a private-network address', async () => {
@@ -80,32 +115,35 @@ describe('imageCache', () => {
     await expect(fs.readdir(path.join(electronMock.userDataPath, 'images'))).resolves.toEqual([])
   })
 
-  it('bounds network responses and preserves supported MIME types', async () => {
-    axiosMock.mockResolvedValueOnce({
-      status: 200,
-      headers: { 'content-type': 'image/avif' },
-      data: Buffer.from('0000001866747970617669660000000061766966', 'hex')
-    })
-
-    const cached = await cacheImage('http://127.0.0.1/generated.avif', {
-      allowPrivateNetwork: true
-    })
-
-    expect(cached).toMatch(/^imgcache:\/\/.+\.avif$/)
-    expect(axiosMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        maxRedirects: 0,
-        maxContentLength: 8 * 1024 * 1024,
-        maxBodyLength: 8 * 1024 * 1024,
-        signal: expect.any(AbortSignal)
+  it.each(['http', 'HTTP'])(
+    'caches %s URLs with bounded responses and supported MIME types',
+    async (scheme) => {
+      axiosMock.mockResolvedValueOnce({
+        status: 200,
+        headers: { 'content-type': 'image/avif' },
+        data: Buffer.from('0000001866747970617669660000000061766966', 'hex')
       })
-    )
-    await expect(
-      fs.readFile(
-        path.join(electronMock.userDataPath, 'images', cached.slice('imgcache://'.length))
+
+      const cached = await cacheImage(`${scheme}://127.0.0.1/generated.avif`, {
+        allowPrivateNetwork: true
+      })
+
+      expect(cached).toMatch(/^imgcache:\/\/.+\.avif$/)
+      expect(axiosMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          maxRedirects: 0,
+          maxContentLength: 32 * 1024 * 1024,
+          maxBodyLength: 32 * 1024 * 1024,
+          signal: expect.any(AbortSignal)
+        })
       )
-    ).resolves.toEqual(Buffer.from('0000001866747970617669660000000061766966', 'hex'))
-  })
+      await expect(
+        fs.readFile(
+          path.join(electronMock.userDataPath, 'images', cached.slice('imgcache://'.length))
+        )
+      ).resolves.toEqual(Buffer.from('0000001866747970617669660000000061766966', 'hex'))
+    }
+  )
 
   it('does not cache non-image HTTP responses', async () => {
     const sourceUrl = 'http://127.0.0.1/generated.png'
@@ -124,7 +162,7 @@ describe('imageCache', () => {
     axiosMock.mockResolvedValueOnce({
       status: 200,
       headers: { 'content-type': 'image/png' },
-      data: Buffer.alloc(8 * 1024 * 1024 + 1)
+      data: Buffer.alloc(32 * 1024 * 1024 + 1)
     })
 
     await expect(cacheImage(sourceUrl, { allowPrivateNetwork: true })).resolves.toBe(sourceUrl)
@@ -151,6 +189,17 @@ describe('imageCache', () => {
 
     await expect(caching).rejects.toMatchObject({ name: 'AbortError' })
     expect(requestSignal?.aborted).toBe(true)
+  })
+
+  it('caches base64 data URLs with an uppercase scheme prefix', async () => {
+    const cached = await cacheImage('DATA:IMAGE/PNG;BASE64,aW1hZ2U=')
+
+    expect(cached).toMatch(/^imgcache:\/\/.+\.png$/)
+    await expect(
+      fs.readFile(
+        path.join(electronMock.userDataPath, 'images', cached.slice('imgcache://'.length))
+      )
+    ).resolves.toEqual(Buffer.from('image'))
   })
 
   it('resolves a cached image to a MIME-correct data URL', async () => {

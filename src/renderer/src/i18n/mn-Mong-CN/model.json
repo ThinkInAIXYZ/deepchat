@@ -1,0 +1,54 @@
+{
+  "search": {
+    "placeholder": "ᠬᠡᠪ ᠡᠷᠢᠵᠦ ᠪᠠᠢᠢᠨ᠎ᠠ᠁"
+  },
+  "error": {
+    "loadFailed": "ᠮᠠᠰᠢᠨ ᠤ ᠬᠢᠬᠦ ᠳᠦ ᠭᠡᠮ ᠦᠭᠡᠢ"
+  },
+  "type": {
+    "custom": "ᠥᠪᠡᠷ ᠢᠶᠡᠨ ᠲᠣᠳᠣᠷᠬᠠᠶᠢᠯᠠᠭᠰᠠᠨ ᠵᠠᠭᠪᠤᠷ",
+    "official": "ᠶᠢᠨ ᠬᠢᠨ ᠦ ᠬᠡᠯᠪᠡᠷᠢ"
+  },
+  "add": {
+    "namePlaceholder": "ᠮᠠᠰᠢᠨ ᠤ ᠨᠡᠷᠡᠶᠢᠳᠦᠯ",
+    "idPlaceholder": "ᠬᠡᠪ ID",
+    "contextLengthPlaceholder": "ᠤᠷᠲᠤ",
+    "maxTokensPlaceholder": "ᠬᠠᠮᠤᠭ ᠶᠡᠬᠡ token"
+  },
+  "actions": {
+    "add": "ᠶᠢ ᠨᠡᠮᠡᠬᠦ",
+    "enableAll": "ᠪᠦᠬᠦᠨ ᠢ ᠪᠠᠳᠠᠷᠠᠭᠤᠯᠬᠤ",
+    "disableAll": "ᠢ ᠴᠥᠮ ᠬᠠᠰᠤᠬᠤ"
+  },
+  "sort": {
+    "status": "ᠶᠢᠨ ᠪᠠᠶᠢᠳᠠᠯ ᠢᠶᠠᠷ ᠨᠢ",
+    "name": "ᠶᠢ ᠨᠢ ᠢᠯᠭᠠᠬᠤ"
+  },
+  "filter": {
+    "label": "ᠱᠦᠭᠦᠷ",
+    "clearAll": "ᠴᠡᠪᠡᠷ ᠱᠦᠭᠦᠷ",
+    "visibleCount": "{visible} / {total} ᠬᠠᠷᠠᠭᠤᠯᠵᠤ ᠪᠤᠶ",
+    "capabilities": "ᠴᠢᠳᠠᠪᠤᠷᠢ",
+    "types": "ᠲᠥᠷᠥᠯ",
+    "capabilityOptions": {
+      "vision": "ᠬᠠᠷᠠᠭ᠎ᠠ",
+      "functionCall": "ᠶᠢ ᠳᠠᠭᠤᠳᠠᠬᠤ",
+      "reasoning": "ᠲᠣᠳᠣᠷᠬᠠᠢ",
+      "search": "ᠡᠷᠢᠬᠦ"
+    },
+    "typeOptions": {
+      "chat": "ᠶᠠᠷᠢᠯᠴᠠᠬᠤ",
+      "embedding": "ᠸᠧᠺᠲ᠋ᠣᠷ",
+      "rerank": "ᠲᠣᠬᠢᠷᠠᠭᠤᠯᠬᠤ",
+      "imageGeneration": "ᠶᠢᠨ ᠪᠥᠲᠥᠭᠡᠯᠲᠡ",
+      "videoGeneration": "ᠰᠢᠩᠭᠡᠭᠡᠯᠲᠡ ᠭᠠᠷᠭᠠᠬᠤ"
+    }
+  },
+  "tags": {
+    "reasoning": "ᠲᠣᠳᠣᠷᠬᠠᠢ",
+    "chat": "ᠶᠠᠷᠢᠯᠴᠠᠬᠤ",
+    "code": "ᠺᠣᠳ᠋",
+    "writing": "ᠪᠢᠴᠢᠬᠦ",
+    "analysis": "ᠵᠠᠳᠠᠯᠤᠯᠲᠠ"
+  }
+}

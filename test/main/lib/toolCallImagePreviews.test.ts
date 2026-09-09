@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import {
+  cacheToolCallImagePreviews,
   extractToolCallImagePreviews,
   prepareToolCallImageContent
 } from '@/lib/toolCallImagePreviews'
@@ -18,7 +19,7 @@ describe('extractToolCallImagePreviews', () => {
     })
 
     expect(cacheImage).toHaveBeenCalledOnce()
-    expect(cacheImage).toHaveBeenCalledWith(sourceUrl)
+    expect(cacheImage).toHaveBeenCalledWith(sourceUrl, { signal: undefined })
     expect(prepared.content).toEqual([
       { type: 'text', text: 'Success. Image URL(s): imgcache://output.jpg' },
       { type: 'text', text: 'Reference: imgcache://output.jpg' }
@@ -115,7 +116,9 @@ describe('extractToolCallImagePreviews', () => {
       cacheImage
     })
 
-    expect(cacheImage).toHaveBeenCalledWith('data:image/png;base64,AAAA')
+    expect(cacheImage).toHaveBeenCalledWith('data:image/png;base64,AAAA', {
+      signal: undefined
+    })
     expect(previews).toEqual([
       {
         id: 'mcp_image-1',
@@ -158,7 +161,9 @@ describe('extractToolCallImagePreviews', () => {
       cacheImage
     })
 
-    expect(cacheImage).toHaveBeenCalledWith('https://example.com/output.webp')
+    expect(cacheImage).toHaveBeenCalledWith('https://example.com/output.webp', {
+      signal: undefined
+    })
     expect(previews).toEqual([
       {
         id: 'tool_output-1',
@@ -179,7 +184,9 @@ describe('extractToolCallImagePreviews', () => {
       cacheImage
     })
 
-    expect(cacheImage).toHaveBeenCalledWith('data:image/png;base64,AAAA')
+    expect(cacheImage).toHaveBeenCalledWith('data:image/png;base64,AAAA', {
+      signal: undefined
+    })
     expect(previews).toEqual([
       {
         id: 'mcp_image-1',
@@ -197,7 +204,9 @@ describe('extractToolCallImagePreviews', () => {
       cacheImage
     })
 
-    expect(cacheImage).toHaveBeenCalledWith('data:image/png;base64,AAAA')
+    expect(cacheImage).toHaveBeenCalledWith('data:image/png;base64,AAAA', {
+      signal: undefined
+    })
     expect(previews).toEqual([
       {
         id: 'mcp_image-1',
@@ -215,7 +224,9 @@ describe('extractToolCallImagePreviews', () => {
       cacheImage
     })
 
-    expect(cacheImage).toHaveBeenCalledWith('data:image/png;base64,AAAA')
+    expect(cacheImage).toHaveBeenCalledWith('data:image/png;base64,AAAA', {
+      signal: undefined
+    })
     expect(previews).toEqual([
       {
         id: 'mcp_image-1',
@@ -286,5 +297,160 @@ describe('extractToolCallImagePreviews', () => {
     } finally {
       process.off('unhandledRejection', unhandled)
     }
+  })
+})
+
+describe('cacheToolCallImagePreviews', () => {
+  it('rewrites inline base64 previews to imgcache references', async () => {
+    const cacheImage = vi.fn(async () => 'imgcache://cached.png')
+
+    const previews = await cacheToolCallImagePreviews({
+      imagePreviews: [
+        {
+          id: 'tool_output-1',
+          data: 'data:image/png;base64,AAAA',
+          mimeType: 'image/png',
+          source: 'tool_output'
+        }
+      ],
+      cacheImage
+    })
+
+    expect(cacheImage).toHaveBeenCalledWith('data:image/png;base64,AAAA', {
+      signal: undefined
+    })
+    expect(previews).toEqual([
+      {
+        id: 'tool_output-1',
+        data: 'imgcache://cached.png',
+        mimeType: 'image/png',
+        source: 'tool_output'
+      }
+    ])
+  })
+
+  it('leaves references and uncacheable previews unchanged', async () => {
+    const cacheImage = vi.fn(async (data: string) => data)
+    const input = [
+      {
+        id: 'tool_output-1',
+        data: 'imgcache://already-cached.png',
+        mimeType: 'image/png',
+        source: 'tool_output' as const
+      },
+      {
+        id: 'tool_output-2',
+        data: 'data:image/png;base64,AAAA',
+        mimeType: 'image/png',
+        source: 'tool_output' as const
+      }
+    ]
+
+    const previews = await cacheToolCallImagePreviews({ imagePreviews: input, cacheImage })
+
+    expect(cacheImage).toHaveBeenCalledOnce()
+    expect(previews).toBe(input)
+  })
+
+  it('returns the input unchanged without a cacheImage function', async () => {
+    const input = [
+      {
+        id: 'tool_output-1',
+        data: 'data:image/png;base64,AAAA',
+        mimeType: 'image/png',
+        source: 'tool_output' as const
+      }
+    ]
+
+    await expect(cacheToolCallImagePreviews({ imagePreviews: input })).resolves.toBe(input)
+  })
+
+  it('normalizes an uppercase data URL prefix before caching', async () => {
+    const cacheImage = vi.fn().mockResolvedValue('imgcache://cached.png')
+    const input = [
+      {
+        id: 'tool_output-1',
+        data: 'DATA:IMAGE/PNG;BASE64,QUFBQQ==',
+        mimeType: 'image/png',
+        source: 'tool_output' as const
+      }
+    ]
+
+    const previews = await cacheToolCallImagePreviews({ imagePreviews: input, cacheImage })
+
+    expect(cacheImage).toHaveBeenCalledWith('data:IMAGE/PNG;BASE64,QUFBQQ==', {
+      signal: undefined
+    })
+    expect(previews).toEqual([{ ...input[0], data: 'imgcache://cached.png' }])
+  })
+
+  it('wraps and caches bare base64 previews', async () => {
+    const cacheImage = vi.fn().mockResolvedValue('imgcache://cached.png')
+    const input = [
+      {
+        id: 'tool_output-1',
+        data: 'aGVsbG8=',
+        mimeType: 'image/png',
+        source: 'tool_output' as const
+      }
+    ]
+
+    const previews = await cacheToolCallImagePreviews({ imagePreviews: input, cacheImage })
+
+    expect(cacheImage).toHaveBeenCalledWith('data:image/png;base64,aGVsbG8=', {
+      signal: undefined
+    })
+    expect(previews).toEqual([{ ...input[0], data: 'imgcache://cached.png' }])
+  })
+
+  it.each([true, false])(
+    'dedupes and caps inline previews when caching succeeds: %s',
+    async (succeeds) => {
+      const cacheImage = vi.fn(async (data: string) =>
+        succeeds ? `imgcache://cached-${data.length}.png` : data
+      )
+      const duplicate = {
+        id: 'tool_output-1',
+        data: 'data:image/png;base64,QUFBQQ==',
+        mimeType: 'image/png',
+        source: 'tool_output' as const
+      }
+      const input = [
+        duplicate,
+        { ...duplicate, id: 'tool_output-dup' },
+        ...Array.from({ length: 6 }, (_, index) => ({
+          id: `tool_output-${index + 2}`,
+          data: `data:image/png;base64,${'A'.repeat(index + 1)}`,
+          mimeType: 'image/png',
+          source: 'tool_output' as const
+        }))
+      ]
+
+      const previews = await cacheToolCallImagePreviews({ imagePreviews: input, cacheImage })
+
+      expect(cacheImage).toHaveBeenCalledTimes(4)
+      expect(previews).toHaveLength(4)
+      expect(previews.find((preview) => preview.id === 'tool_output-dup')).toBeUndefined()
+      expect(
+        previews.every((preview) =>
+          preview.data?.startsWith(succeeds ? 'imgcache://' : 'data:image/')
+        )
+      ).toBe(true)
+    }
+  )
+
+  it('drops duplicate cache results without restoring inline data', async () => {
+    const previews = await cacheToolCallImagePreviews({
+      imagePreviews: ['AAAA', 'BBBB'].map((data, index) => ({
+        id: `image-${index}`,
+        data: `data:image/png;base64,${data}`,
+        mimeType: 'image/png',
+        source: 'tool_output'
+      })),
+      cacheImage: async () => 'imgcache://same.png'
+    })
+
+    expect(previews).toHaveLength(1)
+    expect(previews[0].data).toBe('imgcache://same.png')
   })
 })

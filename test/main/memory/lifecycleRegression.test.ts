@@ -553,7 +553,7 @@ describe('MemoryService lifecycle revival (SDD-8)', () => {
     expect(repo.listByAgent('a')[0]?.status).toBe('fts_only')
 
     config = { memoryEnabled: true, memoryEmbedding: { providerId: 'p', modelId: 'm' } }
-    const spy = vi.spyOn(presenter, 'backfillEmbeddings')
+    const spy = vi.spyOn(memoryRuntimeForTests(presenter).embeddingService, 'backfillEmbeddings')
     await presenter.dispose()
     await presenter.recall('a', 'redis')
 
@@ -788,8 +788,14 @@ describe('MemoryService lifecycle revival (SDD-8)', () => {
     blockCreate = true
     const getByIdSpy = vi.spyOn(repo, 'getById')
     const recordSpy = vi.spyOn(repo, 'recordAccessBatch')
-    const backfillSpy = vi.spyOn(presenter, 'backfillEmbeddings')
-    const reindexSpy = vi.spyOn(presenter, 'reindexEmbeddings')
+    const backfillSpy = vi.spyOn(
+      memoryRuntimeForTests(presenter).embeddingService,
+      'backfillEmbeddings'
+    )
+    const reindexSpy = vi.spyOn(
+      memoryRuntimeForTests(presenter).embeddingService,
+      'reindexEmbeddings'
+    )
     const closeSpy = vi.spyOn(store, 'close')
     const recall = presenter.recall('a', 'redis')
     await new Promise((r) => setTimeout(r, 0)) // background warm is parked inside createVectorStore
@@ -866,7 +872,10 @@ describe('MemoryService lifecycle revival (SDD-8)', () => {
     blockQuery = true
     const getByIdSpy = vi.spyOn(repo, 'getById')
     const recordSpy = vi.spyOn(repo, 'recordAccessBatch')
-    const backfillSpy = vi.spyOn(presenter, 'backfillEmbeddings')
+    const backfillSpy = vi.spyOn(
+      memoryRuntimeForTests(presenter).embeddingService,
+      'backfillEmbeddings'
+    )
     const recall = presenter.recall('a', 'redis')
     await new Promise((r) => setTimeout(r, 0)) // park inside store.query
 
@@ -1138,7 +1147,9 @@ describe('MemoryService lifecycle revival (SDD-8)', () => {
       embeddingDim: 4,
       embeddingModel: 'p:m'
     })
-    const reindexSpy = vi.spyOn(presenter, 'reindexEmbeddings').mockResolvedValue()
+    const reindexSpy = vi
+      .spyOn(memoryRuntimeForTests(presenter).embeddingService, 'reindexEmbeddings')
+      .mockResolvedValue()
 
     expect(await presenter.deleteMemory('a', 'm1')).toEqual({ action: 'applied' })
 

@@ -541,7 +541,7 @@ describe('AI SDK stream adapter', () => {
       { supportsNativeTools: true, cacheImage }
     )
 
-    expect(cacheImage).toHaveBeenCalledWith('data:image/png;base64,ZmFrZQ==')
+    expect(cacheImage).toHaveBeenCalledWith('data:image/png;base64,ZmFrZQ==', { signal: undefined })
     expect(events[0]).toEqual({
       type: 'image_data',
       image_data: {
@@ -551,6 +551,29 @@ describe('AI SDK stream adapter', () => {
     })
     expect(events[2]).toEqual({ type: 'stop', stop_reason: 'complete' })
   })
+
+  it.each([true, false])(
+    'does not emit an image after cancellation when caching rejects: %s',
+    async (rejects) => {
+      const controller = new AbortController()
+      const cacheImage = vi.fn(async () => {
+        controller.abort()
+        if (rejects) throw controller.signal.reason
+        return 'imgcache://late.png'
+      })
+
+      await expect(
+        collectEvents([{ type: 'file', file: { mediaType: 'image/png', base64: 'ZmFrZQ==' } }], {
+          supportsNativeTools: true,
+          cacheImage,
+          signal: controller.signal
+        })
+      ).rejects.toMatchObject({ name: 'AbortError' })
+      expect(cacheImage).toHaveBeenCalledWith('data:image/png;base64,ZmFrZQ==', {
+        signal: controller.signal
+      })
+    }
+  )
 
   it('falls back to the original image data url when image caching fails', async () => {
     const cacheImage = vi.fn().mockRejectedValue(new Error('cache failed'))
@@ -579,7 +602,9 @@ describe('AI SDK stream adapter', () => {
       { supportsNativeTools: true, cacheImage }
     )
 
-    expect(cacheImage).toHaveBeenCalledWith('data:image/jpeg;base64,YWJjZA==')
+    expect(cacheImage).toHaveBeenCalledWith('data:image/jpeg;base64,YWJjZA==', {
+      signal: undefined
+    })
     expect(warnSpy).toHaveBeenCalled()
     expect(events[0]).toEqual({
       type: 'image_data',

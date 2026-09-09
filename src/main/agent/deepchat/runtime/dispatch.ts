@@ -73,7 +73,10 @@ import {
   buildAssistantResponseMarkdown,
   extractWaitingInteraction
 } from './sessionUpdates'
-import { extractToolCallImagePreviews } from '@/lib/toolCallImagePreviews'
+import {
+  cacheToolCallImagePreviews,
+  extractToolCallImagePreviews
+} from '@/lib/toolCallImagePreviews'
 import { selectToolBatchExecutionMode } from './toolExecutionPolicy'
 import { resolveToolPermissionMode } from '@/tool/permission/permissionMode'
 import { segmentAssistantBlocksByProviderReplay } from './providerReplaySegments'
@@ -2485,15 +2488,19 @@ async function runToolCall(params: {
     const subagentState = extractSubagentToolState(toolRawData)
     const rawResponseText = toolResponseToText(toolRawData.content)
 
-    const imagePreviews =
-      toolRawData.imagePreviews ??
-      (await extractToolCallImagePreviews({
-        toolName: completedToolCall.name,
-        toolArgs: completedToolCall.arguments,
-        content: toolRawData.content,
-        cacheImage: controls?.cacheImage,
-        signal: io.abortSignal
-      }))
+    const imagePreviews = await cacheToolCallImagePreviews({
+      imagePreviews:
+        toolRawData.imagePreviews ??
+        (await extractToolCallImagePreviews({
+          toolName: completedToolCall.name,
+          toolArgs: completedToolCall.arguments,
+          content: toolRawData.content,
+          cacheImage: controls?.cacheImage,
+          signal: io.abortSignal
+        })),
+      cacheImage: controls?.cacheImage,
+      signal: io.abortSignal
+    })
 
     toolRawData = {
       ...toolRawData,

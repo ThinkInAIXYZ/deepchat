@@ -25,7 +25,7 @@ import {
 } from '../core/decision'
 import { normalizeMemoryCandidate } from '../core/candidates'
 import { estimateTokens } from '../core/injectionPort'
-import { MaintenanceBudget } from '../core/maintenanceBudget'
+import { MaintenanceBudget, type MaintenanceBudgetStep } from '../core/maintenanceBudget'
 import { AsyncSemaphore } from '../../lib/asyncSemaphore'
 import {
   CONSOLIDATION_COOLDOWN_MS,
@@ -79,6 +79,21 @@ import type {
 class MaintenanceRevisionConflictError extends Error {}
 class MaintenanceClaimSuppressedError extends Error {}
 
+interface HeavyMaintenanceRun {
+  agentId: string
+  now: number
+  model: MemoryModelRef
+  operationFence: MemoryOperationFence
+  budget: MaintenanceBudget
+}
+
+// One model-backed maintenance step. The scheduler owns cooldown, fence, concurrency, budget, and
+// audit; a pass only performs its own work and reports LLM usage plus whether claims changed.
+interface HeavyMaintenancePass {
+  readonly step: MaintenanceBudgetStep
+  run(run: HeavyMaintenanceRun): Promise<MemoryMaintenanceStepResult>
+}
+
 export class MaintenanceService {
   private readonly ctx: MemoryRuntimeContext
   private readonly consolidationTimers = new Map<string, NodeJS.Timeout>()
@@ -92,6 +107,72 @@ export class MaintenanceService {
   private readonly prewarmTimers = new Map<string, NodeJS.Timeout>()
   private maintenanceStarted = false
   private maintenancePaused = false
+
+  // Heavy passes run in this order under one shared budget; each is fenced independently so a
+  // stop request lands at the next boundary instead of after the whole sequence.
+  private readonly heavyPasses: readonly HeavyMaintenancePass[] = [
+    {
+      step: 'challenge',
+      run: ({ agentId, model, budget }) =>
+        this.ports.runChallengeResolutionPass(agentId, model, budget)
+    },
+    {
+      step: 'merge',
+      run: ({ agentId, now, model, operationFence, budget }) =>
+        this.mergeNearDuplicates(agentId, now, model, operationFence, budget)
+    },
+    {
+      step: 'reflection',
+      run: async ({ agentId, model, budget }) => {
+        const pass = await this.ports.maybeReflect(agentId, model, budget)
+        if (pass.result) {
+          this.writePassAudit(agentId, {
+            eventType: 'memory/reflect',
+            actorType: 'scheduler',
+            status: 'completed',
+            inputRefs: { memoryIds: pass.result.sourceMemoryIds },
+            outputRefs: { memoryIds: pass.result.reflectionIds },
+            model
+          })
+        }
+        return { touched: pass.result !== null, calls: pass.calls, failures: pass.failures }
+      }
+    },
+    {
+      step: 'persona',
+      run: async ({ agentId, model, budget }) => {
+        const pass = await this.ports.maybeEvolvePersona(agentId, model, budget)
+        if (pass.result) {
+          this.writePassAudit(agentId, {
+            eventType: 'persona/evolve',
+            actorType: 'scheduler',
+            status: 'completed',
+            outputRefs: {
+              draftId: pass.result.draftId,
+              needsReview: pass.result.needsReview,
+              changeRatio: pass.result.changeRatio
+            },
+            model
+          })
+        }
+        // A persona draft waits for user review; it does not change recallable claims.
+        return { touched: false, calls: pass.calls, failures: pass.failures }
+      }
+    }
+  ]
+
+  // Audit is observability. A failed audit insert must not erase the step's LLM accounting,
+  // otherwise a successful reflection could be counted as an all-steps-failed pass.
+  private writePassAudit(
+    agentId: string,
+    input: Parameters<MemoryRuntimeContext['writeAudit']>[1]
+  ): void {
+    try {
+      this.ctx.writeAudit(agentId, input)
+    } catch (error) {
+      logger.warn(`[Memory] ${input.eventType} audit failed for ${agentId}: ${String(error)}`)
+    }
+  }
 
   constructor(
     private readonly ports: {
@@ -142,7 +223,6 @@ export class MaintenanceService {
         budget: MaintenanceBudget
       ) => Promise<MemoryMaintenanceStepResult>
       repairConflictIntegrity: (agentId: string) => boolean
-      runConsolidationPass: (agentId: string) => Promise<void>
       diagnostics?: {
         recordMaintenance(
           agentId: string,
@@ -337,7 +417,7 @@ export class MaintenanceService {
     const timer = setTimeout(() => {
       this.consolidationTimers.delete(agentId)
       this.consolidationTimerDueAt.delete(agentId)
-      void this.ports.runConsolidationPass(agentId).catch((error) => {
+      void this.runConsolidationPass(agentId).catch((error) => {
         logger.warn(`[Memory] consolidation pass failed for ${agentId}: ${String(error)}`)
       })
     }, delayMs)
@@ -407,69 +487,19 @@ export class MaintenanceService {
       const previousLast = last ?? 0
       this.lastConsolidationAt.set(agentId, now)
 
-      let touched = false
       const llmStats: MemoryMaintenanceStepResult = { touched: false, calls: 0, failures: 0 }
       const budget = new MaintenanceBudget()
+      const run: HeavyMaintenanceRun = { agentId, now, model, operationFence, budget }
       let completedHeavyPass = false
       try {
-        try {
-          const challenge = await this.ports.runChallengeResolutionPass(agentId, model, budget)
-          this.addLlmStats(llmStats, challenge)
-          if (challenge.touched) touched = true
-        } catch (error) {
-          logger.warn(`[Memory] challenge resolution failed for ${agentId}: ${String(error)}`)
-        }
-        if (!this.ctx.canContinueOperation(operationFence)) return
-        try {
-          const merge = await this.mergeNearDuplicates(agentId, now, model, operationFence, budget)
-          this.addLlmStats(llmStats, merge)
-          if (merge.touched) touched = true
-        } catch (error) {
-          logger.warn(`[Memory] consolidation merge failed for ${agentId}: ${String(error)}`)
-        }
-        if (!this.ctx.canContinueOperation(operationFence)) return
-        try {
-          const reflectionPass = await this.ports.maybeReflect(agentId, model, budget)
-          this.addLlmStats(llmStats, reflectionPass)
-          const reflection = reflectionPass.result
-          if (reflection) {
-            this.ctx.writeAudit(agentId, {
-              eventType: 'memory/reflect',
-              actorType: 'scheduler',
-              status: 'completed',
-              inputRefs: { memoryIds: reflection.sourceMemoryIds },
-              outputRefs: { memoryIds: reflection.reflectionIds },
-              model
-            })
-            touched = true
+        for (const pass of this.heavyPasses) {
+          try {
+            this.addLlmStats(llmStats, await pass.run(run))
+          } catch (error) {
+            logger.warn(`[Memory] ${pass.step} pass failed for ${agentId}: ${String(error)}`)
           }
-        } catch (error) {
-          logger.warn(`[Memory] background reflection failed for ${agentId}: ${String(error)}`)
+          if (!this.ctx.canContinueOperation(operationFence)) return
         }
-        if (!this.ctx.canContinueOperation(operationFence)) return
-        try {
-          const personaPass = await this.ports.maybeEvolvePersona(agentId, model, budget)
-          this.addLlmStats(llmStats, personaPass)
-          const personaDraft = personaPass.result
-          if (personaDraft) {
-            this.ctx.writeAudit(agentId, {
-              eventType: 'persona/evolve',
-              actorType: 'scheduler',
-              status: 'completed',
-              outputRefs: {
-                draftId: personaDraft.draftId,
-                needsReview: personaDraft.needsReview,
-                changeRatio: personaDraft.changeRatio
-              },
-              model
-            })
-          }
-        } catch (error) {
-          logger.warn(
-            `[Memory] background persona evolution failed for ${agentId}: ${String(error)}`
-          )
-        }
-        if (!this.ctx.canContinueOperation(operationFence)) return
         if (this.didAllAttemptedLlmCallsFail(llmStats)) {
           this.lastConsolidationAt.set(agentId, previousLast)
           this.lastConsolidationFailureAt.set(agentId, now)
@@ -491,7 +521,7 @@ export class MaintenanceService {
           eventType: 'memory/maintenance_llm',
           actorType: 'scheduler',
           status: 'completed',
-          outputRefs: { touched, budget: budget.snapshot() },
+          outputRefs: { touched: llmStats.touched, budget: budget.snapshot() },
           model,
           createdAt: now
         })
@@ -831,13 +861,10 @@ export class MaintenanceService {
     return true
   }
 
-  private addLlmStats(
-    total: MemoryMaintenanceStepResult,
-    next: { touched?: boolean; calls: number; failures: number }
-  ): void {
+  private addLlmStats(total: MemoryMaintenanceStepResult, next: MemoryMaintenanceStepResult): void {
     total.calls += next.calls
     total.failures += next.failures
-    total.touched = total.touched || next.touched === true
+    total.touched = total.touched || next.touched
   }
 
   private didAllAttemptedLlmCallsFail(stats: { calls: number; failures: number }): boolean {

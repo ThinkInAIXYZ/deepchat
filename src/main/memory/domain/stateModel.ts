@@ -2,7 +2,8 @@ import type {
   AgentMemoryEmbeddingState,
   AgentMemoryKind,
   AgentMemoryLifecycleState,
-  AgentMemoryStatus
+  AgentMemoryStatus,
+  CanonicalAgentMemoryRow
 } from './types'
 import {
   AGENT_MEMORY_EMBEDDING_STATES,
@@ -148,6 +149,36 @@ export function isRecallableMemoryState(row: CanonicalMemoryStateSource): boolea
 
 export function isEmbeddingEligibleState(row: CanonicalMemoryStateSource): boolean {
   return isRecallableMemoryState(row) && row.embedding_state === 'pending'
+}
+
+// The only row shape a correction decision may UPDATE, SUPERSEDE, or CHALLENGE: owned by the
+// Agent, current head of its chain, active, and not already inside a conflict.
+export function isLiveDecisionTarget(
+  agentId: string,
+  row: CanonicalAgentMemoryRow | undefined
+): row is CanonicalAgentMemoryRow {
+  return (
+    !!row &&
+    row.agent_id === agentId &&
+    row.superseded_by === null &&
+    row.lifecycle_state === 'active' &&
+    row.conflict_state === null
+  )
+}
+
+// A chain head that is itself under challenge cannot absorb new evidence until the conflict
+// resolves; writes that land on it stay conservative no-ops.
+export function isChallengedDecisionHead(
+  agentId: string,
+  row: CanonicalAgentMemoryRow | undefined
+): row is CanonicalAgentMemoryRow {
+  return (
+    !!row &&
+    row.agent_id === agentId &&
+    row.lifecycle_state === 'active' &&
+    row.superseded_by === null &&
+    row.conflict_state === 'challenged'
+  )
 }
 
 export function assertValidMemoryInsertState(input: {

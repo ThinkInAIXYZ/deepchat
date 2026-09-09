@@ -1701,7 +1701,7 @@ export async function createMainProcessControl(dependencies: {
       generateImageStandalone: (providerId, prompt, modelId, imageOptions, options) =>
         providerRuntime.generateImageStandalone(providerId, prompt, modelId, imageOptions, options)
     },
-    cacheImage: (data) => deviceService.cacheImage(data),
+    cacheImage: (data, options) => deviceService.cacheImage(data, options),
     desktop: {
       createSettingsWindow: () => windowPresenter.createSettingsWindow(),
       sendToWindow: (windowId, channel, ...args) =>
@@ -1882,7 +1882,7 @@ export async function createMainProcessControl(dependencies: {
     sessionUiPort,
     memoryPort: memoryService,
     getMemoryIngestionProjection: () => memoryDatabase.ingestionProjectionTable,
-    cacheImage: (data) => deviceService.cacheImage(data),
+    cacheImage: (data, options) => deviceService.cacheImage(data, options),
     runJournalObserver: emitRunJournalObservation,
     skillService: skillService,
     skillSettings,
