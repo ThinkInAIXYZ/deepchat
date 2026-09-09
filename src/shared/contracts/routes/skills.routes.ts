@@ -56,7 +56,8 @@ export const PublicSkillSchema = z
       'url-install',
       'git-install',
       'adopted',
-      'imported'
+      'imported',
+      'project'
     ]),
     enabled: z.boolean(),
     mutable: z.boolean(),
@@ -227,7 +228,9 @@ export const skillsListMetadataRoute = defineRouteContract({
 
 export const skillsListCatalogRoute = defineRouteContract({
   name: 'skills.listCatalog',
-  input: AgentSkillScopeSchema,
+  input: AgentSkillScopeSchema.extend({
+    workspacePath: z.string().trim().min(1).max(4096).optional()
+  }),
   output: z.object({
     skills: z.array(UnifiedSkillItemSchema)
   })

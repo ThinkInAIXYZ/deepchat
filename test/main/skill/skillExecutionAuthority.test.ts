@@ -187,7 +187,8 @@ describe('SkillExecutionAuthorityResolver', () => {
         'agent-1',
         'review',
         BINDING_ID,
-        authority.identity.sourceId
+        authority.identity.sourceId,
+        authority.identity.sourceType
       )
     }
   )

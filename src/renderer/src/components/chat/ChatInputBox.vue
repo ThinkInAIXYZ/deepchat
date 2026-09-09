@@ -154,7 +154,11 @@ let editorInstance: Editor | null = null
 const getEditor = () => editorInstance
 const conversationId = computed(() => props.sessionId)
 const skillAgentId = computed(() => props.agentId?.trim() || 'deepchat')
-const skillsData = useSkillsData(conversationId, skillAgentId)
+const skillsData = useSkillsData(
+  conversationId,
+  skillAgentId,
+  computed(() => (props.isAcpSession ? null : props.workspacePath))
+)
 const activeSkillNames = computed(() => skillsData.composerActiveSkills.value)
 
 const removeSessionActiveSkill = async (skillName: string) => {
@@ -172,6 +176,7 @@ const removeSessionActiveSkill = async (skillName: string) => {
 }
 
 const mentions = useChatInputMentions({
+  skills: skillsData.skills,
   getEditor,
   workspacePath: computed(() => props.workspacePath),
   sessionId: computed(() => props.sessionId),

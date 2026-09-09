@@ -747,6 +747,7 @@ describe('DeepChatToolResolver Run definition universe', () => {
     const skillService = {
       getActiveSkills: vi.fn().mockResolvedValue(options?.activeSkills ?? []),
       snapshotPersistedActiveSkillNames: vi.fn(() => options?.activeSkills ?? []),
+      getMetadataList: vi.fn().mockResolvedValue(options?.metadata ?? []),
       snapshotCachedMetadataList: vi.fn(
         (_agentId: string, snapshotOptions: { maxItems: number }) =>
           (options?.metadata?.length ?? 0) > snapshotOptions.maxItems

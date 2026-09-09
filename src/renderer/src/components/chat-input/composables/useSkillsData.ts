@@ -22,11 +22,17 @@ import { useSkillsStore } from '@/stores/skillsStore'
  */
 export function useSkillsData(
   conversationId: Ref<string | null> | ComputedRef<string | null>,
-  agentId: Ref<string | null> | ComputedRef<string | null>
+  agentId: Ref<string | null> | ComputedRef<string | null>,
+  workspacePath?: Ref<string | null> | ComputedRef<string | null>
 ) {
   const skillClient = createSkillClient()
   const skillsStore = useSkillsStore()
   let unsubscribeSkillSessionChanged: (() => void) | null = null
+  let unsubscribeCatalogChanged: (() => void) | null = null
+  let projectLoadSequence = 0
+  const projectSkills = ref<SkillMetadata[]>([])
+  const projectLoading = ref(false)
+  const normalizedWorkspacePath = computed(() => workspacePath?.value?.trim() || null)
   let activeSkillsLoadSequence = 0
   let activeSkillMutationSequence = 0
 
@@ -42,10 +48,15 @@ export function useSkillsData(
    * All available skills from the store
    */
   const skills = computed<SkillMetadata[]>(() =>
-    skillsStore.getSkillsForAgent(normalizedAgentId.value)
+    normalizedWorkspacePath.value
+      ? projectSkills.value
+      : skillsStore.getSkillsForAgent(normalizedAgentId.value)
   )
   const loading = computed(
-    () => sessionActiveSkillsLoading.value || skillsStore.isSkillsLoading(normalizedAgentId.value)
+    () =>
+      sessionActiveSkillsLoading.value ||
+      projectLoading.value ||
+      skillsStore.isSkillsLoading(normalizedAgentId.value)
   )
 
   /**
@@ -219,6 +230,27 @@ export function useSkillsData(
     }
   }
 
+  const refreshProjectSkills = async () => {
+    const sequence = ++projectLoadSequence
+    const requestedWorkspace = normalizedWorkspacePath.value
+    const requestedAgent = normalizedAgentId.value
+    if (!requestedWorkspace) {
+      projectSkills.value = []
+      projectLoading.value = false
+      return
+    }
+    projectLoading.value = true
+    try {
+      const catalog = await skillClient.getUnifiedSkillCatalog(requestedAgent, requestedWorkspace)
+      if (sequence === projectLoadSequence) projectSkills.value = catalog
+    } catch (error) {
+      if (sequence === projectLoadSequence) projectSkills.value = []
+      console.error('[useSkillsData] Failed to load project skills:', error)
+    } finally {
+      if (sequence === projectLoadSequence) projectLoading.value = false
+    }
+  }
+
   // === Watchers ===
   // Watch for conversation changes and reload active skills
   watch(
@@ -233,16 +265,21 @@ export function useSkillsData(
   )
 
   watch(
-    normalizedAgentId,
-    (nextAgentId, previousAgentId) => {
-      if (previousAgentId && previousAgentId !== nextAgentId) {
+    [normalizedAgentId, normalizedWorkspacePath],
+    ([nextAgentId, nextWorkspace], [previousAgentId, previousWorkspace]) => {
+      projectSkills.value = []
+      if (
+        previousAgentId &&
+        (previousAgentId !== nextAgentId || previousWorkspace !== nextWorkspace)
+      ) {
         pendingSkills.value = []
         activeSkillMutationSequence += 1
         sessionActiveSkills.value = []
         sessionActiveSkillRemoving.value = null
         void loadActiveSkills()
       }
-      void skillsStore.ensureSkillsLoaded(nextAgentId)
+      if (!nextWorkspace) void skillsStore.ensureSkillsLoaded(nextAgentId)
+      void refreshProjectSkills()
     },
     { immediate: true }
   )
@@ -250,9 +287,16 @@ export function useSkillsData(
   // === Lifecycle ===
   onMounted(() => {
     unsubscribeSkillSessionChanged = skillClient.onSessionChanged(handleSkillSessionChanged)
+    unsubscribeCatalogChanged = skillClient.onCatalogChanged(() => {
+      if (normalizedWorkspacePath.value) void refreshProjectSkills()
+    })
+    window.addEventListener('focus', refreshProjectSkills)
   })
 
   onUnmounted(() => {
+    projectLoadSequence += 1
+    unsubscribeCatalogChanged?.()
+    window.removeEventListener('focus', refreshProjectSkills)
     unsubscribeSkillSessionChanged?.()
     unsubscribeSkillSessionChanged = null
   })

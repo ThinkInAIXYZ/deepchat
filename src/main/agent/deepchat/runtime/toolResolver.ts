@@ -58,6 +58,7 @@ type ToolResolverSkillPort = Pick<
   | 'snapshotPersistedActiveSkillNames'
   | 'revalidateActiveSkillsForAgent'
   | 'validateSkillNames'
+  | 'getMetadataList'
 > &
   SkillMetadataSnapshotPort
 
@@ -373,9 +374,11 @@ export class DeepChatToolResolver {
 
     if (skillsEnabled) {
       try {
-        const metadataSnapshot = this.dependencies.skillService.snapshotCachedMetadataList(agentId, {
-          maxItems: MAX_RUN_TOOL_UNIVERSE_SKILLS
-        })
+        const metadataSnapshot = projectDir?.trim()
+          ? { state: 'ready' as const, skills: await this.dependencies.skillService.getMetadataList(agentId, { conversationId: sessionId }) }
+          : this.dependencies.skillService.snapshotCachedMetadataList(agentId, {
+              maxItems: MAX_RUN_TOOL_UNIVERSE_SKILLS
+            })
         if (metadataSnapshot.state === 'unavailable') {
           throw new Error('Skill metadata catalog has not been discovered.')
         }
@@ -769,7 +772,8 @@ export class DeepChatToolResolver {
             : await this.validateSkillNamesForAgent(
                 scopedAgentId,
                 requestedActiveSkillNames,
-                failClosed
+                failClosed,
+                sessionId
               )
         const profile = this.resolveToolProfile(
           sessionId,
@@ -1056,13 +1060,14 @@ export class DeepChatToolResolver {
       resourceInstance?.getAgentId()?.trim() ||
       this.dependencies.identity.getAgentId(sessionId)?.trim() ||
       null
-    return await this.validateSkillNamesForAgent(agentId, skillNames)
+    return await this.validateSkillNamesForAgent(agentId, skillNames, false, sessionId)
   }
 
   private async validateSkillNamesForAgent(
     agentId: string | null,
     skillNames: string[],
-    failClosed = false
+    failClosed = false,
+    conversationId?: string
   ): Promise<string[]> {
     const normalizedSkillNames = normalizeStringList(skillNames)
     if (!agentId || !this.dependencies.skillSettings.isEnabled()) {
@@ -1078,7 +1083,7 @@ export class DeepChatToolResolver {
 
     try {
       const validatedSkillNames = normalizeStringList(
-        await this.dependencies.skillService.validateSkillNames(agentId, normalizedSkillNames)
+        await this.dependencies.skillService.validateSkillNames(agentId, normalizedSkillNames, { conversationId })
       )
       if (
         failClosed &&
