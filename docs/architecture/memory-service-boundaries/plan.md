@@ -4,7 +4,7 @@
       the distinct read/write control flows, review and verify before committing.
 - [x] C(1): share the management archive transition with unchanged hook and audit contracts;
       review and verify before committing.
-- [ ] A: remove ConflictService's scheduling dependency; cover user and automated success paths
+- [x] A: remove ConflictService's scheduling dependency; cover user and automated success paths
       including partial failure, review and verify before committing.
 - [ ] A: extract MergeService without changing fence, budget or lifecycle ownership; review and
       verify before committing.

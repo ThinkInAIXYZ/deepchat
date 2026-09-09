@@ -114,7 +114,10 @@ export class MaintenanceService {
     {
       step: 'challenge',
       run: ({ agentId, model, budget }) =>
-        this.ports.runChallengeResolutionPass(agentId, model, budget)
+        // Arm after each applied resolution, even if a later pair fails before the pass returns.
+        this.ports.runChallengeResolutionPass(agentId, model, budget, () =>
+          this.scheduleConsolidation(agentId)
+        )
     },
     {
       step: 'merge',
@@ -220,7 +223,8 @@ export class MaintenanceService {
       runChallengeResolutionPass: (
         agentId: string,
         model: MemoryModelRef,
-        budget: MaintenanceBudget
+        budget: MaintenanceBudget,
+        onApplied: () => void
       ) => Promise<MemoryMaintenanceStepResult>
       repairConflictIntegrity: (agentId: string) => boolean
       diagnostics?: {
