@@ -1,5 +1,15 @@
 # Changelog
 
+## v1.1.2-beta.4 (2026-09-09)
+- Restored the live assistant response when resuming an Agent conversation
+- Preserved skill bodies when resuming a session
+- Discovered workspace skills from the current project directory
+- Enabled full keyboard navigation across chat, files, panels, settings, and setup flows
+- 恢复 Agent 对话恢复时的实时助手响应
+- 恢复会话时保留 Skill 正文内容
+- 从当前项目目录发现工作区 Skills
+- 为聊天、文件、面板、设置与初始化流程启用完整键盘导航
+
 ## v1.1.2-beta.3 (2026-09-08)
 - Simplified tool, reasoning, and compaction activity with persistent expand/collapse state, readable historical plans, and restored parent-session navigation
 - Preserved workspace conversation history and pagination, kept Agent filters stable, and reused the workspace's latest Agent for new conversations
