@@ -34,11 +34,26 @@ AFTER
 - Tests and exploration use isolated profiles; credentials and personal conversations are never committed.
 - Third-party content and external-service availability are identified separately from first-party defects.
 
-## Acceptance and evidence
+## Verification contract
 
-A dedicated exploration agent follows keyboard and accessibility-tree workflows across onboarding; agent/provider/model setup; conversation creation, selection, search, editing, generation, recovery and export; attachments; tool approval; plugins, MCP and skills; projects/workspace/artifacts/terminal/browser; every settings route; and auxiliary windows. It reports concrete blockers, then independently verifies each repaired phase before its commit. `exploration.md` records observed evidence, coverage, and remaining limitations. Source review and automated semantics are not represented as human screen-reader testing or platform certification.
+Regression protection covers keyboard discovery, accessible names, focus recovery, complete loaded
+content, lifecycle cleanup, and typed native focus boundaries. Exercise onboarding, chat and history,
+provider/model setup, settings, integrations, workspace tools, and auxiliary windows with isolated
+profiles. Local protocol fixtures validate first-party controls without requiring external accounts.
 
-The implementation is complete when this inventory has been explored, all reproducible first-party blockers are repaired and accepted, relevant regression checks and repository quality gates pass, and a PR targets `dev`. Any unavailable real screen-reader or external integration verification remains explicit in the report rather than being counted as passed.
+Keyboard and Chromium accessibility-tree checks do not establish human VoiceOver/NVDA speech quality
+or acceptance on other operating systems. OS-owned dialog and permission speech, real microphone
+input, encrypted-storage persistence, external account authorization, third-party content, and
+runtime installation require their
+own validation; do not report those boundaries as passed from local fixture evidence.
+
+## Native interaction contract
+
+The browser exposes an explicit Enter webpage action and F6 return to host controls. Main accepts
+entry only for a visible browser attached to the requesting renderer's active session and focused
+native host window. ACP authentication reserves F6 for returning from terminal input to authentication
+controls without forwarding that key to the process. Plugin settings closure restores the initiating
+control. Native window transitions must preserve both operating-system and renderer focus.
 
 ## References
 
@@ -48,7 +63,7 @@ The implementation is complete when this inventory has been explored, all reprod
 
 ## Assistive-technology rendering
 
-The device snapshot reports Electron accessibility support on macOS and Windows, and a typed application event reports changes. One shared renderer subscription feeds Markdown and conversation windowing. When support is active, retain all loaded message rows and all Markdown nodes, including streaming prefixes, in the accessibility tree. Keep explicit pagination for older stored messages. Linux has no reliable Electron detection API, so use complete rendering there. Snapshot failure also preserves complete rendering. Do not change operating-system settings or force native accessibility support in production.
+The device snapshot reports Electron accessibility support on macOS and Windows, and a typed application event reports changes. One shared renderer subscription feeds Markdown, conversation windowing, and the provider model catalog. When support is active, retain all loaded message rows and all Markdown nodes, including streaming prefixes, in the accessibility tree. Keep explicit pagination for older stored messages. Linux has no reliable Electron detection API, so use complete rendering there. Snapshot failure also preserves complete rendering. Do not change operating-system settings or force native accessibility support in production.
 
 The tradeoff is increased DOM/memory use for long conversations while complete rendering is needed. Existing windowing remains enabled when native support is known to be off. Subscribers release listeners with their Vue scope, and a late snapshot cannot overwrite a newer native event.
 

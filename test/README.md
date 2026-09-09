@@ -1,245 +1,73 @@
-# 测试说明文档
+# DeepChat tests
 
-## 📁 测试目录结构
+Tests protect user workflows and maintained contracts. Completing a feature does not retire its
+regression coverage. Follow the repository's [validation policy](../docs/spec-driven-dev.md).
 
-```
-test/
-├── main/                    # 主进程、脚本与 Node 环境测试
-├── renderer/                # 渲染进程与 Vue 组件测试
-├── e2e/                     # Playwright 端到端测试
-├── manual/                  # 手工验证页面
-├── setup.ts                # 主进程测试设置
-├── setup.renderer.ts       # 渲染进程测试设置
-└── README.md                # 本文档
-```
+## Scope and commands
 
-## 🚀 快速开始
+Run commands from the repository root with pnpm and the Node version declared in `package.json`.
+Install dependencies with `pnpm install`; install optional application runtimes with
+`pnpm run installRuntime` when the selected verification needs them.
 
-项目统一使用 pnpm。首次运行前安装依赖；需要完整本地运行环境时再安装 runtime：
+| Scope | Command | Boundary |
+| --- | --- | --- |
+| Main and renderer | `pnpm test` | Vitest projects in `vitest.config.ts` |
+| Main, shared contracts and scripts | `pnpm run test:main` | Node; `test/main` |
+| Renderer | `pnpm run test:renderer` | Vue Test Utils and jsdom; `test/renderer` |
+| Portable Memory | `pnpm run test:memory` | Scope validation, test type checking and portable suites |
+| Electron smoke | `pnpm run e2e:smoke` | Built app; see [E2E setup and isolation](./e2e/README.md) |
+| CI Electron subset | `pnpm run e2e:smoke:ci` | Launch and Settings navigation |
+| Coverage | `pnpm run test:coverage` | Reports under `coverage/` |
+| Interactive watch | `pnpm run test:watch` | Explicit watch mode |
 
-```bash
-pnpm install
-pnpm run installRuntime
-```
-
-## 🔗 手工验证 Deeplink Playground
-
-仓库内提供了一个静态验证页：
-
-- `test/manual/deeplink-playground.html`
-
-用途：
-
-- 验证 `deepchat://start`
-- 验证 `deepchat://mcp/install`
-- 验证 `deepchat://provider/install`
-
-使用方式：
-
-直接在浏览器中打开 `test/manual/deeplink-playground.html` 即可。
-
-说明：
-
-- 页面内置了示例 payload、Base64 编码结果和最终 deeplink
-- `provider/install` 区块覆盖了当前支持的 built-in provider 与 custom `apiType`
-- 页面里的 key 全部是 fake data，仅用于本地联调
-- 若浏览器拦截自定义协议，请允许页面打开 `deepchat://` 链接
-
-如果要验证应用内行为，建议先启动 DeepChat，再点击页面中的 `Open` 按钮。
-
-### 运行测试
+Run the smallest relevant target while working:
 
 ```bash
-# 一次性运行全部 main 与 renderer 测试
-pnpm test
-
-# 一次性运行主进程测试
-pnpm run test:main
-
-# 一次性运行渲染进程测试
-pnpm run test:renderer
-
-# 运行测试并生成覆盖率报告
-pnpm run test:coverage
-
-# 监听模式运行测试
-pnpm run test:watch
+pnpm exec vitest run --config vitest.config.ts test/main/session/lifecycle.test.ts
+pnpm exec vitest run --config vitest.config.renderer.ts test/renderer/stores/sessionStore.test.ts
 ```
 
-## 📝 测试脚本
+Native SQLite's Node ABI rebuild and required native validation belong to CI. Do not rebuild the
+shared dependency merely to run a local test; that can replace the Electron ABI. Native and
+platform-gated suites can skip when their prerequisites are unavailable. A skipped test is not
+passing evidence for that platform. Memory scope classification lives in
+[`memory-test-scope.json`](./memory-test-scope.json).
 
-`package.json` 中的主要测试入口：
+## Durable coverage
 
-```json
-{
-  "scripts": {
-    "test": "vitest run",
-    "test:main": "vitest run --config vitest.config.ts test/main",
-    "test:renderer": "vitest run --config vitest.config.renderer.ts test/renderer",
-    "test:coverage": "vitest run --coverage",
-    "test:watch": "vitest --watch",
-    "test:ui": "vitest --ui"
-  }
-}
-```
+| Group | Protected capabilities |
+| --- | --- |
+| Agent, session and Tape | Admission, cancellation, concurrency, recovery, projection and durable history |
+| Provider, ACP, MCP, tools and plugins | Protocol compatibility, permissions, credentials, lifecycle and failure isolation |
+| Memory, storage, sync and import | Isolation, migrations, corruption recovery and persisted data |
+| Desktop, preload, routes and renderer clients | Caller authorization, serializable contracts, event delivery and cleanup |
+| Renderer components, stores and composables | Keyboard and focus behavior, accessible content, drafts, configuration and asynchronous state |
+| Build and scripts | Package integrity, supported targets, signing, updater compatibility and required CI gates |
+| Electron smoke | Application wiring and workflows through real renderer/preload/main boundaries |
 
-默认、main、renderer 和 coverage 入口都显式使用一次性运行语义，交互式监听必须通过
-`test:watch` 启动。Native SQLite 的 Node ABI 重编译与验证由 CI workflow 独占，避免本地命令
-替换 Electron ABI 依赖。
+Keep real domain logic, stores and temporary files where they provide useful behavior coverage.
+Substitute network, model, OS and other expensive or nondeterministic boundaries. Interaction
+assertions are appropriate when the interaction is the contract, such as authorization,
+idempotency or protocol calls.
 
-## 🧪 测试类型
+Delete a test only with evidence that it is obsolete, vacuous, fully redundant, or merely locks an
+incidental implementation choice. Identify retained protection or the precise coverage gap first.
+Do not keep source-string checks for prose, retired migration filenames or private assignment
+counts. Source inspection remains useful for enforced import boundaries, documented visual or
+startup regressions, and machine-read packaging or workflow contracts.
 
-### 主进程测试
+Prefer assertions on public results, persisted data, emitted events, rendered semantics and
+recoverable errors. jsdom does not verify native window focus, screen-reader speech or computed
+visual layout; use the appropriate Electron or manual acceptance for those behaviors. Avoid
+adding empty examples, temporary probes or implementation-mirroring tests to the committed suite.
 
-- **环境**: Node.js
-- **配置**: `vitest.config.ts`
-- **重点**: 各 main 模块、边界和工具函数
+Before handoff, run `pnpm run format`, `pnpm run i18n`, `pnpm run lint`, `pnpm run typecheck`, and the
+relevant tests. Application type checking does not automatically typecheck every test file;
+type-only assertions need an explicit type-checking target to provide evidence.
 
-### 渲染进程测试
+## Manual deeplink verification
 
-- **环境**: jsdom
-- **配置**: `vitest.config.renderer.ts`
-- **重点**: Vue组件、Store、Composables
-
-## 📊 测试覆盖率
-
-生成测试覆盖率报告：
-
-```bash
-pnpm run test:coverage
-```
-
-覆盖率报告生成在 `coverage/`。
-
-打开 `coverage/index.html` 查看详细的覆盖率报告。
-
-## 🔧 配置文件
-
-### vitest.config.ts
-
-默认项目配置，同时定义 main 与 renderer 项目。
-
-### vitest.config.renderer.ts
-
-渲染进程测试配置，使用jsdom环境，支持Vue组件测试。
-
-### test/setup.ts
-
-主进程测试的全局设置，包含Electron模块的mock。
-
-### test/setup.renderer.ts
-
-渲染进程测试的全局设置，包含Vue相关依赖的mock。
-
-## 📋 测试规范
-
-### 文件命名
-
-- 测试文件使用 `.test.ts` 或 `.spec.ts` 后缀
-- 与源文件保持相同的目录结构
-
-### 测试描述
-
-- 使用清晰、行为导向的英文描述测试场景
-- 使用 `describe` 按功能模块分组
-- 使用 `it` 描述具体的测试用例
-
-### 示例测试结构
-
-```typescript
-describe('module behavior', () => {
-  beforeEach(() => {
-    // Arrange shared state.
-  })
-
-  describe('feature boundary', () => {
-    it('handles the expected behavior', () => {
-      // Arrange
-      // Act
-      // Assert
-    })
-  })
-})
-```
-
-## 🐛 调试测试
-
-### 调试单个测试
-
-```bash
-# 运行特定的测试文件
-pnpm exec vitest run test/main/eventbus/eventbus.test.ts
-
-# 运行特定的测试用例
-pnpm exec vitest --watch -t "sends events to the main process"
-```
-
-### 调试配置
-在 VSCode 中添加调试配置（`.vscode/launch.json`）：
-
-```json
-{
-  "type": "node",
-  "request": "launch",
-  "name": "Debug Vitest Tests",
-  "skipFiles": ["<node_internals>/**"],
-  "program": "${workspaceRoot}/node_modules/vitest/vitest.mjs",
-  "args": ["--run", "${relativeFile}"],
-  "smartStep": true,
-  "console": "integratedTerminal"
-}
-```
-
-## 🎯 最佳实践
-
-### Mock策略
-
-1. **外部依赖**：完全mock（网络请求、文件系统）
-2. **内部模块**：选择性mock（复杂依赖、不稳定组件）
-3. **纯函数**：尽量使用真实实现
-
-### 测试数据
-
-- 使用简单、明确的测试数据
-- 避免使用真实的敏感数据
-- 考虑使用工厂函数生成测试数据
-
-### 断言技巧
-
-```typescript
-// 推荐的断言方式
-expect(result).toBe(expected)           // 严格相等
-expect(result).toEqual(expected)        // 深度相等
-expect(fn).toHaveBeenCalledWith(args)   // 函数调用验证
-expect(element).toBeInTheDocument()     // DOM存在验证
-```
-
-## 📚 相关资源
-
-- [Vitest 官方文档](https://vitest.dev/)
-- [Vue Test Utils 文档](https://test-utils.vuejs.org/)
-- [Testing Library 最佳实践](https://testing-library.com/docs/guiding-principles/)
-
-## ❓ 常见问题
-
-### Q: 如何测试异步操作？
-```typescript
-it('应该处理异步操作', async () => {
-  const result = await asyncFunction()
-  expect(result).toBe(expected)
-})
-```
-
-### Q: 如何测试错误处理？
-```typescript
-it('应该正确处理错误', () => {
-  expect(() => errorFunction()).toThrow('Expected error message')
-})
-```
-
-### Q: 如何mock模块？
-```typescript
-vi.mock('./module', () => ({
-  exportedFunction: vi.fn()
-}))
-```
+Open [`manual/deeplink-playground.html`](./manual/deeplink-playground.html) in a browser while
+DeepChat is running. It provides fake payloads for `deepchat://start`, `deepchat://mcp/install` and
+`deepchat://provider/install`, including built-in providers and custom API types. Allow the browser
+to open `deepchat://` links when prompted.
