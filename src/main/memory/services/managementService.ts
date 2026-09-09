@@ -241,47 +241,27 @@ export class ManagementService {
     memoryId: string,
     beforeMutation?: () => void
   ): Promise<MemoryCommandResult> {
-    if (this.ctx.isDisposed) return memoryCommandRejected('unavailable')
-    this.ctx.assertSafeAgentId(agentId)
-    if (!this.ctx.canManageClaimMemory(agentId)) return memoryCommandRejected('unavailable')
-    const row = this.ports.repository.getById(memoryId)
-    if (!row || row.agent_id !== agentId) return memoryCommandRejected('not-found')
-    if (this.ports.repository.isUnresolvedConflictParticipant(agentId, memoryId)) {
-      return memoryCommandRejected('conflict')
-    }
-    if (isInternalMemoryKind(row)) return memoryCommandRejected('invalid-state')
-    beforeMutation?.()
-    this.ctx.invalidateAgentOperations(agentId)
-    const alreadyArchived = row.lifecycle_state === 'archived'
-    let archived = alreadyArchived
-    this.ports.repository.runInTransaction(() => {
-      if (!alreadyArchived) {
-        archived = this.ports.repository.archiveActiveMemory({
-          agentId,
-          id: row.id,
-          expectedRevision: row.decision_revision
-        })
-        if (!archived) return
-      }
-      this.ctx.writeAudit(agentId, {
-        eventType: 'memory/forget',
-        actorType: 'runtime',
-        status: 'completed',
-        reason: alreadyArchived ? 'already_archived' : null,
-        inputRefs: { memoryId },
-        outputRefs: { action: alreadyArchived ? 'already_archived' : 'archived', memoryId }
-      })
+    return this.archiveMemory(agentId, memoryId, {
+      eventType: 'memory/forget',
+      actorType: 'runtime',
+      beforeMutation
     })
-    if (!archived) return memoryCommandRejected('stale')
-    if (!alreadyArchived) {
-      this.ctx.markDomainMutationCommitted(agentId)
-      this.ports.syncWorkingMemoryAfterMutation(agentId)
-      this.ctx.emitChanged(agentId, 'extract')
-    }
-    return memoryCommandApplied()
   }
 
   async archiveUserMemory(agentId: string, memoryId: string): Promise<MemoryCommandResult> {
+    return this.archiveMemory(agentId, memoryId, {
+      eventType: 'memory/archive',
+      actorType: 'user'
+    })
+  }
+
+  private archiveMemory(
+    agentId: string,
+    memoryId: string,
+    audit:
+      | { eventType: 'memory/forget'; actorType: 'runtime'; beforeMutation?: () => void }
+      | { eventType: 'memory/archive'; actorType: 'user'; beforeMutation?: never }
+  ): MemoryCommandResult {
     if (this.ctx.isDisposed) return memoryCommandRejected('unavailable')
     this.ctx.assertSafeAgentId(agentId)
     if (!this.ctx.canManageClaimMemory(agentId)) return memoryCommandRejected('unavailable')
@@ -291,6 +271,7 @@ export class ManagementService {
       return memoryCommandRejected('conflict')
     }
     if (isInternalMemoryKind(row)) return memoryCommandRejected('invalid-state')
+    audit.beforeMutation?.()
     this.ctx.invalidateAgentOperations(agentId)
     const alreadyArchived = row.lifecycle_state === 'archived'
     let archived = alreadyArchived
@@ -304,8 +285,8 @@ export class ManagementService {
         if (!archived) return
       }
       this.ctx.writeAudit(agentId, {
-        eventType: 'memory/archive',
-        actorType: 'user',
+        eventType: audit.eventType,
+        actorType: audit.actorType,
         status: 'completed',
         reason: alreadyArchived ? 'already_archived' : null,
         inputRefs: { memoryId },
