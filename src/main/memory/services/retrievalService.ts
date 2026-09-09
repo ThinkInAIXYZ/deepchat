@@ -185,6 +185,25 @@ function clampRetrievalTopK(value: number): number {
   return Math.min(MAX_TOP_K, Math.max(1, Math.floor(value)))
 }
 
+function filterCurrentVectorMatches(
+  agentId: string,
+  rowsById: ReadonlyMap<string, AgentMemoryRow>,
+  matches: readonly { memoryId: string; similarity: number }[],
+  dimensions: number | undefined,
+  fingerprint: string | null,
+  isLive: (agentId: string, row: AgentMemoryRow) => boolean
+): Array<{ row: AgentMemoryRow; similarity: number }> {
+  if (dimensions === undefined || !fingerprint) return []
+  const current: Array<{ row: AgentMemoryRow; similarity: number }> = []
+  for (const match of matches) {
+    const row = rowsById.get(match.memoryId)
+    if (isCurrentRecallVectorRow(agentId, row, dimensions, fingerprint) && isLive(agentId, row)) {
+      current.push({ row, similarity: match.similarity })
+    }
+  }
+  return current
+}
+
 function throwIfAborted(signal?: AbortSignal): void {
   signal?.throwIfAborted()
 }
@@ -353,18 +372,7 @@ export class RetrievalService {
       )
       let vectorContext: { embedding: MemoryModelRef; dimensions: number } | null = null
       if (currentEmbedding && this.ctx.canUseCurrentMemoryEmbedding(agentId, currentEmbedding)) {
-        const recallHealth = this.ports.vectorStore.getRecallHealth(agentId)
-        if (recallHealth !== 'available') {
-          degradations.add(recallHealth === 'suspect' ? 'storeTimeout' : 'storeUnusable')
-        } else if (!this.ports.vectorStore.hasReadyCertificate(agentId, currentEmbedding)) {
-          degradations.add('vectorCold')
-          void this.ports
-            .warmVectorStore(agentId, currentEmbedding, { delayOpen: true })
-            .catch((error) => {
-              logger.warn(`[Memory] vector warmup failed for ${agentId}: ${String(error)}`)
-            })
-          this.ports.warmEmbeddingConnection(agentId, currentEmbedding)
-        } else {
+        if (this.prepareVectorRecall(agentId, currentEmbedding, degradations)) {
           // Query embeddings are only worth a provider round trip once the store can answer. A
           // supplied vector array is a retry snapshot: undefined slots stay FTS-only so contention
           // never performs a second embedding call after the first attempt failed or omitted one.
@@ -427,20 +435,7 @@ export class RetrievalService {
                 })
               }
             } catch (error) {
-              const errorName = (error as { name?: string } | null)?.name
-              if (
-                errorName !== 'AbortError' &&
-                !(error instanceof VectorStoreLeaseUnavailableError)
-              ) {
-                this.ports.vectorStore.clearReady(agentId)
-              }
-              degradations.add(
-                vectorStoreDegradation(
-                  error,
-                  this.ports.vectorStore.getRecallHealth(agentId),
-                  activeStage
-                )
-              )
+              this.recordVectorDegradation(agentId, error, activeStage, degradations)
               logger.warn(`[Memory] batch vector recall degraded to FTS: ${String(error)}`)
             }
           }
@@ -478,21 +473,14 @@ export class RetrievalService {
         const ftsRows = keywordRows[index]
           .map((row) => rowsById.get(row.id))
           .filter((row): row is AgentMemoryRow => isLiveDecisionRow(agentId, row))
-        const currentVectorMatches = vectorMatches[index]
-          .map((match) => {
-            const row = rowsById.get(match.memoryId)
-            return vectorContext && vectorFingerprint
-              ? isCurrentRecallVectorRow(
-                  agentId,
-                  row,
-                  vectorContext.dimensions,
-                  vectorFingerprint
-                ) && isLiveDecisionRow(agentId, row)
-                ? { row, similarity: match.similarity }
-                : null
-              : null
-          })
-          .filter((match): match is { row: AgentMemoryRow; similarity: number } => match !== null)
+        const currentVectorMatches = filterCurrentVectorMatches(
+          agentId,
+          rowsById,
+          vectorMatches[index],
+          vectorContext?.dimensions,
+          vectorFingerprint,
+          isLiveDecisionRow
+        )
         const neighbors = fuse(ftsRows, currentVectorMatches, {
           topK: DECISION_NEIGHBOR_TOP_S,
           rrfK,
@@ -666,21 +654,7 @@ export class RetrievalService {
     query: string
   ): Promise<boolean> {
     const { agentId, operationFence, signal } = state
-    const recallHealth = this.ports.vectorStore.getRecallHealth(agentId)
-    if (recallHealth !== 'available') {
-      state.degradations.add(recallHealth === 'suspect' ? 'storeTimeout' : 'storeUnusable')
-      return true
-    }
-    if (!this.ports.vectorStore.hasReadyCertificate(agentId, currentEmbedding)) {
-      state.degradations.add('vectorCold')
-      void this.ports
-        .warmVectorStore(agentId, currentEmbedding, { delayOpen: true })
-        .catch((error) => {
-          logger.warn(`[Memory] vector warmup failed for ${agentId}: ${String(error)}`)
-        })
-      this.ports.warmEmbeddingConnection(agentId, currentEmbedding)
-      return true
-    }
+    if (!this.prepareVectorRecall(agentId, currentEmbedding, state.degradations)) return true
     try {
       const queryEmbedding = this.queryEmbeddingCircuit.start(
         agentId,
@@ -744,25 +718,49 @@ export class RetrievalService {
       if (!executionIsCurrent && isStaleExecutionCancellation(error, this.ctx.isDisposed)) {
         return false
       }
-      const errorName = (error as { name?: string } | null)?.name
-      if (
-        state.activeStage === 'vector' &&
-        errorName !== 'AbortError' &&
-        !(error instanceof VectorStoreLeaseUnavailableError)
-      ) {
-        this.ports.vectorStore.clearReady(agentId)
-      }
-      state.degradations.add(
-        vectorStoreDegradation(
-          error,
-          this.ports.vectorStore.getRecallHealth(agentId),
-          state.activeStage
-        )
-      )
+      this.recordVectorDegradation(agentId, error, state.activeStage, state.degradations)
       logger.warn(`[Memory] vector recall degraded to FTS for ${agentId}: ${String(error)}`)
       if (!executionIsCurrent) throw error
       return true
     }
+  }
+
+  private prepareVectorRecall(
+    agentId: string,
+    embedding: MemoryModelRef,
+    degradations: Set<MemoryRetrievalDegradationCause>
+  ): boolean {
+    const health = this.ports.vectorStore.getRecallHealth(agentId)
+    if (health !== 'available') {
+      degradations.add(health === 'suspect' ? 'storeTimeout' : 'storeUnusable')
+      return false
+    }
+    if (this.ports.vectorStore.hasReadyCertificate(agentId, embedding)) return true
+    degradations.add('vectorCold')
+    void this.ports.warmVectorStore(agentId, embedding, { delayOpen: true }).catch((error) => {
+      logger.warn(`[Memory] vector warmup failed for ${agentId}: ${String(error)}`)
+    })
+    this.ports.warmEmbeddingConnection(agentId, embedding)
+    return false
+  }
+
+  private recordVectorDegradation(
+    agentId: string,
+    error: unknown,
+    activeStage: MemoryRecallLatencyStage | 'idle',
+    degradations: Set<MemoryRetrievalDegradationCause>
+  ): void {
+    const errorName = (error as { name?: string } | null)?.name
+    if (
+      activeStage === 'vector' &&
+      errorName !== 'AbortError' &&
+      !(error instanceof VectorStoreLeaseUnavailableError)
+    ) {
+      this.ports.vectorStore.clearReady(agentId)
+    }
+    degradations.add(
+      vectorStoreDegradation(error, this.ports.vectorStore.getRecallHealth(agentId), activeStage)
+    )
   }
 
   /**
@@ -808,17 +806,14 @@ export class RetrievalService {
       const vectorFingerprint = vectorContext
         ? embeddingFingerprint(vectorContext.embedding.providerId, vectorContext.embedding.modelId)
         : null
-      state.structurallyValidVecMatches = state.vecCandidates
-        .map((candidate) => {
-          const row = rowsById.get(candidate.memoryId)
-          return vectorContext && vectorFingerprint
-            ? isCurrentRecallVectorRow(agentId, row, vectorContext.dimensions, vectorFingerprint) &&
-              isLiveRecallRow(agentId, row)
-              ? { row, similarity: candidate.similarity }
-              : null
-            : null
-        })
-        .filter((match): match is { row: AgentMemoryRow; similarity: number } => match !== null)
+      state.structurallyValidVecMatches = filterCurrentVectorMatches(
+        agentId,
+        rowsById,
+        state.vecCandidates,
+        vectorContext?.dimensions,
+        vectorFingerprint,
+        isLiveRecallRow
+      )
       const { suppressionPolicy } = limits
       const directiveEligibleFtsRows = suppressionPolicy
         ? structurallyValidFtsRows.filter((row) => !suppressionPolicy.suppresses(row.content))
