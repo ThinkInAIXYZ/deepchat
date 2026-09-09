@@ -353,7 +353,7 @@ export const useSessionStore = defineStore('session', () => {
   const targetedSessionCommitRevisions = new Map<string, number>()
   const observedSessionStatuses = new Map<string, { version: number; status: UISessionStatus }>()
   // Deleted sessions must stay absent while requests started before their deletion settle.
-  // IDs are stable database identifiers, so they are safe tombstones for this store lifetime.
+  // Imports clear these tombstones because backups can restore previously deleted IDs.
   const removedSessionIds = new Set<string>()
   let sessionByIdsErrorRevision: number | null = null
   let activationNavigationRequestId = 0
@@ -1561,6 +1561,18 @@ export const useSessionStore = defineStore('session', () => {
     fetchSessions,
     refreshSessionsByIds,
     removeSessions,
+    onImported: (mode) => {
+      if (mode === 'overwrite') {
+        const replacedIds = sessions.value.map((session) => session.id)
+        if (activeSessionId.value) replacedIds.push(activeSessionId.value)
+        removeSessions(replacedIds)
+        hasLoadedInitialPage.value = false
+      }
+      removedSessionIds.clear()
+      // A request started against the previous database must not deduplicate this refresh.
+      sessionFetchPromise = null
+      return fetchSessions()
+    },
     onActivated: async (sessionId) => {
       const requestId = createActivationNavigationRequest()
       if (activeSessionId.value && activeSessionId.value !== sessionId) {

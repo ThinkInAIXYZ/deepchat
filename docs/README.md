@@ -1,6 +1,6 @@
 # DeepChat 文档索引
 
-This index tracks the maintained architecture and outstanding acceptance work as of `2026-09-07`.
+This index tracks maintained architecture and outstanding acceptance work.
 Completed implementation trackers and resolved issue reports are available through Git history.
 
 ## 当前必读
@@ -48,6 +48,7 @@ Completed implementation trackers and resolved issue reports are available throu
 
 以下 feature spec 仍承担跨模块产品或扩展合同，不是实施历史：
 
+- [Accessibility](./features/accessibility/spec.md)
 - [Local Control Plane](./architecture/local-control-plane/spec.md)
 - [ACP Terminal Authentication](./features/acp-terminal-auth/spec.md)
 - [Main Structured Logging](./architecture/main-process-structured-logging/spec.md)

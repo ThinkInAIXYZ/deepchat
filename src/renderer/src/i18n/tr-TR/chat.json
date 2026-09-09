@@ -1,5 +1,6 @@
 {
   "input": {
+    "suggestions": "Öneriler",
     "placeholder": "DeepChat'ye herhangi bir şey sor, {'@'}'a dosyalardan bahsetmesini ve / komutlarını sor",
     "fileArea": "Dosya Alanı",
     "inputArea": "Giriş Alanı",
@@ -129,6 +130,7 @@
     "error": "Arama başarısız oldu"
   },
   "messages": {
+    "loadEarlier": "Önceki mesajları yükle",
     "thinking": "Düşünüyorum...",
     "rateLimitWaiting": "Oran sınırına ulaşıldı, kuyrukta bekleniyor...",
     "rateLimitCompactLoading": "{seconds}s için oran sınırlı...",

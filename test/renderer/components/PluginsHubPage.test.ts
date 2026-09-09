@@ -7,7 +7,7 @@ const mocks = vi.hoisted(() => ({ routeName: 'plugins' }))
 vi.mock('pinia', async () => vi.importActual<typeof import('pinia')>('pinia'))
 
 vi.mock('vue-router', () => ({
-  useRoute: () => ({ name: mocks.routeName }),
+  useRoute: () => ({ name: mocks.routeName, meta: {}, fullPath: `/${mocks.routeName}` }),
   RouterLink: {
     name: 'RouterLink',
     template: '<a><slot /></a>'
@@ -78,11 +78,14 @@ describe('PluginsHubPage', () => {
 
     const PluginsHubPage = (await import('@/pages/plugins/PluginsHubPage.vue')).default
     const wrapper = shallowMount(PluginsHubPage, {
+      attachTo: document.body,
       global: {
         plugins: [pinia]
       }
     })
 
+    await flushPromises()
+    expect(document.activeElement).toBe(wrapper.get('[role="region"]').element)
     expect(wrapper.find('[data-testid="plugins-acp-unavailable"]').exists()).toBe(false)
     expect(wrapper.find('nav').exists()).toBe(true)
     expect(wrapper.findComponent({ name: 'RouterView' }).exists()).toBe(true)

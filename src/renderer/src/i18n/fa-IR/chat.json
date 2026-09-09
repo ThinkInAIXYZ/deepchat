@@ -1,5 +1,6 @@
 {
   "input": {
+    "suggestions": "پیشنهادها",
     "placeholder": "هر چیزی از DeepChat بپرسید، با {'@'} به فایل‌ها اشاره کنید و با / از دستورها استفاده کنید",
     "fileArea": "ناحیه پرونده",
     "inputArea": "ناحیه ورودی",
@@ -129,6 +130,7 @@
     "error": "جستجو ناموفق بود"
   },
   "messages": {
+    "loadEarlier": "بارگیری پیام‌های قدیمی‌تر",
     "thinking": "در حال تفکر...",
     "rateLimitWaiting": "محدودیت نرخ درخواست، در صف انتظار...",
     "rateLimitCompactLoading": "در محدودیت نرخ ({seconds}ث)",

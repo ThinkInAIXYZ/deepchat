@@ -1162,7 +1162,7 @@ export const useMcpStore = defineStore('mcp', () => {
       }),
       configClient.onCustomPromptsChanged(() => {
         console.log('Custom prompts changed, reloading prompts list')
-        void loadPrompts()
+        void loadPrompts({ force: true })
       })
     )
   }

@@ -1,11 +1,14 @@
 <template>
-  <div>
+  <li>
     <ContextMenu>
       <ContextMenuTrigger as-child>
         <button
           class="flex w-full cursor-grab items-center gap-1.5 px-4 py-1 text-left text-xs transition hover:bg-muted/40 active:cursor-grabbing"
           :style="{ paddingLeft: `${16 + depth * 12}px` }"
           type="button"
+          :data-workspace-path="node.path"
+          :aria-expanded="node.isDirectory ? Boolean(node.expanded) : undefined"
+          :aria-controls="node.isDirectory ? childrenId : undefined"
           draggable="true"
           @click="handleClick"
           @dragstart="handleDragStart"
@@ -46,7 +49,7 @@
     </ContextMenu>
 
     <!-- Recursive children -->
-    <template v-if="node.isDirectory && node.expanded && node.children">
+    <ul v-if="node.isDirectory" v-show="node.expanded" :id="childrenId">
       <WorkspaceFileNode
         v-for="child in node.children"
         :key="child.path"
@@ -56,12 +59,12 @@
         @append-path="$emit('append-path', $event)"
         @insert-path="$emit('insert-path', $event)"
       />
-    </template>
-  </div>
+    </ul>
+  </li>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, useId } from 'vue'
 import { Icon } from '@iconify/vue'
 import { useI18n } from 'vue-i18n'
 import { createWorkspaceClient } from '@api/WorkspaceClient'
@@ -88,6 +91,7 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 const workspaceClient = createWorkspaceClient()
+const childrenId = useId()
 
 const extensionIconMap: Record<string, string> = {
   pdf: 'lucide:file-text',

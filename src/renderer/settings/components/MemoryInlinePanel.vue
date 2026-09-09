@@ -2,6 +2,12 @@
   <section
     class="relative overflow-hidden rounded-b-lg border border-t-0 border-border bg-muted/20 px-3 py-3 shadow-sm"
     data-testid="memory-inline-panel"
+    role="region"
+    :aria-label="
+      mode === 'create'
+        ? t('settings.memory.redesign.addMemory')
+        : t('settings.memory.redesign.detailTitle')
+    "
     :data-mode="mode"
     tabindex="-1"
     @keydown="handleKeydown"
@@ -766,6 +772,9 @@ function handleKeydown(event: KeyboardEvent): void {
   if (props.discardPrompt) {
     event.preventDefault()
     emit('cancel-pending')
+  } else if (!busy.value) {
+    event.preventDefault()
+    requestClose()
   }
 }
 

@@ -1,5 +1,6 @@
 {
   "input": {
+    "suggestions": "הצעות",
     "placeholder": "שאלו את DeepChat כל דבר, השתמשו ב-{'@'} כדי להזכיר קבצים וב-/ לפקודות",
     "fileArea": "אזור קבצים",
     "inputArea": "אזור קלט",
@@ -129,6 +130,7 @@
     "error": "החיפוש נכשל"
   },
   "messages": {
+    "loadEarlier": "טעינת הודעות קודמות",
     "thinking": "חושב...",
     "rateLimitWaiting": "הגעת למגבלת הקצב, ממתין בתור...",
     "rateLimitCompactLoading": "מוגבל קצב ({seconds}ש׳)",

@@ -182,7 +182,7 @@
           <div class="space-y-2">
             <Label for="type">{{ t('settings.model.modelConfig.type.label') }}</Label>
             <Select v-model="config.type">
-              <SelectTrigger>
+              <SelectTrigger id="type">
                 <SelectValue :placeholder="t('settings.model.modelConfig.type.label')" />
               </SelectTrigger>
               <SelectContent>
@@ -222,7 +222,10 @@
               t('settings.model.modelConfig.endpointType.label')
             }}</Label>
             <Select v-model="config.endpointType">
-              <SelectTrigger :class="{ 'border-destructive': errors.endpointType }">
+              <SelectTrigger
+                id="endpointType"
+                :class="{ 'border-destructive': errors.endpointType }"
+              >
                 <SelectValue
                   :placeholder="t('settings.model.modelConfig.endpointType.placeholder')"
                 />
@@ -255,7 +258,7 @@
           >
             <Label for="apiEndpoint">{{ t('settings.model.modelConfig.apiEndpoint.label') }}</Label>
             <Select v-model="config.apiEndpoint">
-              <SelectTrigger>
+              <SelectTrigger id="apiEndpoint">
                 <SelectValue :placeholder="t('settings.model.modelConfig.apiEndpoint.label')" />
               </SelectTrigger>
               <SelectContent>
@@ -287,6 +290,7 @@
               </p>
             </div>
             <Switch
+              :aria-label="t('settings.model.modelConfig.vision.label')"
               :model-value="config.vision"
               @update:model-value="(value) => (config.vision = value)"
             />
@@ -301,6 +305,7 @@
             </div>
             <Switch
               data-setting-control="speechRecognition-toggle"
+              :aria-label="t('settings.model.modelConfig.speechRecognition.label')"
               :model-value="config.speechRecognition === true"
               @update:model-value="(value) => (config.speechRecognition = Boolean(value))"
             />
@@ -319,6 +324,7 @@
               </p>
             </div>
             <Switch
+              :aria-label="t('settings.model.modelConfig.functionCall.label')"
               :model-value="config.functionCall"
               @update:model-value="handleFunctionCallToggle"
             />
@@ -340,6 +346,7 @@
               </p>
             </div>
             <Switch
+              :aria-label="t(reasoningToggleLabelKey)"
               :model-value="reasoningToggleValue"
               :disabled="reasoningToggleDisabled"
               @update:model-value="handleReasoningToggle"
@@ -358,6 +365,7 @@
             </div>
             <Switch
               data-setting-control="interleavedThinking-toggle"
+              :aria-label="t('settings.model.modelConfig.interleavedThinking.label')"
               :model-value="config.forceInterleavedThinkingCompat === true"
               @update:model-value="
                 (value) => (config.forceInterleavedThinkingCompat = Boolean(value))
@@ -371,7 +379,7 @@
               t('settings.model.modelConfig.reasoningEffort.label')
             }}</Label>
             <Select v-model="effectiveReasoningEffort">
-              <SelectTrigger>
+              <SelectTrigger id="reasoningEffort">
                 <SelectValue
                   :placeholder="t('settings.model.modelConfig.reasoningEffort.placeholder')"
                 />
@@ -399,7 +407,7 @@
               t('settings.model.modelConfig.reasoningVisibility.label')
             }}</Label>
             <Select v-model="config.reasoningVisibility">
-              <SelectTrigger>
+              <SelectTrigger id="reasoningVisibility">
                 <SelectValue
                   :placeholder="t('settings.model.modelConfig.reasoningVisibility.placeholder')"
                 />
@@ -423,7 +431,7 @@
           <div v-if="!showOpenAIMediaGenerationSettings && supportsVerbosity" class="space-y-2">
             <Label for="verbosity">{{ t('settings.model.modelConfig.verbosity.label') }}</Label>
             <Select v-model="config.verbosity">
-              <SelectTrigger>
+              <SelectTrigger id="verbosity">
                 <SelectValue :placeholder="t('settings.model.modelConfig.verbosity.placeholder')" />
               </SelectTrigger>
               <SelectContent>

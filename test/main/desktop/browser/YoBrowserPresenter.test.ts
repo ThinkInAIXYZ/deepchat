@@ -57,6 +57,7 @@ class MockWebContents extends EventEmitter {
       this.pendingLoad = { resolve, reject }
     })
   })
+  focus = vi.fn()
   goBack = vi.fn()
   goForward = vi.fn()
   reload = vi.fn(() => {
@@ -337,6 +338,43 @@ describe('YoBrowserPresenter', () => {
       getSessionWebContents
     }
   }
+
+  it('focuses only the visible attached browser and returns to its host with F6', async () => {
+    const { presenter, windows, getSessionWebContents } = await setupPresenter()
+    const host = new MockBrowserWindow(1)
+    windows.set(1, host)
+    windows.set(2, new MockBrowserWindow(2))
+    const navigation = presenter.loadUrl('session-a', 'https://example.com')
+    await Promise.resolve()
+    const contents = getSessionWebContents('session-a')!
+    contents.emitDomReady()
+    await navigation
+    expect(presenter.focusSessionBrowser('session-a', 1)).toBe(false)
+    await presenter.attachSessionBrowser('session-a', 1)
+    await presenter.updateSessionBrowserBounds(
+      'session-a',
+      1,
+      { x: 0, y: 0, width: 300, height: 200 },
+      true
+    )
+    expect(presenter.focusSessionBrowser('session-a', 2)).toBe(false)
+    expect(presenter.focusSessionBrowser('session-a', 1)).toBe(true)
+    expect(contents.focus).toHaveBeenCalledTimes(1)
+    const event = { preventDefault: vi.fn() }
+    contents.emit('before-input-event', event, { type: 'keyDown', key: 'F6' })
+    expect(event.preventDefault).toHaveBeenCalledTimes(1)
+    expect(host.webContents.focus).toHaveBeenCalledTimes(1)
+    contents.emit('before-input-event', event, { type: 'keyDown', key: 'Tab' })
+    contents.emit('before-input-event', event, { type: 'keyDown', key: 'F6', control: true })
+    contents.emit('before-input-event', event, { type: 'keyDown', key: 'F6', shift: true })
+    expect(event.preventDefault).toHaveBeenCalledTimes(1)
+    await presenter.detachSessionBrowser('session-a')
+    expect(presenter.focusSessionBrowser('session-a', 1)).toBe(false)
+    contents.emit('before-input-event', event, { type: 'keyDown', key: 'F6' })
+    expect(host.webContents.focus).toHaveBeenCalledTimes(1)
+    contents.finishLoad()
+    await presenter.shutdown()
+  })
 
   it('starts session navigation immediately and resolves after dom-ready', async () => {
     const { presenter, windows, getSessionWebContents } = await setupPresenter()

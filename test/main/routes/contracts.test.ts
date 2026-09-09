@@ -2026,6 +2026,9 @@ describe('main kernel contracts', () => {
 
   it('registers typed event catalog entries through phase4', () => {
     const eventKeys = Object.keys(DEEPCHAT_EVENT_CATALOG).sort()
+    for (const [name, contract] of Object.entries(DEEPCHAT_EVENT_CATALOG)) {
+      expect(contract.name).toBe(name)
+    }
 
     expect(eventKeys).toEqual(
       expect.arrayContaining([

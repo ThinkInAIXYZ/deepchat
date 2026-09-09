@@ -76,10 +76,10 @@ export function createSkillClient(bridge: DeepchatBridge = getDeepchatBridge()) 
   }
 
   async function deleteSkill(name: string, acknowledgedAgentIds: string[]) {
-    const result = await bridge.invoke(skillsDeleteRoute.name, {
-      name,
-      acknowledgedAgentIds
-    })
+    const result = await bridge.invoke(
+      skillsDeleteRoute.name,
+      skillsDeleteRoute.input.parse({ name, acknowledgedAgentIds })
+    )
     return result.result
   }
 
@@ -183,7 +183,10 @@ export function createSkillClient(bridge: DeepchatBridge = getDeepchatBridge()) 
     source: AgentSkillImportSource
     items: AgentSkillImportSelection[]
   }) {
-    const result = await bridge.invoke(skillsExecuteAgentImportRoute.name, input)
+    const result = await bridge.invoke(
+      skillsExecuteAgentImportRoute.name,
+      skillsExecuteAgentImportRoute.input.parse(input)
+    )
     return result.result
   }
 

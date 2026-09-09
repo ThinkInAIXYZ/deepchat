@@ -53,6 +53,16 @@ const failedStage = ref<'load' | 'preview' | 'execute' | null>(null)
 const result = ref<AgentSkillImportResult | null>(null)
 let requestId = 0
 
+const resultSummary = computed(() =>
+  result.value
+    ? t('settings.skills.agentImport.resultSummaryV3', {
+        imported: result.value.imported.length,
+        reused: result.value.reused.length,
+        skipped: result.value.skipped.length,
+        failed: result.value.failed.length
+      })
+    : ''
+)
 const selectedSource = computed(
   () => sources.value.find((source) => source.id === selectedSourceId.value) ?? null
 )
@@ -232,6 +242,9 @@ watch(selectedSourceId, () => {
         <DialogDescription>{{ t('settings.skills.agentImport.description') }}</DialogDescription>
       </DialogHeader>
 
+      <p role="status" aria-live="polite" aria-atomic="true" class="sr-only">
+        {{ executing ? t('common.loading') : resultSummary }}
+      </p>
       <div class="min-h-0 flex-1 space-y-5 overflow-y-auto px-6 py-5">
         <div
           v-if="loading"
@@ -251,14 +264,7 @@ watch(selectedSourceId, () => {
               }}
             </div>
             <p class="mt-1 text-xs text-muted-foreground">
-              {{
-                t('settings.skills.agentImport.resultSummaryV3', {
-                  imported: result.imported.length,
-                  reused: result.reused.length,
-                  skipped: result.skipped.length,
-                  failed: result.failed.length
-                })
-              }}
+              {{ resultSummary }}
             </p>
           </div>
           <div v-if="result.failed.length" class="rounded-md border">
@@ -284,7 +290,11 @@ watch(selectedSourceId, () => {
             <div class="text-sm font-medium">
               {{ t('settings.skills.agentImport.sourceTitle') }}
             </div>
-            <RadioGroup v-model="selectedSourceId" class="grid gap-2 sm:grid-cols-2">
+            <RadioGroup
+              v-model="selectedSourceId"
+              :aria-label="t('settings.skills.agentImport.sourceTitle')"
+              class="grid gap-2 sm:grid-cols-2"
+            >
               <label
                 v-for="source in sources"
                 :key="source.id"
@@ -351,6 +361,7 @@ watch(selectedSourceId, () => {
                 <RadioGroup
                   v-if="item.status === 'conflict'"
                   :model-value="strategies[item.name]"
+                  :aria-label="`${t('settings.skills.importExport.strategy')}: ${item.name}`"
                   class="flex gap-3 text-xs"
                   @update:model-value="updateStrategy(item.name, String($event))"
                 >

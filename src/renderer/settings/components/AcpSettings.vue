@@ -12,6 +12,7 @@
           <Switch
             dir="ltr"
             :model-value="acpEnabled"
+            :aria-label="t('settings.acp.enabledTitle')"
             class="scale-125"
             :disabled="!loaded || loading || isAnyMutationPending"
             @update:model-value="handleToggle"
@@ -151,6 +152,7 @@
                     </DcButton>
                     <Switch
                       :model-value="agent.enabled"
+                      :aria-label="`${t('common.enabled')}: ${agent.name}`"
                       :disabled="isAnyMutationPending"
                       @update:model-value="(value) => toggleRegistryAgent(agent, Boolean(value))"
                     />
@@ -287,6 +289,7 @@
                     </div>
                     <Switch
                       :model-value="agent.enabled"
+                      :aria-label="`${t('common.enabled')}: ${agent.name}`"
                       :disabled="isAnyMutationPending"
                       @update:model-value="(value) => toggleManualAgent(agent, Boolean(value))"
                     />
@@ -380,6 +383,7 @@
             <Label>{{ t('settings.acp.profileDialog.agentName') }}</Label>
             <Input
               v-model="manualDialog.name"
+              :aria-label="t('settings.acp.profileDialog.agentName')"
               :placeholder="t('settings.acp.profileDialog.agentNamePlaceholder')"
               :aria-invalid="Boolean(manualDialog.error)"
               @update:model-value="handleManualDialogEdited"
@@ -389,6 +393,7 @@
             <Label>{{ t('settings.acp.command') }}</Label>
             <Input
               v-model="manualDialog.command"
+              :aria-label="t('settings.acp.command')"
               :placeholder="t('settings.acp.commandPlaceholder')"
               :aria-invalid="Boolean(manualDialog.error)"
               @update:model-value="handleManualDialogEdited"
@@ -414,7 +419,11 @@
           </div>
           <div class="flex items-center justify-between rounded-md border px-3 py-2">
             <div class="text-sm text-muted-foreground">{{ t('common.enabled') }}</div>
-            <Switch v-model="manualDialog.enabled" @update:model-value="handleManualDialogEdited" />
+            <Switch
+              v-model="manualDialog.enabled"
+              :aria-label="t('common.enabled')"
+              @update:model-value="handleManualDialogEdited"
+            />
           </div>
           <DcInlineError v-if="manualDialog.error" :error="manualDialog.error" class="mt-2" />
         </div>

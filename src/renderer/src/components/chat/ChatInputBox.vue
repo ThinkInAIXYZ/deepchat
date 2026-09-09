@@ -513,10 +513,14 @@ function findFileInsertPos(): number {
 const editor = new VueEditor({
   editable: props.editable,
   editorProps: {
-    attributes: {
+    attributes: () => ({
       'data-testid': 'chat-input-contenteditable',
+      role: 'textbox',
+      'aria-multiline': 'true',
+      'aria-label': resolvedPlaceholder.value,
+      ...mentions.suggestionAttributes.value,
       class: 'outline-none min-h-[60px] max-h-[240px] overflow-y-auto overscroll-contain'
-    }
+    })
   },
   extensions: [
     Document,
@@ -626,7 +630,7 @@ watch(
   { deep: true, immediate: true }
 )
 
-watch(resolvedPlaceholder, () => {
+watch([resolvedPlaceholder, mentions.suggestionAttributes], () => {
   editor.view.updateState(editor.state)
 })
 
@@ -681,6 +685,13 @@ function handleKeydown(e: KeyboardEvent) {
     }
     return
   }
+
+  // Embedded controls own Enter/Space activation and Tab navigation.
+  if (
+    e.target instanceof HTMLElement &&
+    e.target.closest('button, input, textarea, select, [role="combobox"]')
+  )
+    return
 
   const isVoiceShortcut = (e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === 'm'
   if (isVoiceShortcut) {

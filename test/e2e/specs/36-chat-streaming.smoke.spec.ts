@@ -1,4 +1,6 @@
 import { createServer } from 'node:http'
+import { writeFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { test, expect } from '../fixtures/electronApp'
 import { selectAgent, selectModel, sendMessage } from '../helpers/chat'
 import { waitForAppReady, waitForGenerationDone } from '../helpers/wait'
@@ -105,6 +107,10 @@ test('local streaming preserves an editable composer and completes the response 
     await sendMessage(app.page, 'Render the local streaming fixture.')
     const shell = app.page.getByTestId('chat-page-shell')
     await expect(shell).toHaveAttribute('data-generating', 'true')
+    const status = shell.getByTestId('chat-generation-status')
+    await expect(status).toHaveAttribute('role', 'status')
+    await expect(status).toHaveAttribute('aria-live', 'polite')
+    await expect(status).toHaveText(/Running|运行中/)
     const completion = waitForGenerationDone(app.page)
     void completion.catch(() => {})
     const editor = shell.getByTestId('chat-input-contenteditable')
@@ -116,6 +122,22 @@ test('local streaming preserves an editable composer and completes the response 
     await completion
     await expect(app.page.getByTestId('chat-message-assistant')).toContainText('Stream complete.')
     await expect(editor).toHaveText(draft)
+    await expect(status).toHaveText(/Generation is complete|生成已完成|生成完成/)
+    const attachmentPath = join(app.userDataDir, 'keyboard-removal.txt')
+    writeFileSync(attachmentPath, 'This attachment must not be sent.')
+    for (const key of ['Enter', 'Space']) {
+      const chooser = app.page.waitForEvent('filechooser')
+      await app.page.getByRole('button', { name: /^(Attach|添加附件)$/ }).focus()
+      await app.page.keyboard.press('Enter')
+      await (await chooser).setFiles(attachmentPath)
+      const remove = editor.getByRole('button', { name: /keyboard-removal.txt/ })
+      await remove.focus()
+      await app.page.keyboard.press(key)
+      await expect(remove).toHaveCount(0)
+      await expect(editor).toBeFocused()
+      await expect(editor).toHaveText(draft)
+      await expect(app.page.getByTestId('chat-message-user')).toHaveCount(1)
+    }
     expect(app.pageErrors).toEqual([])
   } finally {
     releaseResponse()

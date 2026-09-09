@@ -1,23 +1,26 @@
 <template>
   <div class="border rounded-lg overflow-hidden">
-    <div
+    <button
+      type="button"
+      :aria-expanded="showConfigPanel"
+      :aria-controls="knowledgePanelId"
       data-testid="nowledge-mem-panel-toggle"
-      class="flex items-center p-4 hover:bg-accent cursor-default"
+      class="w-full text-left flex items-center p-4 hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring"
       @click="toggleNowledgeMemConfigPanel"
     >
-      <div class="flex-1">
-        <div class="flex items-center">
-          <img src="@/assets/images/nowledge-mem.png" class="h-5 mr-2" />
+      <span class="flex-1">
+        <span class="flex items-center">
+          <img src="@/assets/images/nowledge-mem.png" alt="" class="h-5 mr-2" />
           <span class="text-base font-medium">{{
             $t('settings.knowledgeBase.nowledgeMem.title')
           }}</span>
-        </div>
-        <p class="text-sm text-muted-foreground mt-1">
+        </span>
+        <span class="block text-sm text-muted-foreground mt-1">
           {{ $t('settings.knowledgeBase.nowledgeMem.description') }}
-        </p>
-      </div>
-    </div>
-    <div v-if="showConfigPanel" class="border-t p-4 space-y-4">
+        </span>
+      </span>
+    </button>
+    <div v-if="showConfigPanel" :id="knowledgePanelId" class="border-t p-4 space-y-4">
       <!-- Configuration Section -->
       <div class="space-y-3">
         <div class="text-sm font-medium">
@@ -188,7 +191,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import { useId, computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { createNowledgeMemClient } from '@api/NowledgeMemClient'
 import { DcButton } from '@dc-ui/components/button'
@@ -201,6 +204,7 @@ import type { NowledgeMemConfig } from '@shared/contracts/routes'
 
 const nowledgeMemClient = createNowledgeMemClient()
 const { t } = useI18n()
+const knowledgePanelId = useId()
 
 const loadingConfig = ref(false)
 const loadError = ref<string | null>(null)

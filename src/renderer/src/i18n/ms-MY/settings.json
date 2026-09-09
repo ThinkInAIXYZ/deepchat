@@ -2209,7 +2209,9 @@
         "succeeded": "Ready",
         "cancelled": "Cancelled",
         "failed": "Failed"
-      }
+      },
+      "terminalLabel": "Terminal log masuk",
+      "terminalHint": "Tekan F6 untuk kembali ke kawalan pengesahan."
     },
     "terminal": {
       "title": "Mulakan terminal",

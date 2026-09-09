@@ -1,4 +1,5 @@
 {
+  "skipToContent": "Ir para o conteúdo",
   "notifications": {
     "label": "Notificações",
     "actionFailed": "A ação falhou. Tente novamente.",
@@ -137,7 +138,9 @@
     "addressPlaceholder": "Digite uma URL",
     "enterUrlDescription": "Digite o URL na barra de endereço acima para acessar o site",
     "enterUrlToStart": "Digite o URL para começar a visitar",
-    "name": "Seu navegador"
+    "name": "Seu navegador",
+    "enterContent": "Entrar na página web",
+    "returnFocus": "F6 retorna aos controles do navegador"
   },
   "size": {
     "bytes": "{count} bytes"
@@ -153,5 +156,16 @@
     "none": "Sem projeto",
     "recent": "Projetos recentes",
     "openFolder": "Abrir pasta..."
+  },
+  "diff": {
+    "oldLine": "Linha antiga",
+    "newLine": "Linha nova",
+    "change": "Alteração",
+    "content": "Conteúdo",
+    "add": "Adicionado",
+    "del": "Removido",
+    "context": "Sem alteração",
+    "hunk": "Intervalo alterado",
+    "meta": "Metadados"
   }
 }

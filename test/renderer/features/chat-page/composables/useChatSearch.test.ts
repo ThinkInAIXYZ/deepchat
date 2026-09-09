@@ -65,6 +65,27 @@ describe('useChatSearch', () => {
     vi.clearAllMocks()
   })
 
+  it('restores the original control after repeated find shortcuts and Escape', async () => {
+    const opener = document.createElement('textarea')
+    const input = document.createElement('input')
+    document.body.append(opener, input)
+    opener.focus()
+    const search = createSearch()
+    search.setChatSearchBarRef({ selectInput: () => input.focus() })
+    search.openChatSearch()
+    await nextTick()
+    search.openChatSearch()
+    await nextTick()
+    expect(document.activeElement).toBe(input)
+
+    search.handleSearchKeydown(new KeyboardEvent('keydown', { key: 'Escape' }))
+    await nextTick()
+    expect(document.activeElement).toBe(opener)
+    search.disposeChatSearch()
+    opener.remove()
+    input.remove()
+  })
+
   it('waits for the query to settle before collecting results', async () => {
     vi.useFakeTimers()
     const search = createSearch()

@@ -1,4 +1,5 @@
 {
+  "skipToContent": "Skip to content",
   "notifications": {
     "label": "Notifications",
     "actionFailed": "Action failed. Try again.",
@@ -137,7 +138,9 @@
     "addressPlaceholder": "Enter a URL",
     "enterUrlToStart": "Enter a URL to start browsing",
     "enterUrlDescription": "Type a URL in the address bar above to visit a website",
-    "name": "Yo Browser"
+    "name": "Yo Browser",
+    "enterContent": "Enter webpage",
+    "returnFocus": "F6 returns to browser controls"
   },
   "size": {
     "bytes": "{count} bytes"
@@ -153,5 +156,16 @@
     "none": "No project",
     "recent": "Recent projects",
     "openFolder": "Open folder..."
+  },
+  "diff": {
+    "oldLine": "Old line",
+    "newLine": "New line",
+    "change": "Change",
+    "content": "Content",
+    "add": "Added",
+    "del": "Removed",
+    "context": "Unchanged",
+    "hunk": "Change range",
+    "meta": "Metadata"
   }
 }

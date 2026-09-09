@@ -11,9 +11,9 @@ Related: [GitHub issue #2153](https://github.com/ThinkInAIXYZ/deepchat/issues/21
 
 ## Context
 
-DeepChat currently copies Node, uv, and RTK into the installer via
-`scripts/install-runtime.mjs` and `electron-builder.yml`. Consumers then poke
-`RuntimeHelper` independently and disagree on missing-runtime behavior:
+Before managed toolchains, DeepChat copied Node, uv, and RTK into the installer via
+`scripts/install-runtime.mjs` and `electron-builder.yml`. Consumers queried
+`RuntimeHelper` independently and disagreed on missing-runtime behavior:
 
 | Consumer     | Missing bundled runtime                                                                       |
 | ------------ | --------------------------------------------------------------------------------------------- |
@@ -22,9 +22,8 @@ DeepChat currently copies Node, uv, and RTK into the installer via
 | Skill `auto` | System first, then bundled; throw if both fail.                                               |
 | OCR / CLI    | Fail closed on bundled Node.                                                                  |
 
-`bunRuntimePath` is a leftover alias of `nodeRuntimePath`. Bun was a real bundled
-runtime from v0.2.4 through v0.4.8 and was removed in v0.4.9. It is not installed
-today.
+The removed `bunRuntimePath` field was an alias of `nodeRuntimePath`. Bun was bundled
+from v0.2.4 through v0.4.8 and removed in v0.4.9. It is not installed today.
 
 Issue #2153 asks to stop shipping language runtimes in the app artifact and treat
 them as optional, independently managed installs. This RFC keeps uv as a bundled

@@ -498,7 +498,8 @@ export class SyncService {
         await this.resetShellWindowsToSingleNewChatTab()
       }
       this.publishEvent('sync.import.completed', {
-        version: Date.now()
+        version: Date.now(),
+        mode: importMode
       })
       return {
         success: true,

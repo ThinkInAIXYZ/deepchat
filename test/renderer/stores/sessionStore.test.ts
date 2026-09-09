@@ -9,6 +9,7 @@ const dependencies = vi.hoisted(() => ({
   createConfigClient: vi.fn(),
   createOnboardingClient: vi.fn(),
   createSessionClient: vi.fn(),
+  createSyncClient: vi.fn(),
   createChatClient: vi.fn(),
   usePageRouterStore: vi.fn(),
   useAttachmentPreparationStore: vi.fn(),
@@ -26,6 +27,7 @@ vi.mock('@api/OnboardingClient', () => ({
   createOnboardingClient: dependencies.createOnboardingClient
 }))
 vi.mock('@api/SessionClient', () => ({ createSessionClient: dependencies.createSessionClient }))
+vi.mock('@api/SyncClient', () => ({ createSyncClient: dependencies.createSyncClient }))
 vi.mock('@api/ChatClient', () => ({ createChatClient: dependencies.createChatClient }))
 vi.mock('@api/runtime', async () => ({
   ...(await vi.importActual<typeof import('@api/runtime')>('@api/runtime')),
@@ -100,6 +102,7 @@ const createSession = (overrides: Record<string, unknown> = {}) => ({
 })
 
 const setupStore = async (options: SetupStoreOptions = {}) => {
+  const importListeners: Array<(payload: any) => void> = []
   const sessionListeners: Array<(payload: any) => void> = []
   const sessionStatusListeners: Array<(payload: any) => void> = []
   const sessionCompactionListeners: Array<(payload: any) => void> = []
@@ -359,6 +362,12 @@ const setupStore = async (options: SetupStoreOptions = {}) => {
   dependencies.createConfigClient.mockReturnValue(configClient)
   dependencies.createOnboardingClient.mockReturnValue(onboardingClient)
   dependencies.createSessionClient.mockReturnValue(sessionClient)
+  dependencies.createSyncClient.mockReturnValue({
+    onImportCompleted: (listener: (payload: any) => void) => {
+      importListeners.push(listener)
+      return () => importListeners.splice(importListeners.indexOf(listener), 1)
+    }
+  })
   dependencies.createChatClient.mockReturnValue(chatClient)
   dependencies.usePageRouterStore.mockReturnValue(pageRouter)
   dependencies.useAttachmentPreparationStore.mockReturnValue(attachmentPreparationStore)
@@ -409,6 +418,9 @@ const setupStore = async (options: SetupStoreOptions = {}) => {
     pageRouter,
     attachmentPreparationStore,
     emitSessionUpdate,
+    emitImportCompleted: (mode: 'increment' | 'overwrite') => {
+      for (const handler of importListeners) handler({ version: Date.now(), mode })
+    },
     emitSessionStatusChange,
     emitSessionCompactionChange
   }
@@ -2403,6 +2415,47 @@ describe('sessionStore streaming cleanup', () => {
 })
 
 describe('sessionStore pagination', () => {
+  it.each(['increment', 'overwrite'] as const)(
+    'refreshes imported sessions and rejects pre-import responses (%s)',
+    async (mode) => {
+      const { store, sessionClient, emitSessionUpdate, emitImportCompleted } = await setupStore()
+      sessionClient.listLightweight.mockResolvedValueOnce({
+        items: [createSession({ id: 'local' }), createSession({ id: 'restored' })],
+        hasMore: false,
+        nextCursor: null
+      })
+      await store.fetchSessions()
+      emitSessionUpdate({ reason: 'deleted', sessionIds: ['restored'] })
+      const pending = createDeferred<{
+        items: ReturnType<typeof createSession>[]
+        hasMore: boolean
+        nextCursor: null
+      }>()
+      sessionClient.listLightweight.mockReturnValueOnce(pending.promise)
+      const staleRefresh = store.fetchSessions()
+      await vi.waitFor(() => expect(sessionClient.listLightweight).toHaveBeenCalledTimes(2))
+      sessionClient.listLightweight.mockResolvedValueOnce({
+        items: [createSession({ id: 'restored', title: 'From backup' })],
+        hasMore: false,
+        nextCursor: null
+      })
+      emitImportCompleted(mode)
+      await store.fetchSessions()
+      pending.resolve({
+        items: [createSession({ id: 'stale-response' })],
+        hasMore: false,
+        nextCursor: null
+      })
+      await staleRefresh
+      expect(store.sessions.value.map((session) => session.id).sort()).toEqual(
+        mode === 'overwrite' ? ['restored'] : ['local', 'restored']
+      )
+      expect(store.sessions.value.find((session) => session.id === 'restored')?.title).toBe(
+        'From backup'
+      )
+    }
+  )
+
   it('keeps the newest overlapping session refresh result', async () => {
     const { store, sessionClient } = await setupStore()
     store.sessions.value = [

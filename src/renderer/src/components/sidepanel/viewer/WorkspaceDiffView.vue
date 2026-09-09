@@ -1,6 +1,14 @@
 <template>
   <div class="font-mono text-xs leading-5">
     <table class="w-full border-collapse">
+      <thead class="sr-only">
+        <tr>
+          <th scope="col">{{ t('common.diff.oldLine') }}</th>
+          <th scope="col">{{ t('common.diff.newLine') }}</th>
+          <th scope="col">{{ t('common.diff.change') }}</th>
+          <th scope="col">{{ t('common.diff.content') }}</th>
+        </tr>
+      </thead>
       <tbody>
         <tr v-for="(row, index) in rows" :key="index" :class="rowClass(row.type)" class="align-top">
           <td
@@ -14,7 +22,8 @@
             {{ row.newNum ?? '' }}
           </td>
           <td class="w-[1%] select-none whitespace-pre px-1 text-center">
-            {{ signFor(row.type) }}
+            <span aria-hidden="true">{{ signFor(row.type) }}</span>
+            <span class="sr-only">{{ t(`common.diff.${row.type}`) }}</span>
           </td>
           <td class="whitespace-pre-wrap wrap-break-word break-all pr-3">{{ row.text }}</td>
         </tr>
@@ -25,6 +34,9 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
+
+const { t } = useI18n()
 
 type RowType = 'add' | 'del' | 'context' | 'hunk' | 'meta'
 

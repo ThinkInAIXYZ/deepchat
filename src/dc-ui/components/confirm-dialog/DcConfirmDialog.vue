@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, nextTick, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
 import {
@@ -41,6 +41,21 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
+
+let pendingOpener: HTMLElement | null = null
+watch(
+  () => props.busy,
+  async (busy) => {
+    if (busy) {
+      pendingOpener = document.activeElement as HTMLElement | null
+      return
+    }
+    await nextTick()
+    if (props.open && document.activeElement === document.body && pendingOpener?.isConnected) {
+      pendingOpener.focus({ preventScroll: true })
+    }
+  }
+)
 
 const resolvedConfirmLabel = computed(() => props.confirmLabel ?? t('common.confirm'))
 const resolvedCancelLabel = computed(() => props.cancelLabel ?? t('common.cancel'))

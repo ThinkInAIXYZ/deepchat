@@ -114,7 +114,7 @@ const setup = async (options?: {
     updateProviderApi: vi.fn().mockResolvedValue(undefined),
     updateProviderStatus: vi.fn().mockResolvedValue(undefined),
     addCustomProvider: vi.fn().mockResolvedValue(undefined),
-    updateProvidersOrder: vi.fn(),
+    updateProvidersOrder: vi.fn().mockResolvedValue(undefined),
     defaultProviders: []
   })
 
@@ -219,6 +219,7 @@ const setup = async (options?: {
       },
       template: `
         <div data-testid="generic-detail">
+          <button data-testid="provider-update-key-button" type="button">Update key</button>
           <button data-testid="generic-detail-complete" @click="$emit('provider-configured')">
             complete
           </button>
@@ -392,7 +393,7 @@ const setup = async (options?: {
 
   await waitForGuideTargetSync()
 
-  return { wrapper, router, completeStep, modelStore, route }
+  return { wrapper, router, completeStep, modelStore, route, providerStore }
 }
 
 describe('ModelProviderSettings', () => {
@@ -416,10 +417,47 @@ describe('ModelProviderSettings', () => {
     TEST_TIMEOUT_MS
   )
 
+  it.each(['menu', 'drag'])(
+    'preserves hidden provider positions during a filtered %s move',
+    async (input) => {
+      const providers = ['A', 'B', 'C', 'catalog'].map((id) => ({
+        id,
+        name: id === 'A' || id === 'C' ? `Matching ${id}` : id,
+        apiType: 'openai',
+        apiKey: '',
+        baseUrl: '',
+        enable: id !== 'catalog'
+      }))
+      const { wrapper, providerStore } = await setup({ providers, routeProviderId: 'A' })
+      await wrapper.get('input[placeholder="settings.provider.search"]').setValue('Matching')
+      expect(wrapper.find('[data-provider-id="B"]').exists()).toBe(false)
+
+      if (input === 'menu') {
+        const row = wrapper.get('[data-provider-id="C"]')
+        await row
+          .findAll('button')
+          .find((button) => button.text() === 'settings.environments.actions.moveUp')!
+          .trigger('click')
+      } else {
+        wrapper
+          .getComponent(draggableStub)
+          .vm.$emit('update:modelValue', [providers[2], providers[0]])
+      }
+      await flushPromises()
+      expect(providerStore.updateProvidersOrder).toHaveBeenCalledWith([
+        providers[2],
+        providers[1],
+        providers[0],
+        providers[3]
+      ])
+    },
+    TEST_TIMEOUT_MS
+  )
+
   it('navigates to the selected provider when a provider row is clicked', async () => {
     const { wrapper, router } = await setup()
 
-    await wrapper.get('[data-provider-id="anthropic"]').trigger('click')
+    await wrapper.get('[data-provider-id="anthropic"] button').trigger('click')
 
     expect(router.push).toHaveBeenCalledWith({
       name: 'settings-provider',
@@ -435,7 +473,7 @@ describe('ModelProviderSettings', () => {
       visibleGuideStepId: 'select-provider'
     })
 
-    await wrapper.get('[data-provider-id="anthropic"]').trigger('click')
+    await wrapper.get('[data-provider-id="anthropic"] button').trigger('click')
     await flushPromises()
 
     expect(completeStep).toHaveBeenCalledTimes(1)
@@ -532,6 +570,17 @@ describe('ModelProviderSettings', () => {
 
     expect(route.params.providerId).toBe('anthropic')
     expect(wrapper.find('[data-testid="provider-catalog"]').exists()).toBe(false)
+  })
+
+  it('keeps the API key guide available when the saved key is summarized', async () => {
+    const { wrapper } = await setup({
+      guideCurrentStepId: 'provider-api-key',
+      visibleGuideStepId: 'provider-api-key'
+    })
+    expect(wrapper.get('[data-testid="guided-overlay"]').attributes('data-target-testid')).toBe(
+      'provider-update-key-button'
+    )
+    wrapper.unmount()
   })
 
   it('auto-continues onboarding after the provider is configured', async () => {

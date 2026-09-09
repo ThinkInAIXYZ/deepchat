@@ -2209,7 +2209,9 @@
         "succeeded": "Ready",
         "cancelled": "Cancelled",
         "failed": "Failed"
-      }
+      },
+      "terminalLabel": "Oturum açma terminali",
+      "terminalHint": "Kimlik doğrulama kontrollerine dönmek için F6 tuşuna basın."
     },
     "terminal": {
       "title": "Başlatma Terminali",

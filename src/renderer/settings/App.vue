@@ -5,6 +5,9 @@
       class="w-full h-screen flex flex-col"
       :class="isWinMacOS ? '' : 'bg-background'"
     >
+      <button type="button" class="skip-to-content" @click="settingsContent?.focus()">
+        {{ t('common.skipToContent') }}
+      </button>
       <div
         class="w-full h-9 window-drag-region shrink-0 justify-end flex flex-row relative border border-b-0 border-window-inner-border box-border rounded-t-[10px]"
         :class="[
@@ -27,7 +30,8 @@
         <div
           class="border-x border-b border-window-inner-border rounded-b-[10px] absolute z-10 top-0 left-0 bottom-0 right-0 pointer-events-none"
         ></div>
-        <div
+        <nav
+          :aria-label="t('routes.settings')"
           data-testid="settings-navigation"
           class="w-60 h-full border-r border-border shrink-0 overflow-y-auto bg-muted/10"
         >
@@ -48,6 +52,7 @@
                     pendingRouteName === setting.name ? 'cursor-wait' : ''
                   ]"
                   :aria-busy="pendingRouteName === setting.name"
+                  :aria-current="route.name === setting.name ? 'page' : undefined"
                   @pointerenter="prefetchSetting(setting.name)"
                   @focus="prefetchSetting(setting.name)"
                   @click="handleClick(setting)"
@@ -62,8 +67,15 @@
               </div>
             </div>
           </div>
-        </div>
-        <RouterView />
+        </nav>
+        <main
+          ref="settingsContent"
+          tabindex="-1"
+          :aria-label="title || t('routes.settings')"
+          class="min-w-0 min-h-0 flex-1"
+        >
+          <RouterView />
+        </main>
       </div>
       <ModelCheckDialog
         :open="modelCheckStore.isDialogOpen"
@@ -182,8 +194,22 @@ const toasterTheme = computed(() =>
 // Detect platform to apply proper styling
 const { isMacOS, isWinMacOS } = useDeviceVersion()
 const { t, locale } = useI18n()
+const settingsContent = ref<HTMLElement | null>(null)
 const router = useRouter()
 const route = useRoute()
+watch(
+  () => route.fullPath,
+  async () => {
+    const previous = document.activeElement
+    await nextTick()
+    if (
+      (!previous?.isConnected || previous === document.body) &&
+      document.activeElement === document.body
+    ) {
+      settingsContent.value?.focus()
+    }
+  }
+)
 const removeSettingsRouteGuard = installSettingsRouteLeaveGuard(router, settingsLeaveGuard)
 const title = useTitle()
 const pendingProviderImportPreview = computed(() => providerDeeplinkImportStore.preview)
@@ -591,7 +617,11 @@ const handleClick = async (setting: SettingsNavigationItem) => {
 
   pendingRouteName.value = setting.name
   try {
-    await router.push(setting.path)
+    const failure = await router.push(setting.path)
+    if (!failure) {
+      await nextTick()
+      settingsContent.value?.focus()
+    }
   } catch (error) {
     console.error(`[Settings] Failed to navigate to ${setting.name}:`, error)
   } finally {

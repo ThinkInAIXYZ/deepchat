@@ -1303,6 +1303,16 @@ describe('renderer api clients', () => {
     expect(bridge.on).toHaveBeenCalledWith('settings.commandShell.changed', expect.any(Function))
   })
 
+  it('sends a cloneable history cursor from reactive message state', async () => {
+    const bridge = createBridge()
+    const cursor = reactive({ orderSeq: 101, id: 'message-101' })
+    await createSessionClient(bridge).listMessagesPage('session-1', { cursor, limit: 100 })
+
+    const payload = vi.mocked(bridge.invoke).mock.calls[0][1]
+    expect(() => structuredClone(payload)).not.toThrow()
+    expect(payload).toEqual({ sessionId: 'session-1', cursor: { ...cursor }, limit: 100 })
+  })
+
   it('routes sessions.steerPendingInput through the registry name', async () => {
     const bridge = createBridge()
     const sessionClient = createSessionClient(bridge)
@@ -2674,7 +2684,7 @@ describe('renderer api clients', () => {
 
     await skillClient.getAllSkills()
     await skillClient.setSkillAssignments('writer', ['write-tests'])
-    await skillClient.deleteSkill('write-tests', ['writer'])
+    await skillClient.deleteSkill('write-tests', reactive(['writer']))
 
     expect(bridge.invoke).toHaveBeenNthCalledWith(1, 'skills.listAll', {})
     expect(bridge.invoke).toHaveBeenNthCalledWith(2, 'skills.setAssignments', {
@@ -2685,6 +2695,7 @@ describe('renderer api clients', () => {
       name: 'write-tests',
       acknowledgedAgentIds: ['writer']
     })
+    expect(() => structuredClone(vi.mocked(bridge.invoke).mock.calls[2][1])).not.toThrow()
   })
 
   it('routes skill management catalog calls through shared registry names', async () => {
@@ -2762,7 +2773,13 @@ describe('renderer api clients', () => {
     })
     const result = await skillClient.executeAgentImport({
       source,
-      items: [{ skillName: 'write-tests', strategy: 'overwrite' }]
+      items: [
+        {
+          skillName: 'write-tests',
+          strategy: 'overwrite',
+          acknowledgedAgentIds: reactive(['deepchat'])
+        }
+      ]
     })
 
     expect(sources).toEqual([expect.objectContaining({ id: 'external:codex', skillCount: 1 })])
@@ -2782,8 +2799,15 @@ describe('renderer api clients', () => {
     })
     expect(bridge.invoke).toHaveBeenNthCalledWith(3, 'skills.executeAgentImport', {
       source,
-      items: [{ skillName: 'write-tests', strategy: 'overwrite' }]
+      items: [
+        {
+          skillName: 'write-tests',
+          strategy: 'overwrite',
+          acknowledgedAgentIds: ['deepchat']
+        }
+      ]
     })
+    expect(() => structuredClone(vi.mocked(bridge.invoke).mock.calls[2]?.[1])).not.toThrow()
   })
 
   it('routes MCP Router marketplace calls through the shared registry names', async () => {

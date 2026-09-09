@@ -65,9 +65,12 @@
         </span>
       </div>
       <div class="flex flex-col gap-2 text-balance">
-        <label
-          for="upload"
-          :class="{ 'pointer-events-none opacity-60': uploading || !surfaceReady }"
+        <button
+          type="button"
+          :disabled="uploading || !surfaceReady"
+          :aria-label="t('settings.knowledgeBase.uploadHelper')"
+          class="rounded-lg text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
+          @click="uploadInput?.click()"
         >
           <div
             @dragover.prevent
@@ -94,12 +97,12 @@
               </div>
             </div>
           </div>
-        </label>
-        <Input
-          v-show="false"
+        </button>
+        <input
+          ref="uploadInput"
+          hidden
           multiple
           type="file"
-          id="upload"
           :disabled="uploading || !surfaceReady"
           @change="handleChange"
           :accept="acceptExts.map((ext) => '.' + ext).join(',')"
@@ -147,6 +150,7 @@
         <div class="flex w-full items-center gap-1 relative">
           <Input
             v-model="searchKey"
+            :aria-label="t('settings.knowledgeBase.searchKnowledge')"
             :disabled="loading"
             :placeholder="t('settings.knowledgeBase.searchKnowledgePlaceholder')"
             @update:model-value="searchError = null"
@@ -196,6 +200,7 @@
                         variant="ghost"
                         size="sm"
                         class="absolute right-2 top-1 h-6 w-6 flex items-center justify-center rounded-sm hover:bg-primary/80 hover:text-white transition-colors"
+                        :aria-label="`${t(copyId === item.id ? 'common.copied' : 'common.copy')}: ${item.metadata.from}`"
                         @click="handleCopy(item.metadata.content, item.id)"
                       >
                         <Icon v-if="copyId === item.id" icon="lucide:check" />
@@ -295,6 +300,7 @@ const pendingFileActions = ref(new Set<string>())
 const fileProgressById = reactive(
   new Map<string, { completed: number; error: number; total: number }>()
 )
+const uploadInput = ref<HTMLInputElement | null>(null)
 const surfaceReady = ref(false)
 let uploadFailureSequence = 0
 // 允许的文件扩展名 - 动态加载
