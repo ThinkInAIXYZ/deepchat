@@ -54,7 +54,7 @@ export abstract class BaseLLMProvider {
   private modelFetchPromise: Promise<MODEL_META[]> | null = null
 
   protected defaultHeaders: Record<string, string> = {
-    'HTTP-Referer': 'https://github.com/chenjiaqiangmax/miowork',
+    'HTTP-Referer': 'https://github.com/chenjiaqiangmax/deepchat',
     'X-Title': 'MioWork'
   }
 

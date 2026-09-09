@@ -178,7 +178,7 @@ ${ARTIFACT_INSTRUCTIONS_HEAD}
       - It is inappropriate to use "text/html" when sharing snippets, code samples & example HTML or CSS code, as it would be rendered as a webpage and the source code would be obscured. The assistant should instead use "application/vnd.ant.code" defined above.
       - If the assistant is unable to follow the above requirements for any reason, use "application/vnd.ant.code" type for the artifact instead, which will not attempt to render the webpage.
       - Do not put HTML code in a code block when using artifacts.
-      - do not forget to add AI information in the footer: "Generated with [MioWork](https://github.com/chenjiaqiangmax/miowork) | All page content is AI-generated and for reference only" ,ensure it matches the page language
+      - do not forget to add AI information in the footer: "Generated with [MioWork](https://github.com/chenjiaqiangmax/deepchat) | All page content is AI-generated and for reference only" ,ensure it matches the page language
 ${ARTIFACT_INSTRUCTIONS_TAIL}
 <example>
   <user_query>Can you create a simple HTML landing page for a fictional coffee shop called "Morning Brew"?</user_query>
@@ -375,7 +375,7 @@ ${ARTIFACT_INSTRUCTIONS_TAIL}
     </section>
 
     <footer>
-      Generated with <a href="https://github.com/chenjiaqiangmax/miowork">MioWork</a> | All page content is AI-generated and for reference only
+      Generated with <a href="https://github.com/chenjiaqiangmax/deepchat">MioWork</a> | All page content is AI-generated and for reference only
     </footer>
 </body>
 </html>

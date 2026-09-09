@@ -46,7 +46,7 @@ describe('DeviceService', () => {
     it('should include HTTP-Referer and X-Title headers', () => {
       const headers = DeviceService.getDefaultHeaders()
 
-      expect(headers['HTTP-Referer']).toBe('https://github.com/chenjiaqiangmax/miowork')
+      expect(headers['HTTP-Referer']).toBe('https://github.com/chenjiaqiangmax/deepchat')
       expect(headers['X-Title']).toBe('MioWork')
     })
   })

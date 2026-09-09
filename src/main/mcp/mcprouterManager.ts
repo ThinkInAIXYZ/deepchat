@@ -47,7 +47,7 @@ export class McpRouterManager {
   private getCommonHeaders(): Record<string, string> {
     return {
       'Content-Type': 'application/json',
-      'HTTP-Referer': 'github.com/chenjiaqiangmax/miowork',
+      'HTTP-Referer': 'github.com/chenjiaqiangmax/deepchat',
       'X-Title': 'MioWork'
     }
   }
@@ -112,7 +112,7 @@ export class McpRouterManager {
       customHeaders: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${apiKey}`,
-        'HTTP-Referer': 'github.com/chenjiaqiangmax/miowork',
+        'HTTP-Referer': 'github.com/chenjiaqiangmax/deepchat',
         'X-Title': 'MioWork'
       },
       source: 'mcprouter',

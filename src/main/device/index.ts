@@ -14,7 +14,7 @@ export class DeviceService implements DeviceServicePort {
   static getDefaultHeaders(): Record<string, string> {
     const version = app.getVersion()
     return {
-      'HTTP-Referer': 'https://github.com/chenjiaqiangmax/miowork',
+      'HTTP-Referer': 'https://github.com/chenjiaqiangmax/deepchat',
       'X-Title': 'MioWork',
       'User-Agent': `MioWork/${version}`
     }

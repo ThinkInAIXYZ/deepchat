@@ -88,7 +88,7 @@ editFile('src/renderer/settings/index.html', [
 editFile('src/main/upgrade/index.ts', [
   // 三种盘面形态并存：上游原文 / 历史重放（MioAgent） / 当前目标
   { re: /const GITHUB_OWNER = '(?:ThinkInAIXYZ|chenjiaqiangmax)'/, new: `const GITHUB_OWNER = '${cfg.githubOwner}'`, must: true, okIf: `const GITHUB_OWNER = '${cfg.githubOwner}'` },
-  { re: /const GITHUB_REPO = '(?:deepchat|mioagent|mioclaw)'/, new: `const GITHUB_REPO = '${cfg.githubRepo}'`, must: true, okIf: `const GITHUB_REPO = '${cfg.githubRepo}'` },
+  { re: /const GITHUB_REPO = '(?:deepchat|mioagent|mioclaw|miowork)'/, new: `const GITHUB_REPO = '${cfg.githubRepo}'`, must: true, okIf: `const GITHUB_REPO = '${cfg.githubRepo}'` },
   {
     re: /const OFFICIAL_DOWNLOAD_URL = '(?:https:\/\/deepchatai\.cn\/#\/download|https:\/\/github\.com\/chenjiaqiangmax\/(?:mioagent|mioclaw|miowork)\/releases)'/,
     new: `const OFFICIAL_DOWNLOAD_URL = '${cfg.officialDownloadUrl}'`,
@@ -162,7 +162,7 @@ editFile('electron-builder.yml', [
   },
   { re: /^maintainer: (?:ThinkInAIXYZ|chenjiaqiangmax)$/m, new: `maintainer: ${cfg.maintainer}`, okIf: `maintainer: ${cfg.maintainer}` },
   {
-    re: /publish:\n  provider: github\n  owner: (?:ThinkInAIXYZ|chenjiaqiangmax)\n  repo: (?:deepchat|mioagent|mioclaw)/,
+    re: /publish:\n  provider: github\n  owner: (?:ThinkInAIXYZ|chenjiaqiangmax)\n  repo: (?:deepchat|mioagent|mioclaw|miowork)/,
     new: `publish:\n  provider: github\n  owner: ${cfg.githubOwner}\n  repo: ${cfg.githubRepo}`,
     must: true,
     okIf: `owner: ${cfg.githubOwner}\n  repo: ${cfg.githubRepo}`
@@ -213,7 +213,9 @@ const I18N_VALUE_REPLACES = [
   ['chenjiaqiangmax/PublicProviderConf', 'ThinkInAIXYZ/PublicProviderConf'],
   ['https://deepchatai.cn/#/download', cfg.officialDownloadUrl],
   ['https://deepchatai.cn', repoUrl],
-  ['deepchatai.cn', `github.com/${cfg.githubOwner}/${cfg.githubRepo}`]
+  ['deepchatai.cn', `github.com/${cfg.githubOwner}/${cfg.githubRepo}`],
+  // 历史 repo slug（仓库迁移/改名前的形态）收敛到当前 repo
+  [`github.com/${cfg.githubOwner}/miowork`, `github.com/${cfg.githubOwner}/${cfg.githubRepo}`]
 ]
 
 function walkJsonValues(node, fn) {
@@ -295,7 +297,8 @@ const TEST_DATA_EDITS = [
   { re: /`DeepChat\/\$\{version\}`/g, new: `\`${cfg.productName}/\${version}\`` },
   // 历史重放残留的小写仓库 slug（二轮清扫只认驼峰形态，URL 里的 slug 由这里收敛）
   { old: 'chenjiaqiangmax/mioagent', new: `${cfg.githubOwner}/${cfg.githubRepo}` },
-  { old: 'chenjiaqiangmax/mioclaw', new: `${cfg.githubOwner}/${cfg.githubRepo}` }
+  { old: 'chenjiaqiangmax/mioclaw', new: `${cfg.githubOwner}/${cfg.githubRepo}` },
+  { old: 'chenjiaqiangmax/miowork', new: `${cfg.githubOwner}/${cfg.githubRepo}` }
 ]
 for (const f of [
   'test/main/upgrade/upgradeService.test.ts',

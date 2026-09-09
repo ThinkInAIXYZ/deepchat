@@ -145,4 +145,4 @@ npmRebuild: true
 publish:
   provider: github
   owner: chenjiaqiangmax
-  repo: miowork
+  repo: deepchat

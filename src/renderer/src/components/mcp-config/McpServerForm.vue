@@ -789,7 +789,7 @@ const parseKeyValueHeaders = (text: string): Record<string, string> => {
 
 // 定义 customHeaders 的 placeholder
 const customHeadersPlaceholder = `Authorization=Bearer your_token
-HTTP-Referer=github.com/chenjiaqiangmax/miowork`
+HTTP-Referer=github.com/chenjiaqiangmax/deepchat`
 </script>
 
 <template>

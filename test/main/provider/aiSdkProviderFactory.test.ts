@@ -654,7 +654,7 @@ describe('AI SDK provider factory', () => {
       } as any,
       providerSettings: {} as any,
       defaultHeaders: {
-        'HTTP-Referer': 'https://github.com/chenjiaqiangmax/miowork',
+        'HTTP-Referer': 'https://github.com/chenjiaqiangmax/deepchat',
         'X-Title': 'MioWork'
       },
       modelId: 'gemini-3.1-flash-lite-preview',

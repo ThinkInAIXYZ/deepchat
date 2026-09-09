@@ -7,11 +7,11 @@
     "author": "chenjiaqiangmax",
     "maintainer": "chenjiaqiangmax",
     "githubOwner": "chenjiaqiangmax",
-    "githubRepo": "miowork",
-    "repoUrl": "https://github.com/chenjiaqiangmax/miowork",
-    "httpReferer": "https://github.com/chenjiaqiangmax/miowork",
-    "officialDownloadUrl": "https://github.com/chenjiaqiangmax/miowork/releases",
-    "issuesUrl": "https://github.com/chenjiaqiangmax/miowork/issues",
+    "githubRepo": "deepchat",
+    "repoUrl": "https://github.com/chenjiaqiangmax/deepchat",
+    "httpReferer": "https://github.com/chenjiaqiangmax/deepchat",
+    "officialDownloadUrl": "https://github.com/chenjiaqiangmax/deepchat/releases",
+    "issuesUrl": "https://github.com/chenjiaqiangmax/deepchat/issues",
     "description": "MioWork，一个简单易用的 Agent 客户端"
   },
   "upstream": {
