@@ -127,7 +127,7 @@
     "toolsCount": "{count} ཡོ་བྱད་",
     "availableTools": "སྤྱོད་ཆོག་པའི་ལག་ཆ།",
     "toolList": "ལག་ཆའི་རེའུ་མིག",
-    "functionDescription": "རྟེན་འབྱུང་གྲངས་ཀྱི་འགྲེལ་བཤད།",
+    "functionDescription": "ནུས་པའི་འགྲེལ་བཤད།",
     "invalidJson": "ནུས་པ་མེད་པའི་JSON རྣམ་གཞག་",
     "inputHint": "རྣམ་གཞག་གི་གྲངས་ཀ་JSON འཇུག་རོགས།",
     "required": "དགོས་མཁོ།",
