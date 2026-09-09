@@ -22,6 +22,8 @@ import {
   IMAGE_GENERATION_TOOL_SERVER_NAME
 } from '@shared/agentImageGenerationTool'
 import logger from '@shared/logger'
+import type { CacheImageCallback } from '@/lib/toolCallImagePreviews'
+import { awaitWithAbort } from '@/lib/awaitWithAbort'
 import type { AgentProviderToolPort, AgentToolSessionPort } from '../runtimePorts'
 import type { AgentSettingsPort } from '@/agent/settings'
 
@@ -66,6 +68,17 @@ type ImageGenerationModelSelection = {
   modelId: string
 }
 
+// Inline base64 payloads below this size are allowed to pass through uncached; anything larger
+// that could not be written to the image cache fails the tool call instead of flowing multi-MB
+// strings through message persistence, IPC and the renderer. The limit applies to the encoded
+// base64 character length of the payload (not its decoded byte size).
+const MAX_INLINE_IMAGE_BASE64_CHARS = 2 * 1024 * 1024
+
+const estimateBase64PayloadChars = (dataUrl: string): number => {
+  const commaIndex = dataUrl.indexOf(',')
+  return commaIndex === -1 ? dataUrl.length : dataUrl.length - commaIndex - 1
+}
+
 type AgentImageGenerationToolCallResult = {
   content: string
   rawData: {
@@ -83,6 +96,7 @@ export class AgentImageGenerationTool {
       agentSettings: Pick<AgentSettingsPort, 'resolveDeepChatAgentConfig'>
       sessions: AgentToolSessionPort
       provider: AgentProviderToolPort
+      cacheImage?: CacheImageCallback
     }
   ) {}
 
@@ -157,7 +171,14 @@ export class AgentImageGenerationTool {
         imageOptions,
         { signal: options?.signal }
       )
-      const imagePreviews = result.images.map<ToolCallImagePreview>((image, index) => ({
+      const images = await Promise.all(
+        result.images.map(async (image) => ({
+          mimeType: image.mimeType,
+          data: await this.cacheGeneratedImageData(image.data, image.mimeType, options?.signal)
+        }))
+      )
+      options?.signal?.throwIfAborted()
+      const imagePreviews = images.map<ToolCallImagePreview>((image, index) => ({
         id: `generated-image-${index + 1}`,
         data: image.data,
         mimeType: image.mimeType,
@@ -196,6 +217,58 @@ export class AgentImageGenerationTool {
       const message = error instanceof Error ? error.message : String(error)
       return this.buildErrorResult('IMAGE_GENERATION_FAILED', message, parsed.data, model)
     }
+  }
+
+  private async cacheGeneratedImageData(
+    data: string,
+    mimeType: string,
+    signal?: AbortSignal
+  ): Promise<string> {
+    signal?.throwIfAborted()
+    const trimmed = data.trim()
+    if (trimmed.toLowerCase().startsWith('imgcache://')) {
+      return trimmed
+    }
+
+    const source =
+      /^data:/i.test(trimmed) || /^https?:\/\//i.test(trimmed)
+        ? trimmed
+        : `data:${mimeType || 'image/png'};base64,${trimmed}`
+
+    let resolved = source
+    if (this.options.cacheImage) {
+      try {
+        // Provider-returned HTTP(S) URLs are cached with private-network access disabled and the
+        // tool-call abort signal forwarded, so cancellation cannot leave an unmanaged download
+        // running. `allowPrivateNetwork: false` is passed unconditionally so an omitted signal
+        // cannot re-enable private-network access.
+        resolved = await awaitWithAbort(
+          this.options.cacheImage(source, { signal, allowPrivateNetwork: false }),
+          signal
+        )
+      } catch (error) {
+        if (signal?.aborted) throw error
+        logger.warn('[AgentImageGenerationTool] Failed to cache generated image', { error })
+      }
+    }
+    signal?.throwIfAborted()
+
+    // A provider-returned HTTP(S) URL that could not be written to the cache must not flow through
+    // the tool-result pipeline as an unmanaged remote reference; fail the call instead so the
+    // agent can surface a recoverable error.
+    if (/^https?:\/\//i.test(resolved)) {
+      throw new Error('Generated image URL could not be written to the image cache.')
+    }
+
+    if (
+      /^data:/i.test(resolved) &&
+      estimateBase64PayloadChars(resolved) > MAX_INLINE_IMAGE_BASE64_CHARS
+    ) {
+      throw new Error(
+        'Generated image could not be written to the image cache and is too large to return inline.'
+      )
+    }
+    return resolved
   }
 
   private async resolveImageGenerationModel(

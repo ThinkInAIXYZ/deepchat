@@ -1,6 +1,7 @@
 import type { PluginContextPort } from '@shared/types/userPlugin'
 import { projectPluginContext } from './pluginContext'
 import type { ProviderModelResolutionPort } from '@/provider/settings'
+import type { CacheImageOptions } from '@/platform/imageCache'
 import logger from '@shared/logger'
 import type {
   AssistantMessageBlock,
@@ -453,7 +454,7 @@ export interface DeepChatLoopRunnerPorts {
   memoryIngestionObserver: MemoryIngestionObserver
   toolExecutionPort: ToolExecutionPort
   toolResultPort: ToolResultPort
-  cacheImage(data: string): Promise<string>
+  cacheImage(data: string, options?: CacheImageOptions): Promise<string>
   registry: SessionScopeRegistry
   sessionSettings: Pick<SessionSettingsCoordinator, 'getEffectiveGenerationSettings'>
   promptAssembly: Pick<PromptAssemblyService, 'createBasePromptAssembler'>
