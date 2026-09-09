@@ -1338,6 +1338,7 @@ function createRuntime() {
       })
     ),
     attachSessionBrowser: vi.fn().mockResolvedValue(true),
+    focusSessionBrowser: vi.fn().mockReturnValue(true),
     updateSessionBrowserBounds: vi.fn().mockResolvedValue(undefined),
     detachSessionBrowser: vi.fn().mockResolvedValue(undefined),
     setPreviewMode: vi.fn().mockResolvedValue({ updated: true, surface: 'renderer-canvas' }),
@@ -6238,6 +6239,25 @@ describe('dispatchDeepchatRoute', () => {
     expect(destroyResult).toEqual({ destroyed: true })
     expect(yoBrowserPresenter.clearSandboxData).toHaveBeenCalledTimes(1)
     expect(clearSandboxResult).toEqual({ cleared: true })
+  })
+
+  it('restricts browser keyboard entry to the caller window and active session', async () => {
+    const { runtime, desktopSessionBinding, yoBrowserPresenter } = createRuntime()
+    desktopSessionBinding.getActiveId.mockReturnValue('session-1')
+    const focus = (sessionId: string, windowId: number | null = 3) =>
+      dispatchDeepchatRoute(
+        runtime,
+        'browser.focusContent',
+        { sessionId },
+        createRendererRouteContext(88, windowId)
+      )
+
+    expect(await focus('session-1')).toEqual({ focused: true })
+    expect(yoBrowserPresenter.focusSessionBrowser).toHaveBeenCalledWith('session-1', 3)
+    expect(desktopSessionBinding.getActiveId).toHaveBeenCalledWith(88)
+    expect(await focus('other-session')).toEqual({ focused: false })
+    expect(await focus('session-1', null)).toEqual({ focused: false })
+    expect(yoBrowserPresenter.focusSessionBrowser).toHaveBeenCalledTimes(1)
   })
 
   it('scopes Computer Use preview routes to the active sender session', async () => {

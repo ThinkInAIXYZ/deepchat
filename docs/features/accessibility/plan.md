@@ -5,11 +5,11 @@ The behavior contract is in [spec.md](spec.md). The dedicated exploration agent 
 - [x] Entry, shell navigation, session selection, accessible controls, and focus.
 - [x] Conversation input/output, history, streaming, search, attachments, model options, message actions, and approval/recovery flows.
 - [x] Onboarding, settings, provider/agent/model forms, plugin/MCP/skill installation and configuration, including external-Agent import and activity navigation.
-- [ ] Projects, workspace files, artifacts, terminal, browser and auxiliary windows: native browser and cross-window focus acceptance requires an unlocked macOS desktop.
+- [ ] Projects, workspace files, artifacts, terminal, browser and auxiliary windows: plugin settings close/return recovery remains under repair.
 - [x] Review shared semantics, focus ownership, localization, lifecycle, rendering and IPC boundaries.
 - [x] Retain behavior-focused regression protection; keep exploratory fixtures and probes outside the repository.
 - [x] Run format, i18n, lint, typecheck, relevant renderer/main suites, production build and Electron smoke tests.
-- [ ] Accept, commit and push native focus changes after desktop unlock; other accepted phases are committed and pushed.
+- [ ] Accept plugin settings close/return recovery and post-import session refresh; commit and push each accepted phase.
 - [ ] Open a PR against `dev` with behavior, validation, coverage boundaries, and BEFORE/AFTER ASCII.
 
 ## Ownership and implementation
@@ -40,7 +40,7 @@ MCP tools/prompts/resources identify server actions, parameters, validation and 
 
 Workspace sections and recursive file trees expose native disclosure and selection controls. Opening a file focuses its viewer; Back returns to the file. The panel separator supports arrows/Home/End. Image preview and context menus work from the keyboard; Artifact message cards use native buttons and HTML/React frames have titles. Diff tables identify old/new lines and added/removed content in words. Calendar dates expose exact usage values.
 
-The browser toolbar has an Enter webpage action and F6 return instruction. Its typed main-process route only focuses a visible browser attached to the requesting renderer's active session and focused native host window. F6 returns from browser content to host controls. Native keyboard acceptance remains pending because the macOS UI controller reports the desktop locked. Guard rejection under that condition is not a passing native journey.
+The browser toolbar has an Enter webpage action and F6 return instruction. Its typed main-process route only focuses a visible browser attached to the requesting renderer's active session and focused native host window. F6 returns from browser content to host controls. Independent native acceptance uses CUA keyboard events and read-only Electron focus snapshots: Enter webpage transfers to the child WebContents, its button and text input work, and F6 restores the host entry. Floating session activation and setup navigation also transfer native foreground focus correctly.
 
 ## Interaction layouts
 
@@ -67,4 +67,4 @@ The explorer's matrix records completed operations, shared-component evidence an
 
 The complete renderer suite passes 2450 tests across 274 files. The final external-Agent import/API suites pass 51 tests, including cloneability of nested reactive overwrite acknowledgements. Shared dialog/context-menu checks pass. Independent acceptance confirms Source Agent and conflict group names, announced import totals, persisted overwrite results, and activity navigation through Tab plus Enter/Space with focus on the destination main region. Relevant main browser/dispatcher/contracts suites pass 164 tests, with 32 device/composition checks. Both Electron keyboard-navigation and streaming smoke tests pass; streaming verification removes real attachments with Enter and Space without adding a message or losing the draft. Format, i18n, lint, both TypeScript checks and the production build pass.
 
-Native browser entry/F6, native cross-window foreground transfer and plugin-window focus still require macOS unlock. Human VoiceOver/NVDA speech, OS-owned dialog speech, external service authorization and third-party content remain explicit verification boundaries, not accepted first-party workflows.
+Plugin settings entry and content interaction work, but closing the window must recover its opener and obey the configured close shortcut. Data overwrite persists correctly but must refresh already-open session lists; both findings remain under repair. Human VoiceOver/NVDA speech, OS-owned dialog speech, external service authorization and third-party content remain explicit verification boundaries, not accepted first-party workflows.
