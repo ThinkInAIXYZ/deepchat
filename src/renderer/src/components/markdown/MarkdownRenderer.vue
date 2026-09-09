@@ -17,7 +17,7 @@
       :themes="codeBlockThemes"
       :code-block-options="codeBlockOptions"
       :mermaid-props="mermaidProps"
-      :fade="false"
+      :fade="segment.fade"
       :batch-rendering="true"
       :initial-render-batch-size="segment.initialBatch"
       :render-batch-size="segment.batchSize"
@@ -207,6 +207,10 @@ const resolvedSmoothStreaming = computed(() => {
   return 'auto' as const
 })
 const resolvedTypewriter = computed(() => (isStreaming.value ? ('simple' as const) : false))
+// Fade (per-node opacity reveal) only applies to content that is still growing:
+// freshly streamed nodes fade in, while historical thread messages (final) and
+// the committed prefix never fade even if something triggers a re-render.
+const resolvedFade = computed(() => isStreaming.value)
 const STREAM_INITIAL_RENDER_BATCH_SIZE = 10
 const STREAM_RENDER_BATCH_SIZE = 14
 const STREAM_RENDER_BATCH_DELAY_MS = 8
@@ -381,6 +385,7 @@ type RenderSegment = {
   codeBlockStream: boolean
   smoothStreaming: boolean | 'auto'
   typewriter: boolean | 'simple'
+  fade: boolean
   nodeVirtual: boolean | 'auto'
   maxLiveNodes: number
   liveNodeBuffer: number
@@ -403,6 +408,7 @@ const renderSegments = computed<RenderSegment[]>(() => {
         codeBlockStream: isStreaming.value,
         smoothStreaming: resolvedSmoothStreaming.value,
         typewriter: resolvedTypewriter.value,
+        fade: resolvedFade.value,
         nodeVirtual: resolvedNodeVirtual.value,
         maxLiveNodes: maxLiveNodes.value,
         liveNodeBuffer: liveNodeBuffer.value,
@@ -424,6 +430,7 @@ const renderSegments = computed<RenderSegment[]>(() => {
       codeBlockStream: false,
       smoothStreaming: false,
       typewriter: false,
+      fade: false,
       nodeVirtual: canVirtualizeNodes.value ? 'auto' : false,
       // Incremental batching only takes effect when virtual live-node limiting is
       // off (markstream-vue gates batching on `maxLiveNodes <= 0`), so the prefix
@@ -445,6 +452,7 @@ const renderSegments = computed<RenderSegment[]>(() => {
       codeBlockStream: true,
       smoothStreaming: resolvedSmoothStreaming.value,
       typewriter: resolvedTypewriter.value,
+      fade: true,
       nodeVirtual: false,
       maxLiveNodes: 0,
       liveNodeBuffer: 0,
