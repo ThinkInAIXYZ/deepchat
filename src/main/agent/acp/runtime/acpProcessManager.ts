@@ -29,6 +29,7 @@ import {
   mergeCommandEnvironment,
   setPathEntriesOnEnv
 } from '@/agent/shared/process/shellEnvHelper'
+import { childProcessRegistry } from '@/agent/shared/process/childProcessRegistry'
 import { RuntimeHelper } from '@/lib/runtimeHelper'
 import { ToolchainService } from '@/toolchains'
 import {
@@ -271,6 +272,7 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
   private readonly reservedAuthHandles = new Map<AcpProcessHandle, string>()
   private readonly initializingChildren = new Set<ChildProcessWithoutNullStreams>()
   private readonly terminatedChildren = new WeakSet<ChildProcessWithoutNullStreams>()
+  private readonly launchRecordIds = new WeakMap<ChildProcessWithoutNullStreams, string>()
   private readonly disposedHandles = new WeakSet<AcpProcessHandle>()
   private readonly shutdownController = new AbortController()
   private shuttingDown = false
@@ -284,6 +286,9 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
     this.getNpmRegistry = options.getNpmRegistry
     this.getUvRegistry = options.getUvRegistry
     this.terminalAuthAvailable = options.terminalAuthAvailable === true
+    void childProcessRegistry.reapStaleOnce('acp-agent')?.catch((error) => {
+      console.warn('[ACP] Failed to reap stale agent processes:', error)
+    })
   }
 
   getTerminalSnapshot(terminalId: string): schema.TerminalOutputResponse | null {
@@ -1258,6 +1263,7 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
         action: 'process.exit',
         payload: { pid: child.pid, code, signal, workdir }
       })
+      this.clearLaunchRecord(child)
       if (readyHandle) {
         this.removeHandleReferences(readyHandle)
         this.clearSessionsForAgent(agent.id)
@@ -1850,6 +1856,18 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
 
     console.info(`[ACP] Process spawned successfully for agent ${agent.id}, PID: ${child.pid}`)
 
+    if (typeof child.pid === 'number') {
+      const recordId = `${agent.id}:${child.pid}`
+      this.launchRecordIds.set(child, recordId)
+      childProcessRegistry.record({
+        subsystem: 'acp-agent',
+        recordId,
+        pid: child.pid,
+        commandLine: [launch.command, ...launch.args],
+        cwd: launch.cwd
+      })
+    }
+
     return child
   }
 
@@ -2365,6 +2383,13 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
     }
   }
 
+  private clearLaunchRecord(child: ChildProcessWithoutNullStreams): void {
+    const recordId = this.launchRecordIds.get(child)
+    if (!recordId) return
+    this.launchRecordIds.delete(child)
+    childProcessRegistry.clear('acp-agent', recordId)
+  }
+
   private killChild(child: ChildProcessWithoutNullStreams, reason?: string): void {
     if (this.terminatedChildren.has(child)) return
     this.terminatedChildren.add(child)
@@ -2400,6 +2425,8 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
         )
       }
     }
+
+    this.clearLaunchRecord(child)
   }
 
   private async acquireAgentLock(agentId: string): Promise<() => void> {

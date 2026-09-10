@@ -1,6 +1,7 @@
 import { EventEmitter } from 'events'
 import * as fs from 'fs'
 import path from 'path'
+import { PassThrough } from 'node:stream'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import spawn from 'cross-spawn'
 import * as shellEnvHelper from '@/agent/shared/process/shellEnvHelper'
@@ -12,6 +13,12 @@ import { ToolchainService } from '@/toolchains'
 
 const publishDeepchatEventMock = vi.hoisted(() => vi.fn())
 
+const childProcessRegistryMock = vi.hoisted(() => ({
+  record: vi.fn(),
+  clear: vi.fn(),
+  reapStaleOnce: vi.fn().mockResolvedValue(null)
+}))
+
 vi.mock('electron', () => ({
   app: {
     getVersion: vi.fn(() => '0.0.0-test'),
@@ -21,6 +28,10 @@ vi.mock('electron', () => ({
 
 vi.mock('cross-spawn', () => ({
   default: vi.fn()
+}))
+
+vi.mock('@/agent/shared/process/childProcessRegistry', () => ({
+  childProcessRegistry: childProcessRegistryMock
 }))
 
 vi.mock('@/agent/shared/process/shellEnvHelper', async (importOriginal) => {
@@ -1079,5 +1090,103 @@ describe('AcpProcessManager config cache fallback', () => {
     ;(manager as any).clearSessionsForAgent('agent-1')
 
     expect(onExit).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('AcpProcessManager child process launch records', () => {
+  class MockStreamingChild extends EventEmitter {
+    stdout = new PassThrough()
+    stderr = new PassThrough()
+    stdin = new PassThrough()
+    pid = 1234
+    killed = false
+    exitCode = null
+    signalCode = null
+    kill = vi.fn(() => true)
+  }
+
+  const createManager = () =>
+    new AcpProcessManager({
+      publishEvent: publishDeepchatEventMock,
+      providerId: 'acp',
+      resolveLaunchSpec: vi.fn()
+    })
+
+  const agent = { id: 'agent-1', name: 'Agent One', command: 'agent' }
+  const launch = {
+    command: 'agent',
+    args: ['--acp'],
+    env: {},
+    cwd: '/tmp/workspace'
+  }
+
+  beforeEach(() => {
+    childProcessRegistryMock.record.mockClear()
+    childProcessRegistryMock.clear.mockClear()
+    childProcessRegistryMock.reapStaleOnce.mockClear()
+    vi.mocked(spawn).mockClear()
+  })
+
+  it('reaps stale agent process records on construction', () => {
+    createManager()
+
+    expect(childProcessRegistryMock.reapStaleOnce).toHaveBeenCalledWith('acp-agent')
+  })
+
+  it('records the launch after spawning an agent process', () => {
+    const manager = createManager()
+    const child = new MockSpawnedChild()
+    vi.mocked(spawn).mockReturnValue(child as never)
+
+    ;(manager as any).spawnAgentProcess(agent, launch)
+
+    expect(childProcessRegistryMock.record).toHaveBeenCalledWith({
+      subsystem: 'acp-agent',
+      recordId: 'agent-1:1234',
+      pid: 1234,
+      commandLine: ['agent', '--acp'],
+      cwd: '/tmp/workspace'
+    })
+  })
+
+  it('clears the launch record when the child is killed', () => {
+    const manager = createManager()
+    const child = new MockSpawnedChild()
+    vi.mocked(spawn).mockReturnValue(child as never)
+
+    const spawned = (manager as any).spawnAgentProcess(agent, launch)
+    Object.defineProperty(spawned, 'pid', { value: undefined })
+    ;(manager as any).killChild(spawned)
+
+    expect(childProcessRegistryMock.clear).toHaveBeenCalledWith('acp-agent', 'agent-1:1234')
+  })
+
+  it('clears the launch record when the agent process exits', async () => {
+    const manager = createManager()
+    const child = new MockStreamingChild()
+    vi.mocked(spawn).mockReturnValue(child as never)
+
+    const spawned = (manager as any).spawnAgentProcess(agent, launch)
+    const initPromise = (manager as any).initializeSpawnedProcess(
+      spawned,
+      agent,
+      '/tmp/workspace',
+      {
+        agentId: 'agent-1',
+        source: 'manual',
+        distributionType: 'manual',
+        command: 'agent',
+        args: [],
+        env: {}
+      },
+      'signature',
+      launch
+    )
+    const rejection = expect(initPromise).rejects.toThrow('exited during initialization')
+
+    spawned.emit('exit', 1, null)
+    await rejection
+
+    expect(childProcessRegistryMock.clear).toHaveBeenCalledWith('acp-agent', 'agent-1:1234')
   })
 })

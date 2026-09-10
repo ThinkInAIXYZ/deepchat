@@ -3,6 +3,8 @@ import {
   type BackgroundExecRpcRequest,
   type BackgroundExecRpcResponse
 } from './backgroundExecSessionManager'
+import { childProcessRegistry } from './childProcessRegistry'
+import logger from './backgroundExecLogger'
 
 const EXEC_UTILITY_HOST_ARG = '--deepchat-exec-utility-host'
 
@@ -105,6 +107,9 @@ export function runBackgroundExecUtilityHostIfRequested(): boolean {
   }
 
   const manager = new BackgroundExecSessionManager()
+  void childProcessRegistry.reapStaleOnce('background-exec').catch((error) => {
+    logger.warn('[BackgroundExec] Failed to reap stale child processes:', error)
+  })
   const keepAliveIntervalId = setInterval(() => {}, 2 ** 31 - 1)
   parentPort.start?.()
 

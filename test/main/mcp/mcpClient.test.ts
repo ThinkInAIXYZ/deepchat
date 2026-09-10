@@ -15,6 +15,15 @@ import {
 
 const fsExistsSyncMock = vi.hoisted(() => vi.fn())
 const terminateProcessTreeMock = vi.hoisted(() => vi.fn().mockResolvedValue(true))
+const childProcessRegistryMock = vi.hoisted(() => ({
+  record: vi.fn(),
+  clear: vi.fn(),
+  reapStaleOnce: vi.fn().mockResolvedValue(null)
+}))
+
+vi.mock('@/agent/shared/process/childProcessRegistry', () => ({
+  childProcessRegistry: childProcessRegistryMock
+}))
 
 // Mock electron modules
 vi.mock('electron', () => ({
@@ -704,6 +713,54 @@ describe('McpClient Runtime Command Processing Tests', () => {
         cleanupError
       )
       consoleErrorSpy.mockRestore()
+    })
+  })
+
+  describe('Child process registry', () => {
+    it('records the stdio launch after a successful connect', async () => {
+      const pid = 321
+      vi.mocked(StdioClientTransport).mockImplementationOnce(function (this: any) {
+        this.stderr = {
+          on: vi.fn()
+        }
+        this.close = vi.fn().mockResolvedValue(undefined)
+        this.pid = pid
+      } as any)
+      const client = createMcpClient('registry-test', {
+        type: 'stdio',
+        command: 'node',
+        args: ['server.js']
+      })
+
+      await client.connect()
+
+      expect(childProcessRegistryMock.record).toHaveBeenCalledWith({
+        subsystem: 'mcp-stdio',
+        recordId: 'registry-test',
+        pid,
+        commandLine: ['node', 'server.js']
+      })
+    })
+
+    it('clears the record when the stdio server disconnects', async () => {
+      const pid = 654
+      vi.mocked(StdioClientTransport).mockImplementationOnce(function (this: any) {
+        this.stderr = {
+          on: vi.fn()
+        }
+        this.close = vi.fn().mockResolvedValue(undefined)
+        this.pid = pid
+      } as any)
+      const client = createMcpClient('registry-test', {
+        type: 'stdio',
+        command: 'node',
+        args: ['server.js']
+      })
+
+      await client.connect()
+      await client.disconnect()
+
+      expect(childProcessRegistryMock.clear).toHaveBeenCalledWith('mcp-stdio', 'registry-test')
     })
   })
 

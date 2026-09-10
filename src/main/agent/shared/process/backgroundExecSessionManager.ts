@@ -14,6 +14,7 @@ import {
 } from './shellOutputEncoding'
 import { describeSpawnFailure, resolveUsableSpawnCwd } from './spawnGuard'
 import { terminateProcessTree } from './processTree'
+import { childProcessRegistry } from './childProcessRegistry'
 import { resolveSessionDir } from '@/agent/shared/storage/sessionPaths'
 import {
   assertSkillExecutionPackageTreeIntact,
@@ -357,6 +358,16 @@ export class BackgroundExecSessionManager {
       this.sessions.set(conversationId, new Map())
     }
     this.sessions.get(conversationId)!.set(sessionId, session)
+
+    if (typeof child.pid === 'number') {
+      childProcessRegistry.record({
+        subsystem: 'background-exec',
+        recordId: sessionId,
+        pid: child.pid,
+        commandLine: [executable, ...args],
+        cwd: spawnCwd
+      })
+    }
 
     logger.info(`[BackgroundExec] Started session ${sessionId} for conversation ${conversationId}`)
 
@@ -1013,6 +1024,7 @@ export class BackgroundExecSessionManager {
       clearTimeout(session.closeWatchdogId)
       session.closeWatchdogId = undefined
     }
+    childProcessRegistry.clear('background-exec', session.sessionId)
     try {
       session.flushOutputDecoders?.()
       await session.outputWriteQueue.catch((error) => {

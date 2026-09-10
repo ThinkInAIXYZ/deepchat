@@ -40,6 +40,7 @@ import { RuntimeHelper } from '@/lib/runtimeHelper'
 import { ToolchainService } from '@/toolchains'
 import { getPathEntriesFromEnv, setPathEntriesOnEnv } from '@/agent/shared/process/shellEnvHelper'
 import { terminateProcessTreeByPid } from '@/agent/shared/process/processTree'
+import { childProcessRegistry } from '@/agent/shared/process/childProcessRegistry'
 import { awaitWithAbort } from '@/lib/awaitWithAbort'
 import type { McpOAuthManager } from './mcpOAuthManager'
 import type { ChatMessage } from '@shared/types/core/chat-message'
@@ -256,6 +257,7 @@ export class McpClient {
   private isConnected: boolean = false
   private connectionTimeout: NodeJS.Timeout | null = null
   private stdioPidForShutdown?: number
+  private stdioCommandLine?: string[]
   private connectPromise: Promise<void> | null = null
   private startupAttempt = 0
   private lifecycleStatus: McpServerLifecycleStatus = 'stopped'
@@ -641,6 +643,7 @@ export class McpClient {
             ? resolveBinding(this.serverConfig.cwd)
             : undefined
         const pluginRoot = this.serverConfig.source === 'plugin' ? env.PLUGIN_ROOT : undefined
+        this.stdioCommandLine = [command, ...args]
         this.transport = new StdioClientTransport({
           command,
           args,
@@ -788,6 +791,16 @@ export class McpClient {
       }
       console.info(`MCP server ${this.serverName} connected successfully`)
 
+      const stdioPid = this.getStdioPid()
+      if (stdioPid && this.stdioCommandLine) {
+        childProcessRegistry.record({
+          subsystem: 'mcp-stdio',
+          recordId: this.serverName,
+          pid: stdioPid,
+          commandLine: this.stdioCommandLine
+        })
+      }
+
       this.emitServerStatusChanged('connected', { phase, attempt })
     } catch (error) {
       // 清除超时
@@ -869,6 +882,7 @@ export class McpClient {
     // 重置状态
     this.client = null
     this.isConnected = false
+    this.stdioCommandLine = undefined
 
     if (options.emitStopped) {
       this.emitServerStatusChanged('stopped', { reason: 'shutdown' })
@@ -891,6 +905,7 @@ export class McpClient {
     try {
       await terminateProcessTreeByPid(pid, { graceMs: 2000 })
       console.warn(`[MCP] Force terminated stdio process tree for ${this.serverName}: ${reason}`)
+      childProcessRegistry.clear('mcp-stdio', this.serverName)
       return true
     } catch (error) {
       console.warn(
@@ -913,6 +928,7 @@ export class McpClient {
         } catch (error) {
           console.error(`Failed to terminate MCP stdio process tree for ${this.serverName}:`, error)
         }
+        childProcessRegistry.clear('mcp-stdio', this.serverName)
       }
       if (this.stdioPidForShutdown === pid) {
         this.stdioPidForShutdown = undefined

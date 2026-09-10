@@ -8,12 +8,18 @@ const {
   mockUtilityProcessFork,
   mockAssertPackageTree,
   mockCleanupPackageTree,
-  mockTerminateProcessTree
+  mockTerminateProcessTree,
+  registryMock
 } = vi.hoisted(() => ({
   mockUtilityProcessFork: vi.fn(),
   mockAssertPackageTree: vi.fn(),
   mockCleanupPackageTree: vi.fn(),
-  mockTerminateProcessTree: vi.fn()
+  mockTerminateProcessTree: vi.fn(),
+  registryMock: {
+    record: vi.fn(),
+    clear: vi.fn(),
+    reapStaleOnce: vi.fn().mockResolvedValue(null)
+  }
 }))
 
 vi.mock('child_process', () => ({
@@ -51,6 +57,10 @@ vi.mock('@/skill/skillExecutionPackageTree', () => ({
 
 vi.mock('@/agent/shared/process/processTree', () => ({
   terminateProcessTree: mockTerminateProcessTree
+}))
+
+vi.mock('@/agent/shared/process/childProcessRegistry', () => ({
+  childProcessRegistry: registryMock
 }))
 
 import {
@@ -126,6 +136,8 @@ describe('BackgroundExecSessionManager', () => {
     mockAssertPackageTree.mockResolvedValue(undefined)
     mockCleanupPackageTree.mockResolvedValue(undefined)
     mockTerminateProcessTree.mockResolvedValue(true)
+    registryMock.record.mockReset()
+    registryMock.clear.mockReset()
     vi.spyOn(fs, 'existsSync').mockReturnValue(true)
     vi.spyOn(fs, 'statSync').mockImplementation((candidate) =>
       String(candidate).includes('workspace') ? mockStats('directory') : mockStats('file')
@@ -330,6 +342,42 @@ describe('BackgroundExecSessionManager', () => {
       exitCode: 0,
       timedOut: false
     })
+  })
+
+  it('records the launch in the child process registry when a session starts', async () => {
+    const child = new MockChildProcess()
+    vi.mocked(spawn).mockReturnValue(child as never)
+
+    const started = await manager.start('conv-1', 'echo test', '/workspace', {
+      commandShell: PLATFORM_COMMAND_SHELL,
+      timeout: 0
+    })
+
+    expect(registryMock.record).toHaveBeenCalledWith({
+      subsystem: 'background-exec',
+      recordId: started.sessionId,
+      pid: child.pid,
+      commandLine: expect.arrayContaining([PLATFORM_COMMAND_SHELL.executable]),
+      cwd: expect.stringMatching(/[\\/]workspace$/)
+    })
+  })
+
+  it('clears the registry record when the session process closes', async () => {
+    const child = new MockChildProcess()
+    vi.mocked(spawn).mockReturnValue(child as never)
+
+    const started = await manager.start('conv-1', 'echo test', '/workspace', {
+      commandShell: PLATFORM_COMMAND_SHELL,
+      timeout: 0
+    })
+
+    child.stdout.emit('end')
+    child.stderr.emit('end')
+    child.emit('close', 0, null)
+
+    await vi.waitFor(() =>
+      expect(registryMock.clear).toHaveBeenCalledWith('background-exec', started.sessionId)
+    )
   })
 
   it('bounds completion when an exited process never closes inherited stdio', async () => {
