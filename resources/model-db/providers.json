@@ -132984,7 +132984,7 @@
           "open_weights": false,
           "release_date": "2026-09-08",
           "last_updated": "2026-09-08",
-          "type": "chat"
+          "type": "imageGeneration"
         },
         {
           "id": "openai/gpt-4.1-nano-fast",
@@ -133372,7 +133372,7 @@
           "open_weights": false,
           "release_date": "2026-09-08",
           "last_updated": "2026-09-08",
-          "type": "chat"
+          "type": "imageGeneration"
         },
         {
           "id": "openai/gpt-5.6-terra",
@@ -137166,6 +137166,7 @@
           },
           "attachment": false,
           "open_weights": true,
+          "knowledge": "2023-12",
           "release_date": "2024-07-23",
           "last_updated": "2024-07-23",
           "type": "chat"
@@ -140402,6 +140403,33 @@
           "open_weights": true,
           "release_date": "2026-02-20",
           "last_updated": "2026-06-11",
+          "type": "chat"
+        },
+        {
+          "id": "mercury-2-5",
+          "name": "Mercury 2.5",
+          "display_name": "Mercury 2.5",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 260000,
+            "output": 65536
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "attachment": false,
+          "open_weights": false,
+          "release_date": "2026-09-08",
+          "last_updated": "2026-09-09",
           "type": "chat"
         },
         {
@@ -170304,7 +170332,7 @@
           },
           "limit": {
             "context": 262144,
-            "output": 235929
+            "output": 16384
           },
           "temperature": true,
           "tool_call": true,
@@ -171265,7 +171293,7 @@
           },
           "limit": {
             "context": 1000000,
-            "output": 262144
+            "output": 131072
           },
           "temperature": true,
           "tool_call": true,
@@ -176691,7 +176719,7 @@
           },
           "limit": {
             "context": 1048576,
-            "output": 384000
+            "output": 943718
           },
           "temperature": true,
           "tool_call": true,
@@ -178181,8 +178209,8 @@
         },
         {
           "id": "meta-llama/llama-3.1-70b-instruct",
-          "name": "Meta: Llama 3.1 70B Instruct",
-          "display_name": "Meta: Llama 3.1 70B Instruct",
+          "name": "Llama-3.1-70B-Instruct",
+          "display_name": "Llama-3.1-70B-Instruct",
           "modalities": {
             "input": [
               "text"
@@ -178201,7 +178229,8 @@
             "supported": false
           },
           "attachment": false,
-          "open_weights": false,
+          "open_weights": true,
+          "knowledge": "2023-12",
           "release_date": "2024-07-23",
           "last_updated": "2024-07-23",
           "type": "chat"
@@ -180879,7 +180908,7 @@
           },
           "limit": {
             "context": 262144,
-            "output": 100352
+            "output": 235929
           },
           "temperature": true,
           "tool_call": true,
@@ -181549,8 +181578,8 @@
             ]
           },
           "limit": {
-            "context": 204800,
-            "output": 131072
+            "context": 198000,
+            "output": 16384
           },
           "temperature": true,
           "tool_call": true,
@@ -186878,6 +186907,64 @@
           "type": "chat"
         },
         {
+          "id": "eu.amazon.nova-pro-v1:0",
+          "name": "Nova Pro (EU)",
+          "display_name": "Nova Pro (EU)",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "video"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 300000,
+            "output": 8192
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": false
+          },
+          "attachment": true,
+          "open_weights": false,
+          "knowledge": "2024-10",
+          "release_date": "2024-12-03",
+          "last_updated": "2024-12-03",
+          "type": "chat"
+        },
+        {
+          "id": "us.writer.palmyra-x4-v1:0",
+          "name": "Palmyra X4 (US)",
+          "display_name": "Palmyra X4 (US)",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 122880,
+            "output": 8192
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "attachment": false,
+          "open_weights": false,
+          "release_date": "2025-04-28",
+          "last_updated": "2025-04-28",
+          "type": "chat"
+        },
+        {
           "id": "us.anthropic.claude-opus-4-6-v1",
           "name": "Claude Opus 4.6 (US)",
           "display_name": "Claude Opus 4.6 (US)",
@@ -186964,6 +187051,34 @@
           "knowledge": "2026-02-01",
           "release_date": "2026-08-12",
           "last_updated": "2026-08-18",
+          "type": "chat"
+        },
+        {
+          "id": "eu.mistral.pixtral-large-2502-v1:0",
+          "name": "Pixtral Large (25.02) (EU)",
+          "display_name": "Pixtral Large (25.02) (EU)",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 128000,
+            "output": 8192
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": false
+          },
+          "attachment": true,
+          "open_weights": false,
+          "release_date": "2025-04-08",
+          "last_updated": "2025-04-08",
           "type": "chat"
         },
         {
@@ -187456,6 +187571,34 @@
           "type": "chat"
         },
         {
+          "id": "us.amazon.nova-micro-v1:0",
+          "name": "Nova Micro (US)",
+          "display_name": "Nova Micro (US)",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 128000,
+            "output": 8192
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": false
+          },
+          "attachment": false,
+          "open_weights": false,
+          "knowledge": "2024-10",
+          "release_date": "2024-12-03",
+          "last_updated": "2024-12-03",
+          "type": "chat"
+        },
+        {
           "id": "jp.anthropic.claude-opus-4-7",
           "name": "Claude Opus 4.7 (JP)",
           "display_name": "Claude Opus 4.7 (JP)",
@@ -187541,6 +187684,34 @@
           "knowledge": "2026-01-31",
           "release_date": "2026-06-30",
           "last_updated": "2026-06-30",
+          "type": "chat"
+        },
+        {
+          "id": "apac.amazon.nova-micro-v1:0",
+          "name": "Nova Micro (APAC)",
+          "display_name": "Nova Micro (APAC)",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 128000,
+            "output": 8192
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": false
+          },
+          "attachment": false,
+          "open_weights": false,
+          "knowledge": "2024-10",
+          "release_date": "2024-12-03",
+          "last_updated": "2024-12-03",
           "type": "chat"
         },
         {
@@ -187766,6 +187937,67 @@
           "type": "chat"
         },
         {
+          "id": "us.openai.gpt-5.6-sol",
+          "name": "GPT-5.6 Sol (US)",
+          "display_name": "GPT-5.6 Sol (US)",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "pdf"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1050000,
+            "output": 128000
+          },
+          "temperature": false,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "attachment": true,
+          "open_weights": false,
+          "knowledge": "2026-02-16",
+          "release_date": "2026-07-09",
+          "last_updated": "2026-07-09",
+          "type": "chat"
+        },
+        {
+          "id": "eu.amazon.nova-lite-v1:0",
+          "name": "Nova Lite (EU)",
+          "display_name": "Nova Lite (EU)",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "video"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 300000,
+            "output": 8192
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": false
+          },
+          "attachment": true,
+          "open_weights": false,
+          "knowledge": "2024-10",
+          "release_date": "2024-12-03",
+          "last_updated": "2024-12-03",
+          "type": "chat"
+        },
+        {
           "id": "anthropic.claude-opus-5",
           "name": "Claude Opus 5",
           "display_name": "Claude Opus 5",
@@ -187856,6 +188088,36 @@
           "type": "chat"
         },
         {
+          "id": "apac.amazon.nova-pro-v1:0",
+          "name": "Nova Pro (APAC)",
+          "display_name": "Nova Pro (APAC)",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "video"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 300000,
+            "output": 8192
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": false
+          },
+          "attachment": true,
+          "open_weights": false,
+          "knowledge": "2024-10",
+          "release_date": "2024-12-03",
+          "last_updated": "2024-12-03",
+          "type": "chat"
+        },
+        {
           "id": "anthropic.claude-sonnet-4-6",
           "name": "Claude Sonnet 4.6",
           "display_name": "Claude Sonnet 4.6",
@@ -187912,6 +188174,36 @@
           "knowledge": "2025-08-31",
           "release_date": "2026-02-17",
           "last_updated": "2026-03-13",
+          "type": "chat"
+        },
+        {
+          "id": "apac.amazon.nova-lite-v1:0",
+          "name": "Nova Lite (APAC)",
+          "display_name": "Nova Lite (APAC)",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "video"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 300000,
+            "output": 8192
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": false
+          },
+          "attachment": true,
+          "open_weights": false,
+          "knowledge": "2024-10",
+          "release_date": "2024-12-03",
+          "last_updated": "2024-12-03",
           "type": "chat"
         },
         {
@@ -188204,6 +188496,34 @@
           "type": "chat"
         },
         {
+          "id": "us.writer.palmyra-x5-v1:0",
+          "name": "Palmyra X5 (US)",
+          "display_name": "Palmyra X5 (US)",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1040000,
+            "output": 8192
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "attachment": false,
+          "open_weights": false,
+          "release_date": "2025-04-28",
+          "last_updated": "2025-04-28",
+          "type": "chat"
+        },
+        {
           "id": "us.meta.llama4-maverick-17b-instruct-v1:0",
           "name": "Llama 4 Maverick 17B Instruct (US)",
           "display_name": "Llama 4 Maverick 17B Instruct (US)",
@@ -188377,6 +188697,36 @@
           "type": "chat"
         },
         {
+          "id": "us.amazon.nova-pro-v1:0",
+          "name": "Nova Pro (US)",
+          "display_name": "Nova Pro (US)",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "video"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 300000,
+            "output": 8192
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": false
+          },
+          "attachment": true,
+          "open_weights": false,
+          "knowledge": "2024-10",
+          "release_date": "2024-12-03",
+          "last_updated": "2024-12-03",
+          "type": "chat"
+        },
+        {
           "id": "google.gemma-3-12b-it",
           "name": "Google Gemma 3 12B",
           "display_name": "Google Gemma 3 12B",
@@ -188512,6 +188862,37 @@
           "knowledge": "2025-02-28",
           "release_date": "2025-10-15",
           "last_updated": "2025-10-15",
+          "type": "chat"
+        },
+        {
+          "id": "eu.amazon.nova-2-lite-v1:0",
+          "name": "Nova 2 Lite (EU)",
+          "display_name": "Nova 2 Lite (EU)",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "video",
+              "pdf"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1000000,
+            "output": 64000
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "attachment": true,
+          "open_weights": false,
+          "release_date": "2025-12-01",
+          "last_updated": "2025-12-01",
           "type": "chat"
         },
         {
@@ -188654,6 +189035,65 @@
           "open_weights": true,
           "release_date": "2025-10-29",
           "last_updated": "2025-10-29",
+          "type": "chat"
+        },
+        {
+          "id": "global.amazon.nova-2-lite-v1:0",
+          "name": "Nova 2 Lite (Global)",
+          "display_name": "Nova 2 Lite (Global)",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "video",
+              "pdf"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1000000,
+            "output": 64000
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "attachment": true,
+          "open_weights": false,
+          "release_date": "2025-12-01",
+          "last_updated": "2025-12-01",
+          "type": "chat"
+        },
+        {
+          "id": "eu.amazon.nova-micro-v1:0",
+          "name": "Nova Micro (EU)",
+          "display_name": "Nova Micro (EU)",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 128000,
+            "output": 8192
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": false
+          },
+          "attachment": false,
+          "open_weights": false,
+          "knowledge": "2024-10",
+          "release_date": "2024-12-03",
+          "last_updated": "2024-12-03",
           "type": "chat"
         },
         {
@@ -189005,6 +189445,124 @@
           "knowledge": "2026-01",
           "release_date": "2026-05-28",
           "last_updated": "2026-05-28",
+          "type": "chat"
+        },
+        {
+          "id": "us.amazon.nova-2-lite-v1:0",
+          "name": "Nova 2 Lite (US)",
+          "display_name": "Nova 2 Lite (US)",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "video",
+              "pdf"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1000000,
+            "output": 64000
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "attachment": true,
+          "open_weights": false,
+          "release_date": "2025-12-01",
+          "last_updated": "2025-12-01",
+          "type": "chat"
+        },
+        {
+          "id": "us.openai.gpt-5.6-terra",
+          "name": "GPT-5.6 Terra (US)",
+          "display_name": "GPT-5.6 Terra (US)",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "pdf"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1050000,
+            "output": 128000
+          },
+          "temperature": false,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "attachment": true,
+          "open_weights": false,
+          "knowledge": "2026-02-16",
+          "release_date": "2026-07-09",
+          "last_updated": "2026-07-09",
+          "type": "chat"
+        },
+        {
+          "id": "us.meta.llama3-3-70b-instruct-v1:0",
+          "name": "Llama 3.3 70B Instruct (US)",
+          "display_name": "Llama 3.3 70B Instruct (US)",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 128000,
+            "output": 4096
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": false
+          },
+          "attachment": false,
+          "open_weights": true,
+          "knowledge": "2023-12",
+          "release_date": "2024-12-06",
+          "last_updated": "2024-12-06",
+          "type": "chat"
+        },
+        {
+          "id": "us.meta.llama3-1-70b-instruct-v1:0",
+          "name": "Llama 3.1 70B Instruct (US)",
+          "display_name": "Llama 3.1 70B Instruct (US)",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 128000,
+            "output": 4096
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": false
+          },
+          "attachment": false,
+          "open_weights": true,
+          "knowledge": "2023-12",
+          "release_date": "2024-07-23",
+          "last_updated": "2024-07-23",
           "type": "chat"
         },
         {
@@ -189443,6 +190001,37 @@
           "type": "chat"
         },
         {
+          "id": "us.openai.gpt-5.6-luna",
+          "name": "GPT-5.6 Luna (US)",
+          "display_name": "GPT-5.6 Luna (US)",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "pdf"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1050000,
+            "output": 128000
+          },
+          "temperature": false,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "attachment": true,
+          "open_weights": false,
+          "knowledge": "2026-02-16",
+          "release_date": "2026-07-09",
+          "last_updated": "2026-07-09",
+          "type": "chat"
+        },
+        {
           "id": "moonshot.kimi-k2-thinking",
           "name": "Kimi K2 Thinking",
           "display_name": "Kimi K2 Thinking",
@@ -189818,6 +190407,37 @@
           "type": "chat"
         },
         {
+          "id": "jp.amazon.nova-2-lite-v1:0",
+          "name": "Nova 2 Lite (JP)",
+          "display_name": "Nova 2 Lite (JP)",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "video",
+              "pdf"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1000000,
+            "output": 64000
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "attachment": true,
+          "open_weights": false,
+          "release_date": "2025-12-01",
+          "last_updated": "2025-12-01",
+          "type": "chat"
+        },
+        {
           "id": "google.gemma-3-27b-it",
           "name": "Google Gemma 3 27B Instruct",
           "display_name": "Google Gemma 3 27B Instruct",
@@ -189872,6 +190492,34 @@
           "knowledge": "2024-10",
           "release_date": "2024-12-03",
           "last_updated": "2024-12-03",
+          "type": "chat"
+        },
+        {
+          "id": "us.mistral.pixtral-large-2502-v1:0",
+          "name": "Pixtral Large (25.02) (US)",
+          "display_name": "Pixtral Large (25.02) (US)",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 128000,
+            "output": 8192
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": false
+          },
+          "attachment": true,
+          "open_weights": false,
+          "release_date": "2025-04-08",
+          "last_updated": "2025-04-08",
           "type": "chat"
         },
         {
@@ -190346,6 +190994,36 @@
           "knowledge": "2025-07-31",
           "release_date": "2025-09-29",
           "last_updated": "2025-09-29",
+          "type": "chat"
+        },
+        {
+          "id": "us.amazon.nova-lite-v1:0",
+          "name": "Nova Lite (US)",
+          "display_name": "Nova Lite (US)",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "video"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 300000,
+            "output": 8192
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": false
+          },
+          "attachment": true,
+          "open_weights": false,
+          "knowledge": "2024-10",
+          "release_date": "2024-12-03",
+          "last_updated": "2024-12-03",
           "type": "chat"
         },
         {
@@ -190941,6 +191619,36 @@
           "type": "chat"
         },
         {
+          "id": "ca.amazon.nova-lite-v1:0",
+          "name": "Nova Lite (CA)",
+          "display_name": "Nova Lite (CA)",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "video"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 300000,
+            "output": 8192
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": false
+          },
+          "attachment": true,
+          "open_weights": false,
+          "knowledge": "2024-10",
+          "release_date": "2024-12-03",
+          "last_updated": "2024-12-03",
+          "type": "chat"
+        },
+        {
           "id": "us.anthropic.claude-opus-4-5-20251101-v1:0",
           "name": "Claude Opus 4.5 (US)",
           "display_name": "Claude Opus 4.5 (US)",
@@ -190996,6 +191704,63 @@
           "knowledge": "2025-03-31",
           "release_date": "2025-11-24",
           "last_updated": "2025-08-01",
+          "type": "chat"
+        },
+        {
+          "id": "au.anthropic.claude-opus-4-7",
+          "name": "Claude Opus 4.7 (AU)",
+          "display_name": "Claude Opus 4.7 (AU)",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "pdf"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1000000,
+            "output": 128000
+          },
+          "temperature": false,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": false
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": false,
+              "mode": "effort",
+              "effort": "high",
+              "effort_options": [
+                "low",
+                "medium",
+                "high",
+                "xhigh",
+                "max"
+              ],
+              "interleaved": true,
+              "summaries": true,
+              "visibility": "omitted",
+              "continuation": [
+                "thinking_blocks"
+              ],
+              "notes": [
+                "Claude Opus 4.7 and newer Opus models require thinking.type = \"adaptive\" to enable thinking explicitly.",
+                "Manual budget_tokens requests return 400 on Claude Opus 4.7 and newer adaptive-only Opus models.",
+                "task_budget is separate from thinking control and should not be treated as a thinking budget."
+              ]
+            }
+          },
+          "attachment": true,
+          "open_weights": false,
+          "knowledge": "2026-01-31",
+          "release_date": "2026-04-16",
+          "last_updated": "2026-04-16",
           "type": "chat"
         },
         {
@@ -191620,6 +192385,34 @@
           "knowledge": "2026-01-31",
           "release_date": "2026-06-30",
           "last_updated": "2026-06-30",
+          "type": "chat"
+        },
+        {
+          "id": "us.meta.llama3-1-8b-instruct-v1:0",
+          "name": "Llama 3.1 8B Instruct (US)",
+          "display_name": "Llama 3.1 8B Instruct (US)",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 128000,
+            "output": 4096
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": false
+          },
+          "attachment": false,
+          "open_weights": true,
+          "knowledge": "2023-12",
+          "release_date": "2024-07-23",
+          "last_updated": "2024-07-23",
           "type": "chat"
         },
         {
@@ -195143,6 +195936,34 @@
           "open_weights": false,
           "release_date": "2026-04-08",
           "last_updated": "2026-07-09",
+          "type": "chat"
+        },
+        {
+          "id": "meta/llama-3.1-70b-instruct",
+          "name": "Llama 3.1 70B",
+          "display_name": "Llama 3.1 70B",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 128000,
+            "output": 2048
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": false
+          },
+          "attachment": false,
+          "open_weights": true,
+          "knowledge": "2023-12",
+          "release_date": "2024-07-23",
+          "last_updated": "2024-07-23",
           "type": "chat"
         },
         {
@@ -252625,6 +253446,93 @@
           "type": "chat"
         },
         {
+          "id": "amazon/mistral.pixtral-large-2502-v1:0",
+          "name": "Pixtral Large (25.02) (Amazon Bedrock)",
+          "display_name": "Pixtral Large (25.02) (Amazon Bedrock)",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 128000,
+            "output": 8192
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": false
+          },
+          "attachment": false,
+          "open_weights": false,
+          "release_date": "2025-04-08",
+          "last_updated": "2025-04-08",
+          "type": "chat"
+        },
+        {
+          "id": "amazon/amazon.nova-lite-v1:0",
+          "name": "Nova Lite",
+          "display_name": "Nova Lite",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "pdf"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 300000,
+            "output": 8192
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": false
+          },
+          "attachment": true,
+          "open_weights": false,
+          "knowledge": "2024-10",
+          "release_date": "2024-12-03",
+          "last_updated": "2024-12-03",
+          "type": "chat"
+        },
+        {
+          "id": "amazon/amazon.nova-pro-v1:0",
+          "name": "Nova Pro",
+          "display_name": "Nova Pro",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "pdf"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 300000,
+            "output": 8192
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": false
+          },
+          "attachment": true,
+          "open_weights": false,
+          "knowledge": "2024-10",
+          "release_date": "2024-12-03",
+          "last_updated": "2024-12-03",
+          "type": "chat"
+        },
+        {
           "id": "amazon/moonshot.kimi-k2-thinking",
           "name": "Kimi K2 Thinking (Amazon Bedrock)",
           "display_name": "Kimi K2 Thinking (Amazon Bedrock)",
@@ -252651,6 +253559,34 @@
           "knowledge": "2024-08",
           "release_date": "2025-11-06",
           "last_updated": "2025-11-06",
+          "type": "chat"
+        },
+        {
+          "id": "amazon/amazon.nova-micro-v1:0",
+          "name": "Nova Micro",
+          "display_name": "Nova Micro",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 128000,
+            "output": 8192
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": false
+          },
+          "attachment": false,
+          "open_weights": false,
+          "knowledge": "2024-10",
+          "release_date": "2024-12-03",
+          "last_updated": "2024-12-03",
           "type": "chat"
         },
         {
@@ -273639,7 +274575,7 @@
             "default": true
           },
           "attachment": false,
-          "last_updated": "2026-09-05T11:12:52Z",
+          "last_updated": "2026-09-09T06:47:09Z",
           "type": "chat"
         },
         {
@@ -273664,7 +274600,7 @@
             "default": true
           },
           "attachment": false,
-          "last_updated": "2026-09-05T11:12:52Z",
+          "last_updated": "2026-09-09T06:47:09Z",
           "type": "chat"
         },
         {
@@ -273689,7 +274625,7 @@
             "default": true
           },
           "attachment": false,
-          "last_updated": "2026-09-05T11:12:52Z",
+          "last_updated": "2026-09-09T06:47:09Z",
           "type": "chat"
         },
         {
@@ -273714,7 +274650,7 @@
             "default": true
           },
           "attachment": false,
-          "last_updated": "2026-09-05T11:12:52Z",
+          "last_updated": "2026-09-09T06:47:09Z",
           "type": "chat"
         },
         {
@@ -273738,7 +274674,7 @@
             "supported": false
           },
           "attachment": false,
-          "last_updated": "2026-09-05T11:12:52Z",
+          "last_updated": "2026-09-09T06:47:09Z",
           "type": "chat"
         },
         {
@@ -273762,7 +274698,7 @@
             "supported": false
           },
           "attachment": false,
-          "last_updated": "2026-09-05T11:12:52Z",
+          "last_updated": "2026-09-09T06:47:09Z",
           "type": "chat"
         },
         {
@@ -273786,7 +274722,7 @@
             "supported": false
           },
           "attachment": false,
-          "last_updated": "2026-09-05T11:12:52Z",
+          "last_updated": "2026-09-09T06:47:09Z",
           "type": "chat"
         },
         {
@@ -273811,7 +274747,7 @@
             "supported": false
           },
           "attachment": true,
-          "last_updated": "2026-09-05T11:12:52Z",
+          "last_updated": "2026-09-09T06:47:09Z",
           "type": "chat"
         },
         {
@@ -273836,7 +274772,7 @@
             "supported": false
           },
           "attachment": true,
-          "last_updated": "2026-09-05T11:12:52Z",
+          "last_updated": "2026-09-09T06:47:09Z",
           "type": "embedding"
         },
         {
@@ -273861,7 +274797,7 @@
             "supported": false
           },
           "attachment": true,
-          "last_updated": "2026-09-05T11:12:52Z",
+          "last_updated": "2026-09-09T06:47:09Z",
           "type": "embedding"
         },
         {
@@ -273887,7 +274823,7 @@
             "default": true
           },
           "attachment": true,
-          "last_updated": "2026-09-05T11:12:52Z",
+          "last_updated": "2026-09-09T06:47:09Z",
           "type": "chat"
         },
         {
@@ -273913,7 +274849,7 @@
             "default": true
           },
           "attachment": true,
-          "last_updated": "2026-09-05T11:12:52Z",
+          "last_updated": "2026-09-09T06:47:09Z",
           "type": "chat"
         },
         {
@@ -273939,7 +274875,7 @@
             "default": true
           },
           "attachment": true,
-          "last_updated": "2026-09-05T11:12:52Z",
+          "last_updated": "2026-09-09T06:47:09Z",
           "type": "chat"
         },
         {
@@ -273965,7 +274901,7 @@
             "default": true
           },
           "attachment": true,
-          "last_updated": "2026-09-05T11:12:52Z",
+          "last_updated": "2026-09-09T06:47:09Z",
           "type": "chat"
         },
         {
@@ -273991,7 +274927,7 @@
             "default": true
           },
           "attachment": true,
-          "last_updated": "2026-09-05T11:12:52Z",
+          "last_updated": "2026-09-09T06:47:09Z",
           "type": "chat"
         },
         {
@@ -274017,7 +274953,7 @@
             "default": true
           },
           "attachment": true,
-          "last_updated": "2026-09-05T11:12:52Z",
+          "last_updated": "2026-09-09T06:47:09Z",
           "type": "chat"
         },
         {
@@ -274043,7 +274979,7 @@
             "default": true
           },
           "attachment": true,
-          "last_updated": "2026-09-05T11:12:52Z",
+          "last_updated": "2026-09-09T06:47:09Z",
           "type": "chat"
         },
         {
@@ -274069,7 +275005,7 @@
             "default": true
           },
           "attachment": true,
-          "last_updated": "2026-09-05T11:12:52Z",
+          "last_updated": "2026-09-09T06:47:09Z",
           "type": "chat"
         },
         {
@@ -274095,7 +275031,7 @@
             "default": true
           },
           "attachment": true,
-          "last_updated": "2026-09-05T11:12:52Z",
+          "last_updated": "2026-09-09T06:47:09Z",
           "type": "chat"
         },
         {
@@ -274121,7 +275057,7 @@
             "default": true
           },
           "attachment": true,
-          "last_updated": "2026-09-05T11:12:52Z",
+          "last_updated": "2026-09-09T06:47:09Z",
           "type": "chat"
         },
         {
@@ -274147,7 +275083,7 @@
             "default": true
           },
           "attachment": true,
-          "last_updated": "2026-09-05T11:12:52Z",
+          "last_updated": "2026-09-09T06:47:09Z",
           "type": "chat"
         },
         {
@@ -274173,7 +275109,7 @@
             "default": true
           },
           "attachment": true,
-          "last_updated": "2026-09-05T11:12:52Z",
+          "last_updated": "2026-09-09T06:47:09Z",
           "type": "chat"
         },
         {
@@ -274199,7 +275135,7 @@
             "default": true
           },
           "attachment": true,
-          "last_updated": "2026-09-05T11:12:52Z",
+          "last_updated": "2026-09-09T06:47:09Z",
           "type": "chat"
         },
         {
@@ -274225,7 +275161,7 @@
             "default": true
           },
           "attachment": true,
-          "last_updated": "2026-09-05T11:12:52Z",
+          "last_updated": "2026-09-09T06:47:09Z",
           "type": "chat"
         },
         {
@@ -274249,7 +275185,7 @@
             "supported": false
           },
           "attachment": false,
-          "last_updated": "2026-09-05T11:12:52Z",
+          "last_updated": "2026-09-09T06:47:09Z",
           "type": "chat"
         },
         {
@@ -274275,7 +275211,7 @@
             "default": true
           },
           "attachment": true,
-          "last_updated": "2026-09-05T11:12:52Z",
+          "last_updated": "2026-09-09T06:47:09Z",
           "type": "chat"
         },
         {
@@ -274301,7 +275237,7 @@
             "default": true
           },
           "attachment": true,
-          "last_updated": "2026-09-05T11:12:52Z",
+          "last_updated": "2026-09-09T06:47:09Z",
           "type": "chat"
         },
         {
@@ -274327,7 +275263,7 @@
             "default": true
           },
           "attachment": true,
-          "last_updated": "2026-09-05T11:12:52Z",
+          "last_updated": "2026-09-09T06:47:09Z",
           "type": "chat"
         },
         {
@@ -274351,7 +275287,7 @@
             "supported": false
           },
           "attachment": false,
-          "last_updated": "2026-09-05T11:12:52Z",
+          "last_updated": "2026-09-09T06:47:09Z",
           "type": "chat"
         },
         {
@@ -274371,7 +275307,7 @@
             "supported": false
           },
           "attachment": false,
-          "last_updated": "2026-09-05T11:12:52Z"
+          "last_updated": "2026-09-09T06:47:09Z"
         },
         {
           "id": "doubao-seedance-1-0-pro-fast-251015",
@@ -274390,7 +275326,7 @@
             "supported": false
           },
           "attachment": false,
-          "last_updated": "2026-09-05T11:12:52Z"
+          "last_updated": "2026-09-09T06:47:09Z"
         },
         {
           "id": "doubao-seedance-1-5-pro-251215",
@@ -274409,7 +275345,7 @@
             "supported": false
           },
           "attachment": false,
-          "last_updated": "2026-09-05T11:12:52Z"
+          "last_updated": "2026-09-09T06:47:09Z"
         },
         {
           "id": "doubao-seedance-2-0-260128",
@@ -274429,7 +275365,7 @@
             "supported": false
           },
           "attachment": true,
-          "last_updated": "2026-09-05T11:12:52Z"
+          "last_updated": "2026-09-09T06:47:09Z"
         },
         {
           "id": "doubao-seedance-2-0-fast-260128",
@@ -274449,7 +275385,7 @@
             "supported": false
           },
           "attachment": true,
-          "last_updated": "2026-09-05T11:12:52Z"
+          "last_updated": "2026-09-09T06:47:09Z"
         },
         {
           "id": "doubao-seedance-2-0-mini-260615",
@@ -274469,7 +275405,7 @@
             "supported": false
           },
           "attachment": true,
-          "last_updated": "2026-09-05T11:12:52Z"
+          "last_updated": "2026-09-09T06:47:09Z"
         },
         {
           "id": "doubao-seedance-2-5-260628",
@@ -274489,7 +275425,7 @@
             "supported": false
           },
           "attachment": true,
-          "last_updated": "2026-09-05T11:12:52Z"
+          "last_updated": "2026-09-09T06:47:09Z"
         },
         {
           "id": "doubao-seedream-4-0-250828",
@@ -274509,7 +275445,7 @@
             "supported": false
           },
           "attachment": true,
-          "last_updated": "2026-09-05T11:12:52Z",
+          "last_updated": "2026-09-09T06:47:09Z",
           "type": "imageGeneration"
         },
         {
@@ -274530,7 +275466,7 @@
             "supported": false
           },
           "attachment": true,
-          "last_updated": "2026-09-05T11:12:52Z",
+          "last_updated": "2026-09-09T06:47:09Z",
           "type": "imageGeneration"
         },
         {
@@ -274551,7 +275487,7 @@
             "supported": false
           },
           "attachment": true,
-          "last_updated": "2026-09-05T11:12:52Z",
+          "last_updated": "2026-09-09T06:47:09Z",
           "type": "imageGeneration"
         },
         {
@@ -274572,7 +275508,7 @@
             "supported": false
           },
           "attachment": true,
-          "last_updated": "2026-09-05T11:12:52Z",
+          "last_updated": "2026-09-09T06:47:09Z",
           "type": "imageGeneration"
         },
         {
@@ -274597,7 +275533,7 @@
             "default": true
           },
           "attachment": false,
-          "last_updated": "2026-09-05T11:12:52Z",
+          "last_updated": "2026-09-09T06:47:09Z",
           "type": "chat"
         },
         {
@@ -274622,7 +275558,7 @@
             "default": true
           },
           "attachment": false,
-          "last_updated": "2026-09-05T11:12:52Z",
+          "last_updated": "2026-09-09T06:47:09Z",
           "type": "chat"
         }
       ]
@@ -283493,6 +284429,46 @@
             }
           },
           "type": "chat"
+        },
+        {
+          "id": "gpt-image-2.5-flare",
+          "name": "gpt-image-2.5-flare",
+          "display_name": "gpt-image-2.5-flare",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ]
+          },
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "type": "imageGeneration"
+        },
+        {
+          "id": "gpt-image-2.5-sunburst",
+          "name": "gpt-image-2.5-sunburst",
+          "display_name": "gpt-image-2.5-sunburst",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ]
+          },
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "type": "imageGeneration"
         },
         {
           "id": "mercury-2.5-preview",
@@ -299646,6 +300622,34 @@
           "type": "chat"
         },
         {
+          "id": "qwen2.5-coder-1.5b-instruct",
+          "name": "qwen2.5-coder-1.5b-instruct",
+          "display_name": "qwen2.5-coder-1.5b-instruct",
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "type": "chat"
+        },
+        {
+          "id": "qwen2.5-coder-7b-instruct",
+          "name": "qwen2.5-coder-7b-instruct",
+          "display_name": "qwen2.5-coder-7b-instruct",
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "type": "chat"
+        },
+        {
           "id": "qwen2.5-math-1.5b-instruct",
           "name": "qwen2.5-math-1.5b-instruct",
           "display_name": "qwen2.5-math-1.5b-instruct",
@@ -301624,34 +302628,6 @@
           "id": "qwen2.5-7b-instruct",
           "name": "qwen2.5-7b-instruct",
           "display_name": "qwen2.5-7b-instruct",
-          "limit": {
-            "context": 8192,
-            "output": 8192
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "type": "chat"
-        },
-        {
-          "id": "qwen2.5-coder-1.5b-instruct",
-          "name": "qwen2.5-coder-1.5b-instruct",
-          "display_name": "qwen2.5-coder-1.5b-instruct",
-          "limit": {
-            "context": 8192,
-            "output": 8192
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "type": "chat"
-        },
-        {
-          "id": "qwen2.5-coder-7b-instruct",
-          "name": "qwen2.5-coder-7b-instruct",
-          "display_name": "qwen2.5-coder-7b-instruct",
           "limit": {
             "context": 8192,
             "output": 8192
@@ -311690,8 +312666,8 @@
             ]
           },
           "limit": {
-            "context": 128000,
-            "output": 32000
+            "context": 262144,
+            "output": 235929
           },
           "tool_call": true,
           "reasoning": {
@@ -325272,6 +326248,58 @@
           "type": "imageGeneration"
         },
         {
+          "id": "openai/gpt-image-2.5-flare",
+          "name": "OpenAI: GPT-Image-2.5-Flare",
+          "display_name": "OpenAI: GPT-Image-2.5-Flare",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "image"
+            ]
+          },
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "attachment": false,
+          "open_weights": false,
+          "release_date": "2026-09-08",
+          "last_updated": "2026-09-08",
+          "type": "imageGeneration"
+        },
+        {
+          "id": "openai/gpt-image-2.5-sunburst",
+          "name": "OpenAI: GPT-Image-2.5-Sunburst",
+          "display_name": "OpenAI: GPT-Image-2.5-Sunburst",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "image"
+            ]
+          },
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "attachment": false,
+          "open_weights": false,
+          "release_date": "2026-09-08",
+          "last_updated": "2026-09-08",
+          "type": "imageGeneration"
+        },
+        {
           "id": "openai/o4-mini",
           "name": "OpenAI: o4 Mini",
           "display_name": "OpenAI: o4 Mini",
@@ -325375,8 +326403,7 @@
           "modalities": {
             "input": [
               "text",
-              "image",
-              "audio"
+              "image"
             ],
             "output": [
               "video"
@@ -325400,7 +326427,6 @@
             "input": [
               "text",
               "image",
-              "audio",
               "video"
             ],
             "output": [
