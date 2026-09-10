@@ -90,9 +90,10 @@ export const useModelStore = defineStore('model', () => {
   )
 
   const MODEL_TOGGLE_PERF_LOG_PREFIX = '[ModelTogglePerf]'
-  const getPerfNow = () => (typeof performance !== 'undefined' ? performance.now() : Date.now())
+  const getPerfNow = () =>
+    import.meta.env.DEV ? (typeof performance !== 'undefined' ? performance.now() : Date.now()) : 0
   const logModelTogglePerf = (phase: string, details: Record<string, unknown>) => {
-    if (!uiSettingsStore.traceDebugEnabled) {
+    if (!import.meta.env.DEV || !uiSettingsStore.traceDebugEnabled) {
       return
     }
 
