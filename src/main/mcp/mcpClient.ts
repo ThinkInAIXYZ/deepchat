@@ -1,7 +1,10 @@
 import { resolveMcpEnvironmentBinding } from './environmentBindings'
 import type { ProviderSettingsPort } from '@/provider/settings'
 import logger from '@shared/logger'
-import { StdioClientTransport } from '@modelcontextprotocol/client/stdio'
+import {
+  StdioClientTransport,
+  type StdioServerParameters
+} from '@modelcontextprotocol/client/stdio'
 import {
   Client,
   InMemoryTransport,
@@ -249,6 +252,38 @@ const withUnsupportedCapabilityFallback = async <T>(
   }
 }
 
+// Records the spawned server process in the child process registry as soon as
+// start() spawns it, so failed, cancelled, or hard-timed-out connects still
+// leave a reapable record with a recordedAt close to the process start time.
+// Client.connect() calls start() itself, so never start this transport manually.
+class RegistryRecordedStdioTransport extends StdioClientTransport {
+  readonly registryRecordId: string
+  private readonly registryCommandLine: string[]
+
+  constructor(
+    params: StdioServerParameters,
+    registryRecordId: string,
+    registryCommandLine: string[]
+  ) {
+    super(params)
+    this.registryRecordId = registryRecordId
+    this.registryCommandLine = registryCommandLine
+  }
+
+  override async start(): Promise<void> {
+    await super.start()
+    const pid = this.pid
+    if (typeof pid === 'number' && pid > 0) {
+      childProcessRegistry.record({
+        subsystem: 'mcp-stdio',
+        recordId: this.registryRecordId,
+        pid,
+        commandLine: this.registryCommandLine
+      })
+    }
+  }
+}
+
 export class McpClient {
   private client: Client | null = null
   private transport: Transport | null = null
@@ -257,7 +292,7 @@ export class McpClient {
   private isConnected: boolean = false
   private connectionTimeout: NodeJS.Timeout | null = null
   private stdioPidForShutdown?: number
-  private stdioCommandLine?: string[]
+  private stdioRegistryRecordId?: string
   private connectPromise: Promise<void> | null = null
   private startupAttempt = 0
   private lifecycleStatus: McpServerLifecycleStatus = 'stopped'
@@ -643,16 +678,23 @@ export class McpClient {
             ? resolveBinding(this.serverConfig.cwd)
             : undefined
         const pluginRoot = this.serverConfig.source === 'plugin' ? env.PLUGIN_ROOT : undefined
-        this.stdioCommandLine = [command, ...args]
-        this.transport = new StdioClientTransport({
-          command,
-          args,
-          env,
-          stderr: 'pipe',
-          cwd:
-            configuredCwd && pluginRoot ? path.resolve(pluginRoot, configuredCwd) : configuredCwd,
-          maxBufferSize: MCP_STDIO_MAX_BUFFER_BYTES
-        })
+        // Each transport instance gets a unique registry record id so overlapping
+        // reconnects of the same server never overwrite or delete each other's record.
+        const registryRecordId = `${this.serverName}:${randomUUID()}`
+        this.stdioRegistryRecordId = registryRecordId
+        this.transport = new RegistryRecordedStdioTransport(
+          {
+            command,
+            args,
+            env,
+            stderr: 'pipe',
+            cwd:
+              configuredCwd && pluginRoot ? path.resolve(pluginRoot, configuredCwd) : configuredCwd,
+            maxBufferSize: MCP_STDIO_MAX_BUFFER_BYTES
+          },
+          registryRecordId,
+          [command, ...args]
+        )
         ;(this.transport as StdioClientTransport).stderr?.on('data', (data) => {
           console.info('mcp StdioClientTransport error', this.serverName, data.toString())
         })
@@ -791,16 +833,6 @@ export class McpClient {
       }
       console.info(`MCP server ${this.serverName} connected successfully`)
 
-      const stdioPid = this.getStdioPid()
-      if (stdioPid && this.stdioCommandLine) {
-        childProcessRegistry.record({
-          subsystem: 'mcp-stdio',
-          recordId: this.serverName,
-          pid: stdioPid,
-          commandLine: this.stdioCommandLine
-        })
-      }
-
       this.emitServerStatusChanged('connected', { phase, attempt })
     } catch (error) {
       // 清除超时
@@ -870,6 +902,8 @@ export class McpClient {
     // 关闭transport
     const transport = this.transport
     this.stdioPidForShutdown = this.getStdioPid(transport) ?? this.stdioPidForShutdown
+    this.stdioRegistryRecordId =
+      this.getStdioRegistryRecordId(transport) ?? this.stdioRegistryRecordId
     this.transport = null
     if (transport) {
       try {
@@ -882,7 +916,6 @@ export class McpClient {
     // 重置状态
     this.client = null
     this.isConnected = false
-    this.stdioCommandLine = undefined
 
     if (options.emitStopped) {
       this.emitServerStatusChanged('stopped', { reason: 'shutdown' })
@@ -896,42 +929,75 @@ export class McpClient {
     return transport.pid ?? undefined
   }
 
+  private getStdioRegistryRecordId(
+    transport: Transport | null = this.transport
+  ): string | undefined {
+    if (!(transport instanceof RegistryRecordedStdioTransport)) {
+      return undefined
+    }
+    return transport.registryRecordId
+  }
+
+  // Terminates the stdio process tree and only clears its launch record when
+  // termination is confirmed, so a still-running process keeps its recovery record.
+  private async terminateStdioProcessTreeAndClearRecord(
+    pid: number,
+    recordId: string | undefined
+  ): Promise<boolean> {
+    let terminated = false
+    try {
+      terminated = await terminateProcessTreeByPid(pid, { graceMs: 2000 })
+    } catch (error) {
+      console.error(`Failed to terminate MCP stdio process tree for ${this.serverName}:`, error)
+    }
+    if (!terminated) {
+      return false
+    }
+    if (recordId) {
+      childProcessRegistry.clear('mcp-stdio', recordId)
+    }
+    if (this.stdioPidForShutdown === pid) {
+      this.stdioPidForShutdown = undefined
+    }
+    if (recordId && this.stdioRegistryRecordId === recordId) {
+      this.stdioRegistryRecordId = undefined
+    }
+    return true
+  }
+
   async forceTerminateStdioProcessTree(reason: string): Promise<boolean> {
     const pid = this.getStdioPid() ?? this.stdioPidForShutdown
     if (!pid) {
       return false
     }
 
-    try {
-      await terminateProcessTreeByPid(pid, { graceMs: 2000 })
-      console.warn(`[MCP] Force terminated stdio process tree for ${this.serverName}: ${reason}`)
-      childProcessRegistry.clear('mcp-stdio', this.serverName)
-      return true
-    } catch (error) {
+    const recordId = this.getStdioRegistryRecordId() ?? this.stdioRegistryRecordId
+    const terminated = await this.terminateStdioProcessTreeAndClearRecord(pid, recordId)
+    if (!terminated) {
       console.warn(
-        `Failed to force terminate MCP stdio process tree for ${this.serverName}:`,
-        error
+        `[MCP] Could not confirm force termination of stdio process tree for ${this.serverName}; keeping launch record for recovery: ${reason}`
       )
       return false
     }
+    console.warn(`[MCP] Force terminated stdio process tree for ${this.serverName}: ${reason}`)
+    return true
   }
 
   private async closeTransport(transport: Transport): Promise<void> {
     const pid = this.getStdioPid(transport)
+    const recordId = this.getStdioRegistryRecordId(transport)
 
     try {
       await transport.close()
     } finally {
       if (pid) {
-        try {
-          await terminateProcessTreeByPid(pid, { graceMs: 2000 })
-        } catch (error) {
-          console.error(`Failed to terminate MCP stdio process tree for ${this.serverName}:`, error)
+        const terminated = await this.terminateStdioProcessTreeAndClearRecord(pid, recordId)
+        if (!terminated) {
+          // Termination is unconfirmed: keep the pid and launch record so the
+          // process can still be force-terminated or reaped on next startup.
+          this.stdioPidForShutdown = pid
+          this.stdioRegistryRecordId = recordId ?? this.stdioRegistryRecordId
         }
-        childProcessRegistry.clear('mcp-stdio', this.serverName)
-      }
-      if (this.stdioPidForShutdown === pid) {
-        this.stdioPidForShutdown = undefined
       }
     }
   }

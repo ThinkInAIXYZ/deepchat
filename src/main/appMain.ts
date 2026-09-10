@@ -29,6 +29,9 @@ export function startApp(): void {
   if (e2eUserDataDir) {
     app.setPath('userData', e2eUserDataDir)
   }
+  // Propagate the effective userData dir so child process registry records (and forked
+  // utility processes, which cannot access the electron app module) stay isolated with it.
+  process.env.DEEPCHAT_USER_DATA_DIR = app.getPath('userData')
 
   app.setName(APP_NAME)
   if (process.platform === 'darwin') {

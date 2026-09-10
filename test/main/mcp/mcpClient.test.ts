@@ -122,7 +122,9 @@ const createLargeToolCatalog = () =>
   }))
 
 const createSdkToolClient = (tools: unknown[], era: 'modern' | 'legacy') => ({
-  connect: vi.fn().mockResolvedValue(undefined),
+  connect: vi.fn().mockImplementation(async (transport: any) => {
+    await transport?.start?.()
+  }),
   callTool: vi.fn().mockResolvedValue({ content: [] }),
   listTools: vi.fn().mockResolvedValue({ tools }),
   listPrompts: vi.fn(),
@@ -145,7 +147,9 @@ vi.mock('@modelcontextprotocol/client', async (importOriginal) => {
   return {
     ...actual,
     Client: vi.fn().mockImplementation(() => ({
-      connect: vi.fn().mockResolvedValue(undefined),
+      connect: vi.fn().mockImplementation(async (transport: any) => {
+        await transport?.start?.()
+      }),
       callTool: vi.fn(),
       listTools: vi.fn(),
       listPrompts: vi.fn(),
@@ -164,14 +168,18 @@ vi.mock('@modelcontextprotocol/client', async (importOriginal) => {
   }
 })
 
-vi.mock('@modelcontextprotocol/client/stdio', () => ({
-  StdioClientTransport: vi.fn().mockImplementation(() => ({
+vi.mock('@modelcontextprotocol/client/stdio', () => {
+  const StdioClientTransport = vi.fn().mockImplementation(() => ({
     stderr: {
       on: vi.fn()
     },
     close: vi.fn()
   }))
-}))
+  // The production subclass calls super.start(); the real SDK's Client.connect()
+  // invokes transport.start(), which the Client mock mirrors below.
+  StdioClientTransport.prototype.start = vi.fn().mockResolvedValue(undefined)
+  return { StdioClientTransport }
+})
 
 describe('McpClient Runtime Command Processing Tests', () => {
   let mockFsExistsSync: any
@@ -210,7 +218,9 @@ describe('McpClient Runtime Command Processing Tests', () => {
     vi.mocked(Client).mockImplementation(
       () =>
         ({
-          connect: vi.fn().mockResolvedValue(undefined),
+          connect: vi.fn().mockImplementation(async (transport: any) => {
+            await transport?.start?.()
+          }),
           callTool: vi.fn(),
           listTools: vi.fn(),
           listPrompts: vi.fn(),
@@ -736,12 +746,59 @@ describe('McpClient Runtime Command Processing Tests', () => {
 
       expect(childProcessRegistryMock.record).toHaveBeenCalledWith({
         subsystem: 'mcp-stdio',
-        recordId: 'registry-test',
+        recordId: expect.stringMatching(/^registry-test:.+/),
         pid,
         commandLine: ['node', 'server.js']
       })
     })
 
+    it('records the spawned process even when connect fails after start', async () => {
+      const pid = 432
+      vi.mocked(StdioClientTransport).mockImplementationOnce(function (this: any) {
+        this.stderr = {
+          on: vi.fn()
+        }
+        this.close = vi.fn().mockResolvedValue(undefined)
+        this.pid = pid
+      } as any)
+      vi.mocked(Client).mockImplementationOnce(
+        () =>
+          ({
+            connect: vi.fn().mockImplementation(async (transport: any) => {
+              await transport?.start?.()
+              throw new Error('handshake failed')
+            }),
+            callTool: vi.fn(),
+            listTools: vi.fn(),
+            listPrompts: vi.fn(),
+            getPrompt: vi.fn(),
+            listResources: vi.fn(),
+            readResource: vi.fn(),
+            setNotificationHandler: vi.fn(),
+            setRequestHandler: vi.fn(),
+            getProtocolEra: vi.fn(() => 'modern')
+          }) as any
+      )
+      const client = createMcpClient('failing-server', {
+        type: 'stdio',
+        command: 'node',
+        args: ['server.js']
+      })
+
+      // test/setup.ts restores all mocks after each test, so the hoisted default
+      // implementation is gone; set the termination result explicitly per test.
+      terminateProcessTreeMock.mockResolvedValue(true)
+      await expect(client.connect()).rejects.toThrow('handshake failed')
+
+      expect(childProcessRegistryMock.record).toHaveBeenCalledWith({
+        subsystem: 'mcp-stdio',
+        recordId: expect.stringMatching(/^failing-server:.+/),
+        pid,
+        commandLine: ['node', 'server.js']
+      })
+      const recordId = childProcessRegistryMock.record.mock.calls[0][0].recordId
+      expect(childProcessRegistryMock.clear).toHaveBeenCalledWith('mcp-stdio', recordId)
+    })
     it('clears the record when the stdio server disconnects', async () => {
       const pid = 654
       vi.mocked(StdioClientTransport).mockImplementationOnce(function (this: any) {
@@ -757,10 +814,105 @@ describe('McpClient Runtime Command Processing Tests', () => {
         args: ['server.js']
       })
 
+      terminateProcessTreeMock.mockResolvedValue(true)
       await client.connect()
       await client.disconnect()
 
-      expect(childProcessRegistryMock.clear).toHaveBeenCalledWith('mcp-stdio', 'registry-test')
+      const recordId = childProcessRegistryMock.record.mock.calls[0][0].recordId
+      expect(childProcessRegistryMock.clear).toHaveBeenCalledWith('mcp-stdio', recordId)
+    })
+
+    it('keeps the record when process-tree termination is unconfirmed on disconnect', async () => {
+      const pid = 765
+      vi.mocked(StdioClientTransport).mockImplementationOnce(function (this: any) {
+        this.stderr = {
+          on: vi.fn()
+        }
+        this.close = vi.fn().mockResolvedValue(undefined)
+        this.pid = pid
+      } as any)
+      const client = createMcpClient('unconfirmed-server', {
+        type: 'stdio',
+        command: 'node',
+        args: ['server.js']
+      })
+
+      await client.connect()
+      const recordId = childProcessRegistryMock.record.mock.calls[0][0].recordId
+
+      terminateProcessTreeMock.mockResolvedValueOnce(false)
+      await client.disconnect()
+
+      expect(childProcessRegistryMock.clear).not.toHaveBeenCalled()
+
+      // A later confirmed force termination clears the preserved record.
+      terminateProcessTreeMock.mockResolvedValueOnce(true)
+      await expect(client.forceTerminateStdioProcessTree('test cleanup')).resolves.toBe(true)
+      expect(childProcessRegistryMock.clear).toHaveBeenCalledWith('mcp-stdio', recordId)
+    })
+
+    it('returns false and keeps the record when force termination is unconfirmed', async () => {
+      const pid = 876
+      vi.mocked(StdioClientTransport).mockImplementationOnce(function (this: any) {
+        this.stderr = {
+          on: vi.fn()
+        }
+        this.close = vi.fn().mockResolvedValue(undefined)
+        this.pid = pid
+      } as any)
+      const client = createMcpClient('force-server', {
+        type: 'stdio',
+        command: 'node',
+        args: ['server.js']
+      })
+
+      await client.connect()
+      const recordId = childProcessRegistryMock.record.mock.calls[0][0].recordId
+
+      terminateProcessTreeMock.mockResolvedValueOnce(false)
+      await expect(client.forceTerminateStdioProcessTree('test')).resolves.toBe(false)
+      expect(childProcessRegistryMock.clear).not.toHaveBeenCalledWith('mcp-stdio', recordId)
+    })
+
+    it('keeps per-instance records for overlapping same-name clients', async () => {
+      const firstPid = 111
+      const secondPid = 222
+      vi.mocked(StdioClientTransport).mockImplementationOnce(function (this: any) {
+        this.stderr = {
+          on: vi.fn()
+        }
+        this.close = vi.fn().mockResolvedValue(undefined)
+        this.pid = firstPid
+      } as any)
+      vi.mocked(StdioClientTransport).mockImplementationOnce(function (this: any) {
+        this.stderr = {
+          on: vi.fn()
+        }
+        this.close = vi.fn().mockResolvedValue(undefined)
+        this.pid = secondPid
+      } as any)
+      const serverConfig = {
+        type: 'stdio',
+        command: 'node',
+        args: ['server.js']
+      }
+      const firstClient = createMcpClient('overlap-server', serverConfig)
+      const secondClient = createMcpClient('overlap-server', serverConfig)
+
+      await firstClient.connect()
+      await secondClient.connect()
+
+      const firstRecordId = childProcessRegistryMock.record.mock.calls[0][0].recordId
+      const secondRecordId = childProcessRegistryMock.record.mock.calls[1][0].recordId
+      expect(firstRecordId).toMatch(/^overlap-server:.+/)
+      expect(secondRecordId).toMatch(/^overlap-server:.+/)
+      expect(firstRecordId).not.toBe(secondRecordId)
+
+      // Closing the older client must not delete the newer instance's record.
+      terminateProcessTreeMock.mockResolvedValue(true)
+      await firstClient.disconnect()
+      expect(childProcessRegistryMock.clear).toHaveBeenCalledWith('mcp-stdio', firstRecordId)
+      expect(childProcessRegistryMock.clear).not.toHaveBeenCalledWith('mcp-stdio', secondRecordId)
     })
   })
 

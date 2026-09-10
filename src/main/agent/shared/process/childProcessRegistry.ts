@@ -56,7 +56,10 @@ export interface ChildProcessRegistryOptions {
 }
 
 function defaultRegistryRoot(): string {
-  return path.join(os.homedir(), '.deepchat', 'child-processes')
+  const userDataDir =
+    process.env.DEEPCHAT_E2E_USER_DATA_DIR?.trim() || process.env.DEEPCHAT_USER_DATA_DIR?.trim()
+  const baseDir = userDataDir || path.join(os.homedir(), '.deepchat')
+  return path.join(baseDir, 'child-processes')
 }
 
 function defaultIsAlive(pid: number): boolean {
@@ -192,7 +195,8 @@ function recordFileName(recordId: string): string {
 }
 
 export class ChildProcessRegistry {
-  private readonly rootDir: string
+  private readonly configuredRootDir?: string
+  private resolvedRootDir?: string
   private readonly now: () => number
   private readonly isAlive: (pid: number) => boolean
   private readonly observe: (pid: number) => Promise<ObservedProcessIdentity>
@@ -202,7 +206,7 @@ export class ChildProcessRegistry {
   private readonly inflightReaps = new Map<string, Promise<ReapStaleChildProcessesResult>>()
 
   constructor(options: ChildProcessRegistryOptions = {}) {
-    this.rootDir = options.rootDir ?? defaultRegistryRoot()
+    this.configuredRootDir = options.rootDir
     this.now = options.now ?? Date.now
     this.isAlive = options.isAlive ?? defaultIsAlive
     this.observe = options.observe ?? defaultObserve
@@ -391,6 +395,13 @@ export class ChildProcessRegistry {
     }
 
     return result
+  }
+
+  private get rootDir(): string {
+    // Resolved on first use so the default root reflects the userData path configured
+    // during app startup (including the DEEPCHAT_E2E_USER_DATA_DIR override).
+    this.resolvedRootDir ??= this.configuredRootDir ?? defaultRegistryRoot()
+    return this.resolvedRootDir
   }
 
   private recordPath(subsystem: string, recordId: string): string {

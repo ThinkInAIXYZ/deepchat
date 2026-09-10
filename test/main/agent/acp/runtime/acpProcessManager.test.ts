@@ -1149,7 +1149,7 @@ describe('AcpProcessManager child process launch records', () => {
     })
   })
 
-  it('clears the launch record when the child is killed', () => {
+  it('keeps the launch record when kill is requested and clears it on exit', () => {
     const manager = createManager()
     const child = new MockSpawnedChild()
     vi.mocked(spawn).mockReturnValue(child as never)
@@ -1158,7 +1158,62 @@ describe('AcpProcessManager child process launch records', () => {
     Object.defineProperty(spawned, 'pid', { value: undefined })
     ;(manager as any).killChild(spawned)
 
+    expect(childProcessRegistryMock.clear).not.toHaveBeenCalled()
+
+    spawned.emit('exit', null, 'SIGTERM')
+
     expect(childProcessRegistryMock.clear).toHaveBeenCalledWith('acp-agent', 'agent-1:1234')
+  })
+
+  it('clears the launch record for a late-spawn kill before initialization completes', async () => {
+    const manager = createManager()
+    const child = new MockSpawnedChild()
+    vi.mocked(spawn).mockReturnValue(child as never)
+    vi.spyOn(manager as any, 'materializeAgentLaunch').mockResolvedValue(launch)
+    const killSpy = vi.spyOn(process, 'kill').mockReturnValue(true)
+    const originalSpawn = (manager as any).spawnAgentProcess.bind(manager)
+    vi.spyOn(manager as any, 'spawnAgentProcess').mockImplementation(
+      (agentArg: unknown, launchArg: unknown) => {
+        const spawned = originalSpawn(agentArg, launchArg)
+        ;(manager as any).shuttingDown = true
+        return spawned
+      }
+    )
+
+    try {
+      await expect(
+        (manager as any).spawnProcessOnce(
+          agent,
+          '/tmp/workspace',
+          {
+            agentId: 'agent-1',
+            source: 'manual',
+            distributionType: 'manual',
+            command: 'agent',
+            args: [],
+            env: {}
+          },
+          'signature',
+          undefined
+        )
+      ).rejects.toThrow('shutting down')
+
+      expect(childProcessRegistryMock.record).toHaveBeenCalledWith({
+        subsystem: 'acp-agent',
+        recordId: 'agent-1:1234',
+        pid: 1234,
+        commandLine: ['agent', '--acp'],
+        cwd: '/tmp/workspace'
+      })
+      expect(child.kill).toHaveBeenCalledOnce()
+      expect(childProcessRegistryMock.clear).not.toHaveBeenCalled()
+
+      child.emit('exit', null, 'SIGTERM')
+
+      expect(childProcessRegistryMock.clear).toHaveBeenCalledWith('acp-agent', 'agent-1:1234')
+    } finally {
+      killSpy.mockRestore()
+    }
   })
 
   it('clears the launch record when the agent process exits', async () => {

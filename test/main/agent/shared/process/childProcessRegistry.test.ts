@@ -273,6 +273,29 @@ describe('ChildProcessRegistry', () => {
     expect(first).not.toBeNull()
     expect(second).toBeNull()
   })
+
+  it('resolves the default root from DEEPCHAT_USER_DATA_DIR at first use', () => {
+    const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'registry-userdata-'))
+    const previous = process.env.DEEPCHAT_USER_DATA_DIR
+    process.env.DEEPCHAT_USER_DATA_DIR = userDataDir
+    try {
+      const defaultRegistry = new ChildProcessRegistry({ log: () => {} })
+      defaultRegistry.record({
+        subsystem: 'mcp-stdio',
+        recordId: 'srv',
+        pid: 4321,
+        commandLine: ['npx', 'srv']
+      })
+      expect(fs.readdirSync(path.join(userDataDir, 'child-processes', 'mcp-stdio'))).toHaveLength(1)
+    } finally {
+      if (previous === undefined) {
+        delete process.env.DEEPCHAT_USER_DATA_DIR
+      } else {
+        process.env.DEEPCHAT_USER_DATA_DIR = previous
+      }
+      fs.rmSync(userDataDir, { recursive: true, force: true })
+    }
+  })
 })
 
 describe('defaultChildProcessAttester', () => {

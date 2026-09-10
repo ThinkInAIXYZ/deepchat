@@ -1263,7 +1263,6 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
         action: 'process.exit',
         payload: { pid: child.pid, code, signal, workdir }
       })
-      this.clearLaunchRecord(child)
       if (readyHandle) {
         this.removeHandleReferences(readyHandle)
         this.clearSessionsForAgent(agent.id)
@@ -1866,6 +1865,7 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
         commandLine: [launch.command, ...launch.args],
         cwd: launch.cwd
       })
+      child.once('exit', () => this.clearLaunchRecord(child))
     }
 
     return child
@@ -2425,8 +2425,6 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
         )
       }
     }
-
-    this.clearLaunchRecord(child)
   }
 
   private async acquireAgentLock(agentId: string): Promise<() => void> {
