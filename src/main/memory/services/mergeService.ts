@@ -112,7 +112,10 @@ export class MergeService {
         CONSOLIDATION_DIRTY_SEED_LIMIT
       )
       if (!queuedSeeds.length) return result
-      const terminalSeeds = queuedSeeds.filter((seed) => this.isTerminalDirtySeed(agentId, seed))
+      const terminalSeeds = queuedSeeds.filter(
+        (seed) =>
+          !isLiveDirtyConsolidationRow(agentId, this.ports.repository.getById(seed.memoryId))
+      )
       if (terminalSeeds.length) {
         this.ports.repository.settleDirtySeeds(agentId, terminalSeeds)
       }
@@ -411,20 +414,6 @@ export class MergeService {
     return true
   }
 
-  private isLiveConsolidationNeighbor(
-    agentId: string,
-    row: AgentMemoryRow | undefined
-  ): row is AgentMemoryRow {
-    return (
-      !!row &&
-      row.agent_id === agentId &&
-      !row.superseded_by &&
-      row.kind !== 'persona' &&
-      row.kind !== 'working' &&
-      row.lifecycle_state === 'active'
-    )
-  }
-
   private isCurrentEmbeddedConsolidationRow(
     agentId: string,
     row: AgentMemoryRow | undefined,
@@ -432,15 +421,15 @@ export class MergeService {
     fingerprint: string
   ): row is AgentMemoryRow {
     return (
-      this.isLiveConsolidationNeighbor(agentId, row) &&
+      !!row &&
+      row.agent_id === agentId &&
+      !row.superseded_by &&
+      row.kind !== 'persona' &&
+      row.kind !== 'working' &&
       row.lifecycle_state === 'active' &&
       row.embedding_state === 'ready' &&
       row.embedding_dim === dimensions &&
       row.embedding_model === fingerprint
     )
-  }
-
-  private isTerminalDirtySeed(agentId: string, seed: MemoryDirtySeed): boolean {
-    return !isLiveDirtyConsolidationRow(agentId, this.ports.repository.getById(seed.memoryId))
   }
 }

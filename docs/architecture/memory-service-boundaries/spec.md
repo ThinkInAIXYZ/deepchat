@@ -13,12 +13,15 @@ decomposition and a separate scheduler are out of scope.
 ## Design and invariants
 
 - Retrieval shares readiness/warmup, vector failure classification and authoritative vector-row
-  filtering. Decision retrieval retains batching, snapshot reuse, conflict exclusion and pinned
-  ordering. Recall retains cancellation, circuit breaking, refill, pruning and reindex/backfill.
+  validation predicates, not a callback-driven traversal. Decision retrieval retains batching,
+  snapshot reuse, conflict exclusion and pinned ordering. Recall retains cancellation, circuit
+  breaking, refill, pruning and reindex/backfill.
   Shared filtering must not add database calls or repeat fingerprint derivation for each row.
 - Management owns a single archive transition. The public forget and archive methods retain their
   signatures and audit identities. The forget hook runs after all guards and before invalidation;
   idempotent archive, transactions and mutation notifications retain their existing behavior.
+  The private transition derives the fixed audit event from its actor without an event/actor
+  options object.
 - The facade schedules successful user conflict resolution. Maintenance owns scheduling after
   automated challenge resolution; ConflictService has no dependency on maintenance. Preserve a
   follow-up for applied resolutions even if a later challenge fails or is cancelled.

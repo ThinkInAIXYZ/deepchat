@@ -185,25 +185,6 @@ function clampRetrievalTopK(value: number): number {
   return Math.min(MAX_TOP_K, Math.max(1, Math.floor(value)))
 }
 
-function filterCurrentVectorMatches(
-  agentId: string,
-  rowsById: ReadonlyMap<string, AgentMemoryRow>,
-  matches: readonly { memoryId: string; similarity: number }[],
-  dimensions: number | undefined,
-  fingerprint: string | null,
-  isLive: (agentId: string, row: AgentMemoryRow) => boolean
-): Array<{ row: AgentMemoryRow; similarity: number }> {
-  if (dimensions === undefined || !fingerprint) return []
-  const current: Array<{ row: AgentMemoryRow; similarity: number }> = []
-  for (const match of matches) {
-    const row = rowsById.get(match.memoryId)
-    if (isCurrentRecallVectorRow(agentId, row, dimensions, fingerprint) && isLive(agentId, row)) {
-      current.push({ row, similarity: match.similarity })
-    }
-  }
-  return current
-}
-
 function throwIfAborted(signal?: AbortSignal): void {
   signal?.throwIfAborted()
 }
@@ -473,14 +454,18 @@ export class RetrievalService {
         const ftsRows = keywordRows[index]
           .map((row) => rowsById.get(row.id))
           .filter((row): row is AgentMemoryRow => isLiveDecisionRow(agentId, row))
-        const currentVectorMatches = filterCurrentVectorMatches(
-          agentId,
-          rowsById,
-          vectorMatches[index],
-          vectorContext?.dimensions,
-          vectorFingerprint,
-          isLiveDecisionRow
-        )
+        const currentVectorMatches: Array<{ row: AgentMemoryRow; similarity: number }> = []
+        if (vectorContext && vectorFingerprint) {
+          for (const match of vectorMatches[index]) {
+            const row = rowsById.get(match.memoryId)
+            if (
+              isCurrentRecallVectorRow(agentId, row, vectorContext.dimensions, vectorFingerprint) &&
+              isLiveDecisionRow(agentId, row)
+            ) {
+              currentVectorMatches.push({ row, similarity: match.similarity })
+            }
+          }
+        }
         const neighbors = fuse(ftsRows, currentVectorMatches, {
           topK: DECISION_NEIGHBOR_TOP_S,
           rrfK,
@@ -806,14 +791,15 @@ export class RetrievalService {
       const vectorFingerprint = vectorContext
         ? embeddingFingerprint(vectorContext.embedding.providerId, vectorContext.embedding.modelId)
         : null
-      state.structurallyValidVecMatches = filterCurrentVectorMatches(
-        agentId,
-        rowsById,
-        state.vecCandidates,
-        vectorContext?.dimensions,
-        vectorFingerprint,
-        isLiveRecallRow
-      )
+      state.structurallyValidVecMatches = []
+      if (vectorContext && vectorFingerprint) {
+        for (const match of state.vecCandidates) {
+          const row = rowsById.get(match.memoryId)
+          if (isCurrentRecallVectorRow(agentId, row, vectorContext.dimensions, vectorFingerprint)) {
+            state.structurallyValidVecMatches.push({ row, similarity: match.similarity })
+          }
+        }
+      }
       const { suppressionPolicy } = limits
       const directiveEligibleFtsRows = suppressionPolicy
         ? structurallyValidFtsRows.filter((row) => !suppressionPolicy.suppresses(row.content))
