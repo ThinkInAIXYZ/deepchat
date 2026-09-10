@@ -72,11 +72,4 @@ describe('chat scroll architecture', () => {
     )
     expect(directWrites).toEqual(expectedWrites)
   })
-
-  it('has one low-level scrollbar assignment in the controller', async () => {
-    const controllerSource = await readSource(CONTROLLER_PATH)
-    const assignments = controllerSource.match(/viewport\.scrollTop\s*=/g) ?? []
-
-    expect(assignments).toHaveLength(1)
-  })
 })

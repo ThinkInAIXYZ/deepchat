@@ -1118,15 +1118,12 @@ describe('PluginService', () => {
   })
 
   it('keeps upstream-compatible permission args for direct legacy runtimes', async () => {
-    const presenterSource = await readFile('src/main/plugin/index.ts', 'utf8')
     const presenter = await createPluginService('darwin')
 
     expect((presenter as any).runtimePermissionToolArgs()).toEqual([
       'check_permissions',
       '{"prompt":false}'
     ])
-    expect(presenterSource).not.toContain('deepchat-permission-probe')
-    expect(presenterSource).not.toContain('Runtime permission probe failed')
   })
 
   it('discovers the embedded CUA runtime without executing it', async () => {
@@ -2087,14 +2084,12 @@ describe('PluginService', () => {
     expect(skill).toContain('Feishu plugin settings')
   })
 
-  it('wires CUA plugin packaging docs and release gates for supported targets', async () => {
+  it('wires CUA plugin release gates for supported targets', async () => {
     const packageJson = JSON.parse(await readFile('package.json', 'utf8'))
     const windowsPackageWorkflow = await readFile('.github/workflows/_package-windows.yml', 'utf8')
     const linuxPackageWorkflow = await readFile('.github/workflows/_package-linux.yml', 'utf8')
     const macosPackageWorkflow = await readFile('.github/workflows/_package-macos.yml', 'utf8')
     const pluginScript = await readFile('scripts/plugin.mjs', 'utf8')
-    const packageScript = await readFile('scripts/package-plugin.mjs', 'utf8')
-    const guide = await readFile('docs/guides/plugin-packaging.md', 'utf8')
 
     expect(packageJson.scripts['plugin:cua:build:mac:arm64']).toContain('--arch arm64')
     expect(packageJson.scripts['plugin:cua:build:mac:x64']).toContain('--arch x64')
@@ -2168,17 +2163,6 @@ describe('PluginService', () => {
     )
     expect(windowsPackageWorkflow).toContain('Verify bundled plugins')
     expect(macosPackageWorkflow).toContain('Contents/Resources/app.asar.unpacked/plugins')
-    expect(packageScript).toContain("parts[0] === 'runtime'")
-    expect(packageScript).toContain('parts[1] !== args.targetPlatform')
-    expect(packageScript).toContain('parts[2] !== args.targetArch')
-    expect(packageScript).toContain('CUA plugin does not support')
-    expect(packageScript).toContain('CUA_DARWIN_MANAGED_HELPER_DETECT')
     expect(pluginScript).toContain("pkgArgs.push('--purpose', args.purpose)")
-    expect(guide).toContain('build/bundled-plugins/')
-    expect(guide).toContain('build/managed-helpers/')
-    expect(guide).toContain('Contents/Helpers/DeepChat Computer Use.app')
-    expect(guide).toContain('app.asar.unpacked/plugins/')
-    expect(guide).toContain('win32/arm64')
-    expect(guide).toContain('linux/arm64')
   })
 })

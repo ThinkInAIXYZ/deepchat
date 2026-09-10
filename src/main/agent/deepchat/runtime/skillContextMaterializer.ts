@@ -284,7 +284,8 @@ export class SkillContextMaterializer {
     }
     const resolutions = await this.dependencies.skills.resolveFreshEffectiveSkillContents(
       agentId,
-      ordered.map(({ name }) => name)
+      ordered.map(({ name }) => name),
+      { conversationId: sessionId }
     )
     if (resolutions.length !== ordered.length) {
       throw new Error('Fresh Skill resolution count did not match the request.')

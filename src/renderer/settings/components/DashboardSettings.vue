@@ -307,6 +307,9 @@
                         v-for="(day, dayIndex) in week"
                         :key="day ? day.date : `blank-${weekIndex}-${dayIndex}`"
                         data-testid="calendar-cell"
+                        :role="day ? 'img' : undefined"
+                        :aria-hidden="!day"
+                        :aria-label="day ? calendarDayLabel(day) : undefined"
                         class="calendar-cell rounded-sm border border-border"
                         :class="day ? 'opacity-100' : 'opacity-0'"
                         :style="day ? day.cellStyle : undefined"
@@ -323,6 +326,7 @@
               <div
                 v-if="calendarTooltip"
                 data-testid="calendar-tooltip"
+                aria-hidden="true"
                 class="pointer-events-none fixed z-50"
                 :style="calendarTooltipStyle"
               >
@@ -1092,6 +1096,15 @@ const calendarTooltipStyle = computed<CSSProperties>(() => ({
   left: `${calendarTooltipPosition.value.x}px`,
   top: `${calendarTooltipPosition.value.y}px`
 }))
+
+function calendarDayLabel(day: CalendarDayView): string {
+  return [
+    localeFormatters.value.date.format(new Date(`${day.date}T00:00:00`)),
+    `${t('settings.dashboard.summary.inputTokensLabel')}: ${formatFullTokens(Math.max(day.inputTokens, 0))}`,
+    `${t('settings.dashboard.summary.outputTokensLabel')}: ${formatFullTokens(Math.max(day.outputTokens, 0))}`,
+    `${t('settings.dashboard.summary.cachedTokensCachedLabel')}: ${formatFullTokens(Math.max(day.cachedInputTokens, 0))}`
+  ].join('. ')
+}
 
 function showCalendarTooltip(day: CalendarDayView, event: MouseEvent): void {
   calendarTooltip.value = {

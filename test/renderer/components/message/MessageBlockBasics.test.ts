@@ -1,5 +1,5 @@
 import { mount } from '@vue/test-utils'
-import { defineComponent } from 'vue'
+import { defineComponent, nextTick } from 'vue'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import MessageBlockAction from '@/components/message/MessageBlockAction.vue'
 import MessageBlockError from '@/components/message/MessageBlockError.vue'
@@ -229,11 +229,53 @@ describe('MessageBlock basics', () => {
       .find((option) => option.text().includes('安装为 Skill'))
     expect(installOption).toBeTruthy()
     await installOption!.trigger('click')
+    expect(wrapper.emitted('respond')).toBeUndefined()
+    const confirm = wrapper.findAll('button').find((button) => button.text() === 'common.confirm')
+    expect(confirm).toBeTruthy()
+    await confirm!.trigger('click')
 
     expect(wrapper.emitted('respond')).toEqual([
       [{ kind: 'question_option', optionLabel: 'chat.skillDraft.actions.install' }]
     ])
   })
+
+  it.each([false, true])(
+    'names question choices containing spaces (multiple=%s)',
+    async (multiple) => {
+      const wrapper = mount(ChatToolInteractionOverlay, {
+        attachTo: document.body,
+        props: {
+          interaction: {
+            messageId: 'm1',
+            toolCallId: 'tc1',
+            actionType: 'question_request',
+            toolName: 'deepchat_question',
+            toolArgs: '{}',
+            block: createBlock({
+              status: 'pending',
+              extra: {
+                questionText: 'Choose an option',
+                questionMultiple: multiple,
+                questionOptions: [{ label: 'Option A', description: 'First choice' }]
+              }
+            })
+          }
+        }
+      })
+      await nextTick()
+      const group = wrapper.get(multiple ? '[role="group"]' : '[role="radiogroup"]')
+      const choice = wrapper.get(multiple ? '[role="checkbox"]' : '[role="radio"]')
+      expect(wrapper.get(`[id="${group.attributes('aria-labelledby')}"]`).text()).toBe(
+        'Choose an option'
+      )
+      expect(wrapper.get(`[id="${choice.attributes('aria-labelledby')}"]`).text()).toBe('Option A')
+      expect(wrapper.get(`[id="${choice.attributes('aria-describedby')}"]`).text()).toBe(
+        'First choice'
+      )
+      expect(document.activeElement).toBe(wrapper.get('[role="region"]').element)
+      wrapper.unmount()
+    }
+  )
 
   it('bounds standalone permission details while keeping actions outside the scroll region', () => {
     const wrapper = mount(ChatToolInteractionOverlay, {

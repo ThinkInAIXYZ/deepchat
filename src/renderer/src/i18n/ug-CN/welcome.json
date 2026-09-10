@@ -1,0 +1,79 @@
+{
+  "steps": {
+    "welcome": {
+      "title": "خۇش كەلدىڭىز",
+      "description": "DeepChat نى بەلگىلەشكە باشلايلى"
+    },
+    "provider": {
+      "title": "مودېل مۇلازىمېتىرى",
+      "description": "سىزنىڭ ياخشى كۆرىدىغان مودېل مۇلازىمېتىرىنى تاللاڭ"
+    },
+    "configuration": {
+      "title": "مودېل تەڭشەش",
+      "description": "ئىشلەتمەكچى بولغان مودېلنى سەپلەش"
+    },
+    "complete": {
+      "title": "تۈگىدى",
+      "description": "ھەممە نەرسە تەييار بولدى، سىز ئىشلىتىشنى باشلىسىڭىز بولىدۇ!"
+    }
+  },
+  "title": "خۇشاللىق بىلەن ئىشلىتىدىغان DeepChat",
+  "description": "بىز بىرلىكتە تەڭشەش جەريانىنى باشتىن كەچۈرەيلى",
+  "provider": {
+    "select": "مۇلازىمەت بىلەن تەمىنلىگۈچىنى تاللاش",
+    "apiUrl": "API ئادرېسى",
+    "apiKey": "API ئاچقۇچى",
+    "verifyLink": "ئۇلاشنى تەكشۈرۈش"
+  },
+  "complete": {
+    "title": "ھەممىسى تۈگىدى!",
+    "description": "سىز تەڭشەش جەريانىنى تاماملىدىڭىز، ئۇنداقتا بىز باشلايلى!"
+  },
+  "buttons": {
+    "getStarted": "ئىشلىتىشنى باشلايمىز",
+    "next": "كېيىنكى",
+    "back": "قايتىش"
+  },
+  "page": {
+    "title": "بۇ DeepChat Agent ئارقىلىق قارشى ئالىمىز",
+    "description": "تىپتىكى مۇلازىمەت بىلەن تەمىنلىگۈچى بىلەن ئۇلاپ ئىشلىتىشنى باشلىسىڭىز بولىدۇ",
+    "guide": {
+      "title": "ئىلگىرلەشنى يېتەكلەش",
+      "description": "نۆۋەتتىكى قەدەم باسقۇچلىرى: {step}",
+      "or": "بەلكىم",
+      "coreProgress": "سەپلىمە ئىلگىرلەش",
+      "optional": "كېيىنكى قەدەملەرنى تاللاش",
+      "actions": {
+        "continueSetup": "سەپلىمىنى داۋاملاشتۇرۇش",
+        "goToChat": "پاراڭلاشقىلى باردۇق"
+      },
+      "steps": {
+        "provider": "مۇلازىمېتىرى",
+        "first-chat": "پاراڭلىشىش",
+        "switch-model": "ۋىكليۇچاتېل تىپى",
+        "mcp": "MCP",
+        "skills": "ماھارەتلەر",
+        "plugins": "قىستۇرمىلار"
+      }
+    },
+    "browseProviders": "بارلىق مۇلازىمەت بىلەن تەمىنلىگۈچىلەرنى كۆرۈش ...",
+    "connectAgent": "ياكى ئۇلاش بىر Agent",
+    "acpTitle": "ACP ئەقلىي ياردەمچىسىنى تەڭشەش",
+    "acpDescription": "Claude Code، Codex، Kimi ياكى ئۆزىڭىزنىڭ ئىشىنى Agent",
+    "providers": {
+      "claude": "Claude",
+      "openai": "OpenAI",
+      "deepseek": "DeepSeek",
+      "gemini": "Gemini",
+      "ollama": "Ollama",
+      "openrouter": "OpenRouter"
+    },
+    "importProviders": "باشقا Agent تىن كىرىتۈش"
+  },
+  "agentPage": {
+    "title": "تاللاش ئارقىلىق Agent قۇرۇشنى باشلىدىم",
+    "deepchatType": "DeepChat ئەقلىي ياردەمچىسى",
+    "acpType": "ACP ئەقلىي ياردەمچىسى",
+    "manageAgents": "باشقۇرۇش DeepChat Agent"
+  }
+}

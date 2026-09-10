@@ -1,0 +1,29 @@
+{
+  "title": "DeepChat",
+  "description": "DeepChat ནི་སྟེགས་བུ་མང་པོར་སྤྱོད་ཐུབ་པའི་ AI མཁོ་མཁན་སྣེ་ཞིག་ཡིན། མི་སྔར་ལས་མང་པོས་ AI སྟབས་བདེར་སྤྱོད་ཐུབ་པར་བྱེད།",
+  "website": "ང་ཚོའི་དྲ་ཚིགས་ལ་ལྟ་བ།",
+  "disclaimerButton": "འགན་འཁྲི་སེལ་བའི་གསལ་བསྒྲགས།",
+  "feedbackButton": "བསམ་འཆར་ལན་སྤྲོད།",
+  "disclaimerTitle": "སྤྱོད་པའི་ཆ་རྐྱེན།",
+  "checkUpdateButton": "གསར་སྒྱུར་ཞིབ་བཤེར།",
+  "mockUpdateButton": "ཕབ་ཟིན་པའི་གསར་སྒྱུར་ལད་མོ་བྱེད་པ།",
+  "clearMockUpdateButton": "ལད་མོའི་གསར་སྒྱུར་གཙང་སེལ།",
+  "mockOnboardingButton": "ཐོག་མའི་སྣེ་སྟོན་ལད་མོ་བྱེད་པ།",
+  "mockChatButton": "གླེང་མོལ་རིང་པོའི་ཚོད་ལྟའི་གཞི་གྲངས་གསར་བཟོ།",
+  "mockChatCreating": "གསར་བཟོ་བཞིན་པ...",
+  "mockChatCreated": "ཚོད་ལྟའི་གླེང་མོལ་གསར་བཟོ་ཟིན།",
+  "mockChatCreatedDesc": "“{title}” གསར་བཟོ་ཟིན། འཕྲིན་ཐུང་ {count} ཡོད།",
+  "mockChatCreateFailed": "ཚོད་ལྟའི་གླེང་མོལ་གསར་བཟོ་མ་ཐུབ།",
+  "mockChatCreateUnavailable": "ཚོད་ལྟའི་གླེང་མོལ་ནི་གསར་སྤེལ་རྣམ་པར་མ་གཏོགས་སྤྱོད་མི་ཐུབ།",
+  "updateChannel": "གསར་སྒྱུར་ཐབས་ལམ།",
+  "stableChannel": "དངོས་སྤྱོད་པར་གཞི།",
+  "betaChannel": "ནང་ཁུལ་ཚོད་ལྟའི་པར་གཞི།",
+  "deviceInfo": {
+    "title": "སྒྲིག་ཆས་ཀྱི་ཆ་འཕྲིན།",
+    "platform": "སྟེགས་བུ།",
+    "arch": "བཀོད་པ།",
+    "cpuModel": "CPU རིགས་རྟགས།",
+    "totalMemory": "ནང་གསོག་བསྡོམས།",
+    "osVersion": "མ་ལག་གི་པར་གཞི།"
+  }
+}

@@ -9,6 +9,7 @@
         -->
         <div
           v-if="pageRouter.currentRoute === 'newThread' && agentStore.selectedAgentId === null"
+          ref="routeContent"
           key="agent-welcome"
           class="chat-route-shell flex h-full min-h-0 w-full flex-col overflow-hidden"
         >
@@ -16,6 +17,7 @@
         </div>
         <div
           v-else-if="pageRouter.currentRoute === 'newThread'"
+          ref="routeContent"
           key="new-thread"
           class="chat-route-shell flex h-full min-h-0 w-full flex-col overflow-hidden"
         >
@@ -23,10 +25,14 @@
         </div>
         <div
           v-else-if="pageRouter.currentRoute === 'chat' && pageRouter.chatSessionId"
+          ref="routeContent"
           :key="pageRouter.chatSessionId"
           class="chat-route-shell flex h-full min-h-0 w-full flex-col overflow-hidden"
         >
-          <ChatPage :session-id="pageRouter.chatSessionId" />
+          <ChatPage
+            :session-id="pageRouter.chatSessionId"
+            :focus-composer-on-mount="focusComposerOnMount"
+          />
         </div>
       </template>
       <AgentBrowserPiP
@@ -85,6 +91,20 @@ try {
 } catch (error) {
   console.warn('[Startup][Renderer] startupWorkloadStore unavailable in ChatTabView', error)
 }
+const routeContent = ref<HTMLElement | null>(null)
+const focusComposerOnMount = ref(false)
+watch(
+  () => [pageRouter.currentRoute, pageRouter.chatSessionId],
+  () => {
+    focusComposerOnMount.value =
+      pageRouter.currentRoute === 'chat' &&
+      Boolean(
+        routeContent.value &&
+        (routeContent.value.contains(document.activeElement) ||
+          document.activeElement === document.body)
+      )
+  }
+)
 const isReady = ref(false)
 let cancelDeferredHydration: (() => void) | null = null
 

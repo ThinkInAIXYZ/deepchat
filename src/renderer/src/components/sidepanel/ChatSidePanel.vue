@@ -13,6 +13,12 @@
   >
     <aside
       v-if="props.sessionId"
+      ref="panelRef"
+      :id="panelId"
+      tabindex="-1"
+      :aria-label="panelTitle"
+      :aria-hidden="!shouldShow || undefined"
+      :inert="!shouldShow ? true : undefined"
       class="chat-side-panel-surface absolute inset-y-0 flex h-full min-h-0 w-full origin-right flex-col bg-background"
       :class="[
         isSidepanelFullscreenActive ? 'inset-x-0 border shadow-xl' : 'right-0 border-l shadow-lg',
@@ -28,6 +34,14 @@
       <button
         v-if="panelVisible && !isSidepanelFullscreenActive"
         data-testid="chat-side-panel-resize-handle"
+        role="separator"
+        aria-orientation="vertical"
+        :aria-label="panelTitle"
+        :aria-controls="panelId"
+        :aria-valuenow="sidepanelStore.width"
+        :aria-valuemin="sidepanelStore.minWidth"
+        :aria-valuemax="sidepanelStore.maxWidth"
+        @keydown="resizeWithKeyboard"
         class="absolute inset-y-0 left-0 w-1 -translate-x-1/2 cursor-col-resize"
         type="button"
         @mousedown="startResize"
@@ -43,6 +57,7 @@
                 : 'text-muted-foreground'
             "
             type="button"
+            :aria-pressed="sidepanelStore.activeTab === 'workspace'"
             @click="sidepanelStore.openWorkspace(props.sessionId)"
           >
             {{ t('chat.workspace.title') }}
@@ -55,6 +70,7 @@
                 : 'text-muted-foreground'
             "
             type="button"
+            :aria-pressed="sidepanelStore.activeTab === 'browser'"
             @click="sidepanelStore.openBrowser()"
           >
             {{ t('common.browser.name') }}
@@ -69,6 +85,7 @@
                 : 'text-muted-foreground'
             "
             type="button"
+            :aria-pressed="sidepanelStore.activeTab === 'mcp-app'"
             @click="sidepanelStore.openMcpAppPreview(sidepanelStore.mcpAppPreviewOwnerId)"
           >
             {{ t('mcp.apps.title') }}
@@ -83,6 +100,7 @@
                 : 'text-muted-foreground'
             "
             type="button"
+            :aria-pressed="sidepanelStore.activeTab === 'tape-inspector'"
             @click="sidepanelStore.openTapeInspector(props.sessionId)"
           >
             {{ t('tapeInspector.title') }}
@@ -150,7 +168,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, useId, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { DcButton } from '@dc-ui/components/button'
 import { createBrowserClient } from '@api/BrowserClient'
@@ -182,6 +200,26 @@ let panelMotionTimer: number | null = null
 let panelMotionFrame: number | null = null
 let fullscreenMotionTimer: number | null = null
 
+const panelRef = ref<HTMLElement | null>(null)
+const panelId = useId()
+let returnFocus: HTMLElement | null = null
+const panelTitle = computed(() => {
+  if (sidepanelStore.activeTab === 'browser') return t('common.browser.name')
+  if (sidepanelStore.activeTab === 'mcp-app') return t('mcp.apps.title')
+  if (sidepanelStore.activeTab === 'tape-inspector') return t('tapeInspector.title')
+  return t('chat.workspace.title')
+})
+const resizeWithKeyboard = (event: KeyboardEvent) => {
+  const targets: Record<string, number> = {
+    ArrowLeft: sidepanelStore.width + 32,
+    ArrowRight: sidepanelStore.width - 32,
+    Home: sidepanelStore.minWidth,
+    End: sidepanelStore.maxWidth
+  }
+  if (!(event.key in targets)) return
+  event.preventDefault()
+  sidepanelStore.setWidth(targets[event.key])
+}
 const shouldShow = computed(() => sidepanelStore.open && Boolean(props.sessionId))
 const layoutWidth = ref(shouldShow.value ? sidepanelStore.width : 0)
 const panelVisible = ref(shouldShow.value)
@@ -393,6 +431,17 @@ const startResize = (event: MouseEvent) => {
 }
 
 watch(shouldShow, (visible) => {
+  if (visible) {
+    returnFocus = document.activeElement as HTMLElement | null
+  } else {
+    const shouldRestore = panelRef.value?.contains(document.activeElement)
+    const target = returnFocus
+    returnFocus = null
+    if (shouldRestore)
+      void nextTick(() => {
+        if (!shouldShow.value && target?.isConnected) target.focus({ preventScroll: true })
+      })
+  }
   clearPanelMotionHandles()
   stopResizeTracking()
 
@@ -407,6 +456,9 @@ watch(shouldShow, (visible) => {
     panelMotionFrame = window.requestAnimationFrame(() => {
       panelMotionFrame = null
       panelVisible.value = true
+      void nextTick(() => {
+        if (shouldShow.value) panelRef.value?.focus()
+      })
     })
     return
   }

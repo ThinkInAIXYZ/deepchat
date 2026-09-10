@@ -1783,7 +1783,9 @@
         "succeeded": "Klar",
         "cancelled": "Annulleret",
         "failed": "Mislykket"
-      }
+      },
+      "terminalLabel": "Loginterminal",
+      "terminalHint": "Tryk på F6 for at vende tilbage til godkendelseskontrollerne."
     },
     "terminal": {
       "title": "Initialiseringsterminal",

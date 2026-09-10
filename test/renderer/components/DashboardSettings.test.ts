@@ -745,6 +745,11 @@ describe('DashboardSettings', () => {
     )
 
     const cells = wrapper.findAll('[data-testid="calendar-cell"].opacity-100')
+    expect(cells[cells.length - 1].attributes('role')).toBe('img')
+    expect(cells[cells.length - 1].attributes('aria-label')).toContain('Mar 2, 2026')
+    expect(cells[cells.length - 1].attributes('aria-label')).toContain('25')
+    expect(cells[cells.length - 1].attributes('aria-label')).toContain('5')
+    expect(cells[cells.length - 1].attributes('aria-label')).toContain('4')
     await cells[cells.length - 1].trigger('mouseenter', { clientX: 40, clientY: 40 })
 
     const tooltip = document.body.querySelector('[data-testid="calendar-tooltip"]')

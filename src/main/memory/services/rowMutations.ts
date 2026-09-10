@@ -17,13 +17,18 @@ import {
   type WriteMemoriesOptions
 } from '../types'
 import type {
+  ClaimOwnership,
   ContentUpdateResult,
   ManualEditFieldFlags,
   MemoryClaimInsertResult,
   MemoryExplicitRelearnResult,
   ProvenanceHitResult
 } from '../domain/types'
-import { isEmbeddingEligibleState } from '../domain/stateModel'
+import {
+  isChallengedDecisionHead,
+  isEmbeddingEligibleState,
+  isLiveDecisionTarget
+} from '../domain/stateModel'
 import { isUniqueConstraintError } from '../context'
 import {
   memoryTemporalMetadataEquals,
@@ -463,7 +468,7 @@ export class MemoryRowMutations {
         }
   }
 
-  supersedeHead(agentId: string, row: AgentMemoryRow): AgentMemoryRow {
+  private supersedeHead(agentId: string, row: AgentMemoryRow): AgentMemoryRow {
     let current = row
     const seen = new Set<string>([row.id])
     while (current.superseded_by) {
@@ -481,7 +486,7 @@ export class MemoryRowMutations {
     return current
   }
 
-  handleProvenanceHit(
+  private handleProvenanceHit(
     agentId: string,
     existing: AgentMemoryRow,
     options: { allowDecisionForSuperseded?: boolean } = {}
@@ -507,6 +512,36 @@ export class MemoryRowMutations {
     }
 
     return { action: 'absorbed' }
+  }
+
+  resolveClaimOwnership(
+    agentId: string,
+    kind: string,
+    content: string,
+    scope: MemoryScope,
+    options: { allowSuperseded: boolean; beforeMutation?: () => void }
+  ): ClaimOwnership {
+    const owner = this.resolveProvenance(agentId, kind, content, scope, options.beforeMutation)
+    return owner ? this.classifyClaimOwner(agentId, owner, options) : { state: 'unowned' }
+  }
+
+  classifyClaimOwner(
+    agentId: string,
+    owner: AgentMemoryRow,
+    options: { allowSuperseded: boolean }
+  ): Exclude<ClaimOwnership, { state: 'unowned' }> {
+    const hit = this.handleProvenanceHit(agentId, owner, {
+      allowDecisionForSuperseded: options.allowSuperseded
+    })
+    if (hit.action === 'absorbed') return { state: 'archived', owner }
+    if (hit.action === 'noop') {
+      return hit.reason === 'duplicate'
+        ? { state: 'duplicate', owner }
+        : { state: 'suppressed', owner, reason: hit.reason }
+    }
+    const head = this.supersedeHead(agentId, owner)
+    if (isChallengedDecisionHead(agentId, head)) return { state: 'challenged', owner, head }
+    return { state: 'superseded', owner, head: isLiveDecisionTarget(agentId, head) ? head : null }
   }
 
   reviveSupersededAfterDecision(

@@ -1876,7 +1876,9 @@
         "succeeded": "Ready",
         "cancelled": "Cancelled",
         "failed": "Failed"
-      }
+      },
+      "terminalLabel": "Terminal de login",
+      "terminalHint": "Pressione F6 para voltar aos controles de autenticação."
     },
     "terminal": {
       "close": "encerramento",

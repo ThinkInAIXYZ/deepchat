@@ -1181,3 +1181,22 @@
     -webkit-app-region: no-drag;
   }
 }
+
+/* Keep the primary keyboard entry above window chrome and outside drag regions. */
+.skip-to-content {
+  position: fixed;
+  inset-inline-start: 1rem;
+  top: 0.25rem;
+  z-index: 100;
+  padding: 0.5rem 0.75rem;
+  color: var(--foreground);
+  background: var(--background);
+  border: 2px solid var(--ring);
+  border-radius: var(--radius);
+  transform: translateY(-200%);
+  -webkit-app-region: no-drag;
+}
+
+.skip-to-content:focus {
+  transform: translateY(0);
+}

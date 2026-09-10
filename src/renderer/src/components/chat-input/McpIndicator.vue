@@ -56,7 +56,10 @@
             :model-value="selectedSystemPromptId"
             @update:model-value="emit('select-system-prompt', $event as string)"
           >
-            <SelectTrigger class="mt-3 h-8 text-xs">
+            <SelectTrigger
+              :aria-label="t('chat.advancedSettings.systemPrompt')"
+              class="mt-3 h-8 text-xs"
+            >
               <SelectValue :placeholder="t('chat.advancedSettings.systemPromptPlaceholder')" />
             </SelectTrigger>
             <SelectContent>

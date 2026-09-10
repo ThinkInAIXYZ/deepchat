@@ -21,7 +21,7 @@ const emit = defineEmits<{
 
 const uid = useId()
 
-const labelId = (option: DcChoiceOption) => `${uid}-${option.value}`
+const labelId = (index: number) => `${uid}-option-${index}`
 
 const isChecked = (option: DcChoiceOption): boolean => props.modelValue.includes(option.value)
 
@@ -44,6 +44,7 @@ const setChecked = (option: DcChoiceOption, checked: boolean) => {
 // that land on the checkbox are ignored here and handled by its own emit.
 const onRowClick = (option: DcChoiceOption, event: MouseEvent) => {
   if ((event.target as HTMLElement).closest('[data-slot="checkbox"]')) return
+  if (props.disabled || option.disabled) return
   setChecked(option, !isChecked(option))
 }
 
@@ -55,7 +56,7 @@ const onCheckboxUpdate = (option: DcChoiceOption, checked: boolean | 'indetermin
 <template>
   <div role="group" class="flex w-full flex-col gap-0.5">
     <div
-      v-for="option in props.options"
+      v-for="(option, index) in props.options"
       :key="option.value"
       data-testid="dc-choice-option"
       :class="
@@ -70,13 +71,18 @@ const onCheckboxUpdate = (option: DcChoiceOption, checked: boolean | 'indetermin
         <Checkbox
           :model-value="isChecked(option)"
           :disabled="props.disabled || option.disabled"
-          :aria-labelledby="labelId(option)"
+          :aria-labelledby="labelId(index)"
+          :aria-describedby="option.description ? `${labelId(index)}-description` : undefined"
           @update:model-value="onCheckboxUpdate(option, $event)"
         />
       </span>
       <span class="min-w-0 flex-1">
-        <span :id="labelId(option)" class="block text-[13px] leading-5">{{ option.label }}</span>
-        <span v-if="option.description" class="block text-xs leading-4 text-muted-foreground">
+        <span :id="labelId(index)" class="block text-[13px] leading-5">{{ option.label }}</span>
+        <span
+          v-if="option.description"
+          :id="`${labelId(index)}-description`"
+          class="block text-xs leading-4 text-muted-foreground"
+        >
           {{ option.description }}
         </span>
       </span>

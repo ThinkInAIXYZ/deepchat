@@ -1,0 +1,48 @@
+{
+  "actions": {
+    "rename": "نامىنى ئۆزگەرتىش",
+    "delete": "ئۆچۈرۈش",
+    "switchWithShortcut": "{shortcut} ئارقىلىق بۇ سۆھبەتكە ئالماشتۇرۇش",
+    "cleanMessages": "ئۇچۇرلارنى تازىلاش",
+    "pin": "مىخلاش",
+    "unpin": "مىخلاشنى بىكار قىلىش",
+    "moveConversation": "سۆھبەتنى يۆتكەش",
+    "export": "چىقىرىش",
+    "exportText": "ساپ تېكىست",
+    "exportNowledgeMem": "Nowledge-mem"
+  },
+  "toolbar": {
+    "save": "ساقلاش",
+    "cancel": "بىكار قىلىش",
+    "previousVariant": "ئالدىنقى نەشر",
+    "nextVariant": "كېيىنكى نەشر",
+    "copy": "Markdown قىلىپ كۆچۈرۈش",
+    "copyImage": "رەسىم قىلىپ كۆچۈرۈش",
+    "copyImageWithLongPress": "رەسىم قىلىپ كۆچۈرۈش (ئۇزۇن بېسىپ ئەڭ ئۈستىدىن تارتىپ تۇتۇش)",
+    "copyFromTopSuccess": "تولۇق سۆھبەت رەسىمى كۆچۈرۈلدى",
+    "capturing": "ئېكران تۇتۇلۇۋاتىدۇ...",
+    "retry": "قايتا ھاسىل قىلىش",
+    "fork": "يېڭى سۆھبەتكە تارماق قۇرۇش",
+    "edit": "ئۇچۇرنى تەھرىرلەش",
+    "delete": "ئۇچۇرنى ئۆچۈرۈش",
+    "trace": "تەلەپنى ئىز قوغلاش"
+  },
+  "message": {
+    "toolbar": {
+      "save": "ساقلاش"
+    }
+  },
+  "export": {
+    "failed": "چىقىرالمىدى",
+    "failedDesc": "چىقىرىش جەريانىدا خاتالىق كۆرۈلدى، قايتا سىناڭ",
+    "success": "چىقىرىلدى",
+    "successDesc": "سۆھبەت مۇۋەپپەقىيەتلىك چىقىرىلدى",
+    "nowledgeMemSuccess": "Nowledge-mem غا چىقىرىلدى",
+    "nowledgeMemSuccessDesc": "سۆھبەت nowledge-mem فورماتىدا مۇۋەپپەقىيەتلىك چىقىرىلدى",
+    "nowledgeMemSubmitPrompt": "بۇ سۆھبەتنى nowledge-mem غا يوللامسىز؟",
+    "nowledgeMemSubmitSuccess": "Nowledge-mem غا يوللاندى",
+    "nowledgeMemSubmitSuccessDesc": "سۆھبەت nowledge-mem غا مۇۋەپپەقىيەتلىك يوللاندى",
+    "nowledgeMemSubmitFailed": "Nowledge-mem غا يوللىيالمىدى",
+    "nowledgeMemSubmitFailedDesc": "سۆھبەتنى nowledge-mem غا يوللىيالمىدى"
+  }
+}

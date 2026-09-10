@@ -2190,7 +2190,9 @@
         "succeeded": "Ready",
         "cancelled": "Cancelled",
         "failed": "Failed"
-      }
+      },
+      "terminalLabel": "Thiết bị đầu cuối đăng nhập",
+      "terminalHint": "Nhấn F6 để quay lại các điều khiển xác thực."
     },
     "terminal": {
       "title": "Thiết bị đầu cuối khởi tạo",

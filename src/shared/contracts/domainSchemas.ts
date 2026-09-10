@@ -755,6 +755,7 @@ export const PreparedMessageFileSchema = z.object({
 })
 
 export const DeviceInfoSchema = z.object({
+  accessibilitySupportEnabled: z.boolean().optional(),
   platform: z.string(),
   arch: z.string(),
   cpuModel: z.string(),

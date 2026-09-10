@@ -89,7 +89,7 @@ export function useNewThreadComposerDraft(
     (next, previous) => {
       const document = input.value?.getDocumentSnapshot?.()
       if (
-        next.document !== previous.document &&
+        !composerDocumentsMatch(next.document, previous.document) &&
         document &&
         !composerDocumentsMatch(document, next.document)
       ) {
@@ -115,9 +115,12 @@ export function useNewThreadComposerDraft(
 
   watch(
     [draft, input],
-    () => {
+    (_next, [, previousHandle]) => {
       const handle = input.value
       if (!handle || disposed) return
+      // Local editor changes already own the document. Replaying their saved snapshot can
+      // interrupt a node-view render and replace a newly inserted chip with stale content.
+      if (!restoring && handle === previousHandle) return
       const snapshot = draft.value
       const skills = handle.getPendingSkillsSnapshot?.()
       if (

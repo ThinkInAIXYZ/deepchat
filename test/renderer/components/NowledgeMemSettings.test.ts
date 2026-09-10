@@ -136,7 +136,7 @@ describe('NowledgeMemSettings', () => {
   it('loads, saves, tests, and resets through NowledgeMemClient', async () => {
     const { wrapper, nowledgeMemClient, notifyRenderer } = await setup()
 
-    await wrapper.find('.cursor-default').trigger('click')
+    await wrapper.get('[data-testid=nowledge-mem-panel-toggle]').trigger('click')
     await flushPromises()
 
     expect(nowledgeMemClient.getConfig).toHaveBeenCalledTimes(1)
@@ -188,7 +188,7 @@ describe('NowledgeMemSettings', () => {
     })
     nowledgeMemClient.updateConfig.mockRejectedValueOnce(apiError)
 
-    await wrapper.find('.cursor-default').trigger('click')
+    await wrapper.get('[data-testid=nowledge-mem-panel-toggle]').trigger('click')
     await wrapper.get('#baseUrl').setValue('http://changed.local')
     await wrapper.get('[data-testid="nowledge-mem-save-button"]').trigger('click')
     await flushPromises()
@@ -230,7 +230,7 @@ describe('NowledgeMemSettings', () => {
   it('explains invalid endpoints before save or connection testing', async () => {
     const { wrapper, nowledgeMemClient } = await setup()
 
-    await wrapper.find('.cursor-default').trigger('click')
+    await wrapper.get('[data-testid=nowledge-mem-panel-toggle]').trigger('click')
     await wrapper.get('#baseUrl').setValue('file:///private/config')
 
     expect(wrapper.get('#baseUrl').attributes('aria-invalid')).toBe('true')
@@ -253,7 +253,7 @@ describe('NowledgeMemSettings', () => {
     const pending = deferred<{ success: boolean; message: string }>()
     nowledgeMemClient.testConnection.mockReturnValueOnce(pending.promise)
 
-    await wrapper.find('.cursor-default').trigger('click')
+    await wrapper.get('[data-testid=nowledge-mem-panel-toggle]').trigger('click')
     await wrapper.get('[data-testid="nowledge-mem-test-button"]').trigger('click')
     await flushPromises()
 

@@ -20,6 +20,7 @@
       </div>
       <Switch
         id="logging-switch"
+        :aria-label="t('settings.common.loggingEnabled')"
         class="ml-auto"
         :model-value="loggingEnabled"
         @update:model-value="handleLoggingChange"

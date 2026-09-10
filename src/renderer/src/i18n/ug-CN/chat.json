@@ -1,0 +1,638 @@
+{
+  "input": {
+    "placeholder": "DeepChat غا ئۇچۇر يوللاش، {'@'} ھۆججەتنى ئىسەلەشكە بولىدۇ، / بۇيرۇقنى ئىشلىتىشكە بولىدۇ",
+    "fileArea": "ھۆججەت رايونى",
+    "inputArea": "كىرگۈزۈش رايونى",
+    "functionSwitch": "ئىقتىدار ئاچقۇچى",
+    "attach": "ئۇلاش يۆتكەش",
+    "voiceInput": "يەرلىك تىزىمغا ئېلىش",
+    "voiceInputStop": "يەرلىك تىزىمغا ئېلىشنى توختىتىش",
+    "voiceRecognitionUnsupportedTitle": "ھازىرقى مۇھىت يەرلىك سىزغۇچنى قوللىمايدۇ",
+    "voiceRecognitionUnsupportedDescription": "بۇ ئىقتىدارنى قوللىنىش ئۈچۈن ميكروفوننى قوللايدىغان تور كۆرگۈچ ياكى كومپيۇتېر مۇھىتىدە ئىشلەتكىلى بولىدۇ.",
+    "voiceRecognitionPermissionDeniedTitle": "ميكروفونغا كىرىش مۇمكىن ئەمەس",
+    "voiceRecognitionPermissionDeniedDescription": "DeepChat نىڭ ميكروفوننى ئىشلىتىشىگە رۇخسەت بېرىپ قايتا سىناڭ.",
+    "voiceRecognitionErrorTitle": "ئاۋازنى تېكىستكە ئايلاندۇرۇش مەغلۇب بولدى",
+    "voiceRecognitionErrorDescription": "ئاۋازنى تېكىستكە ئايلاندۇرۇش تاماملىنىشقا مۇۋاپىق بولمىدى، كېيىن قايتا سىناڭ.",
+    "send": "ئەۋەتىش",
+    "steer": "توختىتىش",
+    "queue": "قاتارغا قوشۇش",
+    "stop": "توختات",
+    "fileSelect": "ھۈججەت تاللاش",
+    "pasteFiles": "ھۈججەتنى كۆچۈرۈپ چاپلاشنى قوللايدۇ",
+    "dropFiles": "ھۈججەتنى بۇ يەرگە تارتىڭ",
+    "promptFilesAdded": "Prompt ھۈججەت قوشۇلىدۇ",
+    "promptFilesAddedDesc": "مۇۋەپپىقىيەتلىك ئېشىپ  {count} ھۈججەت قوشۇلدى",
+    "promptFilesError": "ھۆججەت بىر تەرەپ قىلىش خاتالىقى",
+    "promptFilesErrorDesc": "{count} ھۈججەتنى ئىشلەتمەيدۇ",
+    "historyPlaceholder": "(Tab بويىچە تولدۇرۇلدى)",
+    "rateLimitQueue": "قاتار {count}",
+    "rateLimitWait": "{seconds}s نى كۈتۈۋېلىش",
+    "rateLimitQueueTooltip": "قاتاردا {count} تالاپ بار، ئارىلىق {interval} سېكۇت",
+    "rateLimitReadyTooltip": "تەلەپ ئەۋەتىشكە بولىدۇ، ئارىلىق {interval} سېكۇت",
+    "rateLimitWaitingTooltip": "یەنە {seconds} سېكۇت كۈتۈشىڭىز كېرەك، ئارىلىق {interval} سېكۇت",
+    "acpWorkdir": "ئىشلەش كۆچۈرۈلگەن جاي",
+    "acpWorkdirTooltip": "ACP ئىشچان كۆچۈرۈلگەن جايىنى تەڭشەش",
+    "acpWorkdirSelect": "ئىشچان كۆچۈرۈلگەن جاي تاللاش",
+    "acpWorkdirCurrent": "ھازىرقى ئىشچان كۆچۈرۈلگەن جاي：{path}",
+    "acpMode": "ھالەت",
+    "acpModeTooltip": "ھازىرقى ھالەت: {mode}",
+    "agentWorkspaceTooltip": "Agent ئىشچان كۆچۈرۈلگەن جايىنى تەڭشەش",
+    "agentWorkspaceSelect": "ئىشچان كۆچۈرۈلگەن جاي تاللاش",
+    "agentWorkspaceCurrent": "ھازىرقى ئىشچان كۆچۈرۈلگەن جاي：{path}",
+    "workspaceUnavailableTooltip": "كۆچۈرۈلگەن جاي مەۋجۇت ئەمەس ياكى كىرىش مۇمكىن ئەمەس: {path}",
+    "mcp": {
+      "badge": "MCP {count}",
+      "title": "MCP يېپىق قىلىندى",
+      "empty": "ھازىرقى يېپىق قىلىنغان مۇلازىمەت يوق",
+      "openSettings": "MCP نى ئاچىش"
+    },
+    "tools": {
+      "badge": "قوراللار",
+      "title": "قوراللار",
+      "mcpSection": "MCP",
+      "pluginSection": "قىستۇرمىلار",
+      "builtinSection": "ئىچكى قوراللار",
+      "loading": "قوراللار ئورنىتىلماقتا...",
+      "builtinEmpty": "ئىشلىتىشكە بولىدىغان ئىچكى قورال يوق",
+      "groups": {
+        "agentFilesystem": "ھۆججەت سىستېمىسى",
+        "agentCore": "يادرولۇق قوراللار",
+        "agentImageGeneration": "رەسىم ھاسىل قىلىش",
+        "agentSkills": "مەھارەت قوراللىرى",
+        "deepchatSettings": "DeepChat نى تەڭشەش",
+        "yobrowser": "YoBrowser"
+      }
+    },
+    "toolMode": {
+      "title": "ھالەت",
+      "modelDefault": "مادل نىسبەت بىلەن تەڭشلەش",
+      "options": {
+        "agent": "ئەقلىي ياردەمچى",
+        "code": "كود",
+        "minimal": "ئەڭ ئاز"
+      },
+      "descriptions": {
+        "agent": "زەنجىۋىل ساندان Agent قوراللار توپلىمىدىن پائىدىلىنىڭ.",
+        "code": "كود ئارقىلىق ھازىرقى ئىجرا قىلىنغان قوراللارنى بەلگىلەش، تولۇق كىرىش ھوقۇقى مودېلىنى تەلەپ قىلىدۇ.",
+        "minimal": "باشقا قوزغىتىلغان قوراللارنى ساقلاپ، ھۆججەت مەشىقلىرىنى قىسقارتماق."
+      },
+      "useModelDefault": "مادل كەڭ ھالەتتە ئىشلىتىش",
+      "saving": "مودېل ساقلىنىۋاتىدۇ...",
+      "locked": "بۇ جاۋابقا ئاخىر قىلغاندىن كېيىن مودېلنى ئالماشتۇرغىلى بولىدۇ.",
+      "updateFailed": "قورال ۋەزىپە مودېلىنى يېڭىلاشتا مەغلۇپ بولدى.",
+      "codeEntry": "كود كىرىشى",
+      "codeCallable": "Code چاقىرىلىدۇ",
+      "minimalTools": "كودلاش قورالى"
+    },
+    "fileUploadFailed": "قوشۇمچە ئىشلەش مەغلۇپ بولدى",
+    "fileUploadFailedDesc": "{count} ھۆججەتنى ئىشلەلمەيدۇ: {names}",
+    "fileUploadFailedMore": "{count}نى كۈتۈش",
+    "unnamedFile": "ئىسمسىز ھۆججەت",
+    "audioInputUnsupportedTitle": "ھازىرقى مەدل ئاۋاز قوشۇمچە قوللايدۇ، بۇ يۆنىلىشتى ئاۋاز قوشۇمچە قوشالمىدى",
+    "audioInputUnsupportedDescription": "مادل {model} ئاۋاز كىرىشىنى قوللىمايدۇ، {count} ئاۋاز قوشۇمچىسى سەركەردە قىلىندى.",
+    "suggestions": "تەكلىپلەر"
+  },
+  "messageReceipt": {
+    "unread": "ئوقۇلماپتۇ",
+    "read": "ئوقۇلدى"
+  },
+  "attachments": {
+    "chooseRepresentation": "{name} نى قانداق ئەۋەتىشكە تاللاش",
+    "representation": "قوشۇمچە كۆرۈنۈشى",
+    "auto": "ئۆزىلا",
+    "sendImage": "رەسىم يوللاش",
+    "useOcrText": "OCR تېكىستنى ئىشلىتىش",
+    "useEmbeddedText": "PDF ئاسلىنى ئىشلىتىش",
+    "preparing": "تارتما ئۇلاشماق…",
+    "actionRequiredTitle": "ئۇلاشماق لازىم",
+    "actionRequiredDescription": "بىر ياكى بىر قانچە ئۇلاشماق ئىشلەتكىلى بولمايدۇ، قانداق داۋام قىلىشنى تاللاڭ.",
+    "attachmentNumber": "{number} ئۇلاشماق",
+    "moreIssues": "يەنە {count} دا ئۇلاشماق مەسىلىسى بار",
+    "genericUnavailable": "ئىشلىتىشكە بولىدىغان ئۇلاشماق محتوى يوق.",
+    "keepDraft": "قېپىق تەھرىرنى ساقلاش",
+    "switchVisionModel": "كۆرۈنۈشلۈك مودېلنى ئالماشتۇرۇش",
+    "retry": "قايتا سىناش",
+    "sendWithoutImageContent": "ئۇلاشماق مەزمۇنىنى كۆز ئېچىش",
+    "inspectOcrText": "OCR تېكىستنى كۆرۈش",
+    "ocrBadge": "OCR",
+    "embeddedTextBadge": "ئاسلى",
+    "ocrPartialBadge": "OCR · بەزى",
+    "ocrLimitedBadge": "OCR · چەكلەنگەن",
+    "imageBadge": "رەسىم",
+    "unavailableBadge": "ئىشلىتىشكە بولمايدۇ",
+    "ocrPreviewTitle": "OCR تېكىست — {name}",
+    "ocrPreviewDescription": "تەخمىنەن {tokens} نىڭ token، ئىشەنچسىز ئۇلاشماق محتوى سۈپىتىدە يوللاندى.",
+    "ocrPageCoverage": "تېكىست {page} بەتكىچە ئۆز ئىچىگە ئالىدۇ.",
+    "ocrPageCoveragePartial": "تېكىست {page} بەتنىڭ بىر قىسمىنى ئۆز ئىچىگە ئالىدۇ.",
+    "ocrTextTruncated": "بۇ تاللا OCR تېكىست يوللاشتىن بۇرۇن قىسقارتىلدى.",
+    "reasons": {
+      "automatic_ocr_disabled": "ئاپتوماتىك OCR ئۆچۈرۈلدى.",
+      "document_limit_exceeded": "ھەر بىر تەلەب پەقەت بىر PDF غا OCR ئورۇنلاشتۇرۇشنى قوللايدۇ.",
+      "document_too_large": "PDF ھۆججەت چوڭلۇقى چەكتىن ئارتتى.",
+      "image_dimensions_exceeded": "رەسىمنىڭ كودى ئېچىلغاندىن كېيىن ئارايېتىچىلىق چەكتىن ئارتتى.",
+      "image_limit_exceeded": "بۇ ئايلانما رەسىم سانى OCR ئىش ئىشلەۋېلىش دائىرىسىدىن ئارتتى.",
+      "image_payload_unavailable": "ئاسلى رەسىم مەلۇماتلىرى ئىشلىتىشكە بولمايدۇ.",
+      "image_too_large": "رەسىم بىر ھۆججەت چوڭلۇقى چەكىدىن ئارتتى.",
+      "ocr_cancelled": "OCR ھۆججەتلىنىشتىن توختىتىلدى.",
+      "ocr_empty": "OCR ئىشلەتكىلى بولىدىغان تېكىستلەر ئېتىراپ قىلىنمىدى.",
+      "ocr_failed": "OCR بۇ قوشۇمچە ھۆججەتنى بىر تەرەپ قىلالمىدى.",
+      "ocr_queue_full": "OCR نۆۋەتتە ئالدىراش، نۆۋەتتىكى قوشۇمچە ھۆججەتنى بىر تەرەپ قىلىپ بولغاندىن كېيىن قايتا سىناپ بېقىڭ.",
+      "ocr_resource_limited": "OCR بىر تەرەپ قىلىش PDF بايلىق چېكىدە توختاپ قالدى.",
+      "ocr_runtime_unavailable": "نۆۋەتتىكى سۇپا ياكى ئورنىتىش مۇھىتى OCR نى قوللىمايدۇ.",
+      "invalid_attachment_snapshot": "سانلىق مەلۇمات OCR ئىناۋەتسىز.",
+      "turn_ocr_budget_exhausted": "OCR تېكىست بۇ ئۇچۇرنىڭ قوشۇمچە تېكىست چەكلىمىسىدىن ئېشىپ كەتتى.",
+      "pdf_text_unavailable": "بۇ PDF قىستۇرۇلغان تېكىست يوق.",
+      "requested_image_requires_vision": "«سۈرەت يوللاش» كۆرۈش ئىقتىدارىنى قوللايدىغان مودېللارغا ئېھتىياجلىق.",
+      "turn_image_bytes_exceeded": "بۇ ئايلانمىنىڭ سۈرەت ئومۇمىي چوڭلۇقى چەكتىن ئېشىپ كەتتى.",
+      "user_skipped_attachment_content": "سىزنىڭ ئىختىيارىڭىز بويىچە قوشۇمچە مەزمۇننى چىقىرىۋەتتىم.",
+      "user_skipped_image_content": "تاللىغاندا رەسىم مەزمۇنىنى ئۆچۈرۈۋەتتىڭىز.",
+      "unsupported_image_format": "OCR بۇ رەسىم فورماتىنى قوللىمايدۇ."
+    },
+    "pending": {
+      "blockedCount": "{count} توسۇلۇپ قالدى",
+      "blocked": "توسۇلۇپ قالدى",
+      "retry": "يەنە بىر قېتىم OCR سىناپ بېقىڭ",
+      "sendWithoutImageContent": "ئۇلاشماق مەزمۇنىنى كۆز ئېچىش",
+      "blockedDescription": "بۇ تۈر قوشۇمچە ھۆججەت بىر تەرەپ قىلىشنى كۈتۈۋاتىدۇ.",
+      "blockedReasonMore": "{reason} تېخىمۇ كۆپ {count} بار .",
+      "resolveFailed": "چەكلەنگەن مەسېجلەرنى بىر تەرەپ قىلالمىدى"
+    }
+  },
+  "skillDraft": {
+    "confirmationTitle": "ماھارەت نۇسخىسى",
+    "confirmationQuestion": "ماھارەت ئارگىنالى ھاسىل قىلىندى: {name}",
+    "previewTitle": "ئارگىنال مەزمۇنىنى ئالدىن كۆرۈش",
+    "actions": {
+      "view": "مەزمۇننى كۆرۈش",
+      "viewDescription": "ئارگىنالنىڭ SKILL.md مەزمۇنىنى ئالدىن كۆرۈپ باقايلى",
+      "install": "ماھارەت ئورنىتىلغان",
+      "installDescription": "ماھارەت مۇندەرىجىسىگە ئىمپورت قىلىپ، باشقۇرۇشنى ئىشقا ئاشۇرىدۇ",
+      "discard": "تاشلىۋېتىش",
+      "discardDescription": "ۋاقىتلىق ئارگىنالنى ئۆچۈرۈۋېتىش"
+    },
+    "result": {
+      "viewed": "مەزمۇن نۇسخىسىنى ئاچتۇق. قاچىلاش ياكى تاشلىۋېتىشنى تاللاڭ.",
+      "installed": "ماھارەت نۇسخىسى قاچىلانغان: {name}",
+      "discarded": "ماھارەت لايىھەسى تاشلىۋېتىلدى.",
+      "failed": "بىر تەرەپ قىلىش ماھارىتى لايىھەسى مەغلۇبىيىتى: {error}"
+    }
+  },
+  "pendingInput": {
+    "steer": "توختىتىش",
+    "queueCount": "{count}/{max} تارقىتىلىدۇ",
+    "toSteer": "ئۈزۈپ يوللىسىڭىز بولىدۇ",
+    "locked": "ئاللىقاچان سولاپ قويۇلدى",
+    "reorder": "تەرتىپنى تەڭشەش كېرەك",
+    "files": "{count} ھۆججەت",
+    "attachmentsOnly": "{count} قوشۇمچە ھۆججەت",
+    "empty": "قۇرۇق خەۋەر",
+    "limitReached": "كۈتۈش رايونى توشۇپ {max}.",
+    "remove": "ئۆچۈرۈش",
+    "steerUnavailable": "نۆۋەتتە ئۈزۈلۈپ قالغىلى بولمايدۇ",
+    "steerFailed": "ئۈزۈلۈش مەغلۇبىيىتى",
+    "resume": "ئۆچرەتتە تۇرۇپ داۋاملاشتۇرۇڭ",
+    "resumeFailed": "ئۆچرەتتە تۇرۇشقا ئامالسىز قالدى",
+    "retry": "قايتا سىناش",
+    "retryRequired": "قايتا سىناپ بېقىشىمىز كېرەك",
+    "retryRequiredDescription": "بۇ ئۇچۇر ئەۋەتىلمىدى. ئۆچىرەتنى داۋاملاشتۇرۇش ئۈچۈن قايتا سىناپ بېقىڭ.",
+    "retryFailed": "سەپ مەسېجىنى قايتا سىناش مۇمكىن ئەمەس"
+  },
+  "features": {
+    "webSearch": "توردىن ئىزدەش",
+    "thoughtForLessThanOneSecond": "1 سېكۇنتقا يەتمىگەن ۋاقىت تەپەككۇر قىلىڭ",
+    "thoughtForSeconds": "{seconds} سېكۇنت ئويلاندى",
+    "thoughtForSecondsLoading": "تەپەككۇر قىلىش (ئىككىنچى {seconds})",
+    "artifactThinking": "artifact تەپەككۇر",
+    "modeChanged": "ھالىتى تۆۋەندىكىگە ئۆزگەرتىلدى: {mode}"
+  },
+  "search": {
+    "results": "{0} تور بەتلىرىنى تاپتىم",
+    "searching": "ئىزدەۋاتىدۇ...",
+    "title": "ئىزدەش نەتىجىسى",
+    "description": "{0} مۇناسىۋەتلىك نەتىجىلەرنى بايقىدى",
+    "optimizing": "ئىزدەش مۇددىئاسىنى ئېلىۋاتىدۇ...",
+    "reading": "تور بەتلىرىنى ئىزدەۋاتىدۇ ۋە ئوقۇۋاتىدۇ...",
+    "error": "ئىزدەش مەغلۇپ بولدى"
+  },
+  "messages": {
+    "thinking": "ئويلاۋاتىدۇ",
+    "rateLimitWaiting": "ئىلتىماس چاستوتىسى چەكلىمىسى، ئۆچرەتتە تۇردى...",
+    "rateLimitCompactLoading": "سۈرئەت چەكلىمىسى ({seconds} سېكۇنت)",
+    "rateLimitTitle": "ئىلتىماس چاستوتىسى چەكلىمىسى",
+    "rateLimitQueue": "ئورنىنى",
+    "rateLimitEstimated": "ساقلاشنى ئۈمىد قىلىمىز",
+    "rateLimitQuickSettings": "چەكلىمىنى تەڭشەش",
+    "rateLimitSwitchProvider": "ئالماشتۇرۇش مۇلازىمەت بىلەن تەمىنلىگۈچى",
+    "rateLimitImmediately": "دەرھال",
+    "rateLimitSeconds": "سېكۇنت",
+    "rateLimitMinutes": "مىنۇت",
+    "loadEarlier": "بۇرۇنقى ئۇچۇرلارنى يۈكلەش"
+  },
+  "compaction": {
+    "compacting": "مەزمۇننى قىسقارتىۋاتىدۇ ...",
+    "compacted": "مەزمۇنى قىسقارتىلدى",
+    "compactedWithoutSummary": "مەزمۇن قىسقارتىلدى، لېكىن خۇلاسە ھاسىل قىلىنمىدى",
+    "compactedWithoutLargerSummary": "مەزمۇن قىسقارتىلغان، چوڭراق خۇلاسە ئىشلىتىلمەيدۇ",
+    "commandDescription": "يىغىننىڭ ئارقا كۆرۈنۈشىنى قىسقارتماق",
+    "noopTitle": "قىسقارتقىلى بولمايدىغان ئارقا كۆرۈنۈش يوق",
+    "noopDescription": "نۆۋەتتە قىسقارتىشقا تېگىشلىك يېڭى دىئالوگ تارىخى يوق.",
+    "failedTitle": "قىسقارتىش مەغلۇبىيىتى"
+  },
+  "contextOccupancy": {
+    "label": "كونتېكىستتىكى كەسىپ",
+    "details": "{used} / {capacity} توكېن",
+    "provider": "Provider سىناق قىلىندى",
+    "estimated": "گرافىكىغا ئاساسەن مۆلچەرلەش",
+    "stale": "مودېل، كۆزنەك ياكى پرېسلانغان چېگرا ئۆزگىرىشىدىن كېيىنكى كونا سانلىق مەلۇماتلار"
+  },
+  "rateLimit": {
+    "queueTooltip": "قاتاردا {count} تالاپ بار، ئارىلىق {interval} سېكۇت",
+    "readyTooltip": "تەلەپ ئەۋەتىشكە بولىدۇ، ئارىلىق {interval} سېكۇت",
+    "waitingTooltip": "یەنە {seconds} سېكۇت كۈتۈشىڭىز كېرەك، ئارىلىق {interval} سېكۇت"
+  },
+  "notify": {
+    "generationComplete": "ئەۋلاد تاماملاندى",
+    "generationError": "ئەۋلاد مەغلۇپ بولدى"
+  },
+  "toolCall": {
+    "title": "قورال چاقىرىش",
+    "calling": "قورال ئىشلىتىش جەريانىدا",
+    "response": "قورال ئىنكاسى",
+    "end": "قورال چاقىرىش تاماملاندى",
+    "error": "قورال چاقىرىش خاتالىقى",
+    "clickToView": "چېكىپ تەپسىلاتنى كۆرۈڭ",
+    "functionName": "فۇنكسىيە",
+    "params": "پارامېتىر",
+    "responseData": "ئىنكاس سانلىق مەلۇماتى",
+    "subagents": {
+      "summary": "{mode} · {count} تارماق ياردەمچى",
+      "unnamedTask": "نامسىز ۋەزىپىلەر",
+      "mode": {
+        "parallel": "يانمۇ-يان يۈگۈرىدۇ",
+        "chain": "تەرتىپلىك يوللاش"
+      },
+      "status": {
+        "queued": "ئۆچرەتتە تۇرۇڭ",
+        "running": "مەشغۇلات قىلىۋاتىدۇ",
+        "completed": "تاماملاندى",
+        "error": "خاتالىق",
+        "cancelled": "ئەمەلدىن قالدۇرۇلدى",
+        "waiting_permission": "ئىجازەت تەستىقلاشنى ساقلاش",
+        "waiting_question": "كىرگۈزۈشنى ساقلاۋاتىدۇ"
+      }
+    }
+  },
+  "mode": {
+    "current": "ھازىرقى ھالەت: {mode}",
+    "agent": "ئەقلىي ياردەمچى",
+    "acpAgent": "ACP ئەقلىي ياردەمچىسى",
+    "saveFailed": "ھالىتىنى تاللىغىلى بولمىدى"
+  },
+  "topbar": {
+    "backToParent": "يىغىنغا قايتىش",
+    "share": "ھەمبەھىرلەش",
+    "more": "تېخىمۇ كۆپ"
+  },
+  "subagents": {
+    "label": "تارماق ياردەمچىلەر"
+  },
+  "advancedSettings": {
+    "button": "ئالىي",
+    "title": "ئالدىنقى سەپبەلگىلەش",
+    "closeHint": "Esc بويىچە ئوخشىتىش",
+    "systemPrompt": "سىستېما ئەسكەرتىش سۆزلىرى",
+    "systemPromptPlaceholder": "ئالدىنقى سەپبەلگىلەشنى تاللاڭ",
+    "temperature": "تېمپېراتۇرا",
+    "topP": "Top P（ئېنەرگىيەلىك كەمتۈرۈش）",
+    "topPDescription": "قالدۇق بوش قىلىپ ئىجازەت بەرگۈچى نۆۋەتتىكى قىممىتىنى ئىشلىتىش",
+    "contextLength": "مەزمۇن دائىرىسى ئۇزۇنلۇقى",
+    "maxTokens": "ئەڭ كۆپ توكېن سانى",
+    "thinkingBudget": "پىكىر قىلىش بويىچە بۈجەت",
+    "verbosity": "جاۋاپ قىسقارغۇچلىقى",
+    "forceInterleavedThinkingCompat": "ئارىلاش پىكىر يۈرگۈزۈش",
+    "forceInterleavedThinkingCompatDescription": "نۆۋەتتىكى گەپ-سۆز سۆزلەشتە Interleaved Thinking ئۇسۇل بويىچە reasoning ۋە tool-call ئۇچۇرلىرىنى باشقۇرۇش",
+    "verbosityPlaceholder": "قىسقارغۇچ دەرىجىسىنى تاللاڭ",
+    "currentCustomPrompt": "نۆۋەتتىكى ئۆزگەرتىلگەن",
+    "useDefault": "ئەسلى قىممەتنى ئىشلىتىش",
+    "decreaseValue": "{label}نى ئازايتىڭ",
+    "increaseValue": "{label}نى كۆپەيتىڭ",
+    "toggleValue": "{label}نى ئالماشتۇرۇش",
+    "validation": {
+      "finiteNumber": "چەكلىك سان بولۇشى كېرەك",
+      "nonNegativeInteger": "منپىي بوش بولمىغان پۈتۈن سان بولۇشى كېرەك",
+      "contextLengthAtLeastMaxTokens": "ئەڭ چوڭ چىقىرىشقا تەڭ ياكى چوڭ بولۇشى كېرەك",
+      "maxTokensWithinContextLength": "مۇناسىۋەت تەپسىلىگە تەڭ ياكى كىچىك بولۇشى كېرەك",
+      "topPRange": "0 دىن چوڭ ۋە 1 دىن چوڭ ياكى تەڭ بولۇشى كېرەك"
+    }
+  },
+  "modelPicker": {
+    "empty": "مودېل تاپىلمايدۇ",
+    "audioInputSupported": "ئاۋاز كىرگۈزۈشنى قوللايدۇ"
+  },
+  "audio": {
+    "play": "ئويناڭ",
+    "pause": "توختىتىش"
+  },
+  "call": {
+    "title": "Voice.ai تېلفۇن ئارقىلىق ئالاقە",
+    "description": "Voice.ai ئاۋاز ۋاكالىتى بىلەن ئالاقە قىلىش ئۈچۈن چېكىڭ، تېلفۇن ئۇلىنىپ بولغاندىن كېيىن سۆزلەڭ",
+    "start": "ئاۋازلىق سۆھبەتنى باشلاڭ",
+    "stop": "سۆھبەتنى توختىتىش",
+    "end": "تېلفۇننى قويۇپ بېرىش"
+  },
+  "skills": {
+    "indicator": {
+      "active": "{count} بەلگىلەنگەن ماھارەت",
+      "none": "بەلگىلەنگەن ماھارەت يوق"
+    },
+    "panel": {
+      "title": "بەلگىلەنگەن ماھارەت",
+      "manage": "باشقۇرۇش",
+      "empty": "تېخى ماھارەت قاچىلانمىغان"
+    }
+  },
+  "workspace": {
+    "title": "خىزمەت رايونى",
+    "collapse": "يىغىش",
+    "expand": "يېيىش",
+    "sections": {
+      "files": "ھۆججەت",
+      "git": "Git",
+      "artifacts": "ھاسىل قىلىنغان مەزمۇنلار",
+      "subagents": "تارماق ياردەمچىلەر"
+    },
+    "plan": {
+      "section": "پىلان",
+      "empty": "ھېچقانداق ۋەزىپە يوق",
+      "itemAriaLabel": "{status}: {step}",
+      "status": {
+        "pending": "ئىشلەش ئۈچۈن ساقلانغان",
+        "in_progress": "داۋام قىلىۋاتىدۇ",
+        "completed": "تاماملاندى",
+        "interrupted": "توختىتىلغان"
+      },
+      "completedCount": "{completed}/{total} تاماملاندى"
+    },
+    "files": {
+      "section": "ھۆججەت",
+      "empty": "ھېچقانداق ھۆججەت يوق",
+      "loading": "ھۆججەت يوللىنىۋاتىدۇ...",
+      "noWorkspace": {
+        "title": "ھېچقانداق ئىش بوشلۇقى يوق",
+        "description": "ئىش بوشلۇقىنى تەڭشەش ئۈچۈن ھۆججەت قىسقۇچىنى تاللاڭ ياكى سۆرىۋېتىڭ",
+        "button": "ھۆججەت قىسقۇچىنى تاللاڭ"
+      },
+      "contextMenu": {
+        "openFile": "ھۆججەتنى ئېچىش",
+        "openWith": "ئېچىش ئۇسۇلى",
+        "openInApp": "{app} دا ئېچىش",
+        "openInTerminalApp": "{app} دا جايلاشقان بوتۇمنى ئېچىش",
+        "openFailed": "بۇ ھۆججەتنى بۇ قوللىنىش پروگراممىسىدا ئېچىش مۇمكىن ئەمەس",
+        "preferredAppUnavailable": "ئالدىنقى تاللانغان قوللىنىش پروگراممىسى ۋاقىتلىق ئىشلىمەمسىز، بۈگۈن سىستېمانىڭ نەتىجە ئۈچۈن تەڭشەلگەن ئۇسۇلىدا ئېچىلىدۇ.",
+        "revealInFolder": "ھۆججەت باشقۇرغۇچىدا ئېچىش",
+        "insertPath": "كىرگۈزۈش قۇتىسىغا كىرگۈزۈش",
+        "openWithSystemDefault": "سىستېما تەڭشەش ئۇسۇلىدا ئېچىش"
+      },
+      "watchStatus": {
+        "degraded": "مەدەتچى ئەسلىگە يۆتكەش كۆرۈشتە ئىشلىتىلىۋاتىدۇ، ھۆججەت ئۆزگىرىشلىرىنى يېڭىلاش سەل بىزىڭ بولىدۇ.",
+        "failed": "ھۆججەت ئۆزگىرىشىنى كۆزىتىشنى ۋاقتىنچە ئىشلەتكىلى بولمايدۇ، خىزمەت رايونىنى قايتا تاللاڭ ياكى يېڭىلاڭ."
+      }
+    },
+    "git": {
+      "empty": "كۆرۈستىلىدىغان diff يوق",
+      "clean": "ئىش بوشلۇقى تازا",
+      "staged": "ساقلاندى",
+      "unstaged": "ساقلانمىدى"
+    },
+    "subagents": {
+      "empty": "ھېچقانداق subagent سۆھبەت يوق",
+      "self": "ھازىرقى ئاكىلى",
+      "status": {
+        "working": "مەشغۇلات قىلىۋاتىدۇ",
+        "error": "خاتالىق",
+        "idle": "بوش"
+      }
+    },
+    "browser": {
+      "section": "كۆزەيتكىچ",
+      "empty": "ھېچقانداق بەلگە بەت يوق"
+    },
+    "terminal": {
+      "section": "تەرەققىيات پەنجىمى",
+      "empty": "ھېچقانداق چىقىرىش يوق",
+      "contextMenu": {
+        "terminate": "بۇيرۇقنى توختىتىش",
+        "delete": "تىزىملىكنى ئۆچۈرۈش",
+        "expand": "يېيىش",
+        "collapse": "يىغىش"
+      },
+      "output": {
+        "truncated": "[بەلگىلەپ بۇلسا]"
+      },
+      "noOutput": "چىقىرىش يوق",
+      "status": {
+        "running": "مەشغۇلات قىلىۋاتىدۇ",
+        "completed": "مۇۋەپپەقىيەتلىك",
+        "failed": "مەغلۇپ بولدى",
+        "timed_out": "ۋاقتى ئۆتىپ كەتتى",
+        "aborted": "توختىتىلدى"
+      }
+    }
+  },
+  "newThread": {
+    "title": "قۇرۇش ۋە تەكشۈرۈش"
+  },
+  "floatingWidget": {
+    "title": "ۋەزىپە مەخسۇس كۆرۈنۈشى",
+    "collapse": "ئالدىغا چۈشكەن سۆزلەش سىزىملىكىنى يىغىش",
+    "empty": "ھازىرقى ۋاقىتتا Agent سۆزلەش يوق",
+    "executing": "داۋام قىلىۋاتىدۇ",
+    "sessionCount": "{count} سۆزلەش بار",
+    "untitled": "يېڭى سۆھبەت",
+    "status": {
+      "inProgress": "داۋام قىلىۋاتىدۇ",
+      "done": "تاماملاندى",
+      "error": "خاتالىق"
+    }
+  },
+  "permissionMode": {
+    "default": "سۇناسلىق ھوقۇق",
+    "autoApprove": "ياردەمچى تەكشۈرۈش",
+    "fullAccess": "تولا كىرىش"
+  },
+  "sidebar": {
+    "allAgents": "بارلىق Agents",
+    "expandSidebar": "يېنىك سەھىپىنى كېڭەيتىش",
+    "collapseSidebar": "يېنىك سەھىپىنى يىغىش",
+    "themeToggle": "تېما ئالماشتۇرۇش",
+    "themeLight": "يورۇقلۇق",
+    "themeDark": "قاراڭغۇ",
+    "themeSystem": "سىستېما بويىچە ئەگەشىش",
+    "searchCommand": "ئىزدەش",
+    "chatSection": "سۆھبەت",
+    "workspace": "خىزمەت رايونى",
+    "addWorkspace": "ئىش رايونى قوشۇش",
+    "manageWorkspaces": "ئىش رايونىنى باشقۇرۇش",
+    "openWorkspaceFolder": "ھۆججەت قاچىلىق ئېچىش",
+    "emptyWorkspace": "بوش",
+    "addWorkspaceFailed": "ئىش رايونى قوشۇش مەغلۇپىيەتلىك بولدى",
+    "remoteControlDisabled": "چەكلەندى",
+    "remoteControlStatus": {
+      "disabled": "يىراقتىن كونترول چەكلەندى",
+      "stopped": "يىراقتىن كونترول توختىتىلدى",
+      "starting": "يىراقتىن كونترول باشلىنىۋاتىدۇ",
+      "running": "يىراقتىن كونترول ئىجرا قىلىنىۋاتىدۇ",
+      "backoff": "يىراقتىن كونترول قايتا سىناقتا",
+      "error": "يىراقتىن كونترول خاتالىق"
+    },
+    "groupByDate": "ۋاقىت بويىچە گۇرۇپلاش",
+    "groupByProject": "تۈر بويىچە گۇرۇپلاش",
+    "projectGroupActions": "تۈر گۇرۇپلاش ئەمەلگە ئاشۇرۇش",
+    "moveProjectGroupTop": "ئۈستىگە كۆچۈرۈش",
+    "moveProjectGroupUp": "ئۈستىگە يۆتەكلەش",
+    "moveProjectGroupDown": "تۆۋەنلەش",
+    "moveProjectGroupBottom": "ئاستىغا كۆچۈرۈش",
+    "pinned": "سۆزلەشنى ئۈستىڭىگە قويۇش",
+    "chats": "سۆزلەش",
+    "emptyTitle": "ھەلىمۇ سۆھبەت يوق",
+    "emptyDescription": "يېڭى سۆھبەت ئىلگىرىلەشتۈرۈڭ",
+    "searchPlaceholder": "سۆھبەت نامىنى ئىزدەڭ",
+    "searchAriaLabel": "سۆھبەت نامىنى ئىزدەڭ",
+    "searchEmptyTitle": "ماس كەلگەن سۆھبەت تېپىلمىدى",
+    "searchEmptyDescription": "باشقا نام ئاچقۇچلىرىنى سىناپ بېقىڭ",
+    "searchLoadedRangeDescription": "يۈكلەنگەن سۆھبەتلەردىكى ماس كەلگەن نەتىجىلەر كۆرسىتىلىۋاتىدۇ. تېخىمۇ كۆپ تارىخنى يۈكلەش ئۈچۈن سىيرىڭ."
+  },
+  "spotlight": {
+    "placeholder": "سۆھبەت، Agent، تەڭشەك ۋە ھەرىكەتلەرنى ئىزدەش…",
+    "searching": "ئىزدەش جەريانىدا…",
+    "emptyTitle": "ماس كەلگەن نەتىجە يوق",
+    "emptyDescription": "باشقا ئاچقۇچ سۆزلەرنى سىناڭ ياكى بىۋاستە يېقىنقى سۆھبەتنى ئېچىڭ.",
+    "hints": "↑↓ تاللاڭ · Enter ئېچىش · Esc تاقاش · Home/End ئۇچۇرغا ئۆتۈش",
+    "kind": {
+      "session": "سۆھبەت",
+      "message": "ئۇچۇر",
+      "agent": "ئەقلىي ياردەمچى",
+      "setting": "تەڭشەك",
+      "action": "ھەرىكەت"
+    }
+  },
+  "inlineSearch": {
+    "placeholder": "ھازىرقى سۆھبەتنى ئىزدەش",
+    "ariaLabel": "ھازىرقى سۆھبەتنى ئىزدەش",
+    "previous": "ئالدىنقى ماس كەلگەن ئورۇن",
+    "next": "كېيىنكى ماس كەلگەن ئورۇن",
+    "close": "ئىزدەشنى تاقاش"
+  },
+  "onboarding": {
+    "agentSwitch": {
+      "title": "DeepChat Agent غا ئۆتۈش",
+      "description": "سۆھبەت باشلىماس تۇنجىسى، ACP Agent تىن DeepChat سۆھبەت ئاقىمىغا قايتىڭ.",
+      "caption": "تەرىپ يانتۇ قىسمىدىكى يورۇقلانغان Agent كۇنۇپكىسىنى چېكىپ داۋام قىلىڭ."
+    },
+    "switchModel": {
+      "description": "بىرىنچى DeepChat سۆھبىتى ئۈچۈن ئىشلىتىدىغان مودېلنى تاللاڭ.",
+      "caption": "يورۇقلانغان مودېل ئالماشتۇرغۇچنى ئىشلىتىپ، ئىستەلگەن بار مودېلنى تاللاش كەرەك."
+    },
+    "firstChat": {
+      "description": "ھازىر تەييار، بۇ يەردە بىرىنچى ئۇچۇرنى ئەۋەتىپ يولغا قويۇڭ.",
+      "caption": "يورۇقلۇق دائىم كىرگۈزۈش قۇتىسىدا بولۇپ، راسلىق بىرىنچى ئۇچۇرنى ئەۋەتمىگىچە قالىدۇ."
+    }
+  },
+  "activityCollapse": {
+    "workedFor": "{duration} ئاللىقاچان ئىشلەۋاتىدۇ",
+    "reasoningCount": "{count} ئويلاش بۆلىكى",
+    "toolCallCount": "{count} قورال چاقىرىش قېتىمى",
+    "expandLabel": "{title} نى كەڭەيتىش",
+    "collapseLabel": "{title} نى توقىتىش",
+    "duration": {
+      "day": "كۈن",
+      "hour": "سائەت",
+      "minute": "مىنۇت",
+      "second": "سېكۇنت"
+    }
+  },
+  "memory": {
+    "toolbar": "بۇ ئايلىنىشتا ئىشلىتىلگەن خاتىرجەملىك",
+    "status": {
+      "archived": "ئۇنتۇلدى"
+    },
+    "actions": {
+      "undo": "ئەسلىگە كەلتۈرۈش",
+      "forget": "ئۇنتماق",
+      "edit": "تەھرىرلەش"
+    },
+    "chip": {
+      "title": "خاتىرجەملىك يېڭىلاندى {count}",
+      "heading": "خاتىرجەملىك يېڭىلاندى",
+      "description": "بۇ ئايلىنىشتا يېڭىدىن تۆۋەندىكى خاتىرجەملىك قوشۇلدى."
+    },
+    "selection": {
+      "remember": "بۇنى خاتىرلىغىن"
+    },
+    "turn": {
+      "title": "بۇ ئايلىنىشتا ئىشلىتىلگەن خاتىرجەملىك",
+      "empty": "بۇ ئايلىنىشتا خاتىرجەملىك قاچىلاپ قويۇلغان يوق",
+      "selected": "تاللانغان",
+      "dropped": "تاشلىۋېتىش",
+      "tokens": "توكېنلار",
+      "budget": "بۈجەت",
+      "allocation": "ئاتقان بۈجەت تارقىتىشى",
+      "directive": "بۇيرۇق",
+      "persona": "شەخسىيەت",
+      "working": "ئىشلەپچىقىرىش پرورېكسىيىسى",
+      "queryRecall": "سۈرۈشتۈرۈش ئەسلىگە كەلتۈرۈش",
+      "overhead": "قۇرۇلما چىقىمى",
+      "unused": "ئىشلىتىلمىدى",
+      "overheadSummary": "قۇرۇلما چىقىمى {overhead} · ئىشلىتىلمىدى {unused}",
+      "countOnly": "بۇ خاتىرىدە پەقەت سانلىق مەزمۇن قىسقىچە كۆرۈنىدۇ.",
+      "unavailable": "بۇ خاتىرجەملىك ئىشلىتىلمەيدۇ.",
+      "noSelectedDetails": "بۇ ئايلىنىشتا كۆرۈنىدىغان خاتىرجەملىك تەپسىلاتى يوق.",
+      "refreshFailed": "قايتا يېڭىلاش مەغلۇپ بولدى، ئاخىرقى قاچىلانغان خاتىرجەملىك كۆرۈنىدۇ.",
+      "error": "بۇ ئايلىنىشتا ئىشلىتىلگەن خاتىرجەملىك قاچىلىنىشقا مەغلۇپ بولدى."
+    },
+    "toast": {
+      "undoSuccess": "بۇ خاتىرجەملىك ئەسلىگە كەلتۈرۈلدى",
+      "undoFailed": "خاتىرجەملىك ئەسلىگە كەلتۈرۈش مەغلۇپ بولدى",
+      "forgetSuccess": "بۇ خاتىرجەملىك ئۇنتۇلدى",
+      "forgetFailed": "خاتىرجەملىك ئۇنتۇش مەغلۇپ بولدى",
+      "amendFailed": "خاتىرجەملىك تەھرىر مەغلۇپ بولدى",
+      "rememberFailed": "خاتىرجەملىك ساقلاش مەغلۇپ بولدى",
+      "add": {
+        "created": "يېڭى خاتىرجەملىك سۈپىتىدە ساقلاندى",
+        "updated": "بار خاتىرجەملىك يېڭىلاندى",
+        "superseded": "يېڭىلانغان خاتىرجەملىك بىلەن بىرلەشتۈرۈلدى",
+        "challenged": "تەستىقلانغۇچە خاتىرجەملىك سۈپىتىدە خاتىرلەندى",
+        "noop": "يېڭى خاتىرجەملىك يوق"
+      }
+    },
+    "errors": {
+      "actionFailed": "ئەمەل مەغلۇپ بولدى، ئىلگىرى قايتا سىناڭ.",
+      "amendRetryable": "تەھرىر مەغلۇپ بولدى، ئەسلى خاتىرجەملىك ئەسلىگە كەلتۈرۈلدى. كىرگۈزۈلگەن مەزمۇننى ساقلاپ قايتا سىناڭ.",
+      "amendRestoreFailed": "تەھرىر مەغلۇپ بولدى، ئەسلى خاتىرجەملىك ئەسلىگە كەلمەيدۇ. بۇ مەزمۇننى قولدا قايتا خاتىرلەڭ."
+    }
+  },
+  "orchestration": {
+    "actions": {
+      "openChild": "بولاق سۆھبەتنى ئېچىش"
+    },
+    "activityTitle": "Agent پائالىيەت",
+    "proactive": {
+      "title": "ئاكتىپ ھەمكارلىق",
+      "description": "Agentنىڭ مۇستەقىل ياكى قوشۇمچە ئىش قىلىشىدا ياخشى ياردەم بېرىدىغان پەيتتە ئاكتىپ تەۋسىيە قىلغىلى بولىدۇ؛ بۇ كۆپرەك ۋاقىت، Token ۋە سىستېما بايلىقىنى ئىستېمال قىلىشى مۇمكىن.",
+      "reasons": {
+        "session_unavailable": "نۆۋەتتىكى سۆھبەت قوللىنىشقا قولايلىق ئەمەس.",
+        "agent_unavailable": "نۆۋەتتىكى تاللانغان Agent قوللىنىشقا قولايلىق ئەمەس.",
+        "deepchat_agent_required": "ئاكتىپ ھەمكارلىق DeepChat Agentنى ئىشلىتىشنى تەلەپ قىلىدۇ.",
+        "regular_parent_required": "بولاق سۆھبەتتە ئاكتىپ ھەمكارلىقنى ئىشلىتكىلى بولمايدۇ.",
+        "agent_policy_unavailable": "ھەمكارلىق سىياسىتىنى يۈكلەشكە بولمىدى.",
+        "subagents_disabled": "ئاكتىپ ھەمكارلىقتىن ئالدى بىلەن بۇ Agent ئۈچۈن Subagentنى ئېچىڭ."
+      }
+    }
+  },
+  "guardStop": {
+    "maxToolCalls": "قورال چاقىرىش سانى ئەڭ چوڭ چېكىگە يەتتى، ۋەزىپە ھەل كەلمىدى.",
+    "noProgress": "ئۇلاشقان ئوخشاش قورال نەتىجىلىرى ئىلگىرىلىمە يوق، توختىتىلدى.",
+    "maxTurns": "بۇ ئايلانما سۆھبەتنىڭ ئەڭ چوڭ چېكىگە يەتتى، ۋەزىپە ھەل كەلمىدى.",
+    "continueMessage": "ئالدىنقى توختىغان يەردىن داۋام قىلىڭ."
+  }
+}

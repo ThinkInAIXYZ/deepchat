@@ -132,6 +132,8 @@ const getDefaultDeepchatInvokeResult = (
         version: 0
       }
     case 'config.getShortcutKeys':
+    case 'device.getInfo':
+      return { info: { platform: 'darwin', accessibilitySupportEnabled: false } }
     case 'config.resetShortcutKeys':
       return {
         shortcuts: {},

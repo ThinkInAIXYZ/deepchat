@@ -210,6 +210,15 @@ export function bindMessageStoreIpc(options: BindMessageStoreIpcOptions): Messag
         requestId: payload.requestId
       })
     }),
+    // Windows not bound to the streaming session receive no full stream events;
+    // keep their recent-session views (sidebar status) fresh from the
+    // lightweight activity signal instead. The bound window handles its own
+    // invalidation in the full-event listeners above.
+    chatClient.onStreamActivity((payload) => {
+      if (payload.sessionId !== options.getActiveSessionId()) {
+        options.invalidateRecentSessionView(payload.sessionId)
+      }
+    }),
     sessionClient.onMessagesChanged((payload) => {
       if (payload.sessionId !== options.getActiveSessionId()) {
         options.invalidateRecentSessionView(payload.sessionId)

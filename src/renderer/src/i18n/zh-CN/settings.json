@@ -2263,7 +2263,9 @@
         "succeeded": "已就绪",
         "cancelled": "已取消",
         "failed": "失败"
-      }
+      },
+      "terminalLabel": "登录终端",
+      "terminalHint": "按 F6 返回认证控件。"
     },
     "terminal": {
       "title": "初始化终端",

@@ -19,6 +19,7 @@ import {
 import {
   SkillServicePort,
   SkillMetadata,
+  SkillCatalogScope,
   SkillContent,
   SkillInstallResult,
   SkillFolderNode,
@@ -209,6 +210,7 @@ export interface SkillAgentScopePort {
     Array<{ id: string; enabledSkillNames?: string[] | null; protected?: boolean }>
   >
   getSessionAgentId(sessionId: string): Promise<string | null>
+  getSessionProjectDir?(sessionId: string): Promise<string | null>
   listSessions(): Promise<Array<{ id: string; agentId: string }>>
 }
 
@@ -1235,6 +1237,8 @@ export class SkillService implements SkillServicePort {
         return null
       }
 
+      const stats = await fs.promises.stat(confinedSkillPath)
+      if (!stats.isFile() || stats.size > SKILL_CONFIG.SKILL_FILE_MAX_SIZE) return null
       const content = await fs.promises.readFile(confinedSkillPath, 'utf-8')
       const { data } = matter(content)
 
@@ -1288,15 +1292,46 @@ export class SkillService implements SkillServicePort {
     }
   }
 
-  /**
-   * Get list of all skill metadata (from cache)
-   * Uses discoveryPromise pattern to prevent race conditions
-   */
-  async getMetadataList(agentId: string = BUILTIN_SKILL_AGENT_ID): Promise<SkillMetadata[]> {
+  /** Compose shared metadata with fresh workspace skills without changing the shared cache. */
+  private async getScopedCatalog(
+    agentId: string,
+    scope?: SkillCatalogScope
+  ): Promise<Map<string, SkillMetadata>> {
+    await this.ensureAgentCatalogDiscovered(agentId)
+    const workspacePath = scope?.conversationId
+      ? await this.agentScopePort?.getSessionProjectDir?.(scope.conversationId)
+      : scope?.workspacePath
+    if (!workspacePath?.trim()) return this.getMetadataCacheForAgent(agentId)
+    if (!path.isAbsolute(workspacePath) || workspacePath.includes('\0')) {
+      throw new Error('Skill workspace path must be absolute')
+    }
+    const projectRoot = path.resolve(workspacePath)
+    const projectSkills = new Map<string, SkillMetadata>()
+    for (const directory of ['.agents', '.deepchat', '.claude', '.codex', '.cursor']) {
+      const root = path.join(projectRoot, directory, 'skills')
+      if (!(await this.pathExists(root))) continue
+      if (!(await this.resolvePhysicalSkillPath(projectRoot, root))) continue
+      for (const metadata of await this.discoverSkillsOnMainThread(root)) {
+        if (projectSkills.has(metadata.name)) continue
+        if (!(await this.resolvePhysicalSkillPath(projectRoot, metadata.path))) continue
+        projectSkills.set(metadata.name, { ...metadata, projectRoot })
+      }
+    }
+    // Request-local overlay: one conversation must never mutate another's catalog.
+    return new Map([...this.getMetadataCacheForAgent(agentId), ...projectSkills])
+  }
+
+  async getMetadataList(
+    agentId: string = BUILTIN_SKILL_AGENT_ID,
+    scope?: SkillCatalogScope
+  ): Promise<SkillMetadata[]> {
     const normalizedAgentId = await this.requireAgentScope(agentId)
     await this.ensureAgentCatalogDiscovered(normalizedAgentId)
     await this.ensureAgentBindingsInitialized(normalizedAgentId)
-    return this.getVisibleMetadataFromCache(normalizedAgentId)
+    const catalog = await this.getScopedCatalog(normalizedAgentId, scope)
+    return this.sortSkillMetadata(
+      Array.from(catalog.values()).filter((skill) => this.isSkillVisible(skill, normalizedAgentId))
+    )
   }
 
   /**
@@ -1340,7 +1375,10 @@ export class SkillService implements SkillServicePort {
   }
 
   private isSkillVisible(metadata: SkillMetadata, agentId: string): boolean {
-    return Boolean(metadata) && this.isSkillAssigned(agentId, metadata.name)
+    return (
+      Boolean(metadata) &&
+      (Boolean(metadata.projectRoot) || this.isSkillAssigned(agentId, metadata.name))
+    )
   }
 
   private createDefaultManagementState(): SkillManagementState {
@@ -1787,15 +1825,17 @@ export class SkillService implements SkillServicePort {
   }
 
   async getUnifiedSkillCatalog(
-    agentId: string = BUILTIN_SKILL_AGENT_ID
+    agentId: string = BUILTIN_SKILL_AGENT_ID,
+    scope?: SkillCatalogScope
   ): Promise<UnifiedSkillItem[]> {
     const normalizedAgentId = await this.requireAgentScope(agentId)
     await this.ensureAgentCatalogDiscovered(normalizedAgentId)
     await this.ensureAgentBindingsInitialized(normalizedAgentId)
 
+    const catalog = await this.getScopedCatalog(normalizedAgentId, scope)
     const state = this.getStoredManagementState()
-    return this.sortSkillMetadata(Array.from(this.metadataCache.values()))
-      .filter((skill) => state.agents[normalizedAgentId]?.bindings[skill.name]?.assigned === true)
+    return this.sortSkillMetadata(Array.from(catalog.values()))
+      .filter((skill) => this.isSkillVisible(skill, normalizedAgentId))
       .map((skill) => this.toUnifiedSkillItem(skill, normalizedAgentId, state))
   }
 
@@ -1818,18 +1858,26 @@ export class SkillService implements SkillServicePort {
       .filter(([, agent]) => agent.bindings[skill.name]?.assigned === true)
       .map(([assignedAgentId]) => assignedAgentId)
       .sort((left, right) => left.localeCompare(right))
-    const assigned = state.agents[agentId]?.bindings[skill.name]?.assigned === true
+    const assigned =
+      Boolean(skill.projectRoot) || state.agents[agentId]?.bindings[skill.name]?.assigned === true
     return {
       ...skill,
       agentId,
-      canonicalPath: skill.readOnly || skill.ownerPluginId ? skill.skillRoot : item.canonicalPath,
-      sourceType: skill.readOnly || skill.ownerPluginId ? 'builtin' : item.source.type,
+      canonicalPath:
+        skill.projectRoot || skill.readOnly || skill.ownerPluginId
+          ? skill.skillRoot
+          : item.canonicalPath,
+      sourceType: skill.projectRoot
+        ? 'project'
+        : skill.readOnly || skill.ownerPluginId
+          ? 'builtin'
+          : item.source.type,
       assigned,
       assignedAgentIds: globalView ? assignedAgentIds : [],
       disabled: !assigned,
       deepchatDisabled: !assigned,
       agentLinks: {},
-      mutable: !skill.ownerPluginId && !skill.readOnly
+      mutable: !skill.projectRoot && !skill.ownerPluginId && !skill.readOnly
     }
   }
 
@@ -1889,6 +1937,12 @@ export class SkillService implements SkillServicePort {
     metadata: SkillMetadata,
     freshEvidence: boolean = false
   ): Promise<EffectiveSkillContentBuild | null> {
+    if (
+      metadata.projectRoot &&
+      !(await this.resolvePhysicalSkillPath(metadata.projectRoot, metadata.path))
+    ) {
+      return null
+    }
     const confinedSkillPath = await this.resolvePhysicalSkillPath(metadata.skillRoot, metadata.path)
     if (!confinedSkillPath) {
       logger.warn('[SkillService] Refusing to load a Skill manifest outside its physical root.', {
@@ -1949,6 +2003,7 @@ export class SkillService implements SkillServicePort {
         )
       : undefined
     if (freshManifestBytes) {
+      // Both shared and project Skills must keep identical manifest bytes during package capture.
       const confirmedManifestBytes = await this.readStableRegularFile(
         confinedSkillPath,
         SKILL_CONFIG.SKILL_FILE_MAX_SIZE
@@ -1997,11 +2052,12 @@ export class SkillService implements SkillServicePort {
 
   async resolveFreshEffectiveSkillContents(
     agentId: string,
-    names: readonly string[]
+    names: readonly string[],
+    scope?: SkillCatalogScope
   ): Promise<EffectiveSkillContentResolution[]> {
     const normalizedAgentId = await this.requireAgentScope(agentId)
     await this.ensureAgentCatalogDiscovered(normalizedAgentId)
-    const metadataCache = this.getMetadataCacheForAgent(normalizedAgentId)
+    const metadataCache = await this.getScopedCatalog(normalizedAgentId, scope)
 
     const resolutions: EffectiveSkillContentResolution[] = []
     let effectiveContentBytes = 0
@@ -2020,7 +2076,8 @@ export class SkillService implements SkillServicePort {
           throw new Error('manifest could not be loaded safely')
         }
         if (
-          metadataCache.get(name) !== metadata ||
+          (!metadata.projectRoot &&
+            this.getMetadataCacheForAgent(normalizedAgentId).get(name) !== metadata) ||
           !this.isSkillVisible(metadata, normalizedAgentId)
         ) {
           throw new Error('catalog changed while effective content was being resolved')
@@ -2036,7 +2093,8 @@ export class SkillService implements SkillServicePort {
           build
         )
         if (
-          metadataCache.get(name) !== metadata ||
+          (!metadata.projectRoot &&
+            this.getMetadataCacheForAgent(normalizedAgentId).get(name) !== metadata) ||
           !this.isSkillVisible(metadata, normalizedAgentId)
         ) {
           throw new Error('catalog changed while execution package was being snapshotted')
@@ -2380,7 +2438,9 @@ export class SkillService implements SkillServicePort {
       if (folded.has(key)) throw new Error(`execution package path collision: ${file.relativePath}`)
       folded.add(key)
     }
-    const runtimeSnapshot = await this.captureSkillRuntimeSnapshot(agentId, metadata.name)
+    const runtimeSnapshot = metadata.projectRoot
+      ? { extension: createDefaultSkillExtensionConfig(), environmentBindingId: null }
+      : await this.captureSkillRuntimeSnapshot(agentId, metadata.name)
     const scripts = discoveredScripts
       .map((script) => {
         const legacyRelativePath = script.relativePath.replaceAll('/', path.sep)
@@ -2400,7 +2460,8 @@ export class SkillService implements SkillServicePort {
           Buffer.from(right.relativePath, 'utf8')
         )
       )
-    this.assertCurrentSkillRuntimeSnapshot(agentId, metadata.name, runtimeSnapshot)
+    if (!metadata.projectRoot)
+      this.assertCurrentSkillRuntimeSnapshot(agentId, metadata.name, runtimeSnapshot)
     const executionPackage: EffectiveSkillExecutionPackage = {
       files,
       executables: scripts.map(({ relativePath, runtime, enabled }) => ({
@@ -2446,8 +2507,7 @@ export class SkillService implements SkillServicePort {
       | undefined,
     captureExecutionSnapshot: boolean
   ): Promise<RuntimeSkillViewResult> {
-    const metadataCache = this.getMetadataCacheForAgent(agentId)
-    await this.ensureAgentCatalogDiscovered(agentId)
+    const metadataCache = await this.getScopedCatalog(agentId, options)
 
     const metadata = metadataCache.get(name)
     const authorizedForRun = options?.activeSkillNames?.includes(name) === true
@@ -2552,7 +2612,7 @@ export class SkillService implements SkillServicePort {
         : undefined
       if (
         captureExecutionSnapshot &&
-        (metadataCache.get(name) !== metadata ||
+        ((!metadata.projectRoot && this.getMetadataCacheForAgent(agentId).get(name) !== metadata) ||
           (!authorizedForRun && !this.isSkillVisible(metadata, agentId)))
       ) {
         throw new Error('Skill catalog changed while its execution snapshot was being built')
@@ -2601,6 +2661,14 @@ export class SkillService implements SkillServicePort {
   ): RuntimeSkillContentIdentity {
     const state = this.getStoredManagementState()
     const item = state.skills[metadata.name] ?? this.createDefaultSkillItem(metadata.name)
+    if (metadata.projectRoot) {
+      return {
+        agentId,
+        sourceType: 'project',
+        sourceId: metadata.skillRoot,
+        skillName: metadata.name
+      }
+    }
     return {
       agentId,
       sourceType: metadata.readOnly ? 'builtin' : item.source.type,
@@ -4807,7 +4875,12 @@ export class SkillService implements SkillServicePort {
       this.invalidateSkillContent(name)
       for (const session of sessions) {
         const previous = previousSelections.get(session.id) ?? []
-        const next = previous.filter((skillName) => skillName !== name)
+        const scoped = previous.includes(name)
+          ? await this.getScopedCatalog(session.agentId, { conversationId: session.id })
+          : null
+        const next = scoped?.get(name)?.projectRoot
+          ? previous
+          : previous.filter((skillName) => skillName !== name)
         if (!this.areSkillListsEqual(previous, next))
           this.setPersistedNewSessionSkills(session.id, next)
       }
@@ -5295,9 +5368,15 @@ export class SkillService implements SkillServicePort {
     agentId: string,
     name: string,
     expectedBindingId: string | null,
-    expectedSourceId?: string
+    expectedSourceId?: string,
+    expectedSourceType?: SkillSourceType
   ): Promise<Record<string, string>> {
     const normalizedAgentId = await this.requireAgentScope(agentId)
+    if (expectedSourceType === 'project') {
+      if (expectedBindingId !== null)
+        throw new Error('Project Skills cannot use shared environment bindings')
+      return {}
+    }
     const ownerPluginId = this.getStoredManagementState().skills[name]?.ownerPluginId
     const userPluginRoot = path.join(
       app.getPath('userData'),
@@ -5468,7 +5547,9 @@ export class SkillService implements SkillServicePort {
       return []
     }
 
-    const extension = await this.getSkillExtensionForAgent(agentId, metadata.name)
+    const extension = metadata.projectRoot
+      ? createDefaultSkillExtensionConfig()
+      : await this.getSkillExtensionForAgent(agentId, metadata.name)
     const descriptors = (
       await this.collectScriptDescriptors(confinedScriptsDir, metadata.skillRoot)
     ).map((script) => {
@@ -5561,7 +5642,7 @@ export class SkillService implements SkillServicePort {
       const agentId = await this.resolveSessionAgentId(conversationId)
       if (!agentId) return []
       const skills = await this.loadNewSessionSkills(conversationId)
-      const validSkills = await this.validateSkillNames(agentId, skills)
+      const validSkills = await this.validateSkillNames(agentId, skills, { conversationId })
       if (this.retiredSessionSkillScopes.has(conversationId)) return []
       if (!this.areSkillListsEqual(validSkills, skills)) {
         this.setPersistedNewSessionSkills(conversationId, validSkills)
@@ -5623,7 +5704,9 @@ export class SkillService implements SkillServicePort {
       const isNewSession = await this.isNewAgentSession(conversationId)
       const agentId = await this.resolveSessionAgentId(conversationId)
       // Validate skill names against the owning Agent's catalog.
-      const validSkills = agentId ? await this.validateSkillNames(agentId, skills) : []
+      const validSkills = agentId
+        ? await this.validateSkillNames(agentId, skills, { conversationId })
+        : []
       if (this.retiredSessionSkillScopes.has(conversationId)) return []
       if (!isNewSession || !agentId) {
         this.warnLegacySkillRetired(conversationId)
@@ -5684,7 +5767,7 @@ export class SkillService implements SkillServicePort {
     return await this.runActiveSkillMutation(conversationId, async () => {
       if (this.retiredSessionSkillScopes.has(conversationId)) return []
       const persisted = this.getPersistedNewSessionSkills(conversationId)
-      const valid = await this.validateSkillNames(agentId, persisted)
+      const valid = await this.validateSkillNames(agentId, persisted, { conversationId })
       if (this.retiredSessionSkillScopes.has(conversationId)) return []
       if (!this.areSkillListsEqual(persisted, valid)) {
         this.setPersistedNewSessionSkills(conversationId, valid)
@@ -5697,16 +5780,21 @@ export class SkillService implements SkillServicePort {
    * Validate skill names against available skills
    */
   async validateSkillNames(names: string[]): Promise<string[]>
-  async validateSkillNames(agentId: string, names: string[]): Promise<string[]>
+  async validateSkillNames(
+    agentId: string,
+    names: string[],
+    scope?: SkillCatalogScope
+  ): Promise<string[]>
   async validateSkillNames(
     agentIdOrNames: string | string[],
-    maybeNames?: string[]
+    maybeNames?: string[],
+    scope?: SkillCatalogScope
   ): Promise<string[]> {
     const agentId = Array.isArray(agentIdOrNames)
       ? BUILTIN_SKILL_AGENT_ID
       : await this.requireAgentScope(agentIdOrNames)
     const names = Array.isArray(agentIdOrNames) ? agentIdOrNames : (maybeNames ?? [])
-    const available = await this.getMetadataList(agentId)
+    const available = await this.getMetadataList(agentId, scope)
     const availableNames = new Set(available.map((s) => s.name))
     const seen = new Set<string>()
     const validNames: string[] = []
@@ -5734,8 +5822,7 @@ export class SkillService implements SkillServicePort {
   ): Promise<string[]> {
     const agentId = await this.resolveSessionAgentId(conversationId)
     if (!agentId) return []
-    const metadataCache = this.getMetadataCacheForAgent(agentId)
-    await this.ensureAgentCatalogDiscovered(agentId)
+    const metadataCache = await this.getScopedCatalog(agentId, { conversationId })
 
     const activeSkills = activeSkillNamesOverride ?? (await this.getActiveSkills(conversationId))
     const allowedTools: Set<string> = new Set()

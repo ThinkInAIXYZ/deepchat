@@ -111,6 +111,7 @@ export interface IYoBrowserPresenter {
     timeoutMs?: number,
     hostWindowId?: number
   ): Promise<YoBrowserStatus>
+  focusSessionBrowser(sessionId: string, hostWindowId: number): boolean
   attachSessionBrowser(sessionId: string, hostWindowId: number): Promise<boolean>
   updateSessionBrowserBounds(
     sessionId: string,

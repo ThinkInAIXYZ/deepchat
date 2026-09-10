@@ -5,6 +5,15 @@
       :data-generating="String(isGenerating)"
       class="chat-page-shell relative grid h-full min-h-0 w-full min-w-0 grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden"
     >
+      <div
+        data-testid="chat-generation-status"
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+        class="sr-only"
+      >
+        {{ generationAnnouncement }}
+      </div>
       <ChatTopBar
         class="chat-capture-hide"
         :session-id="props.sessionId"
@@ -34,6 +43,9 @@
         <div
           ref="scrollContainer"
           data-testid="chat-page"
+          role="region"
+          :aria-label="sessionTitle"
+          tabindex="0"
           class="message-list-container relative h-full min-h-0 w-full min-w-0 overflow-y-auto"
           :class="{ 'dc-list-scrolling': isListScrolling }"
           @scroll.passive="onScroll"
@@ -82,6 +94,19 @@
                   {{ t('thread.toolbar.retry') }}
                 </DcButton>
               </div>
+            </div>
+            <div v-if="messageStore.hasMoreHistory" class="px-6 pt-3 text-center">
+              <DcButton
+                type="button"
+                variant="outline"
+                size="sm"
+                data-testid="history-load-earlier"
+                :disabled="messageStore.isLoadingHistory"
+                :aria-busy="messageStore.isLoadingHistory"
+                @click="loadEarlierMessagesForReading"
+              >
+                {{ t('chat.messages.loadEarlier') }}
+              </DcButton>
             </div>
             <MessageList
               ref="messageListRef"
@@ -289,6 +314,7 @@
 </template>
 
 <script setup lang="ts">
+import type { ToolInteractionResponse } from '@shared/types/agent-interface'
 import {
   ref,
   computed,
@@ -301,6 +327,7 @@ import {
 } from 'vue'
 import type { JSONContent } from '@tiptap/core'
 import { useI18n } from 'vue-i18n'
+import { useAccessibilitySupport } from '@/composables/useAccessibilitySupport'
 import { TooltipProvider } from '@shadcn/components/ui/tooltip'
 import { DcButton } from '@dc-ui/components/button'
 import { DcConfirmDialog } from '@dc-ui/components/confirm-dialog'
@@ -367,6 +394,7 @@ import type { UserMessageInlineItem } from '@shared/types/agent-interface'
 import { findLatestAssistantMessageId } from '@/features/chat-page/model/displayMessage'
 
 const props = defineProps<{
+  focusComposerOnMount?: boolean
   sessionId: string
 }>()
 
@@ -397,6 +425,7 @@ const modelClient = createModelClient()
 const providerClient = createProviderClient()
 const sessionClient = createSessionClient()
 const { t } = useI18n()
+const { accessibilityEnabled } = useAccessibilitySupport()
 const isSessionViewCommitted = computed(
   () =>
     messageStore.currentSessionId === props.sessionId &&
@@ -685,6 +714,15 @@ async function retryOlderMessages(): Promise<void> {
   await loadOlderMessagesAtTop({ force: true })
 }
 
+async function loadEarlierMessagesForReading() {
+  const sessionId = props.sessionId
+  await loadOlderMessagesAtTop({ force: true })
+  if (sessionId !== props.sessionId || messageStore.historyLoadError) return
+  requestChatScroll('history-navigation', { kind: 'absolute', top: 0 }, true)
+  await nextTick()
+  scrollContainer.value?.focus({ preventScroll: true })
+}
+
 async function loadOlderMessagesAtTop(options: { force?: boolean } = {}): Promise<void> {
   if (chatScrollController.activeOperation.value?.reason === 'history-prepend') {
     return
@@ -737,8 +775,9 @@ async function loadOlderMessagesAtTop(options: { force?: boolean } = {}): Promis
     ? messageWindow.getEntry(historyAnchor.messageId)
     : undefined
   const usesWindowedMessages =
-    previousEntryCount > MESSAGE_WINDOWING_THRESHOLD ||
-    messageWindow.entries.value.length > MESSAGE_WINDOWING_THRESHOLD
+    !accessibilityEnabled.value &&
+    (previousEntryCount > MESSAGE_WINDOWING_THRESHOLD ||
+      messageWindow.entries.value.length > MESSAGE_WINDOWING_THRESHOLD)
 
   if (!usesWindowedMessages || !historyAnchor || !nextAnchorEntry) {
     await nextTick()
@@ -913,6 +952,7 @@ const virtualization = useMessageVirtualization({
   viewport: scrollContainer,
   displayMessages,
   messageWindow,
+  disableWindowing: accessibilityEnabled,
   windowingThreshold: MESSAGE_WINDOWING_THRESHOLD,
   initialWindowCount: MESSAGE_INITIAL_WINDOW_COUNT,
   overscanPx: MESSAGE_WINDOW_OVERSCAN_PX,
@@ -1082,6 +1122,7 @@ function handleWindowKeydown(event: KeyboardEvent) {
 
 const chatInputRef = ref<{
   triggerAttach: () => void
+  focusInput?: () => void
   insertRecognizedText?: (text: string) => void
   insertWorkspaceReference?: (targetPath: string) => boolean
   getInlineItemsSnapshot?: () => UserMessageInlineItem[]
@@ -1102,7 +1143,7 @@ const {
   pendingInteractions,
   activePendingInteraction,
   isHandlingInteraction,
-  onToolInteractionRespond
+  onToolInteractionRespond: submitToolInteraction
 } = useToolInteraction({
   sessionId: () => props.sessionId,
   messageStore,
@@ -1111,6 +1152,59 @@ const {
   applyRestoredSessionSummary,
   currentRestoreRequestId,
   canWriteSessionView
+})
+
+async function onToolInteractionRespond(response: ToolInteractionResponse) {
+  const sessionId = props.sessionId
+  await submitToolInteraction(response)
+  await nextTick()
+  if (sessionId !== props.sessionId || activePendingInteraction.value) return
+  // Do not steal focus if the user moved elsewhere while the response was saving.
+  const active = document.activeElement
+  if (active !== document.body && !active?.closest('[data-testid="agent-interaction-dock"]')) {
+    return
+  }
+  if (isReadOnlySession.value) scrollContainer.value?.focus({ preventScroll: true })
+  else chatInputRef.value?.focusInput?.()
+}
+
+let composerFocusRequested = props.focusComposerOnMount === true
+watch(
+  isSessionViewPreparing,
+  async (preparing) => {
+    if (preparing || !composerFocusRequested) return
+    composerFocusRequested = false
+    await nextTick()
+    if (
+      !activePendingInteraction.value &&
+      !isReadOnlySession.value &&
+      document.activeElement === document.body
+    ) {
+      chatInputRef.value?.focusInput?.()
+    }
+  },
+  { immediate: true, flush: 'post' }
+)
+
+// Announce state transitions, not token updates; users read response content in the transcript.
+const generationAnnouncement = computed(() => {
+  if (isSessionViewPreparing.value) return ''
+  if (activePendingInteraction.value) {
+    return activePendingInteraction.value.actionType === 'tool_call_permission'
+      ? t('chat.toolCall.subagents.status.waiting_permission')
+      : t('chat.toolCall.subagents.status.waiting_question')
+  }
+  if (isGenerating.value) return t('chat.toolCall.subagents.status.running')
+  const latestResponse = displayMessages.value.find(
+    (message) => message.id === latestAssistantMessageId.value
+  )
+  if (latestResponse?.role === 'assistant' && latestResponse.runStopReason === 'user_stop') {
+    return t('common.error.userCanceledGeneration')
+  }
+  if (sessionStore.activeSession?.status === 'error' || latestResponse?.status === 'error') {
+    return t('chat.notify.generationError')
+  }
+  return latestResponse?.status === 'sent' ? t('chat.notify.generationComplete') : ''
 })
 
 const {

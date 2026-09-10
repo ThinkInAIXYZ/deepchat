@@ -1,0 +1,79 @@
+{
+  "steps": {
+    "welcome": {
+      "title": "ᠪᠠᠶᠠᠷᠯᠠᠨ ᠤᠭᠲᠤᠨ᠎ᠠ",
+      "description": "ᠭᠡᠷ ᠢᠶᠡᠨ ᠪᠡᠯᠡᠳᠬᠡᠵᠡᠭᠡᠶ᠎ᠡ DeepChat"
+    },
+    "provider": {
+      "title": "ᠵᠠᠭᠪᠤᠷ ᠤᠨ ᠦᠢᠯᠡᠴᠢᠯᠡᠭᠡ ᠦᠵᠡᠭᠦᠯᠦᠭᠴᠢ",
+      "description": "ᠳᠤ ᠳᠤᠷᠠᠲᠠᠢ ᠰᠢᠨ᠎ᠡ ᠮᠠᠶᠢᠭ ᠤᠨ ᠬᠠᠩᠭ᠋ᠠᠪᠤᠷᠢ ᠪᠠᠨ ᠰᠣᠩᠭᠣᠬᠤ"
+    },
+    "configuration": {
+      "title": "ᠵᠠᠭᠪᠤᠷ ᠤᠨ ᠲᠣᠬᠢᠷᠠᠭᠤᠯᠭ᠎ᠠ",
+      "description": "ᠬᠡᠷᠡᠭ᠍ᠯᠡᠬᠦ ᠭᠡᠵᠦ ᠪᠠᠢ᠌ᠭ᠎ᠠ ᠮᠣᠳᠧᠯᠧᠯᠢᠭ᠌ ᠢᠶᠠᠨ ᠲᠣᠬᠢᠷᠠᠭᠤᠯᠬᠤ"
+    },
+    "complete": {
+      "title": "ᠶᠢ ᠪᠡᠶᠡᠯᠡᠭᠦᠯᠪᠡ",
+      "description": "ᠠᠯᠢᠪᠠ ᠪᠦᠬᠦᠨ ᠢ ᠪᠡᠯᠡᠨ ᠪᠠᠷᠠᠪᠠ᠂ ᠴᠢ ᠲᠡᠭᠦᠨ ᠢ ᠡᠬᠢᠯᠡᠨ ᠬᠡᠷᠡᠭ᠍ᠯᠡᠭᠡᠷᠡᠢ!"
+    }
+  },
+  "title": "DeepChat ᠬᠡᠷᠡᠭᠯᠡᠬᠦ ᠶᠢ ᠤᠭᠲᠤᠶ᠎ᠠ",
+  "description": "ᠤᠭᠰᠠᠷᠠᠬᠤ ᠶᠠᠪᠤᠴᠠ ᠪᠠᠨ ᠬᠠᠮᠲᠤ ᠳᠠᠭᠠᠨ ᠬᠢᠵᠦ ᠳᠠᠭᠤᠰᠭᠠᠶ᠎ᠠ",
+  "provider": {
+    "select": "ᠦᠢᠯᠡᠴᠢᠯᠡᠭᠡ ᠦᠵᠡᠭᠦᠯᠦᠭᠴᠢ ᠰᠣᠩᠭᠣᠬᠤ",
+    "apiUrl": "API ᠬᠠᠶᠢᠭ",
+    "apiKey": "API ᠲᠦᠯᠬᠢᠭᠦᠷ",
+    "verifyLink": "ᠶᠢ ᠰᠢᠯᠭᠠᠨ ᠭᠡᠷᠡᠴᠢᠯᠡᠬᠦ"
+  },
+  "complete": {
+    "title": "ᠪᠥᠲᠥᠯ᠎ᠡ !",
+    "description": "ᠴᠢ ᠤᠭᠰᠠᠷᠠᠬᠤ ᠭᠠᠷ ᠭᠦᠢᠴᠡᠳᠬᠡᠯ ᠢᠶᠡᠨ ᠪᠡᠶᠡᠯᠡᠭᠦᠯᠴᠢᠬᠡᠵᠡᠢ ᠂ ᠡᠬᠢᠯᠡᠭᠡᠳ ᠡᠬᠢᠯᠡᠶ᠎ᠡ !"
+  },
+  "buttons": {
+    "getStarted": "ᠢ ᠡᠬᠢᠯᠡᠵᠦ ᠬᠡᠷᠡᠭ᠍ᠯᠡᠬᠦ",
+    "next": "ᠳᠠᠷᠠᠭ᠎ᠠ ᠠᠯᠬᠤᠮ",
+    "back": "ᠪᠤᠴᠠᠬᠤ"
+  },
+  "page": {
+    "title": "DeepChat Agent ᠬᠡᠷᠡᠭᠯᠡᠬᠦ ᠶᠢ ᠤᠭᠲᠤᠶ᠎ᠠ",
+    "description": "ᠶᠢᠨ ᠨᠢᠭᠡ ᠵᠠᠭᠪᠤᠷ ᠢ ᠬᠣᠯᠪᠣᠵᠤ ᠡᠬᠢᠯᠡᠵᠦ ᠬᠡᠷᠡᠭ᠍ᠯᠡᠬᠦ",
+    "guide": {
+      "title": "ᠶᠢᠨ ᠵᠢᠯᠣᠭᠣᠳᠬᠤ ᠴᠢᠨᠠᠷᠲᠠᠶ ᠠᠬᠢᠴᠠ ᠶᠢ",
+      "description": "ᠤᠨ ᠠᠯᠬᠤᠴᠠ : {step}",
+      "or": "ᠡᠰᠡᠭᠦᠯ᠎ᠡ",
+      "coreProgress": "ᠶᠢᠨ ᠭᠣᠤᠯᠯᠠᠬᠤ ᠲᠣᠬᠢᠷᠠᠭᠤᠯᠤᠯᠲᠠ ᠶᠢᠨ ᠠᠬᠢᠴᠠ",
+      "optional": "ᠶᠢᠨ ᠳᠠᠷᠠᠭ᠎ᠠ ᠠᠯᠬᠤᠮ ᠢ ᠰᠤᠩᠭᠤᠬᠤ",
+      "actions": {
+        "continueSetup": "ᠶᠢ ᠵᠠᠯᠭᠠᠵᠤ ᠲᠣᠬᠢᠷᠠᠭᠤᠯᠤᠨ᠎ᠠ",
+        "goToChat": "ᠪᠡᠷ ᠤᠴᠢᠬᠤ"
+      },
+      "steps": {
+        "provider": "ᠦᠢᠯᠡᠴᠢᠯᠡᠭᠡ ᠦᠵᠡᠭᠦᠯᠦᠭᠴᠢ",
+        "first-chat": "ᠤᠨ ᠨᠢᠭᠡᠳᠦᠭᠡᠷ ᠦᠨ ᠶᠠᠷᠢᠯᠴᠠᠭ᠎ᠠ",
+        "switch-model": "ᠨᠡᠭᠡᠭᠡᠯᠭᠡ ᠶᠢᠨ ᠵᠠᠭᠪᠤᠷ",
+        "mcp": "MCP",
+        "skills": "ᠮᠡᠷᠭᠡᠵᠢᠯ",
+        "plugins": "ᠨᠡᠮᠡᠯᠲᠡ"
+      }
+    },
+    "browseProviders": "ᠶᠢᠨ ᠬᠠᠩᠭᠠᠭᠴᠢᠳ ᠢ ᠦᠵᠡᠨ᠎ᠡ ᠁",
+    "connectAgent": "ᠶᠢ ᠵᠠᠯᠭᠠᠬᠤ Agent",
+    "acpTitle": "ACP Agent ᠲᠣᠬᠢᠷᠠᠭᠤᠯᠬᠤ",
+    "acpDescription": "Claude Code ᠂ Codex Kimi ᠪᠤᠶᠤ ᠥᠪᠡᠷ ᠦᠨ Agent",
+    "providers": {
+      "claude": "Claude",
+      "openai": "OpenAI",
+      "deepseek": "DeepSeek",
+      "gemini": "Gemini",
+      "ollama": "Ollama",
+      "openrouter": "OpenRouter"
+    },
+    "importProviders": "ᠠᠴᠠ ᠣᠷᠣᠭᠤᠯᠬᠤ Agent"
+  },
+  "agentPage": {
+    "title": "Agent ᠶᠢ ᠰᠣᠩᠭᠣᠵᠤ ᠡᠬᠢᠯᠡᠵᠦ ᠵᠣᠬᠢᠶᠠᠨ ᠪᠠᠶᠢᠭᠤᠯᠬᠤ",
+    "deepchatType": "DeepChat ᠣᠶᠤᠨᠲᠤ ᠲᠤᠰᠠᠯᠠᠭᠴᠢ",
+    "acpType": "ACP ᠣᠶᠤᠨᠲᠤ ᠲᠤᠰᠠᠯᠠᠭᠴᠢ",
+    "manageAgents": "ᠢ ᠬᠠᠮᠢᠶᠠᠷᠬᠤ DeepChat Agent"
+  }
+}

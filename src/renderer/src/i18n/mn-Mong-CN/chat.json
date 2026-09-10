@@ -1,0 +1,638 @@
+{
+  "input": {
+    "placeholder": "ᠮᠡᠳᠡᠭᠡ ᠪᠡᠨ DeepChat ᠂ {'@'} ᠨᠢ ᠪᠢᠴᠢᠭ᠌ ᠮᠠᠲ᠋ᠧᠷᠢᠶᠠᠯ ᠢ ᠯᠠᠪᠯᠠᠵᠤ ᠪᠣᠯᠬᠤ / ᠵᠠᠷᠯᠢᠭ ᠢ ᠬᠡᠷᠡᠭᠯᠡᠵᠦ ᠪᠣᠯᠣᠨ᠎ᠠ",
+    "fileArea": "ᠳᠠᠩᠰᠠ ᠡᠪᠬᠡᠮᠡᠯ ᠦᠨ ᠣᠷᠣᠨ",
+    "inputArea": "ᠣᠷᠣᠭᠤᠯᠬᠤ ᠣᠷᠣᠨ",
+    "functionSwitch": "ᠶᠢᠨ ᠴᠢᠳᠠᠮᠵᠢ ᠶᠢ ᠰᠣᠯᠢᠬᠤ",
+    "attach": "ᠳᠠᠭᠠᠯᠳᠤᠭᠤᠯᠤᠯ ᠨᠡᠮᠡᠬᠦ",
+    "voiceInput": "ᠶᠢᠨ ᠰᠢᠩᠭᠡᠭᠡᠯᠲᠡ",
+    "voiceInputStop": "ᠨᠢ ᠲᠤᠰ ᠭᠠᠵᠠᠷ ᠲᠤᠨᠢ ᠰᠢᠩᠭᠡᠭᠡᠬᠦ ᠪᠡᠨ ᠵᠣᠭᠰᠣᠬᠤ",
+    "voiceRecognitionUnsupportedTitle": "ᠣᠳᠣ ᠶᠢᠨ ᠪᠠᠶᠢᠳᠠᠯ ᠳᠤ ᠣᠷᠣᠨ ᠨᠤᠲᠤᠭ ᠤᠨ ᠲᠡᠮᠳᠡᠭᠯᠡᠬᠦ ᠶᠢ ᠳᠡᠮᠵᠢᠬᠦ ᠦᠭᠡᠶ",
+    "voiceRecognitionUnsupportedDescription": "ᠮᠢᠺᠷᠣᠹᠦ᠋ ᠪᠡᠷ ᠰᠢᠩᠭᠡᠭᠡᠬᠦ ᠶᠢ ᠳᠡᠮᠵᠢᠬᠦ ᠠᠹᠷᠢᠺᠠ ᠪᠤᠶᠤ ᠫᠦᠨᠴᠦᠭᠡᠢ ᠶᠢᠨ ᠣᠷᠴᠢᠨ ᠳᠤ ᠡᠨᠡ ᠬᠦ ᠴᠢᠳᠠᠮᠵᠢ ᠶᠢ ᠬᠡᠷᠡᠭ᠍ᠯᠡᠭᠡᠷᠡᠢ ᠃",
+    "voiceRecognitionPermissionDeniedTitle": "ᠢ ᠨᠡᠭᠡᠭᠡᠵᠦ ᠳᠡᠶᠢᠯᠬᠦ ᠦᠭᠡᠢ",
+    "voiceRecognitionPermissionDeniedDescription": "DeepChat ᠢ ᠬᠡᠷᠡᠭ᠍ᠯᠡᠬᠦ ᠶᠢ ᠵᠥᠪᠰᠢᠶᠡᠷᠡᠭᠡᠳ ᠲᠠᠬᠢᠵᠤ ᠲᠤᠷᠰᠢᠭᠠᠷᠠᠢ ᠃",
+    "voiceRecognitionErrorTitle": "ᠶᠢᠨ ᠳᠠᠭᠤᠨ ᠤ ᠮᠠᠶᠢᠭ ᠢ ᠵᠥᠪᠠᠳᠬᠤᠬᠤ",
+    "voiceRecognitionErrorDescription": "ᠳᠠᠭᠤᠨ ᠤ ᠮᠠᠲ᠋ᠧᠷᠢᠶᠠᠯ ᠢ ᠠᠪᠴᠤ ᠳᠠᠭᠤᠰᠤᠭᠰᠠᠨ ᠦᠭᠡᠢ ᠂ ᠰᠡᠭᠦᠯᠡᠷ ᠳᠠᠬᠢᠨ ᠰᠢᠯᠭᠠᠭᠠᠷᠠᠢ ᠃",
+    "send": "ᠶᠠᠪᠤᠭᠤᠯᠤᠶ᠎ᠠ",
+    "steer": "ᠶᠢ ᠲᠠᠰᠤᠯᠬᠤ",
+    "queue": "ᠳᠤ ᠣᠷᠣᠬᠤ ᠳᠤ ᠣᠷᠣᠯᠴᠠᠨ᠎ᠠ",
+    "stop": "ᠵᠣᠭᠰᠣᠬᠤ",
+    "fileSelect": "ᠢ ᠰᠣᠩᠭᠣᠬᠤ",
+    "pasteFiles": "ᠢ ᠺᠣᠫᠢ ᠨᠠᠭᠠᠬᠤ ᠶᠢ ᠳᠡᠮᠵᠢᠨ᠎ᠡ",
+    "dropFiles": "ᠪᠢᠴᠢᠭ᠌ ᠮᠠᠲ᠋ᠧᠷᠢᠶᠠᠯ ᠢ ᠡᠨᠳᠡ ᠴᠢᠷᠦᠭᠦᠯᠦᠨ᠎ᠡ",
+    "promptFilesAdded": "Prompt ᠶᠢᠨ ᠪᠢᠴᠢᠭ᠌ ᠮᠠᠲ᠋ᠧᠷᠢᠶᠠᠯ ᠢ ᠨᠡᠮᠡᠪᠡ",
+    "promptFilesAddedDesc": "ᠶᠢ {count} ᠢ ᠠᠮᠵᠢᠯᠲᠠ ᠲᠠᠢ ᠪᠠᠷ ᠨᠡᠮᠡᠪᠡ",
+    "promptFilesError": "ᠢ ᠰᠢᠢᠳᠪᠦᠷᠢᠯᠡᠬᠦ ᠠᠯᠳᠠᠭ᠎ᠠ",
+    "promptFilesErrorDesc": "ᠶᠢᠨ ᠮᠠᠲᠧᠷᠢᠶᠠᠯ ᠢ {count} ᠳᠤ ᠬᠦᠷᠦᠭᠰᠡᠨ ᠦᠭᠡᠢ",
+    "historyPlaceholder": "(  ᠲᠡᠭᠦᠨ ᠦ ᠨᠡᠷᠡᠰ ᠢᠶᠡᠷ Tab ）",
+    "rateLimitQueue": "ᠳᠠᠷᠠᠭᠠᠯᠠᠯ {count}",
+    "rateLimitWait": "ᠬᠦᠯᠢᠶᠡᠵᠦ {seconds}s",
+    "rateLimitQueueTooltip": "ᠡᠩᠨᠡᠭᠡᠨ ᠦ ᠳᠣᠲᠣᠷ᠎ᠠ {count} ᠶᠢᠨ ᠱᠠᠭᠠᠷᠳᠠᠯᠭ᠎ᠠ ᠲᠠᠢ {interval}᠃",
+    "rateLimitReadyTooltip": "ᠶᠢᠨ ᠱᠠᠭᠠᠷᠳᠠᠯᠭ᠎ᠠ ᠶᠢ ᠳᠠᠮᠵᠢᠭᠤᠯᠵᠤ ᠪᠣᠯᠣᠨ᠎ᠠ ᠂ ᠵᠠᠪᠰᠠᠷ ᠢᠶᠠᠷ {interval} ᠰᠧᠺᠦᠨᠳ᠋",
+    "rateLimitWaitingTooltip": "ᠢᠯᠡᠭᠦᠦ {seconds} ᠰᠧᠺᠦᠢᠨᠳ᠋ ᠬᠦᠯᠢᠶᠡᠬᠦ ᠬᠡᠷᠡᠭ᠍ᠲᠡᠢ ᠂ ᠰᠺᠦᠢᠨᠳ᠋ {interval}",
+    "acpWorkdir": "ᠠᠵᠢᠯ ᠤᠨ ᠭᠠᠷᠴᠠᠭ",
+    "acpWorkdirTooltip": "ACP ᠠᠵᠢᠯᠯᠠᠬᠤ ᠭᠠᠷᠴᠠᠭ ᠢ ᠲᠣᠭᠲᠠᠭᠠᠪᠠ",
+    "acpWorkdirSelect": "ᠶᠢᠨ ᠭᠠᠷᠴᠠᠭ  ᠢ ᠰᠣᠩᠭᠣᠬᠤ",
+    "acpWorkdirCurrent": "ᠶᠢᠨ ᠬᠡᠷᠡᠭᠵᠢᠭᠦᠯᠵᠦ ᠪᠠᠶᠢᠭ᠎ᠠ ᠠᠵᠢᠯ ᠤᠨ ᠭᠠᠷᠴᠠᠭ ᠄ {path}",
+    "acpMode": "ᠭᠣᠷᠢᠮ",
+    "acpModeTooltip": "ᠣᠳᠣ ᠶᠢᠨ ᠬᠡᠯᠪᠡᠷᠢ ᠄ {mode}",
+    "agentWorkspaceTooltip": "Agent ᠢ ᠲᠠᠯᠪᠢᠨ᠎ᠠ",
+    "agentWorkspaceSelect": "ᠶᠢᠨ ᠭᠠᠷᠴᠠᠭ  ᠢ ᠰᠣᠩᠭᠣᠬᠤ",
+    "agentWorkspaceCurrent": "ᠶᠢᠨ ᠬᠡᠷᠡᠭᠵᠢᠭᠦᠯᠵᠦ ᠪᠠᠶᠢᠭ᠎ᠠ ᠠᠵᠢᠯ ᠤᠨ ᠭᠠᠷᠴᠠᠭ ᠄ {path}",
+    "workspaceUnavailableTooltip": "ᠭᠠᠷᠴᠠᠭ ᠪᠠᠢᠢᠬᠤ ᠦᠭᠡᠢ ᠪᠤᠶᠤ ᠡᠷᠢᠵᠦ ᠣᠯᠬᠤ ᠦᠭᠡᠢ᠄ {path}",
+    "mcp": {
+      "badge": "MCP {count}",
+      "title": "ᠨᠢᠭᠡᠨᠲᠡ MCP",
+      "empty": "ᠢ ᠠᠷᠭᠠᠴᠠᠬᠤ ᠦᠢᠯᠡᠴᠢᠯᠡᠭᠡ ᠦᠭᠡᠢ",
+      "openSettings": "MCP ᠢ ᠨᠡᠭᠡᠭᠡᠵᠦ"
+    },
+    "tools": {
+      "badge": "ᠪᠠᠭᠠᠵᠢ",
+      "title": "ᠪᠠᠭᠠᠵᠢ",
+      "mcpSection": "MCP",
+      "pluginSection": "ᠨᠡᠮᠡᠯᠲᠡ",
+      "builtinSection": "ᠳᠤ ᠣᠷᠤᠭᠤᠯᠤᠭᠰᠠᠨ ᠪᠠᠭᠠᠵᠢ ᠶᠢᠨ ᠪᠠᠭᠠᠵᠢ",
+      "loading": "ᠠᠴᠢᠶᠠᠯᠠᠬᠤ ᠪᠠᠭᠠᠵᠢ ᠁",
+      "builtinEmpty": "ᠳᠤ ᠣᠷᠣᠭᠰᠠᠨ ᠪᠠᠭᠠᠵᠢ ᠶᠢᠨ ᠲᠣᠬᠢᠷᠠᠭᠤᠯᠤᠯᠲᠠ ᠦᠭᠡᠢ",
+      "groups": {
+        "agentFilesystem": "ᠪᠢᠴᠢᠭ᠌ ᠮᠠᠲ᠋ᠧᠷᠢᠶᠠᠯ ᠤᠨ ᠰᠢᠰᠲ᠋ᠧᠮ",
+        "agentCore": "ᠪᠠᠭᠠᠵᠢ",
+        "agentImageGeneration": "ᠶᠢᠨ ᠪᠥᠲᠥᠭᠡᠯᠲᠡ",
+        "agentSkills": "ᠮᠡᠷᠭᠡᠵᠢᠯ ᠪᠠᠭᠠᠵᠢ",
+        "deepchatSettings": "DeepChat ᠲᠣᠬᠢᠷᠠᠭᠤᠯᠭ᠎ᠠ",
+        "yobrowser": "YoBrowser"
+      }
+    },
+    "toolMode": {
+      "title": "ᠭᠣᠷᠢᠮ",
+      "modelDefault": "ᠶᠢᠨ ᠪᠠᠷᠢᠮᠵᠢᠶ᠎ᠠ ᠶᠢᠨ ᠲᠣᠭᠲᠠᠮᠠᠯ",
+      "options": {
+        "agent": "ᠣᠶᠤᠨᠲᠤ ᠲᠤᠰᠠᠯᠠᠭᠴᠢ",
+        "code": "ᠺᠣᠳ᠋",
+        "minimal": "ᠬᠠᠮᠤᠭ ᠴᠥᠭᠡᠨ"
+      },
+      "descriptions": {
+        "agent": "ᠶᠢᠨ Agent ᠶᠢ ᠬᠡᠷᠡᠭᠯᠡᠨ᠎ᠡ ᠃",
+        "code": "ᠶᠢᠨ ᠣᠳᠣᠬᠢ ᠨᠡᠭᠡᠭᠡᠯᠲᠡ ᠲᠡᠢ ᠪᠠᠭᠠᠵᠢ ᠶᠢ ᠺᠣᠳ᠋ ᠢᠶᠠᠷ ᠲᠣᠬᠢᠷᠠᠭᠤᠯᠬᠤ ᠳᠤ ᠂ ᠪᠦᠬᠦ ᠶᠠᠪᠤᠴᠠ ᠶᠢ ᠣᠷᠣᠭᠤᠯᠬᠤ ᠠᠷᠭ᠎ᠠ ᠱᠠᠭᠠᠷᠳᠠᠯᠭ᠎ᠠ ᠱᠠᠭᠠᠷᠳᠠᠨ᠎ᠠ ᠃",
+        "minimal": "ᠶᠢᠨ ᠠᠵᠢᠯᠯᠠᠭᠠᠨ ᠢ ᠳᠥᠭᠥᠮᠴᠢᠯᠡᠬᠦ ᠶᠢᠨ ᠬᠠᠮᠲᠤ ᠪᠤᠰᠤᠳ ᠨᠡᠭᠡᠭᠡᠯᠲᠡ ᠶᠢᠨ ᠪᠠᠭᠠᠵᠢ ᠶᠢ ᠦᠯᠡᠳᠡᠭᠡᠵᠦ ᠴᠢᠳᠠᠨ᠎ᠠ ᠃"
+      },
+      "useModelDefault": "ᠶᠢᠨ ᠲᠣᠭᠲᠠᠪᠤᠷᠢ ᠶᠢ ᠬᠡᠷᠡᠭᠯᠡᠬᠦ",
+      "saving": "ᠬᠠᠳᠠᠭᠠᠯᠠᠬᠤ ᠠᠷᠭ᠋ ᠠ ᠁",
+      "locked": "ᠶᠢ ᠲᠤᠰᠬᠠᠭᠰᠠᠨ ᠤ ᠳᠠᠷᠠᠭ᠎ᠠ ᠰᠣᠯᠢᠵᠤ ᠪᠣᠯᠣᠨ᠎ᠠ ᠃",
+      "updateFailed": "ᠶᠢᠨ ᠠᠷᠭ᠎ᠠ ᠬᠡᠮᠵᠢᠶ᠎ᠡ ᠶᠢ ᠰᠢᠨᠡᠳᠬᠡᠬᠦ ᠦᠭᠡᠢ ᠃",
+      "codeEntry": "ᠨᠣᠮᠧᠷ ᠢ ᠲᠠᠭᠯᠠᠬᠤ",
+      "codeCallable": "Code ᠳᠠᠭᠤᠳᠠᠵᠤ ᠪᠣᠯᠬᠤ",
+      "minimalTools": "ᠶᠢᠨ ᠨᠣᠮᠧᠷᠯᠠᠬᠤ ᠪᠠᠭᠠᠵᠢ"
+    },
+    "fileUploadFailed": "ᠶᠢᠨ ᠳᠠᠭᠠᠯᠳᠤᠭᠤᠯᠤᠯ ᠢ ᠰᠢᠢᠳᠪᠦᠷᠢᠯᠡᠵᠦ ᠴᠢᠳᠠᠭᠰᠠᠨ ᠦᠭᠡᠢ",
+    "fileUploadFailedDesc": "ᠪᠢᠴᠢᠭ᠌ ᠮᠠᠲ᠋ᠧᠷᠢᠶᠠᠯ {count} ᠰᠢᠢᠳᠪᠦᠷᠢᠯᠡᠬᠦ ᠶᠢᠨ ᠠᠷᠭ᠎ᠠ ᠦᠭᠡᠢ ᠄ {names}",
+    "fileUploadFailedMore": "ᠶᠢ ᠬᠦᠯᠢᠶᠡᠵᠦ {count}",
+    "unnamedFile": "ᠤᠨ ᠭᠠᠷ ᠤᠨ ᠦᠰᠦᠭ ᠦᠭᠡᠢ ᠪᠢᠴᠢᠭ᠌ ᠮᠠᠲ᠋ᠧᠷᠢᠶᠠᠯ ᠢ",
+    "audioInputUnsupportedTitle": "ᠶᠢᠨ ᠴᠠᠬᠢᠯᠭᠠᠨ ᠬᠡᠳᠦ ᠨᠢ ᠠᠪᠢᠶᠠᠨ ᠤ ᠳᠠᠭᠠᠯᠳᠤᠭᠤᠯᠤᠯ ᠢ ᠳᠡᠮᠵᠢᠬᠦ ᠦᠭᠡᠢ",
+    "audioInputUnsupportedDescription": "{model} ᠶᠢ ᠠᠪᠢᠶᠠᠨ ᠤ ᠣᠷᠣᠭᠤᠯᠤᠯᠲᠠ ᠶᠢ ᠳᠡᠮᠵᠢᠬᠦ ᠦᠭᠡᠢ ᠂ ᠠᠪᠢᠶᠠᠨ ᠤ ᠳᠠᠭᠠᠯᠳᠤᠭᠤᠯᠤᠯ {count} ᠶᠢ ᠠᠩᠬᠠᠷᠬᠤ ᠦᠭᠡᠢ ᠃",
+    "suggestions": "ᠰᠠᠨᠠᠯ ᠵᠥᠪᠯᠡᠮᠵᠢ"
+  },
+  "messageReceipt": {
+    "unread": "ᠢ ᠤᠩᠰᠢᠭᠰᠠᠨ ᠦᠭᠡᠢ",
+    "read": "ᠤᠩᠰᠢᠬᠤ"
+  },
+  "attachments": {
+    "chooseRepresentation": "ᠶᠠᠭᠠᠬᠢᠵᠤ ᠶᠠᠪᠤᠭᠤᠯᠬᠤ {name}",
+    "representation": "ᠳᠠᠭᠠᠯᠳᠤᠭᠤᠯᠤᠯ ᠤᠨ ᠦᠵᠡᠭᠦᠯᠬᠦ ᠬᠡᠯᠪᠡᠷᠢ",
+    "auto": "ᠠᠦᠢᠲ᠋ᠣ᠋",
+    "sendImage": "ᠵᠢᠷᠤᠭ ᠬᠦᠷᠭᠡᠨ᠎ᠡ",
+    "useOcrText": "OCR ᠪᠢᠴᠢᠪᠡᠷᠢ ᠶᠢ ᠬᠡᠷᠡᠭᠯᠡᠬᠦ",
+    "useEmbeddedText": "PDF ᠢ ᠬᠡᠷᠡᠭ᠍ᠯᠡᠬᠦ",
+    "preparing": "ᠳᠠᠭᠠᠯᠳᠤᠭᠤᠯᠤᠯ ᠢ ᠰᠢᠢᠳᠪᠦᠷᠢᠯᠡᠬᠦ ᠁",
+    "actionRequiredTitle": "ᠶᠢᠨ ᠳᠠᠭᠠᠯᠳᠤᠭᠤᠯᠤᠯ ᠢ ᠰᠢᠢᠳᠪᠦᠷᠢᠯᠡᠬᠦ ᠴᠢᠬᠤᠯᠠᠲᠠᠢ",
+    "actionRequiredDescription": "ᠨᠢᠭᠡ ᠪᠤᠶᠤ ᠣᠯᠠᠨ ᠳᠠᠭᠠᠯᠳᠤᠭᠤᠯᠤᠯ ᠳᠡᠶᠢᠯᠬᠦ ᠦᠭᠡᠢ ᠃ ᠶᠠᠭᠠᠬᠢᠵᠤ ᠦᠷᠭᠦᠯᠵᠢᠯᠡᠬᠦ ᠶᠢ ᠰᠤᠩᠭᠤ᠃",
+    "attachmentNumber": "ᠳᠠᠭᠠᠯᠳᠤᠪᠤᠷᠢ {number}",
+    "moreIssues": "ᠳᠤ {count} ᠠᠰᠠᠭᠤᠳᠠᠯ ᠡᠳᠦᠢ ᠲᠡᠳᠦᠢ ᠪᠠᠶᠢᠨ᠎ᠠ",
+    "genericUnavailable": "ᠳᠤ ᠬᠠᠩᠭᠠᠵᠤ ᠪᠣᠯᠬᠤ ᠳᠠᠭᠠᠯᠳᠤᠭᠤᠯᠤᠯ ᠠᠭᠤᠯᠭ᠎ᠠ ᠶᠢ ᠦᠭᠡᠢ ᠃",
+    "keepDraft": "ᠭᠠᠮᠰᠢᠭ ᠤᠨ ᠡᠭᠡ",
+    "switchVisionModel": "ᠰᠣᠯᠢᠬᠤ ᠬᠡᠯᠪᠡᠷᠢ ᠶᠢᠨ",
+    "retry": "ᠳᠠᠬᠢᠵᠤ ᠲᠤᠷᠰᠢᠬᠤ",
+    "sendWithoutImageContent": "ᠳᠠᠭᠠᠯᠳᠤᠭᠤᠯᠤᠯ ᠤᠨ ᠠᠭᠤᠯᠭ᠎ᠠ ᠶᠢ ᠠᠪᠬᠤ ᠦᠭᠡᠢ",
+    "inspectOcrText": "OCR ᠢ ᠦᠵᠡᠨ᠎ᠡ",
+    "ocrBadge": "OCR",
+    "embeddedTextBadge": "ᠡᠬᠡ ᠪᠢᠴᠢᠭ",
+    "ocrPartialBadge": "OCR · ᠬᠡᠰᠡᠭ",
+    "ocrLimitedBadge": "OCR · ᠬᠢᠵᠠᠭᠠᠷᠯᠠᠯ",
+    "imageBadge": "ᠵᠢᠷᠤᠭ",
+    "unavailableBadge": "ᠦᠭᠡᠢ",
+    "ocrPreviewTitle": "OCR ᠦᠰᠦᠭ᠍ — {name}",
+    "ocrPreviewDescription": "{tokens} token ᠶᠢᠨ ᠲᠤᠬᠠᠢ ᠂ ᠢᠲᠡᠭᠡᠮᠵᠢ ᠦᠭᠡᠢ ᠳᠠᠭᠠᠯᠳᠤᠭᠤᠯᠤᠯ ᠤᠨ ᠠᠭᠤᠯᠭ᠎ᠠ ᠪᠠᠷ ᠬᠦᠷᠭᠡᠨ᠎ᠡ ᠃",
+    "ocrPageCoverage": "ᠶᠢᠨ ᠦᠰᠦᠭ ᠪᠢᠴᠢᠭ᠌ ᠳᠡᠭᠡᠷ᠎ᠡ ᠨᠢᠭᠤᠷ ᠤᠨ {page} ᠪᠠᠶᠢᠨ᠎ᠠ ᠃",
+    "ocrPageCoveragePartial": "ᠳᠤ ᠨᠢᠭᠤᠷ ᠤᠨ ᠨᠢᠭᠡ ᠬᠡᠰᠡᠭ᠍ {page} ᠃",
+    "ocrTextTruncated": "ᠡᠨᠡ ᠬᠡᠰᠡᠭ ᠦᠨ OCR ᠨᠢ ᠳᠠᠮᠵᠢᠭᠤᠯᠬᠤ ᠠᠴᠠ ᠡᠮᠦᠨ᠎ᠡ ᠨᠢᠭᠡᠨᠲᠡ ᠴᠠᠭ ᠢ ᠨᠢ ᠲᠠᠰᠤᠯᠵᠠᠢ ᠃",
+    "reasons": {
+      "automatic_ocr_disabled": "OCR ᠨᠢ ᠬᠠᠭᠠᠪᠠ ᠃",
+      "document_limit_exceeded": "ᠶᠢᠨ ᠭᠤᠶᠤᠴᠢᠯᠠᠯ ᠨᠢ ᠵᠥᠪᠬᠡᠨ ᠨᠢᠭᠡ OCR ᠳᠤ PDF ᠃",
+      "document_too_large": "PDF ᠶᠢᠨ ᠶᠡᠬᠡ ᠪᠠᠭ᠎ᠠ ᠠᠴᠠ ᠬᠡᠲᠦᠷᠡᠵᠡᠢ ᠃",
+      "image_dimensions_exceeded": "ᠵᠢᠷᠤᠭ ᠤᠨ ᠲᠠᠢ᠌ᠯᠪᠤᠷᠢᠯᠠᠭᠰᠠᠨ ᠶᠡᠬᠡ ᠪᠠᠭ᠎ᠠ ᠨᠢ ᠠᠶᠤᠯ ᠦᠭᠡᠢ ᠶᠢᠨ ᠬᠢᠵᠠᠭᠠᠷ ᠠᠴᠠ ᠬᠡᠲᠦᠷᠡᠵᠡᠢ ᠃",
+      "image_limit_exceeded": "ᠡᠨᠡ ᠡᠬᠡᠯᠵᠢ ᠶᠢᠨ ᠭᠡᠷᠡᠯ ᠵᠢᠷᠤᠭ ᠲᠠᠲᠠᠬᠤ ᠲᠣᠭ᠎ᠠ ᠨᠢ OCR ᠬᠡᠮᠵᠢᠶ᠎ᠡ ᠡᠴᠡ ᠲᠠᠪᠠᠵᠠᠢ ᠃",
+      "image_payload_unavailable": "ᠵᠢᠷᠤᠭ ᠤᠨ ᠮᠠᠲ᠋ᠧᠷᠢᠶᠠᠯ ᠢ ᠳᠠᠬᠢᠨ ᠬᠡᠷᠡᠭᠯᠡᠬᠦ ᠪᠡᠨ ᠪᠣᠯᠢᠭᠰᠠᠨ ᠃",
+      "image_too_large": "ᠵᠢᠷᠤᠭ ᠳᠦᠷᠰᠦ ᠨᠢ ᠳᠠᠩ ᠹᠢᠼᠧᠯ ᠦᠨ ᠶᠡᠬᠡ ᠪᠠᠭ᠎ᠠ ᠠᠴᠠ ᠬᠡᠲᠦᠷᠡᠵᠡᠢ ᠃",
+      "ocr_cancelled": "OCR ᠢ ᠬᠦᠴᠦᠨ ᠦᠭᠡᠢ ᠪᠣᠯᠭᠠᠪᠠ ᠃",
+      "ocr_empty": "OCR ᠬᠡᠷᠡᠭ᠍ᠯᠡᠭ᠍ᠳᠡᠬᠦ ᠲᠣᠪᠬᠢᠮᠠᠯ ᠢ ᠣᠯᠵᠤ ᠮᠡᠳᠡᠭ᠍ᠰᠡᠨ ᠦᠭᠡᠢ ᠃",
+      "ocr_failed": "OCR ᠦᠨ ᠳᠠᠭᠠᠯᠳᠤᠭᠤᠯᠤᠯ ᠢ ᠰᠢᠢᠳᠪᠦᠷᠢᠯᠡᠵᠦ ᠴᠢᠳᠠᠬᠤ ᠦᠭᠡᠢ ᠃",
+      "ocr_queue_full": "OCR ᠶᠠᠭᠠᠷᠠᠤ ᠪᠠᠶᠢᠨ᠎ᠠ᠂ᠲᠠ ᠣᠳᠣ ᠶᠢᠨ ᠳᠠᠭᠠᠯᠲᠠ ᠮᠠᠰᠢᠨ ᠤ ᠰᠢᠶᠳᠪᠦᠷᠢᠯᠡᠯᠲᠡ ᠳᠠᠭᠤᠰᠤᠭᠰᠠᠨ ᠤ ᠳᠠᠷᠠᠭ᠎ᠠ ᠳᠠᠬᠢᠨ ᠨᠢᠭᠡ ᠳᠠᠬᠢᠨ ᠲᠤᠷᠰᠢᠭᠠᠷᠠᠢ᠃",
+      "ocr_resource_limited": "OCR ᠶᠢᠨ ᠰᠢᠰᠲ᠋ᠧᠮ ᠢ PDF ᠶᠢᠨ ᠬᠢᠵᠠᠭᠠᠷᠯᠠᠯ ᠳᠤ ᠵᠣᠬᠰᠣᠪᠠ",
+      "ocr_runtime_unavailable": "ᠣᠳᠣ ᠶᠢᠨ ᠬᠡᠷᠡᠭᠵᠢᠭᠦᠯᠵᠦ ᠪᠠᠶᠢᠭ᠎ᠠ ᠲᠠᠪᠴᠠᠩ ᠪᠤᠶᠤ ᠤᠭᠰᠠᠷᠠᠬᠤ ᠣᠷᠴᠢᠨ ᠲᠣᠭᠣᠷᠢᠨ ᠳᠤ OCR ᠃",
+      "invalid_attachment_snapshot": "ᠬᠠᠳᠠᠭᠠᠯᠠᠭᠰᠠᠨ OCR ᠲᠣᠭ᠎ᠠ ᠪᠠᠷᠢᠮᠲᠠ ᠦᠭᠡᠢ ᠃",
+      "turn_ocr_budget_exhausted": "OCR ᠨᠢ ᠲᠤᠰ ᠮᠡᠳᠡᠭᠡᠯᠡᠯ ᠦᠨ ᠳᠠᠭᠠᠯᠳᠤᠭᠤᠯᠤᠯ ᠦᠰᠦᠭ ᠪᠢᠴᠢᠭ ᠦᠨ ᠬᠢᠵᠠᠭᠠᠷ ᠠᠴᠠ ᠬᠡᠲᠦᠷᠡᠵᠡᠢ ᠃",
+      "pdf_text_unavailable": "PDF ᠳᠤ ᠪᠢᠴᠢᠭ᠍ᠰᠡᠨ ᠪᠢᠴᠢᠭ᠌ ᠦᠨ ᠳᠣᠲᠣᠷ᠎ᠠ ᠪᠠᠢ᠌ᠬᠤ ᠦᠭᠡᠢ ᠃",
+      "requested_image_requires_vision": "ᠢ ᠳᠠᠮᠵᠢᠭᠤᠯᠬᠤ ᠵᠢᠷᠤᠭ ᠳᠠᠮᠵᠢᠭᠤᠯᠬᠤ ᠬᠡᠰᠡᠭ ᠲᠦ ᠬᠠᠷᠠᠭᠠᠨ ᠤ ᠴᠢᠳᠠᠪᠤᠷᠢ ᠶᠢ ᠨᠢ ᠬᠠᠩᠭᠠᠬᠤ ᠨᠢᠭᠡ ᠬᠡᠪ ᠵᠠᠭᠪᠤᠷ ᠢ ᠱᠠᠭᠠᠷᠳᠠᠳᠠᠭ ᠃",
+      "turn_image_bytes_exceeded": "ᠡᠨᠡ ᠤᠳᠠᠭᠠᠨ ᠤ ᠭᠡᠷᠡᠯ ᠵᠢᠷᠤᠭ ᠤᠨ ᠶᠡᠷᠦᠩᠬᠡᠶ ᠬᠡᠮᠵᠢᠶ᠎ᠡ ᠨᠢ ᠬᠢᠵᠠᠭᠠᠷ ᠠᠴᠠ ᠳᠠᠪᠠᠵᠠᠢ ᠃",
+      "user_skipped_attachment_content": "ᠳᠠᠭᠠᠯᠳᠤᠭᠤᠯᠤᠯ ᠤᠨ ᠠᠭᠤᠯᠭ᠎ᠠ ᠶᠢ ᠲᠠᠨ ᠤ ᠰᠣᠩᠭᠣᠭᠰᠠᠨ ᠶᠣᠰᠣᠭᠠᠷ ᠣᠷᠬᠢᠵᠠᠢ ᠃",
+      "user_skipped_image_content": "ᠢ ᠲᠠᠨ ᠤ ᠰᠣᠩᠭᠣᠭᠰᠠᠨ ᠶᠣᠰᠣᠭᠠᠷ ᠵᠢᠷᠤᠭ ᠤᠨ ᠠᠭᠤᠯᠭ᠎ᠠ ᠶᠢ ᠬᠠᠰᠤᠭᠳᠠᠵᠠᠢ ᠃",
+      "unsupported_image_format": "OCR ᠳᠤ ᠡᠨᠡ ᠬᠦ ᠵᠢᠷᠤᠭ ᠤᠨ ᠲᠥᠰᠥᠭ᠍ ᠢ ᠭᠦᠢᠴᠡᠬᠦ ᠦᠭᠡᠢ ᠃"
+    },
+    "pending": {
+      "blockedCount": "{count} ᠶᠠᠭᠤᠮ᠎ᠠ ᠪᠥᠭ᠍ᠯᠡᠭ᠍ᠳᠡᠬᠦ",
+      "blocked": "ᠳᠤ ᠪᠣᠭᠣᠭᠳᠠᠬᠤ",
+      "retry": "ᠶᠢ ᠳᠠᠬᠢᠨ OCR",
+      "sendWithoutImageContent": "ᠳᠠᠭᠠᠯᠳᠤᠭᠤᠯᠤᠯ ᠤᠨ ᠠᠭᠤᠯᠭ᠎ᠠ ᠶᠢ ᠠᠪᠬᠤ ᠦᠭᠡᠢ",
+      "blockedDescription": "ᠳᠠᠭᠠᠯᠳᠤᠭᠤᠯᠤᠯ ᠢ ᠰᠢᠢᠳᠪᠦᠷᠢᠯᠡᠬᠦ ᠶᠢ ᠬᠦᠯᠢᠶᠡᠵᠦ ᠪᠠᠢ᠌ᠨ᠎ᠠ ᠃",
+      "blockedReasonMore": "{reason} ᠳᠤ ᠪᠠᠰᠠ {count} ᠠᠰᠠᠭᠤᠳᠠᠯ ᠲᠠᠢ ᠃",
+      "resolveFailed": "ᠶᠢ ᠵᠣᠭᠰᠣᠭᠠᠭᠰᠠᠨ ᠮᠡᠳᠡᠭᠡ ᠶᠢ ᠰᠢᠢᠳᠪᠦᠷᠢᠯᠡᠵᠦ ᠴᠢᠳᠠᠬᠤ ᠦᠭᠡᠢ"
+    }
+  },
+  "skillDraft": {
+    "confirmationTitle": "ᠮᠡᠷᠭᠡᠵᠢᠯ ᠲᠣᠭᠯᠠᠯᠲᠠ",
+    "confirmationQuestion": "ᠮᠡᠷᠭᠡᠵᠢᠯ ᠦᠨ ᠲᠤᠤᠷᠠᠭ ᠤᠨ ᠰᠢᠰᠲ᠋ᠧᠮ ᠢ {name}",
+    "previewTitle": "ᠠᠭᠤᠯᠭ᠎ᠠ ᠶᠢᠨ ᠡᠬᠡ ᠨᠤᠤᠷᠠᠭ  ᠢ ᠤᠷᠢᠳᠴᠢᠯᠠᠨ ᠦᠵᠡᠨ᠎ᠡ",
+    "actions": {
+      "view": "ᠶᠢ ᠦᠵᠡᠬᠦ",
+      "viewDescription": "ᠲᠦᠰᠦᠯ ᠦᠨ SKILL.md ᠶᠢᠨ ᠲᠣᠭ᠎ᠠ ᠶᠢ ᠤᠷᠢᠳᠴᠢᠯᠠᠨ ᠦᠵᠡᠭᠦᠯᠦᠨ᠎ᠡ",
+      "install": "ᠤᠭᠰᠠᠷᠠᠬᠤ ᠮᠡᠷᠭᠡᠵᠢᠯ",
+      "installDescription": "ᠮᠡᠷᠭᠡᠵᠢᠯ ᠦᠨ ᠭᠠᠷᠴᠠᠭ ᠲᠤ ᠣᠷᠣᠭᠤᠯᠵᠤ ᠂ ᠬᠠᠮᠢᠶᠠᠷᠤᠯᠲᠠ ᠶᠢ ᠴᠢᠩᠭ᠋ᠠᠳᠬᠠᠬᠤ",
+      "discard": "ᠪᠠᠨ ᠬᠠᠶᠠᠬᠤ",
+      "discardDescription": "ᠲᠦᠷ ᠴᠠᠭ ᠤᠨ ᠲᠥᠰᠥᠯ ᠢ ᠬᠠᠰᠤᠬᠤ"
+    },
+    "result": {
+      "viewed": "ᠡᠬᠡ ᠨᠤᠤᠷᠠᠭ ᠤᠨ ᠠᠭᠤᠯᠭ᠎ᠠ ᠶᠢᠨ ᠦᠵᠡᠯᠳᠡ ᠡᠬᠢᠯᠡᠯ᠎ᠡ᠃ ᠤᠭᠰᠠᠷᠠᠬᠤ ᠡᠰᠡᠭᠦᠯ᠎ᠡ ᠬᠠᠶᠠᠬᠤ ᠶᠢ ᠰᠤᠭᠤᠨ᠌ ᠠ᠃",
+      "installed": "ᠮᠡᠷᠭᠡᠵᠢᠯ ᠤᠨ ᠲᠤᠤᠷᠠᠭ ᠤᠨ ᠪᠢᠴᠢᠭ᠌᠄ {name}",
+      "discarded": "ᠮᠡᠷᠭᠡᠵᠢᠯ ᠤᠨ ᠡᠭᠡᠯᠵᠢ ᠶᠢ ᠣᠷᠬᠢᠪᠠ ᠃",
+      "failed": "ᠮᠡᠷᠭᠡᠵᠢᠯ ᠤᠨ ᠤᠷᠤᠭᠤ ᠶᠢ ᠰᠢᠢᠳᠪᠦᠷᠢᠯᠡᠵᠦ ᠳᠡᠶᠢᠯᠦᠭᠰᠡᠨ ᠦᠭᠡᠢ: {error}"
+    }
+  },
+  "pendingInput": {
+    "steer": "ᠶᠢ ᠲᠠᠰᠤᠯᠬᠤ",
+    "queueCount": "ᠢᠯᠡᠭᠡᠬᠦ ᠪᠡᠷ ᠬᠦᠯᠢᠶᠡᠵᠦ ᠪᠤᠶ {count}/{max}",
+    "toSteer": "ᠶᠢ ᠲᠠᠰᠤᠯᠠᠭᠠᠳ ᠶᠠᠪᠤᠭᠤᠯᠬᠤ",
+    "locked": "ᠶᠢ ᠣᠣᠰᠣᠭᠰᠠᠨ",
+    "reorder": "ᠶᠢ ᠲᠣᠬᠢᠷᠠᠭᠤᠯᠬᠤ",
+    "files": "{count} ᠹᠠᠶᠢᠯ",
+    "attachmentsOnly": "{count} ᠳᠠᠭᠠᠯᠳᠤᠭᠤᠯᠤᠯ",
+    "empty": "ᠬᠣᠭᠣᠰᠣᠨ ᠦᠭᠡ",
+    "limitReached": "ᠲᠡᠷᠭᠡ ᠬᠦᠯᠢᠶᠡᠬᠦ ᠭᠡᠷ ᠨᠢᠭᠡᠨᠲᠡ ᠬᠥᠮᠥᠨ {max} ᠃",
+    "remove": "ᠢ ᠬᠠᠰᠤᠬᠤ",
+    "steerUnavailable": "ᠣᠳᠣᠬᠠᠨ ᠳᠤ ᠲᠠᠰᠤᠯᠤᠭᠤᠯᠵᠤ ᠪᠣᠯᠬᠤ ᠦᠭᠡᠢ",
+    "steerFailed": "ᠶᠢ ᠲᠠᠰᠤᠯᠳᠠᠭᠤᠯᠵᠤ ᠴᠢᠳᠠᠭᠰᠠᠨ ᠦᠭᠡᠢ",
+    "resume": "ᠦᠷᠭᠦᠯᠵᠢᠯᠡᠨ ᠮᠥᠷᠯᠡ",
+    "resumeFailed": "ᠦᠷᠭᠦᠯᠵᠢᠯᠡᠨ ᠵᠢᠭᠰᠠᠭᠠᠵᠤ ᠪᠣᠯᠬᠤ ᠦᠭᠡᠢ",
+    "retry": "ᠳᠠᠬᠢᠵᠤ ᠲᠤᠷᠰᠢᠬᠤ",
+    "retryRequired": "ᠢ ᠳᠠᠬᠢᠨ ᠲᠤᠷᠰᠢᠬᠤ ᠴᠢᠬᠤᠯᠠᠲᠠᠢ",
+    "retryRequiredDescription": "ᠡᠨᠡ ᠮᠡᠳᠡᠭᠡᠯᠡᠯ ᠢ ᠳᠠᠮᠵᠢᠭᠤᠯᠤᠭᠰᠠᠨ ᠦᠭᠡᠢ ᠂ ᠳᠠᠬᠢᠨ ᠨᠢᠭᠡ ᠤᠳᠠᠭ᠎ᠠ ᠮᠥᠷ ᠢᠶᠡᠷ ᠶᠠᠪᠤᠭᠤᠯᠤᠭᠠᠷᠠᠢ ᠃",
+    "retryFailed": "ᠢ ᠳᠠᠬᠢᠨ ᠲᠤᠷᠰᠢᠵᠤ ᠪᠣᠯᠬᠤ ᠦᠭᠡᠢ"
+  },
+  "features": {
+    "webSearch": "ᠡᠷᠢᠬᠦ",
+    "thoughtForLessThanOneSecond": "1 ᠰᠧᠺᠦᠨᠳ᠋ ᠴᠦ ᠦᠭᠡᠢ ᠭᠡᠵᠦ ᠪᠣᠳᠣᠭᠰᠠᠨ",
+    "thoughtForSeconds": "ᠰᠧᠺᠦᠢᠨᠳ᠋ {seconds} ᠪᠣᠳᠣᠵᠠᠢ",
+    "thoughtForSecondsLoading": "ᠦᠵᠡᠯ ᠰᠠᠨᠠᠭ᠎ᠠ （ ᠬᠣᠶᠠᠳᠠᠬᠢ {seconds} )",
+    "artifactThinking": "artifact ᠪᠣᠳᠣᠯᠭ᠎ᠠ",
+    "modeChanged": "ᠶᠢ ᠄{mode}"
+  },
+  "search": {
+    "results": "{0} ᠨᠢᠭᠤᠷ ᠢ ᠡᠷᠢᠵᠦ ᠣᠯᠪᠠ",
+    "searching": "ᠡᠷᠢᠵᠦ ᠪᠠᠢ᠌ᠨ᠎ᠠ ᠁",
+    "title": "ᠢ ᠡᠷᠢᠬᠦ ᠦᠷ᠎ᠡ ᠳ᠋ᠦᠩ",
+    "description": "{0} ᠬᠣᠯᠪᠤᠭᠲᠠᠯ ᠪᠤᠢᠭᠦᠢ ᠦᠷ᠎ᠡ ᠳᠣᠢᠩ ᠢ ᠣᠯᠵᠤ ᠠᠪᠤᠪᠠ",
+    "optimizing": "ᠡᠷᠢᠬᠦ ᠰᠠᠨᠠᠭ᠎ᠠ ᠶᠢ ᠢᠯᠭᠠᠨ ᠭᠠᠷᠭᠠᠨ᠎ᠠ ᠁",
+    "reading": "ᠦᠷᠡᠪᠴᠢ ᠡᠷᠢᠵᠦ ᠤᠨᠤᠨ᠌ ᠠ᠁",
+    "error": "ᠢ ᠡᠷᠢᠵᠦ ᠢᠯᠠᠭᠳᠠᠭᠰᠠᠨ"
+  },
+  "messages": {
+    "thinking": "ᠪᠣᠳᠣᠯᠬᠢᠯᠠᠵᠤ ᠪᠠᠢ᠌ᠨ᠎ᠠ ᠁",
+    "rateLimitWaiting": "ᠭᠤᠶᠤᠴᠢᠯᠠᠭᠰᠠᠨ ᠳᠠᠪᠲᠠᠮᠵᠢ ᠶᠢᠨ ᠬᠢᠵᠠᠭᠠᠷᠯᠠᠯ ᠂ ᠮᠥᠷᠯᠡᠵᠦ ᠪᠠᠶᠢᠨ᠎ᠠ ᠁",
+    "rateLimitCompactLoading": "ᠬᠢᠵᠠᠭᠠᠷᠯᠠᠭᠰᠠᠨ ᠬᠤᠷᠳᠤᠴᠠ ( {seconds} ᠰᠧᠺᠦᠨᠳ᠋ )",
+    "rateLimitTitle": "ᠶᠢᠨ ᠭᠤᠶᠤᠴᠢᠯᠠᠯ ᠤᠨ ᠳᠠᠪᠲᠠᠮᠵᠢ ᠶᠢᠨ ᠬᠢᠵᠠᠭᠠᠷ",
+    "rateLimitQueue": "ᠳᠠᠷᠠᠭᠠᠯᠠᠯ ᠶᠢᠨ ᠪᠠᠶᠢᠷᠢ",
+    "rateLimitEstimated": "ᠶᠢᠨ ᠪᠠᠷᠤᠭᠲᠠᠢ ᠬᠦᠯᠢᠶᠡᠨ᠎ᠡ",
+    "rateLimitQuickSettings": "ᠶᠢᠨ ᠲᠣᠭ᠎ᠠ ᠶᠢ ᠲᠣᠬᠢᠷᠠᠭᠤᠯᠬᠤ",
+    "rateLimitSwitchProvider": "ᠰᠣᠯᠢᠬᠤ ᠦᠢᠯᠡᠴᠢᠯᠡᠭᠡᠨ ᠦ ᠬᠠᠩᠭᠠᠭᠴᠢ",
+    "rateLimitImmediately": "ᠳᠠᠷᠤᠢ",
+    "rateLimitSeconds": "ᠰᠧᠺᠦᠢᠨᠳ᠋",
+    "rateLimitMinutes": "ᠮᠢᠨᠦᠢᠲ᠋",
+    "loadEarlier": "ᠡᠮᠦᠨᠡᠬᠢ ᠮᠡᠳᠡᠭᠡ ᠶᠢ ᠠᠴᠢᠶᠠᠯᠠᠬᠤ"
+  },
+  "compaction": {
+    "compacting": "ᠠᠰᠠᠭᠤᠳᠠᠯ ᠢ ᠴᠢᠩᠭ᠋ᠠᠳᠬᠠᠬᠤ ᠁",
+    "compacted": "ᠶᠢᠨ ᠠᠭᠤᠯᠤᠭᠳᠠᠯ ᠢ ᠠᠪᠴᠢᠭᠤᠯᠵᠤ",
+    "compactedWithoutSummary": "ᠢ ᠠᠪᠴᠢᠭᠤᠯᠤᠭᠰᠠᠨ᠂ᠳᠦᠩᠨᠡᠨᠭ᠌ ᠪᠦᠲᠦᠭᠡᠭ᠍ᠳᠡᠭᠰᠡᠨ ᠦᠭᠡᠢ",
+    "compactedWithoutLargerSummary": "ᠢᠢ ᠠᠪᠴᠢᠭᠤᠯᠤᠭᠰᠠᠨ᠂ ᠶᠡᠬᠡ ᠳᠦᠩᠨᠡᠨᠭ᠌  ᠢᠢ ᠬᠡᠷᠡᠭᠯᠡᠭᠰᠡᠨ ᠦᠭᠡᠢ",
+    "commandDescription": "ᠶᠢᠨ ᠠᠭᠤᠰᠴᠠ ᠶᠢ ᠪᠠᠭᠠᠰᠬᠠᠬᠤ",
+    "noopTitle": "ᠪᠠᠭᠠᠰᠬᠠᠵᠤ ᠪᠣᠯᠬᠤ ᠬᠠᠮ ᠰᠡᠳᠦᠪ ᠪᠠᠶᠢᠬᠤ ᠦᠭᠡᠶ",
+    "noopDescription": "ᠣᠳᠣᠬᠠᠨ ᠳᠤ ᠪᠠᠭᠠᠰᠬᠠᠬᠤ ᠱᠠᠭᠠᠷᠳᠠᠯᠭ᠎ᠠ ᠲᠠᠢ ᠰᠢᠨ᠎ᠡ ᠶᠠᠷᠢᠯᠴᠠᠭ᠎ᠠ ᠶᠢᠨ ᠲᠡᠦᠬᠡ ᠪᠠᠶᠢᠬᠤ ᠦᠭᠡᠶ ᠃",
+    "failedTitle": "ᠶᠢᠨ ᠬᠡᠮᠵᠢᠶ᠎ᠡ ᠠᠪᠬᠤ ᠳᠤ ᠬᠦᠷᠦᠭ᠍ᠰᠡᠨ ᠦᠭᠡᠢ"
+  },
+  "contextOccupancy": {
+    "label": "ᠬᠠᠮ ᠰᠡᠳᠦᠪ ᠦᠨ ᠡᠵᠡᠯᠡᠯᠲᠡ",
+    "details": "{used} / {capacity} tokens ᠬᠡᠷᠡᠭᠯᠡᠪᠡ",
+    "provider": "Provider ᠬᠡᠮᠵᠢᠭᠦᠷ",
+    "estimated": "ᠢᠶᠠᠷ ᠲᠥᠰᠦᠭᠡᠯᠡᠨ ᠪᠣᠳᠣᠭᠰᠠᠨ",
+    "stale": "᠂ ᠴᠣᠩᠬᠣ ᠡᠰᠡᠭᠦᠯ᠎ᠡ ᠬᠢᠵᠠᠭᠠᠷᠯᠠᠬᠤ ᠬᠢᠵᠠᠭᠠᠷ ᠢ ᠰᠣᠯᠢᠭᠰᠠᠨ ᠤ ᠳᠠᠷᠠᠭᠠᠬᠢ ᠬᠠᠭᠤᠴᠢᠨ ᠲᠣᠭ᠎ᠠ ᠪᠠᠷᠢᠮᠲᠠ"
+  },
+  "rateLimit": {
+    "queueTooltip": "ᠡᠩᠨᠡᠭᠡᠨ ᠦ ᠳᠣᠲᠣᠷ᠎ᠠ {count} ᠶᠢᠨ ᠱᠠᠭᠠᠷᠳᠠᠯᠭ᠎ᠠ ᠲᠠᠢ {interval}᠃",
+    "readyTooltip": "ᠶᠢᠨ ᠱᠠᠭᠠᠷᠳᠠᠯᠭ᠎ᠠ ᠶᠢ ᠳᠠᠮᠵᠢᠭᠤᠯᠵᠤ ᠪᠣᠯᠣᠨ᠎ᠠ ᠂ ᠵᠠᠪᠰᠠᠷ ᠢᠶᠠᠷ {interval} ᠰᠧᠺᠦᠨᠳ᠋",
+    "waitingTooltip": "ᠢᠯᠡᠭᠦᠦ {seconds} ᠰᠧᠺᠦᠢᠨᠳ᠋ ᠬᠦᠯᠢᠶᠡᠬᠦ ᠬᠡᠷᠡᠭ᠍ᠲᠡᠢ ᠂ ᠰᠺᠦᠢᠨᠳ᠋ {interval}"
+  },
+  "notify": {
+    "generationComplete": "ᠶᠢᠨ ᠦᠶ᠎ᠡ ᠪᠡᠷ ᠲᠡᠭᠦᠰᠪᠡ",
+    "generationError": "ᠦᠶ᠎ᠡ ᠶᠢᠨ ᠦᠶ᠎ᠡ ᠶᠢᠨ ᠢᠯᠠᠭᠳᠠᠭᠰᠠᠨ"
+  },
+  "toolCall": {
+    "title": "ᠪᠠᠭᠠᠵᠢ ᠳᠠᠭᠤᠳᠠᠬᠤ",
+    "calling": "ᠪᠠᠭᠠᠵᠢ ᠳᠠᠭᠤᠳᠠᠵᠤ ᠪᠠᠶᠢᠨ᠎ᠠ",
+    "response": "ᠶᠢᠨ ᠬᠠᠷᠢᠭᠤᠯᠲᠠ",
+    "end": "ᠶᠢᠨ ᠲᠠᠯ᠎ᠠ ᠪᠠᠷ ᠳᠠᠭᠤᠳᠠᠯᠲᠠ ᠬᠢᠵᠦ ᠳᠠᠭᠤᠰᠬᠠᠭᠰᠠᠨ",
+    "error": "ᠪᠠᠭᠠᠵᠢ ᠳᠠᠭᠤᠳᠠᠬᠤ ᠠᠯᠳᠠᠭ᠎ᠠ",
+    "clickToView": "ᠶᠢ ᠦᠵᠡᠶ᠎ᠡ ᠃",
+    "functionName": "ᠶᠢᠨ ᠨᠡᠷᠡᠶᠢᠳᠦᠯ",
+    "params": "ᠫᠠᠷᠠᠮᠧᠲᠷ",
+    "responseData": "ᠶᠢᠨ ᠳᠠᠭᠠᠯᠲᠠ ᠶᠢᠨ ᠲᠣᠭ᠎ᠠ ᠪᠠᠷᠢᠮᠲᠠ",
+    "subagents": {
+      "summary": "{mode} · {count} ᠳᠡᠳ ᠣᠶᠤᠨᠲᠤ ᠲᠤᠰᠠᠯᠠᠭᠴᠢ",
+      "unnamedTask": "ᠤᠨ ᠰᠡᠳᠦᠪ ᠦᠭᠡᠢ ᠡᠭᠦᠷᠭᠡ",
+      "mode": {
+        "parallel": "ᠵᠡᠷᠭᠡᠴᠡᠬᠦ",
+        "chain": "ᠴᠤᠪᠤᠪᠤᠷ"
+      },
+      "status": {
+        "queued": "ᠮᠥᠷᠯᠡᠵᠦ",
+        "running": "ᠭᠦᠶᠦᠬᠦ",
+        "completed": "ᠳᠠᠭᠤᠰᠬᠠᠪᠠ",
+        "error": "ᠠᠯᠳᠠᠭ᠎ᠠ",
+        "cancelled": "ᠢ ᠬᠦᠴᠦᠨ ᠦᠭᠡᠢ ᠪᠣᠯᠭᠠᠪᠠ",
+        "waiting_permission": "ᠢ ᠬᠦᠯᠢᠶᠡᠵᠦ ᠪᠠᠢ᠌ᠨ᠎ᠠ",
+        "waiting_question": "ᠨᠡᠮᠡᠯᠲᠡ ᠣᠷᠣᠭᠤᠯᠬᠤ ᠶᠢ ᠬᠦᠯᠢᠶᠡᠵᠦ ᠪᠠᠶᠢᠨ᠎ᠠ"
+      }
+    }
+  },
+  "mode": {
+    "current": "ᠣᠳᠣ ᠶᠢᠨ ᠬᠡᠯᠪᠡᠷᠢ ᠄ {mode}",
+    "agent": "ᠣᠶᠤᠨᠲᠤ ᠲᠤᠰᠠᠯᠠᠭᠴᠢ",
+    "acpAgent": "ACP ᠣᠶᠤᠨᠲᠤ ᠲᠤᠰᠠᠯᠠᠭᠴᠢ",
+    "saveFailed": "ᠶᠢ ᠠᠷᠪᠢᠯᠠᠨ ᠠᠪᠴᠤ ᠪᠣᠯᠬᠤ ᠦᠭᠡᠢ"
+  },
+  "topbar": {
+    "backToParent": "ᠭᠡᠷ ᠦᠨ ᠠᠬᠠᠮᠠᠳ ᠤᠨ ᠬᠢ ᠳᠡᠭᠡᠨ ᠪᠤᠴᠠᠬᠤ",
+    "share": "ᠬᠤᠪᠢᠶᠠᠯᠴᠠᠬᠤ",
+    "more": "ᠨᠡᠩ ᠣᠯᠠᠨ"
+  },
+  "subagents": {
+    "label": "ᠳᠡᠳ ᠣᠶᠤᠨᠲᠤ ᠲᠤᠰᠠᠯᠠᠭᠴᠢ"
+  },
+  "advancedSettings": {
+    "button": "ᠳᠡᠭᠡᠳᠦ ᠵᠡᠷᠭᠡ ᠶᠢᠨ ᠪᠡᠯᠡᠳᠬᠡᠮᠵᠢ ᠶᠢ",
+    "title": "ᠳᠡᠭᠡᠳᠦ ᠵᠡᠷᠭᠡ ᠶᠢᠨ ᠪᠡᠯᠡᠳᠬᠡᠮᠵᠢ ᠶᠢ",
+    "closeHint": "Esc ᠶᠢ ᠳᠠᠷᠤᠵᠤ ᠬᠠᠭᠠᠬᠤ",
+    "systemPrompt": "ᠰᠢᠰᠲ᠋ᠧᠮ ᠦᠨ ᠰᠠᠨᠠᠭᠤᠯᠭ᠎ᠠ",
+    "systemPromptPlaceholder": "ᠶᠢ ᠰᠣᠩᠭᠣᠨ",
+    "temperature": "ᠶᠢᠨ ᠳᠤᠯᠠᠭᠠᠨ",
+    "topP": "Top P ( ᠴᠥᠮ᠎ᠡ ᠶᠢᠨ ᠰᠤᠭᠤᠴᠢᠨ ᠪᠠᠶᠢᠴᠠᠭᠠᠬᠤ )",
+    "topPDescription": "ᠶᠢ ᠬᠣᠭᠣᠰᠣᠨ ᠪᠠᠢ᠌ᠯᠭᠠᠵᠤ ᠂ ᠬᠠᠩᠭ᠋ᠠᠭᠠᠢ ᠶᠢᠨ ᠣᠷᠣᠯᠭ᠎ᠠ ᠪᠠᠷ ᠢᠶᠠᠨ",
+    "contextLength": "ᠤᠷᠲᠤ",
+    "maxTokens": "ᠬᠠᠮᠤᠭ ᠶᠡᠬᠡ ᠭᠠᠷᠭᠠᠯᠲᠠ",
+    "thinkingBudget": "ᠢ ᠪᠣᠳᠣᠯᠬᠢᠯᠠᠬᠤ",
+    "verbosity": "ᠶᠢᠨ ᠨᠠᠷᠢᠨ ᠲᠠᠰ ᠤᠨ ᠬᠠᠷᠢᠭᠤᠯᠲᠠ",
+    "forceInterleavedThinkingCompat": "ᠡᠭᠡᠯᠵᠢᠯᠡᠨ ᠪᠣᠳᠣᠬᠤ",
+    "forceInterleavedThinkingCompatDescription": "ᠶᠢᠨ ᠨᠢᠭᠡ ᠤᠳᠠᠭᠠᠨ ᠤ ᠬᠤᠷᠠᠯ ᠳᠤ reasoning ᠪᠠ tool-call ᠶᠢᠨ ᠮᠡᠳᠡᠭᠡ ᠶᠢ Interleaved Thinking ᠶᠢ ᠡᠵᠡᠮᠰᠢᠨ᠎ᠡ ᠃",
+    "verbosityPlaceholder": "ᠶᠢ ᠢᠯᠭᠠᠬᠤ",
+    "currentCustomPrompt": "ᠵᠠᠩ ᠦᠢᠯᠡ ᠶᠢᠨ",
+    "useDefault": "ᠶᠢ ᠬᠡᠷᠡᠭ᠍ᠯᠡᠬᠦ",
+    "decreaseValue": "ᠶᠢ {label}",
+    "increaseValue": "ᠶᠢ ᠨᠡᠮᠡᠭᠳᠡᠭᠦᠯᠬᠦ {label}",
+    "toggleValue": "ᠶᠢ {label}",
+    "validation": {
+      "finiteNumber": "ᠵᠠᠪᠠᠯ ᠨᠢᠭᠡ ᠲᠣᠭ᠎ᠠ ᠲᠠᠢ ᠪᠠᠢ᠌ᠬᠤ ᠬᠡᠷᠡᠭ᠍ᠲᠡᠢ",
+      "nonNegativeInteger": "ᠵᠠᠪᠠᠯ ᠰᠦᠭᠦᠯ ᠲᠡᠢ ᠪᠤᠰᠤ ᠲᠣᠭ᠎ᠠ ᠶᠢᠨ ᠲᠣᠭ᠎ᠠ ᠪᠣᠯᠬᠤ ᠬᠡᠷᠡᠭᠲᠡᠢ",
+      "contextLengthAtLeastMaxTokens": "ᠬᠠᠮᠤᠭ ᠤᠨ ᠶᠡᠬᠡ ᠬᠡᠮᠵᠢᠶ᠎ᠡ ᠡᠴᠡ ᠶᠡᠬᠡ ᠪᠤᠶᠤ ᠲᠡᠭᠦᠨ ᠲᠡᠢ ᠲᠡᠩᠴᠡᠭᠦᠦ ᠪᠠᠢᠬᠤ ᠬᠡᠷᠡᠭᠲᠡᠢ",
+      "maxTokensWithinContextLength": "ᠠᠭᠤᠯᠭ᠎ᠠ ᠶᠢᠨ ᠤᠷᠲᠤ ᠠᠴᠠ ᠪᠠᠭ᠎ᠠ ᠪᠤᠶᠤ ᠲᠡᠭᠦᠨ ᠲᠡᠢ ᠲᠡᠩᠴᠡᠭᠦᠦ ᠪᠠᠢᠬᠤ ᠬᠡᠷᠡᠭᠲᠡᠢ",
+      "topPRange": "0 ᠡᠴᠡ ᠶᠡᠬᠡ ᠂ 1 ᠡᠴᠡ ᠪᠠᠭ᠎ᠠ ᠪᠤᠶᠤ ᠲᠡᠭᠦᠨ ᠲᠡᠶ ᠲᠡᠩᠴᠡᠭᠦᠦ ᠪᠠᠶᠢᠬᠤ ᠬᠡᠷᠡᠭᠲᠡᠶ ᠃"
+    }
+  },
+  "modelPicker": {
+    "empty": "ᠶᠢᠨ ᠵᠠᠭᠪᠤᠷ ᠢ ᠡᠷᠢᠭᠰᠡᠨ ᠦᠭᠡᠢ",
+    "audioInputSupported": "ᠶᠢᠨ ᠰᠢᠩᠭᠡᠭᠡᠯᠲᠡ ᠶᠢ ᠳᠡᠮᠵᠢᠨ᠎ᠡ"
+  },
+  "audio": {
+    "play": "ᠲᠣᠭᠯᠠᠭᠤᠯᠬᠤ",
+    "pause": "ᠵᠣᠭᠰᠣᠬᠤ"
+  },
+  "call": {
+    "title": "Voice.ai ᠳᠠᠭᠤᠳᠠᠬᠤ",
+    "description": "Voice.ai ᠮᠠᠰᠢᠨ ᠲᠠᠢ ᠬᠠᠷᠢᠯᠴᠠᠨ᠎ᠠ ᠃ ᠵᠠᠯᠭᠠᠵᠤ ᠪᠠᠷᠠᠭᠰᠠᠨ ᠤ ᠳᠠᠷᠠᠭ᠎ᠠ ᠶᠠᠷᠢᠶ᠎ᠠ᠃",
+    "start": "ᠳᠠᠭᠤᠳᠠᠯᠭ᠎ᠠ ᠡᠬᠢᠯᠡᠪᠡ",
+    "stop": "ᠲᠡᠭᠦᠰᠬᠡᠬᠦ",
+    "end": "ᠤᠲᠠᠰᠤ ᠪᠠᠨ ᠲᠠᠯᠪᠢᠪᠠ"
+  },
+  "skills": {
+    "indicator": {
+      "active": "{count}᠄ ᠲᠣᠭᠲᠠᠮᠠᠯ ᠮᠡᠷᠭᠡᠵᠢᠯ ᠴᠢᠳᠠᠪᠤᠷᠢ",
+      "none": "ᠲᠣᠭᠲᠠᠮᠠᠯ ᠮᠡᠷᠭᠡᠵᠢᠯ ᠴᠢᠳᠠᠪᠤᠷᠢ"
+    },
+    "panel": {
+      "title": "ᠲᠣᠭᠲᠠᠮᠠᠯ ᠮᠡᠷᠭᠡᠵᠢᠯ ᠴᠢᠳᠠᠪᠤᠷᠢ",
+      "manage": "ᠬᠠᠮᠢᠶᠠᠷᠤᠯᠲᠠ",
+      "empty": "ᠮᠡᠷᠭᠡᠵᠢᠯ ᠦᠨ ᠴᠢᠳᠠᠪᠤᠷᠢ"
+    }
+  },
+  "workspace": {
+    "title": "ᠠᠵᠢᠯ ᠤᠨ",
+    "collapse": "ᠢ ᠤᠭᠰᠠᠷᠠᠭᠰᠠᠨ ᠦᠭᠡᠶ",
+    "expand": "ᠳᠡᠯᠭᠡᠬᠦ",
+    "sections": {
+      "files": "ᠹᠠᠶᠢᠯ",
+      "git": "Git",
+      "artifacts": "ᠦᠷ᠎ᠡ ᠳᠦᠩ",
+      "subagents": "ᠳᠡᠳ ᠣᠶᠤᠨᠲᠤ ᠲᠤᠰᠠᠯᠠᠭᠴᠢ"
+    },
+    "plan": {
+      "section": "ᠲᠥᠯᠥᠪᠯᠡᠭᠡ",
+      "empty": "ᠡᠭᠦᠷᠭᠡ",
+      "itemAriaLabel": "{status}：{step}",
+      "status": {
+        "pending": "ᠰᠢᠶᠢᠳᠪᠦᠷᠢᠯᠡᠬᠦ ᠪᠡᠷ ᠬᠦᠯᠢᠶᠡᠵᠦ ᠪᠤᠶ",
+        "in_progress": "ᠶᠠᠪᠤᠭᠰᠠᠳ ᠢ",
+        "completed": "ᠳᠠᠭᠤᠰᠬᠠᠪᠠ",
+        "interrupted": "ᠲᠠᠰᠤᠯᠠᠭᠳᠠᠭᠰᠠᠨ"
+      },
+      "completedCount": "{completed} {total} ᠢ ᠪᠡᠶᠡᠯᠡᠭᠦᠯᠦᠭᠰᠡᠨ"
+    },
+    "files": {
+      "section": "ᠹᠠᠶᠢᠯ",
+      "empty": "ᠮᠠᠲ᠋ᠧᠷᠢᠶᠠᠯ",
+      "loading": "ᠠᠴᠢᠶᠠᠯᠠᠬᠤ ᠶᠢ  ᠦᠭᠡᠶ ᠳᠠᠩᠰᠠ ᠡᠪᠬᠡᠮᠡᠯ ᠁",
+      "noWorkspace": {
+        "title": "ᠠᠵᠢᠯ ᠤᠨ ᠲᠠᠪᠴᠠᠩ ᠦᠭᠡᠢ",
+        "description": "ᠢ ᠰᠣᠩᠭᠣᠬᠤ ᠪᠤᠶᠤ ᠴᠢᠷᠦᠭᠦᠯᠵᠦ",
+        "button": "ᠬᠠᠪᠲᠠᠰᠤ ᠰᠣᠩᠭᠣᠬᠤ"
+      },
+      "contextMenu": {
+        "openFile": "ᠨᠡᠭᠡᠭᠡᠵᠦ ᠪᠠᠢ᠌ᠭ᠎ᠠ ᠮᠠᠲᠧᠷᠢᠶᠠᠯ ᠤᠨ ᠭᠠᠷᠴᠠᠭ ᠢ ᠰᠣᠩᠭᠣᠵᠤ",
+        "openWith": "ᠨᠡᠭᠡᠭᠡᠬᠦ ᠠᠷᠭ᠎ᠠ",
+        "openInApp": "{app} ᠪᠠᠷ ᠨᠡᠭᠡᠭᠡᠬᠦ",
+        "openInTerminalApp": "ᠳᠣᠲᠣᠷ᠎ᠠ ᠨᠡᠭᠡᠭᠡᠵᠦ  {app}",
+        "openFailed": "ᠳᠤ ᠡᠨᠡ ᠪᠢᠴᠢᠭ᠌ ᠮᠠᠲ᠋ᠧᠷᠢᠶᠠᠯ ᠢ ᠨᠡᠭᠡᠭᠡᠵᠦ ᠪᠣᠯᠬᠤ ᠦᠭᠡᠢ ᠂",
+        "preferredAppUnavailable": "ᠶᠢᠨ ᠰᠣᠩᠭᠣᠭᠰᠠᠨ ᠮᠠᠲᠧᠷᠢᠶᠠᠯ ᠢ ᠬᠡᠷᠡᠭ᠍ᠯᠡᠵᠦ ᠪᠣᠯᠬᠤ ᠦᠭᠡᠢ ᠃",
+        "revealInFolder": "ᠹᠠᠶᠢᠯ ᠡᠷᠬᠢᠯᠡᠭᠦᠷ ᠳᠣᠲᠣᠷ᠎ᠠ ᠨᠡᠭᠡᠭᠡᠬᠦ",
+        "insertPath": "ᠣᠷᠣᠭᠤᠯᠬᠤ ᠠᠪᠳᠠᠷ᠎ᠠ ᠳᠤ",
+        "openWithSystemDefault": "ᠰᠢᠰᠲ᠋ᠧᠮ ᠦᠨ ᠲᠣᠭᠲᠠᠪᠤᠷᠢᠲᠤ ᠴᠢᠨᠠᠷ ᠢᠶᠠᠷ ᠨᠡᠭᠡᠭᠡ"
+      },
+      "watchStatus": {
+        "degraded": "ᠳᠡᠰ ᠪᠠᠭᠤᠷᠠᠭᠤᠯᠵᠤ ᠰᠣᠨᠣᠰᠬᠤ ᠬᠡᠯᠪᠡᠷᠢ ᠶᠢ ᠬᠡᠷᠡᠭᠯᠡᠪᠡᠯ ᠂ ᠪᠢᠴᠢᠭ᠌ ᠮᠠᠲᠧᠷᠢᠶᠠᠯ ᠤᠨ ᠰᠣᠯᠢᠬᠤ ᠰᠢᠨ᠎ᠡ ᠪᠡᠷ ᠬᠠᠳᠠᠭᠠᠯᠠᠨ᠎ᠠ ᠃",
+        "failed": "ᠪᠢᠴᠢᠭ᠌ ᠮᠠᠲ᠋ᠧᠷᠢᠶᠠᠯ ᠢ ᠲᠦᠷ ᠬᠡᠷᠡᠭᠯᠡᠵᠦ ᠳᠡᠢ᠌ᠯᠬᠦ ᠦᠭᠡᠢ ᠪᠣᠯᠬᠤ ᠳᠤ ᠂ ᠠᠵᠢᠯ ᠤᠨ"
+      }
+    },
+    "git": {
+      "empty": "diff  ᠠᠵᠢᠯ  ᠶᠢ",
+      "clean": "ᠶᠢ ᠲᠠᠬᠢᠵᠤ ᠰᠣᠩᠭᠣ ᠪᠤᠶᠤ ᠰᠢᠨ᠎ᠡ ᠪᠡᠷ ᠰᠢᠨ᠎ᠡ ᠶᠢ ᠰᠣᠩᠭᠣ",
+      "staged": "ᠴᠡᠪᠡᠷᠯᠡᠵᠦ ᠂ ᠱᠠᠲᠤ ᠦᠶᠡᠯᠡᠭ᠍ᠰᠡᠨ",
+      "unstaged": "ᠲᠦᠷ ᠬᠠᠳᠠᠭᠠᠯᠠᠭᠠᠳᠤᠢ"
+    },
+    "subagents": {
+      "empty": "subagent ᠶᠠᠷᠢᠯᠴᠠᠭ᠎ᠠ ᠪᠠᠶᠢᠬᠤ ᠦᠭᠡᠢ",
+      "self": "ᠣᠳᠣᠭ᠎ᠠ ᠶᠢᠨ Agent",
+      "status": {
+        "working": "ᠭᠦᠶᠦᠬᠦ",
+        "error": "ᠠᠯᠳᠠᠭ᠎ᠠ",
+        "idle": "ᠰᠤᠯᠠ ᠲᠠᠯᠪᠢᠬᠤ"
+      }
+    },
+    "browser": {
+      "section": "ᠬᠠᠶᠢᠭᠤᠷ",
+      "empty": "ᠶᠢᠨ ᠬᠠᠭᠤᠳᠠᠰᠤ ᠦᠭᠡᠢ"
+    },
+    "terminal": {
+      "section": "ᠲ᠋ᠧᠷᠮᠢᠨᠠᠯ",
+      "empty": "ᠭᠠᠷᠬᠤ ᠦᠭᠡᠢ",
+      "contextMenu": {
+        "terminate": "ᠶᠢ ᠵᠣᠭᠰᠣᠭᠠᠬᠤ",
+        "delete": "ᠶᠢ ᠬᠠᠰᠤᠬᠤ",
+        "expand": "ᠶᠢ ᠥᠷᠭᠡᠨ ᠢᠶᠡᠷ ᠦᠵᠡᠨ᠎ᠡ",
+        "collapse": "ᠨᠤᠷᠠᠬᠤ"
+      },
+      "output": {
+        "truncated": "[ᠲᠠᠰᠤᠯᠪᠠ]"
+      },
+      "noOutput": "ᠭᠠᠷᠬᠤ ᠦᠭᠡᠢ",
+      "status": {
+        "running": "ᠭᠦᠶᠦᠬᠦ",
+        "completed": "ᠶᠢᠨ ᠠᠮᠵᠢᠯᠲᠠ",
+        "failed": "ᠢᠯᠠᠭᠳᠠᠯ",
+        "timed_out": "ᠶᠢᠨ ᠬᠤᠭᠤᠴᠠᠭ᠎ᠠ ᠳᠠᠭᠤᠰᠤᠭᠰᠠᠨ",
+        "aborted": "ᠲᠠᠰᠤᠷᠠᠭᠰᠠᠨ"
+      }
+    }
+  },
+  "newThread": {
+    "title": "ᠪᠠᠶᠢᠭᠤᠯᠵᠤ ᠰᠦᠪᠡᠭᠴᠢᠯᠡᠬᠦ"
+  },
+  "floatingWidget": {
+    "title": "ᠶᠢᠨ ᠡᠭᠦᠷᠭᠡ ᠶᠢᠨ ᠲᠣᠪᠴᠢᠶᠠᠨ",
+    "collapse": "ᠶᠢᠨ ᠬᠥᠳᠡᠯᠭᠡᠭᠡᠨ ᠦ ᠨᠡᠷᠡᠰ ᠦᠨ ᠬᠦᠰᠦᠨᠦᠭ",
+    "empty": "Agent ᠳᠤ ᠠᠭᠤᠯᠵᠠᠭ᠎ᠠ ᠦᠭᠡᠢ",
+    "executing": "ᠶᠠᠪᠤᠭᠰᠠᠳ ᠢ",
+    "sessionCount": "{count} ᠶᠠᠷᠢᠯᠴᠠᠬᠤ ᠬᠤᠷᠠᠯ",
+    "untitled": "ᠰᠢᠨ᠎ᠡ ᠬᠤᠷᠠᠯ",
+    "status": {
+      "inProgress": "ᠶᠠᠪᠤᠭᠰᠠᠳ ᠢ",
+      "done": "ᠳᠠᠭᠤᠰᠬᠠᠪᠠ",
+      "error": "ᠠᠯᠳᠠᠭ᠎ᠠ"
+    }
+  },
+  "permissionMode": {
+    "default": "ᠠᠴᠠ ᠵᠥᠷᠢᠴᠡᠭ᠍ᠰᠡᠨ ᠵᠥᠪᠰᠢᠶᠡᠷᠡᠯ",
+    "autoApprove": "ᠢ ᠬᠠᠪᠰᠤᠷᠤᠭᠴᠢᠳ ᠢᠶᠠᠷ ᠬᠢᠨᠠᠨ ᠲᠣᠭᠲᠠᠭᠠᠬᠤ",
+    "fullAccess": "ᠪᠦᠬᠦᠨ  ᠢ ᠵᠥᠪᠰᠢᠶᠡᠷᠡᠬᠦ"
+  },
+  "sidebar": {
+    "allAgents": "ᠪᠦᠬᠦ Agents",
+    "expandSidebar": "ᠶᠢᠨ ᠬᠠᠪᠲᠠᠰᠤ ᠶᠢ ᠥᠷᠭᠡᠨ ᠢᠶᠡᠷ ᠨᠡᠭᠡᠭᠡᠬᠦ",
+    "collapseSidebar": "ᠶᠢᠨ ᠪᠠᠭᠤᠷᠠᠬᠤ ᠬᠠᠵᠠᠭᠤ ᠶᠢᠨ ᠪᠠᠳᠠᠷ",
+    "themeToggle": "ᠰᠣᠯᠢᠬᠤ ᠭᠣᠣᠯ ᠰᠡᠳᠦᠪ",
+    "themeLight": "ᠴᠠᠶᠢᠪᠠᠷ",
+    "themeDark": "ᠬᠠᠷᠠᠩᠭ᠋ᠤᠢ",
+    "themeSystem": "ᠶᠢ ᠳᠠᠭᠠᠬᠤ",
+    "searchCommand": "ᠡᠷᠢᠬᠦ",
+    "chatSection": "ᠶᠠᠷᠢᠯᠴᠠᠭ᠎ᠠ",
+    "workspace": "ᠠᠵᠢᠯ ᠤᠨ",
+    "addWorkspace": "ᠠᠵᠢᠯ ᠤᠨ ᠭᠡᠷ ᠨᠡᠮᠡᠬᠦ",
+    "manageWorkspaces": "ᠠᠵᠢᠯ ᠤᠨ ᠣᠷᠣᠨ ᠵᠠᠶ ᠶᠢ ᠡᠷᠬᠢᠯᠡᠬᠦ",
+    "openWorkspaceFolder": "ᠬᠠᠪᠲᠠᠰᠤ ᠨᠡᠭᠡᠭᠡᠬᠦ",
+    "emptyWorkspace": "ᠬᠣᠭᠣᠰᠣᠨ",
+    "addWorkspaceFailed": "ᠠᠵᠢᠯ ᠤᠨ ᠲᠠᠯᠠᠪᠠᠢ ᠶᠢ ᠨᠡᠮᠡᠵᠦ ᠴᠢᠳᠠᠭᠰᠠᠨ ᠦᠭᠡᠢ",
+    "remoteControlDisabled": "ᠢ ᠨᠡᠭᠡᠭᠡᠭᠰᠡᠨ ᠦᠭᠡᠢ",
+    "remoteControlStatus": {
+      "disabled": "ᠡᠵᠡᠮᠰᠢᠭᠦᠷ ᠢ ᠲᠣᠳᠣ ᠪᠣᠯᠬᠤ ᠦᠭᠡᠢ",
+      "stopped": "ᠢ ᠡᠵᠡᠮᠰᠢᠬᠦ ᠪᠡᠨ ᠵᠣᠭᠰᠣᠭᠰᠠᠨ",
+      "starting": "ᠢ ᠵᠢᠯᠣᠭᠣᠳᠬᠤ ᠡᠬᠢᠯᠡᠬᠦ ᠶᠢ",
+      "running": "ᠢ ᠵᠢᠯᠣᠭᠣᠳᠬᠤ ᠭᠦᠶᠦᠬᠦ",
+      "backoff": "ᠶᠢ ᠳᠠᠬᠢᠨ ᠲᠤᠷᠰᠢᠵᠤ ᠪᠠᠢ᠌ᠨ᠎ᠠ",
+      "error": "ᠢ ᠵᠢᠯᠣᠭᠣᠳᠬᠤ ᠠᠯᠳᠠᠭ᠎ᠠ"
+    },
+    "groupByDate": "ᠶᠢᠨ ᠢᠯᠭᠠᠪᠤᠷᠢ",
+    "groupByProject": "ᠲᠥᠷᠥᠯ ᠵᠦᠢᠯ ᠢᠶᠡᠷ ᠪᠦᠯᠬᠦᠮ",
+    "projectGroupActions": "ᠲᠥᠷᠥᠯ ᠵᠦᠢᠯ ᠦᠨ ᠪᠦᠯᠦᠭᠯᠡᠯ ᠦᠨ ᠡᠵᠡᠩᠨᠡᠯᠲᠡ",
+    "moveProjectGroupTop": "ᠳᠤ ᠰᠢᠯᠵᠢᠬᠦ",
+    "moveProjectGroupUp": "ᠪᠠᠨ ᠳᠡᠭᠡᠭ᠍ᠰᠢᠯᠡᠬᠦ",
+    "moveProjectGroupDown": "ᠳᠣᠷᠣᠭᠰᠢ ᠰᠢᠯᠵᠢᠬᠦ",
+    "moveProjectGroupBottom": "ᠳᠤ ᠰᠢᠯᠵᠢᠬᠦ",
+    "pinned": "ᠶᠢᠨ ᠶᠠᠷᠢᠯᠴᠠᠭ᠎ᠠ",
+    "chats": "ᠶᠠᠷᠢᠯᠴᠠᠭ᠎ᠠ",
+    "emptyTitle": "ᠶᠠᠷᠢᠯᠴᠠᠭ᠎ᠠ ᠦᠭᠡᠢ",
+    "emptyDescription": "ᠪᠠᠨ ᠡᠬᠢᠯᠡᠵᠦ ᠶᠠᠷᠢᠯᠴᠠᠨ᠎ᠠ",
+    "searchPlaceholder": "ᠡᠷᠢᠬᠦ ᠶᠠᠷᠢᠯᠴᠠᠭᠠᠨ ᠤ ᠰᠡᠳᠦᠪ ᠦᠨ",
+    "searchAriaLabel": "ᠡᠷᠢᠬᠦ ᠶᠠᠷᠢᠯᠴᠠᠭᠠᠨ ᠤ ᠰᠡᠳᠦᠪ ᠦᠨ",
+    "searchEmptyTitle": "ᠲᠠᠢ ᠶᠠᠷᠢᠯᠴᠠᠭ᠎ᠠ ᠣᠯᠬᠤ ᠦᠭᠡᠢ",
+    "searchEmptyDescription": "ᠤᠨ ᠦᠰᠦᠭ ᠦᠨ ᠦᠭᠡᠰ ᠢ ᠥᠭᠡᠷ᠎ᠡ ᠬᠡᠷᠡᠭ᠍ᠯᠡᠵᠦ ᠦᠵᠡᠬᠦ",
+    "searchLoadedRangeDescription": "ᠠᠷᠪᠢᠨ ᠠᠷᠪᠢᠨ ᠶᠠᠷᠢᠯᠴᠠᠭᠠᠨ ᠤ ᠳᠤᠮᠳᠠ ᠪᠠᠨ ᠪᠣᠯᠵᠣᠵᠤ ᠪᠠᠶᠢᠨ᠎ᠠ ᠃ ᠲᠤᠷᠤᠭᠰᠢ ᠰᠢᠯᠵᠢᠪᠡᠯ ᠲᠡᠩᠬᠡ ᠲᠡᠮᠲᠡᠭ ᠢ ᠨᠡᠮᠡᠵᠦ ᠭᠠᠷᠭᠠᠭᠠᠷᠠᠢ᠃"
+  },
+  "spotlight": {
+    "placeholder": "ᠡᠷᠢᠬᠦ ᠂ Agent ᠤᠨ ᠪᠠᠢᠢᠷᠢᠯᠠᠯ ᠂ ᠠᠵᠢᠯᠯᠠᠭ᠎ᠠ ᠁",
+    "searching": "ᠡᠷᠢᠵᠦ ᠪᠠᠢ᠌ᠨ᠎ᠠ ᠁",
+    "emptyTitle": "ᠳᠤ ᠨᠡᠢ᠌ᠴᠡᠬᠦ ᠳ᠋ᠦᠩ ᠦᠭᠡᠢ",
+    "emptyDescription": "ᠥᠭᠡᠷ᠎ᠡ ᠨᠢᠭᠡ ᠭᠣᠣᠯ ᠦᠭᠡ ᠶᠢ ᠲᠤᠷᠰᠢᠨ ᠦᠵᠡᠬᠦ ᠪᠤᠶᠤ ᠣᠷᠴᠢᠮ ᠤᠨ ᠨᠢᠭᠡ ᠶᠠᠷᠢᠯᠴᠠᠭ᠎ᠠ ᠃",
+    "hints": "↑↓ ᠰᠣᠩᠭᠣᠬᠤ · Enter ᠨᠡᠭᠡᠭᠡᠬᠦ · Esc ᠬᠠᠭᠠᠬᠤ · Home/End ᠰᠢᠯᠵᠢᠬᠦ",
+    "kind": {
+      "session": "ᠶᠠᠷᠢᠯᠴᠠᠭ᠎ᠠ",
+      "message": "ᠮᠡᠳᠡᠭᠡᠯᠡᠯ",
+      "agent": "ᠣᠶᠤᠨᠲᠤ ᠲᠤᠰᠠᠯᠠᠭᠴᠢ",
+      "setting": "ᠲᠣᠬᠢᠷᠠᠭᠤᠯᠭ᠎ᠠ",
+      "action": "ᠠᠵᠢᠯᠯᠠᠭ᠎ᠠ"
+    }
+  },
+  "inlineSearch": {
+    "placeholder": "ᠶᠢᠨ ᠶᠠᠷᠢᠯᠴᠠᠭ᠎ᠠ",
+    "ariaLabel": "ᠶᠢᠨ ᠶᠠᠷᠢᠯᠴᠠᠭ᠎ᠠ",
+    "previous": "ᠶᠢᠨ ᠤᠷᠤᠯᠳᠤᠭᠠᠨ ᠤ ᠳᠠᠷᠠᠭ᠎ᠠ",
+    "next": "ᠶᠢᠨ ᠤᠷᠤᠯᠳᠤᠭᠠᠨ ᠤ ᠳᠠᠷᠠᠭ᠎ᠠ ᠨᠢᠭᠡ ᠤᠳᠠᠭ᠎ᠠ",
+    "close": "ᠡᠴᠡ ᠡᠷᠢᠬᠦ"
+  },
+  "onboarding": {
+    "agentSwitch": {
+      "title": "ᠶᠢ ᠰᠣᠯᠢᠵᠤ DeepChat Agent",
+      "description": "ᠶᠠᠷᠢᠯᠴᠠᠵᠤ ᠡᠬᠢᠯᠡᠬᠦ ᠡᠴᠡ ᠡᠮᠦᠨ᠎ᠡ ACP Agent ᠡᠴᠡ DeepChat ᠃",
+      "caption": "ᠶᠢᠨ ᠬᠠᠵᠠᠭᠤ ᠶᠢᠨ Agent ᠳᠡᠬᠢ ᠢᠯᠡ ᠲᠣᠪᠣᠶᠢᠭᠰᠠᠨ ᠳᠠᠷᠤᠭᠤᠯ  ᠶᠢ ᠳᠠᠷᠤᠪᠠᠯ ᠳᠠᠬᠢᠨ ᠠᠵᠢᠯᠯᠠᠨ᠎ᠠ ᠃"
+    },
+    "switchModel": {
+      "description": "ᠠᠩᠬ᠎ᠠ ᠤᠳᠠᠭᠠᠨ ᠤ ᠶᠠᠷᠢᠯᠴᠠᠭᠠᠨ ᠳᠤ ᠬᠡᠷᠡᠭ᠍ᠯᠡᠬᠦ ᠭᠡᠰᠡᠨ ᠬᠡᠪ DeepChat ᠢ ᠰᠤᠩᠭᠤ ᠃",
+      "caption": "ᠲᠣᠪᠣᠶᠢᠮ᠎ᠠ ᠬᠡᠯᠪᠡᠷᠢ ᠶᠢᠨ ᠰᠣᠯᠢᠬᠤ ᠪᠠᠭᠠᠵᠢ ᠶᠢ ᠬᠡᠷᠡᠭᠯᠡᠵᠦ ᠪᠣᠯᠬᠤ ᠶᠠᠮᠠᠷᠪᠠ ᠬᠡᠪ ᠵᠠᠭᠪᠤᠷ ᠢ ᠰᠣᠩᠭᠣᠨ᠎ᠠ ᠃"
+    },
+    "firstChat": {
+      "description": "ᠪᠡᠯᠡᠳᠬᠡᠯ ᠲᠡᠢ ᠪᠣᠯᠣᠯ᠎ᠠ ︱ ᠲᠠ ᠠᠩᠬᠠᠨ ᠤ ᠴᠠᠬᠢᠯᠭᠠᠨ ᠢᠶᠠᠨ ᠡᠨᠳᠡ ᠬᠦᠷᠭᠡᠭᠡᠳ ᠲᠠᠶᠢᠯᠪᠤᠷᠢᠯᠠᠯᠲᠠ ᠶᠢ ᠪᠡᠶᠡᠯᠡᠭᠦᠯᠦᠶ᠎ᠡ ᠃",
+      "caption": "ᠴᠢ ᠦᠨᠡᠨ ᠬᠦ ᠠᠩᠬᠠᠨ ᠤ ᠮᠡᠳᠡᠭᠡ ᠶᠢ ᠳᠠᠮᠵᠢᠭᠤᠯᠤᠶ᠎ᠠ ᠪᠣᠯᠲᠠᠯ᠎ᠠ ᠳᠤᠰᠭᠠᠯ ᠳ᠋ᠧᠩ ᠦᠨ ᠭᠡᠷᠡᠯ ᠢ ᠳᠡᠯᠭᠡᠨ ᠦᠵᠡᠭᠦᠯᠬᠦ ᠭᠡᠷᠡᠯ ᠢ ᠦᠯᠡᠳᠡᠭᠡᠨ᠎ᠡ ᠃"
+    }
+  },
+  "activityCollapse": {
+    "workedFor": "ᠣᠳᠣ ᠠᠵᠢᠯᠯᠠᠵᠤ {duration}",
+    "reasoningCount": "{count} ᠶᠢᠨ ᠰᠡᠳᠬᠢᠯ ᠢ",
+    "toolCallCount": "{count} ᠳᠠᠭᠤᠳᠠᠯᠭ᠎ᠠ",
+    "expandLabel": "ᠶᠢ {title}",
+    "collapseLabel": "ᠨᠤᠷᠠᠬᠤ {title}",
+    "duration": {
+      "day": "ᠡᠳᠦᠷ",
+      "hour": "ᠴᠠᠭ",
+      "minute": "ᠮᠢᠨᠦᠢᠲ᠋",
+      "second": "ᠰᠧᠺᠦᠢᠨᠳ᠋"
+    }
+  },
+  "memory": {
+    "toolbar": "ᠴᠡᠭᠡᠵᠢ ᠶᠢ ᠡᠨᠡ ᠤᠳᠠᠭᠠᠨ ᠤ ᠨᠢᠭᠡ ᠤᠳᠠᠭᠠᠨ ᠤ ᠰᠢᠷᠡᠭᠡᠨ ᠳᠦ ᠬᠡᠷᠡᠭ᠍ᠯᠡᠵᠡᠢ",
+    "status": {
+      "archived": "ᠮᠠᠷᠲᠠᠴᠢᠬᠠᠭᠰᠠᠨ"
+    },
+    "actions": {
+      "undo": "ᠪᠠᠨ ᠰᠡᠷᠭᠦᠭᠡᠬᠦ",
+      "forget": "ᠮᠠᠷᠲᠠᠬᠤ",
+      "edit": "ᠨᠠᠶᠢᠷᠠᠭᠤᠯᠬᠤ"
+    },
+    "chip": {
+      "title": "ᠶᠢᠨ ᠰᠢᠨᠡᠴᠢᠯᠡᠯᠲᠡ ᠶᠢᠨ {count}",
+      "heading": "ᠶᠢᠨ ᠰᠢᠨᠡᠴᠢᠯᠡᠯᠲᠡ ᠶᠢᠨ ᠴᠡᠭᠡᠵᠢ ᠶᠢ",
+      "description": "ᠡᠨᠡ ᠡᠭᠡᠯᠵᠢ ᠶᠢᠨ ᠶᠠᠷᠢᠯᠴᠠᠭᠠᠨ ᠳᠤ ᠳᠣᠣᠷᠠᠬᠢ ᠮᠡᠲᠦ ᠡᠷᠬᠢᠴᠡᠭᠦᠯᠦᠯ ᠢ ᠨᠡᠮᠡᠵᠡᠢ ᠃"
+    },
+    "selection": {
+      "remember": "ᠢ ᠴᠡᠭᠡᠵᠢᠯᠡᠵᠦ ᠶᠠᠪᠤᠭᠠᠷᠠᠢ"
+    },
+    "turn": {
+      "title": "ᠴᠡᠭᠡᠵᠢ ᠶᠢ ᠡᠨᠡ ᠤᠳᠠᠭᠠᠨ ᠤ ᠨᠢᠭᠡ ᠤᠳᠠᠭᠠᠨ ᠤ ᠰᠢᠷᠡᠭᠡᠨ ᠳᠦ ᠬᠡᠷᠡᠭ᠍ᠯᠡᠵᠡᠢ",
+      "empty": "ᠡᠭᠡᠯᠵᠢ ᠶᠢᠨ ᠤᠷᠤᠯᠳᠤᠭᠠᠨ ᠳᠤ ᠲᠠᠷᠢᠭᠰᠠᠨ ᠡᠷᠡᠭᠡᠯᠡᠯ ᠦᠭᠡᠢ",
+      "selected": "ᠶᠢ ᠰᠣᠩᠭᠣᠭᠰᠠᠨ",
+      "dropped": "ᠪᠠᠨ ᠬᠠᠶᠠᠬᠤ",
+      "tokens": "Token",
+      "budget": "ᠲᠥᠰᠥᠪ",
+      "allocation": "ᠦ ᠵᠠᠷᠤᠳᠠᠯ ᠲᠤᠰᠢᠶᠠᠬᠤ ᠲᠥᠰᠦᠪ ᠦᠨ ᠬᠤᠪᠢᠶᠠᠷᠢᠯᠠᠯᠲᠠ",
+      "directive": "ᠵᠢᠭᠠᠪᠤᠷᠢ",
+      "persona": "ᠵᠠᠩ ᠴᠢᠨᠠᠷ",
+      "working": "ᠠᠵᠢᠯ ᠤᠨ ᠲᠥᠯᠥᠪᠯᠡᠭᠡ ᠶᠢᠨ",
+      "queryRecall": "ᠯᠠᠪᠯᠠᠯᠲᠠ ᠪᠠᠷ ᠳᠠᠬᠢᠨ ᠳᠠᠭᠤᠳᠠᠬᠤ",
+      "overhead": "ᠶᠢᠨ ᠵᠠᠷᠤᠳᠠᠯ ᠤᠨ ᠵᠠᠷᠤᠴᠠᠭᠤᠯᠭ᠎ᠠ",
+      "unused": "ᠶᠢ ᠬᠡᠷᠡᠭᠯᠡᠬᠦ ᠦᠭᠡᠢ",
+      "overheadSummary": "ᠪᠦᠲᠦᠴᠡ ᠶᠢᠨ ᠳᠠᠪᠠᠯᠲᠠ ᠶᠢᠨ ᠵᠠᠷᠤᠳᠠᠯ {overhead} · ᠠᠰᠢᠭᠯᠠᠭᠠᠳᠤᠶ {unused}",
+      "countOnly": "ᠡᠨᠡ ᠲᠡᠮᠲᠡᠭᠯᠡᠭᠡ ᠵᠦᠪᠬᠡᠨ ᠲᠣᠭᠠᠨ ᠤ ᠲᠣᠮᠤᠨᠭ᠌ ᠢ ᠪᠠᠭᠲᠠᠭᠠᠨ᠎ᠠ᠃",
+      "unavailable": "ᠶᠢᠨ ᠡᠨᠡ ᠪᠢᠴᠢᠬᠠᠨ ᠳᠠᠬᠢᠨ ᠦᠭᠡᠢ ᠪᠣᠯᠵᠠᠢ ᠃",
+      "noSelectedDetails": "ᠡᠨᠡ ᠡᠭᠡᠯᠵᠢ ᠶᠢᠨ ᠤᠷᠤᠯᠳᠤᠭᠠᠨ ᠤ ᠵᠦᠢᠯ ᠢ ᠢᠯᠡᠷᠡᠭᠦᠯᠬᠦ ᠳᠤᠷᠠᠰᠬᠠᠯ ᠤᠨ ᠨᠠᠷᠢᠨ ᠵᠦᠢᠯᠡᠰ ᠪᠠᠶᠢᠬᠤ ᠦᠭᠡᠢ ᠃",
+      "refreshFailed": "ᠰᠢᠨ᠎ᠡ ᠶᠢ ᠰᠢᠨ᠎ᠡ ᠪᠡᠷ ᠵᠠᠰᠠᠵᠤ ᠳᠡᠶᠢᠯᠦᠭᠰᠡᠨ ᠦᠭᠡᠢ᠂ ᠬᠠᠮᠤᠭ ᠰᠡᠭᠦᠯ ᠦᠨ ᠰᠠᠭᠦᠯ ᠳᠤ ᠠᠴᠢᠶᠠᠯᠠᠭᠰᠠᠨ ᠴᠡᠭᠡᠵᠢ ᠶᠢ ᠳᠡᠯᠭᠡᠨ ᠦᠵᠡᠭᠦᠯᠪᠡ᠃",
+      "error": "ᠡᠷᠭᠢᠴᠡᠭᠦᠯᠦᠭᠰᠡᠨ ᠤ ᠠᠷᠭ᠎ᠠ ᠦᠭᠡᠢ᠂ ᠡᠨᠡ ᠨᠢᠭᠡ ᠡᠭᠡᠯᠵᠢ ᠶᠢᠨ ᠤᠷᠤᠯᠳᠤᠭᠠᠨ ᠢ ᠬᠡᠷᠡᠭᠯᠡᠵᠡᠢ᠃"
+    },
+    "toast": {
+      "undoSuccess": "ᠢ ᠴᠡᠭᠡᠵᠢᠯᠡᠵᠦ ᠂ ᠡᠨᠡ ᠤᠴᠢᠷ ᠢ ᠦᠭᠡᠢ ᠪᠣᠯᠭᠠᠪᠠ",
+      "undoFailed": "ᠶᠢ ᠰᠡᠷᠭᠦᠭᠡᠬᠦ ᠦᠭᠡ ᠳᠦ ᠰᠠᠭᠠᠳ ᠭᠠᠷᠤᠭᠰᠠᠨ ᠢ",
+      "forgetSuccess": "ᠢ ᠴᠡᠭᠡᠵᠢᠯᠡᠵᠦ ᠂ ᠡᠨᠡ ᠨᠢ ᠮᠠᠷᠲᠠᠴᠢᠬᠠᠵᠠᠢ",
+      "forgetFailed": "ᠦᠭᠡ ᠪᠡᠨ ᠮᠠᠷᠲᠠᠴᠢᠬᠠᠪᠠ",
+      "amendFailed": "ᠶᠢᠨ ᠵᠠᠰᠠᠮᠠᠯ ᠴᠡᠭᠡᠵᠢ ᠳᠦ ᠰᠠᠭᠠᠳ ᠭᠠᠷᠤᠭᠰᠠᠨ ᠳᠤ",
+      "rememberFailed": "ᠶᠢᠨ ᠬᠠᠳᠠᠭᠠᠯᠠᠮᠵᠢ ᠳᠤ ᠨᠡᠪᠲᠡᠷᠡᠬᠦ ᠦᠭᠡᠢ",
+      "add": {
+        "created": "ᠰᠢᠨ᠎ᠡ ᠲᠡᠮᠳᠡᠭᠯᠡᠯ ᠪᠣᠯᠭᠠᠨ ᠬᠠᠳᠠᠭᠠᠯᠠᠭᠰᠠᠨ",
+        "updated": "ᠶᠢᠨ ᠬᠠᠳᠠᠭᠠᠯᠠᠮᠵᠢ ᠶᠢ ᠰᠢᠨᠡᠴᠢᠯᠡᠵᠦ ᠪᠠᠶᠢᠨ᠎ᠠ",
+        "superseded": "ᠰᠢᠨ᠎ᠡ  ᠴᠡᠭᠡᠵᠢᠯᠡᠬᠦ",
+        "challenged": "ᠶᠢ ᠲᠡᠮᠲᠡᠭᠯᠡᠵᠦ ᠲᠣᠭᠲᠠᠭᠠᠬᠤ ᠪᠠᠷ ᠬᠦᠯᠢᠶᠡᠵᠦ ᠪᠠᠶᠢᠨ᠎ᠠ",
+        "noop": "ᠰᠢᠨ᠎ᠡ ᠴᠡᠭᠡᠵᠢᠯᠡᠬᠦ ᠦᠭᠡᠢ"
+      }
+    },
+    "errors": {
+      "actionFailed": "ᠠᠵᠢᠯᠯᠠᠭᠠᠨ ᠳᠤ ᠭᠡᠮ ᠭᠠᠷᠤᠭᠰᠠᠨ ᠤ ᠰᠡᠭᠦᠯᠡᠷ ᠳᠠᠬᠢᠨ ᠲᠤᠷᠰᠢᠭᠠᠷᠠᠢ ᠃",
+      "amendRetryable": "ᠵᠠᠰᠠᠭᠠᠳ ᠢᠯᠠᠭᠳᠠᠭᠰᠠᠨ ᠂ ᠤᠭ ᠬᠠᠳᠠᠭᠠᠯᠠᠭᠤᠷ ᠢᠶᠠᠨ ᠰᠡᠷᠭᠦᠭᠡᠵᠡᠢ ᠃ ᠣᠷᠣᠭᠤᠯᠤᠭᠴᠢ ᠪᠠᠨ ᠦᠯᠡᠳᠡᠭᠡᠵᠦ ᠳᠠᠬᠢᠨ ᠲᠤᠷᠰᠢᠭᠠᠷᠠᠢ ᠃",
+      "amendRestoreFailed": "ᠵᠠᠰᠠᠭᠠᠳ ᠢᠯᠠᠭᠳᠠᠪᠠ᠂ᠤᠭ ᠬᠠᠳᠠᠭᠠᠯᠠᠭᠤᠷ ᠢᠶᠠᠨ ᠰᠡᠷᠭᠦᠭᠡᠵᠦ ᠳᠡᠶᠢᠯᠬᠦ ᠦᠭᠡᠢ ᠪᠣᠯᠵᠠᠢ᠃ ᠡᠨᠡ ᠠᠭᠤᠯᠭ᠎ᠠ ᠶᠢ ᠭᠠᠷ ᠢᠶᠠᠷ ᠴᠡᠭᠡᠵᠢᠯᠡᠵᠦ ᠳᠠᠬᠢᠨ ᠨᠢᠭᠡ ᠤᠳᠠᠭ᠎ᠠ ᠠᠪᠤᠭᠠᠷᠠᠢ᠃"
+    }
+  },
+  "orchestration": {
+    "actions": {
+      "openChild": "ᠰᠠᠯᠠᠭ᠎ᠠ ᠮᠥᠴᠢᠷ ᠦᠨ ᠬᠤᠪᠢᠶᠠᠷᠢ ᠬᠤᠷᠠᠯ"
+    },
+    "activityTitle": "Agent ᠤᠨ ᠦᠢᠯᠡ ᠠᠵᠢᠯᠯᠠᠭ᠎ᠠ",
+    "proactive": {
+      "title": "ᠠᠴᠠ ᠪᠠᠨ ᠬᠠᠮᠵᠢᠯᠴᠠᠬᠤ",
+      "description": "ᠪᠡᠶ᠎ᠡ ᠪᠡᠨ ᠳᠠᠭᠠᠭᠠᠭᠰᠠᠨ ᠪᠤᠶᠤ ᠵᠡᠷᠭᠡᠴᠡᠨ ᠭᠦᠢᠴᠡᠳᠬᠡᠬᠦ ᠠᠵᠢᠯ Agent ᠳᠤ ᠲᠤᠢᠯᠡᠷᠬᠡᠶ ᠲᠤᠰᠠᠲᠠᠶ ᠪᠠᠶᠢᠬᠤ ᠦᠢ᠎ᠡ ᠳᠦ ᠭᠣᠤᠯ  ᠠᠴᠠ ᠰᠠᠨᠠᠭᠠᠴᠢᠯᠠᠭ᠎ᠠ ᠠᠴᠠ ᠪᠠᠨ ᠳᠣᠷᠣᠭᠰᠢ ᠪᠠᠭᠤᠯᠭᠠᠬᠤ ᠶᠢ ᠵᠥᠪᠰᠢᠶᠡᠷᠡᠨ᠎ᠡ; ᠨᠡᠩ ᠢᠯᠡᠭᠦᠦ ᠴᠠᠭ ᠂ Token ᠂ ᠰᠢᠰᠲ᠋ᠧᠮ ᠦᠨ ᠡᠬᠢ ᠪᠠᠶᠠᠯᠢᠭ  ᠢ ᠨᠡᠩ ᠢᠯᠡᠭᠦᠦ ᠬᠣᠷᠣᠭᠳᠠᠭᠤᠯᠵᠤ ᠪᠣᠯᠤᠨ᠎ᠠ ᠃",
+      "reasons": {
+        "session_unavailable": "ᠲᠤᠰ ᠨᠢᠭᠡ ᠬᠤᠷᠠᠯ ᠪᠠᠢ᠌ᠬᠤ ᠦᠭᠡᠢ ᠃",
+        "agent_unavailable": "ᠣᠳᠣ ᠶᠢᠨ ᠰᠣᠩᠭᠣᠵᠤ ᠪᠠᠢ᠌ᠭ᠎ᠠ Agent ᠢ ᠬᠡᠷᠡᠭ᠍ᠯᠡᠬᠦ ᠦᠭᠡᠢ ᠃",
+        "deepchat_agent_required": "ᠤᠨ ᠬᠠᠮᠵᠢᠯᠴᠠᠭ᠎ᠠ ᠳᠤ DeepChat Agent ᠬᠡᠷᠡᠭᠲᠡᠢ ᠃",
+        "regular_parent_required": "ᠶᠢᠨ ᠪᠠᠭ᠎ᠠ ᠬᠤᠷᠠᠯ ᠳᠤ ᠢᠳᠡᠪᠬᠢᠲᠡᠢ ᠪᠡᠷ ᠬᠠᠮᠵᠢᠯᠴᠠᠵᠤ ᠴᠢᠳᠠᠬᠤ ᠦᠭᠡᠢ ᠃",
+        "agent_policy_unavailable": "ᠬᠠᠮᠲᠤᠷᠠᠨ ᠠᠵᠢᠯᠯᠠᠬᠤ ᠠᠷᠭ᠎ᠠ ᠪᠣᠳᠣᠯᠭ᠎ᠠ ᠬᠢᠵᠦ ᠳᠡᠶᠢᠯᠦᠭᠰᠡᠨ ᠦᠭᠡᠢ",
+        "subagents_disabled": "Subagent ᠳᠤ ᠦᠢᠯᠡᠴᠢᠯᠡᠬᠦ Agent ᠡᠴᠡ ᠡᠮᠦᠨ᠎ᠡ ᠰᠠᠨᠠᠭᠠᠴᠢᠯᠠᠭ᠎ᠠ ᠠᠴᠠ ᠪᠠᠨ ᠬᠠᠮᠵᠢᠯᠴᠠᠬᠤ ᠠᠷᠭ᠎ᠠ ᠃"
+      }
+    }
+  },
+  "guardStop": {
+    "maxToolCalls": "ᠪᠠᠭᠠᠵᠢ ᠬᠡᠷᠡᠭᠯᠡᠭᠡᠨ ᠦ ᠬᠢᠵᠠᠭᠠᠷ ᠲᠤ ᠬᠦᠷᠴᠦ ᠂ ᠡᠭᠦᠷᠭᠡ ᠪᠡᠨ ᠪᠠᠰᠠ ᠪᠡᠶᠡᠯᠡᠭᠦᠯᠦᠭᠡᠳᠦᠶ ᠃",
+    "noProgress": "ᠶᠢᠨ ᠳᠠᠷᠠᠭᠠᠯᠠᠨ ᠠᠳᠠᠯᠢᠪᠲᠤᠷ ᠦᠢᠯᠡᠳᠦᠯ ᠦᠨ ᠦᠷ᠎ᠡ ᠳ᠋ᠦᠩ ᠠᠬᠢᠯᠲᠠ ᠦᠭᠡᠢ ᠂ ᠵᠣᠭᠰᠣᠪᠠ",
+    "maxTurns": "ᠡᠨᠡ ᠡᠭᠡᠯᠵᠢ ᠶᠢᠨ ᠶᠠᠷᠢᠯᠴᠠᠭᠠᠨ ᠤ ᠬᠢᠵᠠᠭᠠᠷᠯᠠᠯ ᠳᠤ ᠬᠦᠷᠴᠦ᠂ ᠡᠭᠦᠷᠭᠡ ᠪᠡᠨ ᠪᠠᠰᠠ ᠪᠡᠶᠡᠯᠡᠭᠦᠯᠦᠭᠡᠳᠦᠶ ᠪᠠᠶᠢᠨ᠎ᠠ᠃",
+    "continueMessage": "ᠶᠠᠷᠢᠭᠰᠠᠨ ᠭᠠᠵᠠᠷ ᠠᠴᠠ ᠪᠠᠨ ᠵᠠᠯᠭᠠᠭᠠᠳ ᠥᠭ᠍ᠭᠥᠭᠡᠷᠡᠢ ᠃"
+  }
+}

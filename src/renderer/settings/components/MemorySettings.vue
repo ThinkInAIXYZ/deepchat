@@ -42,6 +42,7 @@
             <SelectTrigger
               class="h-8 w-full min-w-40 sm:w-48"
               data-testid="settings-memory-agent-picker"
+              :aria-label="t('settings.memory.agentPicker')"
             >
               <SelectValue />
             </SelectTrigger>

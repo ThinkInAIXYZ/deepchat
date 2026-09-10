@@ -349,4 +349,61 @@ describe('WindowPresenter', () => {
       })
     )
   })
+
+  it('preserves per-tab delivery order across consecutive sendToAllWindows broadcasts', async () => {
+    const { WindowPresenter } = await import('@/desktop/window')
+    const presenter = new WindowPresenter(
+      {
+        getContentProtectionEnabled: vi.fn(() => false)
+      } as any,
+      vi.fn(),
+      vi.fn()
+    )
+
+    const send = vi.fn()
+    ;(presenter as any).windows = new Map([
+      [
+        1,
+        {
+          id: 1,
+          isDestroyed: vi.fn(() => false),
+          webContents: { id: 11, isDestroyed: vi.fn(() => false), send }
+        }
+      ]
+    ])
+
+    const tab = {
+      id: 'tab-1',
+      webContents: { id: 21, isDestroyed: vi.fn(() => false), send }
+    }
+    let pendingFirstLookup: ((value: unknown) => void) | null = null
+    let getTabCalls = 0
+    const tabPresenter = {
+      getWindowTabsData: vi.fn(async () => [{ id: 'tab-1' }]),
+      // The first broadcast's tab lookup stalls; the second's resolves immediately.
+      getTab: vi.fn(() => {
+        getTabCalls += 1
+        if (getTabCalls === 1) {
+          return new Promise((resolve) => {
+            pendingFirstLookup = resolve
+          })
+        }
+        return Promise.resolve(tab)
+      })
+    }
+    presenter.bindTabPresenter(tabPresenter as any)
+
+    const first = presenter.sendToAllWindows('test-msg', 'first')
+    const second = presenter.sendToAllWindows('test-msg', 'second')
+
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    pendingFirstLookup?.(tab)
+    await Promise.all([first, second])
+
+    // Main webContents of both broadcasts first (synchronous), then tab
+    // deliveries must arrive in broadcast order despite the delayed lookup.
+    expect(send).toHaveBeenCalledTimes(4)
+    expect(send).toHaveBeenNthCalledWith(3, 'test-msg', 'first')
+    expect(send).toHaveBeenNthCalledWith(4, 'test-msg', 'second')
+  })
 })

@@ -1,0 +1,350 @@
+{
+  "tools": {
+    "searchPlaceholder": "ئىزدەش قورالى...",
+    "noToolsAvailable": "نۆۋەتتە قورال يوق",
+    "selectToolToDebug": "قۇرالنى تاللاش",
+    "dialogDescription": "مۇلازىمىتىر تەمىنلىگەن خاتالىق تۈزەش ۋە سىناق قوراللىرىنى MCP",
+    "toolsCount": "{count} قورال",
+    "availableTools": "ئىشلەتكىلى بولىدىغان قوراللار",
+    "toolList": "قورال تىزىملىكى",
+    "functionDescription": "ئىقتىدار چۈشەندۈرۈشى",
+    "invalidJson": "JSON فورماتى ئىناۋەتسىز",
+    "inputHint": "پارامېتىرلارنى JSON شەكىلدە كىرگۈزۈڭ",
+    "required": "زۆرۈر",
+    "noDescription": "چۈشەندۈرۈش يوق",
+    "input": "كىرگۈزۈش پارامېتىرى",
+    "path": "يولى",
+    "pathPlaceholder": "ھۆججەت يولىنى كىرگۈزۈڭ",
+    "searchPattern": "ھالىتى",
+    "searchPatternPlaceholder": "مۇنتىزىم ئىپادە كىرگۈزۈش",
+    "filePattern": "ھالىتى",
+    "filePatternPlaceholder": "كىرگۈزۈش ھۆججىتى ئەندىزىسى، مەسىلەن: *. md",
+    "executeButton": "ئىجرا قىلىش قورالى",
+    "resultTitle": "ئىجرا قىلىش نەتىجىسى",
+    "runningTool": "قورالنى يولغا قويىۋاتىدۇ",
+    "loading": "يۈكلىنىۋاتىدۇ...",
+    "error": "يۈكلەش مەغلۇپ بولدى",
+    "available": "{count} قوراللىرى بار",
+    "none": "قورال يوق",
+    "title": "MCP قورال",
+    "description": "MCP تەمىنلىگەن قوراللار",
+    "loadError": "قورالنى يۈكلەش مەغلۇپ بولدى",
+    "parameters": "پارامېتىر",
+    "refresh": "يېڭىلاش",
+    "disabled": "MCP چەكلەندى",
+    "enableToUse": "بۇ قورالنى ئىشلىتىش ئۈچۈن ئالدى بىلەن MCP قوزغىتىڭ",
+    "enabled": "ئىقتىدارىنى MCP",
+    "enabledDescription": "MCP ئىقتىدارلىرىنى قورال چاقىرىشنى ئىناۋەتسىز قىلىش",
+    "acpManagedHint": "MCP قوراللارنى «ACP Agent» ئارقىلىق باشقۇرىدۇ.",
+    "acpServersSelected": "تاللىغان {count} MCP",
+    "acpServersNone": "بۇ Agent تەڭشەلگەن ئەمەس MCP",
+    "empty": "بوش",
+    "jsonInputPlaceholder": "JSON فورماتىدىكى پارامېتىرلەرنى كىرگۈزۈڭ",
+    "type": "تۈرى",
+    "annotations": "ئىزاھات",
+    "invalidJsonFormat": "JSON فورماتى خاتا",
+    "allowedValues": "يول قويۇلغان قىممەت",
+    "arrayItemValues": "تىزىملىك ئەزالارنىڭ قىممىتى"
+  },
+  "addServer": "سېرۋېر قوشۇش",
+  "addServerDialog": {
+    "description": "يېڭى MCP سېرۋېرنى تەڭشەش",
+    "title": "سېرۋېر قوشۇش"
+  },
+  "confirmDelete": {
+    "cancel": "بىكار قىلىش",
+    "confirm": "ئۆچۈرۈش",
+    "description": "مۇلازىمىتېرنى ئۆچۈرمەكچىمۇ {name}؟ بۇ مەشغۇلاتنى ئەسلىگە كەلتۈرگىلى بولمايدۇ.",
+    "title": "ئۆچۈرۈلگەنلىكىنى جەزىملەشتۈرىمەن"
+  },
+  "confirmRemoveServer": "مۇلازىمىتېرنى ئۆچۈرمەكچىمۇ {name}؟ بۇ مەشغۇلاتنى ئەسلىگە كەلتۈرگىلى بولمايدۇ.",
+  "default": "سۈكۈت",
+  "deleteServer": "مۇلازىمېتىرنى ئۆچۈرۈش",
+  "description": "MCP (Model Context Protocol) مۇلازىمىتېر ۋە قوراللارنى باشقۇرۇش ۋە سەپلەش پروگراممىسى",
+  "editServer": "سېرۋېرنى تەھرىرلەش",
+  "editServerDialog": {
+    "description": "MCP سېرۋېر تەڭشەشنى تەھرىرلەش",
+    "title": "سېرۋېرنى تەھرىرلەش"
+  },
+  "enableToAccess": "سەپلىمە تاللانمىلىرىنى زىيارەت قىلىش ئۈچۈن ئالدى بىلەن MCP قوزغىتىڭ",
+  "enabledDescription": "قوزغىتىلغاندىن كېيىن، قوزغىتىلغان مۇلازىمەت ئاپتوماتىك قوزغىلىدۇ",
+  "enabledTitle": "ئىقتىدارىنى MCP",
+  "isDefault": "سۈكۈتتىكى مۇلازىمېتىر",
+  "noServersFound": "سېرۋېر تاپىلمايدۇ",
+  "removeDefault": "سۈكۈتنى ئۆچۈرۈش",
+  "removeServer": "مۇلازىمېتىرنى ئۆچۈرۈش",
+  "removeServerDialog": {
+    "title": "مۇلازىمېتىرنى ئۆچۈرۈش"
+  },
+  "resetConfirm": "ئەسلىگە كەلتۈرۈش",
+  "resetConfirmDescription": "بۇ مەشغۇلات بارلىق كۆڭۈلدىكى مۇلازىمېتىرلارنى ئەسلىگە كەلتۈرۈپ، ئۆزىڭىز بەلگىلىگەن مۇلازىمېتىرىڭىزنى ساقلاپ قالالايدۇ. سۈكۈتتىكى مۇلازىمېتىرغا ھەرقانداق ئۆزگەرتىش ئۇتتۇرۇپ قويىدۇ.",
+  "resetConfirmTitle": "مۇلازىمەتنى ئەسلىگە كەلتۈرۈش",
+  "resetToDefault": "مۇلازىمەتنى ئەسلىگە كەلتۈرۈش",
+  "running": "مەشغۇلات قىلىۋاتىدۇ",
+  "serverForm": {
+    "add": "قوشۇش",
+    "args": "پارامېتىر",
+    "argsPlaceholder": "ھەر قۇردا بىر پارامېتىر",
+    "addArg": "پارامېتىر قوشۇش",
+    "argPlaceholder": "كىرگۈزۈش پارامېتىر قىممىتى",
+    "argsRequired": "پارامېتىرلىرى بوش بولالمايدۇ",
+    "baseUrl": "ئاساسىي URL ئادرېسى",
+    "baseUrlPlaceholder": "ئاساسىي مۇلازىمىتېر كىرگۈزۈش URL (مەسىلەن، http://localhost:3000)",
+    "cancel": "بىكار قىلىش",
+    "command": "بۇيرۇقى",
+    "commandPlaceholder": "بۇيرۇقنى كىرگۈزۈش",
+    "commandRequired": "بۇيرۇق بوش بولالمايدۇ",
+    "configImported": "سەپلىمىسى ئىمپورتلاش مۇۋەپپەقىيەتلىك بولدى",
+    "description": "چۈشەندۈرۈش",
+    "descriptionPlaceholder": "مۇلازىمىتىر چۈشەندۈرۈشىنى كىرگۈزۈڭ",
+    "descriptions": "چۈشەندۈرۈش",
+    "descriptionsPlaceholder": "مۇلازىمىتىر چۈشەندۈرۈشىنى كىرگۈزۈڭ",
+    "env": "ئۆزگەرگۈچى مىقدار",
+    "envInvalid": "مۇھىت ئۆزگەرگۈچى مىقدارى فورماتتا ئىناۋەتلىك بولۇشى JSON بولۇشى كېرەك",
+    "envPlaceholder": "شەكىلدىكى كىرگۈزۈش مۇھىتى ئۆزگەرگۈچى مىقدارىنى JSON",
+    "icon": "سىنبەلگىسى",
+    "iconPlaceholder": "كىرىش سىنبەلگىسى",
+    "icons": "سىنبەلگىسى",
+    "iconsPlaceholder": "كىرىش سىنبەلگىسى",
+    "jsonConfig": "JSON سەپلىمىسى",
+    "jsonConfigExample": "JSON سەپلىمە مىسالى",
+    "jsonConfigIntro": "JSON سەپلىمىنى بىۋاستە چاپلىيالايسىز ياكى مۇلازىمىتېرنى قولدا سەپلىسىڭىز بولىدۇ.",
+    "jsonConfigPlaceholder": "مۇلازىمېتىرىنىڭ JSON فورماتىنى چاپلاش MCP",
+    "name": "سېرۋېر نامى",
+    "namePlaceholder": "سېرۋېر نامىنى كىرگۈزۈڭ",
+    "nameRequired": "سېرۋېر نامى بوش بولالمايدۇ",
+    "parseAndContinue": "تەھلىل قىلىپ داۋاملاشتۇرايلى",
+    "parseError": "تەھلىل قىلىش خاتالىقى",
+    "parseSuccess": "سەپلىمىسى مۇۋەپپەقىيەتلىك تەھلىل قىلىندى",
+    "skipToManual": "قولدا سەپلىمىسىگە ئاتلاپ ئۆتۈش",
+    "submit": "تاپشۇرۇش",
+    "folders": "ھۆججەت قىسقۇچ تىزىملىگى",
+    "addFolder": "ھۆججەت قىسقۇچ قوشۇش",
+    "selectFolder": "ھۆججەت قىسقۇچىنى تاللاڭ",
+    "selectFolderError": "ھۆججەت قىسقۇچنى تاللاش مەغلۇپ بولدى",
+    "noFoldersSelected": "ھۆججەت قىسقۇچ تاللانمىدى",
+    "type": "سېرۋېر تىپى",
+    "typeInMemory": "ئەستە ساقلاش",
+    "typePlaceholder": "مۇلازىمىتېر تىپىنى تاللاڭ",
+    "typeSse": "مۇلازىمىتېر ۋەقە يوللايدۇ",
+    "typeStdio": "ئۆلچەملىك كىرگۈزۈش-چىقىرىش",
+    "update": "يېڭىلاش"
+  },
+  "serverList": "سېرۋېر تىزىملىكى",
+  "setAsDefault": "مۇلازىمىتېر قىلىپ تەڭشەش",
+  "setDefault": "سۈكۈتتىكى قىلىپ تەڭشەش",
+  "startServer": "سېرۋېرنى باشلاش",
+  "stopServer": "سېرۋېرنى توختىتىش",
+  "stopped": "توختادىڭىز",
+  "sampling": {
+    "title": "{server} دىن ئورۇنلاشتۇرۇش تەلەپى",
+    "unknownServer": "نومۇمىكىن مۇلازىمىتى",
+    "description": "MCP مۇلازىمىتى تەمىنلىگەن مەزمۇننى كۆرۈپ، جاۋاب يارىتىشنى تاللاڭ.",
+    "systemPrompt": "سىستېما ئەسكەرتىشى",
+    "messagesTitle": "سۆھبەت مەزمۇنى",
+    "preferencesTitle": "مودېل ئارزۇسى",
+    "approve": "قوبۇل قىلىش",
+    "reject": "رەت قىلىش",
+    "confirm": "مودېل جاۋابىنى ئەۋەتىش",
+    "confirming": "جەزملەشتۈرۈلۋاتىدۇ...",
+    "sendResponse": "جاۋابنى ئەۋەتىش",
+    "selectModel": "بىر مودېل تاللاش",
+    "respondWith": "مودېل جاۋابى：",
+    "maxTokensInfo": "ئەڭ چوڭ جاۋاب ئۇزۇنلۇقى：{maxTokens} tokens",
+    "visionWarning": "تاللانغان مودېل كۆرۈش كىرگۈزمىسىنى قوللىمايدۇ. داۋاملاشتۇرۇشتىن بۇرۇن كۆرۈش ئىقتىدارى بار مودېلنى تاللاڭ.",
+    "selectedModelLabel": "جاۋاب بېرىشتە {model} ({provider}) نى ئىشلىتىڭ",
+    "unsupportedMessage": "بۇ مەزمۇن تىپى قوللىنمايدۇ.",
+    "noVisionModels": "كۆرۈش ئىقتىدارى بار مودېل قوزغىتىلمىغان. داۋاملاشتۇرۇش ئۈچۈن تەڭشەكلەردىن كۆرۈش مودېلىنى قوزغىتىڭ.",
+    "noModels": "ماس كېلىدىغان مودېل قوزغىتىلمىغان. داۋاملاشتۇرۇش ئۈچۈن تەڭشەكلەردىن مۇۋاپىق مودېلنى قوزغىتىڭ.",
+    "imageAlt": "سۈرەت {index}",
+    "unknownMime": "نومۇمىكىن MIME تىپى",
+    "unknownHint": "نامسىز ئەسكەرتىش",
+    "autoApproving": "{server} دىن MCP ئورۇنلاشتۇرۇش تەلەپى",
+    "autoApproveIn": "{seconds} سېكۇنتتىن كېيىن {model} نى ئاپتوماتىك دەلىللەيدۇ",
+    "reviewRequest": "تەپسىلاتىنى كۆرۈش",
+    "sessionActive": "سۆھبەت پائالىيەتتە - تەلەپ ئاپتوماتىك دەلىللەيدۇ",
+    "contentType": {
+      "text": "تېكىست",
+      "image": "رەسىم",
+      "audio": "ئاۋاز"
+    },
+    "preference": {
+      "cost": "خىرەجەت ئالاھىدە",
+      "speed": "سرعت ئالاھىدە",
+      "intelligence": "ئەقىل ئالاھىدە",
+      "hints": "مودېل ئىپادىسى"
+    }
+  },
+  "tabs": {
+    "servers": "سېرۋېر",
+    "tools": "قوراللار"
+  },
+  "title": "MCP تەڭشەكلىرى",
+  "inmemory": {
+    "Artifacts": {
+      "desc": "DeepChat نىڭ چىقىرىشىدىكى تۈرلۈك Artifacts مەزمۇنىنى ھاسىل قىلىش",
+      "name": "ھاسىل قىلىنغان مەزمۇنلار"
+    },
+    "bochaSearch": {
+      "desc": "بوچا ئىزدەش API https://open.bochaai.com/",
+      "name": "بوچا ئىزدەش"
+    },
+    "buildInFileSystem": {
+      "desc": "DeepChat نىڭ يەرلىك ھۈججەتلەرنى ئاپ تەڭشلەش ئىقتىدارىغا ئىگە قىلىش",
+      "name": "ھۆججەت سىستېمىسى"
+    },
+    "braveSearch": {
+      "desc": "Brave ئىزدەش API https://brave.com/search/api/",
+      "name": "Brave ئىزدەش"
+    },
+    "difyKnowledge": {
+      "desc": "Dify بىلىم ئامبىرىنى ئىزدەش مۇلازىمىتى، Dify بىلىم ئامبىرىدىكى مەزمۇننى ئىزدەشكىچە بولىدۇ",
+      "name": "Dify بىلىم ئامبىرىنى ئىزدەش"
+    },
+    "ragflowKnowledge": {
+      "name": "RAGFlow بىلىم ئامبىرىنى ئىزدەش",
+      "desc": "RAGFlow بىلىم ئامبىرىنى ئىزدەش مۇلازىمىتى، RAGFlow بىلىم ئامبىرى مەزمۇنىنى ئىزدەشكە مۇمكىنچىلىك بېرىدۇ"
+    },
+    "fastGptKnowledge": {
+      "name": "FastGPT بىلىم ئامبىرىنى ئىزدەش",
+      "desc": "FastGPT بىلىم ئامبىرىنى ئىزدەش مۇلازىمىتى، FastGPT بىلىم ئامبىرى مەزمۇنىنى ئىزدەشكە مۇمكىنچىلىك بېرىدۇ"
+    },
+    "deepchat-inmemory/custom-prompts-server": {
+      "desc": "DeepChat قۇرۇلغان مەخسۇس ئەسكەرتىش سۆزلەر مۇلازىمىتى",
+      "name": "مەخسۇس ئەسكەرتىش سۆزلىرى"
+    },
+    "deepchat-inmemory/deep-research-server": {
+      "desc": "بوچا ئىزدەشكە تايانغان DeepChat قۇرۇلغان چوڭقۇر تەتقىقات مۇلازىمىتى، (دىققەت قىلىڭ، ئۇزۇن كىڭ ھۆججەت مودېلىنىلا ئىشلىتىشكە بولىدۇ، كىڭ ھۆججەت يېتىشمەس مودېل مۈمكىن بولسىمۇ مەغلۇبىيەت كۆرۈشى مۇمكىن)",
+      "name": "DeepResearch"
+    },
+    "deepchat-inmemory/auto-prompting-server": {
+      "name": "ئاپتوماتىك شابلۇن ئەسكەرتىش سۆزلىرى",
+      "desc": "قوللانچى كىرگۈزۈش تەۋەسىدە ئەڭ ماس ھەرىكەت قىلدىغان مەخسۇس ئەسكەرتىش سۆزىنى ئاپتوماتىك تاللايدۇ ۋە ئەسكەرتىش سۆزى شابلۇننى ئىنتېلىگېنتلا تولدۇرىدۇ"
+    },
+    "deepchat-inmemory/conversation-search-server": {
+      "name": "سۆھبەت تارىخى ئىزدەش",
+      "desc": "DeepChat ئىچكى سۆھبەت تارىخىنى ئىزدەش مۇلازىمىتى، سۆھبەت تارىخى ۋە ئۇچۇر مەزمۇنىنى ئىزدەشكە بولىدۇ"
+    },
+    "builtinKnowledge": {
+      "desc": "DeepChat قۇرۇلغان بىلىم ئامبىرىنى ئىزدەش مۇلازىمىتى، DeepChat قۇرۇلغان بىلىم ئامبىرى مەزمۇنىنى ئىزدەشكە مۇمكىنچىلىك بېرىدۇ",
+      "name": "قۇرۇلغان بىلىم ئامبىرىنى ئىزدەش"
+    },
+    "deepchat/apple-server": {
+      "desc": "مودېل macOSنىڭ تەقۋىم، ئالاقىداشلار، ئېلخەت، خەرىتىلەر، خاتىرىلەش، ئاگاھلاندۇرۇش قاتارلىق سىستېما ئىقتىدارلىرىنى ئىشلەتەلەيدۇ",
+      "name": "macOS سىستېما ياردەمچىسى"
+    }
+  },
+  "prompts": {
+    "noPromptsAvailable": "ھازىرچە ئىشلىتىشكە بولىدىغان Prompts يوق",
+    "noDescription": "چۈشەندۈرۈش يوق",
+    "selectPrompt": "بۇ يەر تەڭشلەنگەن Prompt نى كۆرسىتىدۇ",
+    "parameters": "Prompt پارامېتىرلىرى",
+    "required": "زۆرۈر",
+    "input": "كىرگۈزۈش پارامېتىرى",
+    "runningPrompt": "Prompt ئېلىنىۋاتىدۇ",
+    "executeButton": "ئېلىش ئۈچۈن چېكىڭ",
+    "resultTitle": "Prompt تەپسىلاتى",
+    "invalidJson": "JSON فورماتى ئىناۋەتسىز",
+    "parametersHint": "JSON فورماتقا ماس پارامېتىر كىرگۈزۈڭ، ئاپتوماتىك فورماتلاشنى قوللايدۇ",
+    "resetToDefault": "بولغان تەڭشەلمىلەرنى ئەسلىگە كەلتۈرۈش",
+    "dialogDescription": "MCP مۇلازىمىتى تەمىنلىگەن تەكلىپ شەكىللىرىنى دېتالىش ۋە سىناش"
+  },
+  "resources": {
+    "noResourcesAvailable": "Resources يوق",
+    "selectResource": "بۇ يەر Resources مەزمۇنىنى كۆرسىتىدۇ",
+    "loading": "يۈكلىنىۋاتىدۇ...",
+    "loadContent": "Resource مەزمۇنىنى ئېلىش",
+    "pleaseSelect": "Resources تەپسىلاتىنى كۆرۈش ئۈچۈن چېكىڭ",
+    "dialogDescription": "MCP مۇلازىمىتى تەمىنلىگەن بايلىقلارنى كۆرۈش ۋە تەكشۈرۈش"
+  },
+  "errors": {
+    "loadConfigFailed": "سەپلىمە MCP قاچىلاش مەغلۇپ بولدى",
+    "setEnabledFailed": "MCP نى قوزغىتىش ھالىتىنى تەڭشەش مەغلۇپ بولدى",
+    "getServerStatusFailed": "سېرۋېر {serverName} ھالىتىنى ئېلىش مەغلۇپ بولدى",
+    "addServerFailed": "سېرۋېر قوشۇش مەغلۇپ بولدى",
+    "updateServerFailed": "سېرۋېرنى يېڭىلاش مەغلۇپ بولدى",
+    "removeServerFailed": "سېرۋېرنى ئۆچۈرۈش مەغلۇپ بولدى",
+    "maxDefaultServersReached": "ئەڭ كۆپ 30دانلا ئادەتتىكى سېرۋېرنى تەڭشەشكە بولىدۇ",
+    "toggleDefaultServerFailed": "ئادەتتىكى سېرۋېر ھالىتىنى ئالماشتۇرۇش مەغلۇپ بولدى",
+    "resetToDefaultFailed": "سۈكۈتتىكى مۇلازىمېتىرلارنى ئەسلىگە قايتۇرالمىدى",
+    "toggleServerFailed": "سېرۋېر {serverName} ھالىتىنى ئالماشتۇرۇش مەغلۇپ بولدى",
+    "loadToolsFailed": "قورالنى يۈكلەش مەغلۇپ بولدى",
+    "loadClientsFailed": "MCP خېرىدارنى يۈكلەش مەغلۇپ بولدى",
+    "loadPromptsFailed": "تېكىست شابلوننى يۈكلەش مەغلۇپ بولدى",
+    "loadResourcesFailed": "قېتىلمەنى يۈكلەش مەغلۇپ بولدى",
+    "callToolFailed": "{toolName} قورالنى چاقىرىش مەغلۇپ بولدى",
+    "toolCallError": "قورال چاقىرىش خاتالىقى: {error}",
+    "mcpDisabled": "MCP ئىقتىدارى چەتكە ئېلىندى",
+    "getPromptFailed": "تېكىست شابلوننى ئېلىش مەغلۇپ بولدى",
+    "readResourceFailed": "قېتىلمەنى ئوقۇش مەغلۇپ بولدى",
+    "promptNotFound": "تېكىست شابلونى '{name}' تاپىلمايدۇ",
+    "emptyPromptContent": "'{name}' Prompt بوش",
+    "missingParameters": "پارامېتىر يوق: {params}",
+    "invalidParameters": "ئىناۋەتسىز پارامېتىر: {params}"
+  },
+  "market": {
+    "browseBuiltin": "ئىچكى MCP بازارنى كۆرۈش",
+    "builtinTitle": "MCP بازىرى",
+    "poweredBy": "MCPRouter قوللايدۇ",
+    "keyGuide": "ئاچقۇچ ئېلىش",
+    "keyHelpText": "ئالدى بىلەن بىرىڭ",
+    "keyHelpEnd": "API Key نى ئىلتىماس قىلغاندىن كېيىن ئۈستىدىكى كىرگۈزۈش قۇتىسىغا يېزىدۇ",
+    "apiKeyPlaceholder": "MCPRouter API Key نى كىرگۈزۈش",
+    "apiKeyRequiredTitle": "API Key كېرەك",
+    "apiKeyRequiredDesc": "ئالدى بىلەن MCPRouter API Key نى تولدۇرۇپ بولغاندىن كېيىنلا قاچىلانسىز",
+    "install": "قاچىلىنىش",
+    "installed": "قاچىلانغان",
+    "installSuccess": "مۇۋەپپەقىيەتلىك قاچىلاندى",
+    "installFailed": "قاچىلانمىدى",
+    "noMore": "يەنە يوق",
+    "empty": "مۇلازىمىتى يوق",
+    "loadMore": "تېخىمۇ كۆپ يۈكلىدى",
+    "pullDownToLoad": "تېخىمۇ كۆپ يۈكلىشنى داۋاملاشتۇر"
+  },
+  "elicitation": {
+    "title": "MCP كىرگۈزۈش تەلەپى",
+    "accept": "تاپشۇرۇش",
+    "decline": "رەت قىلىش",
+    "noFields": "بۇ تەلەپ ھەرىق قامۇس ساھە بولمىغان.",
+    "openLink": "بىخەتەر ئۇلاشنى ئېچىش",
+    "selectValue": "بىر قىممەت تاللاڭ",
+    "error": {
+      "required": "بۇ بۆلەك مۇھىم",
+      "number": "ھەقىقىي سان كىرگۈزۈڭ",
+      "integer": "تولۇق سان كىرگۈزۈڭ",
+      "boolean": "ھەقىقىي بوول قىممىتىنى تاللاڭ",
+      "range": "بۇ قىممەت قوللىنىشچان دائىرەدىن چىققان",
+      "selection": "ھەقىقىي تاللاشنى تاللاڭ",
+      "length": "تېكىست ئۇزۇنلۇقى قوللىنىشچان دائىرەدىن چىققان",
+      "format": "تەلەپ قىلىنغان شەكىلگە ماس كىرگۈزۈڭ"
+    }
+  },
+  "apps": {
+    "title": "MCP ئەپى",
+    "interactiveContent": "MCP سېرۋېرىدىن ئالاقىلاشقان مەزمۇن",
+    "loadError": "بۇ MCP App يۈكلەش مەمكىن ئەمەس",
+    "retry": "قايتا سىناش",
+    "fullscreen": "تولۇق ئېكراندا ئېچىش",
+    "pictureInPicture": "رەسىم ئىچىدە رەسىم ئېچىش",
+    "returnInline": "ئىچكى كۆرۈنۈشكە قايتىش",
+    "securityDetails": "بىخەتەر تەپسىلات",
+    "allowedOrigins": "بىلدۈرۈلگەن تور مەنبەسى",
+    "requestedPermissions": "تەلەپ قىلىنغان ئۈسكۈنىگە ھوقۇقى",
+    "noneDeclared": "بىلدۈرۈلمىگەن",
+    "advisoryDomain": "تەۋسىيە قىلىنغان دومېن نامى",
+    "toolAccessSuspended": "بىر قېتىملىق تەلەپ رد بولغاندىن كېيىن، قورال مۇلازىمەت قىلىشنى توختاتتى",
+    "retryAccess": "قايتا ئېرىشىش",
+    "permissions": {
+      "camera": "كامېرا",
+      "microphone": "مىسىق",
+      "geolocation": "ئورنى",
+      "clipboardWrite": "چاپلاشتىكى تاقابىلىغا يېزىش"
+    },
+    "consent": {
+      "title": "MCP App تەلەپ",
+      "description": "MCP ئالاقىلاشقان مەزمۇن تەلەپ ئىجرا قىلىۋاتقان ئەمەلنى تەكشۈرۈڭ",
+      "allowOnce": "پەقەت بىر قېتىمغا رۇخسەت قىلىنماقتا",
+      "deny": "رەت قىلىش"
+    }
+  }
+}

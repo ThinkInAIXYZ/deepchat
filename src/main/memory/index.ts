@@ -218,8 +218,6 @@ export class MemoryService implements MemoryRuntimePort {
       embeddingGateway: providerGateway,
       vectorStore: this.vectorStore,
       rows: this.rows,
-      reindexEmbeddings: (agentId, force) => this.reindexEmbeddings(agentId, force),
-      backfillEmbeddings: (agentId) => this.backfillEmbeddings(agentId),
       diagnostics: this.diagnostics
     })
     this.workingMemory = new WorkingMemoryService({ ctx: this.runtime, repository })
@@ -311,7 +309,6 @@ export class MemoryService implements MemoryRuntimePort {
         const result = this.conflict.repairConflictIntegrity(agentId)
         return Object.values(result).some((count) => count > 0)
       },
-      runConsolidationPass: (agentId) => this.runConsolidationPass(agentId),
       diagnostics: this.diagnostics
     })
     this.maintenance = maintenanceService
@@ -322,8 +319,6 @@ export class MemoryService implements MemoryRuntimePort {
       policy,
       textGeneration: providerGateway,
       rows: this.rows,
-      retrieveForDecision: (agentId, query, now, scopeFilter) =>
-        this.retrieval.retrieveForDecision(agentId, query, now, scopeFilter),
       retrieveForDecisions: (
         agentId,
         candidates,

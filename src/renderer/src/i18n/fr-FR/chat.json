@@ -1,5 +1,6 @@
 {
   "input": {
+    "suggestions": "Suggestions",
     "placeholder": "Demandez n'importe quoi à DeepChat, {'@'} pour mentionner des fichiers, / pour les commandes",
     "fileArea": "Zone de fichiers",
     "inputArea": "Zone de saisie",
@@ -129,6 +130,7 @@
     "error": "La recherche a échoué"
   },
   "messages": {
+    "loadEarlier": "Charger les messages précédents",
     "thinking": "Pensée...",
     "rateLimitWaiting": "Limitation de débit, en attente dans la file...",
     "rateLimitCompactLoading": "Limité par le débit ({seconds}s)",

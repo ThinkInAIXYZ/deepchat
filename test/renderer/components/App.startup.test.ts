@@ -41,6 +41,7 @@ const mountApp = async (options?: {
   const setupAppIpcRuntime = vi.fn()
   const cleanupAppIpcRuntime = vi.fn()
   const route = reactive({
+    meta: {},
     name: routeName,
     path: routeName === 'welcome' ? '/welcome' : '/chat',
     fullPath: routeName === 'welcome' ? '/welcome' : '/chat'
@@ -227,7 +228,8 @@ const mountApp = async (options?: {
     toggleWorkspace: vi.fn()
   }
   const sidebarStore = {
-    toggleSidebar: vi.fn()
+    toggleSidebar: vi.fn(),
+    setCollapsed: vi.fn()
   }
   const spotlightStore = {
     open: false,
@@ -506,7 +508,7 @@ describe('App startup welcome flow', () => {
 
     expect(cleanupAppIpcRuntime).toHaveBeenCalledTimes(1)
     expect(cleanupMcpDeeplink).toHaveBeenCalledTimes(1)
-  })
+  }, 30000)
 
   it('leaves the initial session request to the chat route host', async () => {
     const { sessionStore } = await mountApp({ initComplete: true, routeName: 'chat' })

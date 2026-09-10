@@ -587,7 +587,10 @@ describe('MemoryService embedding reindex (T5, AC-3.x)', () => {
     // Simulate a sidecar that lost one vector after the row was already marked ready.
     store.vectors.delete(ids[1])
     internals.vectorStoreService.clearReady('a')
-    const reindexSpy = vi.spyOn(presenter, 'reindexEmbeddings')
+    const reindexSpy = vi.spyOn(
+      memoryRuntimeForTests(presenter).embeddingService,
+      'reindexEmbeddings'
+    )
     const resetCallsBefore = resetVectorStore.mock.calls.length
     const embeddingCallsBefore = getEmbeddings.mock.calls.length
 
@@ -918,7 +921,7 @@ describe('MemoryService embedding reindex (T5, AC-3.x)', () => {
 
     // Model configured later. recall reaches a healthy store and kicks the backfill.
     config = { memoryEnabled: true, memoryEmbedding: { providerId: 'p', modelId: 'm' } }
-    const spy = vi.spyOn(presenter, 'backfillEmbeddings')
+    const spy = vi.spyOn(memoryRuntimeForTests(presenter).embeddingService, 'backfillEmbeddings')
     await presenter.recall('a', 'redis')
     await waitForMemoryCondition(() => spy.mock.calls.length > 0)
     expect(spy).toHaveBeenCalledWith('a')
@@ -1325,7 +1328,7 @@ describe('MemoryService embedding reindex (T5, AC-3.x)', () => {
     })
     await store.upsert([{ memoryId: 'fact1', embedding: textToVector('redis fact') }])
 
-    const spy = vi.spyOn(presenter, 'reindexEmbeddings')
+    const spy = vi.spyOn(memoryRuntimeForTests(presenter).embeddingService, 'reindexEmbeddings')
     const results = await presenter.recall('a', 'redis')
 
     // The stale persona must not be read as stale (no reindex), nor surface as a normal memory.
@@ -1399,7 +1402,7 @@ describe('MemoryService embedding reindex (T5, AC-3.x)', () => {
       status: 'fts_only'
     })
 
-    const spy = vi.spyOn(presenter, 'reindexEmbeddings')
+    const spy = vi.spyOn(memoryRuntimeForTests(presenter).embeddingService, 'reindexEmbeddings')
     await presenter.recall('a', 'redis')
     expect(getEmbeddings).not.toHaveBeenCalledWith('p', 'm', ['redis'], expect.any(AbortSignal))
     expect(getEmbeddings).toHaveBeenCalledWith('p', 'm', ['memory warmup'], expect.any(AbortSignal))

@@ -45,6 +45,7 @@
                 <DcButton
                   variant="outline"
                   class="w-full justify-between h-9"
+                  :aria-label="`${t('settings.display.fontFamily')}: ${textFontLabel}`"
                   :style="{ fontFamily: textPreviewFont }"
                 >
                   <span class="truncate">{{ textFontLabel }}</span>
@@ -57,6 +58,7 @@
                     <Icon icon="lucide:search" class="h-4 w-4 text-muted-foreground" />
                     <Input
                       v-model="textQuery"
+                      :aria-label="t('settings.display.fontSearchPlaceholder')"
                       :placeholder="t('settings.display.fontSearchPlaceholder')"
                       class="h-8"
                       :style="{ fontFamily: PREVIEW_FALLBACK }"
@@ -71,6 +73,7 @@
                           'border border-primary/60 bg-primary/5': uiSettingsStore.fontFamily === ''
                         }"
                         :style="{ fontFamily: PREVIEW_FALLBACK }"
+                        :aria-pressed="uiSettingsStore.fontFamily === ''"
                         @click="selectTextFont('')"
                       >
                         <span class="truncate">{{ defaultLabel }}</span>
@@ -90,6 +93,7 @@
                             uiSettingsStore.fontFamily === font
                         }"
                         :style="{ fontFamily: buildFontPreview(font) }"
+                        :aria-pressed="uiSettingsStore.fontFamily === font"
                         @click="selectTextFont(font)"
                       >
                         <span class="truncate">{{ font }}</span>
@@ -133,6 +137,7 @@
                 <DcButton
                   variant="outline"
                   class="w-full justify-between h-9"
+                  :aria-label="`${t('settings.display.codeFontFamily')}: ${codeFontLabel}`"
                   :style="{ fontFamily: codePreviewFont }"
                 >
                   <span class="truncate">{{ codeFontLabel }}</span>
@@ -145,6 +150,7 @@
                     <Icon icon="lucide:search" class="h-4 w-4 text-muted-foreground" />
                     <Input
                       v-model="codeQuery"
+                      :aria-label="t('settings.display.fontSearchPlaceholder')"
                       :placeholder="t('settings.display.fontSearchPlaceholder')"
                       class="h-8"
                       :style="{ fontFamily: PREVIEW_FALLBACK }"
@@ -160,6 +166,7 @@
                             uiSettingsStore.codeFontFamily === ''
                         }"
                         :style="{ fontFamily: PREVIEW_FALLBACK }"
+                        :aria-pressed="uiSettingsStore.codeFontFamily === ''"
                         @click="selectCodeFont('')"
                       >
                         <span class="truncate">{{ defaultLabel }}</span>
@@ -179,6 +186,7 @@
                             uiSettingsStore.codeFontFamily === font
                         }"
                         :style="{ fontFamily: buildFontPreview(font) }"
+                        :aria-pressed="uiSettingsStore.codeFontFamily === font"
                         @click="selectCodeFont(font)"
                       >
                         <span class="truncate">{{ font }}</span>

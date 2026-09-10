@@ -41,6 +41,7 @@ import {
   settingsUpdateCommandShellRoute,
   settingsListSystemFontsRoute,
   settingsUpdateRoute,
+  skillsListCatalogRoute,
   sessionsCreateRoute,
   sessionsDeactivateRoute,
   sessionsGetActiveRoute,
@@ -59,6 +60,33 @@ import {
 import { SessionGenerationSettingsPatchSchema } from '@shared/contracts/common'
 
 describe('main kernel contracts', () => {
+  it('accepts only absolute workspace paths for Skill catalogs across platforms', () => {
+    const schema = skillsListCatalogRoute.input
+    expect(schema.parse({ agentId: 'writer' })).toEqual({ agentId: 'writer' })
+    for (const workspacePath of [
+      '/workspace',
+      '/',
+      'C:/workspace',
+      String.raw`C:\workspace`,
+      String.raw`\\server\share`
+    ]) {
+      expect(
+        schema.parse({ agentId: 'writer', workspacePath: ` ${workspacePath} ` }).workspacePath
+      ).toBe(workspacePath)
+    }
+    for (const workspacePath of [
+      '',
+      'project',
+      '../project',
+      '~/project',
+      'C:project',
+      '/project\0',
+      `/${'a'.repeat(4096)}`
+    ]) {
+      expect(schema.safeParse({ agentId: 'writer', workspacePath }).success).toBe(false)
+    }
+  })
+
   it('preserves MCP binding identity and validates MCP App tool metadata', () => {
     expect(
       mcpSamplingRequestEvent.payload.parse({
@@ -2026,6 +2054,9 @@ describe('main kernel contracts', () => {
 
   it('registers typed event catalog entries through phase4', () => {
     const eventKeys = Object.keys(DEEPCHAT_EVENT_CATALOG).sort()
+    for (const [name, contract] of Object.entries(DEEPCHAT_EVENT_CATALOG)) {
+      expect(contract.name).toBe(name)
+    }
 
     expect(eventKeys).toEqual(
       expect.arrayContaining([

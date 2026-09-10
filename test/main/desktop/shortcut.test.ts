@@ -5,6 +5,7 @@ const registerMock = vi.hoisted(() => vi.fn())
 const unregisterAllMock = vi.hoisted(() => vi.fn())
 const buildFromTemplateMock = vi.hoisted(() => vi.fn((template) => ({ template })))
 const setApplicationMenuMock = vi.hoisted(() => vi.fn())
+const getNativeFocusedWindowMock = vi.hoisted(() => vi.fn())
 const presenterMock = vi.hoisted(() => ({
   windowPresenter: {
     getFocusedWindow: vi.fn(),
@@ -22,6 +23,7 @@ const presenterMock = vi.hoisted(() => ({
 }))
 
 vi.mock('electron', () => ({
+  BrowserWindow: { getFocusedWindow: getNativeFocusedWindowMock },
   app: {
     getName: vi.fn(() => 'DeepChat'),
     getLocale: vi.fn(() => 'en-US'),
@@ -77,6 +79,7 @@ function findMenuItemByAccelerator(items: any[], accelerator: string): any | und
 describe('ShortcutPresenter', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    getNativeFocusedWindowMock.mockReturnValue(null)
     const chatWindow = {
       id: 7,
       isFocused: vi.fn(() => true),
@@ -141,6 +144,22 @@ describe('ShortcutPresenter', () => {
 
     registerMock.mock.calls[0][1]()
     expect(presenterMock.windowPresenter.toggleMainWindowVisibility).toHaveBeenCalledOnce()
+  })
+
+  it('closes a focused auxiliary window through the configured close accelerator', async () => {
+    const close = vi.fn()
+    presenterMock.windowPresenter.getFocusedWindow.mockReturnValue(undefined)
+    getNativeFocusedWindowMock.mockReturnValue({ isDestroyed: () => false, close })
+    const { ShortcutPresenter } = await import('@/desktop/shortcut')
+    const shortcuts = new ShortcutPresenter(
+      createDesktopSettings({ CloseWindow: 'CommandOrControl+Shift+W' }),
+      presenterMock.windowPresenter,
+      vi.fn()
+    )
+    shortcuts.registerShortcuts()
+    findMenuItemByAccelerator(getLatestMenuTemplate(), 'CommandOrControl+Shift+W')?.click()
+    expect(close).toHaveBeenCalledOnce()
+    expect(presenterMock.windowPresenter.close).not.toHaveBeenCalled()
   })
 
   it('does not send sidebar or workspace events when the focused window is not active', async () => {

@@ -1,0 +1,27 @@
+{
+  "calling": "ᠳᠠᠭᠤᠳᠠᠬᠤ",
+  "response": "ᠭᠦᠶᠦᠬᠦ",
+  "end": "ᠶᠢ ᠪᠡᠶᠡᠯᠡᠭᠦᠯᠪᠡ",
+  "error": "ᠠᠯᠳᠠᠭ᠎ᠠ",
+  "title": "ᠪᠠᠭᠠᠵᠢ ᠳᠠᠭᠤᠳᠠᠬᠤ",
+  "clickToView": "ᠶᠢ ᠦᠵᠡᠶ᠎ᠡ ᠃",
+  "functionName": "ᠶᠢᠨ ᠨᠡᠷᠡᠶᠢᠳᠦᠯ",
+  "permission": "ᠵᠥᠪᠰᠢᠶᠡᠷᠡᠭᠦᠯᠬᠦ ᠪᠡᠷ ᠱᠠᠭᠠᠷᠳᠠᠬᠤ",
+  "params": "ᠴᠢᠳᠠᠪᠬᠢ ᠶᠢᠨ ᠪᠤᠯᠵᠤᠯ ᠲᠣᠭ᠎ᠠ ᠶᠢ",
+  "responseData": "ᠶᠢᠨ ᠳᠤᠰᠭᠠᠯ",
+  "imagePreview": "ᠵᠢᠷᠤᠭ  ᠢ ᠤᠷᠢᠳᠴᠢᠯᠠᠨ ᠦᠵᠡᠪᠡ",
+  "imagePreviewCount": "ᠵᠢᠷᠤᠭ ᠤᠨ ᠤᠷᠢᠳᠴᠢᠯᠠᠨ ᠦᠵᠡᠯᠲᠡ | {count} ᠵᠢᠷᠤᠭ | {count} ᠵᠢᠷᠤᠭ",
+  "terminalOutput": "ᠦᠵᠦᠭᠦᠷ ᠦᠨ ᠭᠠᠷᠭᠠᠯᠲᠠ",
+  "badge": {
+    "rtk": "RTK",
+    "allowed": "ᠶᠢ ᠵᠥᠪᠰᠢᠶᠡᠷᠡᠬᠦ",
+    "denied": "ᠦᠭᠡᠶᠢᠰᠬᠡᠭᠰᠡᠨ"
+  },
+  "replacementsCount": "ᠳᠤ ᠰᠣᠯᠢᠬᠤ ᠶᠢ ᠪᠡᠶᠡᠯᠡᠭᠦᠯᠦᠭᠰᠡᠨ {count}",
+  "fileOperation": "ᠳᠠᠩᠰᠠ ᠡᠪᠬᠡᠮᠡᠯ ᠦᠨ ᠠᠵᠢᠯᠯᠠᠭᠠᠨ ᠤ",
+  "fileRead": "ᠪᠢᠴᠢᠭ᠌ ᠤᠩᠰᠢᠬᠤ",
+  "fileWrite": "ᠢ ᠪᠢᠴᠢᠬᠦ ᠪᠢᠴᠢᠭ᠌ ᠮᠠᠲ᠋ᠧᠷᠢᠶᠠᠯ",
+  "filePath": "ᠪᠢᠴᠢᠭ᠌ ᠮᠠᠲ᠋ᠧᠷᠢᠶᠠᠯ ᠤᠨ ᠵᠠᠮ",
+  "success": "ᠶᠢᠨ ᠠᠮᠵᠢᠯᠲᠠ",
+  "failed": "ᠢᠯᠠᠭᠳᠠᠯ"
+}

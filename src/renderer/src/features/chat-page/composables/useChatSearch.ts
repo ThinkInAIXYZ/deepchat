@@ -53,6 +53,7 @@ export function useChatSearch(options: UseChatSearchOptions) {
   const debouncedChatSearchQuery = refDebounced(canonicalChatSearchQuery, 150)
   const chatSearchBarRef = ref<ChatSearchBarHandle | null>(null)
 
+  let returnFocus: HTMLElement | null = null
   let chatSearchRefreshFrame: number | null = null
   let pendingChatSearchReveal = false
   let chatSearchOperationId = 0
@@ -178,6 +179,7 @@ export function useChatSearch(options: UseChatSearchOptions) {
   }
 
   function clearChatSearchState() {
+    returnFocus = null
     chatSearchOperationId += 1
     cancelScheduledChatSearchRefresh()
     clearChatSearchHighlights(messageSearchRoot.value)
@@ -187,6 +189,7 @@ export function useChatSearch(options: UseChatSearchOptions) {
   }
 
   function openChatSearch() {
+    if (!isChatSearchOpen.value) returnFocus = document.activeElement as HTMLElement | null
     isChatSearchOpen.value = true
     focusChatSearchInput()
     if (isSearchQuerySettled.value) {
@@ -195,7 +198,11 @@ export function useChatSearch(options: UseChatSearchOptions) {
   }
 
   function closeChatSearch() {
+    const target = returnFocus
     clearChatSearchState()
+    void nextTick(() => {
+      if (target?.isConnected) target.focus({ preventScroll: true })
+    })
   }
 
   function activateChatSearchMatch(index: number, behavior: ScrollBehavior = 'auto') {

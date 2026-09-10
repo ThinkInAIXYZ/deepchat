@@ -43,6 +43,7 @@ const useChatInputMentionsMock = vi.fn((_options?: unknown) => ({
   submitDialog: vi.fn(),
   closeDialog: closeDialogMock,
   isSuggestionMenuOpen: ref(false),
+  suggestionAttributes: ref({}),
   shouldSuppressSubmit: vi.fn(() => false)
 }))
 const useSkillsDataMock = vi.fn((_conversationId?: unknown, _agentId?: unknown) => ({
@@ -598,10 +599,10 @@ describe('ChatInputBox attachments', () => {
 
   it('configures the editor with a bounded scrollable input area', async () => {
     await mountComponent()
-    expect(lastEditorOptions?.editorProps?.attributes?.class).toContain('min-h-[60px]')
-    expect(lastEditorOptions?.editorProps?.attributes?.class).toContain('max-h-[240px]')
-    expect(lastEditorOptions?.editorProps?.attributes?.class).toContain('overflow-y-auto')
-    expect(lastEditorOptions?.editorProps?.attributes?.class).toContain('overscroll-contain')
+    expect(lastEditorOptions?.editorProps?.attributes()?.class).toContain('min-h-[60px]')
+    expect(lastEditorOptions?.editorProps?.attributes()?.class).toContain('max-h-[240px]')
+    expect(lastEditorOptions?.editorProps?.attributes()?.class).toContain('overflow-y-auto')
+    expect(lastEditorOptions?.editorProps?.attributes()?.class).toContain('overscroll-contain')
   })
 
   it('handles drop files via composable', async () => {
@@ -821,6 +822,23 @@ describe('ChatInputBox attachments', () => {
     ;(wrapper.vm as any).restoreDocumentSnapshot(restored)
 
     expect(lastEditorInstance.commands.setContent).toHaveBeenCalledWith(restored, false)
+  })
+
+  it('does not submit or queue when keyboard events originate in embedded controls', async () => {
+    const wrapper = await mountComponent()
+    await wrapper.setProps({ queueSubmitEnabled: true, queueSubmitDisabled: false })
+    for (const tag of ['button', 'input']) {
+      const control = document.createElement(tag)
+      wrapper.get('[data-testid="editor-content"]').element.append(control)
+      for (const key of ['Enter', 'Tab', ' ']) {
+        const event = new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true })
+        control.dispatchEvent(event)
+        expect(event.defaultPrevented).toBe(false)
+      }
+      control.remove()
+    }
+    expect(wrapper.emitted('submit')).toBeUndefined()
+    expect(wrapper.emitted('queue-submit')).toBeUndefined()
   })
 
   it('emits queue-submit on Tab only when queue submit is available', async () => {

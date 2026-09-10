@@ -11,6 +11,15 @@
         </DialogDescription>
       </DialogHeader>
 
+      <p role="status" aria-live="polite" aria-atomic="true" class="sr-only">
+        {{
+          isChecking
+            ? t('settings.provider.dialog.modelCheck.checking')
+            : result?.isOk
+              ? t('settings.provider.dialog.modelCheck.success')
+              : ''
+        }}
+      </p>
       <!-- 显示错误或成功消息 -->
       <div v-if="result" class="mb-4 shrink-0">
         <div
@@ -28,6 +37,7 @@
         </div>
         <div
           v-else
+          role="alert"
           data-testid="model-check-result"
           data-success="false"
           class="p-4 bg-red-50 border border-red-200 rounded-lg"
@@ -57,11 +67,15 @@
         <!-- 模型选择表单 -->
         <div v-if="!result && hasModels" class="grid gap-4 py-4">
           <div class="grid grid-cols-4 items-center gap-4">
-            <Label for="model" class="text-right">
+            <Label :for="modelSelectId" class="text-right">
               {{ t('settings.provider.dialog.modelCheck.model') }}
             </Label>
             <Select v-model="selectedModelId" required>
-              <SelectTrigger data-testid="model-check-select" class="col-span-3">
+              <SelectTrigger
+                :id="modelSelectId"
+                data-testid="model-check-select"
+                class="col-span-3"
+              >
                 <SelectValue
                   :placeholder="t('settings.provider.dialog.modelCheck.modelPlaceholder')"
                 />
@@ -135,12 +149,13 @@ import {
 } from '@shadcn/components/ui/select'
 import { Spinner } from '@shadcn/components/ui/spinner'
 import { Icon } from '@iconify/vue'
-import { computed, ref, watch } from 'vue'
+import { computed, ref, useId, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useModelStore } from '@/stores/modelStore'
 import { useProviderStore } from '@/stores/providerStore'
 
 const { t } = useI18n()
+const modelSelectId = useId()
 const modelStore = useModelStore()
 const providerStore = useProviderStore()
 

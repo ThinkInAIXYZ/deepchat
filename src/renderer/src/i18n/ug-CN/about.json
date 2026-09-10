@@ -1,0 +1,29 @@
+{
+  "title": "DeepChat",
+  "description": "DeepChat كۆپ سۇپىدا ئىشلەيدىغان سۈنئىي ئەقىل خېرىدارى بولۇپ، تېخىمۇ كۆپ كىشىلەرنىڭ سۈنئىي ئەقىلنى قولايلىق ئىشلىتىشىگە ياردەم بېرىدۇ.",
+  "website": "تور بېكىتىمىزنى زىيارەت قىلىڭ",
+  "deviceInfo": {
+    "title": "ئۈسكۈنە ئۇچۇرى",
+    "platform": "سۇپا",
+    "arch": "قۇرۇلما",
+    "cpuModel": "CPU مودېلى",
+    "totalMemory": "ئومۇمىي ئىچكى ساقلىغۇچ",
+    "osVersion": "سىستېما نەشرى"
+  },
+  "disclaimerButton": "جاۋابكارلىقتىن كەچۈرۈم باياناتى",
+  "feedbackButton": "پىكىر-تەكلىپ",
+  "disclaimerTitle": "ئىشلىتىش شەرتلىرى باياناتى",
+  "checkUpdateButton": "يېڭىلانمىنى تەكشۈرۈش",
+  "mockUpdateButton": "چۈشۈرۈلگەن يېڭىلانمىنى تەقلىد قىلىش",
+  "clearMockUpdateButton": "تەقلىدىي يېڭىلانمىنى تازىلاش",
+  "mockOnboardingButton": "تۇنجى قېتىملىق يېتەكچىنى تەقلىد قىلىش",
+  "mockChatButton": "تەقلىدىي ئۇزۇن سۆھبەت قۇرۇش",
+  "mockChatCreating": "قۇرۇلۇۋاتىدۇ...",
+  "mockChatCreated": "تەقلىدىي سۆھبەت قۇرۇلدى",
+  "mockChatCreatedDesc": "«{title}» قۇرۇلدى، جەمئىي {count} ئۇچۇر بار.",
+  "mockChatCreateFailed": "تەقلىدىي سۆھبەت قۇرالمىدى.",
+  "mockChatCreateUnavailable": "تەقلىدىي سۆھبەت سانلىق مەلۇماتى پەقەت ئېچىش نەشرىدىلا ئىشلىتىلىدۇ.",
+  "updateChannel": "يېڭىلاش قانىلى",
+  "stableChannel": "مۇقىم نەشر",
+  "betaChannel": "سىناق نەشرى"
+}

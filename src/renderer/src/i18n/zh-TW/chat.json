@@ -1,5 +1,6 @@
 {
   "input": {
+    "suggestions": "補全建議",
     "placeholder": "向 DeepChat 傳送訊息，{'@'} 可引用檔案，/ 可使用指令",
     "fileArea": "檔案區域",
     "inputArea": "輸入區域",
@@ -129,6 +130,7 @@
     "error": "搜尋失敗"
   },
   "messages": {
+    "loadEarlier": "載入較早的訊息",
     "thinking": "正在思考...",
     "rateLimitWaiting": "速率限制，正在佇列等待...",
     "rateLimitCompactLoading": "限速中（第 {seconds} 秒）",

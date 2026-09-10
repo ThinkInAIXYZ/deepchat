@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch, computed } from 'vue'
+import { nextTick, useId, ref, watch, computed } from 'vue'
 import { Icon } from '@iconify/vue'
 import { DcButton } from '@dc-ui/components/button'
 import { Spinner } from '@shadcn/components/ui/spinner'
@@ -42,6 +42,8 @@ const localToolResults = ref<Record<string, string>>({})
 const jsonError = ref<Record<string, boolean>>({})
 const isDescriptionExpanded = ref(false)
 const isParametersExpanded = ref(false)
+const resultRegion = ref<HTMLElement | null>(null)
+const inputErrorId = useId()
 
 // 计算属性：获取当前服务器的工具
 const serverTools = computed(() => {
@@ -97,6 +99,7 @@ const callTool = async (toolName: string) => {
     return
   }
 
+  const opener = document.activeElement
   try {
     // 调用工具前更新全局store里的参数
     const params = JSON.parse(localToolInputs.value[toolName])
@@ -112,6 +115,15 @@ const callTool = async (toolName: string) => {
   } catch (error) {
     console.error('调用工具出错:', error)
     localToolResults.value[toolName] = String(error)
+  } finally {
+    await nextTick()
+    if (
+      open.value &&
+      selectedToolName.value === toolName &&
+      (document.activeElement === document.body || document.activeElement === opener)
+    ) {
+      resultRegion.value?.focus()
+    }
   }
   return
 }
@@ -201,10 +213,19 @@ const selectTool = (tool: MCPToolDefinition) => {
     :scroll-body="false"
   >
     <div class="flex flex-col flex-1 overflow-hidden">
+      <p role="status" aria-atomic="true" class="sr-only">
+        {{
+          mcpStore.toolLoadingStates[selectedToolName]
+            ? t('mcp.tools.runningTool')
+            : selectedToolName in localToolResults
+              ? t('mcp.tools.resultTitle')
+              : ''
+        }}
+      </p>
       <!-- 顶部工具选择下拉菜单：小屏显示；或大屏但左侧列表不可用时显示 -->
       <div v-if="showTopSelector" class="shrink-0 px-4 py-4">
         <Select v-model="selectedToolName">
-          <SelectTrigger class="w-full">
+          <SelectTrigger class="w-full" :aria-label="t('settings.mcp.tabs.tools')">
             <SelectValue :placeholder="t('mcp.tools.selectToolToDebug')" />
           </SelectTrigger>
           <SelectContent>
@@ -239,6 +260,7 @@ const selectTool = (tool: MCPToolDefinition) => {
                 :class="{
                   'bg-accent text-accent-foreground': selectedToolName === tool.function.name
                 }"
+                :aria-pressed="selectedToolName === tool.function.name"
                 @click="selectTool(tool)"
               >
                 <div class="flex items-start space-x-2 w-full">
@@ -291,6 +313,7 @@ const selectTool = (tool: MCPToolDefinition) => {
                   <DcButton
                     variant="ghost"
                     class="w-full justify-between p-3 h-auto"
+                    :aria-expanded="isParametersExpanded"
                     @click="isParametersExpanded = !isParametersExpanded"
                   >
                     <span class="font-medium"
@@ -403,6 +426,11 @@ const selectTool = (tool: MCPToolDefinition) => {
                       v-model="localToolInputs[selectedTool.function.name]"
                       class="flex h-32 w-full rounded-md border border-input bg-background px-3 py-2 text-sm font-mono transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                       :class="{ 'border-destructive': jsonError[selectedTool.function.name] }"
+                      :aria-label="`${t('mcp.tools.input')}: ${selectedTool.function.name}`"
+                      :aria-invalid="jsonError[selectedTool.function.name]"
+                      :aria-describedby="
+                        jsonError[selectedTool.function.name] ? inputErrorId : undefined
+                      "
                       placeholder="{}"
                       @input="
                         validateJson(
@@ -413,6 +441,8 @@ const selectTool = (tool: MCPToolDefinition) => {
                     />
                     <div
                       v-if="jsonError[selectedTool.function.name]"
+                      :id="inputErrorId"
+                      role="alert"
                       class="absolute right-3 top-3 text-xs text-destructive"
                     >
                       {{ t('mcp.tools.invalidJson') }}
@@ -445,7 +475,13 @@ const selectTool = (tool: MCPToolDefinition) => {
                 </div>
 
                 <!-- 结果显示 -->
-                <div v-if="localToolResults[selectedTool.function.name]">
+                <div
+                  v-if="selectedTool.function.name in localToolResults"
+                  ref="resultRegion"
+                  role="region"
+                  tabindex="-1"
+                  :aria-label="`${t('mcp.tools.resultTitle')}: ${selectedTool.function.name}`"
+                >
                   <McpJsonViewer
                     :content="localToolResults[selectedTool.function.name]"
                     :title="t('mcp.tools.resultTitle')"

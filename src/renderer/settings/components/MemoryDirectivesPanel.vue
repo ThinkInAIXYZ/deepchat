@@ -1,5 +1,5 @@
 <template>
-  <section class="flex min-h-0 flex-1 flex-col gap-3">
+  <section ref="panelRoot" class="flex min-h-0 flex-1 flex-col gap-3">
     <DcSectionCard
       :title="t('settings.memory.redesign.directiveCreateTitle')"
       :description="t('settings.memory.redesign.directiveCreateDescription')"
@@ -133,7 +133,10 @@
       </DcButton>
     </div>
 
-    <div v-if="loading" class="py-12 text-center text-sm text-muted-foreground">
+    <div
+      v-if="loading && orderedDirectives.length === 0"
+      class="py-12 text-center text-sm text-muted-foreground"
+    >
       {{ t('common.loading') }}
     </div>
 
@@ -150,6 +153,8 @@
         <li
           v-for="directive in orderedDirectives"
           :key="directive.id"
+          tabindex="-1"
+          :aria-label="`${t(`settings.memory.redesign.directiveStatus.${directive.status}`)}: ${directive.content}`"
           class="rounded-lg border border-border bg-card px-3 py-3"
           :data-testid="`memory-directive-${directive.id}`"
         >
@@ -189,6 +194,7 @@
                   size="sm"
                   class="h-8 text-xs"
                   :disabled="pendingIds.has(directive.id)"
+                  :aria-label="`${t('settings.deepchatAgents.memoryManager.reject')}: ${directive.content}`"
                   @click="transition(directive.id, 'rejected')"
                 >
                   {{ t('settings.deepchatAgents.memoryManager.reject') }}
@@ -197,6 +203,7 @@
                   size="sm"
                   class="h-8 text-xs"
                   :disabled="pendingIds.has(directive.id)"
+                  :aria-label="`${t('settings.deepchatAgents.memoryManager.approve')}: ${directive.content}`"
                   @click="transition(directive.id, 'active')"
                 >
                   {{ t('settings.deepchatAgents.memoryManager.approve') }}
@@ -208,7 +215,7 @@
                 size="icon"
                 class="h-8 w-8 text-destructive"
                 :disabled="pendingIds.has(directive.id)"
-                :aria-label="t('common.delete')"
+                :aria-label="`${t('common.delete')}: ${directive.content}`"
                 data-testid="memory-directive-delete-trigger"
                 @click="requestDelete(directive)"
                 :tooltip="t('common.delete')"
@@ -243,7 +250,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, reactive, ref, shallowRef, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, reactive, ref, shallowRef, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
 import { DcConfirmDialog } from '@dc-ui/components/confirm-dialog'
@@ -299,6 +306,25 @@ const clearDeleteFeedback = deleteOperationFeedback.clear
 const loading = ref(false)
 const creating = ref(false)
 const directives = ref<MemoryDirectiveItem[]>([])
+const panelRoot = ref<HTMLElement | null>(null)
+async function focusDirectiveOrForm(
+  agentId: string,
+  directiveId?: string,
+  opener?: Element | null
+): Promise<void> {
+  await nextTick()
+  if (
+    props.agentId !== agentId ||
+    (document.activeElement !== document.body && document.activeElement !== opener)
+  )
+    return
+  const row = directiveId
+    ? panelRoot.value?.querySelector<HTMLElement>(`[data-testid="memory-directive-${directiveId}"]`)
+    : null
+  ;(
+    row ?? panelRoot.value?.querySelector<HTMLElement>('[data-testid="memory-directive-content"]')
+  )?.focus({ preventScroll: true })
+}
 const pendingIds = ref<ReadonlySet<string>>(new Set())
 type DirectiveDeleteRequest =
   | { status: 'idle' }
@@ -435,6 +461,7 @@ function refresh(): void {
 async function create(): Promise<void> {
   if (!canCreate.value) return
   const agentId = props.agentId
+  const opener = document.activeElement
   const content = form.content.trim()
   const topic = form.topic.trim()
   const input: MemoryDirectiveCreateInput =
@@ -454,6 +481,7 @@ async function create(): Promise<void> {
     }
     upsertDirective(result.directive)
     resetForm()
+    await focusDirectiveOrForm(agentId, result.directive.id, opener)
   } catch (error) {
     if (props.agentId === agentId) {
       shouldReload = true
@@ -463,6 +491,7 @@ async function create(): Promise<void> {
     if (props.agentId === agentId) {
       directiveRevision += 1
       creating.value = false
+      await focusDirectiveOrForm(agentId, undefined, opener)
       if (shouldReload) void load()
     }
   }
@@ -511,6 +540,7 @@ async function transition(
     if (props.agentId === agentId) {
       directiveRevision += 1
       setPending(directiveId, false)
+      await focusDirectiveOrForm(agentId, directiveId)
       if (shouldReload) void load()
     }
   }
@@ -564,6 +594,11 @@ async function confirmDelete(): Promise<void> {
     directives.value = directives.value.filter(
       (directive) => directive.id !== pendingRequest.target.id
     )
+    await nextTick()
+    if (props.agentId === pendingRequest.agentId)
+      panelRoot.value
+        ?.querySelector<HTMLElement>('[data-testid="memory-directive-content"]')
+        ?.focus({ preventScroll: true })
   } catch (error) {
     if (props.agentId === pendingRequest.agentId && deleteRequest.value === pendingRequest) {
       deleteRequest.value = { status: 'confirming', target: pendingRequest.target }

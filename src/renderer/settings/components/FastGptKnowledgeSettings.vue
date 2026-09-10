@@ -1,25 +1,30 @@
 <template>
   <div class="border rounded-lg overflow-hidden">
-    <div
-      class="flex items-center p-4 hover:bg-accent cursor-default"
-      @click="toggleFastGptConfigPanel"
-    >
-      <div class="flex-1">
-        <div class="flex items-center">
-          <img src="@/assets/images/fastgpt.png" class="h-5 mr-2" />
+    <div class="flex items-center p-4 hover:bg-accent cursor-default">
+      <button
+        type="button"
+        class="flex-1 text-left rounded-sm focus-visible:ring-2 focus-visible:ring-ring"
+        :aria-label="'FastGPT'"
+        :aria-expanded="isFastGptConfigPanelOpen"
+        :aria-controls="knowledgePanelId"
+        @click="toggleFastGptConfigPanel"
+      >
+        <span class="flex items-center">
+          <img src="@/assets/images/fastgpt.png" alt="" class="h-5 mr-2" />
           <span class="text-base font-medium">{{ t('settings.knowledgeBase.fastgptTitle') }}</span>
-        </div>
-        <p class="text-sm text-muted-foreground mt-1">
+        </span>
+        <span class="block text-sm text-muted-foreground mt-1">
           {{ t('settings.knowledgeBase.fastgptDescription') }}
-        </p>
-      </div>
+        </span>
+      </button>
       <div class="flex items-center gap-2">
         <!-- MCP开关 -->
         <TooltipProvider>
           <Tooltip :delay-duration="200">
-            <TooltipTrigger>
+            <TooltipTrigger as-child>
               <Switch
                 :model-value="isFastGptMcpEnabled"
+                :aria-label="'FastGPT'"
                 :disabled="!mcpEnabled || operationPending"
                 @click.stop
                 @update:model-value="toggleFastGptMcpServer"
@@ -39,7 +44,7 @@
 
     <!-- FastGPT配置面板 -->
     <Collapsible v-model:open="isFastGptConfigPanelOpen">
-      <CollapsibleContent>
+      <CollapsibleContent :id="knowledgePanelId">
         <div class="p-4 border-t space-y-4">
           <DcInlineError v-if="loadError" :error="loadError" />
           <!-- 已添加的配置列表 -->
@@ -52,6 +57,7 @@
               <div class="absolute top-2 right-2 flex gap-2">
                 <Switch
                   :model-value="config.enabled === true"
+                  :aria-label="`${t('common.enabled')}: ${config.description}`"
                   :disabled="operationPending"
                   size="sm"
                   @update:model-value="toggleConfigEnabled(index, $event)"
@@ -60,6 +66,7 @@
                   type="button"
                   :disabled="operationPending"
                   class="text-muted-foreground hover:text-primary"
+                  :aria-label="`${t('common.edit')}: ${config.description}`"
                   @click="editFastGptConfig(index)"
                 >
                   <Icon icon="lucide:edit" class="h-4 w-4" />
@@ -68,6 +75,7 @@
                   type="button"
                   :disabled="operationPending"
                   class="text-muted-foreground hover:text-destructive"
+                  :aria-label="`${t('common.delete')}: ${config.description}`"
                   @click="removeFastGptConfig(index)"
                 >
                   <Icon icon="lucide:trash-2" class="h-4 w-4" />
@@ -194,7 +202,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { useId, computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
 import { DcButton } from '@dc-ui/components/button'
@@ -224,6 +232,7 @@ import { useExternalKnowledgeConfigs } from '../lib/useExternalKnowledgeConfigs'
 import { settingsLeaveGuard } from '../services/settingsLeaveGuard'
 
 const { t } = useI18n()
+const knowledgePanelId = useId()
 const route = useRoute()
 
 // 对话框状态
