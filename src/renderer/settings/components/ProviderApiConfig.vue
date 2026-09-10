@@ -169,6 +169,12 @@
             />
           </DcButton>
         </div>
+        <DcInlineError
+          v-if="keyStatusError"
+          data-testid="provider-key-status-error"
+          :error="keyStatusError"
+          class="min-w-0 break-words dark:text-red-400"
+        />
         <div
           v-if="
             keyStatus && (keyStatus.usage !== undefined || keyStatus.limit_remaining !== undefined)
@@ -247,8 +253,9 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { DcInlineError } from '@dc-ui/components/inline-error'
 import { Label } from '@shadcn/components/ui/label'
 import { Input } from '@shadcn/components/ui/input'
 import { DcButton, DcCopyButton } from '@dc-ui/components/button'
@@ -310,6 +317,7 @@ const emit = defineEmits<{
 const apiKey = ref(props.provider.apiKey || '')
 const apiHost = ref(props.provider.baseUrl || '')
 const keyStatus = ref<KeyStatus | null>(null)
+const keyStatusError = ref('')
 const isRefreshing = ref(false)
 const showApiKey = ref(false)
 const isEditingKey = ref(false)
@@ -441,21 +449,39 @@ const openModelCheckDialog = () => {
   modelCheckStore.openDialog(props.provider.id)
 }
 
-const getKeyStatus = async () => {
-  if (
-    ['ppio', 'openrouter', 'siliconcloud', 'silicon', 'deepseek', '302ai', 'cherryin'].includes(
-      props.provider.id
-    ) &&
-    props.provider.apiKey
-  ) {
-    try {
-      keyStatus.value = await providerClient.getKeyStatus(props.provider.id)
-    } catch (error) {
-      console.error('[ProviderApiConfig] Failed to load key status', error)
-      keyStatus.value = null
+watch(
+  [() => props.provider.id, () => props.provider.apiKey, () => props.provider.baseUrl],
+  async ([providerId, storedApiKey], _previous, onCleanup) => {
+    let cancelled = false
+    onCleanup(() => {
+      cancelled = true
+    })
+    keyStatus.value = null
+    keyStatusError.value = ''
+
+    if (
+      !storedApiKey ||
+      !['ppio', 'openrouter', 'siliconcloud', 'silicon', 'deepseek', '302ai', 'cherryin'].includes(
+        providerId
+      )
+    ) {
+      return
     }
-  }
-}
+
+    try {
+      const status = await providerClient.getKeyStatus(providerId)
+      if (!cancelled) keyStatus.value = status
+    } catch (error) {
+      if (cancelled) return
+      const message = error instanceof Error ? error.message : String(error ?? '')
+      keyStatusError.value =
+        message
+          .replace(/^Error invoking remote method '[^']+': (?:Error: )?/, '')
+          .replaceAll(storedApiKey, '••••••••') || t('settings.provider.dialog.verify.failedDesc')
+    }
+  },
+  { immediate: true }
+)
 
 const refreshModels = async () => {
   if (isRefreshing.value) return
@@ -492,8 +518,4 @@ const refreshModels = async () => {
     isRefreshing.value = false
   }
 }
-
-onMounted(() => {
-  getKeyStatus()
-})
 </script>
