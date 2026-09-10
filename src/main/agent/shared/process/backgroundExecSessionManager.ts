@@ -14,6 +14,7 @@ import {
 } from './shellOutputEncoding'
 import { describeSpawnFailure, resolveUsableSpawnCwd } from './spawnGuard'
 import { terminateProcessTree } from './processTree'
+import { childProcessRegistry } from './childProcessRegistry'
 import { resolveSessionDir } from '@/agent/shared/storage/sessionPaths'
 import {
   assertSkillExecutionPackageTreeIntact,
@@ -119,6 +120,7 @@ interface BackgroundSession {
   closePromise: Promise<void>
   resolveClose: () => void
   closeSettled: boolean
+  registryRecordCleared: boolean
   closeWatchdogId?: NodeJS.Timeout
   finalizationPromise?: Promise<void>
   flushOutputDecoders?: () => void
@@ -339,6 +341,7 @@ export class BackgroundExecSessionManager {
       closePromise,
       resolveClose,
       closeSettled: false,
+      registryRecordCleared: false,
       timedOut: false,
       ...(ownedSkillExecutionPackageTree ? { ownedSkillExecutionPackageTree } : {})
     }
@@ -357,6 +360,16 @@ export class BackgroundExecSessionManager {
       this.sessions.set(conversationId, new Map())
     }
     this.sessions.get(conversationId)!.set(sessionId, session)
+
+    if (typeof child.pid === 'number') {
+      childProcessRegistry.record({
+        subsystem: 'background-exec',
+        recordId: sessionId,
+        pid: child.pid,
+        commandLine: [executable, ...args],
+        cwd: spawnCwd
+      })
+    }
 
     logger.info(`[BackgroundExec] Started session ${sessionId} for conversation ${conversationId}`)
 
@@ -759,6 +772,7 @@ export class BackgroundExecSessionManager {
         clearTimeout(session.closeWatchdogId)
         session.closeWatchdogId = undefined
       }
+      this.clearRegistryRecord(session)
       if (session.closeSettled || session.finalizationPromise) return
       this.recordProcessTerminalState(session, code, signal)
       void this.finalizeSession(session, code, signal)
@@ -815,7 +829,7 @@ export class BackgroundExecSessionManager {
       session.child.stdin?.destroy()
       session.child.unref()
       session.exitCode = undefined
-      await this.finalizeSession(session, null, 'SIGKILL')
+      await this.finalizeSession(session, null, 'SIGKILL', { clearRegistryRecord: false })
     }
 
     await session.closePromise
@@ -998,20 +1012,31 @@ export class BackgroundExecSessionManager {
   private async finalizeSession(
     session: BackgroundSession,
     code: number | null,
-    signal: NodeJS.Signals | null
+    signal: NodeJS.Signals | null,
+    options?: { clearRegistryRecord?: boolean }
   ): Promise<void> {
-    session.finalizationPromise ??= this.completeSessionFinalization(session, code, signal)
+    session.finalizationPromise ??= this.completeSessionFinalization(session, code, signal, options)
     await session.finalizationPromise
+  }
+
+  private clearRegistryRecord(session: BackgroundSession): void {
+    if (session.registryRecordCleared) return
+    session.registryRecordCleared = true
+    childProcessRegistry.clear('background-exec', session.sessionId)
   }
 
   private async completeSessionFinalization(
     session: BackgroundSession,
     code: number | null,
-    signal: NodeJS.Signals | null
+    signal: NodeJS.Signals | null,
+    options?: { clearRegistryRecord?: boolean }
   ): Promise<void> {
     if (session.closeWatchdogId) {
       clearTimeout(session.closeWatchdogId)
       session.closeWatchdogId = undefined
+    }
+    if (options?.clearRegistryRecord !== false) {
+      this.clearRegistryRecord(session)
     }
     try {
       session.flushOutputDecoders?.()

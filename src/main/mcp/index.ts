@@ -59,6 +59,7 @@ import { McpAppHost } from './apps/appHost'
 import { hasMcpIdentityBearingChange } from './serverIdentity'
 import type { CacheImageOptions } from '@/platform/imageCache'
 import { awaitWithAbort } from '@/lib/awaitWithAbort'
+import { childProcessRegistry } from '@/agent/shared/process/childProcessRegistry'
 
 type McpToolAccessContext = {
   enabledTools?: string[]
@@ -333,6 +334,17 @@ export class McpService implements McpServicePort {
     }
 
     try {
+      await childProcessRegistry
+        .reapStaleOnce('mcp-stdio')
+        .then((result) => {
+          if (result && result.reaped.length > 0) {
+            logger.info(`[MCP] Reaped stale stdio server processes: ${result.reaped.join(', ')}`)
+          }
+        })
+        .catch((error) =>
+          console.error('[MCP] Failed to reap stale stdio server processes:', error)
+        )
+
       // Load configuration
       const [servers, enabledServers, mcpEnabled] = await Promise.all([
         this.mcpSettings.getMcpServers(),
