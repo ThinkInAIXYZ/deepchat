@@ -62,7 +62,6 @@ export class ConflictService {
         MemoryLineageRepositoryPort &
         MemoryTransactionPort
       textGeneration: MemoryTextGenerationPort
-      scheduleConsolidation: (agentId: string) => void
       syncWorkingMemoryAfterMutation: (agentId: string) => void
       triggerEmbedding: (agentId: string) => Promise<void>
     }
@@ -185,7 +184,6 @@ export class ConflictService {
       })
     }
     this.ctx.emitChanged(agentId, 'extract')
-    this.ports.scheduleConsolidation(agentId)
     return memoryCommandApplied()
   }
 
@@ -307,7 +305,8 @@ export class ConflictService {
   async runChallengeResolutionPass(
     agentId: string,
     model: MemoryModelRef,
-    budget: MaintenanceBudget = new MaintenanceBudget()
+    budget: MaintenanceBudget = new MaintenanceBudget(),
+    onApplied?: () => void
   ): Promise<MemoryMaintenanceStepResult> {
     let touched = false
     let calls = 0
@@ -416,7 +415,10 @@ export class ConflictService {
           mergedContent
         }
       )
-      if (result.action === 'applied') touched = true
+      if (result.action === 'applied') {
+        touched = true
+        onApplied?.()
+      }
     }
     return { touched, calls, failures }
   }

@@ -2025,6 +2025,29 @@ describe('MemoryService management', () => {
     expect((await presenter.recall('a', 'redis')).map((item) => item.id)).toContain(ids[0])
   })
 
+  it('runs the forget hook only for eligible rows and rejects without mutation when it throws', async () => {
+    const { presenter, repo } = makePresenter(enabledConfig)
+    const [id] = presenter.writeMemoriesSync([{ kind: 'semantic', content: 'redis cache' }], {
+      agentId: 'a'
+    })
+    const before = { ...repo.getById(id) }
+    const failure = new Error('mutation not authorized')
+    const beforeMutation = vi.fn(() => {
+      expect(repo.getById(id)?.lifecycle_state).toBe('active')
+      throw failure
+    })
+
+    await expect(presenter.forgetMemory('other-agent', id, beforeMutation)).resolves.toEqual({
+      action: 'rejected',
+      reason: 'not-found'
+    })
+    expect(beforeMutation).not.toHaveBeenCalled()
+    await expect(presenter.forgetMemory('a', id, beforeMutation)).rejects.toBe(failure)
+    expect(beforeMutation).toHaveBeenCalledOnce()
+    expect(repo.getById(id)).toEqual(before)
+    await presenter.dispose()
+  })
+
   it('inline-prunes vector matches that SQLite rejects as dead', async () => {
     const { presenter, repo, store } = makePresenter(enabledConfig)
     const [id] = presenter.writeMemoriesSync([{ kind: 'semantic', content: 'redis cache' }], {

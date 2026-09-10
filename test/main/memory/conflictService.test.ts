@@ -15,6 +15,66 @@ import {
 } from './serviceTestSupport'
 
 describe('MemoryService decision ring (T-A1..T-A5)', () => {
+  it('schedules follow-up maintenance only after an applied user resolution', async () => {
+    vi.useFakeTimers()
+    const { presenter, repo } = makeLLMPresenter(routedLLM({}))
+    try {
+      repo.insert({ id: 'target', agentId: 'a', kind: 'semantic', content: 'redis' })
+      seedConflicted(repo, 'challenger', 'target', 'valkey')
+      const pass = vi
+        .spyOn(memoryRuntimeForTests(presenter).maintenanceService, 'runConsolidationPass')
+        .mockResolvedValue()
+
+      await expect(
+        presenter.resolveConflict('other', 'challenger', 'keep_target')
+      ).resolves.toEqual({
+        action: 'rejected',
+        reason: 'not-found'
+      })
+      await vi.advanceTimersByTimeAsync(5 * 60 * 1000)
+      expect(pass).not.toHaveBeenCalled()
+      await expect(presenter.resolveConflict('a', 'challenger', 'keep_target')).resolves.toEqual({
+        action: 'applied'
+      })
+      await vi.advanceTimersByTimeAsync(5 * 60 * 1000 - 1)
+      expect(pass).not.toHaveBeenCalled()
+      await vi.advanceTimersByTimeAsync(1)
+      expect(pass).toHaveBeenCalledExactlyOnceWith('a')
+    } finally {
+      await presenter.dispose()
+      vi.useRealTimers()
+    }
+  })
+
+  it('keeps the scheduled follow-up when a later challenge fails', async () => {
+    vi.useFakeTimers()
+    const { presenter, repo } = makeLLMPresenter(
+      routedLLM({ decision: '{"decision":"NOOP","targetIndex":0}' })
+    )
+    try {
+      repo.insert({ id: 'target', agentId: 'a', kind: 'semantic', content: 'redis' })
+      seedConflicted(repo, 'c1', 'target', 'valkey')
+      seedConflicted(repo, 'c2', 'target', 'keydb')
+      const setLastConsolidatedAt = repo.setLastConsolidatedAt.bind(repo)
+      vi.spyOn(repo, 'setLastConsolidatedAt').mockImplementation((id, now) => {
+        if (id === 'c2') throw new Error('storage unavailable')
+        return setLastConsolidatedAt(id, now)
+      })
+
+      await presenter.runConsolidationPass('a')
+      expect(repo.getById('c1')?.lifecycle_state).toBe('archived')
+      expect(repo.getById('c2')?.lifecycle_state).toBe('conflicted')
+      const pass = vi
+        .spyOn(memoryRuntimeForTests(presenter).maintenanceService, 'runConsolidationPass')
+        .mockResolvedValue()
+      await vi.advanceTimersByTimeAsync(5 * 60 * 1000)
+      expect(pass).toHaveBeenCalledExactlyOnceWith('a')
+    } finally {
+      await presenter.dispose()
+      vi.useRealTimers()
+    }
+  })
+
   it('does not admit a second decision partition after destructive clear', async () => {
     const extraction = Array.from({ length: 8 }, (_, index) => ({
       kind: 'semantic',
