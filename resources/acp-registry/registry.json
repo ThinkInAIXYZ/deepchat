@@ -571,7 +571,7 @@
     {
       "id": "factory-droid",
       "name": "Factory Droid",
-      "version": "0.215.1",
+      "version": "0.216.0",
       "description": "Factory Droid - AI coding agent powered by Factory AI",
       "website": "https://factory.ai/product/cli",
       "authors": [
@@ -581,7 +581,7 @@
       "license_url": "https://factory.ai/legal/terms",
       "distribution": {
         "npx": {
-          "package": "droid@0.215.1",
+          "package": "droid@0.216.0",
           "args": [
             "exec",
             "--output-format",
@@ -743,7 +743,7 @@
     {
       "id": "grok-build",
       "name": "Grok Build",
-      "version": "1.0.25",
+      "version": "1.0.26",
       "description": "xAI's coding agent and CLI",
       "website": "https://x.ai/cli",
       "authors": [
@@ -753,7 +753,7 @@
       "license_url": "https://x.ai/legal/terms-of-service",
       "distribution": {
         "npx": {
-          "package": "@xai-official/grok@1.0.25",
+          "package": "@xai-official/grok@1.0.26",
           "args": [
             "agent",
             "stdio"
