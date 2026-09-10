@@ -6,7 +6,6 @@ import path from 'path'
 import { terminateProcessTreeByPid } from './processTree'
 
 const RECORD_VERSION = 1
-const PROCESS_START_TOLERANCE_MS = 60_000
 const DEFAULT_MAX_RECORD_AGE_MS = 7 * 24 * 60 * 60 * 1000
 
 export type ChildProcessSubsystem = 'background-exec' | 'mcp-stdio' | 'acp-agent'
@@ -20,6 +19,7 @@ export interface ChildProcessLaunchRecord {
   commandLine: string[]
   cwd?: string
   recordedAt: number
+  startedAtMs?: number
 }
 
 export interface ObservedProcessIdentity {
@@ -80,6 +80,9 @@ async function runAndCapture(
     try {
       const child = spawn(command, args, {
         stdio: ['ignore', 'pipe', 'ignore'],
+        env: { ...process.env, LC_ALL: 'C', TZ: 'UTC' },
+        timeout: 5000,
+        killSignal: 'SIGKILL',
         ...(process.platform === 'win32' ? { windowsHide: true } : {})
       })
       child.stdout?.on('data', (chunk: Buffer | string) => {
@@ -94,23 +97,31 @@ async function runAndCapture(
 }
 
 async function observePosix(pid: number): Promise<ObservedProcessIdentity> {
-  const { stdout } = await runAndCapture('ps', ['-p', `${pid}`, '-o', 'etimes=', '-o', 'command='])
+  const { code, stdout } = await runAndCapture('ps', [
+    '-ww',
+    '-p',
+    `${pid}`,
+    '-o',
+    'lstart=',
+    '-o',
+    'command='
+  ])
   const trimmed = stdout.trim()
-  if (!trimmed) {
-    return { alive: false }
+  if (code !== 0 || !trimmed) {
+    return { alive: defaultIsAlive(pid) }
   }
-  const match = /^(\d+)\s+([\s\S]*)$/.exec(trimmed)
+  const match = /^(\w{3}\s+\w{3}\s+\d+\s+\d{2}:\d{2}:\d{2}\s+\d{4})\s+([\s\S]*)$/.exec(trimmed)
   if (!match) {
     return { alive: true }
   }
-  const elapsedSeconds = Number.parseInt(match[1], 10)
-  if (!Number.isFinite(elapsedSeconds)) {
+  const startedAtMs = Date.parse(`${match[1]} GMT`)
+  if (!Number.isFinite(startedAtMs)) {
     return { alive: true }
   }
   return {
     alive: true,
     commandLine: match[2],
-    startedAtMs: Date.now() - elapsedSeconds * 1000
+    startedAtMs
   }
 }
 
@@ -118,7 +129,8 @@ async function observeWindows(pid: number): Promise<ObservedProcessIdentity> {
   const command = [
     'Get-CimInstance Win32_Process -Filter "ProcessId=',
     `${pid}`,
-    '" | Select-Object -Property CreationDate,CommandLine | ConvertTo-Json -Compress'
+    '" | Select-Object CommandLine,@{Name="CreationDate";Expression={',
+    '$_.CreationDate.ToUniversalTime().ToString("o")}} | ConvertTo-Json -Compress'
   ].join('')
   const { stdout } = await runAndCapture('powershell', [
     '-NoProfile',
@@ -158,8 +170,9 @@ export function defaultChildProcessAttester(
     return false
   }
   if (
-    typeof observed.startedAtMs !== 'number' ||
-    Math.abs(observed.startedAtMs - record.recordedAt) > PROCESS_START_TOLERANCE_MS
+    !Number.isFinite(record.startedAtMs) ||
+    !Number.isFinite(observed.startedAtMs) ||
+    observed.startedAtMs !== record.startedAtMs
   ) {
     return false
   }
@@ -204,6 +217,7 @@ export class ChildProcessRegistry {
   private readonly log: (message: string, ...args: unknown[]) => void
   private readonly reapedSubsystems = new Set<string>()
   private readonly inflightReaps = new Map<string, Promise<ReapStaleChildProcessesResult>>()
+  private readonly pendingRecords = new Map<string, ChildProcessLaunchRecord>()
 
   constructor(options: ChildProcessRegistryOptions = {}) {
     this.configuredRootDir = options.rootDir
@@ -215,18 +229,20 @@ export class ChildProcessRegistry {
     this.log = options.log ?? ((message, ...args) => console.warn(message, ...args))
   }
 
-  record(entry: {
+  async record(entry: {
     subsystem: ChildProcessSubsystem
     recordId: string
     pid: number
     commandLine: string[]
     cwd?: string
-  }): void {
+  }): Promise<void> {
     if (!Number.isSafeInteger(entry.pid) || entry.pid <= 0 || !entry.recordId) {
       return
     }
+    const key = `${entry.subsystem}:${entry.recordId}`
+    let record: ChildProcessLaunchRecord | undefined
     try {
-      const record: ChildProcessLaunchRecord = {
+      record = {
         version: RECORD_VERSION,
         subsystem: entry.subsystem,
         recordId: entry.recordId,
@@ -236,17 +252,29 @@ export class ChildProcessRegistry {
         ...(entry.cwd ? { cwd: entry.cwd } : {}),
         recordedAt: this.now()
       }
-      const filePath = this.recordPath(entry.subsystem, entry.recordId)
-      fs.mkdirSync(path.dirname(filePath), { recursive: true })
-      const tempPath = `${filePath}.${process.pid}.tmp`
-      fs.writeFileSync(tempPath, JSON.stringify(record), 'utf-8')
-      fs.renameSync(tempPath, filePath)
+      this.pendingRecords.set(key, record)
+      this.writeRecord(record)
+      const observed = await this.observe(entry.pid)
+      // An exit or a newer launch may have cleared/replaced this record while ps ran.
+      if (
+        this.pendingRecords.get(key) === record &&
+        observed.alive &&
+        typeof observed.startedAtMs === 'number' &&
+        Number.isFinite(observed.startedAtMs) &&
+        observed.startedAtMs <= record.recordedAt
+      ) {
+        record.startedAtMs = observed.startedAtMs
+        this.writeRecord(record)
+      }
     } catch (error) {
       this.log(`[ChildProcessRegistry] Failed to record launch ${entry.recordId}:`, error)
+    } finally {
+      if (this.pendingRecords.get(key) === record) this.pendingRecords.delete(key)
     }
   }
 
   clear(subsystem: ChildProcessSubsystem, recordId: string): void {
+    this.pendingRecords.delete(`${subsystem}:${recordId}`)
     if (!recordId) {
       return
     }
@@ -311,6 +339,8 @@ export class ChildProcessRegistry {
     subsystem: ChildProcessSubsystem,
     options: ReapStaleChildProcessesOptions = {}
   ): Promise<ReapStaleChildProcessesResult | null> {
+    const inflight = this.inflightReaps.get(subsystem)
+    if (inflight) return await inflight
     if (this.reapedSubsystems.has(subsystem)) {
       return null
     }
@@ -363,8 +393,12 @@ export class ChildProcessRegistry {
       }
 
       let attested = false
+      if (!Number.isFinite(record.startedAtMs) || !Number.isFinite(observed.startedAtMs)) {
+        result.refused.push(record.recordId)
+        continue
+      }
       try {
-        attested = attester(record, observed)
+        attested = record.startedAtMs === observed.startedAtMs && attester(record, observed)
       } catch (error) {
         this.log(`[ChildProcessRegistry] Attester failed for ${record.recordId}:`, error)
       }
@@ -402,6 +436,14 @@ export class ChildProcessRegistry {
     // during app startup (including the DEEPCHAT_E2E_USER_DATA_DIR override).
     this.resolvedRootDir ??= this.configuredRootDir ?? defaultRegistryRoot()
     return this.resolvedRootDir
+  }
+
+  private writeRecord(record: ChildProcessLaunchRecord): void {
+    const filePath = this.recordPath(record.subsystem, record.recordId)
+    fs.mkdirSync(path.dirname(filePath), { recursive: true })
+    const tempPath = `${filePath}.${process.pid}.tmp`
+    fs.writeFileSync(tempPath, JSON.stringify(record), 'utf-8')
+    fs.renameSync(tempPath, filePath)
   }
 
   private recordPath(subsystem: string, recordId: string): string {

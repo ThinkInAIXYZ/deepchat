@@ -59,6 +59,31 @@ describe('backgroundExecUtilityHost', () => {
     expect(registryMock.reapStaleOnce).toHaveBeenCalledWith('background-exec')
   })
 
+  it('waits for orphan recovery before handling RPC requests', async () => {
+    vi.useFakeTimers()
+    let finishRecovery!: () => void
+    registryMock.reapStaleOnce.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          finishRecovery = resolve
+        })
+    )
+    process.env.DEEPCHAT_EXEC_UTILITY_HOST = '1'
+    const parentPort = { postMessage: vi.fn(), on: vi.fn(), start: vi.fn() }
+    Object.defineProperty(process, 'parentPort', { configurable: true, value: parentPort })
+
+    runBackgroundExecUtilityHostIfRequested()
+    const onMessage = parentPort.on.mock.calls[0][1]
+    onMessage({ data: request })
+    await vi.advanceTimersByTimeAsync(0)
+    expect(parentPort.postMessage).not.toHaveBeenCalled()
+    finishRecovery()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(parentPort.postMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'rpc-1', ok: true })
+    )
+  })
+
   it('keeps shell environment helper on the utility-safe logger', async () => {
     const { readFileSync } = await vi.importActual<typeof import('node:fs')>('node:fs')
     const source = readFileSync(

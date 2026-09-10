@@ -563,7 +563,14 @@ describe('McpService', () => {
     expect(serverManagerMocks.startServer).not.toHaveBeenCalled()
   })
 
-  it('does not wait for hanging enabled servers during initialization', async () => {
+  it('waits for orphan recovery but not hanging enabled servers during initialization', async () => {
+    let finishRecovery!: () => void
+    childProcessRegistryMock.reapStaleOnce.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          finishRecovery = resolve
+        })
+    )
     const providerSettings = createProviderSettings(
       true,
       false,
@@ -584,8 +591,12 @@ describe('McpService', () => {
     serverManagerMocks.startServer.mockImplementation(() => new Promise(() => {}))
     serverManagerMocks.isServerActive.mockReturnValue(true)
 
+    const initialization = presenter.initialize()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(serverManagerMocks.startServer).not.toHaveBeenCalled()
+    finishRecovery()
     const result = Promise.race([
-      presenter.initialize().then(() => 'initialized'),
+      initialization.then(() => 'initialized'),
       new Promise((resolve) => setTimeout(() => resolve('blocked'), 1))
     ])
     await vi.advanceTimersByTimeAsync(1)

@@ -107,7 +107,7 @@ export function runBackgroundExecUtilityHostIfRequested(): boolean {
   }
 
   const manager = new BackgroundExecSessionManager()
-  void childProcessRegistry.reapStaleOnce('background-exec').catch((error) => {
+  const recovery = childProcessRegistry.reapStaleOnce('background-exec').catch((error) => {
     logger.warn('[BackgroundExec] Failed to reap stale child processes:', error)
   })
   const keepAliveIntervalId = setInterval(() => {}, 2 ** 31 - 1)
@@ -118,7 +118,7 @@ export function runBackgroundExecUtilityHostIfRequested(): boolean {
     if (!isBackgroundExecRpcRequest(request)) {
       return
     }
-    void handleRequest(manager, parentPort, request)
+    void recovery.then(() => handleRequest(manager, parentPort, request))
   })
 
   process.once('beforeExit', () => {

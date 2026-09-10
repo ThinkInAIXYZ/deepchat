@@ -1127,10 +1127,23 @@ describe('AcpProcessManager child process launch records', () => {
     vi.mocked(spawn).mockClear()
   })
 
-  it('reaps stale agent process records on construction', () => {
-    createManager()
-
+  it('waits for orphan recovery before spawning an agent', async () => {
+    let finishRecovery!: () => void
+    childProcessRegistryMock.reapStaleOnce.mockImplementationOnce(() => new Promise<void>((resolve) => {
+      finishRecovery = resolve
+    }))
+    const manager = createManager()
+    const child = new MockSpawnedChild()
+    vi.mocked(spawn).mockReturnValue(child as never)
+    vi.spyOn(manager as any, 'materializeAgentLaunch').mockResolvedValue(launch)
+    vi.spyOn(manager as any, 'initializeSpawnedProcess').mockResolvedValue({})
+    const pending = (manager as any).spawnProcessOnce(agent, launch.cwd, {}, 'signature', undefined)
+    await Promise.resolve()
     expect(childProcessRegistryMock.reapStaleOnce).toHaveBeenCalledWith('acp-agent')
+    expect(spawn).not.toHaveBeenCalled()
+    finishRecovery()
+    await pending
+    expect(spawn).toHaveBeenCalledOnce()
   })
 
   it('records the launch after spawning an agent process', () => {

@@ -286,9 +286,6 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
     this.getNpmRegistry = options.getNpmRegistry
     this.getUvRegistry = options.getUvRegistry
     this.terminalAuthAvailable = options.terminalAuthAvailable === true
-    void childProcessRegistry.reapStaleOnce('acp-agent')?.catch((error) => {
-      console.warn('[ACP] Failed to reap stale agent processes:', error)
-    })
   }
 
   getTerminalSnapshot(terminalId: string): schema.TerminalOutputResponse | null {
@@ -1207,6 +1204,9 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
     launchSignature: string,
     agentState: AcpAgentState | null | undefined
   ): Promise<AcpProcessHandle> {
+    await childProcessRegistry.reapStaleOnce('acp-agent')?.catch((error) => {
+      console.warn('[ACP] Failed to reap stale agent processes:', error)
+    })
     this.assertAcceptingProcesses()
     const materializedLaunch = await this.materializeAgentLaunch(
       agent,

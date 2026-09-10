@@ -334,7 +334,7 @@ export class McpService implements McpServicePort {
     }
 
     try {
-      void childProcessRegistry
+      await childProcessRegistry
         .reapStaleOnce('mcp-stdio')
         .then((result) => {
           if (result && result.reaped.length > 0) {

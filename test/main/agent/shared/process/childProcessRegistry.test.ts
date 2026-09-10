@@ -10,10 +10,16 @@ vi.mock('path', async () => {
   return { __esModule: true, ...actual, default: actual }
 })
 
+vi.mock('child_process', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('child_process')>()
+  return { ...actual, spawn: vi.fn(actual.spawn) }
+})
+
 import fs from 'fs'
 import os from 'os'
 import path from 'path'
 import { createHash } from 'crypto'
+import { spawn } from 'child_process'
 import {
   ChildProcessRegistry,
   defaultChildProcessAttester,
@@ -30,6 +36,7 @@ function makeRecord(overrides: Partial<ChildProcessLaunchRecord> = {}): ChildPro
     ownerPid: 9999,
     commandLine: ['/bin/zsh', '-c', 'npm run dev'],
     recordedAt: 1_000_000,
+    startedAtMs: 998_000,
     ...overrides
   }
 }
@@ -73,8 +80,9 @@ describe('ChildProcessRegistry', () => {
     fs.rmSync(rootDir, { recursive: true, force: true })
   })
 
-  it('persists launch records and lists them back', () => {
-    registry.record({
+  it('persists the observed process start time independently of the write time', async () => {
+    observations.set(4321, { alive: true, startedAtMs: 998_000 })
+    await registry.record({
       subsystem: 'background-exec',
       recordId: 'bg_session/1',
       pid: 4321,
@@ -90,7 +98,8 @@ describe('ChildProcessRegistry', () => {
       ownerPid: process.pid,
       commandLine: ['/bin/zsh', '-c', 'npm run dev'],
       cwd: '/tmp/work',
-      recordedAt: 1_060_000
+      recordedAt: 1_060_000,
+      startedAtMs: 998_000
     })
   })
 
@@ -174,14 +183,14 @@ describe('ChildProcessRegistry', () => {
     expect(recordFileCount('background-exec')).toBe(0)
   })
 
-  it('refuses to kill a reused pid whose start time is outside the tolerance window', async () => {
+  it('refuses a reused pid with the same command even within the old tolerance window', async () => {
     const record = makeRecord()
     writeRecord('background-exec', record)
     alivePids.add(record.pid)
     observations.set(record.pid, {
       alive: true,
       commandLine: '/bin/zsh -c npm run dev',
-      startedAtMs: record.recordedAt + 10 * 60 * 1000
+      startedAtMs: record.startedAtMs! + 1000
     })
 
     const result = await registry.reapStale('background-exec')
@@ -202,6 +211,104 @@ describe('ChildProcessRegistry', () => {
     expect(result.refused).toEqual(['bg_test'])
     expect(terminate).not.toHaveBeenCalled()
     expect(recordFileCount('background-exec')).toBe(1)
+  })
+
+  it('keeps legacy records without a persisted start time without terminating', async () => {
+    const record = makeRecord({ startedAtMs: undefined })
+    writeRecord('background-exec', record)
+    alivePids.add(record.pid)
+    observations.set(record.pid, {
+      alive: true,
+      commandLine: '/bin/zsh -c npm run dev',
+      startedAtMs: 998_000
+    })
+
+    expect((await registry.reapStale('background-exec')).refused).toEqual(['bg_test'])
+    expect(terminate).not.toHaveBeenCalled()
+    expect(recordFileCount('background-exec')).toBe(1)
+  })
+
+  it.each(['clear', 'replace'] as const)(
+    'does not restore an old record when observation completes after %s',
+    async (action) => {
+      let resolveObservation!: (identity: ObservedProcessIdentity) => void
+      const observe = vi
+        .fn()
+        .mockImplementationOnce(
+          () =>
+            new Promise<ObservedProcessIdentity>((resolve) => {
+              resolveObservation = resolve
+            })
+        )
+        .mockResolvedValue({ alive: true, startedAtMs: 999_000 })
+      const delayedRegistry = new ChildProcessRegistry({ rootDir, observe, log: () => {} })
+      const entry = {
+        subsystem: 'mcp-stdio' as const,
+        recordId: 'server',
+        pid: 4321,
+        commandLine: ['node']
+      }
+      const pending = delayedRegistry.record(entry)
+      if (action === 'clear') {
+        delayedRegistry.clear(entry.subsystem, entry.recordId)
+      } else {
+        await delayedRegistry.record({ ...entry, pid: 4322 })
+      }
+      resolveObservation({ alive: true, startedAtMs: 998_000 })
+      await pending
+
+      const records = delayedRegistry.list('mcp-stdio')
+      if (action === 'clear') expect(records).toEqual([])
+      else expect(records).toMatchObject([{ pid: 4322, startedAtMs: 999_000 }])
+    }
+  )
+
+  it('observes a live process consistently across scans without terminating it', async () => {
+    const realRegistry = new ChildProcessRegistry({ rootDir, terminate, log: () => {} })
+    await realRegistry.record({
+      subsystem: 'mcp-stdio',
+      recordId: 'live-process',
+      pid: process.pid,
+      commandLine: [process.execPath]
+    })
+    const [record] = realRegistry.list('mcp-stdio')
+    expect(record.startedAtMs).toEqual(expect.any(Number))
+    // A separate observer must report the same OS timestamp, not a Date.now()-based estimate.
+    await realRegistry.record({
+      subsystem: 'mcp-stdio',
+      recordId: 'second-observation',
+      pid: process.pid,
+      commandLine: [process.execPath]
+    })
+    expect(realRegistry.list('mcp-stdio').map((entry) => entry.startedAtMs)).toEqual([
+      record.startedAtMs,
+      record.startedAtMs
+    ])
+    expect(terminate).not.toHaveBeenCalled()
+  })
+
+  it('retains a live process record when the OS query fails', async () => {
+    const record = makeRecord({ pid: process.ppid })
+    writeRecord('mcp-stdio', { ...record, subsystem: 'mcp-stdio' })
+    const actual = await vi.importActual<typeof import('child_process')>('child_process')
+    vi.mocked(spawn).mockImplementationOnce(() =>
+      actual.spawn(process.execPath, ['-e', 'process.exit(1)'], {
+        stdio: ['ignore', 'pipe', 'ignore']
+      })
+    )
+    const failedQueryRegistry = new ChildProcessRegistry({
+      rootDir,
+      now: () => 1_060_000,
+      isAlive: (pid) => pid === record.pid,
+      terminate,
+      log: () => {}
+    })
+
+    const result = await failedQueryRegistry.reapStale('mcp-stdio')
+
+    expect(result.refused).toEqual([record.recordId])
+    expect(recordFileCount('mcp-stdio')).toBe(1)
+    expect(terminate).not.toHaveBeenCalled()
   })
 
   it('never terminates the current process', async () => {
@@ -233,7 +340,7 @@ describe('ChildProcessRegistry', () => {
     observations.set(record.pid, {
       alive: true,
       commandLine: '/bin/zsh -c npm run dev',
-      startedAtMs: record.recordedAt
+      startedAtMs: record.startedAtMs
     })
     terminate.mockResolvedValue(false)
 
@@ -249,7 +356,7 @@ describe('ChildProcessRegistry', () => {
     writeRecord('acp-agent', excluded)
     writeRecord('acp-agent', vetted)
     alivePids.add(5001).add(5002)
-    observations.set(5002, { alive: true })
+    observations.set(5002, { alive: true, startedAtMs: vetted.startedAtMs })
     const attester = vi.fn().mockReturnValue(true)
 
     const result = await registry.reapStale('acp-agent', {
@@ -259,7 +366,7 @@ describe('ChildProcessRegistry', () => {
 
     expect(result.skipped).toEqual(['keep-me'])
     expect(result.reaped).toEqual(['custom'])
-    expect(attester).toHaveBeenCalledWith(vetted, { alive: true })
+    expect(attester).toHaveBeenCalledWith(vetted, { alive: true, startedAtMs: vetted.startedAtMs })
     expect(terminate).toHaveBeenCalledWith(5002)
     expect(terminate).not.toHaveBeenCalledWith(5001)
   })
@@ -274,13 +381,39 @@ describe('ChildProcessRegistry', () => {
     expect(second).toBeNull()
   })
 
-  it('resolves the default root from DEEPCHAT_USER_DATA_DIR at first use', () => {
+  it('waits for in-flight recovery before allowing another startup to proceed', async () => {
+    writeRecord('mcp-stdio', makeRecord({ subsystem: 'mcp-stdio' }))
+    alivePids.add(4321)
+    observations.set(4321, {
+      alive: true,
+      startedAtMs: 998_000,
+      commandLine: '/bin/zsh -c npm run dev'
+    })
+    let finishTermination!: (terminated: boolean) => void
+    terminate.mockImplementation(
+      () =>
+        new Promise<boolean>((resolve) => {
+          finishTermination = resolve
+        })
+    )
+    const first = registry.reapStaleOnce('mcp-stdio')
+    const ready = vi.fn()
+    const second = registry.reapStaleOnce('mcp-stdio').then(ready)
+    await Promise.resolve()
+    expect(ready).not.toHaveBeenCalled()
+    finishTermination(true)
+    await Promise.all([first, second])
+    expect(ready).toHaveBeenCalledWith(expect.objectContaining({ reaped: ['bg_test'] }))
+    expect(terminate).toHaveBeenCalledOnce()
+  })
+
+  it('resolves the default root from DEEPCHAT_USER_DATA_DIR at first use', async () => {
     const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'registry-userdata-'))
     const previous = process.env.DEEPCHAT_USER_DATA_DIR
     process.env.DEEPCHAT_USER_DATA_DIR = userDataDir
     try {
       const defaultRegistry = new ChildProcessRegistry({ log: () => {} })
-      defaultRegistry.record({
+      await defaultRegistry.record({
         subsystem: 'mcp-stdio',
         recordId: 'srv',
         pid: 4321,
@@ -306,7 +439,7 @@ describe('defaultChildProcessAttester', () => {
       defaultChildProcessAttester(record, {
         alive: true,
         commandLine: '/bin/zsh -c npm run dev',
-        startedAtMs: record.recordedAt + 30_000
+        startedAtMs: record.startedAtMs
       })
     ).toBe(true)
   })
