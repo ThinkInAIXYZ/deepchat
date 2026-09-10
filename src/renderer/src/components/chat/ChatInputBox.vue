@@ -596,7 +596,7 @@ watch(
     if (next === current) return
 
     syncEditorContent(() => {
-      editor.commands.setContent(toEditorDoc(next), false)
+      editor.commands.setContent(toEditorDoc(next), { emitUpdate: false })
       setCaretToEnd(editor)
     })
 
@@ -897,7 +897,7 @@ function getDocumentSnapshot(): JSONContent {
 
 function restoreDocumentSnapshot(document: JSONContent) {
   syncEditorContent(() => {
-    editor.commands.setContent(document, false)
+    editor.commands.setContent(document, { emitUpdate: false })
     setCaretToEnd(editor)
   })
   void nextTick(() => {

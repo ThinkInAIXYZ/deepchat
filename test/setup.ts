@@ -121,98 +121,117 @@ function installRendererTestGlobals(): void {
 }
 
 // Mock Electron modules for testing
-vi.mock('electron', () => ({
-  __resetElectronMockState: vi.fn(() => {
-    electronMockState.loginItemSettings = { openAtLogin: false }
-  }),
-  app: {
-    getName: vi.fn(() => 'DeepChat'),
-    getVersion: vi.fn(() => '0.2.3'),
-    getAppPath: vi.fn(() => '/mock/app'),
-    getPath: vi.fn(() => '/mock/path'),
-    isPackaged: false,
-    getLoginItemSettings: vi.fn(() => ({ ...electronMockState.loginItemSettings })),
-    setLoginItemSettings: vi.fn((settings: { openAtLogin?: boolean }) => {
-      electronMockState.loginItemSettings = {
-        ...electronMockState.loginItemSettings,
-        ...settings
-      }
-    }),
-    on: vi.fn(),
-    quit: vi.fn(),
-    isReady: vi.fn(() => true)
-  },
-  BrowserWindow: vi.fn(() => ({
-    id: 1,
-    loadURL: vi.fn(),
-    loadFile: vi.fn(),
-    on: vi.fn(),
-    webContents: {
-      id: 2,
-      send: vi.fn(),
-      on: vi.fn(),
-      setWindowOpenHandler: vi.fn(),
-      setBackgroundThrottling: vi.fn(),
-      setFrameRate: vi.fn(),
-      openDevTools: vi.fn(),
-      isDestroyed: vi.fn(() => false)
-    },
-    isDestroyed: vi.fn(() => false),
-    setContentProtection: vi.fn(),
-    setBackgroundColor: vi.fn(),
-    setHiddenInMissionControl: vi.fn(),
-    setSkipTaskbar: vi.fn(),
-    close: vi.fn(),
-    show: vi.fn(),
-    focus: vi.fn(),
-    hide: vi.fn()
-  })),
-  nativeImage: {
-    createFromPath: vi.fn(() => ({}))
-  },
-  ipcMain: {
-    on: vi.fn(),
-    handle: vi.fn(),
-    removeHandler: vi.fn()
-  },
-  ipcRenderer: {
-    invoke: vi.fn(),
-    on: vi.fn(),
-    removeAllListeners: vi.fn(),
-    send: vi.fn()
-  },
-  protocol: {
-    registerSchemesAsPrivileged: vi.fn(),
-    handle: vi.fn()
-  },
-  session: {
-    defaultSession: {
-      setPermissionRequestHandler: vi.fn(),
-      setPermissionCheckHandler: vi.fn()
+vi.mock('electron', async () => {
+  const { join } = await import('node:path')
+  const { tmpdir } = await import('node:os')
+  const { rmSync } = await import('node:fs')
+  // electron-store 11 (conf 15) mkdirs `userData` eagerly, so the mock must
+  // point at a real directory. Isolate it per Vitest worker process so workers
+  // never share persistent store state, and clean it up on worker exit.
+  const userDataDir = join(tmpdir(), `deepchat-vitest-userdata-${process.pid}`)
+  process.on('exit', () => {
+    try {
+      rmSync(userDataDir, { recursive: true, force: true })
+    } catch {
+      // best-effort cleanup
     }
-  },
-  shell: {
-    openExternal: vi.fn(),
-    openPath: vi.fn()
-  },
-  webContents: {
-    fromId: vi.fn(() => null)
-  },
-  safeStorage: {
-    isEncryptionAvailable: vi.fn(() => false),
-    getSelectedStorageBackend: vi.fn(() => 'keychain'),
-    encryptString: vi.fn((value: string) =>
-      Buffer.from(`mock-safe-storage:${Buffer.from(value, 'utf8').toString('base64')}`, 'utf8')
-    ),
-    decryptString: vi.fn((value: Buffer) => {
-      const wrapped = value.toString('utf8')
-      if (!wrapped.startsWith('mock-safe-storage:')) {
-        throw new Error('Invalid mock safeStorage payload')
+  })
+  const electronModuleMock = {
+    __resetElectronMockState: vi.fn(() => {
+      electronMockState.loginItemSettings = { openAtLogin: false }
+    }),
+    app: {
+      getName: vi.fn(() => 'DeepChat'),
+      getVersion: vi.fn(() => '0.2.3'),
+      getAppPath: vi.fn(() => '/mock/app'),
+      getPath: vi.fn((type: string) => (type === 'userData' ? userDataDir : '/mock/path')),
+      isPackaged: false,
+      getLoginItemSettings: vi.fn(() => ({ ...electronMockState.loginItemSettings })),
+      setLoginItemSettings: vi.fn((settings: { openAtLogin?: boolean }) => {
+        electronMockState.loginItemSettings = {
+          ...electronMockState.loginItemSettings,
+          ...settings
+        }
+      }),
+      on: vi.fn(),
+      quit: vi.fn(),
+      isReady: vi.fn(() => true)
+    },
+    BrowserWindow: vi.fn(() => ({
+      id: 1,
+      loadURL: vi.fn(),
+      loadFile: vi.fn(),
+      on: vi.fn(),
+      webContents: {
+        id: 2,
+        send: vi.fn(),
+        on: vi.fn(),
+        setWindowOpenHandler: vi.fn(),
+        setBackgroundThrottling: vi.fn(),
+        setFrameRate: vi.fn(),
+        openDevTools: vi.fn(),
+        isDestroyed: vi.fn(() => false)
+      },
+      isDestroyed: vi.fn(() => false),
+      setContentProtection: vi.fn(),
+      setBackgroundColor: vi.fn(),
+      setHiddenInMissionControl: vi.fn(),
+      setSkipTaskbar: vi.fn(),
+      close: vi.fn(),
+      show: vi.fn(),
+      focus: vi.fn(),
+      hide: vi.fn()
+    })),
+    nativeImage: {
+      createFromPath: vi.fn(() => ({}))
+    },
+    ipcMain: {
+      on: vi.fn(),
+      handle: vi.fn(),
+      removeHandler: vi.fn()
+    },
+    ipcRenderer: {
+      invoke: vi.fn(),
+      on: vi.fn(),
+      removeAllListeners: vi.fn(),
+      send: vi.fn()
+    },
+    protocol: {
+      registerSchemesAsPrivileged: vi.fn(),
+      handle: vi.fn()
+    },
+    session: {
+      defaultSession: {
+        setPermissionRequestHandler: vi.fn(),
+        setPermissionCheckHandler: vi.fn()
       }
-      return Buffer.from(wrapped.slice('mock-safe-storage:'.length), 'base64').toString('utf8')
-    })
+    },
+    shell: {
+      openExternal: vi.fn(),
+      openPath: vi.fn()
+    },
+    webContents: {
+      fromId: vi.fn(() => null)
+    },
+    safeStorage: {
+      isEncryptionAvailable: vi.fn(() => false),
+      getSelectedStorageBackend: vi.fn(() => 'keychain'),
+      encryptString: vi.fn((value: string) =>
+        Buffer.from(`mock-safe-storage:${Buffer.from(value, 'utf8').toString('base64')}`, 'utf8')
+      ),
+      decryptString: vi.fn((value: Buffer) => {
+        const wrapped = value.toString('utf8')
+        if (!wrapped.startsWith('mock-safe-storage:')) {
+          throw new Error('Invalid mock safeStorage payload')
+        }
+        return Buffer.from(wrapped.slice('mock-safe-storage:'.length), 'base64').toString('utf8')
+      })
+    }
   }
-}))
+  // Expose the same object as the default export so dependencies that use
+  // `import electron from 'electron'` (e.g. electron-store 11+) resolve the mock.
+  return { ...electronModuleMock, default: electronModuleMock }
+})
 
 // Mock shared logger so importing it never pulls in electron's `app`
 // (test files that need to assert on logger calls re-mock it locally)

@@ -94,3 +94,22 @@ export const Tray = function () {
     setContextMenu: (_: any) => {}
   }
 } as unknown as { new (...args: any[]): any }
+
+// Default export for dependencies that use `import electron from 'electron'`
+// (e.g. electron-store 11+); mirrors all named exports above.
+const electron = {
+  app,
+  ipcMain,
+  ipcRenderer,
+  shell,
+  safeStorage,
+  dialog,
+  session,
+  nativeImage,
+  screen,
+  Menu,
+  Tray,
+  BrowserWindow
+}
+
+export default electron

@@ -1,12 +1,34 @@
 import { describe, expect, it, vi } from 'vitest'
 
-vi.mock('electron', () => ({
-  app: {
-    getPath: vi.fn(() => '/mock/path'),
-    getVersion: vi.fn(() => '0.0.0-test'),
-    getLocale: vi.fn(() => 'en-US')
+vi.mock('electron', async () => {
+  const { join } = await import('node:path')
+  const { tmpdir } = await import('node:os')
+  const { rmSync } = await import('node:fs')
+  // Isolate the mocked userData per Vitest worker process and clean it up on
+  // worker exit so parallel workers never share persistent store state.
+  const userDataDir = join(tmpdir(), `deepchat-vitest-userdata-${process.pid}`)
+  process.on('exit', () => {
+    try {
+      rmSync(userDataDir, { recursive: true, force: true })
+    } catch {
+      // best-effort cleanup
+    }
+  })
+  const electronModuleMock = {
+    app: {
+      getName: vi.fn(() => 'DeepChat'),
+      getPath: vi.fn((type: string) => (type === 'userData' ? userDataDir : '/mock/path')),
+      getVersion: vi.fn(() => '0.0.0-test'),
+      getLocale: vi.fn(() => 'en-US')
+    },
+    ipcMain: {
+      on: vi.fn(),
+      handle: vi.fn(),
+      removeHandler: vi.fn()
+    }
   }
-}))
+  return { ...electronModuleMock, default: electronModuleMock }
+})
 
 const state = vi.hoisted(() => ({
   mockDb: {

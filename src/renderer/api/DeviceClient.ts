@@ -55,7 +55,7 @@ export function createDeviceClient(bridge: DeepchatBridge = getDeepchatBridge())
     copyRuntimeImage(image)
   }
 
-  function readClipboardText(): string {
+  function readClipboardText(): Promise<string> {
     return readRuntimeClipboardText()
   }
 

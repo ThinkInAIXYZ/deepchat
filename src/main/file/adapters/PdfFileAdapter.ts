@@ -1,6 +1,6 @@
 import { BaseFileAdapter } from './BaseFileAdapter'
 import fs from 'fs/promises'
-import pdfParse from 'pdf-parse-new'
+import pdfParse, { type Result as PdfParseResult } from 'pdf-parse-new'
 import {
   PDF_LOW_TEXT_PAGE_SAMPLE_LIMIT,
   PDF_ROUTING_REVISION,
@@ -12,10 +12,10 @@ import {
 export class PdfFileAdapter extends BaseFileAdapter {
   private fileContent: string | undefined
   private maxFileSize: number
-  private pdfData: (pdfParse.Result & { pageContents?: string[] }) | undefined
+  private pdfData: (PdfParseResult & { pageContents?: string[] }) | undefined
   private textCoverage: PdfEmbeddedTextCoverage | undefined
   private pdfLoadPromise:
-    | Promise<(pdfParse.Result & { pageContents?: string[] }) | undefined>
+    | Promise<(PdfParseResult & { pageContents?: string[] }) | undefined>
     | undefined
 
   constructor(filePath: string, maxFileSize: number) {
@@ -27,7 +27,7 @@ export class PdfFileAdapter extends BaseFileAdapter {
     return 'PDF Document'
   }
 
-  private loadPdfData(): Promise<(pdfParse.Result & { pageContents?: string[] }) | undefined> {
+  private loadPdfData(): Promise<(PdfParseResult & { pageContents?: string[] }) | undefined> {
     this.pdfLoadPromise ??= this.readPdfData().catch((error) => {
       console.error('Error reading PDF:', error)
       return undefined
@@ -35,9 +35,7 @@ export class PdfFileAdapter extends BaseFileAdapter {
     return this.pdfLoadPromise
   }
 
-  private async readPdfData(): Promise<
-    (pdfParse.Result & { pageContents?: string[] }) | undefined
-  > {
+  private async readPdfData(): Promise<(PdfParseResult & { pageContents?: string[] }) | undefined> {
     const stats = await fs.stat(this.filePath)
     if (stats.size > this.maxFileSize) return undefined
     const buffer = await fs.readFile(this.filePath)

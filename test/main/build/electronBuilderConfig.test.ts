@@ -38,7 +38,7 @@ interface GitHubWorkflow {
   jobs?: Record<string, WorkflowJob>
 }
 
-const OPENDAL_VERSION = '0.49.5'
+const OPENDAL_VERSION = '0.49.9'
 const OPENDAL_NATIVE_PACKAGES = [
   '@opendal/lib-darwin-arm64',
   '@opendal/lib-darwin-x64',
