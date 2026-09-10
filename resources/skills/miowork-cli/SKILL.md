@@ -1,5 +1,5 @@
 ---
-name: deepchat-cli
+name: miowork-cli
 description: Use MioWork's bundled CLI control plane for model inference, image/video/speech generation, transcription, OCR, artifact inspection, public configuration, Skills, and MCP operations. Activate when a user asks to invoke MioWork capabilities that are not already exposed as a more specific tool, compare models, run a benchmark, inspect MioWork runtime state, or manage MioWork through the CLI.
 allowedTools:
   - exec

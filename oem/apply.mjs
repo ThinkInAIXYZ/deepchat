@@ -14,7 +14,7 @@
  *  - GitHub Copilot OAuth 回调 deepchatai.cn（需要自有 GitHub OAuth App，经 .env 覆盖）
  *  - 上游插件/公共配置下载源（ThinkInAIXYZ releases、PublicProviderConf，保持跟随官方）
  */
-import { readFileSync, writeFileSync, readdirSync, statSync } from 'node:fs'
+import { existsSync, readFileSync, renameSync, writeFileSync, readdirSync, statSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -415,7 +415,53 @@ editFile('test/main/scripts/packageWorkflow.test.ts', [
   }
 ])
 
-// ---------- 6. README（fork 版；上游原文随时可从 upstream remote 取回） ----------
+// ---------- 6. 内置技能改名：deepchat-* → miowork-*（目录/frontmatter/注册字面量） ----------
+// 技能名是用户可见面，跟随 OEM 品牌；技能内的 CLI 命令字面量（deepchat <domain> <verb>）与
+// deepchat_settings_* 工具名是运行时合同，永不改名。测试临时目录前缀与 launcherService 的
+// fish 配置文件名（deepchat-cli.fish）不属于技能名，保持原样。
+const SKILL_DIR_RENAMES = [
+  ['resources/skills/deepchat-cli', 'resources/skills/miowork-cli'],
+  ['resources/skills/deepchat-settings', 'resources/skills/miowork-settings']
+]
+for (const [from, to] of SKILL_DIR_RENAMES) {
+  const fromAbs = join(root, from)
+  const toAbs = join(root, to)
+  if (existsSync(fromAbs)) {
+    renameSync(fromAbs, toAbs)
+    report.changed.push(`${from} → ${to}`)
+  } else if (existsSync(toAbs)) {
+    report.skipped.push(`${to} (已是新名)`)
+  } else {
+    report.failed.push(`${from}: 目录不存在`)
+  }
+}
+
+const SKILL_NAME_EDITS = [
+  ['src/main/skill/index.ts', 'deepchat-cli', 'miowork-cli'],
+  ['docs/guides/cli.md', 'deepchat-cli', 'miowork-cli'],
+  ['resources/skills/miowork-cli/SKILL.md', 'deepchat-cli', 'miowork-cli'],
+  ['resources/skills/miowork-settings/SKILL.md', 'deepchat-settings', 'miowork-settings'],
+  ['src/main/tool/agentTools/chatSettingsTools.ts', 'deepchat-settings', 'miowork-settings'],
+  ['src/main/tool/index.ts', 'deepchat-settings', 'miowork-settings'],
+  ['src/main/app/sessionPermissionAdapter.ts', 'deepchat-settings', 'miowork-settings'],
+  ['src/main/agent/deepchat/runtime/interactionCoordinator.ts', 'deepchat-settings', 'miowork-settings'],
+  ['src/main/skill/toolNameMapping.ts', 'deepchat-settings', 'miowork-settings'],
+  ['src/renderer/settings/components/DeepChatAgentsSettings.vue', 'deepchat-settings', 'miowork-settings'],
+  ['src/renderer/src/components/chat-input/McpIndicator.vue', 'deepchat-settings', 'miowork-settings'],
+  // 测试契约跟随：上游 merge 后旧技能名由这里重放，测试不会红在字面量上
+  ['test/main/agent/deepchat/runtime/dispatch.test.ts', 'deepchat-settings', 'miowork-settings'],
+  ['test/main/agent/deepchat/runtime/process.test.ts', 'deepchat-settings', 'miowork-settings'],
+  ['test/main/agent/deepchat/harness/deepChatAgentHarness.test.ts', 'deepchat-settings', 'miowork-settings'],
+  ['test/main/agent/deepchat/loop/deepChatLoopEngine.test.ts', 'deepchat-settings', 'miowork-settings'],
+  ['test/main/app/sessionPermissionAdapter.test.ts', 'deepchat-settings', 'miowork-settings'],
+  ['test/main/tool/agentTools/agentToolManagerSettings.test.ts', 'deepchat-settings', 'miowork-settings'],
+  ['test/renderer/components/McpIndicator.test.ts', 'deepchat-settings', 'miowork-settings']
+]
+for (const [relPath, from, to] of SKILL_NAME_EDITS) {
+  editFile(relPath, [{ old: from, new: to, must: true, okIf: to }])
+}
+
+// ---------- 7. README（fork 版；上游原文随时可从 upstream remote 取回） ----------
 
 const readme = `# ${cfg.productName}
 
@@ -444,7 +490,8 @@ pnpm run i18n && pnpm run lint && mise exec -- pnpm run typecheck && pnpm run te
 
 - \`agentType: 'deepchat'\`、\`window.deepchat\`、\`DEEPCHAT_*\` 环境变量与 IPC 频道名
 - \`src/main/agent/deepchat/\` 模块路径、\`deepchat://\` 协议、CLI 二进制名 \`deepchat\`
-- resources/skills 内置技能名（\`deepchat-cli\`/\`deepchat-settings\`）与技能内 CLI 命令字面量
+- 技能内 CLI 命令字面量与 \`deepchat_settings_*\` 工具名（技能名已 OEM 化为
+  \`miowork-cli\`/\`miowork-settings\`，由第 6 节重放）
 - i18n key 与值中的小写 \`deepchat\`（受保护内置 Agent 的数据库标识）、\`deepchat-inmemory\`
 - CUA 插件资产名（DeepChat Computer Use.app 等）与 \`electron-builder.yml\` 的 \`signIgnore\`
 - \`x-scheme-handler/deepchat\`、上游插件/公共配置下载源（保持跟随官方更新）
@@ -464,7 +511,7 @@ Node 版本要求见 \`mise.toml\`（Node 24.x / pnpm 10.x）。
 writeFileSync(join(root, 'README.md'), readme)
 report.changed.push('README.md (fork 版)')
 
-// ---------- 7. 二轮收敛：独立品牌词清扫（标识符自适应保护） ----------
+// ---------- 8. 二轮收敛：独立品牌词清扫（标识符自适应保护） ----------
 
 // 为什么用扫描而不是逐条清单：上游 merge 后新增的品牌串无需维护清单即可被再次收敛。
 // 安全性按构造保证：
@@ -475,8 +522,9 @@ report.changed.push('README.md (fork 版)')
 //  - 显式掩码：CUA 插件资产名（DeepChat Computer Use，与 signIgnore/插件清单是硬合同）、
 //    X-DeepChat-Artifact-Id 协议头
 //  - 小写 deepchat（agentType/IPC 频道/协议/表名/CLI 二进制名/DEEPCHAT_* 环境变量）
-//    大小写敏感，天然不匹配；resources/skills 的技能目录名/frontmatter name/工具名/
-//    CLI 命令字面量同为小写，同样天然不匹配，SKILL.md 里的品牌散文随扫随清
+//    大小写敏感，天然不匹配；resources/skills 的工具名（deepchat_settings_*）与 CLI 命令
+//    字面量同为小写，同样天然不匹配；技能目录/frontmatter 已由第 6 节显式改名，
+//    SKILL.md 里的品牌散文随扫随清
 // DeepChat.app 保留：packageContract 的「另一个 app」非法夹具依赖它与 MioAgent.app 并存，
 // 清成双 MioAgent 根会让夹具语义从「异包」退化成「重复根」
 const SWEEP_MASKS = ['DeepChat Computer Use', 'X-DeepChat-Artifact-Id', 'x-deepchat-artifact-id', 'DeepChat.app']

@@ -493,7 +493,7 @@ describe('McpIndicator', () => {
     toolService.getConfigurableAgentToolDefinitions.mockClear()
     skillEvents.emitSessionChanged({
       conversationId: 's1',
-      skills: ['deepchat-settings'],
+      skills: ['miowork-settings'],
       change: 'activated'
     })
     await flushPromises()

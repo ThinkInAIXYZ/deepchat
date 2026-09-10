@@ -92,7 +92,7 @@ deepchat image generate --help
 | 11  | MCP 管理              | `mcp list/add/update/enable/disable/start/stop/remove`                 | 仅公开管理面，不暴露 raw MCP tool tunnel                         |
 | 12  | Artifact 管理         | `artifact describe/get/delete`                                         | ownership、TTL、hash、配额与跨文件系统 no-overwrite              |
 | 13  | 诊断和 benchmark 输出 | `system ...`, JSON/JSONL、stdin、timeout                               | 外部 harness 负责数据集、重复、打分和冷启动                      |
-| 14  | Agent scoped CLI      | bundled `deepchat-cli` Skill                                           | main 签发短期、按调用和字节限额的 token，不暴露 human descriptor |
+| 14  | Agent scoped CLI      | bundled `miowork-cli` Skill                                           | main 签发短期、按调用和字节限额的 token，不暴露 human descriptor |
 
 ## 模型、媒体与 OCR
 
@@ -248,7 +248,7 @@ human-only。Skill/MCP 的脱敏列表可直接读取。
 | canonical protocol 与 route contracts                   | `src/shared/contracts`                                 |
 | 通用批准状态机                                          | `src/main/approval`                                    |
 | Agent shell gate                                        | `src/main/tool/permission/commandPermissionService.ts` |
-| bundled Agent instructions                              | `resources/skills/deepchat-cli/SKILL.md`               |
+| bundled Agent instructions                              | `resources/skills/miowork-cli/SKILL.md`               |
 
 main 只监听 UDS 或 named pipe，不开放 TCP fallback。CLI surface 引用 canonical typed contracts，但
 不是内部 route registry 的通用代理。新增能力必须显式加入 surface，并同时定义 caller、scope、

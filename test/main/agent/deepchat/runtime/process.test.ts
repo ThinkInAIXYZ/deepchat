@@ -101,8 +101,8 @@ function makeRuntimeSkillResolution(content = '# Effective Skill body') {
     identity: {
       agentId: 'deepchat',
       sourceType: 'created' as const,
-      sourceId: '/skills/deepchat-settings',
-      skillName: 'deepchat-settings'
+      sourceId: '/skills/miowork-settings',
+      skillName: 'miowork-settings'
     },
     effectiveContent: content,
     builderVersion: 'builder-1',
@@ -3545,26 +3545,26 @@ describe('processStream', () => {
           options?.commitDispatch?.({
             toolName: request.function.name,
             toolSource: 'agent',
-            normalizedArguments: { name: 'deepchat-settings' },
+            normalizedArguments: { name: 'miowork-settings' },
             target: { serverName: 'agent-skills', originalName: 'skill_view' }
           })
           return {
             content:
-              '{"success":true,"name":"deepchat-settings","isPinned":false,"activeForCurrentMessage":true,"activatedForMessage":true,"activationScope":"message"}',
+              '{"success":true,"name":"miowork-settings","isPinned":false,"activeForCurrentMessage":true,"activatedForMessage":true,"activationScope":"message"}',
             rawData: {
               toolCallId: 'tc1',
               content:
-                '{"success":true,"name":"deepchat-settings","isPinned":false,"activeForCurrentMessage":true,"activatedForMessage":true,"activationScope":"message"}',
+                '{"success":true,"name":"miowork-settings","isPinned":false,"activeForCurrentMessage":true,"activatedForMessage":true,"activationScope":"message"}',
               isError: false,
               toolResult: {
                 activationApplied: true,
                 activationSource: 'skill_md',
-                activatedSkill: 'deepchat-settings',
+                activatedSkill: 'miowork-settings',
                 skillContext: {
                   agentId: 'deepchat',
                   sourceType: 'created',
-                  sourceId: '/skills/deepchat-settings',
-                  skillName: 'deepchat-settings'
+                  sourceId: '/skills/miowork-settings',
+                  skillName: 'miowork-settings'
                 },
                 skillResolution
               }
@@ -3608,7 +3608,7 @@ describe('processStream', () => {
             yield {
               type: 'tool_call_end',
               tool_call_id: 'tc1',
-              tool_call_arguments_complete: '{"name":"deepchat-settings"}'
+              tool_call_arguments_complete: '{"name":"miowork-settings"}'
             } as LLMCoreStreamEvent
             yield { type: 'stop', stop_reason: 'tool_use' } as LLMCoreStreamEvent
           })()
@@ -3619,7 +3619,7 @@ describe('processStream', () => {
             expect.objectContaining({
               role: 'tool',
               tool_call_id: 'tc1',
-              content: expect.stringContaining('deepchat-settings')
+              content: expect.stringContaining('miowork-settings')
             })
           )
           expect(tools.map((tool) => tool.function.name)).toEqual([
@@ -3665,11 +3665,11 @@ describe('processStream', () => {
     await vi.runAllTimersAsync()
     await promise
 
-    expect(activateSkill).toHaveBeenCalledWith('deepchat-settings')
+    expect(activateSkill).toHaveBeenCalledWith('miowork-settings')
     expect(getActiveSkillNames).toHaveBeenCalled()
     expect(resolveTools).toHaveBeenCalledTimes(1)
     expect(resolveTools).toHaveBeenCalledWith({
-      activeSkillNames: ['deepchat-settings'],
+      activeSkillNames: ['miowork-settings'],
       failClosed: true
     })
     expect(commitRuntimeSkillView).toHaveBeenCalledBefore(activateSkill)
@@ -3706,26 +3706,26 @@ describe('processStream', () => {
         options?.commitDispatch?.({
           toolName: request.function.name,
           toolSource: 'agent',
-          normalizedArguments: { name: 'deepchat-settings' },
+          normalizedArguments: { name: 'miowork-settings' },
           target: { serverName: 'agent-skills', originalName: 'skill_view' }
         })
         return {
           content:
-            '{"success":true,"name":"deepchat-settings","isPinned":false,"activeForCurrentMessage":true,"activatedForMessage":true,"activationScope":"message"}',
+            '{"success":true,"name":"miowork-settings","isPinned":false,"activeForCurrentMessage":true,"activatedForMessage":true,"activationScope":"message"}',
           rawData: {
             toolCallId: request.id,
             content:
-              '{"success":true,"name":"deepchat-settings","isPinned":false,"activeForCurrentMessage":true,"activatedForMessage":true,"activationScope":"message"}',
+              '{"success":true,"name":"miowork-settings","isPinned":false,"activeForCurrentMessage":true,"activatedForMessage":true,"activationScope":"message"}',
             isError: false,
             toolResult: {
               activationApplied: true,
               activationSource: 'skill_md',
-              activatedSkill: 'deepchat-settings',
+              activatedSkill: 'miowork-settings',
               skillContext: {
                 agentId: 'deepchat',
                 sourceType: 'created',
-                sourceId: '/skills/deepchat-settings',
-                skillName: 'deepchat-settings'
+                sourceId: '/skills/miowork-settings',
+                skillName: 'miowork-settings'
               },
               skillResolution
             }
@@ -3787,7 +3787,7 @@ describe('processStream', () => {
             yield {
               type: 'tool_call_end',
               tool_call_id: 'tc1',
-              tool_call_arguments_complete: '{"name":"deepchat-settings"}'
+              tool_call_arguments_complete: '{"name":"miowork-settings"}'
             } as LLMCoreStreamEvent
             yield { type: 'stop', stop_reason: 'tool_use' } as LLMCoreStreamEvent
           })()
@@ -3818,7 +3818,7 @@ describe('processStream', () => {
     await expect(promise).resolves.toMatchObject({ status: 'completed' })
 
     expect(resolveTools).toHaveBeenCalledWith({
-      activeSkillNames: ['deepchat-settings'],
+      activeSkillNames: ['miowork-settings'],
       failClosed: true
     })
     expect(coreStream).toHaveBeenCalledTimes(2)
@@ -3828,7 +3828,7 @@ describe('processStream', () => {
     const skillResolution = makeRuntimeSkillResolution()
     const responseText = JSON.stringify({
       success: true,
-      name: 'deepchat-settings',
+      name: 'miowork-settings',
       content: '# Effective Skill body',
       activatedForMessage: true,
       activationScope: 'message',
@@ -3840,7 +3840,7 @@ describe('processStream', () => {
         options?.commitDispatch?.({
           toolName: request.function.name,
           toolSource: 'agent',
-          normalizedArguments: { name: 'deepchat-settings' },
+          normalizedArguments: { name: 'miowork-settings' },
           target: { serverName: 'agent-skills', originalName: 'skill_view' }
         })
         return {
@@ -3852,12 +3852,12 @@ describe('processStream', () => {
             toolResult: {
               activationApplied: true,
               activationSource: 'skill_md',
-              activatedSkill: 'deepchat-settings',
+              activatedSkill: 'miowork-settings',
               skillContext: {
                 agentId: 'deepchat',
                 sourceType: 'created',
-                sourceId: '/skills/deepchat-settings',
-                skillName: 'deepchat-settings'
+                sourceId: '/skills/miowork-settings',
+                skillName: 'miowork-settings'
               },
               skillResolution
             }
@@ -3880,7 +3880,7 @@ describe('processStream', () => {
         yield {
           type: 'tool_call_end',
           tool_call_id: 'tc1',
-          tool_call_arguments_complete: '{"name":"deepchat-settings"}'
+          tool_call_arguments_complete: '{"name":"miowork-settings"}'
         } as LLMCoreStreamEvent
         yield { type: 'stop', stop_reason: 'tool_use' } as LLMCoreStreamEvent
       })()
@@ -3909,7 +3909,7 @@ describe('processStream', () => {
 
     expect(activateSkill).toHaveBeenCalledOnce()
     expect(resolveTools).toHaveBeenCalledWith({
-      activeSkillNames: ['deepchat-settings'],
+      activeSkillNames: ['miowork-settings'],
       failClosed: true
     })
     expect(coreStream).toHaveBeenCalledOnce()
@@ -3921,11 +3921,11 @@ describe('processStream', () => {
       ...createMockToolService(),
       callTool: vi.fn().mockResolvedValue({
         content:
-          '{"success":true,"name":"deepchat-settings","filePath":"references/guide.md","isPinned":false}',
+          '{"success":true,"name":"miowork-settings","filePath":"references/guide.md","isPinned":false}',
         rawData: {
           toolCallId: 'tc1',
           content:
-            '{"success":true,"name":"deepchat-settings","filePath":"references/guide.md","isPinned":false}',
+            '{"success":true,"name":"miowork-settings","filePath":"references/guide.md","isPinned":false}',
           isError: false,
           toolResult: {
             activationApplied: false,
@@ -3951,7 +3951,7 @@ describe('processStream', () => {
               type: 'tool_call_end',
               tool_call_id: 'tc1',
               tool_call_arguments_complete:
-                '{"name":"deepchat-settings","file_path":"references/guide.md"}'
+                '{"name":"miowork-settings","file_path":"references/guide.md"}'
             } as LLMCoreStreamEvent
             yield { type: 'stop', stop_reason: 'tool_use' } as LLMCoreStreamEvent
           })()

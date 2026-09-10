@@ -154,8 +154,8 @@ function makeRuntimeSkillResolution(content = '# Effective Skill body') {
     identity: {
       agentId: 'deepchat',
       sourceType: 'created' as const,
-      sourceId: '/skills/deepchat-settings',
-      skillName: 'deepchat-settings'
+      sourceId: '/skills/miowork-settings',
+      skillName: 'miowork-settings'
     },
     effectiveContent: content,
     builderVersion: 'builder-1',
@@ -176,12 +176,12 @@ function makeRuntimeSkillToolResult(
   return {
     activationApplied: true,
     activationSource: 'skill_md',
-    activatedSkill: 'deepchat-settings',
+    activatedSkill: 'miowork-settings',
     skillContext: {
       agentId: 'deepchat',
       sourceType: 'created',
-      sourceId: '/skills/deepchat-settings',
-      skillName: 'deepchat-settings'
+      sourceId: '/skills/miowork-settings',
+      skillName: 'miowork-settings'
     },
     skillResolution: makeRuntimeSkillResolution(),
     ...overrides
@@ -5392,7 +5392,7 @@ describe('dispatch', () => {
       const skillResolution = makeRuntimeSkillResolution()
       const responseText = JSON.stringify({
         success: true,
-        name: 'deepchat-settings',
+        name: 'miowork-settings',
         content: skillResolution.effectiveContent,
         activatedForMessage: true,
         activationScope: 'message'
@@ -5403,7 +5403,7 @@ describe('dispatch', () => {
           options?.commitDispatch?.({
             toolName: request.function.name,
             toolSource: 'agent',
-            normalizedArguments: { name: 'deepchat-settings' },
+            normalizedArguments: { name: 'miowork-settings' },
             target: { serverName: 'agent-skills', originalName: 'skill_view' }
           })
           return {
@@ -5426,12 +5426,12 @@ describe('dispatch', () => {
         tool_call: {
           id: 'tc1',
           name: 'skill_view',
-          params: '{"name":"deepchat-settings"}',
+          params: '{"name":"miowork-settings"}',
           response: ''
         }
       })
       state.completedToolCalls = [
-        { id: 'tc1', name: 'skill_view', arguments: '{"name":"deepchat-settings"}' }
+        { id: 'tc1', name: 'skill_view', arguments: '{"name":"miowork-settings"}' }
       ]
 
       const result = await settleToolBatch(
@@ -5448,7 +5448,7 @@ describe('dispatch', () => {
         1024,
         {
           commitRuntimeSkillView: vi.fn(),
-          activateSkill: vi.fn().mockResolvedValue(['deepchat-settings']),
+          activateSkill: vi.fn().mockResolvedValue(['miowork-settings']),
           executionJournal: {
             commitDispatch: vi.fn(() => ({ sessionId: 's1', entryId: 1, created: true })),
             commitToolOutcome: vi.fn(() => ({ sessionId: 's1', entryId: 2, created: true }))
@@ -5467,7 +5467,7 @@ describe('dispatch', () => {
         options?.commitDispatch?.({
           toolName: request.function.name,
           toolSource: 'agent',
-          normalizedArguments: { name: 'deepchat-settings' },
+          normalizedArguments: { name: 'miowork-settings' },
           target: { serverName: 'agent-skills', originalName: 'skill_view' }
         })
         order.push('dispatch')
@@ -5489,12 +5489,12 @@ describe('dispatch', () => {
         tool_call: {
           id: 'tc1',
           name: 'skill_view',
-          params: '{"name":"deepchat-settings"}',
+          params: '{"name":"miowork-settings"}',
           response: ''
         }
       })
       state.completedToolCalls = [
-        { id: 'tc1', name: 'skill_view', arguments: '{"name":"deepchat-settings"}' }
+        { id: 'tc1', name: 'skill_view', arguments: '{"name":"miowork-settings"}' }
       ]
       let activationApplied = false
       const apply = vi.fn(() => {
@@ -5519,7 +5519,7 @@ describe('dispatch', () => {
             order.push('prepare')
             return { kind: 'prepared', apply }
           }),
-          getActiveSkillNames: () => (activationApplied ? ['deepchat-settings'] : []),
+          getActiveSkillNames: () => (activationApplied ? ['miowork-settings'] : []),
           activateSkill: vi.fn(),
           commitRuntimeSkillView: vi.fn(() => order.push('materialize')),
           executionJournal: {
@@ -5547,7 +5547,7 @@ describe('dispatch', () => {
         options?.commitDispatch?.({
           toolName: request.function.name,
           toolSource: 'agent',
-          normalizedArguments: { name: 'deepchat-settings' },
+          normalizedArguments: { name: 'miowork-settings' },
           target: { serverName: 'agent-skills', originalName: 'skill_view' }
         })
         return {
@@ -5568,12 +5568,12 @@ describe('dispatch', () => {
         tool_call: {
           id: 'tc1',
           name: 'skill_view',
-          params: '{"name":"deepchat-settings"}',
+          params: '{"name":"miowork-settings"}',
           response: ''
         }
       })
       state.completedToolCalls = [
-        { id: 'tc1', name: 'skill_view', arguments: '{"name":"deepchat-settings"}' }
+        { id: 'tc1', name: 'skill_view', arguments: '{"name":"miowork-settings"}' }
       ]
       const apply = vi.fn(() => order.push('apply'))
 
@@ -5620,7 +5620,7 @@ describe('dispatch', () => {
         options?.commitDispatch?.({
           toolName: request.function.name,
           toolSource: 'agent',
-          normalizedArguments: { name: 'deepchat-settings' },
+          normalizedArguments: { name: 'miowork-settings' },
           target: { serverName: 'agent-skills', originalName: 'skill_view' }
         })
         return {
@@ -5641,12 +5641,12 @@ describe('dispatch', () => {
         tool_call: {
           id: 'tc1',
           name: 'skill_view',
-          params: '{"name":"deepchat-settings"}',
+          params: '{"name":"miowork-settings"}',
           response: ''
         }
       })
       state.completedToolCalls = [
-        { id: 'tc1', name: 'skill_view', arguments: '{"name":"deepchat-settings"}' }
+        { id: 'tc1', name: 'skill_view', arguments: '{"name":"miowork-settings"}' }
       ]
       const apply = vi.fn()
       const journalError = new ExecutionJournalError('outcome unavailable', 'persistence_failed')
@@ -5701,12 +5701,12 @@ describe('dispatch', () => {
         tool_call: {
           id: 'tc1',
           name: 'skill_view',
-          params: '{"name":"deepchat-settings"}',
+          params: '{"name":"miowork-settings"}',
           response: ''
         }
       })
       state.completedToolCalls = [
-        { id: 'tc1', name: 'skill_view', arguments: '{"name":"deepchat-settings"}' }
+        { id: 'tc1', name: 'skill_view', arguments: '{"name":"miowork-settings"}' }
       ]
       const prepareSkillActivation = vi.fn()
       const commitToolOutcome = vi.fn()
@@ -5749,7 +5749,7 @@ describe('dispatch', () => {
         options?.commitDispatch?.({
           toolName: request.function.name,
           toolSource: 'agent',
-          normalizedArguments: { name: 'deepchat-settings' },
+          normalizedArguments: { name: 'miowork-settings' },
           target: { serverName: 'agent-skills', originalName: 'skill_view' }
         })
         return {
@@ -5770,12 +5770,12 @@ describe('dispatch', () => {
         tool_call: {
           id: 'tc1',
           name: 'skill_view',
-          params: '{"name":"deepchat-settings"}',
+          params: '{"name":"miowork-settings"}',
           response: ''
         }
       })
       state.completedToolCalls = [
-        { id: 'tc1', name: 'skill_view', arguments: '{"name":"deepchat-settings"}' }
+        { id: 'tc1', name: 'skill_view', arguments: '{"name":"miowork-settings"}' }
       ]
       const commitToolOutcome = vi.fn(() => ({
         sessionId: 's1',
@@ -5824,7 +5824,7 @@ describe('dispatch', () => {
         options?.commitDispatch?.({
           toolName: request.function.name,
           toolSource: 'agent',
-          normalizedArguments: { name: 'deepchat-settings' },
+          normalizedArguments: { name: 'miowork-settings' },
           target: { serverName: 'agent-skills', originalName: 'skill_view' }
         })
         abortController.abort()
@@ -5846,12 +5846,12 @@ describe('dispatch', () => {
         tool_call: {
           id: 'tc1',
           name: 'skill_view',
-          params: '{"name":"deepchat-settings"}',
+          params: '{"name":"miowork-settings"}',
           response: ''
         }
       })
       state.completedToolCalls = [
-        { id: 'tc1', name: 'skill_view', arguments: '{"name":"deepchat-settings"}' }
+        { id: 'tc1', name: 'skill_view', arguments: '{"name":"miowork-settings"}' }
       ]
       const prepareSkillActivation = vi.fn()
       const commitToolOutcome = vi.fn(() => ({
@@ -5895,13 +5895,13 @@ describe('dispatch', () => {
       const skillResolution = makeRuntimeSkillResolution()
       const rootViewText = JSON.stringify({
         success: true,
-        name: 'deepchat-settings',
+        name: 'miowork-settings',
         content: skillResolution.effectiveContent,
         activatedForMessage: true
       })
       const confirmationText = JSON.stringify({
         success: true,
-        name: 'deepchat-settings',
+        name: 'miowork-settings',
         activeForCurrentMessage: true,
         activatedForMessage: false,
         message: 'Skill is already active for the current message.'
@@ -5909,7 +5909,7 @@ describe('dispatch', () => {
       const toolService = {
         ...createMockToolService(),
         callTool: vi.fn().mockImplementation(async (request, options) => {
-          if (options?.activeSkillNames?.includes('deepchat-settings')) {
+          if (options?.activeSkillNames?.includes('miowork-settings')) {
             return {
               content: confirmationText,
               rawData: {
@@ -5923,7 +5923,7 @@ describe('dispatch', () => {
           options?.commitDispatch?.({
             toolName: request.function.name,
             toolSource: 'agent',
-            normalizedArguments: { name: 'deepchat-settings' },
+            normalizedArguments: { name: 'miowork-settings' },
             target: { serverName: 'agent-skills', originalName: 'skill_view' }
           })
           return {
@@ -5935,12 +5935,12 @@ describe('dispatch', () => {
               toolResult: {
                 activationApplied: true,
                 activationSource: 'skill_md',
-                activatedSkill: 'deepchat-settings',
+                activatedSkill: 'miowork-settings',
                 skillContext: {
                   agentId: 'deepchat',
                   sourceType: 'created',
-                  sourceId: '/skills/deepchat-settings',
-                  skillName: 'deepchat-settings'
+                  sourceId: '/skills/miowork-settings',
+                  skillName: 'miowork-settings'
                 },
                 skillResolution
               }
@@ -5961,7 +5961,7 @@ describe('dispatch', () => {
           tool_call: {
             id: toolCallId,
             name: 'skill_view',
-            params: '{"name":"deepchat-settings"}',
+            params: '{"name":"miowork-settings"}',
             response: ''
           }
         })
@@ -5969,7 +5969,7 @@ describe('dispatch', () => {
       state.completedToolCalls = ['tc1', 'tc2'].map((id) => ({
         id,
         name: 'skill_view',
-        arguments: '{"name":"deepchat-settings"}'
+        arguments: '{"name":"miowork-settings"}'
       }))
 
       await settleToolBatch(
@@ -5989,7 +5989,7 @@ describe('dispatch', () => {
 
       expect(toolService.callTool).toHaveBeenCalledTimes(2)
       expect(vi.mocked(toolService.callTool).mock.calls[1][1]?.activeSkillNames).toEqual([
-        'deepchat-settings'
+        'miowork-settings'
       ])
       expect(commitRuntimeSkillView).toHaveBeenCalledOnce()
       expect(commitRuntimeSkillView).toHaveBeenCalledWith(
@@ -6022,24 +6022,24 @@ describe('dispatch', () => {
           options?.commitDispatch?.({
             toolName: request.function.name,
             toolSource: 'agent',
-            normalizedArguments: { name: 'deepchat-settings' },
+            normalizedArguments: { name: 'miowork-settings' },
             target: { serverName: 'agent-skills', originalName: 'skill_view' }
           })
           return {
-            content: '{"success":true,"name":"deepchat-settings"}',
+            content: '{"success":true,"name":"miowork-settings"}',
             rawData: {
               toolCallId: 'tc1',
-              content: '{"success":true,"name":"deepchat-settings"}',
+              content: '{"success":true,"name":"miowork-settings"}',
               isError: false,
               toolResult: {
                 activationApplied: true,
                 activationSource: 'skill_md',
-                activatedSkill: 'deepchat-settings',
+                activatedSkill: 'miowork-settings',
                 skillContext: {
                   agentId: 'deepchat',
                   sourceType: 'created',
-                  sourceId: '/skills/deepchat-settings',
-                  skillName: 'deepchat-settings'
+                  sourceId: '/skills/miowork-settings',
+                  skillName: 'miowork-settings'
                 },
                 ...(skillResolution ? { skillResolution } : {})
               }
@@ -6055,12 +6055,12 @@ describe('dispatch', () => {
         tool_call: {
           id: 'tc1',
           name: 'skill_view',
-          params: '{"name":"deepchat-settings"}',
+          params: '{"name":"miowork-settings"}',
           response: ''
         }
       })
       state.completedToolCalls = [
-        { id: 'tc1', name: 'skill_view', arguments: '{"name":"deepchat-settings"}' }
+        { id: 'tc1', name: 'skill_view', arguments: '{"name":"miowork-settings"}' }
       ]
       const commitRuntimeSkillView = vi.fn()
       const activateSkill = vi.fn()
@@ -6098,24 +6098,24 @@ describe('dispatch', () => {
           options?.commitDispatch?.({
             toolName: request.function.name,
             toolSource: 'agent',
-            normalizedArguments: { name: 'deepchat-settings' },
+            normalizedArguments: { name: 'miowork-settings' },
             target: { serverName: 'agent-skills', originalName: 'skill_view' }
           })
           return {
-            content: '{"success":true,"name":"deepchat-settings"}',
+            content: '{"success":true,"name":"miowork-settings"}',
             rawData: {
               toolCallId: 'tc1',
-              content: '{"success":true,"name":"deepchat-settings"}',
+              content: '{"success":true,"name":"miowork-settings"}',
               isError: false,
               toolResult: {
                 activationApplied: true,
                 activationSource: 'skill_md',
-                activatedSkill: 'deepchat-settings',
+                activatedSkill: 'miowork-settings',
                 skillContext: {
                   agentId: 'deepchat',
                   sourceType: 'created',
-                  sourceId: '/skills/deepchat-settings',
-                  skillName: 'deepchat-settings'
+                  sourceId: '/skills/miowork-settings',
+                  skillName: 'miowork-settings'
                 },
                 skillResolution
               }
@@ -6131,12 +6131,12 @@ describe('dispatch', () => {
         tool_call: {
           id: 'tc1',
           name: 'skill_view',
-          params: '{"name":"deepchat-settings"}',
+          params: '{"name":"miowork-settings"}',
           response: ''
         }
       })
       state.completedToolCalls = [
-        { id: 'tc1', name: 'skill_view', arguments: '{"name":"deepchat-settings"}' }
+        { id: 'tc1', name: 'skill_view', arguments: '{"name":"miowork-settings"}' }
       ]
 
       await expect(
@@ -6161,7 +6161,7 @@ describe('dispatch', () => {
         name: 'CommittedToolOutcomeProjectionError',
         code: 'projection_failed',
         cause: expect.objectContaining({
-          message: 'Runtime Skill-view activation did not activate deepchat-settings.'
+          message: 'Runtime Skill-view activation did not activate miowork-settings.'
         })
       })
 
@@ -6176,7 +6176,7 @@ describe('dispatch', () => {
       const skillResolution = makeRuntimeSkillResolution('x'.repeat(20_000))
       const responseText = JSON.stringify({
         success: true,
-        name: 'deepchat-settings',
+        name: 'miowork-settings',
         content: 'x'.repeat(20_000)
       })
       const commitToolOutcome = vi.fn(() => ({ sessionId: 's1', entryId: 2, created: true }))
@@ -6187,7 +6187,7 @@ describe('dispatch', () => {
         options?.commitDispatch?.({
           toolName: request.function.name,
           toolSource: 'agent',
-          normalizedArguments: { name: 'deepchat-settings' },
+          normalizedArguments: { name: 'miowork-settings' },
           target: { serverName: 'agent-skills', originalName: 'skill_view' }
         })
         return {
@@ -6199,12 +6199,12 @@ describe('dispatch', () => {
             toolResult: {
               activationApplied: true,
               activationSource: 'skill_md',
-              activatedSkill: 'deepchat-settings',
+              activatedSkill: 'miowork-settings',
               skillContext: {
                 agentId: 'deepchat',
                 sourceType: 'created',
-                sourceId: '/skills/deepchat-settings',
-                skillName: 'deepchat-settings'
+                sourceId: '/skills/miowork-settings',
+                skillName: 'miowork-settings'
               },
               skillResolution
             }
@@ -6219,12 +6219,12 @@ describe('dispatch', () => {
         tool_call: {
           id: 'tc1',
           name: 'skill_view',
-          params: '{"name":"deepchat-settings"}',
+          params: '{"name":"miowork-settings"}',
           response: ''
         }
       })
       state.completedToolCalls = [
-        { id: 'tc1', name: 'skill_view', arguments: '{"name":"deepchat-settings"}' }
+        { id: 'tc1', name: 'skill_view', arguments: '{"name":"miowork-settings"}' }
       ]
 
       await settleToolBatch(
@@ -6263,13 +6263,13 @@ describe('dispatch', () => {
     it('fails closed when final fitting changes a committed runtime Skill view', async () => {
       const tools = [makeAgentTool('skill_view')]
       const skillResolution = makeRuntimeSkillResolution()
-      const responseText = '{"success":true,"name":"deepchat-settings"}'
+      const responseText = '{"success":true,"name":"miowork-settings"}'
       const toolService = createMockToolService()
       vi.mocked(toolService.callTool).mockImplementation(async (request, options) => {
         options?.commitDispatch?.({
           toolName: request.function.name,
           toolSource: 'agent',
-          normalizedArguments: { name: 'deepchat-settings' },
+          normalizedArguments: { name: 'miowork-settings' },
           target: { serverName: 'agent-skills', originalName: 'skill_view' }
         })
         return {
@@ -6281,12 +6281,12 @@ describe('dispatch', () => {
             toolResult: {
               activationApplied: true,
               activationSource: 'skill_md',
-              activatedSkill: 'deepchat-settings',
+              activatedSkill: 'miowork-settings',
               skillContext: {
                 agentId: 'deepchat',
                 sourceType: 'created',
-                sourceId: '/skills/deepchat-settings',
-                skillName: 'deepchat-settings'
+                sourceId: '/skills/miowork-settings',
+                skillName: 'miowork-settings'
               },
               skillResolution
             }
@@ -6316,12 +6316,12 @@ describe('dispatch', () => {
         tool_call: {
           id: 'tc1',
           name: 'skill_view',
-          params: '{"name":"deepchat-settings"}',
+          params: '{"name":"miowork-settings"}',
           response: ''
         }
       })
       state.completedToolCalls = [
-        { id: 'tc1', name: 'skill_view', arguments: '{"name":"deepchat-settings"}' }
+        { id: 'tc1', name: 'skill_view', arguments: '{"name":"miowork-settings"}' }
       ]
       const commitRuntimeSkillView = vi.fn()
       const activateSkill = vi.fn()
@@ -6370,13 +6370,13 @@ describe('dispatch', () => {
     it('fails closed when final fitting cannot keep a committed runtime Skill view inline', async () => {
       const tools = [makeAgentTool('skill_view')]
       const skillResolution = makeRuntimeSkillResolution()
-      const responseText = '{"success":true,"name":"deepchat-settings"}'
+      const responseText = '{"success":true,"name":"miowork-settings"}'
       const toolService = createMockToolService()
       vi.mocked(toolService.callTool).mockImplementation(async (request, options) => {
         options?.commitDispatch?.({
           toolName: request.function.name,
           toolSource: 'agent',
-          normalizedArguments: { name: 'deepchat-settings' },
+          normalizedArguments: { name: 'miowork-settings' },
           target: { serverName: 'agent-skills', originalName: 'skill_view' }
         })
         return {
@@ -6388,12 +6388,12 @@ describe('dispatch', () => {
             toolResult: {
               activationApplied: true,
               activationSource: 'skill_md',
-              activatedSkill: 'deepchat-settings',
+              activatedSkill: 'miowork-settings',
               skillContext: {
                 agentId: 'deepchat',
                 sourceType: 'created',
-                sourceId: '/skills/deepchat-settings',
-                skillName: 'deepchat-settings'
+                sourceId: '/skills/miowork-settings',
+                skillName: 'miowork-settings'
               },
               skillResolution
             }
@@ -6424,12 +6424,12 @@ describe('dispatch', () => {
         tool_call: {
           id: 'tc1',
           name: 'skill_view',
-          params: '{"name":"deepchat-settings"}',
+          params: '{"name":"miowork-settings"}',
           response: ''
         }
       })
       state.completedToolCalls = [
-        { id: 'tc1', name: 'skill_view', arguments: '{"name":"deepchat-settings"}' }
+        { id: 'tc1', name: 'skill_view', arguments: '{"name":"miowork-settings"}' }
       ]
 
       await expect(
@@ -6470,7 +6470,7 @@ describe('dispatch', () => {
         options?.commitDispatch?.({
           toolName: request.function.name,
           toolSource: 'agent',
-          normalizedArguments: { name: 'deepchat-settings' },
+          normalizedArguments: { name: 'miowork-settings' },
           target: { serverName: 'agent-skills', originalName: 'skill_view' }
         })
         return {
@@ -6481,12 +6481,12 @@ describe('dispatch', () => {
             isError: false,
             toolResult: {
               activationApplied: true,
-              activatedSkill: 'deepchat-settings',
+              activatedSkill: 'miowork-settings',
               skillContext: {
                 agentId: 'deepchat',
                 sourceType: 'created',
-                sourceId: '/skills/deepchat-settings',
-                skillName: 'deepchat-settings'
+                sourceId: '/skills/miowork-settings',
+                skillName: 'miowork-settings'
               },
               skillResolution
             }
@@ -6501,12 +6501,12 @@ describe('dispatch', () => {
         tool_call: {
           id: 'tc1',
           name: 'skill_view',
-          params: '{"name":"deepchat-settings"}',
+          params: '{"name":"miowork-settings"}',
           response: ''
         }
       })
       state.completedToolCalls = [
-        { id: 'tc1', name: 'skill_view', arguments: '{"name":"deepchat-settings"}' }
+        { id: 'tc1', name: 'skill_view', arguments: '{"name":"miowork-settings"}' }
       ]
 
       await expect(
@@ -6560,24 +6560,24 @@ describe('dispatch', () => {
           options?.commitDispatch?.({
             toolName: request.function.name,
             toolSource: 'agent',
-            normalizedArguments: { name: 'deepchat-settings' },
+            normalizedArguments: { name: 'miowork-settings' },
             target: { serverName: 'agent-skills', originalName: 'skill_view' }
           })
           return {
-            content: '{"success":true,"name":"deepchat-settings"}',
+            content: '{"success":true,"name":"miowork-settings"}',
             rawData: {
               toolCallId: 'tc1',
-              content: '{"success":true,"name":"deepchat-settings"}',
+              content: '{"success":true,"name":"miowork-settings"}',
               isError: false,
               toolResult: {
                 activationApplied: true,
                 activationSource: 'skill_md',
-                activatedSkill: 'deepchat-settings',
+                activatedSkill: 'miowork-settings',
                 skillContext: {
                   agentId: 'deepchat',
                   sourceType: 'created',
-                  sourceId: '/skills/deepchat-settings',
-                  skillName: 'deepchat-settings'
+                  sourceId: '/skills/miowork-settings',
+                  skillName: 'miowork-settings'
                 },
                 skillResolution
               }
@@ -6593,12 +6593,12 @@ describe('dispatch', () => {
         tool_call: {
           id: 'tc1',
           name: 'skill_view',
-          params: '{"name":"deepchat-settings"}',
+          params: '{"name":"miowork-settings"}',
           response: ''
         }
       })
       state.completedToolCalls = [
-        { id: 'tc1', name: 'skill_view', arguments: '{"name":"deepchat-settings"}' }
+        { id: 'tc1', name: 'skill_view', arguments: '{"name":"miowork-settings"}' }
       ]
 
       await expect(
@@ -6639,7 +6639,7 @@ describe('dispatch', () => {
       const skillResolution = makeRuntimeSkillResolution()
       const responseText = JSON.stringify({
         success: true,
-        name: 'deepchat-settings',
+        name: 'miowork-settings',
         content: '# Effective Skill body',
         activatedForMessage: true,
         activationScope: 'message',
@@ -6650,7 +6650,7 @@ describe('dispatch', () => {
         options?.commitDispatch?.({
           toolName: request.function.name,
           toolSource: 'agent',
-          normalizedArguments: { name: 'deepchat-settings' },
+          normalizedArguments: { name: 'miowork-settings' },
           target: { serverName: 'agent-skills', originalName: 'skill_view' }
         })
         return {
@@ -6662,12 +6662,12 @@ describe('dispatch', () => {
             toolResult: {
               activationApplied: true,
               activationSource: 'skill_md',
-              activatedSkill: 'deepchat-settings',
+              activatedSkill: 'miowork-settings',
               skillContext: {
                 agentId: 'deepchat',
                 sourceType: 'created',
-                sourceId: '/skills/deepchat-settings',
-                skillName: 'deepchat-settings'
+                sourceId: '/skills/miowork-settings',
+                skillName: 'miowork-settings'
               },
               skillResolution
             }
@@ -6690,12 +6690,12 @@ describe('dispatch', () => {
         tool_call: {
           id: 'tc1',
           name: 'skill_view',
-          params: '{"name":"deepchat-settings"}',
+          params: '{"name":"miowork-settings"}',
           response: ''
         }
       })
       state.completedToolCalls = [
-        { id: 'tc1', name: 'skill_view', arguments: '{"name":"deepchat-settings"}' }
+        { id: 'tc1', name: 'skill_view', arguments: '{"name":"miowork-settings"}' }
       ]
 
       await expect(
@@ -6759,7 +6759,7 @@ describe('dispatch', () => {
             isError: false,
             toolResult: {
               activationApplied: true,
-              activatedSkill: 'deepchat-settings'
+              activatedSkill: 'miowork-settings'
             }
           }
         }

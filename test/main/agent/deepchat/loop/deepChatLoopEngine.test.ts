@@ -391,7 +391,7 @@ describe('DeepChatLoopEngine', () => {
             : { type: 'terminal' }
         },
         settleToolBatch: async ({ run: currentRun }) => {
-          currentRun.resources.activeSkillNames = ['deepchat-settings']
+          currentRun.resources.activeSkillNames = ['miowork-settings']
           return { type: 'continue', executedToolCount: 1 }
         }
       },
@@ -399,6 +399,6 @@ describe('DeepChatLoopEngine', () => {
     )
 
     expect(outcome).toEqual({ type: 'terminal' })
-    expect(observedSkills).toEqual([[], ['deepchat-settings']])
+    expect(observedSkills).toEqual([[], ['miowork-settings']])
   })
 })

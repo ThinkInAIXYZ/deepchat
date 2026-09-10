@@ -86,7 +86,7 @@ import {
 } from './agentSkillRoots'
 
 const execFileAsync = promisify(execFile)
-const READ_ONLY_BUNDLED_SKILL_NAMES = new Set(['deepchat-cli'])
+const READ_ONLY_BUNDLED_SKILL_NAMES = new Set(['miowork-cli'])
 const MAX_METADATA_SNAPSHOT_ITEMS = 4_096
 const EFFECTIVE_SKILL_CONTENT_BUILDER_VERSION = 'skill-effective-content-v3'
 // SHA-256 values cover the canonical manifest and complete pre-declaration resource tree.

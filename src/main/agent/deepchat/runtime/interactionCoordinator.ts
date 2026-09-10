@@ -974,7 +974,7 @@ export class InteractionCoordinator {
     const payloadToolName = payload.toolName?.trim()
     const toolCallName = toolCall.name?.trim()
     if (
-      (serverName === 'agent-filesystem' || serverName === 'deepchat-settings') &&
+      (serverName === 'agent-filesystem' || serverName === 'miowork-settings') &&
       payloadToolName &&
       toolCallName &&
       payloadToolName !== toolCallName
@@ -1043,7 +1043,7 @@ export class InteractionCoordinator {
       return { serverName, lease: grant.lease }
     }
 
-    if (serverName === 'deepchat-settings' && toolName) {
+    if (serverName === 'miowork-settings' && toolName) {
       const grant = await this.grantNonCommandPermission(sessionId, {
         permissionType: 'write',
         serverName,

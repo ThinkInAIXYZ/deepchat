@@ -160,7 +160,7 @@ describe('createSessionPermissionPort', () => {
 
     const grant = await port.approvePermission('session-1', {
       permissionType: 'write',
-      serverName: 'deepchat-settings',
+      serverName: 'miowork-settings',
       toolName: 'set_language'
     })
 

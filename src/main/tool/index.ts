@@ -2147,7 +2147,7 @@ export class ToolService implements ToolServicePort {
       this.buildTapePrompt(groupedTools.get(AGENT_TAPE_TOOL_SERVER_NAME) ?? []),
       this.buildCronJobPrompt(groupedTools.get(CRON_JOB_TOOL_SERVER_NAME) ?? []),
       this.buildSkillsPrompt(toolNames),
-      this.buildSettingsPrompt(groupedTools.get('deepchat-settings') ?? []),
+      this.buildSettingsPrompt(groupedTools.get('miowork-settings') ?? []),
       this.buildYoBrowserPrompt(groupedTools.get('yobrowser') ?? [])
     ]
 

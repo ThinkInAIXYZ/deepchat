@@ -508,10 +508,10 @@ describe('AgentToolManager MioWork settings tool gating', () => {
   it('returns runtime skill_view activation metadata without persisting session skills', async () => {
     skillService.getActiveSkills.mockResolvedValue([])
     skillService.getActiveSkillsAllowedTools.mockResolvedValue([])
-    const contentResolution = makeSkillResolution('deepchat-settings', '# Skill')
+    const contentResolution = makeSkillResolution('miowork-settings', '# Skill')
     skillService.viewSkillForAgent.mockResolvedValue({
       success: true,
-      name: 'deepchat-settings',
+      name: 'miowork-settings',
       filePath: null,
       content: '# Skill',
       isPinned: false,
@@ -523,7 +523,7 @@ describe('AgentToolManager MioWork settings tool gating', () => {
     const commitDispatch = vi.fn()
     const result = (await manager.callTool(
       'skill_view',
-      { name: ' deepchat-settings ' },
+      { name: ' miowork-settings ' },
       'conv-1',
       {
         activeSkillNames: [],
@@ -544,36 +544,36 @@ describe('AgentToolManager MioWork settings tool gating', () => {
     expect(commitDispatch).toHaveBeenCalledWith({
       toolName: 'skill_view',
       toolSource: 'agent',
-      normalizedArguments: { name: 'deepchat-settings' },
+      normalizedArguments: { name: 'miowork-settings' },
       target: { serverName: 'agent-skills', originalName: 'skill_view' }
     })
     expect(result.rawData?.toolResult).toEqual({
       activationApplied: true,
       activationSource: 'skill_md',
-      activatedSkill: 'deepchat-settings',
+      activatedSkill: 'miowork-settings',
       skillContext: {
         agentId: 'agent-a',
         sourceType: 'created',
-        sourceId: '/skills/deepchat-settings',
-        skillName: 'deepchat-settings'
+        sourceId: '/skills/miowork-settings',
+        skillName: 'miowork-settings'
       },
       skillResolution: contentResolution
     })
   })
 
   it('confirms an already-active root view without returning or dispatching its body again', async () => {
-    skillService.getActiveSkills.mockResolvedValue(['deepchat-settings'])
+    skillService.getActiveSkills.mockResolvedValue(['miowork-settings'])
     const manager = buildManager()
     const commitDispatch = vi.fn()
 
-    const result = (await manager.callTool('skill_view', { name: 'deepchat-settings' }, 'conv-1', {
-      activeSkillNames: ['deepchat-settings'],
+    const result = (await manager.callTool('skill_view', { name: 'miowork-settings' }, 'conv-1', {
+      activeSkillNames: ['miowork-settings'],
       commitDispatch
     })) as { content: string; rawData?: { toolResult?: unknown } }
 
     expect(JSON.parse(result.content)).toEqual({
       success: true,
-      name: 'deepchat-settings',
+      name: 'miowork-settings',
       isPinned: true,
       activeForCurrentMessage: true,
       activatedForMessage: false,
@@ -594,7 +594,7 @@ describe('AgentToolManager MioWork settings tool gating', () => {
     skillService.getActiveSkillsAllowedTools.mockResolvedValue([])
     skillService.viewSkillForAgent.mockResolvedValue({
       success: true,
-      name: 'deepchat-settings',
+      name: 'miowork-settings',
       filePath: 'references/guide.md',
       content: '# Guide',
       isPinned: false
@@ -604,19 +604,19 @@ describe('AgentToolManager MioWork settings tool gating', () => {
     const commitDispatch = vi.fn()
     const result = (await manager.callTool(
       'skill_view',
-      { name: 'deepchat-settings', file_path: 'references/guide.md' },
+      { name: 'miowork-settings', file_path: 'references/guide.md' },
       'conv-1',
-      { activeSkillNames: ['deepchat-settings'], commitDispatch }
+      { activeSkillNames: ['miowork-settings'], commitDispatch }
     )) as { rawData?: { toolResult?: unknown } }
 
     expect(result.rawData?.toolResult).toEqual({
       activationApplied: false,
       activationSource: 'file'
     })
-    expect(skillService.viewSkillForAgent).toHaveBeenCalledWith('agent-a', 'deepchat-settings', {
+    expect(skillService.viewSkillForAgent).toHaveBeenCalledWith('agent-a', 'miowork-settings', {
       filePath: 'references/guide.md',
       conversationId: 'conv-1',
-      activeSkillNames: ['deepchat-settings']
+      activeSkillNames: ['miowork-settings']
     })
     expect(commitDispatch).not.toHaveBeenCalled()
   })

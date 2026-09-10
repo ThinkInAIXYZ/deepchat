@@ -1,5 +1,5 @@
 ---
-name: deepchat-settings
+name: miowork-settings
 description: MioWork app settings modification (MioWork 设置/偏好) skill. Activate ONLY when the user explicitly asks to change MioWork's own settings/preferences (e.g., theme, language, font size...). Do NOT activate for OS/system settings, editor settings, or other apps.
 allowedTools:
   - deepchat_settings_toggle
@@ -18,7 +18,7 @@ Use this skill to safely change MioWork *application* settings during a conversa
 - Only change settings when the user is asking to change **MioWork** settings.
 - Use the dedicated settings tools; never attempt arbitrary key/value writes.
 - These tools are intended to be available only when this skill is active.
-- Viewing the main `deepchat-settings` `SKILL.md` activates this skill for the current conversation and exposes the `deepchat_settings_*` tools in the next tool loop iteration.
+- Viewing the main `miowork-settings` `SKILL.md` activates this skill for the current conversation and exposes the `deepchat_settings_*` tools in the next tool loop iteration.
 - Viewing linked files under this skill does **not** activate the skill.
 - If the request is ambiguous, ask a clarifying question before applying.
 - For unsupported or high-risk settings (MCP, prompts, providers, API keys, paths): do **not** apply changes; instead explain where to change it and open Settings.
@@ -44,7 +44,7 @@ Settings navigation (open-only):
 ## Workflow
 
 1. Confirm the user is requesting a MioWork settings change.
-2. If the settings tools are not yet present, inspect the main `deepchat-settings` skill document first so the skill becomes active for this conversation.
+2. If the settings tools are not yet present, inspect the main `miowork-settings` skill document first so the skill becomes active for this conversation.
 3. Determine the target setting and the intended value.
 4. If the setting is supported, call the matching tool:
    - toggles: `deepchat_settings_toggle`

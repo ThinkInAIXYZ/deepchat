@@ -18505,7 +18505,7 @@ describe('DeepChatAgentHarness', () => {
         string,
         unknown
       >
-      persistedPermission.serverName = 'deepchat-settings'
+      persistedPermission.serverName = 'miowork-settings'
       blocks[1].extra = {
         ...blocks[1].extra,
         permissionRequest: JSON.stringify(persistedPermission)

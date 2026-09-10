@@ -7,7 +7,7 @@ const CANONICAL_TOOL_NAMES = new Set([
   'ls',
   'exec',
   'process',
-  // Built-in MioWork settings tools exposed by the deepchat-settings skill.
+  // Built-in MioWork settings tools exposed by the miowork-settings skill.
   'deepchat_settings_toggle',
   'deepchat_settings_set_language',
   'deepchat_settings_set_theme',

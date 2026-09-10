@@ -13,7 +13,7 @@ import type { AgentDesktopToolPort, AgentDisplaySettingsPort } from '../runtimeP
 import type { SkillSettingsPort } from '@/skill/settings'
 import { REQUESTED_LOCALES } from '@shared/locales'
 
-export const CHAT_SETTINGS_SKILL_NAME = 'deepchat-settings'
+export const CHAT_SETTINGS_SKILL_NAME = 'miowork-settings'
 export const CHAT_SETTINGS_TOOL_NAMES = {
   toggle: 'deepchat_settings_toggle',
   setLanguage: 'deepchat_settings_set_language',
@@ -159,7 +159,7 @@ export class ChatSettingsToolHandler {
     const activeSkills =
       activeSkillNames ?? (await this.options.skillService.getActiveSkills(conversationId))
     if (!activeSkills.includes(CHAT_SETTINGS_SKILL_NAME)) {
-      return buildError('skill_inactive', 'deepchat-settings skill is not active.')
+      return buildError('skill_inactive', 'miowork-settings skill is not active.')
     }
     return null
   }
@@ -423,7 +423,7 @@ export const buildChatSettingsToolDefinitions = (allowedTools: string[]): MCPToo
         }
       },
       server: {
-        name: 'deepchat-settings',
+        name: 'miowork-settings',
         icons: 'settings',
         description: 'MioWork settings control'
       }
@@ -444,7 +444,7 @@ export const buildChatSettingsToolDefinitions = (allowedTools: string[]): MCPToo
         }
       },
       server: {
-        name: 'deepchat-settings',
+        name: 'miowork-settings',
         icons: 'settings',
         description: 'MioWork settings control'
       }
@@ -465,7 +465,7 @@ export const buildChatSettingsToolDefinitions = (allowedTools: string[]): MCPToo
         }
       },
       server: {
-        name: 'deepchat-settings',
+        name: 'miowork-settings',
         icons: 'settings',
         description: 'MioWork settings control'
       }
@@ -486,7 +486,7 @@ export const buildChatSettingsToolDefinitions = (allowedTools: string[]): MCPToo
         }
       },
       server: {
-        name: 'deepchat-settings',
+        name: 'miowork-settings',
         icons: 'settings',
         description: 'MioWork settings control'
       }
@@ -508,7 +508,7 @@ export const buildChatSettingsToolDefinitions = (allowedTools: string[]): MCPToo
         }
       },
       server: {
-        name: 'deepchat-settings',
+        name: 'miowork-settings',
         icons: 'settings',
         description: 'MioWork settings control'
       }

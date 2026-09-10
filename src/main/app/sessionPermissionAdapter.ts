@@ -136,7 +136,7 @@ export function createSessionPermissionPort(dependencies: {
         }
       }
 
-      if (serverName === 'deepchat-settings' && toolName) {
+      if (serverName === 'miowork-settings' && toolName) {
         const leaseId = settingsPermissionService.approveProvisional(sessionId, toolName)
         return {
           kind: 'granted',
