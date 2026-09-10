@@ -12,6 +12,7 @@ import {
   FakeVectorStore
 } from './support/memoryFakes'
 import { createControlledPromise } from './serviceHarness'
+import { makeRow } from './serviceTestSupport'
 
 function createPresenter(options: { enabled?: boolean; embedding?: boolean } = {}) {
   const repository = createFakeRepository()
@@ -44,6 +45,91 @@ function createPresenter(options: { enabled?: boolean; embedding?: boolean } = {
 }
 
 describe('RetrievalService diagnostics', () => {
+  it('revalidates batch vector candidates without losing pinned rows or query snapshots', async () => {
+    const repository = createFakeRepository()
+    const ids = ['valid', 'wrong-model', 'wrong-dimension', 'conflicted', 'archived', 'pinned']
+    for (const id of ids) {
+      repository.rows.set(id, makeRow(id, { agent_id: 'agent', embedding_dim: 4 }))
+    }
+    vi.spyOn(repository, 'searchWithStrategy').mockReturnValue({ rows: [], strategy: 'fts-only' })
+    const policy = {
+      resolveAgentConfig: () =>
+        ({
+          memoryEnabled: true,
+          memoryEmbedding: { providerId: 'p', modelId: 'm' }
+        }) as DeepChatAgentConfig
+    }
+    const ctx = new MemoryRuntimeContext({
+      policy,
+      providerControl: { abortAgent: vi.fn(), abortAll: vi.fn() }
+    })
+    const reindexEmbeddings = vi.fn(async () => undefined)
+    const backfillEmbeddings = vi.fn(async () => undefined)
+    const service = new RetrievalService({
+      ctx,
+      repository,
+      policy,
+      embeddingGateway: {
+        getEmbeddings: async () => [[1, 2, 3, 4]],
+        getDimensions: async () => ({ data: { dimensions: 4, normalized: false } })
+      },
+      vectorStore: {
+        getRecallHealth: () => 'available',
+        hasReadyCertificate: () => true,
+        query: async () => [],
+        queryBatch: async () => {
+          // Rows change after candidate discovery; only the authoritative state may be returned.
+          repository.rows.get('wrong-model')!.embedding_model = 'p:old'
+          repository.rows.get('wrong-dimension')!.embedding_dim = 3
+          repository.rows.get('conflicted')!.conflict_state = 'challenged'
+          repository.seedArchived('archived', 2000)
+          return [
+            ids.filter((id) => id !== 'pinned').map((memoryId) => ({ memoryId, distance: 0 }))
+          ]
+        },
+        markReady: () => undefined,
+        clearReady: vi.fn()
+      },
+      workingMemory: {
+        readWorkingMemory: () => null,
+        flushWorkingMemoryIfDirty: () => undefined,
+        scheduleWorkingRefresh: () => undefined
+      },
+      warmVectorStore: async () => undefined,
+      warmEmbeddingConnection: () => undefined,
+      reindexEmbeddings,
+      backfillEmbeddings,
+      isReindexing: () => false,
+      deletePrunableVectorsForMemoryIds: async () => [],
+      getActiveSuppressionTopics: () => []
+    })
+
+    const [result] = await service.retrieveForDecisions(
+      'agent',
+      [
+        {
+          kind: 'semantic',
+          category: null,
+          content: 'redis',
+          importance: 0.5,
+          temporal: ATEMPORAL_MEMORY_METADATA
+        }
+      ],
+      3000,
+      undefined,
+      [['pinned']]
+    )
+    expect(result.neighbors.map((row) => row.id)).toEqual(['pinned', 'valid'])
+    expect(result.queryVector).toEqual({
+      vector: [1, 2, 3, 4],
+      providerId: 'p',
+      modelId: 'm',
+      dimensions: 4
+    })
+    expect(reindexEmbeddings).not.toHaveBeenCalled()
+    expect(backfillEmbeddings).not.toHaveBeenCalled()
+  })
+
   it('keeps normal vector cold diagnostics out of empty injection manifests', async () => {
     const { presenter, repository } = createPresenter()
     vi.spyOn(repository, 'searchWithStrategy').mockReturnValue({
@@ -217,6 +303,7 @@ describe('RetrievalService diagnostics', () => {
     })
     const recordRecall = vi.fn()
     const getEmbeddings = vi.fn(async () => [[1, 2, 3, 4]])
+    const clearReady = vi.fn()
     const service = new RetrievalService({
       ctx,
       repository,
@@ -233,7 +320,7 @@ describe('RetrievalService diagnostics', () => {
           throw new VectorStoreQueryTimeoutError('agent', 2_000)
         },
         markReady: () => undefined,
-        clearReady: vi.fn()
+        clearReady
       },
       workingMemory: {
         readWorkingMemory: () => null,
@@ -263,6 +350,7 @@ describe('RetrievalService diagnostics', () => {
       service.retrieveForDecisions('agent', candidates, Date.now())
     ).resolves.toHaveLength(1)
     expect(getEmbeddings).toHaveBeenCalledOnce()
+    expect(clearReady).toHaveBeenCalledExactlyOnceWith('agent')
     expect(recordRecall).toHaveBeenCalledWith(
       'agent',
       expect.objectContaining({ degradations: expect.arrayContaining(['storeTimeout']) })

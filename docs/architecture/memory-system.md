@@ -258,11 +258,16 @@ Maintenance 只处理有界 seed batch 和有界 same-scope vector neighbors；�
 
 ## Maintenance 和可观测性
 
+`MaintenanceService` 拥有 timer、cooldown、并发预算和 stop/drain；`MergeService` 只负责有界
+near-duplicate merge，沿用 runner 传入的 operation fence、业务时间和共享预算。用户 conflict
+resolution 的后续调度由 facade 负责；自动 challenge pass 每次成功应用后通知 Maintenance 调度，
+即使后续 pair 失败也不丢失已经产生的调度。`ConflictService` 不持有 Maintenance 的构造依赖。
+
 Maintenance 使用有界 batch、deadline 和 ingestion fence。Database maintenance 顺序为：停止新任务、
 fence Memory、drain accepted work、关闭 store/SQLite、执行操作、reopen、恢复后台任务。
 `stopBackgroundMaintenance` 同步清空全部 prewarm/startup/consolidation timer、拒绝新的 arm 与 pass，
 并对每个持有 in-flight pass 的 Agent 推进 execution fence、中止其 provider 请求，让 pass 及其委托的
-challenge/reflection/persona 子步骤在下一个 checkpoint 停止，而不是等完一个 provider deadline；
+challenge/merge/reflection/persona 子步骤在下一个 checkpoint 停止，而不是等完一个 provider deadline；
 `drainBackgroundMaintenance` 在有界超时内等待这些 pass 落定，超时即让 database maintenance 失败而不是
 带着未落定的 pass 关闭 SQLite。`startBackgroundMaintenance` 在 stop 之后可以重新 arm，startup pass
 不会因此丢失。
