@@ -15,12 +15,6 @@ import TipTMention from '@tiptap/extension-mention'
 export const SlashMention = TipTMention.extend({
   name: 'slashMention',
 
-  addOptions() {
-    return {
-      ...this.parent?.()
-    }
-  },
-
   addAttributes() {
     return {
       ...this.parent?.(),

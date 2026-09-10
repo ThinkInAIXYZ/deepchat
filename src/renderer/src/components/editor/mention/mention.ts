@@ -1,12 +1,6 @@
 import TipTMention from '@tiptap/extension-mention'
 
 export const Mention = TipTMention.extend({
-  addOptions() {
-    return {
-      ...this.parent?.()
-    }
-  },
-
   addAttributes() {
     return {
       ...this.parent?.(),

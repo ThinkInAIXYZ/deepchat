@@ -13,7 +13,7 @@ import {
 import { bindProviderProjectionIdentity } from '@/agent/deepchat/loop/providerProjectionIdentity'
 
 vi.mock('tokenx', () => ({
-  approximateTokenSize: vi.fn((text: string) => text.length)
+  estimateTokenCount: vi.fn((text: string) => text.length)
 }))
 
 describe('ToolOutputGuard', () => {

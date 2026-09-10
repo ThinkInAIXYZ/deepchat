@@ -1726,7 +1726,9 @@ describe('Integration: multi-turn context', () => {
     let releaseFirstTurn: (() => void) | null = null
     const firstPrompt = 'P'.repeat(2000)
     const firstResponse = 'R'.repeat(2000)
-    const steerUserText = `Steer with attachment\n${'S'.repeat(8000)}`
+    // Sized so prompt + response + steer exceeds the 2560-token context with the
+    // tokenx 2.x estimator (~7 chars/token), forcing the response to be dropped.
+    const steerUserText = `Steer with attachment\n${'S'.repeat(10500)}`
     const providerInstance = {
       coreStream: vi
         .fn()

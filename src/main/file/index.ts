@@ -1,5 +1,5 @@
 import logger from '@shared/logger'
-import { app, clipboard, dialog, nativeImage, net } from 'electron'
+import { app, ClipboardItem, clipboard, dialog, nativeImage, net } from 'electron'
 import fs from 'fs/promises'
 import path from 'path'
 
@@ -9,7 +9,7 @@ import type { SettingsStore } from '@/config/settingsStore'
 import type { FileOperation, FileServicePort } from '@shared/types/file'
 import { detectMimeType, getMimeTypeAdapterMap } from './mime'
 import type { MessageFile } from '@shared/chat'
-import { approximateTokenSize } from 'tokenx'
+import { estimateTokenCount } from 'tokenx'
 import { ImageFileAdapter } from './adapters/ImageFileAdapter'
 import { PdfFileAdapter } from './adapters/PdfFileAdapter'
 import { nanoid } from 'nanoid'
@@ -193,7 +193,7 @@ export class FileService implements FileServicePort {
     await adapter.processDirectory()
     return {
       name: adapter.dirMetaData?.dirName ?? '',
-      token: approximateTokenSize(adapter.dirMetaData?.dirName ?? ''),
+      token: estimateTokenCount(adapter.dirMetaData?.dirName ?? ''),
       path: adapter.dirPath,
       mimeType: 'directory',
       metadata: {
@@ -249,8 +249,8 @@ export class FileService implements FileServicePort {
             adapter.mimeType && adapter.mimeType.startsWith('image')
               ? calculateImageTokens(adapter as ImageFileAdapter)
               : adapter.mimeType && adapter.mimeType.startsWith('audio')
-                ? approximateTokenSize(`Audio file path: ${adapter.filePath}`)
-                : approximateTokenSize(content || ''),
+                ? estimateTokenCount(`Audio file path: ${adapter.filePath}`)
+                : estimateTokenCount(content || ''),
           path: adapter.filePath,
           mimeType: adapter.mimeType ?? '',
           metadata: adapter.fileMetaData ?? {
@@ -372,7 +372,8 @@ export class FileService implements FileServicePort {
   async copyImage(file: SaveImageInput): Promise<{ copied: boolean }> {
     const image = await this.resolveImageData(file)
     const clipboardImage = this.createClipboardImage(image)
-    clipboard.writeImage(clipboardImage)
+    const pngBlob = new Blob([new Uint8Array(clipboardImage.toPNG())], { type: 'image/png' })
+    await clipboard.write([new ClipboardItem({ 'image/png': pngBlob })])
     return { copied: true }
   }
 
