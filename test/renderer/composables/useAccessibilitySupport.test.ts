@@ -24,7 +24,9 @@ describe('native accessibility support', () => {
       const firstSupport = first.run(() => useAccessibilitySupport())!
       const secondSupport = second.run(() => useAccessibilitySupport())!
       expect(on).toHaveBeenCalledOnce()
+      expect(firstSupport.accessibilityReady.value).toBe(false)
       publish({ enabled: true })
+      expect(firstSupport.accessibilityReady.value).toBe(true)
       resolveSnapshot({ info: { accessibilitySupportEnabled: false } })
       await flushPromises()
       expect(firstSupport.accessibilityEnabled.value).toBe(true)
@@ -41,4 +43,27 @@ describe('native accessibility support', () => {
       window.deepchat = originalBridge
     }
   })
+  it.each([false, true])(
+    'settles readiness after the native lookup (failed: %s)',
+    async (failed) => {
+      const originalBridge = window.deepchat
+      window.deepchat = {
+        invoke: failed
+          ? vi.fn().mockRejectedValue(new Error('device unavailable'))
+          : vi.fn().mockResolvedValue({ info: { accessibilitySupportEnabled: false } }),
+        on: vi.fn(() => vi.fn())
+      } as unknown as DeepchatBridge
+      const scope = effectScope()
+      try {
+        const support = scope.run(() => useAccessibilitySupport())!
+        expect(support.accessibilityReady.value).toBe(false)
+        await flushPromises()
+        expect(support.accessibilityReady.value).toBe(true)
+        expect(support.accessibilityEnabled.value).toBe(failed)
+      } finally {
+        scope.stop()
+        window.deepchat = originalBridge
+      }
+    }
+  )
 })

@@ -5,12 +5,14 @@ import { createDeviceClient } from '@api/DeviceClient'
 // Share one native subscription across the transcript, Markdown, and editor consumers.
 export const useAccessibilitySupport = createSharedComposable(() => {
   const accessibilityEnabled = ref(true)
+  const accessibilityReady = ref(false)
   const deviceClient = createDeviceClient()
   let disposed = false
   let receivedUpdate = false
   const unsubscribe = deviceClient.onAccessibilityChanged((enabled) => {
     receivedUpdate = true
     accessibilityEnabled.value = enabled
+    accessibilityReady.value = true
   })
 
   void deviceClient
@@ -23,11 +25,17 @@ export const useAccessibilitySupport = createSharedComposable(() => {
     .catch((error) => {
       console.warn('[Accessibility] Could not read native support status', error)
     })
+    .finally(() => {
+      if (!disposed) accessibilityReady.value = true
+    })
 
   onScopeDispose(() => {
     disposed = true
     unsubscribe()
   })
 
-  return { accessibilityEnabled: readonly(accessibilityEnabled) }
+  return {
+    accessibilityEnabled: readonly(accessibilityEnabled),
+    accessibilityReady: readonly(accessibilityReady)
+  }
 })

@@ -376,9 +376,24 @@ export const useModelStore = defineStore('model', () => {
     })
   }
 
+  const getUserConfiguredModelIds = async (providerId: string) => {
+    try {
+      const providerIds = [...new Set([providerId, providerId.toLowerCase()])]
+      const configs = await Promise.all(
+        providerIds.map((id) => modelClient.getProviderModelConfigs(id))
+      )
+      return new Set(configs.flat().map(({ modelId }) => modelId))
+    } catch (error) {
+      console.error(`Failed to read model config index for ${providerId}:`, error)
+      // Keep the individual lookup path if the index cannot be loaded.
+      return undefined
+    }
+  }
+
   const applyUserDefinedModelConfig = async (
     model: RENDERER_MODEL_META,
-    providerId: string
+    providerId: string,
+    userConfiguredModelIds?: Set<string>
   ): Promise<RENDERER_MODEL_META> => {
     const normalized: RENDERER_MODEL_META = {
       ...model,
@@ -387,6 +402,14 @@ export const useModelStore = defineStore('model', () => {
       reasoning: model.reasoning ?? false,
       enableSearch: model.enableSearch ?? false,
       type: model.type ?? ModelType.Chat
+    }
+
+    if (
+      userConfiguredModelIds &&
+      !userConfiguredModelIds.has(model.id) &&
+      !userConfiguredModelIds.has(model.id.toLowerCase().replace(/^models\//, ''))
+    ) {
+      return normalized
     }
 
     try {
@@ -612,7 +635,10 @@ export const useModelStore = defineStore('model', () => {
       }
 
       const modelIds = customModelsList.map((model) => model.id)
-      const modelStatusMap = await modelClient.getBatchModelStatus(providerId, modelIds)
+      const [modelStatusMap, userConfiguredModelIds] = await Promise.all([
+        modelClient.getBatchModelStatus(providerId, modelIds),
+        getUserConfiguredModelIds(providerId)
+      ])
 
       const customModelsWithStatus = await Promise.all(
         customModelsList.map(async (model) => {
@@ -621,7 +647,7 @@ export const useModelStore = defineStore('model', () => {
             enabled: modelStatusMap[model.id] ?? true,
             isCustom: true
           }
-          return applyUserDefinedModelConfig(base, providerId)
+          return applyUserDefinedModelConfig(base, providerId, userConfiguredModelIds)
         })
       )
 
@@ -785,7 +811,10 @@ export const useModelStore = defineStore('model', () => {
       }
 
       const modelIds = models.map((model) => model.id)
-      const modelStatusMap = await modelClient.getBatchModelStatus(providerId, modelIds)
+      const [modelStatusMap, userConfiguredModelIds] = await Promise.all([
+        modelClient.getBatchModelStatus(providerId, modelIds),
+        getUserConfiguredModelIds(providerId)
+      ])
 
       const modelsWithStatus = await Promise.all(
         models.map(async (model) => {
@@ -794,7 +823,7 @@ export const useModelStore = defineStore('model', () => {
             enabled: modelStatusMap[model.id] ?? true,
             isCustom: model.isCustom || false
           }
-          return applyUserDefinedModelConfig(base, providerId)
+          return applyUserDefinedModelConfig(base, providerId, userConfiguredModelIds)
         })
       )
 
