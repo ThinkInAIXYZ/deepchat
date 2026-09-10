@@ -1,5 +1,5 @@
 import logger from '@shared/logger'
-import { app, ClipboardItem, clipboard, dialog, nativeImage, net } from 'electron'
+import { app, clipboard, dialog, nativeImage, net } from 'electron'
 import fs from 'fs/promises'
 import path from 'path'
 
@@ -372,8 +372,7 @@ export class FileService implements FileServicePort {
   async copyImage(file: SaveImageInput): Promise<{ copied: boolean }> {
     const image = await this.resolveImageData(file)
     const clipboardImage = this.createClipboardImage(image)
-    const pngBlob = new Blob([new Uint8Array(clipboardImage.toPNG())], { type: 'image/png' })
-    await clipboard.write([new ClipboardItem({ 'image/png': pngBlob })])
+    clipboard.writeImage(clipboardImage)
     return { copied: true }
   }
 
