@@ -25,6 +25,7 @@ pnpm run i18n && pnpm run lint && mise exec -- pnpm run typecheck && pnpm run te
 
 - `agentType: 'deepchat'`、`window.deepchat`、`DEEPCHAT_*` 环境变量与 IPC 频道名
 - `src/main/agent/deepchat/` 模块路径、`deepchat://` 协议、CLI 二进制名 `deepchat`
+- resources/skills 内置技能名（`deepchat-cli`/`deepchat-settings`）与技能内 CLI 命令字面量
 - i18n key 与值中的小写 `deepchat`（受保护内置 Agent 的数据库标识）、`deepchat-inmemory`
 - CUA 插件资产名（DeepChat Computer Use.app 等）与 `electron-builder.yml` 的 `signIgnore`
 - `x-scheme-handler/deepchat`、上游插件/公共配置下载源（保持跟随官方更新）
@@ -35,7 +36,7 @@ pnpm run i18n && pnpm run lint && mise exec -- pnpm run typecheck && pnpm run te
 
 ```bash
 pnpm run oem:apply
-grep -rn "DeepChat\|ThinkInAIXYZ\|deepchatai.cn" src/ test/ scripts/ electron-builder.yml package.json \
+grep -rn "DeepChat\|ThinkInAIXYZ\|deepchatai.cn" src/ test/ scripts/ resources/skills/ electron-builder.yml package.json \
   | grep -v -E "agent/deepchat/|window\.deepchat|DEEPCHAT_|deepchat://|'deepchat'|deepchat-inmemory|scheme-handler/deepchat|data-testid|deepchat\.exe|deepchat\.cmd|deepchat\.mjs|deepchatAgents|deepchatSettings|deepchatType|Copilot|copilot|oauth|OAuth|signIgnore|Computer Use|PublicProviderConf|tape"
 ```
 

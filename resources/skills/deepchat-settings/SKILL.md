@@ -1,6 +1,6 @@
 ---
 name: deepchat-settings
-description: DeepChat app settings modification (DeepChat 设置/偏好) skill. Activate ONLY when the user explicitly asks to change DeepChat's own settings/preferences (e.g., theme, language, font size...). Do NOT activate for OS/system settings, editor settings, or other apps.
+description: MioWork app settings modification (MioWork 设置/偏好) skill. Activate ONLY when the user explicitly asks to change MioWork's own settings/preferences (e.g., theme, language, font size...). Do NOT activate for OS/system settings, editor settings, or other apps.
 allowedTools:
   - deepchat_settings_toggle
   - deepchat_settings_set_language
@@ -9,13 +9,13 @@ allowedTools:
   - deepchat_settings_open
 ---
 
-# DeepChat Settings Modification Skill
+# MioWork Settings Modification Skill
 
-Use this skill to safely change DeepChat *application* settings during a conversation.
+Use this skill to safely change MioWork *application* settings during a conversation.
 
 ## Core rules
 
-- Only change settings when the user is asking to change **DeepChat** settings.
+- Only change settings when the user is asking to change **MioWork** settings.
 - Use the dedicated settings tools; never attempt arbitrary key/value writes.
 - These tools are intended to be available only when this skill is active.
 - Viewing the main `deepchat-settings` `SKILL.md` activates this skill for the current conversation and exposes the `deepchat_settings_*` tools in the next tool loop iteration.
@@ -32,7 +32,7 @@ Toggles:
 
 Enums:
 
-- `language`: DeepChat locale, including `system`, `zh-CN`, `en-US`, `zh-TW`, `zh-HK`, `ko-KR`, `ru-RU`, `ja-JP`, `fr-FR`, `fa-IR`, `pt-BR`, `da-DK`, `he-IL`.
+- `language`: MioWork locale, including `system`, `zh-CN`, `en-US`, `zh-TW`, `zh-HK`, `ko-KR`, `ru-RU`, `ja-JP`, `fr-FR`, `fa-IR`, `pt-BR`, `da-DK`, `he-IL`.
 - `theme`: `dark | light | system`.
 - `fontSizeLevel`: integer level within supported range.
 
@@ -43,7 +43,7 @@ Settings navigation (open-only):
 
 ## Workflow
 
-1. Confirm the user is requesting a DeepChat settings change.
+1. Confirm the user is requesting a MioWork settings change.
 2. If the settings tools are not yet present, inspect the main `deepchat-settings` skill document first so the skill becomes active for this conversation.
 3. Determine the target setting and the intended value.
 4. If the setting is supported, call the matching tool:

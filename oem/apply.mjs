@@ -444,6 +444,7 @@ pnpm run i18n && pnpm run lint && mise exec -- pnpm run typecheck && pnpm run te
 
 - \`agentType: 'deepchat'\`、\`window.deepchat\`、\`DEEPCHAT_*\` 环境变量与 IPC 频道名
 - \`src/main/agent/deepchat/\` 模块路径、\`deepchat://\` 协议、CLI 二进制名 \`deepchat\`
+- resources/skills 内置技能名（\`deepchat-cli\`/\`deepchat-settings\`）与技能内 CLI 命令字面量
 - i18n key 与值中的小写 \`deepchat\`（受保护内置 Agent 的数据库标识）、\`deepchat-inmemory\`
 - CUA 插件资产名（DeepChat Computer Use.app 等）与 \`electron-builder.yml\` 的 \`signIgnore\`
 - \`x-scheme-handler/deepchat\`、上游插件/公共配置下载源（保持跟随官方更新）
@@ -454,7 +455,7 @@ pnpm run i18n && pnpm run lint && mise exec -- pnpm run typecheck && pnpm run te
 
 \`\`\`bash
 pnpm run oem:apply
-grep -rn "DeepChat\\|ThinkInAIXYZ\\|deepchatai.cn" src/ test/ scripts/ electron-builder.yml package.json \\
+grep -rn "DeepChat\\|ThinkInAIXYZ\\|deepchatai.cn" src/ test/ scripts/ resources/skills/ electron-builder.yml package.json \\
   | grep -v -E "agent/deepchat/|window\\.deepchat|DEEPCHAT_|deepchat://|'deepchat'|deepchat-inmemory|scheme-handler/deepchat|data-testid|deepchat\\.exe|deepchat\\.cmd|deepchat\\.mjs|deepchatAgents|deepchatSettings|deepchatType|Copilot|copilot|oauth|OAuth|signIgnore|Computer Use|PublicProviderConf|tape"
 \`\`\`
 
@@ -474,7 +475,8 @@ report.changed.push('README.md (fork 版)')
 //  - 显式掩码：CUA 插件资产名（DeepChat Computer Use，与 signIgnore/插件清单是硬合同）、
 //    X-DeepChat-Artifact-Id 协议头
 //  - 小写 deepchat（agentType/IPC 频道/协议/表名/CLI 二进制名/DEEPCHAT_* 环境变量）
-//    大小写敏感，天然不匹配
+//    大小写敏感，天然不匹配；resources/skills 的技能目录名/frontmatter name/工具名/
+//    CLI 命令字面量同为小写，同样天然不匹配，SKILL.md 里的品牌散文随扫随清
 // DeepChat.app 保留：packageContract 的「另一个 app」非法夹具依赖它与 MioAgent.app 并存，
 // 清成双 MioAgent 根会让夹具语义从「异包」退化成「重复根」
 const SWEEP_MASKS = ['DeepChat Computer Use', 'X-DeepChat-Artifact-Id', 'x-deepchat-artifact-id', 'DeepChat.app']
@@ -550,7 +552,7 @@ function collectSweepFiles(dirRel, acc = []) {
 
 let sweptFiles = 0
 let sweptHits = 0
-for (const base of ['src', 'scripts', 'test']) {
+for (const base of ['src', 'scripts', 'test', 'resources/skills']) {
   for (const rel of collectSweepFiles(base)) {
     const before = report.changed.length
     sweepTokens(rel)
