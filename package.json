@@ -1,6 +1,6 @@
 {
   "name": "miowork",
-  "version": "1.1.2-beta.3",
+  "version": "1.1.2-beta.4",
   "description": "MioWork，一个简单易用的 Agent 客户端",
   "main": "./out/main/index.js",
   "author": "chenjiaqiangmax",
