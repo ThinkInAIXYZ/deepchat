@@ -529,7 +529,7 @@
     {
       "id": "dimcode",
       "name": "DimCode",
-      "version": "0.3.33",
+      "version": "0.5.1",
       "description": "A coding agent that puts leading models at your command.",
       "website": "https://dimcode.dev/docs/acp.html",
       "authors": [
@@ -538,7 +538,7 @@
       "license": "proprietary",
       "distribution": {
         "npx": {
-          "package": "dimcode@0.3.33",
+          "package": "dimcode@0.5.1",
           "args": [
             "acp"
           ]
@@ -549,7 +549,7 @@
     {
       "id": "dirac",
       "name": "Dirac",
-      "version": "0.5.11",
+      "version": "0.5.12",
       "description": "Reduces API costs by more than 50%, produces better and faster work. Uses Hash anchored parallel edits, AST manipulation and a whole lot of neat optimizations. Fully Open Source.",
       "repository": "https://github.com/dirac-run/dirac",
       "website": "https://dirac.run",
@@ -561,7 +561,7 @@
       "icon": "https://cdn.agentclientprotocol.com/registry/v1/latest/dirac.svg",
       "distribution": {
         "npx": {
-          "package": "dirac-cli@0.5.11",
+          "package": "dirac-cli@0.5.12",
           "args": [
             "--acp"
           ]
@@ -743,7 +743,7 @@
     {
       "id": "grok-build",
       "name": "Grok Build",
-      "version": "1.0.27",
+      "version": "1.0.28",
       "description": "xAI's coding agent and CLI",
       "website": "https://x.ai/cli",
       "authors": [
@@ -753,7 +753,7 @@
       "license_url": "https://x.ai/legal/terms-of-service",
       "distribution": {
         "npx": {
-          "package": "@xai-official/grok@1.0.27",
+          "package": "@xai-official/grok@1.0.28",
           "args": [
             "agent",
             "stdio"
@@ -888,7 +888,7 @@
     {
       "id": "kilo",
       "name": "Kilo",
-      "version": "7.5.16",
+      "version": "7.6.2",
       "description": "The open source coding agent",
       "repository": "https://github.com/Kilo-Org/kilocode",
       "website": "https://kilo.ai/",
@@ -901,48 +901,48 @@
       "distribution": {
         "binary": {
           "darwin-aarch64": {
-            "archive": "https://github.com/Kilo-Org/kilocode/releases/download/v7.5.16/kilo-darwin-arm64.zip",
+            "archive": "https://github.com/Kilo-Org/kilocode/releases/download/v7.6.2/kilo-darwin-arm64.zip",
             "cmd": "./kilo",
             "args": [
               "acp"
             ],
-            "sha256": "6315a896baabb36e02749920b5d103cdaff5ee1983e16bcbd965a8405e7e4a2f"
+            "sha256": "516b8b975beec61ac6c2a3dcf9ea1377bc0959d6f4fd695564de7dcb3a350a9a"
           },
           "darwin-x86_64": {
-            "archive": "https://github.com/Kilo-Org/kilocode/releases/download/v7.5.16/kilo-darwin-x64.zip",
+            "archive": "https://github.com/Kilo-Org/kilocode/releases/download/v7.6.2/kilo-darwin-x64.zip",
             "cmd": "./kilo",
             "args": [
               "acp"
             ],
-            "sha256": "8f39b47420a01cdf9c81ca1676193ea5d8d4fbcfaa349016c9e0ee6a884fae38"
+            "sha256": "001c6d21a38984ec3a8ea4d2b217efb4870f48c527349871bc553a78bcba989f"
           },
           "linux-aarch64": {
-            "archive": "https://github.com/Kilo-Org/kilocode/releases/download/v7.5.16/kilo-linux-arm64.tar.gz",
+            "archive": "https://github.com/Kilo-Org/kilocode/releases/download/v7.6.2/kilo-linux-arm64.tar.gz",
             "cmd": "./kilo",
             "args": [
               "acp"
             ],
-            "sha256": "3479e1167d71663f2af92a0a01075ef905b73f1935b7be63f8c38bc38927c547"
+            "sha256": "b7e532d3b17693cc69883dc030ae2aa5787ec86510b75ffd09892d5b25998f5e"
           },
           "linux-x86_64": {
-            "archive": "https://github.com/Kilo-Org/kilocode/releases/download/v7.5.16/kilo-linux-x64.tar.gz",
+            "archive": "https://github.com/Kilo-Org/kilocode/releases/download/v7.6.2/kilo-linux-x64.tar.gz",
             "cmd": "./kilo",
             "args": [
               "acp"
             ],
-            "sha256": "09a40cc8db76bc52b6a0227f51267eaf3c969066e1888c1493f2d5ffaffbb71d"
+            "sha256": "74cba87e7b4b0ae53cd40c76e464432e6ae75f810a753ff88436f666a08d3858"
           },
           "windows-x86_64": {
-            "archive": "https://github.com/Kilo-Org/kilocode/releases/download/v7.5.16/kilo-windows-x64.zip",
+            "archive": "https://github.com/Kilo-Org/kilocode/releases/download/v7.6.2/kilo-windows-x64.zip",
             "cmd": "./kilo.exe",
             "args": [
               "acp"
             ],
-            "sha256": "e68690fdbe764dfd0800b4444b0812347d5ff3a6e71d3b68d6a9d24315158308"
+            "sha256": "bfc2daae05ef7e44584928aab87b53d5cedd9e19d32af4a01903e08d36900dcf"
           }
         },
         "npx": {
-          "package": "@kilocode/cli@7.5.16",
+          "package": "@kilocode/cli@7.6.2",
           "args": [
             "acp"
           ]
@@ -952,7 +952,7 @@
     {
       "id": "kimchi",
       "name": "Kimchi",
-      "version": "1.1.15",
+      "version": "1.1.16",
       "description": "Coding agent powered by multi-model orchestration",
       "repository": "https://github.com/getkimchi/kimchi",
       "website": "https://kimchi.dev",
@@ -964,8 +964,8 @@
       "distribution": {
         "binary": {
           "darwin-aarch64": {
-            "archive": "https://github.com/getkimchi/kimchi/releases/download/v1.1.15/kimchi_darwin_arm64.tar.gz",
-            "sha256": "927c2566d573169c918c049d821e4eaeffdb47e7b0e573d5ecf5e178f81bc5e8",
+            "archive": "https://github.com/getkimchi/kimchi/releases/download/v1.1.16/kimchi_darwin_arm64.tar.gz",
+            "sha256": "9e195356ea6db0bb3ca09668e565c4ed02b4d784df13e055a294ae0d260ec212",
             "cmd": "./bin/kimchi",
             "args": [
               "--mode",
@@ -973,8 +973,8 @@
             ]
           },
           "darwin-x86_64": {
-            "archive": "https://github.com/getkimchi/kimchi/releases/download/v1.1.15/kimchi_darwin_amd64.tar.gz",
-            "sha256": "ff3ba8b63791b0ba61acdc4f30929c5cad1fbac42f0020f262d09598ccf877e8",
+            "archive": "https://github.com/getkimchi/kimchi/releases/download/v1.1.16/kimchi_darwin_amd64.tar.gz",
+            "sha256": "ce063fe9b97d1ed414877eb99e7b9c7bcc7c9966a82346a0e720506cce57e4cc",
             "cmd": "./bin/kimchi",
             "args": [
               "--mode",
@@ -982,8 +982,8 @@
             ]
           },
           "linux-aarch64": {
-            "archive": "https://github.com/getkimchi/kimchi/releases/download/v1.1.15/kimchi_linux_arm64.tar.gz",
-            "sha256": "7ec4f8c74782fdbb35722a177db79e9213d24d01a670180b50402f010c907459",
+            "archive": "https://github.com/getkimchi/kimchi/releases/download/v1.1.16/kimchi_linux_arm64.tar.gz",
+            "sha256": "87cbd18c369a4627c5d79fea46f33e82623049878ee57873e2750919ab4fbd97",
             "cmd": "./bin/kimchi",
             "args": [
               "--mode",
@@ -991,8 +991,8 @@
             ]
           },
           "linux-x86_64": {
-            "archive": "https://github.com/getkimchi/kimchi/releases/download/v1.1.15/kimchi_linux_amd64.tar.gz",
-            "sha256": "3ac56c99b876f5b1766ff207b458341a003fbaa4ead1dbd7f388b591e1e32487",
+            "archive": "https://github.com/getkimchi/kimchi/releases/download/v1.1.16/kimchi_linux_amd64.tar.gz",
+            "sha256": "7d05b8edfb85fc2138734460792351ccebc60e1f9328b58956279156f1431521",
             "cmd": "./bin/kimchi",
             "args": [
               "--mode",
@@ -1000,8 +1000,8 @@
             ]
           },
           "windows-x86_64": {
-            "archive": "https://github.com/getkimchi/kimchi/releases/download/v1.1.15/kimchi_windows_amd64.zip",
-            "sha256": "10a5bf90d43ac22e6d45c5d9ed6dba826166a60e10b0fc33638f1fad7efeec2a",
+            "archive": "https://github.com/getkimchi/kimchi/releases/download/v1.1.16/kimchi_windows_amd64.zip",
+            "sha256": "1c7f50c474de90b81f6baa5921483f6f7c3d07a6aceb317debb49e7011319972",
             "cmd": "./bin/kimchi.exe",
             "args": [
               "--mode",
@@ -1330,7 +1330,7 @@
     {
       "id": "qwen-code",
       "name": "Qwen Code",
-      "version": "0.23.2",
+      "version": "0.23.3",
       "description": "Alibaba's Qwen coding assistant",
       "repository": "https://github.com/QwenLM/qwen-code",
       "website": "https://qwenlm.github.io/qwen-code-docs/en/users/overview",
@@ -1341,7 +1341,7 @@
       "license_url": "https://github.com/QwenLM/qwen-code/blob/main/LICENSE",
       "distribution": {
         "npx": {
-          "package": "@qwen-code/qwen-code@0.23.2",
+          "package": "@qwen-code/qwen-code@0.23.3",
           "args": [
             "--acp",
             "--experimental-skills"
@@ -1353,7 +1353,7 @@
     {
       "id": "sigit",
       "name": "siGit Code",
-      "version": "1.5.7",
+      "version": "1.5.8",
       "description": "Local-first coding agent. Runs entirely on your machine with optional on-device LLM inference via Onde.",
       "repository": "https://github.com/getsigit/sigit",
       "website": "https://github.com/getsigit/sigit",
@@ -1365,38 +1365,38 @@
       "distribution": {
         "binary": {
           "darwin-aarch64": {
-            "archive": "https://github.com/getsigit/sigit/releases/download/v1.5.7/sigit-macos-arm64.tar.gz",
+            "archive": "https://github.com/getsigit/sigit/releases/download/v1.5.8/sigit-macos-arm64.tar.gz",
             "cmd": "./sigit",
-            "sha256": "7c27ca45143f7d3842e1986d953a5a793a5866a5075f72237cdfeacfe318158c"
+            "sha256": "a5c07e6588eb9c24cb92fe9dbbb5abe661056a5e0addc17f030b8b4f057a465a"
           },
           "darwin-x86_64": {
-            "archive": "https://github.com/getsigit/sigit/releases/download/v1.5.7/sigit-macos-amd64.tar.gz",
+            "archive": "https://github.com/getsigit/sigit/releases/download/v1.5.8/sigit-macos-amd64.tar.gz",
             "cmd": "./sigit",
-            "sha256": "31d96c91bd71d911014197eeb41d76b307a268e470bfe75182c1c65912736661"
+            "sha256": "863deaff2f02e823ec18581e326d50b643f9e8b26d4b87e75e934be877824590"
           },
           "linux-aarch64": {
-            "archive": "https://github.com/getsigit/sigit/releases/download/v1.5.7/sigit-linux-arm64",
+            "archive": "https://github.com/getsigit/sigit/releases/download/v1.5.8/sigit-linux-arm64",
             "cmd": "./sigit-linux-arm64",
-            "sha256": "9280460b31de270712526b466224bbd64eeab9fab39211e2c1e9552f1dfa286e"
+            "sha256": "4ed2f21664a2aafe693649fd2bfb45951b9e1ecd6de3121facc3c6ff9b7f62a8"
           },
           "linux-x86_64": {
-            "archive": "https://github.com/getsigit/sigit/releases/download/v1.5.7/sigit-linux-amd64",
+            "archive": "https://github.com/getsigit/sigit/releases/download/v1.5.8/sigit-linux-amd64",
             "cmd": "./sigit-linux-amd64",
-            "sha256": "3228047f9fd33ba72df9ff2bf72c722a5c972f3a901e6e770a41003b35d29f1c"
+            "sha256": "fa8cc4bc960a7814f5d2fdec55674a2c8719b3f48d1464d8266edf00a8c6e19b"
           },
           "windows-aarch64": {
-            "archive": "https://github.com/getsigit/sigit/releases/download/v1.5.7/sigit-win-arm64.exe",
+            "archive": "https://github.com/getsigit/sigit/releases/download/v1.5.8/sigit-win-arm64.exe",
             "cmd": "./sigit-win-arm64.exe",
-            "sha256": "8fa42aa8cda9b457ca789326ac07fa37144818a4cf2d51d9fdd34d65d1fd5da5"
+            "sha256": "835aa6beebfb304f66d1ac0cc8406fa74dee34484824a161bd394de6f34855bf"
           },
           "windows-x86_64": {
-            "archive": "https://github.com/getsigit/sigit/releases/download/v1.5.7/sigit-win-amd64.exe",
+            "archive": "https://github.com/getsigit/sigit/releases/download/v1.5.8/sigit-win-amd64.exe",
             "cmd": "./sigit-win-amd64.exe",
-            "sha256": "e29f9e18c272673bbb2707f6e7b73638ce662d544952cfdd7e8937ae1a971ca1"
+            "sha256": "9db1d50d2234f6c57778e69acb8dcd94cf39e8b28aa179ed2cdad55e4361d307"
           }
         },
         "npx": {
-          "package": "@smbcloud/sigit@1.5.7"
+          "package": "@smbcloud/sigit@1.5.8"
         }
       },
       "icon": "https://cdn.agentclientprotocol.com/registry/v1/latest/sigit.svg"
