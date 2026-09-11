@@ -1,7 +1,7 @@
 import { createDialogClient } from '@api/DialogClient'
 import type { DialogRequest, DialogResponse } from '@shared/types/dialog'
 import { defineStore } from 'pinia'
-import { onMounted, onUnmounted, ref } from 'vue'
+import { getCurrentScope, onScopeDispose, ref } from 'vue'
 
 export const useDialogStore = defineStore('dialog', () => {
   const dialogClient = createDialogClient()
@@ -106,8 +106,12 @@ export const useDialogStore = defineStore('dialog', () => {
     }
   }
 
-  onMounted(setupUpdateListener)
-  onUnmounted(removeUpdateListener)
+  // Subscribe at store setup top level (not in a component lifecycle hook) so the
+  // global dialog listener is not lost when the first consuming component unmounts.
+  setupUpdateListener()
+  if (getCurrentScope()) {
+    onScopeDispose(removeUpdateListener)
+  }
 
   return {
     timeoutMilliseconds,

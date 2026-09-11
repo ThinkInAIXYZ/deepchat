@@ -1,11 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { flushPromises } from '@vue/test-utils'
 
 const setMcpServerEnabledMutate = vi.hoisted(() => vi.fn())
 const addMcpServerMutate = vi.hoisted(() => vi.fn())
 const updateMcpServerMutate = vi.hoisted(() => vi.fn())
 const removeMcpServerMutate = vi.hoisted(() => vi.fn())
 const configRefetch = vi.hoisted(() => vi.fn())
-const mountedCallbacks = vi.hoisted(() => [] as Array<() => Promise<void>>)
 
 const mcpClientMock = vi.hoisted(() => ({
   getMcpServers: vi.fn().mockResolvedValue({}),
@@ -49,16 +49,6 @@ const createQueryState = () => ({
   isRefreshing: { value: false },
   refresh: vi.fn(async () => ({ status: 'success', data: undefined })),
   refetch: vi.fn(async () => ({ status: 'success', data: undefined }))
-})
-
-vi.mock('vue', async () => {
-  const actual = await vi.importActual<typeof import('vue')>('vue')
-  return {
-    ...actual,
-    onMounted: vi.fn((callback: () => Promise<void>) => {
-      mountedCallbacks.push(callback)
-    })
-  }
 })
 
 vi.mock('@api/McpClient', () => ({
@@ -108,13 +98,16 @@ const setupStore = async () => {
   const { createPinia, setActivePinia } = await vi.importActual<typeof import('pinia')>('pinia')
   setActivePinia(createPinia())
   const { useMcpStore } = await import('@/stores/mcp')
-  return useMcpStore()
+  const store = useMcpStore()
+  // The store subscribes and loads its data at setup top level, so let that initial pass settle
+  // before tests mutate the store state directly.
+  await flushPromises()
+  return store
 }
 
 describe('useMcpStore', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mountedCallbacks.length = 0
     setMcpServerEnabledMutate.mockReset()
     addMcpServerMutate.mockReset()
     updateMcpServerMutate.mockReset()
@@ -306,7 +299,6 @@ describe('useMcpStore', () => {
       })
     )
     const store = await setupStore()
-    await mountedCallbacks[0]()
     store.config = {
       mcpServers: {
         demo: {
