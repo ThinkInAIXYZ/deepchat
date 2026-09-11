@@ -7,6 +7,7 @@ MioWork，一个简单易用的 Agent 客户端。基于开源项目 [DeepChat](
 - `oem/oem.config.json` —— 品牌映射的唯一来源（产品名/appId/仓库/URL）
 - `oem/apply.mjs` —— 幂等重放脚本：`pnpm run oem:apply`
 - `oem/assets/logo.png` —— 源 logo（应用图标由它生成）
+- `oem/WORKFLOW.md` —— 双 remote、上游同步与发版的完整流程文档
 
 ## 与官方 DeepChat 同步更新
 
