@@ -48,7 +48,7 @@
     "build": "pnpm run typecheck && electron-vite build && pnpm run cli:build",
     "cli:build": "node scripts/build-cli.mjs",
     "release:ff": "node scripts/release-fast-forward.mjs",
-    "postinstall": "electron-builder install-app-deps",
+    "postinstall": "install-electron && electron-builder install-app-deps",
     "hooks:install": "git config core.hooksPath .githooks",
     "build:unpack": "pnpm run build && electron-builder --dir",
     "plugin:validate": "node scripts/plugin.mjs validate",
