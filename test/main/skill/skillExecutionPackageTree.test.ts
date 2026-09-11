@@ -189,7 +189,7 @@ describe('Skill execution package tree', () => {
   it('refuses cleanup when the ownership marker no longer matches', async () => {
     const tree = await materializeSkillExecutionPackageTree(executionPackage())
     pendingRoots.add(tree.rootPath)
-    const markerPath = path.join(tree.rootPath, '.deepchat-package-owner')
+    const markerPath = path.join(tree.rootPath, '.miowork-package-owner')
     await fs.promises.writeFile(
       markerPath,
       JSON.stringify({

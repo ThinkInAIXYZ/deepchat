@@ -251,7 +251,7 @@ export async function downloadArtifact(input: ArtifactDownloadInput): Promise<st
   if (outputPath.includes('\0')) {
     throw new CliClientError('invalid_request', 'Output path contains NUL', CLI_EXIT_CODES.usage)
   }
-  const tempPath = path.join(path.dirname(outputPath), `.deepchat-${randomUUID()}.tmp`)
+  const tempPath = path.join(path.dirname(outputPath), `.miowork-${randomUUID()}.tmp`)
   const handle = await open(tempPath, 'wx', 0o600).catch((error) => {
     throw new CliClientError(
       'conflict',

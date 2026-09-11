@@ -43,7 +43,7 @@ export class SkillSettings implements SkillSettingsPort {
 
   getPath(): string {
     return (
-      this.store.get<string>('skillsPath') || path.join(app.getPath('home'), '.deepchat', 'skills')
+      this.store.get<string>('skillsPath') || path.join(app.getPath('home'), '.miowork', 'skills')
     )
   }
 

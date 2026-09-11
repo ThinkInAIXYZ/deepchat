@@ -124,10 +124,10 @@ export const SKILL_CONFIG = {
   WATCHER_POLL_INTERVAL: 100, // ms
 
   /** Sidecar configuration directory name */
-  SIDECAR_DIR: '.deepchat-meta',
+  SIDECAR_DIR: '.miowork-meta',
 
   /** Draft skill configuration */
-  DRAFT_ROOT_DIR: 'deepchat-skill-drafts',
+  DRAFT_ROOT_DIR: 'miowork-skill-drafts',
   DRAFT_MAX_CONTENT_CHARS: 100000,
   DRAFT_RETENTION_MS: 7 * 24 * 60 * 60 * 1000,
   MAX_LINKED_FILE_SIZE: 1024 * 1024
@@ -397,7 +397,7 @@ export class SkillService implements SkillServicePort {
     private readonly publishEvent: DeepchatEventPublisher,
     private readonly agentScopePort?: SkillAgentScopePort
   ) {
-    // Skills directory: ~/.deepchat/skills/
+    // Skills directory: ~/.miowork/skills/
     this.skillsDir = this.resolveSkillsDir()
     this.sidecarDir = path.join(this.skillsDir, SKILL_CONFIG.SIDECAR_DIR)
     this.draftsRoot = path.join(app.getPath('temp'), SKILL_CONFIG.DRAFT_ROOT_DIR)
@@ -409,7 +409,7 @@ export class SkillService implements SkillServicePort {
     const normalized = configuredPath?.trim()
     const homePath = app.getPath('home')
     const homeDir = homePath ? path.resolve(homePath) : path.resolve('.')
-    const fallbackDir = path.join(homeDir, '.deepchat', 'skills')
+    const fallbackDir = path.join(homeDir, '.miowork', 'skills')
     const resolved = normalized ? path.resolve(normalized) : fallbackDir
     const repairedDefaultPath = normalized
       ? this.repairPortableDefaultSkillsPath(normalized, homeDir)
@@ -419,18 +419,25 @@ export class SkillService implements SkillServicePort {
       return repairedDefaultPath
     }
 
-    // Repair malformed paths like: C:\Users\name.deepchat\skills
-    const brokenPrefix = `${homeDir}.deepchat`
+    // Repair malformed paths like: C:\Users\name.deepchat\skills (separator lost).
+    // Both the legacy ~/.deepchat root and the current ~/.miowork root are matched;
+    // legacy-root matches are redirected to ~/.miowork so pre-migration stored
+    // values converge on the new data root instead of silently staying behind.
     const compareResolved = process.platform === 'win32' ? resolved.toLowerCase() : resolved
-    const compareBrokenPrefix =
-      process.platform === 'win32' ? brokenPrefix.toLowerCase() : brokenPrefix
-    const hasBrokenPrefix = compareResolved.startsWith(compareBrokenPrefix)
-    const nextChar = compareResolved.charAt(compareBrokenPrefix.length)
-    const hasBoundaryAfterPrefix =
-      compareResolved.length === compareBrokenPrefix.length || nextChar === '/' || nextChar === '\\'
-    if (hasBrokenPrefix && hasBoundaryAfterPrefix) {
-      const suffix = resolved.slice(brokenPrefix.length).replace(/^[\\/]+/, '')
-      return path.join(homeDir, '.deepchat', suffix)
+    const brokenPrefixes = [`${homeDir}.deepchat`, `${homeDir}.miowork`]
+    for (const brokenPrefix of brokenPrefixes) {
+      const compareBrokenPrefix =
+        process.platform === 'win32' ? brokenPrefix.toLowerCase() : brokenPrefix
+      const hasBrokenPrefix = compareResolved.startsWith(compareBrokenPrefix)
+      const nextChar = compareResolved.charAt(compareBrokenPrefix.length)
+      const hasBoundaryAfterPrefix =
+        compareResolved.length === compareBrokenPrefix.length ||
+        nextChar === '/' ||
+        nextChar === '\\'
+      if (hasBrokenPrefix && hasBoundaryAfterPrefix) {
+        const suffix = resolved.slice(brokenPrefix.length).replace(/^[\\/]+/, '')
+        return path.join(homeDir, '.miowork', suffix)
+      }
     }
 
     return resolved
@@ -439,15 +446,15 @@ export class SkillService implements SkillServicePort {
   private repairPortableDefaultSkillsPath(configuredPath: string, homeDir: string): string | null {
     const slashPath = configuredPath.replace(/\\/g, '/')
     const match =
-      slashPath.match(/^\/Users\/[^/]+\/\.deepchat\/skills(?:\/(.*))?$/i) ??
-      slashPath.match(/^[A-Za-z]:\/Users\/[^/]+\/\.deepchat\/skills(?:\/(.*))?$/i)
+      slashPath.match(/^\/Users\/[^/]+\/\.(?:miowork|deepchat)\/skills(?:\/(.*))?$/i) ??
+      slashPath.match(/^[A-Za-z]:\/Users\/[^/]+\/\.(?:miowork|deepchat)\/skills(?:\/(.*))?$/i)
 
     if (!match) {
       return null
     }
 
     const suffixParts = (match[1] ?? '').split('/').filter(Boolean)
-    return path.join(homeDir, '.deepchat', 'skills', ...suffixParts)
+    return path.join(homeDir, '.miowork', 'skills', ...suffixParts)
   }
 
   /**
@@ -3345,7 +3352,7 @@ export class SkillService implements SkillServicePort {
       return { success: false, error: 'Zip file not found', errorCode: 'not_found' }
     }
 
-    const tempDir = fs.mkdtempSync(path.join(app.getPath('temp'), 'deepchat-skill-'))
+    const tempDir = fs.mkdtempSync(path.join(app.getPath('temp'), 'miowork-skill-'))
     try {
       await extractSkillArchive(zipPath, tempDir, {
         maxArchiveBytes: SKILL_CONFIG.ZIP_MAX_SIZE
@@ -3391,7 +3398,7 @@ export class SkillService implements SkillServicePort {
   ): Promise<SkillInstallResult> {
     const normalizedAgentId = await this.requireAgentScope(agentId)
     const finishOperation = this.beginAgentScopeOperation(normalizedAgentId)
-    const tempZipPath = path.join(app.getPath('temp'), `deepchat-skill-${randomUUID()}.zip`)
+    const tempZipPath = path.join(app.getPath('temp'), `miowork-skill-${randomUUID()}.zip`)
     try {
       await downloadSkillArchive(url, tempZipPath, {
         maxBytes: SKILL_CONFIG.ZIP_MAX_SIZE,
@@ -4200,7 +4207,7 @@ export class SkillService implements SkillServicePort {
   private backupExistingSkill(skillName: string): string {
     const sourceDir = path.join(this.skillsDir, skillName)
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
-    const backupRoot = path.join(app.getPath('home'), '.deepchat', 'backups', 'skill-installs')
+    const backupRoot = path.join(app.getPath('home'), '.miowork', 'backups', 'skill-installs')
     fs.mkdirSync(backupRoot, { recursive: true })
     const backupDir = path.join(backupRoot, `${skillName}-${timestamp}-${randomUUID()}`)
     fs.renameSync(sourceDir, backupDir)
@@ -4279,7 +4286,7 @@ export class SkillService implements SkillServicePort {
   }
 
   private async cloneGitSkillRepo(repoUrl: string): Promise<string> {
-    const operationRoot = path.join(app.getPath('home'), '.deepchat', 'tmp', 'skill-installs')
+    const operationRoot = path.join(app.getPath('home'), '.miowork', 'tmp', 'skill-installs')
     fs.mkdirSync(operationRoot, { recursive: true })
     const cloneDir = path.join(operationRoot, `${Date.now()}-${randomUUID()}`)
     try {
@@ -4789,7 +4796,7 @@ export class SkillService implements SkillServicePort {
     }
 
     const skillDir = path.resolve(metadata.skillRoot)
-    const backupRoot = path.join(app.getPath('home'), '.deepchat', 'backups', 'skill-deletes')
+    const backupRoot = path.join(app.getPath('home'), '.miowork', 'backups', 'skill-deletes')
     fs.mkdirSync(backupRoot, { recursive: true })
     const backupDir = path.join(backupRoot, `${name}-${Date.now()}-${randomUUID()}`)
     const sessions = this.agentScopePort ? await this.agentScopePort.listSessions() : []

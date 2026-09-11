@@ -77,6 +77,143 @@ editFile('src/main/appMain.ts', [
   { old: "const APP_NAME = 'DeepChat'", new: `const APP_NAME = '${cfg.productName}'`, must: true }
 ])
 
+// ---------- 用户可见数据根：~/.deepchat → ~/.miowork ----------
+// 官方 DeepChat 与 MioWork 同机时共享 ~/.deepchat 会互踩 skills/sessions，OEM 切换到
+// ~/.miowork，并在启动时把旧 skills 子树幂等拷到新根（src/main/app/startupMigrations/
+// dataRootMigration.ts，OEM 新文件，上游不存在，无需重放）。
+// 这些路径行对上游自己是数据兼容承诺（改=砸存量用户），锚点长期稳定；must+okIf 语义：
+// 盘面要么旧形态（执行替换）要么新形态（视为已应用），其他形态=上游动了结构，报错人工看。
+// 注意：skill/index.ts 的 repair 双根兼容是手工维护的 OEM 逻辑（正则太复杂不走重放），
+// merge 冲突时按 README「用户数据根」一节手工恢复。
+editFile('src/main/agent/shared/storage/sessionPaths.ts', [
+  {
+    old: "path.resolve(os.homedir(), '.deepchat', 'sessions')",
+    new: "path.resolve(os.homedir(), '.miowork', 'sessions')",
+    must: true,
+    okIf: "path.resolve(os.homedir(), '.miowork', 'sessions')"
+  }
+])
+editFile('src/main/skill/settings.ts', [
+  {
+    old: "path.join(app.getPath('home'), '.deepchat', 'skills')",
+    new: "path.join(app.getPath('home'), '.miowork', 'skills')",
+    must: true,
+    okIf: "path.join(app.getPath('home'), '.miowork', 'skills')"
+  }
+])
+editFile('src/main/config/settingsStore.ts', [
+  {
+    old: "path.join(app.getPath('home'), '.deepchat', 'skills')",
+    new: "path.join(app.getPath('home'), '.miowork', 'skills')",
+    must: true,
+    okIf: "path.join(app.getPath('home'), '.miowork', 'skills')"
+  }
+])
+editFile('src/main/remote/conversation/runner.ts', [
+  {
+    old: "const REMOTE_ASSET_ROOT = '.deepchat/remote-assets'",
+    new: "const REMOTE_ASSET_ROOT = '.miowork/remote-assets'",
+    must: true,
+    okIf: "const REMOTE_ASSET_ROOT = '.miowork/remote-assets'"
+  }
+])
+editFile('src/main/skill/index.ts', [
+  {
+    old: "SIDECAR_DIR: '.deepchat-meta'",
+    new: "SIDECAR_DIR: '.miowork-meta'",
+    must: true,
+    okIf: "SIDECAR_DIR: '.miowork-meta'"
+  },
+  {
+    old: "DRAFT_ROOT_DIR: 'deepchat-skill-drafts'",
+    new: "DRAFT_ROOT_DIR: 'miowork-skill-drafts'",
+    must: true,
+    okIf: "DRAFT_ROOT_DIR: 'miowork-skill-drafts'"
+  },
+  {
+    old: "path.join(app.getPath('temp'), 'deepchat-skill-')",
+    new: "path.join(app.getPath('temp'), 'miowork-skill-')",
+    must: true,
+    okIf: "path.join(app.getPath('temp'), 'miowork-skill-')"
+  },
+  {
+    old: '`deepchat-skill-${randomUUID()}.zip`',
+    new: '`miowork-skill-${randomUUID()}.zip`',
+    must: true,
+    okIf: '`miowork-skill-${randomUUID()}.zip`'
+  },
+  {
+    old: "path.join(app.getPath('home'), '.deepchat', 'backups', 'skill-installs')",
+    new: "path.join(app.getPath('home'), '.miowork', 'backups', 'skill-installs')",
+    must: true,
+    okIf: "path.join(app.getPath('home'), '.miowork', 'backups', 'skill-installs')"
+  },
+  {
+    old: "path.join(app.getPath('home'), '.deepchat', 'tmp', 'skill-installs')",
+    new: "path.join(app.getPath('home'), '.miowork', 'tmp', 'skill-installs')",
+    must: true,
+    okIf: "path.join(app.getPath('home'), '.miowork', 'tmp', 'skill-installs')"
+  },
+  {
+    old: "path.join(app.getPath('home'), '.deepchat', 'backups', 'skill-deletes')",
+    new: "path.join(app.getPath('home'), '.miowork', 'backups', 'skill-deletes')",
+    must: true,
+    okIf: "path.join(app.getPath('home'), '.miowork', 'backups', 'skill-deletes')"
+  },
+  {
+    old: "const fallbackDir = path.join(homeDir, '.deepchat', 'skills')",
+    new: "const fallbackDir = path.join(homeDir, '.miowork', 'skills')",
+    must: true,
+    okIf: "const fallbackDir = path.join(homeDir, '.miowork', 'skills')"
+  }
+])
+editFile('src/main/skill/agentSkillImportService.ts', [
+  {
+    old: "entry.name === '.deepchat-meta'",
+    new: "entry.name === '.miowork-meta'",
+    must: true,
+    okIf: "entry.name === '.miowork-meta'"
+  }
+])
+editFile('src/main/skill/skillExecutionPackageTree.ts', [
+  {
+    old: "const TEMP_DIRECTORY_PREFIX = 'deepchat-skill-exec-'",
+    new: "const TEMP_DIRECTORY_PREFIX = 'miowork-skill-exec-'",
+    must: true,
+    okIf: "const TEMP_DIRECTORY_PREFIX = 'miowork-skill-exec-'"
+  },
+  {
+    old: "const OWNERSHIP_MARKER = '.deepchat-package-owner'",
+    new: "const OWNERSHIP_MARKER = '.miowork-package-owner'",
+    must: true,
+    okIf: "const OWNERSHIP_MARKER = '.miowork-package-owner'"
+  }
+])
+editFile('src/cli/artifacts.ts', [
+  {
+    old: '`.deepchat-${randomUUID()}.tmp`',
+    new: '`.miowork-${randomUUID()}.tmp`',
+    must: true,
+    okIf: '`.miowork-${randomUUID()}.tmp`'
+  }
+])
+// 启动挂钩（import + whenReady 首行调用）：merge 会用上游版 appMain 覆盖，重放补回。
+// 迁移失败不阻塞启动：记日志，下次启动重试（marker 未写 → 自动重跑）。
+editFile('src/main/appMain.ts', [
+  {
+    old: "import { startMainProcess, type MainProcessControl } from './app/mainProcess'\nimport { runDataRootMigration } from './app/startupMigrations/dataRootMigration'",
+    new: "import { startMainProcess, type MainProcessControl } from './app/mainProcess'\nimport { runDataRootMigration } from './app/startupMigrations/dataRootMigration'",
+    must: true,
+    okIf: "from './app/startupMigrations/dataRootMigration'"
+  },
+  {
+    old: 'app.whenReady().then(async () => {\n    ensureRegularAppOnMac()\n    // 数据根迁移（OEM）：~/.deepchat/skills → ~/.miowork/skills，幂等合并，失败不写\n    // marker、下次启动自动重试。必须先于任何 skill/session 服务构建；e2e\n    // （DEEPCHAT_E2E_USER_DATA_DIR）下跳过，保持测试与真实家目录隔离。\n    if (!process.env.DEEPCHAT_E2E_USER_DATA_DIR?.trim()) {\n      try {\n        runDataRootMigration({ log: (message) => logger.info(message) })\n      } catch (error) {\n        logger.warn(`data root migration failed, will retry next launch: ${error}`)\n      }\n    }',
+    new: 'app.whenReady().then(async () => {\n    ensureRegularAppOnMac()\n    // 数据根迁移（OEM）：~/.deepchat/skills → ~/.miowork/skills，幂等合并，失败不写\n    // marker、下次启动自动重试。必须先于任何 skill/session 服务构建；e2e\n    // （DEEPCHAT_E2E_USER_DATA_DIR）下跳过，保持测试与真实家目录隔离。\n    if (!process.env.DEEPCHAT_E2E_USER_DATA_DIR?.trim()) {\n      try {\n        runDataRootMigration({ log: (message) => logger.info(message) })\n      } catch (error) {\n        logger.warn(`data root migration failed, will retry next launch: ${error}`)\n      }\n    }',
+    must: true,
+    okIf: 'runDataRootMigration({ log: (message) => logger.info(message) })'
+  }
+])
+
 editFile('src/renderer/index.html', [
   { old: '<title>DeepChat</title>', new: `<title>${cfg.productName}</title>`, must: true }
 ])

@@ -6,7 +6,7 @@ const INVALID_WINDOWS_SEGMENT_CHARS = new Set(['<', '>', ':', '"', '/', '\\', '|
 const TRAILING_WINDOWS_SEGMENT_CHARS = /[. ]+$/g
 
 export function getSessionsRoot(): string {
-  return path.resolve(os.homedir(), '.deepchat', 'sessions')
+  return path.resolve(os.homedir(), '.miowork', 'sessions')
 }
 
 export function resolveSessionDir(conversationId: string): string | null {

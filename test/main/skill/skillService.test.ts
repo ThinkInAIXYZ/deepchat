@@ -499,7 +499,7 @@ describe('SkillService', () => {
         fakeWatcherService.service,
         publishDeepchatEventMock
       )
-      await expect(presenter.getSkillsDir()).resolves.toBe('/mock/home/.deepchat/skills')
+      await expect(presenter.getSkillsDir()).resolves.toBe('/mock/home/.miowork/skills')
       presenter.destroy()
     })
 
@@ -517,7 +517,7 @@ describe('SkillService', () => {
         fakeWatcherService.service,
         publishDeepchatEventMock
       )
-      await expect(presenter.getSkillsDir()).resolves.toBe('/mock/home/.deepchat/skills')
+      await expect(presenter.getSkillsDir()).resolves.toBe('/mock/home/.miowork/skills')
       presenter.destroy()
     })
 
@@ -537,7 +537,7 @@ describe('SkillService', () => {
         fakeWatcherService.service,
         publishDeepchatEventMock
       )
-      await expect(presenter.getSkillsDir()).resolves.toBe('/mock/home/.deepchat/skills/nested')
+      await expect(presenter.getSkillsDir()).resolves.toBe('/mock/home/.miowork/skills/nested')
       presenter.destroy()
     })
   })
@@ -2274,7 +2274,7 @@ describe('SkillService', () => {
       expect(result).toMatchObject({ success: true, skillName: 'reloaded-skill' })
       expect(fs.renameSync).toHaveBeenCalledWith(
         targetDir,
-        expect.stringContaining('/.deepchat/backups/skill-installs/reloaded-skill-')
+        expect.stringContaining('/.miowork/backups/skill-installs/reloaded-skill-')
       )
       expect(fs.renameSync).toHaveBeenCalledWith(
         expect.stringContaining('/.install-reloaded-skill-'),
@@ -2424,7 +2424,7 @@ describe('SkillService', () => {
           '--depth',
           '1',
           'https://github.com/op7418/guizang-ppt-skill',
-          expect.stringContaining('/.deepchat/tmp/skill-installs/')
+          expect.stringContaining('/.miowork/tmp/skill-installs/')
         ],
         expect.objectContaining({ timeout: SKILL_CONFIG.DOWNLOAD_TIMEOUT }),
         expect.any(Function)
@@ -2443,7 +2443,7 @@ describe('SkillService', () => {
         ]
       })
       expect(fs.rmSync).toHaveBeenCalledWith(
-        expect.stringContaining('/.deepchat/tmp/skill-installs/'),
+        expect.stringContaining('/.miowork/tmp/skill-installs/'),
         { recursive: true, force: true }
       )
     })

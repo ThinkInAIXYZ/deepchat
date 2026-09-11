@@ -111,7 +111,7 @@ describe('AgentToolManager skill file access', () => {
     vi.clearAllMocks()
 
     workspaceDir = await fs.mkdtemp(path.join(os.tmpdir(), 'deepchat-skill-workspace-'))
-    skillsDir = path.join(electronHome, '.deepchat', 'skills')
+    skillsDir = path.join(electronHome, '.miowork', 'skills')
     skillRoot = path.join(skillsDir, 'skill-a')
     skillFilePath = path.join(skillRoot, 'guide.md')
     inactiveSkillFilePath = path.join(skillsDir, 'skill-b', 'guide.md')

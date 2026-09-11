@@ -20,7 +20,7 @@ describe('SkillSettings', () => {
 
     expect(settings.isEnabled()).toBe(true)
     expect(settings.isDraftSuggestionsEnabled()).toBe(false)
-    expect(settings.getPath()).toBe('/home/tester/.deepchat/skills')
+    expect(settings.getPath()).toBe('/home/tester/.miowork/skills')
   })
 
   it('reads and writes Skill-owned settings', () => {

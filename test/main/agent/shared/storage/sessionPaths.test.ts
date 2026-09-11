@@ -21,7 +21,7 @@ describe('sessionPaths offload path sanitization', () => {
     expect(filePath).toBe(
       path.join(
         homeDir,
-        '.deepchat',
+        '.miowork',
         'sessions',
         'session-a',
         `tool_function.cdp_send_11_${fingerprint}.offload`

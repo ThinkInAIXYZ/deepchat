@@ -256,7 +256,7 @@ describe('RemoteConversationRunner', () => {
     const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'deepchat-remote-runner-'))
     const preparedFile = {
       name: 'note.txt',
-      path: path.join(workspace, '.deepchat/remote-assets/telegram/hash/message/note.txt'),
+      path: path.join(workspace, '.miowork/remote-assets/telegram/hash/message/note.txt'),
       mimeType: 'text/plain',
       content: 'hello file',
       metadata: {
@@ -315,7 +315,7 @@ describe('RemoteConversationRunner', () => {
     })
 
     const preparedPath = fileService.prepareFile.mock.calls[0][0] as string
-    expect(preparedPath).toContain(path.join('.deepchat', 'remote-assets', 'telegram'))
+    expect(preparedPath).toContain(path.join('.miowork', 'remote-assets', 'telegram'))
     expect(preparedPath).toContain('telegram-message-1')
     expect(path.basename(preparedPath)).toBe('note-1.txt')
     await expect(fs.readFile(preparedPath, 'utf8')).resolves.toBe('hello file')
@@ -498,7 +498,7 @@ describe('RemoteConversationRunner', () => {
     const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'deepchat-remote-runner-'))
     const preparedFile = {
       name: 'note.txt',
-      path: path.join(workspace, '.deepchat/remote-assets/telegram/hash/message/note.txt'),
+      path: path.join(workspace, '.miowork/remote-assets/telegram/hash/message/note.txt'),
       mimeType: 'text/plain',
       content: 'hello file',
       metadata: {
@@ -666,7 +666,7 @@ describe('RemoteConversationRunner', () => {
 
     const preparedFile = {
       name: 'image-1.png',
-      path: path.join(workspace, '.deepchat/remote-assets/weixin-ilink/hash/message/image-1.png'),
+      path: path.join(workspace, '.miowork/remote-assets/weixin-ilink/hash/message/image-1.png'),
       mimeType: 'image/png',
       content: '',
       metadata: {

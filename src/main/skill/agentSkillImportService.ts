@@ -250,7 +250,7 @@ export class AgentSkillImportService {
       entries.sort((left, right) => left.name.localeCompare(right.name))
 
       for (const entry of entries) {
-        if (entry.isSymbolicLink() || entry.name === '.deepchat-meta') continue
+        if (entry.isSymbolicLink() || entry.name === '.miowork-meta') continue
         const fullPath = path.join(current, entry.name)
         if (entry.isDirectory()) {
           await visit(fullPath)

@@ -289,7 +289,8 @@ export class SkillExecutionService {
       overrides: {
         ...authority.environment,
         SKILL_ROOT: tree.packageRoot,
-        DEEPCHAT_SKILL_ROOT: tree.packageRoot
+        DEEPCHAT_SKILL_ROOT: tree.packageRoot,
+        MIOWORK_SKILL_ROOT: tree.packageRoot
       }
     })
 

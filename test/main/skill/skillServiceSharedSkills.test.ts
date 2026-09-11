@@ -512,7 +512,7 @@ describe('SkillService shared Skills', () => {
       env: { API_KEY: 'legacy-secret' },
       runtimePolicy: { python: 'builtin' as const, node: 'system' as const }
     }
-    const sidecarRoot = path.join(skillsRoot, '.deepchat-meta')
+    const sidecarRoot = path.join(skillsRoot, '.miowork-meta')
     fs.mkdirSync(sidecarRoot, { recursive: true })
     fs.writeFileSync(path.join(sidecarRoot, 'review.json'), JSON.stringify(extension), 'utf-8')
 

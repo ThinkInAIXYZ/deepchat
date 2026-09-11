@@ -53,7 +53,7 @@ const sleep = async (ms: number): Promise<void> => {
   await new Promise((resolve) => setTimeout(resolve, ms))
 }
 
-const REMOTE_ASSET_ROOT = '.deepchat/remote-assets'
+const REMOTE_ASSET_ROOT = '.miowork/remote-assets'
 const REMOTE_GENERATED_ASSET_ROOT = 'remote-assets'
 const REMOTE_ATTACHMENT_FETCH_TIMEOUT_MS = 35_000
 

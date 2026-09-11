@@ -14,8 +14,8 @@ import {
   SKILL_EXECUTION_PACKAGE_MAX_FILES
 } from '@shared/types/skill'
 
-const TEMP_DIRECTORY_PREFIX = 'deepchat-skill-exec-'
-const OWNERSHIP_MARKER = '.deepchat-package-owner'
+const TEMP_DIRECTORY_PREFIX = 'miowork-skill-exec-'
+const OWNERSHIP_MARKER = '.miowork-package-owner'
 const PACKAGE_DIRECTORY = 'package'
 const PRIVATE_DIRECTORY_MODE = 0o700
 const PRIVATE_FILE_MODE = 0o600

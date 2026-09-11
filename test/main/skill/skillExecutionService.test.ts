@@ -296,7 +296,7 @@ describe('SkillExecutionService', () => {
 
     const plan = await buildPlan({ skill: 'ocr', script: 'scripts/run.py' })
 
-    const sessionDir = path.resolve(os.homedir(), '.deepchat', 'sessions', 'conv-1')
+    const sessionDir = path.resolve(os.homedir(), '.miowork', 'sessions', 'conv-1')
     expect(plan.cwd).toBe(sessionDir)
     expect(fs.mkdirSync).toHaveBeenCalledWith(sessionDir, { recursive: true })
   })
@@ -312,7 +312,7 @@ describe('SkillExecutionService', () => {
 
     const plan = await buildPlan({ skill: 'ocr', script: 'scripts/run.py' })
 
-    expect(plan.cwd).toBe(path.resolve(os.homedir(), '.deepchat', 'sessions', 'conv-1'))
+    expect(plan.cwd).toBe(path.resolve(os.homedir(), '.miowork', 'sessions', 'conv-1'))
   })
 
   it('uses the package root when a session cwd cannot be created', async () => {

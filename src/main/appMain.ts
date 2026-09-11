@@ -11,6 +11,8 @@ import {
 import { isInsecureTlsAllowed } from './lib/insecureTls'
 import { ensureRegularAppOnMac } from './lib/activateApp'
 import { startMainProcess, type MainProcessControl } from './app/mainProcess'
+import { runDataRootMigration } from './app/startupMigrations/dataRootMigration'
+import logger from '@shared/logger'
 import type { MainShutdownActionClaim } from './app/mainShutdownCoordinator'
 import { mainLogger, reportMainProcessFatal, reportNativeMainError } from './logging'
 import { classifyMainLogError, type MainLogShutdownReason } from './logging/mainLogEvents'
@@ -168,6 +170,16 @@ export function startApp(): void {
 
   app.whenReady().then(async () => {
     ensureRegularAppOnMac()
+    // 数据根迁移（OEM）：~/.deepchat/skills → ~/.miowork/skills，幂等合并，失败不写
+    // marker、下次启动自动重试。必须先于任何 skill/session 服务构建；e2e
+    // （DEEPCHAT_E2E_USER_DATA_DIR）下跳过，保持测试与真实家目录隔离。
+    if (!process.env.DEEPCHAT_E2E_USER_DATA_DIR?.trim()) {
+      try {
+        runDataRootMigration({ log: (message) => logger.info(message) })
+      } catch (error) {
+        logger.warn(`data root migration failed, will retry next launch: ${error}`)
+      }
+    }
     try {
       mainProcess = await startMainProcess(
         startupWorkloadCoordinator,

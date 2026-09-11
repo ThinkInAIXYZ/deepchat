@@ -32,7 +32,7 @@ export function createSettingsStore(): SettingsStore {
         fontFamily: '',
         codeFontFamily: '',
         default_system_prompt: '',
-        skillsPath: path.join(app.getPath('home'), '.deepchat', 'skills'),
+        skillsPath: path.join(app.getPath('home'), '.miowork', 'skills'),
         enableSkills: true,
         skillDraftSuggestionsEnabled: false,
         appVersion: app.getVersion(),
