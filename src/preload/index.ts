@@ -1,13 +1,6 @@
 import path from 'path'
-import {
-  clipboard,
-  contextBridge,
-  nativeImage,
-  webUtils,
-  webFrame,
-  ipcRenderer,
-  shell
-} from 'electron'
+import { contextBridge, ipcRenderer, webUtils, webFrame, shell } from 'electron'
+import { CLIPBOARD_IPC_CHANNELS } from '@shared/clipboardChannels'
 import { normalizeExternalUrl } from '@shared/externalUrl'
 import { createBridge } from './createBridge'
 
@@ -15,17 +8,25 @@ const isDevHiddenApiEnabled =
   process.env.NODE_ENV === 'development' || Boolean(process.env.ELECTRON_RENDERER_URL)
 const DEV_WELCOME_OVERRIDE_KEY = '__deepchat_dev_force_welcome'
 
-// Custom APIs for renderer
+// Electron 44 removed the clipboard module from renderer processes, so the
+// clipboard APIs below are bridged to main-process handlers.
+const reportClipboardError = (operation: string, error: unknown) => {
+  console.error(`Failed to ${operation}:`, error)
+}
+
 const api = Object.freeze({
   copyText: (text: string) => {
-    clipboard.writeText(text)
+    ipcRenderer
+      .invoke(CLIPBOARD_IPC_CHANNELS.WRITE_TEXT, text)
+      .catch((error) => reportClipboardError('copy text to the clipboard', error))
   },
   copyImage: (image: string) => {
-    const img = nativeImage.createFromDataURL(image)
-    clipboard.writeImage(img)
+    ipcRenderer
+      .invoke(CLIPBOARD_IPC_CHANNELS.WRITE_IMAGE, image)
+      .catch((error) => reportClipboardError('copy the image to the clipboard', error))
   },
   readClipboardText: () => {
-    return clipboard.readText()
+    return ipcRenderer.invoke(CLIPBOARD_IPC_CHANNELS.READ_TEXT)
   },
   getPathForFile: (file: File) => {
     return webUtils.getPathForFile(file)

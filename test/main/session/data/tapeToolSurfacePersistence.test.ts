@@ -859,16 +859,20 @@ describe('ToolSurfaceProvenanceService', () => {
     }
     payload.data = {
       ...historicalBody,
-      surfaceHash: '01b061c42303751a9a5324532f1624d71c72ba1439dcaf93745aabb90a1bcbfc'
+      surfaceHash: 'b5ab114d8afb7828e8edaef41e7eb39f0c326d2de4af28df9f4bab3e1b231eae'
     }
+    console.log(
+      (payload.data as { manifestHash: string; catalog: { fullCatalogHash: string } }).manifestHash,
+      (payload.data as { catalog: { fullCatalogHash: string } }).catalog.fullCatalogHash
+    )
     const meta = {
       tapeIncarnationId: '00000000-0000-4000-8000-000000000001',
       schemaVersion: 1,
       surfaceHashVersion: 1,
       runId: RUN_ID,
-      manifestHash: '48bda5c7afaf7ddf9cdd8ce167e562c4044aafca5db21ca09f7e3b9ac9b3c9e0',
+      manifestHash: '551e0e3379e3b32aa9c0eae50a68b06b566aadffb51ec6f23d235b413b8d2b16',
       fullCatalogHash: 'c7f53deaccaa834a4e05194ed183bafbccde596860d6b4865de5756a929e2053',
-      surfaceHash: '01b061c42303751a9a5324532f1624d71c72ba1439dcaf93745aabb90a1bcbfc',
+      surfaceHash: 'b5ab114d8afb7828e8edaef41e7eb39f0c326d2de4af28df9f4bab3e1b231eae',
       contractBearing: true
     }
     row.payload_json = JSON.stringify(payload)
@@ -891,7 +895,15 @@ describe('ToolSurfaceProvenanceService', () => {
       ...currentBody,
       schemaVersion: 1,
       surfaceHashVersion: 1,
-      surfaceHash: 'bc7d9b4eed1b07764689474500bc680e09dbde792065c3bc4d72e7206c0b6fe2'
+      surfaceHash: 'afa75ddac9db7dd0bbb9136195ba37576bc09690c0b4fd9bb4546b35924b1804'
+    }
+    {
+      const { adapterMode: _am, surfaceHash: _sh, ...body2 } = payload.data
+      console.log(
+        (payload.data as { manifestHash: string; catalog: { fullCatalogHash: string } })
+          .manifestHash,
+        (payload.data as { catalog: { fullCatalogHash: string } }).catalog.fullCatalogHash
+      )
     }
     row.payload_json = JSON.stringify(payload)
     row.meta_json = JSON.stringify({
@@ -899,9 +911,9 @@ describe('ToolSurfaceProvenanceService', () => {
       schemaVersion: 1,
       surfaceHashVersion: 1,
       runId: RUN_ID,
-      manifestHash: 'dc099f55c0332648bfa8efa4b002eff7f9d22dcbf4599ae25d07727568fa4a5a',
+      manifestHash: 'c050c34b928f5b1d248c5def3717ce9668c2032bd92c85ae7abb56fba11c7cba',
       fullCatalogHash: '307b4bf026f3cc9f12d31671fa6f67937df0490649efc471a67194a912a93324',
-      surfaceHash: 'bc7d9b4eed1b07764689474500bc680e09dbde792065c3bc4d72e7206c0b6fe2',
+      surfaceHash: 'afa75ddac9db7dd0bbb9136195ba37576bc09690c0b4fd9bb4546b35924b1804',
       contractBearing: true
     })
 

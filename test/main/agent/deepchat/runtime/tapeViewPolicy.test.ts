@@ -19,7 +19,7 @@ import {
 } from '@/agent/deepchat/runtime/tapeViewPolicy'
 
 vi.mock('tokenx', () => ({
-  approximateTokenSize: vi.fn((text: string) => Math.ceil(text.length / 4))
+  estimateTokenCount: vi.fn((text: string) => Math.ceil(text.length / 4))
 }))
 
 function createMockMessageStore(messages: ChatMessageRecord[] = []) {

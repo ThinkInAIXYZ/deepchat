@@ -179,7 +179,6 @@ describe('PR Check workflow contracts', () => {
       'Install dependencies',
       'Install and verify DuckDB VSS',
       'Validate portable memory behavior',
-      'Prepare native SQLite for the Node ABI',
       'Smoke native SQLite',
       'Validate native Tape storage',
       'Validate encrypted OCR artifact storage',
@@ -208,9 +207,13 @@ describe('PR Check workflow contracts', () => {
     expect(getStep(nativeJob, 'Validate portable memory behavior').run).toBe(
       'pnpm run test:memory'
     )
-    expect(getStep(nativeJob, 'Prepare native SQLite for the Node ABI').run).toBe(
-      'pnpm --dir node_modules/better-sqlite3-multiple-ciphers run install'
-    )
+    // better-sqlite3-multiple-ciphers 13+ ships N-API prebuilds; the Node-ABI
+    // rebuild step is gone and must not come back.
+    expect(
+      getRunCommands(nativeJob).some((command) =>
+        command.includes('better-sqlite3-multiple-ciphers run install')
+      )
+    ).toBe(false)
     expect(getStep(nativeJob, 'Smoke native SQLite').run).toBe(
       'node scripts/smoke-memory-native-sqlite.js'
     )

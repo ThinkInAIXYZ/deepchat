@@ -110,7 +110,7 @@ describe('document OCR artifacts', () => {
   })
 
   it('keeps the cache revision synchronized with the exact token estimator version', () => {
-    expect(packageJson.dependencies.tokenx).toBe('0.4.1')
+    expect(packageJson.dependencies.tokenx).toBe('2.1.0')
     expect(PDF_OCR_ARTIFACT_REVISION).toContain(`tokenx=${packageJson.dependencies.tokenx}`)
   })
 

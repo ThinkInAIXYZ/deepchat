@@ -12049,9 +12049,12 @@ describe('DeepChatAgentHarness', () => {
   })
 
   describe('session compaction state', () => {
-    const createSentTurnRecords = (turnCount: number) => {
-      const longUser = 'U'.repeat(2400)
-      const longAssistant = 'A'.repeat(2400)
+    const createSentTurnRecords = (turnCount: number, contentLength = 2400) => {
+      // The default 2400 keeps the local estimate below an 8192-token context
+      // with the tokenx 2.x estimator; pressure tests pass a larger size so the
+      // local estimate genuinely overflows (~7 chars/token for dense ASCII).
+      const longUser = 'U'.repeat(contentLength)
+      const longAssistant = 'A'.repeat(contentLength)
       const records: any[] = []
 
       for (let index = 0; index < turnCount; index += 1) {
@@ -12097,10 +12100,11 @@ describe('DeepChatAgentHarness', () => {
       assistantMessageId: string,
       currentUserText: string,
       systemPrompt: string,
-      persistedUserText: string = currentUserText
+      persistedUserText: string = currentUserText,
+      contentLength = 2400
     ) => {
       const records = [
-        ...createSentTurnRecords(3),
+        ...createSentTurnRecords(3, contentLength),
         makeDeepchatUserRow(7, persistedUserText, 'pressure-current-user'),
         makeDeepchatAssistantRow(8, '', assistantMessageId, 'pending')
       ]
@@ -12675,7 +12679,9 @@ describe('DeepChatAgentHarness', () => {
       const requestMessages = installPressureRecoveryHistory(
         callArgs.run.messageId,
         'Hello',
-        'Base system prompt'
+        'Base system prompt',
+        'Hello',
+        12000
       )
       const providerCoreStream = llmProvider.providerInstance.coreStream
       providerCoreStream.mockReset()
@@ -12723,7 +12729,9 @@ describe('DeepChatAgentHarness', () => {
       const requestMessages = installPressureRecoveryHistory(
         callArgs.run.messageId,
         'Hello',
-        'Base system prompt'
+        'Base system prompt',
+        'Hello',
+        12000
       )
       const providerCoreStream = llmProvider.providerInstance.coreStream
       providerCoreStream.mockReset()
@@ -13359,7 +13367,9 @@ describe('DeepChatAgentHarness', () => {
       const requestMessages = installPressureRecoveryHistory(
         callArgs.run.messageId,
         'Hello',
-        'Base system prompt'
+        'Base system prompt',
+        'Hello',
+        12000
       )
       const providerCoreStream = llmProvider.providerInstance.coreStream
       providerCoreStream.mockReset()
@@ -13404,7 +13414,9 @@ describe('DeepChatAgentHarness', () => {
       const requestMessages = installPressureRecoveryHistory(
         callArgs.run.messageId,
         'Hello',
-        'Base system prompt'
+        'Base system prompt',
+        'Hello',
+        12000
       )
       const providerCoreStream = llmProvider.providerInstance.coreStream
       providerCoreStream.mockReset()

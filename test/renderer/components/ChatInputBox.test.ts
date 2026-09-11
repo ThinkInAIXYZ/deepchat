@@ -821,7 +821,9 @@ describe('ChatInputBox attachments', () => {
     }
     ;(wrapper.vm as any).restoreDocumentSnapshot(restored)
 
-    expect(lastEditorInstance.commands.setContent).toHaveBeenCalledWith(restored, false)
+    expect(lastEditorInstance.commands.setContent).toHaveBeenCalledWith(restored, {
+      emitUpdate: false
+    })
   })
 
   it('does not submit or queue when keyboard events originate in embedded controls', async () => {

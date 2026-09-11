@@ -1,6 +1,6 @@
 import fs from 'fs'
 import path from 'path'
-import { approximateTokenSize } from 'tokenx'
+import { estimateTokenCount } from 'tokenx'
 import type {
   ChatMessage,
   ChatMessageProviderOptions,
@@ -934,7 +934,7 @@ function hasPromptMessageContent(message: ChatMessage): boolean {
 export function estimateToolDefinitionTokens(toolDefinitions: MCPToolDefinition[]): number {
   return toolDefinitions.reduce(
     (total, tool) =>
-      total + approximateTokenSize(JSON.stringify(stripToolExecutionContract(tool))),
+      total + estimateTokenCount(JSON.stringify(stripToolExecutionContract(tool))),
     0
   )
 }
@@ -2182,7 +2182,7 @@ export function buildContextWithMetadata(
   )
 
   const newUserMessage = createUserChatMessage(newUserContent, supportsVision, supportsAudioInput)
-  const systemPromptTokens = systemPrompt ? approximateTokenSize(systemPrompt) : 0
+  const systemPromptTokens = systemPrompt ? estimateTokenCount(systemPrompt) : 0
   const newUserTokens = estimateMessageTokens(newUserMessage)
   const available =
     contextLength -
@@ -2466,7 +2466,7 @@ export function buildResumeContextWithMetadata(
     options.providerReplayProjector,
     new Set([assistantMessageId])
   )
-  const systemPromptTokens = systemPrompt ? approximateTokenSize(systemPrompt) : 0
+  const systemPromptTokens = systemPrompt ? estimateTokenCount(systemPrompt) : 0
   const available =
     contextLength - systemPromptTokens - reserveTokens - (options.extraReserveTokens ?? 0)
   const selectedTurns = selectTurnHistoryTurns(

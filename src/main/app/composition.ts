@@ -129,6 +129,7 @@ import { createPlatformRoutes } from '../platform/routes'
 import { createHookRoutes } from '../hook/routes'
 import { createAppSettingsRoutes } from './settingsRoutes'
 import { createAppRoutes } from './routes'
+import { registerClipboardIpc } from './clipboardIpc'
 import { ApprovalBroker, createApprovalRoutes } from '@/approval'
 import {
   CommandPermissionService,
@@ -3103,6 +3104,7 @@ export async function createMainProcessControl(dependencies: {
       startupWorkloadCoordinator
     })
     registerDeepchatRoutes(ipcMain, routeDispatcher)
+    registerClipboardIpc(ipcMain)
   }
 
   function setupApplicationListeners(): void {

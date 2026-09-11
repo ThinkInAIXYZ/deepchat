@@ -12,6 +12,7 @@ import {
   type McpUiDisplayMode,
   type McpUiHostContext
 } from '@modelcontextprotocol/ext-apps/app-bridge'
+import type { Tool as SdkTool } from '@modelcontextprotocol/client'
 import type {
   CallToolResult,
   ContentBlock,
@@ -19,8 +20,7 @@ import type {
   ListResourcesResult,
   ListResourceTemplatesResult,
   ListToolsResult,
-  ReadResourceResult,
-  Tool as SdkTool
+  ReadResourceResult
 } from '@modelcontextprotocol/sdk/types.js'
 import { ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js'
 import type { MCPContentItem, McpAppDescriptor, PersistedMcpToolResult } from '@shared/types/mcp'

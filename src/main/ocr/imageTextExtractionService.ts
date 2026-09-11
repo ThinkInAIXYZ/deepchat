@@ -1,6 +1,6 @@
 import { performance } from 'node:perf_hooks'
 
-import { approximateTokenSize } from 'tokenx'
+import { estimateTokenCount } from 'tokenx'
 
 import runtimeVersions from '../../../resources/runtime-versions.json'
 import {
@@ -559,7 +559,7 @@ function isLowSurrogate(code: number): boolean {
 
 function estimateTokens(text: string): number {
   try {
-    const estimate = approximateTokenSize(text)
+    const estimate = estimateTokenCount(text)
     if (Number.isFinite(estimate) && estimate >= 0 && (text.length === 0 || estimate > 0)) {
       return Math.ceil(estimate)
     }

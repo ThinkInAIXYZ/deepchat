@@ -265,7 +265,7 @@ const validateApiKey = async () => {
   try {
     const resp = await providerStore.checkProvider(props.provider.id)
     if (resp.isOk) {
-      console.log('验证成功')
+      if (import.meta.env.DEV) console.debug('Provider verification succeeded')
       checkResult.value = true
       showCheckModelDialog.value = true
       // 验证成功后刷新当前provider的模型列表
@@ -274,7 +274,7 @@ const validateApiKey = async () => {
       await modelStore.applyInitialModelRecommendations(props.provider.id)
       return true
     } else {
-      console.log('验证失败', resp.errorMsg)
+      if (import.meta.env.DEV) console.debug('Provider verification failed:', resp.errorMsg)
       checkResult.value = false
       showCheckModelDialog.value = true
       return false
@@ -310,7 +310,7 @@ watch(
 )
 
 const initProviderSettings = async () => {
-  console.log('initData for provider:', props.provider.id)
+  if (import.meta.env.DEV) console.debug('initData for provider:', props.provider.id)
 
   await providerStore.ensureDefaultProvidersReady()
 
@@ -318,7 +318,7 @@ const initProviderSettings = async () => {
   if (props.provider.id === 'azure-openai') {
     try {
       azureApiVersion.value = await providerStore.getAzureApiVersion()
-      console.log('Azure API Version fetched:', azureApiVersion.value)
+      if (import.meta.env.DEV) console.debug('Azure API Version fetched:', azureApiVersion.value)
     } catch (error) {
       console.error('Failed to fetch Azure API Version:', error)
       azureApiVersion.value = '2024-02-01' // Default value on error
@@ -327,7 +327,7 @@ const initProviderSettings = async () => {
 
   // Fetch Gemini Safety Settings if applicable
   if (props.provider.id === 'gemini') {
-    console.log('Fetching Gemini safety settings...')
+    if (import.meta.env.DEV) console.debug('Fetching Gemini safety settings...')
 
     // 先清空现有数据
     Object.keys(geminiSafetyLevels).forEach((key) => {
@@ -340,11 +340,13 @@ const initProviderSettings = async () => {
         const savedValue = (await providerStore.getGeminiSafety(categoryKey)) as
           | string
           | 'HARM_BLOCK_THRESHOLD_UNSPECIFIED'
-        console.log(`Fetched Gemini safety for ${categoryKey}:`, savedValue)
+        if (import.meta.env.DEV)
+          console.debug(`Fetched Gemini safety for ${categoryKey}:`, savedValue)
         geminiSafetyLevels[categoryKey] =
           valueToLevelMap[savedValue as SafetySettingValue] ??
           safetyCategories[categoryKey as SafetyCategoryKey].defaultLevel
-        console.log(`Set Gemini level for ${categoryKey}:`, geminiSafetyLevels[categoryKey])
+        if (import.meta.env.DEV)
+          console.debug(`Set Gemini level for ${categoryKey}:`, geminiSafetyLevels[categoryKey])
       } catch (error) {
         console.error(`Failed to fetch Gemini safety setting for ${categoryKey}:`, error)
         geminiSafetyLevels[categoryKey] =
@@ -352,7 +354,8 @@ const initProviderSettings = async () => {
       }
     }
 
-    console.log('All Gemini safety levels initialized:', JSON.stringify(geminiSafetyLevels))
+    if (import.meta.env.DEV)
+      console.debug('All Gemini safety levels initialized:', JSON.stringify(geminiSafetyLevels))
   }
 }
 
@@ -425,9 +428,10 @@ const handleApiHostChange = async (value: string) => {
 }
 
 const MODEL_TOGGLE_PERF_LOG_PREFIX = '[ModelTogglePerf]'
-const getPerfNow = () => (typeof performance !== 'undefined' ? performance.now() : Date.now())
+const getPerfNow = () =>
+  import.meta.env.DEV ? (typeof performance !== 'undefined' ? performance.now() : Date.now()) : 0
 const logModelTogglePerf = (phase: string, details: Record<string, unknown>) => {
-  if (!uiSettingsStore.traceDebugEnabled) {
+  if (!import.meta.env.DEV || !uiSettingsStore.traceDebugEnabled) {
     return
   }
 
@@ -468,7 +472,7 @@ const handleModelEnabledChange = async (
   }
 
   const storeComplete = getPerfNow()
-  if (!uiSettingsStore.traceDebugEnabled) {
+  if (!import.meta.env.DEV || !uiSettingsStore.traceDebugEnabled) {
     return
   }
 
@@ -536,7 +540,7 @@ const handleAzureApiVersionChange = async (value: string) => {
   if (trimmedValue) {
     azureApiVersion.value = trimmedValue // Update local ref immediately
     await providerStore.setAzureApiVersion(trimmedValue)
-    console.log('Azure API Version updated:', trimmedValue)
+    if (import.meta.env.DEV) console.debug('Azure API Version updated:', trimmedValue)
   }
 }
 
@@ -546,13 +550,14 @@ const handleSafetySettingChange = async (key: SafetyCategoryKey, level: number) 
   if (value) {
     geminiSafetyLevels[key] = level // Update local state immediately when slider changes
     await providerStore.setGeminiSafety(key, value)
-    console.log(`Gemini safety setting for ${key} updated to level ${level} (${value})`)
+    if (import.meta.env.DEV)
+      console.debug(`Gemini safety setting for ${key} updated to level ${level} (${value})`)
   }
 }
 
 // Handler for OAuth success
 const handleOAuthSuccess = async () => {
-  console.log('OAuth authentication successful')
+  if (import.meta.env.DEV) console.debug('OAuth authentication successful')
   await initProviderSettings()
   syncModels()
   // 可以自动验证一次

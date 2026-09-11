@@ -1,5 +1,17 @@
 # Changelog
 
+## v1.1.2-beta.5 (2026-09-10)
+- Reaped orphaned child processes via a shared registry that attests identity with pid start time and command-line fingerprint, guarding against pid reuse
+- Refreshed provider settings without UI lag and limited provider debug logs to development builds
+- Simplified memory service boundaries by separating bounded merging from maintenance scheduling
+- Upgraded dependencies and capped Electron at 43.6.0 to preserve compatibility
+- Upgraded markstream-vue to 2.0.11
+- 通过共享子进程注册表回收孤儿子进程，使用启动时间与命令行指纹进行身份校验，规避 pid 复用带来的误杀
+- 刷新 Provider 设置不再出现 UI 卡顿，并将 Provider 调试日志限制在开发版输出
+- 拆分记忆服务边界，将有界合并与维护调度分离
+- 升级依赖并将 Electron 上限固定在 43.6.0 以保持兼容性
+- 升级 markstream-vue 至 2.0.11
+
 ## v1.1.2-beta.4 (2026-09-09)
 - Restored the live assistant response when resuming an Agent conversation
 - Preserved skill bodies when resuming a session

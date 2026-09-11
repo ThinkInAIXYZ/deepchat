@@ -16,7 +16,7 @@ import {
 import type { ContextRuntimeContributions } from '@/agent/deepchat/runtime/contextContributions'
 
 vi.mock('tokenx', () => ({
-  approximateTokenSize: vi.fn((text: string) => text.length)
+  estimateTokenCount: vi.fn((text: string) => text.length)
 }))
 
 describe('agent request context budget', () => {

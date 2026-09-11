@@ -43,7 +43,7 @@ export function copyRuntimeImage(image: string): void {
   getRendererRuntimeApi().copyImage(image)
 }
 
-export function readRuntimeClipboardText(): string {
+export function readRuntimeClipboardText(): Promise<string> {
   return getRendererRuntimeApi().readClipboardText()
 }
 
