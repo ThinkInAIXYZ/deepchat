@@ -141,6 +141,7 @@ describe('uiSettingsStore', () => {
     expect(store.launchAtLoginEnabled).toBe(false)
     mountedWrappers = mountedWrappers.filter((candidate) => candidate !== wrapper)
     wrapper.unmount()
+    store.$dispose()
 
     expect(unsubscribe).toHaveBeenCalledTimes(1)
   })

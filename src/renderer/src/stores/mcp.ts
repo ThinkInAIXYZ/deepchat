@@ -1,4 +1,4 @@
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { ref, computed, getCurrentScope, onScopeDispose, watch } from 'vue'
 import { defineStore } from 'pinia'
 import { createMcpClient } from '@api/McpClient'
 import { createConfigClient } from '../../api/ConfigClient'
@@ -1183,17 +1183,17 @@ export const useMcpStore = defineStore('mcp', () => {
     }
   }
 
-  // 立即初始化
-  onMounted(async () => {
-    await init()
-  })
-
-  onUnmounted(() => {
-    while (eventCleanups.length > 0) {
-      eventCleanups.pop()?.()
-    }
-    eventsBound = false
-  })
+  // 立即初始化：订阅与数据加载下沉到 store setup 顶层（不挂在组件生命周期钩子上），
+  // 避免首个消费组件卸载后丢失全局事件。
+  void init()
+  if (getCurrentScope()) {
+    onScopeDispose(() => {
+      while (eventCleanups.length > 0) {
+        eventCleanups.pop()?.()
+      }
+      eventsBound = false
+    })
+  }
 
   // 获取NPM Registry状态
   const getNpmRegistryStatus = async () => {

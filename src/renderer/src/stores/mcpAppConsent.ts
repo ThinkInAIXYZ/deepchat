@@ -1,4 +1,4 @@
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, getCurrentScope, onScopeDispose, ref } from 'vue'
 import { defineStore } from 'pinia'
 import { createMcpClient } from '@api/McpClient'
 import type { McpAppConsentRequestPayload } from '@shared/types/mcp'
@@ -29,28 +29,30 @@ export const useMcpAppConsentStore = defineStore('mcpAppConsent', () => {
     }
   }
 
-  onMounted(() => {
-    eventCleanups.push(
-      mcpClient.onAppConsentRequest(({ request: next }) => {
-        if (queue.value.some((entry) => entry.requestId === next.requestId)) {
-          return
-        }
-        if (queue.value.length >= MAX_PENDING_APP_CONSENTS) {
-          void mcpClient.submitAppConsent(next.requestId, false).catch((error) => {
-            console.error('[MCP Apps] Failed to reject queued consent:', error)
-          })
-          return
-        }
-        queue.value.push(next)
-      })
-    )
-  })
+  // Subscribe at store setup top level (not in a component lifecycle hook) so global
+  // consent events are not lost when the first consuming component unmounts.
+  eventCleanups.push(
+    mcpClient.onAppConsentRequest(({ request: next }) => {
+      if (queue.value.some((entry) => entry.requestId === next.requestId)) {
+        return
+      }
+      if (queue.value.length >= MAX_PENDING_APP_CONSENTS) {
+        void mcpClient.submitAppConsent(next.requestId, false).catch((error) => {
+          console.error('[MCP Apps] Failed to reject queued consent:', error)
+        })
+        return
+      }
+      queue.value.push(next)
+    })
+  )
 
-  onUnmounted(() => {
-    while (eventCleanups.length > 0) {
-      eventCleanups.pop()?.()
-    }
-  })
+  if (getCurrentScope()) {
+    onScopeDispose(() => {
+      while (eventCleanups.length > 0) {
+        eventCleanups.pop()?.()
+      }
+    })
+  }
 
   return {
     request,

@@ -1,4 +1,4 @@
-import { computed, onMounted, onUnmounted, ref, shallowRef } from 'vue'
+import { computed, getCurrentScope, onScopeDispose, ref, shallowRef } from 'vue'
 import { defineStore } from 'pinia'
 import { createApprovalClient } from '@api/ApprovalClient'
 import type { DeepchatEventPayload } from '@shared/contracts/events'
@@ -33,25 +33,27 @@ export const useCliApprovalStore = defineStore('cliApproval', () => {
     }
   }
 
-  onMounted(() => {
-    cleanups.push(
-      client.onRequested((next) => {
-        if (queue.value.some((entry) => entry.requestId === next.requestId)) return
-        if (queue.value.length >= MAX_PENDING_CLI_APPROVALS) {
-          void client.resolve(next.requestId, 'denied').catch((error) => {
-            console.error('[CLI Approval] Failed to reject queued approval:', error)
-          })
-          return
-        }
-        queue.value = [...queue.value, next]
-      }),
-      client.onClosed(({ requestId }) => remove(requestId))
-    )
-  })
+  // Subscribe at store setup top level (not in a component lifecycle hook) so global
+  // approval events are not lost when the first consuming component unmounts.
+  cleanups.push(
+    client.onRequested((next) => {
+      if (queue.value.some((entry) => entry.requestId === next.requestId)) return
+      if (queue.value.length >= MAX_PENDING_CLI_APPROVALS) {
+        void client.resolve(next.requestId, 'denied').catch((error) => {
+          console.error('[CLI Approval] Failed to reject queued approval:', error)
+        })
+        return
+      }
+      queue.value = [...queue.value, next]
+    }),
+    client.onClosed(({ requestId }) => remove(requestId))
+  )
 
-  onUnmounted(() => {
-    while (cleanups.length > 0) cleanups.pop()?.()
-  })
+  if (getCurrentScope()) {
+    onScopeDispose(() => {
+      while (cleanups.length > 0) cleanups.pop()?.()
+    })
+  }
 
   return {
     request,
