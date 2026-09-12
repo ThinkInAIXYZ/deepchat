@@ -56,6 +56,10 @@ export const useMessageStore = defineStore('message', () => {
   const currentStreamRequestId = toStoreStateRef(streamStateStore, 'currentStreamRequestId')
   const currentStreamMessageId = toStoreStateRef(streamStateStore, 'currentStreamMessageId')
   const currentStreamMetadata = toStoreStateRef(streamStateStore, 'currentStreamMetadata')
+  const currentStreamBlocksRevision = toStoreStateRef(
+    streamStateStore,
+    'currentStreamBlocksRevision'
+  )
   const streamRevision = toStoreStateRef(streamStateStore, 'streamRevision')
 
   // --- State ---
@@ -81,6 +85,7 @@ export const useMessageStore = defineStore('message', () => {
   // Stream message ids currently being hydrated into the cache as a placeholder
   // record (before the backend persists them). Prevents re-entrant duplicate inserts.
   const hydratingStreamMessageIds = new Set<string>()
+  const appliedStreamRevision = new Map<string, number>()
   let latestLoadRequestId = 0
   let latestHistoryRequestId = 0
   let latestLoadSessionId: string | null = null
@@ -581,11 +586,13 @@ export const useMessageStore = defineStore('message', () => {
       streamMessageId &&
       !isEphemeralStreamMessageId(streamMessageId)
     ) {
+      appliedStreamRevision.delete(streamMessageId)
       applyStreamingBlocksToMessage(
         streamMessageId,
         view.sessionId,
         streamingBlocks.value as AssistantMessageBlock[],
-        currentStreamMetadata.value ?? undefined
+        currentStreamMetadata.value ?? undefined,
+        currentStreamBlocksRevision.value
       )
     }
   }
@@ -938,6 +945,9 @@ export const useMessageStore = defineStore('message', () => {
     markLiveMessageViewMutation(sessionId)
     for (const record of changedRecords) {
       parsedMessageCache.delete(record.id)
+      // Persisted data replaces the live-folded record; drop the applied
+      // revision so a later snapshot re-evaluates content from scratch.
+      appliedStreamRevision.delete(record.id)
       upsertMessageRecord(record)
     }
     lastPersistedRevision.value += 1
@@ -958,6 +968,7 @@ export const useMessageStore = defineStore('message', () => {
     historyLoadError.value = false
     parsedMessageCache.clear()
     hydratingStreamMessageIds.clear()
+    appliedStreamRevision.clear()
     recentSessionViews.clear()
     messageMutationRevisions.clear()
     recentViewInvalidationRevisions.clear()
@@ -990,17 +1001,28 @@ export const useMessageStore = defineStore('message', () => {
     messageId: string,
     conversationId: string,
     blocks: AssistantMessageBlock[],
-    metadata?: { providerId?: string; modelId?: string }
+    metadata?: { providerId?: string; modelId?: string },
+    revision?: number
   ): void {
     if (committedSessionId.value !== conversationId) return
-    const serializedBlocks = JSON.stringify(blocks)
-    const serializedMetadata = JSON.stringify({
-      ...(metadata?.providerId ? { provider: metadata.providerId } : {}),
-      ...(metadata?.modelId ? { model: metadata.modelId } : {})
-    })
     const existing = messageCache.value.get(messageId)
     if (existing) {
       if (existing.sessionId !== conversationId) return
+
+      const lastRevision = appliedStreamRevision.get(messageId) ?? 0
+      if (revision !== undefined && revision <= lastRevision && existing.status === 'pending') {
+        cacheStreamingAssistantBlocks(existing, blocks)
+        return
+      }
+
+      const serializedBlocks = JSON.stringify(blocks)
+      const serializedMetadata = JSON.stringify({
+        ...(metadata?.providerId ? { provider: metadata.providerId } : {}),
+        ...(metadata?.modelId ? { model: metadata.modelId } : {})
+      })
+      if (revision !== undefined) {
+        appliedStreamRevision.set(messageId, revision)
+      }
       const nextMetadata = serializedMetadata === '{}' ? existing.metadata : serializedMetadata
       if (
         existing.content === serializedBlocks &&
@@ -1023,6 +1045,11 @@ export const useMessageStore = defineStore('message', () => {
       return
     }
 
+    const serializedBlocks = JSON.stringify(blocks)
+    const serializedMetadata = JSON.stringify({
+      ...(metadata?.providerId ? { provider: metadata.providerId } : {}),
+      ...(metadata?.modelId ? { model: metadata.modelId } : {})
+    })
     if (hydratingStreamMessageIds.has(messageId)) return
     hydratingStreamMessageIds.add(messageId)
     markLiveMessageViewMutation(conversationId)
@@ -1041,6 +1068,9 @@ export const useMessageStore = defineStore('message', () => {
       createdAt: now,
       updatedAt: now
     }
+    if (revision !== undefined) {
+      appliedStreamRevision.set(messageId, revision)
+    }
     upsertMessageRecord(nextRecord)
     cacheStreamingAssistantBlocks(nextRecord, blocks)
     hydratingStreamMessageIds.delete(messageId)
@@ -1052,8 +1082,24 @@ export const useMessageStore = defineStore('message', () => {
       sessionId: currentStreamSessionId.value,
       requestId: currentStreamRequestId.value
     }),
-    setStreamingState: ({ sessionId, requestId, messageId, updatedAt, blocks, metadata }) => {
-      streamStateStore.setStream(sessionId, blocks, messageId, metadata, requestId, updatedAt)
+    setStreamingState: ({
+      sessionId,
+      requestId,
+      messageId,
+      updatedAt,
+      revision,
+      blocks,
+      metadata
+    }) => {
+      streamStateStore.setStream(
+        sessionId,
+        blocks,
+        messageId,
+        metadata,
+        requestId,
+        updatedAt,
+        revision
+      )
     },
     clearStreamingState,
     loadMessages,
@@ -1065,6 +1111,11 @@ export const useMessageStore = defineStore('message', () => {
   registerStoreCleanup(messageIpcBinding.cleanup)
 
   function purgeSessionTracking(sessionId: string): void {
+    for (const [id, record] of messageCache.value) {
+      if (record.sessionId === sessionId) {
+        appliedStreamRevision.delete(id)
+      }
+    }
     recentSessionViews.delete(sessionId)
     messageMutationRevisions.delete(sessionId)
     recentViewInvalidationRevisions.delete(sessionId)

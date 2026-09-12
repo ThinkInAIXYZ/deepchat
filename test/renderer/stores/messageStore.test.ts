@@ -1601,4 +1601,115 @@ describe('messageStore', () => {
     const updatedBlocks = store.getAssistantMessageBlocks(store.messages.value[0]!)
     expect(updatedBlocks[0]).not.toBe(firstBlocks[0])
   })
+
+  it('skips duplicate snapshots by revision and applies bumped revisions', async () => {
+    const { store, streamListeners } = await setupStore()
+    await store.loadMessages('s1')
+
+    const emit = (revision: number, text: string, updatedAt: number) =>
+      streamListeners.updated[0]({
+        sessionId: 's1',
+        requestId: 'm1',
+        messageId: 'm1',
+        providerId: 'acp',
+        modelId: 'dimcode',
+        updatedAt,
+        revision,
+        blocks: [{ type: 'content', content: text, status: 'pending', timestamp: updatedAt }]
+      })
+
+    emit(1, 'hello', 1)
+    const firstRecord = store.messageCache.value.get('m1')!
+    expect(firstRecord).toBeDefined()
+    expect(firstRecord.content).toContain('hello')
+
+    emit(1, 'hello-again', 1)
+    const afterDuplicate = store.messageCache.value.get('m1')!
+    expect(afterDuplicate.content).toContain('hello')
+    expect(afterDuplicate.content).not.toContain('hello-again')
+    expect(afterDuplicate.updatedAt).toBe(firstRecord.updatedAt)
+
+    emit(2, 'hello-again', 2)
+    const afterAdvance = store.messageCache.value.get('m1')!
+    expect(afterAdvance.content).toContain('hello-again')
+  })
+
+  it('skips JSON.stringify when the stream revision did not advance (quantified savings)', async () => {
+    const { store, streamListeners } = await setupStore()
+    await store.loadMessages('s1')
+
+    const emit = (revision: number, text: string, updatedAt: number) =>
+      streamListeners.updated[0]({
+        sessionId: 's1',
+        requestId: 'm1',
+        messageId: 'm1',
+        providerId: 'acp',
+        modelId: 'dimcode',
+        updatedAt,
+        revision,
+        blocks: [{ type: 'content', content: text, status: 'pending', timestamp: updatedAt }]
+      })
+
+    const stringifySpy = vi.spyOn(JSON, 'stringify')
+    const baseline = stringifySpy.mock.calls.length
+
+    emit(1, 'a', 1)
+    emit(1, 'a', 1)
+    emit(2, 'ab', 2)
+    emit(2, 'ab', 2)
+    emit(3, 'abc', 3)
+
+    const stringifyCalls = stringifySpy.mock.calls.length - baseline
+    stringifySpy.mockRestore()
+
+    expect(stringifyCalls).toBe(6)
+    expect(stringifyCalls).toBeLessThan(10)
+    expect(store.messageCache.value.get('m1')?.content).toContain('abc')
+  })
+
+  it('drops the applied revision on persisted record arrival so a recycled stream re-folds', async () => {
+    const { store, streamListeners, messageListeners } = await setupStore()
+    await store.loadMessages('s1')
+
+    const emit = (revision: number, text: string, updatedAt: number) =>
+      streamListeners.updated[0]({
+        sessionId: 's1',
+        requestId: 'm1',
+        messageId: 'm1',
+        providerId: 'acp',
+        modelId: 'dimcode',
+        updatedAt,
+        revision,
+        blocks: [{ type: 'content', content: text, status: 'pending', timestamp: updatedAt }]
+      })
+
+    emit(1, 'first', 1)
+    emit(2, 'second', 2)
+
+    messageListeners[0]({
+      sessionId: 's1',
+      messages: [
+        {
+          id: 'm1',
+          sessionId: 's1',
+          orderSeq: 1,
+          role: 'assistant' as const,
+          content: JSON.stringify([
+            { type: 'content', content: 'persisted', status: 'success', timestamp: 5 }
+          ]),
+          status: 'success' as const,
+          isContextEdge: 0,
+          metadata: '{}',
+          traceCount: 0,
+          hasNestedExecutionAudit: false,
+          createdAt: 1,
+          updatedAt: Date.now() + 10_000
+        }
+      ]
+    })
+    expect(store.messageCache.value.get('m1')?.content).toContain('persisted')
+
+    emit(1, 'recycled-stream', 6)
+    expect(store.messageCache.value.get('m1')?.content).toContain('recycled-stream')
+  })
 })
