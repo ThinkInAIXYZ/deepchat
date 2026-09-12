@@ -13,6 +13,7 @@ import type {
   StreamState,
   ToolCallResult
 } from './types'
+import { markStreamChanged } from './types'
 import { accumulate, commitRoundUsage, finalizeTrailingPendingNarrativeBlocks } from './accumulator'
 import { startEcho } from './echo'
 import {
@@ -250,7 +251,7 @@ function markUnexecutedToolCallsForLimit(state: StreamState): void {
       ...block.extra,
       toolCallSkippedReason: 'max_tool_calls'
     }
-    state.dirty = true
+    markStreamChanged(state)
   }
 }
 
@@ -364,7 +365,7 @@ function markOtherTruncatedToolCallsIncomplete(
       ...block.extra,
       toolCallIncompleteReason: 'max_tokens'
     }
-    state.dirty = true
+    markStreamChanged(state)
   }
 }
 
@@ -655,7 +656,7 @@ export function appendStreamingProviderPermissionBlock(
   }
 
   state.blocks.push(actionBlock)
-  state.dirty = true
+  markStreamChanged(state)
 
   return {
     actionBlock,
@@ -971,7 +972,9 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
   }
   if (Array.isArray(initialBlocks) && initialBlocks.length > 0) {
     state.blocks = JSON.parse(JSON.stringify(initialBlocks)) as typeof state.blocks
-    state.dirty = normalizeInheritedUnresolvedBlocks(state.blocks) || state.dirty
+    if (normalizeInheritedUnresolvedBlocks(state.blocks)) {
+      markStreamChanged(state)
+    }
   }
   state.metadata.runId = run.runId
   const echo = startEcho(state, io)
@@ -1249,7 +1252,7 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
                   granted,
                   permission.permissionType
                 )
-                state.dirty = true
+                markStreamChanged(state)
                 updateOutput()
               })
               updateOutput()
