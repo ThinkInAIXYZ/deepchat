@@ -281,6 +281,17 @@ const DEFAULT_MCP_SERVERS = {
       customHeaders: {
         Authorization: 'Bearer YOUR_MCP_TOKEN'
       }
+    },
+    'youcom-search': {
+      command: '',
+      args: [],
+      env: {},
+      descriptions:
+        'You.com web search MCP (keyless free profile, no API key required). For the full authenticated tools, replace the URL with https://api.you.com/mcp and set an Authorization: Bearer header with a key from https://you.com/platform/api-keys.',
+      icons: '🌐',
+      disable: false,
+      type: 'http' as MCPServerType,
+      baseUrl: 'https://api.you.com/mcp?profile=free'
     }
   } satisfies Record<string, Omit<MCPServerConfig, 'enabled'>>,
   mcpEnabled: false // MCP functionality is disabled by default
