@@ -153,6 +153,22 @@ describe('McpSettings', () => {
     })
   })
 
+  it('adds the disabled You.com search MCP server (keyless free profile) for existing users', async () => {
+    const { McpSettings } = await loadHelper('darwin')
+    const helper = new McpSettings()
+    const mcpStore = (helper as any).mcpStore
+
+    mcpStore.set('mcpServers', {})
+
+    const servers = await helper.getMcpServers()
+
+    expect(servers['youcom-search']).toMatchObject({
+      type: 'http',
+      baseUrl: 'https://api.you.com/mcp?profile=free',
+      enabled: false
+    })
+  })
+
   it('does not recreate the Apple built-in server after the user removed it', async () => {
     const { McpSettings } = await loadHelper('darwin')
     const helper = new McpSettings()
