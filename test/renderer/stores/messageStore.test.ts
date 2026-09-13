@@ -1686,6 +1686,42 @@ describe('messageStore', () => {
     expect(afterDuplicate.updatedAt).toBe(updated.updatedAt)
   })
 
+  it('applies a revision-zero snapshot when a new request reuses the message id', async () => {
+    const { store, streamListeners } = await setupStore()
+    await store.loadMessages('s1')
+
+    const emit = (requestId: string, revision: number, text: string, updatedAt: number) =>
+      streamListeners.updated[0]({
+        sessionId: 's1',
+        requestId,
+        messageId: 'm1',
+        providerId: 'acp',
+        modelId: 'dimcode',
+        updatedAt,
+        revision,
+        blocks: [{ type: 'content', content: text, status: 'pending', timestamp: updatedAt }]
+      })
+
+    emit('req-a', 1, 'request-a', 1)
+    emit('req-a', 2, 'request-a-more', 2)
+    expect(store.messageCache.value.get('m1')?.content).toContain('request-a-more')
+
+    // A new request (or a resume) reuses the same message id and restarts from
+    // revision 0: it must not be deduped against request A's revision.
+    emit('req-b', 0, 'request-b', 3)
+    const reused = store.messageCache.value.get('m1')!
+    expect(reused.content).toContain('request-b')
+
+    // The new request's revisions are tracked independently afterwards.
+    emit('req-b', 0, 'request-b-duplicate', 4)
+    const afterDuplicate = store.messageCache.value.get('m1')!
+    expect(afterDuplicate.content).toContain('request-b')
+    expect(afterDuplicate.updatedAt).toBe(reused.updatedAt)
+
+    emit('req-b', 1, 'request-b-more', 5)
+    expect(store.messageCache.value.get('m1')?.content).toContain('request-b-more')
+  })
+
   it('skips JSON.stringify when the stream revision did not advance (quantified savings)', async () => {
     const { store, streamListeners } = await setupStore()
     await store.loadMessages('s1')

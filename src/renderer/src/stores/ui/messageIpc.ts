@@ -26,7 +26,8 @@ interface BindMessageStoreIpcOptions {
     sessionId: string,
     blocks: AssistantMessageBlock[],
     metadata?: { providerId?: string; modelId?: string },
-    revision?: number
+    revision?: number,
+    requestId?: string
   ) => void
   isEphemeralStreamMessageId: (messageId: string) => boolean
 }
@@ -203,7 +204,8 @@ export function bindMessageStoreIpc(options: BindMessageStoreIpcOptions): Messag
             providerId: payload.providerId,
             modelId: payload.modelId
           },
-          payload.revision
+          payload.revision,
+          payload.requestId
         )
       }
     }),

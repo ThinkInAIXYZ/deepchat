@@ -142,6 +142,7 @@ function stripTrailingErrorBlock(state: StreamState, message: string): void {
   const lastBlock = state.blocks[state.blocks.length - 1]
   if (lastBlock?.type === 'error' && lastBlock.content === message) {
     state.blocks.pop()
+    markStreamChanged(state)
   }
 }
 
@@ -184,15 +185,15 @@ function stampProviderAttemptIdentity(
 function closePreviousProviderAttemptNarrative(
   blocks: AssistantMessageBlock[],
   identity: DeepChatProviderAttemptIdentity | null
-): void {
-  if (!identity) return
+): boolean {
+  if (!identity) return false
   const last = blocks[blocks.length - 1]
   if (
     !last ||
     last.status !== 'pending' ||
     (last.type !== 'content' && last.type !== 'reasoning_content')
   ) {
-    return
+    return false
   }
   const previousLogicalRound = last.extra?.providerLogicalRound
   const previousRequestSeq = last.extra?.providerRequestSeq
@@ -205,9 +206,10 @@ function closePreviousProviderAttemptNarrative(
       previousRequestSeq === identity.requestSeq &&
       previousPhysicalAttempt === identity.physicalAttempt)
   ) {
-    return
+    return false
   }
   last.status = 'success'
+  return true
 }
 
 function stampRunOutcome(
@@ -1228,7 +1230,9 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
 
             const providerAttemptIdentity =
               event.type === 'usage' ? null : (params.providerAttemptIdentity?.() ?? null)
-            closePreviousProviderAttemptNarrative(state.blocks, providerAttemptIdentity)
+            if (closePreviousProviderAttemptNarrative(state.blocks, providerAttemptIdentity)) {
+              markStreamChanged(state)
+            }
 
             if (event.type === 'permission') {
               const firstNewBlock = state.blocks.length

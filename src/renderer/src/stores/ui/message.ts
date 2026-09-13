@@ -85,7 +85,10 @@ export const useMessageStore = defineStore('message', () => {
   // Stream message ids currently being hydrated into the cache as a placeholder
   // record (before the backend persists them). Prevents re-entrant duplicate inserts.
   const hydratingStreamMessageIds = new Set<string>()
-  const appliedStreamRevision = new Map<string, number>()
+  // Applied stream revisions are scoped to the stream identity (requestId): a new
+  // request or resume reusing the same message id restarts from revision 0 and must
+  // not be deduped against the previous request's revision.
+  const appliedStreamRevision = new Map<string, { requestId: string | null; revision: number }>()
   let latestLoadRequestId = 0
   let latestHistoryRequestId = 0
   let latestLoadSessionId: string | null = null
@@ -592,7 +595,8 @@ export const useMessageStore = defineStore('message', () => {
         view.sessionId,
         streamingBlocks.value as AssistantMessageBlock[],
         currentStreamMetadata.value ?? undefined,
-        currentStreamBlocksRevision.value
+        currentStreamBlocksRevision.value,
+        currentStreamRequestId.value ?? undefined
       )
     }
   }
@@ -1002,14 +1006,19 @@ export const useMessageStore = defineStore('message', () => {
     conversationId: string,
     blocks: AssistantMessageBlock[],
     metadata?: { providerId?: string; modelId?: string },
-    revision?: number
+    revision?: number,
+    requestId?: string
   ): void {
     if (committedSessionId.value !== conversationId) return
     const existing = messageCache.value.get(messageId)
     if (existing) {
       if (existing.sessionId !== conversationId) return
 
-      const lastRevision = appliedStreamRevision.get(messageId)
+      const lastApplied = appliedStreamRevision.get(messageId)
+      const lastRevision =
+        lastApplied && (requestId === undefined || lastApplied.requestId === requestId)
+          ? lastApplied.revision
+          : undefined
       if (
         revision !== undefined &&
         lastRevision !== undefined &&
@@ -1026,7 +1035,7 @@ export const useMessageStore = defineStore('message', () => {
         ...(metadata?.modelId ? { model: metadata.modelId } : {})
       })
       if (revision !== undefined) {
-        appliedStreamRevision.set(messageId, revision)
+        appliedStreamRevision.set(messageId, { requestId: requestId ?? null, revision })
       }
       const nextMetadata = serializedMetadata === '{}' ? existing.metadata : serializedMetadata
       if (
@@ -1074,7 +1083,7 @@ export const useMessageStore = defineStore('message', () => {
       updatedAt: now
     }
     if (revision !== undefined) {
-      appliedStreamRevision.set(messageId, revision)
+      appliedStreamRevision.set(messageId, { requestId: requestId ?? null, revision })
     }
     upsertMessageRecord(nextRecord)
     cacheStreamingAssistantBlocks(nextRecord, blocks)
