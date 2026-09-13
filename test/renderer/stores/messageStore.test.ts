@@ -1634,6 +1634,58 @@ describe('messageStore', () => {
     expect(afterAdvance.content).toContain('hello-again')
   })
 
+  it('applies the first revision-zero snapshot to an existing pending record', async () => {
+    const { store, sessionClient, streamListeners } = await setupStore()
+    sessionClient.restore.mockResolvedValueOnce({
+      session: { id: 's1' },
+      nextCursor: null,
+      hasMore: false,
+      messages: [
+        {
+          id: 'm1',
+          sessionId: 's1',
+          orderSeq: 1,
+          role: 'assistant' as const,
+          content: JSON.stringify([
+            { type: 'content', content: 'stale-initial', status: 'pending', timestamp: 1 }
+          ]),
+          status: 'pending' as const,
+          isContextEdge: 0,
+          metadata: '{}',
+          traceCount: 0,
+          createdAt: 1,
+          updatedAt: 1
+        }
+      ]
+    })
+    await store.loadMessages('s1')
+    expect(store.messageCache.value.get('m1')?.content).toContain('stale-initial')
+
+    const emit = (revision: number, text: string, updatedAt: number) =>
+      streamListeners.updated[0]({
+        sessionId: 's1',
+        requestId: 'm1',
+        messageId: 'm1',
+        providerId: 'acp',
+        modelId: 'dimcode',
+        updatedAt,
+        revision,
+        blocks: [{ type: 'content', content: text, status: 'pending', timestamp: updatedAt }]
+      })
+
+    // No recorded revision yet: a first revision-0 snapshot must update the record
+    // instead of being treated as already applied.
+    emit(0, 'fresh-snapshot', 2)
+    const updated = store.messageCache.value.get('m1')!
+    expect(updated.content).toContain('fresh-snapshot')
+
+    // Once revision 0 is recorded, duplicates are still deduped.
+    emit(0, 'duplicate-snapshot', 3)
+    const afterDuplicate = store.messageCache.value.get('m1')!
+    expect(afterDuplicate.content).toContain('fresh-snapshot')
+    expect(afterDuplicate.updatedAt).toBe(updated.updatedAt)
+  })
+
   it('skips JSON.stringify when the stream revision did not advance (quantified savings)', async () => {
     const { store, streamListeners } = await setupStore()
     await store.loadMessages('s1')

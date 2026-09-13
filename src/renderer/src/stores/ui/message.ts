@@ -1009,8 +1009,13 @@ export const useMessageStore = defineStore('message', () => {
     if (existing) {
       if (existing.sessionId !== conversationId) return
 
-      const lastRevision = appliedStreamRevision.get(messageId) ?? 0
-      if (revision !== undefined && revision <= lastRevision && existing.status === 'pending') {
+      const lastRevision = appliedStreamRevision.get(messageId)
+      if (
+        revision !== undefined &&
+        lastRevision !== undefined &&
+        revision <= lastRevision &&
+        existing.status === 'pending'
+      ) {
         cacheStreamingAssistantBlocks(existing, blocks)
         return
       }
