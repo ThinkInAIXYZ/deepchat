@@ -2277,6 +2277,7 @@ describe('main kernel contracts', () => {
         providerId: 'acp',
         modelId: 'dimcode',
         updatedAt: Date.now(),
+        revision: 0,
         blocks: [
           {
             type: 'content',

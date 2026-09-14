@@ -1601,4 +1601,170 @@ describe('messageStore', () => {
     const updatedBlocks = store.getAssistantMessageBlocks(store.messages.value[0]!)
     expect(updatedBlocks[0]).not.toBe(firstBlocks[0])
   })
+
+  it('skips duplicate snapshots by revision and applies bumped revisions', async () => {
+    const { store, streamListeners } = await setupStore()
+    await store.loadMessages('s1')
+
+    const emit = (revision: number, text: string, updatedAt: number) =>
+      streamListeners.updated[0]({
+        sessionId: 's1',
+        requestId: 'm1',
+        messageId: 'm1',
+        providerId: 'acp',
+        modelId: 'dimcode',
+        updatedAt,
+        revision,
+        blocks: [{ type: 'content', content: text, status: 'pending', timestamp: updatedAt }]
+      })
+
+    emit(1, 'hello', 1)
+    const firstRecord = store.messageCache.value.get('m1')!
+    expect(firstRecord).toBeDefined()
+    expect(firstRecord.content).toContain('hello')
+
+    emit(1, 'hello-again', 1)
+    const afterDuplicate = store.messageCache.value.get('m1')!
+    expect(afterDuplicate.content).toContain('hello')
+    expect(afterDuplicate.content).not.toContain('hello-again')
+    expect(afterDuplicate.updatedAt).toBe(firstRecord.updatedAt)
+
+    emit(2, 'hello-again', 2)
+    const afterAdvance = store.messageCache.value.get('m1')!
+    expect(afterAdvance.content).toContain('hello-again')
+  })
+
+  it('applies the first revision-zero snapshot to an existing pending record', async () => {
+    const { store, sessionClient, streamListeners } = await setupStore()
+    sessionClient.restore.mockResolvedValueOnce({
+      session: { id: 's1' },
+      nextCursor: null,
+      hasMore: false,
+      messages: [
+        {
+          id: 'm1',
+          sessionId: 's1',
+          orderSeq: 1,
+          role: 'assistant' as const,
+          content: JSON.stringify([
+            { type: 'content', content: 'stale-initial', status: 'pending', timestamp: 1 }
+          ]),
+          status: 'pending' as const,
+          isContextEdge: 0,
+          metadata: '{}',
+          traceCount: 0,
+          createdAt: 1,
+          updatedAt: 1
+        }
+      ]
+    })
+    await store.loadMessages('s1')
+    expect(store.messageCache.value.get('m1')?.content).toContain('stale-initial')
+
+    const emit = (revision: number, text: string, updatedAt: number) =>
+      streamListeners.updated[0]({
+        sessionId: 's1',
+        requestId: 'm1',
+        messageId: 'm1',
+        providerId: 'acp',
+        modelId: 'dimcode',
+        updatedAt,
+        revision,
+        blocks: [{ type: 'content', content: text, status: 'pending', timestamp: updatedAt }]
+      })
+
+    // No recorded revision yet: a first revision-0 snapshot must update the record
+    // instead of being treated as already applied.
+    emit(0, 'fresh-snapshot', 2)
+    const updated = store.messageCache.value.get('m1')!
+    expect(updated.content).toContain('fresh-snapshot')
+
+    // Once revision 0 is recorded, duplicates are still deduped.
+    emit(0, 'duplicate-snapshot', 3)
+    const afterDuplicate = store.messageCache.value.get('m1')!
+    expect(afterDuplicate.content).toContain('fresh-snapshot')
+    expect(afterDuplicate.updatedAt).toBe(updated.updatedAt)
+  })
+
+  it('applies a revision-zero snapshot when a new request reuses the message id', async () => {
+    const { store, streamListeners } = await setupStore()
+    await store.loadMessages('s1')
+
+    const emit = (requestId: string, revision: number, text: string, updatedAt: number) =>
+      streamListeners.updated[0]({
+        sessionId: 's1',
+        requestId,
+        messageId: 'm1',
+        providerId: 'acp',
+        modelId: 'dimcode',
+        updatedAt,
+        revision,
+        blocks: [{ type: 'content', content: text, status: 'pending', timestamp: updatedAt }]
+      })
+
+    emit('req-a', 1, 'request-a', 1)
+    emit('req-a', 2, 'request-a-more', 2)
+    expect(store.messageCache.value.get('m1')?.content).toContain('request-a-more')
+
+    // A new request (or a resume) reuses the same message id and restarts from
+    // revision 0: it must not be deduped against request A's revision.
+    emit('req-b', 0, 'request-b', 3)
+    const reused = store.messageCache.value.get('m1')!
+    expect(reused.content).toContain('request-b')
+
+    // The new request's revisions are tracked independently afterwards.
+    emit('req-b', 0, 'request-b-duplicate', 4)
+    const afterDuplicate = store.messageCache.value.get('m1')!
+    expect(afterDuplicate.content).toContain('request-b')
+    expect(afterDuplicate.updatedAt).toBe(reused.updatedAt)
+
+    emit('req-b', 1, 'request-b-more', 5)
+    expect(store.messageCache.value.get('m1')?.content).toContain('request-b-more')
+  })
+
+  it('drops the applied revision on persisted record arrival so a recycled stream re-folds', async () => {
+    const { store, streamListeners, messageListeners } = await setupStore()
+    await store.loadMessages('s1')
+
+    const emit = (revision: number, text: string, updatedAt: number) =>
+      streamListeners.updated[0]({
+        sessionId: 's1',
+        requestId: 'm1',
+        messageId: 'm1',
+        providerId: 'acp',
+        modelId: 'dimcode',
+        updatedAt,
+        revision,
+        blocks: [{ type: 'content', content: text, status: 'pending', timestamp: updatedAt }]
+      })
+
+    emit(1, 'first', 1)
+    emit(2, 'second', 2)
+
+    messageListeners[0]({
+      sessionId: 's1',
+      messages: [
+        {
+          id: 'm1',
+          sessionId: 's1',
+          orderSeq: 1,
+          role: 'assistant' as const,
+          content: JSON.stringify([
+            { type: 'content', content: 'persisted', status: 'success', timestamp: 5 }
+          ]),
+          status: 'success' as const,
+          isContextEdge: 0,
+          metadata: '{}',
+          traceCount: 0,
+          hasNestedExecutionAudit: false,
+          createdAt: 1,
+          updatedAt: Date.now() + 10_000
+        }
+      ]
+    })
+    expect(store.messageCache.value.get('m1')?.content).toContain('persisted')
+
+    emit(1, 'recycled-stream', 6)
+    expect(store.messageCache.value.get('m1')?.content).toContain('recycled-stream')
+  })
 })

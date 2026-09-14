@@ -661,6 +661,7 @@ export function buildTapeViewSelection(
 
 export class DeepChatLoopRunner {
   private readonly toolSurfaceAdapterHistory = new ToolSurfaceAdapterHistory()
+  private rateLimitRevision = 0
 
   constructor(private readonly ports: DeepChatLoopRunnerPorts) {}
 
@@ -2726,6 +2727,7 @@ export class DeepChatLoopRunner {
       sessionId,
       messageId,
       updatedAt: Date.now(),
+      revision: ++this.rateLimitRevision,
       blocks: cloneBlocksForRenderer([block])
     })
   }
@@ -2737,6 +2739,7 @@ export class DeepChatLoopRunner {
       sessionId,
       messageId,
       updatedAt: Date.now(),
+      revision: ++this.rateLimitRevision,
       blocks: []
     })
   }
