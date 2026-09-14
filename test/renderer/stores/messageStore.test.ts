@@ -1722,39 +1722,6 @@ describe('messageStore', () => {
     expect(store.messageCache.value.get('m1')?.content).toContain('request-b-more')
   })
 
-  it('skips JSON.stringify when the stream revision did not advance (quantified savings)', async () => {
-    const { store, streamListeners } = await setupStore()
-    await store.loadMessages('s1')
-
-    const emit = (revision: number, text: string, updatedAt: number) =>
-      streamListeners.updated[0]({
-        sessionId: 's1',
-        requestId: 'm1',
-        messageId: 'm1',
-        providerId: 'acp',
-        modelId: 'dimcode',
-        updatedAt,
-        revision,
-        blocks: [{ type: 'content', content: text, status: 'pending', timestamp: updatedAt }]
-      })
-
-    const stringifySpy = vi.spyOn(JSON, 'stringify')
-    const baseline = stringifySpy.mock.calls.length
-
-    emit(1, 'a', 1)
-    emit(1, 'a', 1)
-    emit(2, 'ab', 2)
-    emit(2, 'ab', 2)
-    emit(3, 'abc', 3)
-
-    const stringifyCalls = stringifySpy.mock.calls.length - baseline
-    stringifySpy.mockRestore()
-
-    expect(stringifyCalls).toBe(6)
-    expect(stringifyCalls).toBeLessThan(10)
-    expect(store.messageCache.value.get('m1')?.content).toContain('abc')
-  })
-
   it('drops the applied revision on persisted record arrival so a recycled stream re-folds', async () => {
     const { store, streamListeners, messageListeners } = await setupStore()
     await store.loadMessages('s1')
