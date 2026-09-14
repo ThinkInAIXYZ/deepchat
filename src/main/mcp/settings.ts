@@ -292,6 +292,20 @@ const DEFAULT_MCP_SERVERS = {
       disable: false,
       type: 'http' as MCPServerType,
       baseUrl: 'https://api.you.com/mcp?profile=free'
+    },
+    'serply-search': {
+      command: '',
+      args: [],
+      env: {},
+      descriptions:
+        'Serply web search MCP (Google, Bing, News, Scholar, Jobs, Maps, Videos, Amazon Shopping, and page scraping). Requires an API key from https://serply.io, set in the X-Api-Key header. Tool reference: https://serply.io/docs.',
+      icons: '🔍',
+      disable: false,
+      type: 'http' as MCPServerType,
+      baseUrl: 'https://api.serply.io/mcp',
+      customHeaders: {
+        'X-Api-Key': 'YOUR_SERPLY_API_KEY'
+      }
     }
   } satisfies Record<string, Omit<MCPServerConfig, 'enabled'>>,
   mcpEnabled: false // MCP functionality is disabled by default
