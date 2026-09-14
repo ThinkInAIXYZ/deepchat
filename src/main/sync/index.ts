@@ -2,7 +2,7 @@ import { app, shell } from 'electron'
 import path from 'path'
 import fs from 'fs'
 import Database from 'better-sqlite3-multiple-ciphers'
-import { zip, unzip, type AsyncZipOptions } from 'fflate'
+import { unzip, Zip, AsyncZipDeflate } from 'fflate'
 import type { SyncBackupInfo, CloudSyncResult } from '@shared/types/sync'
 import { CloudStorageService } from './cloudStorageService'
 import type { DeepchatEventPublisher } from '@shared/contracts/events'
@@ -14,6 +14,7 @@ import {
   type SyncBackupManifest
 } from './configImportService'
 import type { SyncSettings } from './settings'
+import type { BackupReadLockOutcome } from '@/data/backupReadLock'
 import type { SettingsDatabase } from '@/settings/data/database'
 import type { ProviderDatabase } from '@/provider/data/database'
 
@@ -68,16 +69,11 @@ const ZIP_PATHS = {
   manifest: 'manifest.json'
 }
 
-const zipAsync = (files: Record<string, Uint8Array>, options: AsyncZipOptions) =>
-  new Promise<Uint8Array>((resolve, reject) => {
-    zip(files, options, (error, data) => {
-      if (error) {
-        reject(error)
-        return
-      }
-      resolve(data)
-    })
-  })
+const toUint8ArrayView = (buffer: Buffer): Uint8Array =>
+  new Uint8Array(buffer.buffer, buffer.byteOffset, buffer.byteLength)
+
+const ZIP_LEVEL = 6
+const ZIP_SLICE_SIZE = 4 * 1024 * 1024
 
 const unzipAsync = (data: Uint8Array) =>
   new Promise<Record<string, Uint8Array>>((resolve, reject) => {
@@ -109,9 +105,9 @@ export interface SyncImportDatabasePort {
 }
 
 interface SyncDatabasePort {
-  getDatabase(): Database.Database
   getDatabasePassword(): string | undefined
   openDatabaseConnection(dbPath: string): Database.Database
+  withBackupReadLock<T>(work: () => Promise<T>): Promise<BackupReadLockOutcome<T>>
 }
 
 export interface SyncImportResult {
@@ -574,12 +570,7 @@ export class SyncService {
 
       this.emitBackupStatus('collecting')
       this.ensureSqliteConfigStorageReady()
-      this.checkpointDatabaseForBackup()
-      const files: Record<string, Uint8Array> = {}
-      files[ZIP_PATHS.agentDb] = new Uint8Array(await fs.promises.readFile(this.DB_PATH))
-      files[ZIP_PATHS.appSettings] = await this.readSanitizedAppSettingsBackup()
-      await this.addOptionalFile(files, ZIP_PATHS.customPrompts, this.CUSTOM_PROMPTS_PATH)
-      await this.addOptionalFile(files, ZIP_PATHS.systemPrompts, this.SYSTEM_PROMPTS_PATH)
+      const files = await this.collectBackupFiles()
 
       const manifest = {
         version: CURRENT_SYNC_BACKUP_VERSION,
@@ -595,8 +586,7 @@ export class SyncService {
       )
 
       this.emitBackupStatus('compressing')
-      const zipData = await zipAsync(files, { level: 6 })
-      await fs.promises.writeFile(tempZipPath, Buffer.from(zipData))
+      await this.writeZipToDisk(files, tempZipPath)
 
       if (fs.existsSync(finalZipPath)) {
         await fs.promises.unlink(finalZipPath)
@@ -709,11 +699,81 @@ export class SyncService {
     }
   }
 
-  private checkpointDatabaseForBackup(): void {
-    const db = this.database.getDatabase()
-    if (db?.open) {
-      db.pragma('wal_checkpoint(TRUNCATE)')
+  private async writeZipToDisk(
+    files: Record<string, Uint8Array>,
+    targetPath: string
+  ): Promise<void> {
+    await new Promise<void>((resolve, reject) => {
+      const output = fs.createWriteStream(targetPath)
+      const archive = new Zip()
+      let drain: Promise<void> | null = null
+      output.on('error', reject)
+      archive.ondata = (error, chunk, final) => {
+        if (error) {
+          output.destroy()
+          reject(error)
+          return
+        }
+        if (!output.write(Buffer.from(chunk))) {
+          drain = new Promise<void>((drained) => {
+            output.once('drain', () => drained())
+            output.once('error', () => drained())
+          })
+        }
+        if (final) {
+          output.end(() => resolve())
+        }
+      }
+
+      void (async () => {
+        try {
+          for (const [name, data] of Object.entries(files)) {
+            const entry = new AsyncZipDeflate(name, { level: ZIP_LEVEL })
+            archive.add(entry)
+            for (let offset = 0; offset < data.length; offset += ZIP_SLICE_SIZE) {
+              const end = Math.min(offset + ZIP_SLICE_SIZE, data.length)
+              entry.push(new Uint8Array(data.slice(offset, end)), false)
+              if (drain) {
+                await drain
+                drain = null
+              }
+              await new Promise((resume) => setImmediate(resume))
+            }
+            entry.push(new Uint8Array(0), true)
+          }
+          archive.end()
+        } catch (error) {
+          output.destroy()
+          reject(error)
+        }
+      })()
+    })
+  }
+
+  private async collectBackupFiles(): Promise<Record<string, Uint8Array>> {
+    const snapshot = await this.database.withBackupReadLock(async () => {
+      const files = this.readSupportFiles()
+      files[ZIP_PATHS.agentDb] = toUint8ArrayView(await fs.promises.readFile(this.DB_PATH))
+      return files
+    })
+    if (!snapshot.acquired) {
+      return this.readBackupFilesSynchronously()
     }
+    return snapshot.result
+  }
+
+  private readBackupFilesSynchronously(): Record<string, Uint8Array> {
+    const files = this.readSupportFiles()
+    files[ZIP_PATHS.agentDb] = toUint8ArrayView(fs.readFileSync(this.DB_PATH))
+    return files
+  }
+
+  private readSupportFiles(): Record<string, Uint8Array> {
+    const files: Record<string, Uint8Array> = {}
+    files[ZIP_PATHS.appSettings] = this.readSanitizedAppSettingsBackup()
+    this.addOptionalFile(files, ZIP_PATHS.customPrompts, this.CUSTOM_PROMPTS_PATH)
+    this.addOptionalFile(files, ZIP_PATHS.systemPrompts, this.SYSTEM_PROMPTS_PATH)
+    return files
   }
 
   private resolveBackupVersion(manifest: SyncBackupManifest | null): number {
@@ -753,18 +813,18 @@ export class SyncService {
     return baseName
   }
 
-  private async addOptionalFile(
+  private addOptionalFile(
     files: Record<string, Uint8Array>,
     zipPath: string,
     filePath: string
-  ): Promise<void> {
+  ): void {
     if (fs.existsSync(filePath)) {
-      files[zipPath] = new Uint8Array(await fs.promises.readFile(filePath))
+      files[zipPath] = toUint8ArrayView(fs.readFileSync(filePath))
     }
   }
 
-  private async readSanitizedAppSettingsBackup(): Promise<Uint8Array> {
-    const raw = await fs.promises.readFile(this.APP_SETTINGS_PATH, 'utf-8')
+  private readSanitizedAppSettingsBackup(): Uint8Array {
+    const raw = fs.readFileSync(this.APP_SETTINGS_PATH, 'utf-8')
     const parsed = JSON.parse(raw) as Record<string, unknown>
     const sanitized = this.removeMigratedAppSettings(parsed)
     return new Uint8Array(Buffer.from(JSON.stringify(sanitized, null, 2), 'utf-8'))

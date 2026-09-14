@@ -4,6 +4,7 @@ import Database from 'better-sqlite3-multiple-ciphers'
 import { unzipSync, zipSync } from 'fflate'
 import * as fsMock from 'fs'
 import type { SettingsDatabase } from '@/settings/data/database'
+import { withBackupReadLock } from '@/data/backupReadLock'
 
 const configImportMocks = vi.hoisted(() => ({
   importLegacyConfig: vi.fn(),
@@ -357,10 +358,15 @@ describe('SyncService backup import', () => {
     sqlitePresenter = {
       close: vi.fn(),
       reopen: vi.fn(),
-      getDatabase: vi.fn(() => ({
-        open: true,
-        pragma: dbPragma
-      })),
+      withBackupReadLock: vi.fn((work: () => Promise<unknown>) =>
+        withBackupReadLock(
+          { open: true, pragma: dbPragma } as never,
+          () => {
+            throw new Error('backup read lock must not open a connection')
+          },
+          work
+        )
+      ),
       appSettingsTable: {
         hasConfigMigration: vi.fn(() => true)
       },
@@ -469,7 +475,7 @@ describe('SyncService backup import', () => {
     const files = unzipSync(new Uint8Array(fs.readFileSync(archivePath)))
     expect(files[ZIP_PATHS.agentDb]).toBeDefined()
     expect(files[ZIP_PATHS.mcpSettings]).toBeUndefined()
-    expect(dbPragma).toHaveBeenCalledWith('wal_checkpoint(TRUNCATE)')
+    expect(dbPragma).toHaveBeenCalledWith('wal_checkpoint(PASSIVE)')
     const manifest = JSON.parse(Buffer.from(files[ZIP_PATHS.manifest]).toString('utf-8'))
     expect(manifest).toMatchObject({
       version: 2,
