@@ -48,25 +48,30 @@ still required before implementation and is not claimed as complete by this comm
 ownership.
 
 Baseline evidence: [baseline.md](./baseline.md) records the checked revision and environment, both
-execution flows, the identifier and ownership matrices, the capability classification and
-first-version allowlist, the portable-import probes, and the unproven headless scenario with its
-blocker, owner, and resolution path.
+execution flows, the identifier and ownership matrices, the capability classification with its
+contract-id mapping and first-version allowlist, the portable-import probes, and the unproven headless
+scenario with its blocker, owner, and resolution path.
 
 ### Work
 
 - [x] Record current Desktop and direct ACP flows from the existing backend/session-handle seams.
   Evidence: `baseline.md` "Current execution paths", traced through
-  `src/main/agent/manager/agentManager.ts` into `DeepChatAgentBackendPort` and
-  `DirectAcpSessionBackend`.
+  `src/main/agent/manager/agentManager.ts` into `DeepChatAgentBackendPort` (implemented by the harness,
+  assembled with `runtime`/`port` by the composition root at `src/main/app/composition.ts:1922-1927`)
+  and into `DirectAcpSessionBackend`, including the `sessionState: deepChatAgentHarness` host seam the
+  composition root injects at `src/main/app/composition.ts:1928-1930` and Stage 2/3 must untie.
 - [x] Define the public distinction between `sessionId`, `submissionId`, internal execution `runId`,
   and legacy CLI run identifiers. Evidence: `baseline.md` "Identifier and ownership matrix",
   including the renderer-scoped cancellation semantics of today's `submissionId`.
 - [x] Inventory every built-in tool/plugin and classify it as `headless-required`, `headless-optional`,
   `desktop-capability`, or `out-of-scope`. Evidence: `baseline.md` "Capability inventory and
-  first-version allowlist", which names the first-version allowlist and every unsupported class.
+  first-version allowlist", which names the first-version allowlist, maps every one of the 15
+  `AGENT_SERVICE_CAPABILITIES` ids to a class, and names every unsupported class.
 - [x] Trace provider credentials, database/config writes, MCP/process children, memory/skills/hooks,
   approvals, event recovery, and shutdown ownership. Evidence: `baseline.md` "Resource ownership",
-  including the recorded teardown order in `src/main/app/composition.ts`.
+  which includes the Hooks row (`src/main/app/composition.ts:1768` construction, `hookService.stop`
+  teardown at 2651) and the recorded critical-dependency teardown order in
+  `src/main/app/composition.ts`, quoted as a subset rather than as the complete sequence.
 - [x] Define the minimum real headless scenario: at least two turns and one supported tool call whose
   result is fed into the next model request. Evidence: `baseline.md` "Minimum headless scenario";
   defining the scenario is complete, executing it is not.
@@ -84,12 +89,13 @@ blocker, owner, and resolution path.
 ### Acceptance
 
 - [ ] A reviewed inventory names every first-version headless capability and every explicitly unsupported
-  Desktop capability. Status: the inventory is recorded in `baseline.md` and covers every class; what
-  remains is third-party review of this commit, so the line stays unchecked until that review lands.
+  Desktop capability. Status: the inventory is recorded in `baseline.md`, covers every class, and maps
+  every one of the 15 contract capability ids to a class; what remains is third-party review of this
+  commit, so the line stays unchecked until that review lands.
 - [x] The two-turn/tool-call scenario is executable as a manual or temporary probe against current code,
   or the blocker is recorded with an owner and a concrete resolution path. Evidence: the scenario was
-  **not** completed — `baseline.md` records the blocker, its owner, and the resolution path, which is
-  the second branch this criterion allows.
+  **not** completed and is not claimed as passing — `baseline.md` records the blocker, its owner, and
+  the resolution path, which is the second branch this criterion allows.
 - [x] No behavior or source file changes are required for acceptance. Evidence: the Stage 0 commit adds
   documentation only.
 
@@ -160,6 +166,10 @@ to no service, transport, handler, or client, so the remaining Stage 1 work belo
   `safeStorage`, default paths, and global singletons from the package boundary.
 - [ ] Keep provider/tool execution ports real; do not extract types while leaving the loop in Desktop.
 - [ ] Keep Desktop embedding the same kernel during this stage.
+- [ ] Untie the ACP session-state seam: today `createDirectAcpAgentBackend` receives
+  `sessionState: deepChatAgentHarness` (`src/main/app/composition.ts:1928-1930`). Give the peer its own
+  `SessionStatePort` implementation, or expose a neutral session-state contract that both paths consume,
+  so the ACP adapter never depends on the built-in harness.
 
 ### Attention points
 

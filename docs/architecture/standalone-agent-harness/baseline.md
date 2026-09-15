@@ -53,12 +53,26 @@ renderer composer submit
   -> AgentManager.resolveSessionBackend(sessionId)      src/main/agent/manager/agentManager.ts
        kind 'deepchat'
   -> DeepChatAgentBackendPort implementation            src/main/agent/manager/deepChatAgentBackend.ts
-  -> harness public barrel                              src/main/agent/deepchat/harness/index.ts
-  -> DeepChatAgentHarness                               .../harness/deepChatAgentHarness.ts
+  -> DeepChatAgentRuntime / DeepChatAgentInstance       src/main/agent/deepchat/instance/**
+  -> runtime graph owning the loop engine               .../runtime/process.ts
   -> DeepChatLoopEngine + context/queue/interaction     .../loop/deepChatLoopEngine.ts
   -> provider runtime + session DB + tools + MCP + memory + skills
   <- typed events back to the renderer
 ```
+
+The backend does not import the harness. `deepChatAgentBackend.ts` depends on the instance layer
+(`import { DeepChatAgentRuntime } from '@/agent/deepchat/instance/deepChatAgentRuntime'`, line 1),
+takes it as `runtime` in `DeepChatAgentBackendOptions` (line 129), and hydrates through
+`runtime.getOrHydrate(sessionId)` (line 160). `DeepChatAgentBackendPort` is a type declared in that same
+backend module (line 131) and implemented by `DeepChatAgentHarness`
+(`src/main/agent/deepchat/harness/deepChatAgentHarness.ts:28`), which imports it type-only — so the only
+edge between the two modules points from the harness into the backend, not the reverse. The harness
+public barrel has exactly one production importer: the composition root
+(`src/main/app/composition.ts:173`). The composition root is what assembles the pair — it builds the
+harness at 1854 and injects both collaborators into the backend factory at 1922–1927
+(`port: deepChatAgentHarness`, `runtime: deepChatAgentHarness.deepChatRuntime`) before handing the
+backend set to `AgentManager` at 1921. Dependency direction is composition root → harness and
+composition root → backend.
 
 Every element above runs in the Electron main process. The single composition root is
 `src/main/app/composition.ts` (3597 lines), reached only through `src/main/app/mainProcess.ts`, and it
@@ -81,6 +95,19 @@ renderer -> main route -> AgentManager.resolveSessionBackend -> kind 'acp'
 
 `DirectAcpSessionBackend` is a peer. It never enters `DeepChatLoopEngine`, and the built-in service
 must never route an external ACP agent through its own loop.
+
+Execution is separate, but state ownership is not yet. The composition root still injects the built-in
+harness into the ACP backend as its session-state owner:
+`createDirectAcpAgentBackend({ runtime: acpAgentRuntime, sessionState: deepChatAgentHarness, ... })` at
+`src/main/app/composition.ts:1928-1930`. `directAcpAgentBackend.ts` consumes that collaborator only
+through `SessionStatePort` (`src/main/session/data/contracts`): permission mode (lines 68, 173-174),
+generation settings (175-177), session init and destroy (104, 125-129), session-state and session-list
+reads (129, 253), and project-directory writes (179, 270). The ACP runtime itself
+(`src/main/agent/acp/instance`) is independent of `DeepChatLoopEngine`, so this is a host seam, not an
+execution coupling. Stage 2 and Stage 3 must untie it: the ACP adapter either keeps its own state-port
+implementation under the new host, or the harness exposes a neutral session-state contract that both
+paths consume. Until then, "direct ACP is a peer" holds for execution and does not yet hold for
+session state.
 
 ### Current CLI path (V1, unchanged by this plan)
 
@@ -125,12 +152,20 @@ The classification is of capabilities, not of interfaces that merely exist.
 Not promised in the first version. Each entry joins the allowlist only after a service-host dependency
 audit and a real execution test without Desktop.
 
-memory (`src/main/memory/**`, `src/main/agent/deepchat/memory/**`, `agentMemoryTools.ts`), skills
-(`src/main/skill/**`), MCP (`src/main/mcp/**`), cron (`cronJobTool.ts`), question (`questionTool.ts`),
-image generation (`agentImageGenerationTool.ts`), code mode (`src/main/tool/codeMode/**`), tool search
-(`toolSearchTool.ts`), editor and apply-patch (`minimalEditorAdapter.ts`), plan (`agentPlanTool.ts`),
-Tape tools (`agentTapeTools.ts`), chat settings tools (`chatSettingsTools.ts`), live delegation
-(`liveDelegationTool.ts`).
+memory (`src/main/memory/**`, `src/main/agent/deepchat/memory/**`,
+`src/main/tool/agentTools/agentMemoryTools.ts`), skills (`src/main/skill/**`), MCP (`src/main/mcp/**`),
+cron (`cronJobTool.ts`), question (`questionTool.ts`), image generation (`agentImageGenerationTool.ts`),
+code mode (`src/main/tool/codeMode/**`), tool search (`toolSearchTool.ts`), editor and apply-patch
+(`minimalEditorAdapter.ts`), plan (`agentPlanTool.ts`), Tape tools (`agentTapeTools.ts`), chat settings
+tools (`chatSettingsTools.ts`), live delegation (`liveDelegationTool.ts`).
+
+`media.voice` splits into two provider-backed capabilities, and both belong to this class rather than to
+`desktop-capability`: audio transcription (`src/main/cli/audioTranscriptionService.ts` over
+`ProviderRuntime.transcribeAudioStandalone`, `src/main/provider/index.ts:535`) and speech generation
+(`src/main/cli/computeService.ts` over `ProviderRuntime.generateSpeechStandalone`,
+`src/main/provider/index.ts:775`). Neither owning module imports `electron` or `app.getPath`. They stay
+optional rather than required because they resolve models, provider configuration, and credentials —
+the same service-host dependency audit and real execution test gate them.
 
 ### `desktop-capability`
 
@@ -139,9 +174,16 @@ Must report unavailable, and must fail closed when invoked. Never silently succe
 CUA and previews (`computerUsePreviewPresenter`, `yoBrowserPresenter`, `agentPreviewCoordinator`,
 torn down in `src/main/app/composition.ts`), native window interaction and renderer approval
 presentation, OAuth through a BrowserWindow (`acpAuthService`, MCP OAuth), desktop notifications
-(`WindowNotificationRouter` and the semantic notification projections), tray (`TrayPresenter`),
-global shortcuts, and native OCR assets (`src/main/ocr/lightOcrProcessHost.ts`,
-`src/main/ocr/ocrRuntimeAssetResolver.ts`).
+(`WindowNotificationRouter` and the semantic notification projections), tray (`TrayPresenter`), global
+shortcuts, and OCR (`media.ocr`).
+
+The OCR helpers are the wrong evidence for that class on their own — `lightOcrProcessHost.ts` spawns a
+helper and imports no Electron API. The real seams are around them: `src/main/ocr/ocrCacheKeyProvider.ts`
+imports `safeStorage` from `electron` at module scope (line 5) and defaults its encryption adapter to it
+(line 34); the runtime is constructed in the composition root from Electron-owned paths —
+`app.getAppPath()`, `app.isPackaged`, `app.getPath('temp')`, `app.getPath('userData')` — at
+`src/main/app/composition.ts:1269-1286`; and `src/main/ocr/ocrRuntimeAssetResolver.ts:379-382` resolves
+the packaged `app.asar` / `app.asar.unpacked` layout, which has no plain-Node meaning.
 
 ### `out-of-scope` for this architecture
 
@@ -149,17 +191,46 @@ TUI and terminal scrollback, interactive shell, TCP listener or multi-tenant dae
 self-approval (`--yes`), migration of every existing plugin, two database owners for one profile, and
 merging direct ACP into the built-in loop.
 
+### Capability-id mapping
+
+`AGENT_SERVICE_CAPABILITIES` (`src/shared/contracts/agent-service/common.ts:51`) fixes 15 ids. Every one
+of them is classified here, so no id in the contract is left without a class:
+
+| Contract id | Class | Basis |
+| --- | --- | --- |
+| `provider.model_request` | `headless-required` | provider runtime becomes a Stage 3 host responsibility |
+| `agent.loop` | `headless-required` | `DeepChatLoopEngine` and its coordinators |
+| `session.persistence` | `headless-required` | session data, owned by the composition root today |
+| `session.events` | `headless-required` | typed event hub and session event router |
+| `tools.builtin` | `headless-required` | the built-in tool surface is a first-version item; the per-tool split above still governs which individual tools are promised |
+| `tools.mcp` | `headless-optional` | MCP service plus helper processes |
+| `tools.process` | `headless-required` | controlled bash/process, with authorization and results retained by the service |
+| `tools.file` | `headless-required` | host-safe only after a real execution test in Stage 3 |
+| `skills` | `headless-optional` | skill service and skill sync |
+| `memory` | `headless-optional` | memory service, audit tables, ingestion observer |
+| `media.ocr` | `desktop-capability` | `safeStorage` cache key, Electron-owned paths, packaged asar layout |
+| `media.voice` | `headless-optional` | provider-backed transcription and speech generation |
+| `desktop.cua` | `desktop-capability` | CUA preview presenter and renderer approval |
+| `desktop.browser_preview` | `desktop-capability` | `yoBrowserPresenter`, `agentPreviewCoordinator` |
+| `desktop.native_window` | `desktop-capability` | windows, tray, global shortcuts, renderer presentation |
+
+One id spans many tools, so `tools.builtin` being `headless-required` does not upgrade an individual
+tool: a tool classified as `headless-optional` or `desktop-capability` must still be reported
+unavailable rather than counted as satisfied by the presence of the id.
+
 ### First-version allowlist
 
-The first-version allowlist is exactly the `headless-required` set above, and every entry in it is a
+The first-version allowlist is exactly the `headless-required` capabilities named in the class tables
+above — the contract-id mapping is a coverage statement, not an allowlist — and every entry in it is a
 release decision that must pass a real headless execution test. Nothing in `headless-optional` is
 promised by the existence of a type, a route, or a tool registration.
 
 Stage 1A already fixes the vocabulary: `AGENT_SERVICE_CAPABILITIES` in
 `src/shared/contracts/agent-service/common.ts` names 15 capability ids, and an unavailable capability
-must appear in the set with an explicit reason and an optional `requiredClient` — an omitted
-capability is rejected, because a client that only inspects the set could not tell an omission from
-support.
+must appear in the set with an explicit reason and a required-but-nullable `requiredClient`
+(`AgentServiceRequiredClientSchema.nullable()`, line 98: the key must be present, and `null` states that
+no client can supply the capability) — an omitted capability is rejected, because a client that only
+inspects the set could not tell an omission from support.
 
 ## Resource ownership
 
@@ -173,15 +244,27 @@ support.
 | Child processes and PTY | composition root through `backgroundExecSessionManager`, the ACP process/PTY managers, and the code runtime | Agent Service | `toolService.shutdownCodeRuntime`, `backgroundExecSessionManager.shutdown` steps in composition |
 | Memory | composition root through the memory service | Agent Service, after the dependency audit | `memoryService.dispose` step in composition |
 | Skills | composition root through the skill service | Agent Service, after the dependency audit | |
+| Hooks | composition root through `HookService` | Agent Service, or fail closed: hook execution owns child processes and per-session delivery chains | `hookService = new HookService(hookSettings, ...)` at `src/main/app/composition.ts:1768`, injected into the harness as `hookObserver` at 1861; `stop()` SIGKILLs active hook children and awaits the session chains (`src/main/hook/index.ts:233-243`), released at `src/main/app/composition.ts:2651` |
 | Approvals | Electron main plus renderer presentation | Agent Service validates and blocks; a trusted client decides | `src/main/tool/permission/**` |
 | Events and recovery | composition root through the typed event hub and session event router | Agent Service owns epoch, cursor, and resync | `src/main/events/typedEventHub.ts`, `src/main/events/sessionEventRouter.ts` |
 | Shutdown | `src/main/app/mainShutdownCoordinator.ts` drives an ordered teardown list owned by composition | Agent Service owns its own teardown | see below |
 
-Recorded teardown order in `src/main/app/composition.ts`: code runtime, plugin service, MCP service,
-semantic notification projections, CUA preview, browser preview, agent preview coordinator,
-background exec sessions, memory service, provider runtime, ACP runtime, then ACP auth last. Ownership
-of shutdown follows ownership of construction, so moving the composition root in Stage 3 moves this
-entire list with it, and any capability that stays behind must be an explicit lease.
+Recorded teardown order in `src/main/app/composition.ts`, quoted as an ordered subset in critical
+dependency order rather than as the complete sequence: code runtime, plugin service, MCP service,
+semantic notification projections, CUA preview, browser preview, agent preview coordinator, background
+exec sessions, memory service, provider runtime, ACP runtime. The `destroy()` body (lines 2635–2746)
+contains more than that subset, and the omitted steps sit on both sides of it rather than only at the
+end: before it come the CLI and token authority, event hub, artifact spool, admission, cron, remote
+service, hooks (`hookService.stop`, 2651), session runtimes, and the skill/plugin initialization drains
+(2636–2670); between and after its entries come the window, tab, and floating-button presenters
+(2694–2704), workspace, skill-sync, skill, and file-watcher teardown (2705–2708), the knowledge service
+(2736), the OCR runtime (`ocrRuntimeService.close`, 2737), `mainDatabase.close` (2740), and the
+shortcut, notification, and tray presenters (2741–2745). ACP auth is released before `destroy()` is
+entered, in the shutdown coordinator at 3300, not after it.
+
+That subset is a reading aid, not a specification: the authoritative sequence is the `destroy()` body
+itself. Ownership of shutdown follows ownership of construction, so moving the composition root in
+Stage 3 moves that sequence with it, and any capability that stays behind must be an explicit lease.
 
 The single-ownership invariant follows from the database row: one profile has exactly one composition
 root today, and Stage 3 must preserve that property when the root moves out of Electron.
@@ -197,10 +280,11 @@ this?".
 | Loop Engine module — `src/main/agent/deepchat/loop/deepChatLoopEngine.ts` | 45 | **no** | `zod`, `tokenx` |
 
 Provenance: the module counts are bundler-resolution results from the Stage 0 probe, resolved with the
-repository path aliases (`@/`, `@shared`) and `node_modules` treated as external. The probe was
-temporary and has been removed, so the numbers are recorded here rather than reproducible from a file
-in this commit, and they shift with resolver configuration. The structural conclusions are
-corroborated at source level below.
+repository path aliases (`@/`, `@shared`) and `node_modules` treated as external. The counts measure
+**value** imports only — `import type` edges are excluded, because a type-only edge cannot make a plain
+Node consumer load a runtime module. The probe was temporary and has been removed, so these numbers
+cannot be re-derived from a file in this commit, and they shift with resolver configuration. The
+structural conclusions are corroborated at source level below.
 
 What that means:
 
