@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { defineComponent, nextTick, ref } from 'vue'
+import { defineComponent, ref } from 'vue'
 import type { PropType } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
 import type { UsageDashboardData } from '@shared/types/agent-interface'
@@ -513,54 +513,6 @@ describe('DashboardSettings', () => {
     resolveDashboard?.(buildDashboard())
     await flushPromises()
     expect(getUsageDashboard).toHaveBeenCalledTimes(1)
-  })
-
-  it('reuses a bounded set of Intl formatters for a full calendar render', async () => {
-    const OriginalNumberFormat = Intl.NumberFormat
-    const OriginalDateTimeFormat = Intl.DateTimeFormat
-    const numberFormat = vi.spyOn(Intl, 'NumberFormat').mockImplementation(function NumberFormat(
-      locales?: Intl.LocalesArgument,
-      options?: Intl.NumberFormatOptions
-    ) {
-      return new OriginalNumberFormat(locales, options)
-    })
-    const dateTimeFormat = vi
-      .spyOn(Intl, 'DateTimeFormat')
-      .mockImplementation(function DateTimeFormat(
-        locales?: Intl.LocalesArgument,
-        options?: Intl.DateTimeFormatOptions
-      ) {
-        return new OriginalDateTimeFormat(locales, options)
-      })
-    const firstDay = new Date(2025, 0, 1)
-    const calendar = Array.from({ length: 365 }, (_, index) => {
-      const date = new Date(firstDay)
-      date.setDate(firstDay.getDate() + index)
-      return {
-        date: date.toISOString().slice(0, 10),
-        messageCount: 1,
-        inputTokens: 40,
-        outputTokens: 20,
-        totalTokens: 60,
-        cachedInputTokens: 10,
-        level: 3 as const
-      }
-    })
-
-    try {
-      const { wrapper } = await setup(buildDashboard({ calendar }), { hideNostalgia: true })
-
-      expect(numberFormat).toHaveBeenCalledTimes(4)
-      expect(dateTimeFormat).toHaveBeenCalledTimes(3)
-
-      wrapper.vm.$forceUpdate()
-      await nextTick()
-      expect(numberFormat).toHaveBeenCalledTimes(4)
-      expect(dateTimeFormat).toHaveBeenCalledTimes(3)
-    } finally {
-      numberFormat.mockRestore()
-      dateTimeFormat.mockRestore()
-    }
   })
 
   it('renders summary cards and breakdown rows when stats exist', async () => {

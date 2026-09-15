@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 
 import type { DeepChatAgentConfig } from '@shared/types/agent-interface'
+import type { MemoryServiceDeps } from '@/memory/types'
 import {
   createFakeRepository,
   enabledConfig,
@@ -179,11 +180,14 @@ describe('MemoryService.maybeEvolvePersona (guarded, default off)', () => {
       })
     }
   }
-  const personaLLM = (text: string): ReturnType<typeof vi.fn> =>
+  const personaLLM = (text: string) =>
     vi.fn(async (_p: string, _m: string, prompt: string) =>
       prompt.includes('stable self-model') ? text : ''
     )
-  const makePersona = (config: DeepChatAgentConfig, generateText: ReturnType<typeof vi.fn>) => {
+  const makePersona = (
+    config: DeepChatAgentConfig,
+    generateText: MemoryServiceDeps['generateText']
+  ) => {
     const repo = createFakeRepository()
     const presenter = new MemoryService({
       repository: repo,

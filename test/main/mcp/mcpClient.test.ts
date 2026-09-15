@@ -1218,8 +1218,8 @@ describe('McpClient Runtime Command Processing Tests', () => {
 
         const sdkClient = createSdkToolClient(tools, era)
         vi.mocked(Client).mockImplementationOnce(function () {
-        return sdkClient as any
-      })
+          return sdkClient as any
+        })
         const client = createMcpClient('large-catalog', {
           type: 'stdio',
           command: 'large-catalog',
