@@ -113,6 +113,15 @@ const nestedDetailValue = (levels: number): JsonValue =>
 const detailKeys = (count: number): Record<string, number> =>
   Object.fromEntries(Array.from({ length: count }, (_, index) => [`key${index}`, index]))
 
+// Nested keys carry no key contract, so this is how a value can try to hide bytes from the size
+// budget: many individually short keys that only add up in the encoded form.
+const nestedDetailKeys = (count: number, keyLength: number): Record<string, number> =>
+  Object.fromEntries(
+    Array.from({ length: count }, (_, index) => [`k${index}`.padEnd(keyLength, 'x'), index])
+  )
+
+const numberArray = (count: number): number[] => Array.from({ length: count }, () => 1234567890)
+
 const parseError = (error: unknown) => AgentServiceErrorSchema.safeParse(error).success
 
 const resultSchema = defineAgentServiceResultSchema(AgentServiceSessionRefSchema)
@@ -139,6 +148,14 @@ describe('agent service base contract', () => {
     for (const code of Object.values(AGENT_SERVICE_ERROR_CODE_TO_LOCAL_CONTROL_CODE)) {
       expect(LOCAL_CONTROL_ERROR_CODES).toContain(code)
     }
+
+    // The mapping is lossy and must not be read as an equivalence: two distinct Agent Service
+    // conditions collapse onto the one local-control `unavailable`, so the capability identity has
+    // to survive in the Agent Service error itself and be kept by the adapter separately.
+    expect(AGENT_SERVICE_ERROR_CODE_TO_LOCAL_CONTROL_CODE.capability_unavailable).toBe(
+      AGENT_SERVICE_ERROR_CODE_TO_LOCAL_CONTROL_CODE.service_unavailable
+    )
+    expect(AgentServiceErrorSchema.parse(capabilityUnavailableError).capability).toBe('desktop.cua')
   })
 
   it('reports capability availability explicitly and rejects ambiguity', () => {
@@ -351,18 +368,12 @@ describe('agent service base contract', () => {
     const cases: Array<[string, unknown]> = [
       ['absolute-path key', { '/tmp/deepchat/session.db': 'locked' }],
       ['over-long key', { ['x'.repeat(AGENT_SERVICE_ERROR_DETAIL_KEY_MAX_LENGTH + 1)]: 'over' }],
-      ['snake-case credential key', { access_token: 'redacted' }],
-      ['camel-case credential key', { apiKey: 'redacted' }],
-      ['request header key', { Authorization: 'redacted' }],
-      ['credential-store key', { safeStorageCredential: 'redacted' }],
-      ['path key', { path: '/tmp/deepchat/session.db' }],
-      ['handle key', { processHandle: 42 }],
-      ['runtime object key', { abortSignal: {} }],
-      ['callback key', { callback: 'onDone' }],
+      ['key with a path separator', { 'context/path': 'no' }],
       [
         'value deeper than the depth budget',
         { context: nestedDetailValue(AGENT_SERVICE_ERROR_DETAIL_VALUE_MAX_DEPTH + 1) }
       ],
+      ['array value deeper than the depth budget', { context: [[[[[1]]]]] }],
       [
         'value larger than the size budget',
         { excerpt: 'x'.repeat(AGENT_SERVICE_ERROR_DETAIL_VALUE_MAX_BYTES) }
@@ -388,6 +399,111 @@ describe('agent service base contract', () => {
         details: { excerpt: 'x'.repeat(AGENT_SERVICE_ERROR_DETAIL_VALUE_MAX_BYTES / 2) }
       })
     ).toBe(true)
+  })
+
+  it('measures the detail value budget on the encoded JSON, not on its leaves', () => {
+    // A string of `N` characters encodes to `N + 2` bytes, so the budget boundary is exact rather
+    // than roughly proportional.
+    expect(
+      parseError({
+        code: 'internal',
+        message: 'boom',
+        details: { excerpt: 'x'.repeat(AGENT_SERVICE_ERROR_DETAIL_VALUE_MAX_BYTES - 2) }
+      })
+    ).toBe(true)
+    expect(
+      parseError({
+        code: 'internal',
+        message: 'boom',
+        details: { excerpt: 'x'.repeat(AGENT_SERVICE_ERROR_DETAIL_VALUE_MAX_BYTES - 1) }
+      })
+    ).toBe(false)
+
+    const cases: Array<[string, unknown]> = [
+      [
+        'one nested key over the whole budget',
+        { context: { ['k'.repeat(AGENT_SERVICE_ERROR_DETAIL_VALUE_MAX_BYTES)]: 1 } }
+      ],
+      ['many nested keys that are only large together', { context: nestedDetailKeys(64, 40) }],
+      ['array of numbers over the budget', { samples: numberArray(256) }],
+      [
+        'array of objects over the budget',
+        { samples: Array.from({ length: 128 }, () => ({ id: 1 })) }
+      ]
+    ]
+
+    for (const [label, detail] of cases) {
+      expect(parseError({ code: 'internal', message: 'boom', details: detail }), label).toBe(false)
+    }
+
+    expect(
+      parseError({
+        code: 'internal',
+        message: 'boom',
+        details: { context: { attempt: 1 }, samples: [1, 2, 3, 4, 5] }
+      })
+    ).toBe(true)
+    expect(
+      parseError({
+        code: 'internal',
+        message: 'boom',
+        details: { context: nestedDetailKeys(2, 8) }
+      })
+    ).toBe(true)
+  })
+
+  it('fails closed on detail values that cannot be measured', () => {
+    const cyclic: Record<string, unknown> = { attempt: 1 }
+    cyclic.self = cyclic
+
+    // A shallow value whose encoder output is cyclic: the depth walk only sees a function, so the
+    // JSON encoder is what has to refuse it.
+    const cyclicThroughEncoders = { context: { toJSON: () => cyclic } }
+
+    const cases: Array<[string, unknown]> = [
+      ['cyclic value', { context: cyclic }],
+      ['cyclic encoder output', cyclicThroughEncoders],
+      ['unencodable value', { context: BigInt(1) }]
+    ]
+
+    for (const [label, detail] of cases) {
+      expect(
+        () => parseError({ code: 'internal', message: 'boom', details: detail }),
+        label
+      ).not.toThrow()
+      expect(parseError({ code: 'internal', message: 'boom', details: detail }), label).toBe(false)
+    }
+
+    // Deeply nested but acyclic: the recursive JSON walk used to exhaust the call stack and throw
+    // out of `safeParse`, which is not a fail-closed answer. It must be a rejection.
+    const deeplyNested = JSON.parse('['.repeat(20_000) + '1' + ']'.repeat(20_000)) as JsonValue
+    const parseDeeplyNested = () =>
+      parseError({ code: 'internal', message: 'boom', details: { context: deeplyNested } })
+
+    expect(parseDeeplyNested).not.toThrow()
+    expect(parseDeeplyNested()).toBe(false)
+  })
+
+  it('does not claim to redact secret- or path-shaped detail values', () => {
+    // These cases pin what `details` does not do. The schema bounds shape, depth, and encoded size;
+    // it does not inspect values for credentials or filesystem paths, because no schema can do that
+    // reliably. Redaction is the producer's responsibility: a value that must not be disclosed has to
+    // stay out of `details` instead of relying on a filter here. The fixtures are therefore ordinary
+    // diagnostic strings, never live material.
+    const tokenCountDetails = { provider: 'openai', tokenCount: 12, maxTokens: 4096 }
+    expect(parseError({ code: 'internal', message: 'boom', details: tokenCountDetails })).toBe(true)
+
+    const cases: Array<[string, Record<string, JsonValue>]> = [
+      ['path-shaped value', { note: '/tmp/deepchat/session.db is locked' }],
+      ['secret-named key', { credentialName: 'openai-api-key' }],
+      ['header-shaped key', { Authorization: 'producer-owned' }],
+      ['handle-named key', { processHandle: 42 }],
+      ['path-named key', { filePath: 'producer-owned' }]
+    ]
+
+    for (const [label, details] of cases) {
+      expect(parseError({ code: 'internal', message: 'boom', details }), label).toBe(true)
+    }
   })
 
   it('expresses results and failures through one discriminated envelope', () => {
@@ -452,7 +568,11 @@ describe('agent service base contract', () => {
         code: 'internal',
         message: 'boom',
         retriable: true,
-        details: { attempt: 2, provider: { id: 'openai', nested: { model: 'gpt-4o' } } }
+        details: {
+          attempt: 2,
+          provider: { id: 'openai', nested: { model: 'gpt-4o' } },
+          tokenCount: 12
+        }
       }),
       AgentServiceErrorSchema.parse(capabilityUnavailableError),
       AgentServiceErrorSchema.parse({
@@ -460,7 +580,7 @@ describe('agent service base contract', () => {
         message: 'MCP host is not configured',
         capability: 'tools.mcp',
         requiredClient: null,
-        details: { serverId: 'mcp-1' }
+        details: { serverId: 'mcp-1', tokenCount: 0 }
       }),
       AgentServiceSessionRefSchema.parse(sessionRef),
       AgentServiceSubmissionReceiptSchema.parse(receipt),

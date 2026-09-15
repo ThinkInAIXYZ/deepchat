@@ -7,7 +7,7 @@ import {
   TimestampMsSchema
 } from '../common'
 import type { LocalControlErrorCode } from '../localControl'
-import { JsonValueSchema, type JsonValue } from '../json'
+import { JsonValueSchema } from '../json'
 
 // The service protocol version is negotiated exactly. A client that does not speak this version
 // must fail the handshake instead of silently downgrading to a weaker contract.
@@ -157,82 +157,50 @@ export const AGENT_SERVICE_ERROR_MESSAGE_MAX_LENGTH = 4096
 // `details` is a diagnostic channel for bounded context, never a passthrough of host internals. The
 // transport already bounds the raw frame; these limits keep an error DTO small no matter what a
 // service implementation puts in it.
+//
+// Redaction is deliberately not one of these limits, and cannot be: a schema has no reliable way to
+// tell a credential or a filesystem path from an ordinary diagnostic string, so nothing here
+// inspects values for secrets. A producer that must not disclose a value does not place it in
+// `details`. Names that merely sound sensitive stay accepted, because they are legitimate
+// diagnostics: `tokenCount`, `maxTokens`, and `provider` are all valid detail keys.
 export const AGENT_SERVICE_ERROR_DETAILS_MAX_KEYS = 8
 export const AGENT_SERVICE_ERROR_DETAIL_KEY_MAX_LENGTH = 128
 export const AGENT_SERVICE_ERROR_DETAIL_VALUE_MAX_DEPTH = 4
 export const AGENT_SERVICE_ERROR_DETAIL_VALUE_MAX_BYTES = 1024
 
-// Keys are identifier-shaped labels, so the key space itself cannot encode a filesystem path or a
-// raw handle.
+// Top-level keys are identifier-shaped labels. Nested keys carry no label contract, so they are
+// bounded only by the encoded size budget of the value that contains them.
 const AGENT_SERVICE_ERROR_DETAIL_KEY_PATTERN = /^[A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z][A-Za-z0-9_]*)?$/
-
-// Labels that mark sensitive or non-serializable content are refused as substrings, so
-// `access_token`, `apiKey`, `safeStorageCredential`, and `processHandle` are all rejected however
-// they are spelled, including inside a longer name.
-export const AGENT_SERVICE_FORBIDDEN_ERROR_DETAIL_KEY_FRAGMENTS = [
-  'token',
-  'secret',
-  'password',
-  'credential',
-  'authorization',
-  'apikey',
-  'cookie',
-  'handle',
-  'abortsignal',
-  'callback',
-  'principal',
-  'renderer'
-] as const
-
-// Path-shaped labels are refused exactly: a diagnostic key must not describe a service filesystem
-// location or a local endpoint.
-export const AGENT_SERVICE_FORBIDDEN_ERROR_DETAIL_KEYS = [
-  'path',
-  'filepath',
-  'absolutepath',
-  'socket',
-  'socketpath'
-] as const
-
-const forbiddenErrorDetailKeys = new Set<string>(AGENT_SERVICE_FORBIDDEN_ERROR_DETAIL_KEYS)
 
 const utf8Encoder = new TextEncoder()
 
-const normalizeErrorDetailKey = (key: string) => key.toLowerCase().replace(/[^a-z0-9]/g, '')
+// Depth-first walk that stops as soon as the depth budget is spent. Because the walk is cut off at
+// the budget, a cyclic or pathologically deep value can never exhaust the stack: it simply reports a
+// depth beyond the budget and is rejected.
+const measureErrorDetailValueDepth = (value: unknown, depth: number): number => {
+  if (depth > AGENT_SERVICE_ERROR_DETAIL_VALUE_MAX_DEPTH) return depth
+  if (value === null || typeof value !== 'object') return depth
 
-const isForbiddenErrorDetailKey = (key: string) => {
-  const normalized = normalizeErrorDetailKey(key)
-  return (
-    forbiddenErrorDetailKeys.has(normalized) ||
-    AGENT_SERVICE_FORBIDDEN_ERROR_DETAIL_KEY_FRAGMENTS.some((fragment) =>
-      normalized.includes(fragment)
-    )
-  )
-}
-
-type ErrorDetailValueMeasure = { depth: number; bytes: number }
-
-// Conservative upper bound of a value's JSON-encoded UTF-8 size, together with its nesting depth. The
-// walk stops as soon as the depth budget is spent, so a hostile or cyclic value can never exhaust the
-// stack; object keys are bounded separately by `AGENT_SERVICE_ERROR_DETAIL_KEY_MAX_LENGTH`.
-const measureErrorDetailValue = (value: JsonValue, depth: number): ErrorDetailValueMeasure => {
-  if (depth > AGENT_SERVICE_ERROR_DETAIL_VALUE_MAX_DEPTH) return { depth, bytes: 0 }
-  if (typeof value === 'string') return { depth, bytes: utf8Encoder.encode(value).length + 2 }
-  if (value === null || typeof value === 'number' || typeof value === 'boolean') {
-    return { depth, bytes: 8 }
-  }
-  // Not a JSON value at all: `JsonValueSchema` already reports it, so only skip measurement.
-  if (typeof value !== 'object') return { depth, bytes: 0 }
-
-  const children: JsonValue[] = Array.isArray(value) ? value : Object.values(value)
-  let bytes = 2
+  const children: unknown[] = Array.isArray(value) ? value : Object.values(value)
   let measuredDepth = depth
   for (const child of children) {
-    const measured = measureErrorDetailValue(child, depth + 1)
-    measuredDepth = Math.max(measuredDepth, measured.depth)
-    bytes += measured.bytes + 1
+    measuredDepth = Math.max(measuredDepth, measureErrorDetailValueDepth(child, depth + 1))
   }
-  return { depth: measuredDepth, bytes }
+  return measuredDepth
+}
+
+// The size budget is the UTF-8 length of the value's own JSON encoding, so nested keys, string
+// escaping, and array elements are counted the way a transport would count them and no nesting
+// shape can hide bytes from the budget. `null` means the value cannot be encoded at all — a cycle, a
+// bigint, a function — which is not measurable and therefore fails closed instead of passing on a
+// partial measurement.
+const measureErrorDetailValueBytes = (value: unknown): number | null => {
+  try {
+    const encoded = JSON.stringify(value)
+    return encoded === undefined ? null : utf8Encoder.encode(encoded).length
+  } catch {
+    return null
+  }
 }
 
 const AgentServiceErrorDetailKeySchema = z
@@ -241,40 +209,46 @@ const AgentServiceErrorDetailKeySchema = z
   .max(AGENT_SERVICE_ERROR_DETAIL_KEY_MAX_LENGTH)
   .regex(AGENT_SERVICE_ERROR_DETAIL_KEY_PATTERN)
 
-const AgentServiceErrorDetailValueSchema = JsonValueSchema.superRefine((value, context) => {
-  const measured = measureErrorDetailValue(value, 1)
-  if (measured.depth > AGENT_SERVICE_ERROR_DETAIL_VALUE_MAX_DEPTH) {
-    context.addIssue({
-      code: 'custom',
-      message: `Detail value depth exceeds ${AGENT_SERVICE_ERROR_DETAIL_VALUE_MAX_DEPTH}`
-    })
-  }
-  if (measured.bytes > AGENT_SERVICE_ERROR_DETAIL_VALUE_MAX_BYTES) {
-    context.addIssue({
-      code: 'custom',
-      message: `Detail value exceeds ${AGENT_SERVICE_ERROR_DETAIL_VALUE_MAX_BYTES} bytes`
-    })
-  }
-})
+// Both checks run before `JsonValueSchema` so that a value the encoder cannot represent is rejected
+// by measurement, rather than by a recursive JSON walk that would not terminate on it.
+const AgentServiceErrorDetailValueSchema = z
+  .unknown()
+  .superRefine((value, context) => {
+    const depth = measureErrorDetailValueDepth(value, 1)
+    if (depth > AGENT_SERVICE_ERROR_DETAIL_VALUE_MAX_DEPTH) {
+      context.addIssue({
+        code: 'custom',
+        message: `Detail value depth exceeds ${AGENT_SERVICE_ERROR_DETAIL_VALUE_MAX_DEPTH}`
+      })
+      return
+    }
+
+    const bytes = measureErrorDetailValueBytes(value)
+    if (bytes === null) {
+      context.addIssue({
+        code: 'custom',
+        message: 'Detail value is not JSON-encodable'
+      })
+      return
+    }
+
+    if (bytes > AGENT_SERVICE_ERROR_DETAIL_VALUE_MAX_BYTES) {
+      context.addIssue({
+        code: 'custom',
+        message: `Detail value exceeds ${AGENT_SERVICE_ERROR_DETAIL_VALUE_MAX_BYTES} bytes`
+      })
+    }
+  })
+  .pipe(JsonValueSchema)
 
 export const AgentServiceErrorDetailsSchema = z
   .record(AgentServiceErrorDetailKeySchema, AgentServiceErrorDetailValueSchema)
   .superRefine((details, context) => {
-    const keys = Object.keys(details)
-    if (keys.length > AGENT_SERVICE_ERROR_DETAILS_MAX_KEYS) {
+    if (Object.keys(details).length > AGENT_SERVICE_ERROR_DETAILS_MAX_KEYS) {
       context.addIssue({
         code: 'custom',
         message: `Detail keys exceed ${AGENT_SERVICE_ERROR_DETAILS_MAX_KEYS}`
       })
-    }
-    for (const key of keys) {
-      if (isForbiddenErrorDetailKey(key)) {
-        context.addIssue({
-          code: 'custom',
-          message: `Forbidden detail key: ${key}`,
-          path: [key]
-        })
-      }
     }
   })
 
@@ -333,6 +307,17 @@ export type AgentServiceErrorCode = z.infer<typeof AgentServiceErrorCodeSchema>
 
 // Explicit mapping from Agent Service error codes onto the maintained local-control CLI codes, so a
 // transport adapter can forward a failure into that envelope without inventing a code per call site.
+//
+// The mapping is lossy where the two vocabularies differ in granularity, and an adapter must not
+// read it as an equivalence:
+//
+// - `capability_unavailable` and `service_unavailable` both forward as local-control `unavailable`,
+//   which distinguishes neither a single missing capability from a whole service outage nor which
+//   capability was involved. The identity lives in the Agent Service error (`capability`,
+//   `requiredClient`) and an adapter that needs it keeps that error alongside the forwarded code.
+// - `duplicate_submission` forwards as `conflict`, which does not say that a submission identity was
+//   reused.
+//
 // Stage 1A does not change `localControl.ts`; the local-control-only codes (version negotiation,
 // approval decisions, rate limits, size limits, cancellation deadlines, timeouts) describe transport
 // or approval concerns and have no Agent Service source code here. The mapping is total by
