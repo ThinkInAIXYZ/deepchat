@@ -910,6 +910,7 @@ function createMockProviderSettings() {
       apiType: 'openai'
     })),
     supportsAudioInputCapability: vi.fn().mockReturnValue(false),
+    getProviderDbSourceUrl: vi.fn().mockReturnValue('https://example.com/provider-db.json'),
     getSetting: vi.fn().mockReturnValue(undefined),
     getAgentType: vi.fn().mockResolvedValue('deepchat'),
     getAcpAgents: vi.fn().mockResolvedValue([]),
@@ -986,7 +987,7 @@ function createRuntimeDependencies() {
     acpAsLlmProviderPermission: {
       resolveAgentPermission: vi.fn().mockResolvedValue(undefined)
     },
-    sessionUiPort: { refreshSessionUi: vi.fn() },
+    sessionInvalidationPort: { invalidate: vi.fn() },
     memoryPort: { isEnabled: vi.fn().mockReturnValue(false) } as any,
     getMemoryIngestionProjection: () => sqlitePresenter.deepchatMemoryIngestionProjectionTable,
     cacheImage: vi.fn(async (data: string) => data),

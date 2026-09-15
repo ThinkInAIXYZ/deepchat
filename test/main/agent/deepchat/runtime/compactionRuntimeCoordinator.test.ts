@@ -77,6 +77,7 @@ function createProviderSettings(): ProviderModelResolutionPort {
       verbosityDefault: undefined
     })),
     supportsAudioInputCapability: vi.fn().mockReturnValue(false),
+    getProviderDbSourceUrl: vi.fn().mockReturnValue('https://example.com/provider-db.json')
   }
 }
 

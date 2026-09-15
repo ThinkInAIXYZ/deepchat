@@ -1,4 +1,5 @@
 import { app, dialog } from 'electron'
+import { setVerboseLoggingEnabled } from '@shared/logger'
 import { StartupWorkloadCoordinator } from './app/startupWorkloadCoordinator'
 import { registerWorkspacePreviewSchemes } from './workspace/workspacePreviewProtocol'
 import { registerMcpAppScheme } from './mcp/apps/sandboxProtocol'
@@ -24,6 +25,10 @@ export function startApp(): void {
     return
   }
   appStarted = true
+
+  // Shared diagnostics are Node-neutral and silent by default; this Desktop entry is the only owner
+  // that decides whether verbose output is enabled (matching `is.dev` before the seam existed).
+  setVerboseLoggingEnabled(!app.isPackaged)
 
   const e2eUserDataDir = process.env.DEEPCHAT_E2E_USER_DATA_DIR?.trim()
   if (e2eUserDataDir) {

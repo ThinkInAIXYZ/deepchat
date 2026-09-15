@@ -246,7 +246,7 @@ vi.mock('@shared/logger', () => ({
     silly: vi.fn(),
     log: vi.fn()
   },
-  setLoggingEnabled: vi.fn(),
+  setVerboseLoggingEnabled: vi.fn(),
   originalConsole: {
     log: vi.fn(),
     error: vi.fn(),

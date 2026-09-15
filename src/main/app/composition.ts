@@ -171,7 +171,7 @@ import { SessionTranscriptMutations } from '@/session/transcriptMutations'
 import { SessionTurn } from '@/session/turn'
 import { SessionLifecycle } from '@/session/lifecycle'
 import { createDeepChatAgentHarness, type DeepChatAgentHarness } from '@/agent/deepchat/harness'
-import type { RunJournalObservation } from '@/agent/deepchat/runtime/types'
+import type { RunJournalObservation, SessionInvalidationPort } from '@/agent/deepchat/runtime/types'
 import { AcpAgentRuntime } from '@/agent/acp/instance'
 import { createAcpRuntimeOwner } from '@/agent/acp/createRuntimeOwner'
 import { createAcpRoutes } from '@/agent/acp/routes'
@@ -1773,14 +1773,20 @@ export async function createMainProcessControl(dependencies: {
     getCustomModels: (providerId) => providerSettings.getCustomModels(providerId),
     getAgentType: async (agentId) => await agentSettings.getAgentType(agentId)
   }
-  const sessionUiPort: SessionUiPort = {
-    refreshSessionUi: () => {
-      try {
-        void floatingButtonPresenter.refreshWidgetState()
-      } catch (error) {
-        console.warn('[Main] Failed to refresh floating widget state:', error)
-      }
+  const refreshFloatingWidgetState = (): void => {
+    try {
+      void floatingButtonPresenter.refreshWidgetState()
+    } catch (error) {
+      console.warn('[Main] Failed to refresh floating widget state:', error)
     }
+  }
+  const sessionUiPort: SessionUiPort = {
+    refreshSessionUi: refreshFloatingWidgetState
+  }
+  // The kernel states only that a session status changed; this host adapter owns what that
+  // invalidates in Desktop (the floating widget projection).
+  const sessionInvalidationPort: SessionInvalidationPort = {
+    invalidate: refreshFloatingWidgetState
   }
   sessionPermissionPort = createSessionPermissionPort({
     agentCliTokenAuthority,
@@ -1882,7 +1888,7 @@ export async function createMainProcessControl(dependencies: {
     providerCatalogPort,
     sessionPermissionPort,
     acpAsLlmProviderPermission: acpAsLlmProviderPermission,
-    sessionUiPort,
+    sessionInvalidationPort,
     memoryPort: memoryService,
     getMemoryIngestionProjection: () => memoryDatabase.ingestionProjectionTable,
     cacheImage: (data, options) => deviceService.cacheImage(data, options),

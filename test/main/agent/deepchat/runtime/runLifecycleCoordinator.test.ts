@@ -89,7 +89,7 @@ function createHarness(initialMessages: ChatMessageRecord[] = []) {
   const statusPorts: SessionStatusPublisherPorts = {
     publishEvent: vi.fn(),
     publishSessionUpdate: vi.fn(),
-    sessionUiPort: { refreshSessionUi: vi.fn() }
+    sessionInvalidationPort: { invalidate: vi.fn() }
   }
   const transcript: RunLifecycleCoordinatorPorts['transcript'] = {
     getMessage: vi.fn((messageId: string) => messages.find(({ id }) => id === messageId) ?? null),

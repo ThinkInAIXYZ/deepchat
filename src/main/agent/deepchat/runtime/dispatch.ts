@@ -104,7 +104,7 @@ import type {
 import {
   ProgrammaticCommandLaunchError,
   isProgrammaticCommandLaunchError
-} from '@/tool/agentTools/agentBashHandler'
+} from './programmaticCommandLaunchError'
 import {
   buildToolSurfaceDeferredDispatchBinding,
   claimToolSurfaceExecution,

@@ -1,12 +1,9 @@
-import type { ProviderSettingsPort } from '@/provider/settings'
 import type {
   MessageMetadata,
   UsageDashboardCalendarDay,
   UsageStatsBackfillStatus
 } from '@shared/types/agent-interface'
 import type { TapeCompactionModelCallEvent } from '@/tape/domain/compactionUsage'
-
-import { providerDbLoader } from '@/provider/providerDbLoader'
 
 export const DASHBOARD_STATS_BACKFILL_KEY = 'dashboardStatsBackfillV2'
 export const DASHBOARD_BACKFILL_STALE_MS = 10 * 60 * 1000
@@ -253,28 +250,6 @@ export function buildCompactionUsageStatsRecord(params: {
     createdAt: event.completedAt,
     updatedAt: event.completedAt
   }
-}
-
-export function getProviderLabel(
-  providerCatalog: Pick<ProviderSettingsPort, 'getProviders' | 'getProviderById'>,
-  providerId: string
-): string {
-  const provider =
-    providerCatalog.getProviders().find((item) => item.id === providerId) ??
-    providerCatalog.getProviderById(providerId)
-
-  if (provider?.name?.trim()) {
-    return provider.name.trim()
-  }
-
-  const dbProvider = providerDbLoader.getProvider(providerId)
-  return dbProvider?.display_name || dbProvider?.name || providerId
-}
-
-export function getModelLabel(providerId: string, modelId: string): string {
-  const model =
-    providerDbLoader.getModel(providerId, modelId) ?? providerDbLoader.getModel('aihubmix', modelId)
-  return model?.display_name || model?.name || modelId
 }
 
 export function buildUsageDashboardCalendar(

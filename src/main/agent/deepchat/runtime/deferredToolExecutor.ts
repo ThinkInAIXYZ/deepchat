@@ -50,7 +50,7 @@ import type {
 import {
   isProgrammaticCommandLaunchError,
   ProgrammaticCommandLaunchError
-} from '@/tool/agentTools/agentBashHandler'
+} from './programmaticCommandLaunchError'
 import { prepareProgrammaticExecParent } from './programmaticExecParent'
 import {
   requireProgrammaticToolDeferredResumeCapability,

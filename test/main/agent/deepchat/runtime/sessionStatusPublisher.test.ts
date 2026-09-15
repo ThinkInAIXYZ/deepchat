@@ -10,7 +10,7 @@ function createPublisher() {
   const ports: SessionStatusPublisherPorts = {
     publishEvent: vi.fn(),
     publishSessionUpdate: vi.fn(),
-    sessionUiPort: { refreshSessionUi: vi.fn() }
+    sessionInvalidationPort: { invalidate: vi.fn() }
   }
   return { ports, publisher: new SessionStatusPublisher(ports) }
 }
@@ -45,12 +45,16 @@ describe('SessionStatusPublisher', () => {
       updatedAt: expect.any(Number),
       status: 'generating'
     })
-    expect(ports.sessionUiPort.refreshSessionUi).toHaveBeenCalledOnce()
+    expect(ports.sessionInvalidationPort.invalidate).toHaveBeenCalledOnce()
+    expect(ports.sessionInvalidationPort.invalidate).toHaveBeenCalledWith({
+      sessionId: 'session',
+      reason: 'status-changed'
+    })
 
     const order = [
       ...vi.mocked(ports.publishEvent).mock.invocationCallOrder,
       ...vi.mocked(ports.publishSessionUpdate).mock.invocationCallOrder,
-      ...vi.mocked(ports.sessionUiPort.refreshSessionUi).mock.invocationCallOrder
+      ...vi.mocked(ports.sessionInvalidationPort.invalidate).mock.invocationCallOrder
     ]
     expect(order).toEqual([...order].sort((left, right) => left - right))
   })
@@ -71,7 +75,7 @@ describe('SessionStatusPublisher', () => {
 
     expect(ports.publishEvent).not.toHaveBeenCalled()
     expect(ports.publishSessionUpdate).not.toHaveBeenCalled()
-    expect(ports.sessionUiPort.refreshSessionUi).not.toHaveBeenCalled()
+    expect(ports.sessionInvalidationPort.invalidate).not.toHaveBeenCalled()
   })
 
   it('publishes terminal usage even when the projected status is already unchanged', () => {
@@ -95,7 +99,7 @@ describe('SessionStatusPublisher', () => {
       usage: { totalTokens: 12 }
     })
     expect(ports.publishEvent).not.toHaveBeenCalled()
-    expect(ports.sessionUiPort.refreshSessionUi).not.toHaveBeenCalled()
+    expect(ports.sessionInvalidationPort.invalidate).not.toHaveBeenCalled()
   })
 
   it('fences stale and mismatched scopes before mutating any instance', () => {
@@ -134,6 +138,6 @@ describe('SessionStatusPublisher', () => {
     expect(otherScope.state()?.status).toBe('idle')
     expect(ports.publishEvent).not.toHaveBeenCalled()
     expect(ports.publishSessionUpdate).not.toHaveBeenCalled()
-    expect(ports.sessionUiPort.refreshSessionUi).not.toHaveBeenCalled()
+    expect(ports.sessionInvalidationPort.invalidate).not.toHaveBeenCalled()
   })
 })

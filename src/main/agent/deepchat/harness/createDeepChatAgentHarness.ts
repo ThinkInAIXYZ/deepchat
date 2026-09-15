@@ -260,7 +260,7 @@ function createDeepChatRuntimeServices(deps: DeepChatHarnessDependencies): DeepC
     statusPublisher: new SessionStatusPublisher({
       publishEvent,
       publishSessionUpdate,
-      sessionUiPort: deps.sessionUiPort
+      sessionInvalidationPort: deps.sessionInvalidationPort
     }),
     transcript: messageStore,
     messageProjection,

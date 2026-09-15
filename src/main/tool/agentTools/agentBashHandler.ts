@@ -24,6 +24,7 @@ import { resolveSessionDir } from '@/agent/shared/storage/sessionPaths'
 import type { ResolvedCommandShell } from '@shared/commandShell'
 import { normalizeCommandShellFilePath } from '@/agent/shared/process/commandShellPath'
 import type { ArmedAgentCliProgrammaticToken } from '@/cli/agentTokenAuthority'
+import { ProgrammaticCommandLaunchError } from '@/agent/deepchat/runtime/programmaticCommandLaunchError'
 
 // Consider moving to a shared handlers location in future refactoring
 import {
@@ -86,19 +87,6 @@ export interface AgentCommandEnvironmentPort {
     prependPath: readonly string[]
     preserveCommand: boolean
   }>
-}
-
-export class ProgrammaticCommandLaunchError extends Error {
-  constructor(options?: ErrorOptions) {
-    super('Programmatic CLI launch did not reach authoritative settlement', options)
-    this.name = 'ProgrammaticCommandLaunchError'
-  }
-}
-
-export function isProgrammaticCommandLaunchError(
-  error: unknown
-): error is ProgrammaticCommandLaunchError {
-  return error instanceof ProgrammaticCommandLaunchError
 }
 
 interface PreparedCommand {

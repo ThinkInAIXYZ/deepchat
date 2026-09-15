@@ -75,7 +75,7 @@ import type {
   ProgrammaticToolParentRegistry
 } from '@/cli/programmaticToolParentRegistry'
 import type { ArmedAgentCliProgrammaticToken } from '@/cli/agentTokenAuthority'
-import { ProgrammaticCommandLaunchError } from '@/tool/agentTools/agentBashHandler'
+import { ProgrammaticCommandLaunchError } from '@/agent/deepchat/runtime/programmaticCommandLaunchError'
 import { prepareProgrammaticExecParent } from '@/agent/deepchat/runtime/programmaticExecParent'
 import { CODE_MODE_TOOL_SERVER_NAME } from '@shared/codeModeProtocol'
 

@@ -12,7 +12,7 @@ import type { AcpAsLlmProviderPermissionPort, ProviderCatalogPort } from '@/prov
 import type { ProviderModelResolutionPort } from '@/provider/settings'
 import type { SessionData } from '@/session/data'
 import type { SessionDatabase } from '@/session/data/database'
-import type { SessionPermissionPort, SessionUiPort } from '@/session/contracts'
+import type { SessionPermissionPort } from '@/session/contracts'
 import type { SkillSettingsPort } from '@/skill/settings'
 import type { CacheImageOptions } from '@/platform/imageCache'
 import type { AcpAgentInstanceDependencyFactory } from '@/agent/acp/instance'
@@ -36,7 +36,8 @@ import type { TurnCoordinator } from '@/agent/deepchat/runtime/turnCoordinator'
 import type {
   DeepChatEventPublisher,
   DeepChatSessionUpdatePublisher,
-  RunJournalObserver
+  RunJournalObserver,
+  SessionInvalidationPort
 } from '@/agent/deepchat/runtime/types'
 import type { MonotonicClock } from '@/lib/monotonicTime'
 import type { ToolSurfaceShadowDiagnosticsRegistry } from '@/agent/deepchat/runtime/toolSurfaceDiagnostics'
@@ -79,7 +80,7 @@ export interface DeepChatHarnessDependencies {
   providerCatalogPort: Pick<ProviderCatalogPort, 'getProviderModels' | 'getCustomModels'>
   sessionPermissionPort: SessionPermissionPort
   acpAsLlmProviderPermission: AcpAsLlmProviderPermissionPort
-  sessionUiPort: SessionUiPort
+  sessionInvalidationPort: SessionInvalidationPort
   memoryPort: MemoryRuntimePort
   getMemoryIngestionProjection(): MemoryIngestionProjection
   cacheImage(data: string, options?: CacheImageOptions): Promise<string>

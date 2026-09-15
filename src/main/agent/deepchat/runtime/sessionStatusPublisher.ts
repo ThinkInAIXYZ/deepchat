@@ -1,12 +1,15 @@
 import type { DeepChatSessionState } from '@shared/types/agent-interface'
-import type { SessionUiPort } from '@/session/contracts'
 import type { SessionRuntimeScope } from '@/agent/deepchat/instance/deepChatAgentRuntime'
-import type { DeepChatEventPublisher, DeepChatSessionUpdatePublisher } from './types'
+import type {
+  DeepChatEventPublisher,
+  DeepChatSessionUpdatePublisher,
+  SessionInvalidationPort
+} from './types'
 
 export interface SessionStatusPublisherPorts {
   publishEvent: DeepChatEventPublisher
   publishSessionUpdate: DeepChatSessionUpdatePublisher
-  sessionUiPort: SessionUiPort
+  sessionInvalidationPort: SessionInvalidationPort
 }
 
 export class SessionStatusPublisher {
@@ -58,7 +61,10 @@ export class SessionStatusPublisher {
       status,
       ...(usage === undefined ? {} : { usage })
     })
-    this.ports.sessionUiPort.refreshSessionUi()
+    this.ports.sessionInvalidationPort.invalidate({
+      sessionId,
+      reason: 'status-changed'
+    })
     return true
   }
 }

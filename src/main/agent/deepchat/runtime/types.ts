@@ -146,6 +146,14 @@ export interface StreamState {
 export type DeepChatEventPublisher = (name: DeepchatEventName, payload: unknown) => void
 export type DeepChatSessionUpdatePublisher = (update: DeepChatInternalSessionUpdate) => void
 
+/**
+ * Kernel-facing invalidation signal. The kernel states what changed; the host decides which of its
+ * projections (widgets, lists, badges) that invalidates, so the kernel carries no UI vocabulary.
+ */
+export interface SessionInvalidationPort {
+  invalidate(input: { sessionId: string; reason: 'status-changed' }): void
+}
+
 export interface IoParams {
   sessionId: string
   requestId: string

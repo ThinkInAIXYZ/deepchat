@@ -1,5 +1,3 @@
-import { is } from '@electron-toolkit/utils'
-
 // Legacy Main diagnostics remain console-only until their owners are migrated or removed. Persisted
 // diagnostics must go through the typed Main logger; arbitrary values must never reach a file sink.
 export const originalConsole = {
@@ -11,8 +9,16 @@ export const originalConsole = {
   trace: console.trace.bind(console)
 }
 
+// Verbose output is off until a host entry enables it explicitly, so this module stays free of
+// Electron/process detection and remains usable from a plain Node runtime.
+let verboseEnabled = false
+
+export function setVerboseLoggingEnabled(enabled: boolean): void {
+  verboseEnabled = enabled
+}
+
 const debug = (...params: unknown[]): void => {
-  if (is.dev) originalConsole.debug(...params)
+  if (verboseEnabled) originalConsole.debug(...params)
 }
 
 const logger = {

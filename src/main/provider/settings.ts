@@ -288,6 +288,7 @@ export interface ProviderSettingsPort {
   exportModelConfigs(): Record<string, IModelConfig>
   importModelConfigs(configs: Record<string, IModelConfig>, overwrite: boolean): void
   getProviderDb(): { providers: Record<string, unknown> } | null
+  getProviderDbSourceUrl(): string
   refreshProviderDb(force?: boolean): Promise<ProviderDbRefreshResult>
   notifyModelsChanged(providerId?: string): void
   getVoiceAiConfig(): {
@@ -320,6 +321,7 @@ export type ProviderModelResolutionPort = Pick<
   | 'isKnownModel'
   | 'getModelConfig'
   | 'getCapabilitySnapshot'
+  | 'getProviderDbSourceUrl'
   | 'supportsAudioInputCapability'
 >
 
@@ -440,6 +442,11 @@ export class ProviderSettings implements ProviderSettingsPort {
   // 提供聚合 Provider DB（只读）给渲染层/其他模块
   getProviderDb(): ProviderAggregate | null {
     return providerDbLoader.getDb()
+  }
+
+  /** Source the shipped provider DB was loaded from, for diagnostics that must not import it. */
+  getProviderDbSourceUrl(): string {
+    return providerDbLoader.getSourceUrl()
   }
 
   async refreshProviderDb(force = false): Promise<ProviderDbRefreshResult> {

@@ -1072,6 +1072,7 @@ function createMockProviderSettings() {
       ...(providerId === 'deepseek' ? { baseUrl: 'https://api.deepseek.com/v1' } : {})
     })),
     isKnownModel: vi.fn().mockReturnValue(true),
+    getProviderDbSourceUrl: vi.fn().mockReturnValue('https://example.com/provider-db.json'),
     getAgentType: vi.fn().mockResolvedValue('deepchat'),
     resolveDeepChatAgentConfig: vi.fn().mockResolvedValue({}),
     agentSupportsCapability: vi.fn().mockResolvedValue(true)
@@ -1160,7 +1161,7 @@ function createRuntimeDependencies(
     acpAsLlmProviderPermission: {
       resolveAgentPermission: options.resolveAgentPermission ?? vi.fn().mockResolvedValue(undefined)
     },
-    sessionUiPort: { refreshSessionUi: vi.fn() },
+    sessionInvalidationPort: { invalidate: vi.fn() },
     memoryPort: options.memoryPort ?? createMemoryRuntimePort(),
     getMemoryIngestionProjection:
       options.getMemoryIngestionProjection ?? (() => undefined as never),
@@ -8513,7 +8514,7 @@ describe('DeepChatAgentHarness', () => {
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
       publishDeepchatEvent.mockClear()
       vi.mocked(runtimeDependencies.publishSessionUpdate).mockClear()
-      vi.mocked(runtimeDependencies.sessionUiPort.refreshSessionUi).mockClear()
+      vi.mocked(runtimeDependencies.sessionInvalidationPort.invalidate).mockClear()
 
       await agent.processMessage('s1', 'Hello')
 
@@ -8546,11 +8547,11 @@ describe('DeepChatAgentHarness', () => {
             label: `session-update:${update.status}`
           })),
         ...vi
-          .mocked(runtimeDependencies.sessionUiPort.refreshSessionUi)
+          .mocked(runtimeDependencies.sessionInvalidationPort.invalidate)
           .mock.calls.map((_call, index) => ({
-            order: vi.mocked(runtimeDependencies.sessionUiPort.refreshSessionUi).mock
+            order: vi.mocked(runtimeDependencies.sessionInvalidationPort.invalidate).mock
               .invocationCallOrder[index],
-            label: 'refresh-ui'
+            label: 'invalidate:status-changed'
           }))
       ]
         .sort((left, right) => left.order - right.order)
@@ -8560,12 +8561,16 @@ describe('DeepChatAgentHarness', () => {
         'status:generating',
         'sessions.updated',
         'session-update:generating',
-        'refresh-ui',
+        'invalidate:status-changed',
         'status:idle',
         'sessions.updated',
         'session-update:idle',
-        'refresh-ui'
+        'invalidate:status-changed'
       ])
+      expect(runtimeDependencies.sessionInvalidationPort.invalidate).toHaveBeenCalledWith({
+        sessionId: 's1',
+        reason: 'status-changed'
+      })
     })
 
     it.each([
