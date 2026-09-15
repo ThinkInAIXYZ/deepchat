@@ -1,5 +1,5 @@
 import { readdirSync } from 'node:fs'
-import { dirname, join, resolve, sep } from 'node:path'
+import { dirname, join, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import ts from 'typescript'
@@ -34,6 +34,27 @@ const scopedRoots = [
   ...scopedTestFiles.map((path) => join(rootDir, path)),
   ...scopedSourceDirectories.map((directory) => join(rootDir, directory) + sep)
 ]
+
+// Root files are checked against the filesystem before compiling, because a missing one is otherwise
+// invisible to this gate: TypeScript reports it as TS6053 ("File '...' not found.") attached to the
+// program instead of to a file, and the diagnostic filter below only keeps diagnostics that carry an
+// in-scope file. The gate would then compile a smaller program — dropping the very `expectTypeOf`
+// assertions it exists to enforce — and still exit 0. Naming the absent path here keeps that failure
+// out of the filter's hands, and stays distinct from the non-file diagnostics the filter deliberately
+// leaves alone.
+const missingRootFiles = rootNames.filter((rootName) => !ts.sys.fileExists(rootName))
+
+if (missingRootFiles.length > 0) {
+  console.error(
+    [
+      'Agent service contract type gate failed: scoped root file(s) are missing.',
+      ...missingRootFiles.map((rootName) => `- ${relative(rootDir, rootName)}`),
+      'Restore the file(s), or update scopedTestFiles/scopedSourceDirectories in',
+      'scripts/typecheck-agent-service-contracts.mjs so the gate matches the current layout.'
+    ].join('\n')
+  )
+  process.exit(1)
+}
 
 const configPath = join(rootDir, 'tsconfig.node.json')
 const configFile = ts.readConfigFile(configPath, ts.sys.readFile)
