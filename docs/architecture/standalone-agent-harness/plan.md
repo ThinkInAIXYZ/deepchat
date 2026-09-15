@@ -108,10 +108,10 @@ scenario with its blocker, owner, and resolution path.
 **Purpose:** define the minimum operations shared by Desktop, CLI, and future runners without exposing
 runtime objects.
 
-Stage 1 status: **in progress**. The submission/interaction/cancellation semantic freeze is
-integrated at `b17577182` and independently accepted. Only 1D independent acceptance and integration
-remain before Stage 1 can close. This plan is the sole status tracker. A green documentation commit
-is not independent acceptance; none of these slices is runtime, transport, Desktop, or CLI integration.
+Stage 1 status: **closed**. The submission/interaction/cancellation semantic freeze is integrated
+at `b17577182` and independently accepted. 1D was independently accepted and integrated at
+`66cbb25fd`; the mapping is documentation only and does not claim runtime, transport, Desktop, or
+CLI integration. This plan is the sole status tracker.
 
 Stage 1 sub-slice rule: 1A DTO-only; 1B events/interaction/cancellation; 1C client adapters; 1D
 compatibility mapping. Sub-slices land as separate reviewable commits; a sub-slice that cannot meet
@@ -126,7 +126,7 @@ route fit. See [baseline.md](./baseline.md) "Stage 1 handoff".
 | --- | --- | --- |
 | 1A/1B/1C | reviewed 1C tree `7f3e1977f`, integrated as `15d7f9c63` | Serializable DTOs, event recovery, interactions, layered cancellation, client adapters and scoped contract type gate |
 | Contract semantics | `b17577182`; independent Miles PASS: 46 client tests / 123 contract tests | Submission identity, duplicate/retention rules, interaction and cancellation semantics; `not_found` never authorizes resend |
-| 1D | independent acceptance and integration pending | [compatibility.md](./compatibility.md): V1 routes, 14 events, identities, cursor/resync, errors, and cutover obligations |
+| 1D | `66cbb25fd`; independent Emma PASS; Node 24 verification passed | [compatibility.md](./compatibility.md): V1 routes, 14 events, identities, cursor/resync, errors, and cutover obligations |
 
 Reported controller verification at `b17577182` used Node 24: 384 tests plus typecheck, format,
 lint, and i18n passed. This is completed evidence, not a pending semantic review, and is not a local
@@ -192,9 +192,10 @@ CLI, or end-to-end result. Coverage boundaries and non-blocking risks are listed
   recovery, interaction, and unavailable capability using the same client-facing result vocabulary.
   Evidence: `test/main/contracts/agentServiceClientContract.test.ts` (46 tests) over the 1C adapter
   surface. Scope: fakes and DTOs only — this is not a runtime transport or an end-to-end result.
-- [ ] Contract review confirms Desktop compatibility and headless scope are explicit. Status: only
-  1D independent acceptance and integration remain. Contract semantics at `b17577182` are already
-  integrated and independently accepted; local documentation checks are not independent acceptance.
+- [x] Contract review confirms Desktop compatibility and headless scope are explicit. Evidence:
+  independent Emma PASS for `66cbb25fd`, with the V1 routes/events and Desktop-vs-headless boundaries
+  recorded in [compatibility.md](./compatibility.md); Node 24 contract checks and quality gates passed.
+  This closes Stage 1's contract review only; it does not claim runtime migration.
 
 ### Commit boundary
 

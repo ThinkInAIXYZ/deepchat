@@ -430,15 +430,17 @@ environment rows in [baseline.md](./baseline.md) remain the historical record of
 
 ## Verification record
 
-Local verification against source revision `2230a4627` used Node `v24.18.0` and pnpm `10.34.5`:
+Local verification for the integrated documentation at `66cbb25fd` used Node `v24.18.0` and pnpm `10.34.5`:
 
 - `pnpm run typecheck:contracts`: passed (one contract test and four contract source roots).
 - `pnpm exec vitest run --config vitest.config.ts test/main/contracts test/main/scripts/agentServiceContractTypeGate.test.ts`:
   9 files, 129 tests passed, including 46 client tests.
 - All 31 relative Markdown links and anchors resolve; `git diff --check` passes.
 - `pnpm run format:check`, `pnpm run lint`, and `pnpm run i18n` pass under the same Node 24 toolchain.
-- Independent acceptance and the controller's broader verification are tracked only in
-  [plan.md](./plan.md#stage-1--freeze-the-client-facing-contract). Local checks do not accept 1D.
+- Independent acceptance is recorded in
+  [plan.md](./plan.md#stage-1--freeze-the-client-facing-contract): Emma PASS for `66cbb25fd`.
+  The controller independently reran the contract checks and quality gates on the integrated commit.
+  These checks accept the documentation/contract boundary only; they do not claim runtime migration.
 - These are DTO- and fake-level checks, not runtime transport, service host, Desktop/CLI integration,
   or end-to-end evidence. Formatter/lint coverage limitations are in
   [plan.md](./plan.md#non-blocking-verification-risks).
