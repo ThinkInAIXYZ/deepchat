@@ -38,7 +38,9 @@ export async function withBackupReadLock<T>(
     db.exec('COMMIT')
     return { acquired: true, result }
   } catch (error) {
-    db.exec('ROLLBACK')
+    if (db.inTransaction) {
+      db.exec('ROLLBACK')
+    }
     throw error
   } finally {
     db.close()

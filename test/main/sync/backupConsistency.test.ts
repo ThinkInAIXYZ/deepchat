@@ -10,6 +10,7 @@ vi.mock('../../../src/main/sync/cloudStorageService', () => ({
 }))
 
 const AGENT_DB_ENTRY = 'database/agent.db'
+const AGENT_DB_WAL_ENTRY = 'database/agent.db-wal'
 const SEED_ROWS = 120
 const ROW_PAYLOAD = 'payload-'.repeat(64)
 
@@ -266,7 +267,7 @@ describe('backup database image consistency', () => {
     expectUsableProbeTable(Buffer.from(entries[AGENT_DB_ENTRY]), undefined)
   })
 
-  it('still produces a usable image when another reader blocks the checkpoint', async () => {
+  it('keeps every committed row when another reader blocks the checkpoint', async () => {
     const service = buildService(undefined)
     const connection = writerDb as Database.Database
     connection.pragma('wal_checkpoint(PASSIVE)')
@@ -285,9 +286,26 @@ describe('backup database image consistency', () => {
 
     expect(backup).not.toBeNull()
     copySpy.mockRestore()
-    const archived = archivedDatabaseEntry((backup as { fileName: string }).fileName)
-
     expect(postCheckpointImages.length).toBeGreaterThan(1)
-    expectUsableProbeTable(archived, undefined)
+
+    const archive = fs.readFileSync(path.join(syncDir, (backup as { fileName: string }).fileName))
+    const entries = unzipSync(new Uint8Array(archive)) as unknown as Record<string, Uint8Array>
+    const walEntry = entries[AGENT_DB_WAL_ENTRY]
+    expect(walEntry).toBeDefined()
+    expect(walEntry.length).toBeGreaterThan(0)
+
+    const restoredPath = path.join(userDataDir, 'restored-with-wal.db')
+    fs.writeFileSync(restoredPath, Buffer.from(entries[AGENT_DB_ENTRY]))
+    fs.writeFileSync(`${restoredPath}-wal`, Buffer.from(walEntry))
+    const restored = new Database(restoredPath)
+    try {
+      expect(restored.pragma('integrity_check', { simple: true })).toBe('ok')
+      const { count } = restored.prepare('SELECT count(*) AS count FROM backup_probe').get() as {
+        count: number
+      }
+      expect(count).toBe(SEED_ROWS + 40 + 1500)
+    } finally {
+      restored.close()
+    }
   })
 })

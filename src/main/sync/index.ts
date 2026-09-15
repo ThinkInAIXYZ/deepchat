@@ -61,6 +61,7 @@ const KNOWN_IMPORT_ERRORS = new Set([
 
 const ZIP_PATHS = {
   agentDb: 'database/agent.db',
+  agentDbWal: 'database/agent.db-wal',
   chatDb: 'database/chat.db',
   appSettings: 'configs/app-settings.json',
   customPrompts: 'configs/custom_prompts.json',
@@ -416,6 +417,7 @@ export class SyncService {
 
           this.copyFile(backupDbSource.path, this.DB_PATH)
           this.cleanupDatabaseSidecarFiles(this.DB_PATH)
+          this.restoreBackupWalSidecar(backupDbSource.path, this.DB_PATH)
           if (usesSqliteConfigStorage) {
             configImportService.finalizeSqliteConfigImport()
           } else {
@@ -757,14 +759,30 @@ export class SyncService {
       return files
     })
     if (!snapshot.acquired) {
-      return this.readBackupFilesSynchronously()
+      console.warn(
+        '[Sync] Backup could not drain the WAL (a reader is blocking the checkpoint); ' +
+          'falling back to a best-effort copy that ships the WAL sidecar so committed ' +
+          'transactions are not silently dropped'
+      )
+      return this.readBackupFilesFallback()
     }
     return snapshot.result
   }
 
-  private readBackupFilesSynchronously(): Record<string, Uint8Array> {
+  private async readBackupFilesFallback(): Promise<Record<string, Uint8Array>> {
     const files = this.readSupportFiles()
-    files[ZIP_PATHS.agentDb] = toUint8ArrayView(fs.readFileSync(this.DB_PATH))
+    files[ZIP_PATHS.agentDb] = toUint8ArrayView(await fs.promises.readFile(this.DB_PATH))
+    const walPath = `${this.DB_PATH}-wal`
+    try {
+      const walImage = await fs.promises.readFile(walPath)
+      if (walImage.length > 0) {
+        files[ZIP_PATHS.agentDbWal] = toUint8ArrayView(walImage)
+      }
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+        throw error
+      }
+    }
     return files
   }
 
@@ -1066,6 +1084,17 @@ export class SyncService {
     // Shell windows no longer manage chat tabs; nothing to reset
   }
 
+  private restoreBackupWalSidecar(sourceDbPath: string, targetDbPath: string): void {
+    const sourceWalPath = `${sourceDbPath}-wal`
+    if (!fs.existsSync(sourceWalPath)) {
+      return
+    }
+    // Ships un-checkpointed transactions from a fallback archive; the next
+    // read-write open replays them. Placed after cleanupDatabaseSidecarFiles so
+    // stale sidecars from the previous database cannot mix with this image.
+    this.copyFile(sourceWalPath, `${targetDbPath}-wal`)
+  }
+
   private cleanupDatabaseSidecarFiles(dbFilePath: string): void {
     const sidecarFiles = [`${dbFilePath}-wal`, `${dbFilePath}-shm`]
     for (const filePath of sidecarFiles) {
@@ -1083,6 +1112,7 @@ export class SyncService {
   private restoreFromTempBackup(tempFiles: Record<string, string | null>): void {
     if (tempFiles.db) {
       this.copyFile(tempFiles.db, this.DB_PATH)
+      this.cleanupDatabaseSidecarFiles(this.DB_PATH)
     }
     if (tempFiles.appSettings) {
       this.copyFile(tempFiles.appSettings, this.APP_SETTINGS_PATH)
