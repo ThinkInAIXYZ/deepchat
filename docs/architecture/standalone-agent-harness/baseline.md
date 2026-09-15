@@ -54,8 +54,8 @@ renderer composer submit
        kind 'deepchat'
   -> DeepChatAgentBackendPort implementation            src/main/agent/manager/deepChatAgentBackend.ts
   -> DeepChatAgentRuntime / DeepChatAgentInstance       src/main/agent/deepchat/instance/**
-  -> runtime graph owning the loop engine               .../runtime/process.ts
-  -> DeepChatLoopEngine + context/queue/interaction     .../loop/deepChatLoopEngine.ts
+  -> runtime graph owning the loop engine               src/main/agent/deepchat/runtime/process.ts
+  -> DeepChatLoopEngine + context/queue/interaction     src/main/agent/deepchat/loop/deepChatLoopEngine.ts
   -> provider runtime + session DB + tools + MCP + memory + skills
   <- typed events back to the renderer
 ```
@@ -139,7 +139,7 @@ The classification is of capabilities, not of interfaces that merely exist.
 | Capability | Owner today | Notes |
 | --- | --- | --- |
 | provider/model request, streaming, usage | `src/main/provider/**` | includes provider and model settings resolution |
-| agent loop, context assembly, compaction | `src/main/agent/deepchat/loop/**`, `.../runtime/**` | |
+| agent loop, context assembly, compaction | `src/main/agent/deepchat/loop/**`, `src/main/agent/deepchat/runtime/**` | |
 | multi-turn session state | `src/main/session/**` | |
 | session lifecycle create/read/list/delete | `src/main/session/**`, `src/main/agent/deepchat/instance/**` | |
 | text and file tools | `src/main/tool/agentTools/agentFileSystemHandler.ts`, `agentFffSearchHandler.ts` | host-safe only after a real execution test in Stage 3 |
@@ -415,44 +415,22 @@ These are inherited from [spec.md](./spec.md) and are not renegotiated by this b
 
 ## Stage 1 handoff
 
-### Delivered as Stage 1A, DTO-only
+[plan.md](./plan.md#stage-1--freeze-the-client-facing-contract) is the sole delivery and acceptance
+tracker. It records the integrated, independently accepted contract semantics at `b17577182`,
+verification evidence, and the conditions for Stage 2. This baseline does not maintain a second
+status table. [compatibility.md](./compatibility.md) defines the V1 mapping and cutover obligations.
 
-Across the four commits `1a228768a` through `7e758abee`, the Stage 1A delivery is exactly one
-production file and one test file; the three commits after the first only amend them.
-
-- `src/shared/contracts/agent-service/common.ts` (460 lines): protocol version 1, service identity,
-  the 15-id capability vocabulary with an availability discriminator and `requiredClient: 'desktop'`,
-  the structured error DTO with bounded `message` and `details` budgets, an explicit total mapping
-  onto the local-control error codes, `defineAgentServiceResultSchema`, a session reference, and a
-  submission receipt.
-- `test/main/contracts/agentServiceContract.test.ts` (716 lines).
-
-It is DTO-only in the strict sense: no production module imports `src/shared/contracts/agent-service/**`
-— the only importer in the repository is the contract test. There is no service, transport, handler, or
-client. The three commits that follow 1A harden the schema against acceptance that would otherwise be
-weaker than the contract claims: a partial or empty capability set, `capability_unavailable` without a
-capability identity, unbounded error payloads, and accessor- or proxy-bearing values that escaped the
-size budget.
-
-### Remaining for Stage 1
-
-Sub-slice rule, also recorded in `plan.md`: **1A DTO-only; 1B events/interaction/cancellation; 1C client
-adapters; 1D compatibility mapping.**
-
-| Sub-slice | Remaining work | Explicitly not included |
-| --- | --- | --- |
-| 1A | done — DTOs only | service, transport, handlers |
-| 1B | event subscription with epoch and cursor, bounded backpressure and resync; interaction and permission DTOs; cancellation layers, submission idempotency scope, duplicate-submission semantics | execution |
-| 1C | a built-in service client adapter and a direct ACP client adapter expressed in one result vocabulary, without pretending the two have identical feature sets | a merged feature union |
-| 1D | additive compatibility mapping onto the maintained V1 CLI surface (`../local-control-plane/spec.md`) | replacing or redefining the V1 contract |
-
-Stage 1 acceptance is unchanged: typecheck proves the public DTOs are serializable and free of
-forbidden host and runtime types, and a fake in-process service plus a fake ACP adapter can express
-send, cancel, snapshot, event recovery, interaction, and unavailable capability as one vocabulary.
+The delivered boundary comprises serializable DTOs, events, interaction/cancellation, and one client
+adapter vocabulary exercised with fakes. `querySubmission`, `snapshot.queuedSubmissions`, and
+`cancel` with `queued_submission` exist; session create/list/delete, steering, explicit queue
+management, and paged transcript/artifact reads require typed extensions before consumption.
+None of this is a service host, runtime transport, Desktop/CLI integration, or end-to-end result.
 
 ## Open items carried forward
 
-- The exact safeStorage compatibility strategy, still undecided and blocking Stage 3.
+- The exact safeStorage compatibility strategy, still undecided and blocking Stage 3. It is a release
+  blocker independent of the toolchain: Node `v24.18.0` and pnpm `10.34.5` are available, so the
+  environment is not the obstruction.
 - The initial `headless-optional` allowlist and the order in which its entries are audited.
 - Whether the headless host includes ACP filesystem, terminal, OAuth, and media capabilities.
 - Package naming, visibility, and the wire framing library.

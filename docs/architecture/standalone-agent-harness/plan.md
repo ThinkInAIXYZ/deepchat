@@ -108,27 +108,65 @@ scenario with its blocker, owner, and resolution path.
 **Purpose:** define the minimum operations shared by Desktop, CLI, and future runners without exposing
 runtime objects.
 
+Stage 1 status: **in progress**. The submission/interaction/cancellation semantic freeze is
+integrated at `b17577182` and independently accepted. Only 1D independent acceptance and integration
+remain before Stage 1 can close. This plan is the sole status tracker. A green documentation commit
+is not independent acceptance; none of these slices is runtime, transport, Desktop, or CLI integration.
+
 Stage 1 sub-slice rule: 1A DTO-only; 1B events/interaction/cancellation; 1C client adapters; 1D
 compatibility mapping. Sub-slices land as separate reviewable commits; a sub-slice that cannot meet
-its own acceptance is recorded as a blocker instead of being folded into the next one. 1A is delivered
-as DTO-only (protocol version, service identity, the capability vocabulary with an availability
-discriminator, the structured error DTO, a session reference, and a submission receipt) and is wired
-to no service, transport, handler, or client, so the remaining Stage 1 work below stays open. See
-[baseline.md](./baseline.md) "Stage 1 handoff".
+its own acceptance is recorded as a blocker instead of being folded into the next one. 1D is additive
+documentation: it maps the maintained V1 surface onto this contract, and it may not extend a V1 strict
+payload, add an event name, add an error code, or widen the client operation vocabulary to make a
+route fit. See [baseline.md](./baseline.md) "Stage 1 handoff".
+
+### Delivery record
+
+| Boundary | Accepted evidence | Deliverable |
+| --- | --- | --- |
+| 1A/1B/1C | reviewed 1C tree `7f3e1977f`, integrated as `15d7f9c63` | Serializable DTOs, event recovery, interactions, layered cancellation, client adapters and scoped contract type gate |
+| Contract semantics | `b17577182`; independent Miles PASS: 46 client tests / 123 contract tests | Submission identity, duplicate/retention rules, interaction and cancellation semantics; `not_found` never authorizes resend |
+| 1D | independent acceptance and integration pending | [compatibility.md](./compatibility.md): V1 routes, 14 events, identities, cursor/resync, errors, and cutover obligations |
+
+Reported controller verification at `b17577182` used Node 24: 384 tests plus typecheck, format,
+lint, and i18n passed. This is completed evidence, not a pending semantic review, and is not a local
+rerun claim. These checks remain DTO- and fake-level evidence, not a service, transport, Desktop,
+CLI, or end-to-end result. Coverage boundaries and non-blocking risks are listed below.
 
 ### Work
 
-- [ ] Create typed service DTOs for handshake, capabilities, session snapshot, submission receipt,
-  events, interaction, cancellation, artifacts, and structured errors.
-- [ ] Define capability negotiation and explicit `capability_unavailable` behavior.
-- [ ] Define submission identity, idempotency scope, cancellation layers, event epoch/cursor recovery,
-  bounded backpressure, and resync rules.
-- [ ] Define client adapters for built-in DeepChat service and direct ACP without pretending they have
-  identical feature sets.
-- [ ] Keep `AbortSignal`, callback, class instance, DB connection, Electron object, provider client,
-  and absolute service paths out of serializable contracts.
-- [ ] Document compatibility mapping to the current CLI surface; do not replace the maintained CLI
-  contract accidentally.
+- [x] Create typed service DTOs for handshake, capabilities, session snapshot, submission receipt,
+  events, interaction, cancellation, artifacts, and structured errors. Evidence: 1A `common.ts` plus
+  1B `events.ts`/`interactions.ts`, listed in the delivery record above; no host or runtime type
+  appears in any of them.
+- [x] Define capability negotiation and explicit `capability_unavailable` behavior. Evidence: the
+  complete-set advertisement with an availability discriminator (1A), the handshake consistency
+  check and `resolveCapabilityRefusal`/`resolveClientOperationRefusal` (1C, `client.ts`), which refuse
+  with `requiredClient: null` unless a single consistent `unavailable` entry names a client.
+- [x] Define submission identity, idempotency scope, cancellation layers, event epoch/cursor recovery,
+  bounded backpressure, and resync rules. Evidence: contract semantics integrated at `b17577182`
+  and independently accepted (46 client tests / 123 contract tests). The contract fixes:
+  scope is `(serviceInstanceId, sessionId, submissionId)` with authorization decided first; a
+  retaining binding answers the same key with the same text as the same acceptance and the same key
+  with different text as `duplicate_submission` with no execution; identity and acceptance are
+  retained through the queued and running lifetime, and a post-prune `not_found` never authorizes a
+  resubmission; `receipt_not_retained` promises no deduplication; `running_run` cancellation does not
+  delete queued submissions; `active_turn` stops the named request only and does not settle the run;
+  `messagesTruncated` still requires a paged read, and the seven operations do not expose pagination
+  today.
+- [x] Define client adapters for built-in DeepChat service and direct ACP without pretending they have
+  identical feature sets. Evidence: 1C `AgentServiceClientAdapter` with one closed operation
+  vocabulary and per-capability refusals, exercised by fake in-process service and fake ACP bindings
+  in the client contract test. This is the boundary and its fakes, not two runtime adapters.
+- [x] Keep `AbortSignal`, callback, class instance, DB connection, Electron object, provider client,
+  and absolute service paths out of serializable contracts. Evidence: the DTOs carry none, and
+  `typecheck:contracts` compiles the client contract test together with the contract sources so a
+  public request type that gains a host type fails the build.
+- [x] Document compatibility mapping to the current CLI surface; do not replace the maintained CLI
+  contract accidentally. Evidence: [compatibility.md](./compatibility.md), which maps
+  `sessions.runDetached`, `runs.get`, `runs.cancel`, and `events.subscribe` with all 14
+  `RUN_STREAM_EVENT_NAMES` onto this contract, names the missing client vocabulary each route needs,
+  and leaves [local-control-plane/spec.md](../local-control-plane/spec.md) authoritative.
 
 ### Attention points
 
@@ -136,13 +174,27 @@ to no service, transport, handler, or client, so the remaining Stage 1 work belo
 - A lost response must be queryable, not blindly retried.
 - Authentication identity comes from the transport/host, never from a request `principal` field.
 - Do not add `--yes`, CLI self-approval, renderer self-assertion, or a broader route tunnel.
+- The seven operations already provide `querySubmission`, `snapshot.queuedSubmissions`, and `cancel`
+  with `queued_submission`. They do not provide session create/list/delete, steering, explicit queue
+  management, or paged transcript/artifact reads. Each consuming stage must add a reviewed typed
+  extension before depending on a missing operation; existing receipt lookup is not such a gap.
+- Do not satisfy a V1 route by inventing an operation, a capability id, an event name, or an error
+  code in a documentation slice. Record the gap as a blocker with an owner.
 
 ### Acceptance
 
-- Typecheck proves all public DTOs are serializable and contain no forbidden host/runtime types.
-- A fake in-process service and a fake ACP adapter can express send, cancel, snapshot, event recovery,
-  interaction, and unavailable capability using the same client-facing result vocabulary.
-- Contract review confirms Desktop compatibility and headless scope are explicit.
+- [x] Typecheck proves all public DTOs are serializable and contain no forbidden host/runtime types.
+  Evidence: `typecheck:contracts` (`scripts/typecheck-agent-service-contracts.mjs`) compiles the client
+  contract test together with the contract sources and fails when a public request type gains an
+  `AbortSignal`, options bag, or other host type; the type gate has its own suite
+  (`test/main/scripts/agentServiceContractTypeGate.test.ts`).
+- [x] A fake in-process service and a fake ACP adapter can express send, cancel, snapshot, event
+  recovery, interaction, and unavailable capability using the same client-facing result vocabulary.
+  Evidence: `test/main/contracts/agentServiceClientContract.test.ts` (46 tests) over the 1C adapter
+  surface. Scope: fakes and DTOs only — this is not a runtime transport or an end-to-end result.
+- [ ] Contract review confirms Desktop compatibility and headless scope are explicit. Status: only
+  1D independent acceptance and integration remain. Contract semantics at `b17577182` are already
+  integrated and independently accepted; local documentation checks are not independent acceptance.
 
 ### Commit boundary
 
@@ -152,12 +204,22 @@ to no service, transport, handler, or client, so the remaining Stage 1 work belo
 
 **Purpose:** make the Harness independently constructible without changing Desktop behavior.
 
+Starts only when: Stage 1 is closed — 1D independently accepted and integrated, with integration
+green. The semantic freeze is already integrated and independently accepted at `b17577182`.
+
 ### Work
 
 - [ ] Extract the existing facade/coordinators around `DeepChatLoopEngine`, turn/run lifecycle,
   context, queue, interaction, compaction, Tape, transcript, and recovery.
 - [ ] Narrow concrete `SessionDatabase`/`SessionData` dependencies to ports that preserve required
   transaction and atomic settlement boundaries.
+- [ ] Extract the compatibility handler's narrow projection ports as neutral contracts, so the V1 run
+  surfaces can be served by a host that does not live in Desktop: session metadata, text-only message
+  keyset pagination, in-flight assistant messages, and root/descendant waiting. Today these exist only
+  as host-side function types and closures around the composition root
+  (`src/main/cli/runService.ts:50-89`, wired at `src/main/app/composition.ts:2156-2173`). They stay
+  host-side ports and are never wire DTOs; [compatibility.md](./compatibility.md) records what each one
+  must be able to answer and why the Stage 1 snapshot cannot stand in for them.
 - [ ] Move CLI authority and programmatic tool authority interfaces to neutral contracts; keep CLI
   parsing/discovery in its adapter.
 - [ ] Replace UI refresh callbacks with typed state/event invalidation; Desktop remains responsible for
@@ -195,10 +257,17 @@ to no service, transport, handler, or client, so the remaining Stage 1 work belo
 **Purpose:** provide the missing provider/model/tool resource owner so the kernel is a complete Agent
 Service rather than a portable shell.
 
+Starts only when: Stage 2's kernel is constructible in a clean Node consumer.
+
 ### Work
 
 - [ ] Compose provider runtime, credential store, session/database/config owner, MCP, file/process,
   memory, skills, hooks, and supported tool adapters in a Node-capable host.
+- [ ] Implement the Stage 2 ports as the single owner for the profile, and construct the V1
+  compatibility handler in that host over the same lifecycle, turn, projection, and admission path the
+  service uses for every other client. One owner, one database, one event hub: Desktop must not read a
+  second copy of the service's database to keep a UI working. [compatibility.md](./compatibility.md)
+  records what the handler must preserve and which mappings are cutover blockers.
 - [ ] Move all model request and tool-call continuation into the service process/owned helper
   processes; Desktop is not an intermediate execution step.
 - [ ] Implement capability registration/leases for optional Desktop-only callbacks and explicit
@@ -237,9 +306,18 @@ Service rather than a portable shell.
 **Purpose:** let independent CLI and Desktop clients use the same service contract without binding the
 architecture to HTTP.
 
+Starts only when: the Stage 3 host completes the two-turn/tool-continuation scenario with Desktop
+absent.
+
 ### Work
 
 - [ ] Implement the in-process adapter through the same application/admission layer.
+- [ ] Carry the V1 run surfaces over the same admission path rather than beside it. The CLI keeps
+  calling the compatibility handler remotely, and the handler keeps sharing the service's admission,
+  cancellation, and idempotency decisions. The transport may change; the V1 surface must not gain a
+  second runtime or a second event bus, and the connection-bound wire stream must keep the V1 cursor
+  semantics recorded in [compatibility.md](./compatibility.md) (hub cursor authoritative, wire
+  sequence per response, restart breaks continuity).
 - [ ] Implement framed bidirectional RPC over Unix domain socket and Windows named pipe, or the one
   approved first platform adapter with a typed extension point for the other.
 - [ ] Add request correlation, framing/size limits, handshake/version checks, typed errors, event
@@ -276,8 +354,14 @@ architecture to HTTP.
 
 **Purpose:** preserve the current Desktop product while changing its execution authority to the service.
 
+Starts only when: the Stage 4 transport passes the contract scenario in-process and cross-process.
+
 ### Work
 
+- [ ] Extend the typed client contract for anything Desktop needs that the seven operations do not
+  express (session create/list/delete, steering, explicit queue management, paged transcript/artifact
+  reads), as reviewable contract changes rather than ad-hoc adapter methods. Until an
+  extension lands, that behavior has no client operation and must not be faked downstream.
 - [ ] Keep renderer/preload context isolation, typed bridge, native routes, and i18n boundaries.
 - [ ] Replace Desktop's built-in execution ownership with a DeepChat Agent Client connection to the
   service; retain a deliberate embedded fallback only when explicitly selected and mutually exclusive.
@@ -313,8 +397,14 @@ architecture to HTTP.
 
 **Purpose:** deliver the first user-visible headless workflow without building a TUI.
 
+Starts only when: Stage 5 keeps Desktop behavior unchanged.
+
 ### Work
 
+- [ ] Extend the typed client contract for missing CLI operations: session create/list/delete,
+  steering, explicit queue management, and paged transcript/artifact reads, as needed before command
+  consumption. Reuse existing `querySubmission`, `snapshot.queuedSubmissions`, and `cancel` with
+  `queued_submission`; no private channel may bypass a required typed extension.
 - [ ] Make CLI use the typed Agent Client and service discovery rather than loading agent runtime,
   provider, credentials, MCP, or database code.
 - [ ] Expose non-interactive commands for session selection/creation, multi-turn send, event/result
@@ -391,6 +481,54 @@ architecture to HTTP.
 ### Commit boundary
 
 `chore(agent-service): complete standalone cutover`
+
+## Remaining ownership and startup conditions
+
+Required capabilities are tracked here with an owner and a start condition. None of them is
+non-blocking, and none may be quietly dropped or replaced by a weaker claim later:
+
+| Capability or decision | Owner | Start condition |
+| --- | --- | --- |
+| Compatibility mapping of the V1 run surfaces (1D) | Stage 1 | delivered as [compatibility.md](./compatibility.md); closes with Stage 1 acceptance |
+| Submission/interaction/cancellation semantic freeze | Stage 1 | satisfied: integrated and independently accepted at `b17577182` |
+| Narrow projection ports (session metadata, text-only keyset pagination, in-flight assistant, root/descendant waiting) | Stage 2 | Stage 1 closed |
+| Single-owner host implementing those ports, including the V1 compatibility handler | Stage 3 | Stage 2 kernel constructible in a clean Node consumer |
+| Same admission path for the compatibility handler and the local transport | Stage 4 | Stage 3 host runs the two-turn scenario with Desktop absent |
+| Typed client extensions (session create/list/delete, steering, explicit queue management, paged transcript/artifact reads); receipt query and queued cancellation already exist | Stage 5 for Desktop, Stage 6 for CLI | before the consuming stage uses each missing operation |
+| `safeStorage` compatibility or controlled reauthorization | Stage 3 | release blocker: a Node host must not fall back to plaintext, and must not require Desktop to stay online |
+| Windows named-pipe transport, Electron native-module packaging, dev/build/e2e wrapping | Stage 4 / Stage 7 | explicitly unverified today; no stage may claim them until they are exercised |
+
+The toolchain is available: this stage ran on Node `v24.18.0` and pnpm `10.34.5` with an installed
+Electron matching the lockfile, so "no compliant Node is available" is not a blocker and must not be
+recorded as one. The Stage 0 environment drift in [baseline.md](./baseline.md) is a historical record
+of that revision.
+
+## Non-blocking verification risks
+
+These existing P3 limits are not Stage 1 blockers and do not expand the 1D documentation scope.
+
+| Limit | Actual boundary / follow-up |
+| --- | --- |
+| Empty scoped source directory | `scripts/typecheck-agent-service-contracts.mjs:18-25` discovers `.ts` roots but has no minimum source-count assertion; preserve a fail-closed lower bound in later gate hardening. |
+| Global configuration diagnostics | The same gate intentionally retains `parsed.errors` and file-less diagnostics (`:85-90`); scoped file filtering is not configuration isolation. |
+| Child timeout exceeds test timeout | `test/main/scripts/agentServiceContractTypeGate.test.ts:23` permits 120 seconds for a child; `vitest.config.ts:17` sets 10 seconds per test. A slow child can outlive the test timeout. |
+| ACP type assertions outside contract gate | `test/main/contracts/acpProviderPorts.test.ts:30-36` has four `expectTypeOf` calls (five textual occurrences including the import), none selected by the contract gate; Vitest runtime success does not compile those assertions. |
+| Formatter/lint coverage | `.oxfmtrc.json` excludes docs/Markdown and scripts, but not tests or shared contracts generally. `.oxlintrc.json` excludes scripts, tests, docs, and shared sources except four explicit MCP files. Guard scripts have their own narrow scopes. Green gates do not prove formatting/lint coverage of ignored files. |
+
+## Claim boundary
+
+Passing this stage's checks does not complete the product. Stage 1D is documentation: the V1 run
+surfaces are mapped, not served by a service, and everything after Stage 1 is still unbuilt. The
+following claims are unavailable until their stage's acceptance passes, however green the current
+suites are:
+
+- the client contract is wired to a service, transport, or handler (it is not);
+- Desktop runs on the service, or Desktop behavior is preserved through the service (Stage 5);
+- the CLI works headlessly against a standalone service (Stage 6);
+- any end-to-end, Windows, packaged, or native-module behavior (Stage 4/7, unverified).
+
+Intermediate suites are DTO- and fake-level. They protect contract shape; they are not evidence of
+runtime, transport, or user-visible behavior.
 
 ## Commit and review policy
 
