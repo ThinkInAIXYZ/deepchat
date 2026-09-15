@@ -1,28 +1,217 @@
 import { spawnSync } from 'node:child_process'
-import { chmodSync, existsSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import {
+  chmodSync,
+  copyFileSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  statSync,
+  symlinkSync,
+  writeFileSync
+} from 'node:fs'
+import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 vi.unmock('fs')
 vi.unmock('node:fs')
 vi.unmock('path')
 vi.unmock('node:path')
 
+const GATE_TIMEOUT_MS = 120_000
+const FIXTURE_PREFIX = 'deepchat-agent-service-contract-gate-'
+
 const repositoryRoot = process.cwd()
-const gateScript = path.join(repositoryRoot, 'scripts/typecheck-agent-service-contracts.mjs')
-const contractTestFile = path.join('test', 'main', 'contracts', 'agentServiceClientContract.test.ts')
-const contractTestPath = path.resolve(repositoryRoot, contractTestFile)
+const gateScriptRelativePath = path.join('scripts', 'typecheck-agent-service-contracts.mjs')
+const gateScriptPath = path.join(repositoryRoot, gateScriptRelativePath)
+const resolvedNodeModules = realpathSync(path.join(repositoryRoot, 'node_modules'))
 
-// The gate reports paths relative to the repository root with `/` separators, since `node:path`
-// `relative` emits `\` on Windows.
-const reportedContractTestFile = contractTestFile.split(path.sep).join('/')
+const scopedTestFile = path.join('test', 'main', 'contracts', 'agentServiceClientContract.test.ts')
+const scopedSourceDirectory = path.join('src', 'shared', 'contracts', 'agent-service')
 
-function runGate() {
-  return spawnSync(process.execPath, [gateScript], {
-    cwd: repositoryRoot,
-    encoding: 'utf8',
-    timeout: 120_000
+const fixtureTsconfig = {
+  compilerOptions: {
+    target: 'ES2022',
+    lib: ['ES2022'],
+    module: 'ESNext',
+    moduleResolution: 'bundler',
+    strict: true,
+    skipLibCheck: true,
+    resolveJsonModule: true,
+    noEmit: true,
+    paths: { '@shared/*': ['./src/shared/*'] }
+  },
+  include: ['src/**/*.ts', 'test/**/*.ts']
+}
+
+const fixtureSource = `export type FixtureRequest = {
+  readonly id: string
+}
+
+export function acceptFixtureRequest(request: FixtureRequest): string {
+  return request.id
+}
+`
+
+const fixtureContractTest = `import { describe, expect, expectTypeOf, it } from 'vitest'
+import { acceptFixtureRequest, type FixtureRequest } from '@shared/contracts/agent-service/client'
+
+describe('agent service client contract', () => {
+  it('accepts a fixture request', () => {
+    const request: FixtureRequest = { id: 'fixture' }
+    const result: string = acceptFixtureRequest(request)
+
+    expectTypeOf(result).toEqualTypeOf<string>()
+    expect(result).toBe('fixture')
   })
+})
+`
+
+const fixtureRoots: string[] = []
+
+describe('agent service contract type gate', () => {
+  afterEach(() => {
+    for (const root of fixtureRoots.splice(0)) {
+      // Only directories this file created in the OS temp dir are removed. The fixture's
+      // `node_modules` is a symlink, which `rmSync` unlinks instead of following.
+      if (!path.basename(root).startsWith(FIXTURE_PREFIX)) continue
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  it('passes on the scoped contract surface of this checkout', () => {
+    const result = runGate(repositoryRoot, gateScriptRelativePath)
+
+    expect(result.status, gateReport(result)).toBe(0)
+    expect(result.stdout).toContain('Agent service contract type gate passed')
+    expect(result.stderr).toBe('')
+  })
+
+  it('passes on a fixture with a readable scoped root', () => {
+    const result = runGate(createFixture().root, gateScriptRelativePath)
+
+    expect(result.status, gateReport(result)).toBe(0)
+    expect(result.stdout).toContain('Agent service contract type gate passed')
+    expect(result.stderr).toBe('')
+  })
+
+  it('rejects a missing scoped root instead of passing with a smaller program', () => {
+    const fixture = createFixture()
+
+    // A missing root is an absent file: TypeScript reports it as a file-less TS6053, so a gate that
+    // filters file-less diagnostics would compile a smaller program and still exit 0.
+    rmSync(fixture.contractTestPath)
+    const result = runGate(fixture.root, gateScriptRelativePath)
+
+    expect(result.status, gateReport(result)).toBe(1)
+    expect(result.stderr).toContain('are missing')
+    expect(normalized(result.stderr)).toContain(normalized(fixture.relativeContractTestFile))
+    expect(result.stdout).not.toContain('type gate passed')
+  })
+
+  it('rejects a scoped root that exists but cannot be read', (context) => {
+    const fixture = createFixture()
+    const originalMode = statSync(fixture.contractTestPath).mode & 0o777
+
+    // Existence is not readability: `chmod 000` keeps the root listed by `rootNames` while TypeScript
+    // cannot read it, which is the false green the gate has to refuse.
+    chmodSync(fixture.contractTestPath, 0o000)
+    try {
+      context.skip(
+        isReadable(fixture.contractTestPath),
+        'chmod 000 is not enforced for this process (root or a filesystem without POSIX mode bits)'
+      )
+
+      const result = runGate(fixture.root, gateScriptRelativePath)
+
+      expect(result.status, gateReport(result)).toBe(1)
+      expect(result.stderr).toContain('cannot be read')
+      expect(normalized(result.stderr)).toContain(normalized(fixture.relativeContractTestFile))
+      expect(result.stderr).not.toContain(fixture.root)
+      expect(result.stdout).not.toContain('type gate passed')
+    } finally {
+      chmodSync(fixture.contractTestPath, originalMode)
+    }
+  })
+
+  it('reports a type error inside a scoped source file', () => {
+    const fixture = createFixture()
+    writeFileSync(
+      fixture.sourceFilePath,
+      `${fixtureSource}\nexport const fixtureTypeError: number = 'text'\n`
+    )
+    const result = runGate(fixture.root, gateScriptRelativePath)
+
+    expect(result.status, gateReport(result)).toBe(1)
+    expect(result.stderr).toContain('TS2322')
+    expect(normalized(result.stderr)).toContain(normalized(fixture.relativeSourceFile))
+    expect(result.stdout).not.toContain('type gate passed')
+  })
+
+  it('fails when the config cannot be parsed', () => {
+    const fixture = createFixture()
+    writeFileSync(path.join(fixture.root, 'tsconfig.node.json'), '{ "compilerOptions": {')
+    const result = runGate(fixture.root, gateScriptRelativePath)
+
+    expect(result.status, gateReport(result)).toBe(1)
+    expect(result.stderr).not.toBe('')
+    expect(result.stdout).not.toContain('type gate passed')
+  })
+})
+
+type Fixture = {
+  root: string
+  contractTestPath: string
+  sourceFilePath: string
+  relativeContractTestFile: string
+  relativeSourceFile: string
+}
+
+// Every fixture is private to this file: the gate runs against a copy of the real script and a minimal
+// scoped layout, so this suite never writes to the checkout it is testing. The dependency link is a
+// junction so it needs no extra privilege on Windows; off Windows it is a plain symlink.
+function createFixture(): Fixture {
+  const root = mkdtempSync(path.join(tmpdir(), FIXTURE_PREFIX))
+  fixtureRoots.push(root)
+
+  const contractTestPath = path.join(root, scopedTestFile)
+  const sourceFilePath = path.join(root, scopedSourceDirectory, 'client.ts')
+
+  mkdirSync(path.dirname(contractTestPath), { recursive: true })
+  mkdirSync(path.dirname(sourceFilePath), { recursive: true })
+  mkdirSync(path.join(root, 'scripts'), { recursive: true })
+  symlinkSync(resolvedNodeModules, path.join(root, 'node_modules'), 'junction')
+  copyFileSync(gateScriptPath, path.join(root, 'scripts', path.basename(gateScriptPath)))
+  writeFileSync(path.join(root, 'tsconfig.node.json'), JSON.stringify(fixtureTsconfig, null, 2))
+  writeFileSync(sourceFilePath, fixtureSource)
+  writeFileSync(contractTestPath, fixtureContractTest)
+
+  return {
+    root,
+    contractTestPath,
+    sourceFilePath,
+    relativeContractTestFile: path.relative(root, contractTestPath),
+    relativeSourceFile: path.relative(root, sourceFilePath)
+  }
+}
+
+function runGate(cwd: string, scriptPath: string) {
+  return spawnSync(process.execPath, [scriptPath], {
+    cwd,
+    encoding: 'utf8',
+    timeout: GATE_TIMEOUT_MS
+  })
+}
+
+// The gate prints paths from `path.relative`, which separates with `\` on Windows.
+function normalized(value: string) {
+  return value.replaceAll('\\', '/')
+}
+
+function gateReport(result: { status: number | null; stdout: string; stderr: string }) {
+  return `gate exit ${result.status}\n--- stdout ---\n${result.stdout}--- stderr ---\n${result.stderr}`
 }
 
 function isReadable(filePath: string) {
@@ -33,66 +222,3 @@ function isReadable(filePath: string) {
     return false
   }
 }
-
-describe('agent service contract type gate', () => {
-  it('type-checks the scoped contract test surface', () => {
-    const result = runGate()
-
-    expect(result.status, result.stderr).toBe(0)
-    expect(result.stdout).toContain('Agent service contract type gate passed')
-  })
-
-  it('fails with the missing relative path instead of passing with a smaller program', () => {
-    const contractTestSource = readFileSync(contractTestPath, 'utf8')
-
-    // The gate builds its program from `rootNames`, so a missing scoped root silently shrinks the
-    // program: TypeScript's TS6053 for it carries no file, and the gate's diagnostic filter drops
-    // file-less diagnostics. The check this exercises names the absent path instead. The file is
-    // tracked, so a killed process is recovered with
-    // `git checkout -- test/main/contracts/agentServiceClientContract.test.ts`.
-    rmSync(contractTestPath)
-    try {
-      const result = runGate()
-
-      expect(result.status, result.stderr).toBe(1)
-      expect(result.stderr).toContain(reportedContractTestFile)
-      expect(result.stdout).not.toContain('type gate passed')
-    } finally {
-      writeFileSync(contractTestPath, contractTestSource)
-    }
-
-    expect(existsSync(contractTestPath)).toBe(true)
-    expect(readFileSync(contractTestPath, 'utf8')).toBe(contractTestSource)
-  })
-
-  it('fails with the relative path when a scoped root exists but cannot be read', (context) => {
-    const originalMode = statSync(contractTestPath).mode & 0o777
-    const contractTestSource = readFileSync(contractTestPath, 'utf8')
-
-    // Existence is not readability: `chmod 000` keeps the root listed by `rootNames` (`fileExists` is
-    // still true) while TypeScript cannot read it, which is the false green this gate has to refuse.
-    // The contract test is the root that exposes it — nothing imports it, so no in-scope file carries
-    // a diagnostic and the file-less TS6053 is dropped by the filter. Recovery after a killed process:
-    // `chmod 644 test/main/contracts/agentServiceClientContract.test.ts`.
-    chmodSync(contractTestPath, 0o000)
-    try {
-      context.skip(
-        isReadable(contractTestPath),
-        'chmod 000 is not enforced for this process (root or a filesystem without POSIX mode bits)'
-      )
-
-      const result = runGate()
-
-      expect(result.status, result.stderr).toBe(1)
-      expect(result.stderr).toContain('cannot be read')
-      expect(result.stderr).toContain(reportedContractTestFile)
-      expect(result.stderr).not.toContain(repositoryRoot)
-      expect(result.stdout).not.toContain('type gate passed')
-    } finally {
-      chmodSync(contractTestPath, originalMode)
-    }
-
-    expect(statSync(contractTestPath).mode & 0o777).toBe(originalMode)
-    expect(readFileSync(contractTestPath, 'utf8')).toBe(contractTestSource)
-  })
-})

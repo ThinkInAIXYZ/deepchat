@@ -4,18 +4,11 @@ import { fileURLToPath } from 'node:url'
 
 import ts from 'typescript'
 
-// Type gate for the Stage 1 client-facing contract test.
-//
-// The repository's `typecheck` scripts compile `src/**` only, so a contract test's `expectTypeOf`
-// assertions — the ones that state "this operation takes exactly this DTO and no `AbortSignal`", or
-// "this public type has no forbidden host type in it" — are erased by the test run and were never
-// compiled by anything. This gate compiles them, so those assertions are enforced by a command instead
-// of being documentation.
-//
-// The scope is deliberately two paths, not all of `test/**`: the client contract test and the
-// agent-service contract sources it consumes. A mutation inside that surface fails here; a failure
-// anywhere else is some other gate's business, and widening this one would make it slow enough that it
-// stops being run.
+// Type gate for the Stage 1 client-facing contract test. `pnpm typecheck` compiles `src/**` only, so
+// the contract test's `expectTypeOf` assertions — "this operation takes exactly this DTO and no
+// AbortSignal" — were erased by the test run and compiled by nothing. This gate compiles them, which
+// is why the scope is deliberately two paths: widening it would make the gate slow enough to stop
+// being run.
 
 const scriptDirectory = dirname(fileURLToPath(import.meta.url))
 const rootDir = resolve(scriptDirectory, '..')
@@ -35,16 +28,9 @@ const scopedRoots = [
   ...scopedSourceDirectories.map((directory) => join(rootDir, directory) + sep)
 ]
 
-// Root files are checked for readability before compiling, because an absent or unreadable one is
-// otherwise invisible to this gate: TypeScript reports it as TS6053 ("File '...' not found.") attached
-// to the program instead of to a file, and the diagnostic filter below only keeps diagnostics that
-// carry an in-scope file. The gate would then compile a smaller program — dropping the very
-// `expectTypeOf` assertions it exists to enforce — and still exit 0. Naming the path here keeps that
-// failure out of the filter's hands, and stays distinct from the non-file diagnostics the filter
-// deliberately leaves alone.
-//
-// Existence alone is not enough: `ts.sys.fileExists` is true for a `chmod 000` root, which TypeScript
-// then cannot read, so the check reads each root and treats an undefined read as absent-or-unreadable.
+// Readability is checked by reading: `fileExists` is true for a `chmod 000` root, which TypeScript
+// then cannot read. An unreadable root silently shrinks the program, so it is named here with a
+// missing/unreadable distinction the diagnostic filter cannot express.
 const unreadableRoots = rootNames
   .filter((rootName) => ts.sys.readFile(rootName) === undefined)
   .map((rootName) => ({ exists: ts.sys.fileExists(rootName), path: relative(rootDir, rootName) }))
@@ -67,8 +53,7 @@ if (unreadableRoots.length > 0) {
     report.push(
       'Agent service contract type gate failed: scoped root file(s) cannot be read.',
       ...unreadableRootFiles.map((root) => `- ${root.path}`),
-      'Make the file(s) readable, then re-run this gate: an unreadable root compiles a smaller',
-      'program and would otherwise be reported as a pass.'
+      'Make the file(s) readable, then re-run this gate.'
     )
   }
 
@@ -83,10 +68,9 @@ if (configFile.error) {
   console.error(ts.formatDiagnosticsWithColorAndContext([configFile.error], createFormatHost()))
   process.exitCode = 1
 } else {
-  // The base config is `tsconfig.node.json`, so this gate resolves the same `@shared/*` and `@/*`
-  // aliases the sources do. Two settings are relaxed the way the memory test gate relaxes them: test
-  // fixtures legitimately carry unused bindings, and `composite`/`incremental` are irrelevant to a
-  // one-shot check.
+  // `tsconfig.node.json` is the base config, so this gate resolves the same `@shared/*` alias the
+  // sources do. The relaxed settings match the memory test gate: fixtures legitimately carry unused
+  // bindings, and `composite`/`incremental` are irrelevant to a one-shot check.
   const parsed = ts.parseJsonConfigFileContent(configFile.config, ts.sys, rootDir, {
     composite: false,
     incremental: false,
@@ -96,13 +80,14 @@ if (configFile.error) {
     types: ['electron-vite/node', 'vitest/globals']
   })
   const program = ts.createProgram({ rootNames, options: parsed.options })
-  const diagnostics = ts
-    .getPreEmitDiagnostics(program)
-    .filter((diagnostic) => {
-      if (!diagnostic.file) return false
-      const fileName = resolve(diagnostic.file.fileName)
-      return scopedRoots.some((root) => fileName === root || fileName.startsWith(root))
-    })
+  // Config-level and file-less program diagnostics are kept as well: dropping them is the same root
+  // cause as an unreadable root, one level up — a smaller program reporting a pass.
+  const diagnostics = [
+    ...parsed.errors,
+    ...ts
+      .getPreEmitDiagnostics(program)
+      .filter((diagnostic) => !diagnostic.file || isScopedFile(diagnostic.file.fileName))
+  ]
 
   if (diagnostics.length > 0) {
     console.error(ts.formatDiagnosticsWithColorAndContext(diagnostics, createFormatHost()))
@@ -113,6 +98,11 @@ if (configFile.error) {
         `${scopedTestFiles.length} contract test, ${scopedSourceFiles.length} contract sources).`
     )
   }
+}
+
+function isScopedFile(fileName) {
+  const scopedFileName = resolve(fileName)
+  return scopedRoots.some((root) => scopedFileName === root || scopedFileName.startsWith(root))
 }
 
 function createFormatHost() {
