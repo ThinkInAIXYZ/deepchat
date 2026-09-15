@@ -47,18 +47,31 @@ still required before implementation and is not claimed as complete by this comm
 **Purpose:** freeze current behavior and decide what headless mode actually promises before moving
 ownership.
 
+Baseline evidence: [baseline.md](./baseline.md) records the checked revision and environment, both
+execution flows, the identifier and ownership matrices, the capability classification and
+first-version allowlist, the portable-import probes, and the unproven headless scenario with its
+blocker, owner, and resolution path.
+
 ### Work
 
-- [ ] Record current Desktop and direct ACP flows from the existing backend/session-handle seams.
-- [ ] Define the public distinction between `sessionId`, `submissionId`, internal execution `runId`,
-  and legacy CLI run identifiers.
-- [ ] Inventory every built-in tool/plugin and classify it as `headless-required`, `headless-optional`,
-  `desktop-capability`, or `out-of-scope`.
-- [ ] Trace provider credentials, database/config writes, MCP/process children, memory/skills/hooks,
-  approvals, event recovery, and shutdown ownership.
-- [ ] Define the minimum real headless scenario: at least two turns and one supported tool call whose
-  result is fed into the next model request.
-- [ ] Add no production code and no speculative protocol implementation.
+- [x] Record current Desktop and direct ACP flows from the existing backend/session-handle seams.
+  Evidence: `baseline.md` "Current execution paths", traced through
+  `src/main/agent/manager/agentManager.ts` into `DeepChatAgentBackendPort` and
+  `DirectAcpSessionBackend`.
+- [x] Define the public distinction between `sessionId`, `submissionId`, internal execution `runId`,
+  and legacy CLI run identifiers. Evidence: `baseline.md` "Identifier and ownership matrix",
+  including the renderer-scoped cancellation semantics of today's `submissionId`.
+- [x] Inventory every built-in tool/plugin and classify it as `headless-required`, `headless-optional`,
+  `desktop-capability`, or `out-of-scope`. Evidence: `baseline.md` "Capability inventory and
+  first-version allowlist", which names the first-version allowlist and every unsupported class.
+- [x] Trace provider credentials, database/config writes, MCP/process children, memory/skills/hooks,
+  approvals, event recovery, and shutdown ownership. Evidence: `baseline.md` "Resource ownership",
+  including the recorded teardown order in `src/main/app/composition.ts`.
+- [x] Define the minimum real headless scenario: at least two turns and one supported tool call whose
+  result is fed into the next model request. Evidence: `baseline.md` "Minimum headless scenario";
+  defining the scenario is complete, executing it is not.
+- [x] Add no production code and no speculative protocol implementation. Evidence: this slice is a
+  documentation-only commit.
 
 ### Attention points
 
@@ -70,11 +83,15 @@ ownership.
 
 ### Acceptance
 
-- A reviewed inventory names every first-version headless capability and every explicitly unsupported
-  Desktop capability.
-- The two-turn/tool-call scenario is executable as a manual or temporary probe against current code,
-  or the blocker is recorded with an owner and a concrete resolution path.
-- No behavior or source file changes are required for acceptance.
+- [ ] A reviewed inventory names every first-version headless capability and every explicitly unsupported
+  Desktop capability. Status: the inventory is recorded in `baseline.md` and covers every class; what
+  remains is third-party review of this commit, so the line stays unchecked until that review lands.
+- [x] The two-turn/tool-call scenario is executable as a manual or temporary probe against current code,
+  or the blocker is recorded with an owner and a concrete resolution path. Evidence: the scenario was
+  **not** completed — `baseline.md` records the blocker, its owner, and the resolution path, which is
+  the second branch this criterion allows.
+- [x] No behavior or source file changes are required for acceptance. Evidence: the Stage 0 commit adds
+  documentation only.
 
 ### Commit boundary
 
@@ -84,6 +101,14 @@ ownership.
 
 **Purpose:** define the minimum operations shared by Desktop, CLI, and future runners without exposing
 runtime objects.
+
+Stage 1 sub-slice rule: 1A DTO-only; 1B events/interaction/cancellation; 1C client adapters; 1D
+compatibility mapping. Sub-slices land as separate reviewable commits; a sub-slice that cannot meet
+its own acceptance is recorded as a blocker instead of being folded into the next one. 1A is delivered
+as DTO-only (protocol version, service identity, the capability vocabulary with an availability
+discriminator, the structured error DTO, a session reference, and a submission receipt) and is wired
+to no service, transport, handler, or client, so the remaining Stage 1 work below stays open. See
+[baseline.md](./baseline.md) "Stage 1 handoff".
 
 ### Work
 
