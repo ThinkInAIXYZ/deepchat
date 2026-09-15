@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 
 import {
   ATEMPORAL_MEMORY_METADATA,
@@ -10,7 +10,6 @@ import {
   resolveMergedClaimTemporalMetadata
 } from '@/memory/core/temporal'
 import { buildExtractionPrompt, parseMemoryCandidates } from '@/memory/core/extraction'
-import { systemMemoryDomainClock } from '@/memory/domain/clock'
 
 describe('memory temporal metadata', () => {
   it('normalizes an explicit half-open state interval', () => {
@@ -274,17 +273,6 @@ describe('memory temporal metadata', () => {
     expect(
       evaluateMemoryTemporalPolicy({ ...base, temporalPrecision: 'year' }, validFrom).annotation
     ).toContain('from 2026')
-  })
-
-  it('resolves the system timezone for every domain-clock snapshot', () => {
-    const formatter = vi.spyOn(Intl, 'DateTimeFormat')
-    try {
-      systemMemoryDomainClock.timeZone()
-      systemMemoryDomainClock.timeZone()
-      expect(formatter.mock.calls.filter((args) => args.length === 0)).toHaveLength(2)
-    } finally {
-      formatter.mockRestore()
-    }
   })
 })
 

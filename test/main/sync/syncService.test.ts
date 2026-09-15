@@ -283,7 +283,9 @@ vi.mock('../../../src/main/sync/configImportService', async () => {
 })
 
 vi.mock('../../../src/main/sync/cloudStorageService', () => ({
-  CloudStorageService: vi.fn(() => cloudStorageMocks)
+  CloudStorageService: vi.fn(function CloudStorageService() {
+    return cloudStorageMocks
+  })
 }))
 
 const realFs = await vi.importActual<typeof import('fs')>('fs')

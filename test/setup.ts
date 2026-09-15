@@ -157,31 +157,33 @@ vi.mock('electron', async () => {
       quit: vi.fn(),
       isReady: vi.fn(() => true)
     },
-    BrowserWindow: vi.fn(() => ({
-      id: 1,
-      loadURL: vi.fn(),
-      loadFile: vi.fn(),
-      on: vi.fn(),
-      webContents: {
-        id: 2,
-        send: vi.fn(),
+    BrowserWindow: vi.fn(function BrowserWindow() {
+      return {
+        id: 1,
+        loadURL: vi.fn(),
+        loadFile: vi.fn(),
         on: vi.fn(),
-        setWindowOpenHandler: vi.fn(),
-        setBackgroundThrottling: vi.fn(),
-        setFrameRate: vi.fn(),
-        openDevTools: vi.fn(),
-        isDestroyed: vi.fn(() => false)
-      },
-      isDestroyed: vi.fn(() => false),
-      setContentProtection: vi.fn(),
-      setBackgroundColor: vi.fn(),
-      setHiddenInMissionControl: vi.fn(),
-      setSkipTaskbar: vi.fn(),
-      close: vi.fn(),
-      show: vi.fn(),
-      focus: vi.fn(),
-      hide: vi.fn()
-    })),
+        webContents: {
+          id: 2,
+          send: vi.fn(),
+          on: vi.fn(),
+          setWindowOpenHandler: vi.fn(),
+          setBackgroundThrottling: vi.fn(),
+          setFrameRate: vi.fn(),
+          openDevTools: vi.fn(),
+          isDestroyed: vi.fn(() => false)
+        },
+        isDestroyed: vi.fn(() => false),
+        setContentProtection: vi.fn(),
+        setBackgroundColor: vi.fn(),
+        setHiddenInMissionControl: vi.fn(),
+        setSkipTaskbar: vi.fn(),
+        close: vi.fn(),
+        show: vi.fn(),
+        focus: vi.fn(),
+        hide: vi.fn()
+      }
+    }),
     nativeImage: {
       createFromPath: vi.fn(() => ({}))
     },
@@ -283,6 +285,7 @@ vi.mock('fs', () => {
       realpath: vi.fn(async (target: string) => target),
       readFile: vi.fn(),
       writeFile: vi.fn(),
+      appendFile: vi.fn(),
       mkdir: vi.fn(),
       readdir: vi.fn(),
       stat: vi.fn()

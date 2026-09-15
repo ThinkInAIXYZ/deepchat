@@ -101,12 +101,14 @@ describe('AiSdkProvider aws-bedrock', () => {
         }
       ]
     })
-    mockBedrockClient.mockImplementation(() => ({
-      config: {
-        region: vi.fn().mockResolvedValue('us-east-1')
-      },
-      send: mockBedrockSend
-    }))
+    mockBedrockClient.mockImplementation(function BedrockClient() {
+      return {
+        config: {
+          region: vi.fn().mockResolvedValue('us-east-1')
+        },
+        send: mockBedrockSend
+      }
+    })
     mockRunAiSdkGenerateText.mockResolvedValue({ content: 'ok' })
   })
 

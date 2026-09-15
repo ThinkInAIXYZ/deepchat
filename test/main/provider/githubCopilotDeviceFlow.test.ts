@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { GitHubCopilotDeviceFlow } from '@/provider/auth/githubCopilotDeviceFlow'
 
 vi.mock('electron', () => ({
-  BrowserWindow: vi.fn(),
+  BrowserWindow: vi.fn(function BrowserWindow() {}),
   clipboard: { writeText: vi.fn() },
   shell: { openExternal: vi.fn() }
 }))
