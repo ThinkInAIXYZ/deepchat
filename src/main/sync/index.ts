@@ -716,7 +716,7 @@ export class SyncService {
           reject(error)
           return
         }
-        if (!output.write(Buffer.from(chunk))) {
+        if (!output.write(Buffer.from(chunk.buffer, chunk.byteOffset, chunk.byteLength))) {
           drain = new Promise<void>((drained) => {
             output.once('drain', () => drained())
             output.once('error', () => drained())
