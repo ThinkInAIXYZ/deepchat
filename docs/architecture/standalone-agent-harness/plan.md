@@ -88,10 +88,10 @@ scenario with its blocker, owner, and resolution path.
 
 ### Acceptance
 
-- [ ] A reviewed inventory names every first-version headless capability and every explicitly unsupported
+- [x] A reviewed inventory names every first-version headless capability and every explicitly unsupported
   Desktop capability. Status: the inventory is recorded in `baseline.md`, covers every class, and maps
-  every one of the 15 contract capability ids to a class; what remains is third-party review of this
-  commit, so the line stays unchecked until that review lands.
+  every one of the 15 contract capability ids to a class; independently reviewed at commit
+  `af471dda5e59bad24816b59b0e8127e4a4f3ec47`; Stage 0 evidence accepted.
 - [x] The two-turn/tool-call scenario is executable as a manual or temporary probe against current code,
   or the blocker is recorded with an owner and a concrete resolution path. Evidence: the scenario was
   **not** completed and is not claimed as passing — `baseline.md` records the blocker, its owner, and
