@@ -590,8 +590,12 @@ export class SyncService {
       this.emitBackupStatus('compressing')
       await this.writeZipToDisk(files, tempZipPath)
 
-      if (fs.existsSync(finalZipPath)) {
+      try {
         await fs.promises.unlink(finalZipPath)
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+          throw error
+        }
       }
       this.emitBackupStatus('finalizing')
       await fs.promises.rename(tempZipPath, finalZipPath)
@@ -606,8 +610,12 @@ export class SyncService {
 
       return { fileName: backupFileName, createdAt: timestamp, size: backupStats.size }
     } catch (error) {
-      if (fs.existsSync(tempZipPath)) {
+      try {
         await fs.promises.unlink(tempZipPath)
+      } catch (cleanupError) {
+        if ((cleanupError as NodeJS.ErrnoException).code !== 'ENOENT') {
+          console.warn('[Sync] Failed to remove partial backup archive:', cleanupError)
+        }
       }
       encounteredError = true
       this.emitBackupStatus('error', {
@@ -712,7 +720,7 @@ export class SyncService {
       output.on('error', reject)
       archive.ondata = (error, chunk, final) => {
         if (error) {
-          output.destroy()
+          output.destroy(error)
           reject(error)
           return
         }
@@ -744,7 +752,7 @@ export class SyncService {
           await drain
           archive.end()
         } catch (error) {
-          output.destroy()
+          output.destroy(error as Error)
           reject(error)
         }
       })()
@@ -759,9 +767,9 @@ export class SyncService {
     })
     if (!snapshot.acquired) {
       console.warn(
-        '[Sync] Backup could not drain the WAL (a reader is blocking the checkpoint); ' +
-          'falling back to a snapshot-pinned copy that ships the WAL sidecar so committed ' +
-          'transactions are not silently dropped'
+        '[Sync] Backup could not take a fully drained WAL snapshot (blocked checkpoint or a ' +
+          'commit landed during the drain window); falling back to a snapshot-pinned copy ' +
+          'that ships the WAL sidecar so committed transactions are not silently dropped'
       )
       return this.readBackupFilesFallback()
     }
@@ -1010,9 +1018,6 @@ export class SyncService {
   }
 
   private readSettingsFile(filePath: string): Record<string, unknown> | null {
-    if (!fs.existsSync(filePath)) {
-      return null
-    }
     try {
       const parsed = JSON.parse(fs.readFileSync(filePath, 'utf-8'))
       if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
@@ -1020,20 +1025,22 @@ export class SyncService {
       }
       return parsed as Record<string, unknown>
     } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+        return null
+      }
       console.error('Failed to read settings file for machine-local setting preservation:', error)
       throw new Error('sync.error.importFailed')
     }
   }
 
   private mergeAppSettingsPreservingMachineLocal(backupPath: string, targetPath: string): void {
-    if (!fs.existsSync(backupPath)) {
-      return
-    }
-
     let backupSettingsRaw: string
     try {
       backupSettingsRaw = fs.readFileSync(backupPath, 'utf-8')
     } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+        return
+      }
       console.error('Failed to read backup app settings file:', error)
       throw new Error('sync.error.noValidBackup')
     }
@@ -1078,11 +1085,15 @@ export class SyncService {
   }
 
   private createTempBackup(originalPath: string, name: string): string | null {
-    if (!fs.existsSync(originalPath)) {
-      return null
-    }
     const tempPath = path.join(app.getPath('temp'), `${name}.${Date.now()}.bak`)
-    this.copyFile(originalPath, tempPath)
+    try {
+      this.copyFile(originalPath, tempPath)
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+        return null
+      }
+      throw error
+    }
     return tempPath
   }
 
@@ -1097,25 +1108,27 @@ export class SyncService {
 
   private restoreBackupWalSidecar(sourceDbPath: string, targetDbPath: string): void {
     const sourceWalPath = `${sourceDbPath}-wal`
-    if (!fs.existsSync(sourceWalPath)) {
-      return
-    }
     // Ships un-checkpointed transactions from a fallback archive; the next
     // read-write open replays them. Placed after cleanupDatabaseSidecarFiles so
     // stale sidecars from the previous database cannot mix with this image.
-    this.copyFile(sourceWalPath, `${targetDbPath}-wal`)
+    try {
+      this.copyFile(sourceWalPath, `${targetDbPath}-wal`)
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+        throw error
+      }
+    }
   }
 
   private cleanupDatabaseSidecarFiles(dbFilePath: string): void {
     const sidecarFiles = [`${dbFilePath}-wal`, `${dbFilePath}-shm`]
     for (const filePath of sidecarFiles) {
-      if (!fs.existsSync(filePath)) {
-        continue
-      }
       try {
         fs.unlinkSync(filePath)
       } catch (error) {
-        console.warn('Failed to remove database sidecar file:', filePath, error)
+        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+          console.warn('Failed to remove database sidecar file:', filePath, error)
+        }
       }
     }
   }
@@ -1141,10 +1154,13 @@ export class SyncService {
 
   private cleanupTempFiles(paths: Array<string | null>): void {
     for (const filePath of paths) {
-      if (filePath && fs.existsSync(filePath)) {
-        try {
-          fs.unlinkSync(filePath)
-        } catch (error) {
+      if (!filePath) {
+        continue
+      }
+      try {
+        fs.unlinkSync(filePath)
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
           console.warn('Failed to remove temp file:', filePath, error)
         }
       }
@@ -1207,9 +1223,6 @@ export class SyncService {
   }
 
   private readPromptStore(filePath: string): PromptStore | null {
-    if (!fs.existsSync(filePath)) {
-      return null
-    }
     try {
       const content = fs.readFileSync(filePath, 'utf-8')
       const parsed = JSON.parse(content)
@@ -1218,6 +1231,9 @@ export class SyncService {
       }
       return parsed as PromptStore
     } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+        return null
+      }
       console.warn('Failed to read prompt store:', filePath, error)
       return { prompts: [] }
     }
