@@ -152,6 +152,7 @@ import { SchedulerService, createCronJobRunSessionStarter } from '../scheduler'
 import { AgentManager } from '@/agent/manager/agentManager'
 import { createDeepChatAgentBackend } from '@/agent/manager/deepChatAgentBackend'
 import { createDirectAcpAgentBackend } from '@/agent/manager/directAcpAgentBackend'
+import { AcpSessionStateAdapter } from '@/agent/acp/instance/acpSessionStateAdapter'
 import {
   TOOL_SURFACE_PRODUCTION_ROLLOUT_POLICY_V1,
   ToolSurfaceRolloutOwner
@@ -1933,7 +1934,7 @@ export async function createMainProcessControl(dependencies: {
     }),
     acp: createDirectAcpAgentBackend({
       runtime: acpAgentRuntime,
-      sessionState: deepChatAgentHarness,
+      sessionState: new AcpSessionStateAdapter(sessionData.settings),
       transcript: sessionData.transcript,
       tape: sessionData.tape,
       deleteDurableSession: async (sessionId) => {
