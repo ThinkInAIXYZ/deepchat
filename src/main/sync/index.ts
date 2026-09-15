@@ -753,7 +753,7 @@ export class SyncService {
 
   private async collectBackupFiles(): Promise<Record<string, Uint8Array>> {
     const snapshot = await this.database.withBackupReadLock(async () => {
-      const files = this.readSupportFiles()
+      const files = await this.readSupportFiles()
       files[ZIP_PATHS.agentDb] = toUint8ArrayView(await fs.promises.readFile(this.DB_PATH))
       return files
     })
@@ -775,7 +775,7 @@ export class SyncService {
     return withBackupSnapshot(
       () => this.database.openDatabaseConnection(this.DB_PATH),
       async () => {
-        const files = this.readSupportFiles()
+        const files = await this.readSupportFiles()
         files[ZIP_PATHS.agentDb] = toUint8ArrayView(await fs.promises.readFile(this.DB_PATH))
         const walPath = `${this.DB_PATH}-wal`
         try {
@@ -793,11 +793,11 @@ export class SyncService {
     )
   }
 
-  private readSupportFiles(): Record<string, Uint8Array> {
+  private async readSupportFiles(): Promise<Record<string, Uint8Array>> {
     const files: Record<string, Uint8Array> = {}
-    files[ZIP_PATHS.appSettings] = this.readSanitizedAppSettingsBackup()
-    this.addOptionalFile(files, ZIP_PATHS.customPrompts, this.CUSTOM_PROMPTS_PATH)
-    this.addOptionalFile(files, ZIP_PATHS.systemPrompts, this.SYSTEM_PROMPTS_PATH)
+    files[ZIP_PATHS.appSettings] = await this.readSanitizedAppSettingsBackup()
+    await this.addOptionalFile(files, ZIP_PATHS.customPrompts, this.CUSTOM_PROMPTS_PATH)
+    await this.addOptionalFile(files, ZIP_PATHS.systemPrompts, this.SYSTEM_PROMPTS_PATH)
     return files
   }
 
@@ -838,18 +838,22 @@ export class SyncService {
     return baseName
   }
 
-  private addOptionalFile(
+  private async addOptionalFile(
     files: Record<string, Uint8Array>,
     zipPath: string,
     filePath: string
-  ): void {
-    if (fs.existsSync(filePath)) {
-      files[zipPath] = toUint8ArrayView(fs.readFileSync(filePath))
+  ): Promise<void> {
+    try {
+      files[zipPath] = toUint8ArrayView(await fs.promises.readFile(filePath))
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+        throw error
+      }
     }
   }
 
-  private readSanitizedAppSettingsBackup(): Uint8Array {
-    const raw = fs.readFileSync(this.APP_SETTINGS_PATH, 'utf-8')
+  private async readSanitizedAppSettingsBackup(): Promise<Uint8Array> {
+    const raw = await fs.promises.readFile(this.APP_SETTINGS_PATH, 'utf-8')
     const parsed = JSON.parse(raw) as Record<string, unknown>
     const sanitized = this.removeMigratedAppSettings(parsed)
     return new Uint8Array(Buffer.from(JSON.stringify(sanitized, null, 2), 'utf-8'))
