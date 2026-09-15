@@ -210,29 +210,67 @@ green. The semantic freeze is already integrated and independently accepted at `
 
 ### Work
 
+#### Stage 2.0 — ownership and transaction inventory
+
+Before production extraction, record the owner and boundary for the loop engine, Harness facade,
+`SessionStateResolver`, transcript/Tape, pending input, provider/tool runtime, event hub, memory
+ingestion, ACP instance dependencies, and Desktop projection. Each item must be classified as
+`kernel`, `host`, `Desktop projection`, or `ACP peer`; every new port has one implementation owner.
+The inventory must also classify each operation as an awaited semantic boundary, a transactional
+persistence boundary, or a non-authoritative projection invalidation. At minimum, review submission
+acceptance, queued/running transitions, turn settlement, assistant persistence, Tape append, pending
+interaction settlement, cancellation, invalidation failure, and restart recovery. This is a design
+record, not a second runtime or repository.
+
+#### Stage 2A — neutral runtime edges and invalidation
+
+- [ ] Cut confirmed Electron/application value edges without moving host implementations: logger,
+  ACP compatibility barrels, programmatic command-launch error identity, provider catalog source URL,
+  usage-stat provider labels, and generation-settings diagnostics.
+- [ ] Replace the Harness-facing `SessionUiPort.refreshSessionUi()` callback with a typed internal
+  invalidation carrying the session and reason. Desktop adapts it to the existing widget refresh;
+  renderer/wire events and authoritative execution events remain separate.
+- [ ] Preserve provider/tool authorization, path/process semantics, generation fences, status/event
+  ordering, and the existing Tape/projection transaction behavior.
+
+#### Stage 2C — ACP state ownership seam
+
+- [ ] Before kernel composition changes, remove `sessionState: deepChatAgentHarness` from the direct
+  ACP backend (`src/main/app/composition.ts:1928-1930`). Give ACP a smallest neutral
+  `SessionStatePort` implementation or adapter for the methods it actually uses. ACP retains its
+  peer-specific runtime, permissions, transcript, and process lifecycle and never enters the built-in
+  loop or creates a second database owner.
+
+#### Stage 2B — portable built-in kernel
+
 - [ ] Extract the existing facade/coordinators around `DeepChatLoopEngine`, turn/run lifecycle,
   context, queue, interaction, compaction, Tape, transcript, and recovery.
 - [ ] Narrow concrete `SessionDatabase`/`SessionData` dependencies to ports that preserve required
-  transaction and atomic settlement boundaries.
-- [ ] Extract the compatibility handler's narrow projection ports as neutral contracts, so the V1 run
-  surfaces can be served by a host that does not live in Desktop: session metadata, text-only message
-  keyset pagination, in-flight assistant messages, and root/descendant waiting. Today these exist only
-  as host-side function types and closures around the composition root
-  (`src/main/cli/runService.ts:50-89`, wired at `src/main/app/composition.ts:2156-2173`). They stay
-  host-side ports and are never wire DTOs; [compatibility.md](./compatibility.md) records what each one
-  must be able to answer and why the Stage 1 snapshot cannot stand in for them.
+  transaction and atomic settlement boundaries; do not expose a generic repository or database
+  transaction object.
+- [ ] Extract the compatibility handler's narrow projection ports as neutral host-side contracts, so
+  V1 surfaces can be served outside Desktop: session metadata, text-only message keyset pagination,
+  in-flight assistant messages, and root/descendant waiting. These stay out of wire DTOs; see
+  [`compatibility.md`](./compatibility.md) for their obligations.
 - [ ] Move CLI authority and programmatic tool authority interfaces to neutral contracts; keep CLI
-  parsing/discovery in its adapter.
-- [ ] Replace UI refresh callbacks with typed state/event invalidation; Desktop remains responsible for
-  rendering its projection.
-- [ ] Remove reverse/transitive dependencies on Electron, application aliases, renderer code,
-  `safeStorage`, default paths, and global singletons from the package boundary.
+  parsing/discovery and concrete authorization in adapters.
+- [ ] Build a workspace-private package artifact with an alias-free public entry. Its package metadata,
+  emitted declaration closure, and runtime dependency closure must be checked by a clean Node consumer;
+  package naming remains an open decision until the artifact is implemented.
 - [ ] Keep provider/tool execution ports real; do not extract types while leaving the loop in Desktop.
 - [ ] Keep Desktop embedding the same kernel during this stage.
-- [ ] Untie the ACP session-state seam: today `createDirectAcpAgentBackend` receives
-  `sessionState: deepChatAgentHarness` (`src/main/app/composition.ts:1928-1930`). Give the peer its own
-  `SessionStatePort` implementation, or expose a neutral session-state contract that both paths consume,
-  so the ACP adapter never depends on the built-in harness.
+- [ ] Prove a fake two-round tool-continuation scenario: provider request, tool admission/execution,
+  tool result in the next provider request, final settlement, durable transcript, and observable event
+  order, without a client callback between rounds.
+
+### Sequence and acceptance gates
+
+The executable order is `2.0 inventory -> 2A -> 2C -> 2B ports/extraction -> 2B clean-Node
+import/runtime gate`. 2A and 2C may only overlap when they modify disjoint files and consume the same
+frozen neutral contract; 2B composition/wiring waits for both. The clean-Node gate must import the
+built package entry, not an application alias or an in-tree `src/main` path, and must prove the
+runtime two-round scenario. Existing DeepChat agent/session tests, Desktop typechecks, ACP tests, and
+behavior-preserving widget refresh are required; passing DTO/fake contract tests alone is insufficient.
 
 ### Attention points
 
