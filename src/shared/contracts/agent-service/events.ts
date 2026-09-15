@@ -115,27 +115,225 @@ export const AgentServiceArtifactRefSchema = z
 
 const utf8Encoder = new TextEncoder()
 
-// Iterative on purpose: the walk is itself bounded in stack usage, so a deep payload is rejected
-// as an issue rather than throwing out of `safeParse`.
-const exceedsEventDataDepth = (value: JsonValue, maxDepth: number): boolean => {
-  const pending: Array<{ value: JsonValue; depth: number }> = [{ value, depth: 1 }]
-  while (pending.length > 0) {
-    const current = pending.pop()
-    if (current === undefined) break
-    if (current.depth > maxDepth) return true
-    const item = current.value
-    if (Array.isArray(item)) {
-      for (const child of item) pending.push({ value: child, depth: current.depth + 1 })
+const EVENT_DATA_NOT_PLAIN_JSON = 'Event data must be plain JSON data'
+
+type EventDataRead = { ok: true; value: JsonValue } | { ok: false; message: string }
+
+// Where a copied value is attached. The root value has no parent, so its slot is `null`.
+type EventDataSlot = {
+  parent: JsonValue[] | Record<string, JsonValue>
+  key: string | number
+}
+
+type EventDataFrame =
+  | { kind: 'value'; source: unknown; depth: number; slot: EventDataSlot | null }
+  | { kind: 'leave'; source: object }
+
+// Event payloads are read before they are validated. `JsonValueSchema` is recursive, and a recursive
+// schema is not fail-closed for an in-process value: a payload deep enough to exhaust the stack makes
+// `safeParse` throw `RangeError` instead of returning issues, which is the one outcome this contract
+// must not have. The walk below is iterative, so its own stack use is bounded by the depth budget
+// rather than by the input, and only the bounded plain copy it builds is handed to `JsonValueSchema`.
+//
+// The accepted surface is plain JSON data and nothing else: `null`, strings, booleans, finite
+// numbers, dense arrays, and objects with a plain prototype and enumerable own data properties.
+// Rejected as issues: cycles, array holes and non-index array properties, accessors, enumerable
+// symbol keys, `undefined`, functions, symbols, bigints, non-finite numbers, `Date`/`Map`/class
+// instances (any non-plain prototype), payloads deeper than `AGENT_SERVICE_EVENT_DATA_MAX_DEPTH`,
+// and payloads whose encoded copy exceeds `AGENT_SERVICE_EVENT_DATA_MAX_BYTES`.
+//
+// No value from the input is invoked: nested values are taken from property descriptors, so an
+// accessor is refused instead of called. The measured value is the copy built here, and it is that
+// copy which is returned and handed to `JsonValueSchema`, so the byte budget is spent on the bytes
+// the accepted value encodes to and no input value is read twice. A `Proxy` is not reliably
+// distinguishable from a plain object, so proxies are not detected as such: one is copied like any
+// other input, and a proxy whose own reads throw is rejected by the `try` around this read rather
+// than by an exception out of `safeParse`.
+const readEventData = (input: unknown): EventDataRead => {
+  const ancestors = new Set<object>()
+  const stack: EventDataFrame[] = [{ kind: 'value', source: input, depth: 1, slot: null }]
+  // Assigned by the root frame before the walk ends; every other exit returns a rejection.
+  const root: { value: JsonValue } = { value: null }
+  let nodes = 0
+
+  const attach = (slot: EventDataSlot | null, value: JsonValue): void => {
+    if (slot === null) {
+      root.value = value
+      return
+    }
+    const { parent, key } = slot
+    if (Array.isArray(parent)) {
+      parent[key as number] = value
+      return
+    }
+    // A `__proto__` key stays an own property: assigning it would run the setter on
+    // `Object.prototype` and silently replace the copy's prototype instead of copying the key.
+    Object.defineProperty(parent, String(key), {
+      value,
+      enumerable: true,
+      writable: true,
+      configurable: true
+    })
+  }
+
+  while (stack.length > 0) {
+    const frame = stack.pop()
+    if (frame === undefined) break
+
+    if (frame.kind === 'leave') {
+      ancestors.delete(frame.source)
       continue
     }
-    if (item !== null && typeof item === 'object') {
-      for (const child of Object.values(item)) {
-        pending.push({ value: child, depth: current.depth + 1 })
+
+    const { source, depth, slot } = frame
+    if (depth > AGENT_SERVICE_EVENT_DATA_MAX_DEPTH) {
+      return {
+        ok: false,
+        message: `Event data depth exceeds ${AGENT_SERVICE_EVENT_DATA_MAX_DEPTH}`
       }
     }
+    nodes += 1
+    // Work bound: a node always costs at least one encoded byte plus the delimiter that joins it to
+    // its parent, so a payload with more nodes than the byte budget can only be one the byte check
+    // below rejects as well. It stops an oversized payload from being copied in full first.
+    if (nodes > AGENT_SERVICE_EVENT_DATA_MAX_BYTES) {
+      return {
+        ok: false,
+        message: `Event data exceeds ${AGENT_SERVICE_EVENT_DATA_MAX_BYTES} bytes`
+      }
+    }
+
+    if (source === null || typeof source === 'string' || typeof source === 'boolean') {
+      attach(slot, source)
+      continue
+    }
+
+    if (typeof source === 'number') {
+      // JSON has no encoding for `NaN` or `Infinity`; both stringify to `null`, which would make the
+      // accepted value differ from the one a client reads back.
+      if (!Number.isFinite(source)) {
+        return { ok: false, message: 'Event data is not JSON-encodable' }
+      }
+      attach(slot, source)
+      continue
+    }
+
+    if (typeof source !== 'object') {
+      // `undefined`, functions, symbols, and bigints have no JSON encoding at all.
+      return { ok: false, message: 'Event data is not JSON-encodable' }
+    }
+
+    if (ancestors.has(source)) {
+      return { ok: false, message: `${EVENT_DATA_NOT_PLAIN_JSON}: a cycle is not JSON` }
+    }
+
+    if (Array.isArray(source)) {
+      // A hole, or an enumerable non-index property, makes `Object.keys` disagree with `length`.
+      // Neither is representable in a JSON array, and a hole would otherwise be copied as `null`.
+      const keys = Object.keys(source)
+      if (keys.length !== source.length) {
+        return {
+          ok: false,
+          message: `${EVENT_DATA_NOT_PLAIN_JSON}: array holes and non-index array properties are not allowed`
+        }
+      }
+      const copy: JsonValue[] = []
+      attach(slot, copy)
+      ancestors.add(source)
+      stack.push({ kind: 'leave', source })
+      for (let index = source.length - 1; index >= 0; index -= 1) {
+        const descriptor = Object.getOwnPropertyDescriptor(source, String(index))
+        if (descriptor === undefined || !('value' in descriptor)) {
+          return {
+            ok: false,
+            message: `${EVENT_DATA_NOT_PLAIN_JSON}: array holes and accessors are not allowed`
+          }
+        }
+        stack.push({
+          kind: 'value',
+          source: descriptor.value,
+          depth: depth + 1,
+          slot: { parent: copy, key: index }
+        })
+      }
+      continue
+    }
+
+    const prototype = Object.getPrototypeOf(source)
+    if (prototype !== Object.prototype && prototype !== null) {
+      return {
+        ok: false,
+        message: `${EVENT_DATA_NOT_PLAIN_JSON}: object must have a plain prototype`
+      }
+    }
+
+    // An enumerable symbol key is a member JSON has no way to encode. Refusing it here keeps this
+    // read the single place that decides what event data may contain.
+    if (
+      Object.getOwnPropertySymbols(source).some(
+        (key) => Object.getOwnPropertyDescriptor(source, key)?.enumerable
+      )
+    ) {
+      return { ok: false, message: `${EVENT_DATA_NOT_PLAIN_JSON}: symbol keys are not allowed` }
+    }
+
+    const copy: Record<string, JsonValue> = {}
+    attach(slot, copy)
+    ancestors.add(source)
+    stack.push({ kind: 'leave', source })
+    const keys = Object.keys(source)
+    for (let index = keys.length - 1; index >= 0; index -= 1) {
+      const key = keys[index]
+      if (key === undefined) continue
+      const descriptor = Object.getOwnPropertyDescriptor(source, key)
+      if (descriptor === undefined || !('value' in descriptor)) {
+        return {
+          ok: false,
+          message: `${EVENT_DATA_NOT_PLAIN_JSON}: accessor properties are not allowed`
+        }
+      }
+      stack.push({
+        kind: 'value',
+        source: descriptor.value,
+        depth: depth + 1,
+        slot: { parent: copy, key }
+      })
+    }
   }
-  return false
+
+  // The copy is plain, bounded in depth, and acyclic, so encoding it here cannot fail. The bound is
+  // stated on the value a client receives: an event too large to be a bounded stream record is
+  // rejected by the contract, not accepted and then dropped by the transport.
+  if (utf8Encoder.encode(JSON.stringify(root.value)).length > AGENT_SERVICE_EVENT_DATA_MAX_BYTES) {
+    return { ok: false, message: `Event data exceeds ${AGENT_SERVICE_EVENT_DATA_MAX_BYTES} bytes` }
+  }
+  return { ok: true, value: root.value }
 }
+
+// The read above already rejects everything that is not bounded plain JSON and builds the value that
+// is measured and returned, so this stage only turns the read's own rejection into an issue. The
+// fail-closed guarantee lives here: an adversarial in-process value is rejected as an issue, never as
+// an exception out of `safeParse`. The input type is deliberately `unknown` — a value held in process
+// is not JSON until the read above says it is — and the piped `JsonValueSchema` narrows the output
+// back to `JsonValue`.
+const AgentServiceEventDataSchema: z.ZodType<JsonValue, unknown> = z
+  .unknown()
+  .transform((value, context): unknown => {
+    try {
+      const read = readEventData(value)
+      if (!read.ok) {
+        context.addIssue({ code: 'custom', message: read.message })
+        return z.NEVER
+      }
+      return read.value
+    } catch {
+      // A `Proxy` cannot be identified reliably, so an input whose own reads throw is rejected here
+      // instead of letting the exception out of `safeParse`.
+      context.addIssue({ code: 'custom', message: 'Event data could not be read' })
+      return z.NEVER
+    }
+  })
+  .pipe(JsonValueSchema)
 
 const readCursorParts = (cursor: string): { epoch: string; sequence: number } | null => {
   const separator = cursor.lastIndexOf(':')
@@ -171,7 +369,9 @@ export const AgentServiceEventEnvelopeSchema = z
       .max(AGENT_SERVICE_EVENT_MAX_ARTIFACTS)
       .optional(),
     interaction: AgentServiceInteractionRequestSchema.optional(),
-    data: JsonValueSchema
+    // `data` is read into a bounded plain copy before it is validated as JSON; see
+    // `AgentServiceEventDataSchema` for why the recursive schema alone is not fail-closed here.
+    data: AgentServiceEventDataSchema
   })
   .strict()
   .superRefine((event, context) => {
@@ -223,28 +423,6 @@ export const AgentServiceEventEnvelopeSchema = z
         code: 'custom',
         message: 'interaction is only valid when type is interaction.requested',
         path: ['interaction']
-      })
-    }
-
-    if (exceedsEventDataDepth(event.data, AGENT_SERVICE_EVENT_DATA_MAX_DEPTH)) {
-      context.addIssue({
-        code: 'custom',
-        message: `Event data depth exceeds ${AGENT_SERVICE_EVENT_DATA_MAX_DEPTH}`,
-        path: ['data']
-      })
-      return
-    }
-
-    // Measured on the parsed value, which is plain JSON by construction, so encoding cannot fail.
-    // The bound is stated here rather than left to the transport: an event that is too large to be
-    // a bounded stream record is rejected by the contract, not accepted and then dropped.
-    if (
-      utf8Encoder.encode(JSON.stringify(event.data)).length > AGENT_SERVICE_EVENT_DATA_MAX_BYTES
-    ) {
-      context.addIssue({
-        code: 'custom',
-        message: `Event data exceeds ${AGENT_SERVICE_EVENT_DATA_MAX_BYTES} bytes`,
-        path: ['data']
       })
     }
   })
@@ -321,6 +499,10 @@ export const AgentServiceEventSubscriptionResponseSchema = z
       })
     }
 
+    const requested =
+      subscription.requestedCursor === null ? null : readCursorParts(subscription.requestedCursor)
+    const requestedEpoch = requested === null ? null : requested.epoch
+
     replayed.forEach((event, index) => {
       if (event.serviceInstanceId !== subscription.serviceInstanceId) {
         context.addIssue({
@@ -336,11 +518,22 @@ export const AgentServiceEventSubscriptionResponseSchema = z
           path: ['replayedEvents', index, 'sessionId']
         })
       }
+      // Every replayed event, not just the first, must stay in the requested epoch. One event from
+      // another epoch in the middle is a replay spliced across a restart boundary: the sequences can
+      // still look contiguous while the positions belong to two different orderings.
+      if (requestedEpoch !== null) {
+        const eventParts = readCursorParts(event.cursor)
+        if (eventParts !== null && eventParts.epoch !== requestedEpoch) {
+          context.addIssue({
+            code: 'custom',
+            message: 'replayed events must stay in the requested cursor epoch',
+            path: ['replayedEvents', index, 'cursor']
+          })
+        }
+      }
     })
 
     const initial = readCursorParts(subscription.initialCursor)
-    const requested =
-      subscription.requestedCursor === null ? null : readCursorParts(subscription.requestedCursor)
 
     if (initial !== null && requested !== null && initial.epoch !== requested.epoch) {
       context.addIssue({
@@ -376,13 +569,8 @@ export const AgentServiceEventSubscriptionResponseSchema = z
     if (first !== undefined && requested !== null) {
       const firstParts = readCursorParts(first.cursor)
       if (firstParts !== null) {
-        if (firstParts.epoch !== requested.epoch) {
-          context.addIssue({
-            code: 'custom',
-            message: 'replayed events must stay in the requested cursor epoch',
-            path: ['replayedEvents', 0, 'cursor']
-          })
-        }
+        // The epoch of every replayed event is checked above; what is left here is that the replay
+        // starts exactly at the position after the requested cursor.
         if (firstParts.sequence !== requested.sequence + 1) {
           context.addIssue({
             code: 'custom',
@@ -510,6 +698,22 @@ export const AgentServiceSnapshotSchema = z
     artifacts: z.array(AgentServiceArtifactRefSchema).max(AGENT_SERVICE_SNAPSHOT_MAX_ARTIFACTS)
   })
   .strict()
+  // The snapshot is authoritative for exactly one session, so every pending interaction it carries
+  // must belong to that session. An interaction from another session would let a client answer
+  // something this snapshot never published as pending, which is the confusion the interaction
+  // identity exists to prevent. The binding lives here because the interaction DTO cannot know which
+  // snapshot carries it.
+  .superRefine((snapshot, context) => {
+    snapshot.pendingInteractions.forEach((interaction, index) => {
+      if (interaction.sessionId !== snapshot.sessionId) {
+        context.addIssue({
+          code: 'custom',
+          message: 'pending interaction sessionId must match the snapshot sessionId',
+          path: ['pendingInteractions', index, 'sessionId']
+        })
+      }
+    })
+  })
 
 export type AgentServiceEventType = z.infer<typeof AgentServiceEventTypeSchema>
 export type AgentServiceEventResyncReason = z.infer<typeof AgentServiceEventResyncReasonSchema>

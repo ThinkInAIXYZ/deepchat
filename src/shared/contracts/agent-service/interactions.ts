@@ -56,6 +56,13 @@ export const AgentServiceInteractionDecisionSchema = z.enum(AGENT_SERVICE_INTERA
 // Service-side settlement of a submitted response. `accepted` means the decision was recorded and
 // applied to the interaction named by the response; a response that does not match the pending
 // interaction is a structured error, not a resolution, so it cannot be reported as accepted.
+// `expired` means the interaction was already gone when the response arrived, so the response was
+// not applied.
+//
+// `resumed` says whether this resolution is what let the paused run continue. That is why `expired`
+// and `resumed: true` cannot both hold: nothing was resumed on the strength of a response that was
+// not applied. Whether an expiry ends, fails, or otherwise settles the run is a service decision
+// this DTO does not report; what it must not do is claim the run resumed because of the response.
 export const AGENT_SERVICE_INTERACTION_RESOLUTIONS = ['accepted', 'expired'] as const
 
 export const AgentServiceInteractionResolutionSchema = z
@@ -67,6 +74,15 @@ export const AgentServiceInteractionResolutionSchema = z
     resolvedAt: TimestampMsSchema
   })
   .strict()
+  .superRefine((resolution, context) => {
+    if (resolution.resolution === 'expired' && resolution.resumed) {
+      context.addIssue({
+        code: 'custom',
+        message: 'an expired interaction cannot be the resolution that resumed the run',
+        path: ['resumed']
+      })
+    }
+  })
 
 // A pending interaction as published by the service. `runId` and `requestId` are required rather
 // than nullable: an interaction always belongs to one running run and one model request, and a

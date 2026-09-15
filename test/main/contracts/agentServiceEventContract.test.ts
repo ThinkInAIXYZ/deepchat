@@ -233,6 +233,20 @@ const accept = (schema: { safeParse: (value: unknown) => { success: boolean } },
 const nestedData = (levels: number): unknown =>
   levels <= 1 ? 'leaf' : { child: nestedData(levels - 1) }
 
+// `accept` turns a thrown parse error into a test failure without saying which one, so the fail-closed
+// cases use this instead: it returns why the value was not rejected — "accepted" or the thrown error
+// — and `null` only when `safeParse` returned a rejection.
+const rejectionFailure = (
+  schema: { safeParse: (value: unknown) => { success: boolean } },
+  value: unknown
+): string | null => {
+  try {
+    return schema.safeParse(value).success ? 'accepted' : null
+  } catch (error) {
+    return `threw ${error instanceof Error ? `${error.name}: ${error.message}` : String(error)}`
+  }
+}
+
 describe('agent service event contract', () => {
   it('reuses the local-control epoch:sequence cursor instead of defining another one', () => {
     expect(AgentServiceEventCursorSchema).toBe(LocalControlEventCursorSchema)
@@ -330,6 +344,143 @@ describe('agent service event contract', () => {
         })
       )
     ).toBe(false)
+  })
+
+  it('refuses event data that is not plain JSON without throwing', () => {
+    // The reader must refuse an accessor without calling it, so the getter counts its own reads.
+    let accessorReads = 0
+    const accessor: Record<string, unknown> = {}
+    Object.defineProperty(accessor, 'value', {
+      get: () => {
+        accessorReads += 1
+        return 'x'
+      },
+      enumerable: true
+    })
+
+    const sparse: unknown[] = []
+    sparse[2] = 'x'
+
+    const nonIndex = ['x'] as unknown[] & { extra?: string }
+    nonIndex.extra = 'y'
+
+    class SessionState {
+      readonly status = 'running'
+    }
+
+    const symbolKeyed: Record<string | symbol, unknown> = { ok: true }
+    symbolKeyed[Symbol('tag')] = 'x'
+
+    const cyclic: Record<string, unknown> = {}
+    cyclic.self = cyclic
+
+    const throwingProxy = new Proxy(
+      {},
+      {
+        get: () => {
+          throw new Error('unreadable')
+        },
+        getOwnPropertyDescriptor: () => {
+          throw new Error('unreadable')
+        },
+        ownKeys: () => {
+          throw new Error('unreadable')
+        }
+      }
+    )
+
+    const notPlainJson: Array<[string, unknown]> = [
+      ['accessor property', accessor],
+      ['array hole', sparse],
+      ['array with a non-index property', nonIndex],
+      ['class instance', new SessionState()],
+      ['date', new Date(0)],
+      ['map', new Map([['a', 1]])],
+      ['enumerable symbol key', symbolKeyed],
+      ['undefined', undefined],
+      ['function', () => undefined],
+      ['symbol', Symbol('event')],
+      ['bigint', BigInt(1)],
+      ['NaN', Number.NaN],
+      ['Infinity', Number.POSITIVE_INFINITY],
+      ['cycle', cyclic],
+      ['proxy whose own reads throw', throwingProxy],
+      ['undefined nested in an array', ['x', undefined]],
+      ['undefined-valued key that JSON.stringify would drop', { text: undefined }],
+      ['date nested in an object', { at: new Date(0) }],
+      ['accessor nested in an array', [accessor]]
+    ]
+
+    for (const [label, data] of notPlainJson) {
+      expect(
+        rejectionFailure(AgentServiceEventEnvelopeSchema, eventEnvelope({ data })),
+        label
+      ).toBeNull()
+    }
+
+    // A refused accessor is refused, not read: the check is the descriptor, never the getter.
+    expect(accessorReads).toBe(0)
+  })
+
+  it('rejects JSON-parsed event data that is deeper than the depth budget without throwing', () => {
+    // A recursive JSON schema answers a payload this deep with `RangeError` instead of issues, so
+    // these are the shapes that prove the read is bounded before the recursive schema sees anything.
+    const deepObject = JSON.parse(`${'{"a":'.repeat(4_000)}1${'}'.repeat(4_000)}`) as unknown
+    const deeperObject = JSON.parse(`${'{"a":'.repeat(40_000)}1${'}'.repeat(40_000)}`) as unknown
+    const deepArray = JSON.parse(`${'['.repeat(4_000)}1${']'.repeat(4_000)}`) as unknown
+    const deeperArray = JSON.parse(`${'['.repeat(40_000)}1${']'.repeat(40_000)}`) as unknown
+
+    for (const [label, data] of [
+      ['deep object', deepObject],
+      ['deeper object', deeperObject],
+      ['deep array', deepArray],
+      ['deeper array', deeperArray],
+      ['deep array nested in an accepted field', { payload: deepArray }]
+    ] as Array<[string, unknown]>) {
+      expect(
+        rejectionFailure(AgentServiceEventEnvelopeSchema, eventEnvelope({ data })),
+        label
+      ).toBeNull()
+    }
+  })
+
+  it('accepts plain event data as a bounded plain JSON copy', () => {
+    const data = {
+      status: 'running',
+      nested: { items: [1, 'x', null, true], empty: {} },
+      empty: [],
+      flag: false,
+      count: 0,
+      maybe: null
+    }
+
+    const parsed = AgentServiceEventEnvelopeSchema.parse(eventEnvelope({ data }))
+    expect(parsed.data).toEqual(data)
+    // The accepted value has no hidden members: nothing the input carries is dropped, reordered, or
+    // added on the way through, and it survives a JSON round-trip unchanged.
+    expect(JSON.stringify(parsed.data)).toBe(JSON.stringify(data))
+    expect(JSON.parse(JSON.stringify(parsed.data))).toEqual(parsed.data)
+
+    expect(
+      accept(
+        AgentServiceEventEnvelopeSchema,
+        eventEnvelope({ data: nestedData(AGENT_SERVICE_EVENT_DATA_MAX_DEPTH) })
+      )
+    ).toBe(true)
+    expect(
+      rejectionFailure(
+        AgentServiceEventEnvelopeSchema,
+        eventEnvelope({ data: nestedData(AGENT_SERVICE_EVENT_DATA_MAX_DEPTH + 1) })
+      )
+    ).toBeNull()
+
+    // A prototype-less object is plain data: it carries no inherited member and no class identity.
+    const nullPrototype = Object.assign(Object.create(null) as Record<string, unknown>, {
+      status: 'running'
+    })
+    expect(accept(AgentServiceEventEnvelopeSchema, eventEnvelope({ data: nullPrototype }))).toBe(
+      true
+    )
   })
 
   it('keeps artifact references owned identifiers without a service path', () => {
@@ -464,6 +615,51 @@ describe('agent service event contract', () => {
       )
     ).toBe(false)
 
+    // Every replayed event must stay in the requested epoch, not only the first. Below the sequences
+    // are contiguous, the replayed events belong to the subscribed session and instance, and the last
+    // cursor equals `initialCursor` — an epoch switch in the middle would otherwise pass as one
+    // gap-free catch-up, splicing two orderings that share a sequence number.
+    const midEpochSwitch = replay(1, 3)
+    midEpochSwitch[1] = eventEnvelope({ eventId: 'event-2', cursor: `epoch-2:2`, sequence: 2 })
+    expect(
+      accept(
+        AgentServiceEventSubscriptionResponseSchema,
+        replayingSubscription(1, 3, { replayedEvents: midEpochSwitch })
+      )
+    ).toBe(false)
+
+    // The same switch, with `initialCursor` moved into the switched epoch so that it matches the last
+    // replayed cursor, is still refused: a matching end position does not make the middle event's
+    // epoch the requested one.
+    expect(
+      accept(
+        AgentServiceEventSubscriptionResponseSchema,
+        replayingSubscription(1, 3, {
+          replayedEvents: midEpochSwitch,
+          initialCursor: `epoch-2:3`
+        })
+      )
+    ).toBe(false)
+
+    // A replay where every event is in the other epoch is refused as well, wherever `initialCursor`
+    // sits.
+    const allOtherEpoch = replay(1, 2).map((_unused, index) =>
+      eventEnvelope({
+        eventId: `event-${index + 1}`,
+        cursor: `epoch-2:${index + 1}`,
+        sequence: index + 1
+      })
+    )
+    expect(
+      accept(
+        AgentServiceEventSubscriptionResponseSchema,
+        replayingSubscription(1, 2, {
+          replayedEvents: allOtherEpoch,
+          initialCursor: `epoch-2:2`
+        })
+      )
+    ).toBe(false)
+
     expect(
       accept(
         AgentServiceEventSubscriptionResponseSchema,
@@ -588,6 +784,38 @@ describe('agent service event contract', () => {
     for (const [label, override] of invalid) {
       expect(accept(AgentServiceSnapshotSchema, snapshot(override)), label).toBe(false)
     }
+
+    // The authoritative snapshot belongs to one session, so an interaction that is pending in another
+    // session is not pending here: answering it would resolve something this snapshot never published.
+    expect(
+      accept(
+        AgentServiceSnapshotSchema,
+        snapshot({
+          pendingInteractions: [permissionInteraction({ sessionId: 'other-session' })]
+        })
+      )
+    ).toBe(false)
+    expect(
+      accept(
+        AgentServiceSnapshotSchema,
+        snapshot({ pendingInteractions: [questionInteraction({ sessionId: 'other-session' })] })
+      )
+    ).toBe(false)
+    // One interaction from another session is enough to reject the snapshot, even next to valid ones.
+    expect(
+      accept(
+        AgentServiceSnapshotSchema,
+        snapshot({
+          pendingInteractions: [permissionInteraction(), questionInteraction({ sessionId: 'x' })]
+        })
+      )
+    ).toBe(false)
+    expect(
+      accept(
+        AgentServiceSnapshotSchema,
+        snapshot({ pendingInteractions: [permissionInteraction(), questionInteraction()] })
+      )
+    ).toBe(true)
 
     expect(
       accept(
@@ -802,7 +1030,10 @@ describe('agent service event contract', () => {
       ['unknown resolution', { resolution: 'mismatched' }],
       ['missing resumed flag', { resumed: undefined }],
       ['missing resolved timestamp', { resolvedAt: undefined }],
-      ['resolution without an interaction id', { interactionId: undefined }]
+      ['resolution without an interaction id', { interactionId: undefined }],
+      // `expired` records a response that was not applied, so it cannot be the resolution that
+      // resumed the run.
+      ['expired resolution that claims to resume the run', { resolution: 'expired', resumed: true }]
     ] as Array<[string, Record<string, unknown>]>) {
       expect(
         accept(AgentServiceInteractionResolutionSchema, {
@@ -815,6 +1046,22 @@ describe('agent service event contract', () => {
         }),
         label
       ).toBe(false)
+    }
+
+    // An accepted answer that settled without resuming the run is a real state, and so is an expiry
+    // that resumed nothing; only the combination of the two claims is refused.
+    for (const resolution of [
+      { resolution: 'accepted', resumed: false },
+      { resolution: 'expired', resumed: false }
+    ]) {
+      expect(
+        accept(AgentServiceInteractionResolutionSchema, {
+          interactionId: 'interaction-1',
+          sessionId,
+          resolvedAt: 7_000,
+          ...resolution
+        })
+      ).toBe(true)
     }
   })
 
