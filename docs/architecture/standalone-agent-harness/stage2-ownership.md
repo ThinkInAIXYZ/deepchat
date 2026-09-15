@@ -51,6 +51,28 @@ owners.
 | UI invalidation failure | does not roll back completed execution; no UI callback may substitute for durable persistence | Desktop projection adapter |
 | Restart recovery | classify from the existing journal/recovery owner; do not infer authority from a transient projection | host recovery owner |
 
+## ACP state seam decision
+
+`SessionStatePort` currently has nine methods (`src/main/session/data/contracts.ts:36-53`) and the
+Direct ACP backend calls all nine. Replacing the reference with another object is not sufficient:
+`createAcpAgentInstanceDependencies` still reaches the built-in `SessionStateResolver` and may lazily
+hydrate a built-in scope (`src/main/agent/acp/compatibility/dependencies.ts:97-115`). Therefore Stage
+2C is a separate ownership cut, not a cosmetic wiring change.
+
+The approved direction is an ACP-side adapter over the same host-owned session data instance, not a
+second database owner: durable create/read/update/delete and generation sanitization remain in the
+existing session data owner; ACP runtime, process, permission, and ACP persistence remain ACP-peer
+owned. The adapter must not hydrate a built-in DeepChat scope. `setSessionProjectDir` is not a durable
+write in the current coordinator and must not be silently promoted to one; ACP workdir persistence
+stays with the existing assignment/ACP controller paths. The adapter may retain one explicitly named
+host runtime-release hook only until the ACP compatibility factory is neutralized in Stage 2B.
+
+A separate status source is only required once ACP no longer borrows the built-in scope: status events
+must remain ACP-peer-owned or be published through a neutral ACP adapter. Built-in Desktop invalidation
+must not become the ACP notification channel. The existing `SessionDatabase` transaction semantics
+are not changed by this seam: notably Tape append plus durable memory projection invalidation remains
+transactional, as covered by `test/main/memory/deepchatMemoryIngestionProjection.test.ts:514-535`.
+
 ## Stage 2 gates
 
 1. Stage 2A may remove confirmed value-import leaks and replace the Harness-facing UI callback, without
