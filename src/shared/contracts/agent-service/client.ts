@@ -129,6 +129,13 @@ export const AgentServiceHandshakeResultSchema = z
 // without one could not be receipted or recognised as a repeat, so a lost response would be
 // indistinguishable from a submission that never happened.
 //
+// A binding that retains submission records recognises the repeat by that identity, and a repeat is
+// only a repeat when it carries the same text. Reusing the identity with different content is the
+// `duplicate_submission` refusal — `retriable: false`, nothing run — because the other two readings
+// are both wrong: silently dropping the new content loses what the caller sent, and running it is the
+// second run the identity exists to prevent. A client that wants the new content run says so with a
+// new identity.
+//
 // The text bound is the same bound the snapshot's message text uses, so a submission a client is
 // allowed to make is one the resulting transcript can report back.
 export const AgentServiceSubmissionRequestSchema = z

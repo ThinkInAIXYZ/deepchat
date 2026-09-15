@@ -262,9 +262,10 @@ const parseCursor = (cursor: string): { epoch: string; sequence: number } => {
 type FakeBindingOptions = {
   name: string
   capabilities: AgentServiceCapability[]
-  // The binding keeps a durable submission identity, so a repeated submission is receipted as a
-  // duplicate instead of starting a second run. A binding without one cannot tell a repeat from a
-  // new submission, which is exactly why a client queries and reads state instead of retrying.
+  // The binding keeps a durable submission identity, so a repeated submission carrying the same text is
+  // receipted as a duplicate instead of starting a second run, and the same identity carrying other
+  // content is refused rather than run. A binding without one cannot tell a repeat from a new
+  // submission, which is exactly why a client queries and reads state instead of retrying.
   durableSubmissionIdentity: boolean
   // The service publishes and resolves `question` interactions as well as permissions. A binding that
   // only publishes permissions never has a question to answer, so a question response names an
@@ -308,9 +309,12 @@ const createFakeBinding = (options: FakeBindingOptions): FakeBinding => {
   const messages: AgentServiceSnapshot['messages'] = []
   const interactions: AgentServiceInteractionRequest[] = []
   const queued: { submissionId: string; receivedAt: number }[] = []
+  // A retained record keeps the submission text it was accepted with, because that text is what makes
+  // a later submission carrying the same identity a repeat of this one rather than new content.
   const receipts = new Map<
     string,
     {
+      text: string
       runId: string | null
       requestId: string | null
       messageId: string | null
@@ -365,6 +369,15 @@ const createFakeBinding = (options: FakeBindingOptions): FakeBinding => {
     retriable: false
   })
 
+  // The reuse conflict the submission identity can produce: this identity was accepted, but with other
+  // content. Not retriable — resending the same key reproduces it, and the new content is run only
+  // under a new identity.
+  const duplicateSubmission = (message: string): AgentServiceError => ({
+    code: 'duplicate_submission',
+    message,
+    retriable: false
+  })
+
   // A receipt reports one acceptance of one submission, so its timestamp is the time that submission
   // was accepted — a `duplicate` answer reports the original acceptance rather than a new one.
   const receiptFor = (submissionId: string, outcome: 'accepted' | 'duplicate') => {
@@ -403,6 +416,17 @@ const createFakeBinding = (options: FakeBindingOptions): FakeBinding => {
 
       const known = receipts.get(request.submissionId)
       if (known !== undefined && options.durableSubmissionIdentity) {
+        // A retained record makes this a repeat only when the content matches it exactly: the comparison
+        // is against the text as it was accepted, with no trim or normalization applied a second time. A
+        // key reused for other content is the reuse conflict, not a repeat and not a silent overwrite.
+        if (known.text !== request.text) {
+          return {
+            ok: false,
+            error: duplicateSubmission(
+              `submission ${request.submissionId} was already accepted with different content`
+            )
+          }
+        }
         return { ok: true, value: receiptFor(request.submissionId, 'duplicate') }
       }
 
@@ -425,6 +449,7 @@ const createFakeBinding = (options: FakeBindingOptions): FakeBinding => {
         queued.push({ submissionId: request.submissionId, receivedAt: tick() })
         const event = append('queue.updated', { messageId, data: { queued: queued.length } })
         receipts.set(request.submissionId, {
+          text: request.text,
           runId: null,
           requestId: null,
           messageId,
@@ -450,7 +475,13 @@ const createFakeBinding = (options: FakeBindingOptions): FakeBinding => {
       const requestId = `request-${runCounter}`
       status = 'generating'
       activeRun = { runId, requestId }
-      receipts.set(request.submissionId, { runId, requestId, messageId, acceptedAt: tick() })
+      receipts.set(request.submissionId, {
+        text: request.text,
+        runId,
+        requestId,
+        messageId,
+        acceptedAt: tick()
+      })
       append('run.started', { runId, messageId })
       append('run.status', { runId, requestId, data: { status: 'generating' } })
       append('message.completed', { runId, messageId })
@@ -1527,10 +1558,16 @@ describe('agent service client contract', () => {
       const submission = { serviceInstanceId, sessionId, submissionId: 'submission-1', text: 'hi' }
 
       const first = okValue(AgentServiceSubmissionReceiptSchema, await adapter.submit(submission))
+      const beforeRepeat = okValue(
+        AgentServiceSnapshotSchema,
+        await adapter.readSnapshot({ serviceInstanceId, sessionId })
+      )
       const repeat = okValue(AgentServiceSubmissionReceiptSchema, await adapter.submit(submission))
       expect(first.outcome).toBe('accepted')
       expect(repeat.outcome).toBe('duplicate')
       expect(repeat.runId).toBe(first.runId)
+      expect(repeat.requestId).toBe(first.requestId)
+      expect(repeat.messageId).toBe(first.messageId)
       expect(repeat.submissionId).toBe(first.submissionId)
       // A duplicate receipt reports the original acceptance, not a new one.
       expect(repeat.acceptedAt).toBe(first.acceptedAt)
@@ -1541,6 +1578,99 @@ describe('agent service client contract', () => {
       )
       expect(snapshot.messages).toHaveLength(1)
       expect(snapshot.queuedSubmissions).toEqual([])
+      // The repeat produced the receipt and nothing else: no event was appended behind it.
+      expect(snapshot.cursor).toBe(beforeRepeat.cursor)
+      const replay = okValue(
+        AgentServiceEventSubscriptionResponseSchema,
+        await adapter.subscribe({
+          serviceInstanceId,
+          sessionId,
+          cursor: beforeRepeat.cursor,
+          maxReplayEvents: 32,
+          maxBufferedEvents: 64
+        })
+      )
+      expect(replay.status).toBe('streaming')
+      if (replay.status === 'streaming') expect(replay.replayedEvents).toEqual([])
+    })
+
+    it('refuses a reused submission identity carrying other content, and changes nothing', async () => {
+      const binding = createBuiltinBinding()
+      const { adapter, sessionId, serviceInstanceId } = binding
+      const submission = { serviceInstanceId, sessionId, submissionId: 'submission-1', text: 'hi' }
+      const first = okValue(AgentServiceSubmissionReceiptSchema, await adapter.submit(submission))
+      const before = okValue(
+        AgentServiceSnapshotSchema,
+        await adapter.readSnapshot({ serviceInstanceId, sessionId })
+      )
+
+      // The comparison is against the text as it was accepted: a trailing space is other content, so no
+      // trim or normalization is applied a second time on the repeat's behalf.
+      for (const text of ['hi ', 'other content']) {
+        const conflict = await adapter.submit({ ...submission, text })
+        const error = failureOf(AgentServiceSubmissionReceiptSchema, conflict)
+        expect(error.code).toBe('duplicate_submission')
+        // Neither reading is taken: the new content is not silently dropped, and it is not run as a
+        // second submission either. The conflict is not retriable — resending this key reproduces it.
+        expect(error.retriable).toBe(false)
+      }
+
+      // The identity is scoped by the instance and session it was accepted in, and ownership is settled
+      // before any receipt is looked up: the same key addressed elsewhere is not this binding's record,
+      // so it is refused rather than answered with a receipt from another scope.
+      for (const foreign of [
+        { sessionId: 'another-session' },
+        { serviceInstanceId: 'another-instance' }
+      ]) {
+        const refused = await adapter.submit({ ...submission, ...foreign })
+        expect(failureOf(AgentServiceSubmissionReceiptSchema, refused).code).toBe('not_found')
+      }
+
+      // None of it landed: no message, no event, no queued entry, no settled state.
+      const after = okValue(
+        AgentServiceSnapshotSchema,
+        await adapter.readSnapshot({ serviceInstanceId, sessionId })
+      )
+      expect({
+        cursor: after.cursor,
+        status: after.status,
+        activeRun: after.activeRun,
+        messages: after.messages,
+        queuedSubmissions: after.queuedSubmissions,
+        pendingInteractions: after.pendingInteractions
+      }).toEqual({
+        cursor: before.cursor,
+        status: before.status,
+        activeRun: before.activeRun,
+        messages: before.messages,
+        queuedSubmissions: before.queuedSubmissions,
+        pendingInteractions: before.pendingInteractions
+      })
+      const replay = okValue(
+        AgentServiceEventSubscriptionResponseSchema,
+        await adapter.subscribe({
+          serviceInstanceId,
+          sessionId,
+          cursor: before.cursor,
+          maxReplayEvents: 32,
+          maxBufferedEvents: 64
+        })
+      )
+      expect(replay.status).toBe('streaming')
+      if (replay.status === 'streaming') expect(replay.replayedEvents).toEqual([])
+
+      // The original acceptance is still the one this identity resolves to, timestamp included.
+      const retained = receiptFromQuery(
+        parseResult(
+          AgentServiceSubmissionQueryResultSchema,
+          await adapter.querySubmission({
+            serviceInstanceId,
+            sessionId,
+            submissionId: submission.submissionId
+          })
+        )
+      )
+      expect(retained).toEqual(first)
     })
 
     it('recovers a lost response by receipt query rather than a blind retry', async () => {
@@ -1741,6 +1871,62 @@ describe('agent service client contract', () => {
       expect(failureOf(AgentServiceCancellationReceiptSchema, unknown).code).toBe('not_found')
     })
 
+    it('cancels only the named run and does not discard what is queued behind it', async () => {
+      const binding = createBuiltinBinding()
+      const { adapter, sessionId, serviceInstanceId } = binding
+      const running = okValue(
+        AgentServiceSubmissionReceiptSchema,
+        await adapter.submit({
+          serviceInstanceId,
+          sessionId,
+          submissionId: 'submission-1',
+          text: 'first'
+        })
+      )
+      await adapter.submit({
+        serviceInstanceId,
+        sessionId,
+        submissionId: 'submission-2',
+        text: 'second'
+      })
+
+      const cancelled = okValue(
+        AgentServiceCancellationReceiptSchema,
+        await adapter.cancel({
+          serviceInstanceId,
+          layer: 'running_run',
+          sessionId,
+          runId: running.runId ?? ''
+        })
+      )
+      expect(cancelled.outcome).toBe('cancelled')
+
+      // The run settled; the queue did not. Cancelling a run is not a session-wide stop, so the entry
+      // waiting behind it is still there instead of being discarded as a side effect.
+      const snapshot = okValue(
+        AgentServiceSnapshotSchema,
+        await adapter.readSnapshot({ serviceInstanceId, sessionId })
+      )
+      expect(snapshot.status).toBe('idle')
+      expect(snapshot.activeRun).toBeNull()
+      expect(snapshot.queuedSubmissions.map((entry) => entry.submissionId)).toEqual([
+        'submission-2'
+      ])
+
+      // Still queued means still settleable by the layer that owns the queue, which is the observable
+      // difference between "left alone" and "already settled by someone else".
+      const stoppedQueued = okValue(
+        AgentServiceCancellationReceiptSchema,
+        await adapter.cancel({
+          serviceInstanceId,
+          layer: 'queued_submission',
+          sessionId,
+          submissionId: 'submission-2'
+        })
+      )
+      expect(stoppedQueued.outcome).toBe('cancelled')
+    })
+
     it('stops the active turn without settling the run', async () => {
       const binding = createBuiltinBinding()
       const { adapter, sessionId, serviceInstanceId } = binding
@@ -1755,6 +1941,14 @@ describe('agent service client contract', () => {
       )
       expect(receipt.runId).not.toBeNull()
       expect(receipt.requestId).not.toBeNull()
+
+      // Something is waiting behind this run, so "the queue is untouched" is observable below.
+      await adapter.submit({
+        serviceInstanceId,
+        sessionId,
+        submissionId: 'submission-2',
+        text: 'next'
+      })
 
       const stopped = okValue(
         AgentServiceCancellationReceiptSchema,
@@ -1787,6 +1981,10 @@ describe('agent service client contract', () => {
       )
       expect(snapshot.status).toBe('generating')
       expect(snapshot.activeRun?.runId).toBe(receipt.runId)
+      // The run was not settled and the queue was not touched: only the turn stopped.
+      expect(snapshot.queuedSubmissions.map((entry) => entry.submissionId)).toEqual([
+        'submission-2'
+      ])
     })
 
     it('resolves a published interaction and refuses one that was never pending', async () => {

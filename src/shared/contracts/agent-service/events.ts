@@ -730,8 +730,17 @@ export const AgentServiceQueuedSubmissionSchema = z
 // Authoritative session state at one cursor. It is authoritative for `status`, `cursor`, the
 // queue, the pending interactions, and the artifact set — the things a client cannot reconstruct
 // from a stale projection. `messages` is explicitly a bounded projection: when
-// `messagesTruncated` is true the projection omits messages that must be read through a separate
-// paged operation, so a client never mistakes a bounded window for the whole transcript.
+// `messagesTruncated` is true the projection omits messages, so a client never mistakes a bounded
+// window for the whole transcript.
+//
+// That the omitted history stays readable is a requirement of this snapshot rather than a property of
+// it, and where the rest is read from is stated instead of assumed. Completing the transcript is a
+// paged read: the host read side provides that projection (or the operation vocabulary is extended with
+// a typed operation carrying it) before the CLI and Desktop read paths cut over to this surface. It is
+// not one of the seven client operations today, and this comment does not claim it is — the flag says
+// the snapshot is not a complete transcript, not that a paged read already exists. Calling a bounded
+// snapshot the complete CLI/Desktop projection would be the mistake this field exists to prevent, so
+// the gap is recorded here as owed work until that read lands.
 export const AgentServiceSnapshotSchema = z
   .object({
     serviceInstanceId: AgentServiceInstanceIdSchema,

@@ -21,8 +21,24 @@ export const AgentServiceInstanceIdSchema = EntityIdSchema.max(128)
 
 export const AgentServiceSessionIdSchema = EntityIdSchema.max(128)
 
-// Client-supplied idempotency identity for one submission. Reusing it against the same service
-// instance must produce a duplicate receipt rather than a second run.
+// Client-supplied idempotency identity for one submission. Idempotency is a property of a binding's
+// own retention, so this field states what a retaining built-in binding does rather than a guarantee
+// every service in the protocol keeps:
+//
+// - A retaining binding keys its submission record by the whole scope it was accepted in —
+//   `(serviceInstanceId, sessionId, submissionId)` — and settles ownership of that instance and
+//   session *before* it looks a receipt up. A key presented against another instance or session is
+//   therefore refused on ownership, never answered with a receipt that belongs to another scope.
+// - Reusing the key for the same scope with the same original text — compared exactly as it was
+//   received, with no second trim or normalization — is a duplicate: the original receipt is
+//   returned, carrying its original run, request, message, and `acceptedAt`. No message, event, run,
+//   or queued entry is created for that repeat.
+// - Reusing the key with different text is `duplicate_submission` with `retriable: false`. New
+//   content is never silently ignored and never executed as a second run: a client that wants the
+//   new content run chooses a new submission identity deliberately.
+// - A binding that retains no receipt — a direct ACP peer, for one — keeps that asymmetry visible
+//   instead of being handed a shared promise it cannot honour. It answers `receipt_not_retained` and
+//   gains no idempotency guarantee from this contract; nothing here fabricates one on its behalf.
 export const AgentServiceSubmissionIdSchema = SubmissionIdSchema
 
 // Execution identity inside the service. This is distinct from the legacy CLI run identifier
@@ -135,6 +151,10 @@ export const AgentServiceCapabilitiesSchema = z
     }
   })
 
+// `duplicate_submission` is the only reuse conflict this vocabulary states: the same submission
+// identity arrived again carrying different content, so nothing was run and the caller cannot get the
+// new content executed by resending the same key. It is never `retriable`, because a retry of that
+// key reproduces the same conflict; a client that wants the content run chooses a new identity.
 export const AGENT_SERVICE_ERROR_CODES = [
   'invalid_request',
   'unauthorized',
@@ -440,6 +460,13 @@ export const AgentServiceSessionRefSchema = z
 
 // Queryable receipt for one submission. A lost response is not proof that no run started, so a
 // client reuses the submission identity and reads this receipt before retrying side effects.
+//
+// Retention is bounded, and the bound is part of the meaning. A retaining binding keeps the
+// submission identity and this original acceptance until the submission settles — queued or running —
+// and may prune the record after that. Pruning is why an absent receipt is not evidence of an absent
+// run: a `not_found` answer never authorises a resubmit, and a client that must submit again picks a
+// new identity. The record is binding-local state, so an identity used before a service restart is not
+// replayable after it and does not carry the old acceptance across that boundary.
 export const AgentServiceSubmissionReceiptSchema = z
   .object({
     submissionId: AgentServiceSubmissionIdSchema,

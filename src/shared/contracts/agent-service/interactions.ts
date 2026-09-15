@@ -184,9 +184,17 @@ export const AgentServiceInteractionResponseSchema = z.discriminatedUnion('kind'
 //
 // - `queued_submission` cancels an accepted submission that has not started. The queued input is
 //   discarded; no run exists and none is created.
-// - `running_run` cancels the run that is executing. The run settles as cancelled.
+// - `running_run` cancels the run that is executing, and only that run: the named run settles as
+//   cancelled, and a run that is not the active one is reported `already_settled` instead of being
+//   read as a success. It is not a session-wide stop, so it does not discard the queue as a side
+//   effect — the queued submissions are still there afterwards, and stopping one of them is its own
+//   `queued_submission` request.
 // - `active_turn` stops the output of the active turn (the current model request) without settling
 //   or negating the run, and without touching the queue.
+//
+// Because only `queued_submission` acts on the queue, what happens to the entries still queued once a
+// run settles is the scheduler owner's decision: this DTO promises no automatic execution of them, and
+// a client that wants one stopped or started says so with the layer that names it.
 //
 // A client disconnect is never one of these layers: an accepted run survives a disconnect, so
 // stopping work is always an explicit request naming the exact layer and target. Because the union
