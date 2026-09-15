@@ -62,7 +62,10 @@ afterEach(() => {
   fs.rmSync(syncDir, { recursive: true, force: true })
 })
 
-function buildService(password: string | undefined): InstanceType<typeof SyncService> {
+function buildService(
+  password: string | undefined,
+  options: { forceBusyCheckpoint?: boolean; sneakCommitAfterDrain?: boolean } = {}
+): InstanceType<typeof SyncService> {
   const connection = openSQLiteDatabase(dbPath, password)
   writerDb = connection
   connection.exec('CREATE TABLE backup_probe (id INTEGER PRIMARY KEY, payload TEXT)')
@@ -71,11 +74,21 @@ function buildService(password: string | undefined): InstanceType<typeof SyncSer
     for (let index = 0; index < SEED_ROWS; index++) insert.run(ROW_PAYLOAD)
   })()
 
+  let sneaked = false
   const checkpointingHandle = {
     open: true,
-    pragma: (source: string, options?: unknown) => {
-      const result = connection.pragma(source, options as never)
+    pragma: (source: string, pragmaOptions?: unknown) => {
+      if (options.forceBusyCheckpoint && source.startsWith('wal_checkpoint')) {
+        return [{ busy: 1, log: 1, checkpointed: 0 }]
+      }
+      const result = connection.pragma(source, pragmaOptions as never)
       if (source.startsWith('wal_checkpoint')) {
+        const first = Array.isArray(result) ? result[0] : undefined
+        const drained = first && first.busy === 0 && first.checkpointed === first.log
+        if (options.sneakCommitAfterDrain && drained && !sneaked) {
+          sneaked = true
+          connection.prepare('UPDATE backup_probe SET payload = payload || payload').run()
+        }
         postCheckpointImages.push(fs.readFileSync(dbPath))
       }
       return result
@@ -304,6 +317,78 @@ describe('backup database image consistency', () => {
         count: number
       }
       expect(count).toBe(SEED_ROWS + 40 + 1500)
+    } finally {
+      restored.close()
+    }
+  })
+
+  it('pins the WAL against a mid-copy reset attempt when the drain fails', async () => {
+    const service = buildService(undefined, { forceBusyCheckpoint: true })
+    const connection = writerDb as Database.Database
+    const insert = connection.prepare('INSERT INTO backup_probe (payload) VALUES (?)')
+    connection.transaction(() => {
+      for (let index = 0; index < 40; index++) insert.run(ROW_PAYLOAD)
+    })()
+
+    // No busy-wait: the reset must be rejected immediately because the fallback's
+    // snapshot mark is held for the whole copy.
+    connection.pragma('busy_timeout = 0')
+    const copySpy = copiesInChunks(() => {
+      connection.transaction(() => {
+        for (let index = 0; index < 1500; index++) insert.run(ROW_PAYLOAD)
+      })()
+      // Without the snapshot mark this TRUNCATE resets the WAL mid-copy and the
+      // archive mixes generations; with the mark it must report busy instead.
+      connection.pragma('wal_checkpoint(TRUNCATE)')
+    })
+    const backup = await service.startBackup()
+
+    expect(backup).not.toBeNull()
+    copySpy.mockRestore()
+
+    const archive = fs.readFileSync(path.join(syncDir, (backup as { fileName: string }).fileName))
+    const entries = unzipSync(new Uint8Array(archive)) as unknown as Record<string, Uint8Array>
+    const walEntry = entries[AGENT_DB_WAL_ENTRY]
+    expect(walEntry).toBeDefined()
+    expect(walEntry.length).toBeGreaterThan(0)
+
+    const restoredPath = path.join(userDataDir, 'restored-pinned-wal.db')
+    fs.writeFileSync(restoredPath, Buffer.from(entries[AGENT_DB_ENTRY]))
+    fs.writeFileSync(`${restoredPath}-wal`, Buffer.from(walEntry))
+    const restored = new Database(restoredPath)
+    try {
+      expect(restored.pragma('integrity_check', { simple: true })).toBe('ok')
+      const { count } = restored.prepare('SELECT count(*) AS count FROM backup_probe').get() as {
+        count: number
+      }
+      expect(count).toBe(SEED_ROWS + 40 + 1500)
+    } finally {
+      restored.close()
+    }
+  })
+
+  it('keeps the image stable when a commit lands between the drain and the snapshot mark', async () => {
+    const service = buildService(undefined, { sneakCommitAfterDrain: true })
+    const connection = writerDb as Database.Database
+
+    // The sneaked UPDATE rewrites every page, so a backfill landing mid-copy mixes two
+    // different page layouts unless the sneaked frames are drained before the copy starts.
+    const copySpy = copiesInChunks(() => {
+      connection.pragma('wal_checkpoint(PASSIVE)')
+    })
+    const backup = await service.startBackup()
+
+    expect(backup).not.toBeNull()
+    copySpy.mockRestore()
+    const archived = archivedDatabaseEntry((backup as { fileName: string }).fileName)
+
+    const restored = openCopiedImage(archived, undefined)
+    try {
+      expect(restored.pragma('integrity_check', { simple: true })).toBe('ok')
+      const row = restored.prepare('SELECT payload FROM backup_probe WHERE id = 1').get() as {
+        payload: string
+      }
+      expect(row.payload).toBe(ROW_PAYLOAD + ROW_PAYLOAD)
     } finally {
       restored.close()
     }

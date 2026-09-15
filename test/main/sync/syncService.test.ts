@@ -51,6 +51,7 @@ vi.mock('better-sqlite3-multiple-ciphers', async () => {
 
   class MockDatabase {
     private state: MockState
+    private inTx = false
 
     constructor(
       private readonly dbPath: string,
@@ -59,7 +60,14 @@ vi.mock('better-sqlite3-multiple-ciphers', async () => {
       this.state = readState(dbPath)
     }
 
+    get inTransaction() {
+      return this.inTx
+    }
+
     exec(sql: string) {
+      const normalized = sql.replace(/\s+/g, ' ').trim().toUpperCase()
+      if (normalized === 'BEGIN') this.inTx = true
+      if (normalized === 'COMMIT' || normalized === 'ROLLBACK') this.inTx = false
       for (const match of sql.matchAll(/CREATE TABLE IF NOT EXISTS\s+([a-zA-Z_][\w]*)/gi)) {
         this.ensureTable(match[1])
       }
@@ -104,6 +112,12 @@ vi.mock('better-sqlite3-multiple-ciphers', async () => {
       if (normalizedSql === "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?") {
         return {
           get: (tableName: string) => (this.state.tables[tableName] ? { exists: 1 } : undefined)
+        }
+      }
+
+      if (normalizedSql === 'SELECT count(*) FROM sqlite_master') {
+        return {
+          get: () => ({ count: Object.keys(this.state.tables).length })
         }
       }
 
@@ -371,6 +385,7 @@ describe('SyncService backup import', () => {
         hasConfigMigration: vi.fn(() => true)
       },
       getDatabasePassword: vi.fn(() => undefined),
+      openDatabaseConnection: vi.fn((target: string) => new Database(target)),
       clearNewAgentData: vi.fn(),
       importLegacyChatDb: vi.fn(async () => ({
         importedSessions: 0,

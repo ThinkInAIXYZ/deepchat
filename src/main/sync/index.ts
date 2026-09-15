@@ -14,7 +14,7 @@ import {
   type SyncBackupManifest
 } from './configImportService'
 import type { SyncSettings } from './settings'
-import type { BackupReadLockOutcome } from '@/data/backupReadLock'
+import { withBackupSnapshot, type BackupReadLockOutcome } from '@/data/backupReadLock'
 import type { SettingsDatabase } from '@/settings/data/database'
 import type { ProviderDatabase } from '@/provider/data/database'
 
@@ -708,7 +708,7 @@ export class SyncService {
     await new Promise<void>((resolve, reject) => {
       const output = fs.createWriteStream(targetPath)
       const archive = new Zip()
-      let drain: Promise<void> | null = null
+      let drain: Promise<void> = Promise.resolve()
       output.on('error', reject)
       archive.ondata = (error, chunk, final) => {
         if (error) {
@@ -733,16 +733,15 @@ export class SyncService {
             const entry = new AsyncZipDeflate(name, { level: ZIP_LEVEL })
             archive.add(entry)
             for (let offset = 0; offset < data.length; offset += ZIP_SLICE_SIZE) {
+              await drain
               const end = Math.min(offset + ZIP_SLICE_SIZE, data.length)
               entry.push(new Uint8Array(data.slice(offset, end)), false)
-              if (drain) {
-                await drain
-                drain = null
-              }
               await new Promise((resume) => setImmediate(resume))
             }
+            await drain
             entry.push(new Uint8Array(0), true)
           }
+          await drain
           archive.end()
         } catch (error) {
           output.destroy()
@@ -761,7 +760,7 @@ export class SyncService {
     if (!snapshot.acquired) {
       console.warn(
         '[Sync] Backup could not drain the WAL (a reader is blocking the checkpoint); ' +
-          'falling back to a best-effort copy that ships the WAL sidecar so committed ' +
+          'falling back to a snapshot-pinned copy that ships the WAL sidecar so committed ' +
           'transactions are not silently dropped'
       )
       return this.readBackupFilesFallback()
@@ -770,20 +769,28 @@ export class SyncService {
   }
 
   private async readBackupFilesFallback(): Promise<Record<string, Uint8Array>> {
-    const files = this.readSupportFiles()
-    files[ZIP_PATHS.agentDb] = toUint8ArrayView(await fs.promises.readFile(this.DB_PATH))
-    const walPath = `${this.DB_PATH}-wal`
-    try {
-      const walImage = await fs.promises.readFile(walPath)
-      if (walImage.length > 0) {
-        files[ZIP_PATHS.agentDbWal] = toUint8ArrayView(walImage)
+    // The drain failed, so a checkpoint can still backfill mid-copy. Pin a read mark for
+    // the whole copy: while it is held the WAL cannot be reset, and any backfilled frames
+    // are at or below the mark, so the shipped db + WAL pair replays to one generation.
+    return withBackupSnapshot(
+      () => this.database.openDatabaseConnection(this.DB_PATH),
+      async () => {
+        const files = this.readSupportFiles()
+        files[ZIP_PATHS.agentDb] = toUint8ArrayView(await fs.promises.readFile(this.DB_PATH))
+        const walPath = `${this.DB_PATH}-wal`
+        try {
+          const walImage = await fs.promises.readFile(walPath)
+          if (walImage.length > 0) {
+            files[ZIP_PATHS.agentDbWal] = toUint8ArrayView(walImage)
+          }
+        } catch (error) {
+          if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+            throw error
+          }
+        }
+        return files
       }
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
-        throw error
-      }
-    }
-    return files
+    )
   }
 
   private readSupportFiles(): Record<string, Uint8Array> {
