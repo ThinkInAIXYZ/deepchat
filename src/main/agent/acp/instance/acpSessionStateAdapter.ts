@@ -91,14 +91,15 @@ export class AcpSessionStateAdapter implements SessionStatePort {
     sessionId: string,
     settings: Partial<SessionGenerationSettings>
   ): Promise<SessionGenerationSettings> {
-    if (!this.settings.get(sessionId)) throw new Error(`Session ${sessionId} not found`)
     const row = this.settings.get(sessionId)
-    const current = this.settings.getGenerationSettings(sessionId) ?? {}
+    if (!row) throw new Error(`Session ${sessionId} not found`)
+    const current = await this.getGenerationSettings(sessionId)
+    if (!current) throw new Error(`Session ${sessionId} not found`)
     const generationSettings = await sanitizeGenerationSettings(
       this.providerSettings,
       this.promptSettings,
-      row!.provider_id,
-      row!.model_id,
+      row.provider_id,
+      row.model_id,
       settings,
       current
     )
