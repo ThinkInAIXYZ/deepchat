@@ -64,9 +64,10 @@ The backend does not import the harness. `deepChatAgentBackend.ts` depends on th
 (`import { DeepChatAgentRuntime } from '@/agent/deepchat/instance/deepChatAgentRuntime'`, line 1),
 takes it as `runtime` in `DeepChatAgentBackendOptions` (line 129), and hydrates through
 `runtime.getOrHydrate(sessionId)` (line 160). `DeepChatAgentBackendPort` is a type declared in that same
-backend module (line 131) and implemented by `DeepChatAgentHarness`
-(`src/main/agent/deepchat/harness/deepChatAgentHarness.ts:28`), which imports it type-only — so the only
-edge between the two modules points from the harness into the backend, not the reverse. The harness
+backend module (line 29) and implemented by `DeepChatAgentHarness`
+(`src/main/agent/deepchat/harness/deepChatAgentHarness.ts:34-35`), which imports it type-only — so the
+only edge between the two modules points from the harness into the backend, not the reverse. Line 131
+in that module is the `port` member of `DeepChatAgentBackendOptions`, not the declaration. The harness
 public barrel has exactly one production importer: the composition root
 (`src/main/app/composition.ts:173`). The composition root is what assembles the pair — it builds the
 harness at 1854 and injects both collaborators into the backend factory at 1922–1927
@@ -100,9 +101,9 @@ Execution is separate, but state ownership is not yet. The composition root stil
 harness into the ACP backend as its session-state owner:
 `createDirectAcpAgentBackend({ runtime: acpAgentRuntime, sessionState: deepChatAgentHarness, ... })` at
 `src/main/app/composition.ts:1928-1930`. `directAcpAgentBackend.ts` consumes that collaborator only
-through `SessionStatePort` (`src/main/session/data/contracts`): permission mode (lines 68, 173-174),
-generation settings (175-177), session init and destroy (104, 125-129), session-state and session-list
-reads (129, 253), and project-directory writes (179, 270). The ACP runtime itself
+through `SessionStatePort` (`src/main/session/data/contracts.ts:36`): permission mode (lines 68, 173-174,
+317), generation settings (175-177), session init and destroy (104, 125-129), session-state and
+session-list reads (129, 253), and project-directory writes (179, 270). The ACP runtime itself
 (`src/main/agent/acp/instance`) is independent of `DeepChatLoopEngine`, so this is a host seam, not an
 execution coupling. Stage 2 and Stage 3 must untie it: the ACP adapter either keeps its own state-port
 implementation under the new host, or the harness exposes a neutral session-state contract that both
@@ -160,12 +161,14 @@ code mode (`src/main/tool/codeMode/**`), tool search (`toolSearchTool.ts`), edit
 tools (`chatSettingsTools.ts`), live delegation (`liveDelegationTool.ts`).
 
 `media.voice` splits into two provider-backed capabilities, and both belong to this class rather than to
-`desktop-capability`: audio transcription (`src/main/cli/audioTranscriptionService.ts` over
-`ProviderRuntime.transcribeAudioStandalone`, `src/main/provider/index.ts:535`) and speech generation
-(`src/main/cli/computeService.ts` over `ProviderRuntime.generateSpeechStandalone`,
-`src/main/provider/index.ts:775`). Neither owning module imports `electron` or `app.getPath`. They stay
-optional rather than required because they resolve models, provider configuration, and credentials —
-the same service-host dependency audit and real execution test gate them.
+`desktop-capability`: audio transcription (`ProviderRuntime.transcribeAudioStandalone`,
+`src/main/provider/index.ts:535`) and speech generation (`ProviderRuntime.generateSpeechStandalone`,
+`src/main/provider/index.ts:775`). Those two methods are the capability owners today; their callers are
+the V1 CLI services (`src/main/cli/audioTranscriptionService.ts:169`,
+`src/main/cli/computeService.ts:561`) and the provider transport route
+(`src/main/provider/routes.ts:707`). None of those modules imports `electron` or calls `app.getPath`.
+They stay optional rather than required because they resolve models, provider configuration, and
+credentials — the same service-host dependency audit and real execution test gate them.
 
 ### `desktop-capability`
 
@@ -173,9 +176,15 @@ Must report unavailable, and must fail closed when invoked. Never silently succe
 
 CUA and previews (`computerUsePreviewPresenter`, `yoBrowserPresenter`, `agentPreviewCoordinator`,
 torn down in `src/main/app/composition.ts`), native window interaction and renderer approval
-presentation, OAuth through a BrowserWindow (`acpAuthService`, MCP OAuth), desktop notifications
-(`WindowNotificationRouter` and the semantic notification projections), tray (`TrayPresenter`), global
-shortcuts, and OCR (`media.ocr`).
+presentation, provider OAuth through a BrowserWindow (`src/main/provider/oauthHelper.ts:23`,
+`src/main/provider/auth/index.ts:384`), desktop notifications (`WindowNotificationRouter` and the
+semantic notification projections), tray (`TrayPresenter`), global shortcuts, and OCR (`media.ocr`).
+
+The other two authentication paths in this class are not BrowserWindow flows. ACP authentication is a
+Desktop-presented terminal session: `src/main/agent/acp/auth/acpAuthService.ts` owns the run and reports
+status to the renderer that owns it, and `acpTerminalAuthRunner.ts` spawns the agent under `node-pty`
+and streams the challenge. MCP OAuth hands the authorization URL to the system browser instead, through
+`shell.openExternal` (`src/main/mcp/mcpOAuthProvider.ts:119`).
 
 The OCR helpers are the wrong evidence for that class on their own — `lightOcrProcessHost.ts` spawns a
 helper and imports no Electron API. The real seams are around them: `src/main/ocr/ocrCacheKeyProvider.ts`
@@ -254,13 +263,13 @@ dependency order rather than as the complete sequence: code runtime, plugin serv
 semantic notification projections, CUA preview, browser preview, agent preview coordinator, background
 exec sessions, memory service, provider runtime, ACP runtime. The `destroy()` body (lines 2635–2746)
 contains more than that subset, and the omitted steps sit on both sides of it rather than only at the
-end: before it come the CLI and token authority, event hub, artifact spool, admission, cron, remote
-service, hooks (`hookService.stop`, 2651), session runtimes, and the skill/plugin initialization drains
-(2636–2670); between and after its entries come the window, tab, and floating-button presenters
-(2694–2704), workspace, skill-sync, skill, and file-watcher teardown (2705–2708), the knowledge service
-(2736), the OCR runtime (`ocrRuntimeService.close`, 2737), `mainDatabase.close` (2740), and the
-shortcut, notification, and tray presenters (2741–2745). ACP auth is released before `destroy()` is
-entered, in the shutdown coordinator at 3300, not after it.
+end — for example, before it come the CLI and token authority, event hub, artifact spool, admission,
+cron, remote service, hooks (`hookService.stop`, 2651), session runtimes, and the skill/plugin
+initialization drains (2636–2670); between and after its entries come the window, tab, and
+floating-button presenters (2694–2704), workspace, skill-sync, skill, and file-watcher teardown
+(2705–2708), the knowledge service (2736), the OCR runtime (`ocrRuntimeService.close`, 2737),
+`mainDatabase.close` (2740), and the shortcut, notification, and tray presenters (2741–2745). ACP auth
+is released before `destroy()` is entered, in the shutdown coordinator at 3300, not after it.
 
 That subset is a reading aid, not a specification: the authoritative sequence is the `destroy()` body
 itself. Ownership of shutdown follows ownership of construction, so moving the composition root in
