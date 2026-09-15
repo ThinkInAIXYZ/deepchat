@@ -4,10 +4,10 @@ import type { SessionSettingsStore } from '@/session/data/settings'
 import type { ProviderModelResolutionPort } from '@/provider/settings'
 
 function createFixture() {
-  const rows = new Map<string, any>()
+  const rows = new Map<string, Record<string, unknown>>()
   const settings = {
     get: vi.fn((id: string) => rows.get(id)),
-    create: vi.fn((id: string, providerId: string, modelId: string, permissionMode: string, generation: any) =>
+    create: vi.fn((id: string, providerId: string, modelId: string, permissionMode: string, generation: Record<string, unknown>) =>
       rows.set(id, { provider_id: providerId, model_id: modelId, permission_mode: permissionMode, ...generation })
     ),
     delete: vi.fn((id: string) => rows.delete(id)),
@@ -16,14 +16,15 @@ function createFixture() {
     updateGenerationSettings: vi.fn()
   } as unknown as SessionSettingsStore
   const providerSettings = {
+    getProviderById: vi.fn(() => undefined),
     getCapabilitySnapshot: vi.fn(() => ({
-      identity: { providerId: 'provider', modelId: 'model' },
-      supportsReasoning: false,
-      reasoningPortrait: undefined
+      identity: { providerId: 'provider', requestModelId: 'model', catalogMatched: false, catalogModelId: null },
+      requestPolicy: { temperature: { mode: 'passthrough' }, topP: { mode: 'passthrough' }, reasoning: { mode: 'passthrough' }, legacyThinking: { mode: 'passthrough' } },
+      supportsAudioInput: false, supportsReasoning: false, reasoningPortrait: null, thinkingBudgetRange: {}, supportsSearch: false, searchDefaults: {}, temperatureCapability: undefined, supportsTemperatureControl: true, supportsReasoningEffort: false, reasoningEffortDefault: undefined, supportsVerbosity: false, verbosityDefault: undefined
     })),
     getModelConfig: vi.fn(() => ({ contextLength: 4096, maxTokens: 512 }))
   } as unknown as ProviderModelResolutionPort
-  const promptSettings = { getDefaultSystemPrompt: vi.fn(() => 'default prompt') }
+  const promptSettings = { getDefaultSystemPrompt: vi.fn(async () => 'default prompt') } as Pick<PromptSettings, 'getDefaultSystemPrompt'>
   const adapter = new AcpSessionStateAdapter(settings, providerSettings, promptSettings)
   return { adapter, settings, rows }
 }
