@@ -33,6 +33,7 @@ import {
   AgentServiceMessageIdSchema
 } from '@shared/contracts/agent-service/interactions'
 import { LocalControlEventCursorSchema } from '@shared/contracts/localControl'
+import { JsonValueSchema } from '@shared/contracts/json'
 
 // Fixed literals on purpose: these sets are the wire vocabulary, so a silent addition, removal, or
 // rename must fail this suite instead of agreeing with whatever the module exports.
@@ -481,6 +482,144 @@ describe('agent service event contract', () => {
     expect(accept(AgentServiceEventEnvelopeSchema, eventEnvelope({ data: nullPrototype }))).toBe(
       true
     )
+  })
+
+  it('refuses a container that cannot fit the remaining node budget before expanding it', () => {
+    // The verdict has to come from the container's width, not from the expansion: five million
+    // elements are more nodes than the byte budget can ever hold, so expanding first would let the
+    // input decide how much this read materializes. Counting own-key and descriptor reads is the
+    // observable form of that: an expansion would read every element, a width-based refusal reads
+    // none of them.
+    const width = 5_000_000
+    const wide = new Array<number>(width).fill(0)
+    let elementReads = 0
+    const counted = new Proxy(wide, {
+      ownKeys: (target) => {
+        elementReads += 1
+        return Reflect.ownKeys(target)
+      },
+      getOwnPropertyDescriptor: (target, key) => {
+        elementReads += 1
+        return Reflect.getOwnPropertyDescriptor(target, key)
+      }
+    })
+
+    for (const [label, data] of [
+      ['wide array', wide],
+      ['wide array behind a proxy', counted]
+    ] as Array<[string, unknown]>) {
+      expect(
+        rejectionFailure(AgentServiceEventEnvelopeSchema, eventEnvelope({ data })),
+        label
+      ).toBeNull()
+    }
+    expect(elementReads).toBe(0)
+
+    // The budget is what is left after the nodes already counted, so a width that fits it at the root
+    // can be too wide once a parent is counted too: `MAX_BYTES - 1` keys fit on their own, and nested
+    // one level down they do not. The children must not have been read to reach that verdict.
+    let childVisits = 0
+    const countedChild = new Proxy(
+      { leaf: true },
+      {
+        getPrototypeOf: (target) => {
+          childVisits += 1
+          return Reflect.getPrototypeOf(target)
+        }
+      }
+    )
+    const wideNested = Object.fromEntries(
+      Array.from({ length: AGENT_SERVICE_EVENT_DATA_MAX_BYTES - 1 }, (_unused, index) => [
+        `key-${index}`,
+        countedChild
+      ])
+    )
+    expect(
+      rejectionFailure(
+        AgentServiceEventEnvelopeSchema,
+        eventEnvelope({ data: { payload: wideNested } })
+      )
+    ).toBeNull()
+    expect(childVisits).toBe(0)
+
+    // The bound is a work bound, not a second acceptance rule: a payload that fits the byte budget is
+    // accepted even when it is wide, and a shared subtree (a DAG, not a cycle) is accepted once per
+    // reference, exactly as it is counted.
+    const shared = { a: 1 }
+    expect(
+      accept(
+        AgentServiceEventEnvelopeSchema,
+        eventEnvelope({ data: Array.from({ length: 100_000 }, () => 0) })
+      )
+    ).toBe(true)
+    expect(accept(AgentServiceEventEnvelopeSchema, eventEnvelope({ data: [shared, shared] }))).toBe(
+      true
+    )
+  })
+
+  it('refuses a `__proto__` key rather than returning a DTO without it', () => {
+    // `JSON.parse` makes `__proto__` an own property, and the copy this read builds can hold it — but
+    // the record stage the copy is piped into writes keys by assignment, where `__proto__` is the one
+    // key that sets a prototype instead of creating an own property. Accepting it would mean the
+    // value a client receives is not the value that was measured, so it is refused at any depth.
+    const ownedProto: Record<string, unknown> = {}
+    Object.defineProperty(ownedProto, '__proto__', { value: 1, enumerable: true })
+    const reread = JsonValueSchema.safeParse(ownedProto)
+    expect(reread.success).toBe(true)
+    if (reread.success) {
+      expect(Object.keys(reread.data as Record<string, unknown>)).toEqual([])
+    }
+
+    for (const [label, data] of [
+      ['JSON-parsed top level key', JSON.parse('{"__proto__": 1, "status": "running"}')],
+      ['JSON-parsed nested key', JSON.parse('{"nested": {"__proto__": {"x": 1}}}')],
+      ['top level key in an array element', [JSON.parse('{"__proto__": {"x": 1}}')]],
+      ['computed-key literal', { ['__proto__']: 1, status: 'running' }]
+    ] as Array<[string, unknown]>) {
+      expect(
+        rejectionFailure(AgentServiceEventEnvelopeSchema, eventEnvelope({ data })),
+        label
+      ).toBeNull()
+    }
+
+    // The key is refused, not the shape: the same payload without it is accepted.
+    expect(
+      accept(
+        AgentServiceEventEnvelopeSchema,
+        eventEnvelope({ data: JSON.parse('{"status": "running"}') })
+      )
+    ).toBe(true)
+  })
+
+  it('refuses `-0`, the one finite number JSON does not preserve', () => {
+    // `JSON.stringify(-0)` is `'0'`, so a copy holding `-0` would not be the value a client reads back
+    // from the encoded payload. Numbers are otherwise unchanged: every other finite double encodes to
+    // itself.
+    const negativeZero = JSON.parse('-0') as unknown
+    expect(Object.is(negativeZero, -0)).toBe(true)
+
+    for (const [label, data] of [
+      ['top level', negativeZero],
+      ['object member', { delta: -0 }],
+      ['array element', [0, -0]],
+      ['nested member', { usage: { delta: JSON.parse('-0') } }]
+    ] as Array<[string, unknown]>) {
+      expect(
+        rejectionFailure(AgentServiceEventEnvelopeSchema, eventEnvelope({ data })),
+        label
+      ).toBeNull()
+    }
+
+    for (const [label, data] of [
+      ['zero', { delta: 0 }],
+      ['negative integer', { delta: -1 }],
+      ['fraction', { delta: 0.5 }],
+      ['small exponent', { delta: 1e-7 }],
+      ['largest finite double', { delta: Number.MAX_VALUE }],
+      ['token count', { tokenCount: 12 }]
+    ] as Array<[string, unknown]>) {
+      expect(accept(AgentServiceEventEnvelopeSchema, eventEnvelope({ data })), label).toBe(true)
+    }
   })
 
   it('keeps artifact references owned identifiers without a service path', () => {

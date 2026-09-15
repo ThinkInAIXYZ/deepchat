@@ -117,6 +117,19 @@ const utf8Encoder = new TextEncoder()
 
 const EVENT_DATA_NOT_PLAIN_JSON = 'Event data must be plain JSON data'
 
+// The node budget is the byte budget. Every node of an encoded payload costs at least one byte plus
+// the delimiter that joins it to its parent, so a payload with more nodes than the byte budget cannot
+// fit in that budget either. This makes the budget a work bound on the read rather than a second
+// acceptance rule: it can only refuse a payload the byte check refuses too, so it never changes which
+// payloads are accepted.
+const EVENT_DATA_MAX_NODES = AGENT_SERVICE_EVENT_DATA_MAX_BYTES
+
+// A key JSON can carry but the DTO cannot. `JsonValueSchema`, which the read below pipes its copy
+// into, copies record keys by assignment, and `__proto__` is the one key where an assignment sets a
+// prototype instead of creating an own property — so a copy holding this key is returned without it,
+// and the value a client receives is not the value that was measured.
+const EVENT_DATA_FORBIDDEN_KEY = '__proto__'
+
 type EventDataRead = { ok: true; value: JsonValue } | { ok: false; message: string }
 
 // Where a copied value is attached. The root value has no parent, so its slot is `null`.
@@ -138,17 +151,28 @@ type EventDataFrame =
 // The accepted surface is plain JSON data and nothing else: `null`, strings, booleans, finite
 // numbers, dense arrays, and objects with a plain prototype and enumerable own data properties.
 // Rejected as issues: cycles, array holes and non-index array properties, accessors, enumerable
-// symbol keys, `undefined`, functions, symbols, bigints, non-finite numbers, `Date`/`Map`/class
-// instances (any non-plain prototype), payloads deeper than `AGENT_SERVICE_EVENT_DATA_MAX_DEPTH`,
-// and payloads whose encoded copy exceeds `AGENT_SERVICE_EVENT_DATA_MAX_BYTES`.
+// symbol keys, `__proto__` keys, `undefined`, functions, symbols, bigints, non-finite numbers, `-0`,
+// `Date`/`Map`/class instances (any non-plain prototype), payloads deeper than
+// `AGENT_SERVICE_EVENT_DATA_MAX_DEPTH`, and payloads whose encoded copy exceeds
+// `AGENT_SERVICE_EVENT_DATA_MAX_BYTES`.
+//
+// A container is refused before it is expanded when its width alone cannot fit the node budget next
+// to the nodes already counted, so no single expansion can push more frames than the budget, and the
+// frames this read holds at once are bounded by the depth budget times the node budget rather than by
+// the width of the input. Only the key list of an object, which is what `Object.keys` returns, is
+// still materialized at the input's own width before that refusal: the node count of an object is not
+// known without listing its keys.
 //
 // No value from the input is invoked: nested values are taken from property descriptors, so an
 // accessor is refused instead of called. The measured value is the copy built here, and it is that
 // copy which is returned and handed to `JsonValueSchema`, so the byte budget is spent on the bytes
-// the accepted value encodes to and no input value is read twice. A `Proxy` is not reliably
-// distinguishable from a plain object, so proxies are not detected as such: one is copied like any
-// other input, and a proxy whose own reads throw is rejected by the `try` around this read rather
-// than by an exception out of `safeParse`.
+// the accepted value encodes to and no input value is read twice. `__proto__` keys and `-0` are
+// refused rather than copied because the copy can hold both and the stages after it cannot: the
+// record bookkeeping in `JsonValueSchema` writes keys by assignment, and `JSON.stringify` writes
+// `-0` as `0`.
+// A `Proxy` is not reliably distinguishable from a plain object, so proxies are not detected as such:
+// one is copied like any other input, and a proxy whose own reads throw is rejected by the `try`
+// around this read rather than by an exception out of `safeParse`.
 const readEventData = (input: unknown): EventDataRead => {
   const ancestors = new Set<object>()
   const stack: EventDataFrame[] = [{ kind: 'value', source: input, depth: 1, slot: null }]
@@ -166,8 +190,9 @@ const readEventData = (input: unknown): EventDataRead => {
       parent[key as number] = value
       return
     }
-    // A `__proto__` key stays an own property: assigning it would run the setter on
-    // `Object.prototype` and silently replace the copy's prototype instead of copying the key.
+    // An own data property, not an assignment: an assignment runs a setter inherited from
+    // `Object.prototype` if one is there — the built-in `__proto__` setter is the case refused
+    // above — and a copied key has to stay an own property of the copy.
     Object.defineProperty(parent, String(key), {
       value,
       enumerable: true,
@@ -195,7 +220,8 @@ const readEventData = (input: unknown): EventDataRead => {
     nodes += 1
     // Work bound: a node always costs at least one encoded byte plus the delimiter that joins it to
     // its parent, so a payload with more nodes than the byte budget can only be one the byte check
-    // below rejects as well. It stops an oversized payload from being copied in full first.
+    // below rejects as well. Matches `EVENT_DATA_MAX_NODES`, which the container branches apply
+    // before they expand.
     if (nodes > AGENT_SERVICE_EVENT_DATA_MAX_BYTES) {
       return {
         ok: false,
@@ -214,6 +240,11 @@ const readEventData = (input: unknown): EventDataRead => {
       if (!Number.isFinite(source)) {
         return { ok: false, message: 'Event data is not JSON-encodable' }
       }
+      // `-0` is encodable but not preserved: `JSON.stringify(-0)` is `'0'`, so a copy holding it would
+      // read back as a different number than the one this read measured and admitted.
+      if (Object.is(source, -0)) {
+        return { ok: false, message: 'Event data contains -0, which JSON does not preserve' }
+      }
       attach(slot, source)
       continue
     }
@@ -228,6 +259,17 @@ const readEventData = (input: unknown): EventDataRead => {
     }
 
     if (Array.isArray(source)) {
+      // Refused before this container is expanded. Every element of the array is one more node, so a
+      // width that cannot fit the node budget next to the nodes already counted can only end in the
+      // node check above; refusing it here reaches that same verdict without pushing a frame per
+      // element first, which is what would otherwise let the input's width, not the budget, decide
+      // how much this read materializes. `length` is what makes the width known without listing keys.
+      if (nodes + source.length > EVENT_DATA_MAX_NODES) {
+        return {
+          ok: false,
+          message: `Event data exceeds ${AGENT_SERVICE_EVENT_DATA_MAX_BYTES} bytes`
+        }
+      }
       // A hole, or an enumerable non-index property, makes `Object.keys` disagree with `length`.
       // Neither is representable in a JSON array, and a hole would otherwise be copied as `null`.
       const keys = Object.keys(source)
@@ -277,11 +319,32 @@ const readEventData = (input: unknown): EventDataRead => {
       return { ok: false, message: `${EVENT_DATA_NOT_PLAIN_JSON}: symbol keys are not allowed` }
     }
 
+    // An own `__proto__` key is refused rather than copied, at any depth: `JSON.parse` of a document
+    // carrying one produces exactly this shape, and the copy below would hold the key while the
+    // record bookkeeping in `JsonValueSchema` drops it, so the value a client receives would not be
+    // the value this read measured.
+    //
+    // The key list is what makes an object's width known, and it is the one thing this branch cannot
+    // check before building it. Everything else follows the array branch: a container this wide is
+    // refused before the copy exists and before a frame is pushed for each of its keys.
+    const keys = Object.keys(source)
+    if (keys.includes(EVENT_DATA_FORBIDDEN_KEY)) {
+      return {
+        ok: false,
+        message: `Event data must not carry a "${EVENT_DATA_FORBIDDEN_KEY}" key`
+      }
+    }
+    if (nodes + keys.length > EVENT_DATA_MAX_NODES) {
+      return {
+        ok: false,
+        message: `Event data exceeds ${AGENT_SERVICE_EVENT_DATA_MAX_BYTES} bytes`
+      }
+    }
+
     const copy: Record<string, JsonValue> = {}
     attach(slot, copy)
     ancestors.add(source)
     stack.push({ kind: 'leave', source })
-    const keys = Object.keys(source)
     for (let index = keys.length - 1; index >= 0; index -= 1) {
       const key = keys[index]
       if (key === undefined) continue
