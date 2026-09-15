@@ -40,26 +40,30 @@ vi.mock('../../../src/main/knowledge/database/knowledgeDatabase', () => ({
 
 // Mock KnowledgeBase
 vi.mock('../../../src/main/knowledge/knowledgeBase', () => ({
-  KnowledgeBase: vi.fn().mockImplementation(() => ({
-    addFile: vi.fn(),
-    deleteFile: vi.fn(),
-    reAddFile: vi.fn(),
-    queryFile: vi.fn(),
-    listFiles: vi.fn().mockResolvedValue([]),
-    close: vi.fn(),
-    destroy: vi.fn(),
-    similarityQuery: vi.fn(),
-    pauseAllRunningTasks: vi.fn(),
-    resumeAllPausedTasks: vi.fn(),
-    updateConfig: vi.fn()
-  }))
+  KnowledgeBase: vi.fn().mockImplementation(function KnowledgeBase() {
+    return {
+      addFile: vi.fn(),
+      deleteFile: vi.fn(),
+      reAddFile: vi.fn(),
+      queryFile: vi.fn(),
+      listFiles: vi.fn().mockResolvedValue([]),
+      close: vi.fn(),
+      destroy: vi.fn(),
+      similarityQuery: vi.fn(),
+      pauseAllRunningTasks: vi.fn(),
+      resumeAllPausedTasks: vi.fn(),
+      updateConfig: vi.fn()
+    }
+  })
 }))
 
 // Mock KnowledgeTaskQueue
 vi.mock('../../../src/main/knowledge/taskQueue', () => ({
-  KnowledgeTaskQueue: vi.fn().mockImplementation(() => ({
-    getStatus: vi.fn().mockReturnValue({ totalTasks: 0 })
-  }))
+  KnowledgeTaskQueue: vi.fn().mockImplementation(function KnowledgeTaskQueue() {
+    return {
+      getStatus: vi.fn().mockReturnValue({ totalTasks: 0 })
+    }
+  })
 }))
 
 // Mock text splitters
@@ -123,28 +127,32 @@ describe('KnowledgeService Validation Methods', () => {
       KnowledgeDatabase as unknown as {
         mockImplementation: (factory: () => unknown) => void
       }
-    ).mockImplementation(() => ({
-      open: vi.fn(),
-      initialize: vi.fn(),
-      close: vi.fn()
-    }))
+    ).mockImplementation(function KnowledgeDatabase() {
+      return {
+        open: vi.fn(),
+        initialize: vi.fn(),
+        close: vi.fn()
+      }
+    })
     ;(
       KnowledgeBase as unknown as {
         mockImplementation: (factory: () => unknown) => void
       }
-    ).mockImplementation(() => ({
-      addFile: vi.fn(),
-      deleteFile: vi.fn(),
-      reAddFile: vi.fn(),
-      queryFile: vi.fn(),
-      listFiles: vi.fn().mockResolvedValue([]),
-      close: vi.fn(),
-      destroy: vi.fn(),
-      similarityQuery: vi.fn(),
-      pauseAllRunningTasks: vi.fn(),
-      resumeAllPausedTasks: vi.fn(),
-      updateConfig: vi.fn()
-    }))
+    ).mockImplementation(function KnowledgeBase() {
+      return {
+        addFile: vi.fn(),
+        deleteFile: vi.fn(),
+        reAddFile: vi.fn(),
+        queryFile: vi.fn(),
+        listFiles: vi.fn().mockResolvedValue([]),
+        close: vi.fn(),
+        destroy: vi.fn(),
+        similarityQuery: vi.fn(),
+        pauseAllRunningTasks: vi.fn(),
+        resumeAllPausedTasks: vi.fn(),
+        updateConfig: vi.fn()
+      }
+    })
     ;(mockProviderSettings.getKnowledgeConfigs as Mock).mockReturnValue([])
     knowledgeService = new KnowledgeService({
       config: mockProviderSettings,
@@ -413,7 +421,7 @@ describe('KnowledgeService Validation Methods', () => {
       const error = new Error('store constructor failed')
       ;(mockProviderSettings.getKnowledgeConfigs as Mock).mockReturnValue([config])
       ;(knowledgeService as any).openKnowledgeDatabase = vi.fn().mockResolvedValue({ close })
-      ;(KnowledgeBase as unknown as Mock).mockImplementationOnce(() => {
+      ;(KnowledgeBase as unknown as Mock).mockImplementationOnce(function () {
         throw error
       })
 

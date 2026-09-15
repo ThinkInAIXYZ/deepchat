@@ -346,6 +346,27 @@ describe('SkillService', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    ;(fs.renameSync as Mock).mockReset()
+    ;(fs.copyFileSync as Mock).mockReset()
+    ;(fs.rmSync as Mock).mockReset()
+    ;(fs.existsSync as Mock).mockReset()
+    ;(path.resolve as Mock).mockReset().mockImplementation((...args: string[]) => {
+      let resolved = ''
+      for (const part of args.filter(Boolean)) {
+        if (part.startsWith('/')) {
+          resolved = part
+          continue
+        }
+        resolved = resolved ? `${resolved.replace(/\/+$/, '')}/${part}` : `/${part}`
+      }
+      return resolved || '/'
+    })
+    ;(path.relative as Mock).mockReset().mockImplementation((from: string, to: string) => {
+      if (to.startsWith(from)) {
+        return to.substring(from.length + 1)
+      }
+      return '../' + to
+    })
     newSessionActiveSkillsStore.clear()
     configSettings = new Map()
     ;(randomUUID as Mock).mockReturnValue('12345678-1234-1234-1234-123456789abc')

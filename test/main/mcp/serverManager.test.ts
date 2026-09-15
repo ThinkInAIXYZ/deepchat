@@ -28,15 +28,17 @@ vi.mock('@/platform/proxy', () => ({
 }))
 
 vi.mock('@/mcp/mcpClient', () => ({
-  McpClient: vi.fn().mockImplementation((_name, serverConfig) => ({
-    connect: clientMocks.connect,
-    disconnect: clientMocks.disconnect,
-    isActive: clientMocks.isActive,
-    isServerRunning: clientMocks.isServerRunning,
-    getLifecycleStatus: clientMocks.getLifecycleStatus,
-    serverConfig,
-    getConnectionCompletion: clientMocks.getConnectionCompletion
-  })),
+  McpClient: vi.fn().mockImplementation(function McpClient(_name, serverConfig) {
+    return {
+      connect: clientMocks.connect,
+      disconnect: clientMocks.disconnect,
+      isActive: clientMocks.isActive,
+      isServerRunning: clientMocks.isServerRunning,
+      getLifecycleStatus: clientMocks.getLifecycleStatus,
+      serverConfig,
+      getConnectionCompletion: clientMocks.getConnectionCompletion
+    }
+  }),
   McpConnectionCancelledError: clientMocks.McpConnectionCancelledError
 }))
 
@@ -52,18 +54,17 @@ describe('ServerManager notifications and plugin isolation', () => {
     clientMocks.isServerRunning.mockReturnValue(true)
     clientMocks.getLifecycleStatus.mockReturnValue('ready')
     clientMocks.getConnectionCompletion.mockReturnValue(null)
-    vi.mocked(McpClient).mockImplementation(
-      (_name, serverConfig) =>
-        ({
-          connect: clientMocks.connect,
-          disconnect: clientMocks.disconnect,
-          isActive: clientMocks.isActive,
-          isServerRunning: clientMocks.isServerRunning,
-          getLifecycleStatus: clientMocks.getLifecycleStatus,
-          serverConfig,
-          getConnectionCompletion: clientMocks.getConnectionCompletion
-        }) as never
-    )
+    vi.mocked(McpClient).mockImplementation(function McpClient(_name, serverConfig) {
+      return {
+        connect: clientMocks.connect,
+        disconnect: clientMocks.disconnect,
+        isActive: clientMocks.isActive,
+        isServerRunning: clientMocks.isServerRunning,
+        getLifecycleStatus: clientMocks.getLifecycleStatus,
+        serverConfig,
+        getConnectionCompletion: clientMocks.getConnectionCompletion
+      } as never
+    })
   })
 
   function createProviderSettings(servers: Record<string, any>) {

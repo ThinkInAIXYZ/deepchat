@@ -277,7 +277,13 @@ describe('memory temporal metadata', () => {
   })
 
   it('resolves the system timezone for every domain-clock snapshot', () => {
-    const formatter = vi.spyOn(Intl, 'DateTimeFormat')
+    const OriginalDateTimeFormat = Intl.DateTimeFormat
+    const formatter = vi.spyOn(Intl, 'DateTimeFormat').mockImplementation(function DateTimeFormat(
+      locales?: Intl.LocalesArgument,
+      options?: Intl.DateTimeFormatOptions
+    ) {
+      return new OriginalDateTimeFormat(locales, options)
+    })
     try {
       systemMemoryDomainClock.timeZone()
       systemMemoryDomainClock.timeZone()

@@ -146,20 +146,22 @@ vi.mock('@modelcontextprotocol/client', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@modelcontextprotocol/client')>()
   return {
     ...actual,
-    Client: vi.fn().mockImplementation(() => ({
-      connect: vi.fn().mockImplementation(async (transport: any) => {
-        await transport?.start?.()
-      }),
-      callTool: vi.fn(),
-      listTools: vi.fn(),
-      listPrompts: vi.fn(),
-      getPrompt: vi.fn(),
-      listResources: vi.fn(),
-      readResource: vi.fn(),
-      setNotificationHandler: vi.fn(),
-      setRequestHandler: vi.fn(),
-      getProtocolEra: vi.fn(() => 'modern')
-    })),
+    Client: vi.fn().mockImplementation(function Client() {
+      return {
+        connect: vi.fn().mockImplementation(async (transport: any) => {
+          await transport?.start?.()
+        }),
+        callTool: vi.fn(),
+        listTools: vi.fn(),
+        listPrompts: vi.fn(),
+        getPrompt: vi.fn(),
+        listResources: vi.fn(),
+        readResource: vi.fn(),
+        setNotificationHandler: vi.fn(),
+        setRequestHandler: vi.fn(),
+        getProtocolEra: vi.fn(() => 'modern')
+      }
+    }),
     SSEClientTransport: vi.fn(),
     InMemoryTransport: {
       createLinkedPair: vi.fn(() => [vi.fn(), vi.fn()])
@@ -169,12 +171,14 @@ vi.mock('@modelcontextprotocol/client', async (importOriginal) => {
 })
 
 vi.mock('@modelcontextprotocol/client/stdio', () => {
-  const StdioClientTransport = vi.fn().mockImplementation(() => ({
-    stderr: {
-      on: vi.fn()
-    },
-    close: vi.fn()
-  }))
+  const StdioClientTransport = vi.fn().mockImplementation(function StdioClientTransport() {
+    return {
+      stderr: {
+        on: vi.fn()
+      },
+      close: vi.fn()
+    }
+  })
   // The production subclass calls super.start(); the real SDK's Client.connect()
   // invokes transport.start(), which the Client mock mirrors below.
   StdioClientTransport.prototype.start = vi.fn().mockResolvedValue(undefined)
@@ -215,32 +219,30 @@ describe('McpClient Runtime Command Processing Tests', () => {
     mockGenerateCompletionStandalone.mockReset()
     mockGetProviderModels.mockReset()
     mockGetCustomModels.mockReset()
-    vi.mocked(Client).mockImplementation(
-      () =>
-        ({
-          connect: vi.fn().mockImplementation(async (transport: any) => {
-            await transport?.start?.()
-          }),
-          callTool: vi.fn(),
-          listTools: vi.fn(),
-          listPrompts: vi.fn(),
-          getPrompt: vi.fn(),
-          listResources: vi.fn(),
-          readResource: vi.fn(),
-          setNotificationHandler: vi.fn(),
-          setRequestHandler: vi.fn(),
-          getProtocolEra: vi.fn(() => 'modern')
-        }) as any
-    )
-    vi.mocked(StdioClientTransport).mockImplementation(
-      () =>
-        ({
-          stderr: {
-            on: vi.fn()
-          },
-          close: vi.fn()
-        }) as any
-    )
+    vi.mocked(Client).mockImplementation(function Client() {
+      return {
+        connect: vi.fn().mockImplementation(async (transport: any) => {
+          await transport?.start?.()
+        }),
+        callTool: vi.fn(),
+        listTools: vi.fn(),
+        listPrompts: vi.fn(),
+        getPrompt: vi.fn(),
+        listResources: vi.fn(),
+        readResource: vi.fn(),
+        setNotificationHandler: vi.fn(),
+        setRequestHandler: vi.fn(),
+        getProtocolEra: vi.fn(() => 'modern')
+      } as any
+    })
+    vi.mocked(StdioClientTransport).mockImplementation(function StdioClientTransport() {
+      return {
+        stderr: {
+          on: vi.fn()
+        },
+        close: vi.fn()
+      } as any
+    })
   })
 
   afterEach(() => {
@@ -761,24 +763,23 @@ describe('McpClient Runtime Command Processing Tests', () => {
         this.close = vi.fn().mockResolvedValue(undefined)
         this.pid = pid
       } as any)
-      vi.mocked(Client).mockImplementationOnce(
-        () =>
-          ({
-            connect: vi.fn().mockImplementation(async (transport: any) => {
-              await transport?.start?.()
-              throw new Error('handshake failed')
-            }),
-            callTool: vi.fn(),
-            listTools: vi.fn(),
-            listPrompts: vi.fn(),
-            getPrompt: vi.fn(),
-            listResources: vi.fn(),
-            readResource: vi.fn(),
-            setNotificationHandler: vi.fn(),
-            setRequestHandler: vi.fn(),
-            getProtocolEra: vi.fn(() => 'modern')
-          }) as any
-      )
+      vi.mocked(Client).mockImplementationOnce(function Client() {
+        return {
+          connect: vi.fn().mockImplementation(async (transport: any) => {
+            await transport?.start?.()
+            throw new Error('handshake failed')
+          }),
+          callTool: vi.fn(),
+          listTools: vi.fn(),
+          listPrompts: vi.fn(),
+          getPrompt: vi.fn(),
+          listResources: vi.fn(),
+          readResource: vi.fn(),
+          setNotificationHandler: vi.fn(),
+          setRequestHandler: vi.fn(),
+          getProtocolEra: vi.fn(() => 'modern')
+        } as any
+      })
       const client = createMcpClient('failing-server', {
         type: 'stdio',
         command: 'node',
@@ -952,7 +953,9 @@ describe('McpClient Runtime Command Processing Tests', () => {
         getProtocolEra: vi.fn(() => 'modern'),
         getServerCapabilities: vi.fn(() => ({}))
       }
-      vi.mocked(Client).mockImplementationOnce(() => sdkClient as any)
+      vi.mocked(Client).mockImplementationOnce(function () {
+        return sdkClient as any
+      })
       const client = createMcpClient('minimal-server', {
         type: 'stdio',
         command: 'minimal-server',
@@ -995,7 +998,9 @@ describe('McpClient Runtime Command Processing Tests', () => {
         setRequestHandler: vi.fn(),
         getProtocolEra: vi.fn(() => 'modern')
       }
-      vi.mocked(Client).mockImplementationOnce(() => sdkClient as any)
+      vi.mocked(Client).mockImplementationOnce(function () {
+        return sdkClient as any
+      })
       const client = createMcpClient('slow-server', {
         type: 'stdio',
         command: 'slow-server',
@@ -1033,7 +1038,9 @@ describe('McpClient Runtime Command Processing Tests', () => {
         setRequestHandler: vi.fn(),
         getProtocolEra: vi.fn(() => 'modern')
       }
-      vi.mocked(Client).mockImplementationOnce(() => sdkClient as any)
+      vi.mocked(Client).mockImplementationOnce(function () {
+        return sdkClient as any
+      })
       const client = createMcpClient('diagnostic-server', {
         type: 'stdio',
         command: 'diagnostic-server',
@@ -1069,7 +1076,9 @@ describe('McpClient Runtime Command Processing Tests', () => {
         setRequestHandler: vi.fn(),
         getProtocolEra: vi.fn(() => 'modern')
       }
-      vi.mocked(Client).mockImplementationOnce(() => sdkClient as any)
+      vi.mocked(Client).mockImplementationOnce(function () {
+        return sdkClient as any
+      })
       const client = createMcpClient('diagnostic-server', {
         type: 'stdio',
         command: 'diagnostic-server',
@@ -1106,7 +1115,9 @@ describe('McpClient Runtime Command Processing Tests', () => {
           resources: {}
         }))
       }
-      vi.mocked(Client).mockImplementationOnce(() => sdkClient as any)
+      vi.mocked(Client).mockImplementationOnce(function () {
+        return sdkClient as any
+      })
       const client = createMcpClient('partial-server', {
         type: 'stdio',
         command: 'partial-server',
@@ -1138,7 +1149,9 @@ describe('McpClient Runtime Command Processing Tests', () => {
         setRequestHandler: vi.fn(),
         getProtocolEra: vi.fn(() => 'modern')
       }
-      vi.mocked(Client).mockImplementationOnce(() => sdkClient as any)
+      vi.mocked(Client).mockImplementationOnce(function () {
+        return sdkClient as any
+      })
       const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined)
       const client = createMcpClient('cua-driver', {
         type: 'stdio',
@@ -1172,7 +1185,9 @@ describe('McpClient Runtime Command Processing Tests', () => {
         setRequestHandler: vi.fn(),
         getProtocolEra: vi.fn(() => 'modern')
       }
-      vi.mocked(Client).mockImplementationOnce(() => sdkClient as any)
+      vi.mocked(Client).mockImplementationOnce(function () {
+        return sdkClient as any
+      })
       const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined)
       const client = createMcpClient('cua-driver', {
         type: 'stdio',
@@ -1202,7 +1217,9 @@ describe('McpClient Runtime Command Processing Tests', () => {
         expect(responseBytes).toBeLessThan(275_000)
 
         const sdkClient = createSdkToolClient(tools, era)
-        vi.mocked(Client).mockImplementationOnce(() => sdkClient as any)
+        vi.mocked(Client).mockImplementationOnce(function () {
+        return sdkClient as any
+      })
         const client = createMcpClient('large-catalog', {
           type: 'stdio',
           command: 'large-catalog',
@@ -1238,7 +1255,9 @@ describe('McpClient Runtime Command Processing Tests', () => {
         ],
         'legacy'
       )
-      vi.mocked(Client).mockImplementationOnce(() => sdkClient as any)
+      vi.mocked(Client).mockImplementationOnce(function () {
+        return sdkClient as any
+      })
       const client = createMcpClient('legacy-server', {
         type: 'stdio',
         command: 'legacy-server',
@@ -1289,7 +1308,9 @@ describe('McpClient Runtime Command Processing Tests', () => {
         ],
         era
       )
-      vi.mocked(Client).mockImplementationOnce(() => sdkClient as any)
+      vi.mocked(Client).mockImplementationOnce(function () {
+        return sdkClient as any
+      })
       const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined)
       const client = createMcpClient('strict-server', {
         type: 'stdio',

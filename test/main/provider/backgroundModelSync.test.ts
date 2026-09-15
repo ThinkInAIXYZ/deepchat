@@ -26,16 +26,18 @@ vi.mock('electron', () => ({
     handle: vi.fn(),
     removeHandler: vi.fn()
   },
-  BrowserWindow: vi.fn(() => ({
-    loadURL: vi.fn(),
-    loadFile: vi.fn(),
-    on: vi.fn(),
-    webContents: { send: vi.fn(), on: vi.fn(), isDestroyed: vi.fn(() => false) },
-    isDestroyed: vi.fn(() => false),
-    close: vi.fn(),
-    show: vi.fn(),
-    hide: vi.fn()
-  })),
+  BrowserWindow: vi.fn(function BrowserWindow() {
+    return {
+      loadURL: vi.fn(),
+      loadFile: vi.fn(),
+      on: vi.fn(),
+      webContents: { send: vi.fn(), on: vi.fn(), isDestroyed: vi.fn(() => false) },
+      isDestroyed: vi.fn(() => false),
+      close: vi.fn(),
+      show: vi.fn(),
+      hide: vi.fn()
+    }
+  }),
   dialog: {
     showOpenDialog: vi.fn()
   },
