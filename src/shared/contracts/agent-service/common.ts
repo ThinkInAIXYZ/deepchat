@@ -7,7 +7,7 @@ import {
   TimestampMsSchema
 } from '../common'
 import type { LocalControlErrorCode } from '../localControl'
-import { JsonValueSchema } from '../json'
+import { JsonValueSchema, type JsonValue } from '../json'
 
 // The service protocol version is negotiated exactly. A client that does not speak this version
 // must fail the handshake instead of silently downgrading to a weaker contract.
@@ -174,33 +174,102 @@ const AGENT_SERVICE_ERROR_DETAIL_KEY_PATTERN = /^[A-Za-z][A-Za-z0-9_]*(?:\.[A-Za
 
 const utf8Encoder = new TextEncoder()
 
-// Depth-first walk that stops as soon as the depth budget is spent. Because the walk is cut off at
-// the budget, a cyclic or pathologically deep value can never exhaust the stack: it simply reports a
-// depth beyond the budget and is rejected.
-const measureErrorDetailValueDepth = (value: unknown, depth: number): number => {
-  if (depth > AGENT_SERVICE_ERROR_DETAIL_VALUE_MAX_DEPTH) return depth
-  if (value === null || typeof value !== 'object') return depth
+const NOT_PLAIN_JSON_MESSAGE = 'Detail value must be plain JSON data'
 
-  const children: unknown[] = Array.isArray(value) ? value : Object.values(value)
-  let measuredDepth = depth
-  for (const child of children) {
-    measuredDepth = Math.max(measuredDepth, measureErrorDetailValueDepth(child, depth + 1))
-  }
-  return measuredDepth
-}
+type ErrorDetailValueRead = { ok: true; value: JsonValue } | { ok: false; message: string }
 
-// The size budget is the UTF-8 length of the value's own JSON encoding, so nested keys, string
-// escaping, and array elements are counted the way a transport would count them and no nesting
-// shape can hide bytes from the budget. `null` means the value cannot be encoded at all — a cycle, a
-// bigint, a function — which is not measurable and therefore fails closed instead of passing on a
-// partial measurement.
-const measureErrorDetailValueBytes = (value: unknown): number | null => {
-  try {
-    const encoded = JSON.stringify(value)
-    return encoded === undefined ? null : utf8Encoder.encode(encoded).length
-  } catch {
-    return null
+// Bounded descriptor-only read of one detail value into a fresh plain JSON value. Two properties
+// matter here, and both come from reading the input exactly once:
+//
+// - Nothing in the input is invoked. Nested values are taken from property descriptors, so an
+//   accessor is rejected instead of being called: a value that answers a later read with different
+//   content, or throws on it, can neither make two reads disagree nor escape as an uncaught
+//   exception.
+// - The value that gets checked, measured, and returned is the copy built here, so the size budget
+//   is spent on exactly the bytes a caller receives. Measuring a caller-owned object and validating
+//   it afterwards is what previously let an over-budget output through.
+//
+// The copy is built depth-first within the depth budget, so it is acyclic and shallow enough that
+// encoding and JSON-validating it afterwards cannot fail. Plain JSON data is the whole accepted
+// surface: accessors, array holes, non-`Object.prototype` prototypes, functions, symbols, bigints,
+// `undefined`, and non-finite numbers are rejected. A `Proxy` is not reliably distinguishable from a
+// plain object, so proxies are not detected: one is copied into that bounded plain value like any
+// other input, and a proxy whose own reads throw is rejected instead of throwing through
+// `safeParse`.
+const readErrorDetailValue = (input: unknown, depth: number): ErrorDetailValueRead => {
+  if (depth > AGENT_SERVICE_ERROR_DETAIL_VALUE_MAX_DEPTH) {
+    return {
+      ok: false,
+      message: `Detail value depth exceeds ${AGENT_SERVICE_ERROR_DETAIL_VALUE_MAX_DEPTH}`
+    }
   }
+
+  if (input === null || typeof input === 'string' || typeof input === 'boolean') {
+    return { ok: true, value: input }
+  }
+
+  if (typeof input === 'number') {
+    return Number.isFinite(input)
+      ? { ok: true, value: input }
+      : { ok: false, message: `${NOT_PLAIN_JSON_MESSAGE}: only finite numbers encode` }
+  }
+
+  if (typeof input !== 'object') {
+    // `undefined`, functions, symbols, and bigints have no JSON encoding at all.
+    return { ok: false, message: 'Detail value is not JSON-encodable' }
+  }
+
+  if (Array.isArray(input)) {
+    const items: JsonValue[] = []
+    for (let index = 0; index < input.length; index += 1) {
+      const descriptor = Object.getOwnPropertyDescriptor(input, String(index))
+      if (descriptor === undefined || !('value' in descriptor)) {
+        return {
+          ok: false,
+          message: `${NOT_PLAIN_JSON_MESSAGE}: array holes and accessors are not allowed`
+        }
+      }
+      const item = readErrorDetailValue(descriptor.value, depth + 1)
+      if (!item.ok) return item
+      items.push(item.value)
+    }
+    return { ok: true, value: items }
+  }
+
+  const prototype = Object.getPrototypeOf(input)
+  if (prototype !== Object.prototype && prototype !== null) {
+    return { ok: false, message: `${NOT_PLAIN_JSON_MESSAGE}: object must have a plain prototype` }
+  }
+
+  // An enumerable symbol key is a member JSON has no way to encode, and the piped `JsonValueSchema`
+  // refuses it as an invalid record key. Refusing it here keeps this read the single place that
+  // decides what a detail value may contain.
+  const symbolKeys = Object.getOwnPropertySymbols(input)
+  if (symbolKeys.some((key) => Object.getOwnPropertyDescriptor(input, key)?.enumerable)) {
+    return { ok: false, message: `${NOT_PLAIN_JSON_MESSAGE}: symbol keys are not allowed` }
+  }
+
+  const copy: Record<string, JsonValue> = {}
+  for (const key of Object.keys(input)) {
+    const descriptor = Object.getOwnPropertyDescriptor(input, key)
+    if (descriptor === undefined || !('value' in descriptor)) {
+      return {
+        ok: false,
+        message: `${NOT_PLAIN_JSON_MESSAGE}: accessor properties are not allowed`
+      }
+    }
+    const child = readErrorDetailValue(descriptor.value, depth + 1)
+    if (!child.ok) return child
+    // A `__proto__` key stays an own property: assigning it would run the setter on
+    // `Object.prototype` and silently replace the copy's prototype instead of copying the key.
+    Object.defineProperty(copy, key, {
+      value: child.value,
+      enumerable: true,
+      writable: true,
+      configurable: true
+    })
+  }
+  return { ok: true, value: copy }
 }
 
 const AgentServiceErrorDetailKeySchema = z
@@ -209,34 +278,38 @@ const AgentServiceErrorDetailKeySchema = z
   .max(AGENT_SERVICE_ERROR_DETAIL_KEY_MAX_LENGTH)
   .regex(AGENT_SERVICE_ERROR_DETAIL_KEY_PATTERN)
 
-// Both checks run before `JsonValueSchema` so that a value the encoder cannot represent is rejected
-// by measurement, rather than by a recursive JSON walk that would not terminate on it.
+// The read above already enforces depth and JSON shape, so this stage enforces the size budget and
+// turns the read's own rejection into an issue. The fail-closed guarantee lives here: an adversarial
+// in-process value is rejected as an issue, never as an exception out of `safeParse`. The record that
+// holds the values is read the way every other object in this contract is read.
+//
+// The transform's own output is declared as `unknown` because `JsonValueSchema` takes an `unknown`
+// input: the piped schema is what narrows this stage back to `JsonValue` and re-checks the copy.
 const AgentServiceErrorDetailValueSchema = z
   .unknown()
-  .superRefine((value, context) => {
-    const depth = measureErrorDetailValueDepth(value, 1)
-    if (depth > AGENT_SERVICE_ERROR_DETAIL_VALUE_MAX_DEPTH) {
-      context.addIssue({
-        code: 'custom',
-        message: `Detail value depth exceeds ${AGENT_SERVICE_ERROR_DETAIL_VALUE_MAX_DEPTH}`
-      })
-      return
-    }
+  .transform((value, context): unknown => {
+    try {
+      const read = readErrorDetailValue(value, 1)
+      if (!read.ok) {
+        context.addIssue({ code: 'custom', message: read.message })
+        return z.NEVER
+      }
 
-    const bytes = measureErrorDetailValueBytes(value)
-    if (bytes === null) {
-      context.addIssue({
-        code: 'custom',
-        message: 'Detail value is not JSON-encodable'
-      })
-      return
-    }
+      const bytes = utf8Encoder.encode(JSON.stringify(read.value)).length
+      if (bytes > AGENT_SERVICE_ERROR_DETAIL_VALUE_MAX_BYTES) {
+        context.addIssue({
+          code: 'custom',
+          message: `Detail value exceeds ${AGENT_SERVICE_ERROR_DETAIL_VALUE_MAX_BYTES} bytes`
+        })
+        return z.NEVER
+      }
 
-    if (bytes > AGENT_SERVICE_ERROR_DETAIL_VALUE_MAX_BYTES) {
-      context.addIssue({
-        code: 'custom',
-        message: `Detail value exceeds ${AGENT_SERVICE_ERROR_DETAIL_VALUE_MAX_BYTES} bytes`
-      })
+      return read.value
+    } catch {
+      // A `Proxy` cannot be identified reliably, so an input whose own reads or measurements throw
+      // is rejected here instead of letting the exception out of `safeParse`.
+      context.addIssue({ code: 'custom', message: 'Detail value could not be read' })
+      return z.NEVER
     }
   })
   .pipe(JsonValueSchema)

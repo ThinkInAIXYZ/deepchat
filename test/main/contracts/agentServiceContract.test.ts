@@ -124,6 +124,11 @@ const numberArray = (count: number): number[] => Array.from({ length: count }, (
 
 const parseError = (error: unknown) => AgentServiceErrorSchema.safeParse(error).success
 
+const parseErrorIssues = (error: unknown): string => {
+  const result = AgentServiceErrorSchema.safeParse(error)
+  return result.success ? '' : result.error.issues.map((issue) => issue.message).join(' ')
+}
+
 const resultSchema = defineAgentServiceResultSchema(AgentServiceSessionRefSchema)
 
 describe('agent service base contract', () => {
@@ -450,6 +455,113 @@ describe('agent service base contract', () => {
         details: { context: nestedDetailKeys(2, 8) }
       })
     ).toBe(true)
+
+    // The budget counts UTF-8 bytes rather than characters, so a multi-byte string is rejected before
+    // its character count reaches the budget.
+    expect(
+      parseError({ code: 'internal', message: 'boom', details: { excerpt: '你'.repeat(340) } })
+    ).toBe(true)
+    expect(
+      parseError({ code: 'internal', message: 'boom', details: { excerpt: '你'.repeat(341) } })
+    ).toBe(false)
+  })
+
+  it('reads each detail value once and rejects what is not plain JSON data', () => {
+    const oversized = 'x'.repeat(AGENT_SERVICE_ERROR_DETAIL_VALUE_MAX_BYTES * 4)
+
+    // An accessor answers each read separately, and an in-process caller can make those answers
+    // disagree. A schema that measures the caller's object and validates it afterwards can therefore
+    // accept the small reading and hand out the large one; these shapes must be rejected instead.
+    let changingReads = 0
+    const changingAccessor = {
+      get excerpt(): string {
+        changingReads += 1
+        return changingReads <= 2 ? 'small' : oversized
+      }
+    }
+
+    let throwingReads = 0
+    const throwingAccessor = {
+      get excerpt(): string {
+        throwingReads += 1
+        if (throwingReads <= 2) return 'small'
+        throw new Error('accessor failure')
+      }
+    }
+
+    // A `Proxy` cannot be told apart from a plain object, but it can still throw on the reads the
+    // schema performs, which must surface as a rejection rather than as an uncaught exception.
+    const throwingEnumeration = new Proxy(
+      { attempt: 1 },
+      {
+        ownKeys: () => {
+          throw new Error('proxy failure')
+        }
+      }
+    )
+
+    class DetailHolder {
+      attempt = 1
+    }
+
+    const cases: Array<[string, unknown]> = [
+      ['accessor returning a different value per read', { context: changingAccessor }],
+      ['accessor throwing on a later read', { context: throwingAccessor }],
+      ['proxy throwing on enumeration', { context: throwingEnumeration }],
+      ['class instance', { context: new DetailHolder() }],
+      ['map', { context: new Map([['attempt', 1]]) }],
+      ['symbol-keyed property', { context: { [Symbol('attempt')]: 1 } }],
+      ['non-finite number', { context: Number.POSITIVE_INFINITY }],
+      ['bigint', { context: BigInt(1) }],
+      ['holey array', { context: [1, , 3] }]
+    ]
+
+    for (const [label, detail] of cases) {
+      expect(
+        () => parseError({ code: 'internal', message: 'boom', details: detail }),
+        label
+      ).not.toThrow()
+      expect(parseError({ code: 'internal', message: 'boom', details: detail }), label).toBe(false)
+    }
+
+    // Accessors and proxies are rejected by reading their shape, not by calling them: no read of the
+    // value happened at all, and the failure is the rule the schema states rather than a rejected
+    // value that happened to fail some other check first.
+    expect(changingReads).toBe(0)
+    expect(throwingReads).toBe(0)
+    expect(
+      parseErrorIssues({
+        code: 'internal',
+        message: 'boom',
+        details: { context: changingAccessor }
+      })
+    ).toContain('accessor properties are not allowed')
+    expect(
+      parseErrorIssues({
+        code: 'internal',
+        message: 'boom',
+        details: { context: throwingEnumeration }
+      })
+    ).toContain('could not be read')
+
+    const nullPrototype = Object.assign(Object.create(null), { attempt: 1 })
+    expect(
+      parseError({ code: 'internal', message: 'boom', details: { context: nullPrototype } })
+    ).toBe(true)
+  })
+
+  it('measures and returns one read of a detail value', () => {
+    const context = { attempt: 1, nested: { model: 'gpt-4o' } }
+    const details = { provider: 'openai', tokenCount: 12, maxTokens: 4096, context }
+
+    const parsed = AgentServiceErrorSchema.parse({ code: 'internal', message: 'boom', details })
+
+    expect(parsed.details).toEqual(details)
+    // The accepted value is a plain copy of the one read that was measured, so the size budget is
+    // spent on the bytes a caller receives rather than on the bytes of the caller's object.
+    expect(Object.getPrototypeOf(parsed.details?.context)).toBe(Object.prototype)
+    expect(parsed.details?.context).not.toBe(context)
+    expect(parsed.details?.context).toEqual(context)
   })
 
   it('fails closed on detail values that cannot be measured', () => {
