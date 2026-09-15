@@ -224,14 +224,23 @@ record, not a second runtime or repository.
 
 #### Stage 2A — neutral runtime edges and invalidation
 
-- [ ] Cut confirmed Electron/application value edges without moving host implementations: logger,
+- [x] Cut confirmed Electron/application value edges without moving host implementations: logger,
   ACP compatibility barrels, programmatic command-launch error identity, provider catalog source URL,
-  usage-stat provider labels, and generation-settings diagnostics.
-- [ ] Replace the Harness-facing `SessionUiPort.refreshSessionUi()` callback with a typed internal
+  usage-stat provider labels, and generation-settings diagnostics. Delivered in `be2abf11b` and
+  cherry-picked as `853cc953a`; independent Emma acceptance covered scope, import-boundary intent,
+  and the requested verification gates.
+- [x] Replace the Harness-facing `SessionUiPort.refreshSessionUi()` callback with a typed internal
   invalidation carrying the session and reason. Desktop adapts it to the existing widget refresh;
-  renderer/wire events and authoritative execution events remain separate.
-- [ ] Preserve provider/tool authorization, path/process semantics, generation fences, status/event
-  ordering, and the existing Tape/projection transaction behavior.
+  renderer/wire events and authoritative execution events remain separate. The event/update/invalidate
+  order and payload are covered by the updated runtime tests in the Stage 2A commit.
+- [x] Preserve provider/tool authorization, path/process semantics, generation fences, status/event
+  ordering, and the existing Tape/projection transaction behavior. The independent targeted suite
+  passed 562 tests; this is not the final clean-Node package gate.
+
+**Stage 2A acceptance note:** Emma independently verified commit `be2abf11b` before integration and
+reported ACCEPT. The controller's parallel run reached the TypeScript gate but was terminated by the
+execution timeout before producing a result; it is not counted as evidence. No Electron application
+or packaged-runtime claim is made here.
 
 #### Stage 2C — ACP state ownership seam
 
@@ -240,6 +249,13 @@ record, not a second runtime or repository.
   `SessionStatePort` implementation or adapter for the methods it actually uses. ACP retains its
   peer-specific runtime, permissions, transcript, and process lifecycle and never enters the built-in
   loop or creates a second database owner.
+- [ ] The adapter must cover the current nine-method port without hydrating a built-in scope. It may
+  share the existing host-owned `SessionDatabase`/session stores, but must not create a second owner;
+  `setSessionProjectDir` must preserve its current non-durable semantics. Any temporary host runtime
+  release hook must be explicit and removable when the compatibility factory is neutralized in 2B.
+- [ ] Audit and preserve status publication after the scope seam: ACP status must not rely on Desktop
+  widget invalidation or silently lose `generating` state between initialization and first send. Keep
+  durable Tape/memory projection invalidation transaction semantics distinct from UI invalidation.
 
 #### Stage 2B — portable built-in kernel
 
