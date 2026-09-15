@@ -77,8 +77,7 @@ export class AcpSessionStateAdapter implements SessionStatePort {
   async getGenerationSettings(sessionId: string): Promise<SessionGenerationSettings | null> {
     const row = this.settings.get(sessionId)
     if (!row) return null
-    const row = this.settings.get(sessionId)
-    const persisted = mapPersistedGenerationPatch(row!)
+    const persisted = mapPersistedGenerationPatch(this.providerSettings, row)
     return await sanitizeGenerationSettings(
       this.providerSettings,
       this.promptSettings,
