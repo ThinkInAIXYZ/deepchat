@@ -31,8 +31,10 @@ export async function withBackupReadLock<T>(
     return { acquired: false }
   }
   const db = openDb()
-  db.exec('BEGIN')
   try {
+    // Inside the try so a failing BEGIN cannot leak the snapshot connection;
+    // the inTransaction guard below then correctly skips the ROLLBACK.
+    db.exec('BEGIN')
     db.prepare('SELECT count(*) FROM sqlite_master').get()
     const result = await work()
     db.exec('COMMIT')
