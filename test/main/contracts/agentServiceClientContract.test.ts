@@ -21,13 +21,18 @@ import {
   AgentServiceClientOperationSchema,
   AgentServiceHandshakeRequestSchema,
   AgentServiceHandshakeResultSchema,
+  AgentServiceInteractionResponseRequestSchema,
   AgentServiceSubmissionQueryRequestSchema,
+  AgentServiceSubmissionQueryResultSchema,
   AgentServiceSubmissionRequestSchema,
+  isConsistentCapabilityAdvertisement,
   resolveCapabilityRefusal,
   resolveClientOperationRefusal,
   type AgentServiceClientAdapter,
   type AgentServiceHandshakeRequest,
+  type AgentServiceInteractionResponseRequest,
   type AgentServiceSubmissionQueryRequest,
+  type AgentServiceSubmissionQueryResult,
   type AgentServiceSubmissionRequest
 } from '@shared/contracts/agent-service/client'
 import {
@@ -44,7 +49,9 @@ import {
   AgentServiceCancellationReceiptSchema,
   AgentServiceInteractionResolutionSchema,
   type AgentServiceCancellationReceipt,
-  type AgentServiceInteractionRequest
+  type AgentServiceInteractionDecision,
+  type AgentServiceInteractionRequest,
+  type AgentServiceInteractionResponse
 } from '@shared/contracts/agent-service/interactions'
 import { LocalControlEventCursorSchema } from '@shared/contracts/localControl'
 import type { JsonValue } from '@shared/contracts/json'
@@ -200,6 +207,50 @@ const expectJsonRoundTrip = (value: unknown): void => {
   expect(JSON.parse(JSON.stringify(value))).toEqual(value)
 }
 
+// The receipt a query answer carries, or null when the binding states it keeps none. Reading a query
+// answer means handling both outcomes: `receipt_not_retained` is not a receipt, and it is not an
+// absence of one either.
+const receiptFromQuery = (
+  result: AgentServiceResult<AgentServiceSubmissionQueryResult>
+): AgentServiceSubmissionReceipt | null =>
+  result.ok && result.value.status === 'receipt' ? result.value.receipt : null
+
+// The answer a client sends, built from the published interaction it answers. Every addressing field
+// comes from the published DTO, which is the point: the instance is named by the caller, and the run
+// and request are not the client's to invent.
+type InteractionAnswer =
+  | { kind: 'permission'; decision: AgentServiceInteractionDecision }
+  | { kind: 'question_option'; optionId: string }
+  | { kind: 'question_text'; text: string }
+
+const interactionAnswer = (
+  serviceInstanceId: string,
+  interaction: AgentServiceInteractionRequest,
+  answer: InteractionAnswer,
+  respondedAt = 1_000_000
+): AgentServiceInteractionResponseRequest => {
+  const shared = {
+    interactionId: interaction.interactionId,
+    sessionId: interaction.sessionId,
+    messageId: interaction.messageId,
+    toolCallId: interaction.toolCallId,
+    respondedAt
+  }
+  const response: AgentServiceInteractionResponse =
+    answer.kind === 'permission'
+      ? { ...shared, kind: 'permission', decision: answer.decision }
+      : answer.kind === 'question_option'
+        ? { ...shared, kind: 'question_option', optionId: answer.optionId }
+        : { ...shared, kind: 'question_text', text: answer.text }
+
+  return {
+    serviceInstanceId,
+    runId: interaction.runId,
+    requestId: interaction.requestId,
+    response
+  }
+}
+
 const parseCursor = (cursor: string): { epoch: string; sequence: number } => {
   const separator = cursor.lastIndexOf(':')
   return {
@@ -330,9 +381,9 @@ const createFakeBinding = (options: FakeBindingOptions): FakeBinding => {
     }
   }
 
-  // The interaction response DTO carries no service instance id — the interaction id is service-issued
-  // — so a response is bound to this service by its session alone, while every other request names
-  // both the instance and the session it was addressed to.
+  // Every operation names the instance and the session it was addressed to. `respond` reaches its
+  // session through the 1B response inside the client-side envelope: the envelope states the instance,
+  // the response states the session and the interaction, and the binding checks both.
   const ownsSession = (request: { sessionId: string }): boolean => request.sessionId === sessionId
   const ownsInstance = (request: { serviceInstanceId: string }): boolean =>
     request.serviceInstanceId === serviceInstanceId
@@ -412,10 +463,20 @@ const createFakeBinding = (options: FakeBindingOptions): FakeBinding => {
       if (!ownsInstance(request) || !ownsSession(request)) {
         return { ok: false, error: wrongService() }
       }
-      if (!options.durableSubmissionIdentity || !receipts.has(request.submissionId)) {
+      // A binding that keeps no submission record cannot answer whether a submission was accepted. It
+      // says so, and it must never answer `not_found`: for a submission this binding already accepted
+      // and executed, `not_found` would describe a running submission as absent, which is the reading
+      // that licenses the resubmit started to avoid.
+      if (!options.durableSubmissionIdentity) {
+        return { ok: true, value: { status: 'receipt_not_retained' } }
+      }
+      if (!receipts.has(request.submissionId)) {
         return { ok: false, error: notFound(`no receipt for submission ${request.submissionId}`) }
       }
-      return { ok: true, value: receiptFor(request.submissionId, 'accepted') }
+      return {
+        ok: true,
+        value: { status: 'receipt', receipt: receiptFor(request.submissionId, 'accepted') }
+      }
     },
 
     async readSnapshot(request) {
@@ -551,34 +612,56 @@ const createFakeBinding = (options: FakeBindingOptions): FakeBinding => {
     async respond(request) {
       const refusal = resolveClientOperationRefusal(capabilities, 'respond')
       if (refusal) return { ok: false, error: refusal }
-      if (!ownsSession(request)) {
+      // The answer is addressed to one service instance and binds one session, interaction, message,
+      // tool call, run, and request. Nothing about it is applied "to whatever is pending".
+      if (!ownsInstance(request)) {
+        return { ok: false, error: wrongService() }
+      }
+
+      const { response } = request
+      if (!ownsSession(response)) {
         return { ok: false, error: wrongService() }
       }
 
       const index = interactions.findIndex(
         (interaction) =>
-          interaction.interactionId === request.interactionId &&
-          interaction.sessionId === request.sessionId &&
-          interaction.messageId === request.messageId &&
-          interaction.toolCallId === request.toolCallId
+          interaction.interactionId === response.interactionId &&
+          interaction.sessionId === response.sessionId
       )
       if (index < 0) {
         return {
           ok: false,
-          error: notFound(`interaction ${request.interactionId} is not pending`)
+          error: notFound(`interaction ${response.interactionId} is not pending`)
         }
       }
 
       const interaction = interactions[index]
+      const correlationMatches =
+        interaction !== undefined &&
+        interaction.messageId === response.messageId &&
+        interaction.toolCallId === response.toolCallId &&
+        interaction.runId === request.runId &&
+        interaction.requestId === request.requestId
+      if (!correlationMatches) {
+        // The interaction is pending, but this answer names a different message, tool call, run, or
+        // request: a republished interaction under the same identity is not the one being answered.
+        return {
+          ok: false,
+          error: invalidRequest(
+            `interaction ${response.interactionId} is not the pending interaction this answer names`
+          )
+        }
+      }
+
       const kindMatches =
         interaction !== undefined &&
-        ((interaction.kind === 'permission' && request.kind === 'permission') ||
-          (interaction.kind === 'question' && request.kind !== 'permission'))
+        ((interaction.kind === 'permission' && response.kind === 'permission') ||
+          (interaction.kind === 'question' && response.kind !== 'permission'))
       if (!kindMatches) {
         return {
           ok: false,
           error: invalidRequest(
-            `pending interaction ${request.interactionId} is not a ${request.kind} interaction`
+            `pending interaction ${response.interactionId} is not a ${response.kind} interaction`
           )
         }
       }
@@ -737,8 +820,8 @@ const runClientScenario = async (binding: FakeBinding) => {
     expectJsonRoundTrip(replayed.replayedEvents)
   }
 
-  const queried = parseOrThrow(
-    defineAgentServiceResultSchema(AgentServiceSubmissionReceiptSchema),
+  const queried = parseResult(
+    AgentServiceSubmissionQueryResultSchema,
     await adapter.querySubmission({
       serviceInstanceId,
       sessionId,
@@ -748,8 +831,9 @@ const runClientScenario = async (binding: FakeBinding) => {
   if (queried.ok) {
     expectJsonRoundTrip(queried.value)
   } else {
-    // A binding without durable submission identity answers `not_found`, which is a vocabulary
-    // answer and not a crash: the client's authoritative read is then the snapshot.
+    // A receipt query can still answer with the shared error envelope, and when it does the answer is
+    // never resubmit authorization: it is not retriable, and the client's authoritative read is the
+    // snapshot.
     expect(queried.error.code).toBe('not_found')
     expect(queried.error.retriable).toBe(false)
   }
@@ -766,15 +850,12 @@ const runClientScenario = async (binding: FakeBinding) => {
 
   const resolution = okValue(
     AgentServiceInteractionResolutionSchema,
-    await adapter.respond({
-      interactionId: interaction.interactionId,
-      sessionId,
-      messageId: interaction.messageId,
-      toolCallId: interaction.toolCallId,
-      kind: 'permission',
-      decision: 'approved',
-      respondedAt: 1_000_000
-    })
+    await adapter.respond(
+      interactionAnswer(serviceInstanceId, interaction, {
+        kind: 'permission',
+        decision: 'approved'
+      })
+    )
   )
   expectJsonRoundTrip(resolution)
   expect(resolution.resumed).toBe(true)
@@ -1063,6 +1144,114 @@ describe('agent service client contract', () => {
       expect(resolveClientOperationRefusal([], 'handshake')).toBeNull()
     })
 
+    it('reports a contradiction instead of a Desktop lease the reason denies', () => {
+      // `not_supported` with `requiredClient: 'desktop'` claims a client could supply a capability the
+      // service says it does not implement. The advertisement is accepted by the shared Stage 1A schema;
+      // the client must not consume it, so no refusal built from it may name a Desktop lease.
+      const peerEntry: AgentServiceCapability = {
+        id: 'tools.file',
+        availability: 'unavailable',
+        reason: 'not_supported',
+        requiredClient: 'desktop'
+      }
+      expect(isConsistentCapabilityAdvertisement(peerEntry)).toBe(false)
+      const peerRefusal = resolveCapabilityRefusal(
+        capabilitySet({ 'tools.file': peerEntry }),
+        'tools.file'
+      )
+      expect(peerRefusal?.code).toBe('capability_unavailable')
+      expect(peerRefusal?.capability).toBe('tools.file')
+      expect(peerRefusal?.requiredClient).toBeNull()
+      expect(peerRefusal?.message).toContain('advertised inconsistently')
+
+      // The other direction: `requires_desktop_client` with no client named is a capability nobody could
+      // supply, which is not something to wait for either.
+      const unnamedEntry: AgentServiceCapability = {
+        id: 'desktop.cua',
+        availability: 'unavailable',
+        reason: 'requires_desktop_client',
+        requiredClient: null
+      }
+      expect(isConsistentCapabilityAdvertisement(unnamedEntry)).toBe(false)
+      const unnamedRefusal = resolveCapabilityRefusal(
+        capabilitySet({ 'desktop.cua': unnamedEntry }),
+        'desktop.cua'
+      )
+      expect(unnamedRefusal?.requiredClient).toBeNull()
+      expect(unnamedRefusal?.message).toContain('advertised inconsistently')
+
+      // Only agreement survives, in both forms: a Desktop lease is promised only where the reason says a
+      // Desktop client is what is missing, and `null` is what every other reason means.
+      expect(isConsistentCapabilityAdvertisement(available('agent.loop'))).toBe(true)
+      for (const reason of AGENT_SERVICE_UNAVAILABLE_REASONS) {
+        const desktopRequired = reason === 'requires_desktop_client'
+        expect(
+          isConsistentCapabilityAdvertisement({
+            id: 'memory',
+            availability: 'unavailable',
+            reason,
+            requiredClient: 'desktop'
+          })
+        ).toBe(desktopRequired)
+        expect(
+          isConsistentCapabilityAdvertisement({
+            id: 'memory',
+            availability: 'unavailable',
+            reason,
+            requiredClient: null
+          })
+        ).toBe(!desktopRequired)
+      }
+    })
+
+    it('never consumes a self-contradicting advertisement an adapter publishes', async () => {
+      // The advertisement reaches the client through a handshake. A handshake that contradicts itself
+      // fails validation, so the client cannot read `requiredClient: 'desktop'` out of an advertisement
+      // whose own reason denies it...
+      const binding = createBuiltinBinding({
+        capabilities: capabilitySet({
+          'agent.loop': unavailable('agent.loop', 'not_supported', 'desktop')
+        })
+      })
+      const handshake = await binding.adapter.handshake({
+        protocolVersion: AGENT_SERVICE_PROTOCOL_VERSION
+      })
+      const parsed = AgentServiceHandshakeResultSchema.safeParse(
+        handshake.ok ? handshake.value : null
+      )
+      expect(parsed.success).toBe(false)
+      if (!parsed.success) {
+        expect(parsed.error.issues.map((issue) => issue.path.join('.'))).toEqual([
+          `capabilities.${AGENT_SERVICE_CAPABILITIES.indexOf('agent.loop')}`
+        ])
+      }
+
+      // ...and an operation gated on that capability is refused with `requiredClient: null` rather than
+      // pointed at a Desktop client that could never supply it.
+      const refused = await binding.adapter.submit({
+        serviceInstanceId: binding.serviceInstanceId,
+        sessionId: binding.sessionId,
+        submissionId: 'submission-1',
+        text: 'hi'
+      })
+      const error = failureOf(AgentServiceSubmissionReceiptSchema, refused)
+      expect(error.code).toBe('capability_unavailable')
+      expect(error.capability).toBe('agent.loop')
+      expect(error.requiredClient).toBeNull()
+
+      // Both fakes the suite drives publish consistent advertisements, so the rule above is not what
+      // keeps them working.
+      for (const consistent of [BUILTIN_HEADLESS_CAPABILITIES, ACP_CAPABILITIES]) {
+        expect(consistent.every(isConsistentCapabilityAdvertisement)).toBe(true)
+        expect(
+          AgentServiceHandshakeResultSchema.safeParse({
+            identity: identityFor('consistent'),
+            capabilities: consistent
+          }).success
+        ).toBe(true)
+      }
+    })
+
     it('produces a refusal in the shared error vocabulary', () => {
       const refusal = resolveClientOperationRefusal(
         capabilitySet({
@@ -1104,9 +1293,17 @@ describe('agent service client contract', () => {
       expectTypeOf<Parameters<AgentServiceClientAdapter['querySubmission']>>().toEqualTypeOf<
         [AgentServiceSubmissionQueryRequest]
       >()
+      expectTypeOf<Parameters<AgentServiceClientAdapter['respond']>>().toEqualTypeOf<
+        [AgentServiceInteractionResponseRequest]
+      >()
       expectTypeOf<Awaited<ReturnType<AgentServiceClientAdapter['submit']>>>().toEqualTypeOf<
         AgentServiceResult<AgentServiceSubmissionReceipt>
       >()
+      // The query answers an outcome, not a bare receipt: "this binding keeps no receipt" is a value the
+      // client has to handle rather than an absence it can read as proof that nothing was submitted.
+      expectTypeOf<
+        Awaited<ReturnType<AgentServiceClientAdapter['querySubmission']>>
+      >().toEqualTypeOf<AgentServiceResult<AgentServiceSubmissionQueryResult>>()
     })
 
     it('has no identity or handle field in its request types', () => {
@@ -1117,14 +1314,210 @@ describe('agent service client contract', () => {
       expectTypeOf<keyof AgentServiceSubmissionQueryRequest>().toEqualTypeOf<
         'serviceInstanceId' | 'sessionId' | 'submissionId'
       >()
+      // An answer is addressed to an instance, a run, and a request, and to nothing else: the responder's
+      // identity is not expressible here any more than it is anywhere else in this surface.
+      expectTypeOf<keyof AgentServiceInteractionResponseRequest>().toEqualTypeOf<
+        'serviceInstanceId' | 'runId' | 'requestId' | 'response'
+      >()
+    })
+
+    it('states receipt retention as a query outcome, never as permission to resubmit', () => {
+      expectTypeOf<AgentServiceSubmissionQueryResult['status']>().toEqualTypeOf<
+        'receipt' | 'receipt_not_retained'
+      >()
+      // Neither outcome carries a field a client could read as "safe to submit this identity again".
+      expectTypeOf<
+        keyof Extract<AgentServiceSubmissionQueryResult, { status: 'receipt' }>
+      >().toEqualTypeOf<'status' | 'receipt'>()
+      expectTypeOf<
+        keyof Extract<AgentServiceSubmissionQueryResult, { status: 'receipt_not_retained' }>
+      >().toEqualTypeOf<'status'>()
+      expect(
+        AgentServiceSubmissionQueryResultSchema.safeParse({
+          status: 'receipt_not_retained',
+          retry: true
+        }).success
+      ).toBe(false)
+      expect(
+        AgentServiceSubmissionQueryResultSchema.safeParse({
+          status: 'receipt',
+          receipt: { submissionId: 'submission-1' },
+          resubmit: true
+        }).success
+      ).toBe(false)
+    })
+  })
+
+  describe('interaction response envelope', () => {
+    const publishedInteraction = (): AgentServiceInteractionRequest => ({
+      interactionId: 'interaction-1',
+      sessionId: 'session-1',
+      runId: 'run-1',
+      requestId: 'request-1',
+      messageId: 'message-1',
+      toolCallId: 'tool-call-1',
+      expiresAt: 1_000_000,
+      kind: 'permission',
+      toolName: 'bash',
+      summary: null
+    })
+
+    it('addresses an answer to an instance, a run, and a request', () => {
+      const envelope = interactionAnswer('service-1', publishedInteraction(), {
+        kind: 'permission',
+        decision: 'approved'
+      })
+      const parsed = parseOrThrow(AgentServiceInteractionResponseRequestSchema, envelope)
+      expect(parsed.serviceInstanceId).toBe('service-1')
+      expect(parsed.runId).toBe('run-1')
+      expect(parsed.requestId).toBe('request-1')
+      expectJsonRoundTrip(parsed)
+
+      // The 1B response is carried unchanged and still validated: the envelope adds addressing, it does
+      // not restate the answer.
+      expect(parsed.response).toEqual({
+        interactionId: 'interaction-1',
+        sessionId: 'session-1',
+        messageId: 'message-1',
+        toolCallId: 'tool-call-1',
+        respondedAt: 1_000_000,
+        kind: 'permission',
+        decision: 'approved'
+      })
+    })
+
+    it('refuses an answer with no instance, no run, no request, or a claimed responder identity', () => {
+      const envelope = interactionAnswer('service-1', publishedInteraction(), {
+        kind: 'permission',
+        decision: 'approved'
+      })
+      const without = (field: 'serviceInstanceId' | 'runId' | 'requestId') => {
+        const { [field]: _dropped, ...rest } = envelope
+        return rest
+      }
+      for (const field of ['serviceInstanceId', 'runId', 'requestId'] as const) {
+        expect(AgentServiceInteractionResponseRequestSchema.safeParse(without(field)).success).toBe(
+          false
+        )
+      }
+
+      // A response that is not addressed carries no instance either: the bare 1B DTO is not accepted in
+      // place of the envelope.
+      expect(
+        AgentServiceInteractionResponseRequestSchema.safeParse(envelope.response).success
+      ).toBe(false)
+
+      for (const claim of [{ principal: 'user-1' }, { renderer: true }, { approver: 'cli' }]) {
+        expect(
+          AgentServiceInteractionResponseRequestSchema.safeParse({ ...envelope, ...claim }).success
+        ).toBe(false)
+        expect(
+          AgentServiceInteractionResponseRequestSchema.safeParse({
+            ...envelope,
+            response: { ...envelope.response, ...claim }
+          }).success
+        ).toBe(false)
+      }
+    })
+
+    it('refuses an answer addressed to another instance or another run', async () => {
+      const binding = createBuiltinBinding()
+      const { adapter, sessionId, serviceInstanceId, publishPermission } = binding
+      await adapter.submit({
+        serviceInstanceId,
+        sessionId,
+        submissionId: 'submission-1',
+        text: 'hi'
+      })
+      const interaction = publishPermission()
+
+      // Addressed to a different service instance: not this binding's interaction to resolve.
+      const misaddressed = await adapter.respond({
+        ...interactionAnswer(serviceInstanceId, interaction, {
+          kind: 'permission',
+          decision: 'approved'
+        }),
+        serviceInstanceId: 'another-instance'
+      })
+      expect(failureOf(AgentServiceInteractionResolutionSchema, misaddressed).code).toBe(
+        'not_found'
+      )
+
+      // The right instance, the wrong run or request: the interaction identity matches but the
+      // correlation does not, which is what a republished interaction under the same id would look like.
+      for (const mismatch of [{ runId: 'run-other' }, { requestId: 'request-other' }]) {
+        const stale = await adapter.respond({
+          ...interactionAnswer(serviceInstanceId, interaction, {
+            kind: 'permission',
+            decision: 'approved'
+          }),
+          ...mismatch
+        })
+        expect(failureOf(AgentServiceInteractionResolutionSchema, stale).code).toBe(
+          'invalid_request'
+        )
+      }
+
+      // Neither misdelivered answer resolved anything: the interaction is still pending.
+      const snapshot = okValue(
+        AgentServiceSnapshotSchema,
+        await adapter.readSnapshot({ serviceInstanceId, sessionId })
+      )
+      expect(snapshot.pendingInteractions.map((pending) => pending.interactionId)).toEqual([
+        interaction.interactionId
+      ])
+
+      // The answer that names the pending interaction's own correlation is the one that resolves it.
+      const applied = okValue(
+        AgentServiceInteractionResolutionSchema,
+        await adapter.respond(
+          interactionAnswer(serviceInstanceId, interaction, {
+            kind: 'permission',
+            decision: 'approved'
+          })
+        )
+      )
+      expect(applied.resolution).toBe('accepted')
+    })
+  })
+
+  describe('stage boundaries', () => {
+    it('leaves live delivery, steering, and session lifecycle outside this surface', () => {
+      // Live delivery is the transport's: a subscription answer is a bounded response, not a channel.
+      expectTypeOf<Awaited<ReturnType<AgentServiceClientAdapter['subscribe']>>>().toEqualTypeOf<
+        AgentServiceResult<AgentServiceEventSubscriptionResponse>
+      >()
+      expectTypeOf<Awaited<ReturnType<AgentServiceClientAdapter['subscribe']>>>().not.toMatchTypeOf<
+        AsyncIterable<unknown>
+      >()
+
+      // Steering, the pending-input queue, and session lifecycle are not operations here. The queue is
+      // observable through the snapshot and the `queued_submission` cancellation layer, and nothing on
+      // this surface creates, closes, or steers a session.
+      const absentOperations = [
+        'steer',
+        'interrupt',
+        'queueInput',
+        'createSession',
+        'closeSession',
+        'deleteSession',
+        'setMode',
+        'pause',
+        'resume'
+      ]
+      for (const absent of absentOperations) {
+        expect(AGENT_SERVICE_CLIENT_OPERATIONS).not.toContain(absent)
+      }
+      // The vocabulary is unchanged by that statement: this is a boundary, not a second list.
+      expect(AGENT_SERVICE_CLIENT_OPERATIONS).toEqual([...EXPECTED_OPERATIONS])
     })
   })
 
   describe('fake built-in service', () => {
     it('answers the shared client scenario', async () => {
       const scenario = await runClientScenario(createBuiltinBinding())
-      expect(scenario.queried.ok).toBe(true)
-      expect(scenario.queried.ok ? scenario.queried.value.runId : null).toBe(scenario.receipt.runId)
+      const queriedReceipt = receiptFromQuery(scenario.queried)
+      expect(queriedReceipt?.runId).toBe(scenario.receipt.runId)
       expect(scenario.settled.cursor).not.toBe(scenario.heldCursor)
     })
 
@@ -1161,25 +1554,27 @@ describe('agent service client contract', () => {
       })
 
       // The response was lost: the identity is queried, and the receipt says the run exists.
-      const receipt = okValue(
-        AgentServiceSubmissionReceiptSchema,
+      const queried = parseResult(
+        AgentServiceSubmissionQueryResultSchema,
         await adapter.querySubmission({
           serviceInstanceId,
           sessionId,
           submissionId: 'submission-1'
         })
       )
-      expect(receipt.outcome).toBe('accepted')
-      expect(receipt.runId).not.toBeNull()
+      const receipt = receiptFromQuery(queried)
+      expect(receipt?.outcome).toBe('accepted')
+      expect(receipt?.runId).not.toBeNull()
 
-      // A submission the service never saw is `not_found`, which is not a licence to submit again:
-      // it is why the client reads the snapshot before deciding.
+      // A submission this binding holds no record of is `not_found`, and `not_found` never authorizes a
+      // resubmit: absence of a record is not absence of a run, the error is not retriable, and the
+      // client's authoritative read is the snapshot.
       const unknown = await adapter.querySubmission({
         serviceInstanceId,
         sessionId,
         submissionId: 'submission-never-sent'
       })
-      const error = failureOf(AgentServiceSubmissionReceiptSchema, unknown)
+      const error = failureOf(AgentServiceSubmissionQueryResultSchema, unknown)
       expect(error.code).toBe('not_found')
       expect(error.retriable).toBe(false)
     })
@@ -1407,41 +1802,33 @@ describe('agent service client contract', () => {
 
       const answered = okValue(
         AgentServiceInteractionResolutionSchema,
-        await adapter.respond({
-          interactionId: question.interactionId,
-          sessionId,
-          messageId: question.messageId,
-          toolCallId: question.toolCallId,
-          kind: 'question_option',
-          optionId: 'a',
-          respondedAt: 1_000_000
-        })
+        await adapter.respond(
+          interactionAnswer(serviceInstanceId, question, { kind: 'question_option', optionId: 'a' })
+        )
       )
       expect(answered.resolution).toBe('accepted')
       expect(answered.resumed).toBe(true)
 
-      const repeated = await adapter.respond({
-        interactionId: question.interactionId,
-        sessionId,
-        messageId: question.messageId,
-        toolCallId: question.toolCallId,
-        kind: 'question_option',
-        optionId: 'a',
-        respondedAt: 1_000_001
-      })
+      const repeated = await adapter.respond(
+        interactionAnswer(
+          serviceInstanceId,
+          question,
+          { kind: 'question_option', optionId: 'a' },
+          1_000_001
+        )
+      )
       expect(failureOf(AgentServiceInteractionResolutionSchema, repeated).code).toBe('not_found')
 
       // A decision cannot be applied to whatever happens to be pending: the kind has to match too.
       const permission = publishQuestion()
-      const wrongKind = await adapter.respond({
-        interactionId: permission.interactionId,
-        sessionId,
-        messageId: permission.messageId,
-        toolCallId: permission.toolCallId,
-        kind: 'permission',
-        decision: 'approved',
-        respondedAt: 1_000_002
-      })
+      const wrongKind = await adapter.respond(
+        interactionAnswer(
+          serviceInstanceId,
+          permission,
+          { kind: 'permission', decision: 'approved' },
+          1_000_002
+        )
+      )
       expect(failureOf(AgentServiceInteractionResolutionSchema, wrongKind).code).toBe(
         'invalid_request'
       )
@@ -1481,7 +1868,10 @@ describe('agent service client contract', () => {
     it('answers the same scenario through the same surface', async () => {
       const scenario = await runClientScenario(createAcpBinding())
       expect(scenario.receipt.runId).not.toBeNull()
-      expect(scenario.queried.ok).toBe(false)
+      // The same query operation answers differently because the binding's own record-keeping differs:
+      // it states that it keeps no receipt rather than reporting the accepted submission as missing.
+      expect(scenario.queried).toEqual({ ok: true, value: { status: 'receipt_not_retained' } })
+      expect(receiptFromQuery(scenario.queried)).toBeNull()
       expect(scenario.handshake.identity.serviceInstanceId).toBe('acp-binding-instance')
     })
 
@@ -1532,27 +1922,36 @@ describe('agent service client contract', () => {
       ).toBe(null)
     })
 
-    it('keeps no submission receipt, so a blind retry is visible in the snapshot', async () => {
+    it('cannot answer a receipt query, and says so instead of answering `not_found`', async () => {
       const binding = createAcpBinding()
       const { adapter, sessionId, serviceInstanceId } = binding
       const submission = { serviceInstanceId, sessionId, submissionId: 'submission-1', text: 'hi' }
       const first = okValue(AgentServiceSubmissionReceiptSchema, await adapter.submit(submission))
       expect(first.outcome).toBe('accepted')
 
+      // A repeat is accepted as if it were new: the binding cannot tell, which is a property of its
+      // advertisement rather than a bug this suite can fix from the client side.
       const repeat = okValue(AgentServiceSubmissionReceiptSchema, await adapter.submit(submission))
-      // Nothing in the answer distinguishes this from a new submission: the binding cannot tell.
       expect(repeat.outcome).toBe('accepted')
       expect(repeat.runId).toBeNull()
 
-      const queried = failureOf(
-        AgentServiceSubmissionReceiptSchema,
-        await adapter.querySubmission({
-          serviceInstanceId,
-          sessionId,
-          submissionId: 'submission-1'
-        })
-      )
-      expect(queried.code).toBe('not_found')
+      // The lost-response path. This binding retains no submission record, so the query answer is
+      // `receipt_not_retained`: it states that the question cannot be answered, and specifically does
+      // not report the submission this binding already accepted as `not_found`. That distinction is the
+      // whole point — `not_found` for an executed submission reads as "no run started", which is what
+      // licenses the resubmit that starts a second one.
+      const answer = await adapter.querySubmission({
+        serviceInstanceId,
+        sessionId,
+        submissionId: 'submission-1'
+      })
+      const queried = okValue(AgentServiceSubmissionQueryResultSchema, answer)
+      expect(queried).toEqual({ status: 'receipt_not_retained' })
+      // Reading the answer yields no receipt and no error either: "this binding keeps none" is a
+      // different statement from "no such submission", and only the first one is true here.
+      expect(
+        receiptFromQuery(parseResult(AgentServiceSubmissionQueryResultSchema, answer))
+      ).toBeNull()
 
       // The snapshot is the only authoritative read, and it shows the damage a blind retry did.
       const snapshot = okValue(
@@ -1578,15 +1977,12 @@ describe('agent service client contract', () => {
 
       const approved = okValue(
         AgentServiceInteractionResolutionSchema,
-        await adapter.respond({
-          interactionId: permission.interactionId,
-          sessionId,
-          messageId: permission.messageId,
-          toolCallId: permission.toolCallId,
-          kind: 'permission',
-          decision: 'denied',
-          respondedAt: 1_000_000
-        })
+        await adapter.respond(
+          interactionAnswer(serviceInstanceId, permission, {
+            kind: 'permission',
+            decision: 'denied'
+          })
+        )
       )
       expect(approved.resolution).toBe('accepted')
 
@@ -1594,13 +1990,18 @@ describe('agent service client contract', () => {
       // resolve — and the binding cannot be made to publish one.
       expect(() => binding.publishQuestion()).toThrow(/does not publish question interactions/)
       const questionAnswer = await adapter.respond({
-        interactionId: 'interaction-never-published',
-        sessionId,
-        messageId: permission.messageId,
-        toolCallId: permission.toolCallId,
-        kind: 'question_text',
-        text: 'the first one',
-        respondedAt: 1_000_001
+        serviceInstanceId,
+        runId: permission.runId,
+        requestId: permission.requestId,
+        response: {
+          interactionId: 'interaction-never-published',
+          sessionId,
+          messageId: permission.messageId,
+          toolCallId: permission.toolCallId,
+          kind: 'question_text',
+          text: 'the first one',
+          respondedAt: 1_000_001
+        }
       })
       expect(failureOf(AgentServiceInteractionResolutionSchema, questionAnswer).code).toBe(
         'not_found'

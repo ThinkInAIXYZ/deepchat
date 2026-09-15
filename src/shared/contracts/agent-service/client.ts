@@ -4,8 +4,11 @@ import {
   AgentServiceIdentitySchema,
   AgentServiceInstanceIdSchema,
   AgentServiceProtocolVersionSchema,
+  AgentServiceRequestIdSchema,
+  AgentServiceRunIdSchema,
   AgentServiceSessionIdSchema,
   AgentServiceSubmissionIdSchema,
+  AgentServiceSubmissionReceiptSchema,
   type AgentServiceCapability,
   type AgentServiceCapabilityId,
   type AgentServiceError,
@@ -19,11 +22,11 @@ import {
   type AgentServiceSnapshot,
   type AgentServiceSnapshotRequest
 } from './events'
-import type {
-  AgentServiceCancellationReceipt,
-  AgentServiceCancellationRequest,
-  AgentServiceInteractionResolution,
-  AgentServiceInteractionResponse
+import {
+  AgentServiceInteractionResponseSchema,
+  type AgentServiceCancellationReceipt,
+  type AgentServiceCancellationRequest,
+  type AgentServiceInteractionResolution
 } from './interactions'
 
 // Stage 1C client-facing adapter boundary.
@@ -46,6 +49,27 @@ import type {
 //    such a field is rejected rather than ignored: the authenticated identity comes from the
 //    transport/host, and a capability lease is granted by the host rather than claimed by a DTO. A
 //    headless client therefore cannot talk its way into a Desktop capability by asking nicely.
+//
+// Scope, stated so the next slice can cite it instead of re-deriving it. Stage 1C is the operation
+// vocabulary and its refusals; three things a client will eventually need are deliberately not here,
+// and the boundaries are properties of this surface rather than an omission:
+//
+// - **Live delivery is the transport's.** `subscribe` answers the Stage 1B bounded subscription
+//   response — a replayed window plus a resync verdict — and nothing on this surface is an
+//   `AsyncIterable`, a callback, a listener registration, or a handle for a later delivery. A binding
+//   that keeps receiving events for a session is a connection, and connections belong to the local
+//   client transport slice (Stage 4), which decides framing, reconnection, and backpressure. Adding a
+//   long-connection abstraction here would fix a transport's shape before that slice exists.
+// - **Steering, the pending-input queue, and session lifecycle are not client operations here.** The
+//   vocabulary below is closed, and it has no `steer`, `interrupt`, `queueInput`, `createSession`,
+//   `closeSession`, or `setMode`. The queue is observable (the snapshot reports `queuedSubmissions`
+//   and the `queued_submission` cancellation layer settles an entry), and interaction state is
+//   answerable, but who owns a session, when it is created, and how a later input is steered into a
+//   running turn are decisions for the slices that own the loop and the session record. They are
+//   recorded here as an explicit hand-off to Stage 1D and later work, which must state whether it
+//   extends this vocabulary or expresses the same intent through it.
+// - **Compatibility with the maintained CLI surface is Stage 1D.** Nothing here maps onto the
+//   existing `runs.*`/local-control routes; 1A mapped error codes and left the route mapping open.
 
 const utf8Encoder = new TextEncoder()
 
@@ -61,6 +85,24 @@ export const AgentServiceHandshakeRequestSchema = z
   })
   .strict()
 
+// An unavailable entry is one statement written in two fields — the reason says why the capability is
+// unusable, and `requiredClient` says which client could still supply it — and `common.ts` validates
+// each field's own domain without requiring the two to agree. The agreement is enforced here, on the
+// client side of the boundary and without rewriting the accepted Stage 1A advertisement:
+//
+// - `requires_desktop_client` means exactly `requiredClient: 'desktop'`. A Desktop client is the only
+//   thing that could supply the capability, so an advertisement that says so while naming no client
+//   states nothing a caller can act on.
+// - `not_supported`, `not_configured`, and `host_unavailable` mean exactly `requiredClient: null`. The
+//   service is saying it does not implement the capability, has not configured it, or cannot host it —
+//   none of which a Desktop client can supply by connecting.
+//
+// A self-contradicting advertisement fails validation here instead of being repaired, so a client never
+// receives a capability statement that claims a Desktop lease its own reason denies.
+export const isConsistentCapabilityAdvertisement = (capability: AgentServiceCapability): boolean =>
+  capability.availability === 'available' ||
+  (capability.reason === 'requires_desktop_client') === (capability.requiredClient === 'desktop')
+
 export const AgentServiceHandshakeResultSchema = z
   .object({
     identity: AgentServiceIdentitySchema,
@@ -70,6 +112,18 @@ export const AgentServiceHandshakeResultSchema = z
     capabilities: AgentServiceCapabilitiesSchema
   })
   .strict()
+  .superRefine((handshake, context) => {
+    handshake.capabilities.forEach((capability, index) => {
+      if (!isConsistentCapabilityAdvertisement(capability)) {
+        context.addIssue({
+          code: 'custom',
+          message:
+            'An unavailable capability must state one reason and the client it requires: requires_desktop_client means requiredClient "desktop", and every other reason means requiredClient null',
+          path: ['capabilities', index]
+        })
+      }
+    })
+  })
 
 // Input submission, including the idempotency identity. `submissionId` is required: a submission
 // without one could not be receipted or recognised as a repeat, so a lost response would be
@@ -108,6 +162,74 @@ export const AgentServiceSubmissionQueryRequestSchema = z
     serviceInstanceId: AgentServiceInstanceIdSchema,
     sessionId: AgentServiceSessionIdSchema,
     submissionId: AgentServiceSubmissionIdSchema
+  })
+  .strict()
+
+// What a receipt query answers. Two outcomes, and neither of them authorizes a resubmission:
+//
+// - `receipt` reports the acceptance this binding holds for that submission identity, which is how a
+//   client recovers a lost response without starting a second run.
+// - `receipt_not_retained` states that this binding keeps no submission record at all, so it cannot
+//   answer whether the submission was accepted. It is a distinct outcome rather than an error, and
+//   specifically not `not_found`: a `not_found` for a submission the binding already accepted and
+//   executed would describe work that is running as work that never happened, and "never happened" is
+//   exactly the reading that licenses a resubmit — the second run this whole path exists to prevent. A
+//   binding that cannot answer the question has to say that instead of answering it wrongly.
+//
+// The same rule holds where a binding does retain receipts. A `not_found` error there reports a
+// submission identity this service holds no record of, and `not_found` never authorizes a resubmit
+// either: a record can be pruned, so absence is not proof, and the client's authoritative reads are the
+// snapshot and the event log. Nothing in this result — nor in the shared error envelope, which is never
+// `retriable` for this code — is a signal that resubmitting the same identity is safe; a client that
+// must submit again chooses a new submission identity deliberately.
+//
+// The lack of receipt retention is expressed as data on the query answer rather than as a capability
+// refusal because the Stage 1A vocabulary has no id for it: `session.persistence` is what gates
+// `querySubmission` and `readSnapshot`, and a binding that states that capability as available — a
+// binding that keeps a session and can answer an authoritative snapshot — must not then refuse the
+// operation by claiming the capability is missing. Adding a receipt-retention capability id is a
+// Stage 1A vocabulary change, so the honest place for the distinction today is the result.
+export const AgentServiceSubmissionQueryResultSchema = z.discriminatedUnion('status', [
+  z
+    .object({
+      status: z.literal('receipt'),
+      receipt: AgentServiceSubmissionReceiptSchema
+    })
+    .strict(),
+  z
+    .object({
+      status: z.literal('receipt_not_retained')
+    })
+    .strict()
+])
+
+// Addressing an interaction answer. The Stage 1B response DTO is the service-facing answer: it names
+// the session, interaction, message, and tool call it resolves, and carries the decision or the answer
+// itself. It deliberately carries no service instance, because a service already knows which instance
+// it is — and it carries no run or request, because it was written to be applied to a pending
+// interaction rather than addressed to one.
+//
+// A client surface cannot leave the instance implicit. One client can hold adapters for more than one
+// service instance, so an answer with no instance is an answer a client can deliver to the wrong
+// service, and a response that names only a session is one a second instance could accept as its own.
+// Stage 1C therefore does not change the accepted 1B DTO: it wraps it in the client-side envelope
+// below, which states the instance the answer is addressed to.
+//
+// `runId` and `requestId` are required for the same reason. A published interaction always carries
+// both, so a client that received it always has them, and an interaction identity is not proof that the
+// interaction is still the same one: without the run and request, an answer could be applied to an
+// interaction that a later run republished under the same interaction id. The envelope is strict, so
+// the answer is either this correlation or a validation failure.
+//
+// Nothing here claims an identity. `serviceInstanceId` is the service the answer is sent *to*, not who
+// is answering; the authenticated principal still comes from the transport, and the transport still
+// decides whether that principal may answer at all.
+export const AgentServiceInteractionResponseRequestSchema = z
+  .object({
+    serviceInstanceId: AgentServiceInstanceIdSchema,
+    runId: AgentServiceRunIdSchema,
+    requestId: AgentServiceRequestIdSchema,
+    response: AgentServiceInteractionResponseSchema
   })
   .strict()
 
@@ -150,22 +272,25 @@ export const AGENT_SERVICE_CLIENT_OPERATION_REQUIRED_CAPABILITY = {
 // Refusal for a capability a service's own advertisement does not support, in the shared error
 // vocabulary, or `null` when the capability is usable.
 //
-// Two properties matter, and both are why this is one function instead of a check written at each
-// adapter's call sites:
+// Three properties matter, and all three are why this is one function instead of a check written at
+// each adapter's call sites:
 //
-// - `requiredClient` is copied from the service's advertisement, never chosen by the caller. A
+// - `requiredClient` is copied from the service's advertisement, never chosen by the caller, and only
+//   when the advertisement is one consistent statement (`isConsistentCapabilityAdvertisement`). A
 //   capability the service says `requires_desktop_client` reports `'desktop'`; a capability no client
 //   can supply (`not_supported`, `host_unavailable`, `not_configured`) reports `null`. An adapter that
 //   invented `'desktop'` would tell a headless caller to wait for a Desktop lease the service never
-//   promised.
+//   promised, and an advertisement that claims `'desktop'` under a reason denying it is reported as
+//   `null` for the same reason: a contradictory advertisement promises no client anything.
 // - Anything short of one unambiguous `available` entry refuses. A capability that is absent, that the
 //   service marked unavailable, or that is advertised twice (disagreeing with itself) is not support,
 //   so absence is never read as support. When the advertisement is unusable for that capability,
 //   `requiredClient` is `null` rather than a guess: no client can be promised a capability the
 //   service did not state it can supply.
-//
-// The message is a human-readable summary only. The machine-readable meaning is the code, the
-// capability id, and `requiredClient`, and a capability refusal is not retriable.
+// - The refusal is never a report that the advertisement was usable. `retriable` is false and the code
+//   is `capability_unavailable`, so a caller cannot read a refusal as a transient failure to try again;
+//   the machine-readable meaning is the code, the capability id, and `requiredClient`, and `message` is
+//   a human-readable summary only.
 export const resolveCapabilityRefusal = (
   capabilities: readonly AgentServiceCapability[],
   required: AgentServiceCapabilityId
@@ -174,20 +299,35 @@ export const resolveCapabilityRefusal = (
   const only = advertised.length === 1 ? advertised[0] : undefined
   if (only !== undefined && only.availability === 'available') return null
 
+  const unavailable = only !== undefined && only.availability === 'unavailable' ? only : undefined
+
+  // One consistent `unavailable` entry is the only case where a client can honestly be named, and even
+  // then only when the reason agrees with it: a `requiredClient: null` refusal is the fail-closed answer
+  // for everything else, because a contradictory, absent, or duplicated advertisement promises no
+  // client anything.
+  if (unavailable !== undefined && isConsistentCapabilityAdvertisement(unavailable)) {
+    return {
+      code: 'capability_unavailable',
+      message: `Capability "${required}" is unavailable (${unavailable.reason})`,
+      retriable: false,
+      capability: required,
+      requiredClient: unavailable.requiredClient
+    }
+  }
+
   const message =
     advertised.length === 0
       ? `Capability "${required}" was not advertised by the service`
-      : only !== undefined
-        ? `Capability "${required}" is unavailable (${only.reason})`
-        : `Capability "${required}" is advertised more than once`
+      : unavailable === undefined
+        ? `Capability "${required}" is advertised more than once`
+        : `Capability "${required}" is advertised inconsistently (${unavailable.reason} with requiredClient ${String(unavailable.requiredClient)})`
 
   return {
     code: 'capability_unavailable',
     message,
     retriable: false,
     capability: required,
-    requiredClient:
-      only !== undefined && only.availability === 'unavailable' ? only.requiredClient : null
+    requiredClient: null
   }
 }
 
@@ -211,6 +351,12 @@ export const resolveClientOperationRefusal = (
 // advertisement, checks it with `resolveClientOperationRefusal` before doing work, and answers in
 // `AgentServiceResult`. No operation takes an options bag, a cancellation token, a progress callback,
 // or an identity, and no operation returns a handle.
+//
+// `querySubmission` answers `AgentServiceSubmissionQueryResult` rather than a bare receipt, so "this
+// binding keeps no receipt" is a value a client must handle rather than an absence it can mistake for
+// proof that no run started. `respond` takes the client-side envelope rather than the 1B response DTO,
+// so an answer states the service instance, run, and request it is addressed to. Both are the client
+// surface being stricter than the shared DTOs it carries, not a second set of DTOs.
 export type AgentServiceClientAdapter = {
   readonly handshake: (
     request: AgentServiceHandshakeRequest
@@ -220,7 +366,7 @@ export type AgentServiceClientAdapter = {
   ) => Promise<AgentServiceResult<AgentServiceSubmissionReceipt>>
   readonly querySubmission: (
     request: AgentServiceSubmissionQueryRequest
-  ) => Promise<AgentServiceResult<AgentServiceSubmissionReceipt>>
+  ) => Promise<AgentServiceResult<AgentServiceSubmissionQueryResult>>
   readonly readSnapshot: (
     request: AgentServiceSnapshotRequest
   ) => Promise<AgentServiceResult<AgentServiceSnapshot>>
@@ -231,7 +377,7 @@ export type AgentServiceClientAdapter = {
     request: AgentServiceCancellationRequest
   ) => Promise<AgentServiceResult<AgentServiceCancellationReceipt>>
   readonly respond: (
-    request: AgentServiceInteractionResponse
+    request: AgentServiceInteractionResponseRequest
   ) => Promise<AgentServiceResult<AgentServiceInteractionResolution>>
 }
 
@@ -240,5 +386,11 @@ export type AgentServiceHandshake = z.infer<typeof AgentServiceHandshakeResultSc
 export type AgentServiceSubmissionRequest = z.infer<typeof AgentServiceSubmissionRequestSchema>
 export type AgentServiceSubmissionQueryRequest = z.infer<
   typeof AgentServiceSubmissionQueryRequestSchema
+>
+export type AgentServiceSubmissionQueryResult = z.infer<
+  typeof AgentServiceSubmissionQueryResultSchema
+>
+export type AgentServiceInteractionResponseRequest = z.infer<
+  typeof AgentServiceInteractionResponseRequestSchema
 >
 export type AgentServiceClientOperation = z.infer<typeof AgentServiceClientOperationSchema>
