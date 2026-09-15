@@ -244,18 +244,28 @@ or packaged-runtime claim is made here.
 
 #### Stage 2C — ACP state ownership seam
 
-- [ ] Before kernel composition changes, remove `sessionState: deepChatAgentHarness` from the direct
+- [x] Before kernel composition changes, remove `sessionState: deepChatAgentHarness` from the direct
   ACP backend (`src/main/app/composition.ts:1928-1930`). Give ACP a smallest neutral
   `SessionStatePort` implementation or adapter for the methods it actually uses. ACP retains its
   peer-specific runtime, permissions, transcript, and process lifecycle and never enters the built-in
-  loop or creates a second database owner.
-- [ ] The adapter must cover the current nine-method port without hydrating a built-in scope. It may
-  share the existing host-owned `SessionDatabase`/session stores, but must not create a second owner;
-  `setSessionProjectDir` must preserve its current non-durable semantics. Any temporary host runtime
-  release hook must be explicit and removable when the compatibility factory is neutralized in 2B.
-- [ ] Audit and preserve status publication after the scope seam: ACP status must not rely on Desktop
-  widget invalidation or silently lose `generating` state between initialization and first send. Keep
-  durable Tape/memory projection invalidation transaction semantics distinct from UI invalidation.
+  loop or creates a second database owner. Integrated as `2eac46f47` (cherry-pick of the reviewed
+  implementation).
+- [x] The adapter covers the current nine-method port without hydrating a built-in scope. It shares the
+  existing host-owned session settings store, does not create a second owner, and preserves the
+  non-durable `setSessionProjectDir` behavior. Generation settings use sanitized complete settings as
+  the update base and persist only the requested patch. Integrated as `deab53648`, `3e5a58ec7`, and
+  `46770c2d1`.
+- [x] ACP status publication and direct runtime close behavior remain independent of Desktop widget
+  invalidation; `snapshotIfHydrated` does not hydrate a missing scope. Targeted ACP tests cover the
+  seam and runtime close path. Adapter fixture and formatting fixes are in `1f7c390b1` and
+  `4ca72e501`.
+
+**Stage 2C acceptance note:** The controller and independent Emma review verified Node `v24.18.0` /
+pnpm `10.34.5` with the repository dependency tree (`tokenx@2.1.0` from `package.json` and
+`pnpm-lock.yaml`). The four targeted ACP files passed 53 tests, `typecheck:node`, `format:check`,
+`lint`, `i18n`, and `git diff --check` passed. Emma reported **ACCEPT** on the integrated HEAD. A
+separate earlier review that ran Node 22 is not counted as evidence. No Electron application,
+packaged-runtime, or clean-Node package claim is made here.
 
 #### Stage 2B — portable built-in kernel
 
