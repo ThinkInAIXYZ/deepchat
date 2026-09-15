@@ -4,11 +4,19 @@ Status: implemented. This specification defines the maintained local CLI contrac
 
 ## Decision
 
-DeepChat main is the sole owner of the local control plane. A bundled CLI hosted by Electron connects to the
+**Current V1 state:** DeepChat main is the sole owner of the local control plane. A bundled CLI hosted by Electron connects to the
 running desktop application over HTTP semantics carried by a Unix domain socket on POSIX and a
 named pipe on Windows. The CLI is a thin transport, formatting, and local file-I/O client. It does
 not load providers, credentials, Skills, MCP servers, OCR runtimes, Agent runtimes, or application
 databases.
+
+**Planned successor:** [Standalone Agent Service](../standalone-agent-harness/spec.md) moves the
+complete built-in Agent execution owner—provider/model requests, agent loop, supported tool
+execution, session state, and recovery—into a service that can run without Desktop. This document
+remains the maintained V1 CLI control-plane contract during migration. The successor must preserve
+its authentication, deny-by-default surface, approval, artifact, and fail-closed invariants; it
+must not be interpreted as permission to expose the internal route registry or add a CLI self-approval
+path.
 
 The public API is a versioned `CLI_SURFACE` allowlist that references DeepChat's canonical typed
 route contracts. It is not a generic tunnel to the internal route registry. Raw model invocation,
