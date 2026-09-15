@@ -1934,7 +1934,11 @@ export async function createMainProcessControl(dependencies: {
     }),
     acp: createDirectAcpAgentBackend({
       runtime: acpAgentRuntime,
-      sessionState: new AcpSessionStateAdapter(sessionData.settings),
+      sessionState: new AcpSessionStateAdapter(
+        sessionData.settings,
+        providerSettings,
+        promptSettings
+      ),
       transcript: sessionData.transcript,
       tape: sessionData.tape,
       deleteDurableSession: async (sessionId) => {

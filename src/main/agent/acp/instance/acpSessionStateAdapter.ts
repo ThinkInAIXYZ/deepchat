@@ -6,10 +6,21 @@ import type {
 } from '@shared/types/agent-interface'
 import type { SessionStatePort } from '@/session/data/contracts'
 import type { SessionSettingsStore } from '@/session/data/settings'
+import type { ProviderModelResolutionPort } from '@/provider/settings'
+import type { PromptSettings } from '@/agent/promptSettings'
+import {
+  buildPersistedGenerationSettingsPatch,
+  mapPersistedGenerationPatch,
+  sanitizeGenerationSettings
+} from '@/agent/deepchat/runtime/generationSettings'
 
 /** ACP state seam over the host-owned session settings store. */
 export class AcpSessionStateAdapter implements SessionStatePort {
-  constructor(private readonly settings: SessionSettingsStore) {}
+  constructor(
+    private readonly settings: SessionSettingsStore,
+    private readonly providerSettings: ProviderModelResolutionPort,
+    private readonly promptSettings: Pick<PromptSettings, 'getDefaultSystemPrompt'>
+  ) {}
 
   async initSession(
     sessionId: string,
@@ -17,12 +28,19 @@ export class AcpSessionStateAdapter implements SessionStatePort {
       Pick<SessionAgentContextUpdate, 'providerId' | 'modelId'>
   ): Promise<void> {
     if (this.settings.get(sessionId)) return
+    const generationSettings = await sanitizeGenerationSettings(
+      this.providerSettings,
+      this.promptSettings,
+      config.providerId,
+      config.modelId,
+      config.generationSettings ?? {}
+    )
     this.settings.create(
       sessionId,
       config.providerId,
       config.modelId,
       config.permissionMode ?? 'default',
-      config.generationSettings
+      generationSettings
     )
   }
 
@@ -59,7 +77,15 @@ export class AcpSessionStateAdapter implements SessionStatePort {
   async getGenerationSettings(sessionId: string): Promise<SessionGenerationSettings | null> {
     const row = this.settings.get(sessionId)
     if (!row) return null
-    return this.settings.getGenerationSettings(sessionId) as SessionGenerationSettings
+    const row = this.settings.get(sessionId)
+    const persisted = mapPersistedGenerationPatch(row!)
+    return await sanitizeGenerationSettings(
+      this.providerSettings,
+      this.promptSettings,
+      row!.provider_id,
+      row!.model_id,
+      persisted
+    )
   }
 
   async updateGenerationSettings(
@@ -67,8 +93,21 @@ export class AcpSessionStateAdapter implements SessionStatePort {
     settings: Partial<SessionGenerationSettings>
   ): Promise<SessionGenerationSettings> {
     if (!this.settings.get(sessionId)) throw new Error(`Session ${sessionId} not found`)
-    this.settings.updateGenerationSettings(sessionId, settings)
-    return (this.settings.getGenerationSettings(sessionId) ?? {}) as SessionGenerationSettings
+    const row = this.settings.get(sessionId)
+    const current = this.settings.getGenerationSettings(sessionId) ?? {}
+    const generationSettings = await sanitizeGenerationSettings(
+      this.providerSettings,
+      this.promptSettings,
+      row!.provider_id,
+      row!.model_id,
+      settings,
+      current
+    )
+    this.settings.updateGenerationSettings(
+      sessionId,
+      buildPersistedGenerationSettingsPatch(settings, generationSettings)
+    )
+    return generationSettings
   }
 
   async setSessionProjectDir(_sessionId: string, _projectDir: string | null): Promise<void> {
