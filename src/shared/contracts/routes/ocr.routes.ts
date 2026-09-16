@@ -88,7 +88,8 @@ export const OcrRuntimeAssetInfoSchema = z
     version: z.string().min(1).max(128),
     channel: z.enum(['stable', 'pre-release']),
     availability: z.enum(['available', 'incompatible-app', 'unsupported-platform']),
-    sizeBytes: z.number().int().positive().nullable()
+    sizeBytes: z.number().int().positive().nullable(),
+    installedVersion: z.string().min(1).max(128).nullable()
   })
   .strict()
 
@@ -96,6 +97,7 @@ export const OcrRuntimeStatusSchema = z.object({
   platform: z.string(),
   arch: z.string(),
   availability: OcrAvailabilitySchema,
+  runtimeSource: z.enum(['development', 'bundled', 'downloaded']).nullable(),
   process: OcrProcessSchema.nullable(),
   cache: OcrCacheSchema.nullable(),
   runtimeInstall: OcrRuntimeInstallStateSchema.nullable(),
@@ -110,6 +112,28 @@ export const ocrGetRuntimeStatusRoute = defineRouteContract({
 
 export const ocrInstallRuntimeRoute = defineRouteContract({
   name: 'ocr.installRuntime',
+  input: z.object({}).default({}),
+  output: z.object({
+    result: z.object({
+      ok: z.boolean(),
+      error: z.string().max(2048).optional()
+    })
+  })
+})
+
+export const ocrInstallRuntimeFromPathRoute = defineRouteContract({
+  name: 'ocr.installRuntimeFromPath',
+  input: z.object({ path: z.string().min(1).max(4096) }).strict(),
+  output: z.object({
+    result: z.object({
+      ok: z.boolean(),
+      error: z.string().max(2048).optional()
+    })
+  })
+})
+
+export const ocrUninstallRuntimeRoute = defineRouteContract({
+  name: 'ocr.uninstallRuntime',
   input: z.object({}).default({}),
   output: z.object({
     result: z.object({

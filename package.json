@@ -57,7 +57,7 @@
     "plugin:verify": "node scripts/plugin.mjs verify",
     "plugin:catalog": "node scripts/plugin-catalog.mjs generate",
     "plugin:catalog:verify": "node scripts/plugin-catalog.mjs verify --platform all --arch all",
-    "plugin:bundle:clean": "node -e \"const fs=require('fs'); fs.rmSync('build/bundled-plugins',{recursive:true,force:true}); fs.rmSync('build/managed-helpers',{recursive:true,force:true})\"",
+    "plugin:bundle:clean": "node -e \"const fs=require('fs'); fs.rmSync('build/bundled-plugins',{recursive:true,force:true}); fs.rmSync('build/remote-plugins',{recursive:true,force:true}); fs.rmSync('build/managed-helpers',{recursive:true,force:true})\"",
     "plugin:cua:build": "node scripts/build-cua-plugin-runtime.mjs",
     "plugin:cua:build:mac:arm64": "node scripts/build-cua-plugin-runtime.mjs --platform darwin --arch arm64",
     "plugin:cua:build:mac:x64": "node scripts/build-cua-plugin-runtime.mjs --platform darwin --arch x64",

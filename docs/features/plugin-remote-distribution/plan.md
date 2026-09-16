@@ -67,13 +67,20 @@ separate slices once P0 lands.
 ## P1a — CUA unbundle (host side landed; release flip pending)
 
 - [x] Enable flow: `plugins.enable` falls back to catalog install (silent download) when the
-      plugin is missing locally; catalog page install action enables after install
+      plugin's *payload* is missing, not merely when the plugin is undiscovered — a bundled or
+      development-tree manifest is discoverable while its runtime binary was never staged, and
+      `PluginListItem.installed` now reports payload presence so the UI offers install rather
+      than uninstall; catalog page install action enables after install
 - [x] Release tooling: `scripts/plugin-catalog.mjs` (generate + verify) with npm scripts
       `plugin:catalog` / `plugin:catalog:verify`; locally verified against fixtures
 - [x] `resources/plugin-catalog.json` shipped via electron-builder extraResources
-- [ ] Build scripts stop bundling cua `.dcplugin`; CI publishes artifacts to a prerelease
-      staging release, then stable — **requires GitHub release publishing (remote); to be
-      flipped by the release owner after catalog entries are generated with real URLs**
+- [x] `DEEPCHAT_UNBUNDLE_CUA=1` build switch: `plugin:bundle -- --name cua` then writes the
+      `.dcplugin` to `build/remote-plugins` (outside the extraResources glob) and skips staging
+      the macOS managed helper into `Contents/Helpers`, while `plugin:verify --name cua`
+      inverts to assert absence. Declared as `'0'` in the three `_package-*.yml` workflows
+- [ ] Flip the switch to `'1'` and publish: upload `build/remote-plugins/*.dcplugin` as release
+      assets and add them to the fail-closed assembly list — **requires GitHub release
+      publishing (remote); release owner flips after catalog entries carry real URLs**
 - [ ] Catalog entry for cua with real artifact URLs + sha256 (generated at release time)
 - Completion: staged on prerelease, verified via L2, then promoted. Host-side is complete.
 
@@ -88,15 +95,18 @@ separate slices once P0 lands.
 - [x] First-use silent download via `OcrRuntimeInstallCoordinator` (attachment availability
       gate); the triggering turn degrades per the existing unavailable path; 5-minute
       failure cooldown; explicit install resets it
-- [x] Settings toggle `ocrRuntimeAutoDownload` (default on) in the settings contract,
-      snapshot, and OCR settings UI
+- [x] No auto-download opt-out: the `ocrRuntimeAutoDownload` setting was deliberately dropped.
+      First use downloads unconditionally, and the runtime card's install button is the manual
+      way to trigger the same download immediately (it also resets the failure cooldown)
 - [x] `ocr.installRuntime` / `ocr.cancelRuntimeInstall` routes + `ocr.runtimeInstall.progress`
       event + status extensions (`runtimeInstall`, `runtimeAsset`)
 - [x] OCR settings page: runtime download section (install / progress / cancel / retry)
 - [x] i18n for all 23 locales
 - [x] Build-side packaging: `plugin-catalog.mjs generate` produces the OCR payload zip
       (`runtime/ocr/**` + built helper) and pins its sha256
-- [ ] electron-builder stops shipping `runtime/ocr` — **release flip, same gate as P1a;
-      the payload continues to ship bundled until the catalog carries real URLs**
+- [x] `DEEPCHAT_UNBUNDLE_OCR=1` build switch: `afterPack` skips `packageLightOcrAssets`, so the
+      app ships without `runtime/ocr` and resolves the runtime from a downloaded payload
+- [ ] Default the switch on in CI — **release flip, same gate as P1a; also needs the packaged
+      Light OCR smoke steps to stop requiring a bundled runtime**
 - Completion: OCR installs from a downloaded payload on a clean profile (verified via the
   fixture chain test); offline degradation path preserved.

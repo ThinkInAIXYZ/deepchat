@@ -2,7 +2,9 @@ import {
   ocrCancelRuntimeInstallRoute,
   ocrClearCacheRoute,
   ocrGetRuntimeStatusRoute,
-  ocrInstallRuntimeRoute
+  ocrInstallRuntimeFromPathRoute,
+  ocrInstallRuntimeRoute,
+  ocrUninstallRuntimeRoute
 } from '@shared/contracts/routes'
 import type { OcrEngine, OcrRuntimeStatus } from '@shared/contracts/routes/ocr.routes'
 import { createRouteMap, type DeepchatRouteMap } from '@/routes/routeRegistry'
@@ -17,8 +19,11 @@ export type OcrRuntimeAssetStatusProvider = {
     channel: 'stable' | 'pre-release'
     availability: 'available' | 'incompatible-app' | 'unsupported-platform'
     sizeBytes: number | null
+    installedVersion: string | null
   } | null
   install(): Promise<{ ok: boolean; error?: string }>
+  installFromFile(filePath: string): Promise<{ ok: boolean; error?: string }>
+  uninstall(): Promise<{ ok: boolean; error?: string }>
   cancel(): boolean
 }
 
@@ -71,6 +76,36 @@ export function createOcrRoutes(deps: {
       }
     ],
     [
+      ocrInstallRuntimeFromPathRoute.name,
+      async (rawInput) => {
+        const input = ocrInstallRuntimeFromPathRoute.input.parse(rawInput)
+        if (!deps.runtimeInstall) {
+          return ocrInstallRuntimeFromPathRoute.output.parse({
+            result: { ok: false, error: 'OCR runtime download is not available' }
+          })
+        }
+        const result = await deps.runtimeInstall.installFromFile(input.path)
+        return ocrInstallRuntimeFromPathRoute.output.parse({
+          result: { ok: result.ok, error: result.ok ? undefined : result.error }
+        })
+      }
+    ],
+    [
+      ocrUninstallRuntimeRoute.name,
+      async (rawInput) => {
+        ocrUninstallRuntimeRoute.input.parse(rawInput)
+        if (!deps.runtimeInstall) {
+          return ocrUninstallRuntimeRoute.output.parse({
+            result: { ok: false, error: 'OCR runtime download is not available' }
+          })
+        }
+        const result = await deps.runtimeInstall.uninstall()
+        return ocrUninstallRuntimeRoute.output.parse({
+          result: { ok: result.ok, error: result.ok ? undefined : result.error }
+        })
+      }
+    ],
+    [
       ocrCancelRuntimeInstallRoute.name,
       async (rawInput) => {
         ocrCancelRuntimeInstallRoute.input.parse(rawInput)
@@ -102,6 +137,7 @@ export function toPublicOcrStatus(
     platform,
     arch,
     availability,
+    runtimeSource: status.availability.status === 'available' ? status.availability.source : null,
     process: status.process
       ? {
           state: status.process.state,

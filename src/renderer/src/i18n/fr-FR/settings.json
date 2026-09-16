@@ -2697,7 +2697,7 @@
       "safe_storage_unavailable": "Le cache persistant est indisponible, car aucun stockage sécurisé des clés n’est disponible."
     },
     "runtimeDownloadTitle": "Téléchargement du moteur",
-    "runtimeDownloadDescription": "Le moteur OCR peut être téléchargé à la demande. Activé, il se télécharge automatiquement dès la première utilisation.",
+    "runtimeDownloadDescription": "Le moteur OCR peut être téléchargé à la demande. Il se télécharge automatiquement lors du premier besoin.",
     "runtimeInstall": "Télécharger le moteur OCR",
     "runtimeInstalling": "Téléchargement {percent}%",
     "runtimeCancelInstall": "Annuler",
@@ -2706,7 +2706,11 @@
     "runtimeUnavailablePlatform": "Indisponible sur cette plateforme",
     "runtimeIncompatibleApp": "Nécessite une version plus récente de l'application",
     "runtimeReady": "Le moteur OCR est prêt sur cet appareil",
-    "runtimeDownloadHint": "Téléchargez le moteur OCR pour l'utiliser sur cet appareil"
+    "runtimeDownloadHint": "Téléchargez le moteur OCR pour l'utiliser sur cet appareil",
+    "runtimeDownloadedVersion": "Version téléchargée",
+    "uninstallRuntimeTitle": "Supprimer le moteur OCR",
+    "uninstallRuntimeDescription": "Le moteur OCR téléchargé est supprimé de cet appareil. Il sera retéléchargé au prochain besoin.",
+    "runtimeReadyBundled": "Moteur OCR prêt (inclus dans l'application)"
   },
   "leaveGuard": {
     "dirtyTitle": "Modifications non enregistrées",
@@ -3035,7 +3039,10 @@
     "emptyTitle": "No built-in plugins available",
     "emptyDescription": "This platform has no built-in official plugins in this DeepChat version.",
     "installFromFile": "Choose .dcplugin",
-    "openRelease": "GitHub Release"
+    "openRelease": "GitHub Release",
+    "uninstallTitle": "Désinstaller {name} ?",
+    "uninstallDescription": "Le plugin est désactivé et ses fichiers installés sont supprimés. Les plugins téléchargés disparaissent jusqu'à réinstallation.",
+    "uninstallFailed": "Échec de la désinstallation"
   },
   "controlCenter": {
     "groups": {
@@ -3299,7 +3306,15 @@
     "retryInstall": "Réessayer",
     "cancelInstall": "Annuler",
     "installFailed": "Échec de l'installation",
-    "preRelease": "Préversion"
+    "preRelease": "Préversion",
+    "manualInstall": "Installer depuis un fichier",
+    "uninstall": "Désinstaller",
+    "runtimeCardTitle": "Runtime",
+    "incompatibleApp": "Nécessite une version plus récente de l'application",
+    "unavailablePlatform": "Indisponible sur cette plateforme",
+    "manageCardTitle": "Gérer",
+    "installNow": "Installer maintenant",
+    "notDistributed": "Aucun téléchargement n'est proposé pour cette version. Installez depuis un fichier."
   },
   "debug": {
     "description": "Outils réservés au développement pour prévisualiser des états simulés et des parcours guidés.",

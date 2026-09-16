@@ -35,6 +35,10 @@ permissions:
 env:
   CI: 'true'
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+  # '1' builds cua for remote distribution instead of shipping it inside the
+  # app, and "Verify bundled plugins" then asserts its absence. Flip only once
+  # the published catalog carries real cua artifact URLs for this version.
+  DEEPCHAT_UNBUNDLE_CUA: '0'
 
 jobs:
   package:

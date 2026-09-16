@@ -37,10 +37,18 @@ export interface OcrRuntimeAssets {
   bundleId: string
 }
 
+/**
+ * Where the resolved OCR runtime came from: the app bundle, the
+ * development working tree, or a payload downloaded by the runtime
+ * asset installer.
+ */
+export type OcrRuntimeSource = 'development' | 'bundled' | 'downloaded'
+
 export type OcrRuntimeAvailability =
   | {
       status: 'available'
       assets: OcrRuntimeAssets
+      source: OcrRuntimeSource
     }
   | {
       status: 'unavailable'
@@ -107,6 +115,7 @@ const NATIVE_ARTIFACT_INVENTORY_GROUPS: ReadonlyArray<keyof NativeArtifactInvent
 interface ResolvedRuntimeAssets {
   assets: OcrRuntimeAssets
   expectedNativeArtifactInventory: NativeArtifactInventory | null
+  source: OcrRuntimeSource
 }
 
 export class OcrRuntimeAssetResolver {
@@ -132,7 +141,7 @@ export class OcrRuntimeAssetResolver {
         // falls through to installed (downloaded) roots.
         await this.verifyIdentity(resolved.assets, resolved.expectedNativeArtifactInventory)
       }
-      return { status: 'available', assets: resolved.assets }
+      return { status: 'available', assets: resolved.assets, source: resolved.source }
     } catch (error) {
       if (error instanceof RuntimeAssetError) return this.unavailable(error.reason)
       return this.unavailable('assets_missing')
@@ -141,15 +150,18 @@ export class OcrRuntimeAssetResolver {
 
   private async resolvePackaged(nativePackage: string): Promise<ResolvedRuntimeAssets> {
     const roots = [
-      resolveUnpackedAppRoot(this.options.appPath),
-      ...(this.options.installedRuntimeRoots?.() ?? [])
+      { root: resolveUnpackedAppRoot(this.options.appPath), source: 'bundled' as const },
+      ...(this.options.installedRuntimeRoots?.() ?? []).map((root) => ({
+        root,
+        source: 'downloaded' as const
+      }))
     ]
     let lastError: unknown = null
-    for (const root of roots) {
+    for (const candidate of roots) {
       try {
-        const resolved = await this.resolvePackagedFromRoot(root, nativePackage)
+        const resolved = await this.resolvePackagedFromRoot(candidate.root, nativePackage)
         await this.verifyIdentity(resolved.assets, resolved.expectedNativeArtifactInventory)
-        return resolved
+        return { ...resolved, source: candidate.source }
       } catch (error) {
         lastError = error
       }
@@ -219,7 +231,8 @@ export class OcrRuntimeAssetResolver {
         lightOcrVersion: runtimeVersions.lightOcr.facadeVersion,
         bundleId: runtimeVersions.lightOcr.bundleId
       },
-      expectedNativeArtifactInventory: manifest.nativeArtifactInventory
+      expectedNativeArtifactInventory: manifest.nativeArtifactInventory,
+      source: 'bundled'
     }
   }
 
@@ -264,7 +277,8 @@ export class OcrRuntimeAssetResolver {
         lightOcrVersion: runtimeVersions.lightOcr.facadeVersion,
         bundleId: runtimeVersions.lightOcr.bundleId
       },
-      expectedNativeArtifactInventory: null
+      expectedNativeArtifactInventory: null,
+      source: 'development'
     }
   }
 

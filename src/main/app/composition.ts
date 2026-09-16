@@ -1255,12 +1255,13 @@ export async function createMainProcessControl(dependencies: {
   const ocrRuntimeAssetInstaller = new OcrRuntimeAssetInstaller({
     installRoot: () => ocrRuntimeAssetInstallRoot,
     stagingRoot: () => path.join(ocrRuntimeAssetInstallRoot, '.staging'),
+    platform: process.platform,
+    arch: process.arch,
     onProgress: (state) =>
       publishDeepchatEvent('ocr.runtimeInstall.progress', { ...state, updatedAt: Date.now() })
   })
   const ocrRuntimeInstallCoordinator = new OcrRuntimeInstallCoordinator({
     resolveAsset: () => pluginCatalogService.resolveRuntimeAsset(LIGHT_OCR_RUNTIME_ASSET_ID),
-    isAutoDownloadEnabled: () => ocrSettings.getRuntimeAutoDownloadEnabled(),
     installer: ocrRuntimeAssetInstaller,
     onInstalled: () => ocrRuntimeService?.refreshAvailability()
   })
@@ -2915,12 +2916,31 @@ export async function createMainProcessControl(dependencies: {
             version: asset.version,
             channel: asset.channel,
             availability,
-            sizeBytes: target?.size ?? null
+            sizeBytes: target?.size ?? null,
+            installedVersion: ocrRuntimeAssetInstaller.listInstalledVersions()[0] ?? null
           }
         },
         install: async () => {
           const result = await ocrRuntimeInstallCoordinator.install()
           return { ok: result.ok, error: result.ok ? undefined : (result.error ?? undefined) }
+        },
+        installFromFile: async (filePath: string) => {
+          const result = await ocrRuntimeInstallCoordinator.installFromFile(filePath)
+          return { ok: result.ok, error: result.ok ? undefined : (result.error ?? undefined) }
+        },
+        uninstall: async () => {
+          try {
+            // Retire the running helper before deleting the files it loaded.
+            await ocrRuntimeService.refreshAvailability()
+            ocrRuntimeAssetInstaller.removeInstalled()
+            await ocrRuntimeService.refreshAvailability()
+            return { ok: true }
+          } catch (error) {
+            return {
+              ok: false,
+              error: error instanceof Error ? error.message : 'Failed to remove OCR runtime'
+            }
+          }
         },
         cancel: () => ocrRuntimeAssetInstaller.cancel(LIGHT_OCR_RUNTIME_ASSET_ID)
       }

@@ -101,6 +101,7 @@ async function mountDetail(
       lastError?: string
       running?: boolean
     }
+    installed?: boolean
     pluginId?: string
     remoteEnabled?: boolean
     runtimeState?: 'missing' | 'installed' | 'running' | 'error'
@@ -119,6 +120,8 @@ async function mountDetail(
     name: pluginName,
     publisher: 'DeepChat',
     version: '1.0.4',
+    // `installed` tracks the payload on disk, not mere discovery.
+    installed: options.installed ?? true,
     enabled: options.enabled ?? false,
     activationError: options.activationError,
     capabilities: ['runtime.manage'],
@@ -144,6 +147,12 @@ async function mountDetail(
     getPlugin: vi.fn().mockResolvedValue(pluginRecord),
     enablePlugin: vi.fn().mockResolvedValue({ ok: true }),
     disablePlugin: vi.fn().mockResolvedValue({ ok: true }),
+    listCatalogEntries: vi.fn().mockResolvedValue([]),
+    installCatalogPlugin: vi.fn().mockResolvedValue({ ok: true }),
+    installCatalogPluginFromPath: vi.fn().mockResolvedValue({ ok: true }),
+    cancelCatalogInstall: vi.fn().mockResolvedValue(false),
+    uninstallOfficialPlugin: vi.fn().mockResolvedValue({ ok: true }),
+    onInstallProgress: vi.fn().mockReturnValue(() => {}),
     invokeAction: vi.fn().mockResolvedValue({
       ok: true,
       status: {
@@ -185,6 +194,11 @@ async function mountDetail(
   }))
   vi.doMock('@api/RemoteControlClient', () => ({
     createRemoteControlClient: () => remoteControlClient
+  }))
+  vi.doMock('@api/DeviceClient', () => ({
+    createDeviceClient: () => ({
+      selectFiles: vi.fn().mockResolvedValue({ canceled: true, filePaths: [] })
+    })
   }))
   vi.doMock('vue-router', async () => {
     const actual = await vi.importActual<typeof import('vue-router')>('vue-router')
@@ -404,6 +418,23 @@ describe('OfficialPluginDetailPage', () => {
 
     expect(wrapper.find('[data-testid="cua-runtime-test"]').exists()).toBe(false)
     expect(wrapper.text()).not.toContain('Ready on demand')
+  })
+
+  it('blocks enablement while the payload is missing and no download exists', async () => {
+    const { wrapper, pluginClient } = await mountDetail({
+      pluginId: 'com.deepchat.plugins.cua',
+      installed: false,
+      runtimeState: 'missing'
+    })
+
+    const enableButton = wrapper.findAll('button').find((button) => button.text() === 'Enable')!
+
+    expect(enableButton.attributes('disabled')).toBeDefined()
+
+    await enableButton.trigger('click')
+    await flushPromises()
+
+    expect(pluginClient.enablePlugin).not.toHaveBeenCalled()
   })
 
   it('uses the plugin enable button to start Feishu remote too', async () => {

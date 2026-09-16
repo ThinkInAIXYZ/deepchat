@@ -82,6 +82,10 @@ async function mountCatalog(options?: { ocrStatus?: OcrRuntimeStatus | Error }) 
     listCatalogEntries: vi.fn().mockResolvedValue([]),
     installCatalogPlugin: vi.fn().mockResolvedValue({ ok: true }),
     cancelCatalogInstall: vi.fn().mockResolvedValue(false),
+    installCatalogPluginFromPath: vi
+      .fn()
+      .mockResolvedValue({ ok: true, pluginId: 'com.deepchat.plugins.fixture' }),
+    uninstallOfficialPlugin: vi.fn().mockResolvedValue({ ok: true }),
     onInstallProgress: vi.fn().mockReturnValue(() => {})
   }
   const remoteControlClient = {
@@ -118,6 +122,11 @@ async function mountCatalog(options?: { ocrStatus?: OcrRuntimeStatus | Error }) 
   }))
   vi.doMock('@api/PluginClient', () => ({
     createPluginClient: () => pluginClient
+  }))
+  vi.doMock('@api/DeviceClient', () => ({
+    createDeviceClient: () => ({
+      selectFiles: vi.fn().mockResolvedValue({ canceled: true, filePaths: [] })
+    })
   }))
   vi.doMock('@api/RemoteControlClient', () => ({
     createRemoteControlClient: () => remoteControlClient

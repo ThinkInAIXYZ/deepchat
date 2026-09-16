@@ -75,7 +75,6 @@ describe('OcrRuntimeInstallCoordinator', () => {
     const onInstalled = vi.fn()
     const coordinator = new OcrRuntimeInstallCoordinator({
       resolveAsset: () => createResolution(),
-      isAutoDownloadEnabled: () => true,
       installer: harness.installer,
       onInstalled
     })
@@ -85,25 +84,58 @@ describe('OcrRuntimeInstallCoordinator', () => {
     await vi.waitFor(() => expect(onInstalled).toHaveBeenCalledOnce())
   })
 
-  it('does not auto-install when the setting is disabled', () => {
-    const harness = createHarness({})
+  it('installs from a manually selected file and resets the cooldown', async () => {
+    let clock = 1_000
+    const harness = createHarness({
+      installResult: {
+        ok: false,
+        assetId: 'light-ocr',
+        version: 'ppocrv6-small-native-20260719.1',
+        reason: 'http',
+        error: 'HTTP 500'
+      }
+    })
+    const manualInstallFromFile = vi.fn(async () => ({
+      ok: true,
+      assetId: 'light-ocr',
+      version: 'manual-bundle',
+      reason: null,
+      error: null
+    }))
+    const installer = {
+      ...harness.installer,
+      installFromFile: manualInstallFromFile
+    }
+    const onInstalled = vi.fn()
     const coordinator = new OcrRuntimeInstallCoordinator({
       resolveAsset: () => createResolution(),
-      isAutoDownloadEnabled: () => false,
-      installer: harness.installer,
-      onInstalled: vi.fn()
+      installer,
+      onInstalled,
+      retryCooldownMs: 60_000,
+      now: () => clock
     })
 
+    // A failed automatic install enters the cooldown.
     coordinator.maybeStartInstall()
+    await vi.waitFor(() => expect(harness.install).toHaveBeenCalledOnce())
+    clock += 1_000
 
-    expect(harness.install).not.toHaveBeenCalled()
+    // The manual file install bypasses the cooldown and succeeds.
+    const result = await coordinator.installFromFile('/tmp/payload.zip')
+    expect(result.ok).toBe(true)
+    expect(result.version).toBe('manual-bundle')
+    expect(manualInstallFromFile).toHaveBeenCalledWith('/tmp/payload.zip')
+    expect(onInstalled).toHaveBeenCalledOnce()
+
+    // The successful manual install reset the cooldown.
+    coordinator.maybeStartInstall()
+    await vi.waitFor(() => expect(harness.install).toHaveBeenCalledTimes(2))
   })
 
   it('does not auto-install without a catalog resolution', () => {
     const harness = createHarness({})
     const coordinator = new OcrRuntimeInstallCoordinator({
       resolveAsset: () => null,
-      isAutoDownloadEnabled: () => true,
       installer: harness.installer,
       onInstalled: vi.fn()
     })
@@ -117,7 +149,6 @@ describe('OcrRuntimeInstallCoordinator', () => {
     const running = createHarness({ running: true })
     const coordinator = new OcrRuntimeInstallCoordinator({
       resolveAsset: () => createResolution(),
-      isAutoDownloadEnabled: () => true,
       installer: running.installer,
       onInstalled: vi.fn()
     })
@@ -137,7 +168,6 @@ describe('OcrRuntimeInstallCoordinator', () => {
     })
     const coordinatorInstalled = new OcrRuntimeInstallCoordinator({
       resolveAsset: () => createResolution(),
-      isAutoDownloadEnabled: () => true,
       installer: installed.installer,
       onInstalled: vi.fn()
     })
@@ -158,7 +188,6 @@ describe('OcrRuntimeInstallCoordinator', () => {
     })
     const coordinator = new OcrRuntimeInstallCoordinator({
       resolveAsset: () => createResolution(),
-      isAutoDownloadEnabled: () => true,
       installer: harness.installer,
       onInstalled: vi.fn(),
       retryCooldownMs: 60_000,
@@ -192,7 +221,6 @@ describe('OcrRuntimeInstallCoordinator', () => {
     })
     const coordinator = new OcrRuntimeInstallCoordinator({
       resolveAsset: () => createResolution(),
-      isAutoDownloadEnabled: () => true,
       installer: harness.installer,
       onInstalled: vi.fn(),
       retryCooldownMs: 60_000,
@@ -214,7 +242,6 @@ describe('OcrRuntimeInstallCoordinator', () => {
     const harness = createHarness({})
     const coordinator = new OcrRuntimeInstallCoordinator({
       resolveAsset: () => null,
-      isAutoDownloadEnabled: () => true,
       installer: harness.installer,
       onInstalled: vi.fn()
     })

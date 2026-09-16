@@ -7,6 +7,7 @@ import type { OcrRuntimeServiceStatus } from '@/ocr/ocrRuntimeService'
 const INTERNAL_STATUS: OcrRuntimeServiceStatus = {
   availability: {
     status: 'available',
+    source: 'bundled',
     assets: {
       nodeExecutable: '/private/runtime/node',
       helperEntryPath: '/private/runtime/helper.js',
@@ -71,6 +72,7 @@ describe('OCR routes', () => {
         lightOcrVersion: '0.3.4',
         bundleId: 'ppocrv6-small-native-20260719.1'
       },
+      runtimeSource: 'bundled',
       process: {
         state: 'ready',
         nodeVersion: 'v24.18.0',

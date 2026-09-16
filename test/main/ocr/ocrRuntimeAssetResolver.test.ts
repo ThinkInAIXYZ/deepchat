@@ -494,6 +494,7 @@ describe('OcrRuntimeAssetResolver', () => {
 
     expect(availability).toMatchObject({
       status: 'available',
+      source: 'downloaded',
       assets: {
         bundleId,
         helperEntryPath: path.join(installedRoot, 'out', 'main', 'lightOcrHelper.js')
@@ -585,6 +586,7 @@ describe('OcrRuntimeAssetResolver', () => {
 
     expect(availability).toMatchObject({
       status: 'available',
+      source: 'bundled',
       assets: {
         helperEntryPath: path.join(unpackedRoot, 'out', 'main', 'lightOcrHelper.js')
       }

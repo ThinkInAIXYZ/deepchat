@@ -164,6 +164,76 @@ Managed macOS helpers copied into the Electron app bundle:
 build/managed-helpers/
 ```
 
+## Testing Remote Installs Without a Release
+
+The distribution catalog accepts plain `http` for loopback hosts, so the full download → sha256
+verify → `.dcplugin` verify → install → enable chain runs against a local static server. Draft
+GitHub releases are not usable (their assets need authentication and cannot be mirrored).
+
+```bash
+# 1. Build the package, then move it out of the discovery path: a development
+#    build also loads `.dcplugin` files from build/bundled-plugins/ directly.
+pnpm run plugin:bundle -- --name cua --platform darwin --arch arm64
+mkdir -p /tmp/dc-fixture && mv build/bundled-plugins/*.dcplugin /tmp/dc-fixture/
+
+# 2. Remove the staged runtime so the plugins/ source tree no longer resolves a
+#    driver; the host then treats the payload as missing and offers a download.
+rm -rf plugins/cua/runtime
+
+# 3. Pin the artifact into a dev-only catalog. --channel pre-release keeps the
+#    entry invisible to packaged stable builds.
+node scripts/plugin-catalog.mjs generate \
+  --artifacts-dir /tmp/dc-fixture \
+  --base-url http://127.0.0.1:8787 \
+  --channel pre-release \
+  --catalog /tmp/dc-catalog.json \
+  --write
+
+# 4. Serve the artifacts and run the app against the override.
+(cd /tmp/dc-fixture && python3 -m http.server 8787) &
+DEEPCHAT_PLUGIN_CATALOG=/tmp/dc-catalog.json pnpm run dev
+```
+
+`DEEPCHAT_PLUGIN_CATALOG` is ignored in packaged builds. To exercise mirror fallback, pass
+`--mirror http://127.0.0.1:8788/` (mirrors are URL prefixes) and point the second port at a
+server that serves a corrupted copy: the pinned sha256 must reject it. For the OCR payload, add
+`--runtime-dir <unpacked app root>/runtime` so `generate` packages `runtime/ocr/**` plus the
+built helper, and build the app with `DEEPCHAT_UNBUNDLE_OCR=1` so the bundled copy is absent.
+
+Staging on a real prerelease (spec layer L2) is the next step up: publish the `.dcplugin` assets
+to a `--prerelease` GitHub release, regenerate the catalog with the real base URL, and verify
+with `pnpm run plugin:catalog:verify`.
+
+## Building Without the Bundled Payloads
+
+Two environment switches move an optional payload out of the app so the catalog serves it on
+demand. Both default to off, and both keep producing the artifact the catalog needs to pin.
+
+| Switch                   | Effect when set to `1`                                                                                                                                   |
+| ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `DEEPCHAT_UNBUNDLE_CUA`  | `plugin:bundle -- --name cua` writes to `build/remote-plugins/` instead of `build/bundled-plugins/` and skips staging the macOS managed helper            |
+| `DEEPCHAT_UNBUNDLE_OCR`  | `afterPack` skips `packageLightOcrAssets`, so the app ships without `runtime/ocr`                                                                         |
+
+`build/remote-plugins/` sits outside the electron-builder `extraResources` glob, and the macOS
+helper is what `detect`'s `app-helper:` candidate resolves — skipping both is what makes the
+driver genuinely absent rather than merely unreferenced. `plugin:verify --name cua` inverts with
+the same switch and fails if the artifact turns up inside the packaged app, so a half-applied
+flip cannot pass CI.
+
+```bash
+# Package an unbundled build, then pin its artifact for the catalog.
+DEEPCHAT_UNBUNDLE_CUA=1 DEEPCHAT_UNBUNDLE_OCR=1 pnpm run build:mac:arm64
+node scripts/plugin-catalog.mjs generate \
+  --artifacts-dir build/remote-plugins \
+  --base-url https://github.com/ThinkInAIXYZ/deepchat/releases/download/v<version> \
+  --write
+```
+
+The three `_package-*.yml` workflows declare `DEEPCHAT_UNBUNDLE_CUA: '0'`. Flipping it to `'1'`
+is the release-side change; it also requires publishing `build/remote-plugins/*.dcplugin` as
+release assets and adding them to the fail-closed assembly list. Flipping the OCR switch
+additionally requires the packaged Light OCR smoke steps to stop expecting a bundled runtime.
+
 ## CI and Release
 
 Native plugin bundling belongs to the three reusable package workflows:
@@ -195,8 +265,9 @@ On macOS, Electron Builder also embeds `build/managed-helpers/DeepChat Computer 
 ```
 
 Each reusable target job verifies the expected bundled `.dcplugin` files inside the packaged app
-before creating its package manifest. A missing required plugin fails the job. Linux ARM64 never
-invokes CUA packaging, and direct CUA packaging for that unsupported target remains rejected.
+before creating its package manifest. A missing required plugin fails the job, unless the plugin
+was built unbundled, in which case its presence fails the job instead. Linux ARM64 never invokes
+CUA packaging, and direct CUA packaging for that unsupported target remains rejected.
 
 Build and Release use distribution mode; package regression uses verification mode. The latter
 uploads diagnostics only, so unsigned macOS verification installers and their embedded plugins

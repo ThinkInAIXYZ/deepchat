@@ -24,6 +24,14 @@ const OCR_RUNTIME_MANIFEST_ENTRY = 'runtime/ocr/manifest.json'
 const MAX_DECOMPRESSION_RATIO = 8
 const MAX_DECOMPRESSED_BYTES_FLOOR = 256 * 1024 * 1024
 
+/** The subset of the packaged runtime manifest the installer relies on. */
+type PackagedRuntimeManifestLike = {
+  bundleId: string
+  platform: string
+  arch: string
+  paths?: { helper?: string } & Record<string, string | undefined>
+}
+
 export type OcrRuntimeAssetInstallResult = {
   ok: boolean
   assetId: string
@@ -35,6 +43,8 @@ export type OcrRuntimeAssetInstallResult = {
 export type OcrRuntimeAssetInstallerDeps = {
   installRoot: () => string
   stagingRoot: () => string
+  platform?: NodeJS.Platform
+  arch?: string
   fetchImpl?: FetchLike
   probeTimeoutMs?: number
   onProgress?: (state: RuntimeAssetInstallState) => void
@@ -100,6 +110,23 @@ export class OcrRuntimeAssetInstaller {
       .map((name) => path.join(root, name))
   }
 
+  /** Installed version directory names (not roots). */
+  listInstalledVersions(): string[] {
+    return this.listInstalledRoots().map((root) => path.basename(root))
+  }
+
+  /** Removes every downloaded runtime version directory. */
+  removeInstalled(): number {
+    const roots = this.listInstalledRoots()
+    for (const root of roots) {
+      fs.rmSync(root, { recursive: true, force: true })
+    }
+    // A retained `installed` phase would make the first-use coordinator treat
+    // the removed payload as present and never download it again.
+    this.states.clear()
+    return roots.length
+  }
+
   async install(
     asset: RuntimeCatalogAsset,
     target: PluginCatalogTarget,
@@ -130,6 +157,119 @@ export class OcrRuntimeAssetInstaller {
     })
     this.activeOperations.set(asset.id, operation)
     return await operation
+  }
+
+  /**
+   * Installs a runtime payload from a local archive the user selected
+   * manually (offline / restricted-network path). The archive goes through
+   * the same structural validation, decompressed-size cap, platform check,
+   * and atomic swap as a downloaded payload; only the download step is
+   * skipped. The installed version is taken from the payload's own manifest
+   * bundle id, so no catalog entry is required.
+   */
+  async installFromFile(
+    filePath: string,
+    options: { signal?: AbortSignal } = {}
+  ): Promise<OcrRuntimeAssetInstallResult> {
+    const assetId = 'light-ocr'
+    if (this.running.has(assetId)) {
+      return {
+        ok: false,
+        assetId,
+        version: '',
+        reason: 'busy',
+        error: 'An install for this runtime asset is already running'
+      }
+    }
+    if (!fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) {
+      return {
+        ok: false,
+        assetId,
+        version: '',
+        reason: 'invalid_file',
+        error: 'Selected file does not exist'
+      }
+    }
+
+    const controller = new AbortController()
+    if (options.signal) {
+      if (options.signal.aborted) {
+        controller.abort()
+      } else {
+        options.signal.addEventListener('abort', () => controller.abort(), { once: true })
+      }
+    }
+    this.running.set(assetId, controller)
+    const operation = this.runInstallFromFile(assetId, filePath, controller).finally(() => {
+      this.running.delete(assetId)
+      this.activeOperations.delete(assetId)
+    })
+    this.activeOperations.set(assetId, operation)
+    return await operation
+  }
+
+  private async runInstallFromFile(
+    assetId: string,
+    filePath: string,
+    controller: AbortController
+  ): Promise<OcrRuntimeAssetInstallResult> {
+    const update = (
+      phase: RuntimeAssetInstallPhase,
+      version: string,
+      patch: Partial<RuntimeAssetInstallState> = {}
+    ): void => {
+      const state: RuntimeAssetInstallState = {
+        assetId,
+        version,
+        phase,
+        receivedBytes: patch.receivedBytes ?? 0,
+        totalBytes: patch.totalBytes ?? 0,
+        error: patch.error ?? null,
+        updatedAt: (this.deps.now ?? Date.now)()
+      }
+      this.states.set(assetId, state)
+      this.deps.onProgress?.(state)
+    }
+
+    update('verifying', '')
+    const stagingDir = path.join(this.deps.stagingRoot(), randomUUID())
+    try {
+      fs.rmSync(stagingDir, { recursive: true, force: true })
+      fs.mkdirSync(stagingDir, { recursive: true })
+      const archiveSize = fs.statSync(filePath).size
+      const { payloadDir, manifest } = await this.extractPayload(filePath, stagingDir, {
+        size: archiveSize
+      })
+      if (controller.signal.aborted) {
+        throw new Error('Install cancelled')
+      }
+
+      update('installing', manifest.bundleId)
+      const installRoot = this.deps.installRoot()
+      fs.mkdirSync(installRoot, { recursive: true })
+      const versionDir = path.join(installRoot, this.safeDirectoryName(manifest.bundleId))
+      this.swapVersionDirectory(payloadDir, versionDir)
+
+      update('installed', manifest.bundleId)
+      return { ok: true, assetId, version: manifest.bundleId, reason: null, error: null }
+    } catch (error) {
+      const cancelled = controller.signal.aborted
+      const { reason, message } = cancelled
+        ? { reason: 'cancelled', message: 'Install cancelled' }
+        : describeInstallError(error)
+      const phase: RuntimeAssetInstallPhase = reason === 'cancelled' ? 'cancelled' : 'error'
+      update(phase, '', { error: message })
+      if (phase === 'error') {
+        logger.warn('[OcrRuntimeAssetInstaller] Manual install failed', {
+          filePath,
+          reason,
+          error: message
+        })
+      }
+      return { ok: false, assetId, version: '', reason, error: message }
+    } finally {
+      fs.rmSync(stagingDir, { recursive: true, force: true })
+    }
   }
 
   private async runInstall(
@@ -181,13 +321,17 @@ export class OcrRuntimeAssetInstaller {
       stagingDir = staged.stagingDir
 
       update('verifying', { receivedBytes: target.size, totalBytes: target.size })
-      const extractedDir = await this.extractPayload(staged.archivePath, staged.stagingDir, target)
+      const { payloadDir } = await this.extractPayload(
+        staged.archivePath,
+        staged.stagingDir,
+        target
+      )
 
       update('installing', { receivedBytes: target.size, totalBytes: target.size })
       const installRoot = this.deps.installRoot()
       fs.mkdirSync(installRoot, { recursive: true })
       const versionDir = path.join(installRoot, this.safeDirectoryName(asset.version))
-      this.swapVersionDirectory(extractedDir, versionDir)
+      this.swapVersionDirectory(payloadDir, versionDir)
 
       update('installed', { receivedBytes: target.size, totalBytes: target.size })
       return { ok: true, assetId: asset.id, version: asset.version, reason: null, error: null }
@@ -229,8 +373,8 @@ export class OcrRuntimeAssetInstaller {
   private async extractPayload(
     archivePath: string,
     stagingDir: string,
-    target: PluginCatalogTarget
-  ): Promise<string> {
+    target: Pick<PluginCatalogTarget, 'size'>
+  ): Promise<{ payloadDir: string; manifest: PackagedRuntimeManifestLike }> {
     const archive = new Uint8Array(fs.readFileSync(archivePath))
     const maxDecompressedBytes = Math.max(
       MAX_DECOMPRESSED_BYTES_FLOOR,
@@ -276,6 +420,15 @@ export class OcrRuntimeAssetInstaller {
     if (!isPackagedRuntimeManifest(manifest)) {
       throw new Error('OCR runtime payload manifest has an invalid shape')
     }
+    if (
+      this.deps.platform &&
+      this.deps.arch &&
+      (manifest.platform !== this.deps.platform || manifest.arch !== this.deps.arch)
+    ) {
+      throw new Error(
+        `OCR runtime payload is built for ${manifest.platform}/${manifest.arch}, not ${this.deps.platform}/${this.deps.arch}`
+      )
+    }
     // The payload layout mirrors the unpacked app root: manifest paths are
     // root-relative (runtime/ocr/..., out/main/lightOcrHelper.js).
     const helperPath = manifest.paths?.helper
@@ -291,7 +444,7 @@ export class OcrRuntimeAssetInstaller {
       fs.mkdirSync(path.dirname(outputPath), { recursive: true })
       fs.writeFileSync(outputPath, Buffer.from(content))
     }
-    return payloadDir
+    return { payloadDir, manifest }
   }
 
   /**

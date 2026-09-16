@@ -2697,7 +2697,7 @@
       "safe_storage_unavailable": "O cache persistente está indisponível porque o armazenamento seguro de chaves não está disponível."
     },
     "runtimeDownloadTitle": "Download do runtime",
-    "runtimeDownloadDescription": "O engine de OCR pode ser baixado sob demanda. Ativado, ele baixa automaticamente na primeira utilização.",
+    "runtimeDownloadDescription": "O engine de OCR pode ser baixado sob demanda. Ele é baixado automaticamente na primeira vez que for necessário.",
     "runtimeInstall": "Baixar engine de OCR",
     "runtimeInstalling": "Baixando {percent}%",
     "runtimeCancelInstall": "Cancelar",
@@ -2706,7 +2706,11 @@
     "runtimeUnavailablePlatform": "Indisponível nesta plataforma",
     "runtimeIncompatibleApp": "Requer uma versão mais recente do aplicativo",
     "runtimeReady": "O engine de OCR está pronto neste dispositivo",
-    "runtimeDownloadHint": "Baixe o engine de OCR para usá-lo neste dispositivo"
+    "runtimeDownloadHint": "Baixe o engine de OCR para usá-lo neste dispositivo",
+    "runtimeDownloadedVersion": "Versão baixada",
+    "uninstallRuntimeTitle": "Remover engine de OCR",
+    "uninstallRuntimeDescription": "O engine de OCR baixado é removido deste dispositivo. Ele será baixado novamente quando necessário.",
+    "runtimeReadyBundled": "Engine de OCR pronto (incluído no app)"
   },
   "leaveGuard": {
     "dirtyTitle": "Alterações não salvas",
@@ -3035,7 +3039,10 @@
     "emptyTitle": "No built-in plugins available",
     "emptyDescription": "This platform has no built-in official plugins in this DeepChat version.",
     "installFromFile": "Choose .dcplugin",
-    "openRelease": "GitHub Release"
+    "openRelease": "GitHub Release",
+    "uninstallTitle": "Desinstalar {name}?",
+    "uninstallDescription": "O plugin é desativado e seus arquivos instalados são removidos. Plugins baixados desaparecem até serem reinstalados.",
+    "uninstallFailed": "Falha ao desinstalar"
   },
   "controlCenter": {
     "groups": {
@@ -3299,7 +3306,15 @@
     "retryInstall": "Tentar novamente",
     "cancelInstall": "Cancelar",
     "installFailed": "Falha na instalação",
-    "preRelease": "Pré-lançamento"
+    "preRelease": "Pré-lançamento",
+    "manualInstall": "Instalar do arquivo",
+    "uninstall": "Desinstalar",
+    "runtimeCardTitle": "Runtime",
+    "incompatibleApp": "Requer uma versão mais recente do aplicativo",
+    "unavailablePlatform": "Indisponível nesta plataforma",
+    "manageCardTitle": "Gerenciar",
+    "installNow": "Instalar agora",
+    "notDistributed": "Nenhum download é oferecido para esta versão. Instale a partir de um arquivo."
   },
   "debug": {
     "description": "Ferramentas exclusivas de desenvolvimento para visualizar estados simulados e fluxos guiados.",

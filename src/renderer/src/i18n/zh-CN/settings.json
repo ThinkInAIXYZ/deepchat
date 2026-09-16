@@ -176,7 +176,7 @@
       "safe_storage_unavailable": "系统安全密钥存储不可用，持久化缓存已停用。"
     },
     "runtimeDownloadTitle": "运行时下载",
-    "runtimeDownloadDescription": "OCR 引擎可按需下载。开启后，首次需要时将自动下载。",
+    "runtimeDownloadDescription": "OCR 引擎可按需下载，首次需要时将自动下载。",
     "runtimeInstall": "下载 OCR 引擎",
     "runtimeInstalling": "下载中 {percent}%",
     "runtimeCancelInstall": "取消",
@@ -185,7 +185,11 @@
     "runtimeUnavailablePlatform": "当前平台不可用",
     "runtimeIncompatibleApp": "需要更新版本的应用",
     "runtimeReady": "OCR 引擎已就绪",
-    "runtimeDownloadHint": "下载 OCR 引擎后即可在本机使用"
+    "runtimeDownloadHint": "下载 OCR 引擎后即可在本机使用",
+    "runtimeDownloadedVersion": "已下载版本",
+    "uninstallRuntimeTitle": "删除 OCR 引擎",
+    "uninstallRuntimeDescription": "将从本机删除已下载的 OCR 引擎，下次需要时会重新下载。",
+    "runtimeReadyBundled": "OCR 引擎已就绪（应用内置）"
   },
   "leaveGuard": {
     "dirtyTitle": "修改尚未保存",
@@ -3035,7 +3039,10 @@
       "readyOnDemand": "按需就绪",
       "quarantined": "已隔离",
       "error": "错误"
-    }
+    },
+    "uninstallTitle": "卸载 {name}？",
+    "uninstallDescription": "插件将被停用并删除已安装的文件。下载安装的插件需重新安装后才能使用。",
+    "uninstallFailed": "卸载失败"
   },
   "pluginsHub": {
     "subtitle": "统一管理 DeepChat 的 Skills、MCP、官方插件和远程渠道。",
@@ -3059,7 +3066,15 @@
     "retryInstall": "重试",
     "cancelInstall": "取消",
     "installFailed": "安装失败",
-    "preRelease": "预发布"
+    "preRelease": "预发布",
+    "manualInstall": "从文件安装",
+    "uninstall": "卸载",
+    "runtimeCardTitle": "运行时",
+    "incompatibleApp": "需要更新版本的应用",
+    "unavailablePlatform": "当前平台不可用",
+    "manageCardTitle": "管理",
+    "installNow": "立即安装",
+    "notDistributed": "当前版本未提供下载，请从文件安装。"
   },
   "controlCenter": {
     "groups": {

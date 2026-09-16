@@ -176,7 +176,7 @@
       "safe_storage_unavailable": "La caché persistente no está disponible porque no hay almacenamiento seguro de claves."
     },
     "runtimeDownloadTitle": "Descarga del motor",
-    "runtimeDownloadDescription": "El motor OCR se puede descargar a demanda. Activado, se descarga automáticamente la primera vez que se necesita.",
+    "runtimeDownloadDescription": "El motor OCR se puede descargar a petición. Se descarga automáticamente la primera vez que se necesita.",
     "runtimeInstall": "Descargar motor OCR",
     "runtimeInstalling": "Descargando {percent}%",
     "runtimeCancelInstall": "Cancelar",
@@ -185,7 +185,11 @@
     "runtimeUnavailablePlatform": "No disponible en esta plataforma",
     "runtimeIncompatibleApp": "Requiere una versión más reciente de la aplicación",
     "runtimeReady": "El motor OCR está listo en este dispositivo",
-    "runtimeDownloadHint": "Descarga el motor OCR para usarlo en este dispositivo"
+    "runtimeDownloadHint": "Descarga el motor OCR para usarlo en este dispositivo",
+    "runtimeDownloadedVersion": "Versión descargada",
+    "uninstallRuntimeTitle": "Eliminar motor OCR",
+    "uninstallRuntimeDescription": "El motor OCR descargado se elimina de este dispositivo. Se descargará de nuevo la próxima vez que se necesite.",
+    "runtimeReadyBundled": "El motor OCR está listo (incluido en la app)"
   },
   "leaveGuard": {
     "dirtyTitle": "Cambios sin guardar",
@@ -2981,7 +2985,10 @@
       "readyOnDemand": "Listo bajo demanda",
       "quarantined": "En cuarentena",
       "error": "error"
-    }
+    },
+    "uninstallTitle": "¿Desinstalar {name}?",
+    "uninstallDescription": "El plugin se desactiva y sus archivos instalados se eliminan. Los plugins descargados desaparecen hasta volver a instalarse.",
+    "uninstallFailed": "Error al desinstalar"
   },
   "controlCenter": {
     "groups": {
@@ -3299,7 +3306,15 @@
     "retryInstall": "Reintentar",
     "cancelInstall": "Cancelar",
     "installFailed": "Error de instalación",
-    "preRelease": "Prelanzamiento"
+    "preRelease": "Prelanzamiento",
+    "manualInstall": "Instalar desde archivo",
+    "uninstall": "Desinstalar",
+    "runtimeCardTitle": "Runtime",
+    "incompatibleApp": "Requiere una versión más reciente de la aplicación",
+    "unavailablePlatform": "No disponible en esta plataforma",
+    "manageCardTitle": "Gestionar",
+    "installNow": "Instalar ahora",
+    "notDistributed": "No hay descarga disponible para esta versión. Instala desde un archivo."
   },
   "debug": {
     "description": "Herramientas exclusivas para desarrollo que permiten previsualizar estados simulados y flujos guiados.",

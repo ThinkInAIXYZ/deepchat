@@ -2697,7 +2697,7 @@
       "safe_storage_unavailable": "Постоянный кэш недоступен, поскольку защищённое хранилище ключей недоступно."
     },
     "runtimeDownloadTitle": "Загрузка среды",
-    "runtimeDownloadDescription": "Движок OCR можно загрузить по требованию. При включении он загружается автоматически при первом использовании.",
+    "runtimeDownloadDescription": "Движок OCR можно загрузить по требованию. Он загружается автоматически при первой необходимости.",
     "runtimeInstall": "Скачать движок OCR",
     "runtimeInstalling": "Загрузка {percent}%",
     "runtimeCancelInstall": "Отмена",
@@ -2706,7 +2706,11 @@
     "runtimeUnavailablePlatform": "Недоступно на этой платформе",
     "runtimeIncompatibleApp": "Требуется более новая версия приложения",
     "runtimeReady": "Движок OCR готов на этом устройстве",
-    "runtimeDownloadHint": "Скачайте движок OCR, чтобы использовать его на этом устройстве"
+    "runtimeDownloadHint": "Скачайте движок OCR, чтобы использовать его на этом устройстве",
+    "runtimeDownloadedVersion": "Скачанная версия",
+    "uninstallRuntimeTitle": "Удалить движок OCR",
+    "uninstallRuntimeDescription": "Скачанный движок OCR удаляется с этого устройства. Он будет скачан снова при следующей необходимости.",
+    "runtimeReadyBundled": "Движок OCR готов (встроен в приложение)"
   },
   "leaveGuard": {
     "dirtyTitle": "Несохранённые изменения",
@@ -3035,7 +3039,10 @@
     "emptyTitle": "No built-in plugins available",
     "emptyDescription": "This platform has no built-in official plugins in this DeepChat version.",
     "installFromFile": "Choose .dcplugin",
-    "openRelease": "GitHub Release"
+    "openRelease": "GitHub Release",
+    "uninstallTitle": "Удалить {name}?",
+    "uninstallDescription": "Плагин отключается, а его установленные файлы удаляются. Скачанные плагины исчезнут до повторной установки.",
+    "uninstallFailed": "Не удалось удалить"
   },
   "controlCenter": {
     "groups": {
@@ -3299,7 +3306,15 @@
     "retryInstall": "Повторить",
     "cancelInstall": "Отмена",
     "installFailed": "Не удалось установить",
-    "preRelease": "Предварительная версия"
+    "preRelease": "Предварительная версия",
+    "manualInstall": "Установить из файла",
+    "uninstall": "Удалить",
+    "runtimeCardTitle": "Среда выполнения",
+    "incompatibleApp": "Требуется более новая версия приложения",
+    "unavailablePlatform": "Недоступно на этой платформе",
+    "manageCardTitle": "Управление",
+    "installNow": "Установить сейчас",
+    "notDistributed": "Для этой версии загрузка не предоставляется. Установите из файла."
   },
   "debug": {
     "description": "Инструменты только для разработки для предварительного просмотра имитируемых состояний и управляемых сценариев.",

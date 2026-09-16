@@ -11,6 +11,7 @@ const AVAILABLE_STATUS: OcrRuntimeStatus = {
     lightOcrVersion: '0.5.5',
     bundleId: 'ppocrv6-small-native-20260719.1'
   },
+  runtimeSource: 'bundled',
   process: null,
   cache: null,
   runtimeInstall: null,
@@ -49,8 +50,7 @@ async function setup(
       ? vi.fn().mockRejectedValue(new Error('settings unavailable'))
       : vi.fn().mockResolvedValue({
           ocrAutoExtractForNonVisionModels: true,
-          ocrBackend: 'auto',
-          ocrRuntimeAutoDownload: true
+          ocrBackend: 'auto'
         }),
     update: vi.fn().mockResolvedValue({ values: {} })
   }
@@ -69,6 +69,8 @@ async function setup(
     }),
     installRuntime: vi.fn().mockResolvedValue({ result: { ok: true } }),
     cancelRuntimeInstall: vi.fn().mockResolvedValue({ cancelled: false }),
+    installRuntimeFromPath: vi.fn().mockResolvedValue({ result: { ok: true } }),
+    uninstallRuntime: vi.fn().mockResolvedValue({ result: { ok: true } }),
     onRuntimeInstallProgress: vi.fn().mockReturnValue(() => {})
   }
   const resumePolling = vi.fn()
@@ -80,6 +82,11 @@ async function setup(
 
   vi.doMock('@api/SettingsClient', () => ({ createSettingsClient: () => settingsClient }))
   vi.doMock('@api/OcrClient', () => ({ createOcrClient: () => ocrClient }))
+  vi.doMock('@api/DeviceClient', () => ({
+    createDeviceClient: () => ({
+      selectFiles: vi.fn().mockResolvedValue({ canceled: true, filePaths: [] })
+    })
+  }))
   vi.doMock('@renderer-notifications/rendererNotificationPort', () => ({
     notifyRenderer
   }))
@@ -190,13 +197,71 @@ async function openDiagnostics(wrapper: Awaited<ReturnType<typeof setup>>['wrapp
 }
 
 describe('OcrSettings', () => {
+  it('shows the bundled-ready runtime state without uninstall actions', async () => {
+    const { wrapper } = await setup()
+
+    const card = wrapper.findComponent({ name: 'RuntimeInstallControls' })
+    expect(card.exists()).toBe(true)
+    expect(card.props('installed')).toBe(false)
+    expect(card.props('ready')).toBe(true)
+    expect(wrapper.find('[data-testid="runtime-install-uninstall"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="runtime-install-download"]').exists()).toBe(false)
+    expect(wrapper.text()).not.toContain('settings.ocr.uninstallRuntimeTitle')
+  })
+
+  it('keeps download actions available when the runtime resolves from development', async () => {
+    const { wrapper } = await setup({
+      ...AVAILABLE_STATUS,
+      runtimeSource: 'development'
+    })
+
+    const card = wrapper.findComponent({ name: 'RuntimeInstallControls' })
+    expect(card.props('installed')).toBe(false)
+    expect(card.props('ready')).toBe(false)
+    const installNow = wrapper.find('[data-testid="runtime-install-download"]')
+    expect(installNow.exists()).toBe(true)
+    // No catalog entry in this fixture: the action stays visible but disabled.
+    expect(installNow.attributes('disabled')).toBeDefined()
+    expect(wrapper.find('[data-testid="runtime-install-manual"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="runtime-install-uninstall"]').exists()).toBe(false)
+  })
+
+  it('offers uninstall only while a downloaded runtime copy exists', async () => {
+    const downloadedStatus: OcrRuntimeStatus = {
+      ...AVAILABLE_STATUS,
+      runtimeSource: 'downloaded',
+      runtimeAsset: {
+        version: 'ppocrv6-small-native-20260719.1',
+        channel: 'stable',
+        availability: 'available',
+        sizeBytes: 12345,
+        installedVersion: 'ppocrv6-small-native-20260719.1'
+      }
+    }
+    const { wrapper, ocrClient, useIntervalFn } = await setup(downloadedStatus)
+
+    const card = wrapper.findComponent({ name: 'RuntimeInstallControls' })
+    expect(card.props('installed')).toBe(true)
+    expect(wrapper.find('[data-testid="runtime-install-uninstall"]').exists()).toBe(true)
+
+    // After uninstall the service falls back to the bundled payload: the
+    // uninstall action must disappear instead of reporting ready-as-installed.
+    ocrClient.getRuntimeStatus.mockResolvedValue(AVAILABLE_STATUS)
+    const pollStatus = useIntervalFn.mock.calls[0]?.[0] as () => Promise<void>
+    await pollStatus()
+    await flushPromises()
+
+    const refreshed = wrapper.findComponent({ name: 'RuntimeInstallControls' })
+    expect(refreshed.props('installed')).toBe(false)
+    expect(refreshed.props('ready')).toBe(true)
+    expect(wrapper.find('[data-testid="runtime-install-uninstall"]').exists()).toBe(false)
+  })
   it('keeps healthy runtime details behind progressive disclosure', async () => {
     const { wrapper, settingsClient, ocrClient, resumePolling, useIntervalFn } = await setup()
 
     expect(settingsClient.getSnapshot).toHaveBeenCalledWith([
       'ocrAutoExtractForNonVisionModels',
-      'ocrBackend',
-      'ocrRuntimeAutoDownload'
+      'ocrBackend'
     ])
     expect(ocrClient.getRuntimeStatus).toHaveBeenCalledOnce()
     expect(wrapper.text()).not.toContain('settings.ocr.available')

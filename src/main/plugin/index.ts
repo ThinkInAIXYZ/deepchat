@@ -30,6 +30,7 @@ import type {
   PluginListItem,
   PluginResourceRecord,
   PluginRuntimeManifest,
+  PluginRuntimeState,
   PluginRuntimeStatus,
   PluginSettingsContribution,
   RuntimeDependencyRecord
@@ -145,6 +146,8 @@ export interface PluginServicePort {
     pluginId: string
     version: string
   }>
+  uninstallOfficialPlugin(pluginId: string): Promise<PluginActionResult>
+  isRuntimePayloadInstalled(pluginId: string): boolean
   discardPrepared(operationId: string): Promise<void>
   configurePluginMcp(
     pluginId: string,
@@ -347,6 +350,52 @@ export class PluginService implements PluginServicePort {
     }
     const installation = this.ensureOfficialPluginInstallation(resolved)
     return { pluginId: installation.pluginId, version: installation.version }
+  }
+
+  /**
+   * Removes an installed official plugin: disables every contribution it
+   * owns, deletes the installed payload directory, and drops the
+   * installation record (user config is part of the payload and goes with
+   * it). Bundled plugins re-install from their bundled package on the next
+   * discovery pass, so for them this acts as a reset; remotely installed
+   * plugins disappear until downloaded again.
+   */
+  async uninstallOfficialPlugin(pluginId: string): Promise<PluginActionResult> {
+    try {
+      await this.loadOfficialPlugins()
+      const installation = this.getInstallation(pluginId)
+      if (!installation) {
+        throw new Error(`Official plugin ${pluginId} is not installed`)
+      }
+      this.settingsWindow.close(pluginId)
+      unregisterPluginToolPolicies(pluginId)
+      await this.disableByOwner(pluginId)
+      this.store.set(
+        'installations',
+        this.getInstallations().filter((item) => item.pluginId !== pluginId)
+      )
+      this.officialPlugins.delete(pluginId)
+      this.activationErrors.delete(pluginId)
+      // The directory name is normalized to [a-zA-Z0-9._-], so this cannot
+      // escape the install root.
+      fs.rmSync(this.getInstalledPluginRoot(pluginId), { recursive: true, force: true })
+      return { ok: true }
+    } catch (error) {
+      return this.errorResult(error)
+    }
+  }
+
+  /**
+   * Whether the plugin's heavy payload is present, i.e. whether the plugin
+   * can actually run. Discovery only proves that a manifest exists: a
+   * development source tree (or an install whose files were removed) can
+   * declare a runtime whose binary was never staged. Install/uninstall
+   * affordances key off this rather than off discovery, so it must stay
+   * side-effect free.
+   */
+  isRuntimePayloadInstalled(pluginId: string): boolean {
+    const plugin = this.officialPlugins.get(pluginId)
+    return plugin ? this.hasRuntimePayload(plugin) : false
   }
 
   private async applyRuntimeMigrations(): Promise<void> {
@@ -598,7 +647,13 @@ export class PluginService implements PluginServicePort {
     this.registerSettingsContributions(plugin)
 
     if (runtime && runtime.state !== 'installed' && runtime.state !== 'running') {
-      return
+      // Reporting success here would leave the plugin "enabled" with none of
+      // its contributions registered. Failing lets the caller download the
+      // missing payload (catalog install) and retry.
+      throw new Error(
+        runtime.lastError ??
+          `Runtime "${runtime.displayName || runtime.runtimeId}" is not installed`
+      )
     }
 
     const registeredServerNames = await this.registerMcpServers(plugin, runtime)
@@ -927,6 +982,50 @@ export class PluginService implements PluginServicePort {
       checkedAt: status.checkedAt ?? Date.now()
     })
     return status
+  }
+
+  private hasRuntimePayload(plugin: ResolvedOfficialPlugin): boolean {
+    if (!plugin.manifest.runtime) {
+      return true
+    }
+    // A `.dcplugin` carries its runtime inside the archive and materializes it
+    // on first enable, so the payload counts as present before extraction.
+    if (plugin.sourceType === 'package') {
+      return true
+    }
+    return this.probeRuntimeCommand(plugin) !== null
+  }
+
+  /**
+   * Resolves the runtime executable of a discovered plugin root without
+   * running it. Returns null only when absence is provable: a candidate
+   * resolved from `PATH` cannot be checked cheaply, so such runtimes are
+   * reported as present and left to `detectRuntime`.
+   */
+  private probeRuntimeCommand(plugin: ResolvedOfficialPlugin): string | null {
+    const runtime = plugin.manifest.runtime
+    if (!runtime) {
+      return null
+    }
+    for (const candidate of runtime.detect) {
+      let command: string | null = null
+      try {
+        command = this.resolveRuntimeCandidate(candidate, plugin.root)
+      } catch {
+        // An unsafe manifest path is reported by detectRuntime/activation.
+        continue
+      }
+      if (!command) {
+        continue
+      }
+      if (!path.isAbsolute(command)) {
+        return command
+      }
+      if (fs.lstatSync(command, { throwIfNoEntry: false })?.isFile()) {
+        return command
+      }
+    }
+    return null
   }
 
   private async detectRuntime(
@@ -1367,15 +1466,10 @@ export class PluginService implements PluginServicePort {
       : [...sourceDirectories, ...packages, ...installedDirectories]
     const usablePluginIds = new Set<string>()
 
+    // Unusable candidates are logged and cleaned up by the main pass below.
     for (const plugin of plugins) {
-      if (!this.isPluginPlatformSupported(plugin.manifest)) {
-        continue
-      }
-      try {
-        this.assertTrustedOfficialPlugin(plugin.manifest)
+      if (this.isPluginCandidateUsable(plugin)) {
         usablePluginIds.add(plugin.manifest.id)
-      } catch {
-        // The main discovery pass logs untrusted plugin details and performs cleanup.
       }
     }
 
@@ -1399,9 +1493,45 @@ export class PluginService implements PluginServicePort {
         }
         continue
       }
-      console.info(`[PluginHost] Discovered plugin: ${plugin.manifest.id} at ${plugin.root}`)
-      this.officialPlugins.set(plugin.manifest.id, plugin)
+      const selected = this.selectPluginCandidate(plugin, plugins)
+      console.info(`[PluginHost] Discovered plugin: ${selected.manifest.id} at ${selected.root}`)
+      this.officialPlugins.set(selected.manifest.id, selected)
     }
+  }
+
+  private isPluginCandidateUsable(plugin: ResolvedOfficialPlugin): boolean {
+    if (!this.isPluginPlatformSupported(plugin.manifest)) {
+      return false
+    }
+    try {
+      this.assertTrustedOfficialPlugin(plugin.manifest)
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  /**
+   * Discovery prefers source trees in development builds, but a manifest
+   * without its runtime payload must not shadow a candidate that carries one:
+   * that would both hide a downloaded install and let `installResolvedPlugin`
+   * overwrite it with the payload-less copy.
+   */
+  private selectPluginCandidate(
+    preferred: ResolvedOfficialPlugin,
+    candidates: ResolvedOfficialPlugin[]
+  ): ResolvedOfficialPlugin {
+    if (this.hasRuntimePayload(preferred)) {
+      return preferred
+    }
+    const replacement = candidates.find(
+      (candidate) =>
+        candidate !== preferred &&
+        candidate.manifest.id === preferred.manifest.id &&
+        this.isPluginCandidateUsable(candidate) &&
+        this.hasRuntimePayload(candidate)
+    )
+    return replacement ?? preferred
   }
 
   private resolveOfficialPluginDirectories(): ResolvedOfficialPlugin[] {
@@ -1945,14 +2075,20 @@ export class PluginService implements PluginServicePort {
     const installation = this.getInstallation(pluginId)
     const runtimeRecord = this.getRuntimeRecord(pluginId, plugin.manifest.runtime?.id)
     const settings = this.getSettingsContribution(pluginId)
+    const payloadInstalled = this.hasRuntimePayload(plugin)
+    const probedCommand = plugin.manifest.runtime ? this.probeRuntimeCommand(plugin) : null
     const runtime = plugin.manifest.runtime
       ? {
           runtimeId: plugin.manifest.runtime.id,
           displayName: plugin.manifest.runtime.displayName,
-          state: runtimeRecord?.state ?? 'missing',
-          command: runtimeRecord?.command,
-          helperAppPath: runtimeRecord?.helperAppPath,
-          version: runtimeRecord?.version,
+          // The persisted record is only refreshed while (de)activating, so an
+          // on-disk probe decides between "absent" and "present but unstarted".
+          state: this.reportedRuntimeState(runtimeRecord?.state, payloadInstalled),
+          command: payloadInstalled
+            ? (runtimeRecord?.command ?? probedCommand ?? undefined)
+            : undefined,
+          helperAppPath: payloadInstalled ? runtimeRecord?.helperAppPath : undefined,
+          version: payloadInstalled ? runtimeRecord?.version : undefined,
           lastError: runtimeRecord?.lastError,
           checkedAt: runtimeRecord?.checkedAt
         }
@@ -1963,7 +2099,7 @@ export class PluginService implements PluginServicePort {
       name: plugin.manifest.name,
       version: plugin.manifest.version,
       publisher: plugin.manifest.publisher,
-      installed: true,
+      installed: payloadInstalled,
       enabled: Boolean(installation?.enabled),
       trusted: true,
       trustState: 'trusted',
@@ -1974,6 +2110,16 @@ export class PluginService implements PluginServicePort {
       mcpServers: await this.getPluginMcpRuntimeStatuses(plugin.manifest),
       settings
     }
+  }
+
+  private reportedRuntimeState(
+    recorded: PluginRuntimeState | undefined,
+    payloadInstalled: boolean
+  ): PluginRuntimeState {
+    if (!payloadInstalled) {
+      return 'missing'
+    }
+    return recorded && recorded !== 'missing' ? recorded : 'installed'
   }
 
   private getOfficialPluginOrThrow(pluginId: string): ResolvedOfficialPlugin {

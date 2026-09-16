@@ -376,4 +376,88 @@ describe('OcrRuntimeAssetInstaller', () => {
     const archived = unzipSync(payload)
     expect(Object.keys(materialized).sort()).toEqual(Object.keys(archived).sort())
   })
+
+  it('installs a manually selected payload file without a catalog entry', async () => {
+    const dir = await createTempDir()
+    const payloadRoot = path.join(dir, 'payload-root')
+    await seedRuntimeRoot(payloadRoot)
+    const payload = zipSync(await collectFiles(payloadRoot))
+    const archivePath = path.join(dir, 'manual-payload.zip')
+    fs.writeFileSync(archivePath, Buffer.from(payload))
+
+    const installRoot = path.join(dir, 'runtimes', 'ocr')
+    const installer = new OcrRuntimeAssetInstaller({
+      installRoot: () => installRoot,
+      stagingRoot: () => path.join(installRoot, '.staging'),
+      platform: 'darwin',
+      arch: 'arm64'
+    })
+
+    const result = await installer.installFromFile(archivePath)
+
+    expect(result.ok).toBe(true)
+    expect(result.version).toBe(bundleId)
+    expect(installer.listInstalledVersions()).toEqual([bundleId])
+
+    // The manually installed payload passes the resolver's identity checks.
+    const availability = await new OcrRuntimeAssetResolver({
+      appPath: path.join(dir, 'resources', 'app.asar'),
+      isPackaged: true,
+      platform: 'darwin',
+      arch: 'arm64',
+      installedRuntimeRoots: () => installer.listInstalledRoots()
+    }).resolve()
+    expect(availability).toMatchObject({ status: 'available' })
+  })
+
+  it('rejects a manually selected payload built for another platform', async () => {
+    const dir = await createTempDir()
+    const payloadRoot = path.join(dir, 'payload-root')
+    await seedRuntimeRoot(payloadRoot)
+    const files = await collectFiles(payloadRoot)
+    const manifest = JSON.parse(Buffer.from(files['runtime/ocr/manifest.json']).toString('utf8'))
+    manifest.platform = 'win32'
+    files['runtime/ocr/manifest.json'] = new TextEncoder().encode(JSON.stringify(manifest))
+    const payload = zipSync(files)
+    const archivePath = path.join(dir, 'foreign-payload.zip')
+    fs.writeFileSync(archivePath, Buffer.from(payload))
+
+    const installRoot = path.join(dir, 'runtimes', 'ocr')
+    const installer = new OcrRuntimeAssetInstaller({
+      installRoot: () => installRoot,
+      stagingRoot: () => path.join(installRoot, '.staging'),
+      platform: 'darwin',
+      arch: 'arm64'
+    })
+
+    const result = await installer.installFromFile(archivePath)
+
+    expect(result.ok).toBe(false)
+    expect(result.error).toContain('win32')
+    expect(installer.listInstalledRoots()).toEqual([])
+  })
+
+  it('removes downloaded runtime versions on uninstall', async () => {
+    const dir = await createTempDir()
+    const payloadRoot = path.join(dir, 'payload-root')
+    await seedRuntimeRoot(payloadRoot)
+    const payload = zipSync(await collectFiles(payloadRoot))
+    const archivePath = path.join(dir, 'manual-payload.zip')
+    fs.writeFileSync(archivePath, Buffer.from(payload))
+
+    const installRoot = path.join(dir, 'runtimes', 'ocr')
+    const installer = new OcrRuntimeAssetInstaller({
+      installRoot: () => installRoot,
+      stagingRoot: () => path.join(installRoot, '.staging'),
+      platform: 'darwin',
+      arch: 'arm64'
+    })
+    await installer.installFromFile(archivePath)
+    expect(installer.listInstalledVersions()).toEqual([bundleId])
+
+    const removed = installer.removeInstalled()
+
+    expect(removed).toBe(1)
+    expect(installer.listInstalledRoots()).toEqual([])
+  })
 })

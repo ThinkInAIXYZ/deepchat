@@ -76,11 +76,16 @@ export class OcrRuntimeService {
     })
   }
 
-  refreshAvailability(kind?: ToolchainKind): void {
+  /**
+   * Drops cached availability and retires the current helper resources. The
+   * returned promise settles once the pending disposal has run, so callers
+   * that are about to delete runtime files on disk can wait for it.
+   */
+  refreshAvailability(kind?: ToolchainKind): Promise<void> {
     this.availabilityPromise = null
-    if (kind === 'uv') return
+    if (kind === 'uv') return this.closingResources
     const existing = this.resourcesPromise
-    if (!existing) return
+    if (!existing) return this.closingResources
     this.closingResources = this.closingResources
       .then(async () => {
         const resources = await existing.catch(() => null)
@@ -97,6 +102,7 @@ export class OcrRuntimeService {
         await this.disposeResources(resources)
       })
       .catch(() => {})
+    return this.closingResources
   }
 
   async getAvailability(): Promise<OcrRuntimeAvailability> {

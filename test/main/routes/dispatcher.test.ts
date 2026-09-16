@@ -148,7 +148,6 @@ function createRuntime() {
     loggingEnabled: false,
     ocrAutoExtractForNonVisionModels: true,
     ocrBackend: 'auto' as 'auto' | 'cpu',
-    ocrRuntimeAutoDownload: true,
     proxyMode: 'system' as 'system' | 'none' | 'custom',
     customProxyUrl: '',
     updateChannel: 'stable' as 'stable' | 'beta',
@@ -1044,10 +1043,6 @@ function createRuntime() {
     getBackend: vi.fn(() => settings.ocrBackend),
     setBackend: vi.fn((value: 'auto' | 'cpu') => {
       settings.ocrBackend = value
-    }),
-    getRuntimeAutoDownloadEnabled: vi.fn(() => settings.ocrRuntimeAutoDownload ?? true),
-    setRuntimeAutoDownloadEnabled: vi.fn((value: boolean) => {
-      settings.ocrRuntimeAutoDownload = value
     })
   }
   const commandShell = {

@@ -5,6 +5,19 @@ import path from 'node:path'
 const OFFICIAL_PLUGIN_SOURCE = 'deepchat-official'
 const CUA_MANAGED_HELPER_APP = 'DeepChat Computer Use.app'
 const CUA_MANAGED_HELPER_EXECUTABLE = 'deepchat-cua-driver'
+const BUNDLED_PLUGIN_DIR = path.join('build', 'bundled-plugins')
+const REMOTE_PLUGIN_DIR = path.join('build', 'remote-plugins')
+
+/**
+ * Set DEEPCHAT_UNBUNDLE_CUA=1 to build cua for remote distribution instead of
+ * shipping it inside the app: the `.dcplugin` lands in build/remote-plugins,
+ * which the electron-builder extraResources glob does not read, and the macOS
+ * managed helper is not staged into `Contents/Helpers`. The artifact is still
+ * produced so release tooling can pin and publish it.
+ */
+function isUnbundled(pluginName) {
+  return pluginName === 'cua' && process.env.DEEPCHAT_UNBUNDLE_CUA === '1'
+}
 
 function parseArgs(argv) {
   const args = {
@@ -140,6 +153,13 @@ function verifyArtifacts(options) {
   for (const plugin of expected) {
     const fileName = artifactFileName(plugin, options.platform, options.arch)
     const artifactPath = path.join(pluginRoot, fileName)
+    if (isUnbundled(plugin.name)) {
+      if (existsSync(artifactPath)) {
+        throw new Error(`Unbundled official plugin must not ship inside the app: ${artifactPath}`)
+      }
+      console.log(`Verified ${fileName} is absent (distributed remotely)`)
+      continue
+    }
     if (!existsSync(artifactPath)) {
       throw new Error(`Missing bundled official plugin: ${artifactPath}`)
     }
@@ -192,7 +212,8 @@ try {
     execFileSync('node', buildArgs, { stdio: 'inherit' })
   }
 
-  if (args.action === 'bundle' && args.name === 'cua') {
+  const unbundled = isUnbundled(args.name)
+  if (args.action === 'bundle' && args.name === 'cua' && !unbundled) {
     stageCuaManagedHelper(pluginDir, args.platform, args.arch)
   }
 
@@ -203,7 +224,9 @@ try {
   if (args.platform) pkgArgs.push('--target-platform', args.platform)
   if (args.arch) pkgArgs.push('--target-arch', args.arch)
   if (args.purpose) pkgArgs.push('--purpose', args.purpose)
-  if (args.action === 'bundle') pkgArgs.push('--out', path.resolve('build/bundled-plugins'))
+  if (args.action === 'bundle') {
+    pkgArgs.push('--out', path.resolve(unbundled ? REMOTE_PLUGIN_DIR : BUNDLED_PLUGIN_DIR))
+  }
   pkgArgs.push(pluginDir)
 
   execFileSync('node', pkgArgs, { stdio: 'inherit' })

@@ -311,6 +311,8 @@ import {
   ocrExtractUploadRoute,
   ocrGetRuntimeStatusRoute,
   ocrInstallRuntimeRoute,
+  ocrInstallRuntimeFromPathRoute,
+  ocrUninstallRuntimeRoute,
   ocrCancelRuntimeInstallRoute
 } from './routes/ocr.routes'
 import {
@@ -435,7 +437,9 @@ import {
   pluginsListRoute,
   pluginsCatalogListRoute,
   pluginsCatalogInstallRoute,
-  pluginsCatalogCancelRoute
+  pluginsCatalogCancelRoute,
+  pluginsCatalogInstallFromPathRoute,
+  pluginsUninstallOfficialRoute
 } from './routes/plugins.routes'
 import {
   settingsActivityListRoute,
@@ -811,7 +815,9 @@ const DEEPCHAT_ROUTE_CATALOG_PART_1 = {
   [pluginsInvokeActionRoute.name]: pluginsInvokeActionRoute,
   [pluginsCatalogListRoute.name]: pluginsCatalogListRoute,
   [pluginsCatalogInstallRoute.name]: pluginsCatalogInstallRoute,
-  [pluginsCatalogCancelRoute.name]: pluginsCatalogCancelRoute
+  [pluginsCatalogCancelRoute.name]: pluginsCatalogCancelRoute,
+  [pluginsCatalogInstallFromPathRoute.name]: pluginsCatalogInstallFromPathRoute,
+  [pluginsUninstallOfficialRoute.name]: pluginsUninstallOfficialRoute
 } satisfies Record<string, RouteContract>
 
 const DEEPCHAT_ROUTE_CATALOG_PART_2 = {
@@ -1139,6 +1145,8 @@ const DEEPCHAT_ROUTE_CATALOG_PART_5 = {
   [ocrGetRuntimeStatusRoute.name]: ocrGetRuntimeStatusRoute,
   [ocrClearCacheRoute.name]: ocrClearCacheRoute,
   [ocrInstallRuntimeRoute.name]: ocrInstallRuntimeRoute,
+  [ocrInstallRuntimeFromPathRoute.name]: ocrInstallRuntimeFromPathRoute,
+  [ocrUninstallRuntimeRoute.name]: ocrUninstallRuntimeRoute,
   [ocrCancelRuntimeInstallRoute.name]: ocrCancelRuntimeInstallRoute,
   [ocrExtractUploadRoute.name]: ocrExtractUploadRoute,
   [ocrExtractArtifactRoute.name]: ocrExtractArtifactRoute,

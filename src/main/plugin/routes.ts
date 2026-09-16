@@ -12,7 +12,9 @@ import {
   pluginsListRoute,
   pluginsCatalogListRoute,
   pluginsCatalogInstallRoute,
-  pluginsCatalogCancelRoute
+  pluginsCatalogCancelRoute,
+  pluginsCatalogInstallFromPathRoute,
+  pluginsUninstallOfficialRoute
 } from '@shared/contracts/routes'
 import { createRouteMap, type DeepchatRouteMap } from '@/routes/routeRegistry'
 import type { PluginActionResult } from '@shared/types/plugin'
@@ -33,6 +35,34 @@ export function createPluginRoutes(
   distribution?: PluginDistributionDeps
 ): DeepchatRouteMap {
   return createRouteMap([
+    [
+      pluginsUninstallOfficialRoute.name,
+      async (rawInput) => {
+        const input = pluginsUninstallOfficialRoute.input.parse(rawInput)
+        return pluginsUninstallOfficialRoute.output.parse({
+          result: await pluginService.uninstallOfficialPlugin(input.pluginId)
+        })
+      }
+    ],
+    [
+      pluginsCatalogInstallFromPathRoute.name,
+      async (rawInput) => {
+        const input = pluginsCatalogInstallFromPathRoute.input.parse(rawInput)
+        try {
+          const installed = await pluginService.installOfficialPluginPackage(input.path)
+          return pluginsCatalogInstallFromPathRoute.output.parse({
+            result: { ok: true, pluginId: installed.pluginId }
+          })
+        } catch (error) {
+          return pluginsCatalogInstallFromPathRoute.output.parse({
+            result: {
+              ok: false,
+              error: error instanceof Error ? error.message : 'Plugin package install failed'
+            }
+          })
+        }
+      }
+    ],
     [
       pluginsInspectSourceRoute.name,
       async (rawInput) => {
@@ -147,6 +177,8 @@ function createDistributionRoutes(
         const entries = distribution.catalog.listVisibleArtifacts().map((artifact) => {
           const installed = installedById.get(artifact.pluginId)
           const { availability, target } = distribution.catalog.describeAvailability(artifact)
+          // `PluginListItem.installed` tracks the payload, not mere discovery,
+          // so a plugin whose runtime was never downloaded stays installable.
           return {
             pluginId: artifact.pluginId,
             version: artifact.version,
@@ -155,7 +187,7 @@ function createDistributionRoutes(
             description: artifact.description,
             availability,
             sizeBytes: target?.size ?? null,
-            installed: Boolean(installed),
+            installed: installed?.installed === true,
             installedVersion: installed?.version ?? null,
             installState: distribution.installer.getInstallState(artifact.pluginId)
           }
@@ -212,9 +244,11 @@ async function enablePluginWithRemoteInstall(
   const first = await enablePluginSafely(pluginService, pluginId)
   if (first.ok || !distribution) return first
 
-  // Only a locally missing plugin can be repaired by a remote install; other
+  // Only a missing payload can be repaired by a remote install; other
   // enablement failures (e.g. activation errors) must surface unchanged.
-  if (await isPluginInstalled(pluginService, pluginId)) {
+  // Discovery is not the test: a bundled manifest or a development source
+  // tree is discoverable while its runtime binary was never downloaded.
+  if (pluginService.isRuntimePayloadInstalled(pluginId)) {
     return first
   }
 
@@ -242,17 +276,5 @@ async function enablePluginSafely(
       ok: false,
       error: error instanceof Error ? error.message : 'Plugin enablement failed'
     }
-  }
-}
-
-async function isPluginInstalled(
-  pluginService: PluginServicePort,
-  pluginId: string
-): Promise<boolean> {
-  try {
-    const plugins = await pluginService.listPlugins()
-    return plugins.some((plugin) => plugin.id === pluginId)
-  } catch {
-    return false
   }
 }

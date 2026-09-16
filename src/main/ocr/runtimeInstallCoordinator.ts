@@ -10,21 +10,22 @@ const DEFAULT_RETRY_COOLDOWN_MS = 5 * 60 * 1000
 
 export type OcrRuntimeInstallCoordinatorDeps = {
   resolveAsset: () => RuntimeAssetResolution | null
-  isAutoDownloadEnabled: () => boolean
-  installer: Pick<OcrRuntimeAssetInstaller, 'install' | 'isRunning' | 'getInstallState'>
+  installer: Pick<
+    OcrRuntimeAssetInstaller,
+    'install' | 'installFromFile' | 'isRunning' | 'getInstallState'
+  >
   onInstalled: () => void
   retryCooldownMs?: number
   now?: () => number
 }
 
 /**
- * Coordinates automatic OCR runtime downloads. Attachment routing consults
- * OCR availability on every turn; when the runtime is missing and the user
- * has not disabled auto-download, a background install starts silently. The
- * triggering turn still degrades (skips OCR text extraction) — only later
- * turns benefit. A failed automatic install enters a cooldown so a bad
- * network does not retrigger a download on every message; explicit installs
- * (settings page) bypass and reset the cooldown.
+ * Coordinates OCR runtime downloads. Attachment routing consults OCR
+ * availability on every turn; when the runtime is missing, a background
+ * install starts silently. The triggering turn still degrades (skips OCR
+ * text extraction) — only later turns benefit. A failed automatic install
+ * enters a cooldown so a bad network does not retrigger a download on every
+ * message; explicit installs (settings page) bypass and reset the cooldown.
  */
 export class OcrRuntimeInstallCoordinator {
   private readonly deps: OcrRuntimeInstallCoordinatorDeps
@@ -44,7 +45,6 @@ export class OcrRuntimeInstallCoordinator {
 
   /** Fire-and-forget trigger from first-use (attachment routing) paths. */
   maybeStartInstall(): void {
-    if (!this.deps.isAutoDownloadEnabled()) return
     if (this.deps.installer.isRunning(this.assetId)) return
     const state = this.deps.installer.getInstallState(this.assetId)
     if (state?.phase === 'installed') return
@@ -69,6 +69,17 @@ export class OcrRuntimeInstallCoordinator {
       }
     }
     return await this.runInstall(resolution, { automatic: false })
+  }
+
+  /** Manual install from a locally selected archive; resets the cooldown. */
+  async installFromFile(filePath: string): Promise<OcrRuntimeAssetInstallResult> {
+    this.cooldownUntil = 0
+    const result = await this.deps.installer.installFromFile(filePath)
+    if (result.ok) {
+      this.cooldownUntil = 0
+      this.deps.onInstalled()
+    }
+    return result
   }
 
   private async runInstall(

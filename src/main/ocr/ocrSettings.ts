@@ -4,15 +4,12 @@ import type { LightOcrBackendPreference } from './lightOcrProtocol'
 
 const AUTOMATIC_OCR_SETTING_KEY = 'ocr.autoExtractForNonVisionModels'
 const OCR_BACKEND_SETTING_KEY = 'ocr.backend'
-const OCR_RUNTIME_AUTO_DOWNLOAD_SETTING_KEY = 'ocr.runtimeAutoDownload'
 
 export interface OcrSettingsPort {
   getAutomaticExtractionEnabled(): boolean
   setAutomaticExtractionEnabled(enabled: boolean): void
   getBackend(): LightOcrBackendPreference
   setBackend(backend: LightOcrBackendPreference): void
-  getRuntimeAutoDownloadEnabled(): boolean
-  setRuntimeAutoDownloadEnabled(enabled: boolean): void
 }
 
 export class OcrSettings implements OcrSettingsPort {
@@ -46,20 +43,6 @@ export class OcrSettings implements OcrSettingsPort {
       changedKeys: ['ocrBackend'],
       version: Date.now(),
       values: { ocrBackend: value }
-    })
-  }
-
-  getRuntimeAutoDownloadEnabled(): boolean {
-    return this.settings.get<boolean>(OCR_RUNTIME_AUTO_DOWNLOAD_SETTING_KEY) ?? true
-  }
-
-  setRuntimeAutoDownloadEnabled(enabled: boolean): void {
-    const value = Boolean(enabled)
-    this.settings.set(OCR_RUNTIME_AUTO_DOWNLOAD_SETTING_KEY, value)
-    this.publishEvent('settings.changed', {
-      changedKeys: ['ocrRuntimeAutoDownload'],
-      version: Date.now(),
-      values: { ocrRuntimeAutoDownload: value }
     })
   }
 }

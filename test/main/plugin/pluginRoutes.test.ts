@@ -8,21 +8,29 @@ import type { PluginRemoteInstaller } from '@/plugin/remoteInstaller'
 import type { PluginActionResult, PluginListItem } from '@shared/types/plugin'
 import type { PluginCatalogArtifact, PluginCatalogTarget } from '@shared/types/pluginCatalog'
 
-function createPluginServiceWithInstalled(installedIds: Set<string>) {
+/**
+ * `installedIds` are the plugins whose payload is present. `discoveredIds`
+ * defaults to the same set, but the two diverge for a bundled or
+ * development-tree manifest whose runtime binary was never downloaded.
+ */
+function createPluginServiceWithInstalled(
+  installedIds: Set<string>,
+  discoveredIds: Set<string> = installedIds
+) {
   const enableCalls: string[] = []
   return {
     enableCalls,
     service: {
       listPlugins: vi.fn(
         async (): Promise<PluginListItem[]> =>
-          [...installedIds].map(
+          [...discoveredIds].map(
             (id) =>
               ({
                 id,
                 name: id,
                 version: '1.0.0',
                 publisher: 'DeepChat',
-                installed: true,
+                installed: installedIds.has(id),
                 enabled: false,
                 trusted: true,
                 trustState: 'trusted',
@@ -31,6 +39,7 @@ function createPluginServiceWithInstalled(installedIds: Set<string>) {
               }) as PluginListItem
           )
       ),
+      isRuntimePayloadInstalled: vi.fn((pluginId: string) => installedIds.has(pluginId)),
       getPlugin: vi.fn(async () => undefined),
       enablePlugin: vi.fn(async (pluginId: string): Promise<PluginActionResult> => {
         enableCalls.push(pluginId)
@@ -127,6 +136,29 @@ describe('plugin routes with remote distribution', () => {
     expect(response.result.ok).toBe(true)
     expect(distribution.install).toHaveBeenCalledOnce()
     expect(enableCalls).toEqual([distribution.pluginId, distribution.pluginId])
+  })
+
+  it('installs the payload of a discovered plugin whose runtime is missing', async () => {
+    const installed = new Set<string>()
+    const discovered = new Set<string>(['com.deepchat.plugins.cua'])
+    const { service } = createPluginServiceWithInstalled(installed, discovered)
+    const distribution = createDistribution()
+    // Enablement fails because the declared runtime has no binary on disk.
+    const enablePlugin = service.enablePlugin as unknown as ReturnType<typeof vi.fn>
+    enablePlugin.mockResolvedValueOnce({
+      ok: false,
+      error: 'Runtime "CUA Driver" is not installed'
+    })
+    enablePlugin.mockResolvedValueOnce({ ok: true })
+    const routes = createPluginRoutes(service, {
+      catalog: distribution.catalog,
+      installer: distribution.installer
+    })
+
+    const response = await invokeEnable(routes, distribution.pluginId)
+
+    expect(response.result.ok).toBe(true)
+    expect(distribution.install).toHaveBeenCalledOnce()
   })
 
   it('returns the original failure when the plugin is not in the catalog', async () => {

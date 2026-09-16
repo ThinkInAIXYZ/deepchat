@@ -2697,7 +2697,7 @@
       "safe_storage_unavailable": "安全な鍵ストレージを利用できないため、永続キャッシュを利用できません。"
     },
     "runtimeDownloadTitle": "ランタイムのダウンロード",
-    "runtimeDownloadDescription": "OCR エンジンは必要に応じてダウンロードできます。有効にすると、初回使用時に自動でダウンロードされます。",
+    "runtimeDownloadDescription": "OCR エンジンはオンデマンドでダウンロードできます。初回必要時に自動でダウンロードされます。",
     "runtimeInstall": "OCR エンジンをダウンロード",
     "runtimeInstalling": "ダウンロード中 {percent}%",
     "runtimeCancelInstall": "キャンセル",
@@ -2706,7 +2706,11 @@
     "runtimeUnavailablePlatform": "このプラットフォームでは利用できません",
     "runtimeIncompatibleApp": "新しいバージョンのアプリが必要です",
     "runtimeReady": "OCR エンジンはこの端末で利用できます",
-    "runtimeDownloadHint": "OCR エンジンをダウンロードしてこの端末で利用する"
+    "runtimeDownloadHint": "OCR エンジンをダウンロードしてこの端末で利用する",
+    "runtimeDownloadedVersion": "ダウンロード済みバージョン",
+    "uninstallRuntimeTitle": "OCR エンジンを削除",
+    "uninstallRuntimeDescription": "ダウンロードした OCR エンジンをこの端末から削除します。次回必要時に再ダウンロードされます。",
+    "runtimeReadyBundled": "OCR エンジンは利用可能です（アプリ同梱）"
   },
   "leaveGuard": {
     "dirtyTitle": "未保存の変更",
@@ -3035,7 +3039,10 @@
     "emptyTitle": "No built-in plugins available",
     "emptyDescription": "This platform has no built-in official plugins in this DeepChat version.",
     "installFromFile": "Choose .dcplugin",
-    "openRelease": "GitHub Release"
+    "openRelease": "GitHub Release",
+    "uninstallTitle": "{name} をアンインストールしますか？",
+    "uninstallDescription": "プラグインを無効化し、インストール済みファイルを削除します。ダウンロードしたプラグインは再インストールが必要です。",
+    "uninstallFailed": "アンインストールに失敗しました"
   },
   "controlCenter": {
     "groups": {
@@ -3299,7 +3306,15 @@
     "retryInstall": "再試行",
     "cancelInstall": "キャンセル",
     "installFailed": "インストールに失敗しました",
-    "preRelease": "プレリリース"
+    "preRelease": "プレリリース",
+    "manualInstall": "ファイルからインストール",
+    "uninstall": "アンインストール",
+    "runtimeCardTitle": "ランタイム",
+    "incompatibleApp": "新しいバージョンのアプリが必要です",
+    "unavailablePlatform": "このプラットフォームでは利用できません",
+    "manageCardTitle": "管理",
+    "installNow": "今すぐインストール",
+    "notDistributed": "このバージョンではダウンロードを提供していません。ファイルからインストールしてください。"
   },
   "debug": {
     "description": "モック状態やガイド付きフローをプレビューするための、開発専用ツールです。",

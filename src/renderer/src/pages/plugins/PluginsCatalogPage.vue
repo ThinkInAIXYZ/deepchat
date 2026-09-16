@@ -154,19 +154,18 @@
               >
                 {{ t('settings.pluginsHub.cancelInstall') }}
               </DcButton>
-              <DcButton
-                v-else
-                size="sm"
-                variant="outline"
-                :loading="isInstalling(entry.pluginId)"
-                @click="handleInstallEntry(entry)"
-              >
-                {{
-                  installPhase(entry.pluginId) === 'error'
-                    ? t('settings.pluginsHub.retryInstall')
-                    : t('settings.pluginsHub.installPlugin')
-                }}
-              </DcButton>
+              <template v-else>
+                <DcButton size="sm" variant="outline" @click="handleInstallEntry(entry)">
+                  {{
+                    installPhase(entry.pluginId) === 'error'
+                      ? t('settings.pluginsHub.retryInstall')
+                      : t('settings.pluginsHub.installPlugin')
+                  }}
+                </DcButton>
+                <DcButton size="sm" variant="outline" @click="handleManualInstallEntry">
+                  {{ t('settings.pluginsHub.manualInstall') }}
+                </DcButton>
+              </template>
             </div>
           </article>
         </div>
@@ -191,6 +190,7 @@ import { DcButton } from '@dc-ui/components/button'
 import { ScrollArea } from '@shadcn/components/ui/scroll-area'
 import { createOcrClient } from '@api/OcrClient'
 import { createPluginClient } from '@api/PluginClient'
+import { createDeviceClient } from '@api/DeviceClient'
 import { createRemoteControlClient } from '@api/RemoteControlClient'
 import { CUA_PLUGIN_ID, type PluginActionResult, type PluginListItem } from '@shared/types/plugin'
 import type { PluginCatalogEntry, PluginCatalogInstallState } from '@shared/types/pluginCatalog'
@@ -262,6 +262,7 @@ const { t } = useI18n()
 const router = useRouter()
 const ocrClient = createOcrClient()
 const pluginClient = createPluginClient()
+const deviceClient = createDeviceClient()
 const remoteControlClient = createRemoteControlClient()
 const pluginCatalogStore = usePluginCatalogStore()
 const { plugins, remoteChannels, remoteStatuses, ocrStatus, ocrStatusHasError } =
@@ -479,6 +480,34 @@ async function handleInstallEntry(entry: PluginCatalogEntry): Promise<void> {
 
 function handleCancelInstall(pluginId: string): void {
   void pluginClient.cancelCatalogInstall(pluginId)
+}
+
+async function handleManualInstallEntry(): Promise<void> {
+  errorMessage.value = ''
+  try {
+    const selection = await deviceClient.selectFiles({
+      filters: [{ name: 'DeepChat Plugin', extensions: ['dcplugin'] }]
+    })
+    const filePath = selection.filePaths[0]
+    if (!filePath) return
+    const result = await pluginClient.installCatalogPluginFromPath(filePath)
+    if (!result.ok) {
+      errorMessage.value = result.error || t('settings.pluginsHub.installFailed')
+      return
+    }
+    if (result.pluginId) {
+      // The manual install is an explicit opt-in: enable immediately.
+      const enabled = await pluginClient.enablePlugin(result.pluginId)
+      if (!enabled.ok) {
+        errorMessage.value = enabled.error || t('settings.pluginsHub.installFailed')
+      }
+    }
+  } catch (error) {
+    errorMessage.value =
+      error instanceof Error ? error.message : t('settings.pluginsHub.installFailed')
+  } finally {
+    await refreshAfterInstall()
+  }
 }
 
 async function loadRemoteCatalog(): Promise<void> {

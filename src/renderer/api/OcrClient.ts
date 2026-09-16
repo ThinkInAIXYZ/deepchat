@@ -3,7 +3,9 @@ import {
   ocrCancelRuntimeInstallRoute,
   ocrClearCacheRoute,
   ocrGetRuntimeStatusRoute,
-  ocrInstallRuntimeRoute
+  ocrInstallRuntimeFromPathRoute,
+  ocrInstallRuntimeRoute,
+  ocrUninstallRuntimeRoute
 } from '@shared/contracts/routes'
 import { ocrRuntimeInstallProgressEvent, type DeepchatEventPayload } from '@shared/contracts/events'
 import { getDeepchatBridge } from './core'
@@ -25,6 +27,14 @@ export function createOcrClient(bridge: DeepchatBridge = getDeepchatBridge()) {
     return await bridge.invoke(ocrCancelRuntimeInstallRoute.name, {})
   }
 
+  async function installRuntimeFromPath(filePath: string) {
+    return await bridge.invoke(ocrInstallRuntimeFromPathRoute.name, { path: filePath })
+  }
+
+  async function uninstallRuntime() {
+    return await bridge.invoke(ocrUninstallRuntimeRoute.name, {})
+  }
+
   function onRuntimeInstallProgress(
     listener: (payload: DeepchatEventPayload<typeof ocrRuntimeInstallProgressEvent.name>) => void
   ) {
@@ -36,6 +46,8 @@ export function createOcrClient(bridge: DeepchatBridge = getDeepchatBridge()) {
     clearCache,
     installRuntime,
     cancelRuntimeInstall,
+    installRuntimeFromPath,
+    uninstallRuntime,
     onRuntimeInstallProgress
   }
 }

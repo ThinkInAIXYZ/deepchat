@@ -2697,7 +2697,7 @@
       "safe_storage_unavailable": "안전한 키 저장소를 사용할 수 없어 영구 캐시를 사용할 수 없습니다."
     },
     "runtimeDownloadTitle": "런타임 다운로드",
-    "runtimeDownloadDescription": "OCR 엔진은 필요할 때 다운로드할 수 있습니다. 켜면 처음 필요할 때 자동으로 다운로드됩니다.",
+    "runtimeDownloadDescription": "OCR 엔진은 필요할 때 다운로드할 수 있습니다. 처음 필요할 때 자동으로 다운로드됩니다.",
     "runtimeInstall": "OCR 엔진 다운로드",
     "runtimeInstalling": "다운로드 중 {percent}%",
     "runtimeCancelInstall": "취소",
@@ -2706,7 +2706,11 @@
     "runtimeUnavailablePlatform": "이 플랫폼에서는 사용할 수 없습니다",
     "runtimeIncompatibleApp": "새 버전의 앱이 필요합니다",
     "runtimeReady": "OCR 엔진이 준비되었습니다",
-    "runtimeDownloadHint": "OCR 엔진을 다운로드하여 이 기기에서 사용"
+    "runtimeDownloadHint": "OCR 엔진을 다운로드하여 이 기기에서 사용",
+    "runtimeDownloadedVersion": "다운로드된 버전",
+    "uninstallRuntimeTitle": "OCR 엔진 삭제",
+    "uninstallRuntimeDescription": "다운로드한 OCR 엔진이 이 기기에서 삭제됩니다. 다음에 필요할 때 다시 다운로드됩니다.",
+    "runtimeReadyBundled": "OCR 엔진 준비 완료(앱 내장)"
   },
   "leaveGuard": {
     "dirtyTitle": "저장하지 않은 변경 사항",
@@ -3035,7 +3039,10 @@
     "emptyTitle": "No built-in plugins available",
     "emptyDescription": "This platform has no built-in official plugins in this DeepChat version.",
     "installFromFile": "Choose .dcplugin",
-    "openRelease": "GitHub Release"
+    "openRelease": "GitHub Release",
+    "uninstallTitle": "{name}을(를) 제거할까요?",
+    "uninstallDescription": "플러그인이 비활성화되고 설치된 파일이 삭제됩니다. 다운로드한 플러그인은 다시 설치해야 합니다.",
+    "uninstallFailed": "제거 실패"
   },
   "controlCenter": {
     "groups": {
@@ -3299,7 +3306,15 @@
     "retryInstall": "다시 시도",
     "cancelInstall": "취소",
     "installFailed": "설치 실패",
-    "preRelease": "사전 출시"
+    "preRelease": "사전 출시",
+    "manualInstall": "파일에서 설치",
+    "uninstall": "제거",
+    "runtimeCardTitle": "런타임",
+    "incompatibleApp": "새 버전의 앱이 필요합니다",
+    "unavailablePlatform": "이 플랫폼에서는 사용할 수 없습니다",
+    "manageCardTitle": "관리",
+    "installNow": "지금 설치",
+    "notDistributed": "이 버전에서는 다운로드를 제공하지 않습니다. 파일에서 설치하세요."
   },
   "debug": {
     "description": "모의 상태와 안내 흐름을 미리 보기 위한 개발 전용 도구입니다.",

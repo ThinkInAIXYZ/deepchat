@@ -2697,7 +2697,7 @@
       "safe_storage_unavailable": "系統安全金鑰儲存不可用，持久化快取已停用。"
     },
     "runtimeDownloadTitle": "執行時下載",
-    "runtimeDownloadDescription": "OCR 引擎可按需下載。開啟後，首次需要時將自動下載。",
+    "runtimeDownloadDescription": "OCR 引擎可按需下載，首次需要時將自動下載。",
     "runtimeInstall": "下載 OCR 引擎",
     "runtimeInstalling": "下載中 {percent}%",
     "runtimeCancelInstall": "取消",
@@ -2706,7 +2706,11 @@
     "runtimeUnavailablePlatform": "目前平台不可用",
     "runtimeIncompatibleApp": "需要更新版本的應用",
     "runtimeReady": "OCR 引擎已就緒",
-    "runtimeDownloadHint": "下載 OCR 引擎後即可在本機使用"
+    "runtimeDownloadHint": "下載 OCR 引擎後即可在本機使用",
+    "runtimeDownloadedVersion": "已下載版本",
+    "uninstallRuntimeTitle": "刪除 OCR 引擎",
+    "uninstallRuntimeDescription": "將從本機刪除已下載的 OCR 引擎，下次需要時會重新下載。",
+    "runtimeReadyBundled": "OCR 引擎已就緒（應用內建）"
   },
   "leaveGuard": {
     "dirtyTitle": "變更尚未儲存",
@@ -3035,7 +3039,10 @@
     "emptyTitle": "No built-in plugins available",
     "emptyDescription": "This platform has no built-in official plugins in this DeepChat version.",
     "installFromFile": "Choose .dcplugin",
-    "openRelease": "GitHub Release"
+    "openRelease": "GitHub Release",
+    "uninstallTitle": "解除安裝 {name}？",
+    "uninstallDescription": "外掛將被停用並刪除已安裝的檔案。下載安裝的外掛需重新安裝後才能使用。",
+    "uninstallFailed": "解除安裝失敗"
   },
   "controlCenter": {
     "groups": {
@@ -3299,7 +3306,15 @@
     "retryInstall": "重試",
     "cancelInstall": "取消",
     "installFailed": "安裝失敗",
-    "preRelease": "預發布"
+    "preRelease": "預發布",
+    "manualInstall": "從檔案安裝",
+    "uninstall": "解除安裝",
+    "runtimeCardTitle": "執行時",
+    "incompatibleApp": "需要更新版本的應用",
+    "unavailablePlatform": "目前平台不可用",
+    "manageCardTitle": "管理",
+    "installNow": "立即安裝",
+    "notDistributed": "目前版本未提供下載，請從檔案安裝。"
   },
   "debug": {
     "description": "僅在開發模式下顯示的情境與引導偵錯工具。",

@@ -838,7 +838,14 @@ async function afterPack(context) {
   await copyFffNativePackages(context)
   await copyParcelWatcherNativePackages(context)
   await copyOpendalNativePackages(context)
-  await packageLightOcrAssets(context)
+  // Set DEEPCHAT_UNBUNDLE_OCR=1 to build without the bundled OCR runtime and
+  // exercise the remote distribution flow (download / manual install).
+  // Release builds keep bundling until the published catalog is stable.
+  if (process.env.DEEPCHAT_UNBUNDLE_OCR !== '1') {
+    await packageLightOcrAssets(context)
+  } else {
+    console.info('[afterPack] DEEPCHAT_UNBUNDLE_OCR=1: skipping bundled OCR runtime')
+  }
   await validateNativeKitPrebuilds(context)
   await encodeMacVssExtension(context)
 

@@ -162,7 +162,12 @@
           </div>
 
           <div class="flex shrink-0 flex-wrap gap-2">
-            <DcButton v-if="!plugin.enabled" :disabled="pending" size="sm" @click="enablePlugin">
+            <DcButton
+              v-if="!plugin.enabled"
+              :disabled="pending || !canEnablePlugin"
+              size="sm"
+              @click="enablePlugin"
+            >
               <Icon icon="lucide:power" class="mr-2 size-4" />
               {{ t('settings.plugins.enable') }}
             </DcButton>
@@ -208,7 +213,30 @@
 
         <UserPluginDetails v-if="plugin.userPlugin" :key="plugin.id" :plugin="plugin" />
 
-        <DcSectionCard v-else :title="t('settings.plugins.runtime')">
+        <DcSectionCard v-else :title="t('settings.pluginsHub.manageCardTitle')">
+          <RuntimeInstallControls
+            :install-state="catalogInstallState"
+            :availability="catalogEntryAvailability"
+            :installed="plugin.installed"
+            :busy="pending"
+            @download="installFromCatalog"
+            @manual-install="installPluginFromFile"
+            @cancel="cancelCatalogInstall"
+            @uninstall="uninstallDialogOpen = true"
+          >
+            <template #installed-info>
+              <div
+                class="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground"
+              >
+                <span v-if="plugin.version">
+                  {{ t('settings.plugins.version') }}: <bdi>{{ plugin.version }}</bdi>
+                </span>
+              </div>
+            </template>
+          </RuntimeInstallControls>
+        </DcSectionCard>
+
+        <DcSectionCard v-if="!plugin.userPlugin" :title="t('settings.plugins.runtime')">
           <template #actions>
             <div v-if="showCuaRuntimeActions" class="flex flex-wrap gap-2">
               <DcButton
@@ -285,24 +313,38 @@
         </DcSectionCard>
       </template>
     </div>
+    <DcConfirmDialog
+      :open="uninstallDialogOpen"
+      :title="t('settings.plugins.uninstallTitle', { name: plugin?.name ?? '' })"
+      :description="t('settings.plugins.uninstallDescription')"
+      :confirm-label="t('settings.pluginsHub.uninstall')"
+      :busy="uninstallPending"
+      :confirm-attrs="{ 'data-testid': 'official-plugin-uninstall-confirm' }"
+      @update:open="uninstallDialogOpen = $event"
+      @confirm="uninstallPlugin"
+    />
   </ScrollArea>
 </template>
 
 <script setup lang="ts">
 import UserPluginDetails from './UserPluginDetails.vue'
-import { computed, onMounted, ref, watch } from 'vue'
+import RuntimeInstallControls from '@/components/plugins/RuntimeInstallControls.vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
 import { DcSectionCard } from '@dc-ui/components/section-card'
+import { DcConfirmDialog } from '@dc-ui/components/confirm-dialog'
 import { Alert, AlertDescription, AlertTitle } from '@shadcn/components/ui/alert'
 import { DcButton } from '@dc-ui/components/button'
 import { ScrollArea } from '@shadcn/components/ui/scroll-area'
 import { createPluginClient } from '@api/PluginClient'
+import { createDeviceClient } from '@api/DeviceClient'
 import { createRemoteControlClient } from '@api/RemoteControlClient'
 import { usePluginCatalogStore } from '@/stores/pluginCatalog'
 import RemoteSettings from '../../../settings/components/RemoteSettings.vue'
 import type { ChannelSettingsMap, RemoteChannel } from '@shared/types/remote'
+import type { PluginCatalogInstallState } from '@shared/types/pluginCatalog'
 import {
   CUA_PLUGIN_ID,
   type PluginActionResult,
@@ -324,6 +366,14 @@ const errorMessage = ref('')
 const remoteErrorMessage = ref('')
 const lastActionData = ref('')
 const remoteSettingsVersion = ref(0)
+const uninstallDialogOpen = ref(false)
+const uninstallPending = ref(false)
+const deviceClient = createDeviceClient()
+const catalogEntryAvailability = ref<
+  'available' | 'incompatible-app' | 'unsupported-platform' | null
+>(null)
+const catalogInstallState = ref<PluginCatalogInstallState | null>(null)
+let unsubscribeInstallProgress: (() => void) | null = null
 const FEISHU_PLUGIN_ID = 'com.deepchat.plugins.feishu'
 const remoteI18nKeyByChannel: Record<RemoteChannel, string> = {
   telegram: 'telegram',
@@ -406,6 +456,14 @@ const pluginDescription = computed(() => {
   if (plugin.value?.userPlugin) return plugin.value.userPlugin.package.description
   return plugin.value ? `${plugin.value.publisher} · ${plugin.value.id}` : ''
 })
+/**
+ * Enabling a plugin whose payload is missing only succeeds when the host can
+ * download it first, so the action stays disabled until an install route
+ * exists (catalog download, or a manual `.dcplugin`).
+ */
+const canEnablePlugin = computed(
+  () => plugin.value?.installed === true || catalogEntryAvailability.value === 'available'
+)
 const cuaMcpRuntime = computed(() =>
   plugin.value?.mcpServers?.find((server) => server.serverId === 'cua-driver')
 )
@@ -471,6 +529,27 @@ async function loadPlugin(): Promise<void> {
   }
 }
 
+async function uninstallPlugin(): Promise<void> {
+  if (!pluginId.value || uninstallPending.value) return
+  uninstallPending.value = true
+  try {
+    const result = await pluginClient.uninstallOfficialPlugin(pluginId.value)
+    if (!result.ok) {
+      errorMessage.value = result.error || t('settings.plugins.uninstallFailed')
+      uninstallDialogOpen.value = false
+      return
+    }
+    uninstallDialogOpen.value = false
+    void router.push({ name: 'plugins' })
+  } catch (error) {
+    errorMessage.value =
+      error instanceof Error ? error.message : t('settings.plugins.uninstallFailed')
+    uninstallDialogOpen.value = false
+  } finally {
+    uninstallPending.value = false
+  }
+}
+
 async function loadRemotePlugin(): Promise<void> {
   const channel = remoteChannel.value
   if (!channel) {
@@ -496,13 +575,86 @@ async function loadRemotePlugin(): Promise<void> {
   }
 }
 
+async function loadCatalogEntry(): Promise<void> {
+  if (!pluginId.value) return
+  try {
+    const entries = await pluginClient.listCatalogEntries()
+    const entry = entries.find((candidate) => candidate.pluginId === pluginId.value)
+    catalogEntryAvailability.value = entry?.availability ?? null
+    if (entry?.installState) {
+      catalogInstallState.value = entry.installState
+    }
+  } catch (error) {
+    console.warn('[OfficialPluginDetailPage] Failed to load catalog entry:', error)
+    catalogEntryAvailability.value = null
+  }
+}
+
 async function loadCurrentDetail(): Promise<void> {
   if (remoteChannel.value) {
     await loadRemotePlugin()
     return
   }
 
-  await loadPlugin()
+  await Promise.all([loadPlugin(), loadCatalogEntry()])
+}
+
+async function installFromCatalog(): Promise<void> {
+  if (!pluginId.value || pending.value) return
+  pending.value = true
+  errorMessage.value = ''
+  try {
+    const result = await pluginClient.installCatalogPlugin(pluginId.value)
+    if (!result.ok) {
+      errorMessage.value = result.error || t('settings.pluginsHub.installFailed')
+      return
+    }
+    // Installing is the opt-in moment: enable immediately after the download.
+    const enabled = await pluginClient.enablePlugin(pluginId.value)
+    if (!enabled.ok) {
+      errorMessage.value = enabled.error || t('settings.pluginsHub.installFailed')
+    }
+  } catch (error) {
+    errorMessage.value =
+      error instanceof Error ? error.message : t('settings.pluginsHub.installFailed')
+  } finally {
+    pending.value = false
+    await Promise.all([loadPlugin(), loadCatalogEntry()])
+  }
+}
+
+async function installPluginFromFile(): Promise<void> {
+  if (pending.value) return
+  errorMessage.value = ''
+  try {
+    const selection = await deviceClient.selectFiles({
+      filters: [{ name: 'DeepChat Plugin', extensions: ['dcplugin'] }]
+    })
+    const filePath = selection.filePaths[0]
+    if (!filePath) return
+    const result = await pluginClient.installCatalogPluginFromPath(filePath)
+    if (!result.ok) {
+      errorMessage.value = result.error || t('settings.pluginsHub.installFailed')
+      return
+    }
+    if (result.pluginId) {
+      const enabled = await pluginClient.enablePlugin(result.pluginId)
+      if (!enabled.ok) {
+        errorMessage.value = enabled.error || t('settings.pluginsHub.installFailed')
+      }
+    }
+  } catch (error) {
+    errorMessage.value =
+      error instanceof Error ? error.message : t('settings.pluginsHub.installFailed')
+  } finally {
+    await Promise.all([loadPlugin(), loadCatalogEntry()])
+  }
+}
+
+function cancelCatalogInstall(): void {
+  if (pluginId.value) {
+    void pluginClient.cancelCatalogInstall(pluginId.value)
+  }
 }
 
 async function runPluginAction(
@@ -663,5 +815,17 @@ watch(pluginId, () => {
 
 onMounted(() => {
   void loadCurrentDetail()
+  unsubscribeInstallProgress = pluginClient.onInstallProgress((payload) => {
+    if (payload.pluginId !== pluginId.value) return
+    catalogInstallState.value = payload
+    if (payload.phase === 'installed') {
+      void Promise.all([loadPlugin(), loadCatalogEntry()])
+    }
+  })
+})
+
+onBeforeUnmount(() => {
+  unsubscribeInstallProgress?.()
+  unsubscribeInstallProgress = null
 })
 </script>

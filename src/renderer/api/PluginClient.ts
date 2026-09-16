@@ -14,7 +14,9 @@ import {
   pluginsListRoute,
   pluginsCatalogListRoute,
   pluginsCatalogInstallRoute,
-  pluginsCatalogCancelRoute
+  pluginsCatalogCancelRoute,
+  pluginsCatalogInstallFromPathRoute,
+  pluginsUninstallOfficialRoute
 } from '@shared/contracts/routes'
 import { pluginInstallProgressEvent, type DeepchatEventPayload } from '@shared/contracts/events'
 import type { PluginInvokeActionRequest } from '@shared/types/plugin'
@@ -66,6 +68,14 @@ export function createPluginClient(bridge: DeepchatBridge = getDeepchatBridge())
       (await bridge.invoke(pluginsCatalogInstallRoute.name, { pluginId })).result,
     cancelCatalogInstall: async (pluginId: string) =>
       (await bridge.invoke(pluginsCatalogCancelRoute.name, { pluginId })).cancelled,
+    installCatalogPluginFromPath: async (filePath: string) =>
+      (
+        await bridge.invoke(pluginsCatalogInstallFromPathRoute.name, {
+          path: filePath
+        })
+      ).result,
+    uninstallOfficialPlugin: async (pluginId: string) =>
+      (await bridge.invoke(pluginsUninstallOfficialRoute.name, { pluginId })).result,
     onInstallProgress: (
       listener: (payload: DeepchatEventPayload<typeof pluginInstallProgressEvent.name>) => void
     ) => bridge.on(pluginInstallProgressEvent.name, listener),

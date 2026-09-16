@@ -176,7 +176,7 @@
       "safe_storage_unavailable": "ᠶᠢᠨ ᠠᠶᠤᠯ ᠦᠭᠡᠶ ᠶᠢᠨ ᠲᠦᠯᠬᠢᠭᠦᠷ ᠦᠨ ᠬᠠᠳᠠᠭᠠᠯᠠᠮᠵᠢ ᠶᠢ ᠬᠡᠷᠡᠭᠯᠡᠬᠦ ᠪᠡᠨ ᠪᠣᠯᠢᠭᠰᠠᠨ ᠂ ᠳᠠᠭᠠᠭᠠᠮᠠᠭᠠᠶ ᠴᠢᠨᠠᠷ ᠲᠠᠶ ᠡᠭᠡᠪᠴᠢ ᠬᠠᠳᠠᠭᠠᠯᠠᠮᠵᠢ ᠶᠢ ᠬᠡᠷᠡᠭᠯᠡᠬᠦ ᠪᠡᠨ ᠲᠠᠰᠤᠯᠵᠠᠶ ᠃"
     },
     "runtimeDownloadTitle": "Runtime download",
-    "runtimeDownloadDescription": "The OCR engine can be downloaded on demand. When enabled, it downloads automatically the first time it is needed.",
+    "runtimeDownloadDescription": "The OCR engine can be downloaded on demand. It downloads automatically the first time it is needed.",
     "runtimeInstall": "Download OCR engine",
     "runtimeInstalling": "Downloading {percent}%",
     "runtimeCancelInstall": "Cancel",
@@ -185,7 +185,11 @@
     "runtimeUnavailablePlatform": "Not available on this platform",
     "runtimeIncompatibleApp": "Requires a newer app version",
     "runtimeReady": "OCR engine is ready on this device",
-    "runtimeDownloadHint": "Download the OCR engine to use it on this device"
+    "runtimeDownloadHint": "Download the OCR engine to use it on this device",
+    "runtimeDownloadedVersion": "Downloaded version",
+    "uninstallRuntimeTitle": "Remove OCR engine",
+    "uninstallRuntimeDescription": "The downloaded OCR engine is removed from this device. It downloads again the next time it is needed.",
+    "runtimeReadyBundled": "OCR engine is ready (bundled with the app)"
   },
   "leaveGuard": {
     "dirtyTitle": "ᠵᠠᠰᠠᠭᠰᠠᠨ ᠵᠦᠢᠯ ᠢ ᠬᠠᠳᠠᠭᠠᠯᠠᠭᠰᠠᠨ ᠦᠭᠡᠢ",
@@ -3035,7 +3039,10 @@
       "readyOnDemand": "ᠳᠤ ᠪᠡᠯᠡᠳᠬᠡᠬᠦ",
       "quarantined": "ᠡᠴᠡ ᠭᠠᠳᠠᠭᠤᠷᠴᠢᠯᠠᠭᠳᠠᠬᠤ",
       "error": "ᠠᠯᠳᠠᠭ᠎ᠠ"
-    }
+    },
+    "uninstallTitle": "Uninstall {name}?",
+    "uninstallDescription": "The plugin is disabled and its installed files are removed. Downloaded plugins disappear until installed again.",
+    "uninstallFailed": "Uninstall failed"
   },
   "pluginsHub": {
     "subtitle": "ᠶᠢᠨ Skills ᠂ MCP ᠶᠢᠨ ᠨᠣᠢᠯᠭᠠᠯᠲᠠ ᠂ ᠠᠯᠤᠰ ᠡᠵᠡᠮᠰᠢᠯDeepChat ᠦᠨ ᠠᠷᠭ᠎ᠠ ᠵᠠᠮ  ᠢ ᠨᠢᠭᠡᠳᠦᠯᠲᠡᠶ ᠬᠠᠮᠢᠶᠠᠷᠤᠨ᠎ᠠ ᠃",
@@ -3059,7 +3066,15 @@
     "retryInstall": "Retry",
     "cancelInstall": "Cancel",
     "installFailed": "Installation failed",
-    "preRelease": "Pre-release"
+    "preRelease": "Pre-release",
+    "manualInstall": "Install from file",
+    "uninstall": "Uninstall",
+    "runtimeCardTitle": "Runtime",
+    "incompatibleApp": "Requires a newer app version",
+    "unavailablePlatform": "Not available on this platform",
+    "manageCardTitle": "Manage",
+    "installNow": "Install now",
+    "notDistributed": "No download is offered for this version. Install from a file instead."
   },
   "controlCenter": {
     "groups": {

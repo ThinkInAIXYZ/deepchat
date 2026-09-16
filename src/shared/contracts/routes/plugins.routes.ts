@@ -133,6 +133,26 @@ export const pluginsCatalogCancelRoute = defineRouteContract({
   })
 })
 
+export const pluginsCatalogInstallFromPathRoute = defineRouteContract({
+  name: 'plugins.catalog.installFromPath',
+  input: z.object({ path: z.string().min(1).max(4096) }).strict(),
+  output: z.object({
+    result: z.object({
+      ok: z.boolean(),
+      pluginId: z.string().min(1).max(128).optional(),
+      error: z.string().max(2048).optional()
+    })
+  })
+})
+
+export const pluginsUninstallOfficialRoute = defineRouteContract({
+  name: 'plugins.uninstallOfficial',
+  input: z.object({ pluginId: z.string().min(1).max(128) }).strict(),
+  output: z.object({
+    result: PluginActionResultSchema
+  })
+})
+
 export const pluginsListRoute = defineRouteContract({
   name: 'plugins.list',
   input: z.object({}),

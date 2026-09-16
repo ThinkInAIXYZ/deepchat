@@ -176,7 +176,7 @@
       "safe_storage_unavailable": "Der persistente Cache ist nicht verfügbar, weil keine sichere Schlüsselspeicherung verfügbar ist."
     },
     "runtimeDownloadTitle": "Laufzeit-Download",
-    "runtimeDownloadDescription": "Die OCR-Engine kann bei Bedarf heruntergeladen werden. Aktiviert lädt sie beim ersten Bedarf automatisch.",
+    "runtimeDownloadDescription": "Die OCR-Engine kann bei Bedarf heruntergeladen werden. Sie wird beim ersten Bedarf automatisch heruntergeladen.",
     "runtimeInstall": "OCR-Engine herunterladen",
     "runtimeInstalling": "Wird heruntergeladen {percent}%",
     "runtimeCancelInstall": "Abbrechen",
@@ -185,7 +185,11 @@
     "runtimeUnavailablePlatform": "Auf dieser Plattform nicht verfügbar",
     "runtimeIncompatibleApp": "Erfordert eine neuere App-Version",
     "runtimeReady": "Die OCR-Engine ist auf diesem Gerät einsatzbereit",
-    "runtimeDownloadHint": "Lade die OCR-Engine herunter, um sie auf diesem Gerät zu nutzen"
+    "runtimeDownloadHint": "Lade die OCR-Engine herunter, um sie auf diesem Gerät zu nutzen",
+    "runtimeDownloadedVersion": "Heruntergeladene Version",
+    "uninstallRuntimeTitle": "OCR-Engine entfernen",
+    "uninstallRuntimeDescription": "Die heruntergeladene OCR-Engine wird von diesem Gerät entfernt. Sie wird beim nächsten Bedarf erneut heruntergeladen.",
+    "runtimeReadyBundled": "OCR-Engine ist bereit (in der App enthalten)"
   },
   "leaveGuard": {
     "dirtyTitle": "Nicht gespeicherte Änderungen",
@@ -2981,7 +2985,10 @@
       "readyOnDemand": "Bei Bedarf bereit",
       "quarantined": "Unter Quarantäne",
       "error": "Fehler"
-    }
+    },
+    "uninstallTitle": "{name} deinstallieren?",
+    "uninstallDescription": "Das Plugin wird deaktiviert und die installierten Dateien werden entfernt. Heruntergeladene Plugins verschwinden bis zur Neuinstallation.",
+    "uninstallFailed": "Deinstallation fehlgeschlagen"
   },
   "controlCenter": {
     "groups": {
@@ -3299,7 +3306,15 @@
     "retryInstall": "Erneut versuchen",
     "cancelInstall": "Abbrechen",
     "installFailed": "Installation fehlgeschlagen",
-    "preRelease": "Vorabversion"
+    "preRelease": "Vorabversion",
+    "manualInstall": "Aus Datei installieren",
+    "uninstall": "Deinstallieren",
+    "runtimeCardTitle": "Laufzeit",
+    "incompatibleApp": "Erfordert eine neuere App-Version",
+    "unavailablePlatform": "Auf dieser Plattform nicht verfügbar",
+    "manageCardTitle": "Verwalten",
+    "installNow": "Jetzt installieren",
+    "notDistributed": "Für diese Version wird kein Download angeboten. Bitte aus einer Datei installieren."
   },
   "debug": {
     "description": "Nur für die Entwicklung bestimmte Werkzeuge zur Vorschau von Mock-Zuständen und geführten Abläufen.",

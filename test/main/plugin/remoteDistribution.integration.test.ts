@@ -322,4 +322,26 @@ describe('remote plugin distribution (L1 chain)', () => {
       expect(fs.readdirSync(installRoot).filter((entry) => entry !== '.staging')).toEqual([])
     }
   })
+
+  it('uninstalls an installed official plugin and removes its payload', async () => {
+    const root = tempRoots[0]
+    const pluginId = 'com.deepchat.plugins.fixture'
+    const packageBytes = createFixturePackageBytes(pluginId)
+    const packagePath = path.join(root, 'fixture.dcplugin')
+    fs.writeFileSync(packagePath, Buffer.from(packageBytes))
+
+    const pluginService = await createPluginServiceL1(root)
+    await pluginService.installOfficialPluginPackage(packagePath, pluginId)
+    const before = await pluginService.listPlugins()
+    expect(before.find((plugin) => plugin.id === pluginId)).toBeDefined()
+    const installRoot = path.join(root, 'userData', 'plugins')
+    expect(fs.readdirSync(installRoot).some((entry) => entry.includes('fixture'))).toBe(true)
+
+    const result = await pluginService.uninstallOfficialPlugin(pluginId)
+
+    expect(result.ok).toBe(true)
+    const after = await pluginService.listPlugins()
+    expect(after.find((plugin) => plugin.id === pluginId)).toBeUndefined()
+    expect(fs.readdirSync(installRoot).filter((entry) => entry !== '.staging')).toEqual([])
+  })
 })
