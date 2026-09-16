@@ -35,7 +35,12 @@ function createPluginServiceWithInstalled(installedIds: Set<string>) {
       enablePlugin: vi.fn(async (pluginId: string): Promise<PluginActionResult> => {
         enableCalls.push(pluginId)
         if (!installedIds.has(pluginId)) {
-          throw new Error(`Official plugin ${pluginId} is not available`)
+          // Mirrors PluginService.enablePlugin, which reports failures
+          // through the returned result instead of throwing.
+          return {
+            ok: false,
+            error: `Official plugin ${pluginId} is not available`
+          }
         }
         return { ok: true }
       }),
@@ -124,7 +129,7 @@ describe('plugin routes with remote distribution', () => {
     expect(enableCalls).toEqual([distribution.pluginId, distribution.pluginId])
   })
 
-  it('propagates the original error when the plugin is not in the catalog', async () => {
+  it('returns the original failure when the plugin is not in the catalog', async () => {
     const { service } = createPluginServiceWithInstalled(new Set())
     const distribution = createDistribution({ pluginId: 'com.deepchat.plugins.other' })
     const routes = createPluginRoutes(service, {
@@ -132,9 +137,31 @@ describe('plugin routes with remote distribution', () => {
       installer: distribution.installer
     })
 
-    await expect(invokeEnable(routes, 'com.deepchat.plugins.unknown')).rejects.toThrow(
-      'not available'
-    )
+    const response = await invokeEnable(routes, 'com.deepchat.plugins.unknown')
+
+    expect(response.result.ok).toBe(false)
+    expect(response.result.error).toContain('not available')
+    expect(distribution.install).not.toHaveBeenCalled()
+  })
+
+  it('surfaces enablement failures unchanged for already-installed plugins', async () => {
+    const installed = new Set<string>(['com.deepchat.plugins.cua'])
+    const { service } = createPluginServiceWithInstalled(installed)
+    const distribution = createDistribution()
+    // The plugin is installed; enablement fails for an unrelated reason.
+    // This is not a missing-plugin case, so no remote install may start.
+    const enablePlugin = service.enablePlugin as unknown as ReturnType<typeof vi.fn>
+    enablePlugin.mockResolvedValue({ ok: false, error: 'activation failed' })
+    const routes = createPluginRoutes(service, {
+      catalog: distribution.catalog,
+      installer: distribution.installer
+    })
+
+    const response = await invokeEnable(routes, distribution.pluginId)
+
+    expect(response.result.ok).toBe(false)
+    expect(response.result.error).toContain('activation failed')
+    expect(enablePlugin).toHaveBeenCalledOnce()
     expect(distribution.install).not.toHaveBeenCalled()
   })
 

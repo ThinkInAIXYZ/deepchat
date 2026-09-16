@@ -199,38 +199,60 @@ function createDistributionRoutes(
  * is declared by the distribution catalog but not present locally. The enable
  * action is the user's opt-in moment; the artifact download needs no second
  * confirmation.
+ *
+ * `PluginService.enablePlugin` reports failures through the returned
+ * `PluginActionResult` (it does not throw for a missing plugin), so both the
+ * result and thrown-error paths must fall back to the catalog.
  */
 async function enablePluginWithRemoteInstall(
   pluginService: PluginServicePort,
   distribution: PluginDistributionDeps | undefined,
   pluginId: string
 ): Promise<PluginActionResult> {
+  const first = await enablePluginSafely(pluginService, pluginId)
+  if (first.ok || !distribution) return first
+
+  // Only a locally missing plugin can be repaired by a remote install; other
+  // enablement failures (e.g. activation errors) must surface unchanged.
+  if (await isPluginInstalled(pluginService, pluginId)) {
+    return first
+  }
+
+  const resolution = distribution.catalog.resolveArtifact(pluginId)
+  if (!resolution) return first
+
+  const installResult = await distribution.installer.install(resolution.artifact, resolution.target)
+  if (!installResult.ok) {
+    return {
+      ok: false,
+      error: installResult.error ?? 'Plugin artifact download failed'
+    }
+  }
+  return await enablePluginSafely(pluginService, pluginId)
+}
+
+async function enablePluginSafely(
+  pluginService: PluginServicePort,
+  pluginId: string
+): Promise<PluginActionResult> {
   try {
     return await pluginService.enablePlugin(pluginId)
-  } catch (firstError) {
-    if (!distribution) throw firstError
-    const resolution = distribution.catalog.resolveArtifact(pluginId)
-    if (!resolution) throw firstError
-    const installResult = await distribution.installer.install(
-      resolution.artifact,
-      resolution.target
-    )
-    if (!installResult.ok) {
-      return {
-        ok: false,
-        error: installResult.error ?? 'Plugin artifact download failed'
-      }
+  } catch (error) {
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : 'Plugin enablement failed'
     }
-    try {
-      return await pluginService.enablePlugin(pluginId)
-    } catch (secondError) {
-      return {
-        ok: false,
-        error:
-          secondError instanceof Error
-            ? secondError.message
-            : 'Plugin activation failed after install'
-      }
-    }
+  }
+}
+
+async function isPluginInstalled(
+  pluginService: PluginServicePort,
+  pluginId: string
+): Promise<boolean> {
+  try {
+    const plugins = await pluginService.listPlugins()
+    return plugins.some((plugin) => plugin.id === pluginId)
+  } catch {
+    return false
   }
 }
