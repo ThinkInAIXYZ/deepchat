@@ -4,7 +4,7 @@ import type { AgentSettingsPort } from '@/agent/settings'
 import { AcpProcessManager, type AcpProcessHandle } from '@/agent/acp/runtime'
 import type { AcpConnectionRef, AcpRegistryPort, StartAcpConnectionInput } from '../types'
 import { PROTOCOL_VERSION } from '@agentclientprotocol/sdk'
-import type { DeepChatEventPublisher } from '@/agent/deepchat/runtime/types'
+import type { DeepchatEventName } from '@shared/contracts/events'
 
 export class AcpConnectionManager {
   readonly processManager: AcpProcessManager
@@ -13,7 +13,7 @@ export class AcpConnectionManager {
     provider: LLM_PROVIDER,
     agentSettings: AgentSettingsPort,
     registry: AcpRegistryPort,
-    publishEvent: DeepChatEventPublisher
+    publishEvent: (name: DeepchatEventName, payload: unknown) => void
   ) {
     this.processManager = new AcpProcessManager({
       publishEvent,

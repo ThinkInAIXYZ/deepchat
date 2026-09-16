@@ -13,7 +13,10 @@ const AGENT_SYSTEM_SOURCE_ROOTS = [
   'src/main/agent/shared',
   'src/main/agent/manager',
   'src/main/agent/deepchat',
-  'src/main/agent/acp'
+  'src/main/agent/acp',
+  // Kernel owner layers physically live in the workspace package since the 2B-3a extraction;
+  // the host tree keeps one-line re-export shims at the historical paths.
+  'packages/agent-kernel/src'
 ]
 const AGENT_SYSTEM_RUNTIME_BOUNDARY_FILES = [
   'src/main/session/query.ts',
@@ -22,19 +25,19 @@ const AGENT_SYSTEM_RUNTIME_BOUNDARY_FILES = [
   'src/main/session/lifecycle.ts',
   'src/main/agent/deepchat/harness/deepChatAgentHarness.ts',
   'src/main/agent/deepchat/harness/createDeepChatAgentHarness.ts',
-  'src/main/agent/deepchat/runtime/runLifecycleCoordinator.ts',
-  'src/main/agent/deepchat/runtime/sessionStatusPublisher.ts',
-  'src/main/agent/deepchat/runtime/pendingInputAdmissionCoordinator.ts',
-  'src/main/agent/deepchat/runtime/pendingInputPump.ts',
-  'src/main/agent/deepchat/runtime/turnCoordinator.ts',
-  'src/main/agent/deepchat/runtime/compactionRuntimeCoordinator.ts',
-  'src/main/agent/deepchat/runtime/sessionSettingsCoordinator.ts',
-  'src/main/agent/deepchat/runtime/runtimeHookSink.ts',
-  'src/main/agent/deepchat/runtime/process.ts',
-  'src/main/agent/deepchat/runtime/dispatch.ts',
+  'packages/agent-kernel/src/runtime/runLifecycleCoordinator.ts',
+  'packages/agent-kernel/src/runtime/sessionStatusPublisher.ts',
+  'packages/agent-kernel/src/runtime/pendingInputAdmissionCoordinator.ts',
+  'packages/agent-kernel/src/runtime/pendingInputPump.ts',
+  'packages/agent-kernel/src/runtime/turnCoordinator.ts',
+  'packages/agent-kernel/src/runtime/compactionRuntimeCoordinator.ts',
+  'packages/agent-kernel/src/runtime/sessionSettingsCoordinator.ts',
+  'packages/agent-kernel/src/runtime/runtimeHookSink.ts',
+  'packages/agent-kernel/src/runtime/process.ts',
+  'packages/agent-kernel/src/runtime/dispatch.ts',
   'src/main/session/data/transcript.ts',
   'src/main/tape/application/sessionTape.ts',
-  'src/main/tape/ports/capabilities.ts',
+  'packages/agent-kernel/src/tape/ports/capabilities.ts',
   'src/main/provider/providers/acpProvider.ts'
 ]
 const AGENT_SYSTEM_EXPECTED_FILES = [
@@ -45,13 +48,13 @@ const AGENT_SYSTEM_EXPECTED_FILES = [
   'src/main/agent/manager/sessionHandles.ts',
   'src/main/agent/manager/deepChatAgentBackend.ts',
   'src/main/agent/manager/directAcpAgentBackend.ts',
-  'src/main/agent/deepchat/instance/deepChatAgentRuntime.ts',
-  'src/main/agent/deepchat/instance/deepChatAgentInstance.ts',
-  'src/main/agent/deepchat/loop/deepChatLoopEngine.ts',
-  'src/main/agent/deepchat/loop/ports.ts',
-  'src/main/agent/deepchat/memory/memoryRuntimeCoordinator.ts',
-  'src/main/agent/deepchat/memory/memoryPromptContributor.ts',
-  'src/main/agent/deepchat/memory/memoryIngestionObserver.ts',
+  'packages/agent-kernel/src/instance/deepChatAgentRuntime.ts',
+  'packages/agent-kernel/src/instance/deepChatAgentInstance.ts',
+  'packages/agent-kernel/src/loop/deepChatLoopEngine.ts',
+  'packages/agent-kernel/src/loop/ports.ts',
+  'packages/agent-kernel/src/memory/memoryRuntimeCoordinator.ts',
+  'packages/agent-kernel/src/memory/memoryPromptContributor.ts',
+  'packages/agent-kernel/src/memory/memoryIngestionObserver.ts',
   'src/main/agent/acp/instance/acpAgentRuntime.ts',
   'src/main/agent/acp/instance/acpAgentInstance.ts',
   ...AGENT_SYSTEM_RUNTIME_BOUNDARY_FILES
@@ -70,37 +73,37 @@ const AGENT_SYSTEM_OWNER_EVIDENCE = [
   ],
   [
     'deepChatRuntime',
-    'src/main/agent/deepchat/instance/deepChatAgentRuntime.ts',
+    'packages/agent-kernel/src/instance/deepChatAgentRuntime.ts',
     /\bclass DeepChatAgentRuntime\b/g
   ],
   [
     'deepChatInstance',
-    'src/main/agent/deepchat/instance/deepChatAgentInstance.ts',
+    'packages/agent-kernel/src/instance/deepChatAgentInstance.ts',
     /\bclass DeepChatAgentInstance\b/g
   ],
   [
     'deepChatLoopEngine',
-    'src/main/agent/deepchat/loop/deepChatLoopEngine.ts',
+    'packages/agent-kernel/src/loop/deepChatLoopEngine.ts',
     /\bclass DeepChatLoopEngine\b/g
   ],
   [
     'tapeToolFactWriter',
-    'src/main/tape/ports/capabilities.ts',
+    'packages/agent-kernel/src/tape/ports/capabilities.ts',
     /\binterface TapeToolFactWriter\b/g
   ],
   [
     'memoryRuntimeCoordinator',
-    'src/main/agent/deepchat/memory/memoryRuntimeCoordinator.ts',
+    'packages/agent-kernel/src/memory/memoryRuntimeCoordinator.ts',
     /\bclass MemoryRuntimeCoordinator\b/g
   ],
   [
     'memoryPromptContributor',
-    'src/main/agent/deepchat/memory/memoryPromptContributor.ts',
+    'packages/agent-kernel/src/memory/memoryPromptContributor.ts',
     /\binterface MemoryPromptContributor\b/g
   ],
   [
     'memoryIngestionObserver',
-    'src/main/agent/deepchat/memory/memoryIngestionObserver.ts',
+    'packages/agent-kernel/src/memory/memoryIngestionObserver.ts',
     /\binterface MemoryIngestionObserver\b/g
   ],
   [
@@ -140,42 +143,42 @@ const AGENT_SYSTEM_OWNER_EVIDENCE = [
   ],
   [
     'runLifecycleCoordinator',
-    'src/main/agent/deepchat/runtime/runLifecycleCoordinator.ts',
+    'packages/agent-kernel/src/runtime/runLifecycleCoordinator.ts',
     /\bclass RunLifecycleCoordinator\b/g
   ],
   [
     'sessionStatusPublisher',
-    'src/main/agent/deepchat/runtime/sessionStatusPublisher.ts',
+    'packages/agent-kernel/src/runtime/sessionStatusPublisher.ts',
     /\bclass SessionStatusPublisher\b/g
   ],
   [
     'pendingInputAdmissionCoordinator',
-    'src/main/agent/deepchat/runtime/pendingInputAdmissionCoordinator.ts',
+    'packages/agent-kernel/src/runtime/pendingInputAdmissionCoordinator.ts',
     /\bclass PendingInputAdmissionCoordinator\b/g
   ],
   [
     'pendingInputPump',
-    'src/main/agent/deepchat/runtime/pendingInputPump.ts',
+    'packages/agent-kernel/src/runtime/pendingInputPump.ts',
     /\bclass PendingInputPump\b/g
   ],
   [
     'turnCoordinator',
-    'src/main/agent/deepchat/runtime/turnCoordinator.ts',
+    'packages/agent-kernel/src/runtime/turnCoordinator.ts',
     /\bclass TurnCoordinator\b/g
   ],
   [
     'compactionRuntimeCoordinator',
-    'src/main/agent/deepchat/runtime/compactionRuntimeCoordinator.ts',
+    'packages/agent-kernel/src/runtime/compactionRuntimeCoordinator.ts',
     /\bclass CompactionRuntimeCoordinator\b/g
   ],
   [
     'sessionSettingsCoordinator',
-    'src/main/agent/deepchat/runtime/sessionSettingsCoordinator.ts',
+    'packages/agent-kernel/src/runtime/sessionSettingsCoordinator.ts',
     /\bclass SessionSettingsCoordinator\b/g
   ],
   [
     'runtimeHookSink',
-    'src/main/agent/deepchat/runtime/runtimeHookSink.ts',
+    'packages/agent-kernel/src/runtime/runtimeHookSink.ts',
     /\bclass RuntimeHookSink\b/g
   ]
 ]
@@ -458,7 +461,7 @@ async function buildAgentSystemBaseline() {
     agentManagerSource,
     AGENT_HANDLE_BACKEND_RUNTIME_KIND_PATTERN
   )
-  const loopFiles = await collectRelativeSourceFiles(['src/main/agent/deepchat/loop'])
+  const loopFiles = await collectRelativeSourceFiles(['packages/agent-kernel/src/loop'])
   const loopImports = []
   for (const file of loopFiles) {
     const source = await fs.readFile(path.join(ROOT, file), 'utf8')
@@ -667,8 +670,10 @@ function extractSpecifiers(source) {
 
 async function resolveImport(specifier, importer, scopeRoot) {
   const tryFile = async (basePath) => {
+    const jsStripped = basePath.endsWith('.js') ? basePath.slice(0, -3) : null
     const candidates = [
       basePath,
+      ...(jsStripped ? [jsStripped, `${jsStripped}.ts`] : []),
       `${basePath}.ts`,
       `${basePath}.tsx`,
       `${basePath}.js`,

@@ -1,3 +1,6 @@
+packages:
+  - packages/*
+
 supportedArchitectures:
   os:
     - current

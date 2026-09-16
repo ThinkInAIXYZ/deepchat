@@ -21,7 +21,7 @@ import type {
   AcpDebugEventEntry,
   AcpResolvedLaunchSpec
 } from '@shared/types/acp'
-import type { DeepChatEventPublisher } from '@/agent/deepchat/runtime/types'
+import type { DeepchatEventName } from '@shared/contracts/events'
 import type { AgentProcessHandle, AgentProcessManager } from './types'
 import {
   getPathEntriesFromEnv,
@@ -85,7 +85,7 @@ export interface AcpProcessHandle extends AgentProcessHandle {
 }
 
 interface AcpProcessManagerOptions {
-  publishEvent: DeepChatEventPublisher
+  publishEvent: (name: DeepchatEventName, payload: unknown) => void
   providerId: string
   resolveLaunchSpec: (agentId: string, workdir?: string) => Promise<AcpResolvedLaunchSpec>
   getAgentState?: (agentId: string) => Promise<AcpAgentState | null>
@@ -229,7 +229,7 @@ const AUTH_CHALLENGE_TTL_MS = 10 * 60 * 1000
 const AUTH_AGENT_TIMEOUT_MS = 10 * 60 * 1000
 
 export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, AcpAgentConfig> {
-  private readonly publishEvent: DeepChatEventPublisher
+  private readonly publishEvent: (name: DeepchatEventName, payload: unknown) => void
   private readonly providerId: string
   private readonly resolveLaunchSpec: (
     agentId: string,

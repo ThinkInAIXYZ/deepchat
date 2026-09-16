@@ -12148,6 +12148,77 @@ describe('DeepChatAgentHarness', () => {
     })
   })
 
+  describe('restart-held waiting lane', () => {
+    it('admits a retry steer over a waiting lane holding only restart-held queue inputs', async () => {
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      // Store-level queue: the item stays pending, so app-restart recovery holds it instead of
+      // a turn claiming it. This is the lane state the ACP prepareRetry branch must tolerate.
+      sessionData.pendingInputs.queuePendingInput('s1', { text: 'Queued before restart' })
+      sqlitePresenter.deepchatSessionsTable.get.mockReturnValue({
+        id: 's1',
+        provider_id: 'openai',
+        model_id: 'gpt-4',
+        permission_mode: 'default'
+      })
+
+      const restartedSessionData = createSessionDataFromDatabase(sqlitePresenter as never, {
+        publishPendingInputsChanged: vi.fn(),
+        publishMessagesChanged: vi.fn()
+      })
+      const restartedAgent = createDeepChatAgentHarness({
+        ...runtimeDependencies,
+        providerRuntime: llmProvider,
+        providerSettings,
+        agentSettings: providerSettings,
+        database: sqlitePresenter,
+        sessionData: restartedSessionData,
+        toolService,
+        hookObserver: noopHookObserver
+      })
+
+      expect(await restartedAgent.listPendingInputs('s1')).toHaveLength(1)
+      // Baseline parity for failure-steer retries (2B-3a): the exemption must admit.
+      expect(() =>
+        restartedAgent.assertNoActivePendingInputs('s1', { allowRestartHeldQueue: true })
+      ).not.toThrow()
+      // Without the retry-steer exemption the waiting lane still guards transcript mutations.
+      expect(() => restartedAgent.assertNoActivePendingInputs('s1')).toThrow(
+        'Please clear the waiting lane before mutating chat history.'
+      )
+    })
+
+    it('does not extend the exemption to freshly queued inputs', async () => {
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      sqlitePresenter.deepchatSessionsTable.get.mockReturnValue({
+        id: 's1',
+        provider_id: 'openai',
+        model_id: 'gpt-4',
+        permission_mode: 'default'
+      })
+      const restartedSessionData = createSessionDataFromDatabase(sqlitePresenter as never, {
+        publishPendingInputsChanged: vi.fn(),
+        publishMessagesChanged: vi.fn()
+      })
+      const restartedAgent = createDeepChatAgentHarness({
+        ...runtimeDependencies,
+        providerRuntime: llmProvider,
+        providerSettings,
+        agentSettings: providerSettings,
+        database: sqlitePresenter,
+        sessionData: restartedSessionData,
+        toolService,
+        hookObserver: noopHookObserver
+      })
+
+      // A queue input created after recovery is NOT restart-held; the retry steer stays blocked.
+      restartedSessionData.pendingInputs.queuePendingInput('s1', { text: 'Queued after restart' })
+
+      expect(() =>
+        restartedAgent.assertNoActivePendingInputs('s1', { allowRestartHeldQueue: true })
+      ).toThrow('Please clear the waiting lane before mutating chat history.')
+    })
+  })
+
   describe('summary invalidation', () => {
     it('resets summary when deleting history before cursor', async () => {
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })

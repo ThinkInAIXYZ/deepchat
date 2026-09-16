@@ -12,10 +12,19 @@ import type {
 } from '@/tape/domain/executionJournal'
 
 const MAIN_SOURCE_ROOT = path.resolve(process.cwd(), 'src/main')
+// Tape domain/ports physically live in the kernel workspace package since the 2B-3a extraction;
+// the host tree keeps one-line re-export shims at the historical paths.
+const KERNEL_SOURCE_ROOT = path.resolve(process.cwd(), 'packages/agent-kernel/src')
 const TAPE_ROOT = path.join(MAIN_SOURCE_ROOT, 'tape')
 const TAPE_DOMAIN_ROOT = path.join(MAIN_SOURCE_ROOT, 'tape/domain')
+const PACKAGE_TAPE_ROOT = path.join(KERNEL_SOURCE_ROOT, 'tape')
+const PACKAGE_TAPE_DOMAIN_ROOT = path.join(PACKAGE_TAPE_ROOT, 'domain')
 const TAPE_SQLITE_ROOT = path.join(MAIN_SOURCE_ROOT, 'tape/infrastructure/sqlite')
-const TAPE_CAPABILITIES_MODULE = path.join(MAIN_SOURCE_ROOT, 'tape/ports/capabilities')
+const TAPE_CAPABILITIES_MODULE = path.join(PACKAGE_TAPE_ROOT, 'ports/capabilities')
+const TAPE_CAPABILITIES_MODULE_ALIASES = new Set([
+  TAPE_CAPABILITIES_MODULE,
+  path.join(MAIN_SOURCE_ROOT, 'tape/ports/capabilities')
+])
 const TAPE_SESSION_FACADE_MODULE = path.join(MAIN_SOURCE_ROOT, 'tape/application/sessionTape')
 const MEMORY_ROUTES_FILE = path.join(MAIN_SOURCE_ROOT, 'memory/routes.ts')
 const SESSION_DATA_ROOT = path.join(MAIN_SOURCE_ROOT, 'session/data')
@@ -23,17 +32,17 @@ const TAPE_SQLITE_RELATIVE_ROOT = 'tape/infrastructure/sqlite/'
 const TYPESCRIPT_SOURCE_EXTENSION = /\.[cm]?tsx?$/
 
 const CAPABILITY_SCOPED_CONSUMER_FILES = [
-  'agent/acp/compatibility/adapters.ts',
-  'agent/acp/compatibility/dependencies.ts',
-  'agent/deepchat/memory/memoryRuntimeCoordinator.ts',
-  'agent/deepchat/runtime/contextOccupancyCoordinator.ts',
-  'agent/deepchat/runtime/deepChatLoopRunner.ts',
-  'agent/deepchat/runtime/turnCoordinator.ts',
-  'app/startupMigrations/legacyChatImportService.ts',
-  'memory/routes.ts',
-  'session/data/settings.ts',
-  'session/data/transcript.ts'
-].map((file) => path.join(MAIN_SOURCE_ROOT, file))
+  path.join(MAIN_SOURCE_ROOT, 'agent/acp/compatibility/adapters.ts'),
+  path.join(MAIN_SOURCE_ROOT, 'agent/acp/compatibility/dependencies.ts'),
+  path.join(KERNEL_SOURCE_ROOT, 'memory/memoryRuntimeCoordinator.ts'),
+  path.join(KERNEL_SOURCE_ROOT, 'runtime/contextOccupancyCoordinator.ts'),
+  path.join(KERNEL_SOURCE_ROOT, 'runtime/deepChatLoopRunner.ts'),
+  path.join(KERNEL_SOURCE_ROOT, 'runtime/turnCoordinator.ts'),
+  path.join(MAIN_SOURCE_ROOT, 'app/startupMigrations/legacyChatImportService.ts'),
+  path.join(MAIN_SOURCE_ROOT, 'memory/routes.ts'),
+  path.join(MAIN_SOURCE_ROOT, 'session/data/settings.ts'),
+  path.join(MAIN_SOURCE_ROOT, 'session/data/transcript.ts')
+]
 
 const FORBIDDEN_DOMAIN_SQLITE_IMPORTS = new Set([
   'better-sqlite3',
@@ -87,7 +96,10 @@ const ALLOWED_STORAGE_EXCEPTIONS = new Map<string, StorageBoundaryException>([
       sqliteImport: 'SQLite adapter composition'
     }
   ],
-  ['tape/ports/application.ts', { physicalName: 'legacy database-shape compatibility adapter' }]
+  [
+    'agent-kernel/tape/ports/application.ts',
+    { physicalName: 'legacy database-shape compatibility adapter' }
+  ]
 ])
 
 function listTypeScriptSources(root: string, fs: typeof import('node:fs')): string[] {
@@ -103,7 +115,15 @@ function listTypeScriptSources(root: string, fs: typeof import('node:fs')): stri
 }
 
 function relativeToMain(file: string): string {
+  const packageRelative = path.relative(KERNEL_SOURCE_ROOT, file)
+  if (packageRelative && !packageRelative.startsWith('..') && !path.isAbsolute(packageRelative)) {
+    return `agent-kernel/${packageRelative.split(path.sep).join('/')}`
+  }
   return path.relative(MAIN_SOURCE_ROOT, file).split(path.sep).join('/')
+}
+
+function listSourceTreeFiles(roots: string[], fs: typeof import('node:fs')): string[] {
+  return roots.flatMap((root) => listTypeScriptSources(root, fs))
 }
 
 function isInside(root: string, target: string): boolean {
@@ -151,6 +171,14 @@ function getForbiddenDomainPackageCategory(specifier: string): string | null {
   return null
 }
 
+function isTapeDomainModule(target: string): boolean {
+  return (
+    isInside(TAPE_DOMAIN_ROOT, target) ||
+    isInside(PACKAGE_TAPE_DOMAIN_ROOT, target) ||
+    isInside(path.join(KERNEL_SOURCE_ROOT, 'shared'), target)
+  )
+}
+
 function getDomainImportViolation(importingFile: string, specifier: string): string | null {
   const forbiddenPackageCategory = getForbiddenDomainPackageCategory(specifier)
   if (forbiddenPackageCategory) {
@@ -158,7 +186,7 @@ function getDomainImportViolation(importingFile: string, specifier: string): str
   }
 
   const target = resolveMainImport(importingFile, specifier)
-  if (target && !isInside(TAPE_DOMAIN_ROOT, target)) {
+  if (target && !isTapeDomainModule(target)) {
     return `main-process dependency ${specifier}`
   }
   return null
@@ -235,7 +263,7 @@ function findMemoryRouteTapeImportViolations(source: string, file: string): stri
   )
   const violations = tapeReferences.flatMap(({ fileName: specifier }) => {
     const target = resolveMainImport(file, specifier)
-    return !target || withoutTypeScriptExtension(target) !== TAPE_CAPABILITIES_MODULE
+    return !target || !TAPE_CAPABILITIES_MODULE_ALIASES.has(withoutTypeScriptExtension(target))
       ? [`Tape import must use the inspection port: ${specifier}`]
       : []
   })
@@ -274,7 +302,10 @@ function findMemoryRouteTapeImportViolations(source: string, file: string): stri
 describe('Tape layer boundaries', () => {
   it('keeps the Tape domain independent from other main-process layers', async () => {
     const fs = await vi.importActual<typeof import('node:fs')>('node:fs')
-    const violations = listTypeScriptSources(TAPE_DOMAIN_ROOT, fs).flatMap((file) => {
+    const violations = listSourceTreeFiles(
+      [TAPE_DOMAIN_ROOT, PACKAGE_TAPE_DOMAIN_ROOT],
+      fs
+    ).flatMap((file) => {
       const source = fs.readFileSync(file, 'utf8')
       const imports = ts.preProcessFile(source, true, true).importedFiles
 
@@ -345,8 +376,8 @@ describe('Tape layer boundaries', () => {
 
   it('confines Skill materialization authority to dedicated runtime readers', async () => {
     const fs = await vi.importActual<typeof import('node:fs')>('node:fs')
-    const callSites = listTypeScriptSources(MAIN_SOURCE_ROOT, fs)
-      .filter((file) => !isInside(TAPE_ROOT, file))
+    const callSites = listSourceTreeFiles([MAIN_SOURCE_ROOT, KERNEL_SOURCE_ROOT], fs)
+      .filter((file) => !isInside(TAPE_ROOT, file) && !isInside(PACKAGE_TAPE_ROOT, file))
       .flatMap((file) => {
         const source = fs.readFileSync(file, 'utf8')
         return /\.(?:materializeSkillContexts|readSkillMaterialization)\s*\(/.test(source)
@@ -356,7 +387,7 @@ describe('Tape layer boundaries', () => {
       .sort()
 
     expect(callSites).toEqual([
-      'agent/deepchat/runtime/skillContextMaterializer.ts',
+      'agent-kernel/runtime/skillContextMaterializer.ts',
       'skill/skillExecutionAuthority.ts'
     ])
   })
@@ -596,38 +627,40 @@ describe('Tape layer boundaries', () => {
   it('allows physical Tape storage access only at explicit infrastructure boundaries', async () => {
     const fs = await vi.importActual<typeof import('node:fs')>('node:fs')
     const matchedExceptionCapabilities = new Set<string>()
-    const violations = listTypeScriptSources(MAIN_SOURCE_ROOT, fs).flatMap((file) => {
-      const relativeFile = relativeToMain(file)
-      if (relativeFile.startsWith(TAPE_SQLITE_RELATIVE_ROOT)) return []
+    const violations = listSourceTreeFiles([MAIN_SOURCE_ROOT, KERNEL_SOURCE_ROOT], fs).flatMap(
+      (file) => {
+        const relativeFile = relativeToMain(file)
+        if (relativeFile.startsWith(TAPE_SQLITE_RELATIVE_ROOT)) return []
 
-      const source = fs.readFileSync(file, 'utf8')
-      const physicalName = source.match(PHYSICAL_TAPE_STORAGE_PATTERN)?.[0]
-      const sqliteImport = ts
-        .preProcessFile(source, true, true)
-        .importedFiles.map(({ fileName }) => ({
-          fileName,
-          target: resolveMainImport(file, fileName)
-        }))
-        .find(({ target }) => target && isInside(TAPE_SQLITE_ROOT, target))?.fileName
-      const exception = ALLOWED_STORAGE_EXCEPTIONS.get(relativeFile)
-      const fileViolations: string[] = []
+        const source = fs.readFileSync(file, 'utf8')
+        const physicalName = source.match(PHYSICAL_TAPE_STORAGE_PATTERN)?.[0]
+        const sqliteImport = ts
+          .preProcessFile(source, true, true)
+          .importedFiles.map(({ fileName }) => ({
+            fileName,
+            target: resolveMainImport(file, fileName)
+          }))
+          .find(({ target }) => target && isInside(TAPE_SQLITE_ROOT, target))?.fileName
+        const exception = ALLOWED_STORAGE_EXCEPTIONS.get(relativeFile)
+        const fileViolations: string[] = []
 
-      if (physicalName) {
-        if (exception?.physicalName) {
-          matchedExceptionCapabilities.add(`${relativeFile}:physicalName`)
-        } else {
-          fileViolations.push(`${relativeFile}: physical name ${physicalName}`)
+        if (physicalName) {
+          if (exception?.physicalName) {
+            matchedExceptionCapabilities.add(`${relativeFile}:physicalName`)
+          } else {
+            fileViolations.push(`${relativeFile}: physical name ${physicalName}`)
+          }
         }
-      }
-      if (sqliteImport) {
-        if (exception?.sqliteImport) {
-          matchedExceptionCapabilities.add(`${relativeFile}:sqliteImport`)
-        } else {
-          fileViolations.push(`${relativeFile}: SQLite import ${sqliteImport}`)
+        if (sqliteImport) {
+          if (exception?.sqliteImport) {
+            matchedExceptionCapabilities.add(`${relativeFile}:sqliteImport`)
+          } else {
+            fileViolations.push(`${relativeFile}: SQLite import ${sqliteImport}`)
+          }
         }
+        return fileViolations
       }
-      return fileViolations
-    })
+    )
 
     const staleExceptions = [...ALLOWED_STORAGE_EXCEPTIONS.entries()].flatMap(([file, exception]) =>
       (Object.entries(exception) as Array<[keyof StorageBoundaryException, string]>).flatMap(

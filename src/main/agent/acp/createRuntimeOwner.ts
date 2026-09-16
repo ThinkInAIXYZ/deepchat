@@ -1,6 +1,6 @@
 import type { ProviderModelResolutionPort } from '@/provider/settings'
 import type { AgentSettingsPort } from '@/agent/settings'
-import type { DeepChatEventPublisher } from '@/agent/deepchat/runtime/types'
+import type { DeepchatEventName } from '@shared/contracts/events'
 import { AcpClientRuntime, AcpRuntimeOwner, type AcpRegistryPort } from './client'
 import { AcpSessionPersistence } from './runtime'
 import type { McpSettings } from '@/mcp/settings'
@@ -11,7 +11,7 @@ export interface AcpRuntimeOwnerDependencies {
   mcpSettings: McpSettings
   sessionPersistence: AcpSessionPersistence
   registry: AcpRegistryPort
-  publishEvent: DeepChatEventPublisher
+  publishEvent: (name: DeepchatEventName, payload: unknown) => void
 }
 
 export function createAcpRuntimeOwner(dependencies: AcpRuntimeOwnerDependencies): AcpRuntimeOwner {

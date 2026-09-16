@@ -5,14 +5,19 @@ import type { SessionTranscript } from './data/transcript'
 import { buildEditedUserContent, extractUserMessageInput } from './data/userMessageContent'
 import { parseMessageMetadata } from './usageStats'
 
+/** Waiting-lane exemption a failure-steer retry carries through transcript mutations. */
+export type PendingLaneRetryOptions = { allowRestartHeldQueue?: boolean }
+
 export interface SessionTranscriptRuntimePort {
   prepareClearMessages(sessionId: string): Promise<void>
   finishClearMessages(sessionId: string): void
   prepareRetry(
     sessionId: string,
-    options?: { allowRestartHeldQueue?: boolean }
-  ): Promise<{ projectDir: string | null }>
-  assertNoActivePendingInputs(sessionId: string): void
+    options?: PendingLaneRetryOptions
+  ): Promise<{
+    projectDir: string | null
+  }>
+  assertNoActivePendingInputs(sessionId: string, options?: PendingLaneRetryOptions): void
   cancelForTranscriptMutation(sessionId: string): Promise<void>
   invalidateTranscriptFrom(sessionId: string, orderSeq: number): void
   finishTranscriptTruncate(sessionId: string): void

@@ -339,6 +339,51 @@ describe('session boundary composition', () => {
     expect(remoteSources).not.toMatch(/from ['"]\.\.\/scheduler/)
   })
 
+  it('routes ACP retry waiting-lane checks through the pending-input admission exemption', async () => {
+    const { readFileSync } = await vi.importActual<typeof import('node:fs')>('node:fs')
+    const compositionSource = readFileSync(
+      path.resolve(process.cwd(), 'src/main/app/composition.ts'),
+      'utf8'
+    )
+
+    // 2B-3a carry-over (P2): the ACP branch of prepareRetry must forward the retry-steer
+    // exemption instead of a store-only active-input check, restoring baseline admission for
+    // waiting lanes that hold only restart-held queue inputs after an app restart.
+    expect(compositionSource).toContain(
+      '      await assertAcpSessionMutable(sessionId)\n' +
+        '      assertAcpWaitingLaneClear(sessionId, options)\n' +
+        '      return { projectDir: appSessionService.get(sessionId)?.projectDir ?? null }'
+    )
+    expect(compositionSource).toContain(
+      'deepChatAgentHarness.assertNoActivePendingInputs(sessionId, options)'
+    )
+    // The old store-only ACP guard must not return (it rejected restart-held-only lanes).
+    expect(compositionSource).not.toContain(
+      'if (sessionData.pendingInputs.hasActiveInputs(sessionId)) {\n' +
+        "        throw new Error('Please clear the waiting lane before mutating chat history.')\n" +
+        '      }\n    },\n    async cancelForTranscriptMutation'
+    )
+  })
+
+  it('backend-routes session deletion lifecycle destroy away from ACP sessions', async () => {
+    const { readFileSync } = await vi.importActual<typeof import('node:fs')>('node:fs')
+    const compositionSource = readFileSync(
+      path.resolve(process.cwd(), 'src/main/app/composition.ts'),
+      'utf8'
+    )
+
+    // 2B-3a carry-over: ACP sessions never hydrate built-in scope, so their deletion must not
+    // run the built-in lifecycle destroy; the state port stays backend-routed.
+    expect(compositionSource).toContain(
+      '    state: {\n' +
+        '      destroySession: async (sessionId) => {\n' +
+        '        if (isAcpBackendSession(sessionId)) return\n' +
+        '        await deepChatAgentHarness.destroySession(sessionId)\n' +
+        '      }\n' +
+        '    },'
+    )
+  })
+
   it('gives built-in Tool handlers required capability-specific ports', async () => {
     const { readFileSync } = await vi.importActual<typeof import('node:fs')>('node:fs')
     const runtimePortsSource = readFileSync(

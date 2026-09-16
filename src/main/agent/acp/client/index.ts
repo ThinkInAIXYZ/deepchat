@@ -16,7 +16,7 @@ import type {
   CancelAcpPromptInput,
   StartAcpConnectionInput
 } from './types'
-import type { DeepChatEventPublisher } from '@/agent/deepchat/runtime/types'
+import type { DeepchatEventName } from '@shared/contracts/events'
 import type { McpSettings } from '@/mcp/settings'
 
 export class AcpClientRuntime {
@@ -33,7 +33,7 @@ export class AcpClientRuntime {
     sessionPersistence: AcpSessionPersistence
     registry: AcpRegistryPort
     capabilityEvents?: AcpSessionCapabilityEvents
-    publishEvent: DeepChatEventPublisher
+    publishEvent: (name: DeepchatEventName, payload: unknown) => void
   }) {
     this.sessionPersistence = input.sessionPersistence
     this.connectionManager = new AcpConnectionManager(

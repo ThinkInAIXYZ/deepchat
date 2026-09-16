@@ -25,7 +25,7 @@ import { toAppSessionId } from '@/agent/shared/agentSessionIds'
 import type { DeepChatAgentBackendPort } from '@/agent/manager/deepChatAgentBackend'
 import type { SessionStatePort } from '@/session/data/contracts'
 import type { SessionTranscriptRuntimePort } from '@/session/transcriptMutations'
-import type { DeepChatRuntimeServices } from './runtimeServices'
+import type { DeepChatRuntimeServices, PendingLaneRetryOptions } from './runtimeServices'
 
 /**
  * Public boundary of the DeepChat agent runtime. Every method delegates to exactly one owner; the
@@ -344,7 +344,7 @@ export class DeepChatAgentHarness
     this.services.transcriptMutation.resetForkTarget(targetSessionId, clonedMemoryCursorOrderSeq)
   }
 
-  assertNoActivePendingInputs(sessionId: string): void {
-    this.services.transcriptMutation.assertNoActivePendingInputs(sessionId)
+  assertNoActivePendingInputs(sessionId: string, options?: PendingLaneRetryOptions): void {
+    this.services.transcriptMutation.assertNoActivePendingInputs(sessionId, options)
   }
 }

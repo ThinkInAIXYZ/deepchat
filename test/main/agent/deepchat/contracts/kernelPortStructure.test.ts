@@ -46,6 +46,8 @@ import type { SkillSettingsPort } from '@/agent/deepchat/contracts/skillSettings
 import type { TapeStorePort } from '@/agent/deepchat/contracts/tapeStore'
 import type { TranscriptStorePort } from '@/agent/deepchat/contracts/transcriptStore'
 import type { VisionTargetResolverPort } from '@/agent/deepchat/contracts/visionTarget'
+import type { DeepChatHarnessDependencies } from '@/agent/deepchat/harness/runtimeServices'
+import type { DeepChatKernelDependencies } from '@deepchat/agent-kernel/composition/createDeepChatRuntimeServices'
 
 /**
  * Type-level regression net for Stage 2B-1: the host classes stay structurally compatible with
@@ -117,5 +119,25 @@ describe('kernel port structural compatibility', () => {
   it('keeps the host programmatic authorities satisfying their kernel ports', () => {
     expectTypeOf<ProgrammaticToolParentRegistry>().toMatchTypeOf<ProgrammaticToolAuthorityPort>()
     expectTypeOf<AgentCliTokenAuthority>().toMatchTypeOf<ProgrammaticGrantAuthorityPort>()
+  })
+
+  it('keeps the host harness dependencies satisfying the kernel composition dependencies', () => {
+    // The host facade passes its dependency object into the package composition with only the
+    // three Desktop-owned injections added; every host-provided service must therefore satisfy
+    // the kernel dependency port structurally, or the Desktop embedding stops typechecking.
+    type KernelDepsWithoutInjections = Omit<
+      DeepChatKernelDependencies,
+      'visionTargetResolver' | 'imagePreviews' | 'programmaticToolParents'
+    >
+    type HostDepsWithoutInjections = Omit<
+      DeepChatHarnessDependencies,
+      'visionTargetResolver' | 'imagePreviews' | 'programmaticToolParents'
+    >
+    // A plain conditional keeps this free of expectTypeOf branding: the alias only resolves to
+    // 'satisfied' when every host-provided dependency structurally extends its kernel port.
+    type HostDepsSatisfyKernelDeps = HostDepsWithoutInjections extends KernelDepsWithoutInjections
+      ? 'satisfied'
+      : never
+    expectTypeOf<HostDepsSatisfyKernelDeps>().toEqualTypeOf<'satisfied'>()
   })
 })

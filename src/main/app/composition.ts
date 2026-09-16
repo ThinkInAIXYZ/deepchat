@@ -1978,9 +1978,19 @@ export async function createMainProcessControl(dependencies: {
     if (state?.status === 'generating') {
       throw new Error('Cannot retry while session is generating.')
     }
-    if (sessionData.pendingInputs.hasActiveInputs(sessionId)) {
-      throw new Error('Please clear the waiting lane before mutating chat history.')
+  }
+  const assertAcpWaitingLaneClear = (
+    sessionId: string,
+    options?: {
+      allowRestartHeldQueue?: boolean
     }
+  ): void => {
+    // Baseline parity for failure-steer retries: a waiting lane that holds only restart-held
+    // queue inputs must not block the retry. The pending-input admission owns that read
+    // (pending store + the restart-hold set populated by shared recovery), and the read is
+    // hydration-free, so the ACP branch shares the built-in exemption instead of a store-only
+    // approximation that cannot distinguish restart-held from freshly queued inputs.
+    deepChatAgentHarness.assertNoActivePendingInputs(sessionId, options)
   }
   // Backend-routed transcript mutation runtime: built-in sessions keep the DeepChat harness
   // coordination; ACP sessions get shared-store guards without built-in scope hydration.
@@ -2001,6 +2011,7 @@ export async function createMainProcessControl(dependencies: {
         return await deepChatAgentHarness.prepareRetry(sessionId, options)
       }
       await assertAcpSessionMutable(sessionId)
+      assertAcpWaitingLaneClear(sessionId, options)
       return { projectDir: appSessionService.get(sessionId)?.projectDir ?? null }
     },
     assertNoActivePendingInputs(sessionId) {
@@ -2008,9 +2019,7 @@ export async function createMainProcessControl(dependencies: {
         deepChatAgentHarness.assertNoActivePendingInputs(sessionId)
         return
       }
-      if (sessionData.pendingInputs.hasActiveInputs(sessionId)) {
-        throw new Error('Please clear the waiting lane before mutating chat history.')
-      }
+      assertAcpWaitingLaneClear(sessionId)
     },
     async cancelForTranscriptMutation(sessionId) {
       if (!isAcpBackendSession(sessionId)) {
@@ -2123,7 +2132,14 @@ export async function createMainProcessControl(dependencies: {
       destroySessionBrowser: async (sessionId) =>
         await yoBrowserPresenter.destroySessionBrowser(sessionId)
     },
-    state: deepChatAgentHarness,
+    // Backend-routed lifecycle destroy: ACP sessions never hydrate built-in scope, so there is
+    // no built-in owner to tear down; backend cleanup already ran through cleanupSessionBackends.
+    state: {
+      destroySession: async (sessionId) => {
+        if (isAcpBackendSession(sessionId)) return
+        await deepChatAgentHarness.destroySession(sessionId)
+      }
+    },
     permissions: sessionPermissionPort,
     skills: {
       clearNewAgentSessionSkills: async (sessionId) =>

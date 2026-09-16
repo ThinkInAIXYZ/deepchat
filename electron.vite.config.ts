@@ -14,14 +14,16 @@ const isVueDevToolsOverlayEnabled = process.env.DEEPCHAT_VUE_DEVTOOLS_OVERLAY !=
 export default defineConfig({
   main: {
     resolve: {
-      alias: {
-        '@': resolve('src/main/'),
-        '@shared': resolve('src/shared')
-      }
+      alias: [
+        { find: '@', replacement: resolve('src/main/') },
+        { find: '@shared', replacement: resolve('src/shared') },
+        // Workspace kernel package compiles from source in the app build
+        { find: '@deepchat/agent-kernel', replacement: resolve('packages/agent-kernel/src') }
+      ]
     },
     build: {
       externalizeDeps: {
-        exclude: ['mermaid']
+        exclude: ['mermaid', '@deepchat/agent-kernel']
       },
       rollupOptions: {
         input: {

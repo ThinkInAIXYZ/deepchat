@@ -44,6 +44,7 @@ const LEGACY_AGENT_RUNTIME_DIR = path.join(ROOT, 'src/main/presenter/agentPresen
 const PROVIDER_LAYER_DIR = path.join(ROOT, 'src/main/provider/providers')
 const SKILL_SERVICE_DIR = path.join(ROOT, 'src/main/skill')
 const MCP_TOOL_MANAGER_FILE = path.join(ROOT, 'src/main/mcp/toolManager.ts')
+const KERNEL_PACKAGE_SRC = path.join(ROOT, 'packages/agent-kernel/src')
 const DEEPCHAT_HARNESS_DIR = path.join(ROOT, 'src/main/agent/deepchat/harness')
 const DEEPCHAT_AGENT_HARNESS_FILE = path.join(DEEPCHAT_HARNESS_DIR, 'deepChatAgentHarness.ts')
 const DEEPCHAT_HARNESS_COMPOSITION_FILE = path.join(
@@ -54,14 +55,15 @@ const DEEPCHAT_HARNESS_OWNERSHIP_FILES = [
   DEEPCHAT_AGENT_HARNESS_FILE,
   DEEPCHAT_HARNESS_COMPOSITION_FILE
 ]
-// Owner layers below the harness boundary. None of them may reach back up into it.
-const DEEPCHAT_RUNTIME_LAYER_DIRS = [
-  'runtime',
-  'loop',
-  'instance',
-  'memory',
-  'resources'
-].map((segment) => path.join(ROOT, 'src/main/agent/deepchat', segment))
+// Owner layers below the harness boundary. Since the kernel extraction these live in the
+// @deepchat/agent-kernel workspace package; the host tree keeps one-line re-export shims at the
+// historical layer directories, and neither home may reach back into the harness (the package
+// via an alias mapping if one is ever introduced, the shims via relative imports).
+const DEEPCHAT_RUNTIME_LAYER_SEGMENTS = ['runtime', 'loop', 'instance', 'memory', 'resources']
+const DEEPCHAT_RUNTIME_LAYER_DIRS = DEEPCHAT_RUNTIME_LAYER_SEGMENTS.flatMap((segment) => [
+  path.join(KERNEL_PACKAGE_SRC, segment),
+  path.join(ROOT, 'src/main/agent/deepchat', segment)
+])
 const DEEPCHAT_HARNESS_BARREL_FILE = path.join(DEEPCHAT_HARNESS_DIR, 'index.ts')
 // The harness barrel is the only supported entry point. Exporting the composed owner graph or its
 // factory would let callers reach an owner around the facade, or build a second runtime with its
@@ -75,28 +77,25 @@ const DEEPCHAT_HARNESS_PUBLIC_EXPORTS = new Set([
 const DEEPCHAT_AGENT_HARNESS_MAX_LINES = 350
 const DEEPCHAT_PENDING_INPUTS_FILE = path.join(ROOT, 'src/main/session/data/pendingInputs.ts')
 const DEEPCHAT_AGENT_INSTANCE_FILE = path.join(
-  ROOT,
-  'src/main/agent/deepchat/instance/deepChatAgentInstance.ts'
+  KERNEL_PACKAGE_SRC,
+  'instance/deepChatAgentInstance.ts'
 )
 const DEEPCHAT_RUN_LIFECYCLE_FILE = path.join(
-  ROOT,
-  'src/main/agent/deepchat/runtime/runLifecycleCoordinator.ts'
+  KERNEL_PACKAGE_SRC,
+  'runtime/runLifecycleCoordinator.ts'
 )
 const DEEPCHAT_COMPACTION_SERVICE_FILE = path.join(
-  ROOT,
-  'src/main/agent/deepchat/runtime/compactionService.ts'
+  KERNEL_PACKAGE_SRC,
+  'runtime/compactionService.ts'
 )
 const DEEPCHAT_SYSTEM_PROMPT_BUILDER_FILE = path.join(
-  ROOT,
-  'src/main/agent/deepchat/resources/systemPromptBuilder.ts'
+  KERNEL_PACKAGE_SRC,
+  'resources/systemPromptBuilder.ts'
 )
-const DEEPCHAT_TOOL_ADAPTERS_FILE = path.join(
-  ROOT,
-  'src/main/agent/deepchat/runtime/toolAdapters.ts'
-)
+const DEEPCHAT_TOOL_ADAPTERS_FILE = path.join(KERNEL_PACKAGE_SRC, 'runtime/toolAdapters.ts')
 const DEEPCHAT_TOOL_PERMISSION_REVIEWER_FILE = path.join(
-  ROOT,
-  'src/main/agent/deepchat/runtime/toolPermissionReviewer.ts'
+  KERNEL_PACKAGE_SRC,
+  'runtime/toolPermissionReviewer.ts'
 )
 const DEEPCHAT_TRANSCRIPT_FILE = path.join(ROOT, 'src/main/session/data/transcript.ts')
 const DEEPCHAT_ROOT_OWNERSHIP_RULES = [
@@ -475,6 +474,7 @@ function buildViolation(kind, filePath, detail) {
 async function findViolations() {
   const scanRoots = [
     path.join(ROOT, 'src/main/agent'),
+    path.join(ROOT, 'packages/agent-kernel/src'),
     path.join(ROOT, 'src/main/app/composition.ts'),
     path.join(ROOT, 'src/main/skill'),
     path.join(ROOT, 'src/main/mcp/toolManager.ts'),

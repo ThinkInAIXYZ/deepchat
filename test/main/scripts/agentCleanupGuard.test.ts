@@ -11,12 +11,13 @@ const repositoryRoot = process.cwd()
 
 describe('agent cleanup guard', () => {
   it('rejects harness imports from every DeepChat owner directory', () => {
+    // Owner layers live in the kernel package since the 2B-3a extraction.
     const ownerFiles = [
-      'src/main/agent/deepchat/instance/deepChatAgentRuntime.ts',
-      'src/main/agent/deepchat/loop/contextCoordinator.ts',
-      'src/main/agent/deepchat/memory/memoryRuntimeCoordinator.ts',
-      'src/main/agent/deepchat/resources/systemPromptBuilder.ts',
-      'src/main/agent/deepchat/runtime/runLifecycleCoordinator.ts'
+      'packages/agent-kernel/src/instance/deepChatAgentRuntime.ts',
+      'packages/agent-kernel/src/loop/contextCoordinator.ts',
+      'packages/agent-kernel/src/memory/memoryRuntimeCoordinator.ts',
+      'packages/agent-kernel/src/resources/systemPromptBuilder.ts',
+      'packages/agent-kernel/src/runtime/runLifecycleCoordinator.ts'
     ]
 
     for (const ownerFile of ownerFiles) {
@@ -33,6 +34,8 @@ describe('agent cleanup guard', () => {
   })
 
   it('recognizes relative harness imports from an owner directory', () => {
+    // Relative reachability exists only in the host tree, where the re-export shims sit next to
+    // the harness directory; package modules cannot resolve a relative harness import at all.
     const ownerFile = path.join(
       repositoryRoot,
       'src/main/agent/deepchat/memory/memoryRuntimeCoordinator.ts'
