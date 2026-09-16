@@ -276,6 +276,7 @@ vi.mock('fs', () => {
     unlinkSync: vi.fn(),
     readdirSync: vi.fn(),
     renameSync: vi.fn(),
+    copyFileSync: vi.fn(),
     constants: {
       F_OK: 0,
       X_OK: 1
