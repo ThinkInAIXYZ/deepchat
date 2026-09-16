@@ -131,7 +131,22 @@ export class XaiGrokCredentialStore {
   }
 
   clear(): void {
-    for (const artifact of [this.filePath, `${this.filePath}.corrupt`, `${this.filePath}.tmp`]) {
+    const directory = path.dirname(this.filePath)
+    const artifacts = [this.filePath, `${this.filePath}.corrupt`, `${this.filePath}.tmp`]
+    try {
+      const prefix = `${path.basename(this.filePath)}.tmp-`
+      for (const entry of fs.readdirSync(directory)) {
+        if (entry.startsWith(prefix)) {
+          artifacts.push(path.join(directory, entry))
+        }
+      }
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+        console.warn('[XaiGrokCredentialStore] Failed to list credential directory:', error)
+      }
+    }
+
+    for (const artifact of artifacts) {
       try {
         fs.rmSync(artifact, { force: true })
       } catch (error) {

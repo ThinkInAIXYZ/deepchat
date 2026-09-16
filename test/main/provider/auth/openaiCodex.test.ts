@@ -66,6 +66,7 @@ describe('OpenAI Codex auth', () => {
     vi.mocked(fs.rmSync).mockImplementation((file) => {
       files.delete(String(file))
     })
+    vi.mocked(fs.readdirSync).mockImplementation(() => [])
     startOAuthLoopbackCallbackSessionMock.mockReset()
     vi.mocked(shell.openExternal).mockClear()
     delete process.env.DEEPCHAT_OPENAI_CODEX_DISABLED

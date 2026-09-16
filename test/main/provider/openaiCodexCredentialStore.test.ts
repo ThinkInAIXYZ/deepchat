@@ -36,6 +36,7 @@ describe('OpenAICodexCredentialStore', () => {
     })
     vi.mocked(fs.mkdirSync).mockImplementation(() => undefined as unknown as string)
     vi.mocked(fs.renameSync).mockImplementation(() => {})
+    vi.mocked(fs.readdirSync).mockImplementation(() => [])
     vi.mocked(safeStorage.isEncryptionAvailable).mockReturnValue(false)
   })
 
@@ -177,5 +178,26 @@ describe('OpenAICodexCredentialStore', () => {
 
     expect(fs.rmSync).toHaveBeenCalledWith(`${filePath}.corrupt`, { force: true })
     expect(fs.rmSync).toHaveBeenCalledWith(`${filePath}.tmp`, { force: true })
+  })
+
+  it('clear also removes randomized temporary credential files', () => {
+    vi.mocked(fs.readdirSync).mockImplementation(
+      () =>
+        [
+          'credentials.json.tmp-1234-aabbccddeeff',
+          'credentials.json.tmp-5678-001122334455',
+          'unrelated.txt'
+        ] as unknown as fs.Dirent<NonNullable<unknown>>[]
+    )
+    const store = new OpenAICodexCredentialStore(filePath)
+
+    store.clear()
+
+    expect(fs.rmSync).toHaveBeenCalledWith(`${filePath}.tmp-1234-aabbccddeeff`, { force: true })
+    expect(fs.rmSync).toHaveBeenCalledWith(`${filePath}.tmp-5678-001122334455`, { force: true })
+    expect(fs.rmSync).not.toHaveBeenCalledWith(
+      expect.stringContaining('unrelated'),
+      expect.anything()
+    )
   })
 })

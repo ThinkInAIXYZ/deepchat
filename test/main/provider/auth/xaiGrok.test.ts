@@ -67,6 +67,7 @@ describe('xAI Grok OAuth', () => {
     vi.mocked(fs.rmSync).mockImplementation((file) => {
       files.delete(String(file))
     })
+    vi.mocked(fs.readdirSync).mockImplementation(() => [])
     vi.mocked(shell.openExternal).mockClear()
     delete process.env.DEEPCHAT_XAI_GROK_OAUTH_DISABLED
     delete process.env.XAI_GROK_ACCESS_TOKEN
