@@ -56,6 +56,13 @@ export interface OcrRuntimeAssetResolverOptions {
   arch?: string
   nodeRuntimePath?: string | null
   resolveNode?: () => { executable: string; version: string }
+  /**
+   * Runtime roots materialized by the remote runtime asset installer
+   * (newest first). Tried after the unpacked app bundle, so a downloaded
+   * payload is validated with exactly the same identity checks as a bundled
+   * one and stale versions simply fail validation.
+   */
+  installedRuntimeRoots?: () => string[]
 }
 
 interface PackagedRuntimeManifest {
@@ -128,7 +135,25 @@ export class OcrRuntimeAssetResolver {
   }
 
   private async resolvePackaged(nativePackage: string): Promise<ResolvedRuntimeAssets> {
-    const unpackedRoot = resolveUnpackedAppRoot(this.options.appPath)
+    const roots = [
+      resolveUnpackedAppRoot(this.options.appPath),
+      ...(this.options.installedRuntimeRoots?.() ?? [])
+    ]
+    let lastError: unknown = null
+    for (const root of roots) {
+      try {
+        return await this.resolvePackagedFromRoot(root, nativePackage)
+      } catch (error) {
+        lastError = error
+      }
+    }
+    throw lastError ?? new RuntimeAssetError('assets_missing', 'OCR runtime assets are missing')
+  }
+
+  private async resolvePackagedFromRoot(
+    unpackedRoot: string,
+    nativePackage: string
+  ): Promise<ResolvedRuntimeAssets> {
     const manifestPath = path.join(unpackedRoot, 'runtime', 'ocr', 'manifest.json')
     let parsedManifest: unknown
     try {

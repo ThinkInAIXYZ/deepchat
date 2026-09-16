@@ -437,4 +437,137 @@ describe('OcrRuntimeAssetResolver', () => {
       assets: { bundlePath: await realpath(path.join(modelDir, 'bundle')) }
     })
   })
+
+  it('falls back to an installed runtime root when the bundle is missing', async () => {
+    const appPath = path.join(tempDir, 'resources', 'app.asar')
+    // The unpacked app root stays empty; only the installed root is seeded.
+    const installedRoot = path.join(tempDir, 'runtimes', 'ocr', 'installed-version')
+    const { facadeDir } = await seedAssetIdentity(installedRoot)
+    await writeText(path.join(installedRoot, 'out', 'main', 'lightOcrHelper.js'))
+    await writeText(path.join(installedRoot, 'runtime', 'node', 'bin', 'node'))
+    await writeJson(path.join(installedRoot, 'runtime', 'ocr', 'manifest.json'), {
+      schemaVersion: 3,
+      supported: true,
+      platform: 'darwin',
+      arch: 'arm64',
+      facadeVersion: lightOcrVersion,
+      runtimeVersion,
+      modelVersion,
+      nativeVersion,
+      pdfSupport: true,
+      bundleId,
+      nativePayloadEncoding: 'gzip-base64-v1',
+      nativePackage,
+      nativeArtifactInventory,
+      paths: {
+        node: 'runtime/node/bin/node',
+        helper: 'out/main/lightOcrHelper.js',
+        facade: path.relative(installedRoot, facadeDir),
+        runtime: path.relative(
+          installedRoot,
+          path.join(installedRoot, 'node_modules', '@arcships', 'light-ocr-runtime')
+        ),
+        bundle: path.relative(
+          installedRoot,
+          path.join(
+            installedRoot,
+            'node_modules',
+            '@arcships',
+            'light-ocr-model-ppocrv6-small',
+            'bundle'
+          )
+        ),
+        native: path.relative(
+          installedRoot,
+          path.join(installedRoot, 'node_modules', '@arcships', 'light-ocr-darwin-arm64')
+        )
+      }
+    })
+
+    const availability = await new OcrRuntimeAssetResolver({
+      appPath,
+      isPackaged: true,
+      platform: 'darwin',
+      arch: 'arm64',
+      installedRuntimeRoots: () => [installedRoot]
+    }).resolve()
+
+    expect(availability).toMatchObject({
+      status: 'available',
+      assets: {
+        bundleId,
+        helperEntryPath: path.join(installedRoot, 'out', 'main', 'lightOcrHelper.js')
+      }
+    })
+  })
+
+  it('prefers the bundled runtime root over installed roots', async () => {
+    const appPath = path.join(tempDir, 'resources', 'app.asar')
+    const unpackedRoot = path.join(tempDir, 'resources', 'app.asar.unpacked')
+    const { facadeDir } = await seedAssetIdentity(unpackedRoot)
+    await writeText(path.join(unpackedRoot, 'runtime', 'node', 'bin', 'node'))
+    await writeText(path.join(unpackedRoot, 'out', 'main', 'lightOcrHelper.js'))
+    await writeJson(path.join(unpackedRoot, 'runtime', 'ocr', 'manifest.json'), {
+      schemaVersion: 3,
+      supported: true,
+      platform: 'darwin',
+      arch: 'arm64',
+      facadeVersion: lightOcrVersion,
+      runtimeVersion,
+      modelVersion,
+      nativeVersion,
+      pdfSupport: true,
+      bundleId,
+      nativePayloadEncoding: 'gzip-base64-v1',
+      nativePackage,
+      nativeArtifactInventory,
+      paths: {
+        node: 'runtime/node/bin/node',
+        helper: 'out/main/lightOcrHelper.js',
+        facade: path.relative(unpackedRoot, facadeDir),
+        runtime: path.relative(
+          unpackedRoot,
+          path.join(unpackedRoot, 'node_modules', '@arcships', 'light-ocr-runtime')
+        ),
+        bundle: path.relative(
+          unpackedRoot,
+          path.join(
+            unpackedRoot,
+            'node_modules',
+            '@arcships',
+            'light-ocr-model-ppocrv6-small',
+            'bundle'
+          )
+        ),
+        native: path.relative(
+          unpackedRoot,
+          path.join(unpackedRoot, 'node_modules', '@arcships', 'light-ocr-darwin-arm64')
+        )
+      }
+    })
+    const staleInstalledRoot = path.join(tempDir, 'runtimes', 'ocr', 'stale')
+    await writeJson(path.join(staleInstalledRoot, 'runtime', 'ocr', 'manifest.json'), {
+      schemaVersion: 3,
+      supported: false,
+      platform: 'darwin',
+      arch: 'arm64',
+      facadeVersion: lightOcrVersion,
+      runtimeVersion,
+      modelVersion,
+      nativeVersion,
+      pdfSupport: true,
+      bundleId,
+      reason: 'stale'
+    })
+
+    const availability = await new OcrRuntimeAssetResolver({
+      appPath,
+      isPackaged: true,
+      platform: 'darwin',
+      arch: 'arm64',
+      installedRuntimeRoots: () => [staleInstalledRoot]
+    }).resolve()
+
+    expect(availability).toMatchObject({ status: 'available' })
+  })
 })

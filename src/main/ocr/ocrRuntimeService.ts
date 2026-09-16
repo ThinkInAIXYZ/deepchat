@@ -30,6 +30,7 @@ export interface OcrRuntimeServiceOptions {
   userDataDir: string
   platform?: NodeJS.Platform
   arch?: string
+  installedRuntimeRoots?: () => string[]
   onDiagnostic?: (event: { code: 'cache_read_failed' | 'cache_write_failed' }) => void
 }
 
@@ -70,7 +71,8 @@ export class OcrRuntimeService {
       nodeRuntimePath: options.nodeRuntimePath,
       resolveNode: options.resolveNode,
       platform: options.platform,
-      arch: options.arch
+      arch: options.arch,
+      installedRuntimeRoots: options.installedRuntimeRoots
     })
   }
 

@@ -1,11 +1,30 @@
-import { ocrClearCacheRoute, ocrGetRuntimeStatusRoute } from '@shared/contracts/routes'
+import {
+  ocrCancelRuntimeInstallRoute,
+  ocrClearCacheRoute,
+  ocrGetRuntimeStatusRoute,
+  ocrInstallRuntimeRoute
+} from '@shared/contracts/routes'
 import type { OcrEngine, OcrRuntimeStatus } from '@shared/contracts/routes/ocr.routes'
 import { createRouteMap, type DeepchatRouteMap } from '@/routes/routeRegistry'
 import type { LightOcrEngineStatus } from './lightOcrProtocol'
 import type { OcrRuntimeService, OcrRuntimeServiceStatus } from './ocrRuntimeService'
+import type { RuntimeAssetInstallState } from '@shared/types/pluginCatalog'
+
+export type OcrRuntimeAssetStatusProvider = {
+  getInstallState(): RuntimeAssetInstallState | null
+  getAssetInfo(): {
+    version: string
+    channel: 'stable' | 'pre-release'
+    availability: 'available' | 'incompatible-app' | 'unsupported-platform'
+    sizeBytes: number | null
+  } | null
+  install(): Promise<{ ok: boolean; error?: string }>
+  cancel(): boolean
+}
 
 export function createOcrRoutes(deps: {
   runtime: Pick<OcrRuntimeService, 'clearCache' | 'getStatus'>
+  runtimeInstall?: OcrRuntimeAssetStatusProvider
   platform?: string
   arch?: string
 }): DeepchatRouteMap {
@@ -13,7 +32,9 @@ export function createOcrRoutes(deps: {
     toPublicOcrStatus(
       await deps.runtime.getStatus(),
       deps.platform ?? process.platform,
-      deps.arch ?? process.arch
+      deps.arch ?? process.arch,
+      deps.runtimeInstall?.getInstallState() ?? null,
+      deps.runtimeInstall?.getAssetInfo() ?? null
     )
 
   return createRouteMap([
@@ -33,6 +54,30 @@ export function createOcrRoutes(deps: {
         if (!status.cache) throw new Error('OCR cache status is unavailable after clearing')
         return ocrClearCacheRoute.output.parse({ cache: status.cache })
       }
+    ],
+    [
+      ocrInstallRuntimeRoute.name,
+      async (rawInput) => {
+        ocrInstallRuntimeRoute.input.parse(rawInput)
+        if (!deps.runtimeInstall) {
+          return ocrInstallRuntimeRoute.output.parse({
+            result: { ok: false, error: 'OCR runtime download is not available' }
+          })
+        }
+        const result = await deps.runtimeInstall.install()
+        return ocrInstallRuntimeRoute.output.parse({
+          result: { ok: result.ok, error: result.ok ? undefined : result.error }
+        })
+      }
+    ],
+    [
+      ocrCancelRuntimeInstallRoute.name,
+      async (rawInput) => {
+        ocrCancelRuntimeInstallRoute.input.parse(rawInput)
+        return ocrCancelRuntimeInstallRoute.output.parse({
+          cancelled: deps.runtimeInstall?.cancel() ?? false
+        })
+      }
     ]
   ])
 }
@@ -40,7 +85,9 @@ export function createOcrRoutes(deps: {
 export function toPublicOcrStatus(
   status: OcrRuntimeServiceStatus,
   platform: string,
-  arch: string
+  arch: string,
+  runtimeInstall: RuntimeAssetInstallState | null = null,
+  runtimeAsset: OcrRuntimeStatus['runtimeAsset'] = null
 ): OcrRuntimeStatus {
   const availability =
     status.availability.status === 'available'
@@ -64,7 +111,17 @@ export function toPublicOcrStatus(
           engine: status.process.engine ? toPublicOcrEngine(status.process.engine) : null
         }
       : null,
-    cache: status.cache
+    cache: status.cache,
+    runtimeInstall: runtimeInstall
+      ? {
+          phase: runtimeInstall.phase,
+          receivedBytes: runtimeInstall.receivedBytes,
+          totalBytes: runtimeInstall.totalBytes,
+          error: runtimeInstall.error,
+          updatedAt: runtimeInstall.updatedAt
+        }
+      : null,
+    runtimeAsset
   }
 }
 

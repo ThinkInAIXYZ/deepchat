@@ -88,7 +88,8 @@ export function createAppSettingsRoutes(deps: {
     copyWithCotEnabled: deps.desktopSettings.getCopyWithCotEnabled(),
     loggingEnabled: deps.logging.getEnabled(),
     ocrAutoExtractForNonVisionModels: deps.ocr.getAutomaticExtractionEnabled(),
-    ocrBackend: deps.ocr.getBackend()
+    ocrBackend: deps.ocr.getBackend(),
+    ocrRuntimeAutoDownload: deps.ocr.getRuntimeAutoDownloadEnabled()
   })
   const pickSnapshot = (
     snapshot: SettingsSnapshotValues,
@@ -153,6 +154,9 @@ export function createAppSettingsRoutes(deps: {
         return
       case 'ocrBackend':
         deps.ocr.setBackend(change.value)
+        return
+      case 'ocrRuntimeAutoDownload':
+        deps.ocr.setRuntimeAutoDownloadEnabled(change.value)
     }
   }
   const recordChange = (change: SettingsChange): void => {
@@ -175,7 +179,9 @@ export function createAppSettingsRoutes(deps: {
       routeName:
         change.key === 'privacyModeEnabled'
           ? 'settings-database'
-          : change.key === 'ocrAutoExtractForNonVisionModels' || change.key === 'ocrBackend'
+          : change.key === 'ocrAutoExtractForNonVisionModels' ||
+              change.key === 'ocrBackend' ||
+              change.key === 'ocrRuntimeAutoDownload'
             ? 'settings-ocr'
             : 'settings-common',
       summaryKey: 'settings.controlCenter.activity.settingUpdated',

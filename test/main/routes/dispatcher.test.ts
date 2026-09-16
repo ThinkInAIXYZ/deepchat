@@ -1043,6 +1043,10 @@ function createRuntime() {
     getBackend: vi.fn(() => settings.ocrBackend),
     setBackend: vi.fn((value: 'auto' | 'cpu') => {
       settings.ocrBackend = value
+    }),
+    getRuntimeAutoDownloadEnabled: vi.fn(() => settings.ocrRuntimeAutoDownload ?? true),
+    setRuntimeAutoDownloadEnabled: vi.fn((value: boolean) => {
+      settings.ocrRuntimeAutoDownload = value
     })
   }
   const commandShell = {

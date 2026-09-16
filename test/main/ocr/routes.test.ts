@@ -85,7 +85,9 @@ describe('OCR routes', () => {
           recognition: { providerChain: ['cpu'], precision: 'fp32' }
         }
       },
-      cache: INTERNAL_STATUS.cache
+      cache: INTERNAL_STATUS.cache,
+      runtimeInstall: null,
+      runtimeAsset: null
     })
     const serialized = JSON.stringify(result)
     expect(serialized).not.toContain('/private/')
