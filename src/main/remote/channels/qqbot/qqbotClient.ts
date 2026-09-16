@@ -66,7 +66,7 @@ export class QQBotClient {
     }
   ) {}
 
-  async getAccessToken(forceRefresh: boolean = false): Promise<string> {
+  async getAccessToken(forceRefresh = false, signal?: AbortSignal | null): Promise<string> {
     if (
       !forceRefresh &&
       this.accessToken &&
@@ -75,9 +75,10 @@ export class QQBotClient {
       return this.accessToken
     }
 
+    const timeoutSignal = AbortSignal.timeout(QQBOT_REQUEST_TIMEOUT_MS)
     const response = await fetch(QQBOT_TOKEN_URL, {
       method: 'POST',
-      signal: AbortSignal.timeout(QQBOT_REQUEST_TIMEOUT_MS),
+      signal: signal ? AbortSignal.any([timeoutSignal, signal]) : timeoutSignal,
       headers: {
         'Content-Type': 'application/json'
       },
@@ -242,7 +243,7 @@ export class QQBotClient {
   }
 
   private async request(path: string, init: RequestInit, retry: boolean = true): Promise<Response> {
-    const accessToken = await this.getAccessToken(retry === false)
+    const accessToken = await this.getAccessToken(retry === false, init.signal)
     const timeoutSignal = AbortSignal.timeout(QQBOT_REQUEST_TIMEOUT_MS)
     const response = await fetch(`${QQBOT_API_BASE_URL}${path}`, {
       ...init,
@@ -255,7 +256,7 @@ export class QQBotClient {
     })
 
     if (response.status === 401 && retry) {
-      await this.getAccessToken(true)
+      await this.getAccessToken(true, init.signal)
       return await this.request(path, init, false)
     }
 

@@ -71,4 +71,26 @@ describe('remote channel request timeouts', () => {
     expect(merged).not.toBe(callerSignal)
     expect(merged?.aborted).toBe(true)
   })
+
+  it('propagates the caller signal to the QQBot token fetch', async () => {
+    fetchMock.mockImplementation(async (url: string) =>
+      String(url).includes('getAppAccessToken')
+        ? jsonResponse({ access_token: 'access', expires_in: 3600 })
+        : jsonResponse({ id: 'msg-1' })
+    )
+    const client = new QQBotClient({ appId: 'app', clientSecret: 'secret' })
+
+    const controller = new AbortController()
+    const callerSignal = controller.signal
+    controller.abort()
+    await (client as any).request('/v2/users/open-id/messages', {
+      method: 'POST',
+      signal: callerSignal
+    })
+
+    const tokenFetch = sentSignal(fetchMock, 0)
+    expect(tokenFetch).toBeInstanceOf(AbortSignal)
+    expect(tokenFetch).not.toBe(callerSignal)
+    expect(tokenFetch?.aborted).toBe(true)
+  })
 })
