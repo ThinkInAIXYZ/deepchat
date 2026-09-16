@@ -261,7 +261,7 @@ export class KnowledgeBase {
 
     // 检查是否所有分片都完成了
     if (progress.completed + progress.error === progress.total) {
-      await this.onFileFinish(fileId)
+      await this.onFileFinish(fileId, progress)
       // 清理进度跟踪器
       this.fileProgressMap.delete(fileId)
     }
@@ -288,22 +288,32 @@ export class KnowledgeBase {
 
     // 检查是否所有分片都完成了
     if (progress.completed + progress.error === progress.total) {
-      await this.onFileFinish(fileId)
+      await this.onFileFinish(fileId, progress)
       // 清理进度跟踪器
       this.fileProgressMap.delete(fileId)
     }
   }
 
   // 文件处理完成回调
-  private async onFileFinish(fileId: string): Promise<void> {
+  private async onFileFinish(
+    fileId: string,
+    progress: { completed: number; error: number; total: number }
+  ): Promise<void> {
     try {
-      // TODO 分片错误数量
       const fileMessage = await this.database.queryFile(fileId)
       if (fileMessage) {
-        fileMessage.status = 'completed'
+        if (progress.error > 0) {
+          // 有分片失败就意味着文件没有被完整索引，不能报告为已完成
+          fileMessage.status = 'error'
+          logger.warn(
+            `[RAG] File processing finished with ${progress.error}/${progress.total} failed chunks for ${fileId}`
+          )
+        } else {
+          fileMessage.status = 'completed'
+          logger.info(`[RAG] File processing completed for ${fileId}`)
+        }
         await this.enqueueFileTask(fileId, async () => this.database.updateFile(fileMessage))
         this.events.publishFileUpdated(fileMessage)
-        logger.info(`[RAG] File processing completed for ${fileId}`)
       }
     } catch (error) {
       console.error(`[RAG] Error in onFileFinish for ${fileId}:`, error)
