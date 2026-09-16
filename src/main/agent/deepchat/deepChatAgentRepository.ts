@@ -3,6 +3,7 @@ import type { AgentRowStore } from '@/agent/shared/agentRowStore'
 import type { AppSessionId } from '@/agent/shared/agentSessionIds'
 import type { AgentRow } from '@/agent/data/tables/agents'
 import { normalizeDisabledAgentTools } from '@/agent/shared/agentSessionNormalization'
+import { BUILTIN_DEEPCHAT_AGENT_ID } from '@/agent/deepchat/contracts/builtinAgentIdentity'
 import {
   assertDeepChatSubagentConfigInvariant,
   createDefaultDeepChatSubagentSlots,
@@ -15,7 +16,7 @@ import type {
   UpdateDeepChatAgentInput
 } from '@shared/types/agent-interface'
 
-export const BUILTIN_DEEPCHAT_AGENT_ID = 'deepchat'
+export { BUILTIN_DEEPCHAT_AGENT_ID }
 
 export interface DeepChatAgentRepositoryDependencies {
   rows: AgentRowStore

@@ -340,9 +340,10 @@ set; the ACP factory functions are byte-identical to baseline; `assertCurrent` f
 logic-identical with line drift only. The `kernel-ports` gate was proven to have teeth: a deliberately
 wrong port pairing fails with TS2344 while `expectTypeOf` is a runtime no-op under vitest. One P2
 (duplicated `rendererFlushHandle` fixture property in `dispatch.test.ts`) was fixed pre-integration
-as `a5be7fbd1`; two P3s are carried to 2B-3: `BUILTIN_DEEPCHAT_AGENT_ID` is duplicated in contracts
-(the host repository should re-export the contract before packaging) and
-`ProgrammaticToolInvocationAuthority` lost its re-export shim (zero importers at baseline). Integrated
+as `a5be7fbd1`; two P3s from acceptance were dispositioned: `BUILTIN_DEEPCHAT_AGENT_ID` had a
+duplicate definition in contracts — fixed by making the host repository re-export the contract
+(single source); `ProgrammaticToolInvocationAuthority` lost its re-export shim but has zero importers
+at baseline, so no shim is added (no dead exports). Integrated
 as `97d9fc68c` + `a5be7fbd1`; the controller re-ran the targeted suites (1929 tests) and all gates on
 the integrated branch. Environment note: the previous `/tmp` Node-24 toolchain directory was purged
 by the OS mid-stage; the compliant chain is now nvm Node `v24.18.0` with system pnpm `10.34.5`, with
