@@ -406,7 +406,12 @@ for (const method of [
   'resetSessionTape',
   'resolveTapeInspectorEvidenceEntries'
 ]) {
-  if (method.startsWith('commit')) {
+  if (method === 'appendToolFact') {
+    // TapeToolFactAppendReceipt: the tool-facts persistence path reads receipt.toolResult.
+    tapeStore[method] = async () => ({ sessionId: '', entryId: 0, toolResult: null })
+  } else if (method === 'appendMessageRecord') {
+    tapeStore[method] = () => 0
+  } else if (method.startsWith('commit')) {
     tapeStore[method] = () => ({ created: true, entryId: 0 })
   } else if (method === 'getViewManifestSourceMaps') {
     tapeStore[method] = () => ({
@@ -657,9 +662,12 @@ const deps = {
 // Drive the kernel
 // ---------------------------------------------------------------------------
 let turnSettled = false
+let settledViaCompletionHook = false
+let settlementTimeout
 const settled = new Promise((resolve) => {
   deps.onSessionCompleted = () => {
     turnSettled = true
+    settledViaCompletionHook = true
     resolve()
   }
 })
@@ -675,11 +683,16 @@ const startResult = await services.turnCoordinator.start(SESSION_ID, {
   text: 'Use the echo tool.',
   files: []
 })
+void startResult
 
 const settlement = await Promise.race([
   settled.then(() => 'settled'),
-  new Promise((resolve) => setTimeout(() => resolve('timeout'), 30000))
+  new Promise((resolve) => {
+    settlementTimeout = setTimeout(() => resolve('timeout'), 30000)
+  })
 ])
+
+if (settlementTimeout !== undefined) clearTimeout(settlementTimeout)
 
 if (settlement !== 'settled' && !turnSettled) {
   // Fall back to polling for transcript finals in case the completion hook is not wired.
@@ -764,6 +777,7 @@ const verdict = {
     toolCount: request.tools.length
   })),
   roundTwoHasToolResult,
+  settledViaCompletionHook,
   toolExecutions,
   transcript: transcriptRows.map((row) => ({
     role: row.role,

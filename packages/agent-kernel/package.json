@@ -62,11 +62,11 @@
   "dependencies": {
     "jsonrepair": "^3.15.0",
     "nanoid": "^6.0.1",
+    "ollama": "^0.6.3",
     "tokenx": "2.1.0",
     "zod": "^4.5.4"
   },
   "devDependencies": {
-    "@types/node": "^24.13.3",
-    "ollama": "^0.6.3"
+    "@types/node": "^24.13.3"
   }
 }

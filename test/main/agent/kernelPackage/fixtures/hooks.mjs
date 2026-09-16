@@ -7,9 +7,13 @@ const FORBIDDEN_SPECIFIERS = new Set([
   'node-pty'
 ])
 
+const isForbidden = (specifier) =>
+  FORBIDDEN_SPECIFIERS.has(specifier) ||
+  [...FORBIDDEN_SPECIFIERS].some((banned) => specifier.startsWith(`${banned}/`))
+
 registerHooks({
   resolve(specifier, context, nextResolve) {
-    if (FORBIDDEN_SPECIFIERS.has(specifier)) {
+    if (isForbidden(specifier)) {
       // Report to stderr here (in-thread) so the interception stays observable even when the
       // caller swallows the rejection; exitCode set in-thread survives caught dynamic imports.
       console.error(`forbidden import intercepted: '${specifier}' is banned in the agent kernel`)

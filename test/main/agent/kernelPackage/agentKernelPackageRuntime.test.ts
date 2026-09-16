@@ -1,9 +1,18 @@
 import { spawnSync } from 'node:child_process'
-import { cpSync, mkdtempSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs'
+import { builtinModules } from 'node:module'
+import {
+  cpSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  statSync,
+  writeFileSync
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { beforeAll, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 
 // This gate performs real filesystem work (mkdtemp workspace, artifact copy, declaration scan);
 // the repo-wide test setup mocks `fs`/`path` for main-process suites, so unmock them here.
@@ -39,6 +48,8 @@ const FORBIDDEN_SPECIFIER_PATTERNS: RegExp[] = [
   /better-sqlite3/,
   /node-pty/
 ]
+
+const DECLARATION_SPECIFIER_PATTERN = /(?:from\s*|import\s*\(\s*|require\s*\(\s*)(['"])([^'"]+)\1/g
 
 function runNode(script: string, args: string[], options: { cwd: string; timeout: number }) {
   return spawnSync(process.execPath, [script, ...args], {
@@ -168,10 +179,15 @@ describe('agent kernel package runtime gate', () => {
     })
 
     const tapeKinds = verdict.tapeKinds as string[]
-    expect(tapeKinds[0]).toBe('run_started')
-    expect(tapeKinds[tapeKinds.length - 1]).toBe('run_terminal')
-    expect(tapeKinds.filter((kind) => kind === 'view_manifest')).toHaveLength(2)
-    expect(tapeKinds.filter((kind) => kind === 'provider_attempt')).toHaveLength(2)
+    expect(tapeKinds).toEqual([
+      'run_started',
+      'view_manifest',
+      'provider_attempt',
+      'view_manifest',
+      'provider_attempt',
+      'run_terminal'
+    ])
+    expect(verdict.settledViaCompletionHook, 'turn must settle via onSessionCompleted').toBe(true)
 
     const eventNames = verdict.eventNames as string[]
     expect(eventNames[0]).toBe('sessions.status.changed')
@@ -215,22 +231,41 @@ describe('agent kernel package runtime gate', () => {
       )
       expect(declarationFiles.length).toBeGreaterThan(100)
 
+      const declaredDependencies = new Set(
+        Object.keys(
+          JSON.parse(
+            readFileSync(join(repoRoot, 'packages', 'agent-kernel', 'package.json'), 'utf8')
+          ).dependencies as Record<string, string>
+        )
+      )
+      const allowedExternal = new Set([...declaredDependencies, ...builtinModules])
+      const externalSpecifiers = new Set<string>()
+
       for (const file of declarationFiles) {
         const relativePath = relative(artifactDistDir, file)
-        const specifierMatches =
-          readFileSync(file, 'utf8').matchAll(
-            /(?:from\s*|import\s*\(\s*|require\s*\(\s*)'([^']+)'|from\s*"([^"]+)"/g
-          ) ?? []
-        for (const match of specifierMatches) {
-          const specifier = match[1] ?? match[2]
-          if (!specifier) continue
+        const source = readFileSync(file, 'utf8')
+        for (const match of source.matchAll(DECLARATION_SPECIFIER_PATTERN)) {
+          const specifier = match[2]
+          if (!specifier || specifier.startsWith('.') || specifier.startsWith('/')) continue
           const forbidden = FORBIDDEN_SPECIFIER_PATTERNS.some((pattern) => pattern.test(specifier))
           expect(
             forbidden,
             `${relativePath} must not reference forbidden specifier '${specifier}'`
           ).toBe(false)
+          if (
+            !allowedExternal.has(specifier) &&
+            !specifier.startsWith('node:') &&
+            !builtinModules.some((moduleName) => specifier.startsWith(`${moduleName}/`))
+          ) {
+            externalSpecifiers.add(specifier)
+          }
         }
       }
+
+      expect(
+        externalSpecifiers,
+        'declaration closure must not reference packages outside the kernel dependencies'
+      ).toEqual(new Set())
 
       const tsc = spawnSync(
         join(repoRoot, 'node_modules', '.bin', 'tsc'),
@@ -243,4 +278,8 @@ describe('agent kernel package runtime gate', () => {
       ).toBe(0)
     }
   )
+
+  afterAll(() => {
+    rmSync(workspace, { recursive: true, force: true })
+  })
 })
