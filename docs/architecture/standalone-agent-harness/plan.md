@@ -350,10 +350,16 @@ factory assembly host-side over kernel-exposed collaborators. The clean-Node gat
 forbidden-import interception (`electron`, `better-sqlite3`, `node-pty`) whose failure exits
 non-zero, a fake provider that inspects request content across two tool-continuation rounds, durable
 transcript assertions, a recursive emitted `.d.ts` closure scan, and `tsc --noEmit` consumption of
-the declarations. A read-only tooling spike (declaration emission vs the repo TypeScript 6/tsgo
-toolchain; Node 24 ESM resolve-hook interception) runs in parallel and does not modify the
-repository. Completion: the Stage 2B acceptance items above; commit
-`refactor(agent): extract portable harness kernel`.
+the declarations. Tooling spike outcome (read-only, /tmp): the repo `typescript` resolves to the
+tsgo native bridge `6.0.3-bridge.16.tsgo.7.0.2`; path-mapped specifiers are preserved verbatim in
+declaration emit, so the package must reference physically copied `@shared` value modules through
+relative imports and emit per-file declarations with plain `tsc` (dts-bundle-generator is
+incompatible with the bridge — TS6053 on symlinked paths, TS5055 on real paths; api-extractor works
+but adds a two-step pipeline). Subpath exports must map explicitly to `.d.ts` files; the TS fork has
+no `baseUrl`. Forbidden-import interception must use the synchronous `module.registerHooks()` via a
+`--import` preload — the async `module.register()` runs hooks on a loader-hook worker thread, so
+swallowed dynamic imports exit 0, and it never sees CJS `require()`. Completion: the Stage 2B
+acceptance items above; commit `refactor(agent): extract portable harness kernel`.
 
 ### Sequence and acceptance gates
 
