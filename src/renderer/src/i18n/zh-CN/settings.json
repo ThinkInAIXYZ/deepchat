@@ -174,7 +174,18 @@
     "cacheFallbackReasons": {
       "database_error": "缓存数据库无法打开，持久化缓存不可用。",
       "safe_storage_unavailable": "系统安全密钥存储不可用，持久化缓存已停用。"
-    }
+    },
+    "runtimeDownloadTitle": "运行时下载",
+    "runtimeDownloadDescription": "OCR 引擎可按需下载。开启后，首次需要时将自动下载。",
+    "runtimeInstall": "下载 OCR 引擎",
+    "runtimeInstalling": "下载中 {{percent}}%",
+    "runtimeCancelInstall": "取消",
+    "runtimeRetryInstall": "重试",
+    "runtimeInstallFailed": "OCR 引擎下载失败",
+    "runtimeUnavailablePlatform": "当前平台不可用",
+    "runtimeIncompatibleApp": "需要更新版本的应用",
+    "runtimeReady": "OCR 引擎已就绪",
+    "runtimeDownloadHint": "下载 OCR 引擎后即可在本机使用"
   },
   "leaveGuard": {
     "dirtyTitle": "修改尚未保存",
@@ -3041,7 +3052,14 @@
     "agentScopeUnsupported": "Agent 级扩展配置仅支持 DeepChat Agent。",
     "scopeGlobalPlugins": "插件的安装、启用与进程状态由所有 DeepChat Agent 共享。",
     "scopeCurrentAgent": "当前页为 Agent 策略：仅影响「{agent}」可用的 Skills / MCP，不会影响全局插件的安装、启用状态或进程状态。",
-    "currentAgentFallback": "当前 Agent"
+    "currentAgentFallback": "当前 Agent",
+    "downloadable": "可下载插件",
+    "installPlugin": "安装",
+    "installing": "下载中 {{percent}}%",
+    "retryInstall": "重试",
+    "cancelInstall": "取消",
+    "installFailed": "安装失败",
+    "preRelease": "预发布"
   },
   "controlCenter": {
     "groups": {

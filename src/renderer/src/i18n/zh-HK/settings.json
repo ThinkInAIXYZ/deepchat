@@ -2695,7 +2695,18 @@
     "cacheFallbackReasons": {
       "database_error": "快取資料庫無法開啟，持久化快取不可用。",
       "safe_storage_unavailable": "系統安全金鑰儲存不可用，持久化快取已停用。"
-    }
+    },
+    "runtimeDownloadTitle": "執行時下載",
+    "runtimeDownloadDescription": "OCR 引擎可按需下載。開啟後，首次需要時將自動下載。",
+    "runtimeInstall": "下載 OCR 引擎",
+    "runtimeInstalling": "下載中 {{percent}}%",
+    "runtimeCancelInstall": "取消",
+    "runtimeRetryInstall": "重試",
+    "runtimeInstallFailed": "OCR 引擎下載失敗",
+    "runtimeUnavailablePlatform": "目前平台不可用",
+    "runtimeIncompatibleApp": "需要更新版本的應用",
+    "runtimeReady": "OCR 引擎已就緒",
+    "runtimeDownloadHint": "下載 OCR 引擎後即可在本機使用"
   },
   "leaveGuard": {
     "dirtyTitle": "變更尚未儲存",
@@ -3281,7 +3292,14 @@
     "agentScopeUnsupported": "Agent 層級的擴充功能只適用於 DeepChat Agent。",
     "scopeGlobalPlugins": "外掛的安裝、啟用與程序狀態由所有 DeepChat Agent 共用。",
     "scopeCurrentAgent": "目前頁面為 Agent 策略：僅影響「{agent}」可用的 Skills / MCP，不會全域停用資源。",
-    "currentAgentFallback": "目前 Agent"
+    "currentAgentFallback": "目前 Agent",
+    "downloadable": "可下載外掛",
+    "installPlugin": "安裝",
+    "installing": "下載中 {{percent}}%",
+    "retryInstall": "重試",
+    "cancelInstall": "取消",
+    "installFailed": "安裝失敗",
+    "preRelease": "預發布"
   },
   "debug": {
     "description": "僅在開發模式下顯示的情境與引導偵錯工具。",

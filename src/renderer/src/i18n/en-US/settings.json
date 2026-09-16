@@ -174,7 +174,18 @@
     "cacheFallbackReasons": {
       "database_error": "Persistent cache is unavailable because its database could not be opened.",
       "safe_storage_unavailable": "Persistent cache is unavailable because secure key storage is not available."
-    }
+    },
+    "runtimeDownloadTitle": "Runtime download",
+    "runtimeDownloadDescription": "The OCR engine can be downloaded on demand. When enabled, it downloads automatically the first time it is needed.",
+    "runtimeInstall": "Download OCR engine",
+    "runtimeInstalling": "Downloading {{percent}}%",
+    "runtimeCancelInstall": "Cancel",
+    "runtimeRetryInstall": "Retry",
+    "runtimeInstallFailed": "OCR engine download failed",
+    "runtimeUnavailablePlatform": "Not available on this platform",
+    "runtimeIncompatibleApp": "Requires a newer app version",
+    "runtimeReady": "OCR engine is ready on this device",
+    "runtimeDownloadHint": "Download the OCR engine to use it on this device"
   },
   "leaveGuard": {
     "dirtyTitle": "Unsaved changes",
@@ -3041,7 +3052,14 @@
     "agentScopeUnsupported": "Agent-scoped extensions are only available for DeepChat agents.",
     "scopeGlobalPlugins": "Plugin installation, enablement and process state are shared by all DeepChat agents.",
     "scopeCurrentAgent": "This page is agent policy: changes affect only \"{agent}\" Skills/MCP availability, not global installs.",
-    "currentAgentFallback": "current agent"
+    "currentAgentFallback": "current agent",
+    "downloadable": "Downloadable plugins",
+    "installPlugin": "Install",
+    "installing": "Downloading {{percent}}%",
+    "retryInstall": "Retry",
+    "cancelInstall": "Cancel",
+    "installFailed": "Installation failed",
+    "preRelease": "Pre-release"
   },
   "controlCenter": {
     "groups": {

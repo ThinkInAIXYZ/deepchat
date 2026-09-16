@@ -2695,7 +2695,18 @@
     "cacheFallbackReasons": {
       "database_error": "Den vedvarende cache er utilgængelig, fordi databasen ikke kunne åbnes.",
       "safe_storage_unavailable": "Den vedvarende cache er utilgængelig, fordi sikker nøglelagring ikke er tilgængelig."
-    }
+    },
+    "runtimeDownloadTitle": "Runtime download",
+    "runtimeDownloadDescription": "The OCR engine can be downloaded on demand. When enabled, it downloads automatically the first time it is needed.",
+    "runtimeInstall": "Download OCR engine",
+    "runtimeInstalling": "Downloading {{percent}}%",
+    "runtimeCancelInstall": "Cancel",
+    "runtimeRetryInstall": "Retry",
+    "runtimeInstallFailed": "OCR engine download failed",
+    "runtimeUnavailablePlatform": "Not available on this platform",
+    "runtimeIncompatibleApp": "Requires a newer app version",
+    "runtimeReady": "OCR engine is ready on this device",
+    "runtimeDownloadHint": "Download the OCR engine to use it on this device"
   },
   "leaveGuard": {
     "dirtyTitle": "Ikke-gemte ændringer",
@@ -3281,7 +3292,14 @@
     "agentScopeUnsupported": "Agentafgrænsede udvidelser er kun tilgængelige for DeepChat-agenter.",
     "scopeGlobalPlugins": "Denne side er app-global: installation, aktivering og processtatus for officielle plugins deles af alle DeepChat-agenter.",
     "scopeCurrentAgent": "Denne side er agentpolitik: ændringer påvirker kun Skills/MCP-tilgængelighed for “{agent}”, ikke globale installationer.",
-    "currentAgentFallback": "aktuel agent"
+    "currentAgentFallback": "aktuel agent",
+    "downloadable": "Downloadable plugins",
+    "installPlugin": "Install",
+    "installing": "Downloading {{percent}}%",
+    "retryInstall": "Retry",
+    "cancelInstall": "Cancel",
+    "installFailed": "Installation failed",
+    "preRelease": "Pre-release"
   },
   "debug": {
     "description": "Værktøjer kun til udvikling til forhåndsvisning af mock-tilstande og guidede forløb.",

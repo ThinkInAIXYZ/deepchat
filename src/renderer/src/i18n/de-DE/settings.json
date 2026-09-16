@@ -174,7 +174,18 @@
     "cacheFallbackReasons": {
       "database_error": "Der persistente Cache ist nicht verfügbar, weil seine Datenbank nicht geöffnet werden konnte.",
       "safe_storage_unavailable": "Der persistente Cache ist nicht verfügbar, weil keine sichere Schlüsselspeicherung verfügbar ist."
-    }
+    },
+    "runtimeDownloadTitle": "Laufzeit-Download",
+    "runtimeDownloadDescription": "Die OCR-Engine kann bei Bedarf heruntergeladen werden. Aktiviert lädt sie beim ersten Bedarf automatisch.",
+    "runtimeInstall": "OCR-Engine herunterladen",
+    "runtimeInstalling": "Wird heruntergeladen {{percent}}%",
+    "runtimeCancelInstall": "Abbrechen",
+    "runtimeRetryInstall": "Erneut versuchen",
+    "runtimeInstallFailed": "Download der OCR-Engine fehlgeschlagen",
+    "runtimeUnavailablePlatform": "Auf dieser Plattform nicht verfügbar",
+    "runtimeIncompatibleApp": "Erfordert eine neuere App-Version",
+    "runtimeReady": "Die OCR-Engine ist auf diesem Gerät einsatzbereit",
+    "runtimeDownloadHint": "Lade die OCR-Engine herunter, um sie auf diesem Gerät zu nutzen"
   },
   "leaveGuard": {
     "dirtyTitle": "Nicht gespeicherte Änderungen",
@@ -3281,7 +3292,14 @@
     "agentScopeUnsupported": "Agentenspezifische Erweiterungen sind nur für DeepChat-Agenten verfügbar.",
     "scopeGlobalPlugins": "Diese Seite ist app-weit: Installation, Aktivierung und Prozessstatus offizieller Plugins gelten für alle DeepChat-Agenten.",
     "scopeCurrentAgent": "Diese Seite ist Agent-Richtlinie: Änderungen betreffen nur die Skills/MCP-Verfügbarkeit von „{agent}“, nicht die globalen Installationen.",
-    "currentAgentFallback": "aktueller Agent"
+    "currentAgentFallback": "aktueller Agent",
+    "downloadable": "Herunterladbare Plugins",
+    "installPlugin": "Installieren",
+    "installing": "Wird heruntergeladen {{percent}}%",
+    "retryInstall": "Erneut versuchen",
+    "cancelInstall": "Abbrechen",
+    "installFailed": "Installation fehlgeschlagen",
+    "preRelease": "Vorabversion"
   },
   "debug": {
     "description": "Nur für die Entwicklung bestimmte Werkzeuge zur Vorschau von Mock-Zuständen und geführten Abläufen.",

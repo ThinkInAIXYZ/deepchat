@@ -2695,7 +2695,18 @@
     "cacheFallbackReasons": {
       "database_error": "Постоянный кэш недоступен, поскольку не удалось открыть его базу данных.",
       "safe_storage_unavailable": "Постоянный кэш недоступен, поскольку защищённое хранилище ключей недоступно."
-    }
+    },
+    "runtimeDownloadTitle": "Загрузка среды",
+    "runtimeDownloadDescription": "Движок OCR можно загрузить по требованию. При включении он загружается автоматически при первом использовании.",
+    "runtimeInstall": "Скачать движок OCR",
+    "runtimeInstalling": "Загрузка {{percent}}%",
+    "runtimeCancelInstall": "Отмена",
+    "runtimeRetryInstall": "Повторить",
+    "runtimeInstallFailed": "Не удалось скачать движок OCR",
+    "runtimeUnavailablePlatform": "Недоступно на этой платформе",
+    "runtimeIncompatibleApp": "Требуется более новая версия приложения",
+    "runtimeReady": "Движок OCR готов на этом устройстве",
+    "runtimeDownloadHint": "Скачайте движок OCR, чтобы использовать его на этом устройстве"
   },
   "leaveGuard": {
     "dirtyTitle": "Несохранённые изменения",
@@ -3281,7 +3292,14 @@
     "agentScopeUnsupported": "Расширения на уровне агента доступны только агентам DeepChat.",
     "scopeGlobalPlugins": "Эта страница глобальна для приложения: установка, включение и состояние процессов официальных плагинов общие для всех агентов DeepChat.",
     "scopeCurrentAgent": "Эта страница — политика агента: изменения влияют только на доступность Skills/MCP у «{agent}», а не на глобальные установки.",
-    "currentAgentFallback": "текущий агент"
+    "currentAgentFallback": "текущий агент",
+    "downloadable": "Доступные для скачивания плагины",
+    "installPlugin": "Установить",
+    "installing": "Загрузка {{percent}}%",
+    "retryInstall": "Повторить",
+    "cancelInstall": "Отмена",
+    "installFailed": "Не удалось установить",
+    "preRelease": "Предварительная версия"
   },
   "debug": {
     "description": "Инструменты только для разработки для предварительного просмотра имитируемых состояний и управляемых сценариев.",

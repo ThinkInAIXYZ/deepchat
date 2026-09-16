@@ -174,7 +174,18 @@
     "cacheFallbackReasons": {
       "database_error": "La caché persistente no está disponible porque no se pudo abrir su base de datos.",
       "safe_storage_unavailable": "La caché persistente no está disponible porque no hay almacenamiento seguro de claves."
-    }
+    },
+    "runtimeDownloadTitle": "Descarga del motor",
+    "runtimeDownloadDescription": "El motor OCR se puede descargar a demanda. Activado, se descarga automáticamente la primera vez que se necesita.",
+    "runtimeInstall": "Descargar motor OCR",
+    "runtimeInstalling": "Descargando {{percent}}%",
+    "runtimeCancelInstall": "Cancelar",
+    "runtimeRetryInstall": "Reintentar",
+    "runtimeInstallFailed": "Error al descargar el motor OCR",
+    "runtimeUnavailablePlatform": "No disponible en esta plataforma",
+    "runtimeIncompatibleApp": "Requiere una versión más reciente de la aplicación",
+    "runtimeReady": "El motor OCR está listo en este dispositivo",
+    "runtimeDownloadHint": "Descarga el motor OCR para usarlo en este dispositivo"
   },
   "leaveGuard": {
     "dirtyTitle": "Cambios sin guardar",
@@ -3281,7 +3292,14 @@
     "agentScopeUnsupported": "Las extensiones específicas de cada agente solo están disponibles para los agentes de DeepChat.",
     "scopeGlobalPlugins": "Esta página es global de la app: la instalación, habilitación y estado de proceso de los plugins oficiales se comparten entre todos los agentes DeepChat.",
     "scopeCurrentAgent": "Esta página es política del agente: los cambios solo afectan la disponibilidad de Skills/MCP de «{agent}», no las instalaciones globales.",
-    "currentAgentFallback": "agente actual"
+    "currentAgentFallback": "agente actual",
+    "downloadable": "Plugins descargables",
+    "installPlugin": "Instalar",
+    "installing": "Descargando {{percent}}%",
+    "retryInstall": "Reintentar",
+    "cancelInstall": "Cancelar",
+    "installFailed": "Error de instalación",
+    "preRelease": "Prelanzamiento"
   },
   "debug": {
     "description": "Herramientas exclusivas para desarrollo que permiten previsualizar estados simulados y flujos guiados.",

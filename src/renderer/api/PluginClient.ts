@@ -11,8 +11,12 @@ import {
   pluginsEnableRoute,
   pluginsGetRoute,
   pluginsInvokeActionRoute,
-  pluginsListRoute
+  pluginsListRoute,
+  pluginsCatalogListRoute,
+  pluginsCatalogInstallRoute,
+  pluginsCatalogCancelRoute
 } from '@shared/contracts/routes'
+import { pluginInstallProgressEvent, type DeepchatEventPayload } from '@shared/contracts/events'
 import type { PluginInvokeActionRequest } from '@shared/types/plugin'
 import { getDeepchatBridge } from './core'
 
@@ -57,6 +61,14 @@ export function createPluginClient(bridge: DeepchatBridge = getDeepchatBridge())
     retryHook: async (pluginId: string, invocationId: string) => {
       await bridge.invoke(pluginsRetryHookRoute.name, { pluginId, invocationId })
     },
+    listCatalogEntries: async () => (await bridge.invoke(pluginsCatalogListRoute.name, {})).entries,
+    installCatalogPlugin: async (pluginId: string) =>
+      (await bridge.invoke(pluginsCatalogInstallRoute.name, { pluginId })).result,
+    cancelCatalogInstall: async (pluginId: string) =>
+      (await bridge.invoke(pluginsCatalogCancelRoute.name, { pluginId })).cancelled,
+    onInstallProgress: (
+      listener: (payload: DeepchatEventPayload<typeof pluginInstallProgressEvent.name>) => void
+    ) => bridge.on(pluginInstallProgressEvent.name, listener),
     listPlugins,
     getPlugin,
     enablePlugin,

@@ -78,7 +78,11 @@ async function mountCatalog(options?: { ocrStatus?: OcrRuntimeStatus | Error }) 
         mcpServers: []
       }
     ]),
-    enablePlugin: vi.fn().mockResolvedValue({ ok: true })
+    enablePlugin: vi.fn().mockResolvedValue({ ok: true }),
+    listCatalogEntries: vi.fn().mockResolvedValue([]),
+    installCatalogPlugin: vi.fn().mockResolvedValue({ ok: true }),
+    cancelCatalogInstall: vi.fn().mockResolvedValue(false),
+    onInstallProgress: vi.fn().mockReturnValue(() => {})
   }
   const remoteControlClient = {
     listRemoteChannels: vi.fn().mockResolvedValue([

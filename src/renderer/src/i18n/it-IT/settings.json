@@ -174,7 +174,18 @@
     "cacheFallbackReasons": {
       "database_error": "La cache persistente non è disponibile perché non è stato possibile aprire il database.",
       "safe_storage_unavailable": "La cache persistente non è disponibile perché non è disponibile l’archiviazione sicura delle chiavi."
-    }
+    },
+    "runtimeDownloadTitle": "Download del motore",
+    "runtimeDownloadDescription": "Il motore OCR può essere scaricato on demand. Attivo, si scarica automaticamente al primo utilizzo.",
+    "runtimeInstall": "Scarica il motore OCR",
+    "runtimeInstalling": "Download {{percent}}%",
+    "runtimeCancelInstall": "Annulla",
+    "runtimeRetryInstall": "Riprova",
+    "runtimeInstallFailed": "Download del motore OCR non riuscito",
+    "runtimeUnavailablePlatform": "Non disponibile su questa piattaforma",
+    "runtimeIncompatibleApp": "Richiede una versione più recente dell'app",
+    "runtimeReady": "Il motore OCR è pronto su questo dispositivo",
+    "runtimeDownloadHint": "Scarica il motore OCR per usarlo su questo dispositivo"
   },
   "leaveGuard": {
     "dirtyTitle": "Modifiche non salvate",
@@ -3281,7 +3292,14 @@
     "agentScopeUnsupported": "Le estensioni specifiche per agente sono disponibili solo per gli agenti DeepChat.",
     "scopeGlobalPlugins": "Questa pagina è globale all’app: installazione, abilitazione e stato dei processi dei plugin ufficiali sono condivisi da tutti gli agenti DeepChat.",
     "scopeCurrentAgent": "Questa pagina è policy dell’agente: le modifiche riguardano solo la disponibilità Skills/MCP di «{agent}», non le installazioni globali.",
-    "currentAgentFallback": "agente corrente"
+    "currentAgentFallback": "agente corrente",
+    "downloadable": "Plugin scaricabili",
+    "installPlugin": "Installa",
+    "installing": "Download {{percent}}%",
+    "retryInstall": "Riprova",
+    "cancelInstall": "Annulla",
+    "installFailed": "Installazione non riuscita",
+    "preRelease": "Prerelease"
   },
   "debug": {
     "description": "Strumenti riservati allo sviluppo per visualizzare in anteprima stati simulati e flussi guidati.",

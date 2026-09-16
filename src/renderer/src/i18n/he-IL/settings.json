@@ -2695,7 +2695,18 @@
     "cacheFallbackReasons": {
       "database_error": "המטמון המתמשך אינו זמין משום שלא ניתן לפתוח את מסד הנתונים שלו.",
       "safe_storage_unavailable": "המטמון המתמשך אינו זמין משום שאין אחסון מאובטח למפתחות."
-    }
+    },
+    "runtimeDownloadTitle": "Runtime download",
+    "runtimeDownloadDescription": "The OCR engine can be downloaded on demand. When enabled, it downloads automatically the first time it is needed.",
+    "runtimeInstall": "Download OCR engine",
+    "runtimeInstalling": "Downloading {{percent}}%",
+    "runtimeCancelInstall": "Cancel",
+    "runtimeRetryInstall": "Retry",
+    "runtimeInstallFailed": "OCR engine download failed",
+    "runtimeUnavailablePlatform": "Not available on this platform",
+    "runtimeIncompatibleApp": "Requires a newer app version",
+    "runtimeReady": "OCR engine is ready on this device",
+    "runtimeDownloadHint": "Download the OCR engine to use it on this device"
   },
   "leaveGuard": {
     "dirtyTitle": "שינויים שלא נשמרו",
@@ -3281,7 +3292,14 @@
     "agentScopeUnsupported": "הרחבות ברמת הסוכן זמינות רק לסוכני DeepChat.",
     "scopeGlobalPlugins": "עמוד זה הוא גלובלי לאפליקציה: התקנה, הפעלה ומצב תהליך של תוספים רשמיים משותפים לכל סוכני DeepChat.",
     "scopeCurrentAgent": "עמוד זה הוא מדיניות סוכן: השינויים משפיעים רק על זמינות Skills/MCP של „{agent}”, לא על התקנות גלובליות.",
-    "currentAgentFallback": "הסוכן הנוכחי"
+    "currentAgentFallback": "הסוכן הנוכחי",
+    "downloadable": "Downloadable plugins",
+    "installPlugin": "Install",
+    "installing": "Downloading {{percent}}%",
+    "retryInstall": "Retry",
+    "cancelInstall": "Cancel",
+    "installFailed": "Installation failed",
+    "preRelease": "Pre-release"
   },
   "debug": {
     "description": "כלים לפיתוח בלבד להצגת תצוגה מקדימה של מצבי דמה ותהליכים מודרכים.",

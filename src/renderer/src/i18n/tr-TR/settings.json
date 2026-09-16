@@ -174,7 +174,18 @@
     "cacheFallbackReasons": {
       "database_error": "Veritabanı açılamadığı için kalıcı önbellek kullanılamıyor.",
       "safe_storage_unavailable": "Güvenli anahtar depolama kullanılamadığı için kalıcı önbellek kullanılamıyor."
-    }
+    },
+    "runtimeDownloadTitle": "Runtime download",
+    "runtimeDownloadDescription": "The OCR engine can be downloaded on demand. When enabled, it downloads automatically the first time it is needed.",
+    "runtimeInstall": "Download OCR engine",
+    "runtimeInstalling": "Downloading {{percent}}%",
+    "runtimeCancelInstall": "Cancel",
+    "runtimeRetryInstall": "Retry",
+    "runtimeInstallFailed": "OCR engine download failed",
+    "runtimeUnavailablePlatform": "Not available on this platform",
+    "runtimeIncompatibleApp": "Requires a newer app version",
+    "runtimeReady": "OCR engine is ready on this device",
+    "runtimeDownloadHint": "Download the OCR engine to use it on this device"
   },
   "leaveGuard": {
     "dirtyTitle": "Kaydedilmemiş değişiklikler",
@@ -3281,7 +3292,14 @@
     "agentScopeUnsupported": "Ajan düzeyindeki uzantılar yalnızca DeepChat ajanları tarafından kullanılabilir.",
     "scopeGlobalPlugins": "Bu sayfa uygulama genelindedir: resmi eklentilerin kurulumu, etkinleştirilmesi ve süreç durumu tüm DeepChat ajanları arasında paylaşılır.",
     "scopeCurrentAgent": "Bu sayfa ajan politikasıdır: değişiklikler yalnızca “{agent}” için Skills/MCP kullanılabilirliğini etkiler, global kurulumları etkilemez.",
-    "currentAgentFallback": "geçerli ajan"
+    "currentAgentFallback": "geçerli ajan",
+    "downloadable": "Downloadable plugins",
+    "installPlugin": "Install",
+    "installing": "Downloading {{percent}}%",
+    "retryInstall": "Retry",
+    "cancelInstall": "Cancel",
+    "installFailed": "Installation failed",
+    "preRelease": "Pre-release"
   },
   "debug": {
     "description": "Sahte durumları ve rehberli akışları önizlemek için yalnızca geliştirmeye yönelik araçlar.",

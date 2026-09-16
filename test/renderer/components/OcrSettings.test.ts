@@ -12,7 +12,9 @@ const AVAILABLE_STATUS: OcrRuntimeStatus = {
     bundleId: 'ppocrv6-small-native-20260719.1'
   },
   process: null,
-  cache: null
+  cache: null,
+  runtimeInstall: null,
+  runtimeAsset: null
 }
 
 const SELECT_UPDATE_KEY = Symbol('select-update')
@@ -47,7 +49,8 @@ async function setup(
       ? vi.fn().mockRejectedValue(new Error('settings unavailable'))
       : vi.fn().mockResolvedValue({
           ocrAutoExtractForNonVisionModels: true,
-          ocrBackend: 'auto'
+          ocrBackend: 'auto',
+          ocrRuntimeAutoDownload: true
         }),
     update: vi.fn().mockResolvedValue({ values: {} })
   }
@@ -63,7 +66,10 @@ async function setup(
         logicalBytes: 0,
         maxBytes: 256 * 1024 * 1024
       }
-    })
+    }),
+    installRuntime: vi.fn().mockResolvedValue({ result: { ok: true } }),
+    cancelRuntimeInstall: vi.fn().mockResolvedValue({ cancelled: false }),
+    onRuntimeInstallProgress: vi.fn().mockReturnValue(() => {})
   }
   const resumePolling = vi.fn()
   const pausePolling = vi.fn()
@@ -189,7 +195,8 @@ describe('OcrSettings', () => {
 
     expect(settingsClient.getSnapshot).toHaveBeenCalledWith([
       'ocrAutoExtractForNonVisionModels',
-      'ocrBackend'
+      'ocrBackend',
+      'ocrRuntimeAutoDownload'
     ])
     expect(ocrClient.getRuntimeStatus).toHaveBeenCalledOnce()
     expect(wrapper.text()).not.toContain('settings.ocr.available')

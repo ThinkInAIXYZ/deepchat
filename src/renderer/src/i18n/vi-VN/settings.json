@@ -174,7 +174,18 @@
     "cacheFallbackReasons": {
       "database_error": "Bộ nhớ đệm lâu dài không khả dụng vì không thể mở cơ sở dữ liệu.",
       "safe_storage_unavailable": "Bộ nhớ đệm lâu dài không khả dụng vì không có kho khóa an toàn."
-    }
+    },
+    "runtimeDownloadTitle": "Runtime download",
+    "runtimeDownloadDescription": "The OCR engine can be downloaded on demand. When enabled, it downloads automatically the first time it is needed.",
+    "runtimeInstall": "Download OCR engine",
+    "runtimeInstalling": "Downloading {{percent}}%",
+    "runtimeCancelInstall": "Cancel",
+    "runtimeRetryInstall": "Retry",
+    "runtimeInstallFailed": "OCR engine download failed",
+    "runtimeUnavailablePlatform": "Not available on this platform",
+    "runtimeIncompatibleApp": "Requires a newer app version",
+    "runtimeReady": "OCR engine is ready on this device",
+    "runtimeDownloadHint": "Download the OCR engine to use it on this device"
   },
   "leaveGuard": {
     "dirtyTitle": "Thay đổi chưa lưu",
@@ -3281,7 +3292,14 @@
     "agentScopeUnsupported": "Tiện ích mở rộng theo từng tác nhân chỉ khả dụng cho tác nhân DeepChat.",
     "scopeGlobalPlugins": "Trang này mang tính toàn ứng dụng: cài đặt, bật/tắt và trạng thái tiến trình của plugin chính thức được chia sẻ cho mọi tác nhân DeepChat.",
     "scopeCurrentAgent": "Trang này là chính sách tác nhân: thay đổi chỉ ảnh hưởng đến khả dụng Skills/MCP của “{agent}”, không ảnh hưởng cài đặt toàn cục.",
-    "currentAgentFallback": "tác nhân hiện tại"
+    "currentAgentFallback": "tác nhân hiện tại",
+    "downloadable": "Downloadable plugins",
+    "installPlugin": "Install",
+    "installing": "Downloading {{percent}}%",
+    "retryInstall": "Retry",
+    "cancelInstall": "Cancel",
+    "installFailed": "Installation failed",
+    "preRelease": "Pre-release"
   },
   "debug": {
     "description": "Công cụ chỉ dành cho phát triển để xem trước các trạng thái giả lập và quy trình có hướng dẫn.",

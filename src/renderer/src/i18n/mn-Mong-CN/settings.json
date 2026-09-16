@@ -174,7 +174,18 @@
     "cacheFallbackReasons": {
       "database_error": "ᠶᠢᠨ ᠬᠥᠮᠥᠷᠭᠡ ᠳ᠋ᠠᠶᠢᠲ᠋ᠠ ᠬᠥᠮᠥᠷᠭᠡ ᠶᠢ ᠨᠡᠭᠡᠭᠡᠵᠦ ᠳᠡᠶᠢᠯᠬᠦ ᠦᠭᠡᠶ ᠂ ᠤᠳᠠᠭᠠᠨ ᠳᠠᠭᠠᠭᠠᠮᠠᠭᠠᠶ ᠬᠠᠳᠠᠭᠠᠯᠠᠮᠵᠢ ᠶᠢᠨ ᠬᠥᠮᠥᠷᠭᠡ ᠪᠠᠶᠢᠬᠤ ᠦᠭᠡᠶ ᠃",
       "safe_storage_unavailable": "ᠶᠢᠨ ᠠᠶᠤᠯ ᠦᠭᠡᠶ ᠶᠢᠨ ᠲᠦᠯᠬᠢᠭᠦᠷ ᠦᠨ ᠬᠠᠳᠠᠭᠠᠯᠠᠮᠵᠢ ᠶᠢ ᠬᠡᠷᠡᠭᠯᠡᠬᠦ ᠪᠡᠨ ᠪᠣᠯᠢᠭᠰᠠᠨ ᠂ ᠳᠠᠭᠠᠭᠠᠮᠠᠭᠠᠶ ᠴᠢᠨᠠᠷ ᠲᠠᠶ ᠡᠭᠡᠪᠴᠢ ᠬᠠᠳᠠᠭᠠᠯᠠᠮᠵᠢ ᠶᠢ ᠬᠡᠷᠡᠭᠯᠡᠬᠦ ᠪᠡᠨ ᠲᠠᠰᠤᠯᠵᠠᠶ ᠃"
-    }
+    },
+    "runtimeDownloadTitle": "Runtime download",
+    "runtimeDownloadDescription": "The OCR engine can be downloaded on demand. When enabled, it downloads automatically the first time it is needed.",
+    "runtimeInstall": "Download OCR engine",
+    "runtimeInstalling": "Downloading {{percent}}%",
+    "runtimeCancelInstall": "Cancel",
+    "runtimeRetryInstall": "Retry",
+    "runtimeInstallFailed": "OCR engine download failed",
+    "runtimeUnavailablePlatform": "Not available on this platform",
+    "runtimeIncompatibleApp": "Requires a newer app version",
+    "runtimeReady": "OCR engine is ready on this device",
+    "runtimeDownloadHint": "Download the OCR engine to use it on this device"
   },
   "leaveGuard": {
     "dirtyTitle": "ᠵᠠᠰᠠᠭᠰᠠᠨ ᠵᠦᠢᠯ ᠢ ᠬᠠᠳᠠᠭᠠᠯᠠᠭᠰᠠᠨ ᠦᠭᠡᠢ",
@@ -3041,7 +3052,14 @@
     "agentScopeUnsupported": "Agent ᠳᠡᠰ ᠤᠨ ᠤᠷᠲᠤᠳᠬᠠᠯᠲᠠ ᠶᠢᠨ ᠲᠣᠬᠢᠷᠠᠭᠤᠯᠤᠯᠲᠠ ᠨᠢ ᠵᠥᠪᠬᠡᠨ DeepChat Agent ᠶᠢ ᠳᠡᠮᠵᠢᠨ᠎ᠡ ᠃",
     "scopeGlobalPlugins": "ᠶᠢᠨ ᠲᠣᠨᠣᠭᠯᠠᠯ ᠂ ᠨᠡᠭᠡᠭᠡᠯᠲᠡ ᠬᠢᠬᠦ ᠪᠠ ᠶᠠᠪᠤᠴᠠ ᠶᠢᠨ ᠪᠠᠶᠢᠳᠠᠯ ᠢ ᠡᠯ᠎ᠡ ᠮᠡᠳᠡᠭᠡᠨ ᠦ ᠲᠣᠬᠢᠶᠠᠯᠳᠤᠭᠠᠨ ᠤ DeepChat Agent ᠃",
     "scopeCurrentAgent": "ᠣᠳᠣ ᠶᠢᠨ ᠬᠠᠭᠤᠳᠠᠰᠤ ᠪᠣᠯ ᠲᠥᠷᠥ ᠶᠢᠨ Agent  ᠵᠥᠪᠬᠡᠨ 《 {agent} ᠶᠢᠨ ᠳᠣᠲᠣᠷᠠᠬᠢ Skills MCP ᠢ ᠨᠥᠯᠥᠭᠡᠯᠡᠵᠦ ᠂ ᠪᠦᠬᠦ ᠪᠥᠮᠪᠥᠷᠴᠡᠭ ᠦᠨ ᠬᠠᠮᠢᠶ᠎ᠠ ᠶᠢ ᠤᠭᠰᠠᠷᠠᠬᠤ ᠂ ᠨᠥᠬᠥᠴᠡᠯ ᠦᠨ ᠪᠠᠶᠢᠳᠠᠯ ᠪᠤᠶᠤ ᠶᠠᠪᠤᠴᠠ ᠶᠢᠨ ᠪᠠᠶᠢᠳᠠᠯ ᠢ ᠨᠥᠯᠥᠭᠡᠯᠡᠬᠦ ᠦᠭᠡᠢ ᠃",
-    "currentAgentFallback": "ᠣᠳᠣᠭ᠎ᠠ ᠶᠢᠨ Agent"
+    "currentAgentFallback": "ᠣᠳᠣᠭ᠎ᠠ ᠶᠢᠨ Agent",
+    "downloadable": "Downloadable plugins",
+    "installPlugin": "Install",
+    "installing": "Downloading {{percent}}%",
+    "retryInstall": "Retry",
+    "cancelInstall": "Cancel",
+    "installFailed": "Installation failed",
+    "preRelease": "Pre-release"
   },
   "controlCenter": {
     "groups": {

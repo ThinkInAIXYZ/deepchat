@@ -174,7 +174,18 @@
     "cacheFallbackReasons": {
       "database_error": "Trwała pamięć podręczna jest niedostępna, ponieważ nie można otworzyć jej bazy danych.",
       "safe_storage_unavailable": "Trwała pamięć podręczna jest niedostępna, ponieważ bezpieczny magazyn kluczy nie jest dostępny."
-    }
+    },
+    "runtimeDownloadTitle": "Runtime download",
+    "runtimeDownloadDescription": "The OCR engine can be downloaded on demand. When enabled, it downloads automatically the first time it is needed.",
+    "runtimeInstall": "Download OCR engine",
+    "runtimeInstalling": "Downloading {{percent}}%",
+    "runtimeCancelInstall": "Cancel",
+    "runtimeRetryInstall": "Retry",
+    "runtimeInstallFailed": "OCR engine download failed",
+    "runtimeUnavailablePlatform": "Not available on this platform",
+    "runtimeIncompatibleApp": "Requires a newer app version",
+    "runtimeReady": "OCR engine is ready on this device",
+    "runtimeDownloadHint": "Download the OCR engine to use it on this device"
   },
   "leaveGuard": {
     "dirtyTitle": "Niezapisane zmiany",
@@ -3281,7 +3292,14 @@
     "agentScopeUnsupported": "Rozszerzenia na poziomie agenta są dostępne tylko dla agentów DeepChat.",
     "scopeGlobalPlugins": "Ta strona jest globalna dla aplikacji: instalacja, włączanie i stan procesów oficjalnych wtyczek są wspólne dla wszystkich agentów DeepChat.",
     "scopeCurrentAgent": "Ta strona to polityka agenta: zmiany dotyczą tylko dostępności Skills/MCP dla „{agent}”, a nie globalnych instalacji.",
-    "currentAgentFallback": "bieżący agent"
+    "currentAgentFallback": "bieżący agent",
+    "downloadable": "Downloadable plugins",
+    "installPlugin": "Install",
+    "installing": "Downloading {{percent}}%",
+    "retryInstall": "Retry",
+    "cancelInstall": "Cancel",
+    "installFailed": "Installation failed",
+    "preRelease": "Pre-release"
   },
   "debug": {
     "description": "Narzędzia dostępne wyłącznie w środowisku programistycznym do podglądu stanów symulowanych i procesów z przewodnikiem.",

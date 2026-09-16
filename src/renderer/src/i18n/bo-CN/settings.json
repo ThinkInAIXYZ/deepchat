@@ -174,7 +174,18 @@
     "cacheFallbackReasons": {
       "database_error": "འདྲ་མཛོད་ཀྱི་གཞི་གྲངས་མཛོད་ཁ་ཕྱེ་མི་ཐུབ་པ་དང་། རྒྱུན་སྲིང་གི་འདྲ་མཛོད་བཀོལ་སྤྱོད་བྱེད་མི་ཐུབ་པ་རེད།",
       "safe_storage_unavailable": "མ་ལག་གི་བདེ་འཇགས་ལྡེ་མིག་གསོག་ཉར་བྱེད་མི་ཐུབ་པ་དང་། རྒྱུན་མཐུད་ཀྱི་འདྲ་མཛོད་མེད་པར་བཟོས་པ་རེད།"
-    }
+    },
+    "runtimeDownloadTitle": "Runtime download",
+    "runtimeDownloadDescription": "The OCR engine can be downloaded on demand. When enabled, it downloads automatically the first time it is needed.",
+    "runtimeInstall": "Download OCR engine",
+    "runtimeInstalling": "Downloading {{percent}}%",
+    "runtimeCancelInstall": "Cancel",
+    "runtimeRetryInstall": "Retry",
+    "runtimeInstallFailed": "OCR engine download failed",
+    "runtimeUnavailablePlatform": "Not available on this platform",
+    "runtimeIncompatibleApp": "Requires a newer app version",
+    "runtimeReady": "OCR engine is ready on this device",
+    "runtimeDownloadHint": "Download the OCR engine to use it on this device"
   },
   "leaveGuard": {
     "dirtyTitle": "བཟོ་བཅོས་ད་དུང་ཉར་ཚགས་བྱས་མེད།",
@@ -3041,7 +3052,14 @@
     "agentScopeUnsupported": "Agent རིམ་བསྲིངས་བཀོད་སྒྲིག་གིས་DeepChat Agent ཁོ་ནར་རྒྱབ་སྐྱོར་བྱེད་པ་ཡིན།",
     "scopeGlobalPlugins": "ལྷུ་ལག་སྒྲིག་སྦྱོར་དང་། ནུས་པ། བརྒྱུད་རིམ་གྱི་གནས་ཚུལ་བཅས་ཚང་མ་མཉམ་སྤྱོད་DeepChat Agent ཡིན།",
     "scopeCurrentAgent": "མིག་སྔའི་ཤོག་ངོས་ནི་སྲིད་ཇུས་Agent ལ་དམིགས་ཏེ། དེས་\"{agent}\"ལ་སྤྱོད་ཆོག་པའི་Skills/MCP ཁོ་ནར་ཤུགས་རྐྱེན་ཐེབས་པ་ལས། གོ་ལ་ཧྲིལ་པོའི་ལྷུ་ལག་གི་སྒྲིག་སྦྱོར་དང་། ནུས་པ་ཐོན་པའི་གནས་ཚུལ། ཡང་ན་བརྒྱུད་རིམ་གྱི་གནས་ཚུལ་སོགས་ལ་ཤུགས་རྐྱེན་མི་ཐེབས།",
-    "currentAgentFallback": "མིག་སྔའི་Agent"
+    "currentAgentFallback": "མིག་སྔའི་Agent",
+    "downloadable": "Downloadable plugins",
+    "installPlugin": "Install",
+    "installing": "Downloading {{percent}}%",
+    "retryInstall": "Retry",
+    "cancelInstall": "Cancel",
+    "installFailed": "Installation failed",
+    "preRelease": "Pre-release"
   },
   "controlCenter": {
     "groups": {

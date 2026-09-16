@@ -174,7 +174,18 @@
     "cacheFallbackReasons": {
       "database_error": "غەملەك ساندىنى ئاچالمىدى، مەڭگۈلۈك غەملەكنى ئىشلەتكىلى بولمايدۇ.",
       "safe_storage_unavailable": "سىستېمىنىڭ بىخەتەر ئاچقۇچ ساقلاش مۇلازىمىتىنى ئىشلەتكىلى بولمايدۇ، مەڭگۈلۈك غەملەك توختىتىلدى."
-    }
+    },
+    "runtimeDownloadTitle": "Runtime download",
+    "runtimeDownloadDescription": "The OCR engine can be downloaded on demand. When enabled, it downloads automatically the first time it is needed.",
+    "runtimeInstall": "Download OCR engine",
+    "runtimeInstalling": "Downloading {{percent}}%",
+    "runtimeCancelInstall": "Cancel",
+    "runtimeRetryInstall": "Retry",
+    "runtimeInstallFailed": "OCR engine download failed",
+    "runtimeUnavailablePlatform": "Not available on this platform",
+    "runtimeIncompatibleApp": "Requires a newer app version",
+    "runtimeReady": "OCR engine is ready on this device",
+    "runtimeDownloadHint": "Download the OCR engine to use it on this device"
   },
   "leaveGuard": {
     "dirtyTitle": "ئۆزگەرتىشلەر تېخى ساقلانمىدى",
@@ -3041,7 +3052,14 @@
     "agentScopeUnsupported": "Agent دەرىجىلىك كېڭەيتىش تەڭشىكى پەقەت DeepChat Agent نى قوللايدۇ.",
     "scopeGlobalPlugins": "قوللىنىشنىڭ ئورنىتىلىشى، قوزغىتىلىشى ۋە جەريان ئەھۋالى بارلىق DeepChat Agent ئارقىلىق مەشغۇلات قىلىنىدۇ.",
     "scopeCurrentAgent": "ھازىرقى بېتى Agent سىياسىتى: پەقەت «{agent}» ئۈچۈن Skills / MCP غا تەسىر قىلىدۇ، گېنېرال قوللىنىشنىڭ ئورنىتىلىشى، قوزغىتىلىشى ياكى جەريان ئەھۋالىغا تەسىر قىلمايدۇ.",
-    "currentAgentFallback": "ھازىرقى Agent"
+    "currentAgentFallback": "ھازىرقى Agent",
+    "downloadable": "Downloadable plugins",
+    "installPlugin": "Install",
+    "installing": "Downloading {{percent}}%",
+    "retryInstall": "Retry",
+    "cancelInstall": "Cancel",
+    "installFailed": "Installation failed",
+    "preRelease": "Pre-release"
   },
   "controlCenter": {
     "groups": {

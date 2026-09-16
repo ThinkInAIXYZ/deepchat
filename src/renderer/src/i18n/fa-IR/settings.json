@@ -2695,7 +2695,18 @@
     "cacheFallbackReasons": {
       "database_error": "حافظهٔ نهان پایدار در دسترس نیست، زیرا پایگاه‌دادهٔ آن باز نشد.",
       "safe_storage_unavailable": "حافظهٔ نهان پایدار در دسترس نیست، زیرا ذخیره‌سازی امن کلید فراهم نیست."
-    }
+    },
+    "runtimeDownloadTitle": "Runtime download",
+    "runtimeDownloadDescription": "The OCR engine can be downloaded on demand. When enabled, it downloads automatically the first time it is needed.",
+    "runtimeInstall": "Download OCR engine",
+    "runtimeInstalling": "Downloading {{percent}}%",
+    "runtimeCancelInstall": "Cancel",
+    "runtimeRetryInstall": "Retry",
+    "runtimeInstallFailed": "OCR engine download failed",
+    "runtimeUnavailablePlatform": "Not available on this platform",
+    "runtimeIncompatibleApp": "Requires a newer app version",
+    "runtimeReady": "OCR engine is ready on this device",
+    "runtimeDownloadHint": "Download the OCR engine to use it on this device"
   },
   "leaveGuard": {
     "dirtyTitle": "تغییرات ذخیره‌نشده",
@@ -3281,7 +3292,14 @@
     "agentScopeUnsupported": "افزونه‌های ویژهٔ هر عامل فقط برای عامل‌های DeepChat در دسترس هستند.",
     "scopeGlobalPlugins": "این صفحه سراسری برنامه است: نصب، فعال‌سازی و وضعیت فرایند افزونه‌های رسمی بین همه عامل‌های DeepChat مشترک است.",
     "scopeCurrentAgent": "این صفحه سیاست عامل است: تغییرات فقط روی در دسترس بودن Skills/MCP برای «{agent}» اثر می‌گذارد، نه روی نصب‌های سراسری.",
-    "currentAgentFallback": "عامل فعلی"
+    "currentAgentFallback": "عامل فعلی",
+    "downloadable": "Downloadable plugins",
+    "installPlugin": "Install",
+    "installing": "Downloading {{percent}}%",
+    "retryInstall": "Retry",
+    "cancelInstall": "Cancel",
+    "installFailed": "Installation failed",
+    "preRelease": "Pre-release"
   },
   "debug": {
     "description": "ابزارهای مخصوص توسعه برای پیش‌نمایش وضعیت‌های شبیه‌سازی‌شده و جریان‌های راهنما.",

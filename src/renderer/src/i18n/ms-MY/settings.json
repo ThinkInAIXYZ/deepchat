@@ -174,7 +174,18 @@
     "cacheFallbackReasons": {
       "database_error": "Cache berterusan tidak tersedia kerana pangkalan datanya tidak dapat dibuka.",
       "safe_storage_unavailable": "Cache berterusan tidak tersedia kerana storan kunci selamat tidak tersedia."
-    }
+    },
+    "runtimeDownloadTitle": "Runtime download",
+    "runtimeDownloadDescription": "The OCR engine can be downloaded on demand. When enabled, it downloads automatically the first time it is needed.",
+    "runtimeInstall": "Download OCR engine",
+    "runtimeInstalling": "Downloading {{percent}}%",
+    "runtimeCancelInstall": "Cancel",
+    "runtimeRetryInstall": "Retry",
+    "runtimeInstallFailed": "OCR engine download failed",
+    "runtimeUnavailablePlatform": "Not available on this platform",
+    "runtimeIncompatibleApp": "Requires a newer app version",
+    "runtimeReady": "OCR engine is ready on this device",
+    "runtimeDownloadHint": "Download the OCR engine to use it on this device"
   },
   "leaveGuard": {
     "dirtyTitle": "Perubahan belum disimpan",
@@ -3281,7 +3292,14 @@
     "agentScopeUnsupported": "Sambungan khusus ejen hanya tersedia untuk ejen DeepChat.",
     "scopeGlobalPlugins": "Halaman ini bersifat global aplikasi: pemasangan, pengaktifan dan status proses plugin rasmi dikongsi oleh semua ejen DeepChat.",
     "scopeCurrentAgent": "Halaman ini ialah polisi ejen: perubahan hanya menjejaskan ketersediaan Skills/MCP untuk “{agent}”, bukan pemasangan global.",
-    "currentAgentFallback": "ejen semasa"
+    "currentAgentFallback": "ejen semasa",
+    "downloadable": "Downloadable plugins",
+    "installPlugin": "Install",
+    "installing": "Downloading {{percent}}%",
+    "retryInstall": "Retry",
+    "cancelInstall": "Cancel",
+    "installFailed": "Installation failed",
+    "preRelease": "Pre-release"
   },
   "debug": {
     "description": "Alat khusus pembangunan untuk pratonton keadaan olok-olok dan aliran berpandu.",

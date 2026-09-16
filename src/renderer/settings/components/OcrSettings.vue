@@ -247,6 +247,95 @@
       </div>
     </SettingsSectionCard>
 
+    <SettingsSectionCard
+      :title="t('settings.ocr.runtimeDownloadTitle')"
+      :description="t('settings.ocr.runtimeDownloadDescription')"
+    >
+      <template #actions>
+        <Switch
+          data-testid="ocr-runtime-auto-download-switch"
+          :aria-label="t('settings.ocr.runtimeDownloadTitle')"
+          :model-value="runtimeAutoDownloadEnabled"
+          :disabled="!settingsReady || settingsOperationPending"
+          @update:model-value="updateRuntimeAutoDownload"
+        />
+      </template>
+
+      <div class="space-y-4">
+        <div
+          v-if="runtimeInstallFailed"
+          data-testid="ocr-runtime-install-failed"
+          class="rounded-lg border border-destructive/40 px-3 py-2 text-sm text-destructive"
+        >
+          {{ t('settings.ocr.runtimeInstallFailed') }}
+          <span v-if="runtimeInstallError" class="block text-xs opacity-80">
+            {{ runtimeInstallError }}
+          </span>
+        </div>
+
+        <div
+          v-if="runtimeInstalling"
+          data-testid="ocr-runtime-installing"
+          class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
+        >
+          <div class="min-w-0">
+            <div class="text-sm font-medium">
+              {{ t('settings.ocr.runtimeInstalling', { percent: runtimeInstallPercent }) }}
+            </div>
+            <p v-if="runtimeAssetSizeLabel" class="mt-1 text-xs text-muted-foreground">
+              {{ runtimeAssetSizeLabel }}
+            </p>
+          </div>
+          <DcButton
+            variant="outline"
+            size="sm"
+            data-testid="ocr-runtime-cancel-install"
+            @click="cancelRuntimeInstall"
+          >
+            {{ t('settings.ocr.runtimeCancelInstall') }}
+          </DcButton>
+        </div>
+
+        <div
+          v-else-if="runtimeNeedsInstall"
+          class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
+        >
+          <div class="min-w-0">
+            <div class="text-sm font-medium">
+              {{ t('settings.ocr.runtimeInstall') }}
+            </div>
+            <p class="mt-1 text-xs text-muted-foreground">
+              {{ runtimeAssetAvailabilityLabel }}
+            </p>
+          </div>
+          <DcButton
+            variant="outline"
+            size="sm"
+            data-testid="ocr-runtime-install"
+            :disabled="runtimeAssetInfo?.availability !== 'available'"
+            @click="installRuntime"
+          >
+            {{
+              runtimeInstallFailed
+                ? t('settings.ocr.runtimeRetryInstall')
+                : t('settings.ocr.runtimeInstall')
+            }}
+          </DcButton>
+        </div>
+
+        <p
+          v-else-if="runtimeAssetInfo && runtimeAssetInfo.availability !== 'available'"
+          class="text-sm text-muted-foreground"
+        >
+          {{ runtimeAssetAvailabilityLabel }}
+        </p>
+
+        <p v-else class="text-sm text-muted-foreground">
+          {{ t('settings.ocr.runtimeReady') }}
+        </p>
+      </div>
+    </SettingsSectionCard>
+
     <DcConfirmDialog
       :open="clearDialogOpen"
       :title="t('settings.ocr.clearCacheTitle')"
@@ -303,8 +392,11 @@ const settingsClient = createSettingsClient()
 const ocrClient = createOcrClient()
 
 const automaticExtractionEnabled = ref(true)
+const runtimeAutoDownloadEnabled = ref(true)
 const backend = ref<OcrBackend>('auto')
 const status = ref<OcrRuntimeStatus | null>(null)
+const liveRuntimeInstall = ref<OcrRuntimeStatus['runtimeInstall']>(null)
+let unsubscribeRuntimeInstallProgress: (() => void) | null = null
 const settingsReady = ref(false)
 const settingsOperationPending = ref(false)
 const statusLoading = ref(false)
@@ -381,6 +473,60 @@ const canClearCache = computed(() => {
   )
 })
 
+const runtimeAssetInfo = computed(() => status.value?.runtimeAsset ?? null)
+const runtimeInstallState = computed(() => {
+  const live = liveRuntimeInstall.value
+  const polled = status.value?.runtimeInstall ?? null
+  if (live && polled && live.updatedAt >= polled.updatedAt) return live
+  return live ?? polled
+})
+const runtimeInstalling = computed(() => {
+  const phase = runtimeInstallState.value?.phase
+  return (
+    phase === 'probing' ||
+    phase === 'downloading' ||
+    phase === 'verifying' ||
+    phase === 'installing'
+  )
+})
+const runtimeInstallFailed = computed(() => {
+  const state = runtimeInstallState.value
+  if (state?.phase === 'error') return true
+  return runtimeRetryAvailable.value
+})
+const runtimeRetryAvailable = ref(false)
+const runtimeInstallError = computed(() => runtimeInstallState.value?.error ?? null)
+const runtimeInstallPercent = computed(() => {
+  const state = runtimeInstallState.value
+  if (!state || !state.totalBytes || state.totalBytes <= 0) return 0
+  return Math.min(100, Math.round((state.receivedBytes / state.totalBytes) * 100))
+})
+const runtimeNeedsInstall = computed(() => {
+  if (runtimeInstalling.value) return false
+  const availability = status.value?.availability
+  const asset = runtimeAssetInfo.value
+  if (!asset) return false
+  // Only offer the download when the runtime is actually missing locally.
+  if (availability?.status === 'available') return false
+  return asset.availability === 'available' || runtimeInstallFailed.value
+})
+const runtimeAssetAvailabilityLabel = computed(() => {
+  const asset = runtimeAssetInfo.value
+  if (!asset) return ''
+  if (asset.availability === 'incompatible-app') {
+    return t('settings.ocr.runtimeIncompatibleApp')
+  }
+  if (asset.availability === 'unsupported-platform') {
+    return t('settings.ocr.runtimeUnavailablePlatform')
+  }
+  return t('settings.ocr.runtimeDownloadHint')
+})
+const runtimeAssetSizeLabel = computed(() => {
+  const size = runtimeAssetInfo.value?.sizeBytes
+  if (size == null || size <= 0) return null
+  return `${formatBytes(size)} · v${runtimeAssetInfo.value?.version ?? ''}`
+})
+
 const { pause: pausePolling, resume: resumePolling } = useIntervalFn(pollRuntimeStatus, 5_000, {
   immediate: false,
   immediateCallback: false
@@ -398,11 +544,26 @@ onMounted(() => {
   mounted = true
   void loadSettings()
   activatePolling()
+  unsubscribeRuntimeInstallProgress = ocrClient.onRuntimeInstallProgress((payload) => {
+    liveRuntimeInstall.value = {
+      phase: payload.phase,
+      receivedBytes: payload.receivedBytes,
+      totalBytes: payload.totalBytes,
+      error: payload.error,
+      updatedAt: payload.updatedAt
+    }
+    runtimeRetryAvailable.value = payload.phase === 'error'
+    if (payload.phase === 'installed') {
+      void refreshStatus()
+    }
+  })
 })
 
 onBeforeUnmount(() => {
   disposed = true
   pausePolling()
+  unsubscribeRuntimeInstallProgress?.()
+  unsubscribeRuntimeInstallProgress = null
 })
 
 watch(pollingAllowed, (allowed) => {
@@ -417,10 +578,12 @@ async function loadSettings(): Promise<void> {
   try {
     const values = await settingsClient.getSnapshot([
       'ocrAutoExtractForNonVisionModels',
-      'ocrBackend'
+      'ocrBackend',
+      'ocrRuntimeAutoDownload'
     ])
     automaticExtractionEnabled.value = values.ocrAutoExtractForNonVisionModels ?? true
     backend.value = values.ocrBackend ?? 'auto'
+    runtimeAutoDownloadEnabled.value = values.ocrRuntimeAutoDownload ?? true
     settingsReady.value = true
     notifyRenderer({
       kind: 'success',
@@ -483,6 +646,63 @@ async function updateBackend(value: AcceptableValue): Promise<void> {
     })
   } finally {
     settingsOperationPending.value = false
+  }
+}
+
+async function updateRuntimeAutoDownload(value: boolean): Promise<void> {
+  if (settingsOperationPending.value) return
+  settingsOperationPending.value = true
+  try {
+    const result = await settingsClient.update([{ key: 'ocrRuntimeAutoDownload', value }])
+    runtimeAutoDownloadEnabled.value = result.values.ocrRuntimeAutoDownload ?? value
+    notifyRenderer({
+      kind: 'success',
+      code: 'settings.ocr.runtimeAutoDownloadUpdated',
+      title: t('common.saved')
+    })
+  } catch (error) {
+    console.error('[OcrSettings] Failed to update runtime auto download', error)
+    notifyRenderer({
+      kind: 'error',
+      code: 'settings.ocr.updateFailed',
+      title: t('settings.ocr.updateFailed')
+    })
+  } finally {
+    settingsOperationPending.value = false
+  }
+}
+
+async function installRuntime(): Promise<void> {
+  runtimeRetryAvailable.value = false
+  try {
+    const result = await ocrClient.installRuntime()
+    if (!result.result.ok) {
+      runtimeRetryAvailable.value = true
+      notifyRenderer({
+        kind: 'error',
+        code: 'settings.ocr.runtimeInstallFailed',
+        title: t('settings.ocr.runtimeInstallFailed'),
+        description: result.result.error
+      })
+      return
+    }
+    await refreshStatus()
+  } catch (error) {
+    console.error('[OcrSettings] Failed to install OCR runtime', error)
+    runtimeRetryAvailable.value = true
+    notifyRenderer({
+      kind: 'error',
+      code: 'settings.ocr.runtimeInstallFailed',
+      title: t('settings.ocr.runtimeInstallFailed')
+    })
+  }
+}
+
+async function cancelRuntimeInstall(): Promise<void> {
+  try {
+    await ocrClient.cancelRuntimeInstall()
+  } catch (error) {
+    console.error('[OcrSettings] Failed to cancel OCR runtime install', error)
   }
 }
 

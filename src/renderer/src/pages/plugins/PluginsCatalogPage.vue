@@ -96,6 +96,81 @@
           {{ t('settings.pluginsHub.emptySearch') }}
         </div>
       </section>
+
+      <section v-if="downloadableItems.length" class="space-y-4">
+        <div class="border-b border-border/70 pb-2">
+          <h2 class="text-sm font-semibold">{{ t('settings.pluginsHub.downloadable') }}</h2>
+        </div>
+
+        <div class="grid gap-3 lg:grid-cols-2">
+          <article
+            v-for="entry in downloadableItems"
+            :key="`distributable:${entry.pluginId}`"
+            class="flex min-w-0 items-center gap-3 rounded-lg border border-border bg-background p-3"
+          >
+            <div
+              class="flex size-12 shrink-0 items-center justify-center rounded-xl border border-border bg-muted/40"
+            >
+              <Icon icon="lucide:package-down" class="size-6 text-muted-foreground" />
+            </div>
+
+            <div class="min-w-0 flex-1">
+              <div class="flex min-w-0 items-center gap-2">
+                <h3 class="truncate text-sm font-semibold">
+                  {{ entry.displayName || entry.pluginId }}
+                </h3>
+                <span
+                  class="shrink-0 rounded-full border border-border px-2 py-0.5 text-[11px] text-muted-foreground"
+                >
+                  v{{ entry.version }}
+                </span>
+                <span
+                  v-if="entry.channel === 'pre-release'"
+                  class="shrink-0 rounded-full border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-[11px] text-amber-600 dark:text-amber-400"
+                >
+                  {{ t('settings.pluginsHub.preRelease') }}
+                </span>
+              </div>
+              <p class="mt-0.5 line-clamp-2 text-sm text-muted-foreground">
+                {{
+                  installError(entry.pluginId)
+                    ? t('settings.pluginsHub.installFailed')
+                    : entry.description || formatSize(entry.sizeBytes)
+                }}
+              </p>
+            </div>
+
+            <div class="flex shrink-0 items-center gap-2">
+              <span v-if="isInstalling(entry.pluginId)" class="text-xs text-muted-foreground">
+                {{
+                  t('settings.pluginsHub.installing', { percent: installPercent(entry.pluginId) })
+                }}
+              </span>
+              <DcButton
+                v-if="isInstalling(entry.pluginId)"
+                size="sm"
+                variant="outline"
+                @click="handleCancelInstall(entry.pluginId)"
+              >
+                {{ t('settings.pluginsHub.cancelInstall') }}
+              </DcButton>
+              <DcButton
+                v-else
+                size="sm"
+                variant="outline"
+                :loading="isInstalling(entry.pluginId)"
+                @click="handleInstallEntry(entry)"
+              >
+                {{
+                  installPhase(entry.pluginId) === 'error'
+                    ? t('settings.pluginsHub.retryInstall')
+                    : t('settings.pluginsHub.installPlugin')
+                }}
+              </DcButton>
+            </div>
+          </article>
+        </div>
+      </section>
     </div>
   </ScrollArea>
   <UserPluginInstallDialog
@@ -107,7 +182,7 @@
 
 <script setup lang="ts">
 import UserPluginInstallDialog from './UserPluginInstallDialog.vue'
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
@@ -118,6 +193,7 @@ import { createOcrClient } from '@api/OcrClient'
 import { createPluginClient } from '@api/PluginClient'
 import { createRemoteControlClient } from '@api/RemoteControlClient'
 import { CUA_PLUGIN_ID, type PluginActionResult, type PluginListItem } from '@shared/types/plugin'
+import type { PluginCatalogEntry, PluginCatalogInstallState } from '@shared/types/pluginCatalog'
 import type { RemoteChannel } from '@shared/types/remote'
 import { usePluginCatalogStore } from '@/stores/pluginCatalog'
 
@@ -306,7 +382,8 @@ async function loadCatalog(): Promise<void> {
     const [pluginItems] = await Promise.all([
       pluginClient.listPlugins(),
       loadRemoteCatalog(),
-      loadOcrCatalog()
+      loadOcrCatalog(),
+      loadDistributableCatalog()
     ])
     pluginCatalogStore.replacePlugins(pluginItems, pluginVersion)
   } catch (error) {
@@ -314,6 +391,81 @@ async function loadCatalog(): Promise<void> {
   } finally {
     loading.value = false
   }
+}
+
+const catalogEntries = ref<PluginCatalogEntry[]>([])
+const installStates = ref<Record<string, PluginCatalogInstallState>>({})
+let unsubscribeInstallProgress: (() => void) | null = null
+
+const downloadableItems = computed<PluginCatalogEntry[]>(() =>
+  catalogEntries.value.filter((entry) => !entry.installed && entry.availability === 'available')
+)
+
+const installPhase = (pluginId: string): PluginCatalogInstallState['phase'] | null =>
+  installStates.value[pluginId]?.phase ?? null
+
+const installError = (pluginId: string): string | null =>
+  installStates.value[pluginId]?.error ?? null
+
+const isInstalling = (pluginId: string): boolean => {
+  const phase = installPhase(pluginId)
+  return (
+    phase === 'probing' ||
+    phase === 'downloading' ||
+    phase === 'verifying' ||
+    phase === 'installing'
+  )
+}
+
+const installPercent = (pluginId: string): number => {
+  const state = installStates.value[pluginId]
+  if (!state || !state.totalBytes || state.totalBytes <= 0) return 0
+  return Math.min(100, Math.round((state.receivedBytes / state.totalBytes) * 100))
+}
+
+function formatSize(sizeBytes: number | null): string {
+  if (sizeBytes == null || sizeBytes <= 0) return ''
+  const megabytes = sizeBytes / (1024 * 1024)
+  if (megabytes >= 1) return `${megabytes.toFixed(0)} MB`
+  return `${Math.max(1, Math.round(sizeBytes / 1024))} KB`
+}
+
+async function loadDistributableCatalog(): Promise<void> {
+  try {
+    catalogEntries.value = await pluginClient.listCatalogEntries()
+  } catch (error) {
+    console.warn('[PluginsCatalogPage] Failed to load catalog entries:', error)
+  }
+}
+
+async function refreshAfterInstall(): Promise<void> {
+  await Promise.all([loadCatalog(), loadDistributableCatalog()])
+}
+
+async function handleInstallEntry(entry: PluginCatalogEntry): Promise<void> {
+  errorMessage.value = ''
+  try {
+    const result = await pluginClient.installCatalogPlugin(entry.pluginId)
+    if (!result.ok) {
+      errorMessage.value = result.error || t('settings.pluginsHub.installFailed')
+      return
+    }
+    // The install action is the opt-in moment: enable immediately after a
+    // successful download instead of requiring a second confirmation.
+    const enabled = await pluginClient.enablePlugin(entry.pluginId)
+    if (!enabled.ok) {
+      errorMessage.value = enabled.error || t('settings.pluginsHub.installFailed')
+    }
+  } catch (error) {
+    errorMessage.value =
+      error instanceof Error ? error.message : t('settings.pluginsHub.installFailed')
+  } finally {
+    await refreshAfterInstall()
+  }
+}
+
+function handleCancelInstall(pluginId: string): void {
+  void pluginClient.cancelCatalogInstall(pluginId)
 }
 
 async function loadRemoteCatalog(): Promise<void> {
@@ -396,5 +548,16 @@ function onInstalled(plugin: PluginListItem): void {
 
 onMounted(() => {
   void loadCatalog()
+  unsubscribeInstallProgress = pluginClient.onInstallProgress((payload) => {
+    installStates.value = { ...installStates.value, [payload.pluginId]: payload }
+    if (payload.phase === 'installed') {
+      void refreshAfterInstall()
+    }
+  })
+})
+
+onUnmounted(() => {
+  unsubscribeInstallProgress?.()
+  unsubscribeInstallProgress = null
 })
 </script>

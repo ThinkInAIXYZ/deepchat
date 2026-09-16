@@ -2695,7 +2695,18 @@
     "cacheFallbackReasons": {
       "database_error": "O cache persistente está indisponível porque não foi possível abrir o banco de dados.",
       "safe_storage_unavailable": "O cache persistente está indisponível porque o armazenamento seguro de chaves não está disponível."
-    }
+    },
+    "runtimeDownloadTitle": "Download do runtime",
+    "runtimeDownloadDescription": "O engine de OCR pode ser baixado sob demanda. Ativado, ele baixa automaticamente na primeira utilização.",
+    "runtimeInstall": "Baixar engine de OCR",
+    "runtimeInstalling": "Baixando {{percent}}%",
+    "runtimeCancelInstall": "Cancelar",
+    "runtimeRetryInstall": "Tentar novamente",
+    "runtimeInstallFailed": "Falha ao baixar o engine de OCR",
+    "runtimeUnavailablePlatform": "Indisponível nesta plataforma",
+    "runtimeIncompatibleApp": "Requer uma versão mais recente do aplicativo",
+    "runtimeReady": "O engine de OCR está pronto neste dispositivo",
+    "runtimeDownloadHint": "Baixe o engine de OCR para usá-lo neste dispositivo"
   },
   "leaveGuard": {
     "dirtyTitle": "Alterações não salvas",
@@ -3281,7 +3292,14 @@
     "agentScopeUnsupported": "As extensões por agente estão disponíveis apenas para agentes DeepChat.",
     "scopeGlobalPlugins": "Esta página é global do app: instalação, ativação e estado de processo dos plugins oficiais são compartilhados por todos os agentes DeepChat.",
     "scopeCurrentAgent": "Esta página é política do agente: as alterações afetam apenas a disponibilidade de Skills/MCP de “{agent}”, não as instalações globais.",
-    "currentAgentFallback": "agente atual"
+    "currentAgentFallback": "agente atual",
+    "downloadable": "Plugins para download",
+    "installPlugin": "Instalar",
+    "installing": "Baixando {{percent}}%",
+    "retryInstall": "Tentar novamente",
+    "cancelInstall": "Cancelar",
+    "installFailed": "Falha na instalação",
+    "preRelease": "Pré-lançamento"
   },
   "debug": {
     "description": "Ferramentas exclusivas de desenvolvimento para visualizar estados simulados e fluxos guiados.",

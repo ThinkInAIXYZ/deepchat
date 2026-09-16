@@ -2695,7 +2695,18 @@
     "cacheFallbackReasons": {
       "database_error": "Le cache persistant est indisponible, car sa base de données n’a pas pu être ouverte.",
       "safe_storage_unavailable": "Le cache persistant est indisponible, car aucun stockage sécurisé des clés n’est disponible."
-    }
+    },
+    "runtimeDownloadTitle": "Téléchargement du moteur",
+    "runtimeDownloadDescription": "Le moteur OCR peut être téléchargé à la demande. Activé, il se télécharge automatiquement dès la première utilisation.",
+    "runtimeInstall": "Télécharger le moteur OCR",
+    "runtimeInstalling": "Téléchargement {{percent}}%",
+    "runtimeCancelInstall": "Annuler",
+    "runtimeRetryInstall": "Réessayer",
+    "runtimeInstallFailed": "Échec du téléchargement du moteur OCR",
+    "runtimeUnavailablePlatform": "Indisponible sur cette plateforme",
+    "runtimeIncompatibleApp": "Nécessite une version plus récente de l'application",
+    "runtimeReady": "Le moteur OCR est prêt sur cet appareil",
+    "runtimeDownloadHint": "Téléchargez le moteur OCR pour l'utiliser sur cet appareil"
   },
   "leaveGuard": {
     "dirtyTitle": "Modifications non enregistrées",
@@ -3281,7 +3292,14 @@
     "agentScopeUnsupported": "Les extensions propres à un agent ne sont disponibles que pour les agents DeepChat.",
     "scopeGlobalPlugins": "Cette page est globale à l’application : l’installation, l’activation et l’état des processus des plugins officiels sont partagés par tous les agents DeepChat.",
     "scopeCurrentAgent": "Cette page est une politique d’agent : les modifications n’affectent que la disponibilité Skills/MCP de « {agent} », pas les installations globales.",
-    "currentAgentFallback": "agent actuel"
+    "currentAgentFallback": "agent actuel",
+    "downloadable": "Extensions téléchargeables",
+    "installPlugin": "Installer",
+    "installing": "Téléchargement {{percent}}%",
+    "retryInstall": "Réessayer",
+    "cancelInstall": "Annuler",
+    "installFailed": "Échec de l'installation",
+    "preRelease": "Préversion"
   },
   "debug": {
     "description": "Outils réservés au développement pour prévisualiser des états simulés et des parcours guidés.",
