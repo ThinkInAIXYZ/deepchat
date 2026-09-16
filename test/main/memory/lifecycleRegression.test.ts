@@ -1,7 +1,11 @@
 import { describe, expect, it, vi } from 'vitest'
 
 import { buildMemoryProvenanceKey } from '@/memory/core/scoring'
-import { type IMemoryVectorStore, type MemoryVectorMatch } from '@/memory/types'
+import {
+  type IMemoryVectorStore,
+  type MemoryServiceDeps,
+  type MemoryVectorMatch
+} from '@/memory/types'
 import type { DeepChatAgentConfig } from '@shared/types/agent-interface'
 import {
   FakeAuditRepository,
@@ -648,7 +652,7 @@ describe('MemoryService lifecycle revival (SDD-8)', () => {
     const auditRepo = new FakeAuditRepository()
     const store = new FakeVectorStore()
     const now = 1_000 * DAY
-    const make = (gen: ReturnType<typeof vi.fn>) =>
+    const make = (gen: MemoryServiceDeps['generateText']) =>
       new MemoryService({
         repository: repo,
         auditRepository: auditRepo,

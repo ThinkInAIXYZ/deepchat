@@ -38,9 +38,11 @@ describe('initializeMainDatabaseWithRecovery', () => {
     mocks.quarantine.mockReset()
     mocks.initialize.mockReset()
     mocks.DatabaseInitializer.mockReset()
-    mocks.DatabaseInitializer.mockImplementation(() => ({
-      initialize: mocks.initialize
-    }))
+    mocks.DatabaseInitializer.mockImplementation(function DatabaseInitializer() {
+      return {
+        initialize: mocks.initialize
+      }
+    })
     mocks.quarantine.mockImplementation((_dbPath: string, directory: string) => directory)
     let allocated = 0
     mocks.allocate.mockImplementation(

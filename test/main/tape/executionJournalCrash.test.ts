@@ -195,8 +195,7 @@ describe('Execution Journal native crash recovery', () => {
           '--project=main',
           '--pool=threads',
           '--maxWorkers=1',
-          '--minWorkers=1',
-          '--reporter=basic'
+          '--reporter=dot'
         ],
         {
           cwd: PROJECT_ROOT,

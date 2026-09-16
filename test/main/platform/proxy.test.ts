@@ -304,7 +304,7 @@ describe('process-wide fetch dispatcher', () => {
     await config.resolveProxy()
     expect(config.getProxyUrl()).toBe('http://127.0.0.1:7890')
 
-    EnvHttpProxyAgent.mockImplementationOnce(() => {
+    EnvHttpProxyAgent.mockImplementationOnce(function () {
       throw new Error('invalid proxy')
     })
     await expect(config.resolveProxy()).resolves.toBe(false)

@@ -103,7 +103,11 @@ function expectIpcCloneable(input: unknown, cursor: unknown): void {
 
 describe('Tape Inspector store', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
+    client.listTapeInspectorPage.mockReset()
+    client.listTapeInspectorEvidence.mockReset()
+    client.resolveTapeInspectorEvidenceEntries.mockReset()
+    client.getTapeInspectorRecordDetail.mockReset()
+    client.listMessageTraces.mockReset()
     client.resolveTapeInspectorEvidenceEntries.mockImplementation(
       async (
         input: ResolveTapeInspectorEvidenceEntriesInput
@@ -408,6 +412,7 @@ describe('Tape Inspector store', () => {
       expect(client.listTapeInspectorEvidence).toHaveBeenCalledTimes(4)
     } finally {
       store.clear()
+      vi.clearAllTimers()
       vi.useRealTimers()
     }
   })
@@ -435,6 +440,7 @@ describe('Tape Inspector store', () => {
       expect(store.evidence).toEqual([])
     } finally {
       store.clear()
+      vi.clearAllTimers()
       vi.useRealTimers()
     }
   })
@@ -518,6 +524,7 @@ describe('Tape Inspector store', () => {
       expectIpcCloneable(newerEvidenceInput, newerEvidenceInput.cursor)
     } finally {
       store.clear()
+      vi.clearAllTimers()
       vi.useRealTimers()
     }
   })
@@ -646,6 +653,7 @@ describe('Tape Inspector store', () => {
       expect(store.loadingSearchFill).toBe(false)
     } finally {
       store.clear()
+      vi.clearAllTimers()
       vi.useRealTimers()
     }
   })
@@ -683,6 +691,7 @@ describe('Tape Inspector store', () => {
       expect(client.listTapeInspectorPage).toHaveBeenCalledTimes(7)
     } finally {
       store.clear()
+      vi.clearAllTimers()
       vi.useRealTimers()
     }
   })
@@ -1036,6 +1045,7 @@ describe('Tape Inspector store', () => {
       expect(store.records.map((record) => record.entryId)).toEqual([20, 30, 40])
     } finally {
       store.clear()
+      vi.clearAllTimers()
       vi.useRealTimers()
     }
   })

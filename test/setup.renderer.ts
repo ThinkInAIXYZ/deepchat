@@ -475,6 +475,12 @@ vi.mock('@iconify/vue', () => ({
   }
 }))
 
+HTMLCanvasElement.prototype.getContext = vi.fn(() => ({
+  measureText: () => ({ width: 0 }),
+  fillText: () => undefined,
+  font: ''
+})) as typeof HTMLCanvasElement.prototype.getContext
+
 // Mock window.api (preload exposed APIs)
 Object.defineProperty(window, 'electron', {
   value: {
