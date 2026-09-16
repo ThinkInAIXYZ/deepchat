@@ -138,7 +138,10 @@ export interface PluginServicePort {
   inspectSource(source: UserPluginSource, requestId: string): Promise<PreparedUserPlugin>
   installUserPlugin(input: UserPluginInstallInput): Promise<PluginActionResult>
   uninstallUserPlugin(pluginId: string): Promise<PluginActionResult>
-  installOfficialPluginPackage(packagePath: string): Promise<{
+  installOfficialPluginPackage(
+    packagePath: string,
+    expectedPluginId?: string
+  ): Promise<{
     pluginId: string
     version: string
   }>
@@ -316,9 +319,14 @@ export class PluginService implements PluginServicePort {
   /**
    * Installs an official plugin from a verified `.dcplugin` package file
    * (e.g. downloaded by the remote distribution installer). Runs the same
-   * package checksum verification and trust checks as bundled packages.
+   * package checksum verification and trust checks as bundled packages. When
+   * `expectedPluginId` is provided, a package declaring a different plugin id
+   * is rejected before anything is extracted or persisted.
    */
-  async installOfficialPluginPackage(packagePath: string): Promise<{
+  async installOfficialPluginPackage(
+    packagePath: string,
+    expectedPluginId?: string
+  ): Promise<{
     pluginId: string
     version: string
   }> {
@@ -326,6 +334,11 @@ export class PluginService implements PluginServicePort {
       throw new Error(`Plugin package does not exist: ${packagePath}`)
     }
     const metadata = this.readPackageMetadata(packagePath)
+    if (expectedPluginId && metadata.manifest.id !== expectedPluginId) {
+      throw new Error(
+        `Plugin package declares ${metadata.manifest.id}; expected ${expectedPluginId}`
+      )
+    }
     const resolved: ResolvedOfficialPlugin = {
       ...metadata,
       root: packagePath,

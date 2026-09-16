@@ -203,7 +203,8 @@ describe('remote plugin distribution (L1 chain)', () => {
     const progressPhases: string[] = []
     const installer = new PluginRemoteInstaller({
       stagingRoot: () => path.join(root, 'userData', 'plugins', '.staging'),
-      installPackage: (packagePath) => pluginService.installOfficialPluginPackage(packagePath),
+      installPackage: (packagePath, expectedPluginId) =>
+        pluginService.installOfficialPluginPackage(packagePath, expectedPluginId),
       fetchImpl: (async () =>
         new Response(new Uint8Array(packageBytes), { status: 200 })) satisfies FetchLike,
       probeTimeoutMs: 250,
@@ -240,7 +241,8 @@ describe('remote plugin distribution (L1 chain)', () => {
     const pluginService = await createPluginServiceL1(root)
     const installer = new PluginRemoteInstaller({
       stagingRoot: () => path.join(root, 'userData', 'plugins', '.staging'),
-      installPackage: (packagePath) => pluginService.installOfficialPluginPackage(packagePath),
+      installPackage: (packagePath, expectedPluginId) =>
+        pluginService.installOfficialPluginPackage(packagePath, expectedPluginId),
       fetchImpl: (async () =>
         new Response(new Uint8Array(packageBytes), { status: 200 })) satisfies FetchLike,
       probeTimeoutMs: 250
@@ -268,6 +270,53 @@ describe('remote plugin distribution (L1 chain)', () => {
     expect(result.reason).toBe('checksum_mismatch')
     const plugins = await pluginService.listPlugins()
     expect(plugins.find((plugin) => plugin.id === pluginId)).toBeUndefined()
+    const installRoot = path.join(root, 'userData', 'plugins')
+    if (fs.existsSync(installRoot)) {
+      expect(fs.readdirSync(installRoot).filter((entry) => entry !== '.staging')).toEqual([])
+    }
+  })
+
+  it('rejects a package declaring a different plugin id without installing it', async () => {
+    const root = tempRoots[0]
+    // The artifact package declares plugin B while the catalog entry is for A.
+    const packagedPluginId = 'com.deepchat.plugins.imposter'
+    const catalogPluginId = 'com.deepchat.plugins.fixture'
+    const packageBytes = createFixturePackageBytes(packagedPluginId)
+
+    const pluginService = await createPluginServiceL1(root)
+    const installer = new PluginRemoteInstaller({
+      stagingRoot: () => path.join(root, 'userData', 'plugins', '.staging'),
+      installPackage: (packagePath, expectedPluginId) =>
+        pluginService.installOfficialPluginPackage(packagePath, expectedPluginId),
+      fetchImpl: (async () =>
+        new Response(new Uint8Array(packageBytes), { status: 200 })) satisfies FetchLike,
+      probeTimeoutMs: 250
+    })
+
+    const artifact = {
+      pluginId: catalogPluginId,
+      version: '0.2.3',
+      channel: 'stable' as const,
+      targets: [
+        {
+          platform: process.platform,
+          arch: process.arch,
+          url: 'http://127.0.0.1:9/fixture.dcplugin',
+          sha256: createHash('sha256').update(Buffer.from(packageBytes)).digest('hex'),
+          size: packageBytes.length,
+          mirrors: []
+        }
+      ]
+    }
+
+    const result = await installer.install(artifact, artifact.targets[0])
+
+    expect(result.ok).toBe(false)
+    expect(result.error).toContain(packagedPluginId)
+    // Nothing was extracted or registered for either plugin id.
+    const plugins = await pluginService.listPlugins()
+    expect(plugins.find((plugin) => plugin.id === catalogPluginId)).toBeUndefined()
+    expect(plugins.find((plugin) => plugin.id === packagedPluginId)).toBeUndefined()
     const installRoot = path.join(root, 'userData', 'plugins')
     if (fs.existsSync(installRoot)) {
       expect(fs.readdirSync(installRoot).filter((entry) => entry !== '.staging')).toEqual([])

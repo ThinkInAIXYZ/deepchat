@@ -70,7 +70,10 @@ type InstallerHarness = {
 
 function createHarness(options: {
   fetchImpl?: FetchLike
-  installPackage?: (packagePath: string) => Promise<{ pluginId: string; version: string }>
+  installPackage?: (
+    packagePath: string,
+    expectedPluginId: string
+  ) => Promise<{ pluginId: string; version: string }>
 }): InstallerHarness {
   const states: PluginCatalogInstallState[] = []
   const installCalls: string[] = []
@@ -78,8 +81,9 @@ function createHarness(options: {
     stagingRoot: () => stagingRootPath,
     installPackage:
       options.installPackage ??
-      (async (packagePath: string) => {
+      (async (packagePath: string, expectedPluginId: string) => {
         installCalls.push(packagePath)
+        void expectedPluginId
         return {
           pluginId: 'com.deepchat.plugins.example',
           version: '1.0.0'

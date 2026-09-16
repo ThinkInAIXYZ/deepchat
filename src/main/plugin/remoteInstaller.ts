@@ -23,7 +23,10 @@ export type PluginRemoteInstallResult = {
 
 export type PluginRemoteInstallerDeps = {
   stagingRoot: () => string
-  installPackage: (packagePath: string) => Promise<{ pluginId: string; version: string }>
+  installPackage: (
+    packagePath: string,
+    expectedPluginId: string
+  ) => Promise<{ pluginId: string; version: string }>
   fetchImpl?: FetchLike
   probeTimeoutMs?: number
   onProgress?: (state: PluginCatalogInstallState) => void
@@ -39,6 +42,7 @@ export type PluginRemoteInstallerDeps = {
 export class PluginRemoteInstaller {
   private readonly deps: PluginRemoteInstallerDeps
   private readonly running = new Map<string, AbortController>()
+  private readonly activeOperations = new Map<string, Promise<PluginRemoteInstallResult>>()
   private readonly states = new Map<string, PluginCatalogInstallState>()
 
   constructor(deps: PluginRemoteInstallerDeps) {
@@ -62,6 +66,14 @@ export class PluginRemoteInstaller {
     if (!controller || controller.signal.aborted) return false
     controller.abort()
     return true
+  }
+
+  /** Aborts every running install and waits for them to settle. */
+  async cancelAll(): Promise<void> {
+    for (const controller of this.running.values()) {
+      if (!controller.signal.aborted) controller.abort()
+    }
+    await Promise.allSettled(Array.from(this.activeOperations.values()))
   }
 
   async install(
@@ -89,12 +101,12 @@ export class PluginRemoteInstaller {
       }
     }
     this.running.set(pluginId, controller)
-
-    try {
-      return await this.runInstall(artifact, target, controller)
-    } finally {
+    const operation = this.runInstall(artifact, target, controller).finally(() => {
       this.running.delete(pluginId)
-    }
+      this.activeOperations.delete(pluginId)
+    })
+    this.activeOperations.set(pluginId, operation)
+    return await operation
   }
 
   private async runInstall(
@@ -148,7 +160,9 @@ export class PluginRemoteInstaller {
 
       update('verifying', { receivedBytes: target.size, totalBytes: target.size })
       update('installing', { receivedBytes: target.size, totalBytes: target.size })
-      const installed = await this.deps.installPackage(staged.archivePath)
+      // installPackage enforces the expected plugin id before extraction; the
+      // returned id is re-checked here as defense in depth.
+      const installed = await this.deps.installPackage(staged.archivePath, pluginId)
       if (installed.pluginId !== pluginId) {
         throw new Error(`Installed package declares a different plugin id: ${installed.pluginId}`)
       }
