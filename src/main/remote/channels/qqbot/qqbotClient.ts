@@ -29,6 +29,7 @@ export class QQBotApiRequestError extends Error {
 const QQBOT_TOKEN_URL = 'https://bots.qq.com/app/getAppAccessToken'
 const QQBOT_API_BASE_URL = 'https://api.sgroup.qq.com'
 const QQBOT_TOKEN_REFRESH_WINDOW_MS = 60_000
+const QQBOT_REQUEST_TIMEOUT_MS = 35_000
 
 const normalizeResponseError = async (response: Response): Promise<string> => {
   const fallback = `${response.status} ${response.statusText}`.trim()
@@ -76,6 +77,7 @@ export class QQBotClient {
 
     const response = await fetch(QQBOT_TOKEN_URL, {
       method: 'POST',
+      signal: AbortSignal.timeout(QQBOT_REQUEST_TIMEOUT_MS),
       headers: {
         'Content-Type': 'application/json'
       },
@@ -241,8 +243,10 @@ export class QQBotClient {
 
   private async request(path: string, init: RequestInit, retry: boolean = true): Promise<Response> {
     const accessToken = await this.getAccessToken(retry === false)
+    const timeoutSignal = AbortSignal.timeout(QQBOT_REQUEST_TIMEOUT_MS)
     const response = await fetch(`${QQBOT_API_BASE_URL}${path}`, {
       ...init,
+      signal: init.signal ? AbortSignal.any([timeoutSignal, init.signal]) : timeoutSignal,
       headers: {
         Authorization: `QQBot ${accessToken}`,
         'Content-Type': 'application/json',
