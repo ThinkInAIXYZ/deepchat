@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { nextTick, useId, ref, computed, watch } from 'vue'
 import { Icon } from '@iconify/vue'
 import { DcButton } from '@dc-ui/components/button'
 import { DcEmpty } from '@dc-ui/components/empty'
@@ -31,11 +31,13 @@ const { t } = useI18n()
 
 // 本地状态
 const selectedPrompt = ref<string>('')
-const promptResult = ref<string>('')
+const promptResult = ref<string | null>(null)
 const promptParams = ref<string>('{}')
 const promptLoading = ref(false)
 const jsonPromptError = ref(false)
 const isParametersExpanded = ref(false)
+const resultRegion = ref<HTMLElement | null>(null)
+const inputErrorId = useId()
 
 // 计算属性：获取当前服务器的提示模板（如果指定了服务器）
 const serverPrompts = computed(() => {
@@ -48,7 +50,7 @@ const serverPrompts = computed(() => {
 watch(open, (newOpen) => {
   if (newOpen) {
     selectedPrompt.value = ''
-    promptResult.value = ''
+    promptResult.value = null
     promptParams.value = '{}'
     isParametersExpanded.value = false
   }
@@ -57,7 +59,7 @@ watch(open, (newOpen) => {
 // 当选择提示模板时，初始化参数
 watch(selectedPrompt, () => {
   promptParams.value = defaultPromptParams.value
-  promptResult.value = ''
+  promptResult.value = null
   isParametersExpanded.value = false
 })
 
@@ -83,11 +85,13 @@ const callPrompt = async (prompt: PromptListEntry) => {
   if (!prompt) return
   if (!validatePromptJson(promptParams.value)) return
 
+  const opener = document.activeElement
   try {
     promptLoading.value = true
     const params = JSON.parse(promptParams.value)
     const result = await mcpStore.getPrompt(prompt, params)
 
+    if (selectedPrompt.value !== prompt.name) return
     // 处理返回结果
     if (result && typeof result === 'object') {
       const typedResult = result as Record<string, unknown>
@@ -101,9 +105,19 @@ const callPrompt = async (prompt: PromptListEntry) => {
     }
   } catch (error) {
     console.error('调用Prompt失败:', error)
-    promptResult.value = `调用失败: ${error}`
+    if (selectedPrompt.value === prompt.name) {
+      promptResult.value = `${t('mcp.errors.getPromptFailed')}: ${error}`
+    }
   } finally {
     promptLoading.value = false
+    await nextTick()
+    if (
+      open.value &&
+      selectedPrompt.value === prompt.name &&
+      (document.activeElement === document.body || document.activeElement === opener)
+    ) {
+      resultRegion.value?.focus()
+    }
   }
 }
 
@@ -170,17 +184,26 @@ const promptArgsDescription = computed(() => {
 <template>
   <DcSheetPanel
     v-model:open="open"
-    :title="props.serverName ?? ''"
+    :title="`${t('settings.mcp.tabs.prompts')}: ${props.serverName ?? 'MCP'}`"
     :description="t('mcp.prompts.dialogDescription')"
     icon="lucide:message-square-text"
     width-class="w-4/5 min-w-[80vw] max-w-[80vw]"
     :scroll-body="false"
   >
     <div class="flex flex-col flex-1 overflow-hidden">
+      <p role="status" aria-atomic="true" class="sr-only">
+        {{
+          promptLoading
+            ? t('mcp.prompts.runningPrompt')
+            : promptResult !== null
+              ? t('mcp.prompts.resultTitle')
+              : ''
+        }}
+      </p>
       <!-- 小屏幕：提示模板选择下拉菜单 -->
       <div class="shrink-0 px-4 py-4 lg:hidden">
         <Select v-model="selectedPrompt">
-          <SelectTrigger class="w-full">
+          <SelectTrigger class="w-full" :aria-label="t('settings.mcp.tabs.prompts')">
             <SelectValue :placeholder="t('mcp.prompts.selectPrompt')" />
           </SelectTrigger>
           <SelectContent>
@@ -216,6 +239,7 @@ const promptArgsDescription = computed(() => {
                 :class="{
                   'bg-accent text-accent-foreground': selectedPrompt === prompt.name
                 }"
+                :aria-pressed="selectedPrompt === prompt.name"
                 @click="selectPrompt(prompt)"
               >
                 <div class="flex items-start space-x-2 w-full">
@@ -268,6 +292,7 @@ const promptArgsDescription = computed(() => {
                   <DcButton
                     variant="ghost"
                     class="w-full justify-between p-3 h-auto"
+                    :aria-expanded="isParametersExpanded"
                     @click="isParametersExpanded = !isParametersExpanded"
                   >
                     <span class="font-medium"
@@ -336,12 +361,17 @@ const promptArgsDescription = computed(() => {
                       v-model="promptParams"
                       class="flex h-32 w-full rounded-md border border-input bg-background px-3 py-2 text-sm font-mono transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                       :class="{ 'border-destructive': jsonPromptError }"
+                      :aria-label="`${t('mcp.prompts.input')}: ${selectedPromptObj.name}`"
+                      :aria-invalid="jsonPromptError"
+                      :aria-describedby="jsonPromptError ? inputErrorId : undefined"
                       placeholder="{}"
                       @input="validatePromptJson(promptParams)"
                       @blur="promptParams = formatJson(promptParams)"
                     />
                     <div
                       v-if="jsonPromptError"
+                      :id="inputErrorId"
+                      role="alert"
                       class="absolute right-3 top-3 text-xs text-destructive"
                     >
                       {{ t('mcp.prompts.invalidJson') }}
@@ -368,9 +398,15 @@ const promptArgsDescription = computed(() => {
                 </div>
 
                 <!-- 结果显示 -->
-                <div v-if="promptResult">
+                <div
+                  v-if="promptResult !== null"
+                  ref="resultRegion"
+                  role="region"
+                  tabindex="-1"
+                  :aria-label="`${t('mcp.prompts.resultTitle')}: ${selectedPromptObj.name}`"
+                >
                   <McpJsonViewer
-                    :content="promptResult"
+                    :content="promptResult ?? ''"
                     :title="t('mcp.prompts.resultTitle')"
                     readonly
                   />

@@ -8,6 +8,7 @@
     "modeChanged": "Tilstand skiftet til: {mode}"
   },
   "input": {
+    "suggestions": "Forslag",
     "acpWorkdir": "arbejdskatalog",
     "acpWorkdirCurrent": "Nuværende arbejdsmappe: {path}",
     "acpWorkdirSelect": "Vælg arbejdsmappe",
@@ -120,6 +121,7 @@
     "steerFailed": "Kunne ikke afbryde denne tur"
   },
   "messages": {
+    "loadEarlier": "Indlæs tidligere beskeder",
     "rateLimitEstimated": "Forventet ventetid",
     "rateLimitImmediately": "med det samme",
     "rateLimitMinutes": "minut",

@@ -3,6 +3,7 @@
     <div :class="frameContainerClasses">
       <iframe
         ref="iframeRef"
+        :title="block.artifact.title || t('artifacts.htmlDocument')"
         :srcdoc="block.content"
         :class="viewportClasses"
         :style="viewportStyles"
@@ -14,6 +15,8 @@
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n'
+const { t } = useI18n()
 import { ref, onMounted, computed, watch } from 'vue'
 
 // Fixed viewport dimensions

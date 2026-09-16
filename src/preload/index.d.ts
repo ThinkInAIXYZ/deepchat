@@ -6,7 +6,7 @@ declare global {
     api: {
       copyText(text: string): void
       copyImage(image: string): void
-      readClipboardText(): string
+      readClipboardText(): Promise<string>
       getPathForFile(file: File): string
       getPlatform(): string
       getArch(): string

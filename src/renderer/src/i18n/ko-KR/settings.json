@@ -1876,7 +1876,9 @@
         "succeeded": "Ready",
         "cancelled": "Cancelled",
         "failed": "Failed"
-      }
+      },
+      "terminalLabel": "로그인 터미널",
+      "terminalHint": "F6을 눌러 인증 컨트롤로 돌아갑니다."
     },
     "terminal": {
       "close": "폐쇄",

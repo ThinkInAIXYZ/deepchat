@@ -1,5 +1,83 @@
 <template>
-  <div class="flex flex-col w-full gap-4">
+  <div
+    ref="modelListRoot"
+    role="region"
+    tabindex="-1"
+    :aria-label="t('settings.provider.modelList')"
+    class="flex flex-col w-full gap-4"
+  >
+    <DefineModelRow v-slot="{ item }">
+      <div
+        v-if="isLabelItem(item)"
+        class="flex h-9 items-center px-3 text-xs text-muted-foreground"
+      >
+        {{ item.label }}
+      </div>
+      <div
+        v-else-if="isProviderActionsItem(item)"
+        class="flex h-14 items-center justify-between gap-3 overflow-hidden px-3 py-2 bg-muted/30"
+      >
+        <div class="min-w-0 flex-1 truncate text-sm font-medium">
+          {{ getProviderName(item.providerId) }}
+        </div>
+        <div class="flex shrink-0 gap-2">
+          <DcButton
+            variant="outline"
+            size="sm"
+            class="h-8 min-w-8 max-w-[9rem] whitespace-nowrap rounded-lg px-2 text-xs text-normal"
+            :disabled="isProviderBatchPending(item.providerId)"
+            :title="t('model.actions.enableAll')"
+            @click="enableAllModels(item.providerId)"
+          >
+            <Spinner
+              v-if="getProviderPendingAction(item.providerId) === 'enable'"
+              class="size-3.5 shrink-0 sm:mr-1"
+            />
+            <Icon v-else icon="lucide:check-circle" class="size-3.5 shrink-0 sm:mr-1" />
+            <span class="hidden min-w-0 truncate sm:inline">
+              {{ t('model.actions.enableAll') }}
+            </span>
+          </DcButton>
+          <DcButton
+            variant="outline"
+            size="sm"
+            class="h-8 min-w-8 max-w-[9rem] whitespace-nowrap rounded-lg px-2 text-xs text-normal"
+            :disabled="isProviderBatchPending(item.providerId)"
+            :title="t('model.actions.disableAll')"
+            @click="disableAllModels(item.providerId)"
+          >
+            <Spinner
+              v-if="getProviderPendingAction(item.providerId) === 'disable'"
+              class="size-3.5 shrink-0 sm:mr-1"
+            />
+            <Icon v-else icon="lucide:x-circle" class="size-3.5 shrink-0 sm:mr-1" />
+            <span class="hidden min-w-0 truncate sm:inline">
+              {{ t('model.actions.disableAll') }}
+            </span>
+          </DcButton>
+        </div>
+      </div>
+      <div v-else-if="isModelItem(item)" :key="item.id" class="h-12 overflow-hidden bg-card">
+        <ModelConfigItem
+          :key="item.id"
+          :model-name="item.name"
+          :model-id="item.modelId"
+          :provider-id="item.providerId"
+          :enabled="item.enabled ?? false"
+          :is-custom-model="false"
+          :vision="item.vision"
+          :function-call="item.functionCall"
+          :explicit-function-call="item.explicitFunctionCall"
+          :reasoning="item.reasoning"
+          :enable-search="item.enableSearch"
+          :type="item.typeValue ?? ModelType.Chat"
+          :supported-endpoint-types="item.supportedEndpointTypes"
+          :endpoint-type="item.endpointType"
+          @enabled-change="handleVirtualModelEnabledChange(item, $event)"
+          @config-changed="emitConfigChanged"
+        />
+      </div>
+    </DefineModelRow>
     <div
       ref="searchContainerRef"
       class="sticky z-30 border-b border-border/60 py-2 backdrop-blur supports-backdrop-filter:bg-background/80"
@@ -53,6 +131,7 @@
                     size="sm"
                     class="justify-between px-3 text-xs"
                     :variant="selectedCapabilities.includes(option.value) ? 'default' : 'outline'"
+                    :aria-pressed="selectedCapabilities.includes(option.value)"
                     @click="toggleCapabilityFilter(option.value)"
                   >
                     <span class="flex min-w-0 items-center gap-1.5">
@@ -76,6 +155,7 @@
                     size="sm"
                     class="justify-between px-3 text-xs"
                     :variant="selectedTypes.includes(option.value) ? 'default' : 'outline'"
+                    :aria-pressed="selectedTypes.includes(option.value)"
                     @click="toggleTypeFilter(option.value)"
                   >
                     <span class="flex min-w-0 items-center gap-1.5">
@@ -106,6 +186,7 @@
                 size="sm"
                 variant="ghost"
                 class="w-full justify-between px-2! text-xs"
+                :aria-pressed="sortState === option.value"
                 @click="setSort(option.value)"
               >
                 <span>{{ option.label }}</span>
@@ -196,7 +277,7 @@
     </div>
 
     <div
-      v-if="isLoading"
+      v-if="isLoading || !accessibilityReady"
       class="flex items-center gap-2 rounded-lg border border-dashed border-muted py-4 px-4 text-sm text-muted-foreground"
     >
       <Spinner class="size-4" />
@@ -204,7 +285,11 @@
     </div>
 
     <template v-else-if="virtualItems.length > 0">
+      <div v-if="accessibilityEnabled" data-testid="accessible-model-list">
+        <ReuseModelRow v-for="item in virtualItems" :key="item.id" :item="item" />
+      </div>
       <RecycleScroller
+        v-else
         :items="virtualItems"
         :item-size="null"
         :min-item-size="LABEL_ITEM_HEIGHT"
@@ -215,78 +300,7 @@
         :buffer="900"
         :prerender="12"
       >
-        <template #default="{ item }">
-          <div
-            v-if="isLabelItem(item)"
-            class="flex h-9 items-center px-3 text-xs text-muted-foreground"
-          >
-            {{ item.label }}
-          </div>
-          <div
-            v-else-if="isProviderActionsItem(item)"
-            class="flex h-14 items-center justify-between gap-3 overflow-hidden px-3 py-2 bg-muted/30"
-          >
-            <div class="min-w-0 flex-1 truncate text-sm font-medium">
-              {{ getProviderName(item.providerId) }}
-            </div>
-            <div class="flex shrink-0 gap-2">
-              <DcButton
-                variant="outline"
-                size="sm"
-                class="h-8 min-w-8 max-w-[9rem] whitespace-nowrap rounded-lg px-2 text-xs text-normal"
-                :disabled="isProviderBatchPending(item.providerId)"
-                :title="t('model.actions.enableAll')"
-                @click="enableAllModels(item.providerId)"
-              >
-                <Spinner
-                  v-if="getProviderPendingAction(item.providerId) === 'enable'"
-                  class="size-3.5 shrink-0 sm:mr-1"
-                />
-                <Icon v-else icon="lucide:check-circle" class="size-3.5 shrink-0 sm:mr-1" />
-                <span class="hidden min-w-0 truncate sm:inline">
-                  {{ t('model.actions.enableAll') }}
-                </span>
-              </DcButton>
-              <DcButton
-                variant="outline"
-                size="sm"
-                class="h-8 min-w-8 max-w-[9rem] whitespace-nowrap rounded-lg px-2 text-xs text-normal"
-                :disabled="isProviderBatchPending(item.providerId)"
-                :title="t('model.actions.disableAll')"
-                @click="disableAllModels(item.providerId)"
-              >
-                <Spinner
-                  v-if="getProviderPendingAction(item.providerId) === 'disable'"
-                  class="size-3.5 shrink-0 sm:mr-1"
-                />
-                <Icon v-else icon="lucide:x-circle" class="size-3.5 shrink-0 sm:mr-1" />
-                <span class="hidden min-w-0 truncate sm:inline">
-                  {{ t('model.actions.disableAll') }}
-                </span>
-              </DcButton>
-            </div>
-          </div>
-          <div v-else-if="isModelItem(item)" :key="item.id" class="h-12 overflow-hidden bg-card">
-            <ModelConfigItem
-              :key="item.id"
-              :model-name="item.name"
-              :model-id="item.modelId"
-              :provider-id="item.providerId"
-              :enabled="item.enabled ?? false"
-              :is-custom-model="false"
-              :vision="item.vision"
-              :function-call="item.functionCall"
-              :explicit-function-call="item.explicitFunctionCall"
-              :reasoning="item.reasoning"
-              :enable-search="item.enableSearch"
-              :type="item.typeValue ?? ModelType.Chat"
-              :supported-endpoint-types="item.supportedEndpointTypes"
-              :endpoint-type="item.endpointType"
-              @enabled-change="handleVirtualModelEnabledChange(item, $event)"
-              @config-changed="emitConfigChanged"
-            />
-          </div>
-        </template>
+        <template #default="{ item }"><ReuseModelRow :item="item" /></template>
       </RecycleScroller>
     </template>
 
@@ -300,7 +314,7 @@
 </template>
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
-import { computed, reactive, ref, watch } from 'vue'
+import { computed, nextTick, reactive, ref, watch } from 'vue'
 import { Input } from '@shadcn/components/ui/input'
 import { DcButton } from '@dc-ui/components/button'
 import { DcBadge } from '@dc-ui/components/badge'
@@ -313,12 +327,17 @@ import { useModelStore } from '@/stores/modelStore'
 import { useUiSettingsStore } from '@/stores/uiSettingsStore'
 import { RecycleScroller } from 'vue-virtual-scroller'
 import 'vue-virtual-scroller/dist/vue-virtual-scroller.css'
-import { refDebounced, useElementSize } from '@vueuse/core'
+import { createReusableTemplate, refDebounced, useElementSize } from '@vueuse/core'
 import { Spinner } from '@shadcn/components/ui/spinner'
+
+import { useAccessibilitySupport } from '@/composables/useAccessibilitySupport'
 
 import AddCustomModelButton from './AddCustomModelButton.vue'
 
 const { t } = useI18n()
+const modelListRoot = ref<HTMLElement | null>(null)
+const { accessibilityEnabled, accessibilityReady } = useAccessibilitySupport()
+const [DefineModelRow, ReuseModelRow] = createReusableTemplate<{ item: VirtualModelListItem }>()
 const modelSearchQuery = ref('')
 // Same 180ms debounce as before; replace manual ref + watch + useDebounceFn.
 const debouncedSearchQuery = refDebounced(modelSearchQuery, 180)
@@ -329,9 +348,10 @@ const MODEL_ITEM_HEIGHT = 48
 const PROVIDER_ACTIONS_ITEM_HEIGHT = 56
 const modelNameCollator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' })
 const MODEL_TOGGLE_PERF_LOG_PREFIX = '[ModelTogglePerf]'
-const getPerfNow = () => (typeof performance !== 'undefined' ? performance.now() : Date.now())
+const getPerfNow = () =>
+  import.meta.env.DEV ? (typeof performance !== 'undefined' ? performance.now() : Date.now()) : 0
 const logModelTogglePerf = (phase: string, details: Record<string, unknown>) => {
-  if (!uiSettingsStore.traceDebugEnabled) {
+  if (!import.meta.env.DEV || !uiSettingsStore.traceDebugEnabled) {
     return
   }
 
@@ -701,22 +721,18 @@ type VirtualModelListItem =
 
 type VirtualModelItem = Extract<VirtualModelListItem, { type: 'model' }>
 
-const getCachedVirtualItem = <TItem extends VirtualModelListItem>(
-  id: string,
-  factory: () => TItem,
-  apply: (item: TItem) => void
-): TItem => {
-  const existing = virtualItemCache.get(id)
-  if (existing) {
-    const typedExisting = existing as TItem
-    apply(typedExisting)
-    return typedExisting
+const getCachedVirtualItem = <TItem extends VirtualModelListItem>(item: TItem): TItem => {
+  const existing = virtualItemCache.get(item.id) as TItem | undefined
+  if (
+    existing &&
+    (Object.keys(item) as (keyof TItem)[]).every((key) => existing[key] === item[key])
+  ) {
+    return existing
   }
 
-  const nextItem = factory()
-  apply(nextItem)
-  virtualItemCache.set(id, nextItem)
-  return nextItem
+  // Changed rows need a new prop identity, including when the source model is mutated in place.
+  virtualItemCache.set(item.id, item)
+  return item
 }
 
 const syncVirtualItemCache = (activeIds: Set<string>) => {
@@ -728,76 +744,39 @@ const syncVirtualItemCache = (activeIds: Set<string>) => {
 }
 
 const createLabelItem = (label: string) =>
-  getCachedVirtualItem(
-    'label-official',
-    () => ({ id: 'label-official', type: 'label', label, size: LABEL_ITEM_HEIGHT }),
-    (item) => {
-      item.label = label
-      item.size = LABEL_ITEM_HEIGHT
-    }
-  )
+  getCachedVirtualItem({ id: 'label-official', type: 'label', label, size: LABEL_ITEM_HEIGHT })
 
 const createProviderActionsItem = (providerId: string) =>
-  getCachedVirtualItem(
-    `${providerId}-actions`,
-    () => ({
-      id: `${providerId}-actions`,
-      type: 'provider-actions',
-      providerId,
-      size: PROVIDER_ACTIONS_ITEM_HEIGHT
-    }),
-    (item) => {
-      item.providerId = providerId
-      item.size = PROVIDER_ACTIONS_ITEM_HEIGHT
-    }
-  )
+  getCachedVirtualItem({
+    id: `${providerId}-actions`,
+    type: 'provider-actions',
+    providerId,
+    size: PROVIDER_ACTIONS_ITEM_HEIGHT
+  })
 
 const createModelItem = (model: RENDERER_MODEL_META) =>
-  getCachedVirtualItem<VirtualModelItem>(
-    `${model.providerId}-${model.id}`,
-    () => ({
-      id: `${model.providerId}-${model.id}`,
-      type: 'model',
-      size: MODEL_ITEM_HEIGHT,
-      providerId: model.providerId,
-      modelId: model.id,
-      name: model.name,
-      enabled: model.enabled ?? false,
-      vision: model.vision ?? false,
-      functionCall: model.functionCall ?? false,
-      explicitFunctionCall: model.explicitFunctionCall,
-      reasoning: model.reasoning ?? false,
-      enableSearch: model.enableSearch ?? false,
-      typeValue: model.type ?? ModelType.Chat,
-      group: model.group,
-      contextLength: model.contextLength,
-      maxTokens: model.maxTokens,
-      isCustom: model.isCustom ?? false,
-      supportedEndpointTypes: model.supportedEndpointTypes,
-      selectableEndpointTypes: model.selectableEndpointTypes,
-      endpointType: model.endpointType
-    }),
-    (item) => {
-      item.size = MODEL_ITEM_HEIGHT
-      item.providerId = model.providerId
-      item.modelId = model.id
-      item.name = model.name
-      item.enabled = model.enabled ?? false
-      item.vision = model.vision ?? false
-      item.functionCall = model.functionCall ?? false
-      item.explicitFunctionCall = model.explicitFunctionCall
-      item.reasoning = model.reasoning ?? false
-      item.enableSearch = model.enableSearch ?? false
-      item.typeValue = model.type ?? ModelType.Chat
-      item.group = model.group
-      item.contextLength = model.contextLength
-      item.maxTokens = model.maxTokens
-      item.isCustom = model.isCustom ?? false
-      item.supportedEndpointTypes = model.supportedEndpointTypes
-      item.selectableEndpointTypes = model.selectableEndpointTypes
-      item.endpointType = model.endpointType
-    }
-  )
+  getCachedVirtualItem<VirtualModelItem>({
+    id: `${model.providerId}-${model.id}`,
+    type: 'model',
+    size: MODEL_ITEM_HEIGHT,
+    providerId: model.providerId,
+    modelId: model.id,
+    name: model.name,
+    enabled: model.enabled ?? false,
+    vision: model.vision ?? false,
+    functionCall: model.functionCall ?? false,
+    explicitFunctionCall: model.explicitFunctionCall,
+    reasoning: model.reasoning ?? false,
+    enableSearch: model.enableSearch ?? false,
+    typeValue: model.type ?? ModelType.Chat,
+    group: model.group,
+    contextLength: model.contextLength,
+    maxTokens: model.maxTokens,
+    isCustom: model.isCustom ?? false,
+    supportedEndpointTypes: model.supportedEndpointTypes,
+    selectableEndpointTypes: model.selectableEndpointTypes,
+    endpointType: model.endpointType
+  })
 
 const virtualItems = computed<VirtualModelListItem[]>(() => {
   const start = getPerfNow()
@@ -946,8 +925,17 @@ const emitConfigChanged = () => {
 }
 
 const handleDeleteCustomModel = async (model: RENDERER_MODEL_META) => {
+  const providerId = newProviderModel.value
+  const opener = document.activeElement
   try {
     await modelStore.removeCustomModel(model.providerId, model.id)
+    await nextTick()
+    if (
+      newProviderModel.value === providerId &&
+      (document.activeElement === document.body || document.activeElement === opener)
+    ) {
+      modelListRoot.value?.focus()
+    }
   } catch (error) {
     console.error('Failed to delete custom model:', error)
   }

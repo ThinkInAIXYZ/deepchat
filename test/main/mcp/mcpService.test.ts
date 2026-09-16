@@ -32,36 +32,52 @@ const semanticNotificationsMock = vi.hoisted(() => ({
 }))
 
 vi.mock('../../../src/main/mcp/serverManager', () => ({
-  ServerManager: vi.fn().mockImplementation(() => ({
-    startServer: serverManagerMocks.startServer,
-    stopServer: serverManagerMocks.stopServer,
-    isServerRunning: serverManagerMocks.isServerRunning,
-    isServerActive: serverManagerMocks.isServerActive,
-    getClient: serverManagerMocks.getClient,
-    getServerLastError: serverManagerMocks.getServerLastError,
-    getRunningClients: serverManagerMocks.getRunningClients,
-    getActiveClients: serverManagerMocks.getActiveClients,
-    testNpmRegistrySpeed: serverManagerMocks.testNpmRegistrySpeed,
-    getNpmRegistry: serverManagerMocks.getNpmRegistry,
-    updateNpmRegistryInBackground: serverManagerMocks.updateNpmRegistryInBackground,
-    loadRegistryFromCache: serverManagerMocks.loadRegistryFromCache,
-    refreshNpmRegistry: serverManagerMocks.refreshNpmRegistry,
-    getUvRegistry: serverManagerMocks.getUvRegistry
-  }))
+  ServerManager: vi.fn().mockImplementation(function ServerManager() {
+    return {
+      startServer: serverManagerMocks.startServer,
+      stopServer: serverManagerMocks.stopServer,
+      isServerRunning: serverManagerMocks.isServerRunning,
+      isServerActive: serverManagerMocks.isServerActive,
+      getClient: serverManagerMocks.getClient,
+      getServerLastError: serverManagerMocks.getServerLastError,
+      getRunningClients: serverManagerMocks.getRunningClients,
+      getActiveClients: serverManagerMocks.getActiveClients,
+      testNpmRegistrySpeed: serverManagerMocks.testNpmRegistrySpeed,
+      getNpmRegistry: serverManagerMocks.getNpmRegistry,
+      updateNpmRegistryInBackground: serverManagerMocks.updateNpmRegistryInBackground,
+      loadRegistryFromCache: serverManagerMocks.loadRegistryFromCache,
+      refreshNpmRegistry: serverManagerMocks.refreshNpmRegistry,
+      getUvRegistry: serverManagerMocks.getUvRegistry
+    }
+  })
 }))
 
 vi.mock('../../../src/main/mcp/toolManager', () => ({
-  ToolManager: vi.fn().mockImplementation(() => ({
-    getAllToolDefinitions: toolManagerMocks.getAllToolDefinitions,
-    snapshotCachedToolDefinitions: toolManagerMocks.snapshotCachedToolDefinitions,
-    getRunningClients: toolManagerMocks.getRunningClients,
-    invalidateRegistry: toolManagerMocks.invalidateRegistry,
-    callTool: toolManagerMocks.callTool
-  }))
+  ToolManager: vi.fn().mockImplementation(function ToolManager() {
+    return {
+      getAllToolDefinitions: toolManagerMocks.getAllToolDefinitions,
+      snapshotCachedToolDefinitions: toolManagerMocks.snapshotCachedToolDefinitions,
+      getRunningClients: toolManagerMocks.getRunningClients,
+      invalidateRegistry: toolManagerMocks.invalidateRegistry,
+      callTool: toolManagerMocks.callTool
+    }
+  })
 }))
 
 vi.mock('../../../src/main/mcp/mcprouterManager', () => ({
-  McpRouterManager: vi.fn().mockImplementation(() => ({}))
+  McpRouterManager: vi.fn().mockImplementation(function McpRouterManager() {
+    return {}
+  })
+}))
+
+const childProcessRegistryMock = vi.hoisted(() => ({
+  record: vi.fn(),
+  clear: vi.fn(),
+  reapStaleOnce: vi.fn().mockResolvedValue(null)
+}))
+
+vi.mock('@/agent/shared/process/childProcessRegistry', () => ({
+  childProcessRegistry: childProcessRegistryMock
 }))
 
 import { McpService } from '../../../src/main/mcp'
@@ -69,16 +85,15 @@ import { ToolManager } from '../../../src/main/mcp/toolManager'
 import type { CacheImageOptions } from '../../../src/main/platform/imageCache'
 
 const installToolManagerMock = () => {
-  vi.mocked(ToolManager).mockImplementation(
-    () =>
-      ({
-        getAllToolDefinitions: toolManagerMocks.getAllToolDefinitions,
-        snapshotCachedToolDefinitions: toolManagerMocks.snapshotCachedToolDefinitions,
-        getRunningClients: toolManagerMocks.getRunningClients,
-        invalidateRegistry: toolManagerMocks.invalidateRegistry,
-        callTool: toolManagerMocks.callTool
-      }) as never
-  )
+  vi.mocked(ToolManager).mockImplementation(function ToolManager() {
+    return {
+      getAllToolDefinitions: toolManagerMocks.getAllToolDefinitions,
+      snapshotCachedToolDefinitions: toolManagerMocks.snapshotCachedToolDefinitions,
+      getRunningClients: toolManagerMocks.getRunningClients,
+      invalidateRegistry: toolManagerMocks.invalidateRegistry,
+      callTool: toolManagerMocks.callTool
+    } as never
+  })
 }
 
 const createMcpService = (
@@ -135,6 +150,7 @@ describe('McpService', () => {
     toolManagerMocks.getAllToolDefinitions.mockResolvedValue([])
     toolManagerMocks.snapshotCachedToolDefinitions.mockReturnValue({ state: 'uninitialized' })
     toolManagerMocks.callTool.mockReset()
+    childProcessRegistryMock.reapStaleOnce.mockResolvedValue(null)
   })
 
   it('caches embedded MCP image URLs before exposing the tool result to the model', async () => {
@@ -552,7 +568,14 @@ describe('McpService', () => {
     expect(serverManagerMocks.startServer).not.toHaveBeenCalled()
   })
 
-  it('does not wait for hanging enabled servers during initialization', async () => {
+  it('waits for orphan recovery but not hanging enabled servers during initialization', async () => {
+    let finishRecovery!: () => void
+    childProcessRegistryMock.reapStaleOnce.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          finishRecovery = resolve
+        })
+    )
     const providerSettings = createProviderSettings(
       true,
       false,
@@ -573,8 +596,12 @@ describe('McpService', () => {
     serverManagerMocks.startServer.mockImplementation(() => new Promise(() => {}))
     serverManagerMocks.isServerActive.mockReturnValue(true)
 
+    const initialization = presenter.initialize()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(serverManagerMocks.startServer).not.toHaveBeenCalled()
+    finishRecovery()
     const result = Promise.race([
-      presenter.initialize().then(() => 'initialized'),
+      initialization.then(() => 'initialized'),
       new Promise((resolve) => setTimeout(() => resolve('blocked'), 1))
     ])
     await vi.advanceTimersByTimeAsync(1)

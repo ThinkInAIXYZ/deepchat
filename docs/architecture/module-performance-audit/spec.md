@@ -142,15 +142,13 @@ performance repair. For example, OCR currently prepares the effective engine bef
 engine-keyed cache; skipping that work without a trustworthy identity could reuse an incompatible
 artifact. Those follow-ups are not reported as resolved product bottlenecks.
 
-## Documentation disposition
+## Maintained Documentation
 
-Remove 86 obsolete Markdown files: 22 resolved issue records and 64 completed execution/history
-files. No removed file contains an unchecked task. All 33 feature specifications remain, as do
-active issue records, unfinished acceptance work, and machine-read baselines. Current contracts
-replace obsolete implementation descriptions for global Skills, Markdown rendering, packaged CLI
-ownership, independent OCR runtime pins, CUA versions, and Browser PiP capture cadence. The OCR
-follow-up record distinguishes existing retry/busy/priority behavior from outstanding work.
+The module inventory and measurement limits in this report remain the audit reference. Product,
+architecture, persistence, and platform contracts stay in their maintained specifications; open
+issues and unfinished acceptance work retain their execution records. Completed implementation
+checklists and resolved issue reports are available through Git history.
 
-Relative Markdown links and incoming deleted-file references are checked after cleanup. The normal
-provider catalog refresh produced by the production build is retained. This report is the durable
-module inventory; completed execution checklists are not a separate maintained artifact.
+Machine-read baselines remain available to their consumers. Relative Markdown links and incoming
+references must resolve after documentation cleanup. Provider and ACP catalog refreshes produced
+by normal builds are retained.

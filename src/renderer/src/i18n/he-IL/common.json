@@ -1,4 +1,5 @@
 {
+  "skipToContent": "דילוג לתוכן",
   "notifications": {
     "label": "התראות",
     "actionFailed": "הפעולה נכשלה. נסה שוב.",
@@ -137,7 +138,9 @@
     "addressPlaceholder": "Enter a URL",
     "enterUrlDescription": "הזן את כתובת האתר בשורת הכתובת למעלה כדי לגשת לאתר",
     "enterUrlToStart": "הזן את כתובת האתר כדי להתחיל לבקר",
-    "name": "יו דפדפן"
+    "name": "יו דפדפן",
+    "enterContent": "מעבר לדף האינטרנט",
+    "returnFocus": "F6 מחזיר לפקדי הדפדפן"
   },
   "size": {
     "bytes": "{count} בתים"
@@ -153,5 +156,16 @@
     "none": "ללא פרויקט",
     "recent": "פרויקטים אחרונים",
     "openFolder": "פתח תיקייה..."
+  },
+  "diff": {
+    "oldLine": "שורה ישנה",
+    "newLine": "שורה חדשה",
+    "change": "שינוי",
+    "content": "תוכן",
+    "add": "נוסף",
+    "del": "הוסר",
+    "context": "ללא שינוי",
+    "hunk": "טווח השינוי",
+    "meta": "מטא נתונים"
   }
 }

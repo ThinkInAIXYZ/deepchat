@@ -25,7 +25,10 @@
         ref="coachmarkPanelRef"
         data-testid="welcome-guide-panel"
         role="dialog"
-        aria-modal="true"
+        tabindex="-1"
+        :aria-label="coachmarkStepTitle"
+        :aria-describedby="guideDescriptionId"
+        @keydown.esc.stop="dismissGuideCoachmark"
         class="welcome-guide-coachmark pointer-events-auto absolute rounded-2xl border border-border/80 bg-background/95 p-4 shadow-2xl backdrop-blur"
         :style="coachmarkPanelStyle"
       >
@@ -61,7 +64,7 @@
                 </button>
               </template>
             </div>
-            <p class="mt-2 text-xs leading-5 text-muted-foreground">
+            <p :id="guideDescriptionId" class="mt-2 text-xs leading-5 text-muted-foreground">
               {{ t('welcome.page.guide.description', { step: coachmarkStepTitle }) }}
             </p>
 
@@ -126,7 +129,7 @@
     <div class="flex-1 flex flex-col items-center justify-center px-6">
       <!-- Logo -->
       <div class="mb-5">
-        <img src="@/assets/logo-dark.png" class="w-16 h-16" loading="lazy" />
+        <img src="@/assets/logo-dark.png" class="w-16 h-16" alt="" loading="lazy" />
       </div>
 
       <!-- Heading -->
@@ -255,7 +258,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, nextTick, onMounted, ref, useId, watch } from 'vue'
 import { useElementBounding } from '@vueuse/core'
 import { Icon } from '@iconify/vue'
 import { useI18n } from 'vue-i18n'
@@ -294,6 +297,7 @@ const pageRouter = usePageRouterStore()
 const onboardingState = ref<GuidedOnboardingState | null>(null)
 const guideCardRef = ref<HTMLElement | null>(null)
 const providerGridRef = ref<HTMLElement | null>(null)
+const guideDescriptionId = useId()
 const guideCoachmarkDismissed = ref(false)
 const coachmarkPanelRef = ref<HTMLElement | null>(null)
 
@@ -357,6 +361,18 @@ const coachmarkStepTitle = computed(() => guideStepTitle(coachmarkStepId.value))
 const showGuideImportAction = computed(() => coachmarkStepId.value === 'select-provider')
 const showGuideCoachmark = computed(
   () => onboardingState.value?.status === 'active' && !guideCoachmarkDismissed.value
+)
+watch(
+  [showGuideCoachmark, coachmarkStepId],
+  async ([visible]) => {
+    const ownedFocus = coachmarkPanelRef.value?.contains(document.activeElement)
+    await nextTick()
+    if (visible) coachmarkPanelRef.value?.focus({ preventScroll: true })
+    else if (ownedFocus || document.activeElement === document.body) {
+      providerGridRef.value?.querySelector('button')?.focus({ preventScroll: true })
+    }
+  },
+  { immediate: true }
 )
 const coachmarkTargetSurface = computed<'guide-card' | 'providers'>(() =>
   coachmarkStepId.value === 'select-provider' ? 'providers' : 'guide-card'

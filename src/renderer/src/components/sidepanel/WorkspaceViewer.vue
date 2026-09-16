@@ -1,5 +1,11 @@
 <template>
-  <div class="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-background">
+  <div
+    ref="viewerRegion"
+    role="region"
+    tabindex="-1"
+    :aria-label="viewerTitle"
+    class="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-background"
+  >
     <div class="flex h-11 shrink-0 items-center justify-between border-b px-3">
       <div class="flex min-w-0 items-center gap-2">
         <DcButton
@@ -32,6 +38,7 @@
               effectiveViewMode === 'preview' ? 'bg-background text-foreground shadow-sm' : ''
             "
             type="button"
+            :aria-pressed="effectiveViewMode === 'preview'"
             @click="sidepanelStore.setViewMode(props.sessionId, 'preview')"
           >
             {{ t('artifacts.preview') }}
@@ -40,6 +47,7 @@
             class="rounded-md px-2 py-1 transition-colors"
             :class="effectiveViewMode === 'code' ? 'bg-background text-foreground shadow-sm' : ''"
             type="button"
+            :aria-pressed="effectiveViewMode === 'code'"
             @click="sidepanelStore.setViewMode(props.sessionId, 'code')"
           >
             {{ t('artifacts.code') }}
@@ -239,6 +247,9 @@ import WorkspaceCodePane from './viewer/WorkspaceCodePane.vue'
 import WorkspacePreviewPane from './viewer/WorkspacePreviewPane.vue'
 import WorkspaceInfoPane from './viewer/WorkspaceInfoPane.vue'
 import WorkspaceDiffView from './viewer/WorkspaceDiffView.vue'
+
+const viewerRegion = ref<HTMLElement | null>(null)
+defineExpose({ focus: () => viewerRegion.value?.focus() })
 
 const props = defineProps<{
   sessionId: string

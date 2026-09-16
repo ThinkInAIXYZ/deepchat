@@ -198,54 +198,13 @@ export function createDeepSeekResponsesReplayProjector(
   }
 }
 
-const DEEPSEEK_PROVIDER_OPTIONS_KEY = 'deepseek'
-
-/**
- * `@ai-sdk/open-responses` re-serializes an assistant `reasoning` part as a Responses `reasoning`
- * item. When the part's provider options carry an un-replayable `deepseek.reasoningContent`
- * (a summary-only reasoning round from DeepSeek), its converter emits an item with no `content` at
- * all (`{}`), which the upstream thinking protocol rejects. Deleting the key lets the converter
- * fall back to materializing `reasoning_text` from the part text instead.
- */
-function isReplayableReasoningContent(value: unknown): boolean {
-  return (
-    Array.isArray(value) &&
-    value.length > 0 &&
-    value.every(
-      (part) => isRecord(part) && part.type === 'reasoning_text' && typeof part.text === 'string'
-    )
-  )
-}
-
-function sanitizeReasoningProviderOptions(message: ChatMessage): ChatMessage {
-  const providerOptions = message.reasoning_provider_options
-  const deepseekOptions = providerOptions?.[DEEPSEEK_PROVIDER_OPTIONS_KEY]
-  if (
-    !isRecord(deepseekOptions) ||
-    !Object.prototype.hasOwnProperty.call(deepseekOptions, 'reasoningContent') ||
-    isReplayableReasoningContent(deepseekOptions.reasoningContent)
-  ) {
-    return message
-  }
-
-  const nextMessage = { ...message }
-  const sanitizedDeepseekOptions = { ...deepseekOptions }
-  delete sanitizedDeepseekOptions.reasoningContent
-  nextMessage.reasoning_provider_options = {
-    ...providerOptions,
-    [DEEPSEEK_PROVIDER_OPTIONS_KEY]: sanitizedDeepseekOptions
-  }
-  return nextMessage
-}
-
 function omitEmptyReasoning(messages: ChatMessage[]): ChatMessage[] {
   return messages.map((message) => {
-    if (!Object.prototype.hasOwnProperty.call(message, 'reasoning_content')) {
+    if (
+      !Object.prototype.hasOwnProperty.call(message, 'reasoning_content') ||
+      (typeof message.reasoning_content === 'string' && message.reasoning_content.length > 0)
+    ) {
       return message
-    }
-
-    if (typeof message.reasoning_content === 'string' && message.reasoning_content.length > 0) {
-      return sanitizeReasoningProviderOptions(message)
     }
 
     const nextMessage = { ...message }

@@ -45,6 +45,7 @@
             <Switch
               dir="ltr"
               :model-value="mcpEnabled"
+              :aria-label="t('settings.mcp.center.title')"
               :disabled="isAgentScope || mcpMasterSaving"
               @update:model-value="handleMcpEnabledChange"
             />
@@ -150,12 +151,14 @@
                     </span>
                     <Switch
                       :model-value="npmRegistryStatus.autoDetectEnabled"
+                      :aria-label="t('settings.mcp.npmRegistry.autoDetect')"
                       :disabled="npmRegistryBusy"
                       @update:model-value="setAutoDetectNpmRegistry"
                     />
                   </div>
                   <Input
                     v-model="customRegistryInput"
+                    :aria-label="t('settings.mcp.npmRegistry.customSourcePlaceholder')"
                     :placeholder="t('settings.mcp.npmRegistry.customSourcePlaceholder')"
                     class="font-mono"
                     :disabled="npmRegistryBusy"

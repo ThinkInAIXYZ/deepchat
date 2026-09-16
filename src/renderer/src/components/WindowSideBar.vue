@@ -1,6 +1,7 @@
 <template>
   <TooltipProvider :delay-duration="200">
-    <div
+    <nav
+      :aria-label="t('chat.sidebar.allAgents')"
       data-testid="window-sidebar"
       class="window-sidebar-shell flex flex-row h-full shrink-0 overflow-hidden window-drag-region transition-[width] duration-[var(--dc-motion-fast)] ease-[var(--dc-ease-out-express)] motion-reduce:transition-none"
       :class="collapsed ? 'w-12' : 'w-[288px]'"
@@ -12,6 +13,7 @@
           data-testid="sidebar-agent-all-button"
           data-agent-id="__all__"
           :data-selected="String(sidebarSelectedAgentId === null)"
+          :aria-pressed="sidebarSelectedAgentId === null"
           size="icon"
           icon="lucide:layers"
           icon-size="4"
@@ -37,6 +39,7 @@
           :data-agent-id="agent.id"
           :data-agent-type="agent.agentType ?? agent.type"
           :data-selected="String(sidebarSelectedAgentId === agent.id)"
+          :aria-pressed="sidebarSelectedAgentId === agent.id"
           size="icon"
           tooltip-side="right"
           :tooltip-delay-duration="200"
@@ -114,6 +117,8 @@
           :icon="collapsed ? 'lucide:panel-left-open' : 'lucide:panel-left-close'"
           size="icon"
           data-testid="window-sidebar-toggle"
+          :aria-expanded="!collapsed"
+          aria-controls="sidebar-sessions"
           :label="collapsed ? t('chat.sidebar.expandSidebar') : t('chat.sidebar.collapseSidebar')"
           :tooltip="collapsed ? t('chat.sidebar.expandSidebar') : t('chat.sidebar.collapseSidebar')"
           tooltip-side="right"
@@ -138,6 +143,7 @@
 
       <!-- Right Column: Session List (240px) -->
       <div
+        id="sidebar-sessions"
         data-testid="window-sidebar-session-column"
         class="window-sidebar-session-column window-no-drag-region flex flex-col w-0 flex-1 min-w-0 transition-[opacity,transform] duration-[var(--dc-motion-default)] ease-[var(--dc-ease-out-express)]"
         :class="
@@ -644,7 +650,7 @@
           </div>
         </div>
       </div>
-    </div>
+    </nav>
   </TooltipProvider>
 
   <Dialog v-model:open="deleteDialogOpen">

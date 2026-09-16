@@ -4,6 +4,7 @@ import Database from 'better-sqlite3-multiple-ciphers'
 import { unzipSync, zipSync } from 'fflate'
 import * as fsMock from 'fs'
 import type { SettingsDatabase } from '@/settings/data/database'
+import { withBackupReadLock } from '@/data/backupReadLock'
 
 const configImportMocks = vi.hoisted(() => ({
   importLegacyConfig: vi.fn(),
@@ -50,6 +51,7 @@ vi.mock('better-sqlite3-multiple-ciphers', async () => {
 
   class MockDatabase {
     private state: MockState
+    private inTx = false
 
     constructor(
       private readonly dbPath: string,
@@ -58,7 +60,14 @@ vi.mock('better-sqlite3-multiple-ciphers', async () => {
       this.state = readState(dbPath)
     }
 
+    get inTransaction() {
+      return this.inTx
+    }
+
     exec(sql: string) {
+      const normalized = sql.replace(/\s+/g, ' ').trim().toUpperCase()
+      if (normalized === 'BEGIN') this.inTx = true
+      if (normalized === 'COMMIT' || normalized === 'ROLLBACK') this.inTx = false
       for (const match of sql.matchAll(/CREATE TABLE IF NOT EXISTS\s+([a-zA-Z_][\w]*)/gi)) {
         this.ensureTable(match[1])
       }
@@ -103,6 +112,12 @@ vi.mock('better-sqlite3-multiple-ciphers', async () => {
       if (normalizedSql === "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?") {
         return {
           get: (tableName: string) => (this.state.tables[tableName] ? { exists: 1 } : undefined)
+        }
+      }
+
+      if (normalizedSql === 'SELECT count(*) FROM sqlite_master') {
+        return {
+          get: () => ({ count: Object.keys(this.state.tables).length })
         }
       }
 
@@ -283,7 +298,9 @@ vi.mock('../../../src/main/sync/configImportService', async () => {
 })
 
 vi.mock('../../../src/main/sync/cloudStorageService', () => ({
-  CloudStorageService: vi.fn(() => cloudStorageMocks)
+  CloudStorageService: vi.fn(function CloudStorageService() {
+    return cloudStorageMocks
+  })
 }))
 
 const realFs = await vi.importActual<typeof import('fs')>('fs')
@@ -357,14 +374,20 @@ describe('SyncService backup import', () => {
     sqlitePresenter = {
       close: vi.fn(),
       reopen: vi.fn(),
-      getDatabase: vi.fn(() => ({
-        open: true,
-        pragma: dbPragma
-      })),
+      withBackupReadLock: vi.fn((work: () => Promise<unknown>) =>
+        withBackupReadLock(
+          { open: true, pragma: dbPragma } as never,
+          () => {
+            throw new Error('backup read lock must not open a connection')
+          },
+          work
+        )
+      ),
       appSettingsTable: {
         hasConfigMigration: vi.fn(() => true)
       },
       getDatabasePassword: vi.fn(() => undefined),
+      openDatabaseConnection: vi.fn((target: string) => new Database(target)),
       clearNewAgentData: vi.fn(),
       importLegacyChatDb: vi.fn(async () => ({
         importedSessions: 0,
@@ -469,7 +492,7 @@ describe('SyncService backup import', () => {
     const files = unzipSync(new Uint8Array(fs.readFileSync(archivePath)))
     expect(files[ZIP_PATHS.agentDb]).toBeDefined()
     expect(files[ZIP_PATHS.mcpSettings]).toBeUndefined()
-    expect(dbPragma).toHaveBeenCalledWith('wal_checkpoint(TRUNCATE)')
+    expect(dbPragma).toHaveBeenCalledWith('wal_checkpoint(PASSIVE)')
     const manifest = JSON.parse(Buffer.from(files[ZIP_PATHS.manifest]).toString('utf-8'))
     expect(manifest).toMatchObject({
       version: 2,
@@ -1103,6 +1126,9 @@ describe('SyncService backup import', () => {
     const result = await runImport(backupFile, ImportMode.OVERWRITE)
 
     expect(result.success).toBe(true)
+    expect(getPublishedEventPayloads('sync.import.completed')).toEqual([
+      expect.objectContaining({ mode: 'overwrite' })
+    ])
     expect(result.count).toBe(1)
     expect(result.sourceDbType).toBe('agent')
     expect(result.importedSessions).toBe(1)

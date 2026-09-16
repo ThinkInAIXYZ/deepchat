@@ -10,6 +10,7 @@ import {
 } from '@shared/contracts/events'
 import {
   browserAttachCurrentWindowRoute,
+  browserFocusContentRoute,
   browserApplyImportRoute,
   browserClearSandboxDataRoute,
   browserDismissPreviewRoute,
@@ -52,6 +53,11 @@ export function createBrowserClient(bridge: DeepchatBridge = getDeepchatBridge()
       timeoutMs
     })
     return result.status
+  }
+
+  async function focusContent(sessionId: string) {
+    const result = await bridge.invoke(browserFocusContentRoute.name, { sessionId })
+    return result.focused
   }
 
   async function attachCurrentWindow(sessionId: string) {
@@ -228,6 +234,7 @@ export function createBrowserClient(bridge: DeepchatBridge = getDeepchatBridge()
     getStatus,
     loadUrl,
     attachCurrentWindow,
+    focusContent,
     updateCurrentWindowBounds,
     detach,
     setPreviewMode,

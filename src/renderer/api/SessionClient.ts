@@ -118,11 +118,14 @@ export function createSessionClient(bridge: DeepchatBridge = getDeepchatBridge()
       limit?: number
     }
   ) {
-    return await bridge.invoke(sessionsListMessagesPageRoute.name, {
-      sessionId,
-      cursor: options?.cursor,
-      limit: options?.limit
-    })
+    return await bridge.invoke(
+      sessionsListMessagesPageRoute.name,
+      sessionsListMessagesPageRoute.input.parse({
+        sessionId,
+        cursor: options?.cursor,
+        limit: options?.limit
+      })
+    )
   }
 
   async function activate(sessionId: string) {

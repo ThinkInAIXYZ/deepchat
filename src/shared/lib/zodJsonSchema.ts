@@ -18,6 +18,23 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 
 const isNullSchema = (value: unknown): boolean => isRecord(value) && value.type === 'null'
 
+// zod >= 4.5 merges compatible intersections into a single object schema and
+// only emits `allOf` for conflicting (unrepresentable) branches, possibly nested
+// inside properties. Any `allOf` in the emitted schema means the tool input
+// cannot be safely flattened, so reject it.
+const containsAllOf = (value: unknown): boolean => {
+  if (Array.isArray(value)) {
+    return value.some(containsAllOf)
+  }
+  if (!isRecord(value)) {
+    return false
+  }
+  if (Array.isArray(value.allOf)) {
+    return true
+  }
+  return Object.values(value).some(containsAllOf)
+}
+
 const objectVariants = (value: unknown): Record<string, unknown>[] | null => {
   if (!Array.isArray(value)) {
     return null
@@ -173,7 +190,7 @@ export function toDeepChatJsonSchema(schema: z.ZodType): DeepChatJsonSchemaObjec
     unrepresentable: 'throw'
   }) as Record<string, unknown>
 
-  if (Array.isArray(jsonSchema.allOf)) {
+  if (containsAllOf(jsonSchema)) {
     throw new Error(INTERSECTION_SCHEMA_ERROR)
   }
 

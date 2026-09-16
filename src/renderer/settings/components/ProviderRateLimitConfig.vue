@@ -9,6 +9,7 @@
       </div>
       <Switch
         :model-value="rateLimitEnabled"
+        :aria-label="t('settings.rateLimit.title')"
         :disabled="saving"
         @update:model-value="handleEnabledChange"
       />
@@ -22,6 +23,7 @@
         <div class="flex items-center space-x-2">
           <Input
             v-model.number="intervalValue"
+            :aria-label="`${t('settings.rateLimit.intervalLimit')} (${t('settings.rateLimit.intervalUnit')})`"
             type="number"
             min="0"
             max="3600"
@@ -73,7 +75,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch, onMounted, onUnmounted } from 'vue'
+import { computed, nextTick, ref, watch, onMounted, onUnmounted } from 'vue'
 import { useIntervalFn } from '@vueuse/core'
 import { useI18n } from 'vue-i18n'
 import { Switch } from '@shadcn/components/ui/switch'
@@ -180,6 +182,7 @@ const handleConfirmDialogOpenChange = (open: boolean) => {
 
 const persistRateLimit = async (draft: RateLimitDraft): Promise<boolean> => {
   if (saving.value) return false
+  const opener = document.activeElement as HTMLElement | null
   saving.value = true
   try {
     await providerClient.updateProviderRateLimit(
@@ -218,6 +221,14 @@ const persistRateLimit = async (draft: RateLimitDraft): Promise<boolean> => {
     return false
   } finally {
     saving.value = false
+    await nextTick()
+    if (
+      props.provider.id === draft.providerId &&
+      opener?.isConnected &&
+      (document.activeElement === document.body || document.activeElement === opener)
+    ) {
+      opener.focus({ preventScroll: true })
+    }
   }
 }
 

@@ -145,8 +145,11 @@
           </div>
 
           <div class="space-y-4">
-            <div
-              class="group border-2 border-dashed border-muted rounded-lg p-4 hover:border-primary/50 hover:bg-muted/20 transition-all"
+            <button
+              type="button"
+              :disabled="formDisabled"
+              :aria-label="t('promptSetting.uploadFromDevice')"
+              class="w-full text-left focus-visible:ring-2 focus-visible:ring-ring group border-2 border-dashed border-muted rounded-lg p-4 hover:border-primary/50 hover:bg-muted/20 transition-all"
               :class="{ 'pointer-events-none opacity-60': formDisabled }"
               :aria-disabled="formDisabled"
               @click="uploadFile"
@@ -164,7 +167,7 @@
                   </p>
                 </div>
               </div>
-            </div>
+            </button>
 
             <div v-if="form.files.length" class="space-y-3">
               <Label class="text-sm text-muted-foreground">{{

@@ -147,15 +147,8 @@ describe('PromptEditorSheet', () => {
         return originalCreateElement(tagName, options)
       })
 
-    const uploadArea = wrapper
-      .findAll('div')
-      .find(
-        (node) =>
-          node.classes().includes('group') && node.text().includes('promptSetting.uploadFromDevice')
-      )
-
-    expect(uploadArea).toBeDefined()
-    await uploadArea!.trigger('click')
+    const uploadArea = wrapper.get('button[aria-label="promptSetting.uploadFromDevice"]')
+    await uploadArea.trigger('click')
     await inputElement.onchange?.({
       target: {
         files: [file]

@@ -13,6 +13,7 @@ type UseMessageVirtualizationOptions = {
   viewport: Ref<HTMLElement | null>
   displayMessages: ComputedRef<DisplayMessage[]>
   messageWindow: MessageWindow
+  disableWindowing?: Readonly<Ref<boolean>>
   windowingThreshold: number
   initialWindowCount: number
   overscanPx: number
@@ -85,7 +86,7 @@ export function useMessageVirtualization(options: UseMessageVirtualizationOption
       return { start: 0, end: 0, before: 0, after: 0 }
     }
 
-    if (total <= windowingThreshold) {
+    if (options.disableWindowing?.value || total <= windowingThreshold) {
       return { start: 0, end: total, before: 0, after: 0 }
     }
 
@@ -124,7 +125,8 @@ export function useMessageVirtualization(options: UseMessageVirtualizationOption
   const messageWindowBeforeHeight = computed(() => messageWindowRange.value.before)
   const messageWindowAfterHeight = computed(() => messageWindowRange.value.after)
 
-  const usesWindowedMessages = () => messageWindow.entries.value.length > windowingThreshold
+  const usesWindowedMessages = () =>
+    !options.disableWindowing?.value && messageWindow.entries.value.length > windowingThreshold
 
   function captureLogicalViewportAnchor(): LogicalViewportAnchor | null {
     const container = viewport.value

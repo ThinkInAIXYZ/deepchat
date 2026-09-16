@@ -97,7 +97,7 @@ function mountAttachment(
     context.refreshOcrAvailability ?? vi.fn().mockResolvedValue(undefined)
   const wrapper = mount(FileAttachmentView, {
     props: {
-      editor: {},
+      editor: { commands: { focus: vi.fn() } },
       node: { attrs },
       decorations: [],
       selected: false,
@@ -134,6 +134,17 @@ function mountAttachment(
 }
 
 describe('FileAttachmentView', () => {
+  it('removes an attachment through the keyboard button click', async () => {
+    const { wrapper, actions, deleteNode } = mountAttachment({
+      fileName: 'notes.txt',
+      filePath: '/tmp/notes.txt',
+      mimeType: 'text/plain'
+    })
+    await wrapper.get('button[aria-label="common.delete notes.txt"]').trigger('click')
+    expect(deleteNode).toHaveBeenCalledTimes(1)
+    expect(actions.removeFile).toHaveBeenCalledWith('/tmp/notes.txt')
+  })
+
   it('offers Auto, embedded text, and OCR for PDFs with a compact intent badge', async () => {
     const { actions, updateAttributes, wrapper } = mountAttachment({
       fileName: 'report.pdf',

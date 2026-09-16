@@ -322,6 +322,7 @@ vi.mock('@/components/workspace/WorkspaceFileNode.vue', () => ({
 vi.mock('@/components/sidepanel/WorkspaceViewer.vue', () => ({
   default: defineComponent({
     emits: ['toggle-fullscreen', 'back'],
+    setup: () => ({ focus: vi.fn() }),
     template: '<button class="workspace-viewer-stub" type="button" @click="$emit(\'back\')" />'
   })
 }))

@@ -1,4 +1,4 @@
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, getCurrentScope, onScopeDispose, ref } from 'vue'
 import { defineStore } from 'pinia'
 import type { SettingsChange, SettingsSnapshotValues } from '@shared/contracts/routes'
 import { buildFontStack, DEFAULT_CODE_FONT_STACK, DEFAULT_TEXT_FONT_STACK } from '@/lib/fontStack'
@@ -371,15 +371,17 @@ export const useUiSettingsStore = defineStore('uiSettings', () => {
     })
   }
 
-  onMounted(() => {
-    void loadSettings()
-    setupListeners()
-  })
+  // Load and subscribe at store setup top level (not in a component lifecycle hook) so
+  // the global settings listener is not lost when the first consuming component unmounts.
+  void loadSettings()
+  setupListeners()
 
-  onBeforeUnmount(() => {
-    unsubscribeFromSettings?.()
-    unsubscribeFromSettings = null
-  })
+  if (getCurrentScope()) {
+    onScopeDispose(() => {
+      unsubscribeFromSettings?.()
+      unsubscribeFromSettings = null
+    })
+  }
 
   return {
     fontSizeLevel,

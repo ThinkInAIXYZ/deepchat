@@ -82,7 +82,7 @@ function directive(
   }
 }
 
-async function setup(initial: MemoryDirectiveItem[] = []) {
+async function setup(initial: MemoryDirectiveItem[] = [], attachTo?: HTMLElement) {
   vi.resetModules()
   const memoryClient = {
     listDirectives: vi.fn().mockResolvedValue(initial),
@@ -104,6 +104,7 @@ async function setup(initial: MemoryDirectiveItem[] = []) {
     await import('../../../src/renderer/settings/components/MemoryDirectivesPanel.vue')
   ).default
   const wrapper = mount(Component, {
+    attachTo,
     props: { agentId: 'deepchat', memoryEnabled: true, refreshToken: 0 },
     global: { stubs }
   })
@@ -179,6 +180,21 @@ describe('MemoryDirectivesPanel', () => {
     expect(wrapper.find('[data-testid="memory-directive-created"]').text()).toContain(
       'Keep answers concise.'
     )
+  })
+
+  it('preserves the focused directive while refreshing persisted data', async () => {
+    const saved = directive('saved')
+    const { wrapper, memoryClient } = await setup([saved], document.body)
+    const row = wrapper.get('[data-testid="memory-directive-saved"]').element as HTMLElement
+    row.focus()
+    const pending = deferred<MemoryDirectiveItem[]>()
+    memoryClient.listDirectives.mockReturnValue(pending.promise)
+    await wrapper.setProps({ refreshToken: 1 })
+    expect(document.activeElement).toBe(row)
+    pending.resolve([saved])
+    await flushPromises()
+    expect(document.activeElement).toBe(row)
+    wrapper.unmount()
   })
 
   it('requires a topic for suppression and preserves separate topic and instruction fields', async () => {

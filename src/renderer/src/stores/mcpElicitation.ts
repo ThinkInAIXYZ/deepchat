@@ -1,4 +1,4 @@
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, getCurrentScope, onScopeDispose, ref } from 'vue'
 import { defineStore } from 'pinia'
 import { createMcpClient } from '@api/McpClient'
 import { createBrowserClient } from '@api/BrowserClient'
@@ -353,8 +353,10 @@ export const useMcpElicitationStore = defineStore('mcpElicitation', () => {
     }
   }
 
-  onMounted(() => {
-    eventCleanups.push(
+  // Subscribe at store setup top level (not in a component lifecycle hook) so the global
+  // elicitation listeners are not lost when the first consuming component unmounts.
+  const registerEvents = () => {
+    const cleanups = [
       mcpClient.onElicitationRequest(({ request: next }) => queueOrOpenRequest(next)),
       mcpClient.onElicitationDecision(({ decision }) => {
         finishRequest(decision.requestId)
@@ -362,14 +364,19 @@ export const useMcpElicitationStore = defineStore('mcpElicitation', () => {
       mcpClient.onElicitationCancelled(({ requestId }) => {
         finishRequest(requestId)
       })
-    )
-  })
+    ].filter((cleanup): cleanup is () => void => typeof cleanup === 'function')
 
-  onUnmounted(() => {
-    while (eventCleanups.length > 0) {
-      eventCleanups.pop()?.()
-    }
-  })
+    eventCleanups.push(...cleanups)
+  }
+
+  registerEvents()
+  if (getCurrentScope()) {
+    onScopeDispose(() => {
+      while (eventCleanups.length > 0) {
+        eventCleanups.pop()?.()
+      }
+    })
+  }
 
   return {
     request,

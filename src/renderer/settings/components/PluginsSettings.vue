@@ -20,6 +20,7 @@
 
     <div
       v-if="errorMessage"
+      role="alert"
       class="border border-destructive/40 text-destructive rounded-lg px-3 py-2 text-sm"
     >
       {{ errorMessage }}
@@ -108,6 +109,7 @@
             :data-testid="`plugin-enable-${plugin.id}`"
             size="sm"
             :disabled="isPending(plugin.id)"
+            :aria-label="`${t('settings.plugins.enable')}: ${plugin.name}`"
             @click="enablePlugin(plugin.id)"
           >
             <Icon icon="lucide:power" class="w-4 h-4 mr-2" />
@@ -119,6 +121,7 @@
             size="sm"
             variant="outline"
             :disabled="isPending(plugin.id)"
+            :aria-label="`${t('settings.plugins.openSettings')}: ${plugin.name}`"
             @click="openSettings(plugin.id)"
           >
             <Icon icon="lucide:settings" class="w-4 h-4 mr-2" />
@@ -130,6 +133,7 @@
             size="sm"
             variant="outline"
             :disabled="isPending(plugin.id)"
+            :aria-label="`${t('settings.plugins.disable')}: ${plugin.name}`"
             @click="disablePlugin(plugin.id)"
           >
             <Icon icon="lucide:power-off" class="w-4 h-4 mr-2" />
@@ -142,7 +146,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { nextTick, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
 import { DcButton } from '@dc-ui/components/button'
@@ -184,6 +188,7 @@ function getPluginMcpErrors(plugin: PluginListItem): string[] {
 }
 
 async function loadPlugins(): Promise<void> {
+  const opener = document.activeElement as HTMLElement | null
   loading.value = true
   errorMessage.value = ''
   try {
@@ -192,6 +197,10 @@ async function loadPlugins(): Promise<void> {
     errorMessage.value = error instanceof Error ? error.message : t('settings.plugins.loadFailed')
   } finally {
     loading.value = false
+    await nextTick()
+    if (document.activeElement === document.body && opener?.isConnected) {
+      opener.focus({ preventScroll: true })
+    }
   }
 }
 
@@ -199,6 +208,7 @@ async function runPluginAction(
   pluginId: string,
   action: () => Promise<PluginActionResult>
 ): Promise<void> {
+  const opener = document.activeElement as HTMLElement | null
   pendingPluginId.value = pluginId
   errorMessage.value = ''
   try {
@@ -211,6 +221,11 @@ async function runPluginAction(
     errorMessage.value = error instanceof Error ? error.message : t('settings.plugins.actionFailed')
   } finally {
     pendingPluginId.value = null
+    await nextTick()
+    if (document.activeElement === document.body) {
+      const target = opener?.isConnected ? opener : document.querySelector<HTMLElement>('main')
+      target?.focus({ preventScroll: true })
+    }
   }
 }
 

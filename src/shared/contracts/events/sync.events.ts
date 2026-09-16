@@ -46,7 +46,8 @@ export const syncImportStartedEvent = defineEventContract({
 export const syncImportCompletedEvent = defineEventContract({
   name: 'sync.import.completed',
   payload: z.object({
-    version: z.number().int()
+    version: z.number().int(),
+    mode: z.enum(['increment', 'overwrite']).optional()
   })
 })
 

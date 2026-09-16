@@ -9,7 +9,9 @@ import type {
 } from '@/knowledge/ports'
 import { KnowledgeTaskQueue } from '@/knowledge/taskQueue'
 
-function createStore() {
+function createStore(
+  options: { content?: string; chunkSize?: number; chunkOverlap?: number } = {}
+) {
   const files = new Map<string, KnowledgeFileMessage>()
   const saveFile = async (file: KnowledgeFileMessage) => {
     files.set(file.id, structuredClone(file))
@@ -38,7 +40,7 @@ function createStore() {
     getMimeType: async () => 'text/markdown',
     prepareFileCompletely: async () => ({
       name: 'notes.md',
-      content: 'A short note.',
+      content: options.content ?? 'A short note.',
       metadata: { fileSize: 13 }
     })
   }
@@ -52,8 +54,8 @@ function createStore() {
       normalized: false,
       fragmentsNumber: 5,
       enabled: true,
-      chunkSize: 1000,
-      chunkOverlap: 100,
+      chunkSize: options.chunkSize ?? 1000,
+      chunkOverlap: options.chunkOverlap ?? 100,
       separators: ['\n']
     },
     taskQueue,
@@ -117,6 +119,33 @@ describe('KnowledgeBase file processing', () => {
       'embedding failed'
     )
     expect(database.insertVector).not.toHaveBeenCalled()
+    await vi.waitFor(() =>
+      expect(events.publishFileUpdated).toHaveBeenCalledWith(
+        expect.objectContaining({ id: file!.id, status: 'error' })
+      )
+    )
+    expect((await store.queryFile(file!.id))?.status).toBe('error')
+  })
+
+  it('does not report a file as completed when only some chunks failed', async () => {
+    const partial = createStore({
+      content: 'alpha\nbravo\ncharlie\ndelta\necho\nfoxtrot',
+      chunkSize: 12,
+      chunkOverlap: 0
+    })
+    try {
+      const { events, store, embeddings } = partial
+      embeddings.getEmbeddings.mockRejectedValueOnce(new Error('embedding failed'))
+      const { data: file } = await store.addFile('/tmp/notes.md')
+
+      await vi.waitFor(async () => expect((await store.queryFile(file!.id))?.status).toBe('error'))
+      const finalProgress = events.publishFileProgress.mock.calls.at(-1)![1]
+      expect(finalProgress.total).toBeGreaterThan(1)
+      expect(finalProgress.error).toBe(1)
+      expect(finalProgress.completed).toBe(finalProgress.total - 1)
+    } finally {
+      partial.taskQueue.destroy()
+    }
   })
 
   it('aborts an in-flight embedding request when its file is deleted', async () => {

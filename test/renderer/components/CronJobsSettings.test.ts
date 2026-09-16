@@ -155,6 +155,7 @@ afterEach(() => {
     wrapper.unmount()
   }
   vi.restoreAllMocks()
+  vi.useRealTimers()
 })
 
 type SetupOptions = Readonly<{
@@ -213,7 +214,7 @@ async function setup(options: SetupOptions = {}) {
           schedulerStatus: cloneStatus()
         }))
     ),
-    listRuns: vi.fn(async () => []),
+    listRuns: vi.fn(async (): Promise<CronJobRun[]> => []),
     listDeliveries: vi.fn(async () => []),
     getSchedulerStatus: vi.fn(async () => cloneStatus()),
     restartScheduler: vi.fn(options.restartScheduler ?? (async () => cloneStatus())),
@@ -428,7 +429,7 @@ describe('CronJobsSettings', () => {
       }
     })
 
-    await wrapper.get('button[aria-label="Delete"]').trigger('click')
+    await wrapper.get('button[aria-label="Delete: Morning report"]').trigger('click')
     await flushPromises()
     const dialog = wrapper.get('[data-testid="cron-delete-dialog"]')
     expect(dialog.text()).toContain('Morning report')
@@ -447,7 +448,7 @@ describe('CronJobsSettings', () => {
         title: 'Operation failed'
       })
     )
-    expect(wrapper.get('button[aria-label="Delete"]').exists()).toBe(true)
+    expect(wrapper.get('button[aria-label="Delete: Morning report"]').exists()).toBe(true)
     consoleError.mockRestore()
   })
 
@@ -474,10 +475,12 @@ describe('CronJobsSettings', () => {
     })
     expect(wrapper.text()).not.toContain('Task finished')
     expect(wrapper.text()).not.toContain('provider secret')
+    expect(wrapper.get('[role="status"]').text()).toContain('chat.toolCall.subagents.status.error')
   })
 
   it('reports a started manual run without treating it as a failure', async () => {
-    const { wrapper, notifyRenderer } = await setup({
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] })
+    const { wrapper, notifyRenderer, cronClient } = await setup({
       runNow: async () => ({
         job: cloneJob(),
         run: { ...structuredClone(RUN_FIXTURE), status: 'running', completedAt: null },
@@ -494,6 +497,15 @@ describe('CronJobsSettings', () => {
       title: 'Run now',
       description: 'Morning report'
     })
+    cronClient.listRuns.mockResolvedValue([
+      { ...structuredClone(RUN_FIXTURE), outputPreview: 'Readable task output' }
+    ])
+    await vi.advanceTimersByTimeAsync(5_000)
+    await flushPromises()
+    expect(wrapper.get('[role="status"]').text()).toContain(
+      'chat.toolCall.subagents.status.completed'
+    )
+    expect(wrapper.get('details').text()).toContain('Readable task output')
   })
 
   it('reports a completed manual run without adding inline feedback', async () => {

@@ -20,12 +20,14 @@ export class MemoryDatabase {
 
   get agentMemoryTable() {
     const database = this.getDatabase()
-    if (this.agentMemory?.database !== database) {
+    const cached = this.agentMemory
+    if (!cached || cached.database !== database) {
       const table = new AgentMemoryTable(database)
       table.createTable()
       this.agentMemory = { database, table }
+      return table
     }
-    return this.agentMemory.table
+    return cached.table
   }
 
   get agentMemoryAuditTable() {

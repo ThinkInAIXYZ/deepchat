@@ -1885,7 +1885,9 @@
         "succeeded": "Ready",
         "cancelled": "Cancelled",
         "failed": "Failed"
-      }
+      },
+      "terminalLabel": "登入終端機",
+      "terminalHint": "按 F6 返回驗證控制項。"
     },
     "terminal": {
       "close": "關閉",

@@ -17,7 +17,11 @@
           </span>
           <div class="ml-auto w-auto">
             <Select v-model="selectedLanguage">
-              <SelectTrigger data-testid="language-select" class="h-8!">
+              <SelectTrigger
+                data-testid="language-select"
+                :aria-label="t('settings.common.language')"
+                class="h-8!"
+              >
                 <SelectValue :placeholder="t('settings.common.languageSelect')" />
               </SelectTrigger>
               <SelectContent>
@@ -195,10 +199,11 @@
           <Icon icon="lucide:a-large-small" class="w-4 h-4 text-muted-foreground" />
           <span class="truncate">{{ t('settings.display.fontSize') }}</span>
         </span>
-        <ButtonGroup class="flex-wrap">
+        <ButtonGroup class="flex-wrap" :aria-label="t('settings.display.fontSize')">
           <DcButton
             v-for="(sizeOption, index) in fontSizeOptions"
             :key="index"
+            :aria-pressed="fontSizeLevel === index"
             :variant="fontSizeLevel === index ? 'default' : 'outline'"
             size="sm"
             class="px-2 py-1.5 text-xs shrink-0"

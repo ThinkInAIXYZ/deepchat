@@ -10,7 +10,10 @@
       type="button"
       class="inline-flex h-3.5 w-3.5 items-center justify-center rounded-sm hover:bg-primary/20"
       :aria-label="`${t('common.delete')} ${node.attrs.skillName}`"
-      @mousedown.prevent="handleRemove"
+      contenteditable="false"
+      @mousedown.prevent
+      @keydown.stop
+      @click="handleRemove"
     >
       <Icon icon="lucide:x" class="h-3 w-3" />
     </button>
@@ -30,10 +33,12 @@ const actions = inject<InputNodeActions>(INPUT_NODE_ACTIONS)
 const { t } = useI18n()
 
 function handleRemove() {
-  props.deleteNode()
   const skillName = props.node.attrs.skillName as string
   if (skillName && actions?.removeSkill) {
     actions.removeSkill(skillName)
+  } else {
+    props.deleteNode()
   }
+  props.editor.commands.focus()
 }
 </script>

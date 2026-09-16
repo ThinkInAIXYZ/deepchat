@@ -1876,7 +1876,9 @@
         "succeeded": "Ready",
         "cancelled": "Cancelled",
         "failed": "Failed"
-      }
+      },
+      "terminalLabel": "پایانهٔ ورود",
+      "terminalHint": "برای بازگشت به کنترل‌های احراز هویت، F6 را فشار دهید."
     },
     "terminal": {
       "close": "بسته شدن",

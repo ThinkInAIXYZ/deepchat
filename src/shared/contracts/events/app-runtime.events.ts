@@ -66,3 +66,8 @@ export const appRuntimeSystemNotificationClickedEvent = defineEventContract({
     payload: z.unknown()
   })
 })
+
+export const appRuntimeAccessibilityChangedEvent = defineEventContract({
+  name: 'appRuntime.accessibilityChanged',
+  payload: z.object({ enabled: z.boolean() })
+})

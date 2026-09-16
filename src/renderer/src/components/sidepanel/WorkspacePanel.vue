@@ -1,6 +1,6 @@
 <template>
-  <div class="flex h-full min-h-0 min-w-0 flex-1 overflow-hidden">
-    <aside
+  <div ref="workspaceRoot" class="flex h-full min-h-0 min-w-0 flex-1 overflow-hidden">
+    <div
       v-if="!isSingleItemViewerActive"
       class="flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-muted/20"
     >
@@ -10,6 +10,8 @@
             <button
               class="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium"
               type="button"
+              :aria-expanded="sessionState.sections.subagents"
+              :aria-controls="`${sectionId}-subagents`"
               @click="sidepanelStore.toggleSection(props.sessionId, 'subagents')"
             >
               <Icon icon="lucide:git-fork" class="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
@@ -24,7 +26,11 @@
                 class="h-3.5 w-3.5 shrink-0 text-muted-foreground"
               />
             </button>
-            <div v-show="sessionState.sections.subagents" class="px-2 pb-2">
+            <div
+              :id="`${sectionId}-subagents`"
+              v-show="sessionState.sections.subagents"
+              class="px-2 pb-2"
+            >
               <LiveDelegationPanel
                 :session-id="props.sessionId"
                 @count-changed="liveDelegationCount = $event"
@@ -36,6 +42,8 @@
             <button
               class="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium"
               type="button"
+              :aria-expanded="sessionState.sections.files"
+              :aria-controls="`${sectionId}-files`"
               @click="sidepanelStore.toggleSection(props.sessionId, 'files')"
             >
               <Icon icon="lucide:folder-tree" class="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
@@ -45,7 +53,7 @@
                 class="h-3.5 w-3.5 shrink-0 text-muted-foreground"
               />
             </button>
-            <div v-if="sessionState.sections.files" class="pb-2">
+            <div :id="`${sectionId}-files`" v-show="sessionState.sections.files" class="pb-2">
               <div
                 v-if="!props.workspacePath"
                 class="mx-2 rounded-lg border border-dashed border-muted-foreground/30 px-3 py-4 text-center"
@@ -81,15 +89,17 @@
                 <Icon icon="lucide:triangle-alert" class="mt-0.5 h-3.5 w-3.5 shrink-0" />
                 <span class="min-w-0 flex-1 break-words">{{ watchStatusBanner }}</span>
               </div>
-              <WorkspaceFileNode
-                v-for="node in fileTree"
-                :key="node.path"
-                :node="node"
-                :depth="0"
-                @toggle="toggleNode"
-                @append-path="handleFileSelect"
-                @insert-path="handleInsertFileReference"
-              />
+              <ul>
+                <WorkspaceFileNode
+                  v-for="node in fileTree"
+                  :key="node.path"
+                  :node="node"
+                  :depth="0"
+                  @toggle="toggleNode"
+                  @append-path="handleFileSelect"
+                  @insert-path="handleInsertFileReference"
+                />
+              </ul>
             </div>
           </section>
 
@@ -97,6 +107,8 @@
             <button
               class="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium"
               type="button"
+              :aria-expanded="sessionState.sections.git"
+              :aria-controls="`${sectionId}-git`"
               @click="sidepanelStore.toggleSection(props.sessionId, 'git')"
             >
               <Icon icon="lucide:git-branch" class="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
@@ -107,10 +119,11 @@
                 class="h-3.5 w-3.5 shrink-0 text-muted-foreground"
               />
             </button>
-            <div v-if="sessionState.sections.git" class="pb-2">
+            <div :id="`${sectionId}-git`" v-show="sessionState.sections.git" class="pb-2">
               <button
                 v-for="change in gitState.changes"
                 :key="change.path"
+                :data-workspace-path="change.path"
                 class="flex w-full items-center gap-2 px-3 py-2 text-left text-xs transition-colors"
                 :class="
                   sessionState.selectedDiffPath === change.path
@@ -138,6 +151,8 @@
             <button
               class="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium"
               type="button"
+              :aria-expanded="sessionState.sections.artifacts"
+              :aria-controls="`${sectionId}-artifacts`"
               @click="sidepanelStore.toggleSection(props.sessionId, 'artifacts')"
             >
               <Icon icon="lucide:box" class="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
@@ -150,7 +165,11 @@
                 class="h-3.5 w-3.5 shrink-0 text-muted-foreground"
               />
             </button>
-            <div v-if="sessionState.sections.artifacts" class="pb-2">
+            <div
+              :id="`${sectionId}-artifacts`"
+              v-show="sessionState.sections.artifacts"
+              class="pb-2"
+            >
               <button
                 v-for="item in artifactItems"
                 :key="item.key"
@@ -170,10 +189,11 @@
           </section>
         </div>
       </div>
-    </aside>
+    </div>
 
     <WorkspaceViewer
       v-if="isWorkspaceViewerVisible"
+      ref="viewerRef"
       :session-id="props.sessionId"
       :artifact="selectedArtifact"
       :file-preview="selectedFilePreview"
@@ -189,7 +209,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, toRef, watch } from 'vue'
+import { nextTick, useId, computed, ref, toRef, watch } from 'vue'
 import { Icon } from '@iconify/vue'
 import { DcButton } from '@dc-ui/components/button'
 import { useI18n } from 'vue-i18n'
@@ -362,11 +382,17 @@ watch(
   { immediate: true }
 )
 
+const workspaceRoot = ref<HTMLElement | null>(null)
+const viewerRef = ref<{ focus: () => void } | null>(null)
+const sectionId = useId()
+const focusViewer = () => void nextTick(() => viewerRef.value?.focus())
+
 const handleFileSelect = (filePath: string) => {
   sidepanelStore.selectFile(props.sessionId, filePath, {
     open: false,
     viewMode: 'preview'
   })
+  focusViewer()
 }
 
 const isSingleItemViewerActive = computed(() => {
@@ -379,22 +405,17 @@ const isWorkspaceViewerVisible = computed(() => {
   return Boolean(state.selectedFilePath || state.selectedDiffPath || state.selectedArtifactContext)
 })
 
-const handleViewerBack = () => {
+const handleViewerBack = async () => {
   const state = sessionState.value
-
-  if (state.selectedFilePath) {
-    sidepanelStore.clearFile(props.sessionId)
-    return
-  }
-
-  if (state.selectedDiffPath) {
-    sidepanelStore.clearDiff(props.sessionId)
-    return
-  }
-
-  if (state.selectedArtifactContext) {
-    sidepanelStore.clearArtifact(props.sessionId)
-  }
+  const path = state.selectedFilePath || state.selectedDiffPath
+  if (state.selectedFilePath) sidepanelStore.clearFile(props.sessionId)
+  else if (state.selectedDiffPath) sidepanelStore.clearDiff(props.sessionId)
+  else if (state.selectedArtifactContext) sidepanelStore.clearArtifact(props.sessionId)
+  await nextTick()
+  const target = Array.from(
+    workspaceRoot.value?.querySelectorAll<HTMLElement>('[data-workspace-path]') ?? []
+  ).find((element) => element.dataset.workspacePath === path)
+  target?.focus()
 }
 
 const handleInsertFileReference = (filePath: string) => {
@@ -403,6 +424,7 @@ const handleInsertFileReference = (filePath: string) => {
 
 const handleDiffSelect = (filePath: string) => {
   sidepanelStore.selectDiff(props.sessionId, filePath, { open: false })
+  focusViewer()
 }
 
 const handleArtifactSelect = (item: ArtifactItem) => {
@@ -423,6 +445,7 @@ const handleArtifactSelect = (item: ArtifactItem) => {
       viewMode: 'preview'
     }
   )
+  focusViewer()
 }
 
 const isArtifactSelected = (item: ArtifactItem) => {

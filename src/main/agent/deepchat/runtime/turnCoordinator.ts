@@ -1654,29 +1654,25 @@ export class TurnCoordinator {
       let basePromptAssembly = unguardedBasePromptAssembly
       let baseSystemPrompt = basePromptAssembly.prompt
       let resumeTargetOrderSeq: number | undefined
+      const readResumeHistory = () =>
+        runSynchronousPreStreamStep(sessionId, 'tape-ready', () => {
+          const { historyRecords } = this.ports.tapeReconciliation.ensureSessionTapeReady(
+            sessionId,
+            this.ports.messageStore
+          )
+          const target = this.ports.messageStore.getMessage(messageId)
+          if (!target || target.sessionId !== sessionId || target.role !== 'assistant') {
+            throw new Error('Resume target assistant message is no longer available.')
+          }
+          // Paused assistant blocks remain mutable until terminal settlement, so Tape may omit
+          // this message or hold an older revision without the latest interaction response.
+          return [...historyRecords.filter((record) => record.id !== messageId), target].sort(
+            (left, right) => left.orderSeq - right.orderSeq
+          )
+        })
       const preparedInput = await this.ports.inputPreparationCoordinator.prepareExisting({
-        ensureHistory: () =>
-          runSynchronousPreStreamStep(
-            sessionId,
-            'tape-ready',
-            () =>
-              this.ports.tapeReconciliation.ensureSessionTapeReady(
-                sessionId,
-                this.ports.messageStore
-              )
-                .historyRecords
-          ),
-        refreshHistory: () =>
-          runSynchronousPreStreamStep(
-            sessionId,
-            'tape-ready',
-            () =>
-              this.ports.tapeReconciliation.ensureSessionTapeReady(
-                sessionId,
-                this.ports.messageStore
-              )
-                .historyRecords
-          ),
+        ensureHistory: readResumeHistory,
+        refreshHistory: readResumeHistory,
         prepareIntent: async (historyRecords) => {
           if (historyContainsUntrustedAttachmentText(historyRecords)) {
             basePromptAssembly = appendAttachmentTextSafetySection(unguardedBasePromptAssembly)

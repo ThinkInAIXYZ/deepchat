@@ -89,7 +89,8 @@
     "fileUploadFailedMore": " སོགས་བསྡོམས་ {count}",
     "unnamedFile": "མིང་མ་བཏགས་པའི་ཡིག་ཆ།",
     "audioInputUnsupportedTitle": "ད་ལྟའི་དཔེ་དབྱིབས་ཀྱིས་སྒྲའི་ཟུར་སྣོན་ལ་རྒྱབ་སྐྱོར་མི་བྱེད།",
-    "audioInputUnsupportedDescription": "{model} དཔེ་དབྱིབས་ཀྱིས་སྒྲ་ནང་འཇུག་ལ་རྒྱབ་སྐྱོར་མི་བྱེད་པས། སྒྲའི་ཟུར་སྣོན་ {count} སྣང་མེད་བཞག་ཟིན།"
+    "audioInputUnsupportedDescription": "{model} དཔེ་དབྱིབས་ཀྱིས་སྒྲ་ནང་འཇུག་ལ་རྒྱབ་སྐྱོར་མི་བྱེད་པས། སྒྲའི་ཟུར་སྣོན་ {count} སྣང་མེད་བཞག་ཟིན།",
+    "suggestions": "གྲོས་འཆར།"
   },
   "messageReceipt": {
     "unread": "བཀླགས་མེད།",
@@ -224,7 +225,8 @@
     "rateLimitSwitchProvider": "གློག་སྒོ་མཁོ་སྤྲོད་བྱེད་མཁན།",
     "rateLimitImmediately": "འཕྲལ་དུ་",
     "rateLimitSeconds": "སྐར་ཆ་",
-    "rateLimitMinutes": "ཟིན་བྲིས་གནད་བསྡུས།"
+    "rateLimitMinutes": "ཟིན་བྲིས་གནད་བསྡུས།",
+    "loadEarlier": "སྔོན་གྱི་འཕྲིན་ཐུང་འཇུག་པ།"
   },
   "compaction": {
     "compacting": "རྒྱབ་ལྗོངས་ཇེ་ཉུང་དུ་བཏང་བ...",

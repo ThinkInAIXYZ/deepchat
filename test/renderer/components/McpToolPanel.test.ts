@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { defineComponent, nextTick, reactive, ref } from 'vue'
-import { mount } from '@vue/test-utils'
+import { flushPromises, mount } from '@vue/test-utils'
 import { TOOL_EXECUTION } from '@shared/types/mcp'
 
 const passthrough = (name: string) =>
@@ -23,7 +23,7 @@ const selectStub = defineComponent({
 })
 
 describe('McpToolPanel', () => {
-  it('renders enum values declared by array items', async () => {
+  it('exposes schema values, named parameters and focused execution results', async () => {
     vi.resetModules()
     const mcpStore = reactive({
       tools: [
@@ -66,6 +66,7 @@ describe('McpToolPanel', () => {
     const McpToolPanel = (await import('@/components/mcp-config/components/McpToolPanel.vue'))
       .default
     const wrapper = mount(McpToolPanel, {
+      attachTo: document.body,
       props: {
         open: true,
         serverName: 'test-server'
@@ -105,5 +106,27 @@ describe('McpToolPanel', () => {
     expect(wrapper.text()).toContain('mcp.tools.arrayItemValues')
     expect(wrapper.text()).toContain('json')
     expect(wrapper.text()).toContain('{"format":"xml"}')
+    expect(wrapper.get('textarea').attributes('aria-label')).toBe('mcp.tools.input: inspect')
+    await wrapper.get('textarea').setValue('{')
+    expect(wrapper.get('textarea').attributes('aria-invalid')).toBe('true')
+    expect(wrapper.get('[role="alert"]').text()).toBe('mcp.tools.invalidJson')
+    await wrapper.get('textarea').setValue('{}')
+    const execute = wrapper
+      .findAll('button')
+      .find((button) => button.text().includes('mcp.tools.executeButton'))!
+    ;(execute.element as HTMLElement).focus()
+    mcpStore.callTool.mockImplementation(async () => {
+      mcpStore.toolLoadingStates.inspect = true
+      await nextTick()
+      expect(wrapper.get('[role="status"]').text()).toBe('mcp.tools.runningTool')
+      mcpStore.toolLoadingStates.inspect = false
+      return { content: 'Keyboard result' }
+    })
+    await execute.trigger('click')
+    await flushPromises()
+    const result = wrapper.get('[role="region"][aria-label="mcp.tools.resultTitle: inspect"]')
+    expect(document.activeElement).toBe(result.element)
+    expect(wrapper.get('[role="status"]').text()).toBe('mcp.tools.resultTitle')
+    wrapper.unmount()
   })
 })

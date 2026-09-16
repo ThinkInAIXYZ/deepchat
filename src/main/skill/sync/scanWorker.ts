@@ -61,13 +61,16 @@ function resolveSkillsDir(tool, projectRoot) {
 }
 
 function isFilenameSafe(name) {
+  // Mirror sync/security.ts isFilenameSafe so the in-worker scan and the
+  // main-thread fallback accept exactly the same names.
   return (
     typeof name === 'string' &&
-    name.length > 0 &&
+    name.trim() !== '' &&
     !name.includes('/') &&
-    !name.includes('\\\\') &&
+    !name.includes('\\') &&
     name !== '.' &&
-    name !== '..'
+    name !== '..' &&
+    !/[\x00-\x1f]/.test(name)
   )
 }
 

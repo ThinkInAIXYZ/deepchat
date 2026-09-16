@@ -25,6 +25,7 @@ import {
   SKILL_RUN_MAX_STDIN_CHARS,
   SKILL_RUN_MAX_TOTAL_ARGUMENT_CHARS,
   SKILL_RUNTIME_VIEW_RESULT_MAX_BYTES,
+  type SkillMetadata,
   type SkillManageResult
 } from '@shared/types/skill'
 import { isDocumentReadMime } from '@/file/mime'
@@ -2296,9 +2297,14 @@ export class AgentToolManager {
 
       ;[activeSkillNames, metadataList] = await Promise.all([
         activeSkillNamesOverride ?? skillService.getActiveSkills(conversationId),
-        activeSkillNamesOverride === undefined
-          ? skillService.getMetadataList(agentId)
-          : skillService.getAllSkills()
+        skillService.getMetadataList(agentId, { conversationId }).then(async (scoped) => {
+          if (activeSkillNamesOverride === undefined) return scoped
+          const byName = new Map<string, SkillMetadata>(
+            (await skillService.getAllSkills()).map((skill) => [skill.name, skill])
+          )
+          for (const skill of scoped) byName.set(skill.name, skill)
+          return Array.from(byName.values())
+        })
       ])
     } catch (error) {
       logger.warn('[AgentToolManager] Failed to resolve active skill roots', {

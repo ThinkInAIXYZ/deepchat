@@ -1,6 +1,6 @@
 <template>
   <ScrollArea data-testid="settings-notifications-hooks-page" class="h-full w-full">
-    <div class="flex h-full w-full flex-col gap-4 p-4">
+    <div ref="pageContent" class="flex h-full w-full flex-col gap-4 p-4">
       <div v-if="isLoading" class="text-sm text-muted-foreground">
         {{ t('common.loading') }}
       </div>
@@ -173,6 +173,7 @@
                       <label class="flex items-center gap-2 text-sm text-muted-foreground">
                         <span>{{ hook.enabled ? t('common.enabled') : t('common.disabled') }}</span>
                         <Switch
+                          :aria-label="`${t('common.enabled')}: ${hook.name || fallbackHookName(index)}`"
                           :model-value="hook.enabled"
                           :disabled="isHookTesting(hook.id)"
                           @update:model-value="
@@ -185,6 +186,7 @@
                         variant="outline"
                         size="sm"
                         :disabled="isHookTesting(hook.id) || !hook.command.trim()"
+                        :aria-label="`${t('settings.notificationsHooks.test.button')}: ${hook.name || fallbackHookName(index)}`"
                         @click="runHookTest(hook.id)"
                       >
                         <Spinner
@@ -210,6 +212,7 @@
                         size="sm"
                         class="text-destructive"
                         :disabled="isHookTesting(hook.id)"
+                        :aria-label="`${t('common.delete')}: ${hook.name || fallbackHookName(index)}`"
                         @click="removeHook(hook.id)"
                       >
                         <Icon icon="lucide:trash-2" class="mr-1 h-4 w-4" />
@@ -224,6 +227,7 @@
                         {{ t('settings.notificationsHooks.commands.name') }}
                       </Label>
                       <Input
+                        :aria-label="t('settings.notificationsHooks.commands.name')"
                         :model-value="hook.name"
                         :disabled="isHookTesting(hook.id)"
                         :placeholder="t('settings.notificationsHooks.commands.namePlaceholder')"
@@ -239,6 +243,7 @@
                         {{ t('settings.notificationsHooks.commands.commandLabel') }}
                       </Label>
                       <Input
+                        :aria-label="t('settings.notificationsHooks.commands.commandLabel')"
                         :model-value="hook.command"
                         :disabled="isHookTesting(hook.id)"
                         :placeholder="t('settings.notificationsHooks.commands.commandPlaceholder')"
@@ -272,7 +277,19 @@
                     </div>
                   </div>
 
-                  <div v-if="testResults[hook.id]" class="space-y-1 text-xs">
+                  <span role="status" class="sr-only">{{
+                    isHookTesting(hook.id)
+                      ? t('settings.notificationsHooks.test.testing')
+                      : testResults[hook.id]
+                        ? `${hook.name || fallbackHookName(index)}: ${t(testResults[hook.id]?.success ? 'settings.notificationsHooks.test.success' : 'settings.notificationsHooks.test.failed')}`
+                        : ''
+                  }}</span>
+                  <div
+                    v-if="testResults[hook.id]"
+                    role="region"
+                    :aria-label="`${t('settings.notificationsHooks.test.button')}: ${hook.name || fallbackHookName(index)}`"
+                    class="space-y-1 text-xs"
+                  >
                     <div class="flex flex-wrap items-center gap-2">
                       <span
                         :class="
@@ -336,7 +353,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, toRaw, watch } from 'vue'
+import { nextTick, computed, onBeforeUnmount, onMounted, ref, toRaw, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
 import { DcButton } from '@dc-ui/components/button'
@@ -382,6 +399,7 @@ const configClient = createConfigClient()
 const config = ref<HooksNotificationsSettings | null>(null)
 const guideOpen = ref(false)
 const testing = ref<Record<string, boolean>>({})
+const pageContent = ref<HTMLElement | null>(null)
 const testResults = ref<Record<string, HookTestResult | null>>({})
 const isLoading = ref(false)
 const isSaving = ref(false)
@@ -552,7 +570,13 @@ const addHook = () => {
   if (!config.value) {
     return
   }
-  config.value.hooks.push(createHookDraft(config.value.hooks.length))
+  const hook = createHookDraft(config.value.hooks.length)
+  config.value.hooks.push(hook)
+  void nextTick(() =>
+    pageContent.value
+      ?.querySelector<HTMLElement>(`[data-testid="notifications-hook-${hook.id}"] input`)
+      ?.focus()
+  )
   markDraftChanged()
   void persistConfig()
 }
@@ -564,6 +588,11 @@ const removeHook = (hookId: string) => {
   config.value.hooks = config.value.hooks.filter((hook) => hook.id !== hookId)
   delete testing.value[hookId]
   delete testResults.value[hookId]
+  void nextTick(() =>
+    pageContent.value
+      ?.querySelector<HTMLElement>('[data-testid="notifications-hooks-add"]')
+      ?.focus()
+  )
   markDraftChanged()
   void persistConfig()
 }
@@ -616,6 +645,7 @@ const runHookTest = async (hookId: string) => {
     return
   }
 
+  const opener = document.activeElement as HTMLElement | null
   testing.value = {
     ...testing.value,
     [hookId]: true
@@ -649,6 +679,9 @@ const runHookTest = async (hookId: string) => {
       ...testing.value,
       [hookId]: false
     }
+    await nextTick()
+    if (document.activeElement === document.body && opener?.isConnected)
+      opener.focus({ preventScroll: true })
   }
 }
 

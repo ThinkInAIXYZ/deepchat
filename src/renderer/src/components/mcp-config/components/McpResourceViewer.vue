@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { nextTick, ref, computed, watch } from 'vue'
 import { Icon } from '@iconify/vue'
 import { DcEmpty } from '@dc-ui/components/empty'
 import { DcButton } from '@dc-ui/components/button'
@@ -31,8 +31,9 @@ const { t } = useI18n()
 
 // 本地状态
 const selectedResource = ref<string>('')
-const resourceContent = ref<string>('')
+const resourceContent = ref<string | null>(null)
 const resourceLoading = ref(false)
+const resultRegion = ref<HTMLElement | null>(null)
 
 // 计算属性：获取当前服务器的资源（如果指定了服务器）
 const serverResources = computed(() => {
@@ -45,13 +46,13 @@ const serverResources = computed(() => {
 watch(open, (newOpen) => {
   if (newOpen) {
     selectedResource.value = ''
-    resourceContent.value = ''
+    resourceContent.value = null
   }
 })
 
 // 当选择资源时，清空内容
 watch(selectedResource, () => {
-  resourceContent.value = ''
+  resourceContent.value = null
 })
 
 // 选择Resource
@@ -63,10 +64,12 @@ const selectResource = (resource: ResourceListEntry) => {
 const loadResourceContent = async (resource: ResourceListEntry) => {
   if (!resource) return
 
+  const opener = document.activeElement
   try {
     resourceLoading.value = true
     const result = await mcpStore.readResource(resource)
 
+    if (selectedResource.value !== resource.uri) return
     // 处理返回结果
     if (result && typeof result === 'object') {
       if ('text' in result && result.text) {
@@ -85,9 +88,19 @@ const loadResourceContent = async (resource: ResourceListEntry) => {
     }
   } catch (error) {
     console.error('加载资源内容失败:', error)
-    resourceContent.value = `加载失败: ${error}`
+    if (selectedResource.value === resource.uri) {
+      resourceContent.value = `${t('mcp.errors.readResourceFailed')}: ${error}`
+    }
   } finally {
     resourceLoading.value = false
+    await nextTick()
+    if (
+      open.value &&
+      selectedResource.value === resource.uri &&
+      (document.activeElement === document.body || document.activeElement === opener)
+    ) {
+      resultRegion.value?.focus()
+    }
   }
 }
 
@@ -122,18 +135,27 @@ const getResourceType = (uri: string) => {
 <template>
   <DcSheetPanel
     v-model:open="open"
-    :title="props.serverName ? `${props.serverName} Resources` : 'MCP Resources'"
+    :title="`${t('settings.mcp.tabs.resources')}: ${props.serverName ?? 'MCP'}`"
     :description="t('mcp.resources.dialogDescription')"
     icon="lucide:folder"
     width-class="w-4/5 min-w-[80vw] max-w-[80vw]"
     :scroll-body="false"
   >
     <div class="flex flex-col flex-1 overflow-hidden">
+      <p role="status" aria-atomic="true" class="sr-only">
+        {{
+          resourceLoading
+            ? t('mcp.resources.loading')
+            : resourceContent !== null
+              ? t('mcp.tools.resultTitle')
+              : ''
+        }}
+      </p>
       <!-- 小屏幕：资源选择下拉菜单 -->
       <div class="shrink-0 px-4 py-4 lg:hidden">
         <Select v-model="selectedResource">
-          <SelectTrigger class="w-full">
-            <SelectValue placeholder="Select a resource" />
+          <SelectTrigger class="w-full" :aria-label="t('settings.mcp.tabs.resources')">
+            <SelectValue :placeholder="t('mcp.resources.selectResource')" />
           </SelectTrigger>
           <SelectContent>
             <SelectItem
@@ -159,7 +181,7 @@ const getResourceType = (uri: string) => {
             <DcEmpty
               v-else-if="serverResources.length === 0"
               icon="lucide:folder"
-              title="No resources available"
+              :title="t('mcp.resources.noResourcesAvailable')"
               class="border-0 py-8"
             />
 
@@ -172,6 +194,7 @@ const getResourceType = (uri: string) => {
                 :class="{
                   'bg-accent text-accent-foreground': selectedResource === resource.uri
                 }"
+                :aria-pressed="selectedResource === resource.uri"
                 @click="selectResource(resource)"
               >
                 <div class="flex items-start space-x-2 w-full">
@@ -210,7 +233,9 @@ const getResourceType = (uri: string) => {
               >
                 <Icon icon="lucide:mouse-pointer-click" class="h-5 w-5 text-muted-foreground" />
               </div>
-              <h3 class="text-base font-medium text-foreground mb-2">Select a resource</h3>
+              <h3 class="text-base font-medium text-foreground mb-2">
+                {{ t('mcp.resources.selectResource') }}
+              </h3>
             </div>
           </div>
 
@@ -255,16 +280,25 @@ const getResourceType = (uri: string) => {
                   >
                     <Spinner v-if="resourceLoading" data-icon="inline-start" />
                     <Icon v-else icon="lucide:download" data-icon="inline-start" />
-                    {{ resourceLoading ? 'Loading...' : 'Load Content' }}
+                    {{
+                      resourceLoading ? t('mcp.resources.loading') : t('mcp.resources.loadContent')
+                    }}
                   </DcButton>
                 </div>
 
                 <!-- 资源内容显示 -->
-                <div v-if="resourceContent || resourceLoading">
+                <div
+                  v-if="resourceContent !== null || resourceLoading"
+                  ref="resultRegion"
+                  role="region"
+                  tabindex="-1"
+                  :aria-label="`${t('mcp.tools.resultTitle')}: ${selectedResourceObj.name || selectedResourceObj.uri}`"
+                  :aria-busy="resourceLoading"
+                >
                   <McpJsonViewer
-                    :content="resourceContent"
+                    :content="resourceContent ?? ''"
                     :loading="resourceLoading"
-                    title="Resource Content"
+                    :title="t('mcp.tools.resultTitle')"
                     readonly
                   />
                 </div>
@@ -273,8 +307,8 @@ const getResourceType = (uri: string) => {
                 <DcEmpty
                   v-else
                   icon="lucide:file-text"
-                  title="No content loaded"
-                  description='Click "Load Content" to view the resource'
+                  :title="t('mcp.resources.loadContent')"
+                  :description="t('mcp.resources.pleaseSelect')"
                   class="border-0 py-12"
                 />
               </div>

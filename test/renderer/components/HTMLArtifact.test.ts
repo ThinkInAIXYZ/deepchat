@@ -38,6 +38,7 @@ describe('HTMLArtifact', () => {
     })
 
     const iframe = wrapper.get('[data-testid="html-artifact-iframe"]')
+    expect(iframe.attributes('title')).toBe('doc')
     expect(iframe.exists()).toBe(true)
     const cls = iframe.attributes('class') || ''
     expect(cls).toContain('html-iframe-wrapper')

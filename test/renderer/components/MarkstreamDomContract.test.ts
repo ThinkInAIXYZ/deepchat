@@ -41,6 +41,7 @@ afterAll(() => {
 async function settleRenderer() {
   await nextTick()
   await flushPromises()
+  await new Promise((resolve) => setTimeout(resolve, 50))
   await nextTick()
   await flushPromises()
 }

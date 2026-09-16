@@ -56,6 +56,7 @@
         <div v-if="isEditMode" class="text-sm w-full min-w-[40vw] whitespace-pre-wrap break-all">
           <textarea
             ref="editTextarea"
+            :aria-label="t('thread.toolbar.edit')"
             v-model="editedText"
             class="text-sm bg-muted dark:bg-muted rounded-lg p-2 border flex flex-col gap-1.5 resize-none overflow-y-auto overscroll-contain min-w-[40vw] w-full max-h-[60vh]"
             rows="1"

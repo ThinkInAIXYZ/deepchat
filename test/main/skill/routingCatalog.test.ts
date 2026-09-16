@@ -1,4 +1,4 @@
-import { approximateTokenSize } from 'tokenx'
+import { estimateTokenCount } from 'tokenx'
 import { describe, expect, it } from 'vitest'
 import type { SkillMetadata } from '../../../src/shared/types/skill'
 import { SKILL_NAME_MAX_LENGTH } from '../../../src/shared/types/skill'
@@ -41,8 +41,8 @@ describe('skill routing catalog', () => {
 
     for (const budget of [0, 40, 80, 160, 500, 2_000]) {
       const projection = renderSkillRoutingCatalogWithinBudget(cards, budget)
-      expect(approximateTokenSize(projection.content)).toBeLessThanOrEqual(budget)
-      expect(projection.report.estimatedTokens).toBe(approximateTokenSize(projection.content))
+      expect(estimateTokenCount(projection.content)).toBeLessThanOrEqual(budget)
+      expect(projection.report.estimatedTokens).toBe(estimateTokenCount(projection.content))
     }
   })
 
@@ -106,7 +106,7 @@ describe('skill routing catalog', () => {
     expect(projection.report.summaryCodePointCap).toBeLessThan(
       SKILL_ROUTING_DESCRIPTION_MAX_CODE_POINTS
     )
-    expect(approximateTokenSize(projection.content)).toBeLessThanOrEqual(86)
+    expect(estimateTokenCount(projection.content)).toBeLessThanOrEqual(86)
   })
 
   it('rejects invalid source names and guarantees accepted name-only cards fit', () => {
@@ -158,7 +158,7 @@ describe('skill routing catalog', () => {
     expect(serialized).not.toContain('/private')
     expect(serialized).not.toContain('do-not-return')
     expect(serialized).not.toContain('allowedTools')
-    expect(approximateTokenSize(serialized)).toBeLessThanOrEqual(SKILL_LIST_RESULT_MAX_TOKENS)
+    expect(estimateTokenCount(serialized)).toBeLessThanOrEqual(SKILL_LIST_RESULT_MAX_TOKENS)
     expect(Buffer.byteLength(result.skills[0].description ?? '', 'utf8')).toBeLessThanOrEqual(
       SKILL_ROUTING_DESCRIPTION_MAX_BYTES
     )
@@ -183,7 +183,7 @@ describe('skill routing catalog', () => {
     expect(result.skills.length).toBeGreaterThan(0)
     expect(result.skills.length).toBeLessThanOrEqual(20)
     expect(result.nextCursor).toBeTypeOf('string')
-    expect(approximateTokenSize(JSON.stringify(result))).toBeLessThanOrEqual(
+    expect(estimateTokenCount(JSON.stringify(result))).toBeLessThanOrEqual(
       SKILL_LIST_RESULT_MAX_TOKENS
     )
   })

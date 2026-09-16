@@ -37,7 +37,7 @@ const loadPackageLightOcrAssets = async () => {
   }) => Promise<void>
 }
 
-const OPENDAL_TEST_VERSION = '0.49.5'
+const OPENDAL_TEST_VERSION = '0.49.9'
 
 const packageDir = (nodeModulesDir: string, packageName: string) =>
   path.join(nodeModulesDir, ...packageName.split('/'))

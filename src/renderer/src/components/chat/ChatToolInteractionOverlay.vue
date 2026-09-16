@@ -1,5 +1,10 @@
 <template>
   <div
+    ref="interactionRegion"
+    role="region"
+    tabindex="-1"
+    :aria-label="headerText"
+    :aria-describedby="questionId"
     :class="[
       'relative flex min-h-0 w-full flex-col overflow-hidden text-foreground',
       props.embedded
@@ -23,7 +28,7 @@
         !props.embedded && isPermission ? 'flex min-h-0 flex-1 flex-col' : ''
       ]"
     >
-      <p class="text-sm whitespace-pre-wrap break-words">
+      <p :id="questionId" class="text-sm whitespace-pre-wrap break-words">
         {{ bodyText }}
       </p>
 
@@ -67,14 +72,15 @@
           v-if="isMultiple"
           v-model="multiSelected"
           :options="choiceOptions"
+          :aria-labelledby="questionId"
           :disabled="processing"
         />
         <DcRadioGroup
           v-else
-          :model-value="singleSelected"
+          v-model="singleSelected"
           :options="choiceOptions"
+          :aria-labelledby="questionId"
           :disabled="processing"
-          @update:model-value="onSingleSelect"
         />
 
         <div v-if="allowOther" class="mt-3 flex items-center gap-2">
@@ -83,6 +89,7 @@
             type="text"
             :disabled="processing"
             :placeholder="t('components.messageBlockQuestionRequest.customPlaceholder')"
+            :aria-label="t('components.messageBlockQuestionRequest.customPlaceholder')"
             class="h-8 min-w-0 flex-1 rounded-md border border-input bg-background/60 px-2.5 text-xs outline-none transition-colors placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-1 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50"
             @keydown.enter.prevent="onCustomSubmit"
           />
@@ -97,12 +104,12 @@
           </DcButton>
         </div>
 
-        <div v-if="isMultiple" class="mt-3 flex items-center gap-2">
+        <div v-if="choiceOptions.length" class="mt-3 flex items-center gap-2">
           <DcButton
-            :disabled="processing || multiSelected.length === 0"
+            :disabled="processing || (isMultiple ? multiSelected.length === 0 : !singleSelected)"
             size="sm"
             class="h-8 px-4 text-xs"
-            @click="onMultiConfirm"
+            @click="isMultiple ? onMultiConfirm() : onSingleConfirm()"
           >
             {{ t('common.confirm') }}
           </DcButton>
@@ -133,7 +140,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, ref, useId, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { DcButton } from '@dc-ui/components/button'
 import { DcCheckboxGroup, DcRadioGroup } from '@dc-ui/components/choice-group'
@@ -162,6 +169,10 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
+const questionId = useId()
+const interactionRegion = ref<HTMLElement | null>(null)
+const focusInteraction = () => void nextTick(() => interactionRegion.value?.focus())
+onMounted(focusInteraction)
 
 const isQuestion = computed(() => props.interaction.actionType === 'question_request')
 const isPermission = computed(() => props.interaction.actionType === 'tool_call_permission')
@@ -267,12 +278,13 @@ watch(
     singleSelected.value = null
     multiSelected.value = []
     customAnswer.value = ''
+    focusInteraction()
   }
 )
 
-const onSingleSelect = (value: string) => {
-  singleSelected.value = value
-  const option = questionOptions.value.find((entry) => entry.rawLabel === value)
+const onSingleConfirm = () => {
+  if (props.processing) return
+  const option = questionOptions.value.find((entry) => entry.rawLabel === singleSelected.value)
   if (!option) return
   emit('respond', {
     kind: 'question_option',

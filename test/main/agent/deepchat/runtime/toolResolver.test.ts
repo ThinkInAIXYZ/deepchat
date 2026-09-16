@@ -747,6 +747,7 @@ describe('DeepChatToolResolver Run definition universe', () => {
     const skillService = {
       getActiveSkills: vi.fn().mockResolvedValue(options?.activeSkills ?? []),
       snapshotPersistedActiveSkillNames: vi.fn(() => options?.activeSkills ?? []),
+      getMetadataList: vi.fn().mockResolvedValue(options?.metadata ?? []),
       snapshotCachedMetadataList: vi.fn(
         (_agentId: string, snapshotOptions: { maxItems: number }) =>
           (options?.metadata?.length ?? 0) > snapshotOptions.maxItems
@@ -1072,7 +1073,7 @@ describe('DeepChatToolResolver Run definition universe', () => {
     })
   })
 
-  it('rejects an oversized Skill catalog without probing missing active Skills', async () => {
+  it.each([null, '/workspace'])('bounds Skill catalogs for projectDir=%s', async (projectDir) => {
     const metadata = Array.from({ length: MAX_RUN_TOOL_UNIVERSE_SKILLS + 1 }, (_, index) => ({
       name: `inactive-${index}`
     }))
@@ -1083,7 +1084,7 @@ describe('DeepChatToolResolver Run definition universe', () => {
 
     const result = await resolver.resolveRunToolDefinitionUniverse(
       'session-1',
-      null,
+      projectDir,
       undefined,
       resourceInstance as any
     )
@@ -1103,6 +1104,7 @@ describe('DeepChatToolResolver Run definition universe', () => {
         issueCodes: ['active-skill-metadata-not-admitted']
       }
     ])
+    expect(result.degradationCounts).toContainEqual({ code: 'skill-limit-exceeded', count: 1 })
     expect(result.degradationCounts).toContainEqual({
       code: 'active-skill-metadata-not-admitted',
       count: 1

@@ -89,7 +89,8 @@
     "fileUploadFailedMore": "ᠶᠢ ᠬᠦᠯᠢᠶᠡᠵᠦ {count}",
     "unnamedFile": "ᠤᠨ ᠭᠠᠷ ᠤᠨ ᠦᠰᠦᠭ ᠦᠭᠡᠢ ᠪᠢᠴᠢᠭ᠌ ᠮᠠᠲ᠋ᠧᠷᠢᠶᠠᠯ ᠢ",
     "audioInputUnsupportedTitle": "ᠶᠢᠨ ᠴᠠᠬᠢᠯᠭᠠᠨ ᠬᠡᠳᠦ ᠨᠢ ᠠᠪᠢᠶᠠᠨ ᠤ ᠳᠠᠭᠠᠯᠳᠤᠭᠤᠯᠤᠯ ᠢ ᠳᠡᠮᠵᠢᠬᠦ ᠦᠭᠡᠢ",
-    "audioInputUnsupportedDescription": "{model} ᠶᠢ ᠠᠪᠢᠶᠠᠨ ᠤ ᠣᠷᠣᠭᠤᠯᠤᠯᠲᠠ ᠶᠢ ᠳᠡᠮᠵᠢᠬᠦ ᠦᠭᠡᠢ ᠂ ᠠᠪᠢᠶᠠᠨ ᠤ ᠳᠠᠭᠠᠯᠳᠤᠭᠤᠯᠤᠯ {count} ᠶᠢ ᠠᠩᠬᠠᠷᠬᠤ ᠦᠭᠡᠢ ᠃"
+    "audioInputUnsupportedDescription": "{model} ᠶᠢ ᠠᠪᠢᠶᠠᠨ ᠤ ᠣᠷᠣᠭᠤᠯᠤᠯᠲᠠ ᠶᠢ ᠳᠡᠮᠵᠢᠬᠦ ᠦᠭᠡᠢ ᠂ ᠠᠪᠢᠶᠠᠨ ᠤ ᠳᠠᠭᠠᠯᠳᠤᠭᠤᠯᠤᠯ {count} ᠶᠢ ᠠᠩᠬᠠᠷᠬᠤ ᠦᠭᠡᠢ ᠃",
+    "suggestions": "ᠰᠠᠨᠠᠯ ᠵᠥᠪᠯᠡᠮᠵᠢ"
   },
   "messageReceipt": {
     "unread": "ᠢ ᠤᠩᠰᠢᠭᠰᠠᠨ ᠦᠭᠡᠢ",
@@ -224,7 +225,8 @@
     "rateLimitSwitchProvider": "ᠰᠣᠯᠢᠬᠤ ᠦᠢᠯᠡᠴᠢᠯᠡᠭᠡᠨ ᠦ ᠬᠠᠩᠭᠠᠭᠴᠢ",
     "rateLimitImmediately": "ᠳᠠᠷᠤᠢ",
     "rateLimitSeconds": "ᠰᠧᠺᠦᠢᠨᠳ᠋",
-    "rateLimitMinutes": "ᠮᠢᠨᠦᠢᠲ᠋"
+    "rateLimitMinutes": "ᠮᠢᠨᠦᠢᠲ᠋",
+    "loadEarlier": "ᠡᠮᠦᠨᠡᠬᠢ ᠮᠡᠳᠡᠭᠡ ᠶᠢ ᠠᠴᠢᠶᠠᠯᠠᠬᠤ"
   },
   "compaction": {
     "compacting": "ᠠᠰᠠᠭᠤᠳᠠᠯ ᠢ ᠴᠢᠩᠭ᠋ᠠᠳᠬᠠᠬᠤ ᠁",

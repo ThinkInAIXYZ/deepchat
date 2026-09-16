@@ -80,7 +80,6 @@
                     : '',
                   provider.enable ? '' : 'opacity-60'
                 ]"
-                @click="handleProviderRowClick(provider.id)"
               >
                 <Icon
                   icon="lucide:grip-vertical"
@@ -95,6 +94,7 @@
                   v-if="editingProviderId === provider.id"
                   ref="editInputRef"
                   v-model="editingName"
+                  :aria-label="t('settings.provider.menu.rename')"
                   class="text-sm font-medium flex-1 min-w-0 bg-background border border-input rounded px-2 py-0.5 outline-none focus:ring-1 focus:ring-ring"
                   :dir="languageStore.dir"
                   @blur="saveEditingName"
@@ -102,11 +102,15 @@
                   @click.stop
                 />
                 <template v-else>
-                  <span
-                    class="text-sm font-medium flex-1 min-w-0 truncate"
+                  <button
+                    type="button"
+                    :aria-current="route.params?.providerId === provider.id ? 'page' : undefined"
+                    @click="handleProviderRowClick(provider.id)"
+                    class="text-left text-sm font-medium flex-1 min-w-0 truncate"
                     :dir="languageStore.dir"
-                    >{{ t(provider.name) }}</span
                   >
+                    {{ t(provider.name) }}
+                  </button>
                 </template>
                 <span
                   v-if="!provider.enable"
@@ -118,9 +122,10 @@
                   <DropdownMenuTrigger as-child>
                     <DcButton
                       :data-testid="`provider-menu-trigger-${provider.id}`"
+                      :aria-label="`${t('common.more')}: ${t(provider.name)}`"
                       variant="ghost"
                       size="sm"
-                      class="h-6 w-6 shrink-0 p-0 opacity-0 group-hover:opacity-100 data-[state=open]:opacity-100"
+                      class="h-6 w-6 shrink-0 p-0 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 data-[state=open]:opacity-100"
                       @click.stop
                     >
                       <Icon icon="lucide:ellipsis" class="h-4 w-4 text-muted-foreground" />
@@ -142,6 +147,19 @@
                       icon="lucide:pencil"
                       :label="t('settings.provider.menu.rename')"
                       @select="startEditingName(provider)"
+                    />
+                    <DropdownMenuSeparator />
+                    <DcDropdownActionItem
+                      icon="lucide:arrow-up"
+                      :label="t('settings.environments.actions.moveUp')"
+                      :disabled="sidebarProviders[0]?.id === provider.id"
+                      @select="moveProvider(provider.id, -1)"
+                    />
+                    <DcDropdownActionItem
+                      icon="lucide:arrow-down"
+                      :label="t('settings.environments.actions.moveDown')"
+                      :disabled="sidebarProviders.at(-1)?.id === provider.id"
+                      @select="moveProvider(provider.id, 1)"
                     />
                     <template v-if="provider.custom">
                       <DropdownMenuSeparator />
@@ -669,8 +687,12 @@ const syncGuideTargets = () => {
     ? (document.querySelector(`[data-provider-id="${firstProviderId}"]`) as HTMLElement | null)
     : null
   providerApiKeyTargetRef.value =
-    (detailRoot?.querySelector('[data-testid="provider-api-key-input"]') as HTMLElement | null) ??
-    (document.querySelector('[data-testid="provider-api-key-input"]') as HTMLElement | null)
+    (detailRoot?.querySelector(
+      '[data-testid="provider-api-key-input"], [data-testid="provider-update-key-button"]'
+    ) as HTMLElement | null) ??
+    (document.querySelector(
+      '[data-testid="provider-api-key-input"], [data-testid="provider-update-key-button"]'
+    ) as HTMLElement | null)
   providerModelTargetRef.value =
     (activeProviderId
       ? ((detailRoot?.querySelector(
@@ -693,12 +715,11 @@ const sidebarProviders = computed({
     const isFiltered = searchQuery.value.trim().length > 0
     let reorderedConfigured: LLM_PROVIDER[]
     if (isFiltered) {
-      const orderMap = new Map(newProviders.map((provider, index) => [provider.id, index]))
-      reorderedConfigured = [...providerStore.configuredProviders].sort((a, b) => {
-        const orderA = orderMap.get(a.id) ?? Infinity
-        const orderB = orderMap.get(b.id) ?? Infinity
-        return orderA - orderB
-      })
+      const movedIds = new Set(newProviders.map((provider) => provider.id))
+      let nextIndex = 0
+      reorderedConfigured = providerStore.configuredProviders.map((provider) =>
+        movedIds.has(provider.id) ? newProviders[nextIndex++] : provider
+      )
     } else {
       reorderedConfigured = [
         ...newProviders,
@@ -717,6 +738,15 @@ const sidebarProviders = computed({
       })
   }
 })
+
+const moveProvider = (providerId: string, direction: -1 | 1) => {
+  const providers = [...sidebarProviders.value]
+  const index = providers.findIndex((provider) => provider.id === providerId)
+  const target = index + direction
+  if (index < 0 || target < 0 || target >= providers.length) return
+  ;[providers[index], providers[target]] = [providers[target], providers[index]]
+  sidebarProviders.value = providers
+}
 
 const setActiveProvider = (providerId: string) => {
   return router.push({

@@ -89,7 +89,8 @@
     "fileUploadFailedMore": "{count}نى كۈتۈش",
     "unnamedFile": "ئىسمسىز ھۆججەت",
     "audioInputUnsupportedTitle": "ھازىرقى مەدل ئاۋاز قوشۇمچە قوللايدۇ، بۇ يۆنىلىشتى ئاۋاز قوشۇمچە قوشالمىدى",
-    "audioInputUnsupportedDescription": "مادل {model} ئاۋاز كىرىشىنى قوللىمايدۇ، {count} ئاۋاز قوشۇمچىسى سەركەردە قىلىندى."
+    "audioInputUnsupportedDescription": "مادل {model} ئاۋاز كىرىشىنى قوللىمايدۇ، {count} ئاۋاز قوشۇمچىسى سەركەردە قىلىندى.",
+    "suggestions": "تەكلىپلەر"
   },
   "messageReceipt": {
     "unread": "ئوقۇلماپتۇ",
@@ -224,7 +225,8 @@
     "rateLimitSwitchProvider": "ئالماشتۇرۇش مۇلازىمەت بىلەن تەمىنلىگۈچى",
     "rateLimitImmediately": "دەرھال",
     "rateLimitSeconds": "سېكۇنت",
-    "rateLimitMinutes": "مىنۇت"
+    "rateLimitMinutes": "مىنۇت",
+    "loadEarlier": "بۇرۇنقى ئۇچۇرلارنى يۈكلەش"
   },
   "compaction": {
     "compacting": "مەزمۇننى قىسقارتىۋاتىدۇ ...",

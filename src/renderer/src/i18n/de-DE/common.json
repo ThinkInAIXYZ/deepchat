@@ -1,4 +1,5 @@
 {
+  "skipToContent": "Zum Inhalt springen",
   "notifications": {
     "label": "Benachrichtigungen",
     "actionFailed": "Aktion fehlgeschlagen. Erneut versuchen.",
@@ -137,7 +138,9 @@
     "addressPlaceholder": "URL eingeben",
     "enterUrlToStart": "URL eingeben, um zu starten",
     "enterUrlDescription": "Geben Sie oben in der Adressleiste eine URL ein, um eine Website zu öffnen",
-    "name": "Yo Browser"
+    "name": "Yo Browser",
+    "enterContent": "Webseite betreten",
+    "returnFocus": "F6 kehrt zu den Browser-Steuerelementen zurück"
   },
   "size": {
     "bytes": "{count} Byte"
@@ -153,5 +156,16 @@
     "none": "Kein Projekt",
     "recent": "Letzte Projekte",
     "openFolder": "Ordner öffnen..."
+  },
+  "diff": {
+    "oldLine": "Alte Zeile",
+    "newLine": "Neue Zeile",
+    "change": "Änderung",
+    "content": "Inhalt",
+    "add": "Hinzugefügt",
+    "del": "Entfernt",
+    "context": "Unverändert",
+    "hunk": "Änderungsbereich",
+    "meta": "Metadaten"
   }
 }

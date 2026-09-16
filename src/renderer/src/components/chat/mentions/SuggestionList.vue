@@ -1,9 +1,20 @@
 <template>
   <div class="min-w-64 max-w-96 rounded-md border bg-popover p-1 text-popover-foreground shadow-md">
-    <div v-if="filteredItems.length > 0" class="dc-overscroll-contain max-h-72 overflow-y-auto">
+    <div
+      :id="listId"
+      role="listbox"
+      :aria-label="label"
+      class="dc-overscroll-contain max-h-72 overflow-y-auto"
+    >
       <button
         v-for="(item, index) in filteredItems"
         :key="item.id"
+        :id="optionId(index)"
+        role="option"
+        type="button"
+        tabindex="-1"
+        :aria-selected="index === selectedIndex"
+        @mousedown.prevent
         :ref="(el) => (itemElements[index] = el as HTMLButtonElement)"
         class="w-full rounded-sm px-2 py-1.5 text-left text-sm transition-colors hover:bg-accent"
         :class="index === selectedIndex ? 'bg-accent text-accent-foreground' : ''"
@@ -30,7 +41,13 @@
         </div>
       </button>
     </div>
-    <div v-else class="px-3 py-2 text-sm text-muted-foreground">No result</div>
+    <div
+      :id="`${listId}-status`"
+      role="status"
+      :class="filteredItems.length ? 'sr-only' : 'px-3 py-2 text-sm text-muted-foreground'"
+    >
+      {{ filteredItems.length ? '' : emptyLabel }}
+    </div>
   </div>
 </template>
 
@@ -49,11 +66,16 @@ export interface SuggestionListItem {
 }
 
 const props = defineProps<{
+  listId: string
+  label: string
+  emptyLabel: string
   items: SuggestionListItem[]
   query: string
   command: (item: SuggestionListItem) => void
 }>()
 
+const emit = defineEmits<{ activeChange: [id: string | null] }>()
+const optionId = (index: number) => `${props.listId}-option-${index}`
 const selectedIndex = ref(0)
 const itemElements = ref<(HTMLButtonElement | null)[]>([])
 
@@ -73,9 +95,14 @@ watch(
   { immediate: true }
 )
 
-watch(selectedIndex, () => {
-  itemElements.value[selectedIndex.value]?.scrollIntoView({ block: 'nearest' })
-})
+watch(
+  [selectedIndex, filteredItems],
+  () => {
+    emit('activeChange', filteredItems.value.length ? optionId(selectedIndex.value) : null)
+    itemElements.value[selectedIndex.value]?.scrollIntoView({ block: 'nearest' })
+  },
+  { immediate: true, flush: 'post' }
+)
 
 const categoryTag = (category: SuggestionCategory) => {
   switch (category) {

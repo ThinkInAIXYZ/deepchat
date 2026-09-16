@@ -24,6 +24,7 @@
           variant="ghost"
           size="sm"
           data-testid="environments-active-tab"
+          :aria-pressed="currentView === 'active'"
           :class="currentView === 'active' ? 'bg-accent text-foreground' : 'text-muted-foreground'"
           @click="currentView = 'active'"
         >
@@ -33,6 +34,7 @@
           variant="ghost"
           size="sm"
           data-testid="environments-archived-tab"
+          :aria-pressed="currentView === 'archived'"
           :class="
             currentView === 'archived' ? 'bg-accent text-foreground' : 'text-muted-foreground'
           "
@@ -50,6 +52,7 @@
         <div class="ml-auto">
           <Switch
             data-testid="missing-toggle"
+            :aria-label="t('settings.environments.actions.showMissing')"
             :model-value="showMissing"
             @update:model-value="showMissing = $event"
           />
@@ -731,7 +734,7 @@ const EnvironmentRow = defineComponent({
                       size: 'icon',
                       class: 'h-8 w-8',
                       disabled: props.disabled,
-                      'aria-label': t('settings.environments.actions.more')
+                      'aria-label': `${t('settings.environments.actions.more')}: ${props.environment.path}`
                     },
                     () => h(Icon, { icon: 'lucide:ellipsis', class: 'h-4 w-4' })
                   )

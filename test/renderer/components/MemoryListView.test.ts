@@ -206,7 +206,7 @@ describe('MemoryListView', () => {
     expect((wrapper.find('input[type="search"]').element as HTMLInputElement).value).toBe('redis')
     expect(wrapper.text()).toContain('user likes redis')
 
-    await wrapper.find('[role="button"]').trigger('click')
+    await wrapper.find('[data-memory-trigger]').trigger('click')
     await flushPromises()
     expect(wrapper.find('[data-testid="inline-panel"]').attributes('data-mode')).toBe('view')
     expect(wrapper.find('[data-testid="inline-panel"]').attributes('data-memory-id')).toBe('m1')
@@ -336,7 +336,7 @@ describe('MemoryListView', () => {
     expect(wrapper.text()).toContain('first page')
     expect(wrapper.text()).toContain('second page')
     expect(wrapper.text()).not.toContain('duplicate should be ignored')
-    expect(wrapper.findAll('[role="button"]')).toHaveLength(2)
+    expect(wrapper.findAll('[data-memory-trigger]')).toHaveLength(2)
     expect(wrapper.find('[data-testid="memory-load-more"]').exists()).toBe(false)
   })
 
@@ -413,7 +413,7 @@ describe('MemoryListView', () => {
     await wrapper.find('[data-testid="memory-load-more"]').trigger('click')
     await flushPromises()
 
-    await wrapper.findAll('[role="button"]')[1].trigger('click')
+    await wrapper.findAll('[data-memory-trigger]')[1].trigger('click')
     const panel = wrapper.findComponent({ name: 'MemoryInlinePanel' })
     panel.vm.$emit('dirty', true)
     await flushPromises()
@@ -447,7 +447,7 @@ describe('MemoryListView', () => {
       ]
     })
 
-    await wrapper.findAll('[role="button"]')[0].trigger('click')
+    await wrapper.findAll('[data-memory-trigger]')[0].trigger('click')
     const panel = wrapper.findComponent({ name: 'MemoryInlinePanel' })
     panel.vm.$emit('busy', true)
     await flushPromises()
@@ -458,9 +458,9 @@ describe('MemoryListView', () => {
 
     expect(wrapper.text()).toContain('first memory')
     const secondRow = wrapper
-      .findAll('[role="button"]')
+      .findAll('[data-memory-trigger]')
       .find((row) => row.text().includes('second memory'))
-    expect(secondRow?.attributes('aria-disabled')).toBe('true')
+    expect(secondRow?.attributes('disabled')).toBeDefined()
     await secondRow!.trigger('click')
     expect(wrapper.find('[data-testid="inline-panel"]').attributes('data-memory-id')).toBe('m1')
 
@@ -473,7 +473,7 @@ describe('MemoryListView', () => {
   it('opens rows as read-only details and row edit as an edit panel', async () => {
     const { wrapper } = await setup()
 
-    await wrapper.find('[role="button"]').trigger('click')
+    await wrapper.find('[data-memory-trigger]').trigger('click')
     await flushPromises()
     expect(wrapper.find('[data-testid="inline-panel"]').attributes('data-mode')).toBe('view')
 
@@ -484,7 +484,7 @@ describe('MemoryListView', () => {
 
   it('toggles the current row detail closed when selecting it again', async () => {
     const { wrapper } = await setup()
-    const row = wrapper.find('[role="button"]')
+    const row = wrapper.find('[data-memory-trigger]')
 
     await row.trigger('click')
     await flushPromises()
@@ -497,7 +497,7 @@ describe('MemoryListView', () => {
 
   it('uses the discard prompt before collapsing a dirty current row', async () => {
     const { wrapper } = await setup()
-    const row = wrapper.find('[role="button"]')
+    const row = wrapper.find('[data-memory-trigger]')
 
     await row.trigger('click')
     await flushPromises()
@@ -520,7 +520,7 @@ describe('MemoryListView', () => {
     const { wrapper } = await setup({ rows: [memory()] })
     const { settingsLeaveGuard } =
       await import('../../../src/renderer/settings/services/settingsLeaveGuard')
-    await wrapper.find('[role="button"]').trigger('click')
+    await wrapper.find('[data-memory-trigger]').trigger('click')
     await flushPromises()
     const panel = wrapper.findComponent({ name: 'MemoryInlinePanel' })
 
@@ -553,7 +553,7 @@ describe('MemoryListView', () => {
     const deleteButton = wrapper.find('[data-testid="memory-row-delete"]')
     expect(deleteButton.exists()).toBe(true)
     expect(deleteButton.attributes('aria-label')).toBe(
-      'settings.deepchatAgents.memoryManager.deletePermanent'
+      'settings.deepchatAgents.memoryManager.deletePermanent: user likes redis'
     )
 
     await deleteButton.trigger('click')
@@ -691,7 +691,7 @@ describe('MemoryListView', () => {
   it('removes an expanded row locally and closes its inline panel after permanent delete', async () => {
     const { wrapper } = await setup()
 
-    await wrapper.find('[role="button"]').trigger('click')
+    await wrapper.find('[data-memory-trigger]').trigger('click')
     await flushPromises()
     expect(wrapper.find('[data-testid="inline-panel"]').exists()).toBe(true)
 
@@ -802,7 +802,7 @@ describe('MemoryListView', () => {
   it('routes openCreate through the dirty-prompt guard instead of discarding unsaved edits', async () => {
     const { wrapper } = await setup()
 
-    await wrapper.find('[role="button"]').trigger('click')
+    await wrapper.find('[data-memory-trigger]').trigger('click')
     await flushPromises()
     const panel = wrapper.findComponent({ name: 'MemoryInlinePanel' })
     expect(panel.props('mode')).toBe('view')
@@ -837,11 +837,11 @@ describe('MemoryListView', () => {
       rows: [memory({ id: 'm1', content: 'first' }), memory({ id: 'm2', content: 'second' })]
     })
 
-    await wrapper.findAll('[role="button"]')[0].trigger('click')
+    await wrapper.findAll('[data-memory-trigger]')[0].trigger('click')
     await flushPromises()
     expect(wrapper.find('[data-testid="inline-panel"]').attributes('data-memory-id')).toBe('m1')
 
-    await wrapper.findAll('[role="button"]')[1].trigger('click')
+    await wrapper.findAll('[data-memory-trigger]')[1].trigger('click')
     await flushPromises()
     const panels = wrapper.findAll('[data-testid="inline-panel"]')
     expect(panels).toHaveLength(1)
@@ -851,7 +851,7 @@ describe('MemoryListView', () => {
   it('clears the stale unsaved-changes prompt once the panel stops being dirty', async () => {
     const { wrapper } = await setup()
 
-    await wrapper.find('[role="button"]').trigger('click')
+    await wrapper.find('[data-memory-trigger]').trigger('click')
     await flushPromises()
     const panel = wrapper.findComponent({ name: 'MemoryInlinePanel' })
 
@@ -871,7 +871,7 @@ describe('MemoryListView', () => {
   it('keeps an expanded memory across refresh and closes it when the row disappears', async () => {
     const { wrapper, memoryClient } = await setup({ rows: [memory()] })
 
-    await wrapper.find('[role="button"]').trigger('click')
+    await wrapper.find('[data-memory-trigger]').trigger('click')
     await flushPromises()
     expect(wrapper.find('[data-testid="inline-panel"]').attributes('data-memory-id')).toBe('m1')
 
@@ -895,7 +895,7 @@ describe('MemoryListView', () => {
     const replacement = memory({ id: 'm2', content: 'replacement' })
     const { wrapper } = await setup({ rows: [memory()] })
 
-    await wrapper.find('[role="button"]').trigger('click')
+    await wrapper.find('[data-memory-trigger]').trigger('click')
     await flushPromises()
     wrapper.findComponent({ name: 'MemoryInlinePanel' }).vm.$emit('saved', replacement)
     await flushPromises()
@@ -907,7 +907,7 @@ describe('MemoryListView', () => {
   it('preserves promoted rejection feedback when reconciliation removes the inline panel', async () => {
     const { wrapper, memoryClient } = await setup({ rows: [memory()] })
 
-    await wrapper.find('[role="button"]').trigger('click')
+    await wrapper.find('[data-memory-trigger]').trigger('click')
     await flushPromises()
     memoryClient.page.mockResolvedValueOnce({ items: [], nextCursor: null })
     const panel = wrapper.findComponent({ name: 'MemoryInlinePanel' })

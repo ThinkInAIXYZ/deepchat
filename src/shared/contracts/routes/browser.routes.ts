@@ -179,3 +179,9 @@ export const browserApplyImportRoute = defineRouteContract({
     syncedAt: z.number().int().nonnegative()
   })
 })
+
+export const browserFocusContentRoute = defineRouteContract({
+  name: 'browser.focusContent',
+  input: z.object({ sessionId: z.string().min(1) }),
+  output: z.object({ focused: z.boolean() })
+})

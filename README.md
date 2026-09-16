@@ -526,7 +526,7 @@ $ pnpm run build:linux:x64
 $ pnpm run build:linux:arm64
 ```
 
-For a more detailed guide on development, project structure, and architecture, please see the [Developer Guide](./docs/developer-guide.md).
+For a more detailed guide on development, project structure, and architecture, please see the [Developer Guide](./docs/guides/getting-started.md).
 
 ## 👥 Community & Contribution
 

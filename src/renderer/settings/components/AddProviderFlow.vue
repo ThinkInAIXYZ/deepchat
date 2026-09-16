@@ -25,6 +25,10 @@
         <div
           v-if="phase === 'success'"
           data-testid="add-provider-success"
+          ref="successPanel"
+          role="region"
+          tabindex="-1"
+          :aria-label="t('settings.provider.addFlow.successTitle', { name: form.name })"
           class="flex flex-col items-start gap-3 rounded-lg border border-border bg-card p-6"
         >
           <div class="flex items-center gap-2">
@@ -163,7 +167,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { nanoid } from 'nanoid'
 import { Icon } from '@iconify/vue'
@@ -217,6 +221,7 @@ const form = ref<{
   baseUrl: ''
 })
 
+const successPanel = ref<HTMLElement | null>(null)
 const phase = ref<'idle' | 'validating' | 'committing' | 'success'>('idle')
 const connectError = ref('')
 // Monotonic attempt counter: a cancelled or superseded attempt's result is
@@ -358,6 +363,8 @@ const connectAndLoad = async () => {
     selectedModelCount.value = selectedCount
     committedProvider = { ...draft, enable: true }
     phase.value = 'success'
+    await nextTick()
+    successPanel.value?.focus({ preventScroll: true })
   } catch (error) {
     if (activeAttempt !== attempt) {
       return

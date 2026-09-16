@@ -13,6 +13,7 @@ import type {
   StreamState,
   ToolCallResult
 } from './types'
+import { markStreamChanged } from './types'
 import { accumulate, commitRoundUsage, finalizeTrailingPendingNarrativeBlocks } from './accumulator'
 import { startEcho } from './echo'
 import {
@@ -141,6 +142,7 @@ function stripTrailingErrorBlock(state: StreamState, message: string): void {
   const lastBlock = state.blocks[state.blocks.length - 1]
   if (lastBlock?.type === 'error' && lastBlock.content === message) {
     state.blocks.pop()
+    markStreamChanged(state)
   }
 }
 
@@ -183,15 +185,15 @@ function stampProviderAttemptIdentity(
 function closePreviousProviderAttemptNarrative(
   blocks: AssistantMessageBlock[],
   identity: DeepChatProviderAttemptIdentity | null
-): void {
-  if (!identity) return
+): boolean {
+  if (!identity) return false
   const last = blocks[blocks.length - 1]
   if (
     !last ||
     last.status !== 'pending' ||
     (last.type !== 'content' && last.type !== 'reasoning_content')
   ) {
-    return
+    return false
   }
   const previousLogicalRound = last.extra?.providerLogicalRound
   const previousRequestSeq = last.extra?.providerRequestSeq
@@ -204,9 +206,10 @@ function closePreviousProviderAttemptNarrative(
       previousRequestSeq === identity.requestSeq &&
       previousPhysicalAttempt === identity.physicalAttempt)
   ) {
-    return
+    return false
   }
   last.status = 'success'
+  return true
 }
 
 function stampRunOutcome(
@@ -250,7 +253,7 @@ function markUnexecutedToolCallsForLimit(state: StreamState): void {
       ...block.extra,
       toolCallSkippedReason: 'max_tool_calls'
     }
-    state.dirty = true
+    markStreamChanged(state)
   }
 }
 
@@ -364,7 +367,7 @@ function markOtherTruncatedToolCallsIncomplete(
       ...block.extra,
       toolCallIncompleteReason: 'max_tokens'
     }
-    state.dirty = true
+    markStreamChanged(state)
   }
 }
 
@@ -655,7 +658,7 @@ export function appendStreamingProviderPermissionBlock(
   }
 
   state.blocks.push(actionBlock)
-  state.dirty = true
+  markStreamChanged(state)
 
   return {
     actionBlock,
@@ -971,7 +974,9 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
   }
   if (Array.isArray(initialBlocks) && initialBlocks.length > 0) {
     state.blocks = JSON.parse(JSON.stringify(initialBlocks)) as typeof state.blocks
-    state.dirty = normalizeInheritedUnresolvedBlocks(state.blocks) || state.dirty
+    if (normalizeInheritedUnresolvedBlocks(state.blocks)) {
+      markStreamChanged(state)
+    }
   }
   state.metadata.runId = run.runId
   const echo = startEcho(state, io)
@@ -1225,7 +1230,9 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
 
             const providerAttemptIdentity =
               event.type === 'usage' ? null : (params.providerAttemptIdentity?.() ?? null)
-            closePreviousProviderAttemptNarrative(state.blocks, providerAttemptIdentity)
+            if (closePreviousProviderAttemptNarrative(state.blocks, providerAttemptIdentity)) {
+              markStreamChanged(state)
+            }
 
             if (event.type === 'permission') {
               const firstNewBlock = state.blocks.length
@@ -1249,7 +1256,7 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
                   granted,
                   permission.permissionType
                 )
-                state.dirty = true
+                markStreamChanged(state)
                 updateOutput()
               })
               updateOutput()

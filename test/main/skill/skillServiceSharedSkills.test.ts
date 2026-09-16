@@ -14,6 +14,7 @@ import type {
   StoredSkillManagementState
 } from '@shared/types/skillManagement'
 import { resolveAgentSkillsRoot } from '@/skill/agentSkillRoots'
+import { SkillTools } from '@/skill/skillTools'
 
 vi.unmock('fs')
 vi.unmock('node:fs')
@@ -32,7 +33,7 @@ describe('SkillService shared Skills', () => {
   let skillsRoot: string
   let storedState: StoredSkillManagementState | null
   let agents: Array<{ id: string; enabledSkillNames?: string[] | null; protected?: boolean }>
-  let sessions: Array<{ id: string; agentId: string }>
+  let sessions: Array<{ id: string; agentId: string; projectDir?: string }>
   let activeSkills: Map<string, string[]>
   let stateWriteFailuresRemaining: number
   let service: SkillService
@@ -95,6 +96,8 @@ describe('SkillService shared Skills', () => {
       listDeepChatAgents: async () => structuredClone(agents),
       getSessionAgentId: async (sessionId) =>
         sessions.find((session) => session.id === sessionId)?.agentId ?? null,
+      getSessionProjectDir: async (sessionId) =>
+        sessions.find((session) => session.id === sessionId)?.projectDir ?? null,
       listSessions: async () => structuredClone(sessions)
     }
     return new SkillService(settings, sessionState, watcherService, vi.fn(), agentScope)
@@ -128,6 +131,148 @@ describe('SkillService shared Skills', () => {
     getAppPathSpy.mockRestore()
     fs.rmSync(temporaryRoot, { recursive: true, force: true })
     vi.restoreAllMocks()
+  })
+
+  it('discovers workspace skills without importing them and skips unsafe or invalid manifests', async () => {
+    await migrate()
+    const workspacePath = path.join(temporaryRoot, 'project')
+    const directories = ['.agents', '.deepchat', '.claude', '.codex', '.cursor']
+    for (const directory of directories) {
+      writeSkill(path.join(workspacePath, directory, 'skills'), directory.slice(1), '# Local')
+    }
+    const root = path.join(workspacePath, '.agents', 'skills')
+    const invalid = writeSkill(root, 'invalid', '# Invalid')
+    fs.writeFileSync(path.join(invalid, 'SKILL.md'), 'Missing frontmatter')
+    const oversized = writeSkill(root, 'oversized', 'x'.repeat(6 * 1024 * 1024))
+    const outside = writeSkill(path.join(temporaryRoot, 'outside'), 'escaped', '# Outside')
+    fs.symlinkSync(outside, path.join(root, 'escaped'), 'dir')
+    const sharedBefore = await service.getAllSkills()
+    const stateBefore = structuredClone(storedState)
+
+    const catalog = await service.getUnifiedSkillCatalog('writer', { workspacePath })
+    expect(catalog.map((skill) => skill.name).sort()).toEqual(
+      directories.map((directory) => directory.slice(1)).sort()
+    )
+    expect(catalog.every((skill) => skill.sourceType === 'project' && !skill.mutable)).toBe(true)
+    expect(await service.getAllSkills()).toEqual(sharedBefore)
+    expect(storedState).toEqual(stateBefore)
+    await expect(
+      service.getMetadataList('writer', { workspacePath: '../project' })
+    ).rejects.toThrow('absolute')
+
+    fs.rmSync(path.join(workspacePath, '.claude', 'skills'), { recursive: true })
+    fs.symlinkSync(path.dirname(outside), path.join(workspacePath, '.claude', 'skills'), 'dir')
+    fs.rmSync(path.join(root, 'agents'), { recursive: true })
+    fs.rmSync(oversized, { recursive: true })
+    expect(
+      (await service.getMetadataList('writer', { workspacePath })).map((skill) => skill.name).sort()
+    ).toEqual(['codex', 'cursor', 'deepchat'])
+  })
+
+  it('resolves same-named project skills per session without shared runtime credentials', async () => {
+    const globalRoot = writeSkill(skillsRoot, 'review', '# Global review')
+    await migrate()
+    await service.setSkillAssignment('writer', 'review', true)
+    await service.saveSkillExtensionForAgent('writer', 'review', {
+      ...defaultExtension(),
+      env: { TOKEN: 'global-secret' },
+      scriptOverrides: { 'scripts/run.sh': { enabled: false } }
+    })
+    const projectA = path.join(temporaryRoot, 'project-a')
+    const projectB = path.join(temporaryRoot, 'project-b')
+    const rootA = writeSkill(path.join(projectA, '.agents', 'skills'), 'review', '# Project A')
+    const rootB = writeSkill(path.join(projectB, '.agents', 'skills'), 'review', '# Project B')
+    writeSkill(path.join(projectA, '.claude', 'skills'), 'review', '# Lower priority')
+    fs.mkdirSync(path.join(rootA, 'scripts'))
+    fs.writeFileSync(path.join(rootA, 'scripts/run.sh'), 'echo project-a')
+    fs.mkdirSync(path.join(rootA, 'references'))
+    fs.writeFileSync(path.join(rootA, 'references/guide.md'), 'Project A reference')
+    sessions = [
+      { id: 'a', agentId: 'writer', projectDir: projectA },
+      { id: 'b', agentId: 'writer', projectDir: projectB }
+    ]
+    const stateBefore = structuredClone(storedState)
+    const [a, b] = await Promise.all(
+      sessions.map((session) =>
+        service.resolveFreshEffectiveSkillContents('writer', ['review'], {
+          conversationId: session.id
+        })
+      )
+    )
+    expect(a[0].effectiveContent).toContain('# Project A')
+    expect(b[0].effectiveContent).toContain('# Project B')
+    expect(a[0].identity).toEqual({
+      agentId: 'writer',
+      skillName: 'review',
+      sourceType: 'project',
+      sourceId: rootA
+    })
+    expect(b[0].identity.sourceId).toBe(rootB)
+    expect(a[0].executionPackage.executables).toEqual([
+      { relativePath: 'scripts/run.sh', runtime: 'shell', enabled: true }
+    ])
+    expect(a[0].executionPackage.environmentBindingId).toBeNull()
+    expect(
+      await service.resolveSkillRuntimeEnvironmentBinding(
+        'writer',
+        'review',
+        null,
+        rootA,
+        'project'
+      )
+    ).toEqual({})
+    await expect(
+      service.resolveSkillRuntimeEnvironmentBinding(
+        'writer',
+        'review',
+        'shared-binding',
+        rootA,
+        'project'
+      )
+    ).rejects.toThrow('shared environment')
+    expect((await service.getUnifiedSkillCatalog('writer'))[0].skillRoot).toBe(globalRoot)
+    expect((await service.loadSkillContent('writer', 'review'))?.content).toContain(
+      '# Global review'
+    )
+    expect(storedState).toEqual(stateBefore)
+
+    const tools = new SkillTools(service)
+    const view = await tools.handleSkillView('a', { name: 'review' })
+    expect(view.content).toContain('# Project A')
+    expect(view.contentResolution?.identity.sourceType).toBe('project')
+    expect(
+      (await tools.handleSkillView('a', { name: 'review', file_path: 'references/guide.md' }))
+        .content
+    ).toBe('Project A reference')
+    expect(
+      (await tools.handleSkillView('b', { name: 'review', file_path: 'references/guide.md' }))
+        .success
+    ).toBe(false)
+    await service.setActiveSkills('a', ['review'])
+    await service.deleteSkill('review', ['writer'])
+    expect(await service.getActiveSkills('a')).toEqual(['review'])
+    expect(fs.existsSync(path.join(rootA, 'SKILL.md'))).toBe(true)
+  })
+
+  it('refreshes session selection and skill tools from the persisted workspace', async () => {
+    await migrate()
+    const projectDir = path.join(temporaryRoot, 'project')
+    const root = writeSkill(path.join(projectDir, '.agents', 'skills'), 'local-only', '# Local')
+    sessions = [
+      { id: 'a', agentId: 'writer', projectDir },
+      { id: 'b', agentId: 'writer' }
+    ]
+    await service.setActiveSkills('a', ['local-only'])
+    expect(await service.getActiveSkills('a')).toEqual(['local-only'])
+    expect(await service.setActiveSkills('b', ['local-only'])).toEqual([])
+    const tools = new SkillTools(service)
+    expect(JSON.stringify(await tools.handleSkillList('a'))).toContain('local-only')
+    expect(JSON.stringify(await tools.handleSkillList('b'))).not.toContain('local-only')
+    fs.rmSync(root, { recursive: true })
+    expect(await service.getActiveSkills('a')).toEqual([])
+    await expect(
+      service.resolveFreshEffectiveSkillContents('writer', ['local-only'], { conversationId: 'a' })
+    ).rejects.toThrow('no longer available')
   })
 
   it('keeps official plugin activation available when a user Skill has the same name', async () => {

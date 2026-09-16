@@ -115,7 +115,6 @@ export async function clearYoBrowserSessionData(): Promise<void> {
         'indexdb',
         'localstorage',
         'serviceworkers',
-        'websql',
         'cachestorage'
       ]
     })

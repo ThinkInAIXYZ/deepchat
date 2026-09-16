@@ -1213,7 +1213,10 @@ describeIfSqlite('LiveDelegationRepository', () => {
       now: 120
     })
     const evaluationRef = settled.turn.evaluationRef!
-    const conflictingTapeIdentity = `${evaluationRef.tapeIdentity === '0'.repeat(64) ? '1' : '0'}${evaluationRef.tapeIdentity.slice(1)}`
+    // Flip the first hex char to guarantee a different Tape identity; the
+    // original ternary prepended '0' unconditionally, which was a no-op
+    // whenever the identity already started with '0' (~1/16 of runs).
+    const conflictingTapeIdentity = `${evaluationRef.tapeIdentity.startsWith('0') ? '1' : '0'}${evaluationRef.tapeIdentity.slice(1)}`
     db!
       .prepare(
         `UPDATE live_delegation_turns

@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest'
 import { reactive, ref } from 'vue'
+import type { ModelConfig } from '../../../src/shared/types/provider'
 import { ModelType } from '../../../src/shared/model'
 
 const createQueryCache = () => {
@@ -33,7 +34,7 @@ const setupStore = async (overrides?: {
     refreshAgentModels: vi.fn()
   }
   const modelConfigStore = {
-    getModelConfig: vi.fn(async () => null)
+    getModelConfig: vi.fn(async (): Promise<ModelConfig | null> => null)
   }
   const modelClient = {
     getDbProviderModels: vi.fn(async () => []),
@@ -41,6 +42,7 @@ const setupStore = async (overrides?: {
     getCustomModels: vi.fn(async () => []),
     getBatchModelStatus: vi.fn(async () => ({})),
     getModelList: vi.fn(async () => []),
+    getProviderModelConfigs: vi.fn(async () => []),
     updateModelStatus: vi.fn(async () => undefined),
     addCustomModel: vi.fn(async () => undefined),
     removeCustomModel: vi.fn(async () => true),
@@ -106,6 +108,7 @@ const setupStore = async (overrides?: {
   return {
     store,
     agentModelStore,
+    modelConfigStore,
     modelClient,
     providerStore
   }
@@ -126,6 +129,54 @@ const flushMicrotasks = async (times: number = 6) => {
 }
 
 describe('modelStore.refreshProviderModels', () => {
+  it('loads a large catalog without per-model config requests and preserves user overrides', async () => {
+    const models = Array.from({ length: 500 }, (_, index) => ({
+      id: `model-${index}`,
+      name: `Model ${index}`,
+      providerId: 'openai',
+      group: 'default'
+    }))
+    const { store, modelClient, modelConfigStore } = await setupStore({
+      modelClient: {
+        getDbProviderModels: vi.fn(async () => models),
+        getProviderModelConfigs: vi.fn(async () => [
+          { modelId: 'model-1', config: { vision: true } }
+        ])
+      }
+    })
+    modelConfigStore.getModelConfig.mockResolvedValue({
+      isUserDefined: true,
+      vision: true,
+      functionCall: true,
+      reasoning: false,
+      maxTokens: 4096,
+      contextLength: 32000,
+      type: ModelType.Chat
+    })
+
+    await store.ensureProviderModelsReady('openai')
+    expect(store.allProviderModels.value[0].models).toHaveLength(500)
+    expect(
+      store.allProviderModels.value[0].models.find((model) => model.id === 'model-1')?.vision
+    ).toBe(true)
+    expect(modelConfigStore.getModelConfig).toHaveBeenCalledExactlyOnceWith('model-1', 'openai')
+    expect(modelClient.getProviderModelConfigs).toHaveBeenCalledTimes(1)
+    await store.ensureProviderModelsReady('openai')
+    expect(modelClient.getProviderModelConfigs).toHaveBeenCalledTimes(1)
+  })
+
+  it('preserves individual config lookup when the bulk index fails', async () => {
+    const { store, modelConfigStore } = await setupStore({
+      modelClient: {
+        getDbProviderModels: vi.fn(async () => [{ id: 'model-1', providerId: 'openai' }]),
+        getProviderModelConfigs: vi.fn().mockRejectedValue(new Error('index unavailable'))
+      }
+    })
+    await store.ensureProviderModelsReady('openai')
+    expect(modelConfigStore.getModelConfig).toHaveBeenCalledExactlyOnceWith('model-1', 'openai')
+    expect(store.allProviderModels.value[0].models).toHaveLength(1)
+  })
+
   it('registers typed model listeners without legacy provider-db subscriptions', async () => {
     const { store, modelClient } = await setupStore()
 

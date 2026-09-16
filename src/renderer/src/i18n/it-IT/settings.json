@@ -2224,7 +2224,9 @@
         "succeeded": "Ready",
         "cancelled": "Cancelled",
         "failed": "Failed"
-      }
+      },
+      "terminalLabel": "Terminale di accesso",
+      "terminalHint": "Premi F6 per tornare ai controlli di autenticazione."
     },
     "terminal": {
       "title": "Terminale inizializzazione",

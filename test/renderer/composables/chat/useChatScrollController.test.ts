@@ -265,6 +265,30 @@ describe('useChatScrollController', () => {
     expect(controller.state.value.userOwned).toBe(true)
   })
 
+  it('keeps explicit earlier-history navigation above automatic bottom following', () => {
+    const { controller, epoch, getScrollTop } = setup()
+    controller.requestImmediate({
+      sessionEpoch: epoch,
+      reason: 'session-restore',
+      target: { kind: 'bottom' }
+    })
+    controller.notifyViewportScroll()
+    flushFrame()
+
+    controller.requestImmediate({
+      sessionEpoch: epoch,
+      reason: 'history-navigation',
+      target: { kind: 'absolute', top: 0 }
+    })
+    flushFrame()
+    controller.notifyViewportScroll()
+    expect(getScrollTop()).toBe(0)
+    expect(controller.notifyViewportResize()).toBeNull()
+    flushFrame()
+    expect(getScrollTop()).toBe(0)
+    controller.dispose()
+  })
+
   it('rejects resize-driven following when auto-scroll is disabled', () => {
     const { controller, epoch, writes, setAutoFollowEnabled } = setup()
     controller.requestImmediate({

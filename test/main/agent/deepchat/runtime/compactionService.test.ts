@@ -17,7 +17,7 @@ import type {
 import type { DeepChatAgentConfig } from '@shared/types/agent-interface'
 
 vi.mock('tokenx', () => ({
-  approximateTokenSize: vi.fn((text: string) => text.length)
+  estimateTokenCount: vi.fn((text: string) => text.length)
 }))
 
 vi.mock('@/agent/deepchat/runtime/contextBuilder', async (importOriginal) => {

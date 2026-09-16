@@ -20,6 +20,7 @@ import {
 import { createAcpPromptTerminalEvents } from '@/agent/acp/runtime/acpContentMapper'
 import {
   createState,
+  markStreamChanged,
   type DeepChatEventPublisher,
   type DeepChatSessionUpdatePublisher,
   type IoParams,
@@ -159,7 +160,7 @@ export class AcpCompatibilityProjectionAdapter implements AcpCompatibilityProjec
         ? block.extra.permissionType
         : 'all'
     markStreamingProviderPermissionResolved(block, granted, permissionType)
-    state.stream.dirty = true
+    markStreamChanged(state.stream)
     this.flushIfDirty(state)
   }
 

@@ -202,7 +202,8 @@ export class SkillExecutionAuthorityResolver implements SkillExecutionAuthorityP
       before.payload.agentId,
       before.payload.skillName,
       before.payload.executionPackage.environmentBindingId,
-      before.payload.sourceId
+      before.payload.sourceId,
+      before.payload.sourceType
     )
     const current = this.readAuthority(request)
     assertReadAuthorityUnchanged(before, current)
@@ -229,7 +230,8 @@ export class SkillExecutionAuthorityResolver implements SkillExecutionAuthorityP
       before.payload.agentId,
       before.payload.skillName,
       before.payload.executionPackage.environmentBindingId,
-      before.payload.sourceId
+      before.payload.sourceId,
+      before.payload.sourceType
     )
     if (
       canonicalJsonStringifyData(environment) !== canonicalJsonStringifyData(authority.environment)

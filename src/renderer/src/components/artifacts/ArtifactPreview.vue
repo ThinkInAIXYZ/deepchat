@@ -1,26 +1,25 @@
 <template>
-  <div>
-    <div
-      class="flex w-96 max-w-full break-all shadow-sm my-2 items-center gap-2 rounded-lg border bg-card text-card-foreground hover:bg-accent/50 cursor-pointer"
-      @click="handleClick"
+  <button
+    type="button"
+    class="flex w-96 max-w-full break-all shadow-sm my-2 items-center gap-2 rounded-lg border bg-card text-card-foreground text-left hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+    @click="handleClick"
+  >
+    <span
+      class="shrink-0 w-14 h-14 rounded-lg rounded-r-none inline-flex flex-row justify-center items-center bg-muted border-r"
     >
-      <div
-        class="shrink-0 w-14 h-14 rounded-lg rounded-r-none inline-flex flex-row justify-center items-center bg-muted border-r"
-      >
-        <Icon :icon="getArtifactIcon(block.artifact?.type)" class="w-5 h-5 text-muted-foreground" />
-      </div>
-      <div class="grow w-0">
-        <h3 class="text-sm font-medium leading-none tracking-tight truncate">
-          {{ block.artifact.title || displayTitle }}
-        </h3>
-        <p class="text-xs text-muted-foreground mt-0.5">{{ artifactDesc }}</p>
-      </div>
-      <div class="shrink-0 px-3 h-14 rounded-lg rounded-l-none flex justify-center items-center">
-        <Spinner v-if="props.loading" class="size-5 text-muted-foreground" />
-        <Icon v-else icon="lucide:chevron-right" class="w-5 h-5 text-muted-foreground" />
-      </div>
-    </div>
-  </div>
+      <Icon :icon="getArtifactIcon(block.artifact?.type)" class="w-5 h-5 text-muted-foreground" />
+    </span>
+    <span class="grow w-0">
+      <span class="block text-sm font-medium leading-none tracking-tight truncate">
+        {{ block.artifact.title || displayTitle }}
+      </span>
+      <span class="block text-xs text-muted-foreground mt-0.5">{{ artifactDesc }}</span>
+    </span>
+    <span class="shrink-0 px-3 h-14 rounded-lg rounded-l-none flex justify-center items-center">
+      <Spinner v-if="props.loading" class="size-5 text-muted-foreground" />
+      <Icon v-else icon="lucide:chevron-right" class="w-5 h-5 text-muted-foreground" />
+    </span>
+  </button>
 </template>
 
 <script setup lang="ts">

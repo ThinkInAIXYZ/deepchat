@@ -18,7 +18,7 @@ import {
   setMessageSkillActiveTurnContext
 } from '@/agent/deepchat/runtime/contextContributions'
 import { TRUNCATED_TOOL_CALL_ERROR } from '@/agent/deepchat/runtime/dispatch'
-import { approximateTokenSize } from 'tokenx'
+import { estimateTokenCount } from 'tokenx'
 import {
   TOOL_EXECUTION,
   type MCPToolDefinitionBase
@@ -31,7 +31,7 @@ import {
 import { hashJsonData } from '@/tape/domain/canonicalJson'
 
 vi.mock('tokenx', () => ({
-  approximateTokenSize: vi.fn((text: string) => {
+  estimateTokenCount: vi.fn((text: string) => {
     // Simple mock: 1 token per 4 characters
     return Math.ceil(text.length / 4)
   })
@@ -62,7 +62,7 @@ describe('estimateToolDefinitionTokens', () => {
 
     const serializedLegacyDefinition = JSON.stringify(legacyDefinition)
     expect(tokens).toBe(Math.ceil(serializedLegacyDefinition.length / 4))
-    expect(approximateTokenSize).toHaveBeenLastCalledWith(serializedLegacyDefinition)
+    expect(estimateTokenCount).toHaveBeenLastCalledWith(serializedLegacyDefinition)
   })
 })
 
@@ -2140,7 +2140,7 @@ describe('provider replay context projection', () => {
   })
 
   it('counts an opaque replay payload exactly once', () => {
-    vi.mocked(approximateTokenSize).mockClear()
+    vi.mocked(estimateTokenCount).mockClear()
 
     expect(
       estimateMessagesTokens([
@@ -2152,7 +2152,7 @@ describe('provider replay context projection', () => {
       ])
     ).toBe(Math.ceil('visible'.length / 4) + Math.ceil('opaque replay'.length / 4))
     expect(
-      vi.mocked(approximateTokenSize).mock.calls.filter(([value]) => value === 'opaque replay')
+      vi.mocked(estimateTokenCount).mock.calls.filter(([value]) => value === 'opaque replay')
     ).toHaveLength(1)
   })
 })

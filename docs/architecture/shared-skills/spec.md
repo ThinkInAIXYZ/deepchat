@@ -17,6 +17,12 @@ DeepChat stores each mutable Skill package once under the global Skills root. A 
 a logical binding to a Skill; no Agent-owned copy or generated link is created. Read-only bundled
 and Plugin-owned Skills stay in their provider roots but appear in the same global list.
 
+[Project Skills](../../features/project-skills/spec.md) are a separate, request-scoped overlay on this
+shared library. They are discovered from the selected workspace, can shadow shared names within
+that workspace, and have no shared assignment or extension state. They are excluded from global
+management, import/export, and deletion. Materialized project sources use default runtime settings
+and cannot inherit credentials from a same-named shared binding.
+
 The renderer exposes only:
 
 - `Skills` for the global list;

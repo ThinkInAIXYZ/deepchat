@@ -41,6 +41,7 @@ const mountApp = async (options?: {
   const setupAppIpcRuntime = vi.fn()
   const cleanupAppIpcRuntime = vi.fn()
   const route = reactive({
+    meta: {},
     name: routeName,
     path: routeName === 'welcome' ? '/welcome' : '/chat',
     fullPath: routeName === 'welcome' ? '/welcome' : '/chat'

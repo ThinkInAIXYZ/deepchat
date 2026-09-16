@@ -13,6 +13,7 @@ import { getLocaleDirection } from '@shared/locales'
 import type { DesktopSettings } from './settings'
 import {
   browserAttachCurrentWindowRoute,
+  browserFocusContentRoute,
   browserApplyImportRoute,
   browserClearSandboxDataRoute,
   browserDismissPreviewRoute,
@@ -397,6 +398,21 @@ export function createDesktopRoutes(deps: {
             input.timeoutMs,
             caller.windowId ?? undefined
           )
+        })
+      }
+    ],
+    [
+      browserFocusContentRoute.name,
+      async (rawInput, context) => {
+        const input = browserFocusContentRoute.input.parse(rawInput)
+        const caller = requireRendererCaller(context)
+        const active =
+          deps.desktopSessionBinding.getActiveId(caller.webContentsId) === input.sessionId
+        return browserFocusContentRoute.output.parse({
+          focused:
+            caller.windowId != null &&
+            active &&
+            browserPresenter.focusSessionBrowser(input.sessionId, caller.windowId)
         })
       }
     ],

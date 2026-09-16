@@ -16,6 +16,7 @@ import {
 } from './routes/acp-auth.routes'
 import {
   browserAttachCurrentWindowRoute,
+  browserFocusContentRoute,
   browserApplyImportRoute,
   browserClearSandboxDataRoute,
   browserDismissPreviewRoute,
@@ -859,6 +860,7 @@ const DEEPCHAT_ROUTE_CATALOG_PART_2 = {
   [browserGetStatusRoute.name]: browserGetStatusRoute,
   [browserLoadUrlRoute.name]: browserLoadUrlRoute,
   [browserAttachCurrentWindowRoute.name]: browserAttachCurrentWindowRoute,
+  [browserFocusContentRoute.name]: browserFocusContentRoute,
   [browserUpdateCurrentWindowBoundsRoute.name]: browserUpdateCurrentWindowBoundsRoute,
   [browserDetachRoute.name]: browserDetachRoute,
   [browserDestroyRoute.name]: browserDestroyRoute,

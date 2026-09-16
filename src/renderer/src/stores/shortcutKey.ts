@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { onMounted, ref } from 'vue'
+import { ref } from 'vue'
 import type { ShortcutKeySetting } from '@shared/types/desktop'
 import { createShortcutClient } from '@api/ShortcutClient'
 import { createConfigClient } from '../../api/ConfigClient'
@@ -32,9 +32,9 @@ export const useShortcutKeyStore = defineStore('shortcutKey', () => {
     await shortcutClient.destroy()
   }
 
-  onMounted(async () => {
-    await loadShortcutKeys()
-  })
+  // Load at store setup top level (not in a component lifecycle hook) so the data is
+  // fetched regardless of which component first uses the store. No cleanup semantics.
+  void loadShortcutKeys()
 
   return {
     shortcutKeys,

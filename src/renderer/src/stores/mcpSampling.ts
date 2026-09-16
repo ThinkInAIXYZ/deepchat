@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, getCurrentScope, onScopeDispose } from 'vue'
 import { createMcpClient } from '@api/McpClient'
 import type { McpSamplingDecision, McpSamplingRequestPayload } from '@shared/types/mcp'
 import type { RENDERER_MODEL_META } from '@shared/types/provider'
@@ -433,17 +433,19 @@ export const useMcpSamplingStore = defineStore('mcpSampling', () => {
     }
   }
 
-  onMounted(() => {
-    eventCleanups.push(mcpClient.onSamplingRequest(handleSamplingRequest))
-    eventCleanups.push(mcpClient.onSamplingCancelled(handleSamplingCancelled))
-    eventCleanups.push(mcpClient.onSamplingDecision(handleSamplingDecision))
-  })
+  // Subscribe at store setup top level (not in a component lifecycle hook) so global
+  // sampling events are not lost when the first consuming component unmounts.
+  eventCleanups.push(mcpClient.onSamplingRequest(handleSamplingRequest))
+  eventCleanups.push(mcpClient.onSamplingCancelled(handleSamplingCancelled))
+  eventCleanups.push(mcpClient.onSamplingDecision(handleSamplingDecision))
 
-  onUnmounted(() => {
-    while (eventCleanups.length > 0) {
-      eventCleanups.pop()?.()
-    }
-  })
+  if (getCurrentScope()) {
+    onScopeDispose(() => {
+      while (eventCleanups.length > 0) {
+        eventCleanups.pop()?.()
+      }
+    })
+  }
 
   return {
     request,

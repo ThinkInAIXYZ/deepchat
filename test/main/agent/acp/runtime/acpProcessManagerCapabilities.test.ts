@@ -43,6 +43,16 @@ vi.mock('electron', () => ({
   }
 }))
 
+const childProcessRegistryMock = vi.hoisted(() => ({
+  record: vi.fn(),
+  clear: vi.fn(),
+  reapStaleOnce: vi.fn().mockResolvedValue(null)
+}))
+
+vi.mock('@/agent/shared/process/childProcessRegistry', () => ({
+  childProcessRegistry: childProcessRegistryMock
+}))
+
 class MockChild extends EventEmitter {
   stdout = new PassThrough()
   stderr = new PassThrough()

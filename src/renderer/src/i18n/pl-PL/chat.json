@@ -1,5 +1,6 @@
 {
   "input": {
+    "suggestions": "Sugestie",
     "placeholder": "Zapytaj DeepChat o cokolwiek, {'@'} o wzmiankę o plikach, / o polecenia",
     "fileArea": "Obszar pliku",
     "inputArea": "Obszar wejściowy",
@@ -129,6 +130,7 @@
     "error": "Wyszukiwanie nie powiodło się"
   },
   "messages": {
+    "loadEarlier": "Wczytaj wcześniejsze wiadomości",
     "thinking": "Myśląc...",
     "rateLimitWaiting": "Osiągnięto limit stawek, czekam w kolejce...",
     "rateLimitCompactLoading": "Stawka ograniczona dla {seconds}...",

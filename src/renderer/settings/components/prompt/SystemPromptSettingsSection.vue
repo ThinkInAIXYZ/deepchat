@@ -15,7 +15,10 @@
         :disabled="currentPromptDirty || !loaded"
         @update:model-value="handleSystemPromptChange"
       >
-        <SelectTrigger class="w-32 border-border hover:bg-accent h-8!">
+        <SelectTrigger
+          :aria-label="t('promptSetting.selectSystemPrompt')"
+          class="w-32 border-border hover:bg-accent h-8!"
+        >
           <SelectValue :placeholder="t('promptSetting.selectSystemPrompt')" />
         </SelectTrigger>
         <SelectContent>

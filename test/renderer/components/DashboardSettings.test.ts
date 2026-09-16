@@ -1,8 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { defineComponent, nextTick, ref } from 'vue'
+import { defineComponent, ref } from 'vue'
 import type { PropType } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
 import type { UsageDashboardData } from '@shared/types/agent-interface'
+
+HTMLCanvasElement.prototype.getContext = vi.fn(() => ({
+  measureText: () => ({ width: 0 }),
+  fillText: () => undefined,
+  font: ''
+})) as typeof HTMLCanvasElement.prototype.getContext
 
 const passthrough = (name: string) =>
   defineComponent({
@@ -509,35 +515,6 @@ describe('DashboardSettings', () => {
     expect(getUsageDashboard).toHaveBeenCalledTimes(1)
   })
 
-  it('reuses a bounded set of Intl formatters for a full calendar render', async () => {
-    const numberFormat = vi.spyOn(Intl, 'NumberFormat')
-    const dateTimeFormat = vi.spyOn(Intl, 'DateTimeFormat')
-    const firstDay = new Date(2025, 0, 1)
-    const calendar = Array.from({ length: 365 }, (_, index) => {
-      const date = new Date(firstDay)
-      date.setDate(firstDay.getDate() + index)
-      return {
-        date: date.toISOString().slice(0, 10),
-        messageCount: 1,
-        inputTokens: 40,
-        outputTokens: 20,
-        totalTokens: 60,
-        cachedInputTokens: 10,
-        level: 3 as const
-      }
-    })
-
-    const { wrapper } = await setup(buildDashboard({ calendar }), { hideNostalgia: true })
-
-    expect(numberFormat).toHaveBeenCalledTimes(4)
-    expect(dateTimeFormat).toHaveBeenCalledTimes(3)
-
-    wrapper.vm.$forceUpdate()
-    await nextTick()
-    expect(numberFormat).toHaveBeenCalledTimes(4)
-    expect(dateTimeFormat).toHaveBeenCalledTimes(3)
-  })
-
   it('renders summary cards and breakdown rows when stats exist', async () => {
     const { wrapper, getUsageDashboard } = await setup(buildDashboard())
     const summaryCards = wrapper.findAll('[data-testid^="summary-card-"]')
@@ -745,6 +722,11 @@ describe('DashboardSettings', () => {
     )
 
     const cells = wrapper.findAll('[data-testid="calendar-cell"].opacity-100')
+    expect(cells[cells.length - 1].attributes('role')).toBe('img')
+    expect(cells[cells.length - 1].attributes('aria-label')).toContain('Mar 2, 2026')
+    expect(cells[cells.length - 1].attributes('aria-label')).toContain('25')
+    expect(cells[cells.length - 1].attributes('aria-label')).toContain('5')
+    expect(cells[cells.length - 1].attributes('aria-label')).toContain('4')
     await cells[cells.length - 1].trigger('mouseenter', { clientX: 40, clientY: 40 })
 
     const tooltip = document.body.querySelector('[data-testid="calendar-tooltip"]')

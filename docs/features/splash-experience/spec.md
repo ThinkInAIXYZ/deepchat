@@ -20,7 +20,9 @@ Startup should present a recognizable DeepChat loading composition while preserv
 
 ## Constraints
 
-- No BrowserWindow sizing, transparency, shape, shadow, or background changes.
+- Keep the BrowserWindow transparent with a transparent canvas. Loading and system-unlock states
+  use transparent document roots; manual unlock and recovery retain opaque form backgrounds.
+- Preserve BrowserWindow sizing, shape, shadow, and startup sequencing.
 - Use trusted local raw SVG assets only.
 - Do not expose secrets or alter unlock authorization behavior.
 

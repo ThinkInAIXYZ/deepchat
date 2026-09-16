@@ -1,5 +1,5 @@
 import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto'
-import { approximateTokenSize } from 'tokenx'
+import { estimateTokenCount } from 'tokenx'
 import type {
   SkillListInput,
   SkillListItem,
@@ -243,7 +243,7 @@ function wrapCatalogLines(lines: readonly string[]): string {
 }
 
 function estimateTokens(value: string): number {
-  return approximateTokenSize(value)
+  return estimateTokenCount(value)
 }
 
 function buildCatalogProjection(

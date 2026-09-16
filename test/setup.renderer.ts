@@ -132,6 +132,8 @@ const getDefaultDeepchatInvokeResult = (
         version: 0
       }
     case 'config.getShortcutKeys':
+    case 'device.getInfo':
+      return { info: { platform: 'darwin', accessibilitySupportEnabled: false } }
     case 'config.resetShortcutKeys':
       return {
         shortcuts: {},
@@ -472,6 +474,12 @@ vi.mock('@iconify/vue', () => ({
     template: '<span></span>'
   }
 }))
+
+HTMLCanvasElement.prototype.getContext = vi.fn(() => ({
+  measureText: () => ({ width: 0 }),
+  fillText: () => undefined,
+  font: ''
+})) as typeof HTMLCanvasElement.prototype.getContext
 
 // Mock window.api (preload exposed APIs)
 Object.defineProperty(window, 'electron', {

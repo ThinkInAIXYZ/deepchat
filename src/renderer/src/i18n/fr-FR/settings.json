@@ -1876,7 +1876,9 @@
         "succeeded": "Ready",
         "cancelled": "Cancelled",
         "failed": "Failed"
-      }
+      },
+      "terminalLabel": "Terminal de connexion",
+      "terminalHint": "Appuyez sur F6 pour revenir aux commandes d’authentification."
     },
     "terminal": {
       "close": "fermeture",

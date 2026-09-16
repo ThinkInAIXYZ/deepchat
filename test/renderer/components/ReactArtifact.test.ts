@@ -20,6 +20,7 @@ describe('ReactArtifact', () => {
     )
 
     const iframe = wrapper.get('[data-testid="react-artifact-iframe"]')
+    expect(iframe.attributes('title')).toBe('App')
     expect(iframe.classes()).toEqual(
       expect.arrayContaining(['html-iframe-wrapper', 'h-full', 'min-h-0', 'w-full'])
     )

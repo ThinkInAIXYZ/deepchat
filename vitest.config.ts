@@ -20,6 +20,13 @@ const TEST_MAX_WORKERS = 2
 export default defineConfig({
   test: {
     globals: true,
+    // electron-store 11 is ESM-only and gets externalized; inline it so its
+    // `electron` import resolves to the test mock instead of the real package.
+    server: {
+      deps: {
+        inline: ['electron-store']
+      }
+    },
     // Use projects to define different configurations for main and renderer tests
     // This allows each test suite to use the correct alias resolution
     projects: [
@@ -62,7 +69,14 @@ export default defineConfig({
           globals: true,
           testTimeout: TEST_TIMEOUT_MS,
           hookTimeout: TEST_TIMEOUT_MS,
-          maxWorkers: TEST_MAX_WORKERS
+          maxWorkers: TEST_MAX_WORKERS,
+          // electron-store 11 is ESM-only and would be externalized; inline it so
+          // its `electron` import resolves to the test mock, not the real package.
+          server: {
+            deps: {
+              inline: ['electron-store']
+            }
+          }
         },
         resolve: {
           alias: [

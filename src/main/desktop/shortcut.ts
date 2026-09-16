@@ -1,11 +1,5 @@
 import logger from '@shared/logger'
-import {
-  app,
-  globalShortcut,
-  Menu,
-  type BrowserWindow,
-  type MenuItemConstructorOptions
-} from 'electron'
+import { app, globalShortcut, Menu, BrowserWindow, type MenuItemConstructorOptions } from 'electron'
 
 import { SHORTCUT_EVENTS } from '../events'
 import { defaultShortcutKey } from './shortcutKeySettings'
@@ -256,6 +250,9 @@ export class ShortcutPresenter implements IShortcutPresenter {
   private closeFocusedWindow(): void {
     const focusedWindow = this.getFocusedWindow()
     if (!focusedWindow) {
+      // Auxiliary windows, such as plugin settings, are not owned by the chat presenter.
+      const auxiliaryWindow = BrowserWindow.getFocusedWindow()
+      if (auxiliaryWindow && !auxiliaryWindow.isDestroyed()) auxiliaryWindow.close()
       return
     }
 

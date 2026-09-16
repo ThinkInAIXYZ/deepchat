@@ -1,5 +1,5 @@
 <template>
-  <div class="flex min-h-0 flex-1 flex-col gap-3">
+  <div ref="memoryListRoot" class="flex min-h-0 flex-1 flex-col gap-3">
     <div class="flex flex-col gap-2 lg:flex-row lg:items-center">
       <Input
         v-model="searchQuery"
@@ -9,7 +9,10 @@
       />
       <div class="flex flex-wrap items-center gap-2">
         <Select v-model="categoryFilter">
-          <SelectTrigger class="h-9 w-44 text-xs">
+          <SelectTrigger
+            :aria-label="t('settings.deepchatAgents.memoryManager.categoryFilterLabel')"
+            class="h-9 w-44 text-xs"
+          >
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -33,7 +36,13 @@
           <Checkbox v-model:checked="includeArchived" />
           {{ t('settings.memory.redesign.includeArchived') }}
         </label>
-        <DcButton size="sm" class="h-9" :disabled="memoryDisabled || panelBusy" @click="openCreate">
+        <DcButton
+          data-testid="memory-add"
+          size="sm"
+          class="h-9"
+          :disabled="memoryDisabled || panelBusy"
+          @click="openCreate"
+        >
           <Icon icon="lucide:plus" class="mr-1.5 h-3.5 w-3.5" />
           {{ t('settings.memory.redesign.addMemory') }}
         </DcButton>
@@ -284,6 +293,7 @@ type DeleteRequest =
 const expandedMode = ref<PanelMode | null>(null)
 const expandedMemory = ref<MemoryItem | null>(null)
 const expandedPanelEl = ref<HTMLElement | null>(null)
+const memoryListRoot = ref<HTMLElement | null>(null)
 const pendingAction = ref<PendingPanelAction | null>(null)
 const closePrompt = ref(false)
 const panelDirty = ref(false)
@@ -351,47 +361,50 @@ const MemoryListRow = defineComponent({
       h(
         'div',
         {
-          role: 'button',
-          tabindex: rowProps.pending ? -1 : 0,
-          'aria-disabled': rowProps.pending ? 'true' : undefined,
           class: [
             'group w-full rounded-lg border px-3 py-2 text-left transition hover:bg-muted/60',
             rowProps.selected ? 'rounded-b-none border-border bg-muted/40' : 'border-border',
             rowProps.memory.status === 'archived' ? 'opacity-65' : '',
             rowProps.pending ? 'pointer-events-none' : ''
-          ],
-          onClick: () => {
-            if (!rowProps.pending) rowEmit('select')
-          },
-          onKeydown: (event: KeyboardEvent) => {
-            if (rowProps.pending) return
-            if (event.key === 'Enter' || event.key === ' ') {
-              event.preventDefault()
-              rowEmit('select')
-            }
-          }
+          ]
         },
         [
           h('div', { class: 'flex items-start justify-between gap-3' }, [
-            h('div', { class: 'min-w-0 flex-1' }, [
-              h('p', { class: 'line-clamp-2 wrap-break-word text-sm' }, rowProps.memory.content),
-              h(
-                'div',
-                {
-                  class:
-                    'mt-1 flex flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground'
-                },
-                [
-                  h('span', categoryLabel(rowProps.memory.category)),
-                  h('span', '·'),
-                  h('span', importanceDots(rowProps.memory.importance)),
-                  h('span', '·'),
-                  h('span', formatRelativeTime(rowProps.memory.createdAt, locale.value)),
-                  h('span', '·'),
-                  h('span', t(sourceLabelKey(rowProps.memory)))
-                ]
-              )
-            ]),
+            h(
+              'button',
+              {
+                type: 'button',
+                class:
+                  'min-w-0 flex-1 text-left rounded-sm focus-visible:ring-2 focus-visible:ring-ring',
+                disabled: rowProps.pending,
+                'data-memory-trigger': rowProps.memory.id,
+                'aria-expanded': rowProps.selected,
+                onClick: () => rowEmit('select')
+              },
+              [
+                h(
+                  'span',
+                  { class: 'block line-clamp-2 wrap-break-word text-sm' },
+                  rowProps.memory.content
+                ),
+                h(
+                  'span',
+                  {
+                    class:
+                      'mt-1 flex flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground'
+                  },
+                  [
+                    h('span', categoryLabel(rowProps.memory.category)),
+                    h('span', '·'),
+                    h('span', importanceDots(rowProps.memory.importance)),
+                    h('span', '·'),
+                    h('span', formatRelativeTime(rowProps.memory.createdAt, locale.value)),
+                    h('span', '·'),
+                    h('span', t(sourceLabelKey(rowProps.memory)))
+                  ]
+                )
+              ]
+            ),
             h(
               'div',
               {
@@ -410,6 +423,7 @@ const MemoryListRow = defineComponent({
                         size: 'sm',
                         class: 'h-7 px-2 text-xs',
                         'data-testid': 'memory-row-edit',
+                        'aria-label': `${t('common.edit')}: ${rowProps.memory.content}`,
                         disabled: rowProps.pending,
                         onClick: (event: MouseEvent) => {
                           event.stopPropagation()
@@ -425,6 +439,7 @@ const MemoryListRow = defineComponent({
                     variant: 'ghost',
                     size: 'sm',
                     class: 'h-7 px-2 text-xs',
+                    'aria-label': `${rowProps.memory.status === 'archived' ? t('settings.deepchatAgents.memoryManager.restore') : t('settings.memory.redesign.archive')}: ${rowProps.memory.content}`,
                     'data-testid':
                       rowProps.memory.status === 'archived'
                         ? 'memory-row-restore'
@@ -452,7 +467,7 @@ const MemoryListRow = defineComponent({
                     size: 'sm',
                     class:
                       'h-7 w-7 px-0 text-muted-foreground hover:text-destructive focus-visible:text-destructive',
-                    'aria-label': t('settings.deepchatAgents.memoryManager.deletePermanent'),
+                    'aria-label': `${t('settings.deepchatAgents.memoryManager.deletePermanent')}: ${rowProps.memory.content}`,
                     title: t('settings.deepchatAgents.memoryManager.deletePermanent'),
                     'data-testid': 'memory-row-delete',
                     disabled: rowProps.pending,
@@ -767,6 +782,7 @@ function scrollExpandedPanelIntoView(): void {
     const panel = expandedPanelEl.value
     if (panel && typeof panel.scrollIntoView === 'function') {
       panel.scrollIntoView({ block: 'nearest' })
+      panel.querySelector<HTMLElement>('[data-testid=memory-inline-panel]')?.focus()
     }
   })
 }
@@ -799,17 +815,42 @@ function requestClosePanel(): void {
 }
 
 function closePanel(): void {
+  const memoryId = expandedMemory.value?.id
+  const agentId = props.agentId
   expandedMode.value = null
   expandedMemory.value = null
   pendingAction.value = null
   closePrompt.value = false
   panelDirty.value = false
   panelBusy.value = false
+  void nextTick(() => {
+    if (props.agentId !== agentId) return
+    const trigger = Array.from(
+      memoryListRoot.value?.querySelectorAll<HTMLElement>('[data-memory-trigger]') ?? []
+    ).find((element) => element.dataset.memoryTrigger === memoryId)
+    const target =
+      trigger ?? memoryListRoot.value?.querySelector<HTMLElement>('[data-testid=memory-add]')
+    target?.focus()
+  })
+}
+
+async function recoverRowFocus(agentId: string, memoryId: string, opener: Element | null) {
+  await nextTick()
+  if (
+    props.agentId !== agentId ||
+    (document.activeElement !== document.body && document.activeElement !== opener)
+  )
+    return
+  const row = Array.from(
+    memoryListRoot.value?.querySelectorAll<HTMLElement>('[data-memory-trigger]') ?? []
+  ).find((element) => element.dataset.memoryTrigger === memoryId)
+  ;(row ?? memoryListRoot.value?.querySelector<HTMLElement>('[data-testid=memory-add]'))?.focus()
 }
 
 async function archive(memory: MemoryItem): Promise<void> {
   if (pendingIds.value.has(memory.id)) return
   const agentId = props.agentId
+  const opener = document.activeElement
   clearFeedback()
   setPending(memory.id, true)
   let shouldReload = false
@@ -828,6 +869,7 @@ async function archive(memory: MemoryItem): Promise<void> {
   } finally {
     if (props.agentId === agentId) {
       setPending(memory.id, false)
+      await recoverRowFocus(agentId, memory.id, opener)
       if (shouldReload) void refreshLoadedPages()
     }
   }
@@ -836,6 +878,7 @@ async function archive(memory: MemoryItem): Promise<void> {
 async function restore(memory: MemoryItem): Promise<void> {
   if (pendingIds.value.has(memory.id)) return
   const agentId = props.agentId
+  const opener = document.activeElement
   clearFeedback()
   setPending(memory.id, true)
   let shouldReload = false
@@ -854,6 +897,7 @@ async function restore(memory: MemoryItem): Promise<void> {
   } finally {
     if (props.agentId === agentId) {
       setPending(memory.id, false)
+      await recoverRowFocus(agentId, memory.id, opener)
       if (shouldReload) void refreshLoadedPages()
     }
   }

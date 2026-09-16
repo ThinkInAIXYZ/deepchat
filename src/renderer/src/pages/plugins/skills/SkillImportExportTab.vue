@@ -240,7 +240,13 @@
           </div>
         </div>
 
-        <div class="max-h-[48vh] overflow-y-auto rounded-md border">
+        <div
+          ref="importResults"
+          role="region"
+          tabindex="-1"
+          :aria-label="t('settings.skills.importExport.import')"
+          class="max-h-[48vh] overflow-y-auto rounded-md border"
+        >
           <label
             v-for="item in filteredImportItems"
             :key="item.sourcePath"
@@ -284,7 +290,11 @@
 
         <div class="space-y-2 rounded-md border px-3 py-3">
           <div class="text-sm font-medium">{{ t('settings.skills.importExport.strategy') }}</div>
-          <RadioGroup v-model="importStrategy" class="grid gap-2 sm:grid-cols-3">
+          <RadioGroup
+            v-model="importStrategy"
+            :aria-label="t('settings.skills.importExport.strategy')"
+            class="grid gap-2 sm:grid-cols-3"
+          >
             <label class="flex items-center gap-2 text-sm">
               <RadioGroupItem value="overwrite" :disabled="operationPending" />
               {{ t('settings.skills.importExport.overwrite') }}
@@ -366,7 +376,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, nextTick, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { onBeforeRouteLeave } from 'vue-router'
 import { Icon } from '@iconify/vue'
@@ -410,6 +420,7 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
+const importResults = ref<HTMLElement | null>(null)
 const skillClient = createSkillClient()
 const deviceClient = createDeviceClient()
 const projectClient = createProjectClient()
@@ -918,7 +929,12 @@ const refreshImportPreview = async (
 }
 
 const previewImport = async () => {
+  const opener = document.activeElement as HTMLElement | null
   await refreshImportPreview({ force: true })
+  await nextTick()
+  if (document.activeElement === document.body && opener?.isConnected) {
+    opener.focus({ preventScroll: true })
+  }
 }
 
 const executeImport = async () => {
@@ -927,6 +943,7 @@ const executeImport = async () => {
     retryKind.value = null
     return
   }
+  const opener = document.activeElement as HTMLElement | null
   const generation = beginOperation('import')
   if (generation === null) return
   const strategy = importStrategy.value
@@ -973,6 +990,15 @@ const executeImport = async () => {
       logFailure('[SkillImportExportTab] Failed to import skills', error)
       finishOperation(true)
       operationErrorMessage.value = t('common.error.requestFailed')
+    }
+  } finally {
+    await nextTick()
+    if (
+      generation === operationGeneration &&
+      importResults.value &&
+      (document.activeElement === document.body || document.activeElement === opener)
+    ) {
+      importResults.value.focus({ preventScroll: true })
     }
   }
 }

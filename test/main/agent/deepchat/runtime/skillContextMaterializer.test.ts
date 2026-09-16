@@ -102,7 +102,7 @@ describe('SkillContextMaterializer', () => {
       'shared',
       'session-only',
       'message-only'
-    ])
+    ], { conversationId: 'session-1' })
     expect(prepared.items.map(({ scope }) => scope)).toEqual(['session', 'session', 'message'])
   })
 

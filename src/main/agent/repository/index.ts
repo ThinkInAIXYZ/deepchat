@@ -44,7 +44,9 @@ export class AgentRepository {
         .map((session) => toAppSessionId(session.id))
 
     this.deepchat = new DeepChatAgentRepository({
-      rows: sqlitePresenter.agentsTable,
+      get rows() {
+        return sqlitePresenter.agentsTable
+      },
       listSessionIdsByAgent,
       retireMemoryNamespace: (agentId) => {
         const retiredClaims = memoryDatabase.agentMemoryTable.retireAgentMemoryNamespace(agentId)
@@ -57,7 +59,9 @@ export class AgentRepository {
       transaction: (operation) => sqlitePresenter.getDatabase().transaction(operation)()
     })
     this.acp = new AcpAgentRepository({
-      rows: sqlitePresenter.agentsTable,
+      get rows() {
+        return sqlitePresenter.agentsTable
+      },
       listSessionIdsByAgent
     })
   }

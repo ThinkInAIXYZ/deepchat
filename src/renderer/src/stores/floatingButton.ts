@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { ref, onMounted, onScopeDispose } from 'vue'
+import { ref, onScopeDispose } from 'vue'
 import { createConfigClient } from '../../api/ConfigClient'
 
 export const useFloatingButtonStore = defineStore('floatingButton', () => {
@@ -73,10 +73,8 @@ export const useFloatingButtonStore = defineStore('floatingButton', () => {
     return task
   }
 
-  // 在组件挂载时初始化
-  onMounted(() => {
-    void initializeState()
-  })
+  // 在 store setup 顶层初始化（不依赖组件生命周期钩子）
+  void initializeState()
 
   onScopeDispose(() => {
     removeFloatingButtonListener?.()

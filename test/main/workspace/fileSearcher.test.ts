@@ -9,9 +9,11 @@ const fffMock = vi.hoisted(() => ({
 }))
 
 vi.mock('@/platform/fileSearch/fffSearchService', () => ({
-  FffSearchService: vi.fn(() => ({
-    globFiles: fffMock.globFiles
-  }))
+  FffSearchService: vi.fn(function FffSearchService() {
+    return {
+      globFiles: fffMock.globFiles
+    }
+  })
 }))
 
 describe('workspace fileSearcher', () => {

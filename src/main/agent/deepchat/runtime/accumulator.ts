@@ -4,7 +4,7 @@ import type {
   ProviderUrlSourcePayload
 } from '@shared/types/core/llm-events'
 import type { ChatMessageProviderOptions } from '@shared/types/core/chat-message'
-import type { StreamState } from './types'
+import { markStreamChanged, type StreamState } from './types'
 
 const MAX_VISIBLE_SEARCH_PAGES = 6
 
@@ -144,7 +144,7 @@ export function accumulate(state: StreamState, event: LLMCoreStreamEvent): void 
       if (state.firstTokenTime === null) state.firstTokenTime = Date.now()
       const block = getCurrentBlock(state.blocks, 'content', event.provider_options)
       block.content += event.content
-      state.dirty = true
+      markStreamChanged(state)
       break
     }
     case 'reasoning': {
@@ -167,12 +167,12 @@ export function accumulate(state: StreamState, event: LLMCoreStreamEvent): void 
       }
       const reasoningTime = block.reasoning_time as { start: number; end: number }
       updateReasoningMetadata(state, reasoningTime.start, reasoningTime.end)
-      state.dirty = true
+      markStreamChanged(state)
       break
     }
     case 'plan': {
       if (finalizeTrailingPendingNarrativeBlocks(state.blocks)) {
-        state.dirty = true
+        markStreamChanged(state)
       }
       const revision = event.revision ?? (state.latestAgentPlanSnapshot?.revision ?? 0) + 1
       state.latestAgentPlanSnapshot = {
@@ -209,7 +209,7 @@ export function accumulate(state: StreamState, event: LLMCoreStreamEvent): void 
         executionOwner: event.tool_call_execution_owner ?? 'deepchat',
         providerOptions: event.provider_options
       })
-      state.dirty = true
+      markStreamChanged(state)
       break
     }
     case 'tool_call_chunk': {
@@ -229,7 +229,7 @@ export function accumulate(state: StreamState, event: LLMCoreStreamEvent): void 
             }
           }
         }
-        state.dirty = true
+        markStreamChanged(state)
       }
       break
     }
@@ -265,7 +265,7 @@ export function accumulate(state: StreamState, event: LLMCoreStreamEvent): void 
           })
         }
         state.pendingToolCalls.delete(event.tool_call_id)
-        state.dirty = true
+        markStreamChanged(state)
       }
       break
     }
@@ -296,12 +296,12 @@ export function accumulate(state: StreamState, event: LLMCoreStreamEvent): void 
         }
       }
       state.blocks.push(block)
-      state.dirty = true
+      markStreamChanged(state)
       break
     }
     case 'provider_url_source': {
       if (appendProviderUrlSource(state.blocks, event.provider_url_source)) {
-        state.dirty = true
+        markStreamChanged(state)
       }
       break
     }
@@ -318,7 +318,7 @@ export function accumulate(state: StreamState, event: LLMCoreStreamEvent): void 
         }
       }
       state.blocks.push(block)
-      state.dirty = true
+      markStreamChanged(state)
       break
     }
     case 'usage': {
@@ -354,7 +354,7 @@ export function accumulate(state: StreamState, event: LLMCoreStreamEvent): void 
         if (block.status === 'pending') block.status = 'error'
       }
       state.stopReason = 'error'
-      state.dirty = true
+      markStreamChanged(state)
       break
     }
     default:

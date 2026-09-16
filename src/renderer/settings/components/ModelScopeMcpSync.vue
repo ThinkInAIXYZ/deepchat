@@ -20,7 +20,9 @@
 
       <!-- 内联控件行 -->
       <div class="flex items-center gap-2 text-xs">
-        <span class="text-muted-foreground whitespace-nowrap">每页</span>
+        <span class="text-muted-foreground whitespace-nowrap">{{
+          t('settings.provider.modelscope.mcpSync.pageSize')
+        }}</span>
         <select
           v-model="syncOptions.page_size"
           class="w-16 h-6 text-xs px-1 border rounded bg-background border-border focus:outline-none focus:ring-1 focus:ring-primary/50"
@@ -30,14 +32,15 @@
           <option value="50">50</option>
           <option value="100">100</option>
         </select>
-        <span class="text-muted-foreground whitespace-nowrap">条，第</span>
+        <span class="text-muted-foreground whitespace-nowrap">{{
+          t('settings.provider.modelscope.mcpSync.pageNumber')
+        }}</span>
         <input
           v-model.number="syncOptions.page_number"
           type="number"
           min="1"
           class="w-16 h-6 text-xs px-1 border rounded bg-background border-border focus:outline-none focus:ring-1 focus:ring-primary/50"
         />
-        <span class="text-muted-foreground whitespace-nowrap">页</span>
         <DcButton
           @click="handleSync"
           :disabled="isSyncing"

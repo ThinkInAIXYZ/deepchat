@@ -59,6 +59,19 @@
       </DcButton>
     </div>
 
+    <button
+      v-if="!showPlaceholder"
+      type="button"
+      class="shrink-0 border-b px-3 py-1 text-left text-xs hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+      :aria-label="t('common.browser.enterContent')"
+      :aria-describedby="browserFocusHintId"
+      @click="focusBrowserContent"
+    >
+      {{ t('common.browser.enterContent') }}
+      <span :id="browserFocusHintId" class="ml-2 text-muted-foreground">{{
+        t('common.browser.returnFocus')
+      }}</span>
+    </button>
     <div ref="containerRef" class="relative min-h-0 flex-1 overflow-hidden">
       <BrowserPlaceholder v-if="showPlaceholder" class="absolute inset-0" />
     </div>
@@ -66,7 +79,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, useId, watch } from 'vue'
 import type { Rectangle } from 'electron'
 import { useResizeObserver } from '@vueuse/core'
 import { Icon } from '@iconify/vue'
@@ -89,6 +102,7 @@ const { t } = useI18n()
 const sidepanelStore = useSidepanelStore()
 const browserClient = createBrowserClient()
 
+const browserFocusHintId = useId()
 const containerRef = ref<HTMLElement | null>(null)
 const browserStatus = ref<YoBrowserStatus>({
   initialized: false,
@@ -382,6 +396,14 @@ const normalizeUrl = (value: string) => {
     return trimmed
   }
   return `https://${trimmed}`
+}
+
+const focusBrowserContent = async () => {
+  const sessionId = currentSessionId.value
+  if (!sessionId || !isBrowserPanelVisible.value) return
+  await ensureVisibleAttachment()
+  if (currentSessionId.value !== sessionId || !isBrowserPanelVisible.value) return
+  await callBrowserAction('focusContent', () => browserClient.focusContent(sessionId))
 }
 
 const navigate = async () => {

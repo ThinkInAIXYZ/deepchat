@@ -494,7 +494,7 @@ describe('DeepChat system prompt builder', () => {
       toolDefinitions: [],
       activeSkillNamesOverride: ['skill-a'],
       sessionActiveSkillNamesOverride: ['skill-a'],
-      sessionSkillBodiesOverride: [{ name: 'skill-a', content: 'exact materialized body' }],
+      sessionSkillBodiesOverride: [{ name: 'skill-a', content: 'exact materialized body \t\n\n\n' }],
       commandShell: POSIX_COMMAND_SHELL,
       resourceInstance: instance
     })
@@ -506,7 +506,7 @@ describe('DeepChat system prompt builder', () => {
         'These Session Skills are persistent context for this conversation. Follow them when relevant.',
         '',
         '### skill-a',
-        'exact materialized body'
+        'exact materialized body \t\n\n\n'
       ].join('\n')
     )
     await expect(

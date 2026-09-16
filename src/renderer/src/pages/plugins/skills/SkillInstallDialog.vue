@@ -25,8 +25,10 @@
         </TabsList>
 
         <TabsContent value="folder" class="mt-4">
-          <div
-            class="rounded-lg border-2 border-dashed p-8 text-center transition-colors"
+          <button
+            type="button"
+            :disabled="installing"
+            class="w-full rounded-lg border-2 border-dashed p-8 text-center transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             :class="
               installing
                 ? 'cursor-not-allowed opacity-60'
@@ -49,18 +51,20 @@
               v-else
               class="pointer-events-none mx-auto mb-2 size-10 text-muted-foreground"
             />
-            <p class="pointer-events-none text-sm text-muted-foreground">
+            <span class="pointer-events-none block text-sm text-muted-foreground">
               {{ t('settings.skills.install.folderHint') }}
-            </p>
-          </div>
+            </span>
+          </button>
           <p class="mt-2 text-xs text-muted-foreground/70">
             {{ t('settings.skills.install.folderTip') }}
           </p>
         </TabsContent>
 
         <TabsContent value="zip" class="mt-4">
-          <div
-            class="rounded-lg border-2 border-dashed p-8 text-center transition-colors"
+          <button
+            type="button"
+            :disabled="installing"
+            class="w-full rounded-lg border-2 border-dashed p-8 text-center transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             :class="
               installing
                 ? 'cursor-not-allowed opacity-60'
@@ -83,16 +87,19 @@
               v-else
               class="pointer-events-none mx-auto mb-2 size-10 text-muted-foreground"
             />
-            <p class="pointer-events-none text-sm text-muted-foreground">
+            <span class="pointer-events-none block text-sm text-muted-foreground">
               {{ t('settings.skills.install.zipHint') }}
-            </p>
-          </div>
+            </span>
+          </button>
         </TabsContent>
 
         <TabsContent value="url" class="mt-4 space-y-4">
           <div class="space-y-2">
             <Input
               v-model="installUrl"
+              :aria-label="t('settings.skills.install.tabUrl')"
+              :aria-invalid="Boolean(validationError)"
+              :aria-describedby="validationError ? validationErrorId : undefined"
               :placeholder="t('settings.skills.install.urlPlaceholder')"
               :disabled="installing"
             />
@@ -111,8 +118,13 @@
         </TabsContent>
       </Tabs>
 
+      <p role="status" aria-live="polite" class="sr-only">
+        {{ installing ? t('settings.skills.install.installing') : '' }}
+      </p>
       <div
         v-if="validationError"
+        :id="validationErrorId"
+        role="alert"
         class="rounded-md border border-destructive/30 px-3 py-2 text-sm text-destructive"
       >
         {{ validationError }}
@@ -137,7 +149,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, shallowRef, watch } from 'vue'
+import { computed, nextTick, ref, shallowRef, useId, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
 import { Spinner } from '@shadcn/components/ui/spinner'
@@ -182,6 +194,7 @@ const isOpen = computed({
 
 const activeTab = ref('folder')
 const installUrl = ref('')
+const validationErrorId = useId()
 const validationError = ref('')
 const operationError = ref<string | null>(null)
 const { status: installStatus, run: runInstall, reset: resetInstallStatus } = useDcFormSubmit()
@@ -205,6 +218,14 @@ let pickerRequestId = 0
 let installRequestId = 0
 let installGeneration = 0
 const installing = ref(false)
+let installOpener: HTMLElement | null = null
+watch(installing, async (pending) => {
+  if (pending) return
+  await nextTick()
+  if (props.open && !conflictDialogOpen.value && document.activeElement === document.body) {
+    installOpener?.focus({ preventScroll: true })
+  }
+})
 
 const isCurrentContext = (version: number) => props.open && version === contextVersion.value
 
@@ -215,6 +236,7 @@ const logFailure = (message: string, error: unknown) => {
 const beginInstall = (): number | null => {
   if (installing.value) return null
   const generation = ++installGeneration
+  installOpener = document.activeElement as HTMLElement | null
   installing.value = true
   return generation
 }

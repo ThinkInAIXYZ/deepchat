@@ -203,6 +203,24 @@ describe('BuiltinKnowledgeSettings', () => {
     vi.clearAllMocks()
   })
 
+  it('toggles from the header and chevron without coupling the enable switch', async () => {
+    const { wrapper } = await setup()
+    const toggle = wrapper.get('button[aria-expanded]')
+    const header = toggle.element.parentElement!
+    const chevron = header.querySelector('icon-stub[icon="lucide:chevron-down"]')!
+    chevron.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    await flushPromises()
+    expect(toggle.attributes('aria-expanded')).toBe('true')
+    await toggle.trigger('click')
+    expect(toggle.attributes('aria-expanded')).toBe('false')
+    header.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    await flushPromises()
+    expect(toggle.attributes('aria-expanded')).toBe('true')
+    header.querySelector('switch-stub')!.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    await flushPromises()
+    expect(toggle.attributes('aria-expanded')).toBe('true')
+  })
+
   it('loads built-in knowledge configs from ConfigClient', async () => {
     const { wrapper, configClient, mcpStore } = await setup()
 

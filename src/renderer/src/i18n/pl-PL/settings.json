@@ -2205,7 +2205,9 @@
         "succeeded": "Ready",
         "cancelled": "Cancelled",
         "failed": "Failed"
-      }
+      },
+      "terminalLabel": "Terminal logowania",
+      "terminalHint": "Naciśnij F6, aby wrócić do elementów sterowania uwierzytelnianiem."
     },
     "terminal": {
       "title": "Terminal inicjujący",

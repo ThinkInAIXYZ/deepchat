@@ -92,10 +92,12 @@ describe('DatabaseInitializer', () => {
 
     const MainDatabase = vi
       .fn()
-      .mockImplementationOnce(() => {
+      .mockImplementationOnce(function () {
         throw new Error('table deepchat_sessions has no column named reasoning_visibility')
       })
-      .mockImplementationOnce(() => presenterInstance)
+      .mockImplementationOnce(function () {
+        return presenterInstance
+      })
     const classifySchemaError = vi.fn().mockReturnValue({
       reason: 'missing-column',
       dedupeKey: 'missing-column:reasoning_visibility'
@@ -132,7 +134,9 @@ describe('DatabaseInitializer', () => {
       close: vi.fn()
     }
 
-    const MainDatabase = vi.fn().mockImplementation(() => presenterInstance)
+    const MainDatabase = vi.fn().mockImplementation(function () {
+      return presenterInstance
+    })
     const { initializer, repairSQLiteDatabaseFile } = await createInitializerWithMocks({
       MainDatabase
     })
@@ -152,7 +156,9 @@ describe('DatabaseInitializer', () => {
       close: vi.fn()
     }
 
-    const MainDatabase = vi.fn().mockImplementation(() => presenterInstance)
+    const MainDatabase = vi.fn().mockImplementation(function () {
+      return presenterInstance
+    })
     const { initializer, repairSQLiteDatabaseFile, observe } = await createInitializerWithMocks({
       MainDatabase
     })
@@ -191,8 +197,12 @@ describe('DatabaseInitializer', () => {
 
     const MainDatabase = vi
       .fn()
-      .mockImplementationOnce(() => driftedPresenter)
-      .mockImplementationOnce(() => repairedPresenter)
+      .mockImplementationOnce(function () {
+        return driftedPresenter
+      })
+      .mockImplementationOnce(function () {
+        return repairedPresenter
+      })
 
     const { initializer, repairSQLiteDatabaseFile } = await createInitializerWithMocks({
       MainDatabase
@@ -230,8 +240,12 @@ describe('DatabaseInitializer', () => {
 
     const MainDatabase = vi
       .fn()
-      .mockImplementationOnce(() => driftedPresenter)
-      .mockImplementationOnce(() => stillDriftedPresenter)
+      .mockImplementationOnce(function () {
+        return driftedPresenter
+      })
+      .mockImplementationOnce(function () {
+        return stillDriftedPresenter
+      })
 
     const { initializer, repairSQLiteDatabaseFile, observe } = await createInitializerWithMocks({
       MainDatabase
@@ -275,7 +289,9 @@ describe('DatabaseInitializer', () => {
       close: vi.fn()
     }
 
-    const MainDatabase = vi.fn().mockImplementation(() => presenterInstance)
+    const MainDatabase = vi.fn().mockImplementation(function () {
+      return presenterInstance
+    })
     const { initializer, repairSQLiteDatabaseFile } = await createInitializerWithMocks({
       MainDatabase
     })
@@ -287,7 +303,7 @@ describe('DatabaseInitializer', () => {
   })
 
   it('does not attempt schema repair for destructive database errors', async () => {
-    const MainDatabase = vi.fn().mockImplementation(() => {
+    const MainDatabase = vi.fn().mockImplementation(function () {
       throw new Error('database disk image is malformed')
     })
     const isDestructiveDatabaseError = vi.fn().mockReturnValue(true)
@@ -317,7 +333,7 @@ describe('DatabaseInitializer', () => {
   })
 
   it('classifies schema failures without persisting schema object names', async () => {
-    const MainDatabase = vi.fn().mockImplementation(() => {
+    const MainDatabase = vi.fn().mockImplementation(function () {
       throw new Error('no such column: private_column_name')
     })
     const classifySchemaError = vi.fn().mockReturnValue({
@@ -354,8 +370,10 @@ describe('DatabaseInitializer', () => {
     }
     const MainDatabase = vi
       .fn()
-      .mockImplementationOnce(() => driftedPresenter)
-      .mockImplementationOnce(() => {
+      .mockImplementationOnce(function () {
+        return driftedPresenter
+      })
+      .mockImplementationOnce(function () {
         throw new Error('database is locked')
       })
     const { initializer, observe } = await createInitializerWithMocks({ MainDatabase })
@@ -378,7 +396,9 @@ describe('DatabaseInitializer', () => {
       diagnoseSchema: vi.fn().mockResolvedValue(healthyDiagnosis),
       close: vi.fn()
     }
-    const MainDatabase = vi.fn().mockImplementation(() => presenterInstance)
+    const MainDatabase = vi.fn().mockImplementation(function () {
+      return presenterInstance
+    })
     const observe = vi.fn(() => {
       throw new Error('diagnostic sink failed')
     })
@@ -394,7 +414,9 @@ describe('DatabaseInitializer', () => {
       diagnoseSchema: vi.fn().mockResolvedValue(healthyDiagnosis),
       close: vi.fn()
     }
-    const MainDatabase = vi.fn().mockImplementation(() => presenterInstance)
+    const MainDatabase = vi.fn().mockImplementation(function () {
+      return presenterInstance
+    })
     const observe = vi.fn().mockRejectedValue(new Error('diagnostic sink failed'))
     const { initializer } = await createInitializerWithMocks({ MainDatabase, observe })
     const unhandledRejection = vi.fn()
@@ -416,7 +438,9 @@ describe('DatabaseInitializer', () => {
       diagnoseSchema: vi.fn().mockResolvedValue(healthyDiagnosis),
       close: vi.fn()
     }
-    const MainDatabase = vi.fn().mockImplementation(() => presenterInstance)
+    const MainDatabase = vi.fn().mockImplementation(function () {
+      return presenterInstance
+    })
     const now = vi.fn().mockReturnValueOnce(100).mockReturnValueOnce(99)
     const { initializer, observe } = await createInitializerWithMocks({ MainDatabase, now })
 
@@ -432,7 +456,9 @@ describe('DatabaseInitializer', () => {
       diagnoseSchema: vi.fn().mockResolvedValue(healthyDiagnosis),
       close: vi.fn()
     }
-    const MainDatabase = vi.fn().mockImplementation(() => presenterInstance)
+    const MainDatabase = vi.fn().mockImplementation(function () {
+      return presenterInstance
+    })
     const now = vi.fn(() => {
       throw new Error('clock unavailable')
     })
@@ -450,7 +476,9 @@ describe('DatabaseInitializer', () => {
       diagnoseSchema: vi.fn().mockResolvedValue(healthyDiagnosis),
       close: vi.fn()
     }
-    const MainDatabase = vi.fn().mockImplementation(() => presenterInstance)
+    const MainDatabase = vi.fn().mockImplementation(function () {
+      return presenterInstance
+    })
     const now = vi
       .fn()
       .mockReturnValueOnce(0)

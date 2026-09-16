@@ -189,6 +189,57 @@ describe('ProviderApiConfig', () => {
     vi.clearAllMocks()
   })
 
+  it('shows key status errors, redacts the key, and clears them after a credential update', async () => {
+    const { wrapper, providerClient } = await setup({ provider: createProvider({ apiKey: '' }) })
+    providerClient.getKeyStatus.mockRejectedValueOnce(
+      new Error(
+        "Error invoking remote method 'deepchat:route:invoke': Error: DeepSeek API key check failed: 401 - invalid secret-key"
+      )
+    )
+    await wrapper.setProps({ provider: createProvider({ apiKey: 'secret-key' }) })
+    await flushPromises()
+    const error = wrapper.get('[data-testid="provider-key-status-error"]')
+    expect(error.attributes('role')).toBe('alert')
+    expect(error.text()).toContain('401')
+    expect(error.text()).not.toContain('secret-key')
+    expect(error.text()).not.toContain('deepchat:route:invoke')
+
+    providerClient.getKeyStatus.mockResolvedValueOnce({ usage: '$1' })
+    await wrapper.setProps({ provider: createProvider({ apiKey: 'replacement-key' }) })
+    await flushPromises()
+    expect(wrapper.find('[data-testid="provider-key-status-error"]').exists()).toBe(false)
+    expect(wrapper.text()).toContain('$1')
+  })
+
+  it('ignores late key status responses after switching credentials or providers', async () => {
+    const { wrapper, providerClient } = await setup({ provider: createProvider({ apiKey: '' }) })
+    let rejectOld!: (error: Error) => void
+    providerClient.getKeyStatus.mockImplementationOnce(
+      () =>
+        new Promise((_resolve, reject) => {
+          rejectOld = reject
+        })
+    )
+    await wrapper.setProps({ provider: createProvider({ apiKey: 'old-key' }) })
+    await wrapper.setProps({ provider: createProvider({ id: 'openai', apiKey: 'other-key' }) })
+    rejectOld(new Error('401 old key failed'))
+    await flushPromises()
+    expect(wrapper.find('[data-testid="provider-key-status-error"]').exists()).toBe(false)
+
+    let resolveOld!: (status: { usage: string }) => void
+    providerClient.getKeyStatus.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveOld = resolve
+        })
+    )
+    await wrapper.setProps({ provider: createProvider({ apiKey: 'old-key' }) })
+    await wrapper.setProps({ provider: createProvider({ apiKey: '' }) })
+    resolveOld({ usage: '$999' })
+    await flushPromises()
+    expect(wrapper.text()).not.toContain('$999')
+  })
+
   it('shows a locked Base URL display for built-in providers outside the allowlist', async () => {
     const { wrapper, providerClient } = await setup()
 

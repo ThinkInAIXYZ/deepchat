@@ -40,18 +40,15 @@ const createSessionState = (): WorkspaceSessionState => ({
 export const useSidepanelStore = defineStore('sidepanel', () => {
   const viewportWidth = ref(typeof window === 'undefined' ? 1548 : window.innerWidth)
 
-  const resolveMaxWidth = () => {
-    return Math.min(960, Math.round(viewportWidth.value * 0.62))
-  }
+  const maxWidth = computed(() => Math.min(960, Math.round(viewportWidth.value * 0.62)))
+  const minWidth = computed(() => Math.min(360, maxWidth.value))
 
   const clampWidth = (nextWidth: number) => {
-    const maxWidth = resolveMaxWidth()
-    const minWidth = Math.min(360, maxWidth)
     const widthValue = Number(nextWidth)
     if (!Number.isFinite(widthValue)) {
-      return Math.min(maxWidth, Math.max(minWidth, 520))
+      return Math.min(maxWidth.value, Math.max(minWidth.value, 520))
     }
-    return Math.min(maxWidth, Math.max(minWidth, Math.round(widthValue)))
+    return Math.min(maxWidth.value, Math.max(minWidth.value, Math.round(widthValue)))
   }
 
   const open = ref(false)
@@ -275,6 +272,8 @@ export const useSidepanelStore = defineStore('sidepanel', () => {
     mcpAppPreviewOwnerId,
     tapeInspectorOpenRequest,
     width: normalizedWidth,
+    minWidth,
+    maxWidth,
     navCollapsed,
     navWidth,
     setNavWidth,

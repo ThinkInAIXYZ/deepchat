@@ -2,6 +2,7 @@
   <div class="flex h-full min-h-0 w-full overflow-hidden" data-testid="react-artifact-root">
     <iframe
       ref="iframeRef"
+      :title="block.artifact.title || t('artifacts.reactComponent')"
       :srcdoc="htmlContent"
       class="html-iframe-wrapper h-full min-h-0 w-full"
       sandbox="allow-scripts"
@@ -11,6 +12,8 @@
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n'
+const { t } = useI18n()
 import { ref, onMounted, computed } from 'vue'
 import { formatTemplate } from './ReactTemplate'
 

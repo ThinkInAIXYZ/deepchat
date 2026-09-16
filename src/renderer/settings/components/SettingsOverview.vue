@@ -119,9 +119,15 @@
               <DcBadge variant="outline">{{ getActivityCategoryLabel(activity.category) }}</DcBadge>
             </TableCell>
             <TableCell class="min-w-0">
-              <span class="line-clamp-2 text-sm">
-                {{ t(activity.summaryKey, activity.summaryParams) }}
-              </span>
+              <button
+                type="button"
+                class="w-full rounded-sm text-start text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                @click.stop="openActivity(activity)"
+              >
+                <span class="line-clamp-2">
+                  {{ t(activity.summaryKey, activity.summaryParams) }}
+                </span>
+              </button>
             </TableCell>
           </TableRow>
         </TableBody>

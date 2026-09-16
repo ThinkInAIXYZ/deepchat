@@ -59,7 +59,7 @@
             </KbdGroup>
 
             <div
-              class="ml-auto flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100"
+              class="ml-auto flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
               :class="{ 'opacity-100': recordingShortcutId === shortcut.id }"
             >
               <DcButton
@@ -69,6 +69,7 @@
                 size="icon"
                 class="h-8 w-8 text-muted-foreground hover:text-primary"
                 :tooltip="t('common.edit')"
+                :aria-label="`${t('common.edit')}: ${t(shortcut.label)}`"
                 @click.stop="startRecording(shortcut.id)"
               >
                 <Icon icon="lucide:pencil" class="h-4 w-4" />
@@ -80,6 +81,7 @@
                 size="icon"
                 class="h-8 w-8 text-muted-foreground hover:text-destructive"
                 :tooltip="t('settings.shortcuts.clearShortcut')"
+                :aria-label="`${t('settings.shortcuts.clearShortcut')}: ${t(shortcut.label)}`"
                 @click.stop="clearShortcut(shortcut.id)"
               >
                 <Icon icon="lucide:x" class="h-4 w-4" />
@@ -88,6 +90,7 @@
           </div>
           <div
             v-if="recordingShortcutId === shortcut.id"
+            role="status"
             class="mt-1 text-xs"
             :class="shortcutError ? 'text-destructive' : 'text-muted-foreground'"
           >

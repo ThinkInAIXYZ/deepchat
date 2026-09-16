@@ -14,6 +14,7 @@ import type {
   PendingToolInteraction,
   StreamState
 } from './types'
+import { markStreamChanged } from './types'
 import type { LoopRun } from '@/agent/deepchat/loop/loopRun'
 import type { RunLifecycleCoordinator } from './runLifecycleCoordinator'
 import type { MessageProjectionService } from './messageProjectionService'
@@ -207,7 +208,7 @@ export class ProviderPermissionCoordinator {
     const streamState = ownerRun.streamState as StreamState
     if (Array.isArray(streamState.blocks)) {
       if (applyProviderPermissionProjection(streamState.blocks, input, projection)) {
-        streamState.dirty = true
+        markStreamChanged(streamState)
       }
     }
   }

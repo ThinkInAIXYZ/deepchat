@@ -1,4 +1,4 @@
-import { approximateTokenSize } from 'tokenx'
+import { estimateTokenCount } from 'tokenx'
 
 import type {
   LightOcrDocumentPage,
@@ -27,7 +27,7 @@ export const PDF_OCR_ARTIFACT_REVISION = [
   'page-heading-v1',
   'page-prefix-truncation-v1',
   'unicode-normalization-v1',
-  'tokenx=0.4.1',
+  'tokenx=2.1.0',
   `max-characters=${ATTACHMENT_OCR_MAX_TEXT_CHARACTERS}`
 ].join(';')
 
@@ -339,7 +339,7 @@ export function isValidDocumentOcrArtifact(
 
 export function estimateDocumentOcrTokens(text: string): number {
   try {
-    const estimate = approximateTokenSize(text)
+    const estimate = estimateTokenCount(text)
     if (Number.isFinite(estimate) && estimate >= 0 && (text.length === 0 || estimate > 0)) {
       return Math.ceil(estimate)
     }

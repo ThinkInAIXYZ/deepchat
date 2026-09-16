@@ -1,5 +1,6 @@
 {
   "input": {
+    "suggestions": "Saran",
     "placeholder": "Kirim pesan ke DeepChat, {'@'} bisa referensi filenya, / bisa pakai perintah",
     "fileArea": "wilayah berkas",
     "inputArea": "daerah masukan",
@@ -129,6 +130,7 @@
     "error": "Pencarian gagal"
   },
   "messages": {
+    "loadEarlier": "Muat pesan sebelumnya",
     "thinking": "Berpikir...",
     "rateLimitWaiting": "Minta batas frekuensi, menunggu dalam antrian...",
     "rateLimitCompactLoading": "Batas kecepatan ({seconds} detik)",

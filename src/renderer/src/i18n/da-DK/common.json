@@ -1,4 +1,5 @@
 {
+  "skipToContent": "Spring til indhold",
   "notifications": {
     "label": "Notifikationer",
     "actionFailed": "Handlingen mislykkedes. Prøv igen.",
@@ -137,7 +138,9 @@
     "addressPlaceholder": "Enter a URL",
     "enterUrlDescription": "Indtast URL'en i adresselinjen ovenfor for at få adgang til webstedet",
     "enterUrlToStart": "Indtast URL'en for at begynde at besøge",
-    "name": "Yo browser"
+    "name": "Yo browser",
+    "enterContent": "Gå til websiden",
+    "returnFocus": "F6 vender tilbage til browserens kontroller"
   },
   "size": {
     "bytes": "{count} byte"
@@ -153,5 +156,16 @@
     "none": "Intet projekt",
     "recent": "Seneste projekter",
     "openFolder": "Åbn mappe..."
+  },
+  "diff": {
+    "oldLine": "Gammel linje",
+    "newLine": "Ny linje",
+    "change": "Ændring",
+    "content": "Indhold",
+    "add": "Tilføjet",
+    "del": "Fjernet",
+    "context": "Uændret",
+    "hunk": "Ændringsområde",
+    "meta": "Metadata"
   }
 }

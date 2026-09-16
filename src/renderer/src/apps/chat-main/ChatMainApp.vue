@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref, watch, onBeforeUnmount, computed, provide } from 'vue'
+import { onMounted, ref, watch, onBeforeUnmount, computed, provide, nextTick } from 'vue'
 import { useEventListener, useMediaQuery } from '@vueuse/core'
 import { RouterView, useRoute, useRouter } from 'vue-router'
 import { createConfigClient } from '@api/ConfigClient'
@@ -60,7 +60,19 @@ const DEV_WELCOME_OVERRIDE_KEY = '__deepchat_dev_force_welcome'
 const performanceReporter = new RendererPerformanceReporter()
 provide(RENDERER_PERFORMANCE_REPORTER, performanceReporter)
 
+const mainContent = ref<HTMLElement | null>(null)
 const route = useRoute()
+watch(
+  () => route.name,
+  async (name, previousName) => {
+    if (!previousName || name === previousName) return
+    await nextTick()
+    if (route.name === name && document.activeElement === document.body) {
+      mainContent.value?.focus({ preventScroll: true })
+    }
+  },
+  { flush: 'post' }
+)
 const configClient = createConfigClient()
 const notificationClient = createNotificationClient()
 const onboardingClient = createOnboardingClient()
@@ -543,13 +555,19 @@ onBeforeUnmount(() => {
     :class="isWinMacOS ? 'bg-window-background' : 'bg-background'"
   >
     <TooltipProvider :delay-duration="200" :ignore-non-keyboard-focus="true">
+      <button type="button" class="skip-to-content" @click="mainContent?.focus()">
+        {{ t('common.skipToContent') }}
+      </button>
       <AppBar />
       <div class="flex flex-row h-0 grow relative overflow-hidden px-px py-px" :dir="langStore.dir">
         <div class="flex flex-row w-full h-full">
           <WindowSideBar></WindowSideBar>
 
           <!-- Main content area -->
-          <div
+          <main
+            ref="mainContent"
+            tabindex="-1"
+            :aria-label="t(String(route.meta.titleKey || 'routes.chat'))"
             data-testid="app-main"
             class="flex h-full min-h-0 flex-1 min-w-0 flex-col overflow-hidden rounded-tl-xl border-l border-t border-black/20 bg-background dark:border-white/10"
           >
@@ -557,7 +575,7 @@ onBeforeUnmount(() => {
             <div class="min-h-0 flex-1">
               <RouterView v-if="isStartupRouteReady" />
             </div>
-          </div>
+          </main>
         </div>
       </div>
       <!-- Global message dialog -->

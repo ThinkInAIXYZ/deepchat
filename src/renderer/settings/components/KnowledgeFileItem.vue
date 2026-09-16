@@ -25,6 +25,8 @@
     <div class="ml-auto flex align-center">
       <div
         class="h-7 w-7 flex items-center justify-center rounded-full transition-colors"
+        role="status"
+        :aria-label="`${file.name}: ${file.metadata.errorReason || getStatusTitle(file.status)}`"
         :title="file.metadata.errorReason || getStatusTitle(file.status)"
       >
         <Icon
@@ -65,6 +67,7 @@
         :disabled="disabled"
         class="h-7 w-7 flex items-center justify-center rounded-full hover:bg-blue-100 transition-colors"
         :tooltip="t(`settings.knowledgeBase.reAdd`)"
+        :aria-label="`${t('settings.knowledgeBase.reAdd')}: ${file.name}`"
         v-if="file.status !== 'processing'"
         @click="reAddDialogOpen = true"
       >
@@ -75,8 +78,8 @@
         :title="t('settings.knowledgeBase.reAddFile.title')"
         :description="t('settings.knowledgeBase.reAddFile.content', { fileName: file.name })"
         :danger="false"
-        confirm-label="t('common.confirm')"
-        cancel-label="t('common.cancel')"
+        :confirm-label="t('common.confirm')"
+        :cancel-label="t('common.cancel')"
         @update:open="reAddDialogOpen = $event"
         @confirm="reAddFile"
         @cancel="reAddDialogOpen = false"
@@ -88,6 +91,7 @@
         :disabled="disabled"
         class="h-7 w-7 flex items-center justify-center rounded-full hover:bg-blue-100 transition-colors"
         :tooltip="t(`settings.knowledgeBase.delete`)"
+        :aria-label="`${t('settings.knowledgeBase.delete')}: ${file.name}`"
         @click="deleteDialogOpen = true"
       >
         <Icon icon="lucide:trash" class="text-base text-red-400" />
@@ -97,8 +101,8 @@
         :title="t('settings.knowledgeBase.deleteFile.title')"
         :description="t('settings.knowledgeBase.deleteFile.content', { fileName: file.name })"
         :danger="true"
-        confirm-label="t('common.confirm')"
-        cancel-label="t('common.cancel')"
+        :confirm-label="t('common.confirm')"
+        :cancel-label="t('common.cancel')"
         @update:open="deleteDialogOpen = $event"
         @confirm="deleteFile"
         @cancel="deleteDialogOpen = false"

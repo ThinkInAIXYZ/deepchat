@@ -154,7 +154,11 @@ let editorInstance: Editor | null = null
 const getEditor = () => editorInstance
 const conversationId = computed(() => props.sessionId)
 const skillAgentId = computed(() => props.agentId?.trim() || 'deepchat')
-const skillsData = useSkillsData(conversationId, skillAgentId)
+const skillsData = useSkillsData(
+  conversationId,
+  skillAgentId,
+  computed(() => (props.isAcpSession ? null : props.workspacePath))
+)
 const activeSkillNames = computed(() => skillsData.composerActiveSkills.value)
 
 const removeSessionActiveSkill = async (skillName: string) => {
@@ -172,6 +176,7 @@ const removeSessionActiveSkill = async (skillName: string) => {
 }
 
 const mentions = useChatInputMentions({
+  skills: skillsData.skills,
   getEditor,
   workspacePath: computed(() => props.workspacePath),
   sessionId: computed(() => props.sessionId),
@@ -513,10 +518,14 @@ function findFileInsertPos(): number {
 const editor = new VueEditor({
   editable: props.editable,
   editorProps: {
-    attributes: {
+    attributes: () => ({
       'data-testid': 'chat-input-contenteditable',
+      role: 'textbox',
+      'aria-multiline': 'true',
+      'aria-label': resolvedPlaceholder.value,
+      ...mentions.suggestionAttributes.value,
       class: 'outline-none min-h-[60px] max-h-[240px] overflow-y-auto overscroll-contain'
-    }
+    })
   },
   extensions: [
     Document,
@@ -587,7 +596,7 @@ watch(
     if (next === current) return
 
     syncEditorContent(() => {
-      editor.commands.setContent(toEditorDoc(next), false)
+      editor.commands.setContent(toEditorDoc(next), { emitUpdate: false })
       setCaretToEnd(editor)
     })
 
@@ -626,7 +635,7 @@ watch(
   { deep: true, immediate: true }
 )
 
-watch(resolvedPlaceholder, () => {
+watch([resolvedPlaceholder, mentions.suggestionAttributes], () => {
   editor.view.updateState(editor.state)
 })
 
@@ -681,6 +690,13 @@ function handleKeydown(e: KeyboardEvent) {
     }
     return
   }
+
+  // Embedded controls own Enter/Space activation and Tab navigation.
+  if (
+    e.target instanceof HTMLElement &&
+    e.target.closest('button, input, textarea, select, [role="combobox"]')
+  )
+    return
 
   const isVoiceShortcut = (e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === 'm'
   if (isVoiceShortcut) {
@@ -881,7 +897,7 @@ function getDocumentSnapshot(): JSONContent {
 
 function restoreDocumentSnapshot(document: JSONContent) {
   syncEditorContent(() => {
-    editor.commands.setContent(document, false)
+    editor.commands.setContent(document, { emitUpdate: false })
     setCaretToEnd(editor)
   })
   void nextTick(() => {

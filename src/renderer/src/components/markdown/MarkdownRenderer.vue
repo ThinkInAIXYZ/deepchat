@@ -17,7 +17,7 @@
       :themes="codeBlockThemes"
       :code-block-options="codeBlockOptions"
       :mermaid-props="mermaidProps"
-      :fade="false"
+      :fade="segment.fade"
       :batch-rendering="true"
       :initial-render-batch-size="segment.initialBatch"
       :render-batch-size="segment.batchSize"
@@ -27,8 +27,8 @@
       :parse-coalesce-ms="segment.parseCoalesce"
       :parse-options="parseOptions"
       html-policy="safe"
-      :defer-nodes-until-visible="props.virtualizeNodes"
-      :viewport-priority="props.virtualizeNodes"
+      :defer-nodes-until-visible="canVirtualizeNodes"
+      :viewport-priority="canVirtualizeNodes"
       :node-virtual="segment.nodeVirtual"
       :max-live-nodes="segment.maxLiveNodes"
       :live-node-buffer="segment.liveNodeBuffer"
@@ -42,6 +42,7 @@
 </template>
 
 <script setup lang="ts">
+import { useAccessibilitySupport } from '@/composables/useAccessibilitySupport'
 import { createSessionClient } from '@api/SessionClient'
 import { useArtifactStore } from '@/stores/artifact'
 import { useReferenceStore } from '@/stores/reference'
@@ -206,6 +207,10 @@ const resolvedSmoothStreaming = computed(() => {
   return 'auto' as const
 })
 const resolvedTypewriter = computed(() => (isStreaming.value ? ('simple' as const) : false))
+// Fade (per-node opacity reveal) only applies to content that is still growing:
+// freshly streamed nodes fade in, while historical thread messages (final) and
+// the committed prefix never fade even if something triggers a re-render.
+const resolvedFade = computed(() => isStreaming.value)
 const STREAM_INITIAL_RENDER_BATCH_SIZE = 10
 const STREAM_RENDER_BATCH_SIZE = 14
 const STREAM_RENDER_BATCH_DELAY_MS = 8
@@ -254,7 +259,9 @@ const PREFIX_RENDER_BATCH_DELAY_MS = 12
 const PREFIX_RENDER_BATCH_BUDGET_MS = 4
 const PREFIX_RENDER_BATCH_IDLE_TIMEOUT_MS = 40
 
-const shouldVirtualizeNodes = computed(() => props.virtualizeNodes && !isStreaming.value)
+const { accessibilityEnabled } = useAccessibilitySupport()
+const canVirtualizeNodes = computed(() => props.virtualizeNodes && !accessibilityEnabled.value)
+const shouldVirtualizeNodes = computed(() => canVirtualizeNodes.value && !isStreaming.value)
 const resolvedNodeVirtual = computed(() =>
   shouldVirtualizeNodes.value ? ('auto' as const) : false
 )
@@ -378,6 +385,7 @@ type RenderSegment = {
   codeBlockStream: boolean
   smoothStreaming: boolean | 'auto'
   typewriter: boolean | 'simple'
+  fade: boolean
   nodeVirtual: boolean | 'auto'
   maxLiveNodes: number
   liveNodeBuffer: number
@@ -400,6 +408,7 @@ const renderSegments = computed<RenderSegment[]>(() => {
         codeBlockStream: isStreaming.value,
         smoothStreaming: resolvedSmoothStreaming.value,
         typewriter: resolvedTypewriter.value,
+        fade: resolvedFade.value,
         nodeVirtual: resolvedNodeVirtual.value,
         maxLiveNodes: maxLiveNodes.value,
         liveNodeBuffer: liveNodeBuffer.value,
@@ -421,7 +430,8 @@ const renderSegments = computed<RenderSegment[]>(() => {
       codeBlockStream: false,
       smoothStreaming: false,
       typewriter: false,
-      nodeVirtual: 'auto',
+      fade: false,
+      nodeVirtual: canVirtualizeNodes.value ? 'auto' : false,
       // Incremental batching only takes effect when virtual live-node limiting is
       // off (markstream-vue gates batching on `maxLiveNodes <= 0`), so the prefix
       // must not pin live nodes or the gentle raster spreading never happens.
@@ -442,6 +452,7 @@ const renderSegments = computed<RenderSegment[]>(() => {
       codeBlockStream: true,
       smoothStreaming: resolvedSmoothStreaming.value,
       typewriter: resolvedTypewriter.value,
+      fade: true,
       nodeVirtual: false,
       maxLiveNodes: 0,
       liveNodeBuffer: 0,

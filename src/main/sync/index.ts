@@ -2,7 +2,7 @@ import { app, shell } from 'electron'
 import path from 'path'
 import fs from 'fs'
 import Database from 'better-sqlite3-multiple-ciphers'
-import { zip, unzip, type AsyncZipOptions } from 'fflate'
+import { unzip, Zip, AsyncZipDeflate } from 'fflate'
 import type { SyncBackupInfo, CloudSyncResult } from '@shared/types/sync'
 import { CloudStorageService } from './cloudStorageService'
 import type { DeepchatEventPublisher } from '@shared/contracts/events'
@@ -14,6 +14,7 @@ import {
   type SyncBackupManifest
 } from './configImportService'
 import type { SyncSettings } from './settings'
+import { withBackupSnapshot, type BackupReadLockOutcome } from '@/data/backupReadLock'
 import type { SettingsDatabase } from '@/settings/data/database'
 import type { ProviderDatabase } from '@/provider/data/database'
 
@@ -60,6 +61,7 @@ const KNOWN_IMPORT_ERRORS = new Set([
 
 const ZIP_PATHS = {
   agentDb: 'database/agent.db',
+  agentDbWal: 'database/agent.db-wal',
   chatDb: 'database/chat.db',
   appSettings: 'configs/app-settings.json',
   customPrompts: 'configs/custom_prompts.json',
@@ -68,16 +70,11 @@ const ZIP_PATHS = {
   manifest: 'manifest.json'
 }
 
-const zipAsync = (files: Record<string, Uint8Array>, options: AsyncZipOptions) =>
-  new Promise<Uint8Array>((resolve, reject) => {
-    zip(files, options, (error, data) => {
-      if (error) {
-        reject(error)
-        return
-      }
-      resolve(data)
-    })
-  })
+const toUint8ArrayView = (buffer: Buffer): Uint8Array =>
+  new Uint8Array(buffer.buffer, buffer.byteOffset, buffer.byteLength)
+
+const ZIP_LEVEL = 6
+const ZIP_SLICE_SIZE = 4 * 1024 * 1024
 
 const unzipAsync = (data: Uint8Array) =>
   new Promise<Record<string, Uint8Array>>((resolve, reject) => {
@@ -109,9 +106,9 @@ export interface SyncImportDatabasePort {
 }
 
 interface SyncDatabasePort {
-  getDatabase(): Database.Database
   getDatabasePassword(): string | undefined
   openDatabaseConnection(dbPath: string): Database.Database
+  withBackupReadLock<T>(work: () => Promise<T>): Promise<BackupReadLockOutcome<T>>
 }
 
 export interface SyncImportResult {
@@ -420,6 +417,7 @@ export class SyncService {
 
           this.copyFile(backupDbSource.path, this.DB_PATH)
           this.cleanupDatabaseSidecarFiles(this.DB_PATH)
+          this.restoreBackupWalSidecar(backupDbSource.path, this.DB_PATH)
           if (usesSqliteConfigStorage) {
             configImportService.finalizeSqliteConfigImport()
           } else {
@@ -498,7 +496,8 @@ export class SyncService {
         await this.resetShellWindowsToSingleNewChatTab()
       }
       this.publishEvent('sync.import.completed', {
-        version: Date.now()
+        version: Date.now(),
+        mode: importMode
       })
       return {
         success: true,
@@ -573,12 +572,7 @@ export class SyncService {
 
       this.emitBackupStatus('collecting')
       this.ensureSqliteConfigStorageReady()
-      this.checkpointDatabaseForBackup()
-      const files: Record<string, Uint8Array> = {}
-      files[ZIP_PATHS.agentDb] = new Uint8Array(fs.readFileSync(this.DB_PATH))
-      files[ZIP_PATHS.appSettings] = await this.readSanitizedAppSettingsBackup()
-      await this.addOptionalFile(files, ZIP_PATHS.customPrompts, this.CUSTOM_PROMPTS_PATH)
-      await this.addOptionalFile(files, ZIP_PATHS.systemPrompts, this.SYSTEM_PROMPTS_PATH)
+      const files = await this.collectBackupFiles()
 
       const manifest = {
         version: CURRENT_SYNC_BACKUP_VERSION,
@@ -594,11 +588,14 @@ export class SyncService {
       )
 
       this.emitBackupStatus('compressing')
-      const zipData = await zipAsync(files, { level: 6 })
-      await fs.promises.writeFile(tempZipPath, Buffer.from(zipData))
+      await this.writeZipToDisk(files, tempZipPath)
 
-      if (fs.existsSync(finalZipPath)) {
+      try {
         await fs.promises.unlink(finalZipPath)
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+          throw error
+        }
       }
       this.emitBackupStatus('finalizing')
       await fs.promises.rename(tempZipPath, finalZipPath)
@@ -613,8 +610,12 @@ export class SyncService {
 
       return { fileName: backupFileName, createdAt: timestamp, size: backupStats.size }
     } catch (error) {
-      if (fs.existsSync(tempZipPath)) {
+      try {
         await fs.promises.unlink(tempZipPath)
+      } catch (cleanupError) {
+        if ((cleanupError as NodeJS.ErrnoException).code !== 'ENOENT') {
+          console.warn('[Sync] Failed to remove partial backup archive:', cleanupError)
+        }
       }
       encounteredError = true
       this.emitBackupStatus('error', {
@@ -708,11 +709,104 @@ export class SyncService {
     }
   }
 
-  private checkpointDatabaseForBackup(): void {
-    const db = this.database.getDatabase()
-    if (db?.open) {
-      db.pragma('wal_checkpoint(TRUNCATE)')
+  private async writeZipToDisk(
+    files: Record<string, Uint8Array>,
+    targetPath: string
+  ): Promise<void> {
+    await new Promise<void>((resolve, reject) => {
+      const output = fs.createWriteStream(targetPath)
+      const archive = new Zip()
+      let drain: Promise<void> = Promise.resolve()
+      output.on('error', reject)
+      archive.ondata = (error, chunk, final) => {
+        if (error) {
+          output.destroy(error)
+          reject(error)
+          return
+        }
+        if (!output.write(Buffer.from(chunk.buffer, chunk.byteOffset, chunk.byteLength))) {
+          drain = new Promise<void>((drained) => {
+            output.once('drain', () => drained())
+            output.once('error', () => drained())
+          })
+        }
+        if (final) {
+          output.end(() => resolve())
+        }
+      }
+
+      void (async () => {
+        try {
+          for (const [name, data] of Object.entries(files)) {
+            const entry = new AsyncZipDeflate(name, { level: ZIP_LEVEL })
+            archive.add(entry)
+            for (let offset = 0; offset < data.length; offset += ZIP_SLICE_SIZE) {
+              await drain
+              const end = Math.min(offset + ZIP_SLICE_SIZE, data.length)
+              entry.push(new Uint8Array(data.slice(offset, end)), false)
+              await new Promise((resume) => setImmediate(resume))
+            }
+            await drain
+            entry.push(new Uint8Array(0), true)
+          }
+          await drain
+          archive.end()
+        } catch (error) {
+          output.destroy(error as Error)
+          reject(error)
+        }
+      })()
+    })
+  }
+
+  private async collectBackupFiles(): Promise<Record<string, Uint8Array>> {
+    const snapshot = await this.database.withBackupReadLock(async () => {
+      const files = await this.readSupportFiles()
+      files[ZIP_PATHS.agentDb] = toUint8ArrayView(await fs.promises.readFile(this.DB_PATH))
+      return files
+    })
+    if (!snapshot.acquired) {
+      console.warn(
+        '[Sync] Backup could not take a fully drained WAL snapshot (blocked checkpoint or a ' +
+          'commit landed during the drain window); falling back to a snapshot-pinned copy ' +
+          'that ships the WAL sidecar so committed transactions are not silently dropped'
+      )
+      return this.readBackupFilesFallback()
     }
+    return snapshot.result
+  }
+
+  private async readBackupFilesFallback(): Promise<Record<string, Uint8Array>> {
+    // The drain failed, so a checkpoint can still backfill mid-copy. Pin a read mark for
+    // the whole copy: while it is held the WAL cannot be reset, and any backfilled frames
+    // are at or below the mark, so the shipped db + WAL pair replays to one generation.
+    return withBackupSnapshot(
+      () => this.database.openDatabaseConnection(this.DB_PATH),
+      async () => {
+        const files = await this.readSupportFiles()
+        files[ZIP_PATHS.agentDb] = toUint8ArrayView(await fs.promises.readFile(this.DB_PATH))
+        const walPath = `${this.DB_PATH}-wal`
+        try {
+          const walImage = await fs.promises.readFile(walPath)
+          if (walImage.length > 0) {
+            files[ZIP_PATHS.agentDbWal] = toUint8ArrayView(walImage)
+          }
+        } catch (error) {
+          if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+            throw error
+          }
+        }
+        return files
+      }
+    )
+  }
+
+  private async readSupportFiles(): Promise<Record<string, Uint8Array>> {
+    const files: Record<string, Uint8Array> = {}
+    files[ZIP_PATHS.appSettings] = await this.readSanitizedAppSettingsBackup()
+    await this.addOptionalFile(files, ZIP_PATHS.customPrompts, this.CUSTOM_PROMPTS_PATH)
+    await this.addOptionalFile(files, ZIP_PATHS.systemPrompts, this.SYSTEM_PROMPTS_PATH)
+    return files
   }
 
   private resolveBackupVersion(manifest: SyncBackupManifest | null): number {
@@ -757,8 +851,12 @@ export class SyncService {
     zipPath: string,
     filePath: string
   ): Promise<void> {
-    if (fs.existsSync(filePath)) {
-      files[zipPath] = new Uint8Array(await fs.promises.readFile(filePath))
+    try {
+      files[zipPath] = toUint8ArrayView(await fs.promises.readFile(filePath))
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+        throw error
+      }
     }
   }
 
@@ -920,9 +1018,6 @@ export class SyncService {
   }
 
   private readSettingsFile(filePath: string): Record<string, unknown> | null {
-    if (!fs.existsSync(filePath)) {
-      return null
-    }
     try {
       const parsed = JSON.parse(fs.readFileSync(filePath, 'utf-8'))
       if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
@@ -930,20 +1025,22 @@ export class SyncService {
       }
       return parsed as Record<string, unknown>
     } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+        return null
+      }
       console.error('Failed to read settings file for machine-local setting preservation:', error)
       throw new Error('sync.error.importFailed')
     }
   }
 
   private mergeAppSettingsPreservingMachineLocal(backupPath: string, targetPath: string): void {
-    if (!fs.existsSync(backupPath)) {
-      return
-    }
-
     let backupSettingsRaw: string
     try {
       backupSettingsRaw = fs.readFileSync(backupPath, 'utf-8')
     } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+        return
+      }
       console.error('Failed to read backup app settings file:', error)
       throw new Error('sync.error.noValidBackup')
     }
@@ -988,11 +1085,15 @@ export class SyncService {
   }
 
   private createTempBackup(originalPath: string, name: string): string | null {
-    if (!fs.existsSync(originalPath)) {
-      return null
-    }
     const tempPath = path.join(app.getPath('temp'), `${name}.${Date.now()}.bak`)
-    this.copyFile(originalPath, tempPath)
+    try {
+      this.copyFile(originalPath, tempPath)
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+        return null
+      }
+      throw error
+    }
     return tempPath
   }
 
@@ -1005,16 +1106,29 @@ export class SyncService {
     // Shell windows no longer manage chat tabs; nothing to reset
   }
 
+  private restoreBackupWalSidecar(sourceDbPath: string, targetDbPath: string): void {
+    const sourceWalPath = `${sourceDbPath}-wal`
+    // Ships un-checkpointed transactions from a fallback archive; the next
+    // read-write open replays them. Placed after cleanupDatabaseSidecarFiles so
+    // stale sidecars from the previous database cannot mix with this image.
+    try {
+      this.copyFile(sourceWalPath, `${targetDbPath}-wal`)
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+        throw error
+      }
+    }
+  }
+
   private cleanupDatabaseSidecarFiles(dbFilePath: string): void {
     const sidecarFiles = [`${dbFilePath}-wal`, `${dbFilePath}-shm`]
     for (const filePath of sidecarFiles) {
-      if (!fs.existsSync(filePath)) {
-        continue
-      }
       try {
         fs.unlinkSync(filePath)
       } catch (error) {
-        console.warn('Failed to remove database sidecar file:', filePath, error)
+        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+          console.warn('Failed to remove database sidecar file:', filePath, error)
+        }
       }
     }
   }
@@ -1022,6 +1136,7 @@ export class SyncService {
   private restoreFromTempBackup(tempFiles: Record<string, string | null>): void {
     if (tempFiles.db) {
       this.copyFile(tempFiles.db, this.DB_PATH)
+      this.cleanupDatabaseSidecarFiles(this.DB_PATH)
     }
     if (tempFiles.appSettings) {
       this.copyFile(tempFiles.appSettings, this.APP_SETTINGS_PATH)
@@ -1039,10 +1154,13 @@ export class SyncService {
 
   private cleanupTempFiles(paths: Array<string | null>): void {
     for (const filePath of paths) {
-      if (filePath && fs.existsSync(filePath)) {
-        try {
-          fs.unlinkSync(filePath)
-        } catch (error) {
+      if (!filePath) {
+        continue
+      }
+      try {
+        fs.unlinkSync(filePath)
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
           console.warn('Failed to remove temp file:', filePath, error)
         }
       }
@@ -1105,9 +1223,6 @@ export class SyncService {
   }
 
   private readPromptStore(filePath: string): PromptStore | null {
-    if (!fs.existsSync(filePath)) {
-      return null
-    }
     try {
       const content = fs.readFileSync(filePath, 'utf-8')
       const parsed = JSON.parse(content)
@@ -1116,6 +1231,9 @@ export class SyncService {
       }
       return parsed as PromptStore
     } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+        return null
+      }
       console.warn('Failed to read prompt store:', filePath, error)
       return { prompts: [] }
     }

@@ -5,16 +5,21 @@
         <div class="flex justify-center">
           <template v-if="resolvedImageData">
             <ImageActionContextMenu :source="resolvedImageSrc" :mime-type="resolvedImageMimeType">
-              <div class="image-frame">
+              <button
+                ref="previewButton"
+                type="button"
+                class="image-frame focus-visible:ring-2 focus-visible:ring-ring"
+                :aria-label="t('image.preview')"
+                @click="openFullImage"
+              >
                 <img
                   :src="resolvedImageSrc"
                   :alt="t('common.image')"
                   class="max-h-full max-w-full cursor-pointer rounded-md object-contain transition-shadow hover:shadow-md"
                   decoding="async"
-                  @click="openFullImage"
                   @error="handleImageError"
                 />
-              </div>
+              </button>
             </ImageActionContextMenu>
           </template>
           <div v-else-if="imageError" class="text-sm text-red-500 p-4">
@@ -32,6 +37,7 @@
       <DialogContent
         class="sm:max-w-[800px] p-3 bg-background border-0 shadow-none focus:outline-none"
         @open-auto-focus="handleImageDialogOpenAutoFocus"
+        @close-auto-focus.prevent="previewButton?.focus()"
       >
         <DialogHeader>
           <DialogTitle>
@@ -54,6 +60,8 @@
             <ImageActionContextMenu :source="resolvedImageSrc" :mime-type="resolvedImageMimeType">
               <img
                 :src="resolvedImageSrc"
+                :alt="t('common.image')"
+                tabindex="0"
                 class="rounded-md max-h-[80vh] max-w-full object-contain"
               />
             </ImageActionContextMenu>
@@ -103,6 +111,7 @@ type LegacyImageBlockContent = {
   mimeType?: string
 }
 
+const previewButton = ref<HTMLButtonElement | null>(null)
 const imageError = ref(false)
 const showFullImage = ref(false)
 const { saveImage } = useImageActions()

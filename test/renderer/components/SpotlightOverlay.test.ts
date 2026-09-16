@@ -1,9 +1,15 @@
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createPinia } from 'pinia'
 import { defineComponent, nextTick, reactive } from 'vue'
-import { mount } from '@vue/test-utils'
+import { DOMWrapper, flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 
-const setup = async () => {
+const mounted: VueWrapper[] = []
+afterEach(() => {
+  mounted.splice(0).forEach((wrapper) => wrapper.unmount())
+})
+
+const setup = async (initialOpen = true) => {
+  HTMLElement.prototype.scrollIntoView = vi.fn()
   vi.resetModules()
 
   const resultItem = {
@@ -17,7 +23,7 @@ const setup = async () => {
   }
 
   const spotlightStore = reactive({
-    open: true,
+    open: initialOpen,
     activationKey: 1,
     query: '',
     results: [resultItem],
@@ -29,6 +35,10 @@ const setup = async () => {
     moveActiveItem: vi.fn(),
     executeItem: vi.fn(),
     executeActiveItem: vi.fn()
+  })
+
+  spotlightStore.closeSpotlight.mockImplementation(() => {
+    spotlightStore.open = false
   })
 
   vi.doMock('@/stores/ui/spotlight', () => ({
@@ -59,15 +69,14 @@ const setup = async () => {
   const wrapper = mount(SpotlightOverlay, {
     attachTo: document.body,
     global: {
-      plugins: [createPinia()],
-      stubs: {
-        Teleport: true
-      }
+      plugins: [createPinia()]
     }
   })
 
+  mounted.push(wrapper)
+  await flushPromises()
   return {
-    wrapper,
+    wrapper: new DOMWrapper(document.body),
     spotlightStore,
     resultItem
   }
@@ -86,8 +95,31 @@ describe('SpotlightOverlay', () => {
     await wrapper.get('input').setValue('deep')
     expect(spotlightStore.setQuery).toHaveBeenCalledWith('deep')
 
-    await wrapper.get('button').trigger('mousedown', { button: 0 })
+    await wrapper.get('[role=option]').trigger('mousedown', { button: 0 })
     expect(spotlightStore.executeItem).toHaveBeenCalledWith(resultItem)
+  })
+
+  it('exposes the active result and restores focus after closing search', async () => {
+    const { wrapper, spotlightStore } = await setup(false)
+    const opener = document.createElement('button')
+    document.body.append(opener)
+    opener.focus()
+    spotlightStore.open = true
+    await flushPromises()
+
+    const input = wrapper.get('[role="combobox"]')
+    const list = wrapper.get('[role="listbox"]')
+    const option = wrapper.get('[role="option"]')
+    expect(wrapper.get('[role="dialog"]').exists()).toBe(true)
+    expect(input.attributes('aria-controls')).toBe(list.attributes('id'))
+    expect(input.attributes('aria-activedescendant')).toBe(option.attributes('id'))
+    expect(option.attributes('aria-selected')).toBe('true')
+    expect(document.activeElement).toBe(input.element)
+
+    await wrapper.get('button[aria-label="common.close"]').trigger('click')
+    await flushPromises()
+    expect(document.activeElement).toBe(opener)
+    opener.remove()
   })
 
   it('refocuses the search input when spotlight is activated again', async () => {

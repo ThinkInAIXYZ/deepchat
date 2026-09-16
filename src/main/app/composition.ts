@@ -134,6 +134,7 @@ import { createPlatformRoutes } from '../platform/routes'
 import { createHookRoutes } from '../hook/routes'
 import { createAppSettingsRoutes } from './settingsRoutes'
 import { createAppRoutes } from './routes'
+import { registerClipboardIpc } from './clipboardIpc'
 import { ApprovalBroker, createApprovalRoutes } from '@/approval'
 import {
   CommandPermissionService,
@@ -1503,6 +1504,8 @@ export async function createMainProcessControl(dependencies: {
           })),
       getSessionAgentId: async (sessionId) =>
         (await sessionQuery.getSession(sessionId))?.agentId ?? null,
+      getSessionProjectDir: async (sessionId) =>
+        (await sessionQuery.getSession(sessionId))?.projectDir ?? null,
       listSessions: async () =>
         (await sessionQuery.listSessions({ includeSubagents: true })).map((session) => ({
           id: session.id,
@@ -3212,9 +3215,14 @@ export async function createMainProcessControl(dependencies: {
       startupWorkloadCoordinator
     })
     registerDeepchatRoutes(ipcMain, routeDispatcher)
+    registerClipboardIpc(ipcMain)
   }
 
   function setupApplicationListeners(): void {
+    app.on('accessibility-support-changed', (_event, enabled) => {
+      publishDeepchatEvent('appRuntime.accessibilityChanged', { enabled })
+    })
+
     app.on('browser-window-created', (_, window) => {
       optimizer.watchWindowShortcuts(window)
     })

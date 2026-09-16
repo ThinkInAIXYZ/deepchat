@@ -156,8 +156,9 @@ jobs:
       - name: Validate portable memory behavior
         run: pnpm run test:memory
 
-      - name: Prepare native SQLite for the Node ABI
-        run: pnpm --dir node_modules/better-sqlite3-multiple-ciphers run install
+      # better-sqlite3-multiple-ciphers 13+ ships N-API prebuilds and no longer
+      # has an `install` script; the shipped prebuild already runs on the CI
+      # Node ABI (validated by test:memory above).
 
       - name: Smoke native SQLite
         run: node scripts/smoke-memory-native-sqlite.js

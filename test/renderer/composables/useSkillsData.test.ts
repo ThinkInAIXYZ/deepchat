@@ -4,6 +4,8 @@ import { defineComponent, toRef } from 'vue'
 
 const skillClient = vi.hoisted(() => ({
   getActiveSkills: vi.fn(),
+  getUnifiedSkillCatalog: vi.fn(),
+  onCatalogChanged: vi.fn(() => () => undefined),
   setActiveSkills: vi.fn(),
   removeActiveSkill: vi.fn(),
   onSessionChanged: vi.fn(() => () => undefined)

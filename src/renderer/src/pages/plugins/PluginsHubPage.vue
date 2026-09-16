@@ -28,7 +28,14 @@
       </p>
     </div>
 
-    <div v-if="!isAcpUnavailable" class="min-h-0 flex-1">
+    <div
+      v-if="!isAcpUnavailable"
+      ref="routeContent"
+      role="region"
+      :aria-label="t(String(route.meta.titleKey || 'routes.plugins'))"
+      tabindex="-1"
+      class="min-h-0 flex-1"
+    >
       <RouterView />
     </div>
 
@@ -56,7 +63,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import { RouterLink, RouterView, useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
@@ -65,6 +72,15 @@ import { useAgentStore } from '@/stores/ui/agent'
 const { t } = useI18n()
 const route = useRoute()
 const agentStore = useAgentStore()
+const routeContent = ref<HTMLElement | null>(null)
+watch(
+  () => route.fullPath,
+  async () => {
+    await nextTick()
+    routeContent.value?.focus({ preventScroll: true })
+  },
+  { immediate: true }
+)
 
 const tabs = [
   {

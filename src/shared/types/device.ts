@@ -17,6 +17,7 @@ export interface DeviceServicePort {
 }
 
 export type DeviceInfo = {
+  accessibilitySupportEnabled?: boolean
   platform: string
   arch: string
   cpuModel: string

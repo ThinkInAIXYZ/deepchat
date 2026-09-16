@@ -1,5 +1,6 @@
 {
   "input": {
+    "suggestions": "Подсказки",
     "placeholder": "Спросите DeepChat о чем угодно, {'@'} чтобы упомянуть файлы, / для команд",
     "fileArea": "Область файлов",
     "inputArea": "Область ввода",
@@ -129,6 +130,7 @@
     "error": "Ошибка поиска"
   },
   "messages": {
+    "loadEarlier": "Загрузить предыдущие сообщения",
     "thinking": "Думаю ...",
     "rateLimitWaiting": "Ограничение скорости, ожидание в очереди...",
     "rateLimitCompactLoading": "Ограничение скорости ({seconds}с)",

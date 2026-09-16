@@ -1,5 +1,6 @@
 {
   "input": {
+    "suggestions": "补全建议",
     "placeholder": "向 DeepChat 发送消息，{'@'} 可引用文件，/ 可使用命令",
     "fileArea": "文件区域",
     "inputArea": "输入区域",
@@ -214,6 +215,7 @@
     "error": "搜索失败"
   },
   "messages": {
+    "loadEarlier": "加载更早的消息",
     "thinking": "正在思考...",
     "rateLimitWaiting": "请求频率限制，正在排队等待...",
     "rateLimitCompactLoading": "限速中（{seconds} 秒）",

@@ -148,17 +148,11 @@ const titleSegments = computed(() => {
   >
     <button
       type="button"
-      class="session-action-button pin-button flex h-7 w-7 items-center justify-center rounded-lg focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/40"
-      :class="session.isPinned ? 'pin-button--active' : 'pin-button--idle'"
-      :title="pinActionLabel"
-      :aria-label="pinActionLabel"
-      :aria-pressed="session.isPinned"
-      @click.stop="emit('toggle-pin', session)"
+      class="session-content flex min-w-0 flex-1 items-center gap-1.5 rounded-md text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
+      :aria-label="session.title"
+      :aria-current="active ? 'page' : undefined"
+      @click.stop="emit('select', session)"
     >
-      <Icon icon="lucide:pin" class="pin-button__icon h-4 w-4" />
-    </button>
-
-    <div class="session-content flex min-w-0 flex-1 items-center gap-1.5">
       <span
         class="session-title min-w-0 flex-1 text-sm"
         :class="{ 'session-title--loading': isWorking }"
@@ -190,7 +184,19 @@ const titleSegments = computed(() => {
         </TooltipTrigger>
         <TooltipContent side="top">{{ sourceIndicatorLabel }}</TooltipContent>
       </Tooltip>
-    </div>
+    </button>
+
+    <button
+      type="button"
+      class="session-action-button pin-button flex h-7 w-7 items-center justify-center rounded-lg focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/40"
+      :class="session.isPinned ? 'pin-button--active' : 'pin-button--idle'"
+      :title="pinActionLabel"
+      :aria-label="pinActionLabel"
+      :aria-pressed="session.isPinned"
+      @click.stop="emit('toggle-pin', session)"
+    >
+      <Icon icon="lucide:pin" class="pin-button__icon h-4 w-4" />
+    </button>
 
     <span
       class="right-button flex items-center"

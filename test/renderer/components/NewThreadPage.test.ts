@@ -486,6 +486,23 @@ describe('NewThreadPage ACP draft session bootstrap', () => {
     expect(input.props('files')).toEqual([])
   })
 
+  it('keeps a locally inserted Skill when its selection updates the saved draft', async () => {
+    const { wrapper } = await setup()
+    const input = wrapper.getComponent({ name: 'ChatInputBox' })
+    chatInputPendingSkillsSnapshotRef.value = ['review']
+    const document: JSONContent = {
+      type: 'doc',
+      content: [
+        { type: 'paragraph', content: [{ type: 'skillChip', attrs: { skillName: 'review' } }] }
+      ]
+    }
+    chatInputDocumentSnapshotRef.value = document
+    input.vm.$emit('pending-skills-change', ['review'])
+    await flushPromises()
+    expect(chatInputDocumentSnapshotRef.value).toEqual(document)
+    expect(chatInputPendingSkillsSnapshotRef.value).toEqual(['review'])
+  })
+
   it('flushes a complete draft before unmount and restores it with a fresh store', async () => {
     const first = await setup()
     const document: JSONContent = {

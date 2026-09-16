@@ -10,7 +10,10 @@
       </span>
       <div class="ml-auto w-auto">
         <Select v-model="selectedProxyMode">
-          <SelectTrigger class="h-8! text-sm border-border hover:bg-accent">
+          <SelectTrigger
+            :aria-label="t('settings.common.proxyMode')"
+            class="h-8! text-sm border-border hover:bg-accent"
+          >
             <SelectValue :placeholder="t('settings.common.proxyModeSelect')" />
           </SelectTrigger>
           <SelectContent align="end">
@@ -34,14 +37,16 @@
         <div class="ml-auto w-[320px]">
           <Input
             v-model="customProxyUrl"
+            :aria-label="t('settings.common.customProxyUrl')"
             :placeholder="t('settings.common.customProxyUrlPlaceholder')"
             :class="{ 'border-red-500': showUrlError }"
+            :aria-invalid="showUrlError"
             @input="validateProxyUrl"
             @blur="validateProxyUrl"
           />
         </div>
       </div>
-      <div v-if="showUrlError" class="text-xs text-red-500 pt-1 lg:pl-[220px] pl-10">
+      <div v-if="showUrlError" role="alert" class="text-xs text-red-500 pt-1 lg:pl-[220px] pl-10">
         {{ t('settings.common.invalidProxyUrl') }}
       </div>
     </div>

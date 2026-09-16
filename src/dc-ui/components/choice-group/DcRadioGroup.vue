@@ -21,7 +21,7 @@ const emit = defineEmits<{
 
 const uid = useId()
 
-const labelId = (option: DcChoiceOption) => `${uid}-${option.value}`
+const labelId = (index: number) => `${uid}-option-${index}`
 
 const handleUpdate = (value: unknown) => {
   if (typeof value === 'string') {
@@ -47,7 +47,7 @@ const onRowClick = (option: DcChoiceOption, event: MouseEvent) => {
     @update:model-value="handleUpdate"
   >
     <div
-      v-for="option in props.options"
+      v-for="(option, index) in props.options"
       :key="option.value"
       data-testid="dc-choice-option"
       :class="
@@ -62,12 +62,17 @@ const onRowClick = (option: DcChoiceOption, event: MouseEvent) => {
         <RadioGroupItem
           :value="option.value"
           :disabled="option.disabled"
-          :aria-labelledby="labelId(option)"
+          :aria-labelledby="labelId(index)"
+          :aria-describedby="option.description ? `${labelId(index)}-description` : undefined"
         />
       </span>
       <span class="min-w-0 flex-1">
-        <span :id="labelId(option)" class="block text-[13px] leading-5">{{ option.label }}</span>
-        <span v-if="option.description" class="block text-xs leading-4 text-muted-foreground">
+        <span :id="labelId(index)" class="block text-[13px] leading-5">{{ option.label }}</span>
+        <span
+          v-if="option.description"
+          :id="`${labelId(index)}-description`"
+          class="block text-xs leading-4 text-muted-foreground"
+        >
           {{ option.description }}
         </span>
       </span>

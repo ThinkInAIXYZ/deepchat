@@ -115,7 +115,9 @@ export function createSkillRoutes(deps: {
       async (rawInput) => {
         const input = skillsListCatalogRoute.input.parse(rawInput)
         return skillsListCatalogRoute.output.parse({
-          skills: await skillService.getUnifiedSkillCatalog(input.agentId)
+          skills: await skillService.getUnifiedSkillCatalog(input.agentId, {
+            workspacePath: input.workspacePath
+          })
         })
       }
     ],

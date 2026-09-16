@@ -497,6 +497,12 @@
                               hasNumericInputError('temperature') ? 'border-destructive' : ''
                             ]"
                             data-setting-control="temperature"
+                            :aria-label="t('chat.advancedSettings.temperature')"
+                            :aria-describedby="
+                              getNumericInputErrorMessage('temperature')
+                                ? `${numericErrorId}-temperature`
+                                : undefined
+                            "
                             type="number"
                             :step="TEMPERATURE_STEP"
                             :disabled="isTemperatureFixed"
@@ -534,6 +540,8 @@
                         </p>
                         <p
                           v-if="getNumericInputErrorMessage('temperature')"
+                          :id="`${numericErrorId}-temperature`"
+                          role="alert"
                           class="text-[11px] text-destructive"
                         >
                           {{ getNumericInputErrorMessage('temperature') }}
@@ -594,6 +602,12 @@
                               hasNumericInputError('topP') ? 'border-destructive' : ''
                             ]"
                             data-setting-control="topP"
+                            :aria-label="t('chat.advancedSettings.topP')"
+                            :aria-describedby="
+                              getNumericInputErrorMessage('topP')
+                                ? `${numericErrorId}-topP`
+                                : undefined
+                            "
                             type="number"
                             :step="TOP_P_STEP"
                             :min="TOP_P_MIN"
@@ -636,6 +650,8 @@
                         </p>
                         <p
                           v-if="getNumericInputErrorMessage('topP')"
+                          :id="`${numericErrorId}-topP`"
+                          role="alert"
                           class="text-[11px] text-destructive"
                         >
                           {{ getNumericInputErrorMessage('topP') }}
@@ -677,6 +693,12 @@
                               hasNumericInputError('contextLength') ? 'border-destructive' : ''
                             ]"
                             data-setting-control="contextLength"
+                            :aria-label="t('chat.advancedSettings.contextLength')"
+                            :aria-describedby="
+                              getNumericInputErrorMessage('contextLength')
+                                ? `${numericErrorId}-contextLength`
+                                : undefined
+                            "
                             type="number"
                             :step="CONTEXT_LENGTH_STEP"
                             :aria-invalid="hasNumericInputError('contextLength')"
@@ -710,6 +732,8 @@
                         </div>
                         <p
                           v-if="getNumericInputErrorMessage('contextLength')"
+                          :id="`${numericErrorId}-contextLength`"
+                          role="alert"
                           class="text-[11px] text-destructive"
                         >
                           {{ getNumericInputErrorMessage('contextLength') }}
@@ -750,6 +774,12 @@
                               hasNumericInputError('maxTokens') ? 'border-destructive' : ''
                             ]"
                             data-setting-control="maxTokens"
+                            :aria-label="t('chat.advancedSettings.maxTokens')"
+                            :aria-describedby="
+                              getNumericInputErrorMessage('maxTokens')
+                                ? `${numericErrorId}-maxTokens`
+                                : undefined
+                            "
                             type="number"
                             :step="MAX_TOKENS_STEP"
                             :aria-invalid="hasNumericInputError('maxTokens')"
@@ -783,6 +813,8 @@
                         </div>
                         <p
                           v-if="getNumericInputErrorMessage('maxTokens')"
+                          :id="`${numericErrorId}-maxTokens`"
+                          role="alert"
                           class="text-[11px] text-destructive"
                         >
                           {{ getNumericInputErrorMessage('maxTokens') }}
@@ -824,6 +856,12 @@
                               hasNumericInputError('timeout') ? 'border-destructive' : ''
                             ]"
                             data-setting-control="timeout"
+                            :aria-label="t('settings.model.modelConfig.timeout.label')"
+                            :aria-describedby="
+                              getNumericInputErrorMessage('timeout')
+                                ? `${numericErrorId}-timeout`
+                                : undefined
+                            "
                             type="number"
                             :step="TIMEOUT_STEP"
                             :min="TIMEOUT_MIN"
@@ -857,6 +895,8 @@
                         </div>
                         <p
                           v-if="getNumericInputErrorMessage('timeout')"
+                          :id="`${numericErrorId}-timeout`"
+                          role="alert"
                           class="text-[11px] text-destructive"
                         >
                           {{ getNumericInputErrorMessage('timeout') }}
@@ -891,7 +931,10 @@
                           "
                           @update:model-value="onReasoningVisibilitySelect($event as string)"
                         >
-                          <SelectTrigger class="h-8 text-xs">
+                          <SelectTrigger
+                            :aria-label="t('settings.model.modelConfig.reasoningVisibility.label')"
+                            class="h-8 text-xs"
+                          >
                             <SelectValue
                               :placeholder="
                                 t('settings.model.modelConfig.reasoningVisibility.placeholder')
@@ -921,7 +964,10 @@
                           :model-value="localSettings.verbosity ?? verbosityOptions[0]?.value"
                           @update:model-value="onVerbositySelect($event as string)"
                         >
-                          <SelectTrigger class="h-8 text-xs">
+                          <SelectTrigger
+                            :aria-label="t('settings.model.modelConfig.verbosity.label')"
+                            class="h-8 text-xs"
+                          >
                             <SelectValue
                               :placeholder="t('settings.model.modelConfig.verbosity.placeholder')"
                             />
@@ -996,6 +1042,12 @@
                               hasNumericInputError('thinkingBudget') ? 'border-destructive' : ''
                             ]"
                             data-setting-control="thinkingBudget"
+                            :aria-label="t('chat.advancedSettings.thinkingBudget')"
+                            :aria-describedby="
+                              getNumericInputErrorMessage('thinkingBudget')
+                                ? `${numericErrorId}-thinkingBudget`
+                                : undefined
+                            "
                             type="number"
                             :step="THINKING_BUDGET_STEP"
                             :aria-invalid="hasNumericInputError('thinkingBudget')"
@@ -1029,6 +1081,8 @@
                         </div>
                         <p
                           v-if="getNumericInputErrorMessage('thinkingBudget')"
+                          :id="`${numericErrorId}-thinkingBudget`"
+                          role="alert"
                           class="text-[11px] text-destructive"
                         >
                           {{ getNumericInputErrorMessage('thinkingBudget') }}
@@ -1109,7 +1163,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, useId, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
 import { DcButton } from '@dc-ui/components/button'
@@ -1274,6 +1328,7 @@ const providerClient = createProviderClient()
 const sessionClient = createSessionClient()
 const orchestrationClient = createOrchestrationClient()
 const { locale, t } = useI18n()
+const numericErrorId = useId()
 
 const draftModelSelection = ref<ModelSelection | null>(null)
 const permissionMode = ref<PermissionMode>('full_access')

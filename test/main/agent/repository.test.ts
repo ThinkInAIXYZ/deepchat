@@ -6,6 +6,37 @@ import {
 import { AgentRepository } from '../../../src/main/agent/repository'
 
 describe('AgentRepository', () => {
+  it('resolves restored agent configuration after the database connection is replaced', () => {
+    let reopened = false
+    const row = (systemPrompt: string) => ({
+      id: 'deepchat',
+      agent_type: 'deepchat',
+      source: 'builtin',
+      name: 'DeepChat',
+      enabled: 1,
+      protected: 1,
+      config_json: JSON.stringify({ systemPrompt }),
+      created_at: 1,
+      updated_at: 1
+    })
+    const previousRows = {
+      get: () => {
+        if (reopened) throw new Error('The database connection is not open')
+        return row('Before import')
+      }
+    }
+    const restoredRows = { get: () => row('Restored prompt') }
+    const database = {
+      get agentsTable() {
+        return reopened ? restoredRows : previousRows
+      }
+    } as never
+    const repository = new AgentRepository(database, database, database)
+    expect(repository.resolveDeepChatAgentConfig('deepchat')?.systemPrompt).toBe('Before import')
+    reopened = true
+    expect(repository.resolveDeepChatAgentConfig('deepchat')?.systemPrompt).toBe('Restored prompt')
+  })
+
   it('preserves catalog rows while current executable lookups reject malformed data', () => {
     const now = Date.now()
     const makeRow = (

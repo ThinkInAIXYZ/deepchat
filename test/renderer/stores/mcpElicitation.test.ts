@@ -3,12 +3,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const submitElicitationDecisionMock = vi.hoisted(() => vi.fn().mockResolvedValue(undefined))
 const onElicitationRequestMock = vi.hoisted(() => vi.fn())
 
-vi.mock('vue', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('vue')>()),
-  onMounted: (callback: () => void) => callback(),
-  onUnmounted: vi.fn()
-}))
-
 vi.mock('@api/McpClient', () => ({
   createMcpClient: () => ({
     submitElicitationDecision: submitElicitationDecisionMock,
@@ -70,5 +64,12 @@ describe('MCP elicitation store', () => {
     expect(Object.prototype.hasOwnProperty.call(content, 'toString')).toBe(true)
     expect(content['__proto__']).toBe('prototype-value')
     expect(content.toString).toBe('method-value')
+  })
+
+  it('disposes cleanly when a listener registration returns no cleanup', async () => {
+    const store = await setupStore()
+
+    expect(onElicitationRequestMock).toHaveBeenCalledTimes(1)
+    expect(() => store.$dispose()).not.toThrow()
   })
 })

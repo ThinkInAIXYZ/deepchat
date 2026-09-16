@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
+import { nextTick } from 'vue'
 import type { SuggestionListItem } from '@/components/chat/mentions/SuggestionList.vue'
 import SuggestionList from '@/components/chat/mentions/SuggestionList.vue'
 
@@ -28,6 +29,9 @@ describe('SuggestionList', () => {
 
     const wrapper = mount(SuggestionList, {
       props: {
+        listId: 'suggestions',
+        label: 'Suggestions',
+        emptyLabel: 'No results',
         items,
         query: '',
         command: vi.fn()
@@ -44,6 +48,9 @@ describe('SuggestionList', () => {
 
     const wrapper = mount(SuggestionList, {
       props: {
+        listId: 'suggestions',
+        label: 'Suggestions',
+        emptyLabel: 'No results',
         items,
         query: '',
         command: vi.fn()
@@ -54,12 +61,15 @@ describe('SuggestionList', () => {
     expect(wrapper.text()).toContain('tool-25')
   })
 
-  it('keeps keyboard navigation aligned with the full item list', () => {
+  it('keeps keyboard navigation aligned with the full item list', async () => {
     const items = buildItems(25)
     const command = vi.fn()
 
     const wrapper = mount(SuggestionList, {
       props: {
+        listId: 'suggestions',
+        label: 'Suggestions',
+        emptyLabel: 'No results',
         items,
         query: '',
         command
@@ -67,6 +77,10 @@ describe('SuggestionList', () => {
     })
 
     ;(wrapper.vm as any).onKeyDown({ event: new KeyboardEvent('keydown', { key: 'ArrowUp' }) })
+    await nextTick()
+    expect(command).not.toHaveBeenCalled()
+    expect(wrapper.get('[aria-selected=true]').attributes('id')).toBe('suggestions-option-24')
+    expect(wrapper.emitted('activeChange')?.at(-1)).toEqual(['suggestions-option-24'])
     ;(wrapper.vm as any).onKeyDown({ event: new KeyboardEvent('keydown', { key: 'Enter' }) })
 
     expect(command).toHaveBeenCalledWith(items[24])

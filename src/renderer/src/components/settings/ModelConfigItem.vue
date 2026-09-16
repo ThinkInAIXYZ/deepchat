@@ -66,6 +66,7 @@
         :key="`${providerId}:${modelId}`"
         :data-testid="`provider-model-toggle-${providerId}-${modelId}`"
         :model-value="enabled"
+        :aria-label="`${t('common.enabled')}: ${modelName}`"
         @update:model-value="onEnabledChange"
       />
       <DcButton
@@ -75,11 +76,13 @@
         icon="lucide:settings"
         icon-size="4"
         :tooltip="t('settings.model.configureModel')"
+        :aria-label="`${t('settings.model.configureModel')}: ${modelName}`"
         class="rounded-lg text-xs"
         @click="onConfigModel"
       />
       <DcButton
         v-if="isCustomModel"
+        :aria-label="`${t('common.delete')}: ${modelName}`"
         variant="link"
         size="icon"
         class="h-7 w-7 rounded-lg text-xs"

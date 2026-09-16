@@ -197,7 +197,7 @@ export async function buildSystemPromptAssemblyWithSkills(
   if (skillsEnabled) {
     const metadataStartedAt = Date.now()
     try {
-      const metadataList = sessionAgentId ? await skillService.getMetadataList(sessionAgentId) : []
+      const metadataList = sessionAgentId ? await skillService.getMetadataList(sessionAgentId, { conversationId: sessionId }) : []
       for (const metadata of metadataList) {
         const skillName = metadata?.name?.trim()
         if (skillName) {
@@ -384,6 +384,7 @@ export async function buildSystemPromptAssemblyWithSkills(
       kind: 'pinned_skills',
       sourceRef: 'skills:active',
       content: skillsPrompt,
+      normalize: 'none',
       degradationCodes: pinnedSkillsDegradations
     }),
     createPromptAssemblySection({

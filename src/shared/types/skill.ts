@@ -35,10 +35,13 @@ export const SKILL_RUN_MAX_TOTAL_ARGUMENT_CHARS = 24 * 1024
 export const SKILL_RUN_MAX_STDIN_CHARS = 1024 * 1024
 export const SKILL_RUN_MAX_OUTPUT_BYTES = 16 * 1024 * 1024
 
-/**
- * Skill metadata extracted from SKILL.md frontmatter.
- * Always kept in memory for quick access and semantic matching.
- */
+/** Explicit catalog context; persisted Session scope takes precedence over a composer path. */
+export interface SkillCatalogScope {
+  workspacePath?: string
+  conversationId?: string
+}
+
+/** Skill metadata extracted from SKILL.md frontmatter for discovery and semantic matching. */
 export interface SkillMetadata {
   /** Unique identifier (must match directory name) */
   name: string
@@ -48,6 +51,8 @@ export interface SkillMetadata {
   path: string
   /** Skill root directory path */
   skillRoot: string
+  /** Workspace owning a discovered project skill; never part of the shared library. */
+  projectRoot?: string
   /** Optional category path derived from nested folders under the skills root */
   category?: string | null
   /** Optional platform restrictions declared in SKILL.md */
@@ -376,9 +381,9 @@ export interface SkillServicePort {
   discoverSkills(agentId: string): Promise<SkillMetadata[]>
   refreshAgentCatalog(agentId: string): Promise<SkillMetadata[]>
   getMetadataList(): Promise<SkillMetadata[]>
-  getMetadataList(agentId: string): Promise<SkillMetadata[]>
+  getMetadataList(agentId: string, scope?: SkillCatalogScope): Promise<SkillMetadata[]>
   getUnifiedSkillCatalog(): Promise<UnifiedSkillItem[]>
-  getUnifiedSkillCatalog(agentId: string): Promise<UnifiedSkillItem[]>
+  getUnifiedSkillCatalog(agentId: string, scope?: SkillCatalogScope): Promise<UnifiedSkillItem[]>
   getAllSkills(): Promise<UnifiedSkillItem[]>
   getSkillManagementState(): Promise<SkillManagementState>
   setSkillDeepChatDisabled(name: string, disabled: boolean): Promise<void>
@@ -392,7 +397,8 @@ export interface SkillServicePort {
   loadSkillContent(agentId: string, name: string): Promise<SkillContent | null>
   resolveFreshEffectiveSkillContents(
     agentId: string,
-    names: readonly string[]
+    names: readonly string[],
+    scope?: SkillCatalogScope
   ): Promise<EffectiveSkillContentResolution[]>
   viewSkillForAgent(
     agentId: string,
@@ -509,7 +515,8 @@ export interface SkillServicePort {
     agentId: string,
     name: string,
     expectedBindingId: string | null,
-    expectedSourceId?: string
+    expectedSourceId?: string,
+    expectedSourceType?: SkillSourceType
   ): Promise<Record<string, string>>
   saveSkillExtension(name: string, config: SkillExtensionConfig): Promise<void>
   saveSkillExtensionForAgent(
@@ -530,7 +537,7 @@ export interface SkillServicePort {
   resolveSessionAgentId(conversationId: string): Promise<string | null>
   revalidateActiveSkillsForAgent(conversationId: string, agentId: string): Promise<string[]>
   validateSkillNames(names: string[]): Promise<string[]>
-  validateSkillNames(agentId: string, names: string[]): Promise<string[]>
+  validateSkillNames(agentId: string, names: string[], scope?: SkillCatalogScope): Promise<string[]>
 
   // Tool integration
   getActiveSkillsAllowedTools(

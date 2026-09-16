@@ -6,7 +6,8 @@ import {
   syncBackupStatusChangedEvent,
   syncImportCompletedEvent,
   syncImportErrorEvent,
-  syncImportStartedEvent
+  syncImportStartedEvent,
+  type DeepchatEventPayload
 } from '@shared/contracts/events'
 import {
   syncGetBackupStatusRoute,
@@ -105,7 +106,9 @@ export function createSyncClient(bridge: DeepchatBridge = getDeepchatBridge()) {
     return bridge.on(syncImportStartedEvent.name, listener)
   }
 
-  function onImportCompleted(listener: (payload: { version: number }) => void) {
+  function onImportCompleted(
+    listener: (payload: DeepchatEventPayload<'sync.import.completed'>) => void
+  ) {
     return bridge.on(syncImportCompletedEvent.name, listener)
   }
 

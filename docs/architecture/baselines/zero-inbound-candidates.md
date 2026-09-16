@@ -6,7 +6,7 @@ These files have no in-repo importers inside their scope and need manual classif
 
 ## main
 
-- Candidate count: 14
+- Candidate count: 13
 
 - `agent/shared/agentCatalogEventSink.ts`
 - `backgroundExecUtilityHostEntry.ts`
@@ -19,7 +19,6 @@ These files have no in-repo importers inside their scope and need manual classif
 - `lib/terminalHelper.ts`
 - `lightOcrHelperEntry.ts`
 - `mcp/agentMcpFilter.ts`
-- `provider/oauthHelper.ts`
 - `schedulerUtilityHostEntry.ts`
 - `session/data/tables/attachments.ts`
 
