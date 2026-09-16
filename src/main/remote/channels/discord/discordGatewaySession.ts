@@ -153,6 +153,7 @@ export class DiscordGatewaySession {
   async stop(): Promise<void> {
     this.stopRequested = true
     this.cleanupHeartbeat()
+    this.rejectFirstConnected?.(new Error('Discord gateway session stopped before connection.'))
     this.cancelReconnectDelay?.()
     this.ws?.close()
     this.ws = null

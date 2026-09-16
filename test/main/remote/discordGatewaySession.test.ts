@@ -37,4 +37,32 @@ describe('DiscordGatewaySession', () => {
     expect(connectOnceSpy).toHaveBeenCalledTimes(1)
     expect(vi.getTimerCount()).toBe(0)
   })
+
+  it('settles start() when stop is called before the session reaches READY', async () => {
+    let releaseConnectOnce: (() => void) | undefined
+    const pendingConnection = new Promise<void>((resolve) => {
+      releaseConnectOnce = resolve
+    })
+    const session = new DiscordGatewaySession({
+      client: { getGatewayUrl: vi.fn() } as never,
+      onDispatch: vi.fn()
+    })
+    ;(session as never as { connectOnce: unknown }).connectOnce = vi
+      .fn()
+      .mockReturnValue(pendingConnection)
+
+    const startPromise = session.start()
+    const startSettled = startPromise.then(
+      () => 'resolved',
+      (error: unknown) => `rejected: ${(error as Error).message}`
+    )
+
+    const stopPromise = session.stop()
+    releaseConnectOnce?.()
+
+    await expect(stopPromise).resolves.toBeUndefined()
+    await expect(startSettled).resolves.toBe(
+      'rejected: Discord gateway session stopped before connection.'
+    )
+  })
 })
