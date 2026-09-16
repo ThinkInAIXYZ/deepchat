@@ -1,58 +1,53 @@
 # Dependency Baseline
 
-Generated on 2026-09-06.
+Generated on 2026-09-16.
 
 ## main
 
-- Total files: 862
-- Internal dependency edges: 3035
-- Cycles detected: 14
+- Total files: 901
+- Internal dependency edges: 2406
+- Cycles detected: 9
 
 ### Top outgoing dependencies
 
-- `app/composition.ts`: 183
-- `agent/deepchat/runtime/deepChatLoopRunner.ts`: 61
-- `agent/deepchat/runtime/turnCoordinator.ts`: 53
+- `app/composition.ts`: 185
 - `data/schemaCatalog.ts`: 46
-- `agent/deepchat/harness/createDeepChatAgentHarness.ts`: 42
 - `tool/agentTools/agentToolManager.ts`: 37
-- `agent/deepchat/harness/runtimeServices.ts`: 35
-- `agent/deepchat/runtime/dispatch.ts`: 27
-- `agent/deepchat/runtime/interactionCoordinator.ts`: 27
-- `agent/deepchat/runtime/compactionRuntimeCoordinator.ts`: 24
+- `memory/index.ts`: 24
 - `session/data/database.ts`: 24
 - `tool/index.ts`: 24
-- `memory/index.ts`: 23
-- `tape/application/sessionTape.ts`: 22
-- `agent/deepchat/runtime/deferredToolExecutor.ts`: 20
+- `agent/deepchat/harness/runtimeServices.ts`: 23
+- `tape/application/sessionTape.ts`: 23
+- `mcp/index.ts`: 21
+- `app/mainProcess.ts`: 20
+- `cli/index.ts`: 20
+- `mcp/inMemoryServers/builder.ts`: 18
+- `provider/settings.ts`: 18
+- `agent/acp/compatibility/dependencies.ts`: 17
+- `provider/index.ts`: 16
 
 ### Top incoming dependencies
 
-- `provider/settings.ts`: 49
-- `agent/shared/agentSessionIds.ts`: 46
 - `data/baseTable.ts`: 45
 - `routes/routeRegistry.ts`: 43
 - `remote/types.ts`: 39
-- `tape/ports/capabilities.ts`: 36
-- `agent/settings.ts`: 35
 - `config/settingsStore.ts`: 35
-- `tape/domain/entry.ts`: 35
-- `tape/domain/canonicalJson.ts`: 31
-- `agent/deepchat/runtime/types.ts`: 28
-- `agent/deepchat/runtime/toolSurface.ts`: 25
-- `tape/domain/executionJournal.ts`: 25
+- `provider/settings.ts`: 34
+- `agent/settings.ts`: 30
 - `memory/types.ts`: 24
-- `agent/deepchat/instance/deepChatAgentRuntime.ts`: 23
+- `tape/ports/capabilities.ts`: 24
+- `agent/shared/agentSessionIds.ts`: 23
+- `memory/ports.ts`: 23
+- `remote/binding/store.ts`: 22
+- `tape/domain/entry.ts`: 21
+- `mcp/settings.ts`: 19
+- `memory/domain/types.ts`: 18
+- `cli/errors.ts`: 17
 
 ### Cycle samples
 
 - `session/data/tables/deepchatAssistantBlocks.ts -> session/data/messageContent.ts -> session/data/tables/deepchatAssistantBlocks.ts`
-- `memory/types.ts -> memory/injection.ts -> memory/core/injectionPort.ts -> memory/types.ts`
-- `memory/core/injectionPort.ts -> memory/core/directiveContribution.ts -> memory/core/injectionPort.ts`
-- `agent/acp/runtime/acpProcessManager.ts -> agent/deepchat/runtime/types.ts -> session/contracts.ts -> agent/manager/sessionHandles.ts -> agent/acp/instance/index.ts -> agent/acp/instance/acpAgentInstance.ts -> agent/acp/runtime/acpSessionManager.ts -> agent/acp/runtime/acpProcessManager.ts`
-- `agent/acp/runtime/index.ts -> agent/acp/runtime/acpProcessManager.ts -> agent/deepchat/runtime/types.ts -> session/contracts.ts -> agent/manager/sessionHandles.ts -> agent/acp/instance/index.ts -> agent/acp/instance/acpAgentInstance.ts -> agent/acp/runtime/acpPermissionBridge.ts -> agent/acp/instance/ports.ts -> agent/acp/runtime/index.ts`
-- `agent/acp/client/index.ts -> agent/acp/runtime/index.ts -> agent/acp/runtime/acpProcessManager.ts -> agent/deepchat/runtime/types.ts -> session/contracts.ts -> agent/manager/sessionHandles.ts -> agent/acp/instance/index.ts -> agent/acp/instance/acpAgentRuntime.ts -> agent/acp/client/index.ts`
-- `agent/acp/runtime/index.ts -> agent/acp/runtime/acpProcessManager.ts -> agent/deepchat/runtime/types.ts -> session/contracts.ts -> agent/manager/sessionHandles.ts -> agent/acp/runtime/index.ts`
+- `agent/acp/runtime/index.ts -> agent/acp/runtime/acpCompatibilityPromptBuilder.ts -> agent/acp/instance/ports.ts -> agent/acp/runtime/index.ts`
 - `agent/acp/client/index.ts -> agent/acp/client/acpRuntimeOwner.ts -> agent/acp/client/index.ts`
 - `desktop/browser/YoBrowserPresenter.ts -> desktop/browser/YoBrowserToolHandler.ts -> desktop/browser/YoBrowserPresenter.ts`
 - `tool/agentTools/agentToolManager.ts -> tool/agentTools/agentTapeTools.ts -> tool/agentTools/agentToolManager.ts`
@@ -63,17 +58,17 @@ Generated on 2026-09-06.
 
 ## renderer-main
 
-- Total files: 354
-- Internal dependency edges: 664
+- Total files: 361
+- Internal dependency edges: 683
 - Cycles detected: 2
 
 ### Top outgoing dependencies
 
-- `features/chat-page/ChatPage.vue`: 45
+- `features/chat-page/ChatPage.vue`: 46
 - `apps/chat-main/ChatMainApp.vue`: 32
-- `i18n/index.ts`: 21
+- `i18n/index.ts`: 24
+- `pages/NewThreadPage.vue`: 22
 - `components/message/MessageItemAssistant.vue`: 20
-- `pages/NewThreadPage.vue`: 20
 - `components/chat/ChatStatusBar.vue`: 19
 - `components/WindowSideBar.vue`: 16
 - `apps/chat-main/ChatTabView.vue`: 15
@@ -82,8 +77,8 @@ Generated on 2026-09-06.
 - `features/chat-page/composables/useComposerSubmit.ts`: 10
 - `stores/ui/session.ts`: 10
 - `components/ChatConfig.vue`: 9
-- `components/sidepanel/WorkspacePanel.vue`: 9
-- `pages/plugins/SkillsPluginsPage.vue`: 9
+- `components/markdown/MarkdownRenderer.vue`: 9
+- `components/message/MessageBlockToolCall.vue`: 9
 
 ### Top incoming dependencies
 
