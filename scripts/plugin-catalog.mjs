@@ -26,6 +26,8 @@ const CATALOG_SCHEMA_VERSION = 1
 const OCR_RUNTIME_ASSET_ID = 'light-ocr'
 const PLUGIN_PACKAGE_SUFFIX = '.dcplugin'
 const SHA256_PATTERN = /^[a-f0-9]{64}$/
+const PLATFORMS = new Set(['darwin', 'win32', 'linux'])
+const ARCHS = new Set(['arm64', 'x64'])
 
 const appVersion = JSON.parse(
   readFileSync(path.join(repositoryRoot, 'package.json'), 'utf8')
@@ -108,14 +110,20 @@ function readJson(filePath) {
   return JSON.parse(readFileSync(filePath, 'utf8'))
 }
 
+// https-only for remote hosts; plain http is allowed for loopback hosts so
+// local fixture flows can drive installs without a TLS server.
 function assertHttpUrl(value, label) {
   try {
     const url = new URL(value)
-    if (url.protocol !== 'https:' && url.protocol !== 'http:') {
-      throw new Error('not http(s)')
+    const isLoopback =
+      url.hostname === 'localhost' || url.hostname === '127.0.0.1' || url.hostname === '[::1]'
+    if (url.protocol !== 'https:' && !(url.protocol === 'http:' && isLoopback)) {
+      throw new Error('not https (or loopback http)')
     }
-  } catch {
-    throw new Error(`${label} must be an http(s) URL: ${value}`)
+  } catch (error) {
+    throw new Error(
+      `${label} must be an https URL (plain http only for loopback): ${value} — ${error.message}`
+    )
   }
 }
 
@@ -130,10 +138,10 @@ function readCatalog(catalogPath) {
   return catalog
 }
 
-function buildTargetEntry(options, url, filePath) {
+function buildTargetEntry(options, url, filePath, platform, arch) {
   const size = statSync(filePath).size
   const sha256 = sha256File(filePath)
-  return { url, sha256, size, mirrors: [...options.mirrors] }
+  return { platform, arch, url, sha256, size, mirrors: [...options.mirrors] }
 }
 
 function platformArchFromArtifactName(fileName, suffix) {
@@ -171,7 +179,7 @@ function generate(args) {
       throw new Error(`Plugin package manifest is incomplete: ${entry.name}`)
     }
     const url = `${args.baseUrl.replace(/\/$/, '')}/${entry.name}`
-    const targetEntry = buildTargetEntry(args, url, filePath)
+    const targetEntry = buildTargetEntry(args, url, filePath, target.platform, target.arch)
     const existing = packagesByName.get(manifest.id)
     if (existing) {
       existing.targets.push(targetEntry)
@@ -211,6 +219,8 @@ function generate(args) {
     const fileName = `${OCR_RUNTIME_ASSET_ID}-${manifest.bundleId}-${manifest.platform}-${manifest.arch}.zip`
     const url = `${args.baseUrl.replace(/\/$/, '')}/${fileName}`
     const targetEntry = {
+      platform: manifest.platform,
+      arch: manifest.arch,
       url,
       sha256: createHash('sha256').update(payload).digest('hex'),
       size: payload.length,
@@ -294,6 +304,11 @@ function validateTargets(targets, label) {
     throw new Error(`Catalog ${label} has no targets`)
   }
   for (const target of targets) {
+    if (!PLATFORMS.has(target.platform) || !ARCHS.has(target.arch)) {
+      throw new Error(
+        `Catalog ${label} has an invalid platform/arch pair: ${target.platform}/${target.arch}`
+      )
+    }
     if (!SHA256_PATTERN.test(target.sha256 ?? '')) {
       throw new Error(`Catalog ${label} has an invalid sha256 pin`)
     }
@@ -301,6 +316,9 @@ function validateTargets(targets, label) {
       throw new Error(`Catalog ${label} has an invalid size`)
     }
     assertHttpUrl(target.url, `Catalog ${label} url`)
+    for (const mirror of target.mirrors ?? []) {
+      assertHttpUrl(mirror, `Catalog ${label} mirror`)
+    }
   }
 }
 

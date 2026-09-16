@@ -11,15 +11,43 @@ const PluginListItemSchema = z.custom<PluginListItem>()
 const PluginActionResultSchema = z.custom<PluginActionResult>()
 
 const Sha256Schema = z.string().regex(/^[a-f0-9]{64}$/)
+
+/**
+ * Artifact URLs must be https. Plain http is only allowed for loopback hosts
+ * so the local-fixture e2e flow (spec §4.4) can drive installs without a TLS
+ * server; remote hosts can never be fetched over plaintext.
+ */
+const ArtifactUrlSchema = z
+  .url({ protocol: /^https?$/ })
+  .max(8192)
+  .refine(isHttpsOrLoopbackUrl, {
+    message: 'Artifact URLs must be https (plain http is only allowed for loopback hosts)'
+  })
+
+function isHttpsOrLoopbackUrl(url: string): boolean {
+  if (url.startsWith('https://')) return true
+  try {
+    const parsed = new URL(url)
+    return (
+      parsed.protocol === 'http:' &&
+      (parsed.hostname === 'localhost' ||
+        parsed.hostname === '127.0.0.1' ||
+        parsed.hostname === '[::1]')
+    )
+  } catch {
+    return false
+  }
+}
+
 const PluginCatalogTargetSchema = z
   .object({
     platform: z.enum(['darwin', 'win32', 'linux']),
     arch: z.enum(['arm64', 'x64']),
-    url: z.url({ protocol: /^https?$/ }).max(8192),
+    url: ArtifactUrlSchema,
     sha256: Sha256Schema,
     size: z.number().int().positive(),
     // Mirror prefixes are concatenated with the canonical URL (ghproxy style).
-    mirrors: z.array(z.url({ protocol: /^https?$/ }).max(2048)).max(8)
+    mirrors: z.array(ArtifactUrlSchema.max(2048)).max(8)
   })
   .strict()
 
