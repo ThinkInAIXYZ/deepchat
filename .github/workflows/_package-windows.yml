@@ -36,9 +36,13 @@ env:
   CI: 'true'
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
   # '1' builds cua for remote distribution instead of shipping it inside the
-  # app, and "Verify bundled plugins" then asserts its absence. Flip only once
-  # the published catalog carries real cua artifact URLs for this version.
-  DEEPCHAT_UNBUNDLE_CUA: '0'
+  # app, and "Verify bundled plugins" then asserts its absence. Flipped for the
+  # unbundled distribution test; keep published catalog entries in sync before
+  # this ships.
+  DEEPCHAT_UNBUNDLE_CUA: '1'
+  # '1' ships without the bundled OCR runtime: the smoke step is replaced by
+  # an absence assertion and package-manifest tolerates the missing report.
+  DEEPCHAT_UNBUNDLE_OCR: '1'
 
 jobs:
   package:
@@ -154,6 +158,7 @@ jobs:
       # Blocks outbound traffic from the runner Node used by smoke-light-ocr.
       # That Node version must remain 24.18.0 to match runtime-versions.json.
       - name: Verify packaged Light OCR offline
+        if: env.DEEPCHAT_UNBUNDLE_OCR != '1'
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
@@ -173,6 +178,17 @@ jobs:
           } finally {
             Remove-NetFirewallRule -DisplayName $ruleName -ErrorAction SilentlyContinue
           }
+
+      - name: Verify packaged OCR runtime is absent
+        if: env.DEEPCHAT_UNBUNDLE_OCR == '1'
+        shell: bash
+        run: |
+          ocr_runtime="dist/${UNPACKED_DIRECTORY}/resources/app.asar.unpacked/runtime/ocr"
+          if [[ -e "${ocr_runtime}" ]]; then
+            echo "::error::Bundled OCR runtime must not ship inside the app: ${ocr_runtime}"
+            exit 1
+          fi
+          echo "Verified OCR runtime is absent (distributed remotely)"
 
       - name: Verify bundled plugins
         shell: bash
@@ -200,12 +216,16 @@ jobs:
           if [[ "${ENFORCE_INSTALLER_SIZE}" == 'true' ]]; then
             size_report=(--installer-size-report "dist/package-size-win32-${TARGET_ARCH}.json")
           fi
+          ocr_report=()
+          if [[ "${DEEPCHAT_UNBUNDLE_OCR}" != '1' ]]; then
+            ocr_report=(--report "dist/light-ocr-smoke-win32-${TARGET_ARCH}.json")
+          fi
           node scripts/ci/package-manifest.mjs \
             --platform win32 \
             --arch "${TARGET_ARCH}" \
             --source-sha "${SOURCE_SHA}" \
             --purpose "${PACKAGE_PURPOSE}" \
-            --report "dist/light-ocr-smoke-win32-${TARGET_ARCH}.json" \
+            "${ocr_report[@]}" \
             --workflow-run-id "${GITHUB_RUN_ID}" \
             --workflow-run-attempt "${GITHUB_RUN_ATTEMPT}" \
             "${size_report[@]}"

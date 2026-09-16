@@ -18,7 +18,10 @@ import { promisify } from 'node:util'
 
 import { validateAppleTeamId } from '../apple-notarization.js'
 import { verifyDmgDistribution } from '../notarize-dmg.js'
-import { verifyCuaMacHelperDistribution } from './verify-cua-macos-helper.mjs'
+import {
+  verifyCuaMacHelperDistribution,
+  verifyCuaMacHelperUnbundled
+} from './verify-cua-macos-helper.mjs'
 import {
   createDefaultPackageSizePolicy,
   DARWIN_DISTRIBUTION_CHECK_NAMES,
@@ -555,9 +558,10 @@ export function validateInstallerSizeReport(
   }
 }
 
-export function validateSmokeReports(reports, expectedTarget) {
+export function validateSmokeReports(reports, expectedTarget, { allowMissingLightOcr = false } = {}) {
   const lightOcrReports = reports.filter(({ name }) => name.startsWith('light-ocr-smoke-'))
   if (lightOcrReports.length === 0) {
+    if (allowMissingLightOcr) return
     throw new Error(`Missing Light OCR smoke report for ${expectedTarget}`)
   }
   for (const lightOcrReport of lightOcrReports) {
@@ -606,6 +610,8 @@ export async function createPackageManifest({
   actualSourceSha,
   macAppPath,
   appleTeamId,
+  allowMissingLightOcrReports = false,
+  cuaUnbundled = false,
   verifyMacApp = verifyMacAppDistribution,
   verifyCuaMacHelper = verifyCuaMacHelperDistribution,
   verifyMacZip = verifyMacZipDistribution,
@@ -687,7 +693,9 @@ export async function createPackageManifest({
       await copyReport(path.resolve(reportPath), reportsDirectory, stagedReportNames)
     )
   }
-  validateSmokeReports(stagedReports, definition.id)
+  validateSmokeReports(stagedReports, definition.id, {
+    allowMissingLightOcr: allowMissingLightOcrReports
+  })
 
   let installerSize = 'not-run'
   if (installerSizeReportPath) {
@@ -721,9 +729,16 @@ export async function createPackageManifest({
       resolvedOutputDirectory,
       updaterPayload.storagePath
     )
-    await verifyCuaMacHelper(resolvedAppPath, { teamId: appleTeamId })
+    // When cua ships remotely (DEEPCHAT_UNBUNDLE_CUA=1) the helper travels
+    // inside the .dcplugin instead of Contents/Helpers, so the distribution
+    // check inverts to assert its absence from the app and updater ZIP.
+    const cuaHelperVerifier = cuaUnbundled ? verifyCuaMacHelperUnbundled : verifyCuaMacHelper
+    await cuaHelperVerifier(resolvedAppPath, { teamId: appleTeamId })
     await verifyMacApp(resolvedAppPath, { teamId: appleTeamId })
-    await verifyMacZip(resolvedZipPath, { teamId: appleTeamId })
+    await verifyMacZip(resolvedZipPath, {
+      teamId: appleTeamId,
+      ...(cuaUnbundled && { verifyCuaMacHelper: verifyCuaMacHelperUnbundled })
+    })
     await verifyMacDmg(resolvedDmgPath, { teamId: appleTeamId })
     for (const checkName of DARWIN_DISTRIBUTION_CHECK_NAMES) {
       checks[checkName] = 'passed'
@@ -819,7 +834,11 @@ export async function main(argv = process.argv.slice(2)) {
       runAttempt: options['workflow-run-attempt']
     },
     macAppPath: options['mac-app-path'],
-    appleTeamId: process.env.DEEPCHAT_APPLE_NOTARY_TEAM_ID
+    appleTeamId: process.env.DEEPCHAT_APPLE_NOTARY_TEAM_ID,
+    // The package workflows export the unbundle switches; honoring them here
+    // keeps the manifest step consistent with what the app actually contains.
+    allowMissingLightOcrReports: process.env.DEEPCHAT_UNBUNDLE_OCR === '1',
+    cuaUnbundled: process.env.DEEPCHAT_UNBUNDLE_CUA === '1'
   })
 }
 

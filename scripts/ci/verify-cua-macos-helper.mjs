@@ -1,4 +1,5 @@
 import { execFile } from 'node:child_process'
+import { existsSync } from 'node:fs'
 import {
   lstat,
   mkdtemp,
@@ -315,4 +316,25 @@ export async function verifyCuaMacHelperDistribution(
     helperAppPath,
     inspectedMachOCount: inspections.length
   }
+}
+
+/**
+ * Unbundled (remote-distribution) counterpart of verifyCuaMacHelperDistribution:
+ * the helper must not ship inside the app because it travels inside the
+ * remotely installed .dcplugin. Asserting its absence keeps the distribution
+ * check fail-closed when DEEPCHAT_UNBUNDLE_CUA=1.
+ */
+export async function verifyCuaMacHelperUnbundled(macAppPath, _options = {}) {
+  const helperAppPath = path.join(
+    macAppPath,
+    'Contents',
+    'Helpers',
+    CUA_DARWIN_HELPER_APP_NAME
+  )
+  if (existsSync(helperAppPath)) {
+    throw new Error(
+      `Unbundled CUA helper must not ship inside the app: ${helperAppPath}`
+    )
+  }
+  return { helperAppPath, unbundled: true }
 }

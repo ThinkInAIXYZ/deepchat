@@ -46,6 +46,7 @@ import {
   verifyMacZipDistribution
 } from '../../../scripts/ci/package-manifest.mjs'
 import { prepareReleaseContext } from '../../../scripts/ci/release-preflight.mjs'
+import { verifyCuaMacHelperUnbundled } from '../../../scripts/ci/verify-cua-macos-helper.mjs'
 
 vi.unmock('fs')
 vi.unmock('node:fs')
@@ -1001,5 +1002,105 @@ describe('package manifest staging', () => {
       macZipDistribution: 'passed',
       macDmgDistribution: 'passed'
     })
+  })
+
+  it('supports the unbundled cua/OCR distribution without smoke reports', async () => {
+    const { dmgName, zipName } = await prepareMacPackage()
+    const outputDirectory = path.join(tempDirectory, 'mac-unbundled-output')
+    const appDirectory = path.join(tempDirectory, 'unbundled-app')
+    await mkdir(appDirectory, { recursive: true })
+    const verifyMacApp = vi.fn(async () => {})
+    const verifyMacZip = vi.fn(async () => {})
+    const verifyMacDmg = vi.fn(async () => {})
+
+    const manifest = await createPackageManifest({
+      projectDirectory,
+      distDirectory,
+      outputDirectory,
+      platform: 'darwin',
+      arch: 'arm64',
+      sourceSha,
+      purpose: 'distribution',
+      reportPaths: [],
+      actualSourceSha: sourceSha,
+      macAppPath: appDirectory,
+      appleTeamId: 'Y7P5QLKLYG',
+      allowMissingLightOcrReports: true,
+      cuaUnbundled: true,
+      verifyMacApp,
+      verifyMacZip,
+      verifyMacDmg
+    })
+
+    expect(verifyMacZip).toHaveBeenCalledWith(path.join(outputDirectory, 'files', zipName), {
+      teamId: 'Y7P5QLKLYG',
+      verifyCuaMacHelper: verifyCuaMacHelperUnbundled
+    })
+    expect(manifest.checks).toMatchObject({
+      cuaMacHelperDistribution: 'passed',
+      packageSmoke: 'passed'
+    })
+    expect(manifest.files.map((file) => file.name)).toContain(dmgName)
+  })
+
+  it('rejects the unbundled manifest when the helper still ships inside the app', async () => {
+    await prepareMacPackage()
+    const outputDirectory = path.join(tempDirectory, 'mac-unbundled-reject-output')
+    const appDirectory = path.join(tempDirectory, 'bundled-app')
+    const helperPath = path.join(
+      appDirectory,
+      'Contents',
+      'Helpers',
+      'DeepChat Computer Use.app'
+    )
+    await mkdir(path.dirname(helperPath), { recursive: true })
+    await writeFile(helperPath, 'helper')
+
+    await expect(
+      createPackageManifest({
+        projectDirectory,
+        distDirectory,
+        outputDirectory,
+        platform: 'darwin',
+        arch: 'arm64',
+        sourceSha,
+        purpose: 'distribution',
+        reportPaths: [],
+        actualSourceSha: sourceSha,
+        macAppPath: appDirectory,
+        appleTeamId: 'Y7P5QLKLYG',
+        allowMissingLightOcrReports: true,
+        cuaUnbundled: true,
+        verifyMacApp: vi.fn(async () => {}),
+        verifyMacZip: vi.fn(async () => {}),
+        verifyMacDmg: vi.fn(async () => {})
+      })
+    ).rejects.toThrow(/must not ship inside the app/)
+  })
+
+  it('requires light OCR smoke reports unless the unbundled mode allows them missing', async () => {
+    await prepareMacPackage()
+    const outputDirectory = path.join(tempDirectory, 'mac-missing-smoke-output')
+    const macAppPath = path.join(tempDirectory, 'no-helper-app')
+    await mkdir(macAppPath, { recursive: true })
+
+    await expect(
+      createPackageManifest({
+        projectDirectory,
+        distDirectory,
+        outputDirectory,
+        platform: 'darwin',
+        arch: 'arm64',
+        sourceSha,
+        purpose: 'distribution',
+        reportPaths: [],
+        actualSourceSha: sourceSha,
+        macAppPath,
+        appleTeamId: 'Y7P5QLKLYG',
+        verifyMacApp: vi.fn(async () => {}),
+        verifyMacZip: vi.fn(async () => {}),
+        verifyMacDmg: vi.fn(async () => {})
+      })
+    ).rejects.toThrow(/Missing Light OCR smoke report/)
   })
 })
