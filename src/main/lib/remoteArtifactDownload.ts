@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { mkdirSync, rmSync } from 'node:fs'
+import { existsSync, mkdirSync, readdirSync, rmSync } from 'node:fs'
 import path from 'node:path'
 import { downloadVerifiedFile, probeArtifactUrl, type FetchLike } from '@/toolchains/downloader'
 
@@ -37,6 +37,18 @@ export function buildArtifactCandidateUrls(descriptor: RemoteArtifactDescriptor)
     ...descriptor.mirrors.map((mirror) => `${mirror}${descriptor.url}`)
   ]
   return Array.from(new Set(candidates))
+}
+
+/**
+ * Removes stale operation directories left behind by a crash mid-download.
+ * Only call this during startup, before any install can be running.
+ */
+export function sweepStagingRoot(stagingRoot: string): void {
+  if (!existsSync(stagingRoot)) return
+  for (const entry of readdirSync(stagingRoot, { withFileTypes: true })) {
+    if (!entry.isDirectory()) continue
+    rmSync(path.join(stagingRoot, entry.name), { recursive: true, force: true })
+  }
 }
 
 /**

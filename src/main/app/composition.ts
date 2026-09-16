@@ -212,6 +212,7 @@ import { createPluginRoutes } from '../plugin/routes'
 import { PluginRuntimeSupervisor } from '../plugin/runtimeSupervisor'
 import { PluginCatalogService, LIGHT_OCR_RUNTIME_ASSET_ID } from '../plugin/catalog'
 import { PluginRemoteInstaller } from '../plugin/remoteInstaller'
+import { sweepStagingRoot } from '@/lib/remoteArtifactDownload'
 import { PLUGIN_INSTALL_DIRECTORY } from '@shared/pluginPaths'
 import { AgentRepository } from '../agent/repository'
 import { AgentDatabase } from '@/agent/data/database'
@@ -1248,6 +1249,9 @@ export async function createMainProcessControl(dependencies: {
     env: process.env
   })
   const ocrRuntimeAssetInstallRoot = path.join(app.getPath('userData'), 'runtimes', 'ocr')
+  // Startup-only sweep: a crash mid-download leaves staging directories
+  // behind; nothing can be running this early, so all of them are stale.
+  sweepStagingRoot(path.join(ocrRuntimeAssetInstallRoot, '.staging'))
   const ocrRuntimeAssetInstaller = new OcrRuntimeAssetInstaller({
     installRoot: () => ocrRuntimeAssetInstallRoot,
     stagingRoot: () => path.join(ocrRuntimeAssetInstallRoot, '.staging'),
@@ -1801,6 +1805,16 @@ export async function createMainProcessControl(dependencies: {
     settingsWindow: pluginSettingsWindow,
     runtimeSupervisor: pluginRuntimeSupervisor
   })
+  const pluginRemoteInstaller = new PluginRemoteInstaller({
+    stagingRoot: () => path.join(app.getPath('userData'), PLUGIN_INSTALL_DIRECTORY, '.staging'),
+    installPackage: (packagePath, expectedPluginId) =>
+      pluginService.installOfficialPluginPackage(packagePath, expectedPluginId),
+    onProgress: (state) =>
+      publishDeepchatEvent('plugins.install.progress', { ...state, updatedAt: Date.now() })
+  })
+  // Startup-only sweep: a crash mid-download leaves staging directories
+  // behind; nothing can be running this early, so all of them are stale.
+  sweepStagingRoot(path.join(app.getPath('userData'), PLUGIN_INSTALL_DIRECTORY, '.staging'))
 
   // Initialize Skill Sync service
   skillSyncService = new SkillSyncService(skillService, skillSettings, publishDeepchatEvent)
@@ -2673,6 +2687,13 @@ export async function createMainProcessControl(dependencies: {
   }
 
   async function destroy(): Promise<void> {
+    // Drain remote installers first: an in-flight download must not call
+    // into pluginService/ocrRuntimeService after they are shut down.
+    await runDestroyStep('remoteInstallers.cancelAll', () =>
+      Promise.all([pluginRemoteInstaller.cancelAll(), ocrRuntimeAssetInstaller.cancelAll()]).then(
+        () => undefined
+      )
+    )
     await runDestroyStep('agentCliTokenAuthority.clear', () => agentCliTokenAuthority.clear())
     await runDestroyStep('cliServer.stop', () => cliServer.stop())
     await runDestroyStep('tapeInspectorHeadWatcher.close', () => tapeInspectorHeadWatcher.close())
@@ -2825,12 +2846,6 @@ export async function createMainProcessControl(dependencies: {
       recordSettingsActivity: (input) => settingsDatabase.recordSettingsActivity(input)
     })
     const toolRoutes = createToolRoutes(toolService)
-    const pluginRemoteInstaller = new PluginRemoteInstaller({
-      stagingRoot: () => path.join(app.getPath('userData'), PLUGIN_INSTALL_DIRECTORY, '.staging'),
-      installPackage: (packagePath) => pluginService.installOfficialPluginPackage(packagePath),
-      onProgress: (state) =>
-        publishDeepchatEvent('plugins.install.progress', { ...state, updatedAt: Date.now() })
-    })
     const pluginRoutes = createPluginRoutes(pluginService, {
       catalog: pluginCatalogService,
       installer: pluginRemoteInstaller
