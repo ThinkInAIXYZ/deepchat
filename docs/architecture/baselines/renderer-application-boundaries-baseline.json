@@ -424,6 +424,10 @@
       "specifier": "@/stores/uiSettingsStore"
     },
     {
+      "file": "src/renderer/settings/components/OcrSettings.vue",
+      "specifier": "@/components/plugins/RuntimeInstallControls.vue"
+    },
+    {
       "file": "src/renderer/settings/components/OllamaProviderSettingsDetail.vue",
       "specifier": "@/components/settings/ModelConfigItem.vue"
     },
@@ -560,5 +564,5 @@
       "specifier": "@/i18n/bootstrap"
     }
   ],
-  "settingsToChatAppImportCount": 127
+  "settingsToChatAppImportCount": 128
 }
