@@ -55,6 +55,8 @@ extraResources:
   - from: ./resources/skills/
     to: app.asar.unpacked/resources/skills
     filter: ['**/*']
+  - from: ./resources/plugin-catalog.json
+    to: plugin-catalog.json
   - from: ./build/bundled-plugins/
     to: app.asar.unpacked/plugins
     filter: ['**/*.dcplugin']
