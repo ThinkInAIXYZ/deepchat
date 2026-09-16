@@ -30,7 +30,26 @@ describe('OpenAI Codex auth', () => {
     vi.mocked(fs.writeFileSync).mockImplementation((file, data) => {
       files.set(String(file), String(data))
     })
-    vi.mocked(fs.readFileSync).mockImplementation((file) => files.get(String(file)) || '')
+    vi.mocked(fs.readFileSync).mockImplementation((file) => {
+      const content = files.get(String(file))
+      if (content === undefined) {
+        throw Object.assign(new Error('ENOENT: no such file or directory'), { code: 'ENOENT' })
+      }
+      return content
+    })
+    vi.mocked(fs.renameSync).mockImplementation((from, to) => {
+      const content = files.get(String(from))
+      if (content !== undefined) {
+        files.delete(String(from))
+        files.set(String(to), content)
+      }
+    })
+    vi.mocked(fs.copyFileSync).mockImplementation((from, to) => {
+      const content = files.get(String(from))
+      if (content !== undefined) {
+        files.set(String(to), content)
+      }
+    })
     vi.mocked(fs.rmSync).mockImplementation((file) => {
       files.delete(String(file))
     })
@@ -89,10 +108,11 @@ describe('OpenAI Codex auth', () => {
       recursive: true,
       mode: 0o700
     })
-    expect(fs.writeFileSync).toHaveBeenCalledWith(credentialPath, expect.any(String), {
+    expect(fs.writeFileSync).toHaveBeenCalledWith(`${credentialPath}.tmp`, expect.any(String), {
       encoding: 'utf-8',
       mode: 0o600
     })
+    expect(fs.renameSync).toHaveBeenCalledWith(`${credentialPath}.tmp`, credentialPath)
     expect(store.load()?.accessToken).toBe('access-token')
     store.clear()
     expect(store.load()).toBeNull()
