@@ -545,10 +545,15 @@ describe('OcrRuntimeAssetResolver', () => {
         )
       }
     })
-    const staleInstalledRoot = path.join(tempDir, 'runtimes', 'ocr', 'stale')
-    await writeJson(path.join(staleInstalledRoot, 'runtime', 'ocr', 'manifest.json'), {
+    // A fully valid installed root proves precedence: if the resolver tried
+    // the installed root first, the helper would resolve inside it.
+    const installedRoot = path.join(tempDir, 'runtimes', 'ocr', 'installed-version')
+    const installed = await seedAssetIdentity(installedRoot)
+    await writeText(path.join(installedRoot, 'runtime', 'node', 'bin', 'node'))
+    await writeText(path.join(installedRoot, 'out', 'main', 'lightOcrHelper.js'))
+    await writeJson(path.join(installedRoot, 'runtime', 'ocr', 'manifest.json'), {
       schemaVersion: 3,
-      supported: false,
+      supported: true,
       platform: 'darwin',
       arch: 'arm64',
       facadeVersion: lightOcrVersion,
@@ -557,7 +562,17 @@ describe('OcrRuntimeAssetResolver', () => {
       nativeVersion,
       pdfSupport: true,
       bundleId,
-      reason: 'stale'
+      nativePayloadEncoding: 'gzip-base64-v1',
+      nativePackage,
+      nativeArtifactInventory,
+      paths: {
+        node: 'runtime/node/bin/node',
+        helper: 'out/main/lightOcrHelper.js',
+        facade: path.relative(installedRoot, installed.facadeDir),
+        runtime: path.relative(installedRoot, installed.runtimeDir),
+        bundle: path.relative(installedRoot, path.join(installed.modelDir, 'bundle')),
+        native: path.relative(installedRoot, installed.nativeDir)
+      }
     })
 
     const availability = await new OcrRuntimeAssetResolver({
@@ -565,9 +580,14 @@ describe('OcrRuntimeAssetResolver', () => {
       isPackaged: true,
       platform: 'darwin',
       arch: 'arm64',
-      installedRuntimeRoots: () => [staleInstalledRoot]
+      installedRuntimeRoots: () => [installedRoot]
     }).resolve()
 
-    expect(availability).toMatchObject({ status: 'available' })
+    expect(availability).toMatchObject({
+      status: 'available',
+      assets: {
+        helperEntryPath: path.join(unpackedRoot, 'out', 'main', 'lightOcrHelper.js')
+      }
+    })
   })
 })

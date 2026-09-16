@@ -148,6 +148,7 @@ function createRuntime() {
     loggingEnabled: false,
     ocrAutoExtractForNonVisionModels: true,
     ocrBackend: 'auto' as 'auto' | 'cpu',
+    ocrRuntimeAutoDownload: true,
     proxyMode: 'system' as 'system' | 'none' | 'custom',
     customProxyUrl: '',
     updateChannel: 'stable' as 'stable' | 'beta',

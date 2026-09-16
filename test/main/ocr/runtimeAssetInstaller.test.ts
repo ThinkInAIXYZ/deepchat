@@ -261,6 +261,31 @@ describe('OcrRuntimeAssetInstaller', () => {
     expect(installer.listInstalledRoots()).toEqual([])
   })
 
+  it('rejects a payload whose decompressed size exceeds the cap', async () => {
+    const dir = await createTempDir()
+    // 260 MiB of zeros deflates to a few hundred KB but declares an
+    // originalSize above the 256 MiB floor; the filter must reject the entry
+    // before fflate allocates the decompressed buffer.
+    const bomb = new Uint8Array(260 * 1024 * 1024)
+    const payload = zipSync({ 'runtime/ocr/native/engine.bin': bomb })
+    expect(payload.length).toBeLessThan(4 * 1024 * 1024)
+
+    const installRoot = path.join(dir, 'runtimes', 'ocr')
+    const installer = new OcrRuntimeAssetInstaller({
+      installRoot: () => installRoot,
+      stagingRoot: () => path.join(installRoot, '.staging'),
+      fetchImpl: fetchServingContent(payload),
+      probeTimeoutMs: 250
+    })
+    const { asset, target } = createAssetAndTarget(payload)
+
+    const result = await installer.install(asset, target)
+
+    expect(result.ok).toBe(false)
+    expect(result.error).toContain('decompressed size cap')
+    expect(installer.listInstalledRoots()).toEqual([])
+  })
+
   it('rejects a payload that declares a helper entry it does not contain', async () => {
     const dir = await createTempDir()
     const payloadRoot = path.join(dir, 'payload-root')

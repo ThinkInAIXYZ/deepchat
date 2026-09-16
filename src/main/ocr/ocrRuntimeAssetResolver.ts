@@ -126,7 +126,12 @@ export class OcrRuntimeAssetResolver {
       const resolved = this.options.isPackaged
         ? await this.resolvePackaged(nativePackage)
         : await this.resolveDevelopment(nativePackage)
-      await this.verifyIdentity(resolved.assets, resolved.expectedNativeArtifactInventory)
+      if (!this.options.isPackaged) {
+        // Packaged resolution verifies each candidate root inside its own
+        // fallback loop so an identity failure on the bundled root still
+        // falls through to installed (downloaded) roots.
+        await this.verifyIdentity(resolved.assets, resolved.expectedNativeArtifactInventory)
+      }
       return { status: 'available', assets: resolved.assets }
     } catch (error) {
       if (error instanceof RuntimeAssetError) return this.unavailable(error.reason)
@@ -142,7 +147,9 @@ export class OcrRuntimeAssetResolver {
     let lastError: unknown = null
     for (const root of roots) {
       try {
-        return await this.resolvePackagedFromRoot(root, nativePackage)
+        const resolved = await this.resolvePackagedFromRoot(root, nativePackage)
+        await this.verifyIdentity(resolved.assets, resolved.expectedNativeArtifactInventory)
+        return resolved
       } catch (error) {
         lastError = error
       }
