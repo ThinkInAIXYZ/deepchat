@@ -111,7 +111,7 @@
             <div
               class="flex size-12 shrink-0 items-center justify-center rounded-xl border border-border bg-muted/40"
             >
-              <Icon icon="lucide:package-down" class="size-6 text-muted-foreground" />
+              <Icon icon="lucide:download" class="size-6 text-muted-foreground" />
             </div>
 
             <div class="min-w-0 flex-1">
