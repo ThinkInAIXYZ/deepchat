@@ -1,9 +1,7 @@
 import type { SettingsStore } from '@/config/settingsStore'
+import type { AgentTraceSettingsPort } from '@/agent/deepchat/contracts/agentTraceSettings'
 
-export interface AgentTraceSettingsPort {
-  isEnabled(): boolean
-  setEnabled(enabled: boolean): void
-}
+export type { AgentTraceSettingsPort } from '@/agent/deepchat/contracts/agentTraceSettings'
 
 export class AgentTraceSettings implements AgentTraceSettingsPort {
   constructor(private readonly settings: SettingsStore) {}

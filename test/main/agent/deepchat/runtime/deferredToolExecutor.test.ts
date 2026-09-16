@@ -5,6 +5,10 @@ import {
 } from '@/agent/deepchat/runtime/deferredToolExecutor'
 import { ExecutionJournalError } from '@/tape/domain/executionJournal'
 import { TOOL_EXECUTION, type MCPToolDefinition } from '@shared/types/core/mcp'
+import {
+  cacheToolCallImagePreviews,
+  extractToolCallImagePreviews
+} from '@/lib/toolCallImagePreviews'
 import { createOpaquePromptAssembly } from '@/agent/deepchat/resources/promptAssembly'
 import { buildExecutionContract } from '@/tape/domain/executionContract'
 import {
@@ -167,6 +171,7 @@ function createHarness(
       toToolDefinitionMcpServerIds: vi.fn(() => [])
     },
     cacheImage: vi.fn(async (data: string) => data),
+    imagePreviews: { cacheToolCallImagePreviews, extractToolCallImagePreviews },
     runLifecycle: {
       registerDeferredToolController: vi.fn(() => abortController),
       clearDeferredToolController: vi.fn(),

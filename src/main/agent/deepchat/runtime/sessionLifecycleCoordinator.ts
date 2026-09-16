@@ -5,16 +5,14 @@ import type {
 } from '@shared/types/agent-interface'
 import type { ToolServicePort } from '@shared/types/tool'
 import { toAppSessionId } from '@/agent/shared/agentSessionIds'
-import type { ProviderModelResolutionPort } from '@/provider/settings'
-import type { PromptSettings } from '@/agent/promptSettings'
+
 import type {
   DeepChatAgentRuntime,
   SessionScopeRegistry
 } from '@/agent/deepchat/instance/deepChatAgentRuntime'
 import type { MemoryRuntimeCoordinator } from '@/agent/deepchat/memory/memoryRuntimeCoordinator'
-import type { SessionSettingsStore } from '@/session/data/settings'
-import type { SessionTranscript } from '@/session/data/transcript'
-import type { SessionPendingInputs } from '@/session/data/pendingInputs'
+
+
 import type { CompactionRuntimeCoordinator } from './compactionRuntimeCoordinator'
 import { sanitizeGenerationSettings } from './generationSettings'
 import type { RunLifecycleCoordinator } from './runLifecycleCoordinator'
@@ -24,7 +22,12 @@ import type { InteractionParkingRegistry } from './interactionParkingRegistry'
 import type { ToolSurfaceShadowDiagnosticsRegistryPort } from './toolSurfaceDiagnostics'
 import type { ToolSurfaceCanaryDiagnosticsRegistry } from './toolSurfaceCanaryDiagnostics'
 import { revokeToolSurfaceDeferredDispatchesForSession } from './toolSurface'
-import type { ProgrammaticToolParentRegistry } from '@/cli/programmaticToolParentRegistry'
+import {type ProviderModelResolutionPort} from '@/agent/deepchat/contracts/providerModelResolution'
+import {type PromptSettingsPort} from '@/agent/deepchat/contracts/promptSettings'
+import {type SessionSettingsStorePort} from '@/agent/deepchat/contracts/sessionSettingsStore'
+import {type TranscriptStorePort} from '@/agent/deepchat/contracts/transcriptStore'
+import {type PendingInputStorePort} from '@/agent/deepchat/contracts/pendingInputStore'
+import {type ProgrammaticToolAuthorityPort} from '@/agent/deepchat/contracts/programmaticToolAuthority'
 
 export interface SessionInitConfig {
   agentId?: string
@@ -40,10 +43,10 @@ export type SessionLifecycleRegistry = SessionScopeRegistry & Pick<DeepChatAgent
 export interface SessionLifecycleCoordinatorDependencies {
   registry: SessionLifecycleRegistry
   providerSettings: ProviderModelResolutionPort
-  promptSettings: Pick<PromptSettings, 'getDefaultSystemPrompt'>
-  sessionStore: Pick<SessionSettingsStore, 'create' | 'delete'>
-  transcript: Pick<SessionTranscript, 'deleteBySession'>
-  pendingInputs: Pick<SessionPendingInputs, 'deleteBySession'>
+  promptSettings: PromptSettingsPort
+  sessionStore: Pick<SessionSettingsStorePort, 'create' | 'delete'>
+  transcript: Pick<TranscriptStorePort, 'deleteBySession'>
+  pendingInputs: Pick<PendingInputStorePort, 'deleteBySession'>
   toolService: Pick<ToolServicePort, 'clearConversationToolMapping'>
   identity: Pick<SessionIdentityService, 'getAgentId'>
   sessionSettings: Pick<SessionSettingsCoordinator, 'normalizeProjectDir'>
@@ -59,7 +62,7 @@ export interface SessionLifecycleCoordinatorDependencies {
   interactionParking: Pick<InteractionParkingRegistry, 'clearSession'>
   toolSurfaceDiagnostics: Pick<ToolSurfaceShadowDiagnosticsRegistryPort, 'clear'>
   toolSurfaceCanaryDiagnostics: Pick<ToolSurfaceCanaryDiagnosticsRegistry, 'clearSession'>
-  programmaticToolParents: Pick<ProgrammaticToolParentRegistry, 'releaseSession'>
+  programmaticToolParents: Pick<ProgrammaticToolAuthorityPort, 'releaseSession'>
 }
 
 export class SessionLifecycleCoordinator {

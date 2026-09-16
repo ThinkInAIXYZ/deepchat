@@ -18,6 +18,7 @@ import type {
   NestedExecutionJournalWriter
 } from '@/tape/ports/capabilities'
 import type { ToolDispatchCommitInput } from '@shared/types/core/mcp'
+import type { ProgrammaticCompletedInvocationResult } from '@/agent/deepchat/contracts/programmaticToolAuthority'
 
 export const PROGRAMMATIC_PARENT_SETTLEMENT_SCHEMA_VERSION = 1 as const
 
@@ -58,10 +59,7 @@ export type ProgrammaticParentSettlementReceipt = Readonly<{
   settledChildren: number
 }>
 
-export type ProgrammaticCompletedInvocationResult = Readonly<{
-  responseText: string
-  isError: boolean
-}>
+export type { ProgrammaticCompletedInvocationResult } from '@/agent/deepchat/contracts/programmaticToolAuthority'
 
 export class ProgrammaticParentOperationError extends Error {
   constructor(

@@ -12,7 +12,7 @@ import type {
   DeepChatSubagentCapability,
   SessionKind
 } from '@shared/types/agent-interface'
-import type { SessionDatabase } from '@/session/data/database'
+import type { SessionAgentRowPort } from '@/agent/deepchat/contracts/sessionAgentRow'
 import type {
   DeepChatAgentInstance,
   DeepChatToolProfileKind
@@ -30,8 +30,7 @@ import {
   type AgentExtensionPolicy
 } from '@/agent/deepchat/resources/systemPromptBuilder'
 import { createToolCatalogPort } from './toolAdapters'
-import type { SkillSettingsPort } from '@/skill/settings'
-import type { AgentSettingsPort } from '@/agent/settings'
+
 import { awaitWithAbort } from '@/lib/awaitWithAbort'
 import { resolveDeepChatSubagentCapability } from '@shared/lib/deepchatSubagents'
 import {
@@ -51,6 +50,8 @@ import {
   type ResolvedToolMode,
   type ToolMode
 } from '@shared/toolMode'
+import {type SkillSettingsPort} from '@/agent/deepchat/contracts/skillSettings'
+import {type AgentSettingsPort} from '@/agent/deepchat/contracts/agentSettings'
 
 type ToolResolverSkillPort = Pick<
   SkillServicePort,
@@ -120,7 +121,7 @@ export interface RunToolDefinitionUniverse {
 export interface DeepChatToolResolverDependencies {
   agentSettings: Pick<AgentSettingsPort, 'getAgentType' | 'resolveDeepChatAgentConfig'>
   skillSettings: SkillSettingsPort
-  sqlitePresenter: SessionDatabase
+  sqlitePresenter: SessionAgentRowPort
   toolService: ToolServicePort
   skillService: ToolResolverSkillPort
   registry: SessionScopeRegistry & Pick<DeepChatAgentRuntime, 'getToolRegistryRevision'>

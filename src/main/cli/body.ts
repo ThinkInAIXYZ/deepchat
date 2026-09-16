@@ -3,11 +3,7 @@ import { mkdir, open, readFile, unlink, type FileHandle } from 'node:fs/promises
 import path from 'node:path'
 import type { IncomingMessage } from 'node:http'
 import { CliRequestError } from './errors'
-
-const DEFAULT_MAX_JSON_DEPTH = 64
-const DEFAULT_MAX_JSON_KEYS = 10_000
-const DEFAULT_MAX_JSON_NODES = 50_000
-const UNSAFE_JSON_KEYS = new Set(['__proto__', 'constructor', 'prototype'])
+import { parseBoundedJsonBytes } from '@/agent/deepchat/contracts/localControlProtocol'
 
 export type BoundedRequestBody =
   | Readonly<{
@@ -198,58 +194,7 @@ export async function readBoundedRequestBody(
   }
 }
 
-function assertBoundedJsonShape(value: unknown): void {
-  const pending: Array<{ value: unknown; depth: number }> = [{ value, depth: 0 }]
-  let keys = 0
-  let nodes = 0
-
-  while (pending.length > 0) {
-    const current = pending.pop()!
-    nodes += 1
-    if (nodes > DEFAULT_MAX_JSON_NODES) {
-      throw new CliRequestError('invalid_request', 'JSON body has too many values')
-    }
-    if (current.depth > DEFAULT_MAX_JSON_DEPTH) {
-      throw new CliRequestError('invalid_request', 'JSON body is nested too deeply')
-    }
-    if (Array.isArray(current.value)) {
-      for (const entry of current.value) {
-        pending.push({ value: entry, depth: current.depth + 1 })
-      }
-      continue
-    }
-    if (!current.value || typeof current.value !== 'object') continue
-
-    for (const [key, entry] of Object.entries(current.value)) {
-      keys += 1
-      if (keys > DEFAULT_MAX_JSON_KEYS) {
-        throw new CliRequestError('invalid_request', 'JSON body has too many keys')
-      }
-      if (UNSAFE_JSON_KEYS.has(key)) {
-        throw new CliRequestError('invalid_request', `JSON key is not allowed: ${key}`)
-      }
-      pending.push({ value: entry, depth: current.depth + 1 })
-    }
-  }
-}
-
-export function parseBoundedJsonBytes(bytes: Uint8Array): unknown {
-  let text: string
-  try {
-    text = new TextDecoder('utf-8', { fatal: true }).decode(bytes)
-  } catch {
-    throw new CliRequestError('invalid_request', 'Request body is not valid UTF-8')
-  }
-
-  let parsed: unknown
-  try {
-    parsed = JSON.parse(text) as unknown
-  } catch {
-    throw new CliRequestError('invalid_request', 'Request body is not valid JSON')
-  }
-  assertBoundedJsonShape(parsed)
-  return parsed
-}
+export { parseBoundedJsonBytes } from '@/agent/deepchat/contracts/localControlProtocol'
 
 export async function parseBoundedJsonBody(body: BoundedRequestBody): Promise<unknown> {
   try {

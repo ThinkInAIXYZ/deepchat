@@ -1,13 +1,6 @@
 import type { PermissionMode } from '@shared/types/agent-interface'
 import type { ExecutionOperationIdentity } from '@/tape/domain/executionJournal'
-import {
-  AGENT_CLI_PROGRAMMATIC_GRANT_SCHEMA_VERSION,
-  parseAgentCliProgrammaticExecInvocation
-} from '@/cli/agentTokenAuthority'
-import type {
-  ProgrammaticToolParentRegistration,
-  ProgrammaticToolParentRegistry
-} from '@/cli/programmaticToolParentRegistry'
+
 import { LOCAL_CONTROL_PROGRAMMATIC_ROUTE_SURFACE_VERSION } from '@shared/contracts/localControl'
 import {
   assertProgrammaticToolCapabilityDeferredDispatch,
@@ -17,6 +10,7 @@ import {
   type ProgrammaticToolCapabilityV1
 } from './programmaticToolSurface'
 import type { ToolSurfaceDeferredDispatch, ToolSurfaceSnapshot } from './toolSurface'
+import {AGENT_CLI_PROGRAMMATIC_GRANT_SCHEMA_VERSION, parseAgentCliProgrammaticExecInvocation, type ProgrammaticToolParentRegistration, type ProgrammaticToolAuthorityPort} from '@/agent/deepchat/contracts/programmaticToolAuthority'
 
 export function isProgrammaticExecAttempt(toolName: string, argumentsJson: string): boolean {
   if (toolName !== 'exec') return false
@@ -44,7 +38,7 @@ export function prepareProgrammaticExecParent(input: {
   toolSurfaceSnapshot?: ToolSurfaceSnapshot
   capability?: ProgrammaticToolCapabilityV1
   deferredDispatch?: ToolSurfaceDeferredDispatch
-  parents?: Pick<ProgrammaticToolParentRegistry, 'prepare'>
+  parents?: Pick<ProgrammaticToolAuthorityPort, 'prepare'>
 }): ProgrammaticToolParentRegistration | undefined {
   if (!isProgrammaticExecAttempt(input.toolName, input.argumentsJson)) return undefined
 

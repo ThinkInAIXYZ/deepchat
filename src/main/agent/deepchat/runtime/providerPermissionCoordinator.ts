@@ -1,5 +1,5 @@
 import type { DeepChatAgentInstance } from '@/agent/deepchat/instance/deepChatAgentInstance'
-import { parseMessageMetadata } from '@/session/usageStats'
+
 import type { AcpAsLlmProviderPermissionPort } from '@/provider/ports'
 import {
   applyProviderPermissionProjection,
@@ -7,7 +7,7 @@ import {
   type ProviderPermissionInteractionInput,
   type ProviderPermissionProjection
 } from './interactionProjection'
-import { buildTerminalErrorBlocks, type SessionTranscript } from '@/session/data/transcript'
+import type { TranscriptStorePort } from '@/agent/deepchat/contracts/transcriptStore'
 import { buildUsageFromMetadata, stampInteractionResolution } from './runtimeMetadata'
 import type {
   DeepChatEventPublisher,
@@ -18,6 +18,8 @@ import type { LoopRun } from '@/agent/deepchat/loop/loopRun'
 import type { RunLifecycleCoordinator } from './runLifecycleCoordinator'
 import type { MessageProjectionService } from './messageProjectionService'
 import { resolveProviderPermissionSafely } from './providerPermissionResolution'
+import {parseMessageMetadata} from '@/agent/deepchat/contracts/messageMetadata'
+import {buildTerminalErrorBlocks} from '@/agent/deepchat/contracts/transcriptBlocks'
 
 type ProviderPermissionRunLifecyclePort = Pick<
   RunLifecycleCoordinator,
@@ -31,7 +33,7 @@ type ProviderPermissionRunLifecyclePort = Pick<
 >
 
 interface ProviderPermissionCoordinatorDependencies {
-  messageStore: SessionTranscript
+  messageStore: TranscriptStorePort
   runLifecycle: ProviderPermissionRunLifecyclePort
   permissionPort: AcpAsLlmProviderPermissionPort
   messageProjection: Pick<MessageProjectionService, 'refresh'>

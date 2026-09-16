@@ -1,7 +1,7 @@
 import { createHash } from 'crypto'
 import type { ChatMessage } from '@shared/types/core/chat-message'
 import type { DeepChatTapeViewSyntheticContribution } from '@shared/types/tape-view-manifest'
-import type { ReconstructionAnchorPromptState } from '@/session/data/settings'
+
 import type {
   DirectiveContextContribution,
   MemoryContextContribution
@@ -10,6 +10,7 @@ import {
   EMPTY_DIRECTIVE_CONTEXT_CONTRIBUTION,
   EMPTY_MEMORY_CONTEXT_CONTRIBUTION
 } from '@/agent/deepchat/memory/memoryPromptContributor'
+import {type ReconstructionAnchorPromptState} from '@/agent/deepchat/contracts/sessionSettingsStore'
 
 const CHECKPOINT_NOTICE = [
   '## Conversation Checkpoint',

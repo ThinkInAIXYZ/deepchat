@@ -1,5 +1,5 @@
-import type { ProviderModelResolutionPort } from '@/provider/settings'
-import type { PromptSettings } from '@/agent/promptSettings'
+
+
 import type { PermissionMode, SessionGenerationSettings } from '@shared/types/agent-interface'
 import type { ReasoningPortrait } from '@shared/types/model-db'
 import type { ResolvedModelCapabilitySnapshot } from '@shared/types/model-capabilities'
@@ -39,6 +39,8 @@ import {
   resolveProviderModelRuntimeFacts,
   type ProviderModelRuntimeFacts
 } from './providerModelRuntimeFacts'
+import {type ProviderModelResolutionPort} from '@/agent/deepchat/contracts/providerModelResolution'
+import {type PromptSettingsPort} from '@/agent/deepchat/contracts/promptSettings'
 
 export type PersistedSessionGenerationRow = {
   provider_id: string
@@ -222,7 +224,7 @@ function resolveProviderApiType(
 
 async function buildDefaultGenerationSettings(
   providerSettings: ProviderModelResolutionPort,
-  promptSettings: Pick<PromptSettings, 'getDefaultSystemPrompt'>,
+  promptSettings: PromptSettingsPort,
   providerId: string,
   modelId: string,
   context: ProviderModelRuntimeFacts = resolveProviderModelRuntimeFacts(
@@ -364,7 +366,7 @@ async function buildDefaultGenerationSettings(
 
 export async function sanitizeGenerationSettings(
   providerSettings: ProviderModelResolutionPort,
-  promptSettings: Pick<PromptSettings, 'getDefaultSystemPrompt'>,
+  promptSettings: PromptSettingsPort,
   providerId: string,
   modelId: string,
   patch: Partial<SessionGenerationSettings>,

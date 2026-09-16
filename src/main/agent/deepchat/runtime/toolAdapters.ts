@@ -1,4 +1,4 @@
-import type { ProviderModelResolutionPort } from '@/provider/settings'
+
 import type {
   ToolCatalogPort,
   ToolCatalogRequest,
@@ -12,9 +12,10 @@ import type { ChatMessage } from '@shared/types/core/chat-message'
 import type { MCPToolDefinition, MCPToolResponse } from '@shared/types/core/mcp'
 import type { ToolServicePort, ToolDefinitionContext } from '@shared/types/tool'
 import { CUA_PLUGIN_ID } from '@shared/types/plugin'
-import { resolveSessionVisionTarget } from '@/agent/vision/sessionVisionResolver'
+import type { VisionTargetResolverPort } from '@/agent/deepchat/contracts/visionTarget'
 import type { ToolOutputGuard } from './toolOutputGuard'
-import type { AgentSettingsPort } from '@/agent/settings'
+import {type ProviderModelResolutionPort} from '@/agent/deepchat/contracts/providerModelResolution'
+import {type AgentSettingsPort} from '@/agent/deepchat/contracts/agentSettings'
 
 export interface ToolCatalogCacheEntry<TProfile extends string = string> {
   profile: TProfile
@@ -103,6 +104,7 @@ export function createToolResultPort(input: {
 
 export interface ToolResultNormalizerDependencies {
   providerSettings: ProviderModelResolutionPort
+  visionTargetResolver: VisionTargetResolverPort
   agentSettings: Pick<
     AgentSettingsPort,
     'resolveDeepChatAgentConfig' | 'agentSupportsCapability'
@@ -351,7 +353,7 @@ async function resolveScreenshotVisionModel(
   throwIfAbortRequested(abortSignal)
   const session = dependencies.getSessionModel(sessionId)
   const agentId = session.agentId ?? 'deepchat'
-  const resolved = await resolveSessionVisionTarget({
+  const resolved = await dependencies.visionTargetResolver.resolveSessionVisionTarget({
     providerId: session.providerId,
     modelId: session.modelId,
     agentId,

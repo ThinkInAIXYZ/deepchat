@@ -138,13 +138,15 @@ function createHarness() {
     getMessagesUpToOrderSeq: vi.fn((_sessionId: string, orderSeq: number) =>
       rows.filter((row) => row.orderSeq <= orderSeq)
     ),
-    getMemoryCursorOrderSeq: vi.fn(() => cursor),
-    updateMemoryCursorOrderSeq: vi.fn((_sessionId: string, orderSeq: number) => {
-      cursor = Math.max(cursor, orderSeq)
-    }),
-    rewindMemoryCursorOrderSeq: vi.fn((_sessionId: string, orderSeq: number) => {
-      cursor = orderSeq
-    }),
+    memoryCursor: {
+      getMemoryCursorOrderSeq: vi.fn(() => cursor),
+      updateMemoryCursorOrderSeq: vi.fn((_sessionId: string, orderSeq: number) => {
+        cursor = Math.max(cursor, orderSeq)
+      }),
+      rewindMemoryCursorOrderSeq: vi.fn((_sessionId: string, orderSeq: number) => {
+        cursor = orderSeq
+      })
+    },
     tapeReader: {
       getBySession: getTapeRows,
       getBySessionUpToEntryId: vi.fn((_sessionId: string, maxEntryId: number) =>
@@ -776,7 +778,7 @@ describe('MemoryRuntimeCoordinator', () => {
     persistence.resolve({ ok: true, createdIds: ['late'] })
     await reassignment
 
-    expect(deps.updateMemoryCursorOrderSeq).not.toHaveBeenCalled()
+    expect(deps.memoryCursor.updateMemoryCursorOrderSeq).not.toHaveBeenCalled()
     expect(deps.appendTapeAnchor).not.toHaveBeenCalled()
     coordinator.finishSessionAgentReassignment('s1')
 
@@ -818,7 +820,7 @@ describe('MemoryRuntimeCoordinator', () => {
       epoch,
       executionToken
     )
-    expect(deps.updateMemoryCursorOrderSeq).not.toHaveBeenCalled()
+    expect(deps.memoryCursor.updateMemoryCursorOrderSeq).not.toHaveBeenCalled()
 
     port.extractAndStore.mockResolvedValueOnce({ ok: true, createdIds: ['m1'] })
     await coordinator.runExtractionChunks(
@@ -827,7 +829,7 @@ describe('MemoryRuntimeCoordinator', () => {
       epoch,
       executionToken
     )
-    expect(deps.updateMemoryCursorOrderSeq).toHaveBeenCalledWith('s1', 1)
+    expect(deps.memoryCursor.updateMemoryCursorOrderSeq).toHaveBeenCalledWith('s1', 1)
     expect(deps.appendTapeAnchor).toHaveBeenCalledWith(
       expect.objectContaining({ sessionId: 's1', name: 'memory/extract' })
     )
@@ -847,8 +849,8 @@ describe('MemoryRuntimeCoordinator', () => {
     pending.resolve({ ok: true, createdIds: ['late'] })
     await late
 
-    expect(deps.rewindMemoryCursorOrderSeq).toHaveBeenCalledWith('s1', 0)
-    expect(deps.updateMemoryCursorOrderSeq).toHaveBeenCalledTimes(1)
+    expect(deps.memoryCursor.rewindMemoryCursorOrderSeq).toHaveBeenCalledWith('s1', 0)
+    expect(deps.memoryCursor.updateMemoryCursorOrderSeq).toHaveBeenCalledTimes(1)
   })
 
   it('cools projection failures and clears cooldown on session initialization', () => {
@@ -1075,7 +1077,7 @@ describe('MemoryRuntimeCoordinator', () => {
     observer.afterTurnSettled({ session: memorySession, origin, outcome })
 
     expect(deps.getNextMessageOrderSeq).not.toHaveBeenCalled()
-    expect(deps.getMemoryCursorOrderSeq).not.toHaveBeenCalled()
+    expect(deps.memoryCursor.getMemoryCursorOrderSeq).not.toHaveBeenCalled()
     await coordinator.waitForSession('s1')
     expect(port.extractAndStore).toHaveBeenCalledTimes(expectedExtraction ? 1 : 0)
   })
@@ -1102,7 +1104,7 @@ describe('MemoryRuntimeCoordinator', () => {
     })
     await coordinator.waitForSession('s1')
     expect(port.extractAndStore).not.toHaveBeenCalled()
-    expect(deps.updateMemoryCursorOrderSeq).not.toHaveBeenCalled()
+    expect(deps.memoryCursor.updateMemoryCursorOrderSeq).not.toHaveBeenCalled()
     expect(deps.appendTapeAnchor).not.toHaveBeenCalled()
 
     port.buildInjection.mockResolvedValue({
@@ -1148,12 +1150,12 @@ describe('MemoryRuntimeCoordinator', () => {
         targetCursorOrderSeq: 4
       })
 
-      expect(deps.getMemoryCursorOrderSeq).not.toHaveBeenCalled()
+      expect(deps.memoryCursor.getMemoryCursorOrderSeq).not.toHaveBeenCalled()
       await coordinator.waitForSession('s1')
       expect(port.extractAndStore).toHaveBeenCalledWith(
         expect.objectContaining({ sourceEntryIds: [1, 2, 3, 4] })
       )
-      expect(deps.updateMemoryCursorOrderSeq).toHaveBeenCalledWith('s1', 4)
+      expect(deps.memoryCursor.updateMemoryCursorOrderSeq).toHaveBeenCalledWith('s1', 4)
     }
   )
 
@@ -1286,7 +1288,7 @@ describe('MemoryRuntimeCoordinator', () => {
     await drain
     await coordinator.waitForSession('s1')
 
-    expect(deps.updateMemoryCursorOrderSeq).not.toHaveBeenCalled()
+    expect(deps.memoryCursor.updateMemoryCursorOrderSeq).not.toHaveBeenCalled()
     expect(deps.appendTapeAnchor).not.toHaveBeenCalled()
     expect(port.extractAndStore).toHaveBeenCalledTimes(1)
     await expect(observer.drainAndFence()).resolves.toEqual({
@@ -1376,7 +1378,7 @@ describe('MemoryRuntimeCoordinator', () => {
       await expect(drain).resolves.toEqual({ timedOut: true, pendingSessions: ['s1'] })
 
       expect(port.extractAndStore).toHaveBeenCalledOnce()
-      expect(deps.updateMemoryCursorOrderSeq).not.toHaveBeenCalled()
+      expect(deps.memoryCursor.updateMemoryCursorOrderSeq).not.toHaveBeenCalled()
       expect(deps.appendTapeAnchor).not.toHaveBeenCalled()
     } finally {
       vi.useRealTimers()
@@ -1474,7 +1476,7 @@ describe('MemoryRuntimeCoordinator', () => {
         expect(getEmbeddings).not.toHaveBeenCalled()
         expect(onMemoryChanged).not.toHaveBeenCalled()
         expect(repository.countByAgent('agent-a')).toBe(1)
-        expect(deps.updateMemoryCursorOrderSeq).not.toHaveBeenCalled()
+        expect(deps.memoryCursor.updateMemoryCursorOrderSeq).not.toHaveBeenCalled()
         expect(deps.appendTapeAnchor).not.toHaveBeenCalled()
 
         if (settlement === 'resolve') {
@@ -1491,7 +1493,7 @@ describe('MemoryRuntimeCoordinator', () => {
         expect(upsertVector).not.toHaveBeenCalled()
         expect(onMemoryChanged).not.toHaveBeenCalled()
         expect(repository.countByAgent('agent-a')).toBe(1)
-        expect(deps.updateMemoryCursorOrderSeq).not.toHaveBeenCalled()
+        expect(deps.memoryCursor.updateMemoryCursorOrderSeq).not.toHaveBeenCalled()
         expect(deps.appendTapeAnchor).not.toHaveBeenCalled()
         expect(observeQueue).toHaveBeenLastCalledWith(0, null)
         await expect(observer.drainAndFence()).resolves.toEqual({

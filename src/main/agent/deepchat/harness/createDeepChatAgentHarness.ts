@@ -1,6 +1,11 @@
 import logger from '@shared/logger'
 import type { AcpAgentInstanceDependencyFactory } from '@/agent/acp/instance'
 import { createAcpCompatibilityDependencies } from '@/agent/acp/compatibility/dependencies'
+import { resolveSessionVisionTarget } from '@/agent/vision/sessionVisionResolver'
+import {
+  cacheToolCallImagePreviews,
+  extractToolCallImagePreviews
+} from '@/lib/toolCallImagePreviews'
 import { DeepChatAgentRuntime } from '@/agent/deepchat/instance/deepChatAgentRuntime'
 import { toAppSessionId } from '@/agent/shared/agentSessionIds'
 import { DeepChatContextCoordinator } from '@/agent/deepchat/loop/contextCoordinator'
@@ -50,11 +55,12 @@ import type {
   ExecutionRecoveryReport
 } from '@/tape/domain/executionJournal'
 import type { ExecutionJournalRecoveryReader } from '@/tape/ports/capabilities'
-import { ProgrammaticToolParentRegistry } from '@/cli/programmaticToolParentRegistry'
+
 import {
   createDeepChatLoopTapePort,
   createSkillContextTapePort
 } from '@/tape/application/capabilityAdapters'
+import { ProgrammaticToolParentRegistry } from '@/cli/programmaticToolParentRegistry'
 
 const MAX_STARTUP_RECOVERY_DETAILS = 100
 const MAX_STARTUP_RECOVERY_DIAGNOSTIC_CHARS = 2_048
@@ -212,12 +218,14 @@ function createDeepChatRuntimeServices(deps: DeepChatHarnessDependencies): DeepC
     getNextMessageOrderSeq: (sessionId) => messageStore.getNextOrderSeq(sessionId),
     getMessagesUpToOrderSeq: (sessionId, orderSeq) =>
       messageStore.getMessagesUpToOrderSeq(sessionId, orderSeq),
-    getMemoryCursorOrderSeq: (sessionId) =>
-      database.deepchatSessionsTable.getMemoryCursorOrderSeq(sessionId),
-    updateMemoryCursorOrderSeq: (sessionId, orderSeq) =>
-      database.deepchatSessionsTable.updateMemoryCursorOrderSeq(sessionId, orderSeq),
-    rewindMemoryCursorOrderSeq: (sessionId, orderSeq) =>
-      database.deepchatSessionsTable.rewindMemoryCursorOrderSeq(sessionId, orderSeq),
+    memoryCursor: {
+      getMemoryCursorOrderSeq: (sessionId) =>
+        database.deepchatSessionsTable.getMemoryCursorOrderSeq(sessionId),
+      updateMemoryCursorOrderSeq: (sessionId, orderSeq) =>
+        database.deepchatSessionsTable.updateMemoryCursorOrderSeq(sessionId, orderSeq),
+      rewindMemoryCursorOrderSeq: (sessionId, orderSeq) =>
+        database.deepchatSessionsTable.rewindMemoryCursorOrderSeq(sessionId, orderSeq)
+    },
     tapeReader: tapeService,
     tapeAnchorWriter: tapeService,
     getIngestionProjection: deps.getMemoryIngestionProjection
@@ -342,6 +350,7 @@ function createDeepChatRuntimeServices(deps: DeepChatHarnessDependencies): DeepC
   })
   const toolRuntimeBindings: ToolRuntimeBindingDependencies = {
     providerSettings,
+    visionTargetResolver: { resolveSessionVisionTarget },
     agentSettings,
     providerRuntime,
     registry: runtime,
@@ -359,11 +368,13 @@ function createDeepChatRuntimeServices(deps: DeepChatHarnessDependencies): DeepC
     outputGuard: toolOutputGuard,
     normalize: createToolResultNormalizer(toolRuntimeBindings)
   })
+  const toolImagePreviews = { cacheToolCallImagePreviews, extractToolCallImagePreviews }
   const deferredToolExecutor = new DeferredToolExecutor({
     toolExecutionPort,
     toolResultPort,
     toolResolver,
     cacheImage,
+    imagePreviews: toolImagePreviews,
     runLifecycle,
     sessionSettings,
     sessionState,
@@ -405,6 +416,7 @@ function createDeepChatRuntimeServices(deps: DeepChatHarnessDependencies): DeepC
     toolExecutionPort,
     toolResultPort,
     cacheImage,
+    imagePreviews: toolImagePreviews,
     runLifecycle,
     registry: runtime,
     sessionSettings,

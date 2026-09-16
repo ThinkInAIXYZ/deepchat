@@ -51,56 +51,16 @@ import type { LiveDelegationSubagentContext } from '@shared/orchestration/liveDe
 import type { AcpConfigState } from '@shared/types/acp'
 import type { AcpAuthChallenge } from '@shared/types/acp'
 import type { AcpAsLlmProviderSessionControlPort } from '@/provider/ports'
-import type { CommandShellProfile } from '@shared/commandShell'
-import type { ToolPermissionLeaseCapability } from '@shared/types/tool'
 import type { ListTapeInspectorEvidenceInput } from '@shared/types/tape-inspector'
 import type { DeepChatMessageRow } from '../session/data/tables/deepchatMessages'
 import type { DeepChatMessageSearchResultRow } from '../session/data/tables/deepchatMessageSearchResults'
 import type { DeepChatMessageTraceRow } from '../session/data/tables/deepchatMessageTraces'
 
-export type SessionPermissionRequest = {
-  permissionType: 'read' | 'write' | 'all' | 'command'
-  serverName?: string
-  toolName?: string
-  command?: string
-  commandSignature?: string
-  shellProfile?: CommandShellProfile
-  paths?: string[]
-  commandInfo?: {
-    command: string
-    riskLevel: 'low' | 'medium' | 'high' | 'critical'
-    suggestion: string
-    signature?: string
-    baseCommand?: string
-  }
-  requestId?: string
-}
-
-export type SessionPermissionGrant =
-  | Readonly<{
-      kind: 'command'
-      signature: string
-      oneShotGrantId: string
-    }>
-  | Readonly<{
-      kind: 'granted'
-      lease?: Readonly<{
-        capability?: ToolPermissionLeaseCapability
-        finalize(): void
-        revoke(): void
-      }>
-    }>
-
-export interface SessionPermissionPort {
-  clearSessionPermissions(sessionId: string): void
-  cloneSessionPermissions?(sourceSessionId: string, targetSessionId: string): void
-  approvePermission(
-    sessionId: string,
-    permission: SessionPermissionRequest
-  ): Promise<SessionPermissionGrant>
-  revokeOneShotCommandPermission(sessionId: string, signature: string, oneShotGrantId: string): void
-  denyPermission?(sessionId: string, requestId: string): Promise<void>
-}
+export type {
+  SessionPermissionGrant,
+  SessionPermissionPort,
+  SessionPermissionRequest
+} from '@/agent/deepchat/contracts/sessionPermission'
 
 export interface SessionUiPort {
   refreshSessionUi(): void

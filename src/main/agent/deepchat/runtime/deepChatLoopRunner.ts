@@ -1,7 +1,6 @@
 import type { PluginContextPort } from '@shared/types/userPlugin'
 import { projectPluginContext } from './pluginContext'
-import type { ProviderModelResolutionPort } from '@/provider/settings'
-import type { CacheImageOptions } from '@/platform/imageCache'
+
 import logger from '@shared/logger'
 import type {
   AssistantMessageBlock,
@@ -41,7 +40,7 @@ import type { DeepChatAgentInstance } from '@/agent/deepchat/instance/deepChatAg
 import type { ResolvedCommandShell } from '@shared/commandShell'
 import type { ResolvedToolMode } from '@shared/toolMode'
 import type { MemoryIngestionObserver } from '@/agent/deepchat/memory/memoryIngestionObserver'
-import type { SessionPendingInputs } from '@/session/data/pendingInputs'
+
 import {
   appendCliProgrammaticToolAdapterSection,
   resolveEffectiveActiveSkillNames
@@ -52,7 +51,7 @@ import {
   createOpaquePromptAssembly,
   reconcilePromptAssembly
 } from '@/agent/deepchat/resources/promptAssembly'
-import type { SessionPermissionPort } from '@/session/contracts'
+
 import { awaitWithAbort } from '@/lib/awaitWithAbort'
 import {
   buildRequestContextLedger,
@@ -82,11 +81,10 @@ import {
   type ContextOverflowFacts
 } from '@/agent/deepchat/runtime/contextWindowError'
 import { buildPersistableMessageTracePayload } from '@/agent/deepchat/runtime/messageTracePayload'
-import { cloneBlocksForRenderer } from '@/session/clientMessageProjection'
-import type { SessionTranscript } from '@/session/data/transcript'
+
 import { processStream } from '@/agent/deepchat/runtime/process'
 import type { ProviderPermissionCoordinator } from '@/agent/deepchat/runtime/providerPermissionCoordinator'
-import type { SessionSummaryState, SessionSettingsStore } from '@/session/data/settings'
+
 import { AUTO_APPROVE_REVIEW_MAX_RECENT_MESSAGES } from '@/agent/deepchat/runtime/toolPermissionReviewer'
 import {
   buildExcludedRefs,
@@ -111,8 +109,18 @@ import {
   ExecutionJournalError,
   isExecutionJournalError
 } from '@/tape/domain/executionJournal'
-import type { AgentTraceSettingsPort } from '@/agent/traceSettings'
+
 import type { RuntimeHookSink } from './runtimeHookSink'
+import {type ProviderModelResolutionPort} from '@/agent/deepchat/contracts/providerModelResolution'
+import {type CacheImageOptions, type ToolImagePreviewPort} from '@/agent/deepchat/contracts/imagePreview'
+import {type PendingInputStorePort} from '@/agent/deepchat/contracts/pendingInputStore'
+import {type SessionPermissionPort} from '@/agent/deepchat/contracts/sessionPermission'
+import {cloneBlocksForRenderer} from '@/agent/deepchat/contracts/rendererBlocks'
+import {type TranscriptStorePort} from '@/agent/deepchat/contracts/transcriptStore'
+import {type SessionSummaryState, type SessionSettingsStorePort} from '@/agent/deepchat/contracts/sessionSettingsStore'
+import {type AgentTraceSettingsPort} from '@/agent/deepchat/contracts/agentTraceSettings'
+import {buildToolSearchDefinition} from '@/agent/deepchat/contracts/toolSearchDefinition'
+import {type ProgrammaticToolAuthorityPort} from '@/agent/deepchat/contracts/programmaticToolAuthority'
 import {
   resolveDeepChatToolProfileKind,
   type DeepChatToolCatalogSnapshot,
@@ -206,7 +214,7 @@ import {
   type ToolSurfaceRunController,
   type ToolSurfaceSnapshot
 } from './toolSurface'
-import { buildToolSearchDefinition } from '@/tool/agentTools/toolSearchTool'
+
 import {
   MAX_PROGRAMMATIC_TOOL_BATCH_STEPS,
   MAX_PROGRAMMATIC_TOOL_CHILDREN,
@@ -229,7 +237,7 @@ import type { PromptAssemblyService } from './promptAssemblyService'
 import type { SessionIdentityService } from './sessionIdentityService'
 import type { SessionSettingsCoordinator } from './sessionSettingsCoordinator'
 import type { ToolPermissionReviewer } from './toolRuntimeBindings'
-import type { ProgrammaticToolParentRegistry } from '@/cli/programmaticToolParentRegistry'
+
 import { CommittedRunProjectionError } from './runTerminalProjectionError'
 
 function wrapTerminalCommitFailure(
@@ -432,10 +440,10 @@ export interface DeepChatLoopRunnerPorts {
   providerRuntime: ProviderExecutionPort
   providerSettings: ProviderModelResolutionPort
   traceSettings: AgentTraceSettingsPort
-  sessionStore: SessionSettingsStore
-  messageStore: SessionTranscript
+  sessionStore: SessionSettingsStorePort
+  messageStore: TranscriptStorePort
   tape: DeepChatLoopTapePort
-  pendingInputCoordinator: SessionPendingInputs
+  pendingInputCoordinator: PendingInputStorePort
   toolResolver: DeepChatToolResolver
   providerPermissionCoordinator: ProviderPermissionCoordinator
   compactionService: CompactionService
@@ -443,7 +451,7 @@ export interface DeepChatLoopRunnerPorts {
   contextCoordinator: DeepChatContextCoordinator
   toolSurfaceRunMode?: ToolSurfaceRunModePort
   programmaticToolParents: Pick<
-    ProgrammaticToolParentRegistry,
+    ProgrammaticToolAuthorityPort,
     'prepare' | 'commitRunTerminal'
   >
   toolSurfaceDiagnostics: ToolSurfaceShadowDiagnosticsRegistryPort
@@ -455,6 +463,7 @@ export interface DeepChatLoopRunnerPorts {
   toolExecutionPort: ToolExecutionPort
   toolResultPort: ToolResultPort
   cacheImage(data: string, options?: CacheImageOptions): Promise<string>
+  imagePreviews: ToolImagePreviewPort
   registry: SessionScopeRegistry
   sessionSettings: Pick<SessionSettingsCoordinator, 'getEffectiveGenerationSettings'>
   promptAssembly: Pick<PromptAssemblyService, 'createBasePromptAssembler'>
@@ -1624,6 +1633,7 @@ export class DeepChatLoopRunner {
         toolExecution: this.ports.toolExecutionPort,
         toolResults: this.ports.toolResultPort,
         programmaticToolParents: this.ports.programmaticToolParents,
+        imagePreviews: this.ports.imagePreviews,
         ...(traceEnabled
           ? { providerAttemptIdentity: () => activeProviderAttemptIdentity }
           : {}),

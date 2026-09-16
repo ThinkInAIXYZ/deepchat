@@ -1,5 +1,5 @@
 import type { ChatMessageRecord, SendMessageInput } from '@shared/types/agent-interface'
-import type { SessionTranscript } from '@/session/data/transcript'
+
 import type { DeepChatTapeViewContextBuilderVersion } from '@shared/types/tape-view-manifest'
 import {
   buildCacheAwareContextWithMetadata,
@@ -13,6 +13,7 @@ import {
   createEmptyContextRuntimeContributions,
   type ContextRuntimeContributions
 } from './contextContributions'
+import {type TranscriptStorePort} from '@/agent/deepchat/contracts/transcriptStore'
 
 export const CACHE_AWARE_TAPE_VIEW_POLICY_V1_ID = 'cache_aware_context_v1' as const
 export const CACHE_AWARE_TAPE_VIEW_POLICY_V2_ID = 'cache_aware_context_v2' as const
@@ -38,7 +39,7 @@ export interface TapeChatViewPolicyInput {
   systemPrompt: string
   contextLength: number
   reserveTokens: number
-  messageStore: SessionTranscript
+  messageStore: TranscriptStorePort
   supportsVision: boolean
   historyRecords: ChatMessageRecord[]
   contextContributions?: ContextRuntimeContributions
@@ -51,7 +52,7 @@ export interface TapeResumeViewPolicyInput {
   systemPrompt: string
   contextLength: number
   reserveTokens: number
-  messageStore: SessionTranscript
+  messageStore: TranscriptStorePort
   supportsVision: boolean
   historyRecords: ChatMessageRecord[]
   contextContributions?: ContextRuntimeContributions

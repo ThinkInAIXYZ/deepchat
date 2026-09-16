@@ -1,4 +1,4 @@
-import type { ProviderModelResolutionPort } from '@/provider/settings'
+
 import logger from '@shared/logger'
 import type {
   DeepChatSessionState,
@@ -14,12 +14,8 @@ import {
   type SessionScopeRegistry
 } from '@/agent/deepchat/instance/deepChatAgentRuntime'
 import { toAppSessionId } from '@/agent/shared/agentSessionIds'
-import type { SessionPendingInputs } from '@/session/data/pendingInputs'
-import type { SessionTranscript } from '@/session/data/transcript'
-import type {
-  AttachmentCapabilityRouter,
-  AttachmentPreparationResult
-} from '@/ocr/attachmentCapabilityRouter'
+
+
 import { awaitWithAbort } from '@/lib/awaitWithAbort'
 import { createAbortError, PENDING_INPUT_ABORT_REASON } from './abortErrors'
 import { supportsProviderVision } from './providerInputCapabilities'
@@ -28,9 +24,13 @@ import type { PendingInputWakeReason } from './runLifecycleCoordinator'
 import { redactRuntimeErrorForLog } from './runtimeErrorLogging'
 import type { SessionSettingsCoordinator } from './sessionSettingsCoordinator'
 import type { SessionStateResolver } from './sessionStateResolver'
+import {type ProviderModelResolutionPort} from '@/agent/deepchat/contracts/providerModelResolution'
+import {type PendingInputStorePort} from '@/agent/deepchat/contracts/pendingInputStore'
+import {type TranscriptStorePort} from '@/agent/deepchat/contracts/transcriptStore'
+import {type AttachmentPreparationPort, type AttachmentPreparationResult} from '@/agent/deepchat/contracts/attachmentPreparation'
 
 export type PendingInputAdmissionStorePort = Pick<
-  SessionPendingInputs,
+  PendingInputStorePort,
   | 'degradeBlockedInput'
   | 'deletePendingInput'
   | 'getInput'
@@ -81,8 +81,8 @@ export interface PendingInputAdmissionCoordinatorPorts {
   providerSettings: Pick<ProviderModelResolutionPort, 'getModelConfig'>
   pendingInputs: PendingInputAdmissionStorePort
   pump: PendingInputAdmissionPumpPort
-  transcript: Pick<SessionTranscript, 'getMessage'>
-  attachmentRouter: Pick<AttachmentCapabilityRouter, 'prepare'>
+  transcript: Pick<TranscriptStorePort, 'getMessage'>
+  attachmentRouter: AttachmentPreparationPort
   sessionState: Pick<SessionStateResolver, 'get'>
   registry: SessionScopeRegistry
   sessionSettings: Pick<SessionSettingsCoordinator, 'resolveProjectDir'>

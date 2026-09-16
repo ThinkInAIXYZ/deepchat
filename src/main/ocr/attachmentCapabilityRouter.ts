@@ -6,6 +6,10 @@ import type {
   MessageFile,
   SendMessageInput
 } from '@shared/types/agent-interface'
+import type {
+  AttachmentPreparationInput,
+  AttachmentPreparationResult
+} from '@/agent/deepchat/contracts/attachmentPreparation'
 import {
   getAttachmentResolvedRepresentation,
   isImageAttachment,
@@ -74,19 +78,10 @@ export interface AttachmentRoutingDiagnostic {
   durationMs?: number
 }
 
-export interface AttachmentPreparationInput {
-  content: SendMessageInput
-  supportsVision: boolean
-  signal?: AbortSignal
-  reusePreparedAttachmentRepresentations?: boolean
-  preserveResolvedRepresentations?: boolean
-  emitDiagnostics?: boolean
-}
-
-export interface AttachmentPreparationResult {
-  content: SendMessageInput
-  summary: AttachmentPreparationSummary
-}
+export type {
+  AttachmentPreparationInput,
+  AttachmentPreparationResult
+} from '@/agent/deepchat/contracts/attachmentPreparation'
 
 interface OcrCandidate {
   attachmentIndex: number

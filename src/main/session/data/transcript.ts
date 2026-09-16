@@ -45,6 +45,7 @@ import {
   toMessageFile
 } from './messageContent'
 import { TranscriptProjectionApplier } from './transcriptProjection'
+import { buildTerminalErrorBlocks } from '@/agent/deepchat/contracts/transcriptBlocks'
 
 const COMPACTION_SHIFT_MATERIALIZATION_BATCH_SIZE = 500
 const MAX_COMPACTION_ATTEMPT_ID_CHARACTERS = 128
@@ -84,39 +85,7 @@ function summaryUpdatedAtFromCompactionAnchor(row: DeepChatTapeEntryRow): number
   return typeof generatedSummary === 'string' && generatedSummary.trim() ? row.created_at : null
 }
 
-function shouldConvertPendingBlockToError(
-  status: AssistantMessageBlock['status']
-): status is 'pending' | 'loading' {
-  return status === 'pending' || status === 'loading'
-}
-
-export function buildTerminalErrorBlocks(
-  blocks: AssistantMessageBlock[],
-  errorMessage: string
-): AssistantMessageBlock[] {
-  const normalizedBlocks: AssistantMessageBlock[] = Array.isArray(blocks)
-    ? blocks.map(
-        (block): AssistantMessageBlock =>
-          shouldConvertPendingBlockToError(block.status)
-            ? { ...block, status: 'error' as const }
-            : block
-      )
-    : []
-
-  const lastBlock = normalizedBlocks[normalizedBlocks.length - 1]
-  if (lastBlock?.type === 'error' && lastBlock.content === errorMessage) {
-    return normalizedBlocks
-  }
-
-  normalizedBlocks.push({
-    type: 'error',
-    content: errorMessage,
-    status: 'error',
-    timestamp: Date.now()
-  })
-
-  return normalizedBlocks
-}
+export { buildTerminalErrorBlocks } from '@/agent/deepchat/contracts/transcriptBlocks'
 
 type StructuredMessageMaps = {
   userRows: Map<string, DeepChatUserMessageRow>

@@ -11,6 +11,10 @@ import type { ChatMessage } from '@shared/types/core/chat-message'
 import type { ToolServicePort } from '@shared/types/tool'
 import type { ProcessParams } from '@/agent/deepchat/runtime/types'
 import { createState } from '@/agent/deepchat/runtime/types'
+import {
+  cacheToolCallImagePreviews,
+  extractToolCallImagePreviews
+} from '@/lib/toolCallImagePreviews'
 import { ToolOutputGuard } from '@/agent/deepchat/runtime/toolOutputGuard'
 import {
   createToolExecutionPort,
@@ -407,6 +411,7 @@ describe('processStream', () => {
       maxTokens: 4096,
       interleavedReasoning: DEFAULT_INTERLEAVED_REASONING,
       permissionMode: 'full_access',
+      imagePreviews: { cacheToolCallImagePreviews, extractToolCallImagePreviews },
       commitRunTerminal,
       io: {
         messageStore,

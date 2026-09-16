@@ -1,6 +1,6 @@
 import type { StreamState, IoParams } from './types'
 import { createThrottle } from '@shared/utils/throttle'
-import { cloneBlocksForRenderer } from '@/session/clientMessageProjection'
+import {cloneBlocksForRenderer} from '@/agent/deepchat/contracts/rendererBlocks'
 
 const RENDERER_FLUSH_INTERVAL = 120
 const DB_FLUSH_INTERVAL = 600

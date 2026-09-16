@@ -1,4 +1,10 @@
 import { SessionDatabase } from './database'
+import type {
+  ReconstructionAnchorPromptState,
+  SessionSummaryState,
+  SummaryStateCompareAndSetResult,
+  SummaryTapeAnchorInput
+} from '@/agent/deepchat/contracts/sessionSettingsStore'
 import type { PermissionMode, SessionGenerationSettings } from '@shared/types/agent-interface'
 import type { DeepChatSessionSummaryRow } from '@/session/data/tables/deepchatSessions'
 import type { DeepChatTapeEntryRow } from '@/tape/domain/entry'
@@ -8,29 +14,12 @@ import type {
   TapeLifecycleAdmin
 } from '@/tape/ports/capabilities'
 
-export type SessionSummaryState = {
-  summaryText: string | null
-  summaryCursorOrderSeq: number
-  summaryUpdatedAt: number | null
-}
-
-export type ReconstructionAnchorPromptState = {
-  entryId: number
-  name: string
-  state: Record<string, unknown>
-  createdAt: number
-}
-
-export type SummaryStateCompareAndSetResult = {
-  applied: boolean
-  currentState: SessionSummaryState
-}
-
-export type SummaryTapeAnchorInput = {
-  name: string
-  state: Record<string, unknown>
-  meta?: Record<string, unknown>
-}
+export type {
+  ReconstructionAnchorPromptState,
+  SessionSummaryState,
+  SummaryStateCompareAndSetResult,
+  SummaryTapeAnchorInput
+} from '@/agent/deepchat/contracts/sessionSettingsStore'
 
 function normalizeSummaryState(row: DeepChatSessionSummaryRow | null): SessionSummaryState {
   return {

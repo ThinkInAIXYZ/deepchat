@@ -19,8 +19,7 @@ import type { ModelConfig } from '@shared/types/provider'
 import type { DeepChatProviderAttemptIdentity } from '@shared/types/provider-attempt'
 import type { DeepchatEventName } from '@shared/contracts/events'
 import type { DeepChatInternalSessionUpdate } from './sessionUpdates'
-import type { SessionTranscript } from '@/session/data/transcript'
-import type { CacheImageOptions } from '@/platform/imageCache'
+
 import type { AgentPlanSnapshot, AgentPlanTerminalReason } from '@shared/types/agent-plan'
 import type { LoopRun } from '@/agent/deepchat/loop/loopRun'
 import type {
@@ -42,9 +41,12 @@ import type {
   ExecutionOperationIdentity,
   ExecutionRunOutcome
 } from '@/tape/domain/executionJournal'
-import type { SessionPermissionGrant } from '@/session/contracts'
+
 import type { ToolSurfaceDeferredDispatchBindingV1 } from './toolSurface'
-import type { ProgrammaticToolParentRegistry } from '@/cli/programmaticToolParentRegistry'
+import {type TranscriptStorePort} from '@/agent/deepchat/contracts/transcriptStore'
+import {type CacheImageOptions, type ToolImagePreviewPort} from '@/agent/deepchat/contracts/imagePreview'
+import {type SessionPermissionGrant} from '@/agent/deepchat/contracts/sessionPermission'
+import {type ProgrammaticToolAuthorityPort} from '@/agent/deepchat/contracts/programmaticToolAuthority'
 
 interface RunJournalObservationIdentity {
   runId: string
@@ -160,7 +162,7 @@ export interface IoParams {
   messageId: string
   providerId: string
   modelId: string
-  messageStore: SessionTranscript
+  messageStore: TranscriptStorePort
   abortSignal: AbortSignal
   publishEvent: DeepChatEventPublisher
   publishSessionUpdate: DeepChatSessionUpdatePublisher
@@ -355,7 +357,8 @@ export interface ProcessParams {
   notificationObserver?: DeepChatLoopNotificationObserver
   controls?: ProcessControlCollaborators
   diagnostics?: ProcessInternalDiagnostics
-  programmaticToolParents?: Pick<ProgrammaticToolParentRegistry, 'prepare'>
+  programmaticToolParents?: Pick<ProgrammaticToolAuthorityPort, 'prepare'>
+  imagePreviews: ToolImagePreviewPort
   commitRunTerminal(selection: ProcessTerminalSelection): void
   io: ProcessIoParams
 }

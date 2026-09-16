@@ -1451,6 +1451,7 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
               },
               requestView: batch.requestView,
               commandShell: run.resources.commandShell,
+              imagePreviews: params.imagePreviews,
               contextLength: continuationContextLength,
               outputCapContextLength: continuationOutputCapContextLength,
               maxTokens,

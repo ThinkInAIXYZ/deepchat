@@ -1,4 +1,4 @@
-import type { ProviderModelResolutionPort } from '@/provider/settings'
+
 import fs from 'fs'
 import path from 'path'
 import type {
@@ -20,7 +20,7 @@ import {
   assemblePromptSections,
   createPromptAssemblySection
 } from './promptAssembly'
-import type { SkillSettingsPort } from '@/skill/settings'
+
 import { ResolvedCommandShellSchema, type ResolvedCommandShell } from '@shared/commandShell'
 import { LIVE_DELEGATION_AGENT_TOOL_NAME } from '@shared/agentTools'
 import { UNTRUSTED_CHILD_OUTPUT_POLICY } from '@shared/orchestration/resultSafety'
@@ -33,6 +33,8 @@ import {
   renderSkillRoutingCatalog,
   type SkillRoutingCatalogProjection
 } from '@/skill/routingCatalog'
+import {type ProviderModelResolutionPort} from '@/agent/deepchat/contracts/providerModelResolution'
+import {type SkillSettingsPort} from '@/agent/deepchat/contracts/skillSettings'
 
 export type AgentExtensionPolicy = {
   enabledMcpServerIds?: string[] | null

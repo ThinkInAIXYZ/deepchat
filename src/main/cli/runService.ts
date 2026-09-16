@@ -1,7 +1,6 @@
 import type {
   ChatMessagePageResult,
   ChatMessageRecord,
-  CreateDetachedSessionInput,
   MessagePageCursor,
   MessageStartResult,
   SessionRecord,
@@ -41,44 +40,27 @@ import type { TypedEventHub } from '@/events/typedEventHub'
 import { TypedEventHubCapacityError, TypedEventHubOverflowError } from '@/events/typedEventHub'
 import { CliRequestError } from './errors'
 import type { CliStreamEmitter } from './server'
+import type {
+  RunLifecyclePort,
+  RunPendingAssistantMessages,
+  RunProjectionPort,
+  RunSessionStorePort,
+  RunTurnPort,
+  RunWaitingDescendantInteraction
+} from '@/agent/deepchat/contracts/cliCompatibility'
 
 const DEFAULT_MESSAGE_LIMIT = 50
 const RUN_SNAPSHOT_MESSAGE_BUDGET_BYTES = 8 * 1024 * 1024
 const RUN_START_FAILURE_MESSAGE = 'Detached Agent run could not start'
 const AssistantMessageBlocksSchema = AssistantMessageBlockSchema.array()
 
-type RunLifecyclePort = Readonly<{
-  createDetachedSession(input: CreateDetachedSessionInput): Promise<SessionWithState>
-}>
-
-type RunTurnPort = Readonly<{
-  sendMessage(
-    sessionId: string,
-    content: string,
-    options?: { maxProviderRounds?: number }
-  ): Promise<MessageStartResult>
-  cancelGeneration(sessionId: string): Promise<void>
-}>
-
-type RunProjectionPort = Readonly<{
-  getSession(sessionId: string): Promise<SessionWithState | null>
-  listMessagesPage(
-    sessionId: string,
-    options?: { limit?: number; cursor?: MessagePageCursor | null }
-  ): Promise<ChatMessagePageResult>
-}>
-
-type RunSessionStorePort = Readonly<{
-  get(sessionId: string): SessionRecord | null
-}>
-
 export type CliRunServiceOptions = Readonly<{
   lifecycle: RunLifecyclePort
   turn: RunTurnPort
   projection: RunProjectionPort
   sessions: RunSessionStorePort
-  getPendingAssistantMessages(runId: string): ChatMessageRecord[]
-  hasWaitingDescendantInteraction(runId: string): boolean
+  getPendingAssistantMessages: RunPendingAssistantMessages
+  hasWaitingDescendantInteraction: RunWaitingDescendantInteraction
   eventHub: TypedEventHub
   now?: () => number
   log?: Pick<Console, 'warn'>

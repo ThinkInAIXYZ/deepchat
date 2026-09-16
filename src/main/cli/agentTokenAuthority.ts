@@ -6,13 +6,7 @@ import {
   LocalControlTokenSchema,
   type LocalControlScope
 } from '@shared/contracts/localControl'
-import {
-  PROGRAMMATIC_TOOL_RPC_MAX_BODY_BYTES,
-  toolBatchRoute,
-  toolCallRoute,
-  toolDescribeRoute,
-  toolSearchRoute
-} from '@shared/contracts/routes/tools.routes'
+import { PROGRAMMATIC_TOOL_RPC_MAX_BODY_BYTES } from '@shared/contracts/routes/tools.routes'
 import { z } from 'zod'
 import {
   MAX_TAPE_PROGRAMMATIC_TOOL_BATCH_STEPS,
@@ -21,105 +15,37 @@ import {
   MAX_TAPE_PROGRAMMATIC_TOOL_INPUT_BYTES,
   MAX_TAPE_PROGRAMMATIC_TOOL_OUTPUT_BYTES
 } from '@/tape/domain/toolSurfaceFacts'
-import { canonicalJsonStringifyData, hashJsonData } from '@/tape/domain/canonicalJson'
-import { parseBoundedJsonBytes } from './body'
+import { canonicalJsonStringifyData } from '@/tape/domain/canonicalJson'
 
-export const DEFAULT_AGENT_CLI_TOKEN_TTL_MS = 35 * 60_000
-export const DEFAULT_AGENT_CLI_TOKEN_MAX_CALLS = 64
-export const DEFAULT_AGENT_CLI_TOKEN_MAX_BYTES = 256 * 1024 * 1024
-export const MAX_AGENT_CLI_TOKEN_TTL_MS = 60 * 60_000
-export const MAX_AGENT_CLI_TOKEN_CALLS = 1024
-export const MAX_AGENT_CLI_TOKEN_BYTES = 1024 * 1024 * 1024
+export {
+  AGENT_CLI_PROGRAMMATIC_GRANT_SCHEMA_VERSION,
+  buildAgentCliProgrammaticInvocationHash,
+  parseAgentCliProgrammaticExecInvocation,
+  type AgentCliProgrammaticGrantQuotas,
+  type AgentCliProgrammaticInvocation,
+  type AgentCliProgrammaticOperationBinding,
+  type AgentCliProgrammaticOperationGrant,
+  type AgentCliProgrammaticOperationIdentity,
+  type AgentCliProgrammaticToolVerb,
+  type AgentCliOuterDispatchReceipt,
+  type AgentCliTokenClaims,
+  type ArmedAgentCliProgrammaticToken,
+  type IssuedAgentCliToken,
+  type PreparedAgentCliProgrammaticGrant
+} from '@/agent/deepchat/contracts/programmaticToolAuthority'
 
-const DEFAULT_MAX_TOKENS = 256
-const DEFAULT_MAX_TOKENS_PER_CONVERSATION = 8
-const SHA_256_PATTERN = /^[0-9a-f]{64}$/
-const MAX_OPERATION_IDENTITY_CHARACTERS = 1_024
-const PROGRAMMATIC_TOOL_SAFE_SCALAR_PATTERN = /^[\p{L}\p{N}_.:@/,+-]+$/u
-const PROGRAMMATIC_TOOL_SAFE_QUERY_PATTERN = /^[\p{L}\p{N}_.:@/,+-]+(?: [\p{L}\p{N}_.:@/,+-]+)*$/u
-const PROGRAMMATIC_TOOL_CANONICAL_LIMIT_PATTERN = /^[1-9][0-9]*$/
-const AgentCliProgrammaticRouteSchema = z.enum([
-  'tool.search',
-  'tool.describe',
-  'tool.call',
-  'tool.batch'
-])
-
-export const AGENT_CLI_PROGRAMMATIC_GRANT_SCHEMA_VERSION = 1 as const
-
-export type AgentCliProgrammaticToolVerb = 'search' | 'describe' | 'call' | 'batch'
-
-export type AgentCliProgrammaticInvocation = Readonly<{
-  command: Readonly<{
-    domain: 'tool'
-    verb: AgentCliProgrammaticToolVerb
-  }>
-  route: `tool.${AgentCliProgrammaticToolVerb}`
-  canonicalInvocationHash: string
-}>
-
-export type AgentCliProgrammaticOperationIdentity = Readonly<{
-  sessionId: string
-  messageId: string
-  runId: string
-  requestSeq: number
-  providerToolCallId: string
-}>
-
-export type AgentCliProgrammaticGrantQuotas = Readonly<{
-  maxChildren: number
-  maxBatchSteps: number
-  maxInputBytes: number
-  maxOutputBytes: number
-  maxDurationMs: number
-}>
-
-export type AgentCliProgrammaticOperationBinding = Readonly<{
-  schemaVersion: typeof AGENT_CLI_PROGRAMMATIC_GRANT_SCHEMA_VERSION
-  surfaceVersion: typeof LOCAL_CONTROL_PROGRAMMATIC_ROUTE_SURFACE_VERSION
-  operation: AgentCliProgrammaticOperationIdentity
-  command: Readonly<{
-    domain: 'tool'
-    verb: AgentCliProgrammaticToolVerb
-  }>
-  route: AgentCliProgrammaticInvocation['route']
-  canonicalInvocationHash: string
-  adapterMode: 'cli-programmatic'
-  capabilityHash: string
-  programmaticSurfaceHash: string
-  quotas: AgentCliProgrammaticGrantQuotas
-}>
-
-export type AgentCliOuterDispatchReceipt = Readonly<{
-  sessionId: string
-  entryId: number
-  created: boolean
-  preparedTokenId: string
-  operation: AgentCliProgrammaticOperationIdentity
-}>
-
-export type AgentCliProgrammaticOperationGrant = AgentCliProgrammaticOperationBinding &
-  Readonly<{
-    outerDispatchReceipt: Readonly<{
-      sessionId: string
-      entryId: number
-    }>
-  }>
-
-export type AgentCliTokenClaims = Readonly<{
-  tokenId: string
-  conversationId: string
-  expiresAt: number
-  scopes: readonly LocalControlScope[]
-  programmaticOperation?: AgentCliProgrammaticOperationGrant
-}>
-
-export type IssuedAgentCliToken = AgentCliTokenClaims &
-  Readonly<{
-    token: string
-    maxCalls: number
-    maxBytes: number
-  }>
+import {
+  AGENT_CLI_PROGRAMMATIC_GRANT_SCHEMA_VERSION,
+  buildAgentCliProgrammaticInvocationHash,
+  type AgentCliProgrammaticOperationBinding,
+  type AgentCliProgrammaticOperationGrant,
+  type AgentCliProgrammaticOperationIdentity,
+  type AgentCliOuterDispatchReceipt,
+  type AgentCliTokenClaims,
+  type ArmedAgentCliProgrammaticToken,
+  type IssuedAgentCliToken,
+  type PreparedAgentCliProgrammaticGrant
+} from '@/agent/deepchat/contracts/programmaticToolAuthority'
 
 export type AgentCliRequestGrant = Readonly<{
   claims: AgentCliTokenClaims
@@ -137,20 +63,23 @@ export type AgentCliRequestBeginResult =
   | Readonly<{ status: 'granted'; grant: AgentCliRequestGrant }>
   | Readonly<{ status: 'invalid' | 'expired' | 'quota-exhausted' }>
 
-export type ArmedAgentCliProgrammaticToken = IssuedAgentCliToken &
-  Readonly<{
-    programmaticOperation: AgentCliProgrammaticOperationGrant
-  }>
+export const DEFAULT_AGENT_CLI_TOKEN_TTL_MS = 35 * 60_000
+export const DEFAULT_AGENT_CLI_TOKEN_MAX_CALLS = 64
+export const DEFAULT_AGENT_CLI_TOKEN_MAX_BYTES = 256 * 1024 * 1024
+export const MAX_AGENT_CLI_TOKEN_TTL_MS = 60 * 60_000
+export const MAX_AGENT_CLI_TOKEN_CALLS = 1024
+export const MAX_AGENT_CLI_TOKEN_BYTES = 1024 * 1024 * 1024
 
-export type PreparedAgentCliProgrammaticGrant = Readonly<{
-  tokenId: string
-  conversationId: string
-  expiresAt: number
-  operation: AgentCliProgrammaticOperationIdentity
-  binding: AgentCliProgrammaticOperationBinding
-  arm(receipt: AgentCliOuterDispatchReceipt): ArmedAgentCliProgrammaticToken
-  revoke(): void
-}>
+const DEFAULT_MAX_TOKENS = 256
+const DEFAULT_MAX_TOKENS_PER_CONVERSATION = 8
+const SHA_256_PATTERN = /^[0-9a-f]{64}$/
+const MAX_OPERATION_IDENTITY_CHARACTERS = 1_024
+const AgentCliProgrammaticRouteSchema = z.enum([
+  'tool.search',
+  'tool.describe',
+  'tool.call',
+  'tool.batch'
+])
 
 export type AgentCliTokenAuthorityOptions = Readonly<{
   now?: () => number
@@ -244,120 +173,6 @@ function requireCanonicalInvocationParams(value: unknown): Readonly<Record<strin
     throw new Error('Programmatic Tool stdin must contain one JSON object')
   }
   return value as Readonly<Record<string, unknown>>
-}
-
-function parseCanonicalProgrammaticSearchCommand(
-  command: string
-): Readonly<{ query: string; limit?: number }> | null {
-  const prefix = 'deepchat tool search --query '
-  if (!command.startsWith(prefix)) return null
-  const argumentsText = command.slice(prefix.length)
-  let query: string
-  let remainder: string
-  if (argumentsText.startsWith('"')) {
-    const closingQuote = argumentsText.indexOf('"', 1)
-    if (closingQuote < 0) return null
-    query = argumentsText.slice(1, closingQuote)
-    remainder = argumentsText.slice(closingQuote + 1)
-  } else {
-    const separator = argumentsText.indexOf(' ')
-    query = separator < 0 ? argumentsText : argumentsText.slice(0, separator)
-    remainder = separator < 0 ? '' : argumentsText.slice(separator)
-  }
-  if (!PROGRAMMATIC_TOOL_SAFE_QUERY_PATTERN.test(query) || query.startsWith('-')) return null
-  if (!remainder) return Object.freeze({ query })
-  const limitMatch = /^ --limit ([1-9][0-9]*)$/.exec(remainder)
-  if (!limitMatch || !PROGRAMMATIC_TOOL_CANONICAL_LIMIT_PATTERN.test(limitMatch[1])) return null
-  return Object.freeze({ query, limit: Number(limitMatch[1]) })
-}
-
-function parseCanonicalProgrammaticDescribeCommand(command: string): string | null {
-  const prefix = 'deepchat tool describe --target '
-  if (!command.startsWith(prefix)) return null
-  const argumentText = command.slice(prefix.length)
-  let target = argumentText
-  if (argumentText.startsWith('"')) {
-    if (argumentText.length < 3 || !argumentText.endsWith('"')) return null
-    target = argumentText.slice(1, -1)
-  }
-  if (!PROGRAMMATIC_TOOL_SAFE_SCALAR_PATTERN.test(target) || target.startsWith('-')) return null
-  return target
-}
-
-export function buildAgentCliProgrammaticInvocationHash(input: {
-  command: Readonly<{ domain: 'tool'; verb: AgentCliProgrammaticToolVerb }>
-  route: `tool.${AgentCliProgrammaticToolVerb}`
-  params: Readonly<Record<string, unknown>>
-}): string {
-  if (input.route !== `tool.${input.command.verb}`) {
-    throw new Error('Programmatic Tool invocation route does not match its command')
-  }
-  return hashJsonData({
-    surfaceVersion: LOCAL_CONTROL_PROGRAMMATIC_ROUTE_SURFACE_VERSION,
-    command: input.command,
-    route: input.route,
-    params: input.params
-  })
-}
-
-export function parseAgentCliProgrammaticExecInvocation(input: {
-  command: string
-  stdin?: string
-}): AgentCliProgrammaticInvocation {
-  const command = input.command
-  const tokens = command.split(' ')
-  if (
-    tokens.some((token) => token.length === 0) ||
-    tokens[0] !== 'deepchat' ||
-    tokens[1] !== 'tool'
-  ) {
-    throw new Error('Programmatic Tool exec requires one canonical DeepChat Tool command')
-  }
-
-  const verb = tokens[2]
-  let parsed: Readonly<Record<string, unknown>>
-  if (verb === 'search') {
-    const search = parseCanonicalProgrammaticSearchCommand(command)
-    if (input.stdin !== undefined || !search) {
-      throw new Error('Programmatic Tool search requires canonical bounded scalar arguments')
-    }
-    parsed = toolSearchRoute.input.parse(search)
-  } else if (verb === 'describe') {
-    const target = parseCanonicalProgrammaticDescribeCommand(command)
-    if (input.stdin !== undefined || !target) {
-      throw new Error(
-        'Programmatic Tool describe requires one unquoted or exact double-quoted safe target'
-      )
-    }
-    parsed = toolDescribeRoute.input.parse({ target })
-  } else if (verb === 'call' || verb === 'batch') {
-    if (tokens.length !== 3 || input.stdin === undefined) {
-      throw new Error('Programmatic Tool call and batch require an exact command and owned stdin')
-    }
-    const stdinBytes = Buffer.from(input.stdin, 'utf8')
-    if (stdinBytes.length > MAX_TAPE_PROGRAMMATIC_TOOL_INPUT_BYTES) {
-      throw new Error('Programmatic Tool stdin exceeds its supported byte limit')
-    }
-    const parsedBody = parseBoundedJsonBytes(stdinBytes)
-    parsed = (verb === 'call' ? toolCallRoute : toolBatchRoute).input.parse(parsedBody)
-  } else {
-    throw new Error('Programmatic Tool exec command is unsupported')
-  }
-
-  const invocationCommand = Object.freeze({
-    domain: 'tool' as const,
-    verb: verb as AgentCliProgrammaticToolVerb
-  })
-  const route = `tool.${verb}` as const
-  return Object.freeze({
-    command: invocationCommand,
-    route,
-    canonicalInvocationHash: buildAgentCliProgrammaticInvocationHash({
-      command: invocationCommand,
-      route,
-      params: parsed
-    })
-  })
 }
 
 export function parseAgentCliProgrammaticOperationGrant(

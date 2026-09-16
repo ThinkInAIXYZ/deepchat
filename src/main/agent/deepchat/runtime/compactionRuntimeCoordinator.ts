@@ -1,6 +1,6 @@
 import type { PluginContextPort } from '@shared/types/userPlugin'
 import logger from '@shared/logger'
-import type { ProviderModelResolutionPort } from '@/provider/settings'
+
 import type {
   SessionCompactionSnapshot,
   SessionCompactionState
@@ -12,8 +12,7 @@ import {
   type CompactionService
 } from './compactionService'
 import type { DeepChatEventPublisher } from './types'
-import type { SessionTranscript } from '@/session/data/transcript'
-import type { SessionSettingsStore, SessionSummaryState } from '@/session/data/settings'
+
 import { isAbortError, throwIfAbortRequested } from './abortErrors'
 import type { DeepChatToolResolver } from './toolResolver'
 import type { RunLifecycleCoordinator } from './runLifecycleCoordinator'
@@ -34,11 +33,15 @@ import { resolveInterleavedReasoningConfig } from './generationSettings'
 import { resolveProviderInputCapabilities } from './providerInputCapabilities'
 import { resolveProviderModelRuntimeFacts } from './providerModelRuntimeFacts'
 import { toAppSessionId } from '@/agent/shared/agentSessionIds'
-import type { CommandShellService } from '@/agent/shared/process/commandShellService'
+
 import {
   isSummaryGapReason,
   type SummaryGapReason
 } from './contextContributions'
+import {type ProviderModelResolutionPort} from '@/agent/deepchat/contracts/providerModelResolution'
+import {type TranscriptStorePort} from '@/agent/deepchat/contracts/transcriptStore'
+import {type SessionSettingsStorePort, type SessionSummaryState} from '@/agent/deepchat/contracts/sessionSettingsStore'
+import {type CommandShellResolutionPort} from '@/agent/deepchat/contracts/commandShellResolution'
 
 type ManualCompactionLifecycle = Pick<
   RunLifecycleCoordinator,
@@ -66,7 +69,7 @@ type CompactionServicePort = Pick<
 >
 
 type CompactionSessionStore = Pick<
-  SessionSettingsStore,
+  SessionSettingsStorePort,
   | 'get'
   | 'getReconstructionAnchorPromptState'
   | 'getReconstructionAnchorPromptStateByCompactionAttemptId'
@@ -76,7 +79,7 @@ type CompactionSessionStore = Pick<
 
 type CompactionTranscript = TapeTranscriptProjection &
   Pick<
-    SessionTranscript,
+    TranscriptStorePort,
     | 'createCompactionMessage'
     | 'createCompactionMessageAtOrderSeq'
     | 'deleteMessage'
@@ -98,7 +101,7 @@ export interface CompactionRuntimeCoordinatorDependencies {
   registry: SessionScopeRegistry
   sessionState: Pick<SessionStateResolver, 'getSummary'>
   promptAssembly: Pick<PromptAssemblyService, 'createBasePromptAssembler'>
-  commandShell: Pick<CommandShellService, 'resolveForTurn'>
+  commandShell: Pick<CommandShellResolutionPort, 'resolveForTurn'>
   messageProjection: Pick<MessageProjectionService, 'refresh'>
   publishEvent: DeepChatEventPublisher
 }

@@ -1,4 +1,4 @@
-import type { ProviderModelResolutionPort } from '@/provider/settings'
+
 import { randomUUID } from 'node:crypto'
 import { estimateTokenCount } from 'tokenx'
 import type {
@@ -11,13 +11,9 @@ import type {
 import type { ChatMessage } from '@shared/types/core/chat-message'
 import type { ProviderExecutionPort } from '@shared/types/provider'
 import type { DeepChatTapeViewPinnedFirstUser } from '@shared/types/tape-view-manifest'
-import type { SessionTranscript } from '@/session/data/transcript'
+
 import { awaitWithAbort } from '@/lib/awaitWithAbort'
-import type {
-  SessionSettingsStore,
-  SessionSummaryState,
-  SummaryTapeAnchorInput
-} from '@/session/data/settings'
+
 import {
   buildPinnedFirstUser,
   buildHistoryTurns,
@@ -40,6 +36,9 @@ import {
 } from './contextContributions'
 import { createDeepSeekResponsesReplayProjector } from '@/provider/deepseekResponsesAdapter'
 import { redactRuntimeErrorForLog } from './runtimeErrorLogging'
+import {type ProviderModelResolutionPort} from '@/agent/deepchat/contracts/providerModelResolution'
+import {type TranscriptStorePort} from '@/agent/deepchat/contracts/transcriptStore'
+import {type SessionSettingsStorePort, type SessionSummaryState, type SummaryTapeAnchorInput} from '@/agent/deepchat/contracts/sessionSettingsStore'
 
 const SAFETY_MARGIN = 1.2
 const SUMMARIZATION_OVERHEAD_TOKENS = 4096
@@ -385,8 +384,8 @@ function resolveModelContextLength(modelContext: unknown, fallback: number): num
 
 export class CompactionService {
   constructor(
-    private readonly sessionStore: SessionSettingsStore,
-    private readonly messageStore: SessionTranscript,
+    private readonly sessionStore: SessionSettingsStorePort,
+    private readonly messageStore: TranscriptStorePort,
     private readonly providerRuntime: Pick<
       ProviderExecutionPort,
       'executeWithRateLimit' | 'generateText'

@@ -22,7 +22,7 @@ import type { ProgrammaticToolCapabilityV1 } from '@/agent/deepchat/runtime/prog
 import type { DeepChatExecutionContract } from '@shared/types/execution-contract'
 import type { DeepChatTaskContractContext } from '@shared/types/task-contract'
 import type { ResolvedCommandShell } from '@shared/commandShell'
-import type { ProgrammaticToolParentRegistration } from '@/cli/programmaticToolParentRegistry'
+import { type ProgrammaticToolParentRegistration } from '@/agent/deepchat/contracts/programmaticToolAuthority'
 
 export interface ProviderRequest {
   runId: string

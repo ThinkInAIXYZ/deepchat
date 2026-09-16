@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
+import { resolveSessionVisionTarget } from '@/agent/vision/sessionVisionResolver'
 import type { PermissionMode } from '@shared/types/agent-interface'
 import {
   TOOL_EXECUTION,
@@ -326,6 +327,7 @@ describe('DeepChat tool adapters', () => {
           executeWithRateLimit,
           generateCompletionStandalone
         } as any,
+        visionTargetResolver: { resolveSessionVisionTarget },
         getAbortSignal: () => undefined,
         getSessionModel: () => ({
           providerId: 'openai',
@@ -390,6 +392,7 @@ describe('DeepChat tool adapters', () => {
           executeWithRateLimit,
           generateCompletionStandalone
         } as any,
+        visionTargetResolver: { resolveSessionVisionTarget },
         getAbortSignal: () => undefined,
         getSessionModel: () => ({
           providerId: 'openai',
@@ -464,6 +467,7 @@ describe('DeepChat tool adapters', () => {
           executeWithRateLimit: vi.fn().mockResolvedValue(undefined),
           generateCompletionStandalone
         } as any,
+        visionTargetResolver: { resolveSessionVisionTarget },
         getAbortSignal: () => undefined,
         getSessionModel: () => ({
           providerId: 'openai',
@@ -551,6 +555,7 @@ describe('DeepChat tool adapters', () => {
           executeWithRateLimit: vi.fn(),
           generateCompletionStandalone
         } as any,
+        visionTargetResolver: { resolveSessionVisionTarget },
         getAbortSignal: () => undefined,
         getSessionModel: () => ({
           providerId: 'openai',
@@ -592,6 +597,7 @@ describe('DeepChat tool adapters', () => {
           executeWithRateLimit: vi.fn(),
           generateCompletionStandalone: vi.fn()
         } as any,
+        visionTargetResolver: { resolveSessionVisionTarget },
         getAbortSignal: () => undefined,
         getSessionModel: () => ({
           providerId: 'openai',
@@ -643,6 +649,7 @@ describe('DeepChat tool adapters', () => {
           providerSettings: {} as any,
           agentSettings: {} as any,
           providerRuntime: {} as any,
+          visionTargetResolver: { resolveSessionVisionTarget },
           getAbortSignal: () => undefined,
           getSessionModel: () => ({})
         },

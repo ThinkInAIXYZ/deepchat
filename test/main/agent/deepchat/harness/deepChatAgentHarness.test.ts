@@ -46,6 +46,7 @@ import type { MemoryRuntimePort } from '@/memory/injection'
 import { CompactionService } from '@/agent/deepchat/runtime/compactionService'
 import { reviewAutoApproveToolPermission } from '@/agent/deepchat/runtime/toolPermissionReviewer'
 import { normalizeToolResultContent } from '@/agent/deepchat/runtime/toolAdapters'
+import { resolveSessionVisionTarget } from '@/agent/vision/sessionVisionResolver'
 import { PENDING_INPUT_ABORT_REASON } from '@/agent/deepchat/runtime/abortErrors'
 import {
   ToolOutputGuard,
@@ -1436,6 +1437,7 @@ describe('DeepChatAgentHarness', () => {
     await normalizeToolResultContent(
       {
         providerSettings,
+        visionTargetResolver: { resolveSessionVisionTarget },
         agentSettings: providerSettings,
         providerRuntime: llmProvider,
         getAbortSignal: (sessionId) =>

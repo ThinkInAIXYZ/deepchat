@@ -4,6 +4,7 @@ import {
   type SessionScopeRegistry
 } from '@/agent/deepchat/instance/deepChatAgentRuntime'
 import { toAppSessionId } from '@/agent/shared/agentSessionIds'
+import type { MemoryCursorStorePort } from '@/agent/deepchat/contracts/memoryCursorStore'
 import type { SessionIdentityService } from '@/agent/deepchat/runtime/sessionIdentityService'
 import type { ChatMessageRecord } from '@shared/types/agent-interface'
 import {
@@ -17,14 +18,10 @@ import type {
   MemoryInjectionResult,
   MemoryRuntimePort
 } from '@/memory/injection'
-import { BUILTIN_DEEPCHAT_AGENT_ID } from '@/agent/repository'
+
 import { withSoftDeadline } from '@/memory/core/asyncDeadline'
 import { buildEffectiveTapeView } from '@/tape/domain/effectiveView'
-import type {
-  DeepChatMemoryIngestionCurrentRange,
-  DeepChatMemoryIngestionProjectionInput,
-  DeepChatMemoryIngestionProjectionRow
-} from '@/memory/data/tables/deepchatMemoryIngestionProjection'
+
 import type { DeepChatTapeEntryRow } from '@/tape/domain/entry'
 import type { TapeAnchorWriter, TapeNonContextEntryReader } from '@/tape/ports/capabilities'
 import {
@@ -48,6 +45,12 @@ import {
   type MemoryPromptContributor,
   type MemorySessionHandle
 } from './memoryPromptContributor'
+import { BUILTIN_DEEPCHAT_AGENT_ID } from '@/agent/deepchat/contracts/builtinAgentIdentity'
+import {
+  type DeepChatMemoryIngestionCurrentRange,
+  type DeepChatMemoryIngestionProjectionInput,
+  type DeepChatMemoryIngestionProjectionRow
+} from '@/agent/deepchat/contracts/memoryIngestionProjection'
 
 const MEMORY_INJECTION_ACCESS_TURN_TTL_MS = 30 * 60 * 1000
 const MEMORY_INJECTION_ACCESS_MAX_TURNS_PER_SESSION = 128
@@ -89,9 +92,7 @@ export interface MemoryRuntimeCoordinatorDependencies {
   identity: Pick<SessionIdentityService, 'getAgentId' | 'getSessionKind'>
   getNextMessageOrderSeq(sessionId: string): number
   getMessagesUpToOrderSeq(sessionId: string, orderSeq: number): ChatMessageRecord[]
-  getMemoryCursorOrderSeq(sessionId: string): number | null
-  updateMemoryCursorOrderSeq(sessionId: string, orderSeq: number): void
-  rewindMemoryCursorOrderSeq(sessionId: string, orderSeq: number): void
+  memoryCursor: MemoryCursorStorePort
   tapeReader: TapeNonContextEntryReader
   tapeAnchorWriter: TapeAnchorWriter
   getIngestionProjection(): MemoryIngestionProjection | undefined
@@ -169,7 +170,7 @@ export class MemoryRuntimeCoordinator implements MemoryPromptContributor, Memory
 
   resetExtractionCursor(sessionId: string): void {
     this.bumpSessionEpoch(sessionId)
-    this.deps.rewindMemoryCursorOrderSeq(sessionId, 0)
+    this.deps.memoryCursor.rewindMemoryCursorOrderSeq(sessionId, 0)
   }
 
   /**
@@ -179,14 +180,17 @@ export class MemoryRuntimeCoordinator implements MemoryPromptContributor, Memory
    */
   seedExtractionCursor(sessionId: string, orderSeq: number): void {
     this.bumpSessionEpoch(sessionId)
-    this.deps.updateMemoryCursorOrderSeq(sessionId, orderSeq)
+    this.deps.memoryCursor.updateMemoryCursorOrderSeq(sessionId, orderSeq)
   }
 
   invalidateFromOrderSeq(sessionId: string, orderSeq: number): void {
     this.bumpSessionEpoch(sessionId)
-    const memoryCursor = this.deps.getMemoryCursorOrderSeq(sessionId) ?? 0
+    const memoryCursor = this.deps.memoryCursor.getMemoryCursorOrderSeq(sessionId) ?? 0
     if (orderSeq <= memoryCursor) {
-      this.deps.rewindMemoryCursorOrderSeq(sessionId, Math.max(0, Math.floor(orderSeq) - 1))
+      this.deps.memoryCursor.rewindMemoryCursorOrderSeq(
+        sessionId,
+        Math.max(0, Math.floor(orderSeq) - 1)
+      )
     }
   }
 
@@ -457,7 +461,7 @@ export class MemoryRuntimeCoordinator implements MemoryPromptContributor, Memory
       const toOrderSeq = Math.max(1, input.targetCursorOrderSeq)
       this.enqueueSessionExtraction(sessionId, async (epoch, executionToken) => {
         if (!this.isSessionEpochCurrent(sessionId, epoch)) return
-        const cursor = this.deps.getMemoryCursorOrderSeq(sessionId) ?? 0
+        const cursor = this.deps.memoryCursor.getMemoryCursorOrderSeq(sessionId) ?? 0
         const window = this.buildExtractionWindow(sessionId, cursor, toOrderSeq)
         if (!window || window.visibleTextChars <= 0) return
         await this.runExtractionChunks(
@@ -569,7 +573,7 @@ export class MemoryRuntimeCoordinator implements MemoryPromptContributor, Memory
       for (const chunk of currentTaskChunks) {
         if (!this.canContinueExecution(sessionId, executionToken)) return
         if (!this.isSessionEpochCurrent(sessionId, epoch)) return
-        const cursor = this.deps.getMemoryCursorOrderSeq(sessionId) ?? 0
+        const cursor = this.deps.memoryCursor.getMemoryCursorOrderSeq(sessionId) ?? 0
         if (chunk.coveredThroughOrderSeq <= cursor) continue
 
         const result = await this.memoryPort.extractAndStore({
@@ -583,7 +587,7 @@ export class MemoryRuntimeCoordinator implements MemoryPromptContributor, Memory
         if (!this.isSessionEpochCurrent(sessionId, epoch)) return
 
         if (chunk.cursorCommitOrderSeq !== null) {
-          this.deps.updateMemoryCursorOrderSeq(sessionId, chunk.cursorCommitOrderSeq)
+          this.deps.memoryCursor.updateMemoryCursorOrderSeq(sessionId, chunk.cursorCommitOrderSeq)
         }
         if (result.createdIds.length > 0) {
           this.deps.tapeAnchorWriter.appendAnchor({
@@ -727,7 +731,7 @@ export class MemoryRuntimeCoordinator implements MemoryPromptContributor, Memory
     this.enqueueSessionExtraction(sessionId, async (epoch, executionToken) => {
       if (!this.isSessionEpochCurrent(sessionId, epoch)) return
       const tailOrderSeq = this.deps.getNextMessageOrderSeq(sessionId) - 1
-      const cursor = this.deps.getMemoryCursorOrderSeq(sessionId) ?? 0
+      const cursor = this.deps.memoryCursor.getMemoryCursorOrderSeq(sessionId) ?? 0
       if (tailOrderSeq <= cursor) return
       const window = this.buildExtractionWindow(sessionId, cursor, tailOrderSeq)
       if (!window || window.visibleTextChars <= 0) return

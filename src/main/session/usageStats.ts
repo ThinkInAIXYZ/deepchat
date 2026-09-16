@@ -111,18 +111,7 @@ export function isUsageBackfillRunningStale(
   return status.status === 'running' && now - status.updatedAt > DASHBOARD_BACKFILL_STALE_MS
 }
 
-export function parseMessageMetadata(raw: string | MessageMetadata): MessageMetadata {
-  if (typeof raw !== 'string') {
-    return raw ?? {}
-  }
-
-  try {
-    const parsed = JSON.parse(raw) as MessageMetadata
-    return parsed && typeof parsed === 'object' ? parsed : {}
-  } catch {
-    return {}
-  }
-}
+export { parseMessageMetadata } from '@/agent/deepchat/contracts/messageMetadata'
 
 export function hasUsageNumbers(metadata: MessageMetadata): boolean {
   return (

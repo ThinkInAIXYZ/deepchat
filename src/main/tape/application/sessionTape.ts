@@ -54,46 +54,17 @@ import type {
   ExecutionRecoveryReport
 } from '../domain/executionJournal'
 import type {
-  TapeAnchorReader,
-  TapeAnchorWriter,
   TapeEffectiveMessageSourceEntry,
-  TapeEffectiveUserMessageSourceReader,
-  TapeExecutionViewManifestReader,
-  TapeIncarnationReader,
-  TapeInspectionReader,
-  TapeSessionInspectionReader,
-  TapeLifecycleAdmin,
-  TapeMessageFactWriter,
-  TapeProviderAttemptReader,
-  TapeProviderAttemptWriter,
-  TapeCompactionModelCallReader,
-  TapeCompactionModelCallWriter,
-  TapeContextOccupancyReader,
   TapeToolSurfaceViewReader,
-  TapeToolSurfaceViewWriter,
-  ExecutionJournalAuditReader,
-  TapeRunViewManifestReader,
-  TapeRuntimeSkillViewContextReader,
-  TapeSkillViewResultFactWriter,
   TapeSkillRequestAuthorityBinding,
-  TapeSkillRequestAuthorityReader,
-  TapeSkillMaterializationReader,
-  TapeSkillMaterializationWriter,
-  ExecutionJournalRecoveryReader,
-  ExecutionJournalWriter,
-  TapeNonContextEntryReader,
-  TapeReconciliationPort,
   TapeToolFactAppendReceipt,
-  TapeToolFactWriter,
   TapeProjectionCursor,
-  TapeProjectionHeadReader,
   TapeTranscriptProjection,
   TapeMemoryViewManifestInspection,
   CommitTapeToolSurfaceViewInput,
-  TapeToolSurfaceViewCommitReceipt,
-  TapeViewManifestReader,
-  TapeViewManifestWriter
+  TapeToolSurfaceViewCommitReceipt
 } from '../ports/capabilities'
+import type { TapeStorePort } from '@/agent/deepchat/contracts/tapeStore'
 import {
   createTapeApplicationProviders,
   type TapeApplicationDatabase,
@@ -142,37 +113,7 @@ export { AgentTapeViewError, normalizeSubagentTapeLinkInput, normalizeTapeHandof
  * this type, so a consumer can only reach what some port declares; the facade's own plumbing and
  * the direct read helpers the composition root wraps stay off the shared surface.
  */
-export type SessionTapeCapabilities = TapeToolFactWriter &
-  TapeMessageFactWriter &
-  TapeProjectionHeadReader &
-  TapeProviderAttemptReader &
-  TapeProviderAttemptWriter &
-  TapeCompactionModelCallReader &
-  TapeCompactionModelCallWriter &
-  TapeContextOccupancyReader &
-  TapeNonContextEntryReader &
-  TapeReconciliationPort &
-  TapeViewManifestReader &
-  TapeEffectiveUserMessageSourceReader &
-  TapeExecutionViewManifestReader &
-  TapeSkillRequestAuthorityReader &
-  TapeRunViewManifestReader &
-  TapeViewManifestWriter &
-  TapeToolSurfaceViewReader &
-  TapeToolSurfaceViewWriter &
-  TapeAnchorReader &
-  TapeAnchorWriter &
-  TapeInspectionReader &
-  TapeSessionInspectionReader &
-  TapeLifecycleAdmin &
-  ExecutionJournalWriter &
-  ExecutionJournalAuditReader &
-  ExecutionJournalRecoveryReader &
-  TapeIncarnationReader &
-  TapeSkillViewResultFactWriter &
-  TapeRuntimeSkillViewContextReader &
-  TapeSkillMaterializationWriter &
-  TapeSkillMaterializationReader
+export type SessionTapeCapabilities = TapeStorePort
 
 export class SessionTape implements SessionTapeCapabilities {
   private readonly providers: TapeApplicationProviders

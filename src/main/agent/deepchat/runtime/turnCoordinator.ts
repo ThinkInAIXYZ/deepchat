@@ -1,5 +1,5 @@
 import type { PluginContextPort } from '@shared/types/userPlugin'
-import type { ProviderModelResolutionPort } from '@/provider/settings'
+
 import logger from '@shared/logger'
 import type {
   AttachmentPreparationSummary,
@@ -58,14 +58,14 @@ import {
   updateToolCallResponse,
   parseAssistantBlocks
 } from './interactionProjection'
-import { buildTerminalErrorBlocks, type SessionTranscript } from '@/session/data/transcript'
+import type { TranscriptStorePort } from '@/agent/deepchat/contracts/transcriptStore'
 import type { DeepChatEventPublisher, ProcessResult } from './types'
 import {
   buildUsageFromMetadata,
   stampInteractionResolution,
   stampTerminalMetadata
 } from './runtimeMetadata'
-import type { SessionSettingsStore } from '@/session/data/settings'
+
 import type {
   TapeProviderAttemptReader,
   TapeReconciliationPort
@@ -80,10 +80,9 @@ import {
 import type { DeepChatToolCatalogSnapshot, DeepChatToolResolver } from './toolResolver'
 import type { ToolOutputGuard, ToolOutputGuardResult } from './toolOutputGuard'
 import type { ResumeBudgetToolCall } from './turnResumeContract'
-import { parseMessageMetadata } from '@/session/usageStats'
-import { extractUserMessageInput } from '@/session/data/userMessageContent'
-import type { AgentTraceSettingsPort } from '@/agent/traceSettings'
-import type { AttachmentCapabilityRouter } from '@/ocr/attachmentCapabilityRouter'
+
+
+
 import {
   resolveDeepChatContextBudgetLength,
   shouldUseDeepChatContextBudget
@@ -111,13 +110,21 @@ import type {
   TurnCompletion
 } from './pendingInputContracts'
 import { createDeepSeekResponsesReplayProjector } from '@/provider/deepseekResponsesAdapter'
-import type { CommandShellService } from '@/agent/shared/process/commandShellService'
-import type { SessionPendingInputs } from '@/session/data/pendingInputs'
+
 import {
   SkillContextMaterializer,
   type MaterializedSkillProjection,
   type SkillProjectionBodies
 } from './skillContextMaterializer'
+import {type ProviderModelResolutionPort} from '@/agent/deepchat/contracts/providerModelResolution'
+import {buildTerminalErrorBlocks} from '@/agent/deepchat/contracts/transcriptBlocks'
+import {type SessionSettingsStorePort} from '@/agent/deepchat/contracts/sessionSettingsStore'
+import {parseMessageMetadata} from '@/agent/deepchat/contracts/messageMetadata'
+import {extractUserMessageInput} from '@/agent/deepchat/contracts/userMessageContent'
+import {type AgentTraceSettingsPort} from '@/agent/deepchat/contracts/agentTraceSettings'
+import {type AttachmentPreparationPort} from '@/agent/deepchat/contracts/attachmentPreparation'
+import {type CommandShellResolutionPort} from '@/agent/deepchat/contracts/commandShellResolution'
+import {type PendingInputStorePort} from '@/agent/deepchat/contracts/pendingInputStore'
 import type { ResolvedToolMode } from '@shared/toolMode'
 import {
   decorateExecForShell,
@@ -164,9 +171,9 @@ export interface TurnCoordinatorPorts {
   providerSettings: ProviderModelResolutionPort
   traceSettings: AgentTraceSettingsPort
   toolService: Pick<ToolServicePort, 'clearAgentPlanState'>
-  sessionStore: SessionSettingsStore
-  messageStore: SessionTranscript
-  pendingInputs: Pick<SessionPendingInputs, 'createClaimedQueueUserMessage'>
+  sessionStore: SessionSettingsStorePort
+  messageStore: TranscriptStorePort
+  pendingInputs: Pick<PendingInputStorePort, 'createClaimedQueueUserMessage'>
   tapeReconciliation: TapeReconciliationPort & TapeProviderAttemptReader
   toolResolver: DeepChatToolResolver
   compactionService: CompactionService
@@ -179,7 +186,7 @@ export interface TurnCoordinatorPorts {
   toolOutputGuard: ToolOutputGuard
   runLifecycle: TurnRunLifecyclePort
   registry: SessionScopeRegistry
-  attachmentRouter: Pick<AttachmentCapabilityRouter, 'prepare'>
+  attachmentRouter: AttachmentPreparationPort
   sessionSettings: Pick<
     SessionSettingsCoordinator,
     'resolveProjectDir' | 'getEffectiveGenerationSettings'
@@ -191,7 +198,7 @@ export interface TurnCoordinatorPorts {
   >
   skillContextMaterializer: SkillContextMaterializer
   taskContractContext: DeepChatTaskContractContextPort
-  commandShell: Pick<CommandShellService, 'resolveForTurn'>
+  commandShell: Pick<CommandShellResolutionPort, 'resolveForTurn'>
   loopRunner: Pick<DeepChatLoopRunner, 'run'>
   messageProjection: Pick<MessageProjectionService, 'refresh'>
   hookSink: Pick<RuntimeHookSink, 'scope'>
@@ -437,7 +444,7 @@ export class TurnCoordinator {
     sessionActiveSkillNames: string[]
     sessionSkillBodies: SkillProjectionBodies['sessionSkillBodies']
     contextLength: number
-    commandShell: Awaited<ReturnType<CommandShellService['resolveForTurn']>>
+    commandShell: Awaited<ReturnType<CommandShellResolutionPort['resolveForTurn']>>
   }): Promise<DeepChatPromptAssembly> {
     const assembly = await this.runPreStreamStep(
       {
@@ -2120,7 +2127,7 @@ export class TurnCoordinator {
 }
 
 function resolveAssistantTurnSearchIntent(
-  messageStore: Pick<SessionTranscript, 'getMessage' | 'getLastUserMessageBeforeOrAt'>,
+  messageStore: Pick<TranscriptStorePort, 'getMessage' | 'getLastUserMessageBeforeOrAt'>,
   sessionId: string,
   assistantMessageId: string
 ): boolean {
@@ -2133,7 +2140,7 @@ function resolveAssistantTurnSearchIntent(
 }
 
 function resolveAssistantTurnMessageSkillNames(
-  messageStore: Pick<SessionTranscript, 'getMessage' | 'getLastUserMessageBeforeOrAt'>,
+  messageStore: Pick<TranscriptStorePort, 'getMessage' | 'getLastUserMessageBeforeOrAt'>,
   sessionId: string,
   assistantMessageId: string
 ): string[] {

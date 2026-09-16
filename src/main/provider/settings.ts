@@ -41,6 +41,7 @@ import {
 import { stripDerivedProviderModelFields } from '@/provider/providerModelFacts'
 import { DEFAULT_SYSTEM_PROMPT } from '@/agent/promptSettings'
 import type { ProviderDatabase } from './data/database'
+import type { CapabilitySnapshotResolutionInput } from '@/agent/deepchat/contracts/providerModelResolution'
 import type { SettingsKey, SettingsSnapshotValues } from '@shared/contracts/routes'
 import type { DeepchatEventPayload, DeepchatEventPublisher } from '@shared/contracts/events'
 import {
@@ -60,7 +61,6 @@ import {
 } from './capabilityIdentity'
 import type {
   CapabilityRouteOverride,
-  CapabilitySnapshotQuery,
   ResolvedCapabilityIdentity,
   ResolvedModelCapabilitySnapshot
 } from '@shared/types/model-capabilities'
@@ -131,19 +131,6 @@ const isModelSelection = (value: unknown): value is ModelSelection => {
   const record = value as Record<string, unknown>
   return typeof record.providerId === 'string' && typeof record.modelId === 'string'
 }
-
-type CapabilitySnapshotModelConfig = ModelRouteConfig & Partial<Pick<ModelConfig, 'reasoning'>>
-export type CapabilitySnapshotResolutionInput =
-  | (CapabilitySnapshotQuery & {
-      resolvedModelConfig?: never
-    })
-  | {
-      providerId: string
-      modelId: string
-      resolvedModelConfig: CapabilitySnapshotModelConfig
-      routeOverride?: never
-      reasoningEnabled?: never
-    }
 
 const normalizeKnownModelId = (modelId: string): string => {
   const normalizedModelId = modelId.trim().toLowerCase()
@@ -315,15 +302,10 @@ export interface ProviderSettingsPort {
   updateProvidersBatch(batchUpdate: ProviderBatchUpdate): void
 }
 
-export type ProviderModelResolutionPort = Pick<
-  ProviderSettingsPort,
-  | 'getProviderById'
-  | 'isKnownModel'
-  | 'getModelConfig'
-  | 'getCapabilitySnapshot'
-  | 'getProviderDbSourceUrl'
-  | 'supportsAudioInputCapability'
->
+export type {
+  CapabilitySnapshotResolutionInput,
+  ProviderModelResolutionPort
+} from '@/agent/deepchat/contracts/providerModelResolution'
 
 export class ProviderSettings implements ProviderSettingsPort {
   private userDataPath: string

@@ -1,4 +1,4 @@
-import type { ProviderModelResolutionPort } from '@/provider/settings'
+
 import type {
   DeepChatSessionState,
   PermissionMode,
@@ -14,8 +14,7 @@ import type {
 } from '@/agent/deepchat/instance/deepChatAgentRuntime'
 import { toAppSessionId } from '@/agent/shared/agentSessionIds'
 import type { SessionIdentityService } from './sessionIdentityService'
-import { BUILTIN_DEEPCHAT_AGENT_ID } from '@/agent/deepchat/deepChatAgentRepository'
-import type { SessionPermissionPort } from '@/session/contracts'
+
 import {
   buildPersistedGenerationSettingsPatch,
   buildPersistedGenerationSettingsReplacement,
@@ -28,14 +27,18 @@ import {
   resolveProviderModelRuntimeFacts,
   type ProviderModelRuntimeFacts
 } from './providerModelRuntimeFacts'
-import type { SessionSettingsStore } from '@/session/data/settings'
+
 import type { DeepChatToolResolver } from './toolResolver'
-import type { PromptSettings } from '@/agent/promptSettings'
+import {type ProviderModelResolutionPort} from '@/agent/deepchat/contracts/providerModelResolution'
+import {BUILTIN_DEEPCHAT_AGENT_ID} from '@/agent/deepchat/contracts/builtinAgentIdentity'
+import {type SessionPermissionPort} from '@/agent/deepchat/contracts/sessionPermission'
+import {type SessionSettingsStorePort} from '@/agent/deepchat/contracts/sessionSettingsStore'
+import {type PromptSettingsPort} from '@/agent/deepchat/contracts/promptSettings'
 
 interface SessionSettingsCoordinatorDependencies {
   providerSettings: ProviderModelResolutionPort
-  promptSettings: Pick<PromptSettings, 'getDefaultSystemPrompt'>
-  sessionStore: SessionSettingsStore
+  promptSettings: PromptSettingsPort
+  sessionStore: SessionSettingsStorePort
   toolResolver: DeepChatToolResolver
   toolService: ToolServicePort
   sessionPermissionPort: SessionPermissionPort
@@ -63,7 +66,7 @@ export class SessionSettingsCoordinator {
 
   private resolveUpdateScope(sessionId: string): {
     scope: SessionRuntimeScope
-    dbSession: ReturnType<SessionSettingsStore['get']>
+    dbSession: ReturnType<SessionSettingsStorePort['get']>
   } {
     const appSessionId = toAppSessionId(sessionId)
     const hydratedScope = this.deps.registry.getHydratedScope(appSessionId)

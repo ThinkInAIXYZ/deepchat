@@ -1,11 +1,11 @@
 import { toAppSessionId } from '@/agent/shared/agentSessionIds'
 import type { SessionScopeRegistry } from '@/agent/deepchat/instance/deepChatAgentRuntime'
-import type { SessionDatabase } from '@/session/data/database'
+import type { SessionAgentRowPort } from '@/agent/deepchat/contracts/sessionAgentRow'
 import type { SessionKind } from '@shared/types/agent-interface'
 
 export interface SessionIdentityServiceDependencies {
   registry: SessionScopeRegistry
-  database: Pick<SessionDatabase, 'newSessionsTable'>
+  database: SessionAgentRowPort
 }
 
 export class SessionIdentityService {

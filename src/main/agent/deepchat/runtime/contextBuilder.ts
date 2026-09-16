@@ -16,7 +16,7 @@ import type {
   MessageFile,
   SendMessageInput
 } from '@shared/types/agent-interface'
-import type { SessionTranscript } from '@/session/data/transcript'
+
 import type {
   DeepChatTapeViewPinnedFirstUser,
   DeepChatTapeViewSyntheticContribution
@@ -39,6 +39,7 @@ import { isRetiredWorkflowResultMessageMetadata } from '@shared/orchestration/re
 import { segmentAssistantBlocksByProviderReplay } from './providerReplaySegments'
 import { inheritProviderProjectionIdentities } from '@/agent/deepchat/loop/providerProjectionIdentity'
 import { hashJsonData } from '@/tape/domain/canonicalJson'
+import {type TranscriptStorePort} from '@/agent/deepchat/contracts/transcriptStore'
 
 export { estimateMessagesTokens } from '@shared/utils/messageTokens'
 
@@ -1824,7 +1825,7 @@ export function buildCacheAwareContextWithMetadata(
   systemPrompt: string,
   contextLength: number,
   reserveTokens: number,
-  messageStore: SessionTranscript,
+  messageStore: TranscriptStorePort,
   supportsVision: boolean = false,
   options: CacheAwareContextBuildOptions
 ): ContextBuildResult {
@@ -1964,7 +1965,7 @@ export function buildCacheAwareResumeContextWithMetadata(
   systemPrompt: string,
   contextLength: number,
   reserveTokens: number,
-  messageStore: SessionTranscript,
+  messageStore: TranscriptStorePort,
   supportsVision: boolean = false,
   options: CacheAwareContextBuildOptions
 ): ContextBuildResult {
@@ -2140,7 +2141,7 @@ export function buildContext(
   systemPrompt: string,
   contextLength: number,
   reserveTokens: number,
-  messageStore: SessionTranscript,
+  messageStore: TranscriptStorePort,
   supportsVision: boolean = false,
   options: ContextBuildOptions = {}
 ): ChatMessage[] {
@@ -2162,7 +2163,7 @@ export function buildContextWithMetadata(
   systemPrompt: string,
   contextLength: number,
   reserveTokens: number,
-  messageStore: SessionTranscript,
+  messageStore: TranscriptStorePort,
   supportsVision: boolean = false,
   options: ContextBuildOptions = {}
 ): ContextBuildResult {
@@ -2411,7 +2412,7 @@ export function buildResumeContext(
   systemPrompt: string,
   contextLength: number,
   reserveTokens: number,
-  messageStore: SessionTranscript,
+  messageStore: TranscriptStorePort,
   supportsVision: boolean = false,
   options: ContextBuildOptions = {}
 ): ChatMessage[] {
@@ -2433,7 +2434,7 @@ export function buildResumeContextWithMetadata(
   systemPrompt: string,
   contextLength: number,
   reserveTokens: number,
-  messageStore: SessionTranscript,
+  messageStore: TranscriptStorePort,
   supportsVision: boolean = false,
   options: ContextBuildOptions = {}
 ): ContextBuildResult {

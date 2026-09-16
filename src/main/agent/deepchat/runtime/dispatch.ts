@@ -59,8 +59,7 @@ import {
   isCommandSignatureForProfile
 } from '@/tool/permission'
 import { emitDeepChatLoopNotification } from '@/agent/deepchat/loop/notificationObserver'
-import { cloneBlocksForRenderer } from '@/session/clientMessageProjection'
-import { buildTerminalErrorBlocks } from '@/session/data/transcript'
+
 import { finalizeTrailingPendingNarrativeBlocks } from './accumulator'
 import type { EchoHandle } from './echo'
 import {
@@ -73,10 +72,7 @@ import {
   buildAssistantResponseMarkdown,
   extractWaitingInteraction
 } from './sessionUpdates'
-import {
-  cacheToolCallImagePreviews,
-  extractToolCallImagePreviews
-} from '@/lib/toolCallImagePreviews'
+import type { ToolImagePreviewPort } from '@/agent/deepchat/contracts/imagePreview'
 import { selectToolBatchExecutionMode } from './toolExecutionPolicy'
 import { resolveToolPermissionMode } from '@/tool/permission/permissionMode'
 import { segmentAssistantBlocksByProviderReplay } from './providerReplaySegments'
@@ -97,10 +93,7 @@ import type {
   LoopRunRequestToolSurfaceBinding,
   LoopRunRequestViewBinding
 } from '@/agent/deepchat/loop/loopRun'
-import type {
-  ProgrammaticToolParentRegistration,
-  ProgrammaticToolParentRegistry
-} from '@/cli/programmaticToolParentRegistry'
+
 import {
   ProgrammaticCommandLaunchError,
   isProgrammaticCommandLaunchError
@@ -120,6 +113,9 @@ import {
   CODE_MODE_TOOL_SERVER_NAME,
   RUN_CODE_MAX_NESTED_CALLS
 } from '@shared/codeModeProtocol'
+import {cloneBlocksForRenderer} from '@/agent/deepchat/contracts/rendererBlocks'
+import {buildTerminalErrorBlocks} from '@/agent/deepchat/contracts/transcriptBlocks'
+import {type ProgrammaticToolParentRegistration, type ProgrammaticToolAuthorityPort} from '@/agent/deepchat/contracts/programmaticToolAuthority'
 
 type PermissionType = 'read' | 'write' | 'all' | 'command'
 
@@ -1928,6 +1924,7 @@ async function runToolCall(params: {
   permissionMode: PermissionMode
   toolPermissionMode: PermissionMode
   controls?: ProcessControlCollaborators
+  imagePreviews: ToolImagePreviewPort
   io: IoParams
   state: StreamState
   batchToolCallBlocks: AssistantMessageBlock[]
@@ -1942,7 +1939,7 @@ async function runToolCall(params: {
   toolSurfaceExecutionBatch?: ToolSurfaceExecutionBatch
   toolSurfaceSnapshot?: ToolSurfaceSnapshot
   programmaticToolCapability?: ProgrammaticToolCapabilityV1
-  programmaticToolParents?: Pick<ProgrammaticToolParentRegistry, 'prepare'>
+  programmaticToolParents?: Pick<ProgrammaticToolAuthorityPort, 'prepare'>
   toolCallOrdinalWithinBatch: number
   commandShell: ResolvedCommandShell
   contextLength: number
@@ -1959,6 +1956,7 @@ async function runToolCall(params: {
     permissionMode,
     toolPermissionMode,
     controls,
+    imagePreviews: imagePreviewPort,
     io,
     state,
     batchToolCallBlocks,
@@ -2488,10 +2486,10 @@ async function runToolCall(params: {
     const subagentState = extractSubagentToolState(toolRawData)
     const rawResponseText = toolResponseToText(toolRawData.content)
 
-    const imagePreviews = await cacheToolCallImagePreviews({
+    const imagePreviews = await imagePreviewPort.cacheToolCallImagePreviews({
       imagePreviews:
         toolRawData.imagePreviews ??
-        (await extractToolCallImagePreviews({
+        (await imagePreviewPort.extractToolCallImagePreviews({
           toolName: completedToolCall.name,
           toolArgs: completedToolCall.arguments,
           content: toolRawData.content,
@@ -2753,8 +2751,9 @@ export interface SettleToolBatchParams {
   requestView?: LoopRunRequestViewBinding
   executionContract?: DeepChatExecutionContract | null
   toolSurface?: LoopRunRequestToolSurfaceBinding | null
-  programmaticToolParents?: Pick<ProgrammaticToolParentRegistry, 'prepare'>
+  programmaticToolParents?: Pick<ProgrammaticToolAuthorityPort, 'prepare'>
   commandShell: ResolvedCommandShell
+  imagePreviews: ToolImagePreviewPort
 }
 
 export type SettledToolBatchOutcome = ToolBatchOutcome<ToolBatchInteraction> & {
@@ -2790,7 +2789,8 @@ export async function settleToolBatch(
     executionContract,
     toolSurface,
     programmaticToolParents,
-    commandShell
+    commandShell,
+    imagePreviews
   } = params
   if (
     toolSurface &&
@@ -3042,6 +3042,7 @@ export async function settleToolBatch(
               permissionMode,
               toolPermissionMode,
               controls,
+              imagePreviews,
               io,
               state,
               batchToolCallBlocks,
@@ -3377,6 +3378,7 @@ export async function settleToolBatch(
           permissionMode,
           toolPermissionMode,
           controls,
+          imagePreviews,
           io,
           state,
           batchToolCallBlocks,

@@ -1,10 +1,11 @@
-import type { ProviderModelResolutionPort } from '@/provider/settings'
+
 import {
   assertProviderModelRuntimeFacts,
   resolveProviderModelRuntimeFacts,
   type ProviderModelRuntimeFacts,
   type ProviderModelRuntimeFactsPort
 } from './providerModelRuntimeFacts'
+import {type ProviderModelResolutionPort} from '@/agent/deepchat/contracts/providerModelResolution'
 
 export interface ProviderInputCapabilities {
   supportsVision: boolean

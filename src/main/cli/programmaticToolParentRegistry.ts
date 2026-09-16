@@ -8,7 +8,6 @@ import type {
 import {
   ProgrammaticParentOperationError,
   type ProgrammaticChildReservation,
-  type ProgrammaticCompletedInvocationResult,
   type ProgrammaticParentSettlementReceipt,
   ProgrammaticToolParentController
 } from './programmaticToolParentController'
@@ -22,6 +21,12 @@ import type {
 } from '@/tape/ports/capabilities'
 import type { ProgrammaticToolCapabilityV1 } from '@/agent/deepchat/runtime/programmaticToolSurface'
 import type { ToolSurfaceSnapshot } from '@/agent/deepchat/runtime/toolSurface'
+import type {
+  ProgrammaticCompletedInvocationResult,
+  ProgrammaticToolInvocationAuthority,
+  ProgrammaticToolParentRegistration,
+  ProgrammaticToolParentRunIdentity
+} from '@/agent/deepchat/contracts/programmaticToolAuthority'
 
 type ProgrammaticParentExecutionJournal = Pick<ExecutionJournalWriter, 'commitToolOutcome'> &
   NestedExecutionJournalWriter
@@ -31,30 +36,10 @@ export type ProgrammaticToolParentRegistryOptions = Readonly<{
   executionJournal: ProgrammaticParentExecutionJournal
 }>
 
-export type ProgrammaticToolParentRegistration = Readonly<{
-  operation: AgentCliProgrammaticOperationIdentity
-  armOuterDispatch(
-    receipt: ExecutionJournalCommitReceipt & { operation: AgentCliProgrammaticOperationIdentity }
-  ): void
-  takeArmedToken(): ArmedAgentCliProgrammaticToken
-  takeCompletedInvocationResult(): ProgrammaticCompletedInvocationResult
-  cancelBeforeOuterDispatch(): void
-  settleProcessFailure(input: { responseText: string }): Readonly<{
-    result: ProgrammaticCompletedInvocationResult
-    receipt: ExecutionJournalCommitReceipt
-  }>
-  settleOuterOutcome(input: {
-    responseText: string
-    isError: boolean
-  }): ExecutionJournalCommitReceipt
-}>
-
-export type ProgrammaticToolInvocationAuthority = Readonly<{
-  capability: ProgrammaticToolCapabilityV1
-  snapshot: ToolSurfaceSnapshot
-  permissionMode: PermissionMode
-  assertAuthorityActive(): void
-}>
+export type {
+  ProgrammaticToolParentRegistration,
+  ProgrammaticToolParentRunIdentity
+} from '@/agent/deepchat/contracts/programmaticToolAuthority'
 
 export type ProgrammaticToolInvocationContext = Readonly<{
   capability: ProgrammaticToolCapabilityV1
@@ -79,11 +64,6 @@ export function assertIssuedProgrammaticToolAuthorityAssertion(
     )
   }
 }
-
-export type ProgrammaticToolParentRunIdentity = Readonly<{
-  sessionId: string
-  runId: string
-}>
 
 type RegisteredParent = Readonly<{
   key: string

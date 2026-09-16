@@ -12,43 +12,21 @@ import {
   tapeToolRank
 } from '@/tape/domain/effectiveSemantics'
 import { isRetiredWorkflowResultMessageMetadata } from '@shared/orchestration/retiredWorkflowData'
+import type {
+  DeepChatMemoryIngestionCurrentRange,
+  DeepChatMemoryIngestionProjectionInput,
+  DeepChatMemoryIngestionProjectionMeta,
+  DeepChatMemoryIngestionProjectionRow
+} from '@/agent/deepchat/contracts/memoryIngestionProjection'
 
 export const DEEPCHAT_MEMORY_INGESTION_PROJECTION_VERSION = 1
 
-export interface DeepChatMemoryIngestionProjectionInput {
-  sessionId: string
-  messageId: string
-  orderSeq: number
-  entryId: number
-  role: 'user' | 'assistant'
-  content: string
-  status: 'sent' | 'error'
-  hadToolUse: boolean
-}
-
-export interface DeepChatMemoryIngestionProjectionRow {
-  session_id: string
-  message_id: string
-  order_seq: number
-  entry_id: number
-  role: 'user' | 'assistant'
-  content: string
-  status: 'sent' | 'error'
-  had_tool_use: number
-}
-
-export interface DeepChatMemoryIngestionProjectionMeta {
-  session_id: string
-  projection_version: number
-  max_entry_id: number
-  updated_at: number
-}
-
-export interface DeepChatMemoryIngestionCurrentRange {
-  current: boolean
-  maxEntryId: number
-  rows: DeepChatMemoryIngestionProjectionRow[]
-}
+export type {
+  DeepChatMemoryIngestionCurrentRange,
+  DeepChatMemoryIngestionProjectionInput,
+  DeepChatMemoryIngestionProjectionMeta,
+  DeepChatMemoryIngestionProjectionRow
+} from '@/agent/deepchat/contracts/memoryIngestionProjection'
 
 const REPLACE_MESSAGE_SQL = `
   INSERT INTO deepchat_memory_ingestion_projection (

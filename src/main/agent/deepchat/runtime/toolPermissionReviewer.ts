@@ -1,10 +1,11 @@
-import type { ProviderModelResolutionPort } from '@/provider/settings'
+
 import logger from '@shared/logger'
 import { createHash } from 'crypto'
 import type { ProviderExecutionPort } from '@shared/types/provider'
 import type { ChatMessage } from '@shared/types/core/chat-message'
 import type { ToolPermissionReviewRequest, ToolPermissionReviewResult } from './types'
-import type { AgentSettingsPort } from '@/agent/settings'
+import {type ProviderModelResolutionPort} from '@/agent/deepchat/contracts/providerModelResolution'
+import {type AgentSettingsPort} from '@/agent/deepchat/contracts/agentSettings'
 
 export const AUTO_APPROVE_REVIEW_MAX_RECENT_MESSAGES = 8
 const AUTO_APPROVE_REVIEW_MAX_CONTENT_CHARS = 2_000

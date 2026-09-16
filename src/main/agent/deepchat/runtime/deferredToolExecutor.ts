@@ -8,12 +8,9 @@ import type {
   ToolOutcomeProjection
 } from '@shared/types/core/mcp'
 import type { ToolExecutionPort, ToolResultPort } from '@/agent/deepchat/loop/ports'
-import type { CacheImageOptions } from '@/platform/imageCache'
+
 import { awaitWithAbort } from '@/lib/awaitWithAbort'
-import {
-  cacheToolCallImagePreviews,
-  extractToolCallImagePreviews
-} from '@/lib/toolCallImagePreviews'
+import type { ToolImagePreviewPort } from '@/agent/deepchat/contracts/imagePreview'
 import {
   CommittedToolOutcomeProjectionError,
   ExecutionJournalCorruptionError,
@@ -40,13 +37,10 @@ import { toolContentToText } from './toolAdapters'
 import { isUserConfigurableAgentTool } from '@shared/agentTools'
 import type { DeepChatExecutionContract } from '@shared/types/execution-contract'
 import { CommandShellProfileSchema, type CommandShellProfile } from '@shared/commandShell'
-import type { CommandShellService } from '@/agent/shared/process/commandShellService'
+
 import type { ToolSurfaceDeferredDispatch } from './toolSurface'
 import type { ToolPermissionLeaseCapability } from '@shared/types/tool'
-import type {
-  ProgrammaticToolParentRegistration,
-  ProgrammaticToolParentRegistry
-} from '@/cli/programmaticToolParentRegistry'
+
 import {
   isProgrammaticCommandLaunchError,
   ProgrammaticCommandLaunchError
@@ -56,6 +50,9 @@ import {
   requireProgrammaticToolDeferredResumeCapability,
   type ProgrammaticToolCapabilityV1
 } from './programmaticToolSurface'
+import {type CacheImageOptions} from '@/agent/deepchat/contracts/imagePreview'
+import {type CommandShellResolutionPort} from '@/agent/deepchat/contracts/commandShellResolution'
+import {type ProgrammaticToolParentRegistration, type ProgrammaticToolAuthorityPort} from '@/agent/deepchat/contracts/programmaticToolAuthority'
 
 export type DeferredToolExecutionResult = {
   responseText: string
@@ -84,6 +81,7 @@ export interface DeferredToolExecutorDependencies {
   toolResultPort: ToolResultPort
   toolResolver: DeepChatToolResolver
   cacheImage(data: string, options?: CacheImageOptions): Promise<string>
+  imagePreviews: ToolImagePreviewPort
   runLifecycle: Pick<
     RunLifecycleCoordinator,
     'registerDeferredToolController' | 'clearDeferredToolController' | 'getAbortSignal'
@@ -93,8 +91,8 @@ export interface DeferredToolExecutorDependencies {
   identity: Pick<SessionIdentityService, 'getAgentId'>
   messageProjection: Pick<MessageProjectionService, 'updateSubagentToolCallProgress'>
   executionJournal: ExecutionJournalWriter
-  programmaticToolParents: Pick<ProgrammaticToolParentRegistry, 'commitRunTerminal' | 'prepare'>
-  commandShell: Pick<CommandShellService, 'resolveForTurn' | 'resolveProfile'>
+  programmaticToolParents: Pick<ProgrammaticToolAuthorityPort, 'commitRunTerminal' | 'prepare'>
+  commandShell: CommandShellResolutionPort
   runJournalObserver?: RunJournalObserver
   diagnosticNow?: MonotonicClock
 }
@@ -661,10 +659,10 @@ export class DeferredToolExecutor {
           )
         )
       }
-      const imagePreviews = await cacheToolCallImagePreviews({
+      const imagePreviews = await this.dependencies.imagePreviews.cacheToolCallImagePreviews({
         imagePreviews:
           rawData.imagePreviews ??
-          (await extractToolCallImagePreviews({
+          (await this.dependencies.imagePreviews.extractToolCallImagePreviews({
             toolName,
             toolArgs: toolCall.params || '{}',
             content: rawData.content,

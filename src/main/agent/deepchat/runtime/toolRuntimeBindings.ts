@@ -1,16 +1,19 @@
 import type { ChatMessage } from '@shared/types/core/chat-message'
 import type { ProviderExecutionPort } from '@shared/types/provider'
 import { toAppSessionId } from '@/agent/shared/agentSessionIds'
-import type { AgentSettingsPort } from '@/agent/settings'
-import type { ProviderModelResolutionPort } from '@/provider/settings'
+
 import type { SessionScopeRegistry } from '@/agent/deepchat/instance/deepChatAgentRuntime'
 import type { ToolResultPort } from '@/agent/deepchat/loop/ports'
-import type { SessionSettingsStore } from '@/session/data/settings'
+
 import type { RunLifecycleCoordinator } from './runLifecycleCoordinator'
 import type { SessionIdentityService } from './sessionIdentityService'
 import { normalizeToolResultContent } from './toolAdapters'
 import { reviewAutoApproveToolPermission } from './toolPermissionReviewer'
 import type { ToolPermissionReviewRequest, ToolPermissionReviewResult } from './types'
+import {type AgentSettingsPort} from '@/agent/deepchat/contracts/agentSettings'
+import {type ProviderModelResolutionPort} from '@/agent/deepchat/contracts/providerModelResolution'
+import {type SessionSettingsStorePort} from '@/agent/deepchat/contracts/sessionSettingsStore'
+import type { VisionTargetResolverPort } from '@/agent/deepchat/contracts/visionTarget'
 
 export type ToolPermissionReviewer = (
   request: ToolPermissionReviewRequest,
@@ -24,6 +27,7 @@ export type ToolPermissionReviewer = (
 
 export interface ToolRuntimeBindingDependencies {
   providerSettings: ProviderModelResolutionPort
+  visionTargetResolver: VisionTargetResolverPort
   agentSettings: Pick<
     AgentSettingsPort,
     'resolveDeepChatAgentConfig' | 'agentSupportsCapability'
@@ -33,7 +37,7 @@ export interface ToolRuntimeBindingDependencies {
     'executeWithRateLimit' | 'generateCompletionStandalone'
   >
   registry: SessionScopeRegistry
-  sessionStore: Pick<SessionSettingsStore, 'get'>
+  sessionStore: Pick<SessionSettingsStorePort, 'get'>
   identity: Pick<SessionIdentityService, 'getAgentId'>
   runLifecycle: Pick<RunLifecycleCoordinator, 'getAbortSignal'>
 }
@@ -45,6 +49,7 @@ export function createToolResultNormalizer(
     await normalizeToolResultContent(
       {
         providerSettings: deps.providerSettings,
+        visionTargetResolver: deps.visionTargetResolver,
         agentSettings: deps.agentSettings,
         providerRuntime: deps.providerRuntime,
         getAbortSignal: (sessionId) => deps.runLifecycle.getAbortSignal(sessionId),

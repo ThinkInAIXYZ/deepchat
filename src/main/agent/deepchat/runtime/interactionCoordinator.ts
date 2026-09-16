@@ -5,11 +5,7 @@ import type {
 } from '@shared/types/agent-interface'
 import type { SkillServicePort } from '@shared/types/skill'
 import type { DeepChatAgentInstance } from '@/agent/deepchat/instance/deepChatAgentInstance'
-import type {
-  SessionPermissionGrant,
-  SessionPermissionPort,
-  SessionPermissionRequest
-} from '@/session/contracts'
+
 import { awaitWithAbort } from '@/lib/awaitWithAbort'
 import {
   insertBlocksAfterToolCall,
@@ -33,7 +29,7 @@ import {
   updateSkillDraftToolCallResponse,
   updateToolCallResponse
 } from './interactionProjection'
-import type { SessionTranscript } from '@/session/data/transcript'
+
 import type { ProviderPermissionCoordinator } from './providerPermissionCoordinator'
 import { MAX_TOOL_CALLS_SKIPPED_ERROR } from './process'
 import {
@@ -52,7 +48,7 @@ import { toAppSessionId } from '@/agent/shared/agentSessionIds'
 import type { MessageProjectionService } from './messageProjectionService'
 import type { ResumeBudgetToolCall, TurnResumePort } from './turnResumeContract'
 import type { DeepChatEventPublisher, PendingToolInteraction } from './types'
-import { parseMessageMetadata } from '@/session/usageStats'
+
 import { MAX_TOOL_CALLS } from '@/agent/deepchat/loop/deepChatLoopEngine'
 import { throwIfAbortRequested } from './abortErrors'
 import type { RunLifecycleCoordinator } from './runLifecycleCoordinator'
@@ -72,6 +68,9 @@ import {
 } from './deferredToolSurface'
 import { CommandShellProfileSchema } from '@shared/commandShell'
 import { isCommandSignatureForProfile } from '@/tool/permission'
+import {type SessionPermissionGrant, type SessionPermissionPort, type SessionPermissionRequest} from '@/agent/deepchat/contracts/sessionPermission'
+import {type TranscriptStorePort} from '@/agent/deepchat/contracts/transcriptStore'
+import {parseMessageMetadata} from '@/agent/deepchat/contracts/messageMetadata'
 
 const DEFERRED_INTERACTION_PARKED_ERROR =
   'Execution is parked after its durable dispatch boundary and will not be retried automatically.'
@@ -104,7 +103,7 @@ type SkillDraftPresenter = Pick<
 >
 
 export interface InteractionCoordinatorPorts {
-  messageStore: SessionTranscript
+  messageStore: TranscriptStorePort
   providerPermissionCoordinator: ProviderPermissionCoordinator
   skillService: SkillDraftPresenter
   runLifecycle: InteractionRunLifecyclePort

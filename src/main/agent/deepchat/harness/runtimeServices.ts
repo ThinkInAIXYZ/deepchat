@@ -2,22 +2,18 @@ import type { PluginContextPort } from '@shared/types/userPlugin'
 import type { ProviderExecutionPort } from '@shared/types/provider'
 import type { SkillMetadataSnapshotPort, SkillServicePort } from '@shared/types/skill'
 import type { ToolServicePort } from '@shared/types/tool'
-import type { AgentSettingsPort } from '@/agent/settings'
-import type { AgentTraceSettingsPort } from '@/agent/traceSettings'
-import type { PromptSettings } from '@/agent/promptSettings'
+
 import type { HookObserver } from '@/hook/observer'
 import type { MemoryRuntimePort } from '@/memory/injection'
-import type { AttachmentCapabilityRouter } from '@/ocr/attachmentCapabilityRouter'
+
 import type { AcpAsLlmProviderPermissionPort, ProviderCatalogPort } from '@/provider/ports'
-import type { ProviderModelResolutionPort } from '@/provider/settings'
+
 import type { SessionData } from '@/session/data'
 import type { SessionDatabase } from '@/session/data/database'
-import type { SessionPermissionPort } from '@/session/contracts'
-import type { SkillSettingsPort } from '@/skill/settings'
-import type { CacheImageOptions } from '@/platform/imageCache'
+
 import type { AcpAgentInstanceDependencyFactory } from '@/agent/acp/instance'
 import type { DeepChatAgentRuntime } from '@/agent/deepchat/instance/deepChatAgentRuntime'
-import type { CommandShellService } from '@/agent/shared/process/commandShellService'
+
 import type { MemoryIngestionObserver } from '@/agent/deepchat/memory/memoryIngestionObserver'
 import type { MemoryIngestionProjection } from '@/agent/deepchat/memory/memoryRuntimeCoordinator'
 import type { CompactionRuntimeCoordinator } from '@/agent/deepchat/runtime/compactionRuntimeCoordinator'
@@ -44,8 +40,19 @@ import type { ToolSurfaceShadowDiagnosticsRegistry } from '@/agent/deepchat/runt
 import type { ToolSurfaceCanaryDiagnosticsRegistry } from '@/agent/deepchat/runtime/toolSurfaceCanaryDiagnostics'
 import type { DeepChatTaskContractContextPort } from '@/agent/deepchat/loop/ports'
 import type { ToolSurfaceRunModePort } from '@/agent/deepchat/runtime/deepChatLoopRunner'
-import type { ProgrammaticToolParentRegistry } from '@/cli/programmaticToolParentRegistry'
-import type { AgentCliTokenAuthority } from '@/cli/agentTokenAuthority'
+import { type AgentSettingsPort } from '@/agent/deepchat/contracts/agentSettings'
+import { type AgentTraceSettingsPort } from '@/agent/deepchat/contracts/agentTraceSettings'
+import { type PromptSettingsPort } from '@/agent/deepchat/contracts/promptSettings'
+import { type AttachmentPreparationPort } from '@/agent/deepchat/contracts/attachmentPreparation'
+import { type ProviderModelResolutionPort } from '@/agent/deepchat/contracts/providerModelResolution'
+import { type SessionPermissionPort } from '@/agent/deepchat/contracts/sessionPermission'
+import { type SkillSettingsPort } from '@/agent/deepchat/contracts/skillSettings'
+import { type CacheImageOptions } from '@/agent/deepchat/contracts/imagePreview'
+import { type CommandShellResolutionPort } from '@/agent/deepchat/contracts/commandShellResolution'
+import {
+  type ProgrammaticToolAuthorityPort,
+  type ProgrammaticGrantAuthorityPort
+} from '@/agent/deepchat/contracts/programmaticToolAuthority'
 
 export type DeepChatHarnessSkillPort = Pick<
   SkillServicePort,
@@ -87,20 +94,17 @@ export interface DeepChatHarnessDependencies {
   skillService: DeepChatHarnessSkillPort
   skillSettings: SkillSettingsPort
   traceSettings: AgentTraceSettingsPort
-  promptSettings: Pick<PromptSettings, 'getDefaultSystemPrompt'>
-  attachmentRouter: Pick<AttachmentCapabilityRouter, 'prepare'>
+  promptSettings: PromptSettingsPort
+  attachmentRouter: AttachmentPreparationPort
   interactionContinuationAdmission: InteractionContinuationAdmissionPort
   taskContractContext: DeepChatTaskContractContextPort
-  commandShell: Pick<CommandShellService, 'resolveForTurn' | 'resolveProfile'>
+  commandShell: CommandShellResolutionPort
   /** Internal rollout seam. Production remains on the legacy path unless explicitly assigned. */
   toolSurfaceRunMode?: ToolSurfaceRunModePort
   /** Process-live causality owner. It never reconstructs dispatch authority from Tape. */
-  programmaticToolParents?: ProgrammaticToolParentRegistry
+  programmaticToolParents?: ProgrammaticToolAuthorityPort
   /** Shared local-control authority for inert exact-operation grants and Run-scoped revocation. */
-  agentCliTokenAuthority: Pick<
-    AgentCliTokenAuthority,
-    'prepareProgrammaticOperation' | 'revokeConversation'
-  >
+  agentCliTokenAuthority: ProgrammaticGrantAuthorityPort
   runJournalObserver?: RunJournalObserver
   diagnosticNow?: MonotonicClock
 }

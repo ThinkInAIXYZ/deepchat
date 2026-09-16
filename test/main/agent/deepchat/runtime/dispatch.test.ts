@@ -12,6 +12,10 @@ import type {
 } from '@/agent/deepchat/runtime/types'
 import { createState } from '@/agent/deepchat/runtime/types'
 import {
+  cacheToolCallImagePreviews,
+  extractToolCallImagePreviews
+} from '@/lib/toolCallImagePreviews'
+import {
   estimateMessagesTokens,
   estimateToolDefinitionTokens
 } from '@/agent/deepchat/runtime/contextBuilder'
@@ -584,6 +588,8 @@ async function settleToolBatch(
     toolSurface: hooks?.toolSurface,
     programmaticToolParents: hooks?.programmaticToolParents,
     commandShell: POSIX_COMMAND_SHELL,
+    imagePreviews: { cacheToolCallImagePreviews, extractToolCallImagePreviews },
+    rendererFlushHandle: flushHandle,
     rendererFlushHandle: flushHandle,
     providerReplayProjector: hooks?.providerReplayProjector,
     collaborators: {

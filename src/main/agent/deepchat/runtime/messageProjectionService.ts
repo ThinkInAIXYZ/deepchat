@@ -1,5 +1,5 @@
 import type { AssistantMessageBlock } from '@shared/types/agent-interface'
-import type { SessionTranscript } from '@/session/data/transcript'
+
 import {
   buildAssistantDeliverySegments,
   buildAssistantPreviewMarkdown,
@@ -8,9 +8,10 @@ import {
 } from './sessionUpdates'
 import { resolveStreamRequestId, type StreamRequestIdRegistry } from './streamRequestId'
 import type { DeepChatEventPublisher, DeepChatSessionUpdatePublisher } from './types'
+import {type TranscriptStorePort} from '@/agent/deepchat/contracts/transcriptStore'
 
 export type MessageProjectionTranscript = Pick<
-  SessionTranscript,
+  TranscriptStorePort,
   'getMessage' | 'updateAssistantContent'
 >
 

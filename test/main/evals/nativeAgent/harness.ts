@@ -15,6 +15,10 @@ import {
   createToolResultPort
 } from '@/agent/deepchat/runtime/toolAdapters'
 import { createState } from '@/agent/deepchat/runtime/types'
+import {
+  cacheToolCallImagePreviews,
+  extractToolCallImagePreviews
+} from '@/lib/toolCallImagePreviews'
 import type { ProcessParams, ProcessResult } from '@/agent/deepchat/runtime/types'
 import { createLoopRun } from '@/agent/deepchat/loop/loopRun'
 import { toAppSessionId } from '@/agent/shared/agentSessionIds'
@@ -532,6 +536,7 @@ export async function runNativeAgentEvalScenario(
     temperature: 0,
     maxTokens: 4096,
     interleavedReasoning: DEFAULT_INTERLEAVED_REASONING,
+    imagePreviews: { cacheToolCallImagePreviews, extractToolCallImagePreviews },
     permissionMode: scenario.permissionMode ?? 'full_access',
     maxProviderRounds: scenario.maxProviderRounds,
     shouldYieldForPendingInput: () => scenario.yieldForPendingInput === true,

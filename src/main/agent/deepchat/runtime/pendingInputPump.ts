@@ -10,8 +10,7 @@ import type {
   DeepChatAgentInstance,
   PendingQueueDrainLease
 } from '@/agent/deepchat/instance/deepChatAgentInstance'
-import type { SessionPendingInputs } from '@/session/data/pendingInputs'
-import type { SessionTranscript } from '@/session/data/transcript'
+
 import {
   collectPendingInteractionEntries,
   parseAssistantBlocks,
@@ -29,9 +28,11 @@ import type {
   PendingInputTurnSource,
   TurnCompletion
 } from './pendingInputContracts'
+import {type PendingInputStorePort} from '@/agent/deepchat/contracts/pendingInputStore'
+import {type TranscriptStorePort} from '@/agent/deepchat/contracts/transcriptStore'
 
 export type PendingInputPumpStorePort = Pick<
-  SessionPendingInputs,
+  PendingInputStorePort,
   | 'blockClaimedInput'
   | 'claimQueuedInput'
   | 'claimSteerInput'
@@ -81,7 +82,7 @@ export interface PendingInputTurnContext {
 
 export interface PendingInputPumpPorts {
   pendingInputs: PendingInputPumpStorePort
-  transcript: Pick<SessionTranscript, 'getMessages'>
+  transcript: Pick<TranscriptStorePort, 'getMessages'>
   runLifecycle: PendingInputPumpLifecyclePort
   turnStarter: PendingInputTurnStarter
   sessionState: Pick<SessionStateResolver, 'get'>
@@ -125,7 +126,7 @@ class DurablePendingInputClaim implements ClaimedPendingInputHandle {
       this.fencedDisposition = disposition
       return result as ClaimedInputSettlementResult<TDisposition>
     } catch (error) {
-      // SessionPendingInputs persists before publishing. If publication throws, remember the
+      // PendingInputStorePort persists before publishing. If publication throws, remember the
       // durable outcome so Turn/Pump finalization never applies a second transition.
       let wasApplied = false
       try {
