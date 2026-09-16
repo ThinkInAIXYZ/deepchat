@@ -56,10 +56,6 @@ const DISCORD_GATEWAY_INTENTS =
   (1 << 12) | // DIRECT_MESSAGES
   (1 << 15) // MESSAGE_CONTENT
 
-const sleep = async (ms: number): Promise<void> => {
-  await new Promise((resolve) => setTimeout(resolve, ms))
-}
-
 const parseGatewayMessage = (input: string): DiscordGatewayPayload => {
   const payload = JSON.parse(input) as DiscordGatewayPayload
   return {
@@ -114,6 +110,7 @@ export class DiscordGatewaySession {
   private stopRequested = false
   private ws: WebSocket | null = null
   private heartbeatTimer: ReturnType<typeof setInterval> | null = null
+  private cancelReconnectDelay: (() => void) | null = null
   private awaitingHeartbeatAck = false
   private sessionId: string | null = null
   private seq: number | null = null
@@ -142,6 +139,7 @@ export class DiscordGatewaySession {
       })
       .finally(() => {
         this.cleanupHeartbeat()
+        this.cancelReconnectDelay = null
         this.ws = null
         this.runPromise = null
         this.firstConnectedPromise = null
@@ -155,6 +153,8 @@ export class DiscordGatewaySession {
   async stop(): Promise<void> {
     this.stopRequested = true
     this.cleanupHeartbeat()
+    this.rejectFirstConnected?.(new Error('Discord gateway session stopped before connection.'))
+    this.cancelReconnectDelay?.()
     this.ws?.close()
     this.ws = null
     await this.runPromise
@@ -201,9 +201,46 @@ export class DiscordGatewaySession {
           state: 'backoff',
           lastError
         })
-        await sleep(delayMs)
+        await this.waitForReconnectDelay(delayMs, signal)
       }
     }
+  }
+
+  private async waitForReconnectDelay(ms: number, signal?: AbortSignal): Promise<void> {
+    await new Promise<void>((resolve, reject) => {
+      if (this.stopRequested) {
+        resolve()
+        return
+      }
+
+      if (signal?.aborted) {
+        reject(new DOMException('Aborted', 'AbortError'))
+        return
+      }
+
+      const finishResolve = () => {
+        cleanup()
+        resolve()
+      }
+      const finishReject = (error: unknown) => {
+        cleanup()
+        reject(error)
+      }
+      const handleAbort = () => {
+        finishReject(new DOMException('Aborted', 'AbortError'))
+      }
+      const timeout = setTimeout(finishResolve, ms)
+      const cleanup = () => {
+        clearTimeout(timeout)
+        signal?.removeEventListener('abort', handleAbort)
+        if (this.cancelReconnectDelay === finishResolve) {
+          this.cancelReconnectDelay = null
+        }
+      }
+
+      this.cancelReconnectDelay = finishResolve
+      signal?.addEventListener('abort', handleAbort, { once: true })
+    })
   }
 
   private async connectOnce(signal?: AbortSignal): Promise<void> {

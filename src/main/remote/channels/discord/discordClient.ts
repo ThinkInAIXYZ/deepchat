@@ -42,6 +42,7 @@ export class DiscordApiRequestError extends Error {
 }
 
 const DISCORD_API_BASE_URL = 'https://discord.com/api/v10'
+const DISCORD_REQUEST_TIMEOUT_MS = 35_000
 
 const normalizeResponseError = async (response: Response): Promise<string> => {
   const fallback = `${response.status} ${response.statusText}`.trim()
@@ -248,8 +249,10 @@ export class DiscordClient {
       headers.Authorization = `Bot ${this.credentials.botToken}`
     }
 
+    const timeoutSignal = AbortSignal.timeout(DISCORD_REQUEST_TIMEOUT_MS)
     const response = await fetch(`${DISCORD_API_BASE_URL}${path}`, {
       ...init,
+      signal: init.signal ? AbortSignal.any([timeoutSignal, init.signal]) : timeoutSignal,
       headers: {
         ...headers,
         ...(init.headers as Record<string, string> | undefined)
