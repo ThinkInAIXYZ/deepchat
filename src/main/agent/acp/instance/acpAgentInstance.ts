@@ -487,6 +487,9 @@ export class AcpAgentInstance
         await this.preparing?.settled
         this.permissionBridge.close()
         this.setStatus('closed')
+        // SessionStatus has no 'closed'; a closed session is settled, so finalize the public
+        // status as idle instead of freezing consumers on the last forwarded state.
+        this.dependencies.projection.setStatus('idle')
         this.settleFirstTurnReadyWaiters(false)
         await this.dependencies.sessions.clear(this.sessionId)
       } finally {

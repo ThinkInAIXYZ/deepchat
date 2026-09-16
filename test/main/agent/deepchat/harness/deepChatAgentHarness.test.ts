@@ -8041,17 +8041,30 @@ describe('DeepChatAgentHarness', () => {
         }
       )
 
-      await agent.initSession('s1', {
-        providerId: 'acp',
-        modelId: 'agent-id',
-        agentId: 'agent-id',
-        projectDir: '/workspace',
-        generationSettings: {
-          systemPrompt: 'DIRECT_CONFIGURED',
-          contextLength: 8192,
-          maxTokens: 2048,
-          timeout: 5000
-        }
+      // Neutral ACP initialization: only the persisted session settings row exists. The turn
+      // below must run with an empty built-in scope registry.
+      sqlitePresenter.deepchatSessionsTable.get.mockReturnValue({
+        id: 's1',
+        provider_id: 'acp',
+        model_id: 'agent-id',
+        permission_mode: 'default',
+        system_prompt: 'DIRECT_CONFIGURED',
+        temperature: null,
+        top_p: null,
+        context_length: 8192,
+        max_tokens: 2048,
+        timeout_ms: 5000,
+        thinking_budget: null,
+        reasoning_effort: null,
+        reasoning_visibility: null,
+        verbosity: null,
+        force_interleaved_thinking_compat: null,
+        image_generation_options_json: null,
+        video_generation_options_json: null,
+        summary_text: null,
+        summary_cursor_order_seq: 1,
+        summary_updated_at: null,
+        memory_cursor_order_seq: null
       })
 
       let activeHooks: any
@@ -8132,6 +8145,8 @@ describe('DeepChatAgentHarness', () => {
         scope: 'regular',
         workdir: '/workspace'
       } as const
+      const hydrateScopeSpy = vi.spyOn(agent.deepChatRuntime, 'getOrHydrateScope')
+      const hydratedInstanceSpy = vi.spyOn(agent.deepChatRuntime, 'getHydrated')
       await directRuntime.send(directInput, {
         text: 'Inspect attachment',
         files: [
@@ -8150,6 +8165,47 @@ describe('DeepChatAgentHarness', () => {
       expect(await directRuntime.getHydrated(directInput.sessionId)?.snapshot()).toMatchObject({
         status: 'idle'
       })
+      // The turn ran with an empty built-in registry: no scope hydration and no built-in
+      // instance read for the session, and nothing was hydrated after the fact.
+      expect(hydrateScopeSpy).not.toHaveBeenCalled()
+      expect(hydratedInstanceSpy).not.toHaveBeenCalled()
+      expect(agent.deepChatRuntime.getHydratedScope(directInput.sessionId)).toBeUndefined()
+      hydrateScopeSpy.mockRestore()
+      hydratedInstanceSpy.mockRestore()
+      // ACP owns status publication: the first generating is observable and settles to idle.
+      expect(
+        getPublishedPayloads('sessions.status.changed')
+          .filter((payload) => payload.sessionId === 's1')
+          .map((payload) => payload.status)
+      ).toEqual(['generating', 'idle'])
+      expect(
+        getPublishedPayloads('sessions.updated').filter((payload) =>
+          payload.sessionIds?.includes('s1')
+        )
+      ).toHaveLength(2)
+      const publishSessionUpdate = vi.mocked(runtimeDependencies.publishSessionUpdate)
+      expect(
+        publishSessionUpdate.mock.calls
+          .map(([update]) => update)
+          .filter((update) => update.kind === 'status' && update.sessionId === 's1')
+      ).toEqual([
+        expect.objectContaining({ status: 'generating' }),
+        expect.objectContaining({ status: 'idle' })
+      ])
+      expect(runtimeDependencies.sessionInvalidationPort.invalidate).toHaveBeenCalledWith({
+        sessionId: 's1',
+        reason: 'status-changed'
+      })
+      // Transcript persistence: user and assistant rows settle with success finals on the tape.
+      const messageTapeRows = sqlitePresenter.deepchatTapeEntriesTable
+        .getBySession('s1')
+        .filter((row: any) => row.kind === 'message')
+        .map((row: any) => {
+          const record = JSON.parse(row.payload_json).record
+          return `${row.name}:${record.role}:${record.status}`
+        })
+      expect(messageTapeRows).toContain('message/user:user:sent')
+      expect(messageTapeRows).toContain('message/assistant:assistant:sent')
 
       const request = prompt.mock.calls[0][0]
       const systemPrompt = String((request.prompt[0] as { text: string }).text)
@@ -8168,6 +8224,8 @@ describe('DeepChatAgentHarness', () => {
           systemPrompt.indexOf(orderedSections[index - 1])
         )
       }
+      // The ACP-owned resource instance carries the persisted session identity.
+      expect(systemPrompt).toContain('MODEL:acp/agent-id')
       expect(systemPrompt).toContain('- skill-a')
       expect(systemPrompt).not.toContain('## Active Skills')
       expect(systemPrompt).not.toContain('DIRECT_SKILL_BODY')
@@ -8218,6 +8276,131 @@ describe('DeepChatAgentHarness', () => {
         'SessionStart',
         expect.objectContaining({ conversationId: 's1', providerId: 'acp' })
       )
+    })
+
+    it('observes a full ACP error turn with an empty built-in registry', async () => {
+      sqlitePresenter.newSessionsTable.get.mockReturnValue({
+        agent_id: 'agent-id',
+        session_kind: 'regular'
+      })
+      sqlitePresenter.deepchatSessionsTable.get.mockReturnValue({
+        id: 's1',
+        provider_id: 'acp',
+        model_id: 'agent-id',
+        permission_mode: 'default',
+        system_prompt: null,
+        temperature: null,
+        top_p: null,
+        context_length: 8192,
+        max_tokens: 2048,
+        timeout_ms: null,
+        thinking_budget: null,
+        reasoning_effort: null,
+        reasoning_visibility: null,
+        verbosity: null,
+        force_interleaved_thinking_compat: null,
+        image_generation_options_json: null,
+        video_generation_options_json: null,
+        summary_text: null,
+        summary_cursor_order_seq: 1,
+        summary_updated_at: null,
+        memory_cursor_order_seq: null
+      })
+
+      const prompt = vi.fn(async () => {
+        throw new Error('ACP prompt exploded')
+      })
+      const remoteSession = {
+        sessionId: toAcpRemoteSessionId('remote-error'),
+        connection: { prompt, cancel: vi.fn() },
+        detachHandlers: [],
+        workdir: '/workspace',
+        providerId: 'acp',
+        agentId: 'agent-id',
+        conversationId: 's1',
+        status: 'active',
+        createdAt: 1,
+        updatedAt: 1,
+        metadata: {},
+        systemPromptSent: false
+      }
+      const sessionController = {
+        open: vi.fn(async () => remoteSession),
+        prepare: vi.fn(async () => remoteSession),
+        updateWorkdir: vi.fn(
+          async (_sessionId: string, _agentId: string, workdir: string) => workdir ?? '/workspace'
+        ),
+        getSession: vi.fn(() => remoteSession),
+        clearMappedSession: vi.fn(),
+        clear: vi.fn(),
+        getModes: vi.fn(() => null),
+        setMode: vi.fn(),
+        getConfigOptions: vi.fn(() => null),
+        setConfigOption: vi.fn(async () => null),
+        getCommands: vi.fn(() => [])
+      }
+      const sharedClient = {
+        promptController: new AcpPromptController(),
+        sessionController,
+        sessionPersistence: { startTurn: vi.fn(), finishTurn: vi.fn() },
+        processManager: { appendDebugEvent: vi.fn(), shutdown: vi.fn(), release: vi.fn() },
+        sessionManager: { clearAllSessions: vi.fn(), clearSessionsByAgent: vi.fn() }
+      } as unknown as AcpClientRuntime
+      const directRuntime = new AcpAgentRuntime(
+        new AcpRuntimeOwner(() => sharedClient),
+        (input) => agent.createAcpAgentInstanceDependencies(input),
+        sessionData.pendingInputs
+      )
+      const descriptor: AcpAgentDescriptor = {
+        id: 'agent-id',
+        kind: 'acp',
+        source: 'manual',
+        name: 'Agent',
+        enabled: true,
+        protected: false,
+        description: null,
+        icon: null,
+        avatar: null,
+        launch: { command: 'agent', args: [], env: {} }
+      }
+      const directInput = {
+        sessionId: toAppSessionId('s1'),
+        descriptor,
+        agent: { id: 'agent-id', name: 'Agent', command: 'agent', source: 'manual' },
+        scope: 'regular' as const,
+        workdir: '/workspace'
+      }
+
+      const hydrateScopeSpy = vi.spyOn(agent.deepChatRuntime, 'getOrHydrateScope')
+      await directRuntime.send(directInput, { text: 'fail please' })
+
+      expect(hydrateScopeSpy).not.toHaveBeenCalled()
+      expect(agent.deepChatRuntime.getHydratedScope(directInput.sessionId)).toBeUndefined()
+      hydrateScopeSpy.mockRestore()
+      expect(await directRuntime.getHydrated(directInput.sessionId)?.snapshot()).toMatchObject({
+        status: 'error'
+      })
+      expect(
+        getPublishedPayloads('sessions.status.changed')
+          .filter((payload) => payload.sessionId === 's1')
+          .map((payload) => payload.status)
+      ).toEqual(['generating', 'error'])
+      const assistantTapeRows = sqlitePresenter.deepchatTapeEntriesTable
+        .getBySession('s1')
+        .filter((row: any) => row.kind === 'message' && row.name === 'message/assistant')
+        .map((row: any) => JSON.parse(row.payload_json).record.status)
+      expect(assistantTapeRows).toContain('error')
+
+      // Close finalization: the terminal idle publication lands after the error, the runtime
+      // entry is evicted, and the built-in registry still holds nothing for the session.
+      await directRuntime.cleanupSession(directInput.sessionId)
+      expect(
+        getPublishedPayloads('sessions.status.changed')
+          .filter((payload) => payload.sessionId === 's1')
+          .map((payload) => payload.status)
+      ).toEqual(['generating', 'error', 'idle'])
+      expect(directRuntime.getHydrated(directInput.sessionId)).toBeUndefined()
+      expect(agent.deepChatRuntime.getHydratedScope(directInput.sessionId)).toBeUndefined()
     })
 
     it('keeps the base prompt stable after compaction and Memory assembly', async () => {

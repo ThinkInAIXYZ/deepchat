@@ -168,7 +168,10 @@ import { SessionQuery } from '@/session/query'
 import { SessionAssignmentPolicy } from '@/session/assignmentPolicy'
 import { SessionAssignment } from '@/session/assignment'
 import { SessionDeletion } from '@/session/deletion'
-import { SessionTranscriptMutations } from '@/session/transcriptMutations'
+import {
+  SessionTranscriptMutations,
+  type SessionTranscriptRuntimePort
+} from '@/session/transcriptMutations'
 import { SessionTurn } from '@/session/turn'
 import { SessionLifecycle } from '@/session/lifecycle'
 import { createDeepChatAgentHarness, type DeepChatAgentHarness } from '@/agent/deepchat/harness'
@@ -1912,18 +1915,16 @@ export async function createMainProcessControl(dependencies: {
     agentCliTokenAuthority,
     programmaticToolParents
   })
-  const sessionTranscriptMutations = new SessionTranscriptMutations({
-    transcript: sessionData.transcript,
-    settings: sessionData.settings,
-    pendingInputs: sessionData.pendingInputs,
-    runtime: deepChatAgentHarness,
-    runInTransaction: (operation) => sessionData.database.getDatabase().transaction(operation)()
-  })
   memoryIngestionObserver = deepChatAgentHarness.memoryIngestionObserver
   acpAgentRuntime = new AcpAgentRuntime(
     acpRuntimeOwner,
     (input) => deepChatAgentHarness.createAcpAgentInstanceDependencies(input),
     sessionData.pendingInputs
+  )
+  const acpSessionStateAdapter = new AcpSessionStateAdapter(
+    sessionData.settings,
+    providerSettings,
+    promptSettings
   )
   agentManager = new AgentManager(agentRepository, appSessionService, {
     deepchat: createDeepChatAgentBackend({
@@ -1934,11 +1935,7 @@ export async function createMainProcessControl(dependencies: {
     }),
     acp: createDirectAcpAgentBackend({
       runtime: acpAgentRuntime,
-      sessionState: new AcpSessionStateAdapter(
-        sessionData.settings,
-        providerSettings,
-        promptSettings
-      ),
+      sessionState: acpSessionStateAdapter,
       transcript: sessionData.transcript,
       tape: sessionData.tape,
       deleteDurableSession: async (sessionId) => {
@@ -1964,6 +1961,83 @@ export async function createMainProcessControl(dependencies: {
         }
       }
     })
+  })
+  // ACP sessions must not hydrate built-in DeepChat scope from transcript mutations or skill
+  // mutability checks; route them to ACP-appropriate behavior instead.
+  const isAcpBackendSession = (sessionId: string): boolean => {
+    const session = appSessionService.get(sessionId)
+    if (!session) return false
+    try {
+      return agentManager.resolveBackend(session.agentId).kind === 'acp'
+    } catch {
+      return false
+    }
+  }
+  const assertAcpSessionMutable = async (sessionId: string): Promise<void> => {
+    const state = await agentManager.snapshotIfHydrated(toAppSessionId(sessionId))
+    if (state?.status === 'generating') {
+      throw new Error('Cannot retry while session is generating.')
+    }
+    if (sessionData.pendingInputs.hasActiveInputs(sessionId)) {
+      throw new Error('Please clear the waiting lane before mutating chat history.')
+    }
+  }
+  // Backend-routed transcript mutation runtime: built-in sessions keep the DeepChat harness
+  // coordination; ACP sessions get shared-store guards without built-in scope hydration.
+  const transcriptMutationRuntime: SessionTranscriptRuntimePort = {
+    async prepareClearMessages(sessionId) {
+      if (!isAcpBackendSession(sessionId)) {
+        return await deepChatAgentHarness.prepareClearMessages(sessionId)
+      }
+      if (!(await acpSessionStateAdapter.getSessionState(sessionId))) {
+        throw new Error(`Session ${sessionId} not found`)
+      }
+    },
+    finishClearMessages(sessionId) {
+      if (!isAcpBackendSession(sessionId)) deepChatAgentHarness.finishClearMessages(sessionId)
+    },
+    async prepareRetry(sessionId, options) {
+      if (!isAcpBackendSession(sessionId)) {
+        return await deepChatAgentHarness.prepareRetry(sessionId, options)
+      }
+      await assertAcpSessionMutable(sessionId)
+      return { projectDir: appSessionService.get(sessionId)?.projectDir ?? null }
+    },
+    assertNoActivePendingInputs(sessionId) {
+      if (!isAcpBackendSession(sessionId)) {
+        deepChatAgentHarness.assertNoActivePendingInputs(sessionId)
+        return
+      }
+      if (sessionData.pendingInputs.hasActiveInputs(sessionId)) {
+        throw new Error('Please clear the waiting lane before mutating chat history.')
+      }
+    },
+    async cancelForTranscriptMutation(sessionId) {
+      if (!isAcpBackendSession(sessionId)) {
+        return await deepChatAgentHarness.cancelForTranscriptMutation(sessionId)
+      }
+      await acpAgentRuntime.cancel(toAppSessionId(sessionId))
+    },
+    invalidateTranscriptFrom(sessionId, orderSeq) {
+      if (!isAcpBackendSession(sessionId)) {
+        deepChatAgentHarness.invalidateTranscriptFrom(sessionId, orderSeq)
+      }
+    },
+    finishTranscriptTruncate(sessionId) {
+      if (!isAcpBackendSession(sessionId)) deepChatAgentHarness.finishTranscriptTruncate(sessionId)
+    },
+    resetForkTarget(targetSessionId, clonedMemoryCursorOrderSeq) {
+      if (!isAcpBackendSession(targetSessionId)) {
+        deepChatAgentHarness.resetForkTarget(targetSessionId, clonedMemoryCursorOrderSeq)
+      }
+    }
+  }
+  const sessionTranscriptMutations = new SessionTranscriptMutations({
+    transcript: sessionData.transcript,
+    settings: sessionData.settings,
+    pendingInputs: sessionData.pendingInputs,
+    runtime: transcriptMutationRuntime,
+    runInTransaction: (operation) => sessionData.database.getDatabase().transaction(operation)()
   })
   sessionQuery = new SessionQuery({
     sessions: appSessionService,
@@ -2803,6 +2877,13 @@ export async function createMainProcessControl(dependencies: {
       skillSettings,
       ensureInitialized: ensureSkillServicesInitialized,
       assertSessionActiveSkillsMutable: async (conversationId) => {
+        if (isAcpBackendSession(conversationId)) {
+          const state = await agentManager.snapshotIfHydrated(toAppSessionId(conversationId))
+          if (state?.status === 'generating') {
+            throw new Error('Cannot change Session Skills while the session is generating.')
+          }
+          return
+        }
         const state = await deepChatAgentHarness.getSessionState(conversationId)
         if (state?.status === 'generating') {
           throw new Error('Cannot change Session Skills while the session is generating.')

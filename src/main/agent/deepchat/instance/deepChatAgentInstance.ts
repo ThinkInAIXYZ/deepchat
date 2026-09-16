@@ -33,6 +33,15 @@ export interface DeepChatActiveProviderPermission {
 
 export type DeepChatToolProfileKind = 'code' | 'research' | 'analysis' | 'general'
 
+/**
+ * Injectable staleness authority for instances owned outside the built-in instance registry.
+ * Built-in instances keep registry membership as their authority (see DeepChatAgentRuntime);
+ * external owners (ACP) inject their own membership source.
+ */
+export interface DeepChatAgentInstanceOwnership {
+  isCurrent(sessionId: AppSessionId, instance: DeepChatAgentInstance): boolean
+}
+
 export interface DeepChatToolProfileCacheEntry {
   readonly profile: DeepChatToolProfileKind
   readonly fingerprint: string
@@ -75,8 +84,16 @@ export class DeepChatAgentInstance {
   private readonly contextWindowObservations = new Map<string, DeepChatContextWindowObservation>()
   private readonly memorySessionHandle: MemorySessionHandle
 
-  constructor(readonly sessionId: AppSessionId) {
+  constructor(
+    readonly sessionId: AppSessionId,
+    private readonly ownership?: DeepChatAgentInstanceOwnership
+  ) {
     this.memorySessionHandle = Object.freeze({ sessionId })
+  }
+
+  /** Staleness authority for scope fencing; undefined means built-in registry membership. */
+  get instanceOwnership(): DeepChatAgentInstanceOwnership | undefined {
+    return this.ownership
   }
 
   getRuntimeState(): DeepChatSessionState | undefined {

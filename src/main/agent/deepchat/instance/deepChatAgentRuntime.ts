@@ -67,13 +67,19 @@ export class DeepChatAgentRuntime {
       }
     }
 
+    // Built-in instances keep registry membership as their staleness authority; instances
+    // constructed with an injected ownership check (ACP-owned resource instances) defer to it.
+    const isCurrentInstance = (): boolean =>
+      instance.instanceOwnership
+        ? instance.instanceOwnership.isCurrent(sessionId, instance)
+        : this.instances.get(sessionId) === instance
     const scope: SessionRuntimeScope = {
       sessionId,
       instance,
       state: () => instance.getRuntimeState(),
-      isCurrent: () => this.instances.get(sessionId) === instance,
+      isCurrent: isCurrentInstance,
       assertCurrent: () => {
-        if (this.instances.get(sessionId) !== instance) {
+        if (!isCurrentInstance()) {
           throw createStaleDeepChatInstanceError(sessionId)
         }
       }

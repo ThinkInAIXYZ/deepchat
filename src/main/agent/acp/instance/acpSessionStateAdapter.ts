@@ -60,6 +60,9 @@ export class AcpSessionStateAdapter implements SessionStatePort {
   }
 
   async getSessionListState(sessionId: string): Promise<DeepChatSessionState | null> {
+    // List projections only need a settled placeholder; this is not a status truth source.
+    // Live status truth is the ACP instance status published through the host session
+    // channels (sessions.status.changed / session runtime updates).
     return await this.getSessionState(sessionId)
   }
 

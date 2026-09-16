@@ -343,6 +343,19 @@ describe('AcpAgentInstance', () => {
     })
   })
 
+  it('finalizes the public status as idle when closing without an active prompt', async () => {
+    const harness = createHarness()
+
+    await harness.instance.close()
+
+    // SessionStatus has no 'closed'; close must still leave consumers on a settled terminal.
+    expect(harness.calls.filter((call) => call.startsWith('status.'))).toEqual(['status.idle'])
+    await expect(harness.instance.snapshot()).resolves.toMatchObject({
+      status: 'closed',
+      active: false
+    })
+  })
+
   it('does not mark the system prompt sent when the ACP prompt fails', async () => {
     const harness = createHarness({ promptRejects: true })
 

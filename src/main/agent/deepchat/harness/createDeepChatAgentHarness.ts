@@ -7,7 +7,7 @@ import {
   extractToolCallImagePreviews
 } from '@/lib/toolCallImagePreviews'
 import { DeepChatAgentRuntime } from '@/agent/deepchat/instance/deepChatAgentRuntime'
-import { toAppSessionId } from '@/agent/shared/agentSessionIds'
+import { AcpSessionStateAdapter } from '@/agent/acp/instance/acpSessionStateAdapter'
 import { DeepChatContextCoordinator } from '@/agent/deepchat/loop/contextCoordinator'
 import { InputPreparationCoordinator } from '@/agent/deepchat/loop/inputPreparationCoordinator'
 import { MemoryRuntimeCoordinator } from '@/agent/deepchat/memory/memoryRuntimeCoordinator'
@@ -514,11 +514,19 @@ function createDeepChatRuntimeServices(deps: DeepChatHarnessDependencies): DeepC
     toolSurfaceDiagnostics
   })
 
+  // ACP state seam over the host session settings store; the compatibility factory reads
+  // session existence and generation settings through it without touching built-in scope.
+  const acpSessionState = new AcpSessionStateAdapter(
+    sessionStore,
+    providerSettings,
+    deps.promptSettings
+  )
   const acpCompatibility: AcpAgentInstanceDependencyFactory = (input) =>
     createAcpCompatibilityDependencies(
       {
         publishEvent,
         publishSessionUpdate,
+        sessionInvalidationPort: deps.sessionInvalidationPort,
         providerSettings,
         traceSettings,
         providerRuntime,
@@ -546,12 +554,11 @@ function createDeepChatRuntimeServices(deps: DeepChatHarnessDependencies): DeepC
             traceDebugEnabled: manifest.traceDebugEnabled,
             programmaticToolCapability: null
           }),
-        setStatus: (sessionId, status) => runLifecycle.transitionCurrentStatus(sessionId, status),
-        getSessionState: async (sessionId) => await sessionState.get(sessionId),
-        getDeepChatInstance: (sessionId) =>
-          runtime.getOrHydrateScope(toAppSessionId(sessionId)).instance,
-        getGenerationSettings: async (sessionId, instance) =>
-          await sessionSettings.getEffectiveGenerationSettings(sessionId, instance),
+        // Neutral 2C reads: the adapter touches only the persisted session settings store, so
+        // the ACP path never hydrates built-in scope or fences through sessionSettingsCoordinator.
+        getSessionState: async (sessionId) => await acpSessionState.getSessionState(sessionId),
+        getGenerationSettings: async (sessionId) =>
+          await acpSessionState.getGenerationSettings(sessionId),
         buildSystemPrompt: async (
           sessionId,
           basePrompt,

@@ -1,12 +1,12 @@
 import type { ProviderModelResolutionPort } from '@/provider/settings'
 import type { ProviderExecutionPort, RateLimitQueueSnapshot } from '@shared/types/provider'
-import type { DeepChatSessionState } from '@shared/types/agent-interface'
+import type { DeepChatSessionState, SessionGenerationSettings } from '@shared/types/agent-interface'
 import type { MCPToolDefinition } from '@shared/types/core/mcp'
 import type { RuntimeHookSink } from '@/agent/deepchat/runtime/runtimeHookSink'
 import type { AcpAgentInstanceDependencyFactory } from '@/agent/acp/instance'
 import { AcpCompatibilityPromptBuilder } from '@/agent/acp/runtime/acpCompatibilityPromptBuilder'
 import type { AcpViewManifestInput } from '@/agent/acp/instance/ports'
-import type { DeepChatAgentInstance } from '@/agent/deepchat/instance/deepChatAgentInstance'
+import { DeepChatAgentInstance } from '@/agent/deepchat/instance/deepChatAgentInstance'
 import { awaitWithAbort } from '@/lib/awaitWithAbort'
 import {
   capAgentRequestMaxTokens,
@@ -20,7 +20,8 @@ import type { TapeReconciliationPort } from '@/tape/ports/capabilities'
 import type { DeepChatToolResolver } from '@/agent/deepchat/runtime/toolResolver'
 import type {
   DeepChatEventPublisher,
-  DeepChatSessionUpdatePublisher
+  DeepChatSessionUpdatePublisher,
+  SessionInvalidationPort
 } from '@/agent/deepchat/runtime/types'
 import { AcpCompatibilityProjectionAdapter, AcpRequestTraceAdapter } from './adapters'
 import type { AgentTraceSettingsPort } from '@/agent/traceSettings'
@@ -28,6 +29,7 @@ import type { AgentTraceSettingsPort } from '@/agent/traceSettings'
 export interface AcpCompatibilityDependencyBuilderDependencies {
   publishEvent: DeepChatEventPublisher
   publishSessionUpdate: DeepChatSessionUpdatePublisher
+  sessionInvalidationPort: SessionInvalidationPort
   providerSettings: ProviderModelResolutionPort
   traceSettings: AgentTraceSettingsPort
   providerRuntime: Pick<ProviderExecutionPort, 'executeWithRateLimit'>
@@ -36,13 +38,8 @@ export interface AcpCompatibilityDependencyBuilderDependencies {
   tapeReconciliation: TapeReconciliationPort
   toolResolver: DeepChatToolResolver
   appendViewManifest(input: AcpViewManifestInput): void
-  setStatus(sessionId: string, status: DeepChatSessionState['status']): void
   getSessionState(sessionId: string): Promise<DeepChatSessionState | null>
-  getDeepChatInstance(sessionId: string): DeepChatAgentInstance
-  getGenerationSettings(
-    sessionId: string,
-    instance: DeepChatAgentInstance
-  ): Promise<import('@shared/types/agent-interface').SessionGenerationSettings>
+  getGenerationSettings(sessionId: string): Promise<SessionGenerationSettings | null>
   buildSystemPrompt(
     sessionId: string,
     basePrompt: string,
@@ -81,13 +78,44 @@ export function createAcpCompatibilityDependencies(
   const rateLimitMessageId = `rate-limit-acp:${sessionId}`
   const rateLimitRequestId = `acp:${sessionId}`
   let queuedForRateLimit = false
+  // ACP owns its status publication; the AcpAgentInstance status is the source of truth and
+  // this tracker mirrors its last forwarded state. A fresh instance starts idle, so the first
+  // observed `generating` always publishes.
+  let publishedStatus: 'idle' | 'generating' | 'error' = 'idle'
+  const publishStatus = (status: 'idle' | 'generating' | 'error'): void => {
+    if (publishedStatus === status) return
+    publishedStatus = status
+    dependencies.publishEvent('sessions.status.changed', {
+      sessionId,
+      status,
+      version: Date.now()
+    })
+    dependencies.publishEvent('sessions.updated', {
+      sessionIds: [sessionId],
+      reason: 'updated'
+    })
+    dependencies.publishSessionUpdate({
+      sessionId,
+      kind: 'status',
+      updatedAt: Date.now(),
+      status
+    })
+    dependencies.sessionInvalidationPort.invalidate({
+      sessionId,
+      reason: 'status-changed'
+    })
+  }
+  // ACP-owned resource instance for regular-scope tool/system-prompt assembly. It never
+  // enters the built-in instance registry; its staleness fence comes from the injected ACP
+  // ownership authority instead.
+  const resourceInstance = new DeepChatAgentInstance(sessionId, input.ownership)
   const projection = new AcpCompatibilityProjectionAdapter({
     publishEvent: dependencies.publishEvent,
     publishSessionUpdate: dependencies.publishSessionUpdate,
     messageStore: dependencies.messageStore,
     tapeReconciliation: dependencies.tapeReconciliation,
     writeViewManifest: async (manifest) => dependencies.appendViewManifest(manifest),
-    setStatus: (status) => dependencies.setStatus(sessionId, status)
+    setStatus: publishStatus
   })
 
   return {
@@ -96,13 +124,16 @@ export function createAcpCompatibilityDependencies(
         throwIfAbortRequested(signal)
         const state = await awaitWithAbort(dependencies.getSessionState(sessionId), signal)
         if (!state) throw new Error(`Session ${sessionId} not found`)
-        const resourceInstance = dependencies.getDeepChatInstance(sessionId)
+        // Carry the persisted session identity (provider/model/permission) on the resource
+        // instance: downstream prompt assembly and tool-profile fingerprints read it there.
+        resourceInstance.setRuntimeState(state)
         resourceInstance.setAgentId(session.descriptor.id)
         resourceInstance.setProjectDir(workdir)
         const generationSettings = await awaitWithAbort(
-          dependencies.getGenerationSettings(sessionId, resourceInstance),
+          dependencies.getGenerationSettings(sessionId),
           signal
         )
+        if (!generationSettings) throw new Error(`Session ${sessionId} not found`)
         const runtimeActiveSkills = await awaitWithAbort(
           dependencies.toolResolver.validateSkillNamesForSession(
             sessionId,

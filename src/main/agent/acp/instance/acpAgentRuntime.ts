@@ -9,7 +9,7 @@ import type { AppSessionId } from '@/agent/shared/agentSessionIds'
 import type { AcpClientRuntime, AcpRuntimeOwner } from '@/agent/acp/client'
 import type { SessionPendingInputRuntimePort } from '@/session/data/contracts'
 import { AcpAgentInstance, type AcpAgentInstanceDependencies } from './acpAgentInstance'
-import type { AcpAgentSnapshot, AcpInstanceScope } from './ports'
+import type { AcpAgentSnapshot, AcpInstanceScope, AcpSessionOwnershipPort } from './ports'
 import { isAcpAuthenticationRequiredError } from '../runtime/acpAuthentication'
 
 export interface AcpAgentRuntimeSessionInput {
@@ -23,6 +23,7 @@ export interface AcpAgentRuntimeSessionInput {
 export type AcpAgentInstanceDependencyFactory = (input: {
   runtime: AcpClientRuntime
   session: AcpAgentRuntimeSessionInput
+  ownership: AcpSessionOwnershipPort
 }) => Omit<
   AcpAgentInstanceDependencies,
   'sessions' | 'promptController' | 'onProcessExit' | 'onClosed'
@@ -119,7 +120,15 @@ export class AcpAgentRuntime {
         scope: input.scope
       },
       {
-        ...this.createDependencies({ runtime, session: input }),
+        ...this.createDependencies({
+          runtime,
+          session: input,
+          // The resource instances built by the dependency set stay current only while this
+          // AcpAgentInstance remains the runtime's live entry (evicted on close/process exit).
+          ownership: {
+            isCurrent: (sessionId) => this.instances.get(sessionId)?.instance === instance
+          }
+        }),
         sessions: runtime.sessionController,
         promptController: runtime.promptController,
         onProcessExit: (exited) => this.evictOnProcessExit(input.sessionId, exited),

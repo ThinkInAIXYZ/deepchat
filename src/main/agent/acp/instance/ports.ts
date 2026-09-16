@@ -20,6 +20,14 @@ export type AcpInstanceScope = 'regular' | 'subagent'
 export type AcpAgentStatus = 'initializing' | 'idle' | 'generating' | 'error' | 'closed'
 export type AcpCancelCause = 'user_stop' | 'pending_input'
 
+/**
+ * Staleness authority for ACP-owned compatibility resource instances. True while the owning
+ * ACP session instance is still the live runtime entry for the session.
+ */
+export interface AcpSessionOwnershipPort {
+  isCurrent(sessionId: AppSessionId): boolean
+}
+
 export interface AcpProjectionContext {
   userMessageIds: string[]
   assistantMessageId: string
