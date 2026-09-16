@@ -91,4 +91,12 @@ describe('ModelScopeMcpSync', () => {
     })
     expect(wrapper.text()).toContain('settings.provider.modelscope.mcpSync.imported:1')
   })
+
+  it('renders the pagination controls through i18n', async () => {
+    const { wrapper } = await setup()
+
+    const text = wrapper.text()
+    expect(text).toContain('settings.provider.modelscope.mcpSync.pageSize')
+    expect(text).toContain('settings.provider.modelscope.mcpSync.pageNumber')
+  })
 })
