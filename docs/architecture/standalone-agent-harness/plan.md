@@ -289,11 +289,78 @@ packaged-runtime, or clean-Node package claim is made here.
   tool result in the next provider request, final settlement, durable transcript, and observable event
   order, without a client callback between rounds.
 
+**Boundary facts fixed by the 2B mapping (three read-only probes plus controller verification at
+`4e1459fd6`):**
+
+- The kernel candidate set is loop (8 files) + runtime (71) + memory (3) + resources (3) + instance
+  (2) plus neutral collaborators (tape/domain, pure session helpers). Runtime VALUE edges into impure
+  host modules number six (listed under 2B-1); the remaining 60+ host references are type-only and are
+  the primary declaration-closure risk, invisible to a runtime-only gate.
+- ACP `initSession` is neutral since 2C: the direct ACP backend calls
+  `AcpSessionStateAdapter.initSession` (`src/main/agent/acp/instance/acpSessionStateAdapter.ts:25`),
+  a pure settings-store path with no built-in scope hydrate, memory-init, or firstTurnReady side
+  effect. The built-in `SessionLifecycleCoordinator.init`
+  (`src/main/agent/deepchat/runtime/sessionLifecycleCoordinator.ts:68`) serves only the built-in
+  backend (`deepChatAgentBackend.ts:165`).
+- The compatibility factory has exactly one production consumer
+  (`src/main/app/composition.ts:1923-1927`). The "ACP as LLM provider" path (`acpProvider.ts`) never
+  touches the factory. The factory's built-in-scope reach is `getDeepChatInstance` (main hydrate),
+  `sessionState.get` (resolver hydrate), `getGenerationSettings`/`buildSystemPrompt`/
+  `loadToolDefinitionsForSession` (assertCurrent fence family), and borrowed status publication via
+  `runLifecycle.transitionCurrentStatus`, which drops the first `generating` event for cold sessions.
+- Two further ACP hydrate sources exist outside the factory: the transcript mutation routes
+  (`composition.ts:2112-2122`) and the skills routes (`composition.ts:2805-2811`). Message persistence
+  and destroy paths were verified neutral and need no change.
+
+**2B-1 — in-tree port narrowing and value-edge cuts (no package, zero behavior change).**
+Replace `Pick<HostClass, …>` shapes and host `import type` references inside the kernel candidate set
+with named structural ports in neutral in-tree contracts modules (compiler-authoritative method
+surfaces; text-measured: transcript ~27 methods, session settings ~12, pending inputs ~31, tape =
+named `SessionTapeCapabilities`, database = session-agent-row and memory-cursor projections). Cut the
+six VALUE edges: move `buildToolSearchDefinition`, `BUILTIN_DEEPCHAT_AGENT_ID`, the programmatic grant
+schema version and invocation parser, and the pure session helpers (`buildTerminalErrorBlocks`,
+`parseMessageMetadata`, `cloneBlocksForRenderer`, `userMessageContent`) to neutral modules with
+re-export shims; inject `ToolImagePreviewPort` and `VisionTargetResolverPort` through existing port
+surfaces. Promote the CLI compatibility handler's four ports and two callbacks out of
+`src/main/cli/runService.ts:50-89` into neutral contracts. No generic repository or transaction port;
+port methods remain complete transaction units. Desktop wiring (`createDeepChatAgentHarness` external
+signature) is unchanged. Completion: targeted and full `test/main` suites, `typecheck:node`,
+`format:check`, `lint`, `i18n` pass, plus type-level structural assertions that the host classes
+satisfy the ports.
+
+**2B-2 — ACP compatibility factory neutralization.**
+Status publication becomes ACP-owned through the existing typed host channels
+(`sessions.status.changed`/`sessions.updated`/`SessionInvalidationPort`) with `AcpAgentInstance`
+status as the source of truth, plus explicit close-time finalization (close currently forwards no
+terminal status). The existence guard and generation settings reuse the 2C adapter instead of the
+built-in resolver. Regular-scope resources use an ACP-owned instance with an injectable ownership
+fence (assertCurrent family: `systemPromptBuilder`, `toolResolver`, `promptAssemblyService`,
+`sessionSettingsCoordinator`); subagent scope already bypasses tool/system-prompt assembly. The
+transcript and skills routes are made ACP-aware without hydrating built-in scope. The light snapshot
+stays `'idle'`-only and is documented as not a status truth source. Completion: an ACP turn runs with
+an empty built-in registry (no `getOrHydrateScope` during send), observable status sequences
+generating → idle / generating → error, close finalization, and the existing ACP/manager suites green.
+
+**2B-3 — package extraction and clean-Node gate.**
+Create workspace-private `packages/agent-kernel` (working name `@deepchat/agent-kernel`; naming stays
+open until the artifact exists), physically move the kernel set with one-line re-export shims, build
+JS and declarations without `@/`/`@shared` aliases, and re-wire Desktop onto the package with the ACP
+factory assembly host-side over kernel-exposed collaborators. The clean-Node gate must include: a
+`mkdtemp` consumer running a real Node child process that imports only the package entry,
+forbidden-import interception (`electron`, `better-sqlite3`, `node-pty`) whose failure exits
+non-zero, a fake provider that inspects request content across two tool-continuation rounds, durable
+transcript assertions, a recursive emitted `.d.ts` closure scan, and `tsc --noEmit` consumption of
+the declarations. A read-only tooling spike (declaration emission vs the repo TypeScript 6/tsgo
+toolchain; Node 24 ESM resolve-hook interception) runs in parallel and does not modify the
+repository. Completion: the Stage 2B acceptance items above; commit
+`refactor(agent): extract portable harness kernel`.
+
 ### Sequence and acceptance gates
 
-The executable order is `2.0 inventory -> 2A -> 2C -> 2B ports/extraction -> 2B clean-Node
-import/runtime gate`. 2A and 2C may only overlap when they modify disjoint files and consume the same
-frozen neutral contract; 2B composition/wiring waits for both. The clean-Node gate must import the
+The executable order is `2.0 inventory -> 2A -> 2C -> 2B-1 ports -> 2B-2 ACP factory
+neutralization -> 2B-3 package extraction -> 2B clean-Node import/runtime gate`. 2A and 2C may only
+overlap when they modify disjoint files and consume the same frozen neutral contract; 2B
+composition/wiring waits for both. The clean-Node gate must import the
 built package entry, not an application alias or an in-tree `src/main` path, and must prove the
 runtime two-round scenario. Existing DeepChat agent/session tests, Desktop typechecks, ACP tests, and
 behavior-preserving widget refresh are required; passing DTO/fake contract tests alone is insufficient.
