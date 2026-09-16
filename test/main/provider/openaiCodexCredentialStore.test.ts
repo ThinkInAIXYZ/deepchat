@@ -88,25 +88,60 @@ describe('OpenAICodexCredentialStore', () => {
 
     store.save(tokens)
 
-    expect(fs.writeFileSync).toHaveBeenCalledWith(
-      `${filePath}.tmp`,
-      expect.any(String),
-      expect.objectContaining({ mode: 0o600 })
-    )
-    expect(fs.renameSync).toHaveBeenCalledWith(`${filePath}.tmp`, filePath)
+    const temporaryPath = String(vi.mocked(fs.openSync).mock.calls[0][0])
+    expect(temporaryPath).toMatch(/^\/tmp\/deepchat-openai-codex\/credentials\.json\.tmp-/)
+    expect(fs.openSync).toHaveBeenCalledWith(temporaryPath, 'w', 0o600)
+    expect(fs.fsyncSync).toHaveBeenCalled()
+    expect(fs.renameSync).toHaveBeenCalledWith(temporaryPath, filePath)
+    expect(fs.rmSync).toHaveBeenCalledWith(temporaryPath, { force: true })
     expect(store.load()?.accessToken).toBe('access-token')
+  })
+
+  it('removes the temporary file when the rename fails', () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    vi.mocked(fs.renameSync).mockImplementation(() => {
+      throw new Error('EPERM: operation not permitted')
+    })
+    const store = new OpenAICodexCredentialStore(filePath)
+
+    expect(() => store.save(tokens)).toThrow('EPERM')
+    const temporaryPath = String(vi.mocked(fs.openSync).mock.calls[0][0])
+    expect(fs.rmSync).toHaveBeenCalledWith(temporaryPath, { force: true })
   })
 
   it('backs up a corrupted file before overwriting it', () => {
     vi.spyOn(console, 'warn').mockImplementation(() => {})
     savedContent = '{broken'
+    let backupSnapshot: string | null = null
+    vi.mocked(fs.copyFileSync).mockImplementation(() => {
+      backupSnapshot = savedContent
+    })
     const store = new OpenAICodexCredentialStore(filePath)
 
     store.save(tokens)
 
     expect(fs.copyFileSync).toHaveBeenCalledWith(filePath, `${filePath}.corrupt`)
     expect(fs.renameSync).not.toHaveBeenCalledWith(filePath, `${filePath}.corrupt`)
+    expect(backupSnapshot).toBe('{broken')
     expect(store.getLoadError()).toBeNull()
+  })
+
+  it('does not back up an undecryptable file before overwriting it', () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    vi.mocked(safeStorage.decryptString).mockImplementation(() => {
+      throw new Error('keyring locked')
+    })
+    savedContent = JSON.stringify({
+      version: 1,
+      storage: 'safeStorage',
+      wrapped: Buffer.from('ciphertext').toString('base64'),
+      updatedAt: 1
+    })
+    const store = new OpenAICodexCredentialStore(filePath)
+
+    store.save(tokens)
+
+    expect(fs.copyFileSync).not.toHaveBeenCalled()
   })
 
   it('does not back up a healthy file before overwriting it', () => {

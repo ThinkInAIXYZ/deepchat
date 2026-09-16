@@ -272,6 +272,7 @@ vi.mock('fs', () => {
     openSync: vi.fn(),
     readSync: vi.fn(),
     closeSync: vi.fn(),
+    fsyncSync: vi.fn(),
     rmSync: vi.fn(),
     unlinkSync: vi.fn(),
     readdirSync: vi.fn(),

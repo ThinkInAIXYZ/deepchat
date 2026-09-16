@@ -1,5 +1,6 @@
 import * as fs from 'fs'
 import * as path from 'path'
+import { randomBytes } from 'node:crypto'
 import { app, safeStorage } from 'electron'
 
 export type XaiGrokCredentialStorage = 'safeStorage' | 'file' | 'none'
@@ -34,6 +35,7 @@ type StoredCredentialEnvelope =
 type EnvelopeReadResult =
   | { state: 'missing' }
   | { state: 'ok'; tokens: XaiGrokTokenSet }
+  | { state: 'undecryptable'; reason: string }
   | { state: 'corrupt'; reason: string }
 
 function toErrorMessage(error: unknown): string {
@@ -67,9 +69,9 @@ export class XaiGrokCredentialStore {
 
   load(): XaiGrokTokenSet | null {
     const result = this.readEnvelope()
-    if (result.state === 'corrupt') {
+    if (result.state === 'corrupt' || result.state === 'undecryptable') {
       this.lastLoadError = result.reason
-      console.warn(`[XaiGrokCredentialStore] Ignoring corrupted credential file: ${result.reason}`)
+      console.warn(`[XaiGrokCredentialStore] Ignoring unreadable credential file: ${result.reason}`)
       return null
     }
 
@@ -108,12 +110,23 @@ export class XaiGrokCredentialStore {
       }
     }
 
-    const temporaryPath = `${this.filePath}.tmp`
-    fs.writeFileSync(temporaryPath, JSON.stringify(envelope, null, 2), {
-      encoding: 'utf-8',
-      mode: 0o600
-    })
-    fs.renameSync(temporaryPath, this.filePath)
+    const temporaryPath = `${this.filePath}.tmp-${process.pid}-${randomBytes(6).toString('hex')}`
+    try {
+      const fd = fs.openSync(temporaryPath, 'w', 0o600)
+      try {
+        fs.writeFileSync(fd, JSON.stringify(envelope, null, 2), 'utf-8')
+        fs.fsyncSync(fd)
+      } finally {
+        fs.closeSync(fd)
+      }
+      fs.renameSync(temporaryPath, this.filePath)
+    } finally {
+      try {
+        fs.rmSync(temporaryPath, { force: true })
+      } catch (error) {
+        console.warn('[XaiGrokCredentialStore] Failed to remove temporary credential file:', error)
+      }
+    }
     this.lastLoadError = null
   }
 
@@ -157,14 +170,23 @@ export class XaiGrokCredentialStore {
         : { state: 'corrupt', reason: 'credential file holds an invalid token payload' }
     }
 
+    let decrypted: string
     try {
-      const decrypted = safeStorage.decryptString(Buffer.from(envelope.wrapped, 'base64'))
+      decrypted = safeStorage.decryptString(Buffer.from(envelope.wrapped, 'base64'))
+    } catch (error) {
+      return {
+        state: 'undecryptable',
+        reason: `credential decryption failed: ${toErrorMessage(error)}`
+      }
+    }
+
+    try {
       const tokens = this.normalizeTokens(JSON.parse(decrypted) as XaiGrokTokenSet)
       return tokens
         ? { state: 'ok', tokens }
         : { state: 'corrupt', reason: 'credential file holds an invalid token payload' }
-    } catch (error) {
-      return { state: 'corrupt', reason: `credential decryption failed: ${toErrorMessage(error)}` }
+    } catch {
+      return { state: 'corrupt', reason: 'credential payload is not valid JSON' }
     }
   }
 
