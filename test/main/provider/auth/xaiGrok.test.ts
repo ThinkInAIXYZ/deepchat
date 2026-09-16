@@ -290,4 +290,32 @@ describe('xAI Grok OAuth', () => {
       authenticated: false
     })
   })
+
+  it('prefers the credential-store load error over a stale login error', async () => {
+    const credentialPath = path.join(tempDir, 'credentials.json')
+    const store = new XaiGrokCredentialStore(credentialPath)
+    store.save({
+      accessToken: 'access-old',
+      refreshToken: 'refresh-1',
+      tokenType: 'Bearer',
+      expiresAt: Date.now() + 1000,
+      tokenEndpoint: 'https://auth.x.ai/oauth2/token',
+      updatedAt: Date.now()
+    })
+    const auth = new XaiGrokAuth(store, vi.fn())
+    vi.stubGlobal(
+      'fetch',
+      vi.fn<typeof fetch>(async () => {
+        throw new Error('network down')
+      })
+    )
+
+    await expect(auth.ensureAccessToken()).rejects.toThrow('network down')
+
+    files.set(credentialPath, '{broken')
+    const status = auth.getStatus()
+
+    expect(status.state).toBe('error')
+    expect(status.error).toContain('not valid JSON')
+  })
 })

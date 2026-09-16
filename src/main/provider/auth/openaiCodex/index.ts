@@ -176,7 +176,7 @@ export class OpenAICodexAuth {
       return this.statusFromTokens(tokens)
     }
 
-    const statusError = this.lastError ?? this.store.getLoadError()
+    const statusError = this.store.getLoadError() ?? this.lastError
     return this.withStorage({
       state: statusError ? 'error' : 'signed-out',
       authenticated: false,

@@ -269,4 +269,18 @@ describe('OpenAI Codex auth', () => {
     expect(auth.getStatus().state).toBe('disabled')
     await expect(auth.getAccessToken()).rejects.toThrow('disabled')
   })
+
+  it('prefers the credential-store load error over a stale login error', async () => {
+    const credentialPath = path.join(tempDir, 'credentials.json')
+    const store = new OpenAICodexCredentialStore(credentialPath)
+    const auth = new OpenAICodexAuth(store, vi.fn())
+
+    await auth.completeBrowserLoginFromCallbackUrl('https://example.com/callback')
+
+    files.set(credentialPath, '{broken')
+    const status = auth.getStatus()
+
+    expect(status.state).toBe('error')
+    expect(status.error).toContain('not valid JSON')
+  })
 })
