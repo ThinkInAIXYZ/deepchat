@@ -590,7 +590,6 @@ async function settleToolBatch(
     commandShell: POSIX_COMMAND_SHELL,
     imagePreviews: { cacheToolCallImagePreviews, extractToolCallImagePreviews },
     rendererFlushHandle: flushHandle,
-    rendererFlushHandle: flushHandle,
     providerReplayProjector: hooks?.providerReplayProjector,
     collaborators: {
       notificationObserver: hooks
