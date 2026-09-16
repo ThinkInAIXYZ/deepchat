@@ -118,14 +118,14 @@ export class XaiGrokCredentialStore {
   }
 
   clear(): void {
-    try {
-      fs.rmSync(this.filePath, { force: true })
-      fs.rmSync(`${this.filePath}.corrupt`, { force: true })
-      fs.rmSync(`${this.filePath}.tmp`, { force: true })
-      this.lastLoadError = null
-    } catch (error) {
-      console.warn('[XaiGrokCredentialStore] Failed to remove credential files:', error)
+    for (const artifact of [this.filePath, `${this.filePath}.corrupt`, `${this.filePath}.tmp`]) {
+      try {
+        fs.rmSync(artifact, { force: true })
+      } catch (error) {
+        console.warn('[XaiGrokCredentialStore] Failed to remove', artifact, error)
+      }
     }
+    this.lastLoadError = null
   }
 
   private readEnvelope(): EnvelopeReadResult {

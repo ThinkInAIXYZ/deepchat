@@ -128,4 +128,19 @@ describe('OpenAICodexCredentialStore', () => {
     expect(fs.rmSync).toHaveBeenCalledWith(`${filePath}.corrupt`, { force: true })
     expect(fs.rmSync).toHaveBeenCalledWith(`${filePath}.tmp`, { force: true })
   })
+
+  it('clear still attempts the backup and temp files when the main removal fails', () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    vi.mocked(fs.rmSync).mockImplementation((target) => {
+      if (String(target) === filePath) {
+        throw new Error('EISDIR: illegal operation on a directory')
+      }
+    })
+    const store = new OpenAICodexCredentialStore(filePath)
+
+    store.clear()
+
+    expect(fs.rmSync).toHaveBeenCalledWith(`${filePath}.corrupt`, { force: true })
+    expect(fs.rmSync).toHaveBeenCalledWith(`${filePath}.tmp`, { force: true })
+  })
 })
