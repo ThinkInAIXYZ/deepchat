@@ -66,9 +66,14 @@ import { RuntimeHelper } from '@/lib/runtimeHelper'
 import { mergeDetectionEnv, noteNodeDemandFromMcp, ToolchainService } from '@/toolchains'
 import { ToolchainResolutionError } from '@/toolchains/errors'
 import { createToolchainRoutes } from '@/toolchains/routes'
-import { AttachmentCapabilityRouter } from '@/ocr/attachmentCapabilityRouter'
+import {
+  AttachmentCapabilityRouter,
+  type AttachmentOcrRuntimePort
+} from '@/ocr/attachmentCapabilityRouter'
 import { OcrRuntimeService } from '@/ocr/ocrRuntimeService'
 import { OcrSettings } from '@/ocr/ocrSettings'
+import { OcrRuntimeAssetInstaller } from '@/ocr/runtimeAssetInstaller'
+import { OcrRuntimeInstallCoordinator } from '@/ocr/runtimeInstallCoordinator'
 import { createOcrRoutes } from '@/ocr/routes'
 import { McpService } from '../mcp'
 import { ImportMode, SyncService, type SyncImportDatabasePort } from '../sync'
@@ -205,6 +210,9 @@ import type { RemoteServiceLike } from '../remote/ports'
 import { PluginService, type PluginServicePort } from '../plugin'
 import { createPluginRoutes } from '../plugin/routes'
 import { PluginRuntimeSupervisor } from '../plugin/runtimeSupervisor'
+import { PluginCatalogService, LIGHT_OCR_RUNTIME_ASSET_ID } from '../plugin/catalog'
+import { PluginRemoteInstaller } from '../plugin/remoteInstaller'
+import { PLUGIN_INSTALL_DIRECTORY } from '@shared/pluginPaths'
 import { AgentRepository } from '../agent/repository'
 import { AgentDatabase } from '@/agent/data/database'
 import { DeepChatDefaults } from '../agent/deepchat/defaults'
@@ -1230,6 +1238,28 @@ export async function createMainProcessControl(dependencies: {
   shortcutPresenter = new ShortcutPresenter(desktopSettings, windowPresenter, publishDeepchatEvent)
   fileService = new FileService(dependencies.settingsStore)
   ocrSettings = new OcrSettings(dependencies.settingsStore, publishDeepchatEvent)
+  const pluginCatalogService = new PluginCatalogService({
+    appPath: app.getAppPath(),
+    resourcesPath: process.resourcesPath,
+    isPackaged: app.isPackaged,
+    platform: process.platform,
+    arch: process.arch,
+    appVersion: app.getVersion(),
+    env: process.env
+  })
+  const ocrRuntimeAssetInstallRoot = path.join(app.getPath('userData'), 'runtimes', 'ocr')
+  const ocrRuntimeAssetInstaller = new OcrRuntimeAssetInstaller({
+    installRoot: () => ocrRuntimeAssetInstallRoot,
+    stagingRoot: () => path.join(ocrRuntimeAssetInstallRoot, '.staging'),
+    onProgress: (state) =>
+      publishDeepchatEvent('ocr.runtimeInstall.progress', { ...state, updatedAt: Date.now() })
+  })
+  const ocrRuntimeInstallCoordinator = new OcrRuntimeInstallCoordinator({
+    resolveAsset: () => pluginCatalogService.resolveRuntimeAsset(LIGHT_OCR_RUNTIME_ASSET_ID),
+    isAutoDownloadEnabled: () => ocrSettings.getRuntimeAutoDownloadEnabled(),
+    installer: ocrRuntimeAssetInstaller,
+    onInstalled: () => ocrRuntimeService?.refreshAvailability()
+  })
   const runtimeHelper = RuntimeHelper.getInstance()
   runtimeHelper.initializeRuntimes()
   const toolchainHomeDir = app.getPath('home')
@@ -1269,6 +1299,7 @@ export async function createMainProcessControl(dependencies: {
     appPath: app.getAppPath(),
     isPackaged: app.isPackaged,
     nodeRuntimePath: null,
+    installedRuntimeRoots: () => ocrRuntimeAssetInstaller.listInstalledRoots(),
     resolveNode: () => {
       const resolved = toolchainService.resolve('node', { purpose: 'ocr' })
       if (!resolved.version) {
@@ -1289,8 +1320,20 @@ export async function createMainProcessControl(dependencies: {
     artifactSpool,
     log: logger
   })
+  const attachmentOcrRuntimePort: AttachmentOcrRuntimePort = {
+    getAvailability: async () => {
+      const availability = await ocrRuntimeService.getAvailability()
+      if (availability.status === 'unavailable') {
+        ocrRuntimeInstallCoordinator.maybeStartInstall()
+      }
+      return availability
+    },
+    extract: (input) => ocrRuntimeService.extract(input),
+    extractBatch: (inputs) => ocrRuntimeService.extractBatch(inputs),
+    extractDocument: (input) => ocrRuntimeService.extractDocument(input)
+  }
   const attachmentRouter = new AttachmentCapabilityRouter({
-    extraction: ocrRuntimeService,
+    extraction: attachmentOcrRuntimePort,
     getAutomaticOcrEnabled: () => ocrSettings.getAutomaticExtractionEnabled(),
     getBackendPreference: () => ocrSettings.getBackend(),
     getMaxFileSize: () => dependencies.settingsStore.get<number>('maxFileSize') ?? 30 * 1024 * 1024,
@@ -2782,7 +2825,16 @@ export async function createMainProcessControl(dependencies: {
       recordSettingsActivity: (input) => settingsDatabase.recordSettingsActivity(input)
     })
     const toolRoutes = createToolRoutes(toolService)
-    const pluginRoutes = createPluginRoutes(pluginService)
+    const pluginRemoteInstaller = new PluginRemoteInstaller({
+      stagingRoot: () => path.join(app.getPath('userData'), PLUGIN_INSTALL_DIRECTORY, '.staging'),
+      installPackage: (packagePath) => pluginService.installOfficialPluginPackage(packagePath),
+      onProgress: (state) =>
+        publishDeepchatEvent('plugins.install.progress', { ...state, updatedAt: Date.now() })
+    })
+    const pluginRoutes = createPluginRoutes(pluginService, {
+      catalog: pluginCatalogService,
+      installer: pluginRemoteInstaller
+    })
     const skillRoutes = createSkillRoutes({
       skillService,
       skillSyncService,
@@ -2833,7 +2885,31 @@ export async function createMainProcessControl(dependencies: {
       }
     })
     const fileRoutes = createFileRoutes(fileService)
-    const ocrRoutes = createOcrRoutes({ runtime: ocrRuntimeService })
+    const ocrRoutes = createOcrRoutes({
+      runtime: ocrRuntimeService,
+      runtimeInstall: {
+        getInstallState: () => ocrRuntimeInstallCoordinator.getInstallState(),
+        getAssetInfo: () => {
+          const asset = pluginCatalogService
+            .listVisibleRuntimeAssets()
+            .find((candidate) => candidate.id === LIGHT_OCR_RUNTIME_ASSET_ID)
+          if (!asset) return null
+          const { availability, target } =
+            pluginCatalogService.describeRuntimeAssetAvailability(asset)
+          return {
+            version: asset.version,
+            channel: asset.channel,
+            availability,
+            sizeBytes: target?.size ?? null
+          }
+        },
+        install: async () => {
+          const result = await ocrRuntimeInstallCoordinator.install()
+          return { ok: result.ok, error: result.ok ? undefined : (result.error ?? undefined) }
+        },
+        cancel: () => ocrRuntimeAssetInstaller.cancel(LIGHT_OCR_RUNTIME_ASSET_ID)
+      }
+    })
     const toolchainRoutes = createToolchainRoutes({
       service: toolchainService,
       pickPath: () => deviceService.selectFiles({ multiple: false })
