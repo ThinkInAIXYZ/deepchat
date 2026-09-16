@@ -269,8 +269,10 @@ packaged-runtime, or clean-Node package claim is made here.
 
 #### Stage 2B — portable built-in kernel
 
-- [ ] Extract the existing facade/coordinators around `DeepChatLoopEngine`, turn/run lifecycle,
-  context, queue, interaction, compaction, Tape, transcript, and recovery.
+- [x] Extract the existing facade/coordinators around `DeepChatLoopEngine`, turn/run lifecycle,
+  context, queue, interaction, compaction, Tape, transcript, and recovery. Done in 2B-3a: the
+  coordinators live in `packages/agent-kernel`, the composition facade stays host-side
+  (`f17afd0de`).
 - [x] Narrow concrete `SessionDatabase`/`SessionData` dependencies to ports that preserve required
   transaction and atomic settlement boundaries; do not expose a generic repository or database
   transaction object. Done in 2B-1 as `65dca104f`.
@@ -286,7 +288,9 @@ packaged-runtime, or clean-Node package claim is made here.
   emitted declaration closure, and runtime dependency closure must be checked by a clean Node consumer;
   package naming remains an open decision until the artifact is implemented.
 - [ ] Keep provider/tool execution ports real; do not extract types while leaving the loop in Desktop.
-- [ ] Keep Desktop embedding the same kernel during this stage.
+- [x] Keep Desktop embedding the same kernel during this stage. Done in 2B-3a: Desktop consumes
+  the package kernel through the workspace link and 175 re-export shims; full suites green
+  (`f17afd0de`).
 - [ ] Prove a fake two-round tool-continuation scenario: provider request, tool admission/execution,
   tool result in the next provider request, final settlement, durable transcript, and observable event
   order, without a client callback between rounds.
@@ -419,6 +423,31 @@ verified sub-slices: **2B-3a** (workspace package, build recipe, physical move w
 Desktop re-wiring, and the host-side carry-overs above) and **2B-3b** (the clean-Node gate proper).
 Completion: the Stage 2B acceptance items above; commit `refactor(agent): extract portable harness
 kernel`.
+
+**Stage 2B-3a acceptance note:** Emma independently verified commits `242dfa33b` + `a555a0b66`
+(446 + 6 files) before integration and reported **ACCEPT** with no P1/P2 findings. Her own runs
+under Node `v24.18.0` / pnpm `10.34.5`: targeted suites 94 files / 1954 tests, full `test/main`
+648+1 files / 9175+5 tests, `typecheck` (kernel-ports closure 1284 sources), build 492 emitted
+files clean, format/lint/i18n/diff-check all pass. Beyond the checklist she ran stronger checks:
+all 175 shims fidelity-diffed against baseline (28 byte-identical, 140 specifier-only rewrites, 7
+substantive — each justified, including the `DeepChatKernelEventName` closure union exactly covering
+the seven real `publishEvent` call sites); the build script's forbidden-specifier scan proven to
+fail on all five planted violation classes; the shared-copy fidelity truth recorded (34
+byte-identical, 31 specifier rewrites, 1 reformat, 2 host-`.d.ts`-to-`.ts` conversions, 1
+deliberately trimmed `chat.ts` with in-file justification) — no silent semantic drift. The two
+behavior deltas were verified: the P2 exemption is restored through the hydration-free admission
+read with the falsified store-only approximation absent, and `destroySession` is backend-routed.
+P3s: commit titles are 51/52 chars (over the ≤50 convention, cosmetic); the `destroySession` ACP
+early-return has only a source-shape pin with no behavioral end-to-end coverage (the P2 exemption
+has behavioral coverage at three layers); and 2B-3b design inputs — the shared-copy fidelity check
+cannot be byte-for-byte (it must normalize import specifiers and explicitly exempt the three
+special files) and `ollama` is a type-only import covered by the dev dependency. Integrated as
+`f17afd0de` + `a0299f80a`; the orchestration repository switched from the shared-store
+`node_modules` symlink to its own real `pnpm install` (the symlink could not represent the new
+workspace package; the lockfile gained exactly one importer plus the root `workspace:*` link). The
+controller re-ran the targeted suites (1954 tests) and all gates on the integrated branch; note
+that running `typecheck` concurrently with vitest races on `node_modules/.cache` (transient
+ELIFECYCLE failures) — gates must run sequentially.
 
 ### Sequence and acceptance gates
 
