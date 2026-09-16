@@ -477,8 +477,11 @@ const runtimeAssetInfo = computed(() => status.value?.runtimeAsset ?? null)
 const runtimeInstallState = computed(() => {
   const live = liveRuntimeInstall.value
   const polled = status.value?.runtimeInstall ?? null
-  if (live && polled && live.updatedAt >= polled.updatedAt) return live
-  return live ?? polled
+  // The newer of the live event stream and the polled status wins, so a
+  // terminal state received through polling replaces stale live progress.
+  if (!live) return polled
+  if (!polled) return live
+  return live.updatedAt >= polled.updatedAt ? live : polled
 })
 const runtimeInstalling = computed(() => {
   const phase = runtimeInstallState.value?.phase

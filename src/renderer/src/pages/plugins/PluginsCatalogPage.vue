@@ -432,7 +432,20 @@ function formatSize(sizeBytes: number | null): string {
 
 async function loadDistributableCatalog(): Promise<void> {
   try {
-    catalogEntries.value = await pluginClient.listCatalogEntries()
+    const entries = await pluginClient.listCatalogEntries()
+    catalogEntries.value = entries
+    // Hydrate install states for runs that started before this page mounted,
+    // keeping whichever copy (local or response) is newer.
+    for (const entry of entries) {
+      if (!entry.installState) continue
+      const existing = installStates.value[entry.pluginId]
+      if (!existing || entry.installState.updatedAt >= existing.updatedAt) {
+        installStates.value = {
+          ...installStates.value,
+          [entry.pluginId]: entry.installState
+        }
+      }
+    }
   } catch (error) {
     console.warn('[PluginsCatalogPage] Failed to load catalog entries:', error)
   }

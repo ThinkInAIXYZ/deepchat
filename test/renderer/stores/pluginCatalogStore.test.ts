@@ -47,7 +47,9 @@ const ocrStatus: OcrRuntimeStatus = {
     bundleId: 'ppocrv6-small-native-20260719.1'
   },
   process: null,
-  cache: null
+  cache: null,
+  runtimeInstall: null,
+  runtimeAsset: null
 }
 
 describe('pluginCatalogStore', () => {
