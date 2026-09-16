@@ -271,15 +271,17 @@ packaged-runtime, or clean-Node package claim is made here.
 
 - [ ] Extract the existing facade/coordinators around `DeepChatLoopEngine`, turn/run lifecycle,
   context, queue, interaction, compaction, Tape, transcript, and recovery.
-- [ ] Narrow concrete `SessionDatabase`/`SessionData` dependencies to ports that preserve required
+- [x] Narrow concrete `SessionDatabase`/`SessionData` dependencies to ports that preserve required
   transaction and atomic settlement boundaries; do not expose a generic repository or database
-  transaction object.
-- [ ] Extract the compatibility handler's narrow projection ports as neutral host-side contracts, so
+  transaction object. Done in 2B-1 as `65dca104f`.
+- [x] Extract the compatibility handler's narrow projection ports as neutral host-side contracts, so
   V1 surfaces can be served outside Desktop: session metadata, text-only message keyset pagination,
   in-flight assistant messages, and root/descendant waiting. These stay out of wire DTOs; see
-  [`compatibility.md`](./compatibility.md) for their obligations.
-- [ ] Move CLI authority and programmatic tool authority interfaces to neutral contracts; keep CLI
-  parsing/discovery and concrete authorization in adapters.
+  [`compatibility.md`](./compatibility.md) for their obligations. Done in 2B-1
+  (`contracts/cliCompatibility.ts`).
+- [x] Move CLI authority and programmatic tool authority interfaces to neutral contracts; keep CLI
+  parsing/discovery and concrete authorization in adapters. Done in 2B-1
+  (`contracts/programmaticToolAuthority.ts`, `contracts/localControlProtocol.ts`).
 - [ ] Build a workspace-private package artifact with an alias-free public entry. Its package metadata,
   emitted declaration closure, and runtime dependency closure must be checked by a clean Node consumer;
   package naming remains an open decision until the artifact is implemented.
@@ -327,6 +329,25 @@ port methods remain complete transaction units. Desktop wiring (`createDeepChatA
 signature) is unchanged. Completion: targeted and full `test/main` suites, `typecheck:node`,
 `format:check`, `lint`, `i18n` pass, plus type-level structural assertions that the host classes
 satisfy the ports.
+
+**Stage 2B-1 acceptance note:** Emma independently verified commit `65dca104f` (93 files,
++2113/−1152) before integration and reported **ACCEPT**. Her own runs under Node `v24.18.0` /
+pnpm `10.34.5`: targeted suites 93 files / 1929 tests, full `test/main` 648 files / 9168 tests
+(+5 pre-existing skips), `typecheck` including the new `typecheck:kernel-ports` gate (1133-source
+closure), `format:check`, `lint`, `i18n`, and `git diff --check` all pass. Her independent
+import-boundary scan found zero forbidden host imports and zero host-class `Pick<` inside the kernel
+set; the ACP factory functions are byte-identical to baseline; `assertCurrent` fences are
+logic-identical with line drift only. The `kernel-ports` gate was proven to have teeth: a deliberately
+wrong port pairing fails with TS2344 while `expectTypeOf` is a runtime no-op under vitest. One P2
+(duplicated `rendererFlushHandle` fixture property in `dispatch.test.ts`) was fixed pre-integration
+as `a5be7fbd1`; two P3s are carried to 2B-3: `BUILTIN_DEEPCHAT_AGENT_ID` is duplicated in contracts
+(the host repository should re-export the contract before packaging) and
+`ProgrammaticToolInvocationAuthority` lost its re-export shim (zero importers at baseline). Integrated
+as `97d9fc68c` + `a5be7fbd1`; the controller re-ran the targeted suites (1929 tests) and all gates on
+the integrated branch. Environment note: the previous `/tmp` Node-24 toolchain directory was purged
+by the OS mid-stage; the compliant chain is now nvm Node `v24.18.0` with system pnpm `10.34.5`, with
+`node_modules` symlinked into the pnpm store project directory (identical dependency tree; all
+acceptance and integration runs above used it).
 
 **2B-2 — ACP compatibility factory neutralization.**
 Status publication becomes ACP-owned through the existing typed host channels
