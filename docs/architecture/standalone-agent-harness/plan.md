@@ -363,6 +363,40 @@ stays `'idle'`-only and is documented as not a status truth source. Completion: 
 an empty built-in registry (no `getOrHydrateScope` during send), observable status sequences
 generating → idle / generating → error, close finalization, and the existing ACP/manager suites green.
 
+**Stage 2B-2 acceptance note:** Maya independently verified commit `fcb4d18a0` (11 files,
++409/−48) before integration and reported **ACCEPT**. Her own runs under Node `v24.18.0` /
+pnpm `10.34.5`: targeted suites 31 files / 651 tests, full `test/main` 648 files / 9170 tests
+(+5 pre-existing skips), `typecheck` including the kernel-ports gate, `format:check`, `lint`,
+`i18n`, and `git diff --check` all pass. Verified by direct trace: the ACP factory path has zero
+registry references; the e2e test asserts an empty built-in registry, zero
+`getOrHydrateScope`/`getHydrated` calls, and channel sequences `generating → idle`,
+`generating → error`, and close `error → idle`; the `assertCurrent` consumer files are
+byte-identical to baseline and `DeepChatAgentInstance` has exactly two construction sites (ACP with
+injected ownership, built-in without); ACP publish order matches the built-in `sessionStatusPublisher`
+step-for-step including dedup; the composition seam is preserved; the skills route's baseline
+hydration bug is fixed.
+
+Findings: one P2 — the implementer's justification for omitting the `allowRestartHeldQueue`
+exemption in the ACP `prepareRetry` was falsified: `recoverInputsAfterRestart`
+(`src/main/session/data/pendingInputs.ts:389-425`) walks the pending store shared by both backends,
+so after an app restart ACP queue inputs do enter the pump's `restartHeldQueueInputIds`. The real
+deviation is narrow: only in the scenario "app restart + ACP session holding a restart-held queue
+input + retry failure steer" does baseline admit the retry while HEAD rejects with the waiting-lane
+error; recovery is a manual lane clear or any next message. Not a contract violation (built-in path
+stays byte-equivalent; ACP semantics are defined by this slice and the deviation was declared), but
+2B-3a must choose: restore a pending-store-based equivalent exemption for the ACP branch, or
+explicitly adopt the stricter behavior. Three P3s: the composition route branches have
+typecheck-only coverage (no direct behavioral test; deferral accepted with corrected wording); a
+cross-instance dedup edge (an instance publishing `error`, evicted without close, followed by a
+fresh instance closing without a turn leaves the external channel on `error` — no consumer hangs on
+it; accepted as theoretical); the tool-profile cache moving onto the ACP-owned instance is
+performance-only (fingerprints include `toolRegistryRevision`, so stale entries never match).
+Confirmed leftovers for 2B-3: `SessionDeletion.state.destroySession` still hydrates a built-in scope
+for ACP sessions (pre-existing; destroy was out of scope here), and the hooks `sessionFacts`
+identity read is a read-only `getHydratedScope` miss with a DB fallback. Integrated as `200e51e94`;
+the controller re-ran the targeted suites (31 files / 651 tests) and all gates on the integrated
+branch.
+
 **2B-3 — package extraction and clean-Node gate.**
 Create workspace-private `packages/agent-kernel` (working name `@deepchat/agent-kernel`; naming stays
 open until the artifact exists), physically move the kernel set with one-line re-export shims, build
@@ -380,8 +414,11 @@ incompatible with the bridge — TS6053 on symlinked paths, TS5055 on real paths
 but adds a two-step pipeline). Subpath exports must map explicitly to `.d.ts` files; the TS fork has
 no `baseUrl`. Forbidden-import interception must use the synchronous `module.registerHooks()` via a
 `--import` preload — the async `module.register()` runs hooks on a loader-hook worker thread, so
-swallowed dynamic imports exit 0, and it never sees CJS `require()`. Completion: the Stage 2B
-acceptance items above; commit `refactor(agent): extract portable harness kernel`.
+swallowed dynamic imports exit 0, and it never sees CJS `require()`. 2B-3 lands as two independently
+verified sub-slices: **2B-3a** (workspace package, build recipe, physical move with re-export shims,
+Desktop re-wiring, and the host-side carry-overs above) and **2B-3b** (the clean-Node gate proper).
+Completion: the Stage 2B acceptance items above; commit `refactor(agent): extract portable harness
+kernel`.
 
 ### Sequence and acceptance gates
 
