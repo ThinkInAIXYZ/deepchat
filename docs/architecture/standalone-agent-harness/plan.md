@@ -284,16 +284,22 @@ packaged-runtime, or clean-Node package claim is made here.
 - [x] Move CLI authority and programmatic tool authority interfaces to neutral contracts; keep CLI
   parsing/discovery and concrete authorization in adapters. Done in 2B-1
   (`contracts/programmaticToolAuthority.ts`, `contracts/localControlProtocol.ts`).
-- [ ] Build a workspace-private package artifact with an alias-free public entry. Its package metadata,
+- [x] Build a workspace-private package artifact with an alias-free public entry. Its package metadata,
   emitted declaration closure, and runtime dependency closure must be checked by a clean Node consumer;
-  package naming remains an open decision until the artifact is implemented.
-- [ ] Keep provider/tool execution ports real; do not extract types while leaving the loop in Desktop.
+  package naming remains an open decision until the artifact is implemented. Done in 2B-3a/2B-3b:
+  `packages/agent-kernel` builds via plain tsc (492 emitted files, forbidden-specifier scan) and the
+  clean-Node gate checks metadata, declaration closure, and runtime closure (`859450a3a`,
+  `483ae8efd`).
+- [x] Keep provider/tool execution ports real; do not extract types while leaving the loop in Desktop.
+  Done: the loop itself lives in the package and the gate runs it end-to-end in clean Node with
+  injected fakes; the loop never stayed in Desktop.
 - [x] Keep Desktop embedding the same kernel during this stage. Done in 2B-3a: Desktop consumes
   the package kernel through the workspace link and 175 re-export shims; full suites green
   (`f17afd0de`).
-- [ ] Prove a fake two-round tool-continuation scenario: provider request, tool admission/execution,
+- [x] Prove a fake two-round tool-continuation scenario: provider request, tool admission/execution,
   tool result in the next provider request, final settlement, durable transcript, and observable event
-  order, without a client callback between rounds.
+  order, without a client callback between rounds. Done in 2B-3b
+  (`test/main/agent/kernelPackage/agentKernelPackageRuntime.test.ts`).
 
 **Boundary facts fixed by the 2B mapping (three read-only probes plus controller verification at
 `4e1459fd6`):**
@@ -448,6 +454,46 @@ workspace package; the lockfile gained exactly one importer plus the root `works
 controller re-ran the targeted suites (1954 tests) and all gates on the integrated branch; note
 that running `typecheck` concurrently with vitest races on `node_modules/.cache` (transient
 ELIFECYCLE failures) — gates must run sequentially.
+
+**Stage 2B-3b acceptance note:** Miles independently verified commit `ecf63183a` (8 files,
++1260: `scripts/check-agent-kernel-shared-fidelity.mjs` +
+`test/main/agent/kernelPackage/` with the consumer/victim/hooks/declaration fixtures) and reported
+**ACCEPT** with one P2 and five P3s. His own runs: the gate 3/3, full `test/main` 650 files / 9178
+tests, `typecheck`, format/lint/i18n, and a clean worktree afterwards. He verified the scenario
+substance with runtime probes (the turn settles via `onSessionCompleted` at +22 ms with no client
+callback between rounds), proved interception teeth independently (the async `module.register`
+variant fails where the sync `registerHooks` variant works), and proved fidelity teeth (planted
+drift exits 1; whitespace-only rewraps pass). His P2 — the declaration-closure gate could not
+detect undeclared declaration-time dependencies and the artifact carried a live one (`ollama`,
+type-only, reachable from the entry through the public provider port surface, masked by
+`skipLibCheck`) — was dispositioned by strengthening rather than documenting around it
+(`483ae8efd`): `ollama` moved to the kernel's runtime dependencies (pure JS, no native modules),
+the gate now asserts every external `.d.ts` specifier is within the kernel's declared dependencies
+∪ Node builtins, and the `.d.ts` scan covers double-quoted dynamic-import forms. All five P3s were
+fixed in the same commit: the consumer's settlement race timer is cleared (the gate dropped from
+31.3 s to ~1.3 s; Miles proved the kernel itself leaks no timers via `getActiveResourcesInfo`),
+`appendToolFact` returns the proper `TapeToolFactAppendReceipt` so the tool-facts persistence path
+runs clean, interception covers subpath forms (`node-pty/lib/…`), the tape assertion pins the full
+deterministic interleave `run_started → view_manifest → provider_attempt → view_manifest →
+provider_attempt → run_terminal`, the verdict asserts `settledViaCompletionHook`, and `afterAll`
+removes the mkdtemp workspace. The lockfile gained the `ollama` kernel dependency and
+`pnpm install --frozen-lockfile` passes. Integrated as `859450a3a` + `483ae8efd`; the controller
+re-ran the gate (3/3, 1.4 s), targeted suites (1934 tests), `typecheck`, and all gates on the
+integrated branch.
+
+**Stage 2B closure:** all eight Stage 2B checkboxes are complete. The plan's commit boundary
+`refactor(agent): extract portable harness kernel` was realized as three commits — the physical
+extraction (`f17afd0de`), the clean-Node gate (`859450a3a` + `483ae8efd`), and the baseline record
+(`a0299f80a`). The Stage 2B acceptance criteria are satisfied with independently accepted evidence:
+a clean Node consumer constructs and runs the built-in kernel with injected fake provider, tool,
+storage, authority, and event ports without importing Electron or application aliases; existing
+agent/session suites (650 files / 9178 tests) and all four typecheck targets pass; and Desktop
+embeds the same kernel through the workspace link with user-visible behavior preserved. The
+remaining known limitation, recorded rather than hidden: `ollama` remains a type-only runtime
+dependency of the kernel because the public `ProviderRuntimePort` surface inherited from `@shared`
+exposes `ShowResponse`; neutralizing it would require a fourth shared-copy exemption and is left
+as future refinement. Stage 2B ends here; Stage 3 (service productization) remains future work
+with the documented safeStorage blocker.
 
 ### Sequence and acceptance gates
 
