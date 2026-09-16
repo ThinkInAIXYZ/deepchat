@@ -19,7 +19,8 @@ export const SETTINGS_KEYS = [
   'copyWithCotEnabled',
   'loggingEnabled',
   'ocrAutoExtractForNonVisionModels',
-  'ocrBackend'
+  'ocrBackend',
+  'ocrRuntimeAutoDownload'
 ] as const
 
 export const SettingsKeySchema = z.enum(SETTINGS_KEYS)
@@ -41,7 +42,8 @@ export const SettingsSnapshotValuesSchema = z.object({
   copyWithCotEnabled: z.boolean(),
   loggingEnabled: z.boolean(),
   ocrAutoExtractForNonVisionModels: z.boolean(),
-  ocrBackend: z.enum(['auto', 'cpu'])
+  ocrBackend: z.enum(['auto', 'cpu']),
+  ocrRuntimeAutoDownload: z.boolean()
 })
 
 export const SettingsChangeSchema = z.discriminatedUnion('key', [
@@ -112,6 +114,10 @@ export const SettingsChangeSchema = z.discriminatedUnion('key', [
   z.object({
     key: z.literal('ocrBackend'),
     value: z.enum(['auto', 'cpu'])
+  }),
+  z.object({
+    key: z.literal('ocrRuntimeAutoDownload'),
+    value: z.boolean()
   })
 ])
 

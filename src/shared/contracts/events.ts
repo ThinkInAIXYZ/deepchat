@@ -37,6 +37,8 @@ import {
 } from './events/context-menu.events'
 import { dialogRequestedEvent } from './events/dialog.events'
 import { knowledgeFileProgressEvent, knowledgeFileUpdatedEvent } from './events/knowledge.events'
+import { pluginInstallProgressEvent } from './events/plugins.events'
+import { ocrRuntimeInstallProgressEvent } from './events/ocr.events'
 import { memoryUpdatedEvent } from './events/memory.events'
 import {
   configCustomPromptsChangedEvent,
@@ -155,6 +157,8 @@ export * from './events/config.events'
 export * from './events/context-menu.events'
 export * from './events/dialog.events'
 export * from './events/knowledge.events'
+export * from './events/plugins.events'
+export * from './events/ocr.events'
 export * from './events/memory.events'
 export * from './events/mcp.events'
 export * from './events/misc.providers.events'
@@ -245,6 +249,8 @@ export const DEEPCHAT_EVENT_CATALOG = {
   [providersOllamaPullProgressEvent.name]: providersOllamaPullProgressEvent,
   [knowledgeFileUpdatedEvent.name]: knowledgeFileUpdatedEvent,
   [knowledgeFileProgressEvent.name]: knowledgeFileProgressEvent,
+  [pluginInstallProgressEvent.name]: pluginInstallProgressEvent,
+  [ocrRuntimeInstallProgressEvent.name]: ocrRuntimeInstallProgressEvent,
   [memoryUpdatedEvent.name]: memoryUpdatedEvent,
   [modelsChangedEvent.name]: modelsChangedEvent,
   [modelsStatusChangedEvent.name]: modelsStatusChangedEvent,

@@ -5,9 +5,105 @@ import type {
   PluginInvokeActionRequest,
   PluginListItem
 } from '@shared/types/plugin'
+import type { PluginCatalog, PluginCatalogEntry } from '@shared/types/pluginCatalog'
 
 const PluginListItemSchema = z.custom<PluginListItem>()
 const PluginActionResultSchema = z.custom<PluginActionResult>()
+
+const Sha256Schema = z.string().regex(/^[a-f0-9]{64}$/)
+const PluginCatalogTargetSchema = z
+  .object({
+    platform: z.enum(['darwin', 'win32', 'linux']),
+    arch: z.enum(['arm64', 'x64']),
+    url: z.url({ protocol: /^https?$/ }).max(8192),
+    sha256: Sha256Schema,
+    size: z.number().int().positive(),
+    // Mirror prefixes are concatenated with the canonical URL (ghproxy style).
+    mirrors: z.array(z.url({ protocol: /^https?$/ }).max(2048)).max(8)
+  })
+  .strict()
+
+export const PluginCatalogArtifactSchema = z
+  .object({
+    pluginId: z.string().min(1).max(128),
+    version: z.string().min(1).max(64),
+    channel: z.enum(['stable', 'pre-release']),
+    displayName: z.string().min(1).max(256).optional(),
+    description: z.string().max(2048).optional(),
+    minAppVersion: z.string().min(1).max(64).optional(),
+    targets: z.array(PluginCatalogTargetSchema).min(1).max(8)
+  })
+  .strict()
+
+export const RuntimeCatalogAssetSchema = z
+  .object({
+    id: z.string().min(1).max(128),
+    version: z.string().min(1).max(128),
+    channel: z.enum(['stable', 'pre-release']),
+    displayName: z.string().min(1).max(256).optional(),
+    description: z.string().max(2048).optional(),
+    minAppVersion: z.string().min(1).max(64).optional(),
+    targets: z.array(PluginCatalogTargetSchema).min(1).max(8)
+  })
+  .strict()
+
+export const PluginCatalogSchema = z
+  .object({
+    schemaVersion: z.literal(1),
+    artifacts: z.array(PluginCatalogArtifactSchema).max(64),
+    runtimeAssets: z.array(RuntimeCatalogAssetSchema).max(16).optional()
+  })
+  .strict()
+
+export const PluginCatalogInstallPhaseSchema = z.enum([
+  'idle',
+  'probing',
+  'downloading',
+  'verifying',
+  'installing',
+  'installed',
+  'error',
+  'cancelled'
+])
+
+export type ParsedPluginCatalog = z.infer<typeof PluginCatalogSchema>
+
+export function parsePluginCatalog(input: unknown, source = '<catalog>'): PluginCatalog {
+  try {
+    return PluginCatalogSchema.parse(input) as PluginCatalog
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      const issue = error.issues[0]
+      const pointer = issue ? ` (${issue.path.join('.')}: ${issue.message})` : ''
+      throw new Error(`Invalid plugin catalog ${source}${pointer}`)
+    }
+    throw error
+  }
+}
+
+export const pluginsCatalogListRoute = defineRouteContract({
+  name: 'plugins.catalog.list',
+  input: z.object({}).strict(),
+  output: z.object({
+    entries: z.array(z.custom<PluginCatalogEntry>())
+  })
+})
+
+export const pluginsCatalogInstallRoute = defineRouteContract({
+  name: 'plugins.catalog.install',
+  input: z.object({ pluginId: z.string().min(1).max(128) }).strict(),
+  output: z.object({
+    result: PluginActionResultSchema
+  })
+})
+
+export const pluginsCatalogCancelRoute = defineRouteContract({
+  name: 'plugins.catalog.cancel',
+  input: z.object({ pluginId: z.string().min(1).max(128) }).strict(),
+  output: z.object({
+    cancelled: z.boolean()
+  })
+})
 
 export const pluginsListRoute = defineRouteContract({
   name: 'plugins.list',

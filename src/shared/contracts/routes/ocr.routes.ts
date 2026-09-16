@@ -8,6 +8,7 @@ import {
   PDF_PAGE_COUNT_SANITY_LIMIT
 } from '../../types/attachment'
 import { ArtifactIdSchema } from './artifacts.routes'
+import { PluginCatalogInstallPhaseSchema } from './plugins.routes'
 
 export const OCR_EXTRACTION_MAX_INPUT_BYTES = 50 * 1024 * 1024
 
@@ -72,18 +73,58 @@ const OcrCacheSchema = z.object({
   maxBytes: z.number().int().positive()
 })
 
+export const OcrRuntimeInstallStateSchema = z
+  .object({
+    phase: PluginCatalogInstallPhaseSchema,
+    receivedBytes: z.number().nonnegative(),
+    totalBytes: z.number().nonnegative().nullable(),
+    error: z.string().max(2048).nullable(),
+    updatedAt: z.number().nonnegative()
+  })
+  .strict()
+
+export const OcrRuntimeAssetInfoSchema = z
+  .object({
+    version: z.string().min(1).max(128),
+    channel: z.enum(['stable', 'pre-release']),
+    availability: z.enum(['available', 'incompatible-app', 'unsupported-platform']),
+    sizeBytes: z.number().int().positive().nullable()
+  })
+  .strict()
+
 export const OcrRuntimeStatusSchema = z.object({
   platform: z.string(),
   arch: z.string(),
   availability: OcrAvailabilitySchema,
   process: OcrProcessSchema.nullable(),
-  cache: OcrCacheSchema.nullable()
+  cache: OcrCacheSchema.nullable(),
+  runtimeInstall: OcrRuntimeInstallStateSchema.nullable(),
+  runtimeAsset: OcrRuntimeAssetInfoSchema.nullable()
 })
 
 export const ocrGetRuntimeStatusRoute = defineRouteContract({
   name: 'ocr.getRuntimeStatus',
   input: z.object({}).default({}),
   output: OcrRuntimeStatusSchema
+})
+
+export const ocrInstallRuntimeRoute = defineRouteContract({
+  name: 'ocr.installRuntime',
+  input: z.object({}).default({}),
+  output: z.object({
+    result: z.object({
+      ok: z.boolean(),
+      error: z.string().max(2048).optional()
+    })
+  })
+})
+
+export const ocrCancelRuntimeInstallRoute = defineRouteContract({
+  name: 'ocr.cancelRuntimeInstall',
+  input: z.object({}).default({}),
+  output: z.object({
+    cancelled: z.boolean()
+  })
 })
 
 export const ocrClearCacheRoute = defineRouteContract({
