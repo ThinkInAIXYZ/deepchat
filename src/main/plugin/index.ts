@@ -138,6 +138,10 @@ export interface PluginServicePort {
   inspectSource(source: UserPluginSource, requestId: string): Promise<PreparedUserPlugin>
   installUserPlugin(input: UserPluginInstallInput): Promise<PluginActionResult>
   uninstallUserPlugin(pluginId: string): Promise<PluginActionResult>
+  installOfficialPluginPackage(packagePath: string): Promise<{
+    pluginId: string
+    version: string
+  }>
   discardPrepared(operationId: string): Promise<void>
   configurePluginMcp(
     pluginId: string,
@@ -307,6 +311,29 @@ export class PluginService implements PluginServicePort {
   async retryPluginHook(pluginId: string, invocationId: string): Promise<void> {
     if (!this.contextHooks) throw new Error('User plugin host is unavailable')
     await this.contextHooks.retry(pluginId, invocationId)
+  }
+
+  /**
+   * Installs an official plugin from a verified `.dcplugin` package file
+   * (e.g. downloaded by the remote distribution installer). Runs the same
+   * package checksum verification and trust checks as bundled packages.
+   */
+  async installOfficialPluginPackage(packagePath: string): Promise<{
+    pluginId: string
+    version: string
+  }> {
+    if (!fs.existsSync(packagePath)) {
+      throw new Error(`Plugin package does not exist: ${packagePath}`)
+    }
+    const metadata = this.readPackageMetadata(packagePath)
+    const resolved: ResolvedOfficialPlugin = {
+      ...metadata,
+      root: packagePath,
+      sourcePath: packagePath,
+      sourceType: 'package'
+    }
+    const installation = this.ensureOfficialPluginInstallation(resolved)
+    return { pluginId: installation.pluginId, version: installation.version }
   }
 
   private async applyRuntimeMigrations(): Promise<void> {

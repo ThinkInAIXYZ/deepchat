@@ -9,12 +9,29 @@ import {
   pluginsEnableRoute,
   pluginsGetRoute,
   pluginsInvokeActionRoute,
-  pluginsListRoute
+  pluginsListRoute,
+  pluginsCatalogListRoute,
+  pluginsCatalogInstallRoute,
+  pluginsCatalogCancelRoute
 } from '@shared/contracts/routes'
 import { createRouteMap, type DeepchatRouteMap } from '@/routes/routeRegistry'
+import type { PluginActionResult } from '@shared/types/plugin'
 import type { PluginServicePort } from './index'
+import type { PluginCatalogService } from './catalog'
+import type { PluginRemoteInstaller } from './remoteInstaller'
 
-export function createPluginRoutes(pluginService: PluginServicePort): DeepchatRouteMap {
+export type PluginDistributionDeps = {
+  catalog: Pick<
+    PluginCatalogService,
+    'listVisibleArtifacts' | 'resolveArtifact' | 'describeAvailability'
+  >
+  installer: Pick<PluginRemoteInstaller, 'install' | 'cancel' | 'getInstallState'>
+}
+
+export function createPluginRoutes(
+  pluginService: PluginServicePort,
+  distribution?: PluginDistributionDeps
+): DeepchatRouteMap {
   return createRouteMap([
     [
       pluginsInspectSourceRoute.name,
@@ -90,7 +107,7 @@ export function createPluginRoutes(pluginService: PluginServicePort): DeepchatRo
       async (rawInput) => {
         const input = pluginsEnableRoute.input.parse(rawInput)
         return pluginsEnableRoute.output.parse({
-          result: await pluginService.enablePlugin(input.pluginId)
+          result: await enablePluginWithRemoteInstall(pluginService, distribution, input.pluginId)
         })
       }
     ],
@@ -111,6 +128,109 @@ export function createPluginRoutes(pluginService: PluginServicePort): DeepchatRo
           result: await pluginService.invokeAction(input.pluginId, input.actionId, input.payload)
         })
       }
+    ],
+    ...(distribution ? createDistributionRoutes(pluginService, distribution) : [])
+  ])
+}
+
+function createDistributionRoutes(
+  pluginService: PluginServicePort,
+  distribution: PluginDistributionDeps
+): DeepchatRouteMap {
+  return createRouteMap([
+    [
+      pluginsCatalogListRoute.name,
+      async (rawInput) => {
+        pluginsCatalogListRoute.input.parse(rawInput)
+        const installedPlugins = await pluginService.listPlugins()
+        const installedById = new Map(installedPlugins.map((plugin) => [plugin.id, plugin]))
+        const entries = distribution.catalog.listVisibleArtifacts().map((artifact) => {
+          const installed = installedById.get(artifact.pluginId)
+          const { availability, target } = distribution.catalog.describeAvailability(artifact)
+          return {
+            pluginId: artifact.pluginId,
+            version: artifact.version,
+            channel: artifact.channel,
+            displayName: artifact.displayName,
+            description: artifact.description,
+            availability,
+            sizeBytes: target?.size ?? null,
+            installed: Boolean(installed),
+            installedVersion: installed?.version ?? null,
+            installState: distribution.installer.getInstallState(artifact.pluginId)
+          }
+        })
+        return pluginsCatalogListRoute.output.parse({ entries })
+      }
+    ],
+    [
+      pluginsCatalogInstallRoute.name,
+      async (rawInput) => {
+        const input = pluginsCatalogInstallRoute.input.parse(rawInput)
+        const resolution = distribution.catalog.resolveArtifact(input.pluginId)
+        if (!resolution) {
+          return pluginsCatalogInstallRoute.output.parse({
+            result: {
+              ok: false,
+              error: 'Plugin artifact is not available for this platform or app version'
+            }
+          })
+        }
+        const result = await distribution.installer.install(resolution.artifact, resolution.target)
+        return pluginsCatalogInstallRoute.output.parse({
+          result: { ok: result.ok, error: result.error ?? undefined }
+        })
+      }
+    ],
+    [
+      pluginsCatalogCancelRoute.name,
+      async (rawInput) => {
+        const input = pluginsCatalogCancelRoute.input.parse(rawInput)
+        return pluginsCatalogCancelRoute.output.parse({
+          cancelled: distribution.installer.cancel(input.pluginId)
+        })
+      }
     ]
   ])
+}
+
+/**
+ * Enables a plugin, transparently downloading and installing it first when it
+ * is declared by the distribution catalog but not present locally. The enable
+ * action is the user's opt-in moment; the artifact download needs no second
+ * confirmation.
+ */
+async function enablePluginWithRemoteInstall(
+  pluginService: PluginServicePort,
+  distribution: PluginDistributionDeps | undefined,
+  pluginId: string
+): Promise<PluginActionResult> {
+  try {
+    return await pluginService.enablePlugin(pluginId)
+  } catch (firstError) {
+    if (!distribution) throw firstError
+    const resolution = distribution.catalog.resolveArtifact(pluginId)
+    if (!resolution) throw firstError
+    const installResult = await distribution.installer.install(
+      resolution.artifact,
+      resolution.target
+    )
+    if (!installResult.ok) {
+      return {
+        ok: false,
+        error: installResult.error ?? 'Plugin artifact download failed'
+      }
+    }
+    try {
+      return await pluginService.enablePlugin(pluginId)
+    } catch (secondError) {
+      return {
+        ok: false,
+        error:
+          secondError instanceof Error
+            ? secondError.message
+            : 'Plugin activation failed after install'
+      }
+    }
+  }
 }
