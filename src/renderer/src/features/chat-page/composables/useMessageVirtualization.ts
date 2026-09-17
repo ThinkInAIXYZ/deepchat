@@ -125,6 +125,25 @@ export function useMessageVirtualization(options: UseMessageVirtualizationOption
   const messageWindowBeforeHeight = computed(() => messageWindowRange.value.before)
   const messageWindowAfterHeight = computed(() => messageWindowRange.value.after)
 
+  /**
+   * Number of loaded messages that start below the viewport, used by the "scroll to latest"
+   * indicator. Derived from the logical layout map (every loaded message has an entry) with a
+   * binary search, so it stays O(log n) and works while windowing keeps rows unmounted.
+   *
+   * A partially visible row is not counted: the value answers "how many messages are entirely
+   * below what I can see".
+   */
+  const messagesBelowViewport = computed(() => {
+    const entries = messageWindow.entries.value
+    const total = entries.length
+    if (total === 0) return 0
+    const viewportHeight = scrollViewportHeight.value
+    if (viewportHeight <= 0) return 0
+    const viewportTop = Math.max(scrollViewportTop.value - messageWindowOriginTop.value, 0)
+    const firstBelow = findFirstEntryWithTopAfter(entries, viewportTop + viewportHeight)
+    return Math.max(total - firstBelow, 0)
+  })
+
   const usesWindowedMessages = () =>
     !options.disableWindowing?.value && messageWindow.entries.value.length > windowingThreshold
 
@@ -234,6 +253,8 @@ export function useMessageVirtualization(options: UseMessageVirtualizationOption
     messageWindowBeforeHeight,
     messageWindowAfterHeight,
     usesWindowedMessages,
+    // "scroll to latest" indicator input
+    messagesBelowViewport,
     // measurement pipeline
     onMessageMeasure,
     flushPendingMeasures,

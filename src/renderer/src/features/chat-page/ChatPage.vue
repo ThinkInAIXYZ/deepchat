@@ -191,11 +191,17 @@
                  so bottom:calc(100%+0.75rem) lifts it above PendingInputLane instead of covering it. -->
             <div>
               <div
-                v-if="latestPlanSnapshot || activePendingInteraction"
+                v-if="latestPlanSnapshot || activePendingInteraction || showScrollToLatest"
                 class="pointer-events-none absolute inset-x-0 bottom-[calc(100%+0.75rem)] flex w-full flex-col items-center gap-2"
                 style="z-index: var(--dc-z-float)"
                 data-testid="agent-progress-float-layer"
               >
+                <!-- Shares the dock's layer so the two stack vertically instead of overlapping. -->
+                <ScrollToLatestPill
+                  :visible="showScrollToLatest"
+                  :count="messagesBelowViewport"
+                  @return="returnToLatest"
+                />
                 <!-- Slim dock bar with Plan/Question chips; at most one panel expands above it. -->
                 <ChatInteractionDock
                   :plan-snapshot="latestPlanSnapshot"
@@ -344,6 +350,7 @@ import {
 } from '@/components/chat/attachmentModelPicker'
 import ChatInteractionDock from '@/components/chat/ChatInteractionDock.vue'
 import PendingInputLane from '@/components/chat/PendingInputLane.vue'
+import ScrollToLatestPill from '@/components/chat/ScrollToLatestPill.vue'
 import ChatStatusBar from '@/components/chat/ChatStatusBar.vue'
 import ChatToolInteractionOverlay from '@/components/chat/ChatToolInteractionOverlay.vue'
 import MemoryTurnDialog from '@/components/chat/MemoryTurnDialog.vue'
@@ -584,6 +591,25 @@ function isBottomFollowingMode(): boolean {
     (chatScrollController.state.value.mode === 'restoring' ||
       chatScrollController.state.value.mode === 'following')
   )
+}
+
+/**
+ * The indicator appears whenever the viewport is not at the bottom. `nearBottom` is the controller's
+ * own 80px proximity flag, so the indicator cannot disagree with auto-follow about where "the
+ * bottom" is. Message count is separate because a single tall message can leave the viewport far
+ * from the bottom with nothing below it.
+ */
+const showScrollToLatest = computed(
+  () => displayMessages.value.length > 0 && !chatScrollController.state.value.nearBottom
+)
+
+/**
+ * Explicit user action: hand ownership back to the controller as a bottom request. `bottom` targets
+ * always resolve, so unlike message targets this cannot be accepted and then dropped without a
+ * write, which is why no retry loop is needed here.
+ */
+function returnToLatest(): void {
+  requestChatScroll('user-return-to-bottom', { kind: 'bottom' })
 }
 
 function requestChatScroll(
@@ -972,7 +998,8 @@ const {
   visibleDisplayMessages,
   messageWindowBeforeHeight,
   messageWindowAfterHeight,
-  onMessageMeasure
+  onMessageMeasure,
+  messagesBelowViewport
 } = virtualization
 
 const {

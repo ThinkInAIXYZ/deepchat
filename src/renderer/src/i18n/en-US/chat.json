@@ -216,6 +216,7 @@
   },
   "messages": {
     "loadEarlier": "Load earlier messages",
+    "scrollToLatest": "Scroll to latest",
     "thinking": "Thinking...",
     "rateLimitWaiting": "Rate limit reached, waiting in queue...",
     "rateLimitCompactLoading": "Rate limited for {seconds}s...",

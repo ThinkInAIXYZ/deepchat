@@ -117,6 +117,44 @@ describe('useMessageVirtualization', () => {
     expect(virtualization.visibleDisplayMessages.value).toHaveLength(90)
   })
 
+  it('counts the loaded messages that start below the viewport', () => {
+    const messages = ref<MessageListItem[]>(
+      Array.from({ length: 200 }, (_, index) => createUserMessage(`message-${index}`, index))
+    )
+    const { messageWindow, virtualization } = createVirtualization(messages)
+
+    const entries = messageWindow.entries.value
+    expect(entries).toHaveLength(200)
+
+    // Park the viewport so its bottom edge sits one pixel above entry 150: the 50 messages from
+    // there on are entirely below what the user can see.
+    virtualization.scrollViewportHeight.value = 400
+    virtualization.scrollViewportTop.value = entries[150].top - 401
+    expect(virtualization.messagesBelowViewport.value).toBe(50)
+
+    // A partially visible row is not counted as below.
+    virtualization.scrollViewportTop.value = entries[150].top - 400
+    expect(virtualization.messagesBelowViewport.value).toBe(49)
+
+    // At the bottom nothing is below the viewport.
+    virtualization.scrollViewportTop.value = messageWindow.totalHeight.value
+    expect(virtualization.messagesBelowViewport.value).toBe(0)
+  })
+
+  it('counts below-viewport messages while windowing keeps rows unmounted', () => {
+    const messages = ref<MessageListItem[]>(
+      Array.from({ length: 200 }, (_, index) => createUserMessage(`message-${index}`, index))
+    )
+    const { messageWindow, virtualization } = createVirtualization(messages)
+
+    // Windowing is active (200 > 160) and only 90 rows are mounted, but the count still reflects
+    // the whole loaded history because it comes from the logical layout map.
+    expect(virtualization.visibleDisplayMessages.value).toHaveLength(90)
+    virtualization.scrollViewportHeight.value = 400
+    virtualization.scrollViewportTop.value = 0
+    expect(virtualization.messagesBelowViewport.value).toBeGreaterThan(90)
+  })
+
   it('updates a streaming row in the window without expanding the mounted history', () => {
     const history = Array.from({ length: 200 }, (_, index) =>
       createUserMessage(`message-${index}`, index)

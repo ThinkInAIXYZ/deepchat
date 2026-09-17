@@ -122,6 +122,7 @@
   },
   "messages": {
     "loadEarlier": "Indlæs tidligere beskeder",
+    "scrollToLatest": "Gå til nyeste",
     "rateLimitEstimated": "Forventet ventetid",
     "rateLimitImmediately": "med det samme",
     "rateLimitMinutes": "minut",

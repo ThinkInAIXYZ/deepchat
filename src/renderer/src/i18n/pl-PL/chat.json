@@ -131,6 +131,7 @@
   },
   "messages": {
     "loadEarlier": "Wczytaj wcześniejsze wiadomości",
+    "scrollToLatest": "Przejdź do najnowszych",
     "thinking": "Myśląc...",
     "rateLimitWaiting": "Osiągnięto limit stawek, czekam w kolejce...",
     "rateLimitCompactLoading": "Stawka ograniczona dla {seconds}...",

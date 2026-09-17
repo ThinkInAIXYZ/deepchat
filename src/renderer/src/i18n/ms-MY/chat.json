@@ -131,6 +131,7 @@
   },
   "messages": {
     "loadEarlier": "Muatkan mesej terdahulu",
+    "scrollToLatest": "Pergi ke terkini",
     "thinking": "Berfikir...",
     "rateLimitWaiting": "Minta had kekerapan, menunggu dalam baris gilir...",
     "rateLimitCompactLoading": "Had kelajuan ({seconds} saat)",

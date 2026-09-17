@@ -131,6 +131,7 @@
   },
   "messages": {
     "loadEarlier": "Tải tin nhắn trước đó",
+    "scrollToLatest": "Đi đến mới nhất",
     "thinking": "Đang suy nghĩ...",
     "rateLimitWaiting": "Đã đạt đến giới hạn tốc độ, đang chờ xếp hàng...",
     "rateLimitCompactLoading": "Tỷ lệ giới hạn cho {seconds}...",

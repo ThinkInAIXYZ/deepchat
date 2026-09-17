@@ -226,7 +226,8 @@
     "rateLimitImmediately": "ᠳᠠᠷᠤᠢ",
     "rateLimitSeconds": "ᠰᠧᠺᠦᠢᠨᠳ᠋",
     "rateLimitMinutes": "ᠮᠢᠨᠦᠢᠲ᠋",
-    "loadEarlier": "ᠡᠮᠦᠨᠡᠬᠢ ᠮᠡᠳᠡᠭᠡ ᠶᠢ ᠠᠴᠢᠶᠠᠯᠠᠬᠤ"
+    "loadEarlier": "ᠡᠮᠦᠨᠡᠬᠢ ᠮᠡᠳᠡᠭᠡ ᠶᠢ ᠠᠴᠢᠶᠠᠯᠠᠬᠤ",
+    "scrollToLatest": "ᠰᠢᠨᠡ ᠮᠡᠳᠡᠭᠡ ᠳᠤ ᠶᠠᠪᠤᠬᠤ"
   },
   "compaction": {
     "compacting": "ᠠᠰᠠᠭᠤᠳᠠᠯ ᠢ ᠴᠢᠩᠭ᠋ᠠᠳᠬᠠᠬᠤ ᠁",

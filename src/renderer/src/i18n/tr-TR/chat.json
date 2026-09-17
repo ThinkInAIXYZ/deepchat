@@ -131,6 +131,7 @@
   },
   "messages": {
     "loadEarlier": "Önceki mesajları yükle",
+    "scrollToLatest": "En sona git",
     "thinking": "Düşünüyorum...",
     "rateLimitWaiting": "Oran sınırına ulaşıldı, kuyrukta bekleniyor...",
     "rateLimitCompactLoading": "{seconds}s için oran sınırlı...",

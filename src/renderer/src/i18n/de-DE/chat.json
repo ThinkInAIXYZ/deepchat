@@ -131,6 +131,7 @@
   },
   "messages": {
     "loadEarlier": "Frühere Nachrichten laden",
+    "scrollToLatest": "Zum Neuesten scrollen",
     "thinking": "Denkt nach...",
     "rateLimitWaiting": "Anfragelimit erreicht, wartet in der Warteschlange...",
     "rateLimitCompactLoading": "Rate Limit aktiv ({seconds} Sekunden)",

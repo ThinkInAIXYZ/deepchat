@@ -131,6 +131,7 @@
   },
   "messages": {
     "loadEarlier": "이전 메시지 불러오기",
+    "scrollToLatest": "최신으로 이동",
     "thinking": "생각...",
     "rateLimitWaiting": "속도 제한으로 대기열에서 대기 중...",
     "rateLimitCompactLoading": "속도 제한 중 ({seconds}초)",

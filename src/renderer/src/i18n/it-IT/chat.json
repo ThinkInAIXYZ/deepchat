@@ -131,6 +131,7 @@
   },
   "messages": {
     "loadEarlier": "Carica messaggi precedenti",
+    "scrollToLatest": "Vai al più recente",
     "thinking": "Ragionamento in corso...",
     "rateLimitWaiting": "Limite di frequenza raggiunto, attesa in coda...",
     "rateLimitCompactLoading": "Limitazione attiva ({seconds} secondi)",

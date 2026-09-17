@@ -226,7 +226,8 @@
     "rateLimitImmediately": "دەرھال",
     "rateLimitSeconds": "سېكۇنت",
     "rateLimitMinutes": "مىنۇت",
-    "loadEarlier": "بۇرۇنقى ئۇچۇرلارنى يۈكلەش"
+    "loadEarlier": "بۇرۇنقى ئۇچۇرلارنى يۈكلەش",
+    "scrollToLatest": "ئەڭ يېڭىگە يۆتكەش"
   },
   "compaction": {
     "compacting": "مەزمۇننى قىسقارتىۋاتىدۇ ...",

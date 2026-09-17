@@ -131,6 +131,7 @@
   },
   "messages": {
     "loadEarlier": "Загрузить предыдущие сообщения",
+    "scrollToLatest": "Перейти к последнему",
     "thinking": "Думаю ...",
     "rateLimitWaiting": "Ограничение скорости, ожидание в очереди...",
     "rateLimitCompactLoading": "Ограничение скорости ({seconds}с)",
