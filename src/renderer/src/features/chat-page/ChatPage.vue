@@ -199,8 +199,10 @@
                 <!-- Shares the dock's layer so the two stack vertically instead of overlapping. -->
                 <ScrollToLatestPill
                   :visible="showScrollToLatest"
-                  :count="messagesBelowViewport"
+                  :count="messagesBelowViewport.length"
+                  :items="scrollToLatestItems"
                   @return="returnToLatest"
+                  @jump="jumpToPendingMessage"
                 />
                 <!-- Slim dock bar with Plan/Question chips; at most one panel expands above it. -->
                 <ChatInteractionDock
@@ -351,6 +353,7 @@ import {
 import ChatInteractionDock from '@/components/chat/ChatInteractionDock.vue'
 import PendingInputLane from '@/components/chat/PendingInputLane.vue'
 import ScrollToLatestPill from '@/components/chat/ScrollToLatestPill.vue'
+import { buildScrollToLatestItems } from './model/scrollToLatestItems'
 import ChatStatusBar from '@/components/chat/ChatStatusBar.vue'
 import ChatToolInteractionOverlay from '@/components/chat/ChatToolInteractionOverlay.vue'
 import MemoryTurnDialog from '@/components/chat/MemoryTurnDialog.vue'
@@ -526,7 +529,7 @@ const SESSION_RESTORE_SCROLL_INTENT_KEYS = new Set([
 ])
 const traceMessageId = ref<string | null>(null)
 const sidepanelStore = useSidepanelStore()
-let spotlightJumpTimer: number | null = null
+const messageJumpTimers = new Map<string, number>()
 let scrollReadFrame: number | null = null
 // The immediate session watcher can call clearMessageWindowMeasurements before
 // messageWindow exists; keep this no-op forward reference and rebind it to
@@ -610,6 +613,17 @@ const showScrollToLatest = computed(
  */
 function returnToLatest(): void {
   requestChatScroll('user-return-to-bottom', { kind: 'bottom' })
+}
+
+const scrollToLatestItems = computed(() =>
+  buildScrollToLatestItems({
+    messages: messagesBelowViewport.value,
+    streamingMessageId: streamingMessageId.value
+  })
+)
+
+function jumpToPendingMessage(messageId: string): void {
+  void jumpToMessage(messageId, 'indicator-navigation')
 }
 
 function requestChatScroll(
@@ -847,43 +861,53 @@ async function loadOlderMessagesAtTop(options: { force?: boolean } = {}): Promis
   requestChatScroll('history-prepend', { kind: 'absolute', top: targetScrollTop }, true)
 }
 
-async function focusPendingSpotlightMessageJump(attempt = 0): Promise<void> {
-  const pendingJump = spotlightStore.pendingMessageJump
-  if (!pendingJump || pendingJump.sessionId !== props.sessionId) {
-    return
-  }
-
+/**
+ * Requests a controller navigation to a message and highlights it once it is on screen.
+ *
+ * Shared by the Spotlight deep link and the "scroll to latest" indicator. Returns whether the
+ * target was reached: a caller with its own pending state keeps it until this resolves true.
+ * Retries are keyed by message so a repeated request cannot stack timers.
+ */
+async function jumpToMessage(
+  messageId: string,
+  reason: ChatScrollReason,
+  attempt = 0
+): Promise<boolean> {
   await nextTick()
 
-  const selector = messageIdSelector(pendingJump.messageId)
-  const entry = messageWindow.getEntry(pendingJump.messageId)
+  const entry = messageWindow.getEntry(messageId)
   if (entry) {
-    const requestId = requestChatScroll('spotlight-navigation', {
+    const requestId = requestChatScroll(reason, {
       kind: 'message',
-      messageId: pendingJump.messageId,
+      messageId,
       align: 'one-third'
     })
-    if (requestId === null) return
+    if (requestId === null) return false
     await waitForNextAnimationFrame()
     await nextTick()
   }
 
-  const target = messageSearchRoot.value?.querySelector<HTMLElement>(selector)
+  const target = messageSearchRoot.value?.querySelector<HTMLElement>(messageIdSelector(messageId))
 
   if (!target) {
     // Retry briefly while virtualized / async-rendered message content settles after session switch.
     if (attempt >= MAX_MESSAGE_JUMP_RETRIES) {
-      return
+      return false
     }
 
-    if (spotlightJumpTimer) {
-      window.clearTimeout(spotlightJumpTimer)
+    const pending = messageJumpTimers.get(messageId)
+    if (pending !== undefined) {
+      window.clearTimeout(pending)
     }
 
-    spotlightJumpTimer = window.setTimeout(() => {
-      void focusPendingSpotlightMessageJump(attempt + 1)
-    }, MESSAGE_JUMP_RETRY_INTERVAL)
-    return
+    messageJumpTimers.set(
+      messageId,
+      window.setTimeout(() => {
+        messageJumpTimers.delete(messageId)
+        void jumpToMessage(messageId, reason, attempt + 1)
+      }, MESSAGE_JUMP_RETRY_INTERVAL)
+    )
+    return false
   }
 
   target.classList.add('message-highlight')
@@ -892,7 +916,18 @@ async function focusPendingSpotlightMessageJump(attempt = 0): Promise<void> {
     target.classList.remove('message-highlight')
   }, MESSAGE_HIGHLIGHT_DURATION)
 
-  spotlightStore.clearPendingMessageJump()
+  return true
+}
+
+async function focusPendingSpotlightMessageJump(): Promise<void> {
+  const pendingJump = spotlightStore.pendingMessageJump
+  if (!pendingJump || pendingJump.sessionId !== props.sessionId) {
+    return
+  }
+
+  if (await jumpToMessage(pendingJump.messageId, 'spotlight-navigation')) {
+    spotlightStore.clearPendingMessageJump()
+  }
 }
 
 function cacheCurrentMessageMeasurements(): void {
@@ -1532,10 +1567,10 @@ onUnmounted(() => {
   cancelAllPlanSnapshotClearTimers()
   stopChatPageEventBridge()
   disposeChatSearch()
-  if (spotlightJumpTimer) {
-    window.clearTimeout(spotlightJumpTimer)
-    spotlightJumpTimer = null
+  for (const timer of messageJumpTimers.values()) {
+    window.clearTimeout(timer)
   }
+  messageJumpTimers.clear()
   chatScrollController.dispose()
   viewportResizeObserver?.disconnect()
   viewportResizeObserver = null

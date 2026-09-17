@@ -126,23 +126,31 @@ export function useMessageVirtualization(options: UseMessageVirtualizationOption
   const messageWindowAfterHeight = computed(() => messageWindowRange.value.after)
 
   /**
-   * Number of loaded messages that start below the viewport, used by the "scroll to latest"
-   * indicator. Derived from the logical layout map (every loaded message has an entry) with a
-   * binary search, so it stays O(log n) and works while windowing keeps rows unmounted.
+   * Index of the first loaded message that starts below the viewport, derived from the logical
+   * layout map (every loaded message has an entry) with a binary search, so it stays O(log n) and
+   * works while windowing keeps rows unmounted.
    *
-   * A partially visible row is not counted: the value answers "how many messages are entirely
-   * below what I can see".
+   * A partially visible row is not below: the boundary answers "what is entirely below what I can
+   * see". Without viewport geometry nothing can be claimed to be below, so the whole list is
+   * reported as visible rather than inventing a count.
    */
-  const messagesBelowViewport = computed(() => {
+  const firstMessageBelowViewportIndex = computed(() => {
     const entries = messageWindow.entries.value
     const total = entries.length
     if (total === 0) return 0
     const viewportHeight = scrollViewportHeight.value
-    if (viewportHeight <= 0) return 0
+    if (viewportHeight <= 0) return total
     const viewportTop = Math.max(scrollViewportTop.value - messageWindowOriginTop.value, 0)
-    const firstBelow = findFirstEntryWithTopAfter(entries, viewportTop + viewportHeight)
-    return Math.max(total - firstBelow, 0)
+    return Math.min(
+      Math.max(findFirstEntryWithTopAfter(entries, viewportTop + viewportHeight), 0),
+      total
+    )
   })
+
+  /** Loaded messages entirely below the viewport, oldest first. */
+  const messagesBelowViewport = computed(() =>
+    displayMessages.value.slice(firstMessageBelowViewportIndex.value)
+  )
 
   const usesWindowedMessages = () =>
     !options.disableWindowing?.value && messageWindow.entries.value.length > windowingThreshold

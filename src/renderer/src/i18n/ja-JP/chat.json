@@ -132,6 +132,9 @@
   "messages": {
     "loadEarlier": "以前のメッセージを読み込む",
     "scrollToLatest": "最新へ移動",
+    "newerMessages": "新しいメッセージ",
+    "expandNewerMessages": "新しいメッセージを展開",
+    "jumpToMessage": "このメッセージへ移動",
     "thinking": "思考中...",
     "rateLimitWaiting": "レート制限により、キューで待機中...",
     "rateLimitCompactLoading": "制限中（{seconds}秒）",

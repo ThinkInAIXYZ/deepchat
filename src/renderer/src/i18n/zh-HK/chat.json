@@ -132,6 +132,9 @@
   "messages": {
     "loadEarlier": "載入較早的訊息",
     "scrollToLatest": "回到最新",
+    "newerMessages": "較新的訊息",
+    "expandNewerMessages": "展開較新的訊息",
+    "jumpToMessage": "跳轉到這則訊息",
     "thinking": "正在思考...",
     "rateLimitWaiting": "速率限制，正在佇列等待...",
     "rateLimitCompactLoading": "限速中（第 {seconds} 秒）",

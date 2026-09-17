@@ -126,19 +126,24 @@ describe('useMessageVirtualization', () => {
     const entries = messageWindow.entries.value
     expect(entries).toHaveLength(200)
 
+    // Without viewport geometry nothing can be claimed to be below.
+    expect(virtualization.messagesBelowViewport.value).toEqual([])
+
     // Park the viewport so its bottom edge sits one pixel above entry 150: the 50 messages from
-    // there on are entirely below what the user can see.
+    // there on are entirely below what the user can see, oldest first.
     virtualization.scrollViewportHeight.value = 400
     virtualization.scrollViewportTop.value = entries[150].top - 401
-    expect(virtualization.messagesBelowViewport.value).toBe(50)
+    expect(virtualization.messagesBelowViewport.value).toHaveLength(50)
+    expect(virtualization.messagesBelowViewport.value[0]?.id).toBe('message-150')
+    expect(virtualization.messagesBelowViewport.value.at(-1)?.id).toBe('message-199')
 
-    // A partially visible row is not counted as below.
+    // A partially visible row is not below.
     virtualization.scrollViewportTop.value = entries[150].top - 400
-    expect(virtualization.messagesBelowViewport.value).toBe(49)
+    expect(virtualization.messagesBelowViewport.value).toHaveLength(49)
 
     // At the bottom nothing is below the viewport.
     virtualization.scrollViewportTop.value = messageWindow.totalHeight.value
-    expect(virtualization.messagesBelowViewport.value).toBe(0)
+    expect(virtualization.messagesBelowViewport.value).toEqual([])
   })
 
   it('counts below-viewport messages while windowing keeps rows unmounted', () => {
@@ -152,7 +157,7 @@ describe('useMessageVirtualization', () => {
     expect(virtualization.visibleDisplayMessages.value).toHaveLength(90)
     virtualization.scrollViewportHeight.value = 400
     virtualization.scrollViewportTop.value = 0
-    expect(virtualization.messagesBelowViewport.value).toBeGreaterThan(90)
+    expect(virtualization.messagesBelowViewport.value.length).toBeGreaterThan(90)
   })
 
   it('updates a streaming row in the window without expanding the mounted history', () => {

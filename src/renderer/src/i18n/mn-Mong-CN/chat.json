@@ -227,7 +227,10 @@
     "rateLimitSeconds": "ᠰᠧᠺᠦᠢᠨᠳ᠋",
     "rateLimitMinutes": "ᠮᠢᠨᠦᠢᠲ᠋",
     "loadEarlier": "ᠡᠮᠦᠨᠡᠬᠢ ᠮᠡᠳᠡᠭᠡ ᠶᠢ ᠠᠴᠢᠶᠠᠯᠠᠬᠤ",
-    "scrollToLatest": "ᠰᠢᠨᠡ ᠮᠡᠳᠡᠭᠡ ᠳᠤ ᠶᠠᠪᠤᠬᠤ"
+    "scrollToLatest": "ᠰᠢᠨᠡ ᠮᠡᠳᠡᠭᠡ ᠳᠤ ᠶᠠᠪᠤᠬᠤ",
+    "newerMessages": "ᠰᠢᠨᠡ ᠮᠡᠳᠡᠭᠡ ᠨᠠᠷ",
+    "expandNewerMessages": "ᠰᠢᠨᠡ ᠮᠡᠳᠡᠭᠡ ᠨᠠᠷᠢ ᠬᠠᠨᠢᠯᠭᠠᠬᠤ",
+    "jumpToMessage": "ᠡᠨᠡ ᠮᠡᠳᠡᠭᠡ ᠳᠤ ᠶᠠᠪᠤᠬᠤ"
   },
   "compaction": {
     "compacting": "ᠠᠰᠠᠭᠤᠳᠠᠯ ᠢ ᠴᠢᠩᠭ᠋ᠠᠳᠬᠠᠬᠤ ᠁",

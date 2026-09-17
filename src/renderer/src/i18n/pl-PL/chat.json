@@ -132,6 +132,9 @@
   "messages": {
     "loadEarlier": "Wczytaj wcześniejsze wiadomości",
     "scrollToLatest": "Przejdź do najnowszych",
+    "newerMessages": "Nowsze wiadomości",
+    "expandNewerMessages": "Pokaż nowsze wiadomości",
+    "jumpToMessage": "Przejdź do tej wiadomości",
     "thinking": "Myśląc...",
     "rateLimitWaiting": "Osiągnięto limit stawek, czekam w kolejce...",
     "rateLimitCompactLoading": "Stawka ograniczona dla {seconds}...",

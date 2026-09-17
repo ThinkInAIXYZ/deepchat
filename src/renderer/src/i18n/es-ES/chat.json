@@ -132,6 +132,9 @@
   "messages": {
     "loadEarlier": "Cargar mensajes anteriores",
     "scrollToLatest": "Ir a lo más reciente",
+    "newerMessages": "Mensajes más recientes",
+    "expandNewerMessages": "Mostrar mensajes más recientes",
+    "jumpToMessage": "Ir a este mensaje",
     "thinking": "Pensando...",
     "rateLimitWaiting": "Límite de frecuencia alcanzado; esperando en cola...",
     "rateLimitCompactLoading": "Límite de frecuencia durante {seconds}s...",
