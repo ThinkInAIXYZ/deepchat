@@ -59,18 +59,16 @@ async function main() {
   const unpackedRoot = path.join(resourcesDir, 'app.asar.unpacked')
 
   // The bundled app receives runtime/node through electron-builder
-  // extraResources; stage it directly from the repository runtime directory
-  // so the manifest pins the Node binary path and its checksum.
+  // extraResources when the repository runtime carries it; mirror whatever
+  // the repository has so the staged manifest matches the bundled layout.
+  // Node is optional: builds without it simply omit manifest.paths.node.
   const repoNodeDir = path.join(repositoryRoot, 'runtime', 'node')
-  if (!existsSync(repoNodeDir)) {
-    throw new Error(
-      `Repository Node runtime is missing: ${repoNodeDir} (run installRuntime for this platform first)`
-    )
+  if (existsSync(repoNodeDir)) {
+    cpSync(repoNodeDir, path.join(unpackedRoot, 'runtime', 'node'), {
+      recursive: true,
+      dereference: true
+    })
   }
-  cpSync(repoNodeDir, path.join(unpackedRoot, 'runtime', 'node'), {
-    recursive: true,
-    dereference: true
-  })
 
   await packageLightOcrAssets({
     packager: { projectDir: repositoryRoot, appInfo: { productFilename: 'DeepChat' } },
@@ -81,7 +79,7 @@ async function main() {
 
   const manifestPath = path.join(unpackedRoot, 'runtime', 'ocr', 'manifest.json')
   const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'))
-  if (manifest.supported !== true || !manifest.paths?.node) {
+  if (manifest.supported !== true) {
     throw new Error(
       `Staged OCR runtime manifest is not an installable payload: ${manifestPath}`
     )
