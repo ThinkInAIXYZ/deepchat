@@ -14,7 +14,27 @@ vi.unmock('node:path')
 import { OcrRuntimeAssetResolver } from '@/ocr/ocrRuntimeAssetResolver'
 import { OcrRuntimeAssetInstaller } from '@/ocr/runtimeAssetInstaller'
 import { resetProbeCacheForTests, type FetchLike } from '@/toolchains/downloader'
+import { ocrRuntimeInstallProgressEvent } from '@shared/contracts/events'
 import type { PluginCatalogTarget, RuntimeCatalogAsset } from '@shared/types/pluginCatalog'
+
+/**
+ * Mirrors the production wiring in composition.ts: every installer progress
+ * state must satisfy the ocr.runtimeInstall.progress event contract, which
+ * rejects empty versions.
+ */
+function createContractValidatingProgressCollector(): {
+  phases: string[]
+  onProgress: ConstructorParameters<typeof OcrRuntimeAssetInstaller>[0]['onProgress']
+} {
+  const phases: string[] = []
+  return {
+    phases,
+    onProgress: (state) => {
+      ocrRuntimeInstallProgressEvent.payload.parse({ ...state, updatedAt: Date.now() })
+      phases.push(state.phase)
+    }
+  }
+}
 
 const lightOcrVersion = '0.5.7'
 const runtimeVersion = '0.1.7'
@@ -193,17 +213,26 @@ describe('OcrRuntimeAssetInstaller', () => {
     const payload = zipSync(await collectFiles(payloadRoot))
 
     const installRoot = path.join(dir, 'runtimes', 'ocr')
+    const progress = createContractValidatingProgressCollector()
     const installer = new OcrRuntimeAssetInstaller({
       installRoot: () => installRoot,
       stagingRoot: () => path.join(installRoot, '.staging'),
       fetchImpl: fetchServingContent(payload),
-      probeTimeoutMs: 250
+      probeTimeoutMs: 250,
+      onProgress: progress.onProgress
     })
     const { asset, target } = createAssetAndTarget(payload)
 
     const result = await installer.install(asset, target)
 
     expect(result.ok).toBe(true)
+    expect([...new Set(progress.phases)]).toEqual([
+      'probing',
+      'downloading',
+      'verifying',
+      'installing',
+      'installed'
+    ])
     expect(installer.listInstalledRoots()).toEqual([path.join(installRoot, bundleId)])
     // Staging is cleaned up after success (only the empty staging root remains).
     expect(fs.readdirSync(path.join(installRoot, '.staging'))).toEqual([])
@@ -386,17 +415,22 @@ describe('OcrRuntimeAssetInstaller', () => {
     fs.writeFileSync(archivePath, Buffer.from(payload))
 
     const installRoot = path.join(dir, 'runtimes', 'ocr')
+    const progress = createContractValidatingProgressCollector()
     const installer = new OcrRuntimeAssetInstaller({
       installRoot: () => installRoot,
       stagingRoot: () => path.join(installRoot, '.staging'),
       platform: 'darwin',
-      arch: 'arm64'
+      arch: 'arm64',
+      onProgress: progress.onProgress
     })
 
     const result = await installer.installFromFile(archivePath)
 
     expect(result.ok).toBe(true)
     expect(result.version).toBe(bundleId)
+    // Manual installs only learn the version from the payload manifest, but
+    // every progress event still carries a non-empty version.
+    expect(progress.phases).toEqual(['verifying', 'installing', 'installed'])
     expect(installer.listInstalledVersions()).toEqual([bundleId])
 
     // The manually installed payload passes the resolver's identity checks.

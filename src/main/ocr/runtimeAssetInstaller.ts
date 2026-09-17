@@ -23,6 +23,11 @@ const OCR_RUNTIME_MANIFEST_ENTRY = 'runtime/ocr/manifest.json'
 // 8x ratio with a 256 MiB floor rejects zip bombs without rejecting builds.
 const MAX_DECOMPRESSION_RATIO = 8
 const MAX_DECOMPRESSED_BYTES_FLOOR = 256 * 1024 * 1024
+// Manual installs learn the version only from the payload manifest, which is
+// read mid-install. Progress events must carry a non-empty version (the
+// ocr.runtimeInstall.progress contract enforces min(1)), so pre-manifest
+// phases report this placeholder instead of an empty string.
+const PENDING_INSTALL_VERSION = 'pending'
 
 /** The subset of the packaged runtime manifest the installer relies on. */
 type PackagedRuntimeManifestLike = {
@@ -231,7 +236,7 @@ export class OcrRuntimeAssetInstaller {
       this.deps.onProgress?.(state)
     }
 
-    update('verifying', '')
+    update('verifying', PENDING_INSTALL_VERSION)
     const stagingDir = path.join(this.deps.stagingRoot(), randomUUID())
     try {
       fs.rmSync(stagingDir, { recursive: true, force: true })
@@ -258,7 +263,7 @@ export class OcrRuntimeAssetInstaller {
         ? { reason: 'cancelled', message: 'Install cancelled' }
         : describeInstallError(error)
       const phase: RuntimeAssetInstallPhase = reason === 'cancelled' ? 'cancelled' : 'error'
-      update(phase, '', { error: message })
+      update(phase, PENDING_INSTALL_VERSION, { error: message })
       if (phase === 'error') {
         logger.warn('[OcrRuntimeAssetInstaller] Manual install failed', {
           filePath,
