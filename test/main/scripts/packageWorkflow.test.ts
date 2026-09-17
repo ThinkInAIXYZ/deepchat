@@ -266,6 +266,21 @@ describe('native package reusable workflows', () => {
     }
   })
 
+  it('uploads the unbundled remote plugin packages for release staging', () => {
+    for (const definition of Object.values(reusableWorkflows)) {
+      const workflow = readWorkflow<ReusableWorkflow>(definition.name)
+      const remotePlugins = getStep(workflow, 'Upload remote plugin packages')
+      expect(remotePlugins.if).toBe("env.DEEPCHAT_UNBUNDLE_CUA == '1'")
+      expect(remotePlugins.with).toMatchObject({
+        name: definition.artifact.replace('deepchat-package-', 'deepchat-remote-plugins-'),
+        path: 'build/remote-plugins/*.dcplugin',
+        'if-no-files-found': 'warn',
+        'retention-days': 7,
+        overwrite: true
+      })
+    }
+  })
+
   it('derives macOS distribution evidence and disables identity discovery for verification', () => {
     const source = readWorkflowSource(reusableWorkflows.macos.name)
     const workflow = readWorkflow<ReusableWorkflow>(reusableWorkflows.macos.name)

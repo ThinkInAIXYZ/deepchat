@@ -238,6 +238,16 @@ jobs:
           pnpm run plugin:verify -- --name cua --platform darwin --arch "${TARGET_ARCH}" --plugin-root "${plugin_root}"
           pnpm run plugin:verify -- --name feishu --platform darwin --arch "${TARGET_ARCH}" --plugin-root "${plugin_root}"
 
+      - name: Upload remote plugin packages
+        if: env.DEEPCHAT_UNBUNDLE_CUA == '1'
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: deepchat-remote-plugins-darwin-${{ inputs.arch }}
+          path: build/remote-plugins/*.dcplugin
+          if-no-files-found: warn
+          retention-days: 7
+          overwrite: true
+
       - name: Compare installer sizes
         if: inputs.enforce-installer-size
         run: |
