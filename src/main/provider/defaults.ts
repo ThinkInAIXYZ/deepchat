@@ -39,10 +39,10 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
     baseUrl: 'https://api.cheaperinference.com/v1',
     enable: false,
     websites: {
-      official: 'https://cheaperinference.com/',
-      apiKey: '',
-      docs: 'https://cheaperinference.com/docs',
-      models: 'https://api.cheaperinference.com/v1/models',
+      official: 'https://www.cheaperinference.com/',
+      apiKey: 'https://www.cheaperinference.com/dashboard/keys',
+      docs: 'https://www.cheaperinference.com/docs',
+      models: 'https://www.cheaperinference.com/markets',
       defaultBaseUrl: 'https://api.cheaperinference.com/v1'
     }
   },
