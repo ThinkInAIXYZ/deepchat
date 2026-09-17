@@ -5,7 +5,7 @@ import path from 'node:path'
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
-import { zipSync } from 'fflate'
+import { unzipSync, zipSync } from 'fflate'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 vi.unmock('fs')
@@ -59,7 +59,10 @@ function createPluginPackageBytes(pluginId: string): Uint8Array {
 async function seedOcrRuntimeDirs(root: string): Promise<void> {
   const runtimeDir = path.join(root, 'runtime')
   await mkdir(path.join(runtimeDir, 'ocr', 'native'), { recursive: true })
-  await mkdir(path.join(root, 'app', 'out', 'main'), { recursive: true })
+  await mkdir(path.join(runtimeDir, 'ocr', 'facade'), { recursive: true })
+  await mkdir(path.join(runtimeDir, 'ocr', 'runtime'), { recursive: true })
+  await mkdir(path.join(runtimeDir, 'ocr', 'bundle'), { recursive: true })
+  await mkdir(path.join(root, 'out', 'main'), { recursive: true })
   await writeFile(
     path.join(runtimeDir, 'ocr', 'manifest.json'),
     JSON.stringify({
@@ -85,7 +88,14 @@ async function seedOcrRuntimeDirs(root: string): Promise<void> {
     })
   )
   await writeFile(path.join(runtimeDir, 'ocr', 'native', 'engine.bin'), 'engine')
-  await writeFile(path.join(root, 'app', 'out', 'main', 'lightOcrHelper.js'), 'helper')
+  await writeFile(path.join(runtimeDir, 'ocr', 'facade', 'index.cjs'), 'facade')
+  await writeFile(path.join(runtimeDir, 'ocr', 'runtime', 'index.cjs'), 'runtime')
+  await writeFile(
+    path.join(runtimeDir, 'ocr', 'package.json'),
+    JSON.stringify({ name: '@arcships/light-ocr-model-fixture', version: '0.3.4' })
+  )
+  await writeFile(path.join(runtimeDir, 'ocr', 'bundle', 'manifest.json'), '{"bundleId":"x"}')
+  await writeFile(path.join(root, 'out', 'main', 'lightOcrHelper.js'), 'helper')
 }
 
 describe('plugin-catalog.mjs generate', () => {
@@ -108,8 +118,6 @@ describe('plugin-catalog.mjs generate', () => {
       artifactsDir,
       '--runtime-dir',
       path.join(root, 'runtime'),
-      '--app-root',
-      path.join(root, 'app'),
       '--base-url',
       'https://github.com/ThinkInAIXYZ/deepchat/releases/download/v1.1.2',
       '--mirror',
@@ -138,6 +146,21 @@ describe('plugin-catalog.mjs generate', () => {
     // The OCR payload zip is emitted next to the plugin artifacts.
     const packaged = fs.readdirSync(artifactsDir).filter((name) => name.endsWith('.zip'))
     expect(packaged).toEqual(['light-ocr-ppocrv6-small-native-test-darwin-arm64.zip'])
+    // The payload carries the full closure the runtime resolver validates:
+    // the manifest, the helper, and every package directory the manifest
+    // references — not just the runtime/ocr subtree.
+    const payloadEntries = Object.keys(
+      unzipSync(new Uint8Array(fs.readFileSync(path.join(artifactsDir, packaged[0]))))
+    ).sort()
+    expect(payloadEntries).toEqual([
+      'out/main/lightOcrHelper.js',
+      'runtime/ocr/bundle/manifest.json',
+      'runtime/ocr/facade/index.cjs',
+      'runtime/ocr/manifest.json',
+      'runtime/ocr/native/engine.bin',
+      'runtime/ocr/package.json',
+      'runtime/ocr/runtime/index.cjs'
+    ])
   })
 
   it('rejects plain http base urls for remote hosts', async () => {

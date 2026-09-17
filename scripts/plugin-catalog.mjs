@@ -42,7 +42,6 @@ function parseArgs(argv) {
     minAppVersion: appVersion,
     artifactsDir: path.join(repositoryRoot, 'build', 'bundled-plugins'),
     runtimeDir: path.join(repositoryRoot, 'runtime'),
-    appRoot: repositoryRoot,
     catalogPath: CATALOG_PATH,
     platform: process.env.TARGET_PLATFORM || process.platform,
     arch: process.env.TARGET_ARCH || process.arch,
@@ -74,8 +73,6 @@ function parseArgs(argv) {
       args.artifactsDir = path.resolve(argv[++i])
     } else if (argument === '--runtime-dir') {
       args.runtimeDir = path.resolve(argv[++i])
-    } else if (argument === '--app-root') {
-      args.appRoot = path.resolve(argv[++i])
     } else if (argument === '--catalog') {
       args.catalogPath = path.resolve(argv[++i])
     } else if (argument === '--platform') {
@@ -205,16 +202,50 @@ function generate(args) {
     if (!helperPath) {
       throw new Error('OCR runtime manifest does not declare a helper path')
     }
-    // The payload mirrors the unpacked app root layout: runtime/ocr/** plus
-    // the built helper entry. Only the OCR subtree is packaged — the node/uv
-    // toolchain runtimes are distributed separately.
+    // The payload mirrors the unpacked app root layout that the runtime
+    // resolver validates after installation: runtime/ocr/**, the staged
+    // helper closure, the pinned Node binary, and the light-ocr packages
+    // declared by manifest.paths. Point --runtime-dir at a staged layout
+    // (scripts/stage-ocr-runtime.mjs); a repository root has no such layout
+    // and would produce an uninstallable payload.
+    const unpackedRoot = path.dirname(args.runtimeDir)
     const payloadFiles = {}
-    collectFiles(ocrRuntimeDir, ocrRuntimeDir, payloadFiles, 'runtime/ocr')
-    const helperAbs = path.join(args.appRoot, helperPath)
-    if (!existsSync(helperAbs)) {
-      throw new Error(`OCR helper entry not found: ${helperAbs}`)
+    collectPayloadEntries(ocrRuntimeDir, ocrRuntimeDir, payloadFiles, 'runtime/ocr')
+    const collectPayloadDir = (relativeDir, label) => {
+      const absoluteDir = path.join(unpackedRoot, relativeDir)
+      if (!existsSync(absoluteDir)) {
+        throw new Error(`OCR runtime payload directory not found: ${label} at ${absoluteDir}`)
+      }
+      collectPayloadEntries(absoluteDir, absoluteDir, payloadFiles, relativeDir)
     }
-    payloadFiles[helperPath] = new Uint8Array(readFileSync(helperAbs))
+    const collectPayloadFile = (relativePath, label) => {
+      const absolutePath = path.join(unpackedRoot, relativePath)
+      if (!existsSync(absolutePath)) {
+        throw new Error(`OCR runtime payload file not found: ${label} at ${absolutePath}`)
+      }
+      payloadFiles[relativePath] = new Uint8Array(readFileSync(absolutePath))
+    }
+    const helperDir = path.dirname(helperPath)
+    if (helperDir && helperDir !== '.') {
+      collectPayloadDir(helperDir, 'helper closure')
+    } else {
+      collectPayloadFile(helperPath, 'helper entry')
+    }
+    for (const key of ['facade', 'runtime', 'bundle', 'native']) {
+      const relativeDir = manifest.paths?.[key]
+      if (relativeDir) collectPayloadDir(relativeDir, `${key} package`)
+    }
+    if (manifest.paths?.bundle) {
+      // The resolver verifies the model bundle identity against the package
+      // manifest one level above the bundle directory.
+      const bundleParent = path.dirname(manifest.paths.bundle)
+      if (bundleParent && bundleParent !== '.') {
+        collectPayloadFile(`${bundleParent}/package.json`, 'bundle package manifest')
+      }
+    }
+    if (manifest.paths?.node) {
+      collectPayloadFile(manifest.paths.node, 'Node binary')
+    }
     const payload = zipSync(payloadFiles, { level: 6 })
     const fileName = `${OCR_RUNTIME_ASSET_ID}-${manifest.bundleId}-${manifest.platform}-${manifest.arch}.zip`
     const url = `${args.baseUrl.replace(/\/$/, '')}/${fileName}`
@@ -271,14 +302,18 @@ function generate(args) {
   }
 }
 
-function collectFiles(rootDir, currentDir, into, prefix = '') {
+function collectPayloadEntries(rootDir, currentDir, into, prefix = '') {
   for (const entry of readdirSync(currentDir, { withFileTypes: true })) {
     const absolute = path.join(currentDir, entry.name)
     if (entry.isDirectory()) {
-      collectFiles(rootDir, absolute, into, prefix)
+      collectPayloadEntries(rootDir, absolute, into, prefix)
       continue
     }
-    if (!entry.isFile()) continue
+    if (!entry.isFile()) {
+      // Symlinks and other special entries would silently drop payload
+      // content; a staged layout only contains regular files.
+      throw new Error(`OCR runtime payload must only contain regular files: ${absolute}`)
+    }
     const relative = path.relative(rootDir, absolute).split(path.sep).join('/')
     into[`${prefix}${prefix ? '/' : ''}${relative}`] = new Uint8Array(readFileSync(absolute))
   }

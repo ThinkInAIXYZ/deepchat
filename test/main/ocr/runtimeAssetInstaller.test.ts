@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto'
+import { spawnSync } from 'node:child_process'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
@@ -434,6 +435,80 @@ describe('OcrRuntimeAssetInstaller', () => {
     expect(installer.listInstalledVersions()).toEqual([bundleId])
 
     // The manually installed payload passes the resolver's identity checks.
+    const availability = await new OcrRuntimeAssetResolver({
+      appPath: path.join(dir, 'resources', 'app.asar'),
+      isPackaged: true,
+      platform: 'darwin',
+      arch: 'arm64',
+      installedRuntimeRoots: () => installer.listInstalledRoots()
+    }).resolve()
+    expect(availability).toMatchObject({ status: 'available' })
+  })
+
+  it('installs the payload produced by the catalog generator', async () => {
+    const dir = await createTempDir()
+    const payloadRoot = path.join(dir, 'payload-root')
+    await seedRuntimeRoot(payloadRoot)
+    const artifactsDir = path.join(dir, 'remote-plugins')
+    await mkdir(artifactsDir, { recursive: true })
+    const catalogPath = path.join(artifactsDir, 'plugin-catalog.json')
+
+    // Run the real generator CLI against the staged unpacked-root layout,
+    // exactly as the package workflow does.
+    const generate = spawnSync(
+      process.execPath,
+      [
+        path.join(process.cwd(), 'scripts', 'plugin-catalog.mjs'),
+        'generate',
+        '--runtime-dir',
+        path.join(payloadRoot, 'runtime'),
+        '--artifacts-dir',
+        artifactsDir,
+        '--catalog',
+        catalogPath,
+        '--base-url',
+        'http://127.0.0.1:8787/',
+        '--write'
+      ],
+      { encoding: 'utf8' }
+    )
+    expect(generate.stderr).toBe('')
+    expect(generate.status).toBe(0)
+
+    const payloadName = `light-ocr-${bundleId}-darwin-arm64.zip`
+    const payloadPath = path.join(artifactsDir, payloadName)
+    expect(fs.existsSync(payloadPath)).toBe(true)
+
+    // The catalog pins the exact payload bytes.
+    const catalog = JSON.parse(fs.readFileSync(catalogPath, 'utf8')) as {
+      runtimeAssets?: Array<{
+        id: string
+        version: string
+        targets: Array<{ platform: string; arch: string; sha256: string; size: number }>
+      }>
+    }
+    const asset = catalog.runtimeAssets?.find((entry) => entry.id === 'light-ocr')
+    expect(asset?.version).toBe(bundleId)
+    const target = asset?.targets.find(
+      (candidate) => candidate.platform === 'darwin' && candidate.arch === 'arm64'
+    )
+    expect(target?.sha256).toBe(sha256(new Uint8Array(fs.readFileSync(payloadPath))))
+    expect(target?.size).toBe(fs.statSync(payloadPath).size)
+
+    // The generated payload is installable and passes the resolver checks —
+    // the regression guard against incomplete payload packaging.
+    const installRoot = path.join(dir, 'runtimes', 'ocr')
+    const installer = new OcrRuntimeAssetInstaller({
+      installRoot: () => installRoot,
+      stagingRoot: () => path.join(installRoot, '.staging'),
+      platform: 'darwin',
+      arch: 'arm64'
+    })
+
+    const result = await installer.installFromFile(payloadPath)
+
+    expect(result.ok).toBe(true)
+    expect(result.version).toBe(bundleId)
     const availability = await new OcrRuntimeAssetResolver({
       appPath: path.join(dir, 'resources', 'app.asar'),
       isPackaged: true,

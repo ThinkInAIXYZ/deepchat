@@ -196,9 +196,14 @@ DEEPCHAT_PLUGIN_CATALOG=/tmp/dc-catalog.json pnpm run dev
 
 `DEEPCHAT_PLUGIN_CATALOG` is ignored in packaged builds. To exercise mirror fallback, pass
 `--mirror http://127.0.0.1:8788/` (mirrors are URL prefixes) and point the second port at a
-server that serves a corrupted copy: the pinned sha256 must reject it. For the OCR payload, add
-`--runtime-dir <unpacked app root>/runtime` so `generate` packages `runtime/ocr/**` plus the
-built helper, and build the app with `DEEPCHAT_UNBUNDLE_OCR=1` so the bundled copy is absent.
+server that serves a corrupted copy: the pinned sha256 must reject it. For the OCR payload,
+stage the runtime layout first (`node scripts/stage-ocr-runtime.mjs --platform darwin --arch
+arm64 --out build/ocr-runtime-staging`, after `pnpm run build` and the platform's
+`installRuntime` script), then pass `--runtime-dir
+build/ocr-runtime-staging/<resources>/app.asar.unpacked/runtime` so `generate` packages the
+full closure — `runtime/ocr/**`, the helper, the pinned Node binary, and the light-ocr
+packages the manifest references. Build the app with `DEEPCHAT_UNBUNDLE_OCR=1` so the
+bundled copy is absent.
 
 Staging on a real prerelease (spec layer L2) is the next step up: publish the `.dcplugin` assets
 to a `--prerelease` GitHub release, regenerate the catalog with the real base URL, and verify

@@ -232,6 +232,23 @@ jobs:
           fi
           echo "Verified OCR runtime is absent (distributed remotely)"
 
+      # Produces the remotely distributed OCR runtime payload plus a catalog
+      # that pins every staged artifact. The loopback base URL makes the
+      # catalog directly usable for L1-style local testing: serve
+      # build/remote-plugins over http and point DEEPCHAT_PLUGIN_CATALOG at
+      # plugin-catalog.json in a dev build.
+      - name: Stage and package the remote OCR runtime payload
+        if: env.DEEPCHAT_UNBUNDLE_OCR == '1'
+        run: |
+          node scripts/stage-ocr-runtime.mjs --platform darwin --arch "${TARGET_ARCH}" --out build/ocr-runtime-staging
+          mkdir -p build/remote-plugins
+          node scripts/plugin-catalog.mjs generate \
+            --runtime-dir "build/ocr-runtime-staging/DeepChat.app/Contents/Resources/app.asar.unpacked/runtime" \
+            --artifacts-dir build/remote-plugins \
+            --catalog build/remote-plugins/plugin-catalog.json \
+            --base-url "http://127.0.0.1:8787/" \
+            --write
+
       - name: Verify bundled plugins
         run: |
           plugin_root="${APP_DIRECTORY}/Contents/Resources/app.asar.unpacked/plugins"
@@ -239,11 +256,14 @@ jobs:
           pnpm run plugin:verify -- --name feishu --platform darwin --arch "${TARGET_ARCH}" --plugin-root "${plugin_root}"
 
       - name: Upload remote plugin packages
-        if: env.DEEPCHAT_UNBUNDLE_CUA == '1'
+        if: env.DEEPCHAT_UNBUNDLE_CUA == '1' || env.DEEPCHAT_UNBUNDLE_OCR == '1'
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: deepchat-remote-plugins-darwin-${{ inputs.arch }}
-          path: build/remote-plugins/*.dcplugin
+          path: |
+            build/remote-plugins/*.dcplugin
+            build/remote-plugins/*.zip
+            build/remote-plugins/plugin-catalog.json
           if-no-files-found: warn
           retention-days: 7
           overwrite: true
