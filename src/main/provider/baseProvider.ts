@@ -209,9 +209,11 @@ export abstract class BaseLLMProvider {
    * Including fetching model list, configuring proxy, etc.
    */
   protected async init() {
+    // Disabled drafts still support explicit requests. Only background catalog
+    // loading and automatic model enablement depend on the persisted enable flag.
+    this.isInitialized = true
     if (this.provider.enable) {
       try {
-        this.isInitialized = true
         this.fetchModels()
           .then(() => {
             return this.autoEnableModelsIfNeeded()
