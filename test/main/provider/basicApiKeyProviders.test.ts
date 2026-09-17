@@ -159,6 +159,25 @@ describe('basic API-key provider registrations', () => {
     })
   })
 
+  it('resolves Cheaper Inference through authenticated OpenAI-compatible model discovery', () => {
+    expect(
+      resolveAiSdkProviderDefinition(
+        createProvider({
+          id: 'cheaper-inference',
+          name: 'Cheaper Inference',
+          baseUrl: 'https://api.cheaperinference.com/v1'
+        })
+      )
+    ).toMatchObject({
+      runtimeKind: 'openai-compatible',
+      modelSource: 'openai',
+      checkStrategy: 'fetch-models',
+      credentialStrategy: 'api-key',
+      routeStrategy: 'none',
+      embeddingStrategy: 'none'
+    })
+  })
+
   it('resolves API Route through authenticated OpenAI-compatible model discovery', () => {
     expect(
       resolveAiSdkProviderDefinition(
