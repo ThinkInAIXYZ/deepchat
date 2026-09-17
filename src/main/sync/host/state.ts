@@ -1,0 +1,149 @@
+import { randomBytes } from 'node:crypto'
+import fs from 'node:fs'
+import path from 'node:path'
+
+const STATE_FILENAME = 'host-state.json'
+
+export interface SyncHostDeviceRecord {
+  deviceId: string
+  name: string
+  /** SHA-256 of the device bearer token. The token itself is never persisted. */
+  tokenHash: string
+  createdAt: number
+  lastSeenAt: number | null
+  expiresAt: number | null
+  revokedAt: number | null
+}
+
+export interface SyncHostState {
+  enabled: boolean
+  hostId: string | null
+  devices: SyncHostDeviceRecord[]
+}
+
+const DEFAULT_STATE: SyncHostState = { enabled: false, hostId: null, devices: [] }
+
+/**
+ * Machine-local state for host mode, stored as a private file instead of a settings key.
+ *
+ * This is deliberate. Settings flow into backup packages (`configs/app-settings.json`), into
+ * S3/R2 uploads, and into every peer that imports a package, and import merges settings wholesale.
+ * Device token hashes, the host identity and the enabled flag must never travel: an imported copy
+ * would let an importer accept another host's device tokens, resurrect revoked devices, and enable
+ * host mode without the user's consent. Keeping them in their own file removes that path entirely.
+ *
+ * Reads are served from an in-memory cache so request-time authentication stays synchronous; writes
+ * are serialized, atomic (temp + rename), and `0600`.
+ */
+export class SyncHostStateStore {
+  private state: SyncHostState = { ...DEFAULT_STATE }
+  private loaded = false
+  private loadChain: Promise<SyncHostState> | null = null
+  private writeChain: Promise<void> = Promise.resolve()
+
+  constructor(private readonly directory: string) {}
+
+  get filePath(): string {
+    return path.join(this.directory, STATE_FILENAME)
+  }
+
+  /**
+   * Reads state from disk once. Concurrent callers share the same read.
+   */
+  async load(): Promise<SyncHostState> {
+    if (this.loaded) return this.snapshot()
+    if (!this.loadChain) this.loadChain = this.loadFromDisk()
+    return this.loadChain
+  }
+
+  private async loadFromDisk(): Promise<SyncHostState> {
+    let parsed: unknown = null
+    try {
+      parsed = JSON.parse(await fs.promises.readFile(this.filePath, 'utf8')) as unknown
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') parsed = null
+    }
+    this.state = this.normalize(parsed)
+    this.loaded = true
+    return this.snapshot()
+  }
+
+  isLoaded(): boolean {
+    return this.loaded
+  }
+
+  snapshot(): SyncHostState {
+    return {
+      ...this.state,
+      devices: this.state.devices.map((record) => ({ ...record }))
+    }
+  }
+
+  /**
+   * Applies a mutation to the cached state and persists it atomically.
+   *
+   * Loading first is not an optimisation, it is a correctness requirement: a mutation that arrives
+   * before the initial read (a renderer call landing between route registration and app boot) would
+   * otherwise persist the empty default state over the real file, discarding every device record
+   * and the enabled flag.
+   */
+  async update(mutator: (state: SyncHostState) => void): Promise<void> {
+    if (!this.loaded) await this.load()
+    const next = this.snapshot()
+    mutator(next)
+    this.state = next
+    await this.persist()
+  }
+
+  /** Resolves once every queued write has settled; used by teardown and tests. */
+  async flush(): Promise<void> {
+    await this.writeChain
+  }
+
+  private persist(): Promise<void> {
+    const payload = `${JSON.stringify(this.state, null, 2)}\n`
+    // The caller must see write failures: a revocation that silently failed to persist would come
+    // back to life after a restart. The chain keeps ordering while tolerating a failed link.
+    const write = this.writeChain.then(() => this.writeAtomic(payload))
+    this.writeChain = write.catch(() => undefined)
+    return write
+  }
+
+  private async writeAtomic(payload: string): Promise<void> {
+    await fs.promises.mkdir(this.directory, { recursive: true, mode: 0o700 })
+    try {
+      await fs.promises.chmod(this.directory, 0o700)
+    } catch {
+      // Best effort: the directory may live on a filesystem without POSIX modes.
+    }
+    const tempPath = `${this.filePath}.${randomBytes(6).toString('hex')}.tmp`
+    const handle = await fs.promises.open(tempPath, 'wx', 0o600)
+    try {
+      await handle.writeFile(payload, 'utf8')
+      await handle.sync()
+    } finally {
+      await handle.close()
+    }
+    await fs.promises.chmod(tempPath, 0o600)
+    await fs.promises.rename(tempPath, this.filePath)
+  }
+
+  private normalize(parsed: unknown): SyncHostState {
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return { ...DEFAULT_STATE }
+    const record = parsed as Partial<SyncHostState>
+    return {
+      enabled: record.enabled === true,
+      hostId: typeof record.hostId === 'string' && record.hostId.length > 0 ? record.hostId : null,
+      devices: Array.isArray(record.devices)
+        ? record.devices.filter(
+            (device): device is SyncHostDeviceRecord =>
+              Boolean(device) &&
+              typeof device.deviceId === 'string' &&
+              typeof device.name === 'string' &&
+              typeof device.tokenHash === 'string' &&
+              typeof device.createdAt === 'number'
+          )
+        : []
+    }
+  }
+}
