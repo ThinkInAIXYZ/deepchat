@@ -152,9 +152,14 @@ describe('Linux ARM64 packaging', () => {
     expect(steps.find((step) => step.name === 'Bundle Feishu plugin')?.if).toBeUndefined()
 
     const ocrSmoke = steps.find((step) => step.name === 'Verify packaged Light OCR offline')
-    expect(ocrSmoke?.if).toBeUndefined()
+    expect(ocrSmoke?.if).toBe("env.DEEPCHAT_UNBUNDLE_OCR != '1'")
     expect(ocrSmoke?.run).toContain('--expect-supported')
     expect(ocrSmoke?.run).toContain('dist/${UNPACKED_DIRECTORY}/resources')
+    const ocrAbsent = steps.find(
+      (step) => step.name === 'Verify packaged OCR runtime is absent'
+    )
+    expect(ocrAbsent?.if).toBe("env.DEEPCHAT_UNBUNDLE_OCR == '1'")
+    expect(ocrAbsent?.run).toContain('runtime/ocr')
     expect(
       steps.find((step) => step.name?.includes('OCR is unavailable'))
     ).toBeUndefined()
