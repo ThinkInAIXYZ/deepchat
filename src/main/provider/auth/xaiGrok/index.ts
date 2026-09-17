@@ -169,10 +169,11 @@ export class XaiGrokAuth {
       return this.statusFromTokens(tokens)
     }
 
+    const statusError = this.store.getLoadError() ?? this.lastError
     return this.withStorage({
-      state: this.lastError ? 'error' : 'signed-out',
+      state: statusError ? 'error' : 'signed-out',
       authenticated: false,
-      ...(this.lastError ? { error: this.lastError } : {})
+      ...(statusError ? { error: statusError } : {})
     })
   }
 
@@ -313,7 +314,7 @@ export class XaiGrokAuth {
   async getAccessToken(): Promise<string> {
     const token = await this.ensureAccessToken()
     if (!token) {
-      throw new Error('xAI Grok OAuth sign-in is required')
+      throw new Error(this.store.getLoadError() ?? 'xAI Grok OAuth sign-in is required')
     }
     return token
   }
@@ -322,7 +323,7 @@ export class XaiGrokAuth {
     this.assertEnabled()
     const tokens = this.store.load()
     if (!tokens?.refreshToken) {
-      throw new Error('xAI Grok OAuth refresh token is unavailable')
+      throw new Error(this.store.getLoadError() ?? 'xAI Grok OAuth refresh token is unavailable')
     }
     const refreshed = await this.refreshAccessToken(tokens, true)
     return refreshed.accessToken
