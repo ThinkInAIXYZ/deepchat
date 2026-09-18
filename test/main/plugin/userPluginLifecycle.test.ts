@@ -2,6 +2,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { randomUUID } from 'node:crypto'
+import { zipSync } from 'fflate'
 import { afterEach, expect, it, vi } from 'vitest'
 import { UserPlugins, type UserPluginRecord, type UserPluginStore } from '@/plugin/userPlugins'
 import { UserPluginHooks } from '@/plugin/userPluginHooks'
@@ -9,6 +10,7 @@ import { McpSettings } from '@/mcp/settings'
 import { SecretStore } from '@/config/secretStore'
 import { safeStorage } from 'electron'
 import type { TapeAnchorAppendInput, DeepChatTapeEntryRow } from '@/tape/domain/entry'
+import { USER_PLUGIN_INSTALL_DIRECTORY } from '@shared/pluginPaths'
 
 vi.unmock('fs')
 vi.unmock('node:fs')
@@ -139,6 +141,99 @@ function fixture() {
     wrappedSecrets
   }
 }
+
+it('installs the Baizhi example ZIP and preserves secret bindings through replacement and reload', async () => {
+  const f = fixture()
+  const source = path.resolve('examples/user-plugins/baizhi-agent-toolkit')
+  const archive = path.join(f.root, 'baizhi-agent-toolkit.zip')
+  fs.writeFileSync(
+    archive,
+    zipSync(
+      Object.fromEntries(
+        fs
+          .readdirSync(source, { recursive: true, encoding: 'utf8' })
+          .filter((relative) => fs.statSync(path.join(source, relative)).isFile())
+          .map((relative) => [
+            relative.split(path.sep).join('/'),
+            fs.readFileSync(path.join(source, relative))
+          ])
+      )
+    )
+  )
+  const unrelated = await f.mcpSettings.getMcpServers()
+  const inspected = await f.service.inspect({ kind: 'zip', path: archive }, randomUUID())
+  expect(inspected.package).toMatchObject({
+    name: 'baizhi-agent-toolkit',
+    skills: [],
+    hooks: [],
+    findings: [],
+    mcpServers: [
+      {
+        name: 'agent-toolkit',
+        type: 'http',
+        url: 'https://agent-toolkit.app.baizhi.cloud/mcp',
+        headers: { Authorization: 'Bearer ${BAIZHI_API_KEY}' },
+        requiredVariables: ['BAIZHI_API_KEY']
+      }
+    ]
+  })
+  const selection = { skills: false, hooks: false, mcp: true }
+  const installed = await f.service.install({ operationId: inspected.operationId, selection })
+  expect(installed.ok).toBe(true)
+  expect(installed.status).toMatchObject({ enabled: false, official: false, trusted: false })
+  expect(await f.mcpSettings.getMcpServers()).toEqual(unrelated)
+  const id = installed.status!.id
+  const key = `${id}.agent-toolkit`
+  expect((await f.service.enable(id)).ok).toBe(true)
+  const first = (await f.mcpSettings.getMcpServers())[key]
+  expect(first).toMatchObject({
+    type: 'http',
+    baseUrl: 'https://agent-toolkit.app.baizhi.cloud/mcp',
+    customHeaders: { Authorization: 'Bearer ${BAIZHI_API_KEY}' },
+    environmentVariables: ['BAIZHI_API_KEY']
+  })
+  expect((await f.service.get(id)).userPlugin?.setup[key]).toEqual(['BAIZHI_API_KEY'])
+  expect(await f.service.configureMcp(id, key, { BAIZHI_API_KEY: '' })).toMatchObject({
+    ok: false,
+    error: 'Invalid MCP variable binding'
+  })
+  expect(f.mcpSettings.getMcpVariableBindings(first)).toEqual({})
+
+  // The fixture mocks safeStorage and connections; this checks storage boundaries, not OS encryption.
+  const token = randomUUID()
+  expect((await f.service.configureMcp(id, key, { BAIZHI_API_KEY: token })).ok).toBe(true)
+  expect(f.mcpSettings.getMcpVariableBindings(first)).toEqual({ BAIZHI_API_KEY: token })
+  expect(JSON.stringify(f.store.read())).not.toContain(token)
+  expect(JSON.stringify(await f.service.get(id))).not.toContain(token)
+  expect(JSON.stringify(await f.mcpSettings.getMcpServers())).not.toContain(token)
+  expect(JSON.stringify([...f.wrappedSecrets.values()])).not.toContain(token)
+  const replacement = await f.service.inspect({ kind: 'zip', path: archive }, randomUUID())
+  expect(
+    (
+      await f.service.install({
+        operationId: replacement.operationId,
+        pluginId: id,
+        selection
+      })
+    ).ok
+  ).toBe(true)
+  f.service.shutdown()
+  const reloaded = new UserPlugins(f.deps)
+  await reloaded.initialize()
+  expect((await reloaded.get(id)).enabled).toBe(true)
+  expect((await reloaded.get(id)).userPlugin?.setup[key]).toEqual([])
+  const current = (await f.mcpSettings.getMcpServers())[key]
+  expect(current.serverId).toBe(first.serverId)
+  expect(current.customHeaders).toEqual({ Authorization: 'Bearer ${BAIZHI_API_KEY}' })
+  expect(f.mcpSettings.getMcpVariableBindings(current)).toEqual({ BAIZHI_API_KEY: token })
+  expect((await reloaded.uninstall(id)).ok).toBe(true)
+  expect(await f.mcpSettings.getMcpServers()).toEqual(unrelated)
+  expect(f.store.read()).toEqual([])
+  expect(f.wrappedSecrets.size).toBe(0)
+  expect(fs.existsSync(path.join(f.deps.root, USER_PLUGIN_INSTALL_DIRECTORY, id.slice(5)))).toBe(
+    false
+  )
+})
 
 it('installs disabled, preserves host MCP identities across enable cycles, and removes only owned resources', async () => {
   const f = fixture()

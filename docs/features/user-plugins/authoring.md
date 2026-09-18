@@ -10,6 +10,13 @@ capabilities independently. Installation creates a disabled plugin. Enabling it 
 selected Skills and MCP servers and authorizes the reviewed hooks for subsequent DeepChat work.
 Direct ACP agents do not receive these hooks.
 
+For an installable MCP-only example, see
+[Baizhi Cloud Agent Toolkit](../../../examples/user-plugins/baizhi-agent-toolkit/README.md)
+([简体中文](../../../examples/user-plugins/baizhi-agent-toolkit/README.zh-CN.md)). It uses the existing
+password field for a user-supplied Bearer key and includes ZIP packaging instructions, credential
+rotation and removal guidance. The hosted service requires a separate account and may charge for
+usage; the example is optional and is not bundled or auto-enabled.
+
 ## A complete skills-and-hooks package
 
 ```text
