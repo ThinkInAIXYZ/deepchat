@@ -3,7 +3,6 @@ import {
   buildMinimapTicks,
   buildMinimapViewportWindow,
   findMinimapTickIndexAt,
-  resolveMarkPitch,
   type MinimapTick
 } from '@/features/chat-page/model/minimapTicks'
 import type { MessageLayoutEntry } from '@/composables/message/useMessageWindow'
@@ -157,24 +156,5 @@ describe('findMinimapTickIndexAt', () => {
   it('reports nothing without a window or marks', () => {
     expect(findMinimapTickIndexAt(ticks, null)).toBeNull()
     expect(findMinimapTickIndexAt([], { top: 0, height: 0.1 })).toBeNull()
-  })
-})
-
-describe('resolveMarkPitch', () => {
-  it('spreads a short conversation across the whole rail', () => {
-    expect(resolveMarkPitch({ railHeight: 700, count: 20 })).toBe(35)
-  })
-
-  it('stops shrinking at the floor so a long conversation scrolls instead', () => {
-    expect(resolveMarkPitch({ railHeight: 700, count: 200 })).toBe(14)
-  })
-
-  it('keeps a two-message conversation from pinning its marks to opposite ends', () => {
-    expect(resolveMarkPitch({ railHeight: 700, count: 2 })).toBe(44)
-  })
-
-  it('falls back to the floor before the rail has been measured', () => {
-    expect(resolveMarkPitch({ railHeight: 0, count: 5 })).toBe(14)
-    expect(resolveMarkPitch({ railHeight: 700, count: 0 })).toBe(14)
   })
 })

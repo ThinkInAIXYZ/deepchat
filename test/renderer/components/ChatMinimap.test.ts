@@ -63,8 +63,8 @@ describe('ChatMinimap', () => {
     const drawn = marks(wrapper)
 
     expect(drawn[0].attributes('style')).toContain('top: 0px')
-    expect(drawn[1].attributes('style')).toContain('top: 14px')
-    expect(drawn[2].attributes('style')).toContain('top: 28px')
+    expect(drawn[1].attributes('style')).toContain('top: 16px')
+    expect(drawn[2].attributes('style')).toContain('top: 32px')
   })
 
   it('scrolls its own content once the marks no longer fit', async () => {
@@ -77,7 +77,7 @@ describe('ChatMinimap', () => {
     const { wrapper } = await mountRail({ ticks: many })
 
     const content = wrapper.get('[data-testid="chat-minimap-rail"] > div')
-    expect(content.attributes('style')).toContain('height: 840px')
+    expect(content.attributes('style')).toContain('height: 960px')
     expect(wrapper.get('[data-testid="chat-minimap-rail"]').classes()).toContain('overflow-y-auto')
   })
 
@@ -112,8 +112,8 @@ describe('ChatMinimap', () => {
   it('treats the space between two marks as belonging to a mark', async () => {
     const { wrapper, rail } = await mountRail()
 
-    // y=12 is the gap under the first mark; it resolves to that mark rather than to nothing.
-    pointerAtPx(rail, 12)
+    // y=14 is the gap under the first mark; it resolves to that mark rather than to nothing.
+    pointerAtPx(rail, 14)
     expect(wrapper.emitted('hover')?.at(-1)).toEqual(['m1'])
   })
 

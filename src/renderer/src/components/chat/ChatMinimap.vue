@@ -1,11 +1,9 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { useElementSize } from '@vueuse/core'
 import { useI18n } from 'vue-i18n'
 import { DcPopover } from '@dc-ui/components/popover'
 import {
   findMinimapTickIndexAt,
-  resolveMarkPitch,
   type MinimapTick,
   type MinimapViewportWindow
 } from '@/features/chat-page/model/minimapTicks'
@@ -15,14 +13,17 @@ import {
  * relative to the longest one in the conversation. Hovering a mark highlights it and previews the
  * message; clicking a mark jumps there, and the arrow keys walk the marks one at a time.
  *
- * Marks are laid out on an even pitch rather than by their position in the conversation, so the
- * spacing never depends on how tall a single message is: few messages spread across the whole rail,
- * and once they no longer fit at the minimum pitch the map scrolls instead of squeezing them
- * together.
+ * Marks are laid out on a constant pitch rather than by their position in the conversation, so the
+ * spacing is the same everywhere: it never depends on how tall a single message is, and it does not
+ * grow when the conversation is short. Once the marks no longer fit, the map scrolls.
  *
  * It never scrolls the conversation by itself — it emits the message to act on and lets ChatPage
  * route the request through the scroll controller, so every programmatic scroll still carries an
  * explicit reason.
+ *
+ * The rail sits 20 px in from the viewport's right edge so its hit area clears the scrollbar gutter
+ * on every platform: the app styles an 8 px scrollbar, but Windows still draws a classic ~17 px one,
+ * and a rail that overlapped it would swallow drags meant for the scrollbar.
  */
 const props = defineProps<{
   visible: boolean
@@ -41,8 +42,9 @@ const { t } = useI18n()
 const railRef = ref<HTMLElement | null>(null)
 const contentRef = ref<HTMLElement | null>(null)
 const hoveredIndex = ref<number | null>(null)
-const { height: railHeight } = useElementSize(railRef)
 
+/** Vertical distance between two marks: constant, so the rail reads the same in every conversation. */
+const MARK_PITCH = 16
 /** Full mark width in px; the longest message fills it and every other mark scales against it. */
 const MAX_MARK_WIDTH = 40
 
@@ -51,10 +53,7 @@ const activeIndex = computed(() => findMinimapTickIndexAt(props.ticks, props.vie
 const hoveredTick = computed(() =>
   hoveredIndex.value === null ? null : (props.ticks[hoveredIndex.value] ?? null)
 )
-const markPitch = computed(() =>
-  resolveMarkPitch({ railHeight: railHeight.value, count: props.ticks.length })
-)
-const marksHeight = computed(() => props.ticks.length * markPitch.value)
+const marksHeight = computed(() => props.ticks.length * MARK_PITCH)
 
 /**
  * The mark a pointer is on. Marks share a pitch, so a position resolves straight to a slot — and the
@@ -69,7 +68,7 @@ function indexAt(clientY: number): number | null {
 
   const contentOffset = contentRef.value?.offsetTop ?? 0
   const offset = clientY - bounds.top + rail.scrollTop - contentOffset
-  return Math.min(Math.max(Math.floor(offset / markPitch.value), 0), props.ticks.length - 1)
+  return Math.min(Math.max(Math.floor(offset / MARK_PITCH), 0), props.ticks.length - 1)
 }
 
 function jumpToIndex(index: number): void {
@@ -127,13 +126,13 @@ function onRailKeydown(event: KeyboardEvent): void {
 
 const label = computed(() => t('chat.messages.minimap'))
 const markWidth = (tick: MinimapTick) => `${Math.max(tick.width * MAX_MARK_WIDTH, 2)}px`
-const markTop = (index: number) => `${index * markPitch.value}px`
+const markTop = (index: number) => `${index * MARK_PITCH}px`
 </script>
 
 <template>
   <div
     v-if="props.visible"
-    class="pointer-events-none absolute right-3 top-2 bottom-2 w-12"
+    class="pointer-events-none absolute right-5 top-2 bottom-2 w-12"
     style="z-index: var(--dc-z-sticky)"
     data-testid="chat-minimap"
   >
