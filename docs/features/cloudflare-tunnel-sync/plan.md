@@ -31,13 +31,17 @@ Landed and verified (typecheck node+web, lint, format, i18n, `test/main/sync`, `
   pairing codes, audit, private machine-local state, and the endpoint descriptor.
 - Composition wiring: service construction, `syncHostRoutes` in the route map, boot-time
   `startIfEnabled()`, and a `syncHostService.stop` destroy step.
-- `test/main/sync/host/hostEndpoint.test.ts` — 26 real-listener tests: uniform pre-auth 401s,
+- `test/main/sync/host/hostEndpoint.test.ts` — 28 real-listener tests: uniform pre-auth 401s,
   authenticated 404/405/501, pairing single-use and failure accounting, revocation (including across
   a state reload), token-hash containment, byte-exact Range resume, abort-then-resume, abort during
   snapshot resolution, corrupt archive handling, unreadable backup list, loopback-only reachability,
   stalled-request reaping, connection-ceiling eviction, anonymous-audit coalescing, package-name
-  filtering, host-identity stability, oversized-body 413, pre-`initialize()` state preservation,
+  filtering, host-identity stability, oversized-body 413, keep-alive sockets staying evictable
+  after a download, per-device limiting of unknown paths, pre-`initialize()` state preservation,
   lifecycle consistency under interleaved transitions, and teardown.
+- `test/main/sync/host/state.test.ts` — 3 unit tests for the machine-local state store: rollback of
+  concurrent updates whose writes fail, a failed mutation staying out of the next successful write,
+  and a read/parse failure failing closed instead of resetting to defaults (then recovering).
 - `test/main/sync/host/routes.test.ts` — 12 route-level tests for the seven `syncHost.*` handlers:
   handler coverage, status/pairing shapes, `setEnabled` pass-through and failure propagation, pairing
   creation and fallback, device-list and audit redaction, revoke/rename pass-through, input
@@ -100,6 +104,14 @@ implementation. Findings and disposition:
 | The seven `syncHost.*` routes had no tests and did not assert a renderer caller | low | **Fixed** — `test/main/sync/host/routes.test.ts` (12 tests) and `requireRendererCaller` in every handler. |
 | The loopback reachability test skipped its negative probe on hosts without an external interface | low | **Fixed** — an unconditional `127.0.0.2` probe proves the bind is address-specific; the external-interface probe remains as an extra. |
 | The pre-`initialize()` state test never performed a mutation, so it passed with the guard removed | low | **Fixed** — the second instance now mutates before `initialize()`; removing the load-first guard fails the test. |
+| A paired device could probe unknown paths without ever being charged: the per-device limiter ran after the 404/405 branches, and each of those responses evicted a legitimate audit entry | medium | **Fixed** — the limiter runs before path and method handling; covered by a test that probes unknown paths until it is throttled. |
+| A finished keep-alive download left its socket marked as streaming, so it could never be evicted and 32 of them turned the connection ceiling into a wall | medium | **Fixed** — the flag is cleared when the stream settles, aborts included; covered by a test that fills the ceiling with finished downloads and still admits a newcomer. |
+| Only filesystem writes were serialized, so a second update could snapshot a first update's mutation before it failed: the rollback was skipped and the change whose caller was told it failed could still be persisted | medium | **Fixed** — the whole transaction (load, mutate, write, rollback) is serialized and the rollback is unconditional; covered by a state-store test with two concurrent failing updates. |
+| `getHostId()` wrote the pre-initialize identity fire-and-forget, so a failed write could leave the cache rolled back while `initialize()` had already adopted the value | low | **Fixed** — the value stays in memory until `initialize()` persists it through its awaited update. |
+| Pairing consumed the code before issuing the device, so an issuance failure burned the user's code | low | **Fixed** — the code is restored when issuance fails. |
+| Pairing code generation used `% 31` over random bytes, biasing the first alphabet entries ~1.4% | low | **Fixed** — rejection sampling. |
+| `plan.md` claimed `handshake` was the only unauthenticated route, and `spec.md`'s default-scope row claimed provider credentials are excluded | low | **Fixed** — both statements now match the implementation. |
+| `SYNC_HOST_MAX_PUSH_PART_BYTES` is declared but unused until push ships | low | **Tracked** — kept as the forward declaration for slice 5. |
 
 ## Slice 0 — Gates before implementation
 
@@ -149,8 +161,9 @@ Objective: a loopback endpoint that rejects everything it should.
       encryption mode; snapshot format version is reported by `status` instead, since it comes from
       the backup manifest rather than a global constant.
 
-Completion: met — unauthorized paths cannot return 200, and handshake is the only unauthenticated
-route (covered by `hostEndpoint.test.ts`).
+Completion: met — unauthorized paths cannot return 200, and `handshake` and `pair` are the only
+unauthenticated routes (`pair` exchanges the one-time code for a device token, so it cannot require
+one; everything else answers a uniform 401). Covered by `hostEndpoint.test.ts`.
 
 ## Slice 3 — Pairing and device lifecycle
 

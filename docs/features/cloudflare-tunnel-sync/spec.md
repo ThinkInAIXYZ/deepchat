@@ -276,7 +276,7 @@ Tunnel, synthetic data only, bearer-gated endpoint):
 | --- | --- |
 | Windows host: loopback-only or macOS/Linux-only in phase 1? | Support Windows hosts in phase 1, using the same loopback listener as POSIX. |
 | `cloudflared` managed by the app or user-run? | Bundled inside the plugin package; core supervises the process using the plugin-resolved binary path. |
-| Default sync scope | Sessions, messages, settings, plus skills, MCP configuration and knowledge-base files. Provider credentials and memory vectors excluded. |
+| Default sync scope | Sessions, messages, settings, plus skills, MCP configuration and knowledge-base files. Memory vectors excluded (not in `agent.db`; slaves regenerate them). **Provider credentials are currently included, not excluded** — they are plaintext columns in the `agent.db` that every package carries, so this row stays unresolved until the export redacts them or the feature ships explicit consent (see Excluded Data). |
 | Access service token mandatory? | Strongly recommended in the UI, not mandatory; device tokens remain enforced. |
 | Endpoint transport (added) | Loopback TCP listener on every platform; Unix socket optional for named tunnels only. |
 | Push framing (added) | Bounded, independently retryable parts; no reliance on large single-body uploads. |
