@@ -10,6 +10,7 @@ import { McpSettings } from '@/mcp/settings'
 import { SecretStore } from '@/config/secretStore'
 import { safeStorage } from 'electron'
 import type { TapeAnchorAppendInput, DeepChatTapeEntryRow } from '@/tape/domain/entry'
+import { USER_PLUGIN_INSTALL_DIRECTORY } from '@shared/pluginPaths'
 
 vi.unmock('fs')
 vi.unmock('node:fs')
@@ -229,6 +230,9 @@ it('installs the Baizhi example ZIP and preserves secret bindings through replac
   expect(await f.mcpSettings.getMcpServers()).toEqual(unrelated)
   expect(f.store.read()).toEqual([])
   expect(f.wrappedSecrets.size).toBe(0)
+  expect(fs.existsSync(path.join(f.deps.root, USER_PLUGIN_INSTALL_DIRECTORY, id.slice(5)))).toBe(
+    false
+  )
 })
 
 it('installs disabled, preserves host MCP identities across enable cycles, and removes only owned resources', async () => {
