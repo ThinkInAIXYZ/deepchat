@@ -14,7 +14,13 @@ import {
   makePresenter,
   textToVector
 } from './support/memoryFakes'
-import { decisionCalls, makeLLMPresenter, routedLLM, seedEmbedded } from './serviceTestSupport'
+import {
+  decisionCalls,
+  deferred,
+  makeLLMPresenter,
+  routedLLM,
+  seedEmbedded
+} from './serviceTestSupport'
 
 import { MemoryService, embeddingDimensions, waitForMemoryCondition } from './serviceTestSupport'
 
@@ -738,6 +744,101 @@ describe('MemoryService change events (onMemoryChanged)', () => {
 })
 
 describe('extraction batch recovery', () => {
+  it.each(['disable', 'clear', 'dispose'] as const)(
+    'keeps partial commits coherent without resuming a batch after %s',
+    async (cancellation) => {
+      vi.useFakeTimers()
+      const repo = createFakeRepository()
+      let config: DeepChatAgentConfig = { memoryEnabled: true }
+      const decisionStarted = deferred<void>()
+      const decision = deferred<string>()
+      const onMemoryChanged = vi.fn()
+      const getEmbeddings = vi.fn(async () => [])
+      const presenter = new MemoryService({
+        repository: repo,
+        resolveAgentConfig: () => config,
+        getEmbeddings,
+        generateText: async (_p, _m, prompt) => {
+          if (prompt.includes('KEEP or SKIP')) return 'KEEP'
+          if (prompt.includes('JSON array')) {
+            return JSON.stringify([
+              { kind: 'semantic', content: 'restored redis preference', importance: 0.9 },
+              { kind: 'semantic', content: 'new postgres preference', importance: 0.8 }
+            ])
+          }
+          decisionStarted.resolve()
+          return decision.promise
+        },
+        createVectorStore: async () => new FakeVectorStore(),
+        resetVectorStore: async () => undefined,
+        onMemoryChanged
+      })
+      try {
+        repo.insert({
+          id: 'restored',
+          agentId: 'a',
+          kind: 'semantic',
+          content: 'restored redis preference',
+          importance: 0.9,
+          status: 'archived',
+          provenanceKey: buildMemoryProvenanceKey('a', 'semantic', 'restored redis preference')
+        })
+        repo.insert({
+          id: 'neighbor',
+          agentId: 'a',
+          kind: 'semantic',
+          content: 'old postgres preference',
+          importance: 0.8,
+          status: 'fts_only'
+        })
+        presenter.captureExecutionToken('a')
+        presenter.refreshWorkingMemory('a')
+        const before = await presenter.buildInjection('a', '')
+        expect(before?.payload.working).toContain('old postgres preference')
+        expect(before?.payload.working).not.toContain('restored redis preference')
+        const pending = presenter.extractAndStore({
+          agentId: 'a',
+          spanText: 'User: update my preferences',
+          model: { providerId: 'p', modelId: 'm' }
+        })
+        await decisionStarted.promise
+        expect(repo.getById('restored')?.lifecycle_state).toBe('active')
+
+        if (cancellation === 'disable') {
+          config = { memoryEnabled: false }
+          presenter.onAgentMemoryMaintenanceConfigChanged('a')
+        } else if (cancellation === 'clear') {
+          await presenter.clearMemories('a')
+        } else {
+          await presenter.dispose()
+        }
+        onMemoryChanged.mockClear()
+        decision.resolve(
+          JSON.stringify([{ candidateIndex: 1, decision: 'ADD', targetIndex: null }])
+        )
+        await expect(pending).resolves.toEqual({ ok: false })
+        expect(repo.listByAgent('a').some((row) => row.content === 'new postgres preference')).toBe(
+          false
+        )
+        expect(onMemoryChanged).not.toHaveBeenCalled()
+        expect(getEmbeddings).not.toHaveBeenCalled()
+        if (cancellation === 'disable') {
+          config = { memoryEnabled: true }
+          presenter.onAgentMemoryMaintenanceConfigChanged('a')
+          expect((await presenter.buildInjection('a', ''))?.payload.working).toContain(
+            'restored redis preference'
+          )
+        } else if (cancellation === 'clear') {
+          expect(repo.countByAgent('a')).toBe(0)
+        }
+      } finally {
+        decision.resolve('[]')
+        await presenter.dispose()
+        vi.useRealTimers()
+      }
+    }
+  )
+
   it('finalizes committed candidates when a retried candidate fails while settling', async () => {
     const repo = createFakeRepository()
     const auditRepo = new FakeAuditRepository()
