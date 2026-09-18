@@ -354,6 +354,7 @@ import ChatInteractionDock from '@/components/chat/ChatInteractionDock.vue'
 import PendingInputLane from '@/components/chat/PendingInputLane.vue'
 import ScrollToLatestPill from '@/components/chat/ScrollToLatestPill.vue'
 import { buildScrollToLatestItems } from './model/scrollToLatestItems'
+import { shouldRetryMessageJump } from './model/messageJumpRetry'
 import ChatStatusBar from '@/components/chat/ChatStatusBar.vue'
 import ChatToolInteractionOverlay from '@/components/chat/ChatToolInteractionOverlay.vue'
 import MemoryTurnDialog from '@/components/chat/MemoryTurnDialog.vue'
@@ -530,6 +531,12 @@ const SESSION_RESTORE_SCROLL_INTENT_KEYS = new Set([
 const traceMessageId = ref<string | null>(null)
 const sidepanelStore = useSidepanelStore()
 const messageJumpTimers = new Map<string, number>()
+
+/**
+ * Counts user gestures on the message list. `jumpToMessage` compares this before retrying so a
+ * retry can never override a gesture that already cancelled the pending navigation.
+ */
+let userGestureSeq = 0
 let scrollReadFrame: number | null = null
 // The immediate session watcher can call clearMessageWindowMeasurements before
 // messageWindow exists; keep this no-op forward reference and rebind it to
@@ -720,6 +727,7 @@ function scheduleScrollMetricsRead() {
 
 function onWheel(event: WheelEvent) {
   if (event.deltaY === 0) return
+  userGestureSeq += 1
   chatScrollController.notifyUserGestureStart('wheel')
   listGestures.markWheelScrollIntent(event.deltaY < 0)
 }
@@ -871,7 +879,8 @@ async function loadOlderMessagesAtTop(options: { force?: boolean } = {}): Promis
 async function jumpToMessage(
   messageId: string,
   reason: ChatScrollReason,
-  attempt = 0
+  attempt = 0,
+  gestureSeqAtStart: number = userGestureSeq
 ): Promise<boolean> {
   await nextTick()
 
@@ -890,8 +899,17 @@ async function jumpToMessage(
   const target = messageSearchRoot.value?.querySelector<HTMLElement>(messageIdSelector(messageId))
 
   if (!target) {
-    // Retry briefly while virtualized / async-rendered message content settles after session switch.
-    if (attempt >= MAX_MESSAGE_JUMP_RETRIES) {
+    // Retry briefly while virtualized / async-rendered message content settles after session switch,
+    // but never after the user has taken the viewport back: re-issuing an explicit navigation would
+    // override the cancellation their gesture just performed.
+    if (
+      !shouldRetryMessageJump({
+        attempt,
+        maxAttempts: MAX_MESSAGE_JUMP_RETRIES,
+        gestureSeqAtStart,
+        currentGestureSeq: userGestureSeq
+      })
+    ) {
       return false
     }
 
@@ -904,7 +922,7 @@ async function jumpToMessage(
       messageId,
       window.setTimeout(() => {
         messageJumpTimers.delete(messageId)
-        void jumpToMessage(messageId, reason, attempt + 1)
+        void jumpToMessage(messageId, reason, attempt + 1, gestureSeqAtStart)
       }, MESSAGE_JUMP_RETRY_INTERVAL)
     )
     return false
@@ -995,7 +1013,10 @@ const listGestures = useListGestures({
   viewport: scrollContainer,
   scrollIdleMs: SCROLL_IDLE_MS,
   topHistoryThreshold: TOP_HISTORY_THRESHOLD,
-  onGestureStart: (kind) => chatScrollController.notifyUserGestureStart(kind),
+  onGestureStart: (kind) => {
+    userGestureSeq += 1
+    chatScrollController.notifyUserGestureStart(kind)
+  },
   onGestureEnd: () => chatScrollController.notifyUserGestureEnd(),
   onScrollingStart: () => virtualization.pinWindowToViewport(),
   onScrollingSettled: () => {
