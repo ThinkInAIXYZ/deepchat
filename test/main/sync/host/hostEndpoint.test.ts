@@ -11,7 +11,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 vi.unmock('fs')
 vi.unmock('node:fs')
 
-import { SYNC_HOST_PATH_PREFIX, SYNC_HOST_PAIRING_MAX_ATTEMPTS } from '@shared/contracts/syncHost'
+import { SYNC_HOST_MAX_CONNECTIONS, SYNC_HOST_PATH_PREFIX } from '@shared/contracts/syncHost'
 import type { SyncBackupInfo } from '@shared/types/sync'
 import { SyncHostService } from '@/sync/host'
 import { SyncHostPairingAuthority } from '@/sync/host/pairing'
@@ -280,19 +280,120 @@ describe('SyncHostService endpoint', () => {
 
   it('is reachable only on loopback', async () => {
     const { port } = await service.getStatus()
-    const external = Object.values(os.networkInterfaces())
-      .flat()
-      .find((entry) => entry && entry.family === 'IPv4' && !entry.internal)
 
     const loopback = await fetch(`http://127.0.0.1:${port}${SYNC_HOST_PATH_PREFIX}/handshake`)
     expect(loopback.status).toBe(200)
 
+    // 127.0.0.2 is loopback but a different address, so it proves the bind is address-specific
+    // rather than a wildcard bind. Unlike an external-interface probe it exists on every host, so
+    // the assertion can never silently skip.
+    await expect(
+      fetch(`http://127.0.0.2:${port}${SYNC_HOST_PATH_PREFIX}/handshake`, {
+        signal: AbortSignal.timeout(2_000)
+      })
+    ).rejects.toThrow()
+
+    const external = Object.values(os.networkInterfaces())
+      .flat()
+      .find((entry) => entry && entry.family === 'IPv4' && !entry.internal)
     if (external) {
       await expect(
         fetch(`http://${external.address}:${port}${SYNC_HOST_PATH_PREFIX}/handshake`, {
           signal: AbortSignal.timeout(1_000)
         })
       ).rejects.toThrow()
+    }
+  })
+
+  it('lets a new caller in when the connection ceiling is full of stalled sockets', async () => {
+    const { port } = await service.getStatus()
+    const stalled: ReturnType<typeof connect>[] = []
+    for (let index = 0; index < SYNC_HOST_MAX_CONNECTIONS; index += 1) {
+      const socket = connect({ host: '127.0.0.1', port })
+      stalled.push(socket)
+      await new Promise<void>((resolve) => socket.once('connect', () => resolve()))
+      // Announce a body that never arrives: these occupy slots without ever completing a request.
+      socket.write(
+        `POST ${SYNC_HOST_PATH_PREFIX}/pair HTTP/1.1\r\nHost: 127.0.0.1\r\n` +
+          `Content-Type: application/json\r\nContent-Length: 100000\r\n\r\n`
+      )
+    }
+    try {
+      // The newcomer must be admitted by evicting a stalled connection, not refused: otherwise
+      // anyone who learns the hostname can deny the user's own pairing with idle sockets.
+      const response = await fetch(`${baseUrl}${SYNC_HOST_PATH_PREFIX}/handshake`, {
+        signal: AbortSignal.timeout(3_000)
+      })
+      expect(response.status).toBe(200)
+    } finally {
+      for (const socket of stalled) socket.destroy()
+    }
+  })
+
+  it('coalesces anonymous rejections instead of letting them flush the audit ring', async () => {
+    const before = service.getAuditEntries().length
+    for (let attempt = 0; attempt < 25; attempt += 1) {
+      const response = await fetch(`${baseUrl}${SYNC_HOST_PATH_PREFIX}/status`)
+      expect(response.status).toBe(401)
+    }
+
+    const entries = service.getAuditEntries()
+    const unauthorized = entries.filter((entry) => entry.status === 401)
+    // Every repeat is counted, not appended: an anonymous caller must not be able to evict the rest
+    // of the ring by hammering the endpoint.
+    expect(unauthorized).toHaveLength(1)
+    expect(unauthorized[0].suppressed).toBe(24)
+    expect(entries.length - before).toBe(1)
+  })
+
+  it('serves only real backup packages, not any zip in the sync folder', async () => {
+    const impostor = 'not-a-backup.zip'
+    const archive = zipSync({ 'manifest.json': strToU8(JSON.stringify({ version: 3 })) })
+    await writeFile(path.join(syncDir, impostor), Buffer.from(archive))
+    listBackups = async () => [
+      { fileName: impostor, createdAt: 1_800_000_000_000, size: archive.length },
+      { fileName: BACKUP_FILE_NAME, createdAt: 1_700_000_000_000, size: backupBytes.length }
+    ]
+
+    const { token } = await pairDevice()
+    const status = await fetch(`${baseUrl}${SYNC_HOST_PATH_PREFIX}/status`, {
+      headers: { authorization: `Bearer ${token}` }
+    })
+    expect(status.status).toBe(200)
+    const body = (await status.json()) as { snapshot: { fileName: string } | null }
+    expect(body.snapshot?.fileName).toBe(BACKUP_FILE_NAME)
+  })
+
+  it('returns one host identity before initialize() and persists it', async () => {
+    const userData = await mkdtemp(path.join(os.tmpdir(), 'deepchat-sync-host-id-'))
+    try {
+      const uninitialized = new SyncHostService({
+        listBackups: async () => [],
+        getFolderPath: () => syncDir,
+        getUserDataPath: () => userData,
+        getAppVersion: () => '9.9.9'
+      })
+      // Two callers before the first load must not observe two different host identities: this is
+      // the value a slave compares against the pairing payload.
+      const first = uninitialized.getHostId()
+      const second = uninitialized.getHostId()
+      expect(second).toBe(first)
+
+      await uninitialized.initialize()
+      expect(uninitialized.getHostId()).toBe(first)
+      // Flush the queued write before asserting durability from a second instance.
+      await uninitialized.stop()
+
+      const reloaded = new SyncHostService({
+        listBackups: async () => [],
+        getFolderPath: () => syncDir,
+        getUserDataPath: () => userData,
+        getAppVersion: () => '9.9.9'
+      })
+      await reloaded.initialize()
+      expect(reloaded.getHostId()).toBe(first)
+    } finally {
+      await rm(userData, { recursive: true, force: true })
     }
   })
 
