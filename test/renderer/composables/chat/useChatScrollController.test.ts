@@ -65,6 +65,31 @@ describe('useChatScrollController', () => {
     }
   }
 
+  it('restores user ownership when an indicator navigation completes', () => {
+    const { controller, epoch } = setup()
+
+    // The user owns the viewport after scrolling away from the bottom.
+    controller.notifyUserGestureStart('wheel')
+    controller.notifyUserGestureEnd()
+    expect(controller.state.value.userOwned).toBe(true)
+
+    const requestId = controller.request({
+      sessionEpoch: epoch,
+      reason: 'indicator-navigation',
+      target: { kind: 'message', messageId: 'm1', align: 'one-third' }
+    })
+    expect(requestId).not.toBeNull()
+    expect(controller.state.value.mode).toBe('navigating')
+
+    flushFrame()
+    controller.notifyViewportScroll()
+
+    // Without a completion transition the state would stay 'navigating' with userOwned false,
+    // silently blocking measurement anchoring, history prepend and auto-follow.
+    expect(controller.state.value.mode).toBe('reading')
+    expect(controller.state.value.userOwned).toBe(true)
+  })
+
   it('commits at most one operation in a frame and drops lower-priority competitors', () => {
     const { controller, epoch, writes } = setup()
 

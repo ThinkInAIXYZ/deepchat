@@ -216,6 +216,8 @@
   },
   "messages": {
     "loadEarlier": "加载更早的消息",
+    "scrollToLatest": "回到最新",
+    "minimap": "消息定位",
     "thinking": "正在思考...",
     "rateLimitWaiting": "请求频率限制，正在排队等待...",
     "rateLimitCompactLoading": "限速中（{seconds} 秒）",
