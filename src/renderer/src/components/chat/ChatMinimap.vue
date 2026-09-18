@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { DcPopover } from '@dc-ui/components/popover'
 import {
   findMinimapTickIndexAt,
   resolveMinimapTickIndex,
@@ -9,28 +10,46 @@ import {
 } from '@/features/chat-page/model/minimapTicks'
 
 /**
- * Position rail for the conversation: one mark per message, plus a window showing the slice that is
- * on screen. Clicking a spot on the rail jumps to the message there, and the arrow keys walk the
- * marks one by one, which is the fast way to browse a long history.
+ * Message map: one hairline mark per message along the left gutter, as wide as the message is long
+ * relative to the longest one in the conversation. Hovering a mark highlights it and previews the
+ * message; clicking it jumps there, and the arrow keys walk the marks one at a time.
  *
- * It never scrolls by itself — it emits the message to jump to and lets ChatPage route the request
+ * It never scrolls by itself — it emits the message to act on and lets ChatPage route the request
  * through the scroll controller, so every programmatic scroll still carries an explicit reason.
  */
 const props = defineProps<{
   visible: boolean
   ticks: MinimapTick[]
   viewport: MinimapViewportWindow | null
+  /** Text of the hovered message, or null while nothing is hovered. */
+  previewText?: string | null
 }>()
 
 const emit = defineEmits<{
   (event: 'jump', messageId: string): void
+  (event: 'hover', messageId: string | null): void
 }>()
 
 const { t } = useI18n()
 const railRef = ref<HTMLElement | null>(null)
+const hoveredIndex = ref<number | null>(null)
+
+/** Full rail width in px; the longest message fills it and every other mark scales against it. */
+const MAX_MARK_WIDTH = 40
 
 /** The message at the top of the viewport: what the rail reports as its current position. */
 const activeIndex = computed(() => findMinimapTickIndexAt(props.ticks, props.viewport))
+const hoveredTick = computed(() =>
+  hoveredIndex.value === null ? null : (props.ticks[hoveredIndex.value] ?? null)
+)
+
+function tickFractionAt(clientY: number): number | null {
+  const rail = railRef.value
+  if (!rail) return null
+  const bounds = rail.getBoundingClientRect()
+  if (bounds.height <= 0) return null
+  return (clientY - bounds.top) / bounds.height
+}
 
 function jumpToIndex(index: number): void {
   const tick = props.ticks[index]
@@ -38,13 +57,28 @@ function jumpToIndex(index: number): void {
 }
 
 function onRailClick(event: MouseEvent): void {
-  const rail = railRef.value
-  if (!rail) return
-  const bounds = rail.getBoundingClientRect()
-  if (bounds.height <= 0) return
+  const fraction = tickFractionAt(event.clientY)
+  if (fraction === null) return
 
-  const index = resolveMinimapTickIndex(props.ticks, (event.clientY - bounds.top) / bounds.height)
+  const index = resolveMinimapTickIndex(props.ticks, fraction)
   if (index !== null) jumpToIndex(index)
+}
+
+function onRailPointerMove(event: PointerEvent): void {
+  const fraction = tickFractionAt(event.clientY)
+  if (fraction === null) return
+
+  const index = resolveMinimapTickIndex(props.ticks, fraction)
+  if (index === hoveredIndex.value) return
+
+  hoveredIndex.value = index
+  emit('hover', index === null ? null : (props.ticks[index]?.id ?? null))
+}
+
+function onRailPointerLeave(): void {
+  if (hoveredIndex.value === null) return
+  hoveredIndex.value = null
+  emit('hover', null)
 }
 
 function onRailKeydown(event: KeyboardEvent): void {
@@ -77,12 +111,14 @@ function onRailKeydown(event: KeyboardEvent): void {
 }
 
 const label = computed(() => t('chat.messages.minimap'))
+const markWidth = (tick: MinimapTick) => `${Math.max(tick.width * MAX_MARK_WIDTH, 2)}px`
+const markTop = (tick: MinimapTick) => `${tick.top * 100}%`
 </script>
 
 <template>
   <div
     v-if="props.visible"
-    class="pointer-events-none absolute right-3 top-2 bottom-2 flex w-5 justify-center"
+    class="pointer-events-none absolute left-3 top-2 bottom-2 w-10"
     style="z-index: var(--dc-z-sticky)"
     data-testid="chat-minimap"
   >
@@ -95,31 +131,46 @@ const label = computed(() => t('chat.messages.minimap'))
       :aria-valuemin="1"
       :aria-valuemax="Math.max(props.ticks.length, 1)"
       :aria-valuenow="(activeIndex ?? 0) + 1"
-      class="pointer-events-auto relative h-full w-2.5 cursor-pointer rounded-full bg-muted/50 transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      class="pointer-events-auto relative h-full w-10 cursor-pointer focus-visible:outline-none"
       data-testid="chat-minimap-rail"
       @click="onRailClick"
       @keydown="onRailKeydown"
+      @pointermove="onRailPointerMove"
+      @pointerleave="onRailPointerLeave"
     >
       <span
-        v-for="tick in props.ticks"
+        v-for="(tick, index) in props.ticks"
         :key="tick.id"
         aria-hidden="true"
-        class="pointer-events-none absolute inset-x-0.5 rounded-full"
-        :class="tick.role === 'user' ? 'bg-primary/60' : 'bg-muted-foreground/40'"
-        :style="{ top: `${tick.top * 100}%`, height: `${tick.height * 100}%`, minHeight: '2px' }"
+        class="pointer-events-none absolute left-0 h-0.5 rounded-full transition-colors"
+        :class="index === hoveredIndex ? 'bg-foreground' : 'bg-muted-foreground/40'"
+        :style="{ top: markTop(tick), width: markWidth(tick) }"
+        data-testid="chat-minimap-mark"
       />
 
-      <span
-        v-if="props.viewport"
-        aria-hidden="true"
-        class="pointer-events-none absolute inset-x-0 rounded-full border border-foreground/25 bg-foreground/10"
-        :style="{
-          top: `${props.viewport.top * 100}%`,
-          height: `${props.viewport.height * 100}%`,
-          minHeight: '8px'
-        }"
-        data-testid="chat-minimap-window"
-      />
+      <DcPopover
+        :open="hoveredTick !== null && Boolean(props.previewText)"
+        side="right"
+        align="center"
+        :side-offset="12"
+        width-class="w-[min(70vw,26rem)]"
+      >
+        <template #trigger>
+          <!-- Invisible anchor that follows the hovered mark, so the card points at the message the
+               pointer is actually on rather than at the middle of the rail. -->
+          <span
+            aria-hidden="true"
+            class="absolute left-0 h-0 w-0"
+            :style="{ top: hoveredTick ? markTop(hoveredTick) : '0%' }"
+          />
+        </template>
+        <p
+          class="dc-overscroll-contain line-clamp-6 max-h-48 overflow-hidden px-3 py-2 text-xs whitespace-pre-wrap text-foreground/90"
+          data-testid="chat-minimap-preview"
+        >
+          {{ props.previewText }}
+        </p>
+      </DcPopover>
     </div>
   </div>
 </template>

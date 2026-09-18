@@ -140,7 +140,9 @@
           :visible="showChatMinimap"
           :ticks="minimapTicks"
           :viewport="minimapViewport"
+          :preview-text="minimapPreviewText"
           @jump="jumpToPendingMessage"
+          @hover="onMinimapHover"
         />
         <div
           v-if="isSessionViewPreparing"
@@ -403,6 +405,7 @@ import { usePlanFloatLifecycle } from './composables/usePlanFloatLifecycle'
 import { useDisplayMessages } from './composables/useDisplayMessages'
 import { useChatSearch } from './composables/useChatSearch'
 import { useListGestures } from './composables/useListGestures'
+import { extractDisplayContentText } from '@/lib/chatSearch'
 import { useMessageVirtualization } from './composables/useMessageVirtualization'
 import { buildMinimapTicks, buildMinimapViewportWindow } from './model/minimapTicks'
 import { useComposerSubmit } from './composables/useComposerSubmit'
@@ -1128,6 +1131,23 @@ const showChatMinimap = computed(
     minimapTicks.value.length > 1 &&
     messageWindow.totalHeight.value > scrollViewportHeight.value + 1
 )
+
+/**
+ * Text for the map's hover card. Only the hovered message is projected, so the preview costs one
+ * message no matter how long the conversation is.
+ */
+const hoveredMinimapMessageId = ref<string | null>(null)
+const minimapPreviewText = computed(() => {
+  const messageId = hoveredMinimapMessageId.value
+  if (!messageId) return null
+
+  const message = displayMessages.value.find((candidate) => candidate.id === messageId)
+  return message ? extractDisplayContentText(message.content) : null
+})
+
+function onMinimapHover(messageId: string | null): void {
+  hoveredMinimapMessageId.value = messageId
+}
 
 const {
   isChatSearchOpen,

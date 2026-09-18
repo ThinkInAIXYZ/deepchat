@@ -1,12 +1,19 @@
 import type { MessageLayoutEntry } from '@/composables/message/useMessageWindow'
+import { extractDisplayContentText } from '@/lib/chatSearch'
 import type { DisplayMessage } from './displayMessage'
 
-/** One message drawn as a mark on the minimap, in 0..1 fractions of the scrolled content. */
+/** One message drawn as a mark on the message map, in 0..1 fractions of the scrolled content. */
 export type MinimapTick = {
   id: string
+  /** Fraction of the scrolled content above this message: where the mark sits. */
   top: number
+  /** Fraction of the scrolled content this message spans, used to resolve positions. */
   height: number
-  role: 'user' | 'assistant'
+  /**
+   * How wide the mark is drawn, relative to the longest message in the conversation (0..1). The
+   * longest message fills the rail's full width and everything else is proportional to it.
+   */
+  width: number
 }
 
 /** The visible slice of the conversation, in the same 0..1 fractions as the ticks. */
@@ -16,12 +23,33 @@ export type MinimapViewportWindow = {
 }
 
 /**
+ * Message length per content object.
+ *
+ * The projection allocates a string, so its result is cached against the content object. A streaming
+ * reply replaces its content object as it grows, which is exactly when the length must be recomputed;
+ * every settled message is measured once and then costs nothing on later passes.
+ */
+const contentLengthCache = new WeakMap<object, number>()
+
+function measureContentLength(content: unknown): number {
+  if (!content || typeof content !== 'object') return 0
+
+  const cached = contentLengthCache.get(content)
+  if (cached !== undefined) return cached
+
+  const length = extractDisplayContentText(content).length
+  contentLengthCache.set(content, length)
+  return length
+}
+
+/**
  * Marks for every loaded message, oldest first.
  *
  * The map is derived from the same logical layout table the windowing and the below-viewport count
  * use, so the marks, the viewport window and the count can never describe different geometries.
- * Heights are fractions of the total scrolled height, which makes the map independent of the
- * viewport size and of the zoom level.
+ * Positions are fractions of the total scrolled height, which makes the map independent of the
+ * viewport size and of the zoom level; widths are fractions of the longest message, so the widest
+ * mark is the longest message in the conversation and the rest scale against it.
  *
  * Without usable geometry there is nothing to draw, so an empty list is returned rather than marks
  * invented from estimates that do not match the layout yet.
@@ -34,13 +62,19 @@ export function buildMinimapTicks(input: {
   const total = input.totalHeight
   if (!(total > 0) || input.entries.length === 0) return []
 
-  const roleById = new Map(input.messages.map((message) => [message.id, message.role]))
+  const messageById = new Map(input.messages.map((message) => [message.id, message]))
+  const lengths = input.entries.map((entry) => {
+    const message = messageById.get(entry.id)
+    return message ? measureContentLength(message.content) : 0
+  })
+  const longest = Math.max(...lengths, 0)
 
-  return input.entries.map((entry) => ({
+  return input.entries.map((entry, index) => ({
     id: entry.id,
     top: clampFraction(entry.top / total),
     height: clampFraction((entry.bottom - entry.top) / total),
-    role: roleById.get(entry.id) === 'user' ? 'user' : 'assistant'
+    // Every message is a hairline when nothing in the conversation has any text.
+    width: longest > 0 ? clampFraction(lengths[index] / longest) : 1
   }))
 }
 
@@ -64,9 +98,9 @@ export function buildMinimapViewportWindow(input: {
 }
 
 /**
- * The message a click at `fraction` down the rail refers to: the mark containing that position, or
- * the nearest mark when the click lands in a gap. Clicks must never be a no-op on a strip this thin,
- * so a gap resolves to its closest neighbour instead of resolving to nothing.
+ * The message a pointer at `fraction` down the rail refers to: the mark containing that position, or
+ * the nearest mark when the pointer is in a gap. Hover and click share this so the preview a pointer
+ * shows always belongs to the message a click would jump to.
  */
 export function resolveMinimapTickIndex(
   ticks: readonly MinimapTick[],
