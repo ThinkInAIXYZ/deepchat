@@ -12,6 +12,7 @@ vi.unmock('fs')
 vi.unmock('node:fs')
 
 import { SYNC_HOST_PATH_PREFIX, SYNC_HOST_PAIRING_MAX_ATTEMPTS } from '@shared/contracts/syncHost'
+import type { SyncBackupInfo } from '@shared/types/sync'
 import { SyncHostService } from '@/sync/host'
 import { SyncHostPairingAuthority } from '@/sync/host/pairing'
 
@@ -30,6 +31,7 @@ describe('SyncHostService endpoint', () => {
   let service: SyncHostService
   let baseUrl: string
   let backupBytes: Buffer
+  let listBackups: () => Promise<SyncBackupInfo[]>
 
   beforeEach(async () => {
     tempDir = await mkdtemp(path.join(os.tmpdir(), 'deepchat-sync-host-'))
@@ -48,10 +50,11 @@ describe('SyncHostService endpoint', () => {
     backupBytes = Buffer.from(archive)
     await writeFile(path.join(syncDir, BACKUP_FILE_NAME), backupBytes)
 
+    listBackups = async () => [
+      { fileName: BACKUP_FILE_NAME, createdAt: 1_700_000_000_000, size: backupBytes.length }
+    ]
     service = new SyncHostService({
-      listBackups: async () => [
-        { fileName: BACKUP_FILE_NAME, createdAt: 1_700_000_000_000, size: backupBytes.length }
-      ],
+      listBackups: () => listBackups(),
       getFolderPath: () => syncDir,
       getUserDataPath: () => tempDir,
       getAppVersion: () => '9.9.9',
@@ -320,6 +323,59 @@ describe('SyncHostService endpoint', () => {
     expect(healthy.status).toBe(200)
   })
 
+  it('settles and audits a snapshot request aborted while the snapshot is being resolved', async () => {
+    const { token } = await pairDevice()
+
+    // Hold the snapshot resolution open (the real digest pass takes seconds on a large package) and
+    // drop the connection inside that window. The handler must still settle, audit the request and
+    // release the read stream; a hook attached only after the await would hang forever and leave no
+    // audit entry at all.
+    let release = (): void => undefined
+    const gate = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    const gated = listBackups
+    listBackups = async () => {
+      await gate
+      return gated()
+    }
+
+    const controller = new AbortController()
+    const pending = fetch(`${baseUrl}${SYNC_HOST_PATH_PREFIX}/snapshot`, {
+      headers: { authorization: `Bearer ${token}` },
+      signal: controller.signal
+    }).catch(() => undefined)
+
+    await new Promise((resolve) => setTimeout(resolve, 100))
+    controller.abort()
+    await pending
+    release()
+    await new Promise((resolve) => setTimeout(resolve, 300))
+
+    const audit = service.getAuditEntries().filter((entry) => entry.path.endsWith('/snapshot'))
+    expect(audit.map((entry) => entry.status)).toEqual([499])
+  })
+
+  it('reports no snapshot instead of failing when the backup list cannot be read', async () => {
+    const { token } = await pairDevice()
+    listBackups = async () => {
+      throw new Error('sync folder unavailable')
+    }
+
+    // A storage failure is a transient condition a slave retries: it must see "no snapshot", never
+    // a 500 that looks like a broken host.
+    const status = await fetch(`${baseUrl}${SYNC_HOST_PATH_PREFIX}/status`, {
+      headers: { authorization: `Bearer ${token}` }
+    })
+    expect(status.status).toBe(200)
+    expect(((await status.json()) as { snapshot: unknown }).snapshot).toBeNull()
+
+    const snapshot = await fetch(`${baseUrl}${SYNC_HOST_PATH_PREFIX}/snapshot`, {
+      headers: { authorization: `Bearer ${token}` }
+    })
+    expect(snapshot.status).toBe(404)
+  })
+
   it('stops listening and removes its descriptor when host mode is disabled', async () => {
     const descriptorPath = path.join(tempDir, 'sync-host', 'endpoint.json')
     const descriptor = JSON.parse(await readFile(descriptorPath, 'utf8')) as { port: number }
@@ -450,12 +506,15 @@ describe('SyncHostService endpoint', () => {
       expect(firstToken.enabled).toBe(true)
 
       // A second instance that mutates before any explicit initialize() must not wipe the file.
+      // The mutation has to be a real one: with the read-modify-write bug this persisted the empty
+      // default state over the file, discarding the enabled flag and every device record.
       const late = new SyncHostService({
         listBackups: async () => [],
         getFolderPath: () => syncDir,
         getUserDataPath: () => userData,
         getAppVersion: () => '9.9.9'
       })
+      expect(await late.renameDevice('dev_missing', 'Renamed')).toBe(false)
       await late.stop()
 
       const reloaded = new SyncHostService({
@@ -466,6 +525,7 @@ describe('SyncHostService endpoint', () => {
       })
       await reloaded.initialize()
       expect(reloaded.getEnabled()).toBe(true)
+      expect(reloaded.listDevices()).toEqual([])
     } finally {
       await rm(userData, { recursive: true, force: true })
     }

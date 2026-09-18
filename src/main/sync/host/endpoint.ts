@@ -390,7 +390,21 @@ export class SyncHostEndpoint {
     deviceId: string,
     clientIp: string | null
   ): Promise<void> {
+    // The abort hook must be attached before the first await. Resolving the snapshot can take
+    // seconds on a large package, and if the client disconnects in that window the response's
+    // `close` has already fired: a listener attached afterwards never runs, so the handler would
+    // hang forever, leak the read stream and never audit the request.
+    let gone = this.isResponseGone(response)
+    const markGone = (): void => {
+      gone = true
+    }
+    response.once('close', markGone)
+
     const snapshot = await this.deps.snapshotSource.current()
+    if (gone) {
+      this.audit({ method, path, status: 499, bytes: 0, deviceId, clientIp })
+      return
+    }
     if (!snapshot) {
       this.respondJson(response, 404, { error: 'no_snapshot' })
       this.audit({ method, path, status: 404, bytes: 0, deviceId, clientIp })
@@ -436,6 +450,11 @@ export class SyncHostEndpoint {
       headers['content-range'] = `bytes ${start}-${end}/${snapshot.size}`
     }
     response.writeHead(status, headers)
+    if (this.isResponseGone(response)) {
+      // The peer vanished while the headers were being written; nothing below would ever settle.
+      this.audit({ method, path, status: 499, bytes: 0, deviceId, clientIp })
+      return
+    }
 
     let bytesWritten = 0
     let completed = false
@@ -608,6 +627,21 @@ export class SyncHostEndpoint {
     if (!guard) return
     clearTimeout(guard)
     this.requestGuards.delete(socket)
+  }
+
+  /**
+   * True when the peer is already gone, so nothing written below could reach it or settle.
+   *
+   * `destroyed`/`writableEnded` are checked together with the underlying socket because an aborted
+   * request can leave the response object alive but unwritable.
+   */
+  private isResponseGone(response: http.ServerResponse): boolean {
+    return (
+      response.destroyed ||
+      response.writableEnded ||
+      response.socket === null ||
+      response.socket?.destroyed === true
+    )
   }
 
   private respondJson(response: http.ServerResponse, status: number, body: unknown): number {

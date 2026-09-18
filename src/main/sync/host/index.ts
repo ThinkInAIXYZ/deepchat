@@ -60,7 +60,8 @@ export class SyncHostService {
     this.pairing = new SyncHostPairingAuthority(() => this.getHostId())
     this.snapshotSource = new SyncHostSnapshotSource({
       listBackups: deps.listBackups,
-      getFolderPath: deps.getFolderPath
+      getFolderPath: deps.getFolderPath,
+      logger: deps.logger
     })
     this.endpoint = new SyncHostEndpoint({
       devices: this.devices,

@@ -29,6 +29,13 @@ interface BackupManifestShape {
 }
 
 /**
+ * Ceiling on the manifest entry we are willing to buffer. A real manifest is well under a kilobyte;
+ * anything larger is a hostile or broken archive, and buffering it would let a small deflate bomb
+ * inflate into the main process's heap.
+ */
+const MANIFEST_MAX_BYTES = 1024 * 1024
+
+/**
  * Extracts only manifest.json from the archive.
  *
  * The archive is streamed rather than buffered: a backup package can be hundreds of megabytes and a
@@ -40,6 +47,7 @@ function readManifestEntry(filePath: string): Promise<BackupManifestShape | null
   return new Promise((resolve) => {
     let settled = false
     let manifest: BackupManifestShape | null = null
+    let stream: fs.ReadStream | null = null
     const done = (value: BackupManifestShape | null): void => {
       if (settled) return
       settled = true
@@ -53,8 +61,15 @@ function readManifestEntry(filePath: string): Promise<BackupManifestShape | null
         return
       }
       const chunks: Uint8Array[] = []
+      let buffered = 0
       file.ondata = (error, data, final) => {
         if (error) return
+        buffered += data.length
+        if (buffered > MANIFEST_MAX_BYTES) {
+          done(null)
+          stream?.destroy()
+          return
+        }
         chunks.push(data)
         if (!final) return
         try {
@@ -70,7 +85,7 @@ function readManifestEntry(filePath: string): Promise<BackupManifestShape | null
     // fflate only auto-registers stored entries; deflate entries need a codec or `start()` throws.
     unzip.register(UnzipInflate)
 
-    const stream = fs.createReadStream(filePath, { highWaterMark: 1024 * 1024 })
+    stream = fs.createReadStream(filePath, { highWaterMark: 1024 * 1024 })
     stream.on('data', (chunk: string | Buffer) => {
       const bytes = typeof chunk === 'string' ? Buffer.from(chunk) : chunk
       // A corrupt or hostile archive must not throw out of a stream handler: that would escape to
@@ -79,7 +94,7 @@ function readManifestEntry(filePath: string): Promise<BackupManifestShape | null
         unzip.push(new Uint8Array(bytes.buffer, bytes.byteOffset, bytes.byteLength), false)
       } catch {
         done(null)
-        stream.destroy()
+        stream?.destroy()
       }
     })
     stream.on('error', () => done(null))
@@ -131,6 +146,7 @@ export class SyncHostSnapshotSource {
     private readonly deps: {
       listBackups: () => Promise<SyncBackupInfo[]>
       getFolderPath: () => string
+      logger?: { warn(message: string, meta?: unknown): void }
     }
   ) {}
 
@@ -148,7 +164,23 @@ export class SyncHostSnapshotSource {
     return run
   }
 
+  /**
+   * Storage failures are "no snapshot", not a failed request. A package that vanishes or is locked
+   * mid-scan is a transient condition the slave can retry: it must see `snapshot: null` / 404, not
+   * a 500 from the host's own filesystem.
+   */
   private async resolveCurrent(): Promise<SyncHostSnapshot | null> {
+    try {
+      return await this.resolveCurrentInner()
+    } catch (error) {
+      this.deps.logger?.warn('[SyncHost] Snapshot resolution failed', {
+        error: error instanceof Error ? error.message : String(error)
+      })
+      return null
+    }
+  }
+
+  private async resolveCurrentInner(): Promise<SyncHostSnapshot | null> {
     const backups = await this.deps.listBackups()
     if (backups.length === 0) return null
     const latest = [...backups].sort((left, right) => right.createdAt - left.createdAt)[0]
@@ -176,10 +208,15 @@ export class SyncHostSnapshotSource {
     for (let attempt = 0; attempt < 2; attempt += 1) {
       const digest = await digestFile(filePath)
       const after = await fs.promises.stat(filePath).catch(() => null)
-      if (!after || after.size !== stat.size || after.mtimeMs !== stat.mtimeMs) {
+      if (!after) {
+        // The package disappeared while it was read; retrying against a stale stat would only
+        // digest a missing file again.
+        return null
+      }
+      if (after.size !== stat.size || after.mtimeMs !== stat.mtimeMs) {
         // The package changed while it was read: never report a hash for bytes we did not measure.
         if (attempt === 1) return null
-        stat = after ?? stat
+        stat = after
         continue
       }
       this.digests.set(latest.fileName, {

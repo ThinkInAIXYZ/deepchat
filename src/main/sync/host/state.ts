@@ -61,7 +61,15 @@ export class SyncHostStateStore {
     try {
       parsed = JSON.parse(await fs.promises.readFile(this.filePath, 'utf8')) as unknown
     } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') parsed = null
+      const code = (error as NodeJS.ErrnoException).code
+      if (code !== 'ENOENT') {
+        // A read or parse failure must never degrade to the empty default state: `initialize()`
+        // would then persist that default over a file that still holds every device record and the
+        // enabled flag, destroying pairing because of a transient EACCES/EIO/AV lock. Fail closed,
+        // keep `loaded` false, and let the next call retry.
+        this.loadChain = null
+        throw error
+      }
     }
     this.state = this.normalize(parsed)
     this.loaded = true
@@ -89,10 +97,20 @@ export class SyncHostStateStore {
    */
   async update(mutator: (state: SyncHostState) => void): Promise<void> {
     if (!this.loaded) await this.load()
+    const previous = this.state
     const next = this.snapshot()
     mutator(next)
     this.state = next
-    await this.persist()
+    try {
+      await this.persist()
+    } catch (error) {
+      // Roll the cache back: memory must never claim a change that is not on disk, or the next
+      // successful write (a last-seen touch, a rename) would silently persist a mutation whose
+      // caller was told it failed — enabling host mode after a failed enable, or un-revoking a
+      // device after a failed revoke.
+      if (this.state === next) this.state = previous
+      throw error
+    }
   }
 
   /** Resolves once every queued write has settled; used by teardown and tests. */
