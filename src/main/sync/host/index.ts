@@ -102,15 +102,12 @@ export class SyncHostService {
     const existing = this.state.snapshot().hostId
     if (existing) return existing
     // Before `initialize()` completes there is no persisted identity yet; generate one in memory so
-    // the handshake and pairing authority never observe an empty value, then persist it. The value
-    // is memoized because two callers in this window must not see two different host identities.
+    // the handshake and pairing authority never observe an empty value. It is memoized (two callers
+    // in this window must not see two different identities) and deliberately not written here:
+    // `initialize()` persists it, so a failed write surfaces to its caller instead of leaving the
+    // cache and the file disagreeing about who this host is.
     const created = this.pendingHostId ?? randomBytes(16).toString('hex')
     this.pendingHostId = created
-    void this.state
-      .update((state) => {
-        state.hostId = state.hostId ?? created
-      })
-      .catch(() => undefined)
     return created
   }
 

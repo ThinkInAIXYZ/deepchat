@@ -31,7 +31,7 @@ import {
   type SyncHostAuditEntry,
   type SyncHostCapability
 } from '@shared/contracts/syncHost'
-import type { SyncHostDeviceStore } from './devices'
+import type { IssuedSyncHostDevice, SyncHostDeviceStore } from './devices'
 import type { SyncHostPairingAuthority } from './pairing'
 import type { SyncHostSnapshotSource } from './snapshot'
 
@@ -268,6 +268,14 @@ export class SyncHostEndpoint {
       authenticatedDeviceId = device.deviceId
       response.setHeader(SYNC_HOST_DEVICE_HEADER, device.deviceId)
 
+      // The limiter runs before path and method handling: a paired device hammering unknown paths
+      // would otherwise never be charged, and every 404 it earns evicts a legitimate audit entry.
+      if (!this.consumeRateLimit(device.deviceId)) {
+        this.respondJson(response, 429, { error: 'rate_limited' })
+        this.audit({ method, path, status: 429, bytes: 0, deviceId: device.deviceId, clientIp })
+        return
+      }
+
       if (!HANDLED_PATHS.has(path)) {
         this.respondJson(response, 404, { error: 'not_found' })
         this.audit({ method, path, status: 404, bytes: 0, deviceId: device.deviceId, clientIp })
@@ -276,12 +284,6 @@ export class SyncHostEndpoint {
       if (method !== 'GET' && method !== 'POST') {
         this.respondJson(response, 405, { error: 'method_not_allowed' })
         this.audit({ method, path, status: 405, bytes: 0, deviceId: device.deviceId, clientIp })
-        return
-      }
-
-      if (!this.consumeRateLimit(device.deviceId)) {
-        this.respondJson(response, 429, { error: 'rate_limited' })
-        this.audit({ method, path, status: 429, bytes: 0, deviceId: device.deviceId, clientIp })
         return
       }
 
@@ -369,6 +371,8 @@ export class SyncHostEndpoint {
       return
     }
 
+    // Captured before consuming so a failure after the code was spent can hand it back.
+    const outstanding = this.deps.pairing.current()
     const outcome = this.deps.pairing.consume(validation.data.code)
     // Invalid and expired codes share one response so a caller cannot probe code state. Repeated
     // failures cost the caller's own budget, never the user's code.
@@ -380,7 +384,15 @@ export class SyncHostEndpoint {
     }
 
     this.pairFailures.delete(failureKey)
-    const issued = await this.deps.devices.issue({ name: validation.data.deviceName })
+    let issued: IssuedSyncHostDevice
+    try {
+      issued = await this.deps.devices.issue({ name: validation.data.deviceName })
+    } catch (error) {
+      // The code was spent but no device exists. Burning it would force the user to generate a new
+      // one for a failure that was not theirs, so it is restored and the error still surfaces.
+      if (outstanding) this.deps.pairing.restore(outstanding.code, outstanding.expiresAt)
+      throw error
+    }
     const payload = SyncHostPairResponseSchema.parse({
       deviceId: issued.device.deviceId,
       deviceName: issued.device.name,
@@ -493,29 +505,35 @@ export class SyncHostEndpoint {
     response.once('finish', () => {
       completed = true
     })
-    await new Promise<void>((resolve) => {
-      const stream = fs.createReadStream(snapshot.filePath, { start, end })
-      const finish = (): void => {
-        stream.destroy()
-        resolve()
-      }
-      response.on('close', finish)
-      stream.on('data', (chunk) => {
-        bytesWritten += chunk.length
+    try {
+      await new Promise<void>((resolve) => {
+        const stream = fs.createReadStream(snapshot.filePath, { start, end })
+        const finish = (): void => {
+          stream.destroy()
+          resolve()
+        }
+        response.on('close', finish)
+        stream.on('data', (chunk) => {
+          bytesWritten += chunk.length
+        })
+        stream.on('error', () => {
+          // Headers and Content-Length are already sent, so the body cannot be completed honestly.
+          // Abort the connection instead of leaving the client to wait for the request timeout.
+          response.destroy()
+          finish()
+        })
+        stream.on('end', () => {
+          response.end()
+        })
+        // Protect this connection from slot eviction for as long as the body is being written.
+        this.markStreaming(request.socket)
+        stream.pipe(response)
       })
-      stream.on('error', () => {
-        // Headers and Content-Length are already sent, so the body cannot be completed honestly.
-        // Abort the connection instead of leaving the client to wait for the request timeout.
-        response.destroy()
-        finish()
-      })
-      stream.on('end', () => {
-        response.end()
-      })
-      // Protect this connection from slot eviction for as long as the body is being written.
-      this.markStreaming(request.socket)
-      stream.pipe(response)
-    })
+    } finally {
+      // The socket outlives the response on keep-alive: leaving it marked streaming would make it
+      // unevictable, and 32 such sockets would turn the ceiling into a wall for every newcomer.
+      this.clearStreaming(request.socket)
+    }
 
     this.audit({
       method,
@@ -641,6 +659,11 @@ export class SyncHostEndpoint {
   private markStreaming(socket: net.Socket): void {
     const state = this.sockets.get(socket)
     if (state) state.streaming = true
+  }
+
+  private clearStreaming(socket: net.Socket): void {
+    const state = this.sockets.get(socket)
+    if (state) state.streaming = false
   }
 
   /**

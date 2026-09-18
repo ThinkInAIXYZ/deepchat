@@ -12,10 +12,17 @@ export interface SyncHostPairingCode {
 }
 
 function createCode(): string {
-  const bytes = randomBytes(CODE_LENGTH)
+  // Rejection sampling: 248 is the largest multiple of the alphabet length below 256, so discarding
+  // the top eight byte values removes the modulo bias entirely (the bias was ~1.4% and irrelevant
+  // against the failure budget, but it is free to avoid).
+  const limit = Math.floor(256 / CODE_ALPHABET.length) * CODE_ALPHABET.length
   let code = ''
-  for (let index = 0; index < CODE_LENGTH; index += 1) {
-    code += CODE_ALPHABET[bytes[index] % CODE_ALPHABET.length]
+  while (code.length < CODE_LENGTH) {
+    for (const byte of randomBytes(CODE_LENGTH)) {
+      if (byte >= limit) continue
+      code += CODE_ALPHABET[byte % CODE_ALPHABET.length]
+      if (code.length === CODE_LENGTH) break
+    }
   }
   return code
 }
@@ -73,6 +80,17 @@ export class SyncHostPairingAuthority {
     if (!candidate || !codesEqual(candidate, this.code)) return 'invalid'
     this.clear()
     return 'accepted'
+  }
+
+  /**
+   * Puts a consumed code back when the pairing it authorized could not be completed (device
+   * issuance failed). Never clobbers a code the user created in the meantime, and never revives an
+   * expired one.
+   */
+  restore(code: string, expiresAt: number, now: number = Date.now()): void {
+    if (this.code || expiresAt <= now) return
+    this.code = code
+    this.expiresAt = expiresAt
   }
 
   clear(): void {

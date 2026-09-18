@@ -39,7 +39,13 @@ export class SyncHostStateStore {
   private state: SyncHostState = { ...DEFAULT_STATE }
   private loaded = false
   private loadChain: Promise<SyncHostState> | null = null
-  private writeChain: Promise<void> = Promise.resolve()
+  /**
+   * Serializes whole update transactions — load, snapshot, mutation, write, rollback — not just the
+   * filesystem writes. Serializing writes alone is not enough: a second update could snapshot the
+   * first one's mutation before it failed, which would both block the rollback and persist the
+   * change whose caller was told it failed.
+   */
+  private updateChain: Promise<void> = Promise.resolve()
 
   constructor(private readonly directory: string) {}
 
@@ -96,35 +102,32 @@ export class SyncHostStateStore {
    * and the enabled flag.
    */
   async update(mutator: (state: SyncHostState) => void): Promise<void> {
-    if (!this.loaded) await this.load()
-    const previous = this.state
-    const next = this.snapshot()
-    mutator(next)
-    this.state = next
-    try {
-      await this.persist()
-    } catch (error) {
-      // Roll the cache back: memory must never claim a change that is not on disk, or the next
-      // successful write (a last-seen touch, a rename) would silently persist a mutation whose
-      // caller was told it failed — enabling host mode after a failed enable, or un-revoking a
-      // device after a failed revoke.
-      if (this.state === next) this.state = previous
-      throw error
-    }
+    const update = this.updateChain.then(async () => {
+      if (!this.loaded) await this.load()
+      const previous = this.state
+      const next = this.snapshot()
+      mutator(next)
+      this.state = next
+      try {
+        // The caller must see write failures: a revocation that silently failed to persist would
+        // come back to life after a restart.
+        await this.writeAtomic(`${JSON.stringify(next, null, 2)}\n`)
+      } catch (error) {
+        // Roll the cache back: memory must never claim a change that is not on disk, or a later
+        // successful write (a last-seen touch, a rename) would silently persist a mutation whose
+        // caller was told it failed. Safe unconditionally because updates are serialized.
+        this.state = previous
+        throw error
+      }
+    })
+    // Keep the chain usable after a rejection while still surfacing the failure to this caller.
+    this.updateChain = update.catch(() => undefined)
+    return update
   }
 
-  /** Resolves once every queued write has settled; used by teardown and tests. */
+  /** Resolves once every queued update has settled; used by teardown and tests. */
   async flush(): Promise<void> {
-    await this.writeChain
-  }
-
-  private persist(): Promise<void> {
-    const payload = `${JSON.stringify(this.state, null, 2)}\n`
-    // The caller must see write failures: a revocation that silently failed to persist would come
-    // back to life after a restart. The chain keeps ordering while tolerating a failed link.
-    const write = this.writeChain.then(() => this.writeAtomic(payload))
-    this.writeChain = write.catch(() => undefined)
-    return write
+    await this.updateChain
   }
 
   private async writeAtomic(payload: string): Promise<void> {
