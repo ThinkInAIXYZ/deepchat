@@ -590,6 +590,51 @@ describe('SyncHostService endpoint', () => {
     expect(authority.consume(expiring.code, 6_000)).toBe('expired')
   })
 
+  it('does not persist the host identity until initialize() writes it', async () => {
+    const userData = await mkdtemp(path.join(os.tmpdir(), 'deepchat-sync-host-lazy-'))
+    try {
+      const uninitialized = new SyncHostService({
+        listBackups: async () => [],
+        getFolderPath: () => syncDir,
+        getUserDataPath: () => userData,
+        getAppVersion: () => '9.9.9'
+      })
+      const identity = uninitialized.getHostId()
+      // Reading the identity must not write: a fire-and-forget write here can fail and roll the
+      // cache back after initialize() already adopted the value, leaving two identities in play.
+      await new Promise((resolve) => setTimeout(resolve, 100))
+      await expect(stat(path.join(userData, 'sync-host', 'host-state.json'))).rejects.toThrow()
+
+      await uninitialized.initialize()
+      const persisted = JSON.parse(
+        await readFile(path.join(userData, 'sync-host', 'host-state.json'), 'utf8')
+      ) as { hostId: string }
+      expect(persisted.hostId).toBe(identity)
+      await uninitialized.stop()
+    } finally {
+      await rm(userData, { recursive: true, force: true })
+    }
+  })
+
+  it('restores a consumed pairing code when pairing could not be completed', () => {
+    const authority = new SyncHostPairingAuthority(() => 'host-1')
+    const created = authority.create({ now: 1_000, ttlMs: 600_000 })
+    expect(authority.consume(created.code, 1_001)).toBe('accepted')
+    expect(authority.current(1_002)).toBeNull()
+
+    authority.restore(created.code, created.expiresAt, 1_003)
+    expect(authority.consume(created.code, 1_004)).toBe('accepted')
+
+    // Never clobbers a code the user generated in the meantime, and never revives an expired one.
+    const fresh = authority.create({ now: 2_000, ttlMs: 600_000 })
+    authority.restore(created.code, created.expiresAt, 2_001)
+    expect(authority.current(2_002)?.code).toBe(fresh.code)
+
+    authority.clear()
+    authority.restore(created.code, 5_000, 6_000)
+    expect(authority.current(6_001)).toBeNull()
+  })
+
   it('does not let failed attempts destroy or block the user pairing code', () => {
     const authority = new SyncHostPairingAuthority(() => 'host-1')
     const created = authority.create({ now: 1_000, ttlMs: 600_000 })
