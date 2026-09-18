@@ -39,14 +39,16 @@
           />
         </div>
       </div>
-      <div data-testid="chat-viewport-region" class="relative min-h-0 min-w-0">
+      <!-- The message map gets a column of its own beside the scroll container, so it is never
+           clipped by the side panel and never squeezed when the window is narrow. -->
+      <div data-testid="chat-viewport-region" class="relative flex min-h-0 min-w-0 flex-row">
         <div
           ref="scrollContainer"
           data-testid="chat-page"
           role="region"
           :aria-label="sessionTitle"
           tabindex="0"
-          class="message-list-container relative h-full min-h-0 w-full min-w-0 overflow-y-auto"
+          class="message-list-container relative h-full min-h-0 min-w-0 flex-1 overflow-y-auto"
           :class="{ 'dc-list-scrolling': isListScrolling }"
           @scroll.passive="onScroll"
           @scrollend.passive="listGestures.onListScrollEnd"
@@ -1150,12 +1152,12 @@ const minimapViewport = computed(() =>
   })
 )
 
-/** The rail earns its space once the conversation actually overflows, like a scrollbar would. */
-const showChatMinimap = computed(
-  () =>
-    minimapTicks.value.length > 1 &&
-    messageWindow.totalHeight.value > scrollViewportHeight.value + 1
-)
+/**
+ * The rail is worth a column of its own as soon as there is more than one message to navigate. It
+ * scrolls itself when the marks no longer fit, so it does not need the conversation to overflow the
+ * viewport first.
+ */
+const showChatMinimap = computed(() => minimapTicks.value.length > 1)
 
 /**
  * Text for the map's hover card. Only the hovered message is projected, so the preview costs one

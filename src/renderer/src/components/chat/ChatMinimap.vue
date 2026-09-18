@@ -21,9 +21,9 @@ import {
  * route the request through the scroll controller, so every programmatic scroll still carries an
  * explicit reason.
  *
- * The rail sits 20 px in from the viewport's right edge so its hit area clears the scrollbar gutter
- * on every platform: the app styles an 8 px scrollbar, but Windows still draws a classic ~17 px one,
- * and a rail that overlapped it would swallow drags meant for the scrollbar.
+ * The rail lives in its own column beside the scroll container rather than floating over it: the
+ * column reserves the space, so the marks are never clipped by the side panel and never squeezed
+ * when the window is narrow, and the message list's scrollbar keeps its own gutter.
  */
 const props = defineProps<{
   visible: boolean
@@ -132,8 +132,7 @@ const markTop = (index: number) => `${index * MARK_PITCH}px`
 <template>
   <div
     v-if="props.visible"
-    class="pointer-events-none absolute right-5 top-2 bottom-2 w-12"
-    style="z-index: var(--dc-z-sticky)"
+    class="relative flex h-full w-16 shrink-0 flex-col py-2"
     data-testid="chat-minimap"
   >
     <div
@@ -145,7 +144,7 @@ const markTop = (index: number) => `${index * MARK_PITCH}px`
       :aria-valuemin="1"
       :aria-valuemax="Math.max(props.ticks.length, 1)"
       :aria-valuenow="(activeIndex ?? 0) + 1"
-      class="dc-overscroll-contain pointer-events-auto flex h-full w-full flex-col overflow-y-auto focus-visible:outline-none"
+      class="dc-overscroll-contain flex h-full w-full flex-col overflow-y-auto pr-2 focus-visible:outline-none"
       data-testid="chat-minimap-rail"
       @click="onRailClick"
       @keydown="onRailKeydown"
@@ -160,7 +159,7 @@ const markTop = (index: number) => `${index * MARK_PITCH}px`
           v-for="(tick, index) in props.ticks"
           :key="tick.id"
           aria-hidden="true"
-          class="pointer-events-none absolute left-0 h-0.5 rounded-full transition-colors"
+          class="pointer-events-none absolute right-0 h-0.5 rounded-full transition-colors"
           :class="index === hoveredIndex ? 'bg-foreground' : 'bg-muted-foreground/50'"
           :style="{ top: markTop(index), width: markWidth(tick) }"
           data-testid="chat-minimap-mark"
@@ -178,7 +177,7 @@ const markTop = (index: number) => `${index * MARK_PITCH}px`
                  pointer is actually on rather than at the middle of the rail. -->
             <span
               aria-hidden="true"
-              class="absolute left-0 h-0 w-0"
+              class="absolute right-0 h-0 w-0"
               :style="{ top: markTop(hoveredIndex ?? 0) }"
             />
           </template>
