@@ -41,7 +41,7 @@ describe('ScrollToLatestPill', () => {
   })
 
   it('carries an accessible name for the icon-only controls', () => {
-    const wrapper = mount(ScrollToLatestPill, { props: { visible: true } })
+    const wrapper = mount(ScrollToLatestPill, { props: { visible: true, items: [item] } })
 
     expect(wrapper.get('[data-testid="scroll-to-latest-return"]').attributes('aria-label')).toBe(
       'chat.messages.scrollToLatest'
@@ -49,6 +49,13 @@ describe('ScrollToLatestPill', () => {
     expect(wrapper.get('[data-testid="scroll-to-latest-expand"]').attributes('aria-label')).toBe(
       'chat.messages.expandNewerMessages'
     )
+  })
+
+  it('offers no expand trigger when there is nothing to preview', () => {
+    const wrapper = mount(ScrollToLatestPill, { props: { visible: true, count: 0, items: [] } })
+
+    expect(wrapper.find('[data-testid="scroll-to-latest-return"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="scroll-to-latest-expand"]').exists()).toBe(false)
   })
 
   it('jumps to a chosen message from the preview list', async () => {

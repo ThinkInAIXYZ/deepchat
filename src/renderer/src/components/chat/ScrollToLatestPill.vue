@@ -68,7 +68,7 @@ watch(
         </DcBadge>
       </DcButton>
 
-      <Popover v-model:open="previewOpen">
+      <Popover v-if="props.items.length > 0" v-model:open="previewOpen">
         <PopoverTrigger as-child>
           <DcButton
             size="sm"
