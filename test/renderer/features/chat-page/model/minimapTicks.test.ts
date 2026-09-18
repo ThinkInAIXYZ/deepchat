@@ -3,6 +3,7 @@ import {
   buildMinimapTicks,
   buildMinimapViewportWindow,
   findMinimapTickIndexAt,
+  resolveRailScrollTop,
   type MinimapTick
 } from '@/features/chat-page/model/minimapTicks'
 import type { MessageLayoutEntry } from '@/composables/message/useMessageWindow'
@@ -156,5 +157,27 @@ describe('findMinimapTickIndexAt', () => {
   it('reports nothing without a window or marks', () => {
     expect(findMinimapTickIndexAt(ticks, null)).toBeNull()
     expect(findMinimapTickIndexAt([], { top: 0, height: 0.1 })).toBeNull()
+  })
+})
+
+describe('resolveRailScrollTop', () => {
+  const rail = { pitch: 16, railHeight: 160 }
+
+  it('leaves a visible mark alone, so browsing the rail is not undone', () => {
+    expect(resolveRailScrollTop({ ...rail, index: 5, scrollTop: 0 })).toBeNull()
+    expect(resolveRailScrollTop({ ...rail, index: 0, scrollTop: 0 })).toBeNull()
+  })
+
+  it('scrolls back to a mark above the visible slice', () => {
+    expect(resolveRailScrollTop({ ...rail, index: 2, scrollTop: 160 })).toBe(32)
+  })
+
+  it('scrolls down just far enough for a mark below the visible slice', () => {
+    // Mark 20 spans 320-336; with a 160 px rail the smallest offset that shows it is 176.
+    expect(resolveRailScrollTop({ ...rail, index: 20, scrollTop: 0 })).toBe(176)
+  })
+
+  it('does nothing before the rail has been measured', () => {
+    expect(resolveRailScrollTop({ pitch: 16, railHeight: 0, index: 20, scrollTop: 0 })).toBeNull()
   })
 })

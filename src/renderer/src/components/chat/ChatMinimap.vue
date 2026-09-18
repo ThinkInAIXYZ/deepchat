@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { DcPopover } from '@dc-ui/components/popover'
 import {
   findMinimapTickIndexAt,
+  resolveRailScrollTop,
   type MinimapTick,
   type MinimapViewportWindow
 } from '@/features/chat-page/model/minimapTicks'
@@ -16,6 +17,9 @@ import {
  * Marks are laid out on a constant pitch rather than by their position in the conversation, so the
  * spacing is the same everywhere: it never depends on how tall a single message is, and it does not
  * grow when the conversation is short. Once the marks no longer fit, the map scrolls.
+ *
+ * The mark at the top of the viewport is drawn brighter than the rest, and the rail scrolls itself
+ * to keep it visible, so the map always answers "where am I" without the user hunting for it.
  *
  * It never scrolls the conversation by itself — it emits the message to act on and lets ChatPage
  * route the request through the scroll controller, so every programmatic scroll still carries an
@@ -124,7 +128,34 @@ function onRailKeydown(event: KeyboardEvent): void {
   jumpToIndex(target)
 }
 
+/**
+ * Keep the reading position on screen. A mark that is already visible is left alone, so scrolling
+ * the rail by hand is not undone the next time the conversation moves.
+ */
+watch(
+  activeIndex,
+  (index) => {
+    const rail = railRef.value
+    if (index === null || !rail) return
+
+    const next = resolveRailScrollTop({
+      index,
+      pitch: MARK_PITCH,
+      scrollTop: rail.scrollTop,
+      railHeight: rail.clientHeight
+    })
+    if (next !== null) rail.scrollTop = next
+  },
+  { immediate: true, flush: 'post' }
+)
+
 const label = computed(() => t('chat.messages.minimap'))
+/** Hovered wins over current, and both stand out against the resting grey. */
+const markClass = (index: number) => {
+  if (index === hoveredIndex.value) return 'bg-foreground'
+  if (index === activeIndex.value) return 'bg-foreground/70'
+  return 'bg-muted-foreground/50'
+}
 const markWidth = (tick: MinimapTick) => `${Math.max(tick.width * MAX_MARK_WIDTH, 2)}px`
 const markTop = (index: number) => `${index * MARK_PITCH}px`
 </script>
@@ -160,7 +191,7 @@ const markTop = (index: number) => `${index * MARK_PITCH}px`
           :key="tick.id"
           aria-hidden="true"
           class="pointer-events-none absolute right-0 h-0.5 rounded-full transition-colors"
-          :class="index === hoveredIndex ? 'bg-foreground' : 'bg-muted-foreground/50'"
+          :class="markClass(index)"
           :style="{ top: markTop(index), width: markWidth(tick) }"
           data-testid="chat-minimap-mark"
         />

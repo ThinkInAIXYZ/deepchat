@@ -81,15 +81,21 @@ describe('ChatMinimap', () => {
     expect(wrapper.get('[data-testid="chat-minimap-rail"]').classes()).toContain('overflow-y-auto')
   })
 
-  it('keeps every mark dim until one is hovered', async () => {
+  it('marks the reading position and rests everything else', async () => {
     const { wrapper } = await mountRail()
 
+    // The viewport window sits on m2, so m2 carries the position and the others rest grey.
     expect(marks(wrapper)[0].classes()).toContain('bg-muted-foreground/50')
+    expect(marks(wrapper)[1].classes()).toContain('bg-foreground/70')
+  })
+
+  it('shows hover as the brightest state, ahead of the reading position', async () => {
+    const { wrapper } = await mountRail()
 
     await wrapper.get('[data-testid="chat-minimap-rail"]').trigger('pointermove', { clientY: 5 })
 
     expect(marks(wrapper)[0].classes()).toContain('bg-foreground')
-    expect(marks(wrapper)[1].classes()).toContain('bg-muted-foreground/50')
+    expect(marks(wrapper)[1].classes()).toContain('bg-foreground/70')
   })
 
   it('reports the hovered message so the parent can project its text', async () => {

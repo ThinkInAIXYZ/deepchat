@@ -104,6 +104,32 @@ export function buildMinimapViewportWindow(input: {
 }
 
 /**
+ * Scroll offset that brings a mark into view, or null while it is already visible.
+ *
+ * The rail follows the reading position rather than being scrolled by it: a mark that is on screen is
+ * left alone, so browsing the rail by hand is not undone by the next message-list scroll. Without a
+ * measured rail there is nothing to scroll.
+ */
+export function resolveRailScrollTop(input: {
+  index: number
+  pitch: number
+  scrollTop: number
+  railHeight: number
+}): number | null {
+  if (!(input.railHeight > 0) || input.index < 0) return null
+
+  const top = input.index * input.pitch
+  if (top < input.scrollTop) return top
+
+  const bottom = top + input.pitch
+  if (bottom > input.scrollTop + input.railHeight) {
+    return Math.max(bottom - input.railHeight, 0)
+  }
+
+  return null
+}
+
+/**
  * Index of the message shown at the top of the viewport, which is what the rail reports as its
  * current position. Falls back to the last mark when the viewport sits past every loaded message,
  * e.g. while the after-spacer is being scrolled.

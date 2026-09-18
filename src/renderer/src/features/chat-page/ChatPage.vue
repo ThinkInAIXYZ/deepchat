@@ -1158,7 +1158,7 @@ const minimapViewport = computed(() =>
  * scrolls itself when the marks no longer fit, so it does not need the conversation to overflow the
  * viewport first.
  */
-const showChatMinimap = computed(() => minimapTicks.value.length > 1)
+const showChatMinimap = computed(() => minimapTicks.value.length > 0)
 
 /**
  * Text for the map's hover card. Only the hovered message is projected, so the preview costs one
