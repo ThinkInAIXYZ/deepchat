@@ -13,14 +13,6 @@ export interface ScrollToLatestItem {
 const MAX_PREVIEW_CHARS = 140
 const DEFAULT_ITEM_LIMIT = 50
 
-/**
- * Optimistic placeholders use synthetic ids that disappear once the real record arrives, so they
- * must never become a jump target.
- */
-function isSyntheticMessageId(id: string): boolean {
-  return id.startsWith('__pending_assistant_') || id.startsWith('__rate_limit__')
-}
-
 function truncate(text: string): string {
   return text.length > MAX_PREVIEW_CHARS ? `${text.slice(0, MAX_PREVIEW_CHARS)}…` : text
 }
@@ -31,6 +23,11 @@ function truncate(text: string): string {
  * The list is bounded to the newest `limit` rows: the indicator exists to reach the bottom quickly,
  * and an unbounded list would render hundreds of rows for a long reading session. Callers show the
  * true total from the count, not from this list's length.
+ *
+ * Optimistic rows are included. A reply that is still generating is exactly such a row, and hiding
+ * it meant the newest message — the one the user just triggered — never appeared in the preview.
+ * Jumping to one is safe because the jump is issued immediately: the target is resolved from the
+ * layout map at click time, and the row keeps its DOM node when the persisted record replaces it.
  */
 export function buildScrollToLatestItems(input: {
   messages: readonly DisplayMessage[]
@@ -38,9 +35,8 @@ export function buildScrollToLatestItems(input: {
   limit?: number
 }): ScrollToLatestItem[] {
   const limit = input.limit ?? DEFAULT_ITEM_LIMIT
-  const candidates = input.messages.filter((message) => !isSyntheticMessageId(message.id))
-  const bounded =
-    candidates.length > limit ? candidates.slice(candidates.length - limit) : candidates
+  const messages = input.messages
+  const bounded = messages.length > limit ? messages.slice(messages.length - limit) : messages
 
   return bounded.map((message) => ({
     id: message.id,

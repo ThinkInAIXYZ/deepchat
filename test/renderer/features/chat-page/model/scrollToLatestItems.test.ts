@@ -50,17 +50,19 @@ describe('buildScrollToLatestItems', () => {
     expect(items[1]).toMatchObject({ id: 'm2', streaming: false, failed: true })
   })
 
-  it('drops optimistic placeholders that are not real jump targets', () => {
+  it('lists the reply that is still being generated', () => {
+    // The generating row is an optimistic placeholder. Hiding it meant the newest message — the one
+    // the user just triggered — never showed up in the preview.
     const items = buildScrollToLatestItems({
       messages: [
-        assistantMessage('__pending_assistant_1700000000000_ab', 'placeholder'),
-        assistantMessage('__rate_limit__', 'rate limited'),
-        assistantMessage('m9', 'real')
+        assistantMessage('m8', 'earlier answer'),
+        assistantMessage('__pending_assistant_1700000000000_ab', 'partial answer')
       ],
-      streamingMessageId: null
+      streamingMessageId: '__pending_assistant_1700000000000_ab'
     })
 
-    expect(items.map((item) => item.id)).toEqual(['m9'])
+    expect(items.map((item) => item.id)).toEqual(['m8', '__pending_assistant_1700000000000_ab'])
+    expect(items[1]).toMatchObject({ streaming: true, text: 'partial answer' })
   })
 
   it('keeps the newest rows when the pending set exceeds the limit', () => {
