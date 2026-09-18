@@ -31,3 +31,19 @@ export function shouldRetryMessageJump(input: {
   if (input.attempt >= input.maxAttempts) return false
   return input.currentGestureSeq === input.gestureSeqAtStart
 }
+
+/**
+ * True once a newer jump has taken over from this one.
+ *
+ * A fresh jump clears the pending retry timers when it starts, which covers every timer that already
+ * exists. It does not cover a jump that is still awaiting the DOM at that moment: such a jump
+ * resumes afterwards and can register a *new* timer for its own message, and that timer would later
+ * re-issue an explicit navigation and pull the viewport back to a message the user has moved past.
+ * Every await inside a jump must therefore re-check its generation before acting.
+ */
+export function isSupersededMessageJump(input: {
+  jumpSeqAtStart: number
+  currentJumpSeq: number
+}): boolean {
+  return input.currentJumpSeq !== input.jumpSeqAtStart
+}

@@ -360,7 +360,11 @@ import ChatInteractionDock from '@/components/chat/ChatInteractionDock.vue'
 import ChatMinimap from '@/components/chat/ChatMinimap.vue'
 import PendingInputLane from '@/components/chat/PendingInputLane.vue'
 import ScrollToLatestPill from '@/components/chat/ScrollToLatestPill.vue'
-import { canAttemptMessageJump, shouldRetryMessageJump } from './model/messageJumpRetry'
+import {
+  canAttemptMessageJump,
+  isSupersededMessageJump,
+  shouldRetryMessageJump
+} from './model/messageJumpRetry'
 import ChatStatusBar from '@/components/chat/ChatStatusBar.vue'
 import ChatToolInteractionOverlay from '@/components/chat/ChatToolInteractionOverlay.vue'
 import MemoryTurnDialog from '@/components/chat/MemoryTurnDialog.vue'
@@ -540,6 +544,12 @@ const sidepanelStore = useSidepanelStore()
 const messageJumpTimers = new Map<string, number>()
 
 /**
+ * Generation counter for message jumps. Every fresh jump bumps it, and a jump that awaited the DOM
+ * compares it before acting, so a superseded jump stops instead of dragging the viewport back.
+ */
+let messageJumpSeq = 0
+
+/**
  * Counts user gestures on the message list. `jumpToMessage` compares this before retrying so a
  * retry can never override a gesture that already cancelled the pending navigation.
  */
@@ -629,8 +639,18 @@ function returnToLatest(): void {
   requestChatScroll('user-return-to-bottom', { kind: 'bottom' })
 }
 
+/**
+ * Starts a new jump generation. Any jump still awaiting the DOM becomes superseded the moment this
+ * is called, which is what keeps a rapid sequence of clicks on the message map from being undone by
+ * a retry that belongs to an earlier one.
+ */
+function startMessageJump(messageId: string, reason: ChatScrollReason): Promise<boolean> {
+  messageJumpSeq += 1
+  return jumpToMessage(messageId, reason, 0, userGestureSeq, messageJumpSeq)
+}
+
 function jumpToPendingMessage(messageId: string): void {
-  void jumpToMessage(messageId, 'indicator-navigation')
+  void startMessageJump(messageId, 'indicator-navigation')
 }
 
 function requestChatScroll(
@@ -880,7 +900,8 @@ async function jumpToMessage(
   messageId: string,
   reason: ChatScrollReason,
   attempt = 0,
-  gestureSeqAtStart: number = userGestureSeq
+  gestureSeqAtStart: number = userGestureSeq,
+  jumpSeqAtStart: number = messageJumpSeq
 ): Promise<boolean> {
   // Checked before any request: a retry that arrives after the user gestured must not re-issue an
   // explicit navigation, which the controller would accept and use to pull the viewport back.
@@ -899,6 +920,13 @@ async function jumpToMessage(
 
   await nextTick()
 
+  // Clearing the timers above only covers the timers that existed at that moment. This jump may have
+  // been awaiting the DOM while a newer one started, so it re-checks its generation before it acts —
+  // otherwise it would register a fresh timer below and drag the viewport back to its own message.
+  if (isSupersededMessageJump({ jumpSeqAtStart, currentJumpSeq: messageJumpSeq })) {
+    return false
+  }
+
   const entry = messageWindow.getEntry(messageId)
   if (entry) {
     const requestId = requestChatScroll(reason, {
@@ -909,6 +937,9 @@ async function jumpToMessage(
     if (requestId === null) return false
     await waitForNextAnimationFrame()
     await nextTick()
+    if (isSupersededMessageJump({ jumpSeqAtStart, currentJumpSeq: messageJumpSeq })) {
+      return false
+    }
   }
 
   const target = messageSearchRoot.value?.querySelector<HTMLElement>(messageIdSelector(messageId))
@@ -937,7 +968,7 @@ async function jumpToMessage(
       messageId,
       window.setTimeout(() => {
         messageJumpTimers.delete(messageId)
-        void jumpToMessage(messageId, reason, attempt + 1, gestureSeqAtStart)
+        void jumpToMessage(messageId, reason, attempt + 1, gestureSeqAtStart, jumpSeqAtStart)
       }, MESSAGE_JUMP_RETRY_INTERVAL)
     )
     return false
@@ -958,7 +989,7 @@ async function focusPendingSpotlightMessageJump(): Promise<void> {
     return
   }
 
-  if (await jumpToMessage(pendingJump.messageId, 'spotlight-navigation')) {
+  if (await startMessageJump(pendingJump.messageId, 'spotlight-navigation')) {
     spotlightStore.clearPendingMessageJump()
   }
 }

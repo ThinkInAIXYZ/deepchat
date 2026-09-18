@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   canAttemptMessageJump,
+  isSupersededMessageJump,
   shouldRetryMessageJump
 } from '@/features/chat-page/model/messageJumpRetry'
 
@@ -58,5 +59,17 @@ describe('canAttemptMessageJump', () => {
     expect(canAttemptMessageJump({ attempt: 3, gestureSeqAtStart: 4, currentGestureSeq: 4 })).toBe(
       true
     )
+  })
+})
+
+describe('isSupersededMessageJump', () => {
+  it('keeps the newest jump alive', () => {
+    expect(isSupersededMessageJump({ jumpSeqAtStart: 7, currentJumpSeq: 7 })).toBe(false)
+  })
+
+  it('stops a jump that a newer one took over', () => {
+    // The newer jump clears the retry timers it can see, but the older jump may still be awaiting the
+    // DOM and would otherwise register a fresh timer for its own message after that clear.
+    expect(isSupersededMessageJump({ jumpSeqAtStart: 7, currentJumpSeq: 8 })).toBe(true)
   })
 })
