@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import { useElementSize } from '@vueuse/core'
 import { useI18n } from 'vue-i18n'
 import { DcPopover } from '@dc-ui/components/popover'
 import {
   findMinimapTickIndexAt,
+  resolveMarkPitch,
   type MinimapTick,
   type MinimapViewportWindow
 } from '@/features/chat-page/model/minimapTicks'
@@ -13,9 +15,10 @@ import {
  * relative to the longest one in the conversation. Hovering a mark highlights it and previews the
  * message; clicking a mark jumps there, and the arrow keys walk the marks one at a time.
  *
- * Marks are laid out on a fixed pitch rather than by their position in the conversation, so the
- * spacing is even no matter how tall a single message is. When the marks no longer fit the viewport
- * the map scrolls on its own instead of squeezing them together.
+ * Marks are laid out on an even pitch rather than by their position in the conversation, so the
+ * spacing never depends on how tall a single message is: few messages spread across the whole rail,
+ * and once they no longer fit at the minimum pitch the map scrolls instead of squeezing them
+ * together.
  *
  * It never scrolls the conversation by itself — it emits the message to act on and lets ChatPage
  * route the request through the scroll controller, so every programmatic scroll still carries an
@@ -36,10 +39,10 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 const railRef = ref<HTMLElement | null>(null)
+const contentRef = ref<HTMLElement | null>(null)
 const hoveredIndex = ref<number | null>(null)
+const { height: railHeight } = useElementSize(railRef)
 
-/** Vertical distance between two marks. */
-const MARK_PITCH = 14
 /** Full mark width in px; the longest message fills it and every other mark scales against it. */
 const MAX_MARK_WIDTH = 40
 
@@ -48,11 +51,15 @@ const activeIndex = computed(() => findMinimapTickIndexAt(props.ticks, props.vie
 const hoveredTick = computed(() =>
   hoveredIndex.value === null ? null : (props.ticks[hoveredIndex.value] ?? null)
 )
-const marksHeight = computed(() => props.ticks.length * MARK_PITCH)
+const markPitch = computed(() =>
+  resolveMarkPitch({ railHeight: railHeight.value, count: props.ticks.length })
+)
+const marksHeight = computed(() => props.ticks.length * markPitch.value)
 
 /**
  * The mark a pointer is on. Marks share a pitch, so a position resolves straight to a slot — and the
- * space between two marks belongs to one of them rather than being a dead zone.
+ * space between two marks belongs to one of them rather than being a dead zone. The content box is
+ * measured rather than assumed, because a short conversation centres its marks in the rail.
  */
 function indexAt(clientY: number): number | null {
   const rail = railRef.value
@@ -60,8 +67,9 @@ function indexAt(clientY: number): number | null {
   const bounds = rail.getBoundingClientRect()
   if (bounds.height <= 0) return null
 
-  const offset = clientY - bounds.top + rail.scrollTop
-  return Math.min(Math.max(Math.floor(offset / MARK_PITCH), 0), props.ticks.length - 1)
+  const contentOffset = contentRef.value?.offsetTop ?? 0
+  const offset = clientY - bounds.top + rail.scrollTop - contentOffset
+  return Math.min(Math.max(Math.floor(offset / markPitch.value), 0), props.ticks.length - 1)
 }
 
 function jumpToIndex(index: number): void {
@@ -119,7 +127,7 @@ function onRailKeydown(event: KeyboardEvent): void {
 
 const label = computed(() => t('chat.messages.minimap'))
 const markWidth = (tick: MinimapTick) => `${Math.max(tick.width * MAX_MARK_WIDTH, 2)}px`
-const markTop = (index: number) => `${index * MARK_PITCH}px`
+const markTop = (index: number) => `${index * markPitch.value}px`
 </script>
 
 <template>
@@ -138,7 +146,7 @@ const markTop = (index: number) => `${index * MARK_PITCH}px`
       :aria-valuemin="1"
       :aria-valuemax="Math.max(props.ticks.length, 1)"
       :aria-valuenow="(activeIndex ?? 0) + 1"
-      class="dc-overscroll-contain pointer-events-auto h-full w-full overflow-y-auto focus-visible:outline-none"
+      class="dc-overscroll-contain pointer-events-auto flex h-full w-full flex-col overflow-y-auto focus-visible:outline-none"
       data-testid="chat-minimap-rail"
       @click="onRailClick"
       @keydown="onRailKeydown"
@@ -147,7 +155,8 @@ const markTop = (index: number) => `${index * MARK_PITCH}px`
     >
       <!-- Absolutely positioned marks give the scroll container no height of its own, so the content
            box carries the full stacked height. -->
-      <div class="relative w-full" :style="{ height: `${marksHeight}px` }">
+      <!-- `my-auto` centres a short stack in the rail and collapses to 0 once the marks overflow. -->
+      <div ref="contentRef" class="relative my-auto w-full" :style="{ height: `${marksHeight}px` }">
         <span
           v-for="(tick, index) in props.ticks"
           :key="tick.id"

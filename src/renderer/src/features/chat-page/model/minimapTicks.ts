@@ -85,6 +85,27 @@ export function buildMinimapTicks(input: {
 }
 
 /**
+ * Distance between two marks.
+ *
+ * A conversation with few messages spreads them across the whole rail so the map reads like a map;
+ * once the messages no longer fit at `minPitch` the pitch stops shrinking and the rail scrolls
+ * instead. `maxPitch` keeps a two-message conversation from pinning its marks to opposite ends.
+ */
+export function resolveMarkPitch(input: {
+  railHeight: number
+  count: number
+  minPitch?: number
+  maxPitch?: number
+}): number {
+  const minPitch = input.minPitch ?? 14
+  const maxPitch = input.maxPitch ?? 44
+  if (input.count <= 0) return minPitch
+  if (!(input.railHeight > 0)) return minPitch
+
+  return Math.min(Math.max(input.railHeight / input.count, minPitch), maxPitch)
+}
+
+/**
  * The visible slice of the conversation. `viewportTop` is in message-window coordinates, i.e. the
  * caller has already subtracted the window origin, the same space the entries live in.
  */
