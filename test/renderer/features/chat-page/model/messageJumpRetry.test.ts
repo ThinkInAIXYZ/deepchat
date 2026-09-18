@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { shouldRetryMessageJump } from '@/features/chat-page/model/messageJumpRetry'
+import {
+  canAttemptMessageJump,
+  shouldRetryMessageJump
+} from '@/features/chat-page/model/messageJumpRetry'
 
 describe('shouldRetryMessageJump', () => {
   it('allows retries while the user has not interacted', () => {
@@ -35,5 +38,25 @@ describe('shouldRetryMessageJump', () => {
         currentGestureSeq: 4
       })
     ).toBe(false)
+  })
+})
+
+describe('canAttemptMessageJump', () => {
+  it('always allows the first attempt, which is the user action itself', () => {
+    expect(canAttemptMessageJump({ attempt: 0, gestureSeqAtStart: 0, currentGestureSeq: 3 })).toBe(
+      true
+    )
+  })
+
+  it('blocks a retry once the user has gestured since the jump started', () => {
+    expect(canAttemptMessageJump({ attempt: 1, gestureSeqAtStart: 4, currentGestureSeq: 5 })).toBe(
+      false
+    )
+  })
+
+  it('allows a retry while the user has stayed out of the way', () => {
+    expect(canAttemptMessageJump({ attempt: 3, gestureSeqAtStart: 4, currentGestureSeq: 4 })).toBe(
+      true
+    )
   })
 })

@@ -76,6 +76,7 @@ export function useChatScrollController(options: ChatScrollControllerOptions) {
       case 'history-navigation':
       case 'search-navigation':
       case 'spotlight-navigation':
+      case 'indicator-navigation':
         updateState({ type: 'explicit-navigation-complete' })
         break
       default:

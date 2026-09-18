@@ -11,6 +11,17 @@
  * passes both values in. A retry is only allowed while the user has not gestured since the jump
  * started.
  */
+export function canAttemptMessageJump(input: {
+  attempt: number
+  gestureSeqAtStart: number
+  currentGestureSeq: number
+}): boolean {
+  // The first attempt is the user's own action and always runs. Every later attempt would re-issue
+  // an explicit navigation, so it may only run while the user has not gestured since the jump
+  // started — the guard must be consulted BEFORE the request, not after it.
+  return input.attempt === 0 || input.currentGestureSeq === input.gestureSeqAtStart
+}
+
 export function shouldRetryMessageJump(input: {
   attempt: number
   maxAttempts: number

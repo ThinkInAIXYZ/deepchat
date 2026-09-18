@@ -354,7 +354,7 @@ import ChatInteractionDock from '@/components/chat/ChatInteractionDock.vue'
 import PendingInputLane from '@/components/chat/PendingInputLane.vue'
 import ScrollToLatestPill from '@/components/chat/ScrollToLatestPill.vue'
 import { buildScrollToLatestItems } from './model/scrollToLatestItems'
-import { shouldRetryMessageJump } from './model/messageJumpRetry'
+import { canAttemptMessageJump, shouldRetryMessageJump } from './model/messageJumpRetry'
 import ChatStatusBar from '@/components/chat/ChatStatusBar.vue'
 import ChatToolInteractionOverlay from '@/components/chat/ChatToolInteractionOverlay.vue'
 import MemoryTurnDialog from '@/components/chat/MemoryTurnDialog.vue'
@@ -882,6 +882,21 @@ async function jumpToMessage(
   attempt = 0,
   gestureSeqAtStart: number = userGestureSeq
 ): Promise<boolean> {
+  // Checked before any request: a retry that arrives after the user gestured must not re-issue an
+  // explicit navigation, which the controller would accept and use to pull the viewport back.
+  if (!canAttemptMessageJump({ attempt, gestureSeqAtStart, currentGestureSeq: userGestureSeq })) {
+    return false
+  }
+
+  // A newer jump supersedes an older pending retry; otherwise a stale timer can yank the viewport
+  // to a message the user has already moved on from.
+  if (attempt === 0) {
+    for (const timer of messageJumpTimers.values()) {
+      window.clearTimeout(timer)
+    }
+    messageJumpTimers.clear()
+  }
+
   await nextTick()
 
   const entry = messageWindow.getEntry(messageId)
