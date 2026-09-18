@@ -1,15 +1,21 @@
 # Standalone Agent Service Development Plan
 
 This is the only execution tracker for [Standalone Agent Service Architecture](./spec.md).
-Each stage is one reviewable implementation slice. A stage ends with its listed acceptance checks and
-one commit. Do not start the next stage until the preceding commit is green and the owner boundary is
-stable.
+The [Monorepo Migration](../monorepo-migration/spec.md) and its
+[plan](../monorepo-migration/plan.md) track repository relocation and package boundaries separately:
+complete M0–M4 before Stage 3 behavior changes, then interleave M5 extraction with Stage 3 host
+implementation. New host composition belongs in `packages/cli`; these structural milestones do not
+close any standalone behavior acceptance item.
+Each stage is a reviewable acceptance boundary and may contain multiple independently green sub-slice
+commits. Do not start the next stage until the preceding acceptance checks pass and the owner boundary
+is stable.
 
 ## Global rules
 
 - Preserve unrelated worktree changes; never stage broad globs.
-- Use the existing `src/main`, `src/preload`, `src/renderer`, and `src/shared` conventions while the
-  workspace package boundary is being introduced.
+- Preserve the existing main/preload/renderer boundaries during M3 relocation into `packages/desktop`;
+  move only reviewed neutral shared contracts into `packages/shared` at M2. Follow the monorepo plan's
+  package ownership rules without changing the runtime authority defined here.
 - Keep Electron/native capabilities behind typed host or preload/IPC ports.
 - Do not weaken authentication, caller policy, approval, input validation, or fail-closed launcher
   behavior for headless CLI.
@@ -529,12 +535,13 @@ behavior-preserving widget refresh are required; passing DTO/fake contract tests
 **Purpose:** provide the missing provider/model/tool resource owner so the kernel is a complete Agent
 Service rather than a portable shell.
 
-Starts only when: Stage 2's kernel is constructible in a clean Node consumer.
+Starts only when: Stage 2's kernel is constructible in a clean Node consumer and monorepo M0–M4
+structural acceptance is complete. Interleave M5 domain extraction with the host slices below.
 
 ### Work
 
 - [ ] Compose provider runtime, credential store, session/database/config owner, MCP, file/process,
-  memory, skills, hooks, and supported tool adapters in a Node-capable host.
+  memory, skills, hooks, and supported tool adapters in a Node-capable host under `packages/cli`.
 - [ ] Implement the Stage 2 ports as the single owner for the profile, and construct the V1
   compatibility handler in that host over the same lifecycle, turn, projection, and admission path the
   service uses for every other client. One owner, one database, one event hub: Desktop must not read a
