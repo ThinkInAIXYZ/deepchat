@@ -1,0 +1,8 @@
+{
+  "name": "baizhi-agent-toolkit",
+  "version": "0.1.0",
+  "description": "Baizhi Cloud hosted search, webpage and document tools. Requires your own API key; usage may incur charges.",
+  "author": { "name": "Baizhi Cloud" },
+  "license": "Apache-2.0",
+  "mcpServers": "./.mcp.json"
+}
