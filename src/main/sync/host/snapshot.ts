@@ -18,6 +18,9 @@ export interface SyncHostSnapshot {
 interface CachedDigest {
   size: number
   mtimeMs: number
+  /** Inode and status-change time: size+mtime alone cannot tell a replaced file from the same one. */
+  ino: number
+  ctimeMs: number
   sha256: string
   backupFormatVersion: number | null
   databaseEncrypted: boolean
@@ -34,6 +37,14 @@ interface BackupManifestShape {
  * inflate into the main process's heap.
  */
 const MANIFEST_MAX_BYTES = 1024 * 1024
+
+/**
+ * Only real backup packages may be served. Every other call site in the sync pipeline validates the
+ * name this way (`sync/index.ts`, `cloudStorageService.ts`); without it, any `*.zip` that lands in
+ * the (cloud-synced, user-configurable) sync folder would be handed to every paired device as the
+ * host's snapshot.
+ */
+const BACKUP_FILE_NAME_REGEX = /^backup-\d+\.zip$/
 
 /**
  * Extracts only manifest.json from the archive.
@@ -181,7 +192,9 @@ export class SyncHostSnapshotSource {
   }
 
   private async resolveCurrentInner(): Promise<SyncHostSnapshot | null> {
-    const backups = await this.deps.listBackups()
+    const backups = (await this.deps.listBackups()).filter((backup) =>
+      BACKUP_FILE_NAME_REGEX.test(backup.fileName)
+    )
     if (backups.length === 0) return null
     const latest = [...backups].sort((left, right) => right.createdAt - left.createdAt)[0]
     const filePath = path.join(this.deps.getFolderPath(), latest.fileName)
@@ -194,7 +207,13 @@ export class SyncHostSnapshotSource {
     }
 
     const cached = this.digests.get(latest.fileName)
-    if (cached && cached.size === stat.size && cached.mtimeMs === stat.mtimeMs) {
+    if (
+      cached &&
+      cached.size === stat.size &&
+      cached.mtimeMs === stat.mtimeMs &&
+      cached.ino === stat.ino &&
+      cached.ctimeMs === stat.ctimeMs
+    ) {
       return {
         fileName: latest.fileName,
         filePath,
@@ -213,7 +232,12 @@ export class SyncHostSnapshotSource {
         // digest a missing file again.
         return null
       }
-      if (after.size !== stat.size || after.mtimeMs !== stat.mtimeMs) {
+      if (
+        after.size !== stat.size ||
+        after.mtimeMs !== stat.mtimeMs ||
+        after.ino !== stat.ino ||
+        after.ctimeMs !== stat.ctimeMs
+      ) {
         // The package changed while it was read: never report a hash for bytes we did not measure.
         if (attempt === 1) return null
         stat = after
@@ -222,6 +246,8 @@ export class SyncHostSnapshotSource {
       this.digests.set(latest.fileName, {
         size: stat.size,
         mtimeMs: stat.mtimeMs,
+        ino: stat.ino,
+        ctimeMs: stat.ctimeMs,
         ...digest
       })
       this.forgetOtherEntries(latest.fileName)

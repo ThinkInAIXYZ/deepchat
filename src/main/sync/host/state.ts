@@ -135,15 +135,21 @@ export class SyncHostStateStore {
       // Best effort: the directory may live on a filesystem without POSIX modes.
     }
     const tempPath = `${this.filePath}.${randomBytes(6).toString('hex')}.tmp`
-    const handle = await fs.promises.open(tempPath, 'wx', 0o600)
     try {
-      await handle.writeFile(payload, 'utf8')
-      await handle.sync()
-    } finally {
-      await handle.close()
+      const handle = await fs.promises.open(tempPath, 'wx', 0o600)
+      try {
+        await handle.writeFile(payload, 'utf8')
+        await handle.sync()
+      } finally {
+        await handle.close()
+      }
+      await fs.promises.chmod(tempPath, 0o600)
+      await fs.promises.rename(tempPath, this.filePath)
+    } catch (error) {
+      // A failed write must not leave `.tmp` debris next to the state file.
+      await fs.promises.rm(tempPath, { force: true }).catch(() => undefined)
+      throw error
     }
-    await fs.promises.chmod(tempPath, 0o600)
-    await fs.promises.rename(tempPath, this.filePath)
   }
 
   private normalize(parsed: unknown): SyncHostState {

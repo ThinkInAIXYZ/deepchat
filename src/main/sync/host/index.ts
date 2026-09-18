@@ -53,6 +53,8 @@ export class SyncHostService {
   private readonly snapshotSource: SyncHostSnapshotSource
   private readonly endpoint: SyncHostEndpoint
   private lifecycle: Promise<unknown> = Promise.resolve()
+  /** Identity minted before the first load, so every caller sees the same value. */
+  private pendingHostId: string | null = null
 
   constructor(private readonly deps: SyncHostServiceDeps) {
     this.state = new SyncHostStateStore(path.join(deps.getUserDataPath(), ENDPOINT_DIRECTORY))
@@ -78,11 +80,17 @@ export class SyncHostService {
   async initialize(): Promise<void> {
     await this.serialize(async () => {
       await this.state.load()
-      if (!this.state.snapshot().hostId) {
-        await this.state.update((state) => {
-          state.hostId = randomBytes(16).toString('hex')
-        })
+      if (this.state.snapshot().hostId) {
+        this.pendingHostId = null
+        return
       }
+      // Reuse the identity a pre-initialize caller already saw, so the handshake, the pairing
+      // payload and the persisted file never disagree about who the host is.
+      const created = this.pendingHostId ?? randomBytes(16).toString('hex')
+      await this.state.update((state) => {
+        state.hostId = state.hostId ?? created
+      })
+      this.pendingHostId = null
     })
   }
 
@@ -94,8 +102,10 @@ export class SyncHostService {
     const existing = this.state.snapshot().hostId
     if (existing) return existing
     // Before `initialize()` completes there is no persisted identity yet; generate one in memory so
-    // the handshake and pairing authority never observe an empty value, then persist it.
-    const created = randomBytes(16).toString('hex')
+    // the handshake and pairing authority never observe an empty value, then persist it. The value
+    // is memoized because two callers in this window must not see two different host identities.
+    const created = this.pendingHostId ?? randomBytes(16).toString('hex')
+    this.pendingHostId = created
     void this.state
       .update((state) => {
         state.hostId = state.hostId ?? created
@@ -241,24 +251,30 @@ export class SyncHostService {
     await mkdir(directory, { recursive: true, mode: 0o700 })
     await chmod(directory, 0o700)
     const tempPath = `${this.descriptorPath()}.${randomBytes(6).toString('hex')}.tmp`
-    const handle = await open(tempPath, 'wx', 0o600)
     try {
-      await handle.writeFile(
-        `${JSON.stringify({
-          port: this.endpoint.getPort(),
-          hostId: this.getHostId(),
-          protocolVersion: SYNC_HOST_PROTOCOL_VERSION,
-          pid: process.pid,
-          startedAt: Date.now()
-        })}\n`,
-        'utf8'
-      )
-      await handle.sync()
-    } finally {
-      await handle.close()
+      const handle = await open(tempPath, 'wx', 0o600)
+      try {
+        await handle.writeFile(
+          `${JSON.stringify({
+            port: this.endpoint.getPort(),
+            hostId: this.getHostId(),
+            protocolVersion: SYNC_HOST_PROTOCOL_VERSION,
+            pid: process.pid,
+            startedAt: Date.now()
+          })}\n`,
+          'utf8'
+        )
+        await handle.sync()
+      } finally {
+        await handle.close()
+      }
+      await chmod(tempPath, 0o600)
+      await rename(tempPath, this.descriptorPath())
+    } catch (error) {
+      // A failed write must not leave `.tmp` debris next to the descriptor.
+      await unlink(tempPath).catch(() => undefined)
+      throw error
     }
-    await chmod(tempPath, 0o600)
-    await rename(tempPath, this.descriptorPath())
   }
 
   private async removeEndpointDescriptor(): Promise<void> {
