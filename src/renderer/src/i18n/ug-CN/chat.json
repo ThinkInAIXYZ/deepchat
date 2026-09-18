@@ -228,9 +228,7 @@
     "rateLimitMinutes": "مىنۇت",
     "loadEarlier": "بۇرۇنقى ئۇچۇرلارنى يۈكلەش",
     "scrollToLatest": "ئەڭ يېڭىگە يۆتكەش",
-    "newerMessages": "يېڭىراق ئۇچۇرلار",
-    "expandNewerMessages": "يېڭىراق ئۇچۇرلارنى كۆرسىتىش",
-    "jumpToMessage": "بۇ ئۇچۇرغا يۆتكەش"
+    "minimap": "ئۇچۇر خەرىتىسى"
   },
   "compaction": {
     "compacting": "مەزمۇننى قىسقارتىۋاتىدۇ ...",

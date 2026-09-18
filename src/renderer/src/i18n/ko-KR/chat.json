@@ -132,9 +132,7 @@
   "messages": {
     "loadEarlier": "이전 메시지 불러오기",
     "scrollToLatest": "최신으로 이동",
-    "newerMessages": "최신 메시지",
-    "expandNewerMessages": "최신 메시지 펼치기",
-    "jumpToMessage": "이 메시지로 이동",
+    "minimap": "메시지 맵",
     "thinking": "생각...",
     "rateLimitWaiting": "속도 제한으로 대기열에서 대기 중...",
     "rateLimitCompactLoading": "속도 제한 중 ({seconds}초)",

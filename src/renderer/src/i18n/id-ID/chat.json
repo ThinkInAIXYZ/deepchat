@@ -132,9 +132,7 @@
   "messages": {
     "loadEarlier": "Muat pesan sebelumnya",
     "scrollToLatest": "Ke yang terbaru",
-    "newerMessages": "Pesan yang lebih baru",
-    "expandNewerMessages": "Tampilkan pesan yang lebih baru",
-    "jumpToMessage": "Ke pesan ini",
+    "minimap": "Peta pesan",
     "thinking": "Berpikir...",
     "rateLimitWaiting": "Minta batas frekuensi, menunggu dalam antrian...",
     "rateLimitCompactLoading": "Batas kecepatan ({seconds} detik)",

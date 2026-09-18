@@ -132,9 +132,7 @@
   "messages": {
     "loadEarlier": "بارگیری پیام‌های قدیمی‌تر",
     "scrollToLatest": "رفتن به جدیدترین",
-    "newerMessages": "پیام‌های جدیدتر",
-    "expandNewerMessages": "نمایش پیام‌های جدیدتر",
-    "jumpToMessage": "رفتن به این پیام",
+    "minimap": "نقشه پیام‌ها",
     "thinking": "در حال تفکر...",
     "rateLimitWaiting": "محدودیت نرخ درخواست، در صف انتظار...",
     "rateLimitCompactLoading": "در محدودیت نرخ ({seconds}ث)",

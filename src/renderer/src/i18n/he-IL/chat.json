@@ -132,9 +132,7 @@
   "messages": {
     "loadEarlier": "טעינת הודעות קודמות",
     "scrollToLatest": "מעבר לאחרון",
-    "newerMessages": "הודעות חדשות יותר",
-    "expandNewerMessages": "הצגת הודעות חדשות יותר",
-    "jumpToMessage": "מעבר להודעה זו",
+    "minimap": "מפת הודעות",
     "thinking": "חושב...",
     "rateLimitWaiting": "הגעת למגבלת הקצב, ממתין בתור...",
     "rateLimitCompactLoading": "מוגבל קצב ({seconds}ש׳)",

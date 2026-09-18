@@ -228,9 +228,7 @@
     "rateLimitMinutes": "ᠮᠢᠨᠦᠢᠲ᠋",
     "loadEarlier": "ᠡᠮᠦᠨᠡᠬᠢ ᠮᠡᠳᠡᠭᠡ ᠶᠢ ᠠᠴᠢᠶᠠᠯᠠᠬᠤ",
     "scrollToLatest": "ᠰᠢᠨᠡ ᠮᠡᠳᠡᠭᠡ ᠳᠤ ᠶᠠᠪᠤᠬᠤ",
-    "newerMessages": "ᠰᠢᠨᠡ ᠮᠡᠳᠡᠭᠡ ᠨᠠᠷ",
-    "expandNewerMessages": "ᠰᠢᠨᠡ ᠮᠡᠳᠡᠭᠡ ᠨᠠᠷᠢ ᠬᠠᠨᠢᠯᠭᠠᠬᠤ",
-    "jumpToMessage": "ᠡᠨᠡ ᠮᠡᠳᠡᠭᠡ ᠳᠤ ᠶᠠᠪᠤᠬᠤ"
+    "minimap": "Мессежийн зураг"
   },
   "compaction": {
     "compacting": "ᠠᠰᠠᠭᠤᠳᠠᠯ ᠢ ᠴᠢᠩᠭ᠋ᠠᠳᠬᠠᠬᠤ ᠁",

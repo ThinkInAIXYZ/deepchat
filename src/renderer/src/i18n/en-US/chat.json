@@ -217,9 +217,7 @@
   "messages": {
     "loadEarlier": "Load earlier messages",
     "scrollToLatest": "Scroll to latest",
-    "newerMessages": "Newer messages",
-    "expandNewerMessages": "Show newer messages",
-    "jumpToMessage": "Jump to this message",
+    "minimap": "Message map",
     "thinking": "Thinking...",
     "rateLimitWaiting": "Rate limit reached, waiting in queue...",
     "rateLimitCompactLoading": "Rate limited for {seconds}s...",

@@ -132,9 +132,7 @@
   "messages": {
     "loadEarlier": "Загрузить предыдущие сообщения",
     "scrollToLatest": "Перейти к последнему",
-    "newerMessages": "Новые сообщения",
-    "expandNewerMessages": "Показать новые сообщения",
-    "jumpToMessage": "Перейти к этому сообщению",
+    "minimap": "Карта сообщений",
     "thinking": "Думаю ...",
     "rateLimitWaiting": "Ограничение скорости, ожидание в очереди...",
     "rateLimitCompactLoading": "Ограничение скорости ({seconds}с)",

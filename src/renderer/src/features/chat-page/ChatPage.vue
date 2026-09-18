@@ -135,6 +135,13 @@
             <div class="h-px w-full" aria-hidden="true" />
           </div>
         </div>
+        <!-- Sits outside the scroll container so the rail keeps its position while the list moves. -->
+        <ChatMinimap
+          :visible="showChatMinimap"
+          :ticks="minimapTicks"
+          :viewport="minimapViewport"
+          @jump="jumpToPendingMessage"
+        />
         <div
           v-if="isSessionViewPreparing"
           data-testid="chat-session-loading-overlay"
@@ -211,9 +218,7 @@
                 <ScrollToLatestPill
                   :visible="showScrollToLatest"
                   :count="messagesBelowViewport.length"
-                  :items="scrollToLatestItems"
                   @return="returnToLatest"
-                  @jump="jumpToPendingMessage"
                 />
               </div>
               <div
@@ -352,9 +357,9 @@ import {
   type ChatStatusBarModelPicker
 } from '@/components/chat/attachmentModelPicker'
 import ChatInteractionDock from '@/components/chat/ChatInteractionDock.vue'
+import ChatMinimap from '@/components/chat/ChatMinimap.vue'
 import PendingInputLane from '@/components/chat/PendingInputLane.vue'
 import ScrollToLatestPill from '@/components/chat/ScrollToLatestPill.vue'
-import { buildScrollToLatestItems } from './model/scrollToLatestItems'
 import { canAttemptMessageJump, shouldRetryMessageJump } from './model/messageJumpRetry'
 import ChatStatusBar from '@/components/chat/ChatStatusBar.vue'
 import ChatToolInteractionOverlay from '@/components/chat/ChatToolInteractionOverlay.vue'
@@ -395,6 +400,7 @@ import { useDisplayMessages } from './composables/useDisplayMessages'
 import { useChatSearch } from './composables/useChatSearch'
 import { useListGestures } from './composables/useListGestures'
 import { useMessageVirtualization } from './composables/useMessageVirtualization'
+import { buildMinimapTicks, buildMinimapViewportWindow } from './model/minimapTicks'
 import { useComposerSubmit } from './composables/useComposerSubmit'
 import { useSessionRestore } from './composables/useSessionRestore'
 import { useVoiceInput } from './composables/useVoiceInput'
@@ -622,13 +628,6 @@ const showScrollToLatest = computed(
 function returnToLatest(): void {
   requestChatScroll('user-return-to-bottom', { kind: 'bottom' })
 }
-
-const scrollToLatestItems = computed(() =>
-  buildScrollToLatestItems({
-    messages: messagesBelowViewport.value,
-    streamingMessageId: streamingMessageId.value
-  })
-)
 
 function jumpToPendingMessage(messageId: string): void {
   void jumpToMessage(messageId, 'indicator-navigation')
@@ -1073,6 +1072,31 @@ const {
   onMessageMeasure,
   messagesBelowViewport
 } = virtualization
+
+const minimapTicks = computed(() =>
+  buildMinimapTicks({
+    entries: messageWindow.entries.value,
+    messages: displayMessages.value,
+    totalHeight: messageWindow.totalHeight.value
+  })
+)
+
+const minimapViewport = computed(() =>
+  buildMinimapViewportWindow({
+    // Entries live in message-window coordinates, so the scroll offset is rebased exactly like the
+    // windowing range and the below-viewport count rebase it.
+    viewportTop: Math.max(scrollViewportTop.value - messageWindowOriginTop.value, 0),
+    viewportHeight: scrollViewportHeight.value,
+    totalHeight: messageWindow.totalHeight.value
+  })
+)
+
+/** The rail earns its space once the conversation actually overflows, like a scrollbar would. */
+const showChatMinimap = computed(
+  () =>
+    minimapTicks.value.length > 1 &&
+    messageWindow.totalHeight.value > scrollViewportHeight.value + 1
+)
 
 const {
   isChatSearchOpen,

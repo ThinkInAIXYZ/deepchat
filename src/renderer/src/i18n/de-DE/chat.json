@@ -132,9 +132,7 @@
   "messages": {
     "loadEarlier": "Frühere Nachrichten laden",
     "scrollToLatest": "Zum Neuesten scrollen",
-    "newerMessages": "Neuere Nachrichten",
-    "expandNewerMessages": "Neuere Nachrichten anzeigen",
-    "jumpToMessage": "Zu dieser Nachricht springen",
+    "minimap": "Nachrichtenkarte",
     "thinking": "Denkt nach...",
     "rateLimitWaiting": "Anfragelimit erreicht, wartet in der Warteschlange...",
     "rateLimitCompactLoading": "Rate Limit aktiv ({seconds} Sekunden)",

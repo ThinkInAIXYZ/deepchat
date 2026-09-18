@@ -132,9 +132,7 @@
   "messages": {
     "loadEarlier": "Muatkan mesej terdahulu",
     "scrollToLatest": "Pergi ke terkini",
-    "newerMessages": "Mesej yang lebih baharu",
-    "expandNewerMessages": "Tunjukkan mesej yang lebih baharu",
-    "jumpToMessage": "Pergi ke mesej ini",
+    "minimap": "Peta mesej",
     "thinking": "Berfikir...",
     "rateLimitWaiting": "Minta had kekerapan, menunggu dalam baris gilir...",
     "rateLimitCompactLoading": "Had kelajuan ({seconds} saat)",

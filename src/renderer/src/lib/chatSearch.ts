@@ -498,16 +498,6 @@ const appendDisplayContentText = (content: unknown, output: string[]): void => {
   })
 }
 
-/**
- * Projects a display message's content to the same plain text the message list renders, skipping
- * plan, tool-call and internal blocks. Shared by chat search and the "scroll to latest" preview.
- */
-export const extractDisplayContentText = (content: unknown): string => {
-  const chunks: string[] = []
-  appendDisplayContentText(content, chunks)
-  return chunks.join(' ').replace(/\s+/g, ' ').trim()
-}
-
 export const collectChatSearchResults = (
   messages: Array<{ id: string; content: unknown }>,
   query: string
