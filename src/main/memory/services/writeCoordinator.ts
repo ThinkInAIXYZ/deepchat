@@ -420,8 +420,6 @@ export class WriteCoordinator {
         outcomes.push(outcome)
         createdIds.push(...createdIdsFromOutcome(outcome))
         if (outcomeTouched(outcome)) {
-          this.ctx.markDomainMutationCommitted(input.agentId)
-          this.ports.markWorkingMemoryDirty(input.agentId)
           touched = true
         }
       }
@@ -785,7 +783,8 @@ export class WriteCoordinator {
           continue
         }
         const { settled } = preparation
-        run.outcomesByIndex.set(
+        this.recordBatchOutcome(
+          run,
           indexed.candidateIndex,
           settled.state === 'forgotten'
             ? { action: 'noop', reason: 'forgotten' }
@@ -802,6 +801,20 @@ export class WriteCoordinator {
       }
     }
     return prepared
+  }
+
+  private recordBatchOutcome(
+    run: BatchRun,
+    candidateIndex: number,
+    outcome: MemoryWriteOutcome
+  ): void {
+    run.outcomesByIndex.set(candidateIndex, outcome)
+    // Commit bookkeeping cannot wait for the batch: another provider await may be cancelled
+    // after this claim is durable. Events and follow-up jobs still obey the caller's fence.
+    if (outcomeTouched(outcome)) {
+      this.ctx.markDomainMutationCommitted(run.ctx.agentId)
+      this.ports.markWorkingMemoryDirty(run.ctx.agentId)
+    }
   }
 
   // The single decision kernel for extraction batches and one-off remembers alike: settle
@@ -849,7 +862,7 @@ export class WriteCoordinator {
             false
           )
           if (applied.action === 'retry') retryCandidates.push(item)
-          else outcomesByIndex.set(item.candidateIndex, applied)
+          else this.recordBatchOutcome(run, item.candidateIndex, applied)
         } catch (error) {
           failBatch(run, error, 'apply')
           break
@@ -916,7 +929,8 @@ export class WriteCoordinator {
               retryBatch.decisions.get(item.candidateIndex),
               true
             )
-            outcomesByIndex.set(
+            this.recordBatchOutcome(
+              run,
               item.candidateIndex,
               applied.action === 'retry' ? { action: 'noop', reason: 'concurrent-update' } : applied
             )
@@ -1372,8 +1386,10 @@ export class WriteCoordinator {
       return { action: 'noop', reason: 'disposed' }
     }
     if (outcomeTouched(outcome)) {
-      this.ctx.markDomainMutationCommitted(ctx.agentId)
-      this.ports.markWorkingMemoryDirty(ctx.agentId)
+      if (!resolvedModel) {
+        this.ctx.markDomainMutationCommitted(ctx.agentId)
+        this.ports.markWorkingMemoryDirty(ctx.agentId)
+      }
       this.ctx.emitChanged(ctx.agentId, 'extract')
       if (outcome.action !== 'challenged') {
         void this.ports.triggerEmbedding(ctx.agentId).catch((error) => {
