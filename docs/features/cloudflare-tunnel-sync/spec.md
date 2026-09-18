@@ -4,8 +4,6 @@ Status: proposed. Transport validated end-to-end; host-side core implemented (pa
 tokens, status, snapshot pull with resume). Tunnel supervision, push, change events, settings UI
 and the slave side are not implemented yet.
 
-Tracks GitHub issue [#2302](https://github.com/ThinkInAIXYZ/deepchat/issues/2302).
-
 A DeepChat instance becomes the **host** (device A) and exposes a sync endpoint through the user's
 own Cloudflare Tunnel, so other devices (B/C/D) can pull from or push to it over a public HTTPS
 address without a third-party bucket, inbound port, or working NAT. Topology is star-shaped: slaves
@@ -272,7 +270,7 @@ Tunnel, synthetic data only, bearer-gated endpoint):
 
 ## Resolved Questions
 
-| Question (issue #2302) | Decision |
+| Question | Decision |
 | --- | --- |
 | Windows host: loopback-only or macOS/Linux-only in phase 1? | Support Windows hosts in phase 1, using the same loopback listener as POSIX. |
 | `cloudflared` managed by the app or user-run? | Bundled inside the plugin package; core supervises the process using the plugin-resolved binary path. |

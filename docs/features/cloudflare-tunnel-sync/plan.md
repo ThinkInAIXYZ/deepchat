@@ -1,6 +1,6 @@
 # Cloudflare Tunnel Host Sync Plan
 
-Spec: [spec.md](./spec.md). Issue: [#2302](https://github.com/ThinkInAIXYZ/deepchat/issues/2302).
+Spec: [spec.md](./spec.md).
 
 ## Architecture
 
@@ -288,4 +288,3 @@ Completion: gates pass, and the durable tests fail if an invariant regresses.
 
 - Validation evidence and transport measurements are recorded in `spec.md`; the spike used synthetic
   data only and has been torn down.
-- `Closes #2302` belongs in the PR body.
