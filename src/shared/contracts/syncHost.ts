@@ -19,7 +19,12 @@ export const SYNC_HOST_PUSH_PATH = `${SYNC_HOST_PATH_PREFIX}/push`
 export const SYNC_HOST_EVENTS_PATH = `${SYNC_HOST_PATH_PREFIX}/events`
 
 export const SYNC_HOST_MAX_HEADER_BYTES = 8 * 1024
-export const SYNC_HOST_MAX_CONNECTIONS = 16
+/**
+ * Connection ceiling. It is a memory bound, not a quota: when it is reached the endpoint evicts the
+ * oldest connection that is not streaming a response rather than refusing the newcomer, so a caller
+ * holding stalled connections cannot deny the legitimate device (or the user's own pairing).
+ */
+export const SYNC_HOST_MAX_CONNECTIONS = 32
 /**
  * Budget for *receiving* a request (headers plus body). It does not bound how long a response may
  * stream, so a large snapshot download is unaffected, while a stalled request is discarded long
@@ -32,12 +37,14 @@ export const SYNC_HOST_RATE_LIMIT_REQUESTS_PER_WINDOW = 120
 export const SYNC_HOST_RATE_LIMIT_MAX_KEYS = 1024
 export const SYNC_HOST_PAIRING_CODE_TTL_MS = 5 * 60_000
 /**
- * Reported to the UI as pairing progress only. Enforcement lives in the per-source failure budget
- * below: a global cap would let anyone who knows the hostname deny pairing by burning attempts.
+ * Per-source pairing failure budget. There is deliberately no global attempt cap and no
+ * `attemptsRemaining` in the pairing payload: anyone who learns the tunnel hostname can call
+ * `pair`, so a global counter would both hand them a denial of pairing and let them drive a
+ * number the UI shows. Brute force is bounded per source against ~40 bits of code entropy.
  */
-export const SYNC_HOST_PAIRING_MAX_ATTEMPTS = 10
 export const SYNC_HOST_PAIR_FAILURE_WINDOW_MS = 5 * 60_000
 export const SYNC_HOST_PAIR_MAX_FAILURES_PER_WINDOW = 20
+export const SYNC_HOST_PAIR_FAILURE_MAX_KEYS = 1024
 export const SYNC_HOST_DEVICE_TOKEN_BYTES = 32
 export const SYNC_HOST_DEVICE_NAME_MAX_LENGTH = 120
 export const SYNC_HOST_MAX_PUSH_PART_BYTES = 32 * 1024 * 1024
@@ -118,6 +125,11 @@ export const SyncHostAuditEntrySchema = z.object({
   status: z.number().int(),
   bytes: z.number().int().nonnegative(),
   deviceId: z.string().nullable(),
-  clientIp: z.string().nullable()
+  clientIp: z.string().nullable(),
+  /**
+   * Rejections from one anonymous source are coalesced into a single entry that counts the repeats,
+   * so unauthenticated traffic cannot flush the audit ring by evicting everything else.
+   */
+  suppressed: z.number().int().nonnegative()
 })
 export type SyncHostAuditEntry = z.infer<typeof SyncHostAuditEntrySchema>

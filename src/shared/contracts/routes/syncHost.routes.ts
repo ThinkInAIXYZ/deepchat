@@ -14,8 +14,7 @@ const SyncHostStatusViewSchema = z.object({
 const SyncHostPairingViewSchema = z.object({
   code: z.string(),
   hostId: z.string(),
-  expiresAt: z.number().int().nonnegative(),
-  attemptsRemaining: z.number().int().nonnegative()
+  expiresAt: z.number().int().nonnegative()
 })
 
 export const syncHostGetStatusRoute = defineRouteContract({

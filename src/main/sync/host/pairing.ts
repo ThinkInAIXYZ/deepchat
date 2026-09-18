@@ -1,8 +1,5 @@
 import { randomBytes, timingSafeEqual } from 'node:crypto'
-import {
-  SYNC_HOST_PAIRING_CODE_TTL_MS,
-  SYNC_HOST_PAIRING_MAX_ATTEMPTS
-} from '@shared/contracts/syncHost'
+import { SYNC_HOST_PAIRING_CODE_TTL_MS } from '@shared/contracts/syncHost'
 
 /** Unambiguous alphabet: no 0/O/1/I/L so codes survive being read aloud or retyped. */
 const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'
@@ -12,7 +9,6 @@ export interface SyncHostPairingCode {
   code: string
   hostId: string
   expiresAt: number
-  attemptsRemaining: number
 }
 
 function createCode(): string {
@@ -42,7 +38,6 @@ function codesEqual(left: string, right: string): boolean {
 export class SyncHostPairingAuthority {
   private code: string | null = null
   private expiresAt = 0
-  private failures = 0
 
   constructor(private readonly getHostId: () => string) {}
 
@@ -51,7 +46,6 @@ export class SyncHostPairingAuthority {
     const ttl = input.ttlMs ?? SYNC_HOST_PAIRING_CODE_TTL_MS
     this.code = createCode()
     this.expiresAt = now + ttl
-    this.failures = 0
     return this.describe()
   }
 
@@ -76,10 +70,7 @@ export class SyncHostPairingAuthority {
     }
 
     const candidate = normalize(presented)
-    if (!candidate || !codesEqual(candidate, this.code)) {
-      this.failures = Math.min(this.failures + 1, SYNC_HOST_PAIRING_MAX_ATTEMPTS)
-      return 'invalid'
-    }
+    if (!candidate || !codesEqual(candidate, this.code)) return 'invalid'
     this.clear()
     return 'accepted'
   }
@@ -87,15 +78,13 @@ export class SyncHostPairingAuthority {
   clear(): void {
     this.code = null
     this.expiresAt = 0
-    this.failures = 0
   }
 
   private describe(): SyncHostPairingCode {
     return {
       code: this.code as string,
       hostId: this.getHostId(),
-      expiresAt: this.expiresAt,
-      attemptsRemaining: Math.max(0, SYNC_HOST_PAIRING_MAX_ATTEMPTS - this.failures)
+      expiresAt: this.expiresAt
     }
   }
 }

@@ -9,6 +9,7 @@ import {
   SYNC_HOST_MAX_CONNECTIONS,
   SYNC_HOST_MAX_HEADER_BYTES,
   SYNC_HOST_PAIR_BODY_MAX_BYTES,
+  SYNC_HOST_PAIR_FAILURE_MAX_KEYS,
   SYNC_HOST_PAIR_FAILURE_WINDOW_MS,
   SYNC_HOST_PAIR_MAX_FAILURES_PER_WINDOW,
   SYNC_HOST_PAIR_PATH,
@@ -74,8 +75,9 @@ interface RangeSelection {
 export class SyncHostEndpoint {
   private server: http.Server | null = null
   private boundPort = 0
-  private readonly sockets = new Set<net.Socket>()
+  private readonly sockets = new Map<net.Socket, { streaming: boolean }>()
   private readonly auditEntries: SyncHostAuditEntry[] = []
+  private readonly anonymousAudit = new Map<string, SyncHostAuditEntry>()
   private readonly rateWindows = new Map<string, { windowStart: number; count: number }>()
   private readonly requestGuards = new Map<net.Socket, NodeJS.Timeout>()
   private readonly pairFailures = new Map<string, { windowStart: number; count: number }>()
@@ -111,10 +113,19 @@ export class SyncHostEndpoint {
 
     server.on('connection', (socket) => {
       if (this.sockets.size >= SYNC_HOST_MAX_CONNECTIONS) {
-        socket.destroy()
-        return
+        // Refusing the newcomer would let anyone who learns the hostname hold every slot with
+        // stalled connections and deny the legitimate device — including the user's own pairing.
+        // Drop the oldest connection that is not streaming a response instead: an in-flight
+        // download is never sacrificed, and the newcomer always gets in.
+        const victim = this.oldestNonStreamingSocket()
+        if (!victim) {
+          socket.destroy()
+          return
+        }
+        this.sockets.delete(victim)
+        victim.destroy()
       }
-      this.sockets.add(socket)
+      this.sockets.set(socket, { streaming: false })
       socket.on('close', () => this.sockets.delete(socket))
     })
 
@@ -125,6 +136,15 @@ export class SyncHostEndpoint {
         server.removeListener('error', reject)
         resolve()
       })
+    })
+
+    // A post-listen server error (accept failure: EMFILE/ENFILE/ECONNABORTED) would otherwise be an
+    // unhandled EventEmitter error and take down the main process.
+    server.on('error', (error) => {
+      this.deps.logger?.warn('[SyncHost] Endpoint server error', {
+        error: error instanceof Error ? error.message : String(error)
+      })
+      if (!server.listening) void this.stop()
     })
 
     const address = server.address()
@@ -141,33 +161,37 @@ export class SyncHostEndpoint {
   async stop(): Promise<void> {
     const server = this.server
     this.rateWindows.clear()
+    this.pairFailures.clear()
+    this.anonymousAudit.clear()
     if (!server) {
       this.boundPort = 0
       return
     }
     for (const guard of this.requestGuards.values()) clearTimeout(guard)
     this.requestGuards.clear()
-    for (const socket of this.sockets) socket.destroy()
+    for (const socket of this.sockets.keys()) socket.destroy()
     this.sockets.clear()
-    await this.closeServer(server)
-    // Only report stopped once the listener is actually gone; a silent fallback would let status
-    // claim "not running" while the port is still bound.
-    if (server.listening) {
-      this.deps.logger?.warn('[SyncHost] Listener still bound after close')
+    const closed = await this.closeServer(server)
+    // `server.listening` is already false the moment close() is called, even with connections still
+    // open, so the only honest signal that the listener survived the deadline is the close callback.
+    if (!closed) {
+      this.deps.logger?.warn('[SyncHost] Listener did not close within the deadline')
     }
     this.server = null
     this.boundPort = 0
   }
 
-  private async closeServer(server: http.Server): Promise<void> {
-    await new Promise<void>((resolve) => {
+  /** Resolves true when the listener actually closed, false when the deadline was reached first. */
+  private async closeServer(server: http.Server): Promise<boolean> {
+    return await new Promise<boolean>((resolve) => {
       let settled = false
+      let closed = false
       const done = (): void => {
         if (settled) return
         settled = true
         clearTimeout(escalation)
         clearTimeout(giveUp)
-        resolve()
+        resolve(closed)
       }
       const escalation = setTimeout(() => {
         server.closeAllConnections?.()
@@ -175,7 +199,10 @@ export class SyncHostEndpoint {
       escalation.unref?.()
       const giveUp = setTimeout(done, 5_000)
       giveUp.unref?.()
-      server.close(done)
+      server.close(() => {
+        closed = true
+        done()
+      })
     })
   }
 
@@ -202,6 +229,11 @@ export class SyncHostEndpoint {
 
     try {
       if (path === SYNC_HOST_HANDSHAKE_PATH && method === 'GET') {
+        if (!this.consumeRateLimit(`anon:${clientIp ?? 'unknown'}`)) {
+          this.respondJson(response, 429, { error: 'rate_limited' })
+          this.auditAnonymous({ method, path, status: 429, bytes: 0, deviceId: null, clientIp })
+          return
+        }
         const payload = SyncHostHandshakeSchema.parse({
           protocol: SYNC_HOST_PROTOCOL_NAME,
           protocolVersion: SYNC_HOST_PROTOCOL_VERSION,
@@ -211,7 +243,7 @@ export class SyncHostEndpoint {
           encryption: { payload: 'none', transport: 'tls' }
         })
         const bytes = this.respondJson(response, 200, payload)
-        this.audit({ method, path, status: 200, bytes, deviceId: null, clientIp })
+        this.auditAnonymous({ method, path, status: 200, bytes, deviceId: null, clientIp })
         return
       }
 
@@ -226,11 +258,11 @@ export class SyncHostEndpoint {
       if (!device) {
         if (!this.consumeRateLimit(`anon:${clientIp ?? 'unknown'}`)) {
           this.respondJson(response, 429, { error: 'rate_limited' })
-          this.audit({ method, path, status: 429, bytes: 0, deviceId: null, clientIp })
+          this.auditAnonymous({ method, path, status: 429, bytes: 0, deviceId: null, clientIp })
           return
         }
         this.respondJson(response, 401, { error: 'unauthorized' })
-        this.audit({ method, path, status: 401, bytes: 0, deviceId: null, clientIp })
+        this.auditAnonymous({ method, path, status: 401, bytes: 0, deviceId: null, clientIp })
         return
       }
       authenticatedDeviceId = device.deviceId
@@ -297,12 +329,12 @@ export class SyncHostEndpoint {
   ): Promise<void> {
     if (method !== 'POST') {
       this.respondJson(response, 405, { error: 'method_not_allowed' })
-      this.audit({ method, path, status: 405, bytes: 0, deviceId: null, clientIp })
+      this.auditAnonymous({ method, path, status: 405, bytes: 0, deviceId: null, clientIp })
       return
     }
     if (!this.consumeRateLimit(`pair:${clientIp ?? 'unknown'}`)) {
       this.respondJson(response, 429, { error: 'rate_limited' })
-      this.audit({ method, path, status: 429, bytes: 0, deviceId: null, clientIp })
+      this.auditAnonymous({ method, path, status: 429, bytes: 0, deviceId: null, clientIp })
       return
     }
 
@@ -311,7 +343,7 @@ export class SyncHostEndpoint {
       const status = read.reason === 'overflow' ? 413 : 400
       const error = read.reason === 'overflow' ? 'payload_too_large' : 'invalid_request'
       this.respondJson(response, status, { error })
-      this.audit({ method, path, status, bytes: 0, deviceId: null, clientIp })
+      this.auditAnonymous({ method, path, status, bytes: 0, deviceId: null, clientIp })
       return
     }
 
@@ -320,20 +352,20 @@ export class SyncHostEndpoint {
       parsed = JSON.parse(read.body)
     } catch {
       this.respondJson(response, 400, { error: 'invalid_request' })
-      this.audit({ method, path, status: 400, bytes: 0, deviceId: null, clientIp })
+      this.auditAnonymous({ method, path, status: 400, bytes: 0, deviceId: null, clientIp })
       return
     }
     const validation = SyncHostPairRequestSchema.safeParse(parsed)
     if (!validation.success) {
       this.respondJson(response, 400, { error: 'invalid_request' })
-      this.audit({ method, path, status: 400, bytes: 0, deviceId: null, clientIp })
+      this.auditAnonymous({ method, path, status: 400, bytes: 0, deviceId: null, clientIp })
       return
     }
 
     const failureKey = clientIp ?? 'unknown'
     if (!this.consumePairFailureBudget(failureKey, false)) {
       this.respondJson(response, 429, { error: 'rate_limited' })
-      this.audit({ method, path, status: 429, bytes: 0, deviceId: null, clientIp })
+      this.auditAnonymous({ method, path, status: 429, bytes: 0, deviceId: null, clientIp })
       return
     }
 
@@ -343,7 +375,7 @@ export class SyncHostEndpoint {
     if (outcome !== 'accepted') {
       this.consumePairFailureBudget(failureKey, true)
       this.respondJson(response, 401, { error: 'pairing_failed' })
-      this.audit({ method, path, status: 401, bytes: 0, deviceId: null, clientIp })
+      this.auditAnonymous({ method, path, status: 401, bytes: 0, deviceId: null, clientIp })
       return
     }
 
@@ -480,6 +512,8 @@ export class SyncHostEndpoint {
       stream.on('end', () => {
         response.end()
       })
+      // Protect this connection from slot eviction for as long as the body is being written.
+      this.markStreaming(request.socket)
       stream.pipe(response)
     })
 
@@ -534,7 +568,12 @@ export class SyncHostEndpoint {
 
   private consumeRateLimit(key: string): boolean {
     const now = Date.now()
-    if (this.rateWindows.size >= SYNC_HOST_RATE_LIMIT_MAX_KEYS) this.pruneRateWindows(now)
+    this.boundWindowMap(
+      this.rateWindows,
+      SYNC_HOST_RATE_LIMIT_MAX_KEYS,
+      SYNC_HOST_RATE_LIMIT_WINDOW_MS,
+      now
+    )
     const window = this.rateWindows.get(key)
     if (!window || now - window.windowStart >= SYNC_HOST_RATE_LIMIT_WINDOW_MS) {
       this.rateWindows.set(key, { windowStart: now, count: 1 })
@@ -550,6 +589,12 @@ export class SyncHostEndpoint {
    */
   private consumePairFailureBudget(key: string, charge: boolean): boolean {
     const now = Date.now()
+    this.boundWindowMap(
+      this.pairFailures,
+      SYNC_HOST_PAIR_FAILURE_MAX_KEYS,
+      SYNC_HOST_PAIR_FAILURE_WINDOW_MS,
+      now
+    )
     const entry = this.pairFailures.get(key)
     if (charge) {
       if (!entry || now - entry.windowStart >= SYNC_HOST_PAIR_FAILURE_WINDOW_MS) {
@@ -563,11 +608,39 @@ export class SyncHostEndpoint {
     return entry.count < SYNC_HOST_PAIR_MAX_FAILURES_PER_WINDOW
   }
 
-  /** Drops expired windows so a caller cannot grow the limiter map without bound. */
-  private pruneRateWindows(now: number): void {
-    for (const [key, window] of this.rateWindows) {
-      if (now - window.windowStart >= SYNC_HOST_RATE_LIMIT_WINDOW_MS) this.rateWindows.delete(key)
+  /**
+   * Keeps a windowed limiter map bounded: expired windows are dropped first, and if the map is still
+   * full the oldest entry is evicted. Pruning alone is not enough — inside one window nothing is
+   * expired, so a caller could otherwise grow the map without bound.
+   */
+  private boundWindowMap<K, V extends { windowStart: number }>(
+    map: Map<K, V>,
+    limit: number,
+    windowMs: number,
+    now: number
+  ): void {
+    if (map.size < limit) return
+    for (const [key, value] of map) {
+      if (now - value.windowStart >= windowMs) map.delete(key)
     }
+    while (map.size >= limit) {
+      const oldest = map.keys().next().value
+      if (oldest === undefined) break
+      map.delete(oldest)
+    }
+  }
+
+  /** Oldest connection that is not currently streaming a response body, or null if all are busy. */
+  private oldestNonStreamingSocket(): net.Socket | null {
+    for (const [socket, state] of this.sockets) {
+      if (!state.streaming) return socket
+    }
+    return null
+  }
+
+  private markStreaming(socket: net.Socket): void {
+    const state = this.sockets.get(socket)
+    if (state) state.streaming = true
   }
 
   /**
@@ -656,10 +729,39 @@ export class SyncHostEndpoint {
     return Buffer.byteLength(payload)
   }
 
-  private audit(entry: Omit<SyncHostAuditEntry, 'at'>): void {
-    this.auditEntries.push({ at: Date.now(), ...entry })
-    if (this.auditEntries.length > SYNC_HOST_AUDIT_LIMIT) {
-      this.auditEntries.splice(0, this.auditEntries.length - SYNC_HOST_AUDIT_LIMIT)
+  private audit(entry: Omit<SyncHostAuditEntry, 'at' | 'suppressed'>): void {
+    this.auditEntries.push({ at: Date.now(), suppressed: 0, ...entry })
+    this.trimAudit()
+  }
+
+  /**
+   * Records unauthenticated traffic, coalescing repeats from the same source into one entry.
+   *
+   * Anyone who learns the tunnel hostname can generate these (handshake included), and at the anon
+   * request budget a single source would otherwise evict the whole ring in minutes — erasing the
+   * evidence of earlier probes. One entry per source keeps the signal and bounds the noise.
+   */
+  private auditAnonymous(entry: Omit<SyncHostAuditEntry, 'at' | 'suppressed'>): void {
+    const key = entry.clientIp ?? 'unknown'
+    const existing = this.anonymousAudit.get(key)
+    if (existing && this.auditEntries.includes(existing)) {
+      existing.suppressed += 1
+      existing.status = entry.status
+      existing.at = Date.now()
+      return
+    }
+    const created: SyncHostAuditEntry = { at: Date.now(), suppressed: 0, ...entry }
+    this.auditEntries.push(created)
+    this.anonymousAudit.set(key, created)
+    this.trimAudit()
+  }
+
+  private trimAudit(): void {
+    if (this.auditEntries.length <= SYNC_HOST_AUDIT_LIMIT) return
+    const removed = this.auditEntries.splice(0, this.auditEntries.length - SYNC_HOST_AUDIT_LIMIT)
+    for (const entry of removed) {
+      const key = entry.clientIp ?? 'unknown'
+      if (this.anonymousAudit.get(key) === entry) this.anonymousAudit.delete(key)
     }
   }
 }
