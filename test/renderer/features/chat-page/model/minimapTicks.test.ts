@@ -3,7 +3,6 @@ import {
   buildMinimapTicks,
   buildMinimapViewportWindow,
   findMinimapTickIndexAt,
-  resolveMinimapTickIndex,
   type MinimapTick
 } from '@/features/chat-page/model/minimapTicks'
 import type { MessageLayoutEntry } from '@/composables/message/useMessageWindow'
@@ -66,8 +65,23 @@ describe('buildMinimapTicks', () => {
       totalHeight: 300
     })
 
-    // The longest message fills the rail; the others are proportional to it.
-    expect(ticks.map((tick) => tick.width)).toEqual([0.25, 0.5, 1])
+    // The longest message fills the rail and the others scale against it, on a square-root curve so
+    // that a conversation with one very long answer does not reduce every question to a hairline.
+    expect(ticks[2].width).toBe(1)
+    expect(ticks[0].width).toBeCloseTo(Math.sqrt(0.25), 5)
+    expect(ticks[1].width).toBeCloseTo(Math.sqrt(0.5), 5)
+  })
+
+  it('keeps a short question visible next to a very long answer', () => {
+    // Measured on a real session: 55 characters against 7837 is a 140:1 ratio. Raw proportions put
+    // the question on the 2 px floor; the compressed scale keeps it on the rail.
+    const ticks = buildMinimapTicks({
+      entries: [entry('question', 0, 100), entry('answer', 100, 200)],
+      messages: [message('question', 'x'.repeat(55)), message('answer', 'y'.repeat(7837))],
+      totalHeight: 200
+    })
+
+    expect(Math.max(ticks[0].width * 40, 2)).toBeGreaterThanOrEqual(3)
   })
 
   it('keeps the marks hairline-wide when no message has any text', () => {
@@ -123,29 +137,6 @@ describe('buildMinimapViewportWindow', () => {
     expect(
       buildMinimapViewportWindow({ viewportTop: 0, viewportHeight: 500, totalHeight: 0 })
     ).toBeNull()
-  })
-})
-
-describe('resolveMinimapTickIndex', () => {
-  const ticks = [tick('m1', 0, 0.2), tick('m2', 0.2, 0.2), tick('m3', 0.4, 0.6)]
-
-  it('resolves a click inside a mark to that message', () => {
-    expect(resolveMinimapTickIndex(ticks, 0.1)).toBe(0)
-    expect(resolveMinimapTickIndex(ticks, 0.3)).toBe(1)
-    expect(resolveMinimapTickIndex(ticks, 0.9)).toBe(2)
-  })
-
-  it('resolves a click in a gap to the nearest mark instead of doing nothing', () => {
-    // Between m2 (ends 0.4) and m3 (starts 0.4) there is no gap here, so use a sparse layout.
-    const sparse = [tick('m1', 0, 0.1), tick('m2', 0.5, 0.1)]
-    expect(resolveMinimapTickIndex(sparse, 0.2)).toBe(0)
-    expect(resolveMinimapTickIndex(sparse, 0.6)).toBe(1)
-  })
-
-  it('clamps positions outside the rail and ignores an empty map', () => {
-    expect(resolveMinimapTickIndex(ticks, -1)).toBe(0)
-    expect(resolveMinimapTickIndex(ticks, 2)).toBe(2)
-    expect(resolveMinimapTickIndex([], 0.5)).toBeNull()
   })
 })
 

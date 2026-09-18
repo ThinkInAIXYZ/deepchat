@@ -11,7 +11,7 @@ export type MinimapTick = {
   height: number
   /**
    * How wide the mark is drawn, relative to the longest message in the conversation (0..1). The
-   * longest message fills the rail's full width and everything else is proportional to it.
+   * longest message fills the rail's full width and everything else scales against it.
    */
   width: number
 }
@@ -51,6 +51,12 @@ function measureContentLength(content: unknown): number {
  * viewport size and of the zoom level; widths are fractions of the longest message, so the widest
  * mark is the longest message in the conversation and the rest scale against it.
  *
+ * The length ratio is compressed with a square root before it becomes a width. Raw ratios are far
+ * too skewed to draw: a real session measured 55 to 7837 characters between messages, i.e. 140:1,
+ * which left every question at the 2 px floor and only the longest answer visible. Compressing keeps
+ * the ordering and keeps the longest message at full width, while the short ones stay readable
+ * (that same session draws 3 px to 40 px instead of 2 px to 40 px).
+ *
  * Without usable geometry there is nothing to draw, so an empty list is returned rather than marks
  * invented from estimates that do not match the layout yet.
  */
@@ -74,7 +80,7 @@ export function buildMinimapTicks(input: {
     top: clampFraction(entry.top / total),
     height: clampFraction((entry.bottom - entry.top) / total),
     // Every message is a hairline when nothing in the conversation has any text.
-    width: longest > 0 ? clampFraction(lengths[index] / longest) : 1
+    width: longest > 0 ? clampFraction(Math.sqrt(lengths[index] / longest)) : 1
   }))
 }
 
@@ -95,35 +101,6 @@ export function buildMinimapViewportWindow(input: {
     top,
     height: clampFraction(Math.min(input.viewportHeight / total, 1 - top))
   }
-}
-
-/**
- * The message a pointer at `fraction` down the rail refers to: the mark containing that position, or
- * the nearest mark when the pointer is in a gap. Hover and click share this so the preview a pointer
- * shows always belongs to the message a click would jump to.
- */
-export function resolveMinimapTickIndex(
-  ticks: readonly MinimapTick[],
-  fraction: number
-): number | null {
-  if (ticks.length === 0) return null
-
-  const target = clampFraction(fraction)
-  let nearestIndex = 0
-  let nearestDistance = Number.POSITIVE_INFINITY
-
-  for (let index = 0; index < ticks.length; index += 1) {
-    const tick = ticks[index]
-    if (target >= tick.top && target <= tick.top + tick.height) return index
-
-    const distance = Math.abs(tick.top + tick.height / 2 - target)
-    if (distance < nearestDistance) {
-      nearestDistance = distance
-      nearestIndex = index
-    }
-  }
-
-  return nearestIndex
 }
 
 /**

@@ -4,18 +4,22 @@ import { useI18n } from 'vue-i18n'
 import { DcPopover } from '@dc-ui/components/popover'
 import {
   findMinimapTickIndexAt,
-  resolveMinimapTickIndex,
   type MinimapTick,
   type MinimapViewportWindow
 } from '@/features/chat-page/model/minimapTicks'
 
 /**
- * Message map: one hairline mark per message along the left gutter, as wide as the message is long
+ * Message map: one hairline mark per message down the right gutter, as wide as the message is long
  * relative to the longest one in the conversation. Hovering a mark highlights it and previews the
- * message; clicking it jumps there, and the arrow keys walk the marks one at a time.
+ * message; clicking a mark jumps there, and the arrow keys walk the marks one at a time.
  *
- * It never scrolls by itself — it emits the message to act on and lets ChatPage route the request
- * through the scroll controller, so every programmatic scroll still carries an explicit reason.
+ * Marks are laid out on a fixed pitch rather than by their position in the conversation, so the
+ * spacing is even no matter how tall a single message is. When the marks no longer fit the viewport
+ * the map scrolls on its own instead of squeezing them together.
+ *
+ * It never scrolls the conversation by itself — it emits the message to act on and lets ChatPage
+ * route the request through the scroll controller, so every programmatic scroll still carries an
+ * explicit reason.
  */
 const props = defineProps<{
   visible: boolean
@@ -34,7 +38,9 @@ const { t } = useI18n()
 const railRef = ref<HTMLElement | null>(null)
 const hoveredIndex = ref<number | null>(null)
 
-/** Full rail width in px; the longest message fills it and every other mark scales against it. */
+/** Vertical distance between two marks. */
+const MARK_PITCH = 14
+/** Full mark width in px; the longest message fills it and every other mark scales against it. */
 const MAX_MARK_WIDTH = 40
 
 /** The message at the top of the viewport: what the rail reports as its current position. */
@@ -42,13 +48,20 @@ const activeIndex = computed(() => findMinimapTickIndexAt(props.ticks, props.vie
 const hoveredTick = computed(() =>
   hoveredIndex.value === null ? null : (props.ticks[hoveredIndex.value] ?? null)
 )
+const marksHeight = computed(() => props.ticks.length * MARK_PITCH)
 
-function tickFractionAt(clientY: number): number | null {
+/**
+ * The mark a pointer is on. Marks share a pitch, so a position resolves straight to a slot — and the
+ * space between two marks belongs to one of them rather than being a dead zone.
+ */
+function indexAt(clientY: number): number | null {
   const rail = railRef.value
-  if (!rail) return null
+  if (!rail || props.ticks.length === 0) return null
   const bounds = rail.getBoundingClientRect()
   if (bounds.height <= 0) return null
-  return (clientY - bounds.top) / bounds.height
+
+  const offset = clientY - bounds.top + rail.scrollTop
+  return Math.min(Math.max(Math.floor(offset / MARK_PITCH), 0), props.ticks.length - 1)
 }
 
 function jumpToIndex(index: number): void {
@@ -57,18 +70,12 @@ function jumpToIndex(index: number): void {
 }
 
 function onRailClick(event: MouseEvent): void {
-  const fraction = tickFractionAt(event.clientY)
-  if (fraction === null) return
-
-  const index = resolveMinimapTickIndex(props.ticks, fraction)
+  const index = indexAt(event.clientY)
   if (index !== null) jumpToIndex(index)
 }
 
 function onRailPointerMove(event: PointerEvent): void {
-  const fraction = tickFractionAt(event.clientY)
-  if (fraction === null) return
-
-  const index = resolveMinimapTickIndex(props.ticks, fraction)
+  const index = indexAt(event.clientY)
   if (index === hoveredIndex.value) return
 
   hoveredIndex.value = index
@@ -112,13 +119,13 @@ function onRailKeydown(event: KeyboardEvent): void {
 
 const label = computed(() => t('chat.messages.minimap'))
 const markWidth = (tick: MinimapTick) => `${Math.max(tick.width * MAX_MARK_WIDTH, 2)}px`
-const markTop = (tick: MinimapTick) => `${tick.top * 100}%`
+const markTop = (index: number) => `${index * MARK_PITCH}px`
 </script>
 
 <template>
   <div
     v-if="props.visible"
-    class="pointer-events-none absolute left-3 top-2 bottom-2 w-10"
+    class="pointer-events-none absolute right-3 top-2 bottom-2 w-12"
     style="z-index: var(--dc-z-sticky)"
     data-testid="chat-minimap"
   >
@@ -131,46 +138,50 @@ const markTop = (tick: MinimapTick) => `${tick.top * 100}%`
       :aria-valuemin="1"
       :aria-valuemax="Math.max(props.ticks.length, 1)"
       :aria-valuenow="(activeIndex ?? 0) + 1"
-      class="pointer-events-auto relative h-full w-10 cursor-pointer focus-visible:outline-none"
+      class="dc-overscroll-contain pointer-events-auto h-full w-full overflow-y-auto focus-visible:outline-none"
       data-testid="chat-minimap-rail"
       @click="onRailClick"
       @keydown="onRailKeydown"
       @pointermove="onRailPointerMove"
       @pointerleave="onRailPointerLeave"
     >
-      <span
-        v-for="(tick, index) in props.ticks"
-        :key="tick.id"
-        aria-hidden="true"
-        class="pointer-events-none absolute left-0 h-0.5 rounded-full transition-colors"
-        :class="index === hoveredIndex ? 'bg-foreground' : 'bg-muted-foreground/40'"
-        :style="{ top: markTop(tick), width: markWidth(tick) }"
-        data-testid="chat-minimap-mark"
-      />
+      <!-- Absolutely positioned marks give the scroll container no height of its own, so the content
+           box carries the full stacked height. -->
+      <div class="relative w-full" :style="{ height: `${marksHeight}px` }">
+        <span
+          v-for="(tick, index) in props.ticks"
+          :key="tick.id"
+          aria-hidden="true"
+          class="pointer-events-none absolute left-0 h-0.5 rounded-full transition-colors"
+          :class="index === hoveredIndex ? 'bg-foreground' : 'bg-muted-foreground/50'"
+          :style="{ top: markTop(index), width: markWidth(tick) }"
+          data-testid="chat-minimap-mark"
+        />
 
-      <DcPopover
-        :open="hoveredTick !== null && Boolean(props.previewText)"
-        side="right"
-        align="center"
-        :side-offset="12"
-        width-class="w-[min(70vw,26rem)]"
-      >
-        <template #trigger>
-          <!-- Invisible anchor that follows the hovered mark, so the card points at the message the
-               pointer is actually on rather than at the middle of the rail. -->
-          <span
-            aria-hidden="true"
-            class="absolute left-0 h-0 w-0"
-            :style="{ top: hoveredTick ? markTop(hoveredTick) : '0%' }"
-          />
-        </template>
-        <p
-          class="dc-overscroll-contain line-clamp-6 max-h-48 overflow-hidden px-3 py-2 text-xs whitespace-pre-wrap text-foreground/90"
-          data-testid="chat-minimap-preview"
+        <DcPopover
+          :open="hoveredTick !== null && Boolean(props.previewText)"
+          side="left"
+          align="center"
+          :side-offset="12"
+          width-class="w-[min(70vw,26rem)]"
         >
-          {{ props.previewText }}
-        </p>
-      </DcPopover>
+          <template #trigger>
+            <!-- Invisible anchor that follows the hovered mark, so the card points at the message the
+                 pointer is actually on rather than at the middle of the rail. -->
+            <span
+              aria-hidden="true"
+              class="absolute left-0 h-0 w-0"
+              :style="{ top: markTop(hoveredIndex ?? 0) }"
+            />
+          </template>
+          <p
+            class="line-clamp-4 px-3 py-2 text-xs whitespace-pre-wrap text-foreground/90"
+            data-testid="chat-minimap-preview"
+          >
+            {{ props.previewText }}
+          </p>
+        </DcPopover>
+      </div>
     </div>
   </div>
 </template>

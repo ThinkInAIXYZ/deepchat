@@ -36,8 +36,8 @@ async function mountRail(props: Partial<InstanceType<typeof ChatMinimap>['$props
 }
 
 // jsdom has no PointerEvent, and the rail only reads clientY, so a MouseEvent carries the position.
-function pointerAt(rail: HTMLElement, fraction: number, type = 'pointermove') {
-  rail.dispatchEvent(new MouseEvent(type, { bubbles: true, clientY: fraction * railHeight }))
+function pointerAtPx(rail: HTMLElement, offsetY: number, type = 'pointermove') {
+  rail.dispatchEvent(new MouseEvent(type, { bubbles: true, clientY: offsetY }))
 }
 
 function marks(wrapper: Awaited<ReturnType<typeof mountRail>>['wrapper']) {
@@ -54,37 +54,67 @@ describe('ChatMinimap', () => {
     expect(drawn[0].attributes('style')).toContain('width: 40px')
     expect(drawn[1].attributes('style')).toContain('width: 20px')
     expect(drawn[2].attributes('style')).toContain('width: 10px')
-    expect(drawn[0].attributes('style')).toContain('top: 0%')
-    expect(drawn[2].attributes('style')).toContain('top: 40%')
+  })
+
+  it('spaces the marks evenly instead of following the message heights', async () => {
+    // The ticks deliberately span very different fractions of the conversation; the rail ignores
+    // that and stacks them on a fixed pitch.
+    const { wrapper } = await mountRail()
+    const drawn = marks(wrapper)
+
+    expect(drawn[0].attributes('style')).toContain('top: 0px')
+    expect(drawn[1].attributes('style')).toContain('top: 14px')
+    expect(drawn[2].attributes('style')).toContain('top: 28px')
+  })
+
+  it('scrolls its own content once the marks no longer fit', async () => {
+    const many = Array.from({ length: 60 }, (_, index) => ({
+      id: `m${index}`,
+      top: index / 60,
+      height: 1 / 60,
+      width: 1
+    }))
+    const { wrapper } = await mountRail({ ticks: many })
+
+    const content = wrapper.get('[data-testid="chat-minimap-rail"] > div')
+    expect(content.attributes('style')).toContain('height: 840px')
+    expect(wrapper.get('[data-testid="chat-minimap-rail"]').classes()).toContain('overflow-y-auto')
   })
 
   it('keeps every mark dim until one is hovered', async () => {
     const { wrapper } = await mountRail()
 
-    expect(marks(wrapper)[0].classes()).toContain('bg-muted-foreground/40')
+    expect(marks(wrapper)[0].classes()).toContain('bg-muted-foreground/50')
 
-    marks(wrapper)[0].element.dispatchEvent(new Event('pointerenter'))
-    await wrapper.get('[data-testid="chat-minimap-rail"]').trigger('pointermove', { clientY: 10 })
+    await wrapper.get('[data-testid="chat-minimap-rail"]').trigger('pointermove', { clientY: 5 })
 
     expect(marks(wrapper)[0].classes()).toContain('bg-foreground')
-    expect(marks(wrapper)[1].classes()).toContain('bg-muted-foreground/40')
+    expect(marks(wrapper)[1].classes()).toContain('bg-muted-foreground/50')
   })
 
   it('reports the hovered message so the parent can project its text', async () => {
     const { wrapper, rail } = await mountRail()
 
-    pointerAt(rail, 0.5)
+    pointerAtPx(rail, 40)
     expect(wrapper.emitted('hover')?.at(-1)).toEqual(['m3'])
 
-    // Moving within the same mark must not re-emit.
-    pointerAt(rail, 0.55)
+    // Moving within the same slot must not re-emit.
+    pointerAtPx(rail, 41)
     expect(wrapper.emitted('hover')).toHaveLength(1)
 
-    pointerAt(rail, 0.1)
+    pointerAtPx(rail, 5)
     expect(wrapper.emitted('hover')?.at(-1)).toEqual(['m1'])
 
-    pointerAt(rail, 0.1, 'pointerleave')
+    pointerAtPx(rail, 5, 'pointerleave')
     expect(wrapper.emitted('hover')?.at(-1)).toEqual([null])
+  })
+
+  it('treats the space between two marks as belonging to a mark', async () => {
+    const { wrapper, rail } = await mountRail()
+
+    // y=12 is the gap under the first mark; it resolves to that mark rather than to nothing.
+    pointerAtPx(rail, 12)
+    expect(wrapper.emitted('hover')?.at(-1)).toEqual(['m1'])
   })
 
   it('shows the preview card for the hovered message', async () => {
@@ -93,11 +123,13 @@ describe('ChatMinimap', () => {
 
     expect(card()).toBeNull()
 
-    pointerAt(rail, 0.1)
+    pointerAtPx(rail, 5)
     await nextTick()
 
     // The popover portals to the body, so it is not inside the component's own tree.
     expect(card()?.textContent).toBe('the hovered message')
+    // Only a few lines are shown: the card is a thumbnail, not a second copy of the message.
+    expect(card()?.className).toContain('line-clamp-4')
 
     wrapper.unmount()
   })
@@ -113,10 +145,10 @@ describe('ChatMinimap', () => {
   it('jumps to the message under the click', async () => {
     const { wrapper, rail } = await mountRail()
 
-    pointerAt(rail, 0.1, 'click')
+    pointerAtPx(rail, 5, 'click')
     expect(wrapper.emitted('jump')).toEqual([['m1']])
 
-    pointerAt(rail, 0.8, 'click')
+    pointerAtPx(rail, 40, 'click')
     expect(wrapper.emitted('jump')?.[1]).toEqual(['m3'])
   })
 
