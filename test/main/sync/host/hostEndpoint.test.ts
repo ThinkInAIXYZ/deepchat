@@ -1,5 +1,6 @@
 import { randomBytes } from 'node:crypto'
 import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
+import http from 'node:http'
 import { connect } from 'node:net'
 import os from 'node:os'
 import path from 'node:path'
@@ -330,6 +331,63 @@ describe('SyncHostService endpoint', () => {
     }
   })
 
+  it('lets a newcomer in after the ceiling is filled with finished keep-alive downloads', async () => {
+    const { token } = await pairDevice()
+    // Range 0-0 keeps each download one byte while still exercising the streaming path.
+    const agent = new http.Agent({ keepAlive: true, maxSockets: SYNC_HOST_MAX_CONNECTIONS })
+    try {
+      await Promise.all(
+        Array.from({ length: SYNC_HOST_MAX_CONNECTIONS }, async () => {
+          const { port } = await service.getStatus()
+          await new Promise<void>((resolve, reject) => {
+            const request = http.get(
+              {
+                host: '127.0.0.1',
+                port,
+                path: `${SYNC_HOST_PATH_PREFIX}/snapshot`,
+                agent,
+                headers: { authorization: `Bearer ${token}`, range: 'bytes=0-0' }
+              },
+              (response) => {
+                response.resume()
+                response.on('end', () => resolve())
+                response.on('error', reject)
+              }
+            )
+            request.on('error', reject)
+          })
+        })
+      )
+
+      // The download sockets are still open (keep-alive). If a finished download left its socket
+      // marked as streaming, every slot would be unevictable and this request would be refused.
+      const response = await fetch(`${baseUrl}${SYNC_HOST_PATH_PREFIX}/handshake`, {
+        signal: AbortSignal.timeout(3_000)
+      })
+      expect(response.status).toBe(200)
+    } finally {
+      agent.destroy()
+    }
+  })
+
+  it('charges an authenticated device for unknown paths instead of letting it flush the audit ring', async () => {
+    const { token } = await pairDevice()
+    const headers = { authorization: `Bearer ${token}` }
+
+    let throttled = false
+    for (let attempt = 0; attempt < 200; attempt += 1) {
+      const response = await fetch(`${baseUrl}/unknown-${attempt}`, { headers })
+      if (response.status === 429) {
+        throttled = true
+        break
+      }
+      expect(response.status).toBe(404)
+    }
+
+    // A paired device must not be able to append unbounded 404 entries by probing unknown paths.
+    expect(throttled).toBe(true)
+  })
+
   it('coalesces anonymous rejections instead of letting them flush the audit ring', async () => {
     const before = service.getAuditEntries().length
     for (let attempt = 0; attempt < 25; attempt += 1) {
@@ -605,6 +663,8 @@ describe('SyncHostService endpoint', () => {
       expect(issued).toEqual([])
       const firstToken = await seed.setEnabled(true)
       expect(firstToken.enabled).toBe(true)
+      // Release the listener seed.setEnabled(true) started before the files are removed.
+      await seed.stop()
 
       // A second instance that mutates before any explicit initialize() must not wipe the file.
       // The mutation has to be a real one: with the read-modify-write bug this persisted the empty
