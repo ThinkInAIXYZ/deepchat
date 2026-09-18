@@ -65,6 +65,23 @@ export function useMessageVirtualization(options: UseMessageVirtualizationOption
     return low
   }
 
+  const findFirstEntryWithBottomAfter = (
+    entries: Array<{ bottom: number }>,
+    target: number
+  ): number => {
+    let low = 0
+    let high = entries.length
+    while (low < high) {
+      const middle = Math.floor((low + high) / 2)
+      if (entries[middle].bottom > target) {
+        high = middle
+      } else {
+        low = middle + 1
+      }
+    }
+    return low
+  }
+
   const findFirstEntryWithTopAfter = (entries: Array<{ top: number }>, target: number): number => {
     let low = 0
     let high = entries.length
@@ -126,13 +143,15 @@ export function useMessageVirtualization(options: UseMessageVirtualizationOption
   const messageWindowAfterHeight = computed(() => messageWindowRange.value.after)
 
   /**
-   * Index of the first loaded message that starts below the viewport, derived from the logical
-   * layout map (every loaded message has an entry) with a binary search, so it stays O(log n) and
-   * works while windowing keeps rows unmounted.
+   * Index of the first loaded message that is not fully visible above the viewport's bottom edge,
+   * derived from the logical layout map (every loaded message has an entry) with a binary search, so
+   * it stays O(log n) and works while windowing keeps rows unmounted.
    *
-   * A partially visible row is not below: the boundary answers "what is entirely below what I can
-   * see". Without viewport geometry nothing can be claimed to be below, so the whole list is
-   * reported as visible rather than inventing a count.
+   * The boundary is the message whose *bottom* reaches past the fold, not the message that starts
+   * below it. A long answer — or a reply that is still streaming — fills the bottom of the viewport
+   * while its end is off screen, and reporting nothing there is what made the indicator appear with
+   * an empty list. Without viewport geometry nothing can be claimed to be below, so the whole list
+   * is reported as visible rather than inventing a count.
    */
   const firstMessageBelowViewportIndex = computed(() => {
     const entries = messageWindow.entries.value
@@ -142,12 +161,12 @@ export function useMessageVirtualization(options: UseMessageVirtualizationOption
     if (viewportHeight <= 0) return total
     const viewportTop = Math.max(scrollViewportTop.value - messageWindowOriginTop.value, 0)
     return Math.min(
-      Math.max(findFirstEntryWithTopAfter(entries, viewportTop + viewportHeight), 0),
+      Math.max(findFirstEntryWithBottomAfter(entries, viewportTop + viewportHeight), 0),
       total
     )
   })
 
-  /** Loaded messages entirely below the viewport, oldest first. */
+  /** Loaded messages that reach below the viewport, oldest first. */
   const messagesBelowViewport = computed(() =>
     displayMessages.value.slice(firstMessageBelowViewportIndex.value)
   )
