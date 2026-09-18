@@ -196,14 +196,6 @@
                 style="z-index: var(--dc-z-float)"
                 data-testid="agent-progress-float-layer"
               >
-                <!-- Shares the dock's layer so the two stack vertically instead of overlapping. -->
-                <ScrollToLatestPill
-                  :visible="showScrollToLatest"
-                  :count="messagesBelowViewport.length"
-                  :items="scrollToLatestItems"
-                  @return="returnToLatest"
-                  @jump="jumpToPendingMessage"
-                />
                 <!-- Slim dock bar with Plan/Question chips; at most one panel expands above it. -->
                 <ChatInteractionDock
                   :plan-snapshot="latestPlanSnapshot"
@@ -213,6 +205,15 @@
                   @set-plan-collapsed="agentPlanStore.setCollapsed(props.sessionId, $event)"
                   @dismiss-plan="onDismissPlanFloat"
                   @respond="onToolInteractionRespond"
+                />
+                <!-- Last child of the bottom-anchored column, so the pill stays directly above the
+                     composer instead of riding to the top of an expanded plan panel. -->
+                <ScrollToLatestPill
+                  :visible="showScrollToLatest"
+                  :count="messagesBelowViewport.length"
+                  :items="scrollToLatestItems"
+                  @return="returnToLatest"
+                  @jump="jumpToPendingMessage"
                 />
               </div>
               <div
