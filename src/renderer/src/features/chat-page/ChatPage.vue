@@ -939,9 +939,10 @@ async function jumpToMessage(
 
   await nextTick()
 
-  // Clearing the timers above only covers the timers that existed at that moment. This jump may have
-  // been awaiting the DOM while a newer one started, so it re-checks its generation before it acts —
-  // otherwise it would register a fresh timer below and drag the viewport back to its own message.
+  // Cancelling the pending jumps only covers the timers that existed at that moment. This jump may
+  // have been awaiting the DOM while a newer one started, so it re-checks its generation before it
+  // acts — otherwise it would register a fresh timer below and drag the viewport back to its own
+  // message.
   if (isSupersededMessageJump({ jumpSeqAtStart, currentJumpSeq: messageJumpSeq })) {
     return false
   }
