@@ -430,6 +430,21 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
     }
   },
   {
+    id: 'anonrouter',
+    name: 'AnonRouter',
+    apiType: 'openai-completions',
+    apiKey: '',
+    baseUrl: 'https://api.anonrouter.ai/v1',
+    enable: false,
+    websites: {
+      official: 'https://anonrouter.ai/',
+      apiKey: 'https://anonrouter.ai/home/api-keys',
+      docs: 'https://docs.anonrouter.ai/quickstart',
+      models: 'https://anonrouter.ai/models',
+      defaultBaseUrl: 'https://api.anonrouter.ai/v1'
+    }
+  },
+  {
     id: 'openrouter',
     name: 'OpenRouter',
     apiType: 'openai-completions',
