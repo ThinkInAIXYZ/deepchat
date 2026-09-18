@@ -199,8 +199,10 @@
             <!-- Anchor the plan/question float to the outer .relative (which includes the queue lane)
                  so bottom:calc(100%+0.75rem) lifts it above PendingInputLane instead of covering it. -->
             <div>
+              <!-- Always mounted: unmounting this container in the same tick the pill hides would
+                   skip the pill's leave transition. Its children are conditional and it has no size
+                   of its own while they are all hidden. -->
               <div
-                v-if="latestPlanSnapshot || activePendingInteraction || showScrollToLatest"
                 class="pointer-events-none absolute inset-x-0 bottom-[calc(100%+0.75rem)] flex w-full flex-col items-center gap-2"
                 style="z-index: var(--dc-z-float)"
                 data-testid="agent-progress-float-layer"
@@ -544,13 +546,31 @@ const SESSION_RESTORE_SCROLL_INTENT_KEYS = new Set([
 ])
 const traceMessageId = ref<string | null>(null)
 const sidepanelStore = useSidepanelStore()
-const messageJumpTimers = new Map<string, number>()
+/**
+ * Scheduled retries, keyed by message. Each entry carries the resolver of the promise the caller is
+ * awaiting, so cancelling a retry can report "not reached" instead of leaving that caller waiting
+ * forever for a timer that will never fire.
+ */
+const messageJumpTimers = new Map<string, { timer: number; resolve: (reached: boolean) => void }>()
 
 /**
  * Generation counter for message jumps. Every fresh jump bumps it, and a jump that awaited the DOM
  * compares it before acting, so a superseded jump stops instead of dragging the viewport back.
  */
 let messageJumpSeq = 0
+
+/**
+ * Ends every pending jump: cancels the scheduled retries, tells their callers the target was not
+ * reached, and moves the generation on so a jump still awaiting the DOM stops acting.
+ */
+function cancelPendingMessageJumps(): void {
+  messageJumpSeq += 1
+  for (const pending of messageJumpTimers.values()) {
+    window.clearTimeout(pending.timer)
+    pending.resolve(false)
+  }
+  messageJumpTimers.clear()
+}
 
 /**
  * Counts user gestures on the message list. `jumpToMessage` compares this before retrying so a
@@ -639,6 +659,9 @@ const showScrollToLatest = computed(
  * write, which is why no retry loop is needed here.
  */
 function returnToLatest(): void {
+  // A pending jump retry would re-issue an explicit navigation, which the controller accepts
+  // unconditionally, and pull the viewport away from the bottom the user just asked for.
+  cancelPendingMessageJumps()
   requestChatScroll('user-return-to-bottom', { kind: 'bottom' })
 }
 
@@ -648,7 +671,7 @@ function returnToLatest(): void {
  * a retry that belongs to an earlier one.
  */
 function startMessageJump(messageId: string, reason: ChatScrollReason): Promise<boolean> {
-  messageJumpSeq += 1
+  cancelPendingMessageJumps()
   return jumpToMessage(messageId, reason, 0, userGestureSeq, messageJumpSeq)
 }
 
@@ -912,15 +935,6 @@ async function jumpToMessage(
     return false
   }
 
-  // A newer jump supersedes an older pending retry; otherwise a stale timer can yank the viewport
-  // to a message the user has already moved on from.
-  if (attempt === 0) {
-    for (const timer of messageJumpTimers.values()) {
-      window.clearTimeout(timer)
-    }
-    messageJumpTimers.clear()
-  }
-
   await nextTick()
 
   // Clearing the timers above only covers the timers that existed at that moment. This jump may have
@@ -962,19 +976,30 @@ async function jumpToMessage(
       return false
     }
 
-    const pending = messageJumpTimers.get(messageId)
-    if (pending !== undefined) {
-      window.clearTimeout(pending)
+    // The caller keeps its own pending state until this resolves, so a retry reports the outcome of
+    // the whole chain rather than an immediate "not yet" — otherwise a jump that succeeds on a later
+    // attempt leaves that pending state behind forever.
+    const scheduled = messageJumpTimers.get(messageId)
+    if (scheduled) {
+      window.clearTimeout(scheduled.timer)
+      scheduled.resolve(false)
     }
 
-    messageJumpTimers.set(
-      messageId,
-      window.setTimeout(() => {
-        messageJumpTimers.delete(messageId)
-        void jumpToMessage(messageId, reason, attempt + 1, gestureSeqAtStart, jumpSeqAtStart)
-      }, MESSAGE_JUMP_RETRY_INTERVAL)
-    )
-    return false
+    return new Promise<boolean>((resolve) => {
+      messageJumpTimers.set(messageId, {
+        timer: window.setTimeout(() => {
+          messageJumpTimers.delete(messageId)
+          void jumpToMessage(
+            messageId,
+            reason,
+            attempt + 1,
+            gestureSeqAtStart,
+            jumpSeqAtStart
+          ).then(resolve)
+        }, MESSAGE_JUMP_RETRY_INTERVAL),
+        resolve
+      })
+    })
   }
 
   target.classList.add('message-highlight')
@@ -1679,10 +1704,7 @@ onUnmounted(() => {
   cancelAllPlanSnapshotClearTimers()
   stopChatPageEventBridge()
   disposeChatSearch()
-  for (const timer of messageJumpTimers.values()) {
-    window.clearTimeout(timer)
-  }
-  messageJumpTimers.clear()
+  cancelPendingMessageJumps()
   chatScrollController.dispose()
   viewportResizeObserver?.disconnect()
   viewportResizeObserver = null
