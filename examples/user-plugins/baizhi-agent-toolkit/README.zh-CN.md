@@ -16,7 +16,7 @@
 - 在[百智云控制台](https://agent-toolkit.app.baizhi.cloud/)创建自己的账号和 API Key，确认服务条款、
   权限、余额与用量限制；调用可能消耗额度。
 - 连接地址固定为 `https://agent-toolkit.app.baizhi.cloud/mcp`，采用 Streamable HTTP 与 Bearer 鉴权。
-  此流程不使用 MCPRouter Key、中间代理账号或 OAuth 登录。
+  此流程不使用 MCPRouter 账号、中间代理 Key 或 OAuth 登录。
 - 调用工具时，查询词、URL、文档或提取要求等对应输入会发送到百智云托管服务。
   未经许可不要发送敏感内容，使用前查看服务当前隐私说明；本示例不承诺数据保留期限、存储地区或“完全不记录”。
 

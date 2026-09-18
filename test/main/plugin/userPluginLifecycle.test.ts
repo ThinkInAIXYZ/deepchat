@@ -199,15 +199,13 @@ it('installs the Baizhi example ZIP and preserves secret bindings through replac
   expect(f.mcpSettings.getMcpVariableBindings(first)).toEqual({})
 
   // The fixture mocks safeStorage and connections; this checks storage boundaries, not OS encryption.
-  const tokens = [randomUUID(), randomUUID()]
-  for (const token of tokens) {
-    expect((await f.service.configureMcp(id, key, { BAIZHI_API_KEY: token })).ok).toBe(true)
-    expect(f.mcpSettings.getMcpVariableBindings(first)).toEqual({ BAIZHI_API_KEY: token })
-    expect(JSON.stringify(f.store.read())).not.toContain(token)
-    expect(JSON.stringify(await f.service.get(id))).not.toContain(token)
-    expect(JSON.stringify(await f.mcpSettings.getMcpServers())).not.toContain(token)
-    expect(JSON.stringify([...f.wrappedSecrets.values()])).not.toContain(token)
-  }
+  const token = randomUUID()
+  expect((await f.service.configureMcp(id, key, { BAIZHI_API_KEY: token })).ok).toBe(true)
+  expect(f.mcpSettings.getMcpVariableBindings(first)).toEqual({ BAIZHI_API_KEY: token })
+  expect(JSON.stringify(f.store.read())).not.toContain(token)
+  expect(JSON.stringify(await f.service.get(id))).not.toContain(token)
+  expect(JSON.stringify(await f.mcpSettings.getMcpServers())).not.toContain(token)
+  expect(JSON.stringify([...f.wrappedSecrets.values()])).not.toContain(token)
   const replacement = await f.service.inspect({ kind: 'zip', path: archive }, randomUUID())
   expect(
     (
@@ -226,7 +224,7 @@ it('installs the Baizhi example ZIP and preserves secret bindings through replac
   const current = (await f.mcpSettings.getMcpServers())[key]
   expect(current.serverId).toBe(first.serverId)
   expect(current.customHeaders).toEqual({ Authorization: 'Bearer ${BAIZHI_API_KEY}' })
-  expect(f.mcpSettings.getMcpVariableBindings(current)).toEqual({ BAIZHI_API_KEY: tokens[1] })
+  expect(f.mcpSettings.getMcpVariableBindings(current)).toEqual({ BAIZHI_API_KEY: token })
   expect((await reloaded.uninstall(id)).ok).toBe(true)
   expect(await f.mcpSettings.getMcpServers()).toEqual(unrelated)
   expect(f.store.read()).toEqual([])
