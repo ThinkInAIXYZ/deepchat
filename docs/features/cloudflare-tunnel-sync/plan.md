@@ -31,12 +31,17 @@ Landed and verified (typecheck node+web, lint, format, i18n, `test/main/sync`, `
   pairing codes, audit, private machine-local state, and the endpoint descriptor.
 - Composition wiring: service construction, `syncHostRoutes` in the route map, boot-time
   `startIfEnabled()`, and a `syncHostService.stop` destroy step.
-- `test/main/sync/host/hostEndpoint.test.ts` — 20 real-listener tests: uniform pre-auth 401s,
+- `test/main/sync/host/hostEndpoint.test.ts` — 26 real-listener tests: uniform pre-auth 401s,
   authenticated 404/405/501, pairing single-use and failure accounting, revocation (including across
-  a state reload), token-hash containment, byte-exact Range resume, abort-then-resume, corrupt
-  archive handling, loopback-only reachability, stalled-request reaping, oversized-body 413,
-  pre-`initialize()` state preservation, lifecycle consistency under interleaved transitions, and
-  teardown.
+  a state reload), token-hash containment, byte-exact Range resume, abort-then-resume, abort during
+  snapshot resolution, corrupt archive handling, unreadable backup list, loopback-only reachability,
+  stalled-request reaping, connection-ceiling eviction, anonymous-audit coalescing, package-name
+  filtering, host-identity stability, oversized-body 413, pre-`initialize()` state preservation,
+  lifecycle consistency under interleaved transitions, and teardown.
+- `test/main/sync/host/routes.test.ts` — 12 route-level tests for the seven `syncHost.*` handlers:
+  handler coverage, status/pairing shapes, `setEnabled` pass-through and failure propagation, pairing
+  creation and fallback, device-list and audit redaction, revoke/rename pass-through, input
+  validation, and renderer-caller enforcement.
 
 Not yet landed: push, change events, renderer UI + i18n copy, the tunnel supervisor, the plugin
 package, snapshot production, and everything on the slave side.
@@ -51,7 +56,7 @@ implementation. Findings and disposition:
 | Device records, host identity and the enabled flag lived in the synced settings blob, so token hashes would ship in every backup/S3 upload and be merged on import (importer accepts the original host's tokens, revoked devices resurrect, host mode enabled without consent) | high | **Fixed** — all host state moved to `<userData>/sync-host/host-state.json` (`0600`, atomic); no settings keys involved. Covered by a test asserting the token never appears on disk. |
 | `'sync_host'` was added to the log-event type union but not to the runtime `STARTUP_COMPONENTS` allowlist, so boot-failure reporting was silently rejected | high | **Fixed** — allowlist updated. |
 | Unauthenticated method/path handling revealed the route surface (405/404 before auth) | medium | **Fixed** — uniform 401 before path/method handling; authenticated callers still get 404/405. |
-| Stalled unauthenticated request could hold one of 16 connection slots for the 30-minute request timeout | medium | **Fixed** — request-receive timeout is now 60 s (configurable) and does not bound response streaming; covered by a stalled-socket test. |
+| Stalled unauthenticated request could hold one of 16 connection slots for the 30-minute request timeout | medium | **Fixed** — request-receive timeout is now 60 s (configurable) and does not bound response streaming; the ceiling is 32 and full endpoints evict a non-streaming connection rather than refusing the newcomer; covered by a stalled-socket test and a ceiling-eviction test. |
 | An anonymous caller could permanently kill pairing by burning the attempt budget | medium | **Fixed** — failures now impose backoff and never destroy the code; covered by a test. |
 | Whole-archive `readFile` for the manifest, with no in-flight dedupe, multiplied memory under concurrent requests | medium | **Fixed** — the manifest is streamed (bounded memory) and concurrent `current()` calls share one digest pass. |
 | No start/stop serialization: interleaved enable/disable could leave a listener running while host mode read as disabled | medium | **Fixed** — lifecycle transitions are serialized and `start()` is idempotent; invariant asserted in tests. |
@@ -77,6 +82,24 @@ implementation. Findings and disposition:
 | The audit recorded the planned status for an aborted transfer and dropped the device id on failures | low/medium | **Fixed** — aborted transfers are recorded as 499 and authenticated requests keep their device id. |
 | An oversized pairing body reset the connection instead of answering | low | **Fixed** — the body is drained and the caller receives 413. |
 | A package rewritten during hashing could be cached under a stale identity | low | **Fixed** — identity is re-verified after hashing; a second change reports no snapshot rather than a mismatched hash. |
+| A client that disconnected while the snapshot was being resolved left the handler hanging forever: the abort hook was attached after the await, when `close` had already fired, so the request was never audited and the read stream was never released | high | **Fixed** — the hook is armed before the first await and the handler bails with a 499 audit entry when the peer is gone; covered by a test that aborts inside the resolution window. |
+| A failed state read (EACCES/EIO, a lock, a corrupt file) silently degraded to the empty default state, and `initialize()` then persisted that default over the real file, discarding the enabled flag and every device record | high | **Fixed** — only `ENOENT` means "no state"; any other read/parse failure throws, leaves the cache unloaded and retries on the next call. |
+| A failed state write left the cache ahead of disk: a failed enable could be persisted by a later unrelated write, and a failed disable skipped the stop path while the flag read as disabled | medium | **Fixed** — `update()` rolls the cache back when the write rejects and rethrows. |
+| Snapshot resolution propagated storage failures as 500s (a package vanishing between `readdir` and `stat`, or during the digest) | medium | **Fixed** — resolution degrades to "no snapshot" (status `null`, snapshot 404) and a package that disappears mid-digest is no longer re-read from a stale stat; covered by a test. |
+| Every inflated chunk of a `manifest.json` entry was buffered without a cap, so a deflate bomb in the sync folder could inflate into the main-process heap | medium | **Fixed** — the manifest buffer is capped at 1 MiB. |
+| Anyone who learned the hostname could hold all 16 connection slots with stalled sockets and deny the legitimate device, including the user's own pairing | medium | **Fixed** — the ceiling is 32 and a full endpoint evicts the oldest connection that is not streaming a response instead of refusing the newcomer; covered by a test that fills the ceiling and still pairs. |
+| The limiter maps only pruned expired windows, so inside one window nothing was freed and both maps could grow without bound (a local caller can also spoof `cf-connecting-ip`) | low | **Fixed** — both windowed maps are pruned and then hard-capped by evicting the oldest entry. |
+| Unauthenticated traffic could flush the 500-entry audit ring in minutes, erasing the evidence of earlier probes | low | **Fixed** — anonymous traffic is coalesced into one entry per source that counts repeats (`suppressed`), and `handshake` is rate-limited like the other anonymous routes. |
+| `attemptsRemaining` was a global counter driven by anonymous failures, so anyone could make the UI report a valid code as exhausted | low | **Fixed** — the field and the global counter are gone; enforcement is the per-source failure budget only. |
+| `getHostId()` could mint two different identities before `initialize()` (routes are registered long before the boot start), so a pairing payload could disagree with a later handshake | low | **Fixed** — the pre-initialize identity is memoized and reused by `initialize()`; covered by a test. |
+| Digest cache identity was size+mtime only, so a replaced file with preserved timestamps could serve a stale hash | low | **Fixed** — identity now includes inode and `ctimeMs`. |
+| Failed atomic writes left `.tmp` debris next to the state file and the endpoint descriptor | low | **Fixed** — the temp file is removed on the failure path. |
+| A post-listen server error (EMFILE/ENFILE/ECONNABORTED) had no listener and would surface as an unhandled error in the main process | low | **Fixed** — a permanent handler logs it and stops the endpoint if the listener is gone. |
+| `stop()`'s "listener still bound" check was dead code (`server.listening` is false the moment `close()` is called), so a listener that survived the deadline was never reported | low | **Fixed** — `closeServer` resolves whether the close callback actually fired and warns when it did not. |
+| Any `*.zip` in the sync folder was served as the host snapshot, while every other call site validates `backup-<epochMs>.zip` | low | **Fixed** — the snapshot source applies the same package-name filter; covered by a test. |
+| The seven `syncHost.*` routes had no tests and did not assert a renderer caller | low | **Fixed** — `test/main/sync/host/routes.test.ts` (12 tests) and `requireRendererCaller` in every handler. |
+| The loopback reachability test skipped its negative probe on hosts without an external interface | low | **Fixed** — an unconditional `127.0.0.2` probe proves the bind is address-specific; the external-interface probe remains as an extra. |
+| The pre-`initialize()` state test never performed a mutation, so it passed with the guard removed | low | **Fixed** — the second instance now mutates before `initialize()`; removing the load-first guard fails the test. |
 
 ## Slice 0 — Gates before implementation
 

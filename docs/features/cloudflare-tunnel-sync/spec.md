@@ -205,8 +205,10 @@ files are in scope because the existing backup package already carries them.
 - Default off; enabling requires explicit confirmation and a risk notice.
 - Loopback-only origin binding on every platform; Unix socket is an optional extra for named
   tunnels, never a requirement.
-- Per-device tokens: hash-only at rest, scoped, optional expiry, immediate revocation; pairing codes
-  are one-time, short-lived, and rate-limited.
+- Per-device tokens: hash-only at rest, immediate revocation. Phase 1 issues **unscoped,
+  non-expiring** tokens — the store supports expiry but pairing does not set one, and there is no
+  scope model, so a leaked device token stays valid on every route until a human revokes it. Pairing
+  codes are one-time, short-lived, and rate-limited per source.
 - Request size caps, per-device rate limits, and path validation on both ends.
 - Audit log records device, method, bytes, result, and client IP (`cf-connecting-ip` is forwarded by
   Cloudflare and was confirmed present at the origin), never tokens or payload contents.
