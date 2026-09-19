@@ -9,8 +9,13 @@ import {
 } from '@shared/contracts/routes'
 import type { PluginSettingsApiStatus } from '@shared/types/plugin'
 
+const PLUGIN_ID_ARG_PREFIX = '--deepchat-plugin-id='
+
 function readPluginId(): string {
-  const pluginId = new URL(window.location.href).searchParams.get('pluginId')?.trim()
+  const arg = process.argv.find((value) => value.startsWith(PLUGIN_ID_ARG_PREFIX))
+  const pluginId = arg
+    ? decodeURIComponent(arg.slice(PLUGIN_ID_ARG_PREFIX.length)).trim()
+    : undefined
   if (!pluginId) {
     throw new Error('Plugin settings renderer is missing pluginId')
   }

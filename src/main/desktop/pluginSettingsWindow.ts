@@ -4,6 +4,7 @@ import type { PluginSettingsWindowPort } from '@/plugin'
 
 export class PluginSettingsWindow implements PluginSettingsWindowPort {
   private readonly windows = new Map<string, BrowserWindow>()
+  private readonly pluginIdByWebContentsId = new Map<number, string>()
 
   async open(input: { pluginId: string; title: string; entry: string }): Promise<void> {
     const existing = this.windows.get(input.pluginId)
@@ -23,11 +24,14 @@ export class PluginSettingsWindow implements PluginSettingsWindowPort {
         nodeIntegration: false,
         contextIsolation: true,
         preload: path.join(__dirname, '../preload/pluginSettings.mjs'),
-        sandbox: false
+        sandbox: false,
+        additionalArguments: [`--deepchat-plugin-id=${encodeURIComponent(input.pluginId)}`]
       }
     })
 
+    const webContentsId = settingsWindow.webContents.id
     this.windows.set(input.pluginId, settingsWindow)
+    this.pluginIdByWebContentsId.set(webContentsId, input.pluginId)
     settingsWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
     settingsWindow.on('ready-to-show', () => {
       if (!settingsWindow.isDestroyed()) {
@@ -35,6 +39,7 @@ export class PluginSettingsWindow implements PluginSettingsWindowPort {
       }
     })
     settingsWindow.on('closed', () => {
+      this.pluginIdByWebContentsId.delete(webContentsId)
       this.windows.delete(input.pluginId)
     })
 
@@ -43,6 +48,10 @@ export class PluginSettingsWindow implements PluginSettingsWindowPort {
         pluginId: input.pluginId
       }
     })
+  }
+
+  getPluginIdForWebContents(webContentsId: number): string | null {
+    return this.pluginIdByWebContentsId.get(webContentsId) ?? null
   }
 
   close(pluginId: string): void {

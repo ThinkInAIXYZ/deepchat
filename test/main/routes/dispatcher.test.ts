@@ -1616,7 +1616,12 @@ function createRuntime() {
     recordSettingsActivity: (input) => sqlitePresenter.recordSettingsActivity(input)
   })
   const toolRoutes = createToolRoutes(toolService)
-  const pluginRoutes = createPluginRoutes(pluginService)
+  const pluginRoutes = createPluginRoutes(pluginService, {
+    open: async () => {},
+    close: () => {},
+    closeAll: () => {},
+    getPluginIdForWebContents: () => null
+  })
   const assertSessionActiveSkillsMutable = vi.fn().mockResolvedValue(undefined)
   const skillRoutes = createSkillRoutes({
     skillService,

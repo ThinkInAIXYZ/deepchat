@@ -11,10 +11,25 @@ import {
   pluginsInvokeActionRoute,
   pluginsListRoute
 } from '@shared/contracts/routes'
-import { createRouteMap, type DeepchatRouteMap } from '@/routes/routeRegistry'
-import type { PluginServicePort } from './index'
+import { createRouteMap, type DeepchatRouteMap, type RouteContext } from '@/routes/routeRegistry'
+import type { PluginServicePort, PluginSettingsWindowPort } from './index'
 
-export function createPluginRoutes(pluginService: PluginServicePort): DeepchatRouteMap {
+export function createPluginRoutes(
+  pluginService: PluginServicePort,
+  settingsWindow: PluginSettingsWindowPort
+): DeepchatRouteMap {
+  const assertPluginSettingsCallerOwns = (context: RouteContext, pluginId: string): void => {
+    if (context.caller.kind !== 'renderer') {
+      return
+    }
+    const ownerPluginId = settingsWindow.getPluginIdForWebContents(context.caller.webContentsId)
+    if (ownerPluginId != null && ownerPluginId !== pluginId) {
+      throw new Error(
+        `Plugin settings window for "${ownerPluginId}" cannot control plugin "${pluginId}"`
+      )
+    }
+  }
+
   return createRouteMap([
     [
       pluginsInspectSourceRoute.name,
@@ -87,8 +102,9 @@ export function createPluginRoutes(pluginService: PluginServicePort): DeepchatRo
     ],
     [
       pluginsEnableRoute.name,
-      async (rawInput) => {
+      async (rawInput, context) => {
         const input = pluginsEnableRoute.input.parse(rawInput)
+        assertPluginSettingsCallerOwns(context, input.pluginId)
         return pluginsEnableRoute.output.parse({
           result: await pluginService.enablePlugin(input.pluginId)
         })
@@ -96,8 +112,9 @@ export function createPluginRoutes(pluginService: PluginServicePort): DeepchatRo
     ],
     [
       pluginsDisableRoute.name,
-      async (rawInput) => {
+      async (rawInput, context) => {
         const input = pluginsDisableRoute.input.parse(rawInput)
+        assertPluginSettingsCallerOwns(context, input.pluginId)
         return pluginsDisableRoute.output.parse({
           result: await pluginService.disablePlugin(input.pluginId)
         })
@@ -105,8 +122,9 @@ export function createPluginRoutes(pluginService: PluginServicePort): DeepchatRo
     ],
     [
       pluginsInvokeActionRoute.name,
-      async (rawInput) => {
+      async (rawInput, context) => {
         const input = pluginsInvokeActionRoute.input.parse(rawInput)
+        assertPluginSettingsCallerOwns(context, input.pluginId)
         return pluginsInvokeActionRoute.output.parse({
           result: await pluginService.invokeAction(input.pluginId, input.actionId, input.payload)
         })

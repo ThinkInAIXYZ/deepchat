@@ -2796,7 +2796,7 @@ export async function createMainProcessControl(dependencies: {
       recordSettingsActivity: (input) => settingsDatabase.recordSettingsActivity(input)
     })
     const toolRoutes = createToolRoutes(toolService)
-    const pluginRoutes = createPluginRoutes(pluginService)
+    const pluginRoutes = createPluginRoutes(pluginService, pluginSettingsWindow)
     const skillRoutes = createSkillRoutes({
       skillService,
       skillSyncService,
