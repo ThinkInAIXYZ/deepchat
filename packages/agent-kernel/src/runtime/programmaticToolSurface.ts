@@ -1,17 +1,17 @@
 import { Buffer } from 'node:buffer'
-import type { MCPToolDefinition, ToolExecutionContract } from '@deepchat/shared/types/core/mcp'
+import type { MCPToolDefinition, ToolExecutionContract } from '../shared/types/core/mcp.js'
 import type {
   DeepChatExecutionToolTargetIdentity,
   DeepChatExecutionWorkspaceCeiling
-} from '@deepchat/shared/types/execution-contract'
+} from '../shared/types/execution-contract.js'
 import type {
   DeepChatTaskContractContext,
   DeepChatTaskContractRef
-} from '@deepchat/shared/types/task-contract'
+} from '../shared/types/task-contract.js'
 import {
   ProgrammaticToolInvocationNameSchema,
   ProgrammaticToolPropertyNameSchema
-} from '@deepchat/shared/contracts/routes/tools.routes'
+} from '../shared/contracts/routes/tools.routes.js'
 import { canonicalJsonStringifyData, hashJsonData } from '../tape/domain/canonicalJson.js'
 import { isToolEffectWithinCeiling } from '../tape/domain/executionContract.js'
 import {

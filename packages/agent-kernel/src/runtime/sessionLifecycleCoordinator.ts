@@ -1,9 +1,9 @@
-import logger from '@deepchat/shared/logger'
+import logger from '../shared/logger.js'
 import type {
   PermissionMode,
   SessionGenerationSettings
-} from '@deepchat/shared/types/agent-interface'
-import type { ToolServicePort } from '@deepchat/shared/types/tool'
+} from '../shared/types/agent-interface.js'
+import type { ToolServicePort } from '../shared/types/tool.js'
 import { toAppSessionId } from '../collab/agent-shared/agentSessionIds.js'
 
 import type {

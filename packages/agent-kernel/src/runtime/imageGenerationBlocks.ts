@@ -1,9 +1,9 @@
-import type { AssistantMessageBlock } from '@deepchat/shared/types/agent-interface'
-import type { ToolCallImagePreview } from '@deepchat/shared/types/core/mcp'
+import type { AssistantMessageBlock } from '../shared/types/agent-interface.js'
+import type { ToolCallImagePreview } from '../shared/types/core/mcp.js'
 import {
   IMAGE_GENERATE_TOOL_NAME,
   IMAGE_GENERATION_TOOL_SERVER_NAME
-} from '@deepchat/shared/agentImageGenerationTool'
+} from '../shared/agentImageGenerationTool.js'
 
 export function prepareToolImagePreviewPresentation(params: {
   toolCallId?: string

@@ -6,9 +6,9 @@ import {
   type AgentMemoryDirectiveKind,
   type AgentMemoryDirectiveSource,
   type AgentMemoryDirectiveStatus
-} from '@deepchat/shared/types/agent-memory'
-import { isMemoryDirectiveTopicSpecificEnough } from '@deepchat/shared/lib/memoryDirectiveTopic'
-import { unicodeCodePointLength } from '@deepchat/shared/lib/unicodeText'
+} from '../../../shared/types/agent-memory.js'
+import { isMemoryDirectiveTopicSpecificEnough } from '../../../shared/lib/memoryDirectiveTopic.js'
+import { unicodeCodePointLength } from '../../../shared/lib/unicodeText.js'
 
 export type { AgentMemoryDirectiveKind, AgentMemoryDirectiveSource, AgentMemoryDirectiveStatus }
 export type ExplicitMemoryDirectiveSource = Extract<

@@ -1,10 +1,10 @@
-import { readdirSync } from 'node:fs'
+import { existsSync, readdirSync } from 'node:fs'
 import { dirname, join, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import ts from 'typescript'
 
-// Type gate for the Stage 1 client-facing contract test. `pnpm typecheck` compiles `src/**` only, so
+// Type gate for the Stage 1 client-facing contract test. `pnpm typecheck` compiles `packages/desktop/src/**` only, so
 // the contract test's `expectTypeOf` assertions — "this operation takes exactly this DTO and no
 // AbortSignal" — were erased by the test run and compiled by nothing. This gate compiles them, which
 // is why the scope is deliberately two paths: widening it would make the gate slow enough to stop
@@ -13,8 +13,9 @@ import ts from 'typescript'
 const scriptDirectory = dirname(fileURLToPath(import.meta.url))
 const rootDir = resolve(scriptDirectory, '..')
 
-const scopedTestFiles = ['test/main/contracts/agentServiceClientContract.test.ts']
-const scopedSourceDirectories = ['src/shared/contracts/agent-service']
+const desktopRoot = existsSync(join(rootDir, 'packages/desktop')) ? 'packages/desktop' : '.'
+const scopedTestFiles = [`${desktopRoot}/test/main/contracts/agentServiceClientContract.test.ts`]
+const scopedSourceDirectories = [`${desktopRoot}/src/shared/contracts/agent-service`]
 
 const scopedSourceFiles = scopedSourceDirectories.flatMap((directory) =>
   readdirSync(join(rootDir, directory))
@@ -61,7 +62,8 @@ if (unreadableRoots.length > 0) {
   process.exit(1)
 }
 
-const configPath = join(rootDir, 'tsconfig.node.json')
+const configPath = join(rootDir, desktopRoot, 'tsconfig.node.json')
+process.chdir(dirname(configPath))
 const configFile = ts.readConfigFile(configPath, ts.sys.readFile)
 
 if (configFile.error) {
@@ -71,7 +73,7 @@ if (configFile.error) {
   // `tsconfig.node.json` is the base config, so this gate resolves the same `@shared/*` alias the
   // sources do. The relaxed settings match the memory test gate: fixtures legitimately carry unused
   // bindings, and `composite`/`incremental` are irrelevant to a one-shot check.
-  const parsed = ts.parseJsonConfigFileContent(configFile.config, ts.sys, rootDir, {
+  const parsed = ts.parseJsonConfigFileContent(configFile.config, ts.sys, dirname(configPath), {
     composite: false,
     incremental: false,
     noEmit: true,

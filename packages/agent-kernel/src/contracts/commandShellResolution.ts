@@ -1,4 +1,4 @@
-import type { CommandShellProfile, ResolvedCommandShell } from '@deepchat/shared/commandShell'
+import type { CommandShellProfile, ResolvedCommandShell } from '../shared/commandShell.js'
 
 /**
  * Command shell resolution surface the built-in kernel needs. The host shell service implements

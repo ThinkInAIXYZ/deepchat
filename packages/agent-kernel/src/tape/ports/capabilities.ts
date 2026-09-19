@@ -1,11 +1,11 @@
-import type { ChatMessageRecord } from '@deepchat/shared/types/agent-interface'
-import type { MCPToolDefinition } from '@deepchat/shared/types/core/mcp'
+import type { ChatMessageRecord } from '../../shared/types/agent-interface.js'
+import type { MCPToolDefinition } from '../../shared/types/core/mcp.js'
 import type {
   DeepChatTapeSkillContext,
   DeepChatTapeViewManifest,
   DeepChatTapeViewManifestRecord
-} from '@deepchat/shared/types/tape-view-manifest'
-import type { DeepChatNestedExecutionAudit } from '@deepchat/shared/types/execution-journal-audit'
+} from '../../shared/types/tape-view-manifest.js'
+import type { DeepChatNestedExecutionAudit } from '../../shared/types/execution-journal-audit.js'
 import type { DeepChatTapeEntryRow, TapeAnchorAppendInput } from '../domain/entry.js'
 import type {
   TapeEntryRef,
@@ -53,7 +53,7 @@ import type {
   ResolveTapeInspectorEvidenceEntriesInput,
   ResolveTapeInspectorEvidenceEntriesOutput,
   TapeInspectorHead
-} from '@deepchat/shared/types/tape-inspector'
+} from '../../shared/types/tape-inspector.js'
 import type {
   CreateTapeProgrammaticToolSurfaceFactInput,
   CreateTapeToolCatalogFactInput,

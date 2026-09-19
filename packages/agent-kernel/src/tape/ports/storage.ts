@@ -19,7 +19,7 @@ import type { TapeCompactionModelCallEventName } from '../domain/compactionUsage
 import type {
   TapeInspectorEntryCursor,
   TapeInspectorSort
-} from '@deepchat/shared/types/tape-inspector'
+} from '../../shared/types/tape-inspector.js'
 
 type TapeInspectorEntryScanCursor =
   | Exclude<TapeInspectorEntryCursor, { sort: 'name' }>

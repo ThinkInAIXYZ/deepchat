@@ -2,7 +2,7 @@ import { createHash } from 'crypto'
 import type {
   DeepChatTapeViewExcludedRange,
   DeepChatTapeViewManifest
-} from '@deepchat/shared/types/tape-view-manifest'
+} from '../../shared/types/tape-view-manifest.js'
 import { isDeepChatExecutionContract } from './executionContract.js'
 import { validateSchema6SkillContexts, validateSchema7SkillContexts } from './skillContext.js'
 import { isBoundedSkillTapeIdentity } from './skillIdentity.js'

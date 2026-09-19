@@ -75,11 +75,6 @@ const macosPackagePaths = new Set([
 
 const packageImpactRules = Object.freeze([
   {
-    id: 'workspace-package-input',
-    platforms: allPlatforms,
-    matches: (changedPath) => changedPath.startsWith('packages/')
-  },
-  {
     id: 'shared-package-contract',
     platforms: allPlatforms,
     matches: (changedPath) =>

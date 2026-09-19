@@ -1,0 +1,539 @@
+<template>
+  <div class="flex h-full min-w-0 flex-1 flex-col bg-background">
+    <div class="flex h-11 items-center gap-2 border-b px-3">
+      <DcButton
+        variant="outline"
+        size="icon"
+        class="h-7 w-7"
+        :aria-label="t('common.browser.back')"
+        :disabled="!canGoBack"
+        :tooltip="t('common.browser.back')"
+        @click="goBack"
+      >
+        <Icon icon="lucide:arrow-left" class="h-4 w-4" />
+      </DcButton>
+      <DcButton
+        variant="outline"
+        size="icon"
+        class="h-7 w-7"
+        :aria-label="t('common.browser.forward')"
+        :disabled="!canGoForward"
+        :tooltip="t('common.browser.forward')"
+        @click="goForward"
+      >
+        <Icon icon="lucide:arrow-right" class="h-4 w-4" />
+      </DcButton>
+      <DcButton
+        variant="outline"
+        size="icon"
+        class="h-7 w-7"
+        :aria-label="t('common.browser.reload')"
+        :tooltip="t('common.browser.reload')"
+        @click="reloadPage"
+      >
+        <Icon icon="lucide:refresh-ccw" class="h-4 w-4" />
+      </DcButton>
+      <DcForm class="flex min-w-0 flex-1" @submit="navigate">
+        <Input
+          v-model="urlInput"
+          :aria-label="t('common.browser.addressLabel')"
+          class="h-7 text-xs"
+          :placeholder="t('common.browser.addressPlaceholder')"
+          autocapitalize="off"
+          autocomplete="off"
+          spellcheck="false"
+        />
+      </DcForm>
+      <DcButton
+        variant="outline"
+        size="icon"
+        class="h-7 w-7 shrink-0"
+        :aria-label="props.isFullscreen ? t('common.restore') : t('common.expand')"
+        :tooltip="props.isFullscreen ? t('common.restore') : t('common.expand')"
+        @click="emit('toggle-fullscreen')"
+      >
+        <Icon
+          :icon="props.isFullscreen ? 'lucide:minimize-2' : 'lucide:maximize-2'"
+          class="h-4 w-4"
+        />
+      </DcButton>
+    </div>
+
+    <button
+      v-if="!showPlaceholder"
+      type="button"
+      class="shrink-0 border-b px-3 py-1 text-left text-xs hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+      :aria-label="t('common.browser.enterContent')"
+      :aria-describedby="browserFocusHintId"
+      @click="focusBrowserContent"
+    >
+      {{ t('common.browser.enterContent') }}
+      <span :id="browserFocusHintId" class="ml-2 text-muted-foreground">{{
+        t('common.browser.returnFocus')
+      }}</span>
+    </button>
+    <div ref="containerRef" class="relative min-h-0 flex-1 overflow-hidden">
+      <BrowserPlaceholder v-if="showPlaceholder" class="absolute inset-0" />
+    </div>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, useId, watch } from 'vue'
+import type { Rectangle } from 'electron'
+import { useResizeObserver } from '@vueuse/core'
+import { Icon } from '@iconify/vue'
+import { useI18n } from 'vue-i18n'
+import { DcButton } from '@dc-ui/components/button'
+import { DcForm } from '@dc-ui/components/form'
+import { Input } from '@shadcn/components/ui/input'
+import { createBrowserClient } from '@api/BrowserClient'
+import BrowserPlaceholder from './BrowserPlaceholder.vue'
+import type { YoBrowserStatus } from '@shared/types/browser'
+import { useSidepanelStore } from '@/stores/ui/sidepanel'
+
+const props = defineProps<{
+  sessionId: string | null
+  isFullscreen?: boolean
+}>()
+const emit = defineEmits<{ (event: 'toggle-fullscreen'): void }>()
+
+const { t } = useI18n()
+const sidepanelStore = useSidepanelStore()
+const browserClient = createBrowserClient()
+
+const browserFocusHintId = useId()
+const containerRef = ref<HTMLElement | null>(null)
+const browserStatus = ref<YoBrowserStatus>({
+  initialized: false,
+  page: null,
+  canGoBack: false,
+  canGoForward: false,
+  visible: false,
+  loading: false
+})
+const currentUrl = ref('about:blank')
+const urlInput = ref('')
+const canGoBack = ref(false)
+const canGoForward = ref(false)
+let lastSyncedBounds: Rectangle | null = null
+let visibilityRunId = 0
+let stopOpenRequestedListener: (() => void) | null = null
+let stopStatusChangedListener: (() => void) | null = null
+let pendingBoundsSyncFrame: number | null = null
+
+const STABLE_RECT_SAMPLE_MS = 48
+const STABLE_RECT_TIMEOUT_MS = 1500
+
+const currentSessionId = computed(() => props.sessionId?.trim() || '')
+const showPlaceholder = computed(
+  () => !browserStatus.value.initialized || currentUrl.value === 'about:blank'
+)
+const isBrowserPanelVisible = computed(
+  () => sidepanelStore.open && sidepanelStore.activeTab === 'browser'
+)
+
+const callBrowserAction = async <T>(action: string, run: () => Promise<T>): Promise<T | null> => {
+  try {
+    return await run()
+  } catch (error) {
+    console.error(`[BrowserPanel] ${action} failed`, error)
+    return null
+  }
+}
+
+const resetBrowserState = () => {
+  browserStatus.value = {
+    initialized: false,
+    page: null,
+    canGoBack: false,
+    canGoForward: false,
+    visible: false,
+    loading: false
+  }
+  currentUrl.value = 'about:blank'
+  urlInput.value = ''
+  canGoBack.value = false
+  canGoForward.value = false
+}
+
+const applyBrowserStatus = (status: YoBrowserStatus) => {
+  browserStatus.value = status
+  currentUrl.value = status.page?.url || 'about:blank'
+  urlInput.value = currentUrl.value === 'about:blank' ? '' : currentUrl.value
+  canGoBack.value = status.canGoBack
+  canGoForward.value = status.canGoForward
+}
+
+const captureContainerBounds = (): Rectangle | null => {
+  if (!containerRef.value) {
+    return null
+  }
+
+  const rect = containerRef.value.getBoundingClientRect()
+  return {
+    x: rect.left,
+    y: rect.top,
+    width: rect.width,
+    height: rect.height
+  }
+}
+
+const roundBounds = (bounds: Rectangle): Rectangle => ({
+  x: Math.round(bounds.x),
+  y: Math.round(bounds.y),
+  width: Math.round(bounds.width),
+  height: Math.round(bounds.height)
+})
+
+const areBoundsEqual = (left: Rectangle | null, right: Rectangle): boolean => {
+  return (
+    left !== null &&
+    left.x === right.x &&
+    left.y === right.y &&
+    left.width === right.width &&
+    left.height === right.height
+  )
+}
+
+const canSyncVisibleBounds = () => {
+  return Boolean(
+    currentSessionId.value && browserStatus.value.initialized && isBrowserPanelVisible.value
+  )
+}
+
+const wait = async (ms: number) => {
+  await new Promise((resolve) => window.setTimeout(resolve, ms))
+}
+
+const waitForStableRect = async (runId: number): Promise<Rectangle | null> => {
+  let previousKey = ''
+  let stableCount = 0
+  const deadline = Date.now() + STABLE_RECT_TIMEOUT_MS
+
+  while (runId === visibilityRunId && isBrowserPanelVisible.value) {
+    const rect = captureContainerBounds()
+    if (rect && rect.width > 0 && rect.height > 0) {
+      const key = `${Math.round(rect.x)}:${Math.round(rect.y)}:${Math.round(rect.width)}:${Math.round(rect.height)}`
+      stableCount = key === previousKey ? stableCount + 1 : 1
+      previousKey = key
+      if (stableCount >= 2) {
+        return rect
+      }
+    } else {
+      previousKey = ''
+      stableCount = 0
+    }
+
+    if (Date.now() >= deadline) {
+      console.warn('[BrowserPanel] stable rect wait timed out')
+      return null
+    }
+
+    await wait(STABLE_RECT_SAMPLE_MS)
+  }
+
+  return null
+}
+
+const loadState = async (sessionId: string = currentSessionId.value) => {
+  if (!sessionId) {
+    resetBrowserState()
+    return
+  }
+
+  const status = await callBrowserAction('getStatus', () => browserClient.getStatus(sessionId))
+  if (sessionId !== currentSessionId.value) {
+    return
+  }
+
+  if (!status) {
+    resetBrowserState()
+    return
+  }
+
+  applyBrowserStatus(status)
+}
+
+const syncVisibleBounds = async () => {
+  if (!canSyncVisibleBounds()) {
+    return
+  }
+
+  const sessionId = currentSessionId.value
+  const capturedBounds = captureContainerBounds()
+  const rect = capturedBounds ? roundBounds(capturedBounds) : null
+  if (!rect || rect.width <= 0 || rect.height <= 0) {
+    return
+  }
+  if (areBoundsEqual(lastSyncedBounds, rect)) {
+    return
+  }
+
+  lastSyncedBounds = rect
+  await callBrowserAction('updateCurrentWindowBounds', () =>
+    browserClient.updateCurrentWindowBounds(sessionId, rect, true)
+  )
+}
+
+const scheduleVisibleBoundsSync = () => {
+  if (!canSyncVisibleBounds() || pendingBoundsSyncFrame !== null) {
+    return
+  }
+
+  pendingBoundsSyncFrame = window.requestAnimationFrame(() => {
+    pendingBoundsSyncFrame = null
+    void syncVisibleBounds()
+  })
+}
+
+const cancelScheduledBoundsSync = () => {
+  if (pendingBoundsSyncFrame === null) {
+    return
+  }
+
+  window.cancelAnimationFrame(pendingBoundsSyncFrame)
+  pendingBoundsSyncFrame = null
+}
+
+const hideEmbedded = async (sessionId: string = currentSessionId.value) => {
+  visibilityRunId += 1
+  cancelScheduledBoundsSync()
+
+  if (!sessionId) {
+    return
+  }
+
+  const hiddenBounds = lastSyncedBounds ??
+    captureContainerBounds() ?? {
+      x: 0,
+      y: 0,
+      width: 0,
+      height: 0
+    }
+
+  await callBrowserAction('updateCurrentWindowBounds(hidden)', () =>
+    browserClient.updateCurrentWindowBounds(sessionId, hiddenBounds, false)
+  )
+  await callBrowserAction('detach', () => browserClient.detach(sessionId))
+}
+
+const ensureVisibleAttachment = async () => {
+  if (!currentSessionId.value || !browserStatus.value.initialized || !isBrowserPanelVisible.value) {
+    return
+  }
+
+  const runId = ++visibilityRunId
+  await nextTick()
+
+  const stableRect = await waitForStableRect(runId)
+  if (stableRect == null || runId !== visibilityRunId || !isBrowserPanelVisible.value) {
+    return
+  }
+
+  const attached = await callBrowserAction('attachCurrentWindow', () =>
+    browserClient.attachCurrentWindow(currentSessionId.value)
+  )
+  if (!attached || runId !== visibilityRunId) {
+    return
+  }
+
+  const visibleBounds = roundBounds(stableRect)
+  lastSyncedBounds = visibleBounds
+  await callBrowserAction('updateCurrentWindowBounds(visible)', () =>
+    browserClient.updateCurrentWindowBounds(currentSessionId.value, visibleBounds, true)
+  )
+  await loadState(currentSessionId.value)
+}
+
+const handleStatusChanged = async (payload: {
+  sessionId: string
+  reason: 'created' | 'updated' | 'closed' | 'focused' | 'visibility'
+  status: YoBrowserStatus | null
+  version: number
+}) => {
+  if (payload.sessionId !== currentSessionId.value) {
+    return
+  }
+
+  await loadState(currentSessionId.value)
+}
+
+const handleOpenRequested = async (payload: {
+  sessionId: string
+  windowId: number
+  url: string
+  source: 'agent' | 'user'
+  runId?: string
+  version: number
+}) => {
+  if (payload.sessionId !== currentSessionId.value) {
+    return
+  }
+
+  console.info('[BrowserPanel] panel open requested', {
+    windowId: payload.windowId,
+    url: payload.url
+  })
+
+  if (payload.url) {
+    urlInput.value = payload.url
+  }
+
+  await loadState(currentSessionId.value)
+  await nextTick()
+  if (isBrowserPanelVisible.value) {
+    await ensureVisibleAttachment()
+  }
+}
+
+const normalizeUrl = (value: string) => {
+  const trimmed = value.trim()
+  if (!trimmed) {
+    return ''
+  }
+  if (/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(trimmed)) {
+    return trimmed
+  }
+  return `https://${trimmed}`
+}
+
+const focusBrowserContent = async () => {
+  const sessionId = currentSessionId.value
+  if (!sessionId || !isBrowserPanelVisible.value) return
+  await ensureVisibleAttachment()
+  if (currentSessionId.value !== sessionId || !isBrowserPanelVisible.value) return
+  await callBrowserAction('focusContent', () => browserClient.focusContent(sessionId))
+}
+
+const navigate = async () => {
+  if (!currentSessionId.value) {
+    return
+  }
+
+  const nextUrl = normalizeUrl(urlInput.value)
+  if (!nextUrl) {
+    return
+  }
+
+  const result = await callBrowserAction('loadUrl', () =>
+    browserClient.loadUrl(currentSessionId.value, nextUrl)
+  )
+  if (result === null) {
+    return
+  }
+
+  applyBrowserStatus(result)
+  await loadState(currentSessionId.value)
+}
+
+const goBack = async () => {
+  if (!currentSessionId.value || !browserStatus.value.initialized) {
+    return
+  }
+
+  const result = await callBrowserAction('goBack', () =>
+    browserClient.goBack(currentSessionId.value)
+  )
+  if (result === null) {
+    return
+  }
+
+  await loadState(currentSessionId.value)
+}
+
+const goForward = async () => {
+  if (!currentSessionId.value || !browserStatus.value.initialized) {
+    return
+  }
+
+  const result = await callBrowserAction('goForward', () =>
+    browserClient.goForward(currentSessionId.value)
+  )
+  if (result === null) {
+    return
+  }
+
+  await loadState(currentSessionId.value)
+}
+
+const reloadPage = async () => {
+  if (!currentSessionId.value || !browserStatus.value.initialized) {
+    return
+  }
+
+  const result = await callBrowserAction('reload', () =>
+    browserClient.reload(currentSessionId.value)
+  )
+  if (result === null) {
+    return
+  }
+
+  await loadState(currentSessionId.value)
+}
+
+const cleanupInactiveSession = async (sessionId: string) => {
+  if (!sessionId) {
+    return
+  }
+
+  await hideEmbedded(sessionId)
+}
+
+useResizeObserver(containerRef, () => {
+  scheduleVisibleBoundsSync()
+})
+
+watch(isBrowserPanelVisible, (visible) => {
+  if (visible) {
+    void loadState(currentSessionId.value)
+    void ensureVisibleAttachment()
+    return
+  }
+
+  void hideEmbedded(currentSessionId.value)
+})
+
+watch(
+  () => props.sessionId,
+  (nextSessionId, previousSessionId) => {
+    if (previousSessionId && previousSessionId !== nextSessionId) {
+      void cleanupInactiveSession(previousSessionId)
+    }
+
+    if (!nextSessionId) {
+      resetBrowserState()
+      return
+    }
+
+    void loadState(nextSessionId)
+    if (isBrowserPanelVisible.value) {
+      void ensureVisibleAttachment()
+    }
+  },
+  { immediate: true }
+)
+
+onMounted(async () => {
+  window.addEventListener('resize', scheduleVisibleBoundsSync)
+  stopOpenRequestedListener = browserClient.onOpenRequestedForCurrentWindow(handleOpenRequested)
+  stopStatusChangedListener = browserClient.onStatusChanged(handleStatusChanged)
+
+  if (currentSessionId.value) {
+    await loadState(currentSessionId.value)
+  }
+  if (isBrowserPanelVisible.value) {
+    await ensureVisibleAttachment()
+  }
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', scheduleVisibleBoundsSync)
+  cancelScheduledBoundsSync()
+  void hideEmbedded(currentSessionId.value)
+  stopOpenRequestedListener?.()
+  stopOpenRequestedListener = null
+  stopStatusChangedListener?.()
+  stopStatusChangedListener = null
+})
+</script>

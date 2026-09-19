@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
-import type { AgentNoProgressToolLoopMetadata } from '@deepchat/shared/types/agent-interface'
-import type { ChatMessage } from '@deepchat/shared/types/core/chat-message'
+import type { AgentNoProgressToolLoopMetadata } from '../shared/types/agent-interface.js'
+import type { ChatMessage } from '../shared/types/core/chat-message.js'
 import type { ToolCallResult } from './types.js'
 
 export const NO_PROGRESS_TERMINAL_ERROR =

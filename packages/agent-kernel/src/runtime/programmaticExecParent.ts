@@ -1,7 +1,7 @@
-import type { PermissionMode } from '@deepchat/shared/types/agent-interface'
+import type { PermissionMode } from '../shared/types/agent-interface.js'
 import type { ExecutionOperationIdentity } from '../tape/domain/executionJournal.js'
 
-import { LOCAL_CONTROL_PROGRAMMATIC_ROUTE_SURFACE_VERSION } from '@deepchat/shared/contracts/localControl'
+import { LOCAL_CONTROL_PROGRAMMATIC_ROUTE_SURFACE_VERSION } from '../shared/contracts/localControl.js'
 import {
   assertProgrammaticToolCapabilityDeferredDispatch,
   assertProgrammaticToolCapabilityViewActive,

@@ -1,5 +1,5 @@
-import type { OrchestrationPolicy } from '@deepchat/shared/orchestration/policy'
-import type { ToolModeOverride } from '@deepchat/shared/toolMode'
+import type { OrchestrationPolicy } from '../shared/orchestration/policy.js'
+import type { ToolModeOverride } from '../shared/toolMode.js'
 
 /**
  * Session-agent row projection the built-in kernel reads: identity, lineage, and the persisted

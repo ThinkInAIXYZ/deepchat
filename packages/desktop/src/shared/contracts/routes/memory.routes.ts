@@ -1,0 +1,1159 @@
+import { z } from 'zod'
+import { defineRouteContract } from '../common'
+import {
+  AGENT_MEMORY_AUDIT_ACTOR_TYPES,
+  AGENT_MEMORY_AUDIT_FAILURE_STATUSES,
+  AGENT_MEMORY_AUDIT_STATUSES,
+  AGENT_MEMORY_CATEGORIES,
+  AGENT_MEMORY_AGENT_ID_PATTERN,
+  AGENT_MEMORY_DIRECTIVE_CONTENT_MAX_CHARS,
+  AGENT_MEMORY_DIRECTIVE_SOURCES,
+  AGENT_MEMORY_DIRECTIVE_STATUSES,
+  AGENT_MEMORY_DIRECTIVE_TOPIC_MAX_CHARS,
+  AGENT_MEMORY_MANUAL_CONTENT_MAX_CHARS,
+  AGENT_MEMORY_SCOPE_ID_MAX_CHARS,
+  AGENT_MEMORY_SCOPE_TYPES,
+  AGENT_MEMORY_HEALTH_CATEGORY_KEYS,
+  AGENT_MEMORY_HEALTH_KIND_KEYS,
+  AGENT_MEMORY_HEALTH_STATUS_KEYS,
+  AGENT_MEMORY_HEALTH_TOP_KIND_KEYS,
+  AGENT_MEMORY_TEMPORAL_KINDS,
+  AGENT_MEMORY_TEMPORAL_PRECISIONS,
+  MEMORY_MAINTENANCE_BUDGET_STEPS,
+  MEMORY_RECALL_LATENCY_STAGES,
+  MEMORY_RETRIEVAL_DEGRADATION_CAUSES,
+  MEMORY_RETRIEVAL_OUTCOMES,
+  MEMORY_RETRIEVAL_PURPOSES
+} from '../../types/agent-memory'
+import { unicodeCodePointLength } from '../../lib/unicodeText'
+
+const ManualMemoryContentSchema = z
+  .string()
+  .refine((content) => unicodeCodePointLength(content) <= AGENT_MEMORY_MANUAL_CONTENT_MAX_CHARS, {
+    message: `content must be at most ${AGENT_MEMORY_MANUAL_CONTENT_MAX_CHARS} Unicode code points`
+  })
+
+const DirectiveContentSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .refine(
+    (content) => unicodeCodePointLength(content) <= AGENT_MEMORY_DIRECTIVE_CONTENT_MAX_CHARS,
+    {
+      message: `content must be at most ${AGENT_MEMORY_DIRECTIVE_CONTENT_MAX_CHARS} Unicode code points`
+    }
+  )
+
+const DirectiveTopicSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .refine((topic) => unicodeCodePointLength(topic) <= AGENT_MEMORY_DIRECTIVE_TOPIC_MAX_CHARS, {
+    message: `topic must be at most ${AGENT_MEMORY_DIRECTIVE_TOPIC_MAX_CHARS} Unicode code points`
+  })
+
+/** URL-safe agent ids, matching the main-process memory storage guard. */
+const AgentIdSchema = z.string().regex(AGENT_MEMORY_AGENT_ID_PATTERN, 'invalid agentId')
+
+const CanonicalMemoryScopeIdSchema = z
+  .string()
+  .min(1)
+  .refine((id) => id === id.trim(), {
+    message: 'scope id must not contain surrounding whitespace'
+  })
+  .refine((id) => unicodeCodePointLength(id) <= AGENT_MEMORY_SCOPE_ID_MAX_CHARS, {
+    message: `scope id must be at most ${AGENT_MEMORY_SCOPE_ID_MAX_CHARS} Unicode code points`
+  })
+
+const CanonicalMemoryTimeZoneSchema = z
+  .string()
+  .min(1)
+  .refine((timeZone) => timeZone === timeZone.trim(), {
+    message: 'temporal timezone must not contain surrounding whitespace'
+  })
+  .refine((timeZone) => unicodeCodePointLength(timeZone) <= 128, {
+    message: 'temporal timezone must be at most 128 Unicode code points'
+  })
+
+const MemoryScopeIdInputSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .refine((id) => unicodeCodePointLength(id) <= AGENT_MEMORY_SCOPE_ID_MAX_CHARS, {
+    message: `scope id must be at most ${AGENT_MEMORY_SCOPE_ID_MAX_CHARS} Unicode code points`
+  })
+
+export const MemoryScopeSchema = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('agent') }).strict(),
+  z.object({ type: z.literal('user'), id: MemoryScopeIdInputSchema }).strict(),
+  z.object({ type: z.literal('project'), id: MemoryScopeIdInputSchema }).strict(),
+  z.object({ type: z.literal('session'), id: MemoryScopeIdInputSchema }).strict()
+])
+
+export const MemoryScopeContextSchema = z
+  .object({
+    userId: MemoryScopeIdInputSchema.optional(),
+    projectId: MemoryScopeIdInputSchema.optional(),
+    sessionId: MemoryScopeIdInputSchema.optional()
+  })
+  .strict()
+
+type ProjectedMemoryInvariant = {
+  scopeType: (typeof AGENT_MEMORY_SCOPE_TYPES)[number]
+  scopeId: string | null
+  temporalKind: (typeof AGENT_MEMORY_TEMPORAL_KINDS)[number]
+  validFrom: number | null
+  validUntil: number | null
+  temporalConfidence: number | null
+  temporalPrecision: (typeof AGENT_MEMORY_TEMPORAL_PRECISIONS)[number] | null
+  temporalTimeZone: string | null
+}
+
+function enforceProjectedMemoryInvariant(
+  value: ProjectedMemoryInvariant,
+  context: z.RefinementCtx
+): void {
+  const validScope = value.scopeType === 'agent' ? value.scopeId === null : value.scopeId !== null
+  if (!validScope) {
+    context.addIssue({
+      code: 'custom',
+      path: ['scopeId'],
+      message: 'scopeId must be null only for agent scope'
+    })
+  }
+
+  if (value.temporalKind === 'atemporal') {
+    const temporalFields = [
+      ['validFrom', value.validFrom],
+      ['validUntil', value.validUntil],
+      ['temporalConfidence', value.temporalConfidence],
+      ['temporalPrecision', value.temporalPrecision],
+      ['temporalTimeZone', value.temporalTimeZone]
+    ] as const
+    for (const [field, fieldValue] of temporalFields) {
+      if (fieldValue !== null) {
+        context.addIssue({
+          code: 'custom',
+          path: [field],
+          message: `${field} must be null for atemporal memory`
+        })
+      }
+    }
+  } else {
+    for (const [field, fieldValue] of [
+      ['temporalConfidence', value.temporalConfidence],
+      ['temporalPrecision', value.temporalPrecision],
+      ['temporalTimeZone', value.temporalTimeZone]
+    ] as const) {
+      if (fieldValue === null) {
+        context.addIssue({
+          code: 'custom',
+          path: [field],
+          message: `${field} is required for temporal memory`
+        })
+      }
+    }
+  }
+
+  if (
+    value.validFrom !== null &&
+    value.validUntil !== null &&
+    value.validFrom >= value.validUntil
+  ) {
+    context.addIssue({
+      code: 'custom',
+      path: ['validUntil'],
+      message: 'validUntil must be greater than validFrom'
+    })
+  }
+}
+
+const MemoryItemBaseSchema = z.object({
+  id: z.string(),
+  agentId: z.string(),
+  scopeType: z.enum(AGENT_MEMORY_SCOPE_TYPES),
+  scopeId: CanonicalMemoryScopeIdSchema.nullable(),
+  kind: z.enum(AGENT_MEMORY_HEALTH_TOP_KIND_KEYS),
+  category: z.enum(AGENT_MEMORY_CATEGORIES).nullable(),
+  content: z.string(),
+  importance: z.number(),
+  status: z.enum(AGENT_MEMORY_HEALTH_STATUS_KEYS),
+  sourceSession: z.string().nullable(),
+  sourceEntryIds: z.array(z.number().int().nonnegative()).nullable(),
+  supersededBy: z.string().nullable(),
+  createdAt: z.number(),
+  confidence: z.number().nullable().optional(),
+  temporalKind: z.enum(AGENT_MEMORY_TEMPORAL_KINDS),
+  validFrom: z.number().int().nullable(),
+  validUntil: z.number().int().nullable(),
+  temporalConfidence: z.number().min(0).max(1).nullable(),
+  temporalPrecision: z.enum(AGENT_MEMORY_TEMPORAL_PRECISIONS).nullable(),
+  temporalTimeZone: CanonicalMemoryTimeZoneSchema.nullable(),
+  conflictState: z.string().nullable().optional(),
+  conflictWith: z.string().nullable().optional(),
+  // Persona lifecycle (null for non-persona rows). isAnchor surfaces the drift guard; needsReview is
+  // computed per draft against the active self-model and only set on the persona-drafts route.
+  personaState: z.enum(['draft', 'active', 'superseded', 'rejected']).nullable().optional(),
+  isAnchor: z.boolean().optional(),
+  needsReview: z.boolean().optional()
+})
+
+export const MemoryItemSchema = MemoryItemBaseSchema.superRefine(enforceProjectedMemoryInvariant)
+
+// Search results reuse the management DTO and add the retrieval score plus which path(s) surfaced
+// the row. Persona/working/archived/conflicted rows are excluded by the retrieval semantics.
+export const MemorySearchResultSchema = MemoryItemBaseSchema.extend({
+  score: z.number(),
+  sources: z.object({ vec: z.boolean().optional(), fts: z.boolean().optional() }).optional(),
+  similarity: z.number().optional()
+}).superRefine(enforceProjectedMemoryInvariant)
+
+const NonnegativeCountSchema = z.number().int().nonnegative()
+
+// Flattened write outcome for a user-added memory: the decision ring may create, dedupe-update,
+// supersede, challenge a conflicting row, or no-op on an exact duplicate.
+export const MemoryAddResultSchema = z.object({
+  action: z.enum(['created', 'updated', 'superseded', 'challenged', 'noop']),
+  memoryId: z.string().optional(),
+  supersededId: z.string().optional(),
+  conflictWith: z.string().optional(),
+  reauthorized: z.boolean().optional(),
+  reason: z.string().optional()
+})
+
+export const MemoryUpdateResultSchema = z.object({
+  action: z.enum(['updated', 'superseded', 'folded', 'noop']),
+  memoryId: z.string().optional(),
+  supersededId: z.string().optional(),
+  // Only populated on a 'noop' outcome, explaining why the edit was refused/ignored.
+  reason: z
+    .enum([
+      'not-editable',
+      'conflict',
+      'suppressed',
+      'duplicate',
+      'forgotten',
+      'empty',
+      'content-too-large'
+    ])
+    .optional()
+})
+
+export const MemoryStatusSchema = z.object({
+  total: z.number(),
+  pendingEmbedding: z.number(),
+  hasPersona: z.boolean(),
+  activeMemoryCount: NonnegativeCountSchema,
+  archivedMemoryCount: NonnegativeCountSchema,
+  conflictCount: NonnegativeCountSchema,
+  personaDraftCount: NonnegativeCountSchema,
+  personaVersionCount: NonnegativeCountSchema,
+  directiveDraftCount: NonnegativeCountSchema.default(0),
+  activeDirectiveCount: NonnegativeCountSchema.default(0),
+  reindexing: z.boolean().optional(),
+  lastReindex: z
+    .object({
+      outcome: z.enum(['completed', 'blocked', 'aborted']),
+      finishedAt: z.number(),
+      lastError: z
+        .object({
+          message: z.string(),
+          retryable: z.boolean(),
+          code: z
+            .enum([
+              'agent-unavailable',
+              'embedding-model-changed',
+              'embedding-invalid',
+              'vector-store-unavailable',
+              'pending-restart',
+              'drain-stalled'
+            ])
+            .optional()
+        })
+        .nullable()
+    })
+    .optional()
+})
+
+const MemoryDirectiveItemBaseSchema = z.object({
+  id: z.string().min(1).max(128),
+  agentId: AgentIdSchema,
+  status: z.enum(AGENT_MEMORY_DIRECTIVE_STATUSES),
+  source: z.enum(AGENT_MEMORY_DIRECTIVE_SOURCES),
+  content: DirectiveContentSchema,
+  createdAt: z.number().int().nonnegative(),
+  updatedAt: z.number().int().nonnegative()
+})
+
+export const MemoryDirectiveItemSchema = z.discriminatedUnion('kind', [
+  MemoryDirectiveItemBaseSchema.extend({
+    kind: z.literal('instruction'),
+    topic: z.null()
+  }),
+  MemoryDirectiveItemBaseSchema.extend({
+    kind: z.literal('suppress_topic'),
+    topic: DirectiveTopicSchema
+  })
+])
+
+export const MemoryDirectiveInputSchema = z.discriminatedUnion('kind', [
+  z
+    .object({
+      kind: z.literal('instruction'),
+      content: DirectiveContentSchema
+    })
+    .strict(),
+  z
+    .object({
+      kind: z.literal('suppress_topic'),
+      content: DirectiveContentSchema,
+      topic: DirectiveTopicSchema
+    })
+    .strict()
+])
+
+export const MemoryCommandRejectionReasonSchema = z.enum([
+  'unavailable',
+  'not-found',
+  'invalid-state',
+  'conflict',
+  'stale',
+  'anchored'
+])
+
+export const MemoryCommandResultSchema = z.discriminatedUnion('action', [
+  z.object({
+    action: z.literal('applied')
+  }),
+  z.object({
+    action: z.literal('rejected'),
+    reason: MemoryCommandRejectionReasonSchema
+  })
+])
+
+export const MemoryDirectiveCommandRejectionReasonSchema = z.union([
+  z.literal('capacity'),
+  MemoryCommandRejectionReasonSchema.extract(['not-found', 'unavailable'])
+])
+
+export const MemoryDirectiveCommandResultSchema = z.discriminatedUnion('action', [
+  z.object({
+    action: z.literal('applied'),
+    directive: MemoryDirectiveItemSchema
+  }),
+  z.object({
+    action: z.literal('rejected'),
+    directive: z.null(),
+    reason: MemoryDirectiveCommandRejectionReasonSchema
+  })
+])
+
+export const MEMORY_HEALTH_DEFAULT_AUDIT_SCAN_LIMIT = 200
+export const MEMORY_ARCHIVE_CANDIDATE_LIFECYCLE_PREVIEW_LIMIT = 25
+export const MEMORY_ARCHIVE_CANDIDATE_LIFECYCLE_SCAN_LIMIT = 200
+
+function countRecordShape<const Keys extends readonly string[]>(
+  keys: Keys
+): { [Key in Keys[number]]: typeof NonnegativeCountSchema } {
+  return Object.fromEntries(keys.map((key) => [key, NonnegativeCountSchema])) as {
+    [Key in Keys[number]]: typeof NonnegativeCountSchema
+  }
+}
+
+function createZeroCountRecord<const Keys extends readonly string[]>(
+  keys: Keys
+): Record<Keys[number], number> {
+  return Object.fromEntries(keys.map((key) => [key, 0])) as Record<Keys[number], number>
+}
+
+export const MemoryHealthTopItemSchema = z.object({
+  id: z.string(),
+  kind: z.enum(AGENT_MEMORY_HEALTH_TOP_KIND_KEYS),
+  category: z.enum(AGENT_MEMORY_CATEGORIES).nullable(),
+  content: z.string(),
+  importance: z.number(),
+  accessCount: NonnegativeCountSchema,
+  lastAccessed: z.number().nullable()
+})
+
+export const MemoryHealthRecentFailureSchema = z.object({
+  eventType: z.string(),
+  status: z.enum(AGENT_MEMORY_AUDIT_FAILURE_STATUSES),
+  reason: z.string().nullable(),
+  createdAt: z.number()
+})
+
+export const MemoryDistributionSchema = z.object({
+  samples: NonnegativeCountSchema,
+  p50: z.number().nullable(),
+  p95: z.number().nullable(),
+  max: z.number().nullable()
+})
+
+const MemoryRetrievalDiagnosticsSchema = z.object({
+  latencyMs: z.object(
+    Object.fromEntries(
+      MEMORY_RECALL_LATENCY_STAGES.map((stage) => [stage, MemoryDistributionSchema])
+    ) as Record<(typeof MEMORY_RECALL_LATENCY_STAGES)[number], typeof MemoryDistributionSchema>
+  ),
+  ftsCandidates: NonnegativeCountSchema,
+  vectorCandidates: NonnegativeCountSchema,
+  selected: NonnegativeCountSchema,
+  outcomeCounts: z.object(countRecordShape(MEMORY_RETRIEVAL_OUTCOMES)),
+  degradationCounts: z.object(countRecordShape(MEMORY_RETRIEVAL_DEGRADATION_CAUSES))
+})
+
+export const MemoryRuntimeDiagnosticsSchema = z.object({
+  agent: z.object({
+    retrieval: z.object(
+      Object.fromEntries(
+        MEMORY_RETRIEVAL_PURPOSES.map((purpose) => [purpose, MemoryRetrievalDiagnosticsSchema])
+      ) as Record<
+        (typeof MEMORY_RETRIEVAL_PURPOSES)[number],
+        typeof MemoryRetrievalDiagnosticsSchema
+      >
+    ),
+    queryEmbeddingCircuit: z.object({
+      state: z.enum(['closed', 'open', 'halfOpen']),
+      failures: NonnegativeCountSchema,
+      openCount: NonnegativeCountSchema,
+      skipped: NonnegativeCountSchema
+    }),
+    extraction: z.object({
+      chunksCompleted: NonnegativeCountSchema,
+      chunksCancelled: NonnegativeCountSchema,
+      chunksFailed: NonnegativeCountSchema,
+      llmCalls: NonnegativeCountSchema,
+      casRetries: NonnegativeCountSchema
+    }),
+    embedding: z.object({
+      batchSize: MemoryDistributionSchema,
+      drainDurationMs: MemoryDistributionSchema,
+      succeeded: NonnegativeCountSchema,
+      failed: NonnegativeCountSchema,
+      ftsOnly: NonnegativeCountSchema
+    }),
+    maintenance: z.object({
+      cheapDurationMs: MemoryDistributionSchema,
+      heavyDurationMs: MemoryDistributionSchema,
+      completed: NonnegativeCountSchema,
+      skipped: NonnegativeCountSchema,
+      failed: NonnegativeCountSchema,
+      llmCalls: NonnegativeCountSchema,
+      llmTokens: NonnegativeCountSchema,
+      budgetDeniedByStep: z.object(countRecordShape(MEMORY_MAINTENANCE_BUDGET_STEPS))
+    })
+  }),
+  process: z.object({
+    extractionQueue: z.object({
+      depth: NonnegativeCountSchema,
+      oldestQueuedAgeMs: z.number().nonnegative().nullable()
+    }),
+    embeddingBacklog: z.object({
+      pending: NonnegativeCountSchema,
+      activeAgents: NonnegativeCountSchema
+    }),
+    vector: z.object({
+      openStores: NonnegativeCountSchema,
+      openStoresHighWater: NonnegativeCountSchema,
+      activeLeases: NonnegativeCountSchema,
+      activeLeasesHighWater: NonnegativeCountSchema,
+      evictions: NonnegativeCountSchema,
+      warmupSucceeded: NonnegativeCountSchema,
+      warmupDeferred: NonnegativeCountSchema,
+      warmupFailed: NonnegativeCountSchema
+    }),
+    providerAdmission: z.object({
+      queued: NonnegativeCountSchema,
+      admissionDecisions: z.object({
+        admitted: NonnegativeCountSchema,
+        rateLimited: NonnegativeCountSchema,
+        capacityRejected: NonnegativeCountSchema
+      }),
+      raceEvents: z.object({
+        deadline: NonnegativeCountSchema,
+        aborted: NonnegativeCountSchema,
+        lateSettled: NonnegativeCountSchema
+      })
+    })
+  })
+})
+
+export type MemoryDistributionDto = z.infer<typeof MemoryDistributionSchema>
+export type MemoryRuntimeDiagnosticsDto = z.infer<typeof MemoryRuntimeDiagnosticsSchema>
+
+export const MemoryHealthSchema = z.object({
+  totalRows: NonnegativeCountSchema,
+  byKind: z.object(countRecordShape(AGENT_MEMORY_HEALTH_KIND_KEYS)),
+  byCategory: z.object(countRecordShape(AGENT_MEMORY_HEALTH_CATEGORY_KEYS)),
+  byStatus: z.object(countRecordShape(AGENT_MEMORY_HEALTH_STATUS_KEYS)),
+  embeddings: z.object({
+    pending: NonnegativeCountSchema,
+    error: NonnegativeCountSchema,
+    ftsOnly: NonnegativeCountSchema,
+    stale: NonnegativeCountSchema
+  }),
+  lifecycle: z.object({
+    archiveCandidates: NonnegativeCountSchema,
+    archived: NonnegativeCountSchema
+  }),
+  conflicts: z.object({
+    conflicted: NonnegativeCountSchema,
+    challenged: NonnegativeCountSchema
+  }),
+  access: z.object({
+    topAccessed: z.array(MemoryHealthTopItemSchema),
+    neverAccessed: NonnegativeCountSchema
+  }),
+  quality: z.object({
+    importanceAvg: z.number().nullable(),
+    importanceMedian: z.number().nullable(),
+    confidenceAvg: z.number().nullable()
+  }),
+  maintenance: z.object({
+    completed: NonnegativeCountSchema,
+    skipped: NonnegativeCountSchema,
+    failed: NonnegativeCountSchema,
+    scanLimit: z.number().int().positive(),
+    recentFailures: z.array(MemoryHealthRecentFailureSchema)
+  }),
+  runtime: MemoryRuntimeDiagnosticsSchema
+})
+
+export type MemoryHealthDto = z.infer<typeof MemoryHealthSchema>
+
+const MemoryLifecycleKindSchema = z.enum(AGENT_MEMORY_HEALTH_TOP_KIND_KEYS)
+const MemoryLifecycleStatusSchema = z.enum(AGENT_MEMORY_HEALTH_STATUS_KEYS)
+const MemoryLifecycleDecayTierSchema = z.enum(['fresh', 'aging', 'stale', 'archive_candidate'])
+
+const MemoryLifecycleRecallSchema = z.object({
+  weights: z.object({
+    similarity: z.number(),
+    recency: z.number(),
+    importance: z.number()
+  }),
+  similarity: z.number(),
+  similaritySource: z.literal('baseline'),
+  recency: z.number(),
+  importance: z.number(),
+  confidenceFactor: z.number(),
+  importanceFloor: z.number(),
+  final: z.number(),
+  flooredByImportance: z.boolean(),
+  halfLifeMs: z.number()
+})
+
+export const MemoryLifecycleSchema = z
+  .object({
+    memoryId: z.string(),
+    kind: MemoryLifecycleKindSchema,
+    status: MemoryLifecycleStatusSchema,
+    recallable: z.boolean(),
+    decayTier: MemoryLifecycleDecayTierSchema,
+    recall: MemoryLifecycleRecallSchema.nullable(),
+    forget: z.object({
+      anchorAt: z.number(),
+      ageDays: z.number(),
+      halfLifeDays: z.number(),
+      decayScore: z.number(),
+      materializedDecay: z.number().nullable(),
+      materializedStale: z.boolean()
+    }),
+    archiveEligibility: z.object({
+      eligible: z.boolean(),
+      oldEnough: z.boolean(),
+      decayedEnough: z.boolean(),
+      neverAccessed: z.boolean(),
+      active: z.boolean(),
+      exempt: z.boolean(),
+      exemptReasons: z.array(z.enum(['anchor', 'persona', 'working'])),
+      gaps: z.object({
+        daysUntilOldEnough: z.number().optional(),
+        decayAboveThresholdBy: z.number().optional(),
+        accessCount: z.number().int().nonnegative().optional()
+      })
+    })
+  })
+  .superRefine((lifecycle, ctx) => {
+    if (lifecycle.kind === 'persona' && lifecycle.recall !== null) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['recall'],
+        message: 'persona lifecycle recall must be null'
+      })
+    }
+
+    if (lifecycle.kind !== 'persona' && lifecycle.recall === null) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['recall'],
+        message: 'non-persona lifecycle recall must be present'
+      })
+    }
+  })
+
+export type MemoryLifecycle = z.infer<typeof MemoryLifecycleSchema>
+
+const MemoryArchiveCandidateLifecycleSchema = MemoryLifecycleSchema.refine(
+  (lifecycle) => lifecycle.archiveEligibility.eligible,
+  {
+    path: ['archiveEligibility', 'eligible'],
+    message: 'archive candidate lifecycle must be eligible'
+  }
+)
+
+export const MemoryArchiveCandidateLifecyclePreviewSchema = z
+  .object({
+    lifecycles: z
+      .array(MemoryArchiveCandidateLifecycleSchema)
+      .max(MEMORY_ARCHIVE_CANDIDATE_LIFECYCLE_PREVIEW_LIMIT),
+    previewLimit: z.literal(MEMORY_ARCHIVE_CANDIDATE_LIFECYCLE_PREVIEW_LIMIT),
+    scanLimit: z.literal(MEMORY_ARCHIVE_CANDIDATE_LIFECYCLE_SCAN_LIMIT),
+    scanned: NonnegativeCountSchema.max(MEMORY_ARCHIVE_CANDIDATE_LIFECYCLE_SCAN_LIMIT),
+    previewTruncated: z.boolean(),
+    scanTruncated: z.boolean()
+  })
+  .superRefine((preview, ctx) => {
+    if (preview.previewTruncated && preview.lifecycles.length !== preview.previewLimit) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['lifecycles'],
+        message: 'truncated archive candidate preview must fill the configured preview limit'
+      })
+    }
+    if (preview.scanTruncated && preview.scanned !== preview.scanLimit) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['scanned'],
+        message: 'truncated archive candidate preview must scan the configured scan limit'
+      })
+    }
+  })
+
+export type MemoryArchiveCandidateLifecyclePreview = z.infer<
+  typeof MemoryArchiveCandidateLifecyclePreviewSchema
+>
+
+export function createEmptyArchiveCandidateLifecyclePreview(): MemoryArchiveCandidateLifecyclePreview {
+  return {
+    lifecycles: [],
+    previewLimit: MEMORY_ARCHIVE_CANDIDATE_LIFECYCLE_PREVIEW_LIMIT,
+    scanLimit: MEMORY_ARCHIVE_CANDIDATE_LIFECYCLE_SCAN_LIMIT,
+    scanned: 0,
+    previewTruncated: false,
+    scanTruncated: false
+  }
+}
+
+export function createEmptyMemoryHealth(
+  scanLimit = MEMORY_HEALTH_DEFAULT_AUDIT_SCAN_LIMIT
+): MemoryHealthDto {
+  const normalizedScanLimit = Number.isFinite(scanLimit)
+    ? Math.max(1, Math.floor(scanLimit))
+    : MEMORY_HEALTH_DEFAULT_AUDIT_SCAN_LIMIT
+  return {
+    totalRows: 0,
+    byKind: createZeroCountRecord(AGENT_MEMORY_HEALTH_KIND_KEYS),
+    byCategory: createZeroCountRecord(AGENT_MEMORY_HEALTH_CATEGORY_KEYS),
+    byStatus: createZeroCountRecord(AGENT_MEMORY_HEALTH_STATUS_KEYS),
+    embeddings: { pending: 0, error: 0, ftsOnly: 0, stale: 0 },
+    lifecycle: { archiveCandidates: 0, archived: 0 },
+    conflicts: { conflicted: 0, challenged: 0 },
+    access: { topAccessed: [], neverAccessed: 0 },
+    quality: { importanceAvg: null, importanceMedian: null, confidenceAvg: null },
+    maintenance: {
+      completed: 0,
+      skipped: 0,
+      failed: 0,
+      scanLimit: normalizedScanLimit,
+      recentFailures: []
+    },
+    runtime: createEmptyMemoryRuntimeDiagnostics()
+  }
+}
+
+export function createEmptyMemoryRuntimeDiagnostics(): MemoryRuntimeDiagnosticsDto {
+  const distribution = (): MemoryDistributionDto => ({
+    samples: 0,
+    p50: null,
+    p95: null,
+    max: null
+  })
+  return {
+    agent: {
+      retrieval: Object.fromEntries(
+        MEMORY_RETRIEVAL_PURPOSES.map((purpose) => [
+          purpose,
+          {
+            latencyMs: Object.fromEntries(
+              MEMORY_RECALL_LATENCY_STAGES.map((stage) => [stage, distribution()])
+            ),
+            ftsCandidates: 0,
+            vectorCandidates: 0,
+            selected: 0,
+            outcomeCounts: createZeroCountRecord(MEMORY_RETRIEVAL_OUTCOMES),
+            degradationCounts: createZeroCountRecord(MEMORY_RETRIEVAL_DEGRADATION_CAUSES)
+          }
+        ])
+      ) as MemoryRuntimeDiagnosticsDto['agent']['retrieval'],
+      queryEmbeddingCircuit: {
+        state: 'closed',
+        failures: 0,
+        openCount: 0,
+        skipped: 0
+      },
+      extraction: {
+        chunksCompleted: 0,
+        chunksCancelled: 0,
+        chunksFailed: 0,
+        llmCalls: 0,
+        casRetries: 0
+      },
+      embedding: {
+        batchSize: distribution(),
+        drainDurationMs: distribution(),
+        succeeded: 0,
+        failed: 0,
+        ftsOnly: 0
+      },
+      maintenance: {
+        cheapDurationMs: distribution(),
+        heavyDurationMs: distribution(),
+        completed: 0,
+        skipped: 0,
+        failed: 0,
+        llmCalls: 0,
+        llmTokens: 0,
+        budgetDeniedByStep: createZeroCountRecord(MEMORY_MAINTENANCE_BUDGET_STEPS)
+      }
+    },
+    process: {
+      extractionQueue: { depth: 0, oldestQueuedAgeMs: null },
+      embeddingBacklog: { pending: 0, activeAgents: 0 },
+      vector: {
+        openStores: 0,
+        openStoresHighWater: 0,
+        activeLeases: 0,
+        activeLeasesHighWater: 0,
+        evictions: 0,
+        warmupSucceeded: 0,
+        warmupDeferred: 0,
+        warmupFailed: 0
+      },
+      providerAdmission: {
+        queued: 0,
+        admissionDecisions: { admitted: 0, rateLimited: 0, capacityRejected: 0 },
+        raceEvents: { deadline: 0, aborted: 0, lateSettled: 0 }
+      }
+    }
+  }
+}
+
+const JsonRecordSchema = z.record(z.string(), z.unknown())
+
+const MemoryContributionTokenMapSchema = z.object({
+  directive: z.number().nonnegative(),
+  persona: z.number().nonnegative(),
+  working: z.number().nonnegative(),
+  queryRecall: z.number().nonnegative()
+})
+
+const MemoryContributionBudgetSchema = z.object({
+  policyVersion: z.number().nonnegative(),
+  totalTokenBudget: z.number().nonnegative(),
+  overheadTokens: z.number().nonnegative(),
+  demand: MemoryContributionTokenMapSchema,
+  allocated: MemoryContributionTokenMapSchema,
+  used: MemoryContributionTokenMapSchema,
+  borrowed: MemoryContributionTokenMapSchema,
+  unallocatedTokens: z.number().nonnegative(),
+  estimatedTotalTokens: z.number().nonnegative(),
+  unusedTokens: z.number().nonnegative(),
+  constrained: z.boolean()
+})
+
+export const MemoryAuditEventSchema = z.object({
+  id: z.string(),
+  agentId: z.string(),
+  eventType: z.string(),
+  actorType: z.enum(AGENT_MEMORY_AUDIT_ACTOR_TYPES),
+  sessionId: z.string().nullable(),
+  inputRefs: JsonRecordSchema,
+  outputRefs: JsonRecordSchema,
+  modelProviderId: z.string().nullable(),
+  modelId: z.string().nullable(),
+  status: z.enum(AGENT_MEMORY_AUDIT_STATUSES),
+  reason: z.string().nullable(),
+  createdAt: z.number()
+})
+
+export const MemoryViewManifestSchema = z.object({
+  sessionId: z.string(),
+  messageId: z.string().nullable(),
+  entryId: z.number(),
+  policyVersion: z.number().nullable(),
+  tokenBudget: z.number(),
+  estimatedTokens: z.number(),
+  selectedCount: z.number(),
+  selectedIds: z.array(z.string()).nullable(),
+  droppedCount: z.number(),
+  queryHash: z.string().nullable(),
+  allocation: MemoryContributionBudgetSchema.nullable().optional(),
+  createdAt: z.number()
+})
+
+export const MEMORY_PAGE_DEFAULT_LIMIT = 100
+export const MEMORY_PAGE_MAX_LIMIT = 100
+
+export const MemoryPageCursorV1Schema = z
+  .object({
+    v: z.literal(1),
+    createdAt: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER),
+    id: z.string().min(1).max(512)
+  })
+  .strict()
+
+export type MemoryPageCursorV1 = z.infer<typeof MemoryPageCursorV1Schema>
+
+function encodeBase64Url(value: string): string {
+  const bytes = new TextEncoder().encode(value)
+  let binary = ''
+  for (const byte of bytes) binary += String.fromCharCode(byte)
+  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/u, '')
+}
+
+function decodeBase64Url(value: string): string {
+  if (!/^[A-Za-z0-9_-]+$/u.test(value)) throw new Error('invalid base64url cursor')
+  const remainder = value.length % 4
+  if (remainder === 1) throw new Error('invalid base64url cursor length')
+  const padded = value.replace(/-/g, '+').replace(/_/g, '/') + '='.repeat((4 - remainder) % 4)
+  const binary = atob(padded)
+  const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0))
+  const decoded = new TextDecoder('utf-8', { fatal: true }).decode(bytes)
+  if (encodeBase64Url(decoded) !== value) throw new Error('non-canonical base64url cursor')
+  return decoded
+}
+
+export function encodeMemoryPageCursor(cursor: MemoryPageCursorV1): string {
+  return encodeBase64Url(JSON.stringify(MemoryPageCursorV1Schema.parse(cursor)))
+}
+
+export function decodeMemoryPageCursor(cursor: string): MemoryPageCursorV1 {
+  try {
+    return MemoryPageCursorV1Schema.parse(JSON.parse(decodeBase64Url(cursor)))
+  } catch {
+    throw new Error('invalid memory page cursor')
+  }
+}
+
+const MemoryPageCursorSchema = z
+  .string()
+  .min(1)
+  .max(2048)
+  .refine(
+    (cursor) => {
+      try {
+        decodeMemoryPageCursor(cursor)
+        return true
+      } catch {
+        return false
+      }
+    },
+    { message: 'invalid memory page cursor' }
+  )
+
+/** @deprecated Use memoryPageRoute for bounded management reads. */
+export const memoryListRoute = defineRouteContract({
+  name: 'memory.list',
+  input: z.object({ agentId: AgentIdSchema }),
+  output: z.object({ memories: z.array(MemoryItemSchema) })
+})
+
+export const memoryPageRoute = defineRouteContract({
+  name: 'memory.page',
+  input: z.object({
+    agentId: AgentIdSchema,
+    cursor: MemoryPageCursorSchema.optional(),
+    limit: z
+      .number()
+      .int()
+      .positive()
+      .max(MEMORY_PAGE_MAX_LIMIT)
+      .optional()
+      .default(MEMORY_PAGE_DEFAULT_LIMIT)
+  }),
+  output: z.object({
+    items: z.array(MemoryItemSchema).max(MEMORY_PAGE_MAX_LIMIT),
+    nextCursor: MemoryPageCursorSchema.nullable()
+  })
+})
+
+export const memoryGetStatusRoute = defineRouteContract({
+  name: 'memory.getStatus',
+  input: z.object({ agentId: AgentIdSchema }),
+  output: z.object({ status: MemoryStatusSchema })
+})
+
+export const memoryGetHealthRoute = defineRouteContract({
+  name: 'memory.getHealth',
+  input: z.object({ agentId: AgentIdSchema }),
+  output: z.object({ health: MemoryHealthSchema })
+})
+
+export const memoryReindexRoute = defineRouteContract({
+  name: 'memory.reindex',
+  input: z.object({ agentId: AgentIdSchema }),
+  output: z.object({ started: z.boolean() })
+})
+
+export const memoryGetLifecycleRoute = defineRouteContract({
+  name: 'memory.getLifecycle',
+  input: z.object({ agentId: AgentIdSchema, memoryId: z.string().min(1) }),
+  output: z.object({ lifecycle: MemoryLifecycleSchema.nullable() })
+})
+
+export const memoryGetArchiveCandidateLifecyclePreviewRoute = defineRouteContract({
+  name: 'memory.getArchiveCandidateLifecyclePreview',
+  input: z.object({ agentId: AgentIdSchema }),
+  output: z.object({ preview: MemoryArchiveCandidateLifecyclePreviewSchema })
+})
+
+export const memorySearchRoute = defineRouteContract({
+  name: 'memory.search',
+  input: z.object({
+    agentId: AgentIdSchema,
+    query: z.string(),
+    // Search-only retrieval depth/result cap. Defaults to 50 and is clamped by the presenter to 100.
+    limit: z.number().int().positive().max(100).optional(),
+    scopeContext: MemoryScopeContextSchema.optional()
+  }),
+  output: z.object({ results: z.array(MemorySearchResultSchema) })
+})
+
+export const memoryAddRoute = defineRouteContract({
+  name: 'memory.add',
+  input: z.object({
+    agentId: AgentIdSchema,
+    content: ManualMemoryContentSchema.refine((content) => content.length > 0, {
+      message: 'content must not be empty'
+    }),
+    kind: z.enum(['episodic', 'semantic']).optional(),
+    category: z.enum(AGENT_MEMORY_CATEGORIES).optional(),
+    importance: z.number().min(0).max(1).optional(),
+    sessionId: z.string().optional(),
+    scope: MemoryScopeSchema.optional()
+  }),
+  output: z.object({ result: MemoryAddResultSchema })
+})
+
+export const memoryUpdateRoute = defineRouteContract({
+  name: 'memory.update',
+  input: z.object({
+    agentId: AgentIdSchema,
+    memoryId: z.string().min(1),
+    patch: z
+      .object({
+        content: ManualMemoryContentSchema.optional(),
+        category: z.enum(AGENT_MEMORY_CATEGORIES).nullable().optional(),
+        importance: z.number().min(0).max(1).optional()
+      })
+      .refine(
+        (patch) =>
+          patch.content !== undefined ||
+          patch.category !== undefined ||
+          patch.importance !== undefined,
+        { message: 'patch must include at least one field' }
+      )
+  }),
+  output: z.object({ result: MemoryUpdateResultSchema })
+})
+
+export const memoryGetByIdsRoute = defineRouteContract({
+  name: 'memory.getByIds',
+  input: z.object({
+    agentId: AgentIdSchema,
+    memoryIds: z.array(z.string().min(1)).min(1).max(50)
+  }),
+  output: z.object({ memories: z.array(MemoryItemSchema) })
+})
+
+export const memoryListAuditEventsRoute = defineRouteContract({
+  name: 'memory.listAuditEvents',
+  input: z.object({
+    agentId: AgentIdSchema,
+    eventType: z.string().optional(),
+    actorType: z.enum(AGENT_MEMORY_AUDIT_ACTOR_TYPES).optional(),
+    sessionId: z.string().optional(),
+    status: z.enum(AGENT_MEMORY_AUDIT_STATUSES).optional(),
+    startCreatedAt: z.number().optional(),
+    endCreatedAt: z.number().optional(),
+    limit: z.number().int().positive().max(500).optional()
+  }),
+  output: z.object({ events: z.array(MemoryAuditEventSchema) })
+})
+
+export const memoryListViewManifestsRoute = defineRouteContract({
+  name: 'memory.listViewManifests',
+  input: z.object({
+    agentId: AgentIdSchema,
+    sessionId: z.string().optional(),
+    messageId: z.string().optional(),
+    limit: z.number().int().positive().max(500).optional()
+  }),
+  output: z.object({ manifests: z.array(MemoryViewManifestSchema) })
+})
+
+export const memoryDeleteRoute = defineRouteContract({
+  name: 'memory.delete',
+  input: z.object({ agentId: AgentIdSchema, memoryId: z.string() }),
+  output: MemoryCommandResultSchema
+})
+
+export const memoryArchiveRoute = defineRouteContract({
+  name: 'memory.archive',
+  input: z.object({ agentId: AgentIdSchema, memoryId: z.string() }),
+  output: MemoryCommandResultSchema
+})
+
+export const memoryClearRoute = defineRouteContract({
+  name: 'memory.clear',
+  input: z.object({ agentId: AgentIdSchema }),
+  output: z.object({ removed: z.number(), cleanupPendingRestart: z.boolean() })
+})
+
+export const memoryRestoreRoute = defineRouteContract({
+  name: 'memory.restore',
+  input: z.object({ agentId: AgentIdSchema, memoryId: z.string() }),
+  output: MemoryCommandResultSchema
+})
+
+export const memoryGetSourceSpanRoute = defineRouteContract({
+  name: 'memory.getSourceSpan',
+  input: z.object({ agentId: AgentIdSchema, memoryId: z.string() }),
+  output: z.object({
+    span: z
+      .object({
+        sessionId: z.string(),
+        entries: z.array(
+          z.object({
+            entryId: z.number().int().nonnegative(),
+            role: z.enum(['user', 'assistant']),
+            content: z.string(),
+            orderSeq: z.number()
+          })
+        )
+      })
+      .nullable()
+  })
+})
+
+export const memoryListConflictsRoute = defineRouteContract({
+  name: 'memory.listConflicts',
+  input: z.object({ agentId: AgentIdSchema }),
+  output: z.object({
+    conflicts: z.array(z.object({ challenger: MemoryItemSchema, target: MemoryItemSchema }))
+  })
+})
+
+export const memoryResolveConflictRoute = defineRouteContract({
+  name: 'memory.resolveConflict',
+  input: z.object({
+    agentId: AgentIdSchema,
+    challengerId: z.string(),
+    outcome: z.enum(['keep_target', 'keep_challenger', 'keep_both'])
+  }),
+  output: MemoryCommandResultSchema
+})
+
+export const memoryListPersonaVersionsRoute = defineRouteContract({
+  name: 'memory.listPersonaVersions',
+  input: z.object({ agentId: AgentIdSchema }),
+  output: z.object({ versions: z.array(MemoryItemSchema) })
+})
+
+export const memoryRollbackPersonaRoute = defineRouteContract({
+  name: 'memory.rollbackPersona',
+  input: z.object({ agentId: AgentIdSchema, versionId: z.string() }),
+  output: MemoryCommandResultSchema
+})
+
+export const memoryListPersonaDraftsRoute = defineRouteContract({
+  name: 'memory.listPersonaDrafts',
+  input: z.object({ agentId: AgentIdSchema }),
+  output: z.object({ drafts: z.array(MemoryItemSchema) })
+})
+
+export const memoryApprovePersonaDraftRoute = defineRouteContract({
+  name: 'memory.approvePersonaDraft',
+  input: z.object({ agentId: AgentIdSchema, draftId: z.string() }),
+  output: MemoryCommandResultSchema
+})
+
+export const memoryRejectPersonaDraftRoute = defineRouteContract({
+  name: 'memory.rejectPersonaDraft',
+  input: z.object({ agentId: AgentIdSchema, draftId: z.string() }),
+  output: MemoryCommandResultSchema
+})
+
+export const memorySetPersonaAnchorRoute = defineRouteContract({
+  name: 'memory.setPersonaAnchor',
+  input: z.object({ agentId: AgentIdSchema, versionId: z.string(), anchored: z.boolean() }),
+  output: MemoryCommandResultSchema
+})
+
+export const memoryListDirectivesRoute = defineRouteContract({
+  name: 'memory.listDirectives',
+  input: z.object({
+    agentId: AgentIdSchema,
+    statuses: z.array(z.enum(AGENT_MEMORY_DIRECTIVE_STATUSES)).max(3).optional(),
+    limit: z.number().int().positive().max(200).optional().default(200)
+  }),
+  output: z.object({ directives: z.array(MemoryDirectiveItemSchema).max(200) })
+})
+
+export const memoryCreateDirectiveRoute = defineRouteContract({
+  name: 'memory.createDirective',
+  input: z.object({
+    agentId: AgentIdSchema,
+    directive: MemoryDirectiveInputSchema
+  }),
+  output: MemoryDirectiveCommandResultSchema
+})
+
+export const memoryApproveDirectiveRoute = defineRouteContract({
+  name: 'memory.approveDirective',
+  input: z.object({ agentId: AgentIdSchema, directiveId: z.string().trim().min(1).max(128) }),
+  output: MemoryDirectiveCommandResultSchema
+})
+
+export const memoryRejectDirectiveRoute = defineRouteContract({
+  name: 'memory.rejectDirective',
+  input: z.object({ agentId: AgentIdSchema, directiveId: z.string().trim().min(1).max(128) }),
+  output: MemoryDirectiveCommandResultSchema
+})
+
+export const memoryDeleteDirectiveRoute = defineRouteContract({
+  name: 'memory.deleteDirective',
+  input: z.object({ agentId: AgentIdSchema, directiveId: z.string().trim().min(1).max(128) }),
+  output: MemoryCommandResultSchema
+})
+
+export type MemoryItem = z.infer<typeof MemoryItemSchema>
+export type MemoryScopeInput = z.infer<typeof MemoryScopeSchema>
+export type MemoryScopeContextInput = z.infer<typeof MemoryScopeContextSchema>
+export type MemoryPage = z.infer<typeof memoryPageRoute.output>
+export type MemorySearchResult = z.infer<typeof MemorySearchResultSchema>
+export type MemoryAddResult = z.infer<typeof MemoryAddResultSchema>
+export type MemoryUpdateResult = z.infer<typeof MemoryUpdateResultSchema>
+export type MemoryCommandRejectionReason = z.infer<typeof MemoryCommandRejectionReasonSchema>
+export type MemoryCommandResult = z.infer<typeof MemoryCommandResultSchema>
+export type MemoryStatusDto = z.infer<typeof MemoryStatusSchema>
+export type MemoryAuditEvent = z.infer<typeof MemoryAuditEventSchema>
+export type MemoryViewManifest = z.infer<typeof MemoryViewManifestSchema>
+export type MemorySourceSpan = z.infer<typeof memoryGetSourceSpanRoute.output>['span']
+export type MemoryDirectiveItem = z.infer<typeof MemoryDirectiveItemSchema>
+export type MemoryDirectiveCreateInput = z.infer<typeof MemoryDirectiveInputSchema>
+export type MemoryDirectiveCommandResult = z.infer<typeof MemoryDirectiveCommandResultSchema>
+export type MemoryConflictItem = z.infer<
+  typeof memoryListConflictsRoute.output
+>['conflicts'][number]

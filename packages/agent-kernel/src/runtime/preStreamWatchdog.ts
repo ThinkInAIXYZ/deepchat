@@ -1,4 +1,4 @@
-import logger from '@deepchat/shared/logger'
+import logger from '../shared/logger.js'
 
 const PRE_STREAM_SLOW_STEP_MS = 500
 export const PRE_STREAM_STUCK_WARN_MS = 5_000

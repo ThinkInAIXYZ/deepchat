@@ -1,0 +1,1412 @@
+import { mount } from '@vue/test-utils'
+import { defineComponent, nextTick } from 'vue'
+import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest'
+import MessageBlockToolCall from '@/components/message/MessageBlockToolCall.vue'
+import type { DisplayAssistantMessageBlock } from '@/features/chat-page/model/displayMessage'
+import {
+  LIVE_DELEGATION_AGENT_TOOL_NAME,
+  LIVE_DELEGATION_AGENT_TOOL_SERVER_NAME
+} from '@shared/agentTools'
+
+const { selectSessionMock } = vi.hoisted(() => ({
+  selectSessionMock: vi.fn()
+}))
+const liveDelegationStoreMock = vi.hoisted(() => ({
+  seed: vi.fn(),
+  getDelegation: vi.fn(() => null),
+  ensureLoaded: vi.fn().mockResolvedValue(true),
+  confirm: vi.fn(),
+  isAuthoritative: vi.fn(() => true),
+  isInterrupting: vi.fn(() => false),
+  interrupt: vi.fn()
+}))
+
+vi.mock('vue-i18n', () => ({
+  useI18n: () => ({
+    t: (key: string, params?: Record<string, string | number>) => {
+      const planMessages: Record<string, string> = {
+        'chat.workspace.plan.section': 'Plan',
+        'chat.workspace.plan.completedCount': '{completed}/{total} completed',
+        'chat.workspace.plan.itemAriaLabel': '{status}: {step}',
+        'chat.workspace.plan.status.completed': 'Completed',
+        'chat.workspace.plan.status.in_progress': 'In Progress',
+        'chat.workspace.plan.status.pending': 'Pending',
+        'chat.workspace.plan.empty': 'No tasks yet'
+      }
+      if (key in planMessages) {
+        return planMessages[key].replace(/\{(\w+)\}/g, (_, name) => String(params?.[name] ?? ''))
+      }
+      if (key === 'toolCall.replacementsCount') {
+        return `${params?.count ?? 0} replacements`
+      }
+      if (key === 'toolCall.badge.rtk') {
+        return 'RTK'
+      }
+      if (key === 'chat.toolCall.subagents.summary') {
+        return `${params?.mode ?? 'mode'} · ${params?.count ?? 0} localized subagents`
+      }
+      if (key === 'chat.toolCall.subagents.mode.parallel') {
+        return 'localized parallel'
+      }
+      if (key === 'chat.toolCall.subagents.mode.chain') {
+        return 'localized chain'
+      }
+      if (key === 'chat.toolCall.subagents.status.running') {
+        return 'localized running'
+      }
+      if (key === 'chat.toolCall.subagents.status.waiting_permission') {
+        return 'localized waiting permission'
+      }
+      if (key === 'chat.toolCall.subagents.status.completed') {
+        return 'localized completed'
+      }
+      if (key === 'chat.toolCall.subagents.unnamedTask') {
+        return 'Unnamed Task'
+      }
+      if (key === 'settings.deepchatAgents.unnamed') {
+        return 'Unnamed Agent'
+      }
+      return key
+    }
+  })
+}))
+
+vi.mock('@/stores/theme', () => ({
+  useThemeStore: () => ({
+    isDark: false
+  })
+}))
+
+vi.mock('@/stores/ui/session', () => ({
+  useSessionStore: () => ({
+    selectSession: selectSessionMock
+  })
+}))
+
+vi.mock('@/stores/ui/liveDelegation', () => ({
+  useLiveDelegationStore: () => liveDelegationStoreMock
+}))
+
+vi.mock('markstream-vue', () => ({
+  CodeBlockNode: defineComponent({
+    name: 'CodeBlockNode',
+    props: {
+      node: {
+        type: Object,
+        required: true
+      },
+      isDark: {
+        type: Boolean,
+        default: false
+      },
+      showHeader: {
+        type: Boolean,
+        default: true
+      },
+      loading: {
+        type: Boolean,
+        default: true
+      },
+      stream: {
+        type: Boolean,
+        default: true
+      }
+    },
+    template: '<div class="code-block-stub"></div>'
+  }),
+  normalizeLanguageIdentifier: (language?: string) => {
+    const normalized = language?.trim().toLowerCase() ?? ''
+    return normalized === 'zsh' ? 'shell' : normalized === 'plaintext' ? 'plain' : normalized
+  }
+}))
+
+const createBlock = (
+  overrides: Partial<DisplayAssistantMessageBlock> = {}
+): DisplayAssistantMessageBlock => ({
+  type: 'tool_call',
+  status: 'success',
+  timestamp: Date.now(),
+  ...overrides,
+  tool_call: {
+    name: 'edit_text',
+    response: '',
+    ...(overrides.tool_call ?? {})
+  }
+})
+
+beforeEach(() => {
+  selectSessionMock.mockReset()
+  liveDelegationStoreMock.seed.mockReset()
+  liveDelegationStoreMock.getDelegation.mockReset().mockReturnValue(null)
+  liveDelegationStoreMock.ensureLoaded.mockReset().mockResolvedValue(true)
+  liveDelegationStoreMock.confirm.mockReset().mockResolvedValue({
+    childSessionId: 'child-1',
+    slotId: 'reviewer',
+    title: 'Review architecture'
+  })
+  liveDelegationStoreMock.isAuthoritative.mockReset().mockReturnValue(true)
+  liveDelegationStoreMock.isInterrupting.mockReset().mockReturnValue(false)
+  liveDelegationStoreMock.interrupt.mockReset()
+})
+
+afterEach(() => {
+  selectSessionMock.mockReset()
+  vi.restoreAllMocks()
+})
+
+describe('MessageBlockToolCall', () => {
+  it('renders a trusted live delegation as a navigable task card with raw disclosure', async () => {
+    const wrapper = mount(MessageBlockToolCall, {
+      props: {
+        threadId: 'parent-1',
+        block: createBlock({
+          extra: { toolSource: 'agent' },
+          tool_call: {
+            id: 'spawn-1',
+            name: LIVE_DELEGATION_AGENT_TOOL_NAME,
+            server_name: LIVE_DELEGATION_AGENT_TOOL_SERVER_NAME,
+            params: JSON.stringify({
+              operation: 'spawn',
+              slotId: 'reviewer',
+              title: 'Review architecture',
+              prompt: 'Inspect module boundaries.'
+            }),
+            response: JSON.stringify({
+              delegation: {
+                schemaVersion: 1,
+                id: 'delegation-1',
+                parentSessionId: 'parent-1',
+                childSessionId: 'child-1',
+                slotId: 'reviewer',
+                targetAgentId: 'deepchat',
+                title: 'Review architecture',
+                status: 'running',
+                lastTurnSeq: 1,
+                createdAt: 10,
+                updatedAt: 20,
+                revision: 2,
+                summaryPreview: null,
+                errorPreview: null
+              },
+              turns: []
+            })
+          }
+        })
+      }
+    })
+
+    expect(wrapper.get('[data-testid="live-delegation-tool-card-delegation-1"]').text()).toContain(
+      'Review architecture'
+    )
+    expect(wrapper.text()).toContain('reviewer')
+    expect(wrapper.find('[data-testid="tool-call-trigger"]').exists()).toBe(false)
+    expect(liveDelegationStoreMock.seed).toHaveBeenCalledOnce()
+
+    await wrapper.get('[data-testid="live-delegation-tool-open-delegation-1"]').trigger('click')
+    expect(selectSessionMock).toHaveBeenCalledWith('child-1')
+
+    await wrapper.get('[data-testid="live-delegation-tool-details"]').trigger('click')
+    expect(wrapper.get('[data-testid="tool-call-details"]').text()).toContain(
+      'Inspect module boundaries.'
+    )
+  })
+
+  it('does not grant native live-delegation controls to spoofed or foreign-parent blocks', () => {
+    const trustedToolCall = {
+      id: 'spawn-1',
+      name: LIVE_DELEGATION_AGENT_TOOL_NAME,
+      server_name: LIVE_DELEGATION_AGENT_TOOL_SERVER_NAME,
+      params: JSON.stringify({
+        operation: 'spawn',
+        slotId: 'reviewer',
+        title: 'Review architecture',
+        prompt: 'Inspect module boundaries.'
+      }),
+      response: JSON.stringify({
+        delegation: {
+          schemaVersion: 1,
+          id: 'delegation-1',
+          parentSessionId: 'original-parent',
+          childSessionId: 'child-1',
+          slotId: 'reviewer',
+          targetAgentId: 'deepchat',
+          title: 'Review architecture',
+          status: 'idle',
+          lastTurnSeq: 1,
+          createdAt: 10,
+          updatedAt: 20,
+          revision: 2,
+          summaryPreview: 'Done.',
+          errorPreview: null
+        },
+        turns: []
+      })
+    }
+    const spoofed = mount(MessageBlockToolCall, {
+      props: {
+        threadId: 'original-parent',
+        block: createBlock({
+          extra: { toolSource: 'mcp' },
+          tool_call: trustedToolCall
+        })
+      }
+    })
+    const foreignParent = mount(MessageBlockToolCall, {
+      props: {
+        threadId: 'forked-parent',
+        block: createBlock({
+          extra: { toolSource: 'agent' },
+          tool_call: trustedToolCall
+        })
+      }
+    })
+
+    expect(spoofed.find('[data-testid^="live-delegation-tool-card-"]').exists()).toBe(false)
+    expect(spoofed.find('[data-testid="tool-call-trigger"]').exists()).toBe(true)
+    expect(foreignParent.find('[data-testid^="live-delegation-tool-card-"]').exists()).toBe(false)
+    expect(foreignParent.find('[data-testid="tool-call-trigger"]').exists()).toBe(true)
+  })
+
+  it('hides the tool disclosure in app-only mode', () => {
+    const wrapper = mount(MessageBlockToolCall, {
+      props: {
+        block: createBlock({
+          tool_call: { id: 'app-1', name: 'render_chart', response: 'done' }
+        }),
+        renderMode: 'app-only'
+      }
+    })
+
+    expect(wrapper.find('[data-testid="tool-call-trigger"]').exists()).toBe(false)
+  })
+
+  it('does not schedule detail cleanup for an initially collapsed tool', () => {
+    const setTimeoutSpy = vi.spyOn(window, 'setTimeout')
+
+    mount(MessageBlockToolCall, {
+      props: {
+        block: createBlock({
+          tool_call: { id: 'read-1', name: 'read', response: 'file contents' }
+        })
+      }
+    })
+
+    expect(setTimeoutSpy.mock.calls.some(([, delay]) => delay === 240)).toBe(false)
+  })
+
+  it('exposes disclosure semantics and keeps the controlled details ID stable', async () => {
+    const wrapper = mount(MessageBlockToolCall, {
+      props: {
+        block: createBlock({
+          tool_call: { id: 'read-1', name: 'read', response: 'file contents' }
+        })
+      }
+    })
+    const trigger = wrapper.get('[data-testid="tool-call-trigger"]')
+
+    expect(trigger.element.tagName).toBe('BUTTON')
+    expect(trigger.attributes('aria-expanded')).toBe('false')
+
+    await trigger.trigger('click')
+
+    const details = wrapper.get('[data-testid="tool-call-details"]')
+    expect(trigger.attributes('aria-expanded')).toBe('true')
+    expect(trigger.attributes('aria-controls')).toBe(details.attributes('id'))
+  })
+
+  it('renders reviewing status for auto approve review marker', () => {
+    const wrapper = mount(MessageBlockToolCall, {
+      props: {
+        block: createBlock({
+          status: 'pending',
+          extra: {
+            autoApproveReviewStatus: 'reviewing'
+          },
+          tool_call: { name: 'read', params: '{"path":"/tmp/file"}' }
+        })
+      }
+    })
+
+    const indicator = wrapper.get('[data-testid="tool-call-running-indicator"]')
+    expect(indicator.attributes('data-status-variant')).toBe('reviewing')
+    expect(indicator.classes()).toContain('tool-call-status-ring-reviewing')
+  })
+
+  it('keeps terminal error status ahead of a stale auto approve review marker', () => {
+    const wrapper = mount(MessageBlockToolCall, {
+      props: {
+        block: createBlock({
+          status: 'error',
+          extra: {
+            autoApproveReviewStatus: 'reviewing'
+          },
+          tool_call: { name: 'read', response: 'blocked' }
+        })
+      }
+    })
+
+    expect(wrapper.find('[data-testid="tool-call-running-indicator"]').exists()).toBe(false)
+    expect(wrapper.find('.text-destructive').exists()).toBe(true)
+  })
+
+  it('renders diff response with CodeBlockNode', async () => {
+    const response = JSON.stringify({
+      success: true,
+      originalCode: 'alpha\nbeta',
+      updatedCode: 'alpha\ngamma',
+      replacements: 1,
+      language: 'typescript'
+    })
+    const wrapper = mount(MessageBlockToolCall, {
+      props: {
+        block: createBlock({
+          tool_call: {
+            name: 'edit_text',
+            params: '{"path":"/tmp/example.ts"}',
+            response
+          }
+        })
+      }
+    })
+
+    await wrapper.get('[data-testid="tool-call-trigger"]').trigger('click')
+
+    const codeBlock = wrapper.findComponent({ name: 'CodeBlockNode' })
+    expect(codeBlock.exists()).toBe(true)
+    expect(codeBlock.element.parentElement?.classList.contains('markstream-vue')).toBe(true)
+    expect(codeBlock.props('node')).toMatchObject({
+      diff: true,
+      language: 'typescript',
+      originalCode: 'alpha\nbeta',
+      updatedCode: 'alpha\ngamma'
+    })
+    expect(codeBlock.props('loading')).toBe(false)
+    expect(codeBlock.props('stream')).toBe(false)
+  })
+
+  it('uses the file path instead of an unsupported response language for diffs', async () => {
+    const response = JSON.stringify({
+      success: true,
+      originalCode: 'key=before',
+      updatedCode: 'key=after',
+      language: 'unsupported-from-tool'
+    })
+    const wrapper = mount(MessageBlockToolCall, {
+      props: {
+        block: createBlock({
+          tool_call: {
+            name: 'edit_text',
+            params: '{"path":"/tmp/example.conf"}',
+            response
+          }
+        })
+      }
+    })
+
+    await wrapper.get('[data-testid="tool-call-trigger"]').trigger('click')
+
+    expect(wrapper.findComponent({ name: 'CodeBlockNode' }).props('node')).toMatchObject({
+      language: 'ini'
+    })
+  })
+
+  it('falls back to preformatted text for non-diff responses', async () => {
+    const wrapper = mount(MessageBlockToolCall, {
+      props: {
+        block: createBlock({
+          tool_call: { name: 'other_tool', response: 'plain output' }
+        })
+      }
+    })
+
+    await wrapper.get('[data-testid="tool-call-trigger"]').trigger('click')
+
+    expect(wrapper.findComponent({ name: 'CodeBlockNode' }).exists()).toBe(false)
+    expect(wrapper.find('pre').text()).toContain('plain output')
+  })
+
+  it('renders image previews below params and response only after expansion', async () => {
+    const wrapper = mount(MessageBlockToolCall, {
+      props: {
+        block: createBlock({
+          tool_call: {
+            name: 'read',
+            params: '{"path":"/tmp/screenshot.png"}',
+            response: 'vision analysis',
+            imagePreviews: [
+              {
+                id: 'file_read-1',
+                data: 'imgcache://screenshot.png',
+                mimeType: 'image/png',
+                title: 'screenshot.png',
+                source: 'file_read'
+              }
+            ]
+          }
+        })
+      }
+    })
+
+    expect(wrapper.get('[data-testid="tool-call-image-badge"]').text()).toContain('1')
+    expect(wrapper.find('[data-testid="tool-call-image-preview"]').exists()).toBe(false)
+
+    await wrapper.get('[data-testid="tool-call-trigger"]').trigger('click')
+
+    const params = wrapper.get('[data-testid="tool-call-params"]')
+    const response = wrapper.get('pre')
+    const preview = wrapper.get('[data-testid="tool-call-image-preview"]')
+    const paramsBeforeResponse = Boolean(
+      params.element.compareDocumentPosition(response.element) & Node.DOCUMENT_POSITION_FOLLOWING
+    )
+    const responseBeforePreview = Boolean(
+      response.element.compareDocumentPosition(preview.element) & Node.DOCUMENT_POSITION_FOLLOWING
+    )
+
+    expect(paramsBeforeResponse).toBe(true)
+    expect(responseBeforePreview).toBe(true)
+    expect(preview.get('img').attributes('src')).toBe('imgcache://screenshot.png')
+  })
+
+  it('sanitizes unsafe deepchat image URLs', async () => {
+    const wrapper = mount(MessageBlockToolCall, {
+      props: {
+        block: createBlock({
+          tool_call: {
+            name: 'read',
+            response: 'vision analysis',
+            imagePreviews: [
+              {
+                id: 'unsafe-url-1',
+                data: 'javascript:alert(1)',
+                mimeType: 'deepchat/image-url',
+                title: 'unsafe.png',
+                source: 'tool_output'
+              }
+            ]
+          }
+        })
+      }
+    })
+
+    await wrapper.get('[data-testid="tool-call-trigger"]').trigger('click')
+
+    expect(wrapper.get('[data-testid="tool-call-image-preview"] img').attributes('src')).toBe('')
+  })
+
+  it('renders each completed plan call as its own checklist without raw JSON', async () => {
+    const plan = [
+      { step: 'Inspect code', status: 'completed' },
+      { step: 'Adjust layout', status: 'in_progress' },
+      { step: 'Delegate UI review', status: 'in_progress' },
+      { step: 'Verify screenshots', status: 'pending' }
+    ]
+    const first = createBlock({
+      tool_call: {
+        id: 'plan-1',
+        name: 'update_plan',
+        params: JSON.stringify({ explanation: 'Implement the compact layout', plan }),
+        response: '{}'
+      }
+    })
+    const second = createBlock({
+      tool_call: {
+        id: 'plan-2',
+        name: 'update_plan',
+        params: JSON.stringify({
+          plan: plan.map((entry) => ({ ...entry, status: 'completed' }))
+        }),
+        response: '{}'
+      }
+    })
+    const wrapper = mount(
+      defineComponent({
+        components: { MessageBlockToolCall },
+        setup: () => ({ first, second }),
+        template:
+          '<div><MessageBlockToolCall :block="first" /><MessageBlockToolCall :block="second" /></div>'
+      })
+    )
+    const calls = wrapper.findAllComponents(MessageBlockToolCall)
+    expect(wrapper.find('[data-testid="tool-call-summary"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="tool-call-plan"]').exists()).toBe(false)
+
+    for (const call of calls) await call.get('[data-testid="tool-call-trigger"]').trigger('click')
+
+    const previousPlan = calls[0].get('[data-testid="tool-call-plan"]')
+    expect(previousPlan.text()).toContain('Implement the compact layout')
+    expect(previousPlan.text()).toContain('1/4 completed')
+    expect(previousPlan.findAll('li').map((item) => item.attributes('aria-label'))).toEqual([
+      'Completed: Inspect code',
+      'In Progress: Adjust layout',
+      'In Progress: Delegate UI review',
+      'Pending: Verify screenshots'
+    ])
+    expect(calls[1].get('[data-testid="tool-call-plan"]').text()).toContain('4/4 completed')
+    expect(wrapper.find('[data-testid="tool-call-params"]').exists()).toBe(false)
+    expect(wrapper.find('pre').exists()).toBe(false)
+
+    await calls[0].get('[data-testid="tool-call-trigger"]').trigger('click')
+    expect(calls[0].get('[data-testid="tool-call-trigger"]').attributes('aria-expanded')).toBe(
+      'false'
+    )
+    expect(calls[1].get('[data-testid="tool-call-trigger"]').attributes('aria-expanded')).toBe(
+      'true'
+    )
+    wrapper.unmount()
+  })
+
+  it('renders an empty plan update as an empty checklist', async () => {
+    const wrapper = mount(MessageBlockToolCall, {
+      props: {
+        block: createBlock({
+          tool_call: { name: 'update_plan', params: '{"plan":[]}', response: '{}' }
+        })
+      }
+    })
+    await wrapper.get('[data-testid="tool-call-trigger"]').trigger('click')
+    expect(wrapper.get('[data-testid="tool-call-plan"]').text()).toContain('0/0 completed')
+    expect(wrapper.get('[data-testid="tool-call-plan"]').text()).toContain('No tasks yet')
+    expect(wrapper.find('[data-testid="tool-call-params"]').exists()).toBe(false)
+    wrapper.unmount()
+  })
+
+  it.each([
+    { status: 'loading', params: '{"plan":[{"step":"Inspect code","status":"pending"}]}' },
+    { status: 'error', params: '{"plan":[{"step":"Inspect code","status":"pending"}]}' },
+    { status: 'cancel', params: '{"plan":[{"step":"Inspect code","status":"pending"}]}' },
+    { status: 'success', params: '{"plan":' },
+    { status: 'success', params: '{"plan":[null]}' }
+  ] as const)(
+    'keeps diagnostic details for an unwritten or unreadable plan: %j',
+    async ({ status, params }) => {
+      const wrapper = mount(MessageBlockToolCall, {
+        props: {
+          block: createBlock({
+            status,
+            tool_call: { name: 'update_plan', params, response: 'Plan update did not complete' }
+          })
+        }
+      })
+      expect(wrapper.find('[data-testid="tool-call-summary"]').exists()).toBe(false)
+      await wrapper.get('[data-testid="tool-call-trigger"]').trigger('click')
+      expect(wrapper.find('[data-testid="tool-call-plan"]').exists()).toBe(false)
+      expect(wrapper.get('[data-testid="tool-call-params"]').text()).toBe(params)
+      expect(wrapper.get('pre').text()).toBe('Plan update did not complete')
+      wrapper.unmount()
+    }
+  )
+
+  it('keeps normal details for MCP tools named update_plan', async () => {
+    const wrapper = mount(MessageBlockToolCall, {
+      props: {
+        block: createBlock({
+          extra: { toolSource: 'mcp' },
+          tool_call: {
+            name: 'update_plan',
+            params: '{"plan":[]}',
+            response: 'Remote plan response'
+          }
+        })
+      }
+    })
+    expect(wrapper.find('[data-testid="tool-call-summary"]').exists()).toBe(true)
+    await wrapper.get('[data-testid="tool-call-trigger"]').trigger('click')
+    expect(wrapper.find('[data-testid="tool-call-plan"]').exists()).toBe(false)
+    expect(wrapper.get('pre').text()).toBe('Remote plan response')
+    wrapper.unmount()
+  })
+
+  it('shows the first string parameter value as summary text', () => {
+    const wrapper = mount(MessageBlockToolCall, {
+      props: {
+        block: createBlock({
+          tool_call: {
+            name: 'read',
+            params: '{"path":"C:/repo/src/main.ts","line":1}'
+          }
+        })
+      }
+    })
+
+    expect(wrapper.get('[data-testid="tool-call-summary"]').text()).toBe('C:/repo/src/main.ts')
+  })
+
+  it('prefers path over offset in read summaries', () => {
+    const wrapper = mount(MessageBlockToolCall, {
+      props: {
+        block: createBlock({
+          tool_call: {
+            name: 'read',
+            params: '{"offset":5000,"path":"/tmp/a.ts"}'
+          }
+        })
+      }
+    })
+
+    expect(wrapper.get('[data-testid="tool-call-summary"]').text()).toBe('/tmp/a.ts')
+  })
+
+  it('prefers path over limit in read summaries', () => {
+    const wrapper = mount(MessageBlockToolCall, {
+      props: {
+        block: createBlock({
+          tool_call: {
+            name: 'read',
+            params: '{"limit":200,"path":"/tmp/a.ts"}'
+          }
+        })
+      }
+    })
+
+    expect(wrapper.get('[data-testid="tool-call-summary"]').text()).toBe('/tmp/a.ts')
+  })
+
+  it('prefers path over content in write summaries', () => {
+    const wrapper = mount(MessageBlockToolCall, {
+      props: {
+        block: createBlock({
+          tool_call: {
+            name: 'write',
+            params: '{"content":"hello world","path":"/tmp/a.ts"}'
+          }
+        })
+      }
+    })
+
+    expect(wrapper.get('[data-testid="tool-call-summary"]').text()).toBe('/tmp/a.ts')
+  })
+
+  it('uses the first query value as summary text', () => {
+    const wrapper = mount(MessageBlockToolCall, {
+      props: {
+        block: createBlock({
+          tool_call: {
+            name: 'search',
+            params: '{"query":"today bilibili hot videos","limit":10}'
+          }
+        })
+      }
+    })
+
+    expect(wrapper.get('[data-testid="tool-call-summary"]').text()).toBe(
+      'today bilibili hot videos'
+    )
+    expect(wrapper.get('[data-testid="tool-call-name"]').attributes('title')).toBe('search')
+  })
+
+  it('stringifies nested first parameter values into a single-line summary', () => {
+    const wrapper = mount(MessageBlockToolCall, {
+      props: {
+        block: createBlock({
+          tool_call: {
+            name: 'custom_tool',
+            params: '{"payload":{"foo":"bar","nested":{"ok":true}},"other":1}'
+          }
+        })
+      }
+    })
+
+    expect(wrapper.get('[data-testid="tool-call-summary"]').text()).toBe(
+      '{"foo":"bar","nested":{"ok":true}}'
+    )
+  })
+
+  it('falls back to raw params when the summary source is not JSON', () => {
+    const wrapper = mount(MessageBlockToolCall, {
+      props: {
+        block: createBlock({
+          tool_call: {
+            name: 'exec',
+            params: 'raw-shell-command --flag value'
+          }
+        })
+      }
+    })
+
+    expect(wrapper.get('[data-testid="tool-call-summary"]').text()).toBe(
+      'raw-shell-command --flag value'
+    )
+  })
+
+  it('always exposes the full summary in the title attribute', () => {
+    const summaryValue = 'C:/workspace/' + 'nested/'.repeat(8) + 'MessageBlockToolCall.vue'
+    const wrapper = mount(MessageBlockToolCall, {
+      props: {
+        block: createBlock({
+          tool_call: {
+            name: 'exec',
+            params: JSON.stringify({
+              cwd: summaryValue
+            })
+          }
+        })
+      }
+    })
+
+    const summary = wrapper.get('[data-testid="tool-call-summary"]')
+
+    expect(summary.attributes('title')).toBe(summaryValue)
+  })
+
+  it('keeps the collapsed label to tool name only even when a server name exists', () => {
+    const wrapper = mount(MessageBlockToolCall, {
+      props: {
+        block: createBlock({
+          tool_call: {
+            name: 'exec',
+            server_name: 'agent-filesystem',
+            params: '{"command":"pnpm run dev"}'
+          }
+        })
+      }
+    })
+
+    expect(wrapper.get('[data-testid="tool-call-name"]').text()).toBe('exec')
+    expect(wrapper.find('[data-testid="tool-call-expanded-title"]').exists()).toBe(false)
+  })
+
+  it('shows the server-qualified title only inside the expanded panel', async () => {
+    const wrapper = mount(MessageBlockToolCall, {
+      props: {
+        block: createBlock({
+          tool_call: {
+            name: 'exec',
+            server_name: 'agent/agent-filesystem',
+            params: '{"command":"pnpm run dev"}',
+            response: 'ok'
+          }
+        })
+      }
+    })
+
+    await wrapper.get('[data-testid="tool-call-trigger"]').trigger('click')
+
+    expect(wrapper.get('[data-testid="tool-call-expanded-title"]').text()).toContain(
+      'agent-filesystem.exec'
+    )
+  })
+
+  it('shows an RTK badge for command-style tool calls when RTK was applied', () => {
+    const wrapper = mount(MessageBlockToolCall, {
+      props: {
+        block: createBlock({
+          tool_call: {
+            name: 'exec',
+            response: 'ok',
+            rtkApplied: true,
+            rtkMode: 'rewrite'
+          }
+        })
+      }
+    })
+
+    expect(wrapper.find('[data-testid="tool-call-rtk-badge"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="tool-call-rtk-badge"]').text()).toBe('RTK')
+  })
+
+  it('shows summary text alongside the RTK badge', () => {
+    const wrapper = mount(MessageBlockToolCall, {
+      props: {
+        block: createBlock({
+          tool_call: {
+            name: 'exec',
+            params: '{"command":"pnpm run dev","background":true}',
+            rtkApplied: true,
+            rtkMode: 'rewrite'
+          }
+        })
+      }
+    })
+
+    expect(wrapper.get('[data-testid="tool-call-summary"]').text()).toBe('pnpm run dev')
+    expect(wrapper.get('[data-testid="tool-call-rtk-badge"]').text()).toBe('RTK')
+  })
+
+  it('prefers command over earlier boolean fields in exec summaries', () => {
+    const wrapper = mount(MessageBlockToolCall, {
+      props: {
+        block: createBlock({
+          tool_call: {
+            name: 'exec',
+            params: '{"background":true,"command":"pnpm run dev"}'
+          }
+        })
+      }
+    })
+
+    expect(wrapper.get('[data-testid="tool-call-summary"]').text()).toBe('pnpm run dev')
+  })
+
+  it('renders raw params in the expanded panel', async () => {
+    const wrapper = mount(MessageBlockToolCall, {
+      props: {
+        block: createBlock({
+          tool_call: {
+            name: 'exec',
+            params: '{"command":"pnpm run dev","background":true}',
+            response: 'ok'
+          }
+        })
+      }
+    })
+
+    await wrapper.get('[data-testid="tool-call-trigger"]').trigger('click')
+
+    const paramsPanel = wrapper.get('[data-testid="tool-call-params"]').text()
+
+    expect(paramsPanel).toBe('{"command":"pnpm run dev","background":true}')
+    expect(paramsPanel).toContain('pnpm run dev')
+    expect(paramsPanel).toContain('"background":true')
+    expect(paramsPanel).toContain('"command":"pnpm run dev"')
+  })
+
+  it('renders a dedicated running ring instead of the legacy pulse icon', () => {
+    const wrapper = mount(MessageBlockToolCall, {
+      props: {
+        block: createBlock({
+          status: 'loading',
+          tool_call: {
+            name: 'exec',
+            params: '{"command":"pnpm run dev"}'
+          }
+        })
+      }
+    })
+
+    expect(wrapper.find('[data-testid="tool-call-running-indicator"]').exists()).toBe(true)
+    expect(wrapper.html()).not.toContain('animate-pulse')
+  })
+
+  it('auto expands process tool calls while loading and collapses them when finished', async () => {
+    const wrapper = mount(MessageBlockToolCall, {
+      props: {
+        block: createBlock({
+          status: 'loading',
+          tool_call: {
+            id: 'process-1',
+            name: 'process',
+            params: '{"action":"poll","sessionId":"session-1"}',
+            response: 'still running'
+          }
+        })
+      }
+    })
+
+    await nextTick()
+    expect(wrapper.find('[data-testid="tool-call-details"]').exists()).toBe(true)
+
+    await wrapper.setProps({
+      block: createBlock({
+        status: 'success',
+        tool_call: {
+          id: 'process-1',
+          name: 'process',
+          params: '{"action":"poll","sessionId":"session-1"}',
+          response: 'done'
+        }
+      })
+    })
+    await nextTick()
+
+    expect(wrapper.find('[data-testid="tool-call-details"]').exists()).toBe(false)
+  })
+
+  it.each([
+    { status: 'error' as const },
+    { status: 'cancel' as const },
+    { status: 'success' as const, extra: { needsUserAction: true } }
+  ])('keeps automatically opened output visible when attention is needed: %j', async (outcome) => {
+    const block = createBlock({
+      status: 'loading',
+      tool_call: { id: 'process-attention', name: 'process', response: 'running' }
+    })
+    const wrapper = mount(MessageBlockToolCall, { props: { block } })
+
+    expect(wrapper.get('[data-testid="tool-call-trigger"]').attributes('aria-expanded')).toBe(
+      'true'
+    )
+    await wrapper.setProps({ block: { ...block, ...outcome } })
+    expect(wrapper.get('[data-testid="tool-call-trigger"]').attributes('aria-expanded')).toBe(
+      'true'
+    )
+
+    await wrapper.setProps({ block: { ...block, status: 'success' } })
+    expect(wrapper.get('[data-testid="tool-call-trigger"]').attributes('aria-expanded')).toBe(
+      'false'
+    )
+    expect(wrapper.emitted('manual-toggle')).toBeUndefined()
+  })
+
+  it('keeps manually reopened output expanded after successful completion', async () => {
+    const block = createBlock({
+      status: 'loading',
+      tool_call: { id: 'process-manual', name: 'process', response: 'running' }
+    })
+    const wrapper = mount(MessageBlockToolCall, { props: { block } })
+    const trigger = wrapper.get('[data-testid="tool-call-trigger"]')
+
+    await trigger.trigger('click')
+    await trigger.trigger('click')
+    await wrapper.setProps({ block: { ...block, status: 'success' } })
+
+    expect(trigger.attributes('aria-expanded')).toBe('true')
+    expect(wrapper.emitted('manual-toggle')).toEqual([[false], [true]])
+  })
+
+  it('auto expands background exec calls while loading and collapses them when finished', async () => {
+    const wrapper = mount(MessageBlockToolCall, {
+      props: {
+        block: createBlock({
+          status: 'loading',
+          tool_call: {
+            id: 'exec-bg-1',
+            name: 'exec',
+            params: '{"command":"pnpm run dev","background":true}',
+            response: 'booting'
+          }
+        })
+      }
+    })
+
+    await nextTick()
+    expect(wrapper.find('[data-testid="tool-call-details"]').exists()).toBe(true)
+
+    await wrapper.setProps({
+      block: createBlock({
+        status: 'success',
+        tool_call: {
+          id: 'exec-bg-1',
+          name: 'exec',
+          params: '{"command":"pnpm run dev","background":true}',
+          response: 'done'
+        }
+      })
+    })
+    await nextTick()
+
+    expect(wrapper.find('[data-testid="tool-call-details"]').exists()).toBe(false)
+  })
+
+  it('auto expands background skill_run calls while loading and collapses them when finished', async () => {
+    const wrapper = mount(MessageBlockToolCall, {
+      props: {
+        block: createBlock({
+          status: 'loading',
+          tool_call: {
+            id: 'skill-run-bg-1',
+            name: 'skill_run',
+            params: '{"skill":"checks","script":"scripts/run.ts","background":true}',
+            response: 'booting'
+          }
+        })
+      }
+    })
+
+    await nextTick()
+    expect(wrapper.find('[data-testid="tool-call-details"]').exists()).toBe(true)
+
+    await wrapper.setProps({
+      block: createBlock({
+        status: 'success',
+        tool_call: {
+          id: 'skill-run-bg-1',
+          name: 'skill_run',
+          params: '{"skill":"checks","script":"scripts/run.ts","background":true}',
+          response: 'done'
+        }
+      })
+    })
+    await nextTick()
+
+    expect(wrapper.find('[data-testid="tool-call-details"]').exists()).toBe(false)
+  })
+
+  it('auto expands exec calls with a long timeout', async () => {
+    const wrapper = mount(MessageBlockToolCall, {
+      props: {
+        block: createBlock({
+          status: 'loading',
+          tool_call: {
+            id: 'exec-timeout-1',
+            name: 'exec',
+            params: '{"command":"pnpm test","timeoutMs":10000}',
+            response: 'running'
+          }
+        })
+      }
+    })
+
+    await nextTick()
+
+    expect(wrapper.find('[data-testid="tool-call-details"]').exists()).toBe(true)
+  })
+
+  it('auto expands skill_run calls with a long timeout', async () => {
+    const wrapper = mount(MessageBlockToolCall, {
+      props: {
+        block: createBlock({
+          status: 'loading',
+          tool_call: {
+            id: 'skill-run-timeout-1',
+            name: 'skill_run',
+            params: '{"skill":"checks","script":"scripts/run.ts","timeoutMs":10000}',
+            response: 'running'
+          }
+        })
+      }
+    })
+
+    await nextTick()
+
+    expect(wrapper.find('[data-testid="tool-call-details"]').exists()).toBe(true)
+  })
+
+  it('auto expands renamed exec tool calls that keep the exec contract', async () => {
+    const wrapper = mount(MessageBlockToolCall, {
+      props: {
+        block: createBlock({
+          status: 'loading',
+          tool_call: {
+            id: 'exec-renamed-1',
+            name: 'agent-filesystem_exec',
+            params: '{"command":"pnpm run dev","background":true}',
+            response: 'booting'
+          }
+        })
+      }
+    })
+
+    await nextTick()
+
+    expect(wrapper.find('[data-testid="tool-call-details"]').exists()).toBe(true)
+  })
+
+  it('auto expands renamed process tool calls while loading and collapses them when finished', async () => {
+    const wrapper = mount(MessageBlockToolCall, {
+      props: {
+        block: createBlock({
+          status: 'loading',
+          tool_call: {
+            id: 'process-renamed-1',
+            name: 'agent-filesystem_process',
+            params: '{"action":"poll","sessionId":"session-1"}',
+            response: 'still running'
+          }
+        })
+      }
+    })
+
+    await nextTick()
+    expect(wrapper.find('[data-testid="tool-call-details"]').exists()).toBe(true)
+
+    await wrapper.setProps({
+      block: createBlock({
+        status: 'success',
+        tool_call: {
+          id: 'process-renamed-1',
+          name: 'agent-filesystem_process',
+          params: '{"action":"poll","sessionId":"session-1"}',
+          response: 'done'
+        }
+      })
+    })
+    await nextTick()
+
+    expect(wrapper.find('[data-testid="tool-call-details"]').exists()).toBe(false)
+  })
+
+  it('re-applies auto expand when the loading tool call identity changes', async () => {
+    const wrapper = mount(MessageBlockToolCall, {
+      props: {
+        block: createBlock({
+          status: 'loading',
+          tool_call: {
+            id: 'exec-bg-identity-1',
+            name: 'exec',
+            params: '{"background":true}',
+            response: 'booting'
+          }
+        })
+      }
+    })
+
+    await nextTick()
+    expect(wrapper.find('[data-testid="tool-call-details"]').exists()).toBe(true)
+
+    await wrapper.setProps({
+      block: createBlock({
+        status: 'loading',
+        tool_call: {
+          id: 'exec-bg-identity-2',
+          name: 'exec',
+          params: '{"background":true}',
+          response: 'still booting'
+        }
+      })
+    })
+    await nextTick()
+
+    expect(wrapper.find('[data-testid="tool-call-details"]').exists()).toBe(true)
+  })
+
+  it('does not re-auto-expand after the user manually closes an auto-expanded block', async () => {
+    const wrapper = mount(MessageBlockToolCall, {
+      props: {
+        block: createBlock({
+          status: 'loading',
+          tool_call: {
+            id: 'process-2',
+            name: 'process',
+            params: '{"action":"log","sessionId":"session-2"}',
+            response: 'line 1'
+          }
+        })
+      }
+    })
+
+    await nextTick()
+    expect(wrapper.find('[data-testid="tool-call-details"]').exists()).toBe(true)
+
+    await wrapper.get('[data-testid="tool-call-trigger"]').trigger('click')
+    await nextTick()
+    expect(wrapper.find('[data-testid="tool-call-details"]').exists()).toBe(false)
+
+    await wrapper.setProps({
+      block: createBlock({
+        status: 'loading',
+        tool_call: {
+          id: 'process-2',
+          name: 'process',
+          params: '{"action":"log","sessionId":"session-2"}',
+          response: 'line 1\nline 2'
+        }
+      })
+    })
+    await nextTick()
+
+    expect(wrapper.find('[data-testid="tool-call-details"]').exists()).toBe(false)
+  })
+
+  it('localizes subagent orchestrator summary and statuses', async () => {
+    const wrapper = mount(MessageBlockToolCall, {
+      props: {
+        block: createBlock({
+          status: 'loading',
+          tool_call: {
+            id: 'subagent-1',
+            name: 'subagent_orchestrator',
+            params: '{"mode":"parallel"}',
+            response: ''
+          },
+          extra: {
+            subagentProgress: JSON.stringify({
+              runId: 'run-1',
+              mode: 'parallel',
+              tasks: [
+                {
+                  taskId: 'task-1',
+                  title: 'Inspect repo',
+                  slotId: 'slot-1',
+                  sessionId: 'child-1',
+                  targetAgentName: 'ACP Coder',
+                  status: 'running',
+                  previewMarkdown: 'line 1'
+                },
+                {
+                  taskId: 'task-2',
+                  title: 'Request approval',
+                  slotId: 'slot-2',
+                  sessionId: 'child-2',
+                  targetAgentName: 'Self Clone',
+                  status: 'waiting_permission',
+                  previewMarkdown: 'line 2'
+                }
+              ]
+            })
+          }
+        })
+      }
+    })
+
+    await nextTick()
+
+    expect(wrapper.text()).toContain('localized parallel · 2 localized subagents')
+    expect(wrapper.text()).toContain('localized running')
+    expect(wrapper.text()).toContain('localized waiting permission')
+    expect(wrapper.findAll('[data-testid="subagent-task-trigger"]')).toHaveLength(2)
+    expect(wrapper.text()).not.toContain('line 1')
+    expect(wrapper.text()).not.toContain('line 2')
+    expect(wrapper.text()).not.toContain('common.open')
+
+    await wrapper.get('[data-testid="subagent-task-trigger"]').trigger('click')
+
+    expect(selectSessionMock).toHaveBeenCalledWith('child-1')
+  })
+
+  it('normalizes subagent task identifiers and fallback labels', async () => {
+    const wrapper = mount(MessageBlockToolCall, {
+      props: {
+        block: createBlock({
+          status: 'loading',
+          tool_call: {
+            id: 'subagent-2',
+            name: 'subagent_orchestrator',
+            params: '{"mode":"parallel"}',
+            response: ''
+          },
+          extra: {
+            subagentProgress: JSON.stringify({
+              runId: 'run-2',
+              mode: 'parallel',
+              tasks: [
+                {
+                  slotId: 'slot-alpha',
+                  displayName: 'Planner',
+                  sessionId: 'child-alpha',
+                  status: 'running'
+                },
+                {
+                  slotId: 'slot-beta',
+                  sessionId: null,
+                  status: 'completed'
+                },
+                {
+                  sessionId: null,
+                  status: 'completed'
+                }
+              ]
+            })
+          }
+        })
+      }
+    })
+
+    await nextTick()
+
+    const tasks = wrapper.findAll('[data-testid="subagent-task-trigger"]')
+    expect(tasks).toHaveLength(3)
+    expect(tasks[0].text()).toContain('Planner')
+    expect(tasks[1].text()).toContain('Unnamed Agent')
+    expect(tasks[1].text()).toContain('slot-beta')
+    expect(tasks[2].text()).toContain('Unnamed Agent')
+    expect(tasks[2].text()).toContain('Unnamed Task')
+
+    await tasks[0].trigger('click')
+
+    expect(selectSessionMock).toHaveBeenCalledWith('child-alpha')
+  })
+
+  it('renders the resolved permission badge on the tool pill', () => {
+    const wrapper = mount(MessageBlockToolCall, {
+      props: {
+        block: createBlock(),
+        permissionStatus: 'granted'
+      }
+    })
+
+    const badge = wrapper.find('[data-testid="tool-call-permission-badge"]')
+    expect(badge.exists()).toBe(true)
+    expect(badge.attributes('data-permission-status')).toBe('granted')
+    expect(badge.text()).toBe('toolCall.badge.allowed')
+  })
+
+  it('renders a denied permission badge distinct from success styling', () => {
+    const wrapper = mount(MessageBlockToolCall, {
+      props: {
+        block: createBlock({ status: 'error' }),
+        permissionStatus: 'denied'
+      }
+    })
+
+    const badge = wrapper.find('[data-testid="tool-call-permission-badge"]')
+    expect(badge.attributes('data-permission-status')).toBe('denied')
+    expect(badge.text()).toBe('toolCall.badge.denied')
+  })
+
+  it('renders no permission badge when no permission outcome is associated', () => {
+    const wrapper = mount(MessageBlockToolCall, {
+      props: {
+        block: createBlock()
+      }
+    })
+
+    expect(wrapper.find('[data-testid="tool-call-permission-badge"]').exists()).toBe(false)
+  })
+
+  it('renders the granted outcome inside the live delegation card', () => {
+    const wrapper = mount(MessageBlockToolCall, {
+      props: {
+        threadId: 'parent-1',
+        permissionStatus: 'granted',
+        block: createBlock({
+          extra: { toolSource: 'agent' },
+          tool_call: {
+            id: 'spawn-1',
+            name: LIVE_DELEGATION_AGENT_TOOL_NAME,
+            server_name: LIVE_DELEGATION_AGENT_TOOL_SERVER_NAME,
+            params: JSON.stringify({
+              operation: 'spawn',
+              slotId: 'reviewer',
+              title: 'Review architecture',
+              prompt: 'Inspect module boundaries.'
+            }),
+            response: JSON.stringify({
+              delegation: {
+                schemaVersion: 1,
+                id: 'delegation-1',
+                parentSessionId: 'parent-1',
+                childSessionId: 'child-1',
+                slotId: 'reviewer',
+                targetAgentId: 'deepchat',
+                title: 'Review architecture',
+                status: 'running',
+                lastTurnSeq: 1,
+                createdAt: 10,
+                updatedAt: 20,
+                revision: 2,
+                summaryPreview: null,
+                errorPreview: null
+              },
+              turns: []
+            })
+          }
+        })
+      }
+    })
+
+    const card = wrapper.get('[data-testid="live-delegation-tool-card-delegation-1"]')
+    const badge = card.get('[data-testid="tool-call-permission-badge"]')
+    expect(badge.attributes('data-permission-status')).toBe('granted')
+    expect(badge.text()).toBe('toolCall.badge.allowed')
+  })
+
+  it('renders the denied outcome inside the live delegation card', () => {
+    const wrapper = mount(MessageBlockToolCall, {
+      props: {
+        threadId: 'parent-1',
+        permissionStatus: 'denied',
+        block: createBlock({
+          status: 'error',
+          extra: { toolSource: 'agent' },
+          tool_call: {
+            id: 'spawn-1',
+            name: LIVE_DELEGATION_AGENT_TOOL_NAME,
+            server_name: LIVE_DELEGATION_AGENT_TOOL_SERVER_NAME,
+            params: JSON.stringify({
+              operation: 'spawn',
+              slotId: 'reviewer',
+              title: 'Review architecture',
+              prompt: 'Inspect module boundaries.'
+            }),
+            response: ''
+          }
+        })
+      }
+    })
+
+    const card = wrapper.get('[data-testid="live-delegation-tool-card-pending"]')
+    const badge = card.get('[data-testid="tool-call-permission-badge"]')
+    expect(badge.attributes('data-permission-status')).toBe('denied')
+    expect(badge.text()).toBe('toolCall.badge.denied')
+  })
+})

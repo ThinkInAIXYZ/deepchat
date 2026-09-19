@@ -1,7 +1,7 @@
 import type {
   AttachmentPreparationSummary,
   SendMessageInput
-} from '@deepchat/shared/types/agent-interface'
+} from '../shared/types/agent-interface.js'
 
 export interface AttachmentPreparationInput {
   content: SendMessageInput

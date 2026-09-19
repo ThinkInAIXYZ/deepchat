@@ -1,0 +1,659 @@
+import { EventEmitter } from 'events'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { BrowserTab } from '@/desktop/browser/BrowserTab'
+import { BrowserPageStatus } from '@shared/types/browser'
+
+class MockWebContents extends EventEmitter {
+  url = 'about:blank'
+  title = ''
+  destroyed = false
+  loading = false
+  pendingLoad: {
+    resolve: () => void
+    reject: (error: Error) => void
+  } | null = null
+  debugger = {
+    isAttached: vi.fn(() => false),
+    detach: vi.fn(),
+    attach: vi.fn(),
+    sendCommand: vi.fn(async () => ({}))
+  }
+  session = {}
+  navigationHistory = {
+    canGoBack: vi.fn(() => false),
+    canGoForward: vi.fn(() => false)
+  }
+  loadURL = vi.fn((url: string) => {
+    this.url = url
+    this.loading = true
+    this.emit('did-start-loading')
+
+    return new Promise<void>((resolve, reject) => {
+      this.pendingLoad = { resolve, reject }
+    })
+  })
+  isLoading = vi.fn(() => this.loading)
+  reload = vi.fn()
+  goBack = vi.fn()
+  goForward = vi.fn()
+  sendInputEvent = vi.fn()
+
+  getURL() {
+    return this.url
+  }
+
+  getTitle() {
+    return this.title
+  }
+
+  isDestroyed() {
+    return this.destroyed
+  }
+
+  emitDomReady() {
+    this.emit('dom-ready')
+  }
+
+  emitStartNavigation(
+    url: string,
+    options?: {
+      isSameDocument?: boolean
+      isMainFrame?: boolean
+    }
+  ) {
+    this.url = url
+    this.emit('did-start-navigation', {
+      url,
+      isSameDocument: options?.isSameDocument ?? false,
+      isMainFrame: options?.isMainFrame ?? true
+    })
+  }
+
+  emitInPageNavigation(
+    url: string,
+    options?: {
+      isMainFrame?: boolean
+    }
+  ) {
+    this.url = url
+    this.emit('did-navigate-in-page', {}, url, options?.isMainFrame ?? true)
+  }
+
+  finishLoad() {
+    this.emitDomReady()
+    this.loading = false
+    this.emit('did-finish-load')
+    this.emit('did-stop-loading')
+    this.pendingLoad?.resolve()
+    this.pendingLoad = null
+  }
+}
+
+describe('BrowserTab', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  const createTab = () => {
+    const webContents = new MockWebContents()
+    const cdpManager = {
+      createSession: vi.fn(async () => undefined),
+      getDOM: vi.fn(async () => '<html></html>'),
+      evaluateScript: vi.fn(async () => 1)
+    }
+    const screenshotManager = {
+      captureScreenshot: vi.fn(async () => 'image-data')
+    }
+    const tab = new BrowserTab(webContents as any, cdpManager as any, screenshotManager as any)
+
+    return {
+      tab,
+      webContents,
+      cdpManager,
+      screenshotManager
+    }
+  }
+
+  const makePageInteractive = async (
+    tab: BrowserTab,
+    webContents: MockWebContents,
+    url: string = 'https://example.com'
+  ) => {
+    const navigationPromise = tab.navigateUntilDomReady(url)
+    await Promise.resolve()
+    webContents.emitDomReady()
+    await navigationPromise
+    webContents.finishLoad()
+  }
+
+  it('waits up to 2 seconds for tooling actions while the page is loading', async () => {
+    const { tab, webContents, screenshotManager } = createTab()
+
+    const navigationPromise = tab.navigateUntilDomReady('https://example.com')
+    await Promise.resolve()
+
+    const commandPromise = tab.sendCdpCommand('Runtime.evaluate')
+    const screenshotPromise = tab.takeScreenshot()
+    const domPromise = tab.extractDOM()
+    const evaluatePromise = tab.evaluateScript('1 + 1')
+
+    await Promise.resolve()
+    expect(webContents.debugger.sendCommand).not.toHaveBeenCalled()
+    expect(screenshotManager.captureScreenshot).not.toHaveBeenCalled()
+
+    webContents.emitDomReady()
+    await expect(commandPromise).resolves.toEqual({})
+    await expect(screenshotPromise).resolves.toBe('image-data')
+    await expect(domPromise).resolves.toBe('<html></html>')
+    await expect(evaluatePromise).resolves.toBe(1)
+    await navigationPromise
+    webContents.finishLoad()
+  })
+
+  it('times out waiting for interactive-ready while the page keeps loading', async () => {
+    const { tab, webContents } = createTab()
+
+    const navigationPromise = tab.navigateUntilDomReady('https://example.com')
+    await Promise.resolve()
+
+    const commandPromise = tab.sendCdpCommand('Runtime.evaluate')
+    const rejection = expect(commandPromise).rejects.toThrow(
+      'YoBrowser page is not ready to send CDP command Runtime.evaluate. Retry this request. url=https://example.com status=loading'
+    )
+    await vi.advanceTimersByTimeAsync(2000)
+
+    await rejection
+    expect(webContents.debugger.sendCommand).not.toHaveBeenCalled()
+
+    webContents.emitDomReady()
+    await navigationPromise
+    webContents.finishLoad()
+  })
+
+  it('cancels readiness waits without leaking listeners or dispatching after dom-ready', async () => {
+    const { tab, webContents, cdpManager } = createTab()
+    await makePageInteractive(tab, webContents)
+    webContents.emitStartNavigation('https://example.com/next')
+    const initialListeners = webContents.listenerCount('dom-ready')
+    const controller = new AbortController()
+    const beforeDispatch = vi.fn()
+    const command = tab.sendCdpCommand(
+      'Runtime.evaluate',
+      undefined,
+      beforeDispatch,
+      undefined,
+      controller.signal
+    )
+
+    controller.abort()
+    await expect(command).rejects.toMatchObject({ name: 'AbortError' })
+    expect(webContents.listenerCount('dom-ready')).toBe(initialListeners)
+    await vi.advanceTimersByTimeAsync(2000)
+    webContents.emitDomReady()
+    await vi.advanceTimersByTimeAsync(0)
+
+    expect(beforeDispatch).not.toHaveBeenCalled()
+    expect(cdpManager.createSession).not.toHaveBeenCalled()
+    expect(cdpManager.evaluateScript).not.toHaveBeenCalled()
+    expect(webContents.debugger.sendCommand).not.toHaveBeenCalled()
+  })
+
+  it('does not dispatch a command after canceled CDP session preparation finishes', async () => {
+    const { tab, webContents, cdpManager } = createTab()
+    const controller = new AbortController()
+    let finishSession!: () => void
+    cdpManager.createSession.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          finishSession = resolve
+        })
+    )
+    const command = tab.sendCdpCommand(
+      'Page.reload',
+      undefined,
+      undefined,
+      undefined,
+      controller.signal
+    )
+
+    controller.abort()
+    await expect(command).rejects.toMatchObject({ name: 'AbortError' })
+    finishSession()
+    await vi.advanceTimersByTimeAsync(0)
+
+    expect(webContents.debugger.sendCommand).not.toHaveBeenCalled()
+  })
+
+  it('cancels a silent CDP command and discards its late navigation response', async () => {
+    const { tab, webContents } = createTab()
+    await makePageInteractive(tab, webContents)
+    const controller = new AbortController()
+    let finishCommand!: (result: { loaderId: string }) => void
+    webContents.debugger.sendCommand.mockImplementationOnce(
+      () =>
+        new Promise<{ loaderId: string }>((resolve) => {
+          finishCommand = resolve
+        })
+    )
+    const command = tab.sendCdpCommand(
+      'Page.navigate',
+      { url: 'https://example.com/next' },
+      undefined,
+      undefined,
+      controller.signal
+    )
+    const failed = vi.fn()
+    void command.catch(failed)
+    await vi.advanceTimersByTimeAsync(10 * 60_000)
+    expect(webContents.debugger.sendCommand).toHaveBeenCalledOnce()
+    expect(failed).not.toHaveBeenCalled()
+
+    controller.abort()
+    await expect(command).rejects.toMatchObject({ name: 'AbortError' })
+    finishCommand({ loaderId: 'late-loader' })
+    await vi.advanceTimersByTimeAsync(0)
+
+    expect(tab.url).toBe('https://example.com')
+    expect(tab.status).toBe(BrowserPageStatus.Ready)
+  })
+
+  it('cancels a pending readiness probe without dispatching the requested command', async () => {
+    const { tab, webContents, cdpManager } = createTab()
+    await makePageInteractive(tab, webContents)
+    webContents.emitStartNavigation('https://example.com/next')
+    const controller = new AbortController()
+    let finishProbe!: (result: any) => void
+    cdpManager.evaluateScript.mockImplementationOnce(
+      () =>
+        new Promise<any>((resolve) => {
+          finishProbe = resolve
+        })
+    )
+    const command = tab.sendCdpCommand(
+      'Runtime.evaluate',
+      undefined,
+      undefined,
+      undefined,
+      controller.signal
+    )
+    await vi.advanceTimersByTimeAsync(2000)
+    expect(cdpManager.evaluateScript).toHaveBeenCalledOnce()
+
+    controller.abort()
+    await expect(command).rejects.toMatchObject({ name: 'AbortError' })
+    finishProbe({ readyState: 'complete', hasBody: true, href: 'https://example.com/late' })
+    await vi.advanceTimersByTimeAsync(0)
+
+    expect(webContents.debugger.sendCommand).not.toHaveBeenCalled()
+    expect(tab.url).toBe('https://example.com/next')
+    expect(tab.status).toBe(BrowserPageStatus.Loading)
+  })
+
+  it('still fails immediately when the page is not loading', async () => {
+    const { tab, webContents } = createTab()
+
+    const screenshotPromise = tab.takeScreenshot()
+    await Promise.resolve()
+
+    await expect(screenshotPromise).rejects.toThrow(
+      'YoBrowser page is not ready to capture screenshot. Retry this request. url=about:blank status=idle'
+    )
+    expect(webContents.debugger.sendCommand).not.toHaveBeenCalled()
+  })
+
+  it('commits immediately before sending a CDP command', async () => {
+    const { tab, webContents } = createTab()
+    const order: string[] = []
+    webContents.debugger.sendCommand.mockImplementation(async () => {
+      order.push('target')
+      return {}
+    })
+
+    await tab.sendCdpCommand('Page.reload', undefined, () => order.push('commit'))
+
+    expect(order).toEqual(['commit', 'target'])
+  })
+
+  it('does not commit when CDP readiness or session validation fails', async () => {
+    const { tab, webContents, cdpManager } = createTab()
+    const beforeDispatch = vi.fn()
+
+    await expect(
+      tab.sendCdpCommand('Runtime.evaluate', undefined, beforeDispatch)
+    ).rejects.toMatchObject({ name: 'YoBrowserNotReadyError' })
+    expect(beforeDispatch).not.toHaveBeenCalled()
+
+    cdpManager.createSession.mockRejectedValueOnce(new Error('debugger unavailable'))
+    await expect(tab.sendCdpCommand('Page.reload', undefined, beforeDispatch)).rejects.toThrow(
+      'debugger unavailable'
+    )
+    expect(beforeDispatch).not.toHaveBeenCalled()
+    expect(webContents.debugger.sendCommand).not.toHaveBeenCalled()
+  })
+
+  it('prevents CDP dispatch when the commit fails', async () => {
+    const { tab, webContents } = createTab()
+    const journalError = new Error('journal unavailable')
+
+    await expect(
+      tab.sendCdpCommand('Page.reload', undefined, () => {
+        throw journalError
+      })
+    ).rejects.toBe(journalError)
+
+    expect(webContents.debugger.sendCommand).not.toHaveBeenCalled()
+  })
+
+  it('commits immediately before navigation and prevents it on commit failure', async () => {
+    const { tab, webContents } = createTab()
+    const order: string[] = []
+    webContents.loadURL.mockImplementationOnce((url: string) => {
+      order.push('target')
+      webContents.url = url
+      webContents.loading = true
+      webContents.emit('did-start-loading')
+      return new Promise<void>((resolve, reject) => {
+        webContents.pendingLoad = { resolve, reject }
+      })
+    })
+
+    const navigationPromise = tab.navigateUntilDomReady('https://example.com', 30000, () =>
+      order.push('commit')
+    )
+    await Promise.resolve()
+    expect(order).toEqual(['commit', 'target'])
+    webContents.emitDomReady()
+    await navigationPromise
+    webContents.finishLoad()
+
+    const journalError = new Error('journal unavailable')
+    await expect(
+      tab.navigateUntilDomReady('https://example.com/blocked', 30000, () => {
+        throw journalError
+      })
+    ).rejects.toBe(journalError)
+    expect(webContents.loadURL).toHaveBeenCalledOnce()
+
+    const beforeDispatch = vi.fn()
+    webContents.destroyed = true
+    await expect(
+      tab.navigateUntilDomReady('https://example.com/destroyed', 30000, beforeDispatch)
+    ).rejects.toThrow('Page is no longer available')
+    expect(beforeDispatch).not.toHaveBeenCalled()
+    expect(webContents.loadURL).toHaveBeenCalledOnce()
+  })
+
+  it('allows cdp exploration after dom-ready even if loading restarts', async () => {
+    const { tab, webContents } = createTab()
+
+    await makePageInteractive(tab, webContents)
+
+    webContents.loading = true
+    webContents.emit('did-start-loading')
+
+    await expect(tab.sendCdpCommand('Runtime.evaluate')).resolves.toEqual({})
+    expect(tab.status).toBe(BrowserPageStatus.Loading)
+
+    webContents.loading = false
+    webContents.emit('did-stop-loading')
+    expect(tab.status).toBe(BrowserPageStatus.Ready)
+  })
+
+  it('re-blocks cdp exploration for a new main-frame navigation until the next interactive event', async () => {
+    const { tab, webContents } = createTab()
+
+    await makePageInteractive(tab, webContents)
+
+    webContents.emitStartNavigation('https://example.com/next')
+    webContents.loading = true
+    webContents.emit('did-start-loading')
+
+    const commandPromise = tab.sendCdpCommand('Runtime.evaluate')
+    await Promise.resolve()
+    expect(webContents.debugger.sendCommand).not.toHaveBeenCalled()
+
+    webContents.emitDomReady()
+    await expect(commandPromise).resolves.toEqual({})
+  })
+
+  it('ignores same-document and subframe navigations for interactive readiness', async () => {
+    const { tab, webContents } = createTab()
+
+    await makePageInteractive(tab, webContents)
+
+    webContents.emitStartNavigation('https://example.com#section', { isSameDocument: true })
+    await expect(tab.sendCdpCommand('Runtime.evaluate')).resolves.toEqual({})
+
+    webContents.emitStartNavigation('https://ads.example.com', { isMainFrame: false })
+    await expect(tab.sendCdpCommand('Runtime.evaluate')).resolves.toEqual({})
+  })
+
+  it('updates page info for in-page navigations without resetting readiness', async () => {
+    const { tab, webContents } = createTab()
+
+    await makePageInteractive(tab, webContents)
+
+    const beforeNavigation = tab.toPageInfo()
+    vi.advanceTimersByTime(10)
+
+    webContents.emitInPageNavigation('https://example.com#section')
+
+    const afterNavigation = tab.toPageInfo()
+    expect(afterNavigation.url).toBe('https://example.com#section')
+    expect(afterNavigation.updatedAt).toBeGreaterThan(beforeNavigation.updatedAt)
+    await expect(tab.sendCdpCommand('Runtime.evaluate')).resolves.toEqual({})
+  })
+
+  it('allows exploration after timeout when the renderer probe finds a live document', async () => {
+    const { tab, webContents, cdpManager } = createTab()
+
+    webContents.debugger.sendCommand.mockImplementation(async (method: string, params?: any) => {
+      if (method === 'Page.navigate') {
+        if (typeof params?.url === 'string') {
+          webContents.url = params.url
+        }
+        return { frameId: 'frame-1', loaderId: 'loader-1' }
+      }
+      return {}
+    })
+
+    await expect(
+      tab.sendCdpCommand('Page.navigate', { url: 'https://example.com/probe' })
+    ).resolves.toEqual({ frameId: 'frame-1', loaderId: 'loader-1' })
+
+    cdpManager.evaluateScript.mockResolvedValueOnce({
+      readyState: 'complete',
+      hasBody: true,
+      href: 'https://example.com/probe'
+    })
+
+    const commandPromise = tab.sendCdpCommand('Runtime.evaluate')
+    await vi.advanceTimersByTimeAsync(2000)
+
+    await expect(commandPromise).resolves.toEqual({})
+    expect(tab.status).toBe(BrowserPageStatus.Loading)
+    expect(cdpManager.evaluateScript).toHaveBeenCalledWith(
+      webContents.debugger,
+      expect.stringContaining('document.readyState')
+    )
+    expect(webContents.debugger.sendCommand).toHaveBeenLastCalledWith('Runtime.evaluate', {})
+  })
+
+  it('does not treat loading documents with a body as interactive during the renderer probe', async () => {
+    const { tab, webContents, cdpManager } = createTab()
+
+    webContents.debugger.sendCommand.mockImplementation(async (method: string, params?: any) => {
+      if (method === 'Page.navigate') {
+        if (typeof params?.url === 'string') {
+          webContents.url = params.url
+        }
+        return { frameId: 'frame-1', loaderId: 'loader-1' }
+      }
+      return {}
+    })
+
+    await expect(
+      tab.sendCdpCommand('Page.navigate', { url: 'https://example.com/loading-probe' })
+    ).resolves.toEqual({ frameId: 'frame-1', loaderId: 'loader-1' })
+
+    cdpManager.evaluateScript.mockResolvedValueOnce({
+      readyState: 'loading',
+      hasBody: true,
+      href: 'https://example.com/loading-probe'
+    })
+
+    const commandPromise = tab.sendCdpCommand('Runtime.evaluate')
+    const rejection = expect(commandPromise).rejects.toThrow(
+      'YoBrowser page is not ready to send CDP command Runtime.evaluate. Retry this request. url=https://example.com/loading-probe status=loading'
+    )
+    await vi.advanceTimersByTimeAsync(2000)
+
+    await rejection
+    expect(webContents.debugger.sendCommand).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not treat body-less documents as interactive during the renderer probe', async () => {
+    const { tab, webContents, cdpManager } = createTab()
+
+    webContents.debugger.sendCommand.mockImplementation(async (method: string, params?: any) => {
+      if (method === 'Page.navigate') {
+        if (typeof params?.url === 'string') {
+          webContents.url = params.url
+        }
+        return { frameId: 'frame-1', loaderId: 'loader-1' }
+      }
+      return {}
+    })
+
+    await expect(
+      tab.sendCdpCommand('Page.navigate', { url: 'https://example.com/bodyless-probe' })
+    ).resolves.toEqual({ frameId: 'frame-1', loaderId: 'loader-1' })
+
+    cdpManager.evaluateScript.mockResolvedValueOnce({
+      readyState: 'complete',
+      hasBody: false,
+      href: 'https://example.com/bodyless-probe'
+    })
+
+    const commandPromise = tab.sendCdpCommand('Runtime.evaluate')
+    const rejection = expect(commandPromise).rejects.toThrow(
+      'YoBrowser page is not ready to send CDP command Runtime.evaluate. Retry this request. url=https://example.com/bodyless-probe status=loading'
+    )
+    await vi.advanceTimersByTimeAsync(2000)
+
+    await rejection
+    expect(webContents.debugger.sendCommand).toHaveBeenCalledTimes(1)
+  })
+
+  it('marks Page.navigate as loading so the next tool waits for the new document', async () => {
+    const { tab, webContents, screenshotManager } = createTab()
+
+    webContents.debugger.sendCommand.mockImplementation(async (method: string, params?: any) => {
+      if (method === 'Page.navigate') {
+        if (typeof params?.url === 'string') {
+          webContents.url = params.url
+        }
+        webContents.loading = true
+        webContents.emit('did-start-loading')
+        return { frameId: 'frame-1', loaderId: 'loader-1' }
+      }
+      return {}
+    })
+
+    const firstNavigation = tab.navigateUntilDomReady('https://example.com')
+    await Promise.resolve()
+    webContents.emitDomReady()
+    await firstNavigation
+    webContents.finishLoad()
+
+    await expect(
+      tab.sendCdpCommand('Page.navigate', { url: 'https://example.com/next' })
+    ).resolves.toEqual({ frameId: 'frame-1', loaderId: 'loader-1' })
+
+    const screenshotPromise = tab.takeScreenshot()
+    await Promise.resolve()
+    expect(screenshotManager.captureScreenshot).not.toHaveBeenCalled()
+
+    webContents.emitDomReady()
+    await expect(screenshotPromise).resolves.toBe('image-data')
+  })
+
+  it('does not reset readiness for same-document Page.navigate responses without loaderId', async () => {
+    const { tab, webContents } = createTab()
+
+    await makePageInteractive(tab, webContents)
+
+    webContents.debugger.sendCommand.mockImplementation(async (method: string) => {
+      if (method === 'Page.navigate') {
+        return { frameId: 'frame-1' }
+      }
+      return {}
+    })
+
+    await expect(
+      tab.sendCdpCommand('Page.navigate', { url: 'https://example.com#section' })
+    ).resolves.toEqual({ frameId: 'frame-1' })
+
+    await expect(tab.sendCdpCommand('Runtime.evaluate')).resolves.toEqual({})
+    expect(tab.status).toBe(BrowserPageStatus.Ready)
+  })
+
+  it('does not reset readiness for failed Page.navigate responses with errorText', async () => {
+    const { tab, webContents } = createTab()
+
+    await makePageInteractive(tab, webContents)
+
+    webContents.debugger.sendCommand.mockImplementation(async (method: string) => {
+      if (method === 'Page.navigate') {
+        return {
+          frameId: 'frame-1',
+          loaderId: 'loader-1',
+          errorText: 'net::ERR_ABORTED'
+        }
+      }
+      return {}
+    })
+
+    await expect(
+      tab.sendCdpCommand('Page.navigate', { url: 'https://example.com/fail' })
+    ).resolves.toEqual({
+      frameId: 'frame-1',
+      loaderId: 'loader-1',
+      errorText: 'net::ERR_ABORTED'
+    })
+
+    await expect(tab.sendCdpCommand('Runtime.evaluate')).resolves.toEqual({})
+    expect(tab.status).toBe(BrowserPageStatus.Ready)
+  })
+
+  it('does not touch debugger state after webContents is already destroyed', () => {
+    const { tab, webContents } = createTab()
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    webContents.destroyed = true
+    Object.defineProperty(webContents, 'debugger', {
+      get: () => {
+        throw new TypeError('Object has been destroyed')
+      }
+    })
+
+    expect(() => tab.destroy()).not.toThrow()
+    expect(warnSpy).not.toHaveBeenCalled()
+  })
+
+  it('suppresses debugger detach races caused by destroyed Electron objects', () => {
+    const { tab, webContents } = createTab()
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    Object.defineProperty(webContents, 'debugger', {
+      get: () => {
+        throw new TypeError('Object has been destroyed')
+      }
+    })
+
+    expect(() => tab.destroy()).not.toThrow()
+    expect(warnSpy).not.toHaveBeenCalled()
+  })
+})

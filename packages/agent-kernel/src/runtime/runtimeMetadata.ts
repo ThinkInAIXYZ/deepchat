@@ -1,4 +1,4 @@
-import type { InteractionResolution, MessageMetadata } from '@deepchat/shared/types/agent-interface'
+import type { InteractionResolution, MessageMetadata } from '../shared/types/agent-interface.js'
 
 export function incrementToolCallAccounting(metadata: MessageMetadata): MessageMetadata {
   const currentToolCalls =

@@ -12,44 +12,44 @@ const REPORT_PATH = path.join(
 const apps = [
   {
     id: 'chat-main',
-    html: 'src/renderer/index.html',
-    entry: 'src/renderer/src/main.ts'
+    html: 'packages/desktop/src/renderer/index.html',
+    entry: 'packages/desktop/src/renderer/src/main.ts'
   },
   {
     id: 'browser-overlay',
-    html: 'src/renderer/browser-overlay/index.html',
-    entry: 'src/renderer/browser-overlay/main.ts'
+    html: 'packages/desktop/src/renderer/browser-overlay/index.html',
+    entry: 'packages/desktop/src/renderer/browser-overlay/main.ts'
   },
   {
     id: 'floating',
-    html: 'src/renderer/floating/index.html',
-    entry: 'src/renderer/floating/main.ts'
+    html: 'packages/desktop/src/renderer/floating/index.html',
+    entry: 'packages/desktop/src/renderer/floating/main.ts'
   },
   {
     id: 'splash',
-    html: 'src/renderer/splash/index.html',
-    entry: 'src/renderer/splash/main.ts'
+    html: 'packages/desktop/src/renderer/splash/index.html',
+    entry: 'packages/desktop/src/renderer/splash/main.ts'
   },
   {
     id: 'settings',
-    html: 'src/renderer/settings/index.html',
-    entry: 'src/renderer/settings/main.ts'
+    html: 'packages/desktop/src/renderer/settings/index.html',
+    entry: 'packages/desktop/src/renderer/settings/main.ts'
   }
 ]
 
 const sharedServices = [
   {
     id: 'notifications',
-    root: 'src/renderer/services/notifications'
+    root: 'packages/desktop/src/renderer/services/notifications'
   }
 ]
 
 const appSourceRoots = [
-  'src/renderer/src',
-  'src/renderer/browser-overlay',
-  'src/renderer/floating',
-  'src/renderer/splash',
-  'src/renderer/settings'
+  'packages/desktop/src/renderer/src',
+  'packages/desktop/src/renderer/browser-overlay',
+  'packages/desktop/src/renderer/floating',
+  'packages/desktop/src/renderer/splash',
+  'packages/desktop/src/renderer/settings'
 ]
 
 const exists = async (relativePath) => {
@@ -78,7 +78,7 @@ const isSourceFile = (file) => /\.(?:ts|tsx|vue|js|jsx)$/.test(file)
 const importPattern = /(?:from\s+|import\s*\(\s*|import\s+)(['"])([^'"]+)\1/g
 
 const collectSettingsToChatImports = async () => {
-  const files = (await walk('src/renderer/settings')).filter(isSourceFile)
+  const files = (await walk('packages/desktop/src/renderer/settings')).filter(isSourceFile)
   const imports = []
 
   for (const file of files) {
@@ -97,9 +97,9 @@ const collectSettingsToChatImports = async () => {
 }
 
 const collectSharedServiceToAppImports = async () => {
-  if (!(await exists('src/renderer/services'))) return []
+  if (!(await exists('packages/desktop/src/renderer/services'))) return []
 
-  const files = (await walk('src/renderer/services')).filter(isSourceFile)
+  const files = (await walk('packages/desktop/src/renderer/services')).filter(isSourceFile)
   const imports = []
 
   for (const file of files) {
@@ -108,7 +108,7 @@ const collectSharedServiceToAppImports = async () => {
       const specifier = match[2]
       let target
       if (specifier.startsWith('@/')) {
-        target = path.join('src/renderer/src', specifier.slice(2))
+        target = path.join('packages/desktop/src/renderer/src', specifier.slice(2))
       } else if (specifier.startsWith('.')) {
         target = path.normalize(path.join(path.dirname(file), specifier))
       }
@@ -132,7 +132,7 @@ const main = async () => {
     await Promise.all([
       collectSettingsToChatImports(),
       collectSharedServiceToAppImports(),
-      exists('src/renderer/browser')
+      exists('packages/desktop/src/renderer/browser')
     ])
   const appStatus = await Promise.all(
     apps.map(async (app) => ({
@@ -156,7 +156,7 @@ const main = async () => {
     sharedServiceToAppImportCount: sharedServiceToAppImports.length,
     browser: {
       legacyDirectoryExists: legacyBrowserDirectoryExists,
-      activeOverlayDirectory: 'src/renderer/browser-overlay'
+      activeOverlayDirectory: 'packages/desktop/src/renderer/browser-overlay'
     },
     settingsToChatAppImports: settingsToChatImports,
     settingsToChatAppImportCount: settingsToChatImports.length

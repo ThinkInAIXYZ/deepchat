@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { jsonrepair } from 'jsonrepair'
-import type { QuestionInfo } from '@deepchat/shared/types/core/question'
+import type { QuestionInfo } from '../../../shared/types/core/question.js'
 
 export const QUESTION_TOOL_NAME = 'deepchat_question'
 export const QUESTION_TOOL_CONTRACT_HINT =

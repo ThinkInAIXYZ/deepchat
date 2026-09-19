@@ -1,12 +1,12 @@
 import { randomUUID } from 'node:crypto'
-import type { AssistantMessageBlock } from '@deepchat/shared/types/agent-interface'
+import type { AssistantMessageBlock } from '../shared/types/agent-interface.js'
 import type {
   MCPToolCall,
   MCPToolResponse,
   ToolCallImagePreview,
   ToolDispatchCommitInput,
   ToolOutcomeProjection
-} from '@deepchat/shared/types/core/mcp'
+} from '../shared/types/core/mcp.js'
 import type { ToolExecutionPort, ToolResultPort } from '../loop/ports.js'
 
 import { awaitWithAbort } from '../collab/lib/awaitWithAbort.js'
@@ -34,12 +34,12 @@ import type { SessionIdentityService } from './sessionIdentityService.js'
 import type { SessionSettingsCoordinator } from './sessionSettingsCoordinator.js'
 import type { SessionStateResolver } from './sessionStateResolver.js'
 import { toolContentToText } from './toolAdapters.js'
-import { isUserConfigurableAgentTool } from '@deepchat/shared/agentTools'
-import type { DeepChatExecutionContract } from '@deepchat/shared/types/execution-contract'
-import { CommandShellProfileSchema, type CommandShellProfile } from '@deepchat/shared/commandShell'
+import { isUserConfigurableAgentTool } from '../shared/agentTools.js'
+import type { DeepChatExecutionContract } from '../shared/types/execution-contract.js'
+import { CommandShellProfileSchema, type CommandShellProfile } from '../shared/commandShell.js'
 
 import type { ToolSurfaceDeferredDispatch } from './toolSurface.js'
-import type { ToolPermissionLeaseCapability } from '@deepchat/shared/types/tool'
+import type { ToolPermissionLeaseCapability } from '../shared/types/tool.js'
 
 import {
   isProgrammaticCommandLaunchError,

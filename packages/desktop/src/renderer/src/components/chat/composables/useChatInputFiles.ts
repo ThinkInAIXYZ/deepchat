@@ -1,0 +1,272 @@
+import { ref, type Ref } from 'vue'
+import type { MessageFile } from '@shared/types/agent-interface'
+import { createFileClient } from '@api/FileClient'
+import { notifyRenderer } from '@renderer-notifications/rendererNotificationPort'
+import { calculateImageTokens, getClipboardImageInfo, imageFileToBase64 } from '@/lib/image'
+import { estimateTokenCount } from 'tokenx'
+
+export interface PromptFileItem {
+  id: string
+  name: string
+  type: string
+  size: number
+  path: string
+  description?: string
+  content?: string
+  createdAt: number
+}
+
+export function useChatInputFiles(
+  fileInput: Ref<HTMLInputElement | undefined>,
+  emit: (event: 'file-upload', files: MessageFile[]) => void,
+  t: (key: string, params?: any) => string
+) {
+  const fileClient = createFileClient()
+  const selectedFiles = ref<MessageFile[]>([])
+
+  const getDisplayFileName = (file: File): string => {
+    return file.name?.trim() || t('chat.input.unnamedFile')
+  }
+
+  const formatFailedFileNames = (fileNames: string[]): string => {
+    const visibleNames = fileNames.slice(0, 3).join(', ')
+    const remainingCount = fileNames.length - 3
+    if (remainingCount <= 0) {
+      return visibleNames
+    }
+
+    return `${visibleNames}${t('chat.input.fileUploadFailedMore', { count: remainingCount })}`
+  }
+
+  const showFileProcessingError = (fileNames: string[]) => {
+    if (fileNames.length === 0) {
+      return
+    }
+
+    notifyRenderer({
+      kind: 'error',
+      code: 'chat.attachment.processingFailed',
+      title: t('chat.input.fileUploadFailed'),
+      description: t('chat.input.fileUploadFailedDesc', {
+        count: fileNames.length,
+        names: formatFailedFileNames(fileNames)
+      })
+    })
+  }
+
+  const processFile = async (file: File, isImage: boolean = false): Promise<MessageFile | null> => {
+    try {
+      if (isImage || file.type.startsWith('image/')) {
+        const base64 = (await imageFileToBase64(file)) as string
+        const imageInfo = await getClipboardImageInfo(file)
+
+        const tempFilePath = await fileClient.writeImageBase64({
+          name: file.name ?? 'image',
+          content: base64
+        })
+
+        return {
+          name: file.name ?? 'image',
+          content: base64,
+          mimeType: file.type,
+          metadata: {
+            fileName: file.name ?? 'image',
+            fileSize: file.size,
+            fileDescription: file.type,
+            fileCreated: new Date().toISOString(),
+            fileModified: new Date().toISOString()
+          },
+          token: calculateImageTokens(imageInfo.width, imageInfo.height),
+          path: tempFilePath,
+          thumbnail: imageInfo.compressedBase64
+        }
+      }
+
+      const path = fileClient.getPathForFile(file)
+      if (!path) {
+        throw new Error(`Cannot resolve file path for ${getDisplayFileName(file)}`)
+      }
+      const mimeType = await fileClient.getMimeType(path)
+      return await fileClient.prepareFile(path, mimeType)
+    } catch (error) {
+      console.error('File processing failed:', error)
+      return null
+    }
+  }
+
+  const processDroppedFile = async (file: File): Promise<MessageFile | null> => {
+    try {
+      const path = fileClient.getPathForFile(file)
+      if (!path) {
+        throw new Error(`Cannot resolve file path for ${getDisplayFileName(file)}`)
+      }
+
+      if (file.type === '') {
+        const isDirectory = await fileClient.isDirectory(path)
+        if (isDirectory) {
+          return await fileClient.prepareDirectory(path)
+        }
+      }
+
+      const mimeType = await fileClient.getMimeType(path)
+      return await fileClient.prepareFile(path, mimeType)
+    } catch (error) {
+      console.error('Dropped file processing failed:', error)
+      return null
+    }
+  }
+
+  const emitFiles = () => emit('file-upload', selectedFiles.value)
+
+  const processIncomingFiles = async (
+    files: FileList,
+    processor: (file: File) => Promise<MessageFile | null>
+  ) => {
+    let addedCount = 0
+    const failedFileNames: string[] = []
+
+    for (const file of Array.from(files)) {
+      const fileInfo = await processor(file)
+      if (fileInfo) {
+        selectedFiles.value.push(fileInfo)
+        addedCount += 1
+      } else {
+        failedFileNames.push(getDisplayFileName(file))
+      }
+    }
+
+    if (addedCount > 0) {
+      emitFiles()
+    }
+
+    showFileProcessingError(failedFileNames)
+  }
+
+  const handleFileSelect = async (e: Event) => {
+    const files = (e.target as HTMLInputElement).files
+
+    if (files && files.length > 0) {
+      await processIncomingFiles(files, (file) => processFile(file))
+    }
+
+    if (e.target) {
+      ;(e.target as HTMLInputElement).value = ''
+    }
+  }
+
+  const handlePaste = async (e: ClipboardEvent, fromCapture = false) => {
+    if (!fromCapture && (e as any)?._deepchatHandled) return
+    ;(e as any)._deepchatHandled = true
+
+    const files = e.clipboardData?.files
+    if (files && files.length > 0) {
+      await processIncomingFiles(files, (file) => processFile(file, file.type.startsWith('image/')))
+    }
+  }
+
+  const handleDrop = async (files: FileList) => {
+    await processIncomingFiles(files, processDroppedFile)
+  }
+
+  const deleteFile = (idx: number) => {
+    selectedFiles.value.splice(idx, 1)
+    emitFiles()
+    if (fileInput.value) {
+      fileInput.value.value = ''
+    }
+  }
+
+  const updateFile = (idx: number, update: Partial<MessageFile>) => {
+    const current = selectedFiles.value[idx]
+    if (!current) {
+      return
+    }
+
+    selectedFiles.value.splice(idx, 1, { ...current, ...update })
+    emitFiles()
+  }
+
+  const clearFiles = () => {
+    selectedFiles.value = []
+    emitFiles()
+    if (fileInput.value) {
+      fileInput.value.value = ''
+    }
+  }
+
+  const handlePromptFiles = async (files: PromptFileItem[]) => {
+    if (!files || files.length === 0) return
+
+    let addedCount = 0
+    let errorCount = 0
+
+    for (const fileItem of files) {
+      try {
+        const exists = selectedFiles.value.some((f) => f.name === fileItem.name)
+        if (exists) {
+          continue
+        }
+
+        const messageFile: MessageFile = {
+          name: fileItem.name,
+          content: fileItem.content || '',
+          mimeType: fileItem.type || 'application/octet-stream',
+          metadata: {
+            fileName: fileItem.name,
+            fileSize: fileItem.size || 0,
+            fileDescription: fileItem.description || '',
+            fileCreated: new Date(fileItem.createdAt || Date.now()).toISOString(),
+            fileModified: new Date(fileItem.createdAt || Date.now()).toISOString()
+          },
+          token: estimateTokenCount(fileItem.content || ''),
+          path: fileItem.path || fileItem.name
+        }
+
+        if (!messageFile.content && fileItem.path) {
+          try {
+            const fileContent = await fileClient.readFile(fileItem.path)
+            messageFile.content = fileContent
+            messageFile.token = estimateTokenCount(fileContent)
+          } catch (error) {
+            console.warn(`Failed to read file content: ${fileItem.path}`, error)
+          }
+        }
+
+        selectedFiles.value.push(messageFile)
+        addedCount++
+      } catch (error) {
+        console.error('Failed to process prompt file:', fileItem, error)
+        errorCount++
+      }
+    }
+
+    if (addedCount > 0) {
+      emitFiles()
+    }
+
+    if (errorCount > 0) {
+      notifyRenderer({
+        kind: 'error',
+        code: 'chat.promptAttachment.addFailed',
+        title: t('chat.input.promptFilesError'),
+        description: t('chat.input.promptFilesErrorDesc', { count: errorCount })
+      })
+    }
+  }
+
+  const openFilePicker = () => {
+    fileInput.value?.click()
+  }
+
+  return {
+    selectedFiles,
+    handleFileSelect,
+    handlePaste,
+    handleDrop,
+    deleteFile,
+    updateFile,
+    clearFiles,
+    handlePromptFiles,
+    openFilePicker
+  }
+}

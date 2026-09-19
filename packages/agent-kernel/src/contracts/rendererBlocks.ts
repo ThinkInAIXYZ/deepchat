@@ -1,6 +1,6 @@
 import type { z } from 'zod'
-import { AssistantMessageBlockSchema } from '@deepchat/shared/contracts/common'
-import type { AssistantMessageBlock } from '@deepchat/shared/types/agent-interface'
+import { AssistantMessageBlockSchema } from '../shared/contracts/common.js'
+import type { AssistantMessageBlock } from '../shared/types/agent-interface.js'
 
 const RenderedAssistantBlocksSchema = AssistantMessageBlockSchema.array()
 

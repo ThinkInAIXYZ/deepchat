@@ -1,0 +1,724 @@
+import type { DeepchatBridge } from '@shared/contracts/bridge'
+import {
+  sessionsAcpCommandsReadyEvent,
+  sessionsAcpConfigOptionsReadyEvent,
+  sessionsAcpModesReadyEvent,
+  sessionsCompactionChangedEvent,
+  sessionsMessagesChangedEvent,
+  sessionsPendingInputsChangedEvent,
+  sessionsStatusChangedEvent,
+  sessionsTapeInspectorHeadChangedEvent,
+  sessionsUpdatedEvent,
+  type DeepchatEventPayload
+} from '@shared/contracts/events'
+import type { DeepchatRouteInput } from '@shared/contracts/routes'
+import {
+  sessionsActivateRoute,
+  sessionsClearMessagesRoute,
+  sessionsCompactRoute,
+  sessionsCreateRoute,
+  sessionsDeleteAgentSessionsRoute,
+  sessionsDeleteMessageRoute,
+  sessionsDeletePendingInputRoute,
+  sessionsDeleteRoute,
+  sessionsDeactivateRoute,
+  sessionsEditUserMessageRoute,
+  sessionsEnsureAcpDraftRoute,
+  sessionsExportTapeInspectorSupportTraceRoute,
+  sessionsExportRoute,
+  sessionsForkRoute,
+  sessionsGetAcpSessionCommandsRoute,
+  sessionsGetAcpSessionConfigOptionsRoute,
+  sessionsGetActiveRoute,
+  sessionsGetAgentsRoute,
+  sessionsGetAgentTransferImpactRoute,
+  sessionsGetCompactionSnapshotRoute,
+  sessionsGetContextOccupancyRoute,
+  sessionsGetDisabledAgentToolsRoute,
+  sessionsGetTapeInspectorRecordDetailRoute,
+  sessionsGetLightweightByIdsRoute,
+  sessionsGetGenerationSettingsRoute,
+  sessionsGetPermissionModeRoute,
+  sessionsGetSearchResultsRoute,
+  sessionsGetTapeContextRoute,
+  sessionsGetUsageDashboardRoute,
+  sessionsListLightweightRoute,
+  sessionsListMessagesPageRoute,
+  sessionsListRoute,
+  sessionsListMessageTracesRoute,
+  sessionsListPendingInputsRoute,
+  sessionsListTapeInspectorEvidenceRoute,
+  sessionsListTapeInspectorPageRoute,
+  sessionsResolveTapeInspectorEvidenceEntriesRoute,
+  sessionsSubscribeTapeInspectorHeadRoute,
+  sessionsUnsubscribeTapeInspectorHeadRoute,
+  sessionsMoveAgentSessionsRoute,
+  sessionsMoveQueuedInputRoute,
+  sessionsMoveToAgentRoute,
+  sessionsQueuePendingInputRoute,
+  sessionsRenameRoute,
+  sessionsResolveBlockedPendingInputRoute,
+  sessionsResumePendingQueueRoute,
+  sessionsRetryPendingQueueInputRoute,
+  sessionsRetryRtkHealthCheckRoute,
+  sessionsRetryMessageRoute,
+  sessionsRestoreRoute
+} from '@shared/contracts/routes'
+import {
+  sessionsSearchHistoryRoute,
+  sessionsSetAcpSessionConfigOptionRoute,
+  sessionsSetModelRoute,
+  sessionsSetToolModeRoute,
+  sessionsSetPermissionModeRoute,
+  sessionsSetProjectDirRoute,
+  sessionsSteerPendingInputRoute,
+  sessionsTogglePinnedRoute,
+  sessionsTranslateTextRoute,
+  sessionsUpdateDisabledAgentToolsRoute,
+  sessionsUpdateGenerationSettingsRoute,
+  sessionsUpdateQueuedInputRoute
+} from '@shared/contracts/routes'
+import type {
+  AgentTapeContextOptions,
+  AttachmentFallbackPolicy,
+  ChatMessageRecord,
+  CreateSessionInput,
+  PermissionMode,
+  SendMessageInput
+} from '@shared/types/agent-interface'
+import type { ToolModeOverride } from '@shared/toolMode'
+import type {
+  ExportTapeInspectorSupportTraceInput,
+  GetTapeInspectorRecordDetailInput,
+  ListTapeInspectorEvidenceInput,
+  ListTapeInspectorPageInput,
+  ResolveTapeInspectorEvidenceEntriesInput
+} from '@shared/types/tape-inspector'
+import { getDeepchatBridge } from './core'
+
+export function createSessionClient(bridge: DeepchatBridge = getDeepchatBridge()) {
+  async function create(input: CreateSessionInput, options?: { submissionId?: string }) {
+    return await bridge.invoke(
+      sessionsCreateRoute.name,
+      sessionsCreateRoute.input.parse({
+        ...input,
+        ...(options?.submissionId ? { submissionId: options.submissionId } : {})
+      })
+    )
+  }
+
+  async function restore(sessionId: string, limit?: number) {
+    return await bridge.invoke(sessionsRestoreRoute.name, { sessionId, limit })
+  }
+
+  async function listMessagesPage(
+    sessionId: string,
+    options?: {
+      cursor?: { orderSeq: number; id: string } | null
+      limit?: number
+    }
+  ) {
+    return await bridge.invoke(
+      sessionsListMessagesPageRoute.name,
+      sessionsListMessagesPageRoute.input.parse({
+        sessionId,
+        cursor: options?.cursor,
+        limit: options?.limit
+      })
+    )
+  }
+
+  async function activate(sessionId: string) {
+    return await bridge.invoke(sessionsActivateRoute.name, { sessionId })
+  }
+
+  async function deactivate() {
+    return await bridge.invoke(sessionsDeactivateRoute.name, {})
+  }
+
+  async function getActive() {
+    return await bridge.invoke(sessionsGetActiveRoute.name, {})
+  }
+
+  async function list(filters?: {
+    agentId?: string
+    projectDir?: string
+    includeSubagents?: boolean
+    parentSessionId?: string
+  }) {
+    return await bridge.invoke(sessionsListRoute.name, filters ?? {})
+  }
+
+  async function listLightweight(input?: {
+    limit?: number
+    cursor?: { updatedAt: number; id: string } | null
+    includeSubagents?: boolean
+    includeDrafts?: boolean
+    projectDir?: string
+    agentId?: string
+    prioritizeSessionId?: string
+  }) {
+    return await bridge.invoke(sessionsListLightweightRoute.name, input ?? {})
+  }
+
+  async function getLightweightByIds(sessionIds: string[]) {
+    const result = await bridge.invoke(sessionsGetLightweightByIdsRoute.name, { sessionIds })
+    return result.items
+  }
+
+  async function ensureAcpDraftSession(input: {
+    agentId: string
+    projectDir: string
+    permissionMode?: PermissionMode
+  }) {
+    const result = await bridge.invoke(sessionsEnsureAcpDraftRoute.name, input)
+    return result
+  }
+
+  async function listPendingInputs(sessionId: string) {
+    return await bridge.invoke(sessionsListPendingInputsRoute.name, { sessionId })
+  }
+
+  async function resumePendingQueue(sessionId: string) {
+    return await bridge.invoke(sessionsResumePendingQueueRoute.name, { sessionId })
+  }
+
+  async function retryPendingQueueInput(sessionId: string, itemId: string) {
+    return await bridge.invoke(sessionsRetryPendingQueueInputRoute.name, { sessionId, itemId })
+  }
+
+  async function queuePendingInput(sessionId: string, content: string | SendMessageInput) {
+    const input = sessionsQueuePendingInputRoute.input.parse({ sessionId, content })
+    const result = await bridge.invoke(sessionsQueuePendingInputRoute.name, input)
+    return result.item
+  }
+
+  async function updateQueuedInput(
+    sessionId: string,
+    itemId: string,
+    content: string | SendMessageInput
+  ) {
+    const input = sessionsUpdateQueuedInputRoute.input.parse({ sessionId, itemId, content })
+    const result = await bridge.invoke(sessionsUpdateQueuedInputRoute.name, input)
+    return result.item
+  }
+
+  async function moveQueuedInput(sessionId: string, itemId: string, toIndex: number) {
+    const result = await bridge.invoke(sessionsMoveQueuedInputRoute.name, {
+      sessionId,
+      itemId,
+      toIndex
+    })
+    return result.items
+  }
+
+  async function steerPendingInput(sessionId: string, itemId: string) {
+    const result = await bridge.invoke(sessionsSteerPendingInputRoute.name, {
+      sessionId,
+      itemId
+    })
+    return result.item
+  }
+
+  async function deletePendingInput(sessionId: string, itemId: string) {
+    await bridge.invoke(sessionsDeletePendingInputRoute.name, {
+      sessionId,
+      itemId
+    })
+  }
+
+  async function resolveBlockedPendingInput(
+    sessionId: string,
+    itemId: string,
+    action: 'retry' | 'send_without_image_content'
+  ) {
+    const result = await bridge.invoke(sessionsResolveBlockedPendingInputRoute.name, {
+      sessionId,
+      itemId,
+      action
+    })
+    return result.item
+  }
+
+  async function retryMessage(
+    sessionId: string,
+    messageId: string,
+    options?: { attachmentFallbackPolicy?: AttachmentFallbackPolicy }
+  ) {
+    return await bridge.invoke(sessionsRetryMessageRoute.name, {
+      sessionId,
+      messageId,
+      ...(options?.attachmentFallbackPolicy
+        ? { attachmentFallbackPolicy: options.attachmentFallbackPolicy }
+        : {})
+    })
+  }
+
+  async function deleteMessage(sessionId: string, messageId: string) {
+    await bridge.invoke(sessionsDeleteMessageRoute.name, { sessionId, messageId })
+  }
+
+  async function editUserMessage(sessionId: string, messageId: string, text: string) {
+    const result = await bridge.invoke(sessionsEditUserMessageRoute.name, {
+      sessionId,
+      messageId,
+      text
+    })
+    return result.message
+  }
+
+  async function forkSession(sourceSessionId: string, targetMessageId: string, newTitle?: string) {
+    const result = await bridge.invoke(sessionsForkRoute.name, {
+      sourceSessionId,
+      targetMessageId,
+      newTitle
+    })
+    return result.session
+  }
+
+  async function searchHistory(query: string, options?: { limit?: number }) {
+    const result = await bridge.invoke(sessionsSearchHistoryRoute.name, {
+      query,
+      options
+    })
+    return result.hits
+  }
+
+  async function getSearchResults(messageId: string, searchId?: string) {
+    const result = await bridge.invoke(sessionsGetSearchResultsRoute.name, {
+      messageId,
+      searchId
+    })
+    return result.results
+  }
+
+  async function getTapeContext(
+    sessionId: string,
+    entryIds: number[],
+    options?: AgentTapeContextOptions
+  ) {
+    const result = await bridge.invoke(sessionsGetTapeContextRoute.name, {
+      sessionId,
+      entryIds,
+      options
+    })
+    return result.context
+  }
+
+  async function listTapeInspectorPage(input: ListTapeInspectorPageInput) {
+    return await bridge.invoke(sessionsListTapeInspectorPageRoute.name, input)
+  }
+
+  async function listTapeInspectorEvidence(input: ListTapeInspectorEvidenceInput) {
+    return await bridge.invoke(sessionsListTapeInspectorEvidenceRoute.name, input)
+  }
+
+  async function resolveTapeInspectorEvidenceEntries(
+    input: ResolveTapeInspectorEvidenceEntriesInput
+  ) {
+    return await bridge.invoke(sessionsResolveTapeInspectorEvidenceEntriesRoute.name, input)
+  }
+
+  async function getTapeInspectorRecordDetail(input: GetTapeInspectorRecordDetailInput) {
+    return await bridge.invoke(sessionsGetTapeInspectorRecordDetailRoute.name, input)
+  }
+
+  async function exportTapeInspectorSupportTrace(input: ExportTapeInspectorSupportTraceInput) {
+    return await bridge.invoke(sessionsExportTapeInspectorSupportTraceRoute.name, input)
+  }
+
+  async function subscribeTapeInspectorHead(sessionId: string, subscriptionId: string) {
+    return await bridge.invoke(sessionsSubscribeTapeInspectorHeadRoute.name, {
+      sessionId,
+      subscriptionId
+    })
+  }
+
+  async function unsubscribeTapeInspectorHead(subscriptionId: string) {
+    return await bridge.invoke(sessionsUnsubscribeTapeInspectorHeadRoute.name, { subscriptionId })
+  }
+
+  async function listMessageTraces(messageId: string) {
+    const result = await bridge.invoke(sessionsListMessageTracesRoute.name, { messageId })
+    return result.traces
+  }
+
+  async function listMessageTraceDiagnostics(messageId: string) {
+    const result = await bridge.invoke(sessionsListMessageTracesRoute.name, { messageId })
+    const manifests = Array.isArray(result.manifests) ? result.manifests : []
+    return {
+      traces: result.traces,
+      manifests,
+      nestedExecutions: result.nestedExecutions
+    }
+  }
+
+  async function listMessageViewManifests(messageId: string) {
+    const result = await bridge.invoke(sessionsListMessageTracesRoute.name, { messageId })
+    const manifests = Array.isArray(result.manifests) ? result.manifests : []
+    return manifests
+  }
+
+  async function translateText(text: string, locale?: string, agentId?: string) {
+    const result = await bridge.invoke(sessionsTranslateTextRoute.name, {
+      text,
+      locale,
+      agentId
+    })
+    return result.text
+  }
+
+  async function getAgents() {
+    const result = await bridge.invoke(sessionsGetAgentsRoute.name, {})
+    return result.agents
+  }
+
+  async function getUsageDashboard() {
+    const result = await bridge.invoke(sessionsGetUsageDashboardRoute.name, {})
+    return result.dashboard
+  }
+
+  async function retryRtkHealthCheck() {
+    const result = await bridge.invoke(sessionsRetryRtkHealthCheckRoute.name, {})
+    return result.retried
+  }
+
+  async function renameSession(sessionId: string, title: string) {
+    const result = await bridge.invoke(sessionsRenameRoute.name, { sessionId, title })
+    return result.session
+  }
+
+  async function toggleSessionPinned(sessionId: string, pinned: boolean) {
+    const result = await bridge.invoke(sessionsTogglePinnedRoute.name, { sessionId, pinned })
+    return result.session
+  }
+
+  async function clearSessionMessages(sessionId: string) {
+    await bridge.invoke(sessionsClearMessagesRoute.name, { sessionId })
+  }
+
+  async function compactSession(sessionId: string) {
+    return await bridge.invoke(sessionsCompactRoute.name, { sessionId })
+  }
+
+  async function getCompactionSnapshot(sessionId: string) {
+    return await bridge.invoke(sessionsGetCompactionSnapshotRoute.name, { sessionId })
+  }
+
+  async function getContextOccupancy(sessionId: string) {
+    return await bridge.invoke(sessionsGetContextOccupancyRoute.name, { sessionId })
+  }
+
+  async function exportSession(
+    sessionId: string,
+    format: 'markdown' | 'html' | 'txt' | 'nowledge-mem'
+  ) {
+    return await bridge.invoke(sessionsExportRoute.name, {
+      sessionId,
+      format
+    })
+  }
+
+  async function deleteSession(sessionId: string) {
+    await bridge.invoke(sessionsDeleteRoute.name, { sessionId })
+  }
+
+  async function getAgentTransferImpact(agentId: string) {
+    const result = await bridge.invoke(sessionsGetAgentTransferImpactRoute.name, { agentId })
+    return result.impact
+  }
+
+  async function moveAgentSessions(fromAgentId: string, toAgentId: string) {
+    return await bridge.invoke(sessionsMoveAgentSessionsRoute.name, {
+      fromAgentId,
+      toAgentId
+    })
+  }
+
+  async function deleteAgentSessions(agentId: string) {
+    const result = await bridge.invoke(sessionsDeleteAgentSessionsRoute.name, { agentId })
+    return result.deletedSessionIds
+  }
+
+  async function moveSessionToAgent(sessionId: string, toAgentId: string) {
+    const result = await bridge.invoke(sessionsMoveToAgentRoute.name, {
+      sessionId,
+      toAgentId
+    })
+    return result.session
+  }
+
+  async function getAcpSessionCommands(sessionId: string) {
+    const result = await bridge.invoke(sessionsGetAcpSessionCommandsRoute.name, { sessionId })
+    return result.commands
+  }
+
+  async function getAcpSessionConfigOptions(sessionId: string) {
+    const result = await bridge.invoke(sessionsGetAcpSessionConfigOptionsRoute.name, {
+      sessionId
+    })
+    return result.state
+  }
+
+  async function setAcpSessionConfigOption(
+    sessionId: string,
+    configId: string,
+    value: string | boolean
+  ) {
+    const result = await bridge.invoke(sessionsSetAcpSessionConfigOptionRoute.name, {
+      sessionId,
+      configId,
+      value
+    })
+    return result.state
+  }
+
+  async function getPermissionMode(sessionId: string) {
+    const result = await bridge.invoke(sessionsGetPermissionModeRoute.name, { sessionId })
+    return result.mode
+  }
+
+  async function setPermissionMode(sessionId: string, mode: PermissionMode) {
+    await bridge.invoke(sessionsSetPermissionModeRoute.name, { sessionId, mode })
+  }
+
+  async function setSessionModel(sessionId: string, providerId: string, modelId: string) {
+    const result = await bridge.invoke(sessionsSetModelRoute.name, {
+      sessionId,
+      providerId,
+      modelId
+    })
+    return result.session
+  }
+
+  async function setSessionToolMode(sessionId: string, override: ToolModeOverride) {
+    const result = await bridge.invoke(sessionsSetToolModeRoute.name, {
+      sessionId,
+      override
+    })
+    return result.session
+  }
+
+  async function setSessionProjectDir(sessionId: string, projectDir: string | null) {
+    const result = await bridge.invoke(sessionsSetProjectDirRoute.name, {
+      sessionId,
+      projectDir
+    })
+    return result.session
+  }
+
+  async function getSessionGenerationSettings(sessionId: string) {
+    const result = await bridge.invoke(sessionsGetGenerationSettingsRoute.name, { sessionId })
+    return result.settings
+  }
+
+  async function getSessionDisabledAgentTools(sessionId: string) {
+    const result = await bridge.invoke(sessionsGetDisabledAgentToolsRoute.name, { sessionId })
+    return result.disabledAgentTools
+  }
+
+  async function updateSessionDisabledAgentTools(sessionId: string, disabledAgentTools: string[]) {
+    const result = await bridge.invoke(sessionsUpdateDisabledAgentToolsRoute.name, {
+      sessionId,
+      disabledAgentTools
+    })
+    return result.disabledAgentTools
+  }
+
+  async function updateSessionGenerationSettings(
+    sessionId: string,
+    settings: DeepchatRouteInput<typeof sessionsUpdateGenerationSettingsRoute.name>['settings']
+  ) {
+    const result = await bridge.invoke(sessionsUpdateGenerationSettingsRoute.name, {
+      sessionId,
+      settings
+    })
+    return result.settings
+  }
+
+  function onUpdated(
+    listener: (payload: {
+      sessionIds: string[]
+      reason: 'created' | 'activated' | 'deactivated' | 'list-refreshed' | 'updated' | 'deleted'
+      activeSessionId?: string | null
+      webContentsId?: number
+    }) => void
+  ) {
+    return bridge.on(sessionsUpdatedEvent.name, listener)
+  }
+
+  function onStatusChanged(
+    listener: (payload: {
+      sessionId: string
+      status: 'idle' | 'generating' | 'error'
+      version: number
+    }) => void
+  ) {
+    return bridge.on(sessionsStatusChangedEvent.name, listener)
+  }
+
+  function onCompactionChanged(
+    listener: (payload: DeepchatEventPayload<typeof sessionsCompactionChangedEvent.name>) => void
+  ) {
+    return bridge.on(sessionsCompactionChangedEvent.name, listener)
+  }
+
+  function onPendingInputsChanged(
+    listener: (payload: { sessionId: string; version: number }) => void
+  ) {
+    return bridge.on(sessionsPendingInputsChangedEvent.name, listener)
+  }
+
+  function onMessagesChanged(
+    listener: (payload: {
+      sessionId: string
+      messages: ChatMessageRecord[]
+      version: number
+    }) => void
+  ) {
+    return bridge.on(sessionsMessagesChangedEvent.name, listener)
+  }
+
+  function onTapeInspectorHeadChanged(
+    listener: (
+      payload: DeepchatEventPayload<typeof sessionsTapeInspectorHeadChangedEvent.name>
+    ) => void
+  ) {
+    return bridge.on(sessionsTapeInspectorHeadChangedEvent.name, listener)
+  }
+
+  function onAcpCommandsReady(
+    listener: (payload: {
+      conversationId: string
+      agentId: string
+      commands: Array<{
+        name: string
+        description: string
+        input?: { hint: string } | null
+      }>
+      version: number
+    }) => void
+  ) {
+    return bridge.on(sessionsAcpCommandsReadyEvent.name, listener)
+  }
+
+  function onAcpModesReady(
+    listener: (payload: {
+      conversationId?: string
+      agentId: string
+      workdir: string
+      current: string
+      available: Array<{ id: string; name: string; description: string }>
+      version: number
+    }) => void
+  ) {
+    return bridge.on(sessionsAcpModesReadyEvent.name, listener)
+  }
+
+  function onAcpConfigOptionsReady(
+    listener: (payload: {
+      conversationId?: string
+      agentId: string
+      workdir: string
+      configState: {
+        source: 'configOptions' | 'legacy'
+        options: Array<{
+          id: string
+          label: string
+          description?: string | null
+          type: 'select' | 'boolean'
+          category?: string | null
+          currentValue: string | boolean
+          options?: Array<{
+            value: string
+            label: string
+            description?: string | null
+            groupId?: string | null
+            groupLabel?: string | null
+          }>
+        }>
+      }
+      version: number
+    }) => void
+  ) {
+    return bridge.on(sessionsAcpConfigOptionsReadyEvent.name, listener)
+  }
+
+  return {
+    create,
+    restore,
+    listMessagesPage,
+    activate,
+    deactivate,
+    getActive,
+    list,
+    listLightweight,
+    getLightweightByIds,
+    ensureAcpDraftSession,
+    listPendingInputs,
+    resumePendingQueue,
+    retryPendingQueueInput,
+    queuePendingInput,
+    updateQueuedInput,
+    moveQueuedInput,
+    steerPendingInput,
+    deletePendingInput,
+    resolveBlockedPendingInput,
+    retryMessage,
+    deleteMessage,
+    editUserMessage,
+    forkSession,
+    searchHistory,
+    getSearchResults,
+    getTapeContext,
+    listTapeInspectorPage,
+    listTapeInspectorEvidence,
+    resolveTapeInspectorEvidenceEntries,
+    getTapeInspectorRecordDetail,
+    exportTapeInspectorSupportTrace,
+    subscribeTapeInspectorHead,
+    unsubscribeTapeInspectorHead,
+    listMessageTraces,
+    listMessageTraceDiagnostics,
+    listMessageViewManifests,
+    translateText,
+    getAgents,
+    getUsageDashboard,
+    retryRtkHealthCheck,
+    renameSession,
+    toggleSessionPinned,
+    clearSessionMessages,
+    compactSession,
+    getCompactionSnapshot,
+    getContextOccupancy,
+    exportSession,
+    deleteSession,
+    getAgentTransferImpact,
+    moveAgentSessions,
+    deleteAgentSessions,
+    moveSessionToAgent,
+    getAcpSessionCommands,
+    getAcpSessionConfigOptions,
+    setAcpSessionConfigOption,
+    getPermissionMode,
+    setPermissionMode,
+    setSessionModel,
+    setSessionToolMode,
+    setSessionProjectDir,
+    getSessionGenerationSettings,
+    getSessionDisabledAgentTools,
+    updateSessionDisabledAgentTools,
+    updateSessionGenerationSettings,
+    onUpdated,
+    onStatusChanged,
+    onCompactionChanged,
+    onPendingInputsChanged,
+    onMessagesChanged,
+    onTapeInspectorHeadChanged,
+    onAcpModesReady,
+    onAcpCommandsReady,
+    onAcpConfigOptionsReady
+  }
+}
+
+export type SessionClient = ReturnType<typeof createSessionClient>

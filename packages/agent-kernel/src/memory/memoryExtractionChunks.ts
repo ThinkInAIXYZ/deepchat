@@ -1,5 +1,5 @@
 import { estimateTokens, estimateTokenWeight } from '../collab/memory/core/injectionPort.js'
-import { unicodeCodePointLength } from '@deepchat/shared/lib/unicodeText'
+import { unicodeCodePointLength } from '../shared/lib/unicodeText.js'
 
 export const MEMORY_EXTRACTION_CHUNK_TOKEN_LIMIT = 4_000
 export const MEMORY_EXTRACTION_CHUNK_CHAR_LIMIT = 12_000

@@ -23,8 +23,8 @@ import {
   type DeepChatTaskEvaluationReasonCode,
   type DeepChatTaskEvaluationRecord,
   type DeepChatTaskEvaluationSummary
-} from '@deepchat/shared/types/task-contract'
-import { indexMarkdownLevelTwoSections } from '@deepchat/shared/orchestration/liveDelegationMarkdown'
+} from '../../shared/types/task-contract.js'
+import { indexMarkdownLevelTwoSections } from '../../shared/orchestration/liveDelegationMarkdown.js'
 import { canonicalJsonStringifyData, hashJsonData } from './canonicalJson.js'
 import { compareUtf16, deepFreeze, SHA256_HEX_PATTERN } from './primitives.js'
 import { isDeepChatTaskContract } from './taskContract.js'

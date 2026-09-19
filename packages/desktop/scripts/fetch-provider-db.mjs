@@ -1,0 +1,368 @@
+#!/usr/bin/env node
+// Build-time fetch of Provider DB (aggregated all.json) into resources/model-db/providers.json
+
+import fs from 'node:fs'
+import fsp from 'node:fs/promises'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
+import process from 'node:process'
+import { pathToFileURL } from 'node:url'
+
+const appRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
+
+const DEFAULT_URL =
+  'https://raw.githubusercontent.com/ThinkInAIXYZ/PublicProviderConf/refs/heads/dev/dist/all.json'
+const MAX_PROVIDER_DB_PAYLOAD_BYTES = 10 * 1024 * 1024
+
+const log = (...args) => console.log('[fetch-provider-db]', ...args)
+const warn = (...args) => console.warn('[fetch-provider-db]', ...args)
+const error = (...args) => console.error('[fetch-provider-db]', ...args)
+
+async function readResponseTextWithLimit(response, maxBytes) {
+  if (!response.body) {
+    const text = await response.text()
+    return Buffer.byteLength(text, 'utf8') <= maxBytes ? text : null
+  }
+
+  const reader = response.body.getReader()
+  const decoder = new TextDecoder()
+  const textChunks = []
+  let bytesRead = 0
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+
+      bytesRead += value.byteLength
+      if (bytesRead > maxBytes) {
+        await reader.cancel().catch(() => undefined)
+        return null
+      }
+      textChunks.push(decoder.decode(value, { stream: true }))
+    }
+    textChunks.push(decoder.decode())
+    return textChunks.join('')
+  } finally {
+    reader.releaseLock()
+  }
+}
+
+async function ensureDir(dir) {
+  await fsp.mkdir(dir, { recursive: true })
+}
+
+const PROVIDER_ID_REGEX = /^[a-z0-9][a-z0-9-_]*$/
+const MODEL_ID_REGEX = /^[a-zA-Z0-9][a-zA-Z0-9\-_.:/]*$/
+const REASONING_EFFORT_VALUES = ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max']
+const VERBOSITY_VALUES = ['low', 'medium', 'high']
+const REASONING_MODE_VALUES = ['budget', 'effort', 'level', 'fixed', 'mixed']
+const REASONING_VISIBILITY_VALUES = ['hidden', 'summary', 'full', 'mixed', 'omitted', 'summarized']
+const TOOL_MODE_VALUES = ['agent', 'code', 'minimal']
+const isValidLowercaseProviderId = (id) =>
+  typeof id === 'string' && id === id.toLowerCase() && PROVIDER_ID_REGEX.test(id)
+const isValidModelId = (id) =>
+  typeof id === 'string' && MODEL_ID_REGEX.test(id)
+
+const sanitizeStringArray = (value) => {
+  if (typeof value === 'string') {
+    const normalized = value.trim()
+    return normalized ? [normalized] : undefined
+  }
+  if (!Array.isArray(value)) return undefined
+  const values = value.filter((item) => typeof item === 'string' && item.trim())
+  return values.length ? values : undefined
+}
+
+const sanitizeReasoningBudget = (value) => {
+  if (!value || typeof value !== 'object') return undefined
+  const budget = {}
+  if (typeof value.default === 'number' && Number.isFinite(value.default)) budget.default = value.default
+  if (typeof value.min === 'number' && Number.isFinite(value.min)) budget.min = value.min
+  if (typeof value.max === 'number' && Number.isFinite(value.max)) budget.max = value.max
+  if (typeof value.auto === 'number' && Number.isFinite(value.auto)) budget.auto = value.auto
+  if (typeof value.off === 'number' && Number.isFinite(value.off)) budget.off = value.off
+  if (typeof value.unit === 'string') budget.unit = value.unit
+  return Object.keys(budget).length ? budget : undefined
+}
+
+const sanitizeReasoningOptions = (value, allowedValues) => {
+  if (!Array.isArray(value)) return undefined
+  const values = value.filter((item) => typeof item === 'string' && allowedValues.includes(item))
+  return values.length ? values : undefined
+}
+
+const sanitizeExtraReasoning = (value) => {
+  if (!value || typeof value !== 'object') return undefined
+  const reasoning = {}
+  if (typeof value.supported === 'boolean') reasoning.supported = value.supported
+  if (typeof value.default_enabled === 'boolean') reasoning.default_enabled = value.default_enabled
+  if (typeof value.mode === 'string' && REASONING_MODE_VALUES.includes(value.mode)) {
+    reasoning.mode = value.mode
+  }
+  const budget = sanitizeReasoningBudget(value.budget)
+  if (budget) reasoning.budget = budget
+  if (typeof value.effort === 'string' && REASONING_EFFORT_VALUES.includes(value.effort)) {
+    reasoning.effort = value.effort
+  }
+  const effortOptions = sanitizeReasoningOptions(value.effort_options, REASONING_EFFORT_VALUES)
+  if (effortOptions) reasoning.effort_options = effortOptions
+  if (typeof value.verbosity === 'string' && VERBOSITY_VALUES.includes(value.verbosity)) {
+    reasoning.verbosity = value.verbosity
+  }
+  const verbosityOptions = sanitizeReasoningOptions(value.verbosity_options, VERBOSITY_VALUES)
+  if (verbosityOptions) reasoning.verbosity_options = verbosityOptions
+  if (typeof value.level === 'string') reasoning.level = value.level
+  const levelOptions = sanitizeStringArray(value.level_options)
+  if (levelOptions) reasoning.level_options = levelOptions
+  if (typeof value.interleaved === 'boolean') reasoning.interleaved = value.interleaved
+  if (typeof value.summaries === 'boolean') reasoning.summaries = value.summaries
+  if (typeof value.visibility === 'string' && REASONING_VISIBILITY_VALUES.includes(value.visibility)) {
+    reasoning.visibility = value.visibility
+  }
+  const continuation = sanitizeStringArray(value.continuation)
+  if (continuation) reasoning.continuation = continuation
+  const notes = sanitizeStringArray(value.notes)
+  if (notes) reasoning.notes = notes
+  return Object.keys(reasoning).length ? reasoning : undefined
+}
+
+const inferTtsModelTypeFromId = (modelId) => {
+  const normalized = modelId.trim().toLowerCase().split('/').at(-1) ?? ''
+  return /^(?:tts-1(?:-hd)?(?:-\d+)?|gpt-4o-mini-tts(?:-\d{4}-\d{2}-\d{2})?)$/.test(
+    normalized
+  )
+    ? 'tts'
+    : undefined
+}
+
+export function sanitizeAggregateJson(json) {
+  if (!json || typeof json !== 'object') return null
+  const providers = json.providers
+  if (!providers || typeof providers !== 'object' || Array.isArray(providers)) return null
+  const out = { providers: {} }
+  for (const [key, p] of Object.entries(providers)) {
+    if (!p || typeof p !== 'object') continue
+    const pid = p.id ?? key
+    if (!isValidLowercaseProviderId(pid)) continue
+    if (pid !== key) continue
+    const models = Array.isArray(p.models) ? p.models : []
+    const sanitizedModels = []
+    for (const m of models) {
+      if (!m || typeof m !== 'object') continue
+      const mid = m.id
+      if (!isValidModelId(mid)) continue
+      const rlimit = m.limit
+      let limit
+      if (rlimit && typeof rlimit === 'object') {
+        const l = {}
+        if (typeof rlimit.context === 'number' && Number.isFinite(rlimit.context) && rlimit.context >= 0)
+          l.context = rlimit.context
+        if (typeof rlimit.output === 'number' && Number.isFinite(rlimit.output) && rlimit.output >= 0)
+          l.output = rlimit.output
+        if (Object.keys(l).length) limit = l
+      }
+      let modalities
+      const rmods = m.modalities
+      if (rmods && typeof rmods === 'object') {
+        const inp = Array.isArray(rmods.input) ? rmods.input.filter((v) => typeof v === 'string') : undefined
+        const outArr = Array.isArray(rmods.output) ? rmods.output.filter((v) => typeof v === 'string') : undefined
+        if (inp || outArr) modalities = { input: inp, output: outArr }
+      }
+      // reasoning (object in new schema; boolean legacy)
+      let reasoning
+      const r = m.reasoning
+      if (typeof r === 'boolean') {
+        reasoning = { supported: r }
+      } else if (r && typeof r === 'object') {
+        const rs = {}
+        if (typeof r.supported === 'boolean') rs.supported = r.supported
+        if (typeof r.default === 'boolean') rs.default = r.default
+        if (r.budget && typeof r.budget === 'object') {
+          const bd = {}
+          if (typeof r.budget.default === 'number' && Number.isFinite(r.budget.default))
+            bd.default = r.budget.default
+          if (typeof r.budget.min === 'number' && Number.isFinite(r.budget.min))
+            bd.min = r.budget.min
+          if (typeof r.budget.max === 'number' && Number.isFinite(r.budget.max))
+            bd.max = r.budget.max
+          if (Object.keys(bd).length) rs.budget = bd
+        }
+        // effort / verbosity are nested under reasoning in upstream schema
+        const effort = r.effort
+        if (typeof effort === 'string' && REASONING_EFFORT_VALUES.includes(effort)) {
+          rs.effort = effort
+        }
+        const verbosity = r.verbosity
+        if (typeof verbosity === 'string' && ['low', 'medium', 'high'].includes(verbosity)) {
+          rs.verbosity = verbosity
+        }
+        if (Object.keys(rs).length) reasoning = rs
+      }
+
+      let extra_capabilities
+      const extraReasoning = sanitizeExtraReasoning(m.extra_capabilities?.reasoning)
+      if (extraReasoning) {
+        extra_capabilities = { reasoning: extraReasoning }
+      }
+
+      // search (new schema)
+      let search
+      const s = m.search
+      if (s && typeof s === 'object') {
+        const so = {}
+        if (typeof s.supported === 'boolean') so.supported = s.supported
+        if (typeof s.default === 'boolean') so.default = s.default
+        if (typeof s.forced_search === 'boolean') so.forced_search = s.forced_search
+        if (typeof s.search_strategy === 'string') so.search_strategy = s.search_strategy
+        if (Object.keys(so).length) search = so
+      }
+
+      // Normalize model type variants while preserving every type understood by the app.
+      let modelType
+      const t = m.type
+      if (typeof t === 'string') {
+        const normalized = t.toLowerCase().replace(/[_-]/g, '')
+        // Map normalized variants to standard format
+        if (normalized === 'chat') {
+          modelType = 'chat'
+        } else if (normalized === 'embedding') {
+          modelType = 'embedding'
+        } else if (normalized === 'rerank') {
+          modelType = 'rerank'
+        } else if (normalized === 'imagegeneration' || normalized === 'imagegen') {
+          modelType = 'imageGeneration'
+        } else if (normalized === 'videogeneration' || normalized === 'videogen') {
+          modelType = 'videoGeneration'
+        } else if (normalized === 'tts') {
+          modelType = 'tts'
+        }
+      }
+      modelType ??= inferTtsModelTypeFromId(mid)
+
+      if (pid === 'aihubmix') {
+        // https://developers.openai.com/api/docs/models/gpt-5.3-codex
+        if (mid === 'gpt-5.3-codex' && limit?.output > 128000) {
+          limit.output = 128000
+        }
+        // https://docs.cohere.com/docs/reranking-best-practices
+        // https://docs.cohere.com/v2/docs/rerank
+        if (mid === 'cohere-rerank-v4.0-fast' || mid === 'cohere-rerank-v4.0-pro') {
+          modalities = { ...modalities, input: ['text'] }
+          limit = { ...limit, context: 32768 }
+        }
+      }
+
+      sanitizedModels.push({
+        id: mid,
+        name: typeof m.name === 'string' ? m.name : undefined,
+        display_name: typeof m.display_name === 'string' ? m.display_name : undefined,
+        modalities,
+        limit,
+        temperature: typeof m.temperature === 'boolean' ? m.temperature : undefined,
+        tool_call: typeof m.tool_call === 'boolean' ? m.tool_call : undefined,
+        default_tool_mode:
+          typeof m.default_tool_mode === 'string' && TOOL_MODE_VALUES.includes(m.default_tool_mode)
+            ? m.default_tool_mode
+            : undefined,
+        reasoning,
+        extra_capabilities,
+        search,
+        attachment: typeof m.attachment === 'boolean' ? m.attachment : undefined,
+        open_weights: typeof m.open_weights === 'boolean' ? m.open_weights : undefined,
+        knowledge: typeof m.knowledge === 'string' ? m.knowledge : undefined,
+        release_date: typeof m.release_date === 'string' ? m.release_date : undefined,
+        last_updated: typeof m.last_updated === 'string' ? m.last_updated : undefined,
+        type: modelType
+      })
+    }
+    if (!sanitizedModels.length) continue
+    const envArr = Array.isArray(p.env) ? p.env.filter((v) => typeof v === 'string') : undefined
+    out.providers[pid] = {
+      id: pid,
+      name: typeof p.name === 'string' ? p.name : undefined,
+      display_name: typeof p.display_name === 'string' ? p.display_name : undefined,
+      api: typeof p.api === 'string' ? p.api : undefined,
+      doc: typeof p.doc === 'string' ? p.doc : undefined,
+      env: envArr,
+      models: sanitizedModels
+    }
+  }
+  if (Object.keys(out.providers).length === 0) return null
+  return out
+}
+
+async function main() {
+  const url = DEFAULT_URL
+  const outDir = path.resolve(appRoot, 'resources', 'model-db')
+  const outFile = path.join(outDir, 'providers.json')
+  const tmpFile = outFile + '.tmp'
+
+  await ensureDir(outDir)
+
+  let text
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 20000)
+  try {
+    log('Fetching', url)
+    const res = await fetch(url, { signal: controller.signal })
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    text = await readResponseTextWithLimit(res, MAX_PROVIDER_DB_PAYLOAD_BYTES)
+  } catch (e) {
+    warn('Fetch failed:', e?.message || e)
+    if (fs.existsSync(outFile)) {
+      warn('Using existing providers.json snapshot')
+      return
+    }
+    error('No existing snapshot found. Failing the build step.')
+    process.exit(1)
+  } finally {
+    clearTimeout(timeout)
+  }
+
+  if (text === null) {
+    error(
+      `Downloaded file exceeds ${MAX_PROVIDER_DB_PAYLOAD_BYTES / (1024 * 1024)} MiB limit. Aborting.`
+    )
+    if (!fs.existsSync(outFile)) process.exit(1)
+    return
+  }
+
+  let json
+  try {
+    json = JSON.parse(text)
+  } catch (e) {
+    error('Invalid JSON:', e?.message || e)
+    if (!fs.existsSync(outFile)) process.exit(1)
+    return
+  }
+
+  const sanitized = sanitizeAggregateJson(json)
+  if (!sanitized) {
+    error('No valid providers after sanitization.')
+    if (!fs.existsSync(outFile)) process.exit(1)
+    return
+  }
+
+  try {
+    await fsp.writeFile(tmpFile, JSON.stringify(sanitized, null, 2))
+    try {
+      await fsp.rename(tmpFile, outFile)
+    } catch (e) {
+      // Cross-platform replace fallback
+      await fsp.rm(outFile, { force: true })
+      await fsp.rename(tmpFile, outFile)
+    }
+    log('Saved to', outFile)
+  } catch (e) {
+    error('Write failed:', e?.message || e)
+    if (!fs.existsSync(outFile)) process.exit(1)
+  }
+}
+
+if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {
+  main().catch((e) => {
+    error('Unexpected error:', e)
+    process.exit(1)
+  })
+}

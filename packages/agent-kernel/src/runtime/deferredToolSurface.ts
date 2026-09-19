@@ -1,5 +1,5 @@
-import type { DeepChatExecutionContract } from '@deepchat/shared/types/execution-contract'
-import type { ToolExecutionContract } from '@deepchat/shared/types/core/mcp'
+import type { DeepChatExecutionContract } from '../shared/types/execution-contract.js'
+import type { ToolExecutionContract } from '../shared/types/core/mcp.js'
 import { canonicalJsonStringifyData } from '../tape/domain/canonicalJson.js'
 import {
   getTapeViewManifestExecutionContract,

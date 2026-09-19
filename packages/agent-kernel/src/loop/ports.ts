@@ -1,16 +1,16 @@
 import type { AppSessionId } from '../collab/agent-shared/agentSessionIds.js'
-import type { AssistantMessageBlock } from '@deepchat/shared/types/agent-interface'
-import type { ChatMessage } from '@deepchat/shared/types/core/chat-message'
-import type { LLMCoreStreamEvent } from '@deepchat/shared/types/core/llm-events'
+import type { AssistantMessageBlock } from '../shared/types/agent-interface.js'
+import type { ChatMessage } from '../shared/types/core/chat-message.js'
+import type { LLMCoreStreamEvent } from '../shared/types/core/llm-events.js'
 import type {
   MCPToolCall,
   MCPToolDefinition,
   MCPToolResponse,
   ToolDispatchCommit
-} from '@deepchat/shared/types/core/mcp'
-import type { ToolCallOptions, ToolPermissionPreCheckResult } from '@deepchat/shared/types/tool'
-import type { ModelConfig } from '@deepchat/shared/types/provider'
-import type { DeepChatPromptAssembly } from '@deepchat/shared/types/prompt-assembly'
+} from '../shared/types/core/mcp.js'
+import type { ToolCallOptions, ToolPermissionPreCheckResult } from '../shared/types/tool.js'
+import type { ModelConfig } from '../shared/types/provider.js'
+import type { DeepChatPromptAssembly } from '../shared/types/prompt-assembly.js'
 import type { MemorySessionHandle } from '../memory/memoryPromptContributor.js'
 import type { ContextRuntimeContributions } from '../runtime/contextContributions.js'
 import type {
@@ -19,9 +19,9 @@ import type {
   ToolSurfaceSnapshot
 } from '../runtime/toolSurface.js'
 import type { ProgrammaticToolCapabilityV1 } from '../runtime/programmaticToolSurface.js'
-import type { DeepChatExecutionContract } from '@deepchat/shared/types/execution-contract'
-import type { DeepChatTaskContractContext } from '@deepchat/shared/types/task-contract'
-import type { ResolvedCommandShell } from '@deepchat/shared/commandShell'
+import type { DeepChatExecutionContract } from '../shared/types/execution-contract.js'
+import type { DeepChatTaskContractContext } from '../shared/types/task-contract.js'
+import type { ResolvedCommandShell } from '../shared/commandShell.js'
 import { type ProgrammaticToolParentRegistration } from '../contracts/programmaticToolAuthority.js'
 
 export interface ProviderRequest {

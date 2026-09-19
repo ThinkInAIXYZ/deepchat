@@ -1,0 +1,296 @@
+import Database from 'better-sqlite3-multiple-ciphers'
+import { BaseTable } from '@/data/baseTable'
+import type { PendingSessionInputState } from '@shared/types/agent-interface'
+
+export const PENDING_INPUT_RETRY_SCHEMA_VERSION = 67
+
+export interface DeepChatPendingInputRow {
+  id: string
+  session_id: string
+  mode: 'queue' | 'steer'
+  state: PendingSessionInputState
+  payload_json: string
+  message_ids_json: string
+  assistant_message_id: string | null
+  blocking_json: string | null
+  retry_required_at: number | null
+  queue_order: number | null
+  claimed_at: number | null
+  consumed_at: number | null
+  created_at: number
+  updated_at: number
+}
+
+export class DeepChatPendingInputsTable extends BaseTable {
+  constructor(db: Database.Database) {
+    super(db, 'deepchat_pending_inputs')
+  }
+
+  getCreateTableSQL(): string {
+    return `
+      CREATE TABLE IF NOT EXISTS deepchat_pending_inputs (
+        id TEXT PRIMARY KEY,
+        session_id TEXT NOT NULL,
+        mode TEXT NOT NULL,
+        state TEXT NOT NULL DEFAULT 'pending',
+        payload_json TEXT NOT NULL,
+        message_ids_json TEXT NOT NULL DEFAULT '[]',
+        assistant_message_id TEXT,
+        blocking_json TEXT,
+        retry_required_at INTEGER,
+        queue_order INTEGER,
+        claimed_at INTEGER,
+        consumed_at INTEGER,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_deepchat_pending_inputs_session
+        ON deepchat_pending_inputs(session_id, state, mode, queue_order, created_at);
+    `
+  }
+
+  getMigrationSQL(version: number): string | null {
+    if (version === 17) {
+      return this.getCreateTableSQL()
+    }
+    if (version === 43) {
+      return 'ALTER TABLE deepchat_pending_inputs ADD COLUMN blocking_json TEXT;'
+    }
+    if (version === 46) {
+      return `
+        ALTER TABLE deepchat_pending_inputs
+          ADD COLUMN message_ids_json TEXT NOT NULL DEFAULT '[]';
+        ALTER TABLE deepchat_pending_inputs
+          ADD COLUMN assistant_message_id TEXT;
+      `
+    }
+    if (version === PENDING_INPUT_RETRY_SCHEMA_VERSION) {
+      return 'ALTER TABLE deepchat_pending_inputs ADD COLUMN retry_required_at INTEGER;'
+    }
+    return null
+  }
+
+  getLatestVersion(): number {
+    return PENDING_INPUT_RETRY_SCHEMA_VERSION
+  }
+
+  finalizeMigration(version: number): void {
+    if (version === PENDING_INPUT_RETRY_SCHEMA_VERSION) {
+      this.normalizeRetryRequiredRows()
+    }
+  }
+
+  normalizeRetryRequiredRows(): void {
+    this.db.exec(`
+      UPDATE deepchat_pending_inputs
+      SET state = 'blocked',
+          retry_required_at = COALESCE(retry_required_at, updated_at, created_at),
+          blocking_json = NULL
+      WHERE state = 'retry_required';
+    `)
+  }
+
+  insert(row: {
+    id: string
+    sessionId: string
+    mode: 'queue' | 'steer'
+    state?: PendingSessionInputState
+    payloadJson: string
+    messageIdsJson?: string
+    assistantMessageId?: string | null
+    blockingJson?: string | null
+    retryRequiredAt?: number | null
+    queueOrder?: number | null
+    claimedAt?: number | null
+    consumedAt?: number | null
+    createdAt?: number
+    updatedAt?: number
+  }): void {
+    const now = Date.now()
+    const createdAt = row.createdAt ?? now
+    const updatedAt = row.updatedAt ?? createdAt
+    this.db
+      .prepare(
+        `INSERT INTO deepchat_pending_inputs (
+          id,
+          session_id,
+          mode,
+          state,
+          payload_json,
+          message_ids_json,
+          assistant_message_id,
+          blocking_json,
+          retry_required_at,
+          queue_order,
+          claimed_at,
+          consumed_at,
+          created_at,
+          updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      )
+      .run(
+        row.id,
+        row.sessionId,
+        row.mode,
+        row.state ?? 'pending',
+        row.payloadJson,
+        row.messageIdsJson ?? '[]',
+        row.assistantMessageId ?? null,
+        row.blockingJson ?? null,
+        row.retryRequiredAt ?? null,
+        row.queueOrder ?? null,
+        row.claimedAt ?? null,
+        row.consumedAt ?? null,
+        createdAt,
+        updatedAt
+      )
+  }
+
+  get(id: string): DeepChatPendingInputRow | undefined {
+    return this.db.prepare('SELECT * FROM deepchat_pending_inputs WHERE id = ?').get(id) as
+      | DeepChatPendingInputRow
+      | undefined
+  }
+
+  listBySession(sessionId: string): DeepChatPendingInputRow[] {
+    return this.db
+      .prepare(
+        `SELECT *
+         FROM deepchat_pending_inputs
+         WHERE session_id = ?
+         ORDER BY
+           CASE mode WHEN 'steer' THEN 0 ELSE 1 END ASC,
+           CASE
+             WHEN mode = 'queue' THEN COALESCE(queue_order, 2147483647)
+             ELSE created_at
+           END ASC,
+           created_at ASC`
+      )
+      .all(sessionId) as DeepChatPendingInputRow[]
+  }
+
+  listActive(): DeepChatPendingInputRow[] {
+    return this.db
+      .prepare(
+        `SELECT *
+         FROM deepchat_pending_inputs
+         WHERE state != 'consumed'
+         ORDER BY session_id ASC, created_at ASC`
+      )
+      .all() as DeepChatPendingInputRow[]
+  }
+
+  listActiveBySession(sessionId: string): DeepChatPendingInputRow[] {
+    return this.db
+      .prepare(
+        `SELECT *
+         FROM deepchat_pending_inputs
+         WHERE session_id = ?
+           AND state != 'consumed'
+         ORDER BY
+           CASE mode WHEN 'steer' THEN 0 ELSE 1 END ASC,
+           CASE
+             WHEN mode = 'queue' THEN COALESCE(queue_order, 2147483647)
+             ELSE created_at
+           END ASC,
+           created_at ASC`
+      )
+      .all(sessionId) as DeepChatPendingInputRow[]
+  }
+
+  countActiveBySession(sessionId: string): number {
+    const row = this.db
+      .prepare(
+        `SELECT COUNT(*) AS total
+         FROM deepchat_pending_inputs
+         WHERE session_id = ?
+           AND state != 'consumed'
+           AND NOT (mode = 'queue' AND state = 'claimed')`
+      )
+      .get(sessionId) as { total: number }
+    return row.total
+  }
+
+  update(
+    id: string,
+    fields: Partial<
+      Pick<
+        DeepChatPendingInputRow,
+        | 'mode'
+        | 'state'
+        | 'payload_json'
+        | 'message_ids_json'
+        | 'assistant_message_id'
+        | 'blocking_json'
+        | 'retry_required_at'
+        | 'queue_order'
+        | 'claimed_at'
+        | 'consumed_at'
+      >
+    >
+  ): void {
+    const setClauses: string[] = []
+    const params: unknown[] = []
+
+    if (fields.mode !== undefined) {
+      setClauses.push('mode = ?')
+      params.push(fields.mode)
+    }
+    if (fields.state !== undefined) {
+      setClauses.push('state = ?')
+      params.push(fields.state)
+    }
+    if (fields.payload_json !== undefined) {
+      setClauses.push('payload_json = ?')
+      params.push(fields.payload_json)
+    }
+    if (fields.message_ids_json !== undefined) {
+      setClauses.push('message_ids_json = ?')
+      params.push(fields.message_ids_json)
+    }
+    if (fields.assistant_message_id !== undefined) {
+      setClauses.push('assistant_message_id = ?')
+      params.push(fields.assistant_message_id)
+    }
+    if (fields.blocking_json !== undefined) {
+      setClauses.push('blocking_json = ?')
+      params.push(fields.blocking_json)
+    }
+    if (fields.retry_required_at !== undefined) {
+      setClauses.push('retry_required_at = ?')
+      params.push(fields.retry_required_at)
+    }
+    if (fields.queue_order !== undefined) {
+      setClauses.push('queue_order = ?')
+      params.push(fields.queue_order)
+    }
+    if (fields.claimed_at !== undefined) {
+      setClauses.push('claimed_at = ?')
+      params.push(fields.claimed_at)
+    }
+    if (fields.consumed_at !== undefined) {
+      setClauses.push('consumed_at = ?')
+      params.push(fields.consumed_at)
+    }
+
+    if (setClauses.length === 0) {
+      return
+    }
+
+    setClauses.push('updated_at = ?')
+    params.push(Date.now())
+    params.push(id)
+
+    this.db
+      .prepare(`UPDATE deepchat_pending_inputs SET ${setClauses.join(', ')} WHERE id = ?`)
+      .run(...params)
+  }
+
+  delete(id: string): void {
+    this.db.prepare('DELETE FROM deepchat_pending_inputs WHERE id = ?').run(id)
+  }
+
+  deleteBySession(sessionId: string): void {
+    this.db.prepare('DELETE FROM deepchat_pending_inputs WHERE session_id = ?').run(sessionId)
+  }
+}

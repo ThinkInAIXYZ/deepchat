@@ -1,16 +1,16 @@
-import { TOOL_EXECUTION, type MCPToolDefinition } from '@deepchat/shared/types/mcp'
+import { TOOL_EXECUTION, type MCPToolDefinition } from '../../../shared/types/mcp.js'
 import {
   formatCommandShellForModel,
   formatExecCommandDescription,
   type ResolvedCommandShell
-} from '@deepchat/shared/commandShell'
+} from '../../../shared/commandShell.js'
 import {
   CODE_MODE_TOOL_SERVER_NAME,
   RUN_CODE_DEFAULT_TIMEOUT_MS,
   RUN_CODE_MAX_TIMEOUT_MS
-} from '@deepchat/shared/codeModeProtocol'
-import { LIVE_DELEGATION_AGENT_TOOL_NAME } from '@deepchat/shared/agentTools'
-import { UPDATE_PLAN_TOOL_NAME } from '@deepchat/shared/types/agent-plan'
+} from '../../../shared/codeModeProtocol.js'
+import { LIVE_DELEGATION_AGENT_TOOL_NAME } from '../../../shared/agentTools.js'
+import { UPDATE_PLAN_TOOL_NAME } from '../../../shared/types/agent-plan.js'
 import { QUESTION_TOOL_NAME } from '../agentTools/questionTool.js'
 
 export const RUN_CODE_TOOL_NAME = 'run_code'

@@ -1,6 +1,6 @@
-import type { ChatMessageRecord, SendMessageInput } from '@deepchat/shared/types/agent-interface'
+import type { ChatMessageRecord, SendMessageInput } from '../shared/types/agent-interface.js'
 
-import type { DeepChatTapeViewContextBuilderVersion } from '@deepchat/shared/types/tape-view-manifest'
+import type { DeepChatTapeViewContextBuilderVersion } from '../shared/types/tape-view-manifest.js'
 import {
   buildCacheAwareContextWithMetadata,
   buildCacheAwareResumeContextWithMetadata,

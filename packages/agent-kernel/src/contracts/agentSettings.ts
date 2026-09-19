@@ -5,14 +5,14 @@ import type {
   AcpManualAgent,
   AcpRegistryAgent,
   AcpResolvedLaunchSpec
-} from '@deepchat/shared/types/acp'
+} from '../shared/types/acp.js'
 import type {
   Agent,
   AgentType,
   CreateDeepChatAgentInput,
   DeepChatAgentConfig,
   UpdateDeepChatAgentInput
-} from '@deepchat/shared/types/agent-interface'
+} from '../shared/types/agent-interface.js'
 
 /**
  * Agent configuration surface the built-in kernel needs. Declared here so kernel modules depend on

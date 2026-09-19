@@ -1,18 +1,20 @@
+import { existsSync } from 'node:fs'
 import { dirname, join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import ts from 'typescript'
 
-// Type gate for the Stage 2B kernel port structure test. `pnpm typecheck` compiles `src/**` only, so
+// Type gate for the Stage 2B kernel port structure test. `pnpm typecheck` compiles `packages/desktop/src/**` only, so
 // the structural `expectTypeOf` assertions — "the host classes satisfy the kernel's named ports" —
 // would be erased by the test run and compiled by nothing. `typecheck:node` already compiles the
-// full `src/main` closure this test imports, so this gate compiles the test file and keeps only the
+// full `packages/desktop/src/main` closure this test imports, so this gate compiles the test file and keeps only the
 // diagnostics that belong to it.
 
 const scriptDirectory = dirname(fileURLToPath(import.meta.url))
 const rootDir = resolve(scriptDirectory, '..')
 
-const scopedTestFiles = ['test/main/agent/deepchat/contracts/kernelPortStructure.test.ts']
+const desktopRoot = existsSync(join(rootDir, 'packages/desktop')) ? 'packages/desktop' : '.'
+const scopedTestFiles = [`${desktopRoot}/test/main/agent/deepchat/contracts/kernelPortStructure.test.ts`]
 const rootNames = scopedTestFiles.map((path) => join(rootDir, path))
 const scopedRoots = rootNames.map((path) => path)
 
@@ -29,7 +31,8 @@ if (missingRootFiles.length > 0) {
   process.exit(1)
 }
 
-const configPath = join(rootDir, 'tsconfig.node.json')
+const configPath = join(rootDir, desktopRoot, 'tsconfig.node.json')
+process.chdir(dirname(configPath))
 const configFile = ts.readConfigFile(configPath, ts.sys.readFile)
 
 if (configFile.error) {
@@ -37,7 +40,7 @@ if (configFile.error) {
   process.exit(1)
 }
 
-const parsed = ts.parseJsonConfigFileContent(configFile.config, ts.sys, rootDir, {
+const parsed = ts.parseJsonConfigFileContent(configFile.config, ts.sys, dirname(configPath), {
   composite: false,
   incremental: false,
   noEmit: true,

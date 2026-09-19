@@ -2,13 +2,13 @@ import type {
   ChatMessage,
   ChatMessageProviderReplay,
   ChatMessageProviderReplayProjector
-} from '@deepchat/shared/types/core/chat-message'
+} from '../../shared/types/core/chat-message.js'
 import {
   createStreamEvent,
   type ProviderSearchPayload
-} from '@deepchat/shared/types/core/llm-events'
-import type { SearchResult } from '@deepchat/shared/types/core/search'
-import type { LLM_PROVIDER } from '@deepchat/shared/types/provider'
+} from '../../shared/types/core/llm-events.js'
+import type { SearchResult } from '../../shared/types/core/search.js'
+import type { LLM_PROVIDER } from '../../shared/types/provider.js'
 
 export const DEEPSEEK_RESPONSES_MODEL_ID = 'deepseek-v4-flash'
 export const DEEPSEEK_RESPONSES_BASE_URL = 'https://api.deepseek.com'

@@ -1,5 +1,5 @@
 
-import logger from '@deepchat/shared/logger'
+import logger from '../shared/logger.js'
 import type {
   DeepChatSessionState,
   ChatMessageRecord,
@@ -8,7 +8,7 @@ import type {
   PendingSessionInputRecord,
   QueuePendingInputOptions,
   SendMessageInput
-} from '@deepchat/shared/types/agent-interface'
+} from '../shared/types/agent-interface.js'
 import {
   createStaleDeepChatInstanceError,
   type SessionScopeRegistry

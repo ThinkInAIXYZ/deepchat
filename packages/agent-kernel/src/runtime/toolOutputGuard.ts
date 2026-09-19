@@ -1,7 +1,7 @@
 import fs from 'fs/promises'
 import path from 'path'
-import type { ChatMessage } from '@deepchat/shared/types/core/chat-message'
-import type { MCPToolDefinition } from '@deepchat/shared/types/core/mcp'
+import type { ChatMessage } from '../shared/types/core/chat-message.js'
+import type { MCPToolDefinition } from '../shared/types/core/mcp.js'
 import { resolveToolOffloadPath } from '../collab/agent-shared/storage/sessionPaths.js'
 import type {
   PreparedToolOutput,
@@ -12,7 +12,7 @@ import type {
 import {
   resolveAgentOutputLimits,
   type AgentOutputLimits
-} from '@deepchat/shared/lib/agentOutputLimits'
+} from '../shared/lib/agentOutputLimits.js'
 import { throwIfAbortRequested } from './abortErrors.js'
 import { preflightRequestContext } from './contextBudget.js'
 import { getProviderProjectionIdentities } from '../loop/providerProjectionIdentity.js'

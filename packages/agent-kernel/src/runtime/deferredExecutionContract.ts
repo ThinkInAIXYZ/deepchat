@@ -1,6 +1,6 @@
 import type {
   DeepChatExecutionContract
-} from '@deepchat/shared/types/execution-contract'
+} from '../shared/types/execution-contract.js'
 import type {
   TapeExecutionViewManifestReader,
   TapeViewManifestReader

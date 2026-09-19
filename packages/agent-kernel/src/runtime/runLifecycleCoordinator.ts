@@ -1,5 +1,5 @@
-import logger from '@deepchat/shared/logger'
-import type { DeepChatSessionState } from '@deepchat/shared/types/agent-interface'
+import logger from '../shared/logger.js'
+import type { DeepChatSessionState } from '../shared/types/agent-interface.js'
 import type { AppSessionId } from '../collab/agent-shared/agentSessionIds.js'
 import { toAppSessionId } from '../collab/agent-shared/agentSessionIds.js'
 import type {

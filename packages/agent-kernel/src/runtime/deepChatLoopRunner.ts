@@ -1,27 +1,27 @@
-import type { PluginContextPort } from '@deepchat/shared/types/userPlugin'
+import type { PluginContextPort } from '../shared/types/userPlugin.js'
 import { projectPluginContext } from './pluginContext.js'
 
-import logger from '@deepchat/shared/logger'
+import logger from '../shared/logger.js'
 import type {
   AssistantMessageBlock,
   ChatMessageRecord,
   MessageMetadata
-} from '@deepchat/shared/types/agent-interface'
+} from '../shared/types/agent-interface.js'
 import type {
   ChatMessage,
   ChatMessageProviderReplayProjector
-} from '@deepchat/shared/types/core/chat-message'
-import type { LLMCoreStreamEvent } from '@deepchat/shared/types/core/llm-events'
-import type { MCPToolDefinition } from '@deepchat/shared/types/core/mcp'
-import type { DeepChatPromptAssembly } from '@deepchat/shared/types/prompt-assembly'
-import type { DeepChatExecutionContract } from '@deepchat/shared/types/execution-contract'
-import type { DeepChatTaskContractContext } from '@deepchat/shared/types/task-contract'
+} from '../shared/types/core/chat-message.js'
+import type { LLMCoreStreamEvent } from '../shared/types/core/llm-events.js'
+import type { MCPToolDefinition } from '../shared/types/core/mcp.js'
+import type { DeepChatPromptAssembly } from '../shared/types/prompt-assembly.js'
+import type { DeepChatExecutionContract } from '../shared/types/execution-contract.js'
+import type { DeepChatTaskContractContext } from '../shared/types/task-contract.js'
 import type {
   ProviderExecutionPort,
   ModelConfig,
   RateLimitQueueSnapshot
-} from '@deepchat/shared/types/provider'
-import type { DeepChatProviderAttemptIdentity } from '@deepchat/shared/types/provider-attempt'
+} from '../shared/types/provider.js'
+import type { DeepChatProviderAttemptIdentity } from '../shared/types/provider-attempt.js'
 import type {
   DeepChatTapeSkillContext,
   DeepChatTapeViewContextBuilderVersion,
@@ -30,15 +30,15 @@ import type {
   DeepChatTapeViewSyntheticContribution,
   DeepChatTapeViewTaskType,
   DeepChatTapeViewTokenBudget
-} from '@deepchat/shared/types/tape-view-manifest'
+} from '../shared/types/tape-view-manifest.js'
 import { randomUUID } from 'node:crypto'
-import { getReasoningEffectiveEnabledForProvider } from '@deepchat/shared/types/model-db'
-import { isTtsModelConfig, isTtsModelId } from '@deepchat/shared/ttsSettings'
+import { getReasoningEffectiveEnabledForProvider } from '../shared/types/model-db.js'
+import { isTtsModelConfig, isTtsModelId } from '../shared/ttsSettings.js'
 import { nanoid } from 'nanoid'
 import { toAppSessionId } from '../collab/agent-shared/agentSessionIds.js'
 import type { DeepChatAgentInstance } from '../instance/deepChatAgentInstance.js'
-import type { ResolvedCommandShell } from '@deepchat/shared/commandShell'
-import type { ResolvedToolMode } from '@deepchat/shared/toolMode'
+import type { ResolvedCommandShell } from '../shared/commandShell.js'
+import type { ResolvedToolMode } from '../shared/toolMode.js'
 import type { MemoryIngestionObserver } from '../memory/memoryIngestionObserver.js'
 
 import {

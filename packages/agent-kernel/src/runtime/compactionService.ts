@@ -7,10 +7,10 @@ import type {
   AssistantMessageBlock,
   MessageMetadata,
   DeepChatAgentConfig
-} from '@deepchat/shared/types/agent-interface'
-import type { ChatMessage } from '@deepchat/shared/types/core/chat-message'
-import type { ProviderExecutionPort } from '@deepchat/shared/types/provider'
-import type { DeepChatTapeViewPinnedFirstUser } from '@deepchat/shared/types/tape-view-manifest'
+} from '../shared/types/agent-interface.js'
+import type { ChatMessage } from '../shared/types/core/chat-message.js'
+import type { ProviderExecutionPort } from '../shared/types/provider.js'
+import type { DeepChatTapeViewPinnedFirstUser } from '../shared/types/tape-view-manifest.js'
 
 import { awaitWithAbort } from '../collab/lib/awaitWithAbort.js'
 

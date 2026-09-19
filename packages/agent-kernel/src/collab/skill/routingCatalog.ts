@@ -5,8 +5,8 @@ import type {
   SkillListItem,
   SkillListResult,
   SkillMetadata
-} from '@deepchat/shared/types/skill'
-import { SKILL_NAME_MAX_LENGTH } from '@deepchat/shared/types/skill'
+} from '../../shared/types/skill.js'
+import { SKILL_NAME_MAX_LENGTH } from '../../shared/types/skill.js'
 
 export const SKILL_ROUTING_DESCRIPTION_MAX_CODE_POINTS = 1_024
 export const SKILL_ROUTING_DESCRIPTION_MAX_BYTES = SKILL_ROUTING_DESCRIPTION_MAX_CODE_POINTS * 4

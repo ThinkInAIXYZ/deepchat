@@ -1,4 +1,4 @@
-import type { DeepChatAgentConfig } from '@deepchat/shared/types/agent-interface'
+import type { DeepChatAgentConfig } from '../../../shared/types/agent-interface.js'
 
 import type { MemoryModelRef } from '../domain/types.js'
 

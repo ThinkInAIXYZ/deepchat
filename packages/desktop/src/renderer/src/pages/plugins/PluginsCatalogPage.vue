@@ -1,0 +1,400 @@
+<template>
+  <ScrollArea class="h-full w-full">
+    <div class="mx-auto flex w-full max-w-5xl flex-col gap-8 px-6 py-8">
+      <header class="flex items-start justify-between gap-4">
+        <div class="space-y-1">
+          <h1 class="text-2xl font-semibold tracking-normal">{{ t('routes.plugins') }}</h1>
+          <p class="text-sm text-muted-foreground">
+            {{ t('settings.pluginsHub.subtitle') }}
+          </p>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-2">
+          <DcButton variant="outline" size="sm" @click="openInstall('git')">{{
+            t('settings.userPlugins.fromGit')
+          }}</DcButton>
+          <DcButton variant="outline" size="sm" @click="openInstall('zip')">{{
+            t('settings.userPlugins.fromZip')
+          }}</DcButton>
+          <DcButton
+            variant="outline"
+            size="icon"
+            icon="lucide:refresh-cw"
+            :loading="loading"
+            :disabled="loading"
+            :label="t('common.browser.reload')"
+            :tooltip="t('common.browser.reload')"
+            @click="loadCatalog"
+          />
+        </div>
+      </header>
+
+      <div
+        v-if="errorMessage"
+        class="rounded-lg border border-destructive/40 px-3 py-2 text-sm text-destructive"
+      >
+        {{ errorMessage }}
+      </div>
+
+      <section class="space-y-4">
+        <div class="border-b border-border/70 pb-2">
+          <h2 class="text-sm font-semibold">{{ t('settings.pluginsHub.available') }}</h2>
+        </div>
+
+        <div v-if="catalogItems.length" class="grid gap-3 lg:grid-cols-2">
+          <article
+            v-for="item in catalogItems"
+            :key="item.id"
+            class="flex min-w-0 items-center gap-3 rounded-lg border border-border bg-background p-3"
+          >
+            <div
+              class="flex size-12 shrink-0 items-center justify-center rounded-xl border border-border bg-muted/40"
+            >
+              <Icon :icon="item.icon" class="size-6" :class="item.iconClass" />
+            </div>
+
+            <div class="min-w-0 flex-1">
+              <div class="flex min-w-0 items-center gap-2">
+                <h3 class="truncate text-sm font-semibold">{{ item.title }}</h3>
+                <span
+                  v-if="item.typeBadge"
+                  class="shrink-0 rounded-full border border-border px-2 py-0.5 text-[11px] text-muted-foreground"
+                >
+                  {{ item.typeBadge }}
+                </span>
+                <span
+                  v-if="item.badge"
+                  class="shrink-0 rounded-full border px-2 py-0.5 text-[11px]"
+                  :class="
+                    item.badge.variant === 'success'
+                      ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+                      : 'border-border text-muted-foreground'
+                  "
+                >
+                  {{ item.badge.text }}
+                </span>
+              </div>
+              <p class="mt-0.5 line-clamp-2 text-sm text-muted-foreground">
+                {{ item.description }}
+              </p>
+            </div>
+
+            <DcButton
+              size="sm"
+              variant="outline"
+              :disabled="isPending(item.id)"
+              @click="handleCatalogAction(item)"
+            >
+              {{ item.actionLabel }}
+            </DcButton>
+          </article>
+        </div>
+        <div
+          v-else
+          class="rounded-lg border border-dashed border-border p-8 text-center text-sm text-muted-foreground"
+        >
+          {{ t('settings.pluginsHub.emptySearch') }}
+        </div>
+      </section>
+    </div>
+  </ScrollArea>
+  <UserPluginInstallDialog
+    v-model:open="installOpen"
+    :kind="installKind"
+    @installed="onInstalled"
+  />
+</template>
+
+<script setup lang="ts">
+import UserPluginInstallDialog from './UserPluginInstallDialog.vue'
+import { computed, onMounted, ref } from 'vue'
+import { storeToRefs } from 'pinia'
+import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
+import { Icon } from '@iconify/vue'
+import { DcButton } from '@dc-ui/components/button'
+import { ScrollArea } from '@shadcn/components/ui/scroll-area'
+import { createOcrClient } from '@api/OcrClient'
+import { createPluginClient } from '@api/PluginClient'
+import { createRemoteControlClient } from '@api/RemoteControlClient'
+import { CUA_PLUGIN_ID, type PluginActionResult, type PluginListItem } from '@shared/types/plugin'
+import type { RemoteChannel } from '@shared/types/remote'
+import { usePluginCatalogStore } from '@/stores/pluginCatalog'
+
+type CatalogBadge = {
+  text: string
+  variant: 'success' | 'neutral'
+}
+
+type CatalogItemBase = {
+  id: string
+  title: string
+  description: string
+  typeBadge?: string
+  badge?: CatalogBadge
+  icon: string
+  iconClass?: string
+  actionLabel: string
+}
+
+type BuiltinCatalogItem = CatalogItemBase & {
+  kind: 'builtin'
+}
+
+type OfficialCatalogItem = CatalogItemBase & {
+  kind: 'official'
+  plugin: PluginListItem
+  enabled: boolean
+}
+
+type RemoteCatalogItem = CatalogItemBase & {
+  kind: 'remote'
+  channel: RemoteChannel
+  enabled: boolean
+}
+
+type ExtensionCatalogItem = OfficialCatalogItem | RemoteCatalogItem
+type CatalogItem = BuiltinCatalogItem | ExtensionCatalogItem
+
+const remoteIconByChannel: Record<RemoteChannel, string> = {
+  telegram: 'lucide:send',
+  feishu: 'lucide:message-circle',
+  qqbot: 'lucide:bot',
+  discord: 'lucide:radio-tower',
+  'weixin-ilink': 'lucide:messages-square'
+}
+
+const remoteIconClassByChannel: Record<RemoteChannel, string> = {
+  telegram: 'text-sky-500',
+  feishu: 'text-blue-500',
+  qqbot: 'text-emerald-500',
+  discord: 'text-indigo-500',
+  'weixin-ilink': 'text-green-500'
+}
+const FEISHU_PLUGIN_ID = 'com.deepchat.plugins.feishu'
+const CUA_PLUGIN_ICON = 'lucide:laptop-minimal-check'
+const remotePluginId = (channel: RemoteChannel): string => `remote:${channel}`
+const isFeishuOfficialPlugin = (plugin: PluginListItem): boolean => plugin.id === FEISHU_PLUGIN_ID
+const pluginIcon = (plugin: PluginListItem): string =>
+  isFeishuOfficialPlugin(plugin)
+    ? remoteIconByChannel.feishu
+    : plugin.id === CUA_PLUGIN_ID
+      ? CUA_PLUGIN_ICON
+      : 'lucide:puzzle'
+
+const { t } = useI18n()
+const router = useRouter()
+const ocrClient = createOcrClient()
+const pluginClient = createPluginClient()
+const remoteControlClient = createRemoteControlClient()
+const pluginCatalogStore = usePluginCatalogStore()
+const { plugins, remoteChannels, remoteStatuses, ocrStatus, ocrStatusHasError } =
+  storeToRefs(pluginCatalogStore)
+
+const installOpen = ref(false)
+const installKind = ref<'git' | 'zip'>('git')
+const loading = ref(false)
+const errorMessage = ref('')
+const pendingItemId = ref<string | null>(null)
+
+const isPending = (itemId: string) => pendingItemId.value === itemId
+const pluginTitle = (plugin: PluginListItem): string =>
+  isFeishuOfficialPlugin(plugin) ? t('settings.remote.feishu.title') : plugin.name
+const pluginDescription = (plugin: PluginListItem): string => {
+  if (isFeishuOfficialPlugin(plugin)) {
+    return t('settings.remote.feishu.description')
+  }
+  return plugin.id === CUA_PLUGIN_ID ? t('settings.pluginsHub.cuaDescription') : plugin.publisher
+}
+const officialPluginEnabled = (plugin: PluginListItem): boolean =>
+  plugin.enabled ||
+  (isFeishuOfficialPlugin(plugin) && Boolean(remoteStatuses.value.feishu?.enabled))
+
+const hasFeishuOfficialPlugin = computed(() => plugins.value.some(isFeishuOfficialPlugin))
+
+const catalogItems = computed<CatalogItem[]>(() => {
+  const ocrAvailability = ocrStatus.value?.availability
+  const ocrItem: BuiltinCatalogItem = {
+    id: 'builtin:ocr',
+    kind: 'builtin',
+    title: t('routes.settings-ocr'),
+    description: ocrStatusHasError.value
+      ? t('settings.ocr.statusLoadFailed')
+      : ocrAvailability?.status === 'unavailable'
+        ? t(`settings.ocr.unavailableReasons.${ocrAvailability.reason}`)
+        : t('settings.ocr.description'),
+    typeBadge: t('settings.pluginsHub.builtinCapability'),
+    badge:
+      !ocrStatusHasError.value && ocrAvailability
+        ? {
+            text:
+              ocrAvailability.status === 'available'
+                ? t('settings.ocr.available')
+                : t('settings.ocr.unavailable'),
+            variant: ocrAvailability.status === 'available' ? 'success' : 'neutral'
+          }
+        : undefined,
+    icon: 'lucide:scan-text',
+    actionLabel: t('settings.pluginsHub.manage')
+  }
+
+  const officialItems: OfficialCatalogItem[] = plugins.value.map((plugin) => {
+    const enabled = officialPluginEnabled(plugin)
+    return {
+      id: `official:${plugin.id}`,
+      kind: 'official',
+      plugin,
+      enabled,
+      title: pluginTitle(plugin),
+      description: plugin.userPlugin?.package.description || pluginDescription(plugin),
+      typeBadge: plugin.userPlugin ? t('settings.userPlugins.userPlugin') : undefined,
+      badge: {
+        text: enabled
+          ? t('settings.plugins.status.enabled')
+          : t('settings.plugins.status.disabled'),
+        variant: enabled ? 'success' : 'neutral'
+      },
+      icon: pluginIcon(plugin),
+      iconClass: isFeishuOfficialPlugin(plugin) ? remoteIconClassByChannel.feishu : undefined,
+      actionLabel:
+        enabled || plugin.userPlugin
+          ? t('settings.pluginsHub.manage')
+          : t('settings.pluginsHub.add')
+    }
+  })
+
+  const remoteItems: RemoteCatalogItem[] = remoteChannels.value
+    .filter((channel) => channel.id !== 'feishu' || !hasFeishuOfficialPlugin.value)
+    .map((channel) => {
+      const status = remoteStatuses.value[channel.id]
+      const enabled = Boolean(status?.enabled)
+      return {
+        id: `remote:${channel.id}`,
+        kind: 'remote',
+        channel: channel.id,
+        enabled,
+        title: t(channel.titleKey),
+        description: t(channel.descriptionKey),
+        badge: {
+          text: enabled
+            ? t('settings.plugins.status.enabled')
+            : t('settings.plugins.status.disabled'),
+          variant: enabled ? 'success' : 'neutral'
+        },
+        icon: remoteIconByChannel[channel.id],
+        iconClass: remoteIconClassByChannel[channel.id],
+        actionLabel: enabled ? t('settings.pluginsHub.manage') : t('settings.pluginsHub.add')
+      }
+    })
+
+  const extensionItems: ExtensionCatalogItem[] = [...officialItems, ...remoteItems].sort(
+    (left, right) => {
+      if (left.enabled === right.enabled) {
+        return 0
+      }
+      return left.enabled ? -1 : 1
+    }
+  )
+  return [ocrItem, ...extensionItems]
+})
+
+async function loadCatalog(): Promise<void> {
+  loading.value = true
+  errorMessage.value = ''
+  try {
+    const pluginVersion = pluginCatalogStore.capturePluginRefresh()
+    const [pluginItems] = await Promise.all([
+      pluginClient.listPlugins(),
+      loadRemoteCatalog(),
+      loadOcrCatalog()
+    ])
+    pluginCatalogStore.replacePlugins(pluginItems, pluginVersion)
+  } catch (error) {
+    errorMessage.value = error instanceof Error ? error.message : t('settings.plugins.loadFailed')
+  } finally {
+    loading.value = false
+  }
+}
+
+async function loadRemoteCatalog(): Promise<void> {
+  const version = pluginCatalogStore.captureRemoteRefresh()
+  try {
+    const channels = await remoteControlClient.listRemoteChannels()
+    const statuses = await Promise.all(
+      channels.map((channel) => remoteControlClient.getChannelStatus(channel.id))
+    )
+    pluginCatalogStore.replaceRemoteSnapshot(channels, statuses, version)
+  } catch (error) {
+    console.warn('[PluginsCatalogPage] Failed to load remote channels:', error)
+  }
+}
+
+async function loadOcrCatalog(): Promise<void> {
+  const version = pluginCatalogStore.beginOcrRefresh()
+  try {
+    const status = await ocrClient.getRuntimeStatus()
+    pluginCatalogStore.replaceOcrStatus(status, version)
+  } catch (error) {
+    pluginCatalogStore.markOcrStatusRefreshFailed(version)
+    console.warn('[PluginsCatalogPage] Failed to load OCR status:', error)
+  }
+}
+
+async function runPluginAction(
+  itemId: string,
+  plugin: PluginListItem,
+  enabled: boolean,
+  action: () => Promise<PluginActionResult>
+): Promise<void> {
+  pendingItemId.value = itemId
+  errorMessage.value = ''
+  const previous = pluginCatalogStore.beginPluginEnabledMutation(plugin.id, enabled)
+  try {
+    const result = await action()
+    if (!result.ok) {
+      throw new Error(result.error || t('settings.plugins.actionFailed'))
+    }
+    pluginCatalogStore.commitPluginMutation(result.status)
+  } catch (error) {
+    pluginCatalogStore.rollbackPluginMutation(previous)
+    errorMessage.value = error instanceof Error ? error.message : t('settings.plugins.actionFailed')
+  } finally {
+    pendingItemId.value = null
+  }
+}
+
+function handleCatalogAction(item: CatalogItem): void {
+  if (item.kind === 'builtin') {
+    void router.push({ name: 'plugins-builtin-ocr' })
+    return
+  }
+
+  if (item.kind === 'official') {
+    const plugin = item.plugin
+    if (item.enabled || plugin.userPlugin || isFeishuOfficialPlugin(plugin)) {
+      void router.push({ name: 'plugins-detail', params: { pluginId: plugin.id } })
+    } else {
+      void runPluginAction(item.id, plugin, true, () => pluginClient.enablePlugin(plugin.id))
+    }
+    return
+  }
+
+  if (item.kind === 'remote') {
+    void router.push({ name: 'plugins-detail', params: { pluginId: remotePluginId(item.channel) } })
+  }
+}
+
+function openInstall(kind: 'git' | 'zip'): void {
+  installKind.value = kind
+  installOpen.value = true
+}
+
+function onInstalled(plugin: PluginListItem): void {
+  pluginCatalogStore.commitPluginMutation(plugin)
+  void router.push({ name: 'plugins-detail', params: { pluginId: plugin.id } })
+}
+
+onMounted(() => {
+  void loadCatalog()
+})
+</script>

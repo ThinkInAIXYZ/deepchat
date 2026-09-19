@@ -11,17 +11,17 @@ import {
   type LoopRun,
   type LoopRunPromptUsageAnchor
 } from './loopRun.js'
-import type { ChatMessage } from '@deepchat/shared/types/core/chat-message'
+import type { ChatMessage } from '../shared/types/core/chat-message.js'
 import {
   createStreamEvent,
   type ErrorStreamEvent,
   type LLMCoreStreamEvent,
   type ProviderRoundStopReason,
   type UsageStreamEvent
-} from '@deepchat/shared/types/core/llm-events'
-import type { MCPToolDefinition } from '@deepchat/shared/types/core/mcp'
-import type { ModelConfig } from '@deepchat/shared/types/provider'
-import type { DeepChatExecutionContract } from '@deepchat/shared/types/execution-contract'
+} from '../shared/types/core/llm-events.js'
+import type { MCPToolDefinition } from '../shared/types/core/mcp.js'
+import type { ModelConfig } from '../shared/types/provider.js'
+import type { DeepChatExecutionContract } from '../shared/types/execution-contract.js'
 import { isDeepStrictEqual } from 'node:util'
 import { awaitWithAbort } from '../collab/lib/awaitWithAbort.js'
 import type {
@@ -31,7 +31,7 @@ import type {
   DeepChatProviderFailureClassification,
   DeepChatProviderRequestOrigin,
   DeepChatProviderRetryDecision
-} from '@deepchat/shared/types/provider-attempt'
+} from '../shared/types/provider-attempt.js'
 import type {
   DeepChatTapeSkillContext,
   DeepChatTapeViewContextBuilderVersion,
@@ -39,7 +39,7 @@ import type {
   DeepChatTapeViewSyntheticContribution,
   DeepChatTapeViewTaskType,
   DeepChatTapeViewTokenBudget
-} from '@deepchat/shared/types/tape-view-manifest'
+} from '../shared/types/tape-view-manifest.js'
 import {
   getContextSyntheticContributions,
   type ContextCheckpoint,

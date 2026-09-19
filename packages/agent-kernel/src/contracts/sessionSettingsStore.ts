@@ -1,7 +1,4 @@
-import type {
-  PermissionMode,
-  SessionGenerationSettings
-} from '@deepchat/shared/types/agent-interface'
+import type { PermissionMode, SessionGenerationSettings } from '../shared/types/agent-interface.js'
 import type { PersistedSessionGenerationRow } from '../runtime/generationSettings.js'
 
 export type SessionSummaryState = {

@@ -1,0 +1,1583 @@
+import { computed, type ComputedRef, readonly, ref, watch } from 'vue'
+import { defineStore } from 'pinia'
+import { useQueryCache, type DataState, type EntryKey, type UseQueryEntry } from '@pinia/colada'
+import { useThrottleFn } from '@vueuse/core'
+import type { MODEL_META, RENDERER_MODEL_META, ModelConfig } from '@shared/types/provider'
+import { isChatSelectableModelType, ModelType } from '@shared/model'
+import {
+  resolveDerivedModelMaxTokens,
+  resolveModelContextLength,
+  resolveModelFunctionCall,
+  resolveModelMaxTokens,
+  resolveModelVision
+} from '@shared/modelConfigDefaults'
+import { resolveVideoGenerationCompatType } from '@shared/videoGenerationSettings'
+import { useIpcMutation } from '@/composables/useIpcMutation'
+import { useAgentModelStore } from '@/stores/agentModelStore'
+import { useModelConfigStore } from '@/stores/modelConfigStore'
+import { useProviderStore } from '@/stores/providerStore'
+import { useUiSettingsStore } from '@/stores/uiSettingsStore'
+import { createModelClient } from '../../api/ModelClient'
+
+const PROVIDER_MODELS_KEY = (providerId: string) => ['model-store', 'provider-models', providerId]
+const CUSTOM_MODELS_KEY = (providerId: string) => ['model-store', 'custom-models', providerId]
+const ENABLED_MODELS_KEY = (providerId: string) => ['model-store', 'enabled-models', providerId]
+const RUNTIME_MODEL_LIST_PROVIDER_IDS = new Set(['openai-codex'])
+const isRuntimeModelListProvider = (providerId: string) =>
+  RUNTIME_MODEL_LIST_PROVIDER_IDS.has(providerId)
+
+type ModelQueryHandle<TData> = {
+  entry: UseQueryEntry<TData, unknown, TData | undefined>
+  data: ComputedRef<TData | undefined>
+  refresh: (throwOnError?: boolean) => Promise<DataState<TData, unknown, TData | undefined>>
+  refetch: (throwOnError?: boolean) => Promise<DataState<TData, unknown, TData | undefined>>
+}
+
+type ChatSelectableModelGroup = {
+  providerId: string
+  providerName: string
+  models: RENDERER_MODEL_META[]
+}
+
+const resolveRendererModelType = (
+  model: Pick<MODEL_META, 'id' | 'type' | 'supportedEndpointTypes' | 'endpointType'>
+): ModelType => {
+  return (resolveVideoGenerationCompatType({
+    modelId: model.id,
+    type: model.type,
+    endpointType: model.endpointType,
+    supportedEndpointTypes: model.supportedEndpointTypes
+  }) ??
+    model.type ??
+    ModelType.Chat) as ModelType
+}
+
+export const useModelStore = defineStore('model', () => {
+  const modelClient = createModelClient()
+  const providerStore = useProviderStore()
+  const modelConfigStore = useModelConfigStore()
+  const agentModelStore = useAgentModelStore()
+  const uiSettingsStore = useUiSettingsStore()
+
+  const enabledModels = ref<{ providerId: string; models: RENDERER_MODEL_META[] }[]>([])
+  const allProviderModels = ref<{ providerId: string; models: RENDERER_MODEL_META[] }[]>([])
+  const customModels = ref<{ providerId: string; models: RENDERER_MODEL_META[] }[]>([])
+  const listenersRegistered = ref(false)
+  const initialized = ref(false)
+  const isInitializing = ref(false)
+  const initializationError = ref<Error | null>(null)
+  const initializationPromise = ref<Promise<void> | null>(null)
+  const chatSelectableModelGroupsRevision = ref(0)
+
+  const providerModelQueries = new Map<string, ModelQueryHandle<MODEL_META[]>>()
+  const customModelQueries = new Map<string, ModelQueryHandle<MODEL_META[]>>()
+  const enabledModelQueries = new Map<string, ModelQueryHandle<RENDERER_MODEL_META[]>>()
+  const queryCache = useQueryCache()
+  let removeModelListeners: (() => void) | null = null
+  const inFlightRefreshes = new Map<string, Promise<boolean>>()
+  const rerunRequested = new Set<string>()
+  const pendingRefreshStarts = new Set<string>()
+  const pendingModelStatusEchoes = new Map<string, boolean>()
+  const providerModelsReadyAt = new Map<string, number>()
+  const activeProviderIds = computed(
+    () =>
+      new Set(
+        providerStore.providers.filter((provider) => provider.enable).map((provider) => provider.id)
+      )
+  )
+  const activeEnabledModels = computed(() =>
+    enabledModels.value.filter((group) => activeProviderIds.value.has(group.providerId))
+  )
+
+  const MODEL_TOGGLE_PERF_LOG_PREFIX = '[ModelTogglePerf]'
+  const getPerfNow = () =>
+    import.meta.env.DEV ? (typeof performance !== 'undefined' ? performance.now() : Date.now()) : 0
+  const logModelTogglePerf = (phase: string, details: Record<string, unknown>) => {
+    if (!import.meta.env.DEV || !uiSettingsStore.traceDebugEnabled) {
+      return
+    }
+
+    console.info(`${MODEL_TOGGLE_PERF_LOG_PREFIX} ${phase}`, details)
+  }
+
+  const getModelStatusKey = (providerId: string, modelId: string) => `${providerId}:${modelId}`
+
+  const getProviderState = (providerId: string) => {
+    return providerStore.providers.find((provider) => provider.id === providerId) ?? null
+  }
+
+  const markProviderModelsReady = (providerId: string) => {
+    providerModelsReadyAt.set(providerId, Date.now())
+  }
+
+  const clearProviderModelsReady = (providerId?: string) => {
+    if (providerId) {
+      providerModelsReadyAt.delete(providerId)
+      return
+    }
+
+    providerModelsReadyAt.clear()
+  }
+
+  const isProviderModelsReady = (providerId: string) => {
+    return providerModelsReadyAt.has(providerId)
+  }
+
+  const trackPendingModelStatusEcho = (providerId: string, modelId: string, enabled: boolean) => {
+    const statusKey = getModelStatusKey(providerId, modelId)
+    pendingModelStatusEchoes.set(statusKey, enabled)
+    setTimeout(() => {
+      if (pendingModelStatusEchoes.get(statusKey) === enabled) {
+        pendingModelStatusEchoes.delete(statusKey)
+      }
+    }, 1500)
+  }
+
+  const ensureModelRuntime = () => {
+    setupModelListeners()
+  }
+
+  const getMaterializedProviderIds = () => {
+    return Array.from(
+      new Set([
+        ...allProviderModels.value.map((entry) => entry.providerId),
+        ...customModels.value.map((entry) => entry.providerId),
+        ...enabledModels.value.map((entry) => entry.providerId)
+      ])
+    ).filter((providerId): providerId is string => Boolean(providerId))
+  }
+
+  const removeProviderGroups = (
+    groups: { providerId: string; models: RENDERER_MODEL_META[] }[],
+    providerId: string
+  ) => {
+    return groups.filter((group) => group.providerId !== providerId)
+  }
+
+  const purgeRemovedProviderState = (providerId: string) => {
+    allProviderModels.value = removeProviderGroups(allProviderModels.value, providerId)
+    customModels.value = removeProviderGroups(customModels.value, providerId)
+    enabledModels.value = removeProviderGroups(enabledModels.value, providerId)
+    providerModelQueries.delete(providerId)
+    customModelQueries.delete(providerId)
+    enabledModelQueries.delete(providerId)
+    pendingRefreshStarts.delete(providerId)
+    rerunRequested.delete(providerId)
+    clearProviderModelsReady(providerId)
+
+    for (const statusKey of Array.from(pendingModelStatusEchoes.keys())) {
+      if (statusKey.startsWith(`${providerId}:`)) {
+        pendingModelStatusEchoes.delete(statusKey)
+      }
+    }
+  }
+
+  watch(
+    () => providerStore.providers.map((provider) => provider.id),
+    (providerIds) => {
+      const providerIdSet = new Set(providerIds)
+      for (const materializedProviderId of getMaterializedProviderIds()) {
+        if (!providerIdSet.has(materializedProviderId)) {
+          purgeRemovedProviderState(materializedProviderId)
+        }
+      }
+    }
+  )
+
+  const refreshMaterializedProviders = async (options?: {
+    skipRuntimeModelListProviders?: boolean
+  }) => {
+    const providerIds = getMaterializedProviderIds()
+    for (const providerId of providerIds) {
+      if (options?.skipRuntimeModelListProviders && isRuntimeModelListProvider(providerId)) {
+        continue
+      }
+      await refreshProviderModels(providerId)
+    }
+  }
+
+  const matchesProviderModelsEntry = (
+    entry: { key: readonly unknown[] },
+    targetProviderId?: string
+  ) => {
+    const key = entry.key
+    if (!Array.isArray(key) || key.length < 3) return false
+    const [namespace, scope, providerId] = key
+    if (namespace !== 'model-store' || scope !== 'provider-models') return false
+    if (!targetProviderId) return true
+
+    return typeof providerId === 'string' && providerId === targetProviderId
+  }
+
+  const invalidateProviderModelsCache = async (providerId?: string) => {
+    await queryCache.invalidateQueries({
+      predicate: (entry) => matchesProviderModelsEntry(entry, providerId)
+    })
+  }
+
+  const updateProviderModelsCache = (providerId: string, data: MODEL_META[]) => {
+    // Validate that all models have the correct providerId
+    const validatedData = data.filter((model) => {
+      if (model.providerId !== providerId) {
+        console.warn(
+          `[ModelStore] updateProviderModelsCache: Model ${model.id} has mismatched providerId: expected "${providerId}", got "${model.providerId}". Filtering out.`
+        )
+        return false
+      }
+      return true
+    })
+
+    if (validatedData.length !== data.length) {
+      console.error(
+        `[ModelStore] updateProviderModelsCache: Filtered out ${data.length - validatedData.length} models with incorrect providerId for provider "${providerId}"`
+      )
+    }
+
+    queryCache.setQueriesData(
+      {
+        predicate: (entry) => matchesProviderModelsEntry(entry, providerId)
+      },
+      () => validatedData
+    )
+  }
+
+  const resolveExplicitFunctionCall = (
+    ...values: Array<boolean | undefined | null>
+  ): boolean | undefined => {
+    for (const value of values) {
+      if (typeof value === 'boolean') {
+        return value
+      }
+    }
+
+    return undefined
+  }
+
+  const stripDerivedRendererModelFields = <T extends Partial<RENDERER_MODEL_META>>(model: T) => {
+    const { explicitFunctionCall: _explicitFunctionCall, ...persistedModel } = model
+    return persistedModel as Omit<T, 'explicitFunctionCall'>
+  }
+
+  const normalizeRendererModel = (model: MODEL_META, providerId: string): RENDERER_MODEL_META => ({
+    id: model.id,
+    name: model.name || model.id,
+    contextLength: resolveModelContextLength(model.contextLength),
+    maxTokens: resolveModelMaxTokens(model.maxTokens),
+    group: model.group || 'default',
+    providerId,
+    enabled: (model as RENDERER_MODEL_META).enabled ?? false,
+    isCustom: model.isCustom ?? false,
+    vision: resolveModelVision(model.vision),
+    functionCall: resolveModelFunctionCall(model.functionCall),
+    explicitFunctionCall: resolveExplicitFunctionCall(
+      model.functionCall,
+      (model as RENDERER_MODEL_META).explicitFunctionCall
+    ),
+    reasoning: model.reasoning ?? false,
+    enableSearch: (model as RENDERER_MODEL_META).enableSearch ?? false,
+    type: resolveRendererModelType(model),
+    supportedEndpointTypes: model.supportedEndpointTypes,
+    selectableEndpointTypes: model.selectableEndpointTypes,
+    endpointType: model.endpointType,
+    ownedBy: model.ownedBy
+  })
+
+  const normalizeDerivedRendererModel = (
+    model: MODEL_META,
+    providerId: string
+  ): RENDERER_MODEL_META => ({
+    id: model.id,
+    name: model.name || model.id,
+    contextLength: resolveModelContextLength(model.contextLength),
+    maxTokens: resolveDerivedModelMaxTokens(model.maxTokens),
+    group: model.group || 'default',
+    providerId,
+    enabled: (model as RENDERER_MODEL_META).enabled ?? false,
+    isCustom: model.isCustom ?? false,
+    vision: resolveModelVision(model.vision),
+    functionCall: resolveModelFunctionCall(model.functionCall),
+    explicitFunctionCall: resolveExplicitFunctionCall(
+      model.functionCall,
+      (model as RENDERER_MODEL_META).explicitFunctionCall
+    ),
+    reasoning: model.reasoning ?? false,
+    enableSearch: (model as RENDERER_MODEL_META).enableSearch ?? false,
+    type: resolveRendererModelType(model),
+    supportedEndpointTypes: model.supportedEndpointTypes,
+    selectableEndpointTypes: model.selectableEndpointTypes,
+    endpointType: model.endpointType,
+    ownedBy: model.ownedBy
+  })
+
+  const createQueryHandle = <TData>(
+    entry: UseQueryEntry<TData, unknown, TData | undefined>
+  ): ModelQueryHandle<TData> => {
+    const data = computed(() => entry.state.value.data as TData | undefined)
+    const refresh = (throwOnError?: boolean) => {
+      const promise = queryCache.refresh(entry)
+      return throwOnError ? promise : promise.catch(() => entry.state.value)
+    }
+    const refetch = (throwOnError?: boolean) => {
+      const promise = queryCache.fetch(entry)
+      return throwOnError ? promise : promise.catch(() => entry.state.value)
+    }
+    return { entry, data, refresh, refetch }
+  }
+
+  const ensureQueryHandle = <TData>(
+    map: Map<string, ModelQueryHandle<TData>>,
+    providerId: string,
+    options: {
+      key: EntryKey
+      staleTime: number
+      query: () => Promise<TData>
+    }
+  ) => {
+    const entry = queryCache.ensure<TData>(options)
+    const existing = map.get(providerId)
+    if (existing?.entry === entry) return existing
+    const handle = createQueryHandle(entry)
+    map.set(providerId, handle)
+    return handle
+  }
+
+  const getProviderModelsQuery = (providerId: string) => {
+    return ensureQueryHandle(providerModelQueries, providerId, {
+      key: PROVIDER_MODELS_KEY(providerId),
+      staleTime: 30_000,
+      query: async () => modelClient.getProviderModels(providerId)
+    })
+  }
+
+  const getCustomModelsQuery = (providerId: string) => {
+    return ensureQueryHandle(customModelQueries, providerId, {
+      key: CUSTOM_MODELS_KEY(providerId),
+      staleTime: 30_000,
+      query: async () => modelClient.getCustomModels(providerId)
+    })
+  }
+
+  const getEnabledModelsQuery = (providerId: string) => {
+    return ensureQueryHandle(enabledModelQueries, providerId, {
+      key: ENABLED_MODELS_KEY(providerId),
+      staleTime: 30_000,
+      query: async () => {
+        const [providerModels, customModelsList] = await Promise.all([
+          modelClient.getProviderModels(providerId),
+          modelClient.getCustomModels(providerId)
+        ])
+        const statusMap = await modelClient.getBatchModelStatus(
+          providerId,
+          [...providerModels, ...customModelsList].map((model) => model.id)
+        )
+        return [...providerModels, ...customModelsList]
+          .filter((model) => statusMap[model.id] === true)
+          .map((model) => ({ ...normalizeRendererModel(model, providerId), enabled: true }))
+      }
+    })
+  }
+
+  const getUserConfiguredModelIds = async (providerId: string) => {
+    try {
+      const providerIds = [...new Set([providerId, providerId.toLowerCase()])]
+      const configs = await Promise.all(
+        providerIds.map((id) => modelClient.getProviderModelConfigs(id))
+      )
+      return new Set(configs.flat().map(({ modelId }) => modelId))
+    } catch (error) {
+      console.error(`Failed to read model config index for ${providerId}:`, error)
+      // Keep the individual lookup path if the index cannot be loaded.
+      return undefined
+    }
+  }
+
+  const applyUserDefinedModelConfig = async (
+    model: RENDERER_MODEL_META,
+    providerId: string,
+    userConfiguredModelIds?: Set<string>
+  ): Promise<RENDERER_MODEL_META> => {
+    const normalized: RENDERER_MODEL_META = {
+      ...model,
+      vision: resolveModelVision(model.vision),
+      functionCall: resolveModelFunctionCall(model.functionCall),
+      reasoning: model.reasoning ?? false,
+      enableSearch: model.enableSearch ?? false,
+      type: model.type ?? ModelType.Chat
+    }
+
+    if (
+      userConfiguredModelIds &&
+      !userConfiguredModelIds.has(model.id) &&
+      !userConfiguredModelIds.has(model.id.toLowerCase().replace(/^models\//, ''))
+    ) {
+      return normalized
+    }
+
+    try {
+      const config: ModelConfig | null = await modelConfigStore.getModelConfig(model.id, providerId)
+      if (config?.isUserDefined) {
+        const resolvedMaxTokens =
+          config.maxTokens ?? config.maxCompletionTokens ?? normalized.maxTokens
+        return {
+          ...normalized,
+          contextLength: resolveModelContextLength(
+            config.contextLength ?? normalized.contextLength
+          ),
+          maxTokens: resolvedMaxTokens,
+          vision: resolveModelVision(config.vision ?? normalized.vision),
+          functionCall: resolveModelFunctionCall(config.functionCall ?? normalized.functionCall),
+          explicitFunctionCall: resolveExplicitFunctionCall(
+            config.functionCall,
+            normalized.explicitFunctionCall
+          ),
+          reasoning: model.isCustom
+            ? (config.reasoning ?? normalized.reasoning ?? false)
+            : normalized.reasoning,
+          type: config.type ?? normalized.type ?? ModelType.Chat,
+          endpointType: config.endpointType ?? normalized.endpointType,
+          ownedBy: config.ownedBy ?? normalized.ownedBy
+        }
+      }
+    } catch (error) {
+      console.error(`读取模型配置失败: ${providerId}/${model.id}`, error)
+    }
+
+    return normalized
+  }
+
+  const updateCustomModelState = (providerId: string, models: RENDERER_MODEL_META[]) => {
+    const customIndex = customModels.value.findIndex((item) => item.providerId === providerId)
+    if (customIndex !== -1) {
+      customModels.value[customIndex].models = models
+    } else {
+      customModels.value.push({ providerId, models })
+    }
+  }
+
+  const updateAllProviderState = (providerId: string, models: RENDERER_MODEL_META[]) => {
+    const idx = allProviderModels.value.findIndex((item) => item.providerId === providerId)
+    if (idx !== -1) {
+      allProviderModels.value[idx].models = models
+    } else {
+      allProviderModels.value.push({ providerId, models })
+    }
+  }
+
+  const updateEnabledState = (providerId: string, models: RENDERER_MODEL_META[]) => {
+    const providerState = getProviderState(providerId)
+    const enabledModelsList = providerState?.enable ? models.filter((model) => model.enabled) : []
+    const idx = enabledModels.value.findIndex((item) => item.providerId === providerId)
+    if (idx !== -1) {
+      if (enabledModelsList.length > 0) {
+        enabledModels.value[idx].models = enabledModelsList
+      } else {
+        enabledModels.value.splice(idx, 1)
+      }
+    } else if (enabledModelsList.length > 0) {
+      enabledModels.value.push({ providerId, models: enabledModelsList })
+    }
+
+    enabledModels.value = [...enabledModels.value]
+  }
+
+  const pruneModelState = (providerIds: Set<string>, enabledProviderIds: Set<string>) => {
+    enabledModels.value = enabledModels.value.filter((group) =>
+      enabledProviderIds.has(group.providerId)
+    )
+    allProviderModels.value = allProviderModels.value.filter((group) =>
+      providerIds.has(group.providerId)
+    )
+    customModels.value = customModels.value.filter((group) => providerIds.has(group.providerId))
+  }
+
+  const updateEnabledStateFromLocalProvider = (providerId: string) => {
+    const materializedProviderModels =
+      allProviderModels.value.find((item) => item.providerId === providerId)?.models ?? []
+    const materializedCustomModels =
+      customModels.value.find((item) => item.providerId === providerId)?.models ?? []
+
+    if (materializedCustomModels.length === 0) {
+      updateEnabledState(providerId, materializedProviderModels)
+      return
+    }
+
+    const mergedModels = new Map<string, RENDERER_MODEL_META>()
+
+    for (const model of materializedProviderModels) {
+      mergedModels.set(model.id, model)
+    }
+
+    for (const model of materializedCustomModels) {
+      mergedModels.set(model.id, model)
+    }
+
+    updateEnabledState(providerId, Array.from(mergedModels.values()))
+  }
+
+  const updateLocalBatchModelStatus = (
+    providerId: string,
+    updates: { modelId: string; enabled: boolean }[]
+  ) => {
+    const previousStates = new Map<string, boolean | null>()
+
+    if (updates.length === 0) {
+      return previousStates
+    }
+
+    const providerEntry = allProviderModels.value.find((item) => item.providerId === providerId)
+    const customEntry = customModels.value.find((item) => item.providerId === providerId)
+    const enabledEntry = enabledModels.value.find((item) => item.providerId === providerId)
+    const providerModelById = providerEntry
+      ? new Map(providerEntry.models.map((model) => [model.id, model]))
+      : null
+    const customModelById = customEntry
+      ? new Map(customEntry.models.map((model) => [model.id, model]))
+      : null
+    const enabledModelIds = enabledEntry
+      ? new Set(enabledEntry.models.map((model) => model.id))
+      : null
+
+    const nextEnabledByModelId = new Map<string, boolean>()
+    for (const update of updates) {
+      const providerModel = providerModelById?.get(update.modelId)
+      const customModel = customModelById?.get(update.modelId)
+      previousStates.set(
+        update.modelId,
+        providerModel
+          ? !!providerModel.enabled
+          : customModel
+            ? !!customModel.enabled
+            : (enabledModelIds?.has(update.modelId) ?? null)
+      )
+      nextEnabledByModelId.set(update.modelId, update.enabled)
+    }
+
+    if (providerEntry) {
+      for (const model of providerEntry.models) {
+        const nextEnabled = nextEnabledByModelId.get(model.id)
+        if (nextEnabled !== undefined) {
+          model.enabled = nextEnabled
+        }
+      }
+    }
+
+    if (customEntry) {
+      for (const model of customEntry.models) {
+        const nextEnabled = nextEnabledByModelId.get(model.id)
+        if (nextEnabled !== undefined) {
+          model.enabled = nextEnabled
+        }
+      }
+    }
+
+    updateEnabledStateFromLocalProvider(providerId)
+
+    return previousStates
+  }
+
+  const rollbackLocalBatchModelStatus = (
+    providerId: string,
+    previousStates: Map<string, boolean | null>
+  ) => {
+    const rollbackUpdates: { modelId: string; enabled: boolean }[] = []
+    for (const [modelId, enabled] of previousStates) {
+      if (enabled !== null) {
+        rollbackUpdates.push({ modelId, enabled })
+      }
+    }
+
+    if (rollbackUpdates.length > 0) {
+      updateLocalBatchModelStatus(providerId, rollbackUpdates)
+    }
+  }
+
+  const trackPendingBatchModelStatusEchoes = (
+    providerId: string,
+    updates: { modelId: string; enabled: boolean }[]
+  ) => {
+    const trackedEchoes: { statusKey: string; enabled: boolean }[] = []
+    for (const update of updates) {
+      const statusKey = getModelStatusKey(providerId, update.modelId)
+      pendingModelStatusEchoes.set(statusKey, update.enabled)
+      trackedEchoes.push({ statusKey, enabled: update.enabled })
+    }
+
+    setTimeout(() => {
+      for (const echo of trackedEchoes) {
+        if (pendingModelStatusEchoes.get(echo.statusKey) === echo.enabled) {
+          pendingModelStatusEchoes.delete(echo.statusKey)
+        }
+      }
+    }, 1500)
+  }
+
+  const clearPendingBatchModelStatusEchoes = (
+    providerId: string,
+    updates: { modelId: string; enabled: boolean }[]
+  ) => {
+    for (const update of updates) {
+      const statusKey = getModelStatusKey(providerId, update.modelId)
+      if (pendingModelStatusEchoes.get(statusKey) === update.enabled) {
+        pendingModelStatusEchoes.delete(statusKey)
+      }
+    }
+  }
+
+  const refreshCustomModels = async (providerId: string): Promise<boolean> => {
+    try {
+      const query = getCustomModelsQuery(providerId)
+      await query.refetch()
+      const customModelsList = query.data.value ?? []
+      const existingCustom =
+        customModels.value.find((item) => item.providerId === providerId)?.models ?? []
+
+      if (customModelsList.length === 0 && existingCustom.length === 0) {
+        return true
+      }
+
+      const modelIds = customModelsList.map((model) => model.id)
+      const [modelStatusMap, userConfiguredModelIds] = await Promise.all([
+        modelClient.getBatchModelStatus(providerId, modelIds),
+        getUserConfiguredModelIds(providerId)
+      ])
+
+      const customModelsWithStatus = await Promise.all(
+        customModelsList.map(async (model) => {
+          const base: RENDERER_MODEL_META = {
+            ...normalizeRendererModel(model, providerId),
+            enabled: modelStatusMap[model.id] ?? true,
+            isCustom: true
+          }
+          return applyUserDefinedModelConfig(base, providerId, userConfiguredModelIds)
+        })
+      )
+
+      updateCustomModelState(providerId, customModelsWithStatus)
+
+      const existingStandard =
+        allProviderModels.value
+          .find((item) => item.providerId === providerId)
+          ?.models.filter((model) => !model.isCustom) || []
+      updateAllProviderState(providerId, [...existingStandard, ...customModelsWithStatus])
+      updateEnabledState(providerId, [...existingStandard, ...customModelsWithStatus])
+      markProviderModelsReady(providerId)
+      return true
+    } catch (error) {
+      console.error(`刷新自定义模型失败: ${providerId}`, error)
+      return false
+    }
+  }
+
+  const refreshStandardModels = async (providerId: string): Promise<boolean> => {
+    try {
+      await invalidateProviderModelsCache(providerId)
+      const providerState = getProviderState(providerId)
+      const useRuntimeModelList = isRuntimeModelListProvider(providerId)
+      const useProviderDbModels = providerState?.apiType !== 'ollama' && !useRuntimeModelList
+      let models: RENDERER_MODEL_META[] = useProviderDbModels
+        ? await modelClient.getDbProviderModels(providerId)
+        : []
+
+      const mapRuntimeModel = (meta: MODEL_META): RENDERER_MODEL_META => ({
+        id: meta.id,
+        name: meta.name,
+        contextLength: meta.contextLength || 4096,
+        maxTokens: meta.maxTokens || 2048,
+        group: meta.group || 'default',
+        enabled: false,
+        isCustom: meta.isCustom || false,
+        providerId,
+        vision: meta.vision || false,
+        functionCall: meta.functionCall || false,
+        reasoning: meta.reasoning || false,
+        type: (meta.type || ModelType.Chat) as ModelType,
+        supportedEndpointTypes: meta.supportedEndpointTypes,
+        selectableEndpointTypes: meta.selectableEndpointTypes,
+        endpointType: meta.endpointType,
+        ownedBy: meta.ownedBy
+      })
+
+      if (useRuntimeModelList) {
+        const modelMetas = await modelClient.getModelList(providerId)
+        updateProviderModelsCache(providerId, modelMetas)
+        models = modelMetas.map(mapRuntimeModel)
+      }
+
+      const providerModelsQuery = getProviderModelsQuery(providerId)
+      await providerModelsQuery.refetch()
+      let storedModels = providerModelsQuery.data.value ?? []
+
+      if (!useRuntimeModelList && storedModels.length === 0) {
+        // Fallback: try to get models directly from config
+        const fallbackProviderModels = (await modelClient.getProviderModels(providerId)) ?? []
+        if (fallbackProviderModels.length > 0) {
+          storedModels = fallbackProviderModels
+          updateProviderModelsCache(providerId, fallbackProviderModels)
+        }
+      }
+
+      if (!useRuntimeModelList && storedModels.length > 0) {
+        const dbModelMap = new Map(models.map((model) => [model.id, model]))
+        const storedModelMap = new Map<string, RENDERER_MODEL_META>()
+
+        const normalizeStoredModel = (
+          model: MODEL_META,
+          fallback?: RENDERER_MODEL_META
+        ): RENDERER_MODEL_META => {
+          return {
+            id: model.id,
+            name: model.name || fallback?.name || model.id,
+            group: model.group || fallback?.group || 'default',
+            providerId,
+            enabled: false,
+            isCustom: model.isCustom ?? fallback?.isCustom ?? false,
+            contextLength: resolveModelContextLength(
+              model.contextLength ?? fallback?.contextLength
+            ),
+            maxTokens: resolveDerivedModelMaxTokens(model.maxTokens ?? fallback?.maxTokens),
+            vision: resolveModelVision(model.vision ?? fallback?.vision),
+            functionCall: resolveModelFunctionCall(model.functionCall ?? fallback?.functionCall),
+            explicitFunctionCall: resolveExplicitFunctionCall(
+              model.functionCall,
+              fallback?.explicitFunctionCall
+            ),
+            // Standard models should keep DB-backed reasoning capability metadata.
+            reasoning:
+              fallback !== undefined ? (fallback.reasoning ?? false) : (model.reasoning ?? false),
+            enableSearch:
+              (model as RENDERER_MODEL_META).enableSearch ??
+              (fallback as RENDERER_MODEL_META | undefined)?.enableSearch ??
+              false,
+            type: resolveRendererModelType({
+              id: model.id,
+              type: model.type ?? fallback?.type,
+              supportedEndpointTypes:
+                model.supportedEndpointTypes ?? fallback?.supportedEndpointTypes,
+              endpointType: model.endpointType ?? fallback?.endpointType
+            }),
+            supportedEndpointTypes:
+              model.supportedEndpointTypes ?? fallback?.supportedEndpointTypes,
+            selectableEndpointTypes:
+              model.selectableEndpointTypes ?? fallback?.selectableEndpointTypes,
+            endpointType: model.endpointType ?? fallback?.endpointType,
+            ownedBy: model.ownedBy ?? fallback?.ownedBy
+          }
+        }
+
+        for (const storedModel of storedModels) {
+          const normalized = normalizeStoredModel(storedModel, dbModelMap.get(storedModel.id))
+          storedModelMap.set(storedModel.id, normalized)
+        }
+
+        const mergedModels: RENDERER_MODEL_META[] = []
+
+        // If models array is empty, use storedModels directly
+        if (models.length === 0) {
+          for (const model of storedModelMap.values()) {
+            mergedModels.push(normalizeDerivedRendererModel(model, providerId))
+          }
+        } else {
+          // Otherwise, merge db models with stored models
+          for (const model of models) {
+            const override = storedModelMap.get(model.id)
+            if (override) {
+              storedModelMap.delete(model.id)
+              mergedModels.push(
+                normalizeDerivedRendererModel({ ...model, ...override, providerId }, providerId)
+              )
+            } else {
+              mergedModels.push(normalizeDerivedRendererModel({ ...model, providerId }, providerId))
+            }
+          }
+
+          // Add remaining stored models that are not in db
+          for (const model of storedModelMap.values()) {
+            mergedModels.push(normalizeDerivedRendererModel(model, providerId))
+          }
+        }
+
+        models = mergedModels
+      }
+
+      if (!models || models.length === 0) {
+        try {
+          const modelMetas = await modelClient.getModelList(providerId)
+          if (modelMetas) {
+            models = modelMetas.map(mapRuntimeModel)
+          }
+        } catch (error) {
+          console.error(`Failed to fetch models for provider ${providerId}:`, error)
+          models = []
+        }
+      }
+
+      const modelIds = models.map((model) => model.id)
+      const [modelStatusMap, userConfiguredModelIds] = await Promise.all([
+        modelClient.getBatchModelStatus(providerId, modelIds),
+        getUserConfiguredModelIds(providerId)
+      ])
+
+      const modelsWithStatus = await Promise.all(
+        models.map(async (model) => {
+          const base: RENDERER_MODEL_META = {
+            ...normalizeDerivedRendererModel(model, providerId),
+            enabled: modelStatusMap[model.id] ?? true,
+            isCustom: model.isCustom || false
+          }
+          return applyUserDefinedModelConfig(base, providerId, userConfiguredModelIds)
+        })
+      )
+
+      const existingCustom =
+        customModels.value.find((item) => item.providerId === providerId)?.models || []
+      updateAllProviderState(providerId, [...modelsWithStatus, ...existingCustom])
+      updateEnabledState(providerId, [...modelsWithStatus, ...existingCustom])
+      markProviderModelsReady(providerId)
+      return true
+    } catch (error) {
+      console.error(`刷新标准模型失败: ${providerId}`, error)
+      return false
+    }
+  }
+
+  const refreshProviderModelsNow = async (providerId: string): Promise<boolean> => {
+    if (providerId === 'acp') {
+      try {
+        const { rendererModels, modelMetas } = await agentModelStore.refreshAgentModels(providerId)
+        updateProviderModelsCache(providerId, modelMetas)
+        updateAllProviderState(providerId, rendererModels)
+        updateEnabledState(providerId, rendererModels)
+        markProviderModelsReady(providerId)
+        return true
+      } catch (error) {
+        console.error(`[ModelStore] Failed to refresh agent models for ${providerId}:`, error)
+        clearProviderModelsReady(providerId)
+        return false
+      }
+    }
+
+    const [standardRefreshed, customRefreshed] = await Promise.all([
+      refreshStandardModels(providerId),
+      refreshCustomModels(providerId)
+    ])
+
+    if (!standardRefreshed || !customRefreshed) {
+      clearProviderModelsReady(providerId)
+    }
+
+    return standardRefreshed && customRefreshed
+  }
+
+  const refreshProviderModels = (providerId: string): Promise<boolean> => {
+    ensureModelRuntime()
+
+    const existingRefresh = inFlightRefreshes.get(providerId)
+    if (existingRefresh) {
+      if (!pendingRefreshStarts.has(providerId)) {
+        rerunRequested.add(providerId)
+      }
+      return existingRefresh
+    }
+
+    pendingRefreshStarts.add(providerId)
+    let refreshPromise: Promise<boolean> | null = null
+    refreshPromise = (async () => {
+      let lastRefreshSucceeded = true
+      try {
+        await Promise.resolve()
+        pendingRefreshStarts.delete(providerId)
+
+        do {
+          rerunRequested.delete(providerId)
+          lastRefreshSucceeded = await refreshProviderModelsNow(providerId)
+        } while (rerunRequested.has(providerId))
+
+        return lastRefreshSucceeded
+      } finally {
+        pendingRefreshStarts.delete(providerId)
+        rerunRequested.delete(providerId)
+        if (refreshPromise && inFlightRefreshes.get(providerId) === refreshPromise) {
+          inFlightRefreshes.delete(providerId)
+        }
+      }
+    })()
+
+    inFlightRefreshes.set(providerId, refreshPromise)
+    return refreshPromise
+  }
+
+  const _refreshAllModelsInternal = async (): Promise<boolean> => {
+    await providerStore.ensureInitialized()
+
+    const activeProviders = providerStore.providers.filter((p) => p.enable)
+    let allProvidersRefreshed = true
+    for (const provider of activeProviders) {
+      const refreshed = await refreshProviderModels(provider.id)
+      allProvidersRefreshed = allProvidersRefreshed && refreshed
+    }
+
+    return allProvidersRefreshed
+  }
+
+  const refreshAllModels = useThrottleFn(_refreshAllModelsInternal, 1000, true, true)
+
+  watch(
+    () => ({
+      providers: providerStore.sortedProviders.map((provider) => ({
+        id: provider.id,
+        name: provider.name,
+        enable: provider.enable
+      })),
+      fallbackProviders: providerStore.providers.map((provider) => ({
+        id: provider.id,
+        name: provider.name,
+        enable: provider.enable
+      })),
+      enabledModelGroups: enabledModels.value.map((group) => ({
+        providerId: group.providerId,
+        models: group.models.map((model) => ({
+          ...model,
+          supportedEndpointTypes: [...(model.supportedEndpointTypes ?? [])],
+          selectableEndpointTypes: [...(model.selectableEndpointTypes ?? [])]
+        }))
+      }))
+    }),
+    () => {
+      chatSelectableModelGroupsRevision.value += 1
+    },
+    { immediate: true }
+  )
+
+  const chatSelectableModelGroups = computed<ChatSelectableModelGroup[]>(() => {
+    const orderedProviders =
+      providerStore.sortedProviders?.length > 0
+        ? providerStore.sortedProviders
+        : providerStore.providers
+    const modelsByProviderId = new Map(
+      enabledModels.value
+        .filter((group) => group.providerId !== 'acp')
+        .map(
+          (group) =>
+            [
+              group.providerId,
+              group.models.filter((model) => isChatSelectableModelType(model.type))
+            ] as const
+        )
+        .filter(([, models]) => models.length > 0)
+    )
+
+    const result: ChatSelectableModelGroup[] = []
+
+    for (const provider of orderedProviders) {
+      if (!provider.enable || provider.id === 'acp') {
+        continue
+      }
+
+      const models = modelsByProviderId.get(provider.id)
+      if (!models || models.length === 0) {
+        continue
+      }
+
+      result.push({
+        providerId: provider.id,
+        providerName: provider.name,
+        models
+      })
+    }
+
+    return result
+  })
+
+  const findChatSelectableModel = (providerId: string, modelId: string) => {
+    const group = chatSelectableModelGroups.value.find((entry) => entry.providerId === providerId)
+    const model = group?.models.find((entry) => entry.id === modelId)
+    if (!group || !model) {
+      return null
+    }
+
+    return {
+      providerId: group.providerId,
+      providerName: group.providerName,
+      model
+    }
+  }
+
+  const pickFirstChatSelectableModel = () => {
+    const firstGroup = chatSelectableModelGroups.value[0]
+    const firstModel = firstGroup?.models[0]
+    if (!firstGroup || !firstModel) {
+      return null
+    }
+
+    return {
+      providerId: firstGroup.providerId,
+      providerName: firstGroup.providerName,
+      model: firstModel
+    }
+  }
+
+  const searchModels = (query: string) => {
+    const normalized = query.toLowerCase()
+    return activeEnabledModels.value
+      .map((group) => ({
+        providerId: group.providerId,
+        models: group.models.filter(
+          (model) =>
+            model.id.toLowerCase().includes(normalized) ||
+            model.name.toLowerCase().includes(normalized)
+        )
+      }))
+      .filter((group) => group.models.length > 0)
+  }
+
+  const updateLocalModelStatus = (providerId: string, modelId: string, enabled: boolean) => {
+    let updatedEnabledModels: { providerId: string; models: RENDERER_MODEL_META[] }[] | null = null
+    const provider = allProviderModels.value.find((p) => p.providerId === providerId)
+    const providerModel = provider?.models.find((m) => m.id === modelId)
+    const customProvider = customModels.value.find((p) => p.providerId === providerId)
+    const customModel = customProvider?.models.find((m) => m.id === modelId)
+
+    if (providerModel) {
+      providerModel.enabled = enabled
+    }
+    if (customModel) {
+      customModel.enabled = enabled
+    }
+
+    if (!getProviderState(providerId)?.enable) {
+      enabledModels.value = enabledModels.value.filter((entry) => entry.providerId !== providerId)
+      return
+    }
+
+    let enabledProvider = enabledModels.value.find((p) => p.providerId === providerId)
+
+    if (!enabledProvider && enabled) {
+      enabledProvider = {
+        providerId,
+        models: []
+      }
+      updatedEnabledModels = [...enabledModels.value, enabledProvider]
+    }
+
+    if (enabledProvider) {
+      const models = enabledProvider.models
+      const modelIndex = models.findIndex((m) => m.id === modelId)
+
+      const sourceModel = providerModel ?? customModel ?? models[modelIndex]
+      if (enabled) {
+        if (sourceModel) {
+          const normalizedModel: RENDERER_MODEL_META = {
+            ...sourceModel,
+            enabled: true,
+            vision: resolveModelVision(sourceModel.vision),
+            functionCall: resolveModelFunctionCall(sourceModel.functionCall),
+            reasoning: sourceModel.reasoning ?? false,
+            type: sourceModel.type ?? ModelType.Chat
+          }
+
+          if (modelIndex === -1) {
+            models.push(normalizedModel)
+          } else {
+            models[modelIndex] = normalizedModel
+          }
+        }
+      } else if (modelIndex !== -1) {
+        models.splice(modelIndex, 1)
+      }
+
+      if (!enabled && enabledProvider.models.length === 0) {
+        updatedEnabledModels = enabledModels.value.filter((p) => p.providerId !== providerId)
+      }
+    }
+
+    if (!updatedEnabledModels) {
+      updatedEnabledModels = [...enabledModels.value]
+    }
+
+    enabledModels.value = updatedEnabledModels
+  }
+
+  const getLocalModelEnabledState = (providerId: string, modelId: string): boolean | null => {
+    const provider = allProviderModels.value.find((p) => p.providerId === providerId)
+    const providerModel = provider?.models.find((m) => m.id === modelId)
+    if (providerModel) {
+      return !!providerModel.enabled
+    }
+
+    const customProvider = customModels.value.find((p) => p.providerId === providerId)
+    const customModel = customProvider?.models.find((m) => m.id === modelId)
+    if (customModel) {
+      return !!customModel.enabled
+    }
+
+    const enabledProvider = enabledModels.value.find((p) => p.providerId === providerId)
+    if (enabledProvider) {
+      return enabledProvider.models.some((model) => model.id === modelId)
+    }
+
+    return null
+  }
+
+  const updateModelStatus = async (providerId: string, modelId: string, enabled: boolean) => {
+    const actionStart = getPerfNow()
+    const previousState = getLocalModelEnabledState(providerId, modelId)
+    const localUpdateStart = getPerfNow()
+    updateLocalModelStatus(providerId, modelId, enabled)
+    trackPendingModelStatusEcho(providerId, modelId, enabled)
+    logModelTogglePerf('store.local-update', {
+      providerId,
+      modelId,
+      enabled,
+      previousState,
+      elapsedMs: Math.round(getPerfNow() - localUpdateStart)
+    })
+
+    try {
+      const ipcStart = getPerfNow()
+      await modelClient.updateModelStatus(providerId, modelId, enabled)
+      logModelTogglePerf('store.ipc-complete', {
+        providerId,
+        modelId,
+        enabled,
+        elapsedMs: Math.round(getPerfNow() - ipcStart),
+        totalMs: Math.round(getPerfNow() - actionStart)
+      })
+    } catch (error) {
+      console.error('Failed to update model status:', error)
+      const statusKey = getModelStatusKey(providerId, modelId)
+      if (pendingModelStatusEchoes.get(statusKey) === enabled) {
+        pendingModelStatusEchoes.delete(statusKey)
+      }
+      if (previousState !== null && previousState !== enabled) {
+        updateLocalModelStatus(providerId, modelId, previousState)
+      }
+      logModelTogglePerf('store.rollback', {
+        providerId,
+        modelId,
+        enabled,
+        previousState,
+        totalMs: Math.round(getPerfNow() - actionStart)
+      })
+    }
+  }
+
+  const addCustomModel = async (
+    providerId: string,
+    model: Omit<RENDERER_MODEL_META, 'providerId' | 'isCustom' | 'group'>
+  ) => {
+    try {
+      const newModel = await modelClient.addCustomModel(
+        providerId,
+        stripDerivedRendererModelFields(model)
+      )
+      await refreshCustomModels(providerId)
+      return newModel
+    } catch (error) {
+      console.error('Failed to add custom model:', error)
+      throw error
+    }
+  }
+
+  const removeCustomModel = async (providerId: string, modelId: string) => {
+    try {
+      const success = await modelClient.removeCustomModel(providerId, modelId)
+      if (success) {
+        await refreshCustomModels(providerId)
+      }
+      return success
+    } catch (error) {
+      console.error('Failed to remove custom model:', error)
+      throw error
+    }
+  }
+
+  const updateCustomModel = async (
+    providerId: string,
+    modelId: string,
+    updates: Partial<RENDERER_MODEL_META> & { enabled?: boolean }
+  ) => {
+    try {
+      const success = await modelClient.updateCustomModel(
+        providerId,
+        modelId,
+        stripDerivedRendererModelFields(updates)
+      )
+      if (success) {
+        await refreshCustomModels(providerId)
+      }
+      return success
+    } catch (error) {
+      console.error('Failed to update custom model:', error)
+      throw error
+    }
+  }
+
+  const enableAllModels = async (
+    providerId: string,
+    models: RENDERER_MODEL_META[] = []
+  ): Promise<void> => {
+    const actionStart = getPerfNow()
+    let previousStates: Map<string, boolean | null> | null = null
+    let updates: { modelId: string; enabled: boolean }[] = []
+    try {
+      const providerModelsData =
+        models.length > 0
+          ? { providerId, models }
+          : allProviderModels.value.find((p) => p.providerId === providerId)
+
+      if (!providerModelsData || providerModelsData.models.length === 0) {
+        console.warn(`No models found for provider ${providerId}`)
+        return
+      }
+
+      const targetModels = providerModelsData.models.filter((model) => !model.enabled)
+      if (targetModels.length === 0) {
+        return
+      }
+
+      updates = targetModels.map((model) => ({ modelId: model.id, enabled: true }))
+      previousStates = updateLocalBatchModelStatus(providerId, updates)
+      trackPendingBatchModelStatusEchoes(providerId, updates)
+      await modelClient.setBatchModelStatus(providerId, updates)
+      logModelTogglePerf('store.batch-enable-complete', {
+        providerId,
+        modelCount: updates.length,
+        totalMs: Math.round(getPerfNow() - actionStart)
+      })
+    } catch (error) {
+      console.error(`Failed to enable all models for provider ${providerId}:`, error)
+      clearPendingBatchModelStatusEchoes(providerId, updates)
+      if (previousStates) {
+        rollbackLocalBatchModelStatus(providerId, previousStates)
+      }
+      throw error
+    }
+  }
+
+  const disableAllModels = async (
+    providerId: string,
+    models: RENDERER_MODEL_META[] = []
+  ): Promise<void> => {
+    const actionStart = getPerfNow()
+    let previousStates: Map<string, boolean | null> | null = null
+    let updates: { modelId: string; enabled: boolean }[] = []
+    try {
+      const providerModelsData =
+        models.length > 0
+          ? { providerId, models }
+          : allProviderModels.value.find((p) => p.providerId === providerId)
+
+      if (!providerModelsData || providerModelsData.models.length === 0) {
+        console.warn(`No models found for provider ${providerId}`)
+        return
+      }
+
+      const targetModels = providerModelsData.models.filter((model) => model.enabled)
+      if (targetModels.length === 0) {
+        return
+      }
+
+      updates = targetModels.map((model) => ({ modelId: model.id, enabled: false }))
+      previousStates = updateLocalBatchModelStatus(providerId, updates)
+      trackPendingBatchModelStatusEchoes(providerId, updates)
+      await modelClient.setBatchModelStatus(providerId, updates)
+      logModelTogglePerf('store.batch-disable-complete', {
+        providerId,
+        modelCount: updates.length,
+        totalMs: Math.round(getPerfNow() - actionStart)
+      })
+    } catch (error) {
+      console.error(`Failed to disable all models for provider ${providerId}:`, error)
+      clearPendingBatchModelStatusEchoes(providerId, updates)
+      if (previousStates) {
+        rollbackLocalBatchModelStatus(providerId, previousStates)
+      }
+      throw error
+    }
+  }
+
+  const findModelByIdOrName = (
+    modelId: string
+  ): { model: RENDERER_MODEL_META; providerId: string } | null => {
+    for (const providerModels of enabledModels.value) {
+      const model = providerModels.models.find((m) => m.id === modelId)
+      if (model) {
+        return { model, providerId: providerModels.providerId }
+      }
+    }
+
+    const enabledModel = enabledModels.value
+      .flatMap((provider) =>
+        provider.models.map((m) => ({ ...m, providerId: provider.providerId }))
+      )
+      .find((m) => m.id === modelId)
+    if (enabledModel) {
+      return { model: enabledModel, providerId: enabledModel.providerId! }
+    }
+
+    for (const providerModels of enabledModels.value) {
+      for (const model of providerModels.models) {
+        if (
+          model.id.toLowerCase().includes(modelId.toLowerCase()) ||
+          model.name.toLowerCase().includes(modelId.toLowerCase())
+        ) {
+          return { model, providerId: providerModels.providerId }
+        }
+      }
+    }
+
+    return null
+  }
+
+  watch(
+    () =>
+      providerStore.providers.map((provider) => ({
+        id: provider.id,
+        enable: provider.enable
+      })),
+    (nextProviders, previousProviders) => {
+      const providerIds = new Set(nextProviders.map((provider) => provider.id))
+      const enabledProviderIds = new Set(
+        nextProviders.filter((provider) => provider.enable).map((provider) => provider.id)
+      )
+      const previousEnabledProviderIds = new Set(
+        (previousProviders ?? [])
+          .filter((provider) => provider.enable)
+          .map((provider) => provider.id)
+      )
+
+      pruneModelState(providerIds, enabledProviderIds)
+
+      for (const provider of previousProviders ?? []) {
+        if (provider.enable && !enabledProviderIds.has(provider.id)) {
+          clearProviderModelsReady(provider.id)
+        }
+      }
+
+      for (const providerId of providerIds) {
+        if (enabledProviderIds.has(providerId) && !previousEnabledProviderIds.has(providerId)) {
+          updateEnabledStateFromLocalProvider(providerId)
+          if (initialized.value) {
+            void refreshProviderModels(providerId)
+          }
+        }
+      }
+    },
+    { immediate: true }
+  )
+
+  const setupModelListeners = () => {
+    if (listenersRegistered.value) return
+    listenersRegistered.value = true
+
+    const unsubscribeModelListChanged = modelClient.onModelsChanged(
+      async ({ providerId, reason }) => {
+        if (providerId) {
+          await refreshProviderModels(providerId)
+          return
+        }
+
+        if (reason === 'provider-db-loaded' || reason === 'provider-db-updated') {
+          await refreshMaterializedProviders({ skipRuntimeModelListProviders: true })
+          return
+        }
+
+        if (initialized.value) {
+          await refreshAllModels()
+        }
+      }
+    )
+
+    const unsubscribeModelStatusChanged = modelClient.onModelStatusChanged(
+      async (msg: { providerId: string; modelId: string; enabled: boolean }) => {
+        const statusKey = getModelStatusKey(msg.providerId, msg.modelId)
+        const pendingEnabled = pendingModelStatusEchoes.get(statusKey)
+        if (pendingEnabled !== undefined) {
+          pendingModelStatusEchoes.delete(statusKey)
+          if (pendingEnabled === msg.enabled) {
+            return
+          }
+        }
+
+        updateLocalModelStatus(msg.providerId, msg.modelId, msg.enabled)
+      }
+    )
+
+    const unsubscribeModelBatchStatusChanged = modelClient.onModelBatchStatusChanged(
+      async (msg: { providerId: string; updates: { modelId: string; enabled: boolean }[] }) => {
+        for (const update of msg.updates) {
+          const statusKey = getModelStatusKey(msg.providerId, update.modelId)
+          const pendingEnabled = pendingModelStatusEchoes.get(statusKey)
+          if (pendingEnabled !== undefined) {
+            pendingModelStatusEchoes.delete(statusKey)
+            if (pendingEnabled === update.enabled) {
+              continue
+            }
+          }
+          updateLocalModelStatus(msg.providerId, update.modelId, update.enabled)
+        }
+      }
+    )
+
+    removeModelListeners = () => {
+      unsubscribeModelListChanged()
+      unsubscribeModelStatusChanged()
+      unsubscribeModelBatchStatusChanged()
+    }
+  }
+
+  const cleanup = () => {
+    removeModelListeners?.()
+    removeModelListeners = null
+    listenersRegistered.value = false
+    initialized.value = false
+    isInitializing.value = false
+    initializationError.value = null
+    initializationPromise.value = null
+    inFlightRefreshes.clear()
+    rerunRequested.clear()
+    pendingRefreshStarts.clear()
+    pendingModelStatusEchoes.clear()
+    clearProviderModelsReady()
+  }
+
+  const initialize = async () => {
+    if (initialized.value) {
+      return
+    }
+
+    if (initializationPromise.value) {
+      await initializationPromise.value
+      return
+    }
+
+    initializationError.value = null
+    isInitializing.value = true
+    initializationPromise.value = (async () => {
+      ensureModelRuntime()
+      const refreshed = await _refreshAllModelsInternal()
+      if (!refreshed) {
+        console.warn('[ModelStore] Some enabled providers failed to refresh during initialization')
+      }
+      initialized.value = true
+    })()
+
+    try {
+      await initializationPromise.value
+    } catch (error) {
+      initialized.value = false
+      initializationError.value =
+        error instanceof Error ? error : new Error('Failed to initialize enabled models')
+      throw error
+    } finally {
+      isInitializing.value = false
+      if (!initialized.value) {
+        initializationPromise.value = null
+      }
+    }
+  }
+
+  const ensureProviderModelsReady = async (providerId: string) => {
+    ensureModelRuntime()
+    if (isProviderModelsReady(providerId)) {
+      return
+    }
+
+    await refreshProviderModels(providerId)
+  }
+
+  // First-setup model recommendations: deterministic metadata only (the app
+  // normalizes a missing type to Chat), capped at three, and never applied when
+  // the user already has any enabled model for the provider.
+  const applyInitialModelRecommendations = async (providerId: string): Promise<number> => {
+    await ensureProviderModelsReady(providerId)
+    const models =
+      allProviderModels.value.find((entry) => entry.providerId === providerId)?.models ?? []
+    if (models.length === 0 || models.some((model) => model.enabled)) {
+      return 0
+    }
+    const recommended = models
+      .filter((model) => (model.type ?? ModelType.Chat) === ModelType.Chat)
+      .slice(0, 3)
+    let appliedCount = 0
+    for (const model of recommended) {
+      await updateModelStatus(providerId, model.id, true)
+      // updateModelStatus swallows IPC failures and rolls back the local state,
+      // so only count models whose activation actually landed.
+      if (getLocalModelEnabledState(providerId, model.id) === true) {
+        appliedCount += 1
+      }
+    }
+    return appliedCount
+  }
+
+  const addCustomModelMutation = useIpcMutation({
+    mutation: (
+      providerId: string,
+      model: Omit<RENDERER_MODEL_META, 'providerId' | 'isCustom' | 'group'>
+    ) => modelClient.addCustomModel(providerId, stripDerivedRendererModelFields(model)),
+    invalidateQueries: (_, [providerId]) => [
+      CUSTOM_MODELS_KEY(providerId),
+      ENABLED_MODELS_KEY(providerId)
+    ]
+  })
+
+  const removeCustomModelMutation = useIpcMutation({
+    mutation: (providerId: string, modelId: string) =>
+      modelClient.removeCustomModel(providerId, modelId),
+    invalidateQueries: (_, [providerId]) => [
+      CUSTOM_MODELS_KEY(providerId),
+      ENABLED_MODELS_KEY(providerId)
+    ]
+  })
+
+  const updateCustomModelMutation = useIpcMutation({
+    mutation: (
+      providerId: string,
+      modelId: string,
+      updates: Partial<RENDERER_MODEL_META> & { enabled?: boolean }
+    ) =>
+      modelClient.updateCustomModel(providerId, modelId, stripDerivedRendererModelFields(updates)),
+    invalidateQueries: (_, [providerId]) => [CUSTOM_MODELS_KEY(providerId)]
+  })
+
+  return {
+    enabledModels,
+    activeEnabledModels,
+    allProviderModels,
+    customModels,
+    initialized: readonly(initialized),
+    isInitializing: readonly(isInitializing),
+    initializationError: readonly(initializationError),
+    getProviderModelsQuery,
+    getCustomModelsQuery,
+    getEnabledModelsQuery,
+    refreshCustomModels,
+    refreshStandardModels,
+    refreshProviderModels,
+    ensureProviderModelsReady,
+    applyInitialModelRecommendations,
+    refreshAllModels,
+    updateModelStatus,
+    updateLocalModelStatus,
+    getLocalModelEnabledState,
+    addCustomModel,
+    removeCustomModel,
+    updateCustomModel,
+    enableAllModels,
+    disableAllModels,
+    searchModels,
+    findModelByIdOrName,
+    chatSelectableModelGroups,
+    chatSelectableModelGroupsRevision: readonly(chatSelectableModelGroupsRevision),
+    findChatSelectableModel,
+    pickFirstChatSelectableModel,
+    applyUserDefinedModelConfig,
+    addCustomModelMutation,
+    removeCustomModelMutation,
+    updateCustomModelMutation,
+    setupModelListeners,
+    cleanup,
+    initialize
+  }
+})

@@ -1,0 +1,955 @@
+<template>
+  <div v-if="showProviderSkeleton" class="flex h-full w-full flex-row">
+    <div class="flex h-full w-80 flex-col gap-3 border-r p-4">
+      <Skeleton class="h-9 rounded-md bg-muted/60" />
+      <Skeleton
+        v-for="index in 8"
+        :key="`provider-skeleton-${index}`"
+        class="h-10 rounded-lg bg-muted/40"
+      />
+      <div class="pt-2">
+        <Skeleton class="h-10 rounded-lg bg-muted/50" />
+      </div>
+    </div>
+    <div class="flex flex-1 flex-col gap-4 p-6">
+      <Skeleton class="h-6 w-48 rounded-md bg-muted/50" />
+      <Skeleton class="h-24 rounded-xl bg-muted/40" />
+      <div class="grid grid-cols-2 gap-4">
+        <Skeleton class="h-20 rounded-xl bg-muted/40" />
+        <Skeleton class="h-20 rounded-xl bg-muted/40" />
+      </div>
+      <Skeleton class="h-72 rounded-xl bg-muted/30" />
+    </div>
+  </div>
+  <div
+    v-else
+    ref="guideRootRef"
+    data-testid="settings-provider-page"
+    class="w-full h-full flex flex-row"
+  >
+    <ScrollArea class="w-80 border-r h-full">
+      <div class="flex flex-col gap-4 p-4">
+        <div class="flex flex-col gap-1">
+          <h1 class="text-lg font-semibold">{{ t('settings.provider.center.title') }}</h1>
+          <p class="text-xs text-muted-foreground">
+            {{ t('settings.provider.center.description') }}
+          </p>
+        </div>
+        <div class="sticky top-4 z-10">
+          <div class="relative">
+            <Input
+              v-model="searchQueryBase"
+              :placeholder="t('settings.provider.search')"
+              class="h-9 pr-8 text-sm backdrop-blur-lg border-border"
+              @keydown.esc="clearSearch"
+            />
+            <!-- 搜索图标：在无内容时显示 -->
+            <Icon
+              v-if="!showClearButton"
+              icon="lucide:search"
+              class="absolute right-2 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none"
+            />
+            <!-- 清除按钮：在有内容时显示 -->
+            <Icon
+              v-else
+              icon="lucide:x"
+              class="absolute right-2 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground hover:text-foreground"
+              @click="clearSearch"
+            />
+          </div>
+        </div>
+
+        <div v-if="configuredList.length > 0" class="flex flex-col gap-2">
+          <div class="text-xs font-medium text-muted-foreground px-2">
+            {{ t('settings.provider.sidebar.configured') }} ({{ configuredList.length }})
+          </div>
+          <draggable
+            v-model="sidebarProviders"
+            item-key="id"
+            handle=".drag-handle"
+            class="space-y-2"
+            @end="handleDragEnd"
+          >
+            <template #item="{ element: provider }">
+              <div
+                :data-provider-id="provider.id"
+                :class="[
+                  'flex flex-row hover:bg-accent items-center gap-2 rounded-lg p-2 group',
+                  route.params?.providerId === provider.id
+                    ? 'bg-accent text-accent-foreground'
+                    : '',
+                  provider.enable ? '' : 'opacity-60'
+                ]"
+              >
+                <Icon
+                  icon="lucide:grip-vertical"
+                  class="w-4 h-4 text-muted-foreground opacity-0 group-hover:opacity-100 cursor-move drag-handle"
+                />
+                <ModelIcon
+                  :model-id="provider.id"
+                  :custom-class="'w-4 h-4 text-muted-foreground'"
+                  :is-dark="themeStore.isDark"
+                />
+                <input
+                  v-if="editingProviderId === provider.id"
+                  ref="editInputRef"
+                  v-model="editingName"
+                  :aria-label="t('settings.provider.menu.rename')"
+                  class="text-sm font-medium flex-1 min-w-0 bg-background border border-input rounded px-2 py-0.5 outline-none focus:ring-1 focus:ring-ring"
+                  :dir="languageStore.dir"
+                  @blur="saveEditingName"
+                  @keydown="handleEditKeydown"
+                  @click.stop
+                />
+                <template v-else>
+                  <button
+                    type="button"
+                    :aria-current="route.params?.providerId === provider.id ? 'page' : undefined"
+                    @click="handleProviderRowClick(provider.id)"
+                    class="text-left text-sm font-medium flex-1 min-w-0 truncate"
+                    :dir="languageStore.dir"
+                  >
+                    {{ t(provider.name) }}
+                  </button>
+                </template>
+                <span
+                  v-if="!provider.enable"
+                  class="shrink-0 rounded-full border border-border/60 px-1.5 text-[10px] text-muted-foreground"
+                >
+                  {{ t('settings.provider.sidebar.disabledTag') }}
+                </span>
+                <DropdownMenu>
+                  <DropdownMenuTrigger as-child>
+                    <DcButton
+                      :data-testid="`provider-menu-trigger-${provider.id}`"
+                      :aria-label="`${t('common.more')}: ${t(provider.name)}`"
+                      variant="ghost"
+                      size="sm"
+                      class="h-6 w-6 shrink-0 p-0 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 data-[state=open]:opacity-100"
+                      @click.stop
+                    >
+                      <Icon icon="lucide:ellipsis" class="h-4 w-4 text-muted-foreground" />
+                    </DcButton>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" class="w-44">
+                    <DcDropdownActionItem
+                      :data-testid="`provider-menu-toggle-${provider.id}`"
+                      :icon="provider.enable ? 'lucide:pause' : 'lucide:play'"
+                      :label="
+                        provider.enable
+                          ? t('settings.provider.menu.disable')
+                          : t('settings.provider.menu.enable')
+                      "
+                      @select="toggleProviderStatus(provider)"
+                    />
+                    <DcDropdownActionItem
+                      v-if="provider.custom"
+                      icon="lucide:pencil"
+                      :label="t('settings.provider.menu.rename')"
+                      @select="startEditingName(provider)"
+                    />
+                    <DropdownMenuSeparator />
+                    <DcDropdownActionItem
+                      icon="lucide:arrow-up"
+                      :label="t('settings.environments.actions.moveUp')"
+                      :disabled="sidebarProviders[0]?.id === provider.id"
+                      @select="moveProvider(provider.id, -1)"
+                    />
+                    <DcDropdownActionItem
+                      icon="lucide:arrow-down"
+                      :label="t('settings.environments.actions.moveDown')"
+                      :disabled="sidebarProviders.at(-1)?.id === provider.id"
+                      @select="moveProvider(provider.id, 1)"
+                    />
+                    <template v-if="provider.custom">
+                      <DropdownMenuSeparator />
+                      <DcDropdownActionItem
+                        :data-testid="`provider-menu-delete-${provider.id}`"
+                        icon="lucide:trash-2"
+                        danger
+                        :label="t('settings.provider.menu.delete')"
+                        @select="requestDeleteProvider(provider)"
+                      />
+                    </template>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+            </template>
+          </draggable>
+        </div>
+
+        <div
+          v-else-if="!showClearButton"
+          class="rounded-lg border border-dashed border-border p-4 text-center"
+        >
+          <p class="text-xs text-muted-foreground">
+            {{ t('settings.provider.sidebar.empty') }}
+          </p>
+        </div>
+
+        <div class="flex flex-col gap-2" :dir="languageStore.dir">
+          <DcButton
+            data-testid="provider-browse-all"
+            variant="ghost"
+            class="w-full flex flex-row items-center justify-between gap-2 rounded-lg p-2 hover:bg-accent"
+            @click="openCatalog"
+          >
+            <span class="flex items-center gap-2">
+              <Icon icon="lucide:layout-grid" class="w-4 h-4 text-muted-foreground" />
+              <span class="text-sm font-medium">{{ t('settings.provider.browseAll') }}</span>
+            </span>
+            <span class="text-xs text-muted-foreground">{{ catalogProviders.length }}</span>
+          </DcButton>
+          <DcButton
+            data-testid="provider-add-button"
+            variant="outline"
+            class="w-full flex flex-row items-center gap-2 rounded-lg p-2 backdrop-blur-lg hover:bg-accent"
+            @click="openAddProviderFlow"
+          >
+            <Icon icon="lucide:plus" class="w-4 h-4 text-muted-foreground" />
+            <span class="text-sm font-medium">{{ t('settings.provider.addCustomProvider') }}</span>
+          </DcButton>
+        </div>
+      </div>
+    </ScrollArea>
+    <div ref="providerDetailRef" class="flex min-w-0 flex-1">
+      <AddProviderFlow
+        v-if="showAddFlow"
+        :key="addFlowKey"
+        class="flex-1"
+        @cancel="openCatalog"
+        @created="handleProviderAdded"
+      />
+      <ProviderCatalog
+        v-else-if="showCatalog"
+        class="flex-1"
+        @select="handleCatalogSelect"
+        @add-custom="openAddProviderFlow"
+      />
+      <template v-else-if="activeProvider">
+        <OllamaProviderSettingsDetail
+          v-if="activeProvider.apiType === 'ollama'"
+          :key="`ollama-${activeProvider.id}`"
+          :provider="activeProvider"
+          class="flex-1"
+          @provider-configured="handleProviderConfigured"
+          @provider-model-enabled="handleProviderModelEnabled"
+        />
+        <BedrockProviderSettingsDetail
+          v-else-if="activeProvider.apiType === 'aws-bedrock'"
+          :key="`bedrock-${activeProvider.id}`"
+          :provider="activeProvider as AWS_BEDROCK_PROVIDER"
+          class="flex-1"
+          @provider-configured="handleProviderConfigured"
+          @provider-model-enabled="handleProviderModelEnabled"
+        />
+        <ModelProviderSettingsDetail
+          v-else
+          :key="`standard-${activeProvider.id}`"
+          :provider="activeProvider"
+          :active-onboarding-step-id="detailGuideStepId"
+          class="flex-1"
+          @provider-configured="handleProviderConfigured"
+          @provider-model-enabled="handleProviderModelEnabled"
+        />
+      </template>
+    </div>
+    <DcConfirmDialog
+      :open="Boolean(providerPendingDelete)"
+      :title="t('settings.provider.dialog.deleteProvider.title')"
+      :description="
+        t('settings.provider.dialog.deleteProvider.content', {
+          name: providerPendingDelete ? t(providerPendingDelete.name) : ''
+        })
+      "
+      :confirm-label="t('settings.provider.dialog.deleteProvider.confirm')"
+      @update:open="(value: boolean) => !value && (providerPendingDelete = null)"
+      @confirm="confirmDeleteProvider"
+    />
+  </div>
+
+  <GuidedOnboardingOverlay
+    :visible="showSelectProviderGuide"
+    :container-el="guideRootRef"
+    :target-el="providerListGuideTargetRef"
+    :eyebrow="t('welcome.page.guide.title')"
+    :title="t('welcome.provider.select')"
+    :description="t('settings.provider.center.description')"
+    :step-index="selectProviderGuide.stepIndex.value"
+    :total-steps="selectProviderGuide.totalSteps.value"
+    :close-label="t('common.close')"
+    :back-label="selectProviderGuide.canGoPrevious?.value ? t('common.back') : undefined"
+    :expert-label="t('settings.skills.sync.skipAll')"
+    :primary-label="t('common.next')"
+    :primary-disabled="!canAdvanceProviderSelection"
+    @close="selectProviderGuide.dismissGuide"
+    @back="handleSelectProviderGuideBack"
+    @expert="handleSelectProviderGuideExpert"
+    @primary="handleSelectProviderGuidePrimary"
+  />
+
+  <GuidedOnboardingOverlay
+    :visible="showProviderApiKeyGuide"
+    :container-el="guideRootRef"
+    :target-el="providerApiKeyTargetRef"
+    :eyebrow="t('welcome.page.guide.title')"
+    :title="t('welcome.provider.apiKey')"
+    :description="t('settings.provider.center.description')"
+    :step-index="providerApiKeyGuide.stepIndex.value"
+    :total-steps="providerApiKeyGuide.totalSteps.value"
+    :close-label="t('common.close')"
+    :back-label="providerApiKeyGuide.canGoPrevious?.value ? t('common.back') : undefined"
+    :secondary-label="t('settings.skills.syncPrompt.skip')"
+    :expert-label="t('settings.skills.sync.skipAll')"
+    :primary-label="t('common.next')"
+    :primary-disabled="!canAdvanceProviderApiKey"
+    @close="providerApiKeyGuide.dismissGuide"
+    @back="handleProviderApiKeyGuideBack"
+    @secondary="handleProviderApiKeyGuideSkip"
+    @expert="handleProviderApiKeyGuideExpert"
+    @primary="handleProviderApiKeyGuidePrimary"
+  />
+
+  <GuidedOnboardingOverlay
+    :visible="showProviderModelGuide"
+    :container-el="guideRootRef"
+    :target-el="providerModelTargetRef"
+    :eyebrow="t('welcome.page.guide.title')"
+    :title="t('settings.provider.center.tabs.models')"
+    :description="t('settings.provider.center.description')"
+    :step-index="providerModelGuide.stepIndex.value"
+    :total-steps="providerModelGuide.totalSteps.value"
+    :close-label="t('common.close')"
+    :back-label="providerModelGuide.canGoPrevious?.value ? t('common.back') : undefined"
+    :secondary-label="t('settings.skills.syncPrompt.skip')"
+    :expert-label="t('settings.skills.sync.skipAll')"
+    :primary-label="t('common.next')"
+    :primary-disabled="!canAdvanceProviderModel"
+    @close="providerModelGuide.dismissGuide"
+    @back="handleProviderModelGuideBack"
+    @secondary="handleProviderModelGuideSkip"
+    @expert="handleProviderModelGuideExpert"
+    @primary="handleProviderModelGuidePrimary"
+  />
+</template>
+
+<script setup lang="ts">
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { useProviderStore } from '@/stores/providerStore'
+import { useModelStore } from '@/stores/modelStore'
+import { useRoute, useRouter } from 'vue-router'
+import { refDebounced } from '@vueuse/core'
+import ModelProviderSettingsDetail from './ModelProviderSettingsDetail.vue'
+import OllamaProviderSettingsDetail from './OllamaProviderSettingsDetail.vue'
+import BedrockProviderSettingsDetail from './BedrockProviderSettingsDetail.vue'
+import ProviderCatalog from './ProviderCatalog.vue'
+import ModelIcon from '@/components/icons/ModelIcon.vue'
+import { Icon } from '@iconify/vue'
+import AddProviderFlow from './AddProviderFlow.vue'
+import { useI18n } from 'vue-i18n'
+import type { AWS_BEDROCK_PROVIDER, LLM_PROVIDER } from '@shared/types/provider'
+import { Input } from '@shadcn/components/ui/input'
+import { DcButton } from '@dc-ui/components/button'
+import { DcConfirmDialog } from '@dc-ui/components/confirm-dialog'
+import { DcDropdownActionItem } from '@dc-ui/components/dropdown-action-item'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger
+} from '@shadcn/components/ui/dropdown-menu'
+import { Skeleton } from '@shadcn/components/ui/skeleton'
+import draggable from 'vuedraggable'
+import { ScrollArea } from '@shadcn/components/ui/scroll-area'
+import { useThemeStore } from '@/stores/theme'
+import { useLanguageStore } from '@/stores/language'
+import { useStartupWorkloadStore } from '@/stores/startupWorkloadStore'
+import GuidedOnboardingOverlay from '@/components/onboarding/GuidedOnboardingOverlay.vue'
+import { useGuidedOnboardingStep } from '@/composables/useGuidedOnboardingStep'
+import { createWindowClient } from '@api/WindowClient'
+import { continueGuidedOnboardingFromSettings } from '../lib/guidedOnboardingSettings'
+
+const route = useRoute()
+const router = useRouter()
+const { t } = useI18n()
+const windowClient = createWindowClient()
+const languageStore = useLanguageStore()
+const providerStore = useProviderStore()
+const modelStore = useModelStore()
+const themeStore = useThemeStore()
+const guideRootRef = ref<HTMLElement | null>(null)
+const providerDetailRef = ref<HTMLElement | null>(null)
+const providerListGuideTargetRef = ref<HTMLElement | null>(null)
+const providerApiKeyTargetRef = ref<HTMLElement | null>(null)
+const providerModelTargetRef = ref<HTMLElement | null>(null)
+const selectProviderGuide = useGuidedOnboardingStep('select-provider')
+const providerApiKeyGuide = useGuidedOnboardingStep('provider-api-key')
+const providerModelGuide = useGuidedOnboardingStep('provider-model')
+const showSelectProviderGuide = computed(
+  () => selectProviderGuide.showGuide.value && Boolean(providerListGuideTargetRef.value)
+)
+const showProviderApiKeyGuide = computed(
+  () => providerApiKeyGuide.showGuide.value && Boolean(providerApiKeyTargetRef.value)
+)
+const showProviderModelGuide = computed(
+  () => providerModelGuide.showGuide.value && Boolean(providerModelTargetRef.value)
+)
+const detailGuideStepId = computed(() => {
+  if (providerModelGuide.currentStepId.value === 'provider-model') {
+    return 'provider-model'
+  }
+
+  if (providerApiKeyGuide.currentStepId.value === 'provider-api-key') {
+    return 'provider-api-key'
+  }
+
+  return null
+})
+const startupWorkloadStore = (() => {
+  try {
+    return useStartupWorkloadStore()
+  } catch {
+    return null
+  }
+})()
+const addFlowCounter = ref(0)
+const providerPendingDelete = ref<LLM_PROVIDER | null>(null)
+
+const continueProviderGuide = async (
+  state: Awaited<ReturnType<typeof selectProviderGuide.completeStep>> | null | undefined
+) => {
+  await continueGuidedOnboardingFromSettings({
+    state,
+    router,
+    currentRoute: route,
+    windowClient
+  })
+}
+
+const handleSelectProviderGuidePrimary = async () => {
+  const firstProviderId = guideCandidateProviders.value[0]?.id
+  if (firstProviderId && activeProvider.value?.id !== firstProviderId) {
+    await setActiveProvider(firstProviderId)
+    await nextTick()
+  }
+
+  const state = await selectProviderGuide.completeStep()
+  await continueProviderGuide(state)
+}
+
+const handleSelectProviderGuideBack = async () => {
+  const state = await selectProviderGuide.activatePreviousStep()
+  await continueProviderGuide(state)
+}
+
+const handleSelectProviderGuideExpert = async () => {
+  const state = await selectProviderGuide.forceComplete()
+  await continueProviderGuide(state)
+}
+
+const handleProviderApiKeyGuidePrimary = async () => {
+  const state = await providerApiKeyGuide.completeStep()
+  await continueProviderGuide(state)
+}
+
+const handleProviderApiKeyGuideBack = async () => {
+  const state = await providerApiKeyGuide.activatePreviousStep()
+  await continueProviderGuide(state)
+}
+
+const handleProviderApiKeyGuideSkip = async () => {
+  const skippedApiKeyState = await providerApiKeyGuide.skipStep()
+  if (skippedApiKeyState?.currentStepId === 'provider-model') {
+    const skippedModelState = await providerModelGuide.skipStep()
+    await continueProviderGuide(skippedModelState)
+    return
+  }
+
+  await continueProviderGuide(skippedApiKeyState)
+}
+
+const handleProviderApiKeyGuideExpert = async () => {
+  const state = await providerApiKeyGuide.forceComplete()
+  await continueProviderGuide(state)
+}
+
+const handleProviderModelGuidePrimary = async () => {
+  const state = await providerModelGuide.completeStep()
+  await continueProviderGuide(state)
+}
+
+const handleProviderModelGuideBack = async () => {
+  const state = await providerModelGuide.activatePreviousStep()
+  await continueProviderGuide(state)
+}
+
+const handleProviderModelGuideSkip = async () => {
+  const state = await providerModelGuide.skipStep()
+  await continueProviderGuide(state)
+}
+
+const handleProviderModelGuideExpert = async () => {
+  const state = await providerModelGuide.forceComplete()
+  await continueProviderGuide(state)
+}
+
+const handleProviderConfigured = async () => {
+  if (providerApiKeyGuide.currentStepId.value !== 'provider-api-key') {
+    return
+  }
+
+  const stepStatus = providerApiKeyGuide.stepState.value?.status
+  if (stepStatus === 'completed' || stepStatus === 'skipped') {
+    return
+  }
+
+  const state = await providerApiKeyGuide.completeStep()
+  await continueProviderGuide(state)
+}
+
+const handleProviderModelEnabled = async () => {
+  if (providerModelGuide.currentStepId.value !== 'provider-model') {
+    return
+  }
+
+  const stepStatus = providerModelGuide.stepState.value?.status
+  if (stepStatus === 'completed' || stepStatus === 'skipped') {
+    return
+  }
+
+  const state = await providerModelGuide.completeStep()
+  await continueProviderGuide(state)
+}
+
+const searchQueryBase = ref('')
+const searchQuery = refDebounced(searchQueryBase, 150)
+const showClearButton = computed(() => searchQueryBase.value.trim().length > 0)
+
+const editingProviderId = ref<string | null>(null)
+const editingName = ref('')
+const editInputRef = ref<HTMLInputElement | null>(null)
+
+const startEditingName = (provider: LLM_PROVIDER) => {
+  editingProviderId.value = provider.id
+  editingName.value = provider.name
+  nextTick(() => {
+    editInputRef.value?.focus()
+    editInputRef.value?.select()
+  })
+}
+
+const saveEditingName = async () => {
+  if (!editingProviderId.value || !editingName.value.trim()) {
+    cancelEditingName()
+    return
+  }
+  const trimmedName = editingName.value.trim()
+  const providerId = editingProviderId.value
+  editingProviderId.value = null
+  await providerStore.updateProviderConfig(providerId, { name: trimmedName })
+}
+
+const cancelEditingName = () => {
+  editingProviderId.value = null
+  editingName.value = ''
+}
+
+const handleEditKeydown = (event: KeyboardEvent) => {
+  if (event.key === 'Enter') {
+    saveEditingName()
+  } else if (event.key === 'Escape') {
+    cancelEditingName()
+  }
+}
+
+const clearSearch = () => {
+  searchQueryBase.value = ''
+}
+
+const filterProviders = (providers: LLM_PROVIDER[]) => {
+  if (!searchQuery.value.trim()) {
+    return providers
+  }
+  const query = searchQuery.value.toLowerCase().trim()
+  return providers.filter((provider) => t(provider.name).toLowerCase().includes(query))
+}
+
+// Sidebar membership: configured providers only. The full catalog lives behind
+// "Browse all providers" and never adds unconfigured rows to the daily sidebar.
+const configuredList = computed(() =>
+  filterProviders(providerStore.configuredProviders.filter((provider) => provider.id !== 'acp'))
+)
+const catalogProviders = computed(() =>
+  providerStore.sortedProviders.filter((provider) => provider.id !== 'acp')
+)
+// Guided onboarding needs a clickable provider row; before anything is
+// configured those rows live in the catalog view instead of the sidebar.
+const guideCandidateProviders = computed(() =>
+  configuredList.value.length > 0 ? configuredList.value : catalogProviders.value
+)
+const canAdvanceProviderSelection = computed(() =>
+  Boolean(activeProvider.value ?? guideCandidateProviders.value[0])
+)
+const canAdvanceProviderApiKey = computed(() => Boolean(activeProvider.value?.apiKey?.trim()))
+const getCurrentProviderModels = () => {
+  const providerId = typeof route.params.providerId === 'string' ? route.params.providerId : null
+  if (!providerId) {
+    return []
+  }
+
+  const providerModels =
+    modelStore.allProviderModels.find((provider) => provider.providerId === providerId)?.models ??
+    []
+  const customModels =
+    modelStore.customModels?.find((provider) => provider.providerId === providerId)?.models ?? []
+
+  return [...providerModels, ...customModels]
+}
+const canAdvanceProviderModel = computed(() => {
+  return getCurrentProviderModels().some((model) => model.enabled)
+})
+const currentProviderModelGuideSignature = computed(() => {
+  const providerId = typeof route.params.providerId === 'string' ? route.params.providerId : ''
+  if (!providerId) {
+    return ''
+  }
+
+  return getCurrentProviderModels()
+    .map((model) => `${model.id}:${model.enabled ? '1' : '0'}`)
+    .join('|')
+})
+const showProviderSkeleton = computed(
+  () =>
+    (!providerStore.initialized ||
+      startupWorkloadStore?.isTaskRunning('settings.providers.summary')) &&
+    providerStore.sortedProviders.length === 0
+)
+
+let guideTargetSyncPending = false
+let providerDetailMutationObserver: MutationObserver | null = null
+
+const scheduleGuideTargetSync = () => {
+  if (guideTargetSyncPending) {
+    return
+  }
+
+  guideTargetSyncPending = true
+  void nextTick(() => {
+    const runSync = () => {
+      guideTargetSyncPending = false
+      syncGuideTargets()
+    }
+
+    if (typeof requestAnimationFrame === 'function') {
+      requestAnimationFrame(() => runSync())
+      return
+    }
+
+    runSync()
+  })
+}
+
+const stopObservingProviderDetail = () => {
+  providerDetailMutationObserver?.disconnect()
+  providerDetailMutationObserver = null
+}
+
+const observeProviderDetailGuideTargets = () => {
+  stopObservingProviderDetail()
+
+  if (
+    typeof MutationObserver === 'undefined' ||
+    (!providerApiKeyGuide.showGuide.value && !providerModelGuide.showGuide.value) ||
+    !providerDetailRef.value
+  ) {
+    return
+  }
+
+  providerDetailMutationObserver = new MutationObserver(() => {
+    scheduleGuideTargetSync()
+  })
+
+  providerDetailMutationObserver.observe(providerDetailRef.value, {
+    childList: true,
+    subtree: true,
+    attributes: true,
+    attributeFilter: ['class', 'data-state', 'hidden', 'style']
+  })
+}
+
+const syncGuideTargets = () => {
+  const activeProviderId =
+    typeof route.params.providerId === 'string' ? route.params.providerId : null
+  const firstProviderId = guideCandidateProviders.value[0]?.id
+  const detailRoot = providerDetailRef.value
+
+  providerListGuideTargetRef.value = firstProviderId
+    ? (document.querySelector(`[data-provider-id="${firstProviderId}"]`) as HTMLElement | null)
+    : null
+  providerApiKeyTargetRef.value =
+    (detailRoot?.querySelector(
+      '[data-testid="provider-api-key-input"], [data-testid="provider-update-key-button"]'
+    ) as HTMLElement | null) ??
+    (document.querySelector(
+      '[data-testid="provider-api-key-input"], [data-testid="provider-update-key-button"]'
+    ) as HTMLElement | null)
+  providerModelTargetRef.value =
+    (activeProviderId
+      ? ((detailRoot?.querySelector(
+          `[data-testid^="provider-model-toggle-${activeProviderId}-"]`
+        ) as HTMLElement | null) ??
+        (document.querySelector(
+          `[data-testid^="provider-model-toggle-${activeProviderId}-"]`
+        ) as HTMLElement | null))
+      : null) ??
+    (detailRoot?.querySelector('[data-testid="provider-models-section"]') as HTMLElement | null) ??
+    (document.querySelector('[data-testid="provider-models-section"]') as HTMLElement | null)
+}
+
+// Reordering the sidebar only rearranges configured providers; unconfigured
+// catalog entries keep their relative order at the end of the persisted order.
+const sidebarProviders = computed({
+  get: () => configuredList.value,
+  set: (newProviders) => {
+    const configuredIds = new Set(providerStore.configuredProviders.map((provider) => provider.id))
+    const isFiltered = searchQuery.value.trim().length > 0
+    let reorderedConfigured: LLM_PROVIDER[]
+    if (isFiltered) {
+      const movedIds = new Set(newProviders.map((provider) => provider.id))
+      let nextIndex = 0
+      reorderedConfigured = providerStore.configuredProviders.map((provider) =>
+        movedIds.has(provider.id) ? newProviders[nextIndex++] : provider
+      )
+    } else {
+      reorderedConfigured = [
+        ...newProviders,
+        ...providerStore.configuredProviders.filter(
+          (provider) => !newProviders.some((item) => item.id === provider.id)
+        )
+      ]
+    }
+    const unconfigured = providerStore.sortedProviders.filter(
+      (provider) => !configuredIds.has(provider.id)
+    )
+    void providerStore
+      .updateProvidersOrder([...reorderedConfigured, ...unconfigured])
+      .catch((error) => {
+        console.error('Failed to reorder providers:', error)
+      })
+  }
+})
+
+const moveProvider = (providerId: string, direction: -1 | 1) => {
+  const providers = [...sidebarProviders.value]
+  const index = providers.findIndex((provider) => provider.id === providerId)
+  const target = index + direction
+  if (index < 0 || target < 0 || target >= providers.length) return
+  ;[providers[index], providers[target]] = [providers[target], providers[index]]
+  sidebarProviders.value = providers
+}
+
+const setActiveProvider = (providerId: string) => {
+  return router.push({
+    name: 'settings-provider',
+    params: {
+      providerId
+    }
+  })
+}
+
+const openCatalog = () => {
+  return router.push({
+    name: 'settings-provider',
+    params: route.params,
+    query: { view: 'catalog' }
+  })
+}
+
+const handleCatalogSelect = async (providerId: string) => {
+  await handleProviderRowClick(providerId)
+}
+
+const handleProviderRowClick = async (providerId: string) => {
+  await setActiveProvider(providerId)
+
+  if (selectProviderGuide.currentStepId.value !== 'select-provider') {
+    return
+  }
+
+  const stepStatus = selectProviderGuide.stepState.value?.status
+  if (stepStatus === 'completed' || stepStatus === 'skipped') {
+    return
+  }
+
+  const firstProviderId = guideCandidateProviders.value[0]?.id
+  if (!firstProviderId || providerId !== firstProviderId) {
+    return
+  }
+
+  await nextTick()
+  const state = await selectProviderGuide.completeStep()
+  await continueProviderGuide(state)
+}
+
+const scrollToProvider = (providerId: string) => {
+  const element = document.querySelector(`[data-provider-id="${providerId}"]`)
+  if (element) {
+    // 滚动到该服务商的位置
+    element.scrollIntoView({
+      behavior: 'smooth',
+      block: 'end'
+    })
+  }
+}
+
+const toggleProviderStatus = async (provider: LLM_PROVIDER) => {
+  const willEnable = !provider.enable
+  try {
+    await providerStore.updateProviderStatus(provider.id, willEnable)
+  } catch (error) {
+    console.error('Failed to update provider status:', error)
+    return
+  }
+  // 切换状态后，同时打开该服务商的详情页面
+  setActiveProvider(provider.id)
+
+  // 仅在开启服务商时滚动
+  if (willEnable) {
+    await nextTick()
+    scrollToProvider(provider.id)
+  }
+}
+
+const requestDeleteProvider = (provider: LLM_PROVIDER) => {
+  providerPendingDelete.value = provider
+}
+
+const confirmDeleteProvider = async () => {
+  const provider = providerPendingDelete.value
+  if (!provider) {
+    return
+  }
+  providerPendingDelete.value = null
+  try {
+    await providerStore.removeProvider(provider.id)
+  } catch (error) {
+    console.error('Failed to delete provider:', error)
+    return
+  }
+  if (route.params.providerId === provider.id) {
+    const fallback = configuredList.value.find((item) => item.id !== provider.id)
+    if (fallback) {
+      await setActiveProvider(fallback.id)
+    } else {
+      await openCatalog()
+    }
+  }
+}
+
+const activeProvider = computed(() => {
+  const provider = providerStore.providers.find((p) => p.id === route.params.providerId)
+  if (provider?.id === 'acp') {
+    router.replace({ name: 'settings-acp' })
+    return null
+  }
+  return provider
+})
+
+const showCatalog = computed(() => {
+  if (route.query.view === 'catalog') {
+    return true
+  }
+  // Use the unfiltered configured set so a no-match search does not replace
+  // the detail pane with the catalog view.
+  const hasConfigured = providerStore.configuredProviders.some((p) => p.id !== 'acp')
+  return !activeProvider.value && !hasConfigured
+})
+
+const showAddFlow = computed(() => route.query.view === 'add-custom')
+// A fresh key per entry gives every add attempt its own draft id.
+const addFlowKey = computed(() => `add-provider-${addFlowCounter.value}`)
+
+const openAddProviderFlow = () => {
+  addFlowCounter.value += 1
+  return router.push({
+    name: 'settings-provider',
+    params: route.params,
+    query: { view: 'add-custom' }
+  })
+}
+
+const handleProviderAdded = (provider: LLM_PROVIDER) => {
+  // 添加成功后，自动选择新添加的provider
+  setActiveProvider(provider.id)
+}
+
+onMounted(async () => {
+  await providerStore.ensureInitialized()
+  if (!route.params.providerId && !route.query.view && configuredList.value.length > 0) {
+    setActiveProvider(configuredList.value[0].id)
+  }
+
+  scheduleGuideTargetSync()
+  observeProviderDetailGuideTargets()
+})
+
+onBeforeUnmount(() => {
+  stopObservingProviderDetail()
+})
+
+watch(
+  () => route.params.providerId,
+  async (providerId) => {
+    if (typeof providerId !== 'string' || providerId.length === 0) {
+      return
+    }
+
+    await modelStore.ensureProviderModelsReady(providerId)
+  },
+  { immediate: true }
+)
+
+watch(
+  () =>
+    [
+      route.params.providerId,
+      guideCandidateProviders.value.map((provider) => provider.id).join('|'),
+      showCatalog.value,
+      selectProviderGuide.showGuide.value,
+      providerApiKeyGuide.showGuide.value,
+      providerModelGuide.showGuide.value,
+      activeProvider.value?.apiKey ?? '',
+      currentProviderModelGuideSignature.value
+    ] as const,
+  () => {
+    scheduleGuideTargetSync()
+  },
+  { flush: 'post', immediate: true }
+)
+
+watch(
+  () =>
+    [
+      providerDetailRef.value,
+      route.params.providerId,
+      providerApiKeyGuide.showGuide.value,
+      providerModelGuide.showGuide.value
+    ] as const,
+  () => {
+    observeProviderDetailGuideTargets()
+    scheduleGuideTargetSync()
+  },
+  { flush: 'post', immediate: true }
+)
+
+// 处理拖拽结束事件
+const handleDragEnd = () => {
+  // 可以在这里添加额外的处理逻辑
+}
+</script>
+
+<style scoped>
+.drag-handle {
+  touch-action: none;
+}
+</style>

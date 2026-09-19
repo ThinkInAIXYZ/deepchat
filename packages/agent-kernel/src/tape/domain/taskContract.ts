@@ -8,7 +8,7 @@ import {
   type DeepChatTaskContractRef,
   type DeepChatHandoffFormatRequirement,
   type DeepChatTaskWorkspaceCeiling
-} from '@deepchat/shared/types/task-contract'
+} from '../../shared/types/task-contract.js'
 import { canonicalJsonStringifyData, hashJsonData } from './canonicalJson.js'
 import {
   compareUtf16,

@@ -1,5 +1,5 @@
-import type { AssistantMessageBlock } from '@deepchat/shared/types/agent-interface'
-import type { ChatMessageProviderReplay } from '@deepchat/shared/types/core/chat-message'
+import type { AssistantMessageBlock } from '../shared/types/agent-interface.js'
+import type { ChatMessageProviderReplay } from '../shared/types/core/chat-message.js'
 
 export type AssistantBlockReplaySegment = {
   blocks: AssistantMessageBlock[]

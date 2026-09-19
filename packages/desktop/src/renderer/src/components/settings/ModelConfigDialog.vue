@@ -1,0 +1,1936 @@
+<template>
+  <Dialog :open="open" @update:open="$emit('update:open', $event)">
+    <DialogContent class="sm:max-w-[600px] max-h-[80vh] overflow-hidden flex flex-col">
+      <DialogHeader>
+        <DialogTitle>{{ dialogTitle }}</DialogTitle>
+        <p class="text-sm text-muted-foreground">
+          {{ t('settings.model.modelConfig.description') }}
+        </p>
+      </DialogHeader>
+
+      <div class="overflow-y-auto flex-1 pr-2 -mr-2">
+        <DcForm @submit="handleSave" class="space-y-6">
+          <!-- 模型名称 -->
+          <div v-if="!showOpenAIMediaGenerationSettings || canEditModelIdentity" class="space-y-2">
+            <Label for="modelName">{{ t('settings.model.modelConfig.name.label') }}</Label>
+            <Input
+              id="modelName"
+              v-model="modelNameField"
+              type="text"
+              :placeholder="t('settings.model.modelConfig.name.placeholder')"
+              :disabled="!canEditModelIdentity"
+              :class="{ 'border-destructive': errors.modelName }"
+            />
+            <p class="text-xs text-muted-foreground">
+              {{
+                canEditModelIdentity
+                  ? t('settings.model.modelConfig.name.description')
+                  : t('settings.model.modelConfig.name.readonly')
+              }}
+            </p>
+            <p v-if="errors.modelName" class="text-xs text-destructive">
+              {{ errors.modelName }}
+            </p>
+          </div>
+
+          <!-- 模型 ID -->
+          <div v-if="!showOpenAIMediaGenerationSettings || canEditModelIdentity" class="space-y-2">
+            <Label for="modelId">{{ t('settings.model.modelConfig.id.label') }}</Label>
+            <Input
+              id="modelId"
+              v-model="modelIdField"
+              type="text"
+              :placeholder="t('settings.model.modelConfig.id.placeholder')"
+              :disabled="!canEditModelIdentity"
+              :class="{ 'border-destructive': errors.modelId }"
+              @blur="queueCapabilityRefreshForIdentityChange"
+            />
+            <p class="text-xs text-muted-foreground">
+              {{
+                canEditModelIdentity
+                  ? t('settings.model.modelConfig.id.description')
+                  : t('settings.model.modelConfig.id.readonly')
+              }}
+            </p>
+            <p v-if="errors.modelId" class="text-xs text-destructive">
+              {{ errors.modelId }}
+            </p>
+          </div>
+
+          <!-- 最大输出长度 -->
+          <div v-if="!showOpenAIMediaGenerationSettings" class="space-y-2">
+            <Label for="maxTokens">{{ t('settings.model.modelConfig.maxTokens.label') }}</Label>
+            <Input
+              id="maxTokens"
+              v-model.number="config.maxTokens"
+              type="number"
+              :min="1"
+              :max="1000000"
+              :placeholder="t('settings.model.modelConfig.maxTokens.label')"
+              :class="{ 'border-destructive': errors.maxTokens }"
+            />
+            <p class="text-xs text-muted-foreground">
+              {{ t('settings.model.modelConfig.maxTokens.description') }}
+            </p>
+            <p v-if="errors.maxTokens" class="text-xs text-destructive">
+              {{ errors.maxTokens }}
+            </p>
+          </div>
+
+          <!-- 上下文长度 -->
+          <div v-if="!showOpenAIMediaGenerationSettings" class="space-y-2">
+            <Label for="contextLength">{{
+              t('settings.model.modelConfig.contextLength.label')
+            }}</Label>
+            <Input
+              id="contextLength"
+              v-model.number="config.contextLength"
+              type="number"
+              :min="1"
+              :max="10000000"
+              :placeholder="t('settings.model.modelConfig.contextLength.label')"
+              :class="{ 'border-destructive': errors.contextLength }"
+            />
+            <p class="text-xs text-muted-foreground">
+              {{ t('settings.model.modelConfig.contextLength.description') }}
+            </p>
+            <p v-if="errors.contextLength" class="text-xs text-destructive">
+              {{ errors.contextLength }}
+            </p>
+          </div>
+
+          <div class="space-y-2">
+            <Label for="timeout">{{ t('settings.model.modelConfig.timeout.label') }}</Label>
+            <Input
+              id="timeout"
+              v-model.number="config.timeout"
+              type="number"
+              step="1000"
+              :min="MODEL_TIMEOUT_MIN_MS"
+              :max="MODEL_TIMEOUT_MAX_MS"
+              :placeholder="t('settings.model.modelConfig.timeout.label')"
+              :class="{ 'border-destructive': errors.timeout }"
+            />
+            <p class="text-xs text-muted-foreground">
+              {{ t('settings.model.modelConfig.timeout.description') }}
+            </p>
+            <p v-if="errors.timeout" class="text-xs text-destructive">
+              {{ errors.timeout }}
+            </p>
+          </div>
+
+          <OpenAIImageGenerationSettingsFields
+            v-if="showOpenAIImageGenerationSettings"
+            v-model="config.imageGeneration"
+          />
+
+          <OpenAIVideoGenerationSettingsFields
+            v-if="showOpenAIVideoGenerationSettings"
+            v-model="config.videoGeneration"
+          />
+
+          <TtsSettingsFields v-if="showTtsSettings" v-model="config.tts" />
+
+          <!-- 温度 -->
+          <div v-if="showTemperatureControl" class="space-y-2">
+            <Label for="temperature">{{ t('settings.model.modelConfig.temperature.label') }}</Label>
+            <Input
+              id="temperature"
+              v-model.number="temperatureInputValue"
+              type="number"
+              step="0.1"
+              :min="0"
+              :max="2"
+              :placeholder="t('settings.model.modelConfig.temperature.label')"
+              :class="{ 'border-destructive': errors.temperature }"
+              :disabled="temperatureSettingReadOnly"
+            />
+            <p class="text-xs text-muted-foreground">
+              {{ t('settings.model.modelConfig.temperature.description') }}
+            </p>
+            <p v-if="temperaturePolicyHint" class="text-xs text-muted-foreground">
+              {{ temperaturePolicyHint }}
+            </p>
+            <p v-if="errors.temperature" class="text-xs text-destructive">
+              {{ errors.temperature }}
+            </p>
+          </div>
+
+          <div v-if="showTopPControl" class="space-y-2">
+            <Label for="topP">{{ t('settings.model.modelConfig.topP.label') }}</Label>
+            <Input
+              id="topP"
+              v-model="topPInputValue"
+              type="text"
+              :placeholder="t('settings.model.modelConfig.useModelDefault')"
+              :class="{ 'border-destructive': errors.topP }"
+              :disabled="topPSettingReadOnly"
+              @blur="clampTopPDraft"
+            />
+            <p class="text-xs text-muted-foreground">
+              {{ t('settings.model.modelConfig.topP.description') }}
+            </p>
+            <p v-if="topPPolicyHint" class="text-xs text-muted-foreground">
+              {{ topPPolicyHint }}
+            </p>
+            <p v-if="errors.topP" class="text-xs text-destructive">
+              {{ errors.topP }}
+            </p>
+          </div>
+
+          <!-- 模型类型 -->
+          <div class="space-y-2">
+            <Label for="type">{{ t('settings.model.modelConfig.type.label') }}</Label>
+            <Select v-model="config.type">
+              <SelectTrigger id="type">
+                <SelectValue :placeholder="t('settings.model.modelConfig.type.label')" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="chat">
+                  {{ t('settings.model.modelConfig.type.options.chat') }}
+                </SelectItem>
+                <SelectItem value="embedding">
+                  {{ t('settings.model.modelConfig.type.options.embedding') }}
+                </SelectItem>
+                <SelectItem value="rerank">
+                  {{ t('settings.model.modelConfig.type.options.rerank') }}
+                </SelectItem>
+                <SelectItem value="imageGeneration">
+                  {{ t('settings.model.modelConfig.type.options.imageGeneration') }}
+                </SelectItem>
+                <SelectItem value="videoGeneration">
+                  {{ t('settings.model.modelConfig.type.options.videoGeneration') }}
+                </SelectItem>
+                <SelectItem value="tts">
+                  {{ t('settings.provider.tts.title') }}
+                </SelectItem>
+              </SelectContent>
+            </Select>
+            <p class="text-xs text-muted-foreground">
+              {{ t('settings.model.modelConfig.type.description') }}
+            </p>
+          </div>
+
+          <div
+            v-if="
+              (!showOpenAIMediaGenerationSettings || showOpenAIMediaGenerationRouteControls) &&
+              showEndpointTypeSelector
+            "
+            class="space-y-2"
+          >
+            <Label for="endpointType">{{
+              t('settings.model.modelConfig.endpointType.label')
+            }}</Label>
+            <Select v-model="config.endpointType">
+              <SelectTrigger
+                id="endpointType"
+                :class="{ 'border-destructive': errors.endpointType }"
+              >
+                <SelectValue
+                  :placeholder="t('settings.model.modelConfig.endpointType.placeholder')"
+                />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem
+                  v-for="endpointType in availableEndpointTypes"
+                  :key="endpointType"
+                  :value="endpointType"
+                >
+                  {{ t(`settings.model.modelConfig.endpointType.options.${endpointType}`) }}
+                </SelectItem>
+              </SelectContent>
+            </Select>
+            <p class="text-xs text-muted-foreground">
+              {{ t('settings.model.modelConfig.endpointType.description') }}
+            </p>
+            <p v-if="errors.endpointType" class="text-xs text-destructive">
+              {{ errors.endpointType }}
+            </p>
+          </div>
+
+          <!-- API 端点（仅 OpenAI 兼容 provider 显示） -->
+          <div
+            v-if="
+              (!showOpenAIMediaGenerationSettings || showOpenAIMediaGenerationRouteControls) &&
+              showApiEndpointSelector
+            "
+            class="space-y-2"
+          >
+            <Label for="apiEndpoint">{{ t('settings.model.modelConfig.apiEndpoint.label') }}</Label>
+            <Select v-model="config.apiEndpoint">
+              <SelectTrigger id="apiEndpoint">
+                <SelectValue :placeholder="t('settings.model.modelConfig.apiEndpoint.label')" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="chat">
+                  {{ t('settings.model.modelConfig.apiEndpoint.options.chat') }}
+                </SelectItem>
+                <SelectItem value="image">
+                  {{ t('settings.model.modelConfig.apiEndpoint.options.image') }}
+                </SelectItem>
+                <SelectItem value="video">
+                  {{ t('settings.model.modelConfig.apiEndpoint.options.video') }}
+                </SelectItem>
+                <SelectItem value="audio-speech">
+                  {{ t('settings.provider.tts.title') }}
+                </SelectItem>
+              </SelectContent>
+            </Select>
+            <p class="text-xs text-muted-foreground">
+              {{ t('settings.model.modelConfig.apiEndpoint.description') }}
+            </p>
+          </div>
+
+          <!-- 视觉能力 -->
+          <div v-if="!showOpenAIMediaGenerationSettings" class="flex items-center justify-between">
+            <div class="space-y-0.5">
+              <Label>{{ t('settings.model.modelConfig.vision.label') }}</Label>
+              <p class="text-xs text-muted-foreground">
+                {{ t('settings.model.modelConfig.vision.description') }}
+              </p>
+            </div>
+            <Switch
+              :aria-label="t('settings.model.modelConfig.vision.label')"
+              :model-value="config.vision"
+              @update:model-value="(value) => (config.vision = value)"
+            />
+          </div>
+
+          <div v-if="!showOpenAIMediaGenerationSettings" class="flex items-center justify-between">
+            <div class="space-y-0.5">
+              <Label>{{ t('settings.model.modelConfig.speechRecognition.label') }}</Label>
+              <p class="text-xs text-muted-foreground">
+                {{ t('settings.model.modelConfig.speechRecognition.description') }}
+              </p>
+            </div>
+            <Switch
+              data-setting-control="speechRecognition-toggle"
+              :aria-label="t('settings.model.modelConfig.speechRecognition.label')"
+              :model-value="config.speechRecognition === true"
+              @update:model-value="(value) => (config.speechRecognition = Boolean(value))"
+            />
+          </div>
+
+          <!-- 函数调用 -->
+          <div v-if="!showOpenAIMediaGenerationSettings" class="flex items-center justify-between">
+            <div class="space-y-0.5">
+              <Label>{{ t('settings.model.modelConfig.functionCall.label') }}</Label>
+              <p class="text-xs text-muted-foreground">
+                {{ t('settings.model.modelConfig.functionCall.description') }}
+              </p>
+              <!-- DeepSeek-V3.1 互斥提示 -->
+              <p v-if="isDeepSeekV31Model" class="text-xs text-orange-600">
+                {{ t('dialog.mutualExclusive.warningText.functionCall') }}
+              </p>
+            </div>
+            <Switch
+              :aria-label="t('settings.model.modelConfig.functionCall.label')"
+              :model-value="config.functionCall"
+              @update:model-value="handleFunctionCallToggle"
+            />
+          </div>
+
+          <!-- 推理能力 -->
+          <div
+            v-if="!showOpenAIMediaGenerationSettings && showReasoningToggle"
+            class="flex items-center justify-between"
+          >
+            <div class="space-y-0.5">
+              <Label>{{ t(reasoningToggleLabelKey) }}</Label>
+              <p class="text-xs text-muted-foreground">
+                {{ t(reasoningToggleDescriptionKey) }}
+              </p>
+              <!-- DeepSeek-V3.1 互斥提示 -->
+              <p v-if="showReasoningMutualExclusiveWarning" class="text-xs text-orange-600">
+                {{ t('dialog.mutualExclusive.warningText.reasoning') }}
+              </p>
+            </div>
+            <Switch
+              :aria-label="t(reasoningToggleLabelKey)"
+              :model-value="reasoningToggleValue"
+              :disabled="reasoningToggleDisabled"
+              @update:model-value="handleReasoningToggle"
+            />
+          </div>
+
+          <div
+            v-if="!showOpenAIMediaGenerationSettings && showInterleavedThinking"
+            class="flex items-center justify-between gap-4"
+          >
+            <div class="space-y-0.5">
+              <Label>{{ t('settings.model.modelConfig.interleavedThinking.label') }}</Label>
+              <p class="text-xs text-muted-foreground">
+                {{ t('settings.model.modelConfig.interleavedThinking.description') }}
+              </p>
+            </div>
+            <Switch
+              data-setting-control="interleavedThinking-toggle"
+              :aria-label="t('settings.model.modelConfig.interleavedThinking.label')"
+              :model-value="config.forceInterleavedThinkingCompat === true"
+              @update:model-value="
+                (value) => (config.forceInterleavedThinkingCompat = Boolean(value))
+              "
+            />
+          </div>
+
+          <!-- 推理努力程度 (支持推理努力程度的模型显示) -->
+          <div v-if="!showOpenAIMediaGenerationSettings && showReasoningEffort" class="space-y-2">
+            <Label for="reasoningEffort">{{
+              t('settings.model.modelConfig.reasoningEffort.label')
+            }}</Label>
+            <Select v-model="effectiveReasoningEffort">
+              <SelectTrigger id="reasoningEffort">
+                <SelectValue
+                  :placeholder="t('settings.model.modelConfig.reasoningEffort.placeholder')"
+                />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem
+                  v-for="option in reasoningEffortOptions"
+                  :key="option.value"
+                  :value="option.value"
+                >
+                  {{ option.label }}
+                </SelectItem>
+              </SelectContent>
+            </Select>
+            <p class="text-xs text-muted-foreground">
+              {{ t('settings.model.modelConfig.reasoningEffort.description') }}
+            </p>
+          </div>
+
+          <div
+            v-if="!showOpenAIMediaGenerationSettings && showReasoningVisibility"
+            class="space-y-2"
+          >
+            <Label for="reasoningVisibility">{{
+              t('settings.model.modelConfig.reasoningVisibility.label')
+            }}</Label>
+            <Select v-model="config.reasoningVisibility">
+              <SelectTrigger id="reasoningVisibility">
+                <SelectValue
+                  :placeholder="t('settings.model.modelConfig.reasoningVisibility.placeholder')"
+                />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem
+                  v-for="option in reasoningVisibilityOptions"
+                  :key="option.value"
+                  :value="option.value"
+                >
+                  {{ option.label }}
+                </SelectItem>
+              </SelectContent>
+            </Select>
+            <p class="text-xs text-muted-foreground">
+              {{ t('settings.model.modelConfig.reasoningVisibility.description') }}
+            </p>
+          </div>
+
+          <!-- 详细程度（存在该参数即显示） -->
+          <div v-if="!showOpenAIMediaGenerationSettings && supportsVerbosity" class="space-y-2">
+            <Label for="verbosity">{{ t('settings.model.modelConfig.verbosity.label') }}</Label>
+            <Select v-model="config.verbosity">
+              <SelectTrigger id="verbosity">
+                <SelectValue :placeholder="t('settings.model.modelConfig.verbosity.placeholder')" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem
+                  v-for="option in verbosityOptions"
+                  :key="option.value"
+                  :value="option.value"
+                >
+                  {{ option.label }}
+                </SelectItem>
+              </SelectContent>
+            </Select>
+            <p class="text-xs text-muted-foreground">
+              {{ t('settings.model.modelConfig.verbosity.description') }}
+            </p>
+          </div>
+
+          <!-- 思考预算（统一基于能力） -->
+          <div v-if="!showOpenAIMediaGenerationSettings && showThinkingBudget" class="space-y-4">
+            <div class="flex items-center justify-between">
+              <div class="space-y-0.5">
+                <Label>{{ t('settings.model.modelConfig.thinkingBudget.label') }}</Label>
+              </div>
+            </div>
+
+            <!-- 思考预算详细配置 -->
+            <div class="space-y-3 pl-4 border-l-2 border-muted">
+              <!-- 数值输入 -->
+              <div class="space-y-2">
+                <Label class="text-sm">{{
+                  t('settings.model.modelConfig.thinkingBudget.label')
+                }}</Label>
+                <Input
+                  v-model.number="config.thinkingBudget"
+                  type="number"
+                  :min="thinkingBudgetRange?.min"
+                  :max="thinkingBudgetRange?.max"
+                  :step="128"
+                  :placeholder="t('settings.model.modelConfig.thinkingBudget.placeholder')"
+                  :class="{ 'border-destructive': genericThinkingBudgetError }"
+                />
+                <p class="text-xs text-muted-foreground">
+                  <span v-if="genericThinkingBudgetError" class="text-red-600 font-medium">
+                    {{ genericThinkingBudgetError }}
+                  </span>
+                  <span v-else>
+                    {{
+                      t('settings.model.modelConfig.thinkingBudget.range', {
+                        min: thinkingBudgetRange?.min,
+                        max: thinkingBudgetRange?.max
+                      })
+                    }}
+                  </span>
+                </p>
+              </div>
+            </div>
+          </div>
+        </DcForm>
+      </div>
+
+      <DialogFooter class="gap-2">
+        <DcButton type="button" variant="outline" @click="handleReset">
+          {{ t('settings.model.modelConfig.resetToDefault') }}
+        </DcButton>
+        <DcButton type="button" variant="ghost" @click="$emit('update:open', false)">
+          {{ t('settings.model.modelConfig.cancel') }}
+        </DcButton>
+        <DcButton type="button" @click="handleSave" :disabled="!isValid">
+          {{ t('settings.model.modelConfig.saveConfig') }}
+        </DcButton>
+      </DialogFooter>
+    </DialogContent>
+  </Dialog>
+
+  <!-- 重置确认对话框 -->
+  <DcConfirmDialog
+    :open="showResetConfirm"
+    :title="t('settings.model.modelConfig.resetConfirm.title')"
+    :description="t('settings.model.modelConfig.resetConfirm.message')"
+    :danger="true"
+    :confirm-label="t('settings.model.modelConfig.resetConfirm.confirm')"
+    :cancel-label="t('settings.model.modelConfig.cancel')"
+    @update:open="showResetConfirm = $event"
+    @confirm="confirmReset"
+    @cancel="showResetConfirm = false"
+  />
+
+  <!-- DeepSeek-V3.1 互斥确认对话框 -->
+  <DcConfirmDialog
+    :open="showMutualExclusiveAlert"
+    :title="getConfirmTitle"
+    :description="getConfirmMessage"
+    :danger="false"
+    :confirm-label="t('dialog.mutualExclusive.confirmEnable')"
+    :cancel-label="t('dialog.cancel')"
+    @update:open="showMutualExclusiveAlert = $event"
+    @confirm="confirmMutualExclusiveToggle"
+    @cancel="cancelMutualExclusiveToggle"
+  />
+</template>
+
+<script setup lang="ts">
+import { ref, computed, watch, nextTick } from 'vue'
+import { storeToRefs } from 'pinia'
+import { useI18n } from 'vue-i18n'
+import {
+  ApiEndpointType,
+  ModelType,
+  NEW_API_ENDPOINT_TYPES,
+  isNewApiEndpointType,
+  resolveNewApiSelectableEndpointTypes,
+  type NewApiEndpointType
+} from '@shared/model'
+import type { ModelRequestPolicy } from '@shared/modelRequestPolicy'
+import type { ModelConfig } from '@shared/types/provider'
+import {
+  ANTHROPIC_REASONING_VISIBILITY_VALUES,
+  DEFAULT_REASONING_EFFORT_OPTIONS as FALLBACK_REASONING_EFFORT_OPTIONS,
+  getReasoningControlModeForProvider,
+  getReasoningEffectiveEnabledForProvider,
+  hasAnthropicReasoningToggle,
+  isReasoningEffort,
+  normalizeAnthropicReasoningVisibilityValue,
+  isVerbosity,
+  normalizeReasoningEffortValue,
+  type AnthropicReasoningVisibility,
+  supportsReasoningCapability,
+  type ReasoningEffort,
+  type ReasoningPortrait
+} from '@shared/types/model-db'
+import {
+  DEFAULT_MODEL_CONTEXT_LENGTH,
+  DEFAULT_MODEL_FUNCTION_CALL,
+  DEFAULT_MODEL_MAX_TOKENS,
+  DEFAULT_MODEL_SPEECH_RECOGNITION,
+  DEFAULT_MODEL_TIMEOUT,
+  DEFAULT_MODEL_VISION,
+  MODEL_TIMEOUT_MAX_MS,
+  MODEL_TIMEOUT_MIN_MS
+} from '@shared/modelConfigDefaults'
+import {
+  normalizeImageGenerationOptions,
+  supportsOpenAIImageGenerationSettings
+} from '@shared/imageGenerationSettings'
+import {
+  normalizeVideoGenerationOptions,
+  supportsOpenAICompatibleVideoGeneration
+} from '@shared/videoGenerationSettings'
+import { normalizeTtsSettings } from '@shared/ttsSettings'
+import { useModelConfigStore } from '@/stores/modelConfigStore'
+import { useModelStore } from '@/stores/modelStore'
+import { useProviderStore } from '@/stores/providerStore'
+import { DcConfirmDialog } from '@dc-ui/components/confirm-dialog'
+import { DcForm } from '@dc-ui/components/form'
+import OpenAIImageGenerationSettingsFields from './OpenAIImageGenerationSettingsFields.vue'
+import OpenAIVideoGenerationSettingsFields from './OpenAIVideoGenerationSettingsFields.vue'
+import TtsSettingsFields from './TtsSettingsFields.vue'
+import {
+  useModelCapabilities,
+  type GenerationParameterControl
+} from '@/composables/useModelCapabilities'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter
+} from '@shadcn/components/ui/dialog'
+import { DcButton } from '@dc-ui/components/button'
+import { Input } from '@shadcn/components/ui/input'
+import { Label } from '@shadcn/components/ui/label'
+import { Switch } from '@shadcn/components/ui/switch'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from '@shadcn/components/ui/select'
+
+interface Props {
+  open: boolean
+  modelId: string
+  modelName: string
+  providerId: string
+  mode?: 'create' | 'edit'
+  isCustomModel?: boolean
+}
+
+const props = withDefaults(defineProps<Props>(), {
+  mode: 'edit',
+  isCustomModel: false
+})
+
+const emit = defineEmits<{
+  'update:open': [boolean]
+  saved: []
+}>()
+
+const { t } = useI18n()
+const modelConfigStore = useModelConfigStore()
+const modelStore = useModelStore()
+const providerStore = useProviderStore()
+const { customModels, allProviderModels } = storeToRefs(modelStore)
+const modelCapabilities = useModelCapabilities()
+const providerIdLower = computed(() => props.providerId?.toLowerCase() || '')
+const currentProvider = computed(() =>
+  providerStore.providers.find((provider) => provider.id === props.providerId)
+)
+
+const isOpenAICompatibleProvider = computed(() => {
+  const EXCLUDED_PROVIDERS = [
+    'anthropic',
+    'gemini',
+    'vertex',
+    'aws-bedrock',
+    'github-copilot',
+    'ollama',
+    'acp',
+    'voiceai'
+  ]
+  return !EXCLUDED_PROVIDERS.some((excluded) => providerIdLower.value.includes(excluded))
+})
+
+const isResponsesProvider = computed(() => {
+  if (providerIdLower.value === 'openai' || providerIdLower.value === 'openai-responses') {
+    return true
+  }
+
+  const apiType = currentProvider.value?.apiType?.toLowerCase()
+  return apiType === 'openai' || apiType === 'openai-responses'
+})
+
+const isNewApiProvider = computed(() => {
+  if (providerIdLower.value === 'new-api') {
+    return true
+  }
+
+  return currentProvider.value?.apiType?.toLowerCase() === 'new-api'
+})
+
+const showApiEndpointSelector = computed(
+  () => !isNewApiProvider.value && !isResponsesProvider.value && isOpenAICompatibleProvider.value
+)
+const showEndpointTypeSelector = computed(() => isNewApiProvider.value)
+
+const MODEL_TYPE_VALUES = new Set<string>(Object.values(ModelType))
+
+const isModelType = (value: unknown): value is ModelType =>
+  typeof value === 'string' && MODEL_TYPE_VALUES.has(value)
+
+const createDefaultConfig = (): ModelConfig => ({
+  maxTokens: DEFAULT_MODEL_MAX_TOKENS,
+  contextLength: DEFAULT_MODEL_CONTEXT_LENGTH,
+  timeout: DEFAULT_MODEL_TIMEOUT,
+  temperature: 0.7,
+  topP: undefined,
+  vision: DEFAULT_MODEL_VISION,
+  speechRecognition: DEFAULT_MODEL_SPEECH_RECOGNITION,
+  functionCall: DEFAULT_MODEL_FUNCTION_CALL,
+  reasoning: false,
+  forceInterleavedThinkingCompat: undefined,
+  type: ModelType.Chat,
+  apiEndpoint: ApiEndpointType.Chat,
+  endpointType: undefined,
+  reasoningEffort: 'medium',
+  reasoningVisibility: undefined,
+  verbosity: 'medium'
+})
+
+const DEFAULT_VERBOSITY_OPTIONS: Array<'low' | 'medium' | 'high'> = ['low', 'medium', 'high']
+
+// 配置数据
+const config = ref<ModelConfig>(createDefaultConfig())
+const isLoadingModelConfig = ref(false)
+const modelConfigIsUserDefined = ref(false)
+const modelConfigHasExplicitType = ref(false)
+const hasManualModelTypeSelection = ref(false)
+const capabilityRouteWasEdited = ref(false)
+const topPDraft = ref('')
+const modelNameField = ref(props.modelName ?? '')
+const modelIdField = ref(props.modelId ?? '')
+const originalModelId = ref(props.modelId ?? '')
+
+const isCreateMode = computed(() => props.mode === 'create')
+const identityDisplayName = computed(() => modelNameField.value || props.modelName || '')
+const dialogTitle = computed(() =>
+  isCreateMode.value
+    ? t('settings.model.modelConfig.createTitle')
+    : t('settings.model.modelConfig.editTitle', { name: identityDisplayName.value })
+)
+const canEditModelIdentity = computed(() => isCreateMode.value || props.isCustomModel === true)
+const shouldValidateIdentity = computed(() => isCreateMode.value || props.isCustomModel === true)
+const showOpenAIImageGenerationSettings = computed(() =>
+  supportsOpenAIImageGenerationSettings({
+    providerId: props.providerId,
+    providerApiType: currentProvider.value?.apiType,
+    modelId: modelIdField.value.trim(),
+    apiEndpoint: config.value.apiEndpoint,
+    endpointType: config.value.endpointType ?? providerModelMeta.value?.endpointType,
+    supportedEndpointTypes: providerModelMeta.value?.supportedEndpointTypes,
+    type: config.value.type ?? providerModelMeta.value?.type
+  })
+)
+const showOpenAIVideoGenerationSettings = computed(() =>
+  supportsOpenAICompatibleVideoGeneration({
+    providerId: props.providerId,
+    providerApiType: currentProvider.value?.apiType,
+    modelId: modelIdField.value.trim(),
+    apiEndpoint: config.value.apiEndpoint,
+    endpointType: config.value.endpointType ?? providerModelMeta.value?.endpointType,
+    supportedEndpointTypes: providerModelMeta.value?.supportedEndpointTypes,
+    type: config.value.type ?? providerModelMeta.value?.type
+  })
+)
+const showOpenAIMediaGenerationSettings = computed(
+  () => showOpenAIImageGenerationSettings.value || showOpenAIVideoGenerationSettings.value
+)
+const showOpenAIImageGenerationRouteControls = computed(
+  () => showOpenAIImageGenerationSettings.value && canEditModelIdentity.value
+)
+const showOpenAIVideoGenerationRouteControls = computed(
+  () => showOpenAIVideoGenerationSettings.value && canEditModelIdentity.value
+)
+const showOpenAIMediaGenerationRouteControls = computed(
+  () => showOpenAIImageGenerationRouteControls.value || showOpenAIVideoGenerationRouteControls.value
+)
+const showTtsSettings = computed(() => config.value.type === ModelType.TTS)
+
+const syncTopPDraftFromConfig = () => {
+  topPDraft.value = typeof config.value.topP === 'number' ? String(config.value.topP) : ''
+}
+
+const parseTopPDraft = (): number | undefined => {
+  const raw = topPDraft.value.trim()
+  if (!raw) {
+    return undefined
+  }
+
+  return Number(raw)
+}
+
+const clampTopPDraft = () => {
+  if (topPSettingReadOnly.value) return
+
+  const raw = topPDraft.value.trim()
+  if (!raw) return
+
+  const num = Number(raw)
+  if (!Number.isFinite(num)) return
+
+  if (num < 0.1) {
+    topPDraft.value = '0.1'
+  } else if (num > 1) {
+    topPDraft.value = '1'
+  }
+}
+
+// 重置确认对话框
+const showResetConfirm = ref(false)
+
+// DeepSeek-V3.1 互斥确认对话框
+const showMutualExclusiveAlert = ref(false)
+const mutualExclusiveAction = ref<{
+  from: 'reasoning' | 'functionCall'
+  to: 'reasoning' | 'functionCall'
+} | null>(null)
+
+// 错误信息
+const errors = ref<Record<string, string>>({})
+const capabilityProviderId = computed(
+  () => modelCapabilities.identity.value?.providerId ?? props.providerId
+)
+const capabilityRequestPolicy = computed<ModelRequestPolicy | null>(
+  () => modelCapabilities.requestPolicy.value
+)
+const capabilityReasoningPortrait = computed(
+  () => modelCapabilities.reasoningPortrait.value as ReasoningPortrait | null
+)
+const capabilitySupportsReasoning = computed(() => modelCapabilities.supportsReasoning.value)
+const capabilityBudgetRange = computed(
+  () => modelCapabilities.snapshot.value?.thinkingBudgetRange ?? null
+)
+const capabilitySupportsEffort = computed(
+  () => modelCapabilities.snapshot.value?.supportsReasoningEffort ?? null
+)
+const capabilityEffortDefault = computed(
+  () => modelCapabilities.snapshot.value?.reasoningEffortDefault
+)
+const capabilitySupportsVerbosity = computed(
+  () => modelCapabilities.snapshot.value?.supportsVerbosity ?? null
+)
+const capabilityVerbosityDefault = computed(
+  () => modelCapabilities.snapshot.value?.verbosityDefault
+)
+const capabilityReasoningVisibilityDefault = computed(() =>
+  normalizeAnthropicReasoningVisibilityValue(capabilityReasoningPortrait.value?.visibility)
+)
+
+const getReasoningEffortOptions = (
+  portrait: ReasoningPortrait | null | undefined
+): ReasoningEffort[] => {
+  if (
+    !portrait ||
+    portrait.mode === 'budget' ||
+    portrait.mode === 'level' ||
+    portrait.mode === 'fixed'
+  ) {
+    return []
+  }
+
+  const options = portrait?.effortOptions?.filter(isReasoningEffort)
+  if (options && options.length > 0) {
+    return options
+  }
+  if (portrait.mode === 'mixed' || !isReasoningEffort(portrait?.effort)) {
+    return []
+  }
+
+  return FALLBACK_REASONING_EFFORT_OPTIONS.includes(portrait.effort)
+    ? [...FALLBACK_REASONING_EFFORT_OPTIONS]
+    : [portrait.effort]
+}
+
+const getVerbosityOptions = (
+  portrait: ReasoningPortrait | null | undefined
+): Array<'low' | 'medium' | 'high'> => {
+  const options = portrait?.verbosityOptions?.filter(isVerbosity)
+  if (options && options.length > 0) {
+    return options
+  }
+  return isVerbosity(portrait?.verbosity) ? [...DEFAULT_VERBOSITY_OPTIONS] : []
+}
+
+const getReasoningVisibilityOptions = (
+  providerId: string,
+  portrait: ReasoningPortrait | null | undefined
+): AnthropicReasoningVisibility[] =>
+  hasAnthropicReasoningToggle(providerId, portrait)
+    ? [...ANTHROPIC_REASONING_VISIBILITY_VALUES]
+    : []
+
+const hasThinkingBudgetSupport = (portrait: ReasoningPortrait | null | undefined): boolean =>
+  Boolean(
+    portrait &&
+    portrait.mode !== 'effort' &&
+    portrait.mode !== 'level' &&
+    portrait.mode !== 'fixed' &&
+    portrait.budget &&
+    (portrait.budget.default !== undefined ||
+      portrait.budget.min !== undefined ||
+      portrait.budget.max !== undefined ||
+      portrait.budget.auto !== undefined ||
+      portrait.budget.off !== undefined)
+  )
+
+const normalizeVerbosityValue = (
+  portrait: ReasoningPortrait | null | undefined,
+  value: unknown
+): 'low' | 'medium' | 'high' | undefined => {
+  if (!isVerbosity(value)) {
+    return undefined
+  }
+
+  const options = getVerbosityOptions(portrait)
+  if (options.length === 0) {
+    return value
+  }
+
+  if (options.includes(value)) {
+    return value
+  }
+
+  return isVerbosity(portrait?.verbosity) && options.includes(portrait.verbosity)
+    ? portrait.verbosity
+    : undefined
+}
+
+const normalizeThinkingBudgetValue = (
+  portrait: ReasoningPortrait | null | undefined,
+  value: number,
+  min?: number,
+  max?: number
+): number => {
+  const roundedValue = Math.round(value)
+  if (isThinkingBudgetSentinel(portrait, roundedValue)) {
+    return roundedValue
+  }
+
+  let nextValue = roundedValue
+  if (typeof min === 'number') {
+    nextValue = Math.max(nextValue, Math.round(min))
+  }
+  if (typeof max === 'number') {
+    nextValue = Math.min(nextValue, Math.round(max))
+  }
+  return nextValue
+}
+
+const isThinkingBudgetSentinel = (
+  portrait: ReasoningPortrait | null | undefined,
+  value: number
+): boolean => {
+  const roundedValue = Math.round(value)
+  const sentinelValues = new Set<number>()
+
+  if (typeof portrait?.budget?.default === 'number')
+    sentinelValues.add(Math.round(portrait.budget.default))
+  if (typeof portrait?.budget?.auto === 'number')
+    sentinelValues.add(Math.round(portrait.budget.auto))
+  if (typeof portrait?.budget?.off === 'number') sentinelValues.add(Math.round(portrait.budget.off))
+
+  return sentinelValues.has(roundedValue)
+}
+
+const currentModelLookupId = computed(() =>
+  (canEditModelIdentity.value ? modelIdField.value : props.modelId || modelIdField.value).trim()
+)
+const shouldUseDraftCapabilityRoute = computed(
+  () =>
+    isCreateMode.value ||
+    capabilityRouteWasEdited.value ||
+    (canEditModelIdentity.value && currentModelLookupId.value !== originalModelId.value)
+)
+
+const fetchCapabilities = async () => {
+  const targetModelId = currentModelLookupId.value
+
+  if (!props.providerId || !targetModelId) {
+    modelCapabilities.clear()
+    return
+  }
+
+  const routeOverride = shouldUseDraftCapabilityRoute.value
+    ? {
+        endpointType: isNewApiEndpointType(config.value.endpointType)
+          ? config.value.endpointType
+          : providerModelMeta.value?.endpointType,
+        type: effectiveNewApiModelType.value
+      }
+    : undefined
+
+  await modelCapabilities.load({
+    providerId: props.providerId,
+    modelId: targetModelId,
+    ...(routeOverride ? { routeOverride } : {}),
+    reasoningEnabled: config.value.reasoning
+  })
+}
+
+let capabilityRefreshQueued = false
+const queueCapabilityRefresh = () => {
+  if (capabilityRefreshQueued || !props.open || isLoadingModelConfig.value) return
+  capabilityRefreshQueued = true
+  modelCapabilities.beginLoading()
+  void nextTick().then(() => {
+    capabilityRefreshQueued = false
+    if (props.open && !isLoadingModelConfig.value) {
+      void fetchCapabilities()
+    } else {
+      modelCapabilities.clear()
+    }
+  })
+}
+
+const queueCapabilityRefreshForIdentityChange = () => {
+  const targetModelId = currentModelLookupId.value
+  if (!targetModelId) {
+    modelCapabilities.clear()
+    return
+  }
+  const queryIdentity = modelCapabilities.queryIdentity.value
+  if (
+    (modelCapabilities.status.value === 'ready' || modelCapabilities.status.value === 'loading') &&
+    queryIdentity?.providerId === props.providerId.trim() &&
+    queryIdentity.modelId === targetModelId
+  ) {
+    return
+  }
+  queueCapabilityRefresh()
+}
+
+const providerCustomModelList = computed(() => {
+  if (!props.providerId) return []
+  return customModels.value.find((entry) => entry.providerId === props.providerId)?.models ?? []
+})
+
+const providerStandardModelList = computed(() => {
+  if (!props.providerId) return []
+  return (
+    allProviderModels.value.find((entry) => entry.providerId === props.providerId)?.models ?? []
+  )
+})
+
+const capabilitySnapshotMatchesCurrentModel = computed(
+  () =>
+    !currentModelLookupId.value ||
+    (modelCapabilities.status.value === 'ready' &&
+      modelCapabilities.identity.value?.requestModelId === currentModelLookupId.value)
+)
+const capabilityQueryMatchesCurrentModel = computed(
+  () =>
+    modelCapabilities.queryIdentity.value?.providerId === props.providerId.trim() &&
+    modelCapabilities.queryIdentity.value?.modelId === currentModelLookupId.value
+)
+const capabilityResolutionSettledForCurrentModel = computed(
+  () =>
+    !currentModelLookupId.value ||
+    capabilitySnapshotMatchesCurrentModel.value ||
+    (modelCapabilities.status.value === 'error' && capabilityQueryMatchesCurrentModel.value)
+)
+
+const temperatureControl = computed<GenerationParameterControl>(() => {
+  if (
+    isCreateMode.value &&
+    !currentModelLookupId.value &&
+    modelCapabilities.status.value === 'idle'
+  ) {
+    return { mode: 'editable' }
+  }
+
+  if (
+    currentModelLookupId.value &&
+    modelCapabilities.status.value !== 'error' &&
+    !capabilitySnapshotMatchesCurrentModel.value
+  ) {
+    return { mode: 'loading' }
+  }
+
+  return modelCapabilities.temperatureControl.value
+})
+const topPControl = computed<GenerationParameterControl>(() => {
+  if (
+    isCreateMode.value &&
+    !currentModelLookupId.value &&
+    modelCapabilities.status.value === 'idle'
+  ) {
+    return { mode: 'editable' }
+  }
+
+  if (
+    currentModelLookupId.value &&
+    modelCapabilities.status.value !== 'error' &&
+    !capabilitySnapshotMatchesCurrentModel.value
+  ) {
+    return { mode: 'loading' }
+  }
+
+  return modelCapabilities.topPControl.value
+})
+const temperaturePolicyHint = computed(() =>
+  temperatureControl.value.mode === 'fixed'
+    ? t('settings.model.temperatureFixedByPolicy', {
+        value: temperatureControl.value.value
+      })
+    : ''
+)
+const topPPolicyHint = computed(() =>
+  topPControl.value.mode === 'fixed'
+    ? t('settings.model.topPFixedByPolicy', {
+        value: topPControl.value.value
+      })
+    : ''
+)
+const isGenerationSettingReadOnly = (control: GenerationParameterControl) =>
+  control.mode === 'fixed' ||
+  control.mode === 'loading' ||
+  (control.mode === 'hidden' && modelCapabilities.status.value === 'ready')
+const temperatureSettingReadOnly = computed(() =>
+  isGenerationSettingReadOnly(temperatureControl.value)
+)
+const topPSettingReadOnly = computed(() => isGenerationSettingReadOnly(topPControl.value))
+const temperatureInputValue = computed<number | undefined>({
+  get: () =>
+    temperatureControl.value.mode === 'fixed'
+      ? temperatureControl.value.value
+      : config.value.temperature,
+  set: (value) => {
+    if (!temperatureSettingReadOnly.value) {
+      config.value.temperature = value
+    }
+  }
+})
+const topPInputValue = computed<string>({
+  get: () =>
+    topPControl.value.mode === 'fixed' ? String(topPControl.value.value) : topPDraft.value,
+  set: (value) => {
+    if (!topPSettingReadOnly.value) {
+      topPDraft.value = value
+    }
+  }
+})
+
+const providerModelMeta = computed(() => {
+  const targetModelId = currentModelLookupId.value
+  if (!targetModelId) return null
+
+  return (
+    providerStandardModelList.value.find((model) => model.id === targetModelId) ??
+    providerCustomModelList.value.find((model) => model.id === targetModelId) ??
+    null
+  )
+})
+
+const effectiveNewApiModelType = computed(() => {
+  if (hasManualModelTypeSelection.value) {
+    return config.value.type
+  }
+
+  if (modelConfigIsUserDefined.value && modelConfigHasExplicitType.value) {
+    return config.value.type
+  }
+
+  return providerModelMeta.value?.type ?? config.value.type
+})
+
+const providerSelectableEndpointTypes = computed<NewApiEndpointType[] | undefined>(() => {
+  const selectableEndpointTypes = providerModelMeta.value?.selectableEndpointTypes
+  if (Array.isArray(selectableEndpointTypes) && selectableEndpointTypes.length > 0) {
+    const normalizedEndpointTypes = selectableEndpointTypes.filter(isNewApiEndpointType)
+    if (normalizedEndpointTypes.length > 0) {
+      return normalizedEndpointTypes
+    }
+  }
+
+  const supportedEndpointTypes = providerModelMeta.value?.supportedEndpointTypes
+  if (Array.isArray(supportedEndpointTypes) && supportedEndpointTypes.length > 0) {
+    const normalizedEndpointTypes = supportedEndpointTypes.filter(isNewApiEndpointType)
+    if (normalizedEndpointTypes.length > 0) {
+      return normalizedEndpointTypes
+    }
+  }
+
+  return undefined
+})
+
+const availableEndpointTypes = computed<NewApiEndpointType[]>(() => {
+  return (
+    resolveNewApiSelectableEndpointTypes(
+      providerSelectableEndpointTypes.value,
+      currentModelLookupId.value,
+      {
+        type: effectiveNewApiModelType.value
+      }
+    ) ?? [...NEW_API_ENDPOINT_TYPES]
+  )
+})
+
+const resolveNewApiEndpointTypeFallback = (): NewApiEndpointType | undefined => {
+  const availableTypes = availableEndpointTypes.value
+  const providerDefaultEndpointType = providerModelMeta.value?.endpointType
+  if (
+    providerDefaultEndpointType &&
+    isNewApiEndpointType(providerDefaultEndpointType) &&
+    availableTypes.includes(providerDefaultEndpointType)
+  ) {
+    return providerDefaultEndpointType
+  }
+
+  const supportedEndpointType = providerModelMeta.value?.supportedEndpointTypes?.find(
+    (endpointType) => isNewApiEndpointType(endpointType) && availableTypes.includes(endpointType)
+  )
+  return supportedEndpointType ?? availableTypes[0]
+}
+
+const currentCustomModel = computed(() => {
+  if (!props.providerId || !props.modelId) return null
+  return providerCustomModelList.value.find((model) => model.id === props.modelId) ?? null
+})
+
+const hasModelIdConflict = (modelId: string, excludeId?: string) => {
+  if (!modelId) return false
+  const normalized = modelId.trim().toLowerCase()
+  if (!normalized) return false
+  const normalizedExcludeId = excludeId?.trim().toLowerCase()
+  const models = [...providerStandardModelList.value, ...providerCustomModelList.value]
+  return models.some((model) => {
+    if (!model.id) return false
+    const currentId = model.id.toLowerCase()
+    if (normalizedExcludeId && currentId === normalizedExcludeId) return false
+    return currentId === normalized
+  })
+}
+
+const buildCustomModelPayload = (id: string, name: string, enabled?: boolean) => {
+  const reasoningPolicy = capabilityRequestPolicy.value?.reasoning
+
+  return {
+    id,
+    name,
+    enabled: enabled ?? true,
+    contextLength: config.value.contextLength ?? DEFAULT_MODEL_CONTEXT_LENGTH,
+    maxTokens: config.value.maxTokens ?? DEFAULT_MODEL_MAX_TOKENS,
+    vision: config.value.vision ?? DEFAULT_MODEL_VISION,
+    functionCall: config.value.functionCall ?? DEFAULT_MODEL_FUNCTION_CALL,
+    reasoning:
+      reasoningPolicy?.mode === 'fixed' ? reasoningPolicy.value : (config.value.reasoning ?? false),
+    type: effectiveNewApiModelType.value ?? ModelType.Chat,
+    endpointType: config.value.endpointType
+  }
+}
+
+const syncNewApiDerivedFields = () => {
+  if (!showEndpointTypeSelector.value) {
+    return
+  }
+
+  if (
+    !isNewApiEndpointType(config.value.endpointType) ||
+    !availableEndpointTypes.value.includes(config.value.endpointType)
+  ) {
+    config.value.endpointType = resolveNewApiEndpointTypeFallback()
+  }
+
+  if (config.value.endpointType === 'image-generation') {
+    config.value.apiEndpoint = ApiEndpointType.Image
+    config.value.type = ModelType.ImageGeneration
+    return
+  }
+
+  if (config.value.endpointType === 'video-generation') {
+    config.value.apiEndpoint = ApiEndpointType.Video
+    config.value.type = ModelType.VideoGeneration
+    return
+  }
+
+  config.value.apiEndpoint = ApiEndpointType.Chat
+
+  if (
+    config.value.type === ModelType.ImageGeneration ||
+    config.value.type === ModelType.VideoGeneration
+  ) {
+    const providerModelType = providerModelMeta.value?.type
+    config.value.type =
+      providerModelType &&
+      providerModelType !== ModelType.ImageGeneration &&
+      providerModelType !== ModelType.VideoGeneration
+        ? providerModelType
+        : ModelType.Chat
+  }
+}
+
+const initializeIdentityFields = () => {
+  if (isCreateMode.value) {
+    modelNameField.value = ''
+    modelIdField.value = ''
+    originalModelId.value = ''
+    return
+  }
+
+  modelNameField.value = props.modelName ?? ''
+  modelIdField.value = props.modelId ?? ''
+  originalModelId.value = props.modelId ?? ''
+}
+
+let loadConfigRequestId = 0
+
+// 加载模型配置
+const loadConfig = async () => {
+  if (!props.providerId) return
+
+  const requestId = ++loadConfigRequestId
+  isLoadingModelConfig.value = true
+  modelCapabilities.beginLoading()
+  hasManualModelTypeSelection.value = false
+  capabilityRouteWasEdited.value = false
+  modelConfigIsUserDefined.value = false
+  modelConfigHasExplicitType.value = false
+  initializeIdentityFields()
+
+  try {
+    if (isCreateMode.value) {
+      config.value = createDefaultConfig()
+      syncTopPDraftFromConfig()
+      syncNewApiDerivedFields()
+      await fetchCapabilities()
+      if (requestId !== loadConfigRequestId) return
+      return
+    }
+
+    if (!props.modelId) {
+      return
+    }
+
+    try {
+      const modelConfig = await modelConfigStore.getModelConfig(props.modelId, props.providerId)
+      if (requestId !== loadConfigRequestId) return
+      modelConfigIsUserDefined.value = modelConfig?.isUserDefined === true
+      modelConfigHasExplicitType.value = isModelType(modelConfig?.type)
+      config.value = { ...createDefaultConfig(), ...modelConfig }
+      syncTopPDraftFromConfig()
+
+      if (showEndpointTypeSelector.value && !isNewApiEndpointType(config.value.endpointType)) {
+        config.value.endpointType = resolveNewApiEndpointTypeFallback()
+      }
+
+      if (config.value.type === ModelType.VideoGeneration && !config.value.apiEndpoint) {
+        config.value.apiEndpoint = ApiEndpointType.Video
+      }
+
+      if (config.value.type === ModelType.TTS && !config.value.apiEndpoint) {
+        config.value.apiEndpoint = ApiEndpointType.AudioSpeech
+      }
+
+      if (showApiEndpointSelector.value && !config.value.apiEndpoint) {
+        config.value.apiEndpoint = ApiEndpointType.Chat
+      }
+    } catch (error) {
+      if (requestId !== loadConfigRequestId) return
+      console.error('Failed to load model config:', error)
+      config.value = createDefaultConfig()
+      syncTopPDraftFromConfig()
+    }
+
+    await fetchCapabilities()
+    if (requestId !== loadConfigRequestId) return
+
+    if (
+      config.value.forceInterleavedThinkingCompat === undefined &&
+      capabilityReasoningPortrait.value?.interleaved === true
+    ) {
+      config.value.forceInterleavedThinkingCompat = true
+    }
+
+    if (config.value.isUserDefined !== true) {
+      const normalizedEffort = normalizeReasoningEffortValue(
+        capabilityReasoningPortrait.value,
+        config.value.reasoningEffort ?? capabilityEffortDefault.value
+      )
+      if (supportsReasoningEffort.value) {
+        config.value.reasoningEffort = normalizedEffort
+      }
+
+      const normalizedVerbosity = normalizeVerbosityValue(
+        capabilityReasoningPortrait.value,
+        config.value.verbosity ?? capabilityVerbosityDefault.value
+      )
+      if (supportsVerbosity.value) {
+        config.value.verbosity = normalizedVerbosity
+      }
+
+      if (supportsReasoningVisibility.value) {
+        config.value.reasoningVisibility =
+          normalizeAnthropicReasoningVisibilityValue(config.value.reasoningVisibility) ??
+          capabilityReasoningVisibilityDefault.value
+      }
+    }
+
+    if (supportsReasoningVisibility.value) {
+      const normalizedVisibility = normalizeAnthropicReasoningVisibilityValue(
+        config.value.reasoningVisibility
+      )
+      if (normalizedVisibility) {
+        config.value.reasoningVisibility = normalizedVisibility
+      }
+    }
+
+    if (config.value.thinkingBudget === undefined) {
+      const range = capabilityBudgetRange.value
+      if (range && typeof range.default === 'number') {
+        config.value.thinkingBudget = range.default
+      }
+    } else {
+      config.value.thinkingBudget = normalizeThinkingBudgetValue(
+        capabilityReasoningPortrait.value,
+        config.value.thinkingBudget,
+        capabilityReasoningPortrait.value?.budget?.min,
+        capabilityReasoningPortrait.value?.budget?.max
+      )
+    }
+
+    syncNewApiDerivedFields()
+  } finally {
+    if (requestId === loadConfigRequestId) {
+      await nextTick()
+      isLoadingModelConfig.value = false
+    }
+  }
+}
+
+// 验证表单
+const validateForm = () => {
+  errors.value = {}
+
+  if (shouldValidateIdentity.value) {
+    const trimmedName = modelNameField.value.trim()
+    const trimmedId = modelIdField.value.trim()
+
+    if (!trimmedName) {
+      errors.value.modelName = t('settings.model.modelConfig.name.required')
+    }
+
+    if (!trimmedId) {
+      errors.value.modelId = t('settings.model.modelConfig.id.required')
+    } else {
+      const excludeId = isCreateMode.value ? undefined : originalModelId.value
+      if (
+        (isCreateMode.value || trimmedId !== originalModelId.value) &&
+        hasModelIdConflict(trimmedId, excludeId)
+      ) {
+        errors.value.modelId = t('settings.model.modelConfig.id.duplicate')
+      }
+    }
+  }
+
+  if (!showOpenAIMediaGenerationSettings.value) {
+    // 验证最大输出长度
+    if (!config.value.maxTokens || config.value.maxTokens <= 0) {
+      errors.value.maxTokens = t('settings.model.modelConfig.validation.maxTokensMin')
+    } else if (config.value.maxTokens > 1000000) {
+      errors.value.maxTokens = t('settings.model.modelConfig.validation.maxTokensMax')
+    }
+
+    // 验证上下文长度
+    if (!config.value.contextLength || config.value.contextLength <= 0) {
+      errors.value.contextLength = t('settings.model.modelConfig.validation.contextLengthMin')
+    } else if (config.value.contextLength > 100_000_000) {
+      errors.value.contextLength = t('settings.model.modelConfig.validation.contextLengthMax')
+    }
+  }
+
+  // 验证温度 (仅对显示 temperature 控件的模型)
+  if (
+    showTemperatureControl.value &&
+    !temperatureSettingReadOnly.value &&
+    config.value.temperature !== undefined
+  ) {
+    if (config.value.temperature < 0) {
+      errors.value.temperature = t('settings.model.modelConfig.validation.temperatureMin')
+    } else if (config.value.temperature > 2) {
+      errors.value.temperature = t('settings.model.modelConfig.validation.temperatureMax')
+    }
+  }
+
+  if (showTopPControl.value && !topPSettingReadOnly.value) {
+    const parsedTopP = parseTopPDraft()
+    if (parsedTopP !== undefined) {
+      if (!Number.isFinite(parsedTopP)) {
+        errors.value.topP = t('chat.advancedSettings.validation.finiteNumber')
+      } else if (parsedTopP < 0.1 || parsedTopP > 1) {
+        errors.value.topP = t('settings.model.modelConfig.validation.topPRange')
+      }
+    }
+  }
+
+  if (config.value.timeout !== undefined && config.value.timeout !== null) {
+    const timeout = Number(config.value.timeout)
+    if (!Number.isFinite(timeout) || timeout < MODEL_TIMEOUT_MIN_MS) {
+      errors.value.timeout = t('settings.model.modelConfig.validation.timeoutMin')
+    } else if (timeout > MODEL_TIMEOUT_MAX_MS) {
+      errors.value.timeout = t('settings.model.modelConfig.validation.timeoutMax')
+    }
+  }
+
+  if (
+    (!showOpenAIMediaGenerationSettings.value || showOpenAIMediaGenerationRouteControls.value) &&
+    showEndpointTypeSelector.value &&
+    !isNewApiEndpointType(config.value.endpointType)
+  ) {
+    errors.value.endpointType = t('settings.model.modelConfig.endpointType.required')
+  }
+}
+
+// 表单是否有效
+const isValid = computed(() => {
+  validateForm()
+  return (
+    Object.keys(errors.value).length === 0 &&
+    !genericThinkingBudgetError.value &&
+    capabilityResolutionSettledForCurrentModel.value
+  )
+})
+
+// 保存配置
+const handleSave = async () => {
+  if (!isValid.value || !props.providerId) return
+
+  const trimmedName = modelNameField.value.trim()
+  const trimmedId = modelIdField.value.trim()
+  const timeout = Number(config.value.timeout)
+  const normalizedTimeout =
+    Number.isFinite(timeout) && timeout > 0 ? Math.round(timeout) : undefined
+  const parsedTopP = parseTopPDraft()
+  const configToSave: ModelConfig = {
+    ...config.value,
+    ...(normalizedTimeout !== undefined ? { timeout: normalizedTimeout } : {}),
+    topP:
+      !showTopPControl.value || topPSettingReadOnly.value
+        ? config.value.topP
+        : typeof parsedTopP === 'number' &&
+            Number.isFinite(parsedTopP) &&
+            parsedTopP >= 0.1 &&
+            parsedTopP <= 1
+          ? parsedTopP
+          : undefined,
+    imageGeneration: showOpenAIImageGenerationSettings.value
+      ? normalizeImageGenerationOptions(config.value.imageGeneration)
+      : undefined,
+    videoGeneration: showOpenAIVideoGenerationSettings.value
+      ? normalizeVideoGenerationOptions(config.value.videoGeneration)
+      : undefined,
+    tts: showTtsSettings.value ? normalizeTtsSettings(config.value.tts) : undefined
+  }
+
+  try {
+    if (isCreateMode.value) {
+      await modelStore.addCustomModel(
+        props.providerId,
+        buildCustomModelPayload(trimmedId, trimmedName, true)
+      )
+      await modelConfigStore.setModelConfig(trimmedId, props.providerId, configToSave)
+    } else if (props.isCustomModel) {
+      if (!props.modelId) return
+      const previousId = originalModelId.value
+      const enabledState = currentCustomModel.value?.enabled ?? true
+
+      if (trimmedId !== previousId) {
+        if (previousId) {
+          try {
+            await modelConfigStore.resetModelConfig(previousId, props.providerId)
+          } catch (resetError) {
+            console.warn('Failed to reset previous model config:', resetError)
+          }
+          await modelStore.removeCustomModel(props.providerId, previousId)
+        }
+        await modelStore.addCustomModel(
+          props.providerId,
+          buildCustomModelPayload(trimmedId, trimmedName, enabledState)
+        )
+        if (!enabledState) {
+          await modelStore.updateModelStatus(props.providerId, trimmedId, false)
+        }
+      } else {
+        await modelStore.updateCustomModel(props.providerId, trimmedId, {
+          name: trimmedName,
+          contextLength: config.value.contextLength,
+          maxTokens: config.value.maxTokens,
+          vision: config.value.vision,
+          functionCall: config.value.functionCall,
+          reasoning: config.value.reasoning,
+          type: config.value.type ?? ModelType.Chat,
+          endpointType: config.value.endpointType
+        })
+      }
+
+      await modelConfigStore.setModelConfig(trimmedId, props.providerId, configToSave)
+    } else {
+      if (!props.modelId) return
+      await modelConfigStore.setModelConfig(props.modelId, props.providerId, configToSave)
+    }
+
+    emit('saved')
+    emit('update:open', false)
+  } catch (error) {
+    console.error('Failed to save model config:', error)
+  }
+}
+
+// 重置配置
+const handleReset = () => {
+  showResetConfirm.value = true
+}
+
+// 确认重置
+const confirmReset = async () => {
+  try {
+    if (isCreateMode.value) {
+      config.value = createDefaultConfig()
+      syncTopPDraftFromConfig()
+      modelNameField.value = ''
+      modelIdField.value = ''
+      showResetConfirm.value = false
+      return
+    }
+
+    await modelConfigStore.resetModelConfig(props.modelId, props.providerId)
+    await loadConfig() // 重新加载默认配置
+    showResetConfirm.value = false
+    emit('saved')
+  } catch (error) {
+    console.error('Failed to reset model config:', error)
+  }
+}
+
+// 监听props变化，重新加载配置
+watch(
+  () => [props.modelId, props.providerId, props.open],
+  () => {
+    if (props.open) {
+      loadConfig()
+    }
+  },
+  { immediate: true }
+)
+
+watch(currentModelLookupId, (nextModelId, previousModelId) => {
+  if (!props.open || isLoadingModelConfig.value || nextModelId === previousModelId) {
+    return
+  }
+
+  if (nextModelId) {
+    queueCapabilityRefreshForIdentityChange()
+  } else {
+    modelCapabilities.clear()
+  }
+})
+
+watch(
+  () =>
+    [
+      config.value.endpointType,
+      config.value.type,
+      showEndpointTypeSelector.value,
+      availableEndpointTypes.value.join('|')
+    ] as const,
+  ([nextEndpointType, nextType], [previousEndpointType, previousType]) => {
+    if (
+      !isLoadingModelConfig.value &&
+      (nextEndpointType !== previousEndpointType || nextType !== previousType)
+    ) {
+      capabilityRouteWasEdited.value = true
+    }
+
+    if (!isLoadingModelConfig.value && nextType !== previousType) {
+      hasManualModelTypeSelection.value = true
+    }
+
+    syncNewApiDerivedFields()
+    if (props.open && !isLoadingModelConfig.value) {
+      queueCapabilityRefresh()
+    }
+  }
+)
+
+watch(
+  () => [config.value.type, showApiEndpointSelector.value, showEndpointTypeSelector.value],
+  () => {
+    if (!showApiEndpointSelector.value || showEndpointTypeSelector.value) {
+      return
+    }
+
+    if (config.value.type === ModelType.ImageGeneration) {
+      config.value.apiEndpoint = ApiEndpointType.Image
+      return
+    }
+
+    if (config.value.type === ModelType.VideoGeneration) {
+      config.value.apiEndpoint = ApiEndpointType.Video
+      return
+    }
+
+    if (config.value.type === ModelType.TTS) {
+      config.value.apiEndpoint = ApiEndpointType.AudioSpeech
+      return
+    }
+
+    if (
+      config.value.apiEndpoint === ApiEndpointType.Image ||
+      config.value.apiEndpoint === ApiEndpointType.Video
+    ) {
+      config.value.apiEndpoint = ApiEndpointType.Chat
+    }
+  },
+  { immediate: true }
+)
+
+const supportsVerbosity = computed(() => capabilitySupportsVerbosity.value === true)
+const supportsReasoningVisibility = computed(
+  () =>
+    getReasoningVisibilityOptions(capabilityProviderId.value, capabilityReasoningPortrait.value)
+      .length > 0
+)
+
+const isDeepSeekV31Model = computed(() => {
+  const modelId = props.modelId.toLowerCase()
+  return modelId.includes('deepseek-v3.1') || modelId.includes('deepseek-v3-1')
+})
+
+const supportsReasoningEffort = computed(() => capabilitySupportsEffort.value === true)
+const effectiveReasoningEnabled = computed(() => {
+  const reasoningPolicy = capabilityRequestPolicy.value?.reasoning
+  return reasoningPolicy?.mode === 'fixed' ? reasoningPolicy.value : Boolean(config.value.reasoning)
+})
+const showReasoningEffort = computed(
+  () =>
+    supportsReasoningEffort.value &&
+    (!hasAnthropicReasoningToggle(capabilityProviderId.value, capabilityReasoningPortrait.value) ||
+      effectiveReasoningEnabled.value)
+)
+const showReasoningVisibility = computed(
+  () => supportsReasoningVisibility.value && effectiveReasoningEnabled.value
+)
+const showTemperatureControl = computed(
+  () => !showOpenAIMediaGenerationSettings.value && config.value.type === ModelType.Chat
+)
+const showTopPControl = computed(
+  () => !showOpenAIMediaGenerationSettings.value && config.value.type === ModelType.Chat
+)
+const reasoningToggleMode = computed(() => {
+  if (capabilityRequestPolicy.value?.reasoning.mode === 'fixed') {
+    return 'indicator' as const
+  }
+
+  if (isCreateMode.value || props.isCustomModel) {
+    return 'toggle' as const
+  }
+
+  if (capabilityReasoningPortrait.value) {
+    return getReasoningControlModeForProvider(
+      capabilityProviderId.value,
+      capabilityReasoningPortrait.value
+    )
+  }
+
+  return capabilitySupportsReasoning.value === false
+    ? ('unsupported' as const)
+    : ('toggle' as const)
+})
+const reasoningToggleDisabled = computed(() => reasoningToggleMode.value === 'indicator')
+const reasoningToggleValue = computed(() => {
+  const reasoningPolicy = capabilityRequestPolicy.value?.reasoning
+  return reasoningPolicy?.mode === 'fixed'
+    ? reasoningPolicy.value
+    : reasoningToggleDisabled.value
+      ? supportsReasoningCapability(capabilityReasoningPortrait.value)
+      : Boolean(config.value.reasoning)
+})
+const reasoningToggleLabelKey = computed(() =>
+  reasoningToggleDisabled.value
+    ? 'settings.model.modelConfig.reasoning.label'
+    : 'settings.model.modelConfig.reasoningToggle.label'
+)
+const reasoningToggleDescriptionKey = computed(() =>
+  reasoningToggleDisabled.value
+    ? 'settings.model.modelConfig.reasoning.description'
+    : 'settings.model.modelConfig.reasoningToggle.description'
+)
+const showReasoningMutualExclusiveWarning = computed(
+  () => isDeepSeekV31Model.value && reasoningToggleDisabled.value === false
+)
+const reasoningEffortOptions = computed(() =>
+  getReasoningEffortOptions(capabilityReasoningPortrait.value).map((value) => ({
+    value,
+    label: t(`settings.model.modelConfig.reasoningEffort.options.${value}`)
+  }))
+)
+const effectiveReasoningEffort = computed<ReasoningEffort | undefined>({
+  get: () =>
+    normalizeReasoningEffortValue(
+      capabilityReasoningPortrait.value,
+      config.value.reasoningEffort
+    ) ?? capabilityEffortDefault.value,
+  set: (value) => {
+    config.value.reasoningEffort = value
+  }
+})
+const verbosityOptions = computed(() =>
+  getVerbosityOptions(capabilityReasoningPortrait.value).map((value) => ({
+    value,
+    label: t(`settings.model.modelConfig.verbosity.options.${value}`)
+  }))
+)
+const reasoningVisibilityOptions = computed(() =>
+  getReasoningVisibilityOptions(capabilityProviderId.value, capabilityReasoningPortrait.value).map(
+    (value) => ({
+      value,
+      label: t(`settings.model.modelConfig.reasoningVisibility.options.${value}`)
+    })
+  )
+)
+
+const showThinkingBudget = computed(() => {
+  const hasReasoning = getReasoningEffectiveEnabledForProvider(
+    capabilityProviderId.value,
+    capabilityReasoningPortrait.value,
+    {
+      reasoning: effectiveReasoningEnabled.value,
+      reasoningEffort: config.value.reasoningEffort
+    }
+  )
+  const supported = supportsReasoningCapability(capabilityReasoningPortrait.value)
+  const hasRange = hasThinkingBudgetSupport(capabilityReasoningPortrait.value)
+  return hasReasoning && supported && hasRange
+})
+
+const showInterleavedThinking = computed(() => {
+  if (!isOpenAICompatibleProvider.value || isResponsesProvider.value) {
+    return false
+  }
+
+  return (
+    capabilitySupportsReasoning.value === true ||
+    capabilityReasoningPortrait.value?.interleaved === true ||
+    typeof config.value.forceInterleavedThinkingCompat === 'boolean'
+  )
+})
+
+watch(
+  () => config.value.reasoning,
+  () => {
+    if (props.open && !isLoadingModelConfig.value) {
+      queueCapabilityRefresh()
+    }
+  }
+)
+
+watch(
+  () => [capabilityProviderId.value, capabilityReasoningPortrait.value, config.value.reasoning],
+  () => {
+    if (
+      supportsReasoningVisibility.value &&
+      !config.value.reasoningVisibility &&
+      effectiveReasoningEnabled.value
+    ) {
+      config.value.reasoningVisibility = capabilityReasoningVisibilityDefault.value ?? 'omitted'
+    }
+  },
+  { immediate: true }
+)
+
+// 思考预算范围（完全由能力提供，上游保证存在）
+const thinkingBudgetRange = computed(() => capabilityBudgetRange.value)
+
+const genericThinkingBudgetError = computed(() => {
+  if (!showThinkingBudget.value) return ''
+  const value = config.value.thinkingBudget
+  const range = thinkingBudgetRange.value
+  if (value === undefined || value === null) {
+    return t('settings.model.modelConfig.thinkingBudget.validation.required')
+  }
+  if (!range) return ''
+  if (isThinkingBudgetSentinel(capabilityReasoningPortrait.value, value)) {
+    return ''
+  }
+  if (range.min !== undefined && value < range.min) {
+    return t('settings.model.modelConfig.thinkingBudget.validation.minValue')
+  }
+  if (range.max !== undefined && value > range.max) {
+    return t('settings.model.modelConfig.thinkingBudget.validation.maxValue', { max: range.max })
+  }
+  return ''
+})
+
+const handleMutualExclusiveToggle = (feature: 'reasoning' | 'functionCall', enabled: boolean) => {
+  if (!enabled) {
+    config.value[feature] = false
+    return
+  }
+
+  const oppositeFeature = feature === 'reasoning' ? 'functionCall' : 'reasoning'
+
+  if (isDeepSeekV31Model.value && config.value[oppositeFeature]) {
+    mutualExclusiveAction.value = { from: feature, to: oppositeFeature }
+    showMutualExclusiveAlert.value = true
+  } else {
+    config.value[feature] = true
+  }
+}
+
+const handleReasoningToggle = (enabled: boolean) => {
+  if (reasoningToggleDisabled.value) {
+    return
+  }
+  handleMutualExclusiveToggle('reasoning', enabled)
+}
+
+const handleFunctionCallToggle = (enabled: boolean) => {
+  handleMutualExclusiveToggle('functionCall', enabled)
+}
+
+const cancelMutualExclusiveToggle = () => {
+  mutualExclusiveAction.value = null
+  showMutualExclusiveAlert.value = false
+}
+
+const confirmMutualExclusiveToggle = () => {
+  if (mutualExclusiveAction.value) {
+    const { from, to } = mutualExclusiveAction.value
+    config.value[from] = true
+    config.value[to] = false
+
+    mutualExclusiveAction.value = null
+    showMutualExclusiveAlert.value = false
+  }
+}
+
+const getConfirmMessage = computed(() => {
+  if (!mutualExclusiveAction.value) return ''
+  const { from } = mutualExclusiveAction.value
+  return t(`dialog.mutualExclusive.message.${from}`)
+})
+
+const getConfirmTitle = computed(() => {
+  if (!mutualExclusiveAction.value) return ''
+  const { from } = mutualExclusiveAction.value
+  return t(`dialog.mutualExclusive.title.${from}`)
+})
+
+const showReasoningToggle = computed(() => {
+  return reasoningToggleMode.value !== 'unsupported'
+})
+</script>

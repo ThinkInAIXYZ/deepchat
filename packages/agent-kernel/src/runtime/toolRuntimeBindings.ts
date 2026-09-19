@@ -1,5 +1,5 @@
-import type { ChatMessage } from '@deepchat/shared/types/core/chat-message'
-import type { ProviderExecutionPort } from '@deepchat/shared/types/provider'
+import type { ChatMessage } from '../shared/types/core/chat-message.js'
+import type { ProviderExecutionPort } from '../shared/types/provider.js'
 import { toAppSessionId } from '../collab/agent-shared/agentSessionIds.js'
 
 import type { SessionScopeRegistry } from '../instance/deepChatAgentRuntime.js'

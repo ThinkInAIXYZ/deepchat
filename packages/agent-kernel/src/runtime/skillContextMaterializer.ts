@@ -1,11 +1,11 @@
-import type { SkillServicePort, EffectiveSkillContentResolution } from '@deepchat/shared/types/skill'
+import type { SkillServicePort, EffectiveSkillContentResolution } from '../shared/types/skill.js'
 import type {
   DeepChatTapeMaterializedSkillContext,
   DeepChatTapeSkillContext,
   DeepChatTapeSkillContextV7,
   DeepChatTapeSkillMaterializationRef,
   DeepChatTapeViewManifestRecord
-} from '@deepchat/shared/types/tape-view-manifest'
+} from '../shared/types/tape-view-manifest.js'
 import { renderSessionSkillBody } from '../resources/systemPromptBuilder.js'
 import type {
   TapeEffectiveUserMessageSourceReader,

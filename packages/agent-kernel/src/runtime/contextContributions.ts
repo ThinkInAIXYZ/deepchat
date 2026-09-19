@@ -1,6 +1,6 @@
 import { createHash } from 'crypto'
-import type { ChatMessage } from '@deepchat/shared/types/core/chat-message'
-import type { DeepChatTapeViewSyntheticContribution } from '@deepchat/shared/types/tape-view-manifest'
+import type { ChatMessage } from '../shared/types/core/chat-message.js'
+import type { DeepChatTapeViewSyntheticContribution } from '../shared/types/tape-view-manifest.js'
 
 import type {
   DirectiveContextContribution,

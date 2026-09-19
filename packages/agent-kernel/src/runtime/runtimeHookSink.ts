@@ -1,4 +1,4 @@
-import type { DeepChatSessionState } from '@deepchat/shared/types/agent-interface'
+import type { DeepChatSessionState } from '../shared/types/agent-interface.js'
 import type {
   HookErrorFacts,
   HookEventBody,

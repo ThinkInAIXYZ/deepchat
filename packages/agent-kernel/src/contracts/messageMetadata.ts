@@ -1,4 +1,4 @@
-import type { MessageMetadata } from '@deepchat/shared/types/agent-interface'
+import type { MessageMetadata } from '../shared/types/agent-interface.js'
 
 /**
  * Parses persisted message metadata. Pure; lives in kernel contracts so runtime modules can read

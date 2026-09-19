@@ -1,15 +1,15 @@
 import { Buffer } from 'node:buffer'
 import { types as nodeTypes } from 'node:util'
-import type { AgentToolExposure } from '@deepchat/shared/agentTools'
+import type { AgentToolExposure } from '../../shared/agentTools.js'
 import {
   TOOL_SEARCH_AGENT_TOOL_MAX_CALLS_PER_BATCH,
   TOOL_SEARCH_AGENT_TOOL_MAX_RESULTS,
   TOOL_SEARCH_AGENT_TOOL_NAME,
   TOOL_SEARCH_AGENT_TOOL_SERVER_NAME
-} from '@deepchat/shared/agentTools'
-import type { ToolExecutionContract } from '@deepchat/shared/types/core/mcp'
-import type { DeepChatExecutionToolTargetIdentity } from '@deepchat/shared/types/execution-contract'
-import type { DeepChatTaskContractRef } from '@deepchat/shared/types/task-contract'
+} from '../../shared/agentTools.js'
+import type { ToolExecutionContract } from '../../shared/types/core/mcp.js'
+import type { DeepChatExecutionToolTargetIdentity } from '../../shared/types/execution-contract.js'
+import type { DeepChatTaskContractRef } from '../../shared/types/task-contract.js'
 import { canonicalJsonStringifyData, hashJsonData } from './canonicalJson.js'
 import { buildExecutionToolTargetKey, isDetachedStoredToolTarget } from './executionContract.js'
 import {

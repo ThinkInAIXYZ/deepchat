@@ -1,8 +1,8 @@
 import type {
   AssistantMessageBlock,
   ChatMessageRecord
-} from '@deepchat/shared/types/agent-interface'
-import logger from '@deepchat/shared/logger'
+} from '../../shared/types/agent-interface.js'
+import logger from '../../shared/logger.js'
 import {
   toTapeSessionId,
   type TapeFactSource,

@@ -1,0 +1,257 @@
+import { defineStore } from 'pinia'
+import { ref, shallowReactive, shallowRef, toRaw } from 'vue'
+import {
+  copyComposerDraft,
+  createEmptyComposerDraft,
+  type ComposerSessionDraft
+} from '@/features/chat-page/model/composerDraftState'
+import { loadComposerDraftFromStorage } from '@/features/chat-page/model/composerDraftPersistence'
+import { normalizeImageGenerationOptions } from '@shared/imageGenerationSettings'
+import { normalizeVideoGenerationOptions } from '@shared/videoGenerationSettings'
+import { DEFAULT_DISABLED_AGENT_TOOLS } from '@shared/agentTools'
+import {
+  DEFAULT_ORCHESTRATION_POLICY,
+  type OrchestrationPolicy
+} from '@shared/orchestration/policy'
+import type {
+  CreateSessionInput,
+  PermissionMode,
+  SessionGenerationSettings
+} from '@shared/types/agent-interface'
+import type { ToolModeOverride } from '@shared/toolMode'
+
+export interface StartDeeplinkPayload {
+  token: number
+  msg: string
+  modelId: string | null
+  systemPrompt: string
+  mentions: string[]
+}
+
+// --- Store ---
+
+export const useDraftStore = defineStore('draft', () => {
+  // --- State ---
+  const newThreadComposerDrafts = shallowReactive(new Map<string, ComposerSessionDraft>())
+  const providerId = ref<string | undefined>(undefined)
+  const modelId = ref<string | undefined>(undefined)
+  const projectDir = ref<string | undefined>(undefined)
+  const agentId = ref<string>('deepchat')
+  const systemPrompt = ref<string | undefined>(undefined)
+  const temperature = ref<number | undefined>(undefined)
+  const topP = ref<number | undefined>(undefined)
+  const contextLength = ref<number | undefined>(undefined)
+  const maxTokens = ref<number | undefined>(undefined)
+  const timeout = ref<number | undefined>(undefined)
+  const thinkingBudget = ref<number | undefined>(undefined)
+  const reasoningEffort = ref<SessionGenerationSettings['reasoningEffort'] | undefined>(undefined)
+  const reasoningVisibility = ref<SessionGenerationSettings['reasoningVisibility'] | undefined>(
+    undefined
+  )
+  const verbosity = ref<SessionGenerationSettings['verbosity'] | undefined>(undefined)
+  const forceInterleavedThinkingCompat = ref<boolean | undefined>(undefined)
+  const imageGeneration = shallowRef<SessionGenerationSettings['imageGeneration'] | undefined>(
+    undefined
+  )
+  const videoGeneration = shallowRef<SessionGenerationSettings['videoGeneration'] | undefined>(
+    undefined
+  )
+  const permissionMode = ref<PermissionMode>('full_access')
+  const disabledAgentTools = ref<string[]>([...DEFAULT_DISABLED_AGENT_TOOLS])
+  const orchestrationPolicy = ref<OrchestrationPolicy>(DEFAULT_ORCHESTRATION_POLICY)
+  const toolModeOverride = ref<ToolModeOverride>(null)
+  const pendingStartDeeplink = ref<StartDeeplinkPayload | null>(null)
+  let nextStartToken = 0
+
+  // --- Actions ---
+
+  function getNewThreadComposerDraft(agentId: string): ComposerSessionDraft {
+    let draft = newThreadComposerDrafts.get(agentId)
+    if (!draft) {
+      draft = loadComposerDraftFromStorage(`new-thread:${agentId}`) ?? createEmptyComposerDraft()
+      newThreadComposerDrafts.set(agentId, draft)
+    }
+    return draft
+  }
+
+  function setNewThreadComposerDraft(agentId: string, draft: ComposerSessionDraft): void {
+    newThreadComposerDrafts.set(agentId, copyComposerDraft(draft))
+  }
+
+  function normalizeDraftImageGeneration(
+    value: SessionGenerationSettings['imageGeneration']
+  ): SessionGenerationSettings['imageGeneration'] {
+    return normalizeImageGenerationOptions(toRaw(value))
+  }
+
+  function normalizeDraftVideoGeneration(
+    value: SessionGenerationSettings['videoGeneration']
+  ): SessionGenerationSettings['videoGeneration'] {
+    return normalizeVideoGenerationOptions(toRaw(value))
+  }
+
+  function toGenerationSettings(): Partial<SessionGenerationSettings> | undefined {
+    const settings: Partial<SessionGenerationSettings> = {}
+
+    if (systemPrompt.value !== undefined) settings.systemPrompt = systemPrompt.value
+    if (temperature.value !== undefined) settings.temperature = temperature.value
+    if (topP.value !== undefined) settings.topP = topP.value
+    if (contextLength.value !== undefined) settings.contextLength = contextLength.value
+    if (maxTokens.value !== undefined) settings.maxTokens = maxTokens.value
+    if (timeout.value !== undefined) settings.timeout = timeout.value
+    if (thinkingBudget.value !== undefined) settings.thinkingBudget = thinkingBudget.value
+    if (reasoningEffort.value !== undefined) settings.reasoningEffort = reasoningEffort.value
+    if (reasoningVisibility.value !== undefined) {
+      settings.reasoningVisibility = reasoningVisibility.value
+    }
+    if (verbosity.value !== undefined) settings.verbosity = verbosity.value
+    if (forceInterleavedThinkingCompat.value !== undefined) {
+      settings.forceInterleavedThinkingCompat = forceInterleavedThinkingCompat.value
+    }
+    const normalizedImageGeneration = normalizeDraftImageGeneration(imageGeneration.value)
+    if (normalizedImageGeneration !== undefined) {
+      settings.imageGeneration = normalizedImageGeneration
+    }
+    const normalizedVideoGeneration = normalizeDraftVideoGeneration(videoGeneration.value)
+    if (normalizedVideoGeneration !== undefined) {
+      settings.videoGeneration = normalizedVideoGeneration
+    }
+
+    return Object.keys(settings).length > 0 ? settings : undefined
+  }
+
+  function toCreateInput(message: string): CreateSessionInput {
+    return {
+      agentId: agentId.value,
+      message,
+      projectDir: projectDir.value,
+      providerId: providerId.value,
+      modelId: modelId.value,
+      permissionMode: permissionMode.value,
+      disabledAgentTools: [...disabledAgentTools.value],
+      orchestrationPolicy: orchestrationPolicy.value,
+      toolModeOverride: toolModeOverride.value,
+      generationSettings: toGenerationSettings()
+    }
+  }
+
+  function updateGenerationSettings(settings: Partial<SessionGenerationSettings>): void {
+    if (Object.prototype.hasOwnProperty.call(settings, 'systemPrompt')) {
+      systemPrompt.value = settings.systemPrompt
+    }
+    if (Object.prototype.hasOwnProperty.call(settings, 'temperature')) {
+      temperature.value = settings.temperature
+    }
+    if (Object.prototype.hasOwnProperty.call(settings, 'topP')) {
+      topP.value = settings.topP
+    }
+    if (Object.prototype.hasOwnProperty.call(settings, 'contextLength')) {
+      contextLength.value = settings.contextLength
+    }
+    if (Object.prototype.hasOwnProperty.call(settings, 'maxTokens')) {
+      maxTokens.value = settings.maxTokens
+    }
+    if (Object.prototype.hasOwnProperty.call(settings, 'timeout')) {
+      timeout.value = settings.timeout
+    }
+    if (Object.prototype.hasOwnProperty.call(settings, 'thinkingBudget')) {
+      thinkingBudget.value = settings.thinkingBudget
+    }
+    if (Object.prototype.hasOwnProperty.call(settings, 'reasoningEffort')) {
+      reasoningEffort.value = settings.reasoningEffort
+    }
+    if (Object.prototype.hasOwnProperty.call(settings, 'reasoningVisibility')) {
+      reasoningVisibility.value = settings.reasoningVisibility
+    }
+    if (Object.prototype.hasOwnProperty.call(settings, 'verbosity')) {
+      verbosity.value = settings.verbosity
+    }
+    if (Object.prototype.hasOwnProperty.call(settings, 'forceInterleavedThinkingCompat')) {
+      forceInterleavedThinkingCompat.value = settings.forceInterleavedThinkingCompat
+    }
+    if (Object.prototype.hasOwnProperty.call(settings, 'imageGeneration')) {
+      imageGeneration.value = normalizeDraftImageGeneration(settings.imageGeneration)
+    }
+    if (Object.prototype.hasOwnProperty.call(settings, 'videoGeneration')) {
+      videoGeneration.value = normalizeDraftVideoGeneration(settings.videoGeneration)
+    }
+  }
+
+  function resetGenerationSettings(): void {
+    systemPrompt.value = undefined
+    temperature.value = undefined
+    topP.value = undefined
+    contextLength.value = undefined
+    maxTokens.value = undefined
+    timeout.value = undefined
+    thinkingBudget.value = undefined
+    reasoningEffort.value = undefined
+    reasoningVisibility.value = undefined
+    verbosity.value = undefined
+    forceInterleavedThinkingCompat.value = undefined
+    imageGeneration.value = undefined
+    videoGeneration.value = undefined
+  }
+
+  function reset(): void {
+    providerId.value = undefined
+    modelId.value = undefined
+    projectDir.value = undefined
+    agentId.value = 'deepchat'
+    permissionMode.value = 'full_access'
+    disabledAgentTools.value = [...DEFAULT_DISABLED_AGENT_TOOLS]
+    orchestrationPolicy.value = DEFAULT_ORCHESTRATION_POLICY
+    toolModeOverride.value = null
+    resetGenerationSettings()
+  }
+
+  function setPendingStartDeeplink(
+    payload: Omit<StartDeeplinkPayload, 'token'>
+  ): StartDeeplinkPayload {
+    const nextPayload: StartDeeplinkPayload = {
+      ...payload,
+      token: ++nextStartToken
+    }
+    pendingStartDeeplink.value = nextPayload
+    return nextPayload
+  }
+
+  function clearPendingStartDeeplink(): void {
+    pendingStartDeeplink.value = null
+  }
+
+  return {
+    newThreadComposerDrafts,
+    getNewThreadComposerDraft,
+    setNewThreadComposerDraft,
+    providerId,
+    modelId,
+    projectDir,
+    agentId,
+    systemPrompt,
+    temperature,
+    topP,
+    contextLength,
+    maxTokens,
+    timeout,
+    thinkingBudget,
+    reasoningEffort,
+    reasoningVisibility,
+    verbosity,
+    forceInterleavedThinkingCompat,
+    imageGeneration,
+    videoGeneration,
+    permissionMode,
+    disabledAgentTools,
+    orchestrationPolicy,
+    toolModeOverride,
+    pendingStartDeeplink,
+    toGenerationSettings,
+    toCreateInput,
+    updateGenerationSettings,
+    resetGenerationSettings,
+    reset,
+    setPendingStartDeeplink,
+    clearPendingStartDeeplink
+  }
+})

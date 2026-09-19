@@ -1,4 +1,4 @@
-import type { ModelConfig } from '@deepchat/shared/types/provider'
+import type { ModelConfig } from '../../shared/types/provider.js'
 
 export interface ProviderRequestTracePayload {
   endpoint: string

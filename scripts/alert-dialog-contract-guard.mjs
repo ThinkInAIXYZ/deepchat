@@ -5,7 +5,7 @@ import { pathToFileURL } from 'node:url'
 import ts from 'typescript'
 
 const REPOSITORY_ROOT = process.cwd()
-const RENDERER_ROOT = path.join(REPOSITORY_ROOT, 'src/renderer')
+const RENDERER_ROOT = path.join(REPOSITORY_ROOT, 'packages/desktop/src/renderer')
 const FORBIDDEN_MODIFIERS = new Set(['prevent', 'stop'])
 const ALERT_DIALOG_CLOSE_TAG =
   /<AlertDialog(?:Action|Cancel)\b(?:[^"'<>]|"[^"]*"|'[^']*')*>/g

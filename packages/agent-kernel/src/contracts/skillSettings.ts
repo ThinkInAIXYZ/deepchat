@@ -1,8 +1,8 @@
-import type { ScanCache } from '@deepchat/shared/types/skillSync'
+import type { ScanCache } from '../shared/types/skillSync.js'
 import type {
   SkillManagementState,
   StoredSkillManagementState
-} from '@deepchat/shared/types/skillManagement'
+} from '../shared/types/skillManagement.js'
 
 /**
  * Skill management surface the built-in kernel needs. Declared here so kernel modules depend on

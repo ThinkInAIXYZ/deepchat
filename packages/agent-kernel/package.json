@@ -44,6 +44,10 @@
       "types": "./dist/runtime/*.d.ts",
       "import": "./dist/runtime/*.js"
     },
+    "./shared/*": {
+      "types": "./dist/shared/*.d.ts",
+      "import": "./dist/shared/*.js"
+    },
     "./tape/*": {
       "types": "./dist/tape/*.d.ts",
       "import": "./dist/tape/*.js"
@@ -53,16 +57,18 @@
     "dist"
   ],
   "scripts": {
-    "build": "node ../../scripts/build-agent-kernel.mjs"
+    "build": "node ../../scripts/build-agent-kernel.mjs",
+    "test": "vitest run --config test/vitest.config.ts"
   },
   "dependencies": {
     "jsonrepair": "^3.15.0",
     "nanoid": "^6.0.1",
+    "ollama": "^0.6.3",
     "tokenx": "2.1.0",
-    "zod": "^4.5.4",
-    "@deepchat/shared": "workspace:*"
+    "zod": "^4.5.4"
   },
   "devDependencies": {
-    "@types/node": "^24.13.3"
+    "@types/node": "^24.13.3",
+    "vitest": "^4.1.11"
   }
 }

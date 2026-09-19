@@ -1,4 +1,4 @@
-import type { HookEventName } from '@deepchat/shared/hooksNotifications'
+import type { HookEventName } from '../../shared/hooksNotifications.js'
 import type { HookEvent } from './events.js'
 
 export interface HookObserver {

@@ -1,0 +1,1183 @@
+import { describe, it, expect, vi } from 'vitest'
+import { reactive, ref } from 'vue'
+import type { ModelConfig } from '../../../src/shared/types/provider'
+import { ModelType } from '../../../src/shared/model'
+
+const createQueryCache = () => {
+  return {
+    ensure: vi.fn((options: any) => ({
+      key: options.key,
+      query: options.query,
+      state: ref({ data: undefined })
+    })),
+    invalidateQueries: vi.fn(async () => undefined),
+    refresh: vi.fn(async (entry: any) => {
+      entry.state.value = { data: await entry.query() }
+      return entry.state.value
+    }),
+    fetch: vi.fn(async (entry: any) => {
+      entry.state.value = { data: await entry.query() }
+      return entry.state.value
+    }),
+    setQueriesData: vi.fn()
+  }
+}
+
+const setupStore = async (overrides?: {
+  modelClient?: Record<string, any>
+  providerStore?: Record<string, any>
+}) => {
+  vi.resetModules()
+
+  const queryCache = createQueryCache()
+  const agentModelStore = {
+    refreshAgentModels: vi.fn()
+  }
+  const modelConfigStore = {
+    getModelConfig: vi.fn(async (): Promise<ModelConfig | null> => null)
+  }
+  const modelClient = {
+    getDbProviderModels: vi.fn(async () => []),
+    getProviderModels: vi.fn(async () => []),
+    getCustomModels: vi.fn(async () => []),
+    getBatchModelStatus: vi.fn(async () => ({})),
+    getModelList: vi.fn(async () => []),
+    getProviderModelConfigs: vi.fn(async () => []),
+    updateModelStatus: vi.fn(async () => undefined),
+    addCustomModel: vi.fn(async () => undefined),
+    removeCustomModel: vi.fn(async () => true),
+    updateCustomModel: vi.fn(async () => true),
+    onModelsChanged: vi.fn(() => vi.fn()),
+    onModelStatusChanged: vi.fn(() => vi.fn()),
+    onModelBatchStatusChanged: vi.fn(() => vi.fn()),
+    onModelConfigChanged: vi.fn(() => vi.fn()),
+    ...overrides?.modelClient
+  }
+  const providerRecords = overrides?.providerStore?.providers ?? [
+    { id: 'openai', enable: true, name: 'OpenAI' },
+    { id: 'anthropic', enable: true, name: 'Anthropic' },
+    { id: 'acp', enable: true, name: 'ACP' }
+  ]
+  const providerStore = reactive({
+    providers: providerRecords,
+    sortedProviders:
+      overrides?.providerStore?.sortedProviders ??
+      providerRecords.map((provider) => ({
+        ...provider,
+        apiType: provider.apiType ?? 'openai'
+      })),
+    ensureInitialized: vi.fn(async () => undefined),
+    ...overrides?.providerStore
+  })
+
+  vi.doMock('pinia', async () => {
+    const actual = await vi.importActual<typeof import('pinia')>('pinia')
+    return {
+      ...actual,
+      defineStore: (_id: string, setup: any) => setup
+    }
+  })
+
+  vi.doMock('@pinia/colada', () => ({
+    useQueryCache: () => queryCache
+  }))
+
+  vi.doMock('@/stores/agentModelStore', () => ({
+    useAgentModelStore: () => agentModelStore
+  }))
+
+  vi.doMock('@/stores/modelConfigStore', () => ({
+    useModelConfigStore: () => modelConfigStore
+  }))
+
+  vi.doMock('@/stores/providerStore', () => ({
+    useProviderStore: () => providerStore
+  }))
+
+  vi.doMock('../../../src/renderer/api/ModelClient', () => ({
+    createModelClient: vi.fn(() => modelClient)
+  }))
+
+  vi.doMock('@/composables/useIpcMutation', () => ({
+    useIpcMutation: () => ({ mutateAsync: vi.fn() })
+  }))
+
+  const { useModelStore } = await import('@/stores/modelStore')
+  const store = useModelStore()
+
+  return {
+    store,
+    agentModelStore,
+    modelConfigStore,
+    modelClient,
+    providerStore
+  }
+}
+
+const createDeferred = <T>() => {
+  let resolve!: (value: T) => void
+  const promise = new Promise<T>((res) => {
+    resolve = res
+  })
+  return { promise, resolve }
+}
+
+const flushMicrotasks = async (times: number = 6) => {
+  for (let index = 0; index < times; index += 1) {
+    await Promise.resolve()
+  }
+}
+
+describe('modelStore.refreshProviderModels', () => {
+  it('loads a large catalog without per-model config requests and preserves user overrides', async () => {
+    const models = Array.from({ length: 500 }, (_, index) => ({
+      id: `model-${index}`,
+      name: `Model ${index}`,
+      providerId: 'openai',
+      group: 'default'
+    }))
+    const { store, modelClient, modelConfigStore } = await setupStore({
+      modelClient: {
+        getDbProviderModels: vi.fn(async () => models),
+        getProviderModelConfigs: vi.fn(async () => [
+          { modelId: 'model-1', config: { vision: true } }
+        ])
+      }
+    })
+    modelConfigStore.getModelConfig.mockResolvedValue({
+      isUserDefined: true,
+      vision: true,
+      functionCall: true,
+      reasoning: false,
+      maxTokens: 4096,
+      contextLength: 32000,
+      type: ModelType.Chat
+    })
+
+    await store.ensureProviderModelsReady('openai')
+    expect(store.allProviderModels.value[0].models).toHaveLength(500)
+    expect(
+      store.allProviderModels.value[0].models.find((model) => model.id === 'model-1')?.vision
+    ).toBe(true)
+    expect(modelConfigStore.getModelConfig).toHaveBeenCalledExactlyOnceWith('model-1', 'openai')
+    expect(modelClient.getProviderModelConfigs).toHaveBeenCalledTimes(1)
+    await store.ensureProviderModelsReady('openai')
+    expect(modelClient.getProviderModelConfigs).toHaveBeenCalledTimes(1)
+  })
+
+  it('preserves individual config lookup when the bulk index fails', async () => {
+    const { store, modelConfigStore } = await setupStore({
+      modelClient: {
+        getDbProviderModels: vi.fn(async () => [{ id: 'model-1', providerId: 'openai' }]),
+        getProviderModelConfigs: vi.fn().mockRejectedValue(new Error('index unavailable'))
+      }
+    })
+    await store.ensureProviderModelsReady('openai')
+    expect(modelConfigStore.getModelConfig).toHaveBeenCalledExactlyOnceWith('model-1', 'openai')
+    expect(store.allProviderModels.value[0].models).toHaveLength(1)
+  })
+
+  it('registers typed model listeners without legacy provider-db subscriptions', async () => {
+    const { store, modelClient } = await setupStore()
+
+    store.setupModelListeners()
+
+    expect(modelClient.onModelsChanged).toHaveBeenCalledTimes(1)
+    expect(modelClient.onModelStatusChanged).toHaveBeenCalledTimes(1)
+  })
+
+  it('limits provider-db refreshes to materialized providers', async () => {
+    let modelsChangedListener:
+      | ((payload: { reason: string; providerId?: string }) => Promise<void> | void)
+      | undefined
+
+    const { store, modelClient } = await setupStore({
+      providerStore: {
+        providers: [
+          { id: 'openai', enable: true },
+          { id: 'ollama', enable: true },
+          { id: 'acp', enable: true }
+        ]
+      },
+      modelClient: {
+        onModelsChanged: vi.fn((listener) => {
+          modelsChangedListener = listener
+          return vi.fn()
+        }),
+        getDbProviderModels: vi.fn().mockImplementation(async (providerId: string) =>
+          providerId === 'openai'
+            ? [
+                {
+                  id: 'gpt-5',
+                  name: 'GPT-5',
+                  providerId: 'openai',
+                  maxTokens: 8192,
+                  contextLength: 128000,
+                  isCustom: false
+                }
+              ]
+            : []
+        ),
+        getProviderModels: vi.fn(async () => []),
+        getCustomModels: vi.fn(async () => []),
+        getBatchModelStatus: vi.fn(async () => ({}))
+      }
+    })
+
+    await store.refreshProviderModels('openai')
+    expect(modelClient.getDbProviderModels).toHaveBeenCalledTimes(1)
+
+    await modelsChangedListener?.({
+      reason: 'provider-db-updated'
+    })
+
+    expect(modelClient.getDbProviderModels).toHaveBeenCalledTimes(2)
+    expect(modelClient.getDbProviderModels).toHaveBeenNthCalledWith(1, 'openai')
+    expect(modelClient.getDbProviderModels).toHaveBeenNthCalledWith(2, 'openai')
+  })
+
+  it('skips runtime model-list providers when provider-db refresh events arrive', async () => {
+    let modelsChangedListener:
+      | ((payload: { reason: string; providerId?: string }) => Promise<void> | void)
+      | undefined
+
+    const { store, modelClient } = await setupStore({
+      providerStore: {
+        providers: [
+          { id: 'openai', enable: true, apiType: 'openai', name: 'OpenAI' },
+          {
+            id: 'openai-codex',
+            enable: true,
+            apiType: 'openai-codex',
+            name: 'OpenAI Codex'
+          }
+        ]
+      },
+      modelClient: {
+        onModelsChanged: vi.fn((listener) => {
+          modelsChangedListener = listener
+          return vi.fn()
+        }),
+        getDbProviderModels: vi.fn().mockImplementation(async (providerId: string) =>
+          providerId === 'openai'
+            ? [
+                {
+                  id: 'gpt-5',
+                  name: 'GPT-5',
+                  providerId: 'openai',
+                  maxTokens: 8192,
+                  contextLength: 128000,
+                  isCustom: false
+                }
+              ]
+            : []
+        ),
+        getModelList: vi.fn().mockImplementation(async (providerId: string) =>
+          providerId === 'openai-codex'
+            ? [
+                {
+                  id: 'gpt-5.5',
+                  name: 'gpt-5.5',
+                  providerId: 'openai-codex',
+                  maxTokens: 128000,
+                  contextLength: 400000,
+                  reasoning: true,
+                  functionCall: true,
+                  isCustom: false
+                }
+              ]
+            : []
+        ),
+        getProviderModels: vi.fn(async () => []),
+        getCustomModels: vi.fn(async () => []),
+        getBatchModelStatus: vi.fn(async () => ({}))
+      }
+    })
+
+    await store.refreshProviderModels('openai')
+    await store.refreshProviderModels('openai-codex')
+    expect(modelClient.getModelList).toHaveBeenCalledWith('openai-codex')
+
+    vi.mocked(modelClient.getDbProviderModels).mockClear()
+    vi.mocked(modelClient.getModelList).mockClear()
+
+    await modelsChangedListener?.({
+      reason: 'provider-db-updated'
+    })
+
+    expect(modelClient.getDbProviderModels).toHaveBeenCalledTimes(1)
+    expect(modelClient.getDbProviderModels).toHaveBeenCalledWith('openai')
+    expect(modelClient.getModelList).not.toHaveBeenCalled()
+  })
+
+  it('uses ACP refresh path for acp provider', async () => {
+    const { store, agentModelStore, modelClient } = await setupStore()
+    agentModelStore.refreshAgentModels.mockResolvedValue({
+      rendererModels: [],
+      modelMetas: []
+    })
+
+    await store.refreshProviderModels('acp')
+
+    expect(agentModelStore.refreshAgentModels).toHaveBeenCalledWith('acp')
+    expect(modelClient.getDbProviderModels).not.toHaveBeenCalled()
+  })
+
+  it('uses standard refresh path for non-acp provider', async () => {
+    const { store, agentModelStore, modelClient } = await setupStore()
+
+    await store.refreshProviderModels('openai')
+
+    expect(agentModelStore.refreshAgentModels).not.toHaveBeenCalled()
+    expect(modelClient.getDbProviderModels).toHaveBeenCalledWith('openai')
+    expect(modelClient.getProviderModels).toHaveBeenCalledWith('openai')
+  })
+
+  it('uses only installed provider models for ollama refreshes', async () => {
+    const { store, modelClient } = await setupStore({
+      providerStore: {
+        providers: [{ id: 'ollama', enable: true, apiType: 'ollama', name: 'Ollama' }]
+      },
+      modelClient: {
+        getDbProviderModels: vi.fn(async () => [
+          {
+            id: 'deepseek-r1:32b',
+            name: 'deepseek-r1:32b',
+            providerId: 'ollama',
+            contextLength: 4096,
+            maxTokens: 2048
+          }
+        ]),
+        getProviderModels: vi.fn(async () => [
+          {
+            id: 'deepseek-r1:1.5b',
+            name: 'deepseek-r1:1.5b',
+            providerId: 'ollama',
+            contextLength: 8192,
+            maxTokens: 2048
+          },
+          {
+            id: 'gemma4:e2b',
+            name: 'gemma4:e2b',
+            providerId: 'ollama',
+            contextLength: 8192,
+            maxTokens: 2048
+          }
+        ]),
+        getCustomModels: vi.fn(async () => []),
+        getBatchModelStatus: vi.fn(async () => ({}))
+      }
+    })
+
+    await store.refreshProviderModels('ollama')
+
+    expect(modelClient.getDbProviderModels).not.toHaveBeenCalled()
+    expect(
+      store.allProviderModels.value
+        .find((entry) => entry.providerId === 'ollama')
+        ?.models.map((model) => model.id)
+    ).toEqual(['deepseek-r1:1.5b', 'gemma4:e2b'])
+  })
+
+  it('exposes only enabled provider groups through activeEnabledModels', async () => {
+    const { store } = await setupStore({
+      providerStore: {
+        providers: [
+          { id: 'openai', enable: true },
+          { id: 'deepseek', enable: false }
+        ]
+      }
+    })
+
+    store.enabledModels.value = [
+      {
+        providerId: 'openai',
+        models: [{ id: 'gpt-5', name: 'GPT-5', providerId: 'openai' } as any]
+      },
+      {
+        providerId: 'deepseek',
+        models: [{ id: 'deepseek-chat', name: 'DeepSeek Chat', providerId: 'deepseek' } as any]
+      }
+    ]
+
+    expect(store.activeEnabledModels.value).toEqual([
+      {
+        providerId: 'openai',
+        models: [expect.objectContaining({ id: 'gpt-5' })]
+      }
+    ])
+  })
+
+  it('bumps chat selectable revision for provider metadata and in-place model changes', async () => {
+    const { store, providerStore } = await setupStore({
+      providerStore: {
+        providers: [
+          { id: 'openai', enable: true, name: 'OpenAI' },
+          { id: 'anthropic', enable: true, name: 'Anthropic' }
+        ],
+        sortedProviders: [
+          { id: 'openai', enable: true, name: 'OpenAI' },
+          { id: 'anthropic', enable: true, name: 'Anthropic' }
+        ]
+      }
+    })
+    await flushMicrotasks()
+
+    const initialRevision = store.chatSelectableModelGroupsRevision.value
+    const openaiModels = [
+      {
+        id: 'gpt-5',
+        name: 'GPT-5',
+        providerId: 'openai',
+        type: ModelType.Chat,
+        enabled: true
+      } as any
+    ]
+    store.enabledModels.value = [
+      {
+        providerId: 'openai',
+        models: openaiModels
+      }
+    ]
+    await flushMicrotasks()
+    expect(store.chatSelectableModelGroupsRevision.value).toBeGreaterThan(initialRevision)
+    expect(store.chatSelectableModelGroups.value).toEqual([
+      expect.objectContaining({
+        providerId: 'openai',
+        providerName: 'OpenAI',
+        models: [expect.objectContaining({ id: 'gpt-5' })]
+      })
+    ])
+
+    const afterModelsRevision = store.chatSelectableModelGroupsRevision.value
+    store.enabledModels.value[0].models.push({
+      id: 'gpt-5-embed',
+      name: 'GPT-5 Embed',
+      providerId: 'openai',
+      type: ModelType.Embedding,
+      enabled: true
+    } as any)
+    await flushMicrotasks()
+    expect(store.chatSelectableModelGroupsRevision.value).toBeGreaterThan(afterModelsRevision)
+    expect(store.chatSelectableModelGroups.value[0].models.map((model) => model.id)).toEqual([
+      'gpt-5'
+    ])
+
+    const afterTypeRevision = store.chatSelectableModelGroupsRevision.value
+    store.enabledModels.value[0].models[1].type = ModelType.Chat
+    await flushMicrotasks()
+    expect(store.chatSelectableModelGroupsRevision.value).toBeGreaterThan(afterTypeRevision)
+    expect(store.chatSelectableModelGroups.value[0].models.map((model) => model.id)).toEqual([
+      'gpt-5',
+      'gpt-5-embed'
+    ])
+
+    const afterRenameRevision = store.chatSelectableModelGroupsRevision.value
+    providerStore.sortedProviders[0].name = 'OpenAI Renamed'
+    await flushMicrotasks()
+    expect(store.chatSelectableModelGroupsRevision.value).toBeGreaterThan(afterRenameRevision)
+    expect(store.chatSelectableModelGroups.value[0].providerName).toBe('OpenAI Renamed')
+
+    const afterOrderRevision = store.chatSelectableModelGroupsRevision.value
+    providerStore.sortedProviders = [
+      providerStore.sortedProviders[1],
+      providerStore.sortedProviders[0]
+    ]
+    await flushMicrotasks()
+    expect(store.chatSelectableModelGroupsRevision.value).toBeGreaterThan(afterOrderRevision)
+
+    const afterDisableRevision = store.chatSelectableModelGroupsRevision.value
+    providerStore.sortedProviders[1].enable = false
+    await flushMicrotasks()
+    expect(store.chatSelectableModelGroupsRevision.value).toBeGreaterThan(afterDisableRevision)
+    expect(store.chatSelectableModelGroups.value).toEqual([])
+  })
+  it('purges deleted providers from local model state', async () => {
+    const { store, providerStore } = await setupStore({
+      providerStore: {
+        providers: [
+          { id: 'openai', enable: true },
+          { id: 'deepseek', enable: true }
+        ]
+      }
+    })
+
+    store.enabledModels.value = [
+      {
+        providerId: 'openai',
+        models: [{ id: 'gpt-5', name: 'GPT-5', providerId: 'openai' } as any]
+      },
+      {
+        providerId: 'deepseek',
+        models: [{ id: 'deepseek-chat', name: 'DeepSeek Chat', providerId: 'deepseek' } as any]
+      }
+    ]
+    store.allProviderModels.value = [...store.enabledModels.value]
+    store.customModels.value = [
+      {
+        providerId: 'deepseek',
+        models: [{ id: 'deepseek-custom', name: 'DeepSeek Custom', providerId: 'deepseek' } as any]
+      }
+    ]
+
+    providerStore.providers = [{ id: 'openai', enable: true }]
+    await flushMicrotasks()
+
+    expect(store.enabledModels.value).toEqual([
+      {
+        providerId: 'openai',
+        models: [expect.objectContaining({ id: 'gpt-5' })]
+      }
+    ])
+    expect(store.allProviderModels.value).toEqual([
+      {
+        providerId: 'openai',
+        models: [expect.objectContaining({ id: 'gpt-5' })]
+      }
+    ])
+    expect(store.customModels.value).toEqual([])
+  })
+
+  it('merges same-tick concurrent refreshes into a single provider fetch', async () => {
+    const deferredModels = createDeferred<any[]>()
+    const model = {
+      id: 'gpt-5',
+      name: 'GPT-5',
+      providerId: 'openai',
+      maxTokens: 8192,
+      contextLength: 128000,
+      isCustom: false
+    }
+    const { store, modelClient } = await setupStore({
+      modelClient: {
+        getDbProviderModels: vi.fn(async () => []),
+        getProviderModels: vi.fn(() => deferredModels.promise),
+        getCustomModels: vi.fn(async () => []),
+        getBatchModelStatus: vi.fn(async () => ({ 'gpt-5': true }))
+      }
+    })
+
+    const firstRefresh = store.refreshProviderModels('openai')
+    const secondRefresh = store.refreshProviderModels('openai')
+
+    await flushMicrotasks()
+
+    expect(firstRefresh).toBe(secondRefresh)
+    expect(modelClient.getProviderModels).toHaveBeenCalledTimes(1)
+
+    deferredModels.resolve([model])
+    await Promise.all([firstRefresh, secondRefresh])
+
+    expect(modelClient.getProviderModels).toHaveBeenCalledTimes(1)
+  })
+
+  it('reruns one more provider refresh when another request arrives mid-flight', async () => {
+    const deferredModels = createDeferred<any[]>()
+    const model = {
+      id: 'gpt-5.1',
+      name: 'GPT-5.1',
+      providerId: 'openai',
+      maxTokens: 8192,
+      contextLength: 128000,
+      isCustom: false
+    }
+    const { store, modelClient } = await setupStore({
+      modelClient: {
+        getDbProviderModels: vi.fn(async () => []),
+        getProviderModels: vi
+          .fn()
+          .mockImplementationOnce(() => deferredModels.promise)
+          .mockResolvedValue([model]),
+        getCustomModels: vi.fn(async () => []),
+        getBatchModelStatus: vi.fn(async () => ({ 'gpt-5.1': true }))
+      }
+    })
+
+    const firstRefresh = store.refreshProviderModels('openai')
+
+    await flushMicrotasks()
+    expect(modelClient.getProviderModels).toHaveBeenCalledTimes(1)
+
+    const secondRefresh = store.refreshProviderModels('openai')
+
+    deferredModels.resolve([model])
+    await Promise.all([firstRefresh, secondRefresh])
+
+    expect(firstRefresh).toBe(secondRefresh)
+    expect(modelClient.getProviderModels).toHaveBeenCalledTimes(2)
+  })
+
+  it('normalizes sparse model metadata with unified fallback defaults', async () => {
+    const sparseModel = {
+      id: 'gpt-sparse',
+      name: 'GPT Sparse',
+      providerId: 'openai',
+      isCustom: false
+    }
+    const { store } = await setupStore({
+      modelClient: {
+        getDbProviderModels: vi.fn(async () => []),
+        getProviderModels: vi.fn(async () => [sparseModel]),
+        getBatchModelStatus: vi.fn(async () => ({ 'gpt-sparse': true }))
+      }
+    })
+
+    await store.refreshProviderModels('openai')
+
+    expect(store.allProviderModels.value).toEqual([
+      {
+        providerId: 'openai',
+        models: [
+          expect.objectContaining({
+            id: 'gpt-sparse',
+            contextLength: 16000,
+            maxTokens: 4096,
+            vision: false,
+            functionCall: true
+          })
+        ]
+      }
+    ])
+    expect(store.enabledModels.value).toEqual([
+      {
+        providerId: 'openai',
+        models: [
+          expect.objectContaining({
+            id: 'gpt-sparse',
+            contextLength: 16000,
+            maxTokens: 4096,
+            vision: false,
+            functionCall: true
+          })
+        ]
+      }
+    ])
+  })
+
+  it('keeps db-backed reasoning capability for standard models when stored config defaults it off', async () => {
+    const dbModel = {
+      id: 'gpt-5.4',
+      name: 'GPT-5.4',
+      providerId: 'openai',
+      reasoning: true,
+      functionCall: true,
+      vision: false,
+      contextLength: 400000,
+      maxTokens: 128000,
+      isCustom: false
+    }
+    const storedModel = {
+      id: 'gpt-5.4',
+      name: 'GPT-5.4',
+      providerId: 'openai',
+      reasoning: false,
+      functionCall: true,
+      vision: false,
+      isCustom: false
+    }
+    const { store } = await setupStore({
+      modelClient: {
+        getDbProviderModels: vi.fn(async () => [dbModel]),
+        getProviderModels: vi.fn(async () => [storedModel]),
+        getBatchModelStatus: vi.fn(async () => ({ 'gpt-5.4': true }))
+      }
+    })
+
+    await store.refreshProviderModels('openai')
+
+    expect(store.allProviderModels.value).toEqual([
+      {
+        providerId: 'openai',
+        models: [
+          expect.objectContaining({
+            id: 'gpt-5.4',
+            reasoning: true
+          })
+        ]
+      }
+    ])
+    expect(store.enabledModels.value).toEqual([
+      {
+        providerId: 'openai',
+        models: [
+          expect.objectContaining({
+            id: 'gpt-5.4',
+            reasoning: true
+          })
+        ]
+      }
+    ])
+  })
+
+  it('uses runtime models for OpenAI Codex and drops stale stored Codex models', async () => {
+    const staleStoredModels = [
+      {
+        id: 'gpt-5-codex',
+        name: 'GPT-5-Codex',
+        providerId: 'openai-codex',
+        reasoning: true,
+        functionCall: true,
+        vision: true,
+        isCustom: false
+      },
+      {
+        id: 'gpt-5.1-codex',
+        name: 'GPT-5.1 Codex',
+        providerId: 'openai-codex',
+        reasoning: true,
+        functionCall: true,
+        vision: true,
+        isCustom: false
+      }
+    ]
+    const runtimeModels = [
+      {
+        id: 'gpt-5.5',
+        name: 'gpt-5.5',
+        providerId: 'openai-codex',
+        reasoning: true,
+        functionCall: true,
+        vision: true,
+        contextLength: 400000,
+        maxTokens: 128000,
+        isCustom: false
+      },
+      {
+        id: 'gpt-5.4',
+        name: 'gpt-5.4',
+        providerId: 'openai-codex',
+        reasoning: true,
+        functionCall: true,
+        vision: true,
+        contextLength: 400000,
+        maxTokens: 128000,
+        isCustom: false
+      }
+    ]
+    const { store, modelClient } = await setupStore({
+      providerStore: {
+        providers: [
+          {
+            id: 'openai-codex',
+            apiType: 'openai-codex',
+            enable: true,
+            name: 'OpenAI Codex'
+          }
+        ]
+      },
+      modelClient: {
+        getDbProviderModels: vi.fn(async () => []),
+        getModelList: vi.fn(async () => runtimeModels),
+        getProviderModels: vi.fn(async () => staleStoredModels),
+        getCustomModels: vi.fn(async () => []),
+        getBatchModelStatus: vi.fn(async () => ({
+          'gpt-5.5': true,
+          'gpt-5.4': false
+        }))
+      }
+    })
+
+    await store.refreshProviderModels('openai-codex')
+
+    expect(modelClient.getModelList).toHaveBeenCalledWith('openai-codex')
+    expect(modelClient.getDbProviderModels).not.toHaveBeenCalledWith('openai-codex')
+    expect(store.allProviderModels.value).toEqual([
+      {
+        providerId: 'openai-codex',
+        models: [
+          expect.objectContaining({
+            id: 'gpt-5.5',
+            reasoning: true,
+            enabled: true
+          }),
+          expect.objectContaining({
+            id: 'gpt-5.4',
+            reasoning: true,
+            enabled: false
+          })
+        ]
+      }
+    ])
+    expect(
+      store.allProviderModels.value[0].models.some((model) => model.id === 'gpt-5-codex')
+    ).toBe(false)
+  })
+
+  it('keeps enabled provider DB-only embedding models after refresh', async () => {
+    const dbEmbeddingModel = {
+      id: 'text-embedding-3-small',
+      name: 'text-embedding-3-small',
+      providerId: 'aihubmix',
+      type: ModelType.Embedding,
+      functionCall: false,
+      vision: false,
+      contextLength: 8192,
+      maxTokens: 8192,
+      isCustom: false
+    }
+    const { store, modelClient } = await setupStore({
+      providerStore: {
+        providers: [{ id: 'aihubmix', enable: true, name: 'AIHubMix' }]
+      },
+      modelClient: {
+        getDbProviderModels: vi.fn(async () => [dbEmbeddingModel]),
+        getProviderModels: vi.fn(async () => []),
+        getCustomModels: vi.fn(async () => []),
+        getBatchModelStatus: vi.fn(async () => ({ 'text-embedding-3-small': true }))
+      }
+    })
+
+    await store.refreshProviderModels('aihubmix')
+
+    expect(modelClient.getBatchModelStatus).toHaveBeenCalledWith('aihubmix', [
+      'text-embedding-3-small'
+    ])
+    expect(store.enabledModels.value).toEqual([
+      {
+        providerId: 'aihubmix',
+        models: [
+          expect.objectContaining({
+            id: 'text-embedding-3-small',
+            enabled: true,
+            type: ModelType.Embedding
+          })
+        ]
+      }
+    ])
+  })
+
+  it('caps derived maxTokens for merged standard models', async () => {
+    const dbModel = {
+      id: 'gpt-5.4',
+      name: 'GPT-5.4',
+      providerId: 'openai',
+      reasoning: true,
+      functionCall: true,
+      vision: false,
+      contextLength: 400000,
+      maxTokens: 128000,
+      isCustom: false
+    }
+    const storedModel = {
+      id: 'gpt-5.4',
+      name: 'GPT-5.4',
+      providerId: 'openai',
+      functionCall: true,
+      vision: false,
+      contextLength: 400000,
+      maxTokens: 64000,
+      isCustom: false
+    }
+    const { store } = await setupStore({
+      modelClient: {
+        getDbProviderModels: vi.fn(async () => [dbModel]),
+        getProviderModels: vi.fn(async () => [storedModel]),
+        getBatchModelStatus: vi.fn(async () => ({ 'gpt-5.4': true }))
+      }
+    })
+
+    await store.refreshProviderModels('openai')
+
+    expect(store.allProviderModels.value).toEqual([
+      {
+        providerId: 'openai',
+        models: [
+          expect.objectContaining({
+            id: 'gpt-5.4',
+            maxTokens: 32000
+          })
+        ]
+      }
+    ])
+  })
+
+  it('uses stored reasoning metadata when no db capability fallback exists', async () => {
+    const storedModel = {
+      id: 'custom-chat',
+      name: 'Custom Chat',
+      providerId: 'openai',
+      reasoning: true,
+      functionCall: false,
+      vision: false,
+      isCustom: false
+    }
+    const { store } = await setupStore({
+      modelClient: {
+        getDbProviderModels: vi.fn(async () => []),
+        getProviderModels: vi.fn(async () => [storedModel]),
+        getBatchModelStatus: vi.fn(async () => ({ 'custom-chat': true }))
+      }
+    })
+
+    await store.refreshProviderModels('openai')
+
+    expect(store.allProviderModels.value).toEqual([
+      {
+        providerId: 'openai',
+        models: [
+          expect.objectContaining({
+            id: 'custom-chat',
+            reasoning: true
+          })
+        ]
+      }
+    ])
+  })
+
+  it('caps derived maxTokens for stored-only standard models', async () => {
+    const storedModel = {
+      id: 'custom-chat',
+      name: 'Custom Chat',
+      providerId: 'openai',
+      reasoning: true,
+      functionCall: false,
+      vision: false,
+      contextLength: 200000,
+      maxTokens: 128000,
+      isCustom: false
+    }
+    const { store } = await setupStore({
+      modelClient: {
+        getDbProviderModels: vi.fn(async () => []),
+        getProviderModels: vi.fn(async () => [storedModel]),
+        getBatchModelStatus: vi.fn(async () => ({ 'custom-chat': true }))
+      }
+    })
+
+    await store.refreshProviderModels('openai')
+
+    expect(store.allProviderModels.value).toEqual([
+      {
+        providerId: 'openai',
+        models: [
+          expect.objectContaining({
+            id: 'custom-chat',
+            maxTokens: 32000
+          })
+        ]
+      }
+    ])
+  })
+
+  it('persists ollama model status changes through llm presenter', async () => {
+    const { store, modelClient } = await setupStore({
+      providerStore: {
+        providers: [{ id: 'ollama', apiType: 'ollama' }]
+      },
+      modelClient: {
+        getDbProviderModels: vi.fn(async () => []),
+        getProviderModels: vi.fn(async () => [
+          {
+            id: 'deepseek-r1:1.5b',
+            name: 'deepseek-r1:1.5b',
+            providerId: 'ollama',
+            isCustom: false
+          }
+        ]),
+        getBatchModelStatus: vi.fn(async () => ({ 'deepseek-r1:1.5b': true }))
+      }
+    })
+
+    await store.refreshProviderModels('ollama')
+    await store.updateModelStatus('ollama', 'deepseek-r1:1.5b', false)
+
+    expect(modelClient.updateModelStatus).toHaveBeenCalledWith('ollama', 'deepseek-r1:1.5b', false)
+  })
+})
+
+describe('modelStore.initialize', () => {
+  it('marks the store initialized only after full initialization succeeds', async () => {
+    const { store } = await setupStore({
+      providerStore: {
+        providers: [{ id: 'openai', enable: true }]
+      },
+      modelClient: {
+        getDbProviderModels: vi.fn(async () => []),
+        getProviderModels: vi.fn(async () => [
+          {
+            id: 'gpt-5',
+            name: 'GPT-5',
+            providerId: 'openai',
+            isCustom: false
+          }
+        ]),
+        getCustomModels: vi.fn(async () => []),
+        getBatchModelStatus: vi.fn(async () => ({ 'gpt-5': true }))
+      }
+    })
+
+    await store.initialize()
+
+    expect(store.initialized.value).toBe(true)
+    expect(store.initializationError.value).toBeNull()
+    expect(store.enabledModels.value).toEqual([
+      {
+        providerId: 'openai',
+        models: [expect.objectContaining({ id: 'gpt-5' })]
+      }
+    ])
+  })
+
+  it('does not mark the store initialized when only one provider is materialized', async () => {
+    const { store } = await setupStore({
+      modelClient: {
+        getDbProviderModels: vi.fn(async () => []),
+        getProviderModels: vi.fn(async () => [
+          {
+            id: 'gpt-5',
+            name: 'GPT-5',
+            providerId: 'openai',
+            isCustom: false
+          }
+        ]),
+        getCustomModels: vi.fn(async () => []),
+        getBatchModelStatus: vi.fn(async () => ({ 'gpt-5': true }))
+      }
+    })
+
+    await store.ensureProviderModelsReady('openai')
+
+    expect(store.initialized.value).toBe(false)
+    expect(store.enabledModels.value).toEqual([
+      {
+        providerId: 'openai',
+        models: [expect.objectContaining({ id: 'gpt-5' })]
+      }
+    ])
+  })
+
+  it('allows initialization to succeed when one enabled provider fails to refresh', async () => {
+    const { store } = await setupStore({
+      providerStore: {
+        providers: [
+          { id: 'openai', enable: true },
+          { id: 'ollama', enable: true }
+        ]
+      },
+      modelClient: {
+        getDbProviderModels: vi.fn(async () => []),
+        getProviderModels: vi.fn(async (providerId: string) => {
+          if (providerId === 'ollama') {
+            throw new Error('catalog stale')
+          }
+          return [
+            {
+              id: 'gpt-5',
+              name: 'GPT-5',
+              providerId: 'openai',
+              isCustom: false
+            }
+          ]
+        }),
+        getCustomModels: vi.fn(async () => []),
+        getBatchModelStatus: vi.fn(async (providerId: string) =>
+          providerId === 'openai' ? { 'gpt-5': true } : {}
+        )
+      }
+    })
+
+    await store.initialize()
+
+    expect(store.initialized.value).toBe(true)
+    expect(store.initializationError.value).toBeNull()
+    expect(store.enabledModels.value).toEqual([
+      {
+        providerId: 'openai',
+        models: [expect.objectContaining({ id: 'gpt-5' })]
+      }
+    ])
+  })
+})
+
+describe('modelStore.applyInitialModelRecommendations', () => {
+  const providerModels = [
+    {
+      id: 'chat-1',
+      name: 'Chat 1',
+      group: 'g',
+      providerId: 'openai',
+      isCustom: false,
+      type: ModelType.Chat
+    },
+    {
+      id: 'embed-1',
+      name: 'Embed 1',
+      group: 'g',
+      providerId: 'openai',
+      isCustom: false,
+      type: ModelType.Embedding
+    },
+    { id: 'chat-2', name: 'Chat 2', group: 'g', providerId: 'openai', isCustom: false },
+    {
+      id: 'chat-3',
+      name: 'Chat 3',
+      group: 'g',
+      providerId: 'openai',
+      isCustom: false,
+      type: ModelType.Chat
+    },
+    {
+      id: 'chat-4',
+      name: 'Chat 4',
+      group: 'g',
+      providerId: 'openai',
+      isCustom: false,
+      type: ModelType.Chat
+    }
+  ]
+
+  it('preselects up to three chat-typed models when nothing is enabled yet', async () => {
+    const { store, modelClient } = await setupStore({
+      modelClient: {
+        getProviderModels: vi.fn(async () => providerModels),
+        getBatchModelStatus: vi.fn(async (_providerId: string, ids: string[]) =>
+          Object.fromEntries(ids.map((id) => [id, false]))
+        )
+      }
+    })
+
+    const applied = await store.applyInitialModelRecommendations('openai')
+
+    expect(modelClient.updateModelStatus.mock.calls.map((call: unknown[]) => call[1])).toEqual([
+      'chat-1',
+      'chat-2',
+      'chat-3'
+    ])
+    expect(applied).toBe(3)
+  })
+
+  it('counts only models whose activation actually succeeds', async () => {
+    const { store, modelClient } = await setupStore({
+      modelClient: {
+        getProviderModels: vi.fn(async () => providerModels),
+        getBatchModelStatus: vi.fn(async (_providerId: string, ids: string[]) =>
+          Object.fromEntries(ids.map((id) => [id, false]))
+        ),
+        updateModelStatus: vi.fn(async (_providerId: string, modelId: string) => {
+          if (modelId === 'chat-2') {
+            throw new Error('ipc failed')
+          }
+        })
+      }
+    })
+
+    const applied = await store.applyInitialModelRecommendations('openai')
+
+    expect(applied).toBe(2)
+  })
+
+  it('never overwrites an existing selection', async () => {
+    const { store, modelClient } = await setupStore({
+      modelClient: {
+        getProviderModels: vi.fn(async () => providerModels),
+        getBatchModelStatus: vi.fn(async (_providerId: string, ids: string[]) =>
+          Object.fromEntries(ids.map((id) => [id, id === 'chat-4']))
+        )
+      }
+    })
+
+    await store.applyInitialModelRecommendations('openai')
+
+    expect(modelClient.updateModelStatus).not.toHaveBeenCalled()
+  })
+})

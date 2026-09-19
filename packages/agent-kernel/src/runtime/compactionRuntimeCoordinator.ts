@@ -1,10 +1,10 @@
-import type { PluginContextPort } from '@deepchat/shared/types/userPlugin'
-import logger from '@deepchat/shared/logger'
+import type { PluginContextPort } from '../shared/types/userPlugin.js'
+import logger from '../shared/logger.js'
 
 import type {
   SessionCompactionSnapshot,
   SessionCompactionState
-} from '@deepchat/shared/types/agent-interface'
+} from '../shared/types/agent-interface.js'
 import type { DeepChatAgentInstance } from '../instance/deepChatAgentInstance.js'
 import {
   hasCompactionBoundaryAdvanced,

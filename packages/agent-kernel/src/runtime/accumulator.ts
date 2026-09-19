@@ -1,9 +1,9 @@
-import type { AssistantMessageBlock } from '@deepchat/shared/types/agent-interface'
+import type { AssistantMessageBlock } from '../shared/types/agent-interface.js'
 import type {
   LLMCoreStreamEvent,
   ProviderUrlSourcePayload
-} from '@deepchat/shared/types/core/llm-events'
-import type { ChatMessageProviderOptions } from '@deepchat/shared/types/core/chat-message'
+} from '../shared/types/core/llm-events.js'
+import type { ChatMessageProviderOptions } from '../shared/types/core/chat-message.js'
 import { markStreamChanged, type StreamState } from './types.js'
 
 const MAX_VISIBLE_SEARCH_PAGES = 6
