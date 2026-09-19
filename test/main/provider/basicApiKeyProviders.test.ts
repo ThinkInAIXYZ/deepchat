@@ -159,6 +159,56 @@ describe('basic API-key provider registrations', () => {
     })
   })
 
+  it('discovers AnonRouter models over authenticated OpenAI-compatible discovery', async () => {
+    const defaults = DEFAULT_PROVIDERS.find((provider) => provider.id === 'anonrouter')!
+    expect(defaults).toBeDefined()
+    const fetchMock = vi.fn().mockImplementation(async () =>
+      Response.json({
+        object: 'list',
+        data: [
+          { id: 'meta-llama/llama-3.3-70b', object: 'model', owned_by: 'tinfoil' },
+          { id: 'openai/gpt-oss-120b', object: 'model', owned_by: 'venice' }
+        ]
+      })
+    )
+    global.fetch = fetchMock as unknown as typeof fetch
+
+    const config = { ...defaults, apiKey: 'test-key' }
+    const provider = new AiSdkProvider(config, createProviderSettings())
+    expect(resolveAiSdkProviderDefinition(config)).toMatchObject({
+      runtimeKind: 'openai-compatible',
+      modelSource: 'openai',
+      checkStrategy: 'fetch-models',
+      credentialStrategy: 'api-key',
+      routeStrategy: 'none',
+      embeddingStrategy: 'openai'
+    })
+
+    // Nested creator/model ids must survive discovery unchanged.
+    await expect(provider.fetchModels({ suppressErrors: false })).resolves.toEqual([
+      expect.objectContaining({
+        id: 'meta-llama/llama-3.3-70b',
+        name: 'meta-llama/llama-3.3-70b',
+        providerId: 'anonrouter',
+        ownedBy: 'tinfoil'
+      }),
+      expect.objectContaining({
+        id: 'openai/gpt-oss-120b',
+        providerId: 'anonrouter',
+        ownedBy: 'venice'
+      })
+    ])
+    await expect(provider.check()).resolves.toEqual({ isOk: true, errorMsg: null })
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://api.anonrouter.ai/v1/models',
+      expect.objectContaining({
+        method: 'GET',
+        headers: expect.objectContaining({ Authorization: 'Bearer test-key' })
+      })
+    )
+    expect(mockRunAiSdkGenerateText).not.toHaveBeenCalled()
+  })
+
   it('resolves Cheaper Inference through authenticated OpenAI-compatible model discovery', () => {
     expect(
       resolveAiSdkProviderDefinition(

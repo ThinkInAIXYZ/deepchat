@@ -2,6 +2,25 @@ import { describe, expect, it } from 'vitest'
 import { DEFAULT_PROVIDERS } from '../../../src/main/provider/defaults'
 
 describe('DEFAULT_PROVIDERS', () => {
+  it('includes AnonRouter as a disabled built-in OpenAI-compatible provider', () => {
+    expect(DEFAULT_PROVIDERS).toContainEqual(
+      expect.objectContaining({
+        id: 'anonrouter',
+        name: 'AnonRouter',
+        apiType: 'openai-completions',
+        baseUrl: 'https://api.anonrouter.ai/v1',
+        enable: false,
+        websites: expect.objectContaining({
+          official: 'https://anonrouter.ai/',
+          apiKey: 'https://anonrouter.ai/home/api-keys',
+          docs: 'https://docs.anonrouter.ai/quickstart',
+          models: 'https://anonrouter.ai/models',
+          defaultBaseUrl: 'https://api.anonrouter.ai/v1'
+        })
+      })
+    )
+  })
+
   it('includes Cheaper Inference as a disabled built-in OpenAI-compatible provider', () => {
     expect(DEFAULT_PROVIDERS).toContainEqual(
       expect.objectContaining({
