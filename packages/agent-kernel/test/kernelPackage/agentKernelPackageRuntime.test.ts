@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process'
-import { builtinModules } from 'node:module'
+import { builtinModules, createRequire } from 'node:module'
 import {
   cpSync,
   mkdirSync,
@@ -224,7 +224,8 @@ describe('agent kernel package runtime gate', () => {
     const install = spawnSync('pnpm', ['install', '--prefer-offline', '--ignore-scripts'], {
       cwd: consumerDir,
       encoding: 'utf8',
-      timeout: 240_000
+      timeout: 240_000,
+      shell: process.platform === 'win32'
     })
     expect(install.status, `consumer install failed:\n${install.stdout}\n${install.stderr}`).toBe(0)
   }, 420_000)
@@ -385,11 +386,12 @@ describe('agent kernel package runtime gate', () => {
         'declaration closure must not reference packages outside the kernel dependencies'
       ).toEqual(new Set())
 
-      const tsc = spawnSync(
-        join(repoRoot, 'node_modules', '.bin', 'tsc'),
-        ['-p', 'tsconfig.declarations.json'],
-        { cwd: consumerDir, encoding: 'utf8', timeout: 150_000 }
-      )
+      const compiler = createRequire(join(repoRoot, 'package.json')).resolve('typescript/bin/tsc')
+      const tsc = spawnSync(process.execPath, [compiler, '-p', 'tsconfig.declarations.json'], {
+        cwd: consumerDir,
+        encoding: 'utf8',
+        timeout: 150_000
+      })
       expect(
         tsc.status,
         `external tsc --noEmit consumption failed:\n${tsc.stdout}\n${tsc.stderr}`

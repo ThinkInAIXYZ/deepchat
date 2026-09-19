@@ -1,5 +1,6 @@
-import { execFileSync, execSync } from 'node:child_process'
+import { execFileSync } from 'node:child_process'
 import { readFileSync, readdirSync, rmSync, statSync } from 'node:fs'
+import { createRequire } from 'node:module'
 import { dirname, join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import process from 'node:process'
@@ -53,12 +54,10 @@ function extractSpecifiers(text) {
 function main() {
   execFileSync(process.execPath, [join(scriptDirectory, 'build-shared.mjs')], { stdio: 'inherit' })
   rmSync(join(packageDir, 'dist'), { recursive: true, force: true })
-  // The repo `typescript` (tsgo native bridge) is hoisted at the root; resolve it explicitly so
-  // the build does not depend on the caller's PATH or a package-local install.
-  const tscBinary = process.platform === 'win32'
-    ? join(rootDir, 'node_modules', '.bin', 'tsc.cmd')
-    : join(rootDir, 'node_modules', '.bin', 'tsc')
-  execSync(`"${tscBinary}" -p tsconfig.json`, { cwd: packageDir, stdio: 'inherit' })
+  // The repo `typescript` is the tsgo native bridge; invoke its JavaScript bin with this Node,
+  // rather than a platform-specific .bin shim.
+  const compiler = createRequire(join(rootDir, 'package.json')).resolve('typescript/bin/tsc')
+  execFileSync(process.execPath, [compiler, '-p', 'tsconfig.json'], { cwd: packageDir, stdio: 'inherit' })
 
   const distDir = join(packageDir, 'dist')
   const emitted = [...listFilesRecursively(distDir, '.js'), ...listFilesRecursively(distDir, '.d.ts')]

@@ -138,7 +138,7 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "typecheck": "tsc --noEmit -p tsconfig.json"
+    "typecheck": "node ../../scripts/typecheck-package-source.mjs provider"
   },
   "dependencies": {
     "@ai-sdk/amazon-bedrock": "^5.0.78",

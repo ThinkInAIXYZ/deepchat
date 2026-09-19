@@ -2,8 +2,8 @@ import { describe, expect, it, vi } from 'vitest'
 
 const fs = await vi.importActual<typeof import('node:fs')>('node:fs')
 const path = await vi.importActual<typeof import('node:path')>('node:path')
-const appRoot = process.cwd()
-const repositoryRoot = path.resolve(appRoot, '../..')
+const url = await vi.importActual<typeof import('node:url')>('node:url')
+const repositoryRoot = url.fileURLToPath(new URL('../../../../..', import.meta.url))
 const packageJson = JSON.parse(
   fs.readFileSync(path.join(repositoryRoot, 'package.json'), 'utf8')
 ) as {
@@ -17,11 +17,11 @@ const windowsArm64Workflow = fs.readFileSync(
 describe('test entrypoint contracts', () => {
   it('keeps complete test suites one-shot and watch mode explicit', () => {
     expect(packageJson.scripts).toMatchObject({
-      test: 'pnpm run test:mcp && pnpm --filter DeepChat exec vitest run --config ../../vitest.config.ts',
-      'test:main': 'pnpm run test:mcp && pnpm --filter DeepChat exec vitest run --config ../../vitest.config.ts --project main --project kernel --project shared',
+      test: 'pnpm run test:mcp:artifact && pnpm --filter DeepChat exec vitest run --config ../../vitest.config.ts',
+      'test:main': 'pnpm run test:mcp:artifact && pnpm --filter DeepChat exec vitest run --config ../../vitest.config.ts --project main --project kernel --project shared --project mcp',
       'test:renderer': 'pnpm --filter DeepChat run test:renderer',
-      'test:coverage': 'pnpm run test:mcp && pnpm --filter DeepChat exec vitest run --config ../../vitest.config.ts --coverage',
-      'test:watch': 'pnpm --filter @deepchat/mcp exec vitest --config vitest.config.ts --watch & pnpm --filter DeepChat exec vitest --config ../../vitest.config.ts --watch',
+      'test:coverage': 'pnpm run test:mcp:artifact && pnpm --filter DeepChat exec vitest run --config ../../vitest.config.ts --coverage',
+      'test:watch': 'pnpm --filter DeepChat exec vitest --config ../../vitest.config.ts --watch',
       'test:ui': 'pnpm --filter DeepChat exec vitest --config ../../vitest.config.ts --ui'
     })
   })

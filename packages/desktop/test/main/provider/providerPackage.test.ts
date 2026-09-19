@@ -114,7 +114,8 @@ it(
     const install = spawnSync('pnpm', ['install', '--offline', '--ignore-scripts'], {
       cwd: workspace,
       encoding: 'utf8',
-      timeout: 120000
+      timeout: 120000,
+      shell: process.platform === 'win32'
     })
     expect(install.status, install.stdout + install.stderr).toBe(0)
     cpSync(
@@ -148,7 +149,8 @@ it(
         include: ['consumer.ts']
       })
     )
-    const types = spawnSync(join(desktopRoot, 'node_modules/.bin/tsc'), ['-p', 'tsconfig.json'], {
+    const compiler = createRequire(join(desktopRoot, 'package.json')).resolve('typescript/bin/tsc')
+    const types = spawnSync(process.execPath, [compiler, '-p', 'tsconfig.json'], {
       cwd: workspace,
       encoding: 'utf8',
       timeout: 30000

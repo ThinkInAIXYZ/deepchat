@@ -17,7 +17,7 @@
   ],
   "scripts": {
     "build": "node ../../scripts/build-mcp.mjs",
-    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "typecheck": "node ../../scripts/typecheck-package-source.mjs mcp",
     "test": "vitest run --config vitest.config.ts"
   },
   "dependencies": {

@@ -6,7 +6,7 @@ import {
   createManagedMcpStdio,
   type McpClientHost,
   type McpClientRuntime
-} from '../dist/index.js'
+} from '../src/index.js'
 
 function fixture() {
   const records = new Map<string, number>()

@@ -176,7 +176,11 @@ export function buildWorkspaceClosure(rootDir, entryName) {
     }
     visiting.pop()
     if (!pkg.manifest.scripts?.build) throw new Error(`${name}: missing required build script`)
-    execFileSync('pnpm', ['run', 'build'], { cwd: pkg.directory, stdio: 'inherit' })
+    execFileSync('pnpm', ['run', 'build'], {
+      cwd: pkg.directory,
+      stdio: 'inherit',
+      shell: process.platform === 'win32'
+    })
     built.add(name)
   }
   build(entryName)
