@@ -187,6 +187,7 @@ describe('TypedEventHub', () => {
         sessionId: 'run-1',
         messageId: 'message-1',
         updatedAt: 1,
+        revision: 0,
         blocks: []
       },
       { kind: 'run', runId: 'run-1' }
@@ -201,6 +202,7 @@ describe('TypedEventHub', () => {
         sessionId: 'run-1',
         messageId: 'message-1',
         updatedAt: 2,
+        revision: 1,
         blocks: []
       },
       { kind: 'run', runId: 'run-1' }
@@ -270,6 +272,7 @@ describe('SessionEventRouter', () => {
       sessionId: 'cli-run',
       messageId: 'message-1',
       updatedAt: 123,
+      revision: 0,
       blocks: []
     })
 
@@ -282,6 +285,7 @@ describe('SessionEventRouter', () => {
         sessionId: 'cli-run',
         messageId: 'message-1',
         updatedAt: 123,
+        revision: 0,
         blocks: []
       }
     })
@@ -305,6 +309,7 @@ describe('SessionEventRouter', () => {
       sessionId: 'session-1',
       messageId: 'message-1',
       updatedAt: 123,
+      revision: 0,
       blocks: []
     }
     router.publish('chat.stream.updated', payload)
@@ -336,6 +341,7 @@ describe('SessionEventRouter', () => {
       sessionId: 'session-1',
       messageId: 'message-1',
       updatedAt: 123,
+      revision: 0,
       blocks: []
     })
 

@@ -498,6 +498,17 @@ const appendDisplayContentText = (content: unknown, output: string[]): void => {
   })
 }
 
+/**
+ * Projects a display message's content to the same plain text the message list renders, skipping
+ * plan, tool-call and internal blocks. Shared by chat search and the message map, which needs both a
+ * message's text for its preview and its length for the width of its mark.
+ */
+export const extractDisplayContentText = (content: unknown): string => {
+  const chunks: string[] = []
+  appendDisplayContentText(content, chunks)
+  return chunks.join(' ').replace(/\s+/g, ' ').trim()
+}
+
 export const collectChatSearchResults = (
   messages: Array<{ id: string; content: unknown }>,
   query: string

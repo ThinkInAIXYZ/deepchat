@@ -1,12 +1,12 @@
 # Zero Inbound Candidates
 
-Generated on 2026-09-16.
+Generated on 2026-09-18.
 
 These files have no in-repo importers inside their scope and need manual classification before deletion.
 
 ## main
 
-- Candidate count: 85
+- Candidate count: 84
 
 - `agent/deepchat/contracts/memoryCursorStore.ts`
 - `agent/deepchat/contracts/sessionAgentRow.ts`
@@ -88,7 +88,6 @@ These files have no in-repo importers inside their scope and need manual classif
 - `memory/core/asyncDeadline.ts`
 - `memory/core/contributionBudget.ts`
 - `memory/core/directiveContribution.ts`
-- `provider/oauthHelper.ts`
 - `schedulerUtilityHostEntry.ts`
 - `session/data/tables/attachments.ts`
 - `tape/domain/skillIdentity.ts`

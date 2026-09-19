@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 
 import { MemoryService } from '@/memory'
+import type { MemoryServiceDeps } from '@/memory/types'
 import type { DeepChatAgentConfig } from '@shared/types/agent-interface'
 import {
   createFakeRepository,
@@ -26,7 +27,7 @@ const PERSONA_ON: DeepChatAgentConfig = {
   memoryEmbedding: { providerId: 'p', modelId: 'm' }
 }
 
-function makeAgent(generateText: ReturnType<typeof vi.fn>) {
+function makeAgent(generateText: MemoryServiceDeps['generateText']) {
   const repo = createFakeRepository()
   const presenter = new MemoryService({
     executeWithRateLimit: vi.fn(async () => undefined),
@@ -47,10 +48,9 @@ function makeAgent(generateText: ReturnType<typeof vi.fn>) {
 
 // The distiller answers with `text` only for the persona-evolution prompt (keyed off its stable
 // marker), so an unrelated model call can never accidentally satisfy it.
-function distiller(text: string): ReturnType<typeof vi.fn> {
-  return vi.fn(async (_p: string, _m: string, prompt: string) =>
+function distiller(text: string): MemoryServiceDeps['generateText'] {
+  return async (_p: string, _m: string, prompt: string) =>
     prompt.includes('stable self-model') ? text : ''
-  )
 }
 
 function seedUnits(repo: FakeRepository, agentId: string, n: number, from = 2000): void {

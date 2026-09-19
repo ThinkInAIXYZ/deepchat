@@ -13,6 +13,7 @@ interface BindMessageStoreIpcOptions {
     requestId: string
     messageId?: string
     updatedAt: number
+    revision: number
     blocks: AssistantMessageBlock[]
     metadata?: { providerId?: string; modelId?: string }
   }) => void
@@ -24,7 +25,9 @@ interface BindMessageStoreIpcOptions {
     messageId: string,
     sessionId: string,
     blocks: AssistantMessageBlock[],
-    metadata?: { providerId?: string; modelId?: string }
+    metadata?: { providerId?: string; modelId?: string },
+    revision?: number,
+    requestId?: string
   ) => void
   isEphemeralStreamMessageId: (messageId: string) => boolean
 }
@@ -180,6 +183,7 @@ export function bindMessageStoreIpc(options: BindMessageStoreIpcOptions): Messag
         requestId: payload.requestId,
         messageId: streamMessageId,
         updatedAt: payload.updatedAt,
+        revision: payload.revision,
         blocks,
         metadata: {
           providerId: payload.providerId,
@@ -192,10 +196,17 @@ export function bindMessageStoreIpc(options: BindMessageStoreIpcOptions): Messag
         options.applyStreamingBlocksToMessage &&
         !options.isEphemeralStreamMessageId(streamMessageId)
       ) {
-        options.applyStreamingBlocksToMessage(streamMessageId, payload.sessionId, blocks, {
-          providerId: payload.providerId,
-          modelId: payload.modelId
-        })
+        options.applyStreamingBlocksToMessage(
+          streamMessageId,
+          payload.sessionId,
+          blocks,
+          {
+            providerId: payload.providerId,
+            modelId: payload.modelId
+          },
+          payload.revision,
+          payload.requestId
+        )
       }
     }),
     chatClient.onStreamCompleted((payload) => {

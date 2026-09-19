@@ -2,6 +2,25 @@ import { describe, expect, it } from 'vitest'
 import { DEFAULT_PROVIDERS } from '../../../src/main/provider/defaults'
 
 describe('DEFAULT_PROVIDERS', () => {
+  it('includes Cheaper Inference as a disabled built-in OpenAI-compatible provider', () => {
+    expect(DEFAULT_PROVIDERS).toContainEqual(
+      expect.objectContaining({
+        id: 'cheaper-inference',
+        name: 'Cheaper Inference',
+        apiType: 'openai-completions',
+        baseUrl: 'https://api.cheaperinference.com/v1',
+        enable: false,
+        websites: expect.objectContaining({
+          official: 'https://www.cheaperinference.com/',
+          apiKey: 'https://www.cheaperinference.com/dashboard/keys',
+          docs: 'https://www.cheaperinference.com/docs',
+          models: 'https://www.cheaperinference.com/markets',
+          defaultBaseUrl: 'https://api.cheaperinference.com/v1'
+        })
+      })
+    )
+  })
+
   it('includes API Route as a disabled built-in OpenAI-compatible provider', () => {
     expect(DEFAULT_PROVIDERS).toContainEqual(
       expect.objectContaining({

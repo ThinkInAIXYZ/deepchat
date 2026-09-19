@@ -1,7 +1,8 @@
 # DeepChat Monorepo Migration Plan
 
-Execution tracker for [spec.md](./spec.md). Nothing below is implemented; this document does not
-authorize commits, merging, or release publication. Design rationale, ownership rules, dependency
+Execution tracker for [spec.md](./spec.md). Implementation was authorized on 2026-09-18 and M0 is
+in progress. Checkboxes require verification, not merely an edited file. This document does not
+authorize commits, pushing, or release publication. Design rationale, ownership rules, dependency
 contracts, and the checked baseline live in the spec and are not repeated here.
 
 Each milestone may land as several small reviewable commits, but it closes only when its exit

@@ -176,10 +176,11 @@ export class OpenAICodexAuth {
       return this.statusFromTokens(tokens)
     }
 
+    const statusError = this.store.getLoadError() ?? this.lastError
     return this.withStorage({
-      state: this.lastError ? 'error' : 'signed-out',
+      state: statusError ? 'error' : 'signed-out',
       authenticated: false,
-      ...(this.lastError ? { error: this.lastError } : {})
+      ...(statusError ? { error: statusError } : {})
     })
   }
 
@@ -305,7 +306,7 @@ export class OpenAICodexAuth {
 
     const tokens = this.store.load()
     if (!tokens) {
-      throw new Error('OpenAI Codex sign-in is required')
+      throw new Error(this.store.getLoadError() ?? 'OpenAI Codex sign-in is required')
     }
 
     const current =
@@ -322,7 +323,7 @@ export class OpenAICodexAuth {
     this.assertEnabled()
     const tokens = this.store.load()
     if (!tokens?.refreshToken) {
-      throw new Error('OpenAI Codex refresh token is unavailable')
+      throw new Error(this.store.getLoadError() ?? 'OpenAI Codex refresh token is unavailable')
     }
 
     const refreshed = await this.refreshAccessToken(tokens, true)

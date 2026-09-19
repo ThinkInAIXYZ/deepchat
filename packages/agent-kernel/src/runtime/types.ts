@@ -142,6 +142,7 @@ export interface StreamState {
   } | null
   toolCallCount: number
   dirty: boolean
+  blocksRevision: number
 }
 
 /**
@@ -387,6 +388,12 @@ export function createState(): StreamState {
     stopReason: null,
     roundUsage: null,
     toolCallCount: 0,
-    dirty: false
+    dirty: false,
+    blocksRevision: 0
   }
+}
+
+export function markStreamChanged(state: StreamState): void {
+  state.dirty = true
+  state.blocksRevision += 1
 }

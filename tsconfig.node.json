@@ -20,10 +20,10 @@
         "./src/shared/*"
       ],
       "@deepchat/agent-kernel": [
-        "../packages/agent-kernel/src/index.ts"
+        "./packages/agent-kernel/src/index.ts"
       ],
       "@deepchat/agent-kernel/*": [
-        "../packages/agent-kernel/src/*"
+        "./packages/agent-kernel/src/*"
       ]
     }
   }

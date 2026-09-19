@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import type { StreamState, IoParams } from '@/agent/deepchat/runtime/types'
-import { createState } from '@/agent/deepchat/runtime/types'
+import { createState, markStreamChanged } from '@/agent/deepchat/runtime/types'
 
 vi.mock('@/events', () => ({
   STREAM_EVENTS: {
@@ -11,6 +11,7 @@ vi.mock('@/events', () => ({
 }))
 
 import { startEcho } from '@/agent/deepchat/runtime/echo'
+import { accumulate } from '@/agent/deepchat/runtime/accumulator'
 import { cloneBlocksForRenderer } from '@/session/clientMessageProjection'
 
 const publishDeepchatEvent = vi.fn()
@@ -177,6 +178,66 @@ describe('echo', () => {
     vi.advanceTimersByTime(130)
 
     expect(getStreamUpdatedCalls()).toHaveLength(1)
+    echo.stop()
+  })
+
+  it('emits the current blocksRevision with every renderer snapshot', () => {
+    const echo = startEcho(state, io)
+
+    state.blocks.push({ type: 'content', content: 'hi', status: 'pending', timestamp: Date.now() })
+    markStreamChanged(state)
+
+    echo.flush()
+    expect(publishDeepchatEvent).toHaveBeenCalledWith(
+      'chat.stream.updated',
+      expect.objectContaining({ revision: 1 })
+    )
+
+    echo.flush()
+    expect(publishDeepchatEvent).toHaveBeenLastCalledWith(
+      'chat.stream.updated',
+      expect.objectContaining({ revision: 1 })
+    )
+
+    state.blocks.push({ type: 'content', content: 'more', status: 'pending', timestamp: Date.now() })
+    markStreamChanged(state)
+    echo.flush()
+    expect(publishDeepchatEvent).toHaveBeenLastCalledWith(
+      'chat.stream.updated',
+      expect.objectContaining({ revision: 2 })
+    )
+
+    echo.stop()
+  })
+
+  it('drives a multi-token stream end-to-end with monotonic revisions per dirty bump', () => {
+    const echo = startEcho(state, io)
+
+    accumulate(state, { type: 'text', content: 'Hello ' })
+    accumulate(state, { type: 'text', content: 'world' })
+    echo.schedule()
+    vi.advanceTimersByTime(130)
+    let flushes = getStreamUpdatedCalls()
+    expect(flushes).toHaveLength(1)
+    expect(flushes[0]?.[1]).toMatchObject({ revision: 2 })
+
+    vi.advanceTimersByTime(150)
+    accumulate(state, { type: 'text', content: '!' })
+    echo.schedule()
+    vi.advanceTimersByTime(130)
+    flushes = getStreamUpdatedCalls()
+    expect(flushes).toHaveLength(2)
+    expect(flushes[1]?.[1]).toMatchObject({ revision: 3 })
+
+    echo.flush()
+    echo.flush()
+    flushes = getStreamUpdatedCalls()
+    expect(flushes).toHaveLength(4)
+    expect(flushes[2]?.[1]).toMatchObject({ revision: 3 })
+    expect(flushes[3]?.[1]).toMatchObject({ revision: 3 })
+
+    expect(state.blocksRevision).toBe(3)
+
     echo.stop()
   })
 

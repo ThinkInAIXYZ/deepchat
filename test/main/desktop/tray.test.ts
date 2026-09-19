@@ -24,12 +24,14 @@ vi.mock('electron', () => ({
   Menu: {
     buildFromTemplate: buildFromTemplateMock
   },
-  Tray: vi.fn(() => ({
-    setToolTip: setToolTipMock,
-    setContextMenu: setContextMenuMock,
-    on: trayOnMock,
-    destroy: vi.fn()
-  }))
+  Tray: vi.fn(function Tray() {
+    return {
+      setToolTip: setToolTipMock,
+      setContextMenu: setContextMenuMock,
+      on: trayOnMock,
+      destroy: vi.fn()
+    }
+  })
 }))
 
 describe('TrayPresenter', () => {

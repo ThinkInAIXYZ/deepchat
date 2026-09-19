@@ -32,6 +32,7 @@ import type {
   ToolCallResult,
   ToolDispatchCollaborators
 } from './types.js'
+import { markStreamChanged } from './types.js'
 import type {
   ChatMessage,
   ChatMessageProviderOptions,
@@ -1249,7 +1250,7 @@ function finalizePendingNarrativeBeforeToolSettlement(state: StreamState): void 
   }
 
   finalizeTrailingPendingNarrativeBlocks(state.blocks)
-  state.dirty = true
+  markStreamChanged(state)
 }
 
 function applyFinalizedToolResults(params: {
@@ -1383,7 +1384,7 @@ function applyFinalizedToolResults(params: {
     }
   }
 
-  state.dirty = true
+  markStreamChanged(state)
   return interactions
 }
 
@@ -1669,7 +1670,7 @@ async function reviewAutoApproveAction(params: {
   }
 
   if (setToolCallAutoApproveReviewing(batchToolCallBlocks, execution.completedToolCall.id, true)) {
-    state.dirty = true
+    markStreamChanged(state)
     rendererFlushHandle.flush()
   }
   try {
@@ -1701,7 +1702,7 @@ async function reviewAutoApproveAction(params: {
     if (
       setToolCallAutoApproveReviewing(batchToolCallBlocks, execution.completedToolCall.id, false)
     ) {
-      state.dirty = true
+      markStreamChanged(state)
       rendererFlushHandle.flush()
     }
   }
@@ -1768,7 +1769,7 @@ function appendPermissionActionBlock(
       ...(permission.rememberable === false ? { rememberable: false } : {})
     }
   })
-  state.dirty = true
+  markStreamChanged(state)
   return {
     type: 'permission',
     origin,
@@ -1826,7 +1827,7 @@ function appendQuestionActionBlock(
       ...extra
     }
   })
-  state.dirty = true
+  markStreamChanged(state)
   return {
     type: 'question',
     origin,
@@ -1892,8 +1893,8 @@ function appendSkillDraftQuestionActionBlock(
   )
 }
 
-function flushBlocksToRenderer(io: IoParams, blocks: AssistantMessageBlock[]): void {
-  const renderedBlocks = cloneBlocksForRenderer(blocks)
+function flushBlocksToRenderer(io: IoParams, state: StreamState): void {
+  const renderedBlocks = cloneBlocksForRenderer(state.blocks)
   io.publishEvent('chat.stream.updated', {
     kind: 'snapshot',
     requestId: io.requestId,
@@ -1902,6 +1903,7 @@ function flushBlocksToRenderer(io: IoParams, blocks: AssistantMessageBlock[]): v
     providerId: io.providerId,
     modelId: io.modelId,
     updatedAt: Date.now(),
+    revision: state.blocksRevision,
     blocks: renderedBlocks
   })
 
@@ -1910,10 +1912,10 @@ function flushBlocksToRenderer(io: IoParams, blocks: AssistantMessageBlock[]): v
     kind: 'blocks',
     updatedAt: Date.now(),
     messageId: io.messageId,
-    previewMarkdown: buildAssistantPreviewMarkdown(blocks),
-    responseMarkdown: buildAssistantResponseMarkdown(blocks),
-    deliverySegments: buildAssistantDeliverySegments(io.messageId, blocks),
-    waitingInteraction: extractWaitingInteraction(blocks, io.messageId)
+    previewMarkdown: buildAssistantPreviewMarkdown(state.blocks),
+    responseMarkdown: buildAssistantResponseMarkdown(state.blocks),
+    deliverySegments: buildAssistantDeliverySegments(io.messageId, state.blocks),
+    waitingInteraction: extractWaitingInteraction(state.blocks, io.messageId)
   })
 }
 
@@ -2128,7 +2130,7 @@ async function runToolCall(params: {
         }
         state.latestAgentPlanSnapshot = snapshot
         publishPlanUpdated(io, snapshot)
-        state.dirty = true
+        markStreamChanged(state)
         scheduleRendererFlush(state, rendererFlushHandle)
         return
       }
@@ -2147,7 +2149,7 @@ async function runToolCall(params: {
         update.responseMarkdown,
         update.progressJson
       )
-      state.dirty = true
+      markStreamChanged(state)
       scheduleRendererFlush(state, rendererFlushHandle)
     }
 
@@ -3205,7 +3207,7 @@ export async function settleToolBatch(
             content: errorText
           })
           updateToolCallBlock(batchToolCallBlocks, tc.id, errorText, true)
-          state.dirty = true
+          markStreamChanged(state)
           batchState.committedResultCallIds.add(tc.id)
           executed += 1
           persistToolExecutionState(io, state, rendererFlushHandle)
@@ -3536,7 +3538,7 @@ export function finalizePaused(state: StreamState, io: IoParams): void {
   stampGenerationTiming(state)
 
   io.messageStore.updateAssistantContent(io.messageId, state.blocks, JSON.stringify(state.metadata))
-  flushBlocksToRenderer(io, state.blocks)
+  flushBlocksToRenderer(io, state)
   io.publishEvent('chat.stream.completed', {
     requestId: io.requestId,
     sessionId: io.sessionId,
@@ -3549,6 +3551,7 @@ export function finalize(state: StreamState, io: IoParams): void {
   for (const block of state.blocks) {
     if (block.status === 'pending') block.status = 'success'
   }
+  markStreamChanged(state)
   stampPlanTerminalIfOpen(state, io, state.planTerminalReason)
 
   stampGenerationTiming(state)
@@ -3558,7 +3561,7 @@ export function finalize(state: StreamState, io: IoParams): void {
     state.blocks,
     JSON.stringify(state.metadata)
   )
-  flushBlocksToRenderer(io, state.blocks)
+  flushBlocksToRenderer(io, state)
   io.publishEvent('chat.stream.completed', {
     requestId: io.requestId,
     sessionId: io.sessionId,
@@ -3570,6 +3573,7 @@ export function finalize(state: StreamState, io: IoParams): void {
 export function finalizeError(state: StreamState, io: IoParams, error: unknown): void {
   const errorMessage = error instanceof Error ? error.message : String(error)
   state.blocks = buildTerminalErrorBlocks(state.blocks, errorMessage)
+  markStreamChanged(state)
   stampPlanTerminalIfOpen(
     state,
     io,
@@ -3579,7 +3583,7 @@ export function finalizeError(state: StreamState, io: IoParams, error: unknown):
   stampGenerationTiming(state)
 
   io.messageStore.setMessageError(io.messageId, state.blocks, JSON.stringify(state.metadata))
-  flushBlocksToRenderer(io, state.blocks)
+  flushBlocksToRenderer(io, state)
   io.publishEvent('chat.stream.failed', {
     requestId: io.requestId,
     sessionId: io.sessionId,
@@ -3598,5 +3602,5 @@ export function persistAbortExceptionPlanState(state: StreamState, io: IoParams)
   }
 
   io.messageStore.updateAssistantContent(io.messageId, state.blocks)
-  flushBlocksToRenderer(io, state.blocks)
+  flushBlocksToRenderer(io, state)
 }

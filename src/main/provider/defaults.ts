@@ -32,6 +32,21 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
     }
   },
   {
+    id: 'cheaper-inference',
+    name: 'Cheaper Inference',
+    apiType: 'openai-completions',
+    apiKey: '',
+    baseUrl: 'https://api.cheaperinference.com/v1',
+    enable: false,
+    websites: {
+      official: 'https://www.cheaperinference.com/',
+      apiKey: 'https://www.cheaperinference.com/dashboard/keys',
+      docs: 'https://www.cheaperinference.com/docs',
+      models: 'https://www.cheaperinference.com/markets',
+      defaultBaseUrl: 'https://api.cheaperinference.com/v1'
+    }
+  },
+  {
     id: 'api-route',
     name: 'API Route',
     apiType: 'openai-completions',

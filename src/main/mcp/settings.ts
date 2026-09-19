@@ -281,6 +281,31 @@ const DEFAULT_MCP_SERVERS = {
       customHeaders: {
         Authorization: 'Bearer YOUR_MCP_TOKEN'
       }
+    },
+    'youcom-search': {
+      command: '',
+      args: [],
+      env: {},
+      descriptions:
+        'You.com web search MCP (keyless free profile, no API key required). For the full authenticated tools, replace the URL with https://api.you.com/mcp and set an Authorization: Bearer header with a key from https://you.com/platform/api-keys.',
+      icons: '🌐',
+      disable: false,
+      type: 'http' as MCPServerType,
+      baseUrl: 'https://api.you.com/mcp?profile=free'
+    },
+    'serply-search': {
+      command: '',
+      args: [],
+      env: {},
+      descriptions:
+        'Serply web search MCP (Google, Bing, News, Scholar, Jobs, Maps, Videos, Amazon Shopping, and page scraping). Requires an API key from https://serply.io, set in the X-Api-Key header. Tool reference: https://serply.io/docs.',
+      icons: '🔍',
+      disable: false,
+      type: 'http' as MCPServerType,
+      baseUrl: 'https://api.serply.io/mcp',
+      customHeaders: {
+        'X-Api-Key': 'YOUR_SERPLY_API_KEY'
+      }
     }
   } satisfies Record<string, Omit<MCPServerConfig, 'enabled'>>,
   mcpEnabled: false // MCP functionality is disabled by default

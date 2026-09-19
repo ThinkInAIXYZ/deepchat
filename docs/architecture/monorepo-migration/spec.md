@@ -3,7 +3,8 @@
 ## Status
 
 Normative RFC for repository structure. Revised 2026-09-18 on branch
-`architecture/standalone-agent-harness`, baseline `e002d4261`. Implementation has not started.
+`architecture/standalone-agent-harness`, design baseline `e002d4261`. Implementation is in progress;
+current execution evidence and remaining gates are recorded in [plan.md](./plan.md).
 
 The [standalone spec](../standalone-agent-harness/spec.md) stays normative for runtime ownership,
 security, capabilities, and compatibility, and its [plan](../standalone-agent-harness/plan.md) stays

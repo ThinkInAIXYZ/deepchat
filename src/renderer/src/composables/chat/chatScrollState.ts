@@ -14,6 +14,7 @@ export type ChatScrollReason =
   | 'history-navigation'
   | 'search-navigation'
   | 'spotlight-navigation'
+  | 'indicator-navigation'
   | 'user-return-to-bottom'
 
 export type ChatScrollTarget =
@@ -147,6 +148,7 @@ export function getChatScrollRequestPriority(reason: ChatScrollReason): number {
     case 'history-navigation':
     case 'search-navigation':
     case 'spotlight-navigation':
+    case 'indicator-navigation':
       return 100
     case 'submit':
       return 90
@@ -169,6 +171,7 @@ export function canAcceptChatScrollRequest(
     case 'history-navigation':
     case 'search-navigation':
     case 'spotlight-navigation':
+    case 'indicator-navigation':
     case 'user-return-to-bottom':
     case 'submit':
       return true

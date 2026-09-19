@@ -473,6 +473,31 @@ describe('accumulate', () => {
     expect(state.dirty).toBe(false)
   })
 
+  it('bumps blocksRevision exactly when block content changes', () => {
+    expect(state.blocksRevision).toBe(0)
+
+    accumulate(state, { type: 'text', content: 'first' })
+    expect(state.blocksRevision).toBe(1)
+
+    accumulate(state, { type: 'text', content: ' second' })
+    expect(state.blocksRevision).toBe(2)
+
+    state.dirty = false
+    accumulate(state, {
+      type: 'usage',
+      usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 }
+    })
+    accumulate(state, { type: 'stop', stop_reason: 'tool_use' })
+    expect(state.blocksRevision).toBe(2)
+
+    accumulate(state, {
+      type: 'tool_call_start',
+      tool_call_id: 'tc1',
+      tool_call_name: 'search'
+    })
+    expect(state.blocksRevision).toBe(3)
+  })
+
   it('sets firstTokenTime once on first text event', () => {
     expect(state.firstTokenTime).toBeNull()
 

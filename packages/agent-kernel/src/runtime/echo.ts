@@ -23,6 +23,7 @@ export function startEcho(state: StreamState, io: IoParams): EchoHandle {
       providerId: io.providerId,
       modelId: io.modelId,
       updatedAt: Date.now(),
+      revision: state.blocksRevision,
       blocks: renderedBlocks
     })
   }

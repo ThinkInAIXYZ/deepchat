@@ -649,6 +649,31 @@ describe('processStream', () => {
     ])
   })
 
+  it('advances the stream revision when an attempt change closes the previous narrative', async () => {
+    let identity = { logicalRound: 1, requestSeq: 2, physicalAttempt: 1 }
+    const coreStream = vi.fn(async function* () {
+      yield { type: 'text', content: 'Partial first attempt' } as LLMCoreStreamEvent
+      identity = { logicalRound: 1, requestSeq: 2, physicalAttempt: 2 }
+      // No further content: the narrative close is the only mutation on this event.
+      yield { type: 'stop', stop_reason: 'complete' } as LLMCoreStreamEvent
+    }) as unknown as ProcessParams['coreStream']
+    const params = createParams({
+      coreStream,
+      providerAttemptIdentity: () => identity
+    })
+
+    await expect(processStream(params)).resolves.toMatchObject({ status: 'completed' })
+
+    const state = params.run.streamState
+    expect(state.blocks).toEqual([
+      expect.objectContaining({ type: 'content', status: 'success' })
+    ])
+    // text accumulate bumps once, the narrative close must bump again, and the
+    // terminal finalize adds its own mark — a close that does not advance the
+    // revision leaves a deferred flush deduped by the renderer.
+    expect(state.blocksRevision).toBe(3)
+  })
+
   it('persists normalized provider search results with the assistant message', async () => {
     const providerReplayJson = createDeepSeekReplayJson()
     const resultRow = {

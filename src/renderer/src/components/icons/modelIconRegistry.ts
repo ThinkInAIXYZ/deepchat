@@ -87,6 +87,7 @@ import novitaAiIcon from '@/assets/llm-icons/novitaai.svg?url'
 import astraflowIcon from '@/assets/llm-icons/astraflow.png?url'
 import apimartIcon from '@/assets/llm-icons/apimart.ico?url'
 import apiRouteIcon from '@/assets/llm-icons/api-route.svg?url'
+import cheaperInferenceIcon from '@/assets/llm-icons/cheaper-inference.svg?url'
 
 export const modelIcons = {
   'kimi-for-coding': kimiColorIcon,
@@ -109,6 +110,7 @@ export const modelIcons = {
   aihubmix: aihubmixColorIcon,
   'api-route': apiRouteIcon,
   apimart: apimartIcon,
+  'cheaper-inference': cheaperInferenceIcon,
   dashscope: dashscopeColorIcon,
   hunyuan: hunyuanColorIcon,
   grok: grokColorIcon,

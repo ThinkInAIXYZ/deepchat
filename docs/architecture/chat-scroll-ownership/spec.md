@@ -136,10 +136,17 @@ type ChatScrollReason =
   | 'submit'
   | 'history-prepend'
   | 'measurement-anchor'
+  | 'history-navigation'
   | 'search-navigation'
   | 'spotlight-navigation'
+  | 'indicator-navigation'
   | 'user-return-to-bottom'
 ```
+
+`indicator-navigation` is the "scroll to latest" indicator jumping to a specific message below the
+viewport. Like search and Spotlight navigation it is an explicit user navigation: it starts
+`navigating`, preserves the user's ownership across the jump, and records
+`hasExplicitNavigation`.
 
 Every request carries the active session epoch. Stale requests from an old session are discarded.
 The controller commits at most one physical scroll write per animation frame.
@@ -190,6 +197,10 @@ type ChatScrollState = {
   nearBottom: boolean
   activeGesture: boolean
   lastCommittedRequestId: number
+  /** Whether ownership must be restored to the user when an explicit navigation completes. */
+  resumeUserOwnedAfterNavigation: boolean
+  /** True once the user explicitly navigated (search, Spotlight, indicator) in this session. */
+  hasExplicitNavigation: boolean
 }
 ```
 

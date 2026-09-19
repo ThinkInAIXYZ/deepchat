@@ -22,19 +22,52 @@ function jsonResponse(value: unknown, init?: ResponseInit): Response {
 describe('xAI Grok OAuth', () => {
   let tempDir: string
   let files: Map<string, string>
+  let fdPaths: Map<number, string>
 
   beforeEach(() => {
     files = new Map()
+    fdPaths = new Map()
+    let nextFd = 1
     tempDir = `/tmp/deepchat-xai-grok-auth-${Date.now()}`
     vi.mocked(fs.existsSync).mockImplementation((file) => files.has(String(file)))
     vi.mocked(fs.mkdirSync).mockImplementation(() => undefined)
-    vi.mocked(fs.writeFileSync).mockImplementation((file, data) => {
-      files.set(String(file), String(data))
+    vi.mocked(fs.openSync).mockImplementation((file) => {
+      const fd = nextFd++
+      fdPaths.set(fd, String(file))
+      return fd
     })
-    vi.mocked(fs.readFileSync).mockImplementation((file) => files.get(String(file)) || '')
+    vi.mocked(fs.closeSync).mockImplementation(() => {})
+    vi.mocked(fs.fsyncSync).mockImplementation(() => {})
+    vi.mocked(fs.writeFileSync).mockImplementation((file, data) => {
+      const target = typeof file === 'number' ? fdPaths.get(file) : String(file)
+      if (target !== undefined) {
+        files.set(target, String(data))
+      }
+    })
+    vi.mocked(fs.readFileSync).mockImplementation((file) => {
+      const content = files.get(String(file))
+      if (content === undefined) {
+        throw Object.assign(new Error('ENOENT: no such file or directory'), { code: 'ENOENT' })
+      }
+      return content
+    })
+    vi.mocked(fs.renameSync).mockImplementation((from, to) => {
+      const content = files.get(String(from))
+      if (content !== undefined) {
+        files.delete(String(from))
+        files.set(String(to), content)
+      }
+    })
+    vi.mocked(fs.copyFileSync).mockImplementation((from, to) => {
+      const content = files.get(String(from))
+      if (content !== undefined) {
+        files.set(String(to), content)
+      }
+    })
     vi.mocked(fs.rmSync).mockImplementation((file) => {
       files.delete(String(file))
     })
+    vi.mocked(fs.readdirSync).mockImplementation(() => [])
     vi.mocked(shell.openExternal).mockClear()
     delete process.env.DEEPCHAT_XAI_GROK_OAUTH_DISABLED
     delete process.env.XAI_GROK_ACCESS_TOKEN
@@ -123,10 +156,11 @@ describe('xAI Grok OAuth', () => {
       recursive: true,
       mode: 0o700
     })
-    expect(fs.writeFileSync).toHaveBeenCalledWith(credentialPath, expect.any(String), {
-      encoding: 'utf-8',
-      mode: 0o600
-    })
+    const temporaryPath = String(vi.mocked(fs.openSync).mock.calls[0][0])
+    expect(temporaryPath).toMatch(/credentials\.json\.tmp-/)
+    expect(fs.openSync).toHaveBeenCalledWith(temporaryPath, 'w', 0o600)
+    expect(fs.fsyncSync).toHaveBeenCalled()
+    expect(fs.renameSync).toHaveBeenCalledWith(temporaryPath, credentialPath)
 
     const loaded = store.load()
     expect(loaded?.accessToken).toBe('access-token')
@@ -269,5 +303,45 @@ describe('xAI Grok OAuth', () => {
       state: 'disabled',
       authenticated: false
     })
+  })
+
+  it('prefers the credential-store load error over a stale login error', async () => {
+    const credentialPath = path.join(tempDir, 'credentials.json')
+    const store = new XaiGrokCredentialStore(credentialPath)
+    store.save({
+      accessToken: 'access-old',
+      refreshToken: 'refresh-1',
+      tokenType: 'Bearer',
+      expiresAt: Date.now() + 1000,
+      tokenEndpoint: 'https://auth.x.ai/oauth2/token',
+      updatedAt: Date.now()
+    })
+    const auth = new XaiGrokAuth(store, vi.fn())
+    vi.stubGlobal(
+      'fetch',
+      vi.fn<typeof fetch>(async () => {
+        throw new Error('network down')
+      })
+    )
+
+    await expect(auth.ensureAccessToken()).rejects.toThrow('network down')
+
+    files.set(credentialPath, '{broken')
+    const status = auth.getStatus()
+
+    expect(status.state).toBe('error')
+    expect(status.error).toContain('not valid JSON')
+  })
+
+  it('rejects access token requests with the credential-store load error', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const credentialPath = path.join(tempDir, 'credentials.json')
+    const store = new XaiGrokCredentialStore(credentialPath)
+    const auth = new XaiGrokAuth(store, vi.fn())
+
+    files.set(credentialPath, '{broken')
+
+    await expect(auth.getAccessToken()).rejects.toThrow(/not valid JSON/)
+    await expect(auth.forceRefreshAccessToken()).rejects.toThrow(/not valid JSON/)
   })
 })

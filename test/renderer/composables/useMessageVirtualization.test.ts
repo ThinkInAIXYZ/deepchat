@@ -117,6 +117,74 @@ describe('useMessageVirtualization', () => {
     expect(virtualization.visibleDisplayMessages.value).toHaveLength(90)
   })
 
+  it('counts the loaded messages that reach below the viewport', () => {
+    const messages = ref<MessageListItem[]>(
+      Array.from({ length: 200 }, (_, index) => createUserMessage(`message-${index}`, index))
+    )
+    const { messageWindow, virtualization } = createVirtualization(messages)
+
+    const entries = messageWindow.entries.value
+    expect(entries).toHaveLength(200)
+
+    // Without viewport geometry nothing can be claimed to be below.
+    expect(virtualization.messagesBelowViewport.value).toEqual([])
+
+    // Park the viewport so its bottom edge sits one pixel above entry 150's top. Entry 149 is then
+    // cut off by the fold, so it counts: the list starts there, oldest first.
+    virtualization.scrollViewportHeight.value = 400
+    virtualization.scrollViewportTop.value = entries[150].top - 401
+    expect(virtualization.messagesBelowViewport.value).toHaveLength(51)
+    expect(virtualization.messagesBelowViewport.value[0]?.id).toBe('message-149')
+    expect(virtualization.messagesBelowViewport.value.at(-1)?.id).toBe('message-199')
+
+    // One pixel lower, entry 149 ends exactly at the fold: fully visible, so it is excluded.
+    virtualization.scrollViewportTop.value = entries[150].top - 400
+    expect(virtualization.messagesBelowViewport.value).toHaveLength(50)
+    expect(virtualization.messagesBelowViewport.value[0]?.id).toBe('message-150')
+
+    // At the bottom nothing reaches below the viewport.
+    virtualization.scrollViewportTop.value = messageWindow.totalHeight.value
+    expect(virtualization.messagesBelowViewport.value).toEqual([])
+  })
+
+  it('includes a partially visible message that reaches below the viewport', () => {
+    // A long answer fills the bottom of the viewport: the user has scrolled up, so its beginning is
+    // visible while its end is not. Reporting nothing here is what makes the indicator appear with
+    // an empty list, and it is the common case while a reply is streaming.
+    const messages = ref<MessageListItem[]>([
+      createUserMessage('message-0', 0),
+      createUserMessage('message-1', 1),
+      {
+        ...createUserMessage('message-2', 2),
+        content: { files: [], links: [], think: false, search: false, text: 'x'.repeat(100_000) }
+      }
+    ])
+    const { messageWindow, virtualization } = createVirtualization(messages)
+    const entries = messageWindow.entries.value
+    const tall = entries[2]
+
+    virtualization.scrollViewportHeight.value = 500
+    virtualization.scrollViewportTop.value = tall.top + 100
+
+    expect(virtualization.messagesBelowViewport.value.map((message) => message.id)).toEqual([
+      'message-2'
+    ])
+  })
+
+  it('counts below-viewport messages while windowing keeps rows unmounted', () => {
+    const messages = ref<MessageListItem[]>(
+      Array.from({ length: 200 }, (_, index) => createUserMessage(`message-${index}`, index))
+    )
+    const { messageWindow, virtualization } = createVirtualization(messages)
+
+    // Windowing is active (200 > 160) and only 90 rows are mounted, but the count still reflects
+    // the whole loaded history because it comes from the logical layout map.
+    expect(virtualization.visibleDisplayMessages.value).toHaveLength(90)
+    virtualization.scrollViewportHeight.value = 400
+    virtualization.scrollViewportTop.value = 0
+    expect(virtualization.messagesBelowViewport.value.length).toBeGreaterThan(90)
+  })
+
   it('updates a streaming row in the window without expanding the mounted history', () => {
     const history = Array.from({ length: 200 }, (_, index) =>
       createUserMessage(`message-${index}`, index)

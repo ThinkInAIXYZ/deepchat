@@ -37,16 +37,18 @@ vi.mock('electron', () => {
       handle: vi.fn(),
       removeHandler: vi.fn()
     },
-    BrowserWindow: vi.fn(() => ({
-      loadURL: vi.fn(),
-      loadFile: vi.fn(),
-      on: vi.fn(),
-      webContents: { send: vi.fn(), on: vi.fn(), isDestroyed: vi.fn(() => false) },
-      isDestroyed: vi.fn(() => false),
-      close: vi.fn(),
-      show: vi.fn(),
-      hide: vi.fn()
-    })),
+    BrowserWindow: vi.fn(function BrowserWindow() {
+      return {
+        loadURL: vi.fn(),
+        loadFile: vi.fn(),
+        on: vi.fn(),
+        webContents: { send: vi.fn(), on: vi.fn(), isDestroyed: vi.fn(() => false) },
+        isDestroyed: vi.fn(() => false),
+        close: vi.fn(),
+        show: vi.fn(),
+        hide: vi.fn()
+      }
+    }),
     dialog: {
       showOpenDialog: vi.fn()
     },
@@ -217,6 +219,74 @@ describe('ProviderRuntime Integration Tests', () => {
   afterEach(async () => {
     await providerRuntime.shutdown()
     vi.unstubAllGlobals()
+  })
+
+  describe('Draft credential validation', () => {
+    it.each([
+      ['alibaba-token-plan-cn', 'openai-completions', 'deepseek-v4-flash'],
+      ['anthropic', 'anthropic', 'claude-sonnet-4-5-20250929']
+    ])(
+      'validates %s without background catalog writes or replacing the live instance',
+      async (id, apiType, modelId) => {
+        const saved = { ...mockProvider, id, apiType, enable: false, apiKey: 'saved-key' }
+        mockProviderSettings.getProviders = vi.fn().mockReturnValue([saved])
+        mockProviderSettings.getProviderById = vi.fn().mockReturnValue(saved)
+        await providerRuntime.shutdown()
+        providerRuntime = createProviderRuntime(mockProviderSettings)
+        const liveInstance = providerRuntime.getProviderInstance(id)
+        const draft = { ...saved, enable: true, apiKey: 'replacement-key' }
+
+        await expect(providerRuntime.validateDraft(draft, { loadModels: false })).resolves.toEqual({
+          isOk: true,
+          errorMsg: null,
+          models: []
+        })
+
+        expect(mockRunAiSdkGenerateText).toHaveBeenCalledTimes(1)
+        expect(mockRunAiSdkGenerateText).toHaveBeenCalledWith(
+          expect.objectContaining({
+            provider: expect.objectContaining({ id, apiKey: 'replacement-key', enable: false })
+          }),
+          expect.any(Array),
+          modelId,
+          expect.any(Object),
+          expect.any(Number),
+          expect.any(Number)
+        )
+        expect(global.fetch).not.toHaveBeenCalled()
+        expect(mockProviderSettings.setProviderModels).not.toHaveBeenCalled()
+        expect(mockProviderSettings.enableModel).not.toHaveBeenCalled()
+        expect(providerRuntime.getExistingProviderInstance(id)).toBe(liveInstance)
+        expect(providerRuntime.getProviderById(id)).toEqual(saved)
+        expect(draft).toMatchObject({ enable: true, apiKey: 'replacement-key' })
+      }
+    )
+
+    it('returns the upstream credential error without saving the rejected draft', async () => {
+      mockRunAiSdkGenerateText.mockRejectedValueOnce(new Error('Invalid API-key provided'))
+
+      await expect(
+        providerRuntime.validateDraft(
+          {
+            ...mockProvider,
+            id: 'alibaba-token-plan-cn',
+            apiType: 'openai-completions',
+            apiKey: 'rejected-key'
+          },
+          { loadModels: false }
+        )
+      ).resolves.toEqual({
+        isOk: false,
+        errorMsg: 'Invalid API-key provided',
+        models: []
+      })
+      expect(mockRunAiSdkGenerateText).toHaveBeenCalledTimes(1)
+      expect(global.fetch).not.toHaveBeenCalled()
+      expect(mockProviderSettings.setProviderModels).not.toHaveBeenCalled()
+      expect(mockProviderSettings.enableModel).not.toHaveBeenCalled()
+      expect(providerRuntime.getProviders()).toEqual([mockProvider])
+      expect(providerRuntime.getExistingProviderInstance('alibaba-token-plan-cn')).toBeUndefined()
+    })
   })
 
   describe('Basic Provider Management', () => {

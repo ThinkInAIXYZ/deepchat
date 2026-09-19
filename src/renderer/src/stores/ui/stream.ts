@@ -13,6 +13,7 @@ export const useStreamStateStore = defineStore('streamState', () => {
   const currentStreamUpdatedAt = ref(0)
   const currentStreamMetadata = ref<{ providerId?: string; modelId?: string } | null>(null)
   const streamRevision = ref(0)
+  const currentStreamBlocksRevision = ref(0)
 
   function setStream(
     sessionId: string,
@@ -20,7 +21,8 @@ export const useStreamStateStore = defineStore('streamState', () => {
     messageId?: string,
     metadata?: { providerId?: string; modelId?: string },
     requestId?: string,
-    updatedAt?: number
+    updatedAt?: number,
+    blocksRevision?: number
   ): void {
     isStreaming.value = true
     currentStreamSessionId.value = sessionId
@@ -28,6 +30,7 @@ export const useStreamStateStore = defineStore('streamState', () => {
     currentStreamMessageId.value = messageId ?? null
     currentStreamUpdatedAt.value = updatedAt ?? 0
     currentStreamMetadata.value = metadata ?? null
+    currentStreamBlocksRevision.value = blocksRevision ?? 0
     streamingBlocks.value = blocks
     streamRevision.value += 1
   }
@@ -40,6 +43,7 @@ export const useStreamStateStore = defineStore('streamState', () => {
     currentStreamMessageId.value = null
     currentStreamUpdatedAt.value = 0
     currentStreamMetadata.value = null
+    currentStreamBlocksRevision.value = 0
     streamRevision.value += 1
   }
 
@@ -51,6 +55,7 @@ export const useStreamStateStore = defineStore('streamState', () => {
     currentStreamMessageId,
     currentStreamUpdatedAt,
     currentStreamMetadata,
+    currentStreamBlocksRevision,
     streamRevision,
     setStream,
     clearStreamingState

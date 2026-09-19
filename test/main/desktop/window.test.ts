@@ -203,7 +203,9 @@ describe('WindowPresenter', () => {
       hide: vi.fn(),
       restore: vi.fn()
     }
-    vi.mocked(BrowserWindow).mockImplementationOnce(() => appWindow as any)
+    vi.mocked(BrowserWindow).mockImplementationOnce(function () {
+      return appWindow as any
+    })
     ;(BrowserWindow as any).fromId = vi.fn(() => appWindow)
 
     const { WindowPresenter } = await import('@/desktop/window')
@@ -294,8 +296,12 @@ describe('WindowPresenter', () => {
       [secondWindow.id, secondWindow]
     ])
     vi.mocked(BrowserWindow)
-      .mockImplementationOnce(() => firstWindow as any)
-      .mockImplementationOnce(() => secondWindow as any)
+      .mockImplementationOnce(function () {
+        return firstWindow as any
+      })
+      .mockImplementationOnce(function () {
+        return secondWindow as any
+      })
     ;(BrowserWindow as any).fromId = vi.fn((id: number) => windowsById.get(id) ?? null)
 
     const { WindowPresenter } = await import('@/desktop/window')

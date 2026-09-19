@@ -36,7 +36,7 @@ describe('BuiltinKnowledgeServer', () => {
       Server as unknown as {
         mockImplementation: (factory: () => unknown) => void
       }
-    ).mockImplementation(() => {
+    ).mockImplementation(function Server() {
       const instance = {
         handlers: new Map<string, Function>(),
         connect: vi.fn(),

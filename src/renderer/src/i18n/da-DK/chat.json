@@ -122,6 +122,8 @@
   },
   "messages": {
     "loadEarlier": "Indlæs tidligere beskeder",
+    "scrollToLatest": "Gå til nyeste",
+    "minimap": "Beskedkort",
     "rateLimitEstimated": "Forventet ventetid",
     "rateLimitImmediately": "med det samme",
     "rateLimitMinutes": "minut",

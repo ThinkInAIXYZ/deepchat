@@ -14,6 +14,7 @@ import type {
   PendingToolInteraction,
   StreamState
 } from './types.js'
+import { markStreamChanged } from './types.js'
 import type { LoopRun } from '../loop/loopRun.js'
 import type { RunLifecycleCoordinator } from './runLifecycleCoordinator.js'
 import type { MessageProjectionService } from './messageProjectionService.js'
@@ -209,7 +210,7 @@ export class ProviderPermissionCoordinator {
     const streamState = ownerRun.streamState as StreamState
     if (Array.isArray(streamState.blocks)) {
       if (applyProviderPermissionProjection(streamState.blocks, input, projection)) {
-        streamState.dirty = true
+        markStreamChanged(streamState)
       }
     }
   }

@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { onMounted, onScopeDispose, shallowRef } from 'vue'
+import { onScopeDispose, shallowRef } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import { createConfigClient } from '@api/ConfigClient'
@@ -88,9 +88,9 @@ export const useLanguageStore = defineStore('language', () => {
     await applyLanguageState(languageState, revision)
   }
 
-  onMounted(async () => {
-    await initLanguage()
-  })
+  // Initialize at store setup top level (not in a component lifecycle hook);
+  // languageInitialization dedupes concurrent calls.
+  void initLanguage()
 
   onScopeDispose(() => {
     removeLanguageListener?.()

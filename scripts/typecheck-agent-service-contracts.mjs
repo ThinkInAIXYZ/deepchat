@@ -77,7 +77,7 @@ if (configFile.error) {
     noEmit: true,
     noUnusedLocals: false,
     noUnusedParameters: false,
-    types: ['electron-vite/node', 'vitest/globals']
+    types: ['node', 'electron-vite/node', 'vitest/globals']
   })
   const program = ts.createProgram({ rootNames, options: parsed.options })
   // Config-level and file-less program diagnostics are kept as well: dropping them is the same root

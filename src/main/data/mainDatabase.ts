@@ -5,6 +5,7 @@ import type { DatabaseRepairReport, DatabaseSchemaDiagnosis } from '@shared/type
 import { DatabaseRepairService, SchemaInspector } from '@/data/schemaRepair'
 import type { SchemaTableSpec } from '@/data/schemaTypes'
 import { openSQLiteDatabase } from '@/data/databaseConnection'
+import { withBackupReadLock, type BackupReadLockOutcome } from '@/data/backupReadLock'
 import { createMainSchemaCatalog, type MainSchemaCatalog } from '@/data/schemaCatalog'
 export { openSQLiteDatabase } from '@/data/databaseConnection'
 export { isDestructiveDatabaseError } from '@/data/databaseStartupRecovery'
@@ -166,6 +167,10 @@ export class MainDatabase {
 
   public openDatabaseConnection(dbPath = this.dbPath): Database.Database {
     return openSQLiteDatabase(dbPath, this.password)
+  }
+
+  public async withBackupReadLock<T>(work: () => Promise<T>): Promise<BackupReadLockOutcome<T>> {
+    return withBackupReadLock(this.db, () => this.openDatabaseConnection(), work)
   }
 
   public getDatabasePath(): string {
