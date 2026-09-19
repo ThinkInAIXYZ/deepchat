@@ -161,15 +161,23 @@ Recorded as review snapshots, not acceptance criteria. Recompute after upstream 
 | --- | --- |
 | Kernel source-vs-artifact contract | Development and typecheck consume package source through config-relative mappings; artifact consumption is proven separately by the package gate. Fix the broken `tsconfig.node.json` mapping rather than adding a build-before-typecheck bootstrap. |
 | Milestone order | Debt cleanup precedes relocation: remove shims and extract shared while the tree is still at the root, then relocate a smaller Desktop once. A disposable child-package build spike runs first so the relocation risk is still discovered early. |
-| `ollama` dependency | Stays an install-time dependency of whichever package's emitted declarations reference `ShowResponse`, currently through `packages/agent-kernel/src/shared/types/provider.ts`. It moves to `shared` with those declarations and is not demoted to a dev dependency. |
+| `ollama` dependency | Stays an install-time dependency of whichever package's emitted declarations reference `ShowResponse`. Accepted M2 assigns those declarations to `packages/shared/src/types/provider.ts`; `ollama` is a shared runtime dependency, not a dev dependency. |
 | Desktop package name | Stays `DeepChat`. |
 | Schema ownership | The composition owner assembles the full schema and migration catalog. `src/main/data/schemaCatalog.ts` imports session, agent, project, tape, memory, app, settings, provider, MCP, scheduler, and orchestration tables, so no single domain package can own the database lifecycle. |
 | Packaging classification | `scripts/ci/classify-package-impact.mjs` keeps returning platform packaging decisions only. Relocation does not introduce an affected-test scheduler. |
 
-Open questions, each resolved at the milestone that needs it: the exact Desktop output root and
-native-resolution behavior under a child package; the final shared export inventory; whether a small
-lower-level persistence package is justified; headless credential and OAuth support per OS and
-profile class; and independent CLI distribution.
+Resolved during implementation: Desktop owns `out/{main,preload,renderer,cli}` and Builder `dist`;
+native resolution starts from the owning importer rather than scanning an unrelated root store.
+Accepted M2 promotes 127 exact shared subpaths: the 69-file kernel closure plus 58 CLI/event contract
+transitives. The manifest is the export inventory and source-alias authority. All promoted modules
+are browser-safe; direct third-party edges are `zod` schemas, `tokenx` token estimation, and type-only
+`ollama.ShowResponse`. Shared `chat` contains only `MessageFile`; the legacy host barrel type-reexports
+it. Host-only UI contracts remain Desktop-owned. M5c needs only an injected complete synchronous
+transaction capability; no generic persistence package is justified by the present consumers.
+
+Still open at the stage that needs them: supported-platform native runtime proof after final
+integration; headless credential and OAuth support per OS/profile class; and independent CLI
+distribution. These structural decisions do not waive the standalone host gates.
 
 ## 9. Acceptance criteria
 

@@ -1,5 +1,5 @@
 <p align='center'>
-<img src='./build/icon.png' width="150" height="150" alt="DeepChat AI アシスタントアイコン" />
+<img src='./packages/desktop/build/icon.png' width="150" height="150" alt="DeepChat AI アシスタントアイコン" />
 </p>
 
 <h1 align="center">DeepChat - オープンソースのローカルファーストAgentデスクトップクライアント</h1>

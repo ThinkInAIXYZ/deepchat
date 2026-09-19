@@ -2,7 +2,7 @@
 
 - Prefer the smallest correct change; add no abstraction or dependency without a real need.
 - Preserve unrelated worktree changes; avoid destructive Git unless explicitly requested.
-- Use pnpm only; require Node >=20.19 and pnpm >=10.11.
+- Use pnpm only; require Node >=24.18.0 <25 and pnpm >=10.34.5 <11.
 - Core code: `packages/desktop/src/{main,preload,renderer}`, `packages/shared`, and
   `packages/agent-kernel`; stack: Electron/Vue 3/TS.
 - CLI code lives in `packages/cli`; root `scripts/` and configuration remain repository tooling.
