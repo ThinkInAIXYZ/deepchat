@@ -10,7 +10,7 @@
   "packageManager": "pnpm@10.34.5+sha512.a4ee05f2f73658255bd6a89859c065a45c28a57daefae2c893a168ee2b73168c37b91e83e57ea67654ad03f03031746430e8bce38e362e042605fb8abc80192e",
   "scripts": {
     "test": "pnpm run test:mcp:artifact && pnpm --filter DeepChat exec vitest run --config ../../vitest.config.ts",
-    "test:main": "pnpm run test:mcp:artifact && pnpm --filter DeepChat exec vitest run --config ../../vitest.config.ts --project main --project kernel --project shared --project mcp",
+    "test:main": "pnpm run test:mcp:artifact && pnpm --filter DeepChat exec vitest run --config ../../vitest.config.ts --project main --project kernel --project shared --project mcp --project artifact",
     "test:memory:scope": "pnpm --filter DeepChat run test:memory:scope",
     "test:memory:type": "pnpm --filter DeepChat run test:memory:type",
     "test:memory": "pnpm --filter DeepChat run test:memory",
@@ -98,7 +98,7 @@
     "architecture:renderer-baseline:check": "node scripts/generate-renderer-architecture-baseline.mjs --check",
     "hooks:install": "git config core.hooksPath .githooks",
     "release:ff": "node scripts/release-fast-forward.mjs",
-    "test:artifact": "pnpm --filter @deepchat/agent-kernel run test",
+    "test:artifact": "pnpm --filter DeepChat exec vitest run --config ../../vitest.config.ts --project artifact",
     "build:shared": "pnpm --filter @deepchat/shared run build",
     "build:kernel": "pnpm --filter @deepchat/agent-kernel run build",
     "build:provider": "pnpm run build:shared && pnpm --filter @deepchat/provider run build",

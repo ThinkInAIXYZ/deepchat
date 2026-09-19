@@ -56,6 +56,7 @@ export default defineConfig({
     // This allows each test suite to use the correct alias resolution
     projects: [
       {
+        root: appRoot,
         plugins: [vuePlugin()],
         test: {
           name: 'renderer',
@@ -86,6 +87,7 @@ export default defineConfig({
         }
       },
       {
+        root: appRoot,
         plugins: [vuePlugin(), rootScriptResolverPlugin()],
         test: {
           name: 'main',

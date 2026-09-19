@@ -18,9 +18,10 @@ describe('test entrypoint contracts', () => {
   it('keeps complete test suites one-shot and watch mode explicit', () => {
     expect(packageJson.scripts).toMatchObject({
       test: 'pnpm run test:mcp:artifact && pnpm --filter DeepChat exec vitest run --config ../../vitest.config.ts',
-      'test:main': 'pnpm run test:mcp:artifact && pnpm --filter DeepChat exec vitest run --config ../../vitest.config.ts --project main --project kernel --project shared --project mcp',
+      'test:main': 'pnpm run test:mcp:artifact && pnpm --filter DeepChat exec vitest run --config ../../vitest.config.ts --project main --project kernel --project shared --project mcp --project artifact',
       'test:renderer': 'pnpm --filter DeepChat run test:renderer',
       'test:coverage': 'pnpm run test:mcp:artifact && pnpm --filter DeepChat exec vitest run --config ../../vitest.config.ts --coverage',
+      'test:artifact': 'pnpm --filter DeepChat exec vitest run --config ../../vitest.config.ts --project artifact',
       'test:watch': 'pnpm --filter DeepChat exec vitest --config ../../vitest.config.ts --watch',
       'test:ui': 'pnpm --filter DeepChat exec vitest --config ../../vitest.config.ts --ui'
     })
