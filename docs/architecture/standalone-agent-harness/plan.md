@@ -293,7 +293,8 @@ packaged-runtime, or clean-Node package claim is made here.
 - [x] Build a workspace-private package artifact with an alias-free public entry. Its package metadata,
   emitted declaration closure, and runtime dependency closure must be checked by a clean Node consumer;
   package naming remains an open decision until the artifact is implemented. Done in 2B-3a/2B-3b:
-  `packages/agent-kernel` builds via plain tsc (492 emitted files, forbidden-specifier scan) and the
+  `packages/agent-kernel` builds via plain tsc (492 emitted files at 2B-3a time; later milestones
+  slimmed the surface, the current build emits 348 files, forbidden-specifier scan) and the
   clean-Node gate checks metadata, declaration closure, and runtime closure (`859450a3a`,
   `483ae8efd`).
 - [x] Keep provider/tool execution ports real; do not extract types while leaving the loop in Desktop.
