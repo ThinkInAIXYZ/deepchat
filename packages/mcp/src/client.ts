@@ -1,6 +1,7 @@
 import { resolveMcpEnvironmentBinding } from './environmentBindings.js'
 import type { McpModelCatalog as ProviderSettingsPort } from './ports.js'
 import logger from '@deepchat/shared/logger'
+import { errorCategory } from './diagnostics.js'
 import {
   Client,
   InMemoryTransport,
@@ -733,7 +734,7 @@ export class McpClient {
       })
       const connectedClient = this.client
       connectedClient.onerror = (error) => {
-        console.warn(`[MCP] Protocol error from ${this.serverName}:`, error)
+        console.warn(`[MCP] Protocol error from ${this.serverName}:`, errorCategory(error))
       }
       connectedClient.onclose = () => {
         if (this.client !== connectedClient || !this.isConnected) {
@@ -816,7 +817,7 @@ export class McpClient {
           reasonCode: this.classifyProbeFailure(error)
         }
       }
-      console.error(`Failed to connect to MCP server ${this.serverName}:`, error)
+      console.error(`Failed to connect to MCP server ${this.serverName}:`, errorCategory(error))
 
       this.emitServerStatusChanged('failed', {
         phase,
@@ -842,7 +843,10 @@ export class McpClient {
       // Use internal disconnect method for normal disconnection
       await this.internalDisconnect(undefined, 'shutdown')
     } catch (error) {
-      console.error(`Failed to disconnect from MCP server ${this.serverName}:`, error)
+      console.error(
+        `Failed to disconnect from MCP server ${this.serverName}:`,
+        errorCategory(error)
+      )
       throw error
     }
   }
@@ -867,7 +871,7 @@ export class McpClient {
       try {
         await this.closeTransport(transport)
       } catch (error) {
-        console.error(`Failed to close MCP transport:`, error)
+        console.error('Failed to close MCP transport:', errorCategory(error))
       }
     }
 
@@ -886,7 +890,10 @@ export class McpClient {
       if (terminated && this.stdio === handle) this.stdio = undefined
       return terminated
     } catch (error) {
-      console.error(`Failed to terminate MCP stdio process tree for ${this.serverName}:`, error)
+      console.error(
+        `Failed to terminate MCP stdio process tree for ${this.serverName}:`,
+        errorCategory(error)
+      )
       return false
     }
   }
@@ -917,7 +924,7 @@ export class McpClient {
 
   private handleListChanged(kind: 'tools' | 'prompts' | 'resources', error: Error | null): void {
     if (error) {
-      console.warn(`[MCP] Failed to refresh ${kind} after list change:`, error)
+      console.warn(`[MCP] Failed to refresh ${kind} after list change:`, errorCategory(error))
       return
     }
     if (kind === 'tools') {
@@ -943,7 +950,10 @@ export class McpClient {
         void this.runtime.sampling
           .cancelSamplingRequest(payload.requestId, 'cancelled by server')
           .catch((error) => {
-            console.warn(`[MCP] Failed to cancel sampling request ${payload.requestId}:`, error)
+            console.warn(
+              `[MCP] Failed to cancel sampling request ${payload.requestId}:`,
+              errorCategory(error)
+            )
           })
       }
       signal.addEventListener('abort', abortListener, { once: true })
@@ -985,7 +995,10 @@ export class McpClient {
         signal?.throwIfAborted()
       } catch (error) {
         if (signal?.aborted || isAbortError(error)) throw error
-        console.error(`[MCP] Sampling request failed for server ${this.serverName}:`, error)
+        console.error(
+          `[MCP] Sampling request failed for server ${this.serverName}:`,
+          errorCategory(error)
+        )
         throw new ProtocolError(
           ProtocolErrorCode.InternalError,
           error instanceof Error ? error.message : 'Sampling request failed'
@@ -1089,7 +1102,10 @@ export class McpClient {
         void this.runtime.elicitation
           .cancelElicitationRequest(requestId, 'cancelled by server')
           .catch((error) => {
-            console.warn(`[MCP] Failed to cancel elicitation request ${requestId}:`, error)
+            console.warn(
+              `[MCP] Failed to cancel elicitation request ${requestId}:`,
+              errorCategory(error)
+            )
           })
       }
       signal.addEventListener('abort', abortListener, { once: true })
@@ -1486,7 +1502,7 @@ export class McpClient {
       if (options?.signal?.aborted || isAbortError(error)) {
         throw error
       }
-      console.error(`Failed to call MCP tool ${toolName}:`, error)
+      console.error(`Failed to call MCP tool ${toolName}:`, errorCategory(error))
       throw error
     }
   }
@@ -1546,7 +1562,7 @@ export class McpClient {
         console.warn(`Server ${this.serverName} does not support listTools`)
         return []
       }
-      console.error(`Failed to list MCP tools:`, error)
+      console.error('Failed to list MCP tools:', errorCategory(error))
       throw error
     }
   }
@@ -1616,7 +1632,7 @@ export class McpClient {
         console.info(`Server ${this.serverName} does not support listPrompts`)
         return []
       }
-      console.error(`Failed to list MCP prompts:`, error)
+      console.error('Failed to list MCP prompts:', errorCategory(error))
       throw error
     }
   }
@@ -1673,7 +1689,7 @@ export class McpClient {
       }
       throw new Error('Invalid get prompt response format')
     } catch (error) {
-      console.error(`Failed to get MCP prompt ${name}:`, error)
+      console.error(`Failed to get MCP prompt ${name}:`, errorCategory(error))
       throw error
     }
   }
@@ -1707,7 +1723,7 @@ export class McpClient {
         console.info(`Server ${this.serverName} does not support listResources`)
         return []
       }
-      console.error(`Failed to list MCP resources:`, error)
+      console.error('Failed to list MCP resources:', errorCategory(error))
       throw error
     }
   }
@@ -1788,7 +1804,10 @@ export class McpClient {
         ...('_meta' in content && content._meta ? { _meta: content._meta } : {})
       }))
     } catch (error) {
-      console.error(`Failed to read MCP resource ${resourceUri}:`, error)
+      console.error(
+        `Failed to read MCP resource for server ${this.serverName}:`,
+        errorCategory(error)
+      )
       throw error
     }
   }

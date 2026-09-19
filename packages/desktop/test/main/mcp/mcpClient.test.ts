@@ -724,7 +724,7 @@ describe('McpClient Runtime Command Processing Tests', () => {
       expect(closeMock).toHaveBeenCalledTimes(1)
       expect(consoleErrorSpy).toHaveBeenCalledWith(
         'Failed to terminate MCP stdio process tree for test:',
-        cleanupError
+        'Error'
       )
       consoleErrorSpy.mockRestore()
     })
@@ -1553,7 +1553,7 @@ describe('McpClient Runtime Command Processing Tests', () => {
       )
       expect(consoleWarnSpy).toHaveBeenCalledWith(
         expect.stringContaining('Failed to cancel elicitation request'),
-        cancellationError
+        'Error'
       )
       consoleWarnSpy.mockRestore()
     })

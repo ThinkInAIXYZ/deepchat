@@ -2,6 +2,7 @@
   "name": "@deepchat/mcp",
   "version": "0.0.0",
   "private": true,
+  "description": "DeepChat MCP Node runtime: client, server manager and stdio process transports. Node-only; the root export uses node: builtins and is not browser-safe.",
   "type": "module",
   "license": "UNLICENSED",
   "main": "./dist/index.js",

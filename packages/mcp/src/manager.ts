@@ -6,6 +6,7 @@ import {
   type McpClientRuntime,
   type McpConnectResult
 } from './client.js'
+import { errorCategory } from './diagnostics.js'
 import type { DeepchatEventPublisher } from '@deepchat/shared/contracts/events'
 import type {
   McpManagerHost,
@@ -218,7 +219,7 @@ export class ServerManager {
       await this.testNpmRegistrySpeed(false)
       logger.info('[NPM Registry] Background registry update completed')
     } catch (error) {
-      console.error('[NPM Registry] Background update failed:', error)
+      console.error('[NPM Registry] Background update failed:', errorCategory(error))
     }
   }
 
@@ -381,7 +382,7 @@ export class ServerManager {
         return 'stopped'
       }
 
-      console.error(`Failed to start MCP server ${name}:`, error)
+      console.error(`Failed to start MCP server ${name}:`, errorCategory(error))
 
       // Retain the inactive client so diagnostics can report the terminal lifecycle until the
       // user restarts or stops it. A later start replaces this client through the normal path.
@@ -480,7 +481,7 @@ export class ServerManager {
       try {
         await live.disconnect()
       } catch (error) {
-        console.error(`Failed to stop MCP server ${name}:`, error)
+        console.error(`Failed to stop MCP server ${name}:`, errorCategory(error))
         throw error
       }
       if (this.clients.get(name) === live) {
@@ -510,7 +511,7 @@ export class ServerManager {
       try {
         await leftover.disconnect()
       } catch (error) {
-        console.error(`Failed to stop MCP server ${name}:`, error)
+        console.error(`Failed to stop MCP server ${name}:`, errorCategory(error))
         throw error
       }
       if (this.clients.get(name) === leftover) {
