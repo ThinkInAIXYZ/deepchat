@@ -14,7 +14,8 @@ interface Workflow {
   jobs: Record<string, { steps?: WorkflowStep[] }>
 }
 
-const repositoryRoot = process.cwd()
+const appRoot = process.cwd()
+const repositoryRoot = path.resolve(appRoot, '../..')
 const WORKFLOW_INSTALL_COUNTS = {
   'prcheck.yml': 5,
   'build.yml': 0,

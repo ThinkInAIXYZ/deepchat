@@ -9,7 +9,10 @@ import type {
 } from '@deepchat/shared/types/core/mcp'
 import type { MCPToolDefinition } from '@deepchat/shared/types/core/mcp'
 import type { SearchResult } from '@deepchat/shared/types/core/search'
-import type { AgentToolProgressUpdate, ToolPermissionLeaseCapability } from '@deepchat/shared/types/tool'
+import type {
+  AgentToolProgressUpdate,
+  ToolPermissionLeaseCapability
+} from '@deepchat/shared/types/tool'
 import type { AssistantMessageBlock, PermissionMode } from '@deepchat/shared/types/agent-interface'
 import type { AgentPlanSnapshot, AgentPlanTerminalReason } from '@deepchat/shared/types/agent-plan'
 import type { DeepChatExecutionContract } from '@deepchat/shared/types/execution-contract'
@@ -114,9 +117,12 @@ import {
   CODE_MODE_TOOL_SERVER_NAME,
   RUN_CODE_MAX_NESTED_CALLS
 } from '@deepchat/shared/codeModeProtocol'
-import {cloneBlocksForRenderer} from '../contracts/rendererBlocks.js'
-import {buildTerminalErrorBlocks} from '../contracts/transcriptBlocks.js'
-import {type ProgrammaticToolParentRegistration, type ProgrammaticToolAuthorityPort} from '../contracts/programmaticToolAuthority.js'
+import { cloneBlocksForRenderer } from '../contracts/rendererBlocks.js'
+import { buildTerminalErrorBlocks } from '../contracts/transcriptBlocks.js'
+import {
+  type ProgrammaticToolParentRegistration,
+  type ProgrammaticToolAuthorityPort
+} from '../contracts/programmaticToolAuthority.js'
 
 type PermissionType = 'read' | 'write' | 'all' | 'command'
 
@@ -1763,9 +1769,7 @@ function appendPermissionActionBlock(
             )
           }
         : {}),
-      ...(toolSurfaceBinding
-        ? { toolSurfaceBinding: JSON.stringify(toolSurfaceBinding) }
-        : {}),
+      ...(toolSurfaceBinding ? { toolSurfaceBinding: JSON.stringify(toolSurfaceBinding) } : {}),
       ...(permission.rememberable === false ? { rememberable: false } : {})
     }
   })
@@ -2003,9 +2007,9 @@ async function runToolCall(params: {
   let dispatchedOperation: ExecutionOperationIdentity | undefined
   let committedOutcome: StagedToolResult | undefined
   let programmaticToolParent: ProgrammaticToolParentRegistration | undefined
-  let programmaticCompletedResult: ReturnType<
-    ProgrammaticToolParentRegistration['takeCompletedInvocationResult']
-  > | undefined
+  let programmaticCompletedResult:
+    | ReturnType<ProgrammaticToolParentRegistration['takeCompletedInvocationResult']>
+    | undefined
   let programmaticOuterOutcomeCommitted = false
   let programmaticToolParentCancelled = false
   let returnedRuntimeSkillView: ReturnType<typeof extractRuntimeSkillViewAfterCall>
@@ -2014,11 +2018,7 @@ async function runToolCall(params: {
     { kind: 'prepared' }
   > | null = null
   const cancelProgrammaticParentBeforeDispatch = (): void => {
-    if (
-      !programmaticToolParent ||
-      programmaticToolParentCancelled ||
-      dispatchedOperation
-    ) {
+    if (!programmaticToolParent || programmaticToolParentCancelled || dispatchedOperation) {
       return
     }
     programmaticToolParent.cancelBeforeOuterDispatch()
@@ -2060,11 +2060,7 @@ async function runToolCall(params: {
         'invalid_fact'
       )
     }
-    const stagedResult = commitDispatchedToolOutcome(
-      outcome.stagedResult,
-      executionJournal,
-      io
-    )
+    const stagedResult = commitDispatchedToolOutcome(outcome.stagedResult, executionJournal, io)
     if (stagedResult.outcomeCommitted) {
       committedOutcome = stagedResult
     }
@@ -2440,21 +2436,13 @@ async function runToolCall(params: {
     }
 
     returnedRuntimeSkillView = extractRuntimeSkillViewAfterCall(execution.toolDef, toolRawData)
-    if (
-      returnedRuntimeSkillView &&
-      controls?.prepareSkillActivation &&
-      !dispatchedOperation
-    ) {
+    if (returnedRuntimeSkillView && controls?.prepareSkillActivation && !dispatchedOperation) {
       throw new ExecutionJournalError(
         'Native Skill activation requires a committed dispatch before preparation.',
         'invalid_fact'
       )
     }
-    if (
-      io.abortSignal.aborted &&
-      returnedRuntimeSkillView &&
-      controls?.prepareSkillActivation
-    ) {
+    if (io.abortSignal.aborted && returnedRuntimeSkillView && controls?.prepareSkillActivation) {
       toolRawData = buildRejectedSkillActivationResult(completedToolCall.id)
       returnedToolResult = toolRawData
       returnedRuntimeSkillView = undefined
@@ -2564,11 +2552,11 @@ async function runToolCall(params: {
               'Skill content cannot fit this model context even before conversation history is included.'
           } as const)
         : await toolResults.prepare({
-          sessionId: io.sessionId,
-          toolCallId: completedToolCall.id,
-          toolName: toolContext.name,
-          rawContent: responseText
-        })
+            sessionId: io.sessionId,
+            toolCallId: completedToolCall.id,
+            toolName: toolContext.name,
+            rawContent: responseText
+          })
     io.abortSignal.throwIfAborted()
     const stagedResponseText =
       preparedResult.kind === 'tool_error' ? preparedResult.message : preparedResult.content
@@ -2640,17 +2628,10 @@ async function runToolCall(params: {
     if (programmaticToolParent && !dispatchedOperation) {
       cancelProgrammaticParentBeforeDispatch()
     }
-    if (
-      isProgrammaticCommandLaunchError(err) &&
-      isExecutionJournalError(err.cause)
-    ) {
+    if (isProgrammaticCommandLaunchError(err) && isExecutionJournalError(err.cause)) {
       throw err.cause
     }
-    if (
-      programmaticToolParent &&
-      dispatchedOperation &&
-      isProgrammaticCommandLaunchError(err)
-    ) {
+    if (programmaticToolParent && dispatchedOperation && isProgrammaticCommandLaunchError(err)) {
       const responseText = 'Error: Programmatic CLI process exited before authoritative completion.'
       let processResult: Readonly<{ responseText: string; isError: boolean }>
       try {
@@ -2812,9 +2793,7 @@ export async function settleToolBatch(
     claimToolSurfaceExecution(toolSurface.snapshot)
   }
   const candidateEligibleToolCallOrdinals = new Set<number>()
-  const sealToolBatchOutcome = (
-    committed: CommittedStagedToolResults
-  ): SettledToolBatchOutcome => {
+  const sealToolBatchOutcome = (committed: CommittedStagedToolResults): SettledToolBatchOutcome => {
     if (committed.outcome.type === 'completed' && !committed.outcome.terminalError) {
       const successfulToolCallIds = new Set(committed.successfulToolCallIds)
       for (const ordinal of candidateEligibleToolCallOrdinals) {
@@ -2834,100 +2813,316 @@ export async function settleToolBatch(
     }
   }
   try {
-  const { notificationObserver, controls, diagnostics, onToolCallStarted } = collaborators ?? {}
-  if (disposition.kind === 'execute') {
-    io.abortSignal.throwIfAborted()
-  }
-  finalizePendingNarrativeBeforeToolSettlement(state)
-  persistToolExecutionState(io, state, rendererFlushHandle)
-  const batchToolCallBlocks = state.blocks
-    .slice(prevBlockCount)
-    .filter((block) => block.type === 'tool_call')
-  const batchState = createToolBatchState(toolCalls, executionContract)
-  let nextInteractionOrder = 0
-  const takeInteractionOrder = () => nextInteractionOrder++
-
-  for (const tc of toolCalls) {
-    const toolDef = tools.find((t) => t.function.name === tc.name)
-    if (!toolDef) continue
-    const block = batchToolCallBlocks.find((candidate) => candidate.tool_call?.id === tc.id)
-    if (!block?.tool_call) continue
-    block.tool_call.server_name = toolDef.server.name
-    block.tool_call.server_icons = toolDef.server.icons
-    block.tool_call.server_description = toolDef.server.description
-  }
-
-  const iterationBlocks = state.blocks.slice(prevBlockCount)
-  const assistantContent =
-    extractAssistantContent(iterationBlocks) ?? extractTextFromBlocks(iterationBlocks)
-  const assistantMessage: ChatMessage = {
-    role: 'assistant',
-    content: assistantContent,
-    tool_calls: toolCalls.map(mapToolCallToChatMessage)
-  }
-
-  const reasoning = extractReasoningFromBlocks(iterationBlocks)
-  const shouldPreserveReasoning =
-    interleavedReasoning.preserveReasoningContent &&
-    (Boolean(reasoning) || interleavedReasoning.preserveEmptyReasoningContent === true)
-  if (shouldPreserveReasoning) {
-    assistantMessage.reasoning_content = reasoning
-    const reasoningProviderOptions = extractReasoningProviderOptions(iterationBlocks)
-    if (reasoningProviderOptions) {
-      assistantMessage.reasoning_provider_options = reasoningProviderOptions
+    const { notificationObserver, controls, diagnostics, onToolCallStarted } = collaborators ?? {}
+    if (disposition.kind === 'execute') {
+      io.abortSignal.throwIfAborted()
     }
-  } else if (
-    reasoning &&
-    interleavedReasoning.reasoningSupported &&
-    !interleavedReasoning.forcedBySessionSetting &&
-    !interleavedReasoning.portraitInterleaved
-  ) {
-    const gapPayload = {
-      providerId: providerId?.trim() || 'unknown-provider',
-      modelId,
-      providerDbSourceUrl: interleavedReasoning.providerDbSourceUrl,
-      reasoningContentLength: reasoning.length,
-      toolCallCount: toolCalls.length
+    finalizePendingNarrativeBeforeToolSettlement(state)
+    persistToolExecutionState(io, state, rendererFlushHandle)
+    const batchToolCallBlocks = state.blocks
+      .slice(prevBlockCount)
+      .filter((block) => block.type === 'tool_call')
+    const batchState = createToolBatchState(toolCalls, executionContract)
+    let nextInteractionOrder = 0
+    const takeInteractionOrder = () => nextInteractionOrder++
+
+    for (const tc of toolCalls) {
+      const toolDef = tools.find((t) => t.function.name === tc.name)
+      if (!toolDef) continue
+      const block = batchToolCallBlocks.find((candidate) => candidate.tool_call?.id === tc.id)
+      if (!block?.tool_call) continue
+      block.tool_call.server_name = toolDef.server.name
+      block.tool_call.server_icons = toolDef.server.icons
+      block.tool_call.server_description = toolDef.server.description
     }
-    diagnostics?.onInterleavedReasoningGap?.(gapPayload)
-    if (!diagnostics?.onInterleavedReasoningGap) {
-      console.warn('[DeepChatDispatch] Missing interleaved reasoning portrait:', gapPayload)
+
+    const iterationBlocks = state.blocks.slice(prevBlockCount)
+    const assistantContent =
+      extractAssistantContent(iterationBlocks) ?? extractTextFromBlocks(iterationBlocks)
+    const assistantMessage: ChatMessage = {
+      role: 'assistant',
+      content: assistantContent,
+      tool_calls: toolCalls.map(mapToolCallToChatMessage)
     }
-  }
 
-  const replayAwareMessages = buildReplayAwareToolRoundMessages(
-    iterationBlocks,
-    toolCalls,
-    interleavedReasoning,
-    providerReplayProjector
-  )
-  conversation.push(...(replayAwareMessages ?? [assistantMessage]))
+    const reasoning = extractReasoningFromBlocks(iterationBlocks)
+    const shouldPreserveReasoning =
+      interleavedReasoning.preserveReasoningContent &&
+      (Boolean(reasoning) || interleavedReasoning.preserveEmptyReasoningContent === true)
+    if (shouldPreserveReasoning) {
+      assistantMessage.reasoning_content = reasoning
+      const reasoningProviderOptions = extractReasoningProviderOptions(iterationBlocks)
+      if (reasoningProviderOptions) {
+        assistantMessage.reasoning_provider_options = reasoningProviderOptions
+      }
+    } else if (
+      reasoning &&
+      interleavedReasoning.reasoningSupported &&
+      !interleavedReasoning.forcedBySessionSetting &&
+      !interleavedReasoning.portraitInterleaved
+    ) {
+      const gapPayload = {
+        providerId: providerId?.trim() || 'unknown-provider',
+        modelId,
+        providerDbSourceUrl: interleavedReasoning.providerDbSourceUrl,
+        reasoningContentLength: reasoning.length,
+        toolCallCount: toolCalls.length
+      }
+      diagnostics?.onInterleavedReasoningGap?.(gapPayload)
+      if (!diagnostics?.onInterleavedReasoningGap) {
+        console.warn('[DeepChatDispatch] Missing interleaved reasoning portrait:', gapPayload)
+      }
+    }
 
-  let executed = 0
-  let toolsChanged = false
-  const pendingInteractions: ToolBatchInteraction[] = []
-  const stagedResults: StagedToolResult[] = []
-  const pendingRuntimeSkillNames = new Set<string>()
+    const replayAwareMessages = buildReplayAwareToolRoundMessages(
+      iterationBlocks,
+      toolCalls,
+      interleavedReasoning,
+      providerReplayProjector
+    )
+    conversation.push(...(replayAwareMessages ?? [assistantMessage]))
 
-  if (disposition.kind === 'reject') {
-    for (const toolCall of toolCalls) {
-      const toolDef = tools.find((candidate) => candidate.function.name === toolCall.name)
-      stagedResults.push({
-        toolCallId: toolCall.id,
-        toolName: toolCall.name,
-        toolSource: toolDef?.source,
-        serverName: toolDef?.server.name,
-        toolArgs: toolCall.arguments,
-        responseText: TRUNCATED_TOOL_CALL_ERROR,
-        isError: true,
-        searchPayload: null,
-        postHookKind: 'failure',
-        skippedReason: 'max_tokens'
+    let executed = 0
+    let toolsChanged = false
+    const pendingInteractions: ToolBatchInteraction[] = []
+    const stagedResults: StagedToolResult[] = []
+    const pendingRuntimeSkillNames = new Set<string>()
+
+    if (disposition.kind === 'reject') {
+      for (const toolCall of toolCalls) {
+        const toolDef = tools.find((candidate) => candidate.function.name === toolCall.name)
+        stagedResults.push({
+          toolCallId: toolCall.id,
+          toolName: toolCall.name,
+          toolSource: toolDef?.source,
+          serverName: toolDef?.server.name,
+          toolArgs: toolCall.arguments,
+          responseText: TRUNCATED_TOOL_CALL_ERROR,
+          isError: true,
+          searchPayload: null,
+          postHookKind: 'failure',
+          skippedReason: 'max_tokens'
+        })
+      }
+
+      return sealToolBatchOutcome(
+        await commitStagedToolResults({
+          stagedResults,
+          pendingInteractions,
+          batchState,
+          executed,
+          toolsChanged,
+          conversation,
+          state,
+          batchToolCallBlocks,
+          toolBlockStartIndex: prevBlockCount,
+          io,
+          notificationObserver,
+          takeInteractionOrder,
+          toolResults,
+          tools,
+          contextLength,
+          maxTokens,
+          rendererFlushHandle,
+          toolSurfaceSnapshot: toolSurface?.snapshot,
+          controls
+        })
+      )
+    }
+
+    const toolPermissionMode = resolveToolPermissionMode(permissionMode)
+    const assertToolSurfaceAuthority = (call: MCPToolCall): void => {
+      if (!toolSurface) return
+      toolExecution.assertAuthority(call, {
+        permissionMode: toolPermissionMode,
+        signal: io.abortSignal,
+        commandShell,
+        messageId: io.messageId,
+        runId: operationScope.runId,
+        requestSeq: operationScope.requestSeq,
+        toolSurfaceSnapshot: toolSurface.snapshot
       })
     }
 
-    return sealToolBatchOutcome(
-      await commitStagedToolResults({
+    const batchExecutionMode = selectToolBatchExecutionMode({
+      permissionMode,
+      toolCalls,
+      toolDefinitions: tools
+    })
+
+    if (batchExecutionMode === 'parallel') {
+      const executions = toolCalls.map((tc) =>
+        buildToolExecutionContext(tc, tools, io.sessionId, providerId)
+      )
+
+      const settledOutcomes = await Promise.allSettled(
+        executions.map(async (execution, toolCallOrdinalWithinBatch) => {
+          try {
+            // Reject stale or inactive definitions before permission policy observes the call. The
+            // post-precheck assertion below still closes revocation races while policy is awaiting.
+            assertToolSurfaceAuthority(execution.toolCall)
+            let permissionToAutoGrant: NonNullable<PendingToolInteraction['permission']> | null =
+              null
+            if (
+              execution.completedToolCall.name !== TOOL_SEARCH_AGENT_TOOL_NAME &&
+              toolExecution.preCheck
+            ) {
+              const preChecked = await toolExecution.preCheck(execution.toolCall, {
+                permissionMode: toolPermissionMode,
+                signal: io.abortSignal,
+                activeSkillNames: controls?.getActiveSkillNames?.(),
+                commandShell,
+                ...(toolSurface
+                  ? {
+                      messageId: io.messageId,
+                      runId: operationScope.runId,
+                      requestSeq: operationScope.requestSeq,
+                      toolSurfaceSnapshot: toolSurface.snapshot
+                    }
+                  : {})
+              })
+              io.abortSignal.throwIfAborted()
+              assertToolSurfaceAuthority(execution.toolCall)
+              if (preChecked?.needsPermission) {
+                const permission = normalizePermissionRequest(preChecked as PermissionRequestLike, {
+                  toolName: execution.toolContext.name,
+                  serverName: execution.toolContext.serverName,
+                  description: `Permission required for ${execution.toolContext.name}`
+                })
+                if (permission) {
+                  if (permission.requiresUserConfirmation) {
+                    return {
+                      kind: 'permission' as const,
+                      permission,
+                      toolContext: execution.toolContext
+                    }
+                  }
+                  permissionToAutoGrant = permission
+                }
+              }
+            }
+
+            const execute = async (
+              oneShotCommandGrantId?: string,
+              onPermissionDispatchCommitted?: () => void,
+              permissionLease?: ToolPermissionLeaseCapability
+            ): Promise<ToolRunOutcome> => {
+              io.abortSignal.throwIfAborted()
+              emitDeepChatLoopNotification(notificationObserver, {
+                event: 'PreToolUse',
+                tool: {
+                  callId: execution.completedToolCall.id,
+                  name: execution.completedToolCall.name,
+                  params: execution.completedToolCall.arguments
+                }
+              })
+
+              return await runToolCall({
+                execution,
+                toolExecution,
+                toolResults,
+                permissionMode,
+                toolPermissionMode,
+                controls,
+                imagePreviews,
+                io,
+                state,
+                batchToolCallBlocks,
+                rendererFlushHandle,
+                allowProgressUpdates: false,
+                onToolCallStarted,
+                executionJournal,
+                operationScope,
+                requestView,
+                executionContract,
+                toolSurfaceExecutionBatch: toolSurfaceExecutionBatch ?? undefined,
+                toolSurfaceSnapshot: toolSurface?.snapshot,
+                programmaticToolCapability: toolSurface?.programmaticCapability,
+                programmaticToolParents,
+                toolCallOrdinalWithinBatch,
+                commandShell,
+                contextLength,
+                maxTokens,
+                pendingRuntimeSkillNames: [...pendingRuntimeSkillNames],
+                oneShotCommandGrantId,
+                onPermissionDispatchCommitted,
+                permissionLease
+              })
+            }
+            return permissionToAutoGrant
+              ? await runWithAutoGrantedPermission(controls, permissionToAutoGrant, execute, () =>
+                  assertToolSurfaceAuthority(execution.toolCall)
+                )
+              : await execute()
+          } catch (error) {
+            if (isExecutionJournalError(error)) throw error
+            if (io.abortSignal.aborted) throw error
+            return buildToolErrorOutcome(execution, error)
+          }
+        })
+      )
+      const outcomes: { outcome: ToolRunOutcome; toolCallOrdinalWithinBatch: number }[] = []
+      let cancellationError: unknown
+      for (const [toolCallOrdinalWithinBatch, settled] of settledOutcomes.entries()) {
+        if (settled.status === 'fulfilled') {
+          outcomes.push({ outcome: settled.value, toolCallOrdinalWithinBatch })
+        } else if (isExecutionJournalError(settled.reason)) {
+          throw settled.reason
+        } else if (io.abortSignal.aborted) {
+          cancellationError ??= settled.reason
+        } else {
+          throw settled.reason
+        }
+      }
+
+      for (const { outcome, toolCallOrdinalWithinBatch } of outcomes) {
+        batchState.invokedCallIds.add(
+          outcome.kind === 'permission' ? outcome.toolContext.id : outcome.stagedResult.toolCallId
+        )
+        if (outcome.kind === 'permission') {
+          emitDeepChatLoopNotification(notificationObserver, {
+            event: 'PermissionRequest',
+            permission: outcome.permission,
+            tool: {
+              callId: outcome.toolContext.id,
+              name: outcome.toolContext.name,
+              params: outcome.toolContext.args
+            }
+          })
+          const interaction = appendPermissionActionBlock(
+            state,
+            io,
+            outcome.toolContext,
+            outcome.permission,
+            'post-call-permission',
+            takeInteractionOrder(),
+            executionContract,
+            toolSurface?.snapshot
+          )
+          pendingInteractions.push(interaction)
+          updateToolCallBlock(batchToolCallBlocks, outcome.toolContext.id, '', false)
+          rescheduleRendererFlush(state, rendererFlushHandle)
+          continue
+        }
+
+        if (
+          executions[toolCallOrdinalWithinBatch].completedToolCall.name ===
+            TOOL_SEARCH_AGENT_TOOL_NAME &&
+          !outcome.stagedResult.isError &&
+          outcome.stagedResult.outcomeCommitted === true
+        ) {
+          candidateEligibleToolCallOrdinals.add(toolCallOrdinalWithinBatch)
+        }
+        stagedResults.push(outcome.stagedResult)
+        toolsChanged = toolsChanged || outcome.toolsChanged
+        executed += 1
+      }
+
+      if (cancellationError && stagedResults.length === 0) {
+        throw cancellationError
+      }
+
+      const committed = await commitStagedToolResults({
         stagedResults,
         pendingInteractions,
         batchState,
@@ -2943,206 +3138,316 @@ export async function settleToolBatch(
         toolResults,
         tools,
         contextLength,
+        outputCapContextLength,
         maxTokens,
         rendererFlushHandle,
         toolSurfaceSnapshot: toolSurface?.snapshot,
         controls
       })
-    )
-  }
+      return sealToolBatchOutcome(committed)
+    }
 
-  const toolPermissionMode = resolveToolPermissionMode(permissionMode)
-  const assertToolSurfaceAuthority = (call: MCPToolCall): void => {
-    if (!toolSurface) return
-    toolExecution.assertAuthority(call, {
-      permissionMode: toolPermissionMode,
-      signal: io.abortSignal,
-      commandShell,
-      messageId: io.messageId,
-      runId: operationScope.runId,
-      requestSeq: operationScope.requestSeq,
-      toolSurfaceSnapshot: toolSurface.snapshot
-    })
-  }
+    for (const [toolCallOrdinalWithinBatch, tc] of toolCalls.entries()) {
+      if (io.abortSignal.aborted && stagedResults.length > 0) {
+        break
+      }
+      io.abortSignal.throwIfAborted()
 
-  const batchExecutionMode = selectToolBatchExecutionMode({
-    permissionMode,
-    toolCalls,
-    toolDefinitions: tools
-  })
+      const execution = buildToolExecutionContext(tc, tools, io.sessionId, providerId)
+      const { toolCall, toolContext } = execution
 
-  if (batchExecutionMode === 'parallel') {
-    const executions = toolCalls.map((tc) =>
-      buildToolExecutionContext(tc, tools, io.sessionId, providerId)
-    )
+      if (!execution.toolDef) {
+        stagedResults.push({
+          toolCallId: tc.id,
+          toolName: tc.name,
+          toolArgs: tc.arguments,
+          responseText: `Error: Tool is not available in the current session: ${tc.name}`,
+          isError: true,
+          searchPayload: null,
+          postHookKind: 'failure'
+        })
+        executed += 1
+        continue
+      }
 
-    const settledOutcomes = await Promise.allSettled(
-      executions.map(async (execution, toolCallOrdinalWithinBatch) => {
-        try {
-          // Reject stale or inactive definitions before permission policy observes the call. The
-          // post-precheck assertion below still closes revocation races while policy is awaiting.
-          assertToolSurfaceAuthority(execution.toolCall)
-          let permissionToAutoGrant: NonNullable<PendingToolInteraction['permission']> | null = null
-          if (
-            execution.completedToolCall.name !== TOOL_SEARCH_AGENT_TOOL_NAME &&
-            toolExecution.preCheck
-          ) {
-            const preChecked = await toolExecution.preCheck(execution.toolCall, {
-              permissionMode: toolPermissionMode,
-              signal: io.abortSignal,
-              activeSkillNames: controls?.getActiveSkillNames?.(),
-              commandShell,
-              ...(toolSurface
-                ? {
-                    messageId: io.messageId,
-                    runId: operationScope.runId,
-                    requestSeq: operationScope.requestSeq,
-                    toolSurfaceSnapshot: toolSurface.snapshot
-                  }
-                : {})
+      try {
+        // Questions and permission prechecks are effects of accepting this call, so the frozen View
+        // must admit it first. Later assertions retain the race checks around asynchronous policy.
+        assertToolSurfaceAuthority(toolCall)
+        if (toolCall.function.name === QUESTION_TOOL_NAME) {
+          const parsedQuestion = parseQuestionToolArgs(tc.arguments)
+          if (!parsedQuestion.success) {
+            const errorText = `Error: ${parsedQuestion.error}`
+            conversation.push({
+              role: 'tool',
+              tool_call_id: tc.id,
+              content: errorText
             })
-            io.abortSignal.throwIfAborted()
-            assertToolSurfaceAuthority(execution.toolCall)
-            if (preChecked?.needsPermission) {
-              const permission = normalizePermissionRequest(preChecked as PermissionRequestLike, {
-                toolName: execution.toolContext.name,
-                serverName: execution.toolContext.serverName,
-                description: `Permission required for ${execution.toolContext.name}`
-              })
-              if (permission) {
-                if (permission.requiresUserConfirmation) {
-                  return {
-                    kind: 'permission' as const,
-                    permission,
-                    toolContext: execution.toolContext
-                  }
-                }
-                permissionToAutoGrant = permission
-              }
-            }
+            updateToolCallBlock(batchToolCallBlocks, tc.id, errorText, true)
+            markStreamChanged(state)
+            batchState.committedResultCallIds.add(tc.id)
+            executed += 1
+            persistToolExecutionState(io, state, rendererFlushHandle)
+            continue
           }
 
-          const execute = async (
-            oneShotCommandGrantId?: string,
-            onPermissionDispatchCommitted?: () => void,
-            permissionLease?: ToolPermissionLeaseCapability
-          ): Promise<ToolRunOutcome> => {
-            io.abortSignal.throwIfAborted()
-            emitDeepChatLoopNotification(notificationObserver, {
-              event: 'PreToolUse',
-              tool: {
-                callId: execution.completedToolCall.id,
-                name: execution.completedToolCall.name,
-                params: execution.completedToolCall.arguments
-              }
-            })
+          const interaction = appendQuestionActionBlock(
+            state,
+            io,
+            toolContext,
+            {
+              header: parsedQuestion.data.header,
+              question: parsedQuestion.data.question,
+              options: parsedQuestion.data.options,
+              custom: parsedQuestion.data.custom !== false,
+              multiple: Boolean(parsedQuestion.data.multiple)
+            },
+            'question',
+            takeInteractionOrder()
+          )
+          pendingInteractions.push(interaction)
+          updateToolCallBlock(batchToolCallBlocks, tc.id, '', false)
+          rescheduleRendererFlush(state, rendererFlushHandle)
+          continue
+        }
 
-            return await runToolCall({
-              execution,
-              toolExecution,
-              toolResults,
-              permissionMode,
-              toolPermissionMode,
+        let preCheckedPermission: PendingToolInteraction['permission'] | null = null
+        let permissionToAutoGrant: NonNullable<PendingToolInteraction['permission']> | null = null
+        if (toolCall.function.name !== TOOL_SEARCH_AGENT_TOOL_NAME && toolExecution.preCheck) {
+          const preChecked = await toolExecution.preCheck(toolCall, {
+            permissionMode: toolPermissionMode,
+            signal: io.abortSignal,
+            activeSkillNames: controls?.getActiveSkillNames?.(),
+            commandShell,
+            ...(toolSurface
+              ? {
+                  messageId: io.messageId,
+                  runId: operationScope.runId,
+                  requestSeq: operationScope.requestSeq,
+                  toolSurfaceSnapshot: toolSurface.snapshot
+                }
+              : {})
+          })
+          io.abortSignal.throwIfAborted()
+          assertToolSurfaceAuthority(toolCall)
+          if (preChecked?.needsPermission) {
+            preCheckedPermission = normalizePermissionRequest(preChecked as PermissionRequestLike, {
+              toolName: toolContext.name,
+              serverName: toolContext.serverName,
+              description: `Permission required for ${toolContext.name}`
+            })
+          }
+        }
+
+        if (preCheckedPermission) {
+          let shouldAskUser = preCheckedPermission.requiresUserConfirmation === true
+          if (!shouldAskUser && permissionMode === 'full_access') {
+            permissionToAutoGrant = preCheckedPermission
+          } else if (!shouldAskUser && permissionMode === 'auto_approve') {
+            const review = await reviewAutoApproveAction({
               controls,
-              imagePreviews,
               io,
               state,
               batchToolCallBlocks,
               rendererFlushHandle,
-              allowProgressUpdates: false,
-              onToolCallStarted,
-              executionJournal,
-              operationScope,
-              requestView,
-              executionContract,
-              toolSurfaceExecutionBatch: toolSurfaceExecutionBatch ?? undefined,
-              toolSurfaceSnapshot: toolSurface?.snapshot,
-              programmaticToolCapability: toolSurface?.programmaticCapability,
-              programmaticToolParents,
-              toolCallOrdinalWithinBatch,
-              commandShell,
-              contextLength,
-              maxTokens,
-              pendingRuntimeSkillNames: [...pendingRuntimeSkillNames],
-              oneShotCommandGrantId,
-              onPermissionDispatchCommitted,
-              permissionLease
+              execution,
+              permission: preCheckedPermission,
+              reason: 'precheck'
             })
+            assertToolSurfaceAuthority(toolCall)
+            if (review === 'auto_allow') {
+              permissionToAutoGrant = preCheckedPermission
+            } else {
+              shouldAskUser = true
+            }
+          } else if (!shouldAskUser) {
+            shouldAskUser = true
           }
-          return permissionToAutoGrant
-            ? await runWithAutoGrantedPermission(
-                controls,
-                permissionToAutoGrant,
-                execute,
-                () => assertToolSurfaceAuthority(execution.toolCall)
-              )
-            : await execute()
-        } catch (error) {
-          if (isExecutionJournalError(error)) throw error
-          if (io.abortSignal.aborted) throw error
-          return buildToolErrorOutcome(execution, error)
+
+          if (shouldAskUser) {
+            emitDeepChatLoopNotification(notificationObserver, {
+              event: 'PermissionRequest',
+              permission: preCheckedPermission,
+              tool: {
+                callId: tc.id,
+                name: tc.name,
+                params: tc.arguments
+              }
+            })
+            const interaction = appendPermissionActionBlock(
+              state,
+              io,
+              toolContext,
+              preCheckedPermission,
+              'pre-check-permission',
+              takeInteractionOrder(),
+              executionContract,
+              toolSurface?.snapshot
+            )
+            pendingInteractions.push(interaction)
+            updateToolCallBlock(batchToolCallBlocks, tc.id, '', false)
+            rescheduleRendererFlush(state, rendererFlushHandle)
+            continue
+          }
         }
-      })
-    )
-    const outcomes: { outcome: ToolRunOutcome; toolCallOrdinalWithinBatch: number }[] = []
-    let cancellationError: unknown
-    for (const [toolCallOrdinalWithinBatch, settled] of settledOutcomes.entries()) {
-      if (settled.status === 'fulfilled') {
-        outcomes.push({ outcome: settled.value, toolCallOrdinalWithinBatch })
-      } else if (isExecutionJournalError(settled.reason)) {
-        throw settled.reason
-      } else if (io.abortSignal.aborted) {
-        cancellationError ??= settled.reason
-      } else {
-        throw settled.reason
-      }
-    }
 
-    for (const { outcome, toolCallOrdinalWithinBatch } of outcomes) {
-      batchState.invokedCallIds.add(
-        outcome.kind === 'permission' ? outcome.toolContext.id : outcome.stagedResult.toolCallId
-      )
-      if (outcome.kind === 'permission') {
-        emitDeepChatLoopNotification(notificationObserver, {
-          event: 'PermissionRequest',
-          permission: outcome.permission,
-          tool: {
-            callId: outcome.toolContext.id,
-            name: outcome.toolContext.name,
-            params: outcome.toolContext.args
+        if (
+          permissionMode === 'auto_approve' &&
+          !preCheckedPermission &&
+          isReviewableFullAccessToolCall(execution)
+        ) {
+          const reviewPermission = buildSyntheticPermissionForReview(execution, commandShell)
+          const review = await reviewAutoApproveAction({
+            controls,
+            io,
+            state,
+            batchToolCallBlocks,
+            rendererFlushHandle,
+            execution,
+            permission: reviewPermission,
+            reason: 'tool_call'
+          })
+          assertToolSurfaceAuthority(toolCall)
+          if (review !== 'auto_allow') {
+            emitDeepChatLoopNotification(notificationObserver, {
+              event: 'PermissionRequest',
+              permission: reviewPermission,
+              tool: {
+                callId: tc.id,
+                name: tc.name,
+                params: tc.arguments
+              }
+            })
+            const interaction = appendPermissionActionBlock(
+              state,
+              io,
+              toolContext,
+              reviewPermission,
+              'pre-check-permission',
+              takeInteractionOrder(),
+              executionContract,
+              toolSurface?.snapshot
+            )
+            pendingInteractions.push(interaction)
+            updateToolCallBlock(batchToolCallBlocks, tc.id, '', false)
+            rescheduleRendererFlush(state, rendererFlushHandle)
+            continue
           }
+        }
+
+        const execute = async (
+          oneShotCommandGrantId?: string,
+          onPermissionDispatchCommitted?: () => void,
+          permissionLease?: ToolPermissionLeaseCapability
+        ): Promise<ToolRunOutcome> => {
+          io.abortSignal.throwIfAborted()
+          emitDeepChatLoopNotification(notificationObserver, {
+            event: 'PreToolUse',
+            tool: {
+              callId: tc.id,
+              name: tc.name,
+              params: tc.arguments
+            }
+          })
+
+          return await runToolCall({
+            execution,
+            toolExecution,
+            toolResults,
+            permissionMode,
+            toolPermissionMode,
+            controls,
+            imagePreviews,
+            io,
+            state,
+            batchToolCallBlocks,
+            rendererFlushHandle,
+            allowProgressUpdates: true,
+            onToolCallStarted,
+            executionJournal,
+            operationScope,
+            requestView,
+            executionContract,
+            toolSurfaceExecutionBatch: toolSurfaceExecutionBatch ?? undefined,
+            toolSurfaceSnapshot: toolSurface?.snapshot,
+            programmaticToolCapability: toolSurface?.programmaticCapability,
+            programmaticToolParents,
+            toolCallOrdinalWithinBatch,
+            commandShell,
+            contextLength,
+            maxTokens,
+            pendingRuntimeSkillNames: [...pendingRuntimeSkillNames],
+            oneShotCommandGrantId,
+            onPermissionDispatchCommitted,
+            permissionLease
+          })
+        }
+        const outcome = permissionToAutoGrant
+          ? await runWithAutoGrantedPermission(controls, permissionToAutoGrant, execute, () =>
+              assertToolSurfaceAuthority(toolCall)
+            )
+          : await execute()
+        batchState.invokedCallIds.add(tc.id)
+
+        if (outcome.kind === 'permission') {
+          emitDeepChatLoopNotification(notificationObserver, {
+            event: 'PermissionRequest',
+            permission: outcome.permission,
+            tool: {
+              callId: tc.id,
+              name: tc.name,
+              params: tc.arguments
+            }
+          })
+          const interaction = appendPermissionActionBlock(
+            state,
+            io,
+            toolContext,
+            outcome.permission,
+            'post-call-permission',
+            takeInteractionOrder(),
+            executionContract,
+            toolSurface?.snapshot
+          )
+          pendingInteractions.push(interaction)
+          updateToolCallBlock(batchToolCallBlocks, tc.id, '', false)
+          rescheduleRendererFlush(state, rendererFlushHandle)
+          continue
+        }
+
+        if (
+          tc.name === TOOL_SEARCH_AGENT_TOOL_NAME &&
+          !outcome.stagedResult.isError &&
+          outcome.stagedResult.outcomeCommitted === true
+        ) {
+          candidateEligibleToolCallOrdinals.add(toolCallOrdinalWithinBatch)
+        }
+        stagedResults.push(outcome.stagedResult)
+        if (outcome.stagedResult.runtimeSkillView) {
+          pendingRuntimeSkillNames.add(outcome.stagedResult.runtimeSkillView.skillName)
+        }
+        toolsChanged = toolsChanged || outcome.toolsChanged
+        executed += 1
+      } catch (err) {
+        if (isExecutionJournalError(err)) throw err
+        if (io.abortSignal.aborted) {
+          if (stagedResults.length > 0) {
+            break
+          }
+          throw err
+        }
+        const errorText = err instanceof Error ? err.message : String(err)
+        stagedResults.push({
+          toolCallId: tc.id,
+          toolName: tc.name,
+          toolArgs: tc.arguments,
+          responseText: `Error: ${errorText}`,
+          isError: true,
+          searchPayload: null,
+          postHookKind: 'failure'
         })
-        const interaction = appendPermissionActionBlock(
-          state,
-          io,
-          outcome.toolContext,
-          outcome.permission,
-          'post-call-permission',
-          takeInteractionOrder(),
-          executionContract,
-          toolSurface?.snapshot
-        )
-        pendingInteractions.push(interaction)
-        updateToolCallBlock(batchToolCallBlocks, outcome.toolContext.id, '', false)
-        rescheduleRendererFlush(state, rendererFlushHandle)
-        continue
+        executed += 1
       }
-
-      if (
-        executions[toolCallOrdinalWithinBatch].completedToolCall.name ===
-          TOOL_SEARCH_AGENT_TOOL_NAME &&
-        !outcome.stagedResult.isError &&
-        outcome.stagedResult.outcomeCommitted === true
-      ) {
-        candidateEligibleToolCallOrdinals.add(toolCallOrdinalWithinBatch)
-      }
-      stagedResults.push(outcome.stagedResult)
-      toolsChanged = toolsChanged || outcome.toolsChanged
-      executed += 1
-    }
-
-    if (cancellationError && stagedResults.length === 0) {
-      throw cancellationError
     }
 
     const committed = await commitStagedToolResults({
@@ -3168,337 +3473,6 @@ export async function settleToolBatch(
       controls
     })
     return sealToolBatchOutcome(committed)
-  }
-
-  for (const [toolCallOrdinalWithinBatch, tc] of toolCalls.entries()) {
-    if (io.abortSignal.aborted && stagedResults.length > 0) {
-      break
-    }
-    io.abortSignal.throwIfAborted()
-
-    const execution = buildToolExecutionContext(tc, tools, io.sessionId, providerId)
-    const { toolCall, toolContext } = execution
-
-    if (!execution.toolDef) {
-      stagedResults.push({
-        toolCallId: tc.id,
-        toolName: tc.name,
-        toolArgs: tc.arguments,
-        responseText: `Error: Tool is not available in the current session: ${tc.name}`,
-        isError: true,
-        searchPayload: null,
-        postHookKind: 'failure'
-      })
-      executed += 1
-      continue
-    }
-
-    try {
-      // Questions and permission prechecks are effects of accepting this call, so the frozen View
-      // must admit it first. Later assertions retain the race checks around asynchronous policy.
-      assertToolSurfaceAuthority(toolCall)
-      if (toolCall.function.name === QUESTION_TOOL_NAME) {
-        const parsedQuestion = parseQuestionToolArgs(tc.arguments)
-        if (!parsedQuestion.success) {
-          const errorText = `Error: ${parsedQuestion.error}`
-          conversation.push({
-            role: 'tool',
-            tool_call_id: tc.id,
-            content: errorText
-          })
-          updateToolCallBlock(batchToolCallBlocks, tc.id, errorText, true)
-          markStreamChanged(state)
-          batchState.committedResultCallIds.add(tc.id)
-          executed += 1
-          persistToolExecutionState(io, state, rendererFlushHandle)
-          continue
-        }
-
-        const interaction = appendQuestionActionBlock(
-          state,
-          io,
-          toolContext,
-          {
-            header: parsedQuestion.data.header,
-            question: parsedQuestion.data.question,
-            options: parsedQuestion.data.options,
-            custom: parsedQuestion.data.custom !== false,
-            multiple: Boolean(parsedQuestion.data.multiple)
-          },
-          'question',
-          takeInteractionOrder()
-        )
-        pendingInteractions.push(interaction)
-        updateToolCallBlock(batchToolCallBlocks, tc.id, '', false)
-        rescheduleRendererFlush(state, rendererFlushHandle)
-        continue
-      }
-
-      let preCheckedPermission: PendingToolInteraction['permission'] | null = null
-      let permissionToAutoGrant: NonNullable<PendingToolInteraction['permission']> | null = null
-      if (toolCall.function.name !== TOOL_SEARCH_AGENT_TOOL_NAME && toolExecution.preCheck) {
-        const preChecked = await toolExecution.preCheck(toolCall, {
-          permissionMode: toolPermissionMode,
-          signal: io.abortSignal,
-          activeSkillNames: controls?.getActiveSkillNames?.(),
-          commandShell,
-          ...(toolSurface
-            ? {
-                messageId: io.messageId,
-                runId: operationScope.runId,
-                requestSeq: operationScope.requestSeq,
-                toolSurfaceSnapshot: toolSurface.snapshot
-              }
-            : {})
-        })
-        io.abortSignal.throwIfAborted()
-        assertToolSurfaceAuthority(toolCall)
-        if (preChecked?.needsPermission) {
-          preCheckedPermission = normalizePermissionRequest(preChecked as PermissionRequestLike, {
-            toolName: toolContext.name,
-            serverName: toolContext.serverName,
-            description: `Permission required for ${toolContext.name}`
-          })
-        }
-      }
-
-      if (preCheckedPermission) {
-        let shouldAskUser = preCheckedPermission.requiresUserConfirmation === true
-        if (!shouldAskUser && permissionMode === 'full_access') {
-          permissionToAutoGrant = preCheckedPermission
-        } else if (!shouldAskUser && permissionMode === 'auto_approve') {
-          const review = await reviewAutoApproveAction({
-            controls,
-            io,
-            state,
-            batchToolCallBlocks,
-            rendererFlushHandle,
-            execution,
-            permission: preCheckedPermission,
-            reason: 'precheck'
-          })
-          assertToolSurfaceAuthority(toolCall)
-          if (review === 'auto_allow') {
-            permissionToAutoGrant = preCheckedPermission
-          } else {
-            shouldAskUser = true
-          }
-        } else if (!shouldAskUser) {
-          shouldAskUser = true
-        }
-
-        if (shouldAskUser) {
-          emitDeepChatLoopNotification(notificationObserver, {
-            event: 'PermissionRequest',
-            permission: preCheckedPermission,
-            tool: {
-              callId: tc.id,
-              name: tc.name,
-              params: tc.arguments
-            }
-          })
-          const interaction = appendPermissionActionBlock(
-            state,
-            io,
-            toolContext,
-            preCheckedPermission,
-            'pre-check-permission',
-            takeInteractionOrder(),
-            executionContract,
-            toolSurface?.snapshot
-          )
-          pendingInteractions.push(interaction)
-          updateToolCallBlock(batchToolCallBlocks, tc.id, '', false)
-          rescheduleRendererFlush(state, rendererFlushHandle)
-          continue
-        }
-      }
-
-      if (
-        permissionMode === 'auto_approve' &&
-        !preCheckedPermission &&
-        isReviewableFullAccessToolCall(execution)
-      ) {
-        const reviewPermission = buildSyntheticPermissionForReview(execution, commandShell)
-        const review = await reviewAutoApproveAction({
-          controls,
-          io,
-          state,
-          batchToolCallBlocks,
-          rendererFlushHandle,
-          execution,
-          permission: reviewPermission,
-          reason: 'tool_call'
-        })
-        assertToolSurfaceAuthority(toolCall)
-        if (review !== 'auto_allow') {
-          emitDeepChatLoopNotification(notificationObserver, {
-            event: 'PermissionRequest',
-            permission: reviewPermission,
-            tool: {
-              callId: tc.id,
-              name: tc.name,
-              params: tc.arguments
-            }
-          })
-          const interaction = appendPermissionActionBlock(
-            state,
-            io,
-            toolContext,
-            reviewPermission,
-            'pre-check-permission',
-            takeInteractionOrder(),
-            executionContract,
-            toolSurface?.snapshot
-          )
-          pendingInteractions.push(interaction)
-          updateToolCallBlock(batchToolCallBlocks, tc.id, '', false)
-          rescheduleRendererFlush(state, rendererFlushHandle)
-          continue
-        }
-      }
-
-      const execute = async (
-        oneShotCommandGrantId?: string,
-        onPermissionDispatchCommitted?: () => void,
-        permissionLease?: ToolPermissionLeaseCapability
-      ): Promise<ToolRunOutcome> => {
-        io.abortSignal.throwIfAborted()
-        emitDeepChatLoopNotification(notificationObserver, {
-          event: 'PreToolUse',
-          tool: {
-            callId: tc.id,
-            name: tc.name,
-            params: tc.arguments
-          }
-        })
-
-        return await runToolCall({
-          execution,
-          toolExecution,
-          toolResults,
-          permissionMode,
-          toolPermissionMode,
-          controls,
-          imagePreviews,
-          io,
-          state,
-          batchToolCallBlocks,
-          rendererFlushHandle,
-          allowProgressUpdates: true,
-          onToolCallStarted,
-          executionJournal,
-          operationScope,
-          requestView,
-          executionContract,
-          toolSurfaceExecutionBatch: toolSurfaceExecutionBatch ?? undefined,
-          toolSurfaceSnapshot: toolSurface?.snapshot,
-          programmaticToolCapability: toolSurface?.programmaticCapability,
-          programmaticToolParents,
-          toolCallOrdinalWithinBatch,
-          commandShell,
-          contextLength,
-          maxTokens,
-          pendingRuntimeSkillNames: [...pendingRuntimeSkillNames],
-          oneShotCommandGrantId,
-          onPermissionDispatchCommitted,
-          permissionLease
-        })
-      }
-      const outcome = permissionToAutoGrant
-        ? await runWithAutoGrantedPermission(
-            controls,
-            permissionToAutoGrant,
-            execute,
-            () => assertToolSurfaceAuthority(toolCall)
-          )
-        : await execute()
-      batchState.invokedCallIds.add(tc.id)
-
-      if (outcome.kind === 'permission') {
-        emitDeepChatLoopNotification(notificationObserver, {
-          event: 'PermissionRequest',
-          permission: outcome.permission,
-          tool: {
-            callId: tc.id,
-            name: tc.name,
-            params: tc.arguments
-          }
-        })
-        const interaction = appendPermissionActionBlock(
-          state,
-          io,
-          toolContext,
-          outcome.permission,
-          'post-call-permission',
-          takeInteractionOrder(),
-          executionContract,
-          toolSurface?.snapshot
-        )
-        pendingInteractions.push(interaction)
-        updateToolCallBlock(batchToolCallBlocks, tc.id, '', false)
-        rescheduleRendererFlush(state, rendererFlushHandle)
-        continue
-      }
-
-      if (
-        tc.name === TOOL_SEARCH_AGENT_TOOL_NAME &&
-        !outcome.stagedResult.isError &&
-        outcome.stagedResult.outcomeCommitted === true
-      ) {
-        candidateEligibleToolCallOrdinals.add(toolCallOrdinalWithinBatch)
-      }
-      stagedResults.push(outcome.stagedResult)
-      if (outcome.stagedResult.runtimeSkillView) {
-        pendingRuntimeSkillNames.add(outcome.stagedResult.runtimeSkillView.skillName)
-      }
-      toolsChanged = toolsChanged || outcome.toolsChanged
-      executed += 1
-    } catch (err) {
-      if (isExecutionJournalError(err)) throw err
-      if (io.abortSignal.aborted) {
-        if (stagedResults.length > 0) {
-          break
-        }
-        throw err
-      }
-      const errorText = err instanceof Error ? err.message : String(err)
-      stagedResults.push({
-        toolCallId: tc.id,
-        toolName: tc.name,
-        toolArgs: tc.arguments,
-        responseText: `Error: ${errorText}`,
-        isError: true,
-        searchPayload: null,
-        postHookKind: 'failure'
-      })
-      executed += 1
-    }
-  }
-
-  const committed = await commitStagedToolResults({
-    stagedResults,
-    pendingInteractions,
-    batchState,
-    executed,
-    toolsChanged,
-    conversation,
-    state,
-    batchToolCallBlocks,
-    toolBlockStartIndex: prevBlockCount,
-    io,
-    notificationObserver,
-    takeInteractionOrder,
-    toolResults,
-    tools,
-    contextLength,
-    outputCapContextLength,
-    maxTokens,
-    rendererFlushHandle,
-    toolSurfaceSnapshot: toolSurface?.snapshot,
-    controls
-  })
-  return sealToolBatchOutcome(committed)
   } finally {
     toolSurfaceExecutionBatch?.discard()
   }

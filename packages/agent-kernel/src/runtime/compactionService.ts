@@ -1,4 +1,3 @@
-
 import { randomUUID } from 'node:crypto'
 import { estimateTokenCount } from 'tokenx'
 import type {
@@ -36,9 +35,13 @@ import {
 } from './contextContributions.js'
 import { createDeepSeekResponsesReplayProjector } from '../collab/provider/deepseekResponsesAdapter.js'
 import { redactRuntimeErrorForLog } from './runtimeErrorLogging.js'
-import {type ProviderModelResolutionPort} from '../contracts/providerModelResolution.js'
-import {type TranscriptStorePort} from '../contracts/transcriptStore.js'
-import {type SessionSettingsStorePort, type SessionSummaryState, type SummaryTapeAnchorInput} from '../contracts/sessionSettingsStore.js'
+import { type ProviderModelResolutionPort } from '../contracts/providerModelResolution.js'
+import { type TranscriptStorePort } from '../contracts/transcriptStore.js'
+import {
+  type SessionSettingsStorePort,
+  type SessionSummaryState,
+  type SummaryTapeAnchorInput
+} from '../contracts/sessionSettingsStore.js'
 
 const SAFETY_MARGIN = 1.2
 const SUMMARIZATION_OVERHEAD_TOKENS = 4096
@@ -117,9 +120,7 @@ export type CompactionModelCallObservation = {
   completedAt: number
 }
 
-export type CompactionModelCallObserver = (
-  observation: CompactionModelCallObservation
-) => void
+export type CompactionModelCallObserver = (observation: CompactionModelCallObservation) => void
 
 type OrderSeqRange = NonNullable<CompactionIntent['summaryRange']>
 
@@ -207,18 +208,14 @@ function selectRetainedTail(
   minimumTurnCount: number,
   tokenTarget: number
 ): RetainedTailSelection {
-  const normalizedMinimum = Math.min(
-    turns.length,
-    floorNonNegative(minimumTurnCount)
-  )
+  const normalizedMinimum = Math.min(turns.length, floorNonNegative(minimumTurnCount))
   const normalizedTarget = floorNonNegative(tokenTarget)
   let retainedStart = turns.length
   let retainedTokenEstimate = 0
 
   while (
     retainedStart > 0 &&
-    (turns.length - retainedStart < normalizedMinimum ||
-      retainedTokenEstimate < normalizedTarget)
+    (turns.length - retainedStart < normalizedMinimum || retainedTokenEstimate < normalizedTarget)
   ) {
     retainedStart -= 1
     retainedTokenEstimate += floorNonNegative(turns[retainedStart]?.tokens ?? 0)
@@ -456,9 +453,7 @@ export class CompactionService {
               )
             ],
       force: params.forceContextPressure === true,
-      anchorName: params.forceContextPressure
-        ? 'auto_handoff/context_overflow'
-        : 'compaction/auto'
+      anchorName: params.forceContextPressure ? 'auto_handoff/context_overflow' : 'compaction/auto'
     })
   }
 
@@ -787,9 +782,7 @@ export class CompactionService {
         retainedTurnCount: floorNonNegative(intent.retainedTurnCount),
         retainedTokenEstimate: floorNonNegative(intent.retainedTokenEstimate),
         retainedTokenTarget: floorNonNegative(intent.retainedTokenTarget),
-        pinnedFirstUserTokenEstimate: floorNonNegative(
-          intent.pinnedFirstUserTokenEstimate ?? 0
-        ),
+        pinnedFirstUserTokenEstimate: floorNonNegative(intent.pinnedFirstUserTokenEstimate ?? 0),
         previousSummaryUpdatedAt: intent.previousState.summaryUpdatedAt
       },
       meta: {
@@ -831,8 +824,9 @@ export class CompactionService {
   }): CompactionIntent | null {
     assertValidContextLength(params.contextLength)
     const summaryState = this.sessionStore.getSummaryState(params.sessionId)
-    const reconstructionAnchor =
-      this.sessionStore.getReconstructionAnchorPromptState(params.sessionId)
+    const reconstructionAnchor = this.sessionStore.getReconstructionAnchorPromptState(
+      params.sessionId
+    )
     const pendingSummaryGap =
       isSummaryGapReason(reconstructionAnchor?.state.reason) &&
       reconstructionAnchor.state.cursorOrderSeq === summaryState.summaryCursorOrderSeq
@@ -883,14 +877,10 @@ export class CompactionService {
       summaryState.summaryText,
       reconstructionAnchor
     ).message
-    const currentCheckpointTokenEstimate = checkpoint
-      ? estimateMessagesTokens([checkpoint])
-      : 0
+    const currentCheckpointTokenEstimate = checkpoint ? estimateMessagesTokens([checkpoint]) : 0
     const projectedHistory = turns.flatMap((turn) => turn.messages)
     const projectedPrompt = [
-      ...(params.systemPrompt
-        ? [{ role: 'system' as const, content: params.systemPrompt }]
-        : []),
+      ...(params.systemPrompt ? [{ role: 'system' as const, content: params.systemPrompt }] : []),
       ...canonicalPinnedFirstUserMessages,
       ...(checkpoint ? [checkpoint] : []),
       ...projectedHistory,
@@ -975,8 +965,7 @@ export class CompactionService {
         summaryableTurns.length +
         (pendingGapRecords.length > 0 ? Math.max(1, pendingGapTurnCount) : 0),
       retainedTurnCount: rawTailTurns.length,
-      retainedTokenEstimate:
-        retainedTail.retainedTokenEstimate + pinnedFirstUserTokenEstimate,
+      retainedTokenEstimate: retainedTail.retainedTokenEstimate + pinnedFirstUserTokenEstimate,
       retainedTokenTarget,
       pinnedFirstUserTokenEstimate
     }

@@ -25,10 +25,7 @@ import {
 import { toAppSessionId } from '../collab/agent-shared/agentSessionIds.js'
 import type { SessionIdentityService } from './sessionIdentityService.js'
 import type { ToolCatalogPort } from '../loop/ports.js'
-import {
-  normalizeStringList,
-  type AgentExtensionPolicy
-} from '../resources/systemPromptBuilder.js'
+import { normalizeStringList, type AgentExtensionPolicy } from '../resources/systemPromptBuilder.js'
 import { createToolCatalogPort } from './toolAdapters.js'
 
 import { awaitWithAbort } from '../collab/lib/awaitWithAbort.js'
@@ -50,8 +47,8 @@ import {
   type ResolvedToolMode,
   type ToolMode
 } from '@deepchat/shared/toolMode'
-import {type SkillSettingsPort} from '../contracts/skillSettings.js'
-import {type AgentSettingsPort} from '../contracts/agentSettings.js'
+import { type SkillSettingsPort } from '../contracts/skillSettings.js'
+import { type AgentSettingsPort } from '../contracts/agentSettings.js'
 
 type ToolResolverSkillPort = Pick<
   SkillServicePort,
@@ -376,7 +373,12 @@ export class DeepChatToolResolver {
     if (skillsEnabled) {
       try {
         const metadataSnapshot = projectDir?.trim()
-          ? { state: 'ready' as const, skills: await this.dependencies.skillService.getMetadataList(agentId, { conversationId: sessionId }) }
+          ? {
+              state: 'ready' as const,
+              skills: await this.dependencies.skillService.getMetadataList(agentId, {
+                conversationId: sessionId
+              })
+            }
           : this.dependencies.skillService.snapshotCachedMetadataList(agentId, {
               maxItems: MAX_RUN_TOOL_UNIVERSE_SKILLS
             })
@@ -753,11 +755,9 @@ export class DeepChatToolResolver {
           this.dependencies.identity.getAgentId(sessionId)?.trim() ||
           null
         const agentId = scopedAgentId ?? 'deepchat'
-        const toolPolicy = await this.resolveAgentToolPolicy(
-          sessionId,
-          resourceInstance,
-          { requireComplete: failClosed }
-        )
+        const toolPolicy = await this.resolveAgentToolPolicy(sessionId, resourceInstance, {
+          requireComplete: failClosed
+        })
         const policy = toolPolicy.extensionPolicy
         const requestedActiveSkillNames = failClosed
           ? normalizeStringList([
@@ -1084,7 +1084,9 @@ export class DeepChatToolResolver {
 
     try {
       const validatedSkillNames = normalizeStringList(
-        await this.dependencies.skillService.validateSkillNames(agentId, normalizedSkillNames, { conversationId })
+        await this.dependencies.skillService.validateSkillNames(agentId, normalizedSkillNames, {
+          conversationId
+        })
       )
       if (
         failClosed &&

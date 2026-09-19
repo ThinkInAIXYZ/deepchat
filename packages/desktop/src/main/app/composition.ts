@@ -968,6 +968,7 @@ export async function createMainProcessControl(dependencies: {
     projectDatabase,
     memoryDatabase,
     sessionData.tapeStore,
+    sessionData.transactions,
     undefined,
     () => projectService.notifyEnvironmentProjectionChanged()
   )

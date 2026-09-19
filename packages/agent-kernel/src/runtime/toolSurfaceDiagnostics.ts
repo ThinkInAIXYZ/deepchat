@@ -27,7 +27,7 @@ import {
 export const TOOL_SURFACE_SHADOW_DIAGNOSTICS_SCHEMA_VERSION = 1
 export const TOOL_SURFACE_P0A_SHADOW_POLICY: ToolSurfaceShadowPolicy = Object.freeze({
   ...createAutomaticToolSurfaceSelectionPolicy(256),
-  policyVersion: 'p0a-shadow-v2',
+  policyVersion: 'p0a-shadow-v2'
 })
 
 const DEFAULT_SAMPLE_CAPACITY = 256
@@ -481,9 +481,7 @@ function prepareToolSurfaceShadowUniverse(
       complete: universe.complete,
       mandatoryAdmissionBlocked: universe.mandatoryAdmissionBlocked,
       ceilingCatalog: buildCanonicalToolCatalog(universe.definitions),
-      activeSkillRequiredStableTargetKeys: Object.freeze([
-        ...activeSkillRequiredStableTargetKeys
-      ]),
+      activeSkillRequiredStableTargetKeys: Object.freeze([...activeSkillRequiredStableTargetKeys]),
       preparationFailed: false
     })
   } catch {
@@ -965,9 +963,7 @@ interface ToolSurfaceShadowDiagnosticsLineage {
  * Keeps independent bounded collectors for each Session instance and provider/model/profile lineage.
  * The WeakMap follows the runtime instance lifecycle, and lineage keys retain only a digest.
  */
-export class ToolSurfaceShadowDiagnosticsRegistry
-  implements ToolSurfaceShadowDiagnosticsRegistryPort
-{
+export class ToolSurfaceShadowDiagnosticsRegistry implements ToolSurfaceShadowDiagnosticsRegistryPort {
   private readonly lineagesByInstance = new WeakMap<
     DeepChatAgentInstance,
     Map<string, ToolSurfaceShadowDiagnosticsLineage>

@@ -72,9 +72,7 @@ function pricingKey(providerId: string, modelId: string): string {
 }
 
 function safeTokenCount(value: number | undefined): bigint | null {
-  return value !== undefined && Number.isSafeInteger(value) && value >= 0
-    ? BigInt(value)
-    : null
+  return value !== undefined && Number.isSafeInteger(value) && value >= 0 ? BigInt(value) : null
 }
 
 /** Immutable exact-match pricing lookup. It never participates in adapter selection or dispatch. */

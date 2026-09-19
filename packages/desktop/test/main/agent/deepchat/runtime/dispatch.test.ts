@@ -208,14 +208,14 @@ function makeAgentTool(
           }
         }
       : name === TOOL_SEARCH_AGENT_TOOL_NAME
-      ? {
-          server: {
-            name: TOOL_SEARCH_AGENT_TOOL_SERVER_NAME,
-            icons: '',
-            description: 'Tool Surface discovery'
+        ? {
+            server: {
+              name: TOOL_SEARCH_AGENT_TOOL_SERVER_NAME,
+              icons: '',
+              description: 'Tool Surface discovery'
+            }
           }
-        }
-      : {})
+        : {})
   }
 }
 
@@ -640,130 +640,137 @@ describe('dispatch', () => {
     it.each([
       { mode: 'serial', execution: TOOL_EXECUTION.write },
       { mode: 'parallel', execution: TOOL_EXECUTION.read.parallel }
-    ])('binds exact Tool Surface context and assistant ordinals in $mode batches', async ({ execution }) => {
-      const definitions = [
-        makeAgentTool('first', execution),
-        makeAgentTool('second', execution),
-        makeAgentTool('hidden-first', TOOL_EXECUTION.read.parallel),
-        makeAgentTool('hidden-second', TOOL_EXECUTION.read.parallel)
-      ]
-      const { tools, binding, catalog } = createDispatchToolSurfaceBinding(definitions, [
-        'first',
-        'second'
-      ])
-      const entryByName = new Map(
-        catalog.entries.map((entry) => [entry.target.providerVisibleName, entry])
-      )
-      const toolService = createMockToolService()
-      const contexts = new Map<string, ToolExecutionOptions['toolSurfaceContext']>()
-      vi.mocked(toolService.preCheckToolPermission).mockImplementation(async (_request, options) => {
-        const preCheckOptions = options as ToolExecutionPreCheckOptions
-        expect(preCheckOptions.toolSurfaceSnapshot).toBe(binding.snapshot)
-        expect(preCheckOptions.messageId).toBe(io.messageId)
-        expect(preCheckOptions.runId).toBe(binding.snapshot.request.runId)
-        expect(preCheckOptions.requestSeq).toBe(binding.snapshot.request.requestSeq)
-        return null
-      })
-      vi.mocked(toolService.callTool).mockImplementation(async (request, options) => {
-        const executionOptions = options as ToolExecutionOptions | undefined
-        const context = executionOptions?.toolSurfaceContext
-        contexts.set(request.id, context)
-        expect(executionOptions?.toolSurfaceSnapshot).toBe(binding.snapshot)
-        executionOptions?.commitDispatch({
-          toolName: request.function.name,
-          toolSource: 'agent',
-          normalizedArguments: {},
-          target: { serverName: 'test-server', originalName: request.function.name }
+    ])(
+      'binds exact Tool Surface context and assistant ordinals in $mode batches',
+      async ({ execution }) => {
+        const definitions = [
+          makeAgentTool('first', execution),
+          makeAgentTool('second', execution),
+          makeAgentTool('hidden-first', TOOL_EXECUTION.read.parallel),
+          makeAgentTool('hidden-second', TOOL_EXECUTION.read.parallel)
+        ]
+        const { tools, binding, catalog } = createDispatchToolSurfaceBinding(definitions, [
+          'first',
+          'second'
+        ])
+        const entryByName = new Map(
+          catalog.entries.map((entry) => [entry.target.providerVisibleName, entry])
+        )
+        const toolService = createMockToolService()
+        const contexts = new Map<string, ToolExecutionOptions['toolSurfaceContext']>()
+        vi.mocked(toolService.preCheckToolPermission).mockImplementation(
+          async (_request, options) => {
+            const preCheckOptions = options as ToolExecutionPreCheckOptions
+            expect(preCheckOptions.toolSurfaceSnapshot).toBe(binding.snapshot)
+            expect(preCheckOptions.messageId).toBe(io.messageId)
+            expect(preCheckOptions.runId).toBe(binding.snapshot.request.runId)
+            expect(preCheckOptions.requestSeq).toBe(binding.snapshot.request.requestSeq)
+            return null
+          }
+        )
+        vi.mocked(toolService.callTool).mockImplementation(async (request, options) => {
+          const executionOptions = options as ToolExecutionOptions | undefined
+          const context = executionOptions?.toolSurfaceContext
+          contexts.set(request.id, context)
+          expect(executionOptions?.toolSurfaceSnapshot).toBe(binding.snapshot)
+          executionOptions?.commitDispatch({
+            toolName: request.function.name,
+            toolSource: 'agent',
+            normalizedArguments: {},
+            target: { serverName: 'test-server', originalName: request.function.name }
+          })
+          const hiddenEntry = entryByName.get(
+            request.id === 'tc0' ? 'hidden-first' : 'hidden-second'
+          )!
+          executionOptions?.registerOutcomeProjection?.(() =>
+            context?.submitActivationCandidates([
+              {
+                ...binding.snapshot.request,
+                stableTargetKey: hiddenEntry.stableTargetKey,
+                canonicalToolDefinitionHash: hiddenEntry.canonicalToolDefinitionHash,
+                toolCallOrdinalWithinBatch: context.toolCallOrdinalWithinBatch,
+                resultRank: 0
+              }
+            ])
+          )
+          return {
+            content: request.function.name,
+            rawData: {
+              toolCallId: request.id,
+              content: request.function.name,
+              isError: false
+            }
+          }
         })
-        const hiddenEntry = entryByName.get(request.id === 'tc0' ? 'hidden-first' : 'hidden-second')!
-        executionOptions?.registerOutcomeProjection?.(() =>
-          context?.submitActivationCandidates([
+        const conversation = [{ role: 'user' as const, content: 'Use both tools' }]
+        for (const index of [0, 1]) {
+          state.blocks.push({
+            type: 'tool_call',
+            content: '',
+            status: 'pending',
+            timestamp: Date.now(),
+            tool_call: {
+              id: `tc${index}`,
+              name: TOOL_SEARCH_AGENT_TOOL_NAME,
+              params: '{}',
+              response: ''
+            }
+          })
+          state.completedToolCalls.push({
+            id: `tc${index}`,
+            name: TOOL_SEARCH_AGENT_TOOL_NAME,
+            arguments: '{}'
+          })
+        }
+
+        const settled = await settleToolBatch(
+          state,
+          conversation,
+          0,
+          tools,
+          toolService,
+          'gpt-4',
+          io,
+          'full_access',
+          new ToolOutputGuard(),
+          32_000,
+          1_024,
+          { toolSurface: binding },
+          'openai'
+        )
+
+        expect(contexts.size).toBe(2)
+        expect(toolService.preCheckToolPermission).not.toHaveBeenCalled()
+        for (const index of [0, 1]) {
+          const context = contexts.get(`tc${index}`)
+          expect(context?.snapshot).toBe(binding.snapshot)
+          expect(context?.toolCallOrdinalWithinBatch).toBe(index)
+          expect(typeof context?.submitActivationCandidates).toBe('function')
+          expect(Object.isFrozen(context)).toBe(true)
+          expect(() => assertIssuedToolSurfaceExecutionContext(context)).not.toThrow()
+        }
+        expect(binding.releaseActivationCandidates).not.toHaveBeenCalled()
+        expect(
+          settled.toolSurfaceActivationCandidates.map((candidate) => candidate.stableTargetKey)
+        ).toEqual([
+          entryByName.get('hidden-first')!.stableTargetKey,
+          entryByName.get('hidden-second')!.stableTargetKey
+        ])
+        const firstContext = contexts.get('tc0')!
+        const hiddenFirst = entryByName.get('hidden-first')!
+        expect(() =>
+          firstContext.submitActivationCandidates([
             {
               ...binding.snapshot.request,
-              stableTargetKey: hiddenEntry.stableTargetKey,
-              canonicalToolDefinitionHash: hiddenEntry.canonicalToolDefinitionHash,
-              toolCallOrdinalWithinBatch: context.toolCallOrdinalWithinBatch,
+              stableTargetKey: hiddenFirst.stableTargetKey,
+              canonicalToolDefinitionHash: hiddenFirst.canonicalToolDefinitionHash,
+              toolCallOrdinalWithinBatch: 0,
               resultRank: 0
             }
           ])
-        )
-        return {
-          content: request.function.name,
-          rawData: {
-            toolCallId: request.id,
-            content: request.function.name,
-            isError: false
-          }
-        }
-      })
-      const conversation = [{ role: 'user' as const, content: 'Use both tools' }]
-      for (const index of [0, 1]) {
-        state.blocks.push({
-          type: 'tool_call',
-          content: '',
-          status: 'pending',
-          timestamp: Date.now(),
-          tool_call: {
-            id: `tc${index}`,
-            name: TOOL_SEARCH_AGENT_TOOL_NAME,
-            params: '{}',
-            response: ''
-          }
-        })
-        state.completedToolCalls.push({
-          id: `tc${index}`,
-          name: TOOL_SEARCH_AGENT_TOOL_NAME,
-          arguments: '{}'
-        })
+        ).toThrow(/no longer active/)
       }
-
-      const settled = await settleToolBatch(
-        state,
-        conversation,
-        0,
-        tools,
-        toolService,
-        'gpt-4',
-        io,
-        'full_access',
-        new ToolOutputGuard(),
-        32_000,
-        1_024,
-        { toolSurface: binding },
-        'openai'
-      )
-
-      expect(contexts.size).toBe(2)
-      expect(toolService.preCheckToolPermission).not.toHaveBeenCalled()
-      for (const index of [0, 1]) {
-        const context = contexts.get(`tc${index}`)
-        expect(context?.snapshot).toBe(binding.snapshot)
-        expect(context?.toolCallOrdinalWithinBatch).toBe(index)
-        expect(typeof context?.submitActivationCandidates).toBe('function')
-        expect(Object.isFrozen(context)).toBe(true)
-        expect(() => assertIssuedToolSurfaceExecutionContext(context)).not.toThrow()
-      }
-      expect(binding.releaseActivationCandidates).not.toHaveBeenCalled()
-      expect(
-        settled.toolSurfaceActivationCandidates.map((candidate) => candidate.stableTargetKey)
-      ).toEqual([
-        entryByName.get('hidden-first')!.stableTargetKey,
-        entryByName.get('hidden-second')!.stableTargetKey
-      ])
-      const firstContext = contexts.get('tc0')!
-      const hiddenFirst = entryByName.get('hidden-first')!
-      expect(() =>
-        firstContext.submitActivationCandidates([
-          {
-            ...binding.snapshot.request,
-            stableTargetKey: hiddenFirst.stableTargetKey,
-            canonicalToolDefinitionHash: hiddenFirst.canonicalToolDefinitionHash,
-            toolCallOrdinalWithinBatch: 0,
-            resultRank: 0
-          }
-        ])
-      ).toThrow(/no longer active/)
-    })
+    )
 
     it('bounds parallel ToolSearch work while preserving earliest candidate order', async () => {
       const definitions = [makeAgentTool('hidden', TOOL_EXECUTION.read.parallel)]
@@ -856,9 +863,7 @@ describe('dispatch', () => {
           binding.snapshot,
           binding.snapshot.request,
           request.function.name,
-          staleDefinitions.find(
-            (definition) => definition.function.name === request.function.name
-          )
+          staleDefinitions.find((definition) => definition.function.name === request.function.name)
         )
       })
       vi.mocked(toolService.callTool).mockImplementation(async (request, options) => {
@@ -921,7 +926,9 @@ describe('dispatch', () => {
       expect(toolService.preCheckToolPermission).not.toHaveBeenCalled()
       expect(toolService.callTool).toHaveBeenCalledOnce()
       expect(toolService.callTool).toHaveBeenCalledWith(
-        expect.objectContaining({ function: expect.objectContaining({ name: TOOL_SEARCH_AGENT_TOOL_NAME }) }),
+        expect.objectContaining({
+          function: expect.objectContaining({ name: TOOL_SEARCH_AGENT_TOOL_NAME })
+        }),
         expect.anything()
       )
       expect(settled.toolSurfaceActivationCandidates).toEqual([
@@ -1474,12 +1481,7 @@ describe('dispatch', () => {
         'openai'
       )
 
-      expect(order).toEqual([
-        'outer-dispatch',
-        'child-dispatch',
-        'child-outcome',
-        'outer-outcome'
-      ])
+      expect(order).toEqual(['outer-dispatch', 'child-dispatch', 'child-outcome', 'outer-outcome'])
       expect(commitNestedDispatch).toHaveBeenCalledWith(
         expect.objectContaining({
           sessionId: 's1',
@@ -1686,9 +1688,7 @@ describe('dispatch', () => {
           response: ''
         }
       })
-      state.completedToolCalls = [
-        { id: 'tc-search', name: 'exec', arguments: argumentsJson }
-      ]
+      state.completedToolCalls = [{ id: 'tc-search', name: 'exec', arguments: argumentsJson }]
 
       const result = await settleToolBatch(
         state,
@@ -1924,9 +1924,7 @@ describe('dispatch', () => {
           response: ''
         }
       })
-      state.completedToolCalls = [
-        { id: 'tc-describe', name: 'exec', arguments: argumentsJson }
-      ]
+      state.completedToolCalls = [{ id: 'tc-describe', name: 'exec', arguments: argumentsJson }]
 
       const result = await settleToolBatch(
         state,
@@ -2933,9 +2931,7 @@ describe('dispatch', () => {
           response: ''
         }
       })
-      state.completedToolCalls = [
-        { id: 'reused-call-id', name: 'read', arguments: '{"path":"' }
-      ]
+      state.completedToolCalls = [{ id: 'reused-call-id', name: 'read', arguments: '{"path":"' }]
 
       await settleToolBatch(
         state,
@@ -3412,10 +3408,7 @@ describe('dispatch', () => {
     })
 
     it('keeps mixed read/write Agent tool batches serialized', async () => {
-      const tools = [
-        makeAgentTool('write'),
-        makeAgentTool('read', TOOL_EXECUTION.read.parallel)
-      ]
+      const tools = [makeAgentTool('write'), makeAgentTool('read', TOOL_EXECUTION.read.parallel)]
       const started: string[] = []
       let releaseWrite: (() => void) | null = null
       let writeStarted: (() => void) | null = null
@@ -3854,8 +3847,7 @@ describe('dispatch', () => {
       expect(
         state.blocks.filter(
           (block) =>
-            block.type !== 'action' &&
-            (block.status === 'pending' || block.status === 'loading')
+            block.type !== 'action' && (block.status === 'pending' || block.status === 'loading')
         )
       ).toEqual([])
       expect(toolService.callTool).toHaveBeenCalledTimes(2)
@@ -6003,8 +5995,9 @@ describe('dispatch', () => {
       expect(activateSkill).toHaveBeenCalledOnce()
       expect(state.blocks[0].tool_call?.response).toBe(rootViewText)
       expect(state.blocks[1].tool_call?.response).toBe(confirmationText)
-      expect(conversation.filter((message) => message.content.includes('# Effective Skill body')))
-        .toHaveLength(1)
+      expect(
+        conversation.filter((message) => message.content.includes('# Effective Skill body'))
+      ).toHaveLength(1)
     })
 
     it.each([

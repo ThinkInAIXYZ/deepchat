@@ -101,8 +101,8 @@ export type UserMessageContent = {
   content?: (UserMessageTextBlock | UserMessageMentionBlock | UserMessageCodeBlock)[]
 }
 
-import type { MessageFile } from '@shared/chat'
-export type { MessageFile } from '@shared/chat'
+import type { MessageFile } from '@deepchat/shared/chat'
+export type { MessageFile } from '@deepchat/shared/chat'
 
 export type AssistantMessageBlock = {
   type:

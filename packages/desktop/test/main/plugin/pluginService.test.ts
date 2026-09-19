@@ -35,6 +35,7 @@ vi.mock('node:fs', async () => {
 
 const tempRoots: string[] = []
 const originalCwd = process.cwd()
+const workspaceRoot = path.resolve(originalCwd, '../..')
 
 type CreatePluginServiceOptions = {
   appPath?: string
@@ -1112,7 +1113,7 @@ describe('PluginService', () => {
     const windowSource = await readFile('src/main/desktop/pluginSettingsWindow.ts', 'utf8')
     const viteConfigSource = await readFile('electron.vite.config.ts', 'utf8')
 
-    expect(viteConfigSource).toContain('pluginSettings: resolve')
+    expect(viteConfigSource).toContain('pluginSettings: fromAppRoot')
     expect(windowSource).toContain('../preload/pluginSettings.mjs')
     expect(windowSource).not.toContain('../preload/plugin-settings-preload.mjs')
   })
@@ -2086,9 +2087,18 @@ describe('PluginService', () => {
 
   it('wires CUA plugin release gates for supported targets', async () => {
     const packageJson = JSON.parse(await readFile('package.json', 'utf8'))
-    const windowsPackageWorkflow = await readFile('.github/workflows/_package-windows.yml', 'utf8')
-    const linuxPackageWorkflow = await readFile('.github/workflows/_package-linux.yml', 'utf8')
-    const macosPackageWorkflow = await readFile('.github/workflows/_package-macos.yml', 'utf8')
+    const windowsPackageWorkflow = await readFile(
+      path.join(workspaceRoot, '.github/workflows/_package-windows.yml'),
+      'utf8'
+    )
+    const linuxPackageWorkflow = await readFile(
+      path.join(workspaceRoot, '.github/workflows/_package-linux.yml'),
+      'utf8'
+    )
+    const macosPackageWorkflow = await readFile(
+      path.join(workspaceRoot, '.github/workflows/_package-macos.yml'),
+      'utf8'
+    )
     const pluginScript = await readFile('scripts/plugin.mjs', 'utf8')
 
     expect(packageJson.scripts['plugin:cua:build:mac:arm64']).toContain('--arch arm64')
@@ -2125,13 +2135,13 @@ describe('PluginService', () => {
       'installRuntime:duckdb:vss:linux:arm64'
     )
     expect(macosPackageWorkflow).toContain(
-      'pnpm run plugin:bundle -- --name cua --platform darwin --arch "${TARGET_ARCH}"'
+      'pnpm --filter DeepChat run plugin:bundle -- --name cua --platform darwin --arch "${TARGET_ARCH}"'
     )
     expect(windowsPackageWorkflow).toContain(
-      'pnpm run plugin:bundle -- --name cua --platform win32 --arch "${TARGET_ARCH}"'
+      'pnpm --filter DeepChat run plugin:bundle -- --name cua --platform win32 --arch "${TARGET_ARCH}"'
     )
     expect(linuxPackageWorkflow).toContain(
-      'pnpm run plugin:bundle -- --name cua --platform linux --arch ${{ inputs.arch }}'
+      'pnpm --filter DeepChat run plugin:bundle -- --name cua --platform linux --arch ${{ inputs.arch }}'
     )
     for (const [workflow, platform] of [
       [macosPackageWorkflow, 'darwin'],
@@ -2139,24 +2149,26 @@ describe('PluginService', () => {
       [linuxPackageWorkflow, 'linux']
     ]) {
       expect(workflow).toContain(
-        `pnpm run installRuntime:duckdb:vss -- --platform ${platform} --arch`
+        `pnpm --filter DeepChat run installRuntime:duckdb:vss -- --platform ${platform} --arch`
       )
-      expect(workflow).toContain(`pnpm run smoke:duckdb:vss -- --platform ${platform} --arch`)
+      expect(workflow).toContain(
+        `pnpm --filter DeepChat run smoke:duckdb:vss -- --platform ${platform} --arch`
+      )
       expect(workflow).toContain('Verify packaged DuckDB VSS')
     }
     expect(macosPackageWorkflow).toContain('macos-15-intel')
     expect(macosPackageWorkflow).toContain('macos-15')
     expect(windowsPackageWorkflow).toContain(
-      'dist/${UNPACKED_DIRECTORY}/resources/app.asar.unpacked/runtime/duckdb/extensions/vss.duckdb_extension'
+      '${DESKTOP_DIST_DIRECTORY}/${UNPACKED_DIRECTORY}/resources/app.asar.unpacked/runtime/duckdb/extensions/vss.duckdb_extension'
     )
     expect(linuxPackageWorkflow).toContain(
-      'dist/${UNPACKED_DIRECTORY}/resources/app.asar.unpacked/runtime/duckdb/extensions/vss.duckdb_extension'
+      'packages/desktop/dist/${UNPACKED_DIRECTORY}/resources/app.asar.unpacked/runtime/duckdb/extensions/vss.duckdb_extension'
     )
     expect(macosPackageWorkflow).toContain(
       '${APP_DIRECTORY}/Contents/Resources/app.asar.unpacked/runtime/duckdb/extensions/vss.duckdb_extension.b64'
     )
     expect(macosPackageWorkflow).toContain(
-      'pnpm run smoke:duckdb:vss -- --platform darwin --arch "${TARGET_ARCH}" --extension-base64-path "${extension_path}"'
+      'pnpm --filter DeepChat run smoke:duckdb:vss -- --platform darwin --arch "${TARGET_ARCH}" --extension-base64-path "${extension_path}"'
     )
     expect(windowsPackageWorkflow).toContain(
       '- name: Build and package Windows\n        shell: bash'

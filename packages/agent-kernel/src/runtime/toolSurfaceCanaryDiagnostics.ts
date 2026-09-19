@@ -32,12 +32,7 @@ const ACTUAL_ADAPTER_MODES = Object.freeze([
 ] as const)
 
 export type ToolSurfaceCatalogBand = '0-32' | '33-64' | '65-256' | '257+'
-export type ToolSurfaceCanaryRunOutcome =
-  | 'completed'
-  | 'paused'
-  | 'aborted'
-  | 'error'
-  | 'unsettled'
+export type ToolSurfaceCanaryRunOutcome = 'completed' | 'paused' | 'aborted' | 'error' | 'unsettled'
 
 export type ToolSurfaceCanaryCostUnavailableReason = Exclude<
   ToolSurfaceBilledCostResult['status'],
@@ -151,9 +146,7 @@ export interface ToolSurfaceCanaryAssignmentSnapshot {
   readonly aborted: number
   readonly excluded: number
   readonly inFlight: number
-  readonly selectedByAdapter: Readonly<
-    Record<Exclude<LoopRunToolSurfaceMode, 'legacy'>, number>
-  >
+  readonly selectedByAdapter: Readonly<Record<Exclude<LoopRunToolSurfaceMode, 'legacy'>, number>>
 }
 
 export interface ToolSurfaceCanaryDiagnosticsSnapshot {
@@ -373,7 +366,9 @@ function isTokenCount(value: unknown): value is number {
   return Number.isSafeInteger(value) && (value as number) >= 0
 }
 
-function isProviderAttemptDiagnostic(value: unknown): value is ToolSurfaceProviderAttemptDiagnostic {
+function isProviderAttemptDiagnostic(
+  value: unknown
+): value is ToolSurfaceProviderAttemptDiagnostic {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false
   const attempt = value as Partial<ToolSurfaceProviderAttemptDiagnostic>
   if (
@@ -391,10 +386,8 @@ function isProviderAttemptDiagnostic(value: unknown): value is ToolSurfaceProvid
   return (
     isTokenCount(attempt.usage.inputTokens) &&
     (attempt.usage.outputTokens === undefined || isTokenCount(attempt.usage.outputTokens)) &&
-    (attempt.usage.cacheReadTokens === undefined ||
-      isTokenCount(attempt.usage.cacheReadTokens)) &&
-    (attempt.usage.cacheWriteTokens === undefined ||
-      isTokenCount(attempt.usage.cacheWriteTokens))
+    (attempt.usage.cacheReadTokens === undefined || isTokenCount(attempt.usage.cacheReadTokens)) &&
+    (attempt.usage.cacheWriteTokens === undefined || isTokenCount(attempt.usage.cacheWriteTokens))
   )
 }
 
@@ -550,9 +543,7 @@ class ToolSurfaceCanaryCohort {
     this.discoveryCalls.push(
       input.evidence.discovery.searchCalls + input.evidence.discovery.describeCalls
     )
-    this.repeatedSearchTargetResults.push(
-      input.evidence.discovery.repeatedSearchTargetResults
-    )
+    this.repeatedSearchTargetResults.push(input.evidence.discovery.repeatedSearchTargetResults)
     this.settledToolResults.push(input.evidence.quality.settledToolResults)
     if (input.billedCost.status === 'available') {
       this.pricedRuns = increment(this.pricedRuns)
@@ -701,12 +692,14 @@ export class ToolSurfaceCanaryDiagnosticsRegistry {
   private readonly lineageCapacity: number
   private readonly pricing: ToolSurfaceProviderPricingCatalogV1
 
-  constructor(options: {
-    readonly sampleCapacity?: number
-    readonly cohortCapacity?: number
-    readonly lineageCapacity?: number
-    readonly pricingPolicy?: ToolSurfaceProviderPricingPolicyV1
-  } = {}) {
+  constructor(
+    options: {
+      readonly sampleCapacity?: number
+      readonly cohortCapacity?: number
+      readonly lineageCapacity?: number
+      readonly pricingPolicy?: ToolSurfaceProviderPricingPolicyV1
+    } = {}
+  ) {
     this.sampleCapacity = this.boundCapacity(
       options.sampleCapacity,
       DEFAULT_SAMPLE_CAPACITY,
@@ -815,8 +808,7 @@ export class ToolSurfaceCanaryDiagnosticsRegistry {
         input.catalogDefinitionTokens < 0 ||
         !Number.isSafeInteger(input.durationMs) ||
         input.durationMs < 0 ||
-        (input.ttftMs !== null &&
-          (!Number.isSafeInteger(input.ttftMs) || input.ttftMs < 0)) ||
+        (input.ttftMs !== null && (!Number.isSafeInteger(input.ttftMs) || input.ttftMs < 0)) ||
         !Number.isSafeInteger(input.providerRounds) ||
         input.providerRounds < 0 ||
         !(ACTUAL_ADAPTER_MODES as readonly string[]).includes(input.adapterMode) ||

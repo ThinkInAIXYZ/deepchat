@@ -12,6 +12,7 @@ import { isReasoningEffort } from '@deepchat/shared/types/model-db'
 import { resolveAcpAgentAlias } from '@shared/utils/acpAgentAlias'
 import { SessionTranscript, type TranscriptTapePort } from '@/session/data/transcript'
 import { SessionDatabase } from '@/session/data/database'
+import type { SessionTransaction } from '@/session/data/transaction'
 import type { ProjectDatabase } from '@/project/data/database'
 import type { AppDatabase } from '@/app/data/database'
 import type { MemoryDatabase } from '@/memory/data/database'
@@ -46,6 +47,7 @@ export class LegacyChatImportService {
     projectDatabase: ProjectDatabase,
     memoryDatabase: MemoryDatabase,
     tapeFacts: TranscriptTapePort,
+    transactions: SessionTransaction,
     sourceDbPath?: string,
     notifyEnvironmentProjectionChanged: () => void = () => undefined
   ) {
@@ -53,7 +55,13 @@ export class LegacyChatImportService {
     this.sessionDatabase = sessionDatabase
     this.projectDatabase = projectDatabase
     this.memoryDatabase = memoryDatabase
-    this.messageStore = new SessionTranscript(this.sessionDatabase, tapeFacts)
+    this.messageStore = new SessionTranscript(
+      this.sessionDatabase,
+      tapeFacts,
+      undefined,
+      undefined,
+      transactions
+    )
     this.sourceDbPath = sourceDbPath ?? path.join(app.getPath('userData'), 'app_db', 'chat.db')
     this.notifyEnvironmentProjectionChanged = notifyEnvironmentProjectionChanged
   }

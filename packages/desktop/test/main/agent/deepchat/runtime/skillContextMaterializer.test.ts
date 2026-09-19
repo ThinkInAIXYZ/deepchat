@@ -44,8 +44,8 @@ function fixture() {
   }
   const tape = {
     getTapeIncarnationId: vi.fn(() => 'incarnation-1'),
-    getEffectiveUserMessageSourceEntryId: vi.fn(
-      (_sessionId: string, messageId: string) => (messageId === 'user-1' ? 9 : null)
+    getEffectiveUserMessageSourceEntryId: vi.fn((_sessionId: string, messageId: string) =>
+      messageId === 'user-1' ? 9 : null
     ),
     materializeSkillContexts: vi.fn(
       (inputs: PreparedSkillContextBatch['items'][number]['materializationInput'][]) =>
@@ -98,11 +98,11 @@ describe('SkillContextMaterializer', () => {
       sessionSkillNames: ['shared', 'session-only']
     })
     expect(skills.resolveFreshEffectiveSkillContents).toHaveBeenCalledOnce()
-    expect(skills.resolveFreshEffectiveSkillContents).toHaveBeenCalledWith('agent-1', [
-      'shared',
-      'session-only',
-      'message-only'
-    ], { conversationId: 'session-1' })
+    expect(skills.resolveFreshEffectiveSkillContents).toHaveBeenCalledWith(
+      'agent-1',
+      ['shared', 'session-only', 'message-only'],
+      { conversationId: 'session-1' }
+    )
     expect(prepared.items.map(({ scope }) => scope)).toEqual(['session', 'session', 'message'])
   })
 
@@ -263,9 +263,9 @@ describe('SkillContextMaterializer', () => {
     expect(Object.isFrozen(prepared.items[0].materializationInput.executionPackage.files)).toBe(
       true
     )
-    expect(
-      Object.isFrozen(prepared.items[0].materializationInput.executionPackage.files[0])
-    ).toBe(true)
+    expect(Object.isFrozen(prepared.items[0].materializationInput.executionPackage.files[0])).toBe(
+      true
+    )
   })
 
   it('requires the triggering message source fact before writing', async () => {

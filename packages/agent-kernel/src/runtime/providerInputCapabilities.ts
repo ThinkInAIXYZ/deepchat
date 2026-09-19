@@ -1,11 +1,10 @@
-
 import {
   assertProviderModelRuntimeFacts,
   resolveProviderModelRuntimeFacts,
   type ProviderModelRuntimeFacts,
   type ProviderModelRuntimeFactsPort
 } from './providerModelRuntimeFacts.js'
-import {type ProviderModelResolutionPort} from '../contracts/providerModelResolution.js'
+import { type ProviderModelResolutionPort } from '../contracts/providerModelResolution.js'
 
 export interface ProviderInputCapabilities {
   supportsVision: boolean
@@ -13,10 +12,7 @@ export interface ProviderInputCapabilities {
 }
 
 type VisionCapabilityPort = Pick<ProviderModelResolutionPort, 'getModelConfig'>
-type AudioInputCapabilityPort = Pick<
-  ProviderModelResolutionPort,
-  'supportsAudioInputCapability'
->
+type AudioInputCapabilityPort = Pick<ProviderModelResolutionPort, 'supportsAudioInputCapability'>
 
 export function supportsProviderVision(
   providerSettings: VisionCapabilityPort,

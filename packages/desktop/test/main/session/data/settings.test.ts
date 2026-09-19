@@ -494,7 +494,9 @@ describeIfSqlite('Session transcript and Tape order consistency', () => {
     try {
       const database = new SessionDatabaseCtor(connection)
       const tape = new SessionTapeCtor(database)
-      const transcript = new SessionTranscriptCtor(database, tape, undefined, tape)
+      const transcript = new SessionTranscriptCtor(database, tape, undefined, tape, {
+        transaction: (operation) => database.getDatabase().transaction(operation)()
+      })
       const summarizedMarkerId = transcript.createCompactionMessage('s1', 1, 'compacting', null, {
         compactionAttemptId: 'summarized-attempt'
       })
@@ -596,7 +598,9 @@ describeIfSqlite('Session transcript and Tape order consistency', () => {
     try {
       const database = new SessionDatabaseCtor(connection)
       const tape = new SessionTapeCtor(database)
-      const transcript = new SessionTranscriptCtor(database, tape, undefined, tape)
+      const transcript = new SessionTranscriptCtor(database, tape, undefined, tape, {
+        transaction: (operation) => database.getDatabase().transaction(operation)()
+      })
       const failedMarkerId = transcript.createCompactionMessage('s1', 1, 'compacting', null, {
         compactionAttemptId: 'committed-attempt'
       })
@@ -636,7 +640,9 @@ describeIfSqlite('Session transcript and Tape order consistency', () => {
     try {
       const database = new SessionDatabaseCtor(connection)
       const tape = new SessionTapeCtor(database)
-      const transcript = new SessionTranscriptCtor(database, tape)
+      const transcript = new SessionTranscriptCtor(database, tape, undefined, undefined, {
+        transaction: (operation) => database.getDatabase().transaction(operation)()
+      })
       const assistantMessageId = transcript.createAssistantMessage('s1', 1)
       transcript.finalizeAssistantMessage(
         assistantMessageId,
@@ -702,7 +708,9 @@ describeIfSqlite('Session transcript and Tape order consistency', () => {
         appendCompactionModelCall: vi.fn(),
         getProjectionHead: vi.fn(() => null)
       }
-      const transcript = new SessionTranscriptCtor(database, tapeFacts)
+      const transcript = new SessionTranscriptCtor(database, tapeFacts, undefined, undefined, {
+        transaction: (operation) => database.getDatabase().transaction(operation)()
+      })
       database.getDatabase().transaction(() => {
         for (let orderSeq = 1; orderSeq <= 501; orderSeq += 1) {
           messagesTable.insert({
@@ -741,7 +749,9 @@ describeIfSqlite('Session transcript and Tape order consistency', () => {
     try {
       const database = new SessionDatabaseCtor(connection)
       const tape = new SessionTapeCtor(database)
-      const transcript = new SessionTranscriptCtor(database, tape)
+      const transcript = new SessionTranscriptCtor(database, tape, undefined, undefined, {
+        transaction: (operation) => database.getDatabase().transaction(operation)()
+      })
       const firstMessageId = transcript.createUserMessage('s1', 1, {
         text: 'first',
         files: [],

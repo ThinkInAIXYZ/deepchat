@@ -193,7 +193,7 @@ function runPackagePlugin(
 }
 
 async function loadPackagePlugin() {
-  return (await import('../../../scripts/package-plugin.mjs')) as {
+  return (await import('../../../../../scripts/package-plugin.mjs')) as {
     writeCuaRuntimeIntegrityDescriptor: (
       pluginDir: string,
       args: { targetPlatform: string; targetArch: string; purpose?: string }

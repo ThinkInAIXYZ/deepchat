@@ -9,18 +9,14 @@ import {
 } from './interactionProjection.js'
 import type { TranscriptStorePort } from '../contracts/transcriptStore.js'
 import { buildUsageFromMetadata, stampInteractionResolution } from './runtimeMetadata.js'
-import type {
-  DeepChatEventPublisher,
-  PendingToolInteraction,
-  StreamState
-} from './types.js'
+import type { DeepChatEventPublisher, PendingToolInteraction, StreamState } from './types.js'
 import { markStreamChanged } from './types.js'
 import type { LoopRun } from '../loop/loopRun.js'
 import type { RunLifecycleCoordinator } from './runLifecycleCoordinator.js'
 import type { MessageProjectionService } from './messageProjectionService.js'
 import { resolveProviderPermissionSafely } from './providerPermissionResolution.js'
-import {parseMessageMetadata} from '../contracts/messageMetadata.js'
-import {buildTerminalErrorBlocks} from '../contracts/transcriptBlocks.js'
+import { parseMessageMetadata } from '../contracts/messageMetadata.js'
+import { buildTerminalErrorBlocks } from '../contracts/transcriptBlocks.js'
 
 type ProviderPermissionRunLifecyclePort = Pick<
   RunLifecycleCoordinator,
@@ -239,10 +235,7 @@ export class ProviderPermissionCoordinator {
     )
     this.deps.messageProjection.refresh(input.sessionId, input.messageId)
     this.deps.publishEvent('chat.stream.failed', {
-      requestId: this.deps.runLifecycle.resolveStreamRequestId(
-        input.sessionId,
-        input.messageId
-      ),
+      requestId: this.deps.runLifecycle.resolveStreamRequestId(input.sessionId, input.messageId),
       sessionId: input.sessionId,
       messageId: input.messageId,
       failedAt: Date.now(),

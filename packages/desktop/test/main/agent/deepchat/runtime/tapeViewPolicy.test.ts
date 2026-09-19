@@ -162,9 +162,7 @@ describe('TapeViewPolicy registry', () => {
       legacyTapeViewPolicy
     ])
     expect(getTapeViewPolicy(CACHE_AWARE_TAPE_VIEW_POLICY_ID)).toBe(cacheAwareTapeViewPolicy)
-    expect(getTapeViewPolicy(CACHE_AWARE_TAPE_VIEW_POLICY_V1_ID)).toBe(
-      cacheAwareTapeViewPolicyV1
-    )
+    expect(getTapeViewPolicy(CACHE_AWARE_TAPE_VIEW_POLICY_V1_ID)).toBe(cacheAwareTapeViewPolicyV1)
     expect(getTapeViewPolicy(LEGACY_TAPE_VIEW_POLICY_ID)).toBe(legacyTapeViewPolicy)
     expect(getTapeViewPolicy(` ${LEGACY_TAPE_VIEW_POLICY_ID} `)).toBe(legacyTapeViewPolicy)
     expect(getTapeViewPolicy('missing-policy')).toBeNull()
@@ -184,13 +182,13 @@ describe('TapeViewPolicy registry', () => {
       reason: 'requested'
     })
 
-    expect(resolveTapeViewPolicy({ requestedPolicyId: CACHE_AWARE_TAPE_VIEW_POLICY_V1_ID })).toEqual(
-      {
-        policy: cacheAwareTapeViewPolicyV1,
-        requestedPolicyId: CACHE_AWARE_TAPE_VIEW_POLICY_V1_ID,
-        reason: 'requested'
-      }
-    )
+    expect(
+      resolveTapeViewPolicy({ requestedPolicyId: CACHE_AWARE_TAPE_VIEW_POLICY_V1_ID })
+    ).toEqual({
+      policy: cacheAwareTapeViewPolicyV1,
+      requestedPolicyId: CACHE_AWARE_TAPE_VIEW_POLICY_V1_ID,
+      reason: 'requested'
+    })
 
     expect(resolveTapeViewPolicy({ requestedPolicyId: 'missing-policy' })).toEqual({
       policy: cacheAwareTapeViewPolicy,

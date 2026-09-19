@@ -131,6 +131,7 @@ describe('LegacyChatImportService', () => {
         appendMessageRetraction: vi.fn(() => 0),
         appendCompactionModelCall: vi.fn()
       },
+      { transaction: (operation) => operation() },
       '/mock/legacy.db',
       notifyEnvironmentProjectionChanged
     )

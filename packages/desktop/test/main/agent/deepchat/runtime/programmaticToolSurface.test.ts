@@ -478,10 +478,7 @@ describe('Programmatic Tool Surface', () => {
       build(baseSnapshot, { quotas: { ...quotas, maxOutputBytes: quotas.maxOutputBytes - 1 } }),
       build(baseSnapshot, { quotas: { ...quotas, maxDurationMs: quotas.maxDurationMs - 1 } }),
       build({
-        definitions: [
-          agentTool('exec'),
-          mcpTool('remote_read', 'write')
-        ],
+        definitions: [agentTool('exec'), mcpTool('remote_read', 'write')],
         activeNames: ['exec']
       }),
       build({
@@ -522,18 +519,12 @@ describe('Programmatic Tool Surface', () => {
       kind: 'path',
       path: path.join(taskWorkspace, 'child')
     })
-    expectSurfaceError(
-      () => build({ maxToolEffect: 'write' }),
-      'ineligible_exposure'
-    )
+    expectSurfaceError(() => build({ maxToolEffect: 'write' }), 'ineligible_exposure')
     expectSurfaceError(
       () => build({ workspace: { kind: 'path', path: path.resolve('outside') } }),
       'ineligible_exposure'
     )
-    expectSurfaceError(
-      () => build({ maxSubagentDepth: 1 }),
-      'ineligible_exposure'
-    )
+    expectSurfaceError(() => build({ maxSubagentDepth: 1 }), 'ineligible_exposure')
     expectSurfaceError(
       () =>
         buildProgrammaticToolCapabilityV1({
@@ -959,13 +950,8 @@ describe('Programmatic Tool Surface', () => {
     })
     revokeToolSurfaceExecutionEligibility(revokedBeforeAdmission)
     expectSurfaceError(() => controller.admit(revokedBeforeAdmission), 'invalid_definition')
-    expect(() =>
-      assertProgrammaticToolCapabilityViewActive(firstCapability, first)
-    ).not.toThrow()
-    expectSurfaceError(
-      () => controller.stageActivationBatch([{} as never]),
-      'invalid_definition'
-    )
+    expect(() => assertProgrammaticToolCapabilityViewActive(firstCapability, first)).not.toThrow()
+    expectSurfaceError(() => controller.stageActivationBatch([{} as never]), 'invalid_definition')
     expectSurfaceError(
       () =>
         controller.build({
@@ -1055,22 +1041,10 @@ describe('Programmatic Tool Surface', () => {
   })
 
   it('rejects forged snapshots, surfaces, and capabilities', () => {
-    expectSurfaceError(
-      () => buildProgrammaticToolSurfaceV1({} as never),
-      'invalid_definition'
-    )
-    expectSurfaceError(
-      () => assertIssuedProgrammaticToolSurface({}),
-      'invalid_definition'
-    )
-    expectSurfaceError(
-      () => assertIssuedProgrammaticToolCapability({}),
-      'invalid_definition'
-    )
-    expectSurfaceError(
-      () => buildProgrammaticToolCapabilityV1({} as never),
-      'invalid_definition'
-    )
+    expectSurfaceError(() => buildProgrammaticToolSurfaceV1({} as never), 'invalid_definition')
+    expectSurfaceError(() => assertIssuedProgrammaticToolSurface({}), 'invalid_definition')
+    expectSurfaceError(() => assertIssuedProgrammaticToolCapability({}), 'invalid_definition')
+    expectSurfaceError(() => buildProgrammaticToolCapabilityV1({} as never), 'invalid_definition')
     const nativeSnapshot = createToolSurfaceSnapshot({
       request: { sessionId: 'session-1', messageId: 'message-1', runId: 'run-1', requestSeq: 1 },
       policyVersion: 'native-test-v1',

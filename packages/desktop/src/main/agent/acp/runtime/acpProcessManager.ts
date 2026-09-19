@@ -527,10 +527,7 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
 
       try {
         const handle = await handlePromise
-        if (
-          this.shuttingDown ||
-          this.pendingHandles.get(warmupKey) !== handlePromise
-        ) {
+        if (this.shuttingDown || this.pendingHandles.get(warmupKey) !== handlePromise) {
           await this.disposeHandle(handle)
           this.assertAcceptingProcesses()
           throw new Error(`[ACP] Stale warmup result for agent ${agent.id}`)
@@ -692,10 +689,7 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
     return this.requireStoredAuthChallenge(challengeId).public
   }
 
-  async inspectAuthentication(
-    agent: AcpAgentConfig,
-    workdir?: string
-  ): Promise<AcpAuthChallenge> {
+  async inspectAuthentication(agent: AcpAgentConfig, workdir?: string): Promise<AcpAuthChallenge> {
     const handle = await this.getConnection(agent, workdir)
     return this.createAuthChallenge(handle, { origin: 'settings_probe' })
   }
@@ -2449,7 +2443,9 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
   private isHandleAlive(handle: AcpProcessHandle): boolean {
     return (
       !this.terminatedChildren.has(handle.child) &&
-      !handle.child.killed && handle.child.exitCode === null && handle.child.signalCode === null
+      !handle.child.killed &&
+      handle.child.exitCode === null &&
+      handle.child.signalCode === null
     )
   }
 

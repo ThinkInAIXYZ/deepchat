@@ -5,10 +5,7 @@ export const ACP_AUTH_REQUIRED_CODE = -32000
 
 export function isAcpAuthRequiredRpcError(error: unknown): boolean {
   return Boolean(
-    error &&
-      typeof error === 'object' &&
-      'code' in error &&
-      error.code === ACP_AUTH_REQUIRED_CODE
+    error && typeof error === 'object' && 'code' in error && error.code === ACP_AUTH_REQUIRED_CODE
   )
 }
 

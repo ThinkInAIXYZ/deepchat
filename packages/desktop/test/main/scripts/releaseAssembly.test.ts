@@ -1,19 +1,12 @@
-import {
-  mkdir,
-  mkdtemp,
-  readFile,
-  readdir,
-  rm,
-  symlink,
-  writeFile
-} from 'node:fs/promises'
+import { execFileSync } from 'node:child_process'
+import { mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import { pathToFileURL } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { parse, stringify } from 'yaml'
 
-import { assembleRelease } from '../../../scripts/ci/assemble-release.mjs'
+import { assembleRelease } from '../../../../../scripts/ci/assemble-release.mjs'
 import {
   createDefaultPackageSizePolicy,
   getMeasuredRoles,
@@ -21,16 +14,16 @@ import {
   PACKAGE_MANIFEST_SCHEMA_VERSION,
   RELEASE_INDEX_SCHEMA_VERSION,
   TARGET_DEFINITIONS
-} from '../../../scripts/ci/package-contract.mjs'
-import { inspectRegularFile } from '../../../scripts/ci/package-files.mjs'
+} from '../../../../../scripts/ci/package-contract.mjs'
+import { inspectRegularFile } from '../../../../../scripts/ci/package-files.mjs'
 import {
   verifyGitHubDraftRelease,
   verifyReleaseAssets
-} from '../../../scripts/ci/verify-release-assets.mjs'
+} from '../../../../../scripts/ci/verify-release-assets.mjs'
 import {
   loadElectronUpdaterMetadataParser,
   parseElectronUpdaterMetadata
-} from '../../../scripts/ci/updater-metadata-consumer.mjs'
+} from '../../../../../scripts/ci/updater-metadata-consumer.mjs'
 
 vi.unmock('fs')
 vi.unmock('node:fs')
@@ -148,6 +141,40 @@ describe('fail-closed release assembly', () => {
       pathToFileURL(metadataPath)
     ) as FinalUpdaterMetadata
   }
+
+  it('assembles six targets through the plain Node CLI without resolution overrides', async () => {
+    const environment = { ...process.env }
+    delete environment.NODE_PATH
+    delete environment.NODE_OPTIONS
+    const stdout = execFileSync(
+      process.execPath,
+      [
+        fileURLToPath(new URL('../../../../../scripts/ci/assemble-release.mjs', import.meta.url)),
+        '--artifacts-dir',
+        artifactsDirectory,
+        '--output-dir',
+        outputDirectory,
+        '--source-sha',
+        sourceSha,
+        '--version',
+        version,
+        '--workflow-run-id',
+        workflowRunId,
+        '--workflow-run-attempt',
+        workflowRunAttempt
+      ],
+      { cwd: tempDirectory, env: environment, encoding: 'utf8', timeout: 30_000 }
+    )
+    expect(stdout).toContain('[Release Assembly] prepared 19 verified assets')
+    const verified = await verifyReleaseAssets({
+      directory: outputDirectory,
+      sourceSha,
+      version,
+      workflowRunId,
+      workflowRunAttempt
+    })
+    expect(verified.files).toHaveLength(19)
+  })
 
   it('assembles six manifests into exactly 19 public release assets', async () => {
     const releaseIndex = await assemble()

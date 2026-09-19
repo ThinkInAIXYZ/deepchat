@@ -6,6 +6,7 @@ import type {
   SendMessageInput
 } from '@deepchat/shared/types/agent-interface'
 import type { SessionDatabase } from './database'
+import type { SessionTransaction } from './transaction'
 import type { DeepChatPendingInputRow } from '@/session/data/tables/deepchatPendingInputs'
 import {
   AttachmentPreparationSummarySchema,
@@ -32,12 +33,15 @@ function shiftInlineItems(
 export class SessionPendingInputStore {
   private readonly database: SessionDatabase
 
-  constructor(database: SessionDatabase) {
+  constructor(
+    database: SessionDatabase,
+    private readonly transactions: SessionTransaction
+  ) {
     this.database = database
   }
 
   runInTransaction<T>(operation: () => T): T {
-    return this.database.getDatabase().transaction(operation)() as T
+    return this.transactions.transaction(operation)
   }
 
   listPendingInputs(sessionId: string): PendingSessionInputRecord[] {

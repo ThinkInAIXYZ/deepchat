@@ -6,12 +6,8 @@ import type {
   DeepChatAgentInstance,
   DeepChatActiveGeneration
 } from '../instance/deepChatAgentInstance.js'
-import type {
-  DeepChatAgentRuntime,
-  SessionRuntimeScope
-} from '../instance/deepChatAgentRuntime.js'
+import type { DeepChatAgentRuntime, SessionRuntimeScope } from '../instance/deepChatAgentRuntime.js'
 import type { LoopRun } from '../loop/loopRun.js'
-
 
 import {
   collectPendingInteractionEntries,
@@ -28,10 +24,10 @@ import type { MessageProjectionService } from './messageProjectionService.js'
 import { resolveStreamRequestId as resolveRegistryStreamRequestId } from './streamRequestId.js'
 import { revokeToolSurfaceDeferredDispatchesForSession } from './toolSurface.js'
 import type { ProcessResult } from './types.js'
-import {type TranscriptStorePort} from '../contracts/transcriptStore.js'
-import {buildTerminalErrorBlocks} from '../contracts/transcriptBlocks.js'
-import {parseMessageMetadata} from '../contracts/messageMetadata.js'
-import {type ProgrammaticGrantAuthorityPort} from '../contracts/programmaticToolAuthority.js'
+import { type TranscriptStorePort } from '../contracts/transcriptStore.js'
+import { buildTerminalErrorBlocks } from '../contracts/transcriptBlocks.js'
+import { parseMessageMetadata } from '../contracts/messageMetadata.js'
+import { type ProgrammaticGrantAuthorityPort } from '../contracts/programmaticToolAuthority.js'
 
 export type PendingInputWakeReason = 'enqueue' | 'completed' | 'manual'
 
@@ -105,10 +101,7 @@ export class RunLifecycleCoordinator {
     return controller
   }
 
-  clearOperationController(
-    scope: SessionRuntimeScope,
-    controller?: AbortController
-  ): boolean {
+  clearOperationController(scope: SessionRuntimeScope, controller?: AbortController): boolean {
     if (!controller || !scope.isCurrent()) {
       return false
     }
@@ -151,9 +144,8 @@ export class RunLifecycleCoordinator {
 
   isRunCurrent(sessionId: AppSessionId | string, runId: string): boolean {
     return (
-      this.ports.runtime
-        .getHydratedScope(toAppSessionId(sessionId))
-        ?.instance.isActiveRun(runId) ?? false
+      this.ports.runtime.getHydratedScope(toAppSessionId(sessionId))?.instance.isActiveRun(runId) ??
+      false
     )
   }
 
@@ -170,11 +162,7 @@ export class RunLifecycleCoordinator {
 
   markFirstTurnReady(scope: SessionRuntimeScope, runId: string): boolean {
     const run = scope.instance.getActiveGeneration()
-    if (
-      !this.isRunCurrentForScope(scope, runId) ||
-      !run ||
-      run.abortController.signal.aborted
-    ) {
+    if (!this.isRunCurrentForScope(scope, runId) || !run || run.abortController.signal.aborted) {
       return false
     }
     scope.instance.markFirstTurnReady()

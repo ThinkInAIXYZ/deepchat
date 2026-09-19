@@ -94,7 +94,7 @@ export function projectProgrammaticExecDefinition(
       if (
         definition.function.parameters.required?.includes('stdin') ||
         canonicalJsonStringifyData(existing, CANONICAL_JSON_OPTIONS) !==
-        canonicalJsonStringifyData(PROGRAMMATIC_EXEC_STDIN_SCHEMA, CANONICAL_JSON_OPTIONS)
+          canonicalJsonStringifyData(PROGRAMMATIC_EXEC_STDIN_SCHEMA, CANONICAL_JSON_OPTIONS)
       ) {
         throw new ToolSurfaceError(
           'Agent exec exposes a conflicting Programmatic stdin contract.',
@@ -110,7 +110,9 @@ export function projectProgrammaticExecDefinition(
     if (existing !== undefined && hasProgrammaticDescription) {
       return definition
     }
-    const description = [currentDescription, PROGRAMMATIC_EXEC_DESCRIPTION].filter(Boolean).join('\n\n')
+    const description = [currentDescription, PROGRAMMATIC_EXEC_DESCRIPTION]
+      .filter(Boolean)
+      .join('\n\n')
     return {
       ...definition,
       function: {
@@ -411,10 +413,7 @@ function capabilityHashInput(
 }
 
 function measureCanonicalAuthorityProjection(value: object, label: string): number {
-  const bytes = Buffer.byteLength(
-    canonicalJsonStringifyData(value, CANONICAL_JSON_OPTIONS),
-    'utf8'
-  )
+  const bytes = Buffer.byteLength(canonicalJsonStringifyData(value, CANONICAL_JSON_OPTIONS), 'utf8')
   if (bytes > MAX_PROGRAMMATIC_TOOL_AUTHORITY_PROJECTION_BYTES) {
     throw new ToolSurfaceError(
       `${label} exceeds ${MAX_PROGRAMMATIC_TOOL_AUTHORITY_PROJECTION_BYTES} canonical authority bytes.`,
@@ -440,15 +439,16 @@ function projectProgrammaticEntries(
       const ceilingEntry = ceilingEntryByTarget.get(entry.stableTargetKey)
       if (
         !ceilingEntry ||
-        ceilingEntry.catalogEntry.canonicalToolDefinitionHash !==
-          entry.canonicalToolDefinitionHash
+        ceilingEntry.catalogEntry.canonicalToolDefinitionHash !== entry.canonicalToolDefinitionHash
       ) {
         throw new ToolSurfaceError(
           'Programmatic Surface lost its frozen Run definition.',
           'conflicting_tool'
         )
       }
-      if (!ProgrammaticToolInvocationNameSchema.safeParse(entry.target.providerVisibleName).success) {
+      if (
+        !ProgrammaticToolInvocationNameSchema.safeParse(entry.target.providerVisibleName).success
+      ) {
         throw new ToolSurfaceError(
           'Programmatic Surface contains a target name that cannot cross the CLI boundary.',
           'ineligible_exposure'
@@ -473,10 +473,7 @@ function projectProgrammaticEntries(
       })
     })
   if (entries.length > MAX_PROGRAMMATIC_TOOL_SURFACE_ENTRIES) {
-    throw new ToolSurfaceError(
-      'Programmatic Surface exceeds its target limit.',
-      'limit_exceeded'
-    )
+    throw new ToolSurfaceError('Programmatic Surface exceeds its target limit.', 'limit_exceeded')
   }
   return Object.freeze(entries)
 }
@@ -645,11 +642,7 @@ export function buildProgrammaticToolCapabilityV1(
     catalogHash: surface.catalogHash,
     programmaticSurfaceHash: surface.surfaceHash,
     entries: surface.entries,
-    taskContractRef: normalizeTaskContractContext(
-      input.taskContractContext,
-      request,
-      ceilings
-    ),
+    taskContractRef: normalizeTaskContractContext(input.taskContractContext, request, ceilings),
     ceilings,
     quotas: normalizeQuotas(input.quotas)
   }
@@ -702,9 +695,7 @@ export function projectProgrammaticToolTapeProvenanceV1(
     capability.ceilings.workspace.kind === 'runtime_default'
       ? Object.freeze({ kind: 'runtime_default' as const })
       : (() => {
-          const hashed = buildTapeProgrammaticWorkspacePathHash(
-            capability.ceilings.workspace.path
-          )
+          const hashed = buildTapeProgrammaticWorkspacePathHash(capability.ceilings.workspace.path)
           return Object.freeze({
             kind: 'path' as const,
             pathHashVersion: hashed.hashVersion,
@@ -907,7 +898,12 @@ export function assertProgrammaticToolChildDefinitionAllowsDispatch(input: {
       'conflicting_tool'
     )
   }
-  if (!isToolEffectWithinCeiling(currentEntry.execution.effect, input.capability.ceilings.maxToolEffect)) {
+  if (
+    !isToolEffectWithinCeiling(
+      currentEntry.execution.effect,
+      input.capability.ceilings.maxToolEffect
+    )
+  ) {
     throw new ToolSurfaceError(
       'Programmatic child exceeds its frozen effect ceiling.',
       'ineligible_exposure'

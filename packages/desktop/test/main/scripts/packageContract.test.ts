@@ -19,14 +19,14 @@ import {
   main as packageSizeMain,
   validatePackageSizeBaseline,
   validatePackageSizePolicy
-} from '../../../scripts/ci/check-package-size.mjs'
+} from '../../../../../scripts/ci/check-package-size.mjs'
 import {
   classifyPackageImpact,
   classifyPackageJsonImpact,
   isPackageImpactPath,
   main as classifyPackageImpactMain,
   normalizeChangedPath
-} from '../../../scripts/ci/classify-package-impact.mjs'
+} from '../../../../../scripts/ci/classify-package-impact.mjs'
 import {
   createDefaultPackageSizePolicy,
   expectedReleaseAssetCount,
@@ -37,15 +37,15 @@ import {
   resolvePackageSizeExpectedDelta,
   SHA512_BASE64_PATTERN,
   TARGET_DEFINITIONS
-} from '../../../scripts/ci/package-contract.mjs'
+} from '../../../../../scripts/ci/package-contract.mjs'
 import {
   createPackageManifest,
   validateInstallerSizeReport,
   validateMacZipEntries,
   verifyMacAppDistribution,
   verifyMacZipDistribution
-} from '../../../scripts/ci/package-manifest.mjs'
-import { prepareReleaseContext } from '../../../scripts/ci/release-preflight.mjs'
+} from '../../../../../scripts/ci/package-manifest.mjs'
+import { prepareReleaseContext } from '../../../../../scripts/ci/release-preflight.mjs'
 
 vi.unmock('fs')
 vi.unmock('node:fs')
@@ -78,15 +78,15 @@ describe('CI package contract', () => {
   })
 
   it('classifies shared and platform-owned package inputs with rule evidence', () => {
-    expect(classifyPackageImpact(['electron-builder.yml'])).toEqual({
+    expect(classifyPackageImpact(['packages/desktop/electron-builder.yml'])).toEqual({
       required: true,
       windows: true,
       linux: true,
       macos: true,
-      matchedPaths: ['electron-builder.yml'],
+      matchedPaths: ['packages/desktop/electron-builder.yml'],
       matches: [
         {
-          path: 'electron-builder.yml',
+          path: 'packages/desktop/electron-builder.yml',
           rule: 'shared-package-contract',
           platforms: ['windows', 'linux', 'macos']
         }
@@ -98,23 +98,23 @@ describe('CI package contract', () => {
       linux: false,
       macos: false
     })
-    expect(classifyPackageImpact(['build/icon.png'])).toMatchObject({
+    expect(classifyPackageImpact(['packages/desktop/build/icon.png'])).toMatchObject({
       required: true,
       windows: false,
       linux: true,
       macos: false
     })
-    expect(classifyPackageImpact(['scripts/notarize.js'])).toMatchObject({
+    expect(classifyPackageImpact(['packages/desktop/scripts/notarize.js'])).toMatchObject({
       required: true,
       windows: false,
       linux: false,
       macos: true
     })
     for (const cuaMacosPath of [
-      'scripts/cua-macos-contract.mjs',
+      'packages/desktop/scripts/cua-macos-contract.mjs',
       'scripts/ci/verify-cua-macos-helper.mjs',
-      'scripts/macos-release-contract.mjs',
-      'scripts/sign-cua-helper.mjs'
+      'packages/desktop/scripts/macos-release-contract.mjs',
+      'packages/desktop/scripts/sign-cua-helper.mjs'
     ]) {
       expect(classifyPackageImpact([cuaMacosPath])).toMatchObject({
         required: true,
@@ -124,8 +124,8 @@ describe('CI package contract', () => {
       })
     }
     for (const backgroundPath of [
-      'build/dmg-background.png',
-      'build/dmg-background@2x.png'
+      'packages/desktop/build/dmg-background.png',
+      'packages/desktop/build/dmg-background@2x.png'
     ]) {
       expect(classifyPackageImpact([backgroundPath])).toEqual({
         required: true,
@@ -142,12 +142,45 @@ describe('CI package contract', () => {
         ]
       })
     }
-    expect(classifyPackageImpact(['resources/icon.png'])).toMatchObject({
+    expect(classifyPackageImpact(['packages/desktop/resources/icon.png'])).toMatchObject({
       required: true,
       windows: false,
       linux: true,
       macos: true
     })
+    expect(classifyPackageImpact(['packages/desktop/runtime/duckdb/install.mjs'])).toMatchObject({
+      required: true,
+      windows: true,
+      linux: true,
+      macos: true
+    })
+  })
+
+  it('uses Desktop-owned scripts and policies from root CI helpers', async () => {
+    const repositoryRoot = path.resolve(process.cwd(), '../..')
+    const [manifestSource, cuaHelperSource, sizeSource] = await Promise.all([
+      readFile(path.join(repositoryRoot, 'scripts/ci/package-manifest.mjs'), 'utf8'),
+      readFile(path.join(repositoryRoot, 'scripts/ci/verify-cua-macos-helper.mjs'), 'utf8'),
+      readFile(path.join(repositoryRoot, 'scripts/ci/check-package-size.mjs'), 'utf8')
+    ])
+
+    expect(manifestSource).toContain(
+      "from '../../packages/desktop/scripts/apple-notarization.js'"
+    )
+    expect(manifestSource).toContain(
+      "from '../../packages/desktop/scripts/notarize-dmg.js'"
+    )
+    expect(cuaHelperSource).toContain(
+      "from '../../packages/desktop/scripts/cua-macos-contract.mjs'"
+    )
+    expect(sizeSource).toContain(
+      "'packages/desktop/resources/package-size-baseline.json'"
+    )
+    expect(sizeSource).toContain(
+      "'packages/desktop/resources/package-size-policy.json'"
+    )
+    expect(sizeSource).not.toContain("'resources/package-size-baseline.json'")
+    expect(sizeSource).not.toContain("'resources/package-size-policy.json'")
   })
 
   it('packages every platform for shared, kernel, CLI, and unknown workspace inputs', () => {
@@ -169,7 +202,9 @@ describe('CI package contract', () => {
         matches: [
           {
             path: changedPath,
-            rule: 'workspace-package-input',
+            rule: /^packages\/(shared|agent-kernel|cli)\//.test(changedPath)
+              ? 'shared-package-contract'
+              : 'unknown-workspace-package-input',
             platforms: ['windows', 'linux', 'macos']
           }
         ]
@@ -210,7 +245,24 @@ describe('CI package contract', () => {
     expect(() => normalizeChangedPath('scripts/./afterPack.js')).toThrow(/not canonical/)
   })
 
-  it('classifies package.json by packaging semantics instead of path alone', () => {
+  it('conservatively classifies every workspace package source change', () => {
+    for (const changedPath of [
+      'packages/desktop/src/main/index.ts',
+      'packages/agent-kernel/src/runtime/dispatch.ts',
+      'packages/shared/src/contracts.ts',
+      'packages/cli/src/index.ts',
+      'packages/unknown-package/fixture.txt'
+    ]) {
+      expect(classifyPackageImpact([changedPath])).toMatchObject({
+        required: true,
+        windows: true,
+        linux: true,
+        macos: true
+      })
+    }
+  })
+
+  it('classifies the desktop manifest by packaging semantics instead of path alone', () => {
     const base = {
       name: 'deepchat',
       dependencies: { sharp: '1.0.0' },
@@ -223,7 +275,7 @@ describe('CI package contract', () => {
         test: 'vitest'
       }
     }
-    expect(isPackageImpactPath('package.json')).toBe(true)
+    expect(isPackageImpactPath('packages/desktop/package.json')).toBe(true)
     const testOnly = structuredClone(base)
     testOnly.scripts.test = 'vitest run'
     testOnly.devDependencies['markstream-vue'] = '1.1.0'
@@ -234,7 +286,7 @@ describe('CI package contract', () => {
       changedDevDependencies: []
     })
     expect(
-      classifyPackageImpact(['package.json'], {
+      classifyPackageImpact(['packages/desktop/package.json'], {
         basePackageJson: base,
         headPackageJson: testOnly
       })
@@ -265,7 +317,9 @@ describe('CI package contract', () => {
       required: true,
       changedDevDependencies: ['electron']
     })
-    expect(() => classifyPackageImpact(['package.json'])).toThrow(/requires base and head/)
+    expect(() => classifyPackageImpact(['packages/desktop/package.json'])).toThrow(
+      /requires base and head/
+    )
   })
 
   it('requires lossless NUL-delimited diff input and writes compatible GitHub outputs', async () => {
@@ -275,14 +329,14 @@ describe('CI package contract', () => {
     try {
       const result = await classifyPackageImpactMain(
         ['--github-output', outputPath],
-        Readable.from([Buffer.from('electron-builder.yml\0docs/readme.md\0')])
+        Readable.from([Buffer.from('packages/desktop/electron-builder.yml\0docs/readme.md\0')])
       )
       expect(result).toMatchObject({
         required: true,
         windows: true,
         linux: true,
         macos: true,
-        matchedPaths: ['electron-builder.yml'],
+        matchedPaths: ['packages/desktop/electron-builder.yml'],
         matches: [{ rule: 'shared-package-contract' }]
       })
       const output = await readFile(outputPath, 'utf8')
@@ -290,12 +344,12 @@ describe('CI package contract', () => {
       expect(output).toContain('windows=true\n')
       expect(output).toContain('linux=true\n')
       expect(output).toContain('macos=true\n')
-      expect(output).toContain('matched=["electron-builder.yml"]\n')
+      expect(output).toContain('matched=["packages/desktop/electron-builder.yml"]\n')
 
       await expect(
         classifyPackageImpactMain(
           [],
-          Readable.from([Buffer.from('electron-builder.yml\n')])
+          Readable.from([Buffer.from('packages/desktop/electron-builder.yml\n')])
         )
       ).rejects.toThrow(/NUL-delimited/)
     } finally {
@@ -320,7 +374,7 @@ describe('CI package contract', () => {
       await expect(
         classifyPackageImpactMain(
           ['--base-package-json', basePath, '--head-package-json', headPath],
-          Readable.from([Buffer.from('package.json\0')])
+          Readable.from([Buffer.from('packages/desktop/package.json\0')])
         )
       ).resolves.toMatchObject({
         required: false,
@@ -331,7 +385,7 @@ describe('CI package contract', () => {
       await expect(
         classifyPackageImpactMain(
           [],
-          Readable.from([Buffer.from('package.json\0')])
+          Readable.from([Buffer.from('packages/desktop/package.json\0')])
         )
       ).rejects.toThrow(/snapshot paths/)
     } finally {
@@ -669,10 +723,10 @@ describe('package-size contract', () => {
 
   it('keeps the committed baseline provenance and policy in sync with the contract', async () => {
     const baseline = JSON.parse(
-      await readFile(path.resolve('resources/package-size-baseline.json'), 'utf8')
+      await readFile(path.resolve(process.cwd(), 'resources/package-size-baseline.json'), 'utf8')
     )
     const policy = JSON.parse(
-      await readFile(path.resolve('resources/package-size-policy.json'), 'utf8')
+      await readFile(path.resolve(process.cwd(), 'resources/package-size-policy.json'), 'utf8')
     )
 
     expect(() => validatePackageSizeBaseline(baseline)).not.toThrow()

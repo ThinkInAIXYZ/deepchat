@@ -748,17 +748,16 @@ describe('DeepChatToolResolver Run definition universe', () => {
       getActiveSkills: vi.fn().mockResolvedValue(options?.activeSkills ?? []),
       snapshotPersistedActiveSkillNames: vi.fn(() => options?.activeSkills ?? []),
       getMetadataList: vi.fn().mockResolvedValue(options?.metadata ?? []),
-      snapshotCachedMetadataList: vi.fn(
-        (_agentId: string, snapshotOptions: { maxItems: number }) =>
-          (options?.metadata?.length ?? 0) > snapshotOptions.maxItems
-            ? {
-                state: 'overflow' as const,
-                minimumItemCount: snapshotOptions.maxItems + 1
-              }
-            : {
-                state: 'ready' as const,
-                skills: options?.metadata ?? []
-              }
+      snapshotCachedMetadataList: vi.fn((_agentId: string, snapshotOptions: { maxItems: number }) =>
+        (options?.metadata?.length ?? 0) > snapshotOptions.maxItems
+          ? {
+              state: 'overflow' as const,
+              minimumItemCount: snapshotOptions.maxItems + 1
+            }
+          : {
+              state: 'ready' as const,
+              skills: options?.metadata ?? []
+            }
       ),
       validateSkillNames: vi.fn(async (_agentId: string, names: string[]) => names),
       revalidateActiveSkillsForAgent: vi.fn()
@@ -1115,9 +1114,8 @@ describe('DeepChatToolResolver Run definition universe', () => {
   })
 
   it('reports only definitions beyond the run universe limit as degraded', async () => {
-    const definitions = Array.from(
-      { length: MAX_RUN_TOOL_UNIVERSE_DEFINITIONS + 2 },
-      (_, index) => agentTool(`tool-${index}`)
+    const definitions = Array.from({ length: MAX_RUN_TOOL_UNIVERSE_DEFINITIONS + 2 }, (_, index) =>
+      agentTool(`tool-${index}`)
     )
     const { resolver, resourceInstance } = createUniverseResolver({ definitions })
 

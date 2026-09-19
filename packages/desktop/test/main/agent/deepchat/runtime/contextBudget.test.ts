@@ -370,9 +370,7 @@ describe('agent request context budget', () => {
         expect.objectContaining({ category: 'Configured prompt' }),
         expect.objectContaining({
           category: 'Session Skills',
-          contributors: [
-            { name: 'persistent-skill', estimatedTokens: 'SESSION_SKILL_BODY'.length }
-          ]
+          contributors: [{ name: 'persistent-skill', estimatedTokens: 'SESSION_SKILL_BODY'.length }]
         }),
         expect.objectContaining({ category: 'History and tool protocol' }),
         expect.objectContaining({ category: 'Memory', estimatedTokens: memoryContent.length }),

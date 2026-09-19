@@ -24,11 +24,7 @@ const TOOL_OUTPUT_VIEW_COMPACTION_THRESHOLD = 8192
 const TOOL_OUTPUT_VIEW_COMPACTION_HEAD = 4096
 const TOOL_OUTPUT_VIEW_COMPACTION_TAIL = 1024
 const TOOLS_REQUIRING_OFFLOAD = new Set(['ls', 'find', 'grep', 'cdp_send'])
-const CONTEXT_FALLBACK_OFFLOAD_TOOLS = new Set([
-  ...TOOLS_REQUIRING_OFFLOAD,
-  'exec',
-  'skill_run'
-])
+const CONTEXT_FALLBACK_OFFLOAD_TOOLS = new Set([...TOOLS_REQUIRING_OFFLOAD, 'exec', 'skill_run'])
 
 type ToolMessageUpdateMode = 'append' | 'replace'
 
@@ -135,11 +131,7 @@ export function compactClosedToolResultsForContext(
     let cursor = index + 1
     while (cursor < messages.length && messages[cursor].role === 'tool') {
       const toolCallId = messages[cursor].tool_call_id
-      if (
-        !toolCallId ||
-        !expectedCallIds.has(toolCallId) ||
-        resultIndexes.has(toolCallId)
-      ) {
+      if (!toolCallId || !expectedCallIds.has(toolCallId) || resultIndexes.has(toolCallId)) {
         resultIndexes.clear()
         break
       }

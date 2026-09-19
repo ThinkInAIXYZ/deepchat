@@ -7,7 +7,9 @@ import {
   type ToolRuntimeBindingDependencies
 } from '@deepchat/agent-kernel/runtime/toolRuntimeBindings'
 
-const normalizeToolResultContent = vi.hoisted(() => vi.fn(async () => [{ type: 'text', text: 'ok' }]))
+const normalizeToolResultContent = vi.hoisted(() =>
+  vi.fn(async () => [{ type: 'text', text: 'ok' }])
+)
 const reviewAutoApproveToolPermission = vi.hoisted(() =>
   vi.fn(async () => ({ decision: 'ask_user' }))
 )

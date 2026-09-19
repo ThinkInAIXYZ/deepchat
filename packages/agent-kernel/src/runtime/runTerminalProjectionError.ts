@@ -9,10 +9,7 @@ export class CommittedRunProjectionError extends Error {
     options?: ErrorOptions
   ) {
     const terminalLabel = `${terminal.outcome}/${terminal.stopReason}`
-    super(
-      `Run ${runId} committed terminal ${terminalLabel}, but its projection failed.`,
-      options
-    )
+    super(`Run ${runId} committed terminal ${terminalLabel}, but its projection failed.`, options)
     this.name = 'CommittedRunProjectionError'
     this.terminal = {
       outcome: terminal.outcome,

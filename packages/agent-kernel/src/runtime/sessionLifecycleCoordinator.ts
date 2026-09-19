@@ -12,7 +12,6 @@ import type {
 } from '../instance/deepChatAgentRuntime.js'
 import type { MemoryRuntimeCoordinator } from '../memory/memoryRuntimeCoordinator.js'
 
-
 import type { CompactionRuntimeCoordinator } from './compactionRuntimeCoordinator.js'
 import { sanitizeGenerationSettings } from './generationSettings.js'
 import type { RunLifecycleCoordinator } from './runLifecycleCoordinator.js'
@@ -22,12 +21,12 @@ import type { InteractionParkingRegistry } from './interactionParkingRegistry.js
 import type { ToolSurfaceShadowDiagnosticsRegistryPort } from './toolSurfaceDiagnostics.js'
 import type { ToolSurfaceCanaryDiagnosticsRegistry } from './toolSurfaceCanaryDiagnostics.js'
 import { revokeToolSurfaceDeferredDispatchesForSession } from './toolSurface.js'
-import {type ProviderModelResolutionPort} from '../contracts/providerModelResolution.js'
-import {type PromptSettingsPort} from '../contracts/promptSettings.js'
-import {type SessionSettingsStorePort} from '../contracts/sessionSettingsStore.js'
-import {type TranscriptStorePort} from '../contracts/transcriptStore.js'
-import {type PendingInputStorePort} from '../contracts/pendingInputStore.js'
-import {type ProgrammaticToolAuthorityPort} from '../contracts/programmaticToolAuthority.js'
+import { type ProviderModelResolutionPort } from '../contracts/providerModelResolution.js'
+import { type PromptSettingsPort } from '../contracts/promptSettings.js'
+import { type SessionSettingsStorePort } from '../contracts/sessionSettingsStore.js'
+import { type TranscriptStorePort } from '../contracts/transcriptStore.js'
+import { type PendingInputStorePort } from '../contracts/pendingInputStore.js'
+import { type ProgrammaticToolAuthorityPort } from '../contracts/programmaticToolAuthority.js'
 
 export interface SessionInitConfig {
   agentId?: string

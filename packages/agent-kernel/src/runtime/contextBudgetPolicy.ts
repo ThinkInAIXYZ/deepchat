@@ -3,10 +3,7 @@ import { ApiEndpointType, ModelType } from '@deepchat/shared/model'
 import { isTtsModelId } from '@deepchat/shared/ttsSettings'
 import { isVideoGenerationModelConfig } from '@deepchat/shared/videoGenerationSettings'
 
-export type ContextBudgetModelConfig = Pick<
-  ModelConfig,
-  'apiEndpoint' | 'endpointType' | 'type'
->
+export type ContextBudgetModelConfig = Pick<ModelConfig, 'apiEndpoint' | 'endpointType' | 'type'>
 
 export function shouldUseDeepChatContextBudget(
   providerId?: string | null,

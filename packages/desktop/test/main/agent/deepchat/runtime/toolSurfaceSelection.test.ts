@@ -80,9 +80,9 @@ describe('Tool Surface adapter selection', () => {
   ])(
     'keeps a large catalog on Native Activation when a CLI gate is absent: $cliProgrammaticCapability/$agentExecAvailable/$programmaticRunCeilingFits',
     (input) => {
-      expect(
-        selectAutomaticToolSurfaceRunMode({ virtualizationTriggered: true, ...input })
-      ).toBe('native-activation')
+      expect(selectAutomaticToolSurfaceRunMode({ virtualizationTriggered: true, ...input })).toBe(
+        'native-activation'
+      )
     }
   )
 

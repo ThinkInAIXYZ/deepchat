@@ -37,7 +37,7 @@ import {
   PACKAGED_LIGHT_OCR_PROTOCOL_VERSION,
   parseArgs,
   resolvePackagedOcrLayout
-} from '../../../scripts/smoke-light-ocr.js'
+} from '../../../../../scripts/smoke-light-ocr.js'
 
 const sha256 = (value: string) => createHash('sha256').update(value).digest('hex')
 

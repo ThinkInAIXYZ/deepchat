@@ -150,10 +150,7 @@ export function resolveEffectiveContextBudget(input: {
   if (Number.isFinite(configuredContextLength) && configuredContextLength > 0) {
     totalContextLimits.push(configuredContextLength)
   }
-  for (const contextLimit of [
-    input.runtimeContextLimitTokens,
-    input.providerContextLimitTokens
-  ]) {
+  for (const contextLimit of [input.runtimeContextLimitTokens, input.providerContextLimitTokens]) {
     if (
       typeof contextLimit === 'number' &&
       Number.isSafeInteger(contextLimit) &&
@@ -171,10 +168,7 @@ export function resolveEffectiveContextBudget(input: {
     Number.isSafeInteger(providerPromptLimitTokens) &&
     providerPromptLimitTokens > 0
   ) {
-    const outputReserve = capAgentRequestMaxTokens(
-      input.requestedMaxTokens,
-      outputCapContextLength
-    )
+    const outputReserve = capAgentRequestMaxTokens(input.requestedMaxTokens, outputCapContextLength)
     const promptBudgetLength = Math.min(
       Number.MAX_SAFE_INTEGER,
       providerPromptLimitTokens + outputReserve
@@ -289,8 +283,9 @@ export function preflightRequestContext(params: {
     params.promptTokenEstimate >= 0
       ? params.promptTokenEstimate
       : null
-  const validCandidatePromptEstimate =
-    sanitizedCandidateMatchesInput ? anchoredPromptEstimate : null
+  const validCandidatePromptEstimate = sanitizedCandidateMatchesInput
+    ? anchoredPromptEstimate
+    : null
   const hasFiniteContext =
     Number.isFinite(usableContextLength) &&
     Number.isFinite(params.contextLength) &&
@@ -319,8 +314,7 @@ export function preflightRequestContext(params: {
   const fittedMatchesCandidate =
     fittedMessages.length === params.messages.length &&
     fittedMessages.every((message, index) => message === params.messages[index])
-  const validPromptTokenEstimate =
-    fittedMatchesCandidate ? anchoredPromptEstimate : null
+  const validPromptTokenEstimate = fittedMatchesCandidate ? anchoredPromptEstimate : null
   const inputTokens =
     validPromptTokenEstimate === null
       ? estimateMessagesTokens(fittedMessages)
@@ -375,7 +369,11 @@ export function buildRequestContextBudgetDiagnostics(
   }
 }
 
-function addLedgerCost(costs: Map<string, number>, category: string, estimatedTokens: number): number {
+function addLedgerCost(
+  costs: Map<string, number>,
+  category: string,
+  estimatedTokens: number
+): number {
   if (!Number.isFinite(estimatedTokens) || estimatedTokens <= 0) return 0
   const normalizedTokens = Math.floor(estimatedTokens)
   costs.set(category, (costs.get(category) ?? 0) + normalizedTokens)
@@ -504,11 +502,7 @@ export function buildRequestContextLedger(input: {
           remainingTokens,
           estimateStandaloneText(contribution.content)
         )
-        attributedInputTokens += addLedgerCost(
-          costs,
-          contribution.category,
-          contributionTokens
-        )
+        attributedInputTokens += addLedgerCost(costs, contribution.category, contributionTokens)
         remainingTokens -= contributionTokens
       }
     }
@@ -567,9 +561,7 @@ export function formatRequestContextLedger(ledger: RequestContextLedger): string
     const contributors = item.contributors?.length
       ? ` (${item.contributors
           .map((contributor) => {
-            const safeName = Array.from(
-              contributor.name.replace(/[\p{Cc}\p{Cf}]+/gu, ' ').trim()
-            )
+            const safeName = Array.from(contributor.name.replace(/[\p{Cc}\p{Cf}]+/gu, ' ').trim())
               .slice(0, 128)
               .join('')
             return `${safeName || 'unnamed'} ~${contributor.estimatedTokens}`

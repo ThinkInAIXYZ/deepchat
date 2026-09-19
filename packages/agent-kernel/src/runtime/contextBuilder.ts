@@ -6,10 +6,7 @@ import type {
   ChatMessageProviderOptions,
   ChatMessageProviderReplayProjector
 } from '@deepchat/shared/types/core/chat-message'
-import {
-  stripToolExecutionContract,
-  type MCPToolDefinition
-} from '@deepchat/shared/types/core/mcp'
+import { stripToolExecutionContract, type MCPToolDefinition } from '@deepchat/shared/types/core/mcp'
 import type {
   ChatMessageRecord,
   AssistantMessageBlock,
@@ -25,10 +22,7 @@ import {
   getContextSyntheticContributions,
   type ContextRuntimeContributions
 } from './contextContributions.js'
-import {
-  estimateMessageTokens,
-  estimateMessagesTokens
-} from '@deepchat/shared/utils/messageTokens'
+import { estimateMessageTokens, estimateMessagesTokens } from '@deepchat/shared/utils/messageTokens'
 import { isCompactionRecord } from '../tape/domain/viewManifest.js'
 import {
   getAttachmentResolvedRepresentation,
@@ -39,7 +33,7 @@ import { isRetiredWorkflowResultMessageMetadata } from '@deepchat/shared/orchest
 import { segmentAssistantBlocksByProviderReplay } from './providerReplaySegments.js'
 import { inheritProviderProjectionIdentities } from '../loop/providerProjectionIdentity.js'
 import { hashJsonData } from '../tape/domain/canonicalJson.js'
-import {type TranscriptStorePort} from '../contracts/transcriptStore.js'
+import { type TranscriptStorePort } from '../contracts/transcriptStore.js'
 
 export { estimateMessagesTokens } from '@deepchat/shared/utils/messageTokens'
 
@@ -132,10 +126,7 @@ export type HistoryTurn = {
   tokens: number
 }
 
-export type ContextIncludedReason =
-  | 'pinned_first_user'
-  | 'selected_history'
-  | 'resume_target'
+export type ContextIncludedReason = 'pinned_first_user' | 'selected_history' | 'resume_target'
 export type ContextExcludedReason = 'empty_after_formatting' | 'out_of_budget'
 
 export type ContextIncludedRecord = {
@@ -339,11 +330,7 @@ function buildHistoricalRootSkillViewMarker(block: AssistantMessageBlock): strin
   let request: Record<string, unknown>
   try {
     const parsedRequest = JSON.parse(block.tool_call.params ?? '{}') as unknown
-    if (
-      !parsedRequest ||
-      typeof parsedRequest !== 'object' ||
-      Array.isArray(parsedRequest)
-    ) {
+    if (!parsedRequest || typeof parsedRequest !== 'object' || Array.isArray(parsedRequest)) {
       return null
     }
     request = parsedRequest as Record<string, unknown>
@@ -796,8 +783,7 @@ export function buildUserMessageContent(
     includeFileContent: options.includeFileContent === true
   })
   const audioMetadata = excludeAudioFromFallback ? buildAudioMetadataContext(audioFiles) : ''
-  const shouldBuildImageParts =
-    supportsVision && includeImageData && imagePayloadFiles.length > 0
+  const shouldBuildImageParts = supportsVision && includeImageData && imagePayloadFiles.length > 0
   const imageMetadata = shouldBuildImageParts ? '' : buildImageMetadataContext(imagePayloadFiles)
   const resolvedImageContext = buildResolvedImageRepresentationContext(imageFiles)
   const resolvedPdfContext = buildResolvedPdfRepresentationContext(files)
@@ -934,8 +920,7 @@ function hasPromptMessageContent(message: ChatMessage): boolean {
 
 export function estimateToolDefinitionTokens(toolDefinitions: MCPToolDefinition[]): number {
   return toolDefinitions.reduce(
-    (total, tool) =>
-      total + estimateTokenCount(JSON.stringify(stripToolExecutionContract(tool))),
+    (total, tool) => total + estimateTokenCount(JSON.stringify(stripToolExecutionContract(tool))),
     0
   )
 }
@@ -1352,9 +1337,7 @@ export function truncateContext(history: ChatMessage[], availableTokens: number)
 
   const result = [...history]
   while (result.length > 0 && total > availableTokens) {
-    const nextTurnStart = result.findIndex(
-      (message, index) => index > 0 && message.role === 'user'
-    )
+    const nextTurnStart = result.findIndex((message, index) => index > 0 && message.role === 'user')
     const firstTurnEnd = nextTurnStart >= 0 ? nextTurnStart : result.length
     if (result.slice(0, firstTurnEnd).some((message) => message.provider_replay)) {
       const removedTurn = result.splice(0, firstTurnEnd)
@@ -1673,8 +1656,7 @@ function activeTurnContainsLeadingContext(
       Array.isArray(message.content) &&
       message.content.some(
         (part) =>
-          part.type === 'text' &&
-          (part.text === leadingContext || part.text.startsWith(prefix))
+          part.type === 'text' && (part.text === leadingContext || part.text.startsWith(prefix))
       )
     )
   })
@@ -2002,7 +1984,7 @@ export function buildCacheAwareResumeContextWithMetadata(
           ownerUser?.id,
           options.runPinnedFirstUser
         )
-    : null
+      : null
 
   const historyRecords = recordsThroughTarget.filter((record) => {
     if (record.id === pinnedFirstUser?.record.id) return false
@@ -2012,9 +1994,7 @@ export function buildCacheAwareResumeContextWithMetadata(
   })
   const activeTurnContext = buildActiveTurnLeadingContext(context)
   const leadingContextByOwnerId =
-    ownerUser && activeTurnContext
-      ? new Map([[ownerUser.id, activeTurnContext]])
-      : undefined
+    ownerUser && activeTurnContext ? new Map([[ownerUser.id, activeTurnContext]]) : undefined
   let historyTurns = buildHistoryTurns(
     historyRecords,
     supportsVision,
@@ -2059,7 +2039,9 @@ export function buildCacheAwareResumeContextWithMetadata(
       messages,
       tokens: estimateMessagesTokens(messages)
     }
-    historyTurns = historyTurns.map((turn, index) => (index === activeTurnIndex ? activeTurn! : turn))
+    historyTurns = historyTurns.map((turn, index) =>
+      index === activeTurnIndex ? activeTurn! : turn
+    )
     fixedMessages = [...leadingMessages, ...messages]
     fixedTokens = estimateMessagesTokens(fixedMessages)
   }
@@ -2076,7 +2058,9 @@ export function buildCacheAwareResumeContextWithMetadata(
       messages,
       tokens: estimateMessagesTokens(messages)
     }
-    historyTurns = historyTurns.map((turn, index) => (index === activeTurnIndex ? activeTurn! : turn))
+    historyTurns = historyTurns.map((turn, index) =>
+      index === activeTurnIndex ? activeTurn! : turn
+    )
     fixedMessages = [...leadingMessages, ...messages]
     fixedTokens = estimateMessagesTokens(fixedMessages)
   }
@@ -2293,11 +2277,7 @@ export function fitCacheAwareMessagesToContextWindow(
   minimumProtectedTailCount: number = 0,
   pinnedFirstUserContentHash?: string
 ): ChatMessage[] {
-  if (
-    messages.length === 0 ||
-    !Number.isFinite(contextLength) ||
-    contextLength <= 0
-  ) {
+  if (messages.length === 0 || !Number.isFinite(contextLength) || contextLength <= 0) {
     return messages
   }
 

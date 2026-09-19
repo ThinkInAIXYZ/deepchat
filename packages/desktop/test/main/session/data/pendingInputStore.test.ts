@@ -95,7 +95,9 @@ function createStore(initialRows: DeepChatPendingInputRow[]) {
   } as any
 
   return {
-    store: new SessionPendingInputStore(sqlitePresenter),
+    store: new SessionPendingInputStore(sqlitePresenter, {
+      transaction: (operation) => operation()
+    }),
     deepchatPendingInputsTable
   }
 }

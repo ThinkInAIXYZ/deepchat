@@ -62,7 +62,7 @@ function createProviderSettings(): ProviderModelResolutionPort {
       supportsVerbosity: false,
       verbosityDefault: undefined
     })),
-    supportsAudioInputCapability: vi.fn().mockReturnValue(false),
+    supportsAudioInputCapability: vi.fn().mockReturnValue(false)
   }
 }
 
@@ -259,9 +259,7 @@ describe('SessionSettingsCoordinator', () => {
     })
 
     await harness.coordinator.updateGenerationSettings(SESSION_ID, { contextLength: 64_000 })
-    expect(
-      harness.instance.getContextWindowObservation('openai', 'gpt-4')
-    ).toBeUndefined()
+    expect(harness.instance.getContextWindowObservation('openai', 'gpt-4')).toBeUndefined()
   })
 
   it('atomically applies the model and generation snapshot for an idle turn', async () => {

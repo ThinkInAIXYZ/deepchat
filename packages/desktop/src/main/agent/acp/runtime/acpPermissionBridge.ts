@@ -163,11 +163,11 @@ export class AcpPermissionBridge {
     }
   }
 
-  private summarizeToolCallParams(
-    toolCall: schema.RequestPermissionRequest['toolCall']
-  ): string {
+  private summarizeToolCallParams(toolCall: schema.RequestPermissionRequest['toolCall']): string {
     if (toolCall.locations?.length) {
-      return [...new Set(toolCall.locations.map((location) => location.path))].slice(0, 3).join(', ')
+      return [...new Set(toolCall.locations.map((location) => location.path))]
+        .slice(0, 3)
+        .join(', ')
     }
     if (toolCall.rawInput && Object.keys(toolCall.rawInput).length > 0) {
       try {

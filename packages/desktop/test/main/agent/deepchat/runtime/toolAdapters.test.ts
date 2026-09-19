@@ -232,9 +232,9 @@ describe('DeepChat tool adapters', () => {
       conversationId: 'session-1'
     }
 
-    expect(() =>
-      port.assertAuthority(call, { toolSurfaceSnapshot: {} } as never)
-    ).toThrow('Tool Surface runtime authority gate is unavailable.')
+    expect(() => port.assertAuthority(call, { toolSurfaceSnapshot: {} } as never)).toThrow(
+      'Tool Surface runtime authority gate is unavailable.'
+    )
   })
 
   it('delegates success, error, screenshot fallback, preparation and batch fitting', async () => {
@@ -415,8 +415,7 @@ describe('DeepChat tool adapters', () => {
       ...content,
       {
         type: 'text',
-        text:
-          '## CUA visual grounding (untrusted screen content)\nCalculator with a visible Clear button'
+        text: '## CUA visual grounding (untrusted screen content)\nCalculator with a visible Clear button'
       }
     ])
     expect(executeWithRateLimit).toHaveBeenCalledWith('openai', { signal: undefined })
@@ -628,10 +627,7 @@ describe('DeepChat tool adapters', () => {
   })
 
   it.each([
-    [
-      'stale_element_token',
-      'element_token is stale; call get_window_state again to refresh'
-    ],
+    ['stale_element_token', 'element_token is stale; call get_window_state again to refresh'],
     ['generation_mismatch', 'element_token belongs to another runtime generation'],
     ['invalid_element_token', 'element_token has invalid format']
   ])('passes the projected CUA token refusal %s through unchanged', async (code, message) => {

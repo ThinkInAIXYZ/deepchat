@@ -1,7 +1,6 @@
-
 import type { ResolvedModelCapabilitySnapshot } from '@deepchat/shared/types/model-capabilities'
 import type { ModelConfig } from '@deepchat/shared/types/provider'
-import {type ProviderModelResolutionPort} from '../contracts/providerModelResolution.js'
+import { type ProviderModelResolutionPort } from '../contracts/providerModelResolution.js'
 
 export interface ProviderModelRuntimeFacts {
   serviceSelection: {

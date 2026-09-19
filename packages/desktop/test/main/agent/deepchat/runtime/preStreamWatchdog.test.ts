@@ -78,9 +78,7 @@ describe('pre-stream watchdog', () => {
     )
     expect(vi.mocked(logger.warn)).toHaveBeenCalledTimes(1)
 
-    await vi.advanceTimersByTimeAsync(
-      PRE_STREAM_STUCK_ESCALATION_MS - PRE_STREAM_STUCK_WARN_MS
-    )
+    await vi.advanceTimersByTimeAsync(PRE_STREAM_STUCK_ESCALATION_MS - PRE_STREAM_STUCK_WARN_MS)
     expect(vi.mocked(logger.warn)).toHaveBeenLastCalledWith(
       expect.stringContaining('STUCK escalation')
     )

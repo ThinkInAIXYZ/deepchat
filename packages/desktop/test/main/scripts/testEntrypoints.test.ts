@@ -2,7 +2,8 @@ import { describe, expect, it, vi } from 'vitest'
 
 const fs = await vi.importActual<typeof import('node:fs')>('node:fs')
 const path = await vi.importActual<typeof import('node:path')>('node:path')
-const repositoryRoot = process.cwd()
+const appRoot = process.cwd()
+const repositoryRoot = path.resolve(appRoot, '../..')
 const packageJson = JSON.parse(
   fs.readFileSync(path.join(repositoryRoot, 'package.json'), 'utf8')
 ) as {
@@ -16,11 +17,12 @@ const windowsArm64Workflow = fs.readFileSync(
 describe('test entrypoint contracts', () => {
   it('keeps complete test suites one-shot and watch mode explicit', () => {
     expect(packageJson.scripts).toMatchObject({
-      test: 'vitest run',
-      'test:main': 'vitest run --config vitest.config.ts test/main',
-      'test:renderer': 'vitest run --config vitest.config.renderer.ts test/renderer',
-      'test:coverage': 'vitest run --coverage',
-      'test:watch': 'vitest --watch'
+      test: 'pnpm --filter DeepChat exec vitest run --config ../../vitest.config.ts',
+      'test:main': 'pnpm --filter DeepChat exec vitest run --config ../../vitest.config.ts --project main --project kernel --project shared',
+      'test:renderer': 'pnpm --filter DeepChat run test:renderer',
+      'test:coverage': 'pnpm --filter DeepChat exec vitest run --config ../../vitest.config.ts --coverage',
+      'test:watch': 'pnpm --filter DeepChat exec vitest --config ../../vitest.config.ts --watch',
+      'test:ui': 'pnpm --filter DeepChat exec vitest --config ../../vitest.config.ts --ui'
     })
   })
 
@@ -38,12 +40,12 @@ describe('test entrypoint contracts', () => {
   })
 
   it('keeps the Windows ARM64 workflow aligned with the Native Memory test location', () => {
-    const nativeMemoryTest = 'test/main/memory/memoryVectorStoreV2Native.test.ts'
+    const nativeMemoryTest = 'packages/desktop/test/main/memory/memoryVectorStoreV2Native.test.ts'
 
     expect(fs.existsSync(path.join(repositoryRoot, nativeMemoryTest))).toBe(true)
-    expect(windowsArm64Workflow).toContain(nativeMemoryTest)
+    expect(windowsArm64Workflow).toContain(nativeMemoryTest.slice('packages/desktop/'.length))
     expect(windowsArm64Workflow).not.toContain(
-      'test/main/presenter/memoryVectorStoreV2Native.test.ts'
+      'packages/desktop/test/main/presenter/memoryVectorStoreV2Native.test.ts'
     )
   })
 })

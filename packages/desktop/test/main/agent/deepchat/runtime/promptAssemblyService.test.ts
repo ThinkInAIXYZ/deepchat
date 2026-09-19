@@ -9,9 +9,7 @@ import { POSIX_COMMAND_SHELL } from '../../../../helpers/commandShell'
 
 const SESSION_ID = 'session'
 
-const buildSystemPromptWithSkills = vi.hoisted(() =>
-  vi.fn(async () => 'assembled system prompt')
-)
+const buildSystemPromptWithSkills = vi.hoisted(() => vi.fn(async () => 'assembled system prompt'))
 const buildSystemPromptAssemblyWithSkills = vi.hoisted(() =>
   vi.fn(async () => ({
     prompt: 'assembled system prompt',
@@ -92,17 +90,15 @@ describe('PromptAssemblyService', () => {
     })
 
     await expect(
-      service
-        .createBasePromptAssembler(stale)
-        .assemble({
-          sessionId: SESSION_ID,
-          configuredPrompt: 'base',
-          toolDefinitions: [],
-          activeSkillNames: [],
-          sessionActiveSkillNames: [],
-          contextLength: 8_000,
-          commandShell: POSIX_COMMAND_SHELL
-        })
+      service.createBasePromptAssembler(stale).assemble({
+        sessionId: SESSION_ID,
+        configuredPrompt: 'base',
+        toolDefinitions: [],
+        activeSkillNames: [],
+        sessionActiveSkillNames: [],
+        contextLength: 8_000,
+        commandShell: POSIX_COMMAND_SHELL
+      })
     ).rejects.toMatchObject({ name: 'StaleDeepChatAgentInstanceError' })
   })
 

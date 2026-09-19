@@ -18,6 +18,7 @@ import type {
 } from '@deepchat/agent-kernel/tape/ports/capabilities'
 import { SessionTranscript } from './transcript'
 import { SessionDatabase } from './database'
+import type { SessionTransaction } from './transaction'
 
 export function createSessionData(
   connection: DatabaseConnectionProvider,
@@ -25,7 +26,9 @@ export function createSessionData(
   events: SessionDataEvents
 ) {
   const database = new SessionDatabase(connection, getTapeMutationProjection)
-  return createSessionDataFromDatabase(database, events)
+  return createSessionDataFromDatabase(database, events, {
+    transaction: <T>(operation: () => T): T => connection.getDatabase().transaction(operation)()
+  })
 }
 
 export type SessionDataEvents = {
@@ -35,7 +38,10 @@ export type SessionDataEvents = {
 
 export function createSessionDataFromDatabase(
   database: SessionDatabase,
-  events: SessionDataEvents
+  events: SessionDataEvents,
+  transactions: SessionTransaction = {
+    transaction: <T>(operation: () => T): T => database.getDatabase().transaction(operation)()
+  }
 ) {
   // The concrete facade stays inside this composition root: the SessionTapePort wrappers below
   // call its direct read helpers, while everything handed out reaches Tape only through ports.
@@ -50,8 +56,8 @@ export function createSessionDataFromDatabase(
     commitNestedDispatch: (input) => programmaticJournalService.commitNestedDispatch(input),
     commitNestedToolOutcome: (input) => programmaticJournalService.commitNestedToolOutcome(input)
   })
-  const transcript = new SessionTranscript(database, tapeStore, tapeStore, tapeStore)
-  const pendingInputStore = new SessionPendingInputStore(database)
+  const transcript = new SessionTranscript(database, tapeStore, tapeStore, tapeStore, transactions)
+  const pendingInputStore = new SessionPendingInputStore(database, transactions)
   const ensureTape = (sessionId: string) =>
     sessionTape.ensureSessionTapeReady(sessionId, transcript)
   const toTapeAnchor = (row: DeepChatTapeEntryRow) => ({
@@ -118,6 +124,7 @@ export function createSessionDataFromDatabase(
 
   return {
     database,
+    transactions,
     settings: new SessionSettingsStore(database, tapeStore),
     transcript,
     tape,

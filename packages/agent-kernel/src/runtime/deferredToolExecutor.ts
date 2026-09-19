@@ -29,7 +29,11 @@ import {
 import type { DeepChatToolResolver } from './toolResolver.js'
 import type { MessageProjectionService } from './messageProjectionService.js'
 import type { RunLifecycleCoordinator } from './runLifecycleCoordinator.js'
-import { elapsedMonotonicMs, readMonotonicNow, type MonotonicClock } from '../collab/lib/monotonicTime.js'
+import {
+  elapsedMonotonicMs,
+  readMonotonicNow,
+  type MonotonicClock
+} from '../collab/lib/monotonicTime.js'
 import type { SessionIdentityService } from './sessionIdentityService.js'
 import type { SessionSettingsCoordinator } from './sessionSettingsCoordinator.js'
 import type { SessionStateResolver } from './sessionStateResolver.js'
@@ -50,9 +54,12 @@ import {
   requireProgrammaticToolDeferredResumeCapability,
   type ProgrammaticToolCapabilityV1
 } from './programmaticToolSurface.js'
-import {type CacheImageOptions} from '../contracts/imagePreview.js'
-import {type CommandShellResolutionPort} from '../contracts/commandShellResolution.js'
-import {type ProgrammaticToolParentRegistration, type ProgrammaticToolAuthorityPort} from '../contracts/programmaticToolAuthority.js'
+import { type CacheImageOptions } from '../contracts/imagePreview.js'
+import { type CommandShellResolutionPort } from '../contracts/commandShellResolution.js'
+import {
+  type ProgrammaticToolParentRegistration,
+  type ProgrammaticToolAuthorityPort
+} from '../contracts/programmaticToolAuthority.js'
 
 export type DeferredToolExecutionResult = {
   responseText: string
@@ -184,11 +191,7 @@ export class DeferredToolExecutor {
       return { runId, requestSeq: 1, providerToolCallId: toolCallId }
     }
     const cancelProgrammaticParentBeforeDispatch = (): void => {
-      if (
-        !programmaticToolParent ||
-        programmaticToolParentCancelled ||
-        dispatchCommitted
-      ) {
+      if (!programmaticToolParent || programmaticToolParentCancelled || dispatchCommitted) {
         return
       }
       programmaticToolParent.cancelBeforeOuterDispatch()
@@ -229,10 +232,7 @@ export class DeferredToolExecutor {
           `Execution Journal terminal for deferred tool Run ${committedRunId} already existed.`
         )
       }
-      const durationMs = elapsedMonotonicMs(
-        observedRunStartedAt,
-        this.dependencies.diagnosticNow
-      )
+      const durationMs = elapsedMonotonicMs(observedRunStartedAt, this.dependencies.diagnosticNow)
       notifyRunJournalObserver(this.dependencies.runJournalObserver, {
         type: 'terminal',
         runKind: 'deferred_tool',
@@ -409,10 +409,7 @@ export class DeferredToolExecutor {
         }
       }
 
-      if (
-        !parsedCommandShellProfile &&
-        targetServerName === 'agent-filesystem'
-      ) {
+      if (!parsedCommandShellProfile && targetServerName === 'agent-filesystem') {
         return {
           responseText: 'Deferred file execution is missing its shell profile.',
           isError: true,
@@ -733,11 +730,7 @@ export class DeferredToolExecutor {
       if (isProgrammaticCommandLaunchError(error) && isExecutionJournalError(error.cause)) {
         return settleFailClosed(error.cause)
       }
-      if (
-        programmaticToolParent &&
-        dispatchCommitted &&
-        isProgrammaticCommandLaunchError(error)
-      ) {
+      if (programmaticToolParent && dispatchCommitted && isProgrammaticCommandLaunchError(error)) {
         const responseText =
           'Error: Programmatic CLI process exited before authoritative completion.'
         try {

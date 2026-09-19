@@ -13,7 +13,7 @@ import {
   createEmptyContextRuntimeContributions,
   type ContextRuntimeContributions
 } from './contextContributions.js'
-import {type TranscriptStorePort} from '../contracts/transcriptStore.js'
+import { type TranscriptStorePort } from '../contracts/transcriptStore.js'
 
 export const CACHE_AWARE_TAPE_VIEW_POLICY_V1_ID = 'cache_aware_context_v1' as const
 export const CACHE_AWARE_TAPE_VIEW_POLICY_V2_ID = 'cache_aware_context_v2' as const
@@ -130,8 +130,7 @@ export const cacheAwareTapeViewPolicyV1: TapeViewPolicy = {
         ...input.options,
         historyRecords: input.historyRecords,
         pinFirstUser: false,
-        contextContributions:
-          input.contextContributions ?? createEmptyContextRuntimeContributions()
+        contextContributions: input.contextContributions ?? createEmptyContextRuntimeContributions()
       }
     )
   },
@@ -148,8 +147,7 @@ export const cacheAwareTapeViewPolicyV1: TapeViewPolicy = {
         ...input.options,
         historyRecords: input.historyRecords,
         pinFirstUser: false,
-        contextContributions:
-          input.contextContributions ?? createEmptyContextRuntimeContributions()
+        contextContributions: input.contextContributions ?? createEmptyContextRuntimeContributions()
       }
     )
   }
@@ -172,8 +170,7 @@ export const cacheAwareTapeViewPolicyV2: TapeViewPolicy = {
         ...input.options,
         historyRecords: input.historyRecords,
         pinFirstUser: true,
-        contextContributions:
-          input.contextContributions ?? createEmptyContextRuntimeContributions()
+        contextContributions: input.contextContributions ?? createEmptyContextRuntimeContributions()
       }
     )
   },
@@ -190,8 +187,7 @@ export const cacheAwareTapeViewPolicyV2: TapeViewPolicy = {
         ...input.options,
         historyRecords: input.historyRecords,
         pinFirstUser: true,
-        contextContributions:
-          input.contextContributions ?? createEmptyContextRuntimeContributions()
+        contextContributions: input.contextContributions ?? createEmptyContextRuntimeContributions()
       }
     )
   }

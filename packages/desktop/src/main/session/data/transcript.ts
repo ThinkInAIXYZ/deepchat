@@ -45,6 +45,7 @@ import {
   toMessageFile
 } from './messageContent'
 import { TranscriptProjectionApplier } from './transcriptProjection'
+import type { SessionTransaction } from './transaction'
 import { buildTerminalErrorBlocks } from '@deepchat/agent-kernel/contracts/transcriptBlocks'
 
 const COMPACTION_SHIFT_MATERIALIZATION_BATCH_SIZE = 500
@@ -109,14 +110,13 @@ export class SessionTranscript implements TapeTranscriptProjection {
   constructor(
     database: SessionDatabase,
     tapeFacts: TranscriptTapePort,
-    private readonly executionAudit?: Pick<
-      ExecutionJournalAuditReader,
-      'listMessageIdsWithNestedExecutionAudit'
-    >,
-    private readonly compactionAnchors?: Pick<
-      TapeAnchorReader,
-      'getReconstructionAnchorByCompactionAttemptId'
-    >
+    private readonly executionAudit:
+      | Pick<ExecutionJournalAuditReader, 'listMessageIdsWithNestedExecutionAudit'>
+      | undefined,
+    private readonly compactionAnchors:
+      | Pick<TapeAnchorReader, 'getReconstructionAnchorByCompactionAttemptId'>
+      | undefined,
+    private readonly transactions: SessionTransaction
   ) {
     this.database = database
     this.tapeFacts = tapeFacts
@@ -141,7 +141,7 @@ export class SessionTranscript implements TapeTranscriptProjection {
   }
 
   private runInDatabaseTransaction<T>(operation: () => T): T {
-    return this.database.getDatabase().transaction(operation)() as T
+    return this.transactions.transaction(operation)
   }
 
   createUserMessage(

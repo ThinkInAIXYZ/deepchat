@@ -396,10 +396,9 @@ describe('RunLifecycleCoordinator', () => {
     await coordinator.cancel(SESSION_ID)
 
     expect(scope.instance.getPendingInteractions()).toEqual([])
-    expect(vi.mocked(transcript.setMessageError).mock.calls.map(([messageId]) => messageId)).toEqual([
-      'message-1',
-      'message-2'
-    ])
+    expect(
+      vi.mocked(transcript.setMessageError).mock.calls.map(([messageId]) => messageId)
+    ).toEqual(['message-1', 'message-2'])
     expect(emitMessageRefresh.mock.calls.map(([, messageId]) => messageId)).toEqual([
       'message-1',
       'message-2'

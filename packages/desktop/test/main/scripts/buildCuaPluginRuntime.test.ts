@@ -16,7 +16,7 @@ vi.mock('node:child_process', () => ({
 }))
 
 async function loadBuildRuntime() {
-  return (await import('../../../scripts/build-cua-plugin-runtime.mjs')) as {
+  return (await import('../../../../../scripts/build-cua-plugin-runtime.mjs')) as {
     darwinHelperAppDirName: string
     darwinHelperBinaryName: string
     darwinHelperBundleIdentifier: string

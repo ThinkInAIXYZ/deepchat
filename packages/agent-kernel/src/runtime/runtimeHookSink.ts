@@ -6,10 +6,7 @@ import type {
   HookUsageFacts
 } from '../collab/hook/events.js'
 import type { HookObserver } from '../collab/hook/observer.js'
-import type {
-  DeepChatLoopNotification,
-  DeepChatLoopNotificationObserver
-} from '../loop/ports.js'
+import type { DeepChatLoopNotification, DeepChatLoopNotificationObserver } from '../loop/ports.js'
 import type { ProcessResult } from './types.js'
 import type { SessionIdentityService } from './sessionIdentityService.js'
 import type { SessionSettingsCoordinator } from './sessionSettingsCoordinator.js'

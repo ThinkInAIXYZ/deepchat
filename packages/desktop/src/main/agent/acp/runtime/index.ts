@@ -25,10 +25,7 @@ export {
   type AcpSessionHooks,
   type AcpSessionPrepareHooks
 } from './acpSessionController'
-export {
-  AcpPermissionBridge,
-  type AcpPermissionBridgeOptions
-} from './acpPermissionBridge'
+export { AcpPermissionBridge, type AcpPermissionBridgeOptions } from './acpPermissionBridge'
 export {
   LEGACY_MODEL_CONFIG_ID,
   LEGACY_MODE_CONFIG_ID,

@@ -56,7 +56,9 @@ describeIfSqlite('SessionTranscript keeps transcript and Tape writes atomic', ()
       appendCompactionModelCall: failing(tape.appendCompactionModelCall.bind(tape)),
       getProjectionHead: tape.getProjectionHead.bind(tape)
     }
-    const transcript = new SessionTranscriptCtor(database, tapeFacts)
+    const transcript = new SessionTranscriptCtor(database, tapeFacts, undefined, undefined, {
+      transaction: (operation) => database.getDatabase().transaction(operation)()
+    })
     return {
       connection,
       database,

@@ -14,7 +14,11 @@ import type {
   ToolCallResult
 } from './types.js'
 import { markStreamChanged } from './types.js'
-import { accumulate, commitRoundUsage, finalizeTrailingPendingNarrativeBlocks } from './accumulator.js'
+import {
+  accumulate,
+  commitRoundUsage,
+  finalizeTrailingPendingNarrativeBlocks
+} from './accumulator.js'
 import { startEcho } from './echo.js'
 import {
   assertPausedProjectionReady,
@@ -1240,11 +1244,7 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
                 state,
                 event.permission
               )
-              stampProviderAttemptIdentity(
-                state.blocks,
-                firstNewBlock,
-                providerAttemptIdentity
-              )
+              stampProviderAttemptIdentity(state.blocks, firstNewBlock, providerAttemptIdentity)
               emitDeepChatLoopNotification(notificationObserver, {
                 event: 'PermissionRequest',
                 permission,
@@ -1266,11 +1266,7 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
             if (event.type !== 'usage') {
               const firstNewBlock = state.blocks.length
               accumulate(state, event)
-              stampProviderAttemptIdentity(
-                state.blocks,
-                firstNewBlock,
-                providerAttemptIdentity
-              )
+              stampProviderAttemptIdentity(state.blocks, firstNewBlock, providerAttemptIdentity)
             }
             if (event.type === 'provider_search') {
               for (const result of event.provider_search.results) {
@@ -1311,7 +1307,9 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
 
           const activeRequestContract = run.activeRequestContract
           if (activeRequestContract && activeRequestContract.requestSeq !== run.requestSeq) {
-            throw new Error('Provider response does not match the active ExecutionContract request.')
+            throw new Error(
+              'Provider response does not match the active ExecutionContract request.'
+            )
           }
           const executionContract = activeRequestContract?.executionContract ?? null
           const requestSeq = activeRequestContract?.requestSeq ?? run.requestSeq
@@ -1424,9 +1422,7 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
             providerId === 'acp'
               ? Number.MAX_SAFE_INTEGER
               : (toPositiveInteger(preparedContinuationBudget?.contextLength) ??
-                (modelConfig.contextLength > 0
-                  ? modelConfig.contextLength
-                  : UNKNOWN_CONTEXT_LIMIT))
+                (modelConfig.contextLength > 0 ? modelConfig.contextLength : UNKNOWN_CONTEXT_LIMIT))
           const continuationOutputCapContextLength =
             providerId === 'acp'
               ? Number.MAX_SAFE_INTEGER

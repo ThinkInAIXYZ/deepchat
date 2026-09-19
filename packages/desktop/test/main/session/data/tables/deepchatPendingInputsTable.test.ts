@@ -140,7 +140,9 @@ describeIfNativeSqlite('SessionPendingInputStore blocked queue', () => {
     const db = new DatabaseCtor(':memory:')
     const table = new DeepChatPendingInputsTable(db)
     table.createTable()
-    const store = new SessionPendingInputStore({ deepchatPendingInputsTable: table } as never)
+    const store = new SessionPendingInputStore({ deepchatPendingInputsTable: table } as never, {
+      transaction: (operation) => db.transaction(operation)()
+    })
     return { db, store, table }
   }
 
@@ -189,9 +191,10 @@ describeIfNativeSqlite('SessionPendingInputStore blocked queue', () => {
       const second = store.createQueueInput('s1', { text: 'later', files: [] })
 
       store.releaseClaimedQueueInputForRetry(first.id)
-      const reconstructed = new SessionPendingInputStore({
-        deepchatPendingInputsTable: table
-      } as never)
+      const reconstructed = new SessionPendingInputStore(
+        { deepchatPendingInputsTable: table } as never,
+        { transaction: (operation) => db.transaction(operation)() }
+      )
 
       expect(reconstructed.getInput(first.id)?.state).toBe('retry_required')
       expect(reconstructed.getNextPendingQueueInput('s1')).toBeNull()
@@ -244,9 +247,10 @@ describeIfNativeSqlite('SessionPendingInputStore blocked queue', () => {
         retry_required_at: 11,
         blocking_json: null
       })
-      const reconstructed = new SessionPendingInputStore({
-        deepchatPendingInputsTable: table
-      } as never)
+      const reconstructed = new SessionPendingInputStore(
+        { deepchatPendingInputsTable: table } as never,
+        { transaction: (operation) => db.transaction(operation)() }
+      )
       expect(reconstructed.getInput('released')?.state).toBe('retry_required')
 
       db.prepare("UPDATE deepchat_pending_inputs SET state = 'pending' WHERE id = ?").run(

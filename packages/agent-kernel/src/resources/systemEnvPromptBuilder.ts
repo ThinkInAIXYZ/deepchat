@@ -6,7 +6,10 @@ import type {
   DeepChatPromptDegradationCode,
   DeepChatPromptSourceFreshness
 } from '@deepchat/shared/types/prompt-assembly'
-import { formatCommandShellPromptLine, type ResolvedCommandShell } from '@deepchat/shared/commandShell'
+import {
+  formatCommandShellPromptLine,
+  type ResolvedCommandShell
+} from '@deepchat/shared/commandShell'
 import type { ProviderCatalogPort } from '../collab/provider/ports.js'
 import { assemblePromptSections, createPromptAssemblySection } from './promptAssembly.js'
 
@@ -333,8 +336,6 @@ export async function buildSystemEnvPromptAssembly(
   ])
 }
 
-export async function buildSystemEnvPrompt(
-  options: BuildSystemEnvPromptOptions
-): Promise<string> {
+export async function buildSystemEnvPrompt(options: BuildSystemEnvPromptOptions): Promise<string> {
   return (await buildSystemEnvPromptAssembly(options)).prompt
 }

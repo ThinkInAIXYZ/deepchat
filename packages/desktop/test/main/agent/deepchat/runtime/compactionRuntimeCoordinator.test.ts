@@ -17,9 +17,7 @@ import { POSIX_COMMAND_SHELL } from '../../../../helpers/commandShell'
 
 const SESSION_ID = 'session'
 
-function createRuntimeState(
-  status: DeepChatSessionState['status'] = 'idle'
-): DeepChatSessionState {
+function createRuntimeState(status: DeepChatSessionState['status'] = 'idle'): DeepChatSessionState {
   return {
     status,
     providerId: 'openai',
@@ -147,10 +145,7 @@ function createHarness(options?: {
     state: Record<string, unknown>
     createdAt: number
   } | null = null
-  const reconstructionAnchorsByAttempt = new Map<
-    string,
-    NonNullable<typeof reconstructionAnchor>
-  >()
+  const reconstructionAnchorsByAttempt = new Map<string, NonNullable<typeof reconstructionAnchor>>()
   const publishedEvents: Array<{ event: string; payload: unknown }> = []
   const messageStore: CompactionRuntimeCoordinatorDependencies['messageStore'] = {
     createCompactionMessage: vi.fn().mockReturnValue('compaction-message'),
@@ -239,37 +234,33 @@ function createHarness(options?: {
   const prepareForManualCompaction = vi.fn(
     async (_input: PrepareManualCompactionInput): Promise<CompactionIntent | null> => null
   )
-  const applyCompaction = vi.fn(
-    async (intent: CompactionIntent) => {
-      summaryState = {
-        summaryText: 'Updated summary',
-        summaryCursorOrderSeq: intent.targetCursorOrderSeq,
-        summaryUpdatedAt: (intent.previousState.summaryUpdatedAt ?? 0) + 1
-      }
-      reconstructionAnchor = {
-        entryId: (reconstructionAnchor?.entryId ?? 0) + 1,
-        name: 'compaction/manual',
-        state: {
-          summary: summaryState.summaryText,
-          cursorOrderSeq: summaryState.summaryCursorOrderSeq
-        },
-        createdAt: summaryState.summaryUpdatedAt
-      }
-      return {
-        outcome: 'summarized' as const,
-        anchorCommitted: true,
-        summaryState: { ...summaryState }
-      }
+  const applyCompaction = vi.fn(async (intent: CompactionIntent) => {
+    summaryState = {
+      summaryText: 'Updated summary',
+      summaryCursorOrderSeq: intent.targetCursorOrderSeq,
+      summaryUpdatedAt: (intent.previousState.summaryUpdatedAt ?? 0) + 1
     }
-  )
+    reconstructionAnchor = {
+      entryId: (reconstructionAnchor?.entryId ?? 0) + 1,
+      name: 'compaction/manual',
+      state: {
+        summary: summaryState.summaryText,
+        cursorOrderSeq: summaryState.summaryCursorOrderSeq
+      },
+      createdAt: summaryState.summaryUpdatedAt
+    }
+    return {
+      outcome: 'summarized' as const,
+      anchorCommitted: true,
+      summaryState: { ...summaryState }
+    }
+  })
   const compactionService: CompactionRuntimeCoordinatorDependencies['compactionService'] = {
     applyCompaction,
     prepareForManualCompaction
   }
   const emitMessageRefresh = vi.fn()
-  const getInstance = vi.fn((sessionId: string) =>
-    runtime.getOrHydrate(toAppSessionId(sessionId))
-  )
+  const getInstance = vi.fn((sessionId: string) => runtime.getOrHydrate(toAppSessionId(sessionId)))
   const getHydratedInstance = vi.fn((sessionId: string) =>
     runtime.getHydrated(toAppSessionId(sessionId))
   )
@@ -468,9 +459,9 @@ describe('CompactionRuntimeCoordinator', () => {
     replacement.setRuntimeState(createRuntimeState())
     coordinator.emit(SESSION_ID, coordinator.idleState(), replacement)
 
-    expect(
-      publishedEvents.map(({ payload }) => (payload as { emitSeq: number }).emitSeq)
-    ).toEqual([1, 2, 3])
+    expect(publishedEvents.map(({ payload }) => (payload as { emitSeq: number }).emitSeq)).toEqual([
+      1, 2, 3
+    ])
     await expect(coordinator.getSnapshot(SESSION_ID)).resolves.toMatchObject({ emitSeq: 3 })
   })
 
@@ -558,10 +549,7 @@ describe('CompactionRuntimeCoordinator', () => {
       }
     })
 
-    expect(transitionStatus.mock.calls.map(([, status]) => status)).toEqual([
-      'generating',
-      'idle'
-    ])
+    expect(transitionStatus.mock.calls.map(([, status]) => status)).toEqual(['generating', 'idle'])
     expect(initialInstance?.getAbortController()).toBeUndefined()
     expect(sessionSettings.getEffectiveGenerationSettings).toHaveBeenCalledWith(
       SESSION_ID,
@@ -725,8 +713,14 @@ describe('CompactionRuntimeCoordinator', () => {
   })
 
   it('finalizes a committed marker without mutating a replacement runtime', async () => {
-    const { applyCompaction, coordinator, initialInstance, messageStore, publishedEvents, runtime } =
-      createHarness()
+    const {
+      applyCompaction,
+      coordinator,
+      initialInstance,
+      messageStore,
+      publishedEvents,
+      runtime
+    } = createHarness()
     const completion = createDeferred<{
       outcome: 'summarized'
       anchorCommitted: true
@@ -771,13 +765,8 @@ describe('CompactionRuntimeCoordinator', () => {
   })
 
   it('settles a boundary-only marker from its attempt anchor after a newer anchor', async () => {
-    const {
-      applyCompaction,
-      coordinator,
-      messageStore,
-      setReconstructionAnchor,
-      setSummaryState
-    } = createHarness()
+    const { applyCompaction, coordinator, messageStore, setReconstructionAnchor, setSummaryState } =
+      createHarness()
     const intent = createIntent()
     const boundaryState = {
       summaryText: null,
@@ -881,19 +870,19 @@ describe('CompactionRuntimeCoordinator', () => {
   })
 
   it('restores the previous projection and normalizes a late aborted failure', async () => {
-    const {
-      applyCompaction,
-      coordinator,
-      initialInstance,
-      messageStore,
-      publishedEvents
-    } = createHarness()
+    const { applyCompaction, coordinator, initialInstance, messageStore, publishedEvents } =
+      createHarness()
     const controller = new AbortController()
     controller.abort()
     applyCompaction.mockRejectedValueOnce(new Error('late failure'))
 
     await expect(
-      coordinator.apply(SESSION_ID, createIntent(100), { signal: controller.signal }, initialInstance)
+      coordinator.apply(
+        SESSION_ID,
+        createIntent(100),
+        { signal: controller.signal },
+        initialInstance
+      )
     ).rejects.toMatchObject({ name: 'AbortError' })
 
     expect(messageStore.deleteMessage).toHaveBeenCalledWith('compaction-message')
@@ -950,9 +939,18 @@ describe('CompactionRuntimeCoordinator', () => {
 
     expect(messageStore.deleteMessage).not.toHaveBeenCalled()
     expect(messageStore.updateCompactionMessage).toHaveBeenCalledWith(
-      'compaction-message', 'failed', null,
-      { compactionAttemptId: 'compaction-attempt-1', boundaryReason: null, error: 'Summary provider unavailable' }
+      'compaction-message',
+      'failed',
+      null,
+      {
+        compactionAttemptId: 'compaction-attempt-1',
+        boundaryReason: null,
+        error: 'Summary provider unavailable'
+      }
     )
-    expect(initialInstance?.getCompactionState()).toMatchObject({ status: 'compacted', cursorOrderSeq: 5 })
+    expect(initialInstance?.getCompactionState()).toMatchObject({
+      status: 'compacted',
+      cursorOrderSeq: 5
+    })
   })
 })

@@ -45,12 +45,12 @@ describe('provider input capabilities', () => {
       getCapabilitySnapshot: vi.fn().mockReturnValue(createCapabilitySnapshot(false))
     }
 
-    expect(resolveProviderInputCapabilities(providerSettings as any, 'provider', 'missing')).toEqual(
-      {
-        supportsVision: false,
-        supportsAudioInput: false
-      }
-    )
+    expect(
+      resolveProviderInputCapabilities(providerSettings as any, 'provider', 'missing')
+    ).toEqual({
+      supportsVision: false,
+      supportsAudioInput: false
+    })
   })
 
   it('reuses request-local model facts without repeating capability resolution', () => {
@@ -60,9 +60,7 @@ describe('provider input capabilities', () => {
     }
     const facts = resolveProviderModelRuntimeFacts(providerSettings, 'provider', 'model')
 
-    expect(
-      resolveProviderInputCapabilities(providerSettings, 'provider', 'model', facts)
-    ).toEqual({
+    expect(resolveProviderInputCapabilities(providerSettings, 'provider', 'model', facts)).toEqual({
       supportsVision: true,
       supportsAudioInput: true
     })

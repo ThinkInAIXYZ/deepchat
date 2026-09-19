@@ -3,7 +3,10 @@ import type { ClientSideConnection as ClientSideConnectionType } from '@agentcli
 import type { AcpAgentConfig } from '@deepchat/shared/types/acp'
 import type { AcpConfigState } from '@deepchat/shared/types/acp'
 import type { LLMCoreStreamEvent } from '@deepchat/shared/types/core/llm-events'
-import type { AppSessionId, AcpRemoteSessionId } from '@deepchat/agent-kernel/collab/agent-shared/agentSessionIds'
+import type {
+  AppSessionId,
+  AcpRemoteSessionId
+} from '@deepchat/agent-kernel/collab/agent-shared/agentSessionIds'
 import {
   getAcpConfigOption,
   getAcpConfigOptionByCategory,

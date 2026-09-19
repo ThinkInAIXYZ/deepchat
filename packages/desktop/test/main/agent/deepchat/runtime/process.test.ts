@@ -3,10 +3,7 @@ import fs from 'fs/promises'
 import os from 'os'
 import path from 'path'
 import type { LLMCoreStreamEvent } from '@deepchat/shared/types/core/llm-events'
-import {
-  TOOL_EXECUTION,
-  type MCPToolDefinition
-} from '@deepchat/shared/types/mcp'
+import { TOOL_EXECUTION, type MCPToolDefinition } from '@deepchat/shared/types/mcp'
 import type { ChatMessage } from '@deepchat/shared/types/core/chat-message'
 import type { ToolServicePort } from '@deepchat/shared/types/tool'
 import type { ProcessParams } from '@deepchat/agent-kernel/runtime/types'
@@ -176,10 +173,7 @@ function createMockMessageStore() {
   } as any
 }
 
-function tapeToolFactReceipt(
-  input: TapeToolFactInput,
-  entryId = 1
-): TapeToolFactAppendReceipt {
+function tapeToolFactReceipt(input: TapeToolFactInput, entryId = 1): TapeToolFactAppendReceipt {
   return {
     sessionId: input.sessionId,
     entryId,
@@ -665,9 +659,7 @@ describe('processStream', () => {
     await expect(processStream(params)).resolves.toMatchObject({ status: 'completed' })
 
     const state = params.run.streamState
-    expect(state.blocks).toEqual([
-      expect.objectContaining({ type: 'content', status: 'success' })
-    ])
+    expect(state.blocks).toEqual([expect.objectContaining({ type: 'content', status: 'success' })])
     // text accumulate bumps once, the narrative close must bump again, and the
     // terminal finalize adds its own mark — a close that does not advance the
     // revision leaves a deferred flush deduped by the renderer.
@@ -934,7 +926,7 @@ describe('processStream', () => {
         'renderer:update',
         'message:update',
         'journal:terminal',
-        'message:complete',
+        'message:complete'
       ])
       expect(messageStore.finalizeAssistantMessage).toHaveBeenCalledTimes(1)
       expect(messageStore.setMessageError).not.toHaveBeenCalled()
@@ -1020,10 +1012,9 @@ describe('processStream', () => {
         'persistence_failed'
       )
       const terminalCause = new Error('terminal row conflicts')
-      const terminalFailure = new ExecutionJournalCorruptionError(
-        'terminal journal conflict',
-        { cause: terminalCause }
-      )
+      const terminalFailure = new ExecutionJournalCorruptionError('terminal journal conflict', {
+        cause: terminalCause
+      })
       const toolService = createMockToolService()
       vi.mocked(toolService.callTool).mockImplementation(async (request, options) => {
         const executionOptions = options as ToolExecutionOptions
@@ -1485,9 +1476,7 @@ describe('processStream', () => {
           toolSurfaceSnapshot: snapshot
         })
       )
-      expect(toolService.callTool.mock.calls[0][1]).not.toHaveProperty(
-        'programmaticToolCapability'
-      )
+      expect(toolService.callTool.mock.calls[0][1]).not.toHaveProperty('programmaticToolCapability')
       expect(toolService.callTool.mock.calls[0][1]).not.toHaveProperty('programmaticToolParent')
       expect(toolService.assertToolSurfaceAuthority).toHaveBeenCalledTimes(2)
       expect(releaseActivationCandidates).not.toHaveBeenCalled()
@@ -2539,7 +2528,9 @@ describe('processStream', () => {
       expect(coreStream).toHaveBeenCalledTimes(2)
       expect(providerInputs).toHaveLength(2)
       expect(
-        providerInputs[1].find((message) => message.role === 'tool' && message.tool_call_id === 'tc-first')
+        providerInputs[1].find(
+          (message) => message.role === 'tool' && message.tool_call_id === 'tc-first'
+        )
       ).toMatchObject({ content: TRUNCATED_TOOL_CALL_ERROR })
       expect(params.run.messages.filter((message) => message.role === 'tool')).toEqual([
         { role: 'tool', tool_call_id: 'tc-first', content: TRUNCATED_TOOL_CALL_ERROR },
@@ -2648,7 +2639,8 @@ describe('processStream', () => {
       )
       expect(
         params.run.streamState.blocks.filter(
-          (block) => block.type === 'tool_call' && block.extra?.toolCallIncompleteReason === 'max_tokens'
+          (block) =>
+            block.type === 'tool_call' && block.extra?.toolCallIncompleteReason === 'max_tokens'
         )
       ).toHaveLength(3)
     })

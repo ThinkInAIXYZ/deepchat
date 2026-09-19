@@ -12,9 +12,10 @@ import type {
   CommitNestedExecutionToolOutcomeInput
 } from '@deepchat/agent-kernel/tape/domain/executionJournal'
 
-const MAIN_SOURCE_ROOT = path.resolve(process.cwd(), 'src/main')
+const APP_ROOT = fileURLToPath(new URL('../../../', import.meta.url))
+const MAIN_SOURCE_ROOT = path.resolve(APP_ROOT, 'src/main')
 // Tape domain and ports live in the kernel workspace package.
-const KERNEL_SOURCE_ROOT = path.resolve(process.cwd(), 'packages/agent-kernel/src')
+const KERNEL_SOURCE_ROOT = path.resolve(APP_ROOT, '../agent-kernel/src')
 const TAPE_ROOT = path.join(MAIN_SOURCE_ROOT, 'tape')
 const PACKAGE_TAPE_ROOT = path.join(KERNEL_SOURCE_ROOT, 'tape')
 const PACKAGE_TAPE_DOMAIN_ROOT = path.join(PACKAGE_TAPE_ROOT, 'domain')

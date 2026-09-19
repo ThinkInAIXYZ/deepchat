@@ -4,10 +4,7 @@ import { toAppSessionId } from '../collab/agent-shared/agentSessionIds.js'
 import type { DeepChatAgentInstance } from '../instance/deepChatAgentInstance.js'
 import type { SessionScopeRegistry } from '../instance/deepChatAgentRuntime.js'
 import type { MemoryPromptContributor } from '../memory/memoryPromptContributor.js'
-import type {
-  BasePromptAssembler,
-  PostCompactionPromptAssembler
-} from '../loop/ports.js'
+import type { BasePromptAssembler, PostCompactionPromptAssembler } from '../loop/ports.js'
 import {
   buildSystemPromptAssemblyWithSkills,
   buildSystemPromptWithSkills,
@@ -27,11 +24,10 @@ export interface PromptAssemblyProjectDirPort {
   ): string | null
 }
 
-export interface PromptAssemblyServiceDependencies
-  extends Pick<
-    SystemPromptBuilderDependencies,
-    'providerSettings' | 'skillSettings' | 'skillService' | 'providerCatalogPort' | 'toolService'
-  > {
+export interface PromptAssemblyServiceDependencies extends Pick<
+  SystemPromptBuilderDependencies,
+  'providerSettings' | 'skillSettings' | 'skillService' | 'providerCatalogPort' | 'toolService'
+> {
   registry: SessionScopeRegistry
   identity: Pick<SessionIdentityService, 'isAcpBackedSubagentSession'>
   orchestrationPolicy: Pick<DeepChatToolResolver, 'resolveOrchestrationPolicy'>

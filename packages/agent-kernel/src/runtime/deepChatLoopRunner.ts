@@ -66,14 +66,8 @@ import {
   preflightRequestContext,
   resolveEffectiveContextBudget
 } from './contextBudget.js'
-import {
-  estimateMessagesTokens,
-  type ContextBuildMetadata
-} from './contextBuilder.js'
-import {
-  hasCompactionBoundaryAdvanced,
-  type CompactionService
-} from './compactionService.js'
+import { estimateMessagesTokens, type ContextBuildMetadata } from './contextBuilder.js'
+import { hasCompactionBoundaryAdvanced, type CompactionService } from './compactionService.js'
 import { resolveInterleavedReasoningConfig } from './generationSettings.js'
 import {
   inspectContextOverflow,
@@ -111,16 +105,19 @@ import {
 } from '../tape/domain/executionJournal.js'
 
 import type { RuntimeHookSink } from './runtimeHookSink.js'
-import {type ProviderModelResolutionPort} from '../contracts/providerModelResolution.js'
-import {type CacheImageOptions, type ToolImagePreviewPort} from '../contracts/imagePreview.js'
-import {type PendingInputStorePort} from '../contracts/pendingInputStore.js'
-import {type SessionPermissionPort} from '../contracts/sessionPermission.js'
-import {cloneBlocksForRenderer} from '../contracts/rendererBlocks.js'
-import {type TranscriptStorePort} from '../contracts/transcriptStore.js'
-import {type SessionSummaryState, type SessionSettingsStorePort} from '../contracts/sessionSettingsStore.js'
-import {type AgentTraceSettingsPort} from '../contracts/agentTraceSettings.js'
-import {buildToolSearchDefinition} from '../contracts/toolSearchDefinition.js'
-import {type ProgrammaticToolAuthorityPort} from '../contracts/programmaticToolAuthority.js'
+import { type ProviderModelResolutionPort } from '../contracts/providerModelResolution.js'
+import { type CacheImageOptions, type ToolImagePreviewPort } from '../contracts/imagePreview.js'
+import { type PendingInputStorePort } from '../contracts/pendingInputStore.js'
+import { type SessionPermissionPort } from '../contracts/sessionPermission.js'
+import { cloneBlocksForRenderer } from '../contracts/rendererBlocks.js'
+import { type TranscriptStorePort } from '../contracts/transcriptStore.js'
+import {
+  type SessionSummaryState,
+  type SessionSettingsStorePort
+} from '../contracts/sessionSettingsStore.js'
+import { type AgentTraceSettingsPort } from '../contracts/agentTraceSettings.js'
+import { buildToolSearchDefinition } from '../contracts/toolSearchDefinition.js'
+import { type ProgrammaticToolAuthorityPort } from '../contracts/programmaticToolAuthority.js'
 import {
   resolveDeepChatToolProfileKind,
   type DeepChatToolCatalogSnapshot,
@@ -161,7 +158,11 @@ import type {
   ProviderRequestTraceContext,
   ProviderRequestTracePayload
 } from '../collab/provider/requestTrace.js'
-import { elapsedMonotonicMs, readMonotonicNow, type MonotonicClock } from '../collab/lib/monotonicTime.js'
+import {
+  elapsedMonotonicMs,
+  readMonotonicNow,
+  type MonotonicClock
+} from '../collab/lib/monotonicTime.js'
 import type { InputPreparationCoordinator } from '../loop/inputPreparationCoordinator.js'
 import type {
   DeepChatContextCoordinator,
@@ -311,8 +312,7 @@ function boundedProviderViewProvenanceFailureReason(error: unknown): string {
     }
   } catch {}
   const truncated = reason.length > MAX_PROVIDER_VIEW_PROVENANCE_FAILURE_REASON_CODE_UNITS
-  const retainedLimit =
-    MAX_PROVIDER_VIEW_PROVENANCE_FAILURE_REASON_CODE_UNITS - (truncated ? 3 : 0)
+  const retainedLimit = MAX_PROVIDER_VIEW_PROVENANCE_FAILURE_REASON_CODE_UNITS - (truncated ? 3 : 0)
   let retained = ''
   for (let index = 0; index < reason.length && retained.length < retainedLimit; ) {
     const codePoint = reason.codePointAt(index)
@@ -450,10 +450,7 @@ export interface DeepChatLoopRunnerPorts {
   inputPreparationCoordinator: InputPreparationCoordinator
   contextCoordinator: DeepChatContextCoordinator
   toolSurfaceRunMode?: ToolSurfaceRunModePort
-  programmaticToolParents: Pick<
-    ProgrammaticToolAuthorityPort,
-    'prepare' | 'commitRunTerminal'
-  >
+  programmaticToolParents: Pick<ProgrammaticToolAuthorityPort, 'prepare' | 'commitRunTerminal'>
   toolSurfaceDiagnostics: ToolSurfaceShadowDiagnosticsRegistryPort
   toolSurfaceCanaryDiagnostics: Pick<
     ToolSurfaceCanaryDiagnosticsRegistry,
@@ -556,9 +553,7 @@ function normalizeObservedLogicalRound(value: number | undefined): number {
 }
 
 function normalizeObservedToolCalls(value: number | undefined): number {
-  return typeof value === 'number' && Number.isFinite(value) && value >= 0
-    ? Math.floor(value)
-    : 0
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? Math.floor(value) : 0
 }
 
 function buildProviderContextOverflowAfterRecoveryErrorMessage(
@@ -566,11 +561,13 @@ function buildProviderContextOverflowAfterRecoveryErrorMessage(
   ledger: ReturnType<typeof buildRequestContextLedger>,
   facts: ContextOverflowFacts | undefined,
   configuredContextLength: number,
-  sessionObservation: {
-    providerContextLimitTokens?: number
-    providerPromptLimitTokens?: number
-    metadataSuspect: boolean
-  } | undefined,
+  sessionObservation:
+    | {
+        providerContextLimitTokens?: number
+        providerPromptLimitTokens?: number
+        metadataSuspect: boolean
+      }
+    | undefined,
   disposition: ProviderContextOverflowDisposition = 'provider_rejected_retry'
 ): string {
   const diagnostics = buildRequestContextBudgetDiagnostics(preflight)
@@ -715,7 +712,8 @@ export class DeepChatLoopRunner {
       viewContext?.selection.includedRecords.findLast(({ record }) => record.role === 'user')
         ?.record.id ??
       (anchorMessage?.sessionId === sessionId
-        ? this.ports.messageStore.getLastUserMessageBeforeOrAt(sessionId, anchorMessage.orderSeq)?.id
+        ? this.ports.messageStore.getLastUserMessageBeforeOrAt(sessionId, anchorMessage.orderSeq)
+            ?.id
         : undefined) ??
       ''
     let activeContextContributions = contextContributions
@@ -723,7 +721,9 @@ export class DeepChatLoopRunner {
       activeContextContributions ??= createEmptyContextRuntimeContributions()
       return activeContextContributions
     }
-    const resourceInstance = providedResourceInstance ?? this.ports.registry.getOrHydrateScope(toAppSessionId(sessionId)).instance
+    const resourceInstance =
+      providedResourceInstance ??
+      this.ports.registry.getOrHydrateScope(toAppSessionId(sessionId)).instance
     const resourceScope = this.ports.runLifecycle.scopeFor(sessionId, resourceInstance)
     resourceScope.assertCurrent()
     const abortController =
@@ -746,16 +746,11 @@ export class DeepChatLoopRunner {
     if (strictViewContract && !taskContractContext) {
       throw new Error('Contract-bearing child run requires a TaskContract context.')
     }
-    const reportProviderViewProvenanceFailure =
-      createProviderViewProvenanceDiagnosticReporter()
+    const reportProviderViewProvenanceFailure = createProviderViewProvenanceDiagnosticReporter()
 
     const providerModelFacts =
       providedProviderModelFacts ??
-      resolveProviderModelRuntimeFacts(
-        this.ports.providerSettings,
-        state.providerId,
-        state.modelId
-      )
+      resolveProviderModelRuntimeFacts(this.ports.providerSettings, state.providerId, state.modelId)
     assertProviderModelRuntimeFacts(providerModelFacts, state.providerId, state.modelId)
     const generationSettings = await awaitWithAbort(
       this.ports.sessionSettings.getEffectiveGenerationSettings(
@@ -775,10 +770,7 @@ export class DeepChatLoopRunner {
     const capabilitySnapshot = providerModelFacts.capabilitySnapshot
     const toolMode =
       providedToolMode ??
-      this.ports.toolResolver.resolveToolMode(
-        sessionId,
-        capabilitySnapshot.defaultToolMode
-      )
+      this.ports.toolResolver.resolveToolMode(sessionId, capabilitySnapshot.defaultToolMode)
     const interleavedReasoning =
       providedInterleavedReasoning ??
       resolveInterleavedReasoningConfig(
@@ -800,13 +792,7 @@ export class DeepChatLoopRunner {
         requestModelConfig,
         requestModelId
       )
-      if (
-        shouldBypassDeepChatContextBudget(
-          state.providerId,
-          requestModelConfig,
-          requestModelId
-        )
-      ) {
+      if (shouldBypassDeepChatContextBudget(state.providerId, requestModelConfig, requestModelId)) {
         return {
           contextLength: configuredContextBudgetLength,
           outputCapContextLength: configuredContextBudgetLength
@@ -906,8 +892,7 @@ export class DeepChatLoopRunner {
 
     const traceEnabled = this.ports.traceSettings.isEnabled()
     const initialRequestSeq = Math.max(
-      this.ports.tape.listViewManifestsByMessage(sessionId, messageId)[0]
-        ?.requestSeq ?? 0,
+      this.ports.tape.listViewManifestsByMessage(sessionId, messageId)[0]?.requestSeq ?? 0,
       this.ports.messageStore.getMaxMessageTraceRequestSeq(messageId),
       this.ports.tape.getMaxProviderAttemptRequestSeq(sessionId, messageId)
     )
@@ -965,8 +950,7 @@ export class DeepChatLoopRunner {
         ? messages[0].content
         : ''
     const declaredPromptAssembly =
-      basePromptAssembly ??
-      createOpaquePromptAssembly(baseSystemPrompt ?? effectiveSystemPrompt)
+      basePromptAssembly ?? createOpaquePromptAssembly(baseSystemPrompt ?? effectiveSystemPrompt)
     const initialPromptAssembly = reconcilePromptAssembly(
       declaredPromptAssembly,
       effectiveSystemPrompt
@@ -1063,15 +1047,13 @@ export class DeepChatLoopRunner {
     if (automaticToolSurfaceAssignment) {
       this.ports.toolSurfaceCanaryDiagnostics.recordAutomaticAssignment({
         scope: toolSurfaceCanaryScope,
-        cliProgrammaticCapability:
-          automaticToolSurfaceAssignment.cliProgrammaticCapability,
+        cliProgrammaticCapability: automaticToolSurfaceAssignment.cliProgrammaticCapability,
         phase: 'entered'
       })
       if (!nativeToolSurfaceEligible) {
         this.ports.toolSurfaceCanaryDiagnostics.recordAutomaticAssignment({
           scope: toolSurfaceCanaryScope,
-          cliProgrammaticCapability:
-            automaticToolSurfaceAssignment.cliProgrammaticCapability,
+          cliProgrammaticCapability: automaticToolSurfaceAssignment.cliProgrammaticCapability,
           phase: 'excluded'
         })
       }
@@ -1109,7 +1091,11 @@ export class DeepChatLoopRunner {
         ? 'full'
         : 'legacy'
       : (fixedToolSurfaceMode ?? 'legacy')
-    if (!automaticToolSurfaceAssignment && toolSurfaceMode !== 'legacy' && !nativeToolSurfaceEligible) {
+    if (
+      !automaticToolSurfaceAssignment &&
+      toolSurfaceMode !== 'legacy' &&
+      !nativeToolSurfaceEligible
+    ) {
       throw new Error(
         `${
           toolSurfaceMode === 'full'
@@ -1126,78 +1112,200 @@ export class DeepChatLoopRunner {
     let clearProviderRetryWaitingMessage: (() => void) | undefined
     try {
       if (toolSurfaceMode !== 'legacy') {
-      const universe = await awaitWithAbort(
-        this.ports.toolResolver.resolveRunToolDefinitionUniverse(
-          sessionId,
-          projectDir,
-          initialRunSkillNames,
-          resourceInstance,
+        const universe = await awaitWithAbort(
+          this.ports.toolResolver.resolveRunToolDefinitionUniverse(
+            sessionId,
+            projectDir,
+            initialRunSkillNames,
+            resourceInstance,
+            abortSignal
+          ),
           abortSignal
-        ),
-        abortSignal
-      )
-      resourceScope.assertCurrent()
-      if (
-        universe.mandatoryAdmissionBlocked ||
-        (!universe.complete && !automaticToolSurfaceAssignment)
-      ) {
-        throw new Error(
-          `${
-            automaticToolSurfaceAssignment
-              ? 'Automatic Tool Surface'
-              : toolSurfaceMode === 'full'
-              ? 'Full Tool Surface'
-              : toolSurfaceMode === 'native-activation'
-                ? 'Native Activation Tool Surface'
-                : 'CLI Programmatic Tool Surface'
-          } mode requires a complete Run tool universe.`
         )
-      }
-      if (!universe.complete && automaticToolSurfaceAssignment) {
-        toolSurfaceMode = 'legacy'
-        this.ports.toolSurfaceCanaryDiagnostics.recordAutomaticAssignment({
-          scope: toolSurfaceCanaryScope,
-          cliProgrammaticCapability: automaticToolSurfaceAssignment.cliProgrammaticCapability,
-          phase: 'excluded'
-        })
-      }
-      if (toolSurfaceMode !== 'legacy') {
-      const ceilingDefinitions = meetTaskContractToolDefinitions(
-        sessionId,
-        universe.definitions,
-        taskContractContext
-      )
-      if (automaticToolSurfaceAssignment) {
-        const toolSearchDefinition = buildToolSearchDefinition()
-        const automaticPolicy = createAutomaticToolSurfaceSelectionPolicy(
-          buildCanonicalToolCatalog([toolSearchDefinition]).definitionTokens
-        )
-        const ceilingCatalog = buildCanonicalToolCatalog(ceilingDefinitions)
-        const trigger = computeToolSurfaceVirtualizationTrigger({
-          policy: automaticPolicy,
-          ceilingToolCount: ceilingCatalog.entries.length,
-          ceilingDefinitionTokens: ceilingCatalog.definitionTokens,
-          previouslyVirtualized:
-            previousAutomaticToolSurfaceMode === 'native-activation' ||
-            previousAutomaticToolSurfaceMode === 'cli-programmatic'
-        })
-        const initialProviderActiveDefinitions = tools.filter(
-          (definition) => definition.source === 'agent'
-        )
-        const agentExecAvailable = buildCanonicalToolCatalog(
-          initialProviderActiveDefinitions
-        ).entries.some(isCanonicalAgentExecToolSurfaceEntry)
-        let programmaticController: ToolSurfaceRunController | null = null
+        resourceScope.assertCurrent()
         if (
-          trigger.virtualizationTriggered &&
-          previousAutomaticToolSurfaceMode !== 'native-activation' &&
-          automaticToolSurfaceAssignment.cliProgrammaticCapability === 'proven' &&
-          agentExecAvailable
+          universe.mandatoryAdmissionBlocked ||
+          (!universe.complete && !automaticToolSurfaceAssignment)
         ) {
-          try {
-            const programmaticProviderDefinitions =
-              projectProgrammaticExecDefinition(initialProviderActiveDefinitions)
-            programmaticController = createProgrammaticToolSurfaceRunControllerV1({
+          throw new Error(
+            `${
+              automaticToolSurfaceAssignment
+                ? 'Automatic Tool Surface'
+                : toolSurfaceMode === 'full'
+                  ? 'Full Tool Surface'
+                  : toolSurfaceMode === 'native-activation'
+                    ? 'Native Activation Tool Surface'
+                    : 'CLI Programmatic Tool Surface'
+            } mode requires a complete Run tool universe.`
+          )
+        }
+        if (!universe.complete && automaticToolSurfaceAssignment) {
+          toolSurfaceMode = 'legacy'
+          this.ports.toolSurfaceCanaryDiagnostics.recordAutomaticAssignment({
+            scope: toolSurfaceCanaryScope,
+            cliProgrammaticCapability: automaticToolSurfaceAssignment.cliProgrammaticCapability,
+            phase: 'excluded'
+          })
+        }
+        if (toolSurfaceMode !== 'legacy') {
+          const ceilingDefinitions = meetTaskContractToolDefinitions(
+            sessionId,
+            universe.definitions,
+            taskContractContext
+          )
+          if (automaticToolSurfaceAssignment) {
+            const toolSearchDefinition = buildToolSearchDefinition()
+            const automaticPolicy = createAutomaticToolSurfaceSelectionPolicy(
+              buildCanonicalToolCatalog([toolSearchDefinition]).definitionTokens
+            )
+            const ceilingCatalog = buildCanonicalToolCatalog(ceilingDefinitions)
+            const trigger = computeToolSurfaceVirtualizationTrigger({
+              policy: automaticPolicy,
+              ceilingToolCount: ceilingCatalog.entries.length,
+              ceilingDefinitionTokens: ceilingCatalog.definitionTokens,
+              previouslyVirtualized:
+                previousAutomaticToolSurfaceMode === 'native-activation' ||
+                previousAutomaticToolSurfaceMode === 'cli-programmatic'
+            })
+            const initialProviderActiveDefinitions = tools.filter(
+              (definition) => definition.source === 'agent'
+            )
+            const agentExecAvailable = buildCanonicalToolCatalog(
+              initialProviderActiveDefinitions
+            ).entries.some(isCanonicalAgentExecToolSurfaceEntry)
+            let programmaticController: ToolSurfaceRunController | null = null
+            if (
+              trigger.virtualizationTriggered &&
+              previousAutomaticToolSurfaceMode !== 'native-activation' &&
+              automaticToolSurfaceAssignment.cliProgrammaticCapability === 'proven' &&
+              agentExecAvailable
+            ) {
+              try {
+                const programmaticProviderDefinitions = projectProgrammaticExecDefinition(
+                  initialProviderActiveDefinitions
+                )
+                programmaticController = createProgrammaticToolSurfaceRunControllerV1({
+                  ceilingDefinitions: [
+                    ...programmaticProviderDefinitions,
+                    ...ceilingDefinitions.filter((definition) => definition.source === 'mcp')
+                  ],
+                  providerActiveDefinitions: programmaticProviderDefinitions,
+                  policyVersion: PROGRAMMATIC_TOOL_SURFACE_POLICY_VERSION
+                })
+              } catch (error) {
+                if (
+                  !(error instanceof ToolSurfaceError) ||
+                  (error.code !== 'limit_exceeded' && error.code !== 'ineligible_exposure')
+                ) {
+                  throw error
+                }
+              }
+            }
+            toolSurfaceMode = selectAutomaticToolSurfaceRunMode({
+              virtualizationTriggered: trigger.virtualizationTriggered,
+              cliProgrammaticCapability: automaticToolSurfaceAssignment.cliProgrammaticCapability,
+              agentExecAvailable,
+              programmaticRunCeilingFits: programmaticController !== null,
+              ...(previousAutomaticToolSurfaceMode
+                ? { previousMode: previousAutomaticToolSurfaceMode }
+                : {})
+            })
+            if (toolSurfaceMode === 'cli-programmatic') {
+              if (!programmaticController) {
+                throw new Error('CLI Programmatic selection requires a preflighted Run controller.')
+              }
+              toolSurfaceController = programmaticController
+            } else if (toolSurfaceMode === 'native-activation') {
+              const eligibleCatalog = buildCanonicalToolCatalog(tools)
+              const activeSkillRequiredStableTargetKeys = universe.skillRequirements
+                .filter((requirement) => requirement.activeAtRunStart && requirement.activatable)
+                .flatMap((requirement) => requirement.requiredStableTargetKeys)
+              const selectionInputs = prepareToolSurfacePolicySelectionInputs({
+                eligibleCatalog,
+                toolProfile,
+                activeSkillRequiredStableTargetKeys,
+                recentToolNames: collectRecentToolSurfaceNames(messages)
+              })
+              const selected = createPolicySelectedToolSurfaceRun({
+                ceilingDefinitions,
+                initialEligibleDefinitions: tools,
+                toolSearchDefinition,
+                policy: automaticPolicy,
+                previouslyVirtualized:
+                  previousAutomaticToolSurfaceMode === 'native-activation' ||
+                  previousAutomaticToolSurfaceMode === 'cli-programmatic',
+                ...selectionInputs
+              })
+              if (!selected.decision.virtualizationTriggered) {
+                throw new Error(
+                  'Native Activation route lost its automatic virtualization decision.'
+                )
+              }
+              toolSurfaceController = selected.controller
+              frozenSkillRequirementByName = new Map(
+                universe.skillRequirements.map((requirement) => [
+                  requirement.skillName,
+                  requirement
+                ])
+              )
+              if (!toolSurfaceController.prepareSkillActivation) {
+                throw new Error('Native Activation controller cannot prepare Skill activation.')
+              }
+            } else {
+              toolSurfaceController = createFullToolSurfaceRunController({
+                ceilingDefinitions,
+                initialActiveDefinitions: tools,
+                policyVersion: automaticPolicy.policyVersion
+              })
+            }
+          } else if (toolSurfaceMode === 'full') {
+            toolSurfaceController = createFullToolSurfaceRunController({
+              ceilingDefinitions,
+              initialActiveDefinitions: tools,
+              policyVersion: FULL_TOOL_SURFACE_POLICY_VERSION
+            })
+          } else if (toolSurfaceMode === 'native-activation') {
+            frozenSkillRequirementByName = new Map(
+              universe.skillRequirements.map((requirement) => [requirement.skillName, requirement])
+            )
+            const eligibleCatalog = buildCanonicalToolCatalog(tools)
+            const activeSkillRequiredStableTargetKeys = universe.skillRequirements
+              .filter((requirement) => requirement.activeAtRunStart && requirement.activatable)
+              .flatMap((requirement) => requirement.requiredStableTargetKeys)
+            const selectionInputs = prepareToolSurfacePolicySelectionInputs({
+              eligibleCatalog,
+              toolProfile,
+              activeSkillRequiredStableTargetKeys,
+              recentToolNames: collectRecentToolSurfaceNames(messages)
+            })
+            const toolSearchDefinition = buildToolSearchDefinition()
+            const selected = createPolicySelectedToolSurfaceRun({
+              ceilingDefinitions,
+              initialEligibleDefinitions: tools,
+              toolSearchDefinition,
+              policy: createExplicitNativeActivationPolicy(
+                buildCanonicalToolCatalog([toolSearchDefinition]).definitionTokens
+              ),
+              previouslyVirtualized: true,
+              ...selectionInputs
+            })
+            if (!selected.decision.virtualizationTriggered) {
+              throw new Error(
+                'Native Activation assignment did not produce a virtualized controller.'
+              )
+            }
+            toolSurfaceController = selected.controller
+            if (!toolSurfaceController.prepareSkillActivation) {
+              throw new Error('Native Activation controller cannot prepare Skill activation.')
+            }
+          } else {
+            const initialProviderActiveDefinitions = tools.filter(
+              (definition) => definition.source === 'agent'
+            )
+            const programmaticProviderDefinitions = projectProgrammaticExecDefinition(
+              initialProviderActiveDefinitions
+            )
+            toolSurfaceController = createProgrammaticToolSurfaceRunControllerV1({
               ceilingDefinitions: [
                 ...programmaticProviderDefinitions,
                 ...ceilingDefinitions.filter((definition) => definition.source === 'mcp')
@@ -1205,128 +1313,14 @@ export class DeepChatLoopRunner {
               providerActiveDefinitions: programmaticProviderDefinitions,
               policyVersion: PROGRAMMATIC_TOOL_SURFACE_POLICY_VERSION
             })
-          } catch (error) {
-            if (
-              !(error instanceof ToolSurfaceError) ||
-              (error.code !== 'limit_exceeded' && error.code !== 'ineligible_exposure')
-            ) {
-              throw error
-            }
           }
         }
-        toolSurfaceMode = selectAutomaticToolSurfaceRunMode({
-          virtualizationTriggered: trigger.virtualizationTriggered,
-          cliProgrammaticCapability: automaticToolSurfaceAssignment.cliProgrammaticCapability,
-          agentExecAvailable,
-          programmaticRunCeilingFits: programmaticController !== null,
-          ...(previousAutomaticToolSurfaceMode
-            ? { previousMode: previousAutomaticToolSurfaceMode }
-            : {})
-        })
-        if (toolSurfaceMode === 'cli-programmatic') {
-          if (!programmaticController) {
-            throw new Error('CLI Programmatic selection requires a preflighted Run controller.')
-          }
-          toolSurfaceController = programmaticController
-        } else if (toolSurfaceMode === 'native-activation') {
-          const eligibleCatalog = buildCanonicalToolCatalog(tools)
-          const activeSkillRequiredStableTargetKeys = universe.skillRequirements
-            .filter((requirement) => requirement.activeAtRunStart && requirement.activatable)
-            .flatMap((requirement) => requirement.requiredStableTargetKeys)
-          const selectionInputs = prepareToolSurfacePolicySelectionInputs({
-            eligibleCatalog,
-            toolProfile,
-            activeSkillRequiredStableTargetKeys,
-            recentToolNames: collectRecentToolSurfaceNames(messages)
-          })
-          const selected = createPolicySelectedToolSurfaceRun({
-            ceilingDefinitions,
-            initialEligibleDefinitions: tools,
-            toolSearchDefinition,
-            policy: automaticPolicy,
-            previouslyVirtualized:
-              previousAutomaticToolSurfaceMode === 'native-activation' ||
-              previousAutomaticToolSurfaceMode === 'cli-programmatic',
-            ...selectionInputs
-          })
-          if (!selected.decision.virtualizationTriggered) {
-            throw new Error('Native Activation route lost its automatic virtualization decision.')
-          }
-          toolSurfaceController = selected.controller
-          frozenSkillRequirementByName = new Map(
-            universe.skillRequirements.map((requirement) => [requirement.skillName, requirement])
-          )
-          if (!toolSurfaceController.prepareSkillActivation) {
-            throw new Error('Native Activation controller cannot prepare Skill activation.')
-          }
-        } else {
-          toolSurfaceController = createFullToolSurfaceRunController({
-            ceilingDefinitions,
-            initialActiveDefinitions: tools,
-            policyVersion: automaticPolicy.policyVersion
-          })
-        }
-      } else if (toolSurfaceMode === 'full') {
-        toolSurfaceController = createFullToolSurfaceRunController({
-          ceilingDefinitions,
-          initialActiveDefinitions: tools,
-          policyVersion: FULL_TOOL_SURFACE_POLICY_VERSION
-        })
-      } else if (toolSurfaceMode === 'native-activation') {
-        frozenSkillRequirementByName = new Map(
-          universe.skillRequirements.map((requirement) => [requirement.skillName, requirement])
-        )
-        const eligibleCatalog = buildCanonicalToolCatalog(tools)
-        const activeSkillRequiredStableTargetKeys = universe.skillRequirements
-          .filter((requirement) => requirement.activeAtRunStart && requirement.activatable)
-          .flatMap((requirement) => requirement.requiredStableTargetKeys)
-        const selectionInputs = prepareToolSurfacePolicySelectionInputs({
-          eligibleCatalog,
-          toolProfile,
-          activeSkillRequiredStableTargetKeys,
-          recentToolNames: collectRecentToolSurfaceNames(messages)
-        })
-        const toolSearchDefinition = buildToolSearchDefinition()
-        const selected = createPolicySelectedToolSurfaceRun({
-          ceilingDefinitions,
-          initialEligibleDefinitions: tools,
-          toolSearchDefinition,
-          policy: createExplicitNativeActivationPolicy(
-            buildCanonicalToolCatalog([toolSearchDefinition]).definitionTokens
-          ),
-          previouslyVirtualized: true,
-          ...selectionInputs
-        })
-        if (!selected.decision.virtualizationTriggered) {
-          throw new Error('Native Activation assignment did not produce a virtualized controller.')
-        }
-        toolSurfaceController = selected.controller
-        if (!toolSurfaceController.prepareSkillActivation) {
-          throw new Error('Native Activation controller cannot prepare Skill activation.')
-        }
-      } else {
-        const initialProviderActiveDefinitions = tools.filter(
-          (definition) => definition.source === 'agent'
-        )
-        const programmaticProviderDefinitions =
-          projectProgrammaticExecDefinition(initialProviderActiveDefinitions)
-        toolSurfaceController = createProgrammaticToolSurfaceRunControllerV1({
-          ceilingDefinitions: [
-            ...programmaticProviderDefinitions,
-            ...ceilingDefinitions.filter((definition) => definition.source === 'mcp')
-          ],
-          providerActiveDefinitions: programmaticProviderDefinitions,
-          policyVersion: PROGRAMMATIC_TOOL_SURFACE_POLICY_VERSION
-        })
-      }
-      }
       }
     } catch (error) {
       if (automaticToolSurfaceAssignment) {
         this.ports.toolSurfaceCanaryDiagnostics.recordAutomaticAssignment({
           scope: toolSurfaceCanaryScope,
-          cliProgrammaticCapability:
-            automaticToolSurfaceAssignment.cliProgrammaticCapability,
+          cliProgrammaticCapability: automaticToolSurfaceAssignment.cliProgrammaticCapability,
           phase: abortSignal.aborted ? 'aborted' : 'setup-failed'
         })
       }
@@ -1335,8 +1329,7 @@ export class DeepChatLoopRunner {
     if (automaticToolSurfaceAssignment && toolSurfaceMode !== 'legacy') {
       this.ports.toolSurfaceCanaryDiagnostics.recordAutomaticAssignment({
         scope: toolSurfaceCanaryScope,
-        cliProgrammaticCapability:
-          automaticToolSurfaceAssignment.cliProgrammaticCapability,
+        cliProgrammaticCapability: automaticToolSurfaceAssignment.cliProgrammaticCapability,
         phase: 'selected',
         adapterMode: toolSurfaceMode
       })
@@ -1358,9 +1351,7 @@ export class DeepChatLoopRunner {
         ? appendCliProgrammaticToolAdapterSection(initialPromptAssembly)
         : initialPromptAssembly
     const runToolDefinitions =
-      toolSurfaceMode === 'cli-programmatic'
-        ? projectProgrammaticExecDefinition(tools)
-        : tools
+      toolSurfaceMode === 'cli-programmatic' ? projectProgrammaticExecDefinition(tools) : tools
     const runMessages =
       runPromptAssembly === initialPromptAssembly
         ? messages
@@ -1613,11 +1604,9 @@ export class DeepChatLoopRunner {
         providerRetryWaiting = false
       }
       clearProviderRetryWaitingMessage = clearProviderRetryWaiting
-      activeGeneration.abortController.signal.addEventListener(
-        'abort',
-        clearProviderRetryWaiting,
-        { once: true }
-      )
+      activeGeneration.abortController.signal.addEventListener('abort', clearProviderRetryWaiting, {
+        once: true
+      })
       removeProviderRetryAbortListener = () =>
         activeGeneration.abortController.signal.removeEventListener(
           'abort',
@@ -1635,9 +1624,7 @@ export class DeepChatLoopRunner {
         toolResults: this.ports.toolResultPort,
         programmaticToolParents: this.ports.programmaticToolParents,
         imagePreviews: this.ports.imagePreviews,
-        ...(traceEnabled
-          ? { providerAttemptIdentity: () => activeProviderAttemptIdentity }
-          : {}),
+        ...(traceEnabled ? { providerAttemptIdentity: () => activeProviderAttemptIdentity } : {}),
         coreStream: async function* (
           requestMessages,
           requestModelId,
@@ -1769,8 +1756,8 @@ export class DeepChatLoopRunner {
                               taskContractContext,
                               ceilings: {
                                 maxToolEffect:
-                                  taskContractContext?.contract.taskHarness.ceilings.maxToolEffect ??
-                                  'write',
+                                  taskContractContext?.contract.taskHarness.ceilings
+                                    .maxToolEffect ?? 'write',
                                 workspace: projectDir
                                   ? { kind: 'path', path: projectDir }
                                   : { kind: 'runtime_default' },
@@ -1821,8 +1808,7 @@ export class DeepChatLoopRunner {
                   outputCapContextLength: budget.outputCapContextLength,
                   requestedMaxTokens,
                   contextContributions: activeContextContributions,
-                  pinnedFirstUserContentHash:
-                    viewContext?.selection.pinnedFirstUser?.contentHash,
+                  pinnedFirstUserContentHash: viewContext?.selection.pinnedFirstUser?.contentHash,
                   promptTokenEstimate
                 })
               },
@@ -1833,8 +1819,7 @@ export class DeepChatLoopRunner {
                   reserveTokens,
                   minimumProtectedTailCount: 0,
                   contextContributions: activeContextContributions,
-                  pinnedFirstUserContentHash:
-                    viewContext?.selection.pinnedFirstUser?.contentHash
+                  pinnedFirstUserContentHash: viewContext?.selection.pinnedFirstUser?.contentHash
                 }),
               getStrictRetryMaxTokens: getProviderOverflowRetryMaxTokens,
               getStrictRetryExtraReserve: () =>
@@ -2188,9 +2173,7 @@ export class DeepChatLoopRunner {
           requestMessages,
           requestTools
         ) => {
-          if (
-            !shouldBypassDeepChatContextBudget(state.providerId, modelConfig, state.modelId)
-          ) {
+          if (!shouldBypassDeepChatContextBudget(state.providerId, modelConfig, state.modelId)) {
             await refreshRuntimeContextLimit(state.modelId)
             initialRuntimeContextObservationPending = true
           }
@@ -2246,9 +2229,9 @@ export class DeepChatLoopRunner {
                       return Object.freeze({ kind: 'rejected' as const })
                     }
                     const nextActiveSkillNames = Object.freeze(
-                      Array.from(
-                        new Set([...getCandidateActiveSkillNames(), skillName])
-                      ).sort((left, right) => left.localeCompare(right))
+                      Array.from(new Set([...getCandidateActiveSkillNames(), skillName])).sort(
+                        (left, right) => left.localeCompare(right)
+                      )
                     )
                     let stagedCatalogSnapshot: DeepChatToolCatalogSnapshot | undefined
                     const stagedToolCatalog = createTaskConstrainedToolCatalog((snapshot) => {
@@ -2303,9 +2286,7 @@ export class DeepChatLoopRunner {
                         publishToolCatalogSnapshot(resolvedCatalogSnapshot)
                         resourceInstance.activateRuntimeSkill(skillName)
                         loopRun.resources.activeSkillNames = [...nextActiveSkillNames]
-                        loopRun.resources.toolDefinitions = [
-                          ...preparedSurface.eligibleDefinitions
-                        ]
+                        loopRun.resources.toolDefinitions = [...preparedSurface.eligibleDefinitions]
                         loopRun.resources.promptAssembly = preparedPromptAssembly
                         if (refreshedAssembly.prompt) {
                           activeBaseSystemPrompt = refreshedAssembly.prompt
@@ -2498,11 +2479,7 @@ export class DeepChatLoopRunner {
       if (pluginRunStarted) this.ports.pluginContext?.endRun?.(sessionId)
       clearProviderRetryWaitingMessage?.()
       removeProviderRetryAbortListener?.()
-      if (
-        toolSurfaceCanaryIdentity &&
-        toolSurfaceMode !== 'legacy' &&
-        resourceScope.isCurrent()
-      ) {
+      if (toolSurfaceCanaryIdentity && toolSurfaceMode !== 'legacy' && resourceScope.isCurrent()) {
         try {
           const toolSurfaceCanaryCompletedAt = readMonotonicNow(diagnosticNow)
           this.ports.toolSurfaceCanaryDiagnostics.recordRun({
@@ -2510,21 +2487,12 @@ export class DeepChatLoopRunner {
             adapterMode: toolSurfaceMode,
             ...toolSurfaceCanaryIdentity,
             outcome: readCommittedTerminal()?.outcome ?? 'unsettled',
-            durationMs: boundedElapsedMs(
-              toolSurfaceCanaryStartedAt,
-              toolSurfaceCanaryCompletedAt
-            ),
+            durationMs: boundedElapsedMs(toolSurfaceCanaryStartedAt, toolSurfaceCanaryCompletedAt),
             ttftMs:
               toolSurfaceFirstProviderOutputAt === undefined
                 ? null
-                : boundedElapsedMs(
-                    toolSurfaceCanaryStartedAt,
-                    toolSurfaceFirstProviderOutputAt
-                  ),
-            providerRounds: Math.max(
-              0,
-              loopRun.logicalRound - observedLogicalRoundBaseline
-            ),
+                : boundedElapsedMs(toolSurfaceCanaryStartedAt, toolSurfaceFirstProviderOutputAt),
+            providerRounds: Math.max(0, loopRun.logicalRound - observedLogicalRoundBaseline),
             providerAttempts: toolSurfaceProviderAttempts,
             providerAttemptsTruncated: toolSurfaceProviderAttemptsTruncated,
             evidence:
@@ -2589,10 +2557,7 @@ export class DeepChatLoopRunner {
     manifestHash: string
     tapeIncarnationId?: string
   } {
-    const sourceMaps = this.ports.tape.getViewManifestSourceMaps(
-      params.sessionId,
-      params.messageId
-    )
+    const sourceMaps = this.ports.tape.getViewManifestSourceMaps(params.sessionId, params.messageId)
     const selection = params.selection
       ? {
           ...params.selection,
@@ -2723,9 +2688,7 @@ export class DeepChatLoopRunner {
       extra: {
         providerId: snapshot.providerId,
         ...(snapshot.qpsLimit === undefined ? {} : { qpsLimit: snapshot.qpsLimit }),
-        ...(snapshot.currentQps === undefined
-          ? {}
-          : { currentQps: snapshot.currentQps }),
+        ...(snapshot.currentQps === undefined ? {} : { currentQps: snapshot.currentQps }),
         ...(snapshot.queueLength === undefined ? {} : { queueLength: snapshot.queueLength }),
         estimatedWaitTime: snapshot.estimatedWaitTime
       }
@@ -2818,10 +2781,7 @@ export class DeepChatLoopRunner {
       prepareCompaction: async (systemPrompt) => {
         const prepared = await this.ports.inputPreparationCoordinator.prepareExisting({
           ensureHistory: () =>
-            this.ports.tape.ensureSessionTapeReady(
-              params.sessionId,
-              this.ports.messageStore
-            )
+            this.ports.tape.ensureSessionTapeReady(params.sessionId, this.ports.messageStore)
               .historyRecords,
           prepareIntent: async (historyRecords) =>
             await this.ports.compactionService.prepareForContextPressureRecovery({
@@ -2885,12 +2845,7 @@ export class DeepChatLoopRunner {
           this.ports.sessionStore.getReconstructionAnchorPromptState(params.sessionId)
         ),
       getSummaryCursorOrderSeq: (summaryState) => summaryState.summaryCursorOrderSeq,
-      fit: ({
-        messages,
-        reserveTokens,
-        minimumProtectedTailCount,
-        pinnedFirstUserContentHash
-      }) =>
+      fit: ({ messages, reserveTokens, minimumProtectedTailCount, pinnedFirstUserContentHash }) =>
         fitRequestMessagesToContextWindow({
           messages,
           contextLength: params.contextLength,
@@ -2904,9 +2859,7 @@ export class DeepChatLoopRunner {
           messages: requestMessages,
           pinnedFirstUserContentHash: params.pinnedFirstUser?.contentHash
         })
-        if (
-          !compactedHistoryRecords?.some((record) => record.id === params.messageId)
-        ) {
+        if (!compactedHistoryRecords?.some((record) => record.id === params.messageId)) {
           return unchanged()
         }
         const leadingMessage = requestMessages[0]

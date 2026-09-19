@@ -9,8 +9,8 @@
   },
   "packageManager": "pnpm@10.34.5+sha512.a4ee05f2f73658255bd6a89859c065a45c28a57daefae2c893a168ee2b73168c37b91e83e57ea67654ad03f03031746430e8bce38e362e042605fb8abc80192e",
   "scripts": {
-    "test": "pnpm --filter DeepChat run test && pnpm --filter @deepchat/agent-kernel run test",
-    "test:main": "pnpm --filter DeepChat run test:main && pnpm --filter @deepchat/agent-kernel run test",
+    "test": "pnpm --filter DeepChat exec vitest run --config ../../vitest.config.ts",
+    "test:main": "pnpm --filter DeepChat exec vitest run --config ../../vitest.config.ts --project main --project kernel --project shared",
     "test:memory:scope": "pnpm --filter DeepChat run test:memory:scope",
     "test:memory:type": "pnpm --filter DeepChat run test:memory:type",
     "test:memory": "pnpm --filter DeepChat run test:memory",
@@ -18,9 +18,9 @@
     "test:main:memory-perf": "pnpm --filter DeepChat run test:main:memory-perf",
     "test:agent:eval": "pnpm --filter DeepChat run test:agent:eval",
     "test:renderer": "pnpm --filter DeepChat run test:renderer",
-    "test:coverage": "pnpm --filter DeepChat run test:coverage",
-    "test:watch": "pnpm --filter DeepChat run test:watch",
-    "test:ui": "pnpm --filter DeepChat run test:ui",
+    "test:coverage": "pnpm --filter DeepChat exec vitest run --config ../../vitest.config.ts --coverage",
+    "test:watch": "pnpm --filter DeepChat exec vitest --config ../../vitest.config.ts --watch",
+    "test:ui": "pnpm --filter DeepChat exec vitest --config ../../vitest.config.ts --ui",
     "e2e:smoke": "pnpm --filter DeepChat run e2e:smoke",
     "e2e:smoke:ci": "pnpm --filter DeepChat run e2e:smoke:ci",
     "icons:generate": "pnpm --filter DeepChat run icons:generate",
@@ -106,9 +106,13 @@
   "devDependencies": {
     "@commitlint/cli": "^21.2.2",
     "@commitlint/config-conventional": "^21.2.2",
+    "@vitejs/plugin-vue": "^6.0.8",
+    "@vitest/coverage-v8": "^4.1.11",
+    "@vitest/ui": "^4.1.11",
     "oxfmt": "^0.56.0",
     "oxlint": "^1.82.0",
     "typescript": "^6.0.3",
+    "vitest": "^4.1.11",
     "yaml": "^2.9.0"
   },
   "pnpm": {

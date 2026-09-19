@@ -1,5 +1,8 @@
 import { app } from 'electron'
-import { toAcpRemoteSessionId, type AcpRemoteSessionId } from '@deepchat/agent-kernel/collab/agent-shared/agentSessionIds'
+import {
+  toAcpRemoteSessionId,
+  type AcpRemoteSessionId
+} from '@deepchat/agent-kernel/collab/agent-shared/agentSessionIds'
 import * as fs from 'fs'
 import type * as schema from '@agentclientprotocol/sdk/dist/schema/index.js'
 import type { CONVERSATION_SETTINGS } from '@shared/types/session'

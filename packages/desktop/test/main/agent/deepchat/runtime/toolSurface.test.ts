@@ -74,9 +74,7 @@ function agentTool(
     },
     server: {
       name:
-        name === TOOL_SEARCH_AGENT_TOOL_NAME
-          ? TOOL_SEARCH_AGENT_TOOL_SERVER_NAME
-          : 'agent-tools',
+        name === TOOL_SEARCH_AGENT_TOOL_NAME ? TOOL_SEARCH_AGENT_TOOL_SERVER_NAME : 'agent-tools',
       icons: '',
       description: 'Agent tools'
     },
@@ -585,16 +583,12 @@ describe('Tool Surface provider ordering', () => {
     const ledger = createToolSurfaceActivationLedger([definitionIdentity('target-a')])
     expectSurfaceError(
       () =>
-        appendToolSurfaceActivationBatch(ledger, [
-          definitionIdentity('target-a', 'b'.repeat(64))
-        ]),
+        appendToolSurfaceActivationBatch(ledger, [definitionIdentity('target-a', 'b'.repeat(64))]),
       'conflicting_tool'
     )
     expectSurfaceError(
       () =>
-        projectToolSurfaceActiveEntries(ledger, [
-          definitionIdentity('target-a', 'b'.repeat(64))
-        ]),
+        projectToolSurfaceActiveEntries(ledger, [definitionIdentity('target-a', 'b'.repeat(64))]),
       'conflicting_tool'
     )
     expectSurfaceError(
@@ -1134,9 +1128,7 @@ describe('Run Tool Ceiling and Tool Surface snapshots', () => {
       ceiling,
       eligibleDefinitions: definitions,
       activationLedger: createToolSurfaceActivationLedger([readEntry]),
-      selectionReasons: [
-        { stableTargetKey: readEntry.stableTargetKey, reason: 'search-result' }
-      ],
+      selectionReasons: [{ stableTargetKey: readEntry.stableTargetKey, reason: 'search-result' }],
       activation: {
         originRequestSeq: 1,
         decisions: [
@@ -1220,7 +1212,9 @@ describe('Run Tool Ceiling and Tool Surface snapshots', () => {
           policyVersion: 'full-v1',
           virtualizationTriggered: false,
           ceiling,
-          eligibleDefinitions: [agentTool('read', { function: { ...read.function, description: 'drift' } })],
+          eligibleDefinitions: [
+            agentTool('read', { function: { ...read.function, description: 'drift' } })
+          ],
           activationLedger: ledger
         }),
       'conflicting_tool'
@@ -1305,9 +1299,7 @@ describe('Run Tool Ceiling and Tool Surface snapshots', () => {
       () =>
         createToolSurfaceSnapshot({
           ...baseInput,
-          selectionReasons: [
-            { stableTargetKey: readEntry.stableTargetKey, reason: 'tool-search' }
-          ]
+          selectionReasons: [{ stableTargetKey: readEntry.stableTargetKey, reason: 'tool-search' }]
         }),
       'invalid_definition'
     )
@@ -1340,10 +1332,7 @@ describe('Run Tool Ceiling and Tool Surface snapshots', () => {
         { stableTargetKey: readEntry.stableTargetKey, reason: 'search-result' as const }
       ]
     }
-    expectSurfaceError(
-      () => createToolSurfaceSnapshot(activationBaseInput),
-      'invalid_definition'
-    )
+    expectSurfaceError(() => createToolSurfaceSnapshot(activationBaseInput), 'invalid_definition')
     expectSurfaceError(
       () =>
         createToolSurfaceSnapshot({
@@ -1477,10 +1466,7 @@ describe('Run Tool Ceiling and Tool Surface snapshots', () => {
     cyclicForgery.self = cyclicForgery
     Object.freeze(cyclicForgery)
 
-    expectSurfaceError(
-      () => createToolSurfaceSnapshot(undefined as never),
-      'invalid_definition'
-    )
+    expectSurfaceError(() => createToolSurfaceSnapshot(undefined as never), 'invalid_definition')
     expectSurfaceError(
       () =>
         createToolSurfaceSnapshot({
@@ -1561,10 +1547,7 @@ describe('Tool Surface activation candidate merge', () => {
       [activationCandidate('target-z'), activationCandidate('target-a')]
     ])
 
-    expect(merged.map((candidate) => candidate.stableTargetKey)).toEqual([
-      'target-a',
-      'target-z'
-    ])
+    expect(merged.map((candidate) => candidate.stableTargetKey)).toEqual(['target-a', 'target-z'])
   })
 
   it('retains the earliest durable ToolSearch result reference and rejects conflicting receipts', () => {
@@ -1608,10 +1591,10 @@ describe('Tool Surface activation candidate merge', () => {
         mergeToolSurfaceActivationEvidence(candidateScope, [
           [
             earliest,
-            activationEvidence(
-              activationCandidate('target-b', { resultRank: 1 }),
-              { ...earliest.toolResult, entryId: earliest.toolResult.entryId + 1 }
-            )
+            activationEvidence(activationCandidate('target-b', { resultRank: 1 }), {
+              ...earliest.toolResult,
+              entryId: earliest.toolResult.entryId + 1
+            })
           ]
         ]),
       'conflicting_tool'
@@ -2272,9 +2255,9 @@ describe('Tool Surface production selection', () => {
       'recent',
       'tool-search'
     ])
-    expect(snapshot.toolDefinitions.some((definition) => definition.function.name === 'hidden')).toBe(
-      false
-    )
+    expect(
+      snapshot.toolDefinitions.some((definition) => definition.function.name === 'hidden')
+    ).toBe(false)
   })
 
   it('fails closed instead of restoring a large full catalog when mandatory selection cannot fit', () => {
@@ -2529,9 +2512,7 @@ describe('Tool Surface production selection', () => {
       'skill_required'
     ])
     expect(
-      activated.activeEntries.find(
-        (entry) => entry.definition.function.name === 'skill_required'
-      )
+      activated.activeEntries.find((entry) => entry.definition.function.name === 'skill_required')
     ).toMatchObject({ reason: 'active-skill', activationOrdinal: 2 })
   })
 
@@ -2547,9 +2528,7 @@ describe('Tool Surface production selection', () => {
     if (preparation.kind !== 'prepared') throw new Error('Expected prepared Skill activation.')
 
     preparation.apply()
-    expect(() =>
-      harness.selected.controller.stageActivationBatch([candidate])
-    ).not.toThrow()
+    expect(() => harness.selected.controller.stageActivationBatch([candidate])).not.toThrow()
     const nextView = harness.build(2)
 
     expect(nextView.activation.decisions).toEqual([])
@@ -2585,7 +2564,8 @@ describe('Tool Surface production selection', () => {
       toolSearchDefinition: agentTool(TOOL_SEARCH_AGENT_TOOL_NAME),
       policy: { ...productionPolicy, enterToolCount: 1, exitToolCount: 0 },
       coreStableTargetKeys: [
-        catalog.entries.find((entry) => entry.target.providerVisibleName === 'core')!.stableTargetKey
+        catalog.entries.find((entry) => entry.target.providerVisibleName === 'core')!
+          .stableTargetKey
       ]
     })
 
@@ -2675,12 +2655,11 @@ describe('Tool Surface production selection', () => {
     })
 
     selected.controller.stageActivationBatch([candidate])
-    expect(() => selected.controller.stageActivationBatch([structuredClone(candidate)])).not.toThrow()
+    expect(() =>
+      selected.controller.stageActivationBatch([structuredClone(candidate)])
+    ).not.toThrow()
     expectSurfaceError(
-      () =>
-        selected.controller.stageActivationBatch([
-          { ...candidate, resultRank: 1 }
-        ]),
+      () => selected.controller.stageActivationBatch([{ ...candidate, resultRank: 1 }]),
       'conflicting_tool'
     )
     expectSurfaceError(() => build(1), 'invalid_definition')
@@ -2702,7 +2681,9 @@ describe('Tool Surface production selection', () => {
 
     const proposal = build(2)
     const competing = build(3)
-    expect(proposal.toolDefinitions.map((definition) => definition.function.name)).toContain('hidden')
+    expect(proposal.toolDefinitions.map((definition) => definition.function.name)).toContain(
+      'hidden'
+    )
     expect(proposal.activation).toEqual({
       originRequestSeq: 1,
       decisions: [
@@ -2722,7 +2703,9 @@ describe('Tool Surface production selection', () => {
 
     selected.controller.admit(proposal)
     expectSurfaceError(() => selected.controller.admit(competing), 'conflicting_tool')
-    expect(() => selected.controller.stageActivationBatch([structuredClone(candidate)])).not.toThrow()
+    expect(() =>
+      selected.controller.stageActivationBatch([structuredClone(candidate)])
+    ).not.toThrow()
     expectSurfaceError(
       () => selected.controller.stageActivationBatch([{ ...candidate, resultRank: 1 }]),
       'conflicting_tool'
@@ -2745,7 +2728,9 @@ describe('Tool Surface production selection', () => {
     expect(projectToolSurfaceTapeProvenance(revoked, false).surface.searchResultRefs).toEqual([])
     selected.controller.admit(revoked)
     const restored = build(6)
-    expect(restored.activeEntries.find((entry) => entry.definition.function.name === 'hidden')).toMatchObject({
+    expect(
+      restored.activeEntries.find((entry) => entry.definition.function.name === 'hidden')
+    ).toMatchObject({
       reason: 'search-result',
       activationOrdinal: 2
     })
@@ -2798,8 +2783,12 @@ describe('Tool Surface production selection', () => {
       deferActivationCandidates: true
     })
     expect(recoveryView.activation).toEqual({ originRequestSeq: null, decisions: [] })
-    expect(recoveryView.toolDefinitions.map((definition) => definition.function.name)).toContain('active')
-    expect(recoveryView.toolDefinitions.map((definition) => definition.function.name)).not.toContain('pending')
+    expect(recoveryView.toolDefinitions.map((definition) => definition.function.name)).toContain(
+      'active'
+    )
+    expect(
+      recoveryView.toolDefinitions.map((definition) => definition.function.name)
+    ).not.toContain('pending')
     harness.selected.controller.admit(recoveryView)
     expect(() =>
       assertToolSurfaceAllowsDispatch(
@@ -2886,9 +2875,9 @@ describe('Tool Surface production selection', () => {
     interrupted.selected.controller.stageActivationBatch([interrupted.candidate('hidden', 1)])
     const unadmitted = interrupted.build(2)
 
-    expect(interrupted.initial.toolDefinitions.map((definition) => definition.function.name)).not.toContain(
-      'hidden'
-    )
+    expect(
+      interrupted.initial.toolDefinitions.map((definition) => definition.function.name)
+    ).not.toContain('hidden')
     expect(unadmitted.toolDefinitions.map((definition) => definition.function.name)).toContain(
       'hidden'
     )
@@ -2896,12 +2885,12 @@ describe('Tool Surface production selection', () => {
     const recreated = createActivationHarness(['hidden'])
     const recreatedNextView = recreated.build(2)
 
-    expect(recreated.initial.toolDefinitions.map((definition) => definition.function.name)).not.toContain(
-      'hidden'
-    )
-    expect(recreatedNextView.toolDefinitions.map((definition) => definition.function.name)).not.toContain(
-      'hidden'
-    )
+    expect(
+      recreated.initial.toolDefinitions.map((definition) => definition.function.name)
+    ).not.toContain('hidden')
+    expect(
+      recreatedNextView.toolDefinitions.map((definition) => definition.function.name)
+    ).not.toContain('hidden')
     expect(recreatedNextView.activation).toEqual({ originRequestSeq: null, decisions: [] })
     expect(recreatedNextView.acceptedSearchEvidence).toEqual([])
   })
@@ -2951,7 +2940,10 @@ describe('Tool Surface production selection', () => {
           activationEvidence({
             ...request(1),
             runId: 'wrong-run',
-            ...definitionIdentity(hiddenEntry.stableTargetKey, hiddenEntry.canonicalToolDefinitionHash),
+            ...definitionIdentity(
+              hiddenEntry.stableTargetKey,
+              hiddenEntry.canonicalToolDefinitionHash
+            ),
             toolCallOrdinalWithinBatch: 0,
             resultRank: 0
           })
@@ -3006,20 +2998,12 @@ describe('Tool Surface production selection', () => {
   it('issues immutable request-scoped execution contexts only for virtualized ToolSearch Views', () => {
     const harness = createActivationHarness(['hidden'])
     const snapshot = harness.build(2)
-    expectSurfaceError(
-      () => createToolSurfaceExecutionBatch({ snapshot }),
-      'invalid_definition'
-    )
+    expectSurfaceError(() => createToolSurfaceExecutionBatch({ snapshot }), 'invalid_definition')
     harness.selected.controller.admit(snapshot)
     const batch = createToolSurfaceExecutionBatch({ snapshot })
-    expectSurfaceError(
-      () => createToolSurfaceExecutionBatch({ snapshot }),
-      'invalid_definition'
-    )
+    expectSurfaceError(() => createToolSurfaceExecutionBatch({ snapshot }), 'invalid_definition')
     expectSurfaceError(() => batch.createContext(-1), 'invalid_definition')
-    batch
-      .createContext(0)
-      .submitActivationCandidates([harness.candidate('hidden', 2, 0)])
+    batch.createContext(0).submitActivationCandidates([harness.candidate('hidden', 2, 0)])
     const context = batch.createContext(3)
 
     expect(context.snapshot).toBe(snapshot)
@@ -3056,9 +3040,7 @@ describe('Tool Surface production selection', () => {
     const boundedContext = boundedBatch.createContext(0)
     const boundedCandidate = harness.candidate('hidden', 3, 0)
     for (let index = 0; index < MAX_TOOL_SURFACE_CANDIDATE_BATCHES; index += 1) {
-      boundedContext.submitActivationCandidates([
-        { ...boundedCandidate, resultRank: index }
-      ])
+      boundedContext.submitActivationCandidates([{ ...boundedCandidate, resultRank: index }])
     }
     expectSurfaceError(
       () =>
@@ -3135,16 +3117,12 @@ describe('Tool Surface production selection', () => {
     ])
     const proposal = harness.build(
       2,
-      harness.definitions.filter(
-        (definition) => definition.function.name !== 'ineligible'
-      )
+      harness.definitions.filter((definition) => definition.function.name !== 'ineligible')
     )
 
-    expect(proposal.activation.decisions.map((decision) => decision.rejectionCode ?? 'accepted')).toEqual([
-      'accepted',
-      'per-batch-count-cap',
-      'ineligible'
-    ])
+    expect(
+      proposal.activation.decisions.map((decision) => decision.rejectionCode ?? 'accepted')
+    ).toEqual(['accepted', 'per-batch-count-cap', 'ineligible'])
     expect(proposal.toolDefinitions.map((definition) => definition.function.name)).toEqual([
       'core',
       TOOL_SEARCH_AGENT_TOOL_NAME,
@@ -3162,10 +3140,9 @@ describe('Tool Surface production selection', () => {
       batchLimited.candidate('first', 1, 0, 0),
       batchLimited.candidate('second', 1, 0, 1)
     ])
-    expect(batchLimited.build(2).activation.decisions.map((decision) => decision.rejectionCode)).toEqual([
-      undefined,
-      'per-batch-token-cap'
-    ])
+    expect(
+      batchLimited.build(2).activation.decisions.map((decision) => decision.rejectionCode)
+    ).toEqual([undefined, 'per-batch-token-cap'])
 
     const searchTokens = buildCanonicalToolCatalog([
       agentTool(TOOL_SEARCH_AGENT_TOOL_NAME)
@@ -3176,9 +3153,7 @@ describe('Tool Surface production selection', () => {
       activationReserveDefinitionTokens: 0,
       maxInitialDefinitionTokens: coreTokens + searchTokens + firstTokens - 1
     })
-    totalLimited.selected.controller.stageActivationBatch([
-      totalLimited.candidate('first', 1)
-    ])
+    totalLimited.selected.controller.stageActivationBatch([totalLimited.candidate('first', 1)])
     expect(totalLimited.build(2).activation.decisions[0].rejectionCode).toBe(
       'total-surface-token-cap'
     )
@@ -3192,10 +3167,9 @@ describe('Tool Surface production selection', () => {
       targetLimited.candidate('first', 1, 0, 0),
       targetLimited.candidate('second', 1, 0, 1)
     ])
-    expect(targetLimited.build(2).activation.decisions.map((decision) => decision.rejectionCode)).toEqual([
-      undefined,
-      'per-run-target-cap'
-    ])
+    expect(
+      targetLimited.build(2).activation.decisions.map((decision) => decision.rejectionCode)
+    ).toEqual([undefined, 'per-run-target-cap'])
 
     const batchLimited = createActivationHarness(['first', 'second'], {
       maxActivationBatchesPerRun: 1
@@ -3204,9 +3178,7 @@ describe('Tool Surface production selection', () => {
     const firstProposal = batchLimited.build(2)
     batchLimited.selected.controller.admit(firstProposal)
     batchLimited.selected.controller.stageActivationBatch([batchLimited.candidate('second', 2)])
-    expect(batchLimited.build(3).activation.decisions[0].rejectionCode).toBe(
-      'per-run-batch-cap'
-    )
+    expect(batchLimited.build(3).activation.decisions[0].rejectionCode).toBe('per-run-batch-cap')
 
     const surfaceLimited = createActivationHarness(['first', 'second'], {
       maxInitialToolCount: 3
@@ -3215,10 +3187,9 @@ describe('Tool Surface production selection', () => {
       surfaceLimited.candidate('first', 1, 0, 0),
       surfaceLimited.candidate('second', 1, 0, 1)
     ])
-    expect(surfaceLimited.build(2).activation.decisions.map((decision) => decision.rejectionCode)).toEqual([
-      undefined,
-      'total-surface-count-cap'
-    ])
+    expect(
+      surfaceLimited.build(2).activation.decisions.map((decision) => decision.rejectionCode)
+    ).toEqual([undefined, 'total-surface-count-cap'])
   })
 
   it('consumes and replays an all-rejected release without expanding the surface', () => {
@@ -3242,10 +3213,7 @@ describe('Tool Surface production selection', () => {
       harness.selected.controller.stageActivationBatch([structuredClone(candidate)])
     ).not.toThrow()
     expectSurfaceError(
-      () =>
-        harness.selected.controller.stageActivationBatch([
-          { ...candidate, resultRank: 1 }
-        ]),
+      () => harness.selected.controller.stageActivationBatch([{ ...candidate, resultRank: 1 }]),
       'conflicting_tool'
     )
 

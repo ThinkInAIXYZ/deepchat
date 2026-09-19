@@ -2,7 +2,10 @@ import { describe, expect, it, vi } from 'vitest'
 import type * as schema from '@agentclientprotocol/sdk/dist/schema/index.js'
 import { AcpSessionController, type AcpSessionRecord } from '@/agent/acp/runtime'
 import { AcpSessionManager } from '@/agent/acp/runtime/acpSessionManager'
-import { toAcpRemoteSessionId, toAppSessionId } from '@deepchat/agent-kernel/collab/agent-shared/agentSessionIds'
+import {
+  toAcpRemoteSessionId,
+  toAppSessionId
+} from '@deepchat/agent-kernel/collab/agent-shared/agentSessionIds'
 
 describe('AcpSessionController', () => {
   it('maps capability updates once for provider and direct consumers and persists metadata', async () => {
@@ -84,7 +87,10 @@ describe('AcpSessionController', () => {
     await vi.waitFor(() => expect(persistence.mergeMetadata).toHaveBeenCalledTimes(2))
 
     expect(onEvents).toHaveBeenCalledWith([
-      expect.objectContaining({ type: 'reasoning', reasoning_content: 'Mode changed to: architect' })
+      expect.objectContaining({
+        type: 'reasoning',
+        reasoning_content: 'Mode changed to: architect'
+      })
     ])
     expect(session.currentModeId).toBe('architect')
     expect(session.availableCommands).toEqual([
@@ -478,10 +484,7 @@ describe('AcpSessionController', () => {
     resolveOpen(session)
 
     await expect(preparing).rejects.toMatchObject({ name: 'AbortError' })
-    expect(sessionManager.discardLateSession).toHaveBeenCalledWith(
-      'prepare-conversation',
-      session
-    )
+    expect(sessionManager.discardLateSession).toHaveBeenCalledWith('prepare-conversation', session)
     expect(clearSession).toHaveBeenCalledWith('prepare-conversation')
     expect(events.modesReady).not.toHaveBeenCalled()
     expect(events.configOptionsReady).not.toHaveBeenCalled()

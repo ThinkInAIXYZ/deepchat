@@ -1,6 +1,7 @@
-
-
-import type { PermissionMode, SessionGenerationSettings } from '@deepchat/shared/types/agent-interface'
+import type {
+  PermissionMode,
+  SessionGenerationSettings
+} from '@deepchat/shared/types/agent-interface'
 import type { ReasoningPortrait } from '@deepchat/shared/types/model-db'
 import type { ResolvedModelCapabilitySnapshot } from '@deepchat/shared/types/model-capabilities'
 import {
@@ -39,8 +40,8 @@ import {
   resolveProviderModelRuntimeFacts,
   type ProviderModelRuntimeFacts
 } from './providerModelRuntimeFacts.js'
-import {type ProviderModelResolutionPort} from '../contracts/providerModelResolution.js'
-import {type PromptSettingsPort} from '../contracts/promptSettings.js'
+import { type ProviderModelResolutionPort } from '../contracts/providerModelResolution.js'
+import { type PromptSettingsPort } from '../contracts/promptSettings.js'
 
 export type PersistedSessionGenerationRow = {
   provider_id: string
@@ -332,10 +333,7 @@ async function buildDefaultGenerationSettings(
     (!anthropicReasoningToggle || anthropicReasoningEnabled)
   ) {
     const rawEffort = modelConfig.reasoningEffort ?? snapshot.reasoningEffortDefault
-    const normalizedEffort = normalizeReasoningEffort(
-      portrait,
-      rawEffort
-    )
+    const normalizedEffort = normalizeReasoningEffort(portrait, rawEffort)
     if (normalizedEffort) {
       defaults.reasoningEffort = normalizedEffort
     }
@@ -507,8 +505,7 @@ export async function sanitizeGenerationSettings(
       modelConfig.reasoningVisibility ?? portrait?.visibility
     )
     const normalizedVisibility =
-      normalizeReasoningVisibility(capabilityProviderId, portrait, fromPatch) ??
-      defaultVisibility
+      normalizeReasoningVisibility(capabilityProviderId, portrait, fromPatch) ?? defaultVisibility
     if (normalizedVisibility) {
       next.reasoningVisibility = normalizedVisibility
     } else {

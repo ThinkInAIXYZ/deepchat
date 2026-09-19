@@ -200,9 +200,7 @@ describe('deferred Tool Surface recovery', () => {
 
     try {
       expect(resolve(fixture, ports)).toBe(registered)
-      expect(() => resolve(fixture, ports)).toThrow(
-        expect.objectContaining({ code: 'corruption' })
-      )
+      expect(() => resolve(fixture, ports)).toThrow(expect.objectContaining({ code: 'corruption' }))
 
       releaseToolSurfaceDeferredDispatchClaim(
         REQUEST.sessionId,
@@ -392,9 +390,7 @@ describe('deferred Tool Surface recovery', () => {
       { entryId: fixture.manifestRecord.entryId, fact: fixture.fact }
     ])
 
-    expect(() => resolve(fixture, ports)).toThrow(
-      expect.objectContaining({ code: 'corruption' })
-    )
+    expect(() => resolve(fixture, ports)).toThrow(expect.objectContaining({ code: 'corruption' }))
   })
 
   it('requires durable V4 evidence for a new bound pause and rejects replay', () => {

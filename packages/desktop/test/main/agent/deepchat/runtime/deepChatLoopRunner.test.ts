@@ -100,9 +100,7 @@ describe('DeepChatLoopRunner', () => {
           reconstructionAnchorEntryIds: [1],
           reconstructionAnchorEntryId: null,
           entryIdByMessageId: new Map([['user-1', 11]]),
-          messageContentHashByMessageId: new Map([
-            ['user-1', hashJsonData(record.content)]
-          ]),
+          messageContentHashByMessageId: new Map([['user-1', hashJsonData(record.content)]]),
           toolCallEntryIdByToolId: new Map(),
           toolResultEntryIdByToolId: new Map()
         })),

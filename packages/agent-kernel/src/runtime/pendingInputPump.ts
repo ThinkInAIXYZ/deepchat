@@ -28,8 +28,8 @@ import type {
   PendingInputTurnSource,
   TurnCompletion
 } from './pendingInputContracts.js'
-import {type PendingInputStorePort} from '../contracts/pendingInputStore.js'
-import {type TranscriptStorePort} from '../contracts/transcriptStore.js'
+import { type PendingInputStorePort } from '../contracts/pendingInputStore.js'
+import { type TranscriptStorePort } from '../contracts/transcriptStore.js'
 
 export type PendingInputPumpStorePort = Pick<
   PendingInputStorePort,
@@ -267,9 +267,7 @@ export class PendingInputPump {
       .listPendingInputs(sessionId)
       .filter((input) => input.mode === 'queue')
       .sort((left, right) => (left.queueOrder ?? 0) - (right.queueOrder ?? 0))[0]
-    return Boolean(
-      head?.state === 'pending' && this.restartHeldQueueInputIds.has(head.id)
-    )
+    return Boolean(head?.state === 'pending' && this.restartHeldQueueInputIds.has(head.id))
   }
 
   hasOnlyRestartHeldQueueInputs(sessionId: string): boolean {
@@ -282,9 +280,7 @@ export class PendingInputPump {
     const inputs = this.ports.pendingInputs.listPendingInputs(sessionId)
     return (
       inputs.length > 0 &&
-      inputs.every(
-        (input) => input.mode === 'queue' && this.restartHeldQueueInputIds.has(input.id)
-      )
+      inputs.every((input) => input.mode === 'queue' && this.restartHeldQueueInputIds.has(input.id))
     )
   }
 
@@ -292,10 +288,7 @@ export class PendingInputPump {
     const snapshot = this.readGateSnapshot(sessionId)
     return (
       snapshot.awaitingQuestionFollowUp ||
-      this.ports.runLifecycle.reconcilePendingInteractions(
-        sessionId,
-        snapshot.pendingInteractions
-      )
+      this.ports.runLifecycle.reconcilePendingInteractions(sessionId, snapshot.pendingInteractions)
     )
   }
 
@@ -345,12 +338,7 @@ export class PendingInputPump {
     if (!this.canDrainFromStatus(status, reason)) {
       return false
     }
-    return this.canDrainWithSnapshot(
-      sessionId,
-      status,
-      reason,
-      this.readGateSnapshot(sessionId)
-    )
+    return this.canDrainWithSnapshot(sessionId, status, reason, this.readGateSnapshot(sessionId))
   }
 
   private canDrainWithSnapshot(
@@ -362,9 +350,7 @@ export class PendingInputPump {
     if (!this.meetsDrainPreconditions(sessionId, status, reason, snapshot)) {
       return false
     }
-    return !this.ports.runLifecycle
-      .getHydratedScope(sessionId)
-      ?.instance.isPendingQueueDraining()
+    return !this.ports.runLifecycle.getHydratedScope(sessionId)?.instance.isPendingQueueDraining()
   }
 
   startAcceptedInput(
@@ -392,10 +378,7 @@ export class PendingInputPump {
     this.launch(scope, record, claim, projectDir, 'enqueue', drainLease)
   }
 
-  claimQueuedInputForPreparation(
-    sessionId: string,
-    itemId: string
-  ): ClaimedPendingInputHandle {
+  claimQueuedInputForPreparation(sessionId: string, itemId: string): ClaimedPendingInputHandle {
     const claim = this.createClaim(sessionId, itemId, 'queue')
     try {
       this.ports.pendingInputs.claimQueuedInput(sessionId, itemId)
@@ -468,11 +451,7 @@ export class PendingInputPump {
             : this.ports.pendingInputs.claimQueuedInput(sessionId, nextPendingInput.id)
       } catch (error) {
         const persisted = this.ports.pendingInputs.getInput(sessionId, nextPendingInput.id)
-        if (
-          source !== 'steer' ||
-          persisted?.state !== 'claimed' ||
-          !persisted.assistantMessageId
-        ) {
+        if (source !== 'steer' || persisted?.state !== 'claimed' || !persisted.assistantMessageId) {
           this.tryRelease(claim)
           this.logDrainError(sessionId, reason, 'claim-input', error)
           return false
@@ -538,12 +517,7 @@ export class PendingInputPump {
         (completion) => {
           const mismatch = this.getCompletionMismatch(claimedInput.id, claim, completion)
           if (mismatch && claim.disposition) {
-            this.logDrainError(
-              claimedInput.sessionId,
-              reason,
-              'claim-consistency',
-              mismatch
-            )
+            this.logDrainError(claimedInput.sessionId, reason, 'claim-consistency', mismatch)
           }
         },
         (error) => {
@@ -572,10 +546,7 @@ export class PendingInputPump {
       })
   }
 
-  private shouldDeferWakeup(
-    scope: SessionRuntimeScope,
-    reason: PendingInputWakeReason
-  ): boolean {
+  private shouldDeferWakeup(scope: SessionRuntimeScope, reason: PendingInputWakeReason): boolean {
     const launchedDrain = this.launchedDrains.get(scope.sessionId)
     const status = scope.state()?.status
     return (

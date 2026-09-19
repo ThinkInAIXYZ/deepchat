@@ -7,10 +7,7 @@ import {
 } from '@deepchat/shared/types/core/mcp'
 import type { PermissionMode } from '@deepchat/shared/types/agent-interface'
 
-function makeDefinition(
-  name: string,
-  execution: ToolExecutionContract
-): MCPToolDefinition {
+function makeDefinition(name: string, execution: ToolExecutionContract): MCPToolDefinition {
   return {
     execution,
     type: 'function',

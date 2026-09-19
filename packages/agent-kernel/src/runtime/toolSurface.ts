@@ -48,8 +48,7 @@ export const MAX_TOOL_SURFACE_OVERLAP_IDENTITIES = MAX_TOOL_SURFACE_DEFINITIONS
 export const MAX_TOOL_SURFACE_HINT_INPUT_BYTES = MAX_TOOL_SURFACE_TOTAL_INPUT_BYTES
 export const MAX_TOOL_SURFACE_CANDIDATE_BATCHES = 1_024
 export const MAX_TOOL_SURFACE_ACTIVATION_CANDIDATES = 4_096
-export const MAX_TOOL_SURFACE_SEARCH_CALLS_PER_BATCH =
-  TOOL_SEARCH_AGENT_TOOL_MAX_CALLS_PER_BATCH
+export const MAX_TOOL_SURFACE_SEARCH_CALLS_PER_BATCH = TOOL_SEARCH_AGENT_TOOL_MAX_CALLS_PER_BATCH
 export const MAX_TOOL_SURFACE_DEFERRED_DISPATCHES = 4_096
 
 const CANONICAL_JSON_OPTIONS = Object.freeze({ omitUndefinedProperties: true })
@@ -161,10 +160,7 @@ export type ToolSurfaceSelectionReason =
   | 'search-result'
   | 'tool-search'
 
-export type ToolSurfaceAdapterMode =
-  | 'direct-native'
-  | 'native-activation'
-  | 'cli-programmatic'
+export type ToolSurfaceAdapterMode = 'direct-native' | 'native-activation' | 'cli-programmatic'
 
 export type ToolSurfaceShadowTriggerReason =
   | 'none'
@@ -534,7 +530,9 @@ export interface ToolSurfaceExecutionBatch {
   discard(): void
 }
 
-export function claimToolSurfaceExecution(snapshot: unknown): asserts snapshot is ToolSurfaceSnapshot {
+export function claimToolSurfaceExecution(
+  snapshot: unknown
+): asserts snapshot is ToolSurfaceSnapshot {
   assertActiveToolSurfaceSnapshot(snapshot)
   if (executionBatchIssuedToolSurfaceSnapshots.has(snapshot)) {
     throw new ToolSurfaceError(
@@ -608,7 +606,9 @@ export function createToolSurfaceExecutionBatch(input: {
       toolCallOrdinalWithinBatch,
       submitActivationCandidates: (candidates: readonly ToolSurfaceActivationCandidate[]) => {
         assertActive()
-        const normalized = mergeToolSurfaceActivationCandidates(input.snapshot.request, [candidates])
+        const normalized = mergeToolSurfaceActivationCandidates(input.snapshot.request, [
+          candidates
+        ])
         if (
           normalized.some(
             (candidate) =>
@@ -622,10 +622,7 @@ export function createToolSurfaceExecutionBatch(input: {
           )
         }
         if (normalized.length === 0) return
-        const normalizedBytes = Buffer.byteLength(
-          canonicalJsonStringifyData(normalized),
-          'utf8'
-        )
+        const normalizedBytes = Buffer.byteLength(canonicalJsonStringifyData(normalized), 'utf8')
         const nextSubmissionCount = retainedSubmissionCount + 1
         const nextCandidateCount = retainedCandidateCount + normalized.length
         const nextCandidateBytes = retainedCandidateBytes + normalizedBytes
@@ -840,8 +837,9 @@ export function registerToolSurfaceDeferredDispatch(input: {
   readonly toolName: string
   readonly binding: ToolSurfaceDeferredDispatchBindingV1
 }): ProcessLiveToolSurfaceDeferredDispatch {
-  const visibleDefinition = toolSurfaceActiveEntryByName.get(input.snapshot)?.get(input.toolName)
-    ?.definition
+  const visibleDefinition = toolSurfaceActiveEntryByName
+    .get(input.snapshot)
+    ?.get(input.toolName)?.definition
   assertToolSurfaceAllowsDispatch(
     input.snapshot,
     input.snapshot.request,
@@ -1555,7 +1553,10 @@ function isBoundedStableTargetKey(value: unknown): value is string {
   )
 }
 
-function hasExactOwnKeys(value: unknown, keys: readonly string[]): value is Record<string, unknown> {
+function hasExactOwnKeys(
+  value: unknown,
+  keys: readonly string[]
+): value is Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false
   const prototype = Object.getPrototypeOf(value)
   if (prototype !== Object.prototype && prototype !== null) return false
@@ -1735,7 +1736,10 @@ function requireBoundedDefinitionIdentities(
     throw new ToolSurfaceError(`${label} exceeds its bounded identity limit.`, 'limit_exceeded')
   }
   if (!identities.every(hasCanonicalDefinitionIdentity)) {
-    throw new ToolSurfaceError(`${label} contains an invalid canonical identity.`, 'invalid_definition')
+    throw new ToolSurfaceError(
+      `${label} contains an invalid canonical identity.`,
+      'invalid_definition'
+    )
   }
 }
 
@@ -1765,19 +1769,17 @@ function requirePlainDataRecord(value: unknown, label: string): Record<string, u
   return value as Record<string, unknown>
 }
 
-function readOwnDataProperty(
-  value: object,
-  key: string,
-  label: string,
-  required = true
-): unknown {
+function readOwnDataProperty(value: object, key: string, label: string, required = true): unknown {
   const descriptor = Object.getOwnPropertyDescriptor(value, key)
   if (!descriptor) {
     if (!required) return undefined
     throw new ToolSurfaceError(`${label}.${key} is missing.`, 'invalid_definition')
   }
   if (!descriptor.enumerable || !('value' in descriptor)) {
-    throw new ToolSurfaceError(`${label}.${key} must be an enumerable data property.`, 'invalid_definition')
+    throw new ToolSurfaceError(
+      `${label}.${key} must be an enumerable data property.`,
+      'invalid_definition'
+    )
   }
   return descriptor.value
 }
@@ -1878,11 +1880,7 @@ function copyActivationEvidence(evidence: unknown): ToolSurfaceActivationEvidenc
     'tapeIncarnationId',
     'Tool Surface result fact reference'
   )
-  const entryId = readOwnDataProperty(
-    toolResult,
-    'entryId',
-    'Tool Surface result fact reference'
-  )
+  const entryId = readOwnDataProperty(toolResult, 'entryId', 'Tool Surface result fact reference')
   const payloadHashVersion = readOwnDataProperty(
     toolResult,
     'payloadHashVersion',
@@ -1979,9 +1977,7 @@ export function createToolSurfaceActivationLedger(
   return freezeActivationLedger(entries)
 }
 
-function validateActivationLedger(
-  ledger: ToolSurfaceActivationLedger
-): Map<string, string> {
+function validateActivationLedger(ledger: ToolSurfaceActivationLedger): Map<string, string> {
   if (ledger.orderingVersion !== TOOL_SURFACE_ORDERING_VERSION) {
     throw new ToolSurfaceError(
       'Tool Surface activation ledger uses an unsupported ordering version.',
@@ -2721,11 +2717,7 @@ export function createProviderOrderedToolSurfaceActivationLedger(
 }
 
 function validateToolSurfaceRunCeiling(ceiling: ToolSurfaceRunCeiling): void {
-  if (
-    !ceiling ||
-    typeof ceiling !== 'object' ||
-    !issuedRunToolCeilings.has(ceiling)
-  ) {
+  if (!ceiling || typeof ceiling !== 'object' || !issuedRunToolCeilings.has(ceiling)) {
     throw new ToolSurfaceError(
       'Run Tool Ceiling was not issued by the canonical builder.',
       'invalid_definition'
@@ -2806,10 +2798,8 @@ export function createToolSurfaceSnapshot(input: {
     typeof input.activationLedger !== 'object' ||
     !Array.isArray(input.activationLedger.entries) ||
     (input.selectionReasons !== undefined && !Array.isArray(input.selectionReasons)) ||
-    (input.acceptedSearchEvidence !== undefined &&
-      !Array.isArray(input.acceptedSearchEvidence)) ||
-    (input.activation !== undefined &&
-      (!input.activation || typeof input.activation !== 'object'))
+    (input.acceptedSearchEvidence !== undefined && !Array.isArray(input.acceptedSearchEvidence)) ||
+    (input.activation !== undefined && (!input.activation || typeof input.activation !== 'object'))
   ) {
     throw new ToolSurfaceError('Tool Surface snapshot input is invalid.', 'invalid_definition')
   }
@@ -2827,8 +2817,7 @@ export function createToolSurfaceSnapshot(input: {
   }
   validateToolSurfaceRunCeiling(input.ceiling)
   const adapterMode =
-    input.adapterMode ??
-    (input.virtualizationTriggered ? 'native-activation' : 'direct-native')
+    input.adapterMode ?? (input.virtualizationTriggered ? 'native-activation' : 'direct-native')
   if (
     !(TOOL_SURFACE_ADAPTER_MODES as readonly string[]).includes(adapterMode) ||
     (adapterMode === 'direct-native' && input.virtualizationTriggered) ||
@@ -2873,7 +2862,10 @@ export function createToolSurfaceSnapshot(input: {
   const reasonByTarget = new Map<string, ToolSurfaceSelectionReason>()
   const selectionReasons = input.selectionReasons ?? []
   if (selectionReasons.length > MAX_TOOL_SURFACE_DEFINITIONS) {
-    throw new ToolSurfaceError('Tool Surface selection reasons exceed their limit.', 'limit_exceeded')
+    throw new ToolSurfaceError(
+      'Tool Surface selection reasons exceed their limit.',
+      'limit_exceeded'
+    )
   }
   for (const selection of selectionReasons) {
     if (
@@ -2883,10 +2875,7 @@ export function createToolSurfaceSnapshot(input: {
       !ceilingEntryByTarget.has(selection.stableTargetKey) ||
       !isToolSurfaceSelectionReason(selection.reason)
     ) {
-      throw new ToolSurfaceError(
-        'Tool Surface selection reason is invalid.',
-        'invalid_definition'
-      )
+      throw new ToolSurfaceError('Tool Surface selection reason is invalid.', 'invalid_definition')
     }
     const previous = reasonByTarget.get(selection.stableTargetKey)
     if (previous && previous !== selection.reason) {
@@ -3048,7 +3037,10 @@ export function createToolSurfaceSnapshot(input: {
 
   const activeEntries = projected.map((entry): ToolSurfaceSnapshotActiveEntry => {
     const definition = eligible.definitionByStableTarget.get(entry.stableTargetKey)
-    if (!definition || activeHashByTarget.get(entry.stableTargetKey) !== entry.canonicalToolDefinitionHash) {
+    if (
+      !definition ||
+      activeHashByTarget.get(entry.stableTargetKey) !== entry.canonicalToolDefinitionHash
+    ) {
       throw new ToolSurfaceError(
         'Tool Surface snapshot lost an active definition.',
         'invalid_definition'
@@ -3085,9 +3077,7 @@ export function createToolSurfaceSnapshot(input: {
       'invalid_definition'
     )
   }
-  const activeEntryByTarget = new Map(
-    activeEntries.map((entry) => [entry.stableTargetKey, entry])
-  )
+  const activeEntryByTarget = new Map(activeEntries.map((entry) => [entry.stableTargetKey, entry]))
   const acceptedEvidenceByTarget = new Map<string, ToolSurfaceActivationEvidence>()
   for (const evidence of acceptedSearchEvidence) {
     const ceilingEntry = ceilingEntryByTarget.get(evidence.stableTargetKey)
@@ -3526,9 +3516,10 @@ export function createPolicySelectedToolSurfaceRun(input: {
     copyDefinitionIdentity(searchEntry)
   ])
   let acceptedSearchEvidenceByTarget = new Map<string, ToolSurfaceActivationEvidence>()
-  const reasonByTarget = new Map<ToolSurfaceDefinitionIdentity['stableTargetKey'], ToolSurfaceSelectionReason>(
-    decision.selectedEntries.map((entry) => [entry.stableTargetKey, entry.reason])
-  )
+  const reasonByTarget = new Map<
+    ToolSurfaceDefinitionIdentity['stableTargetKey'],
+    ToolSurfaceSelectionReason
+  >(decision.selectedEntries.map((entry) => [entry.stableTargetKey, entry.reason]))
   reasonByTarget.set(searchEntry.stableTargetKey, 'tool-search')
   const ceilingEntryByVisibleName = new Map(
     ceiling.catalog.entries.map((entry) => [entry.target.providerVisibleName, entry])
@@ -3702,13 +3693,13 @@ export function createPolicySelectedToolSurfaceRun(input: {
         }
       }
 
-      const ledgerTargets = new Set(
-        admittedLedger.entries.map((entry) => entry.stableTargetKey)
-      )
+      const ledgerTargets = new Set(admittedLedger.entries.map((entry) => entry.stableTargetKey))
       const additions = [...requiredTargets]
         .filter((stableTargetKey) => !ledgerTargets.has(stableTargetKey))
         .sort(compareCodePoints)
-        .map((stableTargetKey) => copyDefinitionIdentity(ceilingEntryByTarget.get(stableTargetKey)!))
+        .map((stableTargetKey) =>
+          copyDefinitionIdentity(ceilingEntryByTarget.get(stableTargetKey)!)
+        )
       if (admittedAppendedTargets + additions.length > input.policy.maxAppendedTargetsPerRun) {
         return Object.freeze({ kind: 'rejected', rejectionCode: 'per-run-target-cap' })
       }
@@ -3719,7 +3710,8 @@ export function createPolicySelectedToolSurfaceRun(input: {
         })
       }
       const currentDefinitionTokens = admittedLedger.entries.reduce(
-        (sum, entry) => sum + (ceilingEntryByTarget.get(entry.stableTargetKey)?.definitionTokens ?? 0),
+        (sum, entry) =>
+          sum + (ceilingEntryByTarget.get(entry.stableTargetKey)?.definitionTokens ?? 0),
         0
       )
       const addedDefinitionTokens = additions.reduce(
@@ -3837,7 +3829,8 @@ export function createPolicySelectedToolSurfaceRun(input: {
       const additions: ToolSurfaceDefinitionIdentity[] = []
       let batchTokens = 0
       let totalTokens = admittedLedger.entries.reduce(
-        (sum, entry) => sum + (ceilingEntryByTarget.get(entry.stableTargetKey)?.definitionTokens ?? 0),
+        (sum, entry) =>
+          sum + (ceilingEntryByTarget.get(entry.stableTargetKey)?.definitionTokens ?? 0),
         0
       )
       for (const candidate of deferActivationCandidates ? [] : (pendingCandidates ?? [])) {
@@ -3861,13 +3854,18 @@ export function createPolicySelectedToolSurfaceRun(input: {
         } else if (admittedActivationBatches >= input.policy.maxActivationBatchesPerRun) {
           rejectionCode = 'per-run-batch-cap'
         } else if (
-          admittedAppendedTargets + additions.length >= input.policy.maxAppendedTargetsPerRun
+          admittedAppendedTargets + additions.length >=
+          input.policy.maxAppendedTargetsPerRun
         ) {
           rejectionCode = 'per-run-target-cap'
-        } else if (admittedLedger.entries.length + additions.length >= input.policy.maxInitialToolCount) {
+        } else if (
+          admittedLedger.entries.length + additions.length >=
+          input.policy.maxInitialToolCount
+        ) {
           rejectionCode = 'total-surface-count-cap'
         } else if (
-          totalTokens + ceilingEntry.definitionTokens > input.policy.maxInitialDefinitionTokens
+          totalTokens + ceilingEntry.definitionTokens >
+          input.policy.maxInitialDefinitionTokens
         ) {
           rejectionCode = 'total-surface-token-cap'
         }
@@ -3885,7 +3883,8 @@ export function createPolicySelectedToolSurfaceRun(input: {
       }
       const nextLedger = appendToolSurfaceActivationBatch(admittedLedger, additions)
       const proposedReasonByTarget = new Map(reasonByTarget)
-      for (const addition of additions) proposedReasonByTarget.set(addition.stableTargetKey, 'search-result')
+      for (const addition of additions)
+        proposedReasonByTarget.set(addition.stableTargetKey, 'search-result')
       const nextAcceptedSearchEvidenceByTarget = new Map(acceptedSearchEvidenceByTarget)
       for (const activationDecision of decisions) {
         if (activationDecision.accepted) {

@@ -440,10 +440,12 @@ describe('DeepChat system prompt builder', () => {
 
       expect(loadSkillContent).not.toHaveBeenCalled()
       expect(assembly.prompt).not.toContain('### skill-a\nskill-a instructions')
-      expect(assembly.sections.find((section) => section.kind === 'skills_metadata')).toMatchObject({
-        inclusion: 'omitted',
-        degradationCodes: ['skill_metadata_unavailable']
-      })
+      expect(assembly.sections.find((section) => section.kind === 'skills_metadata')).toMatchObject(
+        {
+          inclusion: 'omitted',
+          degradationCodes: ['skill_metadata_unavailable']
+        }
+      )
       const pinnedSkills = assembly.sections.find((section) => section.kind === 'pinned_skills')
       expect(pinnedSkills).toMatchObject({ inclusion: 'omitted' })
       expect(pinnedSkills).not.toHaveProperty('degradationCodes')
@@ -494,7 +496,9 @@ describe('DeepChat system prompt builder', () => {
       toolDefinitions: [],
       activeSkillNamesOverride: ['skill-a'],
       sessionActiveSkillNamesOverride: ['skill-a'],
-      sessionSkillBodiesOverride: [{ name: 'skill-a', content: 'exact materialized body \t\n\n\n' }],
+      sessionSkillBodiesOverride: [
+        { name: 'skill-a', content: 'exact materialized body \t\n\n\n' }
+      ],
       commandShell: POSIX_COMMAND_SHELL,
       resourceInstance: instance
     })

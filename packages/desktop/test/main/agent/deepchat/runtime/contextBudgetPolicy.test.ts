@@ -111,28 +111,18 @@ describe('DeepChat context budget policy', () => {
     expect(resolveDeepChatContextBudgetLength('acp', 16_384, CHAT_MODEL, 'agent')).toBe(
       Number.MAX_SAFE_INTEGER
     )
-    expect(resolveDeepChatContextBudgetLength('openai', 16_384, CHAT_MODEL, 'gpt-5')).toBe(
-      16_384
-    )
+    expect(resolveDeepChatContextBudgetLength('openai', 16_384, CHAT_MODEL, 'gpt-5')).toBe(16_384)
   })
 
   it('admits production Tool Surfaces only for native function-calling chat models', () => {
     expect(
-      shouldUseNativeToolSurface(
-        'openai',
-        { ...CHAT_MODEL, functionCall: true },
-        'gpt-5'
-      )
+      shouldUseNativeToolSurface('openai', { ...CHAT_MODEL, functionCall: true }, 'gpt-5')
     ).toBe(true)
     expect(
-      shouldUseNativeToolSurface(
-        'openai',
-        { ...CHAT_MODEL, functionCall: false },
-        'gpt-5'
-      )
+      shouldUseNativeToolSurface('openai', { ...CHAT_MODEL, functionCall: false }, 'gpt-5')
     ).toBe(false)
-    expect(
-      shouldUseNativeToolSurface('acp', { ...CHAT_MODEL, functionCall: true }, 'agent')
-    ).toBe(false)
+    expect(shouldUseNativeToolSurface('acp', { ...CHAT_MODEL, functionCall: true }, 'agent')).toBe(
+      false
+    )
   })
 })

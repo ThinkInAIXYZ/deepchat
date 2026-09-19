@@ -27,12 +27,7 @@ export function unavailableContextOccupancy(): SessionContextOccupancySnapshot {
 }
 
 function checkedTokenSum(left: number, right: number): number | null {
-  if (
-    !Number.isSafeInteger(left) ||
-    left < 0 ||
-    !Number.isSafeInteger(right) ||
-    right < 0
-  ) {
+  if (!Number.isSafeInteger(left) || left < 0 || !Number.isSafeInteger(right) || right < 0) {
     return null
   }
   const total = left + right

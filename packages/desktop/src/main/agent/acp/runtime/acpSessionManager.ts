@@ -1,4 +1,7 @@
-import { toAcpRemoteSessionId, type AcpRemoteSessionId } from '@deepchat/agent-kernel/collab/agent-shared/agentSessionIds'
+import {
+  toAcpRemoteSessionId,
+  type AcpRemoteSessionId
+} from '@deepchat/agent-kernel/collab/agent-shared/agentSessionIds'
 import type { AcpAgentConfig } from '@deepchat/shared/types/acp'
 import type { AcpConfigState } from '@deepchat/shared/types/acp'
 import type { AgentSettingsPort } from '@/agent/settings'
@@ -179,13 +182,7 @@ export class AcpSessionManager {
     }
     this.pendingSessions.set(conversationId, pending)
     const creation = Promise.resolve().then(() =>
-      this.createSession(
-        conversationId,
-        agent,
-        hooks,
-        resolvedWorkdir,
-        pending.controller.signal
-      )
+      this.createSession(conversationId, agent, hooks, resolvedWorkdir, pending.controller.signal)
     )
     pending.promise = this.settlePendingInitialization(conversationId, pending, creation)
     return await this.waitForPendingInitialization(conversationId, pending, signal)
@@ -268,10 +265,7 @@ export class AcpSessionManager {
     this.exitedInitializingConversations.clear()
   }
 
-  async discardLateSession(
-    conversationId: string,
-    session: AcpSessionRecord
-  ): Promise<void> {
+  async discardLateSession(conversationId: string, session: AcpSessionRecord): Promise<void> {
     if (this.sessionsByConversation.get(conversationId) === session) {
       this.sessionsByConversation.delete(conversationId)
       this.sessionsById.delete(session.sessionId)
@@ -298,10 +292,7 @@ export class AcpSessionManager {
   ): Promise<AcpSessionRecord> {
     const signal = pending.controller.signal
     const guardedCreation = creation.then(async (session) => {
-      if (
-        signal.aborted ||
-        this.pendingSessions.get(conversationId)?.epoch !== pending.epoch
-      ) {
+      if (signal.aborted || this.pendingSessions.get(conversationId)?.epoch !== pending.epoch) {
         await this.discardLateSession(conversationId, session)
         throw this.getInitializationAbortReason(signal, conversationId)
       }
@@ -326,9 +317,7 @@ export class AcpSessionManager {
       }
       if (this.exitedInitializingConversations.delete(conversationId)) {
         await this.discardLateSession(conversationId, session)
-        throw new Error(
-          `[ACP] Process exited while session ${session.sessionId} was initializing`
-        )
+        throw new Error(`[ACP] Process exited while session ${session.sessionId} was initializing`)
       }
       this.sessionsByConversation.set(conversationId, session)
       this.sessionsById.set(session.sessionId, session)
@@ -407,9 +396,7 @@ export class AcpSessionManager {
     signal: AbortSignal
   ): Promise<AcpSessionRecord> {
     let handle: AcpProcessHandle | undefined
-    let session:
-      | Awaited<ReturnType<AcpSessionManager['initializeSession']>>
-      | undefined
+    let session: Awaited<ReturnType<AcpSessionManager['initializeSession']>> | undefined
     try {
       handle = await this.awaitInitialization(
         this.processManager.getConnection(agent, workdir),
@@ -417,14 +404,7 @@ export class AcpSessionManager {
       )
       this.throwIfInitializationAborted(signal)
 
-      session = await this.initializeSession(
-        handle,
-        conversationId,
-        agent,
-        workdir,
-        hooks,
-        signal
-      )
+      session = await this.initializeSession(handle, conversationId, agent, workdir, hooks, signal)
       this.throwIfInitializationAborted(signal)
       this.processManager.bindProcess(agent.id, conversationId, workdir)
 

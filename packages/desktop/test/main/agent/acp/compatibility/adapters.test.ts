@@ -250,7 +250,9 @@ function createProjectionHarness() {
     }
   } as unknown as MainDatabase
   const tapeService = new SessionTape(sqlitePresenter)
-  const messageStore = new SessionTranscript(sqlitePresenter, tapeService)
+  const messageStore = new SessionTranscript(sqlitePresenter, tapeService, undefined, undefined, {
+    transaction: (operation) => sqlitePresenter.getDatabase().transaction(operation)()
+  })
   const adapter = new AcpCompatibilityProjectionAdapter({
     publishEvent: publishDeepchatEvent,
     publishSessionUpdate: vi.fn(),

@@ -1,6 +1,4 @@
-import type {
-  DeepChatExecutionContract
-} from '@deepchat/shared/types/execution-contract'
+import type { DeepChatExecutionContract } from '@deepchat/shared/types/execution-contract'
 import type {
   TapeExecutionViewManifestReader,
   TapeViewManifestReader
@@ -69,11 +67,7 @@ export function resolveDeferredExecutionContract(
     records = skillManifestRecord
       ? [skillManifestRecord]
       : viewManifests
-          .listViewManifestsByMessageRequest(
-            sessionId,
-            messageId,
-            binding.request.requestSeq
-          )
+          .listViewManifestsByMessageRequest(sessionId, messageId, binding.request.requestSeq)
           .filter((record) => record.manifest.schemaVersion === 5)
   } catch (error) {
     throw new ExecutionContractDispatchError(

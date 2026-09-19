@@ -233,9 +233,7 @@ export function resolveDeferredToolSurfaceDispatch(
     input.toolCallId
   )
   if (processLive) {
-    if (
-      canonicalJsonStringifyData(processLive.binding) !== canonicalJsonStringifyData(binding)
-    ) {
+    if (canonicalJsonStringifyData(processLive.binding) !== canonicalJsonStringifyData(binding)) {
       throw new DeferredToolSurfaceError(
         'Paused tool dispatch active authority conflicts with its durable binding.',
         'corruption'

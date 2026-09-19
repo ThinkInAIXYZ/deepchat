@@ -68,9 +68,13 @@ import {
 } from './deferredToolSurface.js'
 import { CommandShellProfileSchema } from '@deepchat/shared/commandShell'
 import { isCommandSignatureForProfile } from '../collab/tool/permission/commandPermissionService.js'
-import {type SessionPermissionGrant, type SessionPermissionPort, type SessionPermissionRequest} from '../contracts/sessionPermission.js'
-import {type TranscriptStorePort} from '../contracts/transcriptStore.js'
-import {parseMessageMetadata} from '../contracts/messageMetadata.js'
+import {
+  type SessionPermissionGrant,
+  type SessionPermissionPort,
+  type SessionPermissionRequest
+} from '../contracts/sessionPermission.js'
+import { type TranscriptStorePort } from '../contracts/transcriptStore.js'
+import { parseMessageMetadata } from '../contracts/messageMetadata.js'
 
 const DEFERRED_INTERACTION_PARKED_ERROR =
   'Execution is parked after its durable dispatch boundary and will not be retried automatically.'
@@ -161,9 +165,7 @@ export class InteractionCoordinator {
     let interactionAbortSignal: AbortSignal | undefined
     let claimedToolSurfaceDeferredDispatch: ToolSurfaceDeferredDispatch | undefined
     const resumeWaitingAdmission = async () => {
-      if (
-        await this.ports.continuationAdmission.resume(sessionId, interactionAbortSignal)
-      ) {
+      if (await this.ports.continuationAdmission.resume(sessionId, interactionAbortSignal)) {
         resumedWaitingAdmission = true
       }
     }
@@ -778,10 +780,7 @@ export class InteractionCoordinator {
       return false
     }
 
-    const metadata = stampInteractionResolution(
-      parseMessageMetadata(message.metadata),
-      'cancelled'
-    )
+    const metadata = stampInteractionResolution(parseMessageMetadata(message.metadata), 'cancelled')
     const metadataJson = JSON.stringify(metadata)
     const remainingPending = collectPendingInteractionEntries(messageId, blocks)
     if (remainingPending.length === 0) {
@@ -796,9 +795,9 @@ export class InteractionCoordinator {
     // interactions that belong to other messages.
     const instance = this.ports.registry.getOrHydrateScope(toAppSessionId(sessionId)).instance
     instance.replacePendingInteractions(
-      instance.getPendingInteractions().filter(
-        (pending) => pending.messageId !== messageId || pending.toolCallId !== toolCallId
-      )
+      instance
+        .getPendingInteractions()
+        .filter((pending) => pending.messageId !== messageId || pending.toolCallId !== toolCallId)
     )
     return true
   }
@@ -958,11 +957,7 @@ export class InteractionCoordinator {
     const permissionType = payload.permissionType
     const payloadServerName = payload.serverName?.trim()
     const toolCallServerName = toolCall.server_name?.trim()
-    if (
-      payloadServerName &&
-      toolCallServerName &&
-      payloadServerName !== toolCallServerName
-    ) {
+    if (payloadServerName && toolCallServerName && payloadServerName !== toolCallServerName) {
       throw new Error('Permission approval tool server identity does not match the tool call.')
     }
     const serverName = toolCallServerName || payloadServerName
@@ -1070,8 +1065,10 @@ export class InteractionCoordinator {
     sessionId: string,
     permission: SessionPermissionRequest
   ): Promise<Extract<SessionPermissionGrant, { kind: 'granted' }>> {
-    const grant: SessionPermissionGrant =
-      await this.ports.sessionPermissionPort.approvePermission(sessionId, permission)
+    const grant: SessionPermissionGrant = await this.ports.sessionPermissionPort.approvePermission(
+      sessionId,
+      permission
+    )
     if (grant?.kind === 'granted') return grant
     if (grant?.kind === 'command') {
       this.ports.sessionPermissionPort.revokeOneShotCommandPermission(

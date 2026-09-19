@@ -172,7 +172,15 @@ describe('SessionTranscript', () => {
 
   beforeEach(() => {
     sqlitePresenter = createMockSqlitePresenter()
-    store = new SessionTranscript(sqlitePresenter, new SessionTape(sqlitePresenter))
+    store = new SessionTranscript(
+      sqlitePresenter,
+      new SessionTape(sqlitePresenter),
+      undefined,
+      undefined,
+      {
+        transaction: (operation) => operation()
+      }
+    )
   })
 
   describe('createUserMessage', () => {
@@ -422,7 +430,9 @@ describe('SessionTranscript', () => {
       store = new SessionTranscript(
         sqlitePresenter,
         new SessionTape(sqlitePresenter),
-        executionAudit
+        executionAudit,
+        undefined,
+        { transaction: (operation) => operation() }
       )
 
       expect(store.listMessagesPage('s1', { limit: 10 }).messages).toEqual([
@@ -443,7 +453,9 @@ describe('SessionTranscript', () => {
       store = new SessionTranscript(
         sqlitePresenter,
         new SessionTape(sqlitePresenter),
-        executionAudit
+        executionAudit,
+        undefined,
+        { transaction: (operation) => operation() }
       )
 
       expect(store.listMessagesPage('s1', { limit: 10 }).messages).toEqual([
@@ -1252,6 +1264,15 @@ describe('SessionTranscript', () => {
     it('does not delete rows when tape retraction append fails inside transaction', () => {
       const transaction = vi.fn((operation: () => unknown) => () => operation())
       sqlitePresenter.getDatabase = vi.fn().mockReturnValue({ transaction })
+      store = new SessionTranscript(
+        sqlitePresenter,
+        new SessionTape(sqlitePresenter),
+        undefined,
+        undefined,
+        {
+          transaction: (operation) => transaction(operation)()
+        }
+      )
       sqlitePresenter.deepchatTapeEntriesTable = {
         ensureBootstrapAnchor: vi.fn(),
         getBootstrapIncarnation: vi.fn(() => undefined),
@@ -1333,7 +1354,8 @@ describe('SessionTranscript', () => {
         sqlitePresenter,
         new SessionTape(sqlitePresenter),
         undefined,
-        anchors as never
+        anchors as never,
+        { transaction: (operation) => operation() }
       )
 
       const records = store.getMessages('s1')
@@ -1354,6 +1376,15 @@ describe('SessionTranscript', () => {
       const appendEvent = vi.fn()
       const transaction = vi.fn((operation: () => unknown) => () => operation())
       sqlitePresenter.getDatabase = vi.fn().mockReturnValue({ transaction })
+      store = new SessionTranscript(
+        sqlitePresenter,
+        new SessionTape(sqlitePresenter),
+        undefined,
+        undefined,
+        {
+          transaction: (operation) => transaction(operation)()
+        }
+      )
       sqlitePresenter.deepchatTapeEntriesTable = {
         ensureBootstrapAnchor: vi.fn(),
         getBootstrapIncarnation: vi.fn(() => undefined),
@@ -1477,6 +1508,15 @@ describe('SessionTranscript', () => {
         })
       const transaction = vi.fn((operation: () => unknown) => () => operation())
       sqlitePresenter.getDatabase = vi.fn().mockReturnValue({ transaction })
+      store = new SessionTranscript(
+        sqlitePresenter,
+        new SessionTape(sqlitePresenter),
+        undefined,
+        undefined,
+        {
+          transaction: (operation) => transaction(operation)()
+        }
+      )
       sqlitePresenter.deepchatTapeEntriesTable = {
         ensureBootstrapAnchor: vi.fn(),
         getBootstrapIncarnation: vi.fn(() => undefined),

@@ -1,8 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import {
-  buildCapabilitySnapshot,
-  buildClientCapabilities
-} from '@/agent/acp/runtime'
+import { buildCapabilitySnapshot, buildClientCapabilities } from '@/agent/acp/runtime'
 
 describe('AcpCapabilities', () => {
   describe('buildClientCapabilities', () => {

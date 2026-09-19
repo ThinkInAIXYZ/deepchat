@@ -1,7 +1,7 @@
 import { createRequire } from 'node:module'
 import path from 'node:path'
 
-const require = createRequire(import.meta.url)
+const require = createRequire(new URL('../../packages/desktop/package.json', import.meta.url))
 const PROVIDER_RELATIVE_PATH = path.join('out', 'providers', 'Provider.js')
 const CONSUMER_REQUIREMENT =
   'Release metadata validation requires the installed electron-updater package to expose ' +

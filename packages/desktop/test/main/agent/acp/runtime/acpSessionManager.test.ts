@@ -2,10 +2,7 @@ import type { ProviderSettingsPort } from '@/provider/settings'
 import { describe, expect, it, vi } from 'vitest'
 import type * as schema from '@agentclientprotocol/sdk/dist/schema/index.js'
 import type { AcpAgentConfig, AcpSessionEntity } from '@deepchat/shared/types/acp'
-import {
-  AcpProcessManager,
-  type AcpProcessHandle
-} from '@/agent/acp/runtime/acpProcessManager'
+import { AcpProcessManager, type AcpProcessHandle } from '@/agent/acp/runtime/acpProcessManager'
 import { AcpSessionManager } from '@/agent/acp/runtime/acpSessionManager'
 import { AcpSessionPersistence } from '@/agent/acp/runtime/acpSessionPersistence'
 import { RequestError } from '@agentclientprotocol/sdk'
@@ -221,7 +218,9 @@ describe('AcpSessionManager public error handling', () => {
 
   it('rethrows non-shutdown getConnection errors', async () => {
     const { manager } = createHarness({ getConnectionError: new Error('boom') })
-    await expect(manager.getOrCreateSession('conv1', agent, hooks(), '/tmp')).rejects.toThrow('boom')
+    await expect(manager.getOrCreateSession('conv1', agent, hooks(), '/tmp')).rejects.toThrow(
+      'boom'
+    )
   })
 
   it('preserves the initialization error when unbind fails', async () => {

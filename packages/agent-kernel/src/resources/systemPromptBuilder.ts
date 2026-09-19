@@ -1,4 +1,3 @@
-
 import fs from 'fs'
 import path from 'path'
 import type {
@@ -21,7 +20,10 @@ import {
   createPromptAssemblySection
 } from './promptAssembly.js'
 
-import { ResolvedCommandShellSchema, type ResolvedCommandShell } from '@deepchat/shared/commandShell'
+import {
+  ResolvedCommandShellSchema,
+  type ResolvedCommandShell
+} from '@deepchat/shared/commandShell'
 import { LIVE_DELEGATION_AGENT_TOOL_NAME } from '@deepchat/shared/agentTools'
 import { UNTRUSTED_CHILD_OUTPUT_POLICY } from '@deepchat/shared/orchestration/resultSafety'
 import {
@@ -33,8 +35,8 @@ import {
   renderSkillRoutingCatalog,
   type SkillRoutingCatalogProjection
 } from '../collab/skill/routingCatalog.js'
-import {type ProviderModelResolutionPort} from '../contracts/providerModelResolution.js'
-import {type SkillSettingsPort} from '../contracts/skillSettings.js'
+import { type ProviderModelResolutionPort } from '../contracts/providerModelResolution.js'
+import { type SkillSettingsPort } from '../contracts/skillSettings.js'
 
 export type AgentExtensionPolicy = {
   enabledMcpServerIds?: string[] | null
@@ -199,7 +201,9 @@ export async function buildSystemPromptAssemblyWithSkills(
   if (skillsEnabled) {
     const metadataStartedAt = Date.now()
     try {
-      const metadataList = sessionAgentId ? await skillService.getMetadataList(sessionAgentId, { conversationId: sessionId }) : []
+      const metadataList = sessionAgentId
+        ? await skillService.getMetadataList(sessionAgentId, { conversationId: sessionId })
+        : []
       for (const metadata of metadataList) {
         const skillName = metadata?.name?.trim()
         if (skillName) {

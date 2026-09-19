@@ -7953,34 +7953,6 @@
           "type": "chat"
         },
         {
-          "id": "gemma-4-26b-a4b-uncensored",
-          "name": "Gemma 4 26B A4B Uncensored",
-          "display_name": "Gemma 4 26B A4B Uncensored",
-          "modalities": {
-            "input": [
-              "text",
-              "image"
-            ],
-            "output": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 262144,
-            "output": 32768
-          },
-          "tool_call": true,
-          "reasoning": {
-            "supported": true,
-            "default": true
-          },
-          "attachment": true,
-          "open_weights": true,
-          "release_date": "2026-07-29",
-          "last_updated": "2026-07-29",
-          "type": "chat"
-        },
-        {
           "id": "doubao-seed-2-0-code-preview-260215",
           "name": "Doubao Seed 2.0 Code Preview",
           "display_name": "Doubao Seed 2.0 Code Preview",
@@ -9733,34 +9705,6 @@
           "type": "chat"
         },
         {
-          "id": "gemma-4-26b-a4b-uncensored:thinking",
-          "name": "Gemma 4 26B A4B Uncensored Thinking",
-          "display_name": "Gemma 4 26B A4B Uncensored Thinking",
-          "modalities": {
-            "input": [
-              "text",
-              "image"
-            ],
-            "output": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 262144,
-            "output": 32768
-          },
-          "tool_call": true,
-          "reasoning": {
-            "supported": true,
-            "default": true
-          },
-          "attachment": true,
-          "open_weights": true,
-          "release_date": "2026-07-29",
-          "last_updated": "2026-07-29",
-          "type": "chat"
-        },
-        {
           "id": "pokee-isaac",
           "name": "Pokee-Isaac 28B",
           "display_name": "Pokee-Isaac 28B",
@@ -10449,7 +10393,7 @@
             ]
           },
           "limit": {
-            "context": 262144,
+            "context": 524288,
             "output": 32768
           },
           "tool_call": true,
@@ -10477,7 +10421,7 @@
             ]
           },
           "limit": {
-            "context": 262144,
+            "context": 524288,
             "output": 32768
           },
           "tool_call": true,
@@ -11051,7 +10995,7 @@
             ]
           },
           "limit": {
-            "context": 262144,
+            "context": 524288,
             "output": 32768
           },
           "tool_call": true,
@@ -11063,6 +11007,36 @@
           "open_weights": true,
           "release_date": "2026-07-29",
           "last_updated": "2026-08-28",
+          "type": "chat"
+        },
+        {
+          "id": "qwen/qwen3.8-omni-flash",
+          "name": "Qwen3.8 Omni Flash",
+          "display_name": "Qwen3.8 Omni Flash",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "audio",
+              "video"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 991808,
+            "output": 131072
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "attachment": true,
+          "open_weights": false,
+          "release_date": "2026-09-17",
+          "last_updated": "2026-09-17",
           "type": "chat"
         },
         {
@@ -11409,7 +11383,7 @@
             ]
           },
           "limit": {
-            "context": 262144,
+            "context": 524288,
             "output": 32768
           },
           "tool_call": true,
@@ -12062,7 +12036,7 @@
             ]
           },
           "limit": {
-            "context": 262144,
+            "context": 524288,
             "output": 32768
           },
           "tool_call": true,
@@ -12158,7 +12132,7 @@
             ]
           },
           "limit": {
-            "context": 262144,
+            "context": 524288,
             "output": 32768
           },
           "tool_call": true,
@@ -12196,6 +12170,34 @@
           "open_weights": true,
           "release_date": "2024-01-01",
           "last_updated": "2024-07-01",
+          "type": "chat"
+        },
+        {
+          "id": "unbiased/pareto",
+          "name": "Pareto",
+          "display_name": "Pareto",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 262144,
+            "output": 131072
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": false
+          },
+          "attachment": true,
+          "open_weights": false,
+          "release_date": "2026-09-17",
+          "last_updated": "2026-09-17",
           "type": "chat"
         },
         {
@@ -16655,11 +16657,6 @@
             "supported": true,
             "default": true
           },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true
-            }
-          },
           "attachment": true,
           "open_weights": true,
           "release_date": "2026-04-02",
@@ -17208,11 +17205,6 @@
           "reasoning": {
             "supported": true,
             "default": true
-          },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true
-            }
           },
           "attachment": true,
           "open_weights": true,
@@ -18440,38 +18432,6 @@
           "type": "chat"
         },
         {
-          "id": "TEE/gpt-oss-20b",
-          "name": "GPT-OSS 20B TEE",
-          "display_name": "GPT-OSS 20B TEE",
-          "modalities": {
-            "input": [
-              "text"
-            ],
-            "output": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 131072,
-            "output": 8192
-          },
-          "temperature": true,
-          "tool_call": false,
-          "reasoning": {
-            "supported": true
-          },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true
-            }
-          },
-          "attachment": false,
-          "open_weights": true,
-          "release_date": "2025-08-05",
-          "last_updated": "2025-08-05",
-          "type": "chat"
-        },
-        {
           "id": "TEE/qwen2.5-vl-72b-instruct",
           "name": "Qwen2.5 VL 72B TEE",
           "display_name": "Qwen2.5 VL 72B TEE",
@@ -18856,54 +18816,10 @@
             "supported": true,
             "default": true
           },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true
-            }
-          },
           "attachment": false,
           "open_weights": true,
           "release_date": "2026-04-02",
           "last_updated": "2026-04-02",
-          "type": "chat"
-        },
-        {
-          "id": "TEE/qwen3.6-35b-a3b-uncensored",
-          "name": "Qwen3.6 35B A3B Uncensored TEE",
-          "display_name": "Qwen3.6 35B A3B Uncensored TEE",
-          "modalities": {
-            "input": [
-              "text",
-              "image"
-            ],
-            "output": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 131072,
-            "output": 131072
-          },
-          "tool_call": true,
-          "reasoning": {
-            "supported": true,
-            "default": true
-          },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true,
-              "interleaved": true,
-              "summaries": true,
-              "visibility": "summary",
-              "continuation": [
-                "thinking_blocks"
-              ]
-            }
-          },
-          "attachment": true,
-          "open_weights": true,
-          "release_date": "2026-05-23",
-          "last_updated": "2026-05-23",
           "type": "chat"
         },
         {
@@ -20843,32 +20759,6 @@
           "knowledge": "2023-12",
           "release_date": "2024-07-23",
           "last_updated": "2024-07-23",
-          "type": "chat"
-        },
-        {
-          "id": "meta-llama/llama-3.1-405b-instruct",
-          "name": "Llama 3.1 405B",
-          "display_name": "Llama 3.1 405B",
-          "modalities": {
-            "input": [
-              "text"
-            ],
-            "output": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 131072,
-            "output": 8192
-          },
-          "tool_call": true,
-          "reasoning": {
-            "supported": false
-          },
-          "attachment": false,
-          "open_weights": true,
-          "release_date": "2026-09-10",
-          "last_updated": "2026-09-10",
           "type": "chat"
         },
         {
@@ -25469,6 +25359,32 @@
           "release_date": "2024-01-01",
           "last_updated": "2025-04-14",
           "type": "chat"
+        },
+        {
+          "id": "slowburn/gemma4-31b-splituntied",
+          "name": "Gemma 4 31B Split-Untied",
+          "display_name": "Gemma 4 31B Split-Untied",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 262144,
+            "output": 32768
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": false
+          },
+          "attachment": false,
+          "open_weights": true,
+          "release_date": "2026-09-17",
+          "last_updated": "2026-09-17",
+          "type": "chat"
         }
       ]
     },
@@ -26037,12 +25953,7 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
-          },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true
-            }
+            "supported": false
           },
           "attachment": true,
           "open_weights": true,
@@ -36606,11 +36517,6 @@
             "supported": true,
             "default": true
           },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true
-            }
-          },
           "attachment": true,
           "open_weights": true,
           "release_date": "2026-04-02",
@@ -40994,7 +40900,7 @@
             ]
           },
           "limit": {
-            "context": 278528,
+            "context": 921600,
             "output": 128000
           },
           "temperature": false,
@@ -41084,7 +40990,7 @@
             ]
           },
           "limit": {
-            "context": 278528,
+            "context": 921600,
             "output": 128000
           },
           "temperature": false,
@@ -41138,7 +41044,7 @@
             ]
           },
           "limit": {
-            "context": 278528,
+            "context": 921600,
             "output": 128000
           },
           "temperature": false,
@@ -41706,12 +41612,7 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
-          },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true
-            }
+            "supported": false
           },
           "attachment": false,
           "open_weights": true,
@@ -47784,12 +47685,7 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
-          },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true
-            }
+            "supported": false
           },
           "attachment": false,
           "open_weights": true,
@@ -48857,12 +48753,7 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
-          },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true
-            }
+            "supported": false
           },
           "attachment": false,
           "open_weights": true,
@@ -49467,11 +49358,6 @@
             "supported": true,
             "default": true
           },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true
-            }
-          },
           "attachment": false,
           "open_weights": true,
           "release_date": "2026-04-02",
@@ -49779,11 +49665,6 @@
           "reasoning": {
             "supported": true,
             "default": true
-          },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true
-            }
           },
           "attachment": false,
           "open_weights": true,
@@ -50491,11 +50372,6 @@
           "reasoning": {
             "supported": true,
             "default": true
-          },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true
-            }
           },
           "attachment": false,
           "open_weights": true,
@@ -55559,11 +55435,6 @@
             "supported": true,
             "default": true
           },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true
-            }
-          },
           "attachment": true,
           "open_weights": true,
           "release_date": "2026-04-02",
@@ -56002,11 +55873,6 @@
           "reasoning": {
             "supported": true,
             "default": true
-          },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true
-            }
           },
           "attachment": true,
           "open_weights": true,
@@ -57334,6 +57200,45 @@
           "knowledge": "2025-05",
           "release_date": "2026-04-24",
           "last_updated": "2026-04-24",
+          "type": "chat"
+        },
+        {
+          "id": "glm-5.3",
+          "name": "GLM-5.3",
+          "display_name": "GLM-5.3",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1000000,
+            "output": 131072
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "interleaved": true,
+              "summaries": true,
+              "visibility": "summary",
+              "continuation": [
+                "thinking_blocks"
+              ]
+            }
+          },
+          "attachment": false,
+          "open_weights": true,
+          "release_date": "2026-08-14",
+          "last_updated": "2026-08-14",
           "type": "chat"
         },
         {
@@ -62367,11 +62272,6 @@
             "supported": true,
             "default": true
           },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true
-            }
-          },
           "attachment": true,
           "open_weights": true,
           "release_date": "2026-04-02",
@@ -62830,11 +62730,6 @@
           "reasoning": {
             "supported": true,
             "default": true
-          },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true
-            }
           },
           "attachment": true,
           "open_weights": true,
@@ -73715,11 +73610,6 @@
             "supported": true,
             "default": true
           },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true
-            }
-          },
           "attachment": true,
           "open_weights": true,
           "release_date": "2026-04-02",
@@ -76999,11 +76889,6 @@
           "reasoning": {
             "supported": true,
             "default": true
-          },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true
-            }
           },
           "attachment": true,
           "open_weights": true,
@@ -88398,11 +88283,6 @@
             "supported": true,
             "default": true
           },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true
-            }
-          },
           "attachment": true,
           "open_weights": true,
           "release_date": "2026-04-02",
@@ -88459,11 +88339,6 @@
           "reasoning": {
             "supported": true,
             "default": true
-          },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true
-            }
           },
           "attachment": true,
           "open_weights": true,
@@ -101114,11 +100989,6 @@
             "supported": true,
             "default": true
           },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true
-            }
-          },
           "attachment": false,
           "open_weights": true,
           "release_date": "2026-04-30",
@@ -101818,7 +101688,7 @@
             ]
           },
           "limit": {
-            "context": 128072,
+            "context": 131072,
             "output": 13107
           },
           "temperature": true,
@@ -101994,11 +101864,6 @@
           "reasoning": {
             "supported": true,
             "default": true
-          },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true
-            }
           },
           "attachment": true,
           "open_weights": true,
@@ -104584,11 +104449,6 @@
           "reasoning": {
             "supported": true,
             "default": true
-          },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true
-            }
           },
           "attachment": true,
           "open_weights": true,
@@ -107560,11 +107420,6 @@
             "supported": true,
             "default": true
           },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true
-            }
-          },
           "attachment": true,
           "open_weights": true,
           "release_date": "2026-04-02",
@@ -107622,11 +107477,6 @@
           "reasoning": {
             "supported": true,
             "default": true
-          },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true
-            }
           },
           "attachment": true,
           "open_weights": true,
@@ -109730,45 +109580,6 @@
           "type": "chat"
         },
         {
-          "id": "glm-5.1",
-          "name": "GLM-5.1",
-          "display_name": "GLM-5.1",
-          "modalities": {
-            "input": [
-              "text"
-            ],
-            "output": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 200000,
-            "output": 131072
-          },
-          "temperature": true,
-          "tool_call": true,
-          "reasoning": {
-            "supported": true,
-            "default": true
-          },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true,
-              "interleaved": true,
-              "summaries": true,
-              "visibility": "summary",
-              "continuation": [
-                "thinking_blocks"
-              ]
-            }
-          },
-          "attachment": false,
-          "open_weights": false,
-          "release_date": "2026-03-27",
-          "last_updated": "2026-03-27",
-          "type": "chat"
-        },
-        {
           "id": "glm-5.3",
           "name": "GLM-5.3",
           "display_name": "GLM-5.3",
@@ -109808,126 +109619,6 @@
           "type": "chat"
         },
         {
-          "id": "glm-5v-turbo",
-          "name": "GLM-5V-Turbo",
-          "display_name": "GLM-5V-Turbo",
-          "modalities": {
-            "input": [
-              "text",
-              "image",
-              "video",
-              "pdf"
-            ],
-            "output": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 200000,
-            "output": 131072
-          },
-          "temperature": true,
-          "tool_call": true,
-          "reasoning": {
-            "supported": true,
-            "default": true
-          },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true,
-              "interleaved": true,
-              "summaries": true,
-              "visibility": "summary",
-              "continuation": [
-                "thinking_blocks"
-              ]
-            }
-          },
-          "attachment": true,
-          "open_weights": false,
-          "release_date": "2026-04-01",
-          "last_updated": "2026-04-01",
-          "type": "chat"
-        },
-        {
-          "id": "glm-5-turbo",
-          "name": "GLM-5-Turbo",
-          "display_name": "GLM-5-Turbo",
-          "modalities": {
-            "input": [
-              "text"
-            ],
-            "output": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 200000,
-            "output": 131072
-          },
-          "temperature": true,
-          "tool_call": true,
-          "reasoning": {
-            "supported": true,
-            "default": true
-          },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true,
-              "interleaved": true,
-              "summaries": true,
-              "visibility": "summary",
-              "continuation": [
-                "thinking_blocks"
-              ]
-            }
-          },
-          "attachment": false,
-          "open_weights": false,
-          "release_date": "2026-03-16",
-          "last_updated": "2026-03-16",
-          "type": "chat"
-        },
-        {
-          "id": "glm-5.2",
-          "name": "GLM-5.2",
-          "display_name": "GLM-5.2",
-          "modalities": {
-            "input": [
-              "text"
-            ],
-            "output": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 1000000,
-            "output": 131072
-          },
-          "temperature": true,
-          "tool_call": true,
-          "reasoning": {
-            "supported": true,
-            "default": true
-          },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true,
-              "interleaved": true,
-              "summaries": true,
-              "visibility": "summary",
-              "continuation": [
-                "thinking_blocks"
-              ]
-            }
-          },
-          "attachment": false,
-          "open_weights": true,
-          "release_date": "2026-06-13",
-          "last_updated": "2026-06-13",
-          "type": "chat"
-        },
-        {
           "id": "glm-4.6v",
           "name": "GLM-4.6V",
           "display_name": "GLM-4.6V",
@@ -109956,85 +109647,6 @@
           "knowledge": "2025-04",
           "release_date": "2025-12-08",
           "last_updated": "2025-12-08",
-          "type": "chat"
-        },
-        {
-          "id": "glm-4.7",
-          "name": "GLM-4.7",
-          "display_name": "GLM-4.7",
-          "modalities": {
-            "input": [
-              "text"
-            ],
-            "output": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 204800,
-            "output": 131072
-          },
-          "temperature": true,
-          "tool_call": true,
-          "reasoning": {
-            "supported": true,
-            "default": true
-          },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true,
-              "interleaved": true,
-              "summaries": true,
-              "visibility": "summary",
-              "continuation": [
-                "thinking_blocks"
-              ]
-            }
-          },
-          "attachment": false,
-          "open_weights": true,
-          "knowledge": "2025-04",
-          "release_date": "2025-12-22",
-          "last_updated": "2025-12-22",
-          "type": "chat"
-        },
-        {
-          "id": "glm-5.2-highspeed",
-          "name": "GLM-5.2 Highspeed",
-          "display_name": "GLM-5.2 Highspeed",
-          "modalities": {
-            "input": [
-              "text"
-            ],
-            "output": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 1000000,
-            "output": 131072
-          },
-          "temperature": true,
-          "tool_call": true,
-          "reasoning": {
-            "supported": true,
-            "default": true
-          },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true,
-              "interleaved": true,
-              "summaries": true,
-              "visibility": "summary",
-              "continuation": [
-                "thinking_blocks"
-              ]
-            }
-          },
-          "attachment": false,
-          "open_weights": true,
-          "release_date": "2026-06-13",
-          "last_updated": "2026-06-13",
           "type": "chat"
         }
       ]
@@ -118832,11 +118444,6 @@
             "supported": true,
             "default": true
           },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true
-            }
-          },
           "attachment": true,
           "open_weights": true,
           "knowledge": "2025-01",
@@ -123029,11 +122636,6 @@
             "supported": true,
             "default": true
           },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true
-            }
-          },
           "attachment": true,
           "open_weights": true,
           "release_date": "2026-04-02",
@@ -124063,11 +123665,6 @@
           "reasoning": {
             "supported": true,
             "default": true
-          },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true
-            }
           },
           "attachment": true,
           "open_weights": true,
@@ -126436,6 +126033,33 @@
           "type": "chat"
         },
         {
+          "id": "typesafe-ai/jev",
+          "name": "Jev",
+          "display_name": "Jev",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 64000,
+            "output": 8192
+          },
+          "temperature": false,
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "attachment": false,
+          "open_weights": false,
+          "release_date": "2026-09-15",
+          "last_updated": "2026-09-15",
+          "type": "chat"
+        },
+        {
           "id": "xiaomi/mimo-v2.5",
           "name": "MiMo M2.5",
           "display_name": "MiMo M2.5",
@@ -127627,6 +127251,34 @@
           "open_weights": false,
           "release_date": "2026-07-15",
           "last_updated": "2026-07-15",
+          "type": "chat"
+        },
+        {
+          "id": "alibaba/qwen3.8-omni-flash",
+          "name": "Qwen 3.8 Omni Flash",
+          "display_name": "Qwen 3.8 Omni Flash",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1000000,
+            "output": 131072
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "attachment": true,
+          "open_weights": false,
+          "release_date": "2026-09-17",
+          "last_updated": "2026-09-17",
           "type": "chat"
         },
         {
@@ -129829,11 +129481,6 @@
             "supported": true,
             "default": true
           },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true
-            }
-          },
           "attachment": true,
           "open_weights": true,
           "release_date": "2026-04-02",
@@ -130525,12 +130172,7 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
-          },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true
-            }
+            "supported": false
           },
           "attachment": true,
           "open_weights": true,
@@ -134964,6 +134606,7 @@
             "context": 8192,
             "output": 8192
           },
+          "temperature": false,
           "tool_call": false,
           "reasoning": {
             "supported": false
@@ -135352,6 +134995,7 @@
             "context": 8192,
             "output": 8192
           },
+          "temperature": false,
           "tool_call": false,
           "reasoning": {
             "supported": false
@@ -138695,11 +138339,6 @@
           "reasoning": {
             "supported": true,
             "default": true
-          },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true
-            }
           },
           "attachment": true,
           "open_weights": true,
@@ -143866,36 +143505,6 @@
           "type": "chat"
         },
         {
-          "id": "mistral-small-2603",
-          "name": "Mistral Small 4",
-          "display_name": "Mistral Small 4",
-          "modalities": {
-            "input": [
-              "text",
-              "image"
-            ],
-            "output": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 256000,
-            "output": 65536
-          },
-          "temperature": true,
-          "tool_call": true,
-          "reasoning": {
-            "supported": true,
-            "default": true
-          },
-          "attachment": true,
-          "open_weights": true,
-          "knowledge": "2025-06",
-          "release_date": "2026-03-16",
-          "last_updated": "2026-06-11",
-          "type": "chat"
-        },
-        {
           "id": "z-ai-glm-5v-turbo",
           "name": "GLM 5V Turbo",
           "display_name": "GLM 5V Turbo",
@@ -145870,11 +145479,6 @@
           "reasoning": {
             "supported": true,
             "default": true
-          },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true
-            }
           },
           "attachment": true,
           "open_weights": true,
@@ -150633,11 +150237,6 @@
             "supported": true,
             "default": true
           },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true
-            }
-          },
           "attachment": true,
           "open_weights": true,
           "release_date": "2026-04-02",
@@ -152992,11 +152591,6 @@
             "supported": true,
             "default": true
           },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true
-            }
-          },
           "attachment": false,
           "open_weights": true,
           "release_date": "2026-04-02",
@@ -154058,11 +153652,6 @@
           "reasoning": {
             "supported": true,
             "default": true
-          },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true
-            }
           },
           "attachment": true,
           "open_weights": true,
@@ -155226,6 +154815,34 @@
       "doc": "https://developers.cloudflare.com/ai-gateway/",
       "models": [
         {
+          "id": "unbiased/pareto",
+          "name": "Pareto",
+          "display_name": "Pareto",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 262144,
+            "output": 131072
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": false
+          },
+          "attachment": true,
+          "open_weights": false,
+          "release_date": "2026-09-17",
+          "last_updated": "2026-09-17",
+          "type": "chat"
+        },
+        {
           "id": "alibaba/qwen3.7-max",
           "name": "Qwen3.7 Max",
           "display_name": "Qwen3.7 Max",
@@ -156180,6 +155797,42 @@
           "knowledge": "2026-02-16",
           "release_date": "2026-07-09",
           "last_updated": "2026-07-09",
+          "type": "chat"
+        },
+        {
+          "id": "openai/gpt-6-astra",
+          "name": "GPT-6 Astra",
+          "display_name": "GPT-6 Astra",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "pdf"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1050000,
+            "output": 128000
+          },
+          "temperature": false,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true
+            }
+          },
+          "attachment": true,
+          "open_weights": false,
+          "knowledge": "2026-04-30",
+          "release_date": "2026-09-04",
+          "last_updated": "2026-09-04",
           "type": "chat"
         },
         {
@@ -157186,6 +156839,33 @@
           "open_weights": false,
           "release_date": "2026-03-09",
           "last_updated": "2026-03-09",
+          "type": "chat"
+        },
+        {
+          "id": "typesafe/jev",
+          "name": "Jev",
+          "display_name": "Jev",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 32000,
+            "output": 8192
+          },
+          "temperature": false,
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "attachment": false,
+          "open_weights": false,
+          "release_date": "2026-09-15",
+          "last_updated": "2026-09-15",
           "type": "chat"
         }
       ]
@@ -164860,11 +164540,6 @@
             "supported": true,
             "default": true
           },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true
-            }
-          },
           "attachment": true,
           "open_weights": true,
           "release_date": "2026-04-02",
@@ -165237,11 +164912,6 @@
           "reasoning": {
             "supported": true,
             "default": true
-          },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true
-            }
           },
           "attachment": true,
           "open_weights": true,
@@ -166660,6 +166330,37 @@
           "knowledge": "2025-01",
           "release_date": "2026-01-29",
           "last_updated": "2026-02-13",
+          "type": "chat"
+        },
+        {
+          "id": "qwen3-8-omni-flash",
+          "name": "Qwen3.8 Omni Flash",
+          "display_name": "Qwen3.8 Omni Flash",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "audio",
+              "video"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1000000,
+            "output": 131072
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "attachment": true,
+          "open_weights": false,
+          "release_date": "2026-09-17",
+          "last_updated": "2026-09-17",
           "type": "chat"
         },
         {
@@ -171365,11 +171066,6 @@
             "supported": true,
             "default": true
           },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true
-            }
-          },
           "attachment": true,
           "open_weights": true,
           "release_date": "2026-04-02",
@@ -171457,11 +171153,6 @@
           "reasoning": {
             "supported": true,
             "default": true
-          },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true
-            }
           },
           "attachment": true,
           "open_weights": true,
@@ -174381,6 +174072,36 @@
           "type": "chat"
         },
         {
+          "id": "qwen/qwen3.8-27b:free",
+          "name": "Qwen: Qwen3.8 27B (free)",
+          "display_name": "Qwen: Qwen3.8 27B (free)",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "video"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 262144,
+            "output": 235929
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "attachment": true,
+          "open_weights": true,
+          "release_date": "2026-08-14",
+          "last_updated": "2026-08-14",
+          "type": "chat"
+        },
+        {
           "id": "qwen/qwen-2.5-coder-32b-instruct",
           "name": "Qwen2.5 Coder 32B Instruct",
           "display_name": "Qwen2.5 Coder 32B Instruct",
@@ -174922,6 +174643,34 @@
           "open_weights": false,
           "release_date": "2025-06-30",
           "last_updated": "2025-06-30",
+          "type": "chat"
+        },
+        {
+          "id": "unbiased/pareto",
+          "name": "Pareto",
+          "display_name": "Pareto",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 262144,
+            "output": 131072
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": false
+          },
+          "attachment": true,
+          "open_weights": false,
+          "release_date": "2026-09-17",
+          "last_updated": "2026-09-17",
           "type": "chat"
         },
         {
@@ -175697,36 +175446,6 @@
           "open_weights": false,
           "release_date": "2025-02-17",
           "last_updated": "2025-02-17",
-          "type": "chat"
-        },
-        {
-          "id": "mistralai/mistral-large-2512",
-          "name": "Mistral Large 3",
-          "display_name": "Mistral Large 3",
-          "modalities": {
-            "input": [
-              "text",
-              "image",
-              "pdf"
-            ],
-            "output": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 262144,
-            "output": 209715
-          },
-          "temperature": true,
-          "tool_call": true,
-          "reasoning": {
-            "supported": false
-          },
-          "attachment": true,
-          "open_weights": true,
-          "knowledge": "2024-11",
-          "release_date": "2025-12-02",
-          "last_updated": "2025-12-02",
           "type": "chat"
         },
         {
@@ -177421,11 +177140,6 @@
             "supported": true,
             "default": true
           },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true
-            }
-          },
           "attachment": true,
           "open_weights": true,
           "release_date": "2026-04-02",
@@ -178160,11 +177874,6 @@
           "reasoning": {
             "supported": true,
             "default": true
-          },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true
-            }
           },
           "attachment": true,
           "open_weights": true,
@@ -179662,7 +179371,7 @@
           },
           "limit": {
             "context": 1048576,
-            "output": 943718
+            "output": 262144
           },
           "temperature": true,
           "tool_call": true,
@@ -179817,6 +179526,35 @@
           "type": "chat"
         },
         {
+          "id": "deepseek/deepseek-v4-flash-0731:free",
+          "name": "DeepSeek: DeepSeek V4 Flash 0731 (free)",
+          "display_name": "DeepSeek: DeepSeek V4 Flash 0731 (free)",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1048576,
+            "output": 393216
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "attachment": false,
+          "open_weights": true,
+          "knowledge": "2025-05",
+          "release_date": "2026-07-31",
+          "last_updated": "2026-07-31",
+          "type": "chat"
+        },
+        {
           "id": "deepseek/deepseek-v4.1-flash",
           "name": "DeepSeek V4.1 Flash",
           "display_name": "DeepSeek V4.1 Flash",
@@ -179904,8 +179642,8 @@
             ]
           },
           "limit": {
-            "context": 128000,
-            "output": 16000
+            "context": 163840,
+            "output": 16384
           },
           "temperature": true,
           "tool_call": true,
@@ -183202,7 +182940,7 @@
           },
           "limit": {
             "context": 131072,
-            "output": 117964
+            "output": 65536
           },
           "temperature": true,
           "tool_call": true,
@@ -184680,7 +184418,7 @@
           },
           "limit": {
             "context": 1048576,
-            "output": 131072
+            "output": 163840
           },
           "temperature": true,
           "tool_call": true,
@@ -185515,34 +185253,6 @@
           "open_weights": false,
           "release_date": "2025-08-26",
           "last_updated": "2025-08-26",
-          "type": "chat"
-        },
-        {
-          "id": "stealth/union-alpha",
-          "name": "Union Alpha",
-          "display_name": "Union Alpha",
-          "modalities": {
-            "input": [
-              "text",
-              "image"
-            ],
-            "output": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 262144,
-            "output": 131072
-          },
-          "temperature": true,
-          "tool_call": true,
-          "reasoning": {
-            "supported": false
-          },
-          "attachment": true,
-          "open_weights": false,
-          "release_date": "2026-09-16",
-          "last_updated": "2026-09-16",
           "type": "chat"
         }
       ]
@@ -188681,6 +188391,34 @@
           "type": "chat"
         },
         {
+          "id": "gpt-image-2.5-sunburst",
+          "name": "GPT Image 2.5 Sunburst",
+          "display_name": "GPT Image 2.5 Sunburst",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "image"
+            ]
+          },
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "temperature": false,
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "attachment": true,
+          "open_weights": false,
+          "release_date": "2026-09-08",
+          "last_updated": "2026-09-08",
+          "type": "imageGeneration"
+        },
+        {
           "id": "grok-4.6",
           "name": "Grok 4.6",
           "display_name": "Grok 4.6",
@@ -189343,6 +189081,34 @@
           "release_date": "2023-09-21",
           "last_updated": "2023-09-21",
           "type": "chat"
+        },
+        {
+          "id": "gpt-image-2.5-flare",
+          "name": "GPT Image 2.5 Flare",
+          "display_name": "GPT Image 2.5 Flare",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "image"
+            ]
+          },
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "temperature": false,
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "attachment": true,
+          "open_weights": false,
+          "release_date": "2026-09-08",
+          "last_updated": "2026-09-08",
+          "type": "imageGeneration"
         },
         {
           "id": "gpt-5.6-terra",
@@ -196459,16 +196225,15 @@
           "display_name": "Qwen3.5 35B A3B",
           "modalities": {
             "input": [
-              "text",
-              "image"
+              "text"
             ],
             "output": [
               "text"
             ]
           },
           "limit": {
-            "context": 256000,
-            "output": 64000
+            "context": 131072,
+            "output": 32768
           },
           "temperature": true,
           "tool_call": true,
@@ -196487,7 +196252,7 @@
               ]
             }
           },
-          "attachment": true,
+          "attachment": false,
           "open_weights": true,
           "release_date": "2026-02-23",
           "last_updated": "2026-02-23",
@@ -196687,15 +196452,16 @@
           "display_name": "Qwen3.5 397B A17B",
           "modalities": {
             "input": [
-              "text"
+              "text",
+              "image"
             ],
             "output": [
               "text"
             ]
           },
           "limit": {
-            "context": 131072,
-            "output": 32768
+            "context": 256000,
+            "output": 64000
           },
           "temperature": true,
           "tool_call": true,
@@ -196714,7 +196480,7 @@
               ]
             }
           },
-          "attachment": false,
+          "attachment": true,
           "open_weights": true,
           "release_date": "2026-02-15",
           "last_updated": "2026-02-15",
@@ -196916,16 +196682,15 @@
           "display_name": "Qwen3.5 122B A10B",
           "modalities": {
             "input": [
-              "text",
-              "image"
+              "text"
             ],
             "output": [
               "text"
             ]
           },
           "limit": {
-            "context": 256000,
-            "output": 64000
+            "context": 131072,
+            "output": 32768
           },
           "temperature": true,
           "tool_call": true,
@@ -196944,7 +196709,7 @@
               ]
             }
           },
-          "attachment": true,
+          "attachment": false,
           "open_weights": true,
           "release_date": "2026-02-23",
           "last_updated": "2026-02-23",
@@ -197799,7 +197564,8 @@
           "modalities": {
             "input": [
               "text",
-              "image"
+              "image",
+              "pdf"
             ],
             "output": [
               "text"
@@ -198453,11 +198219,6 @@
           "reasoning": {
             "supported": true,
             "default": true
-          },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true
-            }
           },
           "attachment": false,
           "open_weights": true,
@@ -199160,11 +198921,6 @@
           "reasoning": {
             "supported": true,
             "default": true
-          },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true
-            }
           },
           "attachment": false,
           "open_weights": true,
@@ -206879,11 +206635,6 @@
             "supported": true,
             "default": true
           },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true
-            }
-          },
           "attachment": true,
           "open_weights": true,
           "release_date": "2026-04-02",
@@ -208630,8 +208381,8 @@
         },
         {
           "id": "gpt-5.6-sol",
-          "name": "GPT-5.6 Sol (50% Off)",
-          "display_name": "GPT-5.6 Sol (50% Off)",
+          "name": "GPT-5.6 Sol",
+          "display_name": "GPT-5.6 Sol",
           "modalities": {
             "input": [
               "text",
@@ -210635,34 +210386,6 @@
           "type": "chat"
         },
         {
-          "id": "union-alpha",
-          "name": "Union Alpha Free",
-          "display_name": "Union Alpha Free",
-          "modalities": {
-            "input": [
-              "text",
-              "image"
-            ],
-            "output": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 262144,
-            "output": 131072
-          },
-          "tool_call": true,
-          "reasoning": {
-            "supported": true,
-            "default": true
-          },
-          "attachment": true,
-          "open_weights": false,
-          "release_date": "2026-09-16",
-          "last_updated": "2026-09-16",
-          "type": "chat"
-        },
-        {
           "id": "gpt-5.4-nano",
           "name": "GPT-5.4 Nano",
           "display_name": "GPT-5.4 Nano",
@@ -211211,6 +210934,33 @@
           "knowledge": "2025-04",
           "release_date": "2026-04-07",
           "last_updated": "2026-04-07",
+          "type": "chat"
+        },
+        {
+          "id": "jev-latest",
+          "name": "Jev",
+          "display_name": "Jev",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 64000,
+            "output": 8192
+          },
+          "temperature": false,
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "attachment": false,
+          "open_weights": false,
+          "release_date": "2026-09-15",
+          "last_updated": "2026-09-15",
           "type": "chat"
         },
         {
@@ -217271,6 +217021,40 @@
           "open_weights": false,
           "release_date": "2026-04-27",
           "last_updated": "2026-04-27",
+          "type": "chat"
+        },
+        {
+          "id": "bailian/qwen3.8-flash",
+          "name": "Qwen3.8 Flash",
+          "display_name": "Qwen3.8 Flash",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "video"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1000000,
+            "output": 131072
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true
+            }
+          },
+          "attachment": true,
+          "open_weights": false,
+          "release_date": "2026-08-26",
+          "last_updated": "2026-08-26",
           "type": "chat"
         },
         {
@@ -225448,6 +225232,46 @@
           "type": "chat"
         },
         {
+          "id": "DeepSeek-V4.1-Flash",
+          "name": "DeepSeek V4.1 Flash",
+          "display_name": "DeepSeek V4.1 Flash",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1000000,
+            "output": 384000
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "interleaved": true,
+              "summaries": true,
+              "visibility": "summary",
+              "continuation": [
+                "thinking_blocks"
+              ]
+            }
+          },
+          "attachment": false,
+          "open_weights": true,
+          "knowledge": "2025-05",
+          "release_date": "2026-09-10",
+          "last_updated": "2026-09-10",
+          "type": "chat"
+        },
+        {
           "id": "DeepSeek-V4-Pro-0813",
           "name": "DeepSeek V4 Pro 0813",
           "display_name": "DeepSeek V4 Pro 0813",
@@ -228706,12 +228530,7 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
-          },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true
-            }
+            "supported": false
           },
           "attachment": false,
           "open_weights": false,
@@ -228738,12 +228557,7 @@
           "temperature": true,
           "tool_call": true,
           "reasoning": {
-            "supported": true
-          },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true
-            }
+            "supported": false
           },
           "attachment": false,
           "open_weights": false,
@@ -239067,36 +238881,6 @@
           "type": "chat"
         },
         {
-          "id": "grok-imagine-image-2.0",
-          "name": "Grok Imagine Image 2.0",
-          "display_name": "Grok Imagine Image 2.0",
-          "modalities": {
-            "input": [
-              "text",
-              "image",
-              "pdf"
-            ],
-            "output": [
-              "image",
-              "pdf"
-            ]
-          },
-          "limit": {
-            "context": 64000,
-            "output": 8192
-          },
-          "temperature": false,
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "attachment": true,
-          "open_weights": false,
-          "release_date": "2026-08-07",
-          "last_updated": "2026-08-07",
-          "type": "chat"
-        },
-        {
           "id": "grok-4.6",
           "name": "Grok 4.6",
           "display_name": "Grok 4.6",
@@ -239130,36 +238914,6 @@
           "knowledge": "2026-02-01",
           "release_date": "2026-08-12",
           "last_updated": "2026-08-12",
-          "type": "chat"
-        },
-        {
-          "id": "grok-imagine-image-quality",
-          "name": "Grok Imagine Image Quality",
-          "display_name": "Grok Imagine Image Quality",
-          "modalities": {
-            "input": [
-              "text",
-              "image",
-              "pdf"
-            ],
-            "output": [
-              "image",
-              "pdf"
-            ]
-          },
-          "limit": {
-            "context": 16000,
-            "output": 8192
-          },
-          "temperature": false,
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "attachment": true,
-          "open_weights": false,
-          "release_date": "2026-04-03",
-          "last_updated": "2026-04-03",
           "type": "chat"
         },
         {
@@ -240762,11 +240516,6 @@
             "supported": true,
             "default": true
           },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true
-            }
-          },
           "attachment": true,
           "open_weights": true,
           "knowledge": "2025-12",
@@ -241190,6 +240939,34 @@
           "knowledge": "2025-06",
           "release_date": "2025-03-17",
           "last_updated": "2025-03-20",
+          "type": "chat"
+        },
+        {
+          "id": "zai-glm-5-3",
+          "name": "GLM-5.3",
+          "display_name": "GLM-5.3",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1000000,
+            "output": 131072
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "attachment": false,
+          "open_weights": true,
+          "release_date": "2026-08-14",
+          "last_updated": "2026-08-14",
           "type": "chat"
         },
         {
@@ -242945,11 +242722,6 @@
             "supported": true,
             "default": true
           },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true
-            }
-          },
           "attachment": false,
           "open_weights": false,
           "release_date": "2026-04-07",
@@ -243011,11 +242783,6 @@
           "reasoning": {
             "supported": true,
             "default": true
-          },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true
-            }
           },
           "attachment": true,
           "open_weights": true,
@@ -244759,11 +244526,6 @@
             "supported": true,
             "default": true
           },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true
-            }
-          },
           "attachment": true,
           "open_weights": true,
           "release_date": "2026-04-02",
@@ -245637,35 +245399,6 @@
           "knowledge": "2025-01",
           "release_date": "2026-06-12",
           "last_updated": "2026-06-12",
-          "type": "chat"
-        },
-        {
-          "id": "llama-3.1-405b-instruct",
-          "name": "Llama 3.1 405B Instruct",
-          "display_name": "Llama 3.1 405B Instruct",
-          "modalities": {
-            "input": [
-              "text"
-            ],
-            "output": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 128000,
-            "output": 128000
-          },
-          "temperature": true,
-          "tool_call": true,
-          "reasoning": {
-            "supported": true,
-            "default": true
-          },
-          "attachment": false,
-          "open_weights": true,
-          "knowledge": "2023-12",
-          "release_date": "2024-07-23",
-          "last_updated": "2024-07-23",
           "type": "chat"
         },
         {
@@ -247141,11 +246874,6 @@
             "supported": true,
             "default": true
           },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true
-            }
-          },
           "attachment": true,
           "open_weights": true,
           "release_date": "2026-04-02",
@@ -248453,6 +248181,55 @@
           "limit": {
             "context": 1048576,
             "output": 131072
+          },
+          "temperature": false,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "interleaved": true,
+              "summaries": true,
+              "visibility": "summary",
+              "continuation": [
+                "thinking_blocks"
+              ]
+            }
+          },
+          "attachment": true,
+          "open_weights": true,
+          "release_date": "2026-07-16",
+          "last_updated": "2026-07-16",
+          "type": "chat"
+        }
+      ]
+    },
+    "ainetcafe": {
+      "id": "ainetcafe",
+      "name": "ainetcafe",
+      "display_name": "ainetcafe",
+      "api": "https://microquickjs.com/v1",
+      "doc": "https://ainetcafe.com/k3/guides/",
+      "models": [
+        {
+          "id": "Kimi-K3",
+          "name": "Kimi K3",
+          "display_name": "Kimi K3",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 262144,
+            "output": 32768
           },
           "temperature": false,
           "tool_call": true,
@@ -250921,6 +250698,45 @@
           "knowledge": "2025-05",
           "release_date": "2026-04-24",
           "last_updated": "2026-04-24",
+          "type": "chat"
+        },
+        {
+          "id": "glm-5.3",
+          "name": "GLM-5.3",
+          "display_name": "GLM-5.3",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1000000,
+            "output": 131072
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "interleaved": true,
+              "summaries": true,
+              "visibility": "summary",
+              "continuation": [
+                "thinking_blocks"
+              ]
+            }
+          },
+          "attachment": false,
+          "open_weights": true,
+          "release_date": "2026-08-14",
+          "last_updated": "2026-08-14",
           "type": "chat"
         },
         {
@@ -253583,34 +253399,6 @@
           "type": "chat"
         },
         {
-          "id": "union-alpha",
-          "name": "Union Alpha Free",
-          "display_name": "Union Alpha Free",
-          "modalities": {
-            "input": [
-              "text",
-              "image"
-            ],
-            "output": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 262144,
-            "output": 131072
-          },
-          "tool_call": true,
-          "reasoning": {
-            "supported": true,
-            "default": true
-          },
-          "attachment": true,
-          "open_weights": false,
-          "release_date": "2026-09-16",
-          "last_updated": "2026-09-16",
-          "type": "chat"
-        },
-        {
           "id": "mimo-v2-pro",
           "name": "MiMo V2 Pro",
           "display_name": "MiMo V2 Pro",
@@ -255348,6 +255136,34 @@
           "type": "chat"
         },
         {
+          "id": "glm-5-3",
+          "name": "GLM-5.3",
+          "display_name": "GLM-5.3",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1048576,
+            "output": 131072
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "attachment": false,
+          "open_weights": true,
+          "release_date": "2026-08-14",
+          "last_updated": "2026-08-14",
+          "type": "chat"
+        },
+        {
           "id": "gpt-oss-safeguard-120b",
           "name": "gpt-oss-safeguard-120b",
           "display_name": "gpt-oss-safeguard-120b",
@@ -256503,6 +256319,41 @@
           "type": "chat"
         },
         {
+          "id": "nebius/deepseek-ai/DeepSeek-V4.1-Flash",
+          "name": "DeepSeek V4.1 Flash (Nebius)",
+          "display_name": "DeepSeek V4.1 Flash (Nebius)",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1048000,
+            "output": 384000
+          },
+          "temperature": true,
+          "tool_call": false,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true
+            }
+          },
+          "attachment": true,
+          "open_weights": true,
+          "knowledge": "2025-05",
+          "release_date": "2026-09-10",
+          "last_updated": "2026-09-10",
+          "type": "chat"
+        },
+        {
           "id": "nebius/deepseek-ai/DeepSeek-V4-Pro-0813",
           "name": "DeepSeek V4 Pro 0813 (Nebius)",
           "display_name": "DeepSeek V4 Pro 0813 (Nebius)",
@@ -256628,34 +256479,6 @@
           "knowledge": "2024-08",
           "release_date": "2025-03-12",
           "last_updated": "2025-03-12",
-          "type": "chat"
-        },
-        {
-          "id": "nebius/meta-llama/Llama-3.3-70B-Instruct",
-          "name": "Llama-3.3-70B-Instruct (Nebius)",
-          "display_name": "Llama-3.3-70B-Instruct (Nebius)",
-          "modalities": {
-            "input": [
-              "text"
-            ],
-            "output": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 131072,
-            "output": 4096
-          },
-          "temperature": true,
-          "tool_call": true,
-          "reasoning": {
-            "supported": false
-          },
-          "attachment": false,
-          "open_weights": true,
-          "knowledge": "2023-12",
-          "release_date": "2024-12-06",
-          "last_updated": "2024-12-06",
           "type": "chat"
         },
         {
@@ -258521,39 +258344,6 @@
           "open_weights": true,
           "release_date": "2025-12-02",
           "last_updated": "2025-12-02",
-          "type": "chat"
-        },
-        {
-          "id": "flexai/Nemotron-3-Super-120B-A12B",
-          "name": "Nemotron 3 Super 120B A12B (FlexAI)",
-          "display_name": "Nemotron 3 Super 120B A12B (FlexAI)",
-          "modalities": {
-            "input": [
-              "text"
-            ],
-            "output": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 262144,
-            "output": 262144
-          },
-          "temperature": true,
-          "tool_call": false,
-          "reasoning": {
-            "supported": true,
-            "default": true
-          },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true
-            }
-          },
-          "attachment": false,
-          "open_weights": true,
-          "release_date": "2026-03-11",
-          "last_updated": "2026-03-11",
           "type": "chat"
         },
         {
@@ -263142,36 +262932,6 @@
           "type": "chat"
         },
         {
-          "id": "together_ai/thinkingmachines/Inkling-Small",
-          "name": "Inkling Small (Together AI)",
-          "display_name": "Inkling Small (Together AI)",
-          "modalities": {
-            "input": [
-              "text",
-              "image",
-              "audio"
-            ],
-            "output": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 524288,
-            "output": 1048576
-          },
-          "temperature": true,
-          "tool_call": true,
-          "reasoning": {
-            "supported": true,
-            "default": true
-          },
-          "attachment": true,
-          "open_weights": true,
-          "release_date": "2026-07-30",
-          "last_updated": "2026-07-30",
-          "type": "chat"
-        },
-        {
           "id": "together_ai/thinkingmachines/Inkling",
           "name": "Inkling (Together AI)",
           "display_name": "Inkling (Together AI)",
@@ -263199,39 +262959,6 @@
           "open_weights": true,
           "release_date": "2026-07-15",
           "last_updated": "2026-07-15",
-          "type": "chat"
-        },
-        {
-          "id": "together_ai/openai/gpt-oss-20b",
-          "name": "GPT OSS 20B (Together AI)",
-          "display_name": "GPT OSS 20B (Together AI)",
-          "modalities": {
-            "input": [
-              "text"
-            ],
-            "output": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 131072,
-            "output": 32768
-          },
-          "temperature": true,
-          "tool_call": true,
-          "reasoning": {
-            "supported": true,
-            "default": true
-          },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true
-            }
-          },
-          "attachment": false,
-          "open_weights": true,
-          "release_date": "2025-08-05",
-          "last_updated": "2025-08-05",
           "type": "chat"
         },
         {
@@ -281999,7 +281726,7 @@
             "default": true
           },
           "attachment": true,
-          "last_updated": "2026-09-16T03:41:59Z",
+          "last_updated": "2026-09-17T05:38:24Z",
           "type": "chat"
         },
         {
@@ -282024,7 +281751,7 @@
             "default": true
           },
           "attachment": false,
-          "last_updated": "2026-09-16T03:41:59Z",
+          "last_updated": "2026-09-17T05:38:24Z",
           "type": "chat"
         },
         {
@@ -282049,7 +281776,7 @@
             "default": true
           },
           "attachment": false,
-          "last_updated": "2026-09-16T03:41:59Z",
+          "last_updated": "2026-09-17T05:38:24Z",
           "type": "chat"
         },
         {
@@ -282074,7 +281801,7 @@
             "default": true
           },
           "attachment": false,
-          "last_updated": "2026-09-16T03:41:59Z",
+          "last_updated": "2026-09-17T05:38:24Z",
           "type": "chat"
         },
         {
@@ -282099,7 +281826,7 @@
             "default": true
           },
           "attachment": false,
-          "last_updated": "2026-09-16T03:41:59Z",
+          "last_updated": "2026-09-17T05:38:24Z",
           "type": "chat"
         },
         {
@@ -282123,7 +281850,7 @@
             "supported": false
           },
           "attachment": false,
-          "last_updated": "2026-09-16T03:41:59Z",
+          "last_updated": "2026-09-17T05:38:24Z",
           "type": "chat"
         },
         {
@@ -282147,7 +281874,7 @@
             "supported": false
           },
           "attachment": false,
-          "last_updated": "2026-09-16T03:41:59Z",
+          "last_updated": "2026-09-17T05:38:24Z",
           "type": "chat"
         },
         {
@@ -282171,7 +281898,7 @@
             "supported": false
           },
           "attachment": false,
-          "last_updated": "2026-09-16T03:41:59Z",
+          "last_updated": "2026-09-17T05:38:24Z",
           "type": "chat"
         },
         {
@@ -282196,7 +281923,7 @@
             "supported": false
           },
           "attachment": true,
-          "last_updated": "2026-09-16T03:41:59Z",
+          "last_updated": "2026-09-17T05:38:24Z",
           "type": "chat"
         },
         {
@@ -282221,7 +281948,7 @@
             "supported": false
           },
           "attachment": true,
-          "last_updated": "2026-09-16T03:41:59Z",
+          "last_updated": "2026-09-17T05:38:24Z",
           "type": "embedding"
         },
         {
@@ -282246,7 +281973,7 @@
             "supported": false
           },
           "attachment": true,
-          "last_updated": "2026-09-16T03:41:59Z",
+          "last_updated": "2026-09-17T05:38:24Z",
           "type": "embedding"
         },
         {
@@ -282272,7 +281999,7 @@
             "default": true
           },
           "attachment": true,
-          "last_updated": "2026-09-16T03:41:59Z",
+          "last_updated": "2026-09-17T05:38:24Z",
           "type": "chat"
         },
         {
@@ -282298,7 +282025,7 @@
             "default": true
           },
           "attachment": true,
-          "last_updated": "2026-09-16T03:41:59Z",
+          "last_updated": "2026-09-17T05:38:24Z",
           "type": "chat"
         },
         {
@@ -282324,7 +282051,7 @@
             "default": true
           },
           "attachment": true,
-          "last_updated": "2026-09-16T03:41:59Z",
+          "last_updated": "2026-09-17T05:38:24Z",
           "type": "chat"
         },
         {
@@ -282350,7 +282077,7 @@
             "default": true
           },
           "attachment": true,
-          "last_updated": "2026-09-16T03:41:59Z",
+          "last_updated": "2026-09-17T05:38:24Z",
           "type": "chat"
         },
         {
@@ -282376,7 +282103,7 @@
             "default": true
           },
           "attachment": true,
-          "last_updated": "2026-09-16T03:41:59Z",
+          "last_updated": "2026-09-17T05:38:24Z",
           "type": "chat"
         },
         {
@@ -282402,7 +282129,7 @@
             "default": true
           },
           "attachment": true,
-          "last_updated": "2026-09-16T03:41:59Z",
+          "last_updated": "2026-09-17T05:38:24Z",
           "type": "chat"
         },
         {
@@ -282428,7 +282155,7 @@
             "default": true
           },
           "attachment": true,
-          "last_updated": "2026-09-16T03:41:59Z",
+          "last_updated": "2026-09-17T05:38:24Z",
           "type": "chat"
         },
         {
@@ -282454,7 +282181,7 @@
             "default": true
           },
           "attachment": true,
-          "last_updated": "2026-09-16T03:41:59Z",
+          "last_updated": "2026-09-17T05:38:24Z",
           "type": "chat"
         },
         {
@@ -282480,7 +282207,7 @@
             "default": true
           },
           "attachment": true,
-          "last_updated": "2026-09-16T03:41:59Z",
+          "last_updated": "2026-09-17T05:38:24Z",
           "type": "chat"
         },
         {
@@ -282506,7 +282233,7 @@
             "default": true
           },
           "attachment": true,
-          "last_updated": "2026-09-16T03:41:59Z",
+          "last_updated": "2026-09-17T05:38:24Z",
           "type": "chat"
         },
         {
@@ -282532,7 +282259,7 @@
             "default": true
           },
           "attachment": true,
-          "last_updated": "2026-09-16T03:41:59Z",
+          "last_updated": "2026-09-17T05:38:24Z",
           "type": "chat"
         },
         {
@@ -282558,7 +282285,7 @@
             "default": true
           },
           "attachment": true,
-          "last_updated": "2026-09-16T03:41:59Z",
+          "last_updated": "2026-09-17T05:38:24Z",
           "type": "chat"
         },
         {
@@ -282584,7 +282311,7 @@
             "default": true
           },
           "attachment": true,
-          "last_updated": "2026-09-16T03:41:59Z",
+          "last_updated": "2026-09-17T05:38:24Z",
           "type": "chat"
         },
         {
@@ -282610,7 +282337,7 @@
             "default": true
           },
           "attachment": true,
-          "last_updated": "2026-09-16T03:41:59Z",
+          "last_updated": "2026-09-17T05:38:24Z",
           "type": "chat"
         },
         {
@@ -282636,7 +282363,7 @@
             "default": true
           },
           "attachment": true,
-          "last_updated": "2026-09-16T03:41:59Z",
+          "last_updated": "2026-09-17T05:38:24Z",
           "type": "chat"
         },
         {
@@ -282660,7 +282387,7 @@
             "supported": false
           },
           "attachment": false,
-          "last_updated": "2026-09-16T03:41:59Z",
+          "last_updated": "2026-09-17T05:38:24Z",
           "type": "chat"
         },
         {
@@ -282686,7 +282413,7 @@
             "default": true
           },
           "attachment": true,
-          "last_updated": "2026-09-16T03:41:59Z",
+          "last_updated": "2026-09-17T05:38:24Z",
           "type": "chat"
         },
         {
@@ -282712,7 +282439,7 @@
             "default": true
           },
           "attachment": true,
-          "last_updated": "2026-09-16T03:41:59Z",
+          "last_updated": "2026-09-17T05:38:24Z",
           "type": "chat"
         },
         {
@@ -282738,7 +282465,7 @@
             "default": true
           },
           "attachment": true,
-          "last_updated": "2026-09-16T03:41:59Z",
+          "last_updated": "2026-09-17T05:38:24Z",
           "type": "chat"
         },
         {
@@ -282762,7 +282489,7 @@
             "supported": false
           },
           "attachment": false,
-          "last_updated": "2026-09-16T03:41:59Z",
+          "last_updated": "2026-09-17T05:38:24Z",
           "type": "chat"
         },
         {
@@ -282782,7 +282509,7 @@
             "supported": false
           },
           "attachment": false,
-          "last_updated": "2026-09-16T03:41:59Z"
+          "last_updated": "2026-09-17T05:38:24Z"
         },
         {
           "id": "doubao-seedance-1-0-pro-fast-251015",
@@ -282801,7 +282528,7 @@
             "supported": false
           },
           "attachment": false,
-          "last_updated": "2026-09-16T03:41:59Z"
+          "last_updated": "2026-09-17T05:38:24Z"
         },
         {
           "id": "doubao-seedance-1-5-pro-251215",
@@ -282820,7 +282547,7 @@
             "supported": false
           },
           "attachment": false,
-          "last_updated": "2026-09-16T03:41:59Z"
+          "last_updated": "2026-09-17T05:38:24Z"
         },
         {
           "id": "doubao-seedance-2-0-260128",
@@ -282840,7 +282567,7 @@
             "supported": false
           },
           "attachment": true,
-          "last_updated": "2026-09-16T03:41:59Z"
+          "last_updated": "2026-09-17T05:38:24Z"
         },
         {
           "id": "doubao-seedance-2-0-fast-260128",
@@ -282860,7 +282587,7 @@
             "supported": false
           },
           "attachment": true,
-          "last_updated": "2026-09-16T03:41:59Z"
+          "last_updated": "2026-09-17T05:38:24Z"
         },
         {
           "id": "doubao-seedance-2-0-mini-260615",
@@ -282880,7 +282607,7 @@
             "supported": false
           },
           "attachment": true,
-          "last_updated": "2026-09-16T03:41:59Z"
+          "last_updated": "2026-09-17T05:38:24Z"
         },
         {
           "id": "doubao-seedance-2-5-260628",
@@ -282900,7 +282627,7 @@
             "supported": false
           },
           "attachment": true,
-          "last_updated": "2026-09-16T03:41:59Z"
+          "last_updated": "2026-09-17T05:38:24Z"
         },
         {
           "id": "doubao-seedream-4-0-250828",
@@ -282920,7 +282647,7 @@
             "supported": false
           },
           "attachment": true,
-          "last_updated": "2026-09-16T03:41:59Z",
+          "last_updated": "2026-09-17T05:38:24Z",
           "type": "imageGeneration"
         },
         {
@@ -282941,7 +282668,7 @@
             "supported": false
           },
           "attachment": true,
-          "last_updated": "2026-09-16T03:41:59Z",
+          "last_updated": "2026-09-17T05:38:24Z",
           "type": "imageGeneration"
         },
         {
@@ -282962,7 +282689,7 @@
             "supported": false
           },
           "attachment": true,
-          "last_updated": "2026-09-16T03:41:59Z",
+          "last_updated": "2026-09-17T05:38:24Z",
           "type": "imageGeneration"
         },
         {
@@ -282983,7 +282710,7 @@
             "supported": false
           },
           "attachment": true,
-          "last_updated": "2026-09-16T03:41:59Z",
+          "last_updated": "2026-09-17T05:38:24Z",
           "type": "imageGeneration"
         },
         {
@@ -283008,7 +282735,7 @@
             "default": true
           },
           "attachment": false,
-          "last_updated": "2026-09-16T03:41:59Z",
+          "last_updated": "2026-09-17T05:38:24Z",
           "type": "chat"
         },
         {
@@ -283033,7 +282760,7 @@
             "default": true
           },
           "attachment": false,
-          "last_updated": "2026-09-16T03:41:59Z",
+          "last_updated": "2026-09-17T05:38:24Z",
           "type": "chat"
         },
         {
@@ -283059,7 +282786,7 @@
             "default": true
           },
           "attachment": true,
-          "last_updated": "2026-09-16T03:41:59Z",
+          "last_updated": "2026-09-17T05:38:24Z",
           "type": "chat"
         }
       ]
@@ -283106,6 +282833,21 @@
             "reasoning": {
               "supported": true
             }
+          },
+          "type": "chat"
+        },
+        {
+          "id": "deepseek/deepseek-v4.1-flash-z",
+          "name": "DeepseekFlash",
+          "display_name": "DeepseekFlash",
+          "limit": {
+            "context": 1048576,
+            "output": 393216
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
           },
           "type": "chat"
         },
@@ -284504,6 +284246,26 @@
           "tool_call": true,
           "reasoning": {
             "supported": false
+          },
+          "type": "chat"
+        },
+        {
+          "id": "pprouter/auto",
+          "name": "PPRouter Auto",
+          "display_name": "PPRouter Auto",
+          "limit": {
+            "context": 1048576,
+            "output": 393216
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true
+            }
           },
           "type": "chat"
         },
@@ -286186,12 +285948,7 @@
           },
           "tool_call": false,
           "reasoning": {
-            "supported": true
-          },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true
-            }
+            "supported": false
           },
           "type": "chat"
         },
@@ -286205,12 +285962,7 @@
           },
           "tool_call": false,
           "reasoning": {
-            "supported": true
-          },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true
-            }
+            "supported": false
           },
           "type": "chat"
         },
@@ -291433,29 +291185,9 @@
           "type": "chat"
         },
         {
-          "id": "union-alpha-free",
-          "name": "union-alpha-free",
-          "display_name": "union-alpha-free",
-          "modalities": {
-            "input": [
-              "text",
-              "image"
-            ]
-          },
-          "limit": {
-            "context": 262144,
-            "output": 262144
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "type": "chat"
-        },
-        {
-          "id": "dots-3-note-preview-free",
-          "name": "dots-3-note-preview-free",
-          "display_name": "dots-3-note-preview-free",
+          "id": "qwen3.8-omni-flash",
+          "name": "qwen3.8-omni-flash",
+          "display_name": "qwen3.8-omni-flash",
           "modalities": {
             "input": [
               "text",
@@ -291465,17 +291197,90 @@
             ]
           },
           "limit": {
-            "context": 524288,
-            "output": 524288
+            "context": 991000,
+            "output": 991000
           },
-          "tool_call": true,
+          "tool_call": false,
           "reasoning": {
-            "supported": true
+            "supported": false
           },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true
-            }
+          "type": "chat"
+        },
+        {
+          "id": "jev-1.13",
+          "name": "jev-1.13",
+          "display_name": "jev-1.13",
+          "modalities": {
+            "input": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 64000,
+            "output": 64000
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "type": "chat"
+        },
+        {
+          "id": "jev-latest",
+          "name": "jev-latest",
+          "display_name": "jev-latest",
+          "modalities": {
+            "input": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 64000,
+            "output": 64000
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "type": "chat"
+        },
+        {
+          "id": "jina-ocr-v1",
+          "name": "jina-ocr-v1",
+          "display_name": "jina-ocr-v1",
+          "modalities": {
+            "input": [
+              "image"
+            ]
+          },
+          "limit": {
+            "context": 32000,
+            "output": 32000
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "type": "chat"
+        },
+        {
+          "id": "glm-5.3-flashx",
+          "name": "glm-5.3-flashx",
+          "display_name": "glm-5.3-flashx",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "video"
+            ]
+          },
+          "limit": {
+            "context": 1000000,
+            "output": 1000000
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
           },
           "type": "chat"
         },
@@ -291645,6 +291450,26 @@
           "type": "chat"
         },
         {
+          "id": "gpt-live-transcribe",
+          "name": "gpt-live-transcribe",
+          "display_name": "gpt-live-transcribe",
+          "modalities": {
+            "input": [
+              "audio",
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "type": "chat"
+        },
+        {
           "id": "claude-fable-5-1",
           "name": "claude-fable-5-1",
           "display_name": "claude-fable-5-1",
@@ -291689,25 +291514,6 @@
                 "thinking.display defaults to omitted; set display to summarized to receive readable thinking summaries."
               ]
             }
-          },
-          "type": "chat"
-        },
-        {
-          "id": "gpt-live-transcribe",
-          "name": "gpt-live-transcribe",
-          "display_name": "gpt-live-transcribe",
-          "modalities": {
-            "input": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 8192,
-            "output": 8192
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
           },
           "type": "chat"
         },
@@ -291850,31 +291656,6 @@
           "type": "chat"
         },
         {
-          "id": "hy4-preview",
-          "name": "hy4-preview",
-          "display_name": "hy4-preview",
-          "modalities": {
-            "input": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 1048576,
-            "output": 1048576
-          },
-          "tool_call": true,
-          "reasoning": {
-            "supported": true,
-            "default": true
-          },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true
-            }
-          },
-          "type": "chat"
-        },
-        {
           "id": "coding-glm-5.3",
           "name": "coding-glm-5.3",
           "display_name": "coding-glm-5.3",
@@ -291913,6 +291694,60 @@
           "limit": {
             "context": 1000000,
             "output": 1000000
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true
+            }
+          },
+          "type": "chat"
+        },
+        {
+          "id": "hy4-preview",
+          "name": "hy4-preview",
+          "display_name": "hy4-preview",
+          "modalities": {
+            "input": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1048576,
+            "output": 1048576
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true
+            }
+          },
+          "type": "chat"
+        },
+        {
+          "id": "muse-spark-1.3",
+          "name": "muse-spark-1.3",
+          "display_name": "muse-spark-1.3",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "video",
+              "audio",
+              "pdf"
+            ]
+          },
+          "limit": {
+            "context": 1048576,
+            "output": 1048576
           },
           "tool_call": true,
           "reasoning": {
@@ -291979,60 +291814,6 @@
           "type": "chat"
         },
         {
-          "id": "muse-spark-1.3",
-          "name": "muse-spark-1.3",
-          "display_name": "muse-spark-1.3",
-          "modalities": {
-            "input": [
-              "text",
-              "image",
-              "video",
-              "audio",
-              "pdf"
-            ]
-          },
-          "limit": {
-            "context": 1048576,
-            "output": 1048576
-          },
-          "tool_call": true,
-          "reasoning": {
-            "supported": true,
-            "default": true
-          },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true
-            }
-          },
-          "type": "chat"
-        },
-        {
-          "id": "hy3-free",
-          "name": "hy3-free",
-          "display_name": "hy3-free",
-          "modalities": {
-            "input": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 256000,
-            "output": 256000
-          },
-          "tool_call": true,
-          "reasoning": {
-            "supported": true,
-            "default": true
-          },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true
-            }
-          },
-          "type": "chat"
-        },
-        {
           "id": "qwen3.8-flash",
           "name": "qwen3.8-flash",
           "display_name": "qwen3.8-flash",
@@ -292051,70 +291832,6 @@
           "reasoning": {
             "supported": true,
             "default": true
-          },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true
-            }
-          },
-          "type": "chat"
-        },
-        {
-          "id": "mai-image-2.6",
-          "name": "mai-image-2.6",
-          "display_name": "mai-image-2.6",
-          "modalities": {
-            "input": [
-              "text",
-              "image"
-            ]
-          },
-          "limit": {
-            "context": 32000,
-            "output": 32000
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "type": "imageGeneration"
-        },
-        {
-          "id": "mai-image-2.6-flash",
-          "name": "mai-image-2.6-flash",
-          "display_name": "mai-image-2.6-flash",
-          "modalities": {
-            "input": [
-              "text",
-              "image"
-            ]
-          },
-          "limit": {
-            "context": 32000,
-            "output": 32000
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "type": "imageGeneration"
-        },
-        {
-          "id": "minimax-m2.7-free",
-          "name": "minimax-m2.7-free",
-          "display_name": "minimax-m2.7-free",
-          "modalities": {
-            "input": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 204800,
-            "output": 204800
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": true
           },
           "extra_capabilities": {
             "reasoning": {
@@ -292167,6 +291884,46 @@
           "type": "chat"
         },
         {
+          "id": "mai-image-2.6",
+          "name": "mai-image-2.6",
+          "display_name": "mai-image-2.6",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ]
+          },
+          "limit": {
+            "context": 32000,
+            "output": 32000
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "type": "imageGeneration"
+        },
+        {
+          "id": "mai-image-2.6-flash",
+          "name": "mai-image-2.6-flash",
+          "display_name": "mai-image-2.6-flash",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ]
+          },
+          "limit": {
+            "context": 32000,
+            "output": 32000
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "type": "imageGeneration"
+        },
+        {
           "id": "minimax-h3-max",
           "name": "minimax-h3-max",
           "display_name": "minimax-h3-max",
@@ -292183,32 +291940,6 @@
           "tool_call": false,
           "reasoning": {
             "supported": false
-          },
-          "type": "chat"
-        },
-        {
-          "id": "ox-alpha",
-          "name": "ox-alpha",
-          "display_name": "ox-alpha",
-          "modalities": {
-            "input": [
-              "text",
-              "image",
-              "video"
-            ]
-          },
-          "limit": {
-            "context": 1048576,
-            "output": 1048576
-          },
-          "tool_call": true,
-          "reasoning": {
-            "supported": true
-          },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true
-            }
           },
           "type": "chat"
         },
@@ -292239,45 +291970,62 @@
           "type": "chat"
         },
         {
-          "id": "gemini-3.7-flash-free",
-          "name": "gemini-3.7-flash-free",
-          "display_name": "gemini-3.7-flash-free",
+          "id": "agents-a1-free",
+          "name": "agents-a1-free",
+          "display_name": "agents-a1-free",
           "modalities": {
             "input": [
               "text",
-              "image",
-              "video",
-              "audio",
-              "pdf"
+              "image"
             ]
           },
           "limit": {
-            "context": 1048576,
-            "output": 1048576
+            "context": 262144,
+            "output": 262144
           },
-          "tool_call": true,
+          "tool_call": false,
           "reasoning": {
-            "supported": true,
-            "default": true
+            "supported": false
           },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true,
-              "default_enabled": true,
-              "mode": "level",
-              "level": "high",
-              "level_options": [
-                "minimal",
-                "low",
-                "medium",
-                "high"
-              ],
-              "summaries": true,
-              "visibility": "summary",
-              "continuation": [
-                "thought_signatures"
-              ]
-            }
+          "type": "chat"
+        },
+        {
+          "id": "intern-s2-free",
+          "name": "intern-s2-free",
+          "display_name": "intern-s2-free",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ]
+          },
+          "limit": {
+            "context": 262144,
+            "output": 262144
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "type": "chat"
+        },
+        {
+          "id": "union-alpha-free",
+          "name": "union-alpha-free",
+          "display_name": "union-alpha-free",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ]
+          },
+          "limit": {
+            "context": 262144,
+            "output": 262144
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
           },
           "type": "chat"
         },
@@ -292400,6 +292148,33 @@
           "type": "chat"
         },
         {
+          "id": "dots-3-note-preview-free",
+          "name": "dots-3-note-preview-free",
+          "display_name": "dots-3-note-preview-free",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "video",
+              "audio"
+            ]
+          },
+          "limit": {
+            "context": 524288,
+            "output": 524288
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true
+            }
+          },
+          "type": "chat"
+        },
+        {
           "id": "grok-4.6",
           "name": "grok-4.6",
           "display_name": "grok-4.6",
@@ -292412,6 +292187,106 @@
           "limit": {
             "context": 500000,
             "output": 500000
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true
+            }
+          },
+          "type": "chat"
+        },
+        {
+          "id": "hy3-free",
+          "name": "hy3-free",
+          "display_name": "hy3-free",
+          "modalities": {
+            "input": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 256000,
+            "output": 256000
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true
+            }
+          },
+          "type": "chat"
+        },
+        {
+          "id": "minimax-m2.7-free",
+          "name": "minimax-m2.7-free",
+          "display_name": "minimax-m2.7-free",
+          "modalities": {
+            "input": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 204800,
+            "output": 204800
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true
+            }
+          },
+          "type": "chat"
+        },
+        {
+          "id": "ox-alpha",
+          "name": "ox-alpha",
+          "display_name": "ox-alpha",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "video"
+            ]
+          },
+          "limit": {
+            "context": 1048576,
+            "output": 1048576
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true
+            }
+          },
+          "type": "chat"
+        },
+        {
+          "id": "deepseek-v4-flash-0731-fast",
+          "name": "deepseek-v4-flash-0731-fast",
+          "display_name": "deepseek-v4-flash-0731-fast",
+          "modalities": {
+            "input": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1000000,
+            "output": 1000000
           },
           "tool_call": true,
           "reasoning": {
@@ -292495,31 +292370,6 @@
           "tool_call": false,
           "reasoning": {
             "supported": false
-          },
-          "type": "chat"
-        },
-        {
-          "id": "deepseek-v4-flash-0731-fast",
-          "name": "deepseek-v4-flash-0731-fast",
-          "display_name": "deepseek-v4-flash-0731-fast",
-          "modalities": {
-            "input": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 1000000,
-            "output": 1000000
-          },
-          "tool_call": true,
-          "reasoning": {
-            "supported": true,
-            "default": true
-          },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true
-            }
           },
           "type": "chat"
         },
@@ -292756,78 +292606,6 @@
           "type": "chat"
         },
         {
-          "id": "grok-4.5",
-          "name": "grok-4.5",
-          "display_name": "grok-4.5",
-          "modalities": {
-            "input": [
-              "text",
-              "image"
-            ]
-          },
-          "limit": {
-            "context": 500000,
-            "output": 500000
-          },
-          "tool_call": true,
-          "reasoning": {
-            "supported": true,
-            "default": true
-          },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true
-            }
-          },
-          "type": "chat"
-        },
-        {
-          "id": "lfm-2.5-2.6b-free",
-          "name": "lfm-2.5-2.6b-free",
-          "display_name": "lfm-2.5-2.6b-free",
-          "modalities": {
-            "input": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 131072,
-            "output": 131072
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": true
-          },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true
-            }
-          },
-          "type": "chat"
-        },
-        {
-          "id": "minimax-h3",
-          "name": "minimax-h3",
-          "display_name": "minimax-h3",
-          "modalities": {
-            "input": [
-              "text",
-              "image",
-              "video",
-              "audio"
-            ]
-          },
-          "limit": {
-            "context": 8192,
-            "output": 8192
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "type": "chat"
-        },
-        {
           "id": "agnes-2.5-flash",
           "name": "agnes-2.5-flash",
           "display_name": "agnes-2.5-flash",
@@ -292926,19 +292704,18 @@
           "type": "imageGeneration"
         },
         {
-          "id": "claude-opus-5",
-          "name": "claude-opus-5",
-          "display_name": "claude-opus-5",
+          "id": "grok-4.5",
+          "name": "grok-4.5",
+          "display_name": "grok-4.5",
           "modalities": {
             "input": [
               "text",
-              "image",
-              "pdf"
+              "image"
             ]
           },
           "limit": {
-            "context": 1000000,
-            "output": 1000000
+            "context": 500000,
+            "output": 500000
           },
           "tool_call": true,
           "reasoning": {
@@ -292949,6 +292726,52 @@
             "reasoning": {
               "supported": true
             }
+          },
+          "type": "chat"
+        },
+        {
+          "id": "lfm-2.5-2.6b-free",
+          "name": "lfm-2.5-2.6b-free",
+          "display_name": "lfm-2.5-2.6b-free",
+          "modalities": {
+            "input": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 131072,
+            "output": 131072
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true
+            }
+          },
+          "type": "chat"
+        },
+        {
+          "id": "minimax-h3",
+          "name": "minimax-h3",
+          "display_name": "minimax-h3",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "video",
+              "audio"
+            ]
+          },
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
           },
           "type": "chat"
         },
@@ -293084,9 +292907,9 @@
           "type": "chat"
         },
         {
-          "id": "claude-sonnet-5",
-          "name": "claude-sonnet-5",
-          "display_name": "claude-sonnet-5",
+          "id": "claude-opus-5",
+          "name": "claude-opus-5",
+          "display_name": "claude-opus-5",
           "modalities": {
             "input": [
               "text",
@@ -293111,14 +292934,14 @@
           "type": "chat"
         },
         {
-          "id": "qwen3.8-max-preview",
-          "name": "qwen3.8-max-preview",
-          "display_name": "qwen3.8-max-preview",
+          "id": "claude-sonnet-5",
+          "name": "claude-sonnet-5",
+          "display_name": "claude-sonnet-5",
           "modalities": {
             "input": [
               "text",
               "image",
-              "video"
+              "pdf"
             ]
           },
           "limit": {
@@ -293204,6 +293027,33 @@
           "limit": {
             "context": 1048576,
             "output": 1048576
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true
+            }
+          },
+          "type": "chat"
+        },
+        {
+          "id": "qwen3.8-max-preview",
+          "name": "qwen3.8-max-preview",
+          "display_name": "qwen3.8-max-preview",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "video"
+            ]
+          },
+          "limit": {
+            "context": 1000000,
+            "output": 1000000
           },
           "tool_call": true,
           "reasoning": {
@@ -293338,78 +293188,6 @@
           "type": "chat"
         },
         {
-          "id": "gemini-3.5-flash-lite-free",
-          "name": "gemini-3.5-flash-lite-free",
-          "display_name": "gemini-3.5-flash-lite-free",
-          "modalities": {
-            "input": [
-              "text",
-              "image",
-              "video",
-              "audio",
-              "pdf"
-            ]
-          },
-          "limit": {
-            "context": 1048576,
-            "output": 1048576
-          },
-          "tool_call": true,
-          "reasoning": {
-            "supported": true,
-            "default": true
-          },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true
-            }
-          },
-          "type": "chat"
-        },
-        {
-          "id": "gemini-3.6-flash-free",
-          "name": "gemini-3.6-flash-free",
-          "display_name": "gemini-3.6-flash-free",
-          "modalities": {
-            "input": [
-              "text",
-              "image",
-              "video",
-              "audio",
-              "pdf"
-            ]
-          },
-          "limit": {
-            "context": 1048576,
-            "output": 1048576
-          },
-          "tool_call": true,
-          "reasoning": {
-            "supported": true,
-            "default": true
-          },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true,
-              "default_enabled": true,
-              "mode": "level",
-              "level": "high",
-              "level_options": [
-                "minimal",
-                "low",
-                "medium",
-                "high"
-              ],
-              "summaries": true,
-              "visibility": "summary",
-              "continuation": [
-                "thought_signatures"
-              ]
-            }
-          },
-          "type": "chat"
-        },
-        {
           "id": "glm-5.2-fast-preview",
           "name": "glm-5.2-fast-preview",
           "display_name": "glm-5.2-fast-preview",
@@ -293433,25 +293211,6 @@
             }
           },
           "type": "chat"
-        },
-        {
-          "id": "jina-reranker-v3.5",
-          "name": "jina-reranker-v3.5",
-          "display_name": "jina-reranker-v3.5",
-          "modalities": {
-            "input": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 131072,
-            "output": 131072
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "type": "rerank"
         },
         {
           "id": "claude-fable-5",
@@ -293502,6 +293261,50 @@
           "type": "chat"
         },
         {
+          "id": "jina-reranker-v3.5",
+          "name": "jina-reranker-v3.5",
+          "display_name": "jina-reranker-v3.5",
+          "modalities": {
+            "input": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 131072,
+            "output": 131072
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "type": "rerank"
+        },
+        {
+          "id": "hy3",
+          "name": "hy3",
+          "display_name": "hy3",
+          "modalities": {
+            "input": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 256000,
+            "output": 256000
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true
+            }
+          },
+          "type": "chat"
+        },
+        {
           "id": "claude-opus-4-8",
           "name": "claude-opus-4-8",
           "display_name": "claude-opus-4-8",
@@ -293545,31 +293348,6 @@
                 "Manual budget_tokens requests return 400 on Claude Opus 4.7 and newer adaptive-only Opus models.",
                 "task_budget is separate from thinking control and should not be treated as a thinking budget."
               ]
-            }
-          },
-          "type": "chat"
-        },
-        {
-          "id": "hy3",
-          "name": "hy3",
-          "display_name": "hy3",
-          "modalities": {
-            "input": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 256000,
-            "output": 256000
-          },
-          "tool_call": true,
-          "reasoning": {
-            "supported": true,
-            "default": true
-          },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true
             }
           },
           "type": "chat"
@@ -293760,6 +293538,33 @@
           "type": "chat"
         },
         {
+          "id": "coding-kimi-k3",
+          "name": "coding-kimi-k3",
+          "display_name": "coding-kimi-k3",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "video"
+            ]
+          },
+          "limit": {
+            "context": 1048576,
+            "output": 1048576
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true
+            }
+          },
+          "type": "chat"
+        },
+        {
           "id": "happyhorse-1.1-i2v",
           "name": "happyhorse-1.1-i2v",
           "display_name": "happyhorse-1.1-i2v",
@@ -293819,33 +293624,6 @@
           "type": "chat"
         },
         {
-          "id": "coding-kimi-k3",
-          "name": "coding-kimi-k3",
-          "display_name": "coding-kimi-k3",
-          "modalities": {
-            "input": [
-              "text",
-              "image",
-              "video"
-            ]
-          },
-          "limit": {
-            "context": 1048576,
-            "output": 1048576
-          },
-          "tool_call": true,
-          "reasoning": {
-            "supported": true,
-            "default": true
-          },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true
-            }
-          },
-          "type": "chat"
-        },
-        {
           "id": "coding-glm-5.2-free",
           "name": "coding-glm-5.2-free",
           "display_name": "coding-glm-5.2-free",
@@ -293896,6 +293674,34 @@
             }
           },
           "type": "chat"
+        },
+        {
+          "id": "gemini-3.1-flash-image",
+          "name": "gemini-3.1-flash-image",
+          "display_name": "gemini-3.1-flash-image",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "pdf",
+              "video"
+            ]
+          },
+          "limit": {
+            "context": 131072,
+            "output": 131072
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true
+            }
+          },
+          "type": "imageGeneration"
         },
         {
           "id": "gpt-oss-20b-free",
@@ -293974,123 +293780,6 @@
             }
           },
           "type": "chat"
-        },
-        {
-          "id": "gemini-3.1-flash-image",
-          "name": "gemini-3.1-flash-image",
-          "display_name": "gemini-3.1-flash-image",
-          "modalities": {
-            "input": [
-              "text",
-              "image",
-              "pdf",
-              "video"
-            ]
-          },
-          "limit": {
-            "context": 131072,
-            "output": 131072
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": true,
-            "default": true
-          },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true
-            }
-          },
-          "type": "imageGeneration"
-        },
-        {
-          "id": "gemini-3-pro-image",
-          "name": "gemini-3-pro-image",
-          "display_name": "gemini-3-pro-image",
-          "modalities": {
-            "input": [
-              "text",
-              "image"
-            ]
-          },
-          "limit": {
-            "context": 65536,
-            "output": 65536
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": true,
-            "default": true
-          },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true,
-              "default_enabled": true,
-              "mode": "level",
-              "level": "high",
-              "level_options": [
-                "low",
-                "high"
-              ],
-              "summaries": true,
-              "visibility": "summary",
-              "continuation": [
-                "thought_signatures"
-              ]
-            }
-          },
-          "type": "imageGeneration"
-        },
-        {
-          "id": "gpt-4o-transcribe-diarize",
-          "name": "gpt-4o-transcribe-diarize",
-          "display_name": "gpt-4o-transcribe-diarize",
-          "modalities": {
-            "input": [
-              "text",
-              "audio"
-            ]
-          },
-          "limit": {
-            "context": 16000,
-            "output": 16000
-          },
-          "tool_call": true,
-          "reasoning": {
-            "supported": true,
-            "default": true
-          },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true
-            }
-          },
-          "type": "chat"
-        },
-        {
-          "id": "gpt-audio-1.5",
-          "name": "gpt-audio-1.5",
-          "display_name": "gpt-audio-1.5",
-          "modalities": {
-            "input": [
-              "text",
-              "audio"
-            ]
-          },
-          "limit": {
-            "context": 128000,
-            "output": 128000
-          },
-          "tool_call": true,
-          "reasoning": {
-            "supported": true,
-            "default": true
-          },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true
-            }
-          }
         },
         {
           "id": "hy-3d-3.1",
@@ -294204,6 +293893,170 @@
           "type": "chat"
         },
         {
+          "id": "gemini-3-pro-image",
+          "name": "gemini-3-pro-image",
+          "display_name": "gemini-3-pro-image",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ]
+          },
+          "limit": {
+            "context": 65536,
+            "output": 65536
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true,
+              "mode": "level",
+              "level": "high",
+              "level_options": [
+                "low",
+                "high"
+              ],
+              "summaries": true,
+              "visibility": "summary",
+              "continuation": [
+                "thought_signatures"
+              ]
+            }
+          },
+          "type": "imageGeneration"
+        },
+        {
+          "id": "gpt-4o-transcribe-diarize",
+          "name": "gpt-4o-transcribe-diarize",
+          "display_name": "gpt-4o-transcribe-diarize",
+          "modalities": {
+            "input": [
+              "text",
+              "audio"
+            ]
+          },
+          "limit": {
+            "context": 16000,
+            "output": 16000
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true
+            }
+          },
+          "type": "chat"
+        },
+        {
+          "id": "gpt-audio-1.5",
+          "name": "gpt-audio-1.5",
+          "display_name": "gpt-audio-1.5",
+          "modalities": {
+            "input": [
+              "text",
+              "audio"
+            ]
+          },
+          "limit": {
+            "context": 128000,
+            "output": 128000
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true
+            }
+          }
+        },
+        {
+          "id": "qwen3.7-flash",
+          "name": "qwen3.7-flash",
+          "display_name": "qwen3.7-flash",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "video"
+            ]
+          },
+          "limit": {
+            "context": 1000000,
+            "output": 1000000
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true
+            }
+          },
+          "type": "chat"
+        },
+        {
+          "id": "qwen3.7-plus",
+          "name": "qwen3.7-plus",
+          "display_name": "qwen3.7-plus",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "video"
+            ]
+          },
+          "limit": {
+            "context": 1000000,
+            "output": 1000000
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true
+            }
+          },
+          "type": "chat"
+        },
+        {
+          "id": "step-3.7-flash",
+          "name": "step-3.7-flash",
+          "display_name": "step-3.7-flash",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "video"
+            ]
+          },
+          "limit": {
+            "context": 256000,
+            "output": 256000
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "type": "chat"
+        },
+        {
           "id": "hy3-preview",
           "name": "hy3-preview",
           "display_name": "hy3-preview",
@@ -294282,77 +294135,26 @@
           "type": "chat"
         },
         {
-          "id": "qwen3.7-flash",
-          "name": "qwen3.7-flash",
-          "display_name": "qwen3.7-flash",
+          "id": "nemotron-3-super-120b-a12b-free",
+          "name": "nemotron-3-super-120b-a12b-free",
+          "display_name": "nemotron-3-super-120b-a12b-free",
           "modalities": {
             "input": [
-              "text",
-              "image",
-              "video"
+              "text"
             ]
           },
           "limit": {
-            "context": 1000000,
-            "output": 1000000
+            "context": 1048576,
+            "output": 1048576
           },
           "tool_call": true,
           "reasoning": {
-            "supported": true,
-            "default": true
+            "supported": true
           },
           "extra_capabilities": {
             "reasoning": {
               "supported": true
             }
-          },
-          "type": "chat"
-        },
-        {
-          "id": "qwen3.7-plus",
-          "name": "qwen3.7-plus",
-          "display_name": "qwen3.7-plus",
-          "modalities": {
-            "input": [
-              "text",
-              "image",
-              "video"
-            ]
-          },
-          "limit": {
-            "context": 1000000,
-            "output": 1000000
-          },
-          "tool_call": true,
-          "reasoning": {
-            "supported": true,
-            "default": true
-          },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true
-            }
-          },
-          "type": "chat"
-        },
-        {
-          "id": "step-3.7-flash",
-          "name": "step-3.7-flash",
-          "display_name": "step-3.7-flash",
-          "modalities": {
-            "input": [
-              "text",
-              "image",
-              "video"
-            ]
-          },
-          "limit": {
-            "context": 256000,
-            "output": 256000
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
           },
           "type": "chat"
         },
@@ -294400,30 +294202,6 @@
                 "Manual budget_tokens requests return 400 on Claude Opus 4.7 and newer adaptive-only Opus models.",
                 "task_budget is separate from thinking control and should not be treated as a thinking budget."
               ]
-            }
-          },
-          "type": "chat"
-        },
-        {
-          "id": "nemotron-3-super-120b-a12b-free",
-          "name": "nemotron-3-super-120b-a12b-free",
-          "display_name": "nemotron-3-super-120b-a12b-free",
-          "modalities": {
-            "input": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 1048576,
-            "output": 1048576
-          },
-          "tool_call": true,
-          "reasoning": {
-            "supported": true
-          },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true
             }
           },
           "type": "chat"
@@ -294680,6 +294458,31 @@
           "type": "chat"
         },
         {
+          "id": "coding-glm-5.2",
+          "name": "coding-glm-5.2",
+          "display_name": "coding-glm-5.2",
+          "modalities": {
+            "input": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1000000,
+            "output": 1000000
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true
+            }
+          },
+          "type": "chat"
+        },
+        {
           "id": "ernie-5.1",
           "name": "ernie-5.1",
           "display_name": "ernie-5.1",
@@ -294763,55 +294566,6 @@
           "type": "chat"
         },
         {
-          "id": "coding-glm-5.2",
-          "name": "coding-glm-5.2",
-          "display_name": "coding-glm-5.2",
-          "modalities": {
-            "input": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 1000000,
-            "output": 1000000
-          },
-          "tool_call": true,
-          "reasoning": {
-            "supported": true,
-            "default": true
-          },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true
-            }
-          },
-          "type": "chat"
-        },
-        {
-          "id": "laguna-xs-2.1-free",
-          "name": "laguna-xs-2.1-free",
-          "display_name": "laguna-xs-2.1-free",
-          "modalities": {
-            "input": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 262144,
-            "output": 262144
-          },
-          "tool_call": true,
-          "reasoning": {
-            "supported": true
-          },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true
-            }
-          },
-          "type": "chat"
-        },
-        {
           "id": "gpt-5.5",
           "name": "gpt-5.5",
           "display_name": "gpt-5.5",
@@ -294872,6 +294626,30 @@
           "reasoning": {
             "supported": true,
             "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true
+            }
+          },
+          "type": "chat"
+        },
+        {
+          "id": "laguna-xs-2.1-free",
+          "name": "laguna-xs-2.1-free",
+          "display_name": "laguna-xs-2.1-free",
+          "modalities": {
+            "input": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 262144,
+            "output": 262144
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": true
           },
           "extra_capabilities": {
             "reasoning": {
@@ -294965,32 +294743,6 @@
           "type": "chat"
         },
         {
-          "id": "gemma-4-31b-it-free",
-          "name": "gemma-4-31b-it-free",
-          "display_name": "gemma-4-31b-it-free",
-          "modalities": {
-            "input": [
-              "text",
-              "image",
-              "video"
-            ]
-          },
-          "limit": {
-            "context": 262144,
-            "output": 262144
-          },
-          "tool_call": true,
-          "reasoning": {
-            "supported": true
-          },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true
-            }
-          },
-          "type": "chat"
-        },
-        {
           "id": "doubao-seedream-5.0-pro",
           "name": "doubao-seedream-5.0-pro",
           "display_name": "doubao-seedream-5.0-pro",
@@ -295032,63 +294784,6 @@
           "extra_capabilities": {
             "reasoning": {
               "supported": true
-            }
-          },
-          "type": "chat"
-        },
-        {
-          "id": "command-a-plus-05-2026",
-          "name": "command-a-plus-05-2026",
-          "display_name": "command-a-plus-05-2026",
-          "modalities": {
-            "input": [
-              "text",
-              "image"
-            ]
-          },
-          "limit": {
-            "context": 128000,
-            "output": 128000
-          },
-          "tool_call": true,
-          "reasoning": {
-            "supported": true,
-            "default": true
-          },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true
-            }
-          },
-          "type": "chat"
-        },
-        {
-          "id": "qwen3.6-max-preview",
-          "name": "qwen3.6-max-preview",
-          "display_name": "qwen3.6-max-preview",
-          "modalities": {
-            "input": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 262144,
-            "output": 262144
-          },
-          "tool_call": true,
-          "reasoning": {
-            "supported": true,
-            "default": true
-          },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true,
-              "interleaved": true,
-              "summaries": true,
-              "visibility": "summary",
-              "continuation": [
-                "thinking_blocks"
-              ]
             }
           },
           "type": "chat"
@@ -295182,6 +294877,162 @@
           "tool_call": false,
           "reasoning": {
             "supported": false
+          },
+          "type": "chat"
+        },
+        {
+          "id": "command-a-plus-05-2026",
+          "name": "command-a-plus-05-2026",
+          "display_name": "command-a-plus-05-2026",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ]
+          },
+          "limit": {
+            "context": 128000,
+            "output": 128000
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true
+            }
+          },
+          "type": "chat"
+        },
+        {
+          "id": "qwen3.6-max-preview",
+          "name": "qwen3.6-max-preview",
+          "display_name": "qwen3.6-max-preview",
+          "modalities": {
+            "input": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 262144,
+            "output": 262144
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "interleaved": true,
+              "summaries": true,
+              "visibility": "summary",
+              "continuation": [
+                "thinking_blocks"
+              ]
+            }
+          },
+          "type": "chat"
+        },
+        {
+          "id": "qwen3.6-27b",
+          "name": "qwen3.6-27b",
+          "display_name": "qwen3.6-27b",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "video"
+            ]
+          },
+          "limit": {
+            "context": 262144,
+            "output": 262144
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "interleaved": true,
+              "summaries": true,
+              "visibility": "summary",
+              "continuation": [
+                "thinking_blocks"
+              ]
+            }
+          },
+          "type": "chat"
+        },
+        {
+          "id": "qwen3.6-35b-a3b",
+          "name": "qwen3.6-35b-a3b",
+          "display_name": "qwen3.6-35b-a3b",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "video"
+            ]
+          },
+          "limit": {
+            "context": 262144,
+            "output": 262144
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "interleaved": true,
+              "summaries": true,
+              "visibility": "summary",
+              "continuation": [
+                "thinking_blocks"
+              ]
+            }
+          },
+          "type": "chat"
+        },
+        {
+          "id": "qwen3.6-flash",
+          "name": "qwen3.6-flash",
+          "display_name": "qwen3.6-flash",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "video"
+            ]
+          },
+          "limit": {
+            "context": 1000000,
+            "output": 1000000
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "interleaved": true,
+              "summaries": true,
+              "visibility": "summary",
+              "continuation": [
+                "thinking_blocks"
+              ]
+            }
           },
           "type": "chat"
         },
@@ -295332,103 +295183,42 @@
           "type": "chat"
         },
         {
-          "id": "qwen3.6-27b",
-          "name": "qwen3.6-27b",
-          "display_name": "qwen3.6-27b",
+          "id": "cohere-rerank-v4.0-fast",
+          "name": "cohere-rerank-v4.0-fast",
+          "display_name": "cohere-rerank-v4.0-fast",
           "modalities": {
             "input": [
-              "text",
-              "image",
-              "video"
+              "text"
             ]
           },
           "limit": {
-            "context": 262144,
-            "output": 262144
+            "context": 32768,
+            "output": 32768
           },
-          "tool_call": true,
+          "tool_call": false,
           "reasoning": {
-            "supported": true,
-            "default": true
+            "supported": false
           },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true,
-              "interleaved": true,
-              "summaries": true,
-              "visibility": "summary",
-              "continuation": [
-                "thinking_blocks"
-              ]
-            }
-          },
-          "type": "chat"
+          "type": "rerank"
         },
         {
-          "id": "qwen3.6-35b-a3b",
-          "name": "qwen3.6-35b-a3b",
-          "display_name": "qwen3.6-35b-a3b",
+          "id": "cohere-rerank-v4.0-pro",
+          "name": "cohere-rerank-v4.0-pro",
+          "display_name": "cohere-rerank-v4.0-pro",
           "modalities": {
             "input": [
-              "text",
-              "image",
-              "video"
+              "text"
             ]
           },
           "limit": {
-            "context": 262144,
-            "output": 262144
+            "context": 32768,
+            "output": 32768
           },
-          "tool_call": true,
+          "tool_call": false,
           "reasoning": {
-            "supported": true,
-            "default": true
+            "supported": false
           },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true,
-              "interleaved": true,
-              "summaries": true,
-              "visibility": "summary",
-              "continuation": [
-                "thinking_blocks"
-              ]
-            }
-          },
-          "type": "chat"
-        },
-        {
-          "id": "qwen3.6-flash",
-          "name": "qwen3.6-flash",
-          "display_name": "qwen3.6-flash",
-          "modalities": {
-            "input": [
-              "text",
-              "image",
-              "video"
-            ]
-          },
-          "limit": {
-            "context": 1000000,
-            "output": 1000000
-          },
-          "tool_call": true,
-          "reasoning": {
-            "supported": true,
-            "default": true
-          },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true,
-              "interleaved": true,
-              "summaries": true,
-              "visibility": "summary",
-              "continuation": [
-                "thinking_blocks"
-              ]
-            }
-          },
-          "type": "chat"
+          "type": "rerank"
         },
         {
           "id": "grok-4-20-non-reasoning",
@@ -295521,70 +295311,6 @@
             "supported": false
           },
           "type": "imageGeneration"
-        },
-        {
-          "id": "gemma-4-26b-a4b-it-free",
-          "name": "gemma-4-26b-a4b-it-free",
-          "display_name": "gemma-4-26b-a4b-it-free",
-          "modalities": {
-            "input": [
-              "text",
-              "image",
-              "video"
-            ]
-          },
-          "limit": {
-            "context": 262144,
-            "output": 262144
-          },
-          "tool_call": true,
-          "reasoning": {
-            "supported": true
-          },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true
-            }
-          },
-          "type": "chat"
-        },
-        {
-          "id": "cohere-rerank-v4.0-fast",
-          "name": "cohere-rerank-v4.0-fast",
-          "display_name": "cohere-rerank-v4.0-fast",
-          "modalities": {
-            "input": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 32768,
-            "output": 32768
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "type": "rerank"
-        },
-        {
-          "id": "cohere-rerank-v4.0-pro",
-          "name": "cohere-rerank-v4.0-pro",
-          "display_name": "cohere-rerank-v4.0-pro",
-          "modalities": {
-            "input": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 32768,
-            "output": 32768
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "type": "rerank"
         },
         {
           "id": "coding-minimax-m3-free",
@@ -295857,12 +295583,7 @@
           },
           "tool_call": false,
           "reasoning": {
-            "supported": true
-          },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true
-            }
+            "supported": false
           },
           "type": "chat"
         },
@@ -295883,12 +295604,7 @@
           },
           "tool_call": false,
           "reasoning": {
-            "supported": true
-          },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true
-            }
+            "supported": false
           },
           "type": "chat"
         },
@@ -297626,31 +297342,6 @@
           "type": "imageGeneration"
         },
         {
-          "id": "gemini-3.1-flash-image-preview-free",
-          "name": "gemini-3.1-flash-image-preview-free",
-          "display_name": "gemini-3.1-flash-image-preview-free",
-          "modalities": {
-            "input": [
-              "text",
-              "image"
-            ]
-          },
-          "limit": {
-            "context": 8192,
-            "output": 8192
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": true
-          },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true
-            }
-          },
-          "type": "imageGeneration"
-        },
-        {
           "id": "mimo-v2-omni",
           "name": "mimo-v2-omni",
           "display_name": "mimo-v2-omni",
@@ -297830,49 +297521,6 @@
           "tool_call": false,
           "reasoning": {
             "supported": false
-          },
-          "type": "chat"
-        },
-        {
-          "id": "gemini-3-flash-preview-free",
-          "name": "gemini-3-flash-preview-free",
-          "display_name": "gemini-3-flash-preview-free",
-          "modalities": {
-            "input": [
-              "text",
-              "image",
-              "video",
-              "audio",
-              "pdf"
-            ]
-          },
-          "limit": {
-            "context": 1048576,
-            "output": 1048576
-          },
-          "tool_call": true,
-          "reasoning": {
-            "supported": true,
-            "default": true
-          },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true,
-              "default_enabled": true,
-              "mode": "level",
-              "level": "high",
-              "level_options": [
-                "minimal",
-                "low",
-                "medium",
-                "high"
-              ],
-              "summaries": true,
-              "visibility": "summary",
-              "continuation": [
-                "thought_signatures"
-              ]
-            }
           },
           "type": "chat"
         },
@@ -305084,26 +304732,6 @@
           "type": "embedding"
         },
         {
-          "id": "BAAI/bge-reranker-v2-m3",
-          "name": "BAAI/bge-reranker-v2-m3",
-          "display_name": "BAAI/bge-reranker-v2-m3",
-          "modalities": {
-            "input": [
-              "text",
-              "image"
-            ]
-          },
-          "limit": {
-            "context": 8192,
-            "output": 8192
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "type": "rerank"
-        },
-        {
           "id": "V3",
           "name": "V3",
           "display_name": "V3",
@@ -307465,20 +307093,6 @@
           "type": "chat"
         },
         {
-          "id": "alicloud-kimi-k2.5",
-          "name": "alicloud-kimi-k2.5",
-          "display_name": "alicloud-kimi-k2.5",
-          "limit": {
-            "context": 256000,
-            "output": 256000
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "type": "chat"
-        },
-        {
           "id": "alicloud-minimax-m2.5",
           "name": "alicloud-minimax-m2.5",
           "display_name": "alicloud-minimax-m2.5",
@@ -307539,20 +307153,6 @@
           "limit": {
             "context": 8192,
             "output": 8192
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "type": "chat"
-        },
-        {
-          "id": "azure-kimi-k2.5",
-          "name": "azure-kimi-k2.5",
-          "display_name": "azure-kimi-k2.5",
-          "limit": {
-            "context": 256000,
-            "output": 256000
           },
           "tool_call": false,
           "reasoning": {
@@ -308091,6 +307691,62 @@
           "type": "chat"
         },
         {
+          "id": "deepseek-ai/DeepSeek-R1-Distill-Llama-8B",
+          "name": "deepseek-ai/DeepSeek-R1-Distill-Llama-8B",
+          "display_name": "deepseek-ai/DeepSeek-R1-Distill-Llama-8B",
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "type": "chat"
+        },
+        {
+          "id": "deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B",
+          "name": "deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B",
+          "display_name": "deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B",
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "type": "chat"
+        },
+        {
+          "id": "qwen2.5-3b-instruct",
+          "name": "qwen2.5-3b-instruct",
+          "display_name": "qwen2.5-3b-instruct",
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "type": "chat"
+        },
+        {
+          "id": "qwen2.5-72b-instruct",
+          "name": "qwen2.5-72b-instruct",
+          "display_name": "qwen2.5-72b-instruct",
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "type": "chat"
+        },
+        {
           "id": "qwen2.5-7b-instruct",
           "name": "qwen2.5-7b-instruct",
           "display_name": "qwen2.5-7b-instruct",
@@ -308546,34 +308202,6 @@
               "audio"
             ]
           },
-          "limit": {
-            "context": 8192,
-            "output": 8192
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "type": "chat"
-        },
-        {
-          "id": "deepseek-ai/DeepSeek-R1-Distill-Llama-8B",
-          "name": "deepseek-ai/DeepSeek-R1-Distill-Llama-8B",
-          "display_name": "deepseek-ai/DeepSeek-R1-Distill-Llama-8B",
-          "limit": {
-            "context": 8192,
-            "output": 8192
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "type": "chat"
-        },
-        {
-          "id": "deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B",
-          "name": "deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B",
-          "display_name": "deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B",
           "limit": {
             "context": 8192,
             "output": 8192
@@ -309731,20 +309359,6 @@
           "type": "chat"
         },
         {
-          "id": "moonshot-kimi-k2.5",
-          "name": "moonshot-kimi-k2.5",
-          "display_name": "moonshot-kimi-k2.5",
-          "limit": {
-            "context": 8192,
-            "output": 8192
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "type": "chat"
-        },
-        {
           "id": "moonshot-v1-128k",
           "name": "moonshot-v1-128k",
           "display_name": "moonshot-v1-128k",
@@ -310069,34 +309683,6 @@
           "id": "qwen2.5-32b-instruct",
           "name": "qwen2.5-32b-instruct",
           "display_name": "qwen2.5-32b-instruct",
-          "limit": {
-            "context": 8192,
-            "output": 8192
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "type": "chat"
-        },
-        {
-          "id": "qwen2.5-3b-instruct",
-          "name": "qwen2.5-3b-instruct",
-          "display_name": "qwen2.5-3b-instruct",
-          "limit": {
-            "context": 8192,
-            "output": 8192
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "type": "chat"
-        },
-        {
-          "id": "qwen2.5-72b-instruct",
-          "name": "qwen2.5-72b-instruct",
-          "display_name": "qwen2.5-72b-instruct",
           "limit": {
             "context": 8192,
             "output": 8192
@@ -312151,8 +311737,8 @@
             ]
           },
           "limit": {
-            "context": 128000,
-            "output": 16000
+            "context": 163840,
+            "output": 16384
           },
           "tool_call": true,
           "reasoning": {
@@ -312474,6 +312060,29 @@
           "type": "chat"
         },
         {
+          "id": "deepseek/deepseek-v4-flash-0731:free",
+          "name": "DeepSeek: DeepSeek V4 Flash 0731 (free)",
+          "display_name": "DeepSeek: DeepSeek V4 Flash 0731 (free)",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1048576,
+            "output": 393216
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "type": "chat"
+        },
+        {
           "id": "deepseek/deepseek-v4-flash-vision-exp",
           "name": "DeepSeek: DeepSeek V4 Flash Vision Exp",
           "display_name": "DeepSeek: DeepSeek V4 Flash Vision Exp",
@@ -312488,7 +312097,7 @@
           },
           "limit": {
             "context": 1048576,
-            "output": 943718
+            "output": 262144
           },
           "tool_call": true,
           "reasoning": {
@@ -314068,11 +313677,6 @@
             "supported": true,
             "default": true
           },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true
-            }
-          },
           "type": "chat"
         },
         {
@@ -314124,11 +313728,6 @@
           "reasoning": {
             "supported": true,
             "default": true
-          },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true
-            }
           },
           "type": "chat"
         },
@@ -315506,31 +315105,6 @@
           "limit": {
             "context": 131072,
             "output": 104857
-          },
-          "temperature": true,
-          "tool_call": true,
-          "reasoning": {
-            "supported": false
-          },
-          "attachment": true,
-          "type": "chat"
-        },
-        {
-          "id": "mistralai/mistral-large-2512",
-          "name": "Mistral: Mistral Large 3 2512",
-          "display_name": "Mistral: Mistral Large 3 2512",
-          "modalities": {
-            "input": [
-              "text",
-              "image"
-            ],
-            "output": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 262144,
-            "output": 209715
           },
           "temperature": true,
           "tool_call": true,
@@ -319025,7 +318599,7 @@
           },
           "limit": {
             "context": 131072,
-            "output": 117964
+            "output": 65536
           },
           "tool_call": true,
           "reasoning": {
@@ -321455,6 +321029,32 @@
           "type": "chat"
         },
         {
+          "id": "qwen/qwen3.8-27b:free",
+          "name": "Qwen: Qwen3.8 27B (free)",
+          "display_name": "Qwen: Qwen3.8 27B (free)",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "video"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 262144,
+            "output": 235929
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "type": "chat"
+        },
+        {
           "id": "qwen/qwen3.8-flash",
           "name": "Qwen: Qwen3.8 Flash",
           "display_name": "Qwen: Qwen3.8 Flash",
@@ -321760,29 +321360,6 @@
             "output": 16384
           },
           "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "type": "chat"
-        },
-        {
-          "id": "stealth/union-alpha",
-          "name": "Union Alpha",
-          "display_name": "Union Alpha",
-          "modalities": {
-            "input": [
-              "text",
-              "image"
-            ],
-            "output": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 262144,
-            "output": 131072
-          },
-          "tool_call": true,
           "reasoning": {
             "supported": false
           },
@@ -322199,6 +321776,29 @@
           "reasoning": {
             "supported": true,
             "default": true
+          },
+          "type": "chat"
+        },
+        {
+          "id": "unbiased/pareto",
+          "name": "Pareto",
+          "display_name": "Pareto",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 262144,
+            "output": 131072
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": false
           },
           "type": "chat"
         },
@@ -322837,7 +322437,7 @@
           },
           "limit": {
             "context": 1048576,
-            "output": 131072
+            "output": 163840
           },
           "temperature": true,
           "tool_call": true,
@@ -327907,6 +327507,34 @@
           "type": "chat"
         },
         {
+          "id": "ming-image-0.1-design-layer",
+          "name": "ming image 0.1 design layer",
+          "display_name": "ming image 0.1 design layer",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "video",
+              "audio"
+            ],
+            "output": [
+              "text",
+              "image",
+              "video",
+              "audio"
+            ]
+          },
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "type": "imageGeneration"
+        },
+        {
           "id": "gpt-image-2.5-flare",
           "name": "gpt image 2.5 flare",
           "display_name": "gpt image 2.5 flare",
@@ -330479,57 +330107,6 @@
           "type": "chat"
         },
         {
-          "id": "deepseek/deepseek-v4-flash-vision-exp",
-          "name": "DeepSeek: DeepSeek V4 Flash Vision Exp",
-          "display_name": "DeepSeek: DeepSeek V4 Flash Vision Exp",
-          "modalities": {
-            "input": [
-              "text",
-              "image"
-            ],
-            "output": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 1048576,
-            "output": 384000
-          },
-          "temperature": true,
-          "tool_call": true,
-          "reasoning": {
-            "supported": true,
-            "default": true
-          },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true,
-              "default_enabled": true,
-              "mode": "effort",
-              "effort": "high",
-              "effort_options": [
-                "low",
-                "high",
-                "max"
-              ],
-              "interleaved": true,
-              "summaries": true,
-              "visibility": "summary",
-              "continuation": [
-                "thinking_blocks"
-              ],
-              "notes": [
-                "The DeepSeek API maps medium and xhigh to high for V4 models; effort_options lists distinct model-effective levels."
-              ]
-            }
-          },
-          "attachment": true,
-          "open_weights": false,
-          "release_date": "2026-08-21",
-          "last_updated": "2026-08-21",
-          "type": "chat"
-        },
-        {
           "id": "deepseek/deepseek-v4-pro",
           "name": "DeepSeek: DeepSeek V4 Pro 0813",
           "display_name": "DeepSeek: DeepSeek V4 Pro 0813",
@@ -331287,11 +330864,6 @@
             "supported": true,
             "default": true
           },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true
-            }
-          },
           "attachment": true,
           "open_weights": true,
           "release_date": "2026-04-02",
@@ -331322,11 +330894,6 @@
             "supported": true,
             "default": true
           },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true
-            }
-          },
           "attachment": true,
           "open_weights": true,
           "release_date": "2026-04-02",
@@ -331339,17 +330906,14 @@
           "display_name": "Grok Imagine Image 2.0",
           "modalities": {
             "input": [
-              "text",
-              "image",
-              "pdf"
+              "text"
             ],
             "output": [
-              "image",
-              "pdf"
+              "image"
             ]
           },
           "limit": {
-            "context": 64000,
+            "context": 8192,
             "output": 8192
           },
           "temperature": false,
@@ -331357,7 +330921,7 @@
           "reasoning": {
             "supported": false
           },
-          "attachment": true,
+          "attachment": false,
           "open_weights": false,
           "release_date": "2026-08-07",
           "last_updated": "2026-08-07",
@@ -331508,6 +331072,29 @@
           "release_date": "2026-08-05",
           "last_updated": "2026-08-05",
           "type": "chat"
+        },
+        {
+          "id": "inclusionai/llada-image-turbo",
+          "name": "inclusionAI: LLaDA-Image-Turbo",
+          "display_name": "inclusionAI: LLaDA-Image-Turbo",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "image"
+            ]
+          },
+          "limit": {
+            "context": 2000,
+            "output": 2000
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "type": "imageGeneration"
         },
         {
           "id": "inclusionai/llada2.1-flash",
@@ -332258,8 +331845,7 @@
           "modalities": {
             "input": [
               "text",
-              "image",
-              "pdf"
+              "image"
             ],
             "output": [
               "text"
@@ -332267,7 +331853,7 @@
           },
           "limit": {
             "context": 262144,
-            "output": 209715
+            "output": 262144
           },
           "temperature": true,
           "tool_call": true,
@@ -332279,46 +331865,6 @@
           "knowledge": "2024-11",
           "release_date": "2025-12-02",
           "last_updated": "2025-12-02",
-          "type": "chat"
-        },
-        {
-          "id": "moonshotai/kimi-k2.5",
-          "name": "MoonshotAI: Kimi K2.5",
-          "display_name": "MoonshotAI: Kimi K2.5",
-          "modalities": {
-            "input": [
-              "text",
-              "image",
-              "video"
-            ],
-            "output": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 256000,
-            "output": 256000
-          },
-          "temperature": true,
-          "tool_call": true,
-          "reasoning": {
-            "supported": true
-          },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true,
-              "interleaved": true,
-              "summaries": true,
-              "visibility": "summary",
-              "continuation": [
-                "thinking_blocks"
-              ]
-            }
-          },
-          "attachment": true,
-          "open_weights": false,
-          "release_date": "2026-01-28",
-          "last_updated": "2026-01-28",
           "type": "chat"
         },
         {
@@ -333861,6 +333407,7 @@
             "context": 8192,
             "output": 8192
           },
+          "temperature": false,
           "tool_call": false,
           "reasoning": {
             "supported": false
@@ -333887,6 +333434,7 @@
             "context": 8192,
             "output": 8192
           },
+          "temperature": false,
           "tool_call": false,
           "reasoning": {
             "supported": false
@@ -335882,6 +335430,27 @@
           "open_weights": true,
           "release_date": "2026-08-26",
           "last_updated": "2026-08-26",
+          "type": "chat"
+        },
+        {
+          "id": "z-ai/glm-5.3-flashx",
+          "name": "Z.AI: GLM 5.3 FlashX",
+          "display_name": "Z.AI: GLM 5.3 FlashX",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "video"
+            ]
+          },
+          "limit": {
+            "context": 1000000,
+            "output": 1000000
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
           "type": "chat"
         },
         {

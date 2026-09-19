@@ -1,4 +1,3 @@
-
 import type {
   ToolCatalogPort,
   ToolCatalogRequest,
@@ -14,8 +13,8 @@ import type { ToolServicePort, ToolDefinitionContext } from '@deepchat/shared/ty
 import { CUA_PLUGIN_ID } from '@deepchat/shared/types/plugin'
 import type { VisionTargetResolverPort } from '../contracts/visionTarget.js'
 import type { ToolOutputGuard } from './toolOutputGuard.js'
-import {type ProviderModelResolutionPort} from '../contracts/providerModelResolution.js'
-import {type AgentSettingsPort} from '../contracts/agentSettings.js'
+import { type ProviderModelResolutionPort } from '../contracts/providerModelResolution.js'
+import { type AgentSettingsPort } from '../contracts/agentSettings.js'
 
 export interface ToolCatalogCacheEntry<TProfile extends string = string> {
   profile: TProfile
@@ -43,10 +42,7 @@ export function createToolCatalogPort<TProfile extends string>(input: {
     cached?: ToolCatalogCacheEntry<TProfile>
   }>
   commitCache(entry: ToolCatalogCacheEntry<TProfile>): void
-  onResolved?(input: {
-    context: ToolDefinitionContext
-    tools: MCPToolDefinition[]
-  }): void
+  onResolved?(input: { context: ToolDefinitionContext; tools: MCPToolDefinition[] }): void
 }): ToolCatalogPort {
   return {
     resolve: async (request) => {
@@ -105,10 +101,7 @@ export function createToolResultPort(input: {
 export interface ToolResultNormalizerDependencies {
   providerSettings: ProviderModelResolutionPort
   visionTargetResolver: VisionTargetResolverPort
-  agentSettings: Pick<
-    AgentSettingsPort,
-    'resolveDeepChatAgentConfig' | 'agentSupportsCapability'
-  >
+  agentSettings: Pick<AgentSettingsPort, 'resolveDeepChatAgentConfig' | 'agentSupportsCapability'>
   providerRuntime: Pick<
     ProviderExecutionPort,
     'executeWithRateLimit' | 'generateCompletionStandalone'
@@ -163,11 +156,7 @@ export async function normalizeToolResultContent(
   const abortSignal = params.abortSignal ?? dependencies.getAbortSignal(params.sessionId)
   const screenshotPayload =
     extractBrowserScreenshotToolPayload(params.toolName, params.toolArgs, params.content) ??
-    extractCuaScreenshotToolPayload(
-      params.ownerPluginId,
-      params.toolArgs,
-      params.content
-    )
+    extractCuaScreenshotToolPayload(params.ownerPluginId, params.toolArgs, params.content)
   if (!screenshotPayload) {
     return params.content
   }
@@ -305,9 +294,7 @@ function extractCuaScreenshotToolPayload(
       ? image.mimeType
       : 'image/png'
   return {
-    dataUrl: rawData.startsWith('data:image/')
-      ? rawData
-      : `data:${mimeType};base64,${rawData}`,
+    dataUrl: rawData.startsWith('data:image/') ? rawData : `data:${mimeType};base64,${rawData}`,
     mode: 'append-cua'
   }
 }

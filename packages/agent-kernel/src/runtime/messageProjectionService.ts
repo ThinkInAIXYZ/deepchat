@@ -8,7 +8,7 @@ import {
 } from './sessionUpdates.js'
 import { resolveStreamRequestId, type StreamRequestIdRegistry } from './streamRequestId.js'
 import type { DeepChatEventPublisher, DeepChatSessionUpdatePublisher } from './types.js'
-import {type TranscriptStorePort} from '../contracts/transcriptStore.js'
+import { type TranscriptStorePort } from '../contracts/transcriptStore.js'
 
 export type MessageProjectionTranscript = Pick<
   TranscriptStorePort,

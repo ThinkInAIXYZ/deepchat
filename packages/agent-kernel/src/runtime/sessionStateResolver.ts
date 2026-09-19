@@ -10,7 +10,7 @@ import type { RunLifecycleCoordinator } from './runLifecycleCoordinator.js'
 import type { SessionIdentityService } from './sessionIdentityService.js'
 import type { SessionSettingsCoordinator } from './sessionSettingsCoordinator.js'
 import { revokeToolSurfaceDeferredDispatchesForSession } from './toolSurface.js'
-import {type SessionSettingsStorePort} from '../contracts/sessionSettingsStore.js'
+import { type SessionSettingsStorePort } from '../contracts/sessionSettingsStore.js'
 
 type SessionStateHydrationMode = 'full' | 'summary'
 

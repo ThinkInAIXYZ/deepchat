@@ -17,6 +17,16 @@ build/bundled-plugins/
 build/managed-helpers/
 runtime/**/*
 plugins/*/runtime/**/*
+packages/desktop/build/linuxarm.json
+packages/desktop/build/linuxx64.json
+packages/desktop/build/macarm.json
+packages/desktop/build/macx64.json
+packages/desktop/build/winarm.json
+packages/desktop/build/winx64.json
+packages/desktop/build/bundled-plugins/
+packages/desktop/build/managed-helpers/
+packages/desktop/runtime/**/*
+packages/desktop/plugins/*/runtime/**/*
 .eslintcache
 .env
 .env.local

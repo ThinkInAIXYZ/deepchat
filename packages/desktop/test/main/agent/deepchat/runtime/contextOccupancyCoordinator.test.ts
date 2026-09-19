@@ -120,8 +120,7 @@ function setup(
     isCurrent: () => true
   }
   const evidence: TapeContextOccupancyEvidence = {
-    manifest:
-      overrides.manifest === undefined ? createManifestRecord() : overrides.manifest,
+    manifest: overrides.manifest === undefined ? createManifestRecord() : overrides.manifest,
     providerAttempt:
       overrides.providerAttempt === undefined ? createProviderAttempt() : overrides.providerAttempt,
     latestReconstructionAnchorEntryId:

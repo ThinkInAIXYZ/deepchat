@@ -293,7 +293,7 @@ describe('deferred ExecutionContract recovery', () => {
     }
   ])('fails closed on $name', (scenario) => {
     const fixture = createFixture()
-    const records = scenario.records(fixture) as typeof fixture.record[]
+    const records = scenario.records(fixture) as (typeof fixture.record)[]
 
     expect(() =>
       resolveDeferredExecutionContract({

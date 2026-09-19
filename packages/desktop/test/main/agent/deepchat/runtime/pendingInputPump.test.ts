@@ -70,7 +70,11 @@ function createPendingInputStore(initialRecords: PendingSessionInputRecord[]) {
   ): PendingSessionInputRecord => {
     const current = records.get(itemId)
     if (!current) throw new Error(`Pending input not found: ${itemId}`)
-    const next: PendingSessionInputRecord = { ...current, ...patch, updatedAt: current.updatedAt + 1 }
+    const next: PendingSessionInputRecord = {
+      ...current,
+      ...patch,
+      updatedAt: current.updatedAt + 1
+    }
     records.set(itemId, next)
     return next
   }
@@ -89,8 +93,10 @@ function createPendingInputStore(initialRecords: PendingSessionInputRecord[]) {
       )
       .sort((left, right) => {
         if (mode === 'queue') {
-          return (left.queueOrder ?? Number.MAX_SAFE_INTEGER) -
+          return (
+            (left.queueOrder ?? Number.MAX_SAFE_INTEGER) -
             (right.queueOrder ?? Number.MAX_SAFE_INTEGER)
+          )
         }
         return left.createdAt - right.createdAt
       })
@@ -227,22 +233,20 @@ function createHarness(
   const turnStarter: PendingInputPumpPorts['turnStarter'] = {
     start:
       start ??
-      vi.fn(async (_sessionId, _content, context) =>
-        completion(context, { kind: 'consume' })
-      )
+      vi.fn(async (_sessionId, _content, context) => completion(context, { kind: 'consume' }))
   }
   const ports: PendingInputPumpPorts = {
     pendingInputs: pendingInputs.store,
     transcript: { getMessages: vi.fn(() => messages) },
     runLifecycle: {
-      getHydratedScope: (sessionId: string) =>
-        runtime.getHydratedScope(toAppSessionId(sessionId)),
+      getHydratedScope: (sessionId: string) => runtime.getHydratedScope(toAppSessionId(sessionId)),
       reconcilePendingInteractions: hasPendingInteractions
     },
     turnStarter,
     sessionState: {
-      get: vi.fn(async (sessionId: string) =>
-        runtime.getHydratedScope(toAppSessionId(sessionId))?.state() ?? null
+      get: vi.fn(
+        async (sessionId: string) =>
+          runtime.getHydratedScope(toAppSessionId(sessionId))?.state() ?? null
       )
     },
     sessionSettings: { resolveProjectDir: vi.fn(() => '/workspace') }
@@ -860,10 +864,9 @@ describe('PendingInputPump', () => {
 
     expect(harness.pendingInputs.records.has('queue')).toBe(false)
     expect(harness.pendingInputs.store.releaseClaimedQueueInput).not.toHaveBeenCalled()
-    expect(error).toHaveBeenCalledWith(
-      expect.stringContaining('stage=claim-consistency'),
-      { name: 'Error' }
-    )
+    expect(error).toHaveBeenCalledWith(expect.stringContaining('stage=claim-consistency'), {
+      name: 'Error'
+    })
     expect(error).not.toHaveBeenCalledWith(
       expect.stringContaining('stage=process-message'),
       expect.anything()

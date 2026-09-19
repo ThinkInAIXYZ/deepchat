@@ -10,9 +10,9 @@ import type { SessionIdentityService } from './sessionIdentityService.js'
 import { normalizeToolResultContent } from './toolAdapters.js'
 import { reviewAutoApproveToolPermission } from './toolPermissionReviewer.js'
 import type { ToolPermissionReviewRequest, ToolPermissionReviewResult } from './types.js'
-import {type AgentSettingsPort} from '../contracts/agentSettings.js'
-import {type ProviderModelResolutionPort} from '../contracts/providerModelResolution.js'
-import {type SessionSettingsStorePort} from '../contracts/sessionSettingsStore.js'
+import { type AgentSettingsPort } from '../contracts/agentSettings.js'
+import { type ProviderModelResolutionPort } from '../contracts/providerModelResolution.js'
+import { type SessionSettingsStorePort } from '../contracts/sessionSettingsStore.js'
 import type { VisionTargetResolverPort } from '../contracts/visionTarget.js'
 
 export type ToolPermissionReviewer = (
@@ -28,10 +28,7 @@ export type ToolPermissionReviewer = (
 export interface ToolRuntimeBindingDependencies {
   providerSettings: ProviderModelResolutionPort
   visionTargetResolver: VisionTargetResolverPort
-  agentSettings: Pick<
-    AgentSettingsPort,
-    'resolveDeepChatAgentConfig' | 'agentSupportsCapability'
-  >
+  agentSettings: Pick<AgentSettingsPort, 'resolveDeepChatAgentConfig' | 'agentSupportsCapability'>
   providerRuntime: Pick<
     ProviderExecutionPort,
     'executeWithRateLimit' | 'generateCompletionStandalone'

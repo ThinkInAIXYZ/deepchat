@@ -270,9 +270,7 @@ function isBoundedRecentToolName(value: unknown): value is string {
   )
 }
 
-export function collectRecentToolSurfaceNames(
-  messages: readonly ChatMessage[]
-): readonly string[] {
+export function collectRecentToolSurfaceNames(messages: readonly ChatMessage[]): readonly string[] {
   if (!Array.isArray(messages) || nodeTypes.isProxy(messages)) return Object.freeze([])
   const names: string[] = []
   const seen = new Set<string>()

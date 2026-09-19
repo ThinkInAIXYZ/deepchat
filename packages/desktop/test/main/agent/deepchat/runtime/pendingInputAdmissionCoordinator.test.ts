@@ -40,9 +40,7 @@ function createInput(
   }
 }
 
-function createScopeRegistry(
-  instance: unknown
-): PendingInputAdmissionCoordinatorPorts['registry'] {
+function createScopeRegistry(instance: unknown): PendingInputAdmissionCoordinatorPorts['registry'] {
   return {
     getOrHydrateScope: vi.fn(),
     getHydratedScope: vi.fn((sessionId: string) => ({ sessionId, instance })),
@@ -63,9 +61,7 @@ function createHarness(onDrain?: (harness: HarnessState) => void) {
     input: createInput(),
     preStreamController: undefined
   }
-  const replaceInput = (
-    patch: Partial<PendingSessionInputRecord>
-  ): PendingSessionInputRecord => {
+  const replaceInput = (patch: Partial<PendingSessionInputRecord>): PendingSessionInputRecord => {
     if (!harness.input) throw new Error('Pending input not found')
     harness.input = {
       ...harness.input,
@@ -128,9 +124,7 @@ function createHarness(onDrain?: (harness: HarnessState) => void) {
     deletePendingInput: vi.fn(() => {
       harness.input = null
     }),
-    getInput: vi.fn((_sessionId, itemId) =>
-      harness.input?.id === itemId ? harness.input : null
-    ),
+    getInput: vi.fn((_sessionId, itemId) => (harness.input?.id === itemId ? harness.input : null)),
     getNextQueueInput: vi.fn(() =>
       harness.input?.mode === 'queue' &&
       harness.input.state !== 'claimed' &&

@@ -1,4 +1,3 @@
-
 import type {
   DeepChatSessionState,
   PermissionMode,
@@ -8,10 +7,7 @@ import type {
 
 import type { ToolServicePort } from '@deepchat/shared/types/tool'
 import type { DeepChatAgentInstance } from '../instance/deepChatAgentInstance.js'
-import type {
-  SessionRuntimeScope,
-  SessionScopeRegistry
-} from '../instance/deepChatAgentRuntime.js'
+import type { SessionRuntimeScope, SessionScopeRegistry } from '../instance/deepChatAgentRuntime.js'
 import { toAppSessionId } from '../collab/agent-shared/agentSessionIds.js'
 import type { SessionIdentityService } from './sessionIdentityService.js'
 
@@ -29,11 +25,11 @@ import {
 } from './providerModelRuntimeFacts.js'
 
 import type { DeepChatToolResolver } from './toolResolver.js'
-import {type ProviderModelResolutionPort} from '../contracts/providerModelResolution.js'
-import {BUILTIN_DEEPCHAT_AGENT_ID} from '../contracts/builtinAgentIdentity.js'
-import {type SessionPermissionPort} from '../contracts/sessionPermission.js'
-import {type SessionSettingsStorePort} from '../contracts/sessionSettingsStore.js'
-import {type PromptSettingsPort} from '../contracts/promptSettings.js'
+import { type ProviderModelResolutionPort } from '../contracts/providerModelResolution.js'
+import { BUILTIN_DEEPCHAT_AGENT_ID } from '../contracts/builtinAgentIdentity.js'
+import { type SessionPermissionPort } from '../contracts/sessionPermission.js'
+import { type SessionSettingsStorePort } from '../contracts/sessionSettingsStore.js'
+import { type PromptSettingsPort } from '../contracts/promptSettings.js'
 
 interface SessionSettingsCoordinatorDependencies {
   providerSettings: ProviderModelResolutionPort
@@ -396,9 +392,7 @@ export class SessionSettingsCoordinator {
       return { ...cached }
     }
 
-    dbSession ??= this.deps.sessionStore.get(sessionId) as
-      | PersistedSessionGenerationRow
-      | undefined
+    dbSession ??= this.deps.sessionStore.get(sessionId) as PersistedSessionGenerationRow | undefined
     const providerId = state?.providerId ?? dbSession?.provider_id
     const modelId = state?.modelId ?? dbSession?.model_id
 
@@ -441,5 +435,4 @@ export class SessionSettingsCoordinator {
       return null
     }
   }
-
 }

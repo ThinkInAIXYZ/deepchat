@@ -1,4 +1,3 @@
-
 import logger from '@deepchat/shared/logger'
 import type {
   DeepChatSessionState,
@@ -15,7 +14,6 @@ import {
 } from '../instance/deepChatAgentRuntime.js'
 import { toAppSessionId } from '../collab/agent-shared/agentSessionIds.js'
 
-
 import { awaitWithAbort } from '../collab/lib/awaitWithAbort.js'
 import { createAbortError, PENDING_INPUT_ABORT_REASON } from './abortErrors.js'
 import { supportsProviderVision } from './providerInputCapabilities.js'
@@ -24,10 +22,13 @@ import type { PendingInputWakeReason } from './runLifecycleCoordinator.js'
 import { redactRuntimeErrorForLog } from './runtimeErrorLogging.js'
 import type { SessionSettingsCoordinator } from './sessionSettingsCoordinator.js'
 import type { SessionStateResolver } from './sessionStateResolver.js'
-import {type ProviderModelResolutionPort} from '../contracts/providerModelResolution.js'
-import {type PendingInputStorePort} from '../contracts/pendingInputStore.js'
-import {type TranscriptStorePort} from '../contracts/transcriptStore.js'
-import {type AttachmentPreparationPort, type AttachmentPreparationResult} from '../contracts/attachmentPreparation.js'
+import { type ProviderModelResolutionPort } from '../contracts/providerModelResolution.js'
+import { type PendingInputStorePort } from '../contracts/pendingInputStore.js'
+import { type TranscriptStorePort } from '../contracts/transcriptStore.js'
+import {
+  type AttachmentPreparationPort,
+  type AttachmentPreparationResult
+} from '../contracts/attachmentPreparation.js'
 
 export type PendingInputAdmissionStorePort = Pick<
   PendingInputStorePort,
@@ -67,10 +68,7 @@ export interface PendingInputAdmissionPumpPort {
     reason: PendingInputWakeReason
   ): boolean
   drain(sessionId: string, reason: PendingInputWakeReason): Promise<boolean>
-  claimQueuedInputForPreparation(
-    sessionId: string,
-    itemId: string
-  ): ClaimedPendingInputHandle
+  claimQueuedInputForPreparation(sessionId: string, itemId: string): ClaimedPendingInputHandle
   releaseRestartHoldForInput(itemId: string): void
   releaseRestartHoldForSession(sessionId: string): boolean
   hasRestartHeldQueueInputs(sessionId: string): boolean
@@ -493,10 +491,7 @@ export class PendingInputAdmissionCoordinator {
     return await this.ports.pump.drain(sessionId, 'manual')
   }
 
-  assertNoActiveInputs(
-    sessionId: string,
-    options?: { allowRestartHeldQueue?: boolean }
-  ): void {
+  assertNoActiveInputs(sessionId: string, options?: { allowRestartHeldQueue?: boolean }): void {
     if (!this.ports.pendingInputs.hasActiveInputs(sessionId)) {
       return
     }
@@ -546,10 +541,7 @@ export class PendingInputAdmissionCoordinator {
     }
   }
 
-  private buildAttachmentAcceptanceLaneKey(
-    sessionId: string,
-    lane: 'send' | 'steer'
-  ): string {
+  private buildAttachmentAcceptanceLaneKey(sessionId: string, lane: 'send' | 'steer'): string {
     return `${lane}:${sessionId}`
   }
 

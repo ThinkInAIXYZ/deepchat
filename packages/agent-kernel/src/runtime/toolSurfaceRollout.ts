@@ -138,9 +138,7 @@ export class ToolSurfaceRolloutOwner {
       const bucket = Number.parseInt(digest.slice(0, 8), 16) % TOOL_SURFACE_ROLLOUT_BUCKET_COUNT
       if (!Number.isSafeInteger(bucket) || bucket >= this.canaryBasisPoints) return 'legacy'
 
-      return this.provenCapabilityKeys.has(
-        capabilityEvidenceKey(input.providerId, input.modelId)
-      )
+      return this.provenCapabilityKeys.has(capabilityEvidenceKey(input.providerId, input.modelId))
         ? PROVEN_ASSIGNMENT
         : UNPROVEN_ASSIGNMENT
     } catch {

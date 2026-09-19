@@ -42,10 +42,10 @@ import type {
 } from '../tape/domain/executionJournal.js'
 
 import type { ToolSurfaceDeferredDispatchBindingV1 } from './toolSurface.js'
-import {type TranscriptStorePort} from '../contracts/transcriptStore.js'
-import {type CacheImageOptions, type ToolImagePreviewPort} from '../contracts/imagePreview.js'
-import {type SessionPermissionGrant} from '../contracts/sessionPermission.js'
-import {type ProgrammaticToolAuthorityPort} from '../contracts/programmaticToolAuthority.js'
+import { type TranscriptStorePort } from '../contracts/transcriptStore.js'
+import { type CacheImageOptions, type ToolImagePreviewPort } from '../contracts/imagePreview.js'
+import { type SessionPermissionGrant } from '../contracts/sessionPermission.js'
+import { type ProgrammaticToolAuthorityPort } from '../contracts/programmaticToolAuthority.js'
 
 interface RunJournalObservationIdentity {
   runId: string

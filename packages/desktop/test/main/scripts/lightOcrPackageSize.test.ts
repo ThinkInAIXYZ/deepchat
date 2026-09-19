@@ -2,13 +2,13 @@ import { readFile } from 'node:fs/promises'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 
-import { TARGET_IDS } from '../../../scripts/ci/package-contract.mjs'
+import { TARGET_IDS } from '../../../../../scripts/ci/package-contract.mjs'
 import { readComponentBudgets } from '../../../scripts/smoke-light-ocr.js'
 
 describe('Light OCR packaged component budgets', () => {
   it('requires OCR and other-runtime budgets for all six targets', async () => {
     const manifest = JSON.parse(
-      await readFile(path.resolve('resources/light-ocr-size-budgets.json'), 'utf8')
+      await readFile(path.resolve(process.cwd(), 'resources/light-ocr-size-budgets.json'), 'utf8')
     ) as {
       schemaVersion: number
       componentBudgetsMiB: {

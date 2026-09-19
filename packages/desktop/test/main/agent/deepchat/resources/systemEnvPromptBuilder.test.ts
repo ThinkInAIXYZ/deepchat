@@ -48,13 +48,13 @@ describe('buildSystemEnvPrompt', () => {
       commandShell: POSIX_COMMAND_SHELL,
       now: new Date('2026-06-22T00:00:00Z')
     })
-    expect(assembly.sections.find((section) => section.kind === 'agents_instructions')).toMatchObject(
-      {
-        inclusion: 'omitted',
-        freshness: 'missing',
-        degradationCodes: ['agents_file_missing']
-      }
-    )
+    expect(
+      assembly.sections.find((section) => section.kind === 'agents_instructions')
+    ).toMatchObject({
+      inclusion: 'omitted',
+      freshness: 'missing',
+      degradationCodes: ['agents_file_missing']
+    })
   })
 
   it('includes instructions when AGENTS.md exists', async () => {
@@ -96,13 +96,13 @@ describe('buildSystemEnvPrompt', () => {
       commandShell: POSIX_COMMAND_SHELL,
       now: new Date('2026-06-22T00:00:00Z')
     })
-    expect(assembly.sections.find((section) => section.kind === 'agents_instructions')).toMatchObject(
-      {
-        inclusion: 'included',
-        freshness: 'cached',
-        contentHash: expect.stringMatching(/^[a-f0-9]{64}$/)
-      }
-    )
+    expect(
+      assembly.sections.find((section) => section.kind === 'agents_instructions')
+    ).toMatchObject({
+      inclusion: 'included',
+      freshness: 'cached',
+      contentHash: expect.stringMatching(/^[a-f0-9]{64}$/)
+    })
   })
 
   it('logs lightweight metadata for real AGENTS.md read errors', async () => {
@@ -130,13 +130,13 @@ describe('buildSystemEnvPrompt', () => {
       commandShell: POSIX_COMMAND_SHELL,
       now: new Date('2026-06-22T00:00:00Z')
     })
-    expect(assembly.sections.find((section) => section.kind === 'agents_instructions')).toMatchObject(
-      {
-        inclusion: 'omitted',
-        freshness: 'read_error',
-        degradationCodes: ['agents_file_read_error']
-      }
-    )
+    expect(
+      assembly.sections.find((section) => section.kind === 'agents_instructions')
+    ).toMatchObject({
+      inclusion: 'omitted',
+      freshness: 'read_error',
+      degradationCodes: ['agents_file_read_error']
+    })
   })
 
   it('defers slow first reads and reuses the late cached result', async () => {

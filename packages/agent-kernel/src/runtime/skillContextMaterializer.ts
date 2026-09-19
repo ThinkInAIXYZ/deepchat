@@ -1,4 +1,7 @@
-import type { SkillServicePort, EffectiveSkillContentResolution } from '@deepchat/shared/types/skill'
+import type {
+  SkillServicePort,
+  EffectiveSkillContentResolution
+} from '@deepchat/shared/types/skill'
 import type {
   DeepChatTapeMaterializedSkillContext,
   DeepChatTapeSkillContext,
@@ -77,8 +80,7 @@ type FreshTapePort = TapeIncarnationReader
 type MaterializationTapePort = TapeSkillMaterializationWriter &
   TapeSkillMaterializationReader &
   TapeEffectiveUserMessageSourceReader
-type RecoveryTapePort = TapeSkillMaterializationReader &
-  TapeRunViewManifestReader
+type RecoveryTapePort = TapeSkillMaterializationReader & TapeRunViewManifestReader
 type SkillContextTapePort = FreshTapePort & MaterializationTapePort & RecoveryTapePort
 
 function canonicalName(name: string, field: string): string {
@@ -294,16 +296,18 @@ export class SkillContextMaterializer {
       assertResolution(resolution, agentId, ordered[index].name)
     )
     const expectedTapeIncarnationId = this.dependencies.tape.getTapeIncarnationId(sessionId)
-    const inputs = resolutions.map((resolution): TapeSkillMaterializationInput => ({
-      sessionId,
-      expectedTapeIncarnationId,
-      ...resolution.identity,
-      effectiveContent: resolution.effectiveContent,
-      builderVersion: resolution.builderVersion,
-      renderedManifestHash: resolution.renderedManifestHash,
-      scriptInventoryHash: resolution.scriptInventoryHash,
-      executionPackage: resolution.executionPackage
-    }))
+    const inputs = resolutions.map(
+      (resolution): TapeSkillMaterializationInput => ({
+        sessionId,
+        expectedTapeIncarnationId,
+        ...resolution.identity,
+        effectiveContent: resolution.effectiveContent,
+        builderVersion: resolution.builderVersion,
+        renderedManifestHash: resolution.renderedManifestHash,
+        scriptInventoryHash: resolution.scriptInventoryHash,
+        executionPackage: resolution.executionPackage
+      })
+    )
     validateTapeSkillMaterializationBatch(inputs)
     const items = inputs.map((materializationInput, index) => {
       return Object.freeze({
@@ -329,9 +333,7 @@ export class SkillContextMaterializer {
     )
   }
 
-  projectBodies(
-    projections: readonly MaterializedSkillProjection[]
-  ): SkillProjectionBodies {
+  projectBodies(projections: readonly MaterializedSkillProjection[]): SkillProjectionBodies {
     for (const projection of projections) {
       const expectedFragment =
         projection.scope === 'message'
@@ -373,10 +375,7 @@ export class SkillContextMaterializer {
     )
     const resolution = cloneAndFreeze(input.resolution)
     const agentId = requireId(resolution.identity.agentId, 'resolution.identity.agentId')
-    const skillName = canonicalName(
-      resolution.identity.skillName,
-      'resolution.identity.skillName'
-    )
+    const skillName = canonicalName(resolution.identity.skillName, 'resolution.identity.skillName')
     if (!resolution.identity.sourceType || !resolution.identity.sourceId.trim()) {
       throw new Error('Runtime Skill materialization identity is invalid.')
     }
@@ -541,15 +540,10 @@ export class SkillContextMaterializer {
       ) {
         throw new Error('Recovered Skill materialization drifted from its exact ViewManifest.')
       }
-      const projection = project(
-        context.activationScope,
-        receipt.payload,
-        ref,
-        [...context.sourceEntryIds]
-      )
-      if (
-        canonicalJsonStringifyData(projection.context) !== canonicalJsonStringifyData(context)
-      ) {
+      const projection = project(context.activationScope, receipt.payload, ref, [
+        ...context.sourceEntryIds
+      ])
+      if (canonicalJsonStringifyData(projection.context) !== canonicalJsonStringifyData(context)) {
         throw new Error('Recovered Skill projection semantics are unsupported or drifted.')
       }
       return projection

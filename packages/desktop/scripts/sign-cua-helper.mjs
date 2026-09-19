@@ -4,7 +4,7 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { promisify } from 'node:util'
-import { validateArtifactPurpose } from './ci/package-contract.mjs'
+import { validateArtifactPurpose } from '../../../scripts/ci/package-contract.mjs'
 import { isReleaseNotarizationEnabled } from './macos-release-contract.mjs'
 
 const execFileAsync = promisify(execFile)

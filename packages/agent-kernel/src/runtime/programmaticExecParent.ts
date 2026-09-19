@@ -10,7 +10,12 @@ import {
   type ProgrammaticToolCapabilityV1
 } from './programmaticToolSurface.js'
 import type { ToolSurfaceDeferredDispatch, ToolSurfaceSnapshot } from './toolSurface.js'
-import {AGENT_CLI_PROGRAMMATIC_GRANT_SCHEMA_VERSION, parseAgentCliProgrammaticExecInvocation, type ProgrammaticToolParentRegistration, type ProgrammaticToolAuthorityPort} from '../contracts/programmaticToolAuthority.js'
+import {
+  AGENT_CLI_PROGRAMMATIC_GRANT_SCHEMA_VERSION,
+  parseAgentCliProgrammaticExecInvocation,
+  type ProgrammaticToolParentRegistration,
+  type ProgrammaticToolAuthorityPort
+} from '../contracts/programmaticToolAuthority.js'
 
 export function isProgrammaticExecAttempt(toolName: string, argumentsJson: string): boolean {
   if (toolName !== 'exec') return false
@@ -55,7 +60,8 @@ export function prepareProgrammaticExecParent(input: {
     ? requireProgrammaticToolDeferredResumeCapability(input.deferredDispatch)
     : undefined
   const capability = input.capability ?? deferredCapability
-  const snapshot = input.toolSurfaceSnapshot ??
+  const snapshot =
+    input.toolSurfaceSnapshot ??
     (input.deferredDispatch?.authorityKind === 'process-live'
       ? input.deferredDispatch.snapshot
       : undefined)

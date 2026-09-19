@@ -184,9 +184,7 @@ describe('Tool Surface canary diagnostics', () => {
       providerRounds: 1,
       providerAttemptsTruncated: false,
       evidence: emptyEvidence(),
-      providerAttempts: [
-        { requestSeq: 1, physicalAttempt: 1, usage: { inputTokens: 10 } }
-      ]
+      providerAttempts: [{ requestSeq: 1, physicalAttempt: 1, usage: { inputTokens: 10 } }]
     })
     registry.recordRun({
       scope,
@@ -247,9 +245,7 @@ describe('Tool Surface canary diagnostics', () => {
       adapterMode: 'cli-programmatic'
     })
 
-    expect(
-      registry.snapshot({ providerId: 'provider-1', modelId: 'model-1' })
-    ).toMatchObject({
+    expect(registry.snapshot({ providerId: 'provider-1', modelId: 'model-1' })).toMatchObject({
       schemaVersion: 4,
       recording: { globalRejectedRuns: 0 },
       assignments: [
@@ -532,8 +528,8 @@ describe('Tool Surface canary diagnostics', () => {
       ]
     })
     expect(
-      missingPricing.snapshot({ providerId: 'provider-1', modelId: 'model-1' })?.cohorts[0]
-        .cost.unavailableRuns['missing-pricing']
+      missingPricing.snapshot({ providerId: 'provider-1', modelId: 'model-1' })?.cohorts[0].cost
+        .unavailableRuns['missing-pricing']
     ).toBe(1)
   })
 

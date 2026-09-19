@@ -123,10 +123,7 @@ describe('AcpProcessManager config cache fallback', () => {
     ]
   })
 
-  const createProcessHandle = (
-    child: MockSpawnedChild,
-    state: 'warmup' | 'bound' = 'warmup'
-  ) => {
+  const createProcessHandle = (child: MockSpawnedChild, state: 'warmup' | 'bound' = 'warmup') => {
     Object.defineProperty(child, 'pid', { value: undefined })
     return {
       providerId: 'acp',
@@ -224,9 +221,9 @@ describe('AcpProcessManager config cache fallback', () => {
     const second = manager.createAuthChallenge(handle as any, { origin: 'settings_probe' })
 
     await manager.prepareTerminalAuthentication(first.id, 'browser-login')
-    await expect(
-      manager.prepareTerminalAuthentication(second.id, 'browser-login')
-    ).rejects.toThrow('already running for this agent and workdir')
+    await expect(manager.prepareTerminalAuthentication(second.id, 'browser-login')).rejects.toThrow(
+      'already running for this agent and workdir'
+    )
 
     manager.abandonAuthentication(first.id)
     await expect(
@@ -1129,9 +1126,12 @@ describe('AcpProcessManager child process launch records', () => {
 
   it('waits for orphan recovery before spawning an agent', async () => {
     let finishRecovery!: () => void
-    childProcessRegistryMock.reapStaleOnce.mockImplementationOnce(() => new Promise<void>((resolve) => {
-      finishRecovery = resolve
-    }))
+    childProcessRegistryMock.reapStaleOnce.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          finishRecovery = resolve
+        })
+    )
     const manager = createManager()
     const child = new MockSpawnedChild()
     vi.mocked(spawn).mockReturnValue(child as never)

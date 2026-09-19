@@ -46,7 +46,9 @@ describeIfSqlite('SessionTranscript follows the Tape through the projection curs
     const connection = new MainDatabaseCtor(':memory:')
     const database = new SessionDatabaseCtor(connection)
     const tape = new SessionTapeCtor(database)
-    const transcript = new SessionTranscriptCtor(database, tape)
+    const transcript = new SessionTranscriptCtor(database, tape, undefined, undefined, {
+      transaction: (operation) => database.getDatabase().transaction(operation)()
+    })
     const head = () => tape.getProjectionHead('s1')
     const cursor = () => database.deepchatTranscriptProjectionMetaTable.get('s1')
     return { connection, database, tape, transcript, head, cursor }

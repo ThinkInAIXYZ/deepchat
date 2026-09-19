@@ -38,6 +38,9 @@ interface GitHubWorkflow {
   jobs?: Record<string, WorkflowJob>
 }
 
+const appRoot = process.cwd()
+const workspaceRoot = path.resolve(appRoot, '../..')
+
 const OPENDAL_VERSION = '0.49.9'
 const OPENDAL_NATIVE_PACKAGES = [
   '@opendal/lib-darwin-arm64',
@@ -51,17 +54,17 @@ const OPENDAL_NATIVE_PACKAGES = [
 ] as const
 
 const readElectronBuilderConfig = async () => {
-  const configPath = path.join(process.cwd(), 'electron-builder.yml')
+  const configPath = path.join(appRoot, 'electron-builder.yml')
   return parse(await readFile(configPath, 'utf8')) as ElectronBuilderConfig
 }
 
 const readPackageJson = async () => {
-  const packageJsonPath = path.join(process.cwd(), 'package.json')
+  const packageJsonPath = path.join(appRoot, 'package.json')
   return JSON.parse(await readFile(packageJsonPath, 'utf8')) as PackageJson
 }
 
 const readWorkflow = async (name: string) => {
-  const workflowPath = path.join(process.cwd(), '.github', 'workflows', name)
+  const workflowPath = path.join(workspaceRoot, '.github', 'workflows', name)
   return parse(await readFile(workflowPath, 'utf8')) as GitHubWorkflow
 }
 
@@ -147,17 +150,15 @@ describe('Linux ARM64 packaging', () => {
     expect(cuaSteps.every((step) => step.if === "inputs.arch == 'x64'")).toBe(true)
 
     expect(steps.find((step) => step.name === 'Install Linux runtimes')?.run).toBe(
-      'pnpm run installRuntime:linux:${{ inputs.arch }}'
+      'pnpm --filter DeepChat run installRuntime:linux:${{ inputs.arch }}'
     )
     expect(steps.find((step) => step.name === 'Bundle Feishu plugin')?.if).toBeUndefined()
 
     const ocrSmoke = steps.find((step) => step.name === 'Verify packaged Light OCR offline')
     expect(ocrSmoke?.if).toBeUndefined()
     expect(ocrSmoke?.run).toContain('--expect-supported')
-    expect(ocrSmoke?.run).toContain('dist/${UNPACKED_DIRECTORY}/resources')
-    expect(
-      steps.find((step) => step.name?.includes('OCR is unavailable'))
-    ).toBeUndefined()
+    expect(ocrSmoke?.run).toContain('${DESKTOP_DIST_DIRECTORY}/${UNPACKED_DIRECTORY}/resources')
+    expect(steps.find((step) => step.name?.includes('OCR is unavailable'))).toBeUndefined()
 
     const installerSize = steps.find((step) => step.name === 'Compare installer sizes')
     expect(installerSize?.if).toBe('inputs.enforce-installer-size')
@@ -190,7 +191,7 @@ describe('Linux ARM64 packaging', () => {
 
   it('declares the pinned Linux ARM64 Light OCR native package', async () => {
     const runtimeVersions = JSON.parse(
-      await readFile(path.join(process.cwd(), 'resources', 'runtime-versions.json'), 'utf8')
+      await readFile(path.join(appRoot, 'resources', 'runtime-versions.json'), 'utf8')
     ) as {
       lightOcr?: { nativePackages?: Record<string, string> }
     }
@@ -203,9 +204,7 @@ describe('Linux ARM64 packaging', () => {
   it('collects Linux ARM64 packages and update metadata for releases', async () => {
     const workflow = await readWorkflow('release.yml')
     const assembleSteps = workflow.jobs?.assemble?.steps ?? []
-    const arm64Download = assembleSteps.find(
-      (step) => step.name === 'Download Linux ARM64 package'
-    )
+    const arm64Download = assembleSteps.find((step) => step.name === 'Download Linux ARM64 package')
 
     expect(arm64Download?.uses).toMatch(/^actions\/download-artifact@[0-9a-f]{40}$/)
     expect(arm64Download?.with).toEqual({

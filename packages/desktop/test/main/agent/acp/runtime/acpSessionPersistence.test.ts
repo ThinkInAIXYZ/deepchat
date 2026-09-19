@@ -45,7 +45,14 @@ describe('AcpSessionPersistence remote session sync', () => {
       notifyEnvironmentProjectionChanged
     )
 
-    await persistence.saveSessionData('conversation-1', 'agent-1', 'remote-1' as never, null, 'idle', null)
+    await persistence.saveSessionData(
+      'conversation-1',
+      'agent-1',
+      'remote-1' as never,
+      null,
+      'idle',
+      null
+    )
 
     expect(projectDatabase.newEnvironmentsTable.syncPath).toHaveBeenCalledWith('/work/project')
     expect(notifyEnvironmentProjectionChanged).toHaveBeenCalledTimes(1)

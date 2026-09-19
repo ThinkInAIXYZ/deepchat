@@ -1,10 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { AcpCompatibilityPromptBuilder } from '@/agent/acp/runtime/acpCompatibilityPromptBuilder'
 import type { AcpCompatibilityPromptSections } from '@/agent/acp/instance'
-import {
-  TOOL_EXECUTION,
-  type MCPToolDefinition
-} from '@deepchat/shared/types/core/mcp'
+import { TOOL_EXECUTION, type MCPToolDefinition } from '@deepchat/shared/types/core/mcp'
 
 const sections: AcpCompatibilityPromptSections = {
   configured: 'configured',

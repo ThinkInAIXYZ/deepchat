@@ -10,10 +10,7 @@ import {
   SUMMARY_REJECTED_LARGER_REASON,
   SUMMARY_UNAVAILABLE_REASON
 } from '@deepchat/agent-kernel/runtime/contextContributions'
-import type {
-  ReconstructionAnchorPromptState,
-  SessionSummaryState
-} from '@/session/data/settings'
+import type { ReconstructionAnchorPromptState, SessionSummaryState } from '@/session/data/settings'
 import type { DeepChatAgentConfig } from '@deepchat/shared/types/agent-interface'
 
 vi.mock('tokenx', () => ({
@@ -941,10 +938,7 @@ describe('CompactionService', () => {
     const originalRecords = makeCompleteTurns(3, 80)
     const pinned = contextBuilderModule.buildPinnedFirstUser(originalRecords, false, false)
     if (!pinned) throw new Error('Expected a pinned first user.')
-    const changedRecords = [
-      makeUserRecord(1, 'changed first user'),
-      ...originalRecords.slice(1)
-    ]
+    const changedRecords = [makeUserRecord(1, 'changed first user'), ...originalRecords.slice(1)]
     const { service, messageStore } = createService()
     messageStore.getMessages.mockReturnValue(changedRecords)
 
@@ -1002,9 +996,7 @@ describe('CompactionService', () => {
     expect(intent?.summaryBlocks).toHaveLength(2)
     expect(intent?.targetCursorOrderSeq).toBe(5)
     expect(intent?.retainedTurnCount).toBe(2)
-    expect(intent?.retainedTokenEstimate).toBeGreaterThanOrEqual(
-      intent?.retainedTokenTarget ?? 0
-    )
+    expect(intent?.retainedTokenEstimate).toBeGreaterThanOrEqual(intent?.retainedTokenTarget ?? 0)
   })
 
   it('reports exact usage against the assistant model chosen for a summary call', async () => {
@@ -1346,9 +1338,9 @@ describe('CompactionService', () => {
     expect(buildContextCheckpoint(boundaryState.summaryText, anchor)).toEqual(
       buildContextCheckpoint(boundaryState.summaryText, anchor)
     )
-    expect(String(buildContextCheckpoint(boundaryState.summaryText, anchor).message?.content)).toContain(
-      '"summaryGap":'
-    )
+    expect(
+      String(buildContextCheckpoint(boundaryState.summaryText, anchor).message?.content)
+    ).toContain('"summaryGap":')
   })
 
   it('merges consecutive summary gaps into the latest boundary', async () => {

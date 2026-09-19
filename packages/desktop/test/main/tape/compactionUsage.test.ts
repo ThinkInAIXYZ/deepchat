@@ -268,7 +268,13 @@ itIfSqlite('persists compaction call facts and reporting rows atomically and ide
     const database = new SessionDatabase({ getDatabase: () => db })
     database.deepchatTapeEntriesTable.createTable()
     database.deepchatUsageStatsTable.createTable()
-    const transcript = new SessionTranscript(database, new SessionTape(database))
+    const transcript = new SessionTranscript(
+      database,
+      new SessionTape(database),
+      undefined,
+      undefined,
+      { transaction: (operation) => db.transaction(operation)() }
+    )
 
     transcript.recordCompactionModelCall(input())
     transcript.recordCompactionModelCall(input())
@@ -343,7 +349,13 @@ itIfSqlite('aggregates independently measured compaction usage fields with real 
     const database = new SessionDatabase({ getDatabase: () => db })
     database.deepchatTapeEntriesTable.createTable()
     database.deepchatUsageStatsTable.createTable()
-    const transcript = new SessionTranscript(database, new SessionTape(database))
+    const transcript = new SessionTranscript(
+      database,
+      new SessionTape(database),
+      undefined,
+      undefined,
+      { transaction: (operation) => db.transaction(operation)() }
+    )
 
     transcript.recordCompactionModelCall(
       input({ usage: { inputTokens: 100, outputTokens: 20, totalTokens: null } })
@@ -399,7 +411,9 @@ itIfSqlite(
       database.deepchatMessagesTable.createTable()
       database.deepchatSessionsTable.createTable()
       const tape = new SessionTape(database)
-      const transcript = new SessionTranscript(database, tape)
+      const transcript = new SessionTranscript(database, tape, undefined, undefined, {
+        transaction: (operation) => db.transaction(operation)()
+      })
 
       for (const sessionId of ['session-a', 'session-b']) {
         for (let index = 0; index < 26; index += 1) {

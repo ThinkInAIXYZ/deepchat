@@ -7,33 +7,33 @@
     ".github",
     ".cursor",
     ".vscode",
-    "build/**",
-    "resources/**",
+    "packages/desktop/build/**",
+    "packages/desktop/resources/**",
     "scripts/**",
-    "runtime/**",
+    "packages/desktop/runtime/**",
     "docs/**",
-    "test/**",
-    "src/shared/**/*",
-    "!src/shared/contracts/events/mcp.events.ts",
-    "!src/shared/contracts/routes/mcp.routes.ts",
-    "!src/shared/types/core/mcp.ts",
-    "!src/shared/types/mcp.ts",
-    "src/shadcn/**"
+    "packages/desktop/test/**",
+    "packages/desktop/src/shared/**/*",
+    "!packages/desktop/src/shared/contracts/events/mcp.events.ts",
+    "!packages/desktop/src/shared/contracts/routes/mcp.routes.ts",
+    "!packages/desktop/src/shared/types/core/mcp.ts",
+    "!packages/desktop/src/shared/types/mcp.ts",
+    "packages/desktop/src/shadcn/**"
   ],
   "overrides": [
     {
-      "files": ["src/main/**/*.ts"],
+      "files": ["packages/desktop/src/main/**/*.ts"],
       "rules": {
         "no-console": ["error", { "allow": ["warn", "error", "info", "debug", "trace"] }]
       }
     },
     {
       "files": [
-        "src/main/mcp/**/*.ts",
-        "src/shared/contracts/events/mcp.events.ts",
-        "src/shared/contracts/routes/mcp.routes.ts",
-        "src/shared/types/core/mcp.ts",
-        "src/shared/types/mcp.ts"
+        "packages/desktop/src/main/mcp/**/*.ts",
+        "packages/shared/src/contracts/events/mcp.events.ts",
+        "packages/shared/src/contracts/routes/mcp.routes.ts",
+        "packages/shared/src/types/core/mcp.ts",
+        "packages/shared/src/types/mcp.ts"
       ],
       "rules": {
         "no-restricted-imports": [

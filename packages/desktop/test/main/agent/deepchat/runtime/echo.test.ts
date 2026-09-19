@@ -199,7 +199,12 @@ describe('echo', () => {
       expect.objectContaining({ revision: 1 })
     )
 
-    state.blocks.push({ type: 'content', content: 'more', status: 'pending', timestamp: Date.now() })
+    state.blocks.push({
+      type: 'content',
+      content: 'more',
+      status: 'pending',
+      timestamp: Date.now()
+    })
     markStreamChanged(state)
     echo.flush()
     expect(publishDeepchatEvent).toHaveBeenLastCalledWith(

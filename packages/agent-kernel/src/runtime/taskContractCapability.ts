@@ -5,10 +5,7 @@ import {
   ExecutionContractError,
   isToolEffectWithinCeiling
 } from '../tape/domain/executionContract.js'
-import {
-  isDeepChatTaskContract,
-  isDeepChatTaskContractRef
-} from '../tape/domain/taskContract.js'
+import { isDeepChatTaskContract, isDeepChatTaskContractRef } from '../tape/domain/taskContract.js'
 
 function requestedSubagentDepth(tool: MCPToolDefinition): number {
   return tool.source === 'agent' && tool.function.name === LIVE_DELEGATION_AGENT_TOOL_NAME ? 1 : 0
@@ -40,8 +37,6 @@ export function meetTaskContractToolDefinitions(
   )
 }
 
-export function resolveExecutionContractSubagentDepth(
-  tools: readonly MCPToolDefinition[]
-): number {
+export function resolveExecutionContractSubagentDepth(tools: readonly MCPToolDefinition[]): number {
   return tools.some((tool) => requestedSubagentDepth(tool) > 0) ? 1 : 0
 }

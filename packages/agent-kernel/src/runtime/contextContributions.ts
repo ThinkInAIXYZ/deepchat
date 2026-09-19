@@ -10,7 +10,7 @@ import {
   EMPTY_DIRECTIVE_CONTEXT_CONTRIBUTION,
   EMPTY_MEMORY_CONTEXT_CONTRIBUTION
 } from '../memory/memoryPromptContributor.js'
-import {type ReconstructionAnchorPromptState} from '../contracts/sessionSettingsStore.js'
+import { type ReconstructionAnchorPromptState } from '../contracts/sessionSettingsStore.js'
 
 const CHECKPOINT_NOTICE = [
   '## Conversation Checkpoint',
@@ -190,9 +190,7 @@ export function buildContextCheckpoint(
   reconstructionAnchor: ReconstructionAnchorPromptState | null | undefined
 ): ContextCheckpoint {
   const normalizedSummary = summaryText?.trim() || null
-  const reconstructionSourceEntryIds = reconstructionAnchor
-    ? [reconstructionAnchor.entryId]
-    : []
+  const reconstructionSourceEntryIds = reconstructionAnchor ? [reconstructionAnchor.entryId] : []
   const generatedAnchorSummary =
     readVisibleText(reconstructionAnchor?.state.summary) ??
     readVisibleText(reconstructionAnchor?.state.summaryText)
@@ -215,10 +213,7 @@ export function buildContextCheckpoint(
     contributions.push(buildContribution('summary_checkpoint', content, summarySourceEntryIds))
   }
 
-  const reconstructionContent = buildReconstructionContent(
-    reconstructionAnchor,
-    normalizedSummary
-  )
+  const reconstructionContent = buildReconstructionContent(reconstructionAnchor, normalizedSummary)
   if (reconstructionContent) {
     sections.push(reconstructionContent)
     contributions.push(

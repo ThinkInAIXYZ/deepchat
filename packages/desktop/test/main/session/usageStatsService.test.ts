@@ -798,7 +798,13 @@ describe('UsageStatsService', () => {
 
   it('keeps a single stats row when live finalize updates a previously backfilled message', async () => {
     const { service, sqlitePresenter } = createService()
-    const messageStore = new SessionTranscript(sqlitePresenter, new SessionTape(sqlitePresenter))
+    const messageStore = new SessionTranscript(
+      sqlitePresenter,
+      new SessionTape(sqlitePresenter),
+      undefined,
+      undefined,
+      { transaction: (operation) => operation() }
+    )
 
     sqlitePresenter.deepchatSessionsTable.create('session-1', 'openai', 'gpt-4o', 'full_access')
     sqlitePresenter.deepchatMessagesTable.insert({

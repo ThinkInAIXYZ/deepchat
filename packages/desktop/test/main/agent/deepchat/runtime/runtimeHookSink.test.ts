@@ -248,7 +248,10 @@ describe('RuntimeHookSink terminal projection', () => {
     })
 
     expect(events.map((event) => event.event)).toEqual(['Stop', 'SessionEnd'])
-    expect(events[1]).toMatchObject({ usage: { totalTokens: 5 }, error: { message: 'tool exploded' } })
+    expect(events[1]).toMatchObject({
+      usage: { totalTokens: 5 },
+      error: { message: 'tool exploded' }
+    })
   })
 
   it('normalizes a missing usage or error into an explicit null', () => {
