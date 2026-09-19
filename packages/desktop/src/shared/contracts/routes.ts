@@ -577,6 +577,15 @@ import {
   skillSyncScanExternalToolsRoute
 } from './routes/skillSync.routes'
 import {
+  syncHostCreatePairingCodeRoute,
+  syncHostGetAuditRoute,
+  syncHostGetStatusRoute,
+  syncHostListDevicesRoute,
+  syncHostRenameDeviceRoute,
+  syncHostRevokeDeviceRoute,
+  syncHostSetEnabledRoute
+} from './routes/syncHost.routes'
+import {
   syncGetBackupStatusRoute,
   syncImportRoute,
   syncListBackupsRoute,
@@ -688,6 +697,7 @@ export * from './routes/sessions.routes'
 export * from '@deepchat/shared/contracts/routes/skills.routes'
 export * from './routes/skillSync.routes'
 export * from './routes/sync.routes'
+export * from './routes/syncHost.routes'
 export * from './routes/system.routes'
 export * from '@deepchat/shared/contracts/routes/toolchains.routes'
 export * from './routes/tab.routes'
@@ -1285,7 +1295,14 @@ const DEEPCHAT_ROUTE_CATALOG_PART_5 = {
   [toolchainsCancelInstallRoute.name]: toolchainsCancelInstallRoute,
   [toolchainsRepairRoute.name]: toolchainsRepairRoute,
   [toolchainsRevertRoute.name]: toolchainsRevertRoute,
-  [toolchainsPickCustomRoute.name]: toolchainsPickCustomRoute
+  [toolchainsPickCustomRoute.name]: toolchainsPickCustomRoute,
+  [syncHostGetStatusRoute.name]: syncHostGetStatusRoute,
+  [syncHostSetEnabledRoute.name]: syncHostSetEnabledRoute,
+  [syncHostCreatePairingCodeRoute.name]: syncHostCreatePairingCodeRoute,
+  [syncHostListDevicesRoute.name]: syncHostListDevicesRoute,
+  [syncHostRevokeDeviceRoute.name]: syncHostRevokeDeviceRoute,
+  [syncHostRenameDeviceRoute.name]: syncHostRenameDeviceRoute,
+  [syncHostGetAuditRoute.name]: syncHostGetAuditRoute
 } satisfies Record<string, RouteContract>
 
 export type DeepchatRouteCatalog = typeof DEEPCHAT_ROUTE_CATALOG_PART_1 &

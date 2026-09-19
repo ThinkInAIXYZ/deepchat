@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
 
-import { ERROR_RETRY_COOLDOWN_MS } from '@/memory/runtimeConstants'
+import {
+  ERROR_RETRY_COOLDOWN_MS,
+  VECTOR_STORE_OPERATION_TIMEOUT_MS
+} from '@/memory/runtimeConstants'
 import { type IMemoryVectorStore } from '@deepchat/agent-kernel/collab/memory/types'
 import logger from '@deepchat/shared/logger'
 import type { DeepChatAgentConfig } from '@deepchat/shared/types/agent-interface'
@@ -498,6 +501,125 @@ describe('MemoryService.processPendingEmbeddings (batch + fairness)', () => {
 })
 
 describe('MemoryService embedding reindex (T5, AC-3.x)', () => {
+  it.each([102_399, 102_400, 102_401])(
+    'verifies %i current IDs without a capacity-triggered rebuild',
+    async (count) => {
+      const { presenter, repo, store, resetVectorStore } = makePresenter(enabledConfig)
+      const ids = Array.from(
+        { length: count },
+        (_, index) => `id-${String(index).padStart(6, '0')}`
+      )
+      // Above the former cap, place both a missing vector and an orphan in the last page.
+      // Equal row counts alone must not establish coverage.
+      const needsRepair = count === 102_401
+      const vectorIds = needsRepair ? [...ids.slice(0, -1), 'z-orphan'] : ids
+      vi.spyOn(repo, 'getCurrentEmbeddingDimension').mockReturnValue(4)
+      const listRows = vi
+        .spyOn(repo, 'listCurrentEmbeddedIds')
+        .mockImplementation((_agent, _dimensions, _fingerprint, afterId, limit) => {
+          const offset = afterId === null ? 0 : ids.indexOf(afterId) + 1
+          return ids.slice(offset, offset + limit)
+        })
+      const listVectors = vi
+        .spyOn(store, 'listMemoryIds')
+        .mockImplementation(async (afterId, limit) => {
+          const offset = afterId === null ? 0 : vectorIds.indexOf(afterId) + 1
+          return vectorIds.slice(offset, offset + limit)
+        })
+      const requeue = vi
+        .spyOn(repo, 'requeueReadyEmbeddingsByIds')
+        .mockReturnValue(needsRepair ? 1 : 0)
+      const remove = vi.spyOn(store, 'deleteByMemoryIds')
+      const runtime = memoryRuntimeForTests(presenter)
+      const reindex = vi.spyOn(runtime.embeddingService, 'reindexEmbeddings')
+      try {
+        await runtime.embeddingService.warmVectorStore('a', { providerId: 'p', modelId: 'm' })
+        expect(runtime.isVectorReady('a')).toBe(true)
+        expect(resetVectorStore).not.toHaveBeenCalled()
+        expect(reindex).not.toHaveBeenCalled()
+        expect(listRows.mock.calls.every((args) => args[4] === 512)).toBe(true)
+        expect(listVectors.mock.calls.every((args) => args[1] === 512)).toBe(true)
+        if (needsRepair) {
+          expect(requeue).toHaveBeenCalledExactlyOnceWith('a', [ids[count - 1]])
+          expect(remove).toHaveBeenCalledExactlyOnceWith(['z-orphan'])
+        } else {
+          expect(requeue).not.toHaveBeenCalled()
+          expect(remove).not.toHaveBeenCalled()
+        }
+      } finally {
+        await presenter.dispose()
+      }
+    }
+  )
+
+  it.each([false, true])(
+    'bounds missing-vector repairs and observes cancellation=%s',
+    async (cancel) => {
+      const config = { ...enabledConfig }
+      const { presenter, repo, resetVectorStore } = makePresenter(config)
+      const ids = Array.from({ length: 513 }, (_, index) => `id-${String(index).padStart(4, '0')}`)
+      vi.spyOn(repo, 'getCurrentEmbeddingDimension').mockReturnValue(4)
+      vi.spyOn(repo, 'listCurrentEmbeddedIds').mockImplementation(
+        (_agent, _dimensions, _fingerprint, afterId, limit) => {
+          const offset = afterId === null ? 0 : ids.indexOf(afterId) + 1
+          return ids.slice(offset, offset + limit)
+        }
+      )
+      const requeue = vi
+        .spyOn(repo, 'requeueReadyEmbeddingsByIds')
+        .mockImplementation((_agent, batch) => {
+          if (cancel) config.memoryEnabled = false
+          return batch.length
+        })
+      const runtime = memoryRuntimeForTests(presenter)
+      try {
+        await runtime.embeddingService.warmVectorStore('a', { providerId: 'p', modelId: 'm' })
+        expect(requeue.mock.calls.map(([, batch]) => batch.length)).toEqual(
+          cancel ? [512] : [512, 1]
+        )
+        expect(requeue.mock.calls.flatMap(([, batch]) => batch)).toEqual(
+          cancel ? ids.slice(0, 512) : ids
+        )
+        expect(runtime.isVectorReady('a')).toBe(!cancel)
+        expect(resetVectorStore).not.toHaveBeenCalled()
+      } finally {
+        await presenter.dispose()
+      }
+    }
+  )
+
+  it('stops paginated coverage at the lease deadline without resetting the store', async () => {
+    vi.useFakeTimers()
+    const { presenter, repo, store, resetVectorStore } = makePresenter(enabledConfig)
+    const runtime = memoryRuntimeForTests(presenter)
+    vi.spyOn(repo, 'getCurrentEmbeddingDimension').mockReturnValue(4)
+    let page = 0
+    const listRows = vi.spyOn(repo, 'listCurrentEmbeddedIds').mockImplementation(() => {
+      // Simulate a slow but progressing SQLite listing; each page uses part of the real lease budget.
+      vi.advanceTimersByTime(10_000)
+      return Array.from({ length: 512 }, (_, index) => `id-${page++}-${index}`)
+    })
+    const listVectors = vi.spyOn(store, 'listMemoryIds')
+    const requeue = vi.spyOn(repo, 'requeueReadyEmbeddingsByIds')
+    const remove = vi.spyOn(store, 'deleteByMemoryIds')
+    try {
+      const warm = runtime.embeddingService.warmVectorStore('a', { providerId: 'p', modelId: 'm' })
+      await vi.advanceTimersByTimeAsync(VECTOR_STORE_OPERATION_TIMEOUT_MS + 10)
+      await warm
+      expect(listRows).toHaveBeenCalledTimes(3)
+      expect(listVectors).not.toHaveBeenCalled()
+      expect(requeue).not.toHaveBeenCalled()
+      expect(remove).not.toHaveBeenCalled()
+      expect(runtime.isVectorReady('a')).toBe(false)
+      expect(resetVectorStore).not.toHaveBeenCalled()
+      await vi.advanceTimersByTimeAsync(100)
+      expect(listRows).toHaveBeenCalledTimes(3)
+    } finally {
+      await presenter.dispose()
+      vi.useRealTimers()
+    }
+  })
+
   it('serializes coverage verification with embedding persistence for the same agent', async () => {
     const { presenter, repo, store } = makePresenter(enabledConfig)
     repo.insert({

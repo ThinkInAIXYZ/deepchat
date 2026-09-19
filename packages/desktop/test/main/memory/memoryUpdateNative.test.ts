@@ -46,6 +46,64 @@ function memoryAuditTable(database: InstanceType<typeof MainDatabaseCtor>) {
 }
 
 describeIfNative('Memory update SQLite integration', () => {
+  it.each(['approve', 'rollback'] as const)(
+    'rolls back both persona states when %s activation fails',
+    async (operation) => {
+      const directory = actualFs.mkdtempSync(join(tmpdir(), 'deepchat-persona-atomic-'))
+      const sqlite = new MainDatabaseCtor(join(directory, 'agent.db'))
+      const repository = memoryTable(sqlite)
+      const onMemoryChanged = vi.fn()
+      const presenter = new MemoryService({
+        repository,
+        resolveAgentConfig: () => ({ memoryEnabled: true }),
+        executeWithRateLimit: async () => undefined,
+        getEmbeddings: async () => [],
+        createVectorStore: async () => new FakeVectorStore(),
+        resetVectorStore: async () => undefined,
+        onMemoryChanged
+      })
+      try {
+        const first = presenter.evolvePersona('a', 'first self-model')!
+        await presenter.approvePersonaDraft('a', first)
+        const second = presenter.evolvePersona('a', 'second self-model')!
+        if (operation === 'rollback') await presenter.approvePersonaDraft('a', second)
+        const target = operation === 'approve' ? second : first
+        const active = operation === 'approve' ? first : second
+        const before = repository.listPersonaVersions('a')
+        onMemoryChanged.mockClear()
+        const setState = repository.setPersonaState.bind(repository)
+        const failure = vi
+          .spyOn(repository, 'setPersonaState')
+          .mockImplementation((id, ...args) => {
+            if (id === target && args[0] === 'active') throw new Error('activation failed')
+            setState(id, ...args)
+          })
+
+        await expect(
+          operation === 'approve'
+            ? presenter.approvePersonaDraft('a', target)
+            : presenter.rollbackPersona('a', target)
+        ).rejects.toThrow('activation failed')
+
+        expect(repository.listPersonaVersions('a')).toEqual(before)
+        expect(repository.getActivePersona('a')?.id).toBe(active)
+        expect(onMemoryChanged).not.toHaveBeenCalled()
+        failure.mockRestore()
+        await expect(
+          operation === 'approve'
+            ? presenter.approvePersonaDraft('a', target)
+            : presenter.rollbackPersona('a', target)
+        ).resolves.toEqual({ action: 'applied' })
+        expect(repository.getActivePersona('a')?.id).toBe(target)
+        expect(repository.getById(active)?.persona_state).toBe('superseded')
+      } finally {
+        await presenter.dispose()
+        sqlite.close()
+        actualFs.rmSync(directory, { recursive: true, force: true })
+      }
+    }
+  )
+
   it('rejects partial canonical insert state in fake and SQLite repositories', () => {
     const directory = actualFs.mkdtempSync(join(tmpdir(), 'deepchat-memory-insert-state-'))
     const sqlite = new MainDatabaseCtor(join(directory, 'agent.db'))

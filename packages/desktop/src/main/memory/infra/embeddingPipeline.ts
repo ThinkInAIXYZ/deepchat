@@ -1047,7 +1047,13 @@ export class EmbeddingPipeline {
         }
       }
 
-      const coverage = await this.verifyVectorCoverage(agentId, embedding, dimensions, fingerprint)
+      const coverage = await this.verifyVectorCoverage(
+        agentId,
+        embedding,
+        dimensions,
+        fingerprint,
+        operationFence
+      )
       if (
         !this.ctx.canContinueOperation(operationFence) ||
         !this.ctx.canUseCurrentMemoryEmbedding(agentId, embedding)
@@ -1056,13 +1062,6 @@ export class EmbeddingPipeline {
       }
       if (!coverage.verified) {
         this.ports.vectorStore.clearReady(agentId)
-        if (coverage.authoritativeListingTruncated && !this.reindexing.has(agentId)) {
-          void this.reindexEmbeddings(agentId, true).catch((error) => {
-            logger.warn(
-              `[Memory] incomplete vector store rebuild failed for ${agentId}: ${String(error)}`
-            )
-          })
-        }
         return {
           outcome: 'deferred',
           error: new MemoryReindexFailure(
@@ -1100,106 +1099,97 @@ export class EmbeddingPipeline {
     )
   }
 
-  private collectCurrentEmbeddedIds(
-    agentId: string,
-    dimensions: number,
-    fingerprint: string
-  ): { ids: string[]; complete: boolean } {
-    const ids: string[] = []
-    let afterId: string | null = null
-    for (let guard = 0; guard < REINDEX_MAX_BATCHES; guard += 1) {
-      const page = this.ports.repository.listCurrentEmbeddedIds(
-        agentId,
-        dimensions,
-        fingerprint,
-        afterId,
-        ORPHAN_RECONCILE_BATCH
-      )
-      ids.push(...page)
-      if (page.length < ORPHAN_RECONCILE_BATCH) return { ids, complete: true }
-      afterId = page[page.length - 1]
-    }
-    return { ids, complete: false }
-  }
-
   private async verifyVectorCoverage(
     agentId: string,
     embedding: MemoryModelRef,
     dimensions: number,
-    fingerprint: string
+    fingerprint: string,
+    operationFence: MemoryOperationFence
   ): Promise<{
     verified: boolean
-    authoritativeListingTruncated: boolean
     generation: number
   }> {
     return this.ports.vectorStore.withVectorMutation(agentId, async () => {
       const readEpoch = this.ctx.captureReadEpoch(agentId)
-      const authoritative = this.collectCurrentEmbeddedIds(agentId, dimensions, fingerprint)
-      if (!authoritative.complete) {
-        return { verified: false, authoritativeListingTruncated: true, generation: -1 }
-      }
       const outcome = await this.ports.vectorStore.withStoreLease(
         agentId,
         embedding,
         dimensions,
         async (store, generation) => {
-          if (!store.isUsable()) {
-            return {
-              verified: false,
-              authoritativeListingTruncated: false,
-              generation
-            }
-          }
-          const sidecarIds: string[] = []
+          const isCurrent = () =>
+            this.ctx.canContinueOperation(operationFence) &&
+            this.ctx.isReadEpochCurrent(agentId, readEpoch) &&
+            this.ctx.canUseCurrentMemoryEmbedding(agentId, embedding) &&
+            this.ports.vectorStore.isGenerationCurrent(agentId, generation)
+          if (!store.isUsable() || !isCurrent()) return { verified: false, generation }
+
+          // Coverage is bounded by the lease deadline, not the embedding drain's batch budget.
+          // Yield even on synchronous SQLite pages so the deadline and cancellation can run.
+          const missingIds = new Set<string>()
           let afterId: string | null = null
-          let complete = false
-          for (let guard = 0; guard < REINDEX_MAX_BATCHES; guard += 1) {
-            const page = await store.listMemoryIds(afterId, ORPHAN_RECONCILE_BATCH)
-            if (!this.ports.vectorStore.isGenerationCurrent(agentId, generation)) {
-              return { verified: false, authoritativeListingTruncated: false, generation }
-            }
-            sidecarIds.push(...page)
-            if (page.length < ORPHAN_RECONCILE_BATCH) {
-              complete = true
-              break
-            }
+          while (isCurrent()) {
+            const page = this.ports.repository.listCurrentEmbeddedIds(
+              agentId,
+              dimensions,
+              fingerprint,
+              afterId,
+              ORPHAN_RECONCILE_BATCH
+            )
+            for (const id of page) missingIds.add(id)
+            if (page.length < ORPHAN_RECONCILE_BATCH) break
             afterId = page[page.length - 1]
+            await this.waitForBackgroundTick()
           }
-          if (!complete) {
-            return { verified: false, authoritativeListingTruncated: false, generation }
+          if (!isCurrent()) return { verified: false, generation }
+
+          const extras: string[] = []
+          afterId = null
+          while (isCurrent()) {
+            const page = await store.listMemoryIds(afterId, ORPHAN_RECONCILE_BATCH)
+            if (!isCurrent()) return { verified: false, generation }
+            for (const id of page) {
+              if (!missingIds.delete(id)) extras.push(id)
+            }
+            if (page.length < ORPHAN_RECONCILE_BATCH) break
+            afterId = page[page.length - 1]
+            await this.waitForBackgroundTick()
           }
-          const authoritativeSet = new Set(authoritative.ids)
-          const sidecarSet = new Set(sidecarIds)
+          if (!isCurrent()) return { verified: false, generation }
           // A ready row without a vector only needs its own embedding again. Requeueing exactly
           // those rows removes them from the ready set, so the certificate below stays truthful
           // and the ordinary backfill drain repairs them without resetting the store.
-          const missingIds = authoritative.ids.filter((id) => !sidecarSet.has(id))
-          if (missingIds.length > 0) {
-            const requeued = this.ports.repository.requeueReadyEmbeddingsByIds(agentId, missingIds)
+          if (missingIds.size > 0) {
+            let requeued = 0
+            let remaining = missingIds.size
+            let batch: string[] = []
+            for (const id of missingIds) {
+              batch.push(id)
+              remaining -= 1
+              if (batch.length < ORPHAN_RECONCILE_BATCH && remaining > 0) continue
+              requeued += this.ports.repository.requeueReadyEmbeddingsByIds(agentId, batch)
+              batch = []
+              if (remaining > 0) await this.waitForBackgroundTick()
+              if (!isCurrent()) return { verified: false, generation }
+            }
             logger.warn(
-              `[Memory] requeued ${requeued} of ${missingIds.length} ready rows whose vectors were missing for ${agentId}`
+              `[Memory] requeued ${requeued} of ${missingIds.size} ready rows whose vectors were missing for ${agentId}`
             )
           }
-          const extras = sidecarIds.filter((id) => !authoritativeSet.has(id))
           for (let start = 0; start < extras.length; start += ORPHAN_RECONCILE_BATCH) {
             await store.deleteByMemoryIds(extras.slice(start, start + ORPHAN_RECONCILE_BATCH))
-            if (!this.ports.vectorStore.isGenerationCurrent(agentId, generation)) {
-              return { verified: false, authoritativeListingTruncated: false, generation }
-            }
+            if (start + ORPHAN_RECONCILE_BATCH < extras.length) await this.waitForBackgroundTick()
+            if (!isCurrent()) return { verified: false, generation }
           }
-          return { verified: true, authoritativeListingTruncated: false, generation }
+          return { verified: true, generation }
         }
       )
       if (
+        !this.ctx.canContinueOperation(operationFence) ||
         !this.ctx.isReadEpochCurrent(agentId, readEpoch) ||
         !this.ctx.canUseCurrentMemoryEmbedding(agentId, embedding) ||
         !this.ports.vectorStore.isGenerationCurrent(agentId, outcome.generation)
       ) {
-        return {
-          verified: false,
-          authoritativeListingTruncated: false,
-          generation: outcome.generation
-        }
+        return { verified: false, generation: outcome.generation }
       }
       return outcome
     })

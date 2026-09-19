@@ -85,6 +85,7 @@ export type MainLogStartupComponent =
   | 'rtk_health_check'
   | 'skill_sync'
   | 'sqlite_mainline_normalization'
+  | 'sync_host'
   | 'toolchain_gc'
   | 'usage_stats_backfill'
 
@@ -456,6 +457,7 @@ const STARTUP_COMPONENTS = [
   'rtk_health_check',
   'skill_sync',
   'sqlite_mainline_normalization',
+  'sync_host',
   'toolchain_gc',
   'usage_stats_backfill'
 ] as const satisfies readonly MainLogStartupComponent[]

@@ -464,6 +464,21 @@ spike. A previously reported green commit is not a baseline.
   identity rather than by rerun, provided the pending aggregate-fix patch stays within the same
   non-application scope. The fix patch's file list must be checked against this condition before
   final acceptance relies on it.
+- The controller committed the migration as a milestone chain where every commit's tree is the
+  exact independently accepted frozen state: a merge of `origin/dev` at `8cdf58016` carrying the M0
+  conflict resolutions and baseline fixes, then M1 shim removal, M2 shared extraction plus its
+  scoped correction, the M3 relocation and its CI/native corrections, the CLI package and package
+  test integration, the M5c transaction seam, the provider/MCP core extraction, and the hardened
+  tooling gates, closing with the serialized artifact-gate fix and the evidence/engine-policy docs
+  commits. The latest `origin/dev` (`ebfe83ad0`, 17 commits: the sync host endpoint feature, memory
+  atomicity fixes, and the Baizhi MCP example) is then merged on top. Rename detection carried most
+  of the porting automatically; the sync host module and its tests land under
+  `packages/desktop/src/main/sync/host` and `packages/desktop/test/main/sync/host`, the new
+  syncHost contracts stay desktop-owned beside the host routes barrel, the Baizhi example test
+  resolves the workspace root relative to the relocated file, and the merge touches neither the
+  renderer surface nor any extracted package manifest. Post-merge gates: full typecheck including
+  the kernel-port structure gate, the affected sync/memory/plugin suites, format, i18n, lint, and
+  the full main aggregate all pass on the merge result.
 
 ## M1 — Remove kernel re-export shims
 

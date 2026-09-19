@@ -128,6 +128,8 @@ import { createDeviceRoutes } from '../device/routes'
 import { createOnboardingRoutes } from '../onboarding/routes'
 import { createUpgradeRoutes } from '../upgrade/routes'
 import { createSyncRoutes } from '../sync/routes'
+import { SyncHostService } from '../sync/host'
+import { createSyncHostRoutes } from '../sync/host/routes'
 import { createPlatformRoutes } from '../platform/routes'
 import { createHookRoutes } from '../hook/routes'
 import { createAppSettingsRoutes } from './settingsRoutes'
@@ -538,6 +540,7 @@ export async function createMainProcessControl(dependencies: {
   let ocrSettings: OcrSettings
   let mcpService: McpService
   let syncService: SyncService
+  let syncHostService: SyncHostService
   let deeplinkService: DeeplinkService
   let notificationService: NotificationService
   let tabPresenter: TabPresenter
@@ -1332,6 +1335,13 @@ export async function createMainProcessControl(dependencies: {
     providerDatabase,
     publishDeepchatEvent
   )
+  syncHostService = new SyncHostService({
+    listBackups: () => syncService.listBackups(),
+    getFolderPath: () => syncSettings.getFolderPath(),
+    getUserDataPath: () => app.getPath('userData'),
+    getAppVersion: () => app.getVersion(),
+    logger
+  })
   notificationService = new NotificationService(desktopSettings, publishDeepchatEvent)
   trayPresenter = new TrayPresenter(desktopSettings, windowPresenter)
   dialogService = new DialogService(publishDeepchatEvent)
@@ -2746,6 +2756,7 @@ export async function createMainProcessControl(dependencies: {
   async function destroy(): Promise<void> {
     await runDestroyStep('agentCliTokenAuthority.clear', () => agentCliTokenAuthority.clear())
     await runDestroyStep('cliServer.stop', () => cliServer.stop())
+    await runDestroyStep('syncHostService.stop', () => syncHostService.stop())
     await runDestroyStep('tapeInspectorHeadWatcher.close', () => tapeInspectorHeadWatcher.close())
     await runDestroyStep('typedEventHub.close', () => typedEventHub.close())
     await runDestroyStep('cliMutationGuard.clear', () => cliMutationGuard.clear())
@@ -3051,6 +3062,7 @@ export async function createMainProcessControl(dependencies: {
         })
       }
     })
+    const syncHostRoutes = createSyncHostRoutes({ host: syncHostService })
     const platformRoutes = createPlatformRoutes({
       proxySettings: dependencies.proxySettings,
       applyProxyMode: (mode) => {
@@ -3204,6 +3216,7 @@ export async function createMainProcessControl(dependencies: {
         upgradeRoutes,
         exporterRoutes,
         syncRoutes,
+        syncHostRoutes,
         platformRoutes,
         hookRoutes,
         notificationRoutes,
@@ -3700,6 +3713,12 @@ export async function createMainProcessControl(dependencies: {
   } catch (error) {
     reportMainStartupComponentFailure(dependencies.startupRunId, 'cli_control', 'unknown')
     logger.error('[CLI] Failed to start local control server', error)
+  }
+  try {
+    await syncHostService.startIfEnabled()
+  } catch (error) {
+    reportMainStartupComponentFailure(dependencies.startupRunId, 'sync_host', 'unknown')
+    logger.error('[SyncHost] Failed to start host mode', error)
   }
   if (cliServer.getStatus().running) {
     try {

@@ -28,7 +28,8 @@ import type {
   MemoryLifecycleRepositoryPort,
   MemoryMutationRepositoryPort,
   MemoryReadRepositoryPort,
-  MemoryTextGenerationPort
+  MemoryTextGenerationPort,
+  MemoryTransactionPort
 } from '@deepchat/agent-kernel/collab/memory/ports'
 
 export class PersonaService {
@@ -41,7 +42,8 @@ export class PersonaService {
       ctx: MemoryRuntimeContext
       repository: MemoryReadRepositoryPort &
         MemoryMutationRepositoryPort &
-        MemoryLifecycleRepositoryPort
+        MemoryLifecycleRepositoryPort &
+        MemoryTransactionPort
       textGeneration: MemoryTextGenerationPort
     }
   ) {
@@ -203,10 +205,12 @@ export class PersonaService {
         return memoryCommandRejected('invalid-state')
       }
       const current = this.ports.repository.getActivePersona(agentId)
-      if (current && current.id !== draft.id) {
-        this.ports.repository.setPersonaState(current.id, 'superseded', draft.id)
-      }
-      this.ports.repository.setPersonaState(draft.id, 'active', null)
+      this.ports.repository.runInTransaction(() => {
+        if (current && current.id !== draft.id) {
+          this.ports.repository.setPersonaState(current.id, 'superseded', draft.id)
+        }
+        this.ports.repository.setPersonaState(draft.id, 'active', null)
+      })
       this.ctx.markDomainMutationCommitted(agentId)
       this.ctx.emitChanged(agentId, 'persona-approve')
       return memoryCommandApplied()
@@ -289,10 +293,12 @@ export class PersonaService {
         (target.persona_state == null && target.superseded_by != null)
       if (!isHistorical) return memoryCommandRejected('invalid-state')
       if (current && current.is_anchor === 1) return memoryCommandRejected('anchored')
-      if (current) {
-        this.ports.repository.setPersonaState(current.id, 'superseded', versionId)
-      }
-      this.ports.repository.setPersonaState(versionId, 'active', null)
+      this.ports.repository.runInTransaction(() => {
+        if (current) {
+          this.ports.repository.setPersonaState(current.id, 'superseded', versionId)
+        }
+        this.ports.repository.setPersonaState(versionId, 'active', null)
+      })
       this.ctx.markDomainMutationCommitted(agentId)
       this.ctx.emitChanged(agentId, 'persona-rollback')
       return memoryCommandApplied()
