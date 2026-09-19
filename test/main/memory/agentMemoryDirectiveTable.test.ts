@@ -5,7 +5,7 @@ import { Database, nativeSqliteDescribeIf } from '../nativeSqliteHarness'
 const tableModule = Database
   ? await import('@/memory/data/tables/agentMemoryDirective').catch(() => null)
   : null
-const directiveModule = await import('@/memory/domain/directives')
+const directiveModule = await import('@deepchat/agent-kernel/collab/memory/domain/directives')
 
 const AgentMemoryDirectiveTable = tableModule?.AgentMemoryDirectiveTable
 const DatabaseCtor = Database!

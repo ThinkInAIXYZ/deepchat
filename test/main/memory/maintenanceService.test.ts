@@ -1,7 +1,10 @@
 import { describe, expect, it, vi } from 'vitest'
 
 import type { MaintenanceBudget } from '@/memory/core/maintenanceBudget'
-import type { AgentMemoryRow, MemoryVectorMatch } from '@/memory/domain/types'
+import type {
+  AgentMemoryRow,
+  MemoryVectorMatch
+} from '@deepchat/agent-kernel/collab/memory/domain/types'
 import type { DeepChatAgentConfig } from '@shared/types/agent-interface'
 import { createControlledPromise } from './serviceHarness'
 import {

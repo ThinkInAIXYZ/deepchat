@@ -14,7 +14,7 @@ import fs from 'fs'
 import path from 'path'
 import { app, nativeImage } from 'electron'
 import logger from '@shared/logger'
-import { awaitWithAbort } from '@/lib/awaitWithAbort'
+import { awaitWithAbort } from '@deepchat/agent-kernel/collab/lib/awaitWithAbort'
 import type { ChatMessage } from '@shared/types/core/chat-message'
 import type { ToolCallImagePreview } from '@shared/types/core/mcp'
 import {
@@ -53,9 +53,13 @@ import {
   SKILL_LIST_DEFAULT_LIMIT,
   SKILL_LIST_MAX_LIMIT,
   SKILL_LIST_QUERY_MAX_BYTES
-} from '../../skill/routingCatalog'
+} from '@deepchat/agent-kernel/collab/skill/routingCatalog'
 import { SkillExecutionService } from '../../skill/skillExecutionService'
-import { parseQuestionToolInput, questionToolSchema, QUESTION_TOOL_NAME } from './questionTool'
+import {
+  parseQuestionToolInput,
+  questionToolSchema,
+  QUESTION_TOOL_NAME
+} from '@deepchat/agent-kernel/collab/tool/agentTools/questionTool'
 import {
   ChatSettingsToolHandler,
   buildChatSettingsToolDefinitions,
@@ -74,7 +78,11 @@ import {
   IMAGE_GENERATE_TOOL_NAME,
   IMAGE_GENERATION_TOOL_SERVER_NAME
 } from './agentImageGenerationTool'
-import { AGENT_CORE_TOOL_SERVER_NAME, AgentPlanTool, UPDATE_PLAN_TOOL_NAME } from './agentPlanTool'
+import {
+  AGENT_CORE_TOOL_SERVER_NAME,
+  AgentPlanTool,
+  UPDATE_PLAN_TOOL_NAME
+} from '@deepchat/agent-kernel/collab/tool/agentTools/agentPlanTool'
 import { AgentTapeToolHandler } from './agentTapeTools'
 import { AGENT_MEMORY_TOOL_SERVER_NAME, AgentMemoryToolHandler } from './agentMemoryTools'
 import {
@@ -103,7 +111,7 @@ import {
 import { isYoBrowserUnavailableError } from '../browser/errors'
 import type { SkillSettingsPort } from '@/skill/settings'
 import type { DeepChatSubagentCapability } from '@shared/types/agent-interface'
-import { resolveSessionDir } from '@/agent/shared/storage/sessionPaths'
+import { resolveSessionDir } from '@deepchat/agent-kernel/collab/agent-shared/storage/sessionPaths'
 import { LiveDelegationAgentTool } from './liveDelegationTool'
 import { normalizeOrchestrationPolicy } from '@shared/orchestration/policy'
 import { ResolvedCommandShellSchema, type ResolvedCommandShell } from '@shared/commandShell'
@@ -111,20 +119,23 @@ import { resolveAgentOutputLimits, type AgentOutputLimits } from '@shared/lib/ag
 import {
   assertActiveToolSurfaceExecutionContext,
   type ToolSurfaceExecutionContext
-} from '@/agent/deepchat/runtime/toolSurface'
-import { recordToolSurfaceCanaryDiscovery } from '@/agent/deepchat/runtime/toolSurfaceCanaryDiagnostics'
+} from '@deepchat/agent-kernel/runtime/toolSurface'
+import { recordToolSurfaceCanaryDiscovery } from '@deepchat/agent-kernel/runtime/toolSurfaceCanaryDiagnostics'
 import {
   MAX_PROGRAMMATIC_TOOL_INPUT_BYTES,
   PROGRAMMATIC_EXEC_STDIN_DESCRIPTION,
   type ProgrammaticToolCapabilityV1
-} from '@/agent/deepchat/runtime/programmaticToolSurface'
+} from '@deepchat/agent-kernel/runtime/programmaticToolSurface'
 import {
   TOOL_SEARCH_TOOL_SERVER_NAME,
   parseToolSearchInput,
   searchToolSurfaceSnapshot
 } from './toolSearchTool'
 import type { ProgrammaticToolParentRegistration } from '@/cli/programmaticToolParentRegistry'
-import { APPLY_PATCH_TOOL_NAME, STR_REPLACE_EDITOR_TOOL_NAME } from '@/tool/codeMode/toolModeTools'
+import {
+  APPLY_PATCH_TOOL_NAME,
+  STR_REPLACE_EDITOR_TOOL_NAME
+} from '@deepchat/agent-kernel/collab/tool/codeMode/toolModeTools'
 import {
   applyUpdateChunks,
   collectApplyPatchPaths,
@@ -141,7 +152,7 @@ import {
 import {
   CommandPermissionRequiredError,
   CommandPermissionService
-} from '../permission/commandPermissionService'
+} from '@deepchat/agent-kernel/collab/tool/permission/commandPermissionService'
 import {
   FilePermissionRequiredError,
   type FilePermissionLevel

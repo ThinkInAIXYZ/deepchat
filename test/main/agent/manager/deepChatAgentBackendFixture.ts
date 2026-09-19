@@ -1,4 +1,4 @@
-import { DeepChatAgentRuntime } from '@/agent/deepchat/instance/deepChatAgentRuntime'
+import { DeepChatAgentRuntime } from '@deepchat/agent-kernel/instance/deepChatAgentRuntime'
 import {
   createDeepChatAgentBackend,
   type DeepChatAgentBackendPort

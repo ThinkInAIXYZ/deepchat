@@ -1,7 +1,7 @@
 import type { ProviderSettingsPort } from '@/provider/settings'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { GithubCopilotProvider } from '../../../src/main/provider/providers/githubCopilotProvider'
-import { extractProviderFailureMetadata } from '@/provider/providerFailure'
+import { extractProviderFailureMetadata } from '@deepchat/agent-kernel/collab/provider/providerFailure'
 
 import { getGlobalGitHubCopilotDeviceFlow } from '../../../src/main/provider/auth/githubCopilotDeviceFlow'
 

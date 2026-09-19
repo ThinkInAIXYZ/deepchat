@@ -5,7 +5,7 @@ import type {
   TapeInspectorTraceBindingCount,
   TapeInspectorTraceMetadataPage,
   TapeInspectorTraceMetadataPageInput
-} from '@/tape/ports/application'
+} from '@deepchat/agent-kernel/tape/ports/application'
 
 export const TRACE_EVIDENCE_APPEND_INDEX_SCHEMA_VERSION = 68
 

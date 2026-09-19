@@ -21,31 +21,31 @@ import type {
   extractToolCallImagePreviews
 } from '@/lib/toolCallImagePreviews'
 import type { resolveSessionVisionTarget } from '@/agent/vision/sessionVisionResolver'
-import type { AgentSettingsPort } from '@/agent/deepchat/contracts/agentSettings'
-import type { AgentTraceSettingsPort } from '@/agent/deepchat/contracts/agentTraceSettings'
-import type { AttachmentPreparationPort } from '@/agent/deepchat/contracts/attachmentPreparation'
-import type { PromptSettingsPort } from '@/agent/deepchat/contracts/promptSettings'
+import type { AgentSettingsPort } from '@deepchat/agent-kernel/contracts/agentSettings'
+import type { AgentTraceSettingsPort } from '@deepchat/agent-kernel/contracts/agentTraceSettings'
+import type { AttachmentPreparationPort } from '@deepchat/agent-kernel/contracts/attachmentPreparation'
+import type { PromptSettingsPort } from '@deepchat/agent-kernel/contracts/promptSettings'
 import type {
   ProgrammaticGrantAuthorityPort,
   ProgrammaticToolAuthorityPort
-} from '@/agent/deepchat/contracts/programmaticToolAuthority'
-import type { CommandShellResolutionPort } from '@/agent/deepchat/contracts/commandShellResolution'
+} from '@deepchat/agent-kernel/contracts/programmaticToolAuthority'
+import type { CommandShellResolutionPort } from '@deepchat/agent-kernel/contracts/commandShellResolution'
 import type {
   CacheImageOptions,
   ToolImagePreviewPort
-} from '@/agent/deepchat/contracts/imagePreview'
-import type { MemoryCursorStorePort } from '@/agent/deepchat/contracts/memoryCursorStore'
-import type { PendingInputStorePort } from '@/agent/deepchat/contracts/pendingInputStore'
-import type { ProviderModelResolutionPort } from '@/agent/deepchat/contracts/providerModelResolution'
+} from '@deepchat/agent-kernel/contracts/imagePreview'
+import type { MemoryCursorStorePort } from '@deepchat/agent-kernel/contracts/memoryCursorStore'
+import type { PendingInputStorePort } from '@deepchat/agent-kernel/contracts/pendingInputStore'
+import type { ProviderModelResolutionPort } from '@deepchat/agent-kernel/contracts/providerModelResolution'
 import type {
   SessionAgentRowPort,
   SessionAgentRowStorePort
-} from '@/agent/deepchat/contracts/sessionAgentRow'
-import type { SessionSettingsStorePort } from '@/agent/deepchat/contracts/sessionSettingsStore'
-import type { SkillSettingsPort } from '@/agent/deepchat/contracts/skillSettings'
-import type { TapeStorePort } from '@/agent/deepchat/contracts/tapeStore'
-import type { TranscriptStorePort } from '@/agent/deepchat/contracts/transcriptStore'
-import type { VisionTargetResolverPort } from '@/agent/deepchat/contracts/visionTarget'
+} from '@deepchat/agent-kernel/contracts/sessionAgentRow'
+import type { SessionSettingsStorePort } from '@deepchat/agent-kernel/contracts/sessionSettingsStore'
+import type { SkillSettingsPort } from '@deepchat/agent-kernel/contracts/skillSettings'
+import type { TapeStorePort } from '@deepchat/agent-kernel/contracts/tapeStore'
+import type { TranscriptStorePort } from '@deepchat/agent-kernel/contracts/transcriptStore'
+import type { VisionTargetResolverPort } from '@deepchat/agent-kernel/contracts/visionTarget'
 import type { DeepChatHarnessDependencies } from '@/agent/deepchat/harness/runtimeServices'
 import type { DeepChatKernelDependencies } from '@deepchat/agent-kernel/composition/createDeepChatRuntimeServices'
 
@@ -90,7 +90,7 @@ describe('kernel port structural compatibility', () => {
 
   it('keeps the host permission authority satisfying SessionPermissionPort', () => {
     expectTypeOf<SessionPermissionPort>().toMatchTypeOf<
-      import('@/agent/deepchat/contracts/sessionPermission').SessionPermissionPort
+      import('@deepchat/agent-kernel/contracts/sessionPermission').SessionPermissionPort
     >()
   })
 

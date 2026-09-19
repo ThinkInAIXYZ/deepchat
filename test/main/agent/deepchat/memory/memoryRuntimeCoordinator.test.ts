@@ -3,16 +3,19 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   MEMORY_INJECTION_TIMEOUT_MS,
   MemoryRuntimeCoordinator
-} from '@/agent/deepchat/memory/memoryRuntimeCoordinator'
-import { DeepChatAgentRuntime } from '@/agent/deepchat/instance/deepChatAgentRuntime'
-import type { MemoryIngestionObserver } from '@/agent/deepchat/memory/memoryIngestionObserver'
-import type { MemoryPromptContributor } from '@/agent/deepchat/memory/memoryPromptContributor'
+} from '@deepchat/agent-kernel/memory/memoryRuntimeCoordinator'
+import { DeepChatAgentRuntime } from '@deepchat/agent-kernel/instance/deepChatAgentRuntime'
+import type { MemoryIngestionObserver } from '@deepchat/agent-kernel/memory/memoryIngestionObserver'
+import type { MemoryPromptContributor } from '@deepchat/agent-kernel/memory/memoryPromptContributor'
 import type { ChatMessageRecord } from '@shared/types/agent-interface'
 import logger from '@shared/logger'
-import { toAppSessionId } from '@/agent/shared/agentSessionIds'
+import { toAppSessionId } from '@deepchat/agent-kernel/collab/agent-shared/agentSessionIds'
 import { MemoryService } from '@/memory'
-import { estimateTokens } from '@/memory/injection'
-import type { DeepChatTapeEntryRow, TapeAnchorAppendInput } from '@/tape/domain/entry'
+import { estimateTokens } from '@deepchat/agent-kernel/collab/memory/injection'
+import type {
+  DeepChatTapeEntryRow,
+  TapeAnchorAppendInput
+} from '@deepchat/agent-kernel/tape/domain/entry'
 import {
   createFakeRepository,
   FakeAuditRepository,

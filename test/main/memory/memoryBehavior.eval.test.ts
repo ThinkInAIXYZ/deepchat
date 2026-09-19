@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest'
 
 import { buildMemorySection } from '@/memory'
-import type { MemoryDirectiveInput } from '@/memory/domain/directives'
-import type { AgentMemoryKind, MemoryTemporalMetadata } from '@/memory/domain/types'
+import type { MemoryDirectiveInput } from '@deepchat/agent-kernel/collab/memory/domain/directives'
+import type {
+  AgentMemoryKind,
+  MemoryTemporalMetadata
+} from '@deepchat/agent-kernel/collab/memory/domain/types'
 import fixtureValue from '../../fixtures/memory/behavior-v1.json'
 import { makePresenter } from './support/memoryFakes'
 

@@ -9,15 +9,15 @@ import {
   type DeepChatHandoffFormatRequirement,
   type DeepChatTaskEvaluationExecutionStatus
 } from '@shared/types/task-contract'
-import { hashJsonData } from '@/tape/domain/canonicalJson'
-import { buildTaskContract } from '@/tape/domain/taskContract'
+import { hashJsonData } from '@deepchat/agent-kernel/tape/domain/canonicalJson'
+import { buildTaskContract } from '@deepchat/agent-kernel/tape/domain/taskContract'
 import {
   buildTaskEvaluation,
   projectTaskEvaluationSummary,
   restoreStoredTaskEvaluation,
   restoreTaskEvaluation,
   serializeTaskEvaluation
-} from '@/tape/domain/taskEvaluation'
+} from '@deepchat/agent-kernel/tape/domain/taskEvaluation'
 
 const PREVIOUS_HEAD_EVALUATION_JSON =
   '{"candidate":{"kind":"answer","sha256":"ddc3016ae0a6c8cee3ad58eb31c7b2dd5ce301adebb35d7118083625458d513e","utf8Bytes":39},"disposition":"accepted","evaluationHash":"9733f212f7a14b8330797eac534eed15fd5b329ad1e313fc55813aa5d64190ad","evaluatorVersion":"task-contract-v1","executionStatus":"completed","hashVersion":1,"omittedRecordCount":0,"reasonCodes":[],"records":[{"additionalEvidenceCount":0,"code":"required_sections_present","instancePath":null,"keyword":null,"outcome":"passed","requirementId":"sections","requirementKind":"required_sections","section":null}],"schemaVersion":1,"taskContractHash":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","turnId":"turn-1","verdict":"passed"}'

@@ -9,12 +9,12 @@ import {
   type TapeSkillMaterializationPayload,
   type TapeSkillMaterializationRef,
   type TapeSkillMaterializationReceipt
-} from '../domain/skillMaterialization'
+} from '@deepchat/agent-kernel/tape/domain/skillMaterialization'
 import type {
   TapeSkillMaterializationReader,
   TapeSkillMaterializationWriter
-} from '../ports/capabilities'
-import type { TapeApplicationProviders } from '../ports/application'
+} from '@deepchat/agent-kernel/tape/ports/capabilities'
+import type { TapeApplicationProviders } from '@deepchat/agent-kernel/tape/ports/application'
 
 type Providers = Pick<TapeApplicationProviders, 'getSkillMaterializationStore'>
 

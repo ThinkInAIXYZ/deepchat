@@ -11,7 +11,7 @@ import * as sessionVisionResolverModule from '@/agent/vision/sessionVisionResolv
 import { createAgentToolDependencies } from './agentToolDependencies'
 import { CommandPermissionService } from '@/tool/permission'
 import { getYoBrowserToolDefinitions } from '@/tool/browser/definitions'
-import { selectToolBatchExecutionMode } from '@/agent/deepchat/runtime/toolExecutionPolicy'
+import { selectToolBatchExecutionMode } from '@deepchat/agent-kernel/runtime/toolExecutionPolicy'
 
 vi.mock('fs', async (importOriginal) => {
   const actual = (await importOriginal()) as typeof import('fs')

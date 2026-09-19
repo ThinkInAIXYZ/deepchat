@@ -1,5 +1,8 @@
-import type { MemoryCandidate } from '../types'
-import { normalizeMemoryDirective, type MemoryDirectiveInput } from '../domain/directives'
+import type { MemoryCandidate } from '@deepchat/agent-kernel/collab/memory/types'
+import {
+  normalizeMemoryDirective,
+  type MemoryDirectiveInput
+} from '@deepchat/agent-kernel/collab/memory/domain/directives'
 import { AGENT_MEMORY_CATEGORIES, isAgentMemoryCategory } from '@shared/types/agent-memory'
 import { extractJsonContainer } from './jsonExtraction'
 import { tryNormalizeMemoryTemporalMetadata, type RawMemoryTemporalMetadata } from './temporal'

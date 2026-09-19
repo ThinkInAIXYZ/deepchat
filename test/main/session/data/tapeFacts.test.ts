@@ -3,20 +3,20 @@ import type { AssistantMessageBlock, ChatMessageRecord } from '@shared/types/age
 import {
   appendMessageRecordToTape,
   appendToolFactsToTape
-} from '@/tape/application/factPersistence'
+} from '@deepchat/agent-kernel/tape/application/factPersistence'
 import {
   buildEffectiveTapeView,
   projectTapeToolOrderSeq,
   searchEffectiveTapeRows
-} from '@/tape/domain/effectiveView'
-import { TAPE_COMPACTION_MODEL_CALL_EVENT_NAME } from '@/tape/domain/compactionUsage'
-import { TOOL_SURFACE_TAPE_EVENT_NAMES } from '@/tape/domain/toolSurfaceFacts'
+} from '@deepchat/agent-kernel/tape/domain/effectiveView'
+import { TAPE_COMPACTION_MODEL_CALL_EVENT_NAME } from '@deepchat/agent-kernel/tape/domain/compactionUsage'
+import { TOOL_SURFACE_TAPE_EVENT_NAMES } from '@deepchat/agent-kernel/tape/domain/toolSurfaceFacts'
 import {
   isEffectiveMessageInputRow,
   messageRecordHasFinalToolUse,
   tapeToolRank
-} from '@/tape/domain/effectiveSemantics'
-import type { DeepChatTapeEntryRow } from '@/tape/domain/entry'
+} from '@deepchat/agent-kernel/tape/domain/effectiveSemantics'
+import type { DeepChatTapeEntryRow } from '@deepchat/agent-kernel/tape/domain/entry'
 
 function createTable() {
   const rows: any[] = []

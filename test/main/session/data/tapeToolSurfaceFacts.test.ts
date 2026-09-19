@@ -11,9 +11,9 @@ import {
   TOOL_SEARCH_AGENT_TOOL_MAX_RESULTS,
   TOOL_SEARCH_AGENT_TOOL_SERVER_NAME
 } from '@shared/agentTools'
-import { buildCanonicalToolCatalog } from '@/agent/deepchat/runtime/toolSurface'
-import { hashJsonData } from '@/tape/domain/canonicalJson'
-import { buildExecutionToolTargetKey } from '@/tape/domain/executionContract'
+import { buildCanonicalToolCatalog } from '@deepchat/agent-kernel/runtime/toolSurface'
+import { hashJsonData } from '@deepchat/agent-kernel/tape/domain/canonicalJson'
+import { buildExecutionToolTargetKey } from '@deepchat/agent-kernel/tape/domain/executionContract'
 import {
   MAX_TAPE_TOOL_CATALOG_PROJECTION_ENTRIES,
   MAX_TAPE_TOOL_SURFACE_ACTIVE_ENTRIES,
@@ -31,7 +31,7 @@ import {
   type TapeToolSurfaceCandidateRejection,
   type TapeToolSurfaceActiveEntry,
   type TapeToolSurfaceSearchResultRef
-} from '@/tape/domain/toolSurfaceFacts'
+} from '@deepchat/agent-kernel/tape/domain/toolSurfaceFacts'
 
 const TAPE_INCARNATION_ID = '22222222-2222-4222-8222-222222222222'
 const RUN_ID = '33333333-3333-4333-8333-333333333abc'

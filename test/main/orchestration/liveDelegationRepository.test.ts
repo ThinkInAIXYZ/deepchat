@@ -6,7 +6,10 @@ import {
   createLegacyLiveDelegationTaskContractInput,
   createLiveDelegationTaskContractInput
 } from '@/orchestration/liveDelegationTaskContract'
-import { canonicalJsonStringifyData, hashJsonData } from '@/tape/domain/canonicalJson'
+import {
+  canonicalJsonStringifyData,
+  hashJsonData
+} from '@deepchat/agent-kernel/tape/domain/canonicalJson'
 
 const databaseModule = Database
   ? await import('@/orchestration/data/database').catch(() => null)

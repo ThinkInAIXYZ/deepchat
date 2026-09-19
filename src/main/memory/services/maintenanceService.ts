@@ -22,7 +22,7 @@ import {
   type MemoryMaintenancePersonaResult,
   type MemoryMaintenanceReflectionResult,
   type MemoryMaintenanceStepResult
-} from '../types'
+} from '@deepchat/agent-kernel/collab/memory/types'
 import {
   embeddingFingerprint,
   type MemoryModelRef,
@@ -37,7 +37,7 @@ import type {
   MemoryEmbeddingRepositoryPort,
   MemoryLifecycleRepositoryPort,
   MemoryReadRepositoryPort
-} from '../ports'
+} from '@deepchat/agent-kernel/collab/memory/ports'
 import { isLiveDirtyConsolidationRow } from './mergeService'
 
 interface HeavyMaintenanceRun {

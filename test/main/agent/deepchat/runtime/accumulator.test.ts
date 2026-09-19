@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { accumulate, commitRoundUsage } from '@/agent/deepchat/runtime/accumulator'
-import { createState } from '@/agent/deepchat/runtime/types'
-import type { StreamState } from '@/agent/deepchat/runtime/types'
+import { accumulate, commitRoundUsage } from '@deepchat/agent-kernel/runtime/accumulator'
+import { createState } from '@deepchat/agent-kernel/runtime/types'
+import type { StreamState } from '@deepchat/agent-kernel/runtime/types'
 import { createDeepSeekReplayJson } from '../../../../fixtures/deepseekResponses'
 
 describe('accumulate', () => {

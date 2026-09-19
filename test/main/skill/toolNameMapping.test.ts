@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { normalizeSkillAllowedTools, normalizeSkillToolName } from '@/skill/toolNameMapping'
+import {
+  normalizeSkillAllowedTools,
+  normalizeSkillToolName
+} from '@deepchat/agent-kernel/collab/skill/toolNameMapping'
 
 describe('toolNameMapping', () => {
   it('maps Claude Code tool names to canonical names', () => {

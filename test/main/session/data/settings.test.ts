@@ -17,7 +17,7 @@ const sessionTranscriptModule = sqliteModule
   ? await import('../../../../src/main/session/data/transcript')
   : null
 const effectiveTapeViewModule = sqliteModule
-  ? await import('../../../../src/main/tape/domain/effectiveView')
+  ? await import('@deepchat/agent-kernel/tape/domain/effectiveView')
   : null
 
 const Database = sqliteModule?.default

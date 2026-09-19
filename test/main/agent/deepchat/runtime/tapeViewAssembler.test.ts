@@ -5,14 +5,14 @@ import {
   buildCacheAwareResumeContextWithMetadata,
   buildContextWithMetadata,
   buildResumeContextWithMetadata
-} from '@/agent/deepchat/runtime/contextBuilder'
+} from '@deepchat/agent-kernel/runtime/contextBuilder'
 import {
   buildTapeChatView,
   buildTapeResumeView,
   getTapeContextHistoryRecords,
   TAPE_VIEW_ASSEMBLER_VERSION,
   TAPE_VIEW_HISTORY_SOURCE
-} from '@/agent/deepchat/runtime/tapeViewAssembler'
+} from '@deepchat/agent-kernel/runtime/tapeViewAssembler'
 import {
   CACHE_AWARE_TAPE_VIEW_POLICY_ID,
   CACHE_AWARE_TAPE_VIEW_POLICY_V1_ID,
@@ -20,8 +20,8 @@ import {
   LEGACY_TAPE_VIEW_POLICY_ID,
   LEGACY_TAPE_VIEW_POLICY_VERSION,
   type TapeViewPolicy
-} from '@/agent/deepchat/runtime/tapeViewPolicy'
-import { createEmptyContextRuntimeContributions } from '@/agent/deepchat/runtime/contextContributions'
+} from '@deepchat/agent-kernel/runtime/tapeViewPolicy'
+import { createEmptyContextRuntimeContributions } from '@deepchat/agent-kernel/runtime/contextContributions'
 
 vi.mock('tokenx', () => ({
   estimateTokenCount: vi.fn((text: string) => Math.ceil(text.length / 4))

@@ -4,13 +4,13 @@ import {
   TAPE_COMPACTION_MODEL_CALL_EVENT_NAME,
   type TapeCompactionModelCallInput,
   type TapeCompactionModelCallReceipt
-} from '../domain/compactionUsage'
-import type { TapeApplicationProviders } from '../ports/application'
+} from '@deepchat/agent-kernel/tape/domain/compactionUsage'
+import type { TapeApplicationProviders } from '@deepchat/agent-kernel/tape/ports/application'
 import type {
   TapeCompactionModelCallCandidate,
   TapeCompactionModelCallReader,
   TapeCompactionModelCallWriter
-} from '../ports/capabilities'
+} from '@deepchat/agent-kernel/tape/ports/capabilities'
 
 type TapeCompactionUsageProviders = Pick<
   TapeApplicationProviders,

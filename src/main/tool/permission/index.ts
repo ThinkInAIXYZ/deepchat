@@ -2,8 +2,8 @@ export {
   buildCommandPermissionSignature,
   CommandPermissionService,
   isCommandSignatureForProfile
-} from './commandPermissionService'
-export { CommandPermissionCache } from './commandPermissionCache'
+} from '@deepchat/agent-kernel/collab/tool/permission/commandPermissionService'
+export { CommandPermissionCache } from '@deepchat/agent-kernel/collab/tool/permission/commandPermissionCache'
 export { FilePermissionService, FilePermissionRequiredError } from './filePermissionService'
 export { SettingsPermissionService } from './settingsPermissionService'
 export {
@@ -18,4 +18,4 @@ export type {
   CommandPermissionCheckResult,
   RiskLevel,
   PermissionCheckResult
-} from './commandPermissionService'
+} from '@deepchat/agent-kernel/collab/tool/permission/commandPermissionService'

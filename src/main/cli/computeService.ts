@@ -30,7 +30,7 @@ import { isVideoGenerationModelConfig } from '@shared/videoGenerationSettings'
 import { isTtsModelConfig, isTtsModelId } from '@shared/ttsSettings'
 import type { ProviderSettingsPort } from '@/provider/settings'
 import type { ProviderRuntime } from '@/provider'
-import { extractProviderFailureMetadata } from '@/provider/providerFailure'
+import { extractProviderFailureMetadata } from '@deepchat/agent-kernel/collab/provider/providerFailure'
 import {
   createRouteMap,
   type CliRouteCaller,

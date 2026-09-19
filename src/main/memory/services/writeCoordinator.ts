@@ -44,9 +44,9 @@ import type {
   MemoryUpdateContext,
   MemoryWriteOutcome,
   WriteMemoriesOptions
-} from '../types'
-import type { MemoryDirectiveInput } from '../domain/directives'
-import type { ClaimOwnership } from '../domain/types'
+} from '@deepchat/agent-kernel/collab/memory/types'
+import type { MemoryDirectiveInput } from '@deepchat/agent-kernel/collab/memory/domain/directives'
+import type { ClaimOwnership } from '@deepchat/agent-kernel/collab/memory/domain/types'
 import { isLiveDecisionTarget } from '../domain/stateModel'
 import {
   type MemoryModelRef,
@@ -63,7 +63,7 @@ import type {
   MemoryTextGenerationPort,
   MemoryTransactionPort,
   MemoryWriteMutationPort
-} from '../ports'
+} from '@deepchat/agent-kernel/collab/memory/ports'
 
 function createdIdsFromOutcome(outcome: MemoryWriteOutcome): string[] {
   switch (outcome.action) {

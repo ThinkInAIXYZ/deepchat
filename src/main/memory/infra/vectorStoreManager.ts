@@ -6,15 +6,18 @@ import {
   VectorStoreQueryTimeoutError,
   VectorStoreQuarantineMarkerError,
   type VectorStoreCleanupDisposition
-} from '../domain/types'
-import type { IMemoryVectorStore, MemoryVectorMatch } from '../types'
-import type { MemoryModelRef } from '../domain/types'
+} from '@deepchat/agent-kernel/collab/memory/domain/types'
+import type {
+  IMemoryVectorStore,
+  MemoryVectorMatch
+} from '@deepchat/agent-kernel/collab/memory/types'
+import type { MemoryModelRef } from '@deepchat/agent-kernel/collab/memory/domain/types'
 import type { MemoryRuntimeContext } from '../context'
 import {
   memoryEmbeddingFingerprint,
   memoryEmbeddingStorageFingerprint,
   resolveMemoryEmbedding
-} from '../core/executionIdentity'
+} from '@deepchat/agent-kernel/collab/memory/core/executionIdentity'
 import type {
   MemoryAgentPolicyPort,
   MemoryEmbeddingRepositoryPort,
@@ -22,7 +25,7 @@ import type {
   MemoryVectorStoreFactoryPort,
   VectorStoreRecallHealth,
   VectorStoreRetrievalPort
-} from '../ports'
+} from '@deepchat/agent-kernel/collab/memory/ports'
 import {
   RECALL_VECTOR_QUERY_GRACE_MS,
   RECALL_VECTOR_QUERY_TIMEOUT_MS,

@@ -5,7 +5,7 @@ import {
   VectorStoreOperationTimeoutError,
   VectorStoreQueryTimeoutError,
   type MemoryVectorMatch
-} from '@/memory/domain/types'
+} from '@deepchat/agent-kernel/collab/memory/domain/types'
 import { VectorStoreManager } from '@/memory/infra/vectorStoreManager'
 import {
   MemoryVectorStorePostCommitError,
@@ -16,7 +16,10 @@ import {
   RECALL_VECTOR_QUERY_TIMEOUT_MS,
   VECTOR_STORE_OPERATION_TIMEOUT_MS
 } from '@/memory/runtimeConstants'
-import type { IMemoryVectorStore, MemoryEmbeddingRepositoryPort } from '@/memory/ports'
+import type {
+  IMemoryVectorStore,
+  MemoryEmbeddingRepositoryPort
+} from '@deepchat/agent-kernel/collab/memory/ports'
 import type { DeepChatAgentConfig } from '@shared/types/agent-interface'
 import { createControlledPromise } from './serviceHarness'
 

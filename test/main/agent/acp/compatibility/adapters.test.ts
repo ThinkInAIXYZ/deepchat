@@ -1,7 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type * as schema from '@agentclientprotocol/sdk/dist/schema/index.js'
 import { AcpContentMapper } from '@/agent/acp/runtime/acpContentMapper'
-import { toAcpRemoteSessionId, toAppSessionId } from '@/agent/shared/agentSessionIds'
+import {
+  toAcpRemoteSessionId,
+  toAppSessionId
+} from '@deepchat/agent-kernel/collab/agent-shared/agentSessionIds'
 import {
   AcpCompatibilityProjectionAdapter,
   AcpRequestTraceAdapter
@@ -11,7 +14,7 @@ import { SessionTape } from '@/tape/application/sessionTape'
 import {
   isEffectiveMessageInputRow,
   isEffectiveViewInputRow
-} from '@/tape/domain/effectiveSemantics'
+} from '@deepchat/agent-kernel/tape/domain/effectiveSemantics'
 import type { MainDatabase } from '@/data/mainDatabase'
 
 const publishDeepchatEvent = vi.fn()

@@ -6,7 +6,7 @@ import {
   MEMORY_PROVIDER_CAPACITY_CODE,
   MEMORY_PROVIDER_DEADLINE_CODE
 } from '@/memory/core/providerCancellation'
-import type { MemoryProviderGatewayDeps } from '@/memory/ports'
+import type { MemoryProviderGatewayDeps } from '@deepchat/agent-kernel/collab/memory/ports'
 import { createMemoryDiagnosticsProbe } from './serviceHarness'
 
 function makeGateway(overrides: Partial<MemoryProviderGatewayDeps> = {}): {

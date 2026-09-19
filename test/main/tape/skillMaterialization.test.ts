@@ -8,7 +8,7 @@ import {
   validateTapeSkillMaterializationBatch,
   validateTapeSkillMaterializationPayload,
   type TapeSkillMaterializationInput
-} from '@/tape/domain/skillMaterialization'
+} from '@deepchat/agent-kernel/tape/domain/skillMaterialization'
 import {
   SKILL_EXECUTION_PACKAGE_MAX_BYTES,
   SKILL_EXECUTION_PACKAGE_MAX_FILES,
@@ -17,8 +17,11 @@ import {
 import { TapeSkillMaterializationService } from '@/tape/application/skillMaterializationService'
 import { TapeFactService } from '@/tape/application/factService'
 import { ExecutionJournalService } from '@/tape/application/executionJournalService'
-import type { DeepChatTapeAppendInput, DeepChatTapeEntryRow } from '@/tape/domain/entry'
-import type { ExecutionOperationIdentity } from '@/tape/domain/executionJournal'
+import type {
+  DeepChatTapeAppendInput,
+  DeepChatTapeEntryRow
+} from '@deepchat/agent-kernel/tape/domain/entry'
+import type { ExecutionOperationIdentity } from '@deepchat/agent-kernel/tape/domain/executionJournal'
 
 const hash = hashSkillEffectiveContent('fixture')
 const emptyExecutionPackage = {

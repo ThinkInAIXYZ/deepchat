@@ -1,4 +1,4 @@
-import type { DeepChatTapeEntryRow } from '../domain/entry'
+import type { DeepChatTapeEntryRow } from '@deepchat/agent-kernel/tape/domain/entry'
 import {
   buildTapeProviderAttemptProvenanceKey,
   buildTapeProviderAttemptEvent,
@@ -8,9 +8,12 @@ import {
   type TapeProviderAttemptInput,
   type TapeProviderAttemptRecord,
   type TapeProviderContextPressureRecord
-} from '../domain/providerAttempt'
-import type { TapeApplicationProviders } from '../ports/application'
-import type { TapeProviderAttemptReader, TapeProviderAttemptWriter } from '../ports/capabilities'
+} from '@deepchat/agent-kernel/tape/domain/providerAttempt'
+import type { TapeApplicationProviders } from '@deepchat/agent-kernel/tape/ports/application'
+import type {
+  TapeProviderAttemptReader,
+  TapeProviderAttemptWriter
+} from '@deepchat/agent-kernel/tape/ports/capabilities'
 
 type TapeProviderAttemptProviders = Pick<
   TapeApplicationProviders,

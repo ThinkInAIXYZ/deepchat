@@ -7,7 +7,7 @@ import type {
   TapeAnchorWriter,
   TapeNonContextEntryReader,
   TapeIncarnationReader
-} from '@/tape/ports/capabilities'
+} from '@deepchat/agent-kernel/tape/ports/capabilities'
 import type {
   PluginContextContribution,
   PluginContextEvent,

@@ -29,7 +29,7 @@ import type {
   AgentInvocationAdmissionPort,
   AgentInvocationLease
 } from '@/agent/invocationAdmission'
-import { awaitWithAbort } from '@/lib/awaitWithAbort'
+import { awaitWithAbort } from '@deepchat/agent-kernel/collab/lib/awaitWithAbort'
 import { BoundedObservationQueue } from '@/lib/boundedObservationQueue'
 import type {
   AgentSubagentToolPort,
@@ -43,12 +43,12 @@ import type {
   SubagentTapeLinkReceipt
 } from '@shared/types/agent-interface'
 import type { DeepChatTaskContractContext } from '@shared/types/task-contract'
-import { projectTaskEvaluationSummary } from '@/tape/domain/taskEvaluation'
+import { projectTaskEvaluationSummary } from '@deepchat/agent-kernel/tape/domain/taskEvaluation'
 import type { SessionRuntimeUpdate } from '@/session/runtimeEvents'
 import type { SessionDeletionGatePort } from '@/session/deletionGate'
 import { classifyToolEffect } from '@/tool/effectClassification'
 import type { ToolEffectObservation } from '@/tool/effectObserver'
-import { resolveToolPermissionMode } from '@/tool/permission/permissionMode'
+import { resolveToolPermissionMode } from '@deepchat/agent-kernel/collab/tool/permission/permissionMode'
 import {
   LiveDelegationTaskContractError,
   type ActiveLiveDelegationTurn,

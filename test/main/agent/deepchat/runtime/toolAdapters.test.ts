@@ -7,14 +7,14 @@ import {
   type MCPToolDefinition
 } from '@shared/types/core/mcp'
 import type { ToolServicePort } from '@shared/types/tool'
-import type { ToolExecutionOptions, ToolResultPort } from '@/agent/deepchat/loop/ports'
+import type { ToolExecutionOptions, ToolResultPort } from '@deepchat/agent-kernel/loop/ports'
 import {
   createToolCatalogPort,
   createToolExecutionPort,
   createToolResultPort,
   normalizeToolResultContent,
   type ToolCatalogCacheEntry
-} from '@/agent/deepchat/runtime/toolAdapters'
+} from '@deepchat/agent-kernel/runtime/toolAdapters'
 
 function makeTool(name: string): MCPToolDefinition {
   return {

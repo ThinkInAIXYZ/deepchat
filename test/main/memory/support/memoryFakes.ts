@@ -26,8 +26,8 @@ import type {
   MemoryServiceDeps,
   MemoryVectorMatch,
   MemoryVectorRecord
-} from '@/memory/types'
-import type { AgentMemoryHealthAuditStats } from '@/memory/domain/audit'
+} from '@deepchat/agent-kernel/collab/memory/types'
+import type { AgentMemoryHealthAuditStats } from '@deepchat/agent-kernel/collab/memory/domain/audit'
 import type {
   MemoryAccessRepositoryPort,
   MemoryEmbeddingRepositoryPort,
@@ -38,7 +38,7 @@ import type {
   MemoryMutationRepositoryPort,
   MemoryReadRepositoryPort,
   MemoryTransactionPort
-} from '@/memory/ports'
+} from '@deepchat/agent-kernel/collab/memory/ports'
 import type {
   AgentMemoryDirectiveRow,
   MemoryDirectiveCounts,
@@ -46,7 +46,7 @@ import type {
   MemoryDirectiveTransitionResult,
   MemoryDirectiveWriteInput,
   MemoryDirectiveWriteResult
-} from '@/memory/domain/directives'
+} from '@deepchat/agent-kernel/collab/memory/domain/directives'
 import type { DeepChatAgentConfig } from '@shared/types/agent-interface'
 import { normalizeMemoryTemporalMetadata, temporalMetadataFromRow } from '@/memory/core/temporal'
 import {
@@ -71,7 +71,7 @@ import type {
   MemoryTombstoneIdentityKind,
   MemoryTombstoneReason,
   ResolveChallengerTransition
-} from '@/memory/domain/types'
+} from '@deepchat/agent-kernel/collab/memory/domain/types'
 import {
   AGENT_MEMORY_AGENT_SCOPE_FILTER,
   legacyUserScopeForMemoryScope,

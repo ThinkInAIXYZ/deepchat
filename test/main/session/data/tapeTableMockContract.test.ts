@@ -9,8 +9,11 @@ import {
   itIfSqlite,
   vi
 } from './tapeTestHarness'
-import { SUMMARY_ANCHOR_NAMES, TAPE_INCARNATION_META_KEY } from '@/tape/domain/entry'
-import { hashSkillEffectiveContent } from '@/tape/domain/skillMaterialization'
+import {
+  SUMMARY_ANCHOR_NAMES,
+  TAPE_INCARNATION_META_KEY
+} from '@deepchat/agent-kernel/tape/domain/entry'
+import { hashSkillEffectiveContent } from '@deepchat/agent-kernel/tape/domain/skillMaterialization'
 import { ExecutionJournalService } from '@/tape/application/executionJournalService'
 import { TapeSkillMaterializationService } from '@/tape/application/skillMaterializationService'
 import {

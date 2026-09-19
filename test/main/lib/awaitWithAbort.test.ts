@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 
-import { awaitWithAbort } from '@/lib/awaitWithAbort'
+import { awaitWithAbort } from '@deepchat/agent-kernel/collab/lib/awaitWithAbort'
 
 function deferred<T>() {
   let resolve!: (value: T) => void

@@ -10,14 +10,18 @@ import {
   REINDEX_MAX_BATCHES,
   WARM_DIMENSION_FAILURE_COOLDOWN_MS
 } from '../runtimeConstants'
-import type { EmbeddedMemoryUpdate, FailedEmbeddingUpdate, MemoryVectorRecord } from '../types'
+import type {
+  EmbeddedMemoryUpdate,
+  FailedEmbeddingUpdate,
+  MemoryVectorRecord
+} from '@deepchat/agent-kernel/collab/memory/types'
 import {
   VectorStoreLeaseUnavailableError,
   VectorStoreOperationTimeoutError,
   type MemoryReindexOutcome,
   type MemoryReindexResult,
   type VectorStoreCleanupDisposition
-} from '../domain/types'
+} from '@deepchat/agent-kernel/collab/memory/domain/types'
 import {
   embeddingFingerprint,
   type MemoryModelRef,
@@ -32,7 +36,7 @@ import type {
   MemoryPendingEmbeddableRowPort,
   MemoryReadRepositoryPort,
   VectorStoreRecallHealth
-} from '../ports'
+} from '@deepchat/agent-kernel/collab/memory/ports'
 import { MemoryReindexFailure, toMemoryReindexError } from './reindexResult'
 
 export interface EmbeddingPipelinePorts {

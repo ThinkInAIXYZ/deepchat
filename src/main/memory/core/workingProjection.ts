@@ -3,13 +3,16 @@ import {
   evaluateNormalizedMemoryTemporalPolicy,
   temporalMetadataFromRow
 } from './temporal'
-import { estimateTokens, estimateTokenWeight } from './injectionPort'
+import {
+  estimateTokens,
+  estimateTokenWeight
+} from '@deepchat/agent-kernel/collab/memory/core/injectionPort'
 import type {
   CanonicalAgentMemoryRow,
   MemoryTemporalMetadata,
   MemoryTemporalPolicyResult,
   MemoryTemporalStatus
-} from '../domain/types'
+} from '@deepchat/agent-kernel/collab/memory/domain/types'
 
 export const WORKING_PROJECTION_POLICY_VERSION = 1
 

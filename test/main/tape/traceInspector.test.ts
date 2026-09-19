@@ -1,19 +1,19 @@
 import { describe, expect, it } from 'vitest'
-import type { DeepChatTapeEntryRow } from '@/tape/domain/entry'
-import { hashString } from '@/tape/domain/replay'
-import { TAPE_VIEW_MANIFEST_EVENT_NAME } from '@/tape/domain/viewManifest'
+import type { DeepChatTapeEntryRow } from '@deepchat/agent-kernel/tape/domain/entry'
+import { hashString } from '@deepchat/agent-kernel/tape/domain/replay'
+import { TAPE_VIEW_MANIFEST_EVENT_NAME } from '@deepchat/agent-kernel/tape/domain/viewManifest'
 import { createObservationManifest } from '../session/data/tapeTestHarness'
 import {
   buildTapeProviderAttemptProvenanceKey,
   buildTapeProviderAttemptEvent,
   TAPE_PROVIDER_ATTEMPT_EVENT_NAME
-} from '@/tape/domain/providerAttempt'
+} from '@deepchat/agent-kernel/tape/domain/providerAttempt'
 import { TapeProviderAttemptService } from '@/tape/application/providerAttemptService'
 import {
   buildDispatchData,
   buildExecutionJournalMeta,
   buildExecutionOperationProvenanceKey
-} from '@/tape/domain/executionJournal'
+} from '@deepchat/agent-kernel/tape/domain/executionJournal'
 import {
   getTapeInspectorTraceBinding,
   matchesTapeInspectorFilters,

@@ -9,14 +9,14 @@ import {
   registerToolSurfaceDeferredDispatch,
   releaseToolSurfaceDeferredDispatchClaim,
   revokeToolSurfaceDeferredDispatch
-} from '@/agent/deepchat/runtime/toolSurface'
-import { resolveDeferredToolSurfaceDispatch } from '@/agent/deepchat/runtime/deferredToolSurface'
-import { buildExecutionContract } from '@/tape/domain/executionContract'
+} from '@deepchat/agent-kernel/runtime/toolSurface'
+import { resolveDeferredToolSurfaceDispatch } from '@deepchat/agent-kernel/runtime/deferredToolSurface'
+import { buildExecutionContract } from '@deepchat/agent-kernel/tape/domain/executionContract'
 import {
   createTapeViewManifest,
   type TapeViewManifestBuildInput
-} from '@/tape/domain/viewManifest'
-import type { TapeToolSurfaceFact } from '@/tape/domain/toolSurfaceFacts'
+} from '@deepchat/agent-kernel/tape/domain/viewManifest'
+import type { TapeToolSurfaceFact } from '@deepchat/agent-kernel/tape/domain/toolSurfaceFacts'
 
 const RUN_ID = '11111111-1111-4111-8111-111111111111'
 const REQUEST = {

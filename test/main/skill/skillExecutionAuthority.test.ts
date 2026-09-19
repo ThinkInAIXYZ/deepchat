@@ -10,8 +10,8 @@ import {
   createTapeSkillMaterializationPayload,
   hashSkillEffectiveContent,
   type TapeSkillMaterializationReceipt
-} from '@/tape/domain/skillMaterialization'
-import { createTapeViewManifest } from '@/tape/domain/viewManifest'
+} from '@deepchat/agent-kernel/tape/domain/skillMaterialization'
+import { createTapeViewManifest } from '@deepchat/agent-kernel/tape/domain/viewManifest'
 import type {
   DeepChatTapeSkillContextV7,
   DeepChatTapeViewManifestRecord

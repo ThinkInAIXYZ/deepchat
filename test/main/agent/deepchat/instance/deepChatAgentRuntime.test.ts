@@ -2,10 +2,10 @@ import { describe, expect, it, vi } from 'vitest'
 import {
   DeepChatAgentRuntime,
   isStaleDeepChatInstanceError
-} from '@/agent/deepchat/instance/deepChatAgentRuntime'
-import { toAppSessionId } from '@/agent/shared/agentSessionIds'
+} from '@deepchat/agent-kernel/instance/deepChatAgentRuntime'
+import { toAppSessionId } from '@deepchat/agent-kernel/collab/agent-shared/agentSessionIds'
 import { TOOL_EXECUTION, type MCPToolDefinition } from '@shared/types/core/mcp'
-import { createLoopRun } from '@/agent/deepchat/loop/loopRun'
+import { createLoopRun } from '@deepchat/agent-kernel/loop/loopRun'
 import { POSIX_COMMAND_SHELL } from '../../../../helpers/commandShell'
 
 const TOOL_DEFINITION: MCPToolDefinition = {

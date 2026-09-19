@@ -1,10 +1,10 @@
 import { describe, expect, it, vi } from 'vitest'
-import { DeepChatAgentRuntime } from '@/agent/deepchat/instance/deepChatAgentRuntime'
-import { toAppSessionId } from '@/agent/shared/agentSessionIds'
+import { DeepChatAgentRuntime } from '@deepchat/agent-kernel/instance/deepChatAgentRuntime'
+import { toAppSessionId } from '@deepchat/agent-kernel/collab/agent-shared/agentSessionIds'
 import {
   PromptAssemblyService,
   type PromptAssemblyServiceDependencies
-} from '@/agent/deepchat/runtime/promptAssemblyService'
+} from '@deepchat/agent-kernel/runtime/promptAssemblyService'
 import { POSIX_COMMAND_SHELL } from '../../../../helpers/commandShell'
 
 const SESSION_ID = 'session'
@@ -27,7 +27,7 @@ const buildSystemPromptAssemblyWithSkills = vi.hoisted(() =>
   }))
 )
 
-vi.mock('@/agent/deepchat/resources/systemPromptBuilder', () => ({
+vi.mock('@deepchat/agent-kernel/resources/systemPromptBuilder', () => ({
   buildSystemPromptAssemblyWithSkills,
   buildSystemPromptWithSkills
 }))

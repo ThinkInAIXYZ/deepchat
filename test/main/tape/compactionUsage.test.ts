@@ -4,8 +4,11 @@ import {
   buildTapeCompactionModelCallEvent,
   parseTapeCompactionModelCallEvent,
   type TapeCompactionModelCallInput
-} from '@/tape/domain/compactionUsage'
-import type { DeepChatTapeEntryRow, TapeEventAppendInput } from '@/tape/domain/entry'
+} from '@deepchat/agent-kernel/tape/domain/compactionUsage'
+import type {
+  DeepChatTapeEntryRow,
+  TapeEventAppendInput
+} from '@deepchat/agent-kernel/tape/domain/entry'
 import { SessionTranscript } from '@/session/data/transcript'
 import { SessionTape } from '@/tape/application/sessionTape'
 import { SessionDatabase } from '@/session/data/database'

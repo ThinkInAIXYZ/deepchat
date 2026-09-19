@@ -10,7 +10,7 @@ import {
   RECALL_QUERY_EMBEDDING_TIMEOUT_MS,
   WARM_DIMENSION_FAILURE_COOLDOWN_MS
 } from '@/memory/runtimeConstants'
-import { type IMemoryVectorStore } from '@/memory/types'
+import { type IMemoryVectorStore } from '@deepchat/agent-kernel/collab/memory/types'
 import { createEmptyMemoryHealth } from '@shared/contracts/routes'
 import type { DeepChatAgentConfig } from '@shared/types/agent-interface'
 import {

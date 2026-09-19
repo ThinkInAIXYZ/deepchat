@@ -11,7 +11,7 @@ import {
   buildSkillListResult,
   projectSkillRoutingCards,
   renderSkillRoutingCatalogWithinBudget
-} from '../../../src/main/skill/routingCatalog'
+} from '@deepchat/agent-kernel/collab/skill/routingCatalog'
 
 function metadata(
   name: string,

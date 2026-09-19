@@ -1,4 +1,4 @@
-import type { TapeApplicationProviders } from '../ports/application'
+import type { TapeApplicationProviders } from '@deepchat/agent-kernel/tape/ports/application'
 
 type TapeGenerationLifecycleProviders = Pick<
   TapeApplicationProviders,

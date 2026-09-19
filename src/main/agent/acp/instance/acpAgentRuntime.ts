@@ -5,7 +5,7 @@ import type {
   SendMessageInput
 } from '@shared/types/agent-interface'
 import type { AcpAgentDescriptor } from '@/agent/shared/agentDescriptors'
-import type { AppSessionId } from '@/agent/shared/agentSessionIds'
+import type { AppSessionId } from '@deepchat/agent-kernel/collab/agent-shared/agentSessionIds'
 import type { AcpClientRuntime, AcpRuntimeOwner } from '@/agent/acp/client'
 import type { SessionPendingInputRuntimePort } from '@/session/data/contracts'
 import { AcpAgentInstance, type AcpAgentInstanceDependencies } from './acpAgentInstance'

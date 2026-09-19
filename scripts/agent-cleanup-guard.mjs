@@ -55,15 +55,12 @@ const DEEPCHAT_HARNESS_OWNERSHIP_FILES = [
   DEEPCHAT_AGENT_HARNESS_FILE,
   DEEPCHAT_HARNESS_COMPOSITION_FILE
 ]
-// Owner layers below the harness boundary. Since the kernel extraction these live in the
-// @deepchat/agent-kernel workspace package; the host tree keeps one-line re-export shims at the
-// historical layer directories, and neither home may reach back into the harness (the package
-// via an alias mapping if one is ever introduced, the shims via relative imports).
+// Owner layers below the harness boundary live only in the kernel package. They may not reach
+// back into the Desktop harness.
 const DEEPCHAT_RUNTIME_LAYER_SEGMENTS = ['runtime', 'loop', 'instance', 'memory', 'resources']
-const DEEPCHAT_RUNTIME_LAYER_DIRS = DEEPCHAT_RUNTIME_LAYER_SEGMENTS.flatMap((segment) => [
-  path.join(KERNEL_PACKAGE_SRC, segment),
-  path.join(ROOT, 'src/main/agent/deepchat', segment)
-])
+const DEEPCHAT_RUNTIME_LAYER_DIRS = DEEPCHAT_RUNTIME_LAYER_SEGMENTS.map((segment) =>
+  path.join(KERNEL_PACKAGE_SRC, segment)
+)
 const DEEPCHAT_HARNESS_BARREL_FILE = path.join(DEEPCHAT_HARNESS_DIR, 'index.ts')
 // The harness barrel is the only supported entry point. Exporting the composed owner graph or its
 // factory would let callers reach an owner around the facade, or build a second runtime with its

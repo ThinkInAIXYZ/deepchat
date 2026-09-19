@@ -14,8 +14,6 @@ const AGENT_SYSTEM_SOURCE_ROOTS = [
   'src/main/agent/manager',
   'src/main/agent/deepchat',
   'src/main/agent/acp',
-  // Kernel owner layers physically live in the workspace package since the 2B-3a extraction;
-  // the host tree keeps one-line re-export shims at the historical paths.
   'packages/agent-kernel/src'
 ]
 const AGENT_SYSTEM_RUNTIME_BOUNDARY_FILES = [
@@ -291,7 +289,7 @@ const MIGRATED_RAW_CHANNEL_GUARD_PATHS = [
   path.join(ROOT, 'src/renderer/src/pages/NewThreadPage.vue'),
   path.join(ROOT, 'src/main/desktop/window'),
   path.join(ROOT, 'src/main/config'),
-  path.join(ROOT, 'src/main/agent/deepchat/runtime'),
+  path.join(ROOT, 'packages/agent-kernel/src/runtime'),
   path.join(ROOT, 'src/main/presenter/sessionPresenter'),
   path.join(ROOT, 'src/main/provider'),
   path.join(ROOT, 'src/shared/contracts'),

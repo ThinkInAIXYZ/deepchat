@@ -3,7 +3,10 @@ import type * as schema from '@agentclientprotocol/sdk/dist/schema/index.js'
 import type { AcpAgentConfig } from '@shared/types/acp'
 import type { AcpAgentInstallState } from '@shared/types/acp'
 import type { AcpAgentDescriptor } from '@/agent/shared/agentDescriptors'
-import { toAcpRemoteSessionId, toAppSessionId } from '@/agent/shared/agentSessionIds'
+import {
+  toAcpRemoteSessionId,
+  toAppSessionId
+} from '@deepchat/agent-kernel/collab/agent-shared/agentSessionIds'
 import { AcpPromptController, AcpRuntimeOwner, type AcpClientRuntime } from '@/agent/acp/client'
 import { AcpAgentRuntime, type AcpAgentRuntimeSessionInput } from '@/agent/acp/instance'
 import { AcpSessionController, type AcpSessionRecord } from '@/agent/acp/runtime'

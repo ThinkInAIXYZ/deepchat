@@ -9,8 +9,8 @@ import type {
   ProcessControlCollaborators,
   ProcessInternalDiagnostics,
   StreamState
-} from '@/agent/deepchat/runtime/types'
-import { createState } from '@/agent/deepchat/runtime/types'
+} from '@deepchat/agent-kernel/runtime/types'
+import { createState } from '@deepchat/agent-kernel/runtime/types'
 import {
   cacheToolCallImagePreviews,
   extractToolCallImagePreviews
@@ -18,7 +18,7 @@ import {
 import {
   estimateMessagesTokens,
   estimateToolDefinitionTokens
-} from '@/agent/deepchat/runtime/contextBuilder'
+} from '@deepchat/agent-kernel/runtime/contextBuilder'
 import {
   TOOL_EXECUTION,
   type MCPToolDefinition,
@@ -27,30 +27,30 @@ import {
 import type { ToolServicePort } from '@shared/types/tool'
 import type { AssistantMessageBlock, PermissionMode } from '@shared/types/agent-interface'
 import type { ChatMessageProviderReplayProjector } from '@shared/types/core/chat-message'
-import { ToolOutputGuard } from '@/agent/deepchat/runtime/toolOutputGuard'
+import { ToolOutputGuard } from '@deepchat/agent-kernel/runtime/toolOutputGuard'
 import {
   createToolExecutionPort,
   createToolResultPort
-} from '@/agent/deepchat/runtime/toolAdapters'
+} from '@deepchat/agent-kernel/runtime/toolAdapters'
 import type {
   DeepChatLoopToolNotification,
   ToolExecutionOptions,
   ToolExecutionPreCheckOptions,
   ToolResultPort
-} from '@/agent/deepchat/loop/ports'
-import type { LoopRunRequestToolSurfaceBinding } from '@/agent/deepchat/loop/loopRun'
-import { QUESTION_TOOL_NAME } from '@/tool/agentTools/questionTool'
+} from '@deepchat/agent-kernel/loop/ports'
+import type { LoopRunRequestToolSurfaceBinding } from '@deepchat/agent-kernel/loop/loopRun'
+import { QUESTION_TOOL_NAME } from '@deepchat/agent-kernel/collab/tool/agentTools/questionTool'
 import {
   IMAGE_GENERATE_TOOL_NAME,
   IMAGE_GENERATION_TOOL_SERVER_NAME
 } from '@shared/agentImageGenerationTool'
-import { resolveToolOffloadPath } from '@/agent/shared/storage/sessionPaths'
-import { createDeepSeekResponsesReplayProjector } from '@/provider/deepseekResponsesAdapter'
+import { resolveToolOffloadPath } from '@deepchat/agent-kernel/collab/agent-shared/storage/sessionPaths'
+import { createDeepSeekResponsesReplayProjector } from '@deepchat/agent-kernel/collab/provider/deepseekResponsesAdapter'
 import type {
   ExecutionJournalWriter,
   NestedExecutionJournalWriter
-} from '@/tape/ports/capabilities'
-import { ExecutionJournalError } from '@/tape/domain/executionJournal'
+} from '@deepchat/agent-kernel/tape/ports/capabilities'
+import { ExecutionJournalError } from '@deepchat/agent-kernel/tape/domain/executionJournal'
 import { POSIX_COMMAND_SHELL } from '../../../../helpers/commandShell'
 import {
   TOOL_SEARCH_AGENT_TOOL_NAME,
@@ -64,23 +64,23 @@ import {
   buildToolSurfaceDeferredDispatchBinding,
   createPolicySelectedToolSurfaceRun,
   type ToolSurfaceShadowPolicy
-} from '@/agent/deepchat/runtime/toolSurface'
+} from '@deepchat/agent-kernel/runtime/toolSurface'
 import {
   buildProgrammaticToolCapabilityV1,
   createProgrammaticToolSurfaceRunControllerV1,
   markProgrammaticToolCapabilityProvenanceCommitted
-} from '@/agent/deepchat/runtime/programmaticToolSurface'
+} from '@deepchat/agent-kernel/runtime/programmaticToolSurface'
 import {
   bindToolSurfaceCanaryRunEvidence,
   createToolSurfaceCanaryRunEvidenceRecorder
-} from '@/agent/deepchat/runtime/toolSurfaceCanaryDiagnostics'
+} from '@deepchat/agent-kernel/runtime/toolSurfaceCanaryDiagnostics'
 import type {
   ProgrammaticToolParentRegistration,
   ProgrammaticToolParentRegistry
 } from '@/cli/programmaticToolParentRegistry'
 import type { ArmedAgentCliProgrammaticToken } from '@/cli/agentTokenAuthority'
-import { ProgrammaticCommandLaunchError } from '@/agent/deepchat/runtime/programmaticCommandLaunchError'
-import { prepareProgrammaticExecParent } from '@/agent/deepchat/runtime/programmaticExecParent'
+import { ProgrammaticCommandLaunchError } from '@deepchat/agent-kernel/runtime/programmaticCommandLaunchError'
+import { prepareProgrammaticExecParent } from '@deepchat/agent-kernel/runtime/programmaticExecParent'
 import { CODE_MODE_TOOL_SERVER_NAME } from '@shared/codeModeProtocol'
 
 const publishDeepchatEventMock = vi.hoisted(() => vi.fn())
@@ -113,9 +113,9 @@ import {
   settleToolBatch as settleToolBatchInternal,
   TRUNCATED_TOOL_CALL_ERROR,
   type ToolBatchDisposition
-} from '@/agent/deepchat/runtime/dispatch'
-import type { EchoHandle } from '@/agent/deepchat/runtime/echo'
-import { accumulate } from '@/agent/deepchat/runtime/accumulator'
+} from '@deepchat/agent-kernel/runtime/dispatch'
+import type { EchoHandle } from '@deepchat/agent-kernel/runtime/echo'
+import { accumulate } from '@deepchat/agent-kernel/runtime/accumulator'
 
 function createIo(overrides?: Partial<IoParams>): IoParams {
   return {

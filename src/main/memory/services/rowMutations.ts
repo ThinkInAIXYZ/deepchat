@@ -15,7 +15,7 @@ import {
   type MemoryTemporalMetadata,
   type NormalizedMemoryCandidate,
   type WriteMemoriesOptions
-} from '../types'
+} from '@deepchat/agent-kernel/collab/memory/types'
 import type {
   ClaimOwnership,
   ContentUpdateResult,
@@ -23,7 +23,7 @@ import type {
   MemoryClaimInsertResult,
   MemoryExplicitRelearnResult,
   ProvenanceHitResult
-} from '../domain/types'
+} from '@deepchat/agent-kernel/collab/memory/domain/types'
 import {
   isChallengedDecisionHead,
   isEmbeddingEligibleState,
@@ -48,7 +48,7 @@ import type {
   MemoryMutationRepositoryPort,
   MemoryReadRepositoryPort,
   MemoryTransactionPort
-} from '../ports'
+} from '@deepchat/agent-kernel/collab/memory/ports'
 
 function canCarryCategory(kind: AgentMemoryRow['kind']): boolean {
   return kind === 'episodic' || kind === 'semantic'

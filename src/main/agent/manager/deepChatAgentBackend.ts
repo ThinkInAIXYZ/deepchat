@@ -1,5 +1,5 @@
-import { DeepChatAgentRuntime } from '@/agent/deepchat/instance/deepChatAgentRuntime'
-import type { AppSessionId } from '@/agent/shared/agentSessionIds'
+import { DeepChatAgentRuntime } from '@deepchat/agent-kernel/instance/deepChatAgentRuntime'
+import type { AppSessionId } from '@deepchat/agent-kernel/collab/agent-shared/agentSessionIds'
 import type { AgentSessionSendInput } from '@/agent/shared/agentSessionHandle'
 import type { SessionTapePort, SessionTranscriptReadPort } from '@/session/data/contracts'
 import type {

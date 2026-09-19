@@ -3,7 +3,7 @@ import { mkdir, open, readFile, unlink, type FileHandle } from 'node:fs/promises
 import path from 'node:path'
 import type { IncomingMessage } from 'node:http'
 import { CliRequestError } from './errors'
-import { parseBoundedJsonBytes } from '@/agent/deepchat/contracts/localControlProtocol'
+import { parseBoundedJsonBytes } from '@deepchat/agent-kernel/contracts/localControlProtocol'
 
 export type BoundedRequestBody =
   | Readonly<{
@@ -194,7 +194,7 @@ export async function readBoundedRequestBody(
   }
 }
 
-export { parseBoundedJsonBytes } from '@/agent/deepchat/contracts/localControlProtocol'
+export { parseBoundedJsonBytes } from '@deepchat/agent-kernel/contracts/localControlProtocol'
 
 export async function parseBoundedJsonBody(body: BoundedRequestBody): Promise<unknown> {
   try {

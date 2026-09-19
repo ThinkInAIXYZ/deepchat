@@ -46,7 +46,7 @@ import {
   type MemoryUpdateResult
 } from '@shared/contracts/routes/memory.routes'
 import { createRouteMap, type DeepchatRouteMap } from '@/routes/routeRegistry'
-import type { TapeInspectionReader } from '@/tape/ports/capabilities'
+import type { TapeInspectionReader } from '@deepchat/agent-kernel/tape/ports/capabilities'
 import type {
   MemoryConflictPair,
   MemoryConflictResolution,
@@ -56,17 +56,23 @@ import type {
   MemoryScopeContext,
   MemoryStatus,
   MemoryWriteOutcome
-} from './types'
+} from '@deepchat/agent-kernel/collab/memory/types'
 import type {
   AgentMemoryDirectiveRow,
   ExplicitMemoryDirectiveSource,
   MemoryDirectiveCommandResult,
   MemoryDirectiveInput,
   MemoryDirectiveListOptions
-} from './domain/directives'
-import type { CanonicalAgentMemoryRow as AgentMemoryRow, MemoryClearResult } from './domain/types'
+} from '@deepchat/agent-kernel/collab/memory/domain/directives'
+import type {
+  CanonicalAgentMemoryRow as AgentMemoryRow,
+  MemoryClearResult
+} from '@deepchat/agent-kernel/collab/memory/domain/types'
 import { projectLegacyStatus } from './domain/stateModel'
-import type { AgentMemoryAuditRow, MemoryAuditListOptions } from './domain/audit'
+import type {
+  AgentMemoryAuditRow,
+  MemoryAuditListOptions
+} from '@deepchat/agent-kernel/collab/memory/domain/audit'
 import { temporalMetadataFromRow } from './core/temporal'
 
 const MEMORY_PERSONA_STATES = ['draft', 'active', 'superseded', 'rejected'] as const

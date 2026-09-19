@@ -8,7 +8,7 @@ import {
 } from '@shared/lib/memoryDirectiveTopic'
 import { unicodeCodePointLength } from '@shared/lib/unicodeText'
 
-import { normalizeDirectiveMatchText } from '../domain/directives'
+import { normalizeDirectiveMatchText } from '@deepchat/agent-kernel/collab/memory/domain/directives'
 
 const LETTER_OR_NUMBER_PATTERN = /[\p{L}\p{N}]/u
 

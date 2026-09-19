@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { redactBody, redactHeaders } from '@/lib/redact'
+import { redactBody, redactHeaders } from '@deepchat/agent-kernel/collab/lib/redact'
 
 describe('redact', () => {
   it('masks sensitive headers while preserving tail 4 chars', () => {

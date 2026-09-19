@@ -24,7 +24,7 @@ import type {
   ContractPersistenceStore,
   ExecutionJournalPersistenceStore,
   TapeMutationProjection
-} from '@/tape/ports/storage'
+} from '@deepchat/agent-kernel/tape/ports/storage'
 import { SqliteTapeLifecycleAdapter } from '@/tape/infrastructure/sqlite/tapeLifecycleAdapter'
 import { DeepChatTapeSearchProjectionTable } from '@/tape/infrastructure/sqlite/tapeSearchProjectionStore'
 import { DeepChatSessionMetadataTable } from './tables/deepchatSessionMetadata'

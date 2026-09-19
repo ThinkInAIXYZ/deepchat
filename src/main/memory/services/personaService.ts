@@ -14,14 +14,14 @@ import {
   sanitizeSelfModel,
   PERSONA_MAX_CHANGE_RATIO
 } from '../core/extraction'
-import { estimateTokens } from '../core/injectionPort'
+import { estimateTokens } from '@deepchat/agent-kernel/collab/memory/core/injectionPort'
 import { selectMaintenanceRowsWithinTokenBudget } from '../core/maintenanceBudget'
 import { MaintenanceBudget } from '../core/maintenanceBudget'
 import type {
   AgentMemoryRow,
   MemoryMaintenancePersonaResult,
   MemoryPersonaDraftResult
-} from '../types'
+} from '@deepchat/agent-kernel/collab/memory/types'
 import { type MemoryModelRef, type MemoryRuntimeContext } from '../context'
 import { memoryCommandApplied, memoryCommandRejected } from '../domain/commandResult'
 import type {
@@ -29,7 +29,7 @@ import type {
   MemoryMutationRepositoryPort,
   MemoryReadRepositoryPort,
   MemoryTextGenerationPort
-} from '../ports'
+} from '@deepchat/agent-kernel/collab/memory/ports'
 
 export class PersonaService {
   private readonly ctx: MemoryRuntimeContext

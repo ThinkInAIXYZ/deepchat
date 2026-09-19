@@ -10,15 +10,15 @@ import {
   type MemoryInjectionPort,
   type MemoryInjectionResult,
   type MemoryRuntimePort
-} from './injection'
+} from '@deepchat/agent-kernel/collab/memory/injection'
 import logger from '@shared/logger'
 import { isSafeAgentId } from '@shared/types/agent-memory'
-import type { AgentMemoryRow } from './types'
+import type { AgentMemoryRow } from '@deepchat/agent-kernel/collab/memory/types'
 import {
   VectorStoreQuarantineMarkerError,
   type DeletedAgentMemoryCleanupResult,
   type MemoryClearResult
-} from './domain/types'
+} from '@deepchat/agent-kernel/collab/memory/domain/types'
 import type {
   MemoryCandidate,
   MemoryConflictPair,
@@ -31,7 +31,7 @@ import type {
   MemoryStatus,
   MemoryWriteOutcome,
   WriteMemoriesOptions
-} from './types'
+} from '@deepchat/agent-kernel/collab/memory/types'
 import type {
   MemoryArchiveCandidateLifecyclePreview,
   MemoryCommandResult,
@@ -46,7 +46,7 @@ import type {
   MemoryExtractionResult,
   MemoryPersonaDraftResult,
   MemoryReflectionResult
-} from './types'
+} from '@deepchat/agent-kernel/collab/memory/types'
 import { REINDEX_MAX_BATCHES } from './runtimeConstants'
 import { MemoryRuntimeContext } from './context'
 import { MemoryRowMutations } from './services/rowMutations'
@@ -69,7 +69,7 @@ import type {
   MemoryDirectiveCommandResult,
   MemoryDirectiveInput,
   MemoryDirectiveListOptions
-} from './domain/directives'
+} from '@deepchat/agent-kernel/collab/memory/domain/directives'
 import {
   createCompositeMemoryPerfObserver,
   MemoryDiagnosticsCollector
@@ -77,14 +77,14 @@ import {
 import {
   resolveMemoryEmbedding,
   type MemoryExecutionConfigObservation
-} from './core/executionIdentity'
+} from '@deepchat/agent-kernel/collab/memory/core/executionIdentity'
 import { createMemoryTopicSuppressionPolicy } from './core/directivePolicy'
 import type {
   MemoryAgentPolicyPort,
   MemoryPerfObserver,
   MemoryRepositoryPort,
   MemoryVectorStoreFactoryPort
-} from './ports'
+} from '@deepchat/agent-kernel/collab/memory/ports'
 
 export { appendMemorySection, appendMemorySectionWithManifest, buildMemorySection, isSafeAgentId }
 export type {

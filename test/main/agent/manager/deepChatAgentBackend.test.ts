@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { DeepChatAgentBackendPort } from '@/agent/manager/deepChatAgentBackend'
-import { DeepChatAgentRuntime } from '@/agent/deepchat/instance/deepChatAgentRuntime'
-import { toAppSessionId } from '@/agent/shared/agentSessionIds'
+import { DeepChatAgentRuntime } from '@deepchat/agent-kernel/instance/deepChatAgentRuntime'
+import { toAppSessionId } from '@deepchat/agent-kernel/collab/agent-shared/agentSessionIds'
 import { createDeepChatAgentBackendFixture } from './deepChatAgentBackendFixture'
 
 const createPort = (): DeepChatAgentBackendPort => {

@@ -156,11 +156,11 @@ import { AcpSessionStateAdapter } from '@/agent/acp/instance/acpSessionStateAdap
 import {
   TOOL_SURFACE_PRODUCTION_ROLLOUT_POLICY_V1,
   ToolSurfaceRolloutOwner
-} from '@/agent/deepchat/runtime/toolSurfaceRollout'
+} from '@deepchat/agent-kernel/runtime/toolSurfaceRollout'
 import { AppSessionService } from '@/agent/shared/appSessionService'
 import { createSessionData } from '@/session/data'
 import { MemoryDatabase } from '@/memory/data/database'
-import { toAppSessionId } from '@/agent/shared/agentSessionIds'
+import { toAppSessionId } from '@deepchat/agent-kernel/collab/agent-shared/agentSessionIds'
 import { resolveAssistantModelSelection } from '@/agent/shared/assistantModelSelection'
 import { AgentUnavailableError } from '@/agent/shared/agentCatalogCodec'
 import { resolveAcpAgentAlias } from '@shared/utils/acpAgentAlias'
@@ -175,7 +175,10 @@ import {
 import { SessionTurn } from '@/session/turn'
 import { SessionLifecycle } from '@/session/lifecycle'
 import { createDeepChatAgentHarness, type DeepChatAgentHarness } from '@/agent/deepchat/harness'
-import type { RunJournalObservation, SessionInvalidationPort } from '@/agent/deepchat/runtime/types'
+import type {
+  RunJournalObservation,
+  SessionInvalidationPort
+} from '@deepchat/agent-kernel/runtime/types'
 import { AcpAgentRuntime } from '@/agent/acp/instance'
 import { createAcpRuntimeOwner } from '@/agent/acp/createRuntimeOwner'
 import { createAcpRoutes } from '@/agent/acp/routes'
@@ -183,7 +186,7 @@ import { AcpSessionPersistence } from '@/agent/acp/runtime'
 import type {
   MemoryIngestionDrainOutcome,
   MemoryIngestionObserver
-} from '@/agent/deepchat/memory/memoryIngestionObserver'
+} from '@deepchat/agent-kernel/memory/memoryIngestionObserver'
 import { MemoryService, isSafeAgentId, type MemoryServicePort } from '../memory'
 import { createMemoryVectorStorePaths, MemoryVectorStore } from '../memory/infra/memoryVectorStore'
 import { ProjectService } from '../project'
@@ -225,13 +228,13 @@ import {
   resolveDeepChatSubagentCapability
 } from '@shared/lib/deepchatSubagents'
 import { DEFAULT_DISABLED_AGENT_TOOLS } from '@shared/agentTools'
-import { composeSubagentAuthority } from '@/session/subagentAuthority'
+import { composeSubagentAuthority } from '@deepchat/agent-kernel/collab/session/subagentAuthority'
 import type {
   AcpAsLlmProviderPermissionPort,
   AcpAsLlmProviderSessionControlPort,
   AcpProviderAdminPort,
   ProviderCatalogPort
-} from '../provider/ports'
+} from '@deepchat/agent-kernel/collab/provider/ports'
 import type { SessionPermissionPort, SessionUiPort } from '../session/contracts'
 import {
   isStartupWorkloadCancellation,
@@ -247,7 +250,7 @@ import { SessionTranslation } from '@/session/sessionTranslation'
 import { createSessionRoutes } from '@/session/routes'
 import { createAgentRoutes } from '@/agent/routes'
 import { createPromptRoutes } from '@/agent/promptRoutes'
-import { createSkillExecutionAuthorityTapePort } from '@/tape/application/capabilityAdapters'
+import { createSkillExecutionAuthorityTapePort } from '@deepchat/agent-kernel/tape/application/capabilityAdapters'
 import { AgentSessionExportService } from '../exporter/agentSessionExporter'
 import { createInMemoryServerFactory } from '../mcp/inMemoryServers/builder'
 import {
@@ -298,7 +301,10 @@ import { SessionEventRouter } from '@/events/sessionEventRouter'
 import { createMemoryProviderBindings } from './memoryProviderBindings'
 import { createSessionPermissionPort } from './sessionPermissionAdapter'
 import { MainShutdownCoordinator, type MainShutdownActionClaim } from './mainShutdownCoordinator'
-import { elapsedMonotonicMs, readMonotonicNow } from '@/lib/monotonicTime'
+import {
+  elapsedMonotonicMs,
+  readMonotonicNow
+} from '@deepchat/agent-kernel/collab/lib/monotonicTime'
 import {
   EpisodeRegistry,
   TimeoutNotificationScheduler,

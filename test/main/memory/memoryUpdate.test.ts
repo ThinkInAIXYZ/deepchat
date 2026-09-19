@@ -1,7 +1,10 @@
 import { describe, expect, it, vi } from 'vitest'
 
 import { buildMemoryProvenanceKey } from '@/memory/core/scoring'
-import type { AgentMemoryRow, MemoryTemporalMetadata } from '@/memory/domain/types'
+import type {
+  AgentMemoryRow,
+  MemoryTemporalMetadata
+} from '@deepchat/agent-kernel/collab/memory/domain/types'
 import {
   AGENT_MEMORY_MANUAL_CONTENT_MAX_CHARS,
   type AgentMemoryCategory

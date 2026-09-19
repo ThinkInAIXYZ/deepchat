@@ -15,7 +15,7 @@ import {
 import { describeSpawnFailure, resolveUsableSpawnCwd } from './spawnGuard'
 import { terminateProcessTree } from './processTree'
 import { childProcessRegistry } from './childProcessRegistry'
-import { resolveSessionDir } from '@/agent/shared/storage/sessionPaths'
+import { resolveSessionDir } from '@deepchat/agent-kernel/collab/agent-shared/storage/sessionPaths'
 import {
   assertSkillExecutionPackageTreeIntact,
   cleanupOwnedSkillExecutionPackageTree,

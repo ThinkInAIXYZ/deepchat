@@ -16,13 +16,16 @@ import {
   type ProviderGenerateTextOptions
 } from '../baseProvider'
 import { normalizeToolInputSchema } from '../aiSdk/toolMapper'
-import type { ProviderLocalePort } from '../ports'
+import type { ProviderLocalePort } from '@deepchat/agent-kernel/collab/provider/ports'
 import { HttpsProxyAgent } from 'https-proxy-agent'
 import {
   getGlobalGitHubCopilotDeviceFlow,
   GitHubCopilotDeviceFlow
 } from '../../provider/auth/githubCopilotDeviceFlow'
-import { createProviderHttpErrorFromResponse, ProviderHttpError } from '../providerFailure'
+import {
+  createProviderHttpErrorFromResponse,
+  ProviderHttpError
+} from '@deepchat/agent-kernel/collab/provider/providerFailure'
 
 // 扩展RequestInit类型以支持agent属性
 interface RequestInitWithAgent extends RequestInit {

@@ -1,5 +1,8 @@
-import { TAPE_INCARNATION_META_KEY, type DeepChatTapeEntryRow } from '../domain/entry'
-import { CANONICAL_UUID_PATTERN } from '../domain/primitives'
+import {
+  TAPE_INCARNATION_META_KEY,
+  type DeepChatTapeEntryRow
+} from '@deepchat/agent-kernel/tape/domain/entry'
+import { CANONICAL_UUID_PATTERN } from '@deepchat/agent-kernel/tape/domain/primitives'
 
 export function parseJsonObject(raw: string): Record<string, unknown> {
   try {

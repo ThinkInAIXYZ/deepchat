@@ -1,5 +1,5 @@
 import logger from '@shared/logger'
-import { awaitWithAbort } from '@/lib/awaitWithAbort'
+import { awaitWithAbort } from '@deepchat/agent-kernel/collab/lib/awaitWithAbort'
 import { getYoBrowserToolDefinitions } from '@/tool/browser/definitions'
 import type { YoBrowserPresenter } from './YoBrowserPresenter'
 import { BrowserPageStatus, type YoBrowserStatus } from '@shared/types/browser'

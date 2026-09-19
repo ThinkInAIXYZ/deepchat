@@ -4,7 +4,7 @@ import {
   WORKING_PROJECTION_SECTION_LABELS,
   buildStructuredWorkingProjection
 } from '@/memory/core/workingProjection'
-import type { AgentMemoryRow } from '@/memory/domain/types'
+import type { AgentMemoryRow } from '@deepchat/agent-kernel/collab/memory/domain/types'
 
 function row(id: string, content: string, overrides: Partial<AgentMemoryRow> = {}): AgentMemoryRow {
   return {

@@ -11,7 +11,7 @@ import {
   parseDecision,
   type MemoryDecision
 } from '../core/decision'
-import { estimateTokens } from '../core/injectionPort'
+import { estimateTokens } from '@deepchat/agent-kernel/collab/memory/core/injectionPort'
 import { MaintenanceBudget } from '../core/maintenanceBudget'
 import {
   buildScopedMemoryProvenanceKey,
@@ -42,7 +42,7 @@ import type {
   MemoryReadRepositoryPort,
   MemoryTextGenerationPort,
   MemoryTransactionPort
-} from '../ports'
+} from '@deepchat/agent-kernel/collab/memory/ports'
 import {
   CONSOLIDATION_DIRTY_SEED_LIMIT,
   CONSOLIDATION_MERGE_SIMILARITY,
@@ -50,7 +50,11 @@ import {
   MAINTENANCE_MAX_INPUT_TOKENS,
   SCOPE_VECTOR_OVERSAMPLE_MULTIPLIER
 } from '../runtimeConstants'
-import type { AgentMemoryRow, MemoryDirtySeed, MemoryMaintenanceStepResult } from '../types'
+import type {
+  AgentMemoryRow,
+  MemoryDirtySeed,
+  MemoryMaintenanceStepResult
+} from '@deepchat/agent-kernel/collab/memory/types'
 
 class MaintenanceRevisionConflictError extends Error {}
 class MaintenanceClaimSuppressedError extends Error {}

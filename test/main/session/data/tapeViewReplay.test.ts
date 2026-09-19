@@ -1,11 +1,11 @@
-import type { TapeViewManifestBuildInput } from '@/tape/domain/viewManifest'
+import type { TapeViewManifestBuildInput } from '@deepchat/agent-kernel/tape/domain/viewManifest'
 import type { ChatMessageRecord } from '@shared/types/agent-interface'
 import type { DeepChatTapeSkillMaterializationRef } from '@shared/types/tape-view-manifest'
 import {
   buildTapeSkillMaterializationRef,
   hashSkillEffectiveContent
-} from '@/tape/domain/skillMaterialization'
-import { hashJsonData } from '@/tape/domain/canonicalJson'
+} from '@deepchat/agent-kernel/tape/domain/skillMaterialization'
+import { hashJsonData } from '@deepchat/agent-kernel/tape/domain/canonicalJson'
 import {
   describe,
   expect,

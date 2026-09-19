@@ -61,7 +61,7 @@ import {
 import type { PromptCacheIntent } from '../promptCacheStrategy'
 import type { ResolvedModelCapabilitySnapshot } from '@shared/types/model-capabilities'
 import { normalizeReasoningEffortValue } from '@shared/types/model-db'
-import { createDeepSeekResponsesAdapter } from '../deepseekResponsesAdapter'
+import { createDeepSeekResponsesAdapter } from '@deepchat/agent-kernel/collab/provider/deepseekResponsesAdapter'
 import { fetchWithProviderHeaders } from '../providerHeaders'
 
 type ImageGenerationProviderPayload = Record<string, JSONValue>

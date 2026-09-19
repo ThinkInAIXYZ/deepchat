@@ -3,7 +3,7 @@ import { ATEMPORAL_MEMORY_METADATA } from '@/memory/core/temporal'
 
 import { MemoryService } from '@/memory'
 import { MemoryRuntimeContext } from '@/memory/context'
-import { VectorStoreQueryTimeoutError } from '@/memory/domain/types'
+import { VectorStoreQueryTimeoutError } from '@deepchat/agent-kernel/collab/memory/domain/types'
 import { RetrievalService } from '@/memory/services/retrievalService'
 import type { DeepChatAgentConfig } from '@shared/types/agent-interface'
 import {

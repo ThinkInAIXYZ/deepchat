@@ -3,11 +3,11 @@ import {
   resolveProviderInputCapabilities,
   supportsProviderAudioInput,
   supportsProviderVision
-} from '@/agent/deepchat/runtime/providerInputCapabilities'
+} from '@deepchat/agent-kernel/runtime/providerInputCapabilities'
 import {
   assertProviderModelRuntimeFacts,
   resolveProviderModelRuntimeFacts
-} from '@/agent/deepchat/runtime/providerModelRuntimeFacts'
+} from '@deepchat/agent-kernel/runtime/providerModelRuntimeFacts'
 
 const createCapabilitySnapshot = (supportsAudioInput: boolean) =>
   ({

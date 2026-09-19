@@ -5,8 +5,8 @@ import {
   DEFAULT_DIRECTIVE_CONTRIBUTION_TOKEN_BUDGET,
   DIRECTIVE_CONTRIBUTION_POLICY_VERSION,
   estimateTokens
-} from '@/memory/injection'
-import type { AgentMemoryDirectiveRow } from '@/memory/types'
+} from '@deepchat/agent-kernel/collab/memory/injection'
+import type { AgentMemoryDirectiveRow } from '@deepchat/agent-kernel/collab/memory/types'
 
 function directive(
   id: string,

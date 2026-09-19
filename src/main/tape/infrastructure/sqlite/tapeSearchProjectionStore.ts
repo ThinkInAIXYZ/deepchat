@@ -4,8 +4,11 @@ import { buildDeepChatTapeFtsMatch, buildDeepChatTapeLikeSearchPredicate } from 
 import {
   normalizeDeepChatTapeReadSources,
   serializeDeepChatTapeReadSources
-} from '@/tape/domain/entry'
-import type { DeepChatTapeReadSource, DeepChatTapeSearchInput } from '@/tape/domain/entry'
+} from '@deepchat/agent-kernel/tape/domain/entry'
+import type {
+  DeepChatTapeReadSource,
+  DeepChatTapeSearchInput
+} from '@deepchat/agent-kernel/tape/domain/entry'
 import type {
   TapeSearchProjectionInput,
   TapeSearchProjectionMeta,
@@ -13,7 +16,7 @@ import type {
   TapeSearchProjectionResultRow,
   TapeSearchProjectionRow,
   TapeSearchProjectionStore
-} from '@/tape/ports/application'
+} from '@deepchat/agent-kernel/tape/ports/application'
 
 // Version 3 invalidates projections that may predate atomic Tape generation transitions. A
 // matching entry-id head alone cannot prove that a version 2 row belongs to the current

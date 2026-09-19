@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { canonicalJsonStringifyData, hashJsonData } from '@/tape/domain/canonicalJson'
+import {
+  canonicalJsonStringifyData,
+  hashJsonData
+} from '@deepchat/agent-kernel/tape/domain/canonicalJson'
 
 describe('strict canonical JSON', () => {
   it('preserves prototype-shaped keys and ignores object insertion order', () => {

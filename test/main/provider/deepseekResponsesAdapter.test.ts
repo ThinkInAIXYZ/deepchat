@@ -15,8 +15,8 @@ import {
   isOfficialDeepSeekEndpoint,
   resolveDeepSeekResponsesRequestRoute,
   resolveDeepSeekResponsesRoute
-} from '@/provider/deepseekResponsesAdapter'
-import { recordToChatMessages } from '@/agent/deepchat/runtime/contextBuilder'
+} from '@deepchat/agent-kernel/collab/provider/deepseekResponsesAdapter'
+import { recordToChatMessages } from '@deepchat/agent-kernel/runtime/contextBuilder'
 import { createAiSdkProviderContext } from '@/provider/aiSdk/providerFactory'
 import { runAiSdkCoreStream, type AiSdkRuntimeContext } from '@/provider/aiSdk/runtime'
 import type { ChatMessageRecord } from '@shared/types/agent-interface'

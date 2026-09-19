@@ -1,11 +1,11 @@
 import type { ChatMessageRecord, UserMessageContent } from '@shared/types/agent-interface'
 import { getAttachmentSearchableText } from '@shared/utils/attachmentRepresentation'
-import type { DeepChatTapeEntryRow } from '@/tape/domain/entry'
+import type { DeepChatTapeEntryRow } from '@deepchat/agent-kernel/tape/domain/entry'
 import {
   parseTapeJsonObject,
   TAPE_MESSAGE_RETRACTED_EVENT_NAME,
   tapeEntryToMessageRecord
-} from '@/tape/domain/effectiveSemantics'
+} from '@deepchat/agent-kernel/tape/domain/effectiveSemantics'
 import type { SessionDatabase } from './database'
 import { parseAssistantBlocks, parseUserContent, toUserMessageFileRowInput } from './messageContent'
 

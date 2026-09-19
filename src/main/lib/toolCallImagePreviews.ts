@@ -1,6 +1,6 @@
 import type { MCPContentItem, ToolCallImagePreview } from '@shared/types/core/mcp'
 import type { CacheImageOptions } from '@/platform/imageCache'
-import { awaitWithAbort } from './awaitWithAbort'
+import { awaitWithAbort } from '@deepchat/agent-kernel/collab/lib/awaitWithAbort'
 
 export type CacheImageCallback = (data: string, options?: CacheImageOptions) => Promise<string>
 

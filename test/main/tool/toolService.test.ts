@@ -3,7 +3,7 @@ import { TOOL_EXECUTION, type MCPToolDefinition } from '@shared/types/mcp'
 import { ToolService } from '@/tool'
 import { RunCodeRuntimeManager } from '@/tool/codeMode/runCodeRuntimeManager'
 import { POSIX_COMMAND_SHELL } from '../../helpers/commandShell'
-import { createToolCatalogPort } from '@/agent/deepchat/runtime/toolAdapters'
+import { createToolCatalogPort } from '@deepchat/agent-kernel/runtime/toolAdapters'
 import {
   AgentToolManager,
   CronJobToolHandler,
@@ -11,7 +11,7 @@ import {
   UPDATE_PLAN_TOOL_NAME
 } from '@/tool/agentTools'
 import { CommandPermissionService, ToolPermissionBroker } from '@/tool/permission'
-import { QUESTION_TOOL_NAME } from '@/tool/agentTools/questionTool'
+import { QUESTION_TOOL_NAME } from '@deepchat/agent-kernel/collab/tool/agentTools/questionTool'
 import { IMAGE_GENERATE_TOOL_NAME } from '@shared/agentImageGenerationTool'
 import { createAgentToolDependencies } from './agentTools/agentToolDependencies'
 import {
@@ -30,8 +30,8 @@ import {
 import { resolveDeepChatSubagentCapability } from '@shared/lib/deepchatSubagents'
 import { parseChildAgentResultEnvelope } from '@shared/orchestration/resultSafety'
 import { LiveDelegationConsentAuthority } from '@/orchestration/liveDelegationConsent'
-import { createOpaquePromptAssembly } from '@/agent/deepchat/resources/promptAssembly'
-import { buildExecutionContract } from '@/tape/domain/executionContract'
+import { createOpaquePromptAssembly } from '@deepchat/agent-kernel/resources/promptAssembly'
+import { buildExecutionContract } from '@deepchat/agent-kernel/tape/domain/executionContract'
 import {
   buildCanonicalToolCatalog,
   buildToolSurfaceDeferredDispatchBinding,
@@ -42,14 +42,14 @@ import {
   revokeToolSurfaceDeferredDispatch,
   revokeToolSurfaceExecutionEligibility,
   type ToolSurfaceShadowPolicy
-} from '@/agent/deepchat/runtime/toolSurface'
+} from '@deepchat/agent-kernel/runtime/toolSurface'
 import {
   buildProgrammaticToolCapabilityV1,
   createProgrammaticToolSurfaceRunControllerV1,
   assertProgrammaticToolCapabilityViewCommitted,
   markProgrammaticToolCapabilityProvenanceCommitted,
   projectProgrammaticExecDefinition
-} from '@/agent/deepchat/runtime/programmaticToolSurface'
+} from '@deepchat/agent-kernel/runtime/programmaticToolSurface'
 import {
   AGENT_CLI_PROGRAMMATIC_GRANT_SCHEMA_VERSION,
   AgentCliTokenAuthority
@@ -62,7 +62,7 @@ import { buildToolSearchDefinition } from '@/tool/agentTools/toolSearchTool'
 import {
   bindToolSurfaceCanaryRunEvidence,
   createToolSurfaceCanaryRunEvidenceRecorder
-} from '@/agent/deepchat/runtime/toolSurfaceCanaryDiagnostics'
+} from '@deepchat/agent-kernel/runtime/toolSurfaceCanaryDiagnostics'
 
 vi.mock('electron', async () => {
   const { join } = await import('node:path')

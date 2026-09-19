@@ -12,10 +12,13 @@ import {
 import { buildScopedMemoryProvenanceKey } from '../core/scoring'
 import { AGENT_MEMORY_AGENT_SCOPE } from '../core/scope'
 import { buildReflectionInsightsPrompt, parseReflectionInsights } from '../core/extraction'
-import { estimateTokens } from '../core/injectionPort'
+import { estimateTokens } from '@deepchat/agent-kernel/collab/memory/core/injectionPort'
 import { selectMaintenanceRowsWithinTokenBudget } from '../core/maintenanceBudget'
 import { MaintenanceBudget } from '../core/maintenanceBudget'
-import type { MemoryMaintenanceReflectionResult, MemoryReflectionResult } from '../types'
+import type {
+  MemoryMaintenanceReflectionResult,
+  MemoryReflectionResult
+} from '@deepchat/agent-kernel/collab/memory/types'
 import { isUniqueConstraintError, type MemoryModelRef, type MemoryRuntimeContext } from '../context'
 import type {
   MemoryLifecycleRepositoryPort,
@@ -25,7 +28,7 @@ import type {
   MemoryReadRepositoryPort,
   MemoryTextGenerationPort,
   MemoryTransactionPort
-} from '../ports'
+} from '@deepchat/agent-kernel/collab/memory/ports'
 
 export class ReflectionService {
   private readonly ctx: MemoryRuntimeContext

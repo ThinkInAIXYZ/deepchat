@@ -1,6 +1,9 @@
 import type { AgentTapeSearchOptions, AgentTapeViewScope } from '@shared/types/agent-interface'
-import type { DeepChatTapeEntryRow, DeepChatTapeSearchInput } from '../domain/entry'
-import { isRecordObject } from '../domain/primitives'
+import type {
+  DeepChatTapeEntryRow,
+  DeepChatTapeSearchInput
+} from '@deepchat/agent-kernel/tape/domain/entry'
+import { isRecordObject } from '@deepchat/agent-kernel/tape/domain/primitives'
 import { parseJsonObject, parseJsonValue } from './common'
 import type { TapeSearchResult } from './contracts'
 import { getAttachmentSearchableText } from '@shared/utils/attachmentRepresentation'

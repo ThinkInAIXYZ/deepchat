@@ -1,5 +1,7 @@
 import { resolve } from 'node:path'
 
+const KERNEL_PACKAGE_SRC = resolve('packages/agent-kernel/src')
+
 export const memoryResolveConfig = {
   alias: [
     {
@@ -8,6 +10,7 @@ export const memoryResolveConfig = {
     },
     { find: '@/', replacement: resolve('src/main/') + '/' },
     { find: '@shared', replacement: resolve('src/shared') },
+    { find: '@deepchat/agent-kernel', replacement: KERNEL_PACKAGE_SRC },
     { find: 'electron', replacement: resolve('test/mocks/electron.ts') },
     {
       find: '@electron-toolkit/utils',

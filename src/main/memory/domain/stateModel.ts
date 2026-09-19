@@ -4,7 +4,7 @@ import type {
   AgentMemoryLifecycleState,
   AgentMemoryStatus,
   CanonicalAgentMemoryRow
-} from './types'
+} from '@deepchat/agent-kernel/collab/memory/domain/types'
 import {
   AGENT_MEMORY_EMBEDDING_STATES,
   AGENT_MEMORY_HEALTH_KIND_KEYS,

@@ -1,5 +1,9 @@
 import type { MainLogShutdownReason } from '@/logging/mainLogEvents'
-import { elapsedMonotonicMs, readMonotonicNow, type MonotonicClock } from '@/lib/monotonicTime'
+import {
+  elapsedMonotonicMs,
+  readMonotonicNow,
+  type MonotonicClock
+} from '@deepchat/agent-kernel/collab/lib/monotonicTime'
 
 export interface MainShutdownTerminalObservation {
   outcome: 'completed' | 'failed'

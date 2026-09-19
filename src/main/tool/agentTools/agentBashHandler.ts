@@ -20,17 +20,17 @@ import {
   prepareShellCommandForUtf8Output
 } from '@/agent/shared/process/shellOutputEncoding'
 import { resolveUsableSpawnCwd } from '@/agent/shared/process/spawnGuard'
-import { resolveSessionDir } from '@/agent/shared/storage/sessionPaths'
+import { resolveSessionDir } from '@deepchat/agent-kernel/collab/agent-shared/storage/sessionPaths'
 import type { ResolvedCommandShell } from '@shared/commandShell'
 import { normalizeCommandShellFilePath } from '@/agent/shared/process/commandShellPath'
 import type { ArmedAgentCliProgrammaticToken } from '@/cli/agentTokenAuthority'
-import { ProgrammaticCommandLaunchError } from '@/agent/deepchat/runtime/programmaticCommandLaunchError'
+import { ProgrammaticCommandLaunchError } from '@deepchat/agent-kernel/runtime/programmaticCommandLaunchError'
 
 // Consider moving to a shared handlers location in future refactoring
 import {
   CommandPermissionRequiredError,
   CommandPermissionService
-} from '../permission/commandPermissionService'
+} from '@deepchat/agent-kernel/collab/tool/permission/commandPermissionService'
 
 const COMMAND_DEFAULT_TIMEOUT_MS = 120000
 const COMMAND_KILL_GRACE_MS = 5000

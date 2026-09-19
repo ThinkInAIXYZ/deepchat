@@ -8,7 +8,10 @@ import { UserPluginHooks } from '@/plugin/userPluginHooks'
 import { McpSettings } from '@/mcp/settings'
 import { SecretStore } from '@/config/secretStore'
 import { safeStorage } from 'electron'
-import type { TapeAnchorAppendInput, DeepChatTapeEntryRow } from '@/tape/domain/entry'
+import type {
+  TapeAnchorAppendInput,
+  DeepChatTapeEntryRow
+} from '@deepchat/agent-kernel/tape/domain/entry'
 
 vi.unmock('fs')
 vi.unmock('node:fs')

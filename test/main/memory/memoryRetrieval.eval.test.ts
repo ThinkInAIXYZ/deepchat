@@ -7,8 +7,8 @@ import {
   selectRecallKeywordTerms
 } from '@/memory/core/recallKeyword'
 import { fuse } from '@/memory/core/scoring'
-import { DEFAULT_RETRIEVAL } from '@/memory/types'
-import type { AgentMemoryRow } from '@/memory/types'
+import { DEFAULT_RETRIEVAL } from '@deepchat/agent-kernel/collab/memory/types'
+import type { AgentMemoryRow } from '@deepchat/agent-kernel/collab/memory/types'
 import fixtureValue from '../../fixtures/memory/retrieval-v1.json'
 import {
   calculateRetrievalMetrics,

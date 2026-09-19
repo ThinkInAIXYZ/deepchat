@@ -78,7 +78,7 @@ import type {
 } from '@shared/types/skillManagement'
 import type { DeepchatEventPublisher } from '@shared/contracts/events'
 import logger from '@shared/logger'
-import { normalizeSkillAllowedTools } from './toolNameMapping'
+import { normalizeSkillAllowedTools } from '@deepchat/agent-kernel/collab/skill/toolNameMapping'
 import { discoverSkillMetadataInWorker, logSkillDiscoveryWorkerWarnings } from './discoveryWorker'
 import {
   BUILTIN_SKILL_AGENT_ID,

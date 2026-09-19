@@ -6,7 +6,7 @@ import type {
   SkillManageResult
 } from '@shared/types/skill'
 import { BUILTIN_SKILL_AGENT_ID } from './agentSkillRoots'
-import { buildSkillListResult } from './routingCatalog'
+import { buildSkillListResult } from '@deepchat/agent-kernel/collab/skill/routingCatalog'
 import type { RuntimeSkillViewResult } from './index'
 
 type SkillToolsServicePort = Pick<

@@ -9,7 +9,7 @@ import type {
 import type {
   AttachmentPreparationInput,
   AttachmentPreparationResult
-} from '@/agent/deepchat/contracts/attachmentPreparation'
+} from '@deepchat/agent-kernel/contracts/attachmentPreparation'
 import {
   getAttachmentResolvedRepresentation,
   isImageAttachment,
@@ -81,7 +81,7 @@ export interface AttachmentRoutingDiagnostic {
 export type {
   AttachmentPreparationInput,
   AttachmentPreparationResult
-} from '@/agent/deepchat/contracts/attachmentPreparation'
+} from '@deepchat/agent-kernel/contracts/attachmentPreparation'
 
 interface OcrCandidate {
   attachmentIndex: number

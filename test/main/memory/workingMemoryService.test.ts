@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 import { buildLegacyMemoryProvenanceKey, buildMemoryProvenanceKey } from '@/memory/core/scoring'
 import { WORKING_PROVENANCE_SEED } from '@/memory/runtimeConstants'
-import type { MemoryVectorMatch } from '@/memory/domain/types'
+import type { MemoryVectorMatch } from '@deepchat/agent-kernel/collab/memory/domain/types'
 import type { DeepChatAgentConfig } from '@shared/types/agent-interface'
 import {
   FakeVectorStore,

@@ -1,6 +1,9 @@
-import type { ProgrammaticToolCapabilityV1 } from '@/agent/deepchat/runtime/programmaticToolSurface'
+import type { ProgrammaticToolCapabilityV1 } from '@deepchat/agent-kernel/runtime/programmaticToolSurface'
 import type { CliRouteCaller } from '@/routes/routeRegistry'
-import { canonicalJsonStringifyData, hashJsonData } from '@/tape/domain/canonicalJson'
+import {
+  canonicalJsonStringifyData,
+  hashJsonData
+} from '@deepchat/agent-kernel/tape/domain/canonicalJson'
 import type { AgentCliProgrammaticOperationGrant } from './agentTokenAuthority'
 import { parseBoundedJsonBytes } from './body'
 import { CliRequestError } from './errors'
@@ -31,13 +34,13 @@ import {
   CommittedToolOutcomeProjectionError,
   ExecutionJournalError,
   isExecutionJournalError
-} from '@/tape/domain/executionJournal'
+} from '@deepchat/agent-kernel/tape/domain/executionJournal'
 import {
   recordToolSurfaceCanaryDiscovery,
   recordToolSurfaceCanarySettledToolResult
-} from '@/agent/deepchat/runtime/toolSurfaceCanaryDiagnostics'
-import { ToolSurfaceError } from '@/agent/deepchat/runtime/toolSurface'
-import { ExecutionContractDispatchError } from '@/tape/domain/executionContract'
+} from '@deepchat/agent-kernel/runtime/toolSurfaceCanaryDiagnostics'
+import { ToolSurfaceError } from '@deepchat/agent-kernel/runtime/toolSurface'
+import { ExecutionContractDispatchError } from '@deepchat/agent-kernel/tape/domain/executionContract'
 import { McpPreDispatchError } from '@/mcp/errors'
 
 const DEFAULT_SEARCH_LIMIT = 5

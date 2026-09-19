@@ -14,8 +14,8 @@ import {
   MAX_TAPE_PROGRAMMATIC_TOOL_DURATION_MS,
   MAX_TAPE_PROGRAMMATIC_TOOL_INPUT_BYTES,
   MAX_TAPE_PROGRAMMATIC_TOOL_OUTPUT_BYTES
-} from '@/tape/domain/toolSurfaceFacts'
-import { canonicalJsonStringifyData } from '@/tape/domain/canonicalJson'
+} from '@deepchat/agent-kernel/tape/domain/toolSurfaceFacts'
+import { canonicalJsonStringifyData } from '@deepchat/agent-kernel/tape/domain/canonicalJson'
 
 export {
   AGENT_CLI_PROGRAMMATIC_GRANT_SCHEMA_VERSION,
@@ -32,7 +32,7 @@ export {
   type ArmedAgentCliProgrammaticToken,
   type IssuedAgentCliToken,
   type PreparedAgentCliProgrammaticGrant
-} from '@/agent/deepchat/contracts/programmaticToolAuthority'
+} from '@deepchat/agent-kernel/contracts/programmaticToolAuthority'
 
 import {
   AGENT_CLI_PROGRAMMATIC_GRANT_SCHEMA_VERSION,
@@ -45,7 +45,7 @@ import {
   type ArmedAgentCliProgrammaticToken,
   type IssuedAgentCliToken,
   type PreparedAgentCliProgrammaticGrant
-} from '@/agent/deepchat/contracts/programmaticToolAuthority'
+} from '@deepchat/agent-kernel/contracts/programmaticToolAuthority'
 
 export type AgentCliRequestGrant = Readonly<{
   claims: AgentCliTokenClaims

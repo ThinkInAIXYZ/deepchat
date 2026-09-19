@@ -2,7 +2,7 @@ import { MemoryService as ProductionMemoryService } from '../../../../src/main/m
 import type {
   MemoryDirectiveRepositoryPort,
   MemoryServiceDeps
-} from '../../../../src/main/memory/types'
+} from '@deepchat/agent-kernel/collab/memory/types'
 
 export * from '../../../../src/main/memory/index'
 

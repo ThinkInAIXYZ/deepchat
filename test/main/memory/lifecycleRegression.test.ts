@@ -5,7 +5,7 @@ import {
   type IMemoryVectorStore,
   type MemoryServiceDeps,
   type MemoryVectorMatch
-} from '@/memory/types'
+} from '@deepchat/agent-kernel/collab/memory/types'
 import type { DeepChatAgentConfig } from '@shared/types/agent-interface'
 import {
   FakeAuditRepository,

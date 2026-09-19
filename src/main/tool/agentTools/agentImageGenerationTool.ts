@@ -23,7 +23,7 @@ import {
 } from '@shared/agentImageGenerationTool'
 import logger from '@shared/logger'
 import type { CacheImageCallback } from '@/lib/toolCallImagePreviews'
-import { awaitWithAbort } from '@/lib/awaitWithAbort'
+import { awaitWithAbort } from '@deepchat/agent-kernel/collab/lib/awaitWithAbort'
 import type { AgentProviderToolPort, AgentToolSessionPort } from '../runtimePorts'
 import type { AgentSettingsPort } from '@/agent/settings'
 

@@ -4,7 +4,7 @@ import {
   normalizeActiveSkills,
   normalizeDisabledAgentTools,
   normalizeSendMessageInput
-} from '@/agent/shared/agentSessionNormalization'
+} from '@deepchat/agent-kernel/collab/agent-shared/agentSessionNormalization'
 import { TAPE_TOOL_NAMES } from '@shared/agentTools'
 
 function createHarness() {

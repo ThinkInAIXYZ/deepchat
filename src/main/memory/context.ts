@@ -7,26 +7,29 @@ import {
 } from '@shared/types/agent-memory'
 import type { MemoryUpdateReason } from '@shared/contracts/events/memory.events'
 
-import type { MemoryModelRef, MemoryUpdateContext } from './domain/types'
+import type {
+  MemoryModelRef,
+  MemoryUpdateContext
+} from '@deepchat/agent-kernel/collab/memory/domain/types'
 import {
   memoryEmbeddingStorageFingerprint,
   memoryExecutionConfigFingerprint,
   type MemoryExecutionConfigObservation,
   type MemoryExecutionToken
-} from './core/executionIdentity'
+} from '@deepchat/agent-kernel/collab/memory/core/executionIdentity'
 import type {
   MemoryAgentPolicyPort,
   MemoryAuditWritePort,
   MemoryChangeSinkPort,
   MemoryProviderControlPort
-} from './ports'
+} from '@deepchat/agent-kernel/collab/memory/ports'
 import {
   canonicalizeMemoryTimeZone,
   systemMemoryDomainClock,
   type MemoryDomainClock
-} from './domain/clock'
+} from '@deepchat/agent-kernel/collab/memory/domain/clock'
 
-export type { MemoryModelRef } from './domain/types'
+export type { MemoryModelRef } from '@deepchat/agent-kernel/collab/memory/domain/types'
 
 export type MemoryOperationFence = MemoryExecutionToken
 

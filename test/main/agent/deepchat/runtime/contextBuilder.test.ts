@@ -12,12 +12,12 @@ import {
   fitMessagesToContextWindow,
   recordToChatMessages,
   truncateContext
-} from '@/agent/deepchat/runtime/contextBuilder'
+} from '@deepchat/agent-kernel/runtime/contextBuilder'
 import {
   buildContextCheckpoint,
   setMessageSkillActiveTurnContext
-} from '@/agent/deepchat/runtime/contextContributions'
-import { TRUNCATED_TOOL_CALL_ERROR } from '@/agent/deepchat/runtime/dispatch'
+} from '@deepchat/agent-kernel/runtime/contextContributions'
+import { TRUNCATED_TOOL_CALL_ERROR } from '@deepchat/agent-kernel/runtime/dispatch'
 import { estimateTokenCount } from 'tokenx'
 import {
   TOOL_EXECUTION,
@@ -27,8 +27,8 @@ import { createDeepSeekReplayJson } from '../../../../fixtures/deepseekResponses
 import {
   bindProviderProjectionIdentity,
   getProviderProjectionIdentities
-} from '@/agent/deepchat/loop/providerProjectionIdentity'
-import { hashJsonData } from '@/tape/domain/canonicalJson'
+} from '@deepchat/agent-kernel/loop/providerProjectionIdentity'
+import { hashJsonData } from '@deepchat/agent-kernel/tape/domain/canonicalJson'
 
 vi.mock('tokenx', () => ({
   estimateTokenCount: vi.fn((text: string) => {

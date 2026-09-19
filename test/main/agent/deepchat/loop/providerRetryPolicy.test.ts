@@ -4,7 +4,7 @@ import {
   PROVIDER_RETRY_MAX_SERVER_DELAY_MS,
   resolveProviderRetryDelay,
   waitForProviderRetry
-} from '@/agent/deepchat/loop/providerRetryPolicy'
+} from '@deepchat/agent-kernel/loop/providerRetryPolicy'
 
 describe('provider retry policy', () => {
   afterEach(() => {

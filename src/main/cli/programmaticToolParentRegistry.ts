@@ -11,22 +11,22 @@ import {
   type ProgrammaticParentSettlementReceipt,
   ProgrammaticToolParentController
 } from './programmaticToolParentController'
-import { canonicalJsonStringifyData } from '@/tape/domain/canonicalJson'
-import type { ExecutionJournalCommitReceipt } from '@/tape/domain/executionJournal'
+import { canonicalJsonStringifyData } from '@deepchat/agent-kernel/tape/domain/canonicalJson'
+import type { ExecutionJournalCommitReceipt } from '@deepchat/agent-kernel/tape/domain/executionJournal'
 import type { ToolDispatchCommitInput } from '@shared/types/core/mcp'
 import type { PermissionMode } from '@shared/types/agent-interface'
 import type {
   ExecutionJournalWriter,
   NestedExecutionJournalWriter
-} from '@/tape/ports/capabilities'
-import type { ProgrammaticToolCapabilityV1 } from '@/agent/deepchat/runtime/programmaticToolSurface'
-import type { ToolSurfaceSnapshot } from '@/agent/deepchat/runtime/toolSurface'
+} from '@deepchat/agent-kernel/tape/ports/capabilities'
+import type { ProgrammaticToolCapabilityV1 } from '@deepchat/agent-kernel/runtime/programmaticToolSurface'
+import type { ToolSurfaceSnapshot } from '@deepchat/agent-kernel/runtime/toolSurface'
 import type {
   ProgrammaticCompletedInvocationResult,
   ProgrammaticToolInvocationAuthority,
   ProgrammaticToolParentRegistration,
   ProgrammaticToolParentRunIdentity
-} from '@/agent/deepchat/contracts/programmaticToolAuthority'
+} from '@deepchat/agent-kernel/contracts/programmaticToolAuthority'
 
 type ProgrammaticParentExecutionJournal = Pick<ExecutionJournalWriter, 'commitToolOutcome'> &
   NestedExecutionJournalWriter
@@ -39,7 +39,7 @@ export type ProgrammaticToolParentRegistryOptions = Readonly<{
 export type {
   ProgrammaticToolParentRegistration,
   ProgrammaticToolParentRunIdentity
-} from '@/agent/deepchat/contracts/programmaticToolAuthority'
+} from '@deepchat/agent-kernel/contracts/programmaticToolAuthority'
 
 export type ProgrammaticToolInvocationContext = Readonly<{
   capability: ProgrammaticToolCapabilityV1

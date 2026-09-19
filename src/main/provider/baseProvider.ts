@@ -13,9 +13,12 @@ import type {
 import { DeviceService } from '../device'
 import { jsonrepair } from 'jsonrepair'
 import logger from '@shared/logger'
-import { resolveRequestTraceContext, type ProviderRequestTracePayload } from './requestTrace'
+import {
+  resolveRequestTraceContext,
+  type ProviderRequestTracePayload
+} from '@deepchat/agent-kernel/collab/provider/requestTrace'
 import { normalizeToolInputSchema } from './aiSdk/toolMapper'
-import type { ProviderLocalePort } from './ports'
+import type { ProviderLocalePort } from '@deepchat/agent-kernel/collab/provider/ports'
 import { buildProviderTraceHeaders, fetchWithProviderHeaders } from './providerHeaders'
 
 export const AUDIO_TRANSCRIPTION_NOT_SUPPORTED_ERROR = 'audio-transcription-not-supported'

@@ -1,9 +1,9 @@
 import { AGENT_MEMORY_AUTO_CONTENT_MAX_CHARS } from '@shared/types/agent-memory'
 import { truncateUnicodeCodePoints, unicodeCodePointLength } from '@shared/lib/unicodeText'
 
-import type { NormalizedMemoryCandidate } from '../types'
+import type { NormalizedMemoryCandidate } from '@deepchat/agent-kernel/collab/memory/types'
 import { parseDecisionResult, type MemoryDecision } from './decision'
-import { estimateTokens } from './injectionPort'
+import { estimateTokens } from '@deepchat/agent-kernel/collab/memory/core/injectionPort'
 import { extractJsonContainer } from './jsonExtraction'
 
 const MAX_NEIGHBOR_CHARS = 400

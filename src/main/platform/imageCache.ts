@@ -1,5 +1,5 @@
 import fs from 'node:fs'
-import type { CacheImageOptions } from '@/agent/deepchat/contracts/imagePreview'
+import type { CacheImageOptions } from '@deepchat/agent-kernel/contracts/imagePreview'
 import path from 'node:path'
 import dns from 'node:dns/promises'
 import { BlockList, isIP, type LookupFunction } from 'node:net'
@@ -77,7 +77,7 @@ for (const [network, prefix] of [
   blockedImageNetworks.addSubnet(network, prefix, 'ipv6')
 }
 
-export type { CacheImageOptions } from '@/agent/deepchat/contracts/imagePreview'
+export type { CacheImageOptions } from '@deepchat/agent-kernel/contracts/imagePreview'
 
 export type RemoteFileOptions = CacheImageOptions & {
   maxBytes: number

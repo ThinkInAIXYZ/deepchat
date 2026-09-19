@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { InputPreparationCoordinator } from '@/agent/deepchat/loop/inputPreparationCoordinator'
+import { InputPreparationCoordinator } from '@deepchat/agent-kernel/loop/inputPreparationCoordinator'
 
 function createIntent(succeeded: boolean) {
   return { id: succeeded ? 'success' : 'rejected', succeeded }

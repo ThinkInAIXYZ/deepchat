@@ -1,12 +1,12 @@
 import type { ProviderModelResolutionPort } from '@/provider/settings'
-import { DeepChatAgentRuntime } from '@/agent/deepchat/instance/deepChatAgentRuntime'
-import type { DeepChatAgentInstance } from '@/agent/deepchat/instance/deepChatAgentInstance'
-import { toAppSessionId } from '@/agent/shared/agentSessionIds'
+import { DeepChatAgentRuntime } from '@deepchat/agent-kernel/instance/deepChatAgentRuntime'
+import type { DeepChatAgentInstance } from '@deepchat/agent-kernel/instance/deepChatAgentInstance'
+import { toAppSessionId } from '@deepchat/agent-kernel/collab/agent-shared/agentSessionIds'
 import {
   CompactionRuntimeCoordinator,
   type CompactionRuntimeCoordinatorDependencies
-} from '@/agent/deepchat/runtime/compactionRuntimeCoordinator'
-import type { CompactionIntent } from '@/agent/deepchat/runtime/compactionService'
+} from '@deepchat/agent-kernel/runtime/compactionRuntimeCoordinator'
+import type { CompactionIntent } from '@deepchat/agent-kernel/runtime/compactionService'
 import type {
   DeepChatSessionState,
   SessionGenerationSettings

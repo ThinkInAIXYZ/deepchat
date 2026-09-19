@@ -9,7 +9,7 @@ import {
   AgentBashHandler,
   type AgentCommandEnvironmentPort
 } from '@/tool/agentTools/agentBashHandler'
-import { CommandPermissionService } from '@/tool/permission/commandPermissionService'
+import { CommandPermissionService } from '@deepchat/agent-kernel/collab/tool/permission/commandPermissionService'
 import type { ArmedAgentCliProgrammaticToken } from '@/cli/agentTokenAuthority'
 import {
   POSIX_COMMAND_SHELL,

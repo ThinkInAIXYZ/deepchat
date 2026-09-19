@@ -3,7 +3,10 @@ import type {
   ArmedAgentCliProgrammaticToken,
   PreparedAgentCliProgrammaticGrant
 } from './agentTokenAuthority'
-import { canonicalJsonStringifyData, hashJsonData } from '@/tape/domain/canonicalJson'
+import {
+  canonicalJsonStringifyData,
+  hashJsonData
+} from '@deepchat/agent-kernel/tape/domain/canonicalJson'
 import {
   ExecutionJournalCorruptionError,
   MAX_EXECUTION_JOURNAL_TOOL_NAME_CHARACTERS,
@@ -12,13 +15,13 @@ import {
   type ExecutionResolvedTarget,
   type ExecutionToolSource,
   type NestedExecutionOperationIdentity
-} from '@/tape/domain/executionJournal'
+} from '@deepchat/agent-kernel/tape/domain/executionJournal'
 import type {
   ExecutionJournalWriter,
   NestedExecutionJournalWriter
-} from '@/tape/ports/capabilities'
+} from '@deepchat/agent-kernel/tape/ports/capabilities'
 import type { ToolDispatchCommitInput } from '@shared/types/core/mcp'
-import type { ProgrammaticCompletedInvocationResult } from '@/agent/deepchat/contracts/programmaticToolAuthority'
+import type { ProgrammaticCompletedInvocationResult } from '@deepchat/agent-kernel/contracts/programmaticToolAuthority'
 
 export const PROGRAMMATIC_PARENT_SETTLEMENT_SCHEMA_VERSION = 1 as const
 
@@ -59,7 +62,7 @@ export type ProgrammaticParentSettlementReceipt = Readonly<{
   settledChildren: number
 }>
 
-export type { ProgrammaticCompletedInvocationResult } from '@/agent/deepchat/contracts/programmaticToolAuthority'
+export type { ProgrammaticCompletedInvocationResult } from '@deepchat/agent-kernel/contracts/programmaticToolAuthority'
 
 export class ProgrammaticParentOperationError extends Error {
   constructor(

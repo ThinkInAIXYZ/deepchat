@@ -16,14 +16,14 @@ import {
   type AgentMemoryRow,
   type FuseOptions,
   type MemoryRecallItem
-} from '../types'
+} from '@deepchat/agent-kernel/collab/memory/types'
 import { normalizeMemoryScope } from './scope'
 import type {
   AgentMemoryKind,
   MemoryScope,
   MemoryTemporalMetadata,
   MemoryTemporalPolicyResult
-} from '../domain/types'
+} from '@deepchat/agent-kernel/collab/memory/domain/types'
 import type { DeepChatAgentMemoryRetrieval } from '@shared/types/agent-interface'
 import { parseAgentMemorySourceEntryIds } from '@shared/lib/agentMemoryLineage'
 import { evaluateNormalizedMemoryTemporalPolicy, temporalMetadataFromRow } from './temporal'

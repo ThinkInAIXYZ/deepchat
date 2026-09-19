@@ -9,9 +9,9 @@ import {
   type MemoryDirectiveCommandResult,
   type MemoryDirectiveInput,
   type MemoryDirectiveListOptions
-} from '../domain/directives'
+} from '@deepchat/agent-kernel/collab/memory/domain/directives'
 import type { MemoryRuntimeContext } from '../context'
-import type { MemoryDirectiveRepositoryPort } from '../ports'
+import type { MemoryDirectiveRepositoryPort } from '@deepchat/agent-kernel/collab/memory/ports'
 import { memoryCommandApplied, memoryCommandRejected } from '../domain/commandResult'
 
 const DIRECTIVE_ID_PREFIX = 'directive-'

@@ -4,13 +4,13 @@ import type {
   ToolSurfaceActivationCandidate,
   ToolSurfaceExecutionContext,
   ToolSurfaceSnapshot
-} from '@/agent/deepchat/runtime/toolSurface'
+} from '@deepchat/agent-kernel/runtime/toolSurface'
 import {
   TOOL_SEARCH_MAX_QUERY_LENGTH,
   TOOL_SEARCH_MAX_RESULT_LIMIT,
   toolSearchInputSchema,
   type ToolSearchInput
-} from '@/agent/deepchat/contracts/toolSearchDefinition'
+} from '@deepchat/agent-kernel/contracts/toolSearchDefinition'
 
 export {
   TOOL_SEARCH_DEFAULT_RESULT_LIMIT,
@@ -20,7 +20,7 @@ export {
   buildToolSearchDefinition,
   toolSearchInputSchema,
   type ToolSearchInput
-} from '@/agent/deepchat/contracts/toolSearchDefinition'
+} from '@deepchat/agent-kernel/contracts/toolSearchDefinition'
 
 export const TOOL_SEARCH_MAX_NAME_LENGTH = 256
 export const TOOL_SEARCH_MAX_DESCRIPTION_LENGTH = 240

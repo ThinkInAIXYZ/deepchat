@@ -16,9 +16,9 @@ import type {
   MemoryReadRepositoryPort,
   MemoryTransactionPort,
   WorkingMemoryReadPort
-} from '../ports'
-import type { AgentMemoryWorkingCandidateCursor } from '../types'
-import type { AgentMemoryRow } from '../types'
+} from '@deepchat/agent-kernel/collab/memory/ports'
+import type { AgentMemoryWorkingCandidateCursor } from '@deepchat/agent-kernel/collab/memory/types'
+import type { AgentMemoryRow } from '@deepchat/agent-kernel/collab/memory/types'
 
 interface WorkingProjection {
   content: string

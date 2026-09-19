@@ -10,7 +10,7 @@ import {
 } from '@/agent/shared/agentCatalogCodec'
 import type { AgentDescriptor } from '@/agent/shared/agentDescriptors'
 import { mapCatalogRecordToLegacyAgent } from '@/agent/shared/agentCompatibilityMapper'
-import { toAppSessionId } from '@/agent/shared/agentSessionIds'
+import { toAppSessionId } from '@deepchat/agent-kernel/collab/agent-shared/agentSessionIds'
 import type { AcpAgentConfig } from '@shared/types/acp'
 import type {
   AcpAgentInstallState,

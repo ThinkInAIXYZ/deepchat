@@ -34,16 +34,19 @@ import {
   type ExecutionToolOutcomeFact,
   type NestedExecutionDispatchFact,
   type NestedExecutionToolOutcomeFact
-} from '../domain/executionJournal'
-import type { DeepChatTapeEntryRow, TapeEventAppendInput } from '../domain/entry'
-import { canonicalJsonStringifyData } from '../domain/canonicalJson'
+} from '@deepchat/agent-kernel/tape/domain/executionJournal'
+import type {
+  DeepChatTapeEntryRow,
+  TapeEventAppendInput
+} from '@deepchat/agent-kernel/tape/domain/entry'
+import { canonicalJsonStringifyData } from '@deepchat/agent-kernel/tape/domain/canonicalJson'
 import type {
   ExecutionJournalAuditReader,
   ExecutionJournalRecoveryReader,
   ExecutionJournalWriter,
   NestedExecutionJournalWriter
-} from '../ports/capabilities'
-import type { ExecutionJournalPersistenceStore } from '../ports/storage'
+} from '@deepchat/agent-kernel/tape/ports/capabilities'
+import type { ExecutionJournalPersistenceStore } from '@deepchat/agent-kernel/tape/ports/storage'
 import {
   DEEPCHAT_NESTED_EXECUTION_AUDIT_OPERATION_LIMIT,
   type DeepChatNestedExecutionAudit,

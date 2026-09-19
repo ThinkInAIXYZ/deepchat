@@ -11,7 +11,7 @@ import {
   RECALL_QUERY_EMBEDDING_STALE_MS
 } from '../runtimeConstants'
 import { embeddingFingerprint, type MemoryModelRef } from '../context'
-import type { MemoryEmbeddingGatewayPort } from '../ports'
+import type { MemoryEmbeddingGatewayPort } from '@deepchat/agent-kernel/collab/memory/ports'
 
 export type QueryEmbeddingCircuitEvent =
   | 'failure'

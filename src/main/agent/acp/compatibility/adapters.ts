@@ -9,14 +9,14 @@ import type {
   AcpRequestTracePort,
   AcpViewManifestInput
 } from '@/agent/acp/instance/ports'
-import { accumulate } from '@/agent/deepchat/runtime/accumulator'
-import { startEcho, type EchoHandle } from '@/agent/deepchat/runtime/echo'
-import { finalize, finalizeError } from '@/agent/deepchat/runtime/dispatch'
+import { accumulate } from '@deepchat/agent-kernel/runtime/accumulator'
+import { startEcho, type EchoHandle } from '@deepchat/agent-kernel/runtime/echo'
+import { finalize, finalizeError } from '@deepchat/agent-kernel/runtime/dispatch'
 import {
   appendStreamingProviderPermissionBlock,
   markStreamingProviderPermissionResolved,
   resolveProviderTerminalDecision
-} from '@/agent/deepchat/runtime/process'
+} from '@deepchat/agent-kernel/runtime/process'
 import { createAcpPromptTerminalEvents } from '@/agent/acp/runtime/acpContentMapper'
 import {
   createState,
@@ -25,10 +25,10 @@ import {
   type DeepChatSessionUpdatePublisher,
   type IoParams,
   type StreamState
-} from '@/agent/deepchat/runtime/types'
+} from '@deepchat/agent-kernel/runtime/types'
 import type { SessionTranscript } from '@/session/data/transcript'
-import type { TapeReconciliationPort } from '@/tape/ports/capabilities'
-import { buildPersistableMessageTracePayload } from '@/agent/deepchat/runtime/messageTracePayload'
+import type { TapeReconciliationPort } from '@deepchat/agent-kernel/tape/ports/capabilities'
+import { buildPersistableMessageTracePayload } from '@deepchat/agent-kernel/runtime/messageTracePayload'
 
 interface ProjectionState {
   stream: StreamState

@@ -11,11 +11,11 @@ import {
   type PendingInputAdmissionCoordinatorPorts,
   type PendingInputAdmissionPumpPort,
   type PendingInputAdmissionStorePort
-} from '@/agent/deepchat/runtime/pendingInputAdmissionCoordinator'
+} from '@deepchat/agent-kernel/runtime/pendingInputAdmissionCoordinator'
 import type {
   ClaimedInputDisposition,
   ClaimedPendingInputHandle
-} from '@/agent/deepchat/runtime/pendingInputContracts'
+} from '@deepchat/agent-kernel/runtime/pendingInputContracts'
 
 const SESSION_ID = 'session'
 

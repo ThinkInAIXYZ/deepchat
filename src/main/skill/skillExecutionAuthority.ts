@@ -9,15 +9,15 @@ import type {
   TapeExecutionViewManifestReader,
   TapeIncarnationReader,
   TapeSkillMaterializationReader
-} from '@/tape/ports/capabilities'
+} from '@deepchat/agent-kernel/tape/ports/capabilities'
 import {
   buildTapeSkillMaterializationRef,
   type TapeSkillIdentity,
   type TapeSkillMaterializationPayload,
   type TapeSkillMaterializationRef
-} from '@/tape/domain/skillMaterialization'
-import { canonicalJsonStringifyData } from '@/tape/domain/canonicalJson'
-import { verifyTapeViewManifestHash } from '@/tape/domain/viewManifest'
+} from '@deepchat/agent-kernel/tape/domain/skillMaterialization'
+import { canonicalJsonStringifyData } from '@deepchat/agent-kernel/tape/domain/canonicalJson'
+import { verifyTapeViewManifestHash } from '@deepchat/agent-kernel/tape/domain/viewManifest'
 
 const SHA256 = /^[a-f0-9]{64}$/
 

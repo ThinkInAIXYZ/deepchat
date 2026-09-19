@@ -5,7 +5,7 @@ import {
   AGENT_MEMORY_DIRECTIVE_TOPIC_MAX_CHARS
 } from '@shared/types/agent-memory'
 
-import { normalizeMemoryDirective } from '@/memory/domain/directives'
+import { normalizeMemoryDirective } from '@deepchat/agent-kernel/collab/memory/domain/directives'
 import { makePresenter } from './support/memoryFakes'
 
 describe('DirectiveService', () => {

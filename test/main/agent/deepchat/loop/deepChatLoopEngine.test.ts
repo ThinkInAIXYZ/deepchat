@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
-import { DeepChatLoopEngine } from '@/agent/deepchat/loop/deepChatLoopEngine'
-import { createLoopRun } from '@/agent/deepchat/loop/loopRun'
-import { toAppSessionId } from '@/agent/shared/agentSessionIds'
+import { DeepChatLoopEngine } from '@deepchat/agent-kernel/loop/deepChatLoopEngine'
+import { createLoopRun } from '@deepchat/agent-kernel/loop/loopRun'
+import { toAppSessionId } from '@deepchat/agent-kernel/collab/agent-shared/agentSessionIds'
 import { POSIX_COMMAND_SHELL } from '../../../../helpers/commandShell'
 
 function createRun() {

@@ -1,4 +1,4 @@
-import { toAppSessionId } from '@/agent/shared/agentSessionIds'
+import { toAppSessionId } from '@deepchat/agent-kernel/collab/agent-shared/agentSessionIds'
 import type {
   SessionDeletionPermissionPort,
   SessionDeletionOrchestrationPort,

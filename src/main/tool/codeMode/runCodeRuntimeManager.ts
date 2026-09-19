@@ -15,10 +15,10 @@ import {
   type RunCodeParentMessage,
   type RunCodeToolBinding
 } from '@shared/codeModeProtocol'
-import { buildCanonicalToolCatalog } from '@/agent/deepchat/runtime/toolSurface'
-import { MAX_EXECUTION_JOURNAL_NESTED_CHILDREN } from '@/tape/domain/executionJournal'
-import { awaitWithAbort } from '@/lib/awaitWithAbort'
-import { normalizeCodexToolName } from './toolModeTools'
+import { buildCanonicalToolCatalog } from '@deepchat/agent-kernel/runtime/toolSurface'
+import { MAX_EXECUTION_JOURNAL_NESTED_CHILDREN } from '@deepchat/agent-kernel/tape/domain/executionJournal'
+import { awaitWithAbort } from '@deepchat/agent-kernel/collab/lib/awaitWithAbort'
+import { normalizeCodexToolName } from '@deepchat/agent-kernel/collab/tool/codeMode/toolModeTools'
 
 type CodeModeUtilityProcess = Pick<UtilityProcess, 'postMessage' | 'kill' | 'pid'> & {
   on(event: 'message', listener: (message: unknown) => void): CodeModeUtilityProcess

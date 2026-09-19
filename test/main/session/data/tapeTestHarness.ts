@@ -1,20 +1,23 @@
 import { performance } from 'node:perf_hooks'
 import { describe, expect, it, vi } from 'vitest'
-import { buildContext } from '@/agent/deepchat/runtime/contextBuilder'
-import { toAppSessionId } from '@/agent/shared/agentSessionIds'
+import { buildContext } from '@deepchat/agent-kernel/runtime/contextBuilder'
+import { toAppSessionId } from '@deepchat/agent-kernel/collab/agent-shared/agentSessionIds'
 import { SessionTape } from '@/tape/application/sessionTape'
-import { buildEffectiveTapeView, searchEffectiveTapeRows } from '@/tape/domain/effectiveView'
+import {
+  buildEffectiveTapeView,
+  searchEffectiveTapeRows
+} from '@deepchat/agent-kernel/tape/domain/effectiveView'
 import {
   buildRequestRefs,
   createTapeViewManifest,
   type TapeViewManifestBuildInput
-} from '@/tape/domain/viewManifest'
+} from '@deepchat/agent-kernel/tape/domain/viewManifest'
 import {
   appendMessageRecordToTape,
   appendMessageReplacementToTape,
   appendMessageRetractionToTape,
   appendToolFactsToTape
-} from '@/tape/application/factPersistence'
+} from '@deepchat/agent-kernel/tape/application/factPersistence'
 import {
   DeepChatExecutionJournalStore,
   DeepChatTapeEntriesTable,
@@ -23,17 +26,17 @@ import {
 import {
   isEffectiveMessageInputRow,
   isEffectiveViewInputRow
-} from '@/tape/domain/effectiveSemantics'
-import { SUMMARY_ANCHOR_NAMES } from '@/tape/domain/entry'
-import { EXECUTION_JOURNAL_EVENT_NAMES } from '@/tape/domain/executionJournal'
+} from '@deepchat/agent-kernel/tape/domain/effectiveSemantics'
+import { SUMMARY_ANCHOR_NAMES } from '@deepchat/agent-kernel/tape/domain/entry'
+import { EXECUTION_JOURNAL_EVENT_NAMES } from '@deepchat/agent-kernel/tape/domain/executionJournal'
 import {
   assertTapeAppendAuthorized,
   type TapeReservedNamespace
-} from '@/tape/domain/reservedNamespaces'
+} from '@deepchat/agent-kernel/tape/domain/reservedNamespaces'
 import { SqliteTapeLifecycleAdapter } from '@/tape/infrastructure/sqlite/tapeLifecycleAdapter'
-import type { TapeTransactionRunner } from '@/tape/ports/storage'
-import type { TapeProjectionCursor } from '@/tape/ports/capabilities'
-import type { DeepChatTapeEntryRow } from '@/tape/domain/entry'
+import type { TapeTransactionRunner } from '@deepchat/agent-kernel/tape/ports/storage'
+import type { TapeProjectionCursor } from '@deepchat/agent-kernel/tape/ports/capabilities'
+import type { DeepChatTapeEntryRow } from '@deepchat/agent-kernel/tape/domain/entry'
 import {
   DEEPCHAT_TAPE_SEARCH_PROJECTION_VERSION,
   DeepChatTapeSearchProjectionTable

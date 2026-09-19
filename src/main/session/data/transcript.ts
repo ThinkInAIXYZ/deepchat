@@ -13,7 +13,7 @@ import type {
 import type { SearchResult } from '@shared/types/core/search'
 import logger from '@shared/logger'
 import type { DeepChatMessageRow } from '@/session/data/tables/deepchatMessages'
-import type { DeepChatTapeEntryRow } from '@/tape/domain/entry'
+import type { DeepChatTapeEntryRow } from '@deepchat/agent-kernel/tape/domain/entry'
 import type { DeepChatAssistantBlockRow } from '@/session/data/tables/deepchatAssistantBlocks'
 import type { DeepChatUserMessageFileRow } from '@/session/data/tables/deepchatUserMessageFiles'
 import type { DeepChatUserMessageLinkRow } from '@/session/data/tables/deepchatUserMessageLinks'
@@ -33,9 +33,9 @@ import type {
   TapeProjectionCursor,
   TapeProjectionHeadReader,
   TapeTranscriptProjection
-} from '@/tape/ports/capabilities'
-import type { TapeMessageReplacementOptions } from '@/tape/domain/facts'
-import type { TapeCompactionModelCallInput } from '@/tape/domain/compactionUsage'
+} from '@deepchat/agent-kernel/tape/ports/capabilities'
+import type { TapeMessageReplacementOptions } from '@deepchat/agent-kernel/tape/domain/facts'
+import type { TapeCompactionModelCallInput } from '@deepchat/agent-kernel/tape/domain/compactionUsage'
 import {
   assembleUserContent,
   canonicalizeMessageContent,
@@ -45,7 +45,7 @@ import {
   toMessageFile
 } from './messageContent'
 import { TranscriptProjectionApplier } from './transcriptProjection'
-import { buildTerminalErrorBlocks } from '@/agent/deepchat/contracts/transcriptBlocks'
+import { buildTerminalErrorBlocks } from '@deepchat/agent-kernel/contracts/transcriptBlocks'
 
 const COMPACTION_SHIFT_MATERIALIZATION_BATCH_SIZE = 500
 const MAX_COMPACTION_ATTEMPT_ID_CHARACTERS = 128
@@ -85,7 +85,7 @@ function summaryUpdatedAtFromCompactionAnchor(row: DeepChatTapeEntryRow): number
   return typeof generatedSummary === 'string' && generatedSummary.trim() ? row.created_at : null
 }
 
-export { buildTerminalErrorBlocks } from '@/agent/deepchat/contracts/transcriptBlocks'
+export { buildTerminalErrorBlocks } from '@deepchat/agent-kernel/contracts/transcriptBlocks'
 
 type StructuredMessageMaps = {
   userRows: Map<string, DeepChatUserMessageRow>

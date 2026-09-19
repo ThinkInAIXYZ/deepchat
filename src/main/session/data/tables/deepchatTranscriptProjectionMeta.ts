@@ -1,6 +1,6 @@
 import Database from 'better-sqlite3-multiple-ciphers'
 import { BaseTable } from '@/data/baseTable'
-import type { TapeProjectionCursor } from '@/tape/ports/capabilities'
+import type { TapeProjectionCursor } from '@deepchat/agent-kernel/tape/ports/capabilities'
 
 /**
  * Bump when the transcript tables derived from a message fact change shape in a way that makes a

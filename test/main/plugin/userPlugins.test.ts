@@ -7,10 +7,13 @@ import { zipSync } from 'fflate'
 import { UserPluginSources, snapshotPluginTree } from '@/plugin/userPluginSource'
 import { readUserPluginPackage } from '@/plugin/userPluginPackage'
 import { UserPluginHooks } from '@/plugin/userPluginHooks'
-import { projectPluginContext } from '@/agent/deepchat/runtime/pluginContext'
-import { createOpaquePromptAssembly } from '@/agent/deepchat/resources/promptAssembly'
+import { projectPluginContext } from '@deepchat/agent-kernel/runtime/pluginContext'
+import { createOpaquePromptAssembly } from '@deepchat/agent-kernel/resources/promptAssembly'
 import { resolveMcpEnvironmentBinding } from '@/mcp/environmentBindings'
-import type { DeepChatTapeEntryRow, TapeAnchorAppendInput } from '@/tape/domain/entry'
+import type {
+  DeepChatTapeEntryRow,
+  TapeAnchorAppendInput
+} from '@deepchat/agent-kernel/tape/domain/entry'
 import type { UserPluginHook } from '@shared/types/userPlugin'
 
 vi.mock('node:fs', async () => {

@@ -2,11 +2,11 @@ import { describe, expect, it } from 'vitest'
 import {
   createToolSurfaceCanaryRunEvidenceRecorder,
   ToolSurfaceCanaryDiagnosticsRegistry
-} from '@/agent/deepchat/runtime/toolSurfaceCanaryDiagnostics'
+} from '@deepchat/agent-kernel/runtime/toolSurfaceCanaryDiagnostics'
 import {
   TOOL_SURFACE_PROVIDER_PRICING_SCHEMA_VERSION,
   ToolSurfaceProviderPricingCatalogV1
-} from '@/agent/deepchat/runtime/toolSurfaceCanaryPricing'
+} from '@deepchat/agent-kernel/runtime/toolSurfaceCanaryPricing'
 
 describe('Tool Surface canary diagnostics', () => {
   const scope = {

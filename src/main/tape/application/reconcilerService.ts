@@ -1,13 +1,16 @@
 import type { ChatMessageRecord } from '@shared/types/agent-interface'
-import type { TapeApplicationProviders } from '../ports/application'
+import type { TapeApplicationProviders } from '@deepchat/agent-kernel/tape/ports/application'
 import type {
   TapeBackfillResult,
   TapeProjectionCursor,
   TapeTranscriptProjection
-} from '../ports/capabilities'
-import { tapeEntryToMessageRecord } from '../domain/effectiveSemantics'
-import { buildEffectiveTapeView } from '../domain/effectiveView'
-import { appendMessageRecordToTape, buildTapeToolRevisionIndex } from './factPersistence'
+} from '@deepchat/agent-kernel/tape/ports/capabilities'
+import { tapeEntryToMessageRecord } from '@deepchat/agent-kernel/tape/domain/effectiveSemantics'
+import { buildEffectiveTapeView } from '@deepchat/agent-kernel/tape/domain/effectiveView'
+import {
+  appendMessageRecordToTape,
+  buildTapeToolRevisionIndex
+} from '@deepchat/agent-kernel/tape/application/factPersistence'
 import type { TapeFactService } from './factService'
 import { migrationProvenanceKey } from './common'
 

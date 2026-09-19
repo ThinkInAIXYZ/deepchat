@@ -8,11 +8,11 @@ import {
   TAPE_INCARNATION_META_KEY,
   type DeepChatTapeEntryRow,
   type DeepChatTapeReadSource
-} from '../domain/entry'
-import type { TapeApplicationProviders } from '../ports/application'
+} from '@deepchat/agent-kernel/tape/domain/entry'
+import type { TapeApplicationProviders } from '@deepchat/agent-kernel/tape/ports/application'
 import { parseJsonObject, parseJsonValue } from './common'
-import { SHA256_HEX_PATTERN } from '../domain/primitives'
-import { computeTapeIdentity } from '../domain/tapeIdentity'
+import { SHA256_HEX_PATTERN } from '@deepchat/agent-kernel/tape/domain/primitives'
+import { computeTapeIdentity } from '@deepchat/agent-kernel/tape/domain/tapeIdentity'
 
 type TapeLineageProviders = Pick<
   TapeApplicationProviders,

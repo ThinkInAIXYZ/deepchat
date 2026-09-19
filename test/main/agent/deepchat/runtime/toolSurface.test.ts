@@ -49,12 +49,12 @@ import {
   type ToolSurfaceActivationEvidence,
   type ToolSurfaceDefinitionIdentity,
   type ToolSurfaceShadowPolicy
-} from '@/agent/deepchat/runtime/toolSurface'
-import { buildProviderVisibleToolDefinitionsHash } from '@/tape/domain/executionContract'
+} from '@deepchat/agent-kernel/runtime/toolSurface'
+import { buildProviderVisibleToolDefinitionsHash } from '@deepchat/agent-kernel/tape/domain/executionContract'
 import {
   TAPE_TOOL_RESULT_PAYLOAD_HASH_VERSION,
   createTapeToolSurfaceFact
-} from '@/tape/domain/toolSurfaceFacts'
+} from '@deepchat/agent-kernel/tape/domain/toolSurfaceFacts'
 
 const SERVER_ID = '22222222-2222-4222-8222-222222222222'
 const BINDING_HASH = 'a'.repeat(64)

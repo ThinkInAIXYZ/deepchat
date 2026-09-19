@@ -1,8 +1,8 @@
 import { expect, it } from 'vitest'
 import { Database, nativeSqliteItIf } from '../nativeSqliteHarness'
-import { buildTaskContract } from '@/tape/domain/taskContract'
-import { buildTaskEvaluation } from '@/tape/domain/taskEvaluation'
-import { buildEffectiveTapeView } from '@/tape/domain/effectiveView'
+import { buildTaskContract } from '@deepchat/agent-kernel/tape/domain/taskContract'
+import { buildTaskEvaluation } from '@deepchat/agent-kernel/tape/domain/taskEvaluation'
+import { buildEffectiveTapeView } from '@deepchat/agent-kernel/tape/domain/effectiveView'
 
 const tapeStoreModule = Database
   ? await import('@/tape/infrastructure/sqlite/tapeEntryStore').catch(() => null)

@@ -1,6 +1,6 @@
 import { WebContents } from 'electron'
 import { nanoid } from 'nanoid'
-import { awaitWithAbort } from '@/lib/awaitWithAbort'
+import { awaitWithAbort } from '@deepchat/agent-kernel/collab/lib/awaitWithAbort'
 import {
   BrowserPageStatus,
   type BrowserPageInfo,

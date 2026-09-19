@@ -1,11 +1,11 @@
 import { describe, expect, it, vi } from 'vitest'
-import { DeepChatAgentRuntime } from '@/agent/deepchat/instance/deepChatAgentRuntime'
-import { createLoopRun } from '@/agent/deepchat/loop/loopRun'
-import { toAppSessionId } from '@/agent/shared/agentSessionIds'
+import { DeepChatAgentRuntime } from '@deepchat/agent-kernel/instance/deepChatAgentRuntime'
+import { createLoopRun } from '@deepchat/agent-kernel/loop/loopRun'
+import { toAppSessionId } from '@deepchat/agent-kernel/collab/agent-shared/agentSessionIds'
 import {
   MessageProjectionService,
   type MessageProjectionServiceDependencies
-} from '@/agent/deepchat/runtime/messageProjectionService'
+} from '@deepchat/agent-kernel/runtime/messageProjectionService'
 import { POSIX_COMMAND_SHELL } from '../../../../helpers/commandShell'
 
 const SESSION_ID = 'session'

@@ -4,7 +4,7 @@ import type {
   MessageStartResult
 } from '@shared/types/agent-interface'
 import type { AcpAgentDescriptor } from '@/agent/shared/agentDescriptors'
-import type { AppSessionId } from '@/agent/shared/agentSessionIds'
+import type { AppSessionId } from '@deepchat/agent-kernel/collab/agent-shared/agentSessionIds'
 import type { AcpAgentRuntime, AcpAgentRuntimeSessionInput } from '@/agent/acp/instance'
 import type {
   SessionStatePort,

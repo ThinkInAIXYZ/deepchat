@@ -3,7 +3,7 @@ import type {
   UsageDashboardCalendarDay,
   UsageStatsBackfillStatus
 } from '@shared/types/agent-interface'
-import type { TapeCompactionModelCallEvent } from '@/tape/domain/compactionUsage'
+import type { TapeCompactionModelCallEvent } from '@deepchat/agent-kernel/tape/domain/compactionUsage'
 
 export const DASHBOARD_STATS_BACKFILL_KEY = 'dashboardStatsBackfillV2'
 export const DASHBOARD_BACKFILL_STALE_MS = 10 * 60 * 1000
@@ -111,7 +111,7 @@ export function isUsageBackfillRunningStale(
   return status.status === 'running' && now - status.updatedAt > DASHBOARD_BACKFILL_STALE_MS
 }
 
-export { parseMessageMetadata } from '@/agent/deepchat/contracts/messageMetadata'
+export { parseMessageMetadata } from '@deepchat/agent-kernel/contracts/messageMetadata'
 
 export function hasUsageNumbers(metadata: MessageMetadata): boolean {
   return (

@@ -1,5 +1,5 @@
 import { defineConfig } from 'vitest/config'
-import { dirname, join, relative, resolve } from 'path'
+import { dirname, relative, resolve } from 'path'
 import vue from '@vitejs/plugin-vue'
 
 const isCustomElement = (tag: string) =>
@@ -48,66 +48,6 @@ const kernelSharedBridgePlugin = () => ({
 
 const TEST_TIMEOUT_MS = 10000
 const TEST_MAX_WORKERS = 2
-
-/**
- * Old in-tree specifiers for every module that physically moved into the kernel package. Tests
- * and suites still reference the historical paths (and `vi.mock` them by that id), so vitest
- * resolves them straight to the package source — the same module instances the kernel imports
- * through its own relative specifiers. Without this, a `vi.mock('@/agent/deepchat/...')` would
- * bind to the one-line re-export shim while the kernel used the package module, silently
- * bypassing the mock. Directory aliases exist only for trees that moved as a whole; partially
- * moved directories (memory, provider, skill, tool, tape/application) use exact file paths so
- * their host-side siblings keep resolving through the generic '@/' alias.
- */
-const KERNEL_PATH_ALIASES = [
-  ['@/agent/deepchat/loop', 'loop'],
-  ['@/agent/deepchat/runtime', 'runtime'],
-  ['@/agent/deepchat/memory', 'memory'],
-  ['@/agent/deepchat/resources', 'resources'],
-  ['@/agent/deepchat/instance', 'instance'],
-  ['@/agent/deepchat/contracts', 'contracts'],
-  ['@/agent/deepchat/harness/pendingInputWakeupBinding', 'composition/pendingInputWakeupBinding'],
-  ['@/agent/shared/agentSessionIds', 'collab/agent-shared/agentSessionIds'],
-  ['@/agent/shared/agentSessionNormalization', 'collab/agent-shared/agentSessionNormalization'],
-  ['@/agent/shared/storage/sessionPaths', 'collab/agent-shared/storage/sessionPaths'],
-  ['@/lib/awaitWithAbort', 'collab/lib/awaitWithAbort'],
-  ['@/lib/monotonicTime', 'collab/lib/monotonicTime'],
-  ['@/lib/redact', 'collab/lib/redact'],
-  ['@/hook/events', 'collab/hook/events'],
-  ['@/hook/observer', 'collab/hook/observer'],
-  ['@/memory/injection', 'collab/memory/injection'],
-  ['@/memory/types', 'collab/memory/types'],
-  ['@/memory/ports', 'collab/memory/ports'],
-  ['@/memory/domain/audit', 'collab/memory/domain/audit'],
-  ['@/memory/domain/clock', 'collab/memory/domain/clock'],
-  ['@/memory/domain/directives', 'collab/memory/domain/directives'],
-  ['@/memory/domain/types', 'collab/memory/domain/types'],
-  ['@/memory/core/asyncDeadline', 'collab/memory/core/asyncDeadline'],
-  ['@/memory/core/contributionBudget', 'collab/memory/core/contributionBudget'],
-  ['@/memory/core/directiveContribution', 'collab/memory/core/directiveContribution'],
-  ['@/memory/core/executionIdentity', 'collab/memory/core/executionIdentity'],
-  ['@/memory/core/injectionPort', 'collab/memory/core/injectionPort'],
-  ['@/provider/ports', 'collab/provider/ports'],
-  ['@/provider/providerFailure', 'collab/provider/providerFailure'],
-  ['@/provider/requestTrace', 'collab/provider/requestTrace'],
-  ['@/provider/deepseekResponsesAdapter', 'collab/provider/deepseekResponsesAdapter'],
-  ['@/session/subagentAuthority', 'collab/session/subagentAuthority'],
-  ['@/skill/routingCatalog', 'collab/skill/routingCatalog'],
-  ['@/skill/toolNameMapping', 'collab/skill/toolNameMapping'],
-  ['@/tool/permission/commandPermissionService', 'collab/tool/permission/commandPermissionService'],
-  ['@/tool/permission/commandPermissionCache', 'collab/tool/permission/commandPermissionCache'],
-  ['@/tool/permission/permissionMode', 'collab/tool/permission/permissionMode'],
-  ['@/tool/codeMode/toolModeTools', 'collab/tool/codeMode/toolModeTools'],
-  ['@/tool/agentTools/questionTool', 'collab/tool/agentTools/questionTool'],
-  ['@/tool/agentTools/agentPlanTool', 'collab/tool/agentTools/agentPlanTool'],
-  ['@/tape/domain', 'tape/domain'],
-  ['@/tape/ports', 'tape/ports'],
-  ['@/tape/application/capabilityAdapters', 'tape/application/capabilityAdapters'],
-  ['@/tape/application/factPersistence', 'tape/application/factPersistence']
-].map(([find, packagePath]) => ({
-  find,
-  replacement: join(KERNEL_PACKAGE_SRC, packagePath)
-}))
 
 export default defineConfig({
   test: {
@@ -172,10 +112,7 @@ export default defineConfig({
         },
         resolve: {
           alias: [
-            // Main process aliases (match electron.vite.config.ts main config). The kernel
-            // deep-path aliases must precede the generic '@/' alias so old kernel specifiers
-            // (and vi.mock ids) resolve to the package source, not the re-export shims.
-            ...KERNEL_PATH_ALIASES,
+            // Main process aliases (match electron.vite.config.ts main config).
             { find: '@/', replacement: resolve('src/main/') + '/' },
             { find: '@shared', replacement: resolve('src/shared') },
             // Workspace kernel package resolves to its source so tests need no prior build

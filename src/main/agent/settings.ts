@@ -67,7 +67,7 @@ export interface AgentSkillMigrationSettingsPort {
   ): void
 }
 
-import type { AgentSettingsPort } from '@/agent/deepchat/contracts/agentSettings'
+import type { AgentSettingsPort } from '@deepchat/agent-kernel/contracts/agentSettings'
 
 export type { AgentSettingsPort }
 

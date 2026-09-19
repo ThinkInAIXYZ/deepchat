@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { composeSubagentAuthority } from '@/session/subagentAuthority'
+import { composeSubagentAuthority } from '@deepchat/agent-kernel/collab/session/subagentAuthority'
 
 describe('Subagent authority composition', () => {
   it('unions built-in restrictions and intersects MCP allowlists deterministically', () => {

@@ -1,6 +1,6 @@
 import type { DatabaseConnectionProvider } from '@/data/databaseConnection'
-import type { DeepChatTapeEntryRow } from '@/tape/domain/entry'
-import type { TapeMutationProjection } from '@/tape/ports/storage'
+import type { DeepChatTapeEntryRow } from '@deepchat/agent-kernel/tape/domain/entry'
+import type { TapeMutationProjection } from '@deepchat/agent-kernel/tape/ports/storage'
 import type { SessionTapePort } from './contracts'
 import type { ChatMessageRecord } from '@shared/types/agent-interface'
 import { SessionPendingInputStore } from './pendingInputStore'
@@ -15,7 +15,7 @@ import { ExecutionJournalService } from '@/tape/application/executionJournalServ
 import type {
   ExecutionJournalWriter,
   NestedExecutionJournalWriter
-} from '@/tape/ports/capabilities'
+} from '@deepchat/agent-kernel/tape/ports/capabilities'
 import { SessionTranscript } from './transcript'
 import { SessionDatabase } from './database'
 

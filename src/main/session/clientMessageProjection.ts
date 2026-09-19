@@ -1,7 +1,7 @@
-import { projectBlocksForClient } from '@/agent/deepchat/contracts/rendererBlocks'
+import { projectBlocksForClient } from '@deepchat/agent-kernel/contracts/rendererBlocks'
 import type { ChatMessagePageResult, ChatMessageRecord } from '@shared/types/agent-interface'
 
-export { cloneBlocksForRenderer } from '@/agent/deepchat/contracts/rendererBlocks'
+export { cloneBlocksForRenderer } from '@deepchat/agent-kernel/contracts/rendererBlocks'
 
 function projectMessageRecordForClient(message: ChatMessageRecord): ChatMessageRecord {
   if (message.role !== 'assistant' || !message.content.includes('"providerReplayJson"')) {

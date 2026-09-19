@@ -15,7 +15,7 @@ import type { SessionDatabase } from '@/session/data/database'
 import type { DeepChatMessageUsageCandidateRow } from '@/session/data/tables/deepchatMessages'
 import type { StartupWorkloadTaskContext } from '@/app/startupWorkloadCoordinator'
 import type { SettingsStore } from '@/config/settingsStore'
-import type { TapeCompactionModelCallReader } from '@/tape/ports/capabilities'
+import type { TapeCompactionModelCallReader } from '@deepchat/agent-kernel/tape/ports/capabilities'
 import {
   DASHBOARD_STATS_BACKFILL_KEY,
   buildCompactionUsageStatsRecord,

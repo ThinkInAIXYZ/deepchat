@@ -24,8 +24,8 @@ import { isSafeAgentId as isPresenterSafeAgentId } from '@/memory'
 import type {
   AgentMemoryAuditActorType as DomainAuditActorType,
   AgentMemoryAuditStatus as DomainAuditStatus
-} from '@/memory/domain/audit'
-import type { MemoryUpdateReason as PresenterMemoryUpdateReason } from '@/memory/types'
+} from '@deepchat/agent-kernel/collab/memory/domain/audit'
+import type { MemoryUpdateReason as PresenterMemoryUpdateReason } from '@deepchat/agent-kernel/collab/memory/types'
 
 type Equal<Left, Right> =
   (<Value>() => Value extends Left ? 1 : 2) extends <Value>() => Value extends Right ? 1 : 2

@@ -3,7 +3,7 @@ import {
   createAbortError,
   isAbortError,
   throwIfAbortRequested
-} from '@/agent/deepchat/runtime/abortErrors'
+} from '@deepchat/agent-kernel/runtime/abortErrors'
 
 describe('abortErrors', () => {
   it('creates the stable abort error identity used across runtime boundaries', () => {

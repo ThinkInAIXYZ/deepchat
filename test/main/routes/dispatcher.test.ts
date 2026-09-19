@@ -14,7 +14,7 @@ import type {
   IYoBrowserPresenter
 } from '@shared/types/desktop'
 import type { MainDatabase } from '@/data/mainDatabase'
-import type { TapeInspectionReader } from '@/tape/ports/capabilities'
+import type { TapeInspectionReader } from '@deepchat/agent-kernel/tape/ports/capabilities'
 import type { OAuthServicePort } from '@shared/types/oauth'
 import type { DialogServicePort } from '@shared/types/dialog'
 import type { DeviceServicePort } from '@shared/types/device'

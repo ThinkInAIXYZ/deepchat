@@ -7,8 +7,8 @@ import {
   buildPersistedGenerationSettingsPatch,
   mapPersistedGenerationPatch,
   sanitizeGenerationSettings
-} from '@/agent/deepchat/runtime/generationSettings'
-import { resolveProviderModelRuntimeFacts } from '@/agent/deepchat/runtime/providerModelRuntimeFacts'
+} from '@deepchat/agent-kernel/runtime/generationSettings'
+import { resolveProviderModelRuntimeFacts } from '@deepchat/agent-kernel/runtime/providerModelRuntimeFacts'
 
 const createCapabilitySnapshot = () => ({
   identity: {

@@ -41,7 +41,7 @@ import {
   type MemoryInjectionOptions,
   type MemoryInjectionPayload,
   type MemoryInjectionResult
-} from '../core/injectionPort'
+} from '@deepchat/agent-kernel/collab/memory/core/injectionPort'
 import {
   DECISION_NEIGHBOR_TOP_S,
   MEMORY_SEARCH_DEFAULT_LIMIT,
@@ -59,8 +59,11 @@ import {
   type MemoryTemporalPolicyMode,
   type MemoryVectorMatch,
   type NormalizedMemoryCandidate
-} from '../types'
-import { VectorStoreLeaseUnavailableError, VectorStoreQueryTimeoutError } from '../domain/types'
+} from '@deepchat/agent-kernel/collab/memory/types'
+import {
+  VectorStoreLeaseUnavailableError,
+  VectorStoreQueryTimeoutError
+} from '@deepchat/agent-kernel/collab/memory/domain/types'
 import {
   embeddingFingerprint,
   type MemoryModelRef,
@@ -74,7 +77,7 @@ import type {
   MemoryReadRepositoryPort,
   VectorStoreRetrievalPort,
   WorkingMemoryReadPort
-} from '../ports'
+} from '@deepchat/agent-kernel/collab/memory/ports'
 import {
   QueryEmbeddingCircuitBreaker,
   type QueryEmbeddingCircuitDiagnostics,

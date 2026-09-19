@@ -1,5 +1,5 @@
 import { describe, expect, expectTypeOf, it } from 'vitest'
-import { selectToolBatchExecutionMode } from '@/agent/deepchat/runtime/toolExecutionPolicy'
+import { selectToolBatchExecutionMode } from '@deepchat/agent-kernel/runtime/toolExecutionPolicy'
 import {
   TOOL_EXECUTION,
   type MCPToolDefinition,

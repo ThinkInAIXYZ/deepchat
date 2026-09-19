@@ -9,7 +9,7 @@ import {
   buildAgentCliProgrammaticInvocationHash,
   type ArmedAgentCliProgrammaticToken
 } from '@/cli/agentTokenAuthority'
-import { CommandPermissionService } from '@/tool/permission/commandPermissionService'
+import { CommandPermissionService } from '@deepchat/agent-kernel/collab/tool/permission/commandPermissionService'
 import {
   CMD_COMMAND_SHELL,
   POSIX_COMMAND_SHELL,

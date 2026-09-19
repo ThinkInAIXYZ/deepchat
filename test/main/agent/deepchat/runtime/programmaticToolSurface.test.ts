@@ -21,7 +21,7 @@ import {
   requireProgrammaticToolDeferredResumeCapability,
   type ProgrammaticToolCapabilityCeilingsV1,
   type ProgrammaticToolCapabilityQuotasV1
-} from '@/agent/deepchat/runtime/programmaticToolSurface'
+} from '@deepchat/agent-kernel/runtime/programmaticToolSurface'
 import {
   ToolSurfaceError,
   buildToolSurfaceDeferredDispatchBinding,
@@ -33,9 +33,9 @@ import {
   registerToolSurfaceDeferredDispatch,
   revokeToolSurfaceDeferredDispatchesForSession,
   revokeToolSurfaceExecutionEligibility
-} from '@/agent/deepchat/runtime/toolSurface'
-import { buildTaskContract } from '@/tape/domain/taskContract'
-import { createTapeProgrammaticToolSurfaceFact } from '@/tape/domain/toolSurfaceFacts'
+} from '@deepchat/agent-kernel/runtime/toolSurface'
+import { buildTaskContract } from '@deepchat/agent-kernel/tape/domain/taskContract'
+import { createTapeProgrammaticToolSurfaceFact } from '@deepchat/agent-kernel/tape/domain/toolSurfaceFacts'
 
 const SERVER_ID = '22222222-2222-4222-8222-222222222222'
 const BINDING_HASH = 'a'.repeat(64)

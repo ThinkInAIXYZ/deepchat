@@ -15,7 +15,10 @@ import { startMainProcess, type MainProcessControl } from './app/mainProcess'
 import type { MainShutdownActionClaim } from './app/mainShutdownCoordinator'
 import { mainLogger, reportMainProcessFatal, reportNativeMainError } from './logging'
 import { classifyMainLogError, type MainLogShutdownReason } from './logging/mainLogEvents'
-import { elapsedMonotonicMs, readMonotonicNow } from './lib/monotonicTime'
+import {
+  elapsedMonotonicMs,
+  readMonotonicNow
+} from '@deepchat/agent-kernel/collab/lib/monotonicTime'
 
 let appStarted = false
 const APP_NAME = 'DeepChat'

@@ -9,7 +9,10 @@ import {
 } from '@shared/types/agent-memory'
 import { serializeAgentMemorySourceEntryIds } from '@shared/lib/agentMemoryLineage'
 import { MEMORY_PAGE_MAX_LIMIT } from '@shared/contracts/routes/memory.routes'
-import type { MemoryPerfObserver, MemoryRepositoryPort } from '../../../memory/ports'
+import type {
+  MemoryPerfObserver,
+  MemoryRepositoryPort
+} from '@deepchat/agent-kernel/collab/memory/ports'
 import type {
   AgentMemoryHealthStats,
   AgentMemoryDerivationRow,
@@ -38,7 +41,7 @@ import type {
   ReviveSupersededTransition,
   UserContentTransition,
   UserMetadataTransition
-} from '../../../memory/domain/types'
+} from '@deepchat/agent-kernel/collab/memory/domain/types'
 import {
   AGENT_MEMORY_FTS_POLICY_VERSION,
   agentFtsScope,
@@ -82,7 +85,10 @@ import {
   normalizeMemoryScope,
   normalizeMemoryScopeFilter
 } from '../../core/scope'
-import type { MemoryTombstoneDeleteInput, MemoryTombstoneReason } from '../../domain/types'
+import type {
+  MemoryTombstoneDeleteInput,
+  MemoryTombstoneReason
+} from '@deepchat/agent-kernel/collab/memory/domain/types'
 
 // 'working' is an internal session-open injection cache (a single blob row per agent); it is never
 // recalled, embedded, reflected on, or archived. A 'crystal' kind (3+ corroborated sources) is a

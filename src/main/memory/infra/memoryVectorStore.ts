@@ -4,14 +4,14 @@ import path from 'node:path'
 
 import { DuckDBConnection, DuckDBInstance, arrayValue } from '@duckdb/node-api'
 
-import type { MemoryPerfObserver } from '../ports'
+import type { MemoryPerfObserver } from '@deepchat/agent-kernel/collab/memory/ports'
 import { V1_PRESERVE_IDLE_TIMEOUT_MS } from '../runtimeConstants'
 import type {
   IMemoryVectorStore,
   MemoryVectorMatch,
   MemoryVectorQueryOptions,
   MemoryVectorRecord
-} from '../types'
+} from '@deepchat/agent-kernel/collab/memory/types'
 import { LegacyV1Reader, MigrationAbandonFence } from './legacyV1Reader'
 import { LegacyVssUnavailableError } from './legacyVssLoader'
 import {

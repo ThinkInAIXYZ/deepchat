@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { toAppSessionId } from '@/agent/shared/agentSessionIds'
+import { toAppSessionId } from '@deepchat/agent-kernel/collab/agent-shared/agentSessionIds'
 import {
   advanceRequestSequence,
   bindActiveRequestContract,
@@ -11,14 +11,14 @@ import {
   registerMaterializedSkillContext,
   registerRuntimeSkillContext,
   resolveSkillContextsForRequest
-} from '@/agent/deepchat/loop/loopRun'
-import { inheritProviderProjectionIdentities } from '@/agent/deepchat/loop/providerProjectionIdentity'
+} from '@deepchat/agent-kernel/loop/loopRun'
+import { inheritProviderProjectionIdentities } from '@deepchat/agent-kernel/loop/providerProjectionIdentity'
 import {
   buildToolSurfaceRunCeiling,
   createProviderOrderedToolSurfaceActivationLedger,
   createToolSurfaceSnapshot
-} from '@/agent/deepchat/runtime/toolSurface'
-import { hashSkillEffectiveContent } from '@/tape/domain/skillMaterialization'
+} from '@deepchat/agent-kernel/runtime/toolSurface'
+import { hashSkillEffectiveContent } from '@deepchat/agent-kernel/tape/domain/skillMaterialization'
 import { POSIX_COMMAND_SHELL } from '../../../../helpers/commandShell'
 
 function createRun(sessionId: string, initialRequestSeq = 0) {

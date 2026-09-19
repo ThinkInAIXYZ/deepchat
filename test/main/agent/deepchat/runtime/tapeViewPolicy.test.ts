@@ -3,7 +3,7 @@ import type { ChatMessageRecord } from '@shared/types/agent-interface'
 import {
   buildContextWithMetadata,
   buildResumeContextWithMetadata
-} from '@/agent/deepchat/runtime/contextBuilder'
+} from '@deepchat/agent-kernel/runtime/contextBuilder'
 import {
   CACHE_AWARE_TAPE_VIEW_POLICY_ID,
   CACHE_AWARE_TAPE_VIEW_POLICY_V1_ID,
@@ -16,7 +16,7 @@ import {
   legacyTapeViewPolicy,
   listTapeViewPolicies,
   resolveTapeViewPolicy
-} from '@/agent/deepchat/runtime/tapeViewPolicy'
+} from '@deepchat/agent-kernel/runtime/tapeViewPolicy'
 
 vi.mock('tokenx', () => ({
   estimateTokenCount: vi.fn((text: string) => Math.ceil(text.length / 4))

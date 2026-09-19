@@ -5,7 +5,7 @@ import { expect, it, vi } from 'vitest'
 
 import { MemoryService } from '@/memory'
 import { buildMemoryProvenanceKey } from '@/memory/core/scoring'
-import type { AgentMemoryInsertInput } from '@/memory/domain/types'
+import type { AgentMemoryInsertInput } from '@deepchat/agent-kernel/collab/memory/domain/types'
 import type { ConflictService } from '@/memory/services/conflictService'
 import { createFakeRepository, FakeVectorStore } from './support/memoryFakes'
 import { Database, nativeSqliteDescribeIf } from '../nativeSqliteHarness'

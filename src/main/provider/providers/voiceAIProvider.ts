@@ -14,8 +14,8 @@ import { BaseLLMProvider, type ProviderGenerateTextOptions } from '../baseProvid
 import {
   createProviderHttpErrorFromResponse,
   extractProviderFailureMetadata
-} from '../providerFailure'
-import type { ProviderLocalePort } from '../ports'
+} from '@deepchat/agent-kernel/collab/provider/providerFailure'
+import type { ProviderLocalePort } from '@deepchat/agent-kernel/collab/provider/ports'
 
 const DEFAULT_BASE_URL = 'https://dev.voice.ai'
 const DEFAULT_AUDIO_FORMAT = 'mp3'

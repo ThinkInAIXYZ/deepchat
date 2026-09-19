@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import type * as schema from '@agentclientprotocol/sdk/dist/schema/index.js'
 import { AcpSessionController, type AcpSessionRecord } from '@/agent/acp/runtime'
 import { AcpSessionManager } from '@/agent/acp/runtime/acpSessionManager'
-import { toAcpRemoteSessionId, toAppSessionId } from '@/agent/shared/agentSessionIds'
+import { toAcpRemoteSessionId, toAppSessionId } from '@deepchat/agent-kernel/collab/agent-shared/agentSessionIds'
 
 describe('AcpSessionController', () => {
   it('maps capability updates once for provider and direct consumers and persists metadata', async () => {

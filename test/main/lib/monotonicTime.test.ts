@@ -1,5 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
-import { elapsedMonotonicBetween, elapsedMonotonicMs, readMonotonicNow } from '@/lib/monotonicTime'
+import {
+  elapsedMonotonicBetween,
+  elapsedMonotonicMs,
+  readMonotonicNow
+} from '@deepchat/agent-kernel/collab/lib/monotonicTime'
 
 describe('monotonic time diagnostics', () => {
   it('returns elapsed time for valid monotonic readings', () => {

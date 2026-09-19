@@ -12,7 +12,7 @@ import {
   type MemoryInjectionPayload,
   type MemoryInjectionPort,
   type MemoryInjectionResult
-} from '@/memory/core/injectionPort'
+} from '@deepchat/agent-kernel/collab/memory/core/injectionPort'
 
 async function appendMemoryInjection(
   port: MemoryInjectionPort | undefined,

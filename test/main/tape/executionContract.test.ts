@@ -5,8 +5,8 @@ import { TOOL_EXECUTION, type MCPToolDefinition } from '@shared/types/core/mcp'
 import {
   assemblePromptSections,
   createPromptAssemblySection
-} from '@/agent/deepchat/resources/promptAssembly'
-import { hashJsonData } from '@/tape/domain/canonicalJson'
+} from '@deepchat/agent-kernel/resources/promptAssembly'
+import { hashJsonData } from '@deepchat/agent-kernel/tape/domain/canonicalJson'
 import {
   ExecutionContractError,
   MAX_EXECUTION_CONTRACT_PROMPT_SECTIONS,
@@ -24,8 +24,8 @@ import {
   meetToolEffects,
   parseExecutionContractBinding,
   type BuildExecutionContractInput
-} from '@/tape/domain/executionContract'
-import { buildTaskContract } from '@/tape/domain/taskContract'
+} from '@deepchat/agent-kernel/tape/domain/executionContract'
+import { buildTaskContract } from '@deepchat/agent-kernel/tape/domain/taskContract'
 
 const RUN_ID = '11111111-1111-4111-8111-111111111111'
 const SERVER_ID = '22222222-2222-4222-8222-222222222222'

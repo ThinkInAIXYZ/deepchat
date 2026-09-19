@@ -1,12 +1,12 @@
 import type { AgentTapeAnchorResult } from '@shared/types/agent-interface'
-import type { TapeMigrationState } from '../ports/capabilities'
+import type { TapeMigrationState } from '@deepchat/agent-kernel/tape/ports/capabilities'
 
 export type {
   TapeBackfillResult,
   TapeContextOccupancyEvidence,
   TapeMigrationState,
   TapeViewManifestAssemblySources
-} from '../ports/capabilities'
+} from '@deepchat/agent-kernel/tape/ports/capabilities'
 
 export type TapeInfo = {
   sessionId: string

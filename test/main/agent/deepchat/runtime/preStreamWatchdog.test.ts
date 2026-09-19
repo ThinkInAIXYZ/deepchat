@@ -5,7 +5,7 @@ import {
   PRE_STREAM_STUCK_WARN_MS,
   runPreStreamStep,
   startPreStreamProviderBoundaryWatchdog
-} from '@/agent/deepchat/runtime/preStreamWatchdog'
+} from '@deepchat/agent-kernel/runtime/preStreamWatchdog'
 
 vi.mock('@shared/logger', () => ({
   default: {

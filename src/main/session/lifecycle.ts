@@ -1,6 +1,6 @@
 import logger from '@shared/logger'
-import { toAppSessionId } from '@/agent/shared/agentSessionIds'
-import { normalizeCreateSessionInput } from '@/agent/shared/agentSessionNormalization'
+import { toAppSessionId } from '@deepchat/agent-kernel/collab/agent-shared/agentSessionIds'
+import { normalizeCreateSessionInput } from '@deepchat/agent-kernel/collab/agent-shared/agentSessionNormalization'
 import type {
   CreateDetachedSessionInput,
   CreateSessionInput,

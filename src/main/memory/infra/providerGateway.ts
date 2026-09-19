@@ -4,7 +4,7 @@ import type {
   MemoryProviderGatewayDeps,
   MemoryProviderGatewayPort,
   MemoryProviderPurpose
-} from '../ports'
+} from '@deepchat/agent-kernel/collab/memory/ports'
 import {
   createMemoryProviderCancellationError,
   createMemoryProviderCapacityError,

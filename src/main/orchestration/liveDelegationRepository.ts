@@ -46,14 +46,14 @@ import {
   restoreTaskContractRef,
   serializeTaskContract,
   serializeTaskContractRef
-} from '@/tape/domain/taskContract'
+} from '@deepchat/agent-kernel/tape/domain/taskContract'
 import {
   buildTaskEvaluation,
   restoreEvaluationRef,
   restoreStoredTaskEvaluation,
   serializeEvaluationRef,
   serializeTaskEvaluation
-} from '@/tape/domain/taskEvaluation'
+} from '@deepchat/agent-kernel/tape/domain/taskEvaluation'
 import type {
   LegacyLiveDelegationTaskContractInput,
   LiveDelegationTaskContractInput

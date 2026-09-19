@@ -7,7 +7,7 @@ import {
   SUMMARY_TITLES_PROMPT,
   type ProviderGenerateTextOptions
 } from '../baseProvider'
-import type { ProviderLocalePort } from '../ports'
+import type { ProviderLocalePort } from '@deepchat/agent-kernel/collab/provider/ports'
 import type { AgentSettingsPort } from '@/agent/settings'
 import type { ChatMessage } from '@shared/types/core/chat-message'
 import type { LLMResponse } from '@shared/types/provider'
@@ -47,9 +47,9 @@ import {
 import { AcpRuntimeOwner, AcpPromptController } from '@/agent/acp/client'
 import { nanoid } from 'nanoid'
 import { resolveAcpAgentAlias } from '@shared/utils/acpAgentAlias'
-import { toAppSessionId } from '@/agent/shared/agentSessionIds'
-import { awaitWithAbort } from '@/lib/awaitWithAbort'
-import { extractProviderFailureMetadata } from '../providerFailure'
+import { toAppSessionId } from '@deepchat/agent-kernel/collab/agent-shared/agentSessionIds'
+import { awaitWithAbort } from '@deepchat/agent-kernel/collab/lib/awaitWithAbort'
+import { extractProviderFailureMetadata } from '@deepchat/agent-kernel/collab/provider/providerFailure'
 
 type EventQueue = {
   push: (event: LLMCoreStreamEvent | null) => void

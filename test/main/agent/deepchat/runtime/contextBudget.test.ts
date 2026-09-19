@@ -8,12 +8,12 @@ import {
   getUsableContextLength,
   preflightRequestContext,
   resolveEffectiveContextBudget
-} from '@/agent/deepchat/runtime/contextBudget'
+} from '@deepchat/agent-kernel/runtime/contextBudget'
 import {
   assemblePromptSections,
   createPromptAssemblySection
-} from '@/agent/deepchat/resources/promptAssembly'
-import type { ContextRuntimeContributions } from '@/agent/deepchat/runtime/contextContributions'
+} from '@deepchat/agent-kernel/resources/promptAssembly'
+import type { ContextRuntimeContributions } from '@deepchat/agent-kernel/runtime/contextContributions'
 
 vi.mock('tokenx', () => ({
   estimateTokenCount: vi.fn((text: string) => text.length)

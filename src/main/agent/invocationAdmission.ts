@@ -6,7 +6,10 @@ import {
   type NumberDistribution
 } from '@/lib/boundedNumberRing'
 import { BoundedObservationQueue } from '@/lib/boundedObservationQueue'
-import { elapsedMonotonicBetween, readMonotonicNow } from '@/lib/monotonicTime'
+import {
+  elapsedMonotonicBetween,
+  readMonotonicNow
+} from '@deepchat/agent-kernel/collab/lib/monotonicTime'
 
 export const DEFAULT_AGENT_INVOCATION_CAPACITY = 6
 export const DEFAULT_AGENT_INVOCATION_MAX_PENDING = 256

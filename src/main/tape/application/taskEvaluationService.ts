@@ -4,12 +4,21 @@ import {
   type DeepChatTaskContractRef,
   type DeepChatTaskEvaluation
 } from '@shared/types/task-contract'
-import { canonicalJsonStringifyData } from '../domain/canonicalJson'
-import { computeTapeIdentity } from '../domain/tapeIdentity'
-import type { DeepChatTapeEntryRow, TapeEventAppendInput } from '../domain/entry'
-import { isDeepChatTaskEvaluation, serializeEvaluationRef } from '../domain/taskEvaluation'
-import { isDeepChatTaskContract, isDeepChatTaskContractRef } from '../domain/taskContract'
-import type { ContractPersistenceStore } from '../ports/storage'
+import { canonicalJsonStringifyData } from '@deepchat/agent-kernel/tape/domain/canonicalJson'
+import { computeTapeIdentity } from '@deepchat/agent-kernel/tape/domain/tapeIdentity'
+import type {
+  DeepChatTapeEntryRow,
+  TapeEventAppendInput
+} from '@deepchat/agent-kernel/tape/domain/entry'
+import {
+  isDeepChatTaskEvaluation,
+  serializeEvaluationRef
+} from '@deepchat/agent-kernel/tape/domain/taskEvaluation'
+import {
+  isDeepChatTaskContract,
+  isDeepChatTaskContractRef
+} from '@deepchat/agent-kernel/tape/domain/taskContract'
+import type { ContractPersistenceStore } from '@deepchat/agent-kernel/tape/ports/storage'
 
 const TASK_CONTRACT_FACT_NAME = 'contract/task_frozen' as const
 const TASK_EVALUATION_FACT_SCHEMA_VERSION = 1 as const

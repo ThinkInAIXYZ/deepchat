@@ -18,8 +18,8 @@ import type {
 import {
   normalizeActiveSkills,
   normalizeDisabledAgentTools
-} from '@/agent/shared/agentSessionNormalization'
-import { composeSubagentAuthority } from './subagentAuthority'
+} from '@deepchat/agent-kernel/collab/agent-shared/agentSessionNormalization'
+import { composeSubagentAuthority } from '@deepchat/agent-kernel/collab/session/subagentAuthority'
 
 const resolveAssignmentPermissionMode = (mode?: PermissionMode | null): PermissionMode =>
   mode ?? 'full_access'

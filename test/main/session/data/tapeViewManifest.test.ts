@@ -2,11 +2,11 @@ import { describe, expect, it } from 'vitest'
 import { ModelType } from '@shared/model'
 import type { ChatMessageRecord } from '@shared/types/agent-interface'
 import { TOOL_EXECUTION, type MCPToolDefinitionBase } from '@shared/types/core/mcp'
-import { hashJsonData } from '@/tape/domain/canonicalJson'
+import { hashJsonData } from '@deepchat/agent-kernel/tape/domain/canonicalJson'
 import {
   buildExecutionContract,
   isDeepChatExecutionContract
-} from '@/tape/domain/executionContract'
+} from '@deepchat/agent-kernel/tape/domain/executionContract'
 import {
   buildIncludedRefs,
   buildRequestRefs,
@@ -14,8 +14,8 @@ import {
   hashJson,
   resolveTapeViewManifestPolicy,
   verifyTapeViewManifestHash
-} from '@/tape/domain/viewManifest'
-import { normalizeStoredTapeViewManifest } from '@/tape/domain/replay'
+} from '@deepchat/agent-kernel/tape/domain/viewManifest'
+import { normalizeStoredTapeViewManifest } from '@deepchat/agent-kernel/tape/domain/replay'
 
 function createRecord(overrides: Partial<ChatMessageRecord>): ChatMessageRecord {
   return {

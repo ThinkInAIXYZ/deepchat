@@ -9,16 +9,19 @@ import {
   buildEffectiveTapeView,
   getLastEffectiveTapeMetrics,
   searchEffectiveTapeRows
-} from '../domain/effectiveView'
-import type { DeepChatTapeEntryRow, DeepChatTapeReadSource } from '../domain/entry'
+} from '@deepchat/agent-kernel/tape/domain/effectiveView'
+import type {
+  DeepChatTapeEntryRow,
+  DeepChatTapeReadSource
+} from '@deepchat/agent-kernel/tape/domain/entry'
 import type {
   TapeApplicationProviders,
   TapeSearchProjectionInput as DeepChatTapeSearchProjectionInput,
   TapeSearchProjectionResultRow as DeepChatTapeSearchProjectionResultRow,
   TapeSearchProjectionRow as DeepChatTapeSearchProjectionRow,
   TapeSearchProjectionStore
-} from '../ports/application'
-import type { TapeEffectiveMessageSourceEntry } from '../ports/capabilities'
+} from '@deepchat/agent-kernel/tape/ports/application'
+import type { TapeEffectiveMessageSourceEntry } from '@deepchat/agent-kernel/tape/ports/capabilities'
 import { isEntryIdPrefix, migrationProvenanceKey, parseJsonObject } from './common'
 import type { TapeAnchorResult, TapeInfo, TapeSearchResult } from './contracts'
 import { AgentTapeViewError, type TapeLineageService } from './lineageService'

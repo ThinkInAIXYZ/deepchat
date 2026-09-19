@@ -1,6 +1,6 @@
-import type { HookEvent } from '@/hook/events'
-import type { HookObserver } from '@/hook/observer'
-import { RuntimeHookSink } from '@/agent/deepchat/runtime/runtimeHookSink'
+import type { HookEvent } from '@deepchat/agent-kernel/collab/hook/events'
+import type { HookObserver } from '@deepchat/agent-kernel/collab/hook/observer'
+import { RuntimeHookSink } from '@deepchat/agent-kernel/runtime/runtimeHookSink'
 import type { DeepChatSessionState } from '@shared/types/agent-interface'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 

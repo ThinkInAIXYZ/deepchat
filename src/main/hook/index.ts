@@ -9,8 +9,8 @@ import type {
   HookTestResult,
   HooksNotificationsSettings
 } from '@shared/hooksNotifications'
-import type { HookEvent, HookSessionFacts } from './events'
-import type { HookObserver } from './observer'
+import type { HookEvent, HookSessionFacts } from '@deepchat/agent-kernel/collab/hook/events'
+import type { HookObserver } from '@deepchat/agent-kernel/collab/hook/observer'
 
 const HOOK_PAYLOAD_VERSION = 1 as const
 const COMMAND_TIMEOUT_MS = 30_000

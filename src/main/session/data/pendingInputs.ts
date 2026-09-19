@@ -9,9 +9,9 @@ import type {
 import { SessionPendingInputStore } from './pendingInputStore'
 import type { SessionTranscript } from './transcript'
 import { MAX_PENDING_INPUTS } from '@shared/pendingInput'
-import type { PendingInputRestartRecovery } from '@/agent/deepchat/contracts/pendingInputStore'
+import type { PendingInputRestartRecovery } from '@deepchat/agent-kernel/contracts/pendingInputStore'
 
-export type { PendingInputRestartRecovery } from '@/agent/deepchat/contracts/pendingInputStore'
+export type { PendingInputRestartRecovery } from '@deepchat/agent-kernel/contracts/pendingInputStore'
 
 function toUserMessageContent(input: SendMessageInput): UserMessageContent {
   return {

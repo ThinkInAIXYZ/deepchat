@@ -11,7 +11,7 @@ import type { DeepChatMessageRow } from '@/session/data/tables/deepchatMessages'
 import type { StartupWorkloadTaskContext } from '@/app/startupWorkloadCoordinator'
 import type { AgentSettingsPort } from '@/agent/settings'
 import { BUILTIN_DEEPCHAT_AGENT_ID } from '@/agent/repository'
-import { normalizeDisabledAgentTools } from '@/agent/shared/agentSessionNormalization'
+import { normalizeDisabledAgentTools } from '@deepchat/agent-kernel/collab/agent-shared/agentSessionNormalization'
 
 export const SQLITE_MAINLINE_NORMALIZATION_KEY = 'sqlite-mainline-normalization-v1'
 export const BUILTIN_MCP_ALLOWLIST_COMPATIBILITY_KEY = 'builtin-mcp-allowlist-compatibility-v1'

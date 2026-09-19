@@ -3,9 +3,9 @@ import { TOOL_EXECUTION, type MCPToolDefinition } from '@shared/types/core/mcp'
 import {
   buildExecutionContract,
   buildExecutionContractBinding
-} from '@/tape/domain/executionContract'
-import { createTapeViewManifest } from '@/tape/domain/viewManifest'
-import { resolveDeferredExecutionContract } from '@/agent/deepchat/runtime/deferredExecutionContract'
+} from '@deepchat/agent-kernel/tape/domain/executionContract'
+import { createTapeViewManifest } from '@deepchat/agent-kernel/tape/domain/viewManifest'
+import { resolveDeferredExecutionContract } from '@deepchat/agent-kernel/runtime/deferredExecutionContract'
 
 const RUN_ID = '11111111-1111-4111-8111-111111111111'
 const TOOL: MCPToolDefinition = {

@@ -40,9 +40,12 @@ import {
   type MemoryStatus,
   type NormalizedMemoryCandidate,
   type VectorStoreCleanupDisposition
-} from '../domain/types'
-import { FORGET_HALF_LIFE_MS, type AgentMemoryRow } from '../types'
-import type { ManualEditFieldFlags } from '../domain/types'
+} from '@deepchat/agent-kernel/collab/memory/domain/types'
+import {
+  FORGET_HALF_LIFE_MS,
+  type AgentMemoryRow
+} from '@deepchat/agent-kernel/collab/memory/types'
+import type { ManualEditFieldFlags } from '@deepchat/agent-kernel/collab/memory/domain/types'
 import { embeddingFingerprint, type MemoryRuntimeContext } from '../context'
 import { memoryCommandApplied, memoryCommandRejected } from '../domain/commandResult'
 import type {
@@ -56,7 +59,7 @@ import type {
   MemoryMutationRepositoryPort,
   MemoryReadRepositoryPort,
   MemoryTransactionPort
-} from '../ports'
+} from '@deepchat/agent-kernel/collab/memory/ports'
 
 type ClaimMemoryStatus = Omit<MemoryStatus, 'directiveDraftCount' | 'activeDirectiveCount'>
 

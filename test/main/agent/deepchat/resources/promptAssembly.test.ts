@@ -6,7 +6,7 @@ import {
   createPromptAssemblySection,
   reconcilePromptAssembly,
   recordPromptAssemblyObservation
-} from '@/agent/deepchat/resources/promptAssembly'
+} from '@deepchat/agent-kernel/resources/promptAssembly'
 import type { DeepChatPromptDegradationCode } from '@shared/types/prompt-assembly'
 
 describe('promptAssembly', () => {

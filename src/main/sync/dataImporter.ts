@@ -22,7 +22,7 @@ import type {
   AgentMemoryStatus,
   MemoryScope,
   MemoryTemporalMetadata
-} from '../memory/domain/types'
+} from '@deepchat/agent-kernel/collab/memory/domain/types'
 
 export interface ImportSummary {
   tableCounts: Record<string, number>

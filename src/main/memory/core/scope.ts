@@ -5,7 +5,11 @@ import {
 } from '@shared/types/agent-memory'
 import { unicodeCodePointLength } from '@shared/lib/unicodeText'
 
-import type { AgentMemoryRow, MemoryScope, MemoryScopeContext } from '../domain/types'
+import type {
+  AgentMemoryRow,
+  MemoryScope,
+  MemoryScopeContext
+} from '@deepchat/agent-kernel/collab/memory/domain/types'
 
 export const AGENT_MEMORY_AGENT_SCOPE: MemoryScope = Object.freeze({ type: 'agent' })
 export const AGENT_MEMORY_AGENT_SCOPE_FILTER: readonly MemoryScope[] = Object.freeze([

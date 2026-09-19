@@ -1,6 +1,6 @@
 import { expect } from 'vitest'
 
-import { buildEffectiveTapeView } from '@/tape/domain/effectiveView'
+import { buildEffectiveTapeView } from '@deepchat/agent-kernel/tape/domain/effectiveView'
 import { DeepChatMemoryIngestionProjectionTable } from '@/memory/data/tables/deepchatMemoryIngestionProjection'
 import { DeepChatTapeEntriesTable } from '@/tape/infrastructure/sqlite/tapeEntryStore'
 

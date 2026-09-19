@@ -32,7 +32,7 @@ import {
   SUMMARY_TITLES_PROMPT,
   type ProviderGenerateTextOptions
 } from '../baseProvider'
-import type { ProviderLocalePort } from '../ports'
+import type { ProviderLocalePort } from '@deepchat/agent-kernel/collab/provider/ports'
 import {
   runAiSdkCoreStream,
   runAiSdkDimensions,
@@ -69,7 +69,7 @@ import type { ResolvedCapabilityIdentity } from '@shared/types/model-capabilitie
 import {
   resolveDeepSeekResponsesRequestRoute,
   type DeepSeekResponsesRoute
-} from '../deepseekResponsesAdapter'
+} from '@deepchat/agent-kernel/collab/provider/deepseekResponsesAdapter'
 
 const OPENAI_IMAGE_GENERATION_MODELS = ['gpt-4o-all', 'gpt-4o-image']
 const OPENAI_IMAGE_GENERATION_MODEL_PREFIXES = ['dall-e-', 'gpt-image-']

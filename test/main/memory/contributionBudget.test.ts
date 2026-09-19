@@ -8,7 +8,7 @@ import {
   QUERY_RECALL_TOKEN_RESERVATION,
   WORKING_TOKEN_CEILING,
   WORKING_TOKEN_FLOOR
-} from '@/memory/core/contributionBudget'
+} from '@deepchat/agent-kernel/collab/memory/core/contributionBudget'
 
 const FULL_DEMAND = {
   directive: 1_000,

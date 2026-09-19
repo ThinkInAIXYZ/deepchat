@@ -5,7 +5,7 @@ import {
   MAX_RUN_TOOL_UNIVERSE_DEFINITIONS,
   MAX_RUN_TOOL_UNIVERSE_SKILLS,
   MAX_SKILL_TOOL_REQUIREMENTS
-} from '@/agent/deepchat/runtime/toolResolver'
+} from '@deepchat/agent-kernel/runtime/toolResolver'
 import type { DeepChatAgentConfig } from '@shared/types/agent-interface'
 import { SKILL_NAME_MAX_LENGTH } from '@shared/types/skill'
 import {

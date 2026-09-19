@@ -1,10 +1,10 @@
 import { describe, expect, it, vi } from 'vitest'
-import { DeepChatAgentRuntime } from '@/agent/deepchat/instance/deepChatAgentRuntime'
-import { toAppSessionId } from '@/agent/shared/agentSessionIds'
+import { DeepChatAgentRuntime } from '@deepchat/agent-kernel/instance/deepChatAgentRuntime'
+import { toAppSessionId } from '@deepchat/agent-kernel/collab/agent-shared/agentSessionIds'
 import {
   SessionStatusPublisher,
   type SessionStatusPublisherPorts
-} from '@/agent/deepchat/runtime/sessionStatusPublisher'
+} from '@deepchat/agent-kernel/runtime/sessionStatusPublisher'
 
 function createPublisher() {
   const ports: SessionStatusPublisherPorts = {

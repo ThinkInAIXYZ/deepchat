@@ -9,30 +9,30 @@ import {
 } from '@shared/types/mcp'
 import type { ChatMessage } from '@shared/types/core/chat-message'
 import type { ToolServicePort } from '@shared/types/tool'
-import type { ProcessParams } from '@/agent/deepchat/runtime/types'
-import { createState } from '@/agent/deepchat/runtime/types'
+import type { ProcessParams } from '@deepchat/agent-kernel/runtime/types'
+import { createState } from '@deepchat/agent-kernel/runtime/types'
 import {
   cacheToolCallImagePreviews,
   extractToolCallImagePreviews
 } from '@/lib/toolCallImagePreviews'
-import { ToolOutputGuard } from '@/agent/deepchat/runtime/toolOutputGuard'
+import { ToolOutputGuard } from '@deepchat/agent-kernel/runtime/toolOutputGuard'
 import {
   createToolExecutionPort,
   createToolResultPort
-} from '@/agent/deepchat/runtime/toolAdapters'
+} from '@deepchat/agent-kernel/runtime/toolAdapters'
 import {
   bindActiveRequestContract,
   bindActiveRequestToolSurface,
   bindActiveRequestView,
   createLoopRun
-} from '@/agent/deepchat/loop/loopRun'
+} from '@deepchat/agent-kernel/loop/loopRun'
 import type {
   DeepChatLoopNotification,
   ToolExecutionOptions
-} from '@/agent/deepchat/loop/ports'
-import { toAppSessionId } from '@/agent/shared/agentSessionIds'
-import { resolveToolOffloadPath } from '@/agent/shared/storage/sessionPaths'
-import { createDeepSeekResponsesReplayProjector } from '@/provider/deepseekResponsesAdapter'
+} from '@deepchat/agent-kernel/loop/ports'
+import { toAppSessionId } from '@deepchat/agent-kernel/collab/agent-shared/agentSessionIds'
+import { resolveToolOffloadPath } from '@deepchat/agent-kernel/collab/agent-shared/storage/sessionPaths'
+import { createDeepSeekResponsesReplayProjector } from '@deepchat/agent-kernel/collab/provider/deepseekResponsesAdapter'
 import { createDeepSeekReplayJson } from '../../../../fixtures/deepseekResponses'
 import { POSIX_COMMAND_SHELL } from '../../../../helpers/commandShell'
 import {
@@ -48,13 +48,13 @@ import {
   getToolSurfaceDeferredDispatch,
   revokeToolSurfaceDeferredDispatch,
   type ToolSurfaceShadowPolicy
-} from '@/agent/deepchat/runtime/toolSurface'
+} from '@deepchat/agent-kernel/runtime/toolSurface'
 import {
   buildProgrammaticToolCapabilityV1,
   createProgrammaticToolSurfaceRunControllerV1,
   markProgrammaticToolCapabilityProvenanceCommitted,
   projectProgrammaticExecDefinition
-} from '@/agent/deepchat/runtime/programmaticToolSurface'
+} from '@deepchat/agent-kernel/runtime/programmaticToolSurface'
 
 const publishDeepchatEventMock = vi.hoisted(() => vi.fn())
 const RUN_ID = '11111111-1111-4111-8111-111111111111'
@@ -67,26 +67,26 @@ vi.mock('@/events', () => ({
   }
 }))
 
-import { accumulate } from '@/agent/deepchat/runtime/accumulator'
+import { accumulate } from '@deepchat/agent-kernel/runtime/accumulator'
 import {
   INCOMPLETE_PROVIDER_STREAM_ERROR,
   INCOMPLETE_TOOL_USE_ERROR,
   processStream,
   resolveProviderTerminalDecision
-} from '@/agent/deepchat/runtime/process'
-import { TRUNCATED_TOOL_CALL_ERROR } from '@/agent/deepchat/runtime/dispatch'
-import { createOpaquePromptAssembly } from '@/agent/deepchat/resources/promptAssembly'
+} from '@deepchat/agent-kernel/runtime/process'
+import { TRUNCATED_TOOL_CALL_ERROR } from '@deepchat/agent-kernel/runtime/dispatch'
+import { createOpaquePromptAssembly } from '@deepchat/agent-kernel/resources/promptAssembly'
 import {
   buildExecutionContract,
   buildExecutionContractBinding
-} from '@/tape/domain/executionContract'
+} from '@deepchat/agent-kernel/tape/domain/executionContract'
 import {
   ExecutionJournalCorruptionError,
   ExecutionJournalError
-} from '@/tape/domain/executionJournal'
-import type { TapeToolFactInput } from '@/tape/domain/facts'
-import { TAPE_TOOL_RESULT_PAYLOAD_HASH_VERSION } from '@/tape/domain/toolSurfaceFacts'
-import type { TapeToolFactAppendReceipt } from '@/tape/ports/capabilities'
+} from '@deepchat/agent-kernel/tape/domain/executionJournal'
+import type { TapeToolFactInput } from '@deepchat/agent-kernel/tape/domain/facts'
+import { TAPE_TOOL_RESULT_PAYLOAD_HASH_VERSION } from '@deepchat/agent-kernel/tape/domain/toolSurfaceFacts'
+import type { TapeToolFactAppendReceipt } from '@deepchat/agent-kernel/tape/ports/capabilities'
 
 function expectDeepchatEvent(eventName: string, payload: Record<string, unknown>): void {
   expect(publishDeepchatEventMock).toHaveBeenCalledWith(eventName, expect.objectContaining(payload))

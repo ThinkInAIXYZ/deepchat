@@ -3,7 +3,7 @@ import type { ChatMessageProviderOptions } from '@shared/types/core/chat-message
 import type { ToolSet, TextStreamPart } from 'ai'
 import type { CacheImageOptions } from '@/platform/imageCache'
 import { parseLegacyFunctionCalls } from './toolProtocol'
-import { extractProviderFailureMetadata } from '../providerFailure'
+import { extractProviderFailureMetadata } from '@deepchat/agent-kernel/collab/provider/providerFailure'
 
 const FUNCTION_CALL_TAG = '<function_call>'
 const FUNCTION_CALL_CLOSE_TAG = '</function_call>'

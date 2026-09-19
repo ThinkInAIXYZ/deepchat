@@ -27,7 +27,7 @@ import {
   runsTurnFailedEvent
 } from '@shared/contracts/events'
 import { extractUserMessageInput } from '@/session/data/userMessageContent'
-import { hasWaitingInteraction } from '@/agent/deepchat/runtime/sessionUpdates'
+import { hasWaitingInteraction } from '@deepchat/agent-kernel/runtime/sessionUpdates'
 import { projectFinalAssistantAnswer } from '@shared/lib/assistantDeliverySegments'
 import type { AssistantMessageBlock } from '@shared/types/agent-interface'
 import {
@@ -47,7 +47,7 @@ import type {
   RunSessionStorePort,
   RunTurnPort,
   RunWaitingDescendantInteraction
-} from '@/agent/deepchat/contracts/cliCompatibility'
+} from '@deepchat/agent-kernel/contracts/cliCompatibility'
 
 const DEFAULT_MESSAGE_LIMIT = 50
 const RUN_SNAPSHOT_MESSAGE_BUDGET_BYTES = 8 * 1024 * 1024

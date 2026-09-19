@@ -7,7 +7,7 @@ import {
   FTS_SIMILARITY_BASELINE,
   IMPORTANCE_FLOOR_COEF,
   type AgentMemoryLifecycleRow
-} from '../types'
+} from '@deepchat/agent-kernel/collab/memory/types'
 import { decayScore, halfLifeForKind, recencyScore, retrievalScore, clamp01 } from './scoring'
 import { projectLegacyStatus } from '../domain/stateModel'
 

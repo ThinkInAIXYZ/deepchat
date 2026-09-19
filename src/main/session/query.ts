@@ -38,7 +38,7 @@ import type {
   ResolveTapeInspectorEvidenceEntriesOutput
 } from '@shared/types/tape-inspector'
 import { TAPE_INSPECTOR_SUPPORT_EVIDENCE_LIMIT } from '@shared/types/tape-inspector'
-import { ExecutionJournalCorruptionError } from '@/tape/domain/executionJournal'
+import { ExecutionJournalCorruptionError } from '@deepchat/agent-kernel/tape/domain/executionJournal'
 import type {
   SessionLightweightOptions,
   SessionListFilters,

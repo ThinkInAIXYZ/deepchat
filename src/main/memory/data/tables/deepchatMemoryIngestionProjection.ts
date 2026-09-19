@@ -1,8 +1,8 @@
 import type Database from 'better-sqlite3-multiple-ciphers'
 import { BaseTable } from '@/data/baseTable'
-import type { DeepChatTapeEntryRow } from '@/tape/domain/entry'
-import type { TapeMutationProjection } from '@/tape/ports/storage'
-import type { MemoryPerfObserver } from '../../../memory/ports'
+import type { DeepChatTapeEntryRow } from '@deepchat/agent-kernel/tape/domain/entry'
+import type { TapeMutationProjection } from '@deepchat/agent-kernel/tape/ports/storage'
+import type { MemoryPerfObserver } from '@deepchat/agent-kernel/collab/memory/ports'
 import {
   readTapeMessageRetractionId,
   readTapeToolIdentity,
@@ -10,14 +10,14 @@ import {
   tapeEntryToMessageRecord,
   tapeMessageRank,
   tapeToolRank
-} from '@/tape/domain/effectiveSemantics'
+} from '@deepchat/agent-kernel/tape/domain/effectiveSemantics'
 import { isRetiredWorkflowResultMessageMetadata } from '@shared/orchestration/retiredWorkflowData'
 import type {
   DeepChatMemoryIngestionCurrentRange,
   DeepChatMemoryIngestionProjectionInput,
   DeepChatMemoryIngestionProjectionMeta,
   DeepChatMemoryIngestionProjectionRow
-} from '@/agent/deepchat/contracts/memoryIngestionProjection'
+} from '@deepchat/agent-kernel/contracts/memoryIngestionProjection'
 
 export const DEEPCHAT_MEMORY_INGESTION_PROJECTION_VERSION = 1
 
@@ -26,7 +26,7 @@ export type {
   DeepChatMemoryIngestionProjectionInput,
   DeepChatMemoryIngestionProjectionMeta,
   DeepChatMemoryIngestionProjectionRow
-} from '@/agent/deepchat/contracts/memoryIngestionProjection'
+} from '@deepchat/agent-kernel/contracts/memoryIngestionProjection'
 
 const REPLACE_MESSAGE_SQL = `
   INSERT INTO deepchat_memory_ingestion_projection (

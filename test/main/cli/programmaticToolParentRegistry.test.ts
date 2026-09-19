@@ -12,8 +12,8 @@ import {
 import { LOCAL_CONTROL_PROGRAMMATIC_ROUTE_SURFACE_VERSION } from '@shared/contracts/localControl'
 import { ExecutionJournalService } from '@/tape/application/executionJournalService'
 import { createTapeTableMock } from '../session/data/tapeTestHarness'
-import type { ProgrammaticToolCapabilityV1 } from '@/agent/deepchat/runtime/programmaticToolSurface'
-import type { ToolSurfaceSnapshot } from '@/agent/deepchat/runtime/toolSurface'
+import type { ProgrammaticToolCapabilityV1 } from '@deepchat/agent-kernel/runtime/programmaticToolSurface'
+import type { ToolSurfaceSnapshot } from '@deepchat/agent-kernel/runtime/toolSurface'
 
 const RUN_ID = '22222222-2222-4222-8222-222222222222'
 const RUN = { sessionId: 'session-1', runId: RUN_ID }

@@ -9,7 +9,7 @@ import {
   LOCAL_CONTROL_AGENT_TOKEN_ENV,
   type LocalControlScope
 } from '@shared/contracts/localControl'
-import type { CommandPermissionService } from '@/tool/permission/commandPermissionService'
+import type { CommandPermissionService } from '@deepchat/agent-kernel/collab/tool/permission/commandPermissionService'
 import {
   parseAgentCliProgrammaticExecInvocation,
   type AgentCliTokenAuthority,

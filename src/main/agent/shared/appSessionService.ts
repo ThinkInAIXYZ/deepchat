@@ -1,6 +1,6 @@
 import { nanoid } from 'nanoid'
-import type { AppSessionId } from './agentSessionIds'
-import { toAppSessionId } from './agentSessionIds'
+import type { AppSessionId } from '@deepchat/agent-kernel/collab/agent-shared/agentSessionIds'
+import { toAppSessionId } from '@deepchat/agent-kernel/collab/agent-shared/agentSessionIds'
 import type { SessionDatabase } from '@/session/data/database'
 import type { ProjectDatabase } from '@/project/data/database'
 import type {

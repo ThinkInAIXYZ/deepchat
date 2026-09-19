@@ -4,22 +4,22 @@ import type {
   SessionSummaryState,
   SummaryStateCompareAndSetResult,
   SummaryTapeAnchorInput
-} from '@/agent/deepchat/contracts/sessionSettingsStore'
+} from '@deepchat/agent-kernel/contracts/sessionSettingsStore'
 import type { PermissionMode, SessionGenerationSettings } from '@shared/types/agent-interface'
 import type { DeepChatSessionSummaryRow } from '@/session/data/tables/deepchatSessions'
-import type { DeepChatTapeEntryRow } from '@/tape/domain/entry'
+import type { DeepChatTapeEntryRow } from '@deepchat/agent-kernel/tape/domain/entry'
 import type {
   TapeAnchorReader,
   TapeAnchorWriter,
   TapeLifecycleAdmin
-} from '@/tape/ports/capabilities'
+} from '@deepchat/agent-kernel/tape/ports/capabilities'
 
 export type {
   ReconstructionAnchorPromptState,
   SessionSummaryState,
   SummaryStateCompareAndSetResult,
   SummaryTapeAnchorInput
-} from '@/agent/deepchat/contracts/sessionSettingsStore'
+} from '@deepchat/agent-kernel/contracts/sessionSettingsStore'
 
 function normalizeSummaryState(row: DeepChatSessionSummaryRow | null): SessionSummaryState {
   return {

@@ -8,20 +8,20 @@ import type { LLMCoreStreamEvent } from '@shared/types/core/llm-events'
 import { TOOL_EXECUTION, type MCPToolCall, type MCPToolDefinition } from '@shared/types/core/mcp'
 import type { ToolCallOptions, ToolServicePort } from '@shared/types/tool'
 import type { SessionTranscript } from '@/session/data/transcript'
-import { processStream } from '@/agent/deepchat/runtime/process'
-import { ToolOutputGuard } from '@/agent/deepchat/runtime/toolOutputGuard'
+import { processStream } from '@deepchat/agent-kernel/runtime/process'
+import { ToolOutputGuard } from '@deepchat/agent-kernel/runtime/toolOutputGuard'
 import {
   createToolExecutionPort,
   createToolResultPort
-} from '@/agent/deepchat/runtime/toolAdapters'
-import { createState } from '@/agent/deepchat/runtime/types'
+} from '@deepchat/agent-kernel/runtime/toolAdapters'
+import { createState } from '@deepchat/agent-kernel/runtime/types'
 import {
   cacheToolCallImagePreviews,
   extractToolCallImagePreviews
 } from '@/lib/toolCallImagePreviews'
-import type { ProcessParams, ProcessResult } from '@/agent/deepchat/runtime/types'
-import { createLoopRun } from '@/agent/deepchat/loop/loopRun'
-import { toAppSessionId } from '@/agent/shared/agentSessionIds'
+import type { ProcessParams, ProcessResult } from '@deepchat/agent-kernel/runtime/types'
+import { createLoopRun } from '@deepchat/agent-kernel/loop/loopRun'
+import { toAppSessionId } from '@deepchat/agent-kernel/collab/agent-shared/agentSessionIds'
 import { POSIX_COMMAND_SHELL } from '../../../helpers/commandShell'
 
 vi.mock('@/events', () => ({

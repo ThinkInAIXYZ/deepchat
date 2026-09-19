@@ -24,27 +24,33 @@ import type {
   ResolveTapeInspectorEvidenceEntriesOutput,
   TapeInspectorHead
 } from '@shared/types/tape-inspector'
-import type { DeepChatTapeEntryRow, TapeAnchorAppendInput } from '../domain/entry'
-import type { TapeMessageReplacementOptions, TapeToolFactInput } from '../domain/facts'
+import type {
+  DeepChatTapeEntryRow,
+  TapeAnchorAppendInput
+} from '@deepchat/agent-kernel/tape/domain/entry'
+import type {
+  TapeMessageReplacementOptions,
+  TapeToolFactInput
+} from '@deepchat/agent-kernel/tape/domain/facts'
 import type {
   TapeProviderAttemptInput,
   TapeProviderContextPressureRecord
-} from '../domain/providerAttempt'
+} from '@deepchat/agent-kernel/tape/domain/providerAttempt'
 import type {
   TapeCompactionModelCallInput,
   TapeCompactionModelCallReceipt
-} from '../domain/compactionUsage'
+} from '@deepchat/agent-kernel/tape/domain/compactionUsage'
 import type {
   TapeSkillMaterializationInput,
   TapeSkillMaterializationRef,
   TapeSkillMaterializationReceipt
-} from '../domain/skillMaterialization'
+} from '@deepchat/agent-kernel/tape/domain/skillMaterialization'
 import type {
   TapeRuntimeSkillViewContextReceipt,
   TapeRuntimeSkillViewRecoveryInput,
   TapeSkillViewResultFactInput,
   TapeSkillViewResultFactReceipt
-} from '../domain/skillContext'
+} from '@deepchat/agent-kernel/tape/domain/skillContext'
 import type {
   CommitExecutionDispatchInput,
   CommitExecutionRunStartedInput,
@@ -52,7 +58,7 @@ import type {
   CommitExecutionToolOutcomeInput,
   ExecutionJournalCommitReceipt,
   ExecutionRecoveryReport
-} from '../domain/executionJournal'
+} from '@deepchat/agent-kernel/tape/domain/executionJournal'
 import type {
   TapeEffectiveMessageSourceEntry,
   TapeToolSurfaceViewReader,
@@ -63,13 +69,13 @@ import type {
   TapeMemoryViewManifestInspection,
   CommitTapeToolSurfaceViewInput,
   TapeToolSurfaceViewCommitReceipt
-} from '../ports/capabilities'
-import type { TapeStorePort } from '@/agent/deepchat/contracts/tapeStore'
+} from '@deepchat/agent-kernel/tape/ports/capabilities'
+import type { TapeStorePort } from '@deepchat/agent-kernel/contracts/tapeStore'
 import {
   createTapeApplicationProviders,
   type TapeApplicationDatabase,
   type TapeApplicationProviders
-} from '../ports/application'
+} from '@deepchat/agent-kernel/tape/ports/application'
 import type {
   TapeAnchorResult,
   TapeBackfillResult,

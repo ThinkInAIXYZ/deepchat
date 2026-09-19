@@ -1,10 +1,10 @@
 import { describe, expect, it, vi } from 'vitest'
-import { DeepChatAgentRuntime } from '@/agent/deepchat/instance/deepChatAgentRuntime'
-import { toAppSessionId } from '@/agent/shared/agentSessionIds'
+import { DeepChatAgentRuntime } from '@deepchat/agent-kernel/instance/deepChatAgentRuntime'
+import { toAppSessionId } from '@deepchat/agent-kernel/collab/agent-shared/agentSessionIds'
 import {
   SessionStateResolver,
   type SessionStateResolverDependencies
-} from '@/agent/deepchat/runtime/sessionStateResolver'
+} from '@deepchat/agent-kernel/runtime/sessionStateResolver'
 
 const SESSION_ID = 'session'
 

@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 
 import { ERROR_RETRY_COOLDOWN_MS } from '@/memory/runtimeConstants'
-import { type IMemoryVectorStore } from '@/memory/types'
+import { type IMemoryVectorStore } from '@deepchat/agent-kernel/collab/memory/types'
 import logger from '@shared/logger'
 import type { DeepChatAgentConfig } from '@shared/types/agent-interface'
 import {

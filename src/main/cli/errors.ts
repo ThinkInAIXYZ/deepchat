@@ -1,1 +1,1 @@
-export { CliRequestError } from '@/agent/deepchat/contracts/localControlProtocol'
+export { CliRequestError } from '@deepchat/agent-kernel/contracts/localControlProtocol'

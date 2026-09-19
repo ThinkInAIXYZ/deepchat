@@ -3,7 +3,7 @@ import type { McpAppDescriptor } from '@shared/types/mcp'
 import { expect, it } from 'vitest'
 import { Database, nativeSqliteDescribeIf } from '../../../nativeSqliteHarness'
 import { createDeepSeekReplayJson } from '../../../../fixtures/deepseekResponses'
-import { createDeepSeekResponsesReplayProjector } from '@/provider/deepseekResponsesAdapter'
+import { createDeepSeekResponsesReplayProjector } from '@deepchat/agent-kernel/collab/provider/deepseekResponsesAdapter'
 
 const tableModule = Database ? await import('@/session/data/tables/deepchatAssistantBlocks') : null
 

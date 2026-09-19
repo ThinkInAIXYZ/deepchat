@@ -1,7 +1,7 @@
 import type * as schema from '@agentclientprotocol/sdk/dist/schema/index.js'
 import type { AcpAgentConfig } from '@shared/types/acp'
 import type { MessageStartResult, SendMessageInput } from '@shared/types/agent-interface'
-import type { AppSessionId } from '@/agent/shared/agentSessionIds'
+import type { AppSessionId } from '@deepchat/agent-kernel/collab/agent-shared/agentSessionIds'
 import type { AcpSessionRecord } from '@/agent/acp/runtime/acpSessionManager'
 import {
   AcpPromptController,

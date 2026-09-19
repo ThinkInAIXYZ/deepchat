@@ -8,7 +8,7 @@ import {
   materializeSkillExecutionPackageTree,
   type OwnedSkillExecutionPackageTree
 } from '@/skill/skillExecutionPackageTree'
-import { createTapeSkillMaterializationPayload } from '@/tape/domain/skillMaterialization'
+import { createTapeSkillMaterializationPayload } from '@deepchat/agent-kernel/tape/domain/skillMaterialization'
 
 vi.mock('fs', async (importOriginal) => {
   const actual = await importOriginal<typeof import('fs')>()

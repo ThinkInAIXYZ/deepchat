@@ -1,24 +1,27 @@
 import type { AgentTapeHandoffState, ChatMessageRecord } from '@shared/types/agent-interface'
 import { TOOL_SEARCH_AGENT_TOOL_NAME } from '@shared/agentTools'
-import type { DeepChatTapeEntryRow, TapeAnchorAppendInput } from '../domain/entry'
+import type {
+  DeepChatTapeEntryRow,
+  TapeAnchorAppendInput
+} from '@deepchat/agent-kernel/tape/domain/entry'
 import {
   toTapeSessionId,
   type TapeMessageReplacementOptions,
   type TapeToolFactInput
-} from '../domain/facts'
+} from '@deepchat/agent-kernel/tape/domain/facts'
 import {
   TAPE_TOOL_RESULT_PAYLOAD_HASH_VERSION,
   buildTapeToolResultPayloadHash
-} from '../domain/toolSurfaceFacts'
+} from '@deepchat/agent-kernel/tape/domain/toolSurfaceFacts'
 import {
   MAX_SKILL_VIEW_RESULT_FACT_BYTES,
   validateRuntimeSkillJournalChain,
   type TapeSkillViewResultFactInput,
   type TapeSkillViewResultFactReceipt
-} from '../domain/skillContext'
-import { hashSkillEffectiveContent } from '../domain/skillMaterialization'
-import { buildExecutionOperationProvenanceKey } from '../domain/executionJournal'
-import { buildEffectiveTapeView } from '../domain/effectiveView'
+} from '@deepchat/agent-kernel/tape/domain/skillContext'
+import { hashSkillEffectiveContent } from '@deepchat/agent-kernel/tape/domain/skillMaterialization'
+import { buildExecutionOperationProvenanceKey } from '@deepchat/agent-kernel/tape/domain/executionJournal'
+import { buildEffectiveTapeView } from '@deepchat/agent-kernel/tape/domain/effectiveView'
 import type {
   TapeAnchorWriter,
   TapeIncarnationReader,
@@ -28,15 +31,15 @@ import type {
   TapeToolFactAppendReceipt,
   TapeSkillViewResultFactWriter,
   TapeToolFactWriter
-} from '../ports/capabilities'
-import type { TapeApplicationProviders } from '../ports/application'
+} from '@deepchat/agent-kernel/tape/ports/capabilities'
+import type { TapeApplicationProviders } from '@deepchat/agent-kernel/tape/ports/application'
 import {
   appendMessageRecordToTape,
   appendMessageReplacementToTape,
   appendMessageRetractionToTape,
   appendTapeToolFact,
   assertTapeToolFactPhysicalEnvelope
-} from './factPersistence'
+} from '@deepchat/agent-kernel/tape/application/factPersistence'
 import { parseJsonObject, readCanonicalTapeIncarnationId } from './common'
 
 type TapeFactProviders = Pick<TapeApplicationProviders, 'getEntryStore'>

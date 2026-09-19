@@ -3,7 +3,7 @@ import type { ChatMessage } from '@shared/types/core/chat-message'
 import {
   extractLatestCompletedToolBatch,
   NoProgressToolLoopGuard
-} from '@/agent/deepchat/runtime/noProgressToolLoopGuard'
+} from '@deepchat/agent-kernel/runtime/noProgressToolLoopGuard'
 
 function toolCall(id: string) {
   return { id, name: 'read', arguments: '{"path":"README.md"}' }

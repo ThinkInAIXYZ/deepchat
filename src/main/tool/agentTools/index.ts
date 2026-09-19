@@ -12,7 +12,11 @@ export {
   CHAT_SETTINGS_SKILL_NAME,
   CHAT_SETTINGS_TOOL_NAMES
 } from './chatSettingsTools'
-export { AGENT_CORE_TOOL_SERVER_NAME, UPDATE_PLAN_TOOL_NAME, AgentPlanTool } from './agentPlanTool'
+export {
+  AGENT_CORE_TOOL_SERVER_NAME,
+  UPDATE_PLAN_TOOL_NAME,
+  AgentPlanTool
+} from '@deepchat/agent-kernel/collab/tool/agentTools/agentPlanTool'
 export { AGENT_TAPE_TOOL_SERVER_NAME, AgentTapeToolHandler } from './agentTapeTools'
 export { TAPE_TOOL_NAMES } from '@shared/agentTools'
 export {

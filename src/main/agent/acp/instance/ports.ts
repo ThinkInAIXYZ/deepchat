@@ -8,7 +8,10 @@ import type {
   SendMessageInput,
   UserMessageContent
 } from '@shared/types/agent-interface'
-import type { AppSessionId, AcpRemoteSessionId } from '@/agent/shared/agentSessionIds'
+import type {
+  AppSessionId,
+  AcpRemoteSessionId
+} from '@deepchat/agent-kernel/collab/agent-shared/agentSessionIds'
 import type { AcpSessionCommand, AcpSessionRecord } from '@/agent/acp/runtime'
 import type {
   DeepChatTapeViewPolicy,

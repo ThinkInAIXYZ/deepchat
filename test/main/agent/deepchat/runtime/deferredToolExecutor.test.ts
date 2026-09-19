@@ -2,15 +2,15 @@ import { describe, expect, it, vi } from 'vitest'
 import {
   DeferredToolExecutor,
   type DeferredToolExecutorDependencies
-} from '@/agent/deepchat/runtime/deferredToolExecutor'
-import { ExecutionJournalError } from '@/tape/domain/executionJournal'
+} from '@deepchat/agent-kernel/runtime/deferredToolExecutor'
+import { ExecutionJournalError } from '@deepchat/agent-kernel/tape/domain/executionJournal'
 import { TOOL_EXECUTION, type MCPToolDefinition } from '@shared/types/core/mcp'
 import {
   cacheToolCallImagePreviews,
   extractToolCallImagePreviews
 } from '@/lib/toolCallImagePreviews'
-import { createOpaquePromptAssembly } from '@/agent/deepchat/resources/promptAssembly'
-import { buildExecutionContract } from '@/tape/domain/executionContract'
+import { createOpaquePromptAssembly } from '@deepchat/agent-kernel/resources/promptAssembly'
+import { buildExecutionContract } from '@deepchat/agent-kernel/tape/domain/executionContract'
 import {
   GIT_BASH_COMMAND_SHELL,
   POSIX_COMMAND_SHELL
@@ -20,13 +20,13 @@ import {
   buildProgrammaticToolCapabilityV1,
   createProgrammaticToolSurfaceRunControllerV1,
   markProgrammaticToolCapabilityProvenanceCommitted
-} from '@/agent/deepchat/runtime/programmaticToolSurface'
+} from '@deepchat/agent-kernel/runtime/programmaticToolSurface'
 import {
   buildToolSurfaceDeferredDispatchBinding,
   registerToolSurfaceDeferredDispatch,
   revokeToolSurfaceDeferredDispatchesForSession,
   revokeToolSurfaceExecutionEligibility
-} from '@/agent/deepchat/runtime/toolSurface'
+} from '@deepchat/agent-kernel/runtime/toolSurface'
 
 const SESSION_ID = 'session-1'
 const MESSAGE_ID = 'message-1'

@@ -13,7 +13,7 @@ import {
   serializeTaskContract,
   serializeTaskContractRef,
   type BuildTaskContractInput
-} from '@/tape/domain/taskContract'
+} from '@deepchat/agent-kernel/tape/domain/taskContract'
 
 const TEST_WORKSPACE_PATH = path.resolve('project scope ')
 

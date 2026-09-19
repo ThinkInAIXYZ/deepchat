@@ -1,5 +1,8 @@
 import type Database from 'better-sqlite3-multiple-ciphers'
-import type { TapeEntryLifecycleStore, TapeMutationProjection } from '../../ports/storage'
+import type {
+  TapeEntryLifecycleStore,
+  TapeMutationProjection
+} from '@deepchat/agent-kernel/tape/ports/storage'
 
 export class SqliteTapeLifecycleAdapter implements TapeEntryLifecycleStore {
   constructor(

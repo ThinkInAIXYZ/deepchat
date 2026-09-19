@@ -1,7 +1,10 @@
 import { createHash } from 'node:crypto'
 import { types as utilTypes } from 'node:util'
 import type { DatabaseRepairReason } from '@shared/notifications'
-import type { ExecutionRunKind, ExecutionRunOutcome } from '@/tape/domain/executionJournal'
+import type {
+  ExecutionRunKind,
+  ExecutionRunOutcome
+} from '@deepchat/agent-kernel/tape/domain/executionJournal'
 import { MAX_DIAGNOSTIC_DISTRIBUTION_SAMPLES } from '@/lib/boundedNumberRing'
 
 export const MAIN_LOG_ERROR_CATEGORIES = [

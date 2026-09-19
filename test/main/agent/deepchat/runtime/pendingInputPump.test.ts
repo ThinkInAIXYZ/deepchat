@@ -7,18 +7,18 @@ import type {
   PendingSessionInputRecord
 } from '@shared/types/agent-interface'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { DeepChatAgentRuntime } from '@/agent/deepchat/instance/deepChatAgentRuntime'
-import { toAppSessionId } from '@/agent/shared/agentSessionIds'
+import { DeepChatAgentRuntime } from '@deepchat/agent-kernel/instance/deepChatAgentRuntime'
+import { toAppSessionId } from '@deepchat/agent-kernel/collab/agent-shared/agentSessionIds'
 import {
   PendingInputPump,
   type PendingInputPumpPorts,
   type PendingInputPumpStorePort,
   type PendingInputTurnContext
-} from '@/agent/deepchat/runtime/pendingInputPump'
+} from '@deepchat/agent-kernel/runtime/pendingInputPump'
 import type {
   ClaimedInputDisposition,
   TurnCompletion
-} from '@/agent/deepchat/runtime/pendingInputContracts'
+} from '@deepchat/agent-kernel/runtime/pendingInputContracts'
 
 const SESSION_ID = 'session'
 

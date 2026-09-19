@@ -29,12 +29,15 @@ import {
   parseExecutionJournalFact,
   type NestedExecutionOperationIdentity,
   type ExecutionOperationIdentity
-} from '@/tape/domain/executionJournal'
+} from '@deepchat/agent-kernel/tape/domain/executionJournal'
 import {
   ExecutionJournalService,
   type ExecutionJournalCommitFailpoint
 } from '@/tape/application/executionJournalService'
-import { buildEffectiveTapeView, searchEffectiveTapeRows } from '@/tape/domain/effectiveView'
+import {
+  buildEffectiveTapeView,
+  searchEffectiveTapeRows
+} from '@deepchat/agent-kernel/tape/domain/effectiveView'
 import { MainDatabase } from '@/data/mainDatabase'
 import { SessionDatabase } from '@/session/data/database'
 import { UNTERMINATED_EXECUTION_JOURNAL_EVENTS_SQL } from '@/tape/infrastructure/sqlite/tapeEntryStore'

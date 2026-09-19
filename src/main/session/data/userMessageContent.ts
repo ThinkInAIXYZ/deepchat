@@ -2,4 +2,4 @@ export {
   buildEditedUserContent,
   extractUserMessageInput,
   normalizeUserMessageInput
-} from '@/agent/deepchat/contracts/userMessageContent'
+} from '@deepchat/agent-kernel/contracts/userMessageContent'

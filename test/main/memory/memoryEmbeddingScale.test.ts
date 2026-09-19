@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { MemoryService as BaseMemoryService } from '@/memory'
-import type { IMemoryVectorStore } from '@/memory/types'
+import type { IMemoryVectorStore } from '@deepchat/agent-kernel/collab/memory/types'
 import {
   EMBEDDING_WARM_FAILURE_COOLDOWN_MS,
   VECTOR_STORE_IDLE_TTL_MS,

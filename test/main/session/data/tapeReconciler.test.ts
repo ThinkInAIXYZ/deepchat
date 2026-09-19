@@ -18,7 +18,7 @@ import {
 import {
   TAPE_TOOL_RESULT_PAYLOAD_HASH_VERSION,
   buildTapeToolResultPayloadHash
-} from '@/tape/domain/toolSurfaceFacts'
+} from '@deepchat/agent-kernel/tape/domain/toolSurfaceFacts'
 import { TOOL_SEARCH_AGENT_TOOL_NAME } from '@shared/agentTools'
 
 vi.mock('@shared/logger', () => ({

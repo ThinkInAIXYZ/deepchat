@@ -13,8 +13,8 @@ import type {
   MemoryDirectiveTransitionResult,
   MemoryDirectiveWriteInput,
   MemoryDirectiveWriteResult
-} from '../../domain/directives'
-import type { MemoryDirectiveRepositoryPort } from '../../ports'
+} from '@deepchat/agent-kernel/collab/memory/domain/directives'
+import type { MemoryDirectiveRepositoryPort } from '@deepchat/agent-kernel/collab/memory/ports'
 
 export const AGENT_MEMORY_DIRECTIVE_SCHEMA_VERSION = 50
 const DIRECTIVE_REPOSITORY_LIMIT = 200

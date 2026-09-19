@@ -4,12 +4,12 @@ import { SessionTape } from '@/tape/application/sessionTape'
 import { DASHBOARD_STATS_BACKFILL_KEY, type UsageStatsRecordInput } from '@/session/usageStats'
 import { UsageStatsService } from '@/session/usageStatsService'
 import type { PermissionMode } from '@shared/types/agent-interface'
-import type { DeepChatTapeEntryRow } from '@/tape/domain/entry'
+import type { DeepChatTapeEntryRow } from '@deepchat/agent-kernel/tape/domain/entry'
 import {
   buildTapeCompactionModelCallEvent,
   parseTapeCompactionModelCallEvent,
   TAPE_COMPACTION_MODEL_CALL_EVENT_NAME
-} from '@/tape/domain/compactionUsage'
+} from '@deepchat/agent-kernel/tape/domain/compactionUsage'
 
 vi.mock('@/events', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/events')>()

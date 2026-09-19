@@ -41,7 +41,7 @@ import {
 import { stripDerivedProviderModelFields } from '@/provider/providerModelFacts'
 import { DEFAULT_SYSTEM_PROMPT } from '@/agent/promptSettings'
 import type { ProviderDatabase } from './data/database'
-import type { CapabilitySnapshotResolutionInput } from '@/agent/deepchat/contracts/providerModelResolution'
+import type { CapabilitySnapshotResolutionInput } from '@deepchat/agent-kernel/contracts/providerModelResolution'
 import type { SettingsKey, SettingsSnapshotValues } from '@shared/contracts/routes'
 import type { DeepchatEventPayload, DeepchatEventPublisher } from '@shared/contracts/events'
 import {
@@ -68,7 +68,7 @@ import {
   getMoonshotKimiTemperaturePolicy,
   isMiniMaxM3AdaptiveThinkingModel
 } from '@shared/modelRequestPolicy'
-import { resolveDeepSeekResponsesRoute } from './deepseekResponsesAdapter'
+import { resolveDeepSeekResponsesRoute } from '@deepchat/agent-kernel/collab/provider/deepseekResponsesAdapter'
 
 // Create interface for model storage
 const defaultProviders = DEFAULT_PROVIDERS.map((provider) => ({
@@ -305,7 +305,7 @@ export interface ProviderSettingsPort {
 export type {
   CapabilitySnapshotResolutionInput,
   ProviderModelResolutionPort
-} from '@/agent/deepchat/contracts/providerModelResolution'
+} from '@deepchat/agent-kernel/contracts/providerModelResolution'
 
 export class ProviderSettings implements ProviderSettingsPort {
   private userDataPath: string

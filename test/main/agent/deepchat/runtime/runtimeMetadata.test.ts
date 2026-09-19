@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   stampInteractionResolution,
   stampTerminalMetadata
-} from '@/agent/deepchat/runtime/runtimeMetadata'
+} from '@deepchat/agent-kernel/runtime/runtimeMetadata'
 
 describe('runtimeMetadata stamps', () => {
   const paused = {

@@ -1,5 +1,5 @@
-import { toAppSessionId } from '@/agent/shared/agentSessionIds'
-import { normalizeSendMessageInput } from '@/agent/shared/agentSessionNormalization'
+import { toAppSessionId } from '@deepchat/agent-kernel/collab/agent-shared/agentSessionIds'
+import { normalizeSendMessageInput } from '@deepchat/agent-kernel/collab/agent-shared/agentSessionNormalization'
 import type {
   AttachmentFallbackPolicy,
   ChatMessageRecord,

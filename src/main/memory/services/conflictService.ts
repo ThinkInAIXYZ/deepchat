@@ -10,7 +10,7 @@ import {
   type MemoryDecision
 } from '../core/decision'
 import { normalizeMemoryCandidate } from '../core/candidates'
-import { estimateTokens } from '../core/injectionPort'
+import { estimateTokens } from '@deepchat/agent-kernel/collab/memory/core/injectionPort'
 import { MaintenanceBudget } from '../core/maintenanceBudget'
 import { buildScopedMemoryProvenanceKey, normalizeForProvenanceV2 } from '../core/scoring'
 import { memoryScopeFromRow, rowsShareMemoryScope } from '../core/scope'
@@ -23,7 +23,7 @@ import type {
   MemoryConflictPair,
   MemoryConflictResolution,
   MemoryMaintenanceStepResult
-} from '../types'
+} from '@deepchat/agent-kernel/collab/memory/types'
 import { isUniqueConstraintError, type MemoryModelRef, type MemoryRuntimeContext } from '../context'
 import { memoryCommandApplied, memoryCommandRejected } from '../domain/commandResult'
 import type {
@@ -34,7 +34,7 @@ import type {
   MemoryReadRepositoryPort,
   MemoryTextGenerationPort,
   MemoryTransactionPort
-} from '../ports'
+} from '@deepchat/agent-kernel/collab/memory/ports'
 
 interface ConflictResolutionOptions {
   mergedContent?: string | null

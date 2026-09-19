@@ -18,7 +18,7 @@ import {
   createDefaultHooksNotificationsConfig,
   normalizeHooksNotificationsConfig
 } from '../../../src/main/hook/config'
-import type { HookEvent } from '../../../src/main/hook/events'
+import type { HookEvent } from '@deepchat/agent-kernel/collab/hook/events'
 
 describe('HookService helpers', () => {
   it('truncateText keeps short strings intact', () => {

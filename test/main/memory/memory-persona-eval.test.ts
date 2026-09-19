@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 
 import { MemoryService } from '@/memory'
-import type { MemoryServiceDeps } from '@/memory/types'
+import type { MemoryServiceDeps } from '@deepchat/agent-kernel/collab/memory/types'
 import type { DeepChatAgentConfig } from '@shared/types/agent-interface'
 import {
   createFakeRepository,

@@ -7,7 +7,10 @@ import {
   isRecallableMemoryState,
   projectLegacyStatus
 } from '@/memory/domain/stateModel'
-import type { AgentMemoryInsertInput, AgentMemoryStatus } from '@/memory/domain/types'
+import type {
+  AgentMemoryInsertInput,
+  AgentMemoryStatus
+} from '@deepchat/agent-kernel/collab/memory/domain/types'
 import type { MemoryTransitionSnapshot } from '@/memory/domain/stateModel'
 
 const LEGACY_STATUSES: AgentMemoryStatus[] = [

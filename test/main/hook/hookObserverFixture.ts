@@ -1,6 +1,6 @@
 import { vi } from 'vitest'
-import type { HookEvent } from '@/hook/events'
-import type { HookObserver } from '@/hook/observer'
+import type { HookEvent } from '@deepchat/agent-kernel/collab/hook/events'
+import type { HookObserver } from '@deepchat/agent-kernel/collab/hook/observer'
 
 export const createHookObserver = (dispatcher: {
   dispatchEvent: ReturnType<typeof vi.fn>

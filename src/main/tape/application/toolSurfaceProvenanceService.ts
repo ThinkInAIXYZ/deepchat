@@ -1,13 +1,16 @@
 import type { DeepChatTapeViewManifest } from '@shared/types/tape-view-manifest'
 import { TOOL_SEARCH_AGENT_TOOL_NAME } from '@shared/agentTools'
 import { stripToolExecutionContract, type MCPToolDefinition } from '@shared/types/core/mcp'
-import { canonicalJsonStringifyData } from '../domain/canonicalJson'
-import { type DeepChatTapeEntryRow, type TapeEventAppendInput } from '../domain/entry'
+import { canonicalJsonStringifyData } from '@deepchat/agent-kernel/tape/domain/canonicalJson'
+import {
+  type DeepChatTapeEntryRow,
+  type TapeEventAppendInput
+} from '@deepchat/agent-kernel/tape/domain/entry'
 import {
   buildExecutionToolCeiling,
   buildExecutionToolTargetKey,
   buildProviderVisibleToolDefinitionsHash
-} from '../domain/executionContract'
+} from '@deepchat/agent-kernel/tape/domain/executionContract'
 import {
   TAPE_PROGRAMMATIC_TOOL_SURFACE_EVENT_NAME,
   TAPE_TOOL_CATALOG_EVENT_NAME,
@@ -29,21 +32,24 @@ import {
   type TapeToolSurfaceFactV2,
   verifyTapeToolCatalogFact,
   verifyTapeToolSurfaceFact
-} from '../domain/toolSurfaceFacts'
+} from '@deepchat/agent-kernel/tape/domain/toolSurfaceFacts'
 import {
   TAPE_VIEW_MANIFEST_EVENT_NAME,
   getTapeViewManifestExecutionContract,
   hashJson,
   verifyTapeViewManifestHash
-} from '../domain/viewManifest'
-import type { TapeApplicationEntryStore, TapeApplicationProviders } from '../ports/application'
+} from '@deepchat/agent-kernel/tape/domain/viewManifest'
+import type {
+  TapeApplicationEntryStore,
+  TapeApplicationProviders
+} from '@deepchat/agent-kernel/tape/ports/application'
 import type {
   CommitTapeToolSurfaceViewInput,
   TapeToolSurfaceFactRecord,
   TapeToolSurfaceViewCommitReceipt,
   TapeToolSurfaceViewReader,
   TapeToolSurfaceViewWriter
-} from '../ports/capabilities'
+} from '@deepchat/agent-kernel/tape/ports/capabilities'
 import { readCanonicalTapeIncarnationId } from './common'
 import { buildTapeViewManifestProvenanceKey, type TapeViewReplayService } from './viewReplayService'
 

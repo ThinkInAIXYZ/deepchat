@@ -15,6 +15,7 @@ const CANONICAL_AGENT_BASELINE = path.join(
 
 type GeneratedAgentBaseline = {
   schemaVersion: number
+  sourceFiles: string[]
   expectedFiles: Record<string, boolean>
   ownerEvidence: Record<string, { declarationCount: number }>
   retiredSurfaces: {
@@ -63,6 +64,9 @@ describe('architecture baseline generator', () => {
         firstSnapshot['agent-system-layered-runtime-baseline.json']
       ) as GeneratedAgentBaseline
       expect(baseline.schemaVersion).toBe(2)
+      expect(baseline.sourceFiles).toContain(
+        'src/main/agent/deepchat/deepChatAgentRepository.ts'
+      )
       expect(Object.values(baseline.expectedFiles)).not.toContain(false)
       expect(
         Object.values(baseline.ownerEvidence).map(

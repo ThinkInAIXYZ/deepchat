@@ -19,7 +19,7 @@ import {
   prepareProcessEnvForUtf8Output,
   prepareShellCommandForUtf8Output
 } from '@/agent/shared/process/shellOutputEncoding'
-import { resolveSessionDir } from '@/agent/shared/storage/sessionPaths'
+import { resolveSessionDir } from '@deepchat/agent-kernel/collab/agent-shared/storage/sessionPaths'
 import { resolveUsableSpawnCwd } from '@/agent/shared/process/spawnGuard'
 import { terminateProcessTree } from '@/agent/shared/process/processTree'
 import { RuntimeHelper } from '@/lib/runtimeHelper'
@@ -30,7 +30,7 @@ import {
   materializeSkillExecutionPackageTree,
   type MaterializedSkillExecutionPackageTree
 } from './skillExecutionPackageTree'
-import { canonicalSkillExecutionPackagePath } from '@/tape/domain/skillMaterialization'
+import { canonicalSkillExecutionPackagePath } from '@deepchat/agent-kernel/tape/domain/skillMaterialization'
 
 const DEFAULT_TIMEOUT_MS = 120000
 const FOREGROUND_OFFLOAD_THRESHOLD = 10000

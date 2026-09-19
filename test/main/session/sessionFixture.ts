@@ -8,7 +8,7 @@ import type {
 import type { AppSessionService } from '@/agent/shared/appSessionService'
 import type { SkillServicePort } from '@shared/types/skill'
 import type { MainDatabase } from '@/data/mainDatabase'
-import type { AcpAsLlmProviderSessionControlPort } from '@/provider/ports'
+import type { AcpAsLlmProviderSessionControlPort } from '@deepchat/agent-kernel/collab/provider/ports'
 import type { SessionPermissionPort } from '@/session/contracts'
 import { SessionAssignmentPolicy } from '@/session/assignmentPolicy'
 import { SessionAssignment } from '@/session/assignment'

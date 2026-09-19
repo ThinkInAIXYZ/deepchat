@@ -1,15 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import * as contextBuilderModule from '@/agent/deepchat/runtime/contextBuilder'
+import * as contextBuilderModule from '@deepchat/agent-kernel/runtime/contextBuilder'
 import {
   CompactionService,
   type CompactionModelCallObservation,
   type ModelSpec
-} from '@/agent/deepchat/runtime/compactionService'
+} from '@deepchat/agent-kernel/runtime/compactionService'
 import {
   buildContextCheckpoint,
   SUMMARY_REJECTED_LARGER_REASON,
   SUMMARY_UNAVAILABLE_REASON
-} from '@/agent/deepchat/runtime/contextContributions'
+} from '@deepchat/agent-kernel/runtime/contextContributions'
 import type {
   ReconstructionAnchorPromptState,
   SessionSummaryState
@@ -20,9 +20,9 @@ vi.mock('tokenx', () => ({
   estimateTokenCount: vi.fn((text: string) => text.length)
 }))
 
-vi.mock('@/agent/deepchat/runtime/contextBuilder', async (importOriginal) => {
+vi.mock('@deepchat/agent-kernel/runtime/contextBuilder', async (importOriginal) => {
   const actual =
-    await importOriginal<typeof import('@/agent/deepchat/runtime/contextBuilder')>()
+    await importOriginal<typeof import('@deepchat/agent-kernel/runtime/contextBuilder')>()
   return {
     ...actual,
     buildHistoryTurns: vi.fn(actual.buildHistoryTurns)

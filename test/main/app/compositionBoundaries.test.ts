@@ -300,7 +300,7 @@ describe('session boundary composition', () => {
     const { existsSync, readFileSync } = await vi.importActual<typeof import('node:fs')>('node:fs')
     const retiredEventsPath = path.resolve(
       process.cwd(),
-      'src/main/agent/deepchat/runtime/internalSessionEvents.ts'
+      'packages/agent-kernel/src/runtime/internalSessionEvents.ts'
     )
     const schedulerSource = readFileSync(
       path.resolve(process.cwd(), 'src/main/scheduler/runExecutor.ts'),

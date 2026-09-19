@@ -1,4 +1,4 @@
-import { toAppSessionId } from '@/agent/shared/agentSessionIds'
+import { toAppSessionId } from '@deepchat/agent-kernel/collab/agent-shared/agentSessionIds'
 import type {
   AgentTransferBlockReason,
   AgentTransferImpact,
@@ -23,7 +23,7 @@ import type {
   SessionAssignmentWorkdirPort,
   SessionLifecycleDeletionPort
 } from './contracts'
-import { normalizeDisabledAgentTools } from '@/agent/shared/agentSessionNormalization'
+import { normalizeDisabledAgentTools } from '@deepchat/agent-kernel/collab/agent-shared/agentSessionNormalization'
 import type { AgentLifecycleGatePort } from '@/agent/lifecycleGate'
 import {
   normalizeOrchestrationPolicy,

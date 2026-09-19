@@ -1,22 +1,22 @@
 import { describe, expect, it, vi } from 'vitest'
-import { DeepChatAgentRuntime } from '@/agent/deepchat/instance/deepChatAgentRuntime'
-import { toAppSessionId } from '@/agent/shared/agentSessionIds'
+import { DeepChatAgentRuntime } from '@deepchat/agent-kernel/instance/deepChatAgentRuntime'
+import { toAppSessionId } from '@deepchat/agent-kernel/collab/agent-shared/agentSessionIds'
 import {
   createToolPermissionReviewer,
   createToolResultNormalizer,
   type ToolRuntimeBindingDependencies
-} from '@/agent/deepchat/runtime/toolRuntimeBindings'
+} from '@deepchat/agent-kernel/runtime/toolRuntimeBindings'
 
 const normalizeToolResultContent = vi.hoisted(() => vi.fn(async () => [{ type: 'text', text: 'ok' }]))
 const reviewAutoApproveToolPermission = vi.hoisted(() =>
   vi.fn(async () => ({ decision: 'ask_user' }))
 )
 
-vi.mock('@/agent/deepchat/runtime/toolAdapters', async (importOriginal) => ({
+vi.mock('@deepchat/agent-kernel/runtime/toolAdapters', async (importOriginal) => ({
   ...(await importOriginal<Record<string, unknown>>()),
   normalizeToolResultContent
 }))
-vi.mock('@/agent/deepchat/runtime/toolPermissionReviewer', async (importOriginal) => ({
+vi.mock('@deepchat/agent-kernel/runtime/toolPermissionReviewer', async (importOriginal) => ({
   ...(await importOriginal<Record<string, unknown>>()),
   reviewAutoApproveToolPermission
 }))

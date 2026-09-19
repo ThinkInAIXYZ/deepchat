@@ -2,7 +2,10 @@ import { describe, expect, it, vi } from 'vitest'
 
 import type { DeepChatAgentConfig } from '@shared/types/agent-interface'
 import { MemoryRuntimeContext } from '@/memory/context'
-import type { MemoryAgentPolicyPort, MemoryProviderControlPort } from '@/memory/ports'
+import type {
+  MemoryAgentPolicyPort,
+  MemoryProviderControlPort
+} from '@deepchat/agent-kernel/collab/memory/ports'
 
 const providerControl: MemoryProviderControlPort = {
   abortAgent: () => undefined,

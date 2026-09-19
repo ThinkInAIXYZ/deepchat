@@ -33,20 +33,6 @@ describe('agent cleanup guard', () => {
     }
   })
 
-  it('recognizes relative harness imports from an owner directory', () => {
-    // Relative reachability exists only in the host tree, where the re-export shims sit next to
-    // the harness directory; package modules cannot resolve a relative harness import at all.
-    const ownerFile = path.join(
-      repositoryRoot,
-      'src/main/agent/deepchat/memory/memoryRuntimeCoordinator.ts'
-    )
-
-    expect(isDeepChatHarnessImport(ownerFile, '../harness')).toBe(true)
-    expect(isDeepChatHarnessImport(ownerFile, '../harness/createDeepChatAgentHarness.ts')).toBe(
-      true
-    )
-  })
-
   it('allows the harness layer itself and adapters outside the DeepChat implementation', () => {
     expect(
       isDeepChatHarnessImport(

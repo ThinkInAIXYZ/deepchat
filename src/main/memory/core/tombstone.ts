@@ -5,7 +5,7 @@ import type {
   MemoryTombstoneIdentity,
   MemoryTombstoneIdentityKind,
   MemoryScope
-} from '../domain/types'
+} from '@deepchat/agent-kernel/collab/memory/domain/types'
 import { normalizeForProvenanceV2 } from './scoring'
 import { normalizeMemoryScope } from './scope'
 

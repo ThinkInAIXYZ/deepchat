@@ -8,7 +8,7 @@ import {
   decorateExecForShell,
   normalizeCodexToolName,
   renderCodeModeSdk
-} from '@/tool/codeMode/toolModeTools'
+} from '@deepchat/agent-kernel/collab/tool/codeMode/toolModeTools'
 import { WINDOWS_POWERSHELL_COMMAND_SHELL } from '../../../helpers/commandShell'
 
 const nestedTool: MCPToolDefinition = {

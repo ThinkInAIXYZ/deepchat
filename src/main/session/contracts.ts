@@ -1,4 +1,4 @@
-import type { AppSessionId } from '@/agent/shared/agentSessionIds'
+import type { AppSessionId } from '@deepchat/agent-kernel/collab/agent-shared/agentSessionIds'
 import type {
   SessionStatePort,
   SessionTapePort,
@@ -50,7 +50,7 @@ import type { OrchestrationPolicy } from '@shared/orchestration/policy'
 import type { LiveDelegationSubagentContext } from '@shared/orchestration/liveDelegation'
 import type { AcpConfigState } from '@shared/types/acp'
 import type { AcpAuthChallenge } from '@shared/types/acp'
-import type { AcpAsLlmProviderSessionControlPort } from '@/provider/ports'
+import type { AcpAsLlmProviderSessionControlPort } from '@deepchat/agent-kernel/collab/provider/ports'
 import type { ListTapeInspectorEvidenceInput } from '@shared/types/tape-inspector'
 import type { DeepChatMessageRow } from '../session/data/tables/deepchatMessages'
 import type { DeepChatMessageSearchResultRow } from '../session/data/tables/deepchatMessageSearchResults'
@@ -60,7 +60,7 @@ export type {
   SessionPermissionGrant,
   SessionPermissionPort,
   SessionPermissionRequest
-} from '@/agent/deepchat/contracts/sessionPermission'
+} from '@deepchat/agent-kernel/contracts/sessionPermission'
 
 export interface SessionUiPort {
   refreshSessionUi(): void

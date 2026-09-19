@@ -22,39 +22,45 @@ import {
 import {
   PRE_STREAM_STUCK_ESCALATION_MS,
   PRE_STREAM_STUCK_WARN_MS
-} from '@/agent/deepchat/runtime/preStreamWatchdog'
+} from '@deepchat/agent-kernel/runtime/preStreamWatchdog'
 import logger from '@shared/logger'
 import { createHookObserver, noopHookObserver } from '../../../hook/hookObserverFixture'
-import { estimateMessagesTokens } from '@/agent/deepchat/runtime/contextBuilder'
+import { estimateMessagesTokens } from '@deepchat/agent-kernel/runtime/contextBuilder'
 import {
   estimateToolReserveTokens,
   getUsableContextLength
-} from '@/agent/deepchat/runtime/contextBudget'
-import { appendMessageRecordToTape } from '@/tape/application/factPersistence'
+} from '@deepchat/agent-kernel/runtime/contextBudget'
+import { appendMessageRecordToTape } from '@deepchat/agent-kernel/tape/application/factPersistence'
 import {
   isEffectiveMessageInputRow,
   isEffectiveViewInputRow
-} from '@/tape/domain/effectiveSemantics'
-import { resolveInterleavedReasoningConfig } from '@/agent/deepchat/runtime/generationSettings'
-import { toAcpRemoteSessionId, toAppSessionId } from '@/agent/shared/agentSessionIds'
-import { createLoopRun, type LoopRunRequestToolSurfaceBinding } from '@/agent/deepchat/loop/loopRun'
+} from '@deepchat/agent-kernel/tape/domain/effectiveSemantics'
+import { resolveInterleavedReasoningConfig } from '@deepchat/agent-kernel/runtime/generationSettings'
+import {
+  toAcpRemoteSessionId,
+  toAppSessionId
+} from '@deepchat/agent-kernel/collab/agent-shared/agentSessionIds'
+import {
+  createLoopRun,
+  type LoopRunRequestToolSurfaceBinding
+} from '@deepchat/agent-kernel/loop/loopRun'
 import {
   MEMORY_INJECTION_TIMEOUT_MS,
   MemoryRuntimeCoordinator
-} from '@/agent/deepchat/memory/memoryRuntimeCoordinator'
-import type { MemoryRuntimePort } from '@/memory/injection'
-import { CompactionService } from '@/agent/deepchat/runtime/compactionService'
-import { reviewAutoApproveToolPermission } from '@/agent/deepchat/runtime/toolPermissionReviewer'
-import { normalizeToolResultContent } from '@/agent/deepchat/runtime/toolAdapters'
+} from '@deepchat/agent-kernel/memory/memoryRuntimeCoordinator'
+import type { MemoryRuntimePort } from '@deepchat/agent-kernel/collab/memory/injection'
+import { CompactionService } from '@deepchat/agent-kernel/runtime/compactionService'
+import { reviewAutoApproveToolPermission } from '@deepchat/agent-kernel/runtime/toolPermissionReviewer'
+import { normalizeToolResultContent } from '@deepchat/agent-kernel/runtime/toolAdapters'
 import { resolveSessionVisionTarget } from '@/agent/vision/sessionVisionResolver'
-import { PENDING_INPUT_ABORT_REASON } from '@/agent/deepchat/runtime/abortErrors'
+import { PENDING_INPUT_ABORT_REASON } from '@deepchat/agent-kernel/runtime/abortErrors'
 import {
   ToolOutputGuard,
   type ToolOutputGuardResult
-} from '@/agent/deepchat/runtime/toolOutputGuard'
-import { DeferredToolExecutor } from '@/agent/deepchat/runtime/deferredToolExecutor'
-import { createState } from '@/agent/deepchat/runtime/types'
-import { SkillContextMaterializer } from '@/agent/deepchat/runtime/skillContextMaterializer'
+} from '@deepchat/agent-kernel/runtime/toolOutputGuard'
+import { DeferredToolExecutor } from '@deepchat/agent-kernel/runtime/deferredToolExecutor'
+import { createState } from '@deepchat/agent-kernel/runtime/types'
+import { SkillContextMaterializer } from '@deepchat/agent-kernel/runtime/skillContextMaterializer'
 import { AcpPromptController, AcpRuntimeOwner, type AcpClientRuntime } from '@/agent/acp/client'
 import { AcpAgentRuntime } from '@/agent/acp/instance'
 import type { AcpAgentDescriptor } from '@/agent/shared/agentDescriptors'
@@ -69,20 +75,20 @@ import { LiveDelegationAgentTool } from '@/tool/agentTools/liveDelegationTool'
 import {
   ExecutionJournalCorruptionError,
   ExecutionJournalError
-} from '@/tape/domain/executionJournal'
+} from '@deepchat/agent-kernel/tape/domain/executionJournal'
 import { TapeFactService } from '@/tape/application/factService'
-import { buildTaskContract } from '@/tape/domain/taskContract'
+import { buildTaskContract } from '@deepchat/agent-kernel/tape/domain/taskContract'
 import { LIVE_DELEGATION_AGENT_TOOL_NAME, TOOL_SEARCH_AGENT_TOOL_NAME } from '@shared/agentTools'
 import {
   TAPE_PROGRAMMATIC_TOOL_SURFACE_EVENT_NAME,
   TAPE_TOOL_CATALOG_EVENT_NAME,
   TAPE_TOOL_SURFACE_EVENT_NAME
-} from '@/tape/domain/toolSurfaceFacts'
-import { buildTapeProviderAttemptEvent } from '@/tape/domain/providerAttempt'
+} from '@deepchat/agent-kernel/tape/domain/toolSurfaceFacts'
+import { buildTapeProviderAttemptEvent } from '@deepchat/agent-kernel/tape/domain/providerAttempt'
 import { ProgrammaticToolParentRegistry } from '@/cli/programmaticToolParentRegistry'
-import { ToolSurfaceCanaryDiagnosticsRegistry } from '@/agent/deepchat/runtime/toolSurfaceCanaryDiagnostics'
-import { MAX_PROGRAMMATIC_TOOL_INPUT_BYTES } from '@/agent/deepchat/runtime/programmaticToolSurface'
-import { DeepChatLoopRunner } from '@/agent/deepchat/runtime/deepChatLoopRunner'
+import { ToolSurfaceCanaryDiagnosticsRegistry } from '@deepchat/agent-kernel/runtime/toolSurfaceCanaryDiagnostics'
+import { MAX_PROGRAMMATIC_TOOL_INPUT_BYTES } from '@deepchat/agent-kernel/runtime/programmaticToolSurface'
+import { DeepChatLoopRunner } from '@deepchat/agent-kernel/runtime/deepChatLoopRunner'
 
 vi.mock('nanoid', () => ({ nanoid: vi.fn(() => 'mock-msg-id') }))
 
@@ -124,7 +130,7 @@ const skillServiceMock = {
   discardDraftSkill: vi.fn()
 }
 
-vi.mock('@/agent/deepchat/resources/systemEnvPromptBuilder', () => {
+vi.mock('@deepchat/agent-kernel/resources/systemEnvPromptBuilder', () => {
   const buildSystemEnvPrompt = vi.fn(
     async (options?: {
       providerId?: string
@@ -167,16 +173,16 @@ vi.mock('@/agent/deepchat/resources/systemEnvPromptBuilder', () => {
 })
 
 // Mock processStream to avoid timer/async complexity
-vi.mock('@/agent/deepchat/runtime/process', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/agent/deepchat/runtime/process')>()),
+vi.mock('@deepchat/agent-kernel/runtime/process', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@deepchat/agent-kernel/runtime/process')>()),
   processStream: vi.fn().mockResolvedValue({ status: 'completed' })
 }))
 
-import { processStream } from '@/agent/deepchat/runtime/process'
+import { processStream } from '@deepchat/agent-kernel/runtime/process'
 import {
   buildRuntimeCapabilitiesPrompt,
   buildSystemEnvPrompt
-} from '@/agent/deepchat/resources/systemEnvPromptBuilder'
+} from '@deepchat/agent-kernel/resources/systemEnvPromptBuilder'
 
 function getPublishedPayloads(eventName: string): any[] {
   return (publishDeepchatEvent as ReturnType<typeof vi.fn>).mock.calls
@@ -13701,8 +13707,8 @@ describe('DeepChatAgentHarness', () => {
 
     it('persists local retry-failure diagnostics without provider raw context overflow text', async () => {
       const actualProcessModule = await vi.importActual<
-        typeof import('@/agent/deepchat/runtime/process')
-      >('@/agent/deepchat/runtime/process')
+        typeof import('@deepchat/agent-kernel/runtime/process')
+      >('@deepchat/agent-kernel/runtime/process')
       ;(processStream as ReturnType<typeof vi.fn>).mockImplementationOnce(
         actualProcessModule.processStream
       )

@@ -14,29 +14,29 @@ import {
   type DeepChatTapeSourceType,
   type TapeAnchorAppendInput,
   type TapeEventAppendInput
-} from '@/tape/domain/entry'
-import { DEFAULT_EXCLUDED_TAPE_EVENT_NAMES } from '@/tape/domain/effectiveView'
+} from '@deepchat/agent-kernel/tape/domain/entry'
+import { DEFAULT_EXCLUDED_TAPE_EVENT_NAMES } from '@deepchat/agent-kernel/tape/domain/effectiveView'
 import {
   EFFECTIVE_MESSAGE_INPUT_KINDS,
   EFFECTIVE_VIEW_INPUT_KINDS,
   TAPE_MESSAGE_RETRACTED_EVENT_NAME,
   parseTapeJsonObject,
   type EffectiveInputKind
-} from '@/tape/domain/effectiveSemantics'
+} from '@deepchat/agent-kernel/tape/domain/effectiveSemantics'
 import {
   EXECUTION_JOURNAL_EVENT_NAMES,
   type ExecutionJournalEventName,
   type ExecutionJournalRecoveryRow
-} from '@/tape/domain/executionJournal'
-import type { ContractTapeEventName } from '@/tape/domain/contractFacts'
-import type { ToolSurfaceTapeEventName } from '@/tape/domain/toolSurfaceFacts'
+} from '@deepchat/agent-kernel/tape/domain/executionJournal'
+import type { ContractTapeEventName } from '@deepchat/agent-kernel/tape/domain/contractFacts'
+import type { ToolSurfaceTapeEventName } from '@deepchat/agent-kernel/tape/domain/toolSurfaceFacts'
 import {
   assertTapeAppendAuthorized,
   type TapeReservedNamespace
-} from '@/tape/domain/reservedNamespaces'
-import { SKILL_MATERIALIZATION_NAME } from '@/tape/domain/skillMaterialization'
-import type { TapeProviderAttemptEventName } from '@/tape/domain/providerAttempt'
-import type { TapeCompactionModelCallEventName } from '@/tape/domain/compactionUsage'
+} from '@deepchat/agent-kernel/tape/domain/reservedNamespaces'
+import { SKILL_MATERIALIZATION_NAME } from '@deepchat/agent-kernel/tape/domain/skillMaterialization'
+import type { TapeProviderAttemptEventName } from '@deepchat/agent-kernel/tape/domain/providerAttempt'
+import type { TapeCompactionModelCallEventName } from '@deepchat/agent-kernel/tape/domain/compactionUsage'
 import type {
   CompactionUsagePersistenceStore,
   ContractPersistenceStore,
@@ -51,7 +51,7 @@ import type {
   ToolSurfacePersistenceStore,
   SkillMaterializationPersistenceStore,
   TapeTransactionRunner
-} from '@/tape/ports/storage'
+} from '@deepchat/agent-kernel/tape/ports/storage'
 import { DEEPCHAT_NESTED_EXECUTION_AUDIT_OPERATION_LIMIT } from '@shared/types/execution-journal-audit'
 
 const DEEPCHAT_NESTED_EXECUTION_AUDIT_MESSAGE_LIMIT = 500
@@ -61,7 +61,7 @@ export {
   serializeDeepChatTapeReadSources,
   SUMMARY_ANCHOR_NAMES,
   TAPE_INCARNATION_META_KEY
-} from '@/tape/domain/entry'
+} from '@deepchat/agent-kernel/tape/domain/entry'
 export type {
   DeepChatTapeAppendInput,
   DeepChatTapeEntryKind,
@@ -72,7 +72,7 @@ export type {
   DeepChatTapeSourceType,
   TapeAnchorAppendInput,
   TapeEventAppendInput
-} from '@/tape/domain/entry'
+} from '@deepchat/agent-kernel/tape/domain/entry'
 
 export type DeepChatTapeMutationProjection = TapeMutationProjection
 
@@ -947,7 +947,7 @@ export class DeepChatTapeEntriesTable
     sessionId: string
     sourceId: string
     provenanceKey: string
-    payload: import('@/tape/domain/skillMaterialization').TapeSkillMaterializationPayload
+    payload: import('@deepchat/agent-kernel/tape/domain/skillMaterialization').TapeSkillMaterializationPayload
     payloadHash: string
   }): DeepChatTapeEntryRow {
     return this.appendInternal(

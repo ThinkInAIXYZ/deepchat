@@ -11,8 +11,8 @@ import {
   type ProgrammaticChildReservation
 } from '@/cli/programmaticToolParentController'
 import { ExecutionJournalService } from '@/tape/application/executionJournalService'
-import { hashJsonData } from '@/tape/domain/canonicalJson'
-import { parseExecutionJournalFact } from '@/tape/domain/executionJournal'
+import { hashJsonData } from '@deepchat/agent-kernel/tape/domain/canonicalJson'
+import { parseExecutionJournalFact } from '@deepchat/agent-kernel/tape/domain/executionJournal'
 import { createTapeTableMock } from '../session/data/tapeTestHarness'
 
 const RUN_ID = '22222222-2222-4222-8222-222222222222'

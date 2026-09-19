@@ -4,24 +4,33 @@ import type {
   DeepChatTapeViewManifestV6,
   DeepChatTapeViewManifestV7
 } from '@shared/types/tape-view-manifest'
-import { SUMMARY_ANCHOR_NAMES, type DeepChatTapeEntryRow } from '../domain/entry'
-import { buildEffectiveTapeView } from '../domain/effectiveView'
+import {
+  SUMMARY_ANCHOR_NAMES,
+  type DeepChatTapeEntryRow
+} from '@deepchat/agent-kernel/tape/domain/entry'
+import { buildEffectiveTapeView } from '@deepchat/agent-kernel/tape/domain/effectiveView'
 import {
   isEffectiveMessageInputRow,
   readTapeMessageRetractionId,
   tapeEntryToMessageRecord
-} from '../domain/effectiveSemantics'
+} from '@deepchat/agent-kernel/tape/domain/effectiveSemantics'
 import {
   collectEntryIds,
   hashString,
   isPositiveInteger,
   normalizeStoredTapeViewManifest
-} from '../domain/replay'
-import { canonicalJsonStringifyData, hashJsonData } from '../domain/canonicalJson'
-import { readTapeSkillMaterializationRef } from '../domain/skillMaterialization'
-import { TAPE_VIEW_MANIFEST_EVENT_NAME, verifyTapeViewManifestHash } from '../domain/viewManifest'
-import type { TapeApplicationProviders } from '../ports/application'
-import { toTapeSessionId } from '../domain/facts'
+} from '@deepchat/agent-kernel/tape/domain/replay'
+import {
+  canonicalJsonStringifyData,
+  hashJsonData
+} from '@deepchat/agent-kernel/tape/domain/canonicalJson'
+import { readTapeSkillMaterializationRef } from '@deepchat/agent-kernel/tape/domain/skillMaterialization'
+import {
+  TAPE_VIEW_MANIFEST_EVENT_NAME,
+  verifyTapeViewManifestHash
+} from '@deepchat/agent-kernel/tape/domain/viewManifest'
+import type { TapeApplicationProviders } from '@deepchat/agent-kernel/tape/ports/application'
+import { toTapeSessionId } from '@deepchat/agent-kernel/tape/domain/facts'
 import {
   MAX_SKILL_VIEW_RESULT_FACT_BYTES,
   readSkillContextEvidence,
@@ -31,16 +40,19 @@ import {
   type TapeRuntimeSkillViewContextReceipt,
   type TapeRuntimeSkillViewRecoveryInput,
   type TapeSkillContextEvidence
-} from '../domain/skillContext'
-import { buildExecutionOperationProvenanceKey } from '../domain/executionJournal'
+} from '@deepchat/agent-kernel/tape/domain/skillContext'
+import { buildExecutionOperationProvenanceKey } from '@deepchat/agent-kernel/tape/domain/executionJournal'
 import type {
   TapeMemoryContributionBudgetInspection,
   TapeMemoryContributionTokenInspection,
   TapeMemoryViewManifestInspection,
   TapeSkillRequestAuthorityBinding
-} from '../ports/capabilities'
+} from '@deepchat/agent-kernel/tape/ports/capabilities'
 import { parseJsonObject } from './common'
-import { assertTapeToolFactPhysicalEnvelope, buildToolFactProvenanceKey } from './factPersistence'
+import {
+  assertTapeToolFactPhysicalEnvelope,
+  buildToolFactProvenanceKey
+} from '@deepchat/agent-kernel/tape/application/factPersistence'
 import type { TapeViewManifestAssemblySources } from './contracts'
 
 type TapeViewReplayProviders = Pick<TapeApplicationProviders, 'getEntryStore'>

@@ -5,26 +5,20 @@ import {
   createDeepChatLoopTapePort,
   createSkillContextTapePort,
   createSkillExecutionAuthorityTapePort
-} from '@/tape/application/capabilityAdapters'
+} from '@deepchat/agent-kernel/tape/application/capabilityAdapters'
 import type {
   CommitNestedExecutionDispatchInput,
   CommitNestedExecutionToolOutcomeInput
-} from '@/tape/domain/executionJournal'
+} from '@deepchat/agent-kernel/tape/domain/executionJournal'
 
 const MAIN_SOURCE_ROOT = path.resolve(process.cwd(), 'src/main')
-// Tape domain/ports physically live in the kernel workspace package since the 2B-3a extraction;
-// the host tree keeps one-line re-export shims at the historical paths.
+// Tape domain and ports live in the kernel workspace package.
 const KERNEL_SOURCE_ROOT = path.resolve(process.cwd(), 'packages/agent-kernel/src')
 const TAPE_ROOT = path.join(MAIN_SOURCE_ROOT, 'tape')
-const TAPE_DOMAIN_ROOT = path.join(MAIN_SOURCE_ROOT, 'tape/domain')
 const PACKAGE_TAPE_ROOT = path.join(KERNEL_SOURCE_ROOT, 'tape')
 const PACKAGE_TAPE_DOMAIN_ROOT = path.join(PACKAGE_TAPE_ROOT, 'domain')
 const TAPE_SQLITE_ROOT = path.join(MAIN_SOURCE_ROOT, 'tape/infrastructure/sqlite')
 const TAPE_CAPABILITIES_MODULE = path.join(PACKAGE_TAPE_ROOT, 'ports/capabilities')
-const TAPE_CAPABILITIES_MODULE_ALIASES = new Set([
-  TAPE_CAPABILITIES_MODULE,
-  path.join(MAIN_SOURCE_ROOT, 'tape/ports/capabilities')
-])
 const TAPE_SESSION_FACADE_MODULE = path.join(MAIN_SOURCE_ROOT, 'tape/application/sessionTape')
 const MEMORY_ROUTES_FILE = path.join(MAIN_SOURCE_ROOT, 'memory/routes.ts')
 const SESSION_DATA_ROOT = path.join(MAIN_SOURCE_ROOT, 'session/data')
@@ -132,6 +126,12 @@ function isInside(root: string, target: string): boolean {
 }
 
 function resolveMainImport(importingFile: string, specifier: string): string | null {
+  if (specifier === '@deepchat/agent-kernel') {
+    return KERNEL_SOURCE_ROOT
+  }
+  if (specifier.startsWith('@deepchat/agent-kernel/')) {
+    return path.join(KERNEL_SOURCE_ROOT, specifier.slice('@deepchat/agent-kernel/'.length))
+  }
   if (specifier.startsWith('@/')) {
     return path.resolve(MAIN_SOURCE_ROOT, specifier.slice(2))
   }
@@ -173,7 +173,6 @@ function getForbiddenDomainPackageCategory(specifier: string): string | null {
 
 function isTapeDomainModule(target: string): boolean {
   return (
-    isInside(TAPE_DOMAIN_ROOT, target) ||
     isInside(PACKAGE_TAPE_DOMAIN_ROOT, target) ||
     isInside(path.join(KERNEL_SOURCE_ROOT, 'shared'), target)
   )
@@ -193,6 +192,12 @@ function getDomainImportViolation(importingFile: string, specifier: string): str
 }
 
 function isTapeModuleImport(importingFile: string, specifier: string): boolean {
+  if (
+    specifier === '@deepchat/agent-kernel/tape' ||
+    specifier.startsWith('@deepchat/agent-kernel/tape/')
+  ) {
+    return true
+  }
   const target = resolveMainImport(importingFile, specifier)
   return Boolean(target && isInside(TAPE_ROOT, target))
 }
@@ -263,9 +268,10 @@ function findMemoryRouteTapeImportViolations(source: string, file: string): stri
   )
   const violations = tapeReferences.flatMap(({ fileName: specifier }) => {
     const target = resolveMainImport(file, specifier)
-    return !target || !TAPE_CAPABILITIES_MODULE_ALIASES.has(withoutTypeScriptExtension(target))
-      ? [`Tape import must use the inspection port: ${specifier}`]
-      : []
+    const isInspectionPort =
+      specifier === '@deepchat/agent-kernel/tape/ports/capabilities' ||
+      (target && withoutTypeScriptExtension(target) === TAPE_CAPABILITIES_MODULE)
+    return !isInspectionPort ? [`Tape import must use the inspection port: ${specifier}`] : []
   })
 
   if (tapeReferences.length !== staticTapeImports.length) {
@@ -302,10 +308,7 @@ function findMemoryRouteTapeImportViolations(source: string, file: string): stri
 describe('Tape layer boundaries', () => {
   it('keeps the Tape domain independent from other main-process layers', async () => {
     const fs = await vi.importActual<typeof import('node:fs')>('node:fs')
-    const violations = listSourceTreeFiles(
-      [TAPE_DOMAIN_ROOT, PACKAGE_TAPE_DOMAIN_ROOT],
-      fs
-    ).flatMap((file) => {
+    const violations = listTypeScriptSources(PACKAGE_TAPE_DOMAIN_ROOT, fs).flatMap((file) => {
       const source = fs.readFileSync(file, 'utf8')
       const imports = ts.preProcessFile(source, true, true).importedFiles
 
@@ -517,10 +520,10 @@ describe('Tape layer boundaries', () => {
 
   it.each([
     ['Session', '@/session/data/transcript'],
-    ['Agent', '@/agent/deepchat/runtime/process'],
+    ['Agent', '@deepchat/agent-kernel/runtime/process'],
     ['Memory', '@/memory/routes'],
     ['App', '@/app/composition'],
-    ['Tape ports', '@/tape/ports/capabilities'],
+    ['Tape ports', '@deepchat/agent-kernel/tape/ports/capabilities'],
     ['Tape SQLite infrastructure', '@/tape/infrastructure/sqlite/tapeEntryStore'],
     ['bare SQLite', 'better-sqlite3'],
     ['project SQLite driver', 'better-sqlite3-multiple-ciphers'],
@@ -530,45 +533,56 @@ describe('Tape layer boundaries', () => {
     ['shared logging', '@shared/logger'],
     ['Electron logging', 'electron-log']
   ])('detects forbidden %s imports in the Tape domain', (_category, specifier) => {
-    const importingFile = path.join(TAPE_DOMAIN_ROOT, 'negative-case.ts')
+    const importingFile = path.join(PACKAGE_TAPE_DOMAIN_ROOT, 'negative-case.ts')
     expect(getDomainImportViolation(importingFile, specifier)).not.toBeNull()
   })
 
   it.each([
     ['domain sibling', './entry'],
-    ['domain alias', '@/tape/domain/effectiveView'],
+    ['domain alias', '@deepchat/agent-kernel/tape/domain/effectiveView'],
     ['shared type', '@shared/types/tape-view-manifest'],
     ['Node crypto', 'node:crypto']
   ])('allows pure %s imports in the Tape domain', (_category, specifier) => {
-    const importingFile = path.join(TAPE_DOMAIN_ROOT, 'allowed-case.ts')
+    const importingFile = path.join(PACKAGE_TAPE_DOMAIN_ROOT, 'allowed-case.ts')
     expect(getDomainImportViolation(importingFile, specifier)).toBeNull()
   })
 
   it.each([
     [
       'raw reader capability',
-      "import type { TapeRawEntryReader } from '@/tape/ports/capabilities'"
+      "import type { TapeRawEntryReader } from '@deepchat/agent-kernel/tape/ports/capabilities'"
     ],
     [
       'effective-view helper',
-      "import { buildEffectiveTapeView } from '@/tape/domain/effectiveView'"
+      "import { buildEffectiveTapeView } from '@deepchat/agent-kernel/tape/domain/effectiveView'"
     ],
     ['application facade', "import { SessionTape } from '@/tape/application/sessionTape'"],
-    ['inspection value import', "import { TapeInspectionReader } from '@/tape/ports/capabilities'"],
+    [
+      'inspection value import',
+      "import { TapeInspectionReader } from '@deepchat/agent-kernel/tape/ports/capabilities'"
+    ],
     ['dynamic import', "void import('@/tape/application/sessionTape')"],
-    ['CommonJS require', "const tape = require('@/tape/domain/effectiveView')"],
-    ['type re-export', "export type { TapeInspectionReader } from '@/tape/ports/capabilities'"]
+    [
+      'CommonJS require',
+      "const tape = require('@deepchat/agent-kernel/tape/domain/effectiveView')"
+    ],
+    [
+      'type re-export',
+      "export type { TapeInspectionReader } from '@deepchat/agent-kernel/tape/ports/capabilities'"
+    ]
   ])('detects Memory route Tape bypass through %s', (_category, source) => {
     expect(findMemoryRouteTapeImportViolations(source, MEMORY_ROUTES_FILE)).not.toEqual([])
   })
 
   it('allows Memory routes to import only the inspection reader type', () => {
-    const source = "import type { TapeInspectionReader } from '@/tape/ports/capabilities'"
+    const source =
+      "import type { TapeInspectionReader } from '@deepchat/agent-kernel/tape/ports/capabilities'"
     expect(findMemoryRouteTapeImportViolations(source, MEMORY_ROUTES_FILE)).toEqual([])
   })
 
   it('allows inline type syntax for the Memory inspection reader', () => {
-    const source = "import { type TapeInspectionReader } from '@/tape/ports/capabilities'"
+    const source =
+      "import { type TapeInspectionReader } from '@deepchat/agent-kernel/tape/ports/capabilities'"
     expect(findMemoryRouteTapeImportViolations(source, MEMORY_ROUTES_FILE)).toEqual([])
   })
 
@@ -584,7 +598,7 @@ describe('Tape layer boundaries', () => {
   it.each([
     ['value re-export', "export { SessionTape } from '@/tape/application/sessionTape'"],
     ['type re-export', "export type { TapeInfo } from '../../tape/application/sessionTape'"],
-    ['star re-export', "export * from '@/tape/domain/effectiveView'"],
+    ['star re-export', "export * from '@deepchat/agent-kernel/tape/domain/effectiveView'"],
     [
       'imported binding',
       "import { SessionTape } from '@/tape/application/sessionTape'\nexport { SessionTape }"
@@ -613,7 +627,7 @@ describe('Tape layer boundaries', () => {
   it('allows session data to consume Tape ports without re-exporting them', () => {
     const file = path.join(SESSION_DATA_ROOT, 'transcript.ts')
     const source = [
-      "import type { TapeMessageFactWriter } from '@/tape/ports/capabilities'",
+      "import type { TapeMessageFactWriter } from '@deepchat/agent-kernel/tape/ports/capabilities'",
       "import { SessionTranscript } from './transcript'",
       'export interface TranscriptDependencies {',
       '  tape: TapeMessageFactWriter',

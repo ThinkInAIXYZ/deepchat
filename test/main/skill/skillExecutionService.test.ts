@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SkillExecutionService } from '../../../src/main/skill/skillExecutionService'
 import type { ResolvedSkillExecutionAuthority } from '../../../src/main/skill/skillExecutionAuthority'
 import type { MaterializedSkillExecutionPackageTree } from '../../../src/main/skill/skillExecutionPackageTree'
-import { createTapeSkillMaterializationPayload } from '../../../src/main/tape/domain/skillMaterialization'
+import { createTapeSkillMaterializationPayload } from '@deepchat/agent-kernel/tape/domain/skillMaterialization'
 import { SKILL_RUN_MAX_ARGUMENTS } from '../../../src/shared/types/skill'
 import {
   CMD_COMMAND_SHELL,

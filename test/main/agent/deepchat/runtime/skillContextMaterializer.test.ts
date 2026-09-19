@@ -3,13 +3,13 @@ import { createHash } from 'node:crypto'
 import {
   SkillContextMaterializer,
   type PreparedSkillContextBatch
-} from '@/agent/deepchat/runtime/skillContextMaterializer'
+} from '@deepchat/agent-kernel/runtime/skillContextMaterializer'
 import {
   buildTapeSkillMaterializationProvenanceKey,
   buildTapeSkillMaterializationPayloadHash,
   createTapeSkillMaterializationPayload,
   type TapeSkillMaterializationReceipt
-} from '@/tape/domain/skillMaterialization'
+} from '@deepchat/agent-kernel/tape/domain/skillMaterialization'
 
 const HASH = 'a'.repeat(64)
 

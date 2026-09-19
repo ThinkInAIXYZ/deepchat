@@ -12,19 +12,22 @@ import {
   AGENT_MEMORY_HEALTH_KIND_KEYS,
   MEMORY_RETRIEVAL_DEGRADATION_CAUSES
 } from '@shared/types/agent-memory'
-import { redactBody } from '@/lib/redact'
-import type { DeepChatTapeEntryRow } from '../domain/entry'
-import { hasExactKeys, isRecordObject } from '../domain/primitives'
+import { redactBody } from '@deepchat/agent-kernel/collab/lib/redact'
+import type { DeepChatTapeEntryRow } from '@deepchat/agent-kernel/tape/domain/entry'
+import { hasExactKeys, isRecordObject } from '@deepchat/agent-kernel/tape/domain/primitives'
 import {
   EXECUTION_JOURNAL_EVENT_NAMES,
   isNestedExecutionOperationIdentity,
   parseExecutionJournalFact
-} from '../domain/executionJournal'
+} from '@deepchat/agent-kernel/tape/domain/executionJournal'
 import {
   parseTapeProviderAttemptEvent,
   TAPE_PROVIDER_ATTEMPT_EVENT_NAME
-} from '../domain/providerAttempt'
-import { hashString, normalizeStoredTapeViewManifest } from '../domain/replay'
+} from '@deepchat/agent-kernel/tape/domain/providerAttempt'
+import {
+  hashString,
+  normalizeStoredTapeViewManifest
+} from '@deepchat/agent-kernel/tape/domain/replay'
 import {
   TAPE_PROGRAMMATIC_TOOL_SURFACE_EVENT_NAME,
   TAPE_TOOL_CATALOG_EVENT_NAME,
@@ -32,14 +35,20 @@ import {
   verifyTapeProgrammaticToolSurfaceFact,
   verifyTapeToolCatalogFact,
   verifyTapeToolSurfaceFact
-} from '../domain/toolSurfaceFacts'
-import { TAPE_VIEW_MANIFEST_EVENT_NAME, verifyTapeViewManifestHash } from '../domain/viewManifest'
-import { CONTRACT_TAPE_EVENT_NAMES } from '../domain/contractFacts'
-import { isDeepChatTaskContract, isDeepChatTaskContractRef } from '../domain/taskContract'
-import { isDeepChatTaskEvaluation } from '../domain/taskEvaluation'
-import { SKILL_MATERIALIZATION_NAME } from '../domain/skillMaterialization'
-import { SUMMARY_ANCHOR_NAMES } from '../domain/entry'
-import type { TapeInspectorTraceBinding } from '../ports/application'
+} from '@deepchat/agent-kernel/tape/domain/toolSurfaceFacts'
+import {
+  TAPE_VIEW_MANIFEST_EVENT_NAME,
+  verifyTapeViewManifestHash
+} from '@deepchat/agent-kernel/tape/domain/viewManifest'
+import { CONTRACT_TAPE_EVENT_NAMES } from '@deepchat/agent-kernel/tape/domain/contractFacts'
+import {
+  isDeepChatTaskContract,
+  isDeepChatTaskContractRef
+} from '@deepchat/agent-kernel/tape/domain/taskContract'
+import { isDeepChatTaskEvaluation } from '@deepchat/agent-kernel/tape/domain/taskEvaluation'
+import { SKILL_MATERIALIZATION_NAME } from '@deepchat/agent-kernel/tape/domain/skillMaterialization'
+import { SUMMARY_ANCHOR_NAMES } from '@deepchat/agent-kernel/tape/domain/entry'
+import type { TapeInspectorTraceBinding } from '@deepchat/agent-kernel/tape/ports/application'
 import { parseJsonObject } from './common'
 
 const MAX_LIST_TEXT_BYTES = 1_024

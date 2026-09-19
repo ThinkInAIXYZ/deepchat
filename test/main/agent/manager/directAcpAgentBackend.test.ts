@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { createDirectAcpAgentBackend } from '@/agent/manager/directAcpAgentBackend'
 import { AgentManager } from '@/agent/manager/agentManager'
-import { toAppSessionId } from '@/agent/shared/agentSessionIds'
+import { toAppSessionId } from '@deepchat/agent-kernel/collab/agent-shared/agentSessionIds'
 import type { AcpAgentDescriptor } from '@/agent/shared/agentDescriptors'
 
 const descriptor: AcpAgentDescriptor = {

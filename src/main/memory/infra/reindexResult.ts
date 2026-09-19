@@ -1,4 +1,7 @@
-import type { MemoryReindexError, MemoryReindexErrorCode } from '../domain/types'
+import type {
+  MemoryReindexError,
+  MemoryReindexErrorCode
+} from '@deepchat/agent-kernel/collab/memory/domain/types'
 
 const MAX_REINDEX_ERROR_MESSAGE_LENGTH = 500
 const UNKNOWN_REINDEX_ERROR_MESSAGE = 'Unknown reindex error'

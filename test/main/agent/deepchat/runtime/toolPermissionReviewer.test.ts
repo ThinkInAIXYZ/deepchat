@@ -1,7 +1,7 @@
 import type { ProviderSettingsPort } from '@/provider/settings'
 import { describe, expect, it, vi } from 'vitest'
 import type { ProviderRuntimePort } from '@shared/types/provider'
-import { reviewAutoApproveToolPermission } from '@/agent/deepchat/runtime/toolPermissionReviewer'
+import { reviewAutoApproveToolPermission } from '@deepchat/agent-kernel/runtime/toolPermissionReviewer'
 
 describe('tool permission reviewer', () => {
   it('accepts a low-risk decision only when the model echoes the exact action hash', async () => {

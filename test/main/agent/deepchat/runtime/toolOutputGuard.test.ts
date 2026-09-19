@@ -4,13 +4,13 @@ import {
   TOOL_EXECUTION,
   type MCPToolDefinition
 } from '@shared/types/core/mcp'
-import { getUsableContextLength } from '@/agent/deepchat/runtime/contextBudget'
-import { estimateToolDefinitionTokens } from '@/agent/deepchat/runtime/contextBuilder'
+import { getUsableContextLength } from '@deepchat/agent-kernel/runtime/contextBudget'
+import { estimateToolDefinitionTokens } from '@deepchat/agent-kernel/runtime/contextBuilder'
 import {
   compactClosedToolResultsForContext,
   ToolOutputGuard
-} from '@/agent/deepchat/runtime/toolOutputGuard'
-import { bindProviderProjectionIdentity } from '@/agent/deepchat/loop/providerProjectionIdentity'
+} from '@deepchat/agent-kernel/runtime/toolOutputGuard'
+import { bindProviderProjectionIdentity } from '@deepchat/agent-kernel/loop/providerProjectionIdentity'
 
 vi.mock('tokenx', () => ({
   estimateTokenCount: vi.fn((text: string) => text.length)

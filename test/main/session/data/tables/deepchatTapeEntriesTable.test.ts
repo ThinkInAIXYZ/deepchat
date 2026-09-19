@@ -2,12 +2,12 @@ import { describe, expect, it, vi } from 'vitest'
 import {
   TAPE_TOOL_SURFACE_EVENT_NAME,
   TOOL_SURFACE_TAPE_EVENT_NAMES
-} from '@/tape/domain/toolSurfaceFacts'
-import { buildTapeProviderAttemptEvent } from '@/tape/domain/providerAttempt'
+} from '@deepchat/agent-kernel/tape/domain/toolSurfaceFacts'
+import { buildTapeProviderAttemptEvent } from '@deepchat/agent-kernel/tape/domain/providerAttempt'
 import {
   isEffectiveMessageInputRow,
   isEffectiveViewInputRow
-} from '@/tape/domain/effectiveSemantics'
+} from '@deepchat/agent-kernel/tape/domain/effectiveSemantics'
 import { TapeProviderAttemptService } from '@/tape/application/providerAttemptService'
 
 const sqliteModule = await import('better-sqlite3-multiple-ciphers').catch(() => null)

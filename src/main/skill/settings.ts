@@ -7,12 +7,12 @@ import type {
   StoredSkillManagementState
 } from '@shared/types/skillManagement'
 import { BUILTIN_SKILL_AGENT_ID } from './agentSkillRoots'
-import type { SkillSettingsPort } from '@/agent/deepchat/contracts/skillSettings'
+import type { SkillSettingsPort } from '@deepchat/agent-kernel/contracts/skillSettings'
 
 const SKILL_MANAGEMENT_STATE_KEY = 'skills.managementState'
 const SKILL_SCAN_CACHE_KEY = 'skills.scanCache'
 
-export type { SkillSettingsPort } from '@/agent/deepchat/contracts/skillSettings'
+export type { SkillSettingsPort } from '@deepchat/agent-kernel/contracts/skillSettings'
 
 export class SkillSettings implements SkillSettingsPort {
   constructor(private readonly store: SettingsStore) {}

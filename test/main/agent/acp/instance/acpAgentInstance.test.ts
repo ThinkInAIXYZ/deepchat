@@ -2,7 +2,10 @@ import { describe, expect, it, vi } from 'vitest'
 import type * as schema from '@agentclientprotocol/sdk/dist/schema/index.js'
 import { AcpAgentInstance } from '@/agent/acp/instance/acpAgentInstance'
 import { AcpCompatibilityPromptBuilder } from '@/agent/acp/runtime/acpCompatibilityPromptBuilder'
-import { toAppSessionId, toAcpRemoteSessionId } from '@/agent/shared/agentSessionIds'
+import {
+  toAppSessionId,
+  toAcpRemoteSessionId
+} from '@deepchat/agent-kernel/collab/agent-shared/agentSessionIds'
 import type {
   AcpAgentInstanceDependencies,
   AcpCompatibilityProjectionPort,

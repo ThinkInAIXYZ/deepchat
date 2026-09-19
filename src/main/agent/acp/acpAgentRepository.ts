@@ -1,6 +1,6 @@
 import { nanoid } from 'nanoid'
 import type { AcpRegistryReference } from '@/agent/shared/agentDescriptors'
-import type { AppSessionId } from '@/agent/shared/agentSessionIds'
+import type { AppSessionId } from '@deepchat/agent-kernel/collab/agent-shared/agentSessionIds'
 import type { AgentRowStore } from '@/agent/shared/agentRowStore'
 import type { AgentRow } from '@/agent/data/tables/agents'
 import type { AcpAgentConfig } from '@shared/types/acp'

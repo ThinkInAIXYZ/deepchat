@@ -12,7 +12,7 @@ import {
   buildPersistedGenerationSettingsPatch,
   mapPersistedGenerationPatch,
   sanitizeGenerationSettings
-} from '@/agent/deepchat/runtime/generationSettings'
+} from '@deepchat/agent-kernel/runtime/generationSettings'
 
 /** ACP state seam over the host-owned session settings store. */
 export class AcpSessionStateAdapter implements SessionStatePort {

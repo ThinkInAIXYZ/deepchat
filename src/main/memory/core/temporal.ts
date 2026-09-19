@@ -10,8 +10,8 @@ import type {
   MemoryTemporalMetadata,
   MemoryTemporalPolicyMode,
   MemoryTemporalPolicyResult
-} from '../domain/types'
-import { canonicalizeMemoryTimeZone } from '../domain/clock'
+} from '@deepchat/agent-kernel/collab/memory/domain/types'
+import { canonicalizeMemoryTimeZone } from '@deepchat/agent-kernel/collab/memory/domain/clock'
 
 const TEMPORAL_KIND_SET = new Set<unknown>(AGENT_MEMORY_TEMPORAL_KINDS)
 const TEMPORAL_PRECISION_SET = new Set<unknown>(AGENT_MEMORY_TEMPORAL_PRECISIONS)

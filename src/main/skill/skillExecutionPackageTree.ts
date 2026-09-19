@@ -2,11 +2,11 @@ import { createHash, randomUUID } from 'crypto'
 import fs from 'fs'
 import os from 'os'
 import path from 'path'
-import type { TapeSkillMaterializationPayload } from '@/tape/domain/skillMaterialization'
+import type { TapeSkillMaterializationPayload } from '@deepchat/agent-kernel/tape/domain/skillMaterialization'
 import {
   canonicalSkillExecutionPackagePath,
   validateSkillExecutionPackage
-} from '@/tape/domain/skillMaterialization'
+} from '@deepchat/agent-kernel/tape/domain/skillMaterialization'
 import {
   SKILL_EXECUTION_PACKAGE_MAX_BYTES,
   SKILL_EXECUTION_PACKAGE_MAX_DIRECTORIES,

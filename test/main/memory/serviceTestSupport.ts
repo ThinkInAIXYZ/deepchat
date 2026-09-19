@@ -5,8 +5,11 @@ import type { ConflictService } from '@/memory/services/conflictService'
 import type { MaintenanceService } from '@/memory/services/maintenanceService'
 import type { MemoryDiagnosticsCollector } from '@/memory/infra/diagnostics/memoryDiagnosticsCollector'
 import type { VectorStoreManager } from '@/memory/infra/vectorStoreManager'
-import type { MemoryServiceDeps } from '@/memory/types'
-import type { AgentMemoryRow, MemoryTemporalMetadata } from '@/memory/domain/types'
+import type { MemoryServiceDeps } from '@deepchat/agent-kernel/collab/memory/types'
+import type {
+  AgentMemoryRow,
+  MemoryTemporalMetadata
+} from '@deepchat/agent-kernel/collab/memory/domain/types'
 import type { DeepChatAgentConfig } from '@shared/types/agent-interface'
 import {
   createFakeRepository,

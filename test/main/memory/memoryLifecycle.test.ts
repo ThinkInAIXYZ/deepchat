@@ -3,8 +3,11 @@ import { describe, expect, it, vi } from 'vitest'
 import { deriveLifecycle } from '@/memory/core/lifecycle'
 import { ARCHIVE_AGE_MS, ARCHIVE_DECAY_THRESHOLD } from '@/memory/core/lifecycle'
 import { decayScore, halfLifeForKind, retrievalScore } from '@/memory/core/scoring'
-import { FTS_SIMILARITY_BASELINE, IMPORTANCE_FLOOR_COEF } from '@/memory/types'
-import type { AgentMemoryRow } from '@/memory/domain/types'
+import {
+  FTS_SIMILARITY_BASELINE,
+  IMPORTANCE_FLOOR_COEF
+} from '@deepchat/agent-kernel/collab/memory/types'
+import type { AgentMemoryRow } from '@deepchat/agent-kernel/collab/memory/domain/types'
 import {
   MEMORY_ARCHIVE_CANDIDATE_LIFECYCLE_PREVIEW_LIMIT,
   MEMORY_ARCHIVE_CANDIDATE_LIFECYCLE_SCAN_LIMIT

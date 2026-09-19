@@ -1,5 +1,5 @@
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { requireExecutionRunId } from '@/tape/domain/executionJournal'
+import { requireExecutionRunId } from '@deepchat/agent-kernel/tape/domain/executionJournal'
 import {
   aggregateNativeAgentEvalReports,
   runNativeAgentEvalScenario,

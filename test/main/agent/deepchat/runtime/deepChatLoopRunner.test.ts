@@ -2,8 +2,8 @@ import { describe, expect, it, vi } from 'vitest'
 import {
   buildTapeViewSelection,
   DeepChatLoopRunner
-} from '@/agent/deepchat/runtime/deepChatLoopRunner'
-import { hashJsonData } from '@/tape/domain/canonicalJson'
+} from '@deepchat/agent-kernel/runtime/deepChatLoopRunner'
+import { hashJsonData } from '@deepchat/agent-kernel/tape/domain/canonicalJson'
 
 describe('DeepChatLoopRunner', () => {
   it('fails closed when a durable manifest is requested without Skill contexts', () => {

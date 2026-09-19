@@ -2,29 +2,29 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   DeepChatContextCoordinator,
   type ProviderAttemptToolSurfacePort
-} from '@/agent/deepchat/loop/contextCoordinator'
+} from '@deepchat/agent-kernel/loop/contextCoordinator'
 import {
   createLoopRun,
   registerMaterializedSkillContext,
   registerRuntimeSkillContext
-} from '@/agent/deepchat/loop/loopRun'
+} from '@deepchat/agent-kernel/loop/loopRun'
 import {
   createFullToolSurfaceRunController,
   type ToolSurfaceSnapshot
-} from '@/agent/deepchat/runtime/toolSurface'
+} from '@deepchat/agent-kernel/runtime/toolSurface'
 import {
   assertProgrammaticToolCapabilityViewActive,
   buildProgrammaticToolCapabilityV1,
   createProgrammaticToolSurfaceRunControllerV1,
   type ProgrammaticToolCapabilityV1
-} from '@/agent/deepchat/runtime/programmaticToolSurface'
-import { toAppSessionId } from '@/agent/shared/agentSessionIds'
-import { hashSkillEffectiveContent } from '@/tape/domain/skillMaterialization'
+} from '@deepchat/agent-kernel/runtime/programmaticToolSurface'
+import { toAppSessionId } from '@deepchat/agent-kernel/collab/agent-shared/agentSessionIds'
+import { hashSkillEffectiveContent } from '@deepchat/agent-kernel/tape/domain/skillMaterialization'
 import type { ChatMessage } from '@shared/types/core/chat-message'
 import type { LLMCoreStreamEvent } from '@shared/types/core/llm-events'
 import { TOOL_EXECUTION, type MCPToolDefinition } from '@shared/types/core/mcp'
 import type { ModelConfig } from '@shared/types/provider'
-import { estimateMessagesTokens } from '@/agent/deepchat/runtime/contextBuilder'
+import { estimateMessagesTokens } from '@deepchat/agent-kernel/runtime/contextBuilder'
 import { POSIX_COMMAND_SHELL } from '../../../../helpers/commandShell'
 
 function createRun(messages: ChatMessage[] = [{ role: 'user', content: 'hello' }]) {

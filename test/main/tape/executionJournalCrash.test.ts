@@ -5,7 +5,7 @@ import { DeepChatExecutionJournalStore } from '@/tape/infrastructure/sqlite/tape
 import {
   EXECUTION_JOURNAL_EVENT_NAMES,
   classifyExecutionJournalRows
-} from '@/tape/domain/executionJournal'
+} from '@deepchat/agent-kernel/tape/domain/executionJournal'
 import { nativeSqliteItIf, requireDatabase } from '../nativeSqliteHarness'
 
 const fs = await vi.importActual<typeof import('node:fs')>('node:fs')

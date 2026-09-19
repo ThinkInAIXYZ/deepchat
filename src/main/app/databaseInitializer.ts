@@ -12,7 +12,11 @@ import { getStartupSchemaCatalog } from '@/data/schemaCatalog'
 import { classifySchemaError } from '@/data/schemaErrorClassifier'
 import type { SchemaTableSpec } from '@/data/schemaTypes'
 import { MAX_MAIN_LOG_DURATION_MS } from '@/logging/mainLogEvents'
-import { elapsedMonotonicMs, readMonotonicNow, type MonotonicClock } from '@/lib/monotonicTime'
+import {
+  elapsedMonotonicMs,
+  readMonotonicNow,
+  type MonotonicClock
+} from '@deepchat/agent-kernel/collab/lib/monotonicTime'
 
 type DatabaseInitializerOptions = {
   password?: string

@@ -4,7 +4,7 @@ import logger from '@shared/logger'
 import {
   buildSystemEnvPrompt,
   buildSystemEnvPromptAssembly
-} from '@/agent/deepchat/resources/systemEnvPromptBuilder'
+} from '@deepchat/agent-kernel/resources/systemEnvPromptBuilder'
 import { POSIX_COMMAND_SHELL } from '../../../../helpers/commandShell'
 
 function fileError(code: string): NodeJS.ErrnoException {

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   inspectContextOverflow,
   isContextWindowErrorLike
-} from '@/agent/deepchat/runtime/contextWindowError'
+} from '@deepchat/agent-kernel/runtime/contextWindowError'
 
 describe('isContextWindowErrorLike', () => {
   it('matches common provider context overflow messages', () => {

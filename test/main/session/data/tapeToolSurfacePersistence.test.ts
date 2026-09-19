@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import { TOOL_EXECUTION, type MCPToolDefinition } from '@shared/types/core/mcp'
-import { buildCanonicalToolCatalog } from '@/agent/deepchat/runtime/toolSurface'
+import { buildCanonicalToolCatalog } from '@deepchat/agent-kernel/runtime/toolSurface'
 import { buildToolSearchDefinition } from '@/tool/agentTools/toolSearchTool'
-import { buildExecutionContract } from '@/tape/domain/executionContract'
+import { buildExecutionContract } from '@deepchat/agent-kernel/tape/domain/executionContract'
 import {
   buildTapeSkillMaterializationRef,
   hashSkillEffectiveContent
-} from '@/tape/domain/skillMaterialization'
+} from '@deepchat/agent-kernel/tape/domain/skillMaterialization'
 import {
   TAPE_PROGRAMMATIC_TOOL_SURFACE_EVENT_NAME,
   TAPE_TOOL_CATALOG_EVENT_NAME,
@@ -17,9 +17,12 @@ import {
   type CreateTapeToolSurfaceFactInput,
   type TapeToolCatalogSourceEntry,
   type TapeToolSurfaceActiveEntry
-} from '@/tape/domain/toolSurfaceFacts'
-import { hashJsonData } from '@/tape/domain/canonicalJson'
-import { createTapeViewManifest, type TapeViewManifestBuildInput } from '@/tape/domain/viewManifest'
+} from '@deepchat/agent-kernel/tape/domain/toolSurfaceFacts'
+import { hashJsonData } from '@deepchat/agent-kernel/tape/domain/canonicalJson'
+import {
+  createTapeViewManifest,
+  type TapeViewManifestBuildInput
+} from '@deepchat/agent-kernel/tape/domain/viewManifest'
 import {
   ToolSurfaceProvenanceCorruptionError,
   ToolSurfaceProvenanceError

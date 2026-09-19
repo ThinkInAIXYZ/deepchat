@@ -1,7 +1,7 @@
 import type { ProviderSettingsPort } from '@/provider/settings'
 import type { AgentManager } from '@/agent/manager/agentManager'
 import type { SessionTranscriptReadPort } from '@/session/data/contracts'
-import { toAppSessionId } from '@/agent/shared/agentSessionIds'
+import { toAppSessionId } from '@deepchat/agent-kernel/collab/agent-shared/agentSessionIds'
 import type { AppSessionService } from '@/agent/shared/appSessionService'
 import type { Message } from '@shared/chat'
 import type {

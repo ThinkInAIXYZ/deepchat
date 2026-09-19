@@ -2,16 +2,16 @@ import type { ProviderSettingsPort } from '@/provider/settings'
 import { describe, expect, it, vi } from 'vitest'
 import fs from 'fs'
 
-import type { DeepChatAgentInstance } from '@/agent/deepchat/instance/deepChatAgentInstance'
+import type { DeepChatAgentInstance } from '@deepchat/agent-kernel/instance/deepChatAgentInstance'
 import {
   appendCliProgrammaticToolAdapterSection,
   buildSystemPromptAssemblyWithSkills,
   buildSystemPromptWithSkills
-} from '@/agent/deepchat/resources/systemPromptBuilder'
+} from '@deepchat/agent-kernel/resources/systemPromptBuilder'
 import {
   assemblePromptSections,
   createPromptAssemblySection
-} from '@/agent/deepchat/resources/promptAssembly'
+} from '@deepchat/agent-kernel/resources/promptAssembly'
 import { LIVE_DELEGATION_AGENT_TOOL_NAME } from '@shared/agentTools'
 import { UNTRUSTED_CHILD_OUTPUT_POLICY } from '@shared/orchestration/resultSafety'
 import { POSIX_COMMAND_SHELL } from '../../../../helpers/commandShell'

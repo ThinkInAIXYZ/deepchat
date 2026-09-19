@@ -34,7 +34,7 @@ vi.mock('@/agent/shared/process/shellEnvHelper', async (importOriginal) => {
 
 import { AgentBashHandler } from '@/tool/agentTools/agentBashHandler'
 import { WINDOWS_POWERSHELL_COMMAND_SHELL } from '../../../helpers/commandShell'
-import { CommandPermissionService } from '@/tool/permission/commandPermissionService'
+import { CommandPermissionService } from '@deepchat/agent-kernel/collab/tool/permission/commandPermissionService'
 
 class MockStream extends EventEmitter {}
 

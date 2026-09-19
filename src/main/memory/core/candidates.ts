@@ -1,6 +1,9 @@
 import { CATEGORY_IMPORTANCE_FLOOR, isAgentMemoryCategory } from '@shared/types/agent-memory'
 
-import type { MemoryCandidate, NormalizedMemoryCandidate } from '../types'
+import type {
+  MemoryCandidate,
+  NormalizedMemoryCandidate
+} from '@deepchat/agent-kernel/collab/memory/types'
 import { normalizeMemoryTemporalMetadata } from './temporal'
 
 function clampImportance(value: unknown): number {

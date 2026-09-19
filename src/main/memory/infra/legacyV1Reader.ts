@@ -1,6 +1,6 @@
 import { DuckDBConnection, DuckDBInstance } from '@duckdb/node-api'
 
-import type { MemoryVectorRecord } from '../types'
+import type { MemoryVectorRecord } from '@deepchat/agent-kernel/collab/memory/types'
 import { escapeDuckDbSqlPath, LegacyVssUnavailableError, loadLegacyVss } from './legacyVssLoader'
 import { readSafeMemoryVectorRowCount } from './memoryVectorStoreFormat'
 

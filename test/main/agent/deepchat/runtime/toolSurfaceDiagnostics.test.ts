@@ -2,16 +2,16 @@ import { describe, expect, it } from 'vitest'
 import type { ChatMessage } from '@shared/types/core/chat-message'
 import type { MCPToolDefinition } from '@shared/types/core/mcp'
 import { TOOL_EXECUTION } from '@shared/types/core/mcp'
-import type { DeepChatToolProfileKind } from '@/agent/deepchat/instance/deepChatAgentInstance'
-import { DeepChatAgentInstance } from '@/agent/deepchat/instance/deepChatAgentInstance'
-import { toAppSessionId } from '@/agent/shared/agentSessionIds'
-import type { RunToolDefinitionUniverse } from '@/agent/deepchat/runtime/toolResolver'
-import { buildCanonicalToolCatalog } from '@/agent/deepchat/runtime/toolSurface'
+import type { DeepChatToolProfileKind } from '@deepchat/agent-kernel/instance/deepChatAgentInstance'
+import { DeepChatAgentInstance } from '@deepchat/agent-kernel/instance/deepChatAgentInstance'
+import { toAppSessionId } from '@deepchat/agent-kernel/collab/agent-shared/agentSessionIds'
+import type { RunToolDefinitionUniverse } from '@deepchat/agent-kernel/runtime/toolResolver'
+import { buildCanonicalToolCatalog } from '@deepchat/agent-kernel/runtime/toolSurface'
 import {
   TOOL_SURFACE_P0A_SHADOW_POLICY,
   ToolSurfaceShadowDiagnosticsCollector,
   ToolSurfaceShadowDiagnosticsRegistry
-} from '@/agent/deepchat/runtime/toolSurfaceDiagnostics'
+} from '@deepchat/agent-kernel/runtime/toolSurfaceDiagnostics'
 
 function agentTool(name: string, options: { description?: string } = {}): MCPToolDefinition {
   return {

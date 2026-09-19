@@ -38,7 +38,7 @@ import type {
   AcpAsLlmProviderSessionControlPort,
   AcpProviderAdminPort,
   ProviderLocalePort
-} from './ports'
+} from '@deepchat/agent-kernel/collab/provider/ports'
 import {
   BaseLLMProvider,
   isAudioTranscriptionNotSupportedError,

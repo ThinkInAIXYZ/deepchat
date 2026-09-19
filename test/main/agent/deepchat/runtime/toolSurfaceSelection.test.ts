@@ -1,18 +1,18 @@
 import { describe, expect, it } from 'vitest'
-import { DeepChatAgentInstance } from '@/agent/deepchat/instance/deepChatAgentInstance'
-import { toAppSessionId } from '@/agent/shared/agentSessionIds'
-import { computeToolSurfaceVirtualizationTrigger } from '@/agent/deepchat/runtime/toolSurface'
+import { DeepChatAgentInstance } from '@deepchat/agent-kernel/instance/deepChatAgentInstance'
+import { toAppSessionId } from '@deepchat/agent-kernel/collab/agent-shared/agentSessionIds'
+import { computeToolSurfaceVirtualizationTrigger } from '@deepchat/agent-kernel/runtime/toolSurface'
 import {
   createAutomaticToolSurfaceSelectionPolicy,
   isAutomaticToolSurfaceRunModeAssignment,
   selectAutomaticToolSurfaceRunMode,
   ToolSurfaceAdapterHistory,
   type ToolSurfaceRunModeAssignment
-} from '@/agent/deepchat/runtime/toolSurfaceSelection'
+} from '@deepchat/agent-kernel/runtime/toolSurfaceSelection'
 import {
   TOOL_SURFACE_PRODUCTION_ROLLOUT_POLICY_V1,
   ToolSurfaceRolloutOwner
-} from '@/agent/deepchat/runtime/toolSurfaceRollout'
+} from '@deepchat/agent-kernel/runtime/toolSurfaceRollout'
 
 describe('Tool Surface adapter selection', () => {
   const policy = createAutomaticToolSurfaceSelectionPolicy(256)

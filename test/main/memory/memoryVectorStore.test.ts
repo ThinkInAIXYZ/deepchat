@@ -27,7 +27,7 @@ import {
   MemoryVectorStorePostCommitError,
   MemoryVectorStoreTerminalRecoveryError
 } from '@/memory/infra/vectorStoreErrors'
-import type { MemoryVectorRecord } from '@/memory/types'
+import type { MemoryVectorRecord } from '@deepchat/agent-kernel/collab/memory/types'
 import { app } from 'electron'
 import fs from 'node:fs'
 import os from 'node:os'

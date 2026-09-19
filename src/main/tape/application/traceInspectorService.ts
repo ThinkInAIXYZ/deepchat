@@ -19,11 +19,14 @@ import {
   TAPE_INSPECTOR_SUPPORT_DETAIL_DATA_BYTES,
   TAPE_INSPECTOR_SUPPORT_FACT_LIMIT
 } from '@shared/types/tape-inspector'
-import type { DeepChatTapeEntryRow } from '../domain/entry'
-import { hashString } from '../domain/replay'
-import type { TapeApplicationProviders, TapeInspectorTraceBinding } from '../ports/application'
-import type { TapeInspectorEntryScanInput } from '../ports/storage'
-import { buildTapeProviderAttemptProvenanceKey } from '../domain/providerAttempt'
+import type { DeepChatTapeEntryRow } from '@deepchat/agent-kernel/tape/domain/entry'
+import { hashString } from '@deepchat/agent-kernel/tape/domain/replay'
+import type {
+  TapeApplicationProviders,
+  TapeInspectorTraceBinding
+} from '@deepchat/agent-kernel/tape/ports/application'
+import type { TapeInspectorEntryScanInput } from '@deepchat/agent-kernel/tape/ports/storage'
+import { buildTapeProviderAttemptProvenanceKey } from '@deepchat/agent-kernel/tape/domain/providerAttempt'
 import { readCanonicalTapeIncarnationId } from './common'
 import {
   getTapeInspectorTraceBinding,

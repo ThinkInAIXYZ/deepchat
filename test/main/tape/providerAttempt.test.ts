@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest'
 import {
   buildTapeProviderAttemptEvent,
   parseTapeProviderAttemptEvent
-} from '@/tape/domain/providerAttempt'
-import type { DeepChatTapeEntryRow } from '@/tape/domain/entry'
+} from '@deepchat/agent-kernel/tape/domain/providerAttempt'
+import type { DeepChatTapeEntryRow } from '@deepchat/agent-kernel/tape/domain/entry'
 
 function completedAttempt() {
   return buildTapeProviderAttemptEvent({

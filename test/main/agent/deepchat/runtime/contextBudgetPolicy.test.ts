@@ -7,7 +7,7 @@ import {
   shouldUseNativeToolSurface,
   shouldUseDeepChatContextBudget,
   type ContextBudgetModelConfig
-} from '@/agent/deepchat/runtime/contextBudgetPolicy'
+} from '@deepchat/agent-kernel/runtime/contextBudgetPolicy'
 
 const CHAT_MODEL: ContextBudgetModelConfig = {
   type: ModelType.Chat,

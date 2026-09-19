@@ -1,9 +1,9 @@
 import { nanoid } from 'nanoid'
 import type { AgentRowStore } from '@/agent/shared/agentRowStore'
-import type { AppSessionId } from '@/agent/shared/agentSessionIds'
+import type { AppSessionId } from '@deepchat/agent-kernel/collab/agent-shared/agentSessionIds'
 import type { AgentRow } from '@/agent/data/tables/agents'
-import { normalizeDisabledAgentTools } from '@/agent/shared/agentSessionNormalization'
-import { BUILTIN_DEEPCHAT_AGENT_ID } from '@/agent/deepchat/contracts/builtinAgentIdentity'
+import { normalizeDisabledAgentTools } from '@deepchat/agent-kernel/collab/agent-shared/agentSessionNormalization'
+import { BUILTIN_DEEPCHAT_AGENT_ID } from '@deepchat/agent-kernel/contracts/builtinAgentIdentity'
 import {
   assertDeepChatSubagentConfigInvariant,
   createDefaultDeepChatSubagentSlots,

@@ -1,9 +1,9 @@
 import { describe, expect, vi } from 'vitest'
-import { buildEffectiveTapeView } from '@/tape/domain/effectiveView'
+import { buildEffectiveTapeView } from '@deepchat/agent-kernel/tape/domain/effectiveView'
 import { SqliteTapeLifecycleAdapter } from '@/tape/infrastructure/sqlite/tapeLifecycleAdapter'
-import { TOOL_SURFACE_TAPE_EVENT_NAMES } from '@/tape/domain/toolSurfaceFacts'
+import { TOOL_SURFACE_TAPE_EVENT_NAMES } from '@deepchat/agent-kernel/tape/domain/toolSurfaceFacts'
 import { TapeSkillMaterializationService } from '@/tape/application/skillMaterializationService'
-import { hashSkillEffectiveContent } from '@/tape/domain/skillMaterialization'
+import { hashSkillEffectiveContent } from '@deepchat/agent-kernel/tape/domain/skillMaterialization'
 import { Database, nativeSqliteItIf } from '../nativeSqliteHarness'
 
 const entriesModule = Database ? await import('@/tape/infrastructure/sqlite/tapeEntryStore') : null

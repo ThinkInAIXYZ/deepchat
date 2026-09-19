@@ -4,7 +4,7 @@ import type {
   AcpAsLlmProviderPermissionPort,
   AcpAsLlmProviderSessionControlPort,
   AcpProviderAdminPort
-} from '@/provider/ports'
+} from '@deepchat/agent-kernel/collab/provider/ports'
 
 type RetiredAcpMethodName =
   | 'prepareAcpSession'

@@ -58,7 +58,7 @@ import type { McpAppSandboxRegistry } from './apps/sandboxRegistry'
 import { McpAppHost } from './apps/appHost'
 import { hasMcpIdentityBearingChange } from './serverIdentity'
 import type { CacheImageOptions } from '@/platform/imageCache'
-import { awaitWithAbort } from '@/lib/awaitWithAbort'
+import { awaitWithAbort } from '@deepchat/agent-kernel/collab/lib/awaitWithAbort'
 import { childProcessRegistry } from '@/agent/shared/process/childProcessRegistry'
 
 type McpToolAccessContext = {

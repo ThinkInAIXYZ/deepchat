@@ -19,7 +19,7 @@ import {
   SUMMARY_TITLES_PROMPT,
   type ProviderGenerateTextOptions
 } from '../baseProvider'
-import type { ProviderLocalePort } from '../ports'
+import type { ProviderLocalePort } from '@deepchat/agent-kernel/collab/provider/ports'
 import { execFile } from 'node:child_process'
 import { Ollama, ShowResponse } from 'ollama'
 import {

@@ -23,7 +23,7 @@ import {
   createTapeService
 } from './tapeTestHarness'
 import { TapeSkillMaterializationService } from '@/tape/application/skillMaterializationService'
-import { hashSkillEffectiveContent } from '@/tape/domain/skillMaterialization'
+import { hashSkillEffectiveContent } from '@deepchat/agent-kernel/tape/domain/skillMaterialization'
 
 afterEach(() => vi.restoreAllMocks())
 

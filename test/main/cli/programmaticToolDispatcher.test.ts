@@ -14,12 +14,12 @@ import {
   buildProgrammaticToolCapabilityV1,
   createProgrammaticToolSurfaceRunControllerV1,
   type ProgrammaticToolCapabilityV1
-} from '@/agent/deepchat/runtime/programmaticToolSurface'
-import type { ToolSurfaceSnapshot } from '@/agent/deepchat/runtime/toolSurface'
+} from '@deepchat/agent-kernel/runtime/programmaticToolSurface'
+import type { ToolSurfaceSnapshot } from '@deepchat/agent-kernel/runtime/toolSurface'
 import {
   bindToolSurfaceCanaryRunEvidence,
   createToolSurfaceCanaryRunEvidenceRecorder
-} from '@/agent/deepchat/runtime/toolSurfaceCanaryDiagnostics'
+} from '@deepchat/agent-kernel/runtime/toolSurfaceCanaryDiagnostics'
 import {
   AGENT_CLI_PROGRAMMATIC_GRANT_SCHEMA_VERSION,
   type AgentCliProgrammaticOperationGrant,
@@ -29,9 +29,9 @@ import { CliRequestError } from '@/cli/errors'
 import { ProgrammaticToolDispatcher } from '@/cli/programmaticToolDispatcher'
 import type { CliRouteCaller } from '@/routes/routeRegistry'
 import { ProgrammaticParentOperationError } from '@/cli/programmaticToolParentController'
-import { ExecutionJournalError } from '@/tape/domain/executionJournal'
-import { ExecutionContractDispatchError } from '@/tape/domain/executionContract'
-import { ToolSurfaceError } from '@/agent/deepchat/runtime/toolSurface'
+import { ExecutionJournalError } from '@deepchat/agent-kernel/tape/domain/executionJournal'
+import { ExecutionContractDispatchError } from '@deepchat/agent-kernel/tape/domain/executionContract'
+import { ToolSurfaceError } from '@deepchat/agent-kernel/runtime/toolSurface'
 import { McpPreDispatchError } from '@/mcp/errors'
 
 const SERVER_ID = '22222222-2222-4222-8222-222222222222'

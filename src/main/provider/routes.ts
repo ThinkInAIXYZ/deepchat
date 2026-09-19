@@ -1,6 +1,6 @@
 import type { ProviderSettingsPort } from '@/provider/settings'
 import type { OAuthServicePort } from '@shared/types/oauth'
-import type { AcpProviderAdminPort } from '@/provider/ports'
+import type { AcpProviderAdminPort } from '@deepchat/agent-kernel/collab/provider/ports'
 import {
   configGetAwsBedrockCredentialRoute,
   configGetAzureApiVersionRoute,

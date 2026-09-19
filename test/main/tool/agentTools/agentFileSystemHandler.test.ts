@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import * as fs from 'fs/promises'
 import * as path from 'path'
 import * as os from 'os'
-import { getSessionsRoot } from '@/agent/shared/storage/sessionPaths'
+import { getSessionsRoot } from '@deepchat/agent-kernel/collab/agent-shared/storage/sessionPaths'
 import { AgentFileSystemHandler } from '@/tool/agentTools/agentFileSystemHandler'
 
 describe('AgentFileSystemHandler diff responses', () => {

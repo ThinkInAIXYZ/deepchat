@@ -1,5 +1,5 @@
 import type { ProviderSettingsPort } from '@/provider/settings'
-import { awaitWithAbort } from '@/lib/awaitWithAbort'
+import { awaitWithAbort } from '@deepchat/agent-kernel/collab/lib/awaitWithAbort'
 import {
   type McpServicePort,
   type McpExpectedToolTarget,
@@ -21,8 +21,8 @@ import type {
   ToolServicePort
 } from '@shared/types/tool'
 import type { PermissionMode, SessionKind } from '@shared/types/agent-interface'
-import { resolveToolOffloadTemplatePath } from '@/agent/shared/storage/sessionPaths'
-import { QUESTION_TOOL_NAME } from '@/tool/agentTools/questionTool'
+import { resolveToolOffloadTemplatePath } from '@deepchat/agent-kernel/collab/agent-shared/storage/sessionPaths'
+import { QUESTION_TOOL_NAME } from '@deepchat/agent-kernel/collab/tool/agentTools/questionTool'
 import { ToolMapper, type ToolSource } from './toolMapper'
 import {
   CRON_JOB_AGENT_TOOL_NAME,
@@ -72,7 +72,7 @@ import {
   type ToolSurfaceDeferredDispatch,
   type ToolSurfaceExecutionContext,
   type ToolSurfaceSnapshot
-} from '@/agent/deepchat/runtime/toolSurface'
+} from '@deepchat/agent-kernel/runtime/toolSurface'
 import {
   assertProgrammaticToolChildDefinitionAllowsDispatch,
   assertProgrammaticToolChildRuntimeAllowsDispatch,
@@ -82,7 +82,7 @@ import {
   projectProgrammaticExecDefinition,
   type ProgrammaticToolCapabilityV1,
   type ProgrammaticToolSurfaceEntryV1
-} from '@/agent/deepchat/runtime/programmaticToolSurface'
+} from '@deepchat/agent-kernel/runtime/programmaticToolSurface'
 import {
   assertIssuedProgrammaticToolAuthorityAssertion,
   type ProgrammaticToolParentRegistration
@@ -116,13 +116,13 @@ type MainProcessToolPreCheckOptions = Pick<
 import type { AgentCommandEnvironmentPort } from './agentTools/agentBashHandler'
 import type { ToolEffectObserver } from './effectObserver'
 import { resolvePluginToolPolicy } from '@/plugin/toolPolicyStore'
-import { composeSubagentAuthority } from '@/session/subagentAuthority'
+import { composeSubagentAuthority } from '@deepchat/agent-kernel/collab/session/subagentAuthority'
 import type { LiveDelegationConsentIssuer } from '@/orchestration/liveDelegationConsent'
 import { parseChildAgentResultEnvelopeText } from '@shared/orchestration/resultSafety'
 import {
   ExecutionContractDispatchError,
   assertExecutionContractAllowsDispatch
-} from '@/tape/domain/executionContract'
+} from '@deepchat/agent-kernel/tape/domain/executionContract'
 import { RunCodeRuntimeManager } from './codeMode/runCodeRuntimeManager'
 import {
   APPLY_PATCH_TOOL_NAME,
@@ -139,7 +139,7 @@ import {
   isCodeModeDirectToolName,
   isCodexToolFrontend,
   normalizeCodexToolName
-} from './codeMode/toolModeTools'
+} from '@deepchat/agent-kernel/collab/tool/codeMode/toolModeTools'
 import {
   CODE_MODE_TOOL_SERVER_NAME,
   RUN_CODE_DEFAULT_TIMEOUT_MS,

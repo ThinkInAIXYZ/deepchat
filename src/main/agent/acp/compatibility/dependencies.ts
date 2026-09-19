@@ -2,27 +2,27 @@ import type { ProviderModelResolutionPort } from '@/provider/settings'
 import type { ProviderExecutionPort, RateLimitQueueSnapshot } from '@shared/types/provider'
 import type { DeepChatSessionState, SessionGenerationSettings } from '@shared/types/agent-interface'
 import type { MCPToolDefinition } from '@shared/types/core/mcp'
-import type { RuntimeHookSink } from '@/agent/deepchat/runtime/runtimeHookSink'
+import type { RuntimeHookSink } from '@deepchat/agent-kernel/runtime/runtimeHookSink'
 import type { AcpAgentInstanceDependencyFactory } from '@/agent/acp/instance'
 import { AcpCompatibilityPromptBuilder } from '@/agent/acp/runtime/acpCompatibilityPromptBuilder'
 import type { AcpViewManifestInput } from '@/agent/acp/instance/ports'
-import { DeepChatAgentInstance } from '@/agent/deepchat/instance/deepChatAgentInstance'
-import { awaitWithAbort } from '@/lib/awaitWithAbort'
+import { DeepChatAgentInstance } from '@deepchat/agent-kernel/instance/deepChatAgentInstance'
+import { awaitWithAbort } from '@deepchat/agent-kernel/collab/lib/awaitWithAbort'
 import {
   capAgentRequestMaxTokens,
   estimateToolReserveTokens
-} from '@/agent/deepchat/runtime/contextBudget'
-import { createUserChatMessage } from '@/agent/deepchat/runtime/contextBuilder'
-import { resolveEffectiveActiveSkillNames } from '@/agent/deepchat/resources/systemPromptBuilder'
+} from '@deepchat/agent-kernel/runtime/contextBudget'
+import { createUserChatMessage } from '@deepchat/agent-kernel/runtime/contextBuilder'
+import { resolveEffectiveActiveSkillNames } from '@deepchat/agent-kernel/resources/systemPromptBuilder'
 import type { SessionSettingsStore } from '@/session/data/settings'
 import type { SessionTranscript } from '@/session/data/transcript'
-import type { TapeReconciliationPort } from '@/tape/ports/capabilities'
-import type { DeepChatToolResolver } from '@/agent/deepchat/runtime/toolResolver'
+import type { TapeReconciliationPort } from '@deepchat/agent-kernel/tape/ports/capabilities'
+import type { DeepChatToolResolver } from '@deepchat/agent-kernel/runtime/toolResolver'
 import type {
   DeepChatEventPublisher,
   DeepChatSessionUpdatePublisher,
   SessionInvalidationPort
-} from '@/agent/deepchat/runtime/types'
+} from '@deepchat/agent-kernel/runtime/types'
 import { AcpCompatibilityProjectionAdapter, AcpRequestTraceAdapter } from './adapters'
 import type { AgentTraceSettingsPort } from '@/agent/traceSettings'
 

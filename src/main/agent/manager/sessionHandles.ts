@@ -15,7 +15,7 @@ import type {
   ToolInteractionResponse,
   ToolInteractionResult
 } from '@shared/types/agent-interface'
-import type { AppSessionId } from '@/agent/shared/agentSessionIds'
+import type { AppSessionId } from '@deepchat/agent-kernel/collab/agent-shared/agentSessionIds'
 import type { AgentSessionSendInput } from '@/agent/shared/agentSessionHandle'
 import type { AcpMode } from '@/agent/acp/instance'
 import type { AcpSessionCommand } from '@/agent/acp/runtime'

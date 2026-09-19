@@ -22,7 +22,7 @@ import { jsonrepair } from 'jsonrepair'
 import { getExplicitlyDeniedPluginTools, resolvePluginToolPolicy } from '@/plugin/toolPolicyStore'
 import type { DeepchatEventPublisher } from '@shared/contracts/events'
 import type { SemanticNotificationPublisher } from '@/notifications'
-import { awaitWithAbort } from '@/lib/awaitWithAbort'
+import { awaitWithAbort } from '@deepchat/agent-kernel/collab/lib/awaitWithAbort'
 import type { McpSettings } from './settings'
 import { CUA_PLUGIN_ID } from '@shared/types/plugin'
 import {
