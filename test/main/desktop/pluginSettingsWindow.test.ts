@@ -22,7 +22,7 @@ type FakeWindow = {
 
 function installBrowserWindowMock(): FakeWindow[] {
   const created: FakeWindow[] = []
-  ;(BrowserWindow as unknown as ReturnType<typeof vi.fn>).mockImplementation(() => {
+  vi.mocked(BrowserWindow).mockImplementation(function () {
     const handlers = new Map<string, Handler>()
     const webContentsHandlers = new Map<string, Handler>()
     const win: FakeWindow = {
@@ -41,7 +41,7 @@ function installBrowserWindowMock(): FakeWindow[] {
       webContentsHandlers
     }
     created.push(win)
-    return win
+    return win as any
   })
   return created
 }
