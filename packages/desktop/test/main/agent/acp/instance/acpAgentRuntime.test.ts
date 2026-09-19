@@ -694,6 +694,26 @@ describe('AcpAgentRuntime', () => {
     expect(harness.calls).toContain('session.clear')
   })
 
+  it('bounds closeAll when an instance close never settles', async () => {
+    const harness = createHarness({
+      clearPromise: new Promise<void>(() => {})
+    })
+    const input = createInput()
+    await harness.runtime.getOrHydrate(input)
+
+    vi.useFakeTimers()
+    try {
+      const closing = harness.runtime.closeAll()
+      await vi.advanceTimersByTimeAsync(60_000)
+      await expect(closing).resolves.toBeUndefined()
+
+      expect(harness.runtime.getHydrated(input.sessionId)).toBeUndefined()
+      expect(harness.calls).toContain('session.clear')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('atomically fences lazy hydration when owner shutdown starts', async () => {
     const harness = createHarness()
     const input = createInput()

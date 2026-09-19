@@ -12,6 +12,26 @@ import { AcpAgentInstance, type AcpAgentInstanceDependencies } from './acpAgentI
 import type { AcpAgentSnapshot, AcpInstanceScope, AcpSessionOwnershipPort } from './ports'
 import { isAcpAuthenticationRequiredError } from '../runtime/acpAuthentication'
 
+/**
+ * Upper bound for every closeAll phase. An ACP peer that never answers cancel must not be able to
+ * stall app shutdown; timing out leaves the pending close work detached while the runtime maps are
+ * still cleared. Process-level termination is owned by the runtime owner's process manager
+ * shutdown, not by this loop.
+ */
+const CLOSE_ALL_PHASE_TIMEOUT_MS = 5_000
+
+function settleWithinPhaseTimeout(promise: Promise<unknown>): Promise<void> {
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => resolve(), CLOSE_ALL_PHASE_TIMEOUT_MS)
+    timer.unref()
+    const settle = () => {
+      clearTimeout(timer)
+      resolve()
+    }
+    promise.then(settle, settle)
+  })
+}
+
 export interface AcpAgentRuntimeSessionInput {
   sessionId: AppSessionId
   descriptor: AcpAgentDescriptor
@@ -231,14 +251,20 @@ export class AcpAgentRuntime {
     if (this.closeAllPromise) return await this.closeAllPromise
     this.accepting = false
     this.closeAllPromise = (async () => {
-      await this.closeInstances()
-      await Promise.allSettled(Array.from(this.hydrations.values(), ({ promise }) => promise))
-      await this.closeInstances()
-      await Promise.allSettled(
-        Array.from(this.operations.values()).flatMap((operations) => [...operations])
+      await settleWithinPhaseTimeout(this.closeInstances())
+      await settleWithinPhaseTimeout(
+        Promise.allSettled(Array.from(this.hydrations.values(), ({ promise }) => promise))
+      )
+      await settleWithinPhaseTimeout(this.closeInstances())
+      await settleWithinPhaseTimeout(
+        Promise.allSettled(
+          Array.from(this.operations.values()).flatMap((operations) => [...operations])
+        )
       )
       const instances = Array.from(this.instances.values(), (entry) => entry.instance)
-      await Promise.allSettled(instances.map((instance) => instance.close()))
+      await settleWithinPhaseTimeout(
+        Promise.allSettled(instances.map((instance) => instance.close()))
+      )
       this.instances.clear()
       this.draining.clear()
       this.steering.clear()
