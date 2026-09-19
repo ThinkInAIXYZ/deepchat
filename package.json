@@ -35,7 +35,7 @@
     "dev:trace": "pnpm --filter DeepChat run dev:trace",
     "dev:inspect": "pnpm --filter DeepChat run dev:inspect",
     "dev:linux": "pnpm --filter DeepChat run dev:linux",
-    "build": "pnpm run build:shared && pnpm run build:provider && pnpm run build:kernel && pnpm --filter DeepChat run build",
+    "build": "pnpm run build:shared && pnpm run build:provider && pnpm run build:mcp && pnpm run build:kernel && pnpm --filter DeepChat run build",
     "cli:build": "pnpm --filter DeepChat run cli:build",
     "build:unpack": "pnpm --filter DeepChat run build:unpack",
     "plugin:validate": "pnpm --filter DeepChat run plugin:validate",
