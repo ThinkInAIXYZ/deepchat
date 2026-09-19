@@ -479,6 +479,21 @@ spike. A previously reported green commit is not a baseline.
   renderer surface nor any extracted package manifest. Post-merge gates: full typecheck including
   the kernel-port structure gate, the affected sync/memory/plugin suites, format, i18n, lint, and
   the full main aggregate all pass on the merge result.
+- Two independent post-merge review rounds closed their findings on the branch. Round one: the ACP
+  projection now receives the active prompt's real AbortSignal (the adapter may not create its
+  own), closeAll phases settle within a bounded timeout with the runtime maps cleared, the
+  provider portable core fails fast by default with redacted request logging, plugin bundle and
+  package paths resolve from the app root (including a dedicated clean action), the root build
+  chain builds MCP, MCP declares its root export Node-only, and default MCP console diagnostics
+  record error categories instead of raw errors. Round two extended the same boundary to the
+  remaining output paths: `ServerManager.serverLastErrors` stores only an error category (it feeds
+  the renderer's lastError), the failed status event carries a category instead of the raw message,
+  and the schema-validation warning and model display-name warning use categories. The registry
+  refresh carried in the merge was audited against its upstream source
+  `ThinkInAIXYZ/PublicProviderConf` dev (`e67c8272`): all ten removed model IDs are absent upstream
+  (genuine upstream removals), the remaining drift versus the current upstream head is explained by
+  upstream moving after the snapshot (including a provider rename), and `fetch-provider-db.mjs` now
+  preserves the upstream `updated_at` as `source_updated_at` so future refreshes are auditable.
 
 ## M1 — Remove kernel re-export shims
 
