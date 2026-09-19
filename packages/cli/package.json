@@ -16,6 +16,7 @@
   ],
   "scripts": {
     "build": "node scripts/build.mjs",
+    "dev": "node scripts/build.mjs --version dev --watch",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
