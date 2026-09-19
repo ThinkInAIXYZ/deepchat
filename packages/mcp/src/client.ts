@@ -823,7 +823,8 @@ export class McpClient {
         phase,
         attempt,
         reason: error instanceof McpConnectionHardTimeoutError ? 'hard-timeout' : 'connect-error',
-        message: error instanceof Error ? error.message : String(error)
+        // The status event reaches the renderer; carry a fixed category, not remote text.
+        message: errorCategory(error)
       })
 
       throw error
@@ -1424,7 +1425,7 @@ export class McpClient {
     } catch (error) {
       console.warn(
         `[MCP] Failed to resolve model display name for ${providerId}/${modelId}:`,
-        error
+        errorCategory(error)
       )
     }
 

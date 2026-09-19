@@ -79,8 +79,9 @@ export class ServerManager {
   }
 
   setServerLastError(serverName: string, error: unknown): void {
-    const message = error instanceof Error ? error.message : String(error || 'Unknown error')
-    this.serverLastErrors.set(serverName, message)
+    // Only a fixed error category crosses this boundary: raw messages can carry remote text,
+    // URLs, paths or auth hints and this value is surfaced to the renderer as lastError.
+    this.serverLastErrors.set(serverName, errorCategory(error))
   }
 
   clearServerLastError(serverName: string): void {

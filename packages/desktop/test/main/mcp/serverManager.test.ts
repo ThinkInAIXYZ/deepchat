@@ -104,7 +104,7 @@ describe('ServerManager notifications and plugin isolation', () => {
 
     await expect(manager.startServer('plugin')).rejects.toThrow('connect failed')
 
-    expect(manager.getServerLastError('plugin')).toBe('connect failed')
+    expect(manager.getServerLastError('plugin')).toBe('Error')
     expect(semanticNotificationsMock.occur).not.toHaveBeenCalled()
     expect(publishDeepchatEventMock).not.toHaveBeenCalled()
   })
@@ -123,7 +123,7 @@ describe('ServerManager notifications and plugin isolation', () => {
 
     await expect(manager.startServer('regular')).rejects.toThrow('connect failed')
 
-    expect(manager.getServerLastError('regular')).toBe('connect failed')
+    expect(manager.getServerLastError('regular')).toBe('Error')
     expect(manager.getClient('regular')).toBeDefined()
     expect(semanticNotificationsMock.occur).toHaveBeenCalledWith({
       code: 'mcp.connectionFailed',

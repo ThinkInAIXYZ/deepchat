@@ -1,4 +1,5 @@
 import type { Tool } from '@deepchat/shared/types/mcp'
+import { errorCategory } from './diagnostics.js'
 
 const MAX_SCHEMA_BYTES = 1024 * 1024
 const MAX_METADATA_BYTES = 256 * 1024
@@ -350,8 +351,8 @@ export function validateAndCloneMcpTool(
         validateSchemaSemantics
       )
     } catch (error) {
-      const reason = error instanceof Error ? error.message : String(error)
-      console.warn(`Ignoring invalid ${label} outputSchema: ${reason}`)
+      // The schema comes from the remote server; its rejection text is remote data.
+      console.warn(`Ignoring invalid ${label} outputSchema:`, errorCategory(error))
     }
   }
 
