@@ -10,7 +10,7 @@ import type {
 import {
   extractProviderFailureMetadata,
   sanitizeProviderFailureMetadata
-} from '../collab/provider/providerFailure.js'
+} from '@deepchat/shared/provider/providerFailure'
 
 export const MAX_TRANSIENT_RETRIES_PER_LOGICAL_ROUND = 2
 export const PROVIDER_RETRY_BASE_DELAY_MS = 500

@@ -157,7 +157,7 @@ import { createState, notifyRunJournalObserver } from './types.js'
 import type {
   ProviderRequestTraceContext,
   ProviderRequestTracePayload
-} from '../collab/provider/requestTrace.js'
+} from '@deepchat/shared/provider/requestTrace'
 import {
   elapsedMonotonicMs,
   readMonotonicNow,

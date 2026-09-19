@@ -49,7 +49,7 @@ import { nanoid } from 'nanoid'
 import { resolveAcpAgentAlias } from '@shared/utils/acpAgentAlias'
 import { toAppSessionId } from '@deepchat/agent-kernel/collab/agent-shared/agentSessionIds'
 import { awaitWithAbort } from '@deepchat/agent-kernel/collab/lib/awaitWithAbort'
-import { extractProviderFailureMetadata } from '@deepchat/agent-kernel/collab/provider/providerFailure'
+import { extractProviderFailureMetadata } from '@deepchat/shared/provider/providerFailure'
 
 type EventQueue = {
   push: (event: LLMCoreStreamEvent | null) => void

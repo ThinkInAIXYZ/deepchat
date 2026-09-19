@@ -3,7 +3,7 @@ import * as fsMock from 'fs'
 import os from 'os'
 import type { IModelConfig, LLM_PROVIDER, MODEL_META } from '@deepchat/shared/types/provider'
 import type { MCPServerConfig } from '@deepchat/shared/types/mcp'
-import { RAW_PROVIDER_MODEL_FACTS_MIGRATION_ID } from '@/provider/providerModelFacts'
+import { RAW_PROVIDER_MODEL_FACTS_MIGRATION_ID } from '@deepchat/provider/providerModelFacts'
 import { USER_MODEL_CONFIG_MIGRATION_ID } from '@/provider/userModelConfig'
 
 const realFs = await vi.importActual<typeof import('fs')>('fs')

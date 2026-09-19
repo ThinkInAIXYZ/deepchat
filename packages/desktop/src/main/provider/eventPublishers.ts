@@ -2,7 +2,7 @@ import type {
   DeepchatEventPayload,
   DeepchatEventPublisher
 } from '@deepchat/shared/contracts/events'
-import type { ProviderBatchUpdate, ProviderChange } from '@shared/provider-operations'
+import type { ProviderBatchUpdate, ProviderChange } from '@deepchat/shared/provider-operations'
 
 export function emitProvidersChanged(publishEvent: DeepchatEventPublisher): void {
   publishEvent('providers.changed', {

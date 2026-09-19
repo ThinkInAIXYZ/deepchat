@@ -5,7 +5,7 @@ const { mockRunAiSdkCoreStream, mockRunAiSdkGenerateText } = vi.hoisted(() => ({
   mockRunAiSdkGenerateText: vi.fn().mockResolvedValue({ content: 'generated' })
 }))
 
-vi.mock('@/provider/aiSdk', () => ({
+vi.mock('@deepchat/provider/aiSdk', () => ({
   runAiSdkCoreStream: mockRunAiSdkCoreStream,
   runAiSdkDimensions: vi.fn(),
   runAiSdkEmbeddings: vi.fn(),

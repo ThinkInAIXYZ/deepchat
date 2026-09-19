@@ -9,7 +9,7 @@ import { readUserPluginPackage } from '@/plugin/userPluginPackage'
 import { UserPluginHooks } from '@/plugin/userPluginHooks'
 import { projectPluginContext } from '@deepchat/agent-kernel/runtime/pluginContext'
 import { createOpaquePromptAssembly } from '@deepchat/agent-kernel/resources/promptAssembly'
-import { resolveMcpEnvironmentBinding } from '@/mcp/environmentBindings'
+import { resolveMcpEnvironmentBinding } from '@deepchat/mcp'
 import type {
   DeepChatTapeEntryRow,
   TapeAnchorAppendInput

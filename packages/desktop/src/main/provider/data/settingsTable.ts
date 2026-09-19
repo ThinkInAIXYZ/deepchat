@@ -6,7 +6,7 @@ import { LEGACY_MODEL_CONFIG_META_KEY, normalizeUserModelConfigEntry } from '../
 import {
   hasPersistedDerivedProviderModelFields,
   stripDerivedProviderModelFields
-} from '../providerModelFacts'
+} from '@deepchat/provider/providerModelFacts'
 
 type ProviderRow = {
   id: string

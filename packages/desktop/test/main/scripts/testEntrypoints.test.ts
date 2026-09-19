@@ -17,11 +17,11 @@ const windowsArm64Workflow = fs.readFileSync(
 describe('test entrypoint contracts', () => {
   it('keeps complete test suites one-shot and watch mode explicit', () => {
     expect(packageJson.scripts).toMatchObject({
-      test: 'pnpm --filter DeepChat exec vitest run --config ../../vitest.config.ts',
-      'test:main': 'pnpm --filter DeepChat exec vitest run --config ../../vitest.config.ts --project main --project kernel --project shared',
+      test: 'pnpm run test:mcp && pnpm --filter DeepChat exec vitest run --config ../../vitest.config.ts',
+      'test:main': 'pnpm run test:mcp && pnpm --filter DeepChat exec vitest run --config ../../vitest.config.ts --project main --project kernel --project shared',
       'test:renderer': 'pnpm --filter DeepChat run test:renderer',
-      'test:coverage': 'pnpm --filter DeepChat exec vitest run --config ../../vitest.config.ts --coverage',
-      'test:watch': 'pnpm --filter DeepChat exec vitest --config ../../vitest.config.ts --watch',
+      'test:coverage': 'pnpm run test:mcp && pnpm --filter DeepChat exec vitest run --config ../../vitest.config.ts --coverage',
+      'test:watch': 'pnpm --filter @deepchat/mcp exec vitest --config vitest.config.ts --watch & pnpm --filter DeepChat exec vitest --config ../../vitest.config.ts --watch',
       'test:ui': 'pnpm --filter DeepChat exec vitest --config ../../vitest.config.ts --ui'
     })
   })

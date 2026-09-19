@@ -1,4 +1,4 @@
-import type { ProviderRequestTracePayload } from '../collab/provider/requestTrace.js'
+import type { ProviderRequestTracePayload } from '@deepchat/shared/provider/requestTrace'
 import { redactRequestPreview } from '../collab/lib/redact.js'
 
 export const MESSAGE_TRACE_MAX_BYTES = 512 * 1024

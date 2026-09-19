@@ -29,7 +29,7 @@ import type {
 } from '@deepchat/agent-kernel/loop/ports'
 import { toAppSessionId } from '@deepchat/agent-kernel/collab/agent-shared/agentSessionIds'
 import { resolveToolOffloadPath } from '@deepchat/agent-kernel/collab/agent-shared/storage/sessionPaths'
-import { createDeepSeekResponsesReplayProjector } from '@deepchat/agent-kernel/collab/provider/deepseekResponsesAdapter'
+import { createDeepSeekResponsesReplayProjector } from '@deepchat/shared/provider/deepseekResponsesAdapter'
 import { createDeepSeekReplayJson } from '../../../../fixtures/deepseekResponses'
 import { POSIX_COMMAND_SHELL } from '../../../../helpers/commandShell'
 import {

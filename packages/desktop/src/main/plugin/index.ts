@@ -1,5 +1,5 @@
 import { ToolchainService } from '@/toolchains'
-import { createMinimalProcessEnvironment } from '@/mcp/processEnvironment'
+import { createMinimalProcessEnvironment } from '@deepchat/mcp'
 import { UserPlugins, type UserPluginRecord } from './userPlugins'
 import { UserPluginHooks } from './userPluginHooks'
 import type {

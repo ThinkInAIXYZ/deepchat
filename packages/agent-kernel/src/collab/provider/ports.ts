@@ -11,9 +11,7 @@ export interface ProviderCatalogPort {
   getAgentType(agentId: string): Promise<'deepchat' | 'acp' | null>
 }
 
-export interface ProviderLocalePort {
-  getLanguage(): string
-}
+export type { ProviderLocalePort } from '@deepchat/shared/provider/locale'
 
 export interface AcpAsLlmProviderSessionControlPort {
   setAcpWorkdir(conversationId: string, agentId: string, workdir: string | null): Promise<void>

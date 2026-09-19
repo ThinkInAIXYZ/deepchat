@@ -108,6 +108,8 @@
     "@aws-sdk/credential-providers": "^3.1128.0",
     "@deepchat/agent-kernel": "workspace:*",
     "@deepchat/cli": "workspace:*",
+    "@deepchat/mcp": "workspace:*",
+    "@deepchat/provider": "workspace:*",
     "@deepchat/shared": "workspace:*",
     "@duckdb/node-api": "1.5.5-r.4",
     "@electron-toolkit/utils": "^4.0.0",

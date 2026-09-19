@@ -1,3 +1,4 @@
+import { createDesktopProviderHost } from '../../../src/main/provider/desktopHost'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { generateText } from 'ai'
 
@@ -10,8 +11,8 @@ vi.mock('../../../src/main/platform/proxy', () => ({
 import {
   createAiSdkProviderContext,
   transformOpenAICompatiblePromptCacheRequestBody
-} from '@/provider/aiSdk/providerFactory'
-import { OPENAI_COMPATIBLE_PROMPT_CACHE_MARKER } from '@/provider/promptCacheStrategy'
+} from '@deepchat/provider/aiSdk/providerFactory'
+import { OPENAI_COMPATIBLE_PROMPT_CACHE_MARKER } from '@deepchat/provider/promptCacheStrategy'
 
 const providerSettings = {
   getAzureApiVersion: () => undefined
@@ -41,6 +42,7 @@ describe('AI SDK prompt cache wire payloads', () => {
     ['responses', 'openai-responses' as const]
   ])('emits OpenAI prompt_cache_key through the %s adapter', async (_label, providerKind) => {
     const context = createAiSdkProviderContext({
+      auth: createDesktopProviderHost({ getLanguage: () => 'en-US' }).auth,
       providerKind,
       provider: {
         id: 'openai',
@@ -73,6 +75,7 @@ describe('AI SDK prompt cache wire payloads', () => {
 
   it('emits Anthropic automatic cache control at the top level', async () => {
     const context = createAiSdkProviderContext({
+      auth: createDesktopProviderHost({ getLanguage: () => 'en-US' }).auth,
       providerKind: 'anthropic',
       provider: {
         id: 'anthropic',
@@ -116,6 +119,7 @@ describe('AI SDK prompt cache wire payloads', () => {
       const modelId = 'anthropic/claude-sonnet-4-5'
       const cacheKey = `deepchat:${providerId}:anthropic/claude-sonnet-4-5:0123456789abcdef0123`
       const context = createAiSdkProviderContext({
+        auth: createDesktopProviderHost({ getLanguage: () => 'en-US' }).auth,
         providerKind: 'openai-compatible',
         provider: {
           id: providerId,
@@ -177,6 +181,7 @@ describe('AI SDK prompt cache wire payloads', () => {
 
   it('emits Bedrock cachePoint blocks for structured system and history messages', async () => {
     const context = createAiSdkProviderContext({
+      auth: createDesktopProviderHost({ getLanguage: () => 'en-US' }).auth,
       providerKind: 'aws-bedrock',
       provider: {
         id: 'aws-bedrock',

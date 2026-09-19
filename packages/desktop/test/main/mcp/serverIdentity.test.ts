@@ -3,7 +3,7 @@ import {
   computeMcpBindingHash,
   normalizeMcpServerIdentity,
   sanitizeMcpAuthorizationConfig
-} from '@/mcp/serverIdentity'
+} from '@deepchat/mcp'
 
 describe('MCP server identity', () => {
   it('preserves stable identity across display-only edits', () => {

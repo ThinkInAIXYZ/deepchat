@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { ModelManager } from '@/provider/managers/modelManager'
+import { ModelManager } from '@deepchat/provider/managers/modelManager'
 import { ModelType } from '@deepchat/shared/model'
 import type { MODEL_META } from '@deepchat/shared/types/provider'
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { mcpToolsToAISDKTools, normalizeToolInputSchema } from '@/provider/aiSdk/toolMapper'
+import { mcpToolsToAISDKTools, normalizeToolInputSchema } from '@deepchat/provider/aiSdk/toolMapper'
 import { TOOL_EXECUTION } from '@deepchat/shared/types/core/mcp'
 
 describe('AI SDK tool schema normalization', () => {

@@ -12,7 +12,7 @@ import type {
 import { nanoid } from 'nanoid'
 import { RecursiveCharacterTextSplitter } from '@/lib/textsplitters'
 import { sanitizeText } from '@/utils/strings'
-import { getMetric, normalizeDistance } from '@/utils/vector'
+import { getMetric, normalizeDistance } from '@deepchat/shared/utils/vector'
 import type {
   KnowledgeDatabasePort,
   KnowledgeEmbeddingPort,

@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { DEFAULT_PROVIDERS } from '../../../src/main/provider/defaults'
 import { providerDbLoader } from '../../../src/main/provider/providerDbLoader'
 import { AiSdkProvider } from '../../../src/main/provider/providers/aiSdkProvider'
-import { resolveAiSdkProviderDefinition } from '../../../src/main/provider/providerRegistry'
+import { resolveAiSdkProviderDefinition } from '@deepchat/provider/providerRegistry'
 import type { LLM_PROVIDER } from '@deepchat/shared/types/provider'
 
 const CODEX_RESOURCE_MODEL_IDS = [

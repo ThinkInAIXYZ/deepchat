@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { createMinimalProcessEnvironment } from '@/mcp/processEnvironment'
+import { createMinimalProcessEnvironment } from '@deepchat/mcp'
 
 const sourceEnvironment = {
   PATH: '/usr/bin:/bin',

@@ -13,7 +13,7 @@ import type {
 import { KnowledgeDatabase } from './database/knowledgeDatabase'
 import { KnowledgeBase } from './knowledgeBase'
 import { KnowledgeTaskQueue } from './taskQueue'
-import { getMetric } from '@/utils/vector'
+import { getMetric } from '@deepchat/shared/utils/vector'
 import { DIALOG_WARN } from '@shared/dialog'
 import {
   RecursiveCharacterTextSplitter,

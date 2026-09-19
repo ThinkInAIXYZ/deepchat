@@ -4,7 +4,7 @@ import { ProviderSettings } from '../../../src/main/provider/settings'
 import type { LLM_PROVIDER } from '@deepchat/shared/types/provider'
 import type { ChatMessage } from '@deepchat/shared/types/core/chat-message'
 import type { MainDatabase } from '../../../src/main/data/mainDatabase'
-import { AiSdkProvider } from '../../../src/main/provider/providers/aiSdkProvider'
+import { AiSdkProvider } from '@deepchat/provider/providers/aiSdkProvider'
 import { ApiEndpointType, ModelType } from '@deepchat/shared/model'
 import { AcpRuntimeOwner } from '@/agent/acp/client'
 import { AcpSessionPersistence } from '@/agent/acp/runtime'
@@ -65,7 +65,7 @@ vi.mock('@/platform/proxy', () => ({
   }
 }))
 
-vi.mock('../../../src/main/provider/aiSdk', () => ({
+vi.mock('@deepchat/provider/aiSdk', () => ({
   runAiSdkCoreStream: mockRunAiSdkCoreStream,
   runAiSdkDimensions: mockRunAiSdkDimensions,
   runAiSdkEmbeddings: mockRunAiSdkEmbeddings,

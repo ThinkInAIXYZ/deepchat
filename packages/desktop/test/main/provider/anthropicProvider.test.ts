@@ -19,7 +19,7 @@ vi.mock('electron', () => ({
   }
 }))
 
-vi.mock('../../../src/main/provider/aiSdk', () => ({
+vi.mock('@deepchat/provider/aiSdk', () => ({
   runAiSdkCoreStream: mockRunAiSdkCoreStream,
   runAiSdkGenerateText: mockRunAiSdkGenerateText
 }))

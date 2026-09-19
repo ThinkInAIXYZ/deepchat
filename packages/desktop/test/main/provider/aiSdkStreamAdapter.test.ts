@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { adaptAiSdkStream } from '@/provider/aiSdk/streamAdapter'
+import { adaptAiSdkStream } from '@deepchat/provider/aiSdk/streamAdapter'
 import type { LLMCoreStreamEvent } from '@deepchat/shared/types/core/llm-events'
 import { APICallError } from '@ai-sdk/provider'
 
@@ -575,46 +575,37 @@ describe('AI SDK stream adapter', () => {
     }
   )
 
-  it('falls back to the original image data url when image caching fails', async () => {
+  it('propagates media storage refusal without emitting an unowned image', async () => {
     const cacheImage = vi.fn().mockRejectedValue(new Error('cache failed'))
-    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
 
-    const events = await collectEvents(
-      [
-        {
-          type: 'file',
-          file: {
-            mediaType: 'image/jpeg',
-            base64: 'YWJjZA=='
+    await expect(
+      collectEvents(
+        [
+          {
+            type: 'file',
+            file: {
+              mediaType: 'image/jpeg',
+              base64: 'YWJjZA=='
+            }
+          },
+          {
+            type: 'finish',
+            finishReason: 'stop',
+            rawFinishReason: 'stop',
+            totalUsage: {
+              inputTokens: 1,
+              outputTokens: 1,
+              totalTokens: 2
+            }
           }
-        },
-        {
-          type: 'finish',
-          finishReason: 'stop',
-          rawFinishReason: 'stop',
-          totalUsage: {
-            inputTokens: 1,
-            outputTokens: 1,
-            totalTokens: 2
-          }
-        }
-      ],
-      { supportsNativeTools: true, cacheImage }
-    )
+        ],
+        { supportsNativeTools: true, cacheImage }
+      )
+    ).rejects.toThrow('cache failed')
 
     expect(cacheImage).toHaveBeenCalledWith('data:image/jpeg;base64,YWJjZA==', {
       signal: undefined
     })
-    expect(warnSpy).toHaveBeenCalled()
-    expect(events[0]).toEqual({
-      type: 'image_data',
-      image_data: {
-        data: 'data:image/jpeg;base64,YWJjZA==',
-        mimeType: 'image/jpeg'
-      }
-    })
-
-    warnSpy.mockRestore()
   })
 
   it('skips file parts with missing or non-image media types', async () => {

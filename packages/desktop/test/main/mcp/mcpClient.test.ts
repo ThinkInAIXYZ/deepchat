@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { McpClient } from '../../../src/main/mcp/mcpClient'
+import { McpClient } from '@deepchat/mcp'
+import { createMcpClientHost } from '@/mcp/runtimeAdapter'
 import { RuntimeHelper } from '../../../src/main/lib/runtimeHelper'
 import { ToolchainService } from '../../../src/main/toolchains/service'
 import { ToolchainResolutionError } from '../../../src/main/toolchains/errors'
@@ -99,7 +100,8 @@ function createMcpClient(
       }
     },
     vi.fn(),
-    vi.fn()
+    vi.fn(),
+    createMcpClientHost()
   )
 }
 

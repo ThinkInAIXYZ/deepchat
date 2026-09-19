@@ -6,8 +6,9 @@ import { supportsOpenAICompatibleVideoGeneration } from '@deepchat/shared/videoG
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { DEFAULT_PROVIDERS } from '../../../src/main/provider/defaults'
 import { ProviderInstanceManager } from '../../../src/main/provider/managers/providerInstanceManager'
-import { resolveAiSdkProviderDefinition } from '../../../src/main/provider/providerRegistry'
+import { resolveAiSdkProviderDefinition } from '@deepchat/provider/providerRegistry'
 import { ApimartProvider } from '../../../src/main/provider/providers/apimartProvider'
+import { ApimartProvider as CoreApimartProvider } from '@deepchat/provider/providers/apimartProvider'
 
 const { mockCacheImage, mockFetchRemoteFile, mockRunAiSdkCoreStream } = vi.hoisted(() => ({
   mockCacheImage: vi.fn(),
@@ -48,7 +49,7 @@ vi.mock('../../../src/main/platform/imageCache', () => ({
   fetchRemoteFile: mockFetchRemoteFile
 }))
 
-vi.mock('../../../src/main/provider/aiSdk', () => ({
+vi.mock('@deepchat/provider/aiSdk', () => ({
   runAiSdkCoreStream: mockRunAiSdkCoreStream,
   runAiSdkDimensions: vi.fn(),
   runAiSdkEmbeddings: vi.fn(),
@@ -162,7 +163,7 @@ describe('ApimartProvider', () => {
       acpRuntimeOwner: {} as never,
       publishEvent: vi.fn()
     })
-    expect(manager.createDraftInstance(createProvider())).toBeInstanceOf(ApimartProvider)
+    expect(manager.createDraftInstance(createProvider())).toBeInstanceOf(CoreApimartProvider)
     expect(
       supportsOpenAIImageGenerationSettings({
         providerId: 'apimart',

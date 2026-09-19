@@ -888,7 +888,7 @@
     {
       "id": "kilo",
       "name": "Kilo",
-      "version": "7.7.3",
+      "version": "7.7.5",
       "description": "The open source coding agent",
       "repository": "https://github.com/Kilo-Org/kilocode",
       "website": "https://kilo.ai/",
@@ -901,48 +901,48 @@
       "distribution": {
         "binary": {
           "darwin-aarch64": {
-            "archive": "https://github.com/Kilo-Org/kilocode/releases/download/v7.7.3/kilo-darwin-arm64.zip",
+            "archive": "https://github.com/Kilo-Org/kilocode/releases/download/v7.7.5/kilo-darwin-arm64.zip",
             "cmd": "./kilo",
             "args": [
               "acp"
             ],
-            "sha256": "c1e6678b9a7f7c60f03f752483c7c0c83316b5fd47b9670bbd656285b576d13e"
+            "sha256": "dc2a2e5c3f5811fd2fb729cd5990ef7bc39e4d01c3b0b58b9de1615a4e180487"
           },
           "darwin-x86_64": {
-            "archive": "https://github.com/Kilo-Org/kilocode/releases/download/v7.7.3/kilo-darwin-x64.zip",
+            "archive": "https://github.com/Kilo-Org/kilocode/releases/download/v7.7.5/kilo-darwin-x64.zip",
             "cmd": "./kilo",
             "args": [
               "acp"
             ],
-            "sha256": "6f7c6692891ff9df8b4aee3dd840358b5b62e7f3d4f592375d1a196b634d4b02"
+            "sha256": "9bb4eb1550098feb93cc733c91396bc00694bdb89272788cc2799b4fe25d141e"
           },
           "linux-aarch64": {
-            "archive": "https://github.com/Kilo-Org/kilocode/releases/download/v7.7.3/kilo-linux-arm64.tar.gz",
+            "archive": "https://github.com/Kilo-Org/kilocode/releases/download/v7.7.5/kilo-linux-arm64.tar.gz",
             "cmd": "./kilo",
             "args": [
               "acp"
             ],
-            "sha256": "5e0401974e2dd5c6a59b736dd7def026b1db0845d230862f428fdfeec4e261d5"
+            "sha256": "7ba3a121c474d5e2dcf791b7712132ec53cc0876e0cf7a2119e3cbaf5c474f3d"
           },
           "linux-x86_64": {
-            "archive": "https://github.com/Kilo-Org/kilocode/releases/download/v7.7.3/kilo-linux-x64.tar.gz",
+            "archive": "https://github.com/Kilo-Org/kilocode/releases/download/v7.7.5/kilo-linux-x64.tar.gz",
             "cmd": "./kilo",
             "args": [
               "acp"
             ],
-            "sha256": "9989ba0c0ca6c02aeda7592f9daab6aed4494648186a72dc53f409dfb623f4d6"
+            "sha256": "8b7f3b4a6b7b5f6d5a3c003a179cf6cab32097b77176171628cea69fc3efde8e"
           },
           "windows-x86_64": {
-            "archive": "https://github.com/Kilo-Org/kilocode/releases/download/v7.7.3/kilo-windows-x64.zip",
+            "archive": "https://github.com/Kilo-Org/kilocode/releases/download/v7.7.5/kilo-windows-x64.zip",
             "cmd": "./kilo.exe",
             "args": [
               "acp"
             ],
-            "sha256": "605722d00f7d4151f054f677e17beb46507e034b650155bf0ee434e49ba98189"
+            "sha256": "5e629c25b9e4398c2aa1ae28dbfa4989870efac58efdd7d7bbad76e672ae7177"
           }
         },
         "npx": {
-          "package": "@kilocode/cli@7.7.3",
+          "package": "@kilocode/cli@7.7.5",
           "args": [
             "acp"
           ]
@@ -952,7 +952,7 @@
     {
       "id": "kimchi",
       "name": "Kimchi",
-      "version": "1.1.25",
+      "version": "1.1.26",
       "description": "Coding agent powered by multi-model orchestration",
       "repository": "https://github.com/getkimchi/kimchi",
       "website": "https://kimchi.dev",
@@ -964,8 +964,8 @@
       "distribution": {
         "binary": {
           "darwin-aarch64": {
-            "archive": "https://github.com/getkimchi/kimchi/releases/download/v1.1.25/kimchi_darwin_arm64.tar.gz",
-            "sha256": "32bdc039b645f2945dac0110ddff471ac126d62a3a44e066098cb6ae0ad97d92",
+            "archive": "https://github.com/getkimchi/kimchi/releases/download/v1.1.26/kimchi_darwin_arm64.tar.gz",
+            "sha256": "a9d710993c50930e52ef3d8e4b275eeeb31602f48a4474ec5de87827674da349",
             "cmd": "./bin/kimchi",
             "args": [
               "--mode",
@@ -973,8 +973,8 @@
             ]
           },
           "darwin-x86_64": {
-            "archive": "https://github.com/getkimchi/kimchi/releases/download/v1.1.25/kimchi_darwin_amd64.tar.gz",
-            "sha256": "823760366227a54bb856c95e23ea8d71830734d80424013a5397f546e486f475",
+            "archive": "https://github.com/getkimchi/kimchi/releases/download/v1.1.26/kimchi_darwin_amd64.tar.gz",
+            "sha256": "67a95a7dfe55f52a40ca800ec2d4e4e130b9f53d47307fb2b5d228e7ebead4c0",
             "cmd": "./bin/kimchi",
             "args": [
               "--mode",
@@ -982,8 +982,8 @@
             ]
           },
           "linux-aarch64": {
-            "archive": "https://github.com/getkimchi/kimchi/releases/download/v1.1.25/kimchi_linux_arm64.tar.gz",
-            "sha256": "c581c2a88a1c021765c55c278d0757ad9e73eaa5559b50debf5a822fcfa988f0",
+            "archive": "https://github.com/getkimchi/kimchi/releases/download/v1.1.26/kimchi_linux_arm64.tar.gz",
+            "sha256": "8400e5aaf98f54025dc19e483efcc92c6c65413d02969f08adf257ee7edb7264",
             "cmd": "./bin/kimchi",
             "args": [
               "--mode",
@@ -991,8 +991,8 @@
             ]
           },
           "linux-x86_64": {
-            "archive": "https://github.com/getkimchi/kimchi/releases/download/v1.1.25/kimchi_linux_amd64.tar.gz",
-            "sha256": "83e58ba6e12ee868a3de753bd28b35bb1e61549dfce55cdbb892c6a4e9b53cf9",
+            "archive": "https://github.com/getkimchi/kimchi/releases/download/v1.1.26/kimchi_linux_amd64.tar.gz",
+            "sha256": "af39f7461d01ff3f2b34229f518b94d6ddb8c62792cb09fa151773c50e6ce7b9",
             "cmd": "./bin/kimchi",
             "args": [
               "--mode",
@@ -1000,8 +1000,8 @@
             ]
           },
           "windows-x86_64": {
-            "archive": "https://github.com/getkimchi/kimchi/releases/download/v1.1.25/kimchi_windows_amd64.zip",
-            "sha256": "09cc08cea65ad5310075f10836986875107cd5d39999acb36e289082fd55adf7",
+            "archive": "https://github.com/getkimchi/kimchi/releases/download/v1.1.26/kimchi_windows_amd64.zip",
+            "sha256": "37c38611203b7296fcb25c043c71d164670629966037c325e53479e82deaf31b",
             "cmd": "./bin/kimchi.exe",
             "args": [
               "--mode",
@@ -1158,7 +1158,7 @@
     {
       "id": "nova",
       "name": "Nova",
-      "version": "1.1.43",
+      "version": "1.1.44",
       "description": "Nova by Compass AI - a fully-fledged software engineer at your command",
       "repository": "https://github.com/Compass-Agentic-Platform/nova",
       "website": "https://www.compassap.ai/portfolio/nova.html",
@@ -1170,7 +1170,7 @@
       "icon": "https://cdn.agentclientprotocol.com/registry/v1/latest/nova.svg",
       "distribution": {
         "npx": {
-          "package": "@compass-ai/nova@1.1.43",
+          "package": "@compass-ai/nova@1.1.44",
           "args": [
             "acp"
           ]

@@ -3,7 +3,7 @@ import {
   applyAnthropicExplicitCacheBreakpoint,
   applyOpenAIChatExplicitCacheBreakpoint,
   resolvePromptCachePlan
-} from '../../../src/main/provider/promptCacheStrategy'
+} from '@deepchat/provider/promptCacheStrategy'
 
 describe('promptCacheStrategy', () => {
   it('disables every provider cache transport for isolated requests', () => {

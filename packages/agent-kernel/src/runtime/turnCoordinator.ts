@@ -101,7 +101,7 @@ import type { DeepChatTaskContractContextPort } from '../loop/ports.js'
 import type { SessionIdentityService } from './sessionIdentityService.js'
 import { meetTaskContractToolDefinitions } from './taskContractCapability.js'
 import type { ClaimedPendingInputHandle, TurnCompletion } from './pendingInputContracts.js'
-import { createDeepSeekResponsesReplayProjector } from '../collab/provider/deepseekResponsesAdapter.js'
+import { createDeepSeekResponsesReplayProjector } from '@deepchat/shared/provider/deepseekResponsesAdapter'
 
 import {
   SkillContextMaterializer,

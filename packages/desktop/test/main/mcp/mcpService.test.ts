@@ -31,7 +31,8 @@ const semanticNotificationsMock = vi.hoisted(() => ({
   recover: vi.fn()
 }))
 
-vi.mock('../../../src/main/mcp/serverManager', () => ({
+vi.mock('@deepchat/mcp', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@deepchat/mcp')>()),
   ServerManager: vi.fn().mockImplementation(function ServerManager() {
     return {
       startServer: serverManagerMocks.startServer,

@@ -1,3 +1,4 @@
+import { createDesktopProviderHost } from '../../../src/main/provider/desktopHost'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('../../../src/main/platform/proxy', () => ({
@@ -6,7 +7,7 @@ vi.mock('../../../src/main/platform/proxy', () => ({
   }
 }))
 
-import { runAiSdkGenerateText } from '@/provider/aiSdk/runtime'
+import { runAiSdkGenerateText } from '@deepchat/provider/aiSdk/runtime'
 
 const providerSettings = {
   getAzureApiVersion: () => undefined
@@ -82,6 +83,7 @@ describe('AI SDK reasoning wire payloads', () => {
               supportsVerbosity: false,
               verbosityDefault: undefined
             },
+            host: createDesktopProviderHost({ getLanguage: () => 'en-US' }),
             providerSettings,
             defaultHeaders: {}
           },
@@ -123,6 +125,7 @@ describe('AI SDK reasoning wire payloads', () => {
             baseUrl: 'https://grok-compatible.example.com/v1',
             enable: true
           } as any,
+          host: createDesktopProviderHost({ getLanguage: () => 'en-US' }),
           providerSettings,
           defaultHeaders: {}
         },
@@ -155,6 +158,7 @@ describe('AI SDK reasoning wire payloads', () => {
             baseUrl: 'https://grok-compatible.example.com/v1',
             enable: true
           } as any,
+          host: createDesktopProviderHost({ getLanguage: () => 'en-US' }),
           providerSettings,
           defaultHeaders: {}
         },

@@ -15,7 +15,7 @@ import {
   SUMMARY_TITLES_PROMPT,
   type ProviderGenerateTextOptions
 } from '../baseProvider'
-import { normalizeToolInputSchema } from '../aiSdk/toolMapper'
+import { normalizeToolInputSchema } from '@deepchat/provider/aiSdk/toolMapper'
 import type { ProviderLocalePort } from '@deepchat/agent-kernel/collab/provider/ports'
 import { HttpsProxyAgent } from 'https-proxy-agent'
 import {
@@ -25,7 +25,7 @@ import {
 import {
   createProviderHttpErrorFromResponse,
   ProviderHttpError
-} from '@deepchat/agent-kernel/collab/provider/providerFailure'
+} from '@deepchat/shared/provider/providerFailure'
 
 // 扩展RequestInit类型以支持agent属性
 interface RequestInitWithAgent extends RequestInit {

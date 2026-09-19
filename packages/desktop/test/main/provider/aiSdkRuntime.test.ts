@@ -36,7 +36,7 @@ vi.mock('@/platform/imageCache', () => ({
   cacheImage: mockCacheImage
 }))
 
-vi.mock('@/provider/aiSdk/providerFactory', () => ({
+vi.mock('@deepchat/provider/aiSdk/providerFactory', () => ({
   createAiSdkProviderContext: mockCreateAiSdkProviderContext,
   normalizeGeminiBaseUrl: vi.fn((baseUrl?: string) => {
     const normalized = (baseUrl || '').trim().replace(/\/+$/, '')
@@ -58,10 +58,10 @@ import {
   runAiSdkDimensions,
   runAiSdkEmbeddings,
   runAiSdkGenerateText
-} from '@/provider/aiSdk/runtime'
+} from '@deepchat/provider/aiSdk/runtime'
 import { APICallError } from '@ai-sdk/provider'
-import { clearLearnedEmbeddingBatchLimits } from '@/provider/aiSdk/embeddingBatchLimits'
-import { OPENAI_COMPATIBLE_PROMPT_CACHE_MARKER } from '@/provider/promptCacheStrategy'
+import { clearLearnedEmbeddingBatchLimits } from '@deepchat/provider/aiSdk/embeddingBatchLimits'
+import { OPENAI_COMPATIBLE_PROMPT_CACHE_MARKER } from '@deepchat/provider/promptCacheStrategy'
 
 describe('AI SDK runtime', () => {
   const createProviderSettings = () => ({})
@@ -73,6 +73,7 @@ describe('AI SDK runtime', () => {
         id: 'openai',
         apiType: 'openai-compatible'
       },
+      host: { auth: {}, catalog: { getModel: () => undefined }, cacheImage: mockCacheImage },
       providerSettings: createProviderSettings(),
       defaultHeaders: {},
       ...overrides
@@ -505,6 +506,7 @@ describe('AI SDK runtime', () => {
         apiType: 'aws-bedrock',
         capabilityProviderId: 'anthropic'
       },
+      host: { auth: {}, catalog: { getModel: () => undefined }, cacheImage: mockCacheImage },
       providerSettings: createProviderSettings()
     })
 
@@ -752,6 +754,7 @@ describe('AI SDK runtime', () => {
         id: 'openai',
         apiType: 'openai-compatible'
       },
+      host: { auth: {}, catalog: { getModel: () => undefined }, cacheImage: mockCacheImage },
       providerSettings: createProviderSettings(),
       defaultHeaders: {},
       shouldUseImageGeneration: () => true
@@ -817,7 +820,8 @@ describe('AI SDK runtime', () => {
         id: 'openai',
         apiType: 'openai-compatible'
       },
-      configPresenter: {},
+      host: { auth: {}, catalog: { getModel: () => undefined }, cacheImage: mockCacheImage },
+      providerSettings: createProviderSettings(),
       defaultHeaders: {},
       shouldUseImageGeneration: () => true
     } as any
@@ -846,6 +850,7 @@ describe('AI SDK runtime', () => {
         id: 'openai',
         apiType: 'openai'
       },
+      host: { auth: {}, catalog: { getModel: () => undefined }, cacheImage: mockCacheImage },
       providerSettings: createProviderSettings(),
       defaultHeaders: {},
       shouldUseImageGeneration: () => true
@@ -877,6 +882,7 @@ describe('AI SDK runtime', () => {
         id: 'openai',
         apiType: 'openai'
       },
+      host: { auth: {}, catalog: { getModel: () => undefined }, cacheImage: mockCacheImage },
       providerSettings: createProviderSettings(),
       defaultHeaders: {},
       shouldUseImageGeneration: () => true
@@ -934,6 +940,7 @@ describe('AI SDK runtime', () => {
         id: 'new-api',
         apiType: 'new-api'
       },
+      host: { auth: {}, catalog: { getModel: () => undefined }, cacheImage: mockCacheImage },
       providerSettings: createProviderSettings(),
       defaultHeaders: {},
       shouldUseImageGeneration: () => true
@@ -983,6 +990,7 @@ describe('AI SDK runtime', () => {
         id: 'aihubmix',
         apiType: 'openai-compatible'
       },
+      host: { auth: {}, catalog: { getModel: () => undefined }, cacheImage: mockCacheImage },
       providerSettings: createProviderSettings(),
       defaultHeaders: {},
       shouldUseImageGeneration: () => true
@@ -1025,6 +1033,7 @@ describe('AI SDK runtime', () => {
         id: 'openai',
         apiType: 'openai'
       },
+      host: { auth: {}, catalog: { getModel: () => undefined }, cacheImage: mockCacheImage },
       providerSettings: createProviderSettings(),
       defaultHeaders: {},
       shouldUseImageGeneration: () => true
@@ -1104,7 +1113,8 @@ describe('AI SDK runtime', () => {
     const context = {
       providerKind: 'openai-compatible',
       provider: scenario.provider,
-      configPresenter: {},
+      host: { auth: {}, catalog: { getModel: () => undefined }, cacheImage: mockCacheImage },
+      providerSettings: createProviderSettings(),
       defaultHeaders: {},
       shouldUseTts: () => true
     } as any
@@ -1145,6 +1155,7 @@ describe('AI SDK runtime', () => {
         baseUrl: 'https://example.com/v1',
         apiKey: 'test-key'
       },
+      host: { auth: {}, catalog: { getModel: () => undefined }, cacheImage: mockCacheImage },
       providerSettings: createProviderSettings(),
       defaultHeaders: {}
     } as any
@@ -1202,6 +1213,7 @@ describe('AI SDK runtime', () => {
         baseUrl: 'https://example.com/v1',
         apiKey: 'test-key'
       },
+      host: { auth: {}, catalog: { getModel: () => undefined }, cacheImage: mockCacheImage },
       providerSettings: createProviderSettings(),
       defaultHeaders: {},
       shouldUseTts: () => true
@@ -1291,6 +1303,7 @@ describe('AI SDK runtime', () => {
         baseUrl: 'https://example.com/v1',
         apiKey: 'test-key'
       },
+      host: { auth: {}, catalog: { getModel: () => undefined }, cacheImage: mockCacheImage },
       providerSettings: createProviderSettings(),
       defaultHeaders: {},
       shouldUseTts: () => true
@@ -1359,6 +1372,7 @@ describe('AI SDK runtime', () => {
         baseUrl: 'https://example.com/v1',
         apiKey: 'test-key'
       },
+      host: { auth: {}, catalog: { getModel: () => undefined }, cacheImage: mockCacheImage },
       providerSettings: createProviderSettings(),
       defaultHeaders: {},
       shouldUseTts: () => true
@@ -1426,6 +1440,7 @@ describe('AI SDK runtime', () => {
         baseUrl: 'https://aihubmix.com/v1',
         apiKey: 'test-key'
       },
+      host: { auth: {}, catalog: { getModel: () => undefined }, cacheImage: mockCacheImage },
       providerSettings: createProviderSettings(),
       defaultHeaders: {
         'APP-Code': 'SMUE7630'
@@ -1520,7 +1535,8 @@ describe('AI SDK runtime', () => {
         baseUrl: 'https://aihubmix.com/v1',
         apiKey: 'test-key'
       },
-      configPresenter: {},
+      host: { auth: {}, catalog: { getModel: () => undefined }, cacheImage: mockCacheImage },
+      providerSettings: createProviderSettings(),
       defaultHeaders: {},
       shouldUseVideoGeneration: () => true
     } as any
@@ -1567,7 +1583,8 @@ describe('AI SDK runtime', () => {
         baseUrl: 'https://aihubmix.com/v1',
         apiKey: 'test-key'
       },
-      configPresenter: {},
+      host: { auth: {}, catalog: { getModel: () => undefined }, cacheImage: mockCacheImage },
+      providerSettings: createProviderSettings(),
       defaultHeaders: {},
       shouldUseVideoGeneration: () => true
     } as any
@@ -1635,7 +1652,8 @@ describe('AI SDK runtime', () => {
         baseUrl: 'https://aihubmix.com/v1',
         apiKey: 'test-key'
       },
-      configPresenter: {},
+      host: { auth: {}, catalog: { getModel: () => undefined }, cacheImage: mockCacheImage },
+      providerSettings: createProviderSettings(),
       defaultHeaders: {},
       shouldUseVideoGeneration: () => true
     } as any
@@ -1722,6 +1740,7 @@ describe('AI SDK runtime', () => {
           'X-Tenant-ID': 'team-a'
         }
       },
+      host: { auth: {}, catalog: { getModel: () => undefined }, cacheImage: mockCacheImage },
       providerSettings: createProviderSettings(),
       defaultHeaders: {
         'APP-Code': 'SMUE7630'
@@ -1837,6 +1856,7 @@ describe('AI SDK runtime', () => {
         baseUrl: 'https://aihubmix.com/v1',
         apiKey: 'test-key'
       },
+      host: { auth: {}, catalog: { getModel: () => undefined }, cacheImage: mockCacheImage },
       providerSettings: createProviderSettings(),
       defaultHeaders: {
         'APP-Code': 'SMUE7630'
@@ -1901,6 +1921,7 @@ describe('AI SDK runtime', () => {
         id: 'anthropic',
         apiType: 'anthropic'
       },
+      host: { auth: {}, catalog: { getModel: () => undefined }, cacheImage: mockCacheImage },
       providerSettings: createProviderSettings(),
       capabilitySnapshot: createCapabilitySnapshot('anthropic', 'claude-opus-4-7', false),
       defaultHeaders: {},
@@ -1941,6 +1962,7 @@ describe('AI SDK runtime', () => {
           id: 'aihubmix',
           apiType: 'openai-compatible'
         },
+        host: { auth: {}, catalog: { getModel: () => undefined }, cacheImage: mockCacheImage },
         providerSettings: createProviderSettings(),
         capabilitySnapshot: createCapabilitySnapshot('anthropic', modelId, false),
         defaultHeaders: {},
@@ -1982,6 +2004,7 @@ describe('AI SDK runtime', () => {
         apiType: 'anthropic',
         capabilityProviderId: 'anthropic'
       },
+      host: { auth: {}, catalog: { getModel: () => undefined }, cacheImage: mockCacheImage },
       providerSettings: createProviderSettings(),
       capabilitySnapshot: createCapabilitySnapshot('anthropic', 'claude-opus-4-8', false, {
         requestPolicy: {
@@ -2030,6 +2053,7 @@ describe('AI SDK runtime', () => {
         id: 'anthropic',
         apiType: 'anthropic'
       },
+      host: { auth: {}, catalog: { getModel: () => undefined }, cacheImage: mockCacheImage },
       providerSettings: createProviderSettings(),
       capabilitySnapshot: createCapabilitySnapshot('anthropic', 'claude-opus-4-6', true),
       defaultHeaders: {},
@@ -2063,6 +2087,7 @@ describe('AI SDK runtime', () => {
         apiType: 'new-api'
       },
       capabilitySnapshot: createCapabilitySnapshot('new-api', 'custom-model', undefined),
+      host: { auth: {}, catalog: { getModel: () => undefined }, cacheImage: mockCacheImage },
       providerSettings: createProviderSettings(),
       defaultHeaders: {},
       emitRequestTrace: vi.fn(async (_modelConfig, payload) => {
@@ -2129,6 +2154,7 @@ describe('AI SDK runtime', () => {
         apiType: 'new-api'
       },
       capabilitySnapshot,
+      host: { auth: {}, catalog: { getModel: () => undefined }, cacheImage: mockCacheImage },
       providerSettings: createProviderSettings(),
       defaultHeaders: {},
       emitRequestTrace: vi.fn(async (modelConfig, payload) => {
@@ -2200,6 +2226,7 @@ describe('AI SDK runtime', () => {
         supportsReasoningEffort: true,
         reasoningEffortDefault: 'max'
       }),
+      host: { auth: {}, catalog: { getModel: () => undefined }, cacheImage: mockCacheImage },
       providerSettings: createProviderSettings(),
       defaultHeaders: {},
       emitRequestTrace: vi.fn(async (_modelConfig, payload) => {
@@ -2266,6 +2293,7 @@ describe('AI SDK runtime', () => {
         supportsReasoningEffort: false,
         reasoningEffortDefault: undefined
       }),
+      host: { auth: {}, catalog: { getModel: () => undefined }, cacheImage: mockCacheImage },
       providerSettings: createProviderSettings(),
       defaultHeaders: {}
     } as any
@@ -2311,6 +2339,7 @@ describe('AI SDK runtime', () => {
         supportsReasoningEffort: true,
         reasoningEffortDefault: 'high'
       }),
+      host: { auth: {}, catalog: { getModel: () => undefined }, cacheImage: mockCacheImage },
       providerSettings: createProviderSettings(),
       defaultHeaders: {}
     } as any
@@ -2371,6 +2400,7 @@ describe('AI SDK runtime', () => {
         id: 'moonshot',
         apiType: 'openai-compatible'
       },
+      host: { auth: {}, catalog: { getModel: () => undefined }, cacheImage: mockCacheImage },
       providerSettings: createProviderSettings(),
       defaultHeaders: {},
       emitRequestTrace: vi.fn(async (_modelConfig, payload) => {
@@ -2403,6 +2433,7 @@ describe('AI SDK runtime', () => {
         id: 'moonshot',
         apiType: 'openai-compatible'
       },
+      host: { auth: {}, catalog: { getModel: () => undefined }, cacheImage: mockCacheImage },
       providerSettings: createProviderSettings(),
       defaultHeaders: {},
       emitRequestTrace: vi.fn(async (_modelConfig, payload) => {
@@ -2455,6 +2486,7 @@ describe('AI SDK runtime', () => {
         id: 'minimax',
         apiType: 'anthropic'
       },
+      host: { auth: {}, catalog: { getModel: () => undefined }, cacheImage: mockCacheImage },
       providerSettings: createProviderSettings(),
       defaultHeaders: {},
       emitRequestTrace: vi.fn(async (modelConfig, payload) => {
@@ -2484,6 +2516,7 @@ describe('AI SDK runtime', () => {
         id: 'minimax-cn',
         apiType: 'anthropic'
       },
+      host: { auth: {}, catalog: { getModel: () => undefined }, cacheImage: mockCacheImage },
       providerSettings: createProviderSettings(),
       defaultHeaders: {},
       emitRequestTrace: vi.fn(async (_modelConfig, payload) => {
@@ -2529,6 +2562,7 @@ describe('AI SDK runtime', () => {
         id: 'minimax',
         apiType: 'anthropic'
       },
+      host: { auth: {}, catalog: { getModel: () => undefined }, cacheImage: mockCacheImage },
       providerSettings: createProviderSettings(),
       defaultHeaders: {},
       emitRequestTrace: vi.fn(async (_modelConfig, payload) => {
@@ -2566,6 +2600,7 @@ describe('AI SDK runtime', () => {
         apiType: 'openai-completions',
         capabilityProviderId: 'anthropic'
       },
+      host: { auth: {}, catalog: { getModel: () => undefined }, cacheImage: mockCacheImage },
       providerSettings: createProviderSettings(),
       defaultHeaders: {}
     } as any

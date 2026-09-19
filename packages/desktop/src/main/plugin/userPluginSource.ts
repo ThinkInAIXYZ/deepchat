@@ -7,7 +7,7 @@ import {
   assertRegularZipEntries,
   DEFAULT_SKILL_ARCHIVE_LIMITS
 } from '@/skill/archive'
-import { createMinimalProcessEnvironment } from '@/mcp/processEnvironment'
+import { createMinimalProcessEnvironment } from '@deepchat/mcp'
 import { terminateProcessTree } from '@/agent/shared/process/processTree'
 import type { PreparedUserPlugin, UserPluginSource } from '@deepchat/shared/types/userPlugin'
 import { pluginRelativePath, readUserPluginPackage } from './userPluginPackage'

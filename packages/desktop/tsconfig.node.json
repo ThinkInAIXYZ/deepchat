@@ -14,6 +14,9 @@
     ],
     "moduleResolution": "bundler",
     "paths": {
+      "@deepchat/mcp": [
+        "../../packages/mcp/src/index.ts"
+      ],
       "@/*": [
         "./src/main/*"
       ],
@@ -409,6 +412,123 @@
       ],
       "@deepchat/shared/types/toolchains": [
         "../../packages/shared/src/types/toolchains.ts"
+      ],
+      "@deepchat/shared/provider/requestTrace": [
+        "../../packages/shared/src/provider/requestTrace.ts"
+      ],
+      "@deepchat/shared/provider/providerFailure": [
+        "../../packages/shared/src/provider/providerFailure.ts"
+      ],
+      "@deepchat/shared/provider/deepseekResponsesAdapter": [
+        "../../packages/shared/src/provider/deepseekResponsesAdapter.ts"
+      ],
+      "@deepchat/shared/provider/locale": [
+        "../../packages/shared/src/provider/locale.ts"
+      ],
+      "@deepchat/shared/provider-operations": [
+        "../../packages/shared/src/provider-operations.ts"
+      ],
+      "@deepchat/shared/providerDbCatalog": [
+        "../../packages/shared/src/providerDbCatalog.ts"
+      ],
+      "@deepchat/shared/utils/vector": [
+        "../../packages/shared/src/utils/vector.ts"
+      ],
+      "@deepchat/provider": [
+        "../../packages/provider/src/index.ts"
+      ],
+      "@deepchat/provider/baseProvider": [
+        "../../packages/provider/src/baseProvider.ts"
+      ],
+      "@deepchat/provider/ports": [
+        "../../packages/provider/src/ports.ts"
+      ],
+      "@deepchat/provider/types": [
+        "../../packages/provider/src/types.ts"
+      ],
+      "@deepchat/provider/providerDbLoader": [
+        "../../packages/provider/src/providerDbLoader.ts"
+      ],
+      "@deepchat/provider/providerRegistry": [
+        "../../packages/provider/src/providerRegistry.ts"
+      ],
+      "@deepchat/provider/providerHeaders": [
+        "../../packages/provider/src/providerHeaders.ts"
+      ],
+      "@deepchat/provider/promptCacheStrategy": [
+        "../../packages/provider/src/promptCacheStrategy.ts"
+      ],
+      "@deepchat/provider/promptCacheCapabilities": [
+        "../../packages/provider/src/promptCacheCapabilities.ts"
+      ],
+      "@deepchat/provider/providerId": [
+        "../../packages/provider/src/providerId.ts"
+      ],
+      "@deepchat/provider/providerModelFacts": [
+        "../../packages/provider/src/providerModelFacts.ts"
+      ],
+      "@deepchat/provider/capabilityIdentity": [
+        "../../packages/provider/src/capabilityIdentity.ts"
+      ],
+      "@deepchat/provider/modelCapabilities": [
+        "../../packages/provider/src/modelCapabilities.ts"
+      ],
+      "@deepchat/provider/providers/aiSdkProvider": [
+        "../../packages/provider/src/providers/aiSdkProvider.ts"
+      ],
+      "@deepchat/provider/providers/apimartProvider": [
+        "../../packages/provider/src/providers/apimartProvider.ts"
+      ],
+      "@deepchat/provider/providers/voiceAIProvider": [
+        "../../packages/provider/src/providers/voiceAIProvider.ts"
+      ],
+      "@deepchat/provider/providers/ollamaProvider": [
+        "../../packages/provider/src/providers/ollamaProvider.ts"
+      ],
+      "@deepchat/provider/managers/modelManager": [
+        "../../packages/provider/src/managers/modelManager.ts"
+      ],
+      "@deepchat/provider/managers/embeddingManager": [
+        "../../packages/provider/src/managers/embeddingManager.ts"
+      ],
+      "@deepchat/provider/managers/rateLimitManager": [
+        "../../packages/provider/src/managers/rateLimitManager.ts"
+      ],
+      "@deepchat/provider/managers/providerInstanceManager": [
+        "../../packages/provider/src/managers/providerInstanceManager.ts"
+      ],
+      "@deepchat/provider/aiSdk/runtime": [
+        "../../packages/provider/src/aiSdk/runtime.ts"
+      ],
+      "@deepchat/provider/aiSdk/providerFactory": [
+        "../../packages/provider/src/aiSdk/providerFactory.ts"
+      ],
+      "@deepchat/provider/aiSdk/providerOptionsMapper": [
+        "../../packages/provider/src/aiSdk/providerOptionsMapper.ts"
+      ],
+      "@deepchat/provider/aiSdk/streamAdapter": [
+        "../../packages/provider/src/aiSdk/streamAdapter.ts"
+      ],
+      "@deepchat/provider/aiSdk/toolMapper": [
+        "../../packages/provider/src/aiSdk/toolMapper.ts"
+      ],
+      "@deepchat/provider/aiSdk/messageMapper": [
+        "../../packages/provider/src/aiSdk/messageMapper.ts"
+      ],
+      "@deepchat/provider/aiSdk/toolProtocol": [
+        "../../packages/provider/src/aiSdk/toolProtocol.ts"
+      ],
+      "@deepchat/provider/aiSdk/embeddingBatchLimits": [
+        "../../packages/provider/src/aiSdk/embeddingBatchLimits.ts"
+      ],
+      "@deepchat/provider/aiSdk/middlewares/reasoningMiddleware": [
+        "../../packages/provider/src/aiSdk/middlewares/reasoningMiddleware.ts"
+      ],
+      "@deepchat/provider/aiSdk/middlewares/legacyFunctionCallMiddleware": [
+        "../../packages/provider/src/aiSdk/middlewares/legacyFunctionCallMiddleware.ts"
+      ],
+      "@deepchat/provider/aiSdk": [
+        "../../packages/provider/src/aiSdk/index.ts"
       ]
     }
   }

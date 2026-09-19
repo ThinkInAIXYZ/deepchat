@@ -10,7 +10,7 @@ import {
   buildProviderTraceHeaders,
   fetchWithProviderHeaders,
   MASKED_PROVIDER_CUSTOM_HEADER_VALUE
-} from '@/provider/providerHeaders'
+} from '@deepchat/provider/providerHeaders'
 
 const createProvider = (customHeaders?: ProviderCustomHeaders): LLM_PROVIDER => ({
   id: 'gateway',

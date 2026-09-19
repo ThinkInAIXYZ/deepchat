@@ -55,9 +55,8 @@ const OAUTH_AUTH_ERROR_PATTERNS = [
   'no auth provider'
 ]
 
-export const AUTH_EXTENSION_CLIENT_CREDENTIALS = 'io.modelcontextprotocol/oauth-client-credentials'
+import { AUTH_EXTENSION_CLIENT_CREDENTIALS } from '@deepchat/mcp'
 const AUTH_EXTENSION_ENTERPRISE = 'io.modelcontextprotocol/enterprise-managed-authorization'
-export const MCP_CLIENT_CREDENTIALS_DRAFT_REVISION = 'fb374c7db2b34f18ca9183882e0beecdf661892b'
 
 function createState(): string {
   return randomBytes(16).toString('base64url')

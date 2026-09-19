@@ -6,7 +6,7 @@ import {
   learnEmbeddingBatchLimit,
   refreshLearnedEmbeddingBatchLimit,
   resolveEmbeddingBatchLimit
-} from '@/provider/aiSdk/embeddingBatchLimits'
+} from '@deepchat/provider/aiSdk/embeddingBatchLimits'
 
 describe('embedding batch limits', () => {
   beforeEach(() => {

@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { RateLimitManager } from '@/provider/managers/rateLimitManager'
+import { RateLimitManager } from '@deepchat/provider/managers/rateLimitManager'
 
 const publishEvent = vi.fn()
 

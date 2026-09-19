@@ -27,7 +27,7 @@ vi.mock('@/platform/proxy', () => ({
   }
 }))
 
-vi.mock('@/mcp/mcpClient', () => ({
+vi.mock('../../../../mcp/src/client.ts', () => ({
   McpClient: vi.fn().mockImplementation(function McpClient(_name, serverConfig) {
     return {
       connect: clientMocks.connect,
@@ -42,8 +42,8 @@ vi.mock('@/mcp/mcpClient', () => ({
   McpConnectionCancelledError: clientMocks.McpConnectionCancelledError
 }))
 
-import { ServerManager } from '@/mcp/serverManager'
-import { McpClient, McpConnectionCancelledError } from '@/mcp/mcpClient'
+import { ServerManager } from '@deepchat/mcp'
+import { McpClient, McpConnectionCancelledError } from '../../../../mcp/src/client.ts'
 
 describe('ServerManager notifications and plugin isolation', () => {
   beforeEach(() => {
@@ -82,7 +82,9 @@ describe('ServerManager notifications and plugin isolation', () => {
       {} as never,
       vi.fn(),
       semanticNotificationsMock,
-      publishDeepchatEventMock
+      publishDeepchatEventMock,
+      undefined,
+      { client: {} as never, probeRegistry: vi.fn(), notifications: semanticNotificationsMock }
     )
   }
 

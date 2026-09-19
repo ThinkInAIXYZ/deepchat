@@ -38,7 +38,7 @@ vi.mock('@aws-sdk/client-bedrock', () => ({
   }
 }))
 
-vi.mock('../../../src/main/provider/aiSdk', () => ({
+vi.mock('@deepchat/provider/aiSdk', () => ({
   runAiSdkCoreStream: mockRunAiSdkCoreStream,
   runAiSdkGenerateText: mockRunAiSdkGenerateText
 }))

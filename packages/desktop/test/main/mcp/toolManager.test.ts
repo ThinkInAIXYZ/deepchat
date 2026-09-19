@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { CUA_PLUGIN_ID } from '@deepchat/shared/types/plugin'
 import { ToolManager, type ComputerUsePreviewObserver } from '@/mcp/toolManager'
 import { McpPreDispatchError } from '@/mcp/errors'
-import { validateAndCloneMcpTool } from '@/mcp/schemaValidation'
+import { validateAndCloneMcpTool } from '@deepchat/mcp'
 import type { PluginRuntimeStartReason } from '@/plugin/runtimeSupervisor'
 import * as toolPolicyStore from '@/plugin/toolPolicyStore'
 

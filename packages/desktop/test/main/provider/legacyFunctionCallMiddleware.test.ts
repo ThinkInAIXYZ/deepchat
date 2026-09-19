@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { applyLegacyFunctionCallPrompt } from '@/provider/aiSdk/middlewares/legacyFunctionCallMiddleware'
+import { applyLegacyFunctionCallPrompt } from '@deepchat/provider/aiSdk/middlewares/legacyFunctionCallMiddleware'
 
 describe('legacyFunctionCallMiddleware', () => {
   it('preserves message fields when converting non-array user content', () => {

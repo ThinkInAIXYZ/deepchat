@@ -273,7 +273,7 @@ import GrokOAuth from './GrokOAuth.vue'
 import { createProviderClient } from '@api/ProviderClient'
 import { useModelCheckStore } from '@/stores/modelCheck'
 import type { LLM_PROVIDER, KeyStatus } from '@deepchat/shared/types/provider'
-import { isProviderDbBackedProvider } from '@shared/providerDbCatalog'
+import { isProviderDbBackedProvider } from '@deepchat/shared/providerDbCatalog'
 import { notifyRenderer } from '@renderer-notifications/rendererNotificationPort'
 
 interface ProviderWebsites {

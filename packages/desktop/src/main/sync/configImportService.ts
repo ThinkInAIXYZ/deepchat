@@ -12,7 +12,7 @@ import {
   normalizeUserModelConfigEntry,
   USER_MODEL_CONFIG_MIGRATION_ID
 } from '@/provider/userModelConfig'
-import { RAW_PROVIDER_MODEL_FACTS_MIGRATION_ID } from '@/provider/providerModelFacts'
+import { RAW_PROVIDER_MODEL_FACTS_MIGRATION_ID } from '@deepchat/provider/providerModelFacts'
 import { openSQLiteDatabase } from '../data/databaseConnection'
 
 export const CURRENT_SYNC_BACKUP_VERSION = 2

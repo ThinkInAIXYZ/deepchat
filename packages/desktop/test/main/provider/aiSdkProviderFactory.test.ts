@@ -1,3 +1,4 @@
+import { createDesktopProviderHost } from '../../../src/main/provider/desktopHost'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { generateImage, generateText, streamText } from 'ai'
 
@@ -25,7 +26,7 @@ import {
   normalizeOllamaSdkHost,
   normalizeVertexRequestBody,
   normalizeVertexBaseUrl
-} from '@/provider/aiSdk/providerFactory'
+} from '@deepchat/provider/aiSdk/providerFactory'
 
 describe('AI SDK provider factory', () => {
   beforeEach(() => {
@@ -221,6 +222,7 @@ describe('AI SDK provider factory', () => {
 
   it('builds azure responses endpoints without duplicating v1 segments', () => {
     const context = createAiSdkProviderContext({
+      auth: createDesktopProviderHost({ getLanguage: () => 'en-US' }).auth,
       providerKind: 'azure',
       provider: {
         id: 'azure-openai',
@@ -272,6 +274,7 @@ describe('AI SDK provider factory', () => {
     })
 
     const context = createAiSdkProviderContext({
+      auth: createDesktopProviderHost({ getLanguage: () => 'en-US' }).auth,
       providerKind: 'openai-codex',
       provider: {
         id: 'openai-codex',
@@ -313,6 +316,7 @@ describe('AI SDK provider factory', () => {
 
   it('uses deployment ids from azure deployment-scoped urls', () => {
     const context = createAiSdkProviderContext({
+      auth: createDesktopProviderHost({ getLanguage: () => 'en-US' }).auth,
       providerKind: 'azure',
       provider: {
         id: 'azure-openai',
@@ -377,6 +381,7 @@ describe('AI SDK provider factory', () => {
       vi.stubGlobal('AI_SDK_LOG_WARNINGS', warningLogger)
 
       const context = createAiSdkProviderContext({
+        auth: createDesktopProviderHost({ getLanguage: () => 'en-US' }).auth,
         providerKind: 'openai-compatible',
         provider: {
           id: providerId,
@@ -589,6 +594,7 @@ describe('AI SDK provider factory', () => {
     'keeps the %s provider factory branch stable',
     (_label, providerKind, provider, providerOptionsKey, apiType, endpoint) => {
       const context = createAiSdkProviderContext({
+        auth: createDesktopProviderHost({ getLanguage: () => 'en-US' }).auth,
         providerKind: providerKind as any,
         provider: provider as any,
         providerSettings: {
@@ -607,6 +613,7 @@ describe('AI SDK provider factory', () => {
 
   it('maps Kimi For Coding Anthropic aliases to the stable upstream model ID', () => {
     const context = createAiSdkProviderContext({
+      auth: createDesktopProviderHost({ getLanguage: () => 'en-US' }).auth,
       providerKind: 'anthropic',
       provider: {
         id: 'kimi-for-coding',
@@ -643,6 +650,7 @@ describe('AI SDK provider factory', () => {
     vi.stubGlobal('fetch', fetchMock)
 
     const context = createAiSdkProviderContext({
+      auth: createDesktopProviderHost({ getLanguage: () => 'en-US' }).auth,
       providerKind: 'gemini',
       provider: {
         id: 'new-api',
@@ -698,6 +706,7 @@ describe('AI SDK provider factory', () => {
     vi.stubGlobal('fetch', fetchMock)
 
     const context = createAiSdkProviderContext({
+      auth: createDesktopProviderHost({ getLanguage: () => 'en-US' }).auth,
       providerKind: 'gemini',
       provider: {
         id: 'apimart',
@@ -767,6 +776,7 @@ describe('AI SDK provider factory', () => {
     vi.stubGlobal('fetch', fetchMock)
 
     const context = createAiSdkProviderContext({
+      auth: createDesktopProviderHost({ getLanguage: () => 'en-US' }).auth,
       providerKind: 'openai-compatible',
       provider: {
         id: 'ollama',

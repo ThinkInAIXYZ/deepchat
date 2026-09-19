@@ -16,8 +16,7 @@ import {
   type ToolCallResult
 } from '@deepchat/shared/types/mcp'
 import type { AgentSettingsPort } from '@/agent/settings'
-import { ServerManager } from './serverManager'
-import { McpClient } from './mcpClient'
+import { ServerManager, McpClient } from '@deepchat/mcp'
 import { jsonrepair } from 'jsonrepair'
 import { getExplicitlyDeniedPluginTools, resolvePluginToolPolicy } from '@/plugin/toolPolicyStore'
 import type { DeepchatEventPublisher } from '@deepchat/shared/contracts/events'
@@ -36,7 +35,7 @@ import type {
 } from '@/plugin/runtimeSupervisor'
 import { createPersistedMcpToolResult, getToolVisibility } from './resultProjection'
 import { resolveCachedImageDataUrl as resolveCachedImageDataUrlFromDisk } from '@/platform/imageCache'
-import { findJsonValueDifference, type JsonValueDifference } from './schemaValidation'
+import { findJsonValueDifference, type JsonValueDifference } from '@deepchat/mcp'
 import { types as nodeTypes } from 'node:util'
 import { McpPreDispatchError, type McpPreDispatchErrorCode } from './errors'
 

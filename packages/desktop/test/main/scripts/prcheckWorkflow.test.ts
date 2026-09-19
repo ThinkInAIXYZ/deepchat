@@ -254,7 +254,7 @@ describe('PR Check workflow contracts', () => {
       if: 'always()',
       with: {
         name: 'memory-retrieval-v1',
-        path: 'test-results/memory/retrieval-v1.json',
+        path: 'packages/desktop/test-results/memory/retrieval-v1.json',
         'if-no-files-found': 'error'
       }
     })

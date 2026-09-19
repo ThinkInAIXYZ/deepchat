@@ -3,7 +3,7 @@ import { ModelType } from '@deepchat/shared/model'
 import {
   hasPersistedDerivedProviderModelFields,
   stripDerivedProviderModelFields
-} from '@/provider/providerModelFacts'
+} from '@deepchat/provider/providerModelFacts'
 import type { MODEL_META } from '@deepchat/shared/types/provider'
 
 const createModel = (providerId: string): MODEL_META => ({

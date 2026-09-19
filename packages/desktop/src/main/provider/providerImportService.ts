@@ -23,7 +23,7 @@ import {
   type ProviderImportSourceId,
   type ProviderImportSourceScan
 } from '@deepchat/shared/providerImport'
-import type { ProviderChange } from '@shared/provider-operations'
+import type { ProviderChange } from '@deepchat/shared/provider-operations'
 
 type SourceDefinition = {
   id: ProviderImportSourceId

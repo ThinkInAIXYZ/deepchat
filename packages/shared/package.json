@@ -512,6 +512,34 @@
     "./types/toolchains": {
       "types": "./dist/types/toolchains.d.ts",
       "import": "./dist/types/toolchains.js"
+    },
+    "./provider/requestTrace": {
+      "types": "./dist/provider/requestTrace.d.ts",
+      "import": "./dist/provider/requestTrace.js"
+    },
+    "./provider/providerFailure": {
+      "types": "./dist/provider/providerFailure.d.ts",
+      "import": "./dist/provider/providerFailure.js"
+    },
+    "./provider/deepseekResponsesAdapter": {
+      "types": "./dist/provider/deepseekResponsesAdapter.d.ts",
+      "import": "./dist/provider/deepseekResponsesAdapter.js"
+    },
+    "./provider/locale": {
+      "types": "./dist/provider/locale.d.ts",
+      "import": "./dist/provider/locale.js"
+    },
+    "./provider-operations": {
+      "types": "./dist/provider-operations.d.ts",
+      "import": "./dist/provider-operations.js"
+    },
+    "./providerDbCatalog": {
+      "types": "./dist/providerDbCatalog.d.ts",
+      "import": "./dist/providerDbCatalog.js"
+    },
+    "./utils/vector": {
+      "types": "./dist/utils/vector.d.ts",
+      "import": "./dist/utils/vector.js"
     }
   },
   "files": [

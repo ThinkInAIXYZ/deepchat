@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { generateText, modelMessageSchema } from 'ai'
 import { MockLanguageModelV4 } from 'ai/test'
-import { mapMessagesToModelMessages } from '@/provider/aiSdk/messageMapper'
+import { mapMessagesToModelMessages } from '@deepchat/provider/aiSdk/messageMapper'
 
 function convertToOpenAICompatibleChatMessagesForTest(messages: any[]) {
   return messages.map((message) => {

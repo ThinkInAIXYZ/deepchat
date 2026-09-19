@@ -34,15 +34,15 @@ import {
 } from '@deepchat/shared/types/mcp'
 import type { ToolCallImagePreview } from '@deepchat/shared/types/core/mcp'
 import type { ProviderRuntimePort } from '@deepchat/shared/types/provider'
-import { ServerManager } from './serverManager'
-import type { McpClient as RuntimeMcpClient } from './mcpClient'
+import { ServerManager, type McpClient as RuntimeMcpClient } from '@deepchat/mcp'
+import { createMcpManagerHost } from './runtimeAdapter'
 import { ToolManager, type ComputerUsePreviewObserver } from './toolManager'
 import { McpRouterManager } from './mcprouterManager'
 import {
   AUTH_EXTENSION_CLIENT_CREDENTIALS,
-  MCP_CLIENT_CREDENTIALS_DRAFT_REVISION,
-  McpOAuthManager
-} from './mcpOAuthManager'
+  MCP_CLIENT_CREDENTIALS_DRAFT_REVISION
+} from '@deepchat/mcp'
+import { McpOAuthManager } from './mcpOAuthManager'
 import { prepareToolCallImageContent } from '@/lib/toolCallImagePreviews'
 import type { InMemoryServerFactory } from './inMemoryServers/builder'
 import type { PromptSettings } from '@/agent/promptSettings'
@@ -56,7 +56,7 @@ import type { PermissionMode } from '@deepchat/shared/types/agent-interface'
 import type { ToolPermissionBroker } from '@/tool/permission'
 import type { McpAppSandboxRegistry } from './apps/sandboxRegistry'
 import { McpAppHost } from './apps/appHost'
-import { hasMcpIdentityBearingChange } from './serverIdentity'
+import { hasMcpIdentityBearingChange } from '@deepchat/mcp'
 import type { CacheImageOptions } from '@/platform/imageCache'
 import { awaitWithAbort } from '@deepchat/agent-kernel/collab/lib/awaitWithAbort'
 import { childProcessRegistry } from '@/agent/shared/process/childProcessRegistry'
@@ -232,7 +232,8 @@ export class McpService implements McpServicePort {
       () => this.handleRegistryChanged(),
       semanticNotifications,
       this.publishEvent,
-      this.mcpOAuthManager
+      this.mcpOAuthManager,
+      createMcpManagerHost(semanticNotifications)
     )
     this.toolManager = new ToolManager(
       agentSettings,

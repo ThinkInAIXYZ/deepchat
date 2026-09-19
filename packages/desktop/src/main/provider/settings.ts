@@ -7,7 +7,7 @@ import type {
   RENDERER_MODEL_META,
   IModelConfig
 } from '@deepchat/shared/types/provider'
-import { ProviderBatchUpdate } from '@shared/provider-operations'
+import { ProviderBatchUpdate } from '@deepchat/shared/provider-operations'
 import {
   ModelType,
   isNewApiEndpointType,
@@ -38,7 +38,7 @@ import {
   PROVIDER_MODELS_DIR,
   type ProviderModelRouteMetadata
 } from '@/provider/providerModelHelper'
-import { stripDerivedProviderModelFields } from '@/provider/providerModelFacts'
+import { stripDerivedProviderModelFields } from '@deepchat/provider/providerModelFacts'
 import { DEFAULT_SYSTEM_PROMPT } from '@/agent/promptSettings'
 import type { ProviderDatabase } from './data/database'
 import type { CapabilitySnapshotResolutionInput } from '@deepchat/agent-kernel/contracts/providerModelResolution'
@@ -71,7 +71,7 @@ import {
   getMoonshotKimiTemperaturePolicy,
   isMiniMaxM3AdaptiveThinkingModel
 } from '@deepchat/shared/modelRequestPolicy'
-import { resolveDeepSeekResponsesRoute } from '@deepchat/agent-kernel/collab/provider/deepseekResponsesAdapter'
+import { resolveDeepSeekResponsesRoute } from '@deepchat/shared/provider/deepseekResponsesAdapter'
 
 // Create interface for model storage
 const defaultProviders = DEFAULT_PROVIDERS.map((provider) => ({

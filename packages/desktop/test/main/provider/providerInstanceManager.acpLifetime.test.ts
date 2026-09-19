@@ -3,7 +3,7 @@ import type { LLM_PROVIDER } from '@deepchat/shared/types/provider'
 import type { AcpClientRuntime } from '@/agent/acp/client'
 import { AcpRuntimeOwner } from '@/agent/acp/client/acpRuntimeOwner'
 import { ProviderInstanceManager } from '@/provider/managers/providerInstanceManager'
-import { RateLimitManager } from '@/provider/managers/rateLimitManager'
+import { RateLimitManager } from '@deepchat/provider/managers/rateLimitManager'
 
 vi.mock('electron', () => ({
   app: {

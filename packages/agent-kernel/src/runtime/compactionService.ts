@@ -33,7 +33,7 @@ import {
   SUMMARY_UNAVAILABLE_REASON,
   type SummaryGapReason
 } from './contextContributions.js'
-import { createDeepSeekResponsesReplayProjector } from '../collab/provider/deepseekResponsesAdapter.js'
+import { createDeepSeekResponsesReplayProjector } from '@deepchat/shared/provider/deepseekResponsesAdapter'
 import { redactRuntimeErrorForLog } from './runtimeErrorLogging.js'
 import { type ProviderModelResolutionPort } from '../contracts/providerModelResolution.js'
 import { type TranscriptStorePort } from '../contracts/transcriptStore.js'

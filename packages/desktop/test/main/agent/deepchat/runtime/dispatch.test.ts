@@ -45,7 +45,7 @@ import {
   IMAGE_GENERATION_TOOL_SERVER_NAME
 } from '@deepchat/shared/agentImageGenerationTool'
 import { resolveToolOffloadPath } from '@deepchat/agent-kernel/collab/agent-shared/storage/sessionPaths'
-import { createDeepSeekResponsesReplayProjector } from '@deepchat/agent-kernel/collab/provider/deepseekResponsesAdapter'
+import { createDeepSeekResponsesReplayProjector } from '@deepchat/shared/provider/deepseekResponsesAdapter'
 import type {
   ExecutionJournalWriter,
   NestedExecutionJournalWriter

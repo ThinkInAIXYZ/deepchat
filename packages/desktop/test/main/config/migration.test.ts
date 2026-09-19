@@ -10,7 +10,7 @@ import type { AgentCatalogSettingsTable } from '@/agent/acp/catalog/data/setting
 import { SettingsStore } from '@/config/settingsStore'
 import type { StoreLike } from '@/config/storeLike'
 import { migrateConfigStorage } from '@/config/migration'
-import { RAW_PROVIDER_MODEL_FACTS_MIGRATION_ID } from '@/provider/providerModelFacts'
+import { RAW_PROVIDER_MODEL_FACTS_MIGRATION_ID } from '@deepchat/provider/providerModelFacts'
 import { USER_MODEL_CONFIG_MIGRATION_ID } from '@/provider/userModelConfig'
 
 const electronStores = vi.hoisted(() => new Map<string, Record<string, unknown>>())

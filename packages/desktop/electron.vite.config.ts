@@ -1,3 +1,4 @@
+import { providerSourceAliases } from '../../scripts/provider-source-aliases.mjs'
 import { sharedSourceAliases } from '../../scripts/shared-source-aliases.mjs'
 import { fileURLToPath } from 'node:url'
 import { defineConfig } from 'electron-vite'
@@ -20,7 +21,7 @@ export default defineConfig({
   main: {
     resolve: {
       alias: [
-        ...Object.entries(sharedSourceAliases).map(([find, replacement]) => ({
+        ...Object.entries({ ...sharedSourceAliases, ...providerSourceAliases }).map(([find, replacement]) => ({
           find: new RegExp(`^${find}$`),
           replacement
         })),
@@ -31,12 +32,20 @@ export default defineConfig({
           replacement: path.join(workspaceRoot, 'packages', 'cli', 'src', 'launcher.mjs')
         },
         // Workspace kernel package compiles from source in the app build
-        { find: '@deepchat/agent-kernel', replacement: path.join(workspaceRoot, 'packages', 'agent-kernel', 'src') }
+        { find: '@deepchat/agent-kernel', replacement: path.join(workspaceRoot, 'packages', 'agent-kernel', 'src') },
+        { find: '@deepchat/mcp', replacement: path.join(workspaceRoot, 'packages', 'mcp', 'src', 'index.ts') }
       ]
     },
     build: {
       externalizeDeps: {
-        exclude: ['mermaid', '@deepchat/agent-kernel', '@deepchat/cli', '@deepchat/shared']
+        exclude: [
+          'mermaid',
+          '@deepchat/agent-kernel',
+          '@deepchat/cli',
+          '@deepchat/mcp',
+          '@deepchat/provider',
+          '@deepchat/shared'
+        ]
       },
       rollupOptions: {
         input: {

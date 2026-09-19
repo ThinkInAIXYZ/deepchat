@@ -4,7 +4,7 @@ import {
   findJsonValueDifference,
   validateAndCloneJsonSchema,
   validateAndCloneMcpTool
-} from '@/mcp/schemaValidation'
+} from '@deepchat/mcp'
 
 describe('MCP schema validation', () => {
   it('preserves bounded 2020-12 schemas without mutating the server value', () => {

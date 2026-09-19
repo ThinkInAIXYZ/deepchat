@@ -1,3 +1,4 @@
+import { providerSourceAliases } from '../../scripts/provider-source-aliases.mjs'
 import { sharedSourceAliases } from '../../scripts/shared-source-aliases.mjs'
 import { defineConfig } from 'vitest/config'
 import { dirname, resolve } from 'path'
@@ -35,7 +36,7 @@ const rootScriptResolverPlugin = () => ({
 const TEST_TIMEOUT_MS = 10000
 const TEST_MAX_WORKERS = 2
 const publicSharedSourceAliases = () =>
-  Object.entries(sharedSourceAliases).map(([find, replacement]) => ({
+  Object.entries({ ...sharedSourceAliases, ...providerSourceAliases }).map(([find, replacement]) => ({
     find: new RegExp(`^${find}$`),
     replacement
   }))
@@ -115,6 +116,7 @@ export default defineConfig({
             },
             // Workspace kernel package resolves to its source so tests need no prior build
             { find: '@deepchat/agent-kernel', replacement: KERNEL_PACKAGE_SRC },
+            { find: '@deepchat/mcp', replacement: fromWorkspaceRoot('packages/mcp/src/index.ts') },
             { find: 'electron', replacement: fromAppRoot('test/mocks/electron.ts') },
             { find: '@electron-toolkit/utils', replacement: fromAppRoot('test/mocks/electron-toolkit-utils.ts') }
           ]

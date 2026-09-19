@@ -11,7 +11,7 @@ import path from 'path'
 import type { StoreLike } from '@/config/storeLike'
 import type { DeepchatEventPublisher } from '@deepchat/shared/contracts/events'
 import { emitModelsChanged } from './eventPublishers'
-import { stripDerivedProviderModelFields } from './providerModelFacts'
+import { stripDerivedProviderModelFields } from '@deepchat/provider/providerModelFacts'
 
 export interface IModelStore {
   models: MODEL_META[]

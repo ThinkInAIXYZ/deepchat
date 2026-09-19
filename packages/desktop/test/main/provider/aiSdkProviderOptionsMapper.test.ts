@@ -15,18 +15,19 @@ vi.mock('@/provider/providerDbLoader', () => ({
 import {
   buildProviderOptions as buildProviderOptionsImpl,
   type BuildProviderOptionsParams
-} from '@/provider/aiSdk/providerOptionsMapper'
-import { OPENAI_COMPATIBLE_PROMPT_CACHE_MARKER } from '@/provider/promptCacheStrategy'
+} from '@deepchat/provider/aiSdk/providerOptionsMapper'
+import { OPENAI_COMPATIBLE_PROMPT_CACHE_MARKER } from '@deepchat/provider/promptCacheStrategy'
 import { resolveModelRequestPolicy } from '@deepchat/shared/modelRequestPolicy'
 
 type ProviderOptionsTestParams = Omit<
   BuildProviderOptionsParams,
-  'requestPolicy' | 'reasoningPortrait'
+  'requestPolicy' | 'reasoningPortrait' | 'catalog'
 > &
   Partial<Pick<BuildProviderOptionsParams, 'requestPolicy' | 'reasoningPortrait'>>
 
 const buildProviderOptions = (params: ProviderOptionsTestParams) =>
   buildProviderOptionsImpl({
+    catalog: { getModel: mockGetModel },
     ...params,
     requestPolicy:
       params.requestPolicy ??

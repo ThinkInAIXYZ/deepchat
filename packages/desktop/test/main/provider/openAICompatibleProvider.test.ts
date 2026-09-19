@@ -37,7 +37,7 @@ vi.mock('../../../src/main/platform/proxy', () => ({
   }
 }))
 
-vi.mock('../../../src/main/provider/aiSdk', () => ({
+vi.mock('@deepchat/provider/aiSdk', () => ({
   runAiSdkCoreStream: mockRunAiSdkCoreStream,
   runAiSdkDimensions: mockRunAiSdkDimensions,
   runAiSdkEmbeddings: mockRunAiSdkEmbeddings,

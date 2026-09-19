@@ -70,7 +70,7 @@ import {
   type DeepchatRouteMap,
   type RouteContext
 } from '@/routes/routeRegistry'
-import { assertBoundedMcpJson } from './schemaValidation'
+import { assertBoundedMcpJson } from '@deepchat/mcp'
 
 const MCP_APP_ROUTE_INPUT_MAX_BYTES = 3 * 1024 * 1024
 

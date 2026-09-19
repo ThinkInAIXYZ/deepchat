@@ -5,7 +5,7 @@ import {
   extractProviderFailureMetadata,
   ProviderHttpError,
   sanitizeProviderFailureMetadata
-} from '@deepchat/agent-kernel/collab/provider/providerFailure'
+} from '@deepchat/shared/provider/providerFailure'
 
 describe('provider failure metadata', () => {
   it('extracts retry signals without retaining unsafe AI SDK error fields', () => {

@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { LLM_PROVIDER, ModelConfig } from '@deepchat/shared/types/provider'
 import { ApiEndpointType, ModelType } from '@deepchat/shared/model'
 import { AiSdkProvider } from '../../../src/main/provider/providers/aiSdkProvider'
-import { resolveAiSdkProviderDefinition } from '../../../src/main/provider/providerRegistry'
+import { resolveAiSdkProviderDefinition } from '@deepchat/provider/providerRegistry'
 import { modelCapabilities } from '../../../src/main/provider/modelCapabilities'
 
 const { mockRunAiSdkCoreStream } = vi.hoisted(() => ({
@@ -38,7 +38,7 @@ vi.mock('../../../src/main/platform/proxy', () => ({
   }
 }))
 
-vi.mock('../../../src/main/provider/aiSdk', () => ({
+vi.mock('@deepchat/provider/aiSdk', () => ({
   runAiSdkCoreStream: mockRunAiSdkCoreStream,
   runAiSdkDimensions: vi.fn(),
   runAiSdkEmbeddings: vi.fn(),

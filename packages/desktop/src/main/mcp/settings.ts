@@ -8,14 +8,14 @@ import { compare } from 'compare-versions'
 import { isBuiltinKnowledgeSupported } from '../knowledge/support'
 import type { StoreLike } from '../config/storeLike'
 import type { SecretStore } from '../config/secretStore'
-import { mcpVariableBindingScope } from './environmentBindings'
+import { mcpVariableBindingScope } from '@deepchat/mcp'
 import type { McpDatabase } from './data/database'
 import { McpDbStore } from './settingsDbStore'
 import {
   computeMcpBindingHash,
   normalizeMcpServerIdentity,
   sanitizeMcpAuthorizationConfig
-} from './serverIdentity'
+} from '@deepchat/mcp'
 
 // NPM Registry cache interface
 export interface INpmRegistryCache {

@@ -1,0 +1,164 @@
+{
+  "name": "@deepchat/provider",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "files": [
+    "dist"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./baseProvider": {
+      "types": "./dist/baseProvider.d.ts",
+      "import": "./dist/baseProvider.js"
+    },
+    "./ports": {
+      "types": "./dist/ports.d.ts",
+      "import": "./dist/ports.js"
+    },
+    "./types": {
+      "types": "./dist/types.d.ts",
+      "import": "./dist/types.js"
+    },
+    "./providerDbLoader": {
+      "types": "./dist/providerDbLoader.d.ts",
+      "import": "./dist/providerDbLoader.js"
+    },
+    "./providerRegistry": {
+      "types": "./dist/providerRegistry.d.ts",
+      "import": "./dist/providerRegistry.js"
+    },
+    "./providerHeaders": {
+      "types": "./dist/providerHeaders.d.ts",
+      "import": "./dist/providerHeaders.js"
+    },
+    "./promptCacheStrategy": {
+      "types": "./dist/promptCacheStrategy.d.ts",
+      "import": "./dist/promptCacheStrategy.js"
+    },
+    "./promptCacheCapabilities": {
+      "types": "./dist/promptCacheCapabilities.d.ts",
+      "import": "./dist/promptCacheCapabilities.js"
+    },
+    "./providerId": {
+      "types": "./dist/providerId.d.ts",
+      "import": "./dist/providerId.js"
+    },
+    "./providerModelFacts": {
+      "types": "./dist/providerModelFacts.d.ts",
+      "import": "./dist/providerModelFacts.js"
+    },
+    "./capabilityIdentity": {
+      "types": "./dist/capabilityIdentity.d.ts",
+      "import": "./dist/capabilityIdentity.js"
+    },
+    "./modelCapabilities": {
+      "types": "./dist/modelCapabilities.d.ts",
+      "import": "./dist/modelCapabilities.js"
+    },
+    "./providers/aiSdkProvider": {
+      "types": "./dist/providers/aiSdkProvider.d.ts",
+      "import": "./dist/providers/aiSdkProvider.js"
+    },
+    "./providers/apimartProvider": {
+      "types": "./dist/providers/apimartProvider.d.ts",
+      "import": "./dist/providers/apimartProvider.js"
+    },
+    "./providers/voiceAIProvider": {
+      "types": "./dist/providers/voiceAIProvider.d.ts",
+      "import": "./dist/providers/voiceAIProvider.js"
+    },
+    "./providers/ollamaProvider": {
+      "types": "./dist/providers/ollamaProvider.d.ts",
+      "import": "./dist/providers/ollamaProvider.js"
+    },
+    "./managers/modelManager": {
+      "types": "./dist/managers/modelManager.d.ts",
+      "import": "./dist/managers/modelManager.js"
+    },
+    "./managers/embeddingManager": {
+      "types": "./dist/managers/embeddingManager.d.ts",
+      "import": "./dist/managers/embeddingManager.js"
+    },
+    "./managers/rateLimitManager": {
+      "types": "./dist/managers/rateLimitManager.d.ts",
+      "import": "./dist/managers/rateLimitManager.js"
+    },
+    "./managers/providerInstanceManager": {
+      "types": "./dist/managers/providerInstanceManager.d.ts",
+      "import": "./dist/managers/providerInstanceManager.js"
+    },
+    "./aiSdk/runtime": {
+      "types": "./dist/aiSdk/runtime.d.ts",
+      "import": "./dist/aiSdk/runtime.js"
+    },
+    "./aiSdk/providerFactory": {
+      "types": "./dist/aiSdk/providerFactory.d.ts",
+      "import": "./dist/aiSdk/providerFactory.js"
+    },
+    "./aiSdk/providerOptionsMapper": {
+      "types": "./dist/aiSdk/providerOptionsMapper.d.ts",
+      "import": "./dist/aiSdk/providerOptionsMapper.js"
+    },
+    "./aiSdk/streamAdapter": {
+      "types": "./dist/aiSdk/streamAdapter.d.ts",
+      "import": "./dist/aiSdk/streamAdapter.js"
+    },
+    "./aiSdk/toolMapper": {
+      "types": "./dist/aiSdk/toolMapper.d.ts",
+      "import": "./dist/aiSdk/toolMapper.js"
+    },
+    "./aiSdk/messageMapper": {
+      "types": "./dist/aiSdk/messageMapper.d.ts",
+      "import": "./dist/aiSdk/messageMapper.js"
+    },
+    "./aiSdk/toolProtocol": {
+      "types": "./dist/aiSdk/toolProtocol.d.ts",
+      "import": "./dist/aiSdk/toolProtocol.js"
+    },
+    "./aiSdk/embeddingBatchLimits": {
+      "types": "./dist/aiSdk/embeddingBatchLimits.d.ts",
+      "import": "./dist/aiSdk/embeddingBatchLimits.js"
+    },
+    "./aiSdk/middlewares/reasoningMiddleware": {
+      "types": "./dist/aiSdk/middlewares/reasoningMiddleware.d.ts",
+      "import": "./dist/aiSdk/middlewares/reasoningMiddleware.js"
+    },
+    "./aiSdk/middlewares/legacyFunctionCallMiddleware": {
+      "types": "./dist/aiSdk/middlewares/legacyFunctionCallMiddleware.d.ts",
+      "import": "./dist/aiSdk/middlewares/legacyFunctionCallMiddleware.js"
+    },
+    "./aiSdk": {
+      "types": "./dist/aiSdk/index.d.ts",
+      "import": "./dist/aiSdk/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@ai-sdk/amazon-bedrock": "^5.0.78",
+    "@ai-sdk/anthropic": "^4.0.50",
+    "@ai-sdk/azure": "^4.0.65",
+    "@ai-sdk/google": "^4.0.65",
+    "@ai-sdk/google-vertex": "^5.0.77",
+    "@ai-sdk/open-responses": "^2.0.40",
+    "@ai-sdk/openai": "^4.0.62",
+    "@ai-sdk/openai-compatible": "^3.0.45",
+    "@ai-sdk/provider": "^4.0.11",
+    "@aws-sdk/client-bedrock": "^3.1128.0",
+    "@aws-sdk/credential-providers": "^3.1128.0",
+    "@deepchat/shared": "workspace:*",
+    "@types/json-schema": "7.0.15",
+    "ai": "^7.0.94",
+    "jsonrepair": "^3.15.0",
+    "ollama": "^0.6.3"
+  },
+  "devDependencies": {
+    "@types/node": "^24.13.3"
+  }
+}

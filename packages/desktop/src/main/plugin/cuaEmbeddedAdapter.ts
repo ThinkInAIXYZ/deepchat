@@ -1,5 +1,5 @@
 import { terminateProcessTree, terminateProcessTreeByPid } from '@/agent/shared/process/processTree'
-import { createMinimalProcessEnvironment } from '@/mcp/processEnvironment'
+import { createMinimalProcessEnvironment } from '@deepchat/mcp'
 import type { MCPServerConfig } from '@deepchat/shared/types/mcp'
 import { CUA_PLUGIN_ID, type CuaEmbeddedRuntimeContract } from '@deepchat/shared/types/plugin'
 import { spawn, type ChildProcess, type SpawnOptions } from 'node:child_process'

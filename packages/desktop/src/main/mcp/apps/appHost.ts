@@ -18,7 +18,7 @@ import type {
   ToolCallResult
 } from '@deepchat/shared/types/mcp'
 import type { McpSettings } from '../settings'
-import type { ServerManager } from '../serverManager'
+import type { ServerManager } from '@deepchat/mcp'
 import { getToolUiResourceUri, getToolVisibility } from '../resultProjection'
 import type { ToolPermissionBroker } from '@/tool/permission'
 import type {
@@ -27,7 +27,7 @@ import type {
   McpAppRouteContext
 } from './sandboxRegistry'
 import { MCP_APP_SCHEME } from './sandboxRegistry'
-import { assertBoundedMcpJson } from '../schemaValidation'
+import { assertBoundedMcpJson } from '@deepchat/mcp'
 import { resolvePluginToolPolicy } from '@/plugin/toolPolicyStore'
 
 const MCP_APP_RESOURCE_MIME_TYPE = 'text/html;profile=mcp-app'

@@ -135,6 +135,12 @@ importers:
       '@deepchat/cli':
         specifier: workspace:*
         version: link:../cli
+      '@deepchat/mcp':
+        specifier: workspace:*
+        version: link:../mcp
+      '@deepchat/provider':
+        specifier: workspace:*
+        version: link:../provider
       '@deepchat/shared':
         specifier: workspace:*
         version: link:../shared
@@ -530,6 +536,80 @@ importers:
       '@opendal/lib-win32-x64-msvc':
         specifier: 0.49.9
         version: 0.49.9
+
+  packages/mcp:
+    dependencies:
+      '@deepchat/shared':
+        specifier: workspace:*
+        version: link:../shared
+      '@modelcontextprotocol/client':
+        specifier: 2.0.0
+        version: 2.0.0
+      '@modelcontextprotocol/sdk':
+        specifier: 1.30.0
+        version: 1.30.0(zod@4.5.4)
+    devDependencies:
+      '@types/node':
+        specifier: ^24.13.3
+        version: 24.13.3
+      vitest:
+        specifier: ^4.1.11
+        version: 4.1.11(@types/node@24.13.3)(@vitest/coverage-v8@4.1.11)(@vitest/ui@4.1.11)(jsdom@26.1.0)(vite@7.3.6(@types/node@24.13.3)(jiti@2.7.0)(lightningcss@1.32.0)(yaml@2.9.0))
+
+  packages/provider:
+    dependencies:
+      '@ai-sdk/amazon-bedrock':
+        specifier: ^5.0.78
+        version: 5.0.78(zod@4.5.4)
+      '@ai-sdk/anthropic':
+        specifier: ^4.0.50
+        version: 4.0.50(zod@4.5.4)
+      '@ai-sdk/azure':
+        specifier: ^4.0.65
+        version: 4.0.65(zod@4.5.4)
+      '@ai-sdk/google':
+        specifier: ^4.0.65
+        version: 4.0.65(zod@4.5.4)
+      '@ai-sdk/google-vertex':
+        specifier: ^5.0.77
+        version: 5.0.77(zod@4.5.4)
+      '@ai-sdk/open-responses':
+        specifier: ^2.0.40
+        version: 2.0.40(zod@4.5.4)
+      '@ai-sdk/openai':
+        specifier: ^4.0.62
+        version: 4.0.62(zod@4.5.4)
+      '@ai-sdk/openai-compatible':
+        specifier: ^3.0.45
+        version: 3.0.45(zod@4.5.4)
+      '@ai-sdk/provider':
+        specifier: ^4.0.11
+        version: 4.0.11
+      '@aws-sdk/client-bedrock':
+        specifier: ^3.1128.0
+        version: 3.1128.0
+      '@aws-sdk/credential-providers':
+        specifier: ^3.1128.0
+        version: 3.1128.0
+      '@deepchat/shared':
+        specifier: workspace:*
+        version: link:../shared
+      '@types/json-schema':
+        specifier: 7.0.15
+        version: 7.0.15
+      ai:
+        specifier: ^7.0.94
+        version: 7.0.94(zod@4.5.4)
+      jsonrepair:
+        specifier: ^3.15.0
+        version: 3.15.0
+      ollama:
+        specifier: ^0.6.3
+        version: 0.6.3
+    devDependencies:
+      '@types/node':
+        specifier: ^24.13.3
+        version: 24.13.3
 
   packages/shared:
     dependencies:
@@ -3101,6 +3181,9 @@ packages:
 
   '@types/http-cache-semantics@4.2.0':
     resolution: {integrity: sha512-L3LgimLHXtGkWikKnsPg0/VFx9OGZaC+eN1u4r+OB1XRqH3meBIAVC2zr1WdMH+RHmnRkqliQAOHNJ/E0j/e0Q==}
+
+  '@types/json-schema@7.0.15':
+    resolution: {integrity: sha512-5+fP8P8MFNC+AyZCDxrB2pkZFPGzqQWUzpSeuuVLvm8VMcorNYavBqoFcxK8bQz4Qsbn4oUEEem4wDLfcysGHA==}
 
   '@types/jsonfile@6.1.4':
     resolution: {integrity: sha512-D5qGUYwjvnNNextdU59/+fI+spnwtTFmyQP0h+PfIOSkNfpU6AOICUOkm4i0OnSk+NyjdPJrxCDro0sJsWlRpQ==}
@@ -9686,6 +9769,8 @@ snapshots:
       '@types/unist': 3.0.3
 
   '@types/http-cache-semantics@4.2.0': {}
+
+  '@types/json-schema@7.0.15': {}
 
   '@types/jsonfile@6.1.4':
     dependencies:

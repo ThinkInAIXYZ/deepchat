@@ -1,3 +1,4 @@
+import { createDesktopProviderHost } from '../../../src/main/provider/desktopHost'
 import { generateText } from 'ai'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
@@ -15,10 +16,10 @@ import {
   isOfficialDeepSeekEndpoint,
   resolveDeepSeekResponsesRequestRoute,
   resolveDeepSeekResponsesRoute
-} from '@deepchat/agent-kernel/collab/provider/deepseekResponsesAdapter'
+} from '@deepchat/shared/provider/deepseekResponsesAdapter'
 import { recordToChatMessages } from '@deepchat/agent-kernel/runtime/contextBuilder'
-import { createAiSdkProviderContext } from '@/provider/aiSdk/providerFactory'
-import { runAiSdkCoreStream, type AiSdkRuntimeContext } from '@/provider/aiSdk/runtime'
+import { createAiSdkProviderContext } from '@deepchat/provider/aiSdk/providerFactory'
+import { runAiSdkCoreStream, type AiSdkRuntimeContext } from '@deepchat/provider/aiSdk/runtime'
 import type { ChatMessageRecord } from '@deepchat/shared/types/agent-interface'
 import type { ChatMessage } from '@deepchat/shared/types/core/chat-message'
 import type { ModelConfig } from '@deepchat/shared/types/provider'
@@ -45,6 +46,7 @@ function createAdapter(search = true) {
 
 function createProviderContext(adapter = createAdapter()) {
   return createAiSdkProviderContext({
+    auth: createDesktopProviderHost({ getLanguage: () => 'en-US' }).auth,
     providerKind: 'deepseek-open-responses',
     provider: {
       id: 'deepseek',
@@ -54,6 +56,7 @@ function createProviderContext(adapter = createAdapter()) {
       baseUrl: DEEPSEEK_RESPONSES_BASE_URL,
       enable: true
     } as any,
+    host: createDesktopProviderHost({ getLanguage: () => 'en-US' }),
     providerSettings,
     defaultHeaders: {},
     modelId: DEEPSEEK_RESPONSES_MODEL_ID,
@@ -73,6 +76,7 @@ function createRuntimeContext(overrides: Partial<AiSdkRuntimeContext> = {}): AiS
       baseUrl: DEEPSEEK_RESPONSES_BASE_URL,
       enable: true
     } as any,
+    host: createDesktopProviderHost({ getLanguage: () => 'en-US' }),
     providerSettings,
     defaultHeaders: {},
     ...overrides

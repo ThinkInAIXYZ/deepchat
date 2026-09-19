@@ -3,7 +3,7 @@ import {
   checkRequiresRebuild,
   ProviderBatchUpdate,
   ProviderChange
-} from '@shared/provider-operations'
+} from '@deepchat/shared/provider-operations'
 import type { LLM_PROVIDER } from '@deepchat/shared/types/provider'
 import type { StoreLike } from '@/config/storeLike'
 import type { DeepchatEventPublisher } from '@deepchat/shared/contracts/events'

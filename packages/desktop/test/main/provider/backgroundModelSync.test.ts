@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { LLM_PROVIDER } from '@deepchat/shared/types/provider'
 import type { MainDatabase } from '../../../src/main/data/mainDatabase'
 import { ProviderRuntime } from '../../../src/main/provider'
-import { AiSdkProvider } from '../../../src/main/provider/providers/aiSdkProvider'
+import { AiSdkProvider } from '@deepchat/provider/providers/aiSdkProvider'
 import { AcpRuntimeOwner } from '@/agent/acp/client'
 import { AcpSessionPersistence } from '@/agent/acp/runtime'
 

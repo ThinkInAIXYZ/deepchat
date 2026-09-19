@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto'
 import { spawn } from 'node:child_process'
 import fs from 'node:fs'
-import { createMinimalProcessEnvironment } from '@/mcp/processEnvironment'
+import { createMinimalProcessEnvironment } from '@deepchat/mcp'
 import { terminateProcessTree } from '@/agent/shared/process/processTree'
 import type {
   TapeAnchorWriter,
