@@ -229,49 +229,58 @@ describe('preload IPC boundaries', () => {
 
   it('backs plugin settings preload APIs with typed route bridge calls', async () => {
     const { ipcRenderer } = installElectronPreloadMock()
-    window.history.pushState({}, '', '/plugin-settings/?pluginId=plugin-1')
+    const originalArgv = process.argv
+    process.argv = [...originalArgv, '--deepchat-plugin-id=plugin-1']
 
-    await import('../../../src/preload/plugin-settings-preload')
+    try {
+      await import('../../../src/preload/plugin-settings-preload')
 
-    const deepchatPlugin = (
-      window as Window & {
-        deepchatPlugin: {
-          getPluginId: () => string
-          getStatus: () => Promise<{ pluginId: string; enabled: boolean }>
-          enable: () => Promise<unknown>
-          invokeAction: (actionId: string, payload?: Record<string, unknown>) => Promise<unknown>
+      const deepchatPlugin = (
+        window as Window & {
+          deepchatPlugin: {
+            getPluginId: () => string
+            getStatus: () => Promise<{ pluginId: string; enabled: boolean }>
+            enable: () => Promise<unknown>
+            invokeAction: (actionId: string, payload?: Record<string, unknown>) => Promise<unknown>
+          }
         }
-      }
-    ).deepchatPlugin
+      ).deepchatPlugin
 
-    await expect(deepchatPlugin.getStatus()).resolves.toMatchObject({
-      pluginId: 'plugin-1',
-      enabled: true
-    })
-
-    await deepchatPlugin.enable()
-    await deepchatPlugin.invokeAction('refresh', { force: true })
-
-    expect(deepchatPlugin.getPluginId()).toBe('plugin-1')
-    expect(ipcRenderer.invoke).toHaveBeenCalledWith(DEEPCHAT_ROUTE_INVOKE_CHANNEL, 'plugins.get', {
-      pluginId: 'plugin-1'
-    })
-    expect(ipcRenderer.invoke).toHaveBeenCalledWith(
-      DEEPCHAT_ROUTE_INVOKE_CHANNEL,
-      'plugins.enable',
-      {
-        pluginId: 'plugin-1'
-      }
-    )
-    expect(ipcRenderer.invoke).toHaveBeenCalledWith(
-      DEEPCHAT_ROUTE_INVOKE_CHANNEL,
-      'plugins.invokeAction',
-      {
+      await expect(deepchatPlugin.getStatus()).resolves.toMatchObject({
         pluginId: 'plugin-1',
-        actionId: 'refresh',
-        payload: { force: true }
-      }
-    )
+        enabled: true
+      })
+
+      await deepchatPlugin.enable()
+      await deepchatPlugin.invokeAction('refresh', { force: true })
+
+      expect(deepchatPlugin.getPluginId()).toBe('plugin-1')
+      expect(ipcRenderer.invoke).toHaveBeenCalledWith(
+        DEEPCHAT_ROUTE_INVOKE_CHANNEL,
+        'plugins.get',
+        {
+          pluginId: 'plugin-1'
+        }
+      )
+      expect(ipcRenderer.invoke).toHaveBeenCalledWith(
+        DEEPCHAT_ROUTE_INVOKE_CHANNEL,
+        'plugins.enable',
+        {
+          pluginId: 'plugin-1'
+        }
+      )
+      expect(ipcRenderer.invoke).toHaveBeenCalledWith(
+        DEEPCHAT_ROUTE_INVOKE_CHANNEL,
+        'plugins.invokeAction',
+        {
+          pluginId: 'plugin-1',
+          actionId: 'refresh',
+          payload: { force: true }
+        }
+      )
+    } finally {
+      process.argv = originalArgv
+    }
   })
 
   it('replays a debug mode received before the splash renderer subscribes', async () => {
