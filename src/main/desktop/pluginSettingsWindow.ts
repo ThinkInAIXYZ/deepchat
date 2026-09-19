@@ -1,5 +1,6 @@
 import { BrowserWindow } from 'electron'
 import path from 'node:path'
+import { pathToFileURL } from 'node:url'
 import type { PluginSettingsWindowPort } from '@/plugin'
 
 export class PluginSettingsWindow implements PluginSettingsWindowPort {
@@ -30,9 +31,16 @@ export class PluginSettingsWindow implements PluginSettingsWindowPort {
     })
 
     const webContentsId = settingsWindow.webContents.id
+    const entryPath = pathToFileURL(input.entry).pathname
     this.windows.set(input.pluginId, settingsWindow)
     this.pluginIdByWebContentsId.set(webContentsId, input.pluginId)
     settingsWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
+    settingsWindow.webContents.on('will-navigate', (event, url) => {
+      const target = new URL(url)
+      if (target.protocol !== 'file:' || target.pathname !== entryPath) {
+        event.preventDefault()
+      }
+    })
     settingsWindow.on('ready-to-show', () => {
       if (!settingsWindow.isDestroyed()) {
         settingsWindow.show()
@@ -40,7 +48,9 @@ export class PluginSettingsWindow implements PluginSettingsWindowPort {
     })
     settingsWindow.on('closed', () => {
       this.pluginIdByWebContentsId.delete(webContentsId)
-      this.windows.delete(input.pluginId)
+      if (this.windows.get(input.pluginId) === settingsWindow) {
+        this.windows.delete(input.pluginId)
+      }
     })
 
     await settingsWindow.loadFile(input.entry, {

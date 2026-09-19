@@ -93,8 +93,9 @@ export function createPluginRoutes(
     ],
     [
       pluginsGetRoute.name,
-      async (rawInput) => {
+      async (rawInput, context) => {
         const input = pluginsGetRoute.input.parse(rawInput)
+        assertPluginSettingsCallerOwns(context, input.pluginId)
         return pluginsGetRoute.output.parse({
           plugin: await pluginService.getPlugin(input.pluginId)
         })

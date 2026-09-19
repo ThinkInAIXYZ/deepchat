@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import {
   pluginsDisableRoute,
   pluginsEnableRoute,
+  pluginsGetRoute,
   pluginsInvokeActionRoute
 } from '@shared/contracts/routes'
 import type { PluginServicePort, PluginSettingsWindowPort } from '@/plugin'
@@ -14,7 +15,8 @@ function setup(ownerPluginId: string | null) {
   const pluginService = {
     enablePlugin: vi.fn().mockResolvedValue(actionResult),
     disablePlugin: vi.fn().mockResolvedValue(actionResult),
-    invokeAction: vi.fn().mockResolvedValue(actionResult)
+    invokeAction: vi.fn().mockResolvedValue(actionResult),
+    getPlugin: vi.fn().mockResolvedValue({ id: 'plugin-a' })
   }
   const settingsWindow: PluginSettingsWindowPort = {
     open: async () => {},
@@ -57,6 +59,16 @@ describe('createPluginRoutes settings-window ownership', () => {
       handler?.({ pluginId: 'plugin-b', actionId: 'act' }, pluginWindowContext())
     ).rejects.toThrow(/cannot control plugin/)
     expect(pluginService.invokeAction).not.toHaveBeenCalled()
+  })
+
+  it('rejects get for another plugin from a plugin settings window', async () => {
+    const { pluginService, routes } = setup('plugin-a')
+    const handler = routes.get(pluginsGetRoute.name)
+
+    await expect(handler?.({ pluginId: 'plugin-b' }, pluginWindowContext())).rejects.toThrow(
+      /cannot control plugin/
+    )
+    expect(pluginService.getPlugin).not.toHaveBeenCalled()
   })
 
   it('allows a plugin settings window to control its own plugin', async () => {
