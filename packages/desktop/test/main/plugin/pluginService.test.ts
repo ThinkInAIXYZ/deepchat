@@ -2110,7 +2110,9 @@ describe('PluginService', () => {
     expect(packageJson.scripts['plugin:cua:build:linux:x64']).toContain(
       '--platform linux --arch x64'
     )
-    expect(packageJson.scripts['plugin:bundle:clean']).toContain('build/managed-helpers')
+    expect(packageJson.scripts['plugin:bundle:clean']).toBe('node scripts/plugin.mjs clean')
+    expect(pluginScript).toContain("path.join(appRoot, 'build', 'bundled-plugins')")
+    expect(pluginScript).toContain("path.join(appRoot, 'build', 'managed-helpers')")
     expect(packageJson.scripts['build:mac:arm64']).toContain(
       'plugin:bundle -- --name cua --platform darwin --arch arm64'
     )

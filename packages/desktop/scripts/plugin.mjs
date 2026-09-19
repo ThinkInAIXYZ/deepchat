@@ -38,13 +38,18 @@ function parseArgs(argv) {
       args.pluginRoot = path.resolve(argv[++i])
     }
   }
-  if (!args.action || !['validate', 'package', 'bundle', 'verify'].includes(args.action)) {
+  if (!args.action || !['validate', 'package', 'bundle', 'verify', 'clean'].includes(args.action)) {
     console.error(
-      'Usage: node scripts/plugin.mjs <validate|package|bundle|verify> [--name <plugin>] [--platform <p>] [--arch <a>] [--purpose <distribution|verification>] [--plugin-root <path>]'
+      'Usage: node scripts/plugin.mjs <validate|package|bundle|verify|clean> [--name <plugin>] [--platform <p>] [--arch <a>] [--purpose <distribution|verification>] [--plugin-root <path>]'
     )
     process.exit(1)
   }
-  if (args.action !== 'verify' && !args.name && !(args.action === 'validate' && args.pluginRoot)) {
+  if (
+    args.action !== 'verify' &&
+    args.action !== 'clean' &&
+    !args.name &&
+    !(args.action === 'validate' && args.pluginRoot)
+  ) {
     console.error('Missing required --name <plugin> argument')
     process.exit(1)
   }
@@ -183,10 +188,22 @@ try {
     process.exit(0)
   }
 
+  if (args.action === 'clean') {
+    // Config-relative: the clean action must remove the same directories the bundle action
+    // writes regardless of the caller's cwd.
+    rmSync(path.join(appRoot, 'build', 'bundled-plugins'), { recursive: true, force: true })
+    rmSync(path.join(appRoot, 'build', 'managed-helpers'), { recursive: true, force: true })
+    process.exit(0)
+  }
+
   const { pluginDir } = readPluginManifest(args.name)
 
   // Run native build step if the plugin has one (e.g. scripts/build-cua-plugin-runtime.mjs)
-  const nativeBuildScript = path.resolve(`scripts/build-${args.name}-plugin-runtime.mjs`)
+  const nativeBuildScript = path.join(
+    appRoot,
+    'scripts',
+    `build-${args.name}-plugin-runtime.mjs`
+  )
   if (args.action === 'bundle' && existsSync(nativeBuildScript)) {
     const buildArgs = [nativeBuildScript]
     if (args.platform) buildArgs.push('--platform', args.platform)
@@ -206,7 +223,7 @@ try {
   if (args.platform) pkgArgs.push('--target-platform', args.platform)
   if (args.arch) pkgArgs.push('--target-arch', args.arch)
   if (args.purpose) pkgArgs.push('--purpose', args.purpose)
-  if (args.action === 'bundle') pkgArgs.push('--out', path.resolve('build/bundled-plugins'))
+  if (args.action === 'bundle') pkgArgs.push('--out', path.join(appRoot, 'build', 'bundled-plugins'))
   pkgArgs.push(pluginDir)
 
   execFileSync('node', pkgArgs, { stdio: 'inherit' })

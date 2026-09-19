@@ -55,7 +55,7 @@ function parseArgs(argv) {
   const environmentPurpose = process.env.PACKAGE_PURPOSE || null
   const args = {
     validateOnly: false,
-    outDir: path.resolve('dist', 'plugins'),
+    outDir: path.join(appRoot, 'dist', 'plugins'),
     pluginDir: null,
     releaseVersionFromRoot: false,
     version: null,
