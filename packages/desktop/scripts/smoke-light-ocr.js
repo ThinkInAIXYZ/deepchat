@@ -16,9 +16,14 @@ import {
 } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import { pathToFileURL } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import { promisify } from 'node:util'
 import { createGzip, deflateSync, gunzip } from 'node:zlib'
+
+// CI passes repository-root-relative resource and report paths while pnpm --filter executes this
+// script from the desktop package; anchor them at the repository root so resolution is
+// cwd-independent.
+const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..')
 
 import {
   classifyLightOcrArtifact,
@@ -1577,6 +1582,11 @@ export async function main(argv = process.argv.slice(2)) {
   const args = parseArgs(argv)
   if (!args['resources-path']) throw new Error('--resources-path is required')
 
+  const resourcesPath = path.resolve(repositoryRoot, args['resources-path'])
+  const reportPath = args['report-path']
+    ? path.resolve(repositoryRoot, args['report-path'])
+    : undefined
+
   const platform = normalizePlatform(args.platform ?? process.platform)
   const arch = normalizeArch(args.arch ?? process.arch)
   const backend = args.backend ?? 'auto'
@@ -1625,7 +1635,7 @@ export async function main(argv = process.argv.slice(2)) {
       componentBudgets.otherRuntimeCompressed
     ) * MIB
   const layout = await resolvePackagedOcrLayout({
-    resourcesPath: args['resources-path'],
+    resourcesPath,
     platform,
     arch,
     runtimeVersions
@@ -1703,11 +1713,11 @@ export async function main(argv = process.argv.slice(2)) {
       }
     }
   } catch (error) {
-    if (args['report-path']) await writeReport(path.resolve(args['report-path']), report)
+    if (reportPath) await writeReport(reportPath, report)
     throw error
   }
 
-  if (args['report-path']) await writeReport(path.resolve(args['report-path']), report)
+  if (reportPath) await writeReport(reportPath, report)
   console.log(`[Light OCR Smoke] ${JSON.stringify(report)}`)
   return report
 }

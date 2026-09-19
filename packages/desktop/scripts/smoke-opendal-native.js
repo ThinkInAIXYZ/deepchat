@@ -2,7 +2,11 @@
 
 import fs from 'node:fs'
 import path from 'node:path'
-import { pathToFileURL } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
+
+// CI passes repository-root-relative resource paths while pnpm --filter executes this script
+// from the desktop package; anchor them at the repository root so resolution is cwd-independent.
+const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..')
 
 const SMOKE_CONTENT = Buffer.from('deepchat-opendal-smoke')
 const REQUIRED_CONSTRUCTORS = ['Operator', 'RetryLayer', 'TimeoutLayer']
@@ -227,7 +231,11 @@ async function main() {
 
   if (resourcesPath) {
     await smokeNodeModules({
-      nodeModulesDir: path.join(path.resolve(resourcesPath), 'app.asar.unpacked', 'node_modules'),
+      nodeModulesDir: path.join(
+        path.resolve(repositoryRoot, resourcesPath),
+        'app.asar.unpacked',
+        'node_modules'
+      ),
       platform,
       arch,
       label: 'packaged'

@@ -11,6 +11,9 @@ const duckdbPackage = require('@duckdb/node-api/package.json')
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 const extensionName = 'vss.duckdb_extension'
+// CI passes repository-root-relative paths while pnpm --filter executes this script from the
+// desktop package; anchor those arguments at the repository root so resolution is cwd-independent.
+const repositoryRoot = path.resolve(__dirname, '../../..')
 
 export function parseArgs(argv) {
   const options = {}
@@ -119,17 +122,22 @@ async function main() {
   let instance = null
   let connection = null
   let extensionPath = path.resolve(
+    repositoryRoot,
     args.extensionPath ??
       args['extension-path'] ??
       path.join(__dirname, '../runtime/duckdb/extensions', extensionName)
   )
 
   if (extensionBase64Path) {
-    const materialized = materializeBase64Extension(path.resolve(extensionBase64Path))
+    const materialized = materializeBase64Extension(
+      path.resolve(repositoryRoot, extensionBase64Path)
+    )
     extensionPath = materialized.extensionPath
     materializedDir = materialized.materializedDir
   } else if (extensionGzipPath) {
-    const materialized = materializeGzipExtension(path.resolve(extensionGzipPath))
+    const materialized = materializeGzipExtension(
+      path.resolve(repositoryRoot, extensionGzipPath)
+    )
     extensionPath = materialized.extensionPath
     materializedDir = materialized.materializedDir
   }

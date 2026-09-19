@@ -4,6 +4,9 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const appRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
+// CI passes repository-root-relative --plugin-root paths while pnpm --filter executes this script
+// from the desktop package; anchor them at the repository root so resolution is cwd-independent.
+const repositoryRoot = path.resolve(appRoot, '../..')
 
 const OFFICIAL_PLUGIN_SOURCE = 'deepchat-official'
 const CUA_MANAGED_HELPER_APP = 'DeepChat Computer Use.app'
@@ -35,7 +38,7 @@ function parseArgs(argv) {
       args.purpose = purpose
       i += 1
     } else if (argv[i] === '--plugin-root') {
-      args.pluginRoot = path.resolve(argv[++i])
+      args.pluginRoot = path.resolve(repositoryRoot, argv[++i])
     }
   }
   if (!args.action || !['validate', 'package', 'bundle', 'verify', 'clean'].includes(args.action)) {
