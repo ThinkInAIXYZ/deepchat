@@ -1,4 +1,4 @@
-import type { IModelConfig } from '@shared/types/provider'
+import type { IModelConfig } from '@deepchat/shared/types/provider'
 
 export const LEGACY_MODEL_CONFIG_META_KEY = '__meta__'
 export const USER_MODEL_CONFIG_MIGRATION_ID = 'user-model-config-only-v1'

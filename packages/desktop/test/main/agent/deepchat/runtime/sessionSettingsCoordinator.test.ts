@@ -2,8 +2,8 @@ import { DeepChatAgentRuntime } from '@deepchat/agent-kernel/instance/deepChatAg
 import { toAppSessionId } from '@deepchat/agent-kernel/collab/agent-shared/agentSessionIds'
 import { SessionSettingsCoordinator } from '@deepchat/agent-kernel/runtime/sessionSettingsCoordinator'
 import type { ProviderModelResolutionPort } from '@/provider/settings'
-import { ModelType } from '@shared/model'
-import type { SessionGenerationSettings } from '@shared/types/agent-interface'
+import { ModelType } from '@deepchat/shared/model'
+import type { SessionGenerationSettings } from '@deepchat/shared/types/agent-interface'
 import { describe, expect, it, vi } from 'vitest'
 
 const SESSION_ID = 'session'

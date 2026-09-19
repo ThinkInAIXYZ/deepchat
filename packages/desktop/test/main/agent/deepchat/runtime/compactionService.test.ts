@@ -14,7 +14,7 @@ import type {
   ReconstructionAnchorPromptState,
   SessionSummaryState
 } from '@/session/data/settings'
-import type { DeepChatAgentConfig } from '@shared/types/agent-interface'
+import type { DeepChatAgentConfig } from '@deepchat/shared/types/agent-interface'
 
 vi.mock('tokenx', () => ({
   estimateTokenCount: vi.fn((text: string) => text.length)

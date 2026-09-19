@@ -1,10 +1,10 @@
-import type { ChatMessage } from '../shared/types/core/chat-message.js'
-import type { MCPToolDefinition } from '../shared/types/core/mcp.js'
+import type { ChatMessage } from '@deepchat/shared/types/core/chat-message'
+import type { MCPToolDefinition } from '@deepchat/shared/types/core/mcp'
 import type {
   DeepChatPromptAssembly,
   DeepChatPromptSectionKind
-} from '../shared/types/prompt-assembly.js'
-import { estimateMessageTokens } from '../shared/utils/messageTokens.js'
+} from '@deepchat/shared/types/prompt-assembly'
+import { estimateMessageTokens } from '@deepchat/shared/utils/messageTokens'
 import {
   estimateMessagesTokens,
   estimateToolDefinitionTokens,

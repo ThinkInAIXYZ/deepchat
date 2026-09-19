@@ -3,7 +3,7 @@ import { BaseTable } from '@/data/baseTable'
 import type {
   LiveDelegationEventDirection,
   LiveDelegationEventKind
-} from '@shared/orchestration/liveDelegation'
+} from '@deepchat/shared/orchestration/liveDelegation'
 import {
   LIVE_DELEGATION_EVALUATION_DATABASE_SCHEMA_VERSION,
   LIVE_DELEGATION_INITIAL_DATABASE_SCHEMA_VERSION
@@ -11,7 +11,7 @@ import {
 import {
   MAX_TASK_EVALUATION_BYTES,
   MAX_TASK_EVALUATION_REF_BYTES
-} from '@shared/types/task-contract'
+} from '@deepchat/shared/types/task-contract'
 
 export interface LiveDelegationEventRow {
   event_id: number

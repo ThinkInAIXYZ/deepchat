@@ -1,4 +1,8 @@
-import type { MCPServerConfig, McpAuthorizationConfig, McpServerIdentity } from '@shared/types/mcp'
+import type {
+  MCPServerConfig,
+  McpAuthorizationConfig,
+  McpServerIdentity
+} from '@deepchat/shared/types/mcp'
 import { createHash, randomUUID } from 'node:crypto'
 
 const canonicalize = (value: unknown): unknown => {

@@ -1,5 +1,5 @@
 import type { ProviderSettingsPort } from '@/provider/settings'
-import logger from '@shared/logger'
+import logger from '@deepchat/shared/logger'
 import { performance } from 'node:perf_hooks'
 import type { Prompt } from '@shared/types/prompt'
 import {
@@ -31,9 +31,9 @@ import {
   type PromptListEntry,
   type Resource,
   type ResourceListEntry
-} from '@shared/types/mcp'
-import type { ToolCallImagePreview } from '@shared/types/core/mcp'
-import type { ProviderRuntimePort } from '@shared/types/provider'
+} from '@deepchat/shared/types/mcp'
+import type { ToolCallImagePreview } from '@deepchat/shared/types/core/mcp'
+import type { ProviderRuntimePort } from '@deepchat/shared/types/provider'
 import { ServerManager } from './serverManager'
 import type { McpClient as RuntimeMcpClient } from './mcpClient'
 import { ToolManager, type ComputerUsePreviewObserver } from './toolManager'
@@ -49,10 +49,10 @@ import type { PromptSettings } from '@/agent/promptSettings'
 import type { PrivacySettingsPort } from '@/app/privacy'
 import type { AgentSettingsPort } from '@/agent/settings'
 import { PluginRuntimeSupervisor } from '@/plugin/runtimeSupervisor'
-import type { DeepchatEventPublisher } from '@shared/contracts/events'
+import type { DeepchatEventPublisher } from '@deepchat/shared/contracts/events'
 import type { SemanticNotificationPublisher } from '@/notifications'
 import { McpSettings } from './settings'
-import type { PermissionMode } from '@shared/types/agent-interface'
+import type { PermissionMode } from '@deepchat/shared/types/agent-interface'
 import type { ToolPermissionBroker } from '@/tool/permission'
 import type { McpAppSandboxRegistry } from './apps/sandboxRegistry'
 import { McpAppHost } from './apps/appHost'
@@ -1215,7 +1215,7 @@ export class McpService implements McpServicePort {
 
   async snapshotCachedToolDefinitions(
     enabledMcpTools?: string[] | McpToolAccessContext
-  ): Promise<import('@shared/types/mcp').McpToolDefinitionsSnapshot> {
+  ): Promise<import('@deepchat/shared/types/mcp').McpToolDefinitionsSnapshot> {
     const context = normalizeToolAccessContext(enabledMcpTools)
     const enabled = await this.mcpSettings.getMcpEnabled()
     const [configuredEnabledServerNames, serverConfigs] = enabled

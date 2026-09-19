@@ -1,4 +1,4 @@
-import logger from '@shared/logger'
+import logger from '@deepchat/shared/logger'
 import type { MemoryCommandResult } from '@shared/contracts/routes/memory.routes'
 import { nanoid } from 'nanoid'
 

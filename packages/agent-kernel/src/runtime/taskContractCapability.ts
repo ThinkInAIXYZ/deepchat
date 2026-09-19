@@ -1,6 +1,6 @@
-import { LIVE_DELEGATION_AGENT_TOOL_NAME } from '../shared/agentTools.js'
-import type { MCPToolDefinition } from '../shared/types/core/mcp.js'
-import type { DeepChatTaskContractContext } from '../shared/types/task-contract.js'
+import { LIVE_DELEGATION_AGENT_TOOL_NAME } from '@deepchat/shared/agentTools'
+import type { MCPToolDefinition } from '@deepchat/shared/types/core/mcp'
+import type { DeepChatTaskContractContext } from '@deepchat/shared/types/task-contract'
 import {
   ExecutionContractError,
   isToolEffectWithinCeiling

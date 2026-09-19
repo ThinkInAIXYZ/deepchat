@@ -1,11 +1,11 @@
 import { z } from 'zod'
-import { defineRouteContract } from '../common'
+import { defineRouteContract } from '@deepchat/shared/contracts/common'
 import {
   KnowledgeFileMessageSchema,
   KnowledgeFileResultSchema,
   KnowledgeFileValidationResultSchema,
   KnowledgeQueryResultSchema
-} from '../domainSchemas'
+} from '@deepchat/shared/contracts/domainSchemas'
 
 const KnowledgeBaseIdSchema = z.string().min(1)
 const FileIdSchema = z.string().min(1)

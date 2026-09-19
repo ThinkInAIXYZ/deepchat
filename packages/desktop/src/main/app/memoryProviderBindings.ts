@@ -1,4 +1,4 @@
-import type { ProviderRuntimePort } from '@shared/types/provider'
+import type { ProviderRuntimePort } from '@deepchat/shared/types/provider'
 import type { MemoryServiceDeps } from '@deepchat/agent-kernel/collab/memory/types'
 
 type MemoryProviderBindings = Pick<

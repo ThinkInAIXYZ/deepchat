@@ -278,7 +278,7 @@ import draggable from 'vuedraggable'
 import { Icon } from '@iconify/vue'
 import { DcButton } from '@dc-ui/components/button'
 import { useI18n } from 'vue-i18n'
-import type { PendingSessionInputRecord } from '@shared/types/agent-interface'
+import type { PendingSessionInputRecord } from '@deepchat/shared/types/agent-interface'
 import { MAX_PENDING_INPUTS } from '@shared/pendingInput'
 
 const props = withDefaults(

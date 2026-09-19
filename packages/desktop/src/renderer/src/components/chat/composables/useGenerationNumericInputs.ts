@@ -1,9 +1,9 @@
 import { ref, type Ref } from 'vue'
-import type { SessionGenerationSettings } from '@shared/types/agent-interface'
+import type { SessionGenerationSettings } from '@deepchat/shared/types/agent-interface'
 import type {
   GenerationNumericField,
   GenerationNumericValidationCode
-} from '@shared/utils/generationSettingsValidation'
+} from '@deepchat/shared/utils/generationSettingsValidation'
 
 /**
  * Draft/error state machine shared by all generation numeric fields

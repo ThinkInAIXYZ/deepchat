@@ -1,5 +1,5 @@
-import type { MCPServerConfig } from '@shared/types/mcp'
-import type { ToolchainKind } from '@shared/types/toolchains'
+import type { MCPServerConfig } from '@deepchat/shared/types/mcp'
+import type { ToolchainKind } from '@deepchat/shared/types/toolchains'
 
 const NODE_TOOLCHAIN_COMMANDS = new Set(['node', 'npm', 'npx', 'corepack'])
 const UV_TOOLCHAIN_COMMANDS = new Set(['uv', 'uvx'])

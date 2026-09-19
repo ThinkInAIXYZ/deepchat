@@ -1,4 +1,4 @@
-import type { ChatMessageRecord, SendMessageInput } from '@shared/types/agent-interface'
+import type { ChatMessageRecord, SendMessageInput } from '@deepchat/shared/types/agent-interface'
 import type { SessionPendingInputs } from './data/pendingInputs'
 import type { SessionSettingsStore } from './data/settings'
 import type { SessionTranscript } from './data/transcript'

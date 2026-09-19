@@ -8,7 +8,7 @@ import {
   mcpStopPublicRoute,
   mcpUpdatePublicRoute
 } from '@shared/contracts/routes'
-import type { MCPServerConfig, McpServicePort } from '@shared/types/mcp'
+import type { MCPServerConfig, McpServicePort } from '@deepchat/shared/types/mcp'
 import { createCliMcpAdminRoutes } from '@/cli/mcpAdminRoutes'
 import type { CliRouteCaller, RouteContext } from '@/routes/routeRegistry'
 

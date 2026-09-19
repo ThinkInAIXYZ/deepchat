@@ -266,7 +266,7 @@ import { useGuidedOnboardingStep } from '@/composables/useGuidedOnboardingStep'
 import { createWindowClient } from '@api/WindowClient'
 import { continueGuidedOnboardingFromSettings } from '../lib/guidedOnboardingSettings'
 import { createConfigClient } from '@api/ConfigClient'
-import type { Agent, DeepChatAgentConfig } from '@shared/types/agent-interface'
+import type { Agent, DeepChatAgentConfig } from '@deepchat/shared/types/agent-interface'
 import { notifyRenderer } from '@renderer-notifications/rendererNotificationPort'
 
 const props = withDefaults(

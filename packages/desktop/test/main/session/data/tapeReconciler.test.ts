@@ -1,5 +1,5 @@
 import { beforeEach, vi } from 'vitest'
-import logger from '@shared/logger'
+import logger from '@deepchat/shared/logger'
 import {
   describe,
   expect,
@@ -19,9 +19,9 @@ import {
   TAPE_TOOL_RESULT_PAYLOAD_HASH_VERSION,
   buildTapeToolResultPayloadHash
 } from '@deepchat/agent-kernel/tape/domain/toolSurfaceFacts'
-import { TOOL_SEARCH_AGENT_TOOL_NAME } from '@shared/agentTools'
+import { TOOL_SEARCH_AGENT_TOOL_NAME } from '@deepchat/shared/agentTools'
 
-vi.mock('@shared/logger', () => ({
+vi.mock('@deepchat/shared/logger', () => ({
   default: {
     error: vi.fn(),
     warn: vi.fn(),

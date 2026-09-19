@@ -4,8 +4,8 @@ import type {
   MessageMetadata,
   SessionCompactionBoundaryReason,
   UserMessageContent
-} from '../shared/types/agent-interface.js'
-import type { SearchResult } from '../shared/types/core/search.js'
+} from '@deepchat/shared/types/agent-interface'
+import type { SearchResult } from '@deepchat/shared/types/core/search'
 import type { DeepChatTapeEntryRow } from '../tape/domain/entry.js'
 import type { TapeCompactionModelCallInput } from '../tape/domain/compactionUsage.js'
 import type { TapeProjectionCursor } from '../tape/ports/capabilities.js'

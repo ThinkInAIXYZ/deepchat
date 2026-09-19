@@ -89,7 +89,7 @@ import { Spinner } from '@shadcn/components/ui/spinner'
 import type {
   AttachmentPreparationAction,
   AttachmentPreparationSummary
-} from '@shared/types/attachment'
+} from '@deepchat/shared/types/attachment'
 
 const MAX_VISIBLE_ISSUES = 5
 

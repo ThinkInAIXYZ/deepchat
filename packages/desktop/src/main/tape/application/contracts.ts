@@ -1,4 +1,4 @@
-import type { AgentTapeAnchorResult } from '@shared/types/agent-interface'
+import type { AgentTapeAnchorResult } from '@deepchat/shared/types/agent-interface'
 import type { TapeMigrationState } from '@deepchat/agent-kernel/tape/ports/capabilities'
 
 export type {

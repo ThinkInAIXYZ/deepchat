@@ -1,4 +1,4 @@
-import type { ResolvedCommandShell } from '@shared/commandShell'
+import type { ResolvedCommandShell } from '@deepchat/shared/commandShell'
 
 export const POSIX_COMMAND_SHELL: ResolvedCommandShell = Object.freeze({
   profile: 'posix',

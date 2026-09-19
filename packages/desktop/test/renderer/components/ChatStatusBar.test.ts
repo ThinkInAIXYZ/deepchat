@@ -1,18 +1,18 @@
 import { describe, expect, it, vi } from 'vitest'
 import { defineComponent, reactive, ref } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
-import type { ReasoningEffort, ReasoningPortrait } from '../../../src/shared/types/model-db'
-import type { AcpConfigState } from '@shared/types/acp'
-import type { ImageGenerationOptions } from '../../../src/shared/imageGenerationSettings'
+import type { ReasoningEffort, ReasoningPortrait } from '@deepchat/shared/types/model-db'
+import type { AcpConfigState } from '@deepchat/shared/types/acp'
+import type { ImageGenerationOptions } from '@deepchat/shared/imageGenerationSettings'
 import type {
   PermissionMode,
   SessionContextOccupancySnapshot
-} from '../../../src/shared/types/agent-interface'
-import type { ModelRequestPolicy } from '../../../src/shared/modelRequestPolicy'
+} from '@deepchat/shared/types/agent-interface'
+import type { ModelRequestPolicy } from '@deepchat/shared/modelRequestPolicy'
 import type {
   OrchestrationPolicy,
   OrchestrationCapability
-} from '../../../src/shared/orchestration/policy'
+} from '@deepchat/shared/orchestration/policy'
 
 const TEST_TIMEOUT_MS = 20000
 

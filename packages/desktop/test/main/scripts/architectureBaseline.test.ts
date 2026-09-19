@@ -4,10 +4,9 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 
-import { assertBaselineOutputSafety } from '../../../../../scripts/generate-architecture-baseline.mjs'
+import { assertBaselineOutputSafety } from '../../../scripts/generate-architecture-baseline.mjs'
 
-const appRoot = process.cwd()
-const ROOT = path.resolve(appRoot, '../..')
+const ROOT = process.cwd()
 const CANONICAL_OUTPUT = path.join(ROOT, 'docs/architecture/baselines')
 const CANONICAL_AGENT_BASELINE = path.join(
   CANONICAL_OUTPUT,
@@ -42,7 +41,7 @@ function runGenerator(outputDir: string) {
 }
 
 describe('architecture baseline generator', () => {
-  it('writes deterministic current-owner evidence only to the requested temp output', { timeout: 30_000 }, async () => {
+  it('writes deterministic current-owner evidence only to the requested temp output', async () => {
     const outputDir = await mkdtemp(path.join(tmpdir(), 'deepchat-architecture-baseline-'))
     const canonicalBefore = await readFile(CANONICAL_AGENT_BASELINE, 'utf8')
 
@@ -66,7 +65,7 @@ describe('architecture baseline generator', () => {
       ) as GeneratedAgentBaseline
       expect(baseline.schemaVersion).toBe(2)
       expect(baseline.sourceFiles).toContain(
-        'packages/desktop/src/main/agent/deepchat/deepChatAgentRepository.ts'
+        'src/main/agent/deepchat/deepChatAgentRepository.ts'
       )
       expect(Object.values(baseline.expectedFiles)).not.toContain(false)
       expect(
@@ -89,7 +88,7 @@ describe('architecture baseline generator', () => {
   })
 
   it('refuses canonical output from a dirty relevant tree but permits temp output', () => {
-    expect(() => assertBaselineOutputSafety(CANONICAL_OUTPUT, ['packages/desktop/src/main/agent/manager/example.ts']))
+    expect(() => assertBaselineOutputSafety(CANONICAL_OUTPUT, ['src/main/agent/manager/example.ts']))
       .toThrow('Refusing to update canonical architecture baselines')
     expect(() => assertBaselineOutputSafety(path.join(tmpdir(), 'baseline-output'), ['dirty.ts']))
       .not.toThrow()

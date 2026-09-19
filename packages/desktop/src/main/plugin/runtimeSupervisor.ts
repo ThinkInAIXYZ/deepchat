@@ -1,13 +1,13 @@
-import type { MCPServerConfig } from '@shared/types/mcp'
+import type { MCPServerConfig } from '@deepchat/shared/types/mcp'
 import type {
   PluginMcpStartMode,
   PluginMcpSurface,
   PluginRuntimeLifecycleState
-} from '@shared/types/plugin'
+} from '@deepchat/shared/types/plugin'
 import { randomUUID } from 'node:crypto'
 import type { PluginToolCatalog } from './toolCatalog'
 
-export type { PluginRuntimeLifecycleState } from '@shared/types/plugin'
+export type { PluginRuntimeLifecycleState } from '@deepchat/shared/types/plugin'
 
 export type PluginRuntimeStartReason =
   | 'reconcile'

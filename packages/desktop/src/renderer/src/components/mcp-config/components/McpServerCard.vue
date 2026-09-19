@@ -15,8 +15,8 @@ import { useI18n } from 'vue-i18n'
 import { computed, ref, nextTick, onMounted, watch } from 'vue'
 import { Separator } from '@shadcn/components/ui/separator'
 import { Spinner } from '@shadcn/components/ui/spinner'
-import type { McpServerAuthStatus } from '@shared/types/mcp'
-import type { McpServerLifecycleStatus } from '@shared/types/core/mcp'
+import type { McpServerAuthStatus } from '@deepchat/shared/types/mcp'
+import type { McpServerLifecycleStatus } from '@deepchat/shared/types/core/mcp'
 
 interface ServerInfo {
   name: string

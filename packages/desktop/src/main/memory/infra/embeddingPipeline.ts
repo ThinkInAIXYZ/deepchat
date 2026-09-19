@@ -1,4 +1,4 @@
-import logger from '@shared/logger'
+import logger from '@deepchat/shared/logger'
 
 import {
   ERROR_RETRY_BATCH_LIMIT,

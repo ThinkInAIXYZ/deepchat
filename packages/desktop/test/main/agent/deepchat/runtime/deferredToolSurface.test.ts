@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { TOOL_EXECUTION, type MCPToolDefinition } from '@shared/types/core/mcp'
+import { TOOL_EXECUTION, type MCPToolDefinition } from '@deepchat/shared/types/core/mcp'
 import {
   assertToolSurfaceDeferredDispatchAllowsDispatch,
   buildToolSurfaceDeferredDispatchBinding,

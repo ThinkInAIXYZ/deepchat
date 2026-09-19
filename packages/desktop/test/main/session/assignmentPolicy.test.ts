@@ -5,7 +5,7 @@ import {
   normalizeDisabledAgentTools,
   normalizeSendMessageInput
 } from '@deepchat/agent-kernel/collab/agent-shared/agentSessionNormalization'
-import { TAPE_TOOL_NAMES } from '@shared/agentTools'
+import { TAPE_TOOL_NAMES } from '@deepchat/shared/agentTools'
 
 function createHarness() {
   const agents = new Map([

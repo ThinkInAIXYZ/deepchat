@@ -9,7 +9,7 @@ import {
   appRuntimeWindowBlurredEvent,
   appRuntimeWindowFocusedEvent,
   type DeepchatEventPayload
-} from '@shared/contracts/events'
+} from '@deepchat/shared/contracts/events'
 import { getDeepchatBridge } from './core'
 
 export function createAppRuntimeClient(bridge: DeepchatBridge = getDeepchatBridge()) {

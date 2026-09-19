@@ -4,7 +4,7 @@ import {
   resolveNewApiEndpointTypeFromRoute,
   resolveNewApiSelectableEndpointTypes,
   shouldUseAnthropicClaudeRouteFromSupportedEndpoints
-} from '@shared/model'
+} from '@deepchat/shared/model'
 
 describe('new-api route helpers', () => {
   it('prefers anthropic for Claude models when supported endpoints include anthropic and chat fallbacks', () => {

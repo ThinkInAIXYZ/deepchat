@@ -1,4 +1,4 @@
-import type { YoBrowserStatus } from '@shared/types/browser'
+import type { YoBrowserStatus } from '@deepchat/shared/types/browser'
 
 const YO_BROWSER_UNAVAILABLE_ERROR_CODE = 'yobrowser_unavailable'
 

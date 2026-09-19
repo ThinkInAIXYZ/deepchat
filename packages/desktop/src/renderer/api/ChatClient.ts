@@ -6,7 +6,7 @@ import {
   chatStreamFailedEvent,
   chatStreamUpdatedEvent,
   type DeepchatEventPayload
-} from '@shared/contracts/events'
+} from '@deepchat/shared/contracts/events'
 import type { DeepchatRouteInput } from '@shared/contracts/routes'
 import {
   chatCancelSubmissionRoute,
@@ -16,7 +16,10 @@ import {
   chatStopStreamRoute,
   chatRespondToolInteractionRoute
 } from '@shared/contracts/routes'
-import type { SendMessageInput, ToolInteractionResponse } from '@shared/types/agent-interface'
+import type {
+  SendMessageInput,
+  ToolInteractionResponse
+} from '@deepchat/shared/types/agent-interface'
 import { getDeepchatBridge } from './core'
 
 export function createChatClient(bridge: DeepchatBridge = getDeepchatBridge()) {

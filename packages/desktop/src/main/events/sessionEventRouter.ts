@@ -3,7 +3,7 @@ import {
   chatStreamActivityEvent,
   sessionsUpdatedEvent,
   type DeepchatEventName
-} from '@shared/contracts/events'
+} from '@deepchat/shared/contracts/events'
 import type { TypedEventHub } from './typedEventHub'
 
 const RUN_STREAM_EVENTS = new Set<DeepchatEventName>(SESSION_RUN_STREAM_EVENT_NAMES)

@@ -308,7 +308,7 @@ import {
   type PluginActionResult,
   type PluginMcpRuntimeStatus,
   type PluginRuntimeState
-} from '@shared/types/plugin'
+} from '@deepchat/shared/types/plugin'
 
 const { t } = useI18n()
 const route = useRoute()

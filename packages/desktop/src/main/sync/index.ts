@@ -5,7 +5,7 @@ import Database from 'better-sqlite3-multiple-ciphers'
 import { unzip, Zip, AsyncZipDeflate } from 'fflate'
 import type { SyncBackupInfo, CloudSyncResult } from '@shared/types/sync'
 import { CloudStorageService } from './cloudStorageService'
-import type { DeepchatEventPublisher } from '@shared/contracts/events'
+import type { DeepchatEventPublisher } from '@deepchat/shared/contracts/events'
 import { DataImporter } from './dataImporter'
 import {
   CURRENT_SYNC_BACKUP_VERSION,

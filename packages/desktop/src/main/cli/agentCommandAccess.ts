@@ -4,11 +4,11 @@ import {
   CLI_COMMAND_DEFINITIONS,
   cliCommandKey,
   getAgentCliCommandContract
-} from '@shared/contracts/cliCommands'
+} from '@deepchat/shared/contracts/cliCommands'
 import {
   LOCAL_CONTROL_AGENT_TOKEN_ENV,
   type LocalControlScope
-} from '@shared/contracts/localControl'
+} from '@deepchat/shared/contracts/localControl'
 import type { CommandPermissionService } from '@deepchat/agent-kernel/collab/tool/permission/commandPermissionService'
 import {
   parseAgentCliProgrammaticExecInvocation,
@@ -16,7 +16,7 @@ import {
   type ArmedAgentCliProgrammaticToken
 } from './agentTokenAuthority'
 import { getCliSurfaceEntry } from './surface'
-import type { ResolvedCommandShell } from '@shared/commandShell'
+import type { ResolvedCommandShell } from '@deepchat/shared/commandShell'
 
 const AGENT_CLI_COMMAND_PATTERN = /^deepchat\s+([a-z][a-z0-9-]*)\s+([a-z][a-z0-9-]*)(?:\s|$)/
 const AGENT_CLI_COMMAND_TOKEN_TTL_MS = 5 * 60_000

@@ -1,5 +1,5 @@
 import { StringDecoder } from 'string_decoder'
-import type { CommandShellDialect } from '@shared/commandShell'
+import type { CommandShellDialect } from '@deepchat/shared/commandShell'
 
 const POWERSHELL_UTF8_PREAMBLE =
   '[Console]::InputEncoding = [System.Text.UTF8Encoding]::new($false); ' +

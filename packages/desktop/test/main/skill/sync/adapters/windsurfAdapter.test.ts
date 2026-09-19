@@ -3,7 +3,7 @@
  */
 import { describe, it, expect } from 'vitest'
 import { WindsurfAdapter } from '../../../../../src/main/skill/sync/adapters/windsurfAdapter'
-import type { CanonicalSkill, ParseContext } from '../../../../../src/shared/types/skillSync'
+import type { CanonicalSkill, ParseContext } from '@deepchat/shared/types/skillSync'
 
 describe('WindsurfAdapter', () => {
   const adapter = new WindsurfAdapter()

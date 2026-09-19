@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { DeepChatAgentRepository } from '@/agent/deepchat/deepChatAgentRepository'
-import { SUBAGENT_ORCHESTRATOR_TOOL_NAME, TAPE_TOOL_NAMES } from '@shared/agentTools'
+import { SUBAGENT_ORCHESTRATOR_TOOL_NAME, TAPE_TOOL_NAMES } from '@deepchat/shared/agentTools'
 
 function createRepository(sqlitePresenter: any): DeepChatAgentRepository {
   return new DeepChatAgentRepository({

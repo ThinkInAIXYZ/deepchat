@@ -28,11 +28,11 @@ running fewer operating systems, not by weakening an affected target's package c
 
 ## 2. Shared Package Contract
 
-`scripts/ci/package-contract.mjs` defines the six target IDs, allowed architectures, artifact roles,
+Root-owned `scripts/ci/package-contract.mjs` defines the six target IDs, allowed architectures, artifact roles,
 raw updater metadata names, and required public release files. Other scripts import this contract
 instead of maintaining extension globs independently.
 
-`scripts/ci/package-manifest.mjs` locates exactly one file for every required role, rejects unknown or
+Root-owned `scripts/ci/package-manifest.mjs` locates exactly one file for every required role, rejects unknown or
 unsafe entries, hashes files, validates raw electron-builder metadata, and stages a self-contained
 target artifact. It derives check results from completed workflow evidence. For macOS distribution it
 also invokes the existing application and DMG verification helpers before recording distribution
@@ -55,10 +55,10 @@ retains reports and a manifest locally and uploads only diagnostic content.
 
 The Light OCR budget file retains only component budgets. Installer facts and policy move to:
 
-- `resources/package-size-baseline.json`
-- `resources/package-size-policy.json`
+- `packages/desktop/resources/package-size-baseline.json`
+- `packages/desktop/resources/package-size-policy.json`
 
-The baseline records bytes and SHA-256 for the selected package roles from run `29978292769`. A
+The baseline records bytes and SHA-256 for the selected package roles from historical run `29978292769`. A
 baseline-import command validates that all six target directories contain exactly one expected
 candidate for every measured role before writing reviewable JSON.
 
@@ -102,9 +102,10 @@ PRs targeting `dev`. `pr-required` therefore reports as soon as fast code-qualit
 `package-check.yml` is a separate, always-started workflow for PRs targeting `dev`:
 
 1. Check out full history and validate the exact base/head commit pair.
-2. Load the classifier only from the base revision. If it does not exist during the one-time
-   contract bootstrap, validate both `package.json` snapshots and conservatively select all targets
-   without executing candidate classifier code.
+2. Select all targets if either revision lacks `packages/desktop/package.json`, including layout
+   transitions and product-manifest deletion. Otherwise validate both Desktop manifest snapshots and
+   load the classifier only from the base revision. If it is missing during contract bootstrap,
+   select all targets without executing candidate classifier code.
 3. Classify changed paths into Windows, Linux, and macOS decisions with rule evidence.
 4. Invoke both architectures for each affected operating system using complete `verification`
    packaging and the installer-size gate.
@@ -174,9 +175,9 @@ installed electron-updater architecture selectors so dependency upgrades cannot 
 the assembled Windows, macOS, or Linux metadata conventions.
 
 Validation proceeds through focused tests, complete main and renderer suites, type checking, the
-canonical build, format, localization, lint, and a final format check. Verification-mode packaging
-has passed on all six GitHub-hosted native runners. Distribution-mode Apple signing/notarization and
-draft release publication remain pending until a release or manual Build run.
+canonical build, format, localization, lint, and a final format check. Historically, verification-mode
+packaging passed on all six GitHub-hosted native runners. Distribution-mode Apple signing/notarization
+and draft release publication remain pending until a release or manual Build run.
 
 ## 8. Rollback
 

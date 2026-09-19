@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { defineComponent, inject, provide, ref } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
-import type { OcrRuntimeStatus } from '../../../src/shared/contracts/routes/ocr.routes'
+import type { OcrRuntimeStatus } from '@deepchat/shared/contracts/routes/ocr.routes'
 
 const AVAILABLE_STATUS: OcrRuntimeStatus = {
   platform: 'darwin',

@@ -1,13 +1,13 @@
 import { createHash } from 'node:crypto'
-import type { ChatMessage } from '../../shared/types/core/chat-message.js'
+import type { ChatMessage } from '@deepchat/shared/types/core/chat-message'
 import {
   stripToolExecutionContract,
   type MCPToolDefinition,
   type ToolEffect,
   type ToolExecutionContract
-} from '../../shared/types/core/mcp.js'
-import type { PermissionMode } from '../../shared/types/agent-interface.js'
-import type { ModelConfig } from '../../shared/types/provider.js'
+} from '@deepchat/shared/types/core/mcp'
+import type { PermissionMode } from '@deepchat/shared/types/agent-interface'
+import type { ModelConfig } from '@deepchat/shared/types/provider'
 import {
   DEEPCHAT_PROMPT_DEGRADATION_CODES,
   DEEPCHAT_PROMPT_SECTION_INCLUSIONS,
@@ -16,7 +16,7 @@ import {
   type DeepChatPromptAssembly,
   type DeepChatPromptDegradationCode,
   type DeepChatPromptSectionProvenance
-} from '../../shared/types/prompt-assembly.js'
+} from '@deepchat/shared/types/prompt-assembly'
 import {
   DEEPCHAT_EXECUTION_CONTRACT_BINDING_SCHEMA_VERSION,
   DEEPCHAT_EXECUTION_CONTRACT_HASH_VERSION,
@@ -28,8 +28,8 @@ import {
   type DeepChatExecutionToolCeiling,
   type DeepChatExecutionToolTargetIdentity,
   type DeepChatExecutionWorkspaceCeiling
-} from '../../shared/types/execution-contract.js'
-import type { DeepChatTaskContractContext } from '../../shared/types/task-contract.js'
+} from '@deepchat/shared/types/execution-contract'
+import type { DeepChatTaskContractContext } from '@deepchat/shared/types/task-contract'
 import { canonicalJsonStringifyData, hashJsonData } from './canonicalJson.js'
 import {
   canonicalUuid,

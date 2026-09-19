@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest'
 import {
   DEFAULT_AGENT_OUTPUT_LIMITS,
   resolveAgentOutputLimits
-} from '@shared/lib/agentOutputLimits'
-import { DeepChatAgentConfigSchema } from '@shared/contracts/domainSchemas'
+} from '@deepchat/shared/lib/agentOutputLimits'
+import { DeepChatAgentConfigSchema } from '@deepchat/shared/contracts/domainSchemas'
 
 describe('agent output limits', () => {
   it('uses compatibility defaults when Agent fields are absent', () => {

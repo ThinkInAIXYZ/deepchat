@@ -5,10 +5,10 @@ import type {
   DeepChatPromptAssembly,
   DeepChatPromptAssemblySection,
   DeepChatPromptDegradationCode
-} from '../shared/types/prompt-assembly.js'
-import type { SkillServicePort } from '../shared/types/skill.js'
-import type { MCPToolDefinition } from '../shared/types/core/mcp.js'
-import type { ToolServicePort } from '../shared/types/tool.js'
+} from '@deepchat/shared/types/prompt-assembly'
+import type { SkillServicePort } from '@deepchat/shared/types/skill'
+import type { MCPToolDefinition } from '@deepchat/shared/types/core/mcp'
+import type { ToolServicePort } from '@deepchat/shared/types/tool'
 import type { DeepChatAgentInstance } from '../instance/deepChatAgentInstance.js'
 import type { ProviderCatalogPort } from '../collab/provider/ports.js'
 import {
@@ -21,13 +21,13 @@ import {
   createPromptAssemblySection
 } from './promptAssembly.js'
 
-import { ResolvedCommandShellSchema, type ResolvedCommandShell } from '../shared/commandShell.js'
-import { LIVE_DELEGATION_AGENT_TOOL_NAME } from '../shared/agentTools.js'
-import { UNTRUSTED_CHILD_OUTPUT_POLICY } from '../shared/orchestration/resultSafety.js'
+import { ResolvedCommandShellSchema, type ResolvedCommandShell } from '@deepchat/shared/commandShell'
+import { LIVE_DELEGATION_AGENT_TOOL_NAME } from '@deepchat/shared/agentTools'
+import { UNTRUSTED_CHILD_OUTPUT_POLICY } from '@deepchat/shared/orchestration/resultSafety'
 import {
   normalizeOrchestrationPolicy,
   type OrchestrationPolicy
-} from '../shared/orchestration/policy.js'
+} from '@deepchat/shared/orchestration/policy'
 import {
   projectSkillRoutingCards,
   renderSkillRoutingCatalog,

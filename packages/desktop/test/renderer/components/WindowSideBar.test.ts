@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createPinia } from 'pinia'
 import { defineComponent, nextTick, reactive, ref } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
-import type { EnvironmentSummary } from '../../../src/shared/types/agent-interface'
+import type { EnvironmentSummary } from '@deepchat/shared/types/agent-interface'
 
 vi.mock('pinia', async () => vi.importActual<typeof import('pinia')>('pinia'))
 

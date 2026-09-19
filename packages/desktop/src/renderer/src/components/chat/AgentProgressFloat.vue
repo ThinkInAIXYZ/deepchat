@@ -112,7 +112,7 @@
 import { computed } from 'vue'
 import { Icon } from '@iconify/vue'
 import { useI18n } from 'vue-i18n'
-import type { AgentPlanItem } from '@shared/types/agent-plan'
+import type { AgentPlanItem } from '@deepchat/shared/types/agent-plan'
 import type { AgentPlanViewSnapshot } from '@/stores/ui/agentPlan'
 import { entryAriaLabel, resolveStepPresentation } from '@/composables/useAgentPlanStatus'
 

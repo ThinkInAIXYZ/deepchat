@@ -1,12 +1,12 @@
-import logger from '@shared/logger'
+import logger from '@deepchat/shared/logger'
 import {
   checkRequiresRebuild,
   ProviderBatchUpdate,
   ProviderChange
 } from '@shared/provider-operations'
-import type { LLM_PROVIDER } from '@shared/types/provider'
+import type { LLM_PROVIDER } from '@deepchat/shared/types/provider'
 import type { StoreLike } from '@/config/storeLike'
-import type { DeepchatEventPublisher } from '@shared/contracts/events'
+import type { DeepchatEventPublisher } from '@deepchat/shared/contracts/events'
 import {
   emitProviderAtomicUpdate,
   emitProviderBatchUpdate,

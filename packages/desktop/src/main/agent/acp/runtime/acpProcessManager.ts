@@ -20,8 +20,8 @@ import type {
   AcpConfigState,
   AcpDebugEventEntry,
   AcpResolvedLaunchSpec
-} from '@shared/types/acp'
-import type { DeepchatEventName } from '@shared/contracts/events'
+} from '@deepchat/shared/types/acp'
+import type { DeepchatEventName } from '@deepchat/shared/contracts/events'
 import type { AgentProcessHandle, AgentProcessManager } from './types'
 import {
   getPathEntriesFromEnv,

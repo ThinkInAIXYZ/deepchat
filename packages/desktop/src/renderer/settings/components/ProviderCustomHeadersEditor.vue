@@ -114,7 +114,7 @@ import {
   canonicalizeProviderCustomHeaders,
   validateProviderCustomHeaders,
   type ProviderCustomHeaders
-} from '@shared/providerCustomHeaders'
+} from '@deepchat/shared/providerCustomHeaders'
 
 type SaveResult = { isOk: boolean; errorMsg: string | null }
 

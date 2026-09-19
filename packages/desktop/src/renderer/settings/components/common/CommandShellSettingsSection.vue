@@ -153,7 +153,7 @@ import {
   DEFAULT_AGENT_COMMAND_SHELL_CONFIG,
   type AgentCommandShellConfig,
   type GitBashAvailability
-} from '@shared/commandShell'
+} from '@deepchat/shared/commandShell'
 
 const { t } = useI18n()
 const langStore = useLanguageStore()

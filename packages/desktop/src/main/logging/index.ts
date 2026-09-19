@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { is } from '@electron-toolkit/utils'
 import { app } from 'electron'
-import { originalConsole } from '@shared/logger'
+import { originalConsole } from '@deepchat/shared/logger'
 import { MainJsonlPersistence } from './mainJsonlPersistence'
 import { MainLogger, type MainLogInternalWarning } from './mainLogger'
 import type {

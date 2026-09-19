@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { ChatMessageRecord, SessionRecord } from '@shared/types/agent-interface'
+import type { ChatMessageRecord, SessionRecord } from '@deepchat/shared/types/agent-interface'
 import { SessionQuery, type SessionQueryDependencies } from '@/session/query'
 import { ExecutionJournalCorruptionError } from '@deepchat/agent-kernel/tape/domain/executionJournal'
 

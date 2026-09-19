@@ -1,11 +1,11 @@
 import type { ProviderSettingsPort } from '@/provider/settings'
 import { BrowserWindow } from 'electron'
-import type { McpServicePort } from '@shared/types/mcp'
+import type { McpServicePort } from '@deepchat/shared/types/mcp'
 import type { IWindowPresenter } from '@shared/types/desktop'
 import type { ProviderInstallPreview } from '@shared/providerDeeplink'
 import type { ProviderDeeplinkFailureReason } from '@shared/notifications'
 import { DEEPCHAT_EVENT_CHANNEL } from '@shared/contracts/channels'
-import { createDeepchatEventEnvelope } from '@shared/contracts/events'
+import { createDeepchatEventEnvelope } from '@deepchat/shared/contracts/events'
 import { DEEPLINK_EVENTS } from '@/events'
 import type { SemanticNotificationPublisher } from '@/notifications'
 import type {

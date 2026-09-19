@@ -1,4 +1,4 @@
-import type { DialogIcon } from './types/dialog'
+import type { DialogIcon } from '@deepchat/shared/types/dialog'
 
 export const DIALOG_WARN: DialogIcon = {
   icon: 'lucide:circle-alert',

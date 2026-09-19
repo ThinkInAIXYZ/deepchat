@@ -1,6 +1,6 @@
 import { readdirSync, rmSync } from 'node:fs'
 import path from 'node:path'
-import type { ToolchainKind } from '@shared/types/toolchains'
+import type { ToolchainKind } from '@deepchat/shared/types/toolchains'
 
 export const TOOLCHAINS_DIRNAME = 'toolchains'
 export const STATE_FILENAME = 'state.json'

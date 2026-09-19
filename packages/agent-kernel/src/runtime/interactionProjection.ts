@@ -1,5 +1,5 @@
-import type { AssistantMessageBlock } from '../shared/types/agent-interface.js'
-import type { ToolCallImagePreview } from '../shared/types/core/mcp.js'
+import type { AssistantMessageBlock } from '@deepchat/shared/types/agent-interface'
+import type { ToolCallImagePreview } from '@deepchat/shared/types/core/mcp'
 import type { LoopRun } from '../loop/loopRun.js'
 import type { DeepChatAgentInstance } from '../instance/deepChatAgentInstance.js'
 import type { PendingToolInteraction } from './types.js'

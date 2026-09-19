@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 import {
   TOOL_EXECUTION,
   type MCPToolDefinition
-} from '@shared/types/core/mcp'
+} from '@deepchat/shared/types/core/mcp'
 import { getUsableContextLength } from '@deepchat/agent-kernel/runtime/contextBudget'
 import { estimateToolDefinitionTokens } from '@deepchat/agent-kernel/runtime/contextBuilder'
 import {

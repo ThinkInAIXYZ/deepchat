@@ -1,8 +1,8 @@
-import logger from '@shared/logger'
+import logger from '@deepchat/shared/logger'
 import { awaitWithAbort } from '@deepchat/agent-kernel/collab/lib/awaitWithAbort'
 import { getYoBrowserToolDefinitions } from '@/tool/browser/definitions'
 import type { YoBrowserPresenter } from './YoBrowserPresenter'
-import { BrowserPageStatus, type YoBrowserStatus } from '@shared/types/browser'
+import { BrowserPageStatus, type YoBrowserStatus } from '@deepchat/shared/types/browser'
 import {
   YoBrowserUnavailableError,
   buildYoBrowserUnavailablePayload,

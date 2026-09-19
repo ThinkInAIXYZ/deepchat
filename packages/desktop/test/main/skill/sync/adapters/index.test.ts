@@ -25,7 +25,7 @@ import type {
   FormatCapabilities,
   CanonicalSkill,
   ParseContext
-} from '../../../../../src/shared/types/skillSync'
+} from '@deepchat/shared/types/skillSync'
 
 describe('Adapters Registry', () => {
   const builtinAdapters = [

@@ -6,7 +6,7 @@ import type {
   MessageStartResult,
   SessionRecord,
   SessionWithState
-} from '../shared/types/agent-interface.js'
+} from '@deepchat/shared/types/agent-interface'
 
 /**
  * V1 CLI compatibility projection ports. Declared here so the compatibility handler's narrow

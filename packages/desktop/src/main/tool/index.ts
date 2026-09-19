@@ -11,7 +11,7 @@ import {
   type ToolDispatchCommitInput,
   type ToolExecutionContract,
   type ToolOutcomeProjectionRegistrar
-} from '@shared/types/mcp'
+} from '@deepchat/shared/types/mcp'
 import type {
   ToolCallOptions,
   ToolDefinitionContext,
@@ -19,8 +19,8 @@ import type {
   ToolModeConfiguration,
   ToolPermissionPreCheckResult,
   ToolServicePort
-} from '@shared/types/tool'
-import type { PermissionMode, SessionKind } from '@shared/types/agent-interface'
+} from '@deepchat/shared/types/tool'
+import type { PermissionMode, SessionKind } from '@deepchat/shared/types/agent-interface'
 import { resolveToolOffloadTemplatePath } from '@deepchat/agent-kernel/collab/agent-shared/storage/sessionPaths'
 import { QUESTION_TOOL_NAME } from '@deepchat/agent-kernel/collab/tool/agentTools/questionTool'
 import { ToolMapper, type ToolSource } from './toolMapper'
@@ -35,7 +35,7 @@ import {
   TOOL_SEARCH_AGENT_TOOL_NAME,
   getAgentToolExposure,
   isUserConfigurableAgentTool
-} from '@shared/agentTools'
+} from '@deepchat/shared/agentTools'
 import {
   AgentToolManager,
   IMAGE_GENERATE_TOOL_NAME,
@@ -118,7 +118,7 @@ import type { ToolEffectObserver } from './effectObserver'
 import { resolvePluginToolPolicy } from '@/plugin/toolPolicyStore'
 import { composeSubagentAuthority } from '@deepchat/agent-kernel/collab/session/subagentAuthority'
 import type { LiveDelegationConsentIssuer } from '@/orchestration/liveDelegationConsent'
-import { parseChildAgentResultEnvelopeText } from '@shared/orchestration/resultSafety'
+import { parseChildAgentResultEnvelopeText } from '@deepchat/shared/orchestration/resultSafety'
 import {
   ExecutionContractDispatchError,
   assertExecutionContractAllowsDispatch
@@ -144,7 +144,7 @@ import {
   CODE_MODE_TOOL_SERVER_NAME,
   RUN_CODE_DEFAULT_TIMEOUT_MS,
   RUN_CODE_MAX_TIMEOUT_MS
-} from '@shared/codeModeProtocol'
+} from '@deepchat/shared/codeModeProtocol'
 
 type McpToolPort = Pick<
   McpServicePort,

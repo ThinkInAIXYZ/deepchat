@@ -1,8 +1,8 @@
 import type { ProviderSettingsPort } from '@/provider/settings'
-import { supportsOpenAIImageGenerationSettings } from '@shared/imageGenerationSettings'
-import { ApiEndpointType, ModelType } from '@shared/model'
-import type { LLM_PROVIDER, ModelConfig } from '@shared/types/provider'
-import { supportsOpenAICompatibleVideoGeneration } from '@shared/videoGenerationSettings'
+import { supportsOpenAIImageGenerationSettings } from '@deepchat/shared/imageGenerationSettings'
+import { ApiEndpointType, ModelType } from '@deepchat/shared/model'
+import type { LLM_PROVIDER, ModelConfig } from '@deepchat/shared/types/provider'
+import { supportsOpenAICompatibleVideoGeneration } from '@deepchat/shared/videoGenerationSettings'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { DEFAULT_PROVIDERS } from '../../../src/main/provider/defaults'
 import { ProviderInstanceManager } from '../../../src/main/provider/managers/providerInstanceManager'
@@ -15,7 +15,7 @@ const { mockCacheImage, mockFetchRemoteFile, mockRunAiSdkCoreStream } = vi.hoist
   mockRunAiSdkCoreStream: vi.fn()
 }))
 
-vi.mock('@shared/logger', () => ({
+vi.mock('@deepchat/shared/logger', () => ({
   default: {
     info: vi.fn(),
     warn: vi.fn(),

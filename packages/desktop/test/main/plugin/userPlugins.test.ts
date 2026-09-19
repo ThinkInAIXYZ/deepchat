@@ -14,7 +14,7 @@ import type {
   DeepChatTapeEntryRow,
   TapeAnchorAppendInput
 } from '@deepchat/agent-kernel/tape/domain/entry'
-import type { UserPluginHook } from '@shared/types/userPlugin'
+import type { UserPluginHook } from '@deepchat/shared/types/userPlugin'
 
 vi.mock('node:fs', async () => {
   const actual = await vi.importActual<typeof import('node:fs')>('node:fs')

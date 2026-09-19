@@ -11,20 +11,20 @@ import {
 import type { AgentDescriptor } from '@/agent/shared/agentDescriptors'
 import { mapCatalogRecordToLegacyAgent } from '@/agent/shared/agentCompatibilityMapper'
 import { toAppSessionId } from '@deepchat/agent-kernel/collab/agent-shared/agentSessionIds'
-import type { AcpAgentConfig } from '@shared/types/acp'
+import type { AcpAgentConfig } from '@deepchat/shared/types/acp'
 import type {
   AcpAgentInstallState,
   AcpAgentState,
   AcpManualAgent,
   AcpRegistryAgent
-} from '@shared/types/acp'
+} from '@deepchat/shared/types/acp'
 import type {
   Agent,
   AgentAvatar,
   CreateDeepChatAgentInput,
   DeepChatAgentConfig,
   UpdateDeepChatAgentInput
-} from '@shared/types/agent-interface'
+} from '@deepchat/shared/types/agent-interface'
 import type { SessionDatabase } from '@/session/data/database'
 import type { AgentDatabase } from '@/agent/data/database'
 import type { MemoryDatabase } from '@/memory/data/database'

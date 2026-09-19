@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { ModelConfig } from '@shared/types/provider'
-import { ApiEndpointType, ModelType } from '../../../src/shared/model'
+import type { ModelConfig } from '@deepchat/shared/types/provider'
+import { ApiEndpointType, ModelType } from '@deepchat/shared/model'
 
 const storeStates = vi.hoisted(
   () =>

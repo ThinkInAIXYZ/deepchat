@@ -1,7 +1,7 @@
-import type { ModelConfig } from '../shared/types/provider.js'
-import { ApiEndpointType, ModelType } from '../shared/model.js'
-import { isTtsModelId } from '../shared/ttsSettings.js'
-import { isVideoGenerationModelConfig } from '../shared/videoGenerationSettings.js'
+import type { ModelConfig } from '@deepchat/shared/types/provider'
+import { ApiEndpointType, ModelType } from '@deepchat/shared/model'
+import { isTtsModelId } from '@deepchat/shared/ttsSettings'
+import { isVideoGenerationModelConfig } from '@deepchat/shared/videoGenerationSettings'
 
 export type ContextBudgetModelConfig = Pick<
   ModelConfig,

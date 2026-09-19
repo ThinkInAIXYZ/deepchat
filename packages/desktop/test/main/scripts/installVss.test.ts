@@ -20,12 +20,12 @@ import {
   parseArgs,
   targetTriple,
   validateExtensionMetadata
-} from '../../../../../scripts/installVss.js'
+} from '../../../scripts/installVss.js'
 import {
   materializeBase64Extension,
   materializeGzipExtension,
   parseArgs as parseSmokeArgs
-} from '../../../../../scripts/smoke-duckdb-vss.js'
+} from '../../../scripts/smoke-duckdb-vss.js'
 
 function response(status: number, body = 'ok'): Response {
   return new Response(body, { status })

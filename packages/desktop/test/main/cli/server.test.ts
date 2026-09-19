@@ -36,7 +36,7 @@ import { LOCAL_CONTROL_PROGRAMMATIC_ROUTE_SURFACE_VERSION } from '@shared/contra
 import type { CliRequestAdmission, CliRequestPolicyInput } from '@/cli/policy'
 import type { CliSurfaceEntry } from '@/cli/surface'
 import type { CliRouteCaller } from '@/routes/routeRegistry'
-import { invokeLocalControlStream } from '../../../src/cli/transport'
+import { invokeLocalControlStream } from '../../../../cli/src/transport'
 
 type RpcResult = Readonly<{
   status: number

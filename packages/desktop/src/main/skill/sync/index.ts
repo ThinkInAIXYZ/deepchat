@@ -1,4 +1,4 @@
-import logger from '@shared/logger'
+import logger from '@deepchat/shared/logger'
 /**
  * SkillSyncService manages Skill synchronization.
  *
@@ -19,14 +19,17 @@ import type {
   ExternalSkillInfo,
   ScanCache,
   NewDiscovery
-} from '@shared/types/skillSync'
-import { ConflictStrategy } from '@shared/types/skillSync'
-import type { SkillServicePort } from '@shared/types/skill'
+} from '@deepchat/shared/types/skillSync'
+import { ConflictStrategy } from '@deepchat/shared/types/skillSync'
+import type { SkillServicePort } from '@deepchat/shared/types/skill'
 import type { SkillSettingsPort } from '../settings'
 import { toolScanner, resolveSkillsDir } from './toolScanner'
 import { formatConverter } from './formatConverter'
 import type { SyncContext } from './types'
-import type { DeepchatEventPublisher, DeepchatEventPayload } from '@shared/contracts/events'
+import type {
+  DeepchatEventPublisher,
+  DeepchatEventPayload
+} from '@deepchat/shared/contracts/events'
 import { isValidToolId, MAX_SUBFOLDER_FILE_SIZE, MAX_SKILL_FOLDER_SIZE } from './security'
 import { scanAndDetectDiscoveriesInWorker, scanExternalToolsInWorker } from './scanWorker'
 

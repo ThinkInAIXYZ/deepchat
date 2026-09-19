@@ -114,7 +114,7 @@ import { DcButton } from '@dc-ui/components/button'
 import { Switch } from '@shadcn/components/ui/switch'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@shadcn/components/ui/tooltip'
 import { Icon } from '@iconify/vue'
-import { hasNativeToolCapability, ModelType, type NewApiEndpointType } from '@shared/model'
+import { hasNativeToolCapability, ModelType, type NewApiEndpointType } from '@deepchat/shared/model'
 import ModelConfigDialog from './ModelConfigDialog.vue'
 
 const { t } = useI18n()

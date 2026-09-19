@@ -9,7 +9,7 @@ import {
   ProgrammaticToolParentRegistry,
   assertIssuedProgrammaticToolAuthorityAssertion
 } from '@/cli/programmaticToolParentRegistry'
-import { LOCAL_CONTROL_PROGRAMMATIC_ROUTE_SURFACE_VERSION } from '@shared/contracts/localControl'
+import { LOCAL_CONTROL_PROGRAMMATIC_ROUTE_SURFACE_VERSION } from '@deepchat/shared/contracts/localControl'
 import { ExecutionJournalService } from '@/tape/application/executionJournalService'
 import { createTapeTableMock } from '../session/data/tapeTestHarness'
 import type { ProgrammaticToolCapabilityV1 } from '@deepchat/agent-kernel/runtime/programmaticToolSurface'

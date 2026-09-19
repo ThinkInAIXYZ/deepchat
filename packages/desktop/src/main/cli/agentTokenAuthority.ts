@@ -5,8 +5,8 @@ import {
   LocalControlScopesSchema,
   LocalControlTokenSchema,
   type LocalControlScope
-} from '@shared/contracts/localControl'
-import { PROGRAMMATIC_TOOL_RPC_MAX_BODY_BYTES } from '@shared/contracts/routes/tools.routes'
+} from '@deepchat/shared/contracts/localControl'
+import { PROGRAMMATIC_TOOL_RPC_MAX_BODY_BYTES } from '@deepchat/shared/contracts/routes/tools.routes'
 import { z } from 'zod'
 import {
   MAX_TAPE_PROGRAMMATIC_TOOL_BATCH_STEPS,

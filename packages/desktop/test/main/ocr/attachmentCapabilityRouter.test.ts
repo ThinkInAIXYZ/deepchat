@@ -12,8 +12,8 @@ import {
   DocumentTextExtractionError,
   type DocumentTextExtractionResult
 } from '@/ocr/documentTextExtractionService'
-import type { MessageFile, SendMessageInput } from '@shared/types/agent-interface'
-import type { PdfEmbeddedTextCoverage } from '@shared/types/attachment'
+import type { MessageFile, SendMessageInput } from '@deepchat/shared/types/agent-interface'
+import type { PdfEmbeddedTextCoverage } from '@deepchat/shared/types/attachment'
 
 const AVAILABLE = {
   status: 'available' as const,

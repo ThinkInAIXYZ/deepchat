@@ -2,8 +2,8 @@ import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 import { createProjectClient } from '@api/ProjectClient'
 import { createConfigClient } from '../../../api/ConfigClient'
-import type { EnvironmentSummary, Project } from '@shared/types/agent-interface'
-import { normalizeWorkspacePath } from '@shared/utils/filesystem'
+import type { EnvironmentSummary, Project } from '@deepchat/shared/types/agent-interface'
+import { normalizeWorkspacePath } from '@deepchat/shared/utils/filesystem'
 
 export interface UIProject {
   name: string

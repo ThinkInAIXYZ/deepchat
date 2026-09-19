@@ -10,7 +10,7 @@ import {
   configSystemPromptsChangedEvent,
   configSystemThemeChangedEvent,
   configThemeChangedEvent
-} from '@shared/contracts/events'
+} from '@deepchat/shared/contracts/events'
 import {
   configAddCustomPromptRoute,
   configAddManualAcpAgentRoute,
@@ -90,16 +90,19 @@ import {
   type DeepchatRouteInput
 } from '@shared/contracts/routes'
 import type { Prompt, SystemPrompt } from '@shared/types/prompt'
-import type { AcpAgentInstallState } from '@shared/types/acp'
-import type { AcpManualAgent, AcpRegistryAgent } from '@shared/types/acp'
+import type { AcpAgentInstallState } from '@deepchat/shared/types/acp'
+import type { AcpManualAgent, AcpRegistryAgent } from '@deepchat/shared/types/acp'
 import type { ShortcutKeySetting } from '@shared/types/desktop'
-import type { BuiltinKnowledgeConfig } from '@shared/types/knowledge'
-import type { HookTestResult, HooksNotificationsSettings } from '@shared/hooksNotifications'
+import type { BuiltinKnowledgeConfig } from '@deepchat/shared/types/knowledge'
+import type {
+  HookTestResult,
+  HooksNotificationsSettings
+} from '@deepchat/shared/hooksNotifications'
 import type {
   Agent,
   CreateDeepChatAgentInput,
   UpdateDeepChatAgentInput
-} from '@shared/types/agent-interface'
+} from '@deepchat/shared/types/agent-interface'
 import { getDeepchatBridge } from './core'
 import { createSettingsClient } from './SettingsClient'
 

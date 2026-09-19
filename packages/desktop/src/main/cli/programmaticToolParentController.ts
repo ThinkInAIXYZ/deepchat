@@ -20,7 +20,7 @@ import type {
   ExecutionJournalWriter,
   NestedExecutionJournalWriter
 } from '@deepchat/agent-kernel/tape/ports/capabilities'
-import type { ToolDispatchCommitInput } from '@shared/types/core/mcp'
+import type { ToolDispatchCommitInput } from '@deepchat/shared/types/core/mcp'
 import type { ProgrammaticCompletedInvocationResult } from '@deepchat/agent-kernel/contracts/programmaticToolAuthority'
 
 export const PROGRAMMATIC_PARENT_SETTLEMENT_SCHEMA_VERSION = 1 as const

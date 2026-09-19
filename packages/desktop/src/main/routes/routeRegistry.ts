@@ -1,5 +1,5 @@
 import type { DeepchatRouteName } from '@shared/contracts/routes'
-import type { LocalControlScope } from '@shared/contracts/localControl'
+import type { LocalControlScope } from '@deepchat/shared/contracts/localControl'
 import type { z } from 'zod'
 
 export type RendererRouteCaller = Readonly<{

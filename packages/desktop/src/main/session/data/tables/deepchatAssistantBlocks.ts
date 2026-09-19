@@ -1,8 +1,8 @@
 import Database from 'better-sqlite3-multiple-ciphers'
 import { isDeepStrictEqual } from 'node:util'
 import { BaseTable } from '@/data/baseTable'
-import type { AssistantMessageBlock } from '@shared/types/agent-interface'
-import type { McpAppDescriptor } from '@shared/types/mcp'
+import type { AssistantMessageBlock } from '@deepchat/shared/types/agent-interface'
+import type { McpAppDescriptor } from '@deepchat/shared/types/mcp'
 import { toAssistantBlockRowInput, type PersistedBlockExtra } from '../messageContent'
 
 export interface DeepChatAssistantBlockRow {

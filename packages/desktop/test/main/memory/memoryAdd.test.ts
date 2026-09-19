@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
 
 import { MemoryService } from '@/memory'
-import type { DeepChatAgentConfig } from '@shared/types/agent-interface'
-import { AGENT_MEMORY_MANUAL_CONTENT_MAX_CHARS } from '@shared/types/agent-memory'
+import type { DeepChatAgentConfig } from '@deepchat/shared/types/agent-interface'
+import { AGENT_MEMORY_MANUAL_CONTENT_MAX_CHARS } from '@deepchat/shared/types/agent-memory'
 import {
   createFakeRepository,
   FakeAuditRepository,

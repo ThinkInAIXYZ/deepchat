@@ -6,10 +6,10 @@ import { promisify } from 'node:util'
 import { describe, expect, it } from 'vitest'
 import { parse } from 'yaml'
 import {
-  POSIX_LAUNCHER,
-  WINDOWS_LAUNCHER,
-  buildCli
-} from '../../../scripts/build-cli.mjs'
+  BUNDLED_POSIX_LAUNCHER as POSIX_LAUNCHER,
+  BUNDLED_WINDOWS_LAUNCHER as WINDOWS_LAUNCHER
+} from '../../../../cli/src/launcher.mjs'
+import { buildCli } from '../../../../cli/scripts/build.mjs'
 
 const execFileAsync = promisify(execFile)
 const CLI_BUILD_TEST_TIMEOUT_MS = 30_000
@@ -52,17 +52,21 @@ describe('CLI bundle', () => {
       'cli'
     )
     try {
-      await buildCli({ outDir: outputDirectory, logLevel: 'silent' })
+      await buildCli({ outDir: outputDirectory, logLevel: 'silent', version: 'build-test' })
       await provisionElectronHost(outputDirectory)
       const entryPath = path.join(outputDirectory, 'deepchat.mjs')
       const source = await readFile(entryPath, 'utf8')
       const result = await execFileAsync(process.execPath, [entryPath, 'help'])
       const launcherResult = await runGeneratedLauncher(outputDirectory)
+      const helpResult = await execFileAsync(process.execPath, [entryPath, '--help'])
+      const versionResult = await execFileAsync(process.execPath, [entryPath, '--version'])
 
       expect(source.startsWith('#!/usr/bin/env node')).toBe(true)
       expect(source).not.toMatch(/from\s+["']zod["']/)
       expect(result.stdout).toContain('deepchat <domain> <verb>')
       expect(launcherResult.stdout).toContain('deepchat <domain> <verb>')
+      expect(helpResult.stdout).toContain('deepchat <domain> <verb>')
+      expect(versionResult.stdout).toBe('build-test\n')
       if (process.platform !== 'win32') {
         expect((await stat(path.join(outputDirectory, 'deepchat'))).mode & 0o111).toBe(0o111)
       }

@@ -2,7 +2,7 @@ import type {
   MessageMetadata,
   UsageDashboardCalendarDay,
   UsageStatsBackfillStatus
-} from '@shared/types/agent-interface'
+} from '@deepchat/shared/types/agent-interface'
 import type { TapeCompactionModelCallEvent } from '@deepchat/agent-kernel/tape/domain/compactionUsage'
 
 export const DASHBOARD_STATS_BACKFILL_KEY = 'dashboardStatsBackfillV2'

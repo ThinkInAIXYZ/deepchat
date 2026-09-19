@@ -8,7 +8,7 @@ import { WeixinIlinkCommandRouter } from './commandRouter'
 import { WeixinIlinkClient } from './weixinIlinkClient'
 import { WeixinIlinkParser } from './weixinIlinkParser'
 import { WeixinIlinkRuntime } from './weixinIlinkRuntime'
-import logger from '@shared/logger'
+import logger from '@deepchat/shared/logger'
 
 const DEFAULT_STATUS: WeixinIlinkRuntimeStatusSnapshot = {
   state: 'stopped',

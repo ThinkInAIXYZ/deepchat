@@ -2,7 +2,7 @@ import { app } from 'electron'
 import path from 'node:path'
 import type { SecretStore } from '@/config/secretStore'
 import type { SettingsStore } from '@/config/settingsStore'
-import type { DeepchatEventPublisher } from '@shared/contracts/events'
+import type { DeepchatEventPublisher } from '@deepchat/shared/contracts/events'
 import type {
   CloudSyncConfigBase,
   CloudSyncConfigInput,

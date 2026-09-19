@@ -4,8 +4,8 @@ import {
   AttachmentResolvedRepresentationSchema,
   PdfEmbeddedTextCoverageSchema,
   SendMessageInputSchema
-} from '../../../src/shared/contracts/common'
-import { PreparedMessageFileSchema } from '../../../src/shared/contracts/domainSchemas'
+} from '@deepchat/shared/contracts/common'
+import { PreparedMessageFileSchema } from '@deepchat/shared/contracts/domainSchemas'
 import {
   getAttachmentSearchableText,
   isAttachmentPreparationCandidate,
@@ -15,7 +15,7 @@ import {
   normalizeAttachmentRepresentationPreferenceForFile,
   normalizeAttachmentResolvedRepresentation,
   normalizePdfEmbeddedTextCoverage
-} from '../../../src/shared/utils/attachmentRepresentation'
+} from '@deepchat/shared/utils/attachmentRepresentation'
 
 describe('attachment representation contracts', () => {
   it('accepts pending controls but strips main-owned attachment snapshots from input', () => {

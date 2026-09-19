@@ -1,5 +1,5 @@
-import { createStreamEvent, type LLMCoreStreamEvent } from '@shared/types/core/llm-events'
-import type { ChatMessageProviderOptions } from '@shared/types/core/chat-message'
+import { createStreamEvent, type LLMCoreStreamEvent } from '@deepchat/shared/types/core/llm-events'
+import type { ChatMessageProviderOptions } from '@deepchat/shared/types/core/chat-message'
 import type { ToolSet, TextStreamPart } from 'ai'
 import type { CacheImageOptions } from '@/platform/imageCache'
 import { parseLegacyFunctionCalls } from './toolProtocol'

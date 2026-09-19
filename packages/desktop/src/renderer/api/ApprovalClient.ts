@@ -3,7 +3,7 @@ import {
   approvalClosedEvent,
   approvalRequestedEvent,
   type DeepchatEventPayload
-} from '@shared/contracts/events'
+} from '@deepchat/shared/contracts/events'
 import { approvalsResolveRoute } from '@shared/contracts/routes'
 import { getDeepchatBridge } from './core'
 

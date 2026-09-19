@@ -1,4 +1,4 @@
-import type { Tool } from '@shared/types/mcp'
+import type { Tool } from '@deepchat/shared/types/mcp'
 
 const MAX_SCHEMA_BYTES = 1024 * 1024
 const MAX_METADATA_BYTES = 256 * 1024

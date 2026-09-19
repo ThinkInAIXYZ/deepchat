@@ -1,4 +1,4 @@
-import logger from '@shared/logger'
+import logger from '@deepchat/shared/logger'
 import fs from 'node:fs'
 import path from 'node:path'
 
@@ -8,7 +8,7 @@ import type {
   KnowledgeFileMessage,
   KnowledgeFileResult,
   QueryResult
-} from '@shared/types/knowledge'
+} from '@deepchat/shared/types/knowledge'
 import { nanoid } from 'nanoid'
 import { RecursiveCharacterTextSplitter } from '@/lib/textsplitters'
 import { sanitizeText } from '@/utils/strings'

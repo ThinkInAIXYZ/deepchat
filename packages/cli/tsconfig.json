@@ -1,0 +1,36 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "lib": ["ES2023"],
+    "strict": true,
+    "noImplicitOverride": true,
+    "esModuleInterop": true,
+    "isolatedModules": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "types": ["node"],
+    "paths": {
+      "@deepchat/shared/contracts/cliCommands": ["../shared/src/contracts/cliCommands.ts"],
+      "@deepchat/shared/contracts/common": ["../shared/src/contracts/common.ts"],
+      "@deepchat/shared/contracts/events": ["../shared/src/contracts/events.ts"],
+      "@deepchat/shared/contracts/json": ["../shared/src/contracts/json.ts"],
+      "@deepchat/shared/contracts/localControl": ["../shared/src/contracts/localControl.ts"],
+      "@deepchat/shared/contracts/routes/artifacts.routes": ["../shared/src/contracts/routes/artifacts.routes.ts"],
+      "@deepchat/shared/contracts/routes/audio.routes": ["../shared/src/contracts/routes/audio.routes.ts"],
+      "@deepchat/shared/contracts/routes/mcp.routes": ["../shared/src/contracts/routes/mcp.routes.ts"],
+      "@deepchat/shared/contracts/routes/media.routes": ["../shared/src/contracts/routes/media.routes.ts"],
+      "@deepchat/shared/contracts/routes/models.routes": ["../shared/src/contracts/routes/models.routes.ts"],
+      "@deepchat/shared/contracts/routes/ocr.routes": ["../shared/src/contracts/routes/ocr.routes.ts"],
+      "@deepchat/shared/contracts/routes/providers.routes": ["../shared/src/contracts/routes/providers.routes.ts"],
+      "@deepchat/shared/contracts/routes/runs.routes": ["../shared/src/contracts/routes/runs.routes.ts"],
+      "@deepchat/shared/contracts/routes/skills.routes": ["../shared/src/contracts/routes/skills.routes.ts"],
+      "@deepchat/shared/contracts/routes/tools.routes": ["../shared/src/contracts/routes/tools.routes.ts"],
+      "@deepchat/shared/types/attachment": ["../shared/src/types/attachment.ts"],
+      "@deepchat/shared/types/skill": ["../shared/src/types/skill.ts"],
+      "@deepchat/shared/utils/filesystem": ["../shared/src/utils/filesystem.ts"]
+    }
+  },
+  "include": ["src/**/*", "../shared/src/**/*"]
+}

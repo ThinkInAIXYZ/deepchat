@@ -3,8 +3,8 @@ import type {
   AcpCompatibilityPromptPort,
   AcpCompatibilityPromptSections
 } from '@/agent/acp/instance/ports'
-import type { ChatMessage } from '@shared/types/core/chat-message'
-import type { MCPToolDefinition } from '@shared/types/core/mcp'
+import type { ChatMessage } from '@deepchat/shared/types/core/chat-message'
+import type { MCPToolDefinition } from '@deepchat/shared/types/core/mcp'
 
 const SECTION_ORDER: ReadonlyArray<keyof AcpCompatibilityPromptSections> = [
   'configured',

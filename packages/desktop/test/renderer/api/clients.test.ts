@@ -1,6 +1,6 @@
 import { isReactive, reactive } from 'vue'
 import type { DeepchatBridge } from '@shared/contracts/bridge'
-import type { HooksNotificationsSettings } from '@shared/hooksNotifications'
+import type { HooksNotificationsSettings } from '@deepchat/shared/hooksNotifications'
 import { createAcpAuthClient } from '../../../src/renderer/api/AcpAuthClient'
 import { createAppRuntimeClient } from '../../../src/renderer/api/AppRuntimeClient'
 import { createBrowserClient } from '../../../src/renderer/api/BrowserClient'

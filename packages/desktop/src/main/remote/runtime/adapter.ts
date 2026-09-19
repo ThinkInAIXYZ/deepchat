@@ -1,7 +1,7 @@
 import path from 'node:path'
 import { EventEmitter } from 'node:events'
 import { net } from 'electron'
-import logger from '@shared/logger'
+import logger from '@deepchat/shared/logger'
 import {
   CHANNEL_MAX_FILE_SIZE_BYTES,
   type ChannelAdapterConfig,

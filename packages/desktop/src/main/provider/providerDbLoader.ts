@@ -6,7 +6,7 @@ import {
   ProviderEntry,
   ProviderModel,
   sanitizeAggregate
-} from '@shared/types/model-db'
+} from '@deepchat/shared/types/model-db'
 import { resolveProviderId } from './providerId'
 
 const DEFAULT_PROVIDER_DB_URL =

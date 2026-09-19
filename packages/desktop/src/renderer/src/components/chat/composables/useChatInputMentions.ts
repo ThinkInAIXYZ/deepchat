@@ -6,7 +6,7 @@ import tippy from 'tippy.js'
 import { createSessionClient } from '@api/SessionClient'
 import { createWorkspaceClient } from '@api/WorkspaceClient'
 import type { WorkspaceFileNode } from '@shared/types/workspace'
-import type { PromptListEntry } from '@shared/types/mcp'
+import type { PromptListEntry } from '@deepchat/shared/types/mcp'
 import { useMcpStore } from '@/stores/mcp'
 import { useSkillsStore } from '@/stores/skillsStore'
 import {
@@ -26,7 +26,7 @@ import {
   type SlashSuggestionItem
 } from '../mentions/utils'
 
-import type { SkillMetadata } from '@shared/types/skill'
+import type { SkillMetadata } from '@deepchat/shared/types/skill'
 
 export interface UseChatInputMentionsOptions {
   skills?: Ref<SkillMetadata[]>

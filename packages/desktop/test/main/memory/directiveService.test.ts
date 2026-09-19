@@ -3,7 +3,7 @@ import {
   AGENT_MEMORY_ACTIVE_DIRECTIVE_MAX_COUNT,
   AGENT_MEMORY_DIRECTIVE_CONTENT_MAX_CHARS,
   AGENT_MEMORY_DIRECTIVE_TOPIC_MAX_CHARS
-} from '@shared/types/agent-memory'
+} from '@deepchat/shared/types/agent-memory'
 
 import { normalizeMemoryDirective } from '@deepchat/agent-kernel/collab/memory/domain/directives'
 import { makePresenter } from './support/memoryFakes'

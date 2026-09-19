@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { mcpToolsToAISDKTools, normalizeToolInputSchema } from '@/provider/aiSdk/toolMapper'
-import { TOOL_EXECUTION } from '@shared/types/core/mcp'
+import { TOOL_EXECUTION } from '@deepchat/shared/types/core/mcp'
 
 describe('AI SDK tool schema normalization', () => {
   it('normalizes discriminated union schemas to a top-level object schema', () => {

@@ -7,7 +7,7 @@ import {
   LocalControlScopesSchema,
   createLocalControlFailure,
   createLocalControlSuccess
-} from '@shared/contracts/localControl'
+} from '@deepchat/shared/contracts/localControl'
 import { LocalControlCapabilitySchema } from '@shared/contracts/routes'
 import {
   PROGRAMMATIC_TOOL_BATCH_MAX_STEPS,
@@ -15,7 +15,7 @@ import {
   toolCallRoute,
   toolDescribeRoute,
   toolSearchRoute
-} from '@shared/contracts/routes/tools.routes'
+} from '@deepchat/shared/contracts/routes/tools.routes'
 
 const validDescriptor = {
   protocolVersion: LOCAL_CONTROL_PROTOCOL_VERSION,

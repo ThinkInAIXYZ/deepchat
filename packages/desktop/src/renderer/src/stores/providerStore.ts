@@ -5,8 +5,12 @@ import { createProviderClient } from '../../api/ProviderClient'
 import { createConfigClient } from '../../api/ConfigClient'
 import { useIpcQuery } from '@/composables/useIpcQuery'
 import type { ProviderHealthEntry } from '@shared/contracts/routes'
-import type { AWS_BEDROCK_PROVIDER, LLM_PROVIDER, VERTEX_PROVIDER } from '@shared/types/provider'
-import { canonicalizeProviderCustomHeaders } from '@shared/providerCustomHeaders'
+import type {
+  AWS_BEDROCK_PROVIDER,
+  LLM_PROVIDER,
+  VERTEX_PROVIDER
+} from '@deepchat/shared/types/provider'
+import { canonicalizeProviderCustomHeaders } from '@deepchat/shared/providerCustomHeaders'
 
 type VoiceAIConfig = {
   audioFormat: string

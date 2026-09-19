@@ -155,7 +155,7 @@ import type {
   BrowserImportApplyResult,
   BrowserImportPreview,
   BrowserImportScanResult
-} from '@shared/types/browser'
+} from '@deepchat/shared/types/browser'
 import { settingsLeaveGuard } from '../services/settingsLeaveGuard'
 
 const { t } = useI18n()

@@ -3,7 +3,7 @@
  */
 import { describe, it, expect } from 'vitest'
 import { AntigravityAdapter } from '../../../../../src/main/skill/sync/adapters/antigravityAdapter'
-import type { CanonicalSkill, ParseContext } from '../../../../../src/shared/types/skillSync'
+import type { CanonicalSkill, ParseContext } from '@deepchat/shared/types/skillSync'
 
 describe('AntigravityAdapter', () => {
   const adapter = new AntigravityAdapter()

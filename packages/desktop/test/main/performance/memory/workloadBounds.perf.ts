@@ -8,7 +8,7 @@ import {
   makePresenter,
   textToVector
 } from '../../memory/support/memoryFakes'
-import type { DeepChatAgentConfig } from '@shared/types/agent-interface'
+import type { DeepChatAgentConfig } from '@deepchat/shared/types/agent-interface'
 
 import { buildAgentFixture, buildDecisionFixture } from './fixtures'
 import { createMemoryPerfObserver } from './performanceObserver'

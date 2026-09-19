@@ -4,7 +4,7 @@ import {
   modelsConfigChangedEvent,
   modelsStatusChangedEvent,
   modelBatchStatusChangedEvent
-} from '@shared/contracts/events'
+} from '@deepchat/shared/contracts/events'
 import {
   modelsAddCustomRoute,
   modelsExportConfigsRoute,
@@ -23,8 +23,12 @@ import {
   modelsTranscribeAudioRoute,
   modelsUpdateCustomRoute
 } from '@shared/contracts/routes'
-import type { IModelConfig, ModelConfig, RENDERER_MODEL_META } from '@shared/types/provider'
-import type { CapabilitySnapshotQuery } from '@shared/types/model-capabilities'
+import type {
+  IModelConfig,
+  ModelConfig,
+  RENDERER_MODEL_META
+} from '@deepchat/shared/types/provider'
+import type { CapabilitySnapshotQuery } from '@deepchat/shared/types/model-capabilities'
 import { getDeepchatBridge } from './core'
 
 export function createModelClient(bridge: DeepchatBridge = getDeepchatBridge()) {

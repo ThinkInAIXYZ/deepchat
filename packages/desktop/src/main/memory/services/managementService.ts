@@ -1,4 +1,4 @@
-import logger from '@shared/logger'
+import logger from '@deepchat/shared/logger'
 
 import {
   MEMORY_ARCHIVE_CANDIDATE_LIFECYCLE_PREVIEW_LIMIT,
@@ -18,9 +18,9 @@ import {
   isAgentMemoryCategory,
   isSafeAgentId,
   type AgentMemoryCategory
-} from '@shared/types/agent-memory'
+} from '@deepchat/shared/types/agent-memory'
 import { parseAgentMemorySourceEntryIds } from '@shared/lib/agentMemoryLineage'
-import { unicodeCodePointLength } from '@shared/lib/unicodeText'
+import { unicodeCodePointLength } from '@deepchat/shared/lib/unicodeText'
 import { ARCHIVE_AGE_MS, ARCHIVE_DECAY_THRESHOLD } from '../core/lifecycle'
 import { deriveLifecycle, type DeriveLifecycleOptions } from '../core/lifecycle'
 import { resolveRetrieval } from '../core/scoring'

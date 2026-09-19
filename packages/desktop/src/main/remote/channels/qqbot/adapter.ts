@@ -8,7 +8,7 @@ import { QQBotCommandRouter } from './commandRouter'
 import { QQBotClient } from './qqbotClient'
 import { QQBotParser } from './qqbotParser'
 import { QQBotRuntime } from './qqbotRuntime'
-import logger from '@shared/logger'
+import logger from '@deepchat/shared/logger'
 
 const DEFAULT_STATUS: QQBotRuntimeStatusSnapshot = {
   state: 'stopped',

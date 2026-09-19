@@ -9,7 +9,7 @@ import { diffLines } from 'diff'
 import { validateGlobPattern, validateRegexPattern } from '@shared/regexValidator'
 import { getLanguageFromFilename } from '@shared/utils/codeLanguage'
 import { glob } from 'glob'
-import type { CommandShellPathStyle } from '@shared/commandShell'
+import type { CommandShellPathStyle } from '@deepchat/shared/commandShell'
 import { normalizeCommandShellFilePath } from '@/agent/shared/process/commandShellPath'
 import {
   AGENT_RAW_READ_MAX_BYTES,

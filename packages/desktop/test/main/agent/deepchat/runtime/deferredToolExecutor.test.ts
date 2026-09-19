@@ -4,7 +4,7 @@ import {
   type DeferredToolExecutorDependencies
 } from '@deepchat/agent-kernel/runtime/deferredToolExecutor'
 import { ExecutionJournalError } from '@deepchat/agent-kernel/tape/domain/executionJournal'
-import { TOOL_EXECUTION, type MCPToolDefinition } from '@shared/types/core/mcp'
+import { TOOL_EXECUTION, type MCPToolDefinition } from '@deepchat/shared/types/core/mcp'
 import {
   cacheToolCallImagePreviews,
   extractToolCallImagePreviews

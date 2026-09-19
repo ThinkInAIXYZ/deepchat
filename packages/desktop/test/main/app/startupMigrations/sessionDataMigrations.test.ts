@@ -9,7 +9,7 @@ import {
   runMainlineNormalizationMigration,
   type SessionDataMigrationSQLitePort
 } from '@/app/startupMigrations/sessionDataMigrations'
-import { TAPE_TOOL_NAMES } from '@shared/agentTools'
+import { TAPE_TOOL_NAMES } from '@deepchat/shared/agentTools'
 
 function createFixture() {
   const settings = new Map<string, unknown>()

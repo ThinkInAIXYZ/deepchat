@@ -1,18 +1,18 @@
 import { Buffer } from 'node:buffer'
 import { types as nodeTypes } from 'node:util'
-import type { AgentToolExposure } from '../shared/agentTools.js'
+import type { AgentToolExposure } from '@deepchat/shared/agentTools'
 import {
   TOOL_SEARCH_AGENT_TOOL_MAX_CALLS_PER_BATCH,
   TOOL_SEARCH_AGENT_TOOL_NAME,
   TOOL_SEARCH_AGENT_TOOL_SERVER_NAME,
   getAgentToolExposure
-} from '../shared/agentTools.js'
+} from '@deepchat/shared/agentTools'
 import {
   stripToolExecutionContract,
   type MCPToolDefinition,
   type ToolExecutionContract
-} from '../shared/types/core/mcp.js'
-import type { DeepChatExecutionToolTargetIdentity } from '../shared/types/execution-contract.js'
+} from '@deepchat/shared/types/core/mcp'
+import type { DeepChatExecutionToolTargetIdentity } from '@deepchat/shared/types/execution-contract'
 import { canonicalJsonStringifyData, hashJsonData } from '../tape/domain/canonicalJson.js'
 import {
   buildExecutionToolCeiling,

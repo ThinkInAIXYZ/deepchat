@@ -1,7 +1,7 @@
 import type {
   AgentMemoryDirectiveKind,
   AgentMemoryDirectiveSource
-} from '../../../shared/types/agent-memory.js'
+} from '@deepchat/shared/types/agent-memory'
 
 import {
   isMemoryDirectiveRuntimeEligible,

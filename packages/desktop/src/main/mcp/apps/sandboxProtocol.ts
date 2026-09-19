@@ -1,5 +1,5 @@
 import { protocol } from 'electron'
-import type { McpAppCsp, McpAppPermissions } from '@shared/types/mcp'
+import type { McpAppCsp, McpAppPermissions } from '@deepchat/shared/types/mcp'
 import { MCP_APP_SCHEME, type McpAppSandboxRegistry } from './sandboxRegistry'
 
 let schemeRegistered = false

@@ -5,7 +5,7 @@
  * Each adapter handles parsing and serializing skills for a specific tool format.
  */
 
-import type { IFormatAdapter } from '@shared/types/skillSync'
+import type { IFormatAdapter } from '@deepchat/shared/types/skillSync'
 import { ClaudeCodeAdapter } from './claudeCodeAdapter'
 import { CodexAdapter } from './codexAdapter'
 import { CursorAdapter } from './cursorAdapter'

@@ -1,6 +1,6 @@
 import { readonly, shallowRef } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { AGENT_MEMORY_ACTIVE_DIRECTIVE_MAX_COUNT } from '@shared/types/agent-memory'
+import { AGENT_MEMORY_ACTIVE_DIRECTIVE_MAX_COUNT } from '@deepchat/shared/types/agent-memory'
 import type {
   MemoryCommandRejectionReason,
   MemoryDirectiveCommandResult

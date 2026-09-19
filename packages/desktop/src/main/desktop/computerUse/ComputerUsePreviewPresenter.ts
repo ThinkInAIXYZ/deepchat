@@ -2,15 +2,15 @@ import { BrowserWindow } from 'electron'
 import { performance } from 'node:perf_hooks'
 import sharp from 'sharp'
 import { DEEPCHAT_EVENT_CHANNEL } from '@shared/contracts/channels'
-import { createDeepchatEventEnvelope } from '@shared/contracts/events'
-import logger from '@shared/logger'
+import { createDeepchatEventEnvelope } from '@deepchat/shared/contracts/events'
+import logger from '@deepchat/shared/logger'
 import type {
   ComputerUsePreviewMode,
   ComputerUsePreviewModeResult,
   ComputerUsePreviewSurface
 } from '@shared/types/computerUse'
 import type { IComputerUsePreviewPresenter, IWindowPresenter } from '@shared/types/desktop'
-import type { MCPImageContent, MCPToolResponse } from '@shared/types/mcp'
+import type { MCPImageContent, MCPToolResponse } from '@deepchat/shared/types/mcp'
 import type { ComputerUsePreviewCall, ComputerUsePreviewObserver } from '@/mcp/toolManager'
 import {
   AgentPreviewCoordinator,

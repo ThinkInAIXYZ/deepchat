@@ -1,4 +1,4 @@
-import type { FileItem } from './file'
+import type { FileItem } from '@deepchat/shared/types/file'
 
 export interface Prompt {
   id: string

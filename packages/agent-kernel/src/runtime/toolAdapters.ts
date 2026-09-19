@@ -7,11 +7,11 @@ import type {
   ToolExecutionPreCheckOptions,
   ToolResultPort
 } from '../loop/ports.js'
-import type { ProviderExecutionPort } from '../shared/types/provider.js'
-import type { ChatMessage } from '../shared/types/core/chat-message.js'
-import type { MCPToolDefinition, MCPToolResponse } from '../shared/types/core/mcp.js'
-import type { ToolServicePort, ToolDefinitionContext } from '../shared/types/tool.js'
-import { CUA_PLUGIN_ID } from '../shared/types/plugin.js'
+import type { ProviderExecutionPort } from '@deepchat/shared/types/provider'
+import type { ChatMessage } from '@deepchat/shared/types/core/chat-message'
+import type { MCPToolDefinition, MCPToolResponse } from '@deepchat/shared/types/core/mcp'
+import type { ToolServicePort, ToolDefinitionContext } from '@deepchat/shared/types/tool'
+import { CUA_PLUGIN_ID } from '@deepchat/shared/types/plugin'
 import type { VisionTargetResolverPort } from '../contracts/visionTarget.js'
 import type { ToolOutputGuard } from './toolOutputGuard.js'
 import {type ProviderModelResolutionPort} from '../contracts/providerModelResolution.js'

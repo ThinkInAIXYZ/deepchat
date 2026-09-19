@@ -6,7 +6,7 @@ import type {
   DisplayUserMessageMentionBlock
 } from '@/features/chat-page/model/displayMessage'
 import { getVisibleMentionLabel } from '@/features/chat-page/model/displayUserMessageText'
-import type { MessageFile } from '@shared/types/agent-interface'
+import type { MessageFile } from '@deepchat/shared/types/agent-interface'
 import MessageItemUser from '@/components/message/MessageItemUser.vue'
 
 const originalApi = window.api

@@ -1,4 +1,4 @@
-import type { OrchestrationEffectEvidence } from '@shared/orchestration/toolEffect'
+import type { OrchestrationEffectEvidence } from '@deepchat/shared/orchestration/toolEffect'
 import type { ToolEffectObservation } from './effectObserver'
 
 const SHELL_TOOL_NAMES = new Set(['exec', 'process'])

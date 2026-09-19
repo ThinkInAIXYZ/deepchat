@@ -1,4 +1,4 @@
-import logger from '../shared/logger.js'
+import logger from '@deepchat/shared/logger'
 import {
   createStaleDeepChatInstanceError,
   type SessionScopeRegistry
@@ -6,7 +6,7 @@ import {
 import { toAppSessionId } from '../collab/agent-shared/agentSessionIds.js'
 import type { MemoryCursorStorePort } from '../contracts/memoryCursorStore.js'
 import type { SessionIdentityService } from '../runtime/sessionIdentityService.js'
-import type { ChatMessageRecord } from '../shared/types/agent-interface.js'
+import type { ChatMessageRecord } from '@deepchat/shared/types/agent-interface'
 import {
   buildMemoryContextWithManifest,
   DIRECTIVE_TOKEN_CEILING,
@@ -30,7 +30,7 @@ import {
   type MemoryExtractionChunk,
   type MemoryExtractionMessage
 } from './memoryExtractionChunks.js'
-import { isRetiredWorkflowResultMessageMetadata } from '../shared/orchestration/retiredWorkflowData.js'
+import { isRetiredWorkflowResultMessageMetadata } from '@deepchat/shared/orchestration/retiredWorkflowData'
 import type {
   MemoryIngestionDrainOutcome,
   MemoryIngestionObserver

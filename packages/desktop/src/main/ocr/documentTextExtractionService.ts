@@ -37,7 +37,7 @@ import {
   type LightOcrDocumentRecognitionOutcome
 } from './lightOcrProcessHost'
 import { OcrSourceSnapshotBudget, OcrSourceSnapshotBudgetError } from './ocrSourceSnapshotBudget'
-import { PDF_PAGE_COUNT_SANITY_LIMIT } from '@shared/types/attachment'
+import { PDF_PAGE_COUNT_SANITY_LIMIT } from '@deepchat/shared/types/attachment'
 
 const PDF_OCR_DPI = 150
 const PDF_OCR_PAGE_RANGE = { start: 1, end: LIGHT_OCR_DOCUMENT_MAX_PAGES } as const

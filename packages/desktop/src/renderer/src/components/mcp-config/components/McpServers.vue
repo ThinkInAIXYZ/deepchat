@@ -28,7 +28,11 @@ import McpServerForm from '../McpServerForm.vue'
 import McpToolPanel from './McpToolPanel.vue'
 import McpPromptPanel from './McpPromptPanel.vue'
 import McpResourceViewer from './McpResourceViewer.vue'
-import type { MCPServerConfig, McpCredentialBinding, McpCredentialInput } from '@shared/types/mcp'
+import type {
+  MCPServerConfig,
+  McpCredentialBinding,
+  McpCredentialInput
+} from '@deepchat/shared/types/mcp'
 import { createMcpClient } from '@api/McpClient'
 
 const mcpStore = useMcpStore()

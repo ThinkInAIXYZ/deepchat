@@ -16,7 +16,7 @@ import {
   validateCuaDaemonMetadata,
   type CuaDaemonMetadata
 } from '@/plugin/cuaEmbeddedAdapter'
-import type { CuaEmbeddedRuntimeContract } from '@shared/types/plugin'
+import type { CuaEmbeddedRuntimeContract } from '@deepchat/shared/types/plugin'
 
 vi.mock('node:fs', async () => {
   const actual = await vi.importActual<typeof import('node:fs')>('node:fs')

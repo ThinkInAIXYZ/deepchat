@@ -1,7 +1,7 @@
 import type {
   CreateDeepChatAgentInput,
   UpdateDeepChatAgentInput
-} from '@shared/types/agent-interface'
+} from '@deepchat/shared/types/agent-interface'
 import {
   configAddManualAcpAgentRoute,
   configCreateDeepChatAgentRoute,

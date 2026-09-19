@@ -1,6 +1,6 @@
 import * as fs from 'node:fs'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import logger from '@shared/logger'
+import logger from '@deepchat/shared/logger'
 import {
   buildSystemEnvPrompt,
   buildSystemEnvPromptAssembly

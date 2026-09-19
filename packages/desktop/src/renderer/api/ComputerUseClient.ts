@@ -3,7 +3,7 @@ import {
   computerUsePreviewFrameEvent,
   computerUsePreviewSurfaceChangedEvent,
   type DeepchatEventPayload
-} from '@shared/contracts/events'
+} from '@deepchat/shared/contracts/events'
 import {
   computerUseDismissPreviewRoute,
   computerUseSetPreviewModeRoute

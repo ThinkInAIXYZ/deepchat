@@ -8,7 +8,7 @@ import {
   type AgentCliOuterDispatchReceipt,
   type AgentCliProgrammaticOperationBinding
 } from '@/cli/agentTokenAuthority'
-import { LOCAL_CONTROL_PROGRAMMATIC_ROUTE_SURFACE_VERSION } from '@shared/contracts/localControl'
+import { LOCAL_CONTROL_PROGRAMMATIC_ROUTE_SURFACE_VERSION } from '@deepchat/shared/contracts/localControl'
 
 function token(character: string): string {
   return character.repeat(43)

@@ -1,12 +1,12 @@
 import Database from 'better-sqlite3-multiple-ciphers'
-import logger from '@shared/logger'
+import logger from '@deepchat/shared/logger'
 import { BaseTable } from '@/data/baseTable'
 import {
   AGENT_MEMORY_CATEGORIES,
   AGENT_MEMORY_HEALTH_KIND_KEYS,
   AGENT_MEMORY_HEALTH_STATUS_KEYS,
   AGENT_MEMORY_SCOPE_ID_MAX_CHARS
-} from '@shared/types/agent-memory'
+} from '@deepchat/shared/types/agent-memory'
 import { serializeAgentMemorySourceEntryIds } from '@shared/lib/agentMemoryLineage'
 import { MEMORY_PAGE_MAX_LIMIT } from '@shared/contracts/routes/memory.routes'
 import type {

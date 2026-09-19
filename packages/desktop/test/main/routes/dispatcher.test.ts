@@ -1,12 +1,12 @@
 import type { ProviderSettingsPort } from '@/provider/settings'
-import type { FileServicePort } from '@shared/types/file'
-import type { SkillServicePort } from '@shared/types/skill'
+import type { FileServicePort } from '@deepchat/shared/types/file'
+import type { SkillServicePort } from '@deepchat/shared/types/skill'
 import type { WorkspaceServicePort } from '@shared/types/workspace'
-import type { SkillSyncServicePort } from '@shared/types/skillSync'
+import type { SkillSyncServicePort } from '@deepchat/shared/types/skillSync'
 import type { RemoteServicePort } from '@shared/types/remote'
 import type { IConversationExporter } from '@/exporter/interface'
-import type { McpServicePort } from '@shared/types/mcp'
-import type { ProviderRuntimePort } from '@shared/types/provider'
+import type { McpServicePort } from '@deepchat/shared/types/mcp'
+import type { ProviderRuntimePort } from '@deepchat/shared/types/provider'
 import type {
   IShortcutPresenter,
   ITabPresenter,
@@ -16,15 +16,18 @@ import type {
 import type { MainDatabase } from '@/data/mainDatabase'
 import type { TapeInspectionReader } from '@deepchat/agent-kernel/tape/ports/capabilities'
 import type { OAuthServicePort } from '@shared/types/oauth'
-import type { DialogServicePort } from '@shared/types/dialog'
+import type { DialogServicePort } from '@deepchat/shared/types/dialog'
 import type { DeviceServicePort } from '@shared/types/device'
-import type { KnowledgeServicePort } from '@shared/types/knowledge'
+import type { KnowledgeServicePort } from '@deepchat/shared/types/knowledge'
 import type { CronJob, CronJobRun } from '@shared/cronJobs'
-import { projectEnvironmentsChangedEvent } from '@shared/contracts/events/project.events'
+import { projectEnvironmentsChangedEvent } from '@deepchat/shared/contracts/events/project.events'
 import { DEEPCHAT_EVENT_CHANNEL } from '@shared/contracts/channels'
-import { createDeepchatEventEnvelope, type DeepchatEventPublisher } from '@shared/contracts/events'
+import {
+  createDeepchatEventEnvelope,
+  type DeepchatEventPublisher
+} from '@deepchat/shared/contracts/events'
 import type { ProviderInstallPreview } from '@shared/providerDeeplink'
-import type { AgentCommandShellConfig } from '@shared/commandShell'
+import type { AgentCommandShellConfig } from '@deepchat/shared/commandShell'
 import {
   createEmptyArchiveCandidateLifecyclePreview,
   createEmptyMemoryHealth,

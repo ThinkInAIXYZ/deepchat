@@ -2,8 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 const fs = await vi.importActual<typeof import('node:fs')>('node:fs')
 const path = await vi.importActual<typeof import('node:path')>('node:path')
-const appRoot = process.cwd()
-const repositoryRoot = path.resolve(appRoot, '../..')
+const repositoryRoot = process.cwd()
 const packageJson = JSON.parse(
   fs.readFileSync(path.join(repositoryRoot, 'package.json'), 'utf8')
 ) as {
@@ -17,11 +16,11 @@ const windowsArm64Workflow = fs.readFileSync(
 describe('test entrypoint contracts', () => {
   it('keeps complete test suites one-shot and watch mode explicit', () => {
     expect(packageJson.scripts).toMatchObject({
-      test: 'pnpm --filter DeepChat run test && pnpm --filter @deepchat/agent-kernel run test',
-      'test:main': 'pnpm --filter DeepChat run test:main && pnpm --filter @deepchat/agent-kernel run test',
-      'test:renderer': 'pnpm --filter DeepChat run test:renderer',
-      'test:coverage': 'pnpm --filter DeepChat run test:coverage',
-      'test:watch': 'pnpm --filter DeepChat run test:watch'
+      test: 'vitest run',
+      'test:main': 'vitest run --config vitest.config.ts test/main',
+      'test:renderer': 'vitest run --config vitest.config.renderer.ts test/renderer',
+      'test:coverage': 'vitest run --coverage',
+      'test:watch': 'vitest --watch'
     })
   })
 
@@ -39,12 +38,12 @@ describe('test entrypoint contracts', () => {
   })
 
   it('keeps the Windows ARM64 workflow aligned with the Native Memory test location', () => {
-    const nativeMemoryTest = 'packages/desktop/test/main/memory/memoryVectorStoreV2Native.test.ts'
+    const nativeMemoryTest = 'test/main/memory/memoryVectorStoreV2Native.test.ts'
 
     expect(fs.existsSync(path.join(repositoryRoot, nativeMemoryTest))).toBe(true)
-    expect(windowsArm64Workflow).toContain(nativeMemoryTest.slice('packages/desktop/'.length))
+    expect(windowsArm64Workflow).toContain(nativeMemoryTest)
     expect(windowsArm64Workflow).not.toContain(
-      'packages/desktop/test/main/presenter/memoryVectorStoreV2Native.test.ts'
+      'test/main/presenter/memoryVectorStoreV2Native.test.ts'
     )
   })
 })

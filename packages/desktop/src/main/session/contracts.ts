@@ -16,7 +16,7 @@ import type {
   ResolvedSubagentFacet,
   ResolvedTransferSource
 } from '@/agent/manager/agentManager'
-import type { ToolModeOverride } from '@shared/toolMode'
+import type { ToolModeOverride } from '@deepchat/shared/toolMode'
 import type {
   AgentTransferImpact,
   AttachmentFallbackPolicy,
@@ -45,13 +45,13 @@ import type {
   SubagentTapeLinkReceipt,
   ToolInteractionResponse,
   ToolInteractionResult
-} from '@shared/types/agent-interface'
-import type { OrchestrationPolicy } from '@shared/orchestration/policy'
-import type { LiveDelegationSubagentContext } from '@shared/orchestration/liveDelegation'
-import type { AcpConfigState } from '@shared/types/acp'
-import type { AcpAuthChallenge } from '@shared/types/acp'
+} from '@deepchat/shared/types/agent-interface'
+import type { OrchestrationPolicy } from '@deepchat/shared/orchestration/policy'
+import type { LiveDelegationSubagentContext } from '@deepchat/shared/orchestration/liveDelegation'
+import type { AcpConfigState } from '@deepchat/shared/types/acp'
+import type { AcpAuthChallenge } from '@deepchat/shared/types/acp'
 import type { AcpAsLlmProviderSessionControlPort } from '@deepchat/agent-kernel/collab/provider/ports'
-import type { ListTapeInspectorEvidenceInput } from '@shared/types/tape-inspector'
+import type { ListTapeInspectorEvidenceInput } from '@deepchat/shared/types/tape-inspector'
 import type { DeepChatMessageRow } from '../session/data/tables/deepchatMessages'
 import type { DeepChatMessageSearchResultRow } from '../session/data/tables/deepchatMessageSearchResults'
 import type { DeepChatMessageTraceRow } from '../session/data/tables/deepchatMessageTraces'

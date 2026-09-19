@@ -2,7 +2,7 @@ import type {
   DeepChatEvaluationRef,
   DeepChatHandoffFormatRequirement,
   DeepChatTaskWorkspaceCeiling
-} from '@shared/types/task-contract'
+} from '@deepchat/shared/types/task-contract'
 
 export const LIVE_DELEGATION_REQUIRED_HANDOFF_SECTIONS = [
   'Handoff',

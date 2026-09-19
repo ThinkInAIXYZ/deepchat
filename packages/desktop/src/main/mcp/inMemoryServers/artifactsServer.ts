@@ -1,6 +1,6 @@
 import { Server, Transport } from '@modelcontextprotocol/server'
 import { z } from 'zod'
-import { toDeepChatJsonSchema } from '@shared/lib/zodJsonSchema'
+import { toDeepChatJsonSchema } from '@deepchat/shared/lib/zodJsonSchema'
 // Artifacts 相关的常量定义
 const ARTIFACTS_INFO = `
 <artifacts_info>

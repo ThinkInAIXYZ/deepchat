@@ -187,11 +187,11 @@ import { DcInlineError } from '@dc-ui/components/inline-error'
 import { useProviderStore } from '@/stores/providerStore'
 import { useModelStore } from '@/stores/modelStore'
 import { createWindowClient } from '@api/WindowClient'
-import type { LLM_PROVIDER } from '@shared/types/provider'
+import type { LLM_PROVIDER } from '@deepchat/shared/types/provider'
 import {
   supportsProviderCustomHeaders,
   type ProviderCustomHeaders
-} from '@shared/providerCustomHeaders'
+} from '@deepchat/shared/providerCustomHeaders'
 import ProviderCustomHeadersEditor from './ProviderCustomHeadersEditor.vue'
 
 const emit = defineEmits<{

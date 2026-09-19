@@ -9,8 +9,8 @@ import type {
   SessionWithState,
   SubagentTapeLinkInput,
   SubagentTapeLinkReceipt
-} from '@shared/types/agent-interface'
-import type { AcpConfigState } from '@shared/types/acp'
+} from '@deepchat/shared/types/agent-interface'
+import type { AcpConfigState } from '@deepchat/shared/types/acp'
 import { resolveAcpAgentAlias } from '@shared/utils/acpAgentAlias'
 import type {
   SessionAgentAssignmentPort,
@@ -28,8 +28,8 @@ import type { AgentLifecycleGatePort } from '@/agent/lifecycleGate'
 import {
   normalizeOrchestrationPolicy,
   type OrchestrationPolicy
-} from '@shared/orchestration/policy'
-import { normalizeToolModeOverride, type ToolModeOverride } from '@shared/toolMode'
+} from '@deepchat/shared/orchestration/policy'
+import { normalizeToolModeOverride, type ToolModeOverride } from '@deepchat/shared/toolMode'
 import { setTimeout as delay } from 'node:timers/promises'
 
 const TRANSFER_STOP_TIMEOUT_MS = 10_000

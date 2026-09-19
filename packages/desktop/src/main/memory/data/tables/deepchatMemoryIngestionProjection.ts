@@ -11,7 +11,7 @@ import {
   tapeMessageRank,
   tapeToolRank
 } from '@deepchat/agent-kernel/tape/domain/effectiveSemantics'
-import { isRetiredWorkflowResultMessageMetadata } from '@shared/orchestration/retiredWorkflowData'
+import { isRetiredWorkflowResultMessageMetadata } from '@deepchat/shared/orchestration/retiredWorkflowData'
 import type {
   DeepChatMemoryIngestionCurrentRange,
   DeepChatMemoryIngestionProjectionInput,

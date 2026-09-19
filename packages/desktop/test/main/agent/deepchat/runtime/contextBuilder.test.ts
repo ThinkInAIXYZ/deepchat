@@ -22,7 +22,7 @@ import { estimateTokenCount } from 'tokenx'
 import {
   TOOL_EXECUTION,
   type MCPToolDefinitionBase
-} from '@shared/types/core/mcp'
+} from '@deepchat/shared/types/core/mcp'
 import { createDeepSeekReplayJson } from '../../../../fixtures/deepseekResponses'
 import {
   bindProviderProjectionIdentity,

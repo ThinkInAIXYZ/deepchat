@@ -1,4 +1,4 @@
-import logger from '@shared/logger'
+import logger from '@deepchat/shared/logger'
 import { FloatingButtonWindow } from './FloatingButtonWindow'
 import { FloatingButtonConfig, FloatingButtonState, DEFAULT_FLOATING_BUTTON_CONFIG } from './types'
 import {
@@ -11,7 +11,7 @@ import {
   type WidgetRect
 } from './layout'
 import type { FloatingWidgetSnapshot } from '@shared/types/floating-widget'
-import type { Agent, SessionWithState } from '@shared/types/agent-interface'
+import type { Agent, SessionWithState } from '@deepchat/shared/types/agent-interface'
 import { listAvailableAgents } from '@/agent/shared/availableAgentCatalog'
 import { BrowserWindow, ipcMain, Menu, app, screen } from 'electron'
 import { FLOATING_BUTTON_EVENTS } from '@/events'

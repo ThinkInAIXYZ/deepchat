@@ -544,9 +544,9 @@ import {
   isNewApiEndpointType,
   resolveNewApiSelectableEndpointTypes,
   type NewApiEndpointType
-} from '@shared/model'
-import type { ModelRequestPolicy } from '@shared/modelRequestPolicy'
-import type { ModelConfig } from '@shared/types/provider'
+} from '@deepchat/shared/model'
+import type { ModelRequestPolicy } from '@deepchat/shared/modelRequestPolicy'
+import type { ModelConfig } from '@deepchat/shared/types/provider'
 import {
   ANTHROPIC_REASONING_VISIBILITY_VALUES,
   DEFAULT_REASONING_EFFORT_OPTIONS as FALLBACK_REASONING_EFFORT_OPTIONS,
@@ -561,7 +561,7 @@ import {
   supportsReasoningCapability,
   type ReasoningEffort,
   type ReasoningPortrait
-} from '@shared/types/model-db'
+} from '@deepchat/shared/types/model-db'
 import {
   DEFAULT_MODEL_CONTEXT_LENGTH,
   DEFAULT_MODEL_FUNCTION_CALL,
@@ -571,16 +571,16 @@ import {
   DEFAULT_MODEL_VISION,
   MODEL_TIMEOUT_MAX_MS,
   MODEL_TIMEOUT_MIN_MS
-} from '@shared/modelConfigDefaults'
+} from '@deepchat/shared/modelConfigDefaults'
 import {
   normalizeImageGenerationOptions,
   supportsOpenAIImageGenerationSettings
-} from '@shared/imageGenerationSettings'
+} from '@deepchat/shared/imageGenerationSettings'
 import {
   normalizeVideoGenerationOptions,
   supportsOpenAICompatibleVideoGeneration
-} from '@shared/videoGenerationSettings'
-import { normalizeTtsSettings } from '@shared/ttsSettings'
+} from '@deepchat/shared/videoGenerationSettings'
+import { normalizeTtsSettings } from '@deepchat/shared/ttsSettings'
 import { useModelConfigStore } from '@/stores/modelConfigStore'
 import { useModelStore } from '@/stores/modelStore'
 import { useProviderStore } from '@/stores/providerStore'

@@ -23,7 +23,7 @@ import type {
   McpCredentialKind,
   McpCredentialStatus,
   McpEnterpriseIdentityProfile
-} from '@shared/types/mcp'
+} from '@deepchat/shared/types/mcp'
 import { EmojiPicker } from '@/components/emoji-picker'
 import { Icon } from '@iconify/vue'
 import { X } from '@lucide/vue'

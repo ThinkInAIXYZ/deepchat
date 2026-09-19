@@ -1,4 +1,4 @@
-import type { AcpConfigState, AcpDebugRequest, AcpDebugRunResult } from '../../shared/types/acp.js'
+import type { AcpConfigState, AcpDebugRequest, AcpDebugRunResult } from '@deepchat/shared/types/acp'
 
 type ModelIdentity = {
   id: string

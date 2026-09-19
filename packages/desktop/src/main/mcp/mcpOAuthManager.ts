@@ -1,5 +1,5 @@
 import { createHash, createPrivateKey, createPublicKey, randomBytes } from 'node:crypto'
-import logger from '@shared/logger'
+import logger from '@deepchat/shared/logger'
 import {
   auth,
   ClientCredentialsProvider,
@@ -21,8 +21,8 @@ import type {
   McpEnterpriseIdentityProfile,
   McpEnterpriseIdentityStatus,
   McpServerAuthStatus
-} from '@shared/types/mcp'
-import type { DeepchatEventPublisher } from '@shared/contracts/events'
+} from '@deepchat/shared/types/mcp'
+import type { DeepchatEventPublisher } from '@deepchat/shared/contracts/events'
 import {
   resolveOAuthLoopbackCallbackUrl,
   startOAuthLoopbackCallbackSession,

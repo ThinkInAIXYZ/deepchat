@@ -5,7 +5,7 @@ import {
   settingsNavigateRequestedEvent,
   settingsProviderInstallRequestedEvent,
   windowStateChangedEvent
-} from '@shared/contracts/events'
+} from '@deepchat/shared/contracts/events'
 import {
   windowCloseSettingsRoute,
   windowConsumePendingSettingsProviderInstallRoute,

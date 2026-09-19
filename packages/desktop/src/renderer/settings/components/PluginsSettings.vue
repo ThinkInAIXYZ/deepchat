@@ -151,7 +151,11 @@ import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
 import { DcButton } from '@dc-ui/components/button'
 import { createPluginClient } from '@api/PluginClient'
-import type { PluginActionResult, PluginListItem, PluginRuntimeState } from '@shared/types/plugin'
+import type {
+  PluginActionResult,
+  PluginListItem,
+  PluginRuntimeState
+} from '@deepchat/shared/types/plugin'
 import SettingsPageShell from './control-center/SettingsPageShell.vue'
 
 const { t } = useI18n()

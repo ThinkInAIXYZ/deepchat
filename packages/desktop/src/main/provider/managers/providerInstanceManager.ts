@@ -1,6 +1,6 @@
-import logger from '@shared/logger'
+import logger from '@deepchat/shared/logger'
 import { ProviderBatchUpdate, ProviderChange } from '@shared/provider-operations'
-import type { LLM_PROVIDER } from '@shared/types/provider'
+import type { LLM_PROVIDER } from '@deepchat/shared/types/provider'
 import { BaseLLMProvider } from '../baseProvider'
 import { GithubCopilotProvider } from '../providers/githubCopilotProvider'
 import { OllamaProvider } from '../providers/ollamaProvider'
@@ -15,7 +15,7 @@ import { resolveAiSdkProviderDefinition } from '../providerRegistry'
 import type { ProviderLocalePort } from '@deepchat/agent-kernel/collab/provider/ports'
 import type { AgentSettingsPort } from '@/agent/settings'
 import type { ProviderSettingsPort } from '@/provider/settings'
-import type { DeepchatEventPublisher } from '@shared/contracts/events'
+import type { DeepchatEventPublisher } from '@deepchat/shared/contracts/events'
 
 interface ProviderInstanceManagerOptions {
   providerSettings: ProviderSettingsPort

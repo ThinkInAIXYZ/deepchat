@@ -1,4 +1,4 @@
-import type { SessionContextOccupancySnapshot } from '../shared/types/agent-interface.js'
+import type { SessionContextOccupancySnapshot } from '@deepchat/shared/types/agent-interface'
 import { toAppSessionId } from '../collab/agent-shared/agentSessionIds.js'
 import type { DeepChatAgentRuntime } from '../instance/deepChatAgentRuntime.js'
 import type { TapeContextOccupancyReader } from '../tape/ports/capabilities.js'

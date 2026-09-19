@@ -2,7 +2,10 @@ import { computed, getCurrentScope, onScopeDispose, ref } from 'vue'
 import { defineStore } from 'pinia'
 import { createMcpClient } from '@api/McpClient'
 import { createBrowserClient } from '@api/BrowserClient'
-import type { McpElicitationDecision, McpElicitationRequestPayload } from '@shared/types/mcp'
+import type {
+  McpElicitationDecision,
+  McpElicitationRequestPayload
+} from '@deepchat/shared/types/mcp'
 
 type McpElicitationField = {
   name: string

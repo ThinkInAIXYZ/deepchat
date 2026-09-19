@@ -1,5 +1,5 @@
-import type { CommandShellProfile } from '../shared/commandShell.js'
-import type { ToolPermissionLeaseCapability } from '../shared/types/tool.js'
+import type { CommandShellProfile } from '@deepchat/shared/commandShell'
+import type { ToolPermissionLeaseCapability } from '@deepchat/shared/types/tool'
 
 export type SessionPermissionRequest = {
   permissionType: 'read' | 'write' | 'all' | 'command'

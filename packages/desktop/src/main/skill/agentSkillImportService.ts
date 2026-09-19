@@ -9,14 +9,14 @@ import type {
   AgentSkillImportSelection,
   AgentSkillImportSource,
   AgentSkillImportSourceInfo
-} from '@shared/types/agentSkillImport'
+} from '@deepchat/shared/types/agentSkillImport'
 import {
   SKILL_NAME_MAX_LENGTH,
   type SkillInstallOptions,
   type SkillServicePort
-} from '@shared/types/skill'
-import type { UnifiedSkillItem } from '@shared/types/skillManagement'
-import type { CanonicalSkill, SkillSyncServicePort } from '@shared/types/skillSync'
+} from '@deepchat/shared/types/skill'
+import type { UnifiedSkillItem } from '@deepchat/shared/types/skillManagement'
+import type { CanonicalSkill, SkillSyncServicePort } from '@deepchat/shared/types/skillSync'
 import { formatConverter } from './sync/formatConverter'
 import { isFilenameSafe } from './sync/security'
 

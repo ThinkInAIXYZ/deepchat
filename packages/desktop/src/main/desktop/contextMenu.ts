@@ -1,8 +1,8 @@
-import logger from '@shared/logger'
+import logger from '@deepchat/shared/logger'
 import { BrowserWindow, Menu, MenuItemConstructorOptions, WebContents, dialog, net } from 'electron'
 import path from 'path'
 import sharp from 'sharp'
-import type { DeepchatEventPublisher } from '@shared/contracts/events'
+import type { DeepchatEventPublisher } from '@deepchat/shared/contracts/events'
 
 interface ContextMenuOptions {
   webContents: WebContents

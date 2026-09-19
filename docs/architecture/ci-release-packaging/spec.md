@@ -1,6 +1,6 @@
 # CI and Release Packaging Contract — Specification
 
-> Status: **implemented; scoped PR gate awaits remote validation**
+> Status: **implemented; remote validation status not established by this document**
 >
 > Classification: **architecture**
 >
@@ -86,7 +86,7 @@ assembly fails closed against an explicit six-target contract.
 
 - Release preflight resolves an existing lightweight or annotated tag to a commit and never falls
   back to the workflow context SHA.
-- The tagged commit must be reachable from `origin/main`, match `package.json` version, and have a
+- The tagged commit must be reachable from `origin/main`, match `packages/desktop/package.json` version, and have a
   non-empty matching CHANGELOG section before any native package job starts.
 - Assembly requires exactly the six supported targets: Windows, Linux, and macOS on x64 and ARM64.
 - Every manifest must use the release source commit, version, and `distribution` purpose.
@@ -114,7 +114,7 @@ assembly fails closed against an explicit six-target contract.
 - Component budgets for OCR assets, Node, and other packaged runtimes remain part of every packaged
   Light OCR smoke test.
 - Installer comparison reads committed baseline facts instead of rebuilding the historical commit.
-- The initial baseline records successful run `29978292769` and source commit
+- The initial baseline records the historical successful run `29978292769` and historical source commit
   `dfb4ba0f34c008c27cfb6bd98a08fdbd36f7b343`.
 - Windows EXE, Linux AppImage and tarball, and macOS ZIP and DMG enforce upper and lower delta bounds.
 - `package-regression.yml` supports reusable, manual, and scheduled execution, always covers all six
@@ -133,9 +133,10 @@ assembly fails closed against an explicit six-target contract.
   path filters, so its stable `package-required` result can safely be configured as a required check.
 - The classifier is loaded only from the PR base revision, so a classifier-only change cannot use
   its candidate rules to skip its own package validation. If the base revision has no classifier
-  during contract bootstrap, the gate validates both `package.json` snapshots and conservatively
-  selects all six targets without executing candidate classifier code. Workflow changes remain
-  protected by contract tests and normal review policy.
+  during contract bootstrap, the gate validates the available Desktop manifest snapshots and selects
+  all six targets without executing candidate classifier code. If either revision lacks
+  `packages/desktop/package.json` (including a layout transition or deletion), it selects all targets
+  before classification. Workflow changes remain protected by contract tests and normal review policy.
 - Classification emits independent Windows, Linux, and macOS decisions with matched rule evidence.
   Invalid diffs, paths, output values, or job-result combinations fail closed.
 - An affected operating system runs complete x64 and ARM64 verification, including every configured
@@ -145,7 +146,7 @@ assembly fails closed against an explicit six-target contract.
   run only the corresponding operating system.
 - The CUA Mach-O contract, final-helper verifier, and helper-signing path are macOS-owned package
   inputs and therefore trigger both macOS architectures.
-- `package.json` is compared semantically: production dependency, Electron toolchain, package
+- `packages/desktop/package.json` is compared semantically: production dependency, Electron toolchain, package
   metadata, lifecycle, build, runtime, plugin, and package-smoke changes are relevant; test-only and
   unrelated development-tool changes are not. A lockfile change remains conservatively shared.
 - Release-only assembly and preflight changes are covered by deterministic contract tests rather
@@ -188,10 +189,10 @@ assembly fails closed against an explicit six-target contract.
   tests, and release index are updated together.
 - Verification-mode macOS package sizes can differ slightly from signed distribution sizes. The
   initial 90 MiB delta bounds tolerate signing overhead while still catching material omissions.
-- Native GitHub runner behavior and real Apple notarization cannot be proven locally. Verification
-  mode has passed on all six native runners in Actions run `30013052661`; real distribution
+- Native GitHub runner behavior and real Apple notarization cannot be proven locally. Historically,
+  verification mode passed on all six native runners in Actions run `30013052661`; real distribution
   signing/notarization and draft publication still require a release or manual Build run.
-- Run `30013052661` exercised the original nested PR caller. The separate, operating-system-scoped
+- Historical Actions run `30013052661` exercised the original nested PR caller. The separate, operating-system-scoped
   `package-check.yml` has deterministic local contract coverage but cannot be exercised on hosted
   runners until these commits are pushed.
 - The package-impact classifier is intentionally conservative for shared packaging inputs, but it

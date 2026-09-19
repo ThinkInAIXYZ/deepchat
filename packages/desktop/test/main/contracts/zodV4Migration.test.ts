@@ -1,13 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
-import { toDeepChatJsonSchema } from '@shared/lib/zodJsonSchema'
-import { JsonValueSchema } from '@shared/contracts/common'
+import { toDeepChatJsonSchema } from '@deepchat/shared/lib/zodJsonSchema'
+import { JsonValueSchema } from '@deepchat/shared/contracts/common'
 import {
   McpServerConfigSchema,
   ProjectSchema,
   UsageStatsBackfillStatusSchema
-} from '@shared/contracts/domainSchemas'
-import { agentPlanItemSchema, normalizeAgentPlanEntry } from '@shared/types/agent-plan'
+} from '@deepchat/shared/contracts/domainSchemas'
+import { agentPlanItemSchema, normalizeAgentPlanEntry } from '@deepchat/shared/types/agent-plan'
 import { questionToolSchema } from '@deepchat/agent-kernel/collab/tool/agentTools/questionTool'
 
 describe('Zod 4 migration contracts', () => {

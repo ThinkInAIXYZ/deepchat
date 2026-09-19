@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { ChatMessageRecord } from '@shared/types/agent-interface'
+import type { ChatMessageRecord } from '@deepchat/shared/types/agent-interface'
 import {
   projectTapeInspectorAssistantActivities,
   projectTapeInspectorMessagePreview,

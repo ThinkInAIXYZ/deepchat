@@ -11,7 +11,7 @@ vi.mock('node:fs', async () => {
 })
 
 const loadAfterPack = async () => {
-  return (await import('../../../../../scripts/afterPack.js')).default as (context: {
+  return (await import('../../../scripts/afterPack.js')).default as (context: {
     targets: Array<{ name: string }>
     appOutDir: string
     electronPlatformName: string
@@ -26,7 +26,7 @@ const loadAfterPack = async () => {
 }
 
 const loadPackageLightOcrAssets = async () => {
-  return (await import('../../../../../scripts/afterPack.js')).packageLightOcrAssets as (context: {
+  return (await import('../../../scripts/afterPack.js')).packageLightOcrAssets as (context: {
     appOutDir: string
     electronPlatformName: string
     arch?: number | string

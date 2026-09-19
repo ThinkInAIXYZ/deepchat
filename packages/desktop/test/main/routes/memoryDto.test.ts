@@ -37,10 +37,10 @@ import {
   MEMORY_RETRIEVAL_DEGRADATION_CAUSES,
   MEMORY_RETRIEVAL_OUTCOMES,
   MEMORY_RETRIEVAL_PURPOSES
-} from '@shared/types/agent-memory'
-import { memoryUpdatedEvent } from '@shared/contracts/events/memory.events'
+} from '@deepchat/shared/types/agent-memory'
+import { memoryUpdatedEvent } from '@deepchat/shared/contracts/events/memory.events'
 import type { AgentMemoryRow } from '@deepchat/agent-kernel/collab/memory/types'
-import type { ChatMessageRecord } from '@shared/types/agent-interface'
+import type { ChatMessageRecord } from '@deepchat/shared/types/agent-interface'
 import type { MemoryLifecycle } from '@shared/contracts/routes'
 
 function makeRow(overrides: Partial<AgentMemoryRow> = {}): AgentMemoryRow {

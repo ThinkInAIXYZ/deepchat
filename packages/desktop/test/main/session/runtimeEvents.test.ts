@@ -8,7 +8,7 @@ import { SessionRuntimeEvents } from '@/session/runtimeEvents'
 import {
   projectFinalAnswerFromDeliverySegments,
   projectFinalAssistantAnswer
-} from '@shared/lib/assistantDeliverySegments'
+} from '@deepchat/shared/lib/assistantDeliverySegments'
 
 describe('SessionRuntimeEvents', () => {
   afterEach(() => {

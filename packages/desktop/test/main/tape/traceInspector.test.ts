@@ -30,7 +30,10 @@ import {
   DeepChatMessageTracesTable,
   TRACE_EVIDENCE_APPEND_INDEX_SCHEMA_VERSION
 } from '@/session/data/tables/deepchatMessageTraces'
-import type { TapeInspectorFactRecord, TapeInspectorSort } from '@shared/types/tape-inspector'
+import type {
+  TapeInspectorFactRecord,
+  TapeInspectorSort
+} from '@deepchat/shared/types/tape-inspector'
 import { Database, nativeSqliteItIf } from '../nativeSqliteHarness'
 
 const DatabaseCtor = Database!

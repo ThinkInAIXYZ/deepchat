@@ -1,4 +1,4 @@
-import logger from '@shared/logger'
+import logger from '@deepchat/shared/logger'
 import { app } from 'electron'
 import type { MainDatabase } from '@/data/mainDatabase'
 import type { DatabaseStartupFailureKind } from '@shared/contracts/databaseSecurity'

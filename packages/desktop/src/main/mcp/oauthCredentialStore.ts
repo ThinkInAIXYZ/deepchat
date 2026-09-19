@@ -7,7 +7,7 @@ import type {
   StoredOAuthClientInformation,
   StoredOAuthTokens
 } from '@modelcontextprotocol/client'
-import type { McpCredentialBinding, McpCredentialKind } from '@shared/types/mcp'
+import type { McpCredentialBinding, McpCredentialKind } from '@deepchat/shared/types/mcp'
 
 export type McpOAuthCredentialStorage = 'safeStorage' | 'memory' | 'none'
 

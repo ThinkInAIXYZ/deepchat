@@ -9,8 +9,8 @@ import type {
   SendMessageInput,
   SessionWithState,
   ToolInteractionResponse
-} from '@shared/types/agent-interface'
-import type { SearchResult } from '@shared/types/core/search'
+} from '@deepchat/shared/types/agent-interface'
+import type { SearchResult } from '@deepchat/shared/types/core/search'
 import {
   TELEGRAM_RECENT_SESSION_LIMIT,
   type RemoteDeliverySegment,
@@ -24,7 +24,7 @@ import {
   type TelegramModelProviderOption
 } from '../types'
 import { resolveAcpAgentAlias } from '@shared/utils/acpAgentAlias'
-import { buildAssistantDeliverySegments } from '@shared/lib/assistantDeliverySegments'
+import { buildAssistantDeliverySegments } from '@deepchat/shared/lib/assistantDeliverySegments'
 import { safeParseAssistantBlocks } from '../channels/telegram/telegramOutbound'
 import {
   REMOTE_NO_RESPONSE_TEXT,

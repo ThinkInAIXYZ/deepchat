@@ -12,8 +12,8 @@ import {
   providersRemoveRoute,
   providersUpdateRoute
 } from '@shared/contracts/routes'
-import { JsonValueSchema } from '@shared/contracts/json'
-import { ModelType } from '@shared/model'
+import { JsonValueSchema } from '@deepchat/shared/contracts/json'
+import { ModelType } from '@deepchat/shared/model'
 
 const context = createRendererRouteContext(42, 7)
 

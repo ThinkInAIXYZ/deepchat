@@ -51,8 +51,8 @@ import {
   type MemoryUpdateResult,
   type MemoryViewManifest
 } from '@shared/contracts/routes'
-import { memoryUpdatedEvent, type DeepchatEventPayload } from '@shared/contracts/events'
-import type { AgentMemoryCategory } from '@shared/types/agent-memory'
+import { memoryUpdatedEvent, type DeepchatEventPayload } from '@deepchat/shared/contracts/events'
+import type { AgentMemoryCategory } from '@deepchat/shared/types/agent-memory'
 import { getDeepchatBridge } from './core'
 
 export type MemoryUpdatedPayload = DeepchatEventPayload<typeof memoryUpdatedEvent.name>

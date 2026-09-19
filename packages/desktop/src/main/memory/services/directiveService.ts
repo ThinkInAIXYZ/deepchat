@@ -1,5 +1,5 @@
 import { nanoid } from 'nanoid'
-import { AGENT_MEMORY_ACTIVE_DIRECTIVE_MAX_COUNT } from '@shared/types/agent-memory'
+import { AGENT_MEMORY_ACTIVE_DIRECTIVE_MAX_COUNT } from '@deepchat/shared/types/agent-memory'
 import type { MemoryCommandResult } from '@shared/contracts/routes/memory.routes'
 
 import {

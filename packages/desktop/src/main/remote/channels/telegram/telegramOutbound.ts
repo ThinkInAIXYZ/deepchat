@@ -1,4 +1,4 @@
-import type { AssistantMessageBlock } from '@shared/types/agent-interface'
+import type { AssistantMessageBlock } from '@deepchat/shared/types/agent-interface'
 import { TELEGRAM_OUTBOUND_TEXT_LIMIT } from '../../types'
 
 const EMPTY_TELEGRAM_TEXT = '(No text output)'

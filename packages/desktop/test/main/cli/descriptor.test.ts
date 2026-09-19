@@ -3,7 +3,7 @@ import { lstat, mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from 'n
 import os from 'node:os'
 import path from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { LocalControlDescriptorSchema } from '@shared/contracts/localControl'
+import { LocalControlDescriptorSchema } from '@deepchat/shared/contracts/localControl'
 import {
   cleanupLocalControlLayout,
   createLocalControlLayout,

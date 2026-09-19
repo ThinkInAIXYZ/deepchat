@@ -3,13 +3,13 @@ import type { AcpRegistryReference } from '@/agent/shared/agentDescriptors'
 import type { AppSessionId } from '@deepchat/agent-kernel/collab/agent-shared/agentSessionIds'
 import type { AgentRowStore } from '@/agent/shared/agentRowStore'
 import type { AgentRow } from '@/agent/data/tables/agents'
-import type { AcpAgentConfig } from '@shared/types/acp'
+import type { AcpAgentConfig } from '@deepchat/shared/types/acp'
 import type {
   AcpAgentInstallState,
   AcpAgentState,
   AcpManualAgent,
   AcpRegistryAgent
-} from '@shared/types/acp'
+} from '@deepchat/shared/types/acp'
 
 type StoredAgentState = {
   envOverride?: Record<string, string>

@@ -1,6 +1,9 @@
 import type { DeepchatBridge } from '@shared/contracts/bridge'
-import type { AgentCommandShellConfig } from '@shared/commandShell'
-import { settingsChangedEvent, settingsCommandShellChangedEvent } from '@shared/contracts/events'
+import type { AgentCommandShellConfig } from '@deepchat/shared/commandShell'
+import {
+  settingsChangedEvent,
+  settingsCommandShellChangedEvent
+} from '@deepchat/shared/contracts/events'
 import type { SettingsNavigationPayload } from '@shared/settingsNavigation'
 import {
   configGetEntriesRoute,

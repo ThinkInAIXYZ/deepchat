@@ -10,7 +10,7 @@ import type {
   SessionGenerationSettings,
   SessionRecord,
   UserMessageContent
-} from '@shared/types/agent-interface'
+} from '@deepchat/shared/types/agent-interface'
 import type { CONVERSATION } from '@shared/types/session'
 import {
   buildConversationExportContent,
@@ -22,7 +22,7 @@ import {
   normalizeAttachmentRepresentationPreference,
   normalizeAttachmentResolvedRepresentation,
   normalizePdfEmbeddedTextCoverage
-} from '@shared/utils/attachmentRepresentation'
+} from '@deepchat/shared/utils/attachmentRepresentation'
 
 export class AgentSessionExportService {
   constructor(

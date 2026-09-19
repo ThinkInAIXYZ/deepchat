@@ -1,6 +1,6 @@
 import { resolveMcpEnvironmentBinding } from './environmentBindings'
 import type { ProviderSettingsPort } from '@/provider/settings'
-import logger from '@shared/logger'
+import logger from '@deepchat/shared/logger'
 import {
   StdioClientTransport,
   type StdioServerParameters
@@ -33,7 +33,7 @@ import type {
   Tool as SdkTool,
   Transport
 } from '@modelcontextprotocol/client'
-import type { DeepchatEventPublisher } from '@shared/contracts/events'
+import type { DeepchatEventPublisher } from '@deepchat/shared/contracts/events'
 import { randomUUID } from 'node:crypto'
 import path from 'node:path'
 import { app } from 'electron'
@@ -46,7 +46,7 @@ import { terminateProcessTreeByPid } from '@/agent/shared/process/processTree'
 import { childProcessRegistry } from '@/agent/shared/process/childProcessRegistry'
 import { awaitWithAbort } from '@deepchat/agent-kernel/collab/lib/awaitWithAbort'
 import type { McpOAuthManager } from './mcpOAuthManager'
-import type { ChatMessage } from '@shared/types/core/chat-message'
+import type { ChatMessage } from '@deepchat/shared/types/core/chat-message'
 import type { Prompt } from '@shared/types/prompt'
 import type {
   PromptListEntry,
@@ -61,14 +61,14 @@ import type {
   McpServerAuthStatus,
   McpProbeReasonCode,
   MCPServerConfig
-} from '@shared/types/mcp'
-import type { McpServicePort } from '@shared/types/mcp'
-import type { ProviderRuntimePort } from '@shared/types/provider'
+} from '@deepchat/shared/types/mcp'
+import type { McpServicePort } from '@deepchat/shared/types/mcp'
+import type { ProviderRuntimePort } from '@deepchat/shared/types/provider'
 import type {
   McpServerLifecycleStatus,
   McpServerStatusPhase,
   McpServerStatusReason
-} from '@shared/types/core/mcp'
+} from '@deepchat/shared/types/core/mcp'
 import { createMinimalProcessEnvironment } from './processEnvironment'
 import {
   assertBoundedMcpJson,

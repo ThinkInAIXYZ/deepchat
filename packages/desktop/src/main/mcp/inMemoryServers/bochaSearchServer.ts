@@ -1,7 +1,7 @@
 import { Server, Transport } from '@modelcontextprotocol/server'
 import type { CallToolResult, ContentBlock } from '@modelcontextprotocol/server'
 import { z } from 'zod'
-import { toDeepChatJsonSchema } from '@shared/lib/zodJsonSchema'
+import { toDeepChatJsonSchema } from '@deepchat/shared/lib/zodJsonSchema'
 import axios from 'axios'
 
 // Schema definitions

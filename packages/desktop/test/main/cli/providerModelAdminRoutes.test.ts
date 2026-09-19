@@ -7,8 +7,8 @@ import {
   providersTestPublicConnectionRoute,
   providersUpdatePublicRoute
 } from '@shared/contracts/routes'
-import { JsonValueSchema } from '@shared/contracts/json'
-import type { LLM_PROVIDER, ModelConfig } from '@shared/types/provider'
+import { JsonValueSchema } from '@deepchat/shared/contracts/json'
+import type { LLM_PROVIDER, ModelConfig } from '@deepchat/shared/types/provider'
 import { createCliProviderModelAdminRoutes } from '@/cli/providerModelAdminRoutes'
 import type { CliRouteCaller, RouteContext } from '@/routes/routeRegistry'
 

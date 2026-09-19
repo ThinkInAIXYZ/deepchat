@@ -1,24 +1,24 @@
-import logger from '@shared/logger'
+import logger from '@deepchat/shared/logger'
 import { isDeepStrictEqual } from 'node:util'
 import path from 'node:path'
-import type { ModelConfig } from '@shared/types/provider'
-import type { AcpAgentConfig } from '@shared/types/acp'
+import type { ModelConfig } from '@deepchat/shared/types/provider'
+import type { AcpAgentConfig } from '@deepchat/shared/types/acp'
 import type {
   AcpAgentInstallState,
   AcpAgentState,
   AcpManualAgent,
   AcpRegistryAgent,
   AcpResolvedLaunchSpec
-} from '@shared/types/acp'
+} from '@deepchat/shared/types/acp'
 import type {
   Agent,
   AgentType,
   CreateDeepChatAgentInput,
   DeepChatAgentConfig,
   UpdateDeepChatAgentInput
-} from '@shared/types/agent-interface'
-import { DEFAULT_DISABLED_AGENT_TOOLS } from '@shared/agentTools'
-import { normalizeDeepChatSubagentConfig } from '@shared/lib/deepchatSubagents'
+} from '@deepchat/shared/types/agent-interface'
+import { DEFAULT_DISABLED_AGENT_TOOLS } from '@deepchat/shared/agentTools'
+import { normalizeDeepChatSubagentConfig } from '@deepchat/shared/lib/deepchatSubagents'
 import { resolveAcpAgentAlias } from '@shared/utils/acpAgentAlias'
 import type { SettingsStore } from '@/config/settingsStore'
 import { AcpCatalogSettings } from '@/agent/acp/catalog/settings'

@@ -6,7 +6,7 @@ import type { DisplayAssistantMessageBlock } from '@/features/chat-page/model/di
 import {
   LIVE_DELEGATION_AGENT_TOOL_NAME,
   LIVE_DELEGATION_AGENT_TOOL_SERVER_NAME
-} from '@shared/agentTools'
+} from '@deepchat/shared/agentTools'
 
 const { selectSessionMock } = vi.hoisted(() => ({
   selectSessionMock: vi.fn()

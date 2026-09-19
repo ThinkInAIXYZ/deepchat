@@ -109,7 +109,7 @@
 </template>
 
 <script setup lang="ts">
-import type { MessageFile } from '@shared/types/agent-interface'
+import type { MessageFile } from '@deepchat/shared/types/agent-interface'
 import { Icon } from '@iconify/vue'
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -123,7 +123,7 @@ import {
   DialogHeader,
   DialogTitle
 } from '@shadcn/components/ui/dialog'
-import { getAttachmentResolvedRepresentation } from '@shared/utils/attachmentRepresentation'
+import { getAttachmentResolvedRepresentation } from '@deepchat/shared/utils/attachmentRepresentation'
 
 const props = withDefaults(
   defineProps<{

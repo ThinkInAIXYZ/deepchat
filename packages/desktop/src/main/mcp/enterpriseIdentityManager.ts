@@ -11,8 +11,8 @@ import type {
   MCPServerConfig,
   McpEnterpriseIdentityProfile,
   McpEnterpriseIdentityStatus
-} from '@shared/types/mcp'
-import type { DeepchatEventPublisher } from '@shared/contracts/events'
+} from '@deepchat/shared/types/mcp'
+import type { DeepchatEventPublisher } from '@deepchat/shared/contracts/events'
 import {
   startOAuthLoopbackCallbackSession,
   type OAuthLoopbackCallbackSession

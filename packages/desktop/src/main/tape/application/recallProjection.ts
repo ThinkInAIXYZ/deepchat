@@ -1,4 +1,7 @@
-import type { AgentTapeSearchOptions, AgentTapeViewScope } from '@shared/types/agent-interface'
+import type {
+  AgentTapeSearchOptions,
+  AgentTapeViewScope
+} from '@deepchat/shared/types/agent-interface'
 import type {
   DeepChatTapeEntryRow,
   DeepChatTapeSearchInput
@@ -6,7 +9,7 @@ import type {
 import { isRecordObject } from '@deepchat/agent-kernel/tape/domain/primitives'
 import { parseJsonObject, parseJsonValue } from './common'
 import type { TapeSearchResult } from './contracts'
-import { getAttachmentSearchableText } from '@shared/utils/attachmentRepresentation'
+import { getAttachmentSearchableText } from '@deepchat/shared/utils/attachmentRepresentation'
 
 const MAX_ATTACHMENT_SEARCH_CHARACTERS_PER_ATTACHMENT = 4_000
 const MAX_ATTACHMENT_SEARCH_CHARACTERS_PER_MESSAGE = 16_000

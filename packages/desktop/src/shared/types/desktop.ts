@@ -9,8 +9,8 @@ import type {
   DownloadInfo,
   ScreenshotOptions,
   YoBrowserStatus
-} from './browser'
-import type { MCPToolDefinition } from './mcp'
+} from '@deepchat/shared/types/browser'
+import type { MCPToolDefinition } from '@deepchat/shared/types/mcp'
 import type { ComputerUsePreviewMode, ComputerUsePreviewModeResult } from './computerUse'
 import type { ProviderInstallPreview } from '@shared/providerDeeplink'
 import type { SettingsNavigationPayload } from '@shared/settingsNavigation'

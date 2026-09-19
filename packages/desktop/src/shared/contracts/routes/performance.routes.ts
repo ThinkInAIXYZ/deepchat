@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { defineRouteContract } from '../common'
+import { defineRouteContract } from '@deepchat/shared/contracts/common'
 
 const MAX_RENDERER_PERFORMANCE_ELAPSED_MS = 24 * 60 * 60 * 1000
 const MAX_RENDERER_PERFORMANCE_RUN_ID_LENGTH = 160

@@ -20,7 +20,7 @@ import type {
   IMemoryVectorStore,
   MemoryEmbeddingRepositoryPort
 } from '@deepchat/agent-kernel/collab/memory/ports'
-import type { DeepChatAgentConfig } from '@shared/types/agent-interface'
+import type { DeepChatAgentConfig } from '@deepchat/shared/types/agent-interface'
 import { createControlledPromise } from './serviceHarness'
 
 function createStore(): IMemoryVectorStore {

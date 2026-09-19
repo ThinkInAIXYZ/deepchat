@@ -1,4 +1,4 @@
-import type { AcpAgentConfig, AcpAuthChallenge, AcpAuthRunStatus } from '@shared/types/acp'
+import type { AcpAgentConfig, AcpAuthChallenge, AcpAuthRunStatus } from '@deepchat/shared/types/acp'
 import type { AgentSettingsPort } from '@/agent/settings'
 import type { AcpRuntimeOwner } from '../client'
 import { AcpTerminalAuthRunner, type AcpTerminalAuthExit } from './acpTerminalAuthRunner'

@@ -1,11 +1,11 @@
 import type { AppSessionId } from '../collab/agent-shared/agentSessionIds.js'
-import type { MCPToolDefinition } from '../shared/types/core/mcp.js'
+import type { MCPToolDefinition } from '@deepchat/shared/types/core/mcp'
 import type { LoopRun } from '../loop/loopRun.js'
 import type {
   DeepChatSessionState,
   SessionCompactionState,
   SessionGenerationSettings
-} from '../shared/types/agent-interface.js'
+} from '@deepchat/shared/types/agent-interface'
 import type { PendingToolInteractionOrigin, PersistedToolBatchState } from '../loop/ports.js'
 import type { MemorySessionHandle } from '../memory/memoryPromptContributor.js'
 

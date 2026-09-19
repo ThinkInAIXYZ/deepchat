@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { FLOATING_BUTTON_EVENTS } from '../../../src/shared/floatingButtonChannels'
 import { DEEPCHAT_ROUTE_INVOKE_CHANNEL } from '../../../src/shared/contracts/channels'
-import { browserActivityChangedEvent } from '../../../src/shared/contracts/events'
+import { browserActivityChangedEvent } from '@deepchat/shared/contracts/events'
 import {
   DATABASE_RECOVERY_CANCEL_CHANNEL,
   DATABASE_RECOVERY_REQUEST_CHANNEL,

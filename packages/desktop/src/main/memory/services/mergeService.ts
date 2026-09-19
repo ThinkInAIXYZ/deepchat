@@ -1,9 +1,9 @@
-import logger from '@shared/logger'
-import { unicodeCodePointLength } from '@shared/lib/unicodeText'
+import logger from '@deepchat/shared/logger'
+import { unicodeCodePointLength } from '@deepchat/shared/lib/unicodeText'
 import {
   AGENT_MEMORY_AUTO_CONTENT_MAX_CHARS,
   isAgentMemoryCategory
-} from '@shared/types/agent-memory'
+} from '@deepchat/shared/types/agent-memory'
 import { normalizeMemoryCandidate } from '../core/candidates'
 import {
   ADD_DECISION,

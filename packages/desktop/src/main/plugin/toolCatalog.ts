@@ -1,6 +1,6 @@
 import fs from 'node:fs'
 
-import type { Tool } from '@shared/types/mcp'
+import type { Tool } from '@deepchat/shared/types/mcp'
 import { validateAndCloneJsonSchema } from '@/mcp/schemaValidation'
 
 const TOOL_NAME_PATTERN = /^[a-zA-Z0-9_-]+$/

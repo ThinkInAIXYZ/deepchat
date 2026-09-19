@@ -1,13 +1,13 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { createBridge } from './createBridge'
-import type { JsonValue } from '@shared/contracts/common'
+import type { JsonValue } from '@deepchat/shared/contracts/common'
 import {
   pluginsDisableRoute,
   pluginsEnableRoute,
   pluginsGetRoute,
   pluginsInvokeActionRoute
 } from '@shared/contracts/routes'
-import type { PluginSettingsApiStatus } from '@shared/types/plugin'
+import type { PluginSettingsApiStatus } from '@deepchat/shared/types/plugin'
 
 function readPluginId(): string {
   const pluginId = new URL(window.location.href).searchParams.get('pluginId')?.trim()

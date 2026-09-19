@@ -43,7 +43,7 @@ vi.mock('@shadcn/components/ui/dialog', () => {
 })
 
 import ChatAttachmentItem from '@/components/chat/ChatAttachmentItem.vue'
-import { PDF_OCR_TRUNCATION_MARKER } from '@shared/utils/documentOcrText'
+import { PDF_OCR_TRUNCATION_MARKER } from '@deepchat/shared/utils/documentOcrText'
 
 describe('ChatAttachmentItem', () => {
   it('shows the persisted OCR snapshot as escaped text', async () => {

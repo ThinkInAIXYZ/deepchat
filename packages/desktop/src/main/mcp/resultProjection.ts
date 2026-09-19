@@ -5,7 +5,7 @@ import type {
   PersistedMcpToolResult,
   Tool,
   ToolCallResult
-} from '@shared/types/mcp'
+} from '@deepchat/shared/types/mcp'
 
 const MCP_APP_RESOURCE_MIME_TYPE = 'text/html;profile=mcp-app'
 const MAX_PERSISTED_MCP_RESULT_BYTES = 2 * 1024 * 1024

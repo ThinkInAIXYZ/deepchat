@@ -5,7 +5,7 @@ import {
   BrowserPageStatus,
   type BrowserPageInfo,
   type ScreenshotOptions
-} from '@shared/types/browser'
+} from '@deepchat/shared/types/browser'
 import { CDPManager } from './CDPManager'
 import { ScreenshotManager } from './ScreenshotManager'
 

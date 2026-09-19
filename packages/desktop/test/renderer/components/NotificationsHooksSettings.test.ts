@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { defineComponent } from 'vue'
 import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
-import type { HooksNotificationsSettings } from '../../../src/shared/hooksNotifications'
+import type { HooksNotificationsSettings } from '@deepchat/shared/hooksNotifications'
 
 const notifyRenderer = vi.hoisted(() => vi.fn())
 

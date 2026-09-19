@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { defineComponent, ref } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
-import type { AcpAuthChallenge } from '@shared/types/acp'
+import type { AcpAuthChallenge } from '@deepchat/shared/types/acp'
 
 const authClient = vi.hoisted(() => ({
   start: vi.fn(),

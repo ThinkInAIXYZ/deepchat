@@ -4,19 +4,22 @@ import {
   type MCPToolDefinition,
   type ToolDispatchCommit,
   type ToolOutcomeProjectionRegistrar
-} from '@shared/types/mcp'
+} from '@deepchat/shared/types/mcp'
 import type { AgentSettingsPort } from '@/agent/settings'
 import type { SettingsStore } from '@/config/settingsStore'
-import type { AgentToolProgressUpdate, ToolPermissionLeaseCapability } from '@shared/types/tool'
-import { toDeepChatJsonSchema } from '@shared/lib/zodJsonSchema'
+import type {
+  AgentToolProgressUpdate,
+  ToolPermissionLeaseCapability
+} from '@deepchat/shared/types/tool'
+import { toDeepChatJsonSchema } from '@deepchat/shared/lib/zodJsonSchema'
 import { z } from 'zod'
 import fs from 'fs'
 import path from 'path'
 import { app, nativeImage } from 'electron'
-import logger from '@shared/logger'
+import logger from '@deepchat/shared/logger'
 import { awaitWithAbort } from '@deepchat/agent-kernel/collab/lib/awaitWithAbort'
-import type { ChatMessage } from '@shared/types/core/chat-message'
-import type { ToolCallImagePreview } from '@shared/types/core/mcp'
+import type { ChatMessage } from '@deepchat/shared/types/core/chat-message'
+import type { ToolCallImagePreview } from '@deepchat/shared/types/core/mcp'
 import {
   SKILL_EXECUTION_PACKAGE_MAX_PATH_BYTES,
   SKILL_NAME_MAX_LENGTH,
@@ -27,7 +30,7 @@ import {
   SKILL_RUNTIME_VIEW_RESULT_MAX_BYTES,
   type SkillMetadata,
   type SkillManageResult
-} from '@shared/types/skill'
+} from '@deepchat/shared/types/skill'
 import { isDocumentReadMime } from '@/file/mime'
 import {
   buildBinaryReadGuidance,
@@ -102,7 +105,7 @@ import {
   assertAgentToolExposure,
   isTapeToolName,
   type AgentToolExposure
-} from '@shared/agentTools'
+} from '@deepchat/shared/agentTools'
 import {
   CRON_JOB_TOOL_SERVER_NAME,
   CronJobToolHandler,
@@ -110,12 +113,18 @@ import {
 } from './cronJobTool'
 import { isYoBrowserUnavailableError } from '../browser/errors'
 import type { SkillSettingsPort } from '@/skill/settings'
-import type { DeepChatSubagentCapability } from '@shared/types/agent-interface'
+import type { DeepChatSubagentCapability } from '@deepchat/shared/types/agent-interface'
 import { resolveSessionDir } from '@deepchat/agent-kernel/collab/agent-shared/storage/sessionPaths'
 import { LiveDelegationAgentTool } from './liveDelegationTool'
-import { normalizeOrchestrationPolicy } from '@shared/orchestration/policy'
-import { ResolvedCommandShellSchema, type ResolvedCommandShell } from '@shared/commandShell'
-import { resolveAgentOutputLimits, type AgentOutputLimits } from '@shared/lib/agentOutputLimits'
+import { normalizeOrchestrationPolicy } from '@deepchat/shared/orchestration/policy'
+import {
+  ResolvedCommandShellSchema,
+  type ResolvedCommandShell
+} from '@deepchat/shared/commandShell'
+import {
+  resolveAgentOutputLimits,
+  type AgentOutputLimits
+} from '@deepchat/shared/lib/agentOutputLimits'
 import {
   assertActiveToolSurfaceExecutionContext,
   type ToolSurfaceExecutionContext
@@ -178,7 +187,7 @@ export interface AgentToolCallResult {
       description: string
       command?: string
       commandSignature?: string
-      shellProfile?: import('@shared/commandShell').CommandShellProfile
+      shellProfile?: import('@deepchat/shared/commandShell').CommandShellProfile
       paths?: string[]
       commandInfo?: {
         command: string
@@ -3016,7 +3025,7 @@ export class AgentToolManager {
     paths?: string[]
     command?: string
     commandSignature?: string
-    shellProfile?: import('@shared/commandShell').CommandShellProfile
+    shellProfile?: import('@deepchat/shared/commandShell').CommandShellProfile
     commandInfo?: {
       command: string
       riskLevel: 'low' | 'medium' | 'high' | 'critical'

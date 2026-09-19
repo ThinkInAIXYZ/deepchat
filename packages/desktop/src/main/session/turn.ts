@@ -11,7 +11,7 @@ import type {
   SessionContextOccupancySnapshot,
   ToolInteractionResponse,
   ToolInteractionResult
-} from '@shared/types/agent-interface'
+} from '@deepchat/shared/types/agent-interface'
 import type {
   SessionAssignmentWorkdirPort,
   SessionInitialTurnInput,

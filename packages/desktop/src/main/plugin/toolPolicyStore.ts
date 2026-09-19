@@ -1,5 +1,5 @@
 import ElectronStore from 'electron-store'
-import type { PluginToolPolicyDecision } from '@shared/types/plugin'
+import type { PluginToolPolicyDecision } from '@deepchat/shared/types/plugin'
 
 type StoredToolPolicy = {
   pluginId: string

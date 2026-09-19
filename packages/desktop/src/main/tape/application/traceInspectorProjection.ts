@@ -1,17 +1,17 @@
 import { Buffer } from 'node:buffer'
-import type { JsonValue } from '@shared/contracts/json'
+import type { JsonValue } from '@deepchat/shared/contracts/json'
 import type {
   TapeInspectorFactFilters,
   TapeInspectorFactRecord,
   TapeInspectorFacts,
   TapeInspectorRecordDetail
-} from '@shared/types/tape-inspector'
+} from '@deepchat/shared/types/tape-inspector'
 import {
   AGENT_MEMORY_DIRECTIVE_KINDS,
   AGENT_MEMORY_DIRECTIVE_SOURCES,
   AGENT_MEMORY_HEALTH_KIND_KEYS,
   MEMORY_RETRIEVAL_DEGRADATION_CAUSES
-} from '@shared/types/agent-memory'
+} from '@deepchat/shared/types/agent-memory'
 import { redactBody } from '@deepchat/agent-kernel/collab/lib/redact'
 import type { DeepChatTapeEntryRow } from '@deepchat/agent-kernel/tape/domain/entry'
 import { hasExactKeys, isRecordObject } from '@deepchat/agent-kernel/tape/domain/primitives'

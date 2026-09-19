@@ -1,7 +1,7 @@
 import { defineComponent, nextTick, reactive } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import type { YoBrowserStatus } from '@shared/types/browser'
+import type { YoBrowserStatus } from '@deepchat/shared/types/browser'
 
 const mountedWrappers: Array<{ unmount: () => void }> = []
 

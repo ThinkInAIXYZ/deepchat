@@ -1,6 +1,6 @@
 import { Readable } from 'node:stream'
 import { describe, expect, it } from 'vitest'
-import { readBoundedUtf8Stdin } from '../../../src/cli/stdin'
+import { readBoundedUtf8Stdin } from '../../../../cli/src/stdin'
 
 describe('CLI standard input', () => {
   it('reads chunked UTF-8 without changing the prompt', async () => {

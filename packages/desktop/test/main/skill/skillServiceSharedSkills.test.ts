@@ -6,13 +6,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SkillService, type SkillAgentScopePort } from '@/skill'
 import type { SkillSettingsPort } from '@/skill/settings'
 import type { IFileWatcherService } from '@/platform/fileWatcher'
-import type { SkillExtensionConfig } from '@shared/types/skill'
+import type { SkillExtensionConfig } from '@deepchat/shared/types/skill'
 import type {
   LegacySkillManagementStateV2,
   SkillManagementItem,
   SkillManagementState,
   StoredSkillManagementState
-} from '@shared/types/skillManagement'
+} from '@deepchat/shared/types/skillManagement'
 import { resolveAgentSkillsRoot } from '@/skill/agentSkillRoots'
 import { SkillTools } from '@/skill/skillTools'
 

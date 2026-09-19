@@ -1692,662 +1692,421 @@
       "id": "exact-01",
       "agentId": "agent-alpha",
       "text": "Project Atlas retention policy 1",
-      "subsets": [
-        "exact"
-      ],
-      "relevantIds": [
-        "exact-01-relevant",
-        "exact-01-secondary-relevant"
-      ]
+      "subsets": ["exact"],
+      "relevantIds": ["exact-01-relevant", "exact-01-secondary-relevant"]
     },
     {
       "id": "exact-02",
       "agentId": "agent-beta",
       "text": "Project Atlas retention policy 2",
-      "subsets": [
-        "exact"
-      ],
-      "relevantIds": [
-        "exact-02-relevant"
-      ]
+      "subsets": ["exact"],
+      "relevantIds": ["exact-02-relevant"]
     },
     {
       "id": "exact-03",
       "agentId": "agent-alpha",
       "text": "Project Atlas retention policy 3",
-      "subsets": [
-        "exact"
-      ],
-      "relevantIds": [
-        "exact-03-relevant"
-      ]
+      "subsets": ["exact"],
+      "relevantIds": ["exact-03-relevant"]
     },
     {
       "id": "exact-04",
       "agentId": "agent-beta",
       "text": "Project Atlas retention policy 4",
-      "subsets": [
-        "exact"
-      ],
-      "relevantIds": [
-        "exact-04-relevant"
-      ]
+      "subsets": ["exact"],
+      "relevantIds": ["exact-04-relevant"]
     },
     {
       "id": "exact-05",
       "agentId": "agent-alpha",
       "text": "Project Atlas retention policy 5",
-      "subsets": [
-        "exact"
-      ],
-      "relevantIds": [
-        "exact-05-relevant"
-      ]
+      "subsets": ["exact"],
+      "relevantIds": ["exact-05-relevant"]
     },
     {
       "id": "exact-06",
       "agentId": "agent-beta",
       "text": "Project Atlas retention policy 6",
-      "subsets": [
-        "exact"
-      ],
-      "relevantIds": [
-        "exact-06-relevant"
-      ]
+      "subsets": ["exact"],
+      "relevantIds": ["exact-06-relevant"]
     },
     {
       "id": "exact-07",
       "agentId": "agent-alpha",
       "text": "Project Atlas retention policy 7",
-      "subsets": [
-        "exact"
-      ],
-      "relevantIds": [
-        "exact-07-relevant"
-      ]
+      "subsets": ["exact"],
+      "relevantIds": ["exact-07-relevant"]
     },
     {
       "id": "exact-08",
       "agentId": "agent-beta",
       "text": "Project Atlas retention policy 8",
-      "subsets": [
-        "exact"
-      ],
-      "relevantIds": [
-        "exact-08-relevant"
-      ]
+      "subsets": ["exact"],
+      "relevantIds": ["exact-08-relevant"]
     },
     {
       "id": "exact-09",
       "agentId": "agent-alpha",
       "text": "Project Atlas retention policy 9",
-      "subsets": [
-        "exact"
-      ],
-      "relevantIds": [
-        "exact-09-relevant"
-      ]
+      "subsets": ["exact"],
+      "relevantIds": ["exact-09-relevant"]
     },
     {
       "id": "exact-10",
       "agentId": "agent-beta",
       "text": "Project Atlas retention policy 10",
-      "subsets": [
-        "exact"
-      ],
-      "relevantIds": [
-        "exact-10-relevant"
-      ]
+      "subsets": ["exact"],
+      "relevantIds": ["exact-10-relevant"]
     },
     {
       "id": "cjk-01",
       "agentId": "agent-alpha",
       "text": "偏好简洁中文回答1",
-      "subsets": [
-        "cjk"
-      ],
-      "relevantIds": [
-        "cjk-01-relevant"
-      ]
+      "subsets": ["cjk"],
+      "relevantIds": ["cjk-01-relevant"]
     },
     {
       "id": "cjk-02",
       "agentId": "agent-beta",
       "text": "偏好简洁中文回答2",
-      "subsets": [
-        "cjk"
-      ],
-      "relevantIds": [
-        "cjk-02-relevant"
-      ]
+      "subsets": ["cjk"],
+      "relevantIds": ["cjk-02-relevant"]
     },
     {
       "id": "cjk-03",
       "agentId": "agent-alpha",
       "text": "偏好简洁中文回答3",
-      "subsets": [
-        "cjk"
-      ],
-      "relevantIds": [
-        "cjk-03-relevant"
-      ]
+      "subsets": ["cjk"],
+      "relevantIds": ["cjk-03-relevant"]
     },
     {
       "id": "cjk-04",
       "agentId": "agent-beta",
       "text": "偏好简洁中文回答4",
-      "subsets": [
-        "cjk"
-      ],
-      "relevantIds": [
-        "cjk-04-relevant"
-      ]
+      "subsets": ["cjk"],
+      "relevantIds": ["cjk-04-relevant"]
     },
     {
       "id": "cjk-05",
       "agentId": "agent-alpha",
       "text": "偏好简洁中文回答5",
-      "subsets": [
-        "cjk"
-      ],
-      "relevantIds": [
-        "cjk-05-relevant"
-      ]
+      "subsets": ["cjk"],
+      "relevantIds": ["cjk-05-relevant"]
     },
     {
       "id": "cjk-06",
       "agentId": "agent-beta",
       "text": "偏好简洁中文回答6",
-      "subsets": [
-        "cjk"
-      ],
-      "relevantIds": [
-        "cjk-06-relevant"
-      ]
+      "subsets": ["cjk"],
+      "relevantIds": ["cjk-06-relevant"]
     },
     {
       "id": "cjk-07",
       "agentId": "agent-alpha",
       "text": "偏好简洁中文回答7",
-      "subsets": [
-        "cjk"
-      ],
-      "relevantIds": [
-        "cjk-07-relevant"
-      ]
+      "subsets": ["cjk"],
+      "relevantIds": ["cjk-07-relevant"]
     },
     {
       "id": "cjk-08",
       "agentId": "agent-beta",
       "text": "偏好简洁中文回答8",
-      "subsets": [
-        "cjk"
-      ],
-      "relevantIds": [
-        "cjk-08-relevant"
-      ]
+      "subsets": ["cjk"],
+      "relevantIds": ["cjk-08-relevant"]
     },
     {
       "id": "cjk-09",
       "agentId": "agent-alpha",
       "text": "偏好简洁中文回答9",
-      "subsets": [
-        "cjk"
-      ],
-      "relevantIds": [
-        "cjk-09-relevant"
-      ]
+      "subsets": ["cjk"],
+      "relevantIds": ["cjk-09-relevant"]
     },
     {
       "id": "cjk-10",
       "agentId": "agent-beta",
       "text": "偏好简洁中文回答10",
-      "subsets": [
-        "cjk"
-      ],
-      "relevantIds": [
-        "cjk-10-relevant"
-      ]
+      "subsets": ["cjk"],
+      "relevantIds": ["cjk-10-relevant"]
     },
     {
       "id": "path-01",
       "agentId": "agent-alpha",
       "text": "/workspace/services/api1/config.yaml",
-      "subsets": [
-        "path"
-      ],
-      "relevantIds": [
-        "path-01-relevant"
-      ]
+      "subsets": ["path"],
+      "relevantIds": ["path-01-relevant"]
     },
     {
       "id": "path-02",
       "agentId": "agent-beta",
       "text": "/workspace/services/api2/config.yaml",
-      "subsets": [
-        "path"
-      ],
-      "relevantIds": [
-        "path-02-relevant"
-      ]
+      "subsets": ["path"],
+      "relevantIds": ["path-02-relevant"]
     },
     {
       "id": "path-03",
       "agentId": "agent-alpha",
       "text": "/workspace/services/api3/config.yaml",
-      "subsets": [
-        "path"
-      ],
-      "relevantIds": [
-        "path-03-relevant"
-      ]
+      "subsets": ["path"],
+      "relevantIds": ["path-03-relevant"]
     },
     {
       "id": "path-04",
       "agentId": "agent-beta",
       "text": "/workspace/services/api4/config.yaml",
-      "subsets": [
-        "path"
-      ],
-      "relevantIds": [
-        "path-04-relevant"
-      ]
+      "subsets": ["path"],
+      "relevantIds": ["path-04-relevant"]
     },
     {
       "id": "path-05",
       "agentId": "agent-alpha",
       "text": "/workspace/services/api5/config.yaml",
-      "subsets": [
-        "path"
-      ],
-      "relevantIds": [
-        "path-05-relevant"
-      ]
+      "subsets": ["path"],
+      "relevantIds": ["path-05-relevant"]
     },
     {
       "id": "path-06",
       "agentId": "agent-beta",
       "text": "/workspace/services/api6/config.yaml",
-      "subsets": [
-        "path"
-      ],
-      "relevantIds": [
-        "path-06-relevant"
-      ]
+      "subsets": ["path"],
+      "relevantIds": ["path-06-relevant"]
     },
     {
       "id": "path-07",
       "agentId": "agent-alpha",
       "text": "/workspace/services/api7/config.yaml",
-      "subsets": [
-        "path"
-      ],
-      "relevantIds": [
-        "path-07-relevant"
-      ]
+      "subsets": ["path"],
+      "relevantIds": ["path-07-relevant"]
     },
     {
       "id": "path-08",
       "agentId": "agent-beta",
       "text": "/workspace/services/api8/config.yaml",
-      "subsets": [
-        "path"
-      ],
-      "relevantIds": [
-        "path-08-relevant"
-      ]
+      "subsets": ["path"],
+      "relevantIds": ["path-08-relevant"]
     },
     {
       "id": "path-09",
       "agentId": "agent-alpha",
       "text": "/workspace/services/api9/config.yaml",
-      "subsets": [
-        "path"
-      ],
-      "relevantIds": [
-        "path-09-relevant"
-      ]
+      "subsets": ["path"],
+      "relevantIds": ["path-09-relevant"]
     },
     {
       "id": "path-10",
       "agentId": "agent-beta",
       "text": "/workspace/services/api10/config.yaml",
-      "subsets": [
-        "path"
-      ],
-      "relevantIds": [
-        "path-10-relevant"
-      ]
+      "subsets": ["path"],
+      "relevantIds": ["path-10-relevant"]
     },
     {
       "id": "code-01",
       "agentId": "agent-alpha",
       "text": "resolveAgentCache1",
-      "subsets": [
-        "code"
-      ],
-      "relevantIds": [
-        "code-01-relevant"
-      ]
+      "subsets": ["code"],
+      "relevantIds": ["code-01-relevant"]
     },
     {
       "id": "code-02",
       "agentId": "agent-beta",
       "text": "resolveAgentCache2",
-      "subsets": [
-        "code"
-      ],
-      "relevantIds": [
-        "code-02-relevant"
-      ]
+      "subsets": ["code"],
+      "relevantIds": ["code-02-relevant"]
     },
     {
       "id": "code-03",
       "agentId": "agent-alpha",
       "text": "resolveAgentCache3",
-      "subsets": [
-        "code"
-      ],
-      "relevantIds": [
-        "code-03-relevant"
-      ]
+      "subsets": ["code"],
+      "relevantIds": ["code-03-relevant"]
     },
     {
       "id": "code-04",
       "agentId": "agent-beta",
       "text": "resolveAgentCache4",
-      "subsets": [
-        "code"
-      ],
-      "relevantIds": [
-        "code-04-relevant"
-      ]
+      "subsets": ["code"],
+      "relevantIds": ["code-04-relevant"]
     },
     {
       "id": "code-05",
       "agentId": "agent-alpha",
       "text": "resolveAgentCache5",
-      "subsets": [
-        "code"
-      ],
-      "relevantIds": [
-        "code-05-relevant"
-      ]
+      "subsets": ["code"],
+      "relevantIds": ["code-05-relevant"]
     },
     {
       "id": "code-06",
       "agentId": "agent-beta",
       "text": "resolveAgentCache6",
-      "subsets": [
-        "code"
-      ],
-      "relevantIds": [
-        "code-06-relevant"
-      ]
+      "subsets": ["code"],
+      "relevantIds": ["code-06-relevant"]
     },
     {
       "id": "code-07",
       "agentId": "agent-alpha",
       "text": "resolveAgentCache7",
-      "subsets": [
-        "code"
-      ],
-      "relevantIds": [
-        "code-07-relevant"
-      ]
+      "subsets": ["code"],
+      "relevantIds": ["code-07-relevant"]
     },
     {
       "id": "code-08",
       "agentId": "agent-beta",
       "text": "resolveAgentCache8",
-      "subsets": [
-        "code"
-      ],
-      "relevantIds": [
-        "code-08-relevant"
-      ]
+      "subsets": ["code"],
+      "relevantIds": ["code-08-relevant"]
     },
     {
       "id": "code-09",
       "agentId": "agent-alpha",
       "text": "resolveAgentCache9",
-      "subsets": [
-        "code"
-      ],
-      "relevantIds": [
-        "code-09-relevant"
-      ]
+      "subsets": ["code"],
+      "relevantIds": ["code-09-relevant"]
     },
     {
       "id": "code-10",
       "agentId": "agent-beta",
       "text": "resolveAgentCache10",
-      "subsets": [
-        "code"
-      ],
-      "relevantIds": [
-        "code-10-relevant"
-      ]
+      "subsets": ["code"],
+      "relevantIds": ["code-10-relevant"]
     },
     {
       "id": "semantic-01",
       "agentId": "agent-alpha",
       "text": "incident",
-      "subsets": [
-        "semantic"
-      ],
-      "relevantIds": [
-        "semantic-01-relevant"
-      ]
+      "subsets": ["semantic"],
+      "relevantIds": ["semantic-01-relevant"]
     },
     {
       "id": "semantic-02",
       "agentId": "agent-beta",
       "text": "login",
-      "subsets": [
-        "semantic"
-      ],
-      "relevantIds": [
-        "semantic-02-relevant"
-      ]
+      "subsets": ["semantic"],
+      "relevantIds": ["semantic-02-relevant"]
     },
     {
       "id": "semantic-03",
       "agentId": "agent-alpha",
       "text": "slowness",
-      "subsets": [
-        "semantic"
-      ],
-      "relevantIds": [
-        "semantic-03-relevant"
-      ]
+      "subsets": ["semantic"],
+      "relevantIds": ["semantic-03-relevant"]
     },
     {
       "id": "semantic-04",
       "agentId": "agent-beta",
       "text": "prune",
-      "subsets": [
-        "semantic"
-      ],
-      "relevantIds": [
-        "semantic-04-relevant"
-      ]
+      "subsets": ["semantic"],
+      "relevantIds": ["semantic-04-relevant"]
     },
     {
       "id": "semantic-05",
       "agentId": "agent-alpha",
       "text": "invoice",
-      "subsets": [
-        "semantic"
-      ],
-      "relevantIds": [
-        "semantic-05-relevant"
-      ]
+      "subsets": ["semantic"],
+      "relevantIds": ["semantic-05-relevant"]
     },
     {
       "id": "semantic-06",
       "agentId": "agent-beta",
       "text": "release",
-      "subsets": [
-        "semantic"
-      ],
-      "relevantIds": [
-        "semantic-06-relevant"
-      ]
+      "subsets": ["semantic"],
+      "relevantIds": ["semantic-06-relevant"]
     },
     {
       "id": "semantic-07",
       "agentId": "agent-alpha",
       "text": "memoization",
-      "subsets": [
-        "semantic"
-      ],
-      "relevantIds": [
-        "semantic-07-relevant"
-      ]
+      "subsets": ["semantic"],
+      "relevantIds": ["semantic-07-relevant"]
     },
     {
       "id": "semantic-08",
       "agentId": "agent-beta",
       "text": "localtime",
-      "subsets": [
-        "semantic"
-      ],
-      "relevantIds": [
-        "semantic-08-relevant"
-      ]
+      "subsets": ["semantic"],
+      "relevantIds": ["semantic-08-relevant"]
     },
     {
       "id": "semantic-09",
       "agentId": "agent-alpha",
       "text": "brief",
-      "subsets": [
-        "semantic"
-      ],
-      "relevantIds": [
-        "semantic-09-relevant"
-      ]
+      "subsets": ["semantic"],
+      "relevantIds": ["semantic-09-relevant"]
     },
     {
       "id": "semantic-10",
       "agentId": "agent-beta",
       "text": "snapshot",
-      "subsets": [
-        "semantic"
-      ],
-      "relevantIds": [
-        "semantic-10-relevant"
-      ]
+      "subsets": ["semantic"],
+      "relevantIds": ["semantic-10-relevant"]
     },
     {
       "id": "mixed-01",
       "agentId": "agent-alpha",
       "text": "修复 Redis session timeout 1",
-      "subsets": [
-        "mixed"
-      ],
-      "relevantIds": [
-        "mixed-01-relevant"
-      ]
+      "subsets": ["mixed"],
+      "relevantIds": ["mixed-01-relevant"]
     },
     {
       "id": "mixed-02",
       "agentId": "agent-beta",
       "text": "修复 Redis session timeout 2",
-      "subsets": [
-        "mixed"
-      ],
-      "relevantIds": [
-        "mixed-02-relevant"
-      ]
+      "subsets": ["mixed"],
+      "relevantIds": ["mixed-02-relevant"]
     },
     {
       "id": "mixed-03",
       "agentId": "agent-alpha",
       "text": "修复 Redis session timeout 3",
-      "subsets": [
-        "mixed"
-      ],
-      "relevantIds": [
-        "mixed-03-relevant"
-      ]
+      "subsets": ["mixed"],
+      "relevantIds": ["mixed-03-relevant"]
     },
     {
       "id": "mixed-04",
       "agentId": "agent-beta",
       "text": "修复 Redis session timeout 4",
-      "subsets": [
-        "mixed"
-      ],
-      "relevantIds": [
-        "mixed-04-relevant"
-      ]
+      "subsets": ["mixed"],
+      "relevantIds": ["mixed-04-relevant"]
     },
     {
       "id": "mixed-05",
       "agentId": "agent-alpha",
       "text": "修复 Redis session timeout 5",
-      "subsets": [
-        "mixed"
-      ],
-      "relevantIds": [
-        "mixed-05-relevant"
-      ]
+      "subsets": ["mixed"],
+      "relevantIds": ["mixed-05-relevant"]
     },
     {
       "id": "mixed-06",
       "agentId": "agent-beta",
       "text": "修复 Redis session timeout 6",
-      "subsets": [
-        "mixed"
-      ],
-      "relevantIds": [
-        "mixed-06-relevant"
-      ]
+      "subsets": ["mixed"],
+      "relevantIds": ["mixed-06-relevant"]
     },
     {
       "id": "mixed-07",
       "agentId": "agent-alpha",
       "text": "修复 Redis session timeout 7",
-      "subsets": [
-        "mixed"
-      ],
-      "relevantIds": [
-        "mixed-07-relevant"
-      ]
+      "subsets": ["mixed"],
+      "relevantIds": ["mixed-07-relevant"]
     },
     {
       "id": "mixed-08",
       "agentId": "agent-beta",
       "text": "修复 Redis session timeout 8",
-      "subsets": [
-        "mixed"
-      ],
-      "relevantIds": [
-        "mixed-08-relevant"
-      ]
+      "subsets": ["mixed"],
+      "relevantIds": ["mixed-08-relevant"]
     },
     {
       "id": "mixed-09",
       "agentId": "agent-alpha",
       "text": "修复 Redis session timeout 9",
-      "subsets": [
-        "mixed"
-      ],
-      "relevantIds": [
-        "mixed-09-relevant"
-      ]
+      "subsets": ["mixed"],
+      "relevantIds": ["mixed-09-relevant"]
     },
     {
       "id": "mixed-10",
       "agentId": "agent-beta",
       "text": "修复 Redis session timeout 10",
-      "subsets": [
-        "mixed"
-      ],
-      "relevantIds": [
-        "mixed-10-relevant"
-      ]
+      "subsets": ["mixed"],
+      "relevantIds": ["mixed-10-relevant"]
     }
   ]
 }

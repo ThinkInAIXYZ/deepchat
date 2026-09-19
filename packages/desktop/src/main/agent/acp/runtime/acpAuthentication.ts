@@ -1,4 +1,4 @@
-import type { AcpAuthChallenge, AcpAuthMethodView } from '@shared/types/acp'
+import type { AcpAuthChallenge, AcpAuthMethodView } from '@deepchat/shared/types/acp'
 import type * as schema from '@agentclientprotocol/sdk/dist/schema/index.js'
 
 export const ACP_AUTH_REQUIRED_CODE = -32000

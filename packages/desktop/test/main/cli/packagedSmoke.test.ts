@@ -20,7 +20,7 @@ import {
 import { ArtifactSpool } from '@/cli/artifactSpool'
 import { CliServer, type CliServerDependencies } from '@/cli/server'
 import type { CliRouteCaller } from '@/routes/routeRegistry'
-import { buildCli } from '../../../scripts/build-cli.mjs'
+import { buildCli } from '../../../../cli/scripts/build.mjs'
 
 const execFileAsync = promisify(execFile)
 const CLI_PROCESS_TIMEOUT_MS = 5_000
@@ -54,7 +54,7 @@ describe('packaged CLI smoke', () => {
     let server: CliServer | undefined
 
     try {
-      await buildCli({ outDir: outputDirectory, logLevel: 'silent' })
+      await buildCli({ outDir: outputDirectory, logLevel: 'silent', version: 'packaged-smoke' })
       const seedCaller: CliRouteCaller = {
         kind: 'cli',
         principal: 'human',

@@ -334,7 +334,7 @@
 </template>
 
 <script setup lang="ts">
-import type { ToolInteractionResponse } from '@shared/types/agent-interface'
+import type { ToolInteractionResponse } from '@deepchat/shared/types/agent-interface'
 import {
   ref,
   computed,
@@ -419,7 +419,7 @@ import { useToolInteraction } from './composables/useToolInteraction'
 import { useMessageActions } from './composables/useMessageActions'
 import { usePendingInputActions } from './composables/usePendingInputActions'
 import { useChatPageEventBridge } from './composables/useChatPageEventBridge'
-import type { UserMessageInlineItem } from '@shared/types/agent-interface'
+import type { UserMessageInlineItem } from '@deepchat/shared/types/agent-interface'
 import { findLatestAssistantMessageId } from '@/features/chat-page/model/displayMessage'
 
 const props = defineProps<{

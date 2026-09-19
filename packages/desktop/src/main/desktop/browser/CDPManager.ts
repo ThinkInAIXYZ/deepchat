@@ -1,5 +1,5 @@
 import type { Debugger, WebContents } from 'electron'
-import { ScreenshotOptions } from '@shared/types/browser'
+import { ScreenshotOptions } from '@deepchat/shared/types/browser'
 
 export class CDPManager {
   async createSession(webContents: WebContents): Promise<Debugger> {

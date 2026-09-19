@@ -1,7 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import { spawn } from 'child_process'
-import logger from '@shared/logger'
+import logger from '@deepchat/shared/logger'
 import {
   SKILL_RUN_MAX_ARGUMENTS,
   SKILL_RUN_MAX_ARGUMENT_CHARS,
@@ -11,7 +11,7 @@ import {
   type SkillRuntimePreference,
   type SkillRuntimePolicy,
   type SkillScriptRuntime
-} from '@shared/types/skill'
+} from '@deepchat/shared/types/skill'
 import { backgroundExecSessionManager } from '@/agent/shared/process/backgroundExecSessionManager'
 import { mergeCommandEnvironment } from '@/agent/shared/process/shellEnvHelper'
 import {
@@ -24,7 +24,7 @@ import { resolveUsableSpawnCwd } from '@/agent/shared/process/spawnGuard'
 import { terminateProcessTree } from '@/agent/shared/process/processTree'
 import { RuntimeHelper } from '@/lib/runtimeHelper'
 import { ToolchainService } from '@/toolchains'
-import type { CommandShellDialect, ResolvedCommandShell } from '@shared/commandShell'
+import type { CommandShellDialect, ResolvedCommandShell } from '@deepchat/shared/commandShell'
 import type { ResolvedSkillExecutionAuthority } from './skillExecutionAuthority'
 import {
   materializeSkillExecutionPackageTree,

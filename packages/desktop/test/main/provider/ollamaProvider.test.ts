@@ -1,7 +1,7 @@
 import type { ProviderSettingsPort } from '@/provider/settings'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { ModelType } from '../../../src/shared/model'
-import type { LLM_PROVIDER, MODEL_META, OllamaModel } from '@shared/types/provider'
+import { ModelType } from '@deepchat/shared/model'
+import type { LLM_PROVIDER, MODEL_META, OllamaModel } from '@deepchat/shared/types/provider'
 import { OllamaProvider } from '../../../src/main/provider/providers/ollamaProvider'
 
 const { mockExecFile, mockOllamaConstructorOptions, mockOllamaPs } = vi.hoisted(() => ({
@@ -28,7 +28,7 @@ vi.mock('ollama', () => ({
   }
 }))
 
-vi.mock('@shared/logger', () => ({
+vi.mock('@deepchat/shared/logger', () => ({
   default: {
     info: vi.fn(),
     warn: vi.fn(),

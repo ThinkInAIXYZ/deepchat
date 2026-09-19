@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { SessionPendingInputs } from '@/session/data/pendingInputs'
-import type { PendingSessionInputRecord } from '@shared/types/agent-interface'
+import type { PendingSessionInputRecord } from '@deepchat/shared/types/agent-interface'
 
 function createRecord(
   id: string,

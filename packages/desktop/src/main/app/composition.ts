@@ -1,4 +1,4 @@
-import logger from '@shared/logger'
+import logger from '@deepchat/shared/logger'
 import {
   mainLogger,
   reportMainStartupComponentFailure,
@@ -14,38 +14,41 @@ import {
   type MainLogStartupComponentFailureCategory,
   type SafeLogError
 } from '@/logging/mainLogEvents'
-import { projectEnvironmentsChangedEvent } from '@shared/contracts/events/project.events'
+import { projectEnvironmentsChangedEvent } from '@deepchat/shared/contracts/events/project.events'
 import {
   approvalClosedEvent,
   approvalRequestedEvent,
   liveDelegationChangedEvent,
   sessionsTapeInspectorHeadChangedEvent,
   sessionsUpdatedEvent
-} from '@shared/contracts/events'
+} from '@deepchat/shared/contracts/events'
 import path from 'path'
 import { DialogService } from '../desktop/dialog'
 import { app, ipcMain, webContents as electronWebContents } from 'electron'
 import { DEEPCHAT_EVENT_CHANNEL } from '@shared/contracts/channels'
-import { createDeepchatEventEnvelope, type DeepchatEventName } from '@shared/contracts/events'
+import {
+  createDeepchatEventEnvelope,
+  type DeepchatEventName
+} from '@deepchat/shared/contracts/events'
 import { optimizer } from '@electron-toolkit/utils'
 import { WindowPresenter } from '../desktop/window'
 import { PluginSettingsWindow } from '../desktop/pluginSettingsWindow'
 import { ShortcutPresenter } from '../desktop/shortcut'
-import type { FileServicePort } from '@shared/types/file'
-import type { ToolchainKind } from '@shared/types/toolchains'
+import type { FileServicePort } from '@deepchat/shared/types/file'
+import type { ToolchainKind } from '@deepchat/shared/types/toolchains'
 import type { WorkspaceServicePort } from '@shared/types/workspace'
-import type { AssistantMessageBlock } from '@shared/types/agent-interface'
-import { projectFinalAssistantAnswer } from '@shared/lib/assistantDeliverySegments'
-import type { SkillMetadataSnapshotPort, SkillServicePort } from '@shared/types/skill'
-import type { SkillSyncServicePort } from '@shared/types/skillSync'
+import type { AssistantMessageBlock } from '@deepchat/shared/types/agent-interface'
+import { projectFinalAssistantAnswer } from '@deepchat/shared/lib/assistantDeliverySegments'
+import type { SkillMetadataSnapshotPort, SkillServicePort } from '@deepchat/shared/types/skill'
+import type { SkillSyncServicePort } from '@deepchat/shared/types/skillSync'
 import type { IConversationExporter } from '../exporter/interface'
 import type {
   IShortcutPresenter,
   IWindowPresenter,
   IYoBrowserPresenter
 } from '@shared/types/desktop'
-import type { DialogServicePort } from '@shared/types/dialog'
-import type { KnowledgeServicePort } from '@shared/types/knowledge'
+import type { DialogServicePort } from '@deepchat/shared/types/dialog'
+import type { KnowledgeServicePort } from '@deepchat/shared/types/knowledge'
 import { ProviderRuntime } from '../provider'
 import { AgentInvocationAdmission } from '@/agent/invocationAdmission'
 import { ProviderImportService } from '../provider/providerImportService'
@@ -226,8 +229,8 @@ import {
 import {
   normalizeDeepChatSubagentSlots,
   resolveDeepChatSubagentCapability
-} from '@shared/lib/deepchatSubagents'
-import { DEFAULT_DISABLED_AGENT_TOOLS } from '@shared/agentTools'
+} from '@deepchat/shared/lib/deepchatSubagents'
+import { DEFAULT_DISABLED_AGENT_TOOLS } from '@deepchat/shared/agentTools'
 import { composeSubagentAuthority } from '@deepchat/agent-kernel/collab/session/subagentAuthority'
 import type {
   AcpAsLlmProviderPermissionPort,

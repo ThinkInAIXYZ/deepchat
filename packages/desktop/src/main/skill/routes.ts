@@ -1,5 +1,5 @@
-import type { SkillServicePort } from '@shared/types/skill'
-import type { SkillSyncServicePort } from '@shared/types/skillSync'
+import type { SkillServicePort } from '@deepchat/shared/types/skill'
+import type { SkillSyncServicePort } from '@deepchat/shared/types/skillSync'
 import type { SkillSettingsPort } from './settings'
 import { AgentSkillImportService } from './agentSkillImportService'
 import {

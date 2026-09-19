@@ -1,5 +1,8 @@
 import { projectBlocksForClient } from '@deepchat/agent-kernel/contracts/rendererBlocks'
-import type { ChatMessagePageResult, ChatMessageRecord } from '@shared/types/agent-interface'
+import type {
+  ChatMessagePageResult,
+  ChatMessageRecord
+} from '@deepchat/shared/types/agent-interface'
 
 export { cloneBlocksForRenderer } from '@deepchat/agent-kernel/contracts/rendererBlocks'
 

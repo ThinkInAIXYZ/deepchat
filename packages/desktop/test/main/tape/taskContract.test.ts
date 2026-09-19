@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   MAX_TASK_CONTRACT_REQUIREMENTS,
   type DeepChatHandoffFormatRequirement
-} from '@shared/types/task-contract'
+} from '@deepchat/shared/types/task-contract'
 import {
   TaskContractError,
   buildTaskContract,

@@ -1,11 +1,15 @@
-import logger from '@shared/logger'
-import type { MODEL_META, ModelRouteConfig } from '@shared/types/provider'
-import { isNewApiEndpointType, ModelType, resolveNewApiModelTypeFromMetadata } from '@shared/model'
-import { resolveVideoGenerationCompatType } from '@shared/videoGenerationSettings'
+import logger from '@deepchat/shared/logger'
+import type { MODEL_META, ModelRouteConfig } from '@deepchat/shared/types/provider'
+import {
+  isNewApiEndpointType,
+  ModelType,
+  resolveNewApiModelTypeFromMetadata
+} from '@deepchat/shared/model'
+import { resolveVideoGenerationCompatType } from '@deepchat/shared/videoGenerationSettings'
 import ElectronStore from 'electron-store'
 import path from 'path'
 import type { StoreLike } from '@/config/storeLike'
-import type { DeepchatEventPublisher } from '@shared/contracts/events'
+import type { DeepchatEventPublisher } from '@deepchat/shared/contracts/events'
 import { emitModelsChanged } from './eventPublishers'
 import { stripDerivedProviderModelFields } from './providerModelFacts'
 

@@ -1,4 +1,4 @@
-import logger from '@shared/logger'
+import logger from '@deepchat/shared/logger'
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { is } from '@electron-toolkit/utils'
 import type {
@@ -23,7 +23,7 @@ import { stitchImagesVertically } from '@/lib/scrollCapture'
 import { openExternalUrl } from '@/lib/externalUrl'
 import { getYoBrowserSession } from './browser/yoBrowserSession'
 import { DEEPCHAT_EVENT_CHANNEL } from '@shared/contracts/channels'
-import { createDeepchatEventEnvelope } from '@shared/contracts/events'
+import { createDeepchatEventEnvelope } from '@deepchat/shared/contracts/events'
 
 export interface TabDesktopSessionBindingPort {
   unbind(webContentsId: number): void

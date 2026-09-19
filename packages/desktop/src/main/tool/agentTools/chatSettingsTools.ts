@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { toDeepChatJsonSchema } from '@shared/lib/zodJsonSchema'
+import { toDeepChatJsonSchema } from '@deepchat/shared/lib/zodJsonSchema'
 import type {
   ApplyChatSettingResult,
   ChatSettingValue,
@@ -7,8 +7,8 @@ import type {
   OpenChatSettingsResult,
   OpenChatSettingsSection
 } from '@shared/types/chatSettings'
-import type { SkillServicePort } from '@shared/types/skill'
-import { TOOL_EXECUTION, type MCPToolDefinition } from '@shared/types/mcp'
+import type { SkillServicePort } from '@deepchat/shared/types/skill'
+import { TOOL_EXECUTION, type MCPToolDefinition } from '@deepchat/shared/types/mcp'
 import type { AgentDesktopToolPort, AgentDisplaySettingsPort } from '../runtimePorts'
 import type { SkillSettingsPort } from '@/skill/settings'
 import { REQUESTED_LOCALES } from '@shared/locales'

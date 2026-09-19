@@ -1,6 +1,6 @@
 import type { ComputedRef, InjectionKey, Ref } from 'vue'
-import type { OcrRuntimeStatus } from '@shared/contracts/routes/ocr.routes'
-import type { AttachmentRepresentationPreference } from '@shared/types/attachment'
+import type { OcrRuntimeStatus } from '@deepchat/shared/contracts/routes/ocr.routes'
+import type { AttachmentRepresentationPreference } from '@deepchat/shared/types/attachment'
 
 export interface InputNodeActions {
   prepareCommandFormSubmit: () => void

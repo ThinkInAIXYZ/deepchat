@@ -1,6 +1,6 @@
 import { createSessionClient } from '../../../api/SessionClient'
 import { createSyncClient } from '../../../api/SyncClient'
-import type { DeepchatEventPayload } from '@shared/contracts/events'
+import type { DeepchatEventPayload } from '@deepchat/shared/contracts/events'
 
 export type SessionCompactionChangedPayload = DeepchatEventPayload<'sessions.compaction.changed'>
 

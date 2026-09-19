@@ -1,5 +1,5 @@
-import type { DeepchatEventPublisher } from '@shared/contracts/events'
-import type { OllamaModel } from '@shared/types/provider'
+import type { DeepchatEventPublisher } from '@deepchat/shared/contracts/events'
+import type { OllamaModel } from '@deepchat/shared/types/provider'
 import { ShowResponse } from 'ollama'
 import { OllamaProvider } from '../providers/ollamaProvider'
 import { BaseLLMProvider } from '../baseProvider'

@@ -1,4 +1,4 @@
-import logger from '@shared/logger'
+import logger from '@deepchat/shared/logger'
 import fs from 'node:fs'
 import path from 'node:path'
 

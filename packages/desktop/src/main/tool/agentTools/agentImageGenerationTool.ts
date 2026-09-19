@@ -1,9 +1,9 @@
 import type { ProviderSettingsPort } from '@/provider/settings'
 import { z } from 'zod'
-import { toDeepChatJsonSchema } from '@shared/lib/zodJsonSchema'
-import { TOOL_EXECUTION, type MCPToolDefinition } from '@shared/types/mcp'
-import type { ToolCallImagePreview } from '@shared/types/core/mcp'
-import type { ImageGenerationOptions } from '@shared/imageGenerationSettings'
+import { toDeepChatJsonSchema } from '@deepchat/shared/lib/zodJsonSchema'
+import { TOOL_EXECUTION, type MCPToolDefinition } from '@deepchat/shared/types/mcp'
+import type { ToolCallImagePreview } from '@deepchat/shared/types/core/mcp'
+import type { ImageGenerationOptions } from '@deepchat/shared/imageGenerationSettings'
 import {
   IMAGE_GENERATION_MODERATION_VALUES,
   IMAGE_GENERATION_OUTPUT_FORMAT_VALUES,
@@ -11,8 +11,8 @@ import {
   OPENAI_IMAGE_GENERATION_BACKGROUND_VALUES,
   isValidOpenAIImageGenerationSize,
   normalizeImageGenerationOptions
-} from '@shared/imageGenerationSettings'
-import { ApiEndpointType, ModelType } from '@shared/model'
+} from '@deepchat/shared/imageGenerationSettings'
+import { ApiEndpointType, ModelType } from '@deepchat/shared/model'
 import {
   createAgentToolErrorResult,
   createAgentToolSuccessResult
@@ -20,8 +20,8 @@ import {
 import {
   IMAGE_GENERATE_TOOL_NAME,
   IMAGE_GENERATION_TOOL_SERVER_NAME
-} from '@shared/agentImageGenerationTool'
-import logger from '@shared/logger'
+} from '@deepchat/shared/agentImageGenerationTool'
+import logger from '@deepchat/shared/logger'
 import type { CacheImageCallback } from '@/lib/toolCallImagePreviews'
 import { awaitWithAbort } from '@deepchat/agent-kernel/collab/lib/awaitWithAbort'
 import type { AgentProviderToolPort, AgentToolSessionPort } from '../runtimePorts'

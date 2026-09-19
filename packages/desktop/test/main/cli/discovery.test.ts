@@ -13,7 +13,7 @@ import {
   loadLocalControlDescriptor,
   resolveCliUserDataPath,
   selectLocalControlToken
-} from '../../../src/cli/discovery'
+} from '../../../../cli/src/discovery'
 
 const temporaryDirectories: string[] = []
 

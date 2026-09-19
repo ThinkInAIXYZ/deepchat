@@ -1,10 +1,10 @@
-import logger from '../shared/logger.js'
-import { TOOL_SEARCH_AGENT_TOOL_NAME } from '../shared/agentTools.js'
-import type { AssistantMessageBlock } from '../shared/types/agent-interface.js'
-import type { ChatMessage } from '../shared/types/core/chat-message.js'
-import type { PermissionRequestPayload } from '../shared/types/core/llm-events.js'
-import type { DeepChatExecutionContract } from '../shared/types/execution-contract.js'
-import type { DeepChatProviderAttemptIdentity } from '../shared/types/provider-attempt.js'
+import logger from '@deepchat/shared/logger'
+import { TOOL_SEARCH_AGENT_TOOL_NAME } from '@deepchat/shared/agentTools'
+import type { AssistantMessageBlock } from '@deepchat/shared/types/agent-interface'
+import type { ChatMessage } from '@deepchat/shared/types/core/chat-message'
+import type { PermissionRequestPayload } from '@deepchat/shared/types/core/llm-events'
+import type { DeepChatExecutionContract } from '@deepchat/shared/types/execution-contract'
+import type { DeepChatProviderAttemptIdentity } from '@deepchat/shared/types/provider-attempt'
 import type {
   IoParams,
   PendingToolInteraction,
@@ -64,7 +64,7 @@ import {
   attachProgrammaticToolDeferredResumeCapability,
   projectProgrammaticExecDefinition
 } from './programmaticToolSurface.js'
-import { CommandShellProfileSchema } from '../shared/commandShell.js'
+import { CommandShellProfileSchema } from '@deepchat/shared/commandShell'
 
 const UNKNOWN_CONTEXT_LIMIT = Number.MAX_SAFE_INTEGER
 const MAX_TRUNCATED_TOOL_RECOVERY_ATTEMPTS = 1

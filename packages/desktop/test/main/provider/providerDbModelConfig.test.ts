@@ -53,7 +53,7 @@ vi.mock('../../../src/main/provider/providerDbLoader', () => {
 
 import { ModelConfigHelper } from '../../../src/main/provider/modelConfig'
 import { modelCapabilities } from '../../../src/main/provider/modelCapabilities'
-import { ApiEndpointType, ModelType } from '../../../src/shared/model'
+import { ApiEndpointType, ModelType } from '@deepchat/shared/model'
 import { resolveCapabilityIdentity } from '../../../src/main/provider/capabilityIdentity'
 
 describe('Provider DB strict matching and user overrides', () => {

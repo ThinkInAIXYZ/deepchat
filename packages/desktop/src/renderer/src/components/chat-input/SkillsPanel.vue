@@ -52,7 +52,7 @@ import {
   TooltipProvider,
   TooltipTrigger
 } from '@shadcn/components/ui/tooltip'
-import type { SkillMetadata } from '@shared/types/skill'
+import type { SkillMetadata } from '@deepchat/shared/types/skill'
 
 const props = defineProps<{
   skills: SkillMetadata[]

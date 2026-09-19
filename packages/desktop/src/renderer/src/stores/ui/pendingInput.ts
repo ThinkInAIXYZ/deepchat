@@ -1,7 +1,10 @@
 import { computed, onScopeDispose, ref } from 'vue'
 import { defineStore } from 'pinia'
 import { createSessionClient } from '@api/SessionClient'
-import type { PendingSessionInputRecord, SendMessageInput } from '@shared/types/agent-interface'
+import type {
+  PendingSessionInputRecord,
+  SendMessageInput
+} from '@deepchat/shared/types/agent-interface'
 import { MAX_PENDING_INPUTS } from '@shared/pendingInput'
 
 export const usePendingInputStore = defineStore('pendingInput', () => {

@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { TimestampMsSchema, defineRouteContract } from '../common'
+import { TimestampMsSchema, defineRouteContract } from '@deepchat/shared/contracts/common'
 
 export const DatabaseSecurityPasswordStorageSchema = z.enum(['safeStorage', 'manual', 'none'])
 

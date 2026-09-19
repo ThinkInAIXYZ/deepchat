@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest'
-import { AGENT_MEMORY_ACTIVE_DIRECTIVE_MAX_COUNT } from '@shared/types/agent-memory'
+import { AGENT_MEMORY_ACTIVE_DIRECTIVE_MAX_COUNT } from '@deepchat/shared/types/agent-memory'
 import { Database, nativeSqliteDescribeIf } from '../nativeSqliteHarness'
 
 const tableModule = Database

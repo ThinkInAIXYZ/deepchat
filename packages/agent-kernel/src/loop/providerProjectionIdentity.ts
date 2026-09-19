@@ -1,4 +1,4 @@
-import type { ChatMessage } from '../shared/types/core/chat-message.js'
+import type { ChatMessage } from '@deepchat/shared/types/core/chat-message'
 
 interface ProviderProjectionEvidence {
   readonly identity: string

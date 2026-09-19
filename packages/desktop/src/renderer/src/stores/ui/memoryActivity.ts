@@ -1,7 +1,7 @@
 import { computed, getCurrentScope, onScopeDispose, ref, watch } from 'vue'
 import { defineStore } from 'pinia'
 import { createMemoryClient, type MemoryUpdatedPayload } from '@api/MemoryClient'
-import type { ChatMessageRecord } from '@shared/types/agent-interface'
+import type { ChatMessageRecord } from '@deepchat/shared/types/agent-interface'
 import type { MemoryAddResult, MemoryItem, MemoryViewManifest } from '@shared/contracts/routes'
 import { useAgentStore, type UIAgent } from './agent'
 import { useMessageStore } from './message'

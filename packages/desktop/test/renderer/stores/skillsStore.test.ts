@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
-import type { DeepchatEventPayload } from '@shared/contracts/events'
-import type { UnifiedSkillItem } from '@shared/types/skillManagement'
+import type { DeepchatEventPayload } from '@deepchat/shared/contracts/events'
+import type { UnifiedSkillItem } from '@deepchat/shared/types/skillManagement'
 
 type SkillCatalogChangedPayload = DeepchatEventPayload<'skills.catalog.changed'>
 

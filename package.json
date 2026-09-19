@@ -29,13 +29,13 @@
     "typecheck:contracts": "pnpm --filter DeepChat run typecheck:contracts",
     "typecheck:kernel-ports": "pnpm --filter DeepChat run typecheck:kernel-ports",
     "typecheck:web": "pnpm --filter DeepChat run typecheck:web",
-    "typecheck": "pnpm --filter DeepChat run typecheck",
+    "typecheck": "pnpm run typecheck:shared && pnpm --filter @deepchat/cli run typecheck && pnpm --filter DeepChat run typecheck",
     "start": "pnpm --filter DeepChat run start",
     "dev": "pnpm --filter DeepChat run dev",
     "dev:trace": "pnpm --filter DeepChat run dev:trace",
     "dev:inspect": "pnpm --filter DeepChat run dev:inspect",
     "dev:linux": "pnpm --filter DeepChat run dev:linux",
-    "build": "pnpm --filter DeepChat run build",
+    "build": "pnpm run build:shared && pnpm run build:kernel && pnpm --filter DeepChat run build",
     "cli:build": "pnpm --filter DeepChat run cli:build",
     "build:unpack": "pnpm --filter DeepChat run build:unpack",
     "plugin:validate": "pnpm --filter DeepChat run plugin:validate",
@@ -97,7 +97,11 @@
     "architecture:renderer-baseline": "node scripts/generate-renderer-architecture-baseline.mjs",
     "architecture:renderer-baseline:check": "node scripts/generate-renderer-architecture-baseline.mjs --check",
     "hooks:install": "git config core.hooksPath .githooks",
-    "release:ff": "node scripts/release-fast-forward.mjs"
+    "release:ff": "node scripts/release-fast-forward.mjs",
+    "test:artifact": "pnpm --filter @deepchat/agent-kernel run test",
+    "build:shared": "pnpm --filter @deepchat/shared run build",
+    "build:kernel": "pnpm --filter @deepchat/agent-kernel run build",
+    "typecheck:shared": "pnpm --filter @deepchat/shared run typecheck"
   },
   "devDependencies": {
     "@commitlint/cli": "^21.2.2",

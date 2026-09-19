@@ -4,7 +4,7 @@ import type {
   DeepChatAgentDescriptor
 } from '@/agent/shared/agentDescriptors'
 import type { AppSessionId } from '@deepchat/agent-kernel/collab/agent-shared/agentSessionIds'
-import type { DeepChatSessionState, SessionRecord } from '@shared/types/agent-interface'
+import type { DeepChatSessionState, SessionRecord } from '@deepchat/shared/types/agent-interface'
 import { resolveAcpAgentAlias } from '@shared/utils/acpAgentAlias'
 import type { DirectAcpSessionBackend } from './directAcpAgentBackend'
 import type { DeepChatAgentBackend } from './deepChatAgentBackend'

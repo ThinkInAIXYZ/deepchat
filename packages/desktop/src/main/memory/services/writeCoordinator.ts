@@ -1,6 +1,6 @@
-import logger from '@shared/logger'
-import { AGENT_MEMORY_AUTO_CONTENT_MAX_CHARS } from '@shared/types/agent-memory'
-import { unicodeCodePointLength } from '@shared/lib/unicodeText'
+import logger from '@deepchat/shared/logger'
+import { AGENT_MEMORY_AUTO_CONTENT_MAX_CHARS } from '@deepchat/shared/types/agent-memory'
+import { unicodeCodePointLength } from '@deepchat/shared/lib/unicodeText'
 
 import { ADD_DECISION, type MemoryDecision } from '../core/decision'
 import {

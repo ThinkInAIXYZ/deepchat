@@ -15,7 +15,7 @@ import type {
   ExternalSkillInfo,
   ScanResult,
   FormatCapabilities
-} from '@shared/types/skillSync'
+} from '@deepchat/shared/types/skillSync'
 import { resolveSafePath, isFilenameSafe, validateFileSize, MAX_FILE_SIZE } from './security'
 
 // ============================================================================

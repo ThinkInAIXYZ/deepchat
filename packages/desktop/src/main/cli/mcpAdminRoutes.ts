@@ -15,7 +15,7 @@ import {
   type PublicMcpServerUpdate,
   type SettingsActivityInput
 } from '@shared/contracts/routes'
-import type { MCPServerConfig, McpServicePort } from '@shared/types/mcp'
+import type { MCPServerConfig, McpServicePort } from '@deepchat/shared/types/mcp'
 import {
   createRouteMap,
   type CliRouteCaller,

@@ -7,7 +7,7 @@ import type {
   MemoryDirectiveItem,
   MemoryItem
 } from '../../../src/shared/contracts/routes'
-import { AGENT_MEMORY_ACTIVE_DIRECTIVE_MAX_COUNT } from '../../../src/shared/types/agent-memory'
+import { AGENT_MEMORY_ACTIVE_DIRECTIVE_MAX_COUNT } from '@deepchat/shared/types/agent-memory'
 
 const passthrough = (name: string, tag = 'div') =>
   defineComponent({ name, template: `<${tag}><slot /></${tag}>` })

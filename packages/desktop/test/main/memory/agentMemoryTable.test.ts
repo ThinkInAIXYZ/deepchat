@@ -1,5 +1,5 @@
 import { expect, it, vi } from 'vitest'
-import logger from '@shared/logger'
+import logger from '@deepchat/shared/logger'
 import { buildScopedMemoryProvenanceKey } from '@/memory/core/scoring'
 import { Database, dropV48DerivedArtifacts, nativeSqliteDescribeIf } from '../nativeSqliteHarness'
 

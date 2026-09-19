@@ -6,9 +6,9 @@ import type {
   AssistantMessageBlock,
   LegacyImportStatus,
   UserMessageContent
-} from '@shared/types/agent-interface'
-import type { SearchResult } from '@shared/types/core/search'
-import { isReasoningEffort } from '@shared/types/model-db'
+} from '@deepchat/shared/types/agent-interface'
+import type { SearchResult } from '@deepchat/shared/types/core/search'
+import { isReasoningEffort } from '@deepchat/shared/types/model-db'
 import { resolveAcpAgentAlias } from '@shared/utils/acpAgentAlias'
 import { SessionTranscript, type TranscriptTapePort } from '@/session/data/transcript'
 import { SessionDatabase } from '@/session/data/database'

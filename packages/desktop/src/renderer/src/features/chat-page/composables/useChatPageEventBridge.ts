@@ -1,5 +1,5 @@
 import type { ComputedRef, Ref } from 'vue'
-import type { DeepchatEventPayload } from '@shared/contracts/events'
+import type { DeepchatEventPayload } from '@deepchat/shared/contracts/events'
 
 type ChatInputHandle = {
   insertWorkspaceReference?: (targetPath: string) => boolean

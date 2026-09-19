@@ -69,7 +69,7 @@ describe('AgentPreviewCoordinator', () => {
       screen
     }))
     vi.doMock('@zerob13/nativekit', () => ({ overlay }))
-    vi.doMock('@shared/logger', () => ({
+    vi.doMock('@deepchat/shared/logger', () => ({
       default: {
         info: vi.fn(),
         warn: vi.fn()

@@ -1,6 +1,6 @@
 import { EventEmitter } from 'events'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { createDeepchatEventEnvelope } from '@shared/contracts/events'
+import { createDeepchatEventEnvelope } from '@deepchat/shared/contracts/events'
 
 const sendToAllWindowsMock = vi.fn()
 const overlayUpdateBoundsMock = vi.fn(async () => undefined)
@@ -239,7 +239,7 @@ describe('YoBrowserPresenter', () => {
       }
     })
 
-    vi.doMock('@shared/logger', () => ({
+    vi.doMock('@deepchat/shared/logger', () => ({
       default: {
         info: vi.fn(),
         warn: vi.fn(),

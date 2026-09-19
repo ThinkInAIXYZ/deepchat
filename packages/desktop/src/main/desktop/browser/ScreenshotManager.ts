@@ -1,5 +1,5 @@
 import type { Debugger } from 'electron'
-import type { ScreenshotOptions } from '@shared/types/browser'
+import type { ScreenshotOptions } from '@deepchat/shared/types/browser'
 import { CDPManager } from './CDPManager'
 
 export class ScreenshotManager {

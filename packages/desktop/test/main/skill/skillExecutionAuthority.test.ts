@@ -15,7 +15,7 @@ import { createTapeViewManifest } from '@deepchat/agent-kernel/tape/domain/viewM
 import type {
   DeepChatTapeSkillContextV7,
   DeepChatTapeViewManifestRecord
-} from '@shared/types/tape-view-manifest'
+} from '@deepchat/shared/types/tape-view-manifest'
 
 const SESSION_ID = 'session-1'
 const RUN_ID = 'run-1'

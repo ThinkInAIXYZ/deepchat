@@ -3,8 +3,11 @@ import type { Rectangle } from 'electron'
 import { is } from '@electron-toolkit/utils'
 import { nanoid } from 'nanoid'
 import { DEEPCHAT_EVENT_CHANNEL } from '@shared/contracts/channels'
-import { createDeepchatEventEnvelope, type DeepchatEventPublisher } from '@shared/contracts/events'
-import logger from '@shared/logger'
+import {
+  createDeepchatEventEnvelope,
+  type DeepchatEventPublisher
+} from '@deepchat/shared/contracts/events'
+import logger from '@deepchat/shared/logger'
 import {
   BrowserPageStatus,
   type BrowserPageInfo,
@@ -19,8 +22,8 @@ import {
   type YoBrowserActivityPoint,
   type YoBrowserActivityRect,
   type YoBrowserStatus
-} from '@shared/types/browser'
-import type { DownloadInfo } from '@shared/types/browser'
+} from '@deepchat/shared/types/browser'
+import type { DownloadInfo } from '@deepchat/shared/types/browser'
 import type { IWindowPresenter, IYoBrowserPresenter } from '@shared/types/desktop'
 import {
   AgentPreviewCoordinator,

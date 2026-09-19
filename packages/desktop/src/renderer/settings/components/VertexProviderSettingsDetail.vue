@@ -138,7 +138,7 @@ import {
 } from '@shadcn/components/ui/select'
 import { DcButton } from '@dc-ui/components/button'
 import { Icon } from '@iconify/vue'
-import type { VERTEX_PROVIDER } from '@shared/types/provider'
+import type { VERTEX_PROVIDER } from '@deepchat/shared/types/provider'
 import { useProviderStore } from '@/stores/providerStore'
 
 const props = defineProps<{

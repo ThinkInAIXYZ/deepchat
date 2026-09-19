@@ -8,7 +8,7 @@ import {
   normalizeReasoningEffortValue,
   sanitizeAggregate,
   type ReasoningPortrait
-} from '../../../src/shared/types/model-db'
+} from '@deepchat/shared/types/model-db'
 
 describe('GPT-5.6 provider resource', () => {
   it('keeps the official OpenAI effort and verbosity portraits exact', async () => {

@@ -4,7 +4,10 @@ import {
   configTestHookCommandRoute,
   type DeepchatRouteName
 } from '@shared/contracts/routes'
-import type { HooksNotificationsSettings, HookTestResult } from '@shared/hooksNotifications'
+import type {
+  HooksNotificationsSettings,
+  HookTestResult
+} from '@deepchat/shared/hooksNotifications'
 
 export interface HookRoutesPort {
   getConfigSnapshot(): HooksNotificationsSettings

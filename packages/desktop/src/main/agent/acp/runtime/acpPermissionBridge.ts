@@ -1,7 +1,7 @@
 import { nanoid } from 'nanoid'
 import type * as schema from '@agentclientprotocol/sdk/dist/schema/index.js'
-import type { AcpAgentConfig } from '@shared/types/acp'
-import type { PermissionRequestPayload } from '@shared/types/core/llm-events'
+import type { AcpAgentConfig } from '@deepchat/shared/types/acp'
+import type { PermissionRequestPayload } from '@deepchat/shared/types/core/llm-events'
 import type { AcpPermissionPresentationPort } from '@/agent/acp/instance/ports'
 
 const DEFAULT_PERMISSION_TIMEOUT_MS = 60_000

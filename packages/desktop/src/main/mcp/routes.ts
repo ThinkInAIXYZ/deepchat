@@ -1,4 +1,4 @@
-import type { McpAppHostPort, McpServicePort } from '@shared/types/mcp'
+import type { McpAppHostPort, McpServicePort } from '@deepchat/shared/types/mcp'
 import {
   configGetMcpServersRoute,
   mcpAddServerRoute,

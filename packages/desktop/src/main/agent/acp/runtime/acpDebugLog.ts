@@ -1,6 +1,6 @@
 import { nanoid } from 'nanoid'
-import type { AcpDebugEventEntry } from '@shared/types/acp'
-import type { AcpDebugEventKind } from '@shared/types/acp'
+import type { AcpDebugEventEntry } from '@deepchat/shared/types/acp'
+import type { AcpDebugEventKind } from '@deepchat/shared/types/acp'
 
 const MAX_DEBUG_EVENTS_PER_AGENT = 300
 

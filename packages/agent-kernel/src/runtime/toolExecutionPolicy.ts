@@ -1,8 +1,8 @@
-import type { PermissionMode } from '../shared/types/agent-interface.js'
+import type { PermissionMode } from '@deepchat/shared/types/agent-interface'
 import type {
   MCPToolDefinition,
   ToolExecutionMode
-} from '../shared/types/core/mcp.js'
+} from '@deepchat/shared/types/core/mcp'
 
 type ToolCallTarget = {
   name: string

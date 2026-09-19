@@ -1,18 +1,18 @@
-import type { MCPToolDefinition } from '@shared/types/mcp'
-import type { ModelConfig } from '@shared/types/provider'
+import type { MCPToolDefinition } from '@deepchat/shared/types/mcp'
+import type { ModelConfig } from '@deepchat/shared/types/provider'
 import type { ModelMessage } from 'ai'
 import {
   applyRequestParameterPolicy,
   isMiniMaxM3AdaptiveThinkingModel,
   type ModelRequestPolicy
-} from '@shared/modelRequestPolicy'
+} from '@deepchat/shared/modelRequestPolicy'
 import {
   getReasoningEffectiveEnabledForProvider,
   hasAnthropicReasoningToggle,
   normalizeAnthropicReasoningVisibilityValue,
   normalizeReasoningEffortValue,
   type ReasoningPortrait
-} from '@shared/types/model-db'
+} from '@deepchat/shared/types/model-db'
 import {
   OPENAI_COMPATIBLE_PROMPT_CACHE_MARKER,
   type OpenAICompatiblePromptCacheMarker,

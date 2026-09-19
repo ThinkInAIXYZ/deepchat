@@ -1,6 +1,6 @@
-import type { PluginContextPort } from '../shared/types/userPlugin.js'
+import type { PluginContextPort } from '@deepchat/shared/types/userPlugin'
 
-import logger from '../shared/logger.js'
+import logger from '@deepchat/shared/logger'
 import type {
   AttachmentPreparationSummary,
   AssistantMessageBlock,
@@ -10,12 +10,12 @@ import type {
   MessageStartResult,
   SendMessageInput,
   UserMessageContent
-} from '../shared/types/agent-interface.js'
-import type { ChatMessage } from '../shared/types/core/chat-message.js'
-import type { MCPToolDefinition } from '../shared/types/core/mcp.js'
-import type { DeepChatPromptAssembly } from '../shared/types/prompt-assembly.js'
-import type { ProviderExecutionPort } from '../shared/types/provider.js'
-import type { ToolServicePort } from '../shared/types/tool.js'
+} from '@deepchat/shared/types/agent-interface'
+import type { ChatMessage } from '@deepchat/shared/types/core/chat-message'
+import type { MCPToolDefinition } from '@deepchat/shared/types/core/mcp'
+import type { DeepChatPromptAssembly } from '@deepchat/shared/types/prompt-assembly'
+import type { ProviderExecutionPort } from '@deepchat/shared/types/provider'
+import type { ToolServicePort } from '@deepchat/shared/types/tool'
 import { toAppSessionId } from '../collab/agent-shared/agentSessionIds.js'
 import type { DeepChatAgentInstance } from '../instance/deepChatAgentInstance.js'
 import {
@@ -125,7 +125,7 @@ import {type AgentTraceSettingsPort} from '../contracts/agentTraceSettings.js'
 import {type AttachmentPreparationPort} from '../contracts/attachmentPreparation.js'
 import {type CommandShellResolutionPort} from '../contracts/commandShellResolution.js'
 import {type PendingInputStorePort} from '../contracts/pendingInputStore.js'
-import type { ResolvedToolMode } from '../shared/toolMode.js'
+import type { ResolvedToolMode } from '@deepchat/shared/toolMode'
 import {
   decorateExecForShell,
   isCodexToolFrontend,

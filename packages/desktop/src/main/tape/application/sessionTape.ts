@@ -7,12 +7,12 @@ import type {
   ChatMessageRecord,
   SubagentTapeLinkInput,
   SubagentTapeLinkReceipt
-} from '@shared/types/agent-interface'
+} from '@deepchat/shared/types/agent-interface'
 import type {
   DeepChatTapeViewManifest,
   DeepChatTapeViewManifestRecord
-} from '@shared/types/tape-view-manifest'
-import type { DeepChatNestedExecutionAudit } from '@shared/types/execution-journal-audit'
+} from '@deepchat/shared/types/tape-view-manifest'
+import type { DeepChatNestedExecutionAudit } from '@deepchat/shared/types/execution-journal-audit'
 import type {
   ExportTapeInspectorSupportFactsInput,
   ExportTapeInspectorSupportFactsOutput,
@@ -23,7 +23,7 @@ import type {
   ResolveTapeInspectorEvidenceEntriesInput,
   ResolveTapeInspectorEvidenceEntriesOutput,
   TapeInspectorHead
-} from '@shared/types/tape-inspector'
+} from '@deepchat/shared/types/tape-inspector'
 import type {
   DeepChatTapeEntryRow,
   TapeAnchorAppendInput

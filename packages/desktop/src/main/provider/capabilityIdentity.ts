@@ -4,18 +4,18 @@ import {
   isGeminiFamilyModelId,
   type NewApiCapabilityFamilyHint,
   type NewApiEndpointType
-} from '@shared/model'
+} from '@deepchat/shared/model'
 import type {
   CapabilitySnapshotQuery,
   ResolvedCapabilityIdentity,
   ResolvedModelCapabilitySnapshot
-} from '@shared/types/model-capabilities'
+} from '@deepchat/shared/types/model-capabilities'
 import { modelCapabilities, type CapabilityModelMatch } from './modelCapabilities'
 import {
   resolveCapabilityAwareRequestParameterPolicy,
   resolveModelRequestPolicy
-} from '@shared/modelRequestPolicy'
-import { normalizeCanonicalModelId } from '@shared/modelId'
+} from '@deepchat/shared/modelRequestPolicy'
+import { normalizeCanonicalModelId } from '@deepchat/shared/modelId'
 
 export type CapabilityIdentityInput = {
   providerId: string

@@ -12,13 +12,10 @@ import type {
   CommitNestedExecutionToolOutcomeInput
 } from '@deepchat/agent-kernel/tape/domain/executionJournal'
 
-const desktopRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..')
-const workspaceRoot = path.resolve(desktopRoot, '../..')
-const MAIN_SOURCE_ROOT = path.join(desktopRoot, 'src/main')
+const MAIN_SOURCE_ROOT = path.resolve(process.cwd(), 'src/main')
 // Tape domain and ports live in the kernel workspace package.
-const KERNEL_SOURCE_ROOT = path.join(workspaceRoot, 'packages/agent-kernel/src')
+const KERNEL_SOURCE_ROOT = path.resolve(process.cwd(), 'packages/agent-kernel/src')
 const TAPE_ROOT = path.join(MAIN_SOURCE_ROOT, 'tape')
-const TAPE_DOMAIN_ROOT = path.join(KERNEL_SOURCE_ROOT, 'tape/domain')
 const PACKAGE_TAPE_ROOT = path.join(KERNEL_SOURCE_ROOT, 'tape')
 const PACKAGE_TAPE_DOMAIN_ROOT = path.join(PACKAGE_TAPE_ROOT, 'domain')
 const TAPE_SQLITE_ROOT = path.join(MAIN_SOURCE_ROOT, 'tape/infrastructure/sqlite')
@@ -51,7 +48,7 @@ const FORBIDDEN_DOMAIN_SQLITE_IMPORTS = new Set([
   'sqlite3'
 ])
 const FORBIDDEN_DOMAIN_LOGGING_IMPORTS = new Set([
-  '@shared/logger',
+  '@deepchat/shared/logger',
   'electron-log',
   'loglevel',
   'pino',
@@ -177,7 +174,6 @@ function getForbiddenDomainPackageCategory(specifier: string): string | null {
 
 function isTapeDomainModule(target: string): boolean {
   return (
-    isInside(TAPE_DOMAIN_ROOT, target) ||
     isInside(PACKAGE_TAPE_DOMAIN_ROOT, target) ||
     isInside(path.join(KERNEL_SOURCE_ROOT, 'shared'), target)
   )
@@ -313,10 +309,7 @@ function findMemoryRouteTapeImportViolations(source: string, file: string): stri
 describe('Tape layer boundaries', () => {
   it('keeps the Tape domain independent from other main-process layers', async () => {
     const fs = await vi.importActual<typeof import('node:fs')>('node:fs')
-    const violations = listSourceTreeFiles(
-      [TAPE_DOMAIN_ROOT, PACKAGE_TAPE_DOMAIN_ROOT],
-      fs
-    ).flatMap((file) => {
+    const violations = listTypeScriptSources(PACKAGE_TAPE_DOMAIN_ROOT, fs).flatMap((file) => {
       const source = fs.readFileSync(file, 'utf8')
       const imports = ts.preProcessFile(source, true, true).importedFiles
 
@@ -538,20 +531,20 @@ describe('Tape layer boundaries', () => {
     ['Node SQLite', 'node:sqlite'],
     ['Electron', 'electron'],
     ['Electron subpath', 'electron/main'],
-    ['shared logging', '@shared/logger'],
+    ['shared logging', '@deepchat/shared/logger'],
     ['Electron logging', 'electron-log']
   ])('detects forbidden %s imports in the Tape domain', (_category, specifier) => {
-    const importingFile = path.join(TAPE_DOMAIN_ROOT, 'negative-case.ts')
+    const importingFile = path.join(PACKAGE_TAPE_DOMAIN_ROOT, 'negative-case.ts')
     expect(getDomainImportViolation(importingFile, specifier)).not.toBeNull()
   })
 
   it.each([
     ['domain sibling', './entry'],
     ['domain alias', '@deepchat/agent-kernel/tape/domain/effectiveView'],
-    ['shared type', '@shared/types/tape-view-manifest'],
+    ['shared type', '@deepchat/shared/types/tape-view-manifest'],
     ['Node crypto', 'node:crypto']
   ])('allows pure %s imports in the Tape domain', (_category, specifier) => {
-    const importingFile = path.join(TAPE_DOMAIN_ROOT, 'allowed-case.ts')
+    const importingFile = path.join(PACKAGE_TAPE_DOMAIN_ROOT, 'allowed-case.ts')
     expect(getDomainImportViolation(importingFile, specifier)).toBeNull()
   })
 

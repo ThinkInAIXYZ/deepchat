@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { isChatAudioTtsModel, isTtsModelId } from '@shared/ttsSettings'
+import { isChatAudioTtsModel, isTtsModelId } from '@deepchat/shared/ttsSettings'
 
 describe('TTS model helpers', () => {
   it('classifies only MiMo TTS variants as chat-audio TTS models', () => {

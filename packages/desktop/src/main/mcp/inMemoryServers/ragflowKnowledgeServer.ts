@@ -1,7 +1,7 @@
-import logger from '@shared/logger'
+import logger from '@deepchat/shared/logger'
 import { Server, Transport } from '@modelcontextprotocol/server'
 import { z } from 'zod'
-import { toDeepChatJsonSchema } from '@shared/lib/zodJsonSchema'
+import { toDeepChatJsonSchema } from '@deepchat/shared/lib/zodJsonSchema'
 import axios from 'axios'
 
 // Schema definitions
@@ -42,7 +42,7 @@ interface RagflowSearchResponse {
 }
 
 // 导入MCPTextContent接口
-import type { MCPTextContent } from '@shared/types/mcp'
+import type { MCPTextContent } from '@deepchat/shared/types/mcp'
 
 export class RagflowKnowledgeServer {
   private server: Server

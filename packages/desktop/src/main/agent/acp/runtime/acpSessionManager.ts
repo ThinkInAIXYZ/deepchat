@@ -1,6 +1,6 @@
 import { toAcpRemoteSessionId, type AcpRemoteSessionId } from '@deepchat/agent-kernel/collab/agent-shared/agentSessionIds'
-import type { AcpAgentConfig } from '@shared/types/acp'
-import type { AcpConfigState } from '@shared/types/acp'
+import type { AcpAgentConfig } from '@deepchat/shared/types/acp'
+import type { AcpConfigState } from '@deepchat/shared/types/acp'
 import type { AgentSettingsPort } from '@/agent/settings'
 import type { AgentSessionState } from './types'
 import type {

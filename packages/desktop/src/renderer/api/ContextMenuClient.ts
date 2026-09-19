@@ -3,7 +3,7 @@ import {
   contextMenuAskAiRequestedEvent,
   contextMenuTranslateRequestedEvent,
   type DeepchatEventPayload
-} from '@shared/contracts/events'
+} from '@deepchat/shared/contracts/events'
 import { getDeepchatBridge } from './core'
 
 export function createContextMenuClient(bridge: DeepchatBridge = getDeepchatBridge()) {

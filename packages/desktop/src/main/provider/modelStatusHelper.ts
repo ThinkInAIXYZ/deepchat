@@ -1,5 +1,5 @@
 import type { StoreLike } from '@/config/storeLike'
-import type { DeepchatEventPublisher } from '@shared/contracts/events'
+import type { DeepchatEventPublisher } from '@deepchat/shared/contracts/events'
 import { emitModelBatchStatusChanged, emitModelStatusChanged } from './eventPublishers'
 
 type SetSetting = <T>(key: string, value: T) => void

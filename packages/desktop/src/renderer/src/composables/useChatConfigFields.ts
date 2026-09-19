@@ -17,7 +17,7 @@ import {
   isReasoningEffort,
   type ReasoningEffort,
   type Verbosity
-} from '@shared/types/model-db'
+} from '@deepchat/shared/types/model-db'
 
 const getThinkingBudgetInputBounds = (
   budgetRange: ThinkingBudgetRange | null

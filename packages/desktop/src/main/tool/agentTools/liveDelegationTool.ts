@@ -1,14 +1,14 @@
 import { Buffer } from 'node:buffer'
 import { z } from 'zod'
-import { TOOL_EXECUTION, type MCPToolDefinition } from '@shared/types/mcp'
+import { TOOL_EXECUTION, type MCPToolDefinition } from '@deepchat/shared/types/mcp'
 import {
   LIVE_DELEGATION_AGENT_TOOL_NAME,
   LIVE_DELEGATION_AGENT_TOOL_SERVER_NAME
-} from '@shared/agentTools'
+} from '@deepchat/shared/agentTools'
 import {
   DEEPCHAT_SUBAGENT_MODEL_GUIDANCE,
   DEEPCHAT_SUBAGENT_TASK_TITLE_LIMIT
-} from '@shared/lib/deepchatSubagents'
+} from '@deepchat/shared/lib/deepchatSubagents'
 import {
   LIVE_DELEGATION_OPERATIONS,
   LIVE_DELEGATION_MAX_MESSAGE_BYTES,
@@ -17,12 +17,12 @@ import {
   LIVE_DELEGATION_RESULT_PAGE_MAX_TOKENS,
   LIVE_DELEGATION_WAIT_DEFAULT_TIMEOUT_MS,
   LIVE_DELEGATION_WAIT_MAX_TIMEOUT_MS
-} from '@shared/orchestration/liveDelegation'
-import { createChildAgentResultEnvelope } from '@shared/orchestration/resultSafety'
+} from '@deepchat/shared/orchestration/liveDelegation'
+import { createChildAgentResultEnvelope } from '@deepchat/shared/orchestration/resultSafety'
 import type {
   DeepChatSubagentCapability,
   DeepChatSubagentSlot
-} from '@shared/types/agent-interface'
+} from '@deepchat/shared/types/agent-interface'
 import type { AgentToolCallResult } from './agentToolManager'
 import type { AgentLiveDelegationToolPort, LiveDelegationStartAuthorization } from '../runtimePorts'
 

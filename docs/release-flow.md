@@ -81,8 +81,8 @@ This document defines the maintainer release flow for DeepChat without rewriting
 7. Wait for the tag-triggered Release workflow and review its draft.
 
    - Preflight must resolve the existing tag to the expected commit, confirm that commit is
-     reachable from `origin/main`, match `package.json`, and find a non-empty matching CHANGELOG
-     section before any native package starts.
+     reachable from `origin/main`, match `packages/desktop/package.json`, and find a non-empty matching
+     CHANGELOG section before any native package starts.
    - All six native package jobs must pass. macOS x64 and ARM64 must be signed, notarized, stapled,
      and verified; Windows remains unsigned.
    - The workflow writes the draft only after fail-closed assembly and local revalidation, then

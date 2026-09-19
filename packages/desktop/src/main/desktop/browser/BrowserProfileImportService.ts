@@ -12,7 +12,7 @@ import type {
   BrowserImportPreview,
   BrowserImportProfile,
   BrowserImportScanResult
-} from '@shared/types/browser'
+} from '@deepchat/shared/types/browser'
 
 const execFileAsync = promisify(execFile)
 const STAGE_TTL_MS = 5 * 60 * 1000

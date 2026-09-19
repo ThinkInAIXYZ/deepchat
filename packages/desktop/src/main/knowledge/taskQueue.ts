@@ -1,5 +1,5 @@
-import logger from '@shared/logger'
-import type { KnowledgeTaskQueueStatus } from '@shared/types/knowledge'
+import logger from '@deepchat/shared/logger'
+import type { KnowledgeTaskQueueStatus } from '@deepchat/shared/types/knowledge'
 import type { KnowledgeTask, KnowledgeTaskQueuePort } from './ports'
 
 export class KnowledgeTaskQueue implements KnowledgeTaskQueuePort {

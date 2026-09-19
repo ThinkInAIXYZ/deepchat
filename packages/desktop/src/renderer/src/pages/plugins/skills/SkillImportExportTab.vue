@@ -408,9 +408,9 @@ import type {
   SkillSyncDirectoryImportPreview,
   SkillSyncDirectoryPreviewItem,
   SyncDirectorySkillState
-} from '@shared/types/skill'
-import type { SkillSyncDirectoryConfig } from '@shared/types/skillManagement'
-import type { UnifiedSkillItem } from '@shared/types/skillManagement'
+} from '@deepchat/shared/types/skill'
+import type { SkillSyncDirectoryConfig } from '@deepchat/shared/types/skillManagement'
+import type { UnifiedSkillItem } from '@deepchat/shared/types/skillManagement'
 
 const props = defineProps<{
   skills: UnifiedSkillItem[]

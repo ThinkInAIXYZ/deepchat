@@ -13,7 +13,7 @@ import {
   SKILL_EXECUTION_PACKAGE_MAX_BYTES,
   SKILL_EXECUTION_PACKAGE_MAX_FILES,
   SKILL_EXECUTION_PACKAGE_MAX_FILE_BYTES
-} from '@shared/types/skill'
+} from '@deepchat/shared/types/skill'
 import { TapeSkillMaterializationService } from '@/tape/application/skillMaterializationService'
 import { TapeFactService } from '@/tape/application/factService'
 import { ExecutionJournalService } from '@/tape/application/executionJournalService'

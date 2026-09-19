@@ -1,4 +1,4 @@
-import type { ProviderRoundStopReason } from '../../shared/types/core/llm-events.js'
+import type { ProviderRoundStopReason } from '@deepchat/shared/types/core/llm-events'
 import type {
   DeepChatProviderAttemptOrigin,
   DeepChatProviderContextPressureKind,
@@ -6,7 +6,7 @@ import type {
   DeepChatProviderFailureClassification,
   DeepChatProviderRequestOrigin,
   DeepChatProviderRetryDecision
-} from '../../shared/types/provider-attempt.js'
+} from '@deepchat/shared/types/provider-attempt'
 import type { DeepChatTapeEntryRow } from './entry.js'
 import { parseTapeJsonObject } from './effectiveSemantics.js'
 

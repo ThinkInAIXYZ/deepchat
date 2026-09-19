@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { YoBrowserToolHandler } from '@/desktop/browser/YoBrowserToolHandler'
 
-vi.mock('@shared/logger', () => ({
+vi.mock('@deepchat/shared/logger', () => ({
   default: {
     warn: vi.fn(),
     error: vi.fn()

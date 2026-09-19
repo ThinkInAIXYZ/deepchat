@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { defineComponent } from 'vue'
 import { mount } from '@vue/test-utils'
-import type { PendingSessionInputRecord } from '@shared/types/agent-interface'
+import type { PendingSessionInputRecord } from '@deepchat/shared/types/agent-interface'
 
 vi.mock('vue-i18n', () => ({
   useI18n: () => ({

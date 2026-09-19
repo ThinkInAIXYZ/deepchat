@@ -1,4 +1,7 @@
-import { CATEGORY_IMPORTANCE_FLOOR, isAgentMemoryCategory } from '@shared/types/agent-memory'
+import {
+  CATEGORY_IMPORTANCE_FLOOR,
+  isAgentMemoryCategory
+} from '@deepchat/shared/types/agent-memory'
 
 import type {
   MemoryCandidate,

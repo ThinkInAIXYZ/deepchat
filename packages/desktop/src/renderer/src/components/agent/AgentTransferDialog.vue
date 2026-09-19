@@ -197,7 +197,10 @@ import {
   SelectTrigger,
   SelectValue
 } from '@shadcn/components/ui/select'
-import type { AgentTransferImpact, AgentTransferImpactSample } from '@shared/types/agent-interface'
+import type {
+  AgentTransferImpact,
+  AgentTransferImpactSample
+} from '@deepchat/shared/types/agent-interface'
 
 export type TransferDialogAgent = {
   id: string

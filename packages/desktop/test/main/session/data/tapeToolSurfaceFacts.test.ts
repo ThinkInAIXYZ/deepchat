@@ -4,13 +4,13 @@ import {
   TOOL_EXECUTION,
   type MCPToolDefinition,
   type ToolExecutionContract
-} from '@shared/types/core/mcp'
-import type { DeepChatExecutionToolTargetIdentity } from '@shared/types/execution-contract'
+} from '@deepchat/shared/types/core/mcp'
+import type { DeepChatExecutionToolTargetIdentity } from '@deepchat/shared/types/execution-contract'
 import {
   TOOL_SEARCH_AGENT_TOOL_MAX_CALLS_PER_BATCH,
   TOOL_SEARCH_AGENT_TOOL_MAX_RESULTS,
   TOOL_SEARCH_AGENT_TOOL_SERVER_NAME
-} from '@shared/agentTools'
+} from '@deepchat/shared/agentTools'
 import { buildCanonicalToolCatalog } from '@deepchat/agent-kernel/runtime/toolSurface'
 import { hashJsonData } from '@deepchat/agent-kernel/tape/domain/canonicalJson'
 import { buildExecutionToolTargetKey } from '@deepchat/agent-kernel/tape/domain/executionContract'

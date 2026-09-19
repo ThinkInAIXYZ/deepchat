@@ -4,7 +4,7 @@ import {
   DEFAULT_MODEL_MAX_TOKENS,
   resolveDerivedModelMaxTokens,
   resolveModelMaxTokens
-} from '../../../src/shared/modelConfigDefaults'
+} from '@deepchat/shared/modelConfigDefaults'
 
 describe('resolveDerivedModelMaxTokens', () => {
   it('caps large derived values at 32000', () => {

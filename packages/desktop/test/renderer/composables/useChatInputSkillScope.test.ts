@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 import { computed, defineComponent, ref, toRef } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
-import type { UnifiedSkillItem } from '@shared/types/skillManagement'
+import type { UnifiedSkillItem } from '@deepchat/shared/types/skillManagement'
 
 vi.mock('pinia', async () => vi.importActual<typeof import('pinia')>('pinia'))
 

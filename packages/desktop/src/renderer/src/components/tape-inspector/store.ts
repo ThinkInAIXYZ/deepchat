@@ -12,7 +12,7 @@ import type {
   TapeInspectorFactRecord,
   TapeInspectorHeadPulse,
   TapeInspectorSort
-} from '@shared/types/tape-inspector'
+} from '@deepchat/shared/types/tape-inspector'
 import {
   buildTapeInspectorRows,
   DIAGNOSTIC_EVIDENCE_LANE_KEY,

@@ -8,13 +8,13 @@ import {
   assertDeepChatSubagentConfigInvariant,
   createDefaultDeepChatSubagentSlots,
   normalizeDeepChatSubagentConfig
-} from '@shared/lib/deepchatSubagents'
+} from '@deepchat/shared/lib/deepchatSubagents'
 import type {
   AgentAvatar,
   CreateDeepChatAgentInput,
   DeepChatAgentConfig,
   UpdateDeepChatAgentInput
-} from '@shared/types/agent-interface'
+} from '@deepchat/shared/types/agent-interface'
 
 export { BUILTIN_DEEPCHAT_AGENT_ID }
 

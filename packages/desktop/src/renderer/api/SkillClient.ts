@@ -3,7 +3,7 @@ import {
   skillsCatalogChangedEvent,
   skillsSessionChangedEvent,
   type DeepchatEventPayload
-} from '@shared/contracts/events'
+} from '@deepchat/shared/contracts/events'
 import {
   skillsGetActiveRoute,
   skillsGetDirectoryRoute,
@@ -45,11 +45,11 @@ import type {
   SkillInstallOptions,
   SkillSyncDirectoryExportInput,
   SkillSyncDirectoryImportInput
-} from '@shared/types/skill'
+} from '@deepchat/shared/types/skill'
 import type {
   AgentSkillImportSelection,
   AgentSkillImportSource
-} from '@shared/types/agentSkillImport'
+} from '@deepchat/shared/types/agentSkillImport'
 import { getDeepchatBridge } from './core'
 
 const BUILTIN_SKILL_AGENT_ID = 'deepchat'

@@ -45,13 +45,11 @@ interface PrCheckWorkflow {
   jobs: Record<string, WorkflowJob>
 }
 
-const appRoot = process.cwd()
-const workspaceRoot = path.resolve(appRoot, '../..')
-const workflowPath = path.join(workspaceRoot, '.github/workflows/prcheck.yml')
+const workflowPath = path.join(process.cwd(), '.github/workflows/prcheck.yml')
 const workflowSource = fs.readFileSync(workflowPath, 'utf8')
 const workflow = parse(workflowSource) as PrCheckWorkflow
 const packageJson = JSON.parse(
-  fs.readFileSync(path.join(appRoot, 'package.json'), 'utf8')
+  fs.readFileSync(path.join(process.cwd(), 'package.json'), 'utf8')
 ) as {
   devDependencies: Record<string, string>
 }
@@ -201,10 +199,10 @@ describe('PR Check workflow contracts', () => {
       )
     ).toBe(false)
     expect(getStep(nativeJob, 'Install and verify DuckDB VSS').run).toContain(
-      'pnpm --filter DeepChat run installRuntime:duckdb:vss:linux:x64'
+      'pnpm run installRuntime:duckdb:vss:linux:x64'
     )
     expect(getStep(nativeJob, 'Install and verify DuckDB VSS').run).toContain(
-      'pnpm --filter DeepChat run smoke:duckdb:vss -- --platform linux --arch x64'
+      'pnpm run smoke:duckdb:vss -- --platform linux --arch x64'
     )
     expect(getStep(nativeJob, 'Validate portable memory behavior').run).toBe(
       'pnpm run test:memory'
@@ -217,22 +215,19 @@ describe('PR Check workflow contracts', () => {
       )
     ).toBe(false)
     expect(getStep(nativeJob, 'Smoke native SQLite').run).toBe(
-      'pnpm --filter DeepChat exec node scripts/smoke-memory-native-sqlite.js'
-    )
-    expect(getStep(nativeJob, 'Validate native Tape storage').run).toContain(
-      'pnpm --filter DeepChat exec vitest --config vitest.config.ts --run'
+      'node scripts/smoke-memory-native-sqlite.js'
     )
     expect(getStep(nativeJob, 'Validate native Tape storage').run).toContain(
       'test/main/tape/traceInspector.test.ts'
     )
     expect(getStep(nativeJob, 'Validate encrypted OCR artifact storage').run).toBe(
-      'pnpm --filter DeepChat exec vitest --config vitest.config.ts --run test/main/ocr/ocrArtifactStore.test.ts test/main/ocr/documentOcrArtifactStore.test.ts'
+      'pnpm exec vitest --config vitest.config.ts --run test/main/ocr/ocrArtifactStore.test.ts test/main/ocr/documentOcrArtifactStore.test.ts'
     )
     expect(getStep(nativeJob, 'Validate encrypted OCR artifact storage').env).toEqual({
       DEEPCHAT_REQUIRE_NATIVE_SQLITE: '1'
     })
     expect(getStep(nativeJob, 'Validate native memory storage').run).toBe(
-      'pnpm --filter DeepChat exec vitest --config vitest.config.memory-native.ts --run'
+      'pnpm exec vitest --config vitest.config.memory-native.ts --run'
     )
     expect(getStep(nativeJob, 'Validate native memory storage').env).toEqual({
       DEEPCHAT_REQUIRE_NATIVE_SQLITE: '1',

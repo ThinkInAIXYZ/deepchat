@@ -3,7 +3,7 @@ import type {
   DeepChatTapeViewManifestRecord,
   DeepChatTapeViewManifestV6,
   DeepChatTapeViewManifestV7
-} from '@shared/types/tape-view-manifest'
+} from '@deepchat/shared/types/tape-view-manifest'
 import {
   SUMMARY_ANCHOR_NAMES,
   type DeepChatTapeEntryRow

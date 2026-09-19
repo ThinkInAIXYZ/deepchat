@@ -15,7 +15,7 @@ import {
 import { createCliRoutes } from '@/cli/routes'
 import { CliServer } from '@/cli/server'
 import type { CliRouteCaller } from '@/routes/routeRegistry'
-import { runCli } from '../../../src/cli/run'
+import { runCli } from '../../../../cli/src/run'
 
 const servers: CliServer[] = []
 const temporaryDirectories: string[] = []

@@ -4,7 +4,7 @@ import {
   toolchainsChangedEvent,
   toolchainsMissingEvent,
   toolchainsProgressEvent
-} from '@shared/contracts/events'
+} from '@deepchat/shared/contracts/events'
 import {
   toolchainsCancelInstallRoute,
   toolchainsGetStatusRoute,
@@ -14,7 +14,7 @@ import {
   toolchainsRevertRoute,
   toolchainsSetSourceRoute
 } from '@shared/contracts/routes'
-import type { ToolchainKind, ToolchainSelection } from '@shared/types/toolchains'
+import type { ToolchainKind, ToolchainSelection } from '@deepchat/shared/types/toolchains'
 import { getDeepchatBridge } from './core'
 
 export function createToolchainClient(bridge: DeepchatBridge = getDeepchatBridge()) {

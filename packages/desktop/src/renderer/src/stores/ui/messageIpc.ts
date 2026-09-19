@@ -1,6 +1,9 @@
 import { createChatClient } from '../../../api/ChatClient'
 import { createSessionClient } from '../../../api/SessionClient'
-import type { AssistantMessageBlock, ChatMessageRecord } from '@shared/types/agent-interface'
+import type {
+  AssistantMessageBlock,
+  ChatMessageRecord
+} from '@deepchat/shared/types/agent-interface'
 
 interface BindMessageStoreIpcOptions {
   getActiveSessionId: () => string | null

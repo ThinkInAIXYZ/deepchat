@@ -1,6 +1,6 @@
 import { computed, onBeforeUnmount, ref, watch, type Ref } from 'vue'
 import type { JSONContent } from '@tiptap/core'
-import type { MessageFile } from '@shared/types/agent-interface'
+import type { MessageFile } from '@deepchat/shared/types/agent-interface'
 import { useDraftStore } from '@/stores/ui/draft'
 import {
   applyAcceptedComposerSubmission,

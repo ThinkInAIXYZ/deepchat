@@ -11,7 +11,7 @@ import {
 import {
   LOCAL_CONTROL_PROGRAMMATIC_ROUTE_SURFACE_VERSION,
   LOCAL_CONTROL_PUBLIC_ROUTE_SURFACE_VERSION
-} from '@shared/contracts/localControl'
+} from '@deepchat/shared/contracts/localControl'
 
 const humanApprovalCaller = { principal: 'human' } as const
 const agentApprovalCaller = { principal: 'agent' } as const

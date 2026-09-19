@@ -1,10 +1,10 @@
-import type { AssistantMessageBlock, QuestionOption } from '@shared/types/agent-interface'
+import type { AssistantMessageBlock, QuestionOption } from '@deepchat/shared/types/agent-interface'
 import type {
   RemotePendingInteraction,
   RemotePendingInteractionPermission,
   RemotePermissionCommandInfo
 } from '../types'
-import { CommandShellProfileSchema } from '@shared/commandShell'
+import { CommandShellProfileSchema } from '@deepchat/shared/commandShell'
 
 type RemotePendingInteractionWithOrder = RemotePendingInteraction & {
   messageOrderSeq: number

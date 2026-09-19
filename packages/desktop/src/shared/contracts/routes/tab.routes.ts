@@ -1,6 +1,6 @@
 import { z } from 'zod'
-import { defineRouteContract } from '../common'
-import { RectangleSchema } from '../domainSchemas'
+import { defineRouteContract } from '@deepchat/shared/contracts/common'
+import { RectangleSchema } from '@deepchat/shared/contracts/domainSchemas'
 
 const TabWatermarkTextsSchema = z
   .object({

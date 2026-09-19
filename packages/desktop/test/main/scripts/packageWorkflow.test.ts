@@ -31,7 +31,6 @@ interface ReusableWorkflow {
       'runs-on': string
       'timeout-minutes': number
       permissions: Record<string, string>
-      env?: Record<string, string>
       steps: WorkflowStep[]
     }
   }
@@ -109,8 +108,7 @@ interface ReleaseWorkflow {
   jobs: Record<string, ReleaseWorkflowJob>
 }
 
-const workspaceRoot = path.resolve(process.cwd(), '../..')
-const workflowDirectory = path.join(workspaceRoot, '.github/workflows')
+const workflowDirectory = path.resolve('.github/workflows')
 const readWorkflowSource = (name: string) =>
   fs.readFileSync(path.join(workflowDirectory, name), 'utf8')
 const readWorkflow = <T>(name: string) => parse(readWorkflowSource(name)) as T
@@ -155,7 +153,7 @@ const getStep = (workflow: ReusableWorkflow, name: string) => {
 
 const runBashStep = (script: string, env: NodeJS.ProcessEnv) =>
   spawnSync('bash', ['-e', '-o', 'pipefail', '-c', script], {
-    cwd: path.resolve(process.cwd(), '../..'),
+    cwd: path.resolve('.'),
     encoding: 'utf8',
     env: {
       ...process.env,
@@ -220,9 +218,7 @@ describe('native package reusable workflows', () => {
       const installs = steps
         .map((step, index) => ({ index, run: step.run }))
         .filter(({ run }) => run === 'pnpm install --frozen-lockfile')
-      const sharpIndex = steps.findIndex(
-        (step) => step.run === 'pnpm --filter DeepChat run install:sharp'
-      )
+      const sharpIndex = steps.findIndex((step) => step.run === 'pnpm run install:sharp')
       expect(installs).toHaveLength(2)
       expect(installs[0].index).toBeLessThan(sharpIndex)
       expect(sharpIndex).toBeLessThan(installs[1].index)
@@ -247,21 +243,6 @@ describe('native package reusable workflows', () => {
         'fetch-depth': 1,
         'persist-credentials': false
       })
-    }
-  })
-
-  it('runs app packaging from the Desktop package while retaining root-owned assembly', () => {
-    for (const definition of Object.values(reusableWorkflows)) {
-      const source = readWorkflowSource(definition.name)
-      const workflow = readWorkflow<ReusableWorkflow>(definition.name)
-      expect(workflow.jobs.package.env).toMatchObject({
-        DESKTOP_DIRECTORY: 'packages/desktop',
-        DESKTOP_DIST_DIRECTORY: 'packages/desktop/dist'
-      })
-      expect(source).toContain('pnpm --filter DeepChat exec electron-builder')
-      expect(source).not.toContain('pnpm exec electron-builder')
-      expect(source).toContain('--project-dir "${DESKTOP_DIRECTORY}"')
-      expect(source).toContain('--dist-dir "${DESKTOP_DIST_DIRECTORY}"')
     }
   })
 
@@ -374,7 +355,7 @@ describe('native package reusable workflows', () => {
       fakePnpmPath,
       `#!/usr/bin/env bash
 set -euo pipefail
-if [[ " $* " == *' electron-builder '* ]]; then
+if [[ "\${1:-}" == 'exec' && "\${2:-}" == 'electron-builder' ]]; then
   {
     for name in ${credentialNames.join(' ')} CSC_IDENTITY_AUTO_DISCOVERY; do
       if [[ -n "\${!name+x}" ]]; then

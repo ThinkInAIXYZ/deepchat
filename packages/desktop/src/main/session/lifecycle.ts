@@ -1,4 +1,4 @@
-import logger from '@shared/logger'
+import logger from '@deepchat/shared/logger'
 import { toAppSessionId } from '@deepchat/agent-kernel/collab/agent-shared/agentSessionIds'
 import { normalizeCreateSessionInput } from '@deepchat/agent-kernel/collab/agent-shared/agentSessionNormalization'
 import type {
@@ -9,7 +9,7 @@ import type {
   PermissionMode,
   SessionRecord,
   SessionWithState
-} from '@shared/types/agent-interface'
+} from '@deepchat/shared/types/agent-interface'
 import type {
   SessionAssignmentPolicyPort,
   SessionAssignmentWorkdirPort,
@@ -31,13 +31,13 @@ import type {
 import { isAcpAuthenticationRequiredError } from '@/agent/acp/runtime/acpAuthentication'
 import type { EnsureAcpDraftResult } from './contracts'
 import type { AgentLifecycleGatePort } from '@/agent/lifecycleGate'
-import { LiveDelegationSubagentContextSchema } from '@shared/orchestration/liveDelegation'
+import { LiveDelegationSubagentContextSchema } from '@deepchat/shared/orchestration/liveDelegation'
 import {
   DEFAULT_ORCHESTRATION_POLICY,
   normalizeOrchestrationPolicy
-} from '@shared/orchestration/policy'
+} from '@deepchat/shared/orchestration/policy'
 import type { SessionDeletionGatePort } from './deletionGate'
-import { normalizeToolModeOverride } from '@shared/toolMode'
+import { normalizeToolModeOverride } from '@deepchat/shared/toolMode'
 
 const SUBAGENT_SESSION_INIT_MAX_ATTEMPTS = 2
 

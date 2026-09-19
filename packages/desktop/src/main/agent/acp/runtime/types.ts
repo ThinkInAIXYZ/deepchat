@@ -3,7 +3,7 @@ import type {
   AgentProcessStatus,
   AgentSessionLifecycleStatus,
   AgentSessionState
-} from '@shared/types/acp'
+} from '@deepchat/shared/types/acp'
 
 export type {
   AgentProcessHandle,

@@ -24,7 +24,7 @@ import type {
   MemoryTemporalMetadata,
   MemoryTemporalPolicyResult
 } from '@deepchat/agent-kernel/collab/memory/domain/types'
-import type { DeepChatAgentMemoryRetrieval } from '@shared/types/agent-interface'
+import type { DeepChatAgentMemoryRetrieval } from '@deepchat/shared/types/agent-interface'
 import { parseAgentMemorySourceEntryIds } from '@shared/lib/agentMemoryLineage'
 import { evaluateNormalizedMemoryTemporalPolicy, temporalMetadataFromRow } from './temporal'
 

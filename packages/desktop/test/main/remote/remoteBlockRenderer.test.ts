@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { buildAssistantDeliverySegments } from '@shared/lib/assistantDeliverySegments'
+import { buildAssistantDeliverySegments } from '@deepchat/shared/lib/assistantDeliverySegments'
 import {
   buildRemoteDraftText,
   buildRemoteFinalText,

@@ -1,5 +1,5 @@
 import Database from 'better-sqlite3-multiple-ciphers'
-import { AGENT_MEMORY_SCOPE_ID_MAX_CHARS } from '@shared/types/agent-memory'
+import { AGENT_MEMORY_SCOPE_ID_MAX_CHARS } from '@deepchat/shared/types/agent-memory'
 import { ConversationsTable } from '@/session/data/tables/conversations'
 import { MessagesTable } from '@/session/data/tables/messages'
 import { MessageAttachmentsTable } from '@/session/data/tables/messageAttachments'

@@ -7,7 +7,7 @@ import {
 import {
   LOCAL_CONTROL_PROTOCOL_VERSION,
   LOCAL_CONTROL_SURFACE_VERSION
-} from '@shared/contracts/localControl'
+} from '@deepchat/shared/contracts/localControl'
 import { createRouteMap, type DeepchatRouteMap } from '@/routes/routeRegistry'
 import { listCliSurfaceCapabilities } from './surface'
 

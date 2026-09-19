@@ -12,6 +12,10 @@ import {
   writeFile
 } from 'node:fs/promises'
 import path from 'node:path'
+import {
+  createPosixInstalledLauncher as createPosixCommand,
+  createWindowsInstalledLauncher as createWindowsCommand
+} from '@deepchat/cli/launcher'
 
 export type CliLauncherState =
   | 'not-installed'
@@ -220,50 +224,6 @@ function removeManagedBlock(content: string, block: string, prefixLength: 0 | 1 
   let end = index + block.length
   if (content[end] === '\n') end += 1
   return `${content.slice(0, start)}${content.slice(end)}`
-}
-
-function escapeBatchLiteral(value: string): string {
-  return value.replaceAll('%', '%%')
-}
-
-function quotePosixLiteral(value: string): string {
-  return "'" + value.replaceAll("'", "'\\''") + "'"
-}
-
-function createPosixCommand(source: CliSource): string {
-  return [
-    '#!/bin/sh',
-    'set -eu',
-    'electron_host=' + quotePosixLiteral(source.electronHost),
-    'cli_module=' + quotePosixLiteral(source.modulePath),
-    'if [ ! -f "$electron_host" ] || [ ! -x "$electron_host" ] || [ ! -f "$cli_module" ]; then',
-    '  echo "DeepChat CLI bundled resources are unavailable." >&2',
-    '  exit 127',
-    'fi',
-    'ELECTRON_RUN_AS_NODE=1 exec "$electron_host" "$cli_module" "$@"',
-    ''
-  ].join('\n')
-}
-
-function createWindowsCommand(source: CliSource): string {
-  const cliModule = escapeBatchLiteral(source.modulePath)
-  const electronHost = escapeBatchLiteral(source.electronHost)
-  return [
-    '@echo off',
-    'setlocal',
-    `set "cli_module=${cliModule}"`,
-    `set "electron_host=${electronHost}"`,
-    'if not exist "%electron_host%" goto missing_runtime',
-    'if exist "%electron_host%\\" goto missing_runtime',
-    'if not exist "%cli_module%" goto missing_runtime',
-    'set ELECTRON_RUN_AS_NODE=1',
-    '"%electron_host%" "%cli_module%" %*',
-    'exit /b %errorlevel%',
-    ':missing_runtime',
-    'echo DeepChat CLI bundled resources are unavailable. 1>&2',
-    'exit /b 127',
-    ''
-  ].join('\r\n')
 }
 
 function ownedCommandsEqual(left: OwnedCommand | null, right: OwnedCommand | null): boolean {

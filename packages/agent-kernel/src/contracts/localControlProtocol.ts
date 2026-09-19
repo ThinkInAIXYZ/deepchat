@@ -1,5 +1,5 @@
-import type { JsonValue } from '../shared/contracts/common.js'
-import type { LocalControlErrorCode } from '../shared/contracts/localControl.js'
+import type { JsonValue } from '@deepchat/shared/contracts/common'
+import type { LocalControlErrorCode } from '@deepchat/shared/contracts/localControl'
 
 const DEFAULT_MAX_JSON_DEPTH = 64
 const DEFAULT_MAX_JSON_KEYS = 10_000

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { AcpAuthChallenge } from '@shared/types/acp'
+import type { AcpAuthChallenge } from '@deepchat/shared/types/acp'
 
 const ptyMock = vi.hoisted(() => ({
   spawn: vi.fn(),

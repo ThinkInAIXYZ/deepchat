@@ -1,8 +1,8 @@
 import { BrowserWindow, type Rectangle } from 'electron'
 import { join } from 'path'
 import { is } from '@electron-toolkit/utils'
-import { browserActivityChangedEvent } from '@shared/contracts/events'
-import type { YoBrowserActivityPayload } from '@shared/types/browser'
+import { browserActivityChangedEvent } from '@deepchat/shared/contracts/events'
+import type { YoBrowserActivityPayload } from '@deepchat/shared/types/browser'
 
 const OVERLAY_AUTO_HIDE_MS = 4200
 

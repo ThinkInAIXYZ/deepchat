@@ -1,5 +1,5 @@
 import path from 'node:path'
-import type { CommandShellPathStyle } from '@shared/commandShell'
+import type { CommandShellPathStyle } from '@deepchat/shared/commandShell'
 
 export class UnsupportedCommandShellPathError extends Error {
   constructor(readonly requestedPath: string) {

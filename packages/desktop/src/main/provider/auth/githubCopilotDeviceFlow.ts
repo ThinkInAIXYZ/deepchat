@@ -1,6 +1,6 @@
 import { BrowserWindow, clipboard, shell } from 'electron'
 import { exec } from 'child_process'
-import logger from '@shared/logger'
+import logger from '@deepchat/shared/logger'
 
 const GITHUB_DEVICE_URL = 'https://github.com/login/device'
 

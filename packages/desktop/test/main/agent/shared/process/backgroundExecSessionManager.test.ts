@@ -42,7 +42,7 @@ vi.mock('@electron-toolkit/utils', () => ({
   }
 }))
 
-vi.mock('@shared/logger', () => ({
+vi.mock('@deepchat/shared/logger', () => ({
   default: {
     info: vi.fn(),
     warn: vi.fn(),

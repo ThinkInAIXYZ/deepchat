@@ -1,7 +1,7 @@
 import { Server, Transport } from '@modelcontextprotocol/server'
 import type { CallToolRequest, CallToolResult } from '@modelcontextprotocol/server'
 import { z } from 'zod'
-import { toDeepChatJsonSchema } from '@shared/lib/zodJsonSchema'
+import { toDeepChatJsonSchema } from '@deepchat/shared/lib/zodJsonSchema'
 import type { Prompt } from '@shared/types/prompt'
 import type { PromptSettings } from '@/agent/promptSettings'
 import { isSafeRegexPattern } from '@shared/regexValidator'

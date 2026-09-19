@@ -3,7 +3,7 @@ import {
   TapeInspectorHeadWatcher,
   type TapeInspectorHeadWatcherScheduler
 } from '@/tape/application/traceInspectorHeadWatcher'
-import type { TapeInspectorHead } from '@shared/types/tape-inspector'
+import type { TapeInspectorHead } from '@deepchat/shared/types/tape-inspector'
 
 function createScheduler() {
   let nextHandle = 1

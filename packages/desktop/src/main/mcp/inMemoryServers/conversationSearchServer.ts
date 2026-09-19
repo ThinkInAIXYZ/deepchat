@@ -2,7 +2,7 @@ import { Server, Transport } from '@modelcontextprotocol/server'
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { z } from 'zod'
-import { toDeepChatJsonSchema } from '@shared/lib/zodJsonSchema'
+import { toDeepChatJsonSchema } from '@deepchat/shared/lib/zodJsonSchema'
 import { isSafeRegexPattern } from '@shared/regexValidator'
 import type { SessionDatabase } from '@/session/data/database'
 import type { AppSessionService } from '@/agent/shared/appSessionService'

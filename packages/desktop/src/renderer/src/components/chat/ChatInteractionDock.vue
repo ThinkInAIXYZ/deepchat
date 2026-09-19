@@ -133,7 +133,7 @@
 import { computed, nextTick, ref, watch } from 'vue'
 import { Icon } from '@iconify/vue'
 import { useI18n } from 'vue-i18n'
-import type { ToolInteractionResponse } from '@shared/types/agent-interface'
+import type { ToolInteractionResponse } from '@deepchat/shared/types/agent-interface'
 import type { AgentPlanViewSnapshot } from '@/stores/ui/agentPlan'
 import type { DisplayAssistantMessageBlock } from '@/features/chat-page/model/displayMessage'
 import AgentProgressFloat from '@/components/chat/AgentProgressFloat.vue'

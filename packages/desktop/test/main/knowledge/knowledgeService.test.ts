@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, Mock } from 'vitest'
 import { KnowledgeService } from '../../../src/main/knowledge'
-import type { FileValidationResult } from '../../../src/shared/types/knowledge'
+import type { FileValidationResult } from '@deepchat/shared/types/knowledge'
 import { KnowledgeDatabase } from '../../../src/main/knowledge/database/knowledgeDatabase'
 import { KnowledgeBase } from '../../../src/main/knowledge/knowledgeBase'
 import fs from 'fs'

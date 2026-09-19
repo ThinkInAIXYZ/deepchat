@@ -1,4 +1,4 @@
-import { CommandShellProfileSchema } from '@shared/commandShell'
+import { CommandShellProfileSchema } from '@deepchat/shared/commandShell'
 import type { SessionPermissionPort } from '@/session/contracts'
 import type { AgentCliTokenAuthority } from '@/cli/agentTokenAuthority'
 import {
@@ -8,7 +8,7 @@ import {
   type SettingsPermissionService,
   type ToolPermissionBroker
 } from '@/tool/permission'
-import type { ToolPermissionLeaseCapability } from '@shared/types/tool'
+import type { ToolPermissionLeaseCapability } from '@deepchat/shared/types/tool'
 
 function createPermissionGrantLease(
   finalize: () => void,

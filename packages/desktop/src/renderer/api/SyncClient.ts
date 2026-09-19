@@ -8,7 +8,7 @@ import {
   syncImportErrorEvent,
   syncImportStartedEvent,
   type DeepchatEventPayload
-} from '@shared/contracts/events'
+} from '@deepchat/shared/contracts/events'
 import {
   syncGetBackupStatusRoute,
   syncImportRoute,

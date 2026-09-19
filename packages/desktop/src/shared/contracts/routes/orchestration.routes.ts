@@ -1,13 +1,13 @@
 import { z } from 'zod'
-import { defineRouteContract } from '../common'
+import { defineRouteContract } from '@deepchat/shared/contracts/common'
 import {
   OrchestrationCapabilitySchema,
   OrchestrationPolicySchema
-} from '../../orchestration/policy'
+} from '@deepchat/shared/orchestration/policy'
 import {
   LiveDelegationDetailSchema,
   LiveDelegationSummarySchema
-} from '../../orchestration/liveDelegation'
+} from '@deepchat/shared/orchestration/liveDelegation'
 
 const OrchestrationRouteIdSchema = z.string().trim().min(1).max(256)
 

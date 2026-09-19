@@ -1,4 +1,4 @@
-import { DERIVED_MODEL_MAX_TOKENS_CAP } from '@shared/modelConfigDefaults'
+import { DERIVED_MODEL_MAX_TOKENS_CAP } from '@deepchat/shared/modelConfigDefaults'
 
 const GLOBAL_OUTPUT_TOKEN_MAX = DERIVED_MODEL_MAX_TOKENS_CAP
 

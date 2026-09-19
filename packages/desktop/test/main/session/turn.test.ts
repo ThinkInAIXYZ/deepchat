@@ -3,7 +3,7 @@ import type {
   ChatMessageRecord,
   PendingSessionInputRecord,
   SessionRecord
-} from '@shared/types/agent-interface'
+} from '@deepchat/shared/types/agent-interface'
 import { SessionTurn, type SessionTurnDependencies } from '@/session/turn'
 
 const createSession = (overrides: Partial<SessionRecord> = {}): SessionRecord => ({

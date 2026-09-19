@@ -5,9 +5,9 @@ import {
   SessionStatusSchema,
   SubmissionIdSchema,
   TimestampMsSchema
-} from '../common'
-import type { LocalControlErrorCode } from '../localControl'
-import { JsonValueSchema, type JsonValue } from '../json'
+} from '@deepchat/shared/contracts/common'
+import type { LocalControlErrorCode } from '@deepchat/shared/contracts/localControl'
+import { JsonValueSchema, type JsonValue } from '@deepchat/shared/contracts/json'
 
 // The service protocol version is negotiated exactly. A client that does not speak this version
 // must fail the handshake instead of silently downgrading to a weaker contract.

@@ -1,9 +1,9 @@
-import type { AcpAgentConfig, AcpAgentInstallState } from '@shared/types/acp'
+import type { AcpAgentConfig, AcpAgentInstallState } from '@deepchat/shared/types/acp'
 import type {
   MessageStartResult,
   PendingSessionInputRecord,
   SendMessageInput
-} from '@shared/types/agent-interface'
+} from '@deepchat/shared/types/agent-interface'
 import type { AcpAgentDescriptor } from '@/agent/shared/agentDescriptors'
 import type { AppSessionId } from '@deepchat/agent-kernel/collab/agent-shared/agentSessionIds'
 import type { AcpClientRuntime, AcpRuntimeOwner } from '@/agent/acp/client'

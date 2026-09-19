@@ -1,4 +1,4 @@
-import logger from '@shared/logger'
+import logger from '@deepchat/shared/logger'
 /**
  * Protocol handlers used by the main process
  * Registers deepcdn, imgcache, and workspace preview protocols

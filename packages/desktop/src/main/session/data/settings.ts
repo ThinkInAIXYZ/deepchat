@@ -5,7 +5,10 @@ import type {
   SummaryStateCompareAndSetResult,
   SummaryTapeAnchorInput
 } from '@deepchat/agent-kernel/contracts/sessionSettingsStore'
-import type { PermissionMode, SessionGenerationSettings } from '@shared/types/agent-interface'
+import type {
+  PermissionMode,
+  SessionGenerationSettings
+} from '@deepchat/shared/types/agent-interface'
 import type { DeepChatSessionSummaryRow } from '@/session/data/tables/deepchatSessions'
 import type { DeepChatTapeEntryRow } from '@deepchat/agent-kernel/tape/domain/entry'
 import type {

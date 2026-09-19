@@ -10,7 +10,7 @@ import {
   sessionsTapeInspectorHeadChangedEvent,
   sessionsUpdatedEvent,
   type DeepchatEventPayload
-} from '@shared/contracts/events'
+} from '@deepchat/shared/contracts/events'
 import type { DeepchatRouteInput } from '@shared/contracts/routes'
 import {
   sessionsActivateRoute,
@@ -85,15 +85,15 @@ import type {
   CreateSessionInput,
   PermissionMode,
   SendMessageInput
-} from '@shared/types/agent-interface'
-import type { ToolModeOverride } from '@shared/toolMode'
+} from '@deepchat/shared/types/agent-interface'
+import type { ToolModeOverride } from '@deepchat/shared/toolMode'
 import type {
   ExportTapeInspectorSupportTraceInput,
   GetTapeInspectorRecordDetailInput,
   ListTapeInspectorEvidenceInput,
   ListTapeInspectorPageInput,
   ResolveTapeInspectorEvidenceEntriesInput
-} from '@shared/types/tape-inspector'
+} from '@deepchat/shared/types/tape-inspector'
 import { getDeepchatBridge } from './core'
 
 export function createSessionClient(bridge: DeepchatBridge = getDeepchatBridge()) {

@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import { reactive, ref } from 'vue'
-import type { ModelConfig } from '../../../src/shared/types/provider'
-import { ModelType } from '../../../src/shared/model'
+import type { ModelConfig } from '@deepchat/shared/types/provider'
+import { ModelType } from '@deepchat/shared/model'
 
 const createQueryCache = () => {
   return {

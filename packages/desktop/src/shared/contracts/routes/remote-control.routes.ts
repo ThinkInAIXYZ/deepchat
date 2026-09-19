@@ -16,7 +16,7 @@ import type {
   WeixinIlinkLoginSession,
   WeixinIlinkRemoteStatus
 } from '@shared/types/remote'
-import { defineRouteContract } from '../common'
+import { defineRouteContract } from '@deepchat/shared/contracts/common'
 
 export const RemoteChannelSchema = z.enum([
   'telegram',

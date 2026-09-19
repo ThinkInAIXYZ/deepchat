@@ -1,16 +1,19 @@
-import type { FileMetaData } from './types/file'
-import type { ToolCallImagePreview } from './types/core/mcp'
-import type { AgentPlanDisplayItem, AgentPlanTerminalReason } from './types/agent-plan'
+import type { FileMetaData } from '@deepchat/shared/types/file'
+import type { ToolCallImagePreview } from '@deepchat/shared/types/core/mcp'
+import type {
+  AgentPlanDisplayItem,
+  AgentPlanTerminalReason
+} from '@deepchat/shared/types/agent-plan'
 import type {
   AttachmentRepresentationPreference,
   AttachmentResolvedRepresentation,
   PdfEmbeddedTextCoverage
-} from './types/attachment'
+} from '@deepchat/shared/types/attachment'
 
 export type {
   AttachmentRepresentationPreference,
   AttachmentResolvedRepresentation
-} from './types/attachment'
+} from '@deepchat/shared/types/attachment'
 
 export type Message = {
   id: string
@@ -98,18 +101,8 @@ export type UserMessageContent = {
   content?: (UserMessageTextBlock | UserMessageMentionBlock | UserMessageCodeBlock)[]
 }
 
-export type MessageFile = {
-  name: string
-  content: string
-  mimeType: string
-  metadata: FileMetaData
-  token: number
-  path: string
-  thumbnail?: string
-  requestedRepresentation?: AttachmentRepresentationPreference
-  resolvedRepresentation?: AttachmentResolvedRepresentation
-  pdfTextCoverage?: PdfEmbeddedTextCoverage
-}
+import type { MessageFile } from '@shared/chat'
+export type { MessageFile } from '@shared/chat'
 
 export type AssistantMessageBlock = {
   type:

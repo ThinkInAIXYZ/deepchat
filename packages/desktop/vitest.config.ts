@@ -1,3 +1,4 @@
+import { sharedSourceAliases } from '../../scripts/shared-source-aliases.mjs'
 import { defineConfig } from 'vitest/config'
 import { dirname, relative, resolve } from 'path'
 import { fileURLToPath } from 'node:url'
@@ -34,14 +35,6 @@ const KERNEL_PACKAGE_SRC = resolve(workspaceRoot, 'packages/agent-kernel/src')
  * Production dist keeps its own copy; the accepted double-instance effects there are recorded
  * in the Stage 2B plan (logger verbose flag, zod parse-only).
  */
-const rootScriptResolverPlugin = () => ({
-  name: 'deepchat-root-script-resolver',
-  resolveId(source: string, importer?: string) {
-    if (!importer || !source.startsWith('../../../scripts/')) return null
-    return fromWorkspaceRoot('scripts', source.slice('../../../scripts/'.length))
-  }
-})
-
 const kernelSharedBridgePlugin = () => ({
   name: 'deepchat-kernel-shared-bridge',
   enforce: 'pre',
@@ -63,6 +56,11 @@ const kernelSharedBridgePlugin = () => ({
 
 const TEST_TIMEOUT_MS = 10000
 const TEST_MAX_WORKERS = 2
+const publicSharedSourceAliases = () =>
+  Object.entries(sharedSourceAliases).map(([find, replacement]) => ({
+    find: new RegExp(`^${find}$`),
+    replacement
+  }))
 
 export default defineConfig({
   test: {
@@ -91,6 +89,7 @@ export default defineConfig({
         },
         resolve: {
           alias: [
+            ...publicSharedSourceAliases(),
             // Renderer process aliases (match electron.vite.config.ts renderer config)
             { find: '@/', replacement: fromAppRoot('src/renderer/src') + '/' },
             { find: '@api', replacement: fromAppRoot('src/renderer/api') },
@@ -107,7 +106,7 @@ export default defineConfig({
         }
       },
       {
-        plugins: [vuePlugin(), rootScriptResolverPlugin(), kernelSharedBridgePlugin()],
+        plugins: [vuePlugin(), kernelSharedBridgePlugin()],
         test: {
           name: 'main',
           environment: 'node',
@@ -127,11 +126,19 @@ export default defineConfig({
         },
         resolve: {
           alias: [
+            ...publicSharedSourceAliases(),
             // Main process aliases (match electron.vite.config.ts main config).
             { find: '@/', replacement: fromAppRoot('src/main') + '/' },
             { find: '@shared', replacement: fromAppRoot('src/shared') },
+            {
+              find: '@deepchat/cli/launcher',
+              replacement: fromWorkspaceRoot('packages/cli/src/launcher.mjs')
+            },
             // Workspace kernel package resolves to its source so tests need no prior build
             { find: '@deepchat/agent-kernel', replacement: KERNEL_PACKAGE_SRC },
+            { find: '../../../scripts/', replacement: fromWorkspaceRoot('scripts') + '/' },
+            { find: '../../../scripts', replacement: fromWorkspaceRoot('scripts') },
+            { find: '/scripts/', replacement: fromWorkspaceRoot('scripts') + '/' },
             { find: 'electron', replacement: fromAppRoot('test/mocks/electron.ts') },
             { find: '@electron-toolkit/utils', replacement: fromAppRoot('test/mocks/electron-toolkit-utils.ts') }
           ]

@@ -2,12 +2,12 @@ import type {
   AssistantMessageBlock,
   MessageFile,
   UserMessageContent
-} from '@shared/types/agent-interface'
+} from '@deepchat/shared/types/agent-interface'
 import {
   normalizeAttachmentRepresentationPreference,
   normalizeAttachmentResolvedRepresentation,
   normalizePdfEmbeddedTextCoverage
-} from '@shared/utils/attachmentRepresentation'
+} from '@deepchat/shared/utils/attachmentRepresentation'
 import type { DeepChatAssistantBlockRow } from './tables/deepchatAssistantBlocks'
 import type { DeepChatUserMessageFileRow } from './tables/deepchatUserMessageFiles'
 

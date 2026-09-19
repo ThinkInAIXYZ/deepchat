@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { ModelCapabilitiesSchema } from '@shared/contracts/domainSchemas'
+import { ModelCapabilitiesSchema } from '@deepchat/shared/contracts/domainSchemas'
 
 const createValidCapabilities = () => ({
   identity: {

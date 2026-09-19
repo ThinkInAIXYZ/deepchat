@@ -1,5 +1,5 @@
-import type { OpenAICodexAuthStatus } from './openai-codex'
-import type { XaiGrokAuthStatus } from './xai-grok'
+import type { OpenAICodexAuthStatus } from '@deepchat/shared/types/openai-codex'
+import type { XaiGrokAuthStatus } from '@deepchat/shared/types/xai-grok'
 
 export interface OAuthConfig {
   authUrl: string

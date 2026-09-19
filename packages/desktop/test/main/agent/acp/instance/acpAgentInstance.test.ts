@@ -13,7 +13,7 @@ import type {
   AcpPromptResourceSnapshot
 } from '@/agent/acp/instance'
 import type { AcpSessionRecord } from '@/agent/acp/runtime/acpSessionManager'
-import { createStreamEvent } from '@shared/types/core/llm-events'
+import { createStreamEvent } from '@deepchat/shared/types/core/llm-events'
 import { AcpPromptController } from '@/agent/acp/client'
 
 const projectionHandle: AcpProjectionHandle = {

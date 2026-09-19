@@ -1,6 +1,6 @@
-import type { AssistantMessageBlock } from '@shared/types/agent-interface'
-import type { SearchResult } from '@shared/types/core/search'
-import { getAssistantProcessLogLines } from '@shared/lib/assistantDeliverySegments'
+import type { AssistantMessageBlock } from '@deepchat/shared/types/agent-interface'
+import type { SearchResult } from '@deepchat/shared/types/core/search'
+import { getAssistantProcessLogLines } from '@deepchat/shared/lib/assistantDeliverySegments'
 import type { RemoteGeneratedImageAsset, RemoteRenderableBlock } from '../types'
 
 const TOOL_ARGS_PREVIEW_LIMIT = 1_200

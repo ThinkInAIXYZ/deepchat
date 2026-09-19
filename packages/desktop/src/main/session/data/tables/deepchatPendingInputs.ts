@@ -1,6 +1,6 @@
 import Database from 'better-sqlite3-multiple-ciphers'
 import { BaseTable } from '@/data/baseTable'
-import type { PendingSessionInputState } from '@shared/types/agent-interface'
+import type { PendingSessionInputState } from '@deepchat/shared/types/agent-interface'
 
 export const PENDING_INPUT_RETRY_SCHEMA_VERSION = 67
 

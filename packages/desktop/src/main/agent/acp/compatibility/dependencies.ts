@@ -1,7 +1,10 @@
 import type { ProviderModelResolutionPort } from '@/provider/settings'
-import type { ProviderExecutionPort, RateLimitQueueSnapshot } from '@shared/types/provider'
-import type { DeepChatSessionState, SessionGenerationSettings } from '@shared/types/agent-interface'
-import type { MCPToolDefinition } from '@shared/types/core/mcp'
+import type { ProviderExecutionPort, RateLimitQueueSnapshot } from '@deepchat/shared/types/provider'
+import type {
+  DeepChatSessionState,
+  SessionGenerationSettings
+} from '@deepchat/shared/types/agent-interface'
+import type { MCPToolDefinition } from '@deepchat/shared/types/core/mcp'
 import type { RuntimeHookSink } from '@deepchat/agent-kernel/runtime/runtimeHookSink'
 import type { AcpAgentInstanceDependencyFactory } from '@/agent/acp/instance'
 import { AcpCompatibilityPromptBuilder } from '@/agent/acp/runtime/acpCompatibilityPromptBuilder'

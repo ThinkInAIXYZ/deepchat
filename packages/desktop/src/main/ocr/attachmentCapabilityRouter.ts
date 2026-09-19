@@ -5,7 +5,7 @@ import type {
   AttachmentUnavailableReason,
   MessageFile,
   SendMessageInput
-} from '@shared/types/agent-interface'
+} from '@deepchat/shared/types/agent-interface'
 import type {
   AttachmentPreparationInput,
   AttachmentPreparationResult
@@ -16,7 +16,7 @@ import {
   isPdfAttachment,
   normalizeAttachmentRepresentationPreferenceForFile,
   normalizePdfEmbeddedTextCoverage
-} from '@shared/utils/attachmentRepresentation'
+} from '@deepchat/shared/utils/attachmentRepresentation'
 import {
   ATTACHMENT_OCR_MAX_TOKENS,
   ATTACHMENT_PDF_OCR_MAX_TOKENS,
@@ -25,7 +25,7 @@ import {
   PDF_ROUTING_REVISION,
   type AttachmentDocumentOcrSnapshot,
   type PdfEmbeddedTextCoverage
-} from '@shared/types/attachment'
+} from '@deepchat/shared/types/attachment'
 import { ImagePreprocessingError } from './imagePreprocessor'
 import {
   ImageTextExtractionError,

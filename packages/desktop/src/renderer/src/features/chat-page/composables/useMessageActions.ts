@@ -4,7 +4,7 @@ import type { useSessionStore } from '@/stores/ui/session'
 import type {
   AttachmentFallbackPolicy,
   AttachmentPreparationSummary
-} from '@shared/types/agent-interface'
+} from '@deepchat/shared/types/agent-interface'
 import type { RendererNotificationNotifier } from '@renderer-notifications/rendererNotificationPort'
 
 type MessageStore = ReturnType<typeof useMessageStore>

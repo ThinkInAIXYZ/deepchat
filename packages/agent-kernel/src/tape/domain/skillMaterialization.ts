@@ -1,7 +1,7 @@
 import { createHash } from 'crypto'
 import { canonicalJsonStringifyData, hashJsonData } from './canonicalJson.js'
-import type { DeepChatTapeSkillMaterializationRef } from '../../shared/types/tape-view-manifest.js'
-import { isSkillSourceType, type SkillSourceType } from '../../shared/types/skillManagement.js'
+import type { DeepChatTapeSkillMaterializationRef } from '@deepchat/shared/types/tape-view-manifest'
+import { isSkillSourceType, type SkillSourceType } from '@deepchat/shared/types/skillManagement'
 import {
   SKILL_EFFECTIVE_CONTENT_MAX_BATCH_BYTES,
   SKILL_EFFECTIVE_CONTENT_MAX_BYTES,
@@ -15,7 +15,7 @@ import {
   SKILL_EXECUTION_PACKAGE_MAX_FILE_BYTES,
   SKILL_EXECUTION_PACKAGE_MAX_PATH_BYTES,
   type EffectiveSkillExecutionPackage
-} from '../../shared/types/skill.js'
+} from '@deepchat/shared/types/skill'
 import type { DeepChatTapeEntryRow } from './entry.js'
 import { isBoundedSkillTapeIdentity, MAX_SKILL_TAPE_IDENTITY_BYTES } from './skillIdentity.js'
 import { SHA256_HEX_PATTERN } from './primitives.js'

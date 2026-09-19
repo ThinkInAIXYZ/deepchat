@@ -1,4 +1,4 @@
-import logger from '@shared/logger'
+import logger from '@deepchat/shared/logger'
 import { app, globalShortcut, Menu, BrowserWindow, type MenuItemConstructorOptions } from 'electron'
 
 import { SHORTCUT_EVENTS } from '../events'
@@ -11,7 +11,7 @@ import type {
 import type { DesktopSettings } from './settings'
 import { getContextMenuLabels, type TranslationMap } from '@shared/i18n'
 import { is } from '@electron-toolkit/utils'
-import type { DeepchatEventPublisher } from '@shared/contracts/events'
+import type { DeepchatEventPublisher } from '@deepchat/shared/contracts/events'
 
 export class ShortcutPresenter implements IShortcutPresenter {
   private settings: Pick<DesktopSettings, 'getShortcutKeys' | 'getLanguage'>

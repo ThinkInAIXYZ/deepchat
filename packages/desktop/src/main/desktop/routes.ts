@@ -1,6 +1,6 @@
 import { app, BrowserWindow } from 'electron'
 import { DEEPCHAT_EVENT_CHANNEL } from '@shared/contracts/channels'
-import { createDeepchatEventEnvelope } from '@shared/contracts/events'
+import { createDeepchatEventEnvelope } from '@deepchat/shared/contracts/events'
 import type {
   IShortcutPresenter,
   ITabPresenter,
@@ -8,7 +8,7 @@ import type {
   IComputerUsePreviewPresenter,
   IYoBrowserPresenter
 } from '@shared/types/desktop'
-import type { DialogServicePort } from '@shared/types/dialog'
+import type { DialogServicePort } from '@deepchat/shared/types/dialog'
 import { getLocaleDirection } from '@shared/locales'
 import type { DesktopSettings } from './settings'
 import {

@@ -1,5 +1,5 @@
-import type { AgentType } from '@shared/types/agent-interface'
-import type { OrchestrationCapability } from '@shared/orchestration/policy'
+import type { AgentType } from '@deepchat/shared/types/agent-interface'
+import type { OrchestrationCapability } from '@deepchat/shared/orchestration/policy'
 import type { AgentSettingsPort } from '@/agent/settings'
 import type { AgentToolSessionPort } from '@/tool/runtimePorts'
 

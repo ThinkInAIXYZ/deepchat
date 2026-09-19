@@ -86,7 +86,11 @@
 </template>
 
 <script setup lang="ts">
-import type { AcpAgentProfile, AcpBuiltinAgent, AcpBuiltinAgentId } from '@shared/types/acp'
+import type {
+  AcpAgentProfile,
+  AcpBuiltinAgent,
+  AcpBuiltinAgentId
+} from '@deepchat/shared/types/acp'
 import { useI18n } from 'vue-i18n'
 import {
   Dialog,

@@ -31,7 +31,10 @@ import {
   SelectTrigger,
   SelectValue
 } from '@shadcn/components/ui/select'
-import type { McpEnterpriseIdentityProfile, McpEnterpriseIdentityStatus } from '@shared/types/mcp'
+import type {
+  McpEnterpriseIdentityProfile,
+  McpEnterpriseIdentityStatus
+} from '@deepchat/shared/types/mcp'
 import { createMcpClient } from '@api/McpClient'
 import { notifyRenderer } from '@renderer-notifications/rendererNotificationPort'
 import type { GenericValidateFunction } from 'vee-validate'

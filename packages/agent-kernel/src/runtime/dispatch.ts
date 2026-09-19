@@ -6,16 +6,16 @@ import type {
   ToolDispatchCommitInput,
   ToolOutcomeProjection,
   ToolCallImagePreview
-} from '../shared/types/core/mcp.js'
-import type { MCPToolDefinition } from '../shared/types/core/mcp.js'
-import type { SearchResult } from '../shared/types/core/search.js'
-import type { AgentToolProgressUpdate, ToolPermissionLeaseCapability } from '../shared/types/tool.js'
-import type { AssistantMessageBlock, PermissionMode } from '../shared/types/agent-interface.js'
-import type { AgentPlanSnapshot, AgentPlanTerminalReason } from '../shared/types/agent-plan.js'
-import type { DeepChatExecutionContract } from '../shared/types/execution-contract.js'
-import type { EffectiveSkillContentResolution } from '../shared/types/skill.js'
-import { isSkillSourceType } from '../shared/types/skillManagement.js'
-import { TOOL_SEARCH_AGENT_TOOL_NAME } from '../shared/agentTools.js'
+} from '@deepchat/shared/types/core/mcp'
+import type { MCPToolDefinition } from '@deepchat/shared/types/core/mcp'
+import type { SearchResult } from '@deepchat/shared/types/core/search'
+import type { AgentToolProgressUpdate, ToolPermissionLeaseCapability } from '@deepchat/shared/types/tool'
+import type { AssistantMessageBlock, PermissionMode } from '@deepchat/shared/types/agent-interface'
+import type { AgentPlanSnapshot, AgentPlanTerminalReason } from '@deepchat/shared/types/agent-plan'
+import type { DeepChatExecutionContract } from '@deepchat/shared/types/execution-contract'
+import type { EffectiveSkillContentResolution } from '@deepchat/shared/types/skill'
+import { isSkillSourceType } from '@deepchat/shared/types/skillManagement'
+import { TOOL_SEARCH_AGENT_TOOL_NAME } from '@deepchat/shared/agentTools'
 import { buildExecutionContractBinding } from '../tape/domain/executionContract.js'
 import {
   parseQuestionToolArgs,
@@ -38,7 +38,7 @@ import type {
   ChatMessageProviderOptions,
   ChatMessageProviderReplay,
   ChatMessageProviderReplayProjector
-} from '../shared/types/core/chat-message.js'
+} from '@deepchat/shared/types/core/chat-message'
 import { nanoid } from 'nanoid'
 import type {
   DeepChatLoopNotificationObserver,
@@ -54,7 +54,7 @@ import {
   CommandShellProfileSchema,
   type CommandShellProfile,
   type ResolvedCommandShell
-} from '../shared/commandShell.js'
+} from '@deepchat/shared/commandShell'
 import {
   buildCommandPermissionSignature,
   isCommandSignatureForProfile
@@ -113,7 +113,7 @@ import { preflightRequestContext } from './contextBudget.js'
 import {
   CODE_MODE_TOOL_SERVER_NAME,
   RUN_CODE_MAX_NESTED_CALLS
-} from '../shared/codeModeProtocol.js'
+} from '@deepchat/shared/codeModeProtocol'
 import {cloneBlocksForRenderer} from '../contracts/rendererBlocks.js'
 import {buildTerminalErrorBlocks} from '../contracts/transcriptBlocks.js'
 import {type ProgrammaticToolParentRegistration, type ProgrammaticToolAuthorityPort} from '../contracts/programmaticToolAuthority.js'

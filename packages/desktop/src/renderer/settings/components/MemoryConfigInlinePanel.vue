@@ -307,11 +307,11 @@ import ModelIcon from '@/components/icons/ModelIcon.vue'
 import ModelSelect from '@/components/ModelSelect.vue'
 import { useModelStore } from '@/stores/modelStore'
 import { createConfigClient } from '@api/ConfigClient'
-import { ModelType } from '@shared/model'
+import { ModelType } from '@deepchat/shared/model'
 import type {
   DeepChatAgentConfig,
   DeepChatAgentModelSelection
-} from '@shared/types/agent-interface'
+} from '@deepchat/shared/types/agent-interface'
 import MemoryInlineFeedback from './MemoryInlineFeedback.vue'
 import { useMemoryInlineFeedback } from '../lib/useMemoryInlineFeedback'
 import { settingsLeaveGuard } from '../services/settingsLeaveGuard'

@@ -1,7 +1,11 @@
 import { z } from 'zod'
-import { EntityIdSchema, SessionStatusSchema, TimestampMsSchema } from '../common'
-import { JsonValueSchema, type JsonValue } from '../json'
-import { LocalControlEventCursorSchema } from '../localControl'
+import {
+  EntityIdSchema,
+  SessionStatusSchema,
+  TimestampMsSchema
+} from '@deepchat/shared/contracts/common'
+import { JsonValueSchema, type JsonValue } from '@deepchat/shared/contracts/json'
+import { LocalControlEventCursorSchema } from '@deepchat/shared/contracts/localControl'
 import {
   AgentServiceInstanceIdSchema,
   AgentServiceRequestIdSchema,

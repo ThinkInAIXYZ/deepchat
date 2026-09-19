@@ -8,7 +8,7 @@ import type {
   AcpTurnStartPayload,
   AcpSessionEntity,
   AgentSessionLifecycleStatus
-} from '@shared/types/acp'
+} from '@deepchat/shared/types/acp'
 import type { AgentDatabase } from '@/agent/data/database'
 import type { SessionDatabase } from '@/session/data/database'
 import type { ProjectDatabase } from '@/project/data/database'

@@ -7,7 +7,7 @@ import { Input } from '@shadcn/components/ui/input'
 import { DcConfirmDialog } from '@dc-ui/components/confirm-dialog'
 import { createPluginClient } from '@api/PluginClient'
 import { usePluginCatalogStore } from '@/stores/pluginCatalog'
-import type { PluginListItem, PluginActionResult } from '@shared/types/plugin'
+import type { PluginListItem, PluginActionResult } from '@deepchat/shared/types/plugin'
 import UserPluginInstallDialog from './UserPluginInstallDialog.vue'
 
 const props = defineProps<{ plugin: PluginListItem }>()

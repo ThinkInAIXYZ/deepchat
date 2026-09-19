@@ -9,14 +9,14 @@ import type {
   SessionMetadata,
   SessionPageCursor,
   SessionRecord
-} from '@shared/types/agent-interface'
+} from '@deepchat/shared/types/agent-interface'
 import type { SessionListPageCursor } from '@/session/data/tables/newSessions'
-import { parseLiveDelegationSubagentContext } from '@shared/orchestration/liveDelegation'
+import { parseLiveDelegationSubagentContext } from '@deepchat/shared/orchestration/liveDelegation'
 import {
   normalizeOrchestrationPolicy,
   type OrchestrationPolicy
-} from '@shared/orchestration/policy'
-import { normalizeToolModeOverride, type ToolModeOverride } from '@shared/toolMode'
+} from '@deepchat/shared/orchestration/policy'
+import { normalizeToolModeOverride, type ToolModeOverride } from '@deepchat/shared/toolMode'
 
 const parseSubagentMeta = (raw: string | null | undefined): DeepChatSubagentMeta | null => {
   if (!raw) {

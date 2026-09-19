@@ -1,8 +1,8 @@
 import { defineStore } from 'pinia'
 import { useStorage } from '@vueuse/core'
 import { ref } from 'vue'
-import type { DeepchatEventPayload } from '@shared/contracts/events'
-import type { AgentPlanTerminalReason } from '@shared/types/agent-plan'
+import type { DeepchatEventPayload } from '@deepchat/shared/contracts/events'
+import type { AgentPlanTerminalReason } from '@deepchat/shared/types/agent-plan'
 
 export type AgentPlanViewSnapshot = DeepchatEventPayload<'chat.plan.updated'>
 

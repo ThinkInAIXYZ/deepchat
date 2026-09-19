@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type {
   TapeInspectorEvidenceRecord,
   TapeInspectorFactRecord
-} from '@shared/types/tape-inspector'
+} from '@deepchat/shared/types/tape-inspector'
 import {
   buildTapeInspectorRows,
   DIAGNOSTIC_EVIDENCE_LANE_KEY,

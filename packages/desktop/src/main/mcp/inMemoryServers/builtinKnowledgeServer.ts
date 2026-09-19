@@ -1,13 +1,13 @@
 import { Server, Transport } from '@modelcontextprotocol/server'
 import { z } from 'zod'
-import { toDeepChatJsonSchema } from '@shared/lib/zodJsonSchema'
-import type { MCPTextContent } from '@shared/types/mcp'
+import { toDeepChatJsonSchema } from '@deepchat/shared/lib/zodJsonSchema'
+import type { MCPTextContent } from '@deepchat/shared/types/mcp'
 import type { KnowledgeConfigPort } from '@/knowledge/ports'
 import type {
   BuiltinKnowledgeConfig,
   KnowledgeSearchPort,
   QueryResult
-} from '@shared/types/knowledge'
+} from '@deepchat/shared/types/knowledge'
 
 // Schema definitions
 const BuiltinKnowledgeSearchArgsSchema = z.object({

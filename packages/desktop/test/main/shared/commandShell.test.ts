@@ -3,7 +3,7 @@ import {
   formatCommandShellForModel,
   formatCommandShellPromptLine,
   formatExecCommandDescription
-} from '@shared/commandShell'
+} from '@deepchat/shared/commandShell'
 import {
   CMD_COMMAND_SHELL,
   FISH_COMMAND_SHELL,

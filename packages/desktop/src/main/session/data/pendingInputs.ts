@@ -5,7 +5,7 @@ import type {
   PendingSessionInputState,
   SendMessageInput,
   UserMessageContent
-} from '@shared/types/agent-interface'
+} from '@deepchat/shared/types/agent-interface'
 import { SessionPendingInputStore } from './pendingInputStore'
 import type { SessionTranscript } from './transcript'
 import { MAX_PENDING_INPUTS } from '@shared/pendingInput'

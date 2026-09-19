@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { EntityIdSchema, TimestampMsSchema } from '../common'
+import { EntityIdSchema, TimestampMsSchema } from '@deepchat/shared/contracts/common'
 import {
   AgentServiceInstanceIdSchema,
   AgentServiceRequestIdSchema,

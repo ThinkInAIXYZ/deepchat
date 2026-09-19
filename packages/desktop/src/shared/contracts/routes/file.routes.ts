@@ -1,6 +1,6 @@
 import { z } from 'zod'
-import { defineRouteContract } from '../common'
-import { PreparedMessageFileSchema } from '../domainSchemas'
+import { defineRouteContract } from '@deepchat/shared/contracts/common'
+import { PreparedMessageFileSchema } from '@deepchat/shared/contracts/domainSchemas'
 
 const FileImageActionInputSchema = z.object({
   source: z.string().min(1),

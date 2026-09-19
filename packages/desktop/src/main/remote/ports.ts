@@ -15,8 +15,8 @@ import type {
   SessionWithState,
   ToolInteractionResponse,
   ToolInteractionResult
-} from '@shared/types/agent-interface'
-import type { SearchResult } from '@shared/types/core/search'
+} from '@deepchat/shared/types/agent-interface'
+import type { SearchResult } from '@deepchat/shared/types/core/search'
 import type { SettingsStore } from '@/config/settingsStore'
 import type { CronJob, CronJobDeliveryTarget, CronJobRun } from '@shared/cronJobs'
 import type { MessageFile } from '@shared/chat'

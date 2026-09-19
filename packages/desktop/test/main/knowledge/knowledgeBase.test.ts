@@ -1,6 +1,6 @@
 import fs from 'node:fs'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { KnowledgeFileMessage } from '@shared/types/knowledge'
+import type { KnowledgeFileMessage } from '@deepchat/shared/types/knowledge'
 import { KnowledgeBase } from '@/knowledge/knowledgeBase'
 import type {
   KnowledgeDatabasePort,

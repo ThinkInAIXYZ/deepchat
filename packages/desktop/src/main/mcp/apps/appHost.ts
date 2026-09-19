@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
 import { shell } from 'electron'
-import type { PermissionMode } from '@shared/types/agent-interface'
+import type { PermissionMode } from '@deepchat/shared/types/agent-interface'
 import type {
   MCPContentItem,
   McpAppCallToolResult,
@@ -16,7 +16,7 @@ import type {
   Resource,
   Tool,
   ToolCallResult
-} from '@shared/types/mcp'
+} from '@deepchat/shared/types/mcp'
 import type { McpSettings } from '../settings'
 import type { ServerManager } from '../serverManager'
 import { getToolUiResourceUri, getToolVisibility } from '../resultProjection'

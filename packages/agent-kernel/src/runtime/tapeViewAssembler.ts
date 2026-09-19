@@ -1,5 +1,5 @@
-import type { ChatMessage } from '../shared/types/core/chat-message.js'
-import type { ChatMessageRecord } from '../shared/types/agent-interface.js'
+import type { ChatMessage } from '@deepchat/shared/types/core/chat-message'
+import type { ChatMessageRecord } from '@deepchat/shared/types/agent-interface'
 import { isContextHistoryRecord, type ContextBuildMetadata } from './contextBuilder.js'
 import {
   resolveTapeViewPolicy,

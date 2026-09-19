@@ -1,12 +1,12 @@
 import { describe, expect, it, vi } from 'vitest'
 import { resolveSessionVisionTarget } from '@/agent/vision/sessionVisionResolver'
-import type { PermissionMode } from '@shared/types/agent-interface'
+import type { PermissionMode } from '@deepchat/shared/types/agent-interface'
 import {
   TOOL_EXECUTION,
   type MCPToolCall,
   type MCPToolDefinition
-} from '@shared/types/core/mcp'
-import type { ToolServicePort } from '@shared/types/tool'
+} from '@deepchat/shared/types/core/mcp'
+import type { ToolServicePort } from '@deepchat/shared/types/tool'
 import type { ToolExecutionOptions, ToolResultPort } from '@deepchat/agent-kernel/loop/ports'
 import {
   createToolCatalogPort,

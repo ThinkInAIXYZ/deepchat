@@ -3,8 +3,12 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { randomUUID } from 'node:crypto'
 import type { UtilityProcess } from 'electron'
-import type { MCPToolDefinition, MCPToolResponse, ToolDispatchCommitInput } from '@shared/types/mcp'
-import type { ToolCallOptions } from '@shared/types/tool'
+import type {
+  MCPToolDefinition,
+  MCPToolResponse,
+  ToolDispatchCommitInput
+} from '@deepchat/shared/types/mcp'
+import type { ToolCallOptions } from '@deepchat/shared/types/tool'
 import {
   RUN_CODE_MAX_NESTED_CALLS,
   RUN_CODE_DEFAULT_TIMEOUT_MS,
@@ -14,7 +18,7 @@ import {
   type RunCodeHostMessage,
   type RunCodeParentMessage,
   type RunCodeToolBinding
-} from '@shared/codeModeProtocol'
+} from '@deepchat/shared/codeModeProtocol'
 import { buildCanonicalToolCatalog } from '@deepchat/agent-kernel/runtime/toolSurface'
 import { MAX_EXECUTION_JOURNAL_NESTED_CHILDREN } from '@deepchat/agent-kernel/tape/domain/executionJournal'
 import { awaitWithAbort } from '@deepchat/agent-kernel/collab/lib/awaitWithAbort'

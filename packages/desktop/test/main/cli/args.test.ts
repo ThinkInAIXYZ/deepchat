@@ -6,7 +6,7 @@ import {
   DEFAULT_MUTATION_TIMEOUT_MS,
   formatCliHelp,
   parseCliArguments
-} from '../../../src/cli/args'
+} from '../../../../cli/src/args'
 
 describe('CLI argument grammar', () => {
   it('maps the two-token command prefix to a canonical route', () => {
@@ -69,8 +69,13 @@ describe('CLI argument grammar', () => {
       contract: null,
       helpRequested: true
     })
-    expect(() => parseCliArguments(['help', 'commands'], {})).toThrow('deepchat help')
-    expect(() => parseCliArguments(['--help'], {})).toThrow('deepchat <domain> <verb>')
+    expect(parseCliArguments(['--help'], {})).toMatchObject({
+      domain: 'help',
+      verb: '',
+      contract: null,
+      helpRequested: true
+    })
+    expect(() => parseCliArguments(['--help', 'commands'], {})).toThrow('deepchat --help')
     expect(formatCliHelp({ domain: 'agent', verb: 'run' })).toContain('--max-turns <n>')
     expect(formatCliHelp({ domain: 'run', verb: 'watch' })).toContain('--cursor <event-cursor>')
     expect(formatCliHelp({ domain: 'model', verb: 'list' })).toContain(

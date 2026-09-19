@@ -1,4 +1,4 @@
-import type { LLM_EMBEDDING_ATTRS } from '@shared/types/provider'
+import type { LLM_EMBEDDING_ATTRS } from '@deepchat/shared/types/provider'
 import { BaseLLMProvider } from '../baseProvider'
 
 interface EmbeddingManagerOptions {

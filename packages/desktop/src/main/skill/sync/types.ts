@@ -4,7 +4,11 @@
  * Internal types used by the SkillSyncService implementation.
  */
 
-import type { CanonicalSkill, ConflictStrategy, ExternalSkillInfo } from '@shared/types/skillSync'
+import type {
+  CanonicalSkill,
+  ConflictStrategy,
+  ExternalSkillInfo
+} from '@deepchat/shared/types/skillSync'
 
 /**
  * Parsed external skill with full content

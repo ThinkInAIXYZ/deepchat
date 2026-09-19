@@ -1,5 +1,5 @@
-import type { ToolExecutionContract } from '@shared/types/mcp'
-import type { PermissionMode } from '@shared/types/agent-interface'
+import type { ToolExecutionContract } from '@deepchat/shared/types/mcp'
+import type { PermissionMode } from '@deepchat/shared/types/agent-interface'
 import type { ToolSource } from './toolMapper'
 
 export interface ToolEffectObservation {

@@ -18,7 +18,7 @@ import {
   invokeLocalControlRpc,
   invokeLocalControlStream,
   invokeLocalControlUpload
-} from '../../../src/cli/transport'
+} from '../../../../cli/src/transport'
 
 const servers: Server[] = []
 const socketPaths: string[] = []

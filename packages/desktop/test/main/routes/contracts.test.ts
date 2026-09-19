@@ -13,7 +13,7 @@ import {
   sessionsUpdatedEvent,
   projectEnvironmentsChangedEvent,
   configLanguageChangedEvent
-} from '@shared/contracts/events'
+} from '@deepchat/shared/contracts/events'
 import {
   DEEPCHAT_ROUTE_CATALOG,
   chatRespondToolInteractionRoute,
@@ -57,7 +57,7 @@ import {
   windowConsumePendingSettingsProviderInstallRoute,
   windowRequeuePendingSettingsProviderInstallRoute
 } from '@shared/contracts/routes'
-import { SessionGenerationSettingsPatchSchema } from '@shared/contracts/common'
+import { SessionGenerationSettingsPatchSchema } from '@deepchat/shared/contracts/common'
 
 describe('main kernel contracts', () => {
   it('accepts only absolute workspace paths for Skill catalogs across platforms', () => {

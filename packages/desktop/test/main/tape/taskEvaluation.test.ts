@@ -8,7 +8,7 @@ import {
   type DeepChatLegacyTaskEvaluation,
   type DeepChatHandoffFormatRequirement,
   type DeepChatTaskEvaluationExecutionStatus
-} from '@shared/types/task-contract'
+} from '@deepchat/shared/types/task-contract'
 import { hashJsonData } from '@deepchat/agent-kernel/tape/domain/canonicalJson'
 import { buildTaskContract } from '@deepchat/agent-kernel/tape/domain/taskContract'
 import {

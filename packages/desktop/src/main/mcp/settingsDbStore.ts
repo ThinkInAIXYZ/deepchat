@@ -1,4 +1,4 @@
-import type { MCPServerConfig } from '@shared/types/mcp'
+import type { MCPServerConfig } from '@deepchat/shared/types/mcp'
 import type { McpSettingsTable } from './data/settingsTable'
 import type { StoreLike } from '@/config/storeLike'
 

@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { defineRouteContract } from '../common'
+import { defineRouteContract } from '@deepchat/shared/contracts/common'
 import { GUIDED_ONBOARDING_STEP_IDS, GUIDED_ONBOARDING_VERSION } from '../../guidedOnboarding'
 
 export const guidedOnboardingVersion = GUIDED_ONBOARDING_VERSION

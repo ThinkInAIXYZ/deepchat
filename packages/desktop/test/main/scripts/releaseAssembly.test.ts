@@ -13,7 +13,7 @@ import { pathToFileURL } from 'node:url'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { parse, stringify } from 'yaml'
 
-import { assembleRelease } from '../../../../../scripts/ci/assemble-release.mjs'
+import { assembleRelease } from '../../../scripts/ci/assemble-release.mjs'
 import {
   createDefaultPackageSizePolicy,
   getMeasuredRoles,
@@ -21,16 +21,16 @@ import {
   PACKAGE_MANIFEST_SCHEMA_VERSION,
   RELEASE_INDEX_SCHEMA_VERSION,
   TARGET_DEFINITIONS
-} from '../../../../../scripts/ci/package-contract.mjs'
-import { inspectRegularFile } from '../../../../../scripts/ci/package-files.mjs'
+} from '../../../scripts/ci/package-contract.mjs'
+import { inspectRegularFile } from '../../../scripts/ci/package-files.mjs'
 import {
   verifyGitHubDraftRelease,
   verifyReleaseAssets
-} from '../../../../../scripts/ci/verify-release-assets.mjs'
+} from '../../../scripts/ci/verify-release-assets.mjs'
 import {
   loadElectronUpdaterMetadataParser,
   parseElectronUpdaterMetadata
-} from '../../../../../scripts/ci/updater-metadata-consumer.mjs'
+} from '../../../scripts/ci/updater-metadata-consumer.mjs'
 
 vi.unmock('fs')
 vi.unmock('node:fs')

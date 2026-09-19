@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { defineComponent } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
-import type { AcpManualAgent, AcpRegistryAgent } from '@shared/types/acp'
+import type { AcpManualAgent, AcpRegistryAgent } from '@deepchat/shared/types/acp'
 
 const notifyRenderer = vi.hoisted(() => vi.fn())
 

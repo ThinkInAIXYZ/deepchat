@@ -1,4 +1,4 @@
-import logger from '@shared/logger'
+import logger from '@deepchat/shared/logger'
 import fs from 'node:fs'
 import path from 'node:path'
 
@@ -11,7 +11,7 @@ import type {
   KnowledgeChunkMessage,
   KnowledgeTaskStatus,
   QueryResult
-} from '@shared/types/knowledge'
+} from '@deepchat/shared/types/knowledge'
 import type { KnowledgeDatabasePort } from '../ports'
 
 import { nanoid } from 'nanoid'

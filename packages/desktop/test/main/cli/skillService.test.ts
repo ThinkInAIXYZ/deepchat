@@ -9,8 +9,8 @@ import {
   skillsSetPublicStatusRoute,
   skillsUninstallPublicRoute
 } from '@shared/contracts/routes'
-import type { SkillServicePort } from '@shared/types/skill'
-import type { UnifiedSkillItem } from '@shared/types/skillManagement'
+import type { SkillServicePort } from '@deepchat/shared/types/skill'
+import type { UnifiedSkillItem } from '@deepchat/shared/types/skillManagement'
 import { CliSkillService, retainUploadFile } from '@/cli/skillService'
 import type { CliRouteCaller, RouteContext } from '@/routes/routeRegistry'
 

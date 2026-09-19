@@ -2,9 +2,9 @@ import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { SKILL_NAME_MAX_LENGTH, type SkillInstallOptions } from '@shared/types/skill'
-import type { UnifiedSkillItem } from '@shared/types/skillManagement'
-import type { CanonicalSkill, ScanResult } from '@shared/types/skillSync'
+import { SKILL_NAME_MAX_LENGTH, type SkillInstallOptions } from '@deepchat/shared/types/skill'
+import type { UnifiedSkillItem } from '@deepchat/shared/types/skillManagement'
+import type { CanonicalSkill, ScanResult } from '@deepchat/shared/types/skillSync'
 import {
   AgentSkillImportService,
   type AgentSkillImportServiceDependencies

@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi, Mock, afterEach } from 'vitest'
 import type { SkillSettingsPort } from '@/skill/settings'
-import type { SkillMetadata } from '../../../src/shared/types/skill'
+import type { SkillMetadata } from '@deepchat/shared/types/skill'
 import { app } from 'electron'
 
 const DEFAULT_SKILLS_DIR = '/mock/home/.deepchat/skills'
@@ -176,7 +176,7 @@ vi.mock('node:crypto', async () => ({
   randomUUID: vi.fn().mockReturnValue('12345678-1234-1234-1234-123456789abc')
 }))
 
-vi.mock('@shared/logger', () => ({
+vi.mock('@deepchat/shared/logger', () => ({
   default: {
     error: vi.fn(),
     warn: vi.fn(),
@@ -197,7 +197,7 @@ import path from 'path'
 import matter from 'gray-matter'
 import { execFile } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
-import logger from '@shared/logger'
+import logger from '@deepchat/shared/logger'
 import { SKILL_CONFIG, SkillService } from '../../../src/main/skill/index'
 import type {
   IFileWatcherService,

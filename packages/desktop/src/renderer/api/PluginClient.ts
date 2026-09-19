@@ -1,4 +1,4 @@
-import type { UserPluginSource, UserPluginInstallInput } from '@shared/types/userPlugin'
+import type { UserPluginSource, UserPluginInstallInput } from '@deepchat/shared/types/userPlugin'
 import type { DeepchatBridge } from '@shared/contracts/bridge'
 import {
   pluginsInspectSourceRoute,
@@ -13,7 +13,7 @@ import {
   pluginsInvokeActionRoute,
   pluginsListRoute
 } from '@shared/contracts/routes'
-import type { PluginInvokeActionRequest } from '@shared/types/plugin'
+import type { PluginInvokeActionRequest } from '@deepchat/shared/types/plugin'
 import { getDeepchatBridge } from './core'
 
 export function createPluginClient(bridge: DeepchatBridge = getDeepchatBridge()) {

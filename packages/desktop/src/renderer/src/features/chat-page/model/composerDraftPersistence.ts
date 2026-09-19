@@ -1,5 +1,5 @@
 import type { JSONContent } from '@tiptap/core'
-import type { MessageFile } from '@shared/types/agent-interface'
+import type { MessageFile } from '@deepchat/shared/types/agent-interface'
 import type { ComposerSessionDraft } from './composerDraftState'
 import { isComposerDraftEmpty } from './composerDraftState'
 

@@ -1,18 +1,18 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { randomUUID } from 'node:crypto'
-import logger from '@shared/logger'
+import logger from '@deepchat/shared/logger'
 import { USER_PLUGIN_INSTALL_DIRECTORY } from '@shared/pluginPaths'
-import type { MCPServerConfig, McpServicePort } from '@shared/types/mcp'
-import type { SkillServicePort } from '@shared/types/skill'
-import type { PluginActionResult, PluginListItem } from '@shared/types/plugin'
+import type { MCPServerConfig, McpServicePort } from '@deepchat/shared/types/mcp'
+import type { SkillServicePort } from '@deepchat/shared/types/skill'
+import type { PluginActionResult, PluginListItem } from '@deepchat/shared/types/plugin'
 import type {
   PreparedUserPlugin,
   UserPluginInstallInput,
   UserPluginPackage,
   UserPluginSelection,
   UserPluginSource
-} from '@shared/types/userPlugin'
+} from '@deepchat/shared/types/userPlugin'
 import type { McpSettings } from '@/mcp/settings'
 import type { PluginRuntimeSupervisor } from './runtimeSupervisor'
 import { UserPluginSources, snapshotPluginTree } from './userPluginSource'

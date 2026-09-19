@@ -4,7 +4,11 @@ import path from 'path'
 import type { DeviceServicePort } from '@shared/types/device'
 import type { SessionDatabase } from '@/session/data/database'
 import type { ProjectDatabase } from './data/database'
-import type { EnvironmentStatus, EnvironmentSummary, Project } from '@shared/types/agent-interface'
+import type {
+  EnvironmentStatus,
+  EnvironmentSummary,
+  Project
+} from '@deepchat/shared/types/agent-interface'
 import {
   DEFAULT_ENVIRONMENT_SORT_ORDER,
   type NewEnvironmentPreferenceRow

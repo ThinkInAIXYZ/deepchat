@@ -1,5 +1,5 @@
-import type { AssistantMessageBlock } from '@shared/types/agent-interface'
-import type { AssistantDeliverySegment } from '@shared/lib/assistantDeliverySegments'
+import type { AssistantMessageBlock } from '@deepchat/shared/types/agent-interface'
+import type { AssistantDeliverySegment } from '@deepchat/shared/lib/assistantDeliverySegments'
 
 export type SessionRuntimeStatus = 'idle' | 'generating' | 'error'
 

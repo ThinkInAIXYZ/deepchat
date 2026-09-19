@@ -1,4 +1,4 @@
-import logger from '@shared/logger'
+import logger from '@deepchat/shared/logger'
 // src/main/desktop/window/index.ts
 import {
   BrowserWindow,
@@ -29,7 +29,7 @@ import { StartupWorkloadCoordinator } from '../../app/startupWorkloadCoordinator
 import { openExternalUrl } from '@/lib/externalUrl'
 import { activateAppOnMac } from '@/lib/activateApp'
 import { DEEPCHAT_EVENT_CHANNEL } from '@shared/contracts/channels'
-import { createDeepchatEventEnvelope } from '@shared/contracts/events'
+import { createDeepchatEventEnvelope } from '@deepchat/shared/contracts/events'
 
 type PendingSettingsMessage = {
   channel: string

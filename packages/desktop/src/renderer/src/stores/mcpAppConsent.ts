@@ -1,7 +1,7 @@
 import { computed, getCurrentScope, onScopeDispose, ref } from 'vue'
 import { defineStore } from 'pinia'
 import { createMcpClient } from '@api/McpClient'
-import type { McpAppConsentRequestPayload } from '@shared/types/mcp'
+import type { McpAppConsentRequestPayload } from '@deepchat/shared/types/mcp'
 
 const MAX_PENDING_APP_CONSENTS = 32
 

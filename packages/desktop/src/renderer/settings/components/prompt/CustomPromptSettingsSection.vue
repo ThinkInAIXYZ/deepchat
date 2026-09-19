@@ -182,8 +182,8 @@ import { notifyRenderer } from '@renderer-notifications/rendererNotificationPort
 import { usePromptsStore } from '@/stores/prompts'
 import PromptEditorSheet from './PromptEditorSheet.vue'
 import type { Prompt } from '@shared/types/prompt'
-import type { FileItem } from '@shared/types/file'
-import { PromptSchema } from '@shared/contracts/domainSchemas'
+import type { FileItem } from '@deepchat/shared/types/file'
+import { PromptSchema } from '@deepchat/shared/contracts/domainSchemas'
 import { downloadBlob } from '@/lib/download'
 
 interface PromptParameter {

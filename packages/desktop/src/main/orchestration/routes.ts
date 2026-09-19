@@ -9,11 +9,11 @@ import {
   DEFAULT_ORCHESTRATION_POLICY,
   type OrchestrationCapability,
   type OrchestrationPolicy
-} from '@shared/orchestration/policy'
+} from '@deepchat/shared/orchestration/policy'
 import type {
   LiveDelegationDetail,
   LiveDelegationSummary
-} from '@shared/orchestration/liveDelegation'
+} from '@deepchat/shared/orchestration/liveDelegation'
 import { createRouteMap, type DeepchatRouteMap } from '@/routes/routeRegistry'
 
 export interface OrchestrationRouteOptions {

@@ -1,4 +1,4 @@
-import type { BrowserToolDefinition, YoBrowserStatus } from '@shared/types/browser'
+import type { BrowserToolDefinition, YoBrowserStatus } from '@deepchat/shared/types/browser'
 
 export class BrowserContextBuilder {
   static buildSystemPrompt(status: YoBrowserStatus): string {

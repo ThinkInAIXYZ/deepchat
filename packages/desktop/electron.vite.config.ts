@@ -1,3 +1,4 @@
+import { sharedSourceAliases } from '../../scripts/shared-source-aliases.mjs'
 import { fileURLToPath } from 'node:url'
 import { defineConfig } from 'electron-vite'
 import vue from '@vitejs/plugin-vue'
@@ -19,15 +20,23 @@ export default defineConfig({
   main: {
     resolve: {
       alias: [
+        ...Object.entries(sharedSourceAliases).map(([find, replacement]) => ({
+          find: new RegExp(`^${find}$`),
+          replacement
+        })),
         { find: '@', replacement: fromAppRoot('src', 'main') },
         { find: '@shared', replacement: fromAppRoot('src', 'shared') },
+        {
+          find: '@deepchat/cli/launcher',
+          replacement: path.join(workspaceRoot, 'packages', 'cli', 'src', 'launcher.mjs')
+        },
         // Workspace kernel package compiles from source in the app build
         { find: '@deepchat/agent-kernel', replacement: path.join(workspaceRoot, 'packages', 'agent-kernel', 'src') }
       ]
     },
     build: {
       externalizeDeps: {
-        exclude: ['mermaid', '@deepchat/agent-kernel']
+        exclude: ['mermaid', '@deepchat/agent-kernel', '@deepchat/cli', '@deepchat/shared']
       },
       rollupOptions: {
         input: {
@@ -50,6 +59,7 @@ export default defineConfig({
   preload: {
     resolve: {
       alias: {
+        ...sharedSourceAliases,
         '@shared': fromAppRoot('src', 'shared')
       }
     },
@@ -68,14 +78,11 @@ export default defineConfig({
   renderer: {
     optimizeDeps: {
       exclude: ['markstream-vue', 'stream-monaco'],
-      include: [
-        '@antv/infographic',
-        'monaco-editor',
-        'axios'
-      ]
+      include: ['@antv/infographic', 'monaco-editor', 'axios']
     },
     resolve: {
       alias: {
+        ...sharedSourceAliases,
         '@': fromAppRoot('src', 'renderer', 'src'),
         '@api': fromAppRoot('src', 'renderer', 'api'),
         '@renderer-notifications': fromAppRoot('src', 'renderer', 'services', 'notifications'),
@@ -93,30 +100,15 @@ export default defineConfig({
       monacoEditorPlugin({
         languageWorkers: [],
         customWorkers: [
-          {
-            label: 'editorWorkerService',
-            entry: 'monaco-editor/esm/vs/editor/editor.worker.js',
-          },
-          {
-            label: 'typescript',
-            entry: 'monaco-editor/esm/vs/language/typescript/ts.worker.js',
-          },
-          {
-            label: 'css',
-            entry: 'monaco-editor/esm/vs/language/css/css.worker.js',
-          },
-          {
-            label: 'html',
-            entry: 'monaco-editor/esm/vs/language/html/html.worker.js',
-          },
-          {
-            label: 'json',
-            entry: 'monaco-editor/esm/vs/language/json/json.worker.js',
-          },
+          { label: 'editorWorkerService', entry: 'monaco-editor/esm/vs/editor/editor.worker.js' },
+          { label: 'typescript', entry: 'monaco-editor/esm/vs/language/typescript/ts.worker.js' },
+          { label: 'css', entry: 'monaco-editor/esm/vs/language/css/css.worker.js' },
+          { label: 'html', entry: 'monaco-editor/esm/vs/language/html/html.worker.js' },
+          { label: 'json', entry: 'monaco-editor/esm/vs/language/json/json.worker.js' }
         ],
         customDistPath(_root, buildOutDir, _base) {
           return path.resolve(buildOutDir, 'monacoeditorwork')
-        },
+        }
       }),
       vue({
         template: {

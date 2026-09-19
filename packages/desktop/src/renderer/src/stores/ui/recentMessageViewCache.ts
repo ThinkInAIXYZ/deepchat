@@ -2,7 +2,7 @@ import type {
   ChatMessageRecord,
   MessagePageCursor,
   SessionWithState
-} from '@shared/types/agent-interface'
+} from '@deepchat/shared/types/agent-interface'
 
 export type RecentMessageView = Readonly<{
   sessionId: string

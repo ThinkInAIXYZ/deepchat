@@ -3,8 +3,8 @@ import {
   createDeepchatEventEnvelope,
   type DeepchatEventEnvelope,
   type DeepchatEventName
-} from '@shared/contracts/events'
-import { JsonValueSchema, type JsonValue } from '@shared/contracts/json'
+} from '@deepchat/shared/contracts/events'
+import { JsonValueSchema, type JsonValue } from '@deepchat/shared/contracts/json'
 
 export type TypedEventTarget =
   | Readonly<{ kind: 'renderer-all' }>

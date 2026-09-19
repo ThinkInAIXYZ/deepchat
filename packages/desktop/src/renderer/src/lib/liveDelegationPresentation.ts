@@ -1,4 +1,4 @@
-import type { LiveDelegationStatus } from '@shared/orchestration/liveDelegation'
+import type { LiveDelegationStatus } from '@deepchat/shared/orchestration/liveDelegation'
 
 export type LiveDelegationDisplayStatus = LiveDelegationStatus | 'tool_error'
 

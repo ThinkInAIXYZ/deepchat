@@ -1,6 +1,6 @@
 import { Node, mergeAttributes } from '@tiptap/core'
 import { VueNodeViewRenderer } from '@tiptap/vue-3'
-import { normalizeAttachmentRepresentationPreference } from '@shared/utils/attachmentRepresentation'
+import { normalizeAttachmentRepresentationPreference } from '@deepchat/shared/utils/attachmentRepresentation'
 import FileAttachmentView from './FileAttachmentView.vue'
 
 export const FileAttachment = Node.create({

@@ -21,7 +21,7 @@ import {
   LocalControlDescriptorSchema,
   type LocalControlDescriptor,
   type LocalControlEndpoint
-} from '@shared/contracts/localControl'
+} from '@deepchat/shared/contracts/localControl'
 
 const execFileAsync = promisify(execFile)
 const MAX_POSIX_SOCKET_PATH_BYTES = 100

@@ -95,12 +95,12 @@ import {
   DropdownMenuTrigger
 } from '@shadcn/components/ui/dropdown-menu'
 import { DcDropdownActionItem } from '@dc-ui/components/dropdown-action-item'
-import type { AttachmentRepresentationPreference } from '@shared/types/attachment'
+import type { AttachmentRepresentationPreference } from '@deepchat/shared/types/attachment'
 import {
   isImageAttachment,
   isPdfAttachment,
   normalizeAttachmentRepresentationPreferenceForFile
-} from '@shared/utils/attachmentRepresentation'
+} from '@deepchat/shared/utils/attachmentRepresentation'
 import { ATTACHMENT_NODE_CONTEXT, INPUT_NODE_ACTIONS, type InputNodeActions } from './symbols'
 
 const props = defineProps<NodeViewProps>()

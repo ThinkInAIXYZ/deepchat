@@ -1,7 +1,7 @@
 import { estimateTokenCount } from 'tokenx'
 import { describe, expect, it } from 'vitest'
-import type { SkillMetadata } from '../../../src/shared/types/skill'
-import { SKILL_NAME_MAX_LENGTH } from '../../../src/shared/types/skill'
+import type { SkillMetadata } from '@deepchat/shared/types/skill'
+import { SKILL_NAME_MAX_LENGTH } from '@deepchat/shared/types/skill'
 import {
   SKILL_ROUTING_CATEGORY_MAX_CODE_POINTS,
   SKILL_LIST_RESULT_MAX_TOKENS,

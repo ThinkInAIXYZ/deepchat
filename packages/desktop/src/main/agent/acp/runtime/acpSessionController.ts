@@ -1,8 +1,8 @@
 import type * as schema from '@agentclientprotocol/sdk/dist/schema/index.js'
 import type { ClientSideConnection as ClientSideConnectionType } from '@agentclientprotocol/sdk'
-import type { AcpAgentConfig } from '@shared/types/acp'
-import type { AcpConfigState } from '@shared/types/acp'
-import type { LLMCoreStreamEvent } from '@shared/types/core/llm-events'
+import type { AcpAgentConfig } from '@deepchat/shared/types/acp'
+import type { AcpConfigState } from '@deepchat/shared/types/acp'
+import type { LLMCoreStreamEvent } from '@deepchat/shared/types/core/llm-events'
 import type { AppSessionId, AcpRemoteSessionId } from '@deepchat/agent-kernel/collab/agent-shared/agentSessionIds'
 import {
   getAcpConfigOption,

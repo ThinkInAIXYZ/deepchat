@@ -12,8 +12,8 @@ import { ArtifactSpool } from '@/cli/artifactSpool'
 import { createArtifactRoutes } from '@/cli/artifactRoutes'
 import { CliServer } from '@/cli/server'
 import type { CliRouteCaller, HumanCliRouteCaller } from '@/routes/routeRegistry'
-import { publishArtifactDownload } from '../../../src/cli/artifacts'
-import { runCli } from '../../../src/cli/run'
+import { publishArtifactDownload } from '../../../../cli/src/artifacts'
+import { runCli } from '../../../../cli/src/run'
 
 const servers: CliServer[] = []
 const spools: ArtifactSpool[] = []

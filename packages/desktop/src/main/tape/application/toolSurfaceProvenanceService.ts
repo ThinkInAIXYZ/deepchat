@@ -1,6 +1,6 @@
-import type { DeepChatTapeViewManifest } from '@shared/types/tape-view-manifest'
-import { TOOL_SEARCH_AGENT_TOOL_NAME } from '@shared/agentTools'
-import { stripToolExecutionContract, type MCPToolDefinition } from '@shared/types/core/mcp'
+import type { DeepChatTapeViewManifest } from '@deepchat/shared/types/tape-view-manifest'
+import { TOOL_SEARCH_AGENT_TOOL_NAME } from '@deepchat/shared/agentTools'
+import { stripToolExecutionContract, type MCPToolDefinition } from '@deepchat/shared/types/core/mcp'
 import { canonicalJsonStringifyData } from '@deepchat/agent-kernel/tape/domain/canonicalJson'
 import {
   type DeepChatTapeEntryRow,

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { LocalControlErrorSchema, type LocalControlErrorCode } from '@shared/contracts/localControl'
-import { CLI_EXIT_CODES, exitCodeForRemoteError } from '../../../src/cli/errors'
+import { CLI_EXIT_CODES, exitCodeForRemoteError } from '../../../../cli/src/errors'
 
 const error = (code: LocalControlErrorCode) =>
   LocalControlErrorSchema.parse({

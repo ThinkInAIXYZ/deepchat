@@ -79,7 +79,7 @@ import {
   normalizeTtsSettings,
   type TtsResponseFormat,
   type TtsSettings
-} from '@shared/ttsSettings'
+} from '@deepchat/shared/ttsSettings'
 
 const DEFAULT_SELECT_VALUE = '__default'
 

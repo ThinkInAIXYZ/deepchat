@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { normalizeOrchestrationPolicy } from '@shared/orchestration/policy'
+import { normalizeOrchestrationPolicy } from '@deepchat/shared/orchestration/policy'
 
 describe('orchestration policy normalization', () => {
   it('accepts only canonical policy values in current contracts', () => {

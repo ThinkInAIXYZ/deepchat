@@ -17,11 +17,11 @@ import type {
   PromptListEntry,
   Resource,
   ResourceListEntry
-} from '@shared/types/mcp'
+} from '@deepchat/shared/types/mcp'
 import type {
   McpServerLifecycleStatus,
   McpServerStatusChangedPayload
-} from '@shared/types/core/mcp'
+} from '@deepchat/shared/types/core/mcp'
 
 const ENABLED_MCP_TOOLS_KEY = 'input_enabledMcpTools'
 

@@ -1,16 +1,19 @@
 import type { AppSessionId } from '../collab/agent-shared/agentSessionIds.js'
-import type { AssistantMessageBlock } from '../shared/types/agent-interface.js'
-import type { ChatMessage } from '../shared/types/core/chat-message.js'
-import type { MCPToolDefinition } from '../shared/types/core/mcp.js'
-import type { DeepChatPromptAssembly } from '../shared/types/prompt-assembly.js'
-import type { DeepChatExecutionContract } from '../shared/types/execution-contract.js'
+import type { AssistantMessageBlock } from '@deepchat/shared/types/agent-interface'
+import type { ChatMessage } from '@deepchat/shared/types/core/chat-message'
+import type { MCPToolDefinition } from '@deepchat/shared/types/core/mcp'
+import type { DeepChatPromptAssembly } from '@deepchat/shared/types/prompt-assembly'
+import type { DeepChatExecutionContract } from '@deepchat/shared/types/execution-contract'
 import type {
   DeepChatTapeRuntimeViewSkillContextV7,
   DeepChatTapeSkillContext,
   DeepChatTapeSkillMaterializationRef
-} from '../shared/types/tape-view-manifest.js'
-import { ResolvedCommandShellSchema, type ResolvedCommandShell } from '../shared/commandShell.js'
-import type { ResolvedToolMode } from '../shared/toolMode.js'
+} from '@deepchat/shared/types/tape-view-manifest'
+import {
+  ResolvedCommandShellSchema,
+  type ResolvedCommandShell
+} from '@deepchat/shared/commandShell'
+import type { ResolvedToolMode } from '@deepchat/shared/toolMode'
 import {
   assertIssuedToolSurfaceSnapshot,
   revokeToolSurfaceExecutionEligibility,

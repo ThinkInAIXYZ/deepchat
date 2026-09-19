@@ -7,13 +7,13 @@ import {
   resolveNewApiModelTypeFromMetadata,
   resolveNewApiEndpointTypeFromRoute,
   type NewApiEndpointType
-} from '@shared/model'
-import { isTtsModelConfig, isTtsModelId } from '@shared/ttsSettings'
-import { isVideoGenerationModelConfig } from '@shared/videoGenerationSettings'
-import type { ChatMessage } from '@shared/types/core/chat-message'
-import type { LLMCoreStreamEvent } from '@shared/types/core/llm-events'
-import type { LLMResponse } from '@shared/types/provider'
-import type { MCPToolDefinition } from '@shared/types/mcp'
+} from '@deepchat/shared/model'
+import { isTtsModelConfig, isTtsModelId } from '@deepchat/shared/ttsSettings'
+import { isVideoGenerationModelConfig } from '@deepchat/shared/videoGenerationSettings'
+import type { ChatMessage } from '@deepchat/shared/types/core/chat-message'
+import type { LLMCoreStreamEvent } from '@deepchat/shared/types/core/llm-events'
+import type { LLMResponse } from '@deepchat/shared/types/provider'
+import type { MCPToolDefinition } from '@deepchat/shared/types/mcp'
 import type {
   AWS_BEDROCK_PROVIDER,
   KeyStatus,
@@ -24,7 +24,7 @@ import type {
   ModelRouteConfig,
   ProviderStreamOptions,
   VERTEX_PROVIDER
-} from '@shared/types/provider'
+} from '@deepchat/shared/types/provider'
 import { BedrockClient, ListFoundationModelsCommand } from '@aws-sdk/client-bedrock'
 import { fromNodeProviderChain } from '@aws-sdk/credential-providers'
 import {
@@ -65,7 +65,7 @@ import {
   resolveCapabilityFamilyHint,
   resolveCapabilityIdentity as resolveModelCapabilityIdentity
 } from '../capabilityIdentity'
-import type { ResolvedCapabilityIdentity } from '@shared/types/model-capabilities'
+import type { ResolvedCapabilityIdentity } from '@deepchat/shared/types/model-capabilities'
 import {
   resolveDeepSeekResponsesRequestRoute,
   type DeepSeekResponsesRoute

@@ -49,8 +49,7 @@ interface PackageCheckWorkflow {
   jobs: Record<string, WorkflowJob>
 }
 
-const workspaceRoot = path.resolve(process.cwd(), '../..')
-const workflowPath = path.join(workspaceRoot, '.github/workflows/package-check.yml')
+const workflowPath = path.resolve('.github/workflows/package-check.yml')
 const workflowSource = fs.readFileSync(workflowPath, 'utf8')
 const workflow = parse(workflowSource) as PackageCheckWorkflow
 
@@ -99,7 +98,7 @@ describe('PR package check workflow contracts', () => {
     expect(workflowSource).not.toContain('secrets: inherit')
   })
 
-  it('uses only the base classifier with conservative manifest and bootstrap fallbacks', () => {
+  it('uses only the base classifier with an all-target bootstrap fallback', () => {
     const impactJob = workflow.jobs['package-impact']
     const classifyStep = getStep(impactJob, 'Classify package impact')
 
@@ -130,9 +129,6 @@ describe('PR package check workflow contracts', () => {
       'if ! git cat-file -e "${BASE_SHA}:scripts/ci/classify-package-impact.mjs"'
     )
     expect(classifyStep.run).toContain(
-      'Desktop manifest is unavailable; selecting every package target.'
-    )
-    expect(classifyStep.run).toContain(
       'Base classifier is unavailable; selecting every package target.'
     )
     for (const output of [
@@ -147,20 +143,16 @@ describe('PR package check workflow contracts', () => {
       'git diff --name-only --no-renames -z "${merge_base}" "${HEAD_SHA}" > "${changed_paths}"'
     )
     expect(classifyStep.run).toContain(
-      'git show "${merge_base}:packages/desktop/package.json" > "${base_package_json}"'
+      'git show "${merge_base}:package.json" > "${base_package_json}"'
     )
     expect(classifyStep.run).toContain(
-      'git show "${HEAD_SHA}:packages/desktop/package.json" > "${head_package_json}"'
+      'git show "${HEAD_SHA}:package.json" > "${head_package_json}"'
     )
     expect(classifyStep.run).toContain(
       'node - "${base_package_json}" "${head_package_json}"'
     )
     expect(classifyStep.run.indexOf('node - "${base_package_json}"')).toBeLessThan(
       classifyStep.run.indexOf('Base classifier is unavailable')
-    )
-    expect(classifyStep.run).toContain('select_all_targets()')
-    expect(classifyStep.run).toContain(
-      'git cat-file -e "${merge_base}:packages/desktop/package.json"'
     )
     expect(classifyStep.run.indexOf('git diff --name-only')).toBeLessThan(
       classifyStep.run.indexOf('Base classifier is unavailable')

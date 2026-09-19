@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { ProviderHelper } from '../../../src/main/provider/providerHelper'
 import { DEFAULT_PROVIDERS } from '../../../src/main/provider/defaults'
-import type { LLM_PROVIDER } from '@shared/types/provider'
+import type { LLM_PROVIDER } from '@deepchat/shared/types/provider'
 
 class MockElectronStore {
   private readonly data = new Map<string, unknown>()

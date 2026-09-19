@@ -100,7 +100,7 @@ import { DcButton } from '@dc-ui/components/button'
 import type {
   LiveDelegationStatus,
   LiveDelegationSummary
-} from '@shared/orchestration/liveDelegation'
+} from '@deepchat/shared/orchestration/liveDelegation'
 import { getLiveDelegationStatusPresentation } from '@/lib/liveDelegationPresentation'
 import { useLiveDelegationStore } from '@/stores/ui/liveDelegation'
 import { useSessionStore } from '@/stores/ui/session'

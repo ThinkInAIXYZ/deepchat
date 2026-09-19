@@ -1,8 +1,8 @@
 
-import logger from '../shared/logger.js'
+import logger from '@deepchat/shared/logger'
 import { createHash } from 'crypto'
-import type { ProviderExecutionPort } from '../shared/types/provider.js'
-import type { ChatMessage } from '../shared/types/core/chat-message.js'
+import type { ProviderExecutionPort } from '@deepchat/shared/types/provider'
+import type { ChatMessage } from '@deepchat/shared/types/core/chat-message'
 import type { ToolPermissionReviewRequest, ToolPermissionReviewResult } from './types.js'
 import {type ProviderModelResolutionPort} from '../contracts/providerModelResolution.js'
 import {type AgentSettingsPort} from '../contracts/agentSettings.js'

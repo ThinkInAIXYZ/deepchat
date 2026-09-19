@@ -5,7 +5,7 @@ import {
   type DeepChatMessageRow
 } from '@/session/data/tables/deepchatMessages'
 import { DeepChatMessageTracesTable } from '@/session/data/tables/deepchatMessageTraces'
-import type { AssistantMessageBlock } from '@shared/types/agent-interface'
+import type { AssistantMessageBlock } from '@deepchat/shared/types/agent-interface'
 import { Database, nativeSqliteDescribeIf } from '../../../nativeSqliteHarness'
 
 const DatabaseCtor = Database!

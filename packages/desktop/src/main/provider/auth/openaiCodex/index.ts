@@ -1,7 +1,7 @@
-import logger from '@shared/logger'
+import logger from '@deepchat/shared/logger'
 import { shell } from 'electron'
 import { URL } from 'url'
-import type { DeepchatEventPublisher } from '@shared/contracts/events'
+import type { DeepchatEventPublisher } from '@deepchat/shared/contracts/events'
 import {
   resolveOAuthLoopbackCallbackUrl,
   startOAuthLoopbackCallbackSession,
@@ -24,7 +24,7 @@ import {
 } from './constants'
 import { OpenAICodexCredentialStore, type OpenAICodexTokenSet } from './credentialStore'
 import { createOpenAICodexPkcePair, createOpenAICodexState } from './pkce'
-import type { OpenAICodexAuthStatus } from '@shared/types/openai-codex'
+import type { OpenAICodexAuthStatus } from '@deepchat/shared/types/openai-codex'
 
 export type OpenAICodexBackendAuth = {
   accessToken: string

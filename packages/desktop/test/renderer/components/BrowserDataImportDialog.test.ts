@@ -1,7 +1,7 @@
 import { defineComponent } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { BrowserImportApplyResult } from '@shared/types/browser'
+import type { BrowserImportApplyResult } from '@deepchat/shared/types/browser'
 
 const buttonStub = defineComponent({
   name: 'Button',

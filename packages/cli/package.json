@@ -1,0 +1,28 @@
+{
+  "name": "@deepchat/cli",
+  "version": "0.0.0",
+  "private": true,
+  "description": "DeepChat local-control CLI client",
+  "type": "module",
+  "license": "UNLICENSED",
+  "exports": {
+    "./launcher": {
+      "types": "./dist/launcher.d.mts",
+      "import": "./dist/launcher.mjs"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@deepchat/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^24.13.3",
+    "vite": "^7.3.6"
+  }
+}

@@ -5,7 +5,7 @@ import { pathToFileURL } from 'node:url'
 import { shell } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { DEEPCHAT_EVENT_CHANNEL } from '../../../src/shared/contracts/channels'
-import { createDeepchatEventEnvelope } from '../../../src/shared/contracts/events'
+import { createDeepchatEventEnvelope } from '@deepchat/shared/contracts/events'
 
 const { sendToAllWindowsMock, execFileMock } = vi.hoisted(() => ({
   sendToAllWindowsMock: vi.fn(),

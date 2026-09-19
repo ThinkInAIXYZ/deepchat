@@ -3,23 +3,23 @@ import type {
   MessageMetadata,
   PermissionMode,
   QuestionOption
-} from '../shared/types/agent-interface.js'
+} from '@deepchat/shared/types/agent-interface'
 import type {
   LLMCoreStreamEvent,
   ProviderRoundStopReason,
   ToolCallExecutionOwner
-} from '../shared/types/core/llm-events.js'
+} from '@deepchat/shared/types/core/llm-events'
 import type {
   ChatMessage,
   ChatMessageProviderOptions,
   ChatMessageProviderReplayProjector
-} from '../shared/types/core/chat-message.js'
-import type { MCPToolDefinition } from '../shared/types/core/mcp.js'
-import type { ModelConfig } from '../shared/types/provider.js'
-import type { DeepChatProviderAttemptIdentity } from '../shared/types/provider-attempt.js'
+} from '@deepchat/shared/types/core/chat-message'
+import type { MCPToolDefinition } from '@deepchat/shared/types/core/mcp'
+import type { ModelConfig } from '@deepchat/shared/types/provider'
+import type { DeepChatProviderAttemptIdentity } from '@deepchat/shared/types/provider-attempt'
 import type { DeepChatInternalSessionUpdate } from './sessionUpdates.js'
 
-import type { AgentPlanSnapshot, AgentPlanTerminalReason } from '../shared/types/agent-plan.js'
+import type { AgentPlanSnapshot, AgentPlanTerminalReason } from '@deepchat/shared/types/agent-plan'
 import type { LoopRun } from '../loop/loopRun.js'
 import type {
   DeepChatLoopNotificationObserver,
@@ -29,13 +29,13 @@ import type {
   ToolExecutionPort,
   ToolResultPort
 } from '../loop/ports.js'
-import type { CommandShellProfile } from '../shared/commandShell.js'
+import type { CommandShellProfile } from '@deepchat/shared/commandShell'
 import type {
   ExecutionJournalWriter,
   NestedExecutionJournalWriter,
   TapeToolFactWriter
 } from '../tape/ports/capabilities.js'
-import type { EffectiveSkillContentResolution } from '../shared/types/skill.js'
+import type { EffectiveSkillContentResolution } from '@deepchat/shared/types/skill'
 import type {
   ExecutionOperationIdentity,
   ExecutionRunOutcome

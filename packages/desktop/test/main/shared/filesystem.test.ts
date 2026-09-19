@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { isHardlinkUnavailableError, normalizeWorkspacePath } from '@shared/utils/filesystem'
+import {
+  isHardlinkUnavailableError,
+  normalizeWorkspacePath
+} from '@deepchat/shared/utils/filesystem'
 
 describe('filesystem utilities', () => {
   it('recognizes hardlink capability errors without assuming an Error object', () => {

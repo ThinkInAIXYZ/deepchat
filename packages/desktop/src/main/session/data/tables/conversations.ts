@@ -1,7 +1,7 @@
 import { BaseTable } from '@/data/baseTable'
 import type Database from 'better-sqlite3-multiple-ciphers'
 import type { CONVERSATION, CONVERSATION_SETTINGS } from '@shared/types/session'
-import { isReasoningEffort, isVerbosity } from '@shared/types/model-db'
+import { isReasoningEffort, isVerbosity } from '@deepchat/shared/types/model-db'
 import { nanoid } from 'nanoid'
 
 type ConversationRow = {

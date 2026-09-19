@@ -1,5 +1,5 @@
 import { createDialogClient } from '@api/DialogClient'
-import type { DialogRequest, DialogResponse } from '@shared/types/dialog'
+import type { DialogRequest, DialogResponse } from '@deepchat/shared/types/dialog'
 import { defineStore } from 'pinia'
 import { getCurrentScope, onScopeDispose, ref } from 'vue'
 

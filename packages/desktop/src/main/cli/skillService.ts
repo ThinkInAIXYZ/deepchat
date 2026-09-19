@@ -12,9 +12,9 @@ import {
   type PublicSkill,
   type SettingsActivityInput
 } from '@shared/contracts/routes'
-import type { SkillInstallResult, SkillServicePort } from '@shared/types/skill'
-import type { UnifiedSkillItem } from '@shared/types/skillManagement'
-import { isHardlinkUnavailableError } from '@shared/utils/filesystem'
+import type { SkillInstallResult, SkillServicePort } from '@deepchat/shared/types/skill'
+import type { UnifiedSkillItem } from '@deepchat/shared/types/skillManagement'
+import { isHardlinkUnavailableError } from '@deepchat/shared/utils/filesystem'
 import { BUILTIN_SKILL_AGENT_ID } from '@/skill/agentSkillRoots'
 import {
   createRouteMap,

@@ -8,7 +8,7 @@ import {
   ToolInteractionResponseSchema,
   ToolInteractionResultSchema,
   defineRouteContract
-} from '../common'
+} from '@deepchat/shared/contracts/common'
 
 export const chatSendMessageRoute = defineRouteContract({
   name: 'chat.sendMessage',

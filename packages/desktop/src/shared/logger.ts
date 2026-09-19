@@ -17,6 +17,10 @@ export function setVerboseLoggingEnabled(enabled: boolean): void {
   verboseEnabled = enabled
 }
 
+export function isVerboseLoggingEnabled(): boolean {
+  return verboseEnabled
+}
+
 const debug = (...params: unknown[]): void => {
   if (verboseEnabled) originalConsole.debug(...params)
 }

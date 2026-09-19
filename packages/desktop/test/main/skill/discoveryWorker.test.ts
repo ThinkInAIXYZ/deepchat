@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { discoverSkillMetadataInWorker } from '../../../src/main/skill/discoveryWorker'
-import { SKILL_NAME_MAX_LENGTH } from '../../../src/shared/types/skill'
+import { SKILL_NAME_MAX_LENGTH } from '@deepchat/shared/types/skill'
 
 const tempDirs: string[] = []
 

@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { defineRouteContract } from '../common'
+import { defineRouteContract } from '@deepchat/shared/contracts/common'
 import {
   AGENT_MEMORY_AUDIT_ACTOR_TYPES,
   AGENT_MEMORY_AUDIT_FAILURE_STATUSES,
@@ -24,8 +24,8 @@ import {
   MEMORY_RETRIEVAL_DEGRADATION_CAUSES,
   MEMORY_RETRIEVAL_OUTCOMES,
   MEMORY_RETRIEVAL_PURPOSES
-} from '../../types/agent-memory'
-import { unicodeCodePointLength } from '../../lib/unicodeText'
+} from '@deepchat/shared/types/agent-memory'
+import { unicodeCodePointLength } from '@deepchat/shared/lib/unicodeText'
 
 const ManualMemoryContentSchema = z
   .string()

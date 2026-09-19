@@ -1,5 +1,5 @@
 import type { AgentSettingsPort } from '@/agent/settings'
-import type { DeepchatEventPublisher } from '@shared/contracts/events'
+import type { DeepchatEventPublisher } from '@deepchat/shared/contracts/events'
 
 export function emitAgentCatalogChanged(
   agentSettings: AgentSettingsPort,

@@ -1,21 +1,24 @@
 import Database from 'better-sqlite3-multiple-ciphers'
 import { BaseTable } from '@/data/baseTable'
-import type { PermissionMode, SessionGenerationSettings } from '@shared/types/agent-interface'
+import type {
+  PermissionMode,
+  SessionGenerationSettings
+} from '@deepchat/shared/types/agent-interface'
 import {
   isReasoningEffort,
   isReasoningVisibility,
   isVerbosity,
   type ReasoningEffort,
   type ReasoningVisibility
-} from '@shared/types/model-db'
+} from '@deepchat/shared/types/model-db'
 import {
   normalizeImageGenerationOptions,
   type ImageGenerationOptions
-} from '@shared/imageGenerationSettings'
+} from '@deepchat/shared/imageGenerationSettings'
 import {
   normalizeVideoGenerationOptions,
   type VideoGenerationOptions
-} from '@shared/videoGenerationSettings'
+} from '@deepchat/shared/videoGenerationSettings'
 
 type DeepChatSessionGenerationSettings = Pick<
   SessionGenerationSettings,

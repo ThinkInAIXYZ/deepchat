@@ -1,4 +1,4 @@
-import type { Agent } from '@shared/types/agent-interface'
+import type { Agent } from '@deepchat/shared/types/agent-interface'
 import type { AgentCatalogRecord } from './agentDescriptors'
 
 export function mapCatalogRecordToLegacyAgent(record: AgentCatalogRecord): Agent {

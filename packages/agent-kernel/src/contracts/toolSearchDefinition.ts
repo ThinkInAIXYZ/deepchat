@@ -2,9 +2,9 @@ import {
   TOOL_SEARCH_AGENT_TOOL_MAX_RESULTS,
   TOOL_SEARCH_AGENT_TOOL_NAME,
   TOOL_SEARCH_AGENT_TOOL_SERVER_NAME
-} from '../shared/agentTools.js'
-import { toDeepChatJsonSchema } from '../shared/lib/zodJsonSchema.js'
-import { TOOL_EXECUTION, type MCPToolDefinition } from '../shared/types/mcp.js'
+} from '@deepchat/shared/agentTools'
+import { toDeepChatJsonSchema } from '@deepchat/shared/lib/zodJsonSchema'
+import { TOOL_EXECUTION, type MCPToolDefinition } from '@deepchat/shared/types/mcp'
 import { z } from 'zod'
 
 export const TOOL_SEARCH_TOOL_SERVER_NAME = TOOL_SEARCH_AGENT_TOOL_SERVER_NAME

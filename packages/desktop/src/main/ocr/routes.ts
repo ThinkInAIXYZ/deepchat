@@ -1,5 +1,5 @@
 import { ocrClearCacheRoute, ocrGetRuntimeStatusRoute } from '@shared/contracts/routes'
-import type { OcrEngine, OcrRuntimeStatus } from '@shared/contracts/routes/ocr.routes'
+import type { OcrEngine, OcrRuntimeStatus } from '@deepchat/shared/contracts/routes/ocr.routes'
 import { createRouteMap, type DeepchatRouteMap } from '@/routes/routeRegistry'
 import type { LightOcrEngineStatus } from './lightOcrProtocol'
 import type { OcrRuntimeService, OcrRuntimeServiceStatus } from './ocrRuntimeService'

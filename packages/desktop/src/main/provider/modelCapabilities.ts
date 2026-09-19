@@ -4,7 +4,7 @@ import {
   ReasoningPortrait,
   type ReasoningEffort,
   type Verbosity
-} from '@shared/types/model-db'
+} from '@deepchat/shared/types/model-db'
 import { providerDbLoader } from './providerDbLoader'
 import { resolveProviderId as resolveProviderIdAlias } from './providerId'
 import {
@@ -12,9 +12,9 @@ import {
   getUnqualifiedModelId,
   normalizeCanonicalModelId,
   normalizeModelIdText
-} from '@shared/modelId'
-import { isKimiK3ModelId } from '@shared/modelRequestPolicy'
-import type { ToolMode } from '@shared/toolMode'
+} from '@deepchat/shared/modelId'
+import { isKimiK3ModelId } from '@deepchat/shared/modelRequestPolicy'
+import type { ToolMode } from '@deepchat/shared/toolMode'
 
 export type ThinkingBudgetRange = {
   min?: number

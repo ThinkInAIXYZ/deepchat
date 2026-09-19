@@ -1,6 +1,6 @@
 import * as fs from 'fs'
 import path from 'path'
-import type { DirectoryMetaData } from '@shared/types/file'
+import type { DirectoryMetaData } from '@deepchat/shared/types/file'
 
 export class DirectoryAdapter {
   dirPath: string

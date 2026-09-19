@@ -1,6 +1,6 @@
 import * as fs from 'fs'
 import * as crypto from 'crypto'
-import type { FileMetaData } from '@shared/types/file'
+import type { FileMetaData } from '@deepchat/shared/types/file'
 import path from 'path'
 import { detectMimeType } from '../mimeDetection'
 

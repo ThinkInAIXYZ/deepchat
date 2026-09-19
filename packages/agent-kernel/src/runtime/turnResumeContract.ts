@@ -1,4 +1,4 @@
-import type { AssistantMessageBlock, MessageMetadata } from '../shared/types/agent-interface.js'
+import type { AssistantMessageBlock, MessageMetadata } from '@deepchat/shared/types/agent-interface'
 
 export type ResumeBudgetToolCall = {
   id: string

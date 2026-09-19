@@ -5,7 +5,7 @@ import {
   MemoryUpdateReasonSchema,
   memoryUpdatedEvent,
   type MemoryUpdateReason as SharedMemoryUpdateReason
-} from '@shared/contracts/events/memory.events'
+} from '@deepchat/shared/contracts/events/memory.events'
 import {
   MemoryAuditEventSchema,
   MemoryHealthRecentFailureSchema,
@@ -19,7 +19,7 @@ import {
   type AgentMemoryAuditActorType as SharedAuditActorType,
   type AgentMemoryAuditStatus as SharedAuditStatus,
   isSafeAgentId as isSharedSafeAgentId
-} from '@shared/types/agent-memory'
+} from '@deepchat/shared/types/agent-memory'
 import { isSafeAgentId as isPresenterSafeAgentId } from '@/memory'
 import type {
   AgentMemoryAuditActorType as DomainAuditActorType,

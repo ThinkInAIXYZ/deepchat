@@ -1,7 +1,7 @@
 import { BrowserWindow } from 'electron'
 import { randomBytes } from 'node:crypto'
 import * as http from 'node:http'
-import logger from '@shared/logger'
+import logger from '@deepchat/shared/logger'
 import type {
   ChannelSettingsMap,
   DiscordPairingSnapshot,

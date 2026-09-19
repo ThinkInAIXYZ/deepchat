@@ -1,4 +1,4 @@
-import type { DeepchatEventName, DeepchatEventPayload } from './events'
+import type { DeepchatEventName, DeepchatEventPayload } from '@deepchat/shared/contracts/events'
 import type { DeepchatRouteInput, DeepchatRouteName, DeepchatRouteOutput } from './routes'
 
 export interface DeepchatBridge {

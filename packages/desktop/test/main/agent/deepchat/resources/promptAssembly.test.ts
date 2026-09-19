@@ -7,7 +7,7 @@ import {
   reconcilePromptAssembly,
   recordPromptAssemblyObservation
 } from '@deepchat/agent-kernel/resources/promptAssembly'
-import type { DeepChatPromptDegradationCode } from '@shared/types/prompt-assembly'
+import type { DeepChatPromptDegradationCode } from '@deepchat/shared/types/prompt-assembly'
 
 describe('promptAssembly', () => {
   it('preserves explicit section separators and omits empty content', () => {

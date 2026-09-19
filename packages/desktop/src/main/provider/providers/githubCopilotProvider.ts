@@ -1,15 +1,15 @@
 import type { ProviderSettingsPort } from '@/provider/settings'
-import logger from '@shared/logger'
-import type { LLMResponse } from '@shared/types/provider'
-import type { ChatMessage } from '@shared/types/core/chat-message'
-import type { LLMCoreStreamEvent } from '@shared/types/core/llm-events'
-import type { MCPToolDefinition } from '@shared/types/mcp'
+import logger from '@deepchat/shared/logger'
+import type { LLMResponse } from '@deepchat/shared/types/provider'
+import type { ChatMessage } from '@deepchat/shared/types/core/chat-message'
+import type { LLMCoreStreamEvent } from '@deepchat/shared/types/core/llm-events'
+import type { MCPToolDefinition } from '@deepchat/shared/types/mcp'
 import type {
   LLM_PROVIDER,
   MODEL_META,
   ModelConfig,
   ProviderStreamOptions
-} from '@shared/types/provider'
+} from '@deepchat/shared/types/provider'
 import {
   BaseLLMProvider,
   SUMMARY_TITLES_PROMPT,

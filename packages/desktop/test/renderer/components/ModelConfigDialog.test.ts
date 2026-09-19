@@ -1,9 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
 import { defineComponent, nextTick, reactive, ref } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
-import type { ReasoningPortrait } from '../../../src/shared/types/model-db'
-import { ApiEndpointType, ModelType } from '../../../src/shared/model'
-import type { ModelRequestPolicy } from '../../../src/shared/modelRequestPolicy'
+import type { ReasoningPortrait } from '@deepchat/shared/types/model-db'
+import { ApiEndpointType, ModelType } from '@deepchat/shared/model'
+import type { ModelRequestPolicy } from '@deepchat/shared/modelRequestPolicy'
 
 const passthrough = (name: string) =>
   defineComponent({

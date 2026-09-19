@@ -1,6 +1,6 @@
-import { isAgentMemoryCategory } from '@shared/types/agent-memory'
+import { isAgentMemoryCategory } from '@deepchat/shared/types/agent-memory'
 import { parseAgentMemorySourceEntryIds } from '@shared/lib/agentMemoryLineage'
-import type { ChatMessageRecord } from '@shared/types/agent-interface'
+import type { ChatMessageRecord } from '@deepchat/shared/types/agent-interface'
 import {
   decodeMemoryPageCursor,
   encodeMemoryPageCursor,

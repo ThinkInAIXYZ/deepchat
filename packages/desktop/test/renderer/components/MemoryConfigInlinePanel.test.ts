@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { defineComponent } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
-import type { DeepChatAgentConfig } from '../../../src/shared/types/agent-interface'
+import type { DeepChatAgentConfig } from '@deepchat/shared/types/agent-interface'
 
 const passthrough = (name: string) => defineComponent({ name, template: '<div><slot /></div>' })
 

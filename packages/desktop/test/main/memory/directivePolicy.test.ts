@@ -4,7 +4,7 @@ import {
   createMemoryTopicSuppressionPolicy,
   directiveSuppressionAppliesToPurpose
 } from '@/memory/core/directivePolicy'
-import { AGENT_MEMORY_DIRECTIVE_TOPIC_MAX_CHARS } from '@shared/types/agent-memory'
+import { AGENT_MEMORY_DIRECTIVE_TOPIC_MAX_CHARS } from '@deepchat/shared/types/agent-memory'
 
 describe('memory directive suppression policy', () => {
   it('normalizes case, compatibility characters, and whitespace', () => {

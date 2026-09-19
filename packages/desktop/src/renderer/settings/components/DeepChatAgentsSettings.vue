@@ -859,9 +859,9 @@ import { createSessionClient } from '@api/SessionClient'
 import { createToolClient } from '@api/ToolClient'
 import { useModelStore } from '@/stores/modelStore'
 import { useUiSettingsStore } from '@/stores/uiSettingsStore'
-import { ModelType } from '@shared/model'
-import { DEFAULT_DISABLED_AGENT_TOOLS } from '@shared/agentTools'
-import type { MCPToolDefinition } from '@shared/types/core/mcp'
+import { ModelType } from '@deepchat/shared/model'
+import { DEFAULT_DISABLED_AGENT_TOOLS } from '@deepchat/shared/agentTools'
+import type { MCPToolDefinition } from '@deepchat/shared/types/core/mcp'
 import type {
   Agent,
   AgentAvatar as AgentAvatarValue,
@@ -873,19 +873,19 @@ import type {
   PermissionMode,
   Project,
   UpdateDeepChatAgentInput
-} from '@shared/types/agent-interface'
+} from '@deepchat/shared/types/agent-interface'
 import type { SystemPrompt } from '@shared/types/prompt'
-import type { RENDERER_MODEL_META } from '@shared/types/provider'
+import type { RENDERER_MODEL_META } from '@deepchat/shared/types/provider'
 import {
   DEEPCHAT_SUBAGENT_SLOT_LIMIT,
   createDefaultDeepChatSubagentSlots,
   normalizeDeepChatSubagentSlots
-} from '@shared/lib/deepchatSubagents'
+} from '@deepchat/shared/lib/deepchatSubagents'
 import {
   AGENT_OUTPUT_LIMIT_MAX_CHARS,
   AGENT_OUTPUT_LIMIT_MIN_CHARS,
   DEFAULT_AGENT_OUTPUT_LIMITS
-} from '@shared/lib/agentOutputLimits'
+} from '@deepchat/shared/lib/agentOutputLimits'
 import { settingsLeaveGuard } from '../services/settingsLeaveGuard'
 
 type ModelKey = 'chatModel' | 'assistantModel' | 'visionModel' | 'imageGenerationModel'

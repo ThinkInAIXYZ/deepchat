@@ -3,14 +3,14 @@ import {
   skillSyncDiscoveriesChangedEvent,
   skillSyncScanCompletedEvent,
   skillSyncScanStartedEvent
-} from '@shared/contracts/events'
+} from '@deepchat/shared/contracts/events'
 import {
   skillSyncAcknowledgeDiscoveriesRoute,
   skillSyncGetNewDiscoveriesRoute,
   skillSyncGetRegisteredToolsRoute,
   skillSyncScanExternalToolsRoute
 } from '@shared/contracts/routes'
-import type { ExternalToolConfig, NewDiscovery, ScanResult } from '@shared/types/skillSync'
+import type { ExternalToolConfig, NewDiscovery, ScanResult } from '@deepchat/shared/types/skillSync'
 import { getDeepchatBridge } from './core'
 
 export function createSkillSyncClient(bridge: DeepchatBridge = getDeepchatBridge()) {

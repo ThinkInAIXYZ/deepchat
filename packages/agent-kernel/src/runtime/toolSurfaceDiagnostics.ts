@@ -1,5 +1,5 @@
-import type { ChatMessage } from '../shared/types/core/chat-message.js'
-import type { MCPToolDefinition } from '../shared/types/core/mcp.js'
+import type { ChatMessage } from '@deepchat/shared/types/core/chat-message'
+import type { MCPToolDefinition } from '@deepchat/shared/types/core/mcp'
 import type {
   DeepChatAgentInstance,
   DeepChatToolProfileKind

@@ -1,4 +1,4 @@
-import type { SessionWithState } from '@shared/types/agent-interface'
+import type { SessionWithState } from '@deepchat/shared/types/agent-interface'
 
 export interface DesktopSessionProjectionPort {
   getSession(sessionId: string): Promise<SessionWithState | null>

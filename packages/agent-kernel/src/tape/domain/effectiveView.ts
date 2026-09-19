@@ -1,4 +1,4 @@
-import type { ChatMessageRecord } from '../../shared/types/agent-interface.js'
+import type { ChatMessageRecord } from '@deepchat/shared/types/agent-interface'
 import type {
   DeepChatTapeEntryKind,
   DeepChatTapeEntryRow,

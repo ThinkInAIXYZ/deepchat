@@ -21,7 +21,7 @@ import type {
   AgentSkillImportPreviewItem,
   AgentSkillImportResult,
   AgentSkillImportSourceInfo
-} from '@shared/types/agentSkillImport'
+} from '@deepchat/shared/types/agentSkillImport'
 
 const props = withDefaults(
   defineProps<{

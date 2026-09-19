@@ -1,12 +1,12 @@
 import * as fs from 'node:fs'
 import path from 'node:path'
-import logger from '../shared/logger.js'
+import logger from '@deepchat/shared/logger'
 import type {
   DeepChatPromptAssembly,
   DeepChatPromptDegradationCode,
   DeepChatPromptSourceFreshness
-} from '../shared/types/prompt-assembly.js'
-import { formatCommandShellPromptLine, type ResolvedCommandShell } from '../shared/commandShell.js'
+} from '@deepchat/shared/types/prompt-assembly'
+import { formatCommandShellPromptLine, type ResolvedCommandShell } from '@deepchat/shared/commandShell'
 import type { ProviderCatalogPort } from '../collab/provider/ports.js'
 import { assemblePromptSections, createPromptAssemblySection } from './promptAssembly.js'
 

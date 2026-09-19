@@ -2,7 +2,7 @@ import {
   AGENT_MEMORY_EMBEDDING_STATES,
   AGENT_MEMORY_HEALTH_STATUS_KEYS,
   AGENT_MEMORY_LIFECYCLE_STATES
-} from '@shared/types/agent-memory'
+} from '@deepchat/shared/types/agent-memory'
 
 function sqlLiteral(value: string): string {
   return `'${value.replace(/'/g, "''")}'`

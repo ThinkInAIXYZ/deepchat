@@ -1,5 +1,5 @@
 import type { AgentSettingsPort } from '@/agent/settings'
-import type { MCPToolDefinition } from '@shared/types/mcp'
+import type { MCPToolDefinition } from '@deepchat/shared/types/mcp'
 
 export async function getAgentFilteredTools(
   agentId: string,

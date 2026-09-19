@@ -4,14 +4,14 @@ import {
   LIVE_DELEGATION_MAX_EFFECT_EVIDENCE_BYTES,
   LIVE_DELEGATION_MAX_RESULT_REF_BYTES,
   type LiveDelegationTurnStatus
-} from '@shared/orchestration/liveDelegation'
-import type { OrchestrationEffectState } from '@shared/orchestration/toolEffect'
+} from '@deepchat/shared/orchestration/liveDelegation'
+import type { OrchestrationEffectState } from '@deepchat/shared/orchestration/toolEffect'
 import {
   MAX_TASK_CONTRACT_BYTES,
   MAX_TASK_CONTRACT_REF_BYTES,
   MAX_TASK_EVALUATION_BYTES,
   MAX_TASK_EVALUATION_REF_BYTES
-} from '@shared/types/task-contract'
+} from '@deepchat/shared/types/task-contract'
 import {
   LIVE_DELEGATION_CONTRACT_DATABASE_SCHEMA_VERSION,
   LIVE_DELEGATION_DATABASE_SCHEMA_VERSION,

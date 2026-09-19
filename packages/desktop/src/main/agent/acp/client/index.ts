@@ -1,4 +1,4 @@
-import type { LLM_PROVIDER } from '@shared/types/provider'
+import type { LLM_PROVIDER } from '@deepchat/shared/types/provider'
 import type { AgentSettingsPort } from '@/agent/settings'
 import {
   AcpSessionController,
@@ -16,7 +16,7 @@ import type {
   CancelAcpPromptInput,
   StartAcpConnectionInput
 } from './types'
-import type { DeepchatEventName } from '@shared/contracts/events'
+import type { DeepchatEventName } from '@deepchat/shared/contracts/events'
 import type { McpSettings } from '@/mcp/settings'
 
 export class AcpClientRuntime {

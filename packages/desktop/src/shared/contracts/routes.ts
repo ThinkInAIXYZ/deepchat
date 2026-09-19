@@ -1,19 +1,22 @@
 import type { z } from 'zod'
-import type { RouteContract } from './common'
-import { approvalsResolveRoute } from './routes/approvals.routes'
+import type { RouteContract } from '@deepchat/shared/contracts/common'
+import { approvalsResolveRoute } from '@deepchat/shared/contracts/routes/approvals.routes'
 import {
   artifactsDeleteRoute,
   artifactsDescribeRoute,
   artifactsReadRoute
-} from './routes/artifacts.routes'
-import { audioTranscribeArtifactRoute, audioTranscribeUploadRoute } from './routes/audio.routes'
+} from '@deepchat/shared/contracts/routes/artifacts.routes'
+import {
+  audioTranscribeArtifactRoute,
+  audioTranscribeUploadRoute
+} from '@deepchat/shared/contracts/routes/audio.routes'
 import {
   acpAuthCancelRoute,
   acpAuthInputRoute,
   acpAuthInspectRoute,
   acpAuthStartRoute,
   acpAuthStatusRoute
-} from './routes/acp-auth.routes'
+} from '@deepchat/shared/contracts/routes/acp-auth.routes'
 import {
   browserAttachCurrentWindowRoute,
   browserFocusContentRoute,
@@ -94,12 +97,12 @@ import {
   cliDoctorRoute,
   cliStatusRoute,
   cliVersionRoute
-} from './routes/cli.routes'
+} from '@deepchat/shared/contracts/routes/cli.routes'
 import {
   imagesGenerateRoute,
   speechGenerateRoute,
   videosGenerateRoute
-} from './routes/media.routes'
+} from '@deepchat/shared/contracts/routes/media.routes'
 import {
   configAddCustomPromptRoute,
   configAddManualAcpAgentRoute,
@@ -177,7 +180,10 @@ import {
   configUpdateSystemPromptRoute,
   configUpdateVoiceAiConfigRoute
 } from './routes/config.routes'
-import { dialogErrorRoute, dialogRespondRoute } from './routes/dialog.routes'
+import {
+  dialogErrorRoute,
+  dialogRespondRoute
+} from '@deepchat/shared/contracts/routes/dialog.routes'
 import {
   deviceGetAppVersionRoute,
   deviceGetInfoRoute,
@@ -280,7 +286,7 @@ import {
   mcpSubmitElicitationDecisionRoute,
   mcpUpdatePublicRoute,
   mcpUpdateServerRoute
-} from './routes/mcp.routes'
+} from '@deepchat/shared/contracts/routes/mcp.routes'
 import {
   modelsAddCustomRoute,
   modelsExportConfigsRoute,
@@ -301,7 +307,7 @@ import {
   modelsSetStatusRoute,
   modelsTranscribeAudioRoute,
   modelsUpdateCustomRoute
-} from './routes/models.routes'
+} from '@deepchat/shared/contracts/routes/models.routes'
 import {
   notificationAcknowledgePresentationRoute,
   notificationRendererReadyRoute
@@ -311,7 +317,7 @@ import {
   ocrExtractArtifactRoute,
   ocrExtractUploadRoute,
   ocrGetRuntimeStatusRoute
-} from './routes/ocr.routes'
+} from '@deepchat/shared/contracts/routes/ocr.routes'
 import {
   onboardingCompleteRoute,
   onboardingGetStateRoute,
@@ -336,7 +342,7 @@ import {
   oauthXaiGrokGetStatusRoute,
   oauthXaiGrokLogoutRoute,
   oauthXaiGrokStartDeviceLoginRoute
-} from './routes/oauth.routes'
+} from '@deepchat/shared/contracts/routes/oauth.routes'
 import {
   remoteControlCancelFeishuAuthRoute,
   remoteControlCancelFeishuInstallRoute,
@@ -407,7 +413,7 @@ import {
   providersUpdatePublicRoute,
   providersUpdateRoute,
   providersWarmupAcpProcessRoute
-} from './routes/providers.routes'
+} from '@deepchat/shared/contracts/routes/providers.routes'
 import {
   projectArchiveEnvironmentRoute,
   projectGetSnapshotRoute,
@@ -443,7 +449,7 @@ import {
   settingsUpdatePublicRoute,
   settingsUpdateCommandShellRoute,
   settingsUpdateRoute
-} from './routes/settings.routes'
+} from '@deepchat/shared/contracts/routes/settings.routes'
 import {
   shortcutDestroyRoute,
   shortcutRegisterRoute,
@@ -456,7 +462,7 @@ import {
   runsCancelRoute,
   runsGetRoute,
   sessionsRunDetachedRoute
-} from './routes/runs.routes'
+} from '@deepchat/shared/contracts/routes/runs.routes'
 import {
   sessionsActivateRoute,
   sessionsClearMessagesRoute,
@@ -563,7 +569,7 @@ import {
   skillsUninstallPublicRoute,
   skillsUninstallRoute,
   skillsUpdateFileRoute
-} from './routes/skills.routes'
+} from '@deepchat/shared/contracts/routes/skills.routes'
 import {
   skillSyncAcknowledgeDiscoveriesRoute,
   skillSyncGetNewDiscoveriesRoute,
@@ -591,8 +597,8 @@ import {
   toolchainsRepairRoute,
   toolchainsRevertRoute,
   toolchainsSetSourceRoute
-} from './routes/toolchains.routes'
-import { toolsListDefinitionsRoute } from './routes/tools.routes'
+} from '@deepchat/shared/contracts/routes/toolchains.routes'
+import { toolsListDefinitionsRoute } from '@deepchat/shared/contracts/routes/tools.routes'
 import { tabCaptureCurrentAreaRoute, tabStitchImagesWithWatermarkRoute } from './routes/tab.routes'
 import {
   upgradeCheckRoute,
@@ -645,47 +651,47 @@ import {
 } from './routes/orchestration.routes'
 
 export * from './routes/browser.routes'
-export * from './routes/approvals.routes'
-export * from './routes/artifacts.routes'
-export * from './routes/audio.routes'
+export * from '@deepchat/shared/contracts/routes/approvals.routes'
+export * from '@deepchat/shared/contracts/routes/artifacts.routes'
+export * from '@deepchat/shared/contracts/routes/audio.routes'
 export * from './routes/computerUse.routes'
-export * from './routes/acp-auth.routes'
+export * from '@deepchat/shared/contracts/routes/acp-auth.routes'
 export * from './routes/chat.routes'
 export * from './routes/config.routes'
 export * from './routes/database-security.routes'
 export * from './routes/debug.routes'
-export * from './routes/dialog.routes'
+export * from '@deepchat/shared/contracts/routes/dialog.routes'
 export * from './routes/device.routes'
 export * from './routes/file.routes'
 export * from './routes/knowledge.routes'
-export * from './routes/cli.routes'
-export * from './routes/mcp.routes'
+export * from '@deepchat/shared/contracts/routes/cli.routes'
+export * from '@deepchat/shared/contracts/routes/mcp.routes'
 export * from './routes/memory.routes'
-export * from './routes/media.routes'
-export * from './routes/models.routes'
+export * from '@deepchat/shared/contracts/routes/media.routes'
+export * from '@deepchat/shared/contracts/routes/models.routes'
 export * from './routes/notification.routes'
 export * from './routes/nowledgeMem.routes'
 export * from './routes/onboarding.routes'
-export * from './routes/oauth.routes'
-export * from './routes/ocr.routes'
+export * from '@deepchat/shared/contracts/routes/oauth.routes'
+export * from '@deepchat/shared/contracts/routes/ocr.routes'
 export * from './routes/plugins.routes'
 export * from './routes/performance.routes'
-export * from './routes/providers.routes'
+export * from '@deepchat/shared/contracts/routes/providers.routes'
 export * from './routes/project.routes'
-export * from './routes/runs.routes'
+export * from '@deepchat/shared/contracts/routes/runs.routes'
 export * from './routes/remote-control.routes'
 export * from './routes/cronJobs.routes'
-export * from './routes/settings.routes'
+export * from '@deepchat/shared/contracts/routes/settings.routes'
 export * from './routes/shortcut.routes'
 export * from './routes/startup.routes'
 export * from './routes/sessions.routes'
-export * from './routes/skills.routes'
+export * from '@deepchat/shared/contracts/routes/skills.routes'
 export * from './routes/skillSync.routes'
 export * from './routes/sync.routes'
 export * from './routes/system.routes'
-export * from './routes/toolchains.routes'
+export * from '@deepchat/shared/contracts/routes/toolchains.routes'
 export * from './routes/tab.routes'
-export * from './routes/tools.routes'
+export * from '@deepchat/shared/contracts/routes/tools.routes'
 export * from './routes/upgrade.routes'
 export * from './routes/window.routes'
 export * from './routes/workspace.routes'

@@ -14,7 +14,7 @@ import {
 import {
   LOCAL_CONTROL_PROTOCOL_VERSION,
   LOCAL_CONTROL_SURFACE_VERSION
-} from '@shared/contracts/localControl'
+} from '@deepchat/shared/contracts/localControl'
 import {
   DocumentTextExtractionError,
   type DocumentTextExtractionResult

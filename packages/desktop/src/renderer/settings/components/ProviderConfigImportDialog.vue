@@ -444,7 +444,7 @@ import {
 import { Spinner } from '@shadcn/components/ui/spinner'
 import { cn } from '@/lib/utils'
 import { createProviderClient } from '@api/ProviderClient'
-import { PROVIDER_IMPORT_CUSTOM_API_TYPES } from '@shared/providerImport'
+import { PROVIDER_IMPORT_CUSTOM_API_TYPES } from '@deepchat/shared/providerImport'
 import type {
   ProviderImportApplyResult,
   ProviderImportApplyResultItem,
@@ -454,7 +454,7 @@ import type {
   ProviderImportSelection,
   ProviderImportSourceId,
   ProviderImportSourceScan
-} from '@shared/providerImport'
+} from '@deepchat/shared/providerImport'
 import { settingsLeaveGuard } from '../services/settingsLeaveGuard'
 
 type WizardStep = 'scan' | 'providers' | 'applying' | 'done'

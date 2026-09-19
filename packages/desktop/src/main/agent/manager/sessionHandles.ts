@@ -1,4 +1,4 @@
-import type { AcpConfigState } from '@shared/types/acp'
+import type { AcpConfigState } from '@deepchat/shared/types/acp'
 import type {
   DeepChatSessionState,
   MessageStartResult,
@@ -14,7 +14,7 @@ import type {
   SubagentTapeLinkReceipt,
   ToolInteractionResponse,
   ToolInteractionResult
-} from '@shared/types/agent-interface'
+} from '@deepchat/shared/types/agent-interface'
 import type { AppSessionId } from '@deepchat/agent-kernel/collab/agent-shared/agentSessionIds'
 import type { AgentSessionSendInput } from '@/agent/shared/agentSessionHandle'
 import type { AcpMode } from '@/agent/acp/instance'

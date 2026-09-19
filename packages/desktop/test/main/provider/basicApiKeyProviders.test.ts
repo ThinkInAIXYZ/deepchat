@@ -1,6 +1,6 @@
 import type { ProviderSettingsPort } from '@/provider/settings'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { LLM_PROVIDER } from '@shared/types/provider'
+import type { LLM_PROVIDER } from '@deepchat/shared/types/provider'
 import { DEFAULT_PROVIDERS } from '../../../src/main/provider/defaults'
 import { AiSdkProvider } from '../../../src/main/provider/providers/aiSdkProvider'
 import { resolveAiSdkProviderDefinition } from '../../../src/main/provider/providerRegistry'
@@ -22,7 +22,7 @@ vi.mock('electron', () => ({
   }
 }))
 
-vi.mock('@shared/logger', () => ({
+vi.mock('@deepchat/shared/logger', () => ({
   default: {
     info: vi.fn(),
     warn: vi.fn(),

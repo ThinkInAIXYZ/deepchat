@@ -4,9 +4,9 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { createDeepChatAgentHarness, type DeepChatAgentHarness } from '@/agent/deepchat/harness'
 import { estimateMessagesTokens } from '@deepchat/agent-kernel/runtime/contextBuilder'
 import { createHookObserver, noopHookObserver } from '../hook/hookObserverFixture'
-import type { PermissionMode } from '@shared/types/agent-interface'
-import type { ReasoningEffort, Verbosity } from '@shared/types/model-db'
-import logger from '@shared/logger'
+import type { PermissionMode } from '@deepchat/shared/types/agent-interface'
+import type { ReasoningEffort, Verbosity } from '@deepchat/shared/types/model-db'
+import logger from '@deepchat/shared/logger'
 import { toAppSessionId } from '@deepchat/agent-kernel/collab/agent-shared/agentSessionIds'
 import type { DeepChatActiveGeneration } from '@deepchat/agent-kernel/instance/deepChatAgentInstance'
 import { createDeepChatAgentBackendFixture } from '../agent/manager/deepChatAgentBackendFixture'
@@ -18,7 +18,7 @@ import {
   isEffectiveMessageInputRow,
   isEffectiveViewInputRow
 } from '@deepchat/agent-kernel/tape/domain/effectiveSemantics'
-import { createPassthroughModelRequestPolicy } from '@shared/modelRequestPolicy'
+import { createPassthroughModelRequestPolicy } from '@deepchat/shared/modelRequestPolicy'
 import { POSIX_COMMAND_SHELL } from '../../helpers/commandShell'
 
 vi.mock('nanoid', () => {

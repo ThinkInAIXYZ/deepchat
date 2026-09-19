@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto'
-import type { JsonValue } from '@shared/contracts/json'
+import type { JsonValue } from '@deepchat/shared/contracts/json'
 
 const MAX_ARGUMENT_BYTES = 1024 * 1024
 const MAX_REDACTED_DISPLAY_BYTES = 16 * 1024

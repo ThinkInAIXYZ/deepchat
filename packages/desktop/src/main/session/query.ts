@@ -1,4 +1,4 @@
-import logger from '@shared/logger'
+import logger from '@deepchat/shared/logger'
 import type {
   AgentTapeAnchorResult,
   AgentTapeAnchorsOptions,
@@ -18,13 +18,13 @@ import type {
   SessionRecord,
   SessionWithState,
   UserMessageContent
-} from '@shared/types/agent-interface'
-import type { SearchResult } from '@shared/types/core/search'
-import type { DeepChatTapeViewManifestRecord } from '@shared/types/tape-view-manifest'
+} from '@deepchat/shared/types/agent-interface'
+import type { SearchResult } from '@deepchat/shared/types/core/search'
+import type { DeepChatTapeViewManifestRecord } from '@deepchat/shared/types/tape-view-manifest'
 import type {
   DeepChatNestedExecutionAudit,
   DeepChatNestedExecutionAuditState
-} from '@shared/types/execution-journal-audit'
+} from '@deepchat/shared/types/execution-journal-audit'
 import type {
   ExportTapeInspectorSupportTraceInput,
   ExportTapeInspectorSupportTraceOutput,
@@ -36,8 +36,8 @@ import type {
   ListTapeInspectorPageOutput,
   ResolveTapeInspectorEvidenceEntriesInput,
   ResolveTapeInspectorEvidenceEntriesOutput
-} from '@shared/types/tape-inspector'
-import { TAPE_INSPECTOR_SUPPORT_EVIDENCE_LIMIT } from '@shared/types/tape-inspector'
+} from '@deepchat/shared/types/tape-inspector'
+import { TAPE_INSPECTOR_SUPPORT_EVIDENCE_LIMIT } from '@deepchat/shared/types/tape-inspector'
 import { ExecutionJournalCorruptionError } from '@deepchat/agent-kernel/tape/domain/executionJournal'
 import type {
   SessionLightweightOptions,

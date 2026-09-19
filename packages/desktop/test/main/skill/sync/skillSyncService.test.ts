@@ -9,8 +9,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import * as fs from 'fs'
 import * as path from 'path'
 import { SkillSyncService } from '../../../../src/main/skill/sync'
-import type { SkillServicePort } from '@shared/types/skill'
-import type { ExternalToolConfig } from '../../../../src/shared/types/skillSync'
+import type { SkillServicePort } from '@deepchat/shared/types/skill'
+import type { ExternalToolConfig } from '@deepchat/shared/types/skillSync'
 
 const scanWorkerMock = vi.hoisted(() => ({
   scanExternalToolsInWorker: vi.fn(),

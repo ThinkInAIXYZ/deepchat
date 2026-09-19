@@ -1,6 +1,6 @@
 import { describe, expect, it, beforeEach, vi } from 'vitest'
 import { ref } from 'vue'
-import type { MessageFile } from '@shared/types/agent-interface'
+import type { MessageFile } from '@deepchat/shared/types/agent-interface'
 import { useChatInputFiles } from '@/components/chat/composables/useChatInputFiles'
 
 const { notifyMock, fileClient } = vi.hoisted(() => ({

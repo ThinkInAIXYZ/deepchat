@@ -5,7 +5,7 @@ import type {
   AgentMemoryRow,
   MemoryVectorMatch
 } from '@deepchat/agent-kernel/collab/memory/domain/types'
-import type { DeepChatAgentConfig } from '@shared/types/agent-interface'
+import type { DeepChatAgentConfig } from '@deepchat/shared/types/agent-interface'
 import { createControlledPromise } from './serviceHarness'
 import {
   FakeAuditRepository,

@@ -23,10 +23,10 @@ import {
   TOOL_EXECUTION,
   type MCPToolDefinition,
   type ToolExecutionContract
-} from '@shared/types/mcp'
-import type { ToolServicePort } from '@shared/types/tool'
-import type { AssistantMessageBlock, PermissionMode } from '@shared/types/agent-interface'
-import type { ChatMessageProviderReplayProjector } from '@shared/types/core/chat-message'
+} from '@deepchat/shared/types/mcp'
+import type { ToolServicePort } from '@deepchat/shared/types/tool'
+import type { AssistantMessageBlock, PermissionMode } from '@deepchat/shared/types/agent-interface'
+import type { ChatMessageProviderReplayProjector } from '@deepchat/shared/types/core/chat-message'
 import { ToolOutputGuard } from '@deepchat/agent-kernel/runtime/toolOutputGuard'
 import {
   createToolExecutionPort,
@@ -43,7 +43,7 @@ import { QUESTION_TOOL_NAME } from '@deepchat/agent-kernel/collab/tool/agentTool
 import {
   IMAGE_GENERATE_TOOL_NAME,
   IMAGE_GENERATION_TOOL_SERVER_NAME
-} from '@shared/agentImageGenerationTool'
+} from '@deepchat/shared/agentImageGenerationTool'
 import { resolveToolOffloadPath } from '@deepchat/agent-kernel/collab/agent-shared/storage/sessionPaths'
 import { createDeepSeekResponsesReplayProjector } from '@deepchat/agent-kernel/collab/provider/deepseekResponsesAdapter'
 import type {
@@ -55,7 +55,7 @@ import { POSIX_COMMAND_SHELL } from '../../../../helpers/commandShell'
 import {
   TOOL_SEARCH_AGENT_TOOL_NAME,
   TOOL_SEARCH_AGENT_TOOL_SERVER_NAME
-} from '@shared/agentTools'
+} from '@deepchat/shared/agentTools'
 import {
   MAX_TOOL_SURFACE_SEARCH_CALLS_PER_BATCH,
   assertIssuedToolSurfaceExecutionContext,
@@ -81,7 +81,7 @@ import type {
 import type { ArmedAgentCliProgrammaticToken } from '@/cli/agentTokenAuthority'
 import { ProgrammaticCommandLaunchError } from '@deepchat/agent-kernel/runtime/programmaticCommandLaunchError'
 import { prepareProgrammaticExecParent } from '@deepchat/agent-kernel/runtime/programmaticExecParent'
-import { CODE_MODE_TOOL_SERVER_NAME } from '@shared/codeModeProtocol'
+import { CODE_MODE_TOOL_SERVER_NAME } from '@deepchat/shared/codeModeProtocol'
 
 const publishDeepchatEventMock = vi.hoisted(() => vi.fn())
 const PROGRAMMATIC_EXEC_ARGUMENTS = JSON.stringify({

@@ -1,14 +1,14 @@
 import { z } from 'zod'
-import { toDeepChatJsonSchema } from '../../../shared/lib/zodJsonSchema.js'
-import { TOOL_EXECUTION, type MCPToolDefinition } from '../../../shared/types/mcp.js'
-import type { AgentToolProgressUpdate } from '../../../shared/types/tool.js'
+import { toDeepChatJsonSchema } from '@deepchat/shared/lib/zodJsonSchema'
+import { TOOL_EXECUTION, type MCPToolDefinition } from '@deepchat/shared/types/mcp'
+import type { AgentToolProgressUpdate } from '@deepchat/shared/types/tool'
 import {
   UPDATE_PLAN_TOOL_NAME,
   agentPlanItemSchema,
   type AgentPlanState,
   type AgentPlanSnapshot,
   type UpdatePlanArgs
-} from '../../../shared/types/agent-plan.js'
+} from '@deepchat/shared/types/agent-plan'
 
 export { UPDATE_PLAN_TOOL_NAME }
 export const AGENT_CORE_TOOL_SERVER_NAME = 'agent-core'

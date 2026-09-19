@@ -5,7 +5,7 @@ import path from 'path'
 import { AgentFffSearchHandler, GLOB_TOOL_NAME } from '@/tool/agentTools/agentFffSearchHandler'
 import { FffSearchUnavailableError } from '@/platform/fileSearch/fffSearchService'
 
-vi.mock('@shared/logger', () => ({
+vi.mock('@deepchat/shared/logger', () => ({
   default: {
     warn: vi.fn()
   }

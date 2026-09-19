@@ -4,8 +4,8 @@ import {
   TOOL_EXECUTION,
   type MCPToolDefinition,
   type ToolExecutionContract
-} from '@shared/types/core/mcp'
-import type { PermissionMode } from '@shared/types/agent-interface'
+} from '@deepchat/shared/types/core/mcp'
+import type { PermissionMode } from '@deepchat/shared/types/agent-interface'
 
 function makeDefinition(
   name: string,

@@ -1,7 +1,7 @@
-import type { ChatMessage } from '../../shared/types/core/chat-message.js'
-import { stripToolExecutionContract, type MCPToolDefinition } from '../../shared/types/core/mcp.js'
-import type { ChatMessageRecord } from '../../shared/types/agent-interface.js'
-import type { DeepChatExecutionContract } from '../../shared/types/execution-contract.js'
+import type { ChatMessage } from '@deepchat/shared/types/core/chat-message'
+import { stripToolExecutionContract, type MCPToolDefinition } from '@deepchat/shared/types/core/mcp'
+import type { ChatMessageRecord } from '@deepchat/shared/types/agent-interface'
+import type { DeepChatExecutionContract } from '@deepchat/shared/types/execution-contract'
 import type {
   DeepChatTapeViewEntryRef,
   DeepChatTapeViewExcludedRange,
@@ -19,9 +19,9 @@ import type {
   DeepChatTapeViewSyntheticContribution,
   DeepChatTapeViewTaskType,
   DeepChatTapeViewTokenBudget
-} from '../../shared/types/tape-view-manifest.js'
+} from '@deepchat/shared/types/tape-view-manifest'
 import { validateSchema6SkillContexts, validateSchema7SkillContexts } from './skillContext.js'
-import { estimateMessagesTokens } from '../../shared/utils/messageTokens.js'
+import { estimateMessagesTokens } from '@deepchat/shared/utils/messageTokens'
 import { hashJson, hashJsonData } from './canonicalJson.js'
 import { SHA256_HEX_PATTERN } from './primitives.js'
 import {

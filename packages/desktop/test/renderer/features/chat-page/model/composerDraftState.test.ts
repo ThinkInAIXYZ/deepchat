@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { MessageFile } from '@shared/types/agent-interface'
+import type { MessageFile } from '@deepchat/shared/types/agent-interface'
 import {
   applyAcceptedComposerSubmission,
   copyComposerFiles,

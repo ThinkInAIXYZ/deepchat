@@ -211,7 +211,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@shadcn/components/ui/
 import { createConfigClient } from '@api/ConfigClient'
 import { createMemoryClient } from '@api/MemoryClient'
 import type { MemoryStatusDto } from '@shared/contracts/routes'
-import type { Agent, DeepChatAgentConfig } from '@shared/types/agent-interface'
+import type { Agent, DeepChatAgentConfig } from '@deepchat/shared/types/agent-interface'
 import SettingsPageShell from './control-center/SettingsPageShell.vue'
 import MemoryConfigInlinePanel from './MemoryConfigInlinePanel.vue'
 import MemoryDiagnosticsPanel from './MemoryDiagnosticsPanel.vue'

@@ -1,8 +1,8 @@
 
 
-import type { PermissionMode, SessionGenerationSettings } from '../shared/types/agent-interface.js'
-import type { ReasoningPortrait } from '../shared/types/model-db.js'
-import type { ResolvedModelCapabilitySnapshot } from '../shared/types/model-capabilities.js'
+import type { PermissionMode, SessionGenerationSettings } from '@deepchat/shared/types/agent-interface'
+import type { ReasoningPortrait } from '@deepchat/shared/types/model-db'
+import type { ResolvedModelCapabilitySnapshot } from '@deepchat/shared/types/model-capabilities'
 import {
   getReasoningEffectiveEnabledForProvider,
   hasAnthropicReasoningToggle,
@@ -11,27 +11,27 @@ import {
   normalizeReasoningEffortValue,
   normalizeReasoningVisibilityValue,
   isVerbosity
-} from '../shared/types/model-db.js'
+} from '@deepchat/shared/types/model-db'
 import {
   normalizeLegacyThinkingBudgetValue,
   parseFiniteNumericValue,
   toValidNonNegativeInteger,
   validateGenerationNumericField
-} from '../shared/utils/generationSettingsValidation.js'
+} from '@deepchat/shared/utils/generationSettingsValidation'
 import {
   DEFAULT_MODEL_TIMEOUT,
   MODEL_TIMEOUT_MAX_MS,
   MODEL_TIMEOUT_MIN_MS
-} from '../shared/modelConfigDefaults.js'
+} from '@deepchat/shared/modelConfigDefaults'
 import {
   normalizeImageGenerationOptions,
   supportsOpenAIImageGenerationSettings
-} from '../shared/imageGenerationSettings.js'
+} from '@deepchat/shared/imageGenerationSettings'
 import {
   normalizeVideoGenerationOptions,
   supportsOpenAICompatibleVideoGeneration
-} from '../shared/videoGenerationSettings.js'
-import { isDeepSeekSeriesModelId } from '../shared/model.js'
+} from '@deepchat/shared/videoGenerationSettings'
+import { isDeepSeekSeriesModelId } from '@deepchat/shared/model'
 import { capAgentDefaultMaxTokens } from './contextBudget.js'
 import type { InterleavedReasoningConfig } from './types.js'
 import {

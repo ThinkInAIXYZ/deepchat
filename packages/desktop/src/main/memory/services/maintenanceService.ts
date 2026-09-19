@@ -1,5 +1,5 @@
-import logger from '@shared/logger'
-import { isSafeAgentId } from '@shared/types/agent-memory'
+import logger from '@deepchat/shared/logger'
+import { isSafeAgentId } from '@deepchat/shared/types/agent-memory'
 import { ARCHIVE_AGE_MS, ARCHIVE_DECAY_THRESHOLD } from '../core/lifecycle'
 import { MaintenanceBudget, type MaintenanceBudgetStep } from '../core/maintenanceBudget'
 import { AsyncSemaphore } from '../../lib/asyncSemaphore'

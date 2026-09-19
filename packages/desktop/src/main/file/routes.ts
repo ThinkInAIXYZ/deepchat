@@ -1,4 +1,4 @@
-import type { FileServicePort } from '@shared/types/file'
+import type { FileServicePort } from '@deepchat/shared/types/file'
 import {
   fileCopyImageRoute,
   fileGetMimeTypeRoute,

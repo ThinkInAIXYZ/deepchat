@@ -1,7 +1,7 @@
 import { mount } from '@vue/test-utils'
 import type { VueWrapper } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { YoBrowserActivityPayload } from '@shared/types/browser'
+import type { YoBrowserActivityPayload } from '@deepchat/shared/types/browser'
 
 let activityListener: ((payload: YoBrowserActivityPayload) => void) | null = null
 const mountedWrappers: VueWrapper[] = []

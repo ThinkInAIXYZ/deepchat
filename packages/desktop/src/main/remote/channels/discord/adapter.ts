@@ -8,7 +8,7 @@ import { DiscordCommandRouter } from './commandRouter'
 import { DiscordClient } from './discordClient'
 import { DiscordParser } from './discordParser'
 import { DiscordRuntime } from './discordRuntime'
-import logger from '@shared/logger'
+import logger from '@deepchat/shared/logger'
 
 const DEFAULT_STATUS: DiscordRuntimeStatusSnapshot = {
   state: 'stopped',

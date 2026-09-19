@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 
 import { buildMemoryProvenanceKey } from '@/memory/core/scoring'
-import type { DeepChatAgentConfig } from '@shared/types/agent-interface'
+import type { DeepChatAgentConfig } from '@deepchat/shared/types/agent-interface'
 import { createFakeRepository, FakeAuditRepository } from './support/memoryFakes'
 import {
   DAY,

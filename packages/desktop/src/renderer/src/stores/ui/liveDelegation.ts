@@ -4,7 +4,7 @@ import { createOrchestrationClient } from '@api/OrchestrationClient'
 import type {
   LiveDelegationDetail,
   LiveDelegationSummary
-} from '@shared/orchestration/liveDelegation'
+} from '@deepchat/shared/orchestration/liveDelegation'
 
 type LiveDelegationSessionProjection = {
   byId: Map<

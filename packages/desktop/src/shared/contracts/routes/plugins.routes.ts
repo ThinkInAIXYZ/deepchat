@@ -1,10 +1,10 @@
 import { z } from 'zod'
-import { defineRouteContract, JsonValueSchema } from '../common'
+import { defineRouteContract, JsonValueSchema } from '@deepchat/shared/contracts/common'
 import type {
   PluginActionResult,
   PluginInvokeActionRequest,
   PluginListItem
-} from '@shared/types/plugin'
+} from '@deepchat/shared/types/plugin'
 
 const PluginListItemSchema = z.custom<PluginListItem>()
 const PluginActionResultSchema = z.custom<PluginActionResult>()
@@ -87,7 +87,9 @@ export const UserPluginSourceSchema = z.discriminatedUnion('kind', [
 export const pluginsInspectSourceRoute = defineRouteContract({
   name: 'plugins.inspectSource',
   input: z.object({ source: UserPluginSourceSchema, requestId: z.string().uuid() }).strict(),
-  output: z.object({ prepared: z.custom<import('@shared/types/userPlugin').PreparedUserPlugin>() })
+  output: z.object({
+    prepared: z.custom<import('@deepchat/shared/types/userPlugin').PreparedUserPlugin>()
+  })
 })
 
 export const pluginsInstallUserRoute = defineRouteContract({

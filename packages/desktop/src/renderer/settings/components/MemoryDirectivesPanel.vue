@@ -276,10 +276,10 @@ import {
   AGENT_MEMORY_DIRECTIVE_TOPIC_MAX_CHARS,
   type AgentMemoryDirectiveKind,
   type AgentMemoryDirectiveStatus
-} from '@shared/types/agent-memory'
+} from '@deepchat/shared/types/agent-memory'
 import type { MemoryDirectiveCreateInput, MemoryDirectiveItem } from '@shared/contracts/routes'
-import { isMemoryDirectiveTopicSpecificEnough } from '@shared/lib/memoryDirectiveTopic'
-import { unicodeCodePointLength } from '@shared/lib/unicodeText'
+import { isMemoryDirectiveTopicSpecificEnough } from '@deepchat/shared/lib/memoryDirectiveTopic'
+import { unicodeCodePointLength } from '@deepchat/shared/lib/unicodeText'
 import { shortDate } from './memoryRedesignUtils'
 import MemoryInlineFeedback from './MemoryInlineFeedback.vue'
 import {

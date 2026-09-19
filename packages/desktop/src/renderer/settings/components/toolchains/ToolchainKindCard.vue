@@ -127,7 +127,11 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { AcceptableValue } from 'reka-ui'
-import type { ToolchainKind, ToolchainKindStatus, ToolchainSource } from '@shared/types/toolchains'
+import type {
+  ToolchainKind,
+  ToolchainKindStatus,
+  ToolchainSource
+} from '@deepchat/shared/types/toolchains'
 import { DcButton } from '@dc-ui/components/button'
 import { Select, SelectContent, SelectItem, SelectTrigger } from '@shadcn/components/ui/select'
 import SettingsSectionCard from '../control-center/SettingsSectionCard.vue'

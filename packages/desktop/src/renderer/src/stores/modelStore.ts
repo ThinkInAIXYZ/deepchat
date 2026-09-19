@@ -2,16 +2,16 @@ import { computed, type ComputedRef, readonly, ref, watch } from 'vue'
 import { defineStore } from 'pinia'
 import { useQueryCache, type DataState, type EntryKey, type UseQueryEntry } from '@pinia/colada'
 import { useThrottleFn } from '@vueuse/core'
-import type { MODEL_META, RENDERER_MODEL_META, ModelConfig } from '@shared/types/provider'
-import { isChatSelectableModelType, ModelType } from '@shared/model'
+import type { MODEL_META, RENDERER_MODEL_META, ModelConfig } from '@deepchat/shared/types/provider'
+import { isChatSelectableModelType, ModelType } from '@deepchat/shared/model'
 import {
   resolveDerivedModelMaxTokens,
   resolveModelContextLength,
   resolveModelFunctionCall,
   resolveModelMaxTokens,
   resolveModelVision
-} from '@shared/modelConfigDefaults'
-import { resolveVideoGenerationCompatType } from '@shared/videoGenerationSettings'
+} from '@deepchat/shared/modelConfigDefaults'
+import { resolveVideoGenerationCompatType } from '@deepchat/shared/videoGenerationSettings'
 import { useIpcMutation } from '@/composables/useIpcMutation'
 import { useAgentModelStore } from '@/stores/agentModelStore'
 import { useModelConfigStore } from '@/stores/modelConfigStore'
