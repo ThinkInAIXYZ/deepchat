@@ -166,6 +166,7 @@ export class AcpAgentInstance
       active.projection = this.dependencies.projection.begin({
         sessionId: this.sessionId,
         userContent: resources.userContent,
+        abortSignal: signal,
         ...(projectionContext ? { projectionContext } : {})
       })
       projectionResult = active.projection

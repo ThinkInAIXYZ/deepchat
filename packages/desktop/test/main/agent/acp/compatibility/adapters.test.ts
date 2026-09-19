@@ -263,7 +263,8 @@ function createProjectionHarness() {
   })
   const handle = adapter.begin({
     sessionId: toAppSessionId('app-session'),
-    userContent: { text: 'hello', files: [], links: [], search: false, think: false }
+    userContent: { text: 'hello', files: [], links: [], search: false, think: false },
+    abortSignal: new AbortController().signal
   })
   const getAssistantTapeRecord = () => {
     const row = tapeRows.find(

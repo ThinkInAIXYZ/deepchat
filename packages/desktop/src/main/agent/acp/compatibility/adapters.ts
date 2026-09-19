@@ -108,7 +108,7 @@ export class AcpCompatibilityProjectionAdapter implements AcpCompatibilityProjec
       providerId: 'acp',
       modelId: 'acp',
       messageStore,
-      abortSignal: new AbortController().signal,
+      abortSignal: input.abortSignal,
       publishEvent: this.options.publishEvent,
       publishSessionUpdate: this.options.publishSessionUpdate
     }

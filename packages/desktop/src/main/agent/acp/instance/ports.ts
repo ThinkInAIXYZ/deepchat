@@ -224,6 +224,8 @@ export interface AcpCompatibilityProjectionPort {
   begin(input: {
     sessionId: AppSessionId
     userContent: UserMessageContent
+    /** Must be the active prompt's real signal; the projection never creates its own. */
+    abortSignal: AbortSignal
     projectionContext?: AcpProjectionContext
   }): AcpProjectionHandle
   attemptViewManifest(input: AcpViewManifestInput): void | Promise<void>

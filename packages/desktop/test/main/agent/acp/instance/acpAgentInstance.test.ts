@@ -81,6 +81,7 @@ function createHarness(options?: {
 }) {
   const calls: string[] = []
   const cancelCauses: string[] = []
+  const beginSignals: AbortSignal[] = []
   let hooks:
     | {
         onEvents?(events: ReturnType<typeof createStreamEvent.text>[]): void
@@ -129,7 +130,8 @@ function createHarness(options?: {
   } as AcpSessionRecord
   const projection: AcpCompatibilityProjectionPort = {
     setStatus: (status) => calls.push(`status.${status}`),
-    begin: () => {
+    begin: (input) => {
+      beginSignals.push(input.abortSignal)
       calls.push('projection.begin')
       return projectionHandle
     },
@@ -225,7 +227,7 @@ function createHarness(options?: {
     },
     dependencies
   )
-  return { calls, cancelCauses, connection, dependencies, instance, session }
+  return { beginSignals, calls, cancelCauses, connection, dependencies, instance, session }
 }
 
 describe('AcpAgentInstance', () => {
@@ -327,6 +329,22 @@ describe('AcpAgentInstance', () => {
 
     expect(harness.connection.prompt).toHaveBeenCalledTimes(1)
     expect(harness.cancelCauses).toEqual(['pending_input'])
+  })
+
+  it('aborts the projection runtime signal when the active prompt is cancelled', async () => {
+    const harness = createHarness({ promptNeverSettles: true })
+    const sending = harness.instance.send('hello')
+    await harness.instance.waitForFirstTurnReady({ timeoutMs: 100 })
+
+    const signal = harness.beginSignals.at(-1)
+    expect(signal).toBeInstanceOf(AbortSignal)
+    expect(signal?.aborted).toBe(false)
+
+    await harness.instance.cancel('user_stop')
+    await sending
+
+    expect(signal?.aborted).toBe(true)
+    expect(harness.calls).toContain('projection.cancel')
   })
 
   it('settles an active prompt before clearing its session on close', async () => {
