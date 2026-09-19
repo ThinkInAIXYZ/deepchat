@@ -12,13 +12,12 @@ export const packageDirectory = path.resolve(scriptDirectory, '..')
 export const cliOutputDirectory = path.join(packageDirectory, 'dist')
 
 function parseBuildOptions(argv) {
-  const watch = argv.includes('--watch')
   const versionIndex = argv.indexOf('--version')
   const version = versionIndex >= 0 ? argv[versionIndex + 1]?.trim() : undefined
-  if (!version) {
-    throw new Error('Usage: build.mjs --version <desktop-release-version> [--watch]')
+  if (!version || versionIndex + 2 !== argv.length) {
+    throw new Error('Usage: build.mjs --version <desktop-release-version>')
   }
-  return { version, watch }
+  return { version }
 }
 
 export async function buildCli(options) {
@@ -53,9 +52,7 @@ export async function buildCli(options) {
           inlineDynamicImports: true,
           banner: '#!/usr/bin/env node'
         }
-      },
-      // Watch mode keeps the bundle current for CLI debugging against a running Desktop.
-      ...(options.watch ? { watch: {} } : {})
+      }
     },
     logLevel: options.logLevel ?? 'info'
   })

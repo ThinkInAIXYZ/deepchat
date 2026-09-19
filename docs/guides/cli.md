@@ -251,21 +251,18 @@ human-only。Skill/MCP 的脱敏列表可直接读取。
 | Agent shell gate                                        | `packages/agent-kernel/src/collab/tool/permission/commandPermissionService.ts` |
 | bundled Agent instructions                              | `packages/desktop/resources/skills/deepchat-cli/SKILL.md` |
 
-### 调试回路
+### 本地构建与运行
 
-`pnpm run cli:dev`（root 转发到 Desktop）以 watch 模式构建 CLI 到
-`packages/desktop/out/cli/deepchat.mjs`，版本号取 Desktop package.json。修改 `packages/cli/src`
-或被 CLI 消费的 shared 源码后产物自动重建；调试时用系统 Node 直接执行产物，对着一个运行中的
-Desktop（dev 或打包均可，本地控制面需可用）：
+`pnpm run cli:build` 打包 CLI 到 `packages/desktop/out/cli/deepchat.mjs`（版本号取 Desktop
+package.json）。CLI 无法直接从 TypeScript 源码运行（运行时 import specifier 依赖 workspace
+包解析），先打包再用 `cli:run` 执行是标准调试回路；对着一个运行中的 Desktop（dev 或打包
+均可，本地控制面需可用）：
 
 ```sh
-pnpm run cli:dev
-node packages/desktop/out/cli/deepchat.mjs --help
+pnpm run cli:build
+pnpm run cli:run -- --help
+pnpm run cli:run -- profile list
 ```
-
-CLI 无法直接从 TypeScript 源码运行：运行时 import specifier 依赖 workspace 包解析，watch
-构建是唯一的源码调试回路。`pnpm --filter @deepchat/cli run dev` 则构建到 CLI 包自己的
-`dist/`，版本号为 `dev`。
 
 main 只监听 UDS 或 named pipe，不开放 TCP fallback。CLI surface 引用 canonical typed contracts，但
 不是内部 route registry 的通用代理。新增能力必须显式加入 surface，并同时定义 caller、scope、

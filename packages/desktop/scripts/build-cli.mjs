@@ -27,7 +27,7 @@ export async function buildCli(options = {}) {
 }
 
 if (process.argv[1] && pathToFileURL(path.resolve(process.argv[1])).href === import.meta.url) {
-  buildCli({ watch: process.argv.includes('--watch') }).catch((error) => {
+  buildCli().catch((error) => {
     console.error(error instanceof Error ? error.message : error)
     process.exitCode = 1
   })
