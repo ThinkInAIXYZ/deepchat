@@ -3361,6 +3361,7 @@ export async function createMainProcessControl(dependencies: {
     if (
       routeName.startsWith('chat.') ||
       routeName.startsWith('sessions.') ||
+      routeName.startsWith('memory.') ||
       routeName.startsWith('orchestration.') ||
       routeName.startsWith('remoteControl.') ||
       routeName.startsWith('cronJobs.')
