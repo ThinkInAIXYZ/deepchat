@@ -123,37 +123,49 @@ async function pathExists(filePath) {
   }
 }
 
-async function resolveInstalledPackageDir(projectDir, packageName, expectedVersion) {
-  const packagePathParts = packageName.split('/')
-  const candidates = [
-    path.join(projectDir, 'node_modules', ...packagePathParts),
-    path.join(projectDir, 'node_modules', '.pnpm', 'node_modules', ...packagePathParts)
-  ]
-
-  const pnpmVirtualStoreDir = path.join(projectDir, 'node_modules', '.pnpm')
+async function resolvePackageDirFromImporter(
+  importerPackageDir,
+  packageName,
+  expectedVersion,
+  resolutionSpecifier = `${packageName}/package.json`
+) {
+  const importerRequire = createRequire(path.join(importerPackageDir, 'package.json'))
+  let packageEntry
   try {
-    const virtualStoreEntries = await fs.readdir(pnpmVirtualStoreDir, { withFileTypes: true })
-    for (const entry of virtualStoreEntries) {
-      if (entry.isDirectory()) {
-        candidates.push(path.join(pnpmVirtualStoreDir, entry.name, 'node_modules', ...packagePathParts))
-      }
-    }
-  } catch {
-    // Non-pnpm installs only need the direct node_modules candidates above.
+    packageEntry = importerRequire.resolve(resolutionSpecifier)
+  } catch (error) {
+    const versionSuffix = expectedVersion ? `@${expectedVersion}` : ''
+    throw new Error(
+      `Unable to resolve installed package ${packageName}${versionSuffix} from ${importerPackageDir}`,
+      { cause: error }
+    )
   }
 
-  for (const candidate of candidates) {
-    if (await pathExists(path.join(candidate, 'package.json'))) {
-      if (expectedVersion) {
-        const packageJson = await readJson(path.join(candidate, 'package.json'))
-        if (packageJson.name !== packageName || packageJson.version !== expectedVersion) continue
+  let candidate = path.dirname(await fs.realpath(packageEntry))
+  while (true) {
+    const packageJsonPath = path.join(candidate, 'package.json')
+    if (await pathExists(packageJsonPath)) {
+      const packageJson = await readJson(packageJsonPath)
+      if (packageJson.name === packageName && (!expectedVersion || packageJson.version === expectedVersion)) {
+        return candidate
       }
-      return fs.realpath(candidate)
     }
+    const parent = path.dirname(candidate)
+    if (parent === candidate) break
+    candidate = parent
   }
 
   const versionSuffix = expectedVersion ? `@${expectedVersion}` : ''
-  throw new Error(`Unable to find installed package: ${packageName}${versionSuffix}`)
+  throw new Error(`Resolved package does not match ${packageName}${versionSuffix}: ${packageEntry}`)
+}
+
+async function resolveDirectPackageDir(
+  projectDir,
+  packageName,
+  expectedVersion,
+  resolutionSpecifier = `${packageName}/package.json`
+) {
+  return resolvePackageDirFromImporter(projectDir, packageName, expectedVersion, resolutionSpecifier)
 }
 
 async function loadRuntimeVersions(projectDir) {
@@ -241,9 +253,10 @@ async function copyFffNativePackages(context) {
   }
 
   const projectDir = packager?.projectDir ?? process.cwd()
+  const fffSourceDir = await resolveDirectPackageDir(projectDir, '@ff-labs/fff-node')
 
   for (const packageName of packageNames) {
-    const sourceDir = await resolveInstalledPackageDir(projectDir, packageName)
+    const sourceDir = await resolvePackageDirFromImporter(fffSourceDir, packageName)
     const destinationDir = path.join(nodeModulesDir, ...packageName.split('/'))
 
     await fs.mkdir(path.dirname(destinationDir), { recursive: true })
@@ -269,9 +282,10 @@ async function copyParcelWatcherNativePackages(context) {
   }
 
   const projectDir = packager?.projectDir ?? process.cwd()
+  const parcelWatcherSourceDir = await resolveDirectPackageDir(projectDir, '@parcel/watcher')
 
   for (const packageName of packageNames) {
-    const sourceDir = await resolveInstalledPackageDir(projectDir, packageName)
+    const sourceDir = await resolvePackageDirFromImporter(parcelWatcherSourceDir, packageName)
     const destinationDir = path.join(nodeModulesDir, ...packageName.split('/'))
 
     await fs.mkdir(path.dirname(destinationDir), { recursive: true })
@@ -301,10 +315,15 @@ async function copyOpendalNativePackages(context) {
   if (opendalPackageJson.name !== 'opendal' || typeof opendalPackageJson.version !== 'string') {
     throw new Error(`Invalid unpacked opendal package identity at ${opendalDir}`)
   }
+  const opendalSourceDir = await resolveDirectPackageDir(
+    projectDir,
+    'opendal',
+    opendalPackageJson.version
+  )
 
   for (const packageName of packageNames) {
-    const sourceDir = await resolveInstalledPackageDir(
-      projectDir,
+    const sourceDir = await resolvePackageDirFromImporter(
+      opendalSourceDir,
       packageName,
       opendalPackageJson.version
     )
@@ -334,32 +353,11 @@ async function resolveOwnedPackageDir(
   expectedVersion,
   resolutionSpecifier = packageName
 ) {
-  const ownerRequire = createRequire(path.join(ownerPackageDir, 'package.json'))
-  let packageEntry
-  try {
-    packageEntry = ownerRequire.resolve(resolutionSpecifier)
-  } catch (error) {
-    throw new Error(
-      `Unable to resolve ${packageName}@${expectedVersion} from ${ownerPackageDir}`,
-      { cause: error }
-    )
-  }
-
-  let candidate = path.dirname(await fs.realpath(packageEntry))
-  while (true) {
-    const packageJsonPath = path.join(candidate, 'package.json')
-    if (await pathExists(packageJsonPath)) {
-      const packageJson = await readJson(packageJsonPath)
-      if (packageJson.name === packageName && packageJson.version === expectedVersion) {
-        return candidate
-      }
-    }
-    const parent = path.dirname(candidate)
-    if (parent === candidate) break
-    candidate = parent
-  }
-  throw new Error(
-    `Resolved package does not match ${packageName}@${expectedVersion}: ${packageEntry}`
+  return resolvePackageDirFromImporter(
+    ownerPackageDir,
+    packageName,
+    expectedVersion,
+    resolutionSpecifier
   )
 }
 
@@ -661,10 +659,11 @@ export async function packageLightOcrAssets(context) {
     'lightOcrHelper.js'
   )
   await removeLightOcrPackages(nodeModulesDir)
-  const facadeSourceDir = await resolveInstalledPackageDir(
+  const facadeSourceDir = await resolveDirectPackageDir(
     projectDir,
     LIGHT_OCR_FACADE_PACKAGE,
-    lightOcr.facadeVersion
+    lightOcr.facadeVersion,
+    LIGHT_OCR_FACADE_PACKAGE
   )
   const runtimeSourceDir = await resolveOwnedPackageDir(
     facadeSourceDir,

@@ -18,7 +18,7 @@ vi.mock('node:child_process', () => ({
 }))
 
 const loadSigner = async () => {
-  return await import('../../../scripts/sign-cua-helper.mjs')
+  return await import('../../../../../scripts/sign-cua-helper.mjs')
 }
 
 describe('sign-cua-helper', () => {

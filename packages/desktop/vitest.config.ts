@@ -34,6 +34,14 @@ const KERNEL_PACKAGE_SRC = resolve(workspaceRoot, 'packages/agent-kernel/src')
  * Production dist keeps its own copy; the accepted double-instance effects there are recorded
  * in the Stage 2B plan (logger verbose flag, zod parse-only).
  */
+const rootScriptResolverPlugin = () => ({
+  name: 'deepchat-root-script-resolver',
+  resolveId(source: string, importer?: string) {
+    if (!importer || !source.startsWith('../../../scripts/')) return null
+    return fromWorkspaceRoot('scripts', source.slice('../../../scripts/'.length))
+  }
+})
+
 const kernelSharedBridgePlugin = () => ({
   name: 'deepchat-kernel-shared-bridge',
   enforce: 'pre',
@@ -99,7 +107,7 @@ export default defineConfig({
         }
       },
       {
-        plugins: [vuePlugin(), kernelSharedBridgePlugin()],
+        plugins: [vuePlugin(), rootScriptResolverPlugin(), kernelSharedBridgePlugin()],
         test: {
           name: 'main',
           environment: 'node',
@@ -124,9 +132,6 @@ export default defineConfig({
             { find: '@shared', replacement: fromAppRoot('src/shared') },
             // Workspace kernel package resolves to its source so tests need no prior build
             { find: '@deepchat/agent-kernel', replacement: KERNEL_PACKAGE_SRC },
-            { find: '../../../scripts/', replacement: fromWorkspaceRoot('scripts') + '/' },
-            { find: '../../../scripts', replacement: fromWorkspaceRoot('scripts') },
-            { find: '/scripts/', replacement: fromWorkspaceRoot('scripts') + '/' },
             { find: 'electron', replacement: fromAppRoot('test/mocks/electron.ts') },
             { find: '@electron-toolkit/utils', replacement: fromAppRoot('test/mocks/electron-toolkit-utils.ts') }
           ]

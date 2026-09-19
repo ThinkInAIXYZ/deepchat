@@ -12,7 +12,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { promisify } from 'node:util'
 
-import { validateAppleTeamId } from '../apple-notarization.js'
+import { validateAppleTeamId } from '../../packages/desktop/scripts/apple-notarization.js'
 import {
   CUA_DARWIN_ALLOWED_ENTITLEMENTS,
   CUA_DARWIN_HELPER_APP_NAME,
@@ -21,7 +21,7 @@ import {
   findDisallowedDarwinLoadPaths,
   parseDarwinLinkedLibraries,
   parseDarwinRpaths
-} from '../cua-macos-contract.mjs'
+} from '../../packages/desktop/scripts/cua-macos-contract.mjs'
 
 const execFileAsync = promisify(execFile)
 const COMMAND_OUTPUT_LIMIT = 4 * 1024 * 1024

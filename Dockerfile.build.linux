@@ -1,26 +1,18 @@
-FROM node:22-slim
+FROM node:24-slim
 
-# 设置npm淘宝镜像源
-RUN npm config set registry https://registry.npmmirror.com 
-
+RUN corepack enable && corepack prepare pnpm@10.34.5 --activate
 RUN ldd --version
-# 安装构建必需的系统依赖
 RUN apt-get update && apt-get install -y \
     python3 \
     build-essential \
     git \
     && rm -rf /var/lib/apt/lists/*
 
-# 设置工作目录
 WORKDIR /app
-
-# 复制项目文件
 COPY . .
 
-# 安装依赖
-RUN npm install \
-    && npm run installRuntime:linux:x64 \
-    && npm install --cpu=wasm32 sharp
+RUN pnpm install --frozen-lockfile \
+    && pnpm --filter DeepChat run installRuntime:linux:x64 \
+    && pnpm --filter DeepChat run install:sharp
 
-# 构建命令
-CMD ["npm", "run", "build:linux:x64"] 
+CMD ["pnpm", "--filter", "DeepChat", "run", "build:linux:x64"]

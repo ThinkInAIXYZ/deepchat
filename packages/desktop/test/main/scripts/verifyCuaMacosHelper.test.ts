@@ -10,7 +10,7 @@ import {
   extractCuaEntitlements,
   inspectCuaHelperBundle,
   verifyCuaMacHelperDistribution
-} from '../../../scripts/ci/verify-cua-macos-helper.mjs'
+} from '../../../../../scripts/ci/verify-cua-macos-helper.mjs'
 import {
   CUA_DARWIN_ALLOWED_ENTITLEMENTS,
   CUA_DARWIN_HELPER_APP_NAME,

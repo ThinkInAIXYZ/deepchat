@@ -3,7 +3,7 @@ import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const rootDir = resolve(dirname(fileURLToPath(import.meta.url)), '..')
-const outputPath = resolve(rootDir, 'test/fixtures/memory/retrieval-v1.json')
+const outputPath = resolve(rootDir, 'packages/desktop/test/fixtures/memory/retrieval-v1.json')
 const subsetDefinitions = [
   ['exact', (index) => `Project Atlas retention policy ${index}`, (index) => `Project Atlas retention policy ${index} is enabled.`],
   ['cjk', (index) => `偏好简洁中文回答${index}`, (index) => `用户偏好简洁中文回答${index}，避免冗长铺垫。`],

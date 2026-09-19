@@ -24,7 +24,7 @@ If a local or remote tag already exists on the wrong commit, stop and ask before
 Pick the mode that matches the user's request and current git state:
 
 1. `prepare metadata`
-   Update `package.json`, `CHANGELOG.md`, and the release notes commit on `dev`.
+   Update `packages/desktop/package.json`, `CHANGELOG.md`, and the release notes commit on `dev`.
 2. `cut release branch`
    Create `release/<version>` from the release-ready commit on `dev` and push it.
 3. `update existing release branch`
@@ -38,7 +38,7 @@ Use [references/release-checklist.md](references/release-checklist.md) for exact
 
 When preparing a release on `dev`:
 
-- Update `package.json` to the target version.
+- Update `packages/desktop/package.json` to the target version; the repository root package manifest is not the Desktop product version.
 - Add a new `CHANGELOG.md` section at the top.
 - Summarize only user-visible or release-relevant changes since the previous tag.
 - Prefer deriving the notes from recent commits or the diff since the previous release tag.

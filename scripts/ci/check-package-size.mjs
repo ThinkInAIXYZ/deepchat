@@ -395,10 +395,10 @@ export async function main(argv = process.argv.slice(2)) {
     if (!options[required]) throw new Error(`--${required} is required`)
   }
   const baselinePath = path.resolve(
-    options.baseline ?? path.join(repositoryRoot, 'resources/package-size-baseline.json')
+    options.baseline ?? path.join(repositoryRoot, 'packages/desktop/resources/package-size-baseline.json')
   )
   const policyPath = path.resolve(
-    options.policy ?? path.join(repositoryRoot, 'resources/package-size-policy.json')
+    options.policy ?? path.join(repositoryRoot, 'packages/desktop/resources/package-size-policy.json')
   )
   const report = await comparePackageSize({
     target: options.target,

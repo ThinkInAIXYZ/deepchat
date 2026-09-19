@@ -6,7 +6,7 @@ import process from 'node:process'
 import { promisify } from 'node:util'
 import { fileURLToPath } from 'node:url'
 
-const ROOT = process.cwd()
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const REPORT_DIR = path.join(ROOT, 'docs/architecture/baselines')
 const execFileAsync = promisify(execFile)
 const AGENT_SYSTEM_SOURCE_ROOTS = [

@@ -11,66 +11,56 @@ const allPlatforms = PACKAGE_IMPACT_PLATFORMS
 
 const sharedPackagePaths = new Set([
   '.github/workflows/package-check.yml',
-  'electron-builder.yml',
-  'electron.vite.config.ts',
   'package.json',
+  'Dockerfile.build.linux',
   'pnpm-lock.yaml',
   'pnpm-workspace.yaml',
-  'resources/light-ocr-size-budgets.json',
-  'resources/package-size-baseline.json',
-  'resources/package-size-policy.json',
-  'resources/runtime-versions.json',
-  'scripts/afterPack.js',
-  'scripts/build-cli.mjs',
-  'scripts/build-cua-plugin-runtime.mjs',
-  'scripts/compare-light-ocr-package-size.mjs',
-  'scripts/install-runtime.mjs',
-  'scripts/install-sharp-for-platform.js',
-  'scripts/installVss.js',
-  'scripts/package-plugin.mjs',
-  'scripts/plugin.mjs',
-  'scripts/smoke-duckdb-vss.js',
-  'scripts/smoke-light-ocr.js',
-  'scripts/smoke-opendal-native.js',
+  'packages/desktop/resources/light-ocr-size-budgets.json',
+  'packages/desktop/resources/package-size-baseline.json',
+  'packages/desktop/resources/package-size-policy.json',
+  'packages/desktop/resources/runtime-versions.json',
   'scripts/ci/check-package-size.mjs',
   'scripts/ci/classify-package-impact.mjs',
   'scripts/ci/package-contract.mjs',
   'scripts/ci/package-files.mjs',
   'scripts/ci/package-manifest.mjs',
-  'src/main/lib/runtimeHelper.ts',
-  'src/main/lightOcrHelperEntry.ts',
-  'src/main/ocr/lightOcrHelper.ts',
-  'src/main/ocr/lightOcrProtocol.ts'
+  'scripts/release-fast-forward.mjs'
+])
+
+const desktopSharedPackagePaths = new Set([
+  'packages/desktop/electron-builder.yml',
+  'packages/desktop/electron.vite.config.ts',
+  'packages/desktop/package.json'
 ])
 
 const windowsPackagePaths = new Set([
   '.github/workflows/_package-windows.yml',
-  'build/icon.ico',
-  'build/nsis-installer.nsh',
-  'resources/icon.ico',
-  'resources/win_tray.ico'
+  'packages/desktop/build/icon.ico',
+  'packages/desktop/build/nsis-installer.nsh',
+  'packages/desktop/resources/icon.ico',
+  'packages/desktop/resources/win_tray.ico'
 ])
 
 const linuxPackagePaths = new Set([
   '.github/workflows/_package-linux.yml',
-  'build/icon.png',
-  'resources/linux_tray.png'
+  'packages/desktop/build/icon.png',
+  'packages/desktop/resources/linux_tray.png'
 ])
 
 const macosPackagePaths = new Set([
   '.github/workflows/_package-macos.yml',
-  'build/dmg-background.png',
-  'build/dmg-background@2x.png',
-  'build/entitlements.mac.plist',
-  'build/icon.icns',
-  'resources/macTrayTemplate.png',
-  'scripts/apple-notarization.js',
-  'scripts/macos-release-contract.mjs',
-  'scripts/notarize-dmg.js',
-  'scripts/notarize.js',
-  'scripts/cua-macos-contract.mjs',
+  'packages/desktop/build/dmg-background.png',
+  'packages/desktop/build/dmg-background@2x.png',
+  'packages/desktop/build/entitlements.mac.plist',
+  'packages/desktop/build/icon.icns',
+  'packages/desktop/resources/macTrayTemplate.png',
+  'packages/desktop/scripts/apple-notarization.js',
+  'packages/desktop/scripts/macos-release-contract.mjs',
+  'packages/desktop/scripts/notarize-dmg.js',
+  'packages/desktop/scripts/notarize.js',
+  'packages/desktop/scripts/cua-macos-contract.mjs',
   'scripts/ci/verify-cua-macos-helper.mjs',
-  'scripts/sign-cua-helper.mjs'
+  'packages/desktop/scripts/sign-cua-helper.mjs'
 ])
 
 const packageImpactRules = Object.freeze([
@@ -79,8 +69,12 @@ const packageImpactRules = Object.freeze([
     platforms: allPlatforms,
     matches: (changedPath) =>
       sharedPackagePaths.has(changedPath) ||
+      desktopSharedPackagePaths.has(changedPath) ||
       changedPath.startsWith('.github/actions/light-ocr-package-size/') ||
-      changedPath.startsWith('plugins/')
+      changedPath.startsWith('plugins/') ||
+      changedPath.startsWith('packages/agent-kernel/') ||
+      changedPath.startsWith('packages/shared/') ||
+      changedPath.startsWith('packages/cli/')
   },
   {
     id: 'windows-package-input',
@@ -100,7 +94,12 @@ const packageImpactRules = Object.freeze([
   {
     id: 'desktop-runtime-icon',
     platforms: ['linux', 'macos'],
-    matches: (changedPath) => changedPath === 'resources/icon.png'
+    matches: (changedPath) => changedPath === 'packages/desktop/resources/icon.png'
+  },
+  {
+    id: 'unknown-workspace-package-input',
+    platforms: allPlatforms,
+    matches: (changedPath) => changedPath.startsWith('packages/')
   }
 ])
 
@@ -246,6 +245,10 @@ export function isPackageImpactPath(value) {
   return getPackageImpactRule(value) !== null
 }
 
+function isProductManifestPath(changedPath) {
+  return changedPath === 'packages/desktop/package.json'
+}
+
 export function classifyPackageImpact(paths, options = {}) {
   const normalizedPaths = [...new Set(paths.map(normalizeChangedPath))]
   const impact = Object.fromEntries(
@@ -253,9 +256,9 @@ export function classifyPackageImpact(paths, options = {}) {
   )
   const matches = []
   for (const changedPath of normalizedPaths) {
-    if (changedPath === 'package.json') {
+    if (isProductManifestPath(changedPath)) {
       if (!options.basePackageJson || !options.headPackageJson) {
-        throw new Error('package.json classification requires base and head snapshots')
+        throw new Error('Product manifest classification requires base and head snapshots')
       }
       const packageJsonImpact = classifyPackageJsonImpact(
         options.basePackageJson,
@@ -265,7 +268,7 @@ export function classifyPackageImpact(paths, options = {}) {
         for (const platform of allPlatforms) impact[platform] = true
         matches.push({
           path: changedPath,
-          rule: 'package-json-package-contract',
+          rule: 'desktop-package-json-package-contract',
           platforms: [...allPlatforms],
           details: packageJsonImpact
         })
@@ -325,21 +328,21 @@ export async function main(argv = process.argv.slice(2), stdin = process.stdin) 
     throw new Error('Changed paths must be NUL-delimited and end with a NUL byte')
   }
   const changedPaths = input.split('\0').filter(Boolean)
-  const packageJsonChanged = changedPaths
+  const productManifestChanged = changedPaths
     .map(normalizeChangedPath)
-    .includes('package.json')
+    .some(isProductManifestPath)
   if (
-    packageJsonChanged &&
+    productManifestChanged &&
     (!options['base-package-json'] || !options['head-package-json'])
   ) {
-    throw new Error('package.json diff requires base and head snapshot paths')
+    throw new Error('Product manifest diff requires base and head snapshot paths')
   }
   const result = classifyPackageImpact(changedPaths, {
-    basePackageJson: packageJsonChanged
-      ? await readPackageJsonSnapshot(options['base-package-json'], 'base package.json')
+    basePackageJson: productManifestChanged
+      ? await readPackageJsonSnapshot(options['base-package-json'], 'base product manifest')
       : undefined,
-    headPackageJson: packageJsonChanged
-      ? await readPackageJsonSnapshot(options['head-package-json'], 'head package.json')
+    headPackageJson: productManifestChanged
+      ? await readPackageJsonSnapshot(options['head-package-json'], 'head product manifest')
       : undefined
   })
   if (options['github-output']) {

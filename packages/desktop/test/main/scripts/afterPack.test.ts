@@ -11,7 +11,7 @@ vi.mock('node:fs', async () => {
 })
 
 const loadAfterPack = async () => {
-  return (await import('../../../scripts/afterPack.js')).default as (context: {
+  return (await import('../../../../../scripts/afterPack.js')).default as (context: {
     targets: Array<{ name: string }>
     appOutDir: string
     electronPlatformName: string
@@ -26,7 +26,7 @@ const loadAfterPack = async () => {
 }
 
 const loadPackageLightOcrAssets = async () => {
-  return (await import('../../../scripts/afterPack.js')).packageLightOcrAssets as (context: {
+  return (await import('../../../../../scripts/afterPack.js')).packageLightOcrAssets as (context: {
     appOutDir: string
     electronPlatformName: string
     arch?: number | string
@@ -86,6 +86,23 @@ const writeVersionedVirtualStorePackage = async (
     version
   )
 }
+
+const virtualPackageDir = (projectDir: string, packageName: string) =>
+  packageDir(path.join(projectDir, 'node_modules', '.pnpm', 'node_modules'), packageName)
+
+const linkPackage = async (linkPath: string, targetPath: string) => {
+  await mkdir(path.dirname(linkPath), { recursive: true })
+  await symlink(targetPath, linkPath)
+}
+
+const linkProjectPackage = async (projectDir: string, packageName: string) =>
+  linkPackage(packageDir(path.join(projectDir, 'node_modules'), packageName), virtualPackageDir(projectDir, packageName))
+
+const linkOwnedPackage = async (projectDir: string, ownerPackage: string, packageName: string) =>
+  linkPackage(
+    packageDir(path.join(virtualPackageDir(projectDir, ownerPackage), 'node_modules'), packageName),
+    virtualPackageDir(projectDir, packageName)
+  )
 
 const writeUnpackedPackage = async (
   nodeModulesDir: string,
@@ -205,6 +222,9 @@ const seedLightOcrPrerequisites = async (
       name: '@arcships/light-ocr',
       version: '0.5.7',
       main: 'src/index.cjs',
+      exports: {
+        '.': './src/index.cjs'
+      },
       dependencies: {
         '@arcships/light-ocr-runtime': '0.1.7',
         [modelPackage]: '0.3.4'
@@ -288,6 +308,10 @@ const seedLightOcrPrerequisites = async (
       ]
     })
   })
+  await linkProjectPackage(projectDir, '@arcships/light-ocr')
+  await linkOwnedPackage(projectDir, '@arcships/light-ocr', '@arcships/light-ocr-runtime')
+  await linkOwnedPackage(projectDir, '@arcships/light-ocr', modelPackage)
+  await linkOwnedPackage(projectDir, '@arcships/light-ocr-runtime', nativePackage)
 
   const unpackedRoot = path.dirname(nodeModulesDir)
   const nodePath =
@@ -340,15 +364,46 @@ const seedDarwinNativePrerequisites = async (
   const parcelPackageDir = `watcher-darwin-${archName}`
   const opendalPackageDir = `lib-darwin-${archName}`
 
-  await writeVirtualPackage(projectDir, `@ff-labs/${fffPackageDir}`, {
-    'libfff_c.dylib': 'native'
-  })
-  await writeVirtualPackage(projectDir, `@parcel/${parcelPackageDir}`, {
-    'watcher.node': 'parcel-native'
-  })
-  await writeVirtualPackage(projectDir, `@opendal/${opendalPackageDir}`, {
-    [`opendal.darwin-${archName}.node`]: 'opendal-native'
+  const fffPackage = '@ff-labs/fff-node'
+  const fffNativePackage = `@ff-labs/${fffPackageDir}`
+  const parcelPackage = '@parcel/watcher'
+  const parcelNativePackage = `@parcel/${parcelPackageDir}`
+  const opendalNativePackage = `@opendal/${opendalPackageDir}`
+  await writeVirtualPackage(projectDir, fffPackage, {
+    'package.json': JSON.stringify({
+      name: fffPackage,
+      version: '0.10.6',
+      optionalDependencies: { [fffNativePackage]: '0.10.6' }
+    })
+  }, '0.10.6')
+  await writeVirtualPackage(projectDir, fffNativePackage, { 'libfff_c.dylib': 'native' }, '0.10.6')
+  await writeVirtualPackage(projectDir, parcelPackage, {
+    'package.json': JSON.stringify({
+      name: parcelPackage,
+      version: '2.6.0',
+      optionalDependencies: { [parcelNativePackage]: '2.6.0' }
+    })
+  }, '2.6.0')
+  await writeVirtualPackage(projectDir, parcelNativePackage, { 'watcher.node': 'parcel-native' }, '2.6.0')
+  await writeVirtualPackage(projectDir, 'opendal', {
+    'package.json': JSON.stringify({
+      name: 'opendal',
+      version: OPENDAL_TEST_VERSION,
+      optionalDependencies: { [opendalNativePackage]: OPENDAL_TEST_VERSION }
+    })
   }, OPENDAL_TEST_VERSION)
+  await writeVirtualPackage(
+    projectDir,
+    opendalNativePackage,
+    { [`opendal.darwin-${archName}.node`]: 'opendal-native' },
+    OPENDAL_TEST_VERSION
+  )
+  await linkProjectPackage(projectDir, fffPackage)
+  await linkProjectPackage(projectDir, parcelPackage)
+  await linkProjectPackage(projectDir, 'opendal')
+  await linkOwnedPackage(projectDir, fffPackage, fffNativePackage)
+  await linkOwnedPackage(projectDir, parcelPackage, parcelNativePackage)
+  await linkOwnedPackage(projectDir, 'opendal', opendalNativePackage)
   await writeUnpackedPackage(nodeModulesDir, '@ff-labs/fff-node')
   await writeUnpackedPackage(nodeModulesDir, '@parcel/watcher')
   await writeUnpackedPackage(nodeModulesDir, 'opendal', {
@@ -361,12 +416,39 @@ const seedDarwinNativePrerequisites = async (
 }
 
 const seedLinuxNativePrerequisites = async (projectDir: string, nodeModulesDir: string) => {
-  await writeVirtualPackage(projectDir, '@ff-labs/fff-bin-linux-x64-gnu', {
-    'libfff_c.so': 'native'
-  })
-  await writeVirtualPackage(projectDir, '@parcel/watcher-linux-x64-glibc', {
-    'watcher.node': 'parcel-native'
-  })
+  const fffPackage = '@ff-labs/fff-node'
+  const fffNativePackage = '@ff-labs/fff-bin-linux-x64-gnu'
+  const parcelPackage = '@parcel/watcher'
+  const parcelNativePackage = '@parcel/watcher-linux-x64-glibc'
+  const opendalNativePackage = '@opendal/lib-linux-x64-gnu'
+  await writeVirtualPackage(projectDir, fffPackage, {
+    'package.json': JSON.stringify({
+      name: fffPackage,
+      version: '0.10.6',
+      optionalDependencies: { [fffNativePackage]: '0.10.6' }
+    })
+  }, '0.10.6')
+  await writeVirtualPackage(projectDir, fffNativePackage, { 'libfff_c.so': 'native' }, '0.10.6')
+  await writeVirtualPackage(projectDir, parcelPackage, {
+    'package.json': JSON.stringify({
+      name: parcelPackage,
+      version: '2.6.0',
+      optionalDependencies: { [parcelNativePackage]: '2.6.0' }
+    })
+  }, '2.6.0')
+  await writeVirtualPackage(projectDir, parcelNativePackage, { 'watcher.node': 'parcel-native' }, '2.6.0')
+  await writeVirtualPackage(projectDir, 'opendal', {
+    'package.json': JSON.stringify({
+      name: 'opendal',
+      version: OPENDAL_TEST_VERSION,
+      optionalDependencies: { [opendalNativePackage]: OPENDAL_TEST_VERSION }
+    })
+  }, OPENDAL_TEST_VERSION)
+  await linkProjectPackage(projectDir, fffPackage)
+  await linkProjectPackage(projectDir, parcelPackage)
+  await linkProjectPackage(projectDir, 'opendal')
+  await linkOwnedPackage(projectDir, fffPackage, fffNativePackage)
+  await linkOwnedPackage(projectDir, parcelPackage, parcelNativePackage)
   await writeUnpackedPackage(nodeModulesDir, '@ff-labs/fff-node')
   await writeUnpackedPackage(nodeModulesDir, '@parcel/watcher')
   await writeUnpackedPackage(nodeModulesDir, 'opendal', {
@@ -380,15 +462,46 @@ const seedWindowsArm64NativePrerequisites = async (
   projectDir: string,
   nodeModulesDir: string
 ) => {
-  await writeVirtualPackage(projectDir, '@ff-labs/fff-bin-win32-arm64', {
-    'fff.dll': 'native'
-  })
-  await writeVirtualPackage(projectDir, '@parcel/watcher-win32-arm64', {
-    'watcher.node': 'parcel-native'
-  })
-  await writeVirtualPackage(projectDir, '@opendal/lib-win32-arm64-msvc', {
-    'opendal.win32-arm64-msvc.node': 'opendal-native'
+  const fffPackage = '@ff-labs/fff-node'
+  const fffNativePackage = '@ff-labs/fff-bin-win32-arm64'
+  const parcelPackage = '@parcel/watcher'
+  const parcelNativePackage = '@parcel/watcher-win32-arm64'
+  const opendalNativePackage = '@opendal/lib-win32-arm64-msvc'
+  await writeVirtualPackage(projectDir, fffPackage, {
+    'package.json': JSON.stringify({
+      name: fffPackage,
+      version: '0.10.6',
+      optionalDependencies: { [fffNativePackage]: '0.10.6' }
+    })
+  }, '0.10.6')
+  await writeVirtualPackage(projectDir, fffNativePackage, { 'fff.dll': 'native' }, '0.10.6')
+  await writeVirtualPackage(projectDir, parcelPackage, {
+    'package.json': JSON.stringify({
+      name: parcelPackage,
+      version: '2.6.0',
+      optionalDependencies: { [parcelNativePackage]: '2.6.0' }
+    })
+  }, '2.6.0')
+  await writeVirtualPackage(projectDir, parcelNativePackage, { 'watcher.node': 'parcel-native' }, '2.6.0')
+  await writeVirtualPackage(projectDir, 'opendal', {
+    'package.json': JSON.stringify({
+      name: 'opendal',
+      version: OPENDAL_TEST_VERSION,
+      optionalDependencies: { [opendalNativePackage]: OPENDAL_TEST_VERSION }
+    })
   }, OPENDAL_TEST_VERSION)
+  await writeVirtualPackage(
+    projectDir,
+    opendalNativePackage,
+    { 'opendal.win32-arm64-msvc.node': 'opendal-native' },
+    OPENDAL_TEST_VERSION
+  )
+  await linkProjectPackage(projectDir, fffPackage)
+  await linkProjectPackage(projectDir, parcelPackage)
+  await linkProjectPackage(projectDir, 'opendal')
+  await linkOwnedPackage(projectDir, fffPackage, fffNativePackage)
+  await linkOwnedPackage(projectDir, parcelPackage, parcelNativePackage)
+  await linkOwnedPackage(projectDir, 'opendal', opendalNativePackage)
   await writeUnpackedPackage(nodeModulesDir, '@ff-labs/fff-node')
   await writeUnpackedPackage(nodeModulesDir, '@parcel/watcher')
   await writeUnpackedPackage(nodeModulesDir, 'opendal', {
@@ -656,6 +769,22 @@ describe('afterPack', () => {
       OPENDAL_TEST_VERSION,
       { 'opendal.linux-x64-gnu.node': 'opendal-native' }
     )
+    await linkPackage(
+      packageDir(
+        path.join(virtualPackageDir(projectDir, 'opendal'), 'node_modules'),
+        '@opendal/lib-linux-x64-gnu'
+      ),
+      packageDir(
+        path.join(
+          projectDir,
+          'node_modules',
+          '.pnpm',
+          `@opendal+lib-linux-x64-gnu@${OPENDAL_TEST_VERSION}`,
+          'node_modules'
+        ),
+        '@opendal/lib-linux-x64-gnu'
+      )
+    )
 
     await afterPack({
       targets: [],
@@ -710,8 +839,32 @@ describe('afterPack', () => {
         }
       })
     ).rejects.toThrow(
-      `Unable to find installed package: @opendal/lib-linux-x64-gnu@${OPENDAL_TEST_VERSION}`
+      `Unable to resolve installed package @opendal/lib-linux-x64-gnu@${OPENDAL_TEST_VERSION} from`
     )
+  })
+
+  it('rejects an OpenDAL companion resolved from its owner at the wrong version', async () => {
+    const afterPack = await loadAfterPack()
+    const projectDir = path.join(tmpDir, 'project')
+    const nodeModulesDir = path.join(tmpDir, 'resources', 'app.asar.unpacked', 'node_modules')
+    await seedLinuxNativePrerequisites(projectDir, nodeModulesDir)
+    await writeVirtualPackage(
+      projectDir,
+      '@opendal/lib-linux-x64-gnu',
+      { 'opendal.linux-x64-gnu.node': 'wrong-version-native' },
+      '0.49.2'
+    )
+    await linkOwnedPackage(projectDir, 'opendal', '@opendal/lib-linux-x64-gnu')
+
+    await expect(
+      afterPack({
+        targets: [],
+        appOutDir: tmpDir,
+        electronPlatformName: 'linux',
+        arch: 'x64',
+        packager: { projectDir }
+      })
+    ).rejects.toThrow(`Resolved package does not match @opendal/lib-linux-x64-gnu@${OPENDAL_TEST_VERSION}`)
   })
 
   it('fails fast when a supported NativeKit prebuild is missing', async () => {

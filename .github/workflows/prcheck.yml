@@ -150,8 +150,8 @@ jobs:
 
       - name: Install and verify DuckDB VSS
         run: |
-          pnpm run installRuntime:duckdb:vss:linux:x64
-          pnpm run smoke:duckdb:vss -- --platform linux --arch x64
+          pnpm --filter DeepChat run installRuntime:duckdb:vss:linux:x64
+          pnpm --filter DeepChat run smoke:duckdb:vss -- --platform linux --arch x64
 
       - name: Validate portable memory behavior
         run: pnpm run test:memory
@@ -161,13 +161,13 @@ jobs:
       # Node ABI (validated by test:memory above).
 
       - name: Smoke native SQLite
-        run: node scripts/smoke-memory-native-sqlite.js
+        run: pnpm --filter DeepChat exec node scripts/smoke-memory-native-sqlite.js
 
       - name: Validate native Tape storage
         env:
           DEEPCHAT_REQUIRE_NATIVE_SQLITE: '1'
         run: >-
-          pnpm exec vitest --config vitest.config.ts --run
+          pnpm --filter DeepChat exec vitest --config vitest.config.ts --run
           test/main/tape/compactionUsage.test.ts
           test/main/tape/skillMaterialization.test.ts
           test/main/tape/executionJournal.test.ts
@@ -188,13 +188,13 @@ jobs:
       - name: Validate encrypted OCR artifact storage
         env:
           DEEPCHAT_REQUIRE_NATIVE_SQLITE: '1'
-        run: pnpm exec vitest --config vitest.config.ts --run test/main/ocr/ocrArtifactStore.test.ts test/main/ocr/documentOcrArtifactStore.test.ts
+        run: pnpm --filter DeepChat exec vitest --config vitest.config.ts --run test/main/ocr/ocrArtifactStore.test.ts test/main/ocr/documentOcrArtifactStore.test.ts
 
       - name: Validate native memory storage
         env:
           DEEPCHAT_REQUIRE_NATIVE_SQLITE: '1'
           DEEPCHAT_REQUIRE_NATIVE_DUCKDB_VSS: '1'
-        run: pnpm exec vitest --config vitest.config.memory-native.ts --run
+        run: pnpm --filter DeepChat exec vitest --config vitest.config.memory-native.ts --run
 
       - name: Validate memory retrieval quality
         env:

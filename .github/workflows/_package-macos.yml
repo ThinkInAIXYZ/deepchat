@@ -58,7 +58,9 @@ jobs:
       TARGET_PLATFORM: darwin
       TARGET_ARCH: ${{ inputs.arch }}
       PACKAGE_PURPOSE: ${{ inputs.artifact-purpose }}
-      APP_DIRECTORY: ${{ inputs.arch == 'arm64' && 'dist/mac-arm64/DeepChat.app' || 'dist/mac/DeepChat.app' }}
+      DESKTOP_DIRECTORY: packages/desktop
+      DESKTOP_DIST_DIRECTORY: packages/desktop/dist
+      APP_DIRECTORY: ${{ inputs.arch == 'arm64' && 'packages/desktop/dist/mac-arm64/DeepChat.app' || 'packages/desktop/dist/mac/DeepChat.app' }}
     steps:
       - name: Validate immutable source input
         run: |
@@ -123,7 +125,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Configure pnpm workspace for macOS
-        run: pnpm run install:sharp
+        run: pnpm --filter DeepChat run install:sharp
         env:
           TARGET_OS: darwin
           TARGET_ARCH: ${{ inputs.arch }}
@@ -138,17 +140,17 @@ jobs:
           echo "RTK runtime install token source: ${RTK_INSTALL_GITHUB_TOKEN_SOURCE}"
 
       - name: Verify OpenDAL native package
-        run: pnpm run smoke:opendal:native -- --platform darwin --arch ${{ inputs.arch }}
+        run: pnpm --filter DeepChat run smoke:opendal:native -- --platform darwin --arch ${{ inputs.arch }}
 
       - name: Install macOS runtimes
-        run: pnpm run installRuntime:mac:${{ inputs.arch }}
+        run: pnpm --filter DeepChat run installRuntime:mac:${{ inputs.arch }}
         env:
           GITHUB_TOKEN: ${{ secrets.RTK_GITHUB_TOKEN || github.token }}
 
       - name: Install and verify DuckDB VSS
         run: |
-          pnpm run installRuntime:duckdb:vss -- --platform darwin --arch ${{ inputs.arch }}
-          pnpm run smoke:duckdb:vss -- --platform darwin --arch ${{ inputs.arch }}
+          pnpm --filter DeepChat run installRuntime:duckdb:vss -- --platform darwin --arch ${{ inputs.arch }}
+          pnpm --filter DeepChat run smoke:duckdb:vss -- --platform darwin --arch ${{ inputs.arch }}
 
       - name: Build and package macOS
         run: |
@@ -157,10 +159,10 @@ jobs:
             unset DEEPCHAT_APPLE_NOTARY_USERNAME DEEPCHAT_APPLE_NOTARY_TEAM_ID
             unset DEEPCHAT_APPLE_NOTARY_PASSWORD
           fi
-          pnpm run build
-          pnpm run plugin:bundle -- --name cua --platform darwin --arch "${TARGET_ARCH}" --purpose "${PACKAGE_PURPOSE}"
-          pnpm run plugin:bundle -- --name feishu --platform darwin --arch "${TARGET_ARCH}"
-          pnpm exec electron-builder --mac --"${TARGET_ARCH}" --publish=never
+          pnpm --filter DeepChat run build
+          pnpm --filter DeepChat run plugin:bundle -- --name cua --platform darwin --arch "${TARGET_ARCH}" --purpose "${PACKAGE_PURPOSE}"
+          pnpm --filter DeepChat run plugin:bundle -- --name feishu --platform darwin --arch "${TARGET_ARCH}"
+          pnpm --filter DeepChat exec electron-builder --mac --"${TARGET_ARCH}" --publish=never
         env:
           CSC_LINK: ${{ secrets.DEEPCHAT_CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.DEEPCHAT_CSC_KEY_PASS }}
@@ -178,11 +180,11 @@ jobs:
         run: |
           extension_path="${APP_DIRECTORY}/Contents/Resources/app.asar.unpacked/runtime/duckdb/extensions/vss.duckdb_extension.b64"
           test -f "${extension_path}"
-          pnpm run smoke:duckdb:vss -- --platform darwin --arch "${TARGET_ARCH}" --extension-base64-path "${extension_path}"
+          pnpm --filter DeepChat run smoke:duckdb:vss -- --platform darwin --arch "${TARGET_ARCH}" --extension-base64-path "${extension_path}"
 
       - name: Verify packaged OpenDAL native package
         run: >-
-          pnpm run smoke:opendal:native --
+          pnpm --filter DeepChat run smoke:opendal:native --
           --platform darwin
           --arch "${{ inputs.arch }}"
           --resources-path "${{ env.APP_DIRECTORY }}/Contents/Resources"
@@ -192,21 +194,21 @@ jobs:
       - name: Verify packaged Light OCR offline
         run: |
           sandbox-exec -p '(version 1) (allow default) (deny network*)' \
-            pnpm run smoke:light-ocr -- \
+            pnpm --filter DeepChat run smoke:light-ocr -- \
             --platform darwin \
             --arch "${TARGET_ARCH}" \
             --resources-path "${APP_DIRECTORY}/Contents/Resources" \
-            --report-path "dist/light-ocr-smoke-darwin-${TARGET_ARCH}-offline.json" \
+            --report-path "${DESKTOP_DIST_DIRECTORY}/light-ocr-smoke-darwin-${TARGET_ARCH}-offline.json" \
             --expect-supported \
             --require-execution
 
       - name: Verify packaged Light OCR performance
         run: |
-          pnpm run smoke:light-ocr -- \
+          pnpm --filter DeepChat run smoke:light-ocr -- \
             --platform darwin \
             --arch "${TARGET_ARCH}" \
             --resources-path "${APP_DIRECTORY}/Contents/Resources" \
-            --report-path "dist/light-ocr-smoke-darwin-${TARGET_ARCH}.json" \
+            --report-path "${DESKTOP_DIST_DIRECTORY}/light-ocr-smoke-darwin-${TARGET_ARCH}.json" \
             --expect-supported \
             --require-execution \
             --require-peak-rss \
@@ -215,17 +217,17 @@ jobs:
       - name: Verify bundled plugins
         run: |
           plugin_root="${APP_DIRECTORY}/Contents/Resources/app.asar.unpacked/plugins"
-          pnpm run plugin:verify -- --name cua --platform darwin --arch "${TARGET_ARCH}" --plugin-root "${plugin_root}"
-          pnpm run plugin:verify -- --name feishu --platform darwin --arch "${TARGET_ARCH}" --plugin-root "${plugin_root}"
+          pnpm --filter DeepChat run plugin:verify -- --name cua --platform darwin --arch "${TARGET_ARCH}" --plugin-root "${plugin_root}"
+          pnpm --filter DeepChat run plugin:verify -- --name feishu --platform darwin --arch "${TARGET_ARCH}" --plugin-root "${plugin_root}"
 
       - name: Compare installer sizes
         if: inputs.enforce-installer-size
         run: |
           node scripts/ci/check-package-size.mjs compare \
             --target "darwin-${TARGET_ARCH}" \
-            --candidate-dir dist \
+            --candidate-dir "${DESKTOP_DIST_DIRECTORY}" \
             --candidate-commit "${SOURCE_SHA}" \
-            --report "dist/package-size-darwin-${TARGET_ARCH}.json"
+            --report "${DESKTOP_DIST_DIRECTORY}/package-size-darwin-${TARGET_ARCH}.json"
 
       - name: Create package manifest and verify distribution evidence
         env:
@@ -234,16 +236,18 @@ jobs:
         run: |
           size_report=()
           if [[ "${ENFORCE_INSTALLER_SIZE}" == 'true' ]]; then
-            size_report=(--installer-size-report "dist/package-size-darwin-${TARGET_ARCH}.json")
+            size_report=(--installer-size-report "${DESKTOP_DIST_DIRECTORY}/package-size-darwin-${TARGET_ARCH}.json")
           fi
           node scripts/ci/package-manifest.mjs \
             --platform darwin \
             --arch "${TARGET_ARCH}" \
             --source-sha "${SOURCE_SHA}" \
             --purpose "${PACKAGE_PURPOSE}" \
+            --project-dir "${DESKTOP_DIRECTORY}" \
+            --dist-dir "${DESKTOP_DIST_DIRECTORY}" \
             --mac-app-path "${APP_DIRECTORY}" \
-            --report "dist/light-ocr-smoke-darwin-${TARGET_ARCH}-offline.json" \
-            --report "dist/light-ocr-smoke-darwin-${TARGET_ARCH}.json" \
+            --report "${DESKTOP_DIST_DIRECTORY}/light-ocr-smoke-darwin-${TARGET_ARCH}-offline.json" \
+            --report "${DESKTOP_DIST_DIRECTORY}/light-ocr-smoke-darwin-${TARGET_ARCH}.json" \
             --workflow-run-id "${GITHUB_RUN_ID}" \
             --workflow-run-attempt "${GITHUB_RUN_ATTEMPT}" \
             "${size_report[@]}"
@@ -266,9 +270,9 @@ jobs:
           path: |
             package-output/manifest.json
             package-output/reports/
-            dist/light-ocr-smoke-darwin-${{ inputs.arch }}-offline.json
-            dist/light-ocr-smoke-darwin-${{ inputs.arch }}.json
-            dist/package-size-darwin-${{ inputs.arch }}.json
+            packages/desktop/dist/light-ocr-smoke-darwin-${{ inputs.arch }}-offline.json
+            packages/desktop/dist/light-ocr-smoke-darwin-${{ inputs.arch }}.json
+            packages/desktop/dist/package-size-darwin-${{ inputs.arch }}.json
           if-no-files-found: warn
           retention-days: 7
           overwrite: true

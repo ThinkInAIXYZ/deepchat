@@ -24,7 +24,7 @@ git pull --ff-only origin dev
 
 Then update:
 
-- `package.json`
+- `packages/desktop/package.json` (the Desktop product manifest; not the repository root manifest)
 - `CHANGELOG.md`
 
 Recommended checks:
@@ -39,7 +39,7 @@ pnpm run typecheck
 Commit and push:
 
 ```bash
-git add package.json CHANGELOG.md
+git add packages/desktop/package.json CHANGELOG.md
 git commit -m "chore(release): prepare vX.Y.Z"
 git push origin dev
 ```

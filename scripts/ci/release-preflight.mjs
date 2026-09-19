@@ -84,12 +84,11 @@ export async function main(argv = process.argv.slice(2)) {
     if (!options[required]) throw new Error(`--${required} is required`)
   }
   const projectDirectory = path.resolve(options['project-dir'] ?? repositoryRoot)
+  const desktopDirectory = path.join(projectDirectory, 'packages', 'desktop')
   const context = prepareReleaseContext({
     tag: options.tag,
     sourceSha: options['source-sha'],
-    packageJson: JSON.parse(
-      await readFile(path.join(projectDirectory, 'package.json'), 'utf8')
-    ),
+    packageJson: JSON.parse(await readFile(path.join(desktopDirectory, 'package.json'), 'utf8')),
     changelog: await readFile(path.join(projectDirectory, 'CHANGELOG.md'), 'utf8')
   })
   const outputDirectory = path.resolve(options['output-dir'])

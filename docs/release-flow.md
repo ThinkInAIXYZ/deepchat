@@ -21,7 +21,7 @@ This document defines the maintainer release flow for DeepChat without rewriting
 
 1. Prepare release metadata on `dev`.
 
-   - Update the version, `CHANGELOG.md`, and any release notes on `dev`.
+   - Update `packages/desktop/package.json`, `CHANGELOG.md`, and any release notes on `dev`. The repository root manifest is not the Desktop product version.
    - Run the required local checks before cutting a release branch.
 
 2. Cut the review branch from the release-ready commit on `dev`.

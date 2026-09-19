@@ -17,7 +17,7 @@ import {
   parseRuntimeInstallArgs,
   runtimeVersionsPath,
   runRuntimeInstallPlan
-} from '../../../scripts/install-runtime.mjs'
+} from '../../../../../scripts/install-runtime.mjs'
 
 describe('install-runtime', () => {
   it('loads every pinned toolchain version from one manifest', () => {
