@@ -1,4 +1,4 @@
-import type { MCPContentItem, ToolCallImagePreview } from '../shared/types/core/mcp.js'
+import type { MCPContentItem, ToolCallImagePreview } from '@deepchat/shared/types/core/mcp'
 
 export type CacheImageOptions = {
   signal?: AbortSignal

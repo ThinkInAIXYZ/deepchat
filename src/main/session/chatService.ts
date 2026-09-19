@@ -5,7 +5,7 @@ import type {
   SessionWithState,
   ToolInteractionResponse,
   ToolInteractionResult
-} from '@shared/types/agent-interface'
+} from '@deepchat/shared/types/agent-interface'
 import type { SessionPermissionPort } from '@/session/contracts'
 import type { Scheduler } from '@/routes/scheduler'
 

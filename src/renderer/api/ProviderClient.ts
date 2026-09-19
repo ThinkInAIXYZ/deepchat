@@ -6,7 +6,7 @@ import {
   providersRateLimitConfigUpdatedEvent,
   providersRateLimitRequestExecutedEvent,
   providersRateLimitRequestQueuedEvent
-} from '@shared/contracts/events'
+} from '@deepchat/shared/contracts/events'
 import {
   providersAddRoute,
   providersGetAcpProcessConfigOptionsRoute,
@@ -34,14 +34,18 @@ import {
   providersUpdateRateLimitRoute,
   providersWarmupAcpProcessRoute
 } from '@shared/contracts/routes'
-import type { ProviderImportSelection } from '@shared/providerImport'
+import type { ProviderImportSelection } from '@deepchat/shared/providerImport'
 import type {
   KeyStatus,
   LLM_PROVIDER,
   ModelScopeMcpSyncOptions,
   ModelScopeMcpSyncResult
-} from '@shared/types/provider'
-import type { AcpDebugEventEntry, AcpDebugRequest, AcpDebugRunResult } from '@shared/types/acp'
+} from '@deepchat/shared/types/provider'
+import type {
+  AcpDebugEventEntry,
+  AcpDebugRequest,
+  AcpDebugRunResult
+} from '@deepchat/shared/types/acp'
 import { getDeepchatBridge } from './core'
 
 type ProviderModelScopeMcpSyncOptions = ModelScopeMcpSyncOptions & {

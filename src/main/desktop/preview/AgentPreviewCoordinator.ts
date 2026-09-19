@@ -1,6 +1,6 @@
 import { app, screen, type BrowserWindow, type Rectangle } from 'electron'
 import { performance } from 'node:perf_hooks'
-import logger from '@shared/logger'
+import logger from '@deepchat/shared/logger'
 
 type NativeKitOverlay = (typeof import('@zerob13/nativekit'))['overlay']
 

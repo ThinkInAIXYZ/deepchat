@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import * as fsMock from 'fs'
 import os from 'os'
-import type { IModelConfig, LLM_PROVIDER, MODEL_META } from '@shared/types/provider'
-import type { MCPServerConfig } from '@shared/types/mcp'
+import type { IModelConfig, LLM_PROVIDER, MODEL_META } from '@deepchat/shared/types/provider'
+import type { MCPServerConfig } from '@deepchat/shared/types/mcp'
 import { RAW_PROVIDER_MODEL_FACTS_MIGRATION_ID } from '@/provider/providerModelFacts'
 import { USER_MODEL_CONFIG_MIGRATION_ID } from '@/provider/userModelConfig'
 

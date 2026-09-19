@@ -206,8 +206,8 @@ const AGENT_SYSTEM_RETIRED_SYMBOL_PATTERNS = [
 const AGENT_HANDLE_BACKEND_RUNTIME_KIND_PATTERN =
   /\bruntimeKind\b\s*(?::|={1,3}|!==?)\s*['"](?:legacy|direct)['"]/g
 const AGENT_SYSTEM_CONTRACT_ROOTS = [
-  'src/shared/contracts/routes',
-  'src/shared/contracts/events'
+  'packages/shared/src/contracts/routes',
+  'packages/shared/src/contracts/events'
 ]
 const SQLITE_SCHEMA_ROOTS = [
   'src/main/data/schemaCatalog.ts',
@@ -292,7 +292,7 @@ const MIGRATED_RAW_CHANNEL_GUARD_PATHS = [
   path.join(ROOT, 'packages/agent-kernel/src/runtime'),
   path.join(ROOT, 'src/main/presenter/sessionPresenter'),
   path.join(ROOT, 'src/main/provider'),
-  path.join(ROOT, 'src/shared/contracts'),
+  path.join(ROOT, 'packages/shared/src/contracts'),
   path.join(ROOT, 'src/renderer/api'),
   path.join(ROOT, 'src/preload/createBridge.ts'),
   path.join(ROOT, 'src/preload/bridges'),
@@ -433,7 +433,7 @@ async function buildAgentSystemBaseline() {
     ...(await collectRelativeSourceFiles(AGENT_SYSTEM_SOURCE_ROOTS)),
     ...AGENT_SYSTEM_RUNTIME_BOUNDARY_FILES
   ]
-  const productionFiles = await collectRelativeSourceFiles(['src/main', 'src/shared'])
+  const productionFiles = await collectRelativeSourceFiles(['src/main', 'packages/shared/src'])
   const productionSource = (
     await Promise.all(productionFiles.map((file) => fs.readFile(path.join(ROOT, file), 'utf8')))
   ).join('\n')
@@ -511,7 +511,7 @@ async function buildAgentSystemBaseline() {
       dirty: relevantDirtyFiles.length > 0,
       files: relevantDirtyFiles
     },
-    sourceRoots: [...AGENT_SYSTEM_SOURCE_ROOTS, 'src/shared/contracts'],
+    sourceRoots: [...AGENT_SYSTEM_SOURCE_ROOTS, 'packages/shared/src/contracts'],
     sourceFiles: [...new Set(agentSourceFiles)].sort(),
     expectedFiles,
     ownerEvidence,
@@ -702,8 +702,14 @@ async function resolveImport(specifier, importer, scopeRoot) {
     return await tryFile(path.join(scopeRoot, specifier.slice(2)))
   }
 
+  if (specifier.startsWith('@deepchat/shared/')) {
+    return await tryFile(
+      path.join(ROOT, 'packages/shared/src', specifier.slice('@deepchat/shared/'.length))
+    )
+  }
+
   if (specifier.startsWith('@shared/')) {
-    return await tryFile(path.join(ROOT, 'src/shared', specifier.slice('@shared/'.length)))
+    return await tryFile(path.join(ROOT, 'packages/shared/src', specifier.slice('@shared/'.length)))
   }
 
   if (specifier.startsWith('.')) {

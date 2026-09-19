@@ -5,7 +5,11 @@ import path from 'node:path'
 import { pipeline } from 'node:stream/promises'
 import { z } from 'zod'
 import { ArtifactIdSchema, artifactsReadRoute } from '@shared/contracts/routes'
-import { JsonValueSchema, TimestampMsSchema, type JsonValue } from '@shared/contracts/common'
+import {
+  JsonValueSchema,
+  TimestampMsSchema,
+  type JsonValue
+} from '@deepchat/shared/contracts/common'
 import {
   LOCAL_CONTROL_DESCRIPTOR_FILENAME,
   LOCAL_CONTROL_ARTIFACT_PATH_PREFIX,
@@ -36,7 +40,7 @@ import {
   type LocalControlRouteSurfaceVersion,
   type LocalControlUploadBinding,
   type LocalControlStreamRecord
-} from '@shared/contracts/localControl'
+} from '@deepchat/shared/contracts/localControl'
 import type { CliRouteCaller } from '@/routes/routeRegistry'
 import type { CliRequestAdmission, CliRequestPolicyInput } from './policy'
 import {

@@ -2,13 +2,13 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import fs from 'fs/promises'
 import os from 'os'
 import path from 'path'
-import type { LLMCoreStreamEvent } from '@shared/types/core/llm-events'
+import type { LLMCoreStreamEvent } from '@deepchat/shared/types/core/llm-events'
 import {
   TOOL_EXECUTION,
   type MCPToolDefinition
-} from '@shared/types/mcp'
-import type { ChatMessage } from '@shared/types/core/chat-message'
-import type { ToolServicePort } from '@shared/types/tool'
+} from '@deepchat/shared/types/mcp'
+import type { ChatMessage } from '@deepchat/shared/types/core/chat-message'
+import type { ToolServicePort } from '@deepchat/shared/types/tool'
 import type { ProcessParams } from '@deepchat/agent-kernel/runtime/types'
 import { createState } from '@deepchat/agent-kernel/runtime/types'
 import {
@@ -38,7 +38,7 @@ import { POSIX_COMMAND_SHELL } from '../../../../helpers/commandShell'
 import {
   TOOL_SEARCH_AGENT_TOOL_NAME,
   TOOL_SEARCH_AGENT_TOOL_SERVER_NAME
-} from '@shared/agentTools'
+} from '@deepchat/shared/agentTools'
 import {
   buildCanonicalToolCatalog,
   buildToolSurfaceDeferredDispatchBinding,

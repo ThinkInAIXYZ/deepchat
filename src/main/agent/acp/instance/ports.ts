@@ -1,13 +1,16 @@
 import type * as schema from '@agentclientprotocol/sdk/dist/schema/index.js'
-import type { AcpAgentConfig, AcpConfigState } from '@shared/types/acp'
-import type { ChatMessage } from '@shared/types/core/chat-message'
-import type { LLMCoreStreamEvent, PermissionRequestPayload } from '@shared/types/core/llm-events'
-import type { MCPToolDefinition } from '@shared/types/core/mcp'
+import type { AcpAgentConfig, AcpConfigState } from '@deepchat/shared/types/acp'
+import type { ChatMessage } from '@deepchat/shared/types/core/chat-message'
+import type {
+  LLMCoreStreamEvent,
+  PermissionRequestPayload
+} from '@deepchat/shared/types/core/llm-events'
+import type { MCPToolDefinition } from '@deepchat/shared/types/core/mcp'
 import type {
   MessageStartResult,
   SendMessageInput,
   UserMessageContent
-} from '@shared/types/agent-interface'
+} from '@deepchat/shared/types/agent-interface'
 import type {
   AppSessionId,
   AcpRemoteSessionId
@@ -17,7 +20,7 @@ import type {
   DeepChatTapeViewPolicy,
   DeepChatTapeViewTaskType,
   DeepChatTapeViewTokenBudget
-} from '@shared/types/tape-view-manifest'
+} from '@deepchat/shared/types/tape-view-manifest'
 
 export type AcpInstanceScope = 'regular' | 'subagent'
 export type AcpAgentStatus = 'initializing' | 'idle' | 'generating' | 'error' | 'closed'

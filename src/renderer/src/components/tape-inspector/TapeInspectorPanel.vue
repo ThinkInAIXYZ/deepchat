@@ -465,8 +465,8 @@ import type {
   TapeInspectorFactFilters,
   TapeInspectorHeadPulse,
   TapeInspectorSort
-} from '@shared/types/tape-inspector'
-import type { ChatMessageRecord } from '@shared/types/agent-interface'
+} from '@deepchat/shared/types/tape-inspector'
+import type { ChatMessageRecord } from '@deepchat/shared/types/agent-interface'
 import { useMessageStore } from '@/stores/ui/message'
 import type { TapeInspectorOpenRequest } from '@/stores/ui/sidepanel'
 import { downloadBlob } from '@/lib/download'

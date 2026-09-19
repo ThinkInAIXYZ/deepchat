@@ -1,5 +1,5 @@
 import type * as schema from '@agentclientprotocol/sdk/dist/schema/index.js'
-import type { MCPServerConfig } from '@shared/types/mcp'
+import type { MCPServerConfig } from '@deepchat/shared/types/mcp'
 
 const normalizeStringRecordToArray = (
   record: Record<string, unknown> | undefined | null

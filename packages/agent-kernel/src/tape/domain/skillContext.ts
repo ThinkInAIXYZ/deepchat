@@ -2,9 +2,9 @@ import type {
   DeepChatTapeSkillContext,
   DeepChatTapeSkillContextV7,
   DeepChatTapeSkillMaterializationRef
-} from '../../shared/types/tape-view-manifest.js'
-import { isSkillSourceType } from '../../shared/types/skillManagement.js'
-import { SKILL_RUNTIME_VIEW_RESULT_MAX_BYTES } from '../../shared/types/skill.js'
+} from '@deepchat/shared/types/tape-view-manifest'
+import { isSkillSourceType } from '@deepchat/shared/types/skillManagement'
+import { SKILL_RUNTIME_VIEW_RESULT_MAX_BYTES } from '@deepchat/shared/types/skill'
 import type { DeepChatTapeEntryRow } from './entry.js'
 import type { TapeSkillIdentity } from './skillMaterialization.js'
 import {

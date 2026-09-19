@@ -13,7 +13,7 @@ vi.mock('electron', () => ({
   }
 }))
 
-vi.mock('@shared/logger', () => ({
+vi.mock('@deepchat/shared/logger', () => ({
   default: {
     info: vi.fn(),
     warn: vi.fn(),

@@ -1196,38 +1196,38 @@ import {
   CollapsibleTrigger
 } from '@shadcn/components/ui/collapsible'
 import type { SystemPrompt } from '@shared/types/prompt'
-import type { ModelConfig, RENDERER_MODEL_META } from '@shared/types/provider'
+import type { ModelConfig, RENDERER_MODEL_META } from '@deepchat/shared/types/provider'
 import type {
   DeepChatAgentConfig,
   PermissionMode,
   SessionGenerationSettings
-} from '@shared/types/agent-interface'
-import { normalizeDeepChatSubagentConfig } from '@shared/lib/deepchatSubagents'
+} from '@deepchat/shared/types/agent-interface'
+import { normalizeDeepChatSubagentConfig } from '@deepchat/shared/lib/deepchatSubagents'
 import {
   getReasoningEffectiveEnabledForProvider,
   hasAnthropicReasoningToggle,
   type ReasoningPortrait
-} from '@shared/types/model-db'
+} from '@deepchat/shared/types/model-db'
 import {
   normalizeLegacyThinkingBudgetValue,
   parseFiniteNumericValue,
   toValidNonNegativeInteger,
   type GenerationNumericField,
   validateGenerationNumericField
-} from '@shared/utils/generationSettingsValidation'
+} from '@deepchat/shared/utils/generationSettingsValidation'
 import {
   DEFAULT_MODEL_TIMEOUT,
   MODEL_TIMEOUT_MAX_MS,
   MODEL_TIMEOUT_MIN_MS
-} from '@shared/modelConfigDefaults'
+} from '@deepchat/shared/modelConfigDefaults'
 import {
   normalizeImageGenerationOptions,
   supportsOpenAIImageGenerationSettings
-} from '@shared/imageGenerationSettings'
+} from '@deepchat/shared/imageGenerationSettings'
 import {
   normalizeVideoGenerationOptions,
   supportsOpenAICompatibleVideoGeneration
-} from '@shared/videoGenerationSettings'
+} from '@deepchat/shared/videoGenerationSettings'
 import { resolvePreferredChatModel, type ChatModelSelection } from '@/lib/chatModelSelection'
 import {
   getReasoningEffortOptions,
@@ -1266,7 +1266,7 @@ import {
   useModelCapabilities,
   type RendererModelCapabilities
 } from '@/composables/useModelCapabilities'
-import type { OrchestrationCapability } from '@shared/orchestration/policy'
+import type { OrchestrationCapability } from '@deepchat/shared/orchestration/policy'
 
 const props = withDefaults(
   defineProps<{

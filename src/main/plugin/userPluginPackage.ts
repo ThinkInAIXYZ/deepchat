@@ -6,7 +6,7 @@ import type {
   UserPluginHook,
   UserPluginMcpServer,
   UserPluginPackage
-} from '@shared/types/userPlugin'
+} from '@deepchat/shared/types/userPlugin'
 
 const ROOT_VARIABLES = new Set([
   'PLUGIN_ROOT',

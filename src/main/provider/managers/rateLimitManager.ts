@@ -1,7 +1,7 @@
 import type { ProviderSettingsPort } from '@/provider/settings'
-import logger from '@shared/logger'
-import type { DeepchatEventPublisher } from '@shared/contracts/events'
-import type { LLM_PROVIDER } from '@shared/types/provider'
+import logger from '@deepchat/shared/logger'
+import type { DeepchatEventPublisher } from '@deepchat/shared/contracts/events'
+import type { LLM_PROVIDER } from '@deepchat/shared/types/provider'
 import {
   ExecuteWithRateLimitOptions,
   ProviderRateLimitState,

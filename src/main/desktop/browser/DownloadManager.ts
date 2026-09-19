@@ -5,7 +5,7 @@ import {
   type WebContents
 } from 'electron'
 import { nanoid } from 'nanoid'
-import type { DownloadInfo } from '@shared/types/browser'
+import type { DownloadInfo } from '@deepchat/shared/types/browser'
 
 type PendingDownloadRequest = {
   url: string

@@ -22,7 +22,7 @@ import type {
   MessageMetadata,
   SendMessageInput,
   SessionWithState
-} from '@shared/types/agent-interface'
+} from '@deepchat/shared/types/agent-interface'
 import { useStreamStateStore } from './stream'
 import { bindMessageStoreIpc } from './messageIpc'
 import { RecentMessageViewCache, type RecentMessageView } from './recentMessageViewCache'

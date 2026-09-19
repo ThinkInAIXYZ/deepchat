@@ -8,7 +8,7 @@ import {
   LOCAL_CONTROL_PROTOCOL_VERSION,
   LOCAL_CONTROL_SURFACE_VERSION,
   type LocalControlDescriptor
-} from '@shared/contracts/localControl'
+} from '@deepchat/shared/contracts/localControl'
 import {
   loadLocalControlDescriptor,
   resolveCliUserDataPath,

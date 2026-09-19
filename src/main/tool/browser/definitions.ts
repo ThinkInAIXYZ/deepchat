@@ -3,8 +3,8 @@ import {
   TOOL_EXECUTION,
   type MCPToolDefinition,
   type ToolExecutionContract
-} from '@shared/types/mcp'
-import { toDeepChatJsonSchema } from '@shared/lib/zodJsonSchema'
+} from '@deepchat/shared/types/mcp'
+import { toDeepChatJsonSchema } from '@deepchat/shared/lib/zodJsonSchema'
 
 const yoBrowserSchemas = {
   get_browser_status: z.object({}),

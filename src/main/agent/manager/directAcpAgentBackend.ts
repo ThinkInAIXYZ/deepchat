@@ -2,7 +2,7 @@ import type {
   AssistantMessageBlock,
   DeepChatSessionState,
   MessageStartResult
-} from '@shared/types/agent-interface'
+} from '@deepchat/shared/types/agent-interface'
 import type { AcpAgentDescriptor } from '@/agent/shared/agentDescriptors'
 import type { AppSessionId } from '@deepchat/agent-kernel/collab/agent-shared/agentSessionIds'
 import type { AcpAgentRuntime, AcpAgentRuntimeSessionInput } from '@/agent/acp/instance'

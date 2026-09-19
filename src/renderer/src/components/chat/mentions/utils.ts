@@ -1,4 +1,4 @@
-import type { MCPToolDefinition, PromptListEntry } from '@shared/types/mcp'
+import type { MCPToolDefinition, PromptListEntry } from '@deepchat/shared/types/mcp'
 
 export interface AcpSessionCommand {
   name: string

@@ -2,7 +2,7 @@ import type {
   MessageFile,
   SendMessageInput,
   UserMessageContent
-} from '../shared/types/agent-interface.js'
+} from '@deepchat/shared/types/agent-interface'
 
 const normalizeStringList = (values: string[]): string[] =>
   Array.from(new Set(values.map((value) => value.trim()).filter(Boolean))).sort((a, b) =>

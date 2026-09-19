@@ -7,7 +7,7 @@ import type {
 import {
   isPdfAttachment,
   normalizeAttachmentResolvedRepresentation
-} from '@shared/utils/attachmentRepresentation'
+} from '@deepchat/shared/utils/attachmentRepresentation'
 
 type UserMessageRichBlock = UserMessageTextBlock | UserMessageMentionBlock | UserMessageCodeBlock
 

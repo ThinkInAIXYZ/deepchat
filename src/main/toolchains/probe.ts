@@ -1,6 +1,6 @@
 import { statSync } from 'node:fs'
 import path from 'node:path'
-import type { ResolvedNodeToolchain, ResolvedUvToolchain } from '@shared/types/toolchains'
+import type { ResolvedNodeToolchain, ResolvedUvToolchain } from '@deepchat/shared/types/toolchains'
 import {
   inferNodeRootFromExecutable,
   inferUvRootFromExecutable,

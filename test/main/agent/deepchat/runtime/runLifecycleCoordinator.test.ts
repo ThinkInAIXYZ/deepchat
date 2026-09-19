@@ -1,9 +1,9 @@
-import logger from '@shared/logger'
+import logger from '@deepchat/shared/logger'
 import type {
   AssistantMessageBlock,
   ChatMessageRecord,
   DeepChatSessionState
-} from '@shared/types/agent-interface'
+} from '@deepchat/shared/types/agent-interface'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { DeepChatAgentRuntime } from '@deepchat/agent-kernel/instance/deepChatAgentRuntime'
 import { createLoopRun } from '@deepchat/agent-kernel/loop/loopRun'

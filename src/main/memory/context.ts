@@ -1,11 +1,11 @@
 import { nanoid } from 'nanoid'
-import type { DeepChatAgentConfig } from '@shared/types/agent-interface'
+import type { DeepChatAgentConfig } from '@deepchat/shared/types/agent-interface'
 import {
   isSafeAgentId,
   type AgentMemoryAuditActorType,
   type AgentMemoryAuditStatus
-} from '@shared/types/agent-memory'
-import type { MemoryUpdateReason } from '@shared/contracts/events/memory.events'
+} from '@deepchat/shared/types/agent-memory'
+import type { MemoryUpdateReason } from '@deepchat/shared/contracts/events/memory.events'
 
 import type {
   MemoryModelRef,

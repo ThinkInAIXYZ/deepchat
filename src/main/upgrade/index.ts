@@ -1,6 +1,6 @@
-import logger from '@shared/logger'
+import logger from '@deepchat/shared/logger'
 import { app, shell } from 'electron'
-import type { DeepchatEventPublisher } from '@shared/contracts/events'
+import type { DeepchatEventPublisher } from '@deepchat/shared/contracts/events'
 import electronUpdater from 'electron-updater'
 import type { UpdateInfo } from 'electron-updater'
 import { compare } from 'compare-versions'

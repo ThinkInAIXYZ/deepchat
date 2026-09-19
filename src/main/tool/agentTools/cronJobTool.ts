@@ -1,7 +1,7 @@
 import { z } from 'zod'
-import { toDeepChatJsonSchema } from '@shared/lib/zodJsonSchema'
-import { TOOL_EXECUTION, type MCPToolDefinition } from '@shared/types/mcp'
-import { CRON_JOB_AGENT_TOOL_NAME } from '@shared/agentTools'
+import { toDeepChatJsonSchema } from '@deepchat/shared/lib/zodJsonSchema'
+import { TOOL_EXECUTION, type MCPToolDefinition } from '@deepchat/shared/types/mcp'
+import { CRON_JOB_AGENT_TOOL_NAME } from '@deepchat/shared/agentTools'
 import {
   CRON_JOBS_DEFAULT_CRON_EXPR,
   CRON_JOBS_DEFAULT_DELIVERY,

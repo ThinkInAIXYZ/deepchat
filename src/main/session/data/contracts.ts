@@ -19,9 +19,9 @@ import type {
   SessionGenerationSettings,
   SubagentTapeLinkInput,
   SubagentTapeLinkReceipt
-} from '@shared/types/agent-interface'
-import type { DeepChatTapeViewManifestRecord } from '@shared/types/tape-view-manifest'
-import type { DeepChatNestedExecutionAudit } from '@shared/types/execution-journal-audit'
+} from '@deepchat/shared/types/agent-interface'
+import type { DeepChatTapeViewManifestRecord } from '@deepchat/shared/types/tape-view-manifest'
+import type { DeepChatNestedExecutionAudit } from '@deepchat/shared/types/execution-journal-audit'
 import type {
   ExportTapeInspectorSupportFactsInput,
   ExportTapeInspectorSupportFactsOutput,
@@ -31,7 +31,7 @@ import type {
   ListTapeInspectorPageOutput,
   ResolveTapeInspectorEvidenceEntriesInput,
   ResolveTapeInspectorEvidenceEntriesOutput
-} from '@shared/types/tape-inspector'
+} from '@deepchat/shared/types/tape-inspector'
 
 export interface SessionStatePort {
   initSession(

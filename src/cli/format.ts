@@ -1,5 +1,5 @@
-import type { JsonValue } from '@shared/contracts/json'
-import type { LocalControlRpcResponse } from '@shared/contracts/localControl'
+import type { JsonValue } from '@deepchat/shared/contracts/json'
+import type { LocalControlRpcResponse } from '@deepchat/shared/contracts/localControl'
 import type { CliRpcContract } from './args'
 import { CLI_VERSION } from './transport'
 

@@ -1,4 +1,4 @@
-import type { Agent, SessionWithState } from '@shared/types/agent-interface'
+import type { Agent, SessionWithState } from '@deepchat/shared/types/agent-interface'
 import type {
   FloatingWidgetDockSide,
   FloatingWidgetSessionAgent,

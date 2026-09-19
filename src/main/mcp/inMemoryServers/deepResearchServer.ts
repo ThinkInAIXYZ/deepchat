@@ -1,4 +1,4 @@
-import logger from '@shared/logger'
+import logger from '@deepchat/shared/logger'
 import { Server, Transport } from '@modelcontextprotocol/server'
 import type { CallToolResult } from '@modelcontextprotocol/server'
 
@@ -7,7 +7,7 @@ import type { CallToolResult } from '@modelcontextprotocol/server'
 // 已替换搜索引擎为 Bocha，重写页面内容提取逻辑。
 // 采用基于反思的增量迭代研究模式。
 import { z } from 'zod'
-import { toDeepChatJsonSchema } from '@shared/lib/zodJsonSchema'
+import { toDeepChatJsonSchema } from '@deepchat/shared/lib/zodJsonSchema'
 import axios from 'axios'
 import type { DesktopSettings } from '@/desktop/settings'
 import { nanoid } from 'nanoid'

@@ -9,7 +9,7 @@ import {
   formatCommandShellPromptLine,
   formatExecCommandDescription,
   type AgentCommandShellConfig
-} from '@shared/commandShell'
+} from '@deepchat/shared/commandShell'
 
 function createDeferred<T>() {
   let resolve!: (value: T | PromiseLike<T>) => void

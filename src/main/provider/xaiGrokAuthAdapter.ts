@@ -4,7 +4,7 @@ import {
   XAI_GROK_PROVIDER_ID,
   isTrustedXaiApiEndpoint
 } from '../provider/auth/xaiGrok/constants'
-import type { LLM_PROVIDER } from '@shared/types/provider'
+import type { LLM_PROVIDER } from '@deepchat/shared/types/provider'
 
 function applyBearerHeaders(
   headersInit: HeadersInit | undefined,

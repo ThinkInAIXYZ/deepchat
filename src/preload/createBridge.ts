@@ -6,7 +6,7 @@ import {
   hasDeepchatEventContract,
   type DeepchatEventEnvelope,
   type DeepchatEventName
-} from '@shared/contracts/events'
+} from '@deepchat/shared/contracts/events'
 import {
   getDeepchatRouteContract,
   hasDeepchatRouteContract,

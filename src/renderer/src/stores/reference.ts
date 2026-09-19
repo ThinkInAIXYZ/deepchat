@@ -1,4 +1,4 @@
-import type { SearchResult } from '@shared/types/core/search'
+import type { SearchResult } from '@deepchat/shared/types/core/search'
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 

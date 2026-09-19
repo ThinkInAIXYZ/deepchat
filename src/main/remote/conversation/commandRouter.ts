@@ -1,4 +1,4 @@
-import type { ToolInteractionResponse } from '@shared/types/agent-interface'
+import type { ToolInteractionResponse } from '@deepchat/shared/types/agent-interface'
 import type {
   RemotePendingInteraction,
   TelegramAgentMenuCallback,

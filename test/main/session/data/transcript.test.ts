@@ -2,11 +2,11 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { SessionTranscript } from '@/session/data/transcript'
 import { SessionTape } from '@/tape/application/sessionTape'
 import { cloneBlocksForRenderer } from '@/session/clientMessageProjection'
-import logger from '@shared/logger'
-import type { UserMessageContent } from '@shared/types/agent-interface'
+import logger from '@deepchat/shared/logger'
+import type { UserMessageContent } from '@deepchat/shared/types/agent-interface'
 
 vi.mock('nanoid', () => ({ nanoid: vi.fn(() => 'mock-msg-id') }))
-vi.mock('@shared/logger', () => ({
+vi.mock('@deepchat/shared/logger', () => ({
   default: {
     error: vi.fn(),
     warn: vi.fn()

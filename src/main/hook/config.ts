@@ -6,7 +6,7 @@ import {
   HookCommandItem,
   HookEventName,
   HooksNotificationsSettings
-} from '@shared/hooksNotifications'
+} from '@deepchat/shared/hooksNotifications'
 import type { SettingsStore } from '@/config/settingsStore'
 
 const HookCommandItemSchema = z.object({

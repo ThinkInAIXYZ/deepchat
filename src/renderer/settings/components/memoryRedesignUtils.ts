@@ -1,4 +1,4 @@
-import type { AgentMemoryCategory } from '@shared/types/agent-memory'
+import type { AgentMemoryCategory } from '@deepchat/shared/types/agent-memory'
 import type { MemoryAuditEvent, MemoryItem } from '@shared/contracts/routes'
 
 export const ADD_CATEGORY_NONE = 'none'

@@ -92,6 +92,6 @@ describe('backgroundExecUtilityHost', () => {
     )
 
     expect(source).toContain("from './backgroundExecLogger'")
-    expect(source).not.toContain('@shared/logger')
+    expect(source).not.toContain('@deepchat/shared/logger')
   })
 })

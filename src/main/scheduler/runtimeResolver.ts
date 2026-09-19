@@ -1,6 +1,6 @@
 import type { CronJob, CronJobAgentSnapshot, CronJobStatus } from '@shared/cronJobs'
 import type { AgentSettingsPort } from '@/agent/settings'
-import type { Agent, DeepChatAgentConfig } from '@shared/types/agent-interface'
+import type { Agent, DeepChatAgentConfig } from '@deepchat/shared/types/agent-interface'
 
 export interface CronJobRuntimePlan {
   agent: Pick<Agent, 'id' | 'name' | 'type' | 'agentType'>

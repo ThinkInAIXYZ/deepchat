@@ -1,5 +1,5 @@
 import { describe, expectTypeOf, it } from 'vitest'
-import type { ProviderRuntimePort } from '@shared/types/provider'
+import type { ProviderRuntimePort } from '@deepchat/shared/types/provider'
 import type {
   AcpAsLlmProviderPermissionPort,
   AcpAsLlmProviderSessionControlPort,

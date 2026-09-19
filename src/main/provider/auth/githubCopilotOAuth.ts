@@ -1,4 +1,4 @@
-import logger from '@shared/logger'
+import logger from '@deepchat/shared/logger'
 import { BrowserWindow } from 'electron'
 import { randomBytes } from 'crypto'
 import { is } from '@electron-toolkit/utils'

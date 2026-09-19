@@ -105,7 +105,7 @@ import { Icon } from '@iconify/vue'
 import { DcButton } from '@dc-ui/components/button'
 import { DcBadge } from '@dc-ui/components/badge'
 import { Spinner } from '@shadcn/components/ui/spinner'
-import type { LLM_PROVIDER } from '@shared/types/provider'
+import type { LLM_PROVIDER } from '@deepchat/shared/types/provider'
 import { useI18n } from 'vue-i18n'
 import { createProviderClient } from '@api/ProviderClient'
 

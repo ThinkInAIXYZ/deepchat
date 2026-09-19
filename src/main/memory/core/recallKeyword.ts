@@ -1,4 +1,4 @@
-import { unicodeCodePointLength } from '@shared/lib/unicodeText'
+import { unicodeCodePointLength } from '@deepchat/shared/lib/unicodeText'
 
 export type RecallKeywordCandidateKind = 'ascii' | 'code' | 'cjk'
 

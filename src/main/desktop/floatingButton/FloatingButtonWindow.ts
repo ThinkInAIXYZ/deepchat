@@ -2,7 +2,7 @@ import { BrowserWindow, screen } from 'electron'
 import path from 'path'
 import { is } from '@electron-toolkit/utils'
 import { FloatingButtonConfig, FloatingButtonState } from './types'
-import logger from '../../../shared/logger'
+import logger from '@deepchat/shared/logger'
 import {
   FLOATING_WIDGET_LAYOUT,
   inferDockSide,

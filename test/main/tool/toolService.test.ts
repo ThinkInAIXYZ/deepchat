@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { TOOL_EXECUTION, type MCPToolDefinition } from '@shared/types/mcp'
+import { TOOL_EXECUTION, type MCPToolDefinition } from '@deepchat/shared/types/mcp'
 import { ToolService } from '@/tool'
 import { RunCodeRuntimeManager } from '@/tool/codeMode/runCodeRuntimeManager'
 import { POSIX_COMMAND_SHELL } from '../../helpers/commandShell'
@@ -12,7 +12,7 @@ import {
 } from '@/tool/agentTools'
 import { CommandPermissionService, ToolPermissionBroker } from '@/tool/permission'
 import { QUESTION_TOOL_NAME } from '@deepchat/agent-kernel/collab/tool/agentTools/questionTool'
-import { IMAGE_GENERATE_TOOL_NAME } from '@shared/agentImageGenerationTool'
+import { IMAGE_GENERATE_TOOL_NAME } from '@deepchat/shared/agentImageGenerationTool'
 import { createAgentToolDependencies } from './agentTools/agentToolDependencies'
 import {
   CRON_JOB_AGENT_TOOL_NAME,
@@ -26,9 +26,9 @@ import {
   TOOL_SEARCH_AGENT_TOOL_NAME,
   assertAgentToolExposure,
   getAgentToolExposure
-} from '@shared/agentTools'
-import { resolveDeepChatSubagentCapability } from '@shared/lib/deepchatSubagents'
-import { parseChildAgentResultEnvelope } from '@shared/orchestration/resultSafety'
+} from '@deepchat/shared/agentTools'
+import { resolveDeepChatSubagentCapability } from '@deepchat/shared/lib/deepchatSubagents'
+import { parseChildAgentResultEnvelope } from '@deepchat/shared/orchestration/resultSafety'
 import { LiveDelegationConsentAuthority } from '@/orchestration/liveDelegationConsent'
 import { createOpaquePromptAssembly } from '@deepchat/agent-kernel/resources/promptAssembly'
 import { buildExecutionContract } from '@deepchat/agent-kernel/tape/domain/executionContract'
@@ -55,7 +55,7 @@ import {
   AgentCliTokenAuthority
 } from '@/cli/agentTokenAuthority'
 import { ProgrammaticToolParentRegistry } from '@/cli/programmaticToolParentRegistry'
-import { LOCAL_CONTROL_PROGRAMMATIC_ROUTE_SURFACE_VERSION } from '@shared/contracts/localControl'
+import { LOCAL_CONTROL_PROGRAMMATIC_ROUTE_SURFACE_VERSION } from '@deepchat/shared/contracts/localControl'
 import { ExecutionJournalService } from '@/tape/application/executionJournalService'
 import { createTapeTableMock } from '../session/data/tapeTestHarness'
 import { buildToolSearchDefinition } from '@/tool/agentTools/toolSearchTool'

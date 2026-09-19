@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest'
 import {
   resolveDeepChatSubagentCapability,
   type ResolveDeepChatSubagentCapabilityInput
-} from '@shared/lib/deepchatSubagents'
-import type { DeepChatSubagentSlot } from '@shared/types/agent-interface'
+} from '@deepchat/shared/lib/deepchatSubagents'
+import type { DeepChatSubagentSlot } from '@deepchat/shared/types/agent-interface'
 
 const reviewerSlot: DeepChatSubagentSlot = {
   id: 'reviewer',

@@ -1,12 +1,12 @@
 import fs from 'fs'
 import path from 'path'
 import { app, net } from 'electron'
-import type { AcpRegistryAgent } from '@shared/types/acp'
+import type { AcpRegistryAgent } from '@deepchat/shared/types/acp'
 import type {
   AcpRegistryBinaryDistribution,
   AcpRegistryDistribution,
   AcpRegistryPackageDistribution
-} from '@shared/types/acp'
+} from '@deepchat/shared/types/acp'
 import { SVGSanitizer } from '@/lib/svgSanitizer'
 import {
   ACP_REGISTRY_CACHE_TTL_MS,

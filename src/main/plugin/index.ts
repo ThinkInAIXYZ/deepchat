@@ -12,7 +12,7 @@ import type {
   UserPluginSource,
   UserPluginInstallInput,
   PreparedUserPlugin
-} from '@shared/types/userPlugin'
+} from '@deepchat/shared/types/userPlugin'
 import { app, shell } from 'electron'
 import { execFile } from 'node:child_process'
 import { createHash } from 'node:crypto'
@@ -21,8 +21,8 @@ import path from 'node:path'
 import { promisify } from 'node:util'
 import ElectronStore from 'electron-store'
 import { unzipSync } from 'fflate'
-import type { SkillServicePort } from '@shared/types/skill'
-import type { McpServicePort, MCPServerConfig } from '@shared/types/mcp'
+import type { SkillServicePort } from '@deepchat/shared/types/skill'
+import type { McpServicePort, MCPServerConfig } from '@deepchat/shared/types/mcp'
 import type {
   DeepChatPluginManifest,
   PluginActionResult,
@@ -33,8 +33,8 @@ import type {
   PluginRuntimeStatus,
   PluginSettingsContribution,
   RuntimeDependencyRecord
-} from '@shared/types/plugin'
-import { CUA_PLUGIN_ID, OFFICIAL_PLUGIN_SOURCE } from '@shared/types/plugin'
+} from '@deepchat/shared/types/plugin'
+import { CUA_PLUGIN_ID, OFFICIAL_PLUGIN_SOURCE } from '@deepchat/shared/types/plugin'
 import { registerPluginToolPolicy, unregisterPluginToolPolicies } from './toolPolicyStore'
 import type {
   PluginRuntimeSafetyStore,

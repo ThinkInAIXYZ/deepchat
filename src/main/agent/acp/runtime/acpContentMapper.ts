@@ -1,8 +1,8 @@
 import type * as schema from '@agentclientprotocol/sdk/dist/schema/index.js'
-import type { AcpConfigState } from '@shared/types/acp'
+import type { AcpConfigState } from '@deepchat/shared/types/acp'
 import type { AssistantMessageBlock } from '@shared/chat'
-import { normalizeAgentPlanStatus } from '@shared/types/agent-plan'
-import { createStreamEvent, type LLMCoreStreamEvent } from '@shared/types/core/llm-events'
+import { normalizeAgentPlanStatus } from '@deepchat/shared/types/agent-plan'
+import { createStreamEvent, type LLMCoreStreamEvent } from '@deepchat/shared/types/core/llm-events'
 import { normalizeAcpConfigState } from './acpConfigState'
 
 export function createAcpPromptTerminalEvents(

@@ -1,4 +1,4 @@
-import type { DeepchatEventPublisher } from '@shared/contracts/events'
+import type { DeepchatEventPublisher } from '@deepchat/shared/contracts/events'
 import type { SettingsStore } from '@/config/settingsStore'
 import type { LightOcrBackendPreference } from './lightOcrProtocol'
 

@@ -1,7 +1,7 @@
 import type {
   AssistantMessageBlock,
   ChatMessageRecord
-} from '../../shared/types/agent-interface.js'
+} from '@deepchat/shared/types/agent-interface'
 import type { DeepChatTapeEntryKind, DeepChatTapeEntryRow } from './entry.js'
 
 const TERMINAL_TAPE_TOOL_STATUSES = new Set(['success', 'error'])

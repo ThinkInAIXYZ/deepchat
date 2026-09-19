@@ -1866,7 +1866,7 @@ import { resolveAcpAgentAlias } from '@shared/utils/acpAgentAlias'
 import { isAcpDefaultWorkdirRequiredError } from '@shared/contracts/remoteControlErrors'
 import { RemoteChannelSaveCoordinator } from '../lib/remoteChannelSaveCoordinator'
 import { settingsLeaveGuard } from '../services/settingsLeaveGuard'
-import type { Agent, Project } from '@shared/types/agent-interface'
+import type { Agent, Project } from '@deepchat/shared/types/agent-interface'
 import type {
   DiscordPairingSnapshot,
   DiscordRemoteSettings,

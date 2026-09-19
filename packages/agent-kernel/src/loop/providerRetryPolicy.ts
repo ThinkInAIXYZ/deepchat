@@ -1,9 +1,12 @@
-import type { ErrorStreamEvent, ProviderFailureMetadata } from '../shared/types/core/llm-events.js'
+import type {
+  ErrorStreamEvent,
+  ProviderFailureMetadata
+} from '@deepchat/shared/types/core/llm-events'
 import type {
   DeepChatProviderAttemptIdentity,
   DeepChatProviderFailureClassification,
   DeepChatProviderRetryDecision
-} from '../shared/types/provider-attempt.js'
+} from '@deepchat/shared/types/provider-attempt'
 import {
   extractProviderFailureMetadata,
   sanitizeProviderFailureMetadata

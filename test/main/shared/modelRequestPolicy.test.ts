@@ -4,14 +4,14 @@ import {
   MOONSHOT_KIMI_THINKING_ENABLED_TEMPERATURE,
   getMoonshotKimiTemperaturePolicy,
   resolveMoonshotKimiTemperaturePolicy
-} from '../../../src/shared/modelRequestPolicy'
+} from '@deepchat/shared/modelRequestPolicy'
 import {
   applyModelRequestPolicy,
   isKimiK3ModelId,
   isMiniMaxM3AdaptiveThinkingModel,
   resolveCapabilityAwareRequestParameterPolicy,
   resolveModelRequestPolicy
-} from '../../../src/shared/modelRequestPolicy'
+} from '@deepchat/shared/modelRequestPolicy'
 
 describe('moonshot Kimi temperature policy', () => {
   it('locks Kimi For Coding fixed-thinking model temperature', () => {

@@ -17,7 +17,7 @@ import type {
   CanonicalSkill,
   ParseContext,
   FormatCapabilities
-} from '@shared/types/skillSync'
+} from '@deepchat/shared/types/skillSync'
 
 /**
  * Tool name mappings between Copilot and DeepChat

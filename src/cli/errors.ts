@@ -1,4 +1,7 @@
-import type { LocalControlError, LocalControlErrorCode } from '@shared/contracts/localControl'
+import type {
+  LocalControlError,
+  LocalControlErrorCode
+} from '@deepchat/shared/contracts/localControl'
 
 const MAX_CLI_ERROR_MESSAGE_LENGTH = 4_096
 

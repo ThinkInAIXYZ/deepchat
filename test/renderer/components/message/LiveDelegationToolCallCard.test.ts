@@ -2,7 +2,7 @@ import { createPinia, setActivePinia } from 'pinia'
 import { flushPromises, mount } from '@vue/test-utils'
 import { defineComponent } from 'vue'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { LiveDelegationSummary } from '@shared/orchestration/liveDelegation'
+import type { LiveDelegationSummary } from '@deepchat/shared/orchestration/liveDelegation'
 
 vi.mock('pinia', async () => vi.importActual<typeof import('pinia')>('pinia'))
 

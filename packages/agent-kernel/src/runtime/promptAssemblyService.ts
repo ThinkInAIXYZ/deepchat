@@ -1,5 +1,5 @@
-import type { MCPToolDefinition } from '../shared/types/core/mcp.js'
-import type { DeepChatPromptAssembly } from '../shared/types/prompt-assembly.js'
+import type { MCPToolDefinition } from '@deepchat/shared/types/core/mcp'
+import type { DeepChatPromptAssembly } from '@deepchat/shared/types/prompt-assembly'
 import { toAppSessionId } from '../collab/agent-shared/agentSessionIds.js'
 import type { DeepChatAgentInstance } from '../instance/deepChatAgentInstance.js'
 import type { SessionScopeRegistry } from '../instance/deepChatAgentRuntime.js'
@@ -17,7 +17,7 @@ import { buildContextCheckpoint } from './contextContributions.js'
 import { logSlowPreStreamStep } from './preStreamWatchdog.js'
 import type { SessionIdentityService } from './sessionIdentityService.js'
 import type { DeepChatToolResolver } from './toolResolver.js'
-import type { ResolvedCommandShell } from '../shared/commandShell.js'
+import type { ResolvedCommandShell } from '@deepchat/shared/commandShell'
 
 export interface PromptAssemblyProjectDirPort {
   resolveProjectDir(

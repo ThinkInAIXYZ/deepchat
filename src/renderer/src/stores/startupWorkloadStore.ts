@@ -1,6 +1,6 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
-import type { DeepchatEventPayload } from '@shared/contracts/events'
+import type { DeepchatEventPayload } from '@deepchat/shared/contracts/events'
 import { createStartupClient } from '@api/StartupClient'
 
 type StartupWorkloadTarget = 'main' | 'settings'

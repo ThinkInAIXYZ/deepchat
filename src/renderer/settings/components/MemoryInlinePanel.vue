@@ -366,7 +366,10 @@ import {
 import { Spinner } from '@shadcn/components/ui/spinner'
 import { Textarea } from '@shadcn/components/ui/textarea'
 import { createMemoryClient } from '@api/MemoryClient'
-import { AGENT_MEMORY_CATEGORIES, type AgentMemoryCategory } from '@shared/types/agent-memory'
+import {
+  AGENT_MEMORY_CATEGORIES,
+  type AgentMemoryCategory
+} from '@deepchat/shared/types/agent-memory'
 import type {
   MemoryAddResult,
   MemoryCommandRejectionReason,

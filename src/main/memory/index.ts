@@ -11,8 +11,8 @@ import {
   type MemoryInjectionResult,
   type MemoryRuntimePort
 } from '@deepchat/agent-kernel/collab/memory/injection'
-import logger from '@shared/logger'
-import { isSafeAgentId } from '@shared/types/agent-memory'
+import logger from '@deepchat/shared/logger'
+import { isSafeAgentId } from '@deepchat/shared/types/agent-memory'
 import type { AgentMemoryRow } from '@deepchat/agent-kernel/collab/memory/types'
 import {
   VectorStoreQuarantineMarkerError,
@@ -39,8 +39,8 @@ import type {
   MemoryLifecycle,
   MemoryUpdateResult
 } from '@shared/contracts/routes/memory.routes'
-import { AGENT_MEMORY_MANUAL_CONTENT_MAX_CHARS } from '@shared/types/agent-memory'
-import { unicodeCodePointLength } from '@shared/lib/unicodeText'
+import { AGENT_MEMORY_MANUAL_CONTENT_MAX_CHARS } from '@deepchat/shared/types/agent-memory'
+import { unicodeCodePointLength } from '@deepchat/shared/lib/unicodeText'
 import type {
   MemoryExtractionInput,
   MemoryExtractionResult,

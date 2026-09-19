@@ -1,6 +1,6 @@
 import { z } from 'zod'
-import { defineRouteContract } from '../common'
-import { RectangleSchema, YoBrowserStatusSchema } from '../domainSchemas'
+import { defineRouteContract } from '@deepchat/shared/contracts/common'
+import { RectangleSchema, YoBrowserStatusSchema } from '@deepchat/shared/contracts/domainSchemas'
 
 export const browserGetStatusRoute = defineRouteContract({
   name: 'browser.getStatus',

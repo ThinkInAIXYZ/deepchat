@@ -3,7 +3,7 @@
  */
 import { describe, it, expect } from 'vitest'
 import { ClaudeCodeAdapter } from '../../../../../src/main/skill/sync/adapters/claudeCodeAdapter'
-import type { CanonicalSkill, ParseContext } from '../../../../../src/shared/types/skillSync'
+import type { CanonicalSkill, ParseContext } from '@deepchat/shared/types/skillSync'
 
 describe('ClaudeCodeAdapter', () => {
   const adapter = new ClaudeCodeAdapter()

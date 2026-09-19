@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { ModelType } from '../../../src/shared/model'
+import { ModelType } from '@deepchat/shared/model'
 
 const createResolvedConfig = (reasoning: boolean) => ({
   maxTokens: 32000,

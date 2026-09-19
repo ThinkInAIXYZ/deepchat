@@ -99,7 +99,11 @@ import { useI18n } from 'vue-i18n'
 import { useProviderStore } from '@/stores/providerStore'
 import { useModelStore } from '@/stores/modelStore'
 import { useUiSettingsStore } from '@/stores/uiSettingsStore'
-import type { LLM_PROVIDER, RENDERER_MODEL_META, VERTEX_PROVIDER } from '@shared/types/provider'
+import type {
+  LLM_PROVIDER,
+  RENDERER_MODEL_META,
+  VERTEX_PROVIDER
+} from '@deepchat/shared/types/provider'
 import ProviderSettingsShell from './ProviderSettingsShell.vue'
 import ProviderApiConfig from './ProviderApiConfig.vue'
 import AzureProviderConfig from './AzureProviderConfig.vue'
@@ -117,7 +121,7 @@ import { notifyRenderer } from '@renderer-notifications/rendererNotificationPort
 import {
   supportsProviderCustomHeaders,
   type ProviderCustomHeaders
-} from '@shared/providerCustomHeaders'
+} from '@deepchat/shared/providerCustomHeaders'
 import ProviderCustomHeadersEditor from './ProviderCustomHeadersEditor.vue'
 
 interface ProviderWebsites {

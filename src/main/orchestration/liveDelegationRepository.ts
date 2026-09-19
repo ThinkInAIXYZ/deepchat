@@ -1,12 +1,12 @@
 import { Buffer } from 'node:buffer'
 import { z } from 'zod'
-import type { SubagentTapeLinkReceipt } from '@shared/types/agent-interface'
+import type { SubagentTapeLinkReceipt } from '@deepchat/shared/types/agent-interface'
 import type {
   DeepChatEvaluationRef,
   DeepChatStoredTaskEvaluation,
   DeepChatTaskContractContext,
   DeepChatTaskEvaluation
-} from '@shared/types/task-contract'
+} from '@deepchat/shared/types/task-contract'
 import {
   LIVE_DELEGATION_MAX_EFFECT_EVIDENCE_BYTES,
   LIVE_DELEGATION_MAX_ACTIVE_PER_PARENT,
@@ -27,13 +27,13 @@ import {
   type LiveDelegationStatus,
   type LiveDelegationTurn,
   type LiveDelegationTurnStatus
-} from '@shared/orchestration/liveDelegation'
+} from '@deepchat/shared/orchestration/liveDelegation'
 import {
   OrchestrationEffectEvidenceSchema,
   OrchestrationEffectStateSchema,
   type OrchestrationEffectEvidence,
   type OrchestrationEffectState
-} from '@shared/orchestration/toolEffect'
+} from '@deepchat/shared/orchestration/toolEffect'
 import type { LiveDelegationDatabase } from './data/database'
 import type { LiveDelegationEventRow } from './data/tables/liveDelegationEvents'
 import type { LiveDelegationRow } from './data/tables/liveDelegations'

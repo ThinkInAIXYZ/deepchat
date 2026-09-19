@@ -3,7 +3,7 @@
  * Used to optimize rebuild strategy when provider changes
  */
 
-import type { LLM_PROVIDER } from './types/provider'
+import type { LLM_PROVIDER } from '@deepchat/shared/types/provider'
 
 /**
  * Provider update operation type

@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { TOOL_EXECUTION, type MCPToolDefinition, type PromptListEntry } from '@shared/types/mcp'
+import {
+  TOOL_EXECUTION,
+  type MCPToolDefinition,
+  type PromptListEntry
+} from '@deepchat/shared/types/mcp'
 import {
   filterSlashSuggestionItems,
   flattenPromptResultToText,

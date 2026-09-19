@@ -1,6 +1,6 @@
 import type { DeepchatBridge } from '@shared/contracts/bridge'
-import type { MCPContentItem } from '@shared/types/mcp'
-import type { McpServerStatusChangedPayload } from '@shared/types/core/mcp'
+import type { MCPContentItem } from '@deepchat/shared/types/mcp'
+import type { McpServerStatusChangedPayload } from '@deepchat/shared/types/core/mcp'
 import {
   mcpAppConsentRequestEvent,
   mcpConfigChangedEvent,
@@ -16,7 +16,7 @@ import {
   mcpServerStatusChangedEvent,
   mcpServerStoppedEvent,
   mcpToolCallResultEvent
-} from '@shared/contracts/events'
+} from '@deepchat/shared/contracts/events'
 import {
   mcpAddServerRoute,
   mcpAppsAuthorizeMessageRoute,
@@ -95,7 +95,7 @@ import type {
   McpSamplingDecision,
   PromptListEntry,
   ResourceListEntry
-} from '@shared/types/mcp'
+} from '@deepchat/shared/types/mcp'
 import { getDeepchatBridge } from './core'
 
 export function createMcpClient(bridge: DeepchatBridge = getDeepchatBridge()) {

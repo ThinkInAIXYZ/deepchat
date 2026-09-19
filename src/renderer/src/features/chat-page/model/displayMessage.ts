@@ -2,9 +2,12 @@ import type {
   MessageFile,
   SessionCompactionBoundaryReason,
   UserMessageInlineItem
-} from '@shared/types/agent-interface'
-import type { AgentPlanDisplayItem, AgentPlanTerminalReason } from '@shared/types/agent-plan'
-import type { PersistedMcpToolResult, ToolCallImagePreview } from '@shared/types/core/mcp'
+} from '@deepchat/shared/types/agent-interface'
+import type {
+  AgentPlanDisplayItem,
+  AgentPlanTerminalReason
+} from '@deepchat/shared/types/agent-plan'
+import type { PersistedMcpToolResult, ToolCallImagePreview } from '@deepchat/shared/types/core/mcp'
 
 export type DisplayMessageUsage = {
   context_usage: number

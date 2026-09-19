@@ -8,7 +8,7 @@ import {
   orchestrationSetPolicyRoute
 } from '@shared/contracts/routes'
 import { createOrchestrationRoutes } from '@/orchestration/routes'
-import type { OrchestrationPolicy } from '@shared/orchestration/policy'
+import type { OrchestrationPolicy } from '@deepchat/shared/orchestration/policy'
 
 const context = createRendererRouteContext(1, 1)
 const liveSummary = {

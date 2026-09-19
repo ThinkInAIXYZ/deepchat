@@ -13,7 +13,7 @@ import {
   type LocalControlDescriptor,
   type LocalControlEndpoint,
   type LocalControlEventEnvelope
-} from '@shared/contracts/localControl'
+} from '@deepchat/shared/contracts/localControl'
 import {
   invokeLocalControlRpc,
   invokeLocalControlStream,

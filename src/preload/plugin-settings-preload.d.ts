@@ -1,5 +1,5 @@
-import type { JsonValue } from '@shared/contracts/common'
-import type { PluginActionResult, PluginSettingsApiStatus } from '@shared/types/plugin'
+import type { JsonValue } from '@deepchat/shared/contracts/common'
+import type { PluginActionResult, PluginSettingsApiStatus } from '@deepchat/shared/types/plugin'
 
 export interface DeepChatPluginSettingsApi {
   getPluginId(): string

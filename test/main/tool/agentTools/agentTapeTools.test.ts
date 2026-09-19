@@ -3,7 +3,7 @@ import { AgentToolManager } from '@/tool/agentTools/agentToolManager'
 import { AgentTapeToolHandler, TAPE_TOOL_NAMES } from '@/tool/agentTools'
 import { createAgentToolDependencies } from './agentToolDependencies'
 import { CommandPermissionService } from '@/tool/permission'
-import { resolveDeepChatSubagentCapability } from '@shared/lib/deepchatSubagents'
+import { resolveDeepChatSubagentCapability } from '@deepchat/shared/lib/deepchatSubagents'
 
 vi.mock('electron', () => ({
   app: {

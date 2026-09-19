@@ -15,7 +15,7 @@ import { MEMORY_TEMPORAL_UNCERTAIN_STATE_FACTOR } from '@/memory/core/temporal'
 import { createMemoryProviderCapacityError } from '@/memory/core/providerCancellation'
 import { MEMORY_RETRIEVAL_MAX_CANDIDATES } from '@/memory/core/retrievalBudget'
 import { FTS_SIMILARITY_BASELINE } from '@deepchat/agent-kernel/collab/memory/types'
-import type { DeepChatAgentConfig } from '@shared/types/agent-interface'
+import type { DeepChatAgentConfig } from '@deepchat/shared/types/agent-interface'
 import { enabledConfig, makePresenter, textToVector } from './support/memoryFakes'
 import {
   DAY,

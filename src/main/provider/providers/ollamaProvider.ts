@@ -1,8 +1,8 @@
 import type { ProviderSettingsPort } from '@/provider/settings'
-import type { ChatMessage } from '@shared/types/core/chat-message'
-import type { LLMCoreStreamEvent } from '@shared/types/core/llm-events'
-import type { LLMResponse } from '@shared/types/provider'
-import type { MCPToolDefinition } from '@shared/types/mcp'
+import type { ChatMessage } from '@deepchat/shared/types/core/chat-message'
+import type { LLMCoreStreamEvent } from '@deepchat/shared/types/core/llm-events'
+import type { LLMResponse } from '@deepchat/shared/types/provider'
+import type { MCPToolDefinition } from '@deepchat/shared/types/mcp'
 import type {
   LLM_EMBEDDING_ATTRS,
   LLM_PROVIDER,
@@ -11,9 +11,9 @@ import type {
   OllamaModel,
   ProviderStreamOptions,
   ProgressResponse
-} from '@shared/types/provider'
-import { ModelType } from '@shared/model'
-import { getValidProviderCustomHeaders } from '@shared/providerCustomHeaders'
+} from '@deepchat/shared/types/provider'
+import { ModelType } from '@deepchat/shared/model'
+import { getValidProviderCustomHeaders } from '@deepchat/shared/providerCustomHeaders'
 import {
   BaseLLMProvider,
   SUMMARY_TITLES_PROMPT,

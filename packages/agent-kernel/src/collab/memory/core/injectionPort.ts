@@ -1,4 +1,4 @@
-import type { MemoryRetrievalDegradationCause } from '../../../shared/types/agent-memory.js'
+import type { MemoryRetrievalDegradationCause } from '@deepchat/shared/types/agent-memory'
 
 import type { AgentMemoryKind, MemoryScopeContext, MemoryTemporalTrace } from '../domain/types.js'
 import type { MemoryExecutionToken } from './executionIdentity.js'

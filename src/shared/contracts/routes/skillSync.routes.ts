@@ -1,10 +1,10 @@
 import { z } from 'zod'
-import { defineRouteContract } from '../common'
+import { defineRouteContract } from '@deepchat/shared/contracts/common'
 import {
   SkillSyncExternalToolConfigSchema,
   SkillSyncNewDiscoverySchema,
   SkillSyncScanResultSchema
-} from '../domainSchemas'
+} from '@deepchat/shared/contracts/domainSchemas'
 
 export const skillSyncScanExternalToolsRoute = defineRouteContract({
   name: 'skillSync.scanExternalTools',

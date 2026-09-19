@@ -1,10 +1,10 @@
-import type { LLM_PROVIDER } from '@shared/types/provider'
-import type { AcpAgentConfig } from '@shared/types/acp'
+import type { LLM_PROVIDER } from '@deepchat/shared/types/provider'
+import type { AcpAgentConfig } from '@deepchat/shared/types/acp'
 import type { AgentSettingsPort } from '@/agent/settings'
 import { AcpProcessManager, type AcpProcessHandle } from '@/agent/acp/runtime'
 import type { AcpConnectionRef, AcpRegistryPort, StartAcpConnectionInput } from '../types'
 import { PROTOCOL_VERSION } from '@agentclientprotocol/sdk'
-import type { DeepchatEventName } from '@shared/contracts/events'
+import type { DeepchatEventName } from '@deepchat/shared/contracts/events'
 
 export class AcpConnectionManager {
   readonly processManager: AcpProcessManager

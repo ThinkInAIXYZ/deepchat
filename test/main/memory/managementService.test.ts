@@ -12,7 +12,7 @@ import {
 } from '@/memory/runtimeConstants'
 import { type IMemoryVectorStore } from '@deepchat/agent-kernel/collab/memory/types'
 import { createEmptyMemoryHealth } from '@shared/contracts/routes'
-import type { DeepChatAgentConfig } from '@shared/types/agent-interface'
+import type { DeepChatAgentConfig } from '@deepchat/shared/types/agent-interface'
 import {
   FakeVectorStore,
   createFakeRepository,

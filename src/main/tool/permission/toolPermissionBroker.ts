@@ -1,5 +1,5 @@
-import type { PermissionMode } from '@shared/types/agent-interface'
-import type { ToolPermissionPreCheckResult } from '@shared/types/tool'
+import type { PermissionMode } from '@deepchat/shared/types/agent-interface'
+import type { ToolPermissionPreCheckResult } from '@deepchat/shared/types/tool'
 import {
   ApprovalBroker,
   ApprovalCapacityError,

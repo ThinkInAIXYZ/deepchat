@@ -1,15 +1,15 @@
 import { describe, expect, it, vi } from 'vitest'
-import { TOOL_EXECUTION, type MCPToolDefinition } from '@shared/types/core/mcp'
+import { TOOL_EXECUTION, type MCPToolDefinition } from '@deepchat/shared/types/core/mcp'
 import {
   LOCAL_CONTROL_PROGRAMMATIC_ROUTE_SURFACE_VERSION,
   type LocalControlErrorCode
-} from '@shared/contracts/localControl'
+} from '@deepchat/shared/contracts/localControl'
 import {
   toolBatchRoute,
   toolCallRoute,
   toolDescribeRoute,
   toolSearchRoute
-} from '@shared/contracts/routes/tools.routes'
+} from '@deepchat/shared/contracts/routes/tools.routes'
 import {
   buildProgrammaticToolCapabilityV1,
   createProgrammaticToolSurfaceRunControllerV1,

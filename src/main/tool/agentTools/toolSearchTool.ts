@@ -1,4 +1,4 @@
-import { TOOL_SEARCH_AGENT_TOOL_NAME } from '@shared/agentTools'
+import { TOOL_SEARCH_AGENT_TOOL_NAME } from '@deepchat/shared/agentTools'
 import type {
   CanonicalToolCatalogEntry,
   ToolSurfaceActivationCandidate,

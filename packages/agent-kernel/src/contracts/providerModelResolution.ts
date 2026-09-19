@@ -2,13 +2,13 @@ import type {
   CapabilitySnapshotQuery,
   ResolvedCapabilityIdentity,
   ResolvedModelCapabilitySnapshot
-} from '../shared/types/model-capabilities.js'
+} from '@deepchat/shared/types/model-capabilities'
 import type {
   LLM_PROVIDER,
   MODEL_META,
   ModelConfig,
   ModelRouteConfig
-} from '../shared/types/provider.js'
+} from '@deepchat/shared/types/provider'
 
 type CapabilitySnapshotModelConfig = ModelRouteConfig & Partial<Pick<ModelConfig, 'reasoning'>>
 

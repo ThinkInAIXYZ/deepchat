@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { McpAppSandboxRegistry } from '@/mcp/apps/sandboxRegistry'
-import type { McpAppDescriptor } from '@shared/types/mcp'
+import type { McpAppDescriptor } from '@deepchat/shared/types/mcp'
 
 const descriptor: McpAppDescriptor = {
   schemaVersion: 1,

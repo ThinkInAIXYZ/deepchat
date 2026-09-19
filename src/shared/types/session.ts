@@ -1,6 +1,6 @@
 import type { AssistantMessageBlock } from '../chat'
-import type { ReasoningEffort, Verbosity } from './model-db'
-import type { SearchResult } from './core/search'
+import type { ReasoningEffort, Verbosity } from '@deepchat/shared/types/model-db'
+import type { SearchResult } from '@deepchat/shared/types/core/search'
 
 export type CONVERSATION_SETTINGS = {
   systemPrompt: string

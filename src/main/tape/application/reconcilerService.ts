@@ -1,4 +1,4 @@
-import type { ChatMessageRecord } from '@shared/types/agent-interface'
+import type { ChatMessageRecord } from '@deepchat/shared/types/agent-interface'
 import type { TapeApplicationProviders } from '@deepchat/agent-kernel/tape/ports/application'
 import type {
   TapeBackfillResult,

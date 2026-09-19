@@ -5,7 +5,7 @@ import type {
 } from '../instance/deepChatAgentInstance.js'
 import type { LoopRunToolSurfaceMode } from '../loop/loopRun.js'
 import { hashJsonData } from '../tape/domain/canonicalJson.js'
-import type { ChatMessage } from '../shared/types/core/chat-message.js'
+import type { ChatMessage } from '@deepchat/shared/types/core/chat-message'
 import type {
   CanonicalToolCatalog,
   ToolSurfaceDefinitionIdentity,

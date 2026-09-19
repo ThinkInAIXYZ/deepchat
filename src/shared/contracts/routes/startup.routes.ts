@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { StartupBootstrapShellSchema, defineRouteContract } from '../common'
+import { StartupBootstrapShellSchema, defineRouteContract } from '@deepchat/shared/contracts/common'
 
 export const startupGetBootstrapRoute = defineRouteContract({
   name: 'startup.getBootstrap',

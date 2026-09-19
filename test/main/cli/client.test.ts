@@ -5,13 +5,13 @@ import path from 'node:path'
 import { Readable } from 'node:stream'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { DeepchatRouteName } from '@shared/contracts/routes'
-import type { JsonValue } from '@shared/contracts/json'
+import type { JsonValue } from '@deepchat/shared/contracts/json'
 import {
   LOCAL_CONTROL_AGENT_TOKEN_ENV,
   LocalControlEventEnvelopeSchema,
   LocalControlRpcResponseSchema,
   type LocalControlDescriptor
-} from '@shared/contracts/localControl'
+} from '@deepchat/shared/contracts/localControl'
 import { createCliRoutes } from '@/cli/routes'
 import { CliServer } from '@/cli/server'
 import type { CliRouteCaller } from '@/routes/routeRegistry'

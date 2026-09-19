@@ -1,9 +1,9 @@
 import type { ProviderSettingsPort } from '@/provider/settings'
-import logger from '@shared/logger'
-import type { LLMResponse } from '@shared/types/provider'
-import type { ChatMessage } from '@shared/types/core/chat-message'
-import type { LLMCoreStreamEvent } from '@shared/types/core/llm-events'
-import type { MCPToolDefinition } from '@shared/types/core/mcp'
+import logger from '@deepchat/shared/logger'
+import type { LLMResponse } from '@deepchat/shared/types/provider'
+import type { ChatMessage } from '@deepchat/shared/types/core/chat-message'
+import type { LLMCoreStreamEvent } from '@deepchat/shared/types/core/llm-events'
+import type { MCPToolDefinition } from '@deepchat/shared/types/core/mcp'
 import type {
   ProviderRuntimePort,
   LLM_PROVIDER,
@@ -19,18 +19,18 @@ import type {
   ModelScopeMcpSyncResult,
   RateLimitQueueSnapshot,
   ProviderStreamOptions
-} from '@shared/types/provider'
-import type { AcpConfigState, AcpDebugRequest, AcpDebugRunResult } from '@shared/types/acp'
-import { ApiEndpointType, ModelType } from '@shared/model'
+} from '@deepchat/shared/types/provider'
+import type { AcpConfigState, AcpDebugRequest, AcpDebugRunResult } from '@deepchat/shared/types/acp'
+import { ApiEndpointType, ModelType } from '@deepchat/shared/model'
 import {
   normalizeImageGenerationOptions,
   type ImageGenerationOptions
-} from '@shared/imageGenerationSettings'
+} from '@deepchat/shared/imageGenerationSettings'
 import {
   normalizeVideoGenerationOptions,
   type VideoGenerationOptions
-} from '@shared/videoGenerationSettings'
-import { normalizeTtsSettings, type TtsSettings } from '@shared/ttsSettings'
+} from '@deepchat/shared/videoGenerationSettings'
+import { normalizeTtsSettings, type TtsSettings } from '@deepchat/shared/ttsSettings'
 import { ProviderChange, ProviderBatchUpdate } from '@shared/provider-operations'
 import { isProviderDbBackedProvider } from '@shared/providerDbCatalog'
 import type {
@@ -58,7 +58,7 @@ import { AcpRuntimeOwner } from '@/agent/acp/client'
 import { AcpSessionPersistence } from '@/agent/acp/runtime'
 import { AcpProvider } from './providers/acpProvider'
 import type { AgentSettingsPort } from '@/agent/settings'
-import type { DeepchatEventPublisher } from '@shared/contracts/events'
+import type { DeepchatEventPublisher } from '@deepchat/shared/contracts/events'
 
 const createAbortError = (): Error => {
   if (typeof DOMException !== 'undefined') {

@@ -4,14 +4,14 @@ import path from 'path'
 import { execFileSync } from 'child_process'
 import { createHash } from 'crypto'
 import { unzipSync } from 'fflate'
-import type { AcpAgentConfig } from '@shared/types/acp'
+import type { AcpAgentConfig } from '@deepchat/shared/types/acp'
 import type {
   AcpAgentInstallState,
   AcpManualAgent,
   AcpRegistryAgent,
   AcpRegistryBinaryDistribution,
   AcpResolvedLaunchSpec
-} from '@shared/types/acp'
+} from '@deepchat/shared/types/acp'
 
 type RegistryDistributionSelection =
   | {

@@ -1,5 +1,8 @@
 import { defineStore } from 'pinia'
-import type { AttachmentPreparationSummary, SendMessageInput } from '@shared/types/agent-interface'
+import type {
+  AttachmentPreparationSummary,
+  SendMessageInput
+} from '@deepchat/shared/types/agent-interface'
 
 export interface InitialAttachmentDraftRecovery {
   sessionId: string

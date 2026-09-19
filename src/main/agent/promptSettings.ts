@@ -1,6 +1,6 @@
 import type { Prompt, SystemPrompt } from '@shared/types/prompt'
 import type { SettingsStore } from '@/config/settingsStore'
-import { DEEPCHAT_SUBAGENT_MODEL_GUIDANCE } from '@shared/lib/deepchatSubagents'
+import { DEEPCHAT_SUBAGENT_MODEL_GUIDANCE } from '@deepchat/shared/lib/deepchatSubagents'
 
 export interface PromptSettingsEvents {
   publishCustomPromptsChanged(prompts: Prompt[]): void

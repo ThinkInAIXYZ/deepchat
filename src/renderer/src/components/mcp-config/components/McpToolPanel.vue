@@ -17,7 +17,7 @@ import { useMcpStore } from '@/stores/mcp'
 import { useMediaQuery } from '@vueuse/core'
 import { useI18n } from 'vue-i18n'
 import McpJsonViewer from './McpJsonViewer.vue'
-import type { MCPToolDefinition } from '@shared/types/mcp'
+import type { MCPToolDefinition } from '@deepchat/shared/types/mcp'
 
 interface Props {
   serverName: string

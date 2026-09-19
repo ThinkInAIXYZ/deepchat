@@ -1,6 +1,6 @@
 /// <reference types="vite/client" />
 
-import type { YoBrowserActivityPayload } from '@shared/types/browser'
+import type { YoBrowserActivityPayload } from '@deepchat/shared/types/browser'
 
 declare global {
   interface Window {

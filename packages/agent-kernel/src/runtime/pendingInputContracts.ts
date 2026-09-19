@@ -3,7 +3,7 @@ import type {
   MessageStartResult,
   PendingInputEnqueueSource,
   PendingSessionInputRecord
-} from '../shared/types/agent-interface.js'
+} from '@deepchat/shared/types/agent-interface'
 
 export type PendingInputTurnSource = PendingInputEnqueueSource | 'steer'
 

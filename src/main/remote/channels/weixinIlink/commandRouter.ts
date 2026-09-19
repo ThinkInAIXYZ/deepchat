@@ -1,4 +1,7 @@
-import type { ToolInteractionResponse, SessionWithState } from '@shared/types/agent-interface'
+import type {
+  ToolInteractionResponse,
+  SessionWithState
+} from '@deepchat/shared/types/agent-interface'
 import type {
   RemotePendingInteraction,
   TelegramAgentOption,

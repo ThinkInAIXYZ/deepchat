@@ -351,14 +351,14 @@ import { RadioGroup, RadioGroupItem } from '@shadcn/components/ui/radio-group'
 import { createSessionClient } from '@api/SessionClient'
 import { createSkillClient } from '@api/SkillClient'
 import { createToolClient } from '@api/ToolClient'
-import type { MCPToolDefinition } from '@shared/types/mcp'
+import type { MCPToolDefinition } from '@deepchat/shared/types/mcp'
 import { useMcpStore } from '@/stores/mcp'
 import { useSessionStore } from '@/stores/ui/session'
 import { useDraftStore } from '@/stores/ui/draft'
 import { useAgentStore } from '@/stores/ui/agent'
 import { useProjectStore } from '@/stores/ui/project'
 import { useModelCapabilities } from '@/composables/useModelCapabilities'
-import { ToolModeSchema, type ToolMode, type ToolModeOverride } from '@shared/toolMode'
+import { ToolModeSchema, type ToolMode, type ToolModeOverride } from '@deepchat/shared/toolMode'
 
 type ToolGroupItem = {
   id: string

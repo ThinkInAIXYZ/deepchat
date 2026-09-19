@@ -1,5 +1,8 @@
-import type { PermissionMode, SessionGenerationSettings } from '@shared/types/agent-interface'
-import type { ToolModeOverride } from '@shared/toolMode'
+import type {
+  PermissionMode,
+  SessionGenerationSettings
+} from '@deepchat/shared/types/agent-interface'
+import type { ToolModeOverride } from '@deepchat/shared/toolMode'
 import type { ConversationSessionInfo } from '@/tool/runtimePorts'
 import type {
   SessionAgentAssignmentPort,

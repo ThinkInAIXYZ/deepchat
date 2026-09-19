@@ -5,7 +5,7 @@ import type {
   PendingSessionInputState,
   SendMessageInput,
   UserMessageContent
-} from '../shared/types/agent-interface.js'
+} from '@deepchat/shared/types/agent-interface'
 
 export interface PendingInputRestartRecovery {
   affectedSessionIds: Set<string>

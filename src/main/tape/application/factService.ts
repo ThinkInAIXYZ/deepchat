@@ -1,5 +1,8 @@
-import type { AgentTapeHandoffState, ChatMessageRecord } from '@shared/types/agent-interface'
-import { TOOL_SEARCH_AGENT_TOOL_NAME } from '@shared/agentTools'
+import type {
+  AgentTapeHandoffState,
+  ChatMessageRecord
+} from '@deepchat/shared/types/agent-interface'
+import { TOOL_SEARCH_AGENT_TOOL_NAME } from '@deepchat/shared/agentTools'
 import type {
   DeepChatTapeEntryRow,
   TapeAnchorAppendInput

@@ -1,9 +1,9 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import type { MODEL_META, RENDERER_MODEL_META } from '@shared/types/provider'
-import type { AgentProcessHandle } from '@shared/types/acp'
-import type { AgentSessionState } from '@shared/types/acp'
-import { ModelType } from '@shared/model'
+import type { MODEL_META, RENDERER_MODEL_META } from '@deepchat/shared/types/provider'
+import type { AgentProcessHandle } from '@deepchat/shared/types/acp'
+import type { AgentSessionState } from '@deepchat/shared/types/acp'
+import { ModelType } from '@deepchat/shared/model'
 import { createConfigClient } from '../../api/ConfigClient'
 
 export interface AgentModelRefreshResult {

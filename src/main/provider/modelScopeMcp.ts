@@ -1,5 +1,5 @@
-import type { MCPServerConfig } from '@shared/types/mcp'
-import type { LLM_PROVIDER, ModelScopeMcpSyncOptions } from '@shared/types/provider'
+import type { MCPServerConfig } from '@deepchat/shared/types/mcp'
+import type { LLM_PROVIDER, ModelScopeMcpSyncOptions } from '@deepchat/shared/types/provider'
 
 export interface ModelScopeMcpServerResponse {
   code: number

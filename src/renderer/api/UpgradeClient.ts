@@ -4,7 +4,7 @@ import {
   upgradeProgressEvent,
   upgradeStatusChangedEvent,
   upgradeWillRestartEvent
-} from '@shared/contracts/events'
+} from '@deepchat/shared/contracts/events'
 import {
   upgradeCheckRoute,
   upgradeClearMockRoute,

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
-import { AGENT_MEMORY_MANUAL_CONTENT_MAX_CHARS } from '@shared/types/agent-memory'
-import { resolveDeepChatSubagentCapability } from '@shared/lib/deepchatSubagents'
+import { AGENT_MEMORY_MANUAL_CONTENT_MAX_CHARS } from '@deepchat/shared/types/agent-memory'
+import { resolveDeepChatSubagentCapability } from '@deepchat/shared/lib/deepchatSubagents'
 
 import { AgentMemoryToolHandler, MEMORY_TOOL_NAMES } from '@/tool/agentTools/agentMemoryTools'
 

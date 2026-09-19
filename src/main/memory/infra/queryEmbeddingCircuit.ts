@@ -1,5 +1,5 @@
-import logger from '@shared/logger'
-import { truncateUnicodeCodePoints } from '@shared/lib/unicodeText'
+import logger from '@deepchat/shared/logger'
+import { truncateUnicodeCodePoints } from '@deepchat/shared/lib/unicodeText'
 
 import { isMemoryProviderDeadlineError } from '../core/providerCancellation'
 import {

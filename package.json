@@ -15,6 +15,7 @@
     "preinstall": "npx only-allow pnpm",
     "test": "vitest run",
     "test:main": "vitest run --config vitest.config.ts test/main",
+    "test:artifact": "vitest run --config vitest.config.ts test/main/agent/kernelPackage/agentKernelPackageRuntime.test.ts",
     "test:memory:scope": "node scripts/check-memory-test-scope.mjs",
     "test:memory:type": "node scripts/typecheck-memory-tests.mjs",
     "test:memory": "pnpm run test:memory:scope && pnpm run test:memory:type && vitest --config vitest.config.memory.ts --run",
@@ -41,13 +42,13 @@
     "typecheck:contracts": "node scripts/typecheck-agent-service-contracts.mjs",
     "typecheck:kernel-ports": "node scripts/typecheck-kernel-port-structure.mjs",
     "typecheck:web": "vue-tsc --noEmit -p tsconfig.app.json --composite false --incremental --tsBuildInfoFile node_modules/.cache/tsc-web.tsbuildinfo",
-    "typecheck": "pnpm run typecheck:node && pnpm run typecheck:web && pnpm run typecheck:contracts && pnpm run typecheck:kernel-ports",
+    "typecheck": "pnpm run typecheck:shared && pnpm run typecheck:node && pnpm run typecheck:web && pnpm run typecheck:contracts && pnpm run typecheck:kernel-ports",
     "start": "electron-vite preview",
     "dev": "electron-vite dev --watch",
     "dev:trace": "cross-env DEEPCHAT_VUE_DEVTOOLS_OVERLAY=0 electron-vite dev --watch",
     "dev:inspect": "electron-vite dev --watch --inspect=9229",
     "dev:linux": "electron-vite dev --watch --noSandbox",
-    "build": "pnpm run typecheck && electron-vite build && pnpm run cli:build",
+    "build": "pnpm run typecheck && pnpm run build:shared && electron-vite build && pnpm run cli:build",
     "cli:build": "node scripts/build-cli.mjs",
     "release:ff": "node scripts/release-fast-forward.mjs",
     "postinstall": "install-electron && electron-builder install-app-deps",
@@ -102,7 +103,10 @@
     "i18n:validate": "node scripts/validate-i18n.mjs",
     "i18n:types": "node scripts/generate-i18n-types.js",
     "cleanRuntime": "rm -rf runtime/uv runtime/node",
-    "update-shadcn": "node scripts/update-shadcn.js"
+    "update-shadcn": "node scripts/update-shadcn.js",
+    "build:shared": "pnpm --filter @deepchat/shared build",
+    "build:kernel": "pnpm --filter @deepchat/agent-kernel build",
+    "typecheck:shared": "pnpm --filter @deepchat/shared typecheck"
   },
   "dependencies": {
     "@agentclientprotocol/sdk": "^0.16.1",
@@ -163,7 +167,8 @@
     "undici": "^8.10.2",
     "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz",
     "xml2js": "^0.6.2",
-    "zod": "^4.5.4"
+    "zod": "^4.5.4",
+    "@deepchat/shared": "workspace:*"
   },
   "devDependencies": {
     "@antv/infographic": "^0.2.20",

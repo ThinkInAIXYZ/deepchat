@@ -10,7 +10,7 @@ import {
   type PublicProviderSummary,
   type SettingsActivityInput
 } from '@shared/contracts/routes'
-import type { LLM_PROVIDER } from '@shared/types/provider'
+import type { LLM_PROVIDER } from '@deepchat/shared/types/provider'
 import type { ProviderRuntime } from '@/provider'
 import type { ProviderQueryScheduler } from '@/provider/providerService'
 import type { ProviderSettingsPort } from '@/provider/settings'

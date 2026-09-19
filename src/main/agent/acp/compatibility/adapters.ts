@@ -1,6 +1,6 @@
 import { nanoid } from 'nanoid'
-import type { PermissionRequestPayload } from '@shared/types/core/llm-events'
-import { createStreamEvent } from '@shared/types/core/llm-events'
+import type { PermissionRequestPayload } from '@deepchat/shared/types/core/llm-events'
+import { createStreamEvent } from '@deepchat/shared/types/core/llm-events'
 import type {
   AcpCompatibilityProjectionPort,
   AcpCancelCause,

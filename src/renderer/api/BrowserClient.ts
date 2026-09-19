@@ -7,7 +7,7 @@ import {
   browserPreviewSurfaceChangedEvent,
   browserStatusChangedEvent,
   type DeepchatEventPayload
-} from '@shared/contracts/events'
+} from '@deepchat/shared/contracts/events'
 import {
   browserAttachCurrentWindowRoute,
   browserFocusContentRoute,
@@ -26,8 +26,8 @@ import {
   browserSetPreviewModeRoute,
   browserUpdateCurrentWindowBoundsRoute
 } from '@shared/contracts/routes'
-import type { YoBrowserStatus } from '@shared/types/browser'
-import type { YoBrowserActivityPayload } from '@shared/types/browser'
+import type { YoBrowserStatus } from '@deepchat/shared/types/browser'
+import type { YoBrowserActivityPayload } from '@deepchat/shared/types/browser'
 import { getDeepchatBridge } from './core'
 import { getRuntimeWindowId, openRuntimeExternal } from './runtime'
 

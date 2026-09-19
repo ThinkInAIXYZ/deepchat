@@ -265,7 +265,7 @@ import type {
   BuiltinKnowledgeConfig,
   KnowledgeFileMessage,
   QueryResult
-} from '@shared/types/knowledge'
+} from '@deepchat/shared/types/knowledge'
 
 const props = defineProps<{
   builtinKnowledgeDetail: BuiltinKnowledgeConfig

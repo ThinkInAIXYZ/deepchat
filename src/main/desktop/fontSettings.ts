@@ -1,6 +1,6 @@
 import fontList from 'font-list'
 import type { SettingsStore } from '@/config/settingsStore'
-import type { DeepchatEventPublisher } from '@shared/contracts/events'
+import type { DeepchatEventPublisher } from '@deepchat/shared/contracts/events'
 
 const normalizeFontNameValue = (name: string): string => {
   const trimmed = name

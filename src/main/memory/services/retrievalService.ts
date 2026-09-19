@@ -1,10 +1,10 @@
-import logger from '@shared/logger'
+import logger from '@deepchat/shared/logger'
 import type {
   MemoryRecallLatencyStage,
   MemoryRetrievalDegradationCause,
   MemoryRetrievalOutcome,
   MemoryRetrievalPurpose
-} from '@shared/types/agent-memory'
+} from '@deepchat/shared/types/agent-memory'
 
 import {
   buildMemoryProvenanceKey,

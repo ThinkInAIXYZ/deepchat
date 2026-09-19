@@ -3,7 +3,7 @@ import {
   AGENT_MEMORY_TEMPORAL_PRECISIONS,
   type AgentMemoryTemporalKind,
   type AgentMemoryTemporalPrecision
-} from '@shared/types/agent-memory'
+} from '@deepchat/shared/types/agent-memory'
 
 import type {
   AgentMemoryRow,

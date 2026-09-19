@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { McpAppHost } from '@/mcp/apps/appHost'
-import type { McpAppDescriptor, Tool } from '@shared/types/mcp'
+import type { McpAppDescriptor, Tool } from '@deepchat/shared/types/mcp'
 
 const context = { webContentsId: 7, windowId: 11 }
 const descriptor: McpAppDescriptor = {

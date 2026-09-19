@@ -53,7 +53,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import type { UsageDashboardData } from '@shared/types/agent-interface'
+import type { UsageDashboardData } from '@deepchat/shared/types/agent-interface'
 
 type NostalgiaRotatingStat = {
   id: 'days' | 'sessions' | 'messages'

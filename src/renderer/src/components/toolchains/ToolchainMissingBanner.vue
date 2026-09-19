@@ -23,7 +23,7 @@ import { useI18n } from 'vue-i18n'
 import { createSettingsClient } from '@api/SettingsClient'
 import { createToolchainClient } from '@api/ToolchainClient'
 import { DcButton } from '@dc-ui/components/button'
-import type { ToolchainKind } from '@shared/types/toolchains'
+import type { ToolchainKind } from '@deepchat/shared/types/toolchains'
 
 const { t } = useI18n()
 const toolchainClient = createToolchainClient()

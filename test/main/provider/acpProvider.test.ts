@@ -2,7 +2,7 @@ import { beforeEach, describe, it, expect, vi } from 'vitest'
 import { AcpProvider } from '../../../src/main/provider/providers/acpProvider'
 import { AcpSessionController, LEGACY_MODE_CONFIG_ID } from '@/agent/acp/runtime'
 import { AcpPromptController } from '@/agent/acp/client'
-import type { AcpConfigState } from '@shared/types/acp'
+import type { AcpConfigState } from '@deepchat/shared/types/acp'
 
 const publishDeepchatEventMock = vi.hoisted(() => vi.fn())
 

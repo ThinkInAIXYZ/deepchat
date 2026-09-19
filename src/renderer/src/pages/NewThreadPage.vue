@@ -242,16 +242,16 @@ import { createChatClient } from '@api/ChatClient'
 import GuidedOnboardingOverlay from '@/components/onboarding/GuidedOnboardingOverlay.vue'
 import { useGuidedOnboardingStep } from '@/composables/useGuidedOnboardingStep'
 import { resolveGuidedOnboardingStepTarget } from '@shared/guidedOnboarding'
-import { DEFAULT_DISABLED_AGENT_TOOLS } from '@shared/agentTools'
-import { DEFAULT_ORCHESTRATION_POLICY } from '@shared/orchestration/policy'
+import { DEFAULT_DISABLED_AGENT_TOOLS } from '@deepchat/shared/agentTools'
+import { DEFAULT_ORCHESTRATION_POLICY } from '@deepchat/shared/orchestration/policy'
 import type {
   DeepChatAgentConfig,
   MessageFile,
   UserMessageInlineItem,
   SessionGenerationSettings
-} from '@shared/types/agent-interface'
-import type { AcpAuthChallenge } from '@shared/types/acp'
-import { normalizeDeepChatSubagentConfig } from '@shared/lib/deepchatSubagents'
+} from '@deepchat/shared/types/agent-interface'
+import type { AcpAuthChallenge } from '@deepchat/shared/types/acp'
+import { normalizeDeepChatSubagentConfig } from '@deepchat/shared/lib/deepchatSubagents'
 import {
   resolveChatModelByQuery,
   resolvePreferredChatModel,
@@ -261,8 +261,8 @@ import { scheduleStartupDeferredTask } from '@/lib/startupDeferred'
 import { isManualCompactionCommand } from '@/components/chat/mentions/utils'
 import { filterUnsupportedAudioAttachments } from '@/lib/audioInputSupport'
 import { isAbortError } from '@/lib/errors'
-import { isAttachmentPreparationCandidate } from '@shared/utils/attachmentRepresentation'
-import { normalizeWorkspacePath } from '@shared/utils/filesystem'
+import { isAttachmentPreparationCandidate } from '@deepchat/shared/utils/attachmentRepresentation'
+import { normalizeWorkspacePath } from '@deepchat/shared/utils/filesystem'
 import { useSpeechRecognition } from '@/components/chat/composables/useSpeechRecognition'
 import { cancelChatInputHeroFlight, prepareChatInputHeroFlight } from '@/lib/chatInputHero'
 

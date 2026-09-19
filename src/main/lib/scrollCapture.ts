@@ -1,4 +1,4 @@
-import logger from '@shared/logger'
+import logger from '@deepchat/shared/logger'
 import { NativeImage, WebContentsView, nativeImage } from 'electron'
 import sharp from 'sharp'
 

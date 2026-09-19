@@ -1,5 +1,5 @@
-import type { RouteContract } from '@shared/contracts/contract'
-import { JsonValueSchema, type JsonValue } from '@shared/contracts/json'
+import type { RouteContract } from '@deepchat/shared/contracts/contract'
+import { JsonValueSchema, type JsonValue } from '@deepchat/shared/contracts/json'
 import {
   AUDIO_TRANSCRIPTION_MAX_INPUT_BYTES,
   OCR_EXTRACTION_MAX_INPUT_BYTES,
@@ -60,7 +60,7 @@ import {
   runsGetRoute,
   type CliCapability
 } from '@shared/contracts/routes'
-import { SKILL_ARCHIVE_MAX_INPUT_BYTES } from '@shared/types/skill'
+import { SKILL_ARCHIVE_MAX_INPUT_BYTES } from '@deepchat/shared/types/skill'
 import {
   LOCAL_CONTROL_MAX_REQUEST_TIMEOUT_MS,
   LOCAL_CONTROL_PROGRAMMATIC_ROUTE_SURFACE_VERSION,
@@ -69,7 +69,7 @@ import {
   type LocalControlPrincipal,
   type LocalControlRouteSurfaceVersion,
   type LocalControlScope
-} from '@shared/contracts/localControl'
+} from '@deepchat/shared/contracts/localControl'
 import { sanitizePublicText, stripC0AndC1Controls } from './publicText'
 
 export type LocalControlTransport = 'rpc' | 'stream' | 'upload' | 'download'

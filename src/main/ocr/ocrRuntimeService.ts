@@ -1,7 +1,7 @@
 import { mkdir } from 'node:fs/promises'
 import path from 'node:path'
 
-import type { ToolchainKind } from '@shared/types/toolchains'
+import type { ToolchainKind } from '@deepchat/shared/types/toolchains'
 import runtimeVersions from '../../../resources/runtime-versions.json'
 import {
   DocumentTextExtractionService,

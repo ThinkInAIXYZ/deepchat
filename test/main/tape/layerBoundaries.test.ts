@@ -47,7 +47,7 @@ const FORBIDDEN_DOMAIN_SQLITE_IMPORTS = new Set([
   'sqlite3'
 ])
 const FORBIDDEN_DOMAIN_LOGGING_IMPORTS = new Set([
-  '@shared/logger',
+  '@deepchat/shared/logger',
   'electron-log',
   'loglevel',
   'pino',
@@ -530,7 +530,7 @@ describe('Tape layer boundaries', () => {
     ['Node SQLite', 'node:sqlite'],
     ['Electron', 'electron'],
     ['Electron subpath', 'electron/main'],
-    ['shared logging', '@shared/logger'],
+    ['shared logging', '@deepchat/shared/logger'],
     ['Electron logging', 'electron-log']
   ])('detects forbidden %s imports in the Tape domain', (_category, specifier) => {
     const importingFile = path.join(PACKAGE_TAPE_DOMAIN_ROOT, 'negative-case.ts')
@@ -540,7 +540,7 @@ describe('Tape layer boundaries', () => {
   it.each([
     ['domain sibling', './entry'],
     ['domain alias', '@deepchat/agent-kernel/tape/domain/effectiveView'],
-    ['shared type', '@shared/types/tape-view-manifest'],
+    ['shared type', '@deepchat/shared/types/tape-view-manifest'],
     ['Node crypto', 'node:crypto']
   ])('allows pure %s imports in the Tape domain', (_category, specifier) => {
     const importingFile = path.join(PACKAGE_TAPE_DOMAIN_ROOT, 'allowed-case.ts')

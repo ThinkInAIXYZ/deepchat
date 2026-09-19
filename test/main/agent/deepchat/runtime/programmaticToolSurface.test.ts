@@ -1,6 +1,6 @@
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { TOOL_EXECUTION, type MCPToolDefinition } from '@shared/types/core/mcp'
+import { TOOL_EXECUTION, type MCPToolDefinition } from '@deepchat/shared/types/core/mcp'
 import {
   MAX_PROGRAMMATIC_TOOL_AUTHORITY_PROJECTION_BYTES,
   MAX_PROGRAMMATIC_TOOL_BATCH_STEPS,

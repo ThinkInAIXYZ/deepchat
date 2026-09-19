@@ -4,7 +4,7 @@ import type {
   AgentTapeContextOptions,
   AgentTapeContextResult,
   AgentTapeSearchOptions
-} from '@shared/types/agent-interface'
+} from '@deepchat/shared/types/agent-interface'
 import {
   buildEffectiveTapeView,
   getLastEffectiveTapeMetrics,

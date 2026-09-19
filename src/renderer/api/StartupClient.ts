@@ -1,6 +1,6 @@
 import type { DeepchatBridge } from '@shared/contracts/bridge'
-import type { DeepchatEventPayload } from '@shared/contracts/events'
-import { startupWorkloadChangedEvent } from '@shared/contracts/events'
+import type { DeepchatEventPayload } from '@deepchat/shared/contracts/events'
+import { startupWorkloadChangedEvent } from '@deepchat/shared/contracts/events'
 import { startupGetBootstrapRoute } from '@shared/contracts/routes'
 import { getDeepchatBridge } from './core'
 

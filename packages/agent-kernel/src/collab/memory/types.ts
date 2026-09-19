@@ -1,6 +1,6 @@
-import type { DeepChatAgentMemoryRetrieval } from '../../shared/types/agent-interface.js'
-import type { LLM_EMBEDDING_ATTRS } from '../../shared/types/provider.js'
-import type { MemoryUpdateReason } from '../../shared/contracts/events/memory.events.js'
+import type { DeepChatAgentMemoryRetrieval } from '@deepchat/shared/types/agent-interface'
+import type { LLM_EMBEDDING_ATTRS } from '@deepchat/shared/types/provider'
+import type { MemoryUpdateReason } from '@deepchat/shared/contracts/events/memory.events'
 
 import type { MemoryUpdateContext } from './domain/types.js'
 import type { MemoryDomainClock } from './domain/clock.js'
@@ -102,7 +102,7 @@ export type {
   MemoryRepositoryPort,
   MemoryRetrievalPort
 } from './ports.js'
-export type { MemoryUpdateReason } from '../../shared/contracts/events/memory.events.js'
+export type { MemoryUpdateReason } from '@deepchat/shared/contracts/events/memory.events'
 export type { MemoryDomainClock } from './domain/clock.js'
 
 export type {

@@ -1,6 +1,6 @@
 import { BrowserWindow, screen, nativeImage } from 'electron'
 import path from 'path'
-import logger from '../../../shared/logger'
+import logger from '@deepchat/shared/logger'
 import { platform, is } from '@electron-toolkit/utils'
 import icon from '../../../../resources/icon.png?asset'
 import iconWin from '../../../../resources/icon.ico?asset'

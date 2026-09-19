@@ -1,12 +1,12 @@
 import {
   AGENT_MEMORY_DIRECTIVE_TOPIC_MAX_CHARS,
   type MemoryRetrievalPurpose
-} from '@shared/types/agent-memory'
+} from '@deepchat/shared/types/agent-memory'
 import {
   containsCjkScript,
   isMemoryDirectiveTopicSpecificEnough
-} from '@shared/lib/memoryDirectiveTopic'
-import { unicodeCodePointLength } from '@shared/lib/unicodeText'
+} from '@deepchat/shared/lib/memoryDirectiveTopic'
+import { unicodeCodePointLength } from '@deepchat/shared/lib/unicodeText'
 
 import { normalizeDirectiveMatchText } from '@deepchat/agent-kernel/collab/memory/domain/directives'
 

@@ -14,7 +14,7 @@ import {
   type MemoryRetrievalDegradationCause,
   type MemoryRetrievalOutcome,
   type MemoryRetrievalPurpose
-} from '@shared/types/agent-memory'
+} from '@deepchat/shared/types/agent-memory'
 import type { MemoryPerfObserver } from '@deepchat/agent-kernel/collab/memory/ports'
 import { BoundedNumberRing, summarizeNumberDistribution } from '@/lib/boundedNumberRing'
 

@@ -3,8 +3,8 @@ import {
   DEFAULT_ORCHESTRATION_POLICY,
   normalizeOrchestrationPolicy,
   type OrchestrationPolicy
-} from '@shared/orchestration/policy'
-import { normalizeToolModeOverride, type ToolModeOverride } from '@shared/toolMode'
+} from '@deepchat/shared/orchestration/policy'
+import { normalizeToolModeOverride, type ToolModeOverride } from '@deepchat/shared/toolMode'
 import { BaseTable } from '@/data/baseTable'
 
 const ADD_REVISION_COLUMN_SQL =

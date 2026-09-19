@@ -1,6 +1,6 @@
 import { z } from 'zod'
-import { RevisionSchema, defineRouteContract } from '../common'
-import { EnvironmentSummarySchema, ProjectSchema } from '../domainSchemas'
+import { RevisionSchema, defineRouteContract } from '@deepchat/shared/contracts/common'
+import { EnvironmentSummarySchema, ProjectSchema } from '@deepchat/shared/contracts/domainSchemas'
 
 export const EnvironmentStatusSchema = z.enum(['active', 'archived', 'removed'])
 

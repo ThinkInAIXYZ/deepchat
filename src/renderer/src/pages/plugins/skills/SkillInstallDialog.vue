@@ -169,7 +169,7 @@ import { DcSubmitButton, useDcFormSubmit } from '@dc-ui/components/form'
 import { createSkillClient } from '@api/SkillClient'
 import { createDeviceClient } from '@api/DeviceClient'
 import { createFileClient } from '@api/FileClient'
-import type { SkillInstallResult } from '@shared/types/skill'
+import type { SkillInstallResult } from '@deepchat/shared/types/skill'
 
 const props = defineProps<{
   open: boolean

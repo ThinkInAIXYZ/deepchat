@@ -89,7 +89,7 @@ import { DcForm } from '@dc-ui/components/form'
 import { Input } from '@shadcn/components/ui/input'
 import { createBrowserClient } from '@api/BrowserClient'
 import BrowserPlaceholder from './BrowserPlaceholder.vue'
-import type { YoBrowserStatus } from '@shared/types/browser'
+import type { YoBrowserStatus } from '@deepchat/shared/types/browser'
 import { useSidepanelStore } from '@/stores/ui/sidepanel'
 
 const props = defineProps<{

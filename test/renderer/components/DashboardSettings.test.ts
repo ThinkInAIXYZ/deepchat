@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { defineComponent, ref } from 'vue'
 import type { PropType } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
-import type { UsageDashboardData } from '@shared/types/agent-interface'
+import type { UsageDashboardData } from '@deepchat/shared/types/agent-interface'
 
 HTMLCanvasElement.prototype.getContext = vi.fn(() => ({
   measureText: () => ({ width: 0 }),

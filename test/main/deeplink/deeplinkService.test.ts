@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { DEEPLINK_EVENTS } from '@/events'
 import { DEEPCHAT_EVENT_CHANNEL } from '@shared/contracts/channels'
-import logger from '@shared/logger'
+import logger from '@deepchat/shared/logger'
 import { storeStartupDeepLink } from '@/lib/startupDeepLink'
 
 const browserWindowFromIdMock = vi.hoisted(() => vi.fn())

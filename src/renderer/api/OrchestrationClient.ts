@@ -6,8 +6,11 @@ import {
   orchestrationListLiveDelegationsRoute,
   orchestrationSetPolicyRoute
 } from '@shared/contracts/routes'
-import { liveDelegationChangedEvent, type DeepchatEventPayload } from '@shared/contracts/events'
-import type { OrchestrationPolicy } from '@shared/orchestration/policy'
+import {
+  liveDelegationChangedEvent,
+  type DeepchatEventPayload
+} from '@deepchat/shared/contracts/events'
+import type { OrchestrationPolicy } from '@deepchat/shared/orchestration/policy'
 import { getDeepchatBridge } from './core'
 
 export function createOrchestrationClient(bridge: DeepchatBridge = getDeepchatBridge()) {

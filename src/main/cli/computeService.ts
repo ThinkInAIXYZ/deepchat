@@ -22,12 +22,15 @@ import {
   type VideoGenerationInput,
   type VideoGenerationOutput
 } from '@shared/contracts/routes'
-import type { JsonValue } from '@shared/contracts/json'
-import { ApiEndpointType, ModelType } from '@shared/model'
-import type { LLMCoreStreamEvent, ProviderRoundStopReason } from '@shared/types/core/llm-events'
-import type { ModelConfig } from '@shared/types/provider'
-import { isVideoGenerationModelConfig } from '@shared/videoGenerationSettings'
-import { isTtsModelConfig, isTtsModelId } from '@shared/ttsSettings'
+import type { JsonValue } from '@deepchat/shared/contracts/json'
+import { ApiEndpointType, ModelType } from '@deepchat/shared/model'
+import type {
+  LLMCoreStreamEvent,
+  ProviderRoundStopReason
+} from '@deepchat/shared/types/core/llm-events'
+import type { ModelConfig } from '@deepchat/shared/types/provider'
+import { isVideoGenerationModelConfig } from '@deepchat/shared/videoGenerationSettings'
+import { isTtsModelConfig, isTtsModelId } from '@deepchat/shared/ttsSettings'
 import type { ProviderSettingsPort } from '@/provider/settings'
 import type { ProviderRuntime } from '@/provider'
 import { extractProviderFailureMetadata } from '@deepchat/agent-kernel/collab/provider/providerFailure'

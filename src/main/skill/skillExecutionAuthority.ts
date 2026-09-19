@@ -1,10 +1,10 @@
-import type { SkillServicePort } from '@shared/types/skill'
+import type { SkillServicePort } from '@deepchat/shared/types/skill'
 import type {
   DeepChatTapeSkillContextV7,
   DeepChatTapeSkillMaterializationRef,
   DeepChatTapeViewManifestV6,
   DeepChatTapeViewManifestV7
-} from '@shared/types/tape-view-manifest'
+} from '@deepchat/shared/types/tape-view-manifest'
 import type {
   TapeExecutionViewManifestReader,
   TapeIncarnationReader,

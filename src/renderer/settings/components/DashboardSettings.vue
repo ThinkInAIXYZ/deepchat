@@ -630,7 +630,10 @@ import {
 import { ChartTooltipContent } from '@shadcn/components/ui/chart'
 import type { ChartConfig } from '@shadcn/components/ui/chart'
 import { Spinner } from '@shadcn/components/ui/spinner'
-import type { UsageDashboardCalendarDay, UsageDashboardData } from '@shared/types/agent-interface'
+import type {
+  UsageDashboardCalendarDay,
+  UsageDashboardData
+} from '@deepchat/shared/types/agent-interface'
 import { createSessionClient } from '@api/SessionClient'
 import UsageNostalgiaCard from './control-center/UsageNostalgiaCard.vue'
 

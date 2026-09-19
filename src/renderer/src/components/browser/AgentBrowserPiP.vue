@@ -125,12 +125,15 @@ import { useI18n } from 'vue-i18n'
 import { DcButton } from '@dc-ui/components/button'
 import { createBrowserClient } from '@api/BrowserClient'
 import { createWindowClient } from '@api/WindowClient'
-import { browserPreviewFrameEvent, type DeepchatEventPayload } from '@shared/contracts/events'
+import {
+  browserPreviewFrameEvent,
+  type DeepchatEventPayload
+} from '@deepchat/shared/contracts/events'
 import type {
   BrowserPreviewSurface,
   YoBrowserActivityPayload,
   YoBrowserStatus
-} from '@shared/types/browser'
+} from '@deepchat/shared/types/browser'
 import { useSidepanelStore } from '@/stores/ui/sidepanel'
 import { useSessionStore } from '@/stores/ui/session'
 

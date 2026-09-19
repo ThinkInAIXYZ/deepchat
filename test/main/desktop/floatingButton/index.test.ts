@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { FLOATING_BUTTON_EVENTS } from '../../../../src/main/events'
 import { getCollapsedWidgetSize, getExpandedWidgetSize } from '@/desktop/floatingButton/layout'
-import type { SessionWithState } from '../../../../src/shared/types/agent-interface'
+import type { SessionWithState } from '@deepchat/shared/types/agent-interface'
 
 const {
   electronState,

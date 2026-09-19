@@ -1,15 +1,15 @@
 import { z } from 'zod'
-import { OrchestrationPolicySchema } from '../../orchestration/policy'
-import { ToolModeSchema } from '../../toolMode'
-import type { SearchResult } from '@shared/types/core/search'
+import { OrchestrationPolicySchema } from '@deepchat/shared/orchestration/policy'
+import { ToolModeSchema } from '@deepchat/shared/toolMode'
+import type { SearchResult } from '@deepchat/shared/types/core/search'
 import type {
   Agent,
   AgentTransferImpact,
   AgentTapeContextResult,
   MessageTraceRecord,
   PendingSessionInputRecord
-} from '@shared/types/agent-interface'
-import type { DeepChatTapeViewManifestRecord } from '@shared/types/tape-view-manifest'
+} from '@deepchat/shared/types/agent-interface'
+import type { DeepChatTapeViewManifestRecord } from '@deepchat/shared/types/tape-view-manifest'
 import type {
   ExportTapeInspectorSupportTraceInput,
   ExportTapeInspectorSupportTraceOutput,
@@ -24,15 +24,15 @@ import type {
   TapeInspectorEvidenceRecord,
   TapeInspectorFactRecord,
   TapeInspectorRecordDetail
-} from '@shared/types/tape-inspector'
+} from '@deepchat/shared/types/tape-inspector'
 import {
   TAPE_INSPECTOR_SUPPORT_EVIDENCE_LIMIT,
   TAPE_INSPECTOR_SUPPORT_FACT_LIMIT
-} from '@shared/types/tape-inspector'
+} from '@deepchat/shared/types/tape-inspector'
 import {
   DEEPCHAT_NESTED_EXECUTION_AUDIT_OPERATION_LIMIT,
   type DeepChatNestedExecutionAudit
-} from '@shared/types/execution-journal-audit'
+} from '@deepchat/shared/types/execution-journal-audit'
 import {
   AttachmentFallbackPolicySchema,
   AttachmentPreparationSummarySchema,
@@ -55,11 +55,14 @@ import {
   SubmissionIdSchema,
   SessionWithStateSchema,
   defineRouteContract
-} from '../common'
-import type { RouteContract } from '../common'
-import { AcpConfigStateSchema, UsageDashboardDataSchema } from '../domainSchemas'
-import { PROGRAMMATIC_TOOL_BATCH_MAX_STEPS } from './tools.routes'
-import { AcpAuthChallengeSchema } from './acp-auth.routes'
+} from '@deepchat/shared/contracts/common'
+import type { RouteContract } from '@deepchat/shared/contracts/common'
+import {
+  AcpConfigStateSchema,
+  UsageDashboardDataSchema
+} from '@deepchat/shared/contracts/domainSchemas'
+import { PROGRAMMATIC_TOOL_BATCH_MAX_STEPS } from '@deepchat/shared/contracts/routes/tools.routes'
+import { AcpAuthChallengeSchema } from '@deepchat/shared/contracts/routes/acp-auth.routes'
 
 const PendingSessionInputRecordSchema = z.custom<PendingSessionInputRecord>()
 const MessageTraceRecordSchema = z.custom<MessageTraceRecord>()

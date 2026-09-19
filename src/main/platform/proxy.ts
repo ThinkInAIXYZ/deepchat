@@ -1,4 +1,4 @@
-import logger from '@shared/logger'
+import logger from '@deepchat/shared/logger'
 import { session } from 'electron'
 import { Agent, EnvHttpProxyAgent, setGlobalDispatcher } from 'undici'
 

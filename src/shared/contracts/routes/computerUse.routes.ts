@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { defineRouteContract } from '../common'
+import { defineRouteContract } from '@deepchat/shared/contracts/common'
 
 const ComputerUsePreviewSurfaceSchema = z.enum(['native-overlay', 'renderer-canvas', 'none'])
 

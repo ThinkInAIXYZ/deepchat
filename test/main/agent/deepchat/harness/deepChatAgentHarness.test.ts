@@ -9,11 +9,11 @@ import type {
   ChatMessageRecord,
   DeepChatAgentConfig,
   DeepChatSessionState
-} from '@shared/types/agent-interface'
-import type { ChatMessage } from '@shared/types/core/chat-message'
-import { TOOL_EXECUTION, type MCPToolDefinition } from '@shared/types/core/mcp'
-import type { ModelConfig } from '@shared/types/provider'
-import { ApiEndpointType, ModelType } from '@shared/model'
+} from '@deepchat/shared/types/agent-interface'
+import type { ChatMessage } from '@deepchat/shared/types/core/chat-message'
+import { TOOL_EXECUTION, type MCPToolDefinition } from '@deepchat/shared/types/core/mcp'
+import type { ModelConfig } from '@deepchat/shared/types/provider'
+import { ApiEndpointType, ModelType } from '@deepchat/shared/model'
 import {
   createDeepChatAgentHarness,
   type DeepChatAgentHarness,
@@ -23,7 +23,7 @@ import {
   PRE_STREAM_STUCK_ESCALATION_MS,
   PRE_STREAM_STUCK_WARN_MS
 } from '@deepchat/agent-kernel/runtime/preStreamWatchdog'
-import logger from '@shared/logger'
+import logger from '@deepchat/shared/logger'
 import { createHookObserver, noopHookObserver } from '../../../hook/hookObserverFixture'
 import { estimateMessagesTokens } from '@deepchat/agent-kernel/runtime/contextBuilder'
 import {
@@ -66,7 +66,7 @@ import { AcpAgentRuntime } from '@/agent/acp/instance'
 import type { AcpAgentDescriptor } from '@/agent/shared/agentDescriptors'
 import { POSIX_COMMAND_SHELL } from '../../../../helpers/commandShell'
 
-import type { AcpAgentConfig } from '@shared/types/acp'
+import type { AcpAgentConfig } from '@deepchat/shared/types/acp'
 import type * as schema from '@agentclientprotocol/sdk/dist/schema/index.js'
 import { nanoid } from 'nanoid'
 import { createSessionData, createSessionDataFromDatabase } from '@/session/data'
@@ -78,7 +78,10 @@ import {
 } from '@deepchat/agent-kernel/tape/domain/executionJournal'
 import { TapeFactService } from '@/tape/application/factService'
 import { buildTaskContract } from '@deepchat/agent-kernel/tape/domain/taskContract'
-import { LIVE_DELEGATION_AGENT_TOOL_NAME, TOOL_SEARCH_AGENT_TOOL_NAME } from '@shared/agentTools'
+import {
+  LIVE_DELEGATION_AGENT_TOOL_NAME,
+  TOOL_SEARCH_AGENT_TOOL_NAME
+} from '@deepchat/shared/agentTools'
 import {
   TAPE_PROGRAMMATIC_TOOL_SURFACE_EVENT_NAME,
   TAPE_TOOL_CATALOG_EVENT_NAME,

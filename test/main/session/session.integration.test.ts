@@ -6,7 +6,7 @@ import { createDirectAcpAgentBackend } from '@/agent/manager/directAcpAgentBacke
 import { AgentUnavailableError } from '@/agent/shared/agentCatalogCodec'
 import type { AcpAgentDescriptor } from '@/agent/shared/agentDescriptors'
 import type { AppSessionId } from '@deepchat/agent-kernel/collab/agent-shared/agentSessionIds'
-import type { SubagentTapeLinkInput } from '@shared/types/agent-interface'
+import type { SubagentTapeLinkInput } from '@deepchat/shared/types/agent-interface'
 import { AgentRepository } from '@/agent/repository'
 import { resolveAcpAgentAlias } from '@shared/utils/acpAgentAlias'
 import { createDeepChatAgentBackendFixture } from '../agent/manager/deepChatAgentBackendFixture'

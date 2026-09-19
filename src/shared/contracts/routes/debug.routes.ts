@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { SPLASH_DEBUG_MODES } from '../splash'
-import { defineRouteContract } from '../common'
+import { defineRouteContract } from '@deepchat/shared/contracts/common'
 
 export const debugShowSplashScenarioRoute = defineRouteContract({
   name: 'debug.showSplashScenario',

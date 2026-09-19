@@ -389,16 +389,16 @@ import { createSessionClient } from '@api/SessionClient'
 import { useMonaco } from 'stream-monaco'
 import { useThemeStore } from '@/stores/theme'
 import { useUiSettingsStore } from '@/stores/uiSettingsStore'
-import type { MessageTraceRecord } from '@shared/types/agent-interface'
+import type { MessageTraceRecord } from '@deepchat/shared/types/agent-interface'
 import type {
   DeepChatTapeViewManifestIntegrity,
   DeepChatTapeViewManifestRecord
-} from '@shared/types/tape-view-manifest'
+} from '@deepchat/shared/types/tape-view-manifest'
 import type {
   DeepChatNestedExecutionAudit,
   DeepChatNestedExecutionAuditOperation,
   DeepChatNestedExecutionStatus
-} from '@shared/types/execution-journal-audit'
+} from '@deepchat/shared/types/execution-journal-audit'
 
 type DiagnosticTab = 'request' | 'view' | 'entries' | 'budget' | 'execution'
 

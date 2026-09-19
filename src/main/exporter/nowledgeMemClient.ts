@@ -1,5 +1,5 @@
 import { NowledgeMemThread } from '@shared/types/nowledgeMem'
-import logger from '@shared/logger'
+import logger from '@deepchat/shared/logger'
 import type { SettingsStore } from '@/config/settingsStore'
 
 export interface NowledgeMemConfig {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { truncateUnicodeCodePoints, unicodeCodePointLength } from '@shared/lib/unicodeText'
+import { truncateUnicodeCodePoints, unicodeCodePointLength } from '@deepchat/shared/lib/unicodeText'
 
 describe('Unicode text limits', () => {
   it('counts Unicode scalar values instead of UTF-16 code units', () => {

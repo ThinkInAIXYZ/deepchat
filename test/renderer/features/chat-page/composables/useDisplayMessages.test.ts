@@ -1,7 +1,10 @@
 import { computed, nextTick, reactive, ref } from 'vue'
 import { describe, expect, it } from 'vitest'
 import { useDisplayMessages } from '@/features/chat-page/composables/useDisplayMessages'
-import type { AssistantMessageBlock, ChatMessageRecord } from '@shared/types/agent-interface'
+import type {
+  AssistantMessageBlock,
+  ChatMessageRecord
+} from '@deepchat/shared/types/agent-interface'
 
 type DisplayMessageOptions = Parameters<typeof useDisplayMessages>[0]
 

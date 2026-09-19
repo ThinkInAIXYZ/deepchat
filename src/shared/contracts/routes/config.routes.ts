@@ -1,5 +1,9 @@
 import { z } from 'zod'
-import { AgentBootstrapItemSchema, TimestampMsSchema, defineRouteContract } from '../common'
+import {
+  AgentBootstrapItemSchema,
+  TimestampMsSchema,
+  defineRouteContract
+} from '@deepchat/shared/contracts/common'
 import {
   AcpAgentConfigSchema,
   BuiltinKnowledgeConfigSchema,
@@ -12,7 +16,7 @@ import {
   ShortcutKeySettingSchema,
   SystemPromptSchema,
   ThemeModeSchema
-} from '../domainSchemas'
+} from '@deepchat/shared/contracts/domainSchemas'
 
 const AgentInstallStateSchema = z.looseObject({
   status: z.enum(['not_installed', 'installing', 'installed', 'error']),

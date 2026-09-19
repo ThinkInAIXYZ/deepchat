@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { ModelManager } from '@/provider/managers/modelManager'
-import { ModelType } from '@shared/model'
-import type { MODEL_META } from '@shared/types/provider'
+import { ModelType } from '@deepchat/shared/model'
+import type { MODEL_META } from '@deepchat/shared/types/provider'
 
 describe('ModelManager model resolution', () => {
   it('delegates runtime list projection to ProviderSettings', async () => {

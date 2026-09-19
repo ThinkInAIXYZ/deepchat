@@ -3,7 +3,7 @@ import type {
   NewDiscovery,
   ScanCache,
   ScanResult
-} from '@shared/types/skillSync'
+} from '@deepchat/shared/types/skillSync'
 import { runInlineJsonWorker } from '@/lib/runInlineJsonWorker'
 
 type WorkerExternalSkillInfo = {

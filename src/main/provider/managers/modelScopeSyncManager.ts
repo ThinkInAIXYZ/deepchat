@@ -1,7 +1,10 @@
 import type { ProviderSettingsPort } from '@/provider/settings'
-import logger from '@shared/logger'
-import type { MCPServerConfig } from '@shared/types/mcp'
-import type { ModelScopeMcpSyncOptions, ModelScopeMcpSyncResult } from '@shared/types/provider'
+import logger from '@deepchat/shared/logger'
+import type { MCPServerConfig } from '@deepchat/shared/types/mcp'
+import type {
+  ModelScopeMcpSyncOptions,
+  ModelScopeMcpSyncResult
+} from '@deepchat/shared/types/provider'
 import {
   convertModelScopeMcpServerToConfig,
   fetchModelScopeMcpServers,

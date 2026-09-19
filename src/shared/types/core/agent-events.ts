@@ -1,5 +1,5 @@
-import type { PermissionRequestOption } from './llm-events'
-import type { QuestionInfo } from './question'
+import type { PermissionRequestOption } from '@deepchat/shared/types/core/llm-events'
+import type { QuestionInfo } from '@deepchat/shared/types/core/question'
 import type { UsageStats, RateLimitInfo } from './usage'
 
 export interface LLMAgentEventData {
@@ -39,7 +39,7 @@ export interface LLMAgentEventData {
     description: string
     command?: string
     commandSignature?: string
-    shellProfile?: import('../../commandShell').CommandShellProfile
+    shellProfile?: import('@deepchat/shared/commandShell').CommandShellProfile
     commandInfo?: {
       command: string
       riskLevel: 'low' | 'medium' | 'high' | 'critical'

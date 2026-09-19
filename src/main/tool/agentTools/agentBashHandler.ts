@@ -3,7 +3,7 @@ import fs from 'fs'
 import path from 'path'
 import os from 'os'
 import { z } from 'zod'
-import logger from '@shared/logger'
+import logger from '@deepchat/shared/logger'
 import type { SettingsStore } from '@/config/settingsStore'
 import {
   backgroundExecSessionManager,
@@ -21,7 +21,7 @@ import {
 } from '@/agent/shared/process/shellOutputEncoding'
 import { resolveUsableSpawnCwd } from '@/agent/shared/process/spawnGuard'
 import { resolveSessionDir } from '@deepchat/agent-kernel/collab/agent-shared/storage/sessionPaths'
-import type { ResolvedCommandShell } from '@shared/commandShell'
+import type { ResolvedCommandShell } from '@deepchat/shared/commandShell'
 import { normalizeCommandShellFilePath } from '@/agent/shared/process/commandShellPath'
 import type { ArmedAgentCliProgrammaticToken } from '@/cli/agentTokenAuthority'
 import { ProgrammaticCommandLaunchError } from '@deepchat/agent-kernel/runtime/programmaticCommandLaunchError'

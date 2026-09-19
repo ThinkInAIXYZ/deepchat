@@ -11,7 +11,7 @@ import {
   filterRenderableAssistantBlocks,
   hasRenderableAssistantBlocks
 } from '@/features/chat-page/model/displayMessage'
-import type { ChatMessageRecord, MessageMetadata } from '@shared/types/agent-interface'
+import type { ChatMessageRecord, MessageMetadata } from '@deepchat/shared/types/agent-interface'
 import { readRunStopReason } from '@shared/lib/runStopReason'
 
 type MessageStore = ReturnType<typeof useMessageStore>

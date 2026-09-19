@@ -1,7 +1,7 @@
-import logger from '@shared/logger'
+import logger from '@deepchat/shared/logger'
 import { shell } from 'electron'
-import type { DeepchatEventPublisher } from '@shared/contracts/events'
-import type { XaiGrokAuthStatus } from '@shared/types/xai-grok'
+import type { DeepchatEventPublisher } from '@deepchat/shared/contracts/events'
+import type { XaiGrokAuthStatus } from '@deepchat/shared/types/xai-grok'
 import {
   XAI_GROK_ACCESS_TOKEN_ENV,
   XAI_GROK_AUTH_REQUEST_TIMEOUT_MS,

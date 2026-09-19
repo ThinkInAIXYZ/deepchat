@@ -6,8 +6,8 @@ import path from 'node:path'
 import { z } from 'zod'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cliVersionRoute, type DeepchatRouteName } from '@shared/contracts/routes'
-import { defineRouteContract } from '@shared/contracts/contract'
-import type { JsonValue } from '@shared/contracts/json'
+import { defineRouteContract } from '@deepchat/shared/contracts/contract'
+import type { JsonValue } from '@deepchat/shared/contracts/json'
 import {
   LOCAL_CONTROL_PROTOCOL_VERSION,
   LOCAL_CONTROL_SCOPES,
@@ -21,7 +21,7 @@ import {
   type LocalControlRpcResponse,
   type LocalControlScope,
   type LocalControlUploadBinding
-} from '@shared/contracts/localControl'
+} from '@deepchat/shared/contracts/localControl'
 import { createCliRoutes } from '@/cli/routes'
 import { CliServer, type CliServerDependencies, type CliUploadedInputFile } from '@/cli/server'
 import { CliRequestError } from '@/cli/errors'
@@ -32,7 +32,7 @@ import {
   type AgentCliRequestBeginResult,
   type AgentCliTokenClaims
 } from '@/cli/agentTokenAuthority'
-import { LOCAL_CONTROL_PROGRAMMATIC_ROUTE_SURFACE_VERSION } from '@shared/contracts/localControl'
+import { LOCAL_CONTROL_PROGRAMMATIC_ROUTE_SURFACE_VERSION } from '@deepchat/shared/contracts/localControl'
 import type { CliRequestAdmission, CliRequestPolicyInput } from '@/cli/policy'
 import type { CliSurfaceEntry } from '@/cli/surface'
 import type { CliRouteCaller } from '@/routes/routeRegistry'

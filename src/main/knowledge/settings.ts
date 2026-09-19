@@ -1,6 +1,6 @@
 import type { SettingsStore } from '@/config/settingsStore'
 import type { McpSettings } from '@/mcp/settings'
-import type { BuiltinKnowledgeConfig } from '@shared/types/knowledge'
+import type { BuiltinKnowledgeConfig } from '@deepchat/shared/types/knowledge'
 
 export class KnowledgeSettings {
   constructor(

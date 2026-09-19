@@ -2,8 +2,8 @@ import type {
   CreateSessionInput,
   MessageFile,
   SendMessageInput
-} from '../../shared/types/agent-interface.js'
-import { isUserConfigurableAgentTool } from '../../shared/agentTools.js'
+} from '@deepchat/shared/types/agent-interface'
+import { isUserConfigurableAgentTool } from '@deepchat/shared/agentTools'
 
 const RETIRED_DEFAULT_AGENT_TOOLS = new Set(['find', 'ls'])
 const LEGACY_PERSISTED_DISABLED_AGENT_TOOLS = new Set(['find', 'grep', 'ls'])

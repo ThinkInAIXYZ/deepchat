@@ -1,4 +1,4 @@
-import logger from '@shared/logger'
+import logger from '@deepchat/shared/logger'
 /**
  * Message dialog implemented via the renderer process
  * The dialog is displayed on the current default window content. If it is in the background, it will automatically switch to the foreground.
@@ -9,8 +9,8 @@ import type {
   DialogRequestParams,
   DialogResponse,
   DialogServicePort
-} from '@shared/types/dialog'
-import type { DeepchatEventPublisher } from '@shared/contracts/events'
+} from '@deepchat/shared/types/dialog'
+import type { DeepchatEventPublisher } from '@deepchat/shared/contracts/events'
 import { nanoid } from 'nanoid'
 
 export class DialogService implements DialogServicePort {

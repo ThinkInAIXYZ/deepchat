@@ -10,7 +10,7 @@ import type {
   AgentMemoryRow,
   MemoryTemporalMetadata
 } from '@deepchat/agent-kernel/collab/memory/domain/types'
-import type { DeepChatAgentConfig } from '@shared/types/agent-interface'
+import type { DeepChatAgentConfig } from '@deepchat/shared/types/agent-interface'
 import {
   createFakeRepository,
   FakeAuditRepository,

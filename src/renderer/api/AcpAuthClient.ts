@@ -3,7 +3,7 @@ import {
   acpAuthOutputEvent,
   acpAuthStateChangedEvent,
   type DeepchatEventPayload
-} from '@shared/contracts/events'
+} from '@deepchat/shared/contracts/events'
 import {
   acpAuthCancelRoute,
   acpAuthInputRoute,

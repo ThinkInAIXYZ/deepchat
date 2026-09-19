@@ -1,6 +1,6 @@
 import type { TapeViewManifestBuildInput } from '@deepchat/agent-kernel/tape/domain/viewManifest'
-import type { ChatMessageRecord } from '@shared/types/agent-interface'
-import type { DeepChatTapeSkillMaterializationRef } from '@shared/types/tape-view-manifest'
+import type { ChatMessageRecord } from '@deepchat/shared/types/agent-interface'
+import type { DeepChatTapeSkillMaterializationRef } from '@deepchat/shared/types/tape-view-manifest'
 import {
   buildTapeSkillMaterializationRef,
   hashSkillEffectiveContent

@@ -8,7 +8,7 @@ import {
   deviceSelectDirectoryRoute,
   deviceSelectFilesRoute
 } from '@shared/contracts/routes'
-import { appRuntimeAccessibilityChangedEvent } from '@shared/contracts/events'
+import { appRuntimeAccessibilityChangedEvent } from '@deepchat/shared/contracts/events'
 import { getDeepchatBridge } from './core'
 import { copyRuntimeImage, copyRuntimeText, readRuntimeClipboardText } from './runtime'
 

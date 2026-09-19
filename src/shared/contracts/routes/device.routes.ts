@@ -1,6 +1,6 @@
 import { z } from 'zod'
-import { defineRouteContract } from '../common'
-import { DeviceInfoSchema } from '../domainSchemas'
+import { defineRouteContract } from '@deepchat/shared/contracts/common'
+import { DeviceInfoSchema } from '@deepchat/shared/contracts/domainSchemas'
 
 export const deviceGetAppVersionRoute = defineRouteContract({
   name: 'device.getAppVersion',

@@ -1,4 +1,4 @@
-import type { MetricType } from '@shared/types/knowledge'
+import type { MetricType } from '@deepchat/shared/types/knowledge'
 
 export const EMBEDDING_TEST_KEY = 'sample'
 

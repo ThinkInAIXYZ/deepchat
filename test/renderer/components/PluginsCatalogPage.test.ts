@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { createPinia } from 'pinia'
 import { defineComponent } from 'vue'
 import { flushPromises, shallowMount } from '@vue/test-utils'
-import type { OcrRuntimeStatus } from '../../../src/shared/contracts/routes/ocr.routes'
+import type { OcrRuntimeStatus } from '@deepchat/shared/contracts/routes/ocr.routes'
 
 vi.mock('pinia', async () => vi.importActual<typeof import('pinia')>('pinia'))
 

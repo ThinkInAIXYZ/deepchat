@@ -1,4 +1,4 @@
-import type { KnowledgeServicePort } from '@shared/types/knowledge'
+import type { KnowledgeServicePort } from '@deepchat/shared/types/knowledge'
 import type { KnowledgeSettings } from './settings'
 import {
   configGetKnowledgeConfigsRoute,

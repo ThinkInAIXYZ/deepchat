@@ -1,4 +1,4 @@
-import logger from '@shared/logger'
+import logger from '@deepchat/shared/logger'
 import { app } from 'electron'
 import * as fs from 'fs'
 import * as path from 'path'

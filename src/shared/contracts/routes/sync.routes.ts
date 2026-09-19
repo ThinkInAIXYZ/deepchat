@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import type { SyncBackupInfo, CloudSyncResult } from '@shared/types/sync'
-import { defineRouteContract } from '../common'
+import { defineRouteContract } from '@deepchat/shared/contracts/common'
 
 const SyncBackupInfoSchema = z.custom<SyncBackupInfo>()
 const CloudSyncResultSchema = z.custom<CloudSyncResult>()

@@ -7,7 +7,7 @@ import {
   AGENT_MEMORY_HEALTH_KIND_KEYS,
   AGENT_MEMORY_HEALTH_STATUS_KEYS,
   isAgentMemoryCategory
-} from '@shared/types/agent-memory'
+} from '@deepchat/shared/types/agent-memory'
 import type {
   AgentMemoryAuditInsertInput,
   AgentMemoryAuditRow,
@@ -47,7 +47,7 @@ import type {
   MemoryDirectiveWriteInput,
   MemoryDirectiveWriteResult
 } from '@deepchat/agent-kernel/collab/memory/domain/directives'
-import type { DeepChatAgentConfig } from '@shared/types/agent-interface'
+import type { DeepChatAgentConfig } from '@deepchat/shared/types/agent-interface'
 import { normalizeMemoryTemporalMetadata, temporalMetadataFromRow } from '@/memory/core/temporal'
 import {
   buildMemoryTombstoneIdentities,

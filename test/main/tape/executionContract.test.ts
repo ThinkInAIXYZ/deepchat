@@ -1,7 +1,7 @@
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { ModelType } from '@shared/model'
-import { TOOL_EXECUTION, type MCPToolDefinition } from '@shared/types/core/mcp'
+import { ModelType } from '@deepchat/shared/model'
+import { TOOL_EXECUTION, type MCPToolDefinition } from '@deepchat/shared/types/core/mcp'
 import {
   assemblePromptSections,
   createPromptAssemblySection

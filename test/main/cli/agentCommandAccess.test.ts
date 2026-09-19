@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { LOCAL_CONTROL_AGENT_TOKEN_ENV } from '@shared/contracts/localControl'
+import { LOCAL_CONTROL_AGENT_TOKEN_ENV } from '@deepchat/shared/contracts/localControl'
 import { AgentCliCommandAccess, resolveBundledCliDirectory } from '@/cli/agentCommandAccess'
 import {
   AgentCliTokenAuthority,

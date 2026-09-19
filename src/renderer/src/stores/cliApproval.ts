@@ -1,7 +1,7 @@
 import { computed, getCurrentScope, onScopeDispose, ref, shallowRef } from 'vue'
 import { defineStore } from 'pinia'
 import { createApprovalClient } from '@api/ApprovalClient'
-import type { DeepchatEventPayload } from '@shared/contracts/events'
+import type { DeepchatEventPayload } from '@deepchat/shared/contracts/events'
 
 const MAX_PENDING_CLI_APPROVALS = 32
 

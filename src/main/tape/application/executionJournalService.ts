@@ -51,7 +51,7 @@ import {
   DEEPCHAT_NESTED_EXECUTION_AUDIT_OPERATION_LIMIT,
   type DeepChatNestedExecutionAudit,
   type DeepChatNestedExecutionAuditOperation
-} from '@shared/types/execution-journal-audit'
+} from '@deepchat/shared/types/execution-journal-audit'
 
 export type ExecutionJournalCommitPhase = 'before' | 'after'
 

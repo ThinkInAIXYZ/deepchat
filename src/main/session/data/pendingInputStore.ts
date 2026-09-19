@@ -4,14 +4,14 @@ import type {
   PendingSessionInputRecord,
   PendingSessionInputState,
   SendMessageInput
-} from '@shared/types/agent-interface'
+} from '@deepchat/shared/types/agent-interface'
 import type { SessionDatabase } from './database'
 import type { DeepChatPendingInputRow } from '@/session/data/tables/deepchatPendingInputs'
 import {
   AttachmentPreparationSummarySchema,
   SendMessageInputSchema
-} from '@shared/contracts/common'
-import { normalizeAttachmentResolvedRepresentation } from '@shared/utils/attachmentRepresentation'
+} from '@deepchat/shared/contracts/common'
+import { normalizeAttachmentResolvedRepresentation } from '@deepchat/shared/utils/attachmentRepresentation'
 
 type InlineItem = NonNullable<SendMessageInput['inlineItems']>[number]
 

@@ -2,9 +2,9 @@ import { FileAdapterConstructor } from './adapters/FileAdapterConstructor'
 import { getMimeTypeAdapterMap, detectMimeType } from './mime'
 import { UnsupportFileAdapter } from './adapters/UnsupportFileAdapter'
 import { extension as mimeTypesExtension } from 'es-mime-types'
-import type { FileValidationResult } from '@shared/types/knowledge'
+import type { FileValidationResult } from '@deepchat/shared/types/knowledge'
 
-export type { FileValidationResult } from '@shared/types/knowledge'
+export type { FileValidationResult } from '@deepchat/shared/types/knowledge'
 
 export interface IFileValidationService {
   validateFile(filePath: string): Promise<FileValidationResult>

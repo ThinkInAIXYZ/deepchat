@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { defineComponent } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
-import type { Agent } from '../../../src/shared/types/agent-interface'
+import type { Agent } from '@deepchat/shared/types/agent-interface'
 import type { MemoryStatusDto } from '../../../src/shared/contracts/routes'
 
 const passthrough = (name: string) => defineComponent({ name, template: '<div><slot /></div>' })

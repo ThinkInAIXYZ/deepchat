@@ -8,7 +8,7 @@ import { SkillExecutionService } from '../../../src/main/skill/skillExecutionSer
 import type { ResolvedSkillExecutionAuthority } from '../../../src/main/skill/skillExecutionAuthority'
 import type { MaterializedSkillExecutionPackageTree } from '../../../src/main/skill/skillExecutionPackageTree'
 import { createTapeSkillMaterializationPayload } from '@deepchat/agent-kernel/tape/domain/skillMaterialization'
-import { SKILL_RUN_MAX_ARGUMENTS } from '../../../src/shared/types/skill'
+import { SKILL_RUN_MAX_ARGUMENTS } from '@deepchat/shared/types/skill'
 import {
   CMD_COMMAND_SHELL,
   GIT_BASH_COMMAND_SHELL,

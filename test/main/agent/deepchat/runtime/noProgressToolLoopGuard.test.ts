@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { ChatMessage } from '@shared/types/core/chat-message'
+import type { ChatMessage } from '@deepchat/shared/types/core/chat-message'
 import {
   extractLatestCompletedToolBatch,
   NoProgressToolLoopGuard

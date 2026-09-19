@@ -1,5 +1,8 @@
 import type { DeepchatBridge } from '@shared/contracts/bridge'
-import { knowledgeFileProgressEvent, knowledgeFileUpdatedEvent } from '@shared/contracts/events'
+import {
+  knowledgeFileProgressEvent,
+  knowledgeFileUpdatedEvent
+} from '@deepchat/shared/contracts/events'
 import {
   knowledgeAddFileRoute,
   knowledgeDeleteFileRoute,
@@ -19,7 +22,7 @@ import type {
   KnowledgeFileMessage,
   KnowledgeFileResult,
   QueryResult
-} from '@shared/types/knowledge'
+} from '@deepchat/shared/types/knowledge'
 import { getDeepchatBridge } from './core'
 
 export function createKnowledgeClient(bridge: DeepchatBridge = getDeepchatBridge()) {

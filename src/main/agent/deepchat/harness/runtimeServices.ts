@@ -1,6 +1,6 @@
-import type { PluginContextPort } from '@shared/types/userPlugin'
-import type { ProviderExecutionPort } from '@shared/types/provider'
-import type { ToolServicePort } from '@shared/types/tool'
+import type { PluginContextPort } from '@deepchat/shared/types/userPlugin'
+import type { ProviderExecutionPort } from '@deepchat/shared/types/provider'
+import type { ToolServicePort } from '@deepchat/shared/types/tool'
 
 import type { HookObserver } from '@deepchat/agent-kernel/collab/hook/observer'
 import type { MemoryRuntimePort } from '@deepchat/agent-kernel/collab/memory/injection'

@@ -237,7 +237,7 @@ vi.mock('electron', async () => {
 
 // Mock shared logger so importing it never pulls in electron's `app`
 // (test files that need to assert on logger calls re-mock it locally)
-vi.mock('@shared/logger', () => ({
+vi.mock('@deepchat/shared/logger', () => ({
   __esModule: true,
   default: {
     error: vi.fn(),

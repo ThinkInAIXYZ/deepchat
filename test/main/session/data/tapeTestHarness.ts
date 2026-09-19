@@ -46,7 +46,7 @@ import { DeepChatMessagesTable } from '@/session/data/tables/deepchatMessages'
 import { DeepChatMessageTracesTable } from '@/session/data/tables/deepchatMessageTraces'
 import { DeepChatSessionsTable } from '@/session/data/tables/deepchatSessions'
 import { NewSessionsTable } from '@/session/data/tables/newSessions'
-import type { ChatMessageRecord } from '@shared/types/agent-interface'
+import type { ChatMessageRecord } from '@deepchat/shared/types/agent-interface'
 
 const sqliteModule = await import('better-sqlite3-multiple-ciphers').catch(() => null)
 const Database = sqliteModule?.default

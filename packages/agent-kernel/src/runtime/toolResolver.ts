@@ -2,16 +2,16 @@ import {
   SKILL_NAME_MAX_LENGTH,
   type SkillMetadataSnapshotPort,
   type SkillServicePort
-} from '../shared/types/skill.js'
-import type { MCPToolDefinition } from '../shared/types/core/mcp.js'
-import type { ToolModeConfiguration, ToolServicePort } from '../shared/types/tool.js'
+} from '@deepchat/shared/types/skill'
+import type { MCPToolDefinition } from '@deepchat/shared/types/core/mcp'
+import type { ToolModeConfiguration, ToolServicePort } from '@deepchat/shared/types/tool'
 import { types as nodeTypes } from 'node:util'
 import type {
   AgentType,
   DeepChatAgentConfig,
   DeepChatSubagentCapability,
   SessionKind
-} from '../shared/types/agent-interface.js'
+} from '@deepchat/shared/types/agent-interface'
 import type { SessionAgentRowPort } from '../contracts/sessionAgentRow.js'
 import type {
   DeepChatAgentInstance,
@@ -32,11 +32,11 @@ import {
 import { createToolCatalogPort } from './toolAdapters.js'
 
 import { awaitWithAbort } from '../collab/lib/awaitWithAbort.js'
-import { resolveDeepChatSubagentCapability } from '../shared/lib/deepchatSubagents.js'
+import { resolveDeepChatSubagentCapability } from '@deepchat/shared/lib/deepchatSubagents'
 import {
   normalizeOrchestrationPolicy,
   type OrchestrationPolicy
-} from '../shared/orchestration/policy.js'
+} from '@deepchat/shared/orchestration/policy'
 import { composeSubagentAuthority } from '../collab/session/subagentAuthority.js'
 import { normalizeSkillToolName } from '../collab/skill/toolNameMapping.js'
 import {
@@ -49,7 +49,7 @@ import {
   resolveToolMode,
   type ResolvedToolMode,
   type ToolMode
-} from '../shared/toolMode.js'
+} from '@deepchat/shared/toolMode'
 import {type SkillSettingsPort} from '../contracts/skillSettings.js'
 import {type AgentSettingsPort} from '../contracts/agentSettings.js'
 

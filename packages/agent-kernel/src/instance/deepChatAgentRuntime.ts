@@ -1,5 +1,5 @@
 import type { AppSessionId } from '../collab/agent-shared/agentSessionIds.js'
-import type { DeepChatSessionState } from '../shared/types/agent-interface.js'
+import type { DeepChatSessionState } from '@deepchat/shared/types/agent-interface'
 import { DeepChatAgentInstance } from './deepChatAgentInstance.js'
 
 export const STALE_DEEPCHAT_INSTANCE_ERROR_NAME = 'StaleDeepChatAgentInstanceError'

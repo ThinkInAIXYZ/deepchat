@@ -1,6 +1,6 @@
 import ElectronStore from 'electron-store'
 import { nanoid } from 'nanoid'
-import type { AcpAgentConfig } from '@shared/types/acp'
+import type { AcpAgentConfig } from '@deepchat/shared/types/acp'
 import type {
   AcpAgentInstallState,
   AcpAgentProfile,
@@ -9,7 +9,7 @@ import type {
   AcpCustomAgent,
   AcpLegacyBuiltinAgentId,
   AcpManualAgent
-} from '@shared/types/acp'
+} from '@deepchat/shared/types/acp'
 import { McpSettings } from '@/mcp/settings'
 import { ACP_LEGACY_AGENT_ID_ALIASES, resolveAcpAgentAlias } from '@shared/utils/acpAgentAlias'
 import type { StoreLike } from '@/config/storeLike'

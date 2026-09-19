@@ -1,6 +1,6 @@
 import type { ProviderSettingsPort } from '@/provider/settings'
-import logger from '@shared/logger'
-import type { MODEL_META } from '@shared/types/provider'
+import logger from '@deepchat/shared/logger'
+import type { MODEL_META } from '@deepchat/shared/types/provider'
 
 import { BaseLLMProvider } from '../baseProvider'
 

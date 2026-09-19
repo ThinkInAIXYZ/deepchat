@@ -3,8 +3,8 @@ import type {
   DeepChatSessionState,
   PendingSessionInputRecord,
   SendMessageInput
-} from '@shared/types/agent-interface'
-import logger from '@shared/logger'
+} from '@deepchat/shared/types/agent-interface'
+import logger from '@deepchat/shared/logger'
 import { describe, expect, it, vi } from 'vitest'
 import {
   PendingInputAdmissionCoordinator,

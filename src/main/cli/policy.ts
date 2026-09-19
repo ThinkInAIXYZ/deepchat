@@ -1,5 +1,5 @@
-import type { JsonValue } from '@shared/contracts/json'
-import type { LocalControlEffect } from '@shared/contracts/localControl'
+import type { JsonValue } from '@deepchat/shared/contracts/json'
+import type { LocalControlEffect } from '@deepchat/shared/contracts/localControl'
 import { hashApprovalArguments } from '@/approval'
 import type { CliRouteCaller } from '@/routes/routeRegistry'
 import { CliRequestError } from './errors'

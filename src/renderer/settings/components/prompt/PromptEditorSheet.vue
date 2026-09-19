@@ -269,7 +269,7 @@ import { notifyRenderer } from '@renderer-notifications/rendererNotificationPort
 import { createFileClient } from '@api/FileClient'
 import { MessageFile } from '@shared/chat'
 import { getMimeTypeIcon } from '@/lib/utils'
-import type { FileItem } from '@shared/types/file'
+import type { FileItem } from '@deepchat/shared/types/file'
 import { settingsLeaveGuard } from '../../services/settingsLeaveGuard'
 
 interface PromptParameter {

@@ -1,4 +1,7 @@
-import type { PendingInputEnqueueSource, SendMessageInput } from '@shared/types/agent-interface'
+import type {
+  PendingInputEnqueueSource,
+  SendMessageInput
+} from '@deepchat/shared/types/agent-interface'
 
 export interface AgentSessionSendInput {
   content: SendMessageInput

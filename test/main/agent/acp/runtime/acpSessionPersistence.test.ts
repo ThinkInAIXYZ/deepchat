@@ -3,7 +3,7 @@ import * as fs from 'fs'
 import { app } from 'electron'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AcpSessionPersistence } from '@/agent/acp/runtime'
-import type { AcpSessionEntity } from '@shared/types/acp'
+import type { AcpSessionEntity } from '@deepchat/shared/types/acp'
 import type { MainDatabase } from '../../../../src/main/data/mainDatabase'
 
 const createProjectDatabase = () => ({

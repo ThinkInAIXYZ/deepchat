@@ -2,7 +2,7 @@ import {
   DEEPCHAT_TASK_CONTRACT_REF_SCHEMA_VERSION,
   type DeepChatTaskContract,
   type DeepChatTaskContractRef
-} from '@shared/types/task-contract'
+} from '@deepchat/shared/types/task-contract'
 import {
   isDeepChatTaskContract,
   isDeepChatTaskContractRef,

@@ -2,13 +2,13 @@ import { z } from 'zod'
 import {
   LIVE_DELEGATION_AGENT_TOOL_NAME,
   LIVE_DELEGATION_AGENT_TOOL_SERVER_NAME
-} from '@shared/agentTools'
+} from '@deepchat/shared/agentTools'
 import {
   LIVE_DELEGATION_MAX_TITLE_LENGTH,
   LiveDelegationDetailSchema,
   type LiveDelegationSummary
-} from '@shared/orchestration/liveDelegation'
-import { parseChildAgentResultEnvelope } from '@shared/orchestration/resultSafety'
+} from '@deepchat/shared/orchestration/liveDelegation'
+import { parseChildAgentResultEnvelope } from '@deepchat/shared/orchestration/resultSafety'
 import type { DisplayAssistantMessageBlock } from '@/features/chat-page/model/displayMessage'
 
 const MAX_SPAWN_PARAMS_CHARACTERS = 512 * 1024

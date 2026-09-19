@@ -1,5 +1,5 @@
 import Database from 'better-sqlite3-multiple-ciphers'
-import logger from '@shared/logger'
+import logger from '@deepchat/shared/logger'
 import { BaseTable } from '@/data/baseTable'
 import { randomUUID } from 'crypto'
 import {
@@ -52,7 +52,7 @@ import type {
   SkillMaterializationPersistenceStore,
   TapeTransactionRunner
 } from '@deepchat/agent-kernel/tape/ports/storage'
-import { DEEPCHAT_NESTED_EXECUTION_AUDIT_OPERATION_LIMIT } from '@shared/types/execution-journal-audit'
+import { DEEPCHAT_NESTED_EXECUTION_AUDIT_OPERATION_LIMIT } from '@deepchat/shared/types/execution-journal-audit'
 
 const DEEPCHAT_NESTED_EXECUTION_AUDIT_MESSAGE_LIMIT = 500
 

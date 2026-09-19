@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import type { DeepChatTapeViewManifestRecord } from '@shared/types/tape-view-manifest'
+import type { DeepChatTapeViewManifestRecord } from '@deepchat/shared/types/tape-view-manifest'
 import type { TapeContextOccupancyEvidence } from '@/tape/application/contracts'
 import type { TapeProviderAttemptRecord } from '@deepchat/agent-kernel/tape/domain/providerAttempt'
 import { ContextOccupancyCoordinator } from '@deepchat/agent-kernel/runtime/contextOccupancyCoordinator'

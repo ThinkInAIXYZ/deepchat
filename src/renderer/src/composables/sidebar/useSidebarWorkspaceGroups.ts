@@ -1,6 +1,6 @@
 import { computed, ref, watch, type ComputedRef, type MaybeRefOrGetter, toValue } from 'vue'
-import type { EnvironmentSummary } from '@shared/types/agent-interface'
-import { normalizeWorkspacePath } from '@shared/utils/filesystem'
+import type { EnvironmentSummary } from '@deepchat/shared/types/agent-interface'
+import { normalizeWorkspacePath } from '@deepchat/shared/utils/filesystem'
 import { disambiguateWorkspaceLabels } from '@shared/utils/workspaceLabels'
 import type { useProjectStore } from '@/stores/ui/project'
 import type { SessionGroup, UISession, useSessionStore } from '@/stores/ui/session'

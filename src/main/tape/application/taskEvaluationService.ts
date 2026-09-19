@@ -3,7 +3,7 @@ import {
   type DeepChatEvaluationRef,
   type DeepChatTaskContractRef,
   type DeepChatTaskEvaluation
-} from '@shared/types/task-contract'
+} from '@deepchat/shared/types/task-contract'
 import { canonicalJsonStringifyData } from '@deepchat/agent-kernel/tape/domain/canonicalJson'
 import { computeTapeIdentity } from '@deepchat/agent-kernel/tape/domain/tapeIdentity'
 import type {

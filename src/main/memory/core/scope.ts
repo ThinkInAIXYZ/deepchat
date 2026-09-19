@@ -2,8 +2,8 @@ import {
   AGENT_MEMORY_SCOPE_ID_MAX_CHARS,
   AGENT_MEMORY_SCOPE_TYPES,
   type AgentMemoryScopeType
-} from '@shared/types/agent-memory'
-import { unicodeCodePointLength } from '@shared/lib/unicodeText'
+} from '@deepchat/shared/types/agent-memory'
+import { unicodeCodePointLength } from '@deepchat/shared/lib/unicodeText'
 
 import type {
   AgentMemoryRow,

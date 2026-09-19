@@ -1,5 +1,5 @@
 import type { DeepchatBridge } from '@shared/contracts/bridge'
-import { projectEnvironmentsChangedEvent } from '@shared/contracts/events'
+import { projectEnvironmentsChangedEvent } from '@deepchat/shared/contracts/events'
 import {
   projectArchiveEnvironmentRoute,
   projectGetSnapshotRoute,
@@ -12,7 +12,7 @@ import {
   projectRestoreEnvironmentRoute,
   projectSelectDirectoryRoute
 } from '@shared/contracts/routes'
-import type { EnvironmentStatus } from '@shared/types/agent-interface'
+import type { EnvironmentStatus } from '@deepchat/shared/types/agent-interface'
 import { getDeepchatBridge } from './core'
 
 export function createProjectClient(bridge: DeepchatBridge = getDeepchatBridge()) {

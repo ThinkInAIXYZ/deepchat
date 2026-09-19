@@ -62,7 +62,7 @@ import {
 } from '@shadcn/components/ui/alert-dialog'
 import { useDialogStore } from '@/stores/dialog'
 import { Icon } from '@iconify/vue'
-import type { DialogIcon } from '@shared/types/dialog'
+import type { DialogIcon } from '@deepchat/shared/types/dialog'
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 

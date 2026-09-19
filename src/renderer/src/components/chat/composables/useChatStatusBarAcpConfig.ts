@@ -1,8 +1,8 @@
 import { computed, ref, watch, type ComputedRef, type Ref } from 'vue'
 import type { ProviderClient } from '@api/ProviderClient'
 import type { SessionClient } from '@api/SessionClient'
-import type { AcpConfigOption } from '@shared/types/acp'
-import type { AcpConfigState } from '@shared/types/acp'
+import type { AcpConfigOption } from '@deepchat/shared/types/acp'
+import type { AcpConfigState } from '@deepchat/shared/types/acp'
 
 const ACP_INLINE_OPTION_LIMIT = 3
 

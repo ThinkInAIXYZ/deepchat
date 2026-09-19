@@ -1,4 +1,4 @@
-import { execSync } from 'node:child_process'
+import { execFileSync, execSync } from 'node:child_process'
 import { readFileSync, readdirSync, rmSync, statSync } from 'node:fs'
 import { dirname, join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -51,6 +51,7 @@ function extractSpecifiers(text) {
 }
 
 function main() {
+  execFileSync(process.execPath, [join(scriptDirectory, 'build-shared.mjs')], { stdio: 'inherit' })
   rmSync(join(packageDir, 'dist'), { recursive: true, force: true })
   // The repo `typescript` (tsgo native bridge) is hoisted at the root; resolve it explicitly so
   // the build does not depend on the caller's PATH or a package-local install.

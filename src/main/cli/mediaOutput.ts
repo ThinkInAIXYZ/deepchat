@@ -1,6 +1,6 @@
 import { lstat, open } from 'node:fs/promises'
 import path from 'node:path'
-import { ArtifactMetadataSchema } from '@shared/contracts/routes/artifacts.routes'
+import { ArtifactMetadataSchema } from '@deepchat/shared/contracts/routes/artifacts.routes'
 import { CliRequestError } from './errors'
 
 const MAX_GENERATED_MEDIA_BYTES = 512 * 1024 * 1024

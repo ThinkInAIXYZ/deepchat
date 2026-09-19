@@ -186,7 +186,7 @@ import {
   normalizeImageGenerationOptions,
   validateOpenAIImageGenerationSize,
   type ImageGenerationOptions
-} from '@shared/imageGenerationSettings'
+} from '@deepchat/shared/imageGenerationSettings'
 
 const DEFAULT_SELECT_VALUE = '__default'
 const CUSTOM_SIZE_VALUE = '__custom'

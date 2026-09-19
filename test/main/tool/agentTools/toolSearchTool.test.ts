@@ -9,8 +9,8 @@ import {
   parseToolSearchInput,
   searchToolSurfaceSnapshot
 } from '@/tool/agentTools/toolSearchTool'
-import { TOOL_SEARCH_AGENT_TOOL_NAME, getAgentToolExposure } from '@shared/agentTools'
-import { TOOL_EXECUTION, type MCPToolDefinition } from '@shared/types/mcp'
+import { TOOL_SEARCH_AGENT_TOOL_NAME, getAgentToolExposure } from '@deepchat/shared/agentTools'
+import { TOOL_EXECUTION, type MCPToolDefinition } from '@deepchat/shared/types/mcp'
 import {
   buildCanonicalToolCatalog,
   createPolicySelectedToolSurfaceRun,

@@ -11,7 +11,7 @@ import type {
   ChatMessageRecord,
   MessageFile,
   UserMessageInlineItem
-} from '@shared/types/agent-interface'
+} from '@deepchat/shared/types/agent-interface'
 
 function createDeferred<T>() {
   let resolve!: (value: T) => void

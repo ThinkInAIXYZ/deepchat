@@ -13,8 +13,8 @@ import type {
   ToolchainPersistedState,
   ToolchainSelection,
   ToolchainSource
-} from '@shared/types/toolchains'
-import { TOOLCHAIN_SOURCES } from '@shared/types/toolchains'
+} from '@deepchat/shared/types/toolchains'
+import { TOOLCHAIN_SOURCES } from '@deepchat/shared/types/toolchains'
 import { assertSafeToolchainVersion, stateFilePath } from './layout'
 
 const SOURCE_SET = new Set<string>(TOOLCHAIN_SOURCES)

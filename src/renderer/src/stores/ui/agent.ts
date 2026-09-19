@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { createConfigClient } from '../../../api/ConfigClient'
 import { createSessionClient } from '../../../api/SessionClient'
-import type { Agent, AgentBootstrapItem } from '@shared/types/agent-interface'
+import type { Agent, AgentBootstrapItem } from '@deepchat/shared/types/agent-interface'
 
 // --- Type Definitions ---
 

@@ -2,23 +2,27 @@ import { cacheImage, fetchRemoteFile } from '@/platform/imageCache'
 import {
   normalizeImageGenerationOptions,
   type ImageGenerationOptions
-} from '@shared/imageGenerationSettings'
+} from '@deepchat/shared/imageGenerationSettings'
 import {
   ModelType,
   inferNewApiSpecialEndpointTypeFromRoute,
   isNewApiEndpointType,
   type NewApiEndpointType
-} from '@shared/model'
-import { isTtsModelId } from '@shared/ttsSettings'
-import type { ChatMessage } from '@shared/types/core/chat-message'
-import type { LLMCoreStreamEvent } from '@shared/types/core/llm-events'
-import type { MCPToolDefinition } from '@shared/types/mcp'
-import type { MODEL_META, ModelConfig, ProviderStreamOptions } from '@shared/types/provider'
+} from '@deepchat/shared/model'
+import { isTtsModelId } from '@deepchat/shared/ttsSettings'
+import type { ChatMessage } from '@deepchat/shared/types/core/chat-message'
+import type { LLMCoreStreamEvent } from '@deepchat/shared/types/core/llm-events'
+import type { MCPToolDefinition } from '@deepchat/shared/types/mcp'
+import type {
+  MODEL_META,
+  ModelConfig,
+  ProviderStreamOptions
+} from '@deepchat/shared/types/provider'
 import {
   normalizeVideoGenerationOptions,
   type VideoGenerationOptions,
   type VideoGenerationReference
-} from '@shared/videoGenerationSettings'
+} from '@deepchat/shared/videoGenerationSettings'
 import { isApimartResponsesRoute } from '../capabilityIdentity'
 import { AiSdkProvider } from './aiSdkProvider'
 

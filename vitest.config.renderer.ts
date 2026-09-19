@@ -1,3 +1,4 @@
+import { sharedSourceAliases } from './scripts/shared-source-aliases.mjs'
 import { defineConfig } from 'vitest/config'
 import { resolve } from 'path'
 import vue from '@vitejs/plugin-vue'
@@ -17,12 +18,13 @@ export default defineConfig({
   ],
   resolve: {
     alias: {
-      '@': resolve('src/renderer/src'),
-      '@api': resolve('src/renderer/api'),
-      '@renderer-notifications': resolve('src/renderer/services/notifications'),
-      '@shadcn': resolve('src/shadcn'),
-      '@dc-ui': resolve('src/dc-ui'),
-      '@shared': resolve('src/shared'),
+        ...sharedSourceAliases,
+      '@': resolve(import.meta.dirname, 'src/renderer/src'),
+      '@api': resolve(import.meta.dirname, 'src/renderer/api'),
+      '@renderer-notifications': resolve(import.meta.dirname, 'src/renderer/services/notifications'),
+      '@shadcn': resolve(import.meta.dirname, 'src/shadcn'),
+      '@dc-ui': resolve(import.meta.dirname, 'src/dc-ui'),
+      '@shared': resolve(import.meta.dirname, 'src/shared'),
       vue: 'vue/dist/vue.esm-bundler.js'
     }
   },

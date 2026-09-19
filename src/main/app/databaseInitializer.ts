@@ -1,4 +1,4 @@
-import logger from '@shared/logger'
+import logger from '@deepchat/shared/logger'
 import type { DatabaseSchemaDiagnosis, DatabaseSchemaIssue } from '@shared/types/databaseSchema'
 import type { DatabaseRepairReason } from '@shared/notifications'
 import { app } from 'electron'

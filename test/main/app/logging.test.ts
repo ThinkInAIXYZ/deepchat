@@ -1,6 +1,6 @@
 import { inspect } from 'node:util'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { originalConsole } from '@shared/logger'
+import { originalConsole } from '@deepchat/shared/logger'
 import { LoggingService } from '@/app/logging'
 import {
   mainLogger,

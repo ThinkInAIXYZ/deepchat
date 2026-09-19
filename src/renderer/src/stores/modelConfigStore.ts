@@ -1,6 +1,6 @@
 import { ref } from 'vue'
 import { defineStore } from 'pinia'
-import type { ModelConfig, IModelConfig } from '@shared/types/provider'
+import type { ModelConfig, IModelConfig } from '@deepchat/shared/types/provider'
 import { createModelClient } from '../../api/ModelClient'
 
 export const useModelConfigStore = defineStore('modelConfig', () => {

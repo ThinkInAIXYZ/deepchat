@@ -1,4 +1,4 @@
-import type { LLM_PROVIDER, MODEL_META } from '@shared/types/provider'
+import type { LLM_PROVIDER, MODEL_META } from '@deepchat/shared/types/provider'
 import type { ProviderSettingsTable } from './data/settingsTable'
 import type { StoreLike } from '@/config/storeLike'
 import type { IModelStore } from './providerModelHelper'

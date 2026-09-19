@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { AssistantMessageBlock } from '@shared/types/agent-interface'
+import type { AssistantMessageBlock } from '@deepchat/shared/types/agent-interface'
 
 const sqliteModule = await import('better-sqlite3-multiple-ciphers').catch(() => null)
 const mainDatabaseModule = sqliteModule ? await import('@/data/mainDatabase') : null

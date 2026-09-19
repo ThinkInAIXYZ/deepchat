@@ -14,7 +14,7 @@ import {
   type GitBashResolutionError,
   type GitBashResolutionSource,
   type ResolvedCommandShell
-} from '@shared/commandShell'
+} from '@deepchat/shared/commandShell'
 import { getUserShell } from './shellEnvHelper'
 
 const GIT_BASH_PROBE_TIMEOUT_MS = 5_000

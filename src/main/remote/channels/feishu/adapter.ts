@@ -9,7 +9,7 @@ import { FeishuCommandRouter } from './commandRouter'
 import { FeishuClient } from './feishuClient'
 import { FeishuParser } from './feishuParser'
 import { FeishuRuntime } from './feishuRuntime'
-import logger from '@shared/logger'
+import logger from '@deepchat/shared/logger'
 
 const DEFAULT_STATUS: FeishuRuntimeStatusSnapshot = {
   state: 'stopped',

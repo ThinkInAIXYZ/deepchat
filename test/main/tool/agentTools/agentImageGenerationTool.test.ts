@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import os from 'os'
 import { AgentToolManager } from '@/tool/agentTools/agentToolManager'
 import { IMAGE_GENERATE_TOOL_NAME } from '@/tool/agentTools/agentImageGenerationTool'
-import { ApiEndpointType, ModelType } from '@shared/model'
+import { ApiEndpointType, ModelType } from '@deepchat/shared/model'
 import { createAgentToolDependencies } from './agentToolDependencies'
 import { CommandPermissionService } from '@/tool/permission'
 

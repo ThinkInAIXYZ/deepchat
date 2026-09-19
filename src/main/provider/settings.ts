@@ -6,7 +6,7 @@ import type {
   ModelRouteConfig,
   RENDERER_MODEL_META,
   IModelConfig
-} from '@shared/types/provider'
+} from '@deepchat/shared/types/provider'
 import { ProviderBatchUpdate } from '@shared/provider-operations'
 import {
   ModelType,
@@ -14,14 +14,14 @@ import {
   resolveNewApiEndpointTypeFromRoute,
   resolveNewApiSelectableEndpointTypes,
   type NewApiRouteMeta
-} from '@shared/model'
-import { resolveVideoGenerationCompatType } from '@shared/videoGenerationSettings'
+} from '@deepchat/shared/model'
+import { resolveVideoGenerationCompatType } from '@deepchat/shared/videoGenerationSettings'
 import {
   resolveDerivedModelMaxTokens,
   resolveModelContextLength,
   resolveModelFunctionCall,
   resolveModelVision
-} from '@shared/modelConfigDefaults'
+} from '@deepchat/shared/modelConfigDefaults'
 import { DEFAULT_PROVIDERS } from '@/provider/defaults'
 import path from 'path'
 import { app } from 'electron'
@@ -29,7 +29,7 @@ import fs from 'fs'
 import { compare } from 'compare-versions'
 import { ModelConfigHelper } from '@/provider/modelConfig'
 import { providerDbLoader, type ProviderDbRefreshResult } from '@/provider/providerDbLoader'
-import { ProviderAggregate, type ProviderModel } from '@shared/types/model-db'
+import { ProviderAggregate, type ProviderModel } from '@deepchat/shared/types/model-db'
 import { modelCapabilities } from '@/provider/modelCapabilities'
 import { ProviderHelper } from '@/provider/providerHelper'
 import { ModelStatusHelper } from '@/provider/modelStatusHelper'
@@ -43,7 +43,10 @@ import { DEFAULT_SYSTEM_PROMPT } from '@/agent/promptSettings'
 import type { ProviderDatabase } from './data/database'
 import type { CapabilitySnapshotResolutionInput } from '@deepchat/agent-kernel/contracts/providerModelResolution'
 import type { SettingsKey, SettingsSnapshotValues } from '@shared/contracts/routes'
-import type { DeepchatEventPayload, DeepchatEventPublisher } from '@shared/contracts/events'
+import type {
+  DeepchatEventPayload,
+  DeepchatEventPublisher
+} from '@deepchat/shared/contracts/events'
 import {
   emitModelConfigChanged,
   emitModelConfigReset,
@@ -63,11 +66,11 @@ import type {
   CapabilityRouteOverride,
   ResolvedCapabilityIdentity,
   ResolvedModelCapabilitySnapshot
-} from '@shared/types/model-capabilities'
+} from '@deepchat/shared/types/model-capabilities'
 import {
   getMoonshotKimiTemperaturePolicy,
   isMiniMaxM3AdaptiveThinkingModel
-} from '@shared/modelRequestPolicy'
+} from '@deepchat/shared/modelRequestPolicy'
 import { resolveDeepSeekResponsesRoute } from '@deepchat/agent-kernel/collab/provider/deepseekResponsesAdapter'
 
 // Create interface for model storage

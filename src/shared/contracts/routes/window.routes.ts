@@ -1,6 +1,6 @@
 import { z } from 'zod'
-import { defineRouteContract } from '../common'
-import { WindowStateSchema } from '../domainSchemas'
+import { defineRouteContract } from '@deepchat/shared/contracts/common'
+import { WindowStateSchema } from '@deepchat/shared/contracts/domainSchemas'
 
 const ProviderInstallPreviewSchema = z.discriminatedUnion('kind', [
   z.object({

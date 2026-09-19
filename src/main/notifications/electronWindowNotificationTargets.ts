@@ -5,7 +5,7 @@ import {
   semanticNotificationEvent,
   type DeepchatEventName,
   type DeepchatEventPayload
-} from '@shared/contracts/events'
+} from '@deepchat/shared/contracts/events'
 import type { ITabPresenter, IWindowPresenter } from '@shared/types/desktop'
 import type { SemanticNotificationDelivery } from '@shared/notifications'
 import type {

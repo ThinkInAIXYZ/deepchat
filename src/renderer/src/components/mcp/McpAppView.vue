@@ -23,7 +23,11 @@ import type {
   ReadResourceResult
 } from '@modelcontextprotocol/sdk/types.js'
 import { ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js'
-import type { MCPContentItem, McpAppDescriptor, PersistedMcpToolResult } from '@shared/types/mcp'
+import type {
+  MCPContentItem,
+  McpAppDescriptor,
+  PersistedMcpToolResult
+} from '@deepchat/shared/types/mcp'
 import { createMcpClient } from '@api/McpClient'
 import { createDeviceClient } from '@api/DeviceClient'
 import { useThemeStore } from '@/stores/theme'

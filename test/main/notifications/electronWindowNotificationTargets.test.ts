@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { semanticNotificationEvent } from '@shared/contracts/events'
+import { semanticNotificationEvent } from '@deepchat/shared/contracts/events'
 
 type ElectronListener = (...args: unknown[]) => void
 

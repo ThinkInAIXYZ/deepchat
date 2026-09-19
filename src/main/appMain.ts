@@ -1,5 +1,5 @@
 import { app, dialog } from 'electron'
-import { setVerboseLoggingEnabled } from '@shared/logger'
+import { setVerboseLoggingEnabled } from '@deepchat/shared/logger'
 import { StartupWorkloadCoordinator } from './app/startupWorkloadCoordinator'
 import { registerWorkspacePreviewSchemes } from './workspace/workspacePreviewProtocol'
 import { registerMcpAppScheme } from './mcp/apps/sandboxProtocol'

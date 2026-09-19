@@ -1,5 +1,5 @@
-import { AssistantMessageBlockSchema } from '@shared/contracts/common'
-import { hasDeepchatEventContract } from '@shared/contracts/events'
+import { AssistantMessageBlockSchema } from '@deepchat/shared/contracts/common'
+import { hasDeepchatEventContract } from '@deepchat/shared/contracts/events'
 import { hasDeepchatRouteContract, SettingsChangeSchema } from '@shared/contracts/routes'
 
 describe('contract runtime guards', () => {

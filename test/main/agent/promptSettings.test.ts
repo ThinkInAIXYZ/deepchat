@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { DEFAULT_SYSTEM_PROMPT, PromptSettings } from '@/agent/promptSettings'
-import { DEEPCHAT_SUBAGENT_MODEL_GUIDANCE } from '@shared/lib/deepchatSubagents'
+import { DEEPCHAT_SUBAGENT_MODEL_GUIDANCE } from '@deepchat/shared/lib/deepchatSubagents'
 import type { SettingsStore } from '@/config/settingsStore'
 
 describe('default system prompt', () => {

@@ -2,10 +2,10 @@ import { describe, expect, it } from 'vitest'
 import {
   LIVE_DELEGATION_AGENT_TOOL_NAME,
   LIVE_DELEGATION_AGENT_TOOL_SERVER_NAME
-} from '@shared/agentTools'
+} from '@deepchat/shared/agentTools'
 import type { DisplayAssistantMessageBlock } from '@/features/chat-page/model/displayMessage'
 import { parseLiveDelegationSpawnBlock } from '@/lib/liveDelegationToolCall'
-import { createChildAgentResultEnvelope } from '@shared/orchestration/resultSafety'
+import { createChildAgentResultEnvelope } from '@deepchat/shared/orchestration/resultSafety'
 
 const createDetail = () => ({
   delegation: {

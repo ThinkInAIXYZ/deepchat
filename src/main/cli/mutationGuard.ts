@@ -1,7 +1,10 @@
 import { randomUUID } from 'node:crypto'
-import type { DeepchatEventPayload } from '@shared/contracts/events'
-import type { LocalControlEffect, LocalControlPrincipal } from '@shared/contracts/localControl'
-import type { JsonValue } from '@shared/contracts/json'
+import type { DeepchatEventPayload } from '@deepchat/shared/contracts/events'
+import type {
+  LocalControlEffect,
+  LocalControlPrincipal
+} from '@deepchat/shared/contracts/localControl'
+import type { JsonValue } from '@deepchat/shared/contracts/json'
 import type { RendererRouteCaller } from '@/routes/routeRegistry'
 import { ApprovalBroker, ApprovalCapacityError, type ApprovalDecision } from '@/approval'
 import { CliRequestError } from './errors'

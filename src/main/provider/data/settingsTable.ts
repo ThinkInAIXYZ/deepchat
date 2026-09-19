@@ -1,7 +1,7 @@
 import Database from 'better-sqlite3-multiple-ciphers'
 import { BaseTable } from '@/data/baseTable'
-import type { IModelConfig, LLM_PROVIDER, MODEL_META } from '@shared/types/provider'
-import { getValidProviderCustomHeaders } from '@shared/providerCustomHeaders'
+import type { IModelConfig, LLM_PROVIDER, MODEL_META } from '@deepchat/shared/types/provider'
+import { getValidProviderCustomHeaders } from '@deepchat/shared/providerCustomHeaders'
 import { LEGACY_MODEL_CONFIG_META_KEY, normalizeUserModelConfigEntry } from '../userModelConfig'
 import {
   hasPersistedDerivedProviderModelFields,

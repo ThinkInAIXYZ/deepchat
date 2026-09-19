@@ -150,6 +150,33 @@ describe('CI package contract', () => {
     })
   })
 
+  it('packages every platform for shared, kernel, CLI, and unknown workspace inputs', () => {
+    for (const changedPath of [
+      'packages/shared/src/contracts/events/chat.events.ts',
+      'packages/shared/package.json',
+      'packages/shared/tsconfig.json',
+      'packages/agent-kernel/src/runtime/process.ts',
+      'packages/cli/src/index.ts',
+      'packages/new-domain/src/index.ts',
+      'packages/deleted-domain/package.json'
+    ]) {
+      expect(classifyPackageImpact([changedPath])).toEqual({
+        required: true,
+        windows: true,
+        linux: true,
+        macos: true,
+        matchedPaths: [changedPath],
+        matches: [
+          {
+            path: changedPath,
+            rule: 'workspace-package-input',
+            platforms: ['windows', 'linux', 'macos']
+          }
+        ]
+      })
+    }
+  })
+
   it('ignores release-only tooling, generated data, ordinary source, and unrelated workflows', () => {
     expect(
       classifyPackageImpact([

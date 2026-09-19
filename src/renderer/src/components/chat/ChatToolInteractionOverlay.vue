@@ -146,7 +146,7 @@ import { DcButton } from '@dc-ui/components/button'
 import { DcCheckboxGroup, DcRadioGroup } from '@dc-ui/components/choice-group'
 import type { DcChoiceOption } from '@dc-ui/components/choice-group'
 import { Icon } from '@iconify/vue'
-import type { ToolInteractionResponse } from '@shared/types/agent-interface'
+import type { ToolInteractionResponse } from '@deepchat/shared/types/agent-interface'
 import type { DisplayAssistantMessageBlock } from '@/features/chat-page/model/displayMessage'
 
 type PendingInteractionView = {

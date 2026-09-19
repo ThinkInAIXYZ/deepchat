@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
-import type { DeepChatLegacyTaskEvaluation } from '@shared/types/task-contract'
+import type { DeepChatLegacyTaskEvaluation } from '@deepchat/shared/types/task-contract'
 import { Database, nativeSqliteDescribeIf } from '../nativeSqliteHarness'
 import {
   createLegacyLiveDelegationTaskContractInput,

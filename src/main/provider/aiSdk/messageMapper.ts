@@ -1,5 +1,5 @@
-import type { ChatMessage, ChatMessageContent } from '@shared/types/core/chat-message'
-import type { MCPToolDefinition } from '@shared/types/mcp'
+import type { ChatMessage, ChatMessageContent } from '@deepchat/shared/types/core/chat-message'
+import type { MCPToolDefinition } from '@deepchat/shared/types/mcp'
 import { generateId, type FilePart, type ModelMessage, type TextPart } from 'ai'
 import { applyLegacyFunctionCallPrompt } from './middlewares/legacyFunctionCallMiddleware'
 import {

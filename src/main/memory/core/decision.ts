@@ -1,5 +1,5 @@
 import type { NormalizedMemoryCandidate } from '@deepchat/agent-kernel/collab/memory/types'
-import { truncateUnicodeCodePoints } from '@shared/lib/unicodeText'
+import { truncateUnicodeCodePoints } from '@deepchat/shared/lib/unicodeText'
 import { extractJsonContainer } from './jsonExtraction'
 
 export type MemoryDecisionKind = 'ADD' | 'UPDATE' | 'SUPERSEDE' | 'NOOP' | 'CHALLENGE'

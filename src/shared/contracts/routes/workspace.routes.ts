@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { defineRouteContract } from '../common'
+import { defineRouteContract } from '@deepchat/shared/contracts/common'
 import {
   WorkspaceFileNodeSchema,
   WorkspaceFileOpenAppSchema,
@@ -7,7 +7,7 @@ import {
   WorkspaceGitDiffSchema,
   WorkspaceGitStateSchema,
   WorkspaceLinkedFileResolutionSchema
-} from '../domainSchemas'
+} from '@deepchat/shared/contracts/domainSchemas'
 
 const WorkspaceRegistrationModeSchema = z.enum(['workspace', 'workdir'])
 

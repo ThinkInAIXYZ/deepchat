@@ -639,9 +639,9 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
-import type { AcpAuthChallenge, AcpManualAgent } from '@shared/types/acp'
-import type { AcpRegistryAgent } from '@shared/types/acp'
-import type { AgentTransferImpact } from '@shared/types/agent-interface'
+import type { AcpAuthChallenge, AcpManualAgent } from '@deepchat/shared/types/acp'
+import type { AcpRegistryAgent } from '@deepchat/shared/types/acp'
+import type { AgentTransferImpact } from '@deepchat/shared/types/agent-interface'
 import { useI18n } from 'vue-i18n'
 import { createConfigClient } from '@api/ConfigClient'
 import { createSessionClient } from '@api/SessionClient'

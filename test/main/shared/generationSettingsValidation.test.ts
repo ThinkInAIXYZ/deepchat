@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { MODEL_TIMEOUT_MAX_MS, MODEL_TIMEOUT_MIN_MS } from '../../../src/shared/modelConfigDefaults'
-import { validateGenerationNumericField } from '../../../src/shared/utils/generationSettingsValidation'
+import { MODEL_TIMEOUT_MAX_MS, MODEL_TIMEOUT_MIN_MS } from '@deepchat/shared/modelConfigDefaults'
+import { validateGenerationNumericField } from '@deepchat/shared/utils/generationSettingsValidation'
 
 describe('validateGenerationNumericField timeout bounds', () => {
   it('accepts timeout values within the supported range', () => {

@@ -10,9 +10,9 @@ import {
   type MediaGenerationEvent,
   type ModelInvokeEvent
 } from '@shared/contracts/routes'
-import { ModelType } from '@shared/model'
-import type { LLMCoreStreamEvent } from '@shared/types/core/llm-events'
-import type { MODEL_META, ModelConfig } from '@shared/types/provider'
+import { ModelType } from '@deepchat/shared/model'
+import type { LLMCoreStreamEvent } from '@deepchat/shared/types/core/llm-events'
+import type { MODEL_META, ModelConfig } from '@deepchat/shared/types/provider'
 import { CliComputeService, type CliComputeServiceOptions } from '@/cli/computeService'
 import { ArtifactSpool } from '@/cli/artifactSpool'
 import type { CliRouteCaller } from '@/routes/routeRegistry'

@@ -209,7 +209,7 @@ import { DcBadge } from '@dc-ui/components/badge'
 import { DcButton } from '@dc-ui/components/button'
 import { createMemoryClient } from '@api/MemoryClient'
 import type { MemoryConflictItem, MemoryDirectiveItem, MemoryItem } from '@shared/contracts/routes'
-import { AGENT_MEMORY_ACTIVE_DIRECTIVE_MAX_COUNT } from '@shared/types/agent-memory'
+import { AGENT_MEMORY_ACTIVE_DIRECTIVE_MAX_COUNT } from '@deepchat/shared/types/agent-memory'
 import MemoryInlineFeedback from './MemoryInlineFeedback.vue'
 import {
   shouldReconcileMemoryCommandRejection,

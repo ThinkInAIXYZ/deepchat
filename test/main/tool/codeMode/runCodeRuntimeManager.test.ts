@@ -4,8 +4,11 @@ import {
   TOOL_EXECUTION,
   type MCPToolDefinition,
   type ToolDispatchCommitInput
-} from '@shared/types/mcp'
-import { RUN_CODE_PROTOCOL_VERSION, type RunCodeParentMessage } from '@shared/codeModeProtocol'
+} from '@deepchat/shared/types/mcp'
+import {
+  RUN_CODE_PROTOCOL_VERSION,
+  type RunCodeParentMessage
+} from '@deepchat/shared/codeModeProtocol'
 import {
   RunCodeRuntimeManager,
   type RunCodeNestedExecutionInput,

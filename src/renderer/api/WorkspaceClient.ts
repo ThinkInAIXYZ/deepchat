@@ -2,7 +2,7 @@ import type { DeepchatBridge } from '@shared/contracts/bridge'
 import {
   workspaceInvalidatedEvent,
   workspaceWatchStatusChangedEvent
-} from '@shared/contracts/events'
+} from '@deepchat/shared/contracts/events'
 import type { WorkspaceWatchStatusEvent } from '@shared/types/workspace'
 import {
   workspaceExpandDirectoryRoute,

@@ -1,7 +1,7 @@
 import { defineComponent, inject, provide } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
 import { describe, expect, it, vi } from 'vitest'
-import type { AgentCommandShellConfig, GitBashAvailability } from '@shared/commandShell'
+import type { AgentCommandShellConfig, GitBashAvailability } from '@deepchat/shared/commandShell'
 
 const SELECT_UPDATE_KEY = Symbol('command-shell-select-update')
 

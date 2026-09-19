@@ -4,7 +4,7 @@ import type { AcpCompatibilityPromptSections } from '@/agent/acp/instance'
 import {
   TOOL_EXECUTION,
   type MCPToolDefinition
-} from '@shared/types/core/mcp'
+} from '@deepchat/shared/types/core/mcp'
 
 const sections: AcpCompatibilityPromptSections = {
   configured: 'configured',

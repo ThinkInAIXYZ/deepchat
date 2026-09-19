@@ -5,8 +5,8 @@ import type {
   RemoteChannelDescriptor,
   RemoteChannelStatus
 } from '@shared/types/remote'
-import type { PluginListItem } from '@shared/types/plugin'
-import type { OcrRuntimeStatus } from '@shared/contracts/routes/ocr.routes'
+import type { PluginListItem } from '@deepchat/shared/types/plugin'
+import type { OcrRuntimeStatus } from '@deepchat/shared/contracts/routes/ocr.routes'
 
 type RemoteStatusCache = Partial<Record<RemoteChannel, RemoteChannelStatus>>
 

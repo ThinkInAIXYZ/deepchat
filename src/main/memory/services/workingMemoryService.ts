@@ -1,4 +1,4 @@
-import logger from '@shared/logger'
+import logger from '@deepchat/shared/logger'
 import { nanoid } from 'nanoid'
 
 import { buildLegacyMemoryProvenanceKey, buildMemoryProvenanceKey } from '../core/scoring'

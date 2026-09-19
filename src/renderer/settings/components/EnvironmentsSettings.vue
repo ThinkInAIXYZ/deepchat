@@ -182,7 +182,7 @@ import { Spinner } from '@shadcn/components/ui/spinner'
 import { createProjectClient } from '@api/ProjectClient'
 import { useProjectStore } from '@/stores/ui/project'
 import { notifyRenderer } from '@renderer-notifications/rendererNotificationPort'
-import type { EnvironmentSummary } from '@shared/types/agent-interface'
+import type { EnvironmentSummary } from '@deepchat/shared/types/agent-interface'
 import SettingsPageShell from './control-center/SettingsPageShell.vue'
 
 type EnvironmentListItem = EnvironmentSummary & {

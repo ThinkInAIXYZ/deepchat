@@ -1,4 +1,4 @@
-import type { MCPToolDefinition } from '@shared/types/mcp'
+import type { MCPToolDefinition } from '@deepchat/shared/types/mcp'
 import { jsonSchema, tool, type ToolSet } from 'ai'
 import { openai } from '@ai-sdk/openai'
 

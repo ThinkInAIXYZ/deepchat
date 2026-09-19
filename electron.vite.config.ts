@@ -1,3 +1,4 @@
+import { sharedSourceAliases } from './scripts/shared-source-aliases.mjs'
 import { resolve } from 'path'
 import { defineConfig } from 'electron-vite'
 import vue from '@vitejs/plugin-vue'
@@ -15,24 +16,25 @@ export default defineConfig({
   main: {
     resolve: {
       alias: [
-        { find: '@', replacement: resolve('src/main/') },
-        { find: '@shared', replacement: resolve('src/shared') },
+            ...Object.entries(sharedSourceAliases).map(([find, replacement]) => ({ find: new RegExp(`^${find}$`), replacement })),
+        { find: '@', replacement: resolve(import.meta.dirname, 'src/main/') },
+        { find: '@shared', replacement: resolve(import.meta.dirname, 'src/shared') },
         // Workspace kernel package compiles from source in the app build
-        { find: '@deepchat/agent-kernel', replacement: resolve('packages/agent-kernel/src') }
+        { find: '@deepchat/agent-kernel', replacement: resolve(import.meta.dirname, 'packages/agent-kernel/src') }
       ]
     },
     build: {
       externalizeDeps: {
-        exclude: ['mermaid', '@deepchat/agent-kernel']
+        exclude: ['mermaid', '@deepchat/agent-kernel', '@deepchat/shared']
       },
       rollupOptions: {
         input: {
-          index: resolve('src/main/index.ts'),
-          backgroundExecUtilityHost: resolve('src/main/backgroundExecUtilityHostEntry.ts'),
-          fileWatcherUtilityHost: resolve('src/main/fileWatcherUtilityHostEntry.ts'),
-          schedulerUtilityHost: resolve('src/main/schedulerUtilityHostEntry.ts'),
-          codeModeUtilityHost: resolve('src/main/codeModeUtilityHostEntry.ts'),
-          lightOcrHelper: resolve('src/main/lightOcrHelperEntry.ts')
+          index: resolve(import.meta.dirname, 'src/main/index.ts'),
+          backgroundExecUtilityHost: resolve(import.meta.dirname, 'src/main/backgroundExecUtilityHostEntry.ts'),
+          fileWatcherUtilityHost: resolve(import.meta.dirname, 'src/main/fileWatcherUtilityHostEntry.ts'),
+          schedulerUtilityHost: resolve(import.meta.dirname, 'src/main/schedulerUtilityHostEntry.ts'),
+          codeModeUtilityHost: resolve(import.meta.dirname, 'src/main/codeModeUtilityHostEntry.ts'),
+          lightOcrHelper: resolve(import.meta.dirname, 'src/main/lightOcrHelperEntry.ts')
         },
         external: ['sharp', '@duckdb/node-api'],
         output: {
@@ -46,17 +48,18 @@ export default defineConfig({
   preload: {
     resolve: {
       alias: {
-        '@shared': resolve('src/shared')
+        ...sharedSourceAliases,
+        '@shared': resolve(import.meta.dirname, 'src/shared')
       }
     },
     build: {
       rollupOptions: {
         input: {
-          index: resolve('src/preload/index.ts'),
-          splash: resolve('src/preload/splash-preload.ts'),
-          floating: resolve('src/preload/floating-preload.ts'),
-          browserOverlay: resolve('src/preload/browser-overlay-preload.ts'),
-          pluginSettings: resolve('src/preload/plugin-settings-preload.ts')
+          index: resolve(import.meta.dirname, 'src/preload/index.ts'),
+          splash: resolve(import.meta.dirname, 'src/preload/splash-preload.ts'),
+          floating: resolve(import.meta.dirname, 'src/preload/floating-preload.ts'),
+          browserOverlay: resolve(import.meta.dirname, 'src/preload/browser-overlay-preload.ts'),
+          pluginSettings: resolve(import.meta.dirname, 'src/preload/plugin-settings-preload.ts')
         }
       }
     }
@@ -72,12 +75,13 @@ export default defineConfig({
     },
     resolve: {
       alias: {
-        '@': resolve('src/renderer/src'),
-        '@api': resolve('src/renderer/api'),
-        '@renderer-notifications': resolve('src/renderer/services/notifications'),
-        '@shared': resolve('src/shared'),
-        '@shadcn': resolve('src/shadcn'),
-        '@dc-ui': resolve('src/dc-ui'),
+        ...sharedSourceAliases,
+        '@': resolve(import.meta.dirname, 'src/renderer/src'),
+        '@api': resolve(import.meta.dirname, 'src/renderer/api'),
+        '@renderer-notifications': resolve(import.meta.dirname, 'src/renderer/services/notifications'),
+        '@shared': resolve(import.meta.dirname, 'src/shared'),
+        '@shadcn': resolve(import.meta.dirname, 'src/shadcn'),
+        '@dc-ui': resolve(import.meta.dirname, 'src/dc-ui'),
         vue: 'vue/dist/vue.esm-bundler.js'
       }
     },
@@ -141,11 +145,11 @@ export default defineConfig({
       cssCodeSplit: false,
       rollupOptions: {
         input: {
-          index: resolve('src/renderer/index.html'),
-          browserOverlay: resolve('src/renderer/browser-overlay/index.html'),
-          floating: resolve('src/renderer/floating/index.html'),
-          splash: resolve('src/renderer/splash/index.html'),
-          settings: resolve('src/renderer/settings/index.html')
+          index: resolve(import.meta.dirname, 'src/renderer/index.html'),
+          browserOverlay: resolve(import.meta.dirname, 'src/renderer/browser-overlay/index.html'),
+          floating: resolve(import.meta.dirname, 'src/renderer/floating/index.html'),
+          splash: resolve(import.meta.dirname, 'src/renderer/splash/index.html'),
+          settings: resolve(import.meta.dirname, 'src/renderer/settings/index.html')
         }
       }
     }

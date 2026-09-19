@@ -32,8 +32,8 @@ import {
   AgentServiceInteractionResponseSchema,
   AgentServiceMessageIdSchema
 } from '@shared/contracts/agent-service/interactions'
-import { LocalControlEventCursorSchema } from '@shared/contracts/localControl'
-import { JsonValueSchema } from '@shared/contracts/json'
+import { LocalControlEventCursorSchema } from '@deepchat/shared/contracts/localControl'
+import { JsonValueSchema } from '@deepchat/shared/contracts/json'
 
 // Fixed literals on purpose: these sets are the wire vocabulary, so a silent addition, removal, or
 // rename must fail this suite instead of agreeing with whatever the module exports.

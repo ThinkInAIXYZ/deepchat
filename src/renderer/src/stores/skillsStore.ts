@@ -6,8 +6,8 @@ import type {
   SkillExtensionConfig,
   SkillMetadata,
   SkillScriptDescriptor
-} from '@shared/types/skill'
-import type { UnifiedSkillItem } from '@shared/types/skillManagement'
+} from '@deepchat/shared/types/skill'
+import type { UnifiedSkillItem } from '@deepchat/shared/types/skillManagement'
 
 const BUILTIN_AGENT_ID = 'deepchat'
 

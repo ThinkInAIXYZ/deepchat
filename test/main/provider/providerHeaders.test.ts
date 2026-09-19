@@ -4,8 +4,8 @@ import {
   PROVIDER_CUSTOM_HEADER_VALUE_MAX_BYTES,
   validateProviderCustomHeaders,
   type ProviderCustomHeaders
-} from '@shared/providerCustomHeaders'
-import type { LLM_PROVIDER } from '@shared/types/provider'
+} from '@deepchat/shared/providerCustomHeaders'
+import type { LLM_PROVIDER } from '@deepchat/shared/types/provider'
 import {
   buildProviderTraceHeaders,
   fetchWithProviderHeaders,

@@ -12,7 +12,7 @@ import type {
   SessionGenerationSettings,
   ToolInteractionResponse,
   ToolInteractionResult
-} from '@shared/types/agent-interface'
+} from '@deepchat/shared/types/agent-interface'
 import type { AcpAgentInstanceDependencyFactory } from '@/agent/acp/instance'
 import type { DeepChatAgentRuntime } from '@deepchat/agent-kernel/instance/deepChatAgentRuntime'
 import type { MemoryIngestionObserver } from '@deepchat/agent-kernel/memory/memoryIngestionObserver'

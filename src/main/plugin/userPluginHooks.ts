@@ -15,7 +15,7 @@ import type {
   PluginContextPort,
   UserPluginHook,
   UserPluginHookDiagnostic
-} from '@shared/types/userPlugin'
+} from '@deepchat/shared/types/userPlugin'
 
 interface HookOwner {
   pluginId: string

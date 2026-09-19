@@ -1,6 +1,6 @@
-import logger from '@shared/logger'
+import logger from '@deepchat/shared/logger'
 import { app } from 'electron'
-import type { MCPServerConfig } from '@shared/types/mcp'
+import type { MCPServerConfig } from '@deepchat/shared/types/mcp'
 import path from 'path'
 import { consumeStartupDeepLink } from '@/lib/startupDeepLink'
 import {

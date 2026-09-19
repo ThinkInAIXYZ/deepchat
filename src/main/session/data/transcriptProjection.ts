@@ -1,5 +1,5 @@
-import type { ChatMessageRecord, UserMessageContent } from '@shared/types/agent-interface'
-import { getAttachmentSearchableText } from '@shared/utils/attachmentRepresentation'
+import type { ChatMessageRecord, UserMessageContent } from '@deepchat/shared/types/agent-interface'
+import { getAttachmentSearchableText } from '@deepchat/shared/utils/attachmentRepresentation'
 import type { DeepChatTapeEntryRow } from '@deepchat/agent-kernel/tape/domain/entry'
 import {
   parseTapeJsonObject,

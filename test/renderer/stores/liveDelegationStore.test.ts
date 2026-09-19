@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type {
   LiveDelegationDetail,
   LiveDelegationSummary
-} from '@shared/orchestration/liveDelegation'
+} from '@deepchat/shared/orchestration/liveDelegation'
 
 vi.mock('pinia', async () => vi.importActual<typeof import('pinia')>('pinia'))
 

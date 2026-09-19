@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { TOOL_EXECUTION, type MCPToolDefinition } from '@shared/types/core/mcp'
+import { TOOL_EXECUTION, type MCPToolDefinition } from '@deepchat/shared/types/core/mcp'
 import { buildCanonicalToolCatalog } from '@deepchat/agent-kernel/runtime/toolSurface'
 import { buildToolSearchDefinition } from '@/tool/agentTools/toolSearchTool'
 import { buildExecutionContract } from '@deepchat/agent-kernel/tape/domain/executionContract'

@@ -4,7 +4,7 @@ import type {
   CommandShellDialect,
   CommandShellProfile,
   ResolvedCommandShell
-} from '../../../shared/commandShell.js'
+} from '@deepchat/shared/commandShell'
 
 export type CommandRiskLevel = 'low' | 'medium' | 'high' | 'critical'
 

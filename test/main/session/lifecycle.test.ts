@@ -4,7 +4,7 @@ import type {
   SessionGenerationSettings,
   SessionRecord,
   SessionWithState
-} from '@shared/types/agent-interface'
+} from '@deepchat/shared/types/agent-interface'
 import { SessionLifecycle, type SessionLifecycleDependencies } from '@/session/lifecycle'
 import { SessionDeletionGate } from '@/session/deletionGate'
 import { AcpAuthenticationRequiredError } from '@/agent/acp/runtime/acpAuthentication'

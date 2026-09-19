@@ -1,5 +1,8 @@
 import type { DeepchatBridge } from '@shared/contracts/bridge'
-import { semanticNotificationEvent, type DeepchatEventPayload } from '@shared/contracts/events'
+import {
+  semanticNotificationEvent,
+  type DeepchatEventPayload
+} from '@deepchat/shared/contracts/events'
 import {
   notificationAcknowledgePresentationRoute,
   notificationRendererReadyRoute

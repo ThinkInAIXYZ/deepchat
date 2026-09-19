@@ -4,6 +4,7 @@ import { chmod, mkdir, readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { build } from 'vite'
+import { sharedSourceAliases } from './shared-source-aliases.mjs'
 
 const scriptDirectory = path.dirname(fileURLToPath(import.meta.url))
 export const repositoryRoot = path.resolve(scriptDirectory, '..')
@@ -70,6 +71,7 @@ export async function buildCli(options = {}) {
     publicDir: false,
     resolve: {
       alias: {
+        ...sharedSourceAliases,
         '@shared': path.join(repositoryRoot, 'src', 'shared')
       }
     },

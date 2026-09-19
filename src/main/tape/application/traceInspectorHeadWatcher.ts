@@ -1,4 +1,7 @@
-import type { TapeInspectorHead, TapeInspectorHeadPulse } from '@shared/types/tape-inspector'
+import type {
+  TapeInspectorHead,
+  TapeInspectorHeadPulse
+} from '@deepchat/shared/types/tape-inspector'
 
 const DEFAULT_POLL_INTERVAL_MS = 500
 const MAX_READ_RETRY_DELAY_MS = 30_000

@@ -9,7 +9,7 @@ import {
   personaChangeRatio,
   PERSONA_MAX_CHANGE_RATIO
 } from '@/memory/core/extraction'
-import { AGENT_MEMORY_DIRECTIVE_CONTENT_MAX_CHARS } from '@shared/types/agent-memory'
+import { AGENT_MEMORY_DIRECTIVE_CONTENT_MAX_CHARS } from '@deepchat/shared/types/agent-memory'
 
 describe('personaChangeRatio', () => {
   it('is 0 for identical or both-empty self-models', () => {

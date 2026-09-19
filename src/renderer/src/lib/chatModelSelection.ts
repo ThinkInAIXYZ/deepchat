@@ -1,4 +1,4 @@
-import type { RENDERER_MODEL_META } from '@shared/types/provider'
+import type { RENDERER_MODEL_META } from '@deepchat/shared/types/provider'
 
 export type ChatModelSelection = {
   providerId: string

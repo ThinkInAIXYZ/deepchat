@@ -3,7 +3,7 @@ import type {
   SessionRecord,
   SessionWithState,
   SubagentTapeLinkInput
-} from '@shared/types/agent-interface'
+} from '@deepchat/shared/types/agent-interface'
 import { SessionAssignment, type SessionAgentAssignmentDependencies } from '@/session/assignment'
 import { SessionTurn, type SessionTurnDependencies } from '@/session/turn'
 import { AgentLifecycleGate } from '@/agent/lifecycleGate'

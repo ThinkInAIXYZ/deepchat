@@ -1,6 +1,6 @@
 import type { ProviderSettingsPort } from '@/provider/settings'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { AWS_BEDROCK_PROVIDER } from '@shared/types/provider'
+import type { AWS_BEDROCK_PROVIDER } from '@deepchat/shared/types/provider'
 import { AiSdkProvider } from '../../../src/main/provider/providers/aiSdkProvider'
 
 const {

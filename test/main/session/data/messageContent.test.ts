@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { AssistantMessageBlock } from '@shared/types/agent-interface'
+import type { AssistantMessageBlock } from '@deepchat/shared/types/agent-interface'
 import { Database, nativeSqliteDescribeIf } from '../../nativeSqliteHarness'
 import {
   assembleUserContent,

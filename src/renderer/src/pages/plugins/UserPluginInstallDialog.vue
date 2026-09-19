@@ -14,8 +14,8 @@ import {
 } from '@shadcn/components/ui/dialog'
 import { createPluginClient } from '@api/PluginClient'
 import { createDeviceClient } from '@api/DeviceClient'
-import type { PluginListItem } from '@shared/types/plugin'
-import type { PreparedUserPlugin, UserPluginSource } from '@shared/types/userPlugin'
+import type { PluginListItem } from '@deepchat/shared/types/plugin'
+import type { PreparedUserPlugin, UserPluginSource } from '@deepchat/shared/types/userPlugin'
 
 const props = defineProps<{
   kind: 'git' | 'zip' | 'directory'

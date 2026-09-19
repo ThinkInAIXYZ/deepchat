@@ -37,7 +37,7 @@ import type {
   ToolchainKind,
   ToolchainSelection,
   ToolchainStatusSnapshot
-} from '@shared/types/toolchains'
+} from '@deepchat/shared/types/toolchains'
 import { createToolchainClient } from '@api/ToolchainClient'
 import { notifyRenderer } from '@renderer-notifications/rendererNotificationPort'
 import SettingsPageShell from './control-center/SettingsPageShell.vue'

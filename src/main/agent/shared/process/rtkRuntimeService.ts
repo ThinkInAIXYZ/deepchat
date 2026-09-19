@@ -9,8 +9,8 @@ import type {
   UsageDashboardRtkData,
   UsageDashboardRtkDay,
   UsageDashboardRtkSummary
-} from '@shared/types/agent-interface'
-import logger from '@shared/logger'
+} from '@deepchat/shared/types/agent-interface'
+import logger from '@deepchat/shared/logger'
 import { getShellEnvironment, mergeCommandEnvironment } from './shellEnvHelper'
 import { RuntimeHelper } from '@/lib/runtimeHelper'
 

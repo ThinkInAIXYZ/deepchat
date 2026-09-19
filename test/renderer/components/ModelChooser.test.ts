@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { ref } from 'vue'
-import { ModelType } from '../../../src/shared/model'
+import { ModelType } from '@deepchat/shared/model'
 
 const setup = async () => {
   vi.resetModules()

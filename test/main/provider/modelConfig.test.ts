@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { ModelConfigHelper } from '../../../src/main/provider/modelConfig'
-import { ModelType } from '../../../src/shared/model'
-import { DEFAULT_MODEL_TIMEOUT } from '../../../src/shared/modelConfigDefaults'
-import type { ModelConfig } from '@shared/types/provider'
+import { ModelType } from '@deepchat/shared/model'
+import { DEFAULT_MODEL_TIMEOUT } from '@deepchat/shared/modelConfigDefaults'
+import type { ModelConfig } from '@deepchat/shared/types/provider'
 import { providerDbLoader } from '../../../src/main/provider/providerDbLoader'
 import { modelCapabilities } from '../../../src/main/provider/modelCapabilities'
 

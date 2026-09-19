@@ -7,7 +7,7 @@ import {
   toolchainsRevertRoute,
   toolchainsSetSourceRoute
 } from '@shared/contracts/routes'
-import type { ToolchainKind } from '@shared/types/toolchains'
+import type { ToolchainKind } from '@deepchat/shared/types/toolchains'
 import { createRouteMap, type DeepchatRouteMap } from '@/routes/routeRegistry'
 import { isToolchainDownloadError, isToolchainResolutionError } from './errors'
 import type { ToolchainService } from './service'

@@ -1,12 +1,16 @@
 import { randomUUID } from 'node:crypto'
 import { jsonrepair } from 'jsonrepair'
 import { vi } from 'vitest'
-import { ModelType } from '@shared/model'
-import type { AssistantMessageBlock } from '@shared/types/agent-interface'
-import type { ChatMessage } from '@shared/types/core/chat-message'
-import type { LLMCoreStreamEvent } from '@shared/types/core/llm-events'
-import { TOOL_EXECUTION, type MCPToolCall, type MCPToolDefinition } from '@shared/types/core/mcp'
-import type { ToolCallOptions, ToolServicePort } from '@shared/types/tool'
+import { ModelType } from '@deepchat/shared/model'
+import type { AssistantMessageBlock } from '@deepchat/shared/types/agent-interface'
+import type { ChatMessage } from '@deepchat/shared/types/core/chat-message'
+import type { LLMCoreStreamEvent } from '@deepchat/shared/types/core/llm-events'
+import {
+  TOOL_EXECUTION,
+  type MCPToolCall,
+  type MCPToolDefinition
+} from '@deepchat/shared/types/core/mcp'
+import type { ToolCallOptions, ToolServicePort } from '@deepchat/shared/types/tool'
 import type { SessionTranscript } from '@/session/data/transcript'
 import { processStream } from '@deepchat/agent-kernel/runtime/process'
 import { ToolOutputGuard } from '@deepchat/agent-kernel/runtime/toolOutputGuard'

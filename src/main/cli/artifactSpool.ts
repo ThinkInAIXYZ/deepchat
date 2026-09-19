@@ -6,7 +6,7 @@ import path from 'node:path'
 import {
   ArtifactMetadataSchema,
   type ArtifactMetadata
-} from '@shared/contracts/routes/artifacts.routes'
+} from '@deepchat/shared/contracts/routes/artifacts.routes'
 import type { CliRouteCaller } from '@/routes/routeRegistry'
 import { CliRequestError } from './errors'
 

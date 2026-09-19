@@ -1,12 +1,12 @@
 import type { ProviderSettingsPort } from '@/provider/settings'
 import { providerDbLoader } from '@/provider/providerDbLoader'
-import logger from '@shared/logger'
+import logger from '@deepchat/shared/logger'
 
 import type {
   UsageDashboardBreakdownItem,
   UsageDashboardData,
   UsageStatsBackfillStatus
-} from '@shared/types/agent-interface'
+} from '@deepchat/shared/types/agent-interface'
 import {
   RTK_ENABLED_SETTING_KEY,
   rtkRuntimeService

@@ -233,7 +233,10 @@ import {
   SelectValue
 } from '@shadcn/components/ui/select'
 import { createMemoryClient } from '@api/MemoryClient'
-import { AGENT_MEMORY_CATEGORIES, type AgentMemoryCategory } from '@shared/types/agent-memory'
+import {
+  AGENT_MEMORY_CATEGORIES,
+  type AgentMemoryCategory
+} from '@deepchat/shared/types/agent-memory'
 import type { MemoryItem, MemorySearchResult } from '@shared/contracts/routes'
 import {
   shouldReconcileMemoryCommandRejection,

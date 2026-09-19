@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { AgentManager, AppSessionNotFoundError } from '@/agent/manager/agentManager'
 import { toAppSessionId } from '@deepchat/agent-kernel/collab/agent-shared/agentSessionIds'
 import type { AgentDescriptor } from '@/agent/shared/agentDescriptors'
-import type { SubagentTapeLinkInput } from '@shared/types/agent-interface'
+import type { SubagentTapeLinkInput } from '@deepchat/shared/types/agent-interface'
 import { AgentUnavailableError } from '@/agent/shared/agentCatalogCodec'
 import { createDeepChatAgentBackendFixture } from './deepChatAgentBackendFixture'
 

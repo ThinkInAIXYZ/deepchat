@@ -5,8 +5,8 @@ import type {
   HookEventName,
   HookEventPayload,
   HooksNotificationsSettings
-} from '../../../src/shared/hooksNotifications'
-import { DEFAULT_IMPORTANT_HOOK_EVENTS } from '../../../src/shared/hooksNotifications'
+} from '@deepchat/shared/hooksNotifications'
+import { DEFAULT_IMPORTANT_HOOK_EVENTS } from '@deepchat/shared/hooksNotifications'
 
 const { spawnMock } = vi.hoisted(() => ({ spawnMock: vi.fn() }))
 

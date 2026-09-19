@@ -6,7 +6,10 @@ import type { UtilityProcess } from 'electron'
 import { nanoid } from 'nanoid'
 import { z } from 'zod'
 import logger from './backgroundExecLogger'
-import { ResolvedCommandShellSchema, type ResolvedCommandShell } from '@shared/commandShell'
+import {
+  ResolvedCommandShellSchema,
+  type ResolvedCommandShell
+} from '@deepchat/shared/commandShell'
 import {
   createUtf8OutputDecoderPair,
   prepareProcessEnvForUtf8Output,

@@ -4,7 +4,7 @@ import {
   getToolUiResourceUri,
   getToolVisibility
 } from '@/mcp/resultProjection'
-import type { MCPServerConfig, Tool } from '@shared/types/mcp'
+import type { MCPServerConfig, Tool } from '@deepchat/shared/types/mcp'
 
 const config: MCPServerConfig = {
   command: 'node',

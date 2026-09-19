@@ -23,8 +23,8 @@ import {
   type LiveDelegationSummary,
   type LiveDelegationTurn,
   type LiveDelegationTurnSummary
-} from '@shared/orchestration/liveDelegation'
-import { projectFinalAnswerFromDeliverySegments } from '@shared/lib/assistantDeliverySegments'
+} from '@deepchat/shared/orchestration/liveDelegation'
+import { projectFinalAnswerFromDeliverySegments } from '@deepchat/shared/lib/assistantDeliverySegments'
 import type {
   AgentInvocationAdmissionPort,
   AgentInvocationLease
@@ -41,8 +41,8 @@ import type {
   DeepChatSubagentCapability,
   PermissionMode,
   SubagentTapeLinkReceipt
-} from '@shared/types/agent-interface'
-import type { DeepChatTaskContractContext } from '@shared/types/task-contract'
+} from '@deepchat/shared/types/agent-interface'
+import type { DeepChatTaskContractContext } from '@deepchat/shared/types/task-contract'
 import { projectTaskEvaluationSummary } from '@deepchat/agent-kernel/tape/domain/taskEvaluation'
 import type { SessionRuntimeUpdate } from '@/session/runtimeEvents'
 import type { SessionDeletionGatePort } from '@/session/deletionGate'
@@ -60,7 +60,7 @@ import type {
   LiveDelegationSafetyPort,
   LiveDelegationTurnExecutionSnapshot
 } from './liveDelegationSafety'
-import { normalizeOrchestrationPolicy } from '@shared/orchestration/policy'
+import { normalizeOrchestrationPolicy } from '@deepchat/shared/orchestration/policy'
 import type {
   LiveDelegationConsentReceipt,
   LiveDelegationConsentVerifier
@@ -70,7 +70,7 @@ import {
   createLiveDelegationTaskContractInput,
   LIVE_DELEGATION_REQUIRED_HANDOFF_SECTIONS
 } from './liveDelegationTaskContract'
-import { extractMarkdownLevelTwoSection } from '@shared/orchestration/liveDelegationMarkdown'
+import { extractMarkdownLevelTwoSection } from '@deepchat/shared/orchestration/liveDelegationMarkdown'
 
 const MAX_WAITERS = 32
 const MAX_MODEL_PREVIEW_BYTES = 2 * 1024

@@ -7,7 +7,7 @@ import {
   PDF_SUBSTANTIVE_TEXT_MIN_CODE_POINTS,
   PDF_PAGE_COUNT_SANITY_LIMIT,
   type PdfEmbeddedTextCoverage
-} from '@shared/types/attachment'
+} from '@deepchat/shared/types/attachment'
 
 export class PdfFileAdapter extends BaseFileAdapter {
   private fileContent: string | undefined

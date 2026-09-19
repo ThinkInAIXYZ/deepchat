@@ -1,11 +1,11 @@
 import { app } from 'electron'
 import path from 'path'
 import type { SettingsStore } from '@/config/settingsStore'
-import type { ScanCache } from '@shared/types/skillSync'
+import type { ScanCache } from '@deepchat/shared/types/skillSync'
 import type {
   SkillManagementState,
   StoredSkillManagementState
-} from '@shared/types/skillManagement'
+} from '@deepchat/shared/types/skillManagement'
 import { BUILTIN_SKILL_AGENT_ID } from './agentSkillRoots'
 import type { SkillSettingsPort } from '@deepchat/agent-kernel/contracts/skillSettings'
 

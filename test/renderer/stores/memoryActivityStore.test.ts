@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import type { ChatMessageRecord } from '@shared/types/agent-interface'
+import type { ChatMessageRecord } from '@deepchat/shared/types/agent-interface'
 import type { MemoryCommandResult } from '@shared/contracts/routes'
 
 vi.mock('pinia', async () => vi.importActual<typeof import('pinia')>('pinia'))

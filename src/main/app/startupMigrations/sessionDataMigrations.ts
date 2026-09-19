@@ -1,9 +1,9 @@
-import logger from '@shared/logger'
+import logger from '@deepchat/shared/logger'
 import type {
   AssistantMessageBlock,
   MessageFile,
   UserMessageContent
-} from '@shared/types/agent-interface'
+} from '@deepchat/shared/types/agent-interface'
 
 import type { SettingsDatabase } from '@/settings/data/database'
 import type { SessionDatabase } from '@/session/data/database'

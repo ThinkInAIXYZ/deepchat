@@ -8,7 +8,7 @@ import type {
   ResolveTapeInspectorEvidenceEntriesOutput,
   TapeInspectorEvidenceRecord,
   TapeInspectorFactRecord
-} from '@shared/types/tape-inspector'
+} from '@deepchat/shared/types/tape-inspector'
 
 // The renderer setup uses a lightweight Pinia mock; this store test needs the real implementation.
 vi.mock('pinia', async () => vi.importActual<typeof import('pinia')>('pinia'))

@@ -38,7 +38,7 @@ import { OcrSourceSnapshotBudget, OcrSourceSnapshotBudgetError } from './ocrSour
 import {
   ATTACHMENT_OCR_MAX_TEXT_CHARACTERS,
   ATTACHMENT_OCR_MAX_TOKENS
-} from '@shared/types/attachment'
+} from '@deepchat/shared/types/attachment'
 
 const MAX_TURN_IMAGES = 8
 const MAX_TURN_SOURCE_BYTES = 120 * 1024 * 1024

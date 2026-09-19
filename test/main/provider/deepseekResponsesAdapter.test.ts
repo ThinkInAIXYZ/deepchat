@@ -19,9 +19,9 @@ import {
 import { recordToChatMessages } from '@deepchat/agent-kernel/runtime/contextBuilder'
 import { createAiSdkProviderContext } from '@/provider/aiSdk/providerFactory'
 import { runAiSdkCoreStream, type AiSdkRuntimeContext } from '@/provider/aiSdk/runtime'
-import type { ChatMessageRecord } from '@shared/types/agent-interface'
-import type { ChatMessage } from '@shared/types/core/chat-message'
-import type { ModelConfig } from '@shared/types/provider'
+import type { ChatMessageRecord } from '@deepchat/shared/types/agent-interface'
+import type { ChatMessage } from '@deepchat/shared/types/core/chat-message'
+import type { ModelConfig } from '@deepchat/shared/types/provider'
 
 const providerSettings = {
   getAzureApiVersion: () => undefined

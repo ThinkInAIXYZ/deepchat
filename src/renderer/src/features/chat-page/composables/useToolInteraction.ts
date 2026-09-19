@@ -1,7 +1,10 @@
 import { computed, ref } from 'vue'
 import type { DisplayAssistantMessageBlock } from '@/features/chat-page/model/displayMessage'
 import type { useMessageStore } from '@/stores/ui/message'
-import type { ToolInteractionResponse, ToolInteractionResult } from '@shared/types/agent-interface'
+import type {
+  ToolInteractionResponse,
+  ToolInteractionResult
+} from '@deepchat/shared/types/agent-interface'
 
 type MessageStore = ReturnType<typeof useMessageStore>
 

@@ -27,7 +27,7 @@ import type { LoggingService } from './logging'
 import type { OcrSettingsPort } from '@/ocr/ocrSettings'
 import type { SettingsStore } from '@/config/settingsStore'
 import type { CommandShellService } from '@/agent/shared/process/commandShellService'
-import type { DeepchatEventPublisher } from '@shared/contracts/events'
+import type { DeepchatEventPublisher } from '@deepchat/shared/contracts/events'
 import { createRouteMap, type DeepchatRouteMap } from '@/routes/routeRegistry'
 
 export function createAppSettingsRoutes(deps: {

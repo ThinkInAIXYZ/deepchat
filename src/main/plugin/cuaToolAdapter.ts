@@ -1,4 +1,4 @@
-import type { MCPContentItem } from '@shared/types/core/mcp'
+import type { MCPContentItem } from '@deepchat/shared/types/core/mcp'
 
 const CUA_SNAPSHOT_TARGET_TOOLS = new Set([
   'click',

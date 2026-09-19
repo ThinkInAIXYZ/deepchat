@@ -9,7 +9,7 @@ import type {
   KnowledgeTaskStatus,
   KnowledgeVectorInsert,
   QueryResult
-} from '@shared/types/knowledge'
+} from '@deepchat/shared/types/knowledge'
 
 export type KnowledgeTask = {
   id: string

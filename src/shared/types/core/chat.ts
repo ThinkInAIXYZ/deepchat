@@ -1,18 +1,21 @@
 // Core chat types (strong-typed UI blocks)
 
-import type { ToolCallImagePreview } from './mcp'
-import type { AgentPlanDisplayItem, AgentPlanTerminalReason } from '../agent-plan'
-import type { QuestionOption } from './question'
+import type { ToolCallImagePreview } from '@deepchat/shared/types/core/mcp'
+import type {
+  AgentPlanDisplayItem,
+  AgentPlanTerminalReason
+} from '@deepchat/shared/types/agent-plan'
+import type { QuestionOption } from '@deepchat/shared/types/core/question'
 import type {
   AttachmentRepresentationPreference,
   AttachmentResolvedRepresentation,
   PdfEmbeddedTextCoverage
-} from '../attachment'
+} from '@deepchat/shared/types/attachment'
 
 export type {
   AttachmentRepresentationPreference,
   AttachmentResolvedRepresentation
-} from '../attachment'
+} from '@deepchat/shared/types/attachment'
 
 export type Message = {
   id: string
@@ -184,4 +187,4 @@ export type {
   ChatMessageProviderOptions,
   ChatMessageRole,
   ChatMessageToolCall
-} from './chat-message'
+} from '@deepchat/shared/types/core/chat-message'

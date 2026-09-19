@@ -14,11 +14,11 @@ import type {
   TapeInspectorHead,
   TapeInspectorRecordDetail,
   TapeInspectorSort
-} from '@shared/types/tape-inspector'
+} from '@deepchat/shared/types/tape-inspector'
 import {
   TAPE_INSPECTOR_SUPPORT_DETAIL_DATA_BYTES,
   TAPE_INSPECTOR_SUPPORT_FACT_LIMIT
-} from '@shared/types/tape-inspector'
+} from '@deepchat/shared/types/tape-inspector'
 import type { DeepChatTapeEntryRow } from '@deepchat/agent-kernel/tape/domain/entry'
 import { hashString } from '@deepchat/agent-kernel/tape/domain/replay'
 import type {

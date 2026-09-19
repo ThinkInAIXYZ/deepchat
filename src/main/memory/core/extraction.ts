@@ -3,7 +3,7 @@ import {
   normalizeMemoryDirective,
   type MemoryDirectiveInput
 } from '@deepchat/agent-kernel/collab/memory/domain/directives'
-import { AGENT_MEMORY_CATEGORIES, isAgentMemoryCategory } from '@shared/types/agent-memory'
+import { AGENT_MEMORY_CATEGORIES, isAgentMemoryCategory } from '@deepchat/shared/types/agent-memory'
 import { extractJsonContainer } from './jsonExtraction'
 import { tryNormalizeMemoryTemporalMetadata, type RawMemoryTemporalMetadata } from './temporal'
 

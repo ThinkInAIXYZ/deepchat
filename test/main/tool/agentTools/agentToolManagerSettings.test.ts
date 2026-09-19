@@ -9,8 +9,8 @@ import { CommandPermissionService } from '@/tool/permission'
 import {
   DEEPCHAT_SUBAGENT_MODEL_GUIDANCE,
   resolveDeepChatSubagentCapability
-} from '@shared/lib/deepchatSubagents'
-import { LIVE_DELEGATION_AGENT_TOOL_NAME } from '@shared/agentTools'
+} from '@deepchat/shared/lib/deepchatSubagents'
+import { LIVE_DELEGATION_AGENT_TOOL_NAME } from '@deepchat/shared/agentTools'
 import { SkillExecutionService } from '@/skill/skillExecutionService'
 import { POSIX_COMMAND_SHELL } from '../../../helpers/commandShell'
 import {
@@ -19,7 +19,7 @@ import {
   SKILL_RUN_MAX_ARGUMENT_CHARS,
   SKILL_RUN_MAX_STDIN_CHARS,
   SKILL_RUN_MAX_TOTAL_ARGUMENT_CHARS
-} from '@shared/types/skill'
+} from '@deepchat/shared/types/skill'
 import {
   SKILL_LIST_CURSOR_MAX_BYTES,
   SKILL_LIST_QUERY_MAX_BYTES

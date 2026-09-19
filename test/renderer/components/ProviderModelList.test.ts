@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { defineComponent, reactive, ref } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
-import { ModelType } from '../../../src/shared/model'
+import { ModelType } from '@deepchat/shared/model'
 
 const passthrough = (name: string) =>
   defineComponent({

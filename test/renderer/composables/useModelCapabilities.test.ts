@@ -17,7 +17,7 @@ import {
   applyRequestParameterPolicy,
   resolveCapabilityAwareRequestParameterPolicy,
   type ModelRequestPolicy
-} from '@shared/modelRequestPolicy'
+} from '@deepchat/shared/modelRequestPolicy'
 
 const passthroughPolicy = (): ModelRequestPolicy => ({
   temperature: { mode: 'passthrough' },

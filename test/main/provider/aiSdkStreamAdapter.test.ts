@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { adaptAiSdkStream } from '@/provider/aiSdk/streamAdapter'
-import type { LLMCoreStreamEvent } from '@shared/types/core/llm-events'
+import type { LLMCoreStreamEvent } from '@deepchat/shared/types/core/llm-events'
 import { APICallError } from '@ai-sdk/provider'
 
 async function collectEvents(parts: any[], options: Parameters<typeof adaptAiSdkStream>[1]) {

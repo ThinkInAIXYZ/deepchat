@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { ApiEndpointType, ModelType } from '@shared/model'
+import { ApiEndpointType, ModelType } from '@deepchat/shared/model'
 import {
   resolveDeepChatContextBudgetLength,
   shouldBypassDeepChatContextBudget,

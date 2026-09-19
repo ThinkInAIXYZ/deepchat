@@ -59,7 +59,7 @@ import { Label } from '@shadcn/components/ui/label'
 import { DcButton } from '@dc-ui/components/button'
 import { Spinner } from '@shadcn/components/ui/spinner'
 import { Icon } from '@iconify/vue'
-import type { LLM_PROVIDER, RENDERER_MODEL_META } from '@shared/types/provider'
+import type { LLM_PROVIDER, RENDERER_MODEL_META } from '@deepchat/shared/types/provider'
 import ProviderModelList from './ProviderModelList.vue'
 
 const { t } = useI18n()

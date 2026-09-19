@@ -7,7 +7,7 @@ import type {
   CanonicalSkill,
   ParseContext,
   KiroExportOptions
-} from '../../../../../src/shared/types/skillSync'
+} from '@deepchat/shared/types/skillSync'
 
 describe('KiroAdapter', () => {
   const adapter = new KiroAdapter()

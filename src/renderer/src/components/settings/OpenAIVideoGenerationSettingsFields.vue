@@ -102,7 +102,7 @@ import { useI18n } from 'vue-i18n'
 import {
   normalizeVideoGenerationOptions,
   type VideoGenerationOptions
-} from '@shared/videoGenerationSettings'
+} from '@deepchat/shared/videoGenerationSettings'
 import { Input } from '@shadcn/components/ui/input'
 import { Label } from '@shadcn/components/ui/label'
 import { Switch } from '@shadcn/components/ui/switch'

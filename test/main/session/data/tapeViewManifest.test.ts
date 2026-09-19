@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { ModelType } from '@shared/model'
-import type { ChatMessageRecord } from '@shared/types/agent-interface'
-import { TOOL_EXECUTION, type MCPToolDefinitionBase } from '@shared/types/core/mcp'
+import { ModelType } from '@deepchat/shared/model'
+import type { ChatMessageRecord } from '@deepchat/shared/types/agent-interface'
+import { TOOL_EXECUTION, type MCPToolDefinitionBase } from '@deepchat/shared/types/core/mcp'
 import { hashJsonData } from '@deepchat/agent-kernel/tape/domain/canonicalJson'
 import {
   buildExecutionContract,

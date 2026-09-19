@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   getDottedProviderUnqualifiedModelId,
   normalizeCanonicalModelId
-} from '../../../src/shared/modelId'
+} from '@deepchat/shared/modelId'
 
 describe('model ID normalization', () => {
   it.each([

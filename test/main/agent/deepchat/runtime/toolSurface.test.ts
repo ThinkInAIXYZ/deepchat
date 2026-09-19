@@ -3,12 +3,12 @@ import {
   TAPE_TOOL_NAMES,
   TOOL_SEARCH_AGENT_TOOL_NAME,
   TOOL_SEARCH_AGENT_TOOL_SERVER_NAME
-} from '@shared/agentTools'
+} from '@deepchat/shared/agentTools'
 import {
   TOOL_EXECUTION,
   type MCPToolDefinition,
   type MCPToolDefinitionBase
-} from '@shared/types/core/mcp'
+} from '@deepchat/shared/types/core/mcp'
 import {
   MAX_TOOL_SURFACE_ACTIVATION_CANDIDATES,
   MAX_TOOL_SURFACE_CANDIDATE_BATCHES,

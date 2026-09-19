@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { UnifiedSkillItem } from '@shared/types/skillManagement'
+import type { UnifiedSkillItem } from '@deepchat/shared/types/skillManagement'
 
 withDefaults(
   defineProps<{

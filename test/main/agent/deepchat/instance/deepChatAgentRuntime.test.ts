@@ -4,7 +4,7 @@ import {
   isStaleDeepChatInstanceError
 } from '@deepchat/agent-kernel/instance/deepChatAgentRuntime'
 import { toAppSessionId } from '@deepchat/agent-kernel/collab/agent-shared/agentSessionIds'
-import { TOOL_EXECUTION, type MCPToolDefinition } from '@shared/types/core/mcp'
+import { TOOL_EXECUTION, type MCPToolDefinition } from '@deepchat/shared/types/core/mcp'
 import { createLoopRun } from '@deepchat/agent-kernel/loop/loopRun'
 import { POSIX_COMMAND_SHELL } from '../../../../helpers/commandShell'
 

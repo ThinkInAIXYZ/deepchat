@@ -1,4 +1,4 @@
-import type { MCPContentItem, ToolCallImagePreview } from '@shared/types/core/mcp'
+import type { MCPContentItem, ToolCallImagePreview } from '@deepchat/shared/types/core/mcp'
 import type { CacheImageOptions } from '@/platform/imageCache'
 import { awaitWithAbort } from '@deepchat/agent-kernel/collab/lib/awaitWithAbort'
 

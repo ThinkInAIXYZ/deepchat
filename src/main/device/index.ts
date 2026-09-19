@@ -1,4 +1,4 @@
-import logger from '@shared/logger'
+import logger from '@deepchat/shared/logger'
 import type { DeviceInfo, DeviceServicePort, DiskInfo, MemoryInfo } from '@shared/types/device'
 import os from 'os'
 import { exec } from 'child_process'

@@ -20,8 +20,8 @@ import {
   type LocalControlEventEnvelope,
   type LocalControlRpcResponse,
   type LocalControlUploadBinding
-} from '@shared/contracts/localControl'
-import type { JsonValue } from '@shared/contracts/json'
+} from '@deepchat/shared/contracts/localControl'
+import type { JsonValue } from '@deepchat/shared/contracts/json'
 import { CLI_EXIT_CODES, CliClientError } from './errors'
 
 export const CLI_VERSION =

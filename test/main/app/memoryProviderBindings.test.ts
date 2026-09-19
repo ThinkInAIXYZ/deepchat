@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 
 import { createMemoryProviderBindings } from '@/app/memoryProviderBindings'
-import type { ProviderRuntimePort } from '@shared/types/provider'
+import type { ProviderRuntimePort } from '@deepchat/shared/types/provider'
 
 type MemoryLlmProviderPort = Pick<
   ProviderRuntimePort,

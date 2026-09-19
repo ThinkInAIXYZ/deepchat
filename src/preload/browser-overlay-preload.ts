@@ -1,7 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type { IpcRendererEvent } from 'electron'
-import { browserActivityChangedEvent } from '@shared/contracts/events'
-import type { YoBrowserActivityPayload } from '@shared/types/browser'
+import { browserActivityChangedEvent } from '@deepchat/shared/contracts/events'
+import type { YoBrowserActivityPayload } from '@deepchat/shared/types/browser'
 
 const browserOverlayApi = Object.freeze({
   onActivityChanged: (callback: (payload: YoBrowserActivityPayload) => void) => {

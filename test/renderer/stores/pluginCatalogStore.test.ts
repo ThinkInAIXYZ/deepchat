@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 import type { RemoteChannelDescriptor, TelegramRemoteStatus } from '@shared/types/remote'
-import type { PluginListItem } from '@shared/types/plugin'
-import type { OcrRuntimeStatus } from '@shared/contracts/routes/ocr.routes'
+import type { PluginListItem } from '@deepchat/shared/types/plugin'
+import type { OcrRuntimeStatus } from '@deepchat/shared/contracts/routes/ocr.routes'
 import { usePluginCatalogStore } from '@/stores/pluginCatalog'
 
 vi.mock('pinia', async () => vi.importActual<typeof import('pinia')>('pinia'))

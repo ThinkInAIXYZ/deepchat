@@ -5,7 +5,7 @@ import type {
   McpOAuthCredentialStore
 } from '@/mcp/oauthCredentialStore'
 import type { McpSettings } from '@/mcp/settings'
-import type { McpEnterpriseIdentityProfile } from '@shared/types/mcp'
+import type { McpEnterpriseIdentityProfile } from '@deepchat/shared/types/mcp'
 
 const profile: McpEnterpriseIdentityProfile = {
   id: 'work',

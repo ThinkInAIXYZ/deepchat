@@ -7,7 +7,7 @@ import type { DeepchatRouteName } from '@shared/contracts/routes'
 import {
   LOCAL_CONTROL_AGENT_TOKEN_ENV,
   LocalControlRpcResponseSchema
-} from '@shared/contracts/localControl'
+} from '@deepchat/shared/contracts/localControl'
 import { ArtifactSpool } from '@/cli/artifactSpool'
 import { createArtifactRoutes } from '@/cli/artifactRoutes'
 import { CliServer } from '@/cli/server'

@@ -339,13 +339,13 @@ import type {
   MODEL_META,
   OllamaModel,
   RENDERER_MODEL_META
-} from '@shared/types/provider'
+} from '@deepchat/shared/types/provider'
 import ModelConfigItem from '@/components/settings/ModelConfigItem.vue'
-import { ModelType } from '@shared/model'
+import { ModelType } from '@deepchat/shared/model'
 import {
   supportsProviderCustomHeaders,
   type ProviderCustomHeaders
-} from '@shared/providerCustomHeaders'
+} from '@deepchat/shared/providerCustomHeaders'
 import ProviderCustomHeadersEditor from './ProviderCustomHeadersEditor.vue'
 
 const { t } = useI18n()

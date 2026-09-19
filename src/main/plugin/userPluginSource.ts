@@ -9,7 +9,7 @@ import {
 } from '@/skill/archive'
 import { createMinimalProcessEnvironment } from '@/mcp/processEnvironment'
 import { terminateProcessTree } from '@/agent/shared/process/processTree'
-import type { PreparedUserPlugin, UserPluginSource } from '@shared/types/userPlugin'
+import type { PreparedUserPlugin, UserPluginSource } from '@deepchat/shared/types/userPlugin'
 import { pluginRelativePath, readUserPluginPackage } from './userPluginPackage'
 
 const LIMITS = DEFAULT_SKILL_ARCHIVE_LIMITS

@@ -1,5 +1,5 @@
-import { AGENT_MEMORY_AUTO_CONTENT_MAX_CHARS } from '@shared/types/agent-memory'
-import { truncateUnicodeCodePoints, unicodeCodePointLength } from '@shared/lib/unicodeText'
+import { AGENT_MEMORY_AUTO_CONTENT_MAX_CHARS } from '@deepchat/shared/types/agent-memory'
+import { truncateUnicodeCodePoints, unicodeCodePointLength } from '@deepchat/shared/lib/unicodeText'
 
 import type { NormalizedMemoryCandidate } from '@deepchat/agent-kernel/collab/memory/types'
 import { parseDecisionResult, type MemoryDecision } from './decision'

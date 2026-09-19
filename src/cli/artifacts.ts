@@ -6,9 +6,9 @@ import {
   LOCAL_CONTROL_ARTIFACT_PATH_PREFIX,
   LocalControlRpcResponseSchema,
   type LocalControlDescriptor
-} from '@shared/contracts/localControl'
-import type { ArtifactMetadata } from '@shared/contracts/routes/artifacts.routes'
-import { isHardlinkUnavailableError } from '@shared/utils/filesystem'
+} from '@deepchat/shared/contracts/localControl'
+import type { ArtifactMetadata } from '@deepchat/shared/contracts/routes/artifacts.routes'
+import { isHardlinkUnavailableError } from '@deepchat/shared/utils/filesystem'
 import { CLI_EXIT_CODES, CliClientError, exitCodeForRemoteError } from './errors'
 import { CLI_VERSION } from './transport'
 

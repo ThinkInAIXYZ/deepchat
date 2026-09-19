@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { defineRouteContract } from '../common'
+import { defineRouteContract } from '@deepchat/shared/contracts/common'
 
 export const NowledgeMemConfigSchema = z.object({
   baseUrl: z.string().min(1),

@@ -9,9 +9,9 @@ import type {
   SessionCompactionBoundaryReason,
   UserMessageContent,
   AssistantMessageBlock
-} from '@shared/types/agent-interface'
-import type { SearchResult } from '@shared/types/core/search'
-import logger from '@shared/logger'
+} from '@deepchat/shared/types/agent-interface'
+import type { SearchResult } from '@deepchat/shared/types/core/search'
+import logger from '@deepchat/shared/logger'
 import type { DeepChatMessageRow } from '@/session/data/tables/deepchatMessages'
 import type { DeepChatTapeEntryRow } from '@deepchat/agent-kernel/tape/domain/entry'
 import type { DeepChatAssistantBlockRow } from '@/session/data/tables/deepchatAssistantBlocks'

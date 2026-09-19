@@ -16,7 +16,7 @@ import type {
   CanonicalSkill,
   ParseContext,
   FormatCapabilities
-} from '@shared/types/skillSync'
+} from '@deepchat/shared/types/skillSync'
 
 /**
  * Windsurf format adapter

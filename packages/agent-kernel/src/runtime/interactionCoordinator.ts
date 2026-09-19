@@ -2,8 +2,8 @@ import type {
   AssistantMessageBlock,
   ToolInteractionResponse,
   ToolInteractionResult
-} from '../shared/types/agent-interface.js'
-import type { SkillServicePort } from '../shared/types/skill.js'
+} from '@deepchat/shared/types/agent-interface'
+import type { SkillServicePort } from '@deepchat/shared/types/skill'
 import type { DeepChatAgentInstance } from '../instance/deepChatAgentInstance.js'
 
 import { awaitWithAbort } from '../collab/lib/awaitWithAbort.js'
@@ -66,7 +66,7 @@ import {
   DeferredToolSurfaceError,
   resolveDeferredToolSurfaceDispatch
 } from './deferredToolSurface.js'
-import { CommandShellProfileSchema } from '../shared/commandShell.js'
+import { CommandShellProfileSchema } from '@deepchat/shared/commandShell'
 import { isCommandSignatureForProfile } from '../collab/tool/permission/commandPermissionService.js'
 import {type SessionPermissionGrant, type SessionPermissionPort, type SessionPermissionRequest} from '../contracts/sessionPermission.js'
 import {type TranscriptStorePort} from '../contracts/transcriptStore.js'

@@ -1,8 +1,8 @@
 import {
   getValidProviderCustomHeaders,
   supportsProviderCustomHeaders
-} from '@shared/providerCustomHeaders'
-import type { LLM_PROVIDER } from '@shared/types/provider'
+} from '@deepchat/shared/providerCustomHeaders'
+import type { LLM_PROVIDER } from '@deepchat/shared/types/provider'
 
 const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308])
 const MAX_PROVIDER_REDIRECTS = 20

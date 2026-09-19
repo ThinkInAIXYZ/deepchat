@@ -12,8 +12,8 @@ import {
   assemblePromptSections,
   createPromptAssemblySection
 } from '@deepchat/agent-kernel/resources/promptAssembly'
-import { LIVE_DELEGATION_AGENT_TOOL_NAME } from '@shared/agentTools'
-import { UNTRUSTED_CHILD_OUTPUT_POLICY } from '@shared/orchestration/resultSafety'
+import { LIVE_DELEGATION_AGENT_TOOL_NAME } from '@deepchat/shared/agentTools'
+import { UNTRUSTED_CHILD_OUTPUT_POLICY } from '@deepchat/shared/orchestration/resultSafety'
 import { POSIX_COMMAND_SHELL } from '../../../../helpers/commandShell'
 
 describe('DeepChat system prompt builder', () => {

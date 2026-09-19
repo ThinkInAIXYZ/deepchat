@@ -8,7 +8,7 @@ import type {
   HookEventPayload,
   HookTestResult,
   HooksNotificationsSettings
-} from '@shared/hooksNotifications'
+} from '@deepchat/shared/hooksNotifications'
 import type { HookEvent, HookSessionFacts } from '@deepchat/agent-kernel/collab/hook/events'
 import type { HookObserver } from '@deepchat/agent-kernel/collab/hook/observer'
 

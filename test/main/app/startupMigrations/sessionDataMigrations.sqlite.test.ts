@@ -3,7 +3,7 @@ import {
   runDisabledAgentToolCapabilityCleanupMigration,
   type SessionDataMigrationSQLitePort
 } from '@/app/startupMigrations/sessionDataMigrations'
-import { TAPE_TOOL_NAMES } from '@shared/agentTools'
+import { TAPE_TOOL_NAMES } from '@deepchat/shared/agentTools'
 import { NewSessionActiveSkillsTable } from '@/session/data/tables/newSessionActiveSkills'
 
 const sqliteModule = await import('better-sqlite3-multiple-ciphers').catch(() => null)

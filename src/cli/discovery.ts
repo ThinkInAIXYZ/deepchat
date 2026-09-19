@@ -9,7 +9,7 @@ import {
   LocalControlDescriptorSchema,
   LocalControlTokenSchema,
   type LocalControlDescriptor
-} from '@shared/contracts/localControl'
+} from '@deepchat/shared/contracts/localControl'
 import { CLI_EXIT_CODES, CliClientError } from './errors'
 
 const MAX_DESCRIPTOR_BYTES = 64 * 1024

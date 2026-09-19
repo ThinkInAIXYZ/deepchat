@@ -9,7 +9,7 @@ import {
   type RunCodeHostMessage,
   type RunCodeParentMessage,
   type RunCodeToolBinding
-} from '@shared/codeModeProtocol'
+} from '@deepchat/shared/codeModeProtocol'
 
 type ParentPort = {
   postMessage(message: unknown): void

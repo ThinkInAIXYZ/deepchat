@@ -10,7 +10,7 @@ import {
   AGENT_MEMORY_ACTIVE_DIRECTIVE_MAX_COUNT,
   AGENT_MEMORY_DIRECTIVE_CONTENT_MAX_CHARS,
   AGENT_MEMORY_DIRECTIVE_TOPIC_MAX_CHARS
-} from '../../../src/shared/types/agent-memory'
+} from '@deepchat/shared/types/agent-memory'
 
 const passthrough = (name: string, tag = 'div') =>
   defineComponent({ name, template: `<${tag}><slot /></${tag}>` })

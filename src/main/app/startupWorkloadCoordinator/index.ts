@@ -6,7 +6,7 @@ import {
   StartupWorkloadTargetSchema,
   StartupWorkloadTaskIdSchema,
   StartupWorkloadTaskSchema
-} from '@shared/contracts/common'
+} from '@deepchat/shared/contracts/common'
 
 type StartupWorkloadTarget = z.output<typeof StartupWorkloadTargetSchema>
 type StartupWorkloadPhase = z.output<typeof StartupWorkloadPhaseSchema>

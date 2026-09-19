@@ -1,4 +1,4 @@
-import type { AssistantMessageBlock } from '../../shared/types/agent-interface.js'
+import type { AssistantMessageBlock } from '@deepchat/shared/types/agent-interface'
 
 declare const tapeSessionIdBrand: unique symbol
 

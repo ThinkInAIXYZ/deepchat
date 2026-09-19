@@ -10,7 +10,7 @@ vi.mock('@duckdb/node-api', () => ({
   arrayValue: (values: number[]) => values
 }))
 
-import logger from '@shared/logger'
+import logger from '@deepchat/shared/logger'
 import { MigrationAbandonFence } from '@/memory/infra/legacyV1Reader'
 import { loadLegacyVss } from '@/memory/infra/legacyVssLoader'
 import {

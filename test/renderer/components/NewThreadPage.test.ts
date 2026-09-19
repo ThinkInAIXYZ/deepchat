@@ -1,9 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { defineComponent, h, reactive } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
-import type { ReasoningEffort, Verbosity } from '../../../src/shared/types/model-db'
-import type { PermissionMode } from '../../../src/shared/types/agent-interface'
-import type { ToolModeOverride } from '../../../src/shared/toolMode'
+import type { ReasoningEffort, Verbosity } from '@deepchat/shared/types/model-db'
+import type { PermissionMode } from '@deepchat/shared/types/agent-interface'
+import type { ToolModeOverride } from '@deepchat/shared/toolMode'
 import type { JSONContent } from '@tiptap/core'
 
 const passthrough = (name: string) =>

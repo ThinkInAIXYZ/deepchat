@@ -61,7 +61,7 @@ import {
   SKILL_EXECUTION_PACKAGE_MAX_PATH_BYTES,
   SKILL_EXECUTION_PACKAGE_MAX_SUPPORT_PATHS,
   SKILL_NAME_MAX_LENGTH
-} from '@shared/types/skill'
+} from '@deepchat/shared/types/skill'
 import type {
   AgentSkillManagementState,
   AgentSkillBinding,
@@ -75,9 +75,9 @@ import type {
   SkillSourceType,
   StoredSkillManagementState,
   UnifiedSkillItem
-} from '@shared/types/skillManagement'
-import type { DeepchatEventPublisher } from '@shared/contracts/events'
-import logger from '@shared/logger'
+} from '@deepchat/shared/types/skillManagement'
+import type { DeepchatEventPublisher } from '@deepchat/shared/contracts/events'
+import logger from '@deepchat/shared/logger'
 import { normalizeSkillAllowedTools } from '@deepchat/agent-kernel/collab/skill/toolNameMapping'
 import { discoverSkillMetadataInWorker, logSkillDiscoveryWorkerWarnings } from './discoveryWorker'
 import {

@@ -10,7 +10,7 @@ import {
   AGENT_MEMORY_HEALTH_KIND_KEYS,
   AGENT_MEMORY_HEALTH_STATUS_KEYS,
   AGENT_MEMORY_LIFECYCLE_STATES
-} from '@shared/types/agent-memory'
+} from '@deepchat/shared/types/agent-memory'
 
 export interface CanonicalMemoryState {
   lifecycleState: AgentMemoryLifecycleState

@@ -1,4 +1,4 @@
-import type { SessionGenerationSettings } from '@shared/types/agent-interface'
+import type { SessionGenerationSettings } from '@deepchat/shared/types/agent-interface'
 import {
   ANTHROPIC_REASONING_VISIBILITY_VALUES,
   DEFAULT_REASONING_EFFORT_OPTIONS as FALLBACK_REASONING_EFFORT_OPTIONS,
@@ -8,7 +8,7 @@ import {
   normalizeAnthropicReasoningVisibilityValue,
   type AnthropicReasoningVisibility,
   type ReasoningPortrait
-} from '@shared/types/model-db'
+} from '@deepchat/shared/types/model-db'
 
 export type ReasoningEffortValue = NonNullable<SessionGenerationSettings['reasoningEffort']>
 export type VerbosityValue = NonNullable<SessionGenerationSettings['verbosity']>

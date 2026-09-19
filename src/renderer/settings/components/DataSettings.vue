@@ -1047,7 +1047,7 @@ import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
 import { ref, onMounted, onBeforeUnmount, computed, watch, nextTick, useId } from 'vue'
 import { storeToRefs } from 'pinia'
-import type { ProviderImportApplyResult } from '@shared/providerImport'
+import type { ProviderImportApplyResult } from '@deepchat/shared/providerImport'
 import type { DatabaseRepairReport, DatabaseSecurityStatus } from '@shared/contracts/routes'
 import {
   Dialog,

@@ -172,7 +172,10 @@ import { DcInlineError } from '@dc-ui/components/inline-error'
 import { useDcFormSubmit } from '@dc-ui/components/form'
 import { DcFormActions } from '@dc-ui/components/form-actions'
 import { createSkillClient } from '@api/SkillClient'
-import type { GitSkillRepoScanResult, SkillInstallConflictStrategy } from '@shared/types/skill'
+import type {
+  GitSkillRepoScanResult,
+  SkillInstallConflictStrategy
+} from '@deepchat/shared/types/skill'
 
 const props = defineProps<{
   open: boolean

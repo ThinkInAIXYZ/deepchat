@@ -1,6 +1,6 @@
-import logger from '@shared/logger'
-import type { MCPServerConfig, McpEnterpriseIdentityProfile } from '@shared/types/mcp'
-import type { BuiltinKnowledgeConfig } from '@shared/types/knowledge'
+import logger from '@deepchat/shared/logger'
+import type { MCPServerConfig, McpEnterpriseIdentityProfile } from '@deepchat/shared/types/mcp'
+import type { BuiltinKnowledgeConfig } from '@deepchat/shared/types/knowledge'
 import ElectronStore from 'electron-store'
 // app is used in DEFAULT_INMEMORY_SERVERS but removed buildInFileSystem
 // import { app } from 'electron'

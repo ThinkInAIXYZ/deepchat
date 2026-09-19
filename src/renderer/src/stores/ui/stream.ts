@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, shallowRef } from 'vue'
-import type { AssistantMessageBlock } from '@shared/types/agent-interface'
+import type { AssistantMessageBlock } from '@deepchat/shared/types/agent-interface'
 
 export const useStreamStateStore = defineStore('streamState', () => {
   const isStreaming = ref(false)

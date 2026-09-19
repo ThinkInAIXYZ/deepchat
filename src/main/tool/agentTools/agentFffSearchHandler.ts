@@ -10,7 +10,7 @@ import {
   type FffGrepOptions,
   type FffSearchMetadata
 } from '@/platform/fileSearch/fffSearchService'
-import type { CommandShellPathStyle } from '@shared/commandShell'
+import type { CommandShellPathStyle } from '@deepchat/shared/commandShell'
 
 export const GLOB_TOOL_NAME = 'glob'
 export const GREP_TOOL_NAME = 'grep'

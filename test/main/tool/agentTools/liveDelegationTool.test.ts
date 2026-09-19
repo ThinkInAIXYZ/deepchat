@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { LiveDelegationAgentTool } from '@/tool/agentTools/liveDelegationTool'
 import type { AgentLiveDelegationToolPort } from '@/tool/runtimePorts'
-import { parseChildAgentResultEnvelope } from '@shared/orchestration/resultSafety'
+import { parseChildAgentResultEnvelope } from '@deepchat/shared/orchestration/resultSafety'
 import { LiveDelegationConsentAuthority } from '@/orchestration/liveDelegationConsent'
 
 describe('LiveDelegationAgentTool', () => {

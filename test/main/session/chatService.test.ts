@@ -1,4 +1,4 @@
-import type { ChatMessageRecord, SessionWithState } from '@shared/types/agent-interface'
+import type { ChatMessageRecord, SessionWithState } from '@deepchat/shared/types/agent-interface'
 import { ChatService } from '@/session/chatService'
 
 const createSession = (): SessionWithState => ({

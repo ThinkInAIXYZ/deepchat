@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import type { SessionRecord } from '@shared/types/agent-interface'
+import type { SessionRecord } from '@deepchat/shared/types/agent-interface'
 import { SessionDeletion, type SessionDeletionDependencies } from '@/session/deletion'
 import { SessionDeletionGate } from '@/session/deletionGate'
 

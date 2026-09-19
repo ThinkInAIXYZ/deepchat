@@ -1,10 +1,10 @@
 import { resolveAcpAgentAlias } from '@shared/utils/acpAgentAlias'
-import { normalizeToolModeOverride } from '@shared/toolMode'
+import { normalizeToolModeOverride } from '@deepchat/shared/toolMode'
 import type {
   DeepChatAgentConfig,
   PermissionMode,
   SessionGenerationSettings
-} from '@shared/types/agent-interface'
+} from '@deepchat/shared/types/agent-interface'
 import type {
   CreateAssignmentInput,
   ResolvedSessionAssignment,

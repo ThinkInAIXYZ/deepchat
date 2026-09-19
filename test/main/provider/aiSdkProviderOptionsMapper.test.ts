@@ -17,7 +17,7 @@ import {
   type BuildProviderOptionsParams
 } from '@/provider/aiSdk/providerOptionsMapper'
 import { OPENAI_COMPATIBLE_PROMPT_CACHE_MARKER } from '@/provider/promptCacheStrategy'
-import { resolveModelRequestPolicy } from '@shared/modelRequestPolicy'
+import { resolveModelRequestPolicy } from '@deepchat/shared/modelRequestPolicy'
 
 type ProviderOptionsTestParams = Omit<
   BuildProviderOptionsParams,

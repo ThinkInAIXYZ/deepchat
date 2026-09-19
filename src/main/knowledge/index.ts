@@ -1,4 +1,4 @@
-import logger from '@shared/logger'
+import logger from '@deepchat/shared/logger'
 import fs from 'node:fs'
 import path from 'node:path'
 
@@ -9,7 +9,7 @@ import type {
   KnowledgeFileResult,
   KnowledgeServicePort,
   QueryResult
-} from '@shared/types/knowledge'
+} from '@deepchat/shared/types/knowledge'
 import { KnowledgeDatabase } from './database/knowledgeDatabase'
 import { KnowledgeBase } from './knowledgeBase'
 import { KnowledgeTaskQueue } from './taskQueue'

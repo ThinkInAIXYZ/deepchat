@@ -1,12 +1,12 @@
-import { LOCAL_CONTROL_PROGRAMMATIC_ROUTE_SURFACE_VERSION } from '../shared/contracts/localControl.js'
-import type { LocalControlScope } from '../shared/contracts/localControl.js'
+import { LOCAL_CONTROL_PROGRAMMATIC_ROUTE_SURFACE_VERSION } from '@deepchat/shared/contracts/localControl'
+import type { LocalControlScope } from '@deepchat/shared/contracts/localControl'
 import {
   toolBatchRoute,
   toolCallRoute,
   toolDescribeRoute,
   toolSearchRoute
-} from '../shared/contracts/routes/tools.routes.js'
-import type { PermissionMode } from '../shared/types/agent-interface.js'
+} from '@deepchat/shared/contracts/routes/tools.routes'
+import type { PermissionMode } from '@deepchat/shared/types/agent-interface'
 import { hashJsonData } from '../tape/domain/canonicalJson.js'
 import type { ExecutionJournalCommitReceipt } from '../tape/domain/executionJournal.js'
 import { MAX_TAPE_PROGRAMMATIC_TOOL_INPUT_BYTES } from '../tape/domain/toolSurfaceFacts.js'

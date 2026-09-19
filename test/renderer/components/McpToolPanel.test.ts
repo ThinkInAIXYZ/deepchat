@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { defineComponent, nextTick, reactive, ref } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
-import { TOOL_EXECUTION } from '@shared/types/mcp'
+import { TOOL_EXECUTION } from '@deepchat/shared/types/mcp'
 
 const passthrough = (name: string) =>
   defineComponent({

@@ -6,13 +6,13 @@ import {
   MAX_RUN_TOOL_UNIVERSE_SKILLS,
   MAX_SKILL_TOOL_REQUIREMENTS
 } from '@deepchat/agent-kernel/runtime/toolResolver'
-import type { DeepChatAgentConfig } from '@shared/types/agent-interface'
-import { SKILL_NAME_MAX_LENGTH } from '@shared/types/skill'
+import type { DeepChatAgentConfig } from '@deepchat/shared/types/agent-interface'
+import { SKILL_NAME_MAX_LENGTH } from '@deepchat/shared/types/skill'
 import {
   TOOL_EXECUTION,
   type MCPToolDefinition,
   type MCPToolDefinitionBase
-} from '@shared/types/core/mcp'
+} from '@deepchat/shared/types/core/mcp'
 
 const createResourceInstance = (agentId = 'deepchat') => {
   let cached: { profile: 'general'; fingerprint: string; tools: [] } | undefined

@@ -1,21 +1,24 @@
 import { randomUUID } from 'node:crypto'
-import { JsonValueSchema, type JsonValue } from '@shared/contracts/json'
-import { getDeepchatEventContract, RunStreamEventNameSchema } from '@shared/contracts/events'
+import { JsonValueSchema, type JsonValue } from '@deepchat/shared/contracts/json'
+import {
+  getDeepchatEventContract,
+  RunStreamEventNameSchema
+} from '@deepchat/shared/contracts/events'
 import {
   LOCAL_CONTROL_AGENT_TOKEN_ENV,
   createLocalControlFailure,
   type LocalControlDescriptor,
   type LocalControlRpcResponse
-} from '@shared/contracts/localControl'
-import { artifactsDescribeRoute } from '@shared/contracts/routes/artifacts.routes'
-import { MediaGenerationEventSchema } from '@shared/contracts/routes/media.routes'
-import { ModelInvokeEventSchema } from '@shared/contracts/routes/models.routes'
-import { PUBLIC_MCP_CONFIG_MAX_BYTES } from '@shared/contracts/routes/mcp.routes'
-import { PROVIDER_CREDENTIAL_MAX_BYTES } from '@shared/contracts/routes/providers.routes'
+} from '@deepchat/shared/contracts/localControl'
+import { artifactsDescribeRoute } from '@deepchat/shared/contracts/routes/artifacts.routes'
+import { MediaGenerationEventSchema } from '@deepchat/shared/contracts/routes/media.routes'
+import { ModelInvokeEventSchema } from '@deepchat/shared/contracts/routes/models.routes'
+import { PUBLIC_MCP_CONFIG_MAX_BYTES } from '@deepchat/shared/contracts/routes/mcp.routes'
+import { PROVIDER_CREDENTIAL_MAX_BYTES } from '@deepchat/shared/contracts/routes/providers.routes'
 import {
   RUN_PROMPT_MAX_CHARACTERS,
   sessionsRunDetachedRoute
-} from '@shared/contracts/routes/runs.routes'
+} from '@deepchat/shared/contracts/routes/runs.routes'
 import { parseCliArguments, formatCliHelp, inferCliOutputMode, type CliOutputMode } from './args'
 import {
   loadLocalControlDescriptor,

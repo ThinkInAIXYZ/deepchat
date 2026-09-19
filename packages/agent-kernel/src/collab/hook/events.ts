@@ -1,4 +1,4 @@
-import type { HookEventName } from '../../shared/hooksNotifications.js'
+import type { HookEventName } from '@deepchat/shared/hooksNotifications'
 
 export interface HookSessionFacts {
   readonly sessionId: string

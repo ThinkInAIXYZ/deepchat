@@ -1,4 +1,4 @@
-import type { Agent } from './agent-interface'
+import type { Agent } from '@deepchat/shared/types/agent-interface'
 
 export type FloatingWidgetSessionStatus = 'in_progress' | 'done' | 'error'
 

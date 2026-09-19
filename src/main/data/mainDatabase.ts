@@ -1,4 +1,4 @@
-import logger from '@shared/logger'
+import logger from '@deepchat/shared/logger'
 import type Database from 'better-sqlite3-multiple-ciphers'
 import fs from 'fs'
 import type { DatabaseRepairReport, DatabaseSchemaDiagnosis } from '@shared/types/databaseSchema'

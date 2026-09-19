@@ -1,12 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AgentInvocationAdmission } from '@/agent/invocationAdmission'
-import { TOOL_EXECUTION } from '@shared/types/mcp'
+import { TOOL_EXECUTION } from '@deepchat/shared/types/mcp'
 import {
   LIVE_DELEGATION_MAX_ACTIVE_PER_PARENT,
   LIVE_DELEGATION_MAX_MESSAGE_BYTES,
   LiveDelegationDetailSchema,
   type LiveDelegationDetail
-} from '@shared/orchestration/liveDelegation'
+} from '@deepchat/shared/orchestration/liveDelegation'
 import type { ConversationSessionInfo } from '@/tool/runtimePorts'
 import type { SessionRuntimeUpdate } from '@/session/runtimeEvents'
 import { SessionDeletionGate } from '@/session/deletionGate'

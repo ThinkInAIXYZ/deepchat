@@ -13,8 +13,8 @@ import {
 } from './programmaticToolParentController'
 import { canonicalJsonStringifyData } from '@deepchat/agent-kernel/tape/domain/canonicalJson'
 import type { ExecutionJournalCommitReceipt } from '@deepchat/agent-kernel/tape/domain/executionJournal'
-import type { ToolDispatchCommitInput } from '@shared/types/core/mcp'
-import type { PermissionMode } from '@shared/types/agent-interface'
+import type { ToolDispatchCommitInput } from '@deepchat/shared/types/core/mcp'
+import type { PermissionMode } from '@deepchat/shared/types/agent-interface'
 import type {
   ExecutionJournalWriter,
   NestedExecutionJournalWriter

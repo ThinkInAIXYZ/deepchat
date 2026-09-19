@@ -3,7 +3,7 @@ import type {
   PermissionMode,
   SessionAgentContextUpdate,
   SessionGenerationSettings
-} from '@shared/types/agent-interface'
+} from '@deepchat/shared/types/agent-interface'
 import type { SessionStatePort } from '@/session/data/contracts'
 import type { SessionSettingsStore } from '@/session/data/settings'
 import type { ProviderModelResolutionPort } from '@/provider/settings'

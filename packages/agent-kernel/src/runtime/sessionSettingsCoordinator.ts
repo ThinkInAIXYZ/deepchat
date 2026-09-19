@@ -4,9 +4,9 @@ import type {
   PermissionMode,
   SessionAgentContextUpdate,
   SessionGenerationSettings
-} from '../shared/types/agent-interface.js'
+} from '@deepchat/shared/types/agent-interface'
 
-import type { ToolServicePort } from '../shared/types/tool.js'
+import type { ToolServicePort } from '@deepchat/shared/types/tool'
 import type { DeepChatAgentInstance } from '../instance/deepChatAgentInstance.js'
 import type {
   SessionRuntimeScope,

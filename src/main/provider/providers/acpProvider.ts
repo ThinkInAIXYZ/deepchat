@@ -1,5 +1,5 @@
 import type { ProviderSettingsPort } from '@/provider/settings'
-import logger from '@shared/logger'
+import logger from '@deepchat/shared/logger'
 import type * as schema from '@agentclientprotocol/sdk/dist/schema/index.js'
 import type { ClientSideConnection as ClientSideConnectionType } from '@agentclientprotocol/sdk'
 import {
@@ -9,15 +9,15 @@ import {
 } from '../baseProvider'
 import type { ProviderLocalePort } from '@deepchat/agent-kernel/collab/provider/ports'
 import type { AgentSettingsPort } from '@/agent/settings'
-import type { ChatMessage } from '@shared/types/core/chat-message'
-import type { LLMResponse } from '@shared/types/provider'
-import type { MCPToolDefinition } from '@shared/types/mcp'
+import type { ChatMessage } from '@deepchat/shared/types/core/chat-message'
+import type { LLMResponse } from '@deepchat/shared/types/provider'
+import type { MCPToolDefinition } from '@deepchat/shared/types/mcp'
 import type {
   MODEL_META,
   ModelConfig,
   LLM_PROVIDER,
   ProviderStreamOptions
-} from '@shared/types/provider'
+} from '@deepchat/shared/types/provider'
 import type {
   AcpAgentConfig,
   AcpConfigState,
@@ -26,15 +26,15 @@ import type {
   AcpDebugRunResult,
   AcpTurnFinishPayload,
   AcpTurnStartPayload
-} from '@shared/types/acp'
+} from '@deepchat/shared/types/acp'
 import {
   createStreamEvent,
   type LLMCoreStreamEvent,
   type PermissionRequestPayload,
   type PermissionRequestOption
-} from '@shared/types/core/llm-events'
-import { ModelType } from '@shared/model'
-import type { DeepchatEventPublisher } from '@shared/contracts/events'
+} from '@deepchat/shared/types/core/llm-events'
+import { ModelType } from '@deepchat/shared/model'
+import type { DeepchatEventPublisher } from '@deepchat/shared/contracts/events'
 import {
   AcpProcessManager,
   AcpSessionManager,

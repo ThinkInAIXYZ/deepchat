@@ -1,12 +1,12 @@
 import { z } from 'zod'
-import { toDeepChatJsonSchema } from '@shared/lib/zodJsonSchema'
-import { TOOL_EXECUTION, type MCPToolDefinition } from '@shared/types/mcp'
+import { toDeepChatJsonSchema } from '@deepchat/shared/lib/zodJsonSchema'
+import { TOOL_EXECUTION, type MCPToolDefinition } from '@deepchat/shared/types/mcp'
 import { createAgentToolSuccessResult } from '@shared/lib/agentToolResultEnvelope'
-import { unicodeCodePointLength } from '@shared/lib/unicodeText'
+import { unicodeCodePointLength } from '@deepchat/shared/lib/unicodeText'
 import {
   AGENT_MEMORY_CATEGORIES,
   AGENT_MEMORY_MANUAL_CONTENT_MAX_CHARS
-} from '@shared/types/agent-memory'
+} from '@deepchat/shared/types/agent-memory'
 import type { AgentMemoryToolPort, AgentToolSessionPort } from '../runtimePorts'
 import type { AgentToolCallResult } from './agentToolManager'
 

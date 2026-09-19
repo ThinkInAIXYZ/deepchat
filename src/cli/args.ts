@@ -1,37 +1,37 @@
-import { ArtifactIdSchema } from '@shared/contracts/routes/artifacts.routes'
+import { ArtifactIdSchema } from '@deepchat/shared/contracts/routes/artifacts.routes'
 import {
   AUDIO_TRANSCRIPTION_MAX_INPUT_BYTES,
   audioTranscribeArtifactRoute,
   audioTranscribeUploadRoute
-} from '@shared/contracts/routes/audio.routes'
+} from '@deepchat/shared/contracts/routes/audio.routes'
 import {
   OCR_EXTRACTION_MAX_INPUT_BYTES,
   ocrExtractArtifactRoute,
   ocrExtractUploadRoute
-} from '@shared/contracts/routes/ocr.routes'
+} from '@deepchat/shared/contracts/routes/ocr.routes'
 import {
   skillsInstallPublicUrlRoute,
   skillsInstallUploadRoute
-} from '@shared/contracts/routes/skills.routes'
+} from '@deepchat/shared/contracts/routes/skills.routes'
 import {
   RUN_MAX_MESSAGE_PAGE_SIZE,
   RunEventCursorSchema,
   RunIdSchema
-} from '@shared/contracts/routes/runs.routes'
-import { MessagePageCursorSchema } from '@shared/contracts/common'
-import { PROGRAMMATIC_TOOL_SEARCH_MAX_RESULTS } from '@shared/contracts/routes/tools.routes'
+} from '@deepchat/shared/contracts/routes/runs.routes'
+import { MessagePageCursorSchema } from '@deepchat/shared/contracts/common'
+import { PROGRAMMATIC_TOOL_SEARCH_MAX_RESULTS } from '@deepchat/shared/contracts/routes/tools.routes'
 import {
   cliCommandKey,
   getCliCommandDefinition,
   type CliRpcContract
-} from '@shared/contracts/cliCommands'
-import { JsonValueSchema, type JsonValue } from '@shared/contracts/json'
-import { LOCAL_CONTROL_MAX_REQUEST_TIMEOUT_MS } from '@shared/contracts/localControl'
+} from '@deepchat/shared/contracts/cliCommands'
+import { JsonValueSchema, type JsonValue } from '@deepchat/shared/contracts/json'
+import { LOCAL_CONTROL_MAX_REQUEST_TIMEOUT_MS } from '@deepchat/shared/contracts/localControl'
 import {
   ATTACHMENT_PDF_OCR_MAX_TOKENS,
   PDF_PAGE_COUNT_SANITY_LIMIT
-} from '@shared/types/attachment'
-import { SKILL_ARCHIVE_MAX_INPUT_BYTES } from '@shared/types/skill'
+} from '@deepchat/shared/types/attachment'
+import { SKILL_ARCHIVE_MAX_INPUT_BYTES } from '@deepchat/shared/types/skill'
 import path from 'node:path'
 import { CliUsageError } from './errors'
 
@@ -43,7 +43,7 @@ export const DEFAULT_COMPUTE_TIMEOUT_MS = MAX_CLI_TIMEOUT_MS
 export const DEFAULT_MUTATION_TIMEOUT_MS = 10 * 60_000
 
 export type CliOutputMode = 'text' | 'json' | 'jsonl'
-export type { CliRpcContract } from '@shared/contracts/cliCommands'
+export type { CliRpcContract } from '@deepchat/shared/contracts/cliCommands'
 
 export type CliCommandOperation = 'rpc' | 'stream' | 'upload' | 'download'
 

@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import type { QuestionOption } from '@shared/types/agent-interface'
+import type { QuestionOption } from '@deepchat/shared/types/agent-interface'
 import type {
   DiscordPairingSnapshot,
   DiscordRemoteBindingSummary,
@@ -518,7 +518,7 @@ export interface RemotePendingInteractionPermission {
   rememberable?: boolean
   command?: string
   commandSignature?: string
-  shellProfile?: import('@shared/commandShell').CommandShellProfile
+  shellProfile?: import('@deepchat/shared/commandShell').CommandShellProfile
   paths?: string[]
   commandInfo?: RemotePermissionCommandInfo
 }

@@ -2,8 +2,8 @@
 import { ref, computed, watch, onMounted, onUnmounted, type Ref, type ComputedRef } from 'vue'
 
 // === Types ===
-import type { SkillMetadata } from '@shared/types/skill'
-import type { UnifiedSkillItem } from '@shared/types/skillManagement'
+import type { SkillMetadata } from '@deepchat/shared/types/skill'
+import type { UnifiedSkillItem } from '@deepchat/shared/types/skillManagement'
 
 // === Composables ===
 import { createSkillClient } from '@api/SkillClient'

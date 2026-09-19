@@ -23,7 +23,7 @@ import { useModelCapabilities } from '@/composables/useModelCapabilities'
 import { useThinkingBudget } from '@/composables/useThinkingBudget'
 import { useModelTypeDetection } from '@/composables/useModelTypeDetection'
 import { useChatConfigFields } from '@/composables/useChatConfigFields'
-import type { ReasoningEffort, Verbosity } from '@shared/types/model-db'
+import type { ReasoningEffort, Verbosity } from '@deepchat/shared/types/model-db'
 
 // === Stores ===
 import { useLanguageStore } from '@/stores/language'

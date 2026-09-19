@@ -13,11 +13,11 @@ import {
   ATTACHMENT_PDF_OCR_MAX_PAGE_SPANS,
   ATTACHMENT_PDF_OCR_MAX_TOKENS,
   PDF_PAGE_COUNT_SANITY_LIMIT
-} from '@shared/types/attachment'
+} from '@deepchat/shared/types/attachment'
 import {
   PDF_OCR_TRUNCATION_MARKER as SHARED_PDF_OCR_TRUNCATION_MARKER,
   isValidDocumentOcrTextPageSpans
-} from '@shared/utils/documentOcrText'
+} from '@deepchat/shared/utils/documentOcrText'
 
 export const PDF_OCR_GENERATION_MAX_TOKENS = ATTACHMENT_PDF_OCR_MAX_TOKENS
 export const PDF_OCR_STRATEGY: LightOcrRecognitionStrategy = 'bounded-960'

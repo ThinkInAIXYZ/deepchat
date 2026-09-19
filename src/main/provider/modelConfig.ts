@@ -1,19 +1,19 @@
-import { ApiEndpointType, ModelType } from '@shared/model'
+import { ApiEndpointType, ModelType } from '@deepchat/shared/model'
 import type {
   IModelConfig,
   MODEL_META,
   ModelConfig,
   ModelRouteConfig
-} from '@shared/types/provider'
+} from '@deepchat/shared/types/provider'
 import {
   DEFAULT_MODEL_TIMEOUT,
   DEFAULT_MODEL_CAPABILITY_FALLBACKS,
   resolveDerivedModelMaxTokens,
   resolveModelContextLength,
   resolveModelFunctionCall
-} from '@shared/modelConfigDefaults'
-import { applyMoonshotKimiReasoningTemperaturePolicy } from '@shared/modelRequestPolicy'
-import { resolveVideoGenerationCompatType } from '@shared/videoGenerationSettings'
+} from '@deepchat/shared/modelConfigDefaults'
+import { applyMoonshotKimiReasoningTemperaturePolicy } from '@deepchat/shared/modelRequestPolicy'
+import { resolveVideoGenerationCompatType } from '@deepchat/shared/videoGenerationSettings'
 import ElectronStore from 'electron-store'
 import {
   hasAnthropicReasoningToggle,
@@ -25,11 +25,11 @@ import {
   ReasoningPortrait,
   isVerbosity,
   type Verbosity
-} from '@shared/types/model-db'
+} from '@deepchat/shared/types/model-db'
 import { modelCapabilities, type CapabilityModelMatch } from './modelCapabilities'
 import type { StoreLike } from '@/config/storeLike'
 import { resolveCapabilityIdentity } from './capabilityIdentity'
-import type { ResolvedCapabilityIdentity } from '@shared/types/model-capabilities'
+import type { ResolvedCapabilityIdentity } from '@deepchat/shared/types/model-capabilities'
 import { normalizeUserModelConfigEntry } from './userModelConfig'
 
 const SPECIAL_CONCAT_CHAR = '-_-'

@@ -272,7 +272,7 @@ import { useDocumentVisibility, useIntervalFn, useWindowFocus } from '@vueuse/co
 import { Icon } from '@iconify/vue'
 import type { AcceptableValue } from 'reka-ui'
 import { useI18n } from 'vue-i18n'
-import type { OcrRuntimeStatus } from '@shared/contracts/routes/ocr.routes'
+import type { OcrRuntimeStatus } from '@deepchat/shared/contracts/routes/ocr.routes'
 import { createOcrClient } from '@api/OcrClient'
 import { createSettingsClient } from '@api/SettingsClient'
 import { DcConfirmDialog } from '@dc-ui/components/confirm-dialog'

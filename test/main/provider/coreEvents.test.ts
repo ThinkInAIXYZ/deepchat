@@ -4,7 +4,7 @@ import {
   isTextEvent,
   isToolCallStartEvent,
   isErrorEvent
-} from '@shared/types/core/llm-events'
+} from '@deepchat/shared/types/core/llm-events'
 
 describe('LLMCoreStreamEvent Factory Functions', () => {
   describe('createStreamEvent', () => {

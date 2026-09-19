@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { defineComponent, h, reactive, ref } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
-import type { PermissionMode } from '../../../src/shared/types/agent-interface'
+import type { PermissionMode } from '@deepchat/shared/types/agent-interface'
 
 const chatInputFocusMock = vi.fn()
 const chatInputTriggerAttachMock = vi.fn()

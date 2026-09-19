@@ -4,7 +4,7 @@ import type {
   MessageStartResult,
   MessagePageCursor,
   SessionWithState
-} from '@shared/types/agent-interface'
+} from '@deepchat/shared/types/agent-interface'
 import type { Scheduler } from '@/routes/scheduler'
 import type { RendererRouteCaller } from '@/routes/routeRegistry'
 

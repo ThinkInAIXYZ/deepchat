@@ -1,8 +1,8 @@
-import type { AssistantMessageBlock } from '../shared/types/agent-interface.js'
+import type { AssistantMessageBlock } from '@deepchat/shared/types/agent-interface'
 import {
   buildAssistantDeliverySegments as buildDeliverySegments,
   type AssistantDeliverySegment
-} from '../shared/lib/assistantDeliverySegments.js'
+} from '@deepchat/shared/lib/assistantDeliverySegments'
 
 export type DeepChatInternalSessionRuntimeStatus = 'idle' | 'generating' | 'error'
 

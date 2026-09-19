@@ -5,7 +5,7 @@ import type {
   MessageStartResult,
   SessionRecord,
   SessionWithState
-} from '@shared/types/agent-interface'
+} from '@deepchat/shared/types/agent-interface'
 import {
   eventsSubscribeRoute,
   RUN_MESSAGE_MAX_TEXT_BYTES,
@@ -18,18 +18,18 @@ import {
   type RunDetachedInput,
   type RunGetInput
 } from '@shared/contracts/routes'
-import { AssistantMessageBlockSchema } from '@shared/contracts/common'
+import { AssistantMessageBlockSchema } from '@deepchat/shared/contracts/common'
 import {
   runsCancelRequestedEvent,
   runsCreatedEvent,
   runsSnapshotEvent,
   runsTurnAcceptedEvent,
   runsTurnFailedEvent
-} from '@shared/contracts/events'
+} from '@deepchat/shared/contracts/events'
 import { extractUserMessageInput } from '@/session/data/userMessageContent'
 import { hasWaitingInteraction } from '@deepchat/agent-kernel/runtime/sessionUpdates'
-import { projectFinalAssistantAnswer } from '@shared/lib/assistantDeliverySegments'
-import type { AssistantMessageBlock } from '@shared/types/agent-interface'
+import { projectFinalAssistantAnswer } from '@deepchat/shared/lib/assistantDeliverySegments'
+import type { AssistantMessageBlock } from '@deepchat/shared/types/agent-interface'
 import {
   createRouteMap,
   type CliRouteCaller,

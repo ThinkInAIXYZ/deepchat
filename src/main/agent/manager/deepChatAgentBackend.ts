@@ -16,7 +16,7 @@ import type {
   SessionGenerationSettings,
   ToolInteractionResponse,
   ToolInteractionResult
-} from '@shared/types/agent-interface'
+} from '@deepchat/shared/types/agent-interface'
 import type {
   AgentActiveGeneration,
   AgentGenerationControlFacet,

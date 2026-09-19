@@ -3,7 +3,7 @@ import { SessionTranscript } from '@/session/data/transcript'
 import { SessionTape } from '@/tape/application/sessionTape'
 import { DASHBOARD_STATS_BACKFILL_KEY, type UsageStatsRecordInput } from '@/session/usageStats'
 import { UsageStatsService } from '@/session/usageStatsService'
-import type { PermissionMode } from '@shared/types/agent-interface'
+import type { PermissionMode } from '@deepchat/shared/types/agent-interface'
 import type { DeepChatTapeEntryRow } from '@deepchat/agent-kernel/tape/domain/entry'
 import {
   buildTapeCompactionModelCallEvent,

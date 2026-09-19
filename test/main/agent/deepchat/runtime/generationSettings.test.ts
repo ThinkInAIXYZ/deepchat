@@ -1,8 +1,8 @@
 import type { ProviderSettingsPort } from '@/provider/settings'
 import { describe, expect, it, vi } from 'vitest'
 
-import type { SessionGenerationSettings } from '@shared/types/agent-interface'
-import { ApiEndpointType, ModelType } from '@shared/model'
+import type { SessionGenerationSettings } from '@deepchat/shared/types/agent-interface'
+import { ApiEndpointType, ModelType } from '@deepchat/shared/model'
 import {
   buildPersistedGenerationSettingsPatch,
   mapPersistedGenerationPatch,

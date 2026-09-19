@@ -1,5 +1,5 @@
 import runtimeVersions from '../../../resources/runtime-versions.json'
-import type { ToolchainKind } from '@shared/types/toolchains'
+import type { ToolchainKind } from '@deepchat/shared/types/toolchains'
 
 export const NODE_PIN = runtimeVersions.node
 export const UV_PIN = runtimeVersions.uv

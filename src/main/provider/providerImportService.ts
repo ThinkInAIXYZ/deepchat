@@ -5,7 +5,7 @@ import path from 'node:path'
 import Database from 'better-sqlite3-multiple-ciphers'
 import { parse as parseYaml } from 'yaml'
 import { nanoid } from 'nanoid'
-import type { LLM_PROVIDER, MODEL_META } from '@shared/types/provider'
+import type { LLM_PROVIDER, MODEL_META } from '@deepchat/shared/types/provider'
 import {
   PROVIDER_IMPORT_CUSTOM_API_TYPES,
   PROVIDER_IMPORT_SOURCE_IDS,
@@ -22,7 +22,7 @@ import {
   type ProviderImportSelection,
   type ProviderImportSourceId,
   type ProviderImportSourceScan
-} from '@shared/providerImport'
+} from '@deepchat/shared/providerImport'
 import type { ProviderChange } from '@shared/provider-operations'
 
 type SourceDefinition = {

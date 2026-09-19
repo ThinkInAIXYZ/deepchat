@@ -1,8 +1,8 @@
-import logger from '@shared/logger'
+import logger from '@deepchat/shared/logger'
 import { Server, Transport } from '@modelcontextprotocol/server'
 
 // https://github.com/supermemoryai/apple-mcp
-import { toDeepChatJsonSchema } from '@shared/lib/zodJsonSchema'
+import { toDeepChatJsonSchema } from '@deepchat/shared/lib/zodJsonSchema'
 import { z } from 'zod'
 import { runAppleScript } from 'run-applescript'
 import { run } from '@jxa/run'

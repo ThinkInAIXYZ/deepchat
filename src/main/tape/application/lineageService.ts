@@ -3,7 +3,7 @@ import type {
   SubagentTapeLinkInput,
   SubagentTapeLinkOutcome,
   SubagentTapeLinkReceipt
-} from '@shared/types/agent-interface'
+} from '@deepchat/shared/types/agent-interface'
 import {
   TAPE_INCARNATION_META_KEY,
   type DeepChatTapeEntryRow,

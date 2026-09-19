@@ -1,5 +1,5 @@
 import { ref, type Ref } from 'vue'
-import type { MessageFile } from '@shared/types/agent-interface'
+import type { MessageFile } from '@deepchat/shared/types/agent-interface'
 import { createFileClient } from '@api/FileClient'
 import { notifyRenderer } from '@renderer-notifications/rendererNotificationPort'
 import { calculateImageTokens, getClipboardImageInfo, imageFileToBase64 } from '@/lib/image'

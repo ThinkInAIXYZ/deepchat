@@ -2,8 +2,8 @@ import type {
   TapeInspectorEvidenceRecord,
   TapeInspectorFactRecord,
   TapeInspectorRecordDetail
-} from '@shared/types/tape-inspector'
-import type { MessageTraceRecord } from '@shared/types/agent-interface'
+} from '@deepchat/shared/types/tape-inspector'
+import type { MessageTraceRecord } from '@deepchat/shared/types/agent-interface'
 
 export type TapeInspectorGroupKind = 'run' | 'request' | 'attempt' | 'tool'
 

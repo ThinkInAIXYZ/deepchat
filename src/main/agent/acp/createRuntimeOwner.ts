@@ -1,6 +1,6 @@
 import type { ProviderModelResolutionPort } from '@/provider/settings'
 import type { AgentSettingsPort } from '@/agent/settings'
-import type { DeepchatEventName } from '@shared/contracts/events'
+import type { DeepchatEventName } from '@deepchat/shared/contracts/events'
 import { AcpClientRuntime, AcpRuntimeOwner, type AcpRegistryPort } from './client'
 import { AcpSessionPersistence } from './runtime'
 import type { McpSettings } from '@/mcp/settings'

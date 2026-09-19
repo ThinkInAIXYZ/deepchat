@@ -2,7 +2,7 @@ import type {
   AgentType,
   CreateDetachedSessionInput,
   MessageStartResult
-} from '@shared/types/agent-interface'
+} from '@deepchat/shared/types/agent-interface'
 import type { CronJobRunSessionStarter } from './runExecutor'
 
 export interface CronJobSessionLifecyclePort {

@@ -16,8 +16,8 @@ import {
   AgentServiceSubmissionReceiptSchema,
   defineAgentServiceResultSchema
 } from '@shared/contracts/agent-service/common'
-import type { JsonValue } from '@shared/contracts/json'
-import { LOCAL_CONTROL_ERROR_CODES } from '@shared/contracts/localControl'
+import type { JsonValue } from '@deepchat/shared/contracts/json'
+import { LOCAL_CONTROL_ERROR_CODES } from '@deepchat/shared/contracts/localControl'
 
 // Fixed literals on purpose: these sets are the wire vocabulary, so a silent addition, removal, or
 // rename must fail this suite instead of agreeing with whatever the module exports.

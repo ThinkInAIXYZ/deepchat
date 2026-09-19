@@ -1,9 +1,9 @@
 import { computed, ref, shallowRef, watch, type Ref } from 'vue'
 
 import { createModelClient } from '@api/ModelClient'
-import type { RequestParameterPolicy } from '@shared/modelRequestPolicy'
-import type { CapabilitySnapshotQuery } from '@shared/types/model-capabilities'
-import type { ReasoningPortrait } from '@shared/types/model-db'
+import type { RequestParameterPolicy } from '@deepchat/shared/modelRequestPolicy'
+import type { CapabilitySnapshotQuery } from '@deepchat/shared/types/model-capabilities'
+import type { ReasoningPortrait } from '@deepchat/shared/types/model-db'
 import type { ThinkingBudgetRange } from './useThinkingBudget'
 
 type ModelClient = ReturnType<typeof createModelClient>

@@ -18,7 +18,7 @@ export {
   AgentPlanTool
 } from '@deepchat/agent-kernel/collab/tool/agentTools/agentPlanTool'
 export { AGENT_TAPE_TOOL_SERVER_NAME, AgentTapeToolHandler } from './agentTapeTools'
-export { TAPE_TOOL_NAMES } from '@shared/agentTools'
+export { TAPE_TOOL_NAMES } from '@deepchat/shared/agentTools'
 export {
   TOOL_SEARCH_DEFAULT_RESULT_LIMIT,
   TOOL_SEARCH_MAX_QUERY_LENGTH,

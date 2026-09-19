@@ -12,9 +12,9 @@ import type {
   ChatMessageRecord,
   SessionRecord,
   SessionWithState
-} from '@shared/types/agent-interface'
-import { DEFAULT_ORCHESTRATION_POLICY } from '@shared/orchestration/policy'
-import { LOCAL_CONTROL_MAX_JSON_RESPONSE_BYTES } from '@shared/contracts/localControl'
+} from '@deepchat/shared/types/agent-interface'
+import { DEFAULT_ORCHESTRATION_POLICY } from '@deepchat/shared/orchestration/policy'
+import { LOCAL_CONTROL_MAX_JSON_RESPONSE_BYTES } from '@deepchat/shared/contracts/localControl'
 import { CliRunService, type CliRunServiceOptions } from '@/cli/runService'
 import { CliRequestError } from '@/cli/errors'
 import { TypedEventHub, type TypedEventRecord } from '@/events/typedEventHub'

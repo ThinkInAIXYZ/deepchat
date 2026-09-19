@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import logger from '@shared/logger'
+import logger from '@deepchat/shared/logger'
 import {
   PRE_STREAM_STUCK_ESCALATION_MS,
   PRE_STREAM_STUCK_WARN_MS,
@@ -7,7 +7,7 @@ import {
   startPreStreamProviderBoundaryWatchdog
 } from '@deepchat/agent-kernel/runtime/preStreamWatchdog'
 
-vi.mock('@shared/logger', () => ({
+vi.mock('@deepchat/shared/logger', () => ({
   default: {
     warn: vi.fn()
   }

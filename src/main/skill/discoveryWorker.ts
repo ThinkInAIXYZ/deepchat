@@ -1,5 +1,5 @@
-import logger from '@shared/logger'
-import { SKILL_NAME_MAX_LENGTH, type SkillMetadata } from '@shared/types/skill'
+import logger from '@deepchat/shared/logger'
+import { SKILL_NAME_MAX_LENGTH, type SkillMetadata } from '@deepchat/shared/types/skill'
 import { runInlineJsonWorker } from '@/lib/runInlineJsonWorker'
 
 type SkillDiscoveryWarning =

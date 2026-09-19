@@ -5,22 +5,22 @@ import type {
   ChatMessage,
   ChatMessageProviderOptions,
   ChatMessageProviderReplayProjector
-} from '../shared/types/core/chat-message.js'
+} from '@deepchat/shared/types/core/chat-message'
 import {
   stripToolExecutionContract,
   type MCPToolDefinition
-} from '../shared/types/core/mcp.js'
+} from '@deepchat/shared/types/core/mcp'
 import type {
   ChatMessageRecord,
   AssistantMessageBlock,
   MessageFile,
   SendMessageInput
-} from '../shared/types/agent-interface.js'
+} from '@deepchat/shared/types/agent-interface'
 
 import type {
   DeepChatTapeViewPinnedFirstUser,
   DeepChatTapeViewSyntheticContribution
-} from '../shared/types/tape-view-manifest.js'
+} from '@deepchat/shared/types/tape-view-manifest'
 import {
   getContextSyntheticContributions,
   type ContextRuntimeContributions
@@ -28,20 +28,20 @@ import {
 import {
   estimateMessageTokens,
   estimateMessagesTokens
-} from '../shared/utils/messageTokens.js'
+} from '@deepchat/shared/utils/messageTokens'
 import { isCompactionRecord } from '../tape/domain/viewManifest.js'
 import {
   getAttachmentResolvedRepresentation,
   isImageAttachment,
   isPdfAttachment
-} from '../shared/utils/attachmentRepresentation.js'
-import { isRetiredWorkflowResultMessageMetadata } from '../shared/orchestration/retiredWorkflowData.js'
+} from '@deepchat/shared/utils/attachmentRepresentation'
+import { isRetiredWorkflowResultMessageMetadata } from '@deepchat/shared/orchestration/retiredWorkflowData'
 import { segmentAssistantBlocksByProviderReplay } from './providerReplaySegments.js'
 import { inheritProviderProjectionIdentities } from '../loop/providerProjectionIdentity.js'
 import { hashJsonData } from '../tape/domain/canonicalJson.js'
 import {type TranscriptStorePort} from '../contracts/transcriptStore.js'
 
-export { estimateMessagesTokens } from '../shared/utils/messageTokens.js'
+export { estimateMessagesTokens } from '@deepchat/shared/utils/messageTokens'
 
 const AUDIO_TOKEN_ESTIMATE = 512
 const UNKNOWN_ASSISTANT_ERROR = 'Unknown error'

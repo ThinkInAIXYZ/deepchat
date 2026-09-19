@@ -1,5 +1,5 @@
-import type { AssistantMessageBlock } from '@shared/types/agent-interface'
-import type { McpAppDescriptor } from '@shared/types/mcp'
+import type { AssistantMessageBlock } from '@deepchat/shared/types/agent-interface'
+import type { McpAppDescriptor } from '@deepchat/shared/types/mcp'
 import { expect, it } from 'vitest'
 import { Database, nativeSqliteDescribeIf } from '../../../nativeSqliteHarness'
 import { createDeepSeekReplayJson } from '../../../../fixtures/deepseekResponses'

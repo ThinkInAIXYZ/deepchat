@@ -2,8 +2,8 @@ import type { DatabaseConnectionProvider } from '@/data/databaseConnection'
 import { AgentsTable } from './tables/agents'
 import { AcpSessionsTable, type AcpSessionUpsertData } from './tables/acpSessions'
 import { AcpTurnsTable, type AcpTurnStatus } from './tables/acpTurns'
-import type { AcpSessionEntity } from '@shared/types/acp'
-import type { AgentSessionLifecycleStatus } from '@shared/types/acp'
+import type { AcpSessionEntity } from '@deepchat/shared/types/acp'
+import type { AgentSessionLifecycleStatus } from '@deepchat/shared/types/acp'
 import { AgentCatalogSettingsTable } from '../acp/catalog/data/settingsTable'
 
 export class AgentDatabase {

@@ -1,5 +1,5 @@
 import { isProviderDbBackedProvider } from '@shared/providerDbCatalog'
-import type { MODEL_META } from '@shared/types/provider'
+import type { MODEL_META } from '@deepchat/shared/types/provider'
 
 const CATALOG_DERIVED_MODEL_FIELDS = [
   'contextLength',

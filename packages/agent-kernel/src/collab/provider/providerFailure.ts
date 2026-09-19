@@ -1,7 +1,7 @@
 import type {
   ProviderFailureMetadata,
   ProviderRetryHeaderName
-} from '../../shared/types/core/llm-events.js'
+} from '@deepchat/shared/types/core/llm-events'
 
 const RETRY_HEADER_NAMES = [
   'retry-after',

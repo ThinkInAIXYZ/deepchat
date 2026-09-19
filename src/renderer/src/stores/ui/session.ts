@@ -17,11 +17,11 @@ import type {
   SendMessageInput,
   SessionCompactionSnapshot,
   SessionContextOccupancySnapshot
-} from '@shared/types/agent-interface'
+} from '@deepchat/shared/types/agent-interface'
 import {
   normalizeOrchestrationPolicy,
   type OrchestrationPolicy
-} from '@shared/orchestration/policy'
+} from '@deepchat/shared/orchestration/policy'
 import { downloadBlob } from '@/lib/download'
 import {
   readGuidedOnboardingResumeIntent,
@@ -35,8 +35,8 @@ import { useAttachmentPreparationStore } from './attachmentPreparation'
 import { useLiveDelegationStore } from './liveDelegation'
 import { isAbortError } from '@/lib/errors'
 import { bindSessionStoreIpc, type SessionCompactionChangedPayload } from './sessionIpc'
-import { normalizeWorkspacePath } from '@shared/utils/filesystem'
-import type { ToolModeOverride } from '@shared/toolMode'
+import { normalizeWorkspacePath } from '@deepchat/shared/utils/filesystem'
+import type { ToolModeOverride } from '@deepchat/shared/toolMode'
 
 export type UISessionStatus = 'completed' | 'working' | 'error' | 'none'
 

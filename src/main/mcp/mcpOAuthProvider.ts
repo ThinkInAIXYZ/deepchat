@@ -8,7 +8,7 @@ import type {
   StoredOAuthTokens
 } from '@modelcontextprotocol/client'
 import { validateClientMetadataUrl } from '@modelcontextprotocol/client'
-import type { McpCredentialBinding } from '@shared/types/mcp'
+import type { McpCredentialBinding } from '@deepchat/shared/types/mcp'
 import type { McpOAuthCredentialStore } from './oauthCredentialStore'
 
 export type DeepChatMcpOAuthProviderOptions = {

@@ -10,8 +10,8 @@ import type { CompactionIntent } from '@deepchat/agent-kernel/runtime/compaction
 import type {
   DeepChatSessionState,
   SessionGenerationSettings
-} from '@shared/types/agent-interface'
-import { ModelType } from '@shared/model'
+} from '@deepchat/shared/types/agent-interface'
+import { ModelType } from '@deepchat/shared/model'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { POSIX_COMMAND_SHELL } from '../../../../helpers/commandShell'
 

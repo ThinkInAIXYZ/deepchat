@@ -1,7 +1,7 @@
 import { spawnSync } from 'node:child_process'
 import { rmSync } from 'node:fs'
 import path from 'node:path'
-import logger from '@shared/logger'
+import logger from '@deepchat/shared/logger'
 import type {
   ResolvedNodeToolchain,
   ResolvedToolchain,
@@ -17,7 +17,7 @@ import type {
   ToolchainSource,
   ToolchainState,
   ToolchainStatusSnapshot
-} from '@shared/types/toolchains'
+} from '@deepchat/shared/types/toolchains'
 import { getPathEntriesFromEnv, setPathEntriesOnEnv } from '@/agent/shared/process/shellEnvHelper'
 import {
   catalogVersionFor,

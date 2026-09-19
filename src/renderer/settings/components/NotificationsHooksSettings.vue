@@ -376,8 +376,11 @@ import type {
   HookEventName,
   HookTestResult,
   HooksNotificationsSettings
-} from '@shared/hooksNotifications'
-import { DEFAULT_IMPORTANT_HOOK_EVENTS, HOOK_EVENT_NAMES } from '@shared/hooksNotifications'
+} from '@deepchat/shared/hooksNotifications'
+import {
+  DEFAULT_IMPORTANT_HOOK_EVENTS,
+  HOOK_EVENT_NAMES
+} from '@deepchat/shared/hooksNotifications'
 
 const PREVIEW_LIMIT = 200
 type HookDocField =

@@ -10,7 +10,7 @@ import {
   rowMatchesMemoryScopeFilter
 } from '@/memory/core/scope'
 import { buildMemoryProvenanceKey, buildScopedMemoryProvenanceKey } from '@/memory/core/scoring'
-import { AGENT_MEMORY_SCOPE_ID_MAX_CHARS } from '@shared/types/agent-memory'
+import { AGENT_MEMORY_SCOPE_ID_MAX_CHARS } from '@deepchat/shared/types/agent-memory'
 
 describe('memory applicability scopes', () => {
   it('normalizes bounded narrow scopes and keeps agent scope canonical', () => {

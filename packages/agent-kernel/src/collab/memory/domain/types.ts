@@ -7,8 +7,8 @@ import type {
   AgentMemoryTemporalKind,
   AgentMemoryTemporalPrecision,
   LegacyAgentMemoryStatus
-} from '../../../shared/types/agent-memory.js'
-import { AGENT_MEMORY_HEALTH_KIND_KEYS } from '../../../shared/types/agent-memory.js'
+} from '@deepchat/shared/types/agent-memory'
+import { AGENT_MEMORY_HEALTH_KIND_KEYS } from '@deepchat/shared/types/agent-memory'
 
 export type MemoryModelRef = { providerId: string; modelId: string }
 

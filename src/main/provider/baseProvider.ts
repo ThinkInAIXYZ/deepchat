@@ -1,18 +1,18 @@
 import type { ProviderSettingsPort } from '@/provider/settings'
-import type { LLMResponse, ProviderStreamOptions } from '@shared/types/provider'
-import type { LLMCoreStreamEvent } from '@shared/types/core/llm-events'
-import type { ChatMessage } from '@shared/types/core/chat-message'
-import type { MCPToolDefinition } from '@shared/types/mcp'
+import type { LLMResponse, ProviderStreamOptions } from '@deepchat/shared/types/provider'
+import type { LLMCoreStreamEvent } from '@deepchat/shared/types/core/llm-events'
+import type { ChatMessage } from '@deepchat/shared/types/core/chat-message'
+import type { MCPToolDefinition } from '@deepchat/shared/types/mcp'
 import type {
   LLM_PROVIDER,
   MODEL_META,
   ModelConfig,
   KeyStatus,
   LLM_EMBEDDING_ATTRS
-} from '@shared/types/provider'
+} from '@deepchat/shared/types/provider'
 import { DeviceService } from '../device'
 import { jsonrepair } from 'jsonrepair'
-import logger from '@shared/logger'
+import logger from '@deepchat/shared/logger'
 import {
   resolveRequestTraceContext,
   type ProviderRequestTracePayload

@@ -12,7 +12,7 @@ import {
   SKILL_EXECUTION_PACKAGE_MAX_DIRECTORIES,
   SKILL_EXECUTION_PACKAGE_MAX_FILE_BYTES,
   SKILL_EXECUTION_PACKAGE_MAX_FILES
-} from '@shared/types/skill'
+} from '@deepchat/shared/types/skill'
 
 const TEMP_DIRECTORY_PREFIX = 'deepchat-skill-exec-'
 const OWNERSHIP_MARKER = '.deepchat-package-owner'

@@ -32,7 +32,7 @@ describe('ComputerUsePreviewPresenter', () => {
         fromId: (id: number) => windows.get(id) ?? null
       }
     }))
-    vi.doMock('@shared/logger', () => ({
+    vi.doMock('@deepchat/shared/logger', () => ({
       default: {
         info: vi.fn(),
         warn: vi.fn(),

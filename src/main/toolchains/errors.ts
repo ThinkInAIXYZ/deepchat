@@ -2,7 +2,7 @@ import type {
   ToolchainDownloadReason,
   ToolchainKind,
   ToolchainResolveReason
-} from '@shared/types/toolchains'
+} from '@deepchat/shared/types/toolchains'
 
 export class ToolchainResolutionError extends Error {
   readonly kind: ToolchainKind

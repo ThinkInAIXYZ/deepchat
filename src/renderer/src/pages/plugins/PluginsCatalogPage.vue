@@ -117,7 +117,11 @@ import { ScrollArea } from '@shadcn/components/ui/scroll-area'
 import { createOcrClient } from '@api/OcrClient'
 import { createPluginClient } from '@api/PluginClient'
 import { createRemoteControlClient } from '@api/RemoteControlClient'
-import { CUA_PLUGIN_ID, type PluginActionResult, type PluginListItem } from '@shared/types/plugin'
+import {
+  CUA_PLUGIN_ID,
+  type PluginActionResult,
+  type PluginListItem
+} from '@deepchat/shared/types/plugin'
 import type { RemoteChannel } from '@shared/types/remote'
 import { usePluginCatalogStore } from '@/stores/pluginCatalog'
 

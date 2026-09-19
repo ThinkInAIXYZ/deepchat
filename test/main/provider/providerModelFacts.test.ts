@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { ModelType } from '@shared/model'
+import { ModelType } from '@deepchat/shared/model'
 import {
   hasPersistedDerivedProviderModelFields,
   stripDerivedProviderModelFields
 } from '@/provider/providerModelFacts'
-import type { MODEL_META } from '@shared/types/provider'
+import type { MODEL_META } from '@deepchat/shared/types/provider'
 
 const createModel = (providerId: string): MODEL_META => ({
   id: 'model-id',

@@ -1,6 +1,6 @@
 import { BrowserWindow, nativeImage, Notification, NotificationConstructorOptions } from 'electron'
 import icon from '../../../resources/icon.png?asset'
-import type { DeepchatEventPublisher } from '@shared/contracts/events'
+import type { DeepchatEventPublisher } from '@deepchat/shared/contracts/events'
 import type { DesktopSettings } from './settings'
 
 const notificationMessages = import.meta.glob<{ generationComplete: string }>(

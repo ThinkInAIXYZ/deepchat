@@ -1,4 +1,4 @@
-import logger from '../shared/logger.js'
+import logger from '@deepchat/shared/logger'
 import { DeepChatAgentRuntime } from '../instance/deepChatAgentRuntime.js'
 import { DeepChatContextCoordinator } from '../loop/contextCoordinator.js'
 import { InputPreparationCoordinator } from '../loop/inputPreparationCoordinator.js'
@@ -28,7 +28,7 @@ import { DeepChatToolResolver } from '../runtime/toolResolver.js'
 import { ToolOutputGuard } from '../runtime/toolOutputGuard.js'
 import { ToolSurfaceShadowDiagnosticsRegistry } from '../runtime/toolSurfaceDiagnostics.js'
 import { ToolSurfaceCanaryDiagnosticsRegistry } from '../runtime/toolSurfaceCanaryDiagnostics.js'
-import { resolveAgentOutputLimits } from '../shared/lib/agentOutputLimits.js'
+import { resolveAgentOutputLimits } from '@deepchat/shared/lib/agentOutputLimits'
 import {
   createToolPermissionReviewer,
   createToolResultNormalizer,
@@ -47,10 +47,10 @@ import {
 } from '../tape/application/capabilityAdapters.js'
 import { createPendingInputWakeupBinding } from './pendingInputWakeupBinding.js'
 import type { MonotonicClock } from '../collab/lib/monotonicTime.js'
-import type { PluginContextPort } from '../shared/types/userPlugin.js'
-import type { ProviderExecutionPort } from '../shared/types/provider.js'
-import type { SkillMetadataSnapshotPort, SkillServicePort } from '../shared/types/skill.js'
-import type { ToolServicePort } from '../shared/types/tool.js'
+import type { PluginContextPort } from '@deepchat/shared/types/userPlugin'
+import type { ProviderExecutionPort } from '@deepchat/shared/types/provider'
+import type { SkillMetadataSnapshotPort, SkillServicePort } from '@deepchat/shared/types/skill'
+import type { ToolServicePort } from '@deepchat/shared/types/tool'
 import type { HookObserver } from '../collab/hook/observer.js'
 import type { MemoryRuntimePort } from '../collab/memory/injection.js'
 import type {

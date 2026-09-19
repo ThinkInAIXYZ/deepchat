@@ -15,9 +15,9 @@ import type {
   MessageFile,
   SendMessageInput,
   UserMessageInlineItem
-} from '@shared/types/agent-interface'
-import type { CapabilitySnapshotQuery } from '@shared/types/model-capabilities'
-import { isAttachmentPreparationCandidate } from '@shared/utils/attachmentRepresentation'
+} from '@deepchat/shared/types/agent-interface'
+import type { CapabilitySnapshotQuery } from '@deepchat/shared/types/model-capabilities'
+import { isAttachmentPreparationCandidate } from '@deepchat/shared/utils/attachmentRepresentation'
 import { switchAttachmentToVisionModel } from '@/components/chat/attachmentModelPicker'
 import {
   applyAcceptedComposerSubmission,

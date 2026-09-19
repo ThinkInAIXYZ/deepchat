@@ -1,6 +1,6 @@
 /** Resolve only explicitly named bindings. Values remain outside persisted configuration. */
 import { createHash } from 'node:crypto'
-import type { MCPServerConfig } from '@shared/types/mcp'
+import type { MCPServerConfig } from '@deepchat/shared/types/mcp'
 
 export function resolveMcpEnvironmentBinding(
   value: string,

@@ -6,7 +6,7 @@ import type {
   McpAppCsp,
   McpAppDescriptor,
   McpAppPermissions
-} from '@shared/types/mcp'
+} from '@deepchat/shared/types/mcp'
 
 const DEFAULT_INSTANCE_TTL_MS = 30 * 60 * 1000
 const CONSENT_TIMEOUT_MS = 2 * 60 * 1000

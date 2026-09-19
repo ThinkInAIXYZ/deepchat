@@ -10,7 +10,7 @@ import {
   LOCAL_CONTROL_SURFACE_VERSION,
   LocalControlRpcResponseSchema,
   LocalControlStreamRecordSchema
-} from '@shared/contracts/localControl'
+} from '@deepchat/shared/contracts/localControl'
 import {
   artifactsDescribeRoute,
   cliVersionRoute,

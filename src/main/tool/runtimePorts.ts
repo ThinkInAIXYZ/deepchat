@@ -1,6 +1,6 @@
-import type { FileServicePort } from '@shared/types/file'
-import type { ProviderRuntimePort } from '@shared/types/provider'
-import type { MCPToolDefinition } from '@shared/types/mcp'
+import type { FileServicePort } from '@deepchat/shared/types/file'
+import type { ProviderRuntimePort } from '@deepchat/shared/types/provider'
+import type { MCPToolDefinition } from '@deepchat/shared/types/mcp'
 import type { SettingsNavigationPayload } from '@shared/settingsNavigation'
 import type {
   DeepChatSubagentMeta,
@@ -16,20 +16,20 @@ import type {
   SessionKind,
   SubagentTapeLinkInput,
   SubagentTapeLinkReceipt
-} from '@shared/types/agent-interface'
-import type { LiveDelegationSubagentContext } from '@shared/orchestration/liveDelegation'
-import type { OrchestrationPolicy } from '@shared/orchestration/policy'
-import type { ToolModeOverride } from '@shared/toolMode'
+} from '@deepchat/shared/types/agent-interface'
+import type { LiveDelegationSubagentContext } from '@deepchat/shared/orchestration/liveDelegation'
+import type { OrchestrationPolicy } from '@deepchat/shared/orchestration/policy'
+import type { ToolModeOverride } from '@deepchat/shared/toolMode'
 import type {
   LiveDelegationDetail,
   LiveDelegationEventSummary,
   LiveDelegationResultPage,
   LiveDelegationSummary
-} from '@shared/orchestration/liveDelegation'
+} from '@deepchat/shared/orchestration/liveDelegation'
 import type { AgentInvocationAdmissionPort } from '@/agent/invocationAdmission'
-import type { SkillServicePort } from '@shared/types/skill'
+import type { SkillServicePort } from '@deepchat/shared/types/skill'
 import type { CacheImageOptions } from '@/platform/imageCache'
-import type { AgentMemoryCategory } from '@shared/types/agent-memory'
+import type { AgentMemoryCategory } from '@deepchat/shared/types/agent-memory'
 import type { MemoryCommandResult } from '@shared/contracts/routes/memory.routes'
 import type { SessionRuntimeUpdate } from '@/session/runtimeEvents'
 import type { SkillExecutionAuthorityPort } from '@/skill/skillExecutionAuthority'

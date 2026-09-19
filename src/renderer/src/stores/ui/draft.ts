@@ -6,19 +6,19 @@ import {
   type ComposerSessionDraft
 } from '@/features/chat-page/model/composerDraftState'
 import { loadComposerDraftFromStorage } from '@/features/chat-page/model/composerDraftPersistence'
-import { normalizeImageGenerationOptions } from '@shared/imageGenerationSettings'
-import { normalizeVideoGenerationOptions } from '@shared/videoGenerationSettings'
-import { DEFAULT_DISABLED_AGENT_TOOLS } from '@shared/agentTools'
+import { normalizeImageGenerationOptions } from '@deepchat/shared/imageGenerationSettings'
+import { normalizeVideoGenerationOptions } from '@deepchat/shared/videoGenerationSettings'
+import { DEFAULT_DISABLED_AGENT_TOOLS } from '@deepchat/shared/agentTools'
 import {
   DEFAULT_ORCHESTRATION_POLICY,
   type OrchestrationPolicy
-} from '@shared/orchestration/policy'
+} from '@deepchat/shared/orchestration/policy'
 import type {
   CreateSessionInput,
   PermissionMode,
   SessionGenerationSettings
-} from '@shared/types/agent-interface'
-import type { ToolModeOverride } from '@shared/toolMode'
+} from '@deepchat/shared/types/agent-interface'
+import type { ToolModeOverride } from '@deepchat/shared/toolMode'
 
 export interface StartDeeplinkPayload {
   token: number

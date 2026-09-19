@@ -1,4 +1,4 @@
-import logger from '@shared/logger'
+import logger from '@deepchat/shared/logger'
 import {
   TOOL_EXECUTION,
   type MCPContentItem,
@@ -14,17 +14,17 @@ import {
   type ToolDispatchCommit,
   type ToolOutcomeProjectionRegistrar,
   type ToolCallResult
-} from '@shared/types/mcp'
+} from '@deepchat/shared/types/mcp'
 import type { AgentSettingsPort } from '@/agent/settings'
 import { ServerManager } from './serverManager'
 import { McpClient } from './mcpClient'
 import { jsonrepair } from 'jsonrepair'
 import { getExplicitlyDeniedPluginTools, resolvePluginToolPolicy } from '@/plugin/toolPolicyStore'
-import type { DeepchatEventPublisher } from '@shared/contracts/events'
+import type { DeepchatEventPublisher } from '@deepchat/shared/contracts/events'
 import type { SemanticNotificationPublisher } from '@/notifications'
 import { awaitWithAbort } from '@deepchat/agent-kernel/collab/lib/awaitWithAbort'
 import type { McpSettings } from './settings'
-import { CUA_PLUGIN_ID } from '@shared/types/plugin'
+import { CUA_PLUGIN_ID } from '@deepchat/shared/types/plugin'
 import {
   appendCuaResultProjections,
   normalizeCuaToolArguments,

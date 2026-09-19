@@ -85,7 +85,7 @@ import { Icon } from '@iconify/vue'
 import { useI18n } from 'vue-i18n'
 import { DcButton } from '@dc-ui/components/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@shadcn/components/ui/dialog'
-import type { ToolCallImagePreview } from '@shared/types/core/mcp'
+import type { ToolCallImagePreview } from '@deepchat/shared/types/core/mcp'
 import ImageActionContextMenu from './ImageActionContextMenu.vue'
 import { useImageActions } from '@/composables/useImageActions'
 

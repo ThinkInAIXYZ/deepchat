@@ -1,7 +1,10 @@
 import { defineComponent } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { ProviderImportApplyResult, ProviderImportScanResult } from '@shared/providerImport'
+import type {
+  ProviderImportApplyResult,
+  ProviderImportScanResult
+} from '@deepchat/shared/providerImport'
 
 const buttonStub = defineComponent({
   name: 'Button',

@@ -1,5 +1,5 @@
 import type { JSONContent } from '@tiptap/core'
-import type { MessageFile, UserMessageInlineItem } from '@shared/types/agent-interface'
+import type { MessageFile, UserMessageInlineItem } from '@deepchat/shared/types/agent-interface'
 
 export interface ComposerSessionDraft {
   revision: number

@@ -1,7 +1,7 @@
 import { toAppSessionId } from '../collab/agent-shared/agentSessionIds.js'
 import type { SessionScopeRegistry } from '../instance/deepChatAgentRuntime.js'
 import type { SessionAgentRowPort } from '../contracts/sessionAgentRow.js'
-import type { SessionKind } from '../shared/types/agent-interface.js'
+import type { SessionKind } from '@deepchat/shared/types/agent-interface'
 
 export interface SessionIdentityServiceDependencies {
   registry: SessionScopeRegistry

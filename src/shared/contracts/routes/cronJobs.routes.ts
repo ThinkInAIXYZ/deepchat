@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { defineRouteContract } from '../common'
+import { defineRouteContract } from '@deepchat/shared/contracts/common'
 import {
   CRON_JOB_CONCURRENCY_POLICIES,
   CRON_JOB_DELIVERY_STATUSES,

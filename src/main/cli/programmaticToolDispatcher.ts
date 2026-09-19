@@ -21,15 +21,15 @@ import {
   toolCallRoute,
   toolDescribeRoute,
   toolSearchRoute
-} from '@shared/contracts/routes/tools.routes'
-import type { JsonValue } from '@shared/contracts/common'
+} from '@deepchat/shared/contracts/routes/tools.routes'
+import type { JsonValue } from '@deepchat/shared/contracts/common'
 import type {
   MCPToolCall,
   MCPToolResponse,
   ToolDispatchCommit,
   ToolOutcomeProjectionRegistrar
-} from '@shared/types/core/mcp'
-import type { ToolPermissionPreCheckResult } from '@shared/types/tool'
+} from '@deepchat/shared/types/core/mcp'
+import type { ToolPermissionPreCheckResult } from '@deepchat/shared/types/tool'
 import {
   CommittedToolOutcomeProjectionError,
   ExecutionJournalError,

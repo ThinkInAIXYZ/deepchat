@@ -1,5 +1,5 @@
 export * from './episodeRegistry'
-export * from './notificationPolicy'
+export * from '@deepchat/shared/notifications/notificationPolicy'
 export * from './operationRegistry'
-export * from './semanticNotification'
+export * from '@deepchat/shared/notifications/semanticNotification'
 export * from './timing'

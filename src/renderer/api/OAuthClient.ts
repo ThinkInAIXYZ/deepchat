@@ -2,7 +2,7 @@ import type { DeepchatBridge } from '@shared/contracts/bridge'
 import {
   oauthOpenAICodexStatusChangedEvent,
   oauthXaiGrokStatusChangedEvent
-} from '@shared/contracts/events'
+} from '@deepchat/shared/contracts/events'
 import {
   oauthOpenAICodexCancelLoginRoute,
   oauthOpenAICodexCompleteBrowserLoginFromUrlRoute,

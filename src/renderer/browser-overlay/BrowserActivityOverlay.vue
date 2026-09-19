@@ -6,7 +6,7 @@
 
 <script setup lang="ts">
 import { onBeforeUnmount, ref } from 'vue'
-import type { YoBrowserActivityPayload } from '@shared/types/browser'
+import type { YoBrowserActivityPayload } from '@deepchat/shared/types/browser'
 
 const HALO_SETTLE_MS = 900
 const ACTIVITY_SAFETY_TTL_MS = 2500

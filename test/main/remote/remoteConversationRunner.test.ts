@@ -14,7 +14,7 @@ import type {
   RemoteSessionTurnPort,
   RemoteWorkspacePort
 } from '@/remote/ports'
-import type { SessionWithState } from '@shared/types/agent-interface'
+import type { SessionWithState } from '@deepchat/shared/types/agent-interface'
 
 const createSession = (overrides: Partial<SessionWithState> = {}): SessionWithState => ({
   id: 'session-1',

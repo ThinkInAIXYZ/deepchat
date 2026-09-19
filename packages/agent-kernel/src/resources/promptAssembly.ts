@@ -5,7 +5,7 @@ import type {
   DeepChatPromptDegradationCode,
   DeepChatPromptSectionKind,
   DeepChatPromptSourceFreshness
-} from '../shared/types/prompt-assembly.js'
+} from '@deepchat/shared/types/prompt-assembly'
 
 const MAX_PROMPT_SECTIONS = 64
 const MAX_SECTION_DEGRADATION_CODES = 16

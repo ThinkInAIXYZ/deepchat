@@ -9,30 +9,34 @@ import {
 } from 'ai'
 import type { Instructions, JSONValue, ModelMessage, SystemModelMessage } from 'ai'
 import { APICallError } from '@ai-sdk/provider'
-import type { ChatMessage } from '@shared/types/core/chat-message'
-import type { LLMResponse } from '@shared/types/provider'
-import type { MCPToolDefinition } from '@shared/types/mcp'
-import type { LLM_EMBEDDING_ATTRS, LLM_PROVIDER, ModelConfig } from '@shared/types/provider'
-import { ApiEndpointType } from '@shared/model'
+import type { ChatMessage } from '@deepchat/shared/types/core/chat-message'
+import type { LLMResponse } from '@deepchat/shared/types/provider'
+import type { MCPToolDefinition } from '@deepchat/shared/types/mcp'
+import type {
+  LLM_EMBEDDING_ATTRS,
+  LLM_PROVIDER,
+  ModelConfig
+} from '@deepchat/shared/types/provider'
+import { ApiEndpointType } from '@deepchat/shared/model'
 import {
   applyModelRequestPolicy,
   applyRequestParameterPolicy,
   isKimiK3ModelId,
   resolveModelRequestPolicy,
   type ModelRequestPolicy
-} from '@shared/modelRequestPolicy'
+} from '@deepchat/shared/modelRequestPolicy'
 import {
   normalizeImageGenerationOptions,
   supportsOpenAIImageGenerationSettings,
   type ImageGenerationOptions
-} from '@shared/imageGenerationSettings'
+} from '@deepchat/shared/imageGenerationSettings'
 import {
   isVideoGenerationModelConfig,
   normalizeVideoGenerationOptions,
   resolveOpenAICompatibleVideoRequestBodyShape,
   type VideoGenerationOptions,
   type VideoGenerationReference
-} from '@shared/videoGenerationSettings'
+} from '@deepchat/shared/videoGenerationSettings'
 import {
   isChatAudioTtsModel,
   isGeminiGenerateContentTtsModel,
@@ -40,10 +44,10 @@ import {
   isTtsModelConfig,
   normalizeTtsSettings,
   ttsFormatToMimeType
-} from '@shared/ttsSettings'
+} from '@deepchat/shared/ttsSettings'
 import { cacheImage } from '@/platform/imageCache'
 import { EMBEDDING_TEST_KEY, isNormalized } from '@/utils/vector'
-import type { LLMCoreStreamEvent } from '@shared/types/core/llm-events'
+import type { LLMCoreStreamEvent } from '@deepchat/shared/types/core/llm-events'
 import { mcpToolsToAISDKTools } from './toolMapper'
 import { mapMessagesToModelMessages } from './messageMapper'
 import { buildProviderOptions } from './providerOptionsMapper'
@@ -59,8 +63,8 @@ import {
   resolveEmbeddingBatchLimit
 } from './embeddingBatchLimits'
 import type { PromptCacheIntent } from '../promptCacheStrategy'
-import type { ResolvedModelCapabilitySnapshot } from '@shared/types/model-capabilities'
-import { normalizeReasoningEffortValue } from '@shared/types/model-db'
+import type { ResolvedModelCapabilitySnapshot } from '@deepchat/shared/types/model-capabilities'
+import { normalizeReasoningEffortValue } from '@deepchat/shared/types/model-db'
 import { createDeepSeekResponsesAdapter } from '@deepchat/agent-kernel/collab/provider/deepseekResponsesAdapter'
 import { fetchWithProviderHeaders } from '../providerHeaders'
 

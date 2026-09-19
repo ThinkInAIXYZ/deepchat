@@ -1,4 +1,4 @@
-import type { Agent } from '@shared/types/agent-interface'
+import type { Agent } from '@deepchat/shared/types/agent-interface'
 import type { AgentSettingsPort } from '@/agent/settings'
 
 export async function listAvailableAgents(

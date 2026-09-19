@@ -2,12 +2,12 @@ import type {
   AgentMemoryAuditActorType,
   AgentMemoryAuditFailureStatus,
   AgentMemoryAuditStatus
-} from '../../../shared/types/agent-memory.js'
+} from '@deepchat/shared/types/agent-memory'
 
 export type {
   AgentMemoryAuditActorType,
   AgentMemoryAuditStatus
-} from '../../../shared/types/agent-memory.js'
+} from '@deepchat/shared/types/agent-memory'
 
 export interface AgentMemoryAuditRow {
   id: string

@@ -1,5 +1,5 @@
 import type { SettingsStore } from '@/config/settingsStore'
-import type { DeepchatEventPublisher } from '@shared/contracts/events'
+import type { DeepchatEventPublisher } from '@deepchat/shared/contracts/events'
 import type { ShortcutKeySetting } from '@shared/types/desktop'
 import { defaultShortcutKey } from './shortcutKeySettings'
 import { app, nativeTheme } from 'electron'
