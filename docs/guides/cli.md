@@ -242,13 +242,27 @@ human-only。Skill/MCP 的脱敏列表可直接读取。
 
 | Owner                                                   | Path                                                   |
 | ------------------------------------------------------- | ------------------------------------------------------ |
-| thin CLI、argv、输出和本地文件 I/O                      | `src/cli`                                              |
-| server、surface、policy、domain adapters、ArtifactSpool | `src/main/cli`                                         |
-| 唯一 composition/start/stop owner                       | `src/main/app/composition.ts`                          |
-| canonical protocol 与 route contracts                   | `src/shared/contracts`                                 |
-| 通用批准状态机                                          | `src/main/approval`                                    |
-| Agent shell gate                                        | `src/main/tool/permission/commandPermissionService.ts` |
-| bundled Agent instructions                              | `resources/skills/deepchat-cli/SKILL.md`               |
+| thin CLI、argv、输出和本地文件 I/O                      | `packages/cli/src`                                     |
+| server、surface、policy、domain adapters、ArtifactSpool | `packages/desktop/src/main/cli`                        |
+| 唯一 composition/start/stop owner                       | `packages/desktop/src/main/app/composition.ts`         |
+| 公共 wire protocol 与 route contracts                   | `packages/shared/src/contracts`                         |
+| Desktop adapter/route（Desktop-specific barrel 与复用）  | `packages/desktop/src/shared/contracts`                 |
+| 通用批准状态机                                          | `packages/desktop/src/main/approval`                   |
+| Agent shell gate                                        | `packages/agent-kernel/src/collab/tool/permission/commandPermissionService.ts` |
+| bundled Agent instructions                              | `packages/desktop/resources/skills/deepchat-cli/SKILL.md` |
+
+### 本地构建与运行
+
+`pnpm run cli:build` 打包 CLI 到 `packages/desktop/out/cli/deepchat.mjs`（版本号取 Desktop
+package.json）。CLI 无法直接从 TypeScript 源码运行（运行时 import specifier 依赖 workspace
+包解析），先打包再用 `cli:run` 执行是标准调试回路；对着一个运行中的 Desktop（dev 或打包
+均可，本地控制面需可用）：
+
+```sh
+pnpm run cli:build
+pnpm run cli:run -- --help
+pnpm run cli:run -- profile list
+```
 
 main 只监听 UDS 或 named pipe，不开放 TCP fallback。CLI surface 引用 canonical typed contracts，但
 不是内部 route registry 的通用代理。新增能力必须显式加入 surface，并同时定义 caller、scope、

@@ -6,189 +6,190 @@ import process from 'node:process'
 import { promisify } from 'node:util'
 import { fileURLToPath } from 'node:url'
 
-const ROOT = process.cwd()
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const REPORT_DIR = path.join(ROOT, 'docs/architecture/baselines')
 const execFileAsync = promisify(execFile)
 const AGENT_SYSTEM_SOURCE_ROOTS = [
-  'src/main/agent/shared',
-  'src/main/agent/manager',
-  'src/main/agent/deepchat',
-  'src/main/agent/acp'
+  'packages/desktop/src/main/agent/shared',
+  'packages/desktop/src/main/agent/manager',
+  'packages/desktop/src/main/agent/deepchat',
+  'packages/desktop/src/main/agent/acp',
+  'packages/agent-kernel/src'
 ]
 const AGENT_SYSTEM_RUNTIME_BOUNDARY_FILES = [
-  'src/main/session/query.ts',
-  'src/main/session/assignment.ts',
-  'src/main/session/turn.ts',
-  'src/main/session/lifecycle.ts',
-  'src/main/agent/deepchat/harness/deepChatAgentHarness.ts',
-  'src/main/agent/deepchat/harness/createDeepChatAgentHarness.ts',
-  'src/main/agent/deepchat/runtime/runLifecycleCoordinator.ts',
-  'src/main/agent/deepchat/runtime/sessionStatusPublisher.ts',
-  'src/main/agent/deepchat/runtime/pendingInputAdmissionCoordinator.ts',
-  'src/main/agent/deepchat/runtime/pendingInputPump.ts',
-  'src/main/agent/deepchat/runtime/turnCoordinator.ts',
-  'src/main/agent/deepchat/runtime/compactionRuntimeCoordinator.ts',
-  'src/main/agent/deepchat/runtime/sessionSettingsCoordinator.ts',
-  'src/main/agent/deepchat/runtime/runtimeHookSink.ts',
-  'src/main/agent/deepchat/runtime/process.ts',
-  'src/main/agent/deepchat/runtime/dispatch.ts',
-  'src/main/session/data/transcript.ts',
-  'src/main/tape/application/sessionTape.ts',
-  'src/main/tape/ports/capabilities.ts',
-  'src/main/provider/providers/acpProvider.ts'
+  'packages/desktop/src/main/session/query.ts',
+  'packages/desktop/src/main/session/assignment.ts',
+  'packages/desktop/src/main/session/turn.ts',
+  'packages/desktop/src/main/session/lifecycle.ts',
+  'packages/desktop/src/main/agent/deepchat/harness/deepChatAgentHarness.ts',
+  'packages/desktop/src/main/agent/deepchat/harness/createDeepChatAgentHarness.ts',
+  'packages/agent-kernel/src/runtime/runLifecycleCoordinator.ts',
+  'packages/agent-kernel/src/runtime/sessionStatusPublisher.ts',
+  'packages/agent-kernel/src/runtime/pendingInputAdmissionCoordinator.ts',
+  'packages/agent-kernel/src/runtime/pendingInputPump.ts',
+  'packages/agent-kernel/src/runtime/turnCoordinator.ts',
+  'packages/agent-kernel/src/runtime/compactionRuntimeCoordinator.ts',
+  'packages/agent-kernel/src/runtime/sessionSettingsCoordinator.ts',
+  'packages/agent-kernel/src/runtime/runtimeHookSink.ts',
+  'packages/agent-kernel/src/runtime/process.ts',
+  'packages/agent-kernel/src/runtime/dispatch.ts',
+  'packages/desktop/src/main/session/data/transcript.ts',
+  'packages/desktop/src/main/tape/application/sessionTape.ts',
+  'packages/agent-kernel/src/tape/ports/capabilities.ts',
+  'packages/desktop/src/main/provider/providers/acpProvider.ts'
 ]
 const AGENT_SYSTEM_EXPECTED_FILES = [
-  'src/main/agent/shared/agentDescriptors.ts',
-  'src/main/agent/shared/agentCatalogCodec.ts',
-  'src/main/agent/shared/appSessionService.ts',
-  'src/main/agent/manager/agentManager.ts',
-  'src/main/agent/manager/sessionHandles.ts',
-  'src/main/agent/manager/deepChatAgentBackend.ts',
-  'src/main/agent/manager/directAcpAgentBackend.ts',
-  'src/main/agent/deepchat/instance/deepChatAgentRuntime.ts',
-  'src/main/agent/deepchat/instance/deepChatAgentInstance.ts',
-  'src/main/agent/deepchat/loop/deepChatLoopEngine.ts',
-  'src/main/agent/deepchat/loop/ports.ts',
-  'src/main/agent/deepchat/memory/memoryRuntimeCoordinator.ts',
-  'src/main/agent/deepchat/memory/memoryPromptContributor.ts',
-  'src/main/agent/deepchat/memory/memoryIngestionObserver.ts',
-  'src/main/agent/acp/instance/acpAgentRuntime.ts',
-  'src/main/agent/acp/instance/acpAgentInstance.ts',
+  'packages/desktop/src/main/agent/shared/agentDescriptors.ts',
+  'packages/desktop/src/main/agent/shared/agentCatalogCodec.ts',
+  'packages/desktop/src/main/agent/shared/appSessionService.ts',
+  'packages/desktop/src/main/agent/manager/agentManager.ts',
+  'packages/desktop/src/main/agent/manager/sessionHandles.ts',
+  'packages/desktop/src/main/agent/manager/deepChatAgentBackend.ts',
+  'packages/desktop/src/main/agent/manager/directAcpAgentBackend.ts',
+  'packages/agent-kernel/src/instance/deepChatAgentRuntime.ts',
+  'packages/agent-kernel/src/instance/deepChatAgentInstance.ts',
+  'packages/agent-kernel/src/loop/deepChatLoopEngine.ts',
+  'packages/agent-kernel/src/loop/ports.ts',
+  'packages/agent-kernel/src/memory/memoryRuntimeCoordinator.ts',
+  'packages/agent-kernel/src/memory/memoryPromptContributor.ts',
+  'packages/agent-kernel/src/memory/memoryIngestionObserver.ts',
+  'packages/desktop/src/main/agent/acp/instance/acpAgentRuntime.ts',
+  'packages/desktop/src/main/agent/acp/instance/acpAgentInstance.ts',
   ...AGENT_SYSTEM_RUNTIME_BOUNDARY_FILES
 ]
 const AGENT_SYSTEM_OWNER_EVIDENCE = [
-  ['agentManager', 'src/main/agent/manager/agentManager.ts', /\bclass AgentManager\b/g],
+  ['agentManager', 'packages/desktop/src/main/agent/manager/agentManager.ts', /\bclass AgentManager\b/g],
   [
     'typedDeepChatBackend',
-    'src/main/agent/manager/deepChatAgentBackend.ts',
+    'packages/desktop/src/main/agent/manager/deepChatAgentBackend.ts',
     /\bfunction createDeepChatAgentBackend\b/g
   ],
   [
     'directAcpBackend',
-    'src/main/agent/manager/directAcpAgentBackend.ts',
+    'packages/desktop/src/main/agent/manager/directAcpAgentBackend.ts',
     /\b(?:function|const) createDirectAcpAgentBackend\b/g
   ],
   [
     'deepChatRuntime',
-    'src/main/agent/deepchat/instance/deepChatAgentRuntime.ts',
+    'packages/agent-kernel/src/instance/deepChatAgentRuntime.ts',
     /\bclass DeepChatAgentRuntime\b/g
   ],
   [
     'deepChatInstance',
-    'src/main/agent/deepchat/instance/deepChatAgentInstance.ts',
+    'packages/agent-kernel/src/instance/deepChatAgentInstance.ts',
     /\bclass DeepChatAgentInstance\b/g
   ],
   [
     'deepChatLoopEngine',
-    'src/main/agent/deepchat/loop/deepChatLoopEngine.ts',
+    'packages/agent-kernel/src/loop/deepChatLoopEngine.ts',
     /\bclass DeepChatLoopEngine\b/g
   ],
   [
     'tapeToolFactWriter',
-    'src/main/tape/ports/capabilities.ts',
+    'packages/agent-kernel/src/tape/ports/capabilities.ts',
     /\binterface TapeToolFactWriter\b/g
   ],
   [
     'memoryRuntimeCoordinator',
-    'src/main/agent/deepchat/memory/memoryRuntimeCoordinator.ts',
+    'packages/agent-kernel/src/memory/memoryRuntimeCoordinator.ts',
     /\bclass MemoryRuntimeCoordinator\b/g
   ],
   [
     'memoryPromptContributor',
-    'src/main/agent/deepchat/memory/memoryPromptContributor.ts',
+    'packages/agent-kernel/src/memory/memoryPromptContributor.ts',
     /\binterface MemoryPromptContributor\b/g
   ],
   [
     'memoryIngestionObserver',
-    'src/main/agent/deepchat/memory/memoryIngestionObserver.ts',
+    'packages/agent-kernel/src/memory/memoryIngestionObserver.ts',
     /\binterface MemoryIngestionObserver\b/g
   ],
   [
     'acpRuntime',
-    'src/main/agent/acp/instance/acpAgentRuntime.ts',
+    'packages/desktop/src/main/agent/acp/instance/acpAgentRuntime.ts',
     /\bclass AcpAgentRuntime\b/g
   ],
   [
     'acpInstance',
-    'src/main/agent/acp/instance/acpAgentInstance.ts',
+    'packages/desktop/src/main/agent/acp/instance/acpAgentInstance.ts',
     /\bclass AcpAgentInstance\b/g
   ],
   [
     'sessionQuery',
-    'src/main/session/query.ts',
+    'packages/desktop/src/main/session/query.ts',
     /\bclass SessionQuery\b/g
   ],
   [
     'sessionAssignment',
-    'src/main/session/assignment.ts',
+    'packages/desktop/src/main/session/assignment.ts',
     /\bclass SessionAssignment\b/g
   ],
   [
     'sessionTurn',
-    'src/main/session/turn.ts',
+    'packages/desktop/src/main/session/turn.ts',
     /\bclass SessionTurn\b/g
   ],
   [
     'sessionLifecycle',
-    'src/main/session/lifecycle.ts',
+    'packages/desktop/src/main/session/lifecycle.ts',
     /\bclass SessionLifecycle\b/g
   ],
   [
     'deepChatAgentHarness',
-    'src/main/agent/deepchat/harness/deepChatAgentHarness.ts',
+    'packages/desktop/src/main/agent/deepchat/harness/deepChatAgentHarness.ts',
     /\bclass DeepChatAgentHarness\b/g
   ],
   [
     'runLifecycleCoordinator',
-    'src/main/agent/deepchat/runtime/runLifecycleCoordinator.ts',
+    'packages/agent-kernel/src/runtime/runLifecycleCoordinator.ts',
     /\bclass RunLifecycleCoordinator\b/g
   ],
   [
     'sessionStatusPublisher',
-    'src/main/agent/deepchat/runtime/sessionStatusPublisher.ts',
+    'packages/agent-kernel/src/runtime/sessionStatusPublisher.ts',
     /\bclass SessionStatusPublisher\b/g
   ],
   [
     'pendingInputAdmissionCoordinator',
-    'src/main/agent/deepchat/runtime/pendingInputAdmissionCoordinator.ts',
+    'packages/agent-kernel/src/runtime/pendingInputAdmissionCoordinator.ts',
     /\bclass PendingInputAdmissionCoordinator\b/g
   ],
   [
     'pendingInputPump',
-    'src/main/agent/deepchat/runtime/pendingInputPump.ts',
+    'packages/agent-kernel/src/runtime/pendingInputPump.ts',
     /\bclass PendingInputPump\b/g
   ],
   [
     'turnCoordinator',
-    'src/main/agent/deepchat/runtime/turnCoordinator.ts',
+    'packages/agent-kernel/src/runtime/turnCoordinator.ts',
     /\bclass TurnCoordinator\b/g
   ],
   [
     'compactionRuntimeCoordinator',
-    'src/main/agent/deepchat/runtime/compactionRuntimeCoordinator.ts',
+    'packages/agent-kernel/src/runtime/compactionRuntimeCoordinator.ts',
     /\bclass CompactionRuntimeCoordinator\b/g
   ],
   [
     'sessionSettingsCoordinator',
-    'src/main/agent/deepchat/runtime/sessionSettingsCoordinator.ts',
+    'packages/agent-kernel/src/runtime/sessionSettingsCoordinator.ts',
     /\bclass SessionSettingsCoordinator\b/g
   ],
   [
     'runtimeHookSink',
-    'src/main/agent/deepchat/runtime/runtimeHookSink.ts',
+    'packages/agent-kernel/src/runtime/runtimeHookSink.ts',
     /\bclass RuntimeHookSink\b/g
   ]
 ]
 const AGENT_SYSTEM_RETIRED_PATHS = [
-  'src/main/agent/manager/legacyAgentBackends.ts',
-  'src/main/lib/agentRuntime',
-  'src/main/presenter/index.ts',
-  'src/main/presenter/agentSessionPresenter',
-  'src/main/presenter/lifecyclePresenter',
-  'src/main/presenter/sessionPresenter',
-  'src/shared/lifecycle.ts',
-  'src/shared/types/presenters/agent-session.presenter.d.ts',
-  'src/shared/types/presenters/session.presenter.d.ts'
+  'packages/desktop/src/main/agent/manager/legacyAgentBackends.ts',
+  'packages/desktop/src/main/lib/agentRuntime',
+  'packages/desktop/src/main/presenter/index.ts',
+  'packages/desktop/src/main/presenter/agentSessionPresenter',
+  'packages/desktop/src/main/presenter/lifecyclePresenter',
+  'packages/desktop/src/main/presenter/sessionPresenter',
+  'packages/desktop/src/shared/lifecycle.ts',
+  'packages/desktop/src/shared/types/presenters/agent-session.presenter.d.ts',
+  'packages/desktop/src/shared/types/presenters/session.presenter.d.ts'
 ]
 const AGENT_SYSTEM_RETIRED_SYMBOL_PATTERNS = [
   ['AgentRegistry', /\bAgentRegistry\b/g],
@@ -205,21 +206,21 @@ const AGENT_SYSTEM_RETIRED_SYMBOL_PATTERNS = [
 const AGENT_HANDLE_BACKEND_RUNTIME_KIND_PATTERN =
   /\bruntimeKind\b\s*(?::|={1,3}|!==?)\s*['"](?:legacy|direct)['"]/g
 const AGENT_SYSTEM_CONTRACT_ROOTS = [
-  'src/shared/contracts/routes',
-  'src/shared/contracts/events'
+  'packages/shared/src/contracts/routes',
+  'packages/shared/src/contracts/events'
 ]
 const SQLITE_SCHEMA_ROOTS = [
-  'src/main/data/schemaCatalog.ts',
-  'src/main/data/schemaCatalogMetadata.ts',
-  'src/main/data/schemaTypes.ts'
+  'packages/desktop/src/main/data/schemaCatalog.ts',
+  'packages/desktop/src/main/data/schemaCatalogMetadata.ts',
+  'packages/desktop/src/main/data/schemaTypes.ts'
 ]
 const MEMORY_SIDECAR_SCHEMA_FILES = [
-  'src/main/memory/infra/memoryVectorStore.ts'
+  'packages/desktop/src/main/memory/infra/memoryVectorStore.ts'
 ]
 const COMPOSITION_LIFECYCLE_FILES = [
-  'src/main/app/mainProcess.ts',
-  'src/main/app/composition.ts',
-  'src/main/appMain.ts'
+  'packages/desktop/src/main/app/mainProcess.ts',
+  'packages/desktop/src/main/app/composition.ts',
+  'packages/desktop/src/main/appMain.ts'
 ]
 const SOURCE_EXTENSIONS = new Set(['.ts', '.tsx', '.js', '.jsx', '.vue', '.d.ts'])
 const EXCLUDED_DIRS = new Set(['node_modules', '.git', 'dist', 'out', 'build'])
@@ -232,10 +233,10 @@ const PHASE_ORDER = new Map([
   ['P5', 5]
 ])
 
-const MAIN_SOURCE_ROOT = path.join(ROOT, 'src/main')
-const RENDERER_SOURCE_ROOT = path.join(ROOT, 'src/renderer/src')
-const RENDERER_SETTINGS_ROOT = path.join(ROOT, 'src/renderer/settings')
-const RENDERER_SHARED_ROOT = path.join(ROOT, 'src/renderer/services')
+const MAIN_SOURCE_ROOT = path.join(ROOT, 'packages/desktop/src/main')
+const RENDERER_SOURCE_ROOT = path.join(ROOT, 'packages/desktop/src/renderer/src')
+const RENDERER_SETTINGS_ROOT = path.join(ROOT, 'packages/desktop/src/renderer/settings')
+const RENDERER_SHARED_ROOT = path.join(ROOT, 'packages/desktop/src/renderer/services')
 
 const ANALYSIS_TARGETS = [
   {
@@ -261,7 +262,7 @@ const RENDERER_BUSINESS_ROOTS = [
   RENDERER_SETTINGS_ROOT,
   RENDERER_SHARED_ROOT
 ]
-const RENDERER_QUARANTINE_ROOT = path.join(ROOT, 'src/renderer/api/legacy')
+const RENDERER_QUARANTINE_ROOT = path.join(ROOT, 'packages/desktop/src/renderer/api/legacy')
 const RENDERER_QUARANTINE_ROOTS = []
 const RENDERER_QUARANTINE_EXIT_MAX_FILES = 0
 const BRIDGE_REGISTER_PATH = path.join(
@@ -270,33 +271,33 @@ const BRIDGE_REGISTER_PATH = path.join(
 )
 
 const HOT_PATH_FILES = [
-  path.join(ROOT, 'src/main/app/composition.ts'),
-  path.join(ROOT, 'src/main/routes/index.ts'),
-  path.join(ROOT, 'src/main/agent/deepchat/harness/createDeepChatAgentHarness.ts'),
-  path.join(ROOT, 'src/main/provider/index.ts')
+  path.join(ROOT, 'packages/desktop/src/main/app/composition.ts'),
+  path.join(ROOT, 'packages/desktop/src/main/routes/index.ts'),
+  path.join(ROOT, 'packages/desktop/src/main/agent/deepchat/harness/createDeepChatAgentHarness.ts'),
+  path.join(ROOT, 'packages/desktop/src/main/provider/index.ts')
 ]
 
 const MIGRATED_RAW_CHANNEL_GUARD_PATHS = [
-  path.join(ROOT, 'src/renderer/src/App.vue'),
-  path.join(ROOT, 'src/renderer/src/stores/uiSettingsStore.ts'),
-  path.join(ROOT, 'src/renderer/src/stores/ui/session.ts'),
-  path.join(ROOT, 'src/renderer/src/stores/ui/message.ts'),
-  path.join(ROOT, 'src/renderer/src/stores/ui/agent.ts'),
-  path.join(ROOT, 'src/renderer/src/stores/ui/pendingInput.ts'),
-  path.join(ROOT, 'src/renderer/src/stores/ui/pageRouter.ts'),
-  path.join(ROOT, 'src/renderer/src/features/chat-page/ChatPage.vue'),
-  path.join(ROOT, 'src/renderer/src/pages/NewThreadPage.vue'),
-  path.join(ROOT, 'src/main/desktop/window'),
-  path.join(ROOT, 'src/main/config'),
-  path.join(ROOT, 'src/main/agent/deepchat/runtime'),
-  path.join(ROOT, 'src/main/presenter/sessionPresenter'),
-  path.join(ROOT, 'src/main/provider'),
-  path.join(ROOT, 'src/shared/contracts'),
-  path.join(ROOT, 'src/renderer/api'),
-  path.join(ROOT, 'src/preload/createBridge.ts'),
-  path.join(ROOT, 'src/preload/bridges'),
-  path.join(ROOT, 'src/main/ipc'),
-  path.join(ROOT, 'src/main/routes')
+  path.join(ROOT, 'packages/desktop/src/renderer/src/App.vue'),
+  path.join(ROOT, 'packages/desktop/src/renderer/src/stores/uiSettingsStore.ts'),
+  path.join(ROOT, 'packages/desktop/src/renderer/src/stores/ui/session.ts'),
+  path.join(ROOT, 'packages/desktop/src/renderer/src/stores/ui/message.ts'),
+  path.join(ROOT, 'packages/desktop/src/renderer/src/stores/ui/agent.ts'),
+  path.join(ROOT, 'packages/desktop/src/renderer/src/stores/ui/pendingInput.ts'),
+  path.join(ROOT, 'packages/desktop/src/renderer/src/stores/ui/pageRouter.ts'),
+  path.join(ROOT, 'packages/desktop/src/renderer/src/features/chat-page/ChatPage.vue'),
+  path.join(ROOT, 'packages/desktop/src/renderer/src/pages/NewThreadPage.vue'),
+  path.join(ROOT, 'packages/desktop/src/main/desktop/window'),
+  path.join(ROOT, 'packages/desktop/src/main/config'),
+  path.join(ROOT, 'packages/agent-kernel/src/runtime'),
+  path.join(ROOT, 'packages/desktop/src/main/presenter/sessionPresenter'),
+  path.join(ROOT, 'packages/desktop/src/main/provider'),
+  path.join(ROOT, 'packages/desktop/src/shared/contracts'),
+  path.join(ROOT, 'packages/desktop/src/renderer/api'),
+  path.join(ROOT, 'packages/desktop/src/preload/createBridge.ts'),
+  path.join(ROOT, 'packages/desktop/src/preload/bridges'),
+  path.join(ROOT, 'packages/desktop/src/main/ipc'),
+  path.join(ROOT, 'packages/desktop/src/main/routes')
 ]
 
 const GENERIC_LEGACY_PRESENTER_CALL_PATTERN =
@@ -432,11 +433,11 @@ async function buildAgentSystemBaseline() {
     ...(await collectRelativeSourceFiles(AGENT_SYSTEM_SOURCE_ROOTS)),
     ...AGENT_SYSTEM_RUNTIME_BOUNDARY_FILES
   ]
-  const productionFiles = await collectRelativeSourceFiles(['src/main', 'src/shared'])
+  const productionFiles = await collectRelativeSourceFiles(['packages/desktop/src/main', 'packages/shared/src'])
   const productionSource = (
     await Promise.all(productionFiles.map((file) => fs.readFile(path.join(ROOT, file), 'utf8')))
   ).join('\n')
-  const agentManagerFiles = await collectRelativeSourceFiles(['src/main/agent/manager'])
+  const agentManagerFiles = await collectRelativeSourceFiles(['packages/desktop/src/main/agent/manager'])
   const agentManagerSource = (
     await Promise.all(agentManagerFiles.map((file) => fs.readFile(path.join(ROOT, file), 'utf8')))
   ).join('\n')
@@ -458,7 +459,7 @@ async function buildAgentSystemBaseline() {
     agentManagerSource,
     AGENT_HANDLE_BACKEND_RUNTIME_KIND_PATTERN
   )
-  const loopFiles = await collectRelativeSourceFiles(['src/main/agent/deepchat/loop'])
+  const loopFiles = await collectRelativeSourceFiles(['packages/agent-kernel/src/loop'])
   const loopImports = []
   for (const file of loopFiles) {
     const source = await fs.readFile(path.join(ROOT, file), 'utf8')
@@ -493,10 +494,10 @@ async function buildAgentSystemBaseline() {
     'scripts/agent-cleanup-guard.mjs'
   ]
   const relevantDirtyFiles = await getRelevantDirtyFiles(relevantRoots)
-  const presenterRoot = path.join(ROOT, 'src/main/presenter')
-  const routesRoot = path.join(ROOT, 'src/main/routes')
-  const sqliteRoot = path.join(ROOT, 'src/main/presenter/sqlitePresenter')
-  const acpRoot = path.join(ROOT, 'src/main/agent/acp')
+  const presenterRoot = path.join(ROOT, 'packages/desktop/src/main/presenter')
+  const routesRoot = path.join(ROOT, 'packages/desktop/src/main/routes')
+  const sqliteRoot = path.join(ROOT, 'packages/desktop/src/main/presenter/sqlitePresenter')
+  const acpRoot = path.join(ROOT, 'packages/desktop/src/main/agent/acp')
   const resolvedLoopImports = loopImports.map((entry) => ({
     ...entry,
     absolute: entry.resolved ? path.join(ROOT, entry.resolved) : null
@@ -510,7 +511,7 @@ async function buildAgentSystemBaseline() {
       dirty: relevantDirtyFiles.length > 0,
       files: relevantDirtyFiles
     },
-    sourceRoots: [...AGENT_SYSTEM_SOURCE_ROOTS, 'src/shared/contracts'],
+    sourceRoots: [...AGENT_SYSTEM_SOURCE_ROOTS, 'packages/shared/src/contracts'],
     sourceFiles: [...new Set(agentSourceFiles)].sort(),
     expectedFiles,
     ownerEvidence,
@@ -667,8 +668,10 @@ function extractSpecifiers(source) {
 
 async function resolveImport(specifier, importer, scopeRoot) {
   const tryFile = async (basePath) => {
+    const jsStripped = basePath.endsWith('.js') ? basePath.slice(0, -3) : null
     const candidates = [
       basePath,
+      ...(jsStripped ? [jsStripped, `${jsStripped}.ts`] : []),
       `${basePath}.ts`,
       `${basePath}.tsx`,
       `${basePath}.js`,
@@ -699,8 +702,14 @@ async function resolveImport(specifier, importer, scopeRoot) {
     return await tryFile(path.join(scopeRoot, specifier.slice(2)))
   }
 
+  if (specifier.startsWith('@deepchat/shared/')) {
+    return await tryFile(
+      path.join(ROOT, 'packages/shared/src', specifier.slice('@deepchat/shared/'.length))
+    )
+  }
+
   if (specifier.startsWith('@shared/')) {
-    return await tryFile(path.join(ROOT, 'src/shared', specifier.slice('@shared/'.length)))
+    return await tryFile(path.join(ROOT, 'packages/desktop/src/shared', specifier.slice('@shared/'.length)))
   }
 
   if (specifier.startsWith('.')) {
@@ -1140,8 +1149,8 @@ function renderBoundaryBaselineReport({
 
   lines.push('## Renderer Single-Track Split')
   lines.push('')
-  lines.push('- Business layer: `src/renderer/src/**`, `src/renderer/settings/**`')
-  lines.push('- Retired quarantine layer: `src/renderer/api/legacy/**` must remain deleted')
+  lines.push('- Business layer: `packages/desktop/src/renderer/src/**`, `packages/desktop/src/renderer/settings/**`')
+  lines.push('- Retired quarantine layer: `packages/desktop/src/renderer/api/legacy/**` must remain deleted')
   lines.push('')
   lines.push('| Legacy surface | Business layer | Quarantine layer | Total |')
   lines.push('| --- | --- | --- | --- |')
@@ -1400,10 +1409,10 @@ export async function generateArchitectureBaseline({ outputDir = REPORT_DIR } = 
     {
       phase: 'P0',
       indicator:
-        'Retired quarantine path `src/renderer/api/legacy/**` must remain deleted and baseline emits business/retired split metrics',
+        'Retired quarantine path `packages/desktop/src/renderer/api/legacy/**` must remain deleted and baseline emits business/retired split metrics',
       current: quarantineExists
-        ? '`src/renderer/api/legacy/**` exists'
-        : '`src/renderer/api/legacy/**` deleted; split metrics emitted',
+        ? '`packages/desktop/src/renderer/api/legacy/**` exists'
+        : '`packages/desktop/src/renderer/api/legacy/**` deleted; split metrics emitted',
       status: quarantineExists ? 'blocked' : 'ready'
     },
     {

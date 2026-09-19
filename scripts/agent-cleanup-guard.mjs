@@ -1,10 +1,10 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import process from 'node:process'
-import { pathToFileURL } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import ts from 'typescript'
 
-const ROOT = process.cwd()
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 
 const SOURCE_EXTENSIONS = new Set([
   '.js',
@@ -19,32 +19,33 @@ const SOURCE_EXTENSIONS = new Set([
 ])
 
 const LEGACY_MAIN_DIRS = [
-  path.join(ROOT, 'src/main/presenter/agentPresenter'),
-  path.join(ROOT, 'src/main/presenter/sessionPresenter')
+  path.join(ROOT, 'packages/desktop/src/main/presenter/agentPresenter'),
+  path.join(ROOT, 'packages/desktop/src/main/presenter/sessionPresenter')
 ]
 
 const PRIMARY_MAIN_GUARD_PATHS = [
-  path.join(ROOT, 'src/main/agent'),
-  path.join(ROOT, 'src/main/skill'),
-  path.join(ROOT, 'src/main/mcp/toolManager.ts'),
-  path.join(ROOT, 'src/main/sync/index.ts')
+  path.join(ROOT, 'packages/desktop/src/main/agent'),
+  path.join(ROOT, 'packages/desktop/src/main/skill'),
+  path.join(ROOT, 'packages/desktop/src/main/mcp/toolManager.ts'),
+  path.join(ROOT, 'packages/desktop/src/main/sync/index.ts')
 ]
 
 const RENDERER_CHAT_GUARD_PATHS = [
-  path.join(ROOT, 'src/renderer/src/features/chat-page/ChatPage.vue'),
-  path.join(ROOT, 'src/renderer/src/pages/NewThreadPage.vue'),
-  path.join(ROOT, 'src/renderer/src/stores/ui'),
-  path.join(ROOT, 'src/renderer/src/components/chat'),
-  path.join(ROOT, 'src/renderer/src/components/message'),
-  path.join(ROOT, 'src/renderer/src/composables/useArtifacts.ts'),
-  path.join(ROOT, 'src/renderer/src/components/sidepanel/WorkspacePanel.vue')
+  path.join(ROOT, 'packages/desktop/src/renderer/src/features/chat-page/ChatPage.vue'),
+  path.join(ROOT, 'packages/desktop/src/renderer/src/pages/NewThreadPage.vue'),
+  path.join(ROOT, 'packages/desktop/src/renderer/src/stores/ui'),
+  path.join(ROOT, 'packages/desktop/src/renderer/src/components/chat'),
+  path.join(ROOT, 'packages/desktop/src/renderer/src/components/message'),
+  path.join(ROOT, 'packages/desktop/src/renderer/src/composables/useArtifacts.ts'),
+  path.join(ROOT, 'packages/desktop/src/renderer/src/components/sidepanel/WorkspacePanel.vue')
 ]
 
-const LEGACY_AGENT_RUNTIME_DIR = path.join(ROOT, 'src/main/presenter/agentPresenter')
-const PROVIDER_LAYER_DIR = path.join(ROOT, 'src/main/provider/providers')
-const SKILL_SERVICE_DIR = path.join(ROOT, 'src/main/skill')
-const MCP_TOOL_MANAGER_FILE = path.join(ROOT, 'src/main/mcp/toolManager.ts')
-const DEEPCHAT_HARNESS_DIR = path.join(ROOT, 'src/main/agent/deepchat/harness')
+const LEGACY_AGENT_RUNTIME_DIR = path.join(ROOT, 'packages/desktop/src/main/presenter/agentPresenter')
+const PROVIDER_LAYER_DIR = path.join(ROOT, 'packages/desktop/src/main/provider/providers')
+const SKILL_SERVICE_DIR = path.join(ROOT, 'packages/desktop/src/main/skill')
+const MCP_TOOL_MANAGER_FILE = path.join(ROOT, 'packages/desktop/src/main/mcp/toolManager.ts')
+const KERNEL_PACKAGE_SRC = path.join(ROOT, 'packages/agent-kernel/src')
+const DEEPCHAT_HARNESS_DIR = path.join(ROOT, 'packages/desktop/src/main/agent/deepchat/harness')
 const DEEPCHAT_AGENT_HARNESS_FILE = path.join(DEEPCHAT_HARNESS_DIR, 'deepChatAgentHarness.ts')
 const DEEPCHAT_HARNESS_COMPOSITION_FILE = path.join(
   DEEPCHAT_HARNESS_DIR,
@@ -54,14 +55,12 @@ const DEEPCHAT_HARNESS_OWNERSHIP_FILES = [
   DEEPCHAT_AGENT_HARNESS_FILE,
   DEEPCHAT_HARNESS_COMPOSITION_FILE
 ]
-// Owner layers below the harness boundary. None of them may reach back up into it.
-const DEEPCHAT_RUNTIME_LAYER_DIRS = [
-  'runtime',
-  'loop',
-  'instance',
-  'memory',
-  'resources'
-].map((segment) => path.join(ROOT, 'src/main/agent/deepchat', segment))
+// Owner layers below the harness boundary live only in the kernel package. They may not reach
+// back into the Desktop harness.
+const DEEPCHAT_RUNTIME_LAYER_SEGMENTS = ['runtime', 'loop', 'instance', 'memory', 'resources']
+const DEEPCHAT_RUNTIME_LAYER_DIRS = DEEPCHAT_RUNTIME_LAYER_SEGMENTS.map((segment) =>
+  path.join(KERNEL_PACKAGE_SRC, segment)
+)
 const DEEPCHAT_HARNESS_BARREL_FILE = path.join(DEEPCHAT_HARNESS_DIR, 'index.ts')
 // The harness barrel is the only supported entry point. Exporting the composed owner graph or its
 // factory would let callers reach an owner around the facade, or build a second runtime with its
@@ -73,32 +72,29 @@ const DEEPCHAT_HARNESS_PUBLIC_EXPORTS = new Set([
   'DeepChatHarnessSkillPort'
 ])
 const DEEPCHAT_AGENT_HARNESS_MAX_LINES = 350
-const DEEPCHAT_PENDING_INPUTS_FILE = path.join(ROOT, 'src/main/session/data/pendingInputs.ts')
+const DEEPCHAT_PENDING_INPUTS_FILE = path.join(ROOT, 'packages/desktop/src/main/session/data/pendingInputs.ts')
 const DEEPCHAT_AGENT_INSTANCE_FILE = path.join(
-  ROOT,
-  'src/main/agent/deepchat/instance/deepChatAgentInstance.ts'
+  KERNEL_PACKAGE_SRC,
+  'instance/deepChatAgentInstance.ts'
 )
 const DEEPCHAT_RUN_LIFECYCLE_FILE = path.join(
-  ROOT,
-  'src/main/agent/deepchat/runtime/runLifecycleCoordinator.ts'
+  KERNEL_PACKAGE_SRC,
+  'runtime/runLifecycleCoordinator.ts'
 )
 const DEEPCHAT_COMPACTION_SERVICE_FILE = path.join(
-  ROOT,
-  'src/main/agent/deepchat/runtime/compactionService.ts'
+  KERNEL_PACKAGE_SRC,
+  'runtime/compactionService.ts'
 )
 const DEEPCHAT_SYSTEM_PROMPT_BUILDER_FILE = path.join(
-  ROOT,
-  'src/main/agent/deepchat/resources/systemPromptBuilder.ts'
+  KERNEL_PACKAGE_SRC,
+  'resources/systemPromptBuilder.ts'
 )
-const DEEPCHAT_TOOL_ADAPTERS_FILE = path.join(
-  ROOT,
-  'src/main/agent/deepchat/runtime/toolAdapters.ts'
-)
+const DEEPCHAT_TOOL_ADAPTERS_FILE = path.join(KERNEL_PACKAGE_SRC, 'runtime/toolAdapters.ts')
 const DEEPCHAT_TOOL_PERMISSION_REVIEWER_FILE = path.join(
-  ROOT,
-  'src/main/agent/deepchat/runtime/toolPermissionReviewer.ts'
+  KERNEL_PACKAGE_SRC,
+  'runtime/toolPermissionReviewer.ts'
 )
-const DEEPCHAT_TRANSCRIPT_FILE = path.join(ROOT, 'src/main/session/data/transcript.ts')
+const DEEPCHAT_TRANSCRIPT_FILE = path.join(ROOT, 'packages/desktop/src/main/session/data/transcript.ts')
 const DEEPCHAT_ROOT_OWNERSHIP_RULES = [
   {
     kind: 'session-projection-implementation',
@@ -364,7 +360,7 @@ function resolveSpecifierPath(filePath, specifier) {
     return path.resolve(path.dirname(filePath), specifier)
   }
   if (specifier.startsWith('@/')) {
-    return path.join(ROOT, 'src/main', specifier.slice(2))
+    return path.join(ROOT, 'packages/desktop/src/main', specifier.slice(2))
   }
   return null
 }
@@ -474,19 +470,20 @@ function buildViolation(kind, filePath, detail) {
 
 async function findViolations() {
   const scanRoots = [
-    path.join(ROOT, 'src/main/agent'),
-    path.join(ROOT, 'src/main/app/composition.ts'),
-    path.join(ROOT, 'src/main/skill'),
-    path.join(ROOT, 'src/main/mcp/toolManager.ts'),
-    path.join(ROOT, 'src/main/sync/index.ts'),
-    path.join(ROOT, 'src/main/provider/providers'),
-    path.join(ROOT, 'src/renderer/src/features/chat-page/ChatPage.vue'),
-    path.join(ROOT, 'src/renderer/src/pages/NewThreadPage.vue'),
-    path.join(ROOT, 'src/renderer/src/stores/ui'),
-    path.join(ROOT, 'src/renderer/src/components/chat'),
-    path.join(ROOT, 'src/renderer/src/components/message'),
-    path.join(ROOT, 'src/renderer/src/composables/useArtifacts.ts'),
-    path.join(ROOT, 'src/renderer/src/components/sidepanel/WorkspacePanel.vue')
+    path.join(ROOT, 'packages/desktop/src/main/agent'),
+    path.join(ROOT, 'packages/agent-kernel/src'),
+    path.join(ROOT, 'packages/desktop/src/main/app/composition.ts'),
+    path.join(ROOT, 'packages/desktop/src/main/skill'),
+    path.join(ROOT, 'packages/desktop/src/main/mcp/toolManager.ts'),
+    path.join(ROOT, 'packages/desktop/src/main/sync/index.ts'),
+    path.join(ROOT, 'packages/desktop/src/main/provider/providers'),
+    path.join(ROOT, 'packages/desktop/src/renderer/src/features/chat-page/ChatPage.vue'),
+    path.join(ROOT, 'packages/desktop/src/renderer/src/pages/NewThreadPage.vue'),
+    path.join(ROOT, 'packages/desktop/src/renderer/src/stores/ui'),
+    path.join(ROOT, 'packages/desktop/src/renderer/src/components/chat'),
+    path.join(ROOT, 'packages/desktop/src/renderer/src/components/message'),
+    path.join(ROOT, 'packages/desktop/src/renderer/src/composables/useArtifacts.ts'),
+    path.join(ROOT, 'packages/desktop/src/renderer/src/components/sidepanel/WorkspacePanel.vue')
   ]
 
   const fileSet = new Set()

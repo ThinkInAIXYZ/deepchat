@@ -16,8 +16,8 @@ import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { promisify } from 'node:util'
 
-import { validateAppleTeamId } from '../apple-notarization.js'
-import { verifyDmgDistribution } from '../notarize-dmg.js'
+import { validateAppleTeamId } from '../../packages/desktop/scripts/apple-notarization.js'
+import { verifyDmgDistribution } from '../../packages/desktop/scripts/notarize-dmg.js'
 import { verifyCuaMacHelperDistribution } from './verify-cua-macos-helper.mjs'
 import {
   createDefaultPackageSizePolicy,
@@ -801,13 +801,13 @@ export async function main(argv = process.argv.slice(2)) {
   if (!SOURCE_SHA_PATTERN.test(options['source-sha'])) {
     throw new Error('--source-sha must be a 40-character lowercase Git SHA')
   }
-  const projectDirectory = path.resolve(options['project-dir'] ?? repositoryRoot)
+  const projectDirectory = path.resolve(
+    options['project-dir'] ?? path.join(repositoryRoot, 'packages', 'desktop')
+  )
   return await createPackageManifest({
     projectDirectory,
     distDirectory: path.resolve(options['dist-dir'] ?? path.join(projectDirectory, 'dist')),
-    outputDirectory: path.resolve(
-      options['output-dir'] ?? path.join(projectDirectory, 'package-output')
-    ),
+    outputDirectory: path.resolve(options['output-dir'] ?? path.join(repositoryRoot, 'package-output')),
     platform: options.platform,
     arch: options.arch,
     sourceSha: options['source-sha'],

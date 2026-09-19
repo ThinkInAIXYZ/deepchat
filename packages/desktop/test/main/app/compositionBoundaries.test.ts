@@ -1,0 +1,405 @@
+import path from 'node:path'
+import { describe, expect, it, vi } from 'vitest'
+
+describe('session boundary composition', () => {
+  it('does not load NativeKit from the application startup workload', async () => {
+    const { readFileSync } = await vi.importActual<typeof import('node:fs')>('node:fs')
+    const compositionSource = readFileSync(
+      path.resolve(process.cwd(), 'src/main/app/composition.ts'),
+      'utf8'
+    )
+
+    expect(compositionSource).not.toContain('main:yo-browser')
+    expect(compositionSource).not.toContain('yoBrowserPresenter.initialize()')
+  })
+
+  it('reuses one default LegacyChatImportService across startup and skill repair', async () => {
+    const { readFileSync } = await vi.importActual<typeof import('node:fs')>('node:fs')
+    const compositionSource = readFileSync(
+      path.resolve(process.cwd(), 'src/main/app/composition.ts'),
+      'utf8'
+    )
+
+    expect(compositionSource.match(/new LegacyChatImportService\(/g)).toHaveLength(1)
+    expect(compositionSource).toMatch(
+      /new LegacyChatImportService\([^)]*memoryDatabase,\s*sessionData\.tapeStore/
+    )
+    expect(compositionSource).toMatch(
+      /sessionData\.tapeStore,\s*sessionData\.transactions,\s*undefined,\s*\(\) => projectService\.notifyEnvironmentProjectionChanged\(\)/
+    )
+    expect(compositionSource).toContain(
+      'legacyChatImportService.repairImportedLegacySessionSkills(conversationId)'
+    )
+    expect(compositionSource).toContain('legacyChatImportService.start(false)')
+  })
+
+  it('notifies the project snapshot owner after skill persistence refreshes environments', async () => {
+    const { readFileSync } = await vi.importActual<typeof import('node:fs')>('node:fs')
+    const compositionSource = readFileSync(
+      path.resolve(process.cwd(), 'src/main/app/composition.ts'),
+      'utf8'
+    )
+
+    expect(compositionSource).toContain(
+      'projectDatabase.newEnvironmentsTable.syncForSession(conversationId)\n      projectService.notifyEnvironmentProjectionChanged()'
+    )
+  })
+
+  it('keeps hooks notifications on one instance that owns every configuration write', async () => {
+    const { readFileSync } = await vi.importActual<typeof import('node:fs')>('node:fs')
+    const compositionSource = readFileSync(
+      path.resolve(process.cwd(), 'src/main/app/composition.ts'),
+      'utf8'
+    )
+
+    expect(compositionSource.match(/new HookService\(/g)).toHaveLength(1)
+    expect(compositionSource).toContain(
+      'getSession: (sessionId) => sessionQuery.getSession(sessionId)'
+    )
+    expect(compositionSource).toContain('createHookRoutes({ service: hookService })')
+    expect(compositionSource).not.toContain('settings: hookSettings')
+  })
+
+  it('constructs Scheduler once after Remote with complete execution dependencies', async () => {
+    const { readFileSync } = await vi.importActual<typeof import('node:fs')>('node:fs')
+    const compositionSource = readFileSync(
+      path.resolve(process.cwd(), 'src/main/app/composition.ts'),
+      'utf8'
+    )
+
+    expect(compositionSource.match(/new SchedulerService\(/g)).toHaveLength(1)
+    expect(compositionSource.indexOf('new RemoteService(')).toBeLessThan(
+      compositionSource.indexOf('new SchedulerService(')
+    )
+    expect(compositionSource).toContain('runSessionStarter: createCronJobRunSessionStarter({')
+    expect(compositionSource).toContain('remoteDeliveryPort: remoteService')
+    expect(compositionSource).not.toContain('.setRunSessionStarter(')
+    expect(compositionSource).not.toContain('.setRemoteDeliveryPort(')
+  })
+
+  it('finishes config migration before connecting module settings', async () => {
+    const { readFileSync } = await vi.importActual<typeof import('node:fs')>('node:fs')
+    const mainProcessSource = readFileSync(
+      path.resolve(process.cwd(), 'src/main/app/mainProcess.ts'),
+      'utf8'
+    )
+
+    const migration = mainProcessSource.indexOf('migrateConfigStorage({')
+    const settingsConnection = mainProcessSource.indexOf('settingsStore.attachDatabase(')
+    const mcpConnection = mainProcessSource.indexOf('mcpSettings.connectDatabase(')
+    const providerCreation = mainProcessSource.indexOf('previousAppVersion:')
+
+    expect(migration).toBeGreaterThanOrEqual(0)
+    expect(migration).toBeLessThan(settingsConnection)
+    expect(settingsConnection).toBeLessThan(mcpConnection)
+    expect(mcpConnection).toBeLessThan(providerCreation)
+    expect(mainProcessSource).not.toContain('providerSettings.attachDatabase(')
+  })
+
+  it('applies the persisted logging gate before database initialization can fail', async () => {
+    const { readFileSync } = await vi.importActual<typeof import('node:fs')>('node:fs')
+    const mainProcessSource = readFileSync(
+      path.resolve(process.cwd(), 'src/main/app/mainProcess.ts'),
+      'utf8'
+    )
+    const loggingGate = mainProcessSource.indexOf('setMainLoggingEnabled(')
+    const databaseInitialization = mainProcessSource.indexOf('initializeMainDatabaseWithRecovery(')
+
+    expect(loggingGate).toBeGreaterThanOrEqual(0)
+    expect(loggingGate).toBeLessThan(databaseInitialization)
+    expect(mainProcessSource.match(/setMainLoggingEnabled\(/g)).toHaveLength(1)
+  })
+
+  it('has no late Provider runtime connection or ready fallback', async () => {
+    const { readFileSync } = await vi.importActual<typeof import('node:fs')>('node:fs')
+    const compositionSource = readFileSync(
+      path.resolve(process.cwd(), 'src/main/app/composition.ts'),
+      'utf8'
+    )
+    const providerSettingsSource = readFileSync(
+      path.resolve(process.cwd(), 'src/main/provider/settings.ts'),
+      'utf8'
+    )
+
+    expect(compositionSource).not.toContain('.startRuntime(')
+    expect(providerSettingsSource).not.toContain('providerRuntimeReady')
+    expect(providerSettingsSource).not.toContain('runtimeEffects')
+  })
+
+  it('owns one idempotent shutdown path and rejects routes after shutdown starts', async () => {
+    const { readFileSync } = await vi.importActual<typeof import('node:fs')>('node:fs')
+    const compositionSource = readFileSync(
+      path.resolve(process.cwd(), 'src/main/app/composition.ts'),
+      'utf8'
+    )
+    const shutdownSource = readFileSync(
+      path.resolve(process.cwd(), 'src/main/app/mainShutdownCoordinator.ts'),
+      'utf8'
+    )
+
+    expect(shutdownSource).toContain('if (!this.teardownPromise)')
+    expect(shutdownSource).toContain('if (this.actionClaim)')
+    expect(compositionSource).toContain("appLifecycleState = 'stopping'")
+    expect(compositionSource).toContain("appLifecycleState = 'stopped'")
+    expect(compositionSource).toContain('throw new Error(`App lifecycle is ${appLifecycleState}`)')
+  })
+
+  it('stops entry points and sessions before owned infrastructure', async () => {
+    const { readFileSync } = await vi.importActual<typeof import('node:fs')>('node:fs')
+    const compositionSource = readFileSync(
+      path.resolve(process.cwd(), 'src/main/app/composition.ts'),
+      'utf8'
+    )
+    const destroyStart = compositionSource.indexOf('async function destroy(): Promise<void>')
+    const destroyEnd = compositionSource.indexOf('async function runDestroyStep', destroyStart)
+    expect(destroyStart).toBeGreaterThanOrEqual(0)
+    expect(destroyEnd).toBeGreaterThan(destroyStart)
+    const destroySource = compositionSource.slice(destroyStart, destroyEnd)
+    const destroyStepIndex = (step: string): number => {
+      const index = destroySource.indexOf(`'${step}'`)
+      expect(index, `Missing destroy step: ${step}`).toBeGreaterThanOrEqual(0)
+      return index
+    }
+
+    expect(destroyStepIndex('remoteService.destroy')).toBeLessThan(
+      destroyStepIndex('sessionRuntimes.suspend')
+    )
+    expect(destroyStepIndex('liveDelegationService.stop')).toBeLessThan(
+      destroyStepIndex('agentInvocationAdmission.close')
+    )
+    expect(destroyStepIndex('agentInvocationAdmission.close')).toBeLessThan(
+      destroyStepIndex('agentInvocationAdmission.flushObservations')
+    )
+    expect(destroyStepIndex('agentInvocationAdmission.flushObservations')).toBeLessThan(
+      destroyStepIndex('cronJobs.destroy')
+    )
+    expect(destroyStepIndex('sessionRuntimes.suspend')).toBeLessThan(
+      destroyStepIndex('skillInitialization.drain')
+    )
+    expect(destroyStepIndex('skillInitialization.drain')).toBeLessThan(
+      destroyStepIndex('pluginService.shutdown')
+    )
+    expect(destroyStepIndex('skillSyncScan.drain')).toBeLessThan(
+      destroyStepIndex('skillSyncService.destroy')
+    )
+    expect(destroySource).toContain("'yoBrowserPresenter.shutdown'")
+    expect(destroySource).toContain("'tabPresenter.destroy'")
+    expect(destroySource).toContain("'backgroundExecSessionManager.shutdown'")
+    expect(destroyStepIndex('windowPresenter.destroyWindows')).toBeLessThan(
+      destroyStepIndex('mainDatabase.close')
+    )
+  })
+
+  it('does not detach startup workload tasks without an observation owner', async () => {
+    const { readFileSync } = await vi.importActual<typeof import('node:fs')>('node:fs')
+    const compositionSource = readFileSync(
+      path.resolve(process.cwd(), 'src/main/app/composition.ts'),
+      'utf8'
+    )
+
+    expect(compositionSource).not.toContain('void startupWorkloadCoordinator.scheduleTask(')
+  })
+
+  it('finishes migrations and Skill initialization before the initial window', async () => {
+    const { readFileSync } = await vi.importActual<typeof import('node:fs')>('node:fs')
+    const compositionSource = readFileSync(
+      path.resolve(process.cwd(), 'src/main/app/composition.ts'),
+      'utf8'
+    )
+    const startupStart = compositionSource.lastIndexOf('dependencies.bindControl(control)')
+    const startupSource = compositionSource.slice(startupStart)
+
+    expect(startupSource.indexOf('await runAcpRegistryMigration()')).toBeLessThan(
+      startupSource.indexOf('init(dependencies.startupRunId)')
+    )
+    expect(
+      startupSource.indexOf('await runBuiltinMcpAllowlistCompatibilityMigration(')
+    ).toBeLessThan(startupSource.indexOf('await initializeSkills()'))
+    expect(startupSource.indexOf('await initializeSkills()')).toBeLessThan(
+      startupSource.indexOf("createAppWindow({ initialRoute: 'chat' })")
+    )
+    expect(
+      startupSource.indexOf('await agentSettings.retryPendingDeletedAgentSkillCleanup()')
+    ).toBeLessThan(startupSource.indexOf("createAppWindow({ initialRoute: 'chat' })"))
+    expect(startupSource.indexOf("createAppWindow({ initialRoute: 'chat' })")).toBeLessThan(
+      startupSource.indexOf('init(dependencies.startupRunId)')
+    )
+  })
+
+  it('does not let app activation create a chat window during startup migration', async () => {
+    const { readFileSync } = await vi.importActual<typeof import('node:fs')>('node:fs')
+    const compositionSource = readFileSync(
+      path.resolve(process.cwd(), 'src/main/app/composition.ts'),
+      'utf8'
+    )
+    const activateStart = compositionSource.indexOf("app.on('activate'")
+    const activateEnd = compositionSource.indexOf("app.on('did-resign-active'", activateStart)
+    const activateSource = compositionSource.slice(activateStart, activateEnd)
+
+    expect(activateSource).toContain("if (appLifecycleState !== 'running') return")
+    expect(activateSource).toContain("createAppWindow({ initialRoute: 'chat' })")
+  })
+
+  it('registers Plugin contributions before Skill migration through one startup barrier', async () => {
+    const { readFileSync } = await vi.importActual<typeof import('node:fs')>('node:fs')
+    const compositionSource = readFileSync(
+      path.resolve(process.cwd(), 'src/main/app/composition.ts'),
+      'utf8'
+    )
+    const skillsStart = compositionSource.indexOf('async function initializeSkills()')
+    const pluginsStart = compositionSource.indexOf('async function initializePlugins()')
+    const syncStart = compositionSource.indexOf('async function initializeSkillSyncScan()')
+    const mcpStart = compositionSource.indexOf('async function initializeMcp()')
+    const skillsSource = compositionSource.slice(skillsStart, pluginsStart)
+    const pluginsSource = compositionSource.slice(pluginsStart, syncStart)
+    const mcpSource = compositionSource.slice(
+      mcpStart,
+      compositionSource.indexOf('\n  }', mcpStart)
+    )
+
+    expect(compositionSource.match(/pluginService\.initialize\(\)/g)).toHaveLength(1)
+    expect(pluginsSource).toContain('const initialization = pluginService.initialize()')
+    expect(pluginsSource).toContain('pluginInitializationPromise = null')
+    expect(skillsSource.indexOf('await initializePlugins()')).toBeLessThan(
+      skillsSource.indexOf('await skillService.initialize()')
+    )
+    expect(mcpSource.indexOf('await initializePlugins()')).toBeLessThan(
+      mcpSource.indexOf('await mcpService.initialize()')
+    )
+    expect(mcpSource.indexOf('await proxyConfig.whenReady()')).toBeLessThan(
+      mcpSource.indexOf('await mcpService.initialize()')
+    )
+  })
+
+  it('routes restart requests through App shutdown', async () => {
+    const { readFileSync } = await vi.importActual<typeof import('node:fs')>('node:fs')
+    const deviceRoutesSource = readFileSync(
+      path.resolve(process.cwd(), 'src/main/device/routes.ts'),
+      'utf8'
+    )
+    const compositionSource = readFileSync(
+      path.resolve(process.cwd(), 'src/main/app/composition.ts'),
+      'utf8'
+    )
+    const restartStart = compositionSource.indexOf('async function restartApplication()')
+    const restartEnd = compositionSource.indexOf('\n  }', restartStart)
+    expect(restartStart).toBeGreaterThanOrEqual(0)
+    expect(restartEnd).toBeGreaterThan(restartStart)
+    const restartSource = compositionSource.slice(restartStart, restartEnd)
+
+    expect(deviceRoutesSource).toContain('await deps.restartApplication()')
+    expect(deviceRoutesSource).not.toContain('await deps.device.restartApp()')
+    expect(restartSource).toContain("const actionClaim = await stop('restart')")
+    expect(restartSource).toContain(
+      "if (!actionClaim) throw new Error('Application shutdown is already owned')"
+    )
+    expect(compositionSource).toContain("actionClaim = await stop('data_reset')")
+  })
+
+  it('publishes runtime updates through the Session boundary', async () => {
+    const { existsSync, readFileSync } = await vi.importActual<typeof import('node:fs')>('node:fs')
+    const retiredEventsPath = path.resolve(
+      process.cwd(),
+      'packages/agent-kernel/src/runtime/internalSessionEvents.ts'
+    )
+    const schedulerSource = readFileSync(
+      path.resolve(process.cwd(), 'src/main/scheduler/runExecutor.ts'),
+      'utf8'
+    )
+    const toolPortSource = readFileSync(
+      path.resolve(process.cwd(), 'src/main/tool/runtimePorts.ts'),
+      'utf8'
+    )
+    const compositionSource = readFileSync(
+      path.resolve(process.cwd(), 'src/main/app/composition.ts'),
+      'utf8'
+    )
+
+    expect(existsSync(retiredEventsPath)).toBe(false)
+    expect(schedulerSource).toContain("from '@/session/runtimeEvents'")
+    expect(schedulerSource).not.toContain("from '@/agent/")
+    expect(toolPortSource).toContain("from '@/session/runtimeEvents'")
+    expect(toolPortSource).not.toContain('DeepChatInternalSessionUpdate')
+    expect(compositionSource).toContain('const sessionRuntimeEvents = new SessionRuntimeEvents()')
+  })
+
+  it('keeps Remote behind App-owned catalog, workspace, Session, and desktop ports', async () => {
+    const { readFileSync } = await vi.importActual<typeof import('node:fs')>('node:fs')
+    const remoteSources = [
+      'src/main/remote/ports.ts',
+      'src/main/remote/index.ts',
+      'src/main/remote/conversation/runner.ts'
+    ]
+      .map((file) => readFileSync(path.resolve(process.cwd(), file), 'utf8'))
+      .join('\n')
+
+    expect(remoteSources).not.toMatch(/from ['"]@\/agent\/(manager|settings)/)
+    expect(remoteSources).not.toMatch(/from ['"]@\/provider/)
+    expect(remoteSources).not.toContain("from '@shared/types/desktop'")
+    expect(remoteSources).not.toMatch(/from ['"]\.\.\/scheduler/)
+  })
+
+  it('routes ACP retry waiting-lane checks through the pending-input admission exemption', async () => {
+    const { readFileSync } = await vi.importActual<typeof import('node:fs')>('node:fs')
+    const compositionSource = readFileSync(
+      path.resolve(process.cwd(), 'src/main/app/composition.ts'),
+      'utf8'
+    )
+
+    // 2B-3a carry-over (P2): the ACP branch of prepareRetry must forward the retry-steer
+    // exemption instead of a store-only active-input check, restoring baseline admission for
+    // waiting lanes that hold only restart-held queue inputs after an app restart.
+    expect(compositionSource).toContain(
+      '      await assertAcpSessionMutable(sessionId)\n' +
+        '      assertAcpWaitingLaneClear(sessionId, options)\n' +
+        '      return { projectDir: appSessionService.get(sessionId)?.projectDir ?? null }'
+    )
+    expect(compositionSource).toContain(
+      'deepChatAgentHarness.assertNoActivePendingInputs(sessionId, options)'
+    )
+    // The old store-only ACP guard must not return (it rejected restart-held-only lanes).
+    expect(compositionSource).not.toContain(
+      'if (sessionData.pendingInputs.hasActiveInputs(sessionId)) {\n' +
+        "        throw new Error('Please clear the waiting lane before mutating chat history.')\n" +
+        '      }\n    },\n    async cancelForTranscriptMutation'
+    )
+  })
+
+  it('backend-routes session deletion lifecycle destroy away from ACP sessions', async () => {
+    const { readFileSync } = await vi.importActual<typeof import('node:fs')>('node:fs')
+    const compositionSource = readFileSync(
+      path.resolve(process.cwd(), 'src/main/app/composition.ts'),
+      'utf8'
+    )
+
+    // 2B-3a carry-over: ACP sessions never hydrate built-in scope, so their deletion must not
+    // run the built-in lifecycle destroy; the state port stays backend-routed.
+    expect(compositionSource).toContain(
+      '    state: {\n' +
+        '      destroySession: async (sessionId) => {\n' +
+        '        if (isAcpBackendSession(sessionId)) return\n' +
+        '        await deepChatAgentHarness.destroySession(sessionId)\n' +
+        '      }\n' +
+        '    },'
+    )
+  })
+
+  it('gives built-in Tool handlers required capability-specific ports', async () => {
+    const { readFileSync } = await vi.importActual<typeof import('node:fs')>('node:fs')
+    const runtimePortsSource = readFileSync(
+      path.resolve(process.cwd(), 'src/main/tool/runtimePorts.ts'),
+      'utf8'
+    )
+    const toolSources = [
+      'src/main/tool/index.ts',
+      'src/main/tool/runtimePorts.ts',
+      'src/main/tool/agentTools/agentToolManager.ts'
+    ]
+      .map((file) => readFileSync(path.resolve(process.cwd(), file), 'utf8'))
+      .join('\n')
+
+    expect(runtimePortsSource).not.toContain('AgentToolRuntimePort')
+    expect(runtimePortsSource).not.toMatch(/^\s+\w+\?\(/m)
+    expect(toolSources).not.toMatch(/from ['"].*desktop/)
+  })
+})

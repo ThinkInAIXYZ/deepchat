@@ -27,8 +27,9 @@ Output naming pattern: `deepchat-plugin-<name>-<version>[-<platform>-<arch>].dcp
 
 ## Generic Commands
 
-All plugins share a common set of commands powered by `scripts/plugin.mjs`, which delegates to
-`scripts/package-plugin.mjs` for the actual packaging logic.
+All plugins share a common set of commands powered by `packages/desktop/scripts/plugin.mjs`, which delegates to
+`packages/desktop/scripts/package-plugin.mjs` for the actual packaging logic. The root `package.json`
+keeps forwarding command names supported; the desktop package owns the implementation.
 
 ### Validate
 
@@ -40,7 +41,7 @@ pnpm run plugin:validate -- --name <plugin> --platform <platform> --arch <arch>
 
 ### Package
 
-Package into a `.dcplugin` under `dist/plugins/`. Run a plugin's native build command first when the
+Package into `packages/desktop/dist/plugins/`. Run a plugin's native build command first when the
 package needs native runtime payloads.
 
 ```bash
@@ -49,7 +50,7 @@ pnpm run plugin:package -- --name <plugin> --platform <platform> --arch <arch>
 
 ### Bundle
 
-Package into `build/bundled-plugins/` for embedding into the Electron app.
+Package into `packages/desktop/build/bundled-plugins/` for embedding into the Electron app.
 
 ```bash
 pnpm run plugin:bundle -- --name <plugin> --platform <platform> --arch <arch>
@@ -77,7 +78,7 @@ pnpm run plugin:bundle:clean
 
 Some plugins (like CUA) include pre-compiled native binaries. These require an additional build
 step before packaging. The `bundle` action automatically detects and runs
-`scripts/build-<name>-plugin-runtime.mjs` when it exists. Standalone `package` expects the native
+`packages/desktop/scripts/build-<name>-plugin-runtime.mjs` when it exists. Standalone `package` expects the native
 runtime payload to be built already.
 
 CUA native runtime staging commands download pinned upstream release assets and verify their
@@ -149,19 +150,19 @@ deepchat-plugin-feishu-<version>-win32-arm64.dcplugin
 Standalone packages:
 
 ```text
-dist/plugins/
+packages/desktop/dist/plugins/
 ```
 
 Bundled packages (embedded into the Electron app):
 
 ```text
-build/bundled-plugins/
+packages/desktop/build/bundled-plugins/
 ```
 
 Managed macOS helpers copied into the Electron app bundle:
 
 ```text
-build/managed-helpers/
+packages/desktop/build/managed-helpers/
 ```
 
 ## CI and Release
@@ -181,14 +182,14 @@ matrix instead of repeating plugin logic. The target behavior is:
 - **Windows x64**: bundles both CUA and feishu plugins.
 - **Windows arm64**: bundles both CUA and feishu plugins.
 
-Electron Builder embeds `.dcplugin` files from `build/bundled-plugins/` into:
+Electron Builder embeds `.dcplugin` files from `packages/desktop/build/bundled-plugins/` into:
 
 ```text
 <app>/Contents/Resources/app.asar.unpacked/plugins/     (macOS)
 <app>/resources/app.asar.unpacked/plugins/               (Windows/Linux)
 ```
 
-On macOS, Electron Builder also embeds `build/managed-helpers/DeepChat Computer Use.app` into:
+On macOS, Electron Builder also embeds `packages/desktop/build/managed-helpers/DeepChat Computer Use.app` into:
 
 ```text
 <app>/Contents/Helpers/DeepChat Computer Use.app
@@ -203,7 +204,7 @@ uploads diagnostics only, so unsigned macOS verification installers and their em
 never become distributable artifacts. Release accepts the same six target manifests and publishes
 app artifacts only; `.dcplugin` files are not separate GitHub Release assets.
 
-Expected embedded files across platform-specific app packages:
+Expected embedded file names by target (each packaged app contains only the files for its own platform and architecture):
 
 ```text
 app.asar.unpacked/plugins/deepchat-plugin-cua-<version>-darwin-x64.dcplugin
@@ -221,9 +222,9 @@ app.asar.unpacked/plugins/deepchat-plugin-feishu-<version>-linux-arm64.dcplugin
 
 ## Adding a New Plugin
 
-1. Create `plugins/<name>/plugin.json` with required fields (`id`, `name`, `version`, `publisher`,
+1. Create `packages/desktop/plugins/<name>/plugin.json` with required fields (`id`, `name`, `version`, `publisher`,
    `source`, `engines.platforms`, skills, settings contributions).
-2. If the plugin needs a native build step, create `scripts/build-<name>-plugin-runtime.mjs`.
+2. If the plugin needs a native build step, create `packages/desktop/scripts/build-<name>-plugin-runtime.mjs`.
 3. Test locally: `pnpm run plugin:validate -- --name <name> --platform <platform> --arch <arch>`
 4. Add bundling commands once to the relevant OS reusable package workflow.
 5. Add verification steps to that reusable workflow and update target/workflow contract tests.

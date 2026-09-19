@@ -1,0 +1,72 @@
+import { contextBridge, ipcRenderer } from 'electron'
+import { createBridge } from './createBridge'
+import type { JsonValue } from '@deepchat/shared/contracts/common'
+import {
+  pluginsDisableRoute,
+  pluginsEnableRoute,
+  pluginsGetRoute,
+  pluginsInvokeActionRoute
+} from '@shared/contracts/routes'
+import type { PluginSettingsApiStatus } from '@deepchat/shared/types/plugin'
+
+const PLUGIN_ID_ARG_PREFIX = '--deepchat-plugin-id='
+
+function readPluginId(): string {
+  const arg = process.argv.find((value) => value.startsWith(PLUGIN_ID_ARG_PREFIX))
+  const pluginId = arg
+    ? decodeURIComponent(arg.slice(PLUGIN_ID_ARG_PREFIX.length)).trim()
+    : undefined
+  if (!pluginId) {
+    throw new Error('Plugin settings renderer is missing pluginId')
+  }
+  return pluginId
+}
+
+const bridge = createBridge(ipcRenderer)
+
+const deepchatPluginApi = Object.freeze({
+  getPluginId(): string {
+    return readPluginId()
+  },
+  async getStatus(): Promise<PluginSettingsApiStatus> {
+    const pluginId = readPluginId()
+    const result = await bridge.invoke(pluginsGetRoute.name, { pluginId })
+    return {
+      pluginId,
+      platform: process.platform,
+      arch: process.arch,
+      enabled: Boolean(result.plugin?.enabled),
+      activationError: result.plugin?.activationError,
+      runtime: result.plugin?.runtime,
+      mcpServers: result.plugin?.mcpServers
+    }
+  },
+  async enable() {
+    const result = await bridge.invoke(pluginsEnableRoute.name, {
+      pluginId: readPluginId()
+    })
+    return result.result
+  },
+  async disable() {
+    const result = await bridge.invoke(pluginsDisableRoute.name, {
+      pluginId: readPluginId()
+    })
+    return result.result
+  },
+  async invokeAction(actionId: string, payload?: JsonValue) {
+    const result = await bridge.invoke(pluginsInvokeActionRoute.name, {
+      pluginId: readPluginId(),
+      actionId,
+      payload
+    })
+    return result.result
+  }
+})
+
+if (process.contextIsolated) {
+  contextBridge.exposeInMainWorld('deepchatPlugin', deepchatPluginApi)
+} else {
+  ;(
+    window as Window & typeof globalThis & { deepchatPlugin: typeof deepchatPluginApi }
+  ).deepchatPlugin = deepchatPluginApi
+}

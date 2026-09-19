@@ -48,6 +48,8 @@ jobs:
       TARGET_PLATFORM: linux
       TARGET_ARCH: ${{ inputs.arch }}
       PACKAGE_PURPOSE: ${{ inputs.artifact-purpose }}
+      DESKTOP_DIRECTORY: packages/desktop
+      DESKTOP_DIST_DIRECTORY: packages/desktop/dist
       UNPACKED_DIRECTORY: ${{ inputs.arch == 'arm64' && 'linux-arm64-unpacked' || 'linux-unpacked' }}
     steps:
       - name: Validate immutable source input
@@ -84,7 +86,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Configure pnpm workspace for Linux
-        run: pnpm run install:sharp
+        run: pnpm --filter DeepChat run install:sharp
         env:
           TARGET_OS: linux
           TARGET_ARCH: ${{ inputs.arch }}
@@ -99,20 +101,20 @@ jobs:
           echo "RTK runtime install token source: ${RTK_INSTALL_GITHUB_TOKEN_SOURCE}"
 
       - name: Verify OpenDAL native package
-        run: pnpm run smoke:opendal:native -- --platform linux --arch ${{ inputs.arch }}
+        run: pnpm --filter DeepChat run smoke:opendal:native -- --platform linux --arch ${{ inputs.arch }}
 
       - name: Install Linux runtimes
-        run: pnpm run installRuntime:linux:${{ inputs.arch }}
+        run: pnpm --filter DeepChat run installRuntime:linux:${{ inputs.arch }}
         env:
           GITHUB_TOKEN: ${{ secrets.RTK_GITHUB_TOKEN || github.token }}
 
       - name: Install and verify DuckDB VSS
         run: |
-          pnpm run installRuntime:duckdb:vss -- --platform linux --arch ${{ inputs.arch }}
-          pnpm run smoke:duckdb:vss -- --platform linux --arch ${{ inputs.arch }}
+          pnpm --filter DeepChat run installRuntime:duckdb:vss -- --platform linux --arch ${{ inputs.arch }}
+          pnpm --filter DeepChat run smoke:duckdb:vss -- --platform linux --arch ${{ inputs.arch }}
 
       - name: Build Linux application
-        run: pnpm run build
+        run: pnpm --filter DeepChat run build
         env:
           VITE_GITHUB_CLIENT_ID: ${{ secrets.DC_GITHUB_CLIENT_ID }}
           VITE_GITHUB_CLIENT_SECRET: ${{ secrets.DC_GITHUB_CLIENT_SECRET }}
@@ -120,35 +122,35 @@ jobs:
 
       - name: Bundle CUA plugin
         if: inputs.arch == 'x64'
-        run: pnpm run plugin:bundle -- --name cua --platform linux --arch ${{ inputs.arch }}
+        run: pnpm --filter DeepChat run plugin:bundle -- --name cua --platform linux --arch ${{ inputs.arch }}
 
       - name: Bundle Feishu plugin
-        run: pnpm run plugin:bundle -- --name feishu --platform linux --arch ${{ inputs.arch }}
+        run: pnpm --filter DeepChat run plugin:bundle -- --name feishu --platform linux --arch ${{ inputs.arch }}
 
       - name: Package Linux
-        run: pnpm exec electron-builder --linux --${{ inputs.arch }} --publish=never
+        run: pnpm --filter DeepChat exec electron-builder --linux --${{ inputs.arch }} --publish=never
 
       - name: Verify packaged DuckDB VSS
         run: |
-          extension_path="dist/${UNPACKED_DIRECTORY}/resources/app.asar.unpacked/runtime/duckdb/extensions/vss.duckdb_extension"
+          extension_path="packages/desktop/dist/${UNPACKED_DIRECTORY}/resources/app.asar.unpacked/runtime/duckdb/extensions/vss.duckdb_extension"
           test -f "${extension_path}"
-          pnpm run smoke:duckdb:vss -- --platform linux --arch "${TARGET_ARCH}" --extension-path "${extension_path}"
+          pnpm --filter DeepChat run smoke:duckdb:vss -- --platform linux --arch "${TARGET_ARCH}" --extension-path "${extension_path}"
 
       - name: Verify packaged OpenDAL native package
         run: >-
-          pnpm run smoke:opendal:native --
+          pnpm --filter DeepChat run smoke:opendal:native --
           --platform linux
           --arch "${{ inputs.arch }}"
-          --resources-path "dist/${{ env.UNPACKED_DIRECTORY }}/resources"
+          --resources-path "${{ env.DESKTOP_DIST_DIRECTORY }}/${{ env.UNPACKED_DIRECTORY }}/resources"
 
       - name: Verify packaged Light OCR offline
         run: |
           sudo unshare --net --setuid "$(id -u)" --setgid "$(id -g)" -- \
-            env HOME="$HOME" PATH="$PATH" pnpm run smoke:light-ocr -- \
+            env HOME="$HOME" PATH="$PATH" pnpm --filter DeepChat run smoke:light-ocr -- \
             --platform linux \
             --arch "${TARGET_ARCH}" \
-            --resources-path "dist/${UNPACKED_DIRECTORY}/resources" \
-            --report-path "dist/light-ocr-smoke-linux-${TARGET_ARCH}.json" \
+            --resources-path "${DESKTOP_DIST_DIRECTORY}/${UNPACKED_DIRECTORY}/resources" \
+            --report-path "${DESKTOP_DIST_DIRECTORY}/light-ocr-smoke-linux-${TARGET_ARCH}.json" \
             --expect-supported \
             --require-execution \
             --require-peak-rss
@@ -156,28 +158,28 @@ jobs:
       - name: Verify bundled CUA plugin
         if: inputs.arch == 'x64'
         run: >-
-          pnpm run plugin:verify --
+          pnpm --filter DeepChat run plugin:verify --
           --name cua
           --platform linux
           --arch "${{ inputs.arch }}"
-          --plugin-root "dist/${{ env.UNPACKED_DIRECTORY }}/resources/app.asar.unpacked/plugins"
+          --plugin-root "${{ env.DESKTOP_DIST_DIRECTORY }}/${{ env.UNPACKED_DIRECTORY }}/resources/app.asar.unpacked/plugins"
 
       - name: Verify bundled Feishu plugin
         run: >-
-          pnpm run plugin:verify --
+          pnpm --filter DeepChat run plugin:verify --
           --name feishu
           --platform linux
           --arch "${{ inputs.arch }}"
-          --plugin-root "dist/${{ env.UNPACKED_DIRECTORY }}/resources/app.asar.unpacked/plugins"
+          --plugin-root "${{ env.DESKTOP_DIST_DIRECTORY }}/${{ env.UNPACKED_DIRECTORY }}/resources/app.asar.unpacked/plugins"
 
       - name: Compare installer sizes
         if: inputs.enforce-installer-size
         run: |
           node scripts/ci/check-package-size.mjs compare \
             --target "linux-${TARGET_ARCH}" \
-            --candidate-dir dist \
+            --candidate-dir "${DESKTOP_DIST_DIRECTORY}" \
             --candidate-commit "${SOURCE_SHA}" \
-            --report "dist/package-size-linux-${TARGET_ARCH}.json"
+            --report "${DESKTOP_DIST_DIRECTORY}/package-size-linux-${TARGET_ARCH}.json"
 
       - name: Create package manifest
         env:
@@ -185,14 +187,16 @@ jobs:
         run: |
           size_report=()
           if [[ "${ENFORCE_INSTALLER_SIZE}" == 'true' ]]; then
-            size_report=(--installer-size-report "dist/package-size-linux-${TARGET_ARCH}.json")
+            size_report=(--installer-size-report "${DESKTOP_DIST_DIRECTORY}/package-size-linux-${TARGET_ARCH}.json")
           fi
           node scripts/ci/package-manifest.mjs \
             --platform linux \
             --arch "${TARGET_ARCH}" \
             --source-sha "${SOURCE_SHA}" \
             --purpose "${PACKAGE_PURPOSE}" \
-            --report "dist/light-ocr-smoke-linux-${TARGET_ARCH}.json" \
+            --project-dir "${DESKTOP_DIRECTORY}" \
+            --dist-dir "${DESKTOP_DIST_DIRECTORY}" \
+            --report "${DESKTOP_DIST_DIRECTORY}/light-ocr-smoke-linux-${TARGET_ARCH}.json" \
             --workflow-run-id "${GITHUB_RUN_ID}" \
             --workflow-run-attempt "${GITHUB_RUN_ATTEMPT}" \
             "${size_report[@]}"
@@ -215,8 +219,8 @@ jobs:
           path: |
             package-output/manifest.json
             package-output/reports/
-            dist/light-ocr-smoke-linux-${{ inputs.arch }}.json
-            dist/package-size-linux-${{ inputs.arch }}.json
+            packages/desktop/dist/light-ocr-smoke-linux-${{ inputs.arch }}.json
+            packages/desktop/dist/package-size-linux-${{ inputs.arch }}.json
           if-no-files-found: warn
           retention-days: 7
           overwrite: true

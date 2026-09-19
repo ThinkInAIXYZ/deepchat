@@ -98,61 +98,65 @@ We use GitHub to host code, to track issues and feature requests, as well as acc
    pnpm run installRuntime
    ```
 
-5. Start the development server:
+5. Start the development server from the repository root:
    ```bash
+   pnpm run dev
+   # From packages/desktop:
    pnpm run dev
    ```
 
+Root commands forward to the Desktop app or run repository-wide checks. From the repository root, use
+`pnpm run <script>`; when working inside `packages/desktop`, use the package-local script directly with
+`pnpm run <script>`. Run repository-wide checks from the repository root.
+
 ## Project Structure
 
-- `src/main/`: Electron main process. Presenters, typed route handlers, runtime orchestration, and storage owners live here (window/tab/thread/config/llmProvider/mcp/knowledge/sync/floating button/deeplink/OAuth, etc.).
-- `src/preload/`: Context-isolated bridge. Exposes typed `window.deepchat` APIs plus a minimal legacy compatibility surface.
-- `src/renderer/`: Vue 3 + Pinia app. Business/UI code lives under `src/renderer/src` (components, stores, views, lib, i18n). Shell UI lives in `src/renderer/shell/`.
-- `src/renderer/api/`: Renderer-main boundary layer. Put typed `*Client` classes, event subscriptions, and named runtime wrappers here. `src/renderer/api/legacy/` is quarantine-only compatibility code.
-- `src/shared/`: Shared route contracts, event contracts, types, and utilities used by both processes. Legacy presenter typings still exist for main internals and quarantine adapters.
-- `runtime/`: Packaged runtime seeds used by MCP and agent tooling (uv, plus optional local Node trees in development). Packaged apps resolve Node through Settings → Toolchains instead of shipping Node.
-- `scripts/`, `resources/`: Build, packaging, and asset pipelines.
-- `build/`, `out/`, `dist/`: Build outputs (do not edit manually).
-- `docs/`: Design docs and guides.
-- `test/`: Vitest suites for main/renderer.
+- `packages/desktop/src/main/`: Electron main process. Presenters, typed route handlers, runtime orchestration, and storage owners live here (window/tab/thread/config/llmProvider/mcp/knowledge/sync/floating button/deeplink/OAuth, etc.).
+- `packages/desktop/src/preload/`: Context-isolated bridge. Exposes typed `window.deepchat` APIs plus a minimal legacy compatibility surface.
+- `packages/desktop/src/renderer/`: Vue 3 + Pinia app. Business/UI code lives under `packages/desktop/src/renderer/src` (components, stores, views, lib, i18n). Shell UI lives in `packages/desktop/src/renderer/shell/`.
+- `packages/desktop/src/renderer/api/`: Renderer-main boundary layer. Put typed `*Client` classes, event subscriptions, and named runtime wrappers here. `packages/desktop/src/renderer/api/legacy/` is quarantine-only compatibility code.
+- `packages/shared/`: Portable shared contracts and value modules promoted from the Desktop package.
+- `packages/desktop/src/shared/`: Desktop-only contracts and UI helpers that are not portable package exports.
+- `packages/agent-kernel/`: Portable agent kernel; its package boundary remains unchanged.
+- `packages/cli/`: CLI package and its client-facing build surface.
+- `packages/desktop/runtime/`: Packaged runtime seeds used by MCP and agent tooling. Packaged apps resolve Node through Settings → Toolchains instead of shipping Node.
+- `packages/desktop/scripts/`, `packages/desktop/resources/`: Desktop build, packaging, and asset pipelines.
+- `packages/desktop/build/`: Desktop packaging inputs plus generated build outputs; edit source packaging inputs as needed, but do not edit generated files manually.
+- `packages/desktop/out/`, `packages/desktop/dist/`: Generated Desktop build outputs; do not edit manually.
+- `scripts/`, `docs/`, and root configuration: Repository-wide tooling, documentation, and workspace policy.
+- `packages/desktop/test/`: Vitest suites for main/renderer and Playwright end-to-end tests.
 
 ## Architecture Overview
 
 ### Design Principles
 
-- **Single-track renderer-main boundary**: New renderer business code should go through typed route contracts, typed event contracts, `src/renderer/api/*Client`, and named runtime wrappers. Do not treat presenter names as a public renderer API.
-- **Presenters stay in main**: Presenters still own most main-process capabilities, but on active paths they are an implementation detail behind routes, events, and wrappers. `src/renderer/api/legacy/**` is quarantine-only compatibility code.
+Paths inside the diagram below are relative to `packages/desktop`.
+
+- **Single-track renderer-main boundary**: New renderer business code should go through typed route contracts, typed event contracts, `packages/desktop/src/renderer/api/*Client`, and named runtime wrappers. Do not treat presenter names as a public renderer API.
+- **Presenters stay in main**: Presenters still own most main-process capabilities, but on active paths they are an implementation detail behind routes, events, and wrappers. `packages/desktop/src/renderer/api/legacy/**` is quarantine-only compatibility code.
 - **Multi-window + multi-tab shell**: WindowPresenter and TabPresenter manage true Electron windows/BrowserViews with detach/move support; an EventBus fans out cross-process events.
 - **Clear data boundaries**: Chat data lives in SQLite (`app_db/chat.db`), settings in Electron Store, knowledge bases in DuckDB, and backups via SyncPresenter. Renderer never touches the filesystem directly.
 - **Tooling-first runtime**: LLMProviderPresenter handles streaming, rate limits, and provider instances (cloud/local/ACP agent). MCPPresenter boots MCP servers, router marketplace, and in-memory tools using the resolved Node/uv toolchain (managed, system, custom, or a remaining bundled uv seed).
 - **Safety & resilience**: `contextIsolation` is on; renderer-side OS/file/network access is gated behind typed bridges or quarantined wrappers; backup/import pipelines validate inputs; rate-limit guards prevent provider overload.
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                    Electron Main (TS)                       │
-│  Presenters + routes + runtime owners + persistence         │
-│  window/tab/thread/config/llm/mcp/knowledge/sync/...        │
-│  Storage: SQLite chat.db, ElectronStore settings, backups   │
-└───────────────┬─────────────────────────────────────────────┘
-                │ Typed routes/events + limited legacy IPC
-┌───────────────▼─────────────────────────────────────────────┐
-│         Preload (`window.deepchat` + compat whitelist)      │
-└───────────────┬─────────────────────────────────────────────┘
-                │ typed clients / runtime wrappers / quarantine
-┌───────────────▼─────────────────────────────────────────────┐
-│ Renderer boundary: `src/renderer/api/*Client` + wrappers    │
-│ quarantine: `src/renderer/api/legacy/**`                    │
-└───────────────┬─────────────────────────────────────────────┘
-                │
-┌───────────────▼─────────────────────────────────────────────┐
-│  Renderer business: `src/renderer/src/**`                   │
-│  Shell UI, chat flow, ACP workspace, MCP console, settings  │
-└───────────────┬─────────────────────────────────────────────┘
-                │
-┌───────────────▼─────────────────────────────────────────────┐
-│ Runtime add-ons: MCP Node runtime, Ollama controls, ACP     │
-│ agent processes, DuckDB knowledge, sync backups             │
-└─────────────────────────────────────────────────────────────┘
+Electron main: src/main/
+  Presenters, routes, runtime owners, persistence
+  |
+  | Typed routes/events + limited legacy IPC
+  v
+Preload: src/preload/ (window.deepchat + compatibility whitelist)
+  |
+  v
+Renderer boundary: src/renderer/api/*Client + runtime wrappers
+  Quarantine: src/renderer/api/legacy/**
+  |
+  v
+Renderer business: src/renderer/src/**
+  Shell UI, chat, ACP workspace, MCP console, settings
+
+Main-owned runtime add-ons:
+  MCP/toolchains, Ollama, ACP processes, DuckDB, sync and backup
 ```
 
 ### Domain Modules & Feature Notes
@@ -165,9 +169,9 @@ We use GitHub to host code, to track issues and feature requests, as well as acc
 
 ## Best Practices
 
-- **Use typed clients and runtime wrappers from renderer business code**: In `src/renderer/src/**`, prefer `src/renderer/api/*Client`, typed event helpers, and named runtime wrappers. Do not import `@api/legacy/presenters` or add new presenter-name-based transport there.
+- **Use typed clients and runtime wrappers from renderer business code**: In `packages/desktop/src/renderer/src/**`, prefer `packages/desktop/src/renderer/api/*Client`, typed event helpers, and named runtime wrappers. Do not import `@api/legacy/presenters` or add new presenter-name-based transport there.
 - **Do not use Node APIs in the renderer**: All OS/network/filesystem work should go through `window.deepchat`, typed clients, or explicitly named wrappers. Keep features multi-window-safe by scoping state to `tabId`/`windowId`.
-- **i18n everywhere**: All user-visible strings belong in `src/renderer/src/i18n`; avoid hardcoded text in components.
+- **i18n everywhere**: All user-visible strings belong in `packages/desktop/src/renderer/src/i18n`; avoid hardcoded text in components.
 - **State & UI**: Favor Pinia stores and composition utilities; keep components stateless where possible and compatible with detached tabs. Consider artifacts, variants, and streaming states when touching chat flows.
 - **LLM/MCP/ACP changes**: Respect rate limits; clean up active streams before switching providers; prefer typed events on migrated paths instead of adding new raw IPC or presenter reflection. For MCP, persist changes through main-owned config/runtime layers and surface server start/stop events. For ACP, always call `registerWorkdir` before reading the filesystem and clear plan/workspace state when sessions end.
 - **Data & persistence**: Route conversation/settings/provider/backup changes through main-owned clients or compatibility adapters; do not write directly into `appData` or other local stores from the renderer.
@@ -178,7 +182,7 @@ We use GitHub to host code, to track issues and feature requests, as well as acc
 - TypeScript + Vue 3 Composition API + Pinia; Tailwind + shadcn/ui for styling.
 - Oxfmt enforces single quotes, no semicolons, and width 100; `pnpm run format` before committing.
 - OxLint is used for linting (`pnpm run lint`). Type checking via `pnpm run typecheck` (node + web targets).
-- Tests use Vitest (`test/main`, `test/renderer`). Name tests `*.test.ts`/`*.spec.ts`.
+- Tests use Vitest (`packages/desktop/test/main`, `packages/desktop/test/renderer`). Name tests `*.test.ts`/`*.spec.ts`.
 - Follow naming conventions: PascalCase components/types, camelCase variables/functions, SCREAMING_SNAKE_CASE constants.
 
 ## Pull Request Process

@@ -49,10 +49,27 @@ jobs:
           merge_base="$(git merge-base "${BASE_SHA}" "${HEAD_SHA}")"
           git cat-file -e "${merge_base}^{commit}"
 
-          base_package_json="${RUNNER_TEMP}/base-package.json"
-          head_package_json="${RUNNER_TEMP}/head-package.json"
-          git show "${merge_base}:package.json" > "${base_package_json}"
-          git show "${HEAD_SHA}:package.json" > "${head_package_json}"
+          select_all_targets() {
+            echo "$1"
+            {
+              echo 'required=true'
+              echo 'windows=true'
+              echo 'linux=true'
+              echo 'macos=true'
+            } >> "${GITHUB_OUTPUT}"
+            exit 0
+          }
+
+          # A missing desktop manifest crosses layouts or deletes the product manifest.
+          if ! git cat-file -e "${merge_base}:packages/desktop/package.json" 2>/dev/null ||
+            ! git cat-file -e "${HEAD_SHA}:packages/desktop/package.json" 2>/dev/null; then
+            select_all_targets 'Desktop manifest is unavailable; selecting every package target.'
+          fi
+
+          base_package_json="${RUNNER_TEMP}/base-desktop-package.json"
+          head_package_json="${RUNNER_TEMP}/head-desktop-package.json"
+          git show "${merge_base}:packages/desktop/package.json" > "${base_package_json}"
+          git show "${HEAD_SHA}:packages/desktop/package.json" > "${head_package_json}"
 
           changed_paths="${RUNNER_TEMP}/changed-package-paths.z"
           git diff --name-only --no-renames -z "${merge_base}" "${HEAD_SHA}" > "${changed_paths}"

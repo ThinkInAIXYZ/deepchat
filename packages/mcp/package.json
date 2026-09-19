@@ -1,0 +1,33 @@
+{
+  "name": "@deepchat/mcp",
+  "version": "0.0.0",
+  "private": true,
+  "description": "DeepChat MCP Node runtime: client, server manager and stdio process transports. Node-only; the root export uses node: builtins and is not browser-safe.",
+  "type": "module",
+  "license": "UNLICENSED",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "node ../../scripts/build-mcp.mjs",
+    "typecheck": "node ../../scripts/typecheck-package-source.mjs mcp",
+    "test": "vitest run --config vitest.config.ts"
+  },
+  "dependencies": {
+    "@deepchat/shared": "workspace:*",
+    "@modelcontextprotocol/client": "2.0.0",
+    "@modelcontextprotocol/sdk": "1.30.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.13.3",
+    "vitest": "^4.1.11"
+  }
+}

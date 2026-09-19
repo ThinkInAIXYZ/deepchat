@@ -2,10 +2,13 @@
 
 - Prefer the smallest correct change; add no abstraction or dependency without a real need.
 - Preserve unrelated worktree changes; avoid destructive Git unless explicitly requested.
-- Use pnpm only; require Node >=20.19 and pnpm >=10.11.
-- Core code: `src/main`, `src/preload`, `src/renderer`, `src/shared`; stack: Electron/Vue 3/TS.
-- Tests: use Vitest in `test/main`, Vitest with Vue Test Utils in `test/renderer`, and Playwright in
-  `test/e2e`; run the smallest relevant suite.
+- Use pnpm only; require Node >=24.18.0 <25 and pnpm >=10.34.5 <11.
+- Core code: `packages/desktop/src/{main,preload,renderer}`, `packages/shared`, and
+  `packages/agent-kernel`; stack: Electron/Vue 3/TS.
+- CLI code lives in `packages/cli`; root `scripts/` and configuration remain repository tooling.
+- Tests: use Vitest in `packages/desktop/test/main`, Vitest with Vue Test Utils in
+  `packages/desktop/test/renderer`, and Playwright in `packages/desktop/test/e2e`; run the smallest
+  relevant suite.
 - Default to implementation-first development: inspect and design, complete the planned code change,
   then decide what new verification is needed. Do not default to TDD unless explicitly requested or
   a minimal executable reproduction is required to understand a complex failure.
