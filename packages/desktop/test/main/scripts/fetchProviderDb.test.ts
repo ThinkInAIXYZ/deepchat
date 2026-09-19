@@ -64,4 +64,18 @@ describe('fetch-provider-db', () => {
     ])
     expect(sanitized?.providers.openai.models[6].default_tool_mode).toBeUndefined()
   })
+
+  it('records the upstream snapshot timestamp when present', () => {
+    const models = [{ id: 'm1' }]
+    const withTimestamp = sanitizeAggregateJson({
+      providers: { aihubmix: { id: 'aihubmix', models } },
+      updated_at: '2026-09-19T00:00:00Z'
+    })
+    expect(withTimestamp?.source_updated_at).toBe('2026-09-19T00:00:00Z')
+
+    const withoutTimestamp = sanitizeAggregateJson({
+      providers: { aihubmix: { id: 'aihubmix', models } }
+    })
+    expect(withoutTimestamp).not.toHaveProperty('source_updated_at')
+  })
 })

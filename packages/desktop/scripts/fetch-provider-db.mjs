@@ -141,6 +141,8 @@ export function sanitizeAggregateJson(json) {
   const providers = json.providers
   if (!providers || typeof providers !== 'object' || Array.isArray(providers)) return null
   const out = { providers: {} }
+  // Preserve the upstream snapshot timestamp so a refresh can be audited against its source.
+  if (typeof json.updated_at === 'string') out.source_updated_at = json.updated_at
   for (const [key, p] of Object.entries(providers)) {
     if (!p || typeof p !== 'object') continue
     const pid = p.id ?? key
