@@ -479,6 +479,43 @@ describe('ProviderRuntime Integration Tests', () => {
       expect(response.length).toBeGreaterThan(0)
     }, 15000)
 
+    it('fails fast on provider errors by default and swallows only on explicit opt-in', async () => {
+      const provider = providerRuntime.getProviderInstance('mock-openai-api')
+      const failure = new Error('provider unavailable')
+      const completionsSpy = vi.spyOn(provider, 'completions').mockRejectedValue(failure)
+      const messages: ChatMessage[] = [{ role: 'user', content: 'fail' }]
+
+      await expect(
+        providerRuntime.generateCompletionStandalone(
+          'mock-openai-api',
+          messages,
+          'mock-gpt-thinking'
+        )
+      ).rejects.toThrow('provider unavailable')
+
+      const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
+      try {
+        await expect(
+          providerRuntime.generateCompletionStandalone(
+            'mock-openai-api',
+            messages,
+            'mock-gpt-thinking',
+            undefined,
+            undefined,
+            { swallowErrors: true }
+          )
+        ).resolves.toBe('')
+        expect(consoleError).toHaveBeenCalledWith(
+          'Standalone completion failed:',
+          'mock-openai-api',
+          'mock-gpt-thinking'
+        )
+      } finally {
+        consoleError.mockRestore()
+      }
+      completionsSpy.mockRestore()
+    })
+
     it('observes a completion failure that arrives after standalone cancellation', async () => {
       let rejectCompletion!: (reason?: unknown) => void
       const completion = new Promise<never>((_, reject) => {

@@ -402,8 +402,14 @@ export class ProviderRuntimeCore {
     temperature?: number,
     maxTokens?: number
   ): Promise<string> {
-    // Record input messages to the large model
-    logger.info('generateCompletion', providerId, modelId, temperature, maxTokens, messages)
+    // Metadata only: message content is user data and must not reach default console logging.
+    logger.info('generateCompletion', {
+      providerId,
+      modelId,
+      temperature,
+      maxTokens,
+      messageCount: messages.length
+    })
     const provider = this.getProviderInstance(providerId)
     const response = await provider.completions(messages, modelId, temperature, maxTokens)
     return response.content
@@ -445,7 +451,9 @@ export class ProviderRuntimeCore {
     const provider = this.getProviderInstance(providerId)
     let response = ''
     const signal = options?.signal
-    const shouldSwallowErrors = options?.swallowErrors !== false
+    // Fail fast by default: auth, network and provider configuration errors must reach the
+    // caller instead of masquerading as an empty completion. Swallowing is an explicit opt-in.
+    const shouldSwallowErrors = options?.swallowErrors === true
 
     if (signal?.aborted) {
       throw createAbortError()
@@ -466,12 +474,12 @@ export class ProviderRuntimeCore {
         throw error
       }
 
-      console.error('Stream error:', error)
-
       if (!shouldSwallowErrors) {
         throw error instanceof Error ? error : new Error('Standalone completion failed')
       }
 
+      // Minimal diagnostics only; the raw error may carry request or provider details.
+      console.error('Standalone completion failed:', providerId, modelId)
       return ''
     } finally {
       abort.cleanup()
