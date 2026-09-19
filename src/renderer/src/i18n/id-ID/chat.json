@@ -131,6 +131,8 @@
   },
   "messages": {
     "loadEarlier": "Muat pesan sebelumnya",
+    "scrollToLatest": "Ke yang terbaru",
+    "minimap": "Peta pesan",
     "thinking": "Berpikir...",
     "rateLimitWaiting": "Minta batas frekuensi, menunggu dalam antrian...",
     "rateLimitCompactLoading": "Batas kecepatan ({seconds} detik)",

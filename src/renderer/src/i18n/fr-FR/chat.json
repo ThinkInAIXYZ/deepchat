@@ -131,6 +131,8 @@
   },
   "messages": {
     "loadEarlier": "Charger les messages précédents",
+    "scrollToLatest": "Aller au plus récent",
+    "minimap": "Carte des messages",
     "thinking": "Pensée...",
     "rateLimitWaiting": "Limitation de débit, en attente dans la file...",
     "rateLimitCompactLoading": "Limité par le débit ({seconds}s)",

@@ -1,0 +1,7 @@
+{
+  "agent-toolkit": {
+    "type": "http",
+    "url": "https://agent-toolkit.app.baizhi.cloud/mcp",
+    "bearer_token_env_var": "BAIZHI_API_KEY"
+  }
+}

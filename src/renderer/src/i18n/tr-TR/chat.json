@@ -131,6 +131,8 @@
   },
   "messages": {
     "loadEarlier": "Önceki mesajları yükle",
+    "scrollToLatest": "En sona git",
+    "minimap": "Mesaj haritası",
     "thinking": "Düşünüyorum...",
     "rateLimitWaiting": "Oran sınırına ulaşıldı, kuyrukta bekleniyor...",
     "rateLimitCompactLoading": "{seconds}s için oran sınırlı...",

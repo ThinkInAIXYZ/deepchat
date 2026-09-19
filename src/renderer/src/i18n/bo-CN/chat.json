@@ -226,7 +226,9 @@
     "rateLimitImmediately": "འཕྲལ་དུ་",
     "rateLimitSeconds": "སྐར་ཆ་",
     "rateLimitMinutes": "ཟིན་བྲིས་གནད་བསྡུས།",
-    "loadEarlier": "སྔོན་གྱི་འཕྲིན་ཐུང་འཇུག་པ།"
+    "loadEarlier": "སྔོན་གྱི་འཕྲིན་ཐུང་འཇུག་པ།",
+    "scrollToLatest": "གསར་ཤོས་ལ་སྤོ་བ།",
+    "minimap": "བརྡ་འཕྲིན་གྱི་ས་ཁྲ།"
   },
   "compaction": {
     "compacting": "རྒྱབ་ལྗོངས་ཇེ་ཉུང་དུ་བཏང་བ...",
