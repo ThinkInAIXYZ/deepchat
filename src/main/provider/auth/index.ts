@@ -397,6 +397,8 @@ export class OAuthService implements OAuthServicePort {
       const authUrl = this.buildAuthUrl(config)
       logger.info('Opening OAuth URL:', authUrl)
 
+      this.authWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
+
       // Load authorization page
       this.authWindow.loadURL(authUrl)
       this.authWindow.show()
