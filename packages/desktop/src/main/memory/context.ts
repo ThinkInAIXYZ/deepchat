@@ -61,6 +61,7 @@ export function isUniqueConstraintError(error: unknown): boolean {
 
 export class MemoryRuntimeContext {
   private disposed = false
+  private paused = false
   private readonly readEpochByAgent = new Map<string, number>()
   private readonly executionStateByAgent = new Map<string, MemoryExecutionState>()
   private readonly pendingMemoryClearAgentIds: Set<string>
@@ -73,6 +74,21 @@ export class MemoryRuntimeContext {
 
   get isDisposed(): boolean {
     return this.disposed
+  }
+
+  get isPaused(): boolean {
+    return this.paused
+  }
+
+  pause(): void {
+    this.paused = true
+    for (const agentId of this.executionStateByAgent.keys()) {
+      this.invalidateAgentOperations(agentId)
+    }
+  }
+
+  resume(): void {
+    this.paused = false
   }
 
   now(): number {
@@ -105,6 +121,7 @@ export class MemoryRuntimeContext {
   isOperationFenceCurrent(fence: MemoryOperationFence): boolean {
     return (
       !this.disposed &&
+      !this.paused &&
       (this.executionStateByAgent.get(fence.agentId)?.generation ?? 0) === fence.generation
     )
   }
@@ -203,6 +220,11 @@ export class MemoryRuntimeContext {
     return this.pendingMemoryClearAgentIds.has(agentId)
   }
 
+  syncPendingMemoryClears(agentIds: readonly string[]): void {
+    this.pendingMemoryClearAgentIds.clear()
+    for (const agentId of agentIds) this.pendingMemoryClearAgentIds.add(agentId)
+  }
+
   markMemoryClearPending(agentId: string): void {
     this.pendingMemoryClearAgentIds.add(agentId)
   }
@@ -214,6 +236,7 @@ export class MemoryRuntimeContext {
   canWriteAgentMemory(agentId: string): boolean {
     return (
       !this.disposed &&
+      !this.paused &&
       !this.isMemoryClearPending(agentId) &&
       this.isManagedAgent(agentId) &&
       this.isEnabled(agentId)
@@ -221,7 +244,7 @@ export class MemoryRuntimeContext {
   }
 
   canManageAgentMemory(agentId: string): boolean {
-    return !this.disposed && this.isManagedAgent(agentId)
+    return !this.disposed && !this.paused && this.isManagedAgent(agentId)
   }
 
   canManageClaimMemory(agentId: string): boolean {
@@ -229,7 +252,7 @@ export class MemoryRuntimeContext {
   }
 
   canReadDirectivePlane(agentId: string): boolean {
-    return !this.disposed && this.isManagedAgent(agentId) && this.isEnabled(agentId)
+    return this.canManageAgentMemory(agentId) && this.isEnabled(agentId)
   }
 
   canReadAgentMemory(agentId: string): boolean {
@@ -241,16 +264,13 @@ export class MemoryRuntimeContext {
   }
 
   canUseCurrentMemoryEmbedding(agentId: string, embedding: MemoryModelRef): boolean {
+    if (!this.canReadAgentMemory(agentId)) return false
     const current = this.options.policy.resolveAgentConfig(agentId)?.memoryEmbedding
-    return (
-      current?.providerId === embedding.providerId &&
-      current?.modelId === embedding.modelId &&
-      this.canReadAgentMemory(agentId)
-    )
+    return current?.providerId === embedding.providerId && current?.modelId === embedding.modelId
   }
 
   emitChanged(agentId: string, reason: MemoryUpdateReason, context?: MemoryUpdateContext): void {
-    if (this.disposed) return
+    if (this.disposed || this.paused) return
     this.options.onAgentMemoryMutated?.(agentId)
     if (context) this.options.changeSink?.onMemoryChanged?.(agentId, reason, context)
     else this.options.changeSink?.onMemoryChanged?.(agentId, reason)
@@ -270,7 +290,7 @@ export class MemoryRuntimeContext {
       createdAt?: number
     }
   ): void {
-    if (this.disposed) return
+    if (this.disposed || this.paused) return
     this.options.auditWriter?.insert({
       id: `audit-${nanoid(12)}`,
       agentId,

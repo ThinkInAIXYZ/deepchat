@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 
 import type { MaintenanceBudget } from '@/memory/core/maintenanceBudget'
+import { WORKING_REFRESH_DEBOUNCE_MS } from '@/memory/runtimeConstants'
 import type {
   AgentMemoryRow,
   MemoryVectorMatch
@@ -1316,6 +1317,142 @@ describe('MemoryService offline consolidation (T-B4..T-B6)', () => {
     await expect(presenter.drainBackgroundMaintenance()).resolves.toEqual([])
     await pass
     expect(decisionCalls(generateText)).toBe(0)
+  })
+
+  it('fences started prewarm and reports its unsettled store open during drain', async () => {
+    const repo = createFakeRepository()
+    repo.rows.set('m1', makeRow('m1'))
+    const open = createControlledPromise<FakeVectorStore>()
+    const createVectorStore = vi.fn(() => open.promise)
+    const presenter = new MemoryService({
+      repository: repo,
+      resolveAgentConfig: () => enabledConfig,
+      getEmbeddings: async (_p, _m, texts) => texts.map(textToVector),
+      getDimensions: embeddingDimensions,
+      generateText: async () => '',
+      createVectorStore,
+      resetVectorStore: async () => undefined
+    })
+    const token = presenter.captureExecutionToken('a')
+    presenter.warmActiveAgents()
+    await vi.waitFor(() => expect(createVectorStore).toHaveBeenCalledTimes(1))
+    presenter.stopBackgroundMaintenance()
+    await expect(presenter.drainBackgroundMaintenance(20)).resolves.toEqual(['a'])
+    const staleRead = vi.spyOn(repo, 'hasStaleEmbeddings')
+    const store = new FakeVectorStore()
+    store.vectors.set('m1', textToVector('m1'))
+    open.resolve(store)
+    await expect(presenter.drainBackgroundMaintenance()).resolves.toEqual([])
+    expect(staleRead).not.toHaveBeenCalled()
+    presenter.warmActiveAgents()
+    expect(presenter.isEnabled('a')).toBe(false)
+    presenter.startBackgroundMaintenance()
+    expect(presenter.isEnabled('a')).toBe(true)
+    expect(presenter.canContinueExecution(token)).toBe(false)
+    await presenter.dispose()
+  })
+
+  it.each([false, true])(
+    'pauses clear between batches (replace database: %s)',
+    async (replaceDatabase) => {
+      const { presenter, repo } = makeLLMPresenter(routedLLM({}))
+      for (let index = 0; index < 257; index++) {
+        repo.rows.set(`m${index}`, makeRow(`m${index}`))
+      }
+      const clear = presenter.clearMemories('a')
+      const interrupted = expect(clear).rejects.toThrow('paused for database maintenance')
+      presenter.stopBackgroundMaintenance()
+      await expect(presenter.drainBackgroundMaintenance()).resolves.toEqual([])
+      await interrupted
+      expect(repo.countByAgent('a')).toBe(1)
+      expect(repo.listPendingMemoryClearJobs()).toMatchObject([{ agentId: 'a', removed: 256 }])
+      await expect(presenter.clearMemories('a')).rejects.toThrow('paused for database maintenance')
+
+      if (replaceDatabase) {
+        repo.retireAgentMemoryNamespace('a')
+        repo.rows.set('restored', makeRow('restored'))
+      }
+      presenter.startBackgroundMaintenance()
+      await vi.waitFor(() => expect(repo.listPendingMemoryClearJobs()).toEqual([]))
+      expect(repo.countByAgent('a')).toBe(replaceDatabase ? 1 : 0)
+      expect(presenter.isEnabled('a')).toBe(true)
+      await presenter.dispose()
+    }
+  )
+
+  it.each([false, true])(
+    'waits for vector clear across pause (resume early: %s)',
+    async (resumeEarly) => {
+      const repo = createFakeRepository()
+      repo.rows.set('m1', makeRow('m1'))
+      const reset = createControlledPromise<void>()
+      const resetVectorStore = vi.fn(() => reset.promise)
+      const presenter = new MemoryService({
+        repository: repo,
+        resolveAgentConfig: () => enabledConfig,
+        getEmbeddings: async (_p, _m, texts) => texts.map(textToVector),
+        getDimensions: embeddingDimensions,
+        generateText: async () => '',
+        createVectorStore: async () => new FakeVectorStore(),
+        resetVectorStore
+      })
+      const clear = presenter.clearMemories('a')
+      const outcome = clear.then(
+        (removed) => ({ removed }),
+        (error: Error) => ({ error: error.message })
+      )
+      await vi.waitFor(() => expect(resetVectorStore).toHaveBeenCalledTimes(1))
+      presenter.stopBackgroundMaintenance()
+      await expect(presenter.drainBackgroundMaintenance(20)).resolves.toEqual(['a'])
+      const complete = vi.spyOn(repo, 'completeMemoryClear')
+      // A failed drain prevents database replacement. Resuming that unchanged database can
+      // finish the accepted clear; it must not be tied to a model/config execution fence.
+      if (resumeEarly) presenter.startBackgroundMaintenance()
+      reset.resolve()
+      await expect(presenter.drainBackgroundMaintenance()).resolves.toEqual([])
+      if (resumeEarly) {
+        await expect(outcome).resolves.toEqual({ removed: 1 })
+      } else {
+        await expect(outcome).resolves.toEqual({
+          error: '[Memory] clear paused for database maintenance'
+        })
+        expect(complete).not.toHaveBeenCalled()
+        expect(repo.listPendingMemoryClearJobs()).toMatchObject([
+          { agentId: 'a', phase: 'vectors' }
+        ])
+        presenter.startBackgroundMaintenance()
+      }
+      await vi.waitFor(() => expect(repo.listPendingMemoryClearJobs()).toEqual([]))
+      expect(complete).toHaveBeenCalledWith('a')
+      await presenter.dispose()
+    }
+  )
+
+  it('retains a dirty working projection without database access while paused', async () => {
+    vi.useFakeTimers()
+    const { presenter, repo } = makeLLMPresenter(routedLLM({}), { memoryEnabled: true })
+    try {
+      await presenter.rememberMemory({ kind: 'semantic', content: 'first fact' }, { agentId: 'a' })
+      await vi.advanceTimersByTimeAsync(WORKING_REFRESH_DEBOUNCE_MS)
+      const working = [...repo.rows.values()].find((row) => row.kind === 'working')!
+      expect(working.content).toContain('first fact')
+      await presenter.rememberMemory({ kind: 'semantic', content: 'second fact' }, { agentId: 'a' })
+      presenter.stopBackgroundMaintenance()
+      await expect(presenter.drainBackgroundMaintenance()).resolves.toEqual([])
+      const read = vi.spyOn(repo, 'getByProvenanceKey')
+      const remove = vi.spyOn(repo, 'deleteInternalMemory')
+      await vi.advanceTimersByTimeAsync(WORKING_REFRESH_DEBOUNCE_MS)
+      expect(read).not.toHaveBeenCalled()
+      expect(remove).not.toHaveBeenCalled()
+      expect(repo.rows.get(working.id)?.content).not.toContain('second fact')
+
+      presenter.startBackgroundMaintenance()
+      await vi.advanceTimersByTimeAsync(WORKING_REFRESH_DEBOUNCE_MS)
+      expect(repo.rows.get(working.id)?.content).toContain('second fact')
+    } finally {
+      await presenter.dispose()
+      vi.useRealTimers()
+    }
   })
 
   it('prewarms enabled active agents before the delayed maintenance arm', async () => {

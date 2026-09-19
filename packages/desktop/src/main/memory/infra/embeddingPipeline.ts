@@ -1283,6 +1283,18 @@ export class EmbeddingPipeline {
     this.embeddingWarmups.set(key, tracked)
   }
 
+  getInFlightAgentIds(): string[] {
+    return [
+      ...new Set([
+        ...this.reindexing.keys(),
+        ...this.backfilling.keys(),
+        ...this.embeddingDrains.keys(),
+        ...[...this.vectorStoreWarmups.keys()].map((key) => key.split('::')[0]),
+        ...[...this.embeddingWarmupAgents.values()].flatMap((agents) => [...agents])
+      ])
+    ]
+  }
+
   getInFlight(): Promise<unknown>[] {
     return [
       ...this.reindexing.values(),

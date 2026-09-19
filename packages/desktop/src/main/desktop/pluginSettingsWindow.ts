@@ -1,9 +1,11 @@
 import { BrowserWindow } from 'electron'
 import path from 'node:path'
+import { pathToFileURL } from 'node:url'
 import type { PluginSettingsWindowPort } from '@/plugin'
 
 export class PluginSettingsWindow implements PluginSettingsWindowPort {
   private readonly windows = new Map<string, BrowserWindow>()
+  private readonly pluginIdByWebContentsId = new Map<number, string>()
 
   async open(input: { pluginId: string; title: string; entry: string }): Promise<void> {
     const existing = this.windows.get(input.pluginId)
@@ -23,19 +25,32 @@ export class PluginSettingsWindow implements PluginSettingsWindowPort {
         nodeIntegration: false,
         contextIsolation: true,
         preload: path.join(__dirname, '../preload/pluginSettings.mjs'),
-        sandbox: false
+        sandbox: false,
+        additionalArguments: [`--deepchat-plugin-id=${encodeURIComponent(input.pluginId)}`]
       }
     })
 
+    const webContentsId = settingsWindow.webContents.id
+    const entryPath = pathToFileURL(input.entry).pathname
     this.windows.set(input.pluginId, settingsWindow)
+    this.pluginIdByWebContentsId.set(webContentsId, input.pluginId)
     settingsWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
+    settingsWindow.webContents.on('will-navigate', (event, url) => {
+      const target = new URL(url)
+      if (target.protocol !== 'file:' || target.pathname !== entryPath) {
+        event.preventDefault()
+      }
+    })
     settingsWindow.on('ready-to-show', () => {
       if (!settingsWindow.isDestroyed()) {
         settingsWindow.show()
       }
     })
     settingsWindow.on('closed', () => {
-      this.windows.delete(input.pluginId)
+      this.pluginIdByWebContentsId.delete(webContentsId)
+      if (this.windows.get(input.pluginId) === settingsWindow) {
+        this.windows.delete(input.pluginId)
+      }
     })
 
     await settingsWindow.loadFile(input.entry, {
@@ -43,6 +58,10 @@ export class PluginSettingsWindow implements PluginSettingsWindowPort {
         pluginId: input.pluginId
       }
     })
+  }
+
+  getPluginIdForWebContents(webContentsId: number): string | null {
+    return this.pluginIdByWebContentsId.get(webContentsId) ?? null
   }
 
   close(pluginId: string): void {

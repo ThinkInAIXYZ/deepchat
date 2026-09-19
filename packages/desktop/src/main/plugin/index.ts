@@ -80,6 +80,7 @@ export interface PluginSettingsWindowPort {
   open(input: { pluginId: string; title: string; entry: string }): Promise<void>
   close(pluginId: string): void
   closeAll(): void
+  getPluginIdForWebContents(webContentsId: number): string | null
 }
 
 type PluginServiceDeps = {

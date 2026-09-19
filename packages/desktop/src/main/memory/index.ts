@@ -47,7 +47,8 @@ import type {
   MemoryPersonaDraftResult,
   MemoryReflectionResult
 } from '@deepchat/agent-kernel/collab/memory/types'
-import { REINDEX_MAX_BATCHES } from './runtimeConstants'
+import { MAINTENANCE_DRAIN_TIMEOUT_MS, REINDEX_MAX_BATCHES } from './runtimeConstants'
+import { withSoftDeadline } from '@deepchat/agent-kernel/collab/memory/core/asyncDeadline'
 import { MemoryRuntimeContext } from './context'
 import { MemoryRowMutations } from './services/rowMutations'
 import { VectorStoreManager } from './infra/vectorStoreManager'
@@ -375,6 +376,9 @@ export class MemoryService implements MemoryRuntimePort {
   }
 
   startBackgroundMaintenance(): void {
+    if (this.runtime.isDisposed) return
+    this.runtime.resume()
+    this.workingMemory.resumeDirtyRefreshes()
     void this.management.resumePendingMemoryClears().catch((error) => {
       logger.error(`[Memory] pending clear recovery failed: ${String(error)}`)
     })
@@ -382,11 +386,35 @@ export class MemoryService implements MemoryRuntimePort {
   }
 
   stopBackgroundMaintenance(): void {
+    this.runtime.pause()
     this.maintenance.stopBackgroundMaintenance()
   }
 
-  drainBackgroundMaintenance(timeoutMs?: number): Promise<string[]> {
-    return this.maintenance.drainBackgroundMaintenance(timeoutMs)
+  async drainBackgroundMaintenance(
+    timeoutMs: number = MAINTENANCE_DRAIN_TIMEOUT_MS
+  ): Promise<string[]> {
+    const deadline = performance.now() + timeoutMs
+    while (true) {
+      const pending = [
+        ...this.maintenance.getInFlight(),
+        ...this.embedding.getInFlight(),
+        ...this.management.getInFlightMemoryClears()
+      ]
+      if (!pending.length) return []
+      const result = await withSoftDeadline(
+        Promise.allSettled(pending),
+        Math.max(0, deadline - performance.now())
+      )
+      if (result.timedOut) {
+        return [
+          ...new Set([
+            ...this.maintenance.getInFlightAgentIds(),
+            ...this.embedding.getInFlightAgentIds(),
+            ...this.management.getInFlightClearAgentIds()
+          ])
+        ].sort()
+      }
+    }
   }
 
   warmActiveAgents(): void {

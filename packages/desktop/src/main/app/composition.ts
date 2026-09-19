@@ -2907,7 +2907,7 @@ export async function createMainProcessControl(dependencies: {
       recordSettingsActivity: (input) => settingsDatabase.recordSettingsActivity(input)
     })
     const toolRoutes = createToolRoutes(toolService)
-    const pluginRoutes = createPluginRoutes(pluginService)
+    const pluginRoutes = createPluginRoutes(pluginService, pluginSettingsWindow)
     const skillRoutes = createSkillRoutes({
       skillService,
       skillSyncService,
@@ -3479,6 +3479,7 @@ export async function createMainProcessControl(dependencies: {
     if (
       routeName.startsWith('chat.') ||
       routeName.startsWith('sessions.') ||
+      routeName.startsWith('memory.') ||
       routeName.startsWith('orchestration.') ||
       routeName.startsWith('remoteControl.') ||
       routeName.startsWith('cronJobs.')

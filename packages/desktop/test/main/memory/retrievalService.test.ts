@@ -11,12 +11,23 @@ import {
   resolveRetrieval,
   retrievalScore
 } from '@/memory/core/scoring'
-import { MEMORY_TEMPORAL_UNCERTAIN_STATE_FACTOR } from '@/memory/core/temporal'
+import {
+  ATEMPORAL_MEMORY_METADATA,
+  MEMORY_TEMPORAL_UNCERTAIN_STATE_FACTOR
+} from '@/memory/core/temporal'
+import { MemoryRuntimeContext, type MemoryModelRef } from '@/memory/context'
+import { RetrievalService } from '@/memory/services/retrievalService'
 import { createMemoryProviderCapacityError } from '@/memory/core/providerCancellation'
 import { MEMORY_RETRIEVAL_MAX_CANDIDATES } from '@/memory/core/retrievalBudget'
 import { FTS_SIMILARITY_BASELINE } from '@deepchat/agent-kernel/collab/memory/types'
 import type { DeepChatAgentConfig } from '@deepchat/shared/types/agent-interface'
-import { enabledConfig, makePresenter, textToVector } from './support/memoryFakes'
+import {
+  createFakeRepository,
+  FakeVectorStore,
+  enabledConfig,
+  makePresenter,
+  textToVector
+} from './support/memoryFakes'
 import {
   DAY,
   deferred,
@@ -872,6 +883,217 @@ describe('MemoryService recall + injection', () => {
 
     await expect(injection).resolves.toBeNull()
     await presenter.dispose()
+  })
+})
+
+describe('scope-aware decision retrieval', () => {
+  const scope = [{ type: 'session' as const, id: 'target-session' }]
+  const candidates = ['redis preference', 'vue preference'].map((content) => ({
+    kind: 'semantic' as const,
+    category: null,
+    content,
+    importance: 0.5,
+    temporal: ATEMPORAL_MEMORY_METADATA
+  }))
+
+  function setup(foreignCount: number) {
+    const repository = createFakeRepository()
+    const store = new FakeVectorStore()
+    const config = { ...enabledConfig }
+    const policy = { resolveAgentConfig: () => config }
+    const ctx = new MemoryRuntimeContext({
+      policy,
+      providerControl: { abortAgent: vi.fn(), abortAll: vi.fn() }
+    })
+    for (let index = 0; index < foreignCount; index += 1) {
+      const id = `foreign-${index}`
+      repository.rows.set(id, makeRow(id, { scope_type: 'session', scope_id: 'foreign-session' }))
+      store.vectors.set(id, [1, 0, 0, 0])
+    }
+    for (const [id, vector] of [
+      ['target-redis', [0.9, 0.1, 0, 0]],
+      ['target-vue', [0.1, 0.9, 0, 0]]
+    ] as const) {
+      repository.rows.set(id, makeRow(id, { scope_type: 'session', scope_id: 'target-session' }))
+      store.vectors.set(id, [...vector])
+    }
+    vi.spyOn(repository, 'searchWithStrategy').mockReturnValue({ rows: [], strategy: 'fts-only' })
+    const getEmbeddings = vi.fn(
+      async (_agent: string, _provider: string, _model: string, texts: string[]) =>
+        texts.map(textToVector)
+    )
+    const queryBatch = vi.fn(
+      async (
+        _agent: string,
+        _embedding: MemoryModelRef,
+        _dimensions: number,
+        vectors: number[][],
+        topK: number
+      ) => Promise.all(vectors.map((vector) => store.query(vector, { topK })))
+    )
+    const recordRecall = vi.fn()
+    const service = new RetrievalService({
+      ctx,
+      repository,
+      policy,
+      embeddingGateway: {
+        getEmbeddings,
+        getDimensions: async () => ({ data: { dimensions: 4, normalized: false } })
+      },
+      vectorStore: {
+        getRecallHealth: () => 'available',
+        hasReadyCertificate: () => true,
+        query: async () => [],
+        queryBatch,
+        markReady: () => undefined,
+        clearReady: vi.fn()
+      },
+      workingMemory: {
+        readWorkingMemory: () => null,
+        flushWorkingMemoryIfDirty: () => undefined,
+        scheduleWorkingRefresh: () => undefined
+      },
+      warmVectorStore: async () => undefined,
+      warmEmbeddingConnection: () => undefined,
+      reindexEmbeddings: async () => undefined,
+      backfillEmbeddings: async () => undefined,
+      isReindexing: () => false,
+      deletePrunableVectorsForMemoryIds: async () => [],
+      getActiveSuppressionTopics: () => [],
+      diagnostics: { recordRecall }
+    })
+    return { service, repository, store, config, getEmbeddings, queryBatch, recordRecall }
+  }
+
+  it('finds the applicable thirteenth vector while batching distinct queries once', async () => {
+    const { service, store, getEmbeddings, queryBatch } = setup(12)
+    const nearest = await store.query(textToVector('redis'), { topK: 13 })
+    expect(nearest.slice(0, 12).every((match) => match.memoryId.startsWith('foreign-'))).toBe(true)
+    expect(nearest[11].distance).toBeLessThan(nearest[12].distance)
+    expect(nearest[12].memoryId).toBe('target-redis')
+
+    const results = await service.retrieveForDecisions(
+      'a',
+      candidates,
+      3000,
+      undefined,
+      undefined,
+      scope
+    )
+
+    expect(results.map((result) => result.neighbors.map((neighbor) => neighbor.id))).toEqual([
+      ['target-redis'],
+      ['target-vue']
+    ])
+    expect(getEmbeddings).toHaveBeenCalledTimes(1)
+    expect(getEmbeddings.mock.calls[0][3]).toEqual(candidates.map((candidate) => candidate.content))
+    expect(queryBatch).toHaveBeenCalledTimes(1)
+    expect(queryBatch.mock.calls[0][3]).toEqual(
+      candidates.map((candidate) => textToVector(candidate.content))
+    )
+    expect(queryBatch.mock.calls[0][4]).toBe(800)
+  })
+
+  it('keeps the original page when it already contains enough applicable neighbors', async () => {
+    const { service, repository, recordRecall } = setup(12)
+    for (let index = 0; index < 12; index += 1) {
+      const row = repository.rows.get(`foreign-${index}`)!
+      row.scope_id = 'target-session'
+      row.importance = 0
+    }
+    repository.rows.get('target-redis')!.importance = 1
+
+    const [result] = await service.retrieveForDecisions(
+      'a',
+      [candidates[0]],
+      3000,
+      undefined,
+      undefined,
+      scope
+    )
+
+    expect(result.neighbors.map((neighbor) => neighbor.id)).toEqual([
+      'foreign-0',
+      'foreign-1',
+      'foreign-2'
+    ])
+    expect(recordRecall).toHaveBeenCalledWith(
+      'a',
+      expect.objectContaining({
+        vectorCandidates: 12,
+        degradations: []
+      })
+    )
+  })
+
+  it('bounds an exhausted pool at 800 and keeps retry snapshots and pinned order', async () => {
+    const { service, repository, getEmbeddings, queryBatch, recordRecall } = setup(800)
+    for (const id of ['head-a', 'head-b']) {
+      repository.rows.set(id, makeRow(id, { scope_type: 'session', scope_id: 'target-session' }))
+    }
+    const snapshot = { vector: textToVector('redis'), providerId: 'p', modelId: 'm', dimensions: 4 }
+    const results = await service.retrieveForDecisions(
+      'a',
+      candidates,
+      3000,
+      [snapshot, undefined],
+      [['head-b', 'head-a']],
+      scope
+    )
+
+    expect(results[0].neighbors.map((neighbor) => neighbor.id)).toEqual(['head-b', 'head-a'])
+    expect(results[0].queryVector).toEqual(snapshot)
+    expect(results[1]).toEqual({ neighbors: [], queryVector: undefined })
+    expect(getEmbeddings).not.toHaveBeenCalled()
+    expect(queryBatch).toHaveBeenCalledTimes(1)
+    expect(queryBatch.mock.calls[0][3]).toEqual([snapshot.vector])
+    expect(queryBatch.mock.calls[0][4]).toBe(800)
+    expect(recordRecall).toHaveBeenCalledWith(
+      'a',
+      expect.objectContaining({
+        degradations: ['candidateBudgetExhausted']
+      })
+    )
+  })
+
+  it('returns the applicable vector at the budget boundary', async () => {
+    const { service, recordRecall } = setup(799)
+    const [result] = await service.retrieveForDecisions(
+      'a',
+      [candidates[0]],
+      3000,
+      undefined,
+      undefined,
+      scope
+    )
+    expect(result.neighbors.map((neighbor) => neighbor.id)).toEqual(['target-redis'])
+    expect(recordRecall).toHaveBeenCalledWith(
+      'a',
+      expect.objectContaining({
+        degradations: ['candidateBudgetExhausted']
+      })
+    )
+  })
+
+  it('discards the widened pool when memory is disabled during the scan', async () => {
+    const { service, repository, config, queryBatch } = setup(12)
+    const scan = deferred<Array<Array<{ memoryId: string; distance: number }>>>()
+    queryBatch.mockImplementationOnce(() => scan.promise)
+    const revalidate = vi.spyOn(repository, 'listApplicableByIds')
+    const retrieval = service.retrieveForDecisions(
+      'a',
+      [candidates[0]],
+      3000,
+      undefined,
+      undefined,
+      scope
+    )
+    await vi.waitFor(() => expect(queryBatch).toHaveBeenCalledTimes(1))
+    config.memoryEnabled = false
+    scan.resolve([[{ memoryId: 'target-redis', distance: 0.1 }]])
+
+    await expect(retrieval).resolves.toEqual([{ neighbors: [] }])
+    expect(revalidate).not.toHaveBeenCalled()
   })
 })
 
