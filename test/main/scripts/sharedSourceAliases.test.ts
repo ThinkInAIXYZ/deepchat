@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises'
 import path from 'node:path'
 
+import ts from 'typescript'
 import { describe, expect, it } from 'vitest'
 
 type PackageManifest = {
@@ -51,4 +52,31 @@ describe('shared source aliases', () => {
       ).toEqual([])
     }
   )
+
+  it('keeps the legacy attachment type bound to its shared owner instead of any', () => {
+    const config = ts.readConfigFile(path.join(root, 'tsconfig.node.json'), ts.sys.readFile)
+    expect(config.error).toBeUndefined()
+    const parsed = ts.parseJsonConfigFileContent(config.config, ts.sys, root, {
+      noEmit: true,
+      composite: false,
+      incremental: false
+    })
+    expect(parsed.errors).toEqual([])
+
+    const hostPath = path.join(root, 'src/shared/chat.d.ts')
+    const sharedPath = path.join(root, 'packages/shared/src/chat.ts')
+    const program = ts.createProgram([hostPath, sharedPath], parsed.options)
+    const checker = program.getTypeChecker()
+    const attachmentSymbol = (filePath: string) => {
+      const source = program.getSourceFile(filePath)!
+      const module = checker.getSymbolAtLocation(source)!
+      const symbol = checker.getExportsOfModule(module).find((entry) => entry.name === 'MessageFile')!
+      return symbol.flags & ts.SymbolFlags.Alias ? checker.getAliasedSymbol(symbol) : symbol
+    }
+    const hostSymbol = attachmentSymbol(hostPath)
+    const sharedSymbol = attachmentSymbol(sharedPath)
+
+    expect(hostSymbol).toBe(sharedSymbol)
+    expect(checker.getDeclaredTypeOfSymbol(hostSymbol).flags & ts.TypeFlags.Any).toBe(0)
+  })
 })
