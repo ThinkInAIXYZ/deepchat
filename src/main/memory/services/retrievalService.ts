@@ -398,7 +398,7 @@ export class RetrievalService {
                 currentEmbedding,
                 dimensions,
                 queryIndexes.map((index) => vectors[index] as number[]),
-                vectorCandidateLimit
+                MEMORY_RETRIEVAL_MAX_CANDIDATES
               )
               latencyMs.vector = performance.now() - vectorStartedAt
               if (
@@ -456,7 +456,16 @@ export class RetrievalService {
           .filter((row): row is AgentMemoryRow => isLiveDecisionRow(agentId, row))
         const currentVectorMatches: Array<{ row: AgentMemoryRow; similarity: number }> = []
         if (vectorContext && vectorFingerprint) {
-          for (const match of vectorMatches[index]) {
+          // As in normal recall, scan once and widen locally when scope or row revalidation
+          // removes the nearest hits. Keep the initial page when it already supplies neighbors.
+          let limit = vectorCandidateLimit
+          const matches = vectorMatches[index]
+          for (let matchIndex = 0; matchIndex < matches.length; matchIndex += 1) {
+            if (matchIndex >= limit) {
+              if (currentVectorMatches.length >= DECISION_NEIGHBOR_TOP_S) break
+              limit = nextMemoryRetrievalCandidateLimit(limit)
+            }
+            const match = matches[matchIndex]
             const row = rowsById.get(match.memoryId)
             if (
               isCurrentRecallVectorRow(agentId, row, vectorContext.dimensions, vectorFingerprint) &&
@@ -464,6 +473,12 @@ export class RetrievalService {
             ) {
               currentVectorMatches.push({ row, similarity: match.similarity })
             }
+          }
+          if (
+            currentVectorMatches.length < DECISION_NEIGHBOR_TOP_S &&
+            matches.length >= MEMORY_RETRIEVAL_MAX_CANDIDATES
+          ) {
+            degradations.add('candidateBudgetExhausted')
           }
         }
         const neighbors = fuse(ftsRows, currentVectorMatches, {

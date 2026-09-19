@@ -47,6 +47,7 @@ export class WorkingMemoryService implements WorkingMemoryReadPort {
   }
 
   readWorkingMemory(agentId: string): string | null {
+    if (this.ctx.isPaused) return null
     this.flushWorkingMemoryIfDirty(agentId)
     const row = this.resolveWorkingRow(agentId)
     const content = row?.content?.trim()
@@ -116,6 +117,7 @@ export class WorkingMemoryService implements WorkingMemoryReadPort {
     const timer = this.workingRefreshTimers.get(agentId)
     if (timer) clearTimeout(timer)
     this.workingRefreshTimers.delete(agentId)
+    if (this.ctx.isPaused) return
     if (this.workingMemoryDirty.delete(agentId)) {
       try {
         if (this.ctx.canReadAgentMemory(agentId)) this.refreshWorkingMemory(agentId)
@@ -133,6 +135,10 @@ export class WorkingMemoryService implements WorkingMemoryReadPort {
     if (!this.ctx.canReadAgentMemory(agentId)) return
     this.workingMemoryDirty.add(agentId)
     this.scheduleDirtyRefresh(agentId)
+  }
+
+  resumeDirtyRefreshes(): void {
+    for (const agentId of this.workingMemoryDirty) this.scheduleDirtyRefresh(agentId)
   }
 
   private scheduleDirtyRefresh(agentId: string): void {

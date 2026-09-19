@@ -8,7 +8,6 @@ import {
   CONSOLIDATION_DIRTY_SEED_LIMIT,
   CONSOLIDATION_FAILURE_COOLDOWN_MS,
   CONSOLIDATION_IDLE_MS,
-  MAINTENANCE_DRAIN_TIMEOUT_MS,
   MAINTENANCE_HEAVY_MAX_CONCURRENCY,
   MAINTENANCE_START_DELAY_MS,
   STARTUP_ARM_STAGGER_MS,
@@ -67,7 +66,6 @@ export class MaintenanceService {
   private prewarmStartTimer: NodeJS.Timeout | null = null
   private readonly prewarmTimers = new Map<string, NodeJS.Timeout>()
   private maintenanceStarted = false
-  private maintenancePaused = false
 
   // Heavy passes run in this order under one shared budget; each is fenced independently so a
   // stop request lands at the next boundary instead of after the whole sequence.
@@ -205,7 +203,6 @@ export class MaintenanceService {
   startBackgroundMaintenance(): void {
     if (this.ctx.isDisposed || this.maintenanceStarted) return
     this.maintenanceStarted = true
-    this.maintenancePaused = false
     this.prewarmStartTimer = setTimeout(() => {
       this.prewarmStartTimer = null
       if (this.ctx.isDisposed) return
@@ -226,12 +223,11 @@ export class MaintenanceService {
    * fence invalidated and its provider requests aborted, so the pass and the
    * sub-services it delegates to stop at their next checkpoint instead of
    * waiting out a provider deadline. `startBackgroundMaintenance` re-arms after
-   * the caller's maintenance window; `drainBackgroundMaintenance` waits for the
-   * fenced passes to settle.
+   * the caller's maintenance window. MemoryService drains these passes together
+   * with embedding and clear work before the database can close.
    */
   stopBackgroundMaintenance(): void {
     this.maintenanceStarted = false
-    this.maintenancePaused = true
     if (this.prewarmStartTimer) {
       clearTimeout(this.prewarmStartTimer)
       this.prewarmStartTimer = null
@@ -248,22 +244,6 @@ export class MaintenanceService {
     for (const agentId of this.consolidationPasses.keys()) {
       this.ctx.invalidateAgentOperations(agentId)
     }
-  }
-
-  /** Waits for in-flight passes and returns the agents whose pass is still running. */
-  async drainBackgroundMaintenance(
-    timeoutMs: number = MAINTENANCE_DRAIN_TIMEOUT_MS
-  ): Promise<string[]> {
-    let timer: ReturnType<typeof setTimeout> | undefined
-    await Promise.race([
-      Promise.allSettled(this.consolidationPasses.values()),
-      new Promise<void>((resolve) => {
-        timer = setTimeout(resolve, timeoutMs)
-        if (typeof timer.unref === 'function') timer.unref()
-      })
-    ])
-    if (timer) clearTimeout(timer)
-    return [...this.consolidationPasses.keys()].sort()
   }
 
   prepareDispose(): void {
@@ -359,7 +339,7 @@ export class MaintenanceService {
     delayMs: number = CONSOLIDATION_IDLE_MS,
     options: { preserveEarlier?: boolean } = {}
   ): void {
-    if (this.ctx.isDisposed || this.maintenancePaused) return
+    if (this.ctx.isDisposed || this.ctx.isPaused) return
     const dueAt = Date.now() + delayMs
     const existing = this.consolidationTimers.get(agentId)
     const existingDueAt = this.consolidationTimerDueAt.get(agentId)
@@ -389,7 +369,7 @@ export class MaintenanceService {
     const effectiveNow = now ?? this.ctx.now()
     const existing = this.consolidationPasses.get(agentId)
     if (existing) return existing
-    if (this.maintenancePaused) return
+    if (this.ctx.isPaused) return
     const tracked = this.runConsolidationPassInternal(agentId, effectiveNow).finally(() => {
       if (this.consolidationPasses.get(agentId) === tracked) {
         this.consolidationPasses.delete(agentId)
@@ -641,6 +621,10 @@ export class MaintenanceService {
 
   getInFlight(): Promise<unknown>[] {
     return [...this.consolidationPasses.values()]
+  }
+
+  getInFlightAgentIds(): string[] {
+    return [...this.consolidationPasses.keys()]
   }
 
   clearInFlight(): void {

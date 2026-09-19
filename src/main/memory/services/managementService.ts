@@ -167,6 +167,9 @@ export class ManagementService {
   }
 
   private enqueueMemoryClear(agentId: string): Promise<MemoryClearResult> {
+    if (this.ctx.isPaused) {
+      return Promise.reject(new Error('[Memory] clear paused for database maintenance'))
+    }
     const existing = this.clearOperations.get(agentId)
     if (existing) return existing
     const operation = this.runMemoryClear(agentId)
@@ -184,9 +187,16 @@ export class ManagementService {
     return [...this.clearOperations.values()]
   }
 
+  getInFlightClearAgentIds(): string[] {
+    return [...this.clearOperations.keys()]
+  }
+
   async resumePendingMemoryClears(): Promise<void> {
     const jobs = this.ports.repository.listPendingMemoryClearJobs()
+    // Database maintenance may replace SQLite rather than reopen the same file.
+    this.ctx.syncPendingMemoryClears(jobs.map((job) => job.agentId))
     for (const job of jobs) {
+      if (this.ctx.isPaused || this.ctx.isDisposed) return
       if (!isSafeAgentId(job.agentId)) {
         logger.error(`[Memory] refusing to resume clear job with invalid agent id: ${job.agentId}`)
         continue
@@ -729,6 +739,7 @@ export class ManagementService {
     this.ports.syncWorkingMemoryAfterMutation(agentId)
 
     while (job.phase === 'claims') {
+      if (this.ctx.isPaused) throw new Error('[Memory] clear paused for database maintenance')
       const batch = this.ports.repository.processMemoryClearBatch(agentId)
       if (!batch) {
         const remaining = this.ports.repository.countByAgent(agentId)
@@ -776,6 +787,7 @@ export class ManagementService {
       return { removed: job.removed, cleanupPendingRestart }
     }
 
+    if (this.ctx.isPaused) throw new Error('[Memory] clear paused for database maintenance')
     if (!this.ports.repository.completeMemoryClear(agentId)) {
       throw new Error(`[Memory] clear job returned to claim cleanup for ${agentId}`)
     }

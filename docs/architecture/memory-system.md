@@ -258,7 +258,7 @@ Maintenance 只处理有界 seed batch 和有界 same-scope vector neighbors；�
 
 ## Maintenance 和可观测性
 
-`MaintenanceService` 拥有 timer、cooldown、并发预算和 stop/drain；`MergeService` 只负责有界
+`MaintenanceService` 拥有 timer、cooldown 和并发预算；`MemoryService` 统一暂停与排空；`MergeService` 只负责有界
 near-duplicate merge，沿用 runner 传入的 operation fence、业务时间和共享预算。用户 conflict
 resolution 的后续调度由 facade 负责；自动 challenge pass 每次成功应用后通知 Maintenance 调度，
 即使后续 pair 失败也不丢失已经产生的调度。`ConflictService` 不持有 Maintenance 的构造依赖。
@@ -268,9 +268,12 @@ fence Memory、drain accepted work、关闭 store/SQLite、执行操作、reopen
 `stopBackgroundMaintenance` 同步清空全部 prewarm/startup/consolidation timer、拒绝新的 arm 与 pass，
 并对每个持有 in-flight pass 的 Agent 推进 execution fence、中止其 provider 请求，让 pass 及其委托的
 challenge/merge/reflection/persona 子步骤在下一个 checkpoint 停止，而不是等完一个 provider deadline；
-`drainBackgroundMaintenance` 在有界超时内等待这些 pass 落定，超时即让 database maintenance 失败而不是
-带着未落定的 pass 关闭 SQLite。`startBackgroundMaintenance` 在 stop 之后可以重新 arm，startup pass
-不会因此丢失。
+`drainBackgroundMaintenance` 在一个有界超时内等待 consolidation、embedding/prewarm 和 clear work
+落定，超时即让 database maintenance 失败而不是带着未落定的任务关闭 SQLite。暂停期间 dirty working
+refresh 不访问数据库、不删除 projection，恢复后重新调度。Clear 在批次或 await 边界暂停，保留 durable
+job 并拒绝未完成的请求；如果 drain 超时使数据库维护取消，恢复原数据库后仍在途的 clear 可以继续完成。
+`startBackgroundMaintenance` 在 stop 之后恢复 admission、dirty refresh 和 pending clear，并重新 arm
+startup pass。
 启动恢复按 Agent 顺序处理 pending clear job，避免多个遗留 namespace 在同一个 event-loop tick
 同时执行首批同步事务。Shutdown 只等待当前有界 batch；未完成 job 保持可恢复。
 
