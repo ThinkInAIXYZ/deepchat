@@ -1,7 +1,7 @@
 {
   "name": "deepchat-workspace",
   "private": true,
-  "version": "1.1.2-beta.5",
+  "version": "1.1.2",
   "type": "module",
   "engines": {
     "node": ">=24.18.0 <25",
