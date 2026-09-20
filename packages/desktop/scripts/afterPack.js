@@ -127,7 +127,8 @@ async function resolvePackageDirFromImporter(
   importerPackageDir,
   packageName,
   expectedVersion,
-  resolutionSpecifier = `${packageName}/package.json`
+  resolutionSpecifier = `${packageName}/package.json`,
+  containmentRoot
 ) {
   const importerRequire = createRequire(path.join(importerPackageDir, 'package.json'))
   let packageEntry
@@ -142,6 +143,19 @@ async function resolvePackageDirFromImporter(
   }
 
   let candidate = path.dirname(await fs.realpath(packageEntry))
+  // Node resolution walks every ancestor directory; a packaged native must come from the
+  // project's own dependency tree, never from an ambient node_modules above it.
+  if (containmentRoot) {
+    const containedRoot = await fs.realpath(containmentRoot)
+    const relative = path.relative(containedRoot, candidate)
+    if (relative.startsWith('..') || path.isAbsolute(relative)) {
+      const versionSuffix = expectedVersion ? `@${expectedVersion}` : ''
+      throw new Error(
+        `Unable to resolve installed package ${packageName}${versionSuffix} from ${importerPackageDir}`,
+        { cause: new Error(`Resolved to ${candidate}, which is outside ${containmentRoot}`) }
+      )
+    }
+  }
   while (true) {
     const packageJsonPath = path.join(candidate, 'package.json')
     if (await pathExists(packageJsonPath)) {
@@ -165,7 +179,13 @@ async function resolveDirectPackageDir(
   expectedVersion,
   resolutionSpecifier = `${packageName}/package.json`
 ) {
-  return resolvePackageDirFromImporter(projectDir, packageName, expectedVersion, resolutionSpecifier)
+  return resolvePackageDirFromImporter(
+    projectDir,
+    packageName,
+    expectedVersion,
+    resolutionSpecifier,
+    projectDir
+  )
 }
 
 async function loadRuntimeVersions(projectDir) {
@@ -256,7 +276,13 @@ async function copyFffNativePackages(context) {
   const fffSourceDir = await resolveDirectPackageDir(projectDir, '@ff-labs/fff-node')
 
   for (const packageName of packageNames) {
-    const sourceDir = await resolvePackageDirFromImporter(fffSourceDir, packageName)
+    const sourceDir = await resolvePackageDirFromImporter(
+      fffSourceDir,
+      packageName,
+      undefined,
+      `${packageName}/package.json`,
+      projectDir
+    )
     const destinationDir = path.join(nodeModulesDir, ...packageName.split('/'))
 
     await fs.mkdir(path.dirname(destinationDir), { recursive: true })
@@ -285,7 +311,13 @@ async function copyParcelWatcherNativePackages(context) {
   const parcelWatcherSourceDir = await resolveDirectPackageDir(projectDir, '@parcel/watcher')
 
   for (const packageName of packageNames) {
-    const sourceDir = await resolvePackageDirFromImporter(parcelWatcherSourceDir, packageName)
+    const sourceDir = await resolvePackageDirFromImporter(
+      parcelWatcherSourceDir,
+      packageName,
+      undefined,
+      `${packageName}/package.json`,
+      projectDir
+    )
     const destinationDir = path.join(nodeModulesDir, ...packageName.split('/'))
 
     await fs.mkdir(path.dirname(destinationDir), { recursive: true })
@@ -325,7 +357,9 @@ async function copyOpendalNativePackages(context) {
     const sourceDir = await resolvePackageDirFromImporter(
       opendalSourceDir,
       packageName,
-      opendalPackageJson.version
+      opendalPackageJson.version,
+      `${packageName}/package.json`,
+      projectDir
     )
     const destinationDir = path.join(nodeModulesDir, ...packageName.split('/'))
 
@@ -351,13 +385,15 @@ async function resolveOwnedPackageDir(
   ownerPackageDir,
   packageName,
   expectedVersion,
-  resolutionSpecifier = packageName
+  resolutionSpecifier = packageName,
+  containmentRoot
 ) {
   return resolvePackageDirFromImporter(
     ownerPackageDir,
     packageName,
     expectedVersion,
-    resolutionSpecifier
+    resolutionSpecifier,
+    containmentRoot
   )
 }
 
@@ -668,18 +704,23 @@ export async function packageLightOcrAssets(context) {
   const runtimeSourceDir = await resolveOwnedPackageDir(
     facadeSourceDir,
     lightOcr.runtimePackage,
-    lightOcr.runtimeVersion
+    lightOcr.runtimeVersion,
+    lightOcr.runtimePackage,
+    projectDir
   )
   const modelSourceDir = await resolveOwnedPackageDir(
     facadeSourceDir,
     lightOcr.modelPackage,
     lightOcr.modelVersion,
-    `${lightOcr.modelPackage}/bundle/manifest.json`
+    `${lightOcr.modelPackage}/bundle/manifest.json`,
+    projectDir
   )
   const nativeSourceDir = await resolveOwnedPackageDir(
     runtimeSourceDir,
     nativePackage,
-    lightOcr.nativeVersion
+    lightOcr.nativeVersion,
+    nativePackage,
+    projectDir
   )
   const facadeDir = await copyPackageToUnpackedApp(
     facadeSourceDir,
