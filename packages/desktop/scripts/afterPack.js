@@ -129,7 +129,10 @@ async function resolveWorkspaceRoot(projectDir) {
   // standalone project directory without one contains itself.
   let current = projectDir
   while (true) {
-    if (await pathExists(path.join(current, 'pnpm-workspace.yaml'))) return current
+    const marker = path.join(current, 'pnpm-workspace.yaml')
+    const found = await pathExists(marker)
+    console.error(`[AfterPack] workspace-root walk: ${marker} exists=${found}`)
+    if (found) return current
     const parent = path.dirname(current)
     if (parent === current) return projectDir
     current = parent
