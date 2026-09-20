@@ -111,7 +111,10 @@ it(
         pnpm: { overrides }
       })
     )
-    const install = spawnSync('pnpm', ['install', '--offline', '--ignore-scripts'], {
+    // Prefer offline artifacts from the local store; a pristine CI runner has no registry
+    // metadata mirror for every declared range, and the closure under test is isolation from
+    // the repository, not from the network.
+    const install = spawnSync('pnpm', ['install', '--prefer-offline', '--ignore-scripts'], {
       cwd: workspace,
       encoding: 'utf8',
       timeout: 120000,
