@@ -821,6 +821,119 @@ describe('afterPack', () => {
     })
   })
 
+  it('resolves natives from the outer workspace when a nested workspace file shadows the package dir', async () => {
+    const afterPack = await loadAfterPack()
+    const workspaceRoot = path.join(tmpDir, 'workspace')
+    const projectDir = path.join(workspaceRoot, 'packages', 'desktop')
+    const nodeModulesDir = path.join(tmpDir, 'resources', 'app.asar.unpacked', 'node_modules')
+
+    // The pnpm workspace root owns the shared node_modules store, like a CI checkout.
+    await mkdir(workspaceRoot, { recursive: true })
+    await writeFile(
+      path.join(workspaceRoot, 'pnpm-workspace.yaml'),
+      "packages:\n  - 'packages/*'\n"
+    )
+    // Helper scripts (install-sharp-for-platform.js) drop a project-local workspace file next
+    // to the manifest; containment must not treat it as the resolution boundary.
+    await mkdir(projectDir, { recursive: true })
+    await writeFile(
+      path.join(projectDir, 'pnpm-workspace.yaml'),
+      'supportedArchitectures:\n  os:\n    - current\n'
+    )
+
+    const fffPackage = '@ff-labs/fff-node'
+    const fffNativePackage = '@ff-labs/fff-bin-linux-x64-gnu'
+    const parcelPackage = '@parcel/watcher'
+    const parcelNativePackage = '@parcel/watcher-linux-x64-glibc'
+    const opendalNativePackage = '@opendal/lib-linux-x64-gnu'
+
+    await writeVirtualPackage(workspaceRoot, fffPackage, {
+      'package.json': JSON.stringify({
+        name: fffPackage,
+        version: '0.10.6',
+        optionalDependencies: { [fffNativePackage]: '0.10.6' }
+      })
+    }, '0.10.6')
+    await writeVirtualPackage(workspaceRoot, fffNativePackage, { 'libfff_c.so': 'native' }, '0.10.6')
+    await writeVirtualPackage(workspaceRoot, parcelPackage, {
+      'package.json': JSON.stringify({
+        name: parcelPackage,
+        version: '2.6.0',
+        optionalDependencies: { [parcelNativePackage]: '2.6.0' }
+      })
+    }, '2.6.0')
+    await writeVirtualPackage(workspaceRoot, parcelNativePackage, { 'watcher.node': 'parcel-native' }, '2.6.0')
+    await writeVirtualPackage(workspaceRoot, 'opendal', {
+      'package.json': JSON.stringify({
+        name: 'opendal',
+        version: OPENDAL_TEST_VERSION,
+        optionalDependencies: { [opendalNativePackage]: OPENDAL_TEST_VERSION }
+      })
+    }, OPENDAL_TEST_VERSION)
+    await writeVersionedVirtualStorePackage(
+      workspaceRoot,
+      opendalNativePackage,
+      OPENDAL_TEST_VERSION,
+      { 'opendal.linux-x64-gnu.node': 'opendal-native' }
+    )
+    await linkOwnedPackage(workspaceRoot, fffPackage, fffNativePackage)
+    await linkOwnedPackage(workspaceRoot, parcelPackage, parcelNativePackage)
+    await linkPackage(
+      packageDir(
+        path.join(virtualPackageDir(workspaceRoot, 'opendal'), 'node_modules'),
+        opendalNativePackage
+      ),
+      packageDir(
+        path.join(
+          workspaceRoot,
+          'node_modules',
+          '.pnpm',
+          `@opendal+lib-linux-x64-gnu@${OPENDAL_TEST_VERSION}`,
+          'node_modules'
+        ),
+        opendalNativePackage
+      )
+    )
+    for (const packageName of [fffPackage, parcelPackage, 'opendal']) {
+      await linkPackage(
+        packageDir(path.join(projectDir, 'node_modules'), packageName),
+        virtualPackageDir(workspaceRoot, packageName)
+      )
+    }
+
+    await writeUnpackedPackage(nodeModulesDir, '@ff-labs/fff-node')
+    await writeUnpackedPackage(nodeModulesDir, '@parcel/watcher')
+    await writeUnpackedPackage(nodeModulesDir, 'opendal', {
+      'index.cjs': 'module.exports = {}'
+    }, OPENDAL_TEST_VERSION)
+    await seedLightOcrPrerequisites(projectDir, nodeModulesDir, 'linux', 'x64')
+    await seedNativeKitPrebuild(nodeModulesDir, 'linux', 'x64')
+
+    await afterPack({
+      targets: [],
+      appOutDir: tmpDir,
+      electronPlatformName: 'linux',
+      arch: 'x64',
+      packager: { projectDir }
+    })
+
+    await expect(
+      readFile(path.join(nodeModulesDir, '@ff-labs', 'fff-bin-linux-x64-gnu', 'libfff_c.so'), 'utf8')
+    ).resolves.toBe('native')
+    await expect(
+      readFile(
+        path.join(nodeModulesDir, '@parcel', 'watcher-linux-x64-glibc', 'watcher.node'),
+        'utf8'
+      )
+    ).resolves.toBe('parcel-native')
+    await expect(
+      readFile(
+        path.join(nodeModulesDir, '@opendal', 'lib-linux-x64-gnu', 'opendal.linux-x64-gnu.node'),
+        'utf8'
+      )
+    ).resolves.toBe('opendal-native')
+  })
+
   it('fails fast when the target OpenDAL native package is missing', async () => {
     const afterPack = await loadAfterPack()
     const projectDir = path.join(tmpDir, 'project')

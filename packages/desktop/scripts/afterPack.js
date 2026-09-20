@@ -125,16 +125,16 @@ async function pathExists(filePath) {
 
 async function resolveWorkspaceRoot(projectDir) {
   // pnpm hoists workspace dependencies to the workspace root's node_modules; resolution must
-  // stay inside that tree. The nearest ancestor with pnpm-workspace.yaml is the root; a
-  // standalone project directory without one contains itself.
+  // stay inside that tree. Scripts may drop a project-local pnpm-workspace.yaml (for example
+  // install-sharp-for-platform.js when run from the package directory), so the outermost
+  // ancestor workspace wins: it owns the node_modules store that pnpm actually populated.
+  // A standalone project directory without any workspace file contains itself.
   let current = projectDir
+  let workspaceRoot = null
   while (true) {
-    const marker = path.join(current, 'pnpm-workspace.yaml')
-    const found = await pathExists(marker)
-    console.error(`[AfterPack] workspace-root walk: ${marker} exists=${found}`)
-    if (found) return current
+    if (await pathExists(path.join(current, 'pnpm-workspace.yaml'))) workspaceRoot = current
     const parent = path.dirname(current)
-    if (parent === current) return projectDir
+    if (parent === current) return workspaceRoot ?? projectDir
     current = parent
   }
 }
@@ -189,9 +189,6 @@ async function resolvePackageDirFromImporter(
       })
     if (!contained) {
       const versionSuffix = expectedVersion ? `@${expectedVersion}` : ''
-      console.error(
-        `[AfterPack] containment rejected ${packageName}: resolved=${packageEntry} logicalHit=${logicalHit} roots=${containedRoots.join(',')} importer=${importerPackageDir}`
-      )
       throw new Error(
         `Unable to resolve installed package ${packageName}${versionSuffix} from ${importerPackageDir}: resolved ${packageEntry}, logical hit ${logicalHit}, outside ${containmentRoot}`
       )
