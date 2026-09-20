@@ -186,13 +186,11 @@ async function resolvePackageDirFromImporter(
       })
     if (!contained) {
       const versionSuffix = expectedVersion ? `@${expectedVersion}` : ''
+      console.error(
+        `[AfterPack] containment rejected ${packageName}: resolved=${packageEntry} logicalHit=${logicalHit} roots=${containedRoots.join(',')} importer=${importerPackageDir}`
+      )
       throw new Error(
-        `Unable to resolve installed package ${packageName}${versionSuffix} from ${importerPackageDir}`,
-        {
-          cause: new Error(
-            `Resolved ${packageEntry} via logical hit ${logicalHit}, which is outside ${containmentRoot}`
-          )
-        }
+        `Unable to resolve installed package ${packageName}${versionSuffix} from ${importerPackageDir}: resolved ${packageEntry}, logical hit ${logicalHit}, outside ${containmentRoot}`
       )
     }
   }
