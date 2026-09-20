@@ -136,6 +136,7 @@ vi.mock('@tiptap/vue-3', () => {
     chain() {
       const api = {
         focus: () => api,
+        scrollIntoView: () => api,
         insertContent: (content: string) => {
           insertContentMock(content)
           return api
@@ -515,6 +516,19 @@ describe('ChatInputBox attachments', () => {
     const wrapper = await mountComponent()
     ;(wrapper.vm as any).insertRecognizedText('hello world')
     expect(insertContentMock).toHaveBeenCalledWith('hello world')
+  })
+
+  it('exposes focusAndInsertText and inserts the raw character without trimming', async () => {
+    const wrapper = await mountComponent()
+    ;(wrapper.vm as any).focusAndInsertText(' ')
+    expect(insertContentMock).toHaveBeenCalledWith({ type: 'text', text: ' ' })
+  })
+
+  it('ignores focusAndInsertText when the composer is not editable', async () => {
+    const wrapper = await mountComponent()
+    await wrapper.setProps({ editable: false })
+    ;(wrapper.vm as any).focusAndInsertText('a')
+    expect(insertContentMock).not.toHaveBeenCalled()
   })
 
   it('exposes insertWorkspaceReference and inserts a workspace reference into the editor', async () => {

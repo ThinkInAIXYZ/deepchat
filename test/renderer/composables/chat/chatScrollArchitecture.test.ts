@@ -22,7 +22,13 @@ const scrollWritePatterns: ReadonlyArray<[ScrollWriteKind, RegExp]> = [
 // the message map rail, or document anchors. Any new direct renderer scroll API must be reviewed
 // explicitly.
 const allowedDirectScrollWrites: Record<string, ScrollWriteKind[]> = {
-  'src/renderer/src/components/chat/ChatInputBox.vue': ['scrollIntoView', 'scrollIntoView'],
+  // ChatInputBox: focusInput(), focusAndInsertText(), and the Shift-Enter hard break all
+  // scroll the composer itself into view rather than the message list.
+  'src/renderer/src/components/chat/ChatInputBox.vue': [
+    'scrollIntoView',
+    'scrollIntoView',
+    'scrollIntoView'
+  ],
   'src/renderer/src/components/chat/ChatMinimap.vue': ['scrollTop'],
   'src/renderer/src/components/chat/mentions/SuggestionList.vue': ['scrollIntoView'],
   'src/renderer/src/components/markdown/useMarkdownLinkNavigation.ts': [
