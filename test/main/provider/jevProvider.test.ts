@@ -116,6 +116,29 @@ describe('JevProvider', () => {
         })
       )
     })
+
+    it('falls back to the bundled catalog when the live catalog is unavailable or empty', async () => {
+      const bundled = [
+        {
+          id: 'jev-1.13.0',
+          name: 'Jev 1.13.0',
+          group: 'default',
+          providerId: 'typesafe',
+          type: ModelType.Judgment
+        }
+      ]
+
+      const noKey = await createProviderInstance({ apiKey: '', models: bundled }).fetchModels()
+      expect(noKey.map((model) => model.id)).toEqual(['jev-1.13.0'])
+
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({ detail: 'boom' }, 500)))
+      const failed = await createProviderInstance({ models: bundled }).fetchModels()
+      expect(failed.map((model) => model.id)).toEqual(['jev-1.13.0'])
+
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({ models: [] })))
+      const empty = await createProviderInstance({ models: bundled }).fetchModels()
+      expect(empty.map((model) => model.id)).toEqual(['jev-1.13.0'])
+    })
   })
 
   describe('chat surface', () => {
@@ -196,6 +219,33 @@ describe('JevProvider', () => {
       await expect(
         provider.runJudgment({ model: 'jev-1.13.0', state: {}, questions: {} })
       ).rejects.toThrow('at least one question')
+    })
+
+    it('does not silently drop an already-aborted caller signal', async () => {
+      let observedSignal: AbortSignal | undefined
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockImplementation(async (_url, init: RequestInit | undefined) => {
+          observedSignal = init?.signal ?? undefined
+          return jsonResponse({ model: 'jev-1.13.0', answers: {} })
+        })
+      )
+
+      const controller = new AbortController()
+      controller.abort()
+
+      await createProviderInstance()
+        .runJudgment(
+          {
+            model: 'jev-1.13.0',
+            state: {},
+            questions: { q: { type: 'noul', instructions: 'Is this true?' } }
+          },
+          { signal: controller.signal }
+        )
+        .catch(() => undefined)
+
+      expect(observedSignal?.aborted).toBe(true)
     })
   })
 

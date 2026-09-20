@@ -25,12 +25,36 @@ export const JEV_PERMISSION_QUESTION_IDS = {
   injectionPressure: 'injection_pressure'
 } as const
 
+export const JEV_RISK_LEVELS = ['low', 'medium', 'high', 'critical'] as const
+
+export type JevRiskLevel = (typeof JEV_RISK_LEVELS)[number]
+
+const JEV_RISK_ORDER: Record<JevRiskLevel, number> = {
+  low: 0,
+  medium: 1,
+  high: 2,
+  critical: 3
+}
+
 /**
  * Every threshold below is PROVISIONAL. Issue #2326 requires evaluation evidence (false-allow rate,
  * false-block rate, Chinese authorization, injection resistance, latency, cost) before adoption, and
  * these values should be revised against that evidence rather than treated as tuned.
  */
 export const JEV_REVIEW_THRESHOLDS = {
+  /**
+   * Highest risk level that may ever be auto-allowed.
+   *
+   * `low` is deliberately stricter than the generative reviewer this replaces, which allows low and
+   * medium (`toolPermissionReviewer.ts`, "Allow low and medium risk actions"). Switching an agent to
+   * a judgment model therefore makes it more interruptive, which is an intentional policy difference
+   * for this opt-in path and is recorded in the spec.
+   *
+   * Consequence worth knowing before any comparison: because the two paths do not share a policy, an
+   * evaluation that measures interruptions is not measuring the model alone. Align this with the
+   * generative path before drawing a conclusion about Jev's judgment quality.
+   */
+  autoAllowMaxRiskLevel: 'low' as JevRiskLevel,
   /**
    * Minimum P(yes) for "the conversation clearly authorizes this class of action" before an action
    * may be auto-allowed. Deliberately high: authorization is the gate that makes auto-allow safe.
@@ -88,12 +112,8 @@ export function buildJevPermissionQuestions(): Record<string, JevQuestion> {
   }
 }
 
-const VALID_RISK_LEVELS = ['low', 'medium', 'high', 'critical'] as const
-
-type JevRiskLevel = (typeof VALID_RISK_LEVELS)[number]
-
 function normalizeRiskLevel(value: string | undefined): JevRiskLevel | undefined {
-  return VALID_RISK_LEVELS.find((level) => level === value)
+  return JEV_RISK_LEVELS.find((level) => level === value)
 }
 
 function readNoulProbability(answer: JevAnswer | undefined): number | undefined {
@@ -180,7 +200,7 @@ export function composeJevReviewDecision(params: {
       : 0
 
   const mayAutoAllow =
-    riskLevel === 'low' &&
+    JEV_RISK_ORDER[riskLevel] <= JEV_RISK_ORDER[JEV_REVIEW_THRESHOLDS.autoAllowMaxRiskLevel] &&
     riskConfidence >= JEV_REVIEW_THRESHOLDS.autoAllowMinRiskConfidence &&
     authorization >= JEV_REVIEW_THRESHOLDS.autoAllowMinAuthorization &&
     injectionPressure <= JEV_REVIEW_THRESHOLDS.autoAllowMaxInjectionPressure
@@ -199,7 +219,9 @@ export function composeJevReviewDecision(params: {
     ? 'Judgment review detected content attempting to steer the decision.'
     : authorization < JEV_REVIEW_THRESHOLDS.autoAllowMinAuthorization
       ? 'Judgment review found the authorization for this action unclear.'
-      : 'Judgment review was not confident enough to auto-allow this action.'
+      : riskLevel === 'medium'
+        ? 'Judgment review rated this action above the risk level that may be auto-allowed.'
+        : 'Judgment review was not confident enough to auto-allow this action.'
 
   return {
     decision: 'ask_user',

@@ -88,7 +88,6 @@ Completion condition: with the slot unset the existing path is untouched; with t
 System One request is issued and mapped.
 
 ## Slice 6 — Review and validation
-
 Objective: prove decoupling held and the safety floor is intact.
 
 - [x] Confirm by inspection that compaction, title generation, translation, and memory consolidation
@@ -101,6 +100,24 @@ Objective: prove decoupling held and the safety floor is intact.
 - [x] No temporary probe or scaffolding retained.
 
 Completion condition: all gates pass and existing permission-reviewer tests pass unchanged.
+
+## Slice 7 — Review fixes
+
+Applied in response to the PR review.
+
+- [x] Make the bundled catalog load-bearing instead of decorative: it is returned whenever the live
+      catalog is unavailable or empty, so a missing key or one transient failure cannot clear a
+      previously discovered catalog. The original claim that the static entries populated the picker
+      on their own was wrong — nothing seeds the renderer's model store from `DEFAULT_PROVIDERS`.
+- [x] Promote the auto-allow risk cap from a literal to `autoAllowMaxRiskLevel`, and document the
+      intentional difference from the generative path plus its consequence for the evaluation.
+- [x] Perform the post-call abort re-check on the judgment path, matching the generative path.
+- [x] Stop silently dropping an already-aborted caller signal in the provider request signal.
+- [x] Keep the tail as well as the head of each message in the judgment state, so injection content
+      at the end of a long tool result is visible. The generative path's truncation is unchanged.
+- [x] Drop the unused `isJevScoreAnswer` guard and the redundant `JevQuestion` re-export.
+- [x] Select the provider by api type only, so repointing the built-in entry cannot pin it to
+      `JevProvider`.
 
 ## Deferred
 

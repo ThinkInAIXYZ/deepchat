@@ -100,11 +100,22 @@ Composition rules, all enforced in code:
 
 - `critical` risk blocks; `high` risk asks the user. These existing constraints are preserved and
   are not overridable by the model.
-- An action is auto-allowed only when risk is low, the authorization signal clears its threshold,
-  and no injection signal is present.
+- An action is auto-allowed only when its risk is at or below `autoAllowMaxRiskLevel`, the
+  authorization signal clears its threshold, the risk answer is confident enough, and no injection
+  signal is present.
 - Any uncertain, invalid, failed, or timed-out review asks the user.
 - An action that explicitly requires user confirmation keeps that confirmation; Jev never overrides
   it.
+
+**Intentional policy difference from the generative path.** The generative reviewer allows low *and*
+medium risk. The judgment path caps auto-allow at `low`, so switching an agent to a judgment model
+makes it strictly more interruptive. That is deliberate for an opt-in path and the cap is a named
+threshold rather than a literal, so it can be changed in one reviewable place.
+
+It has a consequence for the evaluation in issue #2326 that must be accounted for: because the two
+paths do not share a policy, an evaluation that measures interruptions is not measuring the model
+alone. The cap should be aligned with the generative path before drawing a conclusion about Jev's
+judgment quality.
 
 ### Confidence semantics
 
@@ -125,11 +136,21 @@ documented weakness is that accuracy degrades as state grows with irrelevant det
 current reviewer sends up to eight messages of up to 2,000 characters each plus full tool
 arguments. Reusing that payload verbatim would work against the questions.
 
+Tool results are retained deliberately, because they are a primary prompt-injection vector and the
+injection question needs to see them. That makes truncation direction matter: head-only truncation
+would hide an instruction placed at the end of a long tool result, which is exactly the content the
+injection question exists to catch. The judgment state therefore keeps both the head and the tail of
+each message. The generative path keeps its existing head-only truncation, so that path's prompt is
+byte-for-byte unchanged.
+
 ## Invariants
 
 - A review verdict is bound to one action hash and its exact arguments.
 - `critical` still blocks and `high` still asks the user, regardless of model output.
 - Failure, timeout, and invalid output ask the user.
+- A cancelled turn never receives a verdict: the judgment path performs the same post-call abort
+  re-check as the generative path, so a judgment that resolves after cancellation is discarded.
+- An already-aborted caller signal is never silently dropped by the provider's request signal.
 - Explicit user-confirmation requirements are never overridden.
 - `assistantModel` readers other than permission review are unchanged.
 - The selected judgment model takes effect on the next review without a restart, because the

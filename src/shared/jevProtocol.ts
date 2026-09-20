@@ -71,12 +71,14 @@ export type JevJudgmentRequest = {
   model: string
 }
 
+/**
+ * Answer-type guards. Only the types a caller actually consumes get a guard: adding one for an
+ * answer type that no code reads would read as support for it. `Score` remains part of the wire
+ * vocabulary above because the API accepts it, but nothing here handles a score answer, and a
+ * caller that asked a score question gets no composed result from it.
+ */
 export function isJevChoiceAnswer(answer: JevAnswer): answer is JevChoiceAnswer {
   return answer.type === 'choice'
-}
-
-export function isJevScoreAnswer(answer: JevAnswer): answer is JevScoreAnswer {
-  return answer.type === 'score'
 }
 
 export function isJevNoulAnswer(answer: JevAnswer): answer is JevNoulAnswer {

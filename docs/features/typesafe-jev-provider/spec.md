@@ -66,10 +66,13 @@ model slot and the Jev permission-review backend — is a separate goal in
 ### Registration
 
 The provider is selected by a dedicated branch in
-`providerInstanceManager.createProviderInstance`, matching `provider.id === 'typesafe' ||
-provider.apiType === 'jev'`, placed before the AI SDK fallback and after the existing id-keyed
-branches. This preserves the documented `id -> apiType` lookup order and mirrors how `ollama` is
-already handled.
+`providerInstanceManager.createProviderInstance` matching `provider.apiType === 'jev'`, placed
+before the AI SDK fallback and after the existing id-keyed branches.
+
+The check is api-type-only on purpose. The built-in `typesafe` profile already declares
+`apiType: 'jev'`, so an additional `id === 'typesafe'` condition adds nothing, and it would pin the
+provider to `JevProvider` even if a user repointed that entry at a different api type — where it
+would then refuse every chat call.
 
 `jev` is deliberately **not** added to `PROVIDER_API_TYPE_REGISTRY`: that registry maps a protocol to
 an `AiSdkProviderDefinition` and exists to construct an `AiSdkProvider`, which cannot express this
@@ -108,9 +111,16 @@ helpers that enumerate non-chat types explicitly (`isExplicitNonChatNewApiModelT
 This shape is not OpenAI-shaped, so discovery is implemented in the provider rather than delegated
 to the tolerant OpenAI parser.
 
-The built-in `typesafe` provider additionally ships a static fallback catalog (`jev-1.13.0`,
-`jev-latest`) so the judgment-model picker is not empty before the first refresh. Live discovery
-remains authoritative once it succeeds.
+The built-in `typesafe` profile additionally ships a bundled catalog (`jev-1.13.0`, `jev-latest`).
+It is the fallback whenever the live catalog is unavailable or empty — missing API key, transport or
+status failure, or a successful response containing no models.
+
+This fallback is load-bearing, not decorative: `BaseLLMProvider.fetchModels` persists whatever the
+provider returns, so returning an empty list in those cases would clear a previously discovered
+catalog. A bundled catalog that is never returned would also never reach a picker, because the
+renderer reads the persisted per-provider model store and nothing seeds it from
+`DEFAULT_PROVIDERS[].models`. The profile's static `models` reach the provider instance through the
+stored provider config (`providerSettings`), which is where the fallback reads them from.
 
 ### Connection check
 

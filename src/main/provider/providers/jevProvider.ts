@@ -1,5 +1,5 @@
 import type { ProviderSettingsPort } from '@/provider/settings'
-import type { JevJudgmentRequest, JevJudgmentResult, JevQuestion } from '@shared/jevProtocol'
+import type { JevJudgmentRequest, JevJudgmentResult } from '@shared/jevProtocol'
 import { ModelType } from '@shared/model'
 import type { ChatMessage } from '@shared/types/core/chat-message'
 import { createStreamEvent, type LLMCoreStreamEvent } from '@shared/types/core/llm-events'
@@ -225,15 +225,25 @@ export class JevProvider extends BaseLLMProvider {
   }
 
   protected async fetchProviderModels(): Promise<MODEL_META[]> {
-    if (!this.provider.apiKey) return []
+    // The bundled catalog is the fallback whenever the live catalog is unavailable or empty. This
+    // matters because `BaseLLMProvider.fetchModels` persists whatever this returns, so returning an
+    // empty list on a missing key or one transient failure would clear a previously discovered
+    // catalog instead of leaving the provider usable.
+    const bundled = this.getBundledCatalog()
+    if (!this.provider.apiKey) return bundled
 
     try {
       const records = await this.listModels()
+      if (records.length === 0) return bundled
       return records.map((record) => this.toModelMeta(record))
     } catch (error) {
-      console.error('[Jev] Failed to fetch models:', error)
-      return []
+      console.error('[Jev] Failed to fetch models, falling back to the bundled catalog:', error)
+      return bundled
     }
+  }
+
+  private getBundledCatalog(): MODEL_META[] {
+    return this.provider.models ?? []
   }
 
   private toModelMeta(record: JevModelRecord): MODEL_META {
@@ -303,6 +313,14 @@ export class JevProvider extends BaseLLMProvider {
     cleanup: () => void
   } {
     const controller = new AbortController()
+
+    // An already-aborted caller must not be silently dropped: register-then-abort would leave this
+    // request running until its own timeout.
+    if (callerSignal?.aborted) {
+      controller.abort()
+      return { signal: controller.signal, cleanup: () => {} }
+    }
+
     const timeout = setTimeout(() => controller.abort(), DEFAULT_REQUEST_TIMEOUT_MS)
     const onParentAbort = () => controller.abort()
     callerSignal?.addEventListener('abort', onParentAbort, { once: true })
@@ -316,5 +334,3 @@ export class JevProvider extends BaseLLMProvider {
     }
   }
 }
-
-export type { JevQuestion }

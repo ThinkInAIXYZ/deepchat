@@ -86,6 +86,17 @@ Objective: prove the change is safe and leaves existing providers alone.
 
 Completion condition: all gates pass; no existing provider test changes behaviour.
 
+## Slice 6 — Review fixes
+
+Applied in response to the PR review.
+
+- [x] Make the bundled catalog load-bearing: it is the fallback whenever the live catalog is
+      unavailable or empty. The original spec claim — that the static entries populated the picker
+      before the first refresh — was wrong, and the spec now records the real mechanism.
+- [x] Select the provider by api type only, removing the redundant and foot-gun-prone id branch.
+- [x] Add the ModelSelect test for both directions of the judgment exclusion.
+- [x] Drop the unused `isJevScoreAnswer` guard and the redundant `JevQuestion` re-export.
+
 ## Deferred
 
 - Surfacing TypeSafe's per-model `description` and `release_date` in the model manager UI.

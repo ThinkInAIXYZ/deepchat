@@ -364,7 +364,10 @@ export class ProviderInstanceManager {
         return new OllamaProvider(provider, this.options.providerSettings, this.options.locale)
       }
 
-      if (provider.id === 'typesafe' || provider.apiType === 'jev') {
+      // apiType-only on purpose: the built-in `typesafe` profile already declares `apiType: 'jev'`,
+      // so an id check adds nothing, and it would pin the provider to JevProvider even if a user
+      // repointed that entry at a different api type.
+      if (provider.apiType === 'jev') {
         return new JevProvider(provider, this.options.providerSettings, this.options.locale)
       }
 

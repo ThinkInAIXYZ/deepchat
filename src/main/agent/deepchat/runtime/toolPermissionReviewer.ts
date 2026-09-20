@@ -58,11 +58,28 @@ function sha256Text(value: string): string {
   return createHash('sha256').update(value).digest('hex')
 }
 
+/**
+ * `head` keeps the leading characters only, which is the generative path's existing behaviour.
+ * `head-and-tail` also keeps the trailing characters, because an instruction that tries to steer the
+ * decision often sits at the end of a long tool result and head-only truncation would hide exactly
+ * the content the injection question exists to see.
+ */
+type ReviewTextTruncation = 'head' | 'head-and-tail'
+
 function truncateReviewText(
   value: string,
-  maxChars = AUTO_APPROVE_REVIEW_MAX_CONTENT_CHARS
+  maxChars = AUTO_APPROVE_REVIEW_MAX_CONTENT_CHARS,
+  truncation: ReviewTextTruncation = 'head'
 ): string {
-  return value.length > maxChars ? `${value.slice(0, maxChars)}...[truncated]` : value
+  if (value.length <= maxChars) return value
+
+  if (truncation === 'head-and-tail') {
+    const headChars = Math.ceil(maxChars / 2)
+    const tailChars = maxChars - headChars
+    return `${value.slice(0, headChars)}...[truncated]...${value.slice(-tailChars)}`
+  }
+
+  return `${value.slice(0, maxChars)}...[truncated]`
 }
 
 function extractJsonObjectText(value: string): string | null {
@@ -173,10 +190,11 @@ function normalizeReviewDecision(rawText: string, actionHash: string): ToolPermi
 
 function chatMessageContentToReviewText(
   content: ChatMessage['content'],
-  maxChars = AUTO_APPROVE_REVIEW_MAX_CONTENT_CHARS
+  maxChars = AUTO_APPROVE_REVIEW_MAX_CONTENT_CHARS,
+  truncation: ReviewTextTruncation = 'head'
 ): string {
   if (typeof content === 'string') {
-    return truncateReviewText(content, maxChars)
+    return truncateReviewText(content, maxChars, truncation)
   }
   if (!Array.isArray(content)) {
     return ''
@@ -194,7 +212,7 @@ function chatMessageContentToReviewText(
     }
     return '[attachment]'
   })
-  return truncateReviewText(parts.join('\n'), maxChars)
+  return truncateReviewText(parts.join('\n'), maxChars, truncation)
 }
 
 function buildAutoApproveReviewSystemPrompt(): string {
@@ -266,7 +284,11 @@ function buildJevReviewState(params: {
     .slice(-JEV_REVIEW_MAX_RECENT_MESSAGES)
     .map((message) => ({
       role: message.role,
-      content: chatMessageContentToReviewText(message.content, JEV_REVIEW_MAX_CONTENT_CHARS),
+      content: chatMessageContentToReviewText(
+        message.content,
+        JEV_REVIEW_MAX_CONTENT_CHARS,
+        'head-and-tail'
+      ),
       calledTools: message.tool_calls?.map((toolCall) => toolCall.function.name)
     }))
 
@@ -377,13 +399,17 @@ export async function reviewAutoApproveToolPermission(
     if (judgmentProviderId && judgmentModelId) {
       // Bound by the same review timeout as the generative path so a stalled judgment still falls
       // back to asking the user instead of hanging the permission flow.
-      return await reviewWithJudgmentModel(
+      const judgmentDecision = await reviewWithJudgmentModel(
         dependencies,
         request,
         { messages: context.messages, signal: reviewAbortController.signal },
         actionHash,
         { providerId: judgmentProviderId, modelId: judgmentModelId }
       )
+      // Mirror the generative path's post-call re-check: if the caller cancelled while the judgment
+      // was in flight, do not return a verdict for a turn that was already cancelled.
+      throwIfAbortRequested(context.signal)
+      return judgmentDecision
     }
 
     const reviewerProviderId = config.assistantModel?.providerId?.trim() || context.providerId
