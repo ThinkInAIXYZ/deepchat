@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { createReadStream } from 'node:fs'
+import { createReadStream, existsSync } from 'node:fs'
 import fs from 'node:fs/promises'
 import { createRequire } from 'node:module'
 import path from 'node:path'
@@ -136,6 +136,20 @@ async function resolveWorkspaceRoot(projectDir) {
   }
 }
 
+function findLogicalResolutionHit(importerPackageDir, resolutionSpecifier) {
+  // Mirror Node's ancestor node_modules walk without following symlinks, so containment is
+  // judged on the logical installation location rather than the pnpm store realpath.
+  const relativeSpecifier = path.join('node_modules', ...resolutionSpecifier.split('/'))
+  let current = importerPackageDir
+  while (true) {
+    const candidate = path.join(current, relativeSpecifier)
+    if (existsSync(candidate)) return candidate
+    const parent = path.dirname(current)
+    if (parent === current) return null
+    current = parent
+  }
+}
+
 async function resolvePackageDirFromImporter(
   importerPackageDir,
   packageName,
@@ -157,21 +171,28 @@ async function resolvePackageDirFromImporter(
 
   let candidate = path.dirname(await fs.realpath(packageEntry))
   // Node resolution walks every ancestor directory; a packaged native must come from the
-  // project's own dependency tree, never from an ambient node_modules above it. Containment is
-  // checked on the logical resolved path: pnpm installs reach the central store through
-  // node_modules symlinks whose realpaths legitimately live outside the project, while an
-  // ancestor hit resolves to a path outside the project's node_modules prefix.
+  // workspace's own dependency tree, never from an ambient node_modules above it. Containment is
+  // judged on the logical hit of that ancestor walk (symlinks not followed): pnpm installs reach
+  // the central store through node_modules symlinks whose realpaths legitimately live outside
+  // the tree, while an ambient ancestor resolves to a logical path outside the tree.
   if (containmentRoot) {
+    const logicalHit = findLogicalResolutionHit(importerPackageDir, resolutionSpecifier)
     const containedRoots = [containmentRoot, await fs.realpath(containmentRoot)]
-    const contained = containedRoots.some((root) => {
-      const relative = path.relative(root, packageEntry)
-      return relative === '' || (relative && !relative.startsWith('..') && !path.isAbsolute(relative))
-    })
+    const contained =
+      logicalHit !== null &&
+      containedRoots.some((root) => {
+        const relative = path.relative(root, logicalHit)
+        return relative !== '' && !relative.startsWith('..') && !path.isAbsolute(relative)
+      })
     if (!contained) {
       const versionSuffix = expectedVersion ? `@${expectedVersion}` : ''
       throw new Error(
         `Unable to resolve installed package ${packageName}${versionSuffix} from ${importerPackageDir}`,
-        { cause: new Error(`Resolved to ${packageEntry}, which is outside ${containmentRoot}`) }
+        {
+          cause: new Error(
+            `Resolved ${packageEntry} via logical hit ${logicalHit}, which is outside ${containmentRoot}`
+          )
+        }
       )
     }
   }
