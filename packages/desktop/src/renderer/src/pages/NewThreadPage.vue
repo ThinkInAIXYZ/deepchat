@@ -214,6 +214,7 @@ import {
 import { DcDropdownActionItem } from '@dc-ui/components/dropdown-action-item'
 import { Icon } from '@iconify/vue'
 import ChatInputBox from '@/components/chat/ChatInputBox.vue'
+import { useComposerTypeToFocus } from '@/features/chat-page/composables/useComposerTypeToFocus'
 import ChatInputToolbar from '@/components/chat/ChatInputToolbar.vue'
 import ChatStatusBar from '@/components/chat/ChatStatusBar.vue'
 import AcpAuthDialog from '@/components/acp/AcpAuthDialog.vue'
@@ -316,9 +317,16 @@ const chatInputRef = ref<
       insertRecognizedText?: (text: string) => void
       getInlineItemsSnapshot?: () => UserMessageInlineItem[]
       focusInput?: () => void
+      focusAndInsertText?: (text: string) => void
     })
   | null
 >(null)
+// Same type-to-focus behavior as the chat page; the composer is the only
+// editable surface here, and it locks while a submission is in flight.
+useComposerTypeToFocus({
+  isEnabled: () => !isSubmittingInput.value,
+  chatInputRef
+})
 const {
   message,
   attachedFiles,

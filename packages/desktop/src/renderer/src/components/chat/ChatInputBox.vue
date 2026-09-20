@@ -911,6 +911,24 @@ function focusInput() {
   setCaretToEnd(editor)
 }
 
+/**
+ * Focuses the composer and types `text` at the end of the existing draft.
+ *
+ * Used by type-to-focus: the triggering keystroke already happened outside the
+ * editor, so the character has to be inserted rather than replayed. Unlike
+ * `insertRecognizedText` this keeps whitespace intact.
+ */
+function focusAndInsertText(text: string) {
+  if (!props.editable || !text) {
+    return
+  }
+
+  editor.chain().focus().scrollIntoView().run()
+  setCaretToEnd(editor)
+  // A text node (not a string) so a lone space is not collapsed by the parser.
+  editor.chain().insertContent({ type: 'text', text }).run()
+}
+
 defineExpose({
   triggerAttach,
   insertRecognizedText,
@@ -922,7 +940,8 @@ defineExpose({
   setPendingSkills,
   getDocumentSnapshot,
   restoreDocumentSnapshot,
-  focusInput
+  focusInput,
+  focusAndInsertText
 })
 </script>
 

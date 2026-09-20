@@ -419,6 +419,8 @@ import { useToolInteraction } from './composables/useToolInteraction'
 import { useMessageActions } from './composables/useMessageActions'
 import { usePendingInputActions } from './composables/usePendingInputActions'
 import { useChatPageEventBridge } from './composables/useChatPageEventBridge'
+import { useComposerTypeToFocus } from './composables/useComposerTypeToFocus'
+import { isEditableKeyboardTarget } from '@/lib/keyboardFocus'
 import type { UserMessageInlineItem } from '@deepchat/shared/types/agent-interface'
 import { findLatestAssistantMessageId } from '@/features/chat-page/model/displayMessage'
 
@@ -536,15 +538,16 @@ const TOP_HISTORY_THRESHOLD = 80
 const MESSAGE_JUMP_RETRY_INTERVAL = 80
 const MESSAGE_HIGHLIGHT_DURATION = 2000
 const MAX_MESSAGE_JUMP_RETRIES = 8
+// Space is intentionally absent: it is composer input now (type-to-focus claims
+// it and prevents the native scroll), so it must not mark restore-time scroll
+// intent either.
 const SESSION_RESTORE_SCROLL_INTENT_KEYS = new Set([
   'ArrowUp',
   'ArrowDown',
   'PageUp',
   'PageDown',
   'Home',
-  'End',
-  ' ',
-  'Spacebar'
+  'End'
 ])
 const traceMessageId = ref<string | null>(null)
 const sidepanelStore = useSidepanelStore()
@@ -606,16 +609,6 @@ const resolveChatInputBoxElement = () =>
   (chatInputHeroHostRef.value?.querySelector(
     '[data-testid="chat-input-box"]'
   ) as HTMLElement | null) ?? null
-
-function isEditableKeyboardTarget(target: EventTarget | null): boolean {
-  if (!(target instanceof HTMLElement)) {
-    return false
-  }
-
-  return Boolean(
-    target.closest('input, textarea, select, [contenteditable="true"], [role="textbox"]')
-  )
-}
 
 function isSessionRestoreKeyboardScrollIntent(event: KeyboardEvent): boolean {
   return (
@@ -1387,6 +1380,23 @@ watch(
   },
   { immediate: true, flush: 'post' }
 )
+
+/**
+ * Type-to-focus only when the composer can actually take focus: a read-only
+ * (subagent) session does not render it at all, and a pending tool interaction
+ * leaves it inert.
+ */
+const isComposerTypeToFocusEnabled = computed(
+  () =>
+    !isReadOnlySession.value &&
+    !isSessionViewPreparing.value &&
+    !activePendingInteraction.value &&
+    !isHandlingInteraction.value
+)
+useComposerTypeToFocus({
+  isEnabled: () => isComposerTypeToFocusEnabled.value,
+  chatInputRef
+})
 
 // Announce state transitions, not token updates; users read response content in the transcript.
 const generationAnnouncement = computed(() => {
