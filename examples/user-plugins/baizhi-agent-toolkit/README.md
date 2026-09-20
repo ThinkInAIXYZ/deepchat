@@ -88,13 +88,12 @@ not auto-approve calls or override DeepChat's tool-selection and permission cont
   the key in Baizhi Cloud if it is no longer needed. Uninstalling does not erase prior conversation
   records or revoke credentials held by other applications.
 - **Update:** use **Review update**, inspect the changes, and explicitly approve the new snapshot.
-  In the implementation reviewed for this example, an update with a changed package digest
-  drops stored credential bindings even when the endpoint and credential declaration are
-  unchanged (for example, a documentation-only package update). After updating, check the
-  plugin's setup status and re-enter your raw key in DeepChat's native credential form if
-  requested. Whether this reset is intended remains an open upstream question; this example
-  does not change that behavior. Updating a source checkout does not silently update an
-  installed plugin.
+  A changed package snapshot can require credential setup again, even for a documentation-only
+  update with the same endpoint and credential declaration. The saved credential remains in
+  local storage, but the updated plugin's configuration no longer matches its binding. After
+  updating, check the plugin's setup status and re-enter your raw key in DeepChat's native
+  credential form if requested. This example does not change that behavior. Updating a source
+  checkout does not silently update an installed plugin.
 
 ## Troubleshooting
 
