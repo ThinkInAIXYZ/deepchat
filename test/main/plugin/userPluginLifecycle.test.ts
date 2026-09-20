@@ -2,11 +2,12 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { randomUUID } from 'node:crypto'
-import { zipSync } from 'fflate'
+import { unzipSync, zipSync } from 'fflate'
 import { afterEach, expect, it, vi } from 'vitest'
 import { UserPlugins, type UserPluginRecord, type UserPluginStore } from '@/plugin/userPlugins'
 import { UserPluginHooks } from '@/plugin/userPluginHooks'
 import { McpSettings } from '@/mcp/settings'
+import { mcpVariableBindingScope } from '@/mcp/environmentBindings'
 import { SecretStore } from '@/config/secretStore'
 import { safeStorage } from 'electron'
 import type { TapeAnchorAppendInput, DeepChatTapeEntryRow } from '@/tape/domain/entry'
@@ -142,7 +143,7 @@ function fixture() {
   }
 }
 
-it('installs the Baizhi example ZIP and preserves secret bindings through replacement and reload', async () => {
+it('checks Baizhi credential scope across identical and documentation-only ZIP updates', async () => {
   const f = fixture()
   const source = path.resolve('examples/user-plugins/baizhi-agent-toolkit')
   const archive = path.join(f.root, 'baizhi-agent-toolkit.zip')
@@ -226,7 +227,44 @@ it('installs the Baizhi example ZIP and preserves secret bindings through replac
   expect(current.serverId).toBe(first.serverId)
   expect(current.customHeaders).toEqual({ Authorization: 'Bearer ${BAIZHI_API_KEY}' })
   expect(f.mcpSettings.getMcpVariableBindings(current)).toEqual({ BAIZHI_API_KEY: token })
-  expect((await reloaded.uninstall(id)).ok).toBe(true)
+
+  const secretKey = `mcpVariableBindings.${current.serverId}`
+  const savedSecret = f.wrappedSecrets.get(secretKey)
+  expect(savedSecret).toBeDefined()
+  const updatedEntries = unzipSync(fs.readFileSync(archive))
+  updatedEntries['README.md'] = Buffer.concat([
+    updatedEntries['README.md'],
+    Buffer.from('\nDocumentation-only update.\n')
+  ])
+  fs.writeFileSync(archive, zipSync(updatedEntries))
+  const docsUpdate = await reloaded.inspect({ kind: 'zip', path: archive }, randomUUID())
+  expect(docsUpdate.digest).not.toBe(replacement.digest)
+  expect(docsUpdate.package.mcpServers).toEqual(replacement.package.mcpServers)
+  expect(
+    (await reloaded.install({ operationId: docsUpdate.operationId, pluginId: id, selection })).ok
+  ).toBe(true)
+  reloaded.shutdown()
+  const updatedService = new UserPlugins(f.deps)
+  await updatedService.initialize()
+  const updated = (await f.mcpSettings.getMcpServers())[key]
+  expect(updated.serverId).toBe(current.serverId)
+  expect(updated.baseUrl).toBe(current.baseUrl)
+  expect(updated.customHeaders).toEqual(current.customHeaders)
+  expect(updated.environmentVariables).toEqual(current.environmentVariables)
+  expect(f.wrappedSecrets.get(secretKey)).toBe(savedSecret)
+  // Versioned plugin-root paths change the scope even though the MCP declaration is unchanged.
+  expect(updated.env?.PLUGIN_ROOT).not.toBe(current.env?.PLUGIN_ROOT)
+  expect(updated.env?.CLAUDE_PLUGIN_ROOT).not.toBe(current.env?.CLAUDE_PLUGIN_ROOT)
+  expect(mcpVariableBindingScope(updated)).not.toBe(mcpVariableBindingScope(current))
+  expect(mcpVariableBindingScope({ ...updated, env: current.env })).toBe(
+    mcpVariableBindingScope(current)
+  )
+  expect(f.mcpSettings.getMcpVariableBindings(updated)).toEqual({})
+  expect((await updatedService.get(id)).userPlugin?.setup[key]).toEqual(['BAIZHI_API_KEY'])
+  expect((await updatedService.configureMcp(id, key, { BAIZHI_API_KEY: token })).ok).toBe(true)
+  expect(f.mcpSettings.getMcpVariableBindings(updated)).toEqual({ BAIZHI_API_KEY: token })
+  expect((await updatedService.get(id)).userPlugin?.setup[key]).toEqual([])
+  expect((await updatedService.uninstall(id)).ok).toBe(true)
   expect(await f.mcpSettings.getMcpServers()).toEqual(unrelated)
   expect(f.store.read()).toEqual([])
   expect(f.wrappedSecrets.size).toBe(0)
