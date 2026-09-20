@@ -703,6 +703,7 @@ export const AcpAgentConfigSchema = z.looseObject({
 export const DeepChatAgentConfigSchema = z.looseObject({
   defaultModelPreset: DeepChatAgentModelPresetSchema.nullable().optional(),
   assistantModel: ModelSelectionSchema.nullable().optional(),
+  judgmentModel: ModelSelectionSchema.nullable().optional(),
   visionModel: ModelSelectionSchema.nullable().optional(),
   imageGenerationModel: ModelSelectionSchema.nullable().optional(),
   systemPrompt: z.string().optional(),

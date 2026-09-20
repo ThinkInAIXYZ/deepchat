@@ -218,6 +218,7 @@
     "modelsTitle": "Model Defaults",
     "chatModel": "Default Chat Model",
     "assistantModel": "Assistant Model",
+    "judgmentModel": "Judgment Model",
     "visionModel": "Vision Model",
     "imageGenerationModel": "Image Generation Model",
     "temperature": "Temperature",

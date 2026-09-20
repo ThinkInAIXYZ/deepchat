@@ -218,6 +218,7 @@
     "modelsTitle": "Mặc định của mô hình",
     "chatModel": "Mô hình trò chuyện mặc định",
     "assistantModel": "Trợ lý người mẫu",
+    "judgmentModel": "Mô hình phán đoán",
     "visionModel": "Mô hình tầm nhìn",
     "imageGenerationModel": "Mô hình tạo hình ảnh",
     "temperature": "Nhiệt độ",

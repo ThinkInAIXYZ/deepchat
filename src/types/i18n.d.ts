@@ -2322,6 +2322,7 @@ declare module 'vue-i18n' {
       modelsTitle: string
       chatModel: string
       assistantModel: string
+      judgmentModel: string
       visionModel: string
       imageGenerationModel: string
       temperature: string

@@ -218,6 +218,7 @@
     "modelsTitle": "Domyślne ustawienia modelu",
     "chatModel": "Domyślny model czatu",
     "assistantModel": "Modelka Asystenta",
+    "judgmentModel": "Model oceny",
     "visionModel": "Model wizji",
     "imageGenerationModel": "Model generowania obrazu",
     "temperature": "Temperatura",

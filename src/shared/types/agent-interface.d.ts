@@ -689,6 +689,12 @@ export interface DeepChatAgentMemoryRetrieval {
 export interface DeepChatAgentConfig {
   defaultModelPreset?: DeepChatAgentModelPreset | null
   assistantModel?: DeepChatAgentModelSelection | null
+  /**
+   * Opt-in, experimental System One (Jev) model used only for tool-permission review. Restricted to
+   * judgment-type models. When unset, review falls back to `assistantModel` and nothing changes.
+   * Compaction and every other `assistantModel` reader stay on `assistantModel` regardless.
+   */
+  judgmentModel?: DeepChatAgentModelSelection | null
   visionModel?: DeepChatAgentModelSelection | null
   imageGenerationModel?: DeepChatAgentModelSelection | null
   defaultProjectPath?: string | null

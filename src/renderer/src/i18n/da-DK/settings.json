@@ -2741,6 +2741,7 @@
     "modelsTitle": "Modelstandarder",
     "chatModel": "Standard chatmodel",
     "assistantModel": "Assistentmodel",
+    "judgmentModel": "Vurderingsmodel",
     "visionModel": "Vision-model",
     "imageGenerationModel": "Billedgenereringsmodel",
     "temperature": "Temperatur",

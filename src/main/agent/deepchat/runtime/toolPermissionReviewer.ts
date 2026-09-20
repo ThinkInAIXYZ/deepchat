@@ -5,6 +5,12 @@ import type { ProviderExecutionPort } from '@shared/types/provider'
 import type { ChatMessage } from '@shared/types/core/chat-message'
 import type { ToolPermissionReviewRequest, ToolPermissionReviewResult } from './types'
 import type { AgentSettingsPort } from '@/agent/settings'
+import {
+  buildJevPermissionQuestions,
+  composeJevReviewDecision,
+  JEV_REVIEW_MAX_CONTENT_CHARS,
+  JEV_REVIEW_MAX_RECENT_MESSAGES
+} from './jevPermissionQuestions'
 
 export const AUTO_APPROVE_REVIEW_MAX_RECENT_MESSAGES = 8
 const AUTO_APPROVE_REVIEW_MAX_CONTENT_CHARS = 2_000
@@ -15,7 +21,7 @@ export interface ToolPermissionReviewerDependencies {
   agentSettings: Pick<AgentSettingsPort, 'resolveDeepChatAgentConfig'>
   providerRuntime: Pick<
     ProviderExecutionPort,
-    'executeWithRateLimit' | 'generateCompletionStandalone'
+    'executeWithRateLimit' | 'generateCompletionStandalone' | 'runJudgment'
   >
   getSessionAgentId(sessionId: string): string | undefined
 }
@@ -165,9 +171,12 @@ function normalizeReviewDecision(rawText: string, actionHash: string): ToolPermi
   }
 }
 
-function chatMessageContentToReviewText(content: ChatMessage['content']): string {
+function chatMessageContentToReviewText(
+  content: ChatMessage['content'],
+  maxChars = AUTO_APPROVE_REVIEW_MAX_CONTENT_CHARS
+): string {
   if (typeof content === 'string') {
-    return truncateReviewText(content)
+    return truncateReviewText(content, maxChars)
   }
   if (!Array.isArray(content)) {
     return ''
@@ -185,7 +194,7 @@ function chatMessageContentToReviewText(content: ChatMessage['content']): string
     }
     return '[attachment]'
   })
-  return truncateReviewText(parts.join('\n'))
+  return truncateReviewText(parts.join('\n'), maxChars)
 }
 
 function buildAutoApproveReviewSystemPrompt(): string {
@@ -243,6 +252,86 @@ function buildAutoApproveReviewUserPrompt(params: {
   ].join('\n\n')
 }
 
+/**
+ * Builds the System One review state. Filtered in code rather than forwarding the whole transcript,
+ * because TypeSafe documents that accuracy degrades as state fills with unrelated detail. Tool
+ * results are retained deliberately: they are a primary prompt-injection vector and the injection
+ * question needs to see them.
+ */
+function buildJevReviewState(params: {
+  request: ToolPermissionReviewRequest
+  recentMessages: ChatMessage[]
+}): Record<string, unknown> {
+  const recentConversation = params.recentMessages
+    .slice(-JEV_REVIEW_MAX_RECENT_MESSAGES)
+    .map((message) => ({
+      role: message.role,
+      content: chatMessageContentToReviewText(message.content, JEV_REVIEW_MAX_CONTENT_CHARS),
+      calledTools: message.tool_calls?.map((toolCall) => toolCall.function.name)
+    }))
+
+  return {
+    reviewTask: 'deepchat_judgment_tool_action',
+    proposedAction: {
+      toolName: params.request.toolName,
+      toolArgs: params.request.toolArgs,
+      toolSource: params.request.toolSource,
+      serverName: params.request.serverName,
+      reason: params.request.reason,
+      permission: params.request.permission
+    },
+    recentConversation
+  }
+}
+
+/**
+ * Reviews one action with the agent's configured System One (Jev) model.
+ *
+ * The verdict is bound to the action by the caller: the hash identifies this exact action and its
+ * arguments, and the returned result is only ever applied to it. There is no hash echo, because Jev
+ * does not generate text and cannot echo anything.
+ */
+async function reviewWithJudgmentModel(
+  dependencies: ToolPermissionReviewerDependencies,
+  request: ToolPermissionReviewRequest,
+  context: { messages: ChatMessage[]; signal: AbortSignal },
+  actionHash: string,
+  selection: { providerId: string; modelId: string }
+): Promise<ToolPermissionReviewResult> {
+  await dependencies.providerRuntime.executeWithRateLimit(selection.providerId, {
+    signal: context.signal
+  })
+
+  const result = await dependencies.providerRuntime.runJudgment(
+    selection.providerId,
+    selection.modelId,
+    {
+      state: buildJevReviewState({ request, recentMessages: context.messages }),
+      questions: buildJevPermissionQuestions()
+    },
+    { signal: context.signal }
+  )
+
+  const decision = composeJevReviewDecision({ actionHash, answers: result.answers })
+
+  logger.info('[DeepChatAgent] judgment review decision:', {
+    sessionId: request.sessionId,
+    messageId: request.messageId,
+    toolCallId: request.toolCallId,
+    toolName: request.toolName,
+    judgmentProviderId: selection.providerId,
+    judgmentModelId: selection.modelId,
+    answeredModel: result.model,
+    inputTokens: result.usage?.input_tokens,
+    actionHash,
+    decision: decision.decision,
+    riskLevel: decision.riskLevel,
+    userAuthorization: decision.userAuthorization
+  })
+
+  return decision
+}
+
 export async function reviewAutoApproveToolPermission(
   dependencies: ToolPermissionReviewerDependencies,
   request: ToolPermissionReviewRequest,
@@ -281,6 +370,22 @@ export async function reviewAutoApproveToolPermission(
     throwIfAbortRequested(context.signal)
     const agentId = dependencies.getSessionAgentId(request.sessionId) ?? 'deepchat'
     const config = await dependencies.agentSettings.resolveDeepChatAgentConfig(agentId)
+
+    // Opt-in System One review. Unset means today's behaviour, unchanged.
+    const judgmentProviderId = config.judgmentModel?.providerId?.trim()
+    const judgmentModelId = config.judgmentModel?.modelId?.trim()
+    if (judgmentProviderId && judgmentModelId) {
+      // Bound by the same review timeout as the generative path so a stalled judgment still falls
+      // back to asking the user instead of hanging the permission flow.
+      return await reviewWithJudgmentModel(
+        dependencies,
+        request,
+        { messages: context.messages, signal: reviewAbortController.signal },
+        actionHash,
+        { providerId: judgmentProviderId, modelId: judgmentModelId }
+      )
+    }
+
     const reviewerProviderId = config.assistantModel?.providerId?.trim() || context.providerId
     const reviewerModelId = config.assistantModel?.modelId?.trim() || context.modelId
 

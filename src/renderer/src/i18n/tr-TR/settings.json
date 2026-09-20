@@ -218,6 +218,7 @@
     "modelsTitle": "Model Varsayılanları",
     "chatModel": "Varsayılan Sohbet Modeli",
     "assistantModel": "Asistan Modeli",
+    "judgmentModel": "Değerlendirme Modeli",
     "visionModel": "Vizyon Modeli",
     "imageGenerationModel": "Görüntü Oluşturma Modeli",
     "temperature": "Sıcaklık",

@@ -2741,6 +2741,7 @@
     "modelsTitle": "پیش‌فرض‌های مدل",
     "chatModel": "مدل پیش‌فرض گفتگو",
     "assistantModel": "مدل دستیار",
+    "judgmentModel": "مدل داوری",
     "visionModel": "مدل بصری",
     "imageGenerationModel": "مدل تولید تصویر",
     "temperature": "دما",

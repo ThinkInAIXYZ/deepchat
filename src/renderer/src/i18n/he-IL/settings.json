@@ -2741,6 +2741,7 @@
     "modelsTitle": "ברירות מחדל למודל",
     "chatModel": "מודל שיחה ברירת מחדל",
     "assistantModel": "מודל עוזר",
+    "judgmentModel": "מודל שיפוט",
     "visionModel": "מודל ראייה",
     "imageGenerationModel": "מודל יצירת תמונות",
     "temperature": "טמפרטורה",

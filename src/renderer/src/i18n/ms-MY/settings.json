@@ -218,6 +218,7 @@
     "modelsTitle": "model lalai",
     "chatModel": "Model dialog lalai",
     "assistantModel": "model pembantu",
+    "judgmentModel": "model penilaian",
     "visionModel": "model visual",
     "imageGenerationModel": "Model penjanaan imej",
     "temperature": "suhu",

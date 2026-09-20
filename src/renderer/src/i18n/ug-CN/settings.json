@@ -218,6 +218,7 @@
     "modelsTitle": "مودېل سۈكۈتتىكى قىممەتلىرى",
     "chatModel": "سۈكۈتتىكى سۆھبەت مودېلى",
     "assistantModel": "ياردەمچى مودېل",
+    "judgmentModel": "ھۆكۈم مودېلى",
     "visionModel": "كۆرۈش مودېلى",
     "imageGenerationModel": "سۈرەت ھاسىل قىلىش مودېلى",
     "temperature": "تېمپېراتۇرا",

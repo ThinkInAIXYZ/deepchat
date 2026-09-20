@@ -2741,6 +2741,7 @@
     "modelsTitle": "Параметры модели по умолчанию",
     "chatModel": "Модель чата по умолчанию",
     "assistantModel": "Модель помощника",
+    "judgmentModel": "Модель оценки",
     "visionModel": "Визуальная модель",
     "imageGenerationModel": "Модель генерации изображений",
     "temperature": "Температура",

@@ -2741,6 +2741,7 @@
     "modelsTitle": "モデルの既定値",
     "chatModel": "既定の会話モデル",
     "assistantModel": "アシスタントモデル",
+    "judgmentModel": "判定モデル",
     "visionModel": "視覚モデル",
     "imageGenerationModel": "画像生成モデル",
     "temperature": "温度",

@@ -218,6 +218,7 @@
     "modelsTitle": "bawaan model",
     "chatModel": "Model dialog default",
     "assistantModel": "model pembantu",
+    "judgmentModel": "model penilaian",
     "visionModel": "model visual",
     "imageGenerationModel": "Model pembuatan gambar",
     "temperature": "suhu",

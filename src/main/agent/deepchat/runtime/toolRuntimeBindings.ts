@@ -30,7 +30,7 @@ export interface ToolRuntimeBindingDependencies {
   >
   providerRuntime: Pick<
     ProviderExecutionPort,
-    'executeWithRateLimit' | 'generateCompletionStandalone'
+    'executeWithRateLimit' | 'generateCompletionStandalone' | 'runJudgment'
   >
   registry: SessionScopeRegistry
   sessionStore: Pick<SessionSettingsStore, 'get'>

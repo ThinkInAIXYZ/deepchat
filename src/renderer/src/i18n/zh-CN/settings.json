@@ -218,6 +218,7 @@
     "modelsTitle": "模型默认值",
     "chatModel": "默认对话模型",
     "assistantModel": "助手模型",
+    "judgmentModel": "判定模型",
     "visionModel": "视觉模型",
     "imageGenerationModel": "图像生成模型",
     "temperature": "温度",

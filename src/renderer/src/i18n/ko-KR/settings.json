@@ -2741,6 +2741,7 @@
     "modelsTitle": "모델 기본값",
     "chatModel": "기본 대화 모델",
     "assistantModel": "보조 모델",
+    "judgmentModel": "판정 모델",
     "visionModel": "시각적 모델",
     "imageGenerationModel": "이미지 생성 모델",
     "temperature": "온도",

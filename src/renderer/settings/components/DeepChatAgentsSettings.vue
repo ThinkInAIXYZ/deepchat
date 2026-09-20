@@ -888,7 +888,12 @@ import {
 } from '@shared/lib/agentOutputLimits'
 import { settingsLeaveGuard } from '../services/settingsLeaveGuard'
 
-type ModelKey = 'chatModel' | 'assistantModel' | 'visionModel' | 'imageGenerationModel'
+type ModelKey =
+  | 'chatModel'
+  | 'assistantModel'
+  | 'judgmentModel'
+  | 'visionModel'
+  | 'imageGenerationModel'
 type AvatarKind = 'default' | 'lucide' | 'monogram'
 type EditableModel = { providerId: string; modelId: string } | null
 type SidebarAgentItem = {
@@ -924,6 +929,7 @@ type FormState = {
   monogramBackgroundColor: string
   chatModel: EditableModel
   assistantModel: EditableModel
+  judgmentModel: EditableModel
   visionModel: EditableModel
   imageGenerationModel: EditableModel
   defaultProjectPath: string
@@ -953,6 +959,7 @@ const AUTO_COMPACTION_RETAIN_RECENT_PAIRS_MAX = 10
 const CONFIG_DIFF_KEYS: readonly (keyof DeepChatAgentConfig)[] = [
   'defaultModelPreset',
   'assistantModel',
+  'judgmentModel',
   'visionModel',
   'imageGenerationModel',
   'defaultProjectPath',
@@ -1009,6 +1016,7 @@ const deleting = ref(false)
 const selectedAgentId = ref<string | null>(null)
 const chatOpen = ref(false)
 const assistantOpen = ref(false)
+const judgmentOpen = ref(false)
 const visionOpen = ref(false)
 const imageGenerationOpen = ref(false)
 const outputLimitsOpen = ref(false)
@@ -1038,6 +1046,7 @@ const form = reactive<FormState>({
   monogramBackgroundColor: '#dbeafe',
   chatModel: null,
   assistantModel: null,
+  judgmentModel: null,
   visionModel: null,
   imageGenerationModel: null,
   defaultProjectPath: '',
@@ -1079,6 +1088,11 @@ const modelFields = computed(() => [
     key: 'assistantModel' as const,
     label: t('settings.deepchatAgents.assistantModel'),
     open: assistantOpen
+  },
+  {
+    key: 'judgmentModel' as const,
+    label: t('settings.deepchatAgents.judgmentModel'),
+    open: judgmentOpen
   },
   {
     key: 'visionModel' as const,
@@ -1294,6 +1308,7 @@ const emptyForm = (): FormState => ({
   monogramBackgroundColor: '#dbeafe',
   chatModel: null,
   assistantModel: null,
+  judgmentModel: null,
   visionModel: null,
   imageGenerationModel: null,
   defaultProjectPath: '',
@@ -1370,6 +1385,7 @@ const buildEditableConfig = (state: FormState): DeepChatAgentConfig => {
   const config: DeepChatAgentConfig = {
     defaultModelPreset: buildModelSelection(state.chatModel),
     assistantModel: buildModelSelection(state.assistantModel),
+    judgmentModel: buildModelSelection(state.judgmentModel),
     visionModel: buildModelSelection(state.visionModel),
     imageGenerationModel: buildModelSelection(state.imageGenerationModel),
     defaultProjectPath: normalizePath(state.defaultProjectPath),
@@ -1494,6 +1510,9 @@ const fromAgent = (agent?: Agent | null): FormState => {
     assistantModel: config.assistantModel
       ? { providerId: config.assistantModel.providerId, modelId: config.assistantModel.modelId }
       : null,
+    judgmentModel: config.judgmentModel
+      ? { providerId: config.judgmentModel.providerId, modelId: config.judgmentModel.modelId }
+      : null,
     visionModel: config.visionModel
       ? { providerId: config.visionModel.providerId, modelId: config.visionModel.modelId }
       : null,
@@ -1548,8 +1567,11 @@ const modelText = (selection: EditableModel | undefined) => {
 }
 const getModelLabel = (key: ModelKey) => modelText(form[key])
 const getModelIconId = (key: ModelKey) => form[key]?.modelId ?? ''
-const getModelSelectTypes = (key: ModelKey) =>
-  key === 'imageGenerationModel' ? [ModelType.ImageGeneration] : undefined
+const getModelSelectTypes = (key: ModelKey) => {
+  if (key === 'imageGenerationModel') return [ModelType.ImageGeneration]
+  if (key === 'judgmentModel') return [ModelType.Judgment]
+  return undefined
+}
 const getSubagentTargetValue = (slot: EditableSubagentSlot) =>
   slot.targetType === 'self'
     ? CURRENT_SUBAGENT_TARGET
@@ -1619,6 +1641,7 @@ const selectModel = (key: ModelKey, model: RENDERER_MODEL_META, providerId: stri
   form[key] = { providerId, modelId: model.id }
   if (key === 'chatModel') chatOpen.value = false
   if (key === 'assistantModel') assistantOpen.value = false
+  if (key === 'judgmentModel') judgmentOpen.value = false
   if (key === 'visionModel') visionOpen.value = false
   if (key === 'imageGenerationModel') imageGenerationOpen.value = false
 }

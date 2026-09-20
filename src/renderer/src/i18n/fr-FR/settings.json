@@ -2741,6 +2741,7 @@
     "modelsTitle": "Valeurs par défaut du modèle",
     "chatModel": "Modèle de chat par défaut",
     "assistantModel": "Modèle d'assistant",
+    "judgmentModel": "Modèle de jugement",
     "visionModel": "Modèle visuel",
     "imageGenerationModel": "Modèle de génération d'images",
     "temperature": "Température",

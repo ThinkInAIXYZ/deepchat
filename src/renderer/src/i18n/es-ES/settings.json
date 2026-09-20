@@ -218,6 +218,7 @@
     "modelsTitle": "Valores predeterminados del modelo",
     "chatModel": "Modelo de chat predeterminado",
     "assistantModel": "Modelo asistente",
+    "judgmentModel": "Modelo de evaluación",
     "visionModel": "Modelo de visión",
     "imageGenerationModel": "Modelo de generación de imágenes",
     "temperature": "Temperatura",
