@@ -123,6 +123,19 @@ async function pathExists(filePath) {
   }
 }
 
+async function resolveWorkspaceRoot(projectDir) {
+  // pnpm hoists workspace dependencies to the workspace root's node_modules; resolution must
+  // stay inside that tree. The nearest ancestor with pnpm-workspace.yaml is the root; a
+  // standalone project directory without one contains itself.
+  let current = projectDir
+  while (true) {
+    if (await pathExists(path.join(current, 'pnpm-workspace.yaml'))) return current
+    const parent = path.dirname(current)
+    if (parent === current) return projectDir
+    current = parent
+  }
+}
+
 async function resolvePackageDirFromImporter(
   importerPackageDir,
   packageName,
@@ -144,15 +157,21 @@ async function resolvePackageDirFromImporter(
 
   let candidate = path.dirname(await fs.realpath(packageEntry))
   // Node resolution walks every ancestor directory; a packaged native must come from the
-  // project's own dependency tree, never from an ambient node_modules above it.
+  // project's own dependency tree, never from an ambient node_modules above it. Containment is
+  // checked on the logical resolved path: pnpm installs reach the central store through
+  // node_modules symlinks whose realpaths legitimately live outside the project, while an
+  // ancestor hit resolves to a path outside the project's node_modules prefix.
   if (containmentRoot) {
-    const containedRoot = await fs.realpath(containmentRoot)
-    const relative = path.relative(containedRoot, candidate)
-    if (relative.startsWith('..') || path.isAbsolute(relative)) {
+    const containedRoots = [containmentRoot, await fs.realpath(containmentRoot)]
+    const contained = containedRoots.some((root) => {
+      const relative = path.relative(root, packageEntry)
+      return relative === '' || (relative && !relative.startsWith('..') && !path.isAbsolute(relative))
+    })
+    if (!contained) {
       const versionSuffix = expectedVersion ? `@${expectedVersion}` : ''
       throw new Error(
         `Unable to resolve installed package ${packageName}${versionSuffix} from ${importerPackageDir}`,
-        { cause: new Error(`Resolved to ${candidate}, which is outside ${containmentRoot}`) }
+        { cause: new Error(`Resolved to ${packageEntry}, which is outside ${containmentRoot}`) }
       )
     }
   }
@@ -179,12 +198,13 @@ async function resolveDirectPackageDir(
   expectedVersion,
   resolutionSpecifier = `${packageName}/package.json`
 ) {
+  const containmentRoot = await resolveWorkspaceRoot(projectDir)
   return resolvePackageDirFromImporter(
     projectDir,
     packageName,
     expectedVersion,
     resolutionSpecifier,
-    projectDir
+    containmentRoot
   )
 }
 
@@ -273,6 +293,7 @@ async function copyFffNativePackages(context) {
   }
 
   const projectDir = packager?.projectDir ?? process.cwd()
+  const containmentRoot = await resolveWorkspaceRoot(projectDir)
   const fffSourceDir = await resolveDirectPackageDir(projectDir, '@ff-labs/fff-node')
 
   for (const packageName of packageNames) {
@@ -281,7 +302,7 @@ async function copyFffNativePackages(context) {
       packageName,
       undefined,
       `${packageName}/package.json`,
-      projectDir
+      containmentRoot
     )
     const destinationDir = path.join(nodeModulesDir, ...packageName.split('/'))
 
@@ -308,6 +329,7 @@ async function copyParcelWatcherNativePackages(context) {
   }
 
   const projectDir = packager?.projectDir ?? process.cwd()
+  const containmentRoot = await resolveWorkspaceRoot(projectDir)
   const parcelWatcherSourceDir = await resolveDirectPackageDir(projectDir, '@parcel/watcher')
 
   for (const packageName of packageNames) {
@@ -316,7 +338,7 @@ async function copyParcelWatcherNativePackages(context) {
       packageName,
       undefined,
       `${packageName}/package.json`,
-      projectDir
+      containmentRoot
     )
     const destinationDir = path.join(nodeModulesDir, ...packageName.split('/'))
 
@@ -347,6 +369,7 @@ async function copyOpendalNativePackages(context) {
   if (opendalPackageJson.name !== 'opendal' || typeof opendalPackageJson.version !== 'string') {
     throw new Error(`Invalid unpacked opendal package identity at ${opendalDir}`)
   }
+  const containmentRoot = await resolveWorkspaceRoot(projectDir)
   const opendalSourceDir = await resolveDirectPackageDir(
     projectDir,
     'opendal',
@@ -359,7 +382,7 @@ async function copyOpendalNativePackages(context) {
       packageName,
       opendalPackageJson.version,
       `${packageName}/package.json`,
-      projectDir
+      containmentRoot
     )
     const destinationDir = path.join(nodeModulesDir, ...packageName.split('/'))
 
@@ -695,6 +718,7 @@ export async function packageLightOcrAssets(context) {
     'lightOcrHelper.js'
   )
   await removeLightOcrPackages(nodeModulesDir)
+  const containmentRoot = await resolveWorkspaceRoot(projectDir)
   const facadeSourceDir = await resolveDirectPackageDir(
     projectDir,
     LIGHT_OCR_FACADE_PACKAGE,
@@ -706,21 +730,21 @@ export async function packageLightOcrAssets(context) {
     lightOcr.runtimePackage,
     lightOcr.runtimeVersion,
     lightOcr.runtimePackage,
-    projectDir
+    containmentRoot
   )
   const modelSourceDir = await resolveOwnedPackageDir(
     facadeSourceDir,
     lightOcr.modelPackage,
     lightOcr.modelVersion,
     `${lightOcr.modelPackage}/bundle/manifest.json`,
-    projectDir
+    containmentRoot
   )
   const nativeSourceDir = await resolveOwnedPackageDir(
     runtimeSourceDir,
     nativePackage,
     lightOcr.nativeVersion,
     nativePackage,
-    projectDir
+    containmentRoot
   )
   const facadeDir = await copyPackageToUnpackedApp(
     facadeSourceDir,
