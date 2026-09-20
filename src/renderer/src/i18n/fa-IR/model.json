@@ -41,6 +41,7 @@
       "embedding": "جاسازی",
       "rerank": "رتبه‌بندی مجدد",
       "imageGeneration": "تولید تصویر",
+      "judgment": "داوری",
       "videoGeneration": "تولید ویدیو"
     }
   },

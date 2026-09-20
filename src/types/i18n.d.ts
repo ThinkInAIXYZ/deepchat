@@ -1906,6 +1906,7 @@ declare module 'vue-i18n' {
         embedding: string
         rerank: string
         imageGeneration: string
+        judgment: string
         videoGeneration: string
       }
     }
@@ -2323,6 +2324,7 @@ declare module 'vue-i18n' {
       chatModel: string
       assistantModel: string
       judgmentModel: string
+      judgmentModelDesc: string
       visionModel: string
       imageGenerationModel: string
       temperature: string
@@ -2937,6 +2939,7 @@ declare module 'vue-i18n' {
           gemini: string
           ollama: string
           mistral: string
+          jev: string
         }
         applyFailed: string
       }

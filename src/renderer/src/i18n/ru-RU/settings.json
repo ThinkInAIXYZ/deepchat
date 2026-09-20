@@ -383,7 +383,8 @@
         "anthropic": "Anthropic",
         "gemini": "Gemini",
         "ollama": "Ollama",
-        "mistral": "Mistral AI"
+        "mistral": "Mistral AI",
+        "jev": "TypeSafe Jev (System One)"
       },
       "applyFailed": "Импорт не удался: {message}"
     },
@@ -730,6 +731,7 @@
           "chat": "Языковая модель",
           "embedding": "Встроенная модель",
           "imageGeneration": "Модель генерации изображений",
+          "judgment": "Модель оценки",
           "rerank": "Переупорядочить модель",
           "videoGeneration": "Модель генерации видео"
         }
@@ -2742,6 +2744,7 @@
     "chatModel": "Модель чата по умолчанию",
     "assistantModel": "Модель помощника",
     "judgmentModel": "Модель оценки",
+    "judgmentModelDesc": "Аргументы инструментов и недавняя переписка отправляются в этот сторонний сервис.",
     "visionModel": "Визуальная модель",
     "imageGenerationModel": "Модель генерации изображений",
     "temperature": "Температура",

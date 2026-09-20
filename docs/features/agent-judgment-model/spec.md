@@ -78,11 +78,14 @@ With no judgment model configured, the existing generative path runs unchanged.
 
 The current generative path requires the model to echo `actionHash` and downgrades to `ask_user` on
 mismatch. Jev does not generate text and cannot echo anything, so the hash echo is replaced by
-code-side binding: the request is keyed by the action hash, and the result is applied only to that
-action and its exact arguments. A result is never reused for a different action.
+code-side binding: the hash is computed for the reviewed action, passed into the same judgment call,
+and the returned verdict is applied only to that action and its exact arguments. A result is never
+cached or reused for a different action.
 
-This preserves the existing invariant — a review verdict belongs to one specific action and its
-arguments — while removing the mechanism that depended on text generation.
+Note what this does *not* claim: nothing compares a returned hash against a stored one. The binding
+is structural — one call, one request object, no reuse — rather than a check. It preserves the
+existing invariant that a review verdict belongs to one specific action and its arguments, while
+removing the mechanism that depended on text generation.
 
 ### Question set and thresholds
 

@@ -219,6 +219,7 @@
     "chatModel": "སྔོན་སྒྲིག་ཁ་བརྡའི་དཔེ་དབྱིབས་",
     "assistantModel": "ལས་རོགས་དཔེ་དབྱིབས་",
     "judgmentModel": "ཐག་གཅོད་དཔེ་དབྱིབས་",
+    "judgmentModelDesc": "ལག་ཆའི་ཞུ་དག་དང་ཉེ་བའི་གླེང་མོལ་ནི་གཞན་གྱི་ཞབས་ཞུ་འདིར་གཏོང་གི་ཡོད།",
     "visionModel": "མཐོང་ཚོར་གྱི་དཔེ་དབྱིབས་",
     "imageGenerationModel": "པར་རིས་བཟོ་བའི་དཔེ་དབྱིབས་",
     "temperature": "དྲོད་ཚད་",
@@ -832,7 +833,8 @@
         "anthropic": "Anthropic",
         "gemini": "Gemini",
         "ollama": "Ollama",
-        "mistral": "Mistral AI"
+        "mistral": "Mistral AI",
+        "jev": "TypeSafe Jev (System One)"
       },
       "applyFailed": "ནང་འདྲེན་མ་བྱས་པ།{message}"
     }
@@ -1069,6 +1071,7 @@
           "embedding": "ནང་འཇུག་དཔེ་དབྱིབས་",
           "rerank": "བསྐྱར་སྒྲིག་གི་དཔེ་དབྱིབས་",
           "imageGeneration": "པར་རིས་བཟོ་བའི་དཔེ་དབྱིབས་",
+          "judgment": "ཐག་གཅོད་དཔེ་དབྱིབས་",
           "videoGeneration": "བརྙན་རིས་བཟོ་བའི་དཔེ་དབྱིབས་"
         }
       },

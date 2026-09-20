@@ -219,6 +219,7 @@
     "chatModel": "سۈكۈتتىكى سۆھبەت مودېلى",
     "assistantModel": "ياردەمچى مودېل",
     "judgmentModel": "ھۆكۈم مودېلى",
+    "judgmentModelDesc": "قورال ئارگۇمېنتلىرى ۋە يېقىنقى سۆھبەت بۇ ئۈچىنچى تەرەپ مۇلازىمىتىگە ئەۋەتىلىدۇ.",
     "visionModel": "كۆرۈش مودېلى",
     "imageGenerationModel": "سۈرەت ھاسىل قىلىش مودېلى",
     "temperature": "تېمپېراتۇرا",
@@ -832,7 +833,8 @@
         "anthropic": "Anthropic",
         "gemini": "Gemini",
         "ollama": "Ollama",
-        "mistral": "Mistral AI"
+        "mistral": "Mistral AI",
+        "jev": "TypeSafe Jev (System One)"
       },
       "applyFailed": "كىرگۈزۈش مەغلۇپ بولدى: {message}"
     }
@@ -1098,6 +1100,7 @@
           "chat": "تىل مودېلى",
           "embedding": "مودېلنى ياتقۇزۇش",
           "imageGeneration": "سۈرەت ھاسىل قىلىش مودېلى",
+          "judgment": "ھۆكۈم مودېلى",
           "rerank": "تىپىنى قايتىدىن رەتلەش كېرەك",
           "videoGeneration": "سىن ھاسىل قىلىش ئەندىزىسى"
         }

@@ -139,6 +139,38 @@ describe('JevProvider', () => {
       const empty = await createProviderInstance({ models: bundled }).fetchModels()
       expect(empty.map((model) => model.id)).toEqual(['jev-1.13.0'])
     })
+
+    it('prefers the last-known catalog over the bundled seed when a later fetch fails', async () => {
+      // The bundled seed lives in the settings JSON, which a provider reorder strips. The
+      // last-known catalog comes from the per-provider store, which survives it, so it must win.
+      const bundled = [
+        {
+          id: 'jev-latest',
+          name: 'Jev (latest)',
+          group: 'default',
+          providerId: 'typesafe',
+          type: ModelType.Judgment
+        }
+      ]
+
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockResolvedValue(jsonResponse({ models: [{ name: 'jev-1.13.0' }] }))
+      )
+      const provider = new JevProvider(
+        createProvider({ models: bundled }),
+        createProviderSettings(),
+        {
+          getLanguage: vi.fn().mockReturnValue('en-US')
+        }
+      )
+      await provider.fetchModels()
+
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({ detail: 'boom' }, 500)))
+      const afterFailure = await provider.fetchModels()
+
+      expect(afterFailure.map((model) => model.id)).toEqual(['jev-1.13.0'])
+    })
   })
 
   describe('chat surface', () => {

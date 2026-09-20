@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ProviderImportService } from '../../../src/main/provider/providerImportService'
+import { ModelType } from '../../../src/shared/model'
 import type { LLM_PROVIDER } from '@shared/types/provider'
 
 const mockSqlite = vi.hoisted(() => ({
@@ -878,6 +879,56 @@ describe('ProviderImportService', () => {
           baseUrl: 'https://api.coding.example.com/v1'
         })
       ])
+    )
+  })
+
+  it('tags imported models as judgment models when the target api type is jev', async () => {
+    // Imported sources carry no model type, and the picker filters read "no type" as "not a judgment
+    // model" — so an untagged import would land in every chat picker and fail only at request time.
+    homeDir = createHome()
+    writeFile(
+      path.join(homeDir, '.hermes/config.yaml'),
+      [
+        'llm:',
+        '  providers:',
+        '    - id: judge-plan',
+        '      name: Judge Plan',
+        '      type: vendor-judge',
+        '      apiKey: sk-judge',
+        '      baseUrl: https://api.judge.example.com',
+        '      models:',
+        '        - id: jev-1.13.0',
+        '          name: Jev 1.13.0'
+      ].join('\n')
+    )
+
+    const providerSettings = createProviderSettings()
+    const service = new ProviderImportService(providerSettings as any, {
+      homeDir,
+      platform: 'darwin'
+    })
+    const scan = await service.scan()
+    const provider = scan.providers[0]
+
+    service.apply({
+      sessionId: scan.sessionId,
+      selections: [
+        {
+          sourceId: 'hermes',
+          providerIds: [provider.id],
+          providerOptions: {
+            [provider.id]: {
+              targetApiType: 'jev'
+            }
+          }
+        }
+      ]
+    })
+
+    // Imported models land in the custom-model store, which `getModels()` merges into the catalog.
+    expect(providerSettings.addCustomModel).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({ id: 'jev-1.13.0', type: ModelType.Judgment })
     )
   })
 

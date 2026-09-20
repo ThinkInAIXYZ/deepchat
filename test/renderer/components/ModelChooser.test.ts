@@ -3,14 +3,15 @@ import { mount } from '@vue/test-utils'
 import { ref } from 'vue'
 import { ModelType } from '../../../src/shared/model'
 
-const setup = async () => {
+const setup = async (options: { props?: Record<string, unknown> } = {}) => {
   vi.resetModules()
 
   vi.doMock('@/stores/providerStore', () => ({
     useProviderStore: () => ({
       sortedProviders: [
         { id: 'ollama', name: 'Ollama', enable: true },
-        { id: 'openai', name: 'OpenAI', enable: true }
+        { id: 'openai', name: 'OpenAI', enable: true },
+        { id: 'typesafe', name: 'TypeSafe', enable: true }
       ]
     })
   }))
@@ -24,6 +25,10 @@ const setup = async () => {
             { id: 'deepseek-r1:1.5b', name: 'deepseek-r1:1.5b', type: 'chat' },
             { id: 'nomic-embed-text:latest', name: 'nomic-embed-text:latest', type: 'embedding' }
           ]
+        },
+        {
+          providerId: 'typesafe',
+          models: [{ id: 'jev-1.13.0', name: 'jev-1.13.0', type: 'judgment' }]
         }
       ]
     })
@@ -117,7 +122,8 @@ const setup = async () => {
 
   return mount(ModelChooser, {
     props: {
-      type: [ModelType.Chat]
+      type: [ModelType.Chat],
+      ...options.props
     }
   })
 }
@@ -136,5 +142,16 @@ describe('ModelChooser', () => {
       { id: 'deepseek-r1:1.5b', name: 'deepseek-r1:1.5b', type: 'chat' },
       'ollama'
     ])
+  })
+
+  it('hides judgment models from a type-less picker and shows them when the type is requested', async () => {
+    // The MCP sampling dialog is the caller that passes no type, and a judgment model selected
+    // there only fails once the request reaches the provider.
+    const withoutType = await setup({ props: { type: undefined } })
+    expect(withoutType.text()).not.toContain('jev-1.13.0')
+
+    const judgmentPicker = await setup({ props: { type: [ModelType.Judgment] } })
+    expect(judgmentPicker.text()).toContain('jev-1.13.0')
+    expect(judgmentPicker.text()).not.toContain('deepseek-r1:1.5b')
   })
 })

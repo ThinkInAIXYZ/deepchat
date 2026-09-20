@@ -260,21 +260,17 @@ describe('tool permission reviewer', () => {
     })
 
     it('asks the user when the judgment call fails or returns unusable answers', async () => {
-      const failed = await reviewAutoApproveToolPermission(
-        createJudgmentDeps(() => {
-          throw new Error('judgment unavailable')
-        }).deps,
-        request,
-        context
-      )
+      const failedDeps = createJudgmentDeps(() => {
+        throw new Error('judgment unavailable')
+      })
+      const failed = await reviewAutoApproveToolPermission(failedDeps.deps, request, context)
       expect(failed).toMatchObject({ decision: 'ask_user' })
+      expect(failedDeps.generateCompletionStandalone).not.toHaveBeenCalled()
 
-      const malformed = await reviewAutoApproveToolPermission(
-        createJudgmentDeps({ risk_level: { type: 'noul', noul: 1 } }).deps,
-        request,
-        context
-      )
+      const malformedDeps = createJudgmentDeps({ risk_level: { type: 'noul', noul: 1 } })
+      const malformed = await reviewAutoApproveToolPermission(malformedDeps.deps, request, context)
       expect(malformed).toMatchObject({ decision: 'ask_user' })
+      expect(malformedDeps.generateCompletionStandalone).not.toHaveBeenCalled()
     })
 
     it('keeps the generative path when no judgment model is configured', async () => {

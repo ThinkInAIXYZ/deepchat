@@ -383,7 +383,8 @@
         "anthropic": "Anthropic",
         "gemini": "Gemini",
         "ollama": "Ollama",
-        "mistral": "Mistral AI"
+        "mistral": "Mistral AI",
+        "jev": "TypeSafe Jev (System One)"
       },
       "applyFailed": "匯入失敗：{message}"
     },
@@ -730,6 +731,7 @@
           "chat": "語言模型",
           "embedding": "嵌入模型",
           "imageGeneration": "圖像生成模型",
+          "judgment": "判定模型",
           "rerank": "重排序模型",
           "videoGeneration": "視頻生成模型"
         }
@@ -2742,6 +2744,7 @@
     "chatModel": "預設對話模型",
     "assistantModel": "助手模型",
     "judgmentModel": "判定模型",
+    "judgmentModelDesc": "工具參數和最近的對話會傳送到此外部服務。",
     "visionModel": "視覺模型",
     "imageGenerationModel": "圖像生成模型",
     "temperature": "溫度",

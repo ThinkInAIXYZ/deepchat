@@ -41,6 +41,7 @@
       "embedding": "ۋېكتورلاشتۇرۇش",
       "rerank": "قايتا رەتلەش",
       "imageGeneration": "رەسىم ھاسىل قىلىش",
+      "judgment": "ھۆكۈم",
       "videoGeneration": "سىن ھاسىل قىلىش"
     }
   },

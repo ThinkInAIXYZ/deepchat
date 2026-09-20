@@ -219,6 +219,7 @@
     "chatModel": "ᠶᠢᠨ ᠶᠠᠷᠢᠯᠴᠠᠭᠠᠨ ᠤ ᠬᠡᠪ ᠵᠠᠭᠪᠤᠷ ᠢ",
     "assistantModel": "ᠤᠨ ᠮᠤᠳᠧᠯ",
     "judgmentModel": "ᠰᠢᠭᠦᠮᠵᠢ ᠶᠢᠨ ᠮᠣᠳᠧᠯ",
+    "judgmentModelDesc": "ᠪᠠᠭᠠᠵᠤ ᠤᠨ ᠠᠷᠭᠤᠮᠧᠨᠲ᠋ ᠪᠠ ᠣᠢᠷᠠ ᠶᠢᠨ ᠶᠠᠷᠢᠯᠴᠠᠭᠠ ᠡᠭᠦᠨ ᠦ ᠭᠤᠷᠪᠠᠳᠤᠭᠠᠷ ᠡᠲᠡᠭᠡᠳ ᠦᠨ ᠦᠢᠯᠡᠴᠢᠯᠭᠡ ᠳᠤ ᠢᠯᠡᠭᠡᠭᠳᠡᠨᠡ᠃",
     "visionModel": "ᠶᠢᠨ ᠬᠠᠷᠠᠯᠲᠠ ᠶᠢᠨ ᠵᠠᠭᠪᠤᠷ",
     "imageGenerationModel": "ᠶᠢᠨ ᠵᠢᠷᠤᠭ ᠳᠦᠷᠰᠦ ᠶᠢ ᠡᠭᠦᠰᠬᠦ ᠬᠡᠪ ᠵᠠᠭᠪᠤᠷ ᠢ",
     "temperature": "ᠶᠢᠨ ᠳᠤᠯᠠᠭᠠᠨ",
@@ -832,7 +833,8 @@
         "anthropic": "Anthropic",
         "gemini": "Gemini",
         "ollama": "Ollama",
-        "mistral": "Mistral AI"
+        "mistral": "Mistral AI",
+        "jev": "TypeSafe Jev (System One)"
       },
       "applyFailed": "ᠠᠴᠠ ᠣᠷᠣᠭᠤᠯᠬᠤ ᠳᠤ ᠢᠯᠠᠭᠳᠠᠭᠰᠠᠨ ᠦᠭᠡᠢ ᠄ {message}"
     }
@@ -1069,6 +1071,7 @@
           "embedding": "ᠰᠢᠩᠭᠡᠭᠡᠬᠦ ᠵᠠᠭᠪᠤᠷ",
           "rerank": "ᠱᠠᠲᠤ ᠦᠢ᠎ᠡ ᠰᠣᠯᠢᠬᠤ ᠵᠠᠭᠪᠤᠷ ᠢ",
           "imageGeneration": "ᠶᠢᠨ ᠵᠢᠷᠤᠭ ᠳᠦᠷᠰᠦ ᠶᠢ ᠡᠭᠦᠰᠬᠦ ᠬᠡᠪ ᠵᠠᠭᠪᠤᠷ ᠢ",
+          "judgment": "ᠰᠢᠭᠦᠮᠵᠢ ᠶᠢᠨ ᠮᠣᠳᠧᠯ",
           "videoGeneration": "ᠳᠦᠷᠰᠦ ᠰᠢᠩᠭᠡᠭᠡᠯᠲᠡ ᠶᠢᠨ ᠰᠢᠨ᠎ᠡ ᠬᠡᠯᠪᠡᠷᠢ"
         }
       },

@@ -133,11 +133,13 @@ const providers = computed(() => {
       }
 
       const models =
-        !props.type || props.type.length === 0
-          ? enabledProvider.models
-          : enabledProvider.models.filter(
+        props.type && props.type.length > 0
+          ? enabledProvider.models.filter(
               (model) => model.type !== undefined && props.type!.includes(model.type as ModelType)
             )
+          : // Judgment (System One) models are decision models, not chat models. A picker that
+            // passes no type filter must not offer them: selecting one only fails at request time.
+            enabledProvider.models.filter((model) => model.type !== ModelType.Judgment)
 
       const eligibleModels = props.requiresVision ? models.filter((model) => model.vision) : models
 

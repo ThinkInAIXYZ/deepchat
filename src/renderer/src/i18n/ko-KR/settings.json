@@ -383,7 +383,8 @@
         "anthropic": "Anthropic",
         "gemini": "Gemini",
         "ollama": "Ollama",
-        "mistral": "Mistral AI"
+        "mistral": "Mistral AI",
+        "jev": "TypeSafe Jev (System One)"
       },
       "applyFailed": "가져오기 실패: {message}"
     },
@@ -730,6 +731,7 @@
           "chat": "언어 모델",
           "embedding": "임베드 모델",
           "imageGeneration": "이미지 생성 모델",
+          "judgment": "판정 모델",
           "rerank": "모델을 재정렬하십시오",
           "videoGeneration": "비디오 생성 모델"
         }
@@ -2742,6 +2744,7 @@
     "chatModel": "기본 대화 모델",
     "assistantModel": "보조 모델",
     "judgmentModel": "판정 모델",
+    "judgmentModelDesc": "도구 인수와 최근 대화가 이 타사 서비스로 전송됩니다.",
     "visionModel": "시각적 모델",
     "imageGenerationModel": "이미지 생성 모델",
     "temperature": "온도",

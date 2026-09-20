@@ -1,6 +1,6 @@
 # TypeSafe Jev Provider
 
-Status: proposed.
+Status: implemented.
 
 ## Context
 
@@ -170,7 +170,11 @@ drives dark-mode inversion for monochrome `currentColor` marks.
 
 ## Invariants
 
-- A `jev` model is never offered by a chat, embedding, rerank, image, video, or speech surface.
+- A `jev` model is never offered by a chat, embedding, rerank, image, video, or speech surface. The
+  two model pickers enforce this at selection time: `ModelSelect` and `ModelChooser` both exclude
+  `ModelType.Judgment` from any picker that does not explicitly request that type. `ModelChooser` is
+  the MCP sampling picker's source, which is the surface that would otherwise reach
+  `generateCompletionStandalone` before failing.
 - Lookup order stays `id -> apiType`.
 - No Jev request is issued from the renderer.
 - The adapter never sends the API key anywhere except the configured provider base URL.
@@ -190,9 +194,12 @@ drives dark-mode inversion for monochrome `currentColor` marks.
   `jev`.
 - A custom provider can be created with api type `jev`, and connecting it performs an authenticated
   `GET {baseUrl}/v1/models` and reports failure on `401` without persisting a broken provider.
-- `jev-1.13.0` and `jev-latest` appear as judgment models and are absent from the chat model picker.
+- `jev-1.13.0` and `jev-latest` appear as judgment models and are absent from the chat model picker
+  and the MCP sampling picker.
 - Selecting a Jev model in a chat surface is impossible through the UI, and any direct attempt fails
   with a typed unsupported-capability error rather than a network request.
+- A provider configuration imported with api type `jev` yields judgment-typed models, so an imported
+  Jev model does not appear in a chat picker.
 - Abort, proxy, timeout, and error mapping survive the adapter.
 - The TypeSafe mark resolves for the `typesafe` provider and for `jev-*` model ids, and adding the
   registry keys changes no existing provider's resolved icon.

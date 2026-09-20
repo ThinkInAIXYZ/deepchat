@@ -295,6 +295,9 @@
                   />
                 </PopoverContent>
               </Popover>
+              <div v-if="field.key === 'judgmentModel'" class="text-[11px] text-muted-foreground">
+                {{ t('settings.deepchatAgents.judgmentModelDesc') }}
+              </div>
             </div>
 
             <div class="space-y-1.5">

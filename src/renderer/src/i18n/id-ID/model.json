@@ -41,6 +41,7 @@
       "embedding": "vektor",
       "rerank": "mengatur ulang",
       "imageGeneration": "generasi gambar",
+      "judgment": "penilaian",
       "videoGeneration": "generasi video"
     }
   },

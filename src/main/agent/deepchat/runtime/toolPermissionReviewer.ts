@@ -66,6 +66,11 @@ function sha256Text(value: string): string {
  */
 type ReviewTextTruncation = 'head' | 'head-and-tail'
 
+const HEAD_AND_TAIL_MARKER = '...[truncated]...'
+
+const isHighSurrogate = (code: number): boolean => code >= 0xd800 && code <= 0xdbff
+const isLowSurrogate = (code: number): boolean => code >= 0xdc00 && code <= 0xdfff
+
 function truncateReviewText(
   value: string,
   maxChars = AUTO_APPROVE_REVIEW_MAX_CONTENT_CHARS,
@@ -74,9 +79,17 @@ function truncateReviewText(
   if (value.length <= maxChars) return value
 
   if (truncation === 'head-and-tail') {
-    const headChars = Math.ceil(maxChars / 2)
-    const tailChars = maxChars - headChars
-    return `${value.slice(0, headChars)}...[truncated]...${value.slice(-tailChars)}`
+    // The marker counts against the budget, and neither cut may land inside a surrogate pair.
+    const budget = Math.max(0, maxChars - HEAD_AND_TAIL_MARKER.length)
+    const headBudget = Math.ceil(budget / 2)
+
+    let headEnd = headBudget
+    if (headEnd > 0 && isHighSurrogate(value.charCodeAt(headEnd - 1))) headEnd -= 1
+
+    let tailStart = value.length - (budget - headBudget)
+    if (tailStart > 0 && isLowSurrogate(value.charCodeAt(tailStart))) tailStart += 1
+
+    return `${value.slice(0, headEnd)}${HEAD_AND_TAIL_MARKER}${value.slice(tailStart)}`
   }
 
   return `${value.slice(0, maxChars)}...[truncated]`

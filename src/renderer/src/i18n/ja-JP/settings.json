@@ -383,7 +383,8 @@
         "anthropic": "Anthropic",
         "gemini": "Gemini",
         "ollama": "Ollama",
-        "mistral": "Mistral AI"
+        "mistral": "Mistral AI",
+        "jev": "TypeSafe Jev (System One)"
       },
       "applyFailed": "インポートに失敗しました: {message}"
     },
@@ -730,6 +731,7 @@
           "chat": "言語モデル",
           "embedding": "埋め込みモデル",
           "imageGeneration": "画像生成モデル",
+          "judgment": "判定モデル",
           "rerank": "リランクモデル",
           "videoGeneration": "動画生成モデル"
         }
@@ -2742,6 +2744,7 @@
     "chatModel": "既定の会話モデル",
     "assistantModel": "アシスタントモデル",
     "judgmentModel": "判定モデル",
+    "judgmentModelDesc": "ツールの引数と直近の会話は、このサードパーティサービスに送信されます。",
     "visionModel": "視覚モデル",
     "imageGenerationModel": "画像生成モデル",
     "temperature": "温度",

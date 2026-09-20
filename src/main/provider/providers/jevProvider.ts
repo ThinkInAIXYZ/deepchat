@@ -46,6 +46,7 @@ export function supportsJevJudgment(provider: unknown): provider is JevProvider 
 type JevModelRecord = {
   name: string
   description?: string
+  /** Retained for the deferred model-manager surfacing noted in the feature spec. */
   release_date?: string
 }
 
@@ -225,23 +226,30 @@ export class JevProvider extends BaseLLMProvider {
   }
 
   protected async fetchProviderModels(): Promise<MODEL_META[]> {
-    // The bundled catalog is the fallback whenever the live catalog is unavailable or empty. This
-    // matters because `BaseLLMProvider.fetchModels` persists whatever this returns, so returning an
-    // empty list on a missing key or one transient failure would clear a previously discovered
-    // catalog instead of leaving the provider usable.
-    const bundled = this.getBundledCatalog()
-    if (!this.provider.apiKey) return bundled
+    // The fallback matters because `BaseLLMProvider.fetchModels` persists whatever this returns, so
+    // an empty list on a missing key or one transient failure would clear the per-provider model
+    // store the picker actually reads.
+    //
+    // Preference order: the last-known catalog first, then the static seed. The last-known catalog
+    // is `this.models`, loaded from the per-provider model store by the base constructor, and it is
+    // the one that survives a provider reorder. `this.provider.models` does NOT survive: the
+    // settings sidebar reorders by sending provider summaries, which omit `models` entirely, and the
+    // reorder writes that array over the whole providers list. Seeding only from the settings JSON
+    // would therefore leave the fallback empty exactly when it is needed.
+    const fallback = this.models.length > 0 ? this.models : this.getBundledCatalog()
+    if (!this.provider.apiKey) return fallback
 
     try {
       const records = await this.listModels()
-      if (records.length === 0) return bundled
+      if (records.length === 0) return fallback
       return records.map((record) => this.toModelMeta(record))
     } catch (error) {
-      console.error('[Jev] Failed to fetch models, falling back to the bundled catalog:', error)
-      return bundled
+      console.error('[Jev] Failed to fetch models, falling back to the last-known catalog:', error)
+      return fallback
     }
   }
 
+  /** The static seed shipped in the provider profile. Only used when nothing has been discovered. */
   private getBundledCatalog(): MODEL_META[] {
     return this.provider.models ?? []
   }
@@ -308,29 +316,19 @@ export class JevProvider extends BaseLLMProvider {
     }
   }
 
+  /**
+   * Delegates to the base helper rather than re-implementing it. The base version aborts with
+   * `provider_request_timeout` on timeout and with the caller's own reason on cancellation, so the
+   * two cases stay distinguishable downstream; a bare private controller would collapse them.
+   */
   private createRequestSignal(callerSignal?: AbortSignal): {
-    signal: AbortSignal
+    signal: AbortSignal | undefined
     cleanup: () => void
   } {
-    const controller = new AbortController()
-
-    // An already-aborted caller must not be silently dropped: register-then-abort would leave this
-    // request running until its own timeout.
-    if (callerSignal?.aborted) {
-      controller.abort()
-      return { signal: controller.signal, cleanup: () => {} }
-    }
-
-    const timeout = setTimeout(() => controller.abort(), DEFAULT_REQUEST_TIMEOUT_MS)
-    const onParentAbort = () => controller.abort()
-    callerSignal?.addEventListener('abort', onParentAbort, { once: true })
-
-    return {
-      signal: controller.signal,
-      cleanup: () => {
-        clearTimeout(timeout)
-        callerSignal?.removeEventListener('abort', onParentAbort)
-      }
-    }
+    const { signal, dispose } = this.createModelRequestSignal(
+      { timeout: DEFAULT_REQUEST_TIMEOUT_MS },
+      callerSignal
+    )
+    return { signal, cleanup: dispose }
   }
 }

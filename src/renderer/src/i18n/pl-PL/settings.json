@@ -219,6 +219,7 @@
     "chatModel": "Domyślny model czatu",
     "assistantModel": "Modelka Asystenta",
     "judgmentModel": "Model oceny",
+    "judgmentModelDesc": "Argumenty narzędzi i ostatnia rozmowa są wysyłane do tej usługi zewnętrznej.",
     "visionModel": "Model wizji",
     "imageGenerationModel": "Model generowania obrazu",
     "temperature": "Temperatura",
@@ -791,7 +792,8 @@
         "anthropic": "Anthropic",
         "gemini": "Gemini",
         "ollama": "Ollama",
-        "mistral": "AI Mistrala"
+        "mistral": "AI Mistrala",
+        "jev": "TypeSafe Jev (System One)"
       },
       "applyFailed": "Import nie powiódł się: {message}"
     },
@@ -1098,6 +1100,7 @@
           "chat": "Model języka",
           "embedding": "Model osadzania",
           "imageGeneration": "Model generowania obrazu",
+          "judgment": "Model oceny",
           "rerank": "Zmień rangę modelu",
           "videoGeneration": "Model generowania wideo"
         }

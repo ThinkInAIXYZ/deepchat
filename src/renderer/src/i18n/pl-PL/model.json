@@ -41,6 +41,7 @@
       "embedding": "Osadzanie",
       "rerank": "Zmień rangę",
       "imageGeneration": "Generowanie obrazu",
+      "judgment": "Ocena",
       "videoGeneration": "Generowanie wideo"
     }
   },

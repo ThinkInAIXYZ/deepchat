@@ -219,6 +219,7 @@
     "chatModel": "默认对话模型",
     "assistantModel": "助手模型",
     "judgmentModel": "判定模型",
+    "judgmentModelDesc": "工具参数和最近的对话会发送到此外部服务。",
     "visionModel": "视觉模型",
     "imageGenerationModel": "图像生成模型",
     "temperature": "温度",
@@ -832,7 +833,8 @@
         "anthropic": "Anthropic",
         "gemini": "Gemini",
         "ollama": "Ollama",
-        "mistral": "Mistral AI"
+        "mistral": "Mistral AI",
+        "jev": "TypeSafe Jev (System One)"
       },
       "applyFailed": "导入失败：{message}"
     }
@@ -1069,6 +1071,7 @@
           "embedding": "嵌入模型",
           "rerank": "重排序模型",
           "imageGeneration": "图像生成模型",
+          "judgment": "判定模型",
           "videoGeneration": "视频生成模型"
         }
       },

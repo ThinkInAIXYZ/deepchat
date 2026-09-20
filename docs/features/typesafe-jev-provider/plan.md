@@ -39,10 +39,13 @@ Completion condition: the provider can be constructed, checked, and refreshed in
 
 Objective: reach the protocol by id and by api type.
 
-- [x] Branch on `id === 'typesafe' || apiType === 'jev'` in
-      `providerInstanceManager.createProviderInstance`, preserving `id -> apiType` order.
-- [x] Add the disabled built-in `typesafe` profile to `DEFAULT_PROVIDERS`, including the static
-      fallback catalog so the judgment picker is populated before the first refresh.
+- [x] Branch on `provider.apiType === 'jev'` in
+      `providerInstanceManager.createProviderInstance`, preserving `id -> apiType` order. Api-type
+      only: the built-in already declares `apiType: 'jev'`, so an id check adds nothing and would
+      pin the provider to `JevProvider` if a user repointed that entry.
+- [x] Add the disabled built-in `typesafe` profile to `DEFAULT_PROVIDERS`, including the bundled
+      catalog. It is the fallback when the live catalog is unavailable or empty, not a standalone
+      seed for the picker — the renderer reads the persisted per-provider model store.
 - [x] Deliberately do NOT register `jev` in `PROVIDER_API_TYPE_REGISTRY`. That registry maps to an
       `AiSdkProviderDefinition` and would route the protocol to a transport that cannot express it.
       The instance branch is the correct and self-contained extension point, mirroring `ollama`.
@@ -97,8 +100,45 @@ Applied in response to the PR review.
 - [x] Add the ModelSelect test for both directions of the judgment exclusion.
 - [x] Drop the unused `isJevScoreAnswer` guard and the redundant `JevQuestion` re-export.
 
+## Slice 7 — Second review round
+
+Applied in response to the second PR review.
+
+- [x] Fix the fallback preference order. Seeding only from `this.provider.models` was wrong: the
+      settings sidebar reorders by sending provider summaries, which omit `models`, and the reorder
+      writes that array over the whole providers list — so the seed disappears after any drag or
+      move. The last-known catalog (`this.models`, loaded from the per-provider store) is now
+      preferred, with the bundled seed used only when nothing has been discovered. Spec and comments
+      corrected.
+- [x] Extend the judgment exclusion to `ModelChooser`, the MCP sampling picker's source. It was the
+      remaining picker that could select a Jev model and reach
+      `generateCompletionStandalone` before failing.
+- [x] Tag imported models as `ModelType.Judgment` when the target api type is `jev`. Imported models
+      carried no type, which the picker filters read as "not a judgment model".
+- [x] Reject out-of-range probabilities. An oversized `noul` or `confidence` satisfied its `>=`
+      gate, so invalid output could only push toward `auto_allow` — the one input in the composition
+      that did not fail closed.
+- [x] Teach the remaining surfaces about the type: the import dialog's api type label, the model
+      manager's type filter order, and the model config dialog's type select.
+- [x] Add the disclosure that a configured judgment model sends tool arguments and recent
+      conversation to the configured service.
+- [x] Delegate the request signal to `BaseLLMProvider.createModelRequestSignal` instead of
+      re-implementing it, so a timeout aborts with `provider_request_timeout` and stays
+      distinguishable from a caller cancel.
+- [x] Pin the policy boundaries by literal value in a `composeJevReviewDecision` test, and make the
+      threshold constants module-private.
+- [x] Reconcile spec and plan with the code: status, the api-type-only branch, the action-binding
+      wording, and the covered picker surfaces.
+
 ## Deferred
 
 - Surfacing TypeSafe's per-model `description` and `release_date` in the model manager UI.
 - Any evaluation harness. Issue #2326 requires evaluation evidence before adoption, but that work
   is not part of this plan.
+- A failed judgment review is invisible to the user. The reviewer returns a generic rationale for
+  `ask_user` and the caller drops it, so a misconfigured judgment model silently turns every
+  auto-approve into a prompt with no way for a user to find out why. Fail-safe, but it needs a
+  surface. Not addressed in this change.
+- `getProviderSummaries` drops `models`, `customModels`, `enabledModels` and `disabledModels`, so a
+  provider reorder silently strips them from the stored provider list. Pre-existing and unrelated to
+  this work; the Jev fallback was hardened against it rather than fixing the reorder path.

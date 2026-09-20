@@ -219,6 +219,7 @@
     "chatModel": "Standard-Chatmodell",
     "assistantModel": "Assistentenmodell",
     "judgmentModel": "Beurteilungsmodell",
+    "judgmentModelDesc": "Werkzeugargumente und der aktuelle Gesprächsverlauf werden an diesen Drittanbieterdienst gesendet.",
     "visionModel": "Vision-Modell",
     "imageGenerationModel": "Bilderzeugungsmodell",
     "temperature": "Temperatur",
@@ -791,7 +792,8 @@
         "anthropic": "Anthropic",
         "gemini": "Gemini",
         "ollama": "Ollama",
-        "mistral": "Mistral AI"
+        "mistral": "Mistral AI",
+        "jev": "TypeSafe Jev (System One)"
       },
       "applyFailed": "Import fehlgeschlagen: {message}"
     },
@@ -1069,6 +1071,7 @@
           "embedding": "Embedding-Modell",
           "rerank": "Rerank-Modell",
           "imageGeneration": "Bilderzeugungsmodell",
+          "judgment": "Beurteilungsmodell",
           "videoGeneration": "Videoerzeugungsmodell"
         }
       },

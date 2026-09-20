@@ -19,15 +19,15 @@ import type { ToolPermissionReviewResult } from './types'
  * weak, while narrow questions answered independently are strong.
  */
 
-export const JEV_PERMISSION_QUESTION_IDS = {
+const JEV_PERMISSION_QUESTION_IDS = {
   riskLevel: 'risk_level',
   userAuthorization: 'user_authorization',
   injectionPressure: 'injection_pressure'
 } as const
 
-export const JEV_RISK_LEVELS = ['low', 'medium', 'high', 'critical'] as const
+const JEV_RISK_LEVELS = ['low', 'medium', 'high', 'critical'] as const
 
-export type JevRiskLevel = (typeof JEV_RISK_LEVELS)[number]
+type JevRiskLevel = (typeof JEV_RISK_LEVELS)[number]
 
 const JEV_RISK_ORDER: Record<JevRiskLevel, number> = {
   low: 0,
@@ -41,7 +41,7 @@ const JEV_RISK_ORDER: Record<JevRiskLevel, number> = {
  * false-block rate, Chinese authorization, injection resistance, latency, cost) before adoption, and
  * these values should be revised against that evidence rather than treated as tuned.
  */
-export const JEV_REVIEW_THRESHOLDS = {
+const JEV_REVIEW_THRESHOLDS = {
   /**
    * Highest risk level that may ever be auto-allowed.
    *
@@ -116,9 +116,22 @@ function normalizeRiskLevel(value: string | undefined): JevRiskLevel | undefined
   return JEV_RISK_LEVELS.find((level) => level === value)
 }
 
+/**
+ * Reads a probability, rejecting anything outside `[0, 1]`.
+ *
+ * Out-of-range values are invalid output, and they could only ever push toward `auto_allow`: an
+ * oversized `authorization` or `confidence` satisfies its `>=` gate. Every other input in this file
+ * fails closed, so this one must too — a silent scale change on the provider's side should read as
+ * an error rather than as a strong yes.
+ */
+function readProbability(value: unknown): number | undefined {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return undefined
+  return value >= 0 && value <= 1 ? value : undefined
+}
+
 function readNoulProbability(answer: JevAnswer | undefined): number | undefined {
   if (!answer || !isJevNoulAnswer(answer)) return undefined
-  return typeof answer.noul === 'number' && Number.isFinite(answer.noul) ? answer.noul : undefined
+  return readProbability(answer.noul)
 }
 
 function deriveUserAuthorization(probability: number): 'unknown' | 'low' | 'medium' | 'high' {
@@ -194,10 +207,7 @@ export function composeJevReviewDecision(params: {
   }
 
   const userAuthorization = deriveUserAuthorization(authorization)
-  const riskConfidence =
-    typeof riskAnswer.confidence === 'number' && Number.isFinite(riskAnswer.confidence)
-      ? riskAnswer.confidence
-      : 0
+  const riskConfidence = readProbability(riskAnswer.confidence) ?? 0
 
   const mayAutoAllow =
     JEV_RISK_ORDER[riskLevel] <= JEV_RISK_ORDER[JEV_REVIEW_THRESHOLDS.autoAllowMaxRiskLevel] &&

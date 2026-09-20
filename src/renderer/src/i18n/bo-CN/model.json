@@ -41,6 +41,7 @@
       "embedding": "མཉམ་ཐིག་",
       "rerank": "བསྐྱར་སྒྲིག་བྱས་པ།",
       "imageGeneration": "པར་རིས་སྐྱེད་པ།",
+      "judgment": "ཐག་གཅོད།",
       "videoGeneration": "བརྙན་རིས་བཟོ་སྐྲུན།"
     }
   },

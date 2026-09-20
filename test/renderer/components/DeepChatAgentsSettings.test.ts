@@ -1002,7 +1002,7 @@ describe('DeepChatAgentsSettings', () => {
     expect(payload.config).toEqual({ defaultModelPreset: null })
   })
 
-  it('filters the image generation model selector to image models', async () => {
+  it('restricts the image generation and judgment model selectors to their own types', async () => {
     vi.resetModules()
 
     const existingAgent = {

@@ -204,6 +204,9 @@
                 <SelectItem value="tts">
                   {{ t('settings.provider.tts.title') }}
                 </SelectItem>
+                <SelectItem value="judgment">
+                  {{ t('settings.model.modelConfig.type.options.judgment') }}
+                </SelectItem>
               </SelectContent>
             </Select>
             <p class="text-xs text-muted-foreground">
