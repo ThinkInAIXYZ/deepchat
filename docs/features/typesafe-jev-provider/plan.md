@@ -61,6 +61,10 @@ Objective: let a user-defined provider select the protocol.
       select; no i18n key is introduced because the surrounding options have none.
 - [x] Add `jev` to the import allow-list and the deeplink allow-list so imported configurations do
       not degrade to `openai-completions`.
+- [x] Add the provider mark: `assets/llm-icons/typesafe.png` (TypeSafe's official square favicon)
+      plus the `typesafe` and `jev` keys in `modelIconRegistry.ts`. This was missed on the first
+      pass; the format is asset + registry entry, not a `websites.icon` field. Verified that no
+      existing provider's resolved icon changes.
 - [x] Exclude `ModelType.Judgment` from type-less `ModelSelect` pickers, closing the gap where a
       chat picker would otherwise have listed Jev models. This was not in the original slice and is
       required by the spec's non-chat invariant.

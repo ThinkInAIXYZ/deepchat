@@ -133,6 +133,21 @@ The provider uses the existing generic provider configuration UI. `AddProviderFl
 protocol joins the import and deeplink allow-lists so imported configurations do not silently
 degrade to `openai-completions`. No Jev-specific settings form is introduced.
 
+### Provider logo
+
+Provider logos are not a `websites.icon` field — no code reads that. The convention is a static asset
+plus a registry entry:
+
+- the mark is stored under `src/renderer/src/assets/llm-icons/`;
+- `modelIconRegistry.ts` imports it and maps one or more keys to it;
+- `resolveModelIconKey` matches a key by substring of the provider id or api type, so the provider is
+  reachable by id (`typesafe`) and its models by api type (`jev`, which also covers `jev-latest` and
+  `jev-1.13.0`).
+
+TypeSafe's mark is the official square favicon served by `typesafe.ai`, stored as a PNG. It is a
+colour mark on its own background, so it is deliberately **not** added to `monoIconUrls`, which
+drives dark-mode inversion for monochrome `currentColor` marks.
+
 ## Ownership
 
 - `src/main/provider/providers/jevProvider.ts` owns the wire protocol.
@@ -140,6 +155,7 @@ degrade to `openai-completions`. No Jev-specific settings form is introduced.
 - `src/main/provider/providerRegistry.ts` owns protocol-to-runtime mapping.
 - `src/main/provider/managers/providerInstanceManager.ts` owns instance selection.
 - `src/shared/model.ts` owns the model type vocabulary.
+- `src/renderer/src/components/icons/modelIconRegistry.ts` and `assets/llm-icons/` own provider marks.
 - Renderer selects and configures; it never holds keys or instances.
 
 ## Invariants
@@ -168,6 +184,8 @@ degrade to `openai-completions`. No Jev-specific settings form is introduced.
 - Selecting a Jev model in a chat surface is impossible through the UI, and any direct attempt fails
   with a typed unsupported-capability error rather than a network request.
 - Abort, proxy, timeout, and error mapping survive the adapter.
+- The TypeSafe mark resolves for the `typesafe` provider and for `jev-*` model ids, and adding the
+  registry keys changes no existing provider's resolved icon.
 - Importing a provider configuration with api type `jev` preserves `jev` rather than falling back to
   `openai-completions`.
 
