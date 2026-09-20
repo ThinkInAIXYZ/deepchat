@@ -70,7 +70,6 @@ describe('resolveComposerTypeToFocusIntent', () => {
       'Backspace',
       'Delete',
       'F5',
-      'Dead',
       'Unidentified'
     ]) {
       expect(resolve({ key })).toEqual({ kind: 'ignore' })
@@ -110,6 +109,16 @@ describe('resolveComposerTypeToFocusIntent', () => {
     expect(resolve({ key: 'Process' })).toEqual({ kind: 'focus-only' })
     expect(resolve({ key: 'n', keyCode: 229 })).toEqual({ kind: 'focus-only' })
     expect(resolve({ key: 'n', isComposing: true })).toEqual({ kind: 'focus-only' })
+  })
+
+  it('focuses without inserting on a dead key so the next keystroke composes', () => {
+    // Dead key + 'e' should produce 'é': the dead key only moves focus, and the
+    // following letter is then handled natively by the focused editor.
+    expect(resolve({ key: 'Dead' })).toEqual({ kind: 'focus-only' })
+  })
+
+  it('does not treat a dead key as a printable character', () => {
+    expect(resolve({ key: 'Dead' })).not.toEqual({ kind: 'focus-and-insert', text: 'Dead' })
   })
 
   it('does not treat keyCode 229 as a printable character', () => {

@@ -125,6 +125,16 @@ describe('useComposerTypeToFocus', () => {
     expect(event.defaultPrevented).toBe(false)
   })
 
+  it('only focuses on a dead key, leaving the platform free to compose', () => {
+    harness = createHarness()
+
+    const event = dispatchKeydown('Dead')
+
+    expect(harness.focusInput).toHaveBeenCalledTimes(1)
+    expect(harness.focusAndInsertText).not.toHaveBeenCalled()
+    expect(event.defaultPrevented).toBe(false)
+  })
+
   it('does nothing while the composer cannot take focus', () => {
     harness = createHarness()
     harness.isEnabled.value = false

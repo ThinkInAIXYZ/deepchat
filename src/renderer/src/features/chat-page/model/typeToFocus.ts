@@ -50,14 +50,22 @@ export function resolveComposerTypeToFocusIntent(
     return { kind: 'ignore' }
   }
 
-  // Input method keystrokes arrive as a composition, keyCode 229, or 'Process'.
-  // Preventing them would break the input method, and inserting the reported key
-  // would duplicate what the composition is about to commit.
-  if (event.isComposing || event.keyCode === 229 || event.key === 'Process') {
+  // Keystrokes whose text is produced later rather than by this key: input
+  // method compositions (isComposing / keyCode 229 / 'Process') and dead keys
+  // waiting for a following letter. Focus without inserting and without
+  // preventDefault, so the platform keeps its pending state and the *next*
+  // keystroke reaches an already focused editor and composes natively — which is
+  // what turns a dead key + 'e' into 'é' instead of a bare 'e'.
+  if (
+    event.isComposing ||
+    event.keyCode === 229 ||
+    event.key === 'Process' ||
+    event.key === 'Dead'
+  ) {
     return { kind: 'focus-only' }
   }
 
-  // Navigation and function keys, plus 'Dead'/'Unidentified'. Space is a single
+  // Navigation and function keys, plus 'Unidentified'. Space is a single
   // printable character and is deliberately included here.
   if (event.key.length !== 1 || isControlCharacter(event.key)) {
     return { kind: 'ignore' }
