@@ -1,6 +1,46 @@
+import { ModelType } from '@shared/model'
 import type { LLM_PROVIDER_BASE } from '@shared/types/provider'
 
 export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
+  {
+    id: 'typesafe',
+    name: 'TypeSafe',
+    apiType: 'jev',
+    apiKey: '',
+    baseUrl: 'https://api.typesafe.ai',
+    enable: false,
+    // Static fallback so the judgment-model picker is populated before the first catalog refresh.
+    // Live discovery from `GET /v1/models` stays authoritative once it succeeds.
+    models: [
+      {
+        id: 'jev-latest',
+        name: 'Jev (latest)',
+        group: 'default',
+        providerId: 'typesafe',
+        isCustom: false,
+        type: ModelType.Judgment,
+        contextLength: 64000,
+        description: 'System One decision model. Tracks the newest Jev release.'
+      },
+      {
+        id: 'jev-1.13.0',
+        name: 'Jev 1.13.0',
+        group: 'default',
+        providerId: 'typesafe',
+        isCustom: false,
+        type: ModelType.Judgment,
+        contextLength: 64000,
+        description: 'Pinned System One decision model. Use when thresholds must stay reproducible.'
+      }
+    ],
+    websites: {
+      official: 'https://typesafe.ai/',
+      apiKey: 'https://console.typesafe.ai/keys',
+      docs: 'https://docs.typesafe.ai/introduction',
+      models: 'https://docs.typesafe.ai/models',
+      defaultBaseUrl: 'https://api.typesafe.ai'
+    }
+  },
   {
     id: 'ollama',
     name: 'Ollama',

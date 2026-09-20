@@ -22,6 +22,8 @@ import type {
 } from '@shared/types/provider'
 import type { AcpConfigState, AcpDebugRequest, AcpDebugRunResult } from '@shared/types/acp'
 import { ApiEndpointType, ModelType } from '@shared/model'
+import type { JevJudgmentResult, JevQuestion } from '@shared/jevProtocol'
+import { supportsJevJudgment } from './providers/jevProvider'
 import {
   normalizeImageGenerationOptions,
   type ImageGenerationOptions
@@ -530,6 +532,24 @@ export class ProviderRuntime
     } finally {
       abort.cleanup()
     }
+  }
+
+  /**
+   * Evaluates typed questions against a state on a System One provider. Deliberately separate from
+   * `generateCompletionStandalone`: the result is typed answers consumed by code, not text.
+   */
+  async runJudgment(
+    providerId: string,
+    modelId: string,
+    request: { state: unknown; questions: Record<string, JevQuestion> },
+    options?: { signal?: AbortSignal }
+  ): Promise<JevJudgmentResult> {
+    const provider = this.getProviderInstance(providerId)
+    if (!supportsJevJudgment(provider)) {
+      throw new Error(`Provider ${providerId} does not support System One judgments`)
+    }
+
+    return await provider.runJudgment({ ...request, model: modelId }, options)
   }
 
   async transcribeAudioStandalone(

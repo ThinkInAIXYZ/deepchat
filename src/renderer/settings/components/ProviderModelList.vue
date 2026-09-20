@@ -404,7 +404,8 @@ const TYPE_ICONS: Record<ModelType, string> = {
   [ModelType.Rerank]: 'lucide:arrow-up-wide-narrow',
   [ModelType.ImageGeneration]: 'lucide:image',
   [ModelType.VideoGeneration]: 'lucide:clapperboard',
-  [ModelType.TTS]: 'lucide:volume-2'
+  [ModelType.TTS]: 'lucide:volume-2',
+  [ModelType.Judgment]: 'lucide:scale'
 }
 
 const props = defineProps<{

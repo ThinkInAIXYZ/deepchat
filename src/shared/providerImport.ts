@@ -14,7 +14,8 @@ export const PROVIDER_IMPORT_CUSTOM_API_TYPES = [
   'anthropic',
   'gemini',
   'ollama',
-  'mistral'
+  'mistral',
+  'jev'
 ] as const
 
 export type ProviderImportSourceId = (typeof PROVIDER_IMPORT_SOURCE_IDS)[number]
