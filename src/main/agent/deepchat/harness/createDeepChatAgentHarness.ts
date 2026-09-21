@@ -41,6 +41,7 @@ import {
   createToolResultNormalizer,
   type ToolRuntimeBindingDependencies
 } from '@/agent/deepchat/runtime/toolRuntimeBindings'
+import { JevPruningFeedback } from '@/agent/deepchat/runtime/jevPruningFeedback'
 import { TranscriptMutationCoordinator } from '@/agent/deepchat/runtime/transcriptMutationCoordinator'
 import { TurnCoordinator } from '@/agent/deepchat/runtime/turnCoordinator'
 import { DeepChatAgentHarness } from './deepChatAgentHarness'
@@ -341,6 +342,7 @@ function createDeepChatRuntimeServices(deps: DeepChatHarnessDependencies): DeepC
     toolSurfaceCanaryDiagnostics,
     programmaticToolParents
   })
+  const pruningFeedback = new JevPruningFeedback()
   const toolRuntimeBindings: ToolRuntimeBindingDependencies = {
     providerSettings,
     agentSettings,
@@ -348,7 +350,8 @@ function createDeepChatRuntimeServices(deps: DeepChatHarnessDependencies): DeepC
     registry: runtime,
     sessionStore,
     identity,
-    runLifecycle
+    runLifecycle,
+    pruningFeedback
   }
   const toolOutputGuard = new ToolOutputGuard(async (sessionId) =>
     resolveAgentOutputLimits(

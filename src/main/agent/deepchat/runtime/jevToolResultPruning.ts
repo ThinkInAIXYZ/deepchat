@@ -131,6 +131,8 @@ export type JevPruningCandidate = {
   toolCallId: string
   /** Absent when the declaring call could not be matched back to the result. */
   toolName?: string
+  /** The arguments the call was made with, used to recognise a re-run of the same work. */
+  toolArgs: string
   content: string
   /** Index into the original `messages` array. */
   resultIndex: number
@@ -144,6 +146,8 @@ export type JevPruningAsker = (params: {
 export type JevPruningDecision = {
   toolCallId: string
   toolName?: string
+  /** The arguments the pruned call was made with, so a re-run of it can be recognised. */
+  toolArgs: string
   originalChars: number
   keepProbability: number
   kept: boolean
@@ -211,6 +215,9 @@ export function collectJevPruningCandidates(
         toolCallId,
         toolName: assistant.tool_calls.find((toolCall) => toolCall.id === toolCallId)?.function
           .name,
+        toolArgs:
+          assistant.tool_calls.find((toolCall) => toolCall.id === toolCallId)?.function
+            .arguments ?? '',
         content: toolMessage.content,
         resultIndex
       })
@@ -409,6 +416,7 @@ export function applyJevPruningDecisions(params: {
     decisions.push({
       toolCallId: candidate.toolCallId,
       toolName: candidate.toolName,
+      toolArgs: candidate.toolArgs,
       originalChars: candidate.content.length,
       keepProbability: probability ?? Number.NaN,
       kept

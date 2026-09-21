@@ -6,6 +6,7 @@ import {
   createToolResultNormalizer,
   type ToolRuntimeBindingDependencies
 } from '@/agent/deepchat/runtime/toolRuntimeBindings'
+import { JevPruningFeedback, JEV_PRUNING_TIGHTENED_KEEP_THRESHOLD } from '@/agent/deepchat/runtime/jevPruningFeedback'
 
 const normalizeToolResultContent = vi.hoisted(() => vi.fn(async () => [{ type: 'text', text: 'ok' }]))
 const reviewAutoApproveToolPermission = vi.hoisted(() =>
@@ -33,7 +34,8 @@ function createHarness(persisted?: { provider_id?: string; model_id?: string }) 
     registry: runtime,
     sessionStore: { get: vi.fn(() => persisted) },
     identity: { getAgentId: vi.fn(() => 'agent-a') },
-    runLifecycle: { getAbortSignal: vi.fn(() => abortSignal) }
+    runLifecycle: { getAbortSignal: vi.fn(() => abortSignal) },
+    pruningFeedback: new JevPruningFeedback()
   } as unknown as ToolRuntimeBindingDependencies
 
   return { abortSignal, deps, runtime }
@@ -49,6 +51,22 @@ const TOOL_INPUT = {
 }
 
 describe('tool runtime bindings', () => {
+  it('observes a re-run of a pruned call on the shared feedback object', async () => {
+    // The wiring that makes pruning self-correcting: the tool-result path sees every call, so a
+    // re-run of something whose result was pruned is noticed there without a new hook.
+    const { deps } = createHarness()
+    deps.pruningFeedback.recordPruned(SESSION_ID, [
+      { toolCallId: 'tc0', toolName: 'read', toolArgs: '{}' }
+    ])
+
+    await createToolResultNormalizer(deps)(TOOL_INPUT)
+
+    expect(deps.pruningFeedback.missCount(SESSION_ID)).toBe(1)
+    expect(deps.pruningFeedback.policyFor(SESSION_ID)).toEqual({
+      keepThreshold: JEV_PRUNING_TIGHTENED_KEEP_THRESHOLD
+    })
+  })
+
   it('maps the tool result port signal onto the domain abort signal', async () => {
     const { deps } = createHarness()
     normalizeToolResultContent.mockClear()

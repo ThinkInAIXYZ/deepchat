@@ -102,8 +102,8 @@ describe('collectJevPruningCandidates', () => {
 describe('buildJevPruningQuestions', () => {
   it('asks one noul per candidate, keyed by tool call id', () => {
     const questions = buildJevPruningQuestions([
-      { toolCallId: 'c1', toolName: 'exec', content: 'a', resultIndex: 1 },
-      { toolCallId: 'c2', toolName: 'read', content: 'b', resultIndex: 3 }
+      { toolCallId: 'c1', toolName: 'exec', toolArgs: 'a', content: 'a', resultIndex: 1 },
+      { toolCallId: 'c2', toolName: 'read', toolArgs: 'b', content: 'b', resultIndex: 3 }
     ])
 
     expect(Object.keys(questions).sort()).toEqual(['keep_c1', 'keep_c2'])
@@ -114,8 +114,8 @@ describe('buildJevPruningQuestions', () => {
 describe('readJevPruningDecisions', () => {
   it('reports null for a missing or wrong-typed answer', () => {
     const candidates = [
-      { toolCallId: 'c1', toolName: 'exec', content: 'a', resultIndex: 1 },
-      { toolCallId: 'c2', toolName: 'exec', content: 'b', resultIndex: 3 }
+      { toolCallId: 'c1', toolName: 'exec', toolArgs: 'a', content: 'a', resultIndex: 1 },
+      { toolCallId: 'c2', toolName: 'exec', toolArgs: 'b', content: 'b', resultIndex: 3 }
     ]
 
     const probabilities = readJevPruningDecisions(
@@ -130,8 +130,20 @@ describe('readJevPruningDecisions', () => {
 
 describe('applyJevPruningDecisions', () => {
   const candidates = [
-    { toolCallId: 'c1', toolName: 'exec', content: 'stale output', resultIndex: 1 },
-    { toolCallId: 'c2', toolName: 'exec', content: 'needed output', resultIndex: 2 }
+    {
+      toolCallId: 'c1',
+      toolName: 'exec',
+      toolArgs: 'args-1',
+      content: 'stale output',
+      resultIndex: 1
+    },
+    {
+      toolCallId: 'c2',
+      toolName: 'exec',
+      toolArgs: 'args-2',
+      content: 'needed output',
+      resultIndex: 2
+    }
   ]
 
   const buildMessages = (): ChatMessage[] => [
