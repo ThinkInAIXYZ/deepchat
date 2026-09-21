@@ -408,6 +408,11 @@ export function buildJevPruningState(
     candidateResults: candidates.map((candidate) => ({
       toolCallId: candidate.toolCallId,
       toolName: candidate.toolName,
+      // The recoverability question is about re-running *this* invocation, and whether that brings the
+      // contents back depends on what it asked for — reading one file is reproducible, listing a
+      // directory that has since changed is not. Without the arguments the question cannot tell two
+      // invocations of the same tool apart.
+      toolArgs: truncateReviewText(candidate.toolArgs, shape.candidateChars, 'head-and-tail'),
       content: truncateReviewText(candidate.content, shape.candidateChars, 'head-and-tail')
     }))
   }
