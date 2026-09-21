@@ -218,6 +218,8 @@
     "modelsTitle": "Mặc định của mô hình",
     "chatModel": "Mô hình trò chuyện mặc định",
     "assistantModel": "Trợ lý người mẫu",
+    "judgmentModel": "Mô hình phán đoán",
+    "judgmentModelDesc": "Đối số công cụ và cuộc trò chuyện gần đây được gửi đến dịch vụ bên thứ ba này.",
     "visionModel": "Mô hình tầm nhìn",
     "imageGenerationModel": "Mô hình tạo hình ảnh",
     "temperature": "Nhiệt độ",
@@ -790,7 +792,8 @@
         "anthropic": "Anthropic",
         "gemini": "Gemini",
         "ollama": "Ollama",
-        "mistral": "AI của Mistral"
+        "mistral": "AI của Mistral",
+        "jev": "TypeSafe Jev (System One)"
       },
       "applyFailed": "Nhập không thành công: {message}"
     },
@@ -1097,6 +1100,7 @@
           "chat": "Mô hình ngôn ngữ",
           "embedding": "Nhúng mô hình",
           "imageGeneration": "Mô hình tạo hình ảnh",
+          "judgment": "Mô hình phán đoán",
           "rerank": "Xếp hạng lại mô hình",
           "videoGeneration": "Mô hình tạo video"
         }

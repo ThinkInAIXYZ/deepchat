@@ -5,6 +5,12 @@ import type { ProviderExecutionPort } from '@shared/types/provider'
 import type { ChatMessage } from '@shared/types/core/chat-message'
 import type { ToolPermissionReviewRequest, ToolPermissionReviewResult } from './types'
 import type { AgentSettingsPort } from '@/agent/settings'
+import {
+  buildJevPermissionQuestions,
+  composeJevReviewDecision,
+  JEV_REVIEW_MAX_CONTENT_CHARS,
+  JEV_REVIEW_MAX_RECENT_MESSAGES
+} from './jevPermissionQuestions'
 
 export const AUTO_APPROVE_REVIEW_MAX_RECENT_MESSAGES = 8
 const AUTO_APPROVE_REVIEW_MAX_CONTENT_CHARS = 2_000
@@ -15,7 +21,7 @@ export interface ToolPermissionReviewerDependencies {
   agentSettings: Pick<AgentSettingsPort, 'resolveDeepChatAgentConfig'>
   providerRuntime: Pick<
     ProviderExecutionPort,
-    'executeWithRateLimit' | 'generateCompletionStandalone'
+    'executeWithRateLimit' | 'generateCompletionStandalone' | 'runJudgment'
   >
   getSessionAgentId(sessionId: string): string | undefined
 }
@@ -52,11 +58,41 @@ function sha256Text(value: string): string {
   return createHash('sha256').update(value).digest('hex')
 }
 
+/**
+ * `head` keeps the leading characters only, which is the generative path's existing behaviour.
+ * `head-and-tail` also keeps the trailing characters, because an instruction that tries to steer the
+ * decision often sits at the end of a long tool result and head-only truncation would hide exactly
+ * the content the injection question exists to see.
+ */
+type ReviewTextTruncation = 'head' | 'head-and-tail'
+
+const HEAD_AND_TAIL_MARKER = '...[truncated]...'
+
+const isHighSurrogate = (code: number): boolean => code >= 0xd800 && code <= 0xdbff
+const isLowSurrogate = (code: number): boolean => code >= 0xdc00 && code <= 0xdfff
+
 function truncateReviewText(
   value: string,
-  maxChars = AUTO_APPROVE_REVIEW_MAX_CONTENT_CHARS
+  maxChars = AUTO_APPROVE_REVIEW_MAX_CONTENT_CHARS,
+  truncation: ReviewTextTruncation = 'head'
 ): string {
-  return value.length > maxChars ? `${value.slice(0, maxChars)}...[truncated]` : value
+  if (value.length <= maxChars) return value
+
+  if (truncation === 'head-and-tail') {
+    // The marker counts against the budget, and neither cut may land inside a surrogate pair.
+    const budget = Math.max(0, maxChars - HEAD_AND_TAIL_MARKER.length)
+    const headBudget = Math.ceil(budget / 2)
+
+    let headEnd = headBudget
+    if (headEnd > 0 && isHighSurrogate(value.charCodeAt(headEnd - 1))) headEnd -= 1
+
+    let tailStart = value.length - (budget - headBudget)
+    if (tailStart > 0 && isLowSurrogate(value.charCodeAt(tailStart))) tailStart += 1
+
+    return `${value.slice(0, headEnd)}${HEAD_AND_TAIL_MARKER}${value.slice(tailStart)}`
+  }
+
+  return `${value.slice(0, maxChars)}...[truncated]`
 }
 
 function extractJsonObjectText(value: string): string | null {
@@ -165,9 +201,13 @@ function normalizeReviewDecision(rawText: string, actionHash: string): ToolPermi
   }
 }
 
-function chatMessageContentToReviewText(content: ChatMessage['content']): string {
+function chatMessageContentToReviewText(
+  content: ChatMessage['content'],
+  maxChars = AUTO_APPROVE_REVIEW_MAX_CONTENT_CHARS,
+  truncation: ReviewTextTruncation = 'head'
+): string {
   if (typeof content === 'string') {
-    return truncateReviewText(content)
+    return truncateReviewText(content, maxChars, truncation)
   }
   if (!Array.isArray(content)) {
     return ''
@@ -185,7 +225,7 @@ function chatMessageContentToReviewText(content: ChatMessage['content']): string
     }
     return '[attachment]'
   })
-  return truncateReviewText(parts.join('\n'))
+  return truncateReviewText(parts.join('\n'), maxChars, truncation)
 }
 
 function buildAutoApproveReviewSystemPrompt(): string {
@@ -243,6 +283,90 @@ function buildAutoApproveReviewUserPrompt(params: {
   ].join('\n\n')
 }
 
+/**
+ * Builds the System One review state. Filtered in code rather than forwarding the whole transcript,
+ * because TypeSafe documents that accuracy degrades as state fills with unrelated detail. Tool
+ * results are retained deliberately: they are a primary prompt-injection vector and the injection
+ * question needs to see them.
+ */
+function buildJevReviewState(params: {
+  request: ToolPermissionReviewRequest
+  recentMessages: ChatMessage[]
+}): Record<string, unknown> {
+  const recentConversation = params.recentMessages
+    .slice(-JEV_REVIEW_MAX_RECENT_MESSAGES)
+    .map((message) => ({
+      role: message.role,
+      content: chatMessageContentToReviewText(
+        message.content,
+        JEV_REVIEW_MAX_CONTENT_CHARS,
+        'head-and-tail'
+      ),
+      calledTools: message.tool_calls?.map((toolCall) => toolCall.function.name)
+    }))
+
+  return {
+    reviewTask: 'deepchat_judgment_tool_action',
+    proposedAction: {
+      toolName: params.request.toolName,
+      toolArgs: params.request.toolArgs,
+      toolSource: params.request.toolSource,
+      serverName: params.request.serverName,
+      reason: params.request.reason,
+      permission: params.request.permission
+    },
+    recentConversation
+  }
+}
+
+/**
+ * Reviews one action with the agent's configured System One (Jev) model.
+ *
+ * The verdict is bound to the action by the caller: the hash identifies this exact action and its
+ * arguments, and the returned result is only ever applied to it. There is no hash echo, because Jev
+ * does not generate text and cannot echo anything.
+ */
+async function reviewWithJudgmentModel(
+  dependencies: ToolPermissionReviewerDependencies,
+  request: ToolPermissionReviewRequest,
+  context: { messages: ChatMessage[]; signal: AbortSignal },
+  actionHash: string,
+  selection: { providerId: string; modelId: string }
+): Promise<ToolPermissionReviewResult> {
+  await dependencies.providerRuntime.executeWithRateLimit(selection.providerId, {
+    signal: context.signal
+  })
+
+  const result = await dependencies.providerRuntime.runJudgment(
+    selection.providerId,
+    selection.modelId,
+    {
+      state: buildJevReviewState({ request, recentMessages: context.messages }),
+      questions: buildJevPermissionQuestions()
+    },
+    { signal: context.signal }
+  )
+
+  const decision = composeJevReviewDecision({ actionHash, answers: result.answers })
+
+  logger.info('[DeepChatAgent] judgment review decision:', {
+    sessionId: request.sessionId,
+    messageId: request.messageId,
+    toolCallId: request.toolCallId,
+    toolName: request.toolName,
+    judgmentProviderId: selection.providerId,
+    judgmentModelId: selection.modelId,
+    answeredModel: result.model,
+    inputTokens: result.usage?.input_tokens,
+    actionHash,
+    decision: decision.decision,
+    riskLevel: decision.riskLevel,
+    userAuthorization: decision.userAuthorization
+  })
+
+  return decision
+}
+
 export async function reviewAutoApproveToolPermission(
   dependencies: ToolPermissionReviewerDependencies,
   request: ToolPermissionReviewRequest,
@@ -281,6 +405,26 @@ export async function reviewAutoApproveToolPermission(
     throwIfAbortRequested(context.signal)
     const agentId = dependencies.getSessionAgentId(request.sessionId) ?? 'deepchat'
     const config = await dependencies.agentSettings.resolveDeepChatAgentConfig(agentId)
+
+    // Opt-in System One review. Unset means today's behaviour, unchanged.
+    const judgmentProviderId = config.judgmentModel?.providerId?.trim()
+    const judgmentModelId = config.judgmentModel?.modelId?.trim()
+    if (judgmentProviderId && judgmentModelId) {
+      // Bound by the same review timeout as the generative path so a stalled judgment still falls
+      // back to asking the user instead of hanging the permission flow.
+      const judgmentDecision = await reviewWithJudgmentModel(
+        dependencies,
+        request,
+        { messages: context.messages, signal: reviewAbortController.signal },
+        actionHash,
+        { providerId: judgmentProviderId, modelId: judgmentModelId }
+      )
+      // Mirror the generative path's post-call re-check: if the caller cancelled while the judgment
+      // was in flight, do not return a verdict for a turn that was already cancelled.
+      throwIfAbortRequested(context.signal)
+      return judgmentDecision
+    }
+
     const reviewerProviderId = config.assistantModel?.providerId?.trim() || context.providerId
     const reviewerModelId = config.assistantModel?.modelId?.trim() || context.modelId
 

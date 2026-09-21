@@ -41,6 +41,7 @@
       "embedding": "向量",
       "rerank": "重排",
       "imageGeneration": "圖像生成",
+      "judgment": "判定",
       "videoGeneration": "影片生成"
     }
   },

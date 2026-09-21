@@ -316,7 +316,8 @@
         "anthropic": "Anthropic",
         "gemini": "Gemini",
         "ollama": "Ollama",
-        "mistral": "Mistral AI"
+        "mistral": "Mistral AI",
+        "jev": "TypeSafe Jev (System One)"
       },
       "applyFailed": "Import mislykkedes: {message}"
     },
@@ -663,6 +664,7 @@
           "chat": "Sprogmodel",
           "embedding": "Embedding-model",
           "imageGeneration": "Billedgenereringsmodel",
+          "judgment": "Vurderingsmodel",
           "rerank": "Rerank-model",
           "videoGeneration": "Videogenereringsmodel"
         }
@@ -2741,6 +2743,8 @@
     "modelsTitle": "Modelstandarder",
     "chatModel": "Standard chatmodel",
     "assistantModel": "Assistentmodel",
+    "judgmentModel": "Vurderingsmodel",
+    "judgmentModelDesc": "Værktøjsargumenter og den seneste samtale sendes til denne tredjepartstjeneste.",
     "visionModel": "Vision-model",
     "imageGenerationModel": "Billedgenereringsmodel",
     "temperature": "Temperatur",

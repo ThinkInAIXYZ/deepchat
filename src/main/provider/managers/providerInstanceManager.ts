@@ -8,6 +8,7 @@ import { AcpProvider } from '../providers/acpProvider'
 import { VoiceAIProvider } from '../providers/voiceAIProvider'
 import { AiSdkProvider } from '../providers/aiSdkProvider'
 import { ApimartProvider } from '../providers/apimartProvider'
+import { JevProvider } from '../providers/jevProvider'
 import { RateLimitManager } from './rateLimitManager'
 import { StreamState } from '../types'
 import type { AcpRuntimeOwner } from '@/agent/acp/client'
@@ -361,6 +362,13 @@ export class ProviderInstanceManager {
 
       if (provider.id === 'ollama' || provider.apiType === 'ollama') {
         return new OllamaProvider(provider, this.options.providerSettings, this.options.locale)
+      }
+
+      // apiType-only on purpose: the built-in `typesafe` profile already declares `apiType: 'jev'`,
+      // so an id check adds nothing, and it would pin the provider to JevProvider even if a user
+      // repointed that entry at a different api type.
+      if (provider.apiType === 'jev') {
+        return new JevProvider(provider, this.options.providerSettings, this.options.locale)
       }
 
       const definition = resolveAiSdkProviderDefinition(provider)

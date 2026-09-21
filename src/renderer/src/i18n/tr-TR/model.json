@@ -41,6 +41,7 @@
       "embedding": "Gömme",
       "rerank": "Yeniden Sırala",
       "imageGeneration": "Görüntü Üretimi",
+      "judgment": "Değerlendirme",
       "videoGeneration": "Video Oluşturma"
     }
   },

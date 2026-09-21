@@ -383,7 +383,8 @@
         "anthropic": "Anthropic",
         "gemini": "Gemini",
         "ollama": "Ollama",
-        "mistral": "Mistral AI"
+        "mistral": "Mistral AI",
+        "jev": "TypeSafe Jev (System One)"
       },
       "applyFailed": "הייבוא נכשל: {message}"
     },
@@ -730,6 +731,7 @@
           "chat": "מודל שפה (Chat)",
           "embedding": "מודל הטמעה (Embedding)",
           "imageGeneration": "מודל יצירת תמונות",
+          "judgment": "מודל שיפוט",
           "rerank": "מודל דירוג מחדש (Rerank)",
           "videoGeneration": "מודל יצירת וידאו"
         }
@@ -2741,6 +2743,8 @@
     "modelsTitle": "ברירות מחדל למודל",
     "chatModel": "מודל שיחה ברירת מחדל",
     "assistantModel": "מודל עוזר",
+    "judgmentModel": "מודל שיפוט",
+    "judgmentModelDesc": "ארגומנטים של כלים והשיחה האחרונה נשלחים לשירות צד שלישי זה.",
     "visionModel": "מודל ראייה",
     "imageGenerationModel": "מודל יצירת תמונות",
     "temperature": "טמפרטורה",

@@ -109,6 +109,7 @@ const mergeDeepChatConfig = (
   normalizeDeepChatSubagentConfig({
     defaultModelPreset: overrideConfig.defaultModelPreset ?? baseConfig.defaultModelPreset ?? null,
     assistantModel: overrideConfig.assistantModel ?? baseConfig.assistantModel ?? null,
+    judgmentModel: overrideConfig.judgmentModel ?? baseConfig.judgmentModel ?? null,
     visionModel: overrideConfig.visionModel ?? baseConfig.visionModel ?? null,
     imageGenerationModel:
       overrideConfig.imageGenerationModel ?? baseConfig.imageGenerationModel ?? null,

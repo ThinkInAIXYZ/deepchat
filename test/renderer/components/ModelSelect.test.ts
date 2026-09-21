@@ -18,7 +18,8 @@ const setup = async (
       sortedProviders: [
         { id: 'acp', name: 'ACP', enable: true },
         { id: 'ollama', name: 'Ollama', enable: true },
-        { id: 'openai', name: 'OpenAI', enable: true }
+        { id: 'openai', name: 'OpenAI', enable: true },
+        { id: 'typesafe', name: 'TypeSafe', enable: true }
       ]
     })
   }))
@@ -36,6 +37,10 @@ const setup = async (
         {
           providerId: 'acp',
           models: [{ id: 'acp-agent', name: 'ACP Agent', type: 'chat' }]
+        },
+        {
+          providerId: 'typesafe',
+          models: [{ id: 'jev-1.13.0', name: 'jev-1.13.0', type: 'judgment' }]
         }
       ]
     })
@@ -118,5 +123,14 @@ describe('ModelSelect', () => {
 
     expect(wrapper.text()).toContain('deepseek-r1:1.5b')
     expect(wrapper.text()).not.toContain('ACP Agent')
+  })
+
+  it('hides judgment models from a type-less picker and shows them when the type is requested', async () => {
+    const withoutType = await setup({ props: { type: undefined } })
+    expect(withoutType.text()).not.toContain('jev-1.13.0')
+
+    const judgmentPicker = await setup({ props: { type: [ModelType.Judgment] } })
+    expect(judgmentPicker.text()).toContain('jev-1.13.0')
+    expect(judgmentPicker.text()).not.toContain('deepseek-r1:1.5b')
   })
 })

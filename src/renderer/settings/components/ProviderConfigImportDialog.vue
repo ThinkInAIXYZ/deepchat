@@ -847,6 +847,8 @@ function apiTypeLabel(value: string): string {
       return t('settings.data.providerImport.apiTypes.ollama')
     case 'mistral':
       return t('settings.data.providerImport.apiTypes.mistral')
+    case 'jev':
+      return t('settings.data.providerImport.apiTypes.jev')
     default:
       return value
   }

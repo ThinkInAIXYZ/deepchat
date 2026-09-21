@@ -41,6 +41,7 @@
       "embedding": "Nhúng",
       "rerank": "Xếp hạng lại",
       "imageGeneration": "Tạo hình ảnh",
+      "judgment": "Phán đoán",
       "videoGeneration": "Tạo video"
     }
   },

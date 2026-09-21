@@ -41,6 +41,7 @@
       "embedding": "ᠸᠧᠺᠲ᠋ᠣᠷ",
       "rerank": "ᠲᠣᠬᠢᠷᠠᠭᠤᠯᠬᠤ",
       "imageGeneration": "ᠶᠢᠨ ᠪᠥᠲᠥᠭᠡᠯᠲᠡ",
+      "judgment": "ᠰᠢᠭᠦᠮᠵᠢ",
       "videoGeneration": "ᠰᠢᠩᠭᠡᠭᠡᠯᠲᠡ ᠭᠠᠷᠭᠠᠬᠤ"
     }
   },

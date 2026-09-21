@@ -218,6 +218,8 @@
     "modelsTitle": "model lalai",
     "chatModel": "Model dialog lalai",
     "assistantModel": "model pembantu",
+    "judgmentModel": "model penilaian",
+    "judgmentModelDesc": "Argumen alat dan perbualan terkini dihantar ke perkhidmatan pihak ketiga ini.",
     "visionModel": "model visual",
     "imageGenerationModel": "Model penjanaan imej",
     "temperature": "suhu",
@@ -790,7 +792,8 @@
         "anthropic": "Anthropic",
         "gemini": "Gemini",
         "ollama": "Ollama",
-        "mistral": "Mistral AI"
+        "mistral": "Mistral AI",
+        "jev": "TypeSafe Jev (System One)"
       },
       "applyFailed": "Import gagal: {message}"
     },
@@ -1068,6 +1071,7 @@
           "embedding": "model terbenam",
           "rerank": "model penyusunan semula",
           "imageGeneration": "Model penjanaan imej",
+          "judgment": "model penilaian",
           "videoGeneration": "Model penjanaan video"
         }
       },

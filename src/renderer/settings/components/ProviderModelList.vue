@@ -384,6 +384,7 @@ type FacetCounts = {
 const CAPABILITY_ORDER: ModelCapabilityKey[] = ['vision', 'functionCall', 'reasoning', 'search']
 const TYPE_ORDER: ModelType[] = [
   ModelType.Chat,
+  ModelType.Judgment,
   ModelType.Embedding,
   ModelType.Rerank,
   ModelType.ImageGeneration,
@@ -404,7 +405,8 @@ const TYPE_ICONS: Record<ModelType, string> = {
   [ModelType.Rerank]: 'lucide:arrow-up-wide-narrow',
   [ModelType.ImageGeneration]: 'lucide:image',
   [ModelType.VideoGeneration]: 'lucide:clapperboard',
-  [ModelType.TTS]: 'lucide:volume-2'
+  [ModelType.TTS]: 'lucide:volume-2',
+  [ModelType.Judgment]: 'lucide:scale'
 }
 
 const props = defineProps<{
@@ -455,6 +457,9 @@ const hasModelCapability = (model: RENDERER_MODEL_META, capability: ModelCapabil
 const getModelTypeLabel = (type: ModelType) => {
   if (type === ModelType.TTS) {
     return t('settings.provider.tts.title')
+  }
+  if (type === ModelType.Judgment) {
+    return t('model.filter.typeOptions.judgment')
   }
   return t(`model.filter.typeOptions.${type}`)
 }

@@ -4,6 +4,7 @@ import type { LLMCoreStreamEvent } from './core/llm-events'
 import type { MCPToolDefinition } from './core/mcp'
 import type { MCPToolResponse } from './mcp'
 import { ApiEndpointType, ModelType, type NewApiEndpointType } from '@shared/model'
+import type { JevJudgmentResult, JevQuestion } from '../jevProtocol'
 import type { ImageGenerationOptions } from '../imageGenerationSettings'
 import type { VideoGenerationOptions } from '../videoGenerationSettings'
 import type { TtsSettings } from '../ttsSettings'
@@ -349,6 +350,17 @@ export interface ProviderRuntimePort {
     options?: { signal?: AbortSignal; swallowErrors?: boolean }
   ): Promise<string>
 
+  /**
+   * Evaluates typed questions against a state on a System One (Jev) provider and returns typed
+   * answers. This is not a text-generation call: the result is consumed by code, not rendered.
+   */
+  runJudgment(
+    providerId: string,
+    modelId: string,
+    request: { state: unknown; questions: Record<string, JevQuestion> },
+    options?: { signal?: AbortSignal }
+  ): Promise<JevJudgmentResult>
+
   transcribeAudioStandalone(
     providerId: string,
     modelId: string,
@@ -390,6 +402,7 @@ export type ProviderExecutionPort = Pick<
   | 'executeWithRateLimit'
   | 'generateCompletionStandalone'
   | 'generateText'
+  | 'runJudgment'
 >
 
 export type ModelConfigSource = 'user' | 'provider' | 'system'

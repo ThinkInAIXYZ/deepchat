@@ -41,6 +41,7 @@
       "embedding": "埋め込み",
       "rerank": "再ランク付け",
       "imageGeneration": "画像生成",
+      "judgment": "判定",
       "videoGeneration": "動画生成"
     }
   },

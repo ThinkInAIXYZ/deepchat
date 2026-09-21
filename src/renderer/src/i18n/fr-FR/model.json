@@ -41,6 +41,7 @@
       "embedding": "Incorporation",
       "rerank": "Reclassement",
       "imageGeneration": "Génération d'image",
+      "judgment": "Jugement",
       "videoGeneration": "Génération vidéo"
     }
   },

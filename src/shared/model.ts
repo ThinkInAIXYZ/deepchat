@@ -7,7 +7,12 @@ export enum ModelType {
   Rerank = 'rerank',
   ImageGeneration = 'imageGeneration',
   VideoGeneration = 'videoGeneration',
-  TTS = 'tts'
+  TTS = 'tts',
+  /**
+   * A decision model (TypeSafe System One / Jev). It evaluates typed questions against a state
+   * and returns typed answers instead of generating text, so it is never chat-selectable.
+   */
+  Judgment = 'judgment'
 }
 
 export enum ApiEndpointType {
@@ -89,7 +94,8 @@ function isExplicitNonChatNewApiModelType(type: ModelType | undefined): boolean 
     type === ModelType.Rerank ||
     type === ModelType.ImageGeneration ||
     type === ModelType.VideoGeneration ||
-    type === ModelType.TTS
+    type === ModelType.TTS ||
+    type === ModelType.Judgment
   )
 }
 
@@ -117,6 +123,10 @@ function resolveNewApiRawModelType(rawType: string | undefined): ModelType | und
     case 'audio-speech':
     case 'audiospeech':
       return ModelType.TTS
+    case 'judgment':
+    case 'systemone':
+    case 'system-one':
+      return ModelType.Judgment
     default:
       return undefined
   }

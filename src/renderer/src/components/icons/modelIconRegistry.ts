@@ -89,6 +89,7 @@ import apimartIcon from '@/assets/llm-icons/apimart.ico?url'
 import apiRouteIcon from '@/assets/llm-icons/api-route.svg?url'
 import cheaperInferenceIcon from '@/assets/llm-icons/cheaper-inference.svg?url'
 import anonrouterIcon from '@/assets/llm-icons/anonrouter.svg?url'
+import typesafeIcon from '@/assets/llm-icons/typesafe.png?url'
 
 export const modelIcons = {
   'kimi-for-coding': kimiColorIcon,
@@ -110,6 +111,8 @@ export const modelIcons = {
   alibaba: dashscopeColorIcon,
   aihubmix: aihubmixColorIcon,
   anonrouter: anonrouterIcon,
+  typesafe: typesafeIcon,
+  jev: typesafeIcon,
   'api-route': apiRouteIcon,
   apimart: apimartIcon,
   'cheaper-inference': cheaperInferenceIcon,

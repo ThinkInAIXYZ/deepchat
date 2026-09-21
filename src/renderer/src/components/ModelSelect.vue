@@ -111,10 +111,13 @@ const providers = computed(() => {
       }
 
       const filteredModels = enabledProvider.models.filter((model) => {
+        // Judgment (System One) models are decision models, not chat models. They are offered only
+        // when a caller explicitly asks for the Judgment type, so a chat-shaped picker that passes
+        // no type filter never lists them.
         const matchType =
-          !props.type ||
-          props.type.length === 0 ||
-          (model.type !== undefined && props.type.includes(model.type as ModelType))
+          props.type && props.type.length > 0
+            ? model.type !== undefined && props.type.includes(model.type as ModelType)
+            : model.type !== ModelType.Judgment
         const matchVision = !props.visionOnly || Boolean(model.vision)
         return matchType && matchVision
       })

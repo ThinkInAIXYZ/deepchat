@@ -218,6 +218,8 @@
     "modelsTitle": "Model Varsayılanları",
     "chatModel": "Varsayılan Sohbet Modeli",
     "assistantModel": "Asistan Modeli",
+    "judgmentModel": "Değerlendirme Modeli",
+    "judgmentModelDesc": "Araç argümanları ve son konuşma bu üçüncü taraf hizmetine gönderilir.",
     "visionModel": "Vizyon Modeli",
     "imageGenerationModel": "Görüntü Oluşturma Modeli",
     "temperature": "Sıcaklık",
@@ -790,7 +792,8 @@
         "anthropic": "Anthropic",
         "gemini": "Gemini",
         "ollama": "Ollama",
-        "mistral": "Mistral AI"
+        "mistral": "Mistral AI",
+        "jev": "TypeSafe Jev (System One)"
       },
       "applyFailed": "İçe aktarma başarısız oldu: {message}"
     },
@@ -1068,6 +1071,7 @@
           "embedding": "Gömme Modeli",
           "rerank": "Modeli Yeniden Sırala",
           "imageGeneration": "Görüntü Oluşturma Modeli",
+          "judgment": "Değerlendirme Modeli",
           "videoGeneration": "Video Oluşturma Modeli"
         }
       },

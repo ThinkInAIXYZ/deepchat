@@ -6,6 +6,7 @@ import Database from 'better-sqlite3-multiple-ciphers'
 import { parse as parseYaml } from 'yaml'
 import { nanoid } from 'nanoid'
 import type { LLM_PROVIDER, MODEL_META } from '@shared/types/provider'
+import { ModelType } from '@shared/model'
 import {
   PROVIDER_IMPORT_CUSTOM_API_TYPES,
   PROVIDER_IMPORT_SOURCE_IDS,
@@ -1350,7 +1351,7 @@ export class ProviderImportService {
       models:
         mapping.importMode === 'credentials_only'
           ? []
-          : this.buildModelMeta(targetProviderId, rawProvider.models)
+          : this.buildModelMeta(targetProviderId, rawProvider.models, provider.apiType)
     }
   }
 
@@ -1385,7 +1386,16 @@ export class ProviderImportService {
     return providerId
   }
 
-  private buildModelMeta(providerId: string, models: ProviderImportRawModel[]): MODEL_META[] {
+  private buildModelMeta(
+    providerId: string,
+    models: ProviderImportRawModel[],
+    apiType: string
+  ): MODEL_META[] {
+    // A System One provider's models are decision models, not chat models. Imported sources carry no
+    // type, and an untyped model reads as "not a judgment model" to the picker filters, so it would
+    // otherwise land in every chat picker and fail only at request time.
+    const modelType = apiType === 'jev' ? ModelType.Judgment : undefined
+
     return uniqueStrings(models.map((model) => model.id)).map((modelId) => {
       const sourceModel = models.find((model) => model.id === modelId)
       return {
@@ -1394,7 +1404,8 @@ export class ProviderImportService {
         group: sourceModel?.group || 'custom',
         providerId,
         isCustom: true,
-        enabled: true
+        enabled: true,
+        ...(modelType ? { type: modelType } : {})
       }
     })
   }

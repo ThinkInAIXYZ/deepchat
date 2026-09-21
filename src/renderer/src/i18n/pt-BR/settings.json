@@ -383,7 +383,8 @@
         "anthropic": "Anthropic",
         "gemini": "Gemini",
         "ollama": "Ollama",
-        "mistral": "Mistral AI"
+        "mistral": "Mistral AI",
+        "jev": "TypeSafe Jev (System One)"
       },
       "applyFailed": "Falha na importação: {message}"
     },
@@ -730,6 +731,7 @@
           "chat": "Modelo de Linguagem",
           "embedding": "Modelo de Embedding (Incrustação)",
           "imageGeneration": "Modelo de Geração de Imagem",
+          "judgment": "Modelo de avaliação",
           "rerank": "Modelo de Rerank (Reclassificação)",
           "videoGeneration": "Modelo de Geração de Vídeo"
         }
@@ -2741,6 +2743,8 @@
     "modelsTitle": "Padrões do modelo",
     "chatModel": "Modelo de chat padrão",
     "assistantModel": "Modelo auxiliar",
+    "judgmentModel": "Modelo de avaliação",
+    "judgmentModelDesc": "Os argumentos das ferramentas e a conversa recente são enviados a este serviço de terceiros.",
     "visionModel": "Modelo de visão",
     "imageGenerationModel": "Modelo de Geração de Imagem",
     "temperature": "Temperatura",

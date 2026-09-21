@@ -845,7 +845,7 @@ describe('DeepChatAgentsSettings', () => {
     )
 
     const modelSelects = wrapper.findAllComponents({ name: 'ModelSelect' })
-    expect(modelSelects).toHaveLength(4)
+    expect(modelSelects).toHaveLength(5)
     modelSelects[0].vm.$emit(
       'update:model',
       {
@@ -1002,7 +1002,7 @@ describe('DeepChatAgentsSettings', () => {
     expect(payload.config).toEqual({ defaultModelPreset: null })
   })
 
-  it('filters the image generation model selector to image models', async () => {
+  it('restricts the image generation and judgment model selectors to their own types', async () => {
     vi.resetModules()
 
     const existingAgent = {
@@ -1101,9 +1101,10 @@ describe('DeepChatAgentsSettings', () => {
     await flushPromises()
 
     const modelSelects = wrapper.findAllComponents({ name: 'ModelSelect' })
-    expect(modelSelects).toHaveLength(4)
-    expect(modelSelects[2].props('visionOnly')).toBe(true)
-    expect(modelSelects[3].props('type')).toEqual([ModelType.ImageGeneration])
+    expect(modelSelects).toHaveLength(5)
+    expect(modelSelects[2].props('type')).toEqual([ModelType.Judgment])
+    expect(modelSelects[3].props('visionOnly')).toBe(true)
+    expect(modelSelects[4].props('type')).toEqual([ModelType.ImageGeneration])
   })
 
   it('keeps the editor header sticky so save actions stay visible while scrolling', async () => {

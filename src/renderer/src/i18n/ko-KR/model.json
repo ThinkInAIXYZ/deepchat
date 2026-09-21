@@ -41,6 +41,7 @@
       "embedding": "임베딩",
       "rerank": "재순위",
       "imageGeneration": "이미지 생성",
+      "judgment": "판정",
       "videoGeneration": "비디오 생성"
     }
   },

@@ -1,7 +1,33 @@
 import { describe, expect, it } from 'vitest'
+import { ModelType } from '../../../src/shared/model'
 import { DEFAULT_PROVIDERS } from '../../../src/main/provider/defaults'
 
 describe('DEFAULT_PROVIDERS', () => {
+  it('includes TypeSafe as a disabled built-in System One provider', () => {
+    expect(DEFAULT_PROVIDERS).toContainEqual(
+      expect.objectContaining({
+        id: 'typesafe',
+        name: 'TypeSafe',
+        apiType: 'jev',
+        baseUrl: 'https://api.typesafe.ai',
+        enable: false,
+        websites: expect.objectContaining({
+          official: 'https://typesafe.ai/',
+          apiKey: 'https://console.typesafe.ai/keys',
+          docs: 'https://docs.typesafe.ai/introduction',
+          models: 'https://docs.typesafe.ai/models',
+          defaultBaseUrl: 'https://api.typesafe.ai'
+        })
+      })
+    )
+  })
+
+  it('ships the TypeSafe fallback catalog as judgment models', () => {
+    const typesafe = DEFAULT_PROVIDERS.find((provider) => provider.id === 'typesafe')
+
+    expect(typesafe?.models?.map((model) => model.id)).toEqual(['jev-latest', 'jev-1.13.0'])
+    expect(typesafe?.models?.every((model) => model.type === ModelType.Judgment)).toBe(true)
+  })
   it('includes AnonRouter as a disabled built-in OpenAI-compatible provider', () => {
     expect(DEFAULT_PROVIDERS).toContainEqual(
       expect.objectContaining({

@@ -383,7 +383,8 @@
         "anthropic": "Anthropic",
         "gemini": "Gemini",
         "ollama": "Ollama",
-        "mistral": "Mistral AI"
+        "mistral": "Mistral AI",
+        "jev": "TypeSafe Jev (System One)"
       },
       "applyFailed": "وارد کردن ناموفق بود: {message}"
     },
@@ -730,6 +731,7 @@
           "chat": "مدل زبان",
           "embedding": "مدل",
           "imageGeneration": "مدل تولید تصویر",
+          "judgment": "مدل داوری",
           "rerank": "مدل را دوباره مرتب کنید",
           "videoGeneration": "مدل تولید ویدیو"
         }
@@ -2741,6 +2743,8 @@
     "modelsTitle": "پیش‌فرض‌های مدل",
     "chatModel": "مدل پیش‌فرض گفتگو",
     "assistantModel": "مدل دستیار",
+    "judgmentModel": "مدل داوری",
+    "judgmentModelDesc": "آرگومان‌های ابزارها و گفتگوی اخیر به این سرویس شخص ثالث فرستاده می‌شوند.",
     "visionModel": "مدل بصری",
     "imageGenerationModel": "مدل تولید تصویر",
     "temperature": "دما",
