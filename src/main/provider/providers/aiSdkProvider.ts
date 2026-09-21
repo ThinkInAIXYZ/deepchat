@@ -2292,35 +2292,6 @@ export class AiSdkProvider extends BaseLLMProvider {
           remainNum: response.length
         }
       }
-      case 'siliconcloud': {
-        const response = await this.fetchProvider('https://api.siliconflow.cn/v1/user/info', {
-          method: 'GET',
-          headers: {
-            Authorization: `Bearer ${this.provider.apiKey}`,
-            'Content-Type': 'application/json'
-          }
-        })
-        if (!response.ok) {
-          const errorText = await response.text()
-          throw new Error(
-            `SiliconCloud API key check failed: ${response.status} ${response.statusText} - ${errorText}`
-          )
-        }
-        const payload = (await response.json()) as {
-          code: number
-          message: string
-          status: boolean
-          data: { totalBalance: string }
-        }
-        if (payload.code !== 20000 || !payload.status) {
-          throw new Error(`SiliconCloud API error: ${payload.message}`)
-        }
-        const totalBalance = Number.parseFloat(payload.data.totalBalance)
-        return {
-          limit_remaining: `¥${totalBalance}`,
-          remainNum: totalBalance
-        }
-      }
       case 'none':
       default:
         return null

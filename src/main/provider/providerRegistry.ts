@@ -38,7 +38,6 @@ export type AiSdkKeyStatusStrategy =
   | '302ai'
   | 'cherryin'
   | 'modelscope'
-  | 'siliconcloud'
 
 export type AiSdkCheckStrategy = 'fetch-models' | 'key-status' | 'generate-text'
 
@@ -532,17 +531,13 @@ const PROVIDER_ID_REGISTRY = new Map<string, AiSdkProviderDefinition>([
   [
     'silicon',
     createDefinition({
-      ...CHINESE_SUMMARY_OPENAI,
-      checkStrategy: 'key-status',
-      keyStatusStrategy: 'siliconcloud'
+      ...CHINESE_SUMMARY_OPENAI
     })
   ],
   [
     'siliconcloud',
     createDefinition({
-      ...CHINESE_SUMMARY_OPENAI,
-      checkStrategy: 'key-status',
-      keyStatusStrategy: 'siliconcloud'
+      ...CHINESE_SUMMARY_OPENAI
     })
   ],
   [
