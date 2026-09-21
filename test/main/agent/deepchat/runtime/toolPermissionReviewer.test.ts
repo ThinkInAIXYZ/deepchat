@@ -236,6 +236,24 @@ describe('tool permission reviewer', () => {
       expect(state.recentConversation[0]?.content).toContain('[truncated]')
     })
 
+    it('bounds a huge tool argument instead of escalating it unjudged', async () => {
+      // Before the budget, an unbounded `write` body exceeded Jev's request limit, came back as an
+      // HTTP failure, and resolved to ask_user — so large-argument actions were never judged at all.
+      const { deps, runJudgment } = createJudgmentDeps(answersFor({ risk: 'low' }))
+      const hugeArgs = JSON.stringify({ path: 'src/big.ts', content: 'x'.repeat(500_000) })
+
+      const result = await reviewAutoApproveToolPermission(
+        deps,
+        { ...request, toolArgs: hugeArgs },
+        context
+      )
+
+      expect(runJudgment).toHaveBeenCalledTimes(1)
+      const state = runJudgment.mock.calls[0]?.[2].state as Record<string, unknown>
+      expect(JSON.stringify(state).length).toBeLessThan(hugeArgs.length)
+      expect(result).toMatchObject({ decision: 'auto_allow' })
+    })
+
     it('asks the user when the review signals do not clear the auto-allow floor', async () => {
       const unauthorized = await reviewAutoApproveToolPermission(
         createJudgmentDeps(answersFor({ risk: 'low', authorization: 0.2 })).deps,
