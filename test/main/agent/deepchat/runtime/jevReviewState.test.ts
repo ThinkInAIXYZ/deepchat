@@ -131,6 +131,38 @@ describe('fitJevReviewState', () => {
     expect(fitted!.estimatedTokens).toBeGreaterThan(0)
   })
 
+  it('does not flag re-encoding the permission payload as truncation', () => {
+    // In a tighter shape the permission is re-encoded as JSON. That changes its form, not its content,
+    // so it must not refuse auto_allow for every action that happens to carry a permission payload.
+    const fitted = fitJevReviewState({
+      request: buildRequest({
+        permission: {
+          permissionType: 'command',
+          command: 'git status'
+        } as ToolPermissionReviewRequest['permission']
+      }),
+      recentMessages: []
+    })
+
+    expect(fitted?.actionTruncated).toBe(false)
+  })
+
+  it('flags a truncated tool argument as an action the reviewer did not fully see', () => {
+    // The action executes in full, so a verdict on the first N characters is not a verdict on it.
+    const fitted = fitJevReviewState({
+      request: buildRequest({ toolArgs: JSON.stringify({ content: 'x'.repeat(20_000) }) }),
+      recentMessages: []
+    })
+
+    expect(fitted?.actionTruncated).toBe(true)
+  })
+
+  it('does not flag an action that fits', () => {
+    expect(fitJevReviewState({ request: buildRequest(), recentMessages: [] })?.actionTruncated).toBe(
+      false
+    )
+  })
+
   it('returns null when even the tightest shape does not fit', () => {
     // The caller must escalate rather than send an oversized request.
     expect(

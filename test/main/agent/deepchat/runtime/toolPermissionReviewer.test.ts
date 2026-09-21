@@ -236,9 +236,13 @@ describe('tool permission reviewer', () => {
       expect(state.recentConversation[0]?.content).toContain('[truncated]')
     })
 
-    it('bounds a huge tool argument instead of escalating it unjudged', async () => {
+    it('bounds a huge tool argument, and asks the user because it was bounded', async () => {
       // Before the budget, an unbounded `write` body exceeded Jev's request limit, came back as an
       // HTTP failure, and resolved to ask_user — so large-argument actions were never judged at all.
+      //
+      // The budget fixed that, but introduced the opposite hazard: the argument is now truncated and
+      // the action still executes in full, so an auto_allow would be a verdict on a partial view.
+      // Bounding the state and refusing to auto-allow a bounded action are two halves of one rule.
       const { deps, runJudgment } = createJudgmentDeps(answersFor({ risk: 'low' }))
       const hugeArgs = JSON.stringify({ path: 'src/big.ts', content: 'x'.repeat(500_000) })
 
@@ -251,6 +255,17 @@ describe('tool permission reviewer', () => {
       expect(runJudgment).toHaveBeenCalledTimes(1)
       const state = runJudgment.mock.calls[0]?.[2].state as Record<string, unknown>
       expect(JSON.stringify(state).length).toBeLessThan(hugeArgs.length)
+      expect(result).toMatchObject({ decision: 'ask_user' })
+      expect(result.rationale).toContain('part of this action')
+    })
+
+    it('still auto-allows when the whole action was shown to the reviewer', async () => {
+      // The counterpart: nothing was truncated, so the judgement is about the action that will run and
+      // the usual composition applies.
+      const { deps } = createJudgmentDeps(answersFor({ risk: 'low' }))
+
+      const result = await reviewAutoApproveToolPermission(deps, request, context)
+
       expect(result).toMatchObject({ decision: 'auto_allow' })
     })
 

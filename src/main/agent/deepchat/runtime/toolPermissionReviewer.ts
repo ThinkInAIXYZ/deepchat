@@ -265,8 +265,27 @@ async function reviewWithJudgmentModel(
     { signal: context.signal }
   )
 
-  const decision = composeJevReviewDecision({ actionHash, answers: result.answers })
+  const composed = composeJevReviewDecision({ actionHash, answers: result.answers })
   const signals = describeJevReviewSignals(result.answers)
+
+  /**
+   * A truncated action cannot be auto-allowed.
+   *
+   * `actionTruncated` means the reviewer was shown less of the action than will run — the whole
+   * `toolArgs` still executes, but only its first `toolArgsChars` characters were judged. An
+   * `auto_allow` from that is a verdict on a partial view, so it is downgraded to asking the user.
+   * This is the other half of bounding the state: fitting it keeps the request from failing, and this
+   * keeps the request from succeeding on the wrong thing.
+   */
+  const decision: ToolPermissionReviewResult =
+    composed.decision === 'auto_allow' && fitted.actionTruncated
+      ? {
+          ...composed,
+          decision: 'ask_user',
+          rationale:
+            'Judgment review saw only part of this action, so it cannot be auto-approved.'
+        }
+      : composed
 
   logger.info('[DeepChatAgent] judgment review decision:', {
     sessionId: request.sessionId,
@@ -279,6 +298,7 @@ async function reviewWithJudgmentModel(
     inputTokens: result.usage?.input_tokens,
     stateShape: fitted.shape,
     stateTokens: fitted.estimatedTokens,
+    actionTruncated: fitted.actionTruncated,
     actionHash,
     decision: decision.decision,
     riskLevel: decision.riskLevel,

@@ -136,7 +136,7 @@ function buildStateForShape(
   request: ToolPermissionReviewRequest,
   recentMessages: ChatMessage[],
   shape: JevReviewStateShape
-): Record<string, unknown> {
+): { state: Record<string, unknown>; actionTruncated: boolean } {
   const recentConversation = recentMessages.slice(-shape.maxMessages).map((message) => ({
     role: message.role,
     content: chatMessageContentToReviewText(message.content, shape.messageChars, 'head-and-tail'),
@@ -147,26 +147,49 @@ function buildStateForShape(
     ? toReviewablePermission(request.permission)
     : null
 
+  const rawToolArgs = request.toolArgs ?? ''
+  const boundedToolArgs = truncateReviewText(rawToolArgs, shape.toolArgsChars, 'head-and-tail')
+
+  const permissionIsStringified = shape.permissionChars !== null
+  const stringifiedPermission = reviewablePermission
+    ? JSON.stringify(reviewablePermission)
+    : null
   const permission =
-    shape.permissionChars === null
+    shape.permissionChars === null || stringifiedPermission === null
       ? reviewablePermission
-      : truncateReviewText(
-          JSON.stringify(reviewablePermission),
-          shape.permissionChars,
-          'head-and-tail'
-        )
+      : truncateReviewText(stringifiedPermission, shape.permissionChars, 'head-and-tail')
+
+  /**
+   * Whether the reviewer is being shown less of the action than will actually run.
+   *
+   * A truncated `toolArgs` is the dangerous case: the action still executes in full, so a reviewer
+   * that saw only the first `toolArgsChars` characters is not judging the action that runs. A
+   * truncated permission payload is the same problem for the executable fields inside it.
+   *
+   * Both comparisons are against the content, not the shape. Re-encoding the permission as JSON in a
+   * tighter shape is not truncation, and treating it as such would refuse `auto_allow` for every
+   * action that has a permission payload at all.
+   */
+  const actionTruncated =
+    boundedToolArgs !== rawToolArgs ||
+    (permissionIsStringified &&
+      stringifiedPermission !== null &&
+      permission !== stringifiedPermission)
 
   return {
-    reviewTask: 'deepchat_judgment_tool_action',
-    proposedAction: {
-      toolName: request.toolName,
-      toolArgs: truncateReviewText(request.toolArgs ?? '', shape.toolArgsChars, 'head-and-tail'),
-      toolSource: request.toolSource,
-      serverName: request.serverName,
-      reason: request.reason,
-      permission
+    state: {
+      reviewTask: 'deepchat_judgment_tool_action',
+      proposedAction: {
+        toolName: request.toolName,
+        toolArgs: boundedToolArgs,
+        toolSource: request.toolSource,
+        serverName: request.serverName,
+        reason: request.reason,
+        permission
+      },
+      recentConversation
     },
-    recentConversation
+    actionTruncated
   }
 }
 
@@ -174,6 +197,11 @@ export type FittedJevReviewState = {
   state: Record<string, unknown>
   estimatedTokens: number
   shape: string
+  /**
+   * `true` when the state shows less of the action than will run. The caller must not `auto_allow`
+   * on it: the judgement is about a partial view.
+   */
+  actionTruncated: boolean
 }
 
 /**
@@ -191,11 +219,16 @@ export function fitJevReviewState(params: {
   const budget = params.maxStateTokens ?? JEV_REVIEW_MAX_STATE_TOKENS
 
   for (const shape of JEV_REVIEW_STATE_SHAPES) {
-    const state = buildStateForShape(params.request, params.recentMessages, shape)
-    const estimatedTokens = estimateJevTokens(JSON.stringify(state))
+    const built = buildStateForShape(params.request, params.recentMessages, shape)
+    const estimatedTokens = estimateJevTokens(JSON.stringify(built.state))
 
     if (estimatedTokens <= budget) {
-      return { state, estimatedTokens, shape: shape.label }
+      return {
+        state: built.state,
+        estimatedTokens,
+        shape: shape.label,
+        actionTruncated: built.actionTruncated
+      }
     }
   }
 
