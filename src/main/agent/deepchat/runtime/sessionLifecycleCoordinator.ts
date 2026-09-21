@@ -20,6 +20,7 @@ import { sanitizeGenerationSettings } from './generationSettings'
 import type { RunLifecycleCoordinator } from './runLifecycleCoordinator'
 import type { SessionIdentityService } from './sessionIdentityService'
 import type { SessionSettingsCoordinator } from './sessionSettingsCoordinator'
+import type { JevPruningFeedback } from './jevPruningFeedback'
 import type { InteractionParkingRegistry } from './interactionParkingRegistry'
 import type { ToolSurfaceShadowDiagnosticsRegistryPort } from './toolSurfaceDiagnostics'
 import type { ToolSurfaceCanaryDiagnosticsRegistry } from './toolSurfaceCanaryDiagnostics'
@@ -60,6 +61,7 @@ export interface SessionLifecycleCoordinatorDependencies {
   toolSurfaceDiagnostics: Pick<ToolSurfaceShadowDiagnosticsRegistryPort, 'clear'>
   toolSurfaceCanaryDiagnostics: Pick<ToolSurfaceCanaryDiagnosticsRegistry, 'clearSession'>
   programmaticToolParents: Pick<ProgrammaticToolParentRegistry, 'releaseSession'>
+  pruningFeedback: Pick<JevPruningFeedback, 'clear'>
 }
 
 export class SessionLifecycleCoordinator {
@@ -141,6 +143,7 @@ export class SessionLifecycleCoordinator {
     this.deps.sessionStore.delete(sessionId)
     this.deps.compaction.releaseSession(sessionId)
     this.deps.programmaticToolParents.releaseSession(sessionId)
+    this.deps.pruningFeedback.clear(sessionId)
     this.deps.toolSurfaceCanaryDiagnostics.clearSession(sessionId)
     this.deps.interactionParking.clearSession(sessionId)
     if (instance) {

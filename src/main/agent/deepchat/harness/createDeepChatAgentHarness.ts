@@ -324,6 +324,7 @@ function createDeepChatRuntimeServices(deps: DeepChatHarnessDependencies): DeepC
       tokenAuthority: deps.agentCliTokenAuthority,
       executionJournal: sessionData.programmaticExecutionJournal
     })
+  const pruningFeedback = new JevPruningFeedback()
   const sessionLifecycle = new SessionLifecycleCoordinator({
     registry: runtime,
     providerSettings,
@@ -340,9 +341,12 @@ function createDeepChatRuntimeServices(deps: DeepChatHarnessDependencies): DeepC
     interactionParking,
     toolSurfaceDiagnostics,
     toolSurfaceCanaryDiagnostics,
-    programmaticToolParents
+    programmaticToolParents,
+    // Cleared when the session is released, so signatures and miss records do not outlive it. Without
+    // this the maps grow with every session the app ever runs, and a reused session id would inherit
+    // the previous session's pruning policy.
+    pruningFeedback
   })
-  const pruningFeedback = new JevPruningFeedback()
   const toolRuntimeBindings: ToolRuntimeBindingDependencies = {
     providerSettings,
     agentSettings,
