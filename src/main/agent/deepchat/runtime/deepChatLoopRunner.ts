@@ -228,7 +228,7 @@ import {
 import type { PromptAssemblyService } from './promptAssemblyService'
 import type { SessionIdentityService } from './sessionIdentityService'
 import type { SessionSettingsCoordinator } from './sessionSettingsCoordinator'
-import type { ToolPermissionReviewer } from './toolRuntimeBindings'
+import type { ClosedToolResultPruner, ToolPermissionReviewer } from './toolRuntimeBindings'
 import type { ProgrammaticToolParentRegistry } from '@/cli/programmaticToolParentRegistry'
 import { CommittedRunProjectionError } from './runTerminalProjectionError'
 
@@ -466,6 +466,11 @@ export interface DeepChatLoopRunnerPorts {
   >
   sessionPermissionPort: SessionPermissionPort
   reviewToolPermission: ToolPermissionReviewer
+  /**
+   * Optional Jev-judged pruning of closed tool results. Absent means the feature is off, which is the
+   * default; the coordinator runs it only when the agent has a `toolResultPruningModel` configured.
+   */
+  pruneClosedToolResults?: ClosedToolResultPruner
   hookSink: Pick<RuntimeHookSink, 'scope'>
   pluginContext?: PluginContextPort
   compaction: Pick<CompactionRuntimeCoordinator, 'apply'>
@@ -1721,6 +1726,17 @@ export class DeepChatLoopRunner {
             supportsAudioInput,
             traceDebugEnabled: traceEnabled,
             viewContext,
+            ...(ports.pruneClosedToolResults
+              ? {
+                  pruneClosedToolResults: ({ messages, protectedToolCallIds }) =>
+                    ports.pruneClosedToolResults!({
+                      sessionId: loopRun.sessionId,
+                      messages,
+                      protectedToolCallIds,
+                      signal: abortSignal
+                    })
+                }
+              : {}),
             ...(toolSurfaceController
               ? {
                   toolSurface: {

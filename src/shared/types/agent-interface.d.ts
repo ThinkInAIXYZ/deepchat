@@ -690,9 +690,16 @@ export interface DeepChatAgentConfig {
   defaultModelPreset?: DeepChatAgentModelPreset | null
   assistantModel?: DeepChatAgentModelSelection | null
   /**
-   * Opt-in, experimental System One (Jev) model used only for tool-permission review. Restricted to
-   * judgment-type models. When unset, review falls back to `assistantModel` and nothing changes.
-   * Compaction and every other `assistantModel` reader stay on `assistantModel` regardless.
+   * Opt-in, experimental System One (Jev) model used for tool-permission review and for pruning stale
+   * closed tool results. Restricted to judgment-type models. When unset, nothing changes: review
+   * falls back to `assistantModel` and pruning does not run. Compaction and every other
+   * `assistantModel` reader stay on `assistantModel` regardless.
+   *
+   * The two uses activate differently, which is worth knowing when setting this. Permission review
+   * additionally requires `auto` permission mode; pruning does not depend on permission mode at all,
+   * because it manages context rather than granting or denying anything. So selecting this model
+   * enables pruning on its own — it is on because it was configured, not because some other mode
+   * happens to be active.
    */
   judgmentModel?: DeepChatAgentModelSelection | null
   visionModel?: DeepChatAgentModelSelection | null

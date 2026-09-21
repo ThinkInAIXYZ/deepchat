@@ -36,6 +36,7 @@ import { ToolSurfaceShadowDiagnosticsRegistry } from '@/agent/deepchat/runtime/t
 import { ToolSurfaceCanaryDiagnosticsRegistry } from '@/agent/deepchat/runtime/toolSurfaceCanaryDiagnostics'
 import { resolveAgentOutputLimits } from '@shared/lib/agentOutputLimits'
 import {
+  createClosedToolResultPruner,
   createToolPermissionReviewer,
   createToolResultNormalizer,
   type ToolRuntimeBindingDependencies
@@ -413,6 +414,7 @@ function createDeepChatRuntimeServices(deps: DeepChatHarnessDependencies): DeepC
     identity,
     sessionPermissionPort,
     reviewToolPermission: createToolPermissionReviewer(toolRuntimeBindings),
+    pruneClosedToolResults: createClosedToolResultPruner(toolRuntimeBindings),
     hookSink,
     compaction,
     runJournalObserver,
