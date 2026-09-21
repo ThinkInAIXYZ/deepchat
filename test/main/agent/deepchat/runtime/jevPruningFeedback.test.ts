@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   JEV_PRUNING_MAX_MISSES,
-  JEV_PRUNING_TIGHTENED_KEEP_THRESHOLD,
+  JEV_PRUNING_TIGHTENED_DROP_BELOW,
   JevPruningFeedback,
   pruningInvocationSignature
 } from '@/agent/deepchat/runtime/jevPruningFeedback'
@@ -92,7 +92,7 @@ describe('JevPruningFeedback', () => {
     ).toBe(false)
   })
 
-  it('tightens the threshold after the first miss', () => {
+  it('narrows the deletion band after the first miss', () => {
     const feedback = new JevPruningFeedback()
     expect(feedback.policyFor('s1')).toEqual({})
 
@@ -100,7 +100,7 @@ describe('JevPruningFeedback', () => {
     feedback.observeToolCall({ sessionId: 's1', toolCallId: 'c2', toolName: 'exec', toolArgs: 'a' })
 
     expect(feedback.policyFor('s1')).toEqual({
-      keepThreshold: JEV_PRUNING_TIGHTENED_KEEP_THRESHOLD
+      dropBelow: JEV_PRUNING_TIGHTENED_DROP_BELOW
     })
   })
 

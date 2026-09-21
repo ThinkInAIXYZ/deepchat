@@ -6,7 +6,7 @@ import {
   createToolResultNormalizer,
   type ToolRuntimeBindingDependencies
 } from '@/agent/deepchat/runtime/toolRuntimeBindings'
-import { JevPruningFeedback, JEV_PRUNING_TIGHTENED_KEEP_THRESHOLD } from '@/agent/deepchat/runtime/jevPruningFeedback'
+import { JevPruningFeedback, JEV_PRUNING_TIGHTENED_DROP_BELOW } from '@/agent/deepchat/runtime/jevPruningFeedback'
 
 const normalizeToolResultContent = vi.hoisted(() => vi.fn(async () => [{ type: 'text', text: 'ok' }]))
 const reviewAutoApproveToolPermission = vi.hoisted(() =>
@@ -63,7 +63,7 @@ describe('tool runtime bindings', () => {
 
     expect(deps.pruningFeedback.missCount(SESSION_ID)).toBe(1)
     expect(deps.pruningFeedback.policyFor(SESSION_ID)).toEqual({
-      keepThreshold: JEV_PRUNING_TIGHTENED_KEEP_THRESHOLD
+      dropBelow: JEV_PRUNING_TIGHTENED_DROP_BELOW
     })
   })
 

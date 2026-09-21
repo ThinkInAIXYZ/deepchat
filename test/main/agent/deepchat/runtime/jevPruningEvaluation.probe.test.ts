@@ -6,8 +6,9 @@ import type { ChatMessage } from '@shared/types/core/chat-message'
 import type { JevAnswer } from '@shared/jevProtocol'
 import {
   buildJevPruningQuestions,
+  decideJevPruningDrop,
   fitJevPruningState,
-  JEV_PRUNING_KEEP_THRESHOLD
+  readJevPruningSignals
 } from '@/agent/deepchat/runtime/jevToolResultPruning'
 import { pruningInvocationSignature } from '@/agent/deepchat/runtime/jevPruningFeedback'
 
@@ -207,6 +208,8 @@ describe.skipIf(!API_KEY)('Jev pruning threshold evaluation', () => {
     let pruned = 0
     let kept = 0
     let falseDrops = 0
+    let falseDropsByRerun = 0
+    let falseDropsByQuote = 0
     let wastedKeeps = 0
     let freedChars = 0
     const droppedRows: string[] = []
@@ -246,10 +249,11 @@ describe.skipIf(!API_KEY)('Jev pruning threshold evaluation', () => {
 
         turnsEvaluated += 1
 
+        const signals = readJevPruningSignals(answers, fitted.candidates)
+
         for (const candidate of fitted.candidates) {
-          const answer = answers[`keep_${candidate.toolCallId}`]
-          const probability = answer && answer.type === 'noul' ? answer.noul : null
-          if (probability === null) continue
+          const signal = signals.get(candidate.toolCallId)
+          if (!signal || signal.relevance === null) continue
 
           const signature = pruningInvocationSignature(candidate.toolName, candidate.toolArgs)
           const rerun = laterSignatures.has(signature)
@@ -258,15 +262,17 @@ describe.skipIf(!API_KEY)('Jev pruning threshold evaluation', () => {
           )
           const neededLater = rerun || quoted
 
-          if (probability < JEV_PRUNING_KEEP_THRESHOLD) {
+          if (decideJevPruningDrop(signal)) {
             pruned += 1
             freedChars += candidate.content.length
             if (neededLater) {
               falseDrops += 1
+              if (rerun) falseDropsByRerun += 1
+              else falseDropsByQuote += 1
               droppedRows.push(
-                `${candidate.toolName} p=${probability.toFixed(2)} ${
-                  rerun ? 'RERUN' : 'quoted'
-                } chars=${candidate.content.length}`
+                `${candidate.toolName} rel=${signal.relevance.toFixed(2)} rec=${
+                  signal.recoverable === null ? '?' : signal.recoverable.toFixed(2)
+                } ${rerun ? 'RERUN' : 'quoted'} chars=${candidate.content.length}`
               )
             }
           } else {
@@ -288,6 +294,12 @@ describe.skipIf(!API_KEY)('Jev pruning threshold evaluation', () => {
     console.log(`chars freed:     ${freedChars}`)
     console.log(
       `FALSE DROPS:     ${falseDrops} / ${pruned}  (${rate(falseDrops, pruned)})  [lower bound]`
+    )
+    console.log(
+      `  by re-run:     ${falseDropsByRerun}  (${rate(falseDropsByRerun, pruned)})  [objective]`
+    )
+    console.log(
+      `  by quoting:    ${falseDropsByQuote}  (${rate(falseDropsByQuote, pruned)})  [coarse token match]`
     )
     console.log(`wasted keeps:    ${wastedKeeps} / ${kept}  (${rate(wastedKeeps, kept)})`)
     console.log('\nfalse-drop detail (dropped but needed later):')

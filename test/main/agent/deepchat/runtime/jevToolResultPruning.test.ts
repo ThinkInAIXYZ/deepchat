@@ -5,12 +5,13 @@ import {
   applyJevPruningDecisions,
   buildJevPruningQuestions,
   collectJevPruningCandidates,
+  decideJevPruningDrop,
   fitJevPruningState,
   JEV_PRUNING_MAX_CANDIDATES,
   JEV_PRUNING_MAX_STATE_TOKENS,
   JEV_TOOL_RESULT_PRUNED_MARKER,
   pruneClosedToolResultsForContext,
-  readJevPruningDecisions
+  readJevPruningSignals
 } from '@/agent/deepchat/runtime/jevToolResultPruning'
 
 const user = (content: string): ChatMessage => ({ role: 'user', content }) as ChatMessage
@@ -100,31 +101,85 @@ describe('collectJevPruningCandidates', () => {
 })
 
 describe('buildJevPruningQuestions', () => {
-  it('asks one noul per candidate, keyed by tool call id', () => {
+  it('asks two nouls per candidate, keyed by tool call id', () => {
+    // Two, not one: TypeSafe's guidance is that a question with two conditions makes both answers
+    // mean less. Relevance and recoverability are separate questions, combined in code.
     const questions = buildJevPruningQuestions([
       { toolCallId: 'c1', toolName: 'exec', toolArgs: 'a', content: 'a', resultIndex: 1 },
       { toolCallId: 'c2', toolName: 'read', toolArgs: 'b', content: 'b', resultIndex: 3 }
     ])
 
-    expect(Object.keys(questions).sort()).toEqual(['keep_c1', 'keep_c2'])
-    expect(questions.keep_c1.type).toBe('noul')
+    expect(Object.keys(questions).sort()).toEqual([
+      'recoverable_c1',
+      'recoverable_c2',
+      'relevant_c1',
+      'relevant_c2'
+    ])
+    expect(questions.relevant_c1.type).toBe('noul')
+    expect(questions.recoverable_c1.type).toBe('noul')
+  })
+
+  it('names the candidate it is asking about', () => {
+    // The question this replaced pointed at a field that did not exist and never said which candidate
+    // it meant, leaving the model to guess among all of them.
+    const questions = buildJevPruningQuestions([
+      { toolCallId: 'call_abc', toolName: 'exec', toolArgs: 'a', content: 'a', resultIndex: 1 }
+    ])
+
+    const relevant = questions.relevant_call_abc as { instructions: string }
+    expect(relevant.instructions).toContain('call_abc')
   })
 })
 
-describe('readJevPruningDecisions', () => {
-  it('reports null for a missing or wrong-typed answer', () => {
-    const candidates = [
-      { toolCallId: 'c1', toolName: 'exec', toolArgs: 'a', content: 'a', resultIndex: 1 },
-      { toolCallId: 'c2', toolName: 'exec', toolArgs: 'b', content: 'b', resultIndex: 3 }
-    ]
+describe('readJevPruningSignals', () => {
+  const candidates = [
+    { toolCallId: 'c1', toolName: 'exec', toolArgs: 'a', content: 'a', resultIndex: 1 },
+    { toolCallId: 'c2', toolName: 'exec', toolArgs: 'b', content: 'b', resultIndex: 3 }
+  ]
 
-    const probabilities = readJevPruningDecisions(
-      { keep_c1: { type: 'choice', choice: 'x', confidence: 1, probabilities: {} } },
+  it('reads both answers per candidate', () => {
+    const signals = readJevPruningSignals(
+      { relevant_c1: noul(0.8), recoverable_c1: noul(0.3) },
       candidates
     )
 
-    expect(probabilities.get('c1')).toBeNull()
-    expect(probabilities.get('c2')).toBeNull()
+    expect(signals.get('c1')).toEqual({ relevance: 0.8, recoverable: 0.3 })
+  })
+
+  it('reports null for a missing or wrong-typed answer', () => {
+    const signals = readJevPruningSignals(
+      { relevant_c1: { type: 'choice', choice: 'x', confidence: 1, probabilities: {} } },
+      candidates
+    )
+
+    expect(signals.get('c1')).toEqual({ relevance: null, recoverable: null })
+    expect(signals.get('c2')).toEqual({ relevance: null, recoverable: null })
+  })
+})
+
+describe('decideJevPruningDrop', () => {
+  it('keeps a result the work still depends on', () => {
+    expect(decideJevPruningDrop({ relevance: 0.9, recoverable: 0.9 })).toBe(false)
+  })
+
+  it('drops a result that is clearly irrelevant', () => {
+    expect(decideJevPruningDrop({ relevance: 0.05, recoverable: 0.1 })).toBe(true)
+  })
+
+  it('resolves an undecided band by whether a re-run would bring the contents back', () => {
+    // The middle band is the structure fast-jev-compaction has and a plain two-way cut does not:
+    // removal there needs the second answer to agree, rather than one uncertain answer deciding.
+    expect(decideJevPruningDrop({ relevance: 0.35, recoverable: 0.9 })).toBe(true)
+    expect(decideJevPruningDrop({ relevance: 0.35, recoverable: 0.1 })).toBe(false)
+  })
+
+  it('keeps when the recoverability answer is unreadable', () => {
+    expect(decideJevPruningDrop({ relevance: 0.35, recoverable: null })).toBe(false)
+  })
+
+  it('keeps when the relevance answer is unreadable', () => {
+    // An unreadable answer is not evidence that the result is stale.
+    expect(decideJevPruningDrop({ relevance: null, recoverable: 0.99 })).toBe(false)
   })
 })
 
@@ -156,11 +211,10 @@ describe('applyJevPruningDecisions', () => {
     const { messages: result, decisions } = applyJevPruningDecisions({
       messages: buildMessages(),
       candidates,
-      keepProbabilities: new Map([
-        ['c1', 0.1],
-        ['c2', 0.9]
-      ]),
-      keepThreshold: 0.5
+      signals: new Map([
+        ['c1', { relevance: 0.05, recoverable: 0.9 }],
+        ['c2', { relevance: 0.9, recoverable: 0.1 }]
+      ])
     })
 
     expect(result[1].content).toContain(JEV_TOOL_RESULT_PRUNED_MARKER)
@@ -179,11 +233,10 @@ describe('applyJevPruningDecisions', () => {
     const { messages: result } = applyJevPruningDecisions({
       messages,
       candidates,
-      keepProbabilities: new Map([
-        ['c1', null],
-        ['c2', null]
-      ]),
-      keepThreshold: 0.5
+      signals: new Map([
+        ['c1', { relevance: null, recoverable: null }],
+        ['c2', { relevance: null, recoverable: null }]
+      ])
     })
 
     expect(result).toBe(messages)
@@ -196,8 +249,7 @@ describe('applyJevPruningDecisions', () => {
     applyJevPruningDecisions({
       messages,
       candidates,
-      keepProbabilities: new Map([['c1', 0]]),
-      keepThreshold: 0.5
+      signals: new Map([['c1', { relevance: 0, recoverable: 1 }]])
     })
 
     expect(messages[1].content).toBe(originalContent)
@@ -209,11 +261,10 @@ describe('applyJevPruningDecisions', () => {
     const { messages: result } = applyJevPruningDecisions({
       messages,
       candidates,
-      keepProbabilities: new Map([
-        ['c1', 0.8],
-        ['c2', 0.8]
-      ]),
-      keepThreshold: 0.5
+      signals: new Map([
+        ['c1', { relevance: 0.9, recoverable: 0.1 }],
+        ['c2', { relevance: 0.9, recoverable: 0.1 }]
+      ])
     })
 
     expect(result).toBe(messages)
@@ -321,11 +372,16 @@ describe('pruneClosedToolResultsForContext', () => {
       messages,
       ask: async ({ questions }) => {
         questionCount = Object.keys(questions).length
-        return { keep_c1: noul(0.05), keep_c2: noul(0.95) }
+        return {
+          relevant_c1: noul(0.05),
+          recoverable_c1: noul(0.05),
+          relevant_c2: noul(0.95),
+          recoverable_c2: noul(0.05)
+        }
       }
     })
 
-    expect(questionCount).toBe(2)
+    expect(questionCount).toBe(4)
     expect(outcome.attempted).toBe(true)
     expect(outcome.messages[2].content).toContain(JEV_TOOL_RESULT_PRUNED_MARKER)
     expect(outcome.messages[4].content).toContain('needed')
@@ -340,7 +396,7 @@ describe('pruneClosedToolResultsForContext', () => {
 
     const outcome = await pruneClosedToolResultsForContext({
       messages,
-      ask: async () => ({ keep_c1: noul(0.99) })
+      ask: async () => ({ relevant_c1: noul(0.99), recoverable_c1: noul(0.01) })
     })
 
     expect(outcome.attempted).toBe(true)

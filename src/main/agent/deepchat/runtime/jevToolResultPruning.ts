@@ -39,10 +39,42 @@ import { estimateJevTokens } from './jevReviewState'
  */
 
 /**
- * Minimum keep probability for a result to stay verbatim. Carried over from `fast-jev-compaction`,
- * where it is the default, and not calibrated against this app's own data.
+ * Drop a result only when the composed probability that it is still needed falls below this.
+ *
+ * TypeSafe's guidance on thresholds is that they depend on the cost of being wrong: "Use 0.5 when yes
+ * and no are equally easy to act on. Raise it when acting on a false yes is expensive... Values in the
+ * middle can go to a person rather than either code path."
+ *
+ * The two outcomes here are not symmetric, so 0.5 is the wrong cut. Keeping a stale result costs some
+ * context. Dropping a needed one is silent — the model does not know what it cannot see — and costs
+ * whatever it was going to do with that information. So the middle band is treated as "keep" and only
+ * a clear no is acted on.
+ *
+ * Uncalibrated, like every other threshold in this path. The evaluation harness measures it.
  */
-export const JEV_PRUNING_KEEP_THRESHOLD = 0.5
+export const JEV_PRUNING_DROP_BELOW = 0.2
+
+/**
+ * Above this probability that the work still depends on a result, it is kept without asking anything
+ * further.
+ */
+export const JEV_PRUNING_KEEP_ABOVE = 0.5
+
+/**
+ * In the band between `JEV_PRUNING_DROP_BELOW` and `JEV_PRUNING_KEEP_ABOVE` the relevance answer is not
+ * decisive, so the recoverability answer decides: contents that a re-run would bring back can be
+ * dropped, contents that would not are kept.
+ *
+ * This middle band is the structure `fast-jev-compaction` has and this pass was missing. Its
+ * `keepThreshold` of 0.5 governs a three-way split — keep both, keep the call and truncate the result,
+ * remove both — and removal requires two answers to fail, not one. Read as a two-way cut, the same 0.5
+ * deletes on a single uncertain answer, which is what the evaluation measured.
+ *
+ * The middle band here resolves to a second judgement rather than to truncation, because this pass
+ * cannot truncate: the existing size-based stages already do that for large results, and the soft
+ * delete this pass applies is an information loss that truncation is not.
+ */
+export const JEV_PRUNING_RECOVERABLE_ABOVE = 0.5
 
 /**
  * Estimated ceiling for the serialized state, well under Jev's 32k state-plus-question limit so the
@@ -149,7 +181,9 @@ export type JevPruningDecision = {
   /** The arguments the pruned call was made with, so a re-run of it can be recognised. */
   toolArgs: string
   originalChars: number
-  keepProbability: number
+  /** The two judgements the decision was made from, kept so a wrong one can be attributed. */
+  relevance: number | null
+  recoverable: number | null
   kept: boolean
 }
 
@@ -270,8 +304,20 @@ export function fitJevPruningState(params: {
 }
 
 /**
- * One Noul per candidate. Keyed by tool call id so an answer can be attributed without relying on
- * the model echoing anything back in order.
+ * Two Nouls per candidate, not one, and keyed by tool call id so an answer can be attributed without
+ * relying on the model echoing anything back in order.
+ *
+ * The single question this replaces asked for two judgements at once — whether the contents still
+ * matter AND whether re-running would not recover them. TypeSafe's own guidance is explicit that this
+ * is the mistake to avoid: "If a question has two conditions ... the model has to judge both at once
+ * and the value means less. Ask two Nouls and combine them in code." Measured against real sessions it
+ * behaved exactly as described, answering in the 0.21–0.45 band — low confidence dressed as a number —
+ * while being wrong about a third of the time.
+ *
+ * Splitting costs nothing in latency. Questions are evaluated in parallel in one request.
+ *
+ * Both are phrased so a high value means yes, which the guidance also asks for: an inverted question
+ * is one whose answer code later reads backwards.
  */
 export function buildJevPruningQuestions(
   candidates: readonly JevPruningCandidate[]
@@ -279,15 +325,29 @@ export function buildJevPruningQuestions(
   const questions: Record<string, JevQuestion> = {}
 
   for (const candidate of candidates) {
-    questions[pruningQuestionId(candidate.toolCallId)] = {
+    questions[relevanceQuestionId(candidate.toolCallId)] = {
       type: 'noul',
       instructions:
-        'The state carries a work in progress and one of its earlier tool results, under `candidateResult`. Answer whether that result is still needed: 1 if its contents are still relevant to the work and re-running the tool would not recover them, 0 if it is no longer needed. Judge the contents against the work, not the tool that produced them — a result can be large and still irrelevant, or short and still load-bearing. Do not answer 1 merely because the result is present.',
+        'The state carries a work in progress under `task` and earlier tool results under ' +
+        '`candidateResults`. One of those results has `toolCallId` ' +
+        `\`${candidate.toolCallId}\`. Is that result still load-bearing for the work in progress?`,
       criteria: {
-        needed:
-          'Its contents are still relevant to the work in progress, and re-running the tool would not reproduce them (it read mutable state, produced a one-off measurement, or the output is not deterministic)',
-        stale:
-          'The work has moved past it, or re-running the tool would reproduce the same contents cheaply'
+        true: 'It carries something the work still has to refer back to: a path or symbol still being edited, the error that explains the current failure, a value that was measured or discovered, an identifier, or a constraint that still applies.',
+        false:
+          'The step it served is finished and nothing downstream refers back to it; or it only confirmed that an action succeeded; or it is an intermediate listing or search result that has already been acted on.'
+      }
+    }
+
+    questions[recoverabilityQuestionId(candidate.toolCallId)] = {
+      type: 'noul',
+      instructions:
+        'One of the results under `candidateResults` has `toolCallId` ' +
+        `\`${candidate.toolCallId}\`. If that result were discarded, would re-running the tool that ` +
+        'produced it bring these contents back?',
+      criteria: {
+        true: 'The tool reads state that has not changed since and is cheap to run again: listing a directory, reading a file, checking status, repeating a search over static sources.',
+        false:
+          'The contents came from something that will not repeat: a timestamped listing, a one-off measurement, output that depends on the moment it ran, a search over data that changes, or output whose ordering or values are not reproducible.'
       }
     }
   }
@@ -353,25 +413,72 @@ export function buildJevPruningState(
   }
 }
 
+export type JevPruningSignals = {
+  /** Probability that the work still depends on the contents. `null` when unreadable. */
+  relevance: number | null
+  /** Probability that re-running the tool would reproduce the contents. `null` when unreadable. */
+  recoverable: number | null
+}
+
+export type JevPruningDecisionInput = {
+  relevance: number | null
+  recoverable: number | null
+}
+
 /**
- * Reads a keep probability per candidate.
+ * Reads the two answers per candidate. They are combined later, in code, as the guidance asks.
  *
- * A missing or wrong-typed answer is `null` rather than 0. Defaulting an unreadable answer to "drop"
- * would let a malformed response silently delete context, which is the one failure mode this whole
- * design is built to avoid; the caller treats `null` as "keep".
+ * A missing or wrong-typed answer yields `null` rather than 0. Defaulting an unreadable answer to
+ * "drop" would let a malformed response silently delete context, which is the one failure mode this
+ * whole design is built to avoid; the decision treats `null` as "keep".
  */
-export function readJevPruningDecisions(
+export function readJevPruningSignals(
   answers: Record<string, JevAnswer>,
   candidates: readonly JevPruningCandidate[]
-): Map<string, number | null> {
-  const probabilities = new Map<string, number | null>()
+): Map<string, JevPruningSignals> {
+  const signals = new Map<string, JevPruningSignals>()
 
   for (const candidate of candidates) {
-    const answer = answers[pruningQuestionId(candidate.toolCallId)]
-    probabilities.set(candidate.toolCallId, answer && isJevNoulAnswer(answer) ? answer.noul : null)
+    signals.set(candidate.toolCallId, {
+      relevance: readNoul(answers[relevanceQuestionId(candidate.toolCallId)]),
+      recoverable: readNoul(answers[recoverabilityQuestionId(candidate.toolCallId)])
+    })
   }
 
-  return probabilities
+  return signals
+}
+
+/**
+ * The three-way decision, in code where it is visible and testable.
+ *
+ *   relevance >= KEEP_ABOVE                  -> keep
+ *   relevance <  DROP_BELOW                  -> drop
+ *   in between                               -> drop only if a re-run would bring the contents back
+ *
+ * Any unreadable answer keeps. So does an undecided middle band whose contents are not recoverable.
+ */
+export function decideJevPruningDrop(
+  signals: JevPruningDecisionInput,
+  thresholds: { dropBelow?: number; keepAbove?: number; recoverableAbove?: number } = {}
+): boolean {
+  const { relevance, recoverable } = signals
+  if (relevance === null) return false
+
+  const dropBelow = thresholds.dropBelow ?? JEV_PRUNING_DROP_BELOW
+  const keepAbove = thresholds.keepAbove ?? JEV_PRUNING_KEEP_ABOVE
+  const recoverableAbove = thresholds.recoverableAbove ?? JEV_PRUNING_RECOVERABLE_ABOVE
+
+  if (relevance >= keepAbove) return false
+  if (relevance < dropBelow) return true
+
+  // Undecided: the contents are not clearly needed, but they are not clearly irrelevant either. Drop
+  // only if getting them back is cheap, which is the one case where being wrong costs a round-trip
+  // rather than a fact.
+  return recoverable !== null && recoverable >= recoverableAbove
+}
+
+function readNoul(answer: JevAnswer | undefined): number | null {
+  return answer && isJevNoulAnswer(answer) ? answer.noul : null
 }
 
 /**
@@ -401,24 +508,26 @@ export function buildJevPrunedResultContent(params: {
 export function applyJevPruningDecisions(params: {
   messages: ChatMessage[]
   candidates: readonly JevPruningCandidate[]
-  keepProbabilities: ReadonlyMap<string, number | null>
-  keepThreshold: number
+  signals: ReadonlyMap<string, JevPruningSignals>
+  thresholds?: { dropBelow?: number; keepAbove?: number; recoverableAbove?: number }
 }): { messages: ChatMessage[]; decisions: JevPruningDecision[] } {
   const decisions: JevPruningDecision[] = []
   let pruned: ChatMessage[] | null = null
 
   for (const candidate of params.candidates) {
-    const probability = params.keepProbabilities.get(candidate.toolCallId) ?? null
-    // `null` means the answer could not be read. Keep: an unreadable answer is not evidence that the
-    // result is stale, and guessing "drop" here would delete context on a malformed response.
-    const kept = probability === null || probability >= params.keepThreshold
+    const signals = params.signals.get(candidate.toolCallId) ?? {
+      relevance: null,
+      recoverable: null
+    }
+    const kept = !decideJevPruningDrop(signals, params.thresholds)
 
     decisions.push({
       toolCallId: candidate.toolCallId,
       toolName: candidate.toolName,
       toolArgs: candidate.toolArgs,
       originalChars: candidate.content.length,
-      keepProbability: probability ?? Number.NaN,
+      relevance: signals.relevance,
+      recoverable: signals.recoverable,
       kept
     })
 
@@ -461,7 +570,7 @@ export async function pruneClosedToolResultsForContext(params: {
   messages: ChatMessage[]
   protectedToolCallIds?: ReadonlySet<string>
   ask: JevPruningAsker
-  keepThreshold?: number
+  thresholds?: { dropBelow?: number; keepAbove?: number; recoverableAbove?: number }
   maxStateTokens?: number
 }): Promise<JevPruningOutcome> {
   const skipped = (skipReason: JevPruningOutcome['skipReason']): JevPruningOutcome => ({
@@ -496,8 +605,8 @@ export async function pruneClosedToolResultsForContext(params: {
   const applied = applyJevPruningDecisions({
     messages: params.messages,
     candidates: fitted.candidates,
-    keepProbabilities: readJevPruningDecisions(answers, fitted.candidates),
-    keepThreshold: params.keepThreshold ?? JEV_PRUNING_KEEP_THRESHOLD
+    signals: readJevPruningSignals(answers, fitted.candidates),
+    ...(params.thresholds ? { thresholds: params.thresholds } : {})
   })
 
   const freedChars = applied.decisions.reduce(
@@ -515,6 +624,10 @@ export async function pruneClosedToolResultsForContext(params: {
   }
 }
 
-function pruningQuestionId(toolCallId: string): string {
-  return `keep_${toolCallId}`
+function relevanceQuestionId(toolCallId: string): string {
+  return `relevant_${toolCallId}`
+}
+
+function recoverabilityQuestionId(toolCallId: string): string {
+  return `recoverable_${toolCallId}`
 }

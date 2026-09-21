@@ -12,7 +12,7 @@ import logger from '@shared/logger'
 import { normalizeToolResultContent } from './toolAdapters'
 import { reviewAutoApproveToolPermission } from './toolPermissionReviewer'
 import {
-  JEV_PRUNING_KEEP_THRESHOLD,
+  JEV_PRUNING_DROP_BELOW,
   pruneClosedToolResultsForContext
 } from './jevToolResultPruning'
 import { JevPruningFeedback } from './jevPruningFeedback'
@@ -160,7 +160,7 @@ export function createClosedToolResultPruner(
     const outcome = await pruneClosedToolResultsForContext({
       messages,
       protectedToolCallIds,
-      ...(policy.keepThreshold === undefined ? {} : { keepThreshold: policy.keepThreshold }),
+      ...(policy.dropBelow === undefined ? {} : { thresholds: { dropBelow: policy.dropBelow } }),
       ask: async ({ state, questions }) => {
         await deps.providerRuntime.executeWithRateLimit(providerId, { signal })
         const result = await deps.providerRuntime.runJudgment(
@@ -193,7 +193,7 @@ export function createClosedToolResultPruner(
       shape: outcome.shape,
       stateTokens: outcome.stateTokens,
       reductionRatio: outcome.reductionRatio,
-      keepThreshold: policy.keepThreshold ?? JEV_PRUNING_KEEP_THRESHOLD,
+      dropBelow: policy.dropBelow ?? JEV_PRUNING_DROP_BELOW,
       misses: deps.pruningFeedback.missCount(sessionId),
       kept: outcome.decisions.filter((decision) => decision.kept).length,
       pruned: outcome.decisions.filter((decision) => !decision.kept).length,

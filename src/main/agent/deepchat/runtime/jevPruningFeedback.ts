@@ -22,8 +22,8 @@
  * — the model does not know what it cannot see.
  */
 
-/** A miss raises the bar rather than retuning anything: one wrong judgment should not be ignored. */
-export const JEV_PRUNING_TIGHTENED_KEEP_THRESHOLD = 0.8
+/** A miss lowers the bar for deleting: one wrong judgment should not be ignored. */
+export const JEV_PRUNING_TIGHTENED_DROP_BELOW = 0.05
 
 /** After this many misses, stop pruning for the session. */
 export const JEV_PRUNING_MAX_MISSES = 3
@@ -108,15 +108,15 @@ export class JevPruningFeedback {
   }
 
   /**
-   * Whether pruning may still run for this session, and at what threshold.
+   * Whether pruning may still run for this session, and at what thresholds.
    *
-   * Returns `null` once enough misses have accumulated. `undefined` threshold means the caller's
-   * default applies.
+   * Returns `null` once enough misses have accumulated. An empty object means the caller's defaults
+   * apply; a `dropBelow` narrows the band in which anything is deleted at all.
    */
-  policyFor(sessionId: string): { keepThreshold?: number } | null {
+  policyFor(sessionId: string): { dropBelow?: number } | null {
     const misses = this.missCount(sessionId)
     if (misses >= JEV_PRUNING_MAX_MISSES) return null
-    if (misses > 0) return { keepThreshold: JEV_PRUNING_TIGHTENED_KEEP_THRESHOLD }
+    if (misses > 0) return { dropBelow: JEV_PRUNING_TIGHTENED_DROP_BELOW }
     return {}
   }
 
