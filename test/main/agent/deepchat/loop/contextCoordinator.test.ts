@@ -2096,6 +2096,61 @@ describe('DeepChatContextCoordinator', () => {
     expect(fixture.run.providerRecovery.contextRecoverySequencesUsed).toBe(1)
   })
 
+  it('runs the judgment pruning pass before the size-based truncation', async () => {
+    // The ordering is the whole point of the pass: a result judged stale should be removed whole
+    // rather than cut, and a result judged necessary should keep its contents. If truncation ran
+    // first, pruning would be judging head-and-tail fragments and neither would hold.
+    const fixture = createAttemptInput()
+    const largeOutput = 'x'.repeat(9000)
+    fixture.input.requestMessages.splice(
+      0,
+      fixture.input.requestMessages.length,
+      { role: 'user', content: 'current input' },
+      {
+        role: 'assistant',
+        content: '',
+        tool_calls: [
+          { id: 'call-1', type: 'function', function: { name: 'inspect', arguments: '{}' } }
+        ]
+      },
+      { role: 'tool', tool_call_id: 'call-1', content: largeOutput }
+    )
+
+    // Only satisfied once the pass has settled the result, so the request cannot be sent unless it ran.
+    fixture.input.budget.preflight = vi.fn(({ messages, requestedMaxTokens }) => {
+      const settled = String(messages.at(-1)?.content).includes('[Tool result pruned by judgment]')
+      return createPreflight(messages, {
+        requestedMaxTokens,
+        effectiveMaxTokens: settled ? requestedMaxTokens : 20,
+        requiresContextPressureRecovery: !settled,
+        fitsWithinContext: settled
+      })
+    })
+
+    const seenByPruning: string[] = []
+    fixture.input.pruneClosedToolResults = vi.fn(async ({ messages }) => {
+      seenByPruning.push(String(messages.at(-1)?.content))
+      const next = [...messages]
+      next[next.length - 1] = {
+        ...next[next.length - 1],
+        content: '[Tool result pruned by judgment]'
+      }
+      return next
+    })
+
+    await collect(new DeepChatContextCoordinator().streamProviderAttempts(fixture.input))
+
+    expect(fixture.input.pruneClosedToolResults).toHaveBeenCalledTimes(1)
+    // It saw the original: had truncation run first this would already be the truncation marker.
+    expect(seenByPruning[0]).toContain(largeOutput)
+
+    // And the provider sees the pruning placeholder, not the truncation marker — the pass that ran
+    // first decided this result and left the size-based stage nothing to cut.
+    const finalContent = String(fixture.providerRequests[0].messages.at(-1)?.content)
+    expect(finalContent).toContain('[Tool result pruned by judgment]')
+    expect(finalContent).not.toContain('[Tool output compacted from provider View]')
+  })
+
   it('preserves the latest closed tool result when older compaction relieves pressure', async () => {
     const fixture = createAttemptInput()
     const olderOutput = `older:${'x'.repeat(9000)}`
