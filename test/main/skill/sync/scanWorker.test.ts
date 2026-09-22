@@ -228,6 +228,40 @@ describe('scanAndDetectDiscoveriesInWorker', () => {
 describe.skipIf(process.platform === 'win32')(
   'scanAndDetectDiscoveriesInWorker filename guard',
   () => {
+    it('rejects escaping file symlinks without rejecting contained targets or linked roots', async () => {
+      const fs = await vi.importActual<typeof import('node:fs')>('node:fs')
+      const os = await vi.importActual<typeof import('node:os')>('node:os')
+      const path = await vi.importActual<typeof import('node:path')>('node:path')
+      const root = fs.mkdtempSync(path.join(os.tmpdir(), 'deepchat-scan-links-'))
+      tempDirs.push(root)
+      const skillsDir = path.join(root, 'skills')
+      for (const name of ['escape', 'escape-other', 'outside', 'contained', 'dangling']) {
+        fs.mkdirSync(path.join(skillsDir, name), { recursive: true })
+      }
+      fs.writeFileSync(path.join(skillsDir, 'escape-other/private.md'), '# Private\nMust not leak')
+      fs.symlinkSync('../escape-other/private.md', path.join(skillsDir, 'escape/SKILL.md'))
+      fs.writeFileSync(path.join(root, 'private.md'), '# Outside\nMust not scan outside root')
+      fs.symlinkSync('../../private.md', path.join(skillsDir, 'outside/SKILL.md'))
+      fs.writeFileSync(path.join(skillsDir, 'contained/content.md'), '# Safe\nContained summary')
+      fs.symlinkSync('content.md', path.join(skillsDir, 'contained/SKILL.md'))
+      fs.symlinkSync('missing.md', path.join(skillsDir, 'dangling/SKILL.md'))
+      fs.symlinkSync('contained', path.join(skillsDir, 'linked-directory'))
+      fs.symlinkSync('skills', path.join(root, 'linked-root'))
+
+      const tools = [createCursorTool(path.join(root, 'linked-root'))]
+      const fallback = await new ToolScanner(tools).scanExternalTools()
+      const worker = await scanExternalToolsInWorker({ tools })
+      expect(worker).toEqual(fallback)
+      expect(worker[0].skills).toEqual([
+        expect.objectContaining({ name: 'contained', description: 'Contained summary' })
+      ])
+
+      fs.symlinkSync('contained/content.md', path.join(skillsDir, 'linked-file.md'))
+      const flatTools = [{ ...tools[0], filePattern: '*.md' }]
+      expect((await scanExternalToolsInWorker({ tools: flatTools }))[0].skills).toEqual([])
+      expect((await new ToolScanner(flatTools).scanExternalTools())[0].skills).toEqual([])
+    })
+
     it('skips skill directories the main-thread scanner rejects', async () => {
       const fs = await vi.importActual<typeof import('node:fs')>('node:fs')
       const os = await vi.importActual<typeof import('node:os')>('node:os')

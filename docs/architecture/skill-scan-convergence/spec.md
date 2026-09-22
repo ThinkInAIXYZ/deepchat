@@ -24,9 +24,11 @@ adapter, a new parser, a dependency, or a public setting.
 ## Compatibility and security
 
 Preserve registered tools, input ordering, project-root handling, pattern matching, 10 MiB
-file limit, description extraction and per-file error isolation. Keep existing symlink
-behavior during the refactor; any confirmed unsafe read needs a separate fix and regression
-experiment rather than an implicit compatibility change. No persistence migration is needed.
+file limit, description extraction and per-file error isolation. The separate security fix
+resolves the final metadata file inside its skill folder before reading it: an ordinary
+directory must not make an escaping SKILL.md symlink trusted. Contained file targets and
+symlinked configured roots remain supported; directory entries and flat-file symlinks remain
+excluded. No persistence migration is needed.
 
 ## Acceptance
 
