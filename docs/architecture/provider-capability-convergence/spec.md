@@ -13,7 +13,7 @@ snapshot rather than adding another service, cache, persistent field, or capabil
 - OpenAI image model-name compatibility has one shared implementation. Its legacy aggregator
   aliases apply only within OpenAI image/New API routing, never as universal model capabilities.
 - Explicit New API endpoint selection and explicit model metadata precede inference. APIMart
-  retains its catalog-owned routes. Grok image and Codex image tools retain their adapters.
+  retains its catalog-owned routes. Grok image and Codex image generation retain their adapters.
 - The main process projects image/video settings eligibility through the existing capability
   route. Renderer loading/error states cannot enable controls from stale model metadata.
 - Image and video eligibility remain independent. Chat reasoning policy is already canonical

@@ -11,6 +11,7 @@ import {
 import { resolveProviderModelRuntimeFacts } from '@/agent/deepchat/runtime/providerModelRuntimeFacts'
 
 const createCapabilitySnapshot = () => ({
+  mediaSettings: { image: false, video: false },
   identity: {
     providerId: 'openai',
     requestModelId: 'gpt-4o',
@@ -363,6 +364,10 @@ describe('generation settings policy', () => {
 
   it('preserves OpenAI Codex image options during session sanitization', async () => {
     const providerSettings = createProviderSettings()
+    vi.mocked(providerSettings.getCapabilitySnapshot).mockReturnValue({
+      ...createCapabilitySnapshot(),
+      mediaSettings: { image: true, video: false }
+    })
     vi.mocked(providerSettings.getProviderById).mockReturnValue({
       id: 'openai-codex',
       name: 'OpenAI Codex',

@@ -87,7 +87,8 @@ export function isNewApiResponsesIncompatibleModelId(modelId: string | undefined
     normalizedModelId.startsWith('tts-') ||
     normalizedModelId.startsWith('whisper-') ||
     normalizedModelId.startsWith('audio-') ||
-    isOpenAIImageGenerationModelId(normalizedModelId) ||
+    normalizedModelId.startsWith('dall-e-') ||
+    normalizedModelId.startsWith('gpt-image-') ||
     normalizedModelId.startsWith('sora-') ||
     normalizedModelId.includes('embedding') ||
     normalizedModelId.includes('embed') ||

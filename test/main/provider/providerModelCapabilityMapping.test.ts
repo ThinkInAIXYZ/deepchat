@@ -41,6 +41,66 @@ describe('ProviderSettings provider model capability mapping', () => {
     vi.restoreAllMocks()
   })
 
+  it.each([
+    ['openai', 'openai', 'gpt-4o-image', undefined, true, false],
+    ['anthropic-proxy', 'openai-compatible', 'gpt-image-1', undefined, true, false],
+    ['custom', 'gemini', 'gpt-image-1', undefined, false, false],
+    ['vertex', 'vertex', 'gpt-image-1', undefined, false, false],
+    ['openai-codex', 'openai-codex', 'gpt-image-2', undefined, true, false],
+    ['openai-codex', 'openai-codex', 'sora-2', undefined, false, false],
+    ['grok', 'grok', 'grok-2-image', 'image-generation', false, false],
+    ['grok', 'grok', 'sora-2', 'video-generation', false, true],
+    ['new-api', 'new-api', 'gpt-image-1', 'gemini', false, false],
+    ['new-api', 'new-api', 'custom-image', 'image-generation', true, false],
+    ['new-api', 'new-api', 'custom-video', 'video-generation', false, true],
+    ['apimart', 'apimart', 'custom-image', 'image-generation', true, false],
+    ['unknown', 'unknown', 'gpt-image-1', undefined, false, false]
+  ])(
+    'projects media settings for %s/%s/%s via %s',
+    async (providerId, apiType, modelId, endpointType, image, video) => {
+      const { ProviderSettings } = await loadProviderSettings()
+      const presenter = Object.assign(Object.create(ProviderSettings.prototype), {
+        providerHelper: { getProviderById: () => ({ id: providerId, apiType }) },
+        providerModelHelper: { getProviderModelRouteMetadata: () => ({ endpointType }) },
+        getModelRouteConfig: () => ({})
+      }) as InstanceType<typeof ProviderSettings>
+
+      expect(presenter.getCapabilitySnapshot({ providerId, modelId }).mediaSettings).toEqual({
+        image,
+        video
+      })
+    }
+  )
+
+  it('uses draft media routes without rewriting stored routes or explicit capability ownership', async () => {
+    const { ProviderSettings } = await loadProviderSettings()
+    const storedRoute = { endpointType: 'gemini', type: ModelType.ImageGeneration }
+    const presenter = Object.assign(Object.create(ProviderSettings.prototype), {
+      providerHelper: {
+        getProviderById: () => ({
+          id: 'new-api',
+          apiType: 'new-api',
+          capabilityProviderId: 'google'
+        })
+      },
+      providerModelHelper: { getProviderModelRouteMetadata: () => storedRoute },
+      getModelRouteConfig: () => ({})
+    }) as InstanceType<typeof ProviderSettings>
+
+    expect(
+      presenter.getCapabilitySnapshot({ providerId: 'new-api', modelId: 'gemini-image' })
+        .mediaSettings
+    ).toEqual({ image: false, video: false })
+    const draft = presenter.getCapabilitySnapshot({
+      providerId: 'new-api',
+      modelId: 'gemini-image',
+      routeOverride: { endpointType: 'image-generation', type: ModelType.ImageGeneration }
+    })
+    expect(draft.mediaSettings).toEqual({ image: true, video: false })
+    expect(draft.identity.providerId).toBe('google')
+    expect(storedRoute.endpointType).toBe('gemini')
+  })
+
   it('resolves new-api reasoning capability from endpoint type instead of stored default state', async () => {
     const { ProviderSettings, modelCapabilities } = await loadProviderSettings()
     const catalogSnapshot = vi
@@ -424,7 +484,9 @@ describe('ProviderSettings provider model capability mapping', () => {
       providerHelper: {
         getProviderById: vi.fn(() => provider)
       },
-      resolveCapabilityIdentityForModel: vi.fn(() => identity),
+      resolveCapabilityIdentityFromRoute: vi.fn(() => identity),
+      resolveCapabilityRouteWithProvider: vi.fn(() => null),
+      getModelRouteConfig: vi.fn(() => ({})),
       getModelConfig: vi.fn().mockReturnValue({ reasoning: false })
     }) as InstanceType<typeof ProviderSettings>
 

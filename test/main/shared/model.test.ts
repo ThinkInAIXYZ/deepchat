@@ -6,17 +6,26 @@ import {
   resolveNewApiSelectableEndpointTypes,
   shouldUseAnthropicClaudeRouteFromSupportedEndpoints
 } from '@shared/model'
-import { supportsOpenAIImageGenerationSettings } from '@shared/imageGenerationSettings'
+import { resolveMediaSettingsCapabilities } from '@/provider/mediaCapabilities'
 
 describe('new-api route helpers', () => {
+  it.each(['gpt-4o-all', 'gpt-4o-image'])(
+    'preserves explicit chat routes for aggregator alias %s',
+    (modelId) => {
+      expect(
+        resolveNewApiSelectableEndpointTypes(['openai-response'], modelId, { type: ModelType.Chat })
+      ).toContain('openai-response')
+    }
+  )
+
   it.each(['gpt-4o-all', 'gpt-4o-image', 'dall-e-3', 'gpt-image-1'])(
     'projects the OpenAI image compatibility model %s consistently',
     (modelId) => {
       expect(resolveNewApiModelTypeFromMetadata([], modelId, undefined)).toBe(
         ModelType.ImageGeneration
       )
-      expect(supportsOpenAIImageGenerationSettings({ providerId: 'new-api', modelId })).toBe(true)
-      expect(supportsOpenAIImageGenerationSettings({ providerId: 'gemini', modelId })).toBe(false)
+      expect(resolveMediaSettingsCapabilities('openai-compatible', modelId, {}).image).toBe(true)
+      expect(resolveMediaSettingsCapabilities('gemini', modelId, {}).image).toBe(false)
       expect(resolveNewApiModelTypeFromMetadata([], modelId, 'chat')).toBe(ModelType.Chat)
       expect(resolveNewApiEndpointTypeFromRoute({ endpointType: 'gemini' }, modelId)).toBe('gemini')
     }
@@ -26,7 +35,7 @@ describe('new-api route helpers', () => {
     'does not infer image from %s',
     (modelId) => {
       expect(resolveNewApiModelTypeFromMetadata([], modelId, undefined)).toBeUndefined()
-      expect(supportsOpenAIImageGenerationSettings({ providerId: 'new-api', modelId })).toBe(false)
+      expect(resolveMediaSettingsCapabilities('openai-compatible', modelId, {}).image).toBe(false)
     }
   )
 

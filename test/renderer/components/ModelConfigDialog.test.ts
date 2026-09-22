@@ -30,6 +30,7 @@ type SetupOptions = {
   modelId: string
   modelName: string
   providerApiType?: string
+  mediaSettings?: { image: boolean; video: boolean }
   capabilityProviderId?: string
   modelConfig?: Record<string, unknown>
   reasoningPortrait?: ReasoningPortrait | null
@@ -61,6 +62,7 @@ const createCapabilityResult = (options: SetupOptions, modelId = options.modelId
     'temperatureCapability' in options ? options.temperatureCapability : true
 
   return {
+    mediaSettings: options.mediaSettings ?? { image: false, video: false },
     identity: {
       providerId: options.capabilityProviderId ?? options.providerId,
       requestModelId: modelId,
@@ -401,6 +403,7 @@ describe('ModelConfigDialog reasoning portraits', () => {
       providerId: 'new-api',
       modelId: 'gpt-5.6-sol',
       routeOverride: {
+        apiEndpoint: ApiEndpointType.Chat,
         endpointType: 'openai-response',
         type: ModelType.Chat
       },
@@ -1012,11 +1015,65 @@ describe('ModelConfigDialog reasoning portraits', () => {
 })
 
 describe('ModelConfigDialog OpenAI image generation settings', () => {
+  it('uses the snapshot rather than an image-looking ID and preserves hidden stored options', async () => {
+    const { wrapper } = await setup({
+      providerId: 'new-api',
+      modelId: 'gpt-image-2',
+      modelName: 'Image alias on native route',
+      mediaSettings: { image: false, video: false },
+      modelConfig: { imageGeneration: { size: '1024x1024' } }
+    })
+    expect(wrapper.text()).not.toContain('settings.model.modelConfig.imageGeneration.size.label')
+    expect((wrapper.vm as any).config.imageGeneration).toEqual({ size: '1024x1024' })
+  })
+
+  it('hides media controls while a draft endpoint capability query is pending or fails', async () => {
+    const pending = createDeferred<Record<string, unknown>>()
+    const options: SetupOptions = {
+      providerId: 'custom',
+      providerApiType: 'openai-compatible',
+      modelId: 'custom-media',
+      modelName: 'Custom Media',
+      modelConfig: { imageGeneration: { size: '1024x1024' }, videoGeneration: { duration: 8 } },
+      mediaSettings: { image: true, video: false }
+    }
+    let requests = 0
+    const { wrapper, modelClient, modelConfigStore } = await setup({
+      ...options,
+      getCapabilities: () =>
+        ++requests === 1 ? Promise.resolve(createCapabilityResult(options)) : pending.promise
+    })
+    expect(wrapper.text()).toContain('settings.model.modelConfig.imageGeneration.size.label')
+    ;(wrapper.vm as any).config.apiEndpoint = ApiEndpointType.Video
+    await nextTick()
+    expect(wrapper.text()).not.toContain('settings.model.modelConfig.imageGeneration.size.label')
+    await vi.waitFor(() => expect(modelClient.getCapabilities).toHaveBeenCalledTimes(2))
+    expect(modelClient.getCapabilities).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        routeOverride: expect.objectContaining({ apiEndpoint: ApiEndpointType.Video })
+      })
+    )
+    pending.reject(new Error('capability unavailable'))
+    await flushPromises()
+    expect((wrapper.vm as any).showOpenAIImageGenerationSettings).toBe(false)
+    expect((wrapper.vm as any).showOpenAIVideoGenerationSettings).toBe(false)
+    await (wrapper.vm as any).handleSave()
+    expect(modelConfigStore.setModelConfig).toHaveBeenCalledWith(
+      'custom-media',
+      'custom',
+      expect.objectContaining({
+        imageGeneration: { size: '1024x1024' },
+        videoGeneration: { duration: 8 }
+      })
+    )
+  })
+
   it.each([
     { providerId: 'openai', providerApiType: 'openai' },
     { providerId: 'openai-codex', providerApiType: 'openai-codex' }
   ])('uses the image settings form for gpt-image-2 on $providerId', async (provider) => {
     const { wrapper } = await setup({
+      mediaSettings: { image: true, video: false },
       providerId: provider.providerId,
       modelId: 'gpt-image-2',
       modelName: 'GPT Image 2',
@@ -1060,6 +1117,7 @@ describe('ModelConfigDialog OpenAI image generation settings', () => {
     { providerId: 'openai-codex', providerApiType: 'openai-codex' }
   ])('saves normalized image settings for gpt-image-2 on $providerId', async (provider) => {
     const { wrapper, modelConfigStore } = await setup({
+      mediaSettings: { image: true, video: false },
       providerId: provider.providerId,
       modelId: 'gpt-image-2',
       modelName: 'GPT Image 2',

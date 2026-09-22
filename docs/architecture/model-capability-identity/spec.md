@@ -111,6 +111,15 @@ catalog capability reads always consume `catalogModelId`.
 
 ### Capability snapshots
 
+Media settings eligibility is projected as required `mediaSettings.image` and `mediaSettings.video`
+booleans from the effective transport, not the catalog capability owner. Settings and runtime use
+the same provider transport and media-settings resolvers. Unknown transports expose neither set
+of controls. Draft queries may include `apiEndpoint` alongside existing endpoint/type overrides.
+Renderer consumers do not infer media eligibility from provider names or model IDs; pending and
+failed queries expose no media controls. Hiding controls never deletes stored media intent.
+This projection does not claim that all image/video models accept identical wire parameters or
+replace provider-specific media adapters.
+
 The main process returns one capability snapshot per provider/model selection. The snapshot contains
 the resolved identity, reasoning portrait, sampling capability, search defaults, and effective
 generation-parameter policy. Field-level compatibility getters are removed after their callers

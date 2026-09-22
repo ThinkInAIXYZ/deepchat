@@ -23,9 +23,9 @@ import {
 } from '@shared/modelRequestPolicy'
 import {
   normalizeImageGenerationOptions,
-  supportsOpenAIImageGenerationSettings,
   type ImageGenerationOptions
 } from '@shared/imageGenerationSettings'
+import { resolveMediaSettingsCapabilities } from '../mediaCapabilities'
 import {
   isVideoGenerationModelConfig,
   normalizeVideoGenerationOptions,
@@ -698,16 +698,15 @@ function buildImageGenerationRequestOptions(
   modelConfig: ModelConfig
 ): ImageGenerationRequestOptions {
   if (
-    !supportsOpenAIImageGenerationSettings({
-      providerId: context.provider.id,
-      providerApiType: context.provider.apiType,
-      providerKind: context.providerKind,
-      providerOptionsKey,
-      modelId,
-      apiEndpoint: modelConfig.apiEndpoint,
-      endpointType: modelConfig.endpointType,
-      type: modelConfig.type
-    })
+    !(
+      context.capabilitySnapshot?.mediaSettings.image ??
+      resolveMediaSettingsCapabilities(
+        context.providerKind,
+        modelId,
+        modelConfig,
+        modelConfig.endpointType
+      ).image
+    )
   ) {
     return {}
   }
