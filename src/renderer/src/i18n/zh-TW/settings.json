@@ -608,10 +608,6 @@
       "label": "回應文字長度",
       "description": "設定 AI 回應的最大長度"
     },
-    "artifacts": {
-      "title": "Artifacts 效果",
-      "description": "程式碼區塊生成動畫效果"
-    },
     "provider": "服務提供者",
     "modelList": "模型清單",
     "selectModel": "選擇模型",

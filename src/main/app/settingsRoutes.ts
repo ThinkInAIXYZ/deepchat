@@ -62,7 +62,6 @@ export function createAppSettingsRoutes(deps: {
     read('input_deepThinking')
     read('input_chatMode')
     read('think_collapse')
-    read('artifact_think_collapse')
     read('providerOrder')
     read('providerTimestamps')
     read('configuredProviders')
@@ -75,7 +74,6 @@ export function createAppSettingsRoutes(deps: {
     fontSizeLevel: deps.desktopSettings.getFontSizeLevel(),
     fontFamily: deps.fonts.getFontFamily(),
     codeFontFamily: deps.fonts.getCodeFontFamily(),
-    artifactsEffectEnabled: deps.desktopSettings.getArtifactsEffectEnabled(),
     autoScrollEnabled: deps.desktopSettings.getAutoScrollEnabled(),
     autoCompactionEnabled: deps.agentDefaults.getAutoCompactionEnabled(),
     autoCompactionTriggerThreshold: deps.agentDefaults.getAutoCompactionTriggerThreshold(),
@@ -110,9 +108,6 @@ export function createAppSettingsRoutes(deps: {
         return
       case 'codeFontFamily':
         deps.fonts.setCodeFontFamily(change.value)
-        return
-      case 'artifactsEffectEnabled':
-        deps.desktopSettings.setArtifactsEffectEnabled(change.value)
         return
       case 'autoScrollEnabled':
         deps.desktopSettings.setAutoScrollEnabled(change.value)
@@ -163,7 +158,6 @@ export function createAppSettingsRoutes(deps: {
           : change.key === 'fontSizeLevel' ||
               change.key === 'fontFamily' ||
               change.key === 'codeFontFamily' ||
-              change.key === 'artifactsEffectEnabled' ||
               change.key === 'contentProtectionEnabled'
             ? 'appearance'
             : 'system',

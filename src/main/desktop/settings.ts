@@ -88,14 +88,6 @@ export class DesktopSettings {
     this.setSetting('fontSizeLevel', level)
   }
 
-  getArtifactsEffectEnabled(): boolean {
-    return this.settings.get<boolean>('artifactsEffectEnabled') ?? false
-  }
-
-  setArtifactsEffectEnabled(enabled: boolean): void {
-    this.setSetting('artifactsEffectEnabled', Boolean(enabled))
-  }
-
   getAutoScrollEnabled(): boolean {
     return this.settings.get<boolean>('autoScrollEnabled') ?? true
   }
@@ -212,10 +204,7 @@ export class DesktopSettings {
     })
   }
 
-  private setSetting(
-    key: 'fontSizeLevel' | 'artifactsEffectEnabled' | 'copyWithCotEnabled',
-    value: number | boolean
-  ): void {
+  private setSetting(key: 'fontSizeLevel' | 'copyWithCotEnabled', value: number | boolean): void {
     this.settings.set(key, value)
     this.publishEvent('settings.changed', {
       changedKeys: [key],

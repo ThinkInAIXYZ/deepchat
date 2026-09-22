@@ -977,10 +977,6 @@
       "label": "Kembalikan panjang teks",
       "description": "Tetapkan panjang maksimum respons AI"
     },
-    "artifacts": {
-      "title": "Kesan Artifacts",
-      "description": "Blok kod menjana kesan animasi"
-    },
     "provider": "pembekal perkhidmatan",
     "modelList": "Senarai model",
     "selectModel": "Pilih model",

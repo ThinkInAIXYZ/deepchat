@@ -62,20 +62,8 @@ describe('WorkspacePreviewPane', () => {
             },
             template: '<div />'
           }),
-          HTMLArtifact: defineComponent({
-            name: 'HTMLArtifact',
-            template: '<div />'
-          }),
-          SvgArtifact: defineComponent({
-            name: 'SvgArtifact',
-            template: '<div />'
-          }),
-          MermaidArtifact: defineComponent({
-            name: 'MermaidArtifact',
-            template: '<div />'
-          }),
-          ReactArtifact: defineComponent({
-            name: 'ReactArtifact',
+          WorkspaceSvgPreview: defineComponent({
+            name: 'WorkspaceSvgPreview',
             template: '<div />'
           })
         }
@@ -150,10 +138,7 @@ describe('WorkspacePreviewPane', () => {
             template:
               '<div data-testid="markdown-renderer" :data-message-id="messageId" :data-thread-id="threadId" :data-final="String(final)" :data-smooth-streaming="String(smoothStreaming)" :data-virtualize-nodes="String(virtualizeNodes)" :data-link-source="linkContext?.source" :data-link-session-id="linkContext?.sessionId" :data-source-file-path="linkContext?.sourceFilePath">{{ content }}</div>'
           }),
-          HTMLArtifact: true,
-          SvgArtifact: true,
-          MermaidArtifact: true,
-          ReactArtifact: true
+          WorkspaceSvgPreview: true
         }
       }
     })
@@ -206,10 +191,7 @@ describe('WorkspacePreviewPane', () => {
       global: {
         stubs: {
           MarkdownRenderer: true,
-          HTMLArtifact: true,
-          SvgArtifact: true,
-          MermaidArtifact: true,
-          ReactArtifact: true
+          WorkspaceSvgPreview: true
         }
       }
     })
@@ -220,55 +202,6 @@ describe('WorkspacePreviewPane', () => {
     )
     expect(wrapper.get('[data-testid="workspace-preview-image"] img').attributes('src')).toBe(
       'imgcache://logo.png'
-    )
-  })
-
-  it('passes full-height classes to HTML artifact previews', () => {
-    const wrapper = mount(WorkspacePreviewPane, {
-      props: {
-        sessionId: 'session-1',
-        previewKind: 'html',
-        artifact: {
-          id: 'artifact-1',
-          type: 'text/html',
-          title: 'Preview',
-          content: '<html><body>Hello</body></html>',
-          status: 'loaded'
-        }
-      },
-      global: {
-        stubs: {
-          MarkdownRenderer: true,
-          HTMLArtifact: defineComponent({
-            name: 'HTMLArtifact',
-            props: {
-              block: {
-                type: Object,
-                required: true
-              },
-              isPreview: {
-                type: Boolean,
-                required: true
-              },
-              viewportSize: {
-                type: String,
-                default: undefined
-              }
-            },
-            template: '<div data-testid="html-artifact-stub" />'
-          }),
-          SvgArtifact: true,
-          MermaidArtifact: true,
-          ReactArtifact: true
-        }
-      }
-    })
-
-    expect(wrapper.get('[data-testid="workspace-preview-html-artifact"]').classes()).toEqual(
-      expect.arrayContaining(['flex-1', 'min-h-0', 'w-full', 'overflow-hidden'])
-    )
-    expect(wrapper.get('[data-testid="html-artifact-stub"]').classes()).toEqual(
-      expect.arrayContaining(['h-full', 'min-h-0', 'w-full'])
     )
   })
 })

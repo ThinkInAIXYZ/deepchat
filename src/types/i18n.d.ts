@@ -27,31 +27,8 @@ declare module 'vue-i18n' {
       totalMemory: string
       osVersion: string
     }
-    clickToOpen: string
-    codeSnippet: string
-    function: string
-    class: string
-    reactComponent: string
-    moduleImport: string
-    variableDefinition: string
     markdownDocument: string
     htmlDocument: string
-    svgImage: string
-    flowchart: string
-    sequenceDiagram: string
-    classDiagram: string
-    stateDiagram: string
-    erDiagram: string
-    ganttChart: string
-    pieChart: string
-    mermaidDiagram: string
-    flowchartOf: string
-    sequenceDiagramBetween: string
-    classDiagramOf: string
-    stateDiagramOf: string
-    erDiagramOf: string
-    pieChartOf: string
-    unknownDocument: string
     preview: string
     code: string
     export: {
@@ -67,29 +44,15 @@ declare module 'vue-i18n' {
       nowledgeMemSuccess: string
       successDesc: string
     }
-    htmlPreviewTitle: string
-    svgPreviewTitle: string
     copy: string
-    generating: string
-    copyAsImage: string
     copyImageSuccessDesc: string
-    copyImageFailedDesc: string
     copySuccess: string
     copySuccessDesc: string
     copyFailed: string
     copyFailedDesc: string
-    desktop: string
-    tablet: string
-    mobile: string
-    responsive: string
-    width: string
-    height: string
     sanitizingSvg: string
     svgSanitizationFailed: string
     noSvgContent: string
-    mermaid: {
-      renderError: string
-    }
     input: {
       placeholder: string
       fileArea: string
@@ -783,7 +746,6 @@ declare module 'vue-i18n' {
       sections: {
         files: string
         git: string
-        artifacts: string
         subagents: string
       }
       plan: {
@@ -1691,10 +1653,6 @@ declare module 'vue-i18n' {
         desc: string
       }
       buildInFileSystem: {
-        name: string
-        desc: string
-      }
-      Artifacts: {
         name: string
         desc: string
       }

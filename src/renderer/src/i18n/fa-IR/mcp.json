@@ -142,10 +142,6 @@
   },
   "title": "تنظیمات MCP",
   "inmemory": {
-    "Artifacts": {
-      "desc": "خروجی دیپ‌چت را به محتوای متنوع تبدیل کنید",
-      "name": "محصولات"
-    },
     "bochaSearch": {
       "desc": "رابط جستجوی بوچا https://open.bochaai.com/",
       "name": "جستجوی بوچا"

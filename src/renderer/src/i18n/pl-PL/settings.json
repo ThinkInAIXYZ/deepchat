@@ -977,10 +977,6 @@
       "label": "Długość odpowiedzi",
       "description": "Ustaw maksymalną długość odpowiedzi AI"
     },
-    "artifacts": {
-      "description": "Włączenie funkcji Artefakty umożliwia sztucznej inteligencji generowanie bogatszej zawartości",
-      "title": "Artefakty"
-    },
     "addModel": "Dodaj model",
     "configureModel": "Skonfiguruj model",
     "modelList": "Lista modeli",

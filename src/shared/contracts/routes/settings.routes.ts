@@ -6,7 +6,6 @@ export const SETTINGS_KEYS = [
   'fontSizeLevel',
   'fontFamily',
   'codeFontFamily',
-  'artifactsEffectEnabled',
   'autoScrollEnabled',
   'autoCompactionEnabled',
   'autoCompactionTriggerThreshold',
@@ -28,7 +27,6 @@ export const SettingsSnapshotValuesSchema = z.object({
   fontSizeLevel: z.number().int(),
   fontFamily: z.string(),
   codeFontFamily: z.string(),
-  artifactsEffectEnabled: z.boolean(),
   autoScrollEnabled: z.boolean(),
   autoCompactionEnabled: z.boolean(),
   autoCompactionTriggerThreshold: z.number().int(),
@@ -56,10 +54,6 @@ export const SettingsChangeSchema = z.discriminatedUnion('key', [
   z.object({
     key: z.literal('codeFontFamily'),
     value: z.string()
-  }),
-  z.object({
-    key: z.literal('artifactsEffectEnabled'),
-    value: z.boolean()
   }),
   z.object({
     key: z.literal('autoScrollEnabled'),

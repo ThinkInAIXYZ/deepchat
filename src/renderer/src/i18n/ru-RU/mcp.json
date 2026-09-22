@@ -142,10 +142,6 @@
   },
   "title": "Настройки MCP",
   "inmemory": {
-    "Artifacts": {
-      "desc": "Сделайте свой DeepChat выводы диверсифицированным артефактом",
-      "name": "Artifacts"
-    },
     "bochaSearch": {
       "desc": "Bocha Search API https://open.bochaai.com/",
       "name": "Bocha Search"

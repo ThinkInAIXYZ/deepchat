@@ -1,4 +1,3 @@
-import { ArtifactsServer } from './artifactsServer'
 // FileSystemServer has been removed - filesystem capabilities are now provided via Agent tools
 import { BochaSearchServer } from './bochaSearchServer'
 import { BraveSearchServer } from './braveSearchServer'
@@ -44,8 +43,6 @@ function buildInMemoryServer(
 ) {
   switch (serverName) {
     // buildInFileSystem has been removed - filesystem capabilities are now provided via Agent tools
-    case 'Artifacts':
-      return new ArtifactsServer()
     case 'bochaSearch':
       return new BochaSearchServer(env)
     case 'braveSearch':

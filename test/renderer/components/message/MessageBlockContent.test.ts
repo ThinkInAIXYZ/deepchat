@@ -1,43 +1,11 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { defineComponent } from 'vue'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import MessageBlockContent from '@/components/message/MessageBlockContent.vue'
 import type { DisplayAssistantMessageBlock } from '@/features/chat-page/model/displayMessage'
 import type { MarkdownLinkContext } from '@/components/markdown/linkTypes'
 
-const { syncArtifactMock, completeArtifactMock } = vi.hoisted(() => ({
-  syncArtifactMock: vi.fn(),
-  completeArtifactMock: vi.fn()
-}))
-
-vi.mock('@/stores/artifact', () => ({
-  useArtifactStore: () => ({
-    syncArtifact: syncArtifactMock,
-    completeArtifact: completeArtifactMock
-  })
-}))
-
-vi.mock('@/components/artifacts/ArtifactThinking.vue', () => ({
-  default: defineComponent({
-    name: 'ArtifactThinking',
-    template: '<div class="artifact-thinking-stub" />'
-  })
-}))
-
-vi.mock('@/components/artifacts/ArtifactPreview.vue', () => ({
-  default: defineComponent({
-    name: 'ArtifactPreview',
-    props: {
-      block: {
-        type: Object,
-        required: true
-      }
-    },
-    template: '<div class="artifact-preview-stub">{{ block.artifact?.title }}</div>'
-  })
-}))
-
-vi.mock('@/components/artifacts/ToolCallPreview.vue', () => ({
+vi.mock('@/components/message/ToolCallPreview.vue', () => ({
   default: defineComponent({
     name: 'ToolCallPreview',
     template: '<div class="tool-preview-stub" />'
@@ -104,71 +72,70 @@ const createBlock = (
   ...overrides
 })
 
-describe('MessageBlockContent', () => {
-  beforeEach(() => {
-    syncArtifactMock.mockReset()
-    completeArtifactMock.mockReset()
+vi.mock('@dc-ui/components', () => ({
+  DcCopyButton: defineComponent({
+    name: 'DcCopyButton',
+    props: ['copyText'],
+    template: '<button :data-copy-text="copyText">Copy</button>'
   })
+}))
 
-  it('syncs loading artifact for unclosed artifact content', async () => {
+describe('MessageBlockContent', () => {
+  it.each([
+    'application/vnd.ant.react',
+    'text/html',
+    'image/svg+xml',
+    'application/vnd.ant.mermaid',
+    'text/markdown',
+    'application/vnd.ant.code',
+    'application/unknown'
+  ])('shows literal copyable historical %s source', (type) => {
+    const source = '\n  <script>throw new Error("never execute")</script>\n  <App />\n'
     const wrapper = mount(MessageBlockContent, {
       props: {
         block: createBlock({
-          status: 'loading',
-          content:
-            '<antArtifact type="application/vnd.ant.code" identifier="artifact-1" title="Example" language="ts">const answer = 42'
+          content: `Before<antArtifact type="${type}" identifier="old" title="Saved source">${source}</antArtifact>After`
         }),
         messageId: 'm1',
         threadId: 's1'
       }
     })
 
-    await flushPromises()
-
-    expect(wrapper.text()).toContain('Example')
-    expect(syncArtifactMock).toHaveBeenCalledWith(
-      {
-        id: 'artifact-1',
-        type: 'application/vnd.ant.code',
-        title: 'Example',
-        language: 'ts',
-        content: 'const answer = 42',
-        status: 'loading'
-      },
-      'm1',
-      's1'
-    )
-    expect(completeArtifactMock).not.toHaveBeenCalled()
+    expect(wrapper.text()).toContain('Saved source')
+    expect(wrapper.get('pre code').element.textContent).toBe(source)
+    expect(wrapper.get('button').attributes('data-copy-text')).toBe(source)
+    expect(wrapper.findAll('.markdown-stub').map((part) => part.text())).toEqual([
+      'Before',
+      'After'
+    ])
+    expect(wrapper.find('script, iframe, svg').exists()).toBe(false)
   })
 
-  it('completes loaded artifact for closed artifact content', async () => {
+  it('keeps unclosed source readable and updates it in place', async () => {
+    const content = '<antArtifact type="text/html" identifier="old" title="Partial">  <div>'
+    const wrapper = mount(MessageBlockContent, {
+      props: { block: createBlock({ content, status: 'loading' }), messageId: 'm1', threadId: 's1' }
+    })
+    expect(wrapper.get('pre code').element.textContent).toBe('  <div>')
+    await wrapper.setProps({
+      block: createBlock({ content: `${content}Done</div></antArtifact>` })
+    })
+    expect(wrapper.get('pre code').element.textContent).toBe('  <div>Done</div>')
+  })
+
+  it('shows structured historical artifact metadata as literal source', () => {
     const wrapper = mount(MessageBlockContent, {
       props: {
         block: createBlock({
-          status: 'success',
-          content:
-            '<antArtifact type="text/markdown" identifier="artifact-2" title="Readme"># Hello</antArtifact>'
+          content: '<App />',
+          artifact: { identifier: 'old', title: 'Saved React', type: 'application/vnd.ant.react' }
         }),
-        messageId: 'm2',
-        threadId: 's2'
+        messageId: 'm1',
+        threadId: 's1'
       }
     })
-
-    await flushPromises()
-
-    expect(wrapper.text()).toContain('Readme')
-    expect(completeArtifactMock).toHaveBeenCalledWith(
-      {
-        id: 'artifact-2',
-        type: 'text/markdown',
-        title: 'Readme',
-        language: undefined,
-        content: '# Hello',
-        status: 'loaded'
-      },
-      'm2',
-      's2'
-    )
+    expect(wrapper.text()).toContain('Saved React')
+    expect(wrapper.get('pre code').text()).toBe('<App />')
   })
 
   it('passes message and thread ids to MarkdownRenderer for text parts', async () => {

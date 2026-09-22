@@ -6,7 +6,6 @@ import { createConfigClient } from '@api/ConfigClient'
 import { createNotificationClient } from '@api/NotificationClient'
 import { createOnboardingClient } from '@api/OnboardingClient'
 import SelectedTextContextMenu from '@/components/message/SelectedTextContextMenu.vue'
-import { useArtifactStore } from '@/stores/artifact'
 import { useSessionStore } from '@/stores/ui/session'
 import { useAgentStore } from '@/stores/ui/agent'
 import { useDraftStore, type StartDeeplinkPayload } from '@/stores/ui/draft'
@@ -77,7 +76,6 @@ const configClient = createConfigClient()
 const notificationClient = createNotificationClient()
 const onboardingClient = createOnboardingClient()
 const windowClient = createWindowClient()
-const artifactStore = useArtifactStore()
 const sessionStore = useSessionStore()
 const agentStore = useAgentStore()
 const draftStore = useDraftStore()
@@ -517,23 +515,6 @@ onMounted(() => {
     () => uiSettingsStore.loggingEnabled,
     (enabled) => {
       performanceReporter.setEnabled(enabled)
-    }
-  )
-
-  watch(
-    () => route.fullPath,
-    () => {
-      // Close artifacts page when route changes
-      artifactStore.hideArtifact()
-    }
-  )
-
-  // Listen for changes to current conversation
-  watch(
-    () => sessionStore.activeSessionId,
-    () => {
-      // Close artifacts page when switching conversations
-      artifactStore.hideArtifact()
     }
   )
 })

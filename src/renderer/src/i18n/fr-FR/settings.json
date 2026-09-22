@@ -608,10 +608,6 @@
       "label": "Longueur de la réponse",
       "description": "Définir la longueur maximale de la réponse de l'IA"
     },
-    "artifacts": {
-      "description": "Activer Artifacts pour permettre à l’IA de générer un contenu plus riche",
-      "title": "Artifacts"
-    },
     "addModel": "Ajouter un modèle",
     "configureModel": "Configurer le modèle",
     "modelList": "Liste des modèles",
