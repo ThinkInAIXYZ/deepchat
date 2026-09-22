@@ -217,7 +217,7 @@ export const providersListDefaultsRoute = defineRouteContract({
   name: 'providers.listDefaults',
   input: z.object({}).default({}),
   output: z.object({
-    providers: z.array(LlmProviderSchema)
+    providers: z.array(LlmProviderSchema.extend({ usesProviderDb: z.boolean() }))
   })
 })
 

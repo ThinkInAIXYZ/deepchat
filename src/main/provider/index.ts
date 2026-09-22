@@ -34,7 +34,7 @@ import {
 } from '@shared/videoGenerationSettings'
 import { normalizeTtsSettings, type TtsSettings } from '@shared/ttsSettings'
 import { ProviderChange, ProviderBatchUpdate } from '@shared/provider-operations'
-import { isProviderDbBackedProvider } from '@shared/providerDbCatalog'
+import { isProviderDbBackedProvider } from './providerRegistry'
 import type {
   AcpAsLlmProviderPermissionPort,
   AcpAsLlmProviderSessionControlPort,

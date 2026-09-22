@@ -24,15 +24,21 @@ const createModel = (providerId: string): MODEL_META => ({
 })
 
 describe('provider model facts', () => {
-  it('strips catalog projections from catalog-backed provider rows', () => {
-    const stored = createModel('openai-codex')
+  it.each([
+    'openai-codex',
+    'kimi-for-coding',
+    'xiaomi-token-plan-cn',
+    'xiaomi-token-plan-sgp',
+    'xiaomi-token-plan-ams'
+  ])('strips catalog projections from %s rows', (providerId) => {
+    const stored = createModel(providerId)
 
-    expect(hasPersistedDerivedProviderModelFields(stored, 'openai-codex')).toBe(true)
-    expect(stripDerivedProviderModelFields(stored, 'openai-codex')).toEqual({
+    expect(hasPersistedDerivedProviderModelFields(stored, providerId)).toBe(true)
+    expect(stripDerivedProviderModelFields(stored, providerId)).toEqual({
       id: 'model-id',
       name: 'Model',
       group: 'default',
-      providerId: 'openai-codex',
+      providerId,
       isCustom: false,
       supportedEndpointTypes: ['openai']
     })
@@ -62,16 +68,19 @@ describe('provider model facts', () => {
     ).toBe(true)
   })
 
-  it('retains explicit custom-model facts on catalog-backed providers', () => {
-    const stored = { ...createModel('openai-codex'), isCustom: true }
-    const facts = stripDerivedProviderModelFields(stored, 'openai-codex')
+  it.each(['openai-codex', 'xiaomi-token-plan-cn'])(
+    'retains explicit custom-model facts on %s',
+    (providerId) => {
+      const stored = { ...createModel(providerId), isCustom: true }
+      const facts = stripDerivedProviderModelFields(stored, providerId)
 
-    expect(facts).toMatchObject({
-      contextLength: 128_000,
-      maxTokens: 16_000,
-      vision: true,
-      type: ModelType.Chat
-    })
-    expect(facts).not.toHaveProperty('selectableEndpointTypes')
-  })
+      expect(facts).toMatchObject({
+        contextLength: 128_000,
+        maxTokens: 16_000,
+        vision: true,
+        type: ModelType.Chat
+      })
+      expect(facts).not.toHaveProperty('selectableEndpointTypes')
+    }
+  )
 })

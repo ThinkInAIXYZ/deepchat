@@ -371,8 +371,10 @@ const showPullModelDialog = ref(false)
 const showCheckModelDialog = ref(false)
 const checkResult = ref<boolean>(false)
 const showDeleteProviderDialog = ref(false)
-const defaultBaseUrl = 'http://127.0.0.1:11434'
-const hasDefaultBaseUrl = defaultBaseUrl.length > 0
+const defaultBaseUrl = computed(
+  () => providerStore.defaultProviders.find((provider) => provider.id === 'ollama')?.baseUrl ?? ''
+)
+const hasDefaultBaseUrl = computed(() => defaultBaseUrl.value.length > 0)
 const canConfigureCustomHeaders = computed(() => supportsProviderCustomHeaders(props.provider))
 
 const saveCustomHeaders = (customHeaders?: ProviderCustomHeaders) =>
@@ -712,9 +714,9 @@ const handleApiHostChange = async (value: string) => {
 }
 
 const fillDefaultBaseUrl = async () => {
-  if (!hasDefaultBaseUrl) return
-  apiHost.value = defaultBaseUrl
-  await handleApiHostChange(defaultBaseUrl)
+  if (!hasDefaultBaseUrl.value) return
+  apiHost.value = defaultBaseUrl.value
+  await handleApiHostChange(defaultBaseUrl.value)
 }
 
 // API Key 处理

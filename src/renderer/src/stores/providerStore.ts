@@ -70,10 +70,7 @@ export const useProviderStore = defineStore('provider', () => {
     const data = providersQuery.data.value as LLM_PROVIDER[] | undefined
     return data ?? []
   })
-  const defaultProviders = computed<LLM_PROVIDER[]>(() => {
-    const data = defaultProvidersQuery.data.value as LLM_PROVIDER[] | undefined
-    return data ?? []
-  })
+  const defaultProviders = computed(() => defaultProvidersQuery.data.value ?? [])
 
   const ensureOrderIncludesProviders = (order: string[], list: LLM_PROVIDER[]) => {
     const seen = new Set<string>()
