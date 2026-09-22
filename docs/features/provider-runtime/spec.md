@@ -37,6 +37,14 @@ runtime behavior from package names and do not install arbitrary SDKs dynamicall
 API-key profiles such as NVIDIA, Hugging Face, Moonshot, StepFun, Upstage, Alibaba, MiniMax, DaoXE,
 Kimi For Coding and OpenCode Go remain catalog/registry mappings unless they need a real special adapter.
 
+Default reset URLs are derived from each profile's base URL, except explicit website overrides
+(currently Vertex, Azure and MiniMax). Defaults never overwrite a saved user endpoint.
+Catalog-backed profile membership is derived in the main registry from `provider-db`,
+`kimi-for-coding` and `openai-codex` model-source strategies, not a separately maintained ID list.
+The existing default-provider route projects `usesProviderDb` for renderer refresh hints; this
+field is not a persisted provider setting. Model-fact cleanup remains profile-ID based and
+preserves explicit custom-model facts rather than inferring ownership from a shared transport.
+
 ## Model capability identity
 
 Provider service identity, transport identity, and provider-db capability identity are separate

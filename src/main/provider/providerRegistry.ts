@@ -738,3 +738,9 @@ export function resolveAiSdkProviderDefinition(
 
   return PROVIDER_ID_REGISTRY.get(providerId) || PROVIDER_API_TYPE_REGISTRY.get(apiType) || null
 }
+
+// Catalog facts belong to a provider profile, not every provider sharing its transport.
+export function isProviderDbBackedProvider(providerId: string | undefined | null): boolean {
+  const source = PROVIDER_ID_REGISTRY.get(providerId?.trim().toLowerCase() ?? '')?.modelSource
+  return source === 'provider-db' || source === 'kimi-for-coding' || source === 'openai-codex'
+}
