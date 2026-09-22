@@ -21,3 +21,7 @@ export destination confirmation, plugin lifecycle recovery and packaging contrac
 Verified: 42 main-process files / 618 tests, 6 renderer files / 82 tests, and all three Electron
 smoke tests. Format, i18n, lint, typecheck, production build, plugin validation and six-target
 bundling passed. The rendered two-field form was inspected.
+
+Startup failure isolation: 225 focused main-process tests and four Electron launch/Nowledge smoke
+tests passed, including restarts with obsolete manifests and an unavailable plugin host. Format,
+i18n, lint, typecheck and production build passed.

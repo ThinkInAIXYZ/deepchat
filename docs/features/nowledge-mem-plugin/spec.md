@@ -40,6 +40,11 @@ with an activation warning. The plugin is disabled and partially registered reso
 re-enabling retries activation without re-saving credentials. Connection state and wrapped keys
 are machine-local: backups omit them, and imports preserve the receiving computer's values.
 
+Invalid plugin manifests and packages are isolated during discovery. When a valid official source
+exists, an obsolete or corrupt installed manifest is replaced while preserving plugin configuration.
+Plugin host initialization failures are logged as component failures; they do not abort Skills,
+MCP initialization or the main application startup.
+
 ## Compatibility
 
 Existing export and MCP configurations are shown as explicit import candidates when no plugin

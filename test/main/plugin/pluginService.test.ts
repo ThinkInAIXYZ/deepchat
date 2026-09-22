@@ -430,6 +430,53 @@ describe('PluginService', () => {
     await Promise.all(tempRoots.splice(0).map((root) => rm(root, { recursive: true, force: true })))
   })
 
+  it('isolates invalid directories and packages while restoring a healthy plugin', async () => {
+    const fixture = await createDirectoryFixture()
+    const presenter = await createPluginService('darwin', fixture.appPath)
+    expect((await presenter.enablePlugin(fixture.pluginId)).ok).toBe(true)
+    const invalidRoot = path.join(fixture.appPath, 'plugins', 'invalid')
+    await mkdir(invalidRoot, { recursive: true })
+    await writeFile(path.join(invalidRoot, 'plugin.json'), '{broken')
+    const packageRoot = path.join(fixture.appPath, 'build', 'bundled-plugins')
+    await mkdir(packageRoot, { recursive: true })
+    await writeFile(path.join(packageRoot, 'broken.dcplugin'), 'not a plugin archive')
+
+    await expect(presenter.initialize()).resolves.toBeUndefined()
+    expect(
+      (await presenter.listPlugins()).some(
+        (plugin) => plugin.id === fixture.pluginId && plugin.enabled
+      )
+    ).toBe(true)
+    expect(await presenter.__mocks.mcpSettings.getMcpServers()).toHaveProperty('fixture-tools')
+  })
+
+  it.each(['malformed JSON', 'obsolete HTTP server'])(
+    'repairs an installed %s manifest from the valid source without losing config',
+    async (kind) => {
+      const fixture = await createDirectoryFixture()
+      const presenter = await createPluginService('darwin', fixture.appPath)
+      expect((await presenter.enablePlugin(fixture.pluginId)).ok).toBe(true)
+      const config = '{"appSecret":"fixture-secret"}\n'
+      await writeFile(path.join(fixture.installedRoot, 'config.json'), config)
+      const manifestPath = path.join(fixture.installedRoot, 'plugin.json')
+      const manifest = JSON.parse(await readFile(manifestPath, 'utf8'))
+      manifest.mcpServers = [
+        { id: 'nowledge-mem-local', transport: 'http', connectionProfile: 'local' }
+      ]
+      await writeFile(
+        manifestPath,
+        kind === 'malformed JSON' ? '{broken' : JSON.stringify(manifest)
+      )
+
+      await expect(presenter.initialize()).resolves.toBeUndefined()
+      expect(JSON.parse(await readFile(manifestPath, 'utf8')).mcpServers[0].id).toBe(
+        'fixture-tools'
+      )
+      expect(await readFile(path.join(fixture.installedRoot, 'config.json'), 'utf8')).toBe(config)
+      expect(await presenter.__mocks.mcpSettings.getMcpServers()).toHaveProperty('fixture-tools')
+    }
+  )
+
   it('uses CUA target metadata to show only supported platform and arch pairs', async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), 'deepchat-plugin-platform-test-'))
     tempRoots.push(root)

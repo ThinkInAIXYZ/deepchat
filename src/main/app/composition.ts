@@ -2546,7 +2546,12 @@ export async function createMainProcessControl(dependencies: {
         }
       })
     }
-    await pluginInitializationPromise
+    try {
+      await pluginInitializationPromise
+    } catch (error) {
+      reportMainStartupComponentFailure(dependencies.startupRunId, 'plugin_host', 'unknown')
+      console.error('[PluginHost] Failed to initialize plugins:', error)
+    }
   }
 
   async function initializeSkillSyncScan(signal?: AbortSignal): Promise<void> {
@@ -2577,12 +2582,7 @@ export async function createMainProcessControl(dependencies: {
   }
 
   async function initializeMcp() {
-    try {
-      await initializePlugins()
-    } catch (error) {
-      reportMainStartupComponentFailure(dependencies.startupRunId, 'plugin_host', 'unknown')
-      console.error('[PluginHost] Failed to initialize plugins:', error)
-    }
+    await initializePlugins()
 
     try {
       await proxyConfig.whenReady()

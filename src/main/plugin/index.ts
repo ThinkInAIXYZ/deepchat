@@ -1457,15 +1457,14 @@ export class PluginService implements PluginServicePort {
       }
     }
 
-    return Array.from(pluginRoots).map((root) => {
-      const manifest = this.readManifest(path.join(root, 'plugin.json'))
-      const integrity = this.isPackaged ? {} : this.readDirectoryRuntimeIntegrity(manifest, root)
-      return {
-        manifest,
-        root,
-        sourcePath: root,
-        sourceType: 'directory',
-        ...integrity
+    return Array.from(pluginRoots).flatMap((root): ResolvedOfficialPlugin[] => {
+      try {
+        const manifest = this.readManifest(path.join(root, 'plugin.json'))
+        const integrity = this.isPackaged ? {} : this.readDirectoryRuntimeIntegrity(manifest, root)
+        return [{ manifest, root, sourcePath: root, sourceType: 'directory', ...integrity }]
+      } catch (error) {
+        console.warn('[PluginHost] Skipping invalid plugin directory:', { root, error })
+        return []
       }
     })
   }
@@ -1499,13 +1498,15 @@ export class PluginService implements PluginServicePort {
       }
     }
 
-    return Array.from(packagePaths).map((packagePath) => {
-      const packageMetadata = this.readPackageMetadata(packagePath)
-      return {
-        ...packageMetadata,
-        root: packagePath,
-        sourcePath: packagePath,
-        sourceType: 'package'
+    return Array.from(packagePaths).flatMap((packagePath): ResolvedOfficialPlugin[] => {
+      try {
+        const packageMetadata = this.readPackageMetadata(packagePath)
+        return [
+          { ...packageMetadata, root: packagePath, sourcePath: packagePath, sourceType: 'package' }
+        ]
+      } catch (error) {
+        console.warn('[PluginHost] Skipping invalid plugin package:', { packagePath, error })
+        return []
       }
     })
   }
@@ -1794,11 +1795,20 @@ export class PluginService implements PluginServicePort {
       ? path.join(existing.path, 'plugin.json')
       : undefined
     if (existing && existingManifestPath && fs.existsSync(existingManifestPath)) {
-      const existingManifest = this.readManifest(existingManifestPath)
+      let existingManifest: DeepChatPluginManifest | undefined
+      try {
+        existingManifest = this.readManifest(existingManifestPath)
+      } catch (error) {
+        console.warn('[PluginHost] Replacing invalid installed manifest from a valid source:', {
+          pluginId,
+          error
+        })
+      }
       const shouldRefreshDirectoryInstallation =
         plugin.sourceType === 'directory' &&
         path.resolve(plugin.sourcePath) !== path.resolve(existing.path)
       if (
+        existingManifest &&
         !shouldRefreshDirectoryInstallation &&
         existingManifest.version === plugin.manifest.version &&
         this.arePluginManifestsEquivalent(existingManifest, plugin.manifest)

@@ -58,9 +58,13 @@ A server root resolves to `/mcp/`. Only a missing REST route (404) permits tryin
 pnpm exec vitest run --config vitest.config.ts test/main/nowledgeMem test/main/exporter test/main/plugin test/main/mcp test/main/sync test/main/scripts/packagePlugin.test.ts test/main/scripts/packageWorkflow.test.ts test/main/scripts/packageContract.test.ts
 pnpm exec vitest run --config vitest.config.renderer.ts test/renderer/api/clients.test.ts test/renderer/components/NowledgeMemSettings.test.ts test/renderer/components/KnowledgeBaseSettings.test.ts test/renderer/components/chat/ChatTopBar.test.ts test/renderer/components/PluginsSettings.test.ts test/renderer/components/OfficialPluginDetailPage.test.ts
 pnpm build
-pnpm exec playwright test -c test/e2e/playwright.config.ts 04-settings-navigation.smoke.spec.ts 12-knowledge-readonly-route.smoke.spec.ts 14-nowledgemem-config-route.smoke.spec.ts
+pnpm exec playwright test -c test/e2e/playwright.config.ts 01-launch.smoke.spec.ts 04-settings-navigation.smoke.spec.ts 12-knowledge-readonly-route.smoke.spec.ts 14-nowledgemem-config-route.smoke.spec.ts
 ```
 
 The Electron smoke test uses a disposable local authenticated Mem fixture and isolated app data.
 It verifies real REST/MCP access, protected renderer state, rejected key replacement and plugin
 disable/enable recovery. It does not upload data to your Mem or modify another AI tool.
+
+Startup smoke tests restart with an obsolete installed Nowledge manifest and malformed plugin JSON,
+then separately with an unusable plugin directory. Both cases must reach the main window and record
+a completed startup. A valid source repairs the obsolete manifest; existing configuration remains.
