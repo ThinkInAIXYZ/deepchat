@@ -1,3 +1,11 @@
+import { createPluginClient } from './PluginClient'
+import {
+  NOWLEDGE_PLUGIN_ID,
+  type NowledgePluginState,
+  type NowledgeConnectionInput,
+  type NowledgeExportInput,
+  type NowledgeProfileId
+} from '@shared/types/nowledgeMemPlugin'
 import type { DeepchatBridge } from '@shared/contracts/bridge'
 import {
   nowledgeMemGetConfigRoute,
@@ -27,7 +35,39 @@ export function createNowledgeMemClient(bridge: DeepchatBridge = getDeepchatBrid
     return result.result
   }
 
+  const plugins = createPluginClient(bridge)
+  async function connectionAction(
+    actionId: string,
+    payload?: NowledgeConnectionInput | { profile: NowledgeProfileId }
+  ): Promise<NowledgePluginState> {
+    const result = await plugins.invokeAction({
+      pluginId: NOWLEDGE_PLUGIN_ID,
+      actionId,
+      ...(payload
+        ? {
+            payload: Object.fromEntries(
+              Object.entries(payload).filter(([, value]) => value !== undefined)
+            )
+          }
+        : {})
+    })
+    if (!result.ok) throw new Error(result.error || 'Nowledge Mem operation failed')
+    return result.data as unknown as NowledgePluginState
+  }
+
   return {
+    sendSession: async (input: NowledgeExportInput): Promise<void> => {
+      const result = await plugins.invokeAction({
+        pluginId: NOWLEDGE_PLUGIN_ID,
+        actionId: 'nowledge.export',
+        payload: { ...input }
+      })
+      if (!result.ok) throw new Error(result.error || 'Nowledge export failed')
+    },
+    getConnections: () => connectionAction('nowledge.get'),
+    saveConnection: (input: NowledgeConnectionInput) => connectionAction('nowledge.save', input),
+    selectExport: (profile: NowledgeProfileId) =>
+      connectionAction('nowledge.selectExport', { profile }),
     getConfig,
     updateConfig,
     testConnection

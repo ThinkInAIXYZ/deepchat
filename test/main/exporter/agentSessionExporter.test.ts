@@ -22,6 +22,7 @@ function createFixture(options?: {
   agentKind?: 'deepchat' | 'acp'
   generationSettings?: Record<string, unknown> | null
   modelConfig?: Record<string, unknown>
+  nowledgeConfig?: { baseUrl: string; apiKey?: string; timeout: number }
 }) {
   const session = {
     id: 'session-1',
@@ -102,6 +103,9 @@ function createFixture(options?: {
     }
   }
   const service = new AgentSessionExportService({
+    nowledgeMemConnections: options?.nowledgeConfig
+      ? ({ getExportConfig: () => ({ ...options.nowledgeConfig }) } as never)
+      : undefined,
     agentManager: {
       resolveBackend: vi.fn(() => ({ kind: options?.agentKind ?? 'deepchat' })),
       resolveSessionHandle: vi.fn(() => ({ handle }))
@@ -132,6 +136,64 @@ describe('AgentSessionExportService', () => {
 
   afterEach(() => {
     vi.useRealTimers()
+    vi.unstubAllGlobals()
+  })
+
+  it('sends only committed transcript messages to the confirmed destination captured before export', async () => {
+    const options = {
+      nowledgeConfig: {
+        baseUrl: 'https://original.example/remote-api',
+        apiKey: 'private-key',
+        timeout: 5000
+      }
+    }
+    const { service } = createFixture(options)
+    const fetchMock = vi.fn(async (_url, init) => {
+      const thread = JSON.parse(init.body)
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ thread_id: thread.thread_id, message_count: thread.messages.length })
+      }
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    const sent = service.submitToNowledgeMem({
+      sessionId: 'session-1',
+      profile: 'remote',
+      apiBaseUrl: options.nowledgeConfig.baseUrl
+    })
+    options.nowledgeConfig.baseUrl = 'https://changed.example'
+    await sent
+    expect(fetchMock.mock.calls[0][0]).toBe('https://original.example/remote-api/threads')
+    const request = fetchMock.mock.calls[0][1]
+    const body = JSON.parse(request.body)
+    expect(body.messages).toHaveLength(2)
+    expect(JSON.stringify(body)).not.toContain('must not export')
+    expect(request.headers.Authorization).toBe('Bearer private-key')
+    expect(request.redirect).toBe('error')
+  })
+
+  it('rejects a changed destination and a response without a persistence acknowledgement', async () => {
+    const { service } = createFixture({
+      nowledgeConfig: { baseUrl: 'https://mem.example', timeout: 5000 }
+    })
+    const fetchMock = vi.fn(async () => ({ ok: true, status: 200, json: async () => ({}) }))
+    vi.stubGlobal('fetch', fetchMock)
+    await expect(
+      service.submitToNowledgeMem({
+        sessionId: 'session-1',
+        profile: 'remote',
+        apiBaseUrl: 'https://different.example'
+      })
+    ).rejects.toThrow('destination changed')
+    expect(fetchMock).not.toHaveBeenCalled()
+    await expect(
+      service.submitToNowledgeMem({
+        sessionId: 'session-1',
+        profile: 'remote',
+        apiBaseUrl: 'https://mem.example'
+      })
+    ).rejects.toThrow('persistence acknowledgement')
   })
 
   it('rejects a missing session', async () => {

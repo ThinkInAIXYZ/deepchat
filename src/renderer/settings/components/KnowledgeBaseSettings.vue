@@ -17,7 +17,12 @@
         <DifyKnowledgeSettings />
         <FastGptKnowledgeSettings />
         <BuiltinKnowledgeSettings v-if="enableBuiltinKnowledge" @showDetail="showDetail" />
-        <NowledgeMemSettings />
+        <RouterLink
+          :to="{ name: 'plugins-detail', params: { pluginId: NOWLEDGE_PLUGIN_ID } }"
+          class="block rounded-md border p-4 text-sm hover:bg-muted"
+        >
+          {{ t('settings.nowledgePlugin.openSettings') }}
+        </RouterLink>
       </div>
     </div>
     <div
@@ -42,7 +47,8 @@ import { useI18n } from 'vue-i18n'
 import RagflowKnowledgeSettings from './RagflowKnowledgeSettings.vue'
 import DifyKnowledgeSettings from './DifyKnowledgeSettings.vue'
 import FastGptKnowledgeSettings from './FastGptKnowledgeSettings.vue'
-import NowledgeMemSettings from './NowledgeMemSettings.vue'
+import { RouterLink } from 'vue-router'
+import { NOWLEDGE_PLUGIN_ID } from '@shared/types/nowledgeMemPlugin'
 import BuiltinKnowledgeSettings from './BuiltinKnowledgeSettings.vue'
 import KnowledgeFile from './KnowledgeFile.vue'
 import type { BuiltinKnowledgeConfig } from '@shared/types/knowledge'

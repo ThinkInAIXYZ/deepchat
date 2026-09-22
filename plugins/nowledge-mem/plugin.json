@@ -1,0 +1,38 @@
+{
+  "id": "com.deepchat.plugins.nowledge-mem",
+  "name": "Nowledge Mem",
+  "version": "0.1.0",
+  "publisher": "DeepChat",
+  "engines": {
+    "deepchat": ">=${app.version}",
+    "platforms": ["darwin", "linux", "win32"]
+  },
+  "activationEvents": ["onEnable"],
+  "capabilities": ["mcp.register", "skills.register"],
+  "source": {
+    "type": "deepchat-official",
+    "url": "${github.release.download}/deepchat-plugin-nowledge-mem-${app.version}-${target.platform}-${arch}.dcplugin",
+    "publisher": "DeepChat"
+  },
+  "mcpServers": [
+    {
+      "id": "nowledge-mem-local",
+      "displayName": "Nowledge Mem (Local)",
+      "transport": "http",
+      "connectionProfile": "local"
+    },
+    {
+      "id": "nowledge-mem-remote",
+      "displayName": "Nowledge Mem (Remote)",
+      "transport": "http",
+      "connectionProfile": "remote"
+    }
+  ],
+  "skills": [
+    {
+      "id": "nowledge-mem",
+      "path": "skills/nowledge-mem/SKILL.md",
+      "scope": "agent"
+    }
+  ]
+}

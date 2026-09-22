@@ -1692,6 +1692,9 @@ describe('PluginService', () => {
       mcpServers: [
         {
           id: 'duplicate',
+          transport: 'stdio',
+          command: 'node',
+          args: [],
           startMode: 'eager',
           surfaces: ['tools']
         }

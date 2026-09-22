@@ -125,6 +125,9 @@ jobs:
       - name: Bundle Feishu plugin
         run: pnpm run plugin:bundle -- --name feishu --platform linux --arch ${{ inputs.arch }}
 
+      - name: Bundle Nowledge Mem plugin
+        run: pnpm run plugin:bundle -- --name nowledge-mem --platform linux --arch ${{ inputs.arch }}
+
       - name: Package Linux
         run: pnpm exec electron-builder --linux --${{ inputs.arch }} --publish=never
 
@@ -166,6 +169,14 @@ jobs:
         run: >-
           pnpm run plugin:verify --
           --name feishu
+          --platform linux
+          --arch "${{ inputs.arch }}"
+          --plugin-root "dist/${{ env.UNPACKED_DIRECTORY }}/resources/app.asar.unpacked/plugins"
+
+      - name: Verify bundled Nowledge Mem plugin
+        run: >-
+          pnpm run plugin:verify --
+          --name nowledge-mem
           --platform linux
           --arch "${{ inputs.arch }}"
           --plugin-root "dist/${{ env.UNPACKED_DIRECTORY }}/resources/app.asar.unpacked/plugins"

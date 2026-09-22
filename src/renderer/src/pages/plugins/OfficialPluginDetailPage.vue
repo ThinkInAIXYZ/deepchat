@@ -208,6 +208,8 @@
 
         <UserPluginDetails v-if="plugin.userPlugin" :key="plugin.id" :plugin="plugin" />
 
+        <NowledgeMemSettings v-else-if="isNowledgePlugin" @saved="loadPlugin" />
+
         <DcSectionCard v-else :title="t('settings.plugins.runtime')">
           <template #actions>
             <div v-if="showCuaRuntimeActions" class="flex flex-wrap gap-2">
@@ -290,6 +292,8 @@
 
 <script setup lang="ts">
 import UserPluginDetails from './UserPluginDetails.vue'
+import NowledgeMemSettings from '../../../settings/components/NowledgeMemSettings.vue'
+import { NOWLEDGE_PLUGIN_ID } from '@shared/types/nowledgeMemPlugin'
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
@@ -366,6 +370,7 @@ const remoteStatus = computed(() => {
   return channel ? (pluginCatalogStore.remoteStatuses[channel] ?? null) : null
 })
 const isFeishuPlugin = computed(() => pluginId.value === FEISHU_PLUGIN_ID)
+const isNowledgePlugin = computed(() => pluginId.value === NOWLEDGE_PLUGIN_ID)
 const isCuaPlugin = computed(() => pluginId.value === CUA_PLUGIN_ID)
 const remoteEnabled = computed(() => Boolean(remoteStatus.value?.enabled))
 const remoteTitle = computed(() => {

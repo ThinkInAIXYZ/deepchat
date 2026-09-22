@@ -17,6 +17,12 @@ const detail = {
 
 async function setup(leaveAllowed: boolean) {
   vi.resetModules()
+  vi.doMock('vue-router', () => ({
+    RouterLink: defineComponent({
+      name: 'RouterLink',
+      template: '<a data-testid="nowledge-plugin-link"><slot /></a>'
+    })
+  }))
 
   const requestLeave = vi.fn().mockResolvedValue(leaveAllowed)
   vi.doMock('@api/KnowledgeClient', () => ({
@@ -65,7 +71,7 @@ async function setup(leaveAllowed: boolean) {
         RagflowKnowledgeSettings: true,
         DifyKnowledgeSettings: true,
         FastGptKnowledgeSettings: true,
-        NowledgeMemSettings: true,
+
         BuiltinKnowledgeSettings,
         KnowledgeFile
       }
@@ -85,7 +91,7 @@ describe('KnowledgeBaseSettings', () => {
 
     expect(requestLeave).toHaveBeenCalledTimes(1)
     expect(wrapper.find('[data-testid="knowledge-file"]').exists()).toBe(false)
-    expect(wrapper.findComponent({ name: 'NowledgeMemSettings' }).exists()).toBe(true)
+    expect(wrapper.find('[data-testid=nowledge-plugin-link]').exists()).toBe(true)
     wrapper.unmount()
   })
 
@@ -96,7 +102,7 @@ describe('KnowledgeBaseSettings', () => {
     await flushPromises()
 
     expect(wrapper.find('[data-testid="knowledge-file"]').exists()).toBe(true)
-    expect(wrapper.findComponent({ name: 'NowledgeMemSettings' }).exists()).toBe(false)
+    expect(wrapper.find('[data-testid=nowledge-plugin-link]').exists()).toBe(false)
     wrapper.unmount()
   })
 })

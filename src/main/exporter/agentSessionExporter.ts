@@ -1,3 +1,7 @@
+import type { NowledgeMemConnections } from '@/nowledgeMem'
+import type { NowledgeExportInput } from '@shared/types/nowledgeMemPlugin'
+import type { NowledgeMemThread } from '@shared/types/nowledgeMem'
+import { submitNowledgeThread } from './nowledgeMemClient'
 import type { ProviderSettingsPort } from '@/provider/settings'
 import type { AgentManager } from '@/agent/manager/agentManager'
 import type { SessionTranscriptReadPort } from '@/session/data/contracts'
@@ -27,12 +31,26 @@ import {
 export class AgentSessionExportService {
   constructor(
     private readonly dependencies: {
+      nowledgeMemConnections?: NowledgeMemConnections
       agentManager: Pick<AgentManager, 'resolveBackend' | 'resolveSessionHandle'>
       appSessionService: Pick<AppSessionService, 'get'>
       transcript: Pick<SessionTranscriptReadPort, 'getMessages'>
       providerSettings: Pick<ProviderSettingsPort, 'getModelConfig'>
     }
   ) {}
+
+  async submitToNowledgeMem(input: NowledgeExportInput): Promise<{ threadId: string }> {
+    const connection = this.dependencies.nowledgeMemConnections?.getExportConfig(input.profile)
+    if (!connection || connection.baseUrl !== input.apiBaseUrl) {
+      throw new Error('The Nowledge export destination changed; confirm it again')
+    }
+    const exported = await this.export(input.sessionId, 'nowledge-mem')
+    const thread = JSON.parse(exported.content) as NowledgeMemThread
+    if (!thread.messages.length) throw new Error('There are no sent messages to export')
+    const result = await submitNowledgeThread(thread, connection)
+    if (!result.success) throw new Error(result.error || 'Nowledge export failed')
+    return { threadId: thread.thread_id }
+  }
 
   async export(
     sessionId: string,

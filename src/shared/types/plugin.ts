@@ -80,9 +80,12 @@ export interface CuaEmbeddedRuntimeContract {
 export interface PluginMcpServerManifest {
   id: string
   displayName: string
-  transport: 'stdio'
-  command: string
-  args: string[]
+  transport: 'stdio' | 'http'
+  command?: string
+  args?: string[]
+  url?: string
+  connectionProfile?: 'local' | 'remote'
+  headers?: Record<string, string>
   env?: Record<string, string>
   /** @deprecated MCP permissions are host-owned; retained only for manifest compatibility. */
   autoApprove?: string[]

@@ -1,3 +1,4 @@
+import { NOWLEDGE_PLUGIN_ID } from '@shared/types/nowledgeMemPlugin'
 import { resolveMcpEnvironmentBinding } from './environmentBindings'
 import type { ProviderSettingsPort } from '@/provider/settings'
 import logger from '@shared/logger'
@@ -508,7 +509,8 @@ export class McpClient {
       const userPlugin =
         typeof this.serverConfig.ownerPluginId === 'string' &&
         this.serverConfig.ownerPluginId.startsWith('user.')
-      const bindingEnvironment = userPlugin
+      const privateBindings = userPlugin || this.serverConfig.ownerPluginId === NOWLEDGE_PLUGIN_ID
+      const bindingEnvironment = privateBindings
         ? (this.runtime.resolveMcpBindings?.(this.serverConfig as Partial<MCPServerConfig>) ?? {})
         : process.env
       const resolveBinding = (value: string) =>
@@ -517,7 +519,7 @@ export class McpClient {
           this.serverConfig.environmentVariables,
           bindingEnvironment
         )
-      if (userPlugin && Array.isArray(this.serverConfig.environmentVariables)) {
+      if (privateBindings && Array.isArray(this.serverConfig.environmentVariables)) {
         for (const name of this.serverConfig.environmentVariables) resolveBinding(`\${${name}}`)
       }
       const customHeaders = normalizeCustomHeaders(
@@ -700,7 +702,12 @@ export class McpClient {
         })
       } else if (this.serverConfig.baseUrl && this.serverConfig.type === 'sse') {
         this.transport = new SSEClientTransport(normalizeRemoteMcpUrl(this.serverConfig.baseUrl), {
-          requestInit: { headers: customHeaders },
+          requestInit: {
+            headers: customHeaders,
+            ...(this.serverConfig.ownerPluginId === NOWLEDGE_PLUGIN_ID
+              ? { redirect: 'error' as const }
+              : {})
+          },
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           authProvider: (runtimeOAuthProvider ?? undefined) as any
         })
@@ -708,7 +715,12 @@ export class McpClient {
         this.transport = new StreamableHTTPClientTransport(
           normalizeRemoteMcpUrl(this.serverConfig.baseUrl),
           {
-            requestInit: { headers: customHeaders },
+            requestInit: {
+              headers: customHeaders,
+              ...(this.serverConfig.ownerPluginId === NOWLEDGE_PLUGIN_ID
+                ? { redirect: 'error' as const }
+                : {})
+            },
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             authProvider: (runtimeOAuthProvider ?? undefined) as any
           }

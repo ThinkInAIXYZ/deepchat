@@ -1,3 +1,11 @@
+import {
+  NOWLEDGE_PLUGIN_ID,
+  NowledgeProfileIdSchema,
+  NowledgeExportInputSchema,
+  type NowledgeExportInput,
+  nowledgeServerName
+} from '@shared/types/nowledgeMemPlugin'
+import { normalizeMemUrl, type NowledgeMemConnections } from '@/nowledgeMem'
 import { ToolchainService } from '@/toolchains'
 import { createMinimalProcessEnvironment } from '@/mcp/processEnvironment'
 import { UserPlugins, type UserPluginRecord } from './userPlugins'
@@ -84,6 +92,8 @@ export interface PluginSettingsWindowPort {
 }
 
 type PluginServiceDeps = {
+  nowledgeMem?: NowledgeMemConnections
+  exportNowledgeSession?: (input: NowledgeExportInput) => Promise<{ threadId: string }>
   contextTape?: TapeAnchorWriter & TapeNonContextEntryReader & TapeIncarnationReader
   mcpSettings: McpSettings
   mcpService: Pick<McpServicePort, 'isReady' | 'isServerRunning' | 'getServerLastError'> & {
@@ -157,6 +167,8 @@ export interface PluginServicePort {
 
 export class PluginService implements PluginServicePort {
   readonly contextHooks?: UserPluginHooks
+  private readonly nowledgeMem?: NowledgeMemConnections
+  private readonly exportNowledgeSession?: PluginServiceDeps['exportNowledgeSession']
   private readonly userPlugins?: UserPlugins
   private readonly mcpSettings: McpSettings
   private readonly mcpService: PluginServiceDeps['mcpService']
@@ -205,6 +217,8 @@ export class PluginService implements PluginServicePort {
     this.mcpSettings = deps.mcpSettings
     this.mcpService = deps.mcpService
     this.skillService = deps.skillService
+    this.nowledgeMem = deps.nowledgeMem
+    this.exportNowledgeSession = deps.exportNowledgeSession
     this.settingsWindow = deps.settingsWindow
     this.runtimeSupervisor = deps.runtimeSupervisor
     this.platform = deps.platform ?? process.platform
@@ -437,6 +451,32 @@ export class PluginService implements PluginServicePort {
     _payload?: unknown
   ): Promise<PluginActionResult> {
     try {
+      if (pluginId === NOWLEDGE_PLUGIN_ID && actionId.startsWith('nowledge.')) {
+        this.getInstalledOrOfficialPluginOrThrow(pluginId)
+        if (!this.nowledgeMem) throw new Error('Nowledge Mem connections are unavailable')
+        if (actionId === 'nowledge.export') {
+          if (!this.exportNowledgeSession) throw new Error('Nowledge session export is unavailable')
+          return {
+            ok: true,
+            data: await this.exportNowledgeSession(NowledgeExportInputSchema.parse(_payload))
+          }
+        }
+        if (actionId === 'nowledge.get')
+          return { ok: true, data: this.toJsonPayload(await this.nowledgeMem.getState()) }
+        if (actionId === 'nowledge.save') {
+          await this.nowledgeMem.save(_payload)
+          if (this.getInstallation(pluginId)?.enabled) await this.activatePlugin(pluginId)
+        } else if (actionId === 'nowledge.selectExport') {
+          this.nowledgeMem.selectExport(
+            NowledgeProfileIdSchema.parse((_payload as { profile?: unknown })?.profile)
+          )
+        } else throw new Error('Unknown Nowledge Mem action')
+        return {
+          ok: true,
+          data: this.toJsonPayload(await this.nowledgeMem.getState()),
+          status: await this.buildPluginListItem(pluginId)
+        }
+      }
       if (actionId === 'settings.open') {
         await this.openPluginSettingsWindow(pluginId)
         return { ok: true }
@@ -484,6 +524,8 @@ export class PluginService implements PluginServicePort {
               'Helper uninstall is not implemented for this runtime. Use the helper provider uninstall flow.'
           }
         case 'config.get': {
+          if (pluginId === NOWLEDGE_PLUGIN_ID)
+            throw new Error('Use the Nowledge connection actions')
           const plugin = this.getInstalledOrOfficialPluginOrThrow(pluginId)
           const configPath = path.join(plugin.root, 'config.json')
           if (!fs.existsSync(configPath)) {
@@ -493,6 +535,8 @@ export class PluginService implements PluginServicePort {
           return { ok: true, data: JSON.parse(raw) }
         }
         case 'config.set': {
+          if (pluginId === NOWLEDGE_PLUGIN_ID)
+            throw new Error('Use the Nowledge connection actions')
           const plugin = this.getInstalledOrOfficialPluginOrThrow(pluginId)
           const payload = (_payload ?? {}) as Record<string, unknown>
           const configPath = path.join(plugin.root, 'config.json')
@@ -640,7 +684,11 @@ export class PluginService implements PluginServicePort {
     const existingServers = await this.mcpSettings.getMcpServers()
     const registeredServerNames: string[] = []
     for (const server of servers) {
-      const command = this.resolvePluginTemplate(server.command, plugin, runtime)
+      const profile =
+        plugin.manifest.id === NOWLEDGE_PLUGIN_ID ? server.connectionProfile : undefined
+      const connection = profile ? this.nowledgeMem?.getMcpConnection(profile) : undefined
+      if (profile && !connection) continue
+      const command = this.resolvePluginTemplate(server.command ?? '', plugin, runtime)
       const serverName = server.id
       const startMode = server.startMode ?? 'eager'
       const surfaces = server.surfaces ?? ['tools', 'prompts', 'resources']
@@ -670,9 +718,9 @@ export class PluginService implements PluginServicePort {
         : undefined
       const serverEnv = this.resolvePluginTemplateRecord(server.env ?? {}, plugin, runtime)
       const config: MCPServerConfig = {
-        type: 'stdio',
+        type: server.transport,
         command,
-        args: server.args.map((arg) => this.resolvePluginTemplate(arg, plugin, runtime)),
+        args: (server.args ?? []).map((arg) => this.resolvePluginTemplate(arg, plugin, runtime)),
         env: {
           ...serverEnv,
           DEEPCHAT_PLUGIN_ID: plugin.manifest.id
@@ -684,7 +732,14 @@ export class PluginService implements PluginServicePort {
         source: 'plugin',
         sourceId: plugin.manifest.id,
         ownerPluginId: plugin.manifest.id,
-        inheritEnv: server.inheritEnv ?? 'legacy'
+        inheritEnv: server.inheritEnv ?? 'legacy',
+        ...(server.transport === 'http'
+          ? {
+              baseUrl: connection?.baseUrl ?? normalizeMemUrl(server.url ?? '') + '/',
+              customHeaders: server.headers ?? {}
+            }
+          : {}),
+        ...connection
       }
       const adapter =
         plugin.manifest.runtime?.adapter === 'cua-embedded-v1'
@@ -1615,6 +1670,29 @@ export class PluginService implements PluginServicePort {
       }
       serverIds.add(server.id)
 
+      if (server.transport === 'http') {
+        if (server.connectionProfile) {
+          if (
+            manifest.id !== NOWLEDGE_PLUGIN_ID ||
+            !['local', 'remote'].includes(server.connectionProfile) ||
+            server.id !== nowledgeServerName(server.connectionProfile)
+          ) {
+            throw new Error('Invalid host-managed Nowledge connection')
+          }
+        } else normalizeMemUrl(server.url ?? '')
+        if (
+          server.command ||
+          server.args?.length ||
+          server.env ||
+          server.inheritEnv ||
+          server.startMode === 'onDemand'
+        ) {
+          throw new Error(`Plugin ${manifest.id} has invalid HTTP MCP process options`)
+        }
+      } else if (server.transport !== 'stdio' || !server.command || !Array.isArray(server.args)) {
+        throw new Error(`Plugin ${manifest.id} has invalid MCP transport configuration`)
+      }
+
       const startMode = server.startMode ?? 'eager'
       if (startMode !== 'eager' && startMode !== 'onDemand') {
         throw new Error(
@@ -2232,7 +2310,10 @@ export class PluginService implements PluginServicePort {
       const supervisorState = this.runtimeSupervisor.getState(server.id)
       statuses.push({
         serverId: server.id,
-        enabled: pluginEnabled,
+        enabled:
+          pluginEnabled &&
+          (!server.connectionProfile ||
+            Boolean(this.nowledgeMem?.getMcpConnection(server.connectionProfile))),
         running: await this.mcpService.isServerRunning(server.id),
         lifecycleState: supervisorState?.state,
         quarantinedAt: supervisorState?.quarantine?.recordedAt,

@@ -1,5 +1,6 @@
 import { isReactive, reactive } from 'vue'
 import type { DeepchatBridge } from '@shared/contracts/bridge'
+import { pluginsInvokeActionRoute } from '@shared/contracts/routes'
 import type { HooksNotificationsSettings } from '@shared/hooksNotifications'
 import { createAcpAuthClient } from '../../../src/renderer/api/AcpAuthClient'
 import { createAppRuntimeClient } from '../../../src/renderer/api/AppRuntimeClient'
@@ -28,6 +29,24 @@ import { createToolClient } from '../../../src/renderer/api/ToolClient'
 import { createWindowClient } from '../../../src/renderer/api/WindowClient'
 
 describe('renderer api clients', () => {
+  it('omits absent Nowledge fields at the JSON IPC boundary', async () => {
+    const bridge = createBridge()
+    vi.mocked(bridge.invoke).mockImplementation(async (_route, input) => {
+      const parsed = pluginsInvokeActionRoute.input.parse(input)
+      expect(parsed.payload).not.toHaveProperty('legacySource')
+      return {
+        result: { ok: true, data: { connections: {}, exportProfile: null, legacy: [] } }
+      } as never
+    })
+    await createNowledgeMemClient(bridge).saveConnection({
+      profile: 'local',
+      baseUrl: 'http://127.0.0.1:14242',
+      timeout: 30000,
+      legacySource: undefined
+    })
+    expect(bridge.invoke).toHaveBeenCalledOnce()
+  })
+
   function createBridge(): DeepchatBridge {
     let addedMemoryCategory: unknown = null
 

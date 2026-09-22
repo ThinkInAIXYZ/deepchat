@@ -1,3 +1,4 @@
+import type { NowledgeMemConnections } from '@/nowledgeMem'
 import type { IConversationExporter } from './interface'
 import type { NowledgeMemConfig } from './nowledgeMemClient'
 import type {
@@ -24,6 +25,7 @@ import type { NowledgeMemThread, NowledgeMemExportSummary } from '@shared/types/
 import type { SettingsStore } from '@/config/settingsStore'
 
 interface ExporterDependencies {
+  nowledgeMemConnections?: NowledgeMemConnections
   sqlitePresenter: SessionDatabase
   settings: SettingsStore
 }
@@ -32,7 +34,7 @@ export class ConversationExporterService implements IConversationExporter {
   private readonly sqlitePresenter: SessionDatabase
   private readonly nowledgeMemClient: NowledgeMemClient
 
-  constructor(deps: ExporterDependencies) {
+  constructor(private readonly deps: ExporterDependencies) {
     this.sqlitePresenter = deps.sqlitePresenter
     this.nowledgeMemClient = new NowledgeMemClient(deps.settings)
   }
@@ -83,6 +85,16 @@ export class ConversationExporterService implements IConversationExporter {
     data?: NowledgeMemThread
     errors?: string[]
   }> {
+    // Capture the destination before loading/serializing the conversation.
+    let connection: NowledgeMemConfig | undefined
+    try {
+      connection = this.deps.nowledgeMemConnections?.getExportConfig()
+    } catch (error) {
+      return {
+        success: false,
+        errors: [error instanceof Error ? error.message : 'Select a Nowledge connection']
+      }
+    }
     const exportResult = await this.exportToNowledgeMem(conversationId)
     if (!exportResult.success || !exportResult.data) {
       return {
@@ -91,7 +103,7 @@ export class ConversationExporterService implements IConversationExporter {
       }
     }
 
-    const result = await this.nowledgeMemClient.submitThread(exportResult.data)
+    const result = await this.nowledgeMemClient.submitThread(exportResult.data, connection)
     if (result.success && result.data) {
       return {
         success: true,
@@ -112,6 +124,18 @@ export class ConversationExporterService implements IConversationExporter {
     error?: string
   }> {
     try {
+      if (this.deps.nowledgeMemConnections) {
+        const state = await this.deps.nowledgeMemConnections.getState()
+        const connection = state.exportProfile && state.connections[state.exportProfile]
+        if (!connection || config) throw new Error('Verify connections in the Nowledge Mem plugin')
+        const resolved = this.deps.nowledgeMemConnections.getExportConfig()
+        await this.deps.nowledgeMemConnections.verify(
+          connection,
+          resolved.apiKey ?? '',
+          resolved.timeout
+        )
+        return { success: true, message: 'Connection verified' }
+      }
       const result = await this.nowledgeMemClient.testConnection(config)
       return {
         success: result.success,
@@ -127,11 +151,16 @@ export class ConversationExporterService implements IConversationExporter {
   }
 
   async updateNowledgeMemConfig(config: Partial<NowledgeMemConfig>): Promise<void> {
+    if (this.deps.nowledgeMemConnections)
+      throw new Error('Configure connections in the Nowledge Mem plugin')
     await this.nowledgeMemClient.updateConfig(config)
   }
 
   getNowledgeMemConfig() {
-    return this.nowledgeMemClient.getConfig()
+    return (
+      this.deps.nowledgeMemConnections?.getPublicExportConfig() ??
+      this.nowledgeMemClient.getConfig()
+    )
   }
 
   private async fetchAllMessages(conversationId: string): Promise<Message[]> {
