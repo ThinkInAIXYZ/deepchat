@@ -8,6 +8,8 @@ import { AiSdkProvider } from '../../../src/main/provider/providers/aiSdkProvide
 import { ApiEndpointType, ModelType } from '../../../src/shared/model'
 import { AcpRuntimeOwner } from '@/agent/acp/client'
 import { AcpSessionPersistence } from '@/agent/acp/runtime'
+import { DEFAULT_PROVIDERS } from '@/provider/defaults'
+import { ProviderInstanceManager } from '@/provider/managers/providerInstanceManager'
 
 const {
   mockRunAiSdkCoreStream,
@@ -219,6 +221,29 @@ describe('ProviderRuntime Integration Tests', () => {
   afterEach(async () => {
     await providerRuntime.shutdown()
     vi.unstubAllGlobals()
+  })
+
+  it('instantiates every built-in profile without an extra special-provider allowlist', () => {
+    const manager = new ProviderInstanceManager({
+      providerSettings: mockProviderSettings,
+      locale: { getLanguage: () => 'en-US' },
+      agentSettings: { getAcpEnabled: () => false, getAcpAgents: () => [] },
+      activeStreams: new Map(),
+      rateLimitManager: { cleanupProviderRateLimit: vi.fn(), syncProviders: vi.fn() } as never,
+      getCurrentProviderId: () => null,
+      setCurrentProviderId: vi.fn(),
+      acpRuntimeOwner: new AcpRuntimeOwner(() => ({}) as never),
+      publishEvent: vi.fn()
+    })
+    manager.setProviders(DEFAULT_PROVIDERS.map((provider) => ({ ...provider, enable: false })))
+    try {
+      expect(DEFAULT_PROVIDERS.length).toBeGreaterThan(0)
+      for (const provider of DEFAULT_PROVIDERS) {
+        expect(manager.getProviderInstance(provider.id), provider.id).toBeDefined()
+      }
+    } finally {
+      manager.shutdown()
+    }
   })
 
   describe('Draft credential validation', () => {

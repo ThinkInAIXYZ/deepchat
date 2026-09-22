@@ -90,6 +90,81 @@ describe('basic API-key provider registrations', () => {
     global.fetch = originalFetch
   })
 
+  it('loads Fireworks catalog identities and rejects a missing key without network access', async () => {
+    const defaults = DEFAULT_PROVIDERS.find(({ id }) => id === 'fireworks')!
+    expect(defaults.baseUrl).toBe('https://api.fireworks.ai/inference/v1')
+    const modelId = 'accounts/fireworks/models/gpt-oss-120b'
+    mockGetProvider.mockReturnValue({
+      id: 'fireworks-ai',
+      models: [{ id: modelId, display_name: 'GPT OSS 120B' }]
+    })
+    const provider = new AiSdkProvider(defaults, createProviderSettings())
+    expect(await provider.fetchModels({ suppressErrors: false })).toEqual([
+      {
+        id: modelId,
+        name: 'GPT OSS 120B',
+        group: 'default',
+        providerId: 'fireworks',
+        isCustom: false
+      }
+    ])
+    expect(mockGetProvider).toHaveBeenCalledWith('fireworks-ai')
+    expect(await provider.check()).toMatchObject({ isOk: false })
+    expect(mockRunAiSdkGenerateText).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    [
+      'fireworks',
+      'https://api.fireworks.ai/inference',
+      'https://api.fireworks.ai/inference/v1/chat/completions'
+    ],
+    [
+      'fireworks',
+      'https://api.fireworks.ai/inference/',
+      'https://api.fireworks.ai/inference/v1/chat/completions'
+    ],
+    [
+      'custom-fireworks',
+      'https://api.fireworks.ai/inference/v1',
+      'https://api.fireworks.ai/inference/v1/chat/completions'
+    ],
+    [
+      'fireworks',
+      'https://proxy.example.com/inference',
+      'https://proxy.example.com/inference/chat/completions'
+    ]
+  ])('checks %s at %s without changing the saved URL', async (id, baseUrl, endpoint) => {
+    const config = createProvider({ id, apiType: 'fireworks', baseUrl })
+    const actual = await vi.importActual<typeof import('../../../src/main/provider/aiSdk')>(
+      '../../../src/main/provider/aiSdk'
+    )
+    mockRunAiSdkGenerateText.mockImplementationOnce(actual.runAiSdkGenerateText)
+    const fetchMock = vi.fn().mockResolvedValue(
+      Response.json({
+        id: 'completion-1',
+        object: 'chat.completion',
+        created: 1,
+        model: 'accounts/fireworks/models/gpt-oss-120b',
+        choices: [
+          { index: 0, message: { role: 'assistant', content: 'Hello' }, finish_reason: 'stop' }
+        ],
+        usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 }
+      })
+    )
+    global.fetch = fetchMock
+    const provider = new AiSdkProvider(config, createProviderSettings())
+    expect(await provider.check()).toEqual({ isOk: true, errorMsg: null })
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    const [url, init] = fetchMock.mock.calls[0]
+    expect(String(url)).toBe(endpoint)
+    expect(new Headers(init.headers).get('authorization')).toBe('Bearer test-key')
+    expect(JSON.parse(init.body)).toMatchObject({ model: 'accounts/fireworks/models/gpt-oss-120b' })
+    expect(config.baseUrl).toBe(baseUrl)
+    mockRunAiSdkGenerateText.mockRejectedValueOnce(new Error('Invalid API key'))
+    expect(await provider.check()).toEqual({ isOk: false, errorMsg: 'Invalid API key' })
+  })
+
   it('resolves OpenAI-compatible providers through provider-db backed definitions', () => {
     const expectations = [
       ['nvidia', 'nvidia', 'microsoft/phi-4-mini-instruct'],

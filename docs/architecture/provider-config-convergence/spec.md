@@ -1,6 +1,6 @@
 # Provider configuration convergence
 
-Status: implementation in progress.
+Status: implemented and locally validated.
 
 ## Scope and ownership
 
@@ -21,7 +21,8 @@ ownership boundaries. No new service, dependency, provider manifest or database 
   facts. Do not broaden data cleanup through transport fallback or rerun historical migrations.
 - Renderer receives derived catalog metadata through existing typed routes; it does not import
   the main registry or maintain provider-ID lists.
-- Fireworks uses an existing transport after endpoint, discovery and auth are established.
+- Fireworks uses the existing OpenAI-compatible transport, API-key auth and `fireworks-ai`
+  provider-db catalog; connection checks generate text rather than probing model discovery.
   Previously saved official default URLs remain usable without changing stored configuration.
   Custom endpoints must not be redirected to the official service.
 

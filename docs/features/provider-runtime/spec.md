@@ -81,6 +81,21 @@ passing through unless an explicit model request policy requires a different wir
   provider-specific and must be explicit.
 - AbortSignal, proxy, timeout and provider error mapping must survive every adapter layer.
 
+## Fireworks
+
+Fireworks uses the existing OpenAI-compatible transport with API-key credentials and the
+`fireworks-ai` provider-db catalog. Connection checks generate text with
+`accounts/fireworks/models/gpt-oss-120b`; they do not assume the inference endpoint exposes a
+model-discovery API. The default endpoint is `https://api.fireworks.ai/inference/v1`.
+
+For existing Fireworks configurations, normalize only the old official `/inference` endpoint
+(with or without a trailing slash) in the request-time copy. Preserve saved configuration,
+already-versioned endpoints and custom proxies. No special provider class or storage migration
+is required.
+
+Upstream references: [OpenAI compatibility](https://docs.fireworks.ai/tools-sdks/openai-compatibility)
+and [GPT OSS 120B model ID](https://fireworks.ai/models/fireworks/gpt-oss-120b).
+
 ## OpenAI Codex
 
 `openai-codex` is separate from standard `openai`: distinct provider ID, runtime kind, credential store,

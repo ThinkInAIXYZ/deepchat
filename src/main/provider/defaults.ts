@@ -745,7 +745,7 @@ const PROVIDER_DEFAULTS: LLM_PROVIDER_BASE[] = [
     name: 'Fireworks',
     apiType: 'fireworks',
     apiKey: '',
-    baseUrl: 'https://api.fireworks.ai/inference',
+    baseUrl: 'https://api.fireworks.ai/inference/v1',
     enable: false,
     websites: {
       official: 'https://fireworks.ai/',

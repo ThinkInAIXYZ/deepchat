@@ -36,8 +36,7 @@ Typical files:
 
 - `src/main/provider/defaults.ts`
 - `src/main/provider/providerId.ts`
-- `src/main/provider/providerRegistry.ts`
-- `src/shared/providerDbCatalog.ts` when models come from the public provider database
+- `src/main/provider/providerRegistry.ts` for runtime strategies and derived public catalog membership
 - `test/main/**` provider registry or creation tests
 
 ### Existing Native Transport

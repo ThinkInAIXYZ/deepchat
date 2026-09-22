@@ -269,6 +269,18 @@ const PROVIDER_ID_REGISTRY = new Map<string, AiSdkProviderDefinition>([
     })
   ],
   [
+    'fireworks',
+    createDefinition({
+      ...OPENAI_BASE,
+      modelSource: 'provider-db',
+      providerDbSourceId: 'fireworks-ai',
+      checkStrategy: 'generate-text',
+      credentialStrategy: 'api-key',
+      embeddingStrategy: 'none',
+      checkModelId: 'accounts/fireworks/models/gpt-oss-120b'
+    })
+  ],
+  [
     'gemini',
     createDefinition({
       runtimeKind: 'gemini',
@@ -714,6 +726,7 @@ const PROVIDER_API_TYPE_REGISTRY = new Map<string, AiSdkProviderDefinition>([
   ['anthropic', PROVIDER_ID_REGISTRY.get('anthropic')!],
   ['aws-bedrock', PROVIDER_ID_REGISTRY.get('aws-bedrock')!],
   ['doubao', PROVIDER_ID_REGISTRY.get('doubao')!],
+  ['fireworks', PROVIDER_ID_REGISTRY.get('fireworks')!],
   ['gemini', PROVIDER_ID_REGISTRY.get('gemini')!],
   ['grok', PROVIDER_ID_REGISTRY.get('grok')!],
   ['groq', PROVIDER_ID_REGISTRY.get('groq')!],

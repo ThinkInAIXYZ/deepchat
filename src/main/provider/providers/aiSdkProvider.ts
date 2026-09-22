@@ -580,6 +580,15 @@ export class AiSdkProvider extends BaseLLMProvider {
       ...decision.providerPatch
     }
 
+    // Older built-in Fireworks configs omitted /v1. Normalize only that official endpoint;
+    // never rewrite a custom proxy or mutate the user's saved configuration.
+    if (
+      this.definition.providerDbSourceId === 'fireworks-ai' &&
+      /^https:\/\/api\.fireworks\.ai\/inference\/?$/.test(base.baseUrl)
+    ) {
+      base.baseUrl = 'https://api.fireworks.ai/inference/v1'
+    }
+
     if (shouldUseXaiGrokOAuthFetch(base)) {
       const oauthToken = getGlobalXaiGrokAuth().peekAccessToken()
       if (oauthToken) {
