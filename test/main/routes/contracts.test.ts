@@ -1817,6 +1817,7 @@ describe('main kernel contracts', () => {
     expect(
       DEEPCHAT_ROUTE_CATALOG['models.getCapabilities'].output.parse({
         capabilities: {
+          mediaSettings: { image: false, video: false },
           identity: {
             providerId: 'openai',
             requestModelId: 'gpt-5.4',
@@ -1845,6 +1846,7 @@ describe('main kernel contracts', () => {
       })
     ).toEqual({
       capabilities: {
+        mediaSettings: { image: false, video: false },
         identity: {
           providerId: 'openai',
           requestModelId: 'gpt-5.4',
