@@ -17,6 +17,7 @@ import { resolveVideoGenerationCompatType } from '@shared/videoGenerationSetting
 import ElectronStore from 'electron-store'
 import {
   hasAnthropicReasoningToggle,
+  getReasoningEffortDefault,
   isImageInputSupported,
   normalizeAnthropicReasoningVisibilityValue,
   normalizeReasoningEffortValue,
@@ -225,7 +226,7 @@ export class ModelConfigHelper {
     const forceInterleavedThinkingCompat = portrait?.interleaved === true ? true : undefined
     const reasoningEffort = normalizeReasoningEffortValue(
       portrait,
-      portrait?.effort ?? model.reasoning?.effort
+      getReasoningEffortDefault(portrait) ?? model.reasoning?.effort
     )
     const reasoningVisibility = hasAnthropicReasoningToggle(providerId, portrait)
       ? (normalizeAnthropicReasoningVisibilityValue(portrait?.visibility) ??

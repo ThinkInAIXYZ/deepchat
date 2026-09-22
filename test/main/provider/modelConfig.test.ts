@@ -501,6 +501,40 @@ describe('ModelConfigHelper', () => {
       expect(config.isUserDefined).toBe(true)
     })
 
+    it('uses the catalog level as the Gemini model default and preserves an explicit choice', () => {
+      vi.spyOn(providerDbLoader, 'getDb').mockReturnValue({
+        providers: {
+          google: {
+            id: 'google',
+            models: [
+              {
+                id: 'gemini-3-flash-preview',
+                reasoning: { supported: true, default: true },
+                extra_capabilities: {
+                  reasoning: {
+                    supported: true,
+                    mode: 'level',
+                    level: 'high',
+                    level_options: ['minimal', 'low', 'medium', 'high']
+                  }
+                }
+              }
+            ]
+          }
+        }
+      })
+      rebuildModelCapabilities()
+      const config = modelConfigHelper.getModelConfig('gemini-3-flash-preview', 'gemini')
+      expect(config.reasoningEffort).toBe('high')
+      modelConfigHelper.setModelConfig('gemini-3-flash-preview', 'gemini', {
+        ...config,
+        reasoningEffort: 'low'
+      })
+      expect(
+        modelConfigHelper.getModelConfig('gemini-3-flash-preview', 'gemini').reasoningEffort
+      ).toBe('low')
+    })
+
     it('derives anthropic reasoning visibility from provider portraits', () => {
       const getDbSpy = vi.spyOn(providerDbLoader, 'getDb').mockReturnValue({
         providers: {

@@ -2,6 +2,8 @@ import {
   ProviderAggregate,
   ProviderModel,
   ReasoningPortrait,
+  getReasoningEffortOptions,
+  getReasoningEffortDefault,
   type ReasoningEffort,
   type Verbosity
 } from '@shared/types/model-db'
@@ -164,20 +166,8 @@ const usesExtendedEffortDefaultWithoutOptions = (
   return Boolean(portrait.effort && !DEFAULT_REASONING_EFFORT_OPTIONS.includes(portrait.effort))
 }
 
-const supportsEffortControls = (portrait: ReasoningPortrait | undefined | null): boolean => {
-  if (!portrait || portrait.supported === false) {
-    return false
-  }
-
-  if (portrait.mode === 'budget' || portrait.mode === 'level' || portrait.mode === 'fixed') {
-    return false
-  }
-
-  return Boolean(
-    (portrait.effortOptions && portrait.effortOptions.length > 0) ||
-    (portrait.mode !== 'mixed' && typeof portrait.effort === 'string')
-  )
-}
+const supportsEffortControls = (portrait: ReasoningPortrait | undefined | null): boolean =>
+  portrait?.supported !== false && getReasoningEffortOptions(portrait).length > 0
 
 const supportsVerbosityControls = (portrait: ReasoningPortrait | undefined | null): boolean => {
   if (!portrait || portrait.supported === false) {
@@ -837,7 +827,7 @@ export class ModelCapabilities {
         typeof model?.temperature === 'boolean' ? model.temperature : undefined,
       supportsAudioInput: model?.modalities?.input?.includes('audio') === true,
       supportsReasoningEffort: supportsEffortControls(reasoningPortrait),
-      reasoningEffortDefault: reasoningPortrait?.effort,
+      reasoningEffortDefault: getReasoningEffortDefault(reasoningPortrait),
       supportsVerbosity: supportsVerbosityControls(reasoningPortrait),
       verbosityDefault: reasoningPortrait?.verbosity
     }
@@ -918,7 +908,7 @@ export class ModelCapabilities {
   }
 
   getReasoningEffortDefault(providerId: string, modelId: string): ReasoningEffort | undefined {
-    return this.getReasoningPortrait(providerId, modelId)?.effort
+    return getReasoningEffortDefault(this.getReasoningPortrait(providerId, modelId))
   }
 
   getVerbosityDefault(providerId: string, modelId: string): Verbosity | undefined {

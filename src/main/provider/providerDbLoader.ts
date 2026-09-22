@@ -12,6 +12,7 @@ import { resolveProviderId } from './providerId'
 const DEFAULT_PROVIDER_DB_URL =
   'https://raw.githubusercontent.com/ThinkInAIXYZ/PublicProviderConf/refs/heads/dev/dist/all.json'
 const MAX_PROVIDER_DB_PAYLOAD_BYTES = 10 * 1024 * 1024
+const PROVIDER_DB_SCHEMA_VERSION = 1
 
 async function readResponseTextWithLimit(
   response: Response,
@@ -47,6 +48,7 @@ async function readResponseTextWithLimit(
 }
 
 type MetaFile = {
+  schemaVersion?: number
   sourceUrl: string
   etag?: string
   lastUpdated: number
@@ -233,7 +235,8 @@ export class ProviderDbLoader {
     const ttlHours = this.getTtlHours()
     const url = this.getProviderDbUrl()
 
-    const needFirstFetch = !meta || !fs.existsSync(this.cacheFilePath)
+    const needFirstFetch =
+      meta?.schemaVersion !== PROVIDER_DB_SCHEMA_VERSION || !fs.existsSync(this.cacheFilePath)
     const freshnessTimestamp = meta?.lastAttemptedAt ?? meta?.lastUpdated ?? 0
     const expired = meta ? this.now() - freshnessTimestamp > ttlHours * 3600 * 1000 : true
 
@@ -290,7 +293,10 @@ export class ProviderDbLoader {
     const timeout = setTimeout(() => controller.abort(), 15000)
     try {
       const headers: Record<string, string> = {}
-      if (prevMeta?.etag) headers['If-None-Match'] = prevMeta.etag
+      // Older sanitized caches discarded reasoning_options and must be downloaded again.
+      if (prevMeta?.schemaVersion === PROVIDER_DB_SCHEMA_VERSION && prevMeta.etag) {
+        headers['If-None-Match'] = prevMeta.etag
+      }
 
       const res = await fetch(url, { headers, signal: controller.signal })
       const now = this.now()
@@ -337,6 +343,7 @@ export class ProviderDbLoader {
 
       const etag = res.headers.get('etag') || undefined
       const meta: MetaFile = {
+        schemaVersion: PROVIDER_DB_SCHEMA_VERSION,
         sourceUrl: url,
         etag,
         lastUpdated: now,

@@ -198,7 +198,21 @@ export function sanitizeAggregateJson(json) {
       }
 
       let extra_capabilities
-      const extraReasoning = sanitizeExtraReasoning(m.extra_capabilities?.reasoning)
+      let extraReasoning = sanitizeExtraReasoning(m.extra_capabilities?.reasoning)
+      if (
+        !extraReasoning?.effort_options?.length &&
+        (!extraReasoning?.mode || ['effort', 'mixed'].includes(extraReasoning.mode)) &&
+        Array.isArray(m.reasoning_options)
+      ) {
+        const options = m.reasoning_options.flatMap((option) =>
+          option?.type === 'effort'
+            ? (sanitizeReasoningOptions(option.values, REASONING_EFFORT_VALUES) ?? [])
+            : []
+        )
+        if (options.length) {
+          extraReasoning = { ...extraReasoning, effort_options: [...new Set(options)] }
+        }
+      }
       if (extraReasoning) {
         extra_capabilities = { reasoning: extraReasoning }
       }

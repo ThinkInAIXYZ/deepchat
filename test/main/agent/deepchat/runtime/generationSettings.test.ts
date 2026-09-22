@@ -172,6 +172,80 @@ describe('generation settings policy', () => {
     expect(providerSettings.getCapabilitySnapshot).toHaveBeenCalledTimes(1)
   })
 
+  it('preserves saved Gemini levels and replaces unsupported levels with the catalog default', async () => {
+    const providerSettings = createProviderSettings()
+    vi.mocked(providerSettings.getCapabilitySnapshot).mockReturnValue({
+      ...createCapabilitySnapshot(),
+      identity: {
+        providerId: 'gemini',
+        requestModelId: 'gemini-3-flash-preview',
+        catalogMatched: true,
+        catalogModelId: 'gemini-3-flash-preview'
+      },
+      supportsReasoning: true,
+      reasoningPortrait: {
+        supported: true,
+        defaultEnabled: true,
+        mode: 'level',
+        level: 'high',
+        levelOptions: ['minimal', 'low', 'medium', 'high']
+      },
+      supportsReasoningEffort: true,
+      reasoningEffortDefault: 'high'
+    })
+    const prompts = { getDefaultSystemPrompt: vi.fn().mockResolvedValue('default prompt') }
+    const selected = await sanitizeGenerationSettings(
+      providerSettings,
+      prompts,
+      'gemini',
+      'gemini-3-flash-preview',
+      { reasoningEffort: 'low' }
+    )
+    expect(buildPersistedGenerationSettingsPatch({ reasoningEffort: 'low' }, selected)).toEqual({
+      reasoningEffort: 'low'
+    })
+    const restored = mapPersistedGenerationPatch(providerSettings, {
+      provider_id: 'gemini',
+      model_id: 'gemini-3-flash-preview',
+      permission_mode: 'default',
+      system_prompt: null,
+      temperature: null,
+      top_p: null,
+      context_length: null,
+      max_tokens: null,
+      timeout_ms: null,
+      thinking_budget: null,
+      reasoning_effort: 'low',
+      reasoning_visibility: null,
+      verbosity: null,
+      force_interleaved_thinking_compat: null,
+      image_generation_options_json: null,
+      video_generation_options_json: null
+    })
+    expect(
+      (
+        await sanitizeGenerationSettings(
+          providerSettings,
+          prompts,
+          'gemini',
+          'gemini-3-flash-preview',
+          restored
+        )
+      ).reasoningEffort
+    ).toBe('low')
+    expect(
+      (
+        await sanitizeGenerationSettings(
+          providerSettings,
+          prompts,
+          'gemini',
+          'gemini-3-flash-preview',
+          { reasoningEffort: 'max' }
+        )
+      ).reasoningEffort
+    ).toBe('high')
+  })
+
   it('shares one capability snapshot across persisted mapping and sanitization', async () => {
     const providerSettings = createProviderSettings()
     const providerModelFacts = resolveProviderModelRuntimeFacts(
