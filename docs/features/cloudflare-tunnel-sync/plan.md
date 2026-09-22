@@ -31,11 +31,11 @@ Contract: [spec.md](./spec.md).
 - [x] Verify portable-setting migration preserves existing SQLite values and excludes local paths.
 - [x] Measure an 8 MiB changed session and a 1,000-write burst; remove the temporary probe.
 - [x] Finish static checks, renderer regression suite and isolated Electron smoke.
-- [ ] Commit, push and update Draft PR #2344 with implementation scope and validation.
+- [x] Commit, push and update Draft PR #2344 with implementation scope and validation.
 
 ## Validation evidence
 
-Focused validation passes: 35 main-process files / 259 tests, 3 renderer files / 107 tests,
+Full main-process validation passes: 663 files / 9,371 tests (4 skipped). Focused validation passes: 35 main-process files / 259 tests, 3 renderer files / 107 tests,
 2 package-budget tests and one isolated Electron smoke. Format, i18n, lint, typechecks, renderer
 boundaries, icons and the production build pass.
 

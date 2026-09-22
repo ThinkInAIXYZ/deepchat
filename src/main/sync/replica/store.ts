@@ -380,7 +380,18 @@ export class SyncReplicaStore {
         )
           continue
         this.applyUnit(db, unit)
-        this.record(db, unit.kind, unit.id, unit.modifiedAt, unit.origin, unit.deleted)
+        const suppressedMemory =
+          unit.kind === 'memory' &&
+          !unit.deleted &&
+          !db.prepare('SELECT 1 FROM agent_memory WHERE id=?').get(unit.id)
+        this.record(
+          db,
+          unit.kind,
+          unit.id,
+          unit.modifiedAt + Number(suppressedMemory),
+          unit.origin,
+          unit.deleted || suppressedMemory
+        )
         applied.push(unit)
       }
       db.exec('UPDATE _sync_state SET suppress=0 WHERE singleton=1')
@@ -449,6 +460,12 @@ export class SyncReplicaStore {
           for (const column of table.local ?? []) {
             if (table === root && preserved && column in preserved) row[column] = preserved[column]
           }
+          if (
+            table.table === 'new_sessions' &&
+            definition.columns.get(table.table)!.includes('revision')
+          ) {
+            row.revision = Number(preserved?.revision ?? 0) + 1
+          }
           if (table.table === 'agent_memory') {
             if (this.memoryDeleted(db, row)) continue
             row.embedding_state = 'pending'
@@ -468,15 +485,32 @@ export class SyncReplicaStore {
         .prepare('SELECT * FROM agent_memory WHERE agent_id=?')
         .all(tombstone.agent_id) as SyncRow[]
       for (const row of memories) {
-        if (this.memoryDeleted(db, row))
+        if (this.memoryDeleted(db, row)) {
           db.prepare('DELETE FROM agent_memory WHERE id=?').run(row.id)
+          const prior = this.change(db, 'memory', String(row.id))
+          // A domain tombstone also deletes matching duplicate IDs. Derive its stamp from the
+          // original facts, never the receiver clock, so that deletion can propagate onward.
+          this.record(
+            db,
+            'memory',
+            String(row.id),
+            Math.max(unit.modifiedAt, prior?.modified_at ?? 0) + 1,
+            unit.origin,
+            true
+          )
+        }
       }
     }
     if (unit.kind === 'session') {
       for (const table of [
         'deepchat_transcript_projection_meta',
         'deepchat_search_documents',
-        'deepchat_tape_search_projection'
+        'deepchat_tape_search_projection',
+        'deepchat_tape_search_projection_meta',
+        'deepchat_tape_search_fts_meta',
+        'deepchat_tape_search_fts',
+        'deepchat_memory_ingestion_projection',
+        'deepchat_memory_ingestion_projection_meta'
       ]) {
         if (
           (db.prepare(`PRAGMA table_info(${q(table)})`).all() as { name: string }[]).some(

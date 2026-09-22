@@ -213,7 +213,7 @@ export class AutomaticSync {
         redirect: 'error'
       }
     )
-    this.check(response)
+    await this.check(response)
     if (!response.headers.get('content-type')?.startsWith('text/event-stream') || !response.body)
       throw new Error('Invalid event stream')
     const reader = response.body.getReader()
@@ -342,11 +342,23 @@ export class AutomaticSync {
     return connection
   }
 
-  private check(response: Response): void {
+  private async check(response: Response): Promise<void> {
     if (response.ok) return
+    if (response.status === 400) {
+      const body = JSON.parse((await this.bytes(response, 65536)).toString()) as { error?: unknown }
+      const errors = [
+        'sync.tunnel.error.batchTooLarge',
+        'sync.tunnel.error.diskFull',
+        'sync.tunnel.error.integrityFailed',
+        'sync.tunnel.error.cancelled'
+      ]
+      if (typeof body.error === 'string' && errors.includes(body.error)) throw new Error(body.error)
+      throw new Error('sync.tunnel.error.invalidResponse')
+    }
     void response.body?.cancel()
     if (response.status === 401 || response.status === 403)
       throw new Error('sync.tunnel.error.writeConsentRequired')
+    if (response.status === 429) throw new Error('sync.tunnel.error.rateLimited')
     if (response.status === 409) throw new Error('sync.tunnel.error.busy')
     if (response.status === 404) throw new Error('sync.tunnel.error.automaticUnsupported')
     throw new Error('sync.tunnel.error.connectionFailed')
@@ -376,7 +388,7 @@ export class AutomaticSync {
         redirect: 'error'
       }
     )
-    this.check(response)
+    await this.check(response)
     return response
   }
 

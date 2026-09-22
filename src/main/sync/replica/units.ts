@@ -18,7 +18,7 @@ export const SYNC_UNITS: SyncUnitDefinition[] = [
   {
     kind: 'session',
     tables: [
-      { table: 'new_sessions', key: 'id', local: ['project_dir'] },
+      { table: 'new_sessions', key: 'id', local: ['project_dir', 'revision'] },
       { table: 'deepchat_sessions', key: 'id' },
       { table: 'deepchat_session_metadata', key: 'session_id' },
       { table: 'new_session_active_skills', key: 'session_id' },

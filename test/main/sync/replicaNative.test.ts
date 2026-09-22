@@ -124,7 +124,7 @@ describeIfNativeSqlite('Device sync durable merge', () => {
     expect(b.db.prepare('SELECT * FROM new_sessions').all()).toEqual([])
     expect(await b.store.apply(batch)).toBe(true)
   })
-  it('honors canonical memory tombstones and portable settings against the complete application schema', async () => {
+  it('preserves memory deletion and local session revisions with the complete application schema', async () => {
     function fullDevice() {
       const directory = mkdtempSync(join(tmpdir(), 'deepchat-replica-full-'))
       const main = new MainDatabase(join(directory, 'agent.db'))
@@ -161,6 +161,16 @@ describeIfNativeSqlite('Device sync durable merge', () => {
     expect(
       b.db.prepare("SELECT value_json FROM app_settings WHERE key='copyWithCotEnabled'").get()
     ).toEqual({ value_json: 'true' })
+    a.db.exec(
+      "INSERT INTO new_sessions(id,agent_id,title,created_at,updated_at,revision) VALUES('s','agent','Original',1,1,100)"
+    )
+    await b.store.apply(a.store.export(b.store.cursor(a.store.replicaId)))
+    b.db.exec("UPDATE new_sessions SET title='Continued on B',revision=revision+1 WHERE id='s'")
+    await a.store.apply(b.store.export(0))
+    expect(a.db.prepare("SELECT title,revision FROM new_sessions WHERE id='s'").get()).toEqual({
+      title: 'Continued on B',
+      revision: 101
+    })
     const tombstones = buildMemoryTombstoneIdentities({
       agentId: 'agent',
       content: 'Remember this',

@@ -101,7 +101,7 @@ The executable allowlist is `src/main/sync/replica/units.ts`: sessions include t
 DeepChat configuration/metadata, tape entries, messages and their dependent content; providers include
 models, model status and user overrides; agents and MCP servers use their definition tables. Memory
 records and domain tombstone identities have separate units. Application settings are restricted to
-prompt lists and `SYNC_PORTABLE_SETTINGS`. Project directories, agent runtime state, provider last-use
+prompt lists and `SYNC_PORTABLE_SETTINGS`. Project directories, local session view revisions, agent runtime state, provider last-use
 and memory embeddings/access counters are preserved locally. SQL notifications coalesce within a
 transaction; outgoing SSE notifications coalesce over 250 ms.
 
