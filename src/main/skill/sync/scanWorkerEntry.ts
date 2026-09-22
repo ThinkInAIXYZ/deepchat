@@ -5,7 +5,7 @@ import type { SkillSyncWorkerInput } from './scanWorker'
 
 async function main(): Promise<void> {
   const input: SkillSyncWorkerInput = workerData
-  const scanResults = await new ToolScanner(input.tools).scanExternalTools(input.projectRoot)
+  const scanResults = await new ToolScanner(input.tools ?? []).scanExternalTools(input.projectRoot)
   const discoveries = compareWithCacheAndSkills(
     scanResults,
     input.cache ?? null,

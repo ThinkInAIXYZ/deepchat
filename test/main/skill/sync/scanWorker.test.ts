@@ -73,6 +73,39 @@ afterEach(async () => {
 })
 
 describe('scanAndDetectDiscoveriesInWorker', () => {
+  it.each([undefined, null])('does not scan default tools when tools is %s', async (tools) => {
+    vi.stubEnv('HOME', buildDir)
+    vi.stubEnv('USERPROFILE', buildDir)
+    try {
+      const input = { tools } as unknown as Parameters<typeof scanAndDetectDiscoveriesInWorker>[0]
+      await expect(scanAndDetectDiscoveriesInWorker(input)).resolves.toEqual({
+        scanResults: [],
+        discoveries: []
+      })
+    } finally {
+      vi.unstubAllEnvs()
+    }
+  })
+
+  it.each(['entry failed', null])('preserves non-Error module failures: %s', async (failure) => {
+    const fs = await vi.importActual<typeof import('node:fs')>('node:fs')
+    const path = await vi.importActual<typeof import('node:path')>('node:path')
+    const mainDir = path.join(buildDir, 'main')
+    const entryName = fs.readdirSync(mainDir).find((name) => name.startsWith('scanWorkerEntry-'))
+    expect(entryName).toBeDefined()
+    const entry = path.join(mainDir, entryName!)
+    const original = fs.readFileSync(entry, 'utf8')
+    try {
+      fs.writeFileSync(entry, `throw ${JSON.stringify(failure)}`)
+      await expect(scanExternalToolsInWorker({ tools: [] })).rejects.toMatchObject({
+        name: 'WorkerError',
+        message: String(failure)
+      })
+    } finally {
+      fs.writeFileSync(entry, original)
+    }
+  })
+
   it('matches fallback metadata, filtering and errors on real files', async () => {
     const fs = await vi.importActual<typeof import('node:fs')>('node:fs')
     const os = await vi.importActual<typeof import('node:os')>('node:os')

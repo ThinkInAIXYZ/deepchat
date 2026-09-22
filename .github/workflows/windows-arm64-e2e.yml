@@ -72,6 +72,11 @@ jobs:
       - name: Run Windows arm64 launch smoke test
         run: pnpm exec playwright test -c test/e2e/playwright.ci.config.ts test/e2e/specs/01-launch.smoke.spec.ts
 
+      - name: Verify packaged skill scan Worker
+        run: pnpm exec playwright test -c test/e2e/playwright.ci.config.ts test/e2e/specs/19-skill-sync-readonly-route.smoke.spec.ts
+        env:
+          DEEPCHAT_E2E_APP_MODE: packaged
+
       - name: Run packaged app process smoke
         shell: pwsh
         run: |

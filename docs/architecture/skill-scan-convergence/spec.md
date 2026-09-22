@@ -32,6 +32,10 @@ directory must not make an escaping SKILL.md symlink trusted. Contained file tar
 symlinked configured roots remain supported; directory entries and flat-file symlinks remain
 excluded. No persistence migration is needed.
 
+Scanning support does not imply import support: snapshot import still rejects symlinked
+source roots and manifests. Such skills can appear in discovery but cannot be imported until
+the source uses ordinary directories and files. This pre-existing import policy is unchanged.
+
 ## Acceptance
 
 Worker and fallback return equal non-empty results and discoveries for identical fixtures,

@@ -24,9 +24,13 @@ type SkillSyncWorkerOutput = {
 // all scanning rules with the fallback and uses structured clone (including Date).
 const SCAN_WORKER_SOURCE = `
 void import(${JSON.stringify(pathToFileURL(workerPath).href)}).catch((error) => {
-  require('node:worker_threads').parentPort.postMessage({
+  const requireFromBundle = globalThis.__inlineWorkerRequire || require
+  requireFromBundle('node:worker_threads').parentPort.postMessage({
     ok: false,
-    error: { message: error.message, stack: error.stack }
+    error: {
+      message: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined
+    }
   })
 })
 `
