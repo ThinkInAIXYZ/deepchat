@@ -35,7 +35,8 @@ Contract: [spec.md](./spec.md).
 
 ## Validation evidence
 
-Full main-process validation passes: 663 files / 9,371 tests (4 skipped). Focused validation passes: 35 main-process files / 259 tests, 3 renderer files / 107 tests,
+Full validation after merging dev `c2adc2894` passes: 664 main-process files / 9,417 tests
+(4 skipped), and 275 renderer files / 2,543 tests. Focused validation passes: 35 main-process files / 259 tests, 3 renderer files / 107 tests,
 2 package-budget tests and one isolated Electron smoke. Format, i18n, lint, typechecks, renderer
 boundaries, icons and the production build pass.
 
