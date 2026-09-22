@@ -42,7 +42,9 @@ Codex, or another tool's configuration. Advanced fields show the effective API/M
 1. Open a conversation containing sent messages. Use its menu > Send to Nowledge Mem.
 2. Check the displayed session title and destination, then confirm. A matching server
    acknowledgement is required before the success notification.
-3. Check the thread in the selected Mem. Unsent drafts must be absent. The `.json` export menu item
+3. Check the thread in the selected Mem. Repeat the export, then rename the chat and export again;
+   expect the same thread with no duplicate messages. Add a message and export to check incremental
+   import. The server must support `/threads/import`; an older server returns an upgrade error. Unsent drafts must be absent. The `.json` export menu item
    downloads a file and does not send it.
 4. Change the profile's API destination while its confirmation is open, then confirm. Expect an
    error asking you to confirm again; the request must not silently use the replacement destination.
@@ -58,15 +60,19 @@ Codex, or another tool's configuration. Advanced fields show the effective API/M
   key is removed from the old plaintext setting only after encrypted storage succeeds.
 - Disable the plugin: its MCP tools and Skill disappear. Enable it and restart DeepChat: saved
   endpoints, export choice and encrypted credentials remain usable. The key input stays empty.
+- Open the separate settings window > Knowledge Base > Nowledge Mem. Expect the settings-window
+  plugin page and its working configuration form, without a router error.
+- Clear all connections, confirm, and check that the plugin is disabled and both profiles are empty.
+  Reconnecting requires entering credentials again, including for previous destinations.
 - Stop the server and verify: expect a connection error and unchanged saved state.
 
 ## Automated checks
 
 ```bash
-pnpm exec vitest run --config vitest.config.ts test/main/nowledgeMem test/main/exporter test/main/plugin test/main/mcp/mcpClient.test.ts test/main/scripts/packagePlugin.test.ts test/main/scripts/packageWorkflow.test.ts test/main/scripts/packageContract.test.ts
-pnpm exec vitest run --config vitest.config.renderer.ts test/renderer/api/clients.test.ts test/renderer/components/NowledgeMemSettings.test.ts test/renderer/components/KnowledgeBaseSettings.test.ts test/renderer/components/chat/ChatTopBar.test.ts
+pnpm exec vitest run --config vitest.config.ts test/main/nowledgeMem test/main/exporter test/main/plugin test/main/mcp test/main/sync test/main/scripts/packagePlugin.test.ts test/main/scripts/packageWorkflow.test.ts test/main/scripts/packageContract.test.ts
+pnpm exec vitest run --config vitest.config.renderer.ts test/renderer/api/clients.test.ts test/renderer/components/NowledgeMemSettings.test.ts test/renderer/components/KnowledgeBaseSettings.test.ts test/renderer/components/chat/ChatTopBar.test.ts test/renderer/components/PluginsSettings.test.ts test/renderer/components/OfficialPluginDetailPage.test.ts
 pnpm build
-pnpm exec playwright test -c test/e2e/playwright.config.ts 14-nowledgemem-config-route.smoke.spec.ts
+pnpm exec playwright test -c test/e2e/playwright.config.ts 04-settings-navigation.smoke.spec.ts 12-knowledge-readonly-route.smoke.spec.ts 14-nowledgemem-config-route.smoke.spec.ts
 ```
 
 The Electron smoke test uses a disposable local authenticated Mem fixture and isolated app data.

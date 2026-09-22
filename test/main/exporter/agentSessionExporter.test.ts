@@ -153,7 +153,13 @@ describe('AgentSessionExportService', () => {
       return {
         ok: true,
         status: 200,
-        json: async () => ({ thread_id: thread.thread_id, message_count: thread.messages.length })
+        json: async () => ({
+          success: true,
+          failed_count: 0,
+          results: [
+            { success: true, thread_id: thread.thread_id, message_count: thread.messages.length }
+          ]
+        })
       }
     })
     vi.stubGlobal('fetch', fetchMock)
@@ -164,10 +170,11 @@ describe('AgentSessionExportService', () => {
     })
     options.nowledgeConfig.baseUrl = 'https://changed.example'
     await sent
-    expect(fetchMock.mock.calls[0][0]).toBe('https://original.example/remote-api/threads')
+    expect(fetchMock.mock.calls[0][0]).toBe('https://original.example/remote-api/threads/import')
     const request = fetchMock.mock.calls[0][1]
     const body = JSON.parse(request.body)
     expect(body.messages).toHaveLength(2)
+    expect(body.expected_message_count).toBe(2)
     expect(JSON.stringify(body)).not.toContain('must not export')
     expect(request.headers.Authorization).toBe('Bearer private-key')
     expect(request.redirect).toBe('error')
@@ -194,6 +201,61 @@ describe('AgentSessionExportService', () => {
         apiBaseUrl: 'https://mem.example'
       })
     ).rejects.toThrow('persistence acknowledgement')
+  })
+
+  it('keeps thread identity across renames and separates identically titled sessions', async () => {
+    const { convertDeepChatToNowledgeMemFormat: convert } =
+      await import('@/exporter/formats/nowledgeMemExporter')
+    const { service } = createFixture()
+    await service.export('session-1', 'nowledge-mem')
+    const [conversation, messages] = exporterSpies.buildContent.mock.calls.at(-1)!
+    const original = convert(conversation, messages)
+    expect(original.thread_id).toBe('deepchat-session-1')
+    expect(convert({ ...conversation, title: 'Renamed' }, messages).thread_id).toBe(
+      original.thread_id
+    )
+    expect(convert({ ...conversation, id: 'session-2' }, messages).thread_id).not.toBe(
+      original.thread_id
+    )
+  })
+
+  it('accepts an already imported snapshot and never falls back to non-idempotent creation', async () => {
+    const { service } = createFixture({
+      nowledgeConfig: { baseUrl: 'https://mem.example', timeout: 5000 }
+    })
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          success: true,
+          failed_count: 0,
+          results: [
+            {
+              success: true,
+              already_existed: true,
+              thread_id: 'deepchat-session-1',
+              message_count: 2
+            }
+          ]
+        })
+      })
+      .mockResolvedValueOnce({ ok: false, status: 404 })
+    vi.stubGlobal('fetch', fetchMock)
+    const input = {
+      sessionId: 'session-1',
+      profile: 'remote' as const,
+      apiBaseUrl: 'https://mem.example'
+    }
+    await expect(service.submitToNowledgeMem(input)).resolves.toEqual({
+      threadId: 'deepchat-session-1'
+    })
+    await expect(service.submitToNowledgeMem(input)).rejects.toThrow('update Mem')
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(
+      fetchMock.mock.calls.every(([url]) => url === 'https://mem.example/threads/import')
+    ).toBe(true)
   })
 
   it('rejects a missing session', async () => {

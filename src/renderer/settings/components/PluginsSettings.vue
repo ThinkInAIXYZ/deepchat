@@ -140,6 +140,7 @@
             {{ t('settings.plugins.disable') }}
           </DcButton>
         </div>
+        <NowledgeMemSettings v-if="plugin.id === NOWLEDGE_PLUGIN_ID" @saved="loadPlugins" />
       </article>
     </div>
   </SettingsPageShell>
@@ -151,6 +152,8 @@ import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
 import { DcButton } from '@dc-ui/components/button'
 import { createPluginClient } from '@api/PluginClient'
+import { NOWLEDGE_PLUGIN_ID } from '@shared/types/nowledgeMemPlugin'
+import NowledgeMemSettings from './NowledgeMemSettings.vue'
 import type { PluginActionResult, PluginListItem, PluginRuntimeState } from '@shared/types/plugin'
 import SettingsPageShell from './control-center/SettingsPageShell.vue'
 

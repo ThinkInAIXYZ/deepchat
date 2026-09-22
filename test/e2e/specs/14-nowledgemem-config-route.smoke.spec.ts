@@ -121,6 +121,12 @@ test('Nowledge plugin verifies local REST and MCP, protects keys and restores it
       .toBe(true)
     expect(await readState()).toEqual(before)
     await app.page.screenshot({ path: testInfo.outputPath('nowledge-verified.png') })
+    await panel.getByRole('button', { name: 'Clear all connections', exact: true }).click()
+    await app.page
+      .getByRole('alertdialog')
+      .getByRole('button', { name: 'Confirm', exact: true })
+      .click()
+    await expect.poll(async () => Object.keys((await readState()).connections).length).toBe(0)
   } finally {
     await app.page
       .evaluate(async (id) => window.deepchat.invoke('plugins.disable', { pluginId: id }), pluginId)

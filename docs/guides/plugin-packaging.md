@@ -231,6 +231,12 @@ app.asar.unpacked/plugins/deepchat-plugin-feishu-<version>-win32-x64.dcplugin
 app.asar.unpacked/plugins/deepchat-plugin-feishu-<version>-win32-arm64.dcplugin
 app.asar.unpacked/plugins/deepchat-plugin-feishu-<version>-linux-x64.dcplugin
 app.asar.unpacked/plugins/deepchat-plugin-feishu-<version>-linux-arm64.dcplugin
+app.asar.unpacked/plugins/deepchat-plugin-nowledge-mem-<version>-darwin-x64.dcplugin
+app.asar.unpacked/plugins/deepchat-plugin-nowledge-mem-<version>-darwin-arm64.dcplugin
+app.asar.unpacked/plugins/deepchat-plugin-nowledge-mem-<version>-win32-x64.dcplugin
+app.asar.unpacked/plugins/deepchat-plugin-nowledge-mem-<version>-win32-arm64.dcplugin
+app.asar.unpacked/plugins/deepchat-plugin-nowledge-mem-<version>-linux-x64.dcplugin
+app.asar.unpacked/plugins/deepchat-plugin-nowledge-mem-<version>-linux-arm64.dcplugin
 ```
 
 ## Adding a New Plugin

@@ -3426,6 +3426,9 @@
     "sendSession": "发送到 Nowledge Mem",
     "sendConfirm": "将会话“{title}”发送到 {url}？",
     "selectTarget": "请先在插件 > Nowledge Mem 中验证连接并选择导出目标。",
-    "sent": "会话已保存到 Nowledge Mem"
+    "sent": "会话已保存到 Nowledge Mem",
+    "activationFailed": "连接已保存，但插件激活失败。插件已停用，请重新启用后再使用 MCP。",
+    "clearConnections": "清除所有连接",
+    "clearConfirm": "停用插件，并删除本地、远程连接及为旧地址保留的密钥？这不会删除 Mem 中的记忆或其他工具的连接配置。"
   }
 }

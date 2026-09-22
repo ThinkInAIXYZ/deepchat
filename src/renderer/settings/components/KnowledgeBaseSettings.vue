@@ -18,7 +18,8 @@
         <FastGptKnowledgeSettings />
         <BuiltinKnowledgeSettings v-if="enableBuiltinKnowledge" @showDetail="showDetail" />
         <RouterLink
-          :to="{ name: 'plugins-detail', params: { pluginId: NOWLEDGE_PLUGIN_ID } }"
+          :to="nowledgeSettingsRoute"
+          data-testid="nowledge-plugin-link"
           class="block rounded-md border p-4 text-sm hover:bg-muted"
         >
           {{ t('settings.nowledgePlugin.openSettings') }}
@@ -47,7 +48,7 @@ import { useI18n } from 'vue-i18n'
 import RagflowKnowledgeSettings from './RagflowKnowledgeSettings.vue'
 import DifyKnowledgeSettings from './DifyKnowledgeSettings.vue'
 import FastGptKnowledgeSettings from './FastGptKnowledgeSettings.vue'
-import { RouterLink } from 'vue-router'
+import { RouterLink, useRouter } from 'vue-router'
 import { NOWLEDGE_PLUGIN_ID } from '@shared/types/nowledgeMemPlugin'
 import BuiltinKnowledgeSettings from './BuiltinKnowledgeSettings.vue'
 import KnowledgeFile from './KnowledgeFile.vue'
@@ -57,6 +58,10 @@ import SettingsPageShell from './control-center/SettingsPageShell.vue'
 import { settingsLeaveGuard } from '../services/settingsLeaveGuard'
 
 const knowledgeClient = createKnowledgeClient()
+const router = useRouter()
+const nowledgeSettingsRoute = router.hasRoute('plugins-detail')
+  ? { name: 'plugins-detail', params: { pluginId: NOWLEDGE_PLUGIN_ID } }
+  : { name: 'settings-plugins' }
 const enableBuiltinKnowledge = ref(false)
 knowledgeClient.isSupported().then((res) => {
   enableBuiltinKnowledge.value = res

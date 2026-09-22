@@ -32,7 +32,15 @@ redeemed in the main process, once, without writing it to disk or logging it.
 Saving verifies health, an authenticated REST read, MCP initialization and one read-only Mem tool
 call before committing settings. Failed verification leaves the previous connection usable. Saved
 credentials are reusable only for the identical API/MCP destinations. Old destination credentials
-are retained on a switch. Keys and upstream response bodies never appear in diagnostic output.
+are retained on a switch. Unchanged keys reuse their entry; a successful rotation deletes the
+superseded key for that destination. Clear all connections disables the plugin and removes every
+saved connection and retained credential. The bundled official plugin has no uninstall action.
+Keys and upstream response bodies never appear in diagnostic output.
+
+If verification and persistence succeed but plugin activation fails, the saved state is returned
+with an activation warning. The plugin is disabled and partially registered resources are removed;
+re-enabling retries activation without re-saving credentials. Connection state and wrapped keys
+are machine-local: backups omit them, and imports preserve the receiving computer's values.
 
 ## Compatibility
 
@@ -41,8 +49,9 @@ silently choose between different services, overwrite a connection or remove a u
 server. An imported export key is removed from the legacy plaintext setting only after encrypted
 storage succeeds. Users can retire the old MCP entry after checking the new plugin. The old knowledge
 settings entry links to the plugin. Existing export APIs return redacted configuration and direct
-configuration changes to the plugin. Existing conversation serialization and /threads create
-semantics are retained; a matching thread ID and acknowledged message count are required before
+configuration changes to the plugin. Conversation exports use a stable `deepchat-<session-id>`
+thread ID, with the title kept as metadata. The explicitly requested export uses the documented `/threads/import` endpoint for replay-safe
+imports and missing-message appends; a matching thread ID and acknowledged message count are required before
 reporting successful export. The current chat menu has a separate Send to Nowledge Mem action. It
 shows the session title and API destination for confirmation, exports committed messages only, and
 rejects a changed destination before sending. Existing JSON download remains available.
@@ -59,14 +68,16 @@ Plugins > Nowledge Mem
   [Local] [Remote]
   Server URL          [...]
   API key             [Enter replacement / saved]
+  Connect link        [One-time link, remote only]
   Advanced endpoints  [API base] [MCP URL]
   [Verify and save] [Use for exports]
-  Existing connections: [Import export] [Import MCP]
+  Existing connections: one [Load configuration] action per entry
+  [Clear all connections] -> Confirm deletion
 Chat menu > Send to Nowledge Mem > Confirm session and destination > Send
 ```
 
 The settings component owns its draft, busy state, error and dirty guard. It is embedded in the
-existing plugin detail ScrollArea; no window or overlay is added. Inputs have labels, secrets are
+existing plugin detail ScrollArea or the settings-window plugin page; no window or overlay is added. Inputs have labels, secrets are
 password fields, pending operations disable conflicting actions, and discarded drafts are cleared.
 
 ## Acceptance
@@ -79,3 +90,9 @@ password fields, pending operations disable conflicting actions, and discarded d
 - Both standard /mcp and legacy /remote-api/mcp deployments are supported.
 - Packaging includes the plugin on every supported OS/architecture.
 - The manual verification guide covers local/remote success, failure, migration and restart.
+
+Connection labels are translated in Simplified and Traditional Chinese; other locales currently
+use English fallback copy for this feature. Main-process diagnostic errors remain technical text.
+
+Thread import contract: https://mem.nowledge.co/docs/api/threads/import/post. A server without
+this endpoint returns an upgrade error; export never falls back to a non-idempotent create.

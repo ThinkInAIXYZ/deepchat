@@ -11,7 +11,8 @@ import {
   type NowledgeConnection,
   type NowledgeConnectionInput,
   type NowledgePluginState,
-  type NowledgeProfileId
+  type NowledgeProfileId,
+  isNowledgeMachineLocalSetting
 } from '@shared/types/nowledgeMemPlugin'
 import { memHeaders, type NowledgeMemConfig } from '@/exporter/nowledgeMemClient'
 
@@ -77,7 +78,7 @@ export class NowledgeMemConnections {
 
   constructor(
     private readonly settings: SettingsStore,
-    private readonly secrets: Pick<SecretStore, 'get' | 'wrap' | 'setWrapped'>,
+    private readonly secrets: Pick<SecretStore, 'get' | 'wrap' | 'setWrapped' | 'restoreWrapped'>,
     private readonly mcpSettings: Pick<McpSettings, 'getMcpServers'>
   ) {}
 
@@ -192,6 +193,13 @@ export class NowledgeMemConnections {
     this.settings.set(SETTINGS_KEY, { ...state, exportProfile: profile })
   }
 
+  clear(): void {
+    if (this.busy) throw new Error('A connection update is in progress')
+    for (const key of Object.keys(this.settings.store)) {
+      if (isNowledgeMachineLocalSetting(key)) this.settings.delete(key)
+    }
+  }
+
   getMcpConnection(profile: NowledgeProfileId): Partial<MCPServerConfig> | undefined {
     const connection = this.read().connections[profile]
     if (!connection) return undefined
@@ -283,8 +291,17 @@ export class NowledgeMemConnections {
       ) {
         throw new Error('Confirm replacing this connection with the resolved endpoints')
       }
-      const credentialId = apiKey ? `${this.credentialId(endpoints)}.${randomUUID()}` : undefined
-      if (credentialId) this.secrets.setWrapped(credentialId, this.secrets.wrap(apiKey))
+      const destinationKey = this.credentialId(endpoints)
+      const previousCredentialId = state.credentials?.[destinationKey]
+      const reuse = Boolean(
+        previousCredentialId && this.secrets.get(previousCredentialId) === apiKey
+      )
+      const credentialId = apiKey
+        ? reuse
+          ? previousCredentialId
+          : `${destinationKey}.${randomUUID()}`
+        : undefined
+      if (credentialId && !reuse) this.secrets.setWrapped(credentialId, this.secrets.wrap(apiKey))
       const connection: StoredConnection = {
         ...endpoints,
         profile: input.profile,
@@ -292,14 +309,22 @@ export class NowledgeMemConnections {
         verifiedAt: Date.now(),
         ...(credentialId ? { credentialId } : {})
       }
-      this.settings.set(SETTINGS_KEY, {
-        connections: { ...state.connections, [input.profile]: connection },
-        exportProfile: state.exportProfile ?? input.profile,
-        credentials: {
-          ...state.credentials,
-          ...(credentialId ? { [this.credentialId(endpoints)]: credentialId } : {})
-        }
-      })
+      try {
+        this.settings.set(SETTINGS_KEY, {
+          connections: { ...state.connections, [input.profile]: connection },
+          exportProfile: state.exportProfile ?? input.profile,
+          credentials: {
+            ...state.credentials,
+            ...(credentialId ? { [destinationKey]: credentialId } : {})
+          }
+        })
+      } catch (error) {
+        if (credentialId && !reuse) this.secrets.restoreWrapped(credentialId, undefined)
+        throw error
+      }
+      if (previousCredentialId && previousCredentialId !== credentialId) {
+        this.secrets.restoreWrapped(previousCredentialId, undefined)
+      }
       if (input.legacySource === 'export') {
         const legacy = this.settings.get<NowledgeMemConfig>('nowledgeMemConfig')
         if (legacy)

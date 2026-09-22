@@ -117,7 +117,7 @@ describe('Nowledge plugin settings', () => {
     expect(
       (wrapper.get('[data-testid=nowledge-mem-base-url-input]').element as HTMLInputElement).value
     ).toContain('15555')
-    await wrapper.get('input[type=checkbox]').setValue(true)
+    await wrapper.get('[role=checkbox]').trigger('click')
     await wrapper.get('form').trigger('submit')
     await flushPromises()
     expect(client.saveConnection).toHaveBeenCalledWith(
@@ -143,6 +143,22 @@ describe('Nowledge plugin settings', () => {
     expect(wrapper.get('[role=alert]').text()).toContain('HTTP 401')
     expect((wrapper.findAll('input[type=password]')[1].element as HTMLInputElement).value).toBe('')
     expect(wrapper.emitted('saved')).toBeUndefined()
+  })
+
+  it('shows persisted connection state with an activation warning instead of a save failure', async () => {
+    const { wrapper, client } = await setup()
+    const saved = await client.getConnections()
+    client.saveConnection.mockResolvedValueOnce({ ...saved, activationFailed: true })
+    await wrapper.get('[data-testid=nowledge-mem-api-key-input]').setValue('new-key')
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+    expect(wrapper.get('[role=alert]').text()).toBe('settings.nowledgePlugin.activationFailed')
+    expect(wrapper.get('[data-testid=nowledge-mem-api-key-input]').element).toHaveProperty(
+      'value',
+      ''
+    )
+    expect(wrapper.text()).not.toContain('settings.nowledgePlugin.verified')
+    expect(wrapper.emitted('saved')).toHaveLength(1)
   })
 
   it('blocks conflicting actions while verification is pending', async () => {

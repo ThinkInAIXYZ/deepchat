@@ -461,19 +461,30 @@ export class PluginService implements PluginServicePort {
             data: await this.exportNowledgeSession(NowledgeExportInputSchema.parse(_payload))
           }
         }
-        if (actionId === 'nowledge.get')
-          return { ok: true, data: this.toJsonPayload(await this.nowledgeMem.getState()) }
         if (actionId === 'nowledge.save') {
           await this.nowledgeMem.save(_payload)
-          if (this.getInstallation(pluginId)?.enabled) await this.activatePlugin(pluginId)
+          if (this.getInstallation(pluginId)?.enabled) {
+            const activated = await this.enablePlugin(pluginId)
+            if (!activated.ok) {
+              await this.disablePlugin(pluginId)
+              this.activationErrors.set(pluginId, 'Nowledge Mem activation failed')
+            }
+          }
+        } else if (actionId === 'nowledge.clear') {
+          const disabled = await this.disablePlugin(pluginId)
+          if (!disabled.ok) return disabled
+          this.nowledgeMem.clear()
         } else if (actionId === 'nowledge.selectExport') {
           this.nowledgeMem.selectExport(
             NowledgeProfileIdSchema.parse((_payload as { profile?: unknown })?.profile)
           )
-        } else throw new Error('Unknown Nowledge Mem action')
+        } else if (actionId !== 'nowledge.get') throw new Error('Unknown Nowledge Mem action')
         return {
           ok: true,
-          data: this.toJsonPayload(await this.nowledgeMem.getState()),
+          data: this.toJsonPayload({
+            ...(await this.nowledgeMem.getState()),
+            activationFailed: this.activationErrors.has(pluginId)
+          }),
           status: await this.buildPluginListItem(pluginId)
         }
       }

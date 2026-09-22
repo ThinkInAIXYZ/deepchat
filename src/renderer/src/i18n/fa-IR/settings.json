@@ -3426,6 +3426,9 @@
     "sendSession": "Send to Nowledge Mem",
     "sendConfirm": "Send the conversation “{title}” to {url}?",
     "selectTarget": "Verify a connection and select an export destination in Plugins > Nowledge Mem first.",
-    "sent": "Conversation saved to Nowledge Mem"
+    "sent": "Conversation saved to Nowledge Mem",
+    "activationFailed": "Connection saved, but plugin activation failed. The plugin is inactive; enable it again before using MCP.",
+    "clearConnections": "Clear all connections",
+    "clearConfirm": "Disable the plugin and delete local and remote connections, including credentials retained for previous destinations? Memories in Mem and other tools’ connections are not deleted."
   }
 }

@@ -85,10 +85,15 @@
             />
           </div>
         </details>
-        <label v-if="destinationChanged" class="flex items-start gap-2 text-sm">
-          <input v-model="draft.replace" type="checkbox" class="mt-1" />
-          {{ t('settings.nowledgePlugin.replace') }}
-        </label>
+        <div v-if="destinationChanged" class="flex items-start gap-2 text-sm">
+          <Checkbox
+            :id="`${uid}-replace`"
+            v-model:checked="draft.replace"
+            :disabled="busy"
+            class="mt-1"
+          />
+          <Label :for="`${uid}-replace`">{{ t('settings.nowledgePlugin.replace') }}</Label>
+        </div>
         <div class="flex flex-wrap gap-2">
           <DcButton type="submit" :disabled="!canSave" data-testid="nowledge-mem-save-button">{{
             busy ? t('settings.nowledgePlugin.verifying') : t('settings.nowledgePlugin.verifySave')
@@ -112,6 +117,10 @@
       </fieldset>
     </form>
     <p v-if="message" role="status" class="text-sm">{{ message }}</p>
+    <DcInlineError
+      v-if="state?.activationFailed"
+      :error="t('settings.nowledgePlugin.activationFailed')"
+    />
     <div v-if="error" role="alert" class="space-y-2 text-sm text-destructive">
       <p>{{ error }}</p>
       <DcButton v-if="!state" size="sm" variant="outline" :disabled="busy" @click="load">{{
@@ -145,6 +154,25 @@
       </div>
       <p class="text-xs text-muted-foreground">{{ t('settings.nowledgePlugin.legacyHint') }}</p>
     </div>
+    <DcButton
+      v-if="state && Object.keys(state.connections).length"
+      variant="outline"
+      :disabled="busy || dirty"
+      @click="clearOpen = true"
+    >
+      {{ t('settings.nowledgePlugin.clearConnections') }}
+    </DcButton>
+    <DcConfirmDialog
+      v-model:open="clearOpen"
+      :title="t('settings.nowledgePlugin.clearConnections')"
+      :description="t('settings.nowledgePlugin.clearConfirm')"
+      :confirm-label="t('common.confirm')"
+      :busy="busy"
+      danger
+      @confirm="clearConnections"
+    >
+      <DcInlineError v-if="error" :error="error" />
+    </DcConfirmDialog>
   </section>
 </template>
 
@@ -155,6 +183,9 @@ import { useI18n } from 'vue-i18n'
 import { DcButton } from '@dc-ui/components/button'
 import { Input } from '@shadcn/components/ui/input'
 import { Label } from '@shadcn/components/ui/label'
+import { Checkbox } from '@shadcn/components/ui/checkbox'
+import { DcConfirmDialog } from '@dc-ui/components/confirm-dialog'
+import { DcInlineError } from '@dc-ui/components/inline-error'
 import { createNowledgeMemClient } from '@api/NowledgeMemClient'
 import type {
   NowledgeConnectionInput,
@@ -174,6 +205,7 @@ const loading = ref(true)
 const busy = ref(false)
 const error = ref('')
 const message = ref('')
+const clearOpen = ref(false)
 const savedConnection = computed(() => state.value?.connections[profile.value])
 const draft = reactive<NowledgeConnectionInput>({ profile: 'local', baseUrl: '', timeout: 30000 })
 const baseline = ref('')
@@ -255,7 +287,7 @@ async function save() {
   try {
     state.value = await client.saveConnection(input)
     resetDraft()
-    message.value = t('settings.nowledgePlugin.verified')
+    message.value = state.value.activationFailed ? '' : t('settings.nowledgePlugin.verified')
     emit('saved')
   } catch (cause) {
     error.value = cause instanceof Error ? cause.message : t('settings.nowledgePlugin.saveFailed')
@@ -268,6 +300,22 @@ async function selectExport() {
   error.value = ''
   try {
     state.value = await client.selectExport(profile.value)
+  } catch (cause) {
+    error.value = cause instanceof Error ? cause.message : t('settings.nowledgePlugin.saveFailed')
+  } finally {
+    busy.value = false
+  }
+}
+async function clearConnections() {
+  if (busy.value) return
+  busy.value = true
+  error.value = ''
+  try {
+    state.value = await client.clearConnections()
+    resetDraft()
+    message.value = ''
+    clearOpen.value = false
+    emit('saved')
   } catch (cause) {
     error.value = cause instanceof Error ? cause.message : t('settings.nowledgePlugin.saveFailed')
   } finally {

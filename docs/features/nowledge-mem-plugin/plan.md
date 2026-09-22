@@ -13,12 +13,14 @@
 
 ## Validation
 
-- Main-process regression suites: 33 files, 527 tests passed, including actual HTTP MCP verification,
-  destination-bound credentials, import, recovery, conversation exports and packaging contracts.
-- Renderer suites: 5 files, 78 tests passed, including settings drafts, JSON IPC serialization,
+- Main-process regression suites: 42 files, 615 tests passed, including actual HTTP MCP verification,
+  destination-bound credentials, rotation cleanup, sync isolation, activation recovery,
+  idempotent conversation imports and packaging contracts.
+- Renderer suites: 6 files, 82 tests passed, including settings drafts, JSON IPC serialization,
   explicit export confirmation and existing official-plugin pages.
-- Electron smoke: authenticated local REST/MCP, redacted state, failed credential replacement and
-  disable/enable recovery passed against an isolated fixture; the rendered settings were inspected.
+- Electron smoke: all three settings-navigation, knowledge-route and Nowledge-lifecycle tests
+  passed, including real-router navigation, REST/MCP verification, failed key replacement,
+  disable/enable recovery and explicit credential removal. Rendered settings were inspected.
 - Read-only live verification of the existing remote Mem passed through the new host connection
   service (REST authentication, MCP initialization and context read). The temporary probe was
   removed. No remote conversation was uploaded and no CLI/AI-tool configuration was changed.
@@ -27,3 +29,6 @@
   refreshed the provider catalog and ACP registry.
 - Manual checks for real server exports, connect-link issuance, migration from existing user
   settings and full application restart are documented in [verification.md](verification.md).
+
+The exact suite commands are listed in [verification.md](verification.md); the main scope includes
+the complete `test/main/mcp` and `test/main/sync` directories and three packaging-contract files.

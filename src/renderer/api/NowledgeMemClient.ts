@@ -65,6 +65,7 @@ export function createNowledgeMemClient(bridge: DeepchatBridge = getDeepchatBrid
       if (!result.ok) throw new Error(result.error || 'Nowledge export failed')
     },
     getConnections: () => connectionAction('nowledge.get'),
+    clearConnections: () => connectionAction('nowledge.clear'),
     saveConnection: (input: NowledgeConnectionInput) => connectionAction('nowledge.save', input),
     selectExport: (profile: NowledgeProfileId) =>
       connectionAction('nowledge.selectExport', { profile }),

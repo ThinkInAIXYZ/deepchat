@@ -27,6 +27,7 @@ export interface NowledgeConnection {
   hasApiKey: boolean
 }
 export interface NowledgePluginState {
+  activationFailed?: boolean
   connections: Partial<Record<NowledgeProfileId, NowledgeConnection>>
   exportProfile: NowledgeProfileId | null
   legacy: Array<{
@@ -37,6 +38,9 @@ export interface NowledgePluginState {
     hasApiKey: boolean
   }>
 }
+
+export const isNowledgeMachineLocalSetting = (key: string): boolean =>
+  key === 'nowledgeMemPlugin' || key === 'nowledgeMem' || key.startsWith('nowledgeMem.')
 export const nowledgeServerName = (profile: NowledgeProfileId) => `nowledge-mem-${profile}`
 
 export const NowledgeExportInputSchema = z

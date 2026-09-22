@@ -42,6 +42,7 @@ type CreatePluginServiceOptions = {
   resourcesPath?: string
   mcpEnabled?: boolean
   arch?: NodeJS.Architecture
+  nowledgeMem?: unknown
 }
 
 const createPluginService = async (
@@ -109,6 +110,7 @@ const createPluginService = async (
     appPath: options.appPath ?? process.cwd(),
     isPackaged: options.isPackaged,
     resourcesPath: options.resourcesPath,
+    nowledgeMem: options.nowledgeMem,
     mcpSettings,
     mcpService,
     runtimeSupervisor,
@@ -813,6 +815,47 @@ describe('PluginService', () => {
     expect(presenter.__mocks.runtimeSupervisor.reconcilePlugin).toHaveBeenCalledWith(
       fixture.pluginId
     )
+  })
+
+  it('returns saved Nowledge settings with an inactive warning after registration fails', async () => {
+    const pluginId = 'com.deepchat.plugins.nowledge-mem'
+    const fixture = await createDirectoryFixture({ pluginId })
+    const manifestPath = path.join(fixture.pluginRoot, 'plugin.json')
+    const manifest = JSON.parse(await readFile(manifestPath, 'utf8'))
+    manifest.mcpServers = [
+      { id: 'nowledge-mem-local', transport: 'http', connectionProfile: 'local' }
+    ]
+    await writeFile(manifestPath, JSON.stringify(manifest))
+    const state = {
+      connections: { local: { apiBaseUrl: 'http://127.0.0.1:14242' } },
+      exportProfile: 'local',
+      legacy: []
+    }
+    const nowledgeMem = {
+      save: vi.fn().mockResolvedValue(state),
+      getState: vi.fn().mockResolvedValue(state),
+      getMcpConnection: vi.fn().mockReturnValue({ baseUrl: 'http://127.0.0.1:14242/mcp/' })
+    }
+    const presenter = await createPluginService('darwin', { appPath: fixture.appPath, nowledgeMem })
+    expect((await presenter.enablePlugin(pluginId)).ok).toBe(true)
+    presenter.__mocks.mcpSettings.addMcpServer.mockRejectedValueOnce(
+      new Error('registration failed')
+    )
+    const result = await presenter.invokeAction(pluginId, 'nowledge.save', {})
+    expect(result).toMatchObject({
+      ok: true,
+      data: { ...state, activationFailed: true },
+      status: { enabled: false }
+    })
+    expect(await presenter.__mocks.mcpSettings.getMcpServers()).toEqual({})
+    expect(await presenter.invokeAction(pluginId, 'nowledge.get')).toMatchObject({
+      data: { activationFailed: true }
+    })
+    expect((await presenter.enablePlugin(pluginId)).ok).toBe(true)
+    expect(await presenter.invokeAction(pluginId, 'nowledge.get')).toMatchObject({
+      data: { activationFailed: false }
+    })
+    expect(nowledgeMem.save).toHaveBeenCalledOnce()
   })
 
   it('does not commit a partially activated plugin when a later contribution fails', async () => {

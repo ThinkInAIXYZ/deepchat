@@ -81,6 +81,13 @@ function setup(initial: Record<string, unknown> = {}) {
   const data = new Map(Object.entries(initial))
   const encrypted = new Map<string, string>()
   const settings = {
+    get store() {
+      return { ...Object.fromEntries(data), ...Object.fromEntries(encrypted) }
+    },
+    delete: (key: string) => {
+      data.delete(key)
+      encrypted.delete(key)
+    },
     get: (key: string) => data.get(key),
     set: vi.fn((key: string, value: unknown) => {
       data.set(key, structuredClone(value))
@@ -91,6 +98,10 @@ function setup(initial: Record<string, unknown> = {}) {
     wrap: vi.fn((value: string) => `encrypted:${value}`),
     setWrapped: (key: string, wrapped: string) => {
       encrypted.set(key, wrapped.slice('encrypted:'.length))
+    },
+    restoreWrapped: (key: string, wrapped: string | undefined) => {
+      if (wrapped === undefined) encrypted.delete(key)
+      else encrypted.set(key, wrapped.slice('encrypted:'.length))
     }
   }
   const mcp = { getMcpServers: async () => ({}) }
@@ -201,7 +212,7 @@ describe('Nowledge connection contract', () => {
 
   it('does not lose the previous credential when persisting a rotation fails', async () => {
     routeRemoteToFixture()
-    const { service, settings } = setup()
+    const { service, settings, encrypted } = setup()
     await service.save(remote())
     settings.set.mockImplementationOnce(() => {
       throw new Error('Disk full')
@@ -210,6 +221,23 @@ describe('Nowledge connection contract', () => {
       'Disk full'
     )
     expect(service.getExportConfig().apiKey).toBe('remote-key')
+    expect([...encrypted.values()]).toEqual(['remote-key'])
+  })
+
+  it('reuses unchanged keys, removes replaced keys and explicitly clears retained destinations', async () => {
+    routeRemoteToFixture()
+    const { service, encrypted } = setup()
+    await service.save(remote())
+    const original = [...encrypted.keys()]
+    await service.save({ ...remote(), apiKey: '' })
+    expect([...encrypted.keys()]).toEqual(original)
+    await service.save({ ...remote(), apiKey: 'rotated-key' })
+    expect([...encrypted.values()]).toEqual(['rotated-key'])
+    await service.save({ ...remote('https://other.example.test'), replace: true })
+    expect(encrypted.size).toBe(2)
+    service.clear()
+    expect(encrypted.size).toBe(0)
+    expect((await service.getState()).connections).toEqual({})
   })
 
   it('resolves legacy API prefixes only on a missing route, preserving the full MCP prefix', async () => {

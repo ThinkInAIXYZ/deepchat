@@ -1,10 +1,10 @@
 import { NowledgeMemThread } from '@shared/types/nowledgeMem'
 import logger from '@shared/logger'
+import type { SettingsStore } from '@/config/settingsStore'
 export const memHeaders = (apiKey: string): Record<string, string> => ({
   APP: 'DeepChat',
   ...(apiKey ? { Authorization: `Bearer ${apiKey}`, 'X-NMEM-API-Key': apiKey } : {})
 })
-import type { SettingsStore } from '@/config/settingsStore'
 
 export interface NowledgeMemConfig {
   baseUrl: string
@@ -214,13 +214,20 @@ export async function submitNowledgeThread(
       source: thread.source
     })
 
-    const response = await fetch(`${config.baseUrl.replace(/\/+$/, '')}/threads`, {
+    const response = await fetch(`${config.baseUrl.replace(/\/+$/, '')}/threads/import`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         ...memHeaders(config.apiKey ?? '')
       },
-      body: JSON.stringify(thread),
+      body: JSON.stringify({
+        thread_id: thread.thread_id,
+        title: thread.title,
+        source: thread.source,
+        messages: thread.messages,
+        metadata: thread.metadata,
+        expected_message_count: thread.messages.length
+      }),
       signal: AbortSignal.timeout(config.timeout),
       redirect: 'error'
     })
@@ -229,13 +236,19 @@ export async function submitNowledgeThread(
       return {
         success: false,
         status: response.status,
-        error: `Thread export: HTTP ${response.status}`
+        error:
+          response.status === 404
+            ? 'This Mem server does not support idempotent thread imports; update Mem before exporting'
+            : `Thread export: HTTP ${response.status}`
       }
     const data = await response.json().catch(() => null)
-    const ack = data?.thread ?? data
+    const ack = Array.isArray(data?.results) && data.results.length === 1 ? data.results[0] : null
     const acknowledgedId = ack?.thread_id
     const messageCount = ack?.message_count ?? ack?.total_messages
     if (
+      data?.success !== true ||
+      data?.failed_count !== 0 ||
+      ack?.success !== true ||
       acknowledgedId !== thread.thread_id ||
       !Number.isInteger(messageCount) ||
       messageCount < thread.messages.length
