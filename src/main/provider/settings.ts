@@ -405,6 +405,7 @@ export class ProviderSettings implements ProviderSettingsPort {
     // Migrate minimax provider from OpenAI format to Anthropic format
     this.migrateMinimaxProvider()
     this.migrateAnthropicProviderToApiOnly()
+    this.migrateTypesafeSystemOneEndpoint()
     this.cleanupDeprecatedBuiltinProviders()
 
     const existingProviders = this.getSetting<LLM_PROVIDER[]>(PROVIDERS_STORE_KEY) || []
@@ -798,6 +799,27 @@ export class ProviderSettings implements ProviderSettingsPort {
       )
       this.setProviders(filteredProviders)
     }
+  }
+
+  /**
+   * System One used to be configured with the vendor host and the endpoint appended at request time.
+   * The configured URL is now the full endpoint, so an install that stored the bare host would post
+   * judgment calls to the host root — and the connection check would still report healthy, because a
+   * missing sibling catalog is read as "not contradicted". The stored value is exact, so rewrite it.
+   */
+  private migrateTypesafeSystemOneEndpoint(): void {
+    const legacyTypesafe = this.getProviders().find(
+      (provider) => provider.id === 'typesafe' && provider.baseUrl === 'https://api.typesafe.ai'
+    )
+
+    if (!legacyTypesafe) {
+      return
+    }
+
+    this.setProviderById('typesafe', {
+      ...legacyTypesafe,
+      baseUrl: 'https://api.typesafe.ai/v1/systemone'
+    })
   }
 
   private migrateAnthropicProviderToApiOnly(): void {

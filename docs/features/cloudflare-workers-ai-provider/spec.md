@@ -59,6 +59,10 @@ catalog at the endpoint's sibling `models` path.
   `apimart`: discovery is the provider's own, because the `openai` catalog path would ask for a
   `/models` route the OpenAI-compatible endpoint does not serve.
 - Instance selection branches on `provider.apiType === 'workers-ai'` before the AI SDK fallback.
+- `apiType` is a rebuild-required field: a provider operation that flips an existing provider to
+  `workers-ai` drops the live instance instead of reusing it, because an AI SDK provider cannot become
+  a Workers AI provider. Rebuilding on a protocol change keeps the current provider selection, which
+  only an actual disable or removal clears.
 
 ### Chat and embeddings
 
@@ -139,7 +143,8 @@ cannot point elsewhere.
   configuration keeps its api type instead of degrading to `openai-completions`.
 - The import and deeplink allow-lists include `workers-ai`. Imported models are typed per model
   rather than per api type: a model id in the Jev family (the shared `isJevJudgmentModelId` rule) is a
-  judgment model, everything else stays untyped so it remains a chat model in the pickers.
+  judgment model, and everything else is skipped rather than imported untyped — those models reach the
+  pickers through the catalog refresh instead.
 - `ProviderApiConfig` makes the base URL editable for the `cloudflare` provider id.
 - The mark is the existing `assets/llm-icons/cloudflare-color.svg` plus the `cloudflare` and
   `workers-ai` keys in `modelIconRegistry.ts`. It is a brand-colour mark, so it is deliberately not
@@ -181,16 +186,17 @@ cannot point elsewhere.
 
 - A new and an upgraded installation both list a disabled `Cloudflare` provider whose api type is
   `workers-ai`.
-- A custom provider can be created with that protocol and a valid account base URL; connecting it
-  performs the authenticated model search and reports `401` without persisting a broken provider.
+- A provider configuration with api type `workers-ai` can be brought in through the import dialog or a
+  deeplink with a valid account base URL; connecting it performs the authenticated model search,
+  reports `401` for a bad token, and keeps the api type instead of degrading to `openai-completions`.
 - The account's text generation models appear as chat models, its embedding models as embedding
   models, and `typesafe/jev` as a judgment model that is absent from the chat pickers.
 - A judgment call posts the `input` envelope to `{apiRoot}/run` and returns the answers unwrapped
   from `result`.
 - An unset, blank, placeholder, query-bearing or `/v1`-less base URL fails with the documented
   message and issues no request.
-- Importing a provider configuration with api type `workers-ai` keeps the api type, tags its Jev model
-  as a judgment model, and leaves its chat models untyped.
+- Importing a provider configuration with api type `workers-ai` keeps the api type and imports only
+  its Jev judgment model, skipping the models it cannot classify.
 - The Cloudflare mark resolves for the `cloudflare` provider and is not inverted in dark mode.
 
 ## Open questions
@@ -202,19 +208,13 @@ cannot point elsewhere.
   `total_pages` is absent, discovery stops after the first page, which degrades to the seed rather
   than failing.
 - Confirmed against the live API: the catalog does **not** list the third-party judgment model, so
-  discovery alone never yields it. Handled by merging the fixed model id; the remaining uncertainty is
-  only whether Cloudflare later lists it, in which case the catalog entry wins and the merge is a
-  no-op.
+  discovery alone never yields it. Handled by always merging the fixed `typesafe/jev` id — from the
+  bundled seed when there is one, otherwise from the built definition — so a Jev *variant* the catalog
+  lists (for example `jev-latest`) is kept but does not stand in for the id `runJudgment` sends.
 - Whether every `Text Generation` model is served by the OpenAI-compatible endpoint. The docs say
   most are; a model that is not would fail on first use rather than being filtered out.
 - Whether the OpenAI-compatible endpoint accepts image parts for the vision-capable models, which is
   why no `vision` flag is set.
-- `apiType` is not in `REBUILD_REQUIRED_FIELDS`, so a direct provider update that flips an existing
-  provider to `workers-ai` reuses the live instance instead of rebuilding it, and its catalog refresh
-  hits the model-source case that throws until the instance is rebuilt. It is not reachable from the
-  settings UI (only the add flow sets `apiType`) and the import path requests a rebuild; the shape is
-  the same as `apimart`'s and is left as-is rather than widening this change into the provider
-  operation contract.
 - A base URL for Cloudflare's AI Gateway (`gateway.ai.cloudflare.com/.../workers-ai`) is refused by
   the `/accounts/<id>/ai/v1` rule, consistent with the AI Gateway non-goal, but the error text talks
   about the account-URL format rather than about gateways not being supported.

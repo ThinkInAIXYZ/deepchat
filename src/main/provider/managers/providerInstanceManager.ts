@@ -234,7 +234,7 @@ export class ProviderInstanceManager {
     logger.info(`Provider reorder completed, no instance rebuild required`)
   }
 
-  private cleanupProviderInstance(providerId: string): void {
+  private cleanupProviderInstance(providerId: string, preserveCurrent = false): void {
     const activeStreamsToStop = Array.from(this.options.activeStreams.entries()).filter(
       ([, streamState]) => streamState.providerId === providerId
     )
@@ -269,7 +269,9 @@ export class ProviderInstanceManager {
     )
 
     const currentProviderId = this.options.getCurrentProviderId()
-    if (currentProviderId === providerId) {
+    // A protocol rebuild keeps the provider enabled and selected; only an actual removal or disable
+    // should drop the user's current selection.
+    if (!preserveCurrent && currentProviderId === providerId) {
       logger.info(`Clearing current provider as it was disabled: ${providerId}`)
       this.options.setCurrentProviderId(null)
     }
@@ -310,7 +312,7 @@ export class ProviderInstanceManager {
       // instance is dropped instead, and the next lookup builds one for the new api type.
       if (previousApiTypes.get(provider.id) !== provider.apiType) {
         logger.info(`Rebuilding provider instance after a protocol change: ${provider.id}`)
-        this.cleanupProviderInstance(provider.id)
+        this.cleanupProviderInstance(provider.id, true)
         continue
       }
 

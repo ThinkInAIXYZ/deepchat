@@ -277,14 +277,20 @@ export class WorkersAiProvider extends AiSdkProvider {
   /**
    * The judgment model id is fixed and shipped by Workers AI, while the catalog is third-party: it
    * may omit the model, the refresh may fail, and a custom `workers-ai` provider has no bundled seed
-   * at all. None of those may empty the judgment-model slot, so the model is merged back in from the
-   * bundled seed when there is one and from the fixed id when there is not.
+   * at all. None of those may empty the judgment-model slot, so the fixed id is always merged back
+   * in — from the bundled seed when there is one and from the built definition when there is not.
+   * Other Jev-family entries the catalog lists are kept as they are: a variant does not stand in for
+   * the id `runJudgment` sends.
    */
   private withJudgmentModel(models: MODEL_META[]): MODEL_META[] {
-    if (models.some((model) => isJevJudgmentModelId(model.id))) return models
+    const seeded = (this.provider.models ?? []).find(
+      (model) => model.id === WORKERS_AI_JEV_MODEL_ID
+    )
 
-    const seeded = (this.provider.models ?? []).filter((model) => isJevJudgmentModelId(model.id))
-    return [...models, ...(seeded.length > 0 ? seeded : [this.buildJudgmentModel()])]
+    return [
+      ...models.filter((model) => model.id !== WORKERS_AI_JEV_MODEL_ID),
+      seeded ?? this.buildJudgmentModel()
+    ]
   }
 
   private buildJudgmentModel(): MODEL_META {

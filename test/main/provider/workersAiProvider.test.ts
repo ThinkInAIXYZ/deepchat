@@ -227,6 +227,27 @@ describe('WorkersAiProvider', () => {
       ])
     })
 
+    it('keeps the fixed judgment id when the catalog lists a Jev variant instead', async () => {
+      // A variant is not the id `runJudgment` sends, so it cannot satisfy the judgment-model slot.
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockResolvedValue(
+          searchResponse([
+            { name: '@cf/meta/llama-3.1-8b-instruct', task: 'Text Generation' },
+            { name: 'typesafe/jev-latest', task: 'Text Generation' }
+          ])
+        )
+      )
+
+      const models = await createProviderInstance({ models: bundledCatalog }).fetchModels()
+
+      expect(models.map((model) => [model.id, model.type])).toEqual([
+        ['@cf/meta/llama-3.1-8b-instruct', ModelType.Chat],
+        ['typesafe/jev-latest', ModelType.Judgment],
+        ['typesafe/jev', ModelType.Judgment]
+      ])
+    })
+
     it('offers the judgment model even when the catalog cannot be read', async () => {
       vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({ detail: 'boom' }, 500)))
 

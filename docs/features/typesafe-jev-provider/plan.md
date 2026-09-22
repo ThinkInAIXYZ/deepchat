@@ -142,6 +142,12 @@ itself rather than a host with a fixed route appended to it.
       contradicted" for the check, so a vendor without a catalog is still connectable.
 - [x] Move the built-in profile's base URL to `https://api.typesafe.ai/v1/systemone` and label the
       custom-provider option `System One` with no endpoint hint.
+- [x] Migrate a stored `https://api.typesafe.ai` (the bare host a pre-change dev build persisted) to
+      the full endpoint, because the configured URL is now posted verbatim and the connection check
+      reads a missing sibling catalog as "not contradicted", so the old value would look healthy and
+      still post to the host root.
+- [x] Normalize a trailing slash before deriving the catalog path, so `…/v1/systemone/` resolves to
+      the sibling `/v1/models` instead of the child `/v1/systemone/models`.
 
 ## Deferred
 

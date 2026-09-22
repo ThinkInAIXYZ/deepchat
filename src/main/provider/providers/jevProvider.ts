@@ -49,7 +49,9 @@ export function isJevUnsupportedCapabilityError(error: unknown): boolean {
 export function resolveJevCatalogUrl(endpoint: string): string | undefined {
   try {
     const url = new URL(endpoint)
-    const segments = url.pathname.split('/')
+    // A trailing slash would leave an empty last segment and resolve to a child path
+    // (`/v1/systemone/` -> `/v1/systemone/models`) instead of the sibling catalog.
+    const segments = url.pathname.replace(/\/+$/, '').split('/')
     if (segments.length < 2) return undefined
 
     segments[segments.length - 1] = CATALOG_SEGMENT

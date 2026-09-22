@@ -77,8 +77,9 @@ Objective: reach the protocol from the UI and keep imports honest.
       allow-lists keep it, so an imported configuration does not degrade to `openai-completions`.
 - [x] Add `workers-ai` to the import allow-list, the deeplink allow-list, and the import dialog's api
       type label (the `workersAi` locale key, present in all 23 locales).
-- [x] Type imported models per model instead of per api type: a `jev` name is a judgment model, and
-      the rest stay untyped so they remain chat models in the pickers. Caught by the import test.
+- [x] Type imported models per model instead of per api type: a `jev` name is a judgment model and
+      the rest are skipped rather than imported untyped, so they reach the pickers through the
+      catalog refresh. Caught by the import test.
 - [x] Keep the id rule in the shared vocabulary (`isJevJudgmentModelId` in `@shared/jevProtocol`)
       rather than importing the provider module from the import service: that import dragged
       `providerDbLoader` — which reads `app.getPath` at module load — into the route dispatcher's
@@ -141,6 +142,6 @@ Completion condition: all gates pass; no existing provider test changes behaviou
   not would fail on first use rather than being filtered out of the list.
 - Whether the OpenAI-compatible endpoint accepts image parts for the vision-capable models. Until
   that is known, no `vision` flag is set, so those models are usable as text-only chat models.
-- `apiType` is not a rebuild-required field, so a direct (CLI/admin) update that flips a provider to
-  `workers-ai` keeps the live instance and its catalog refresh throws until a rebuild. Same
-  pre-existing shape as `apimart`; not reachable from the settings UI.
+- `apiType` is a rebuild-required field, so a direct (CLI/admin) update that flips a provider to
+  `workers-ai` drops the live instance and the next lookup builds one for the new api type. The
+  rebuild preserves the current provider selection; only a disable or a removal clears it.

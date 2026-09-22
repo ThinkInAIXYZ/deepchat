@@ -119,6 +119,25 @@ describe('JevProvider', () => {
       )
     })
 
+    it('reads the sibling catalog when the configured endpoint ends in a slash', async () => {
+      // A trailing slash must not turn the catalog into the child path `/v1/systemone/models`.
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValue(jsonResponse({ models: [{ name: 'jev-latest' }] }))
+      vi.stubGlobal('fetch', fetchMock)
+
+      await createProviderInstance({
+        baseUrl: 'https://api.typesafe.ai/v1/systemone/'
+      }).fetchModels()
+
+      expect(fetchMock).toHaveBeenCalledWith(
+        'https://api.typesafe.ai/v1/models',
+        expect.objectContaining({
+          headers: expect.objectContaining({ Authorization: 'Bearer test-key' })
+        })
+      )
+    })
+
     it('falls back to the bundled catalog when the live catalog is unavailable or empty', async () => {
       const bundled = [
         {
