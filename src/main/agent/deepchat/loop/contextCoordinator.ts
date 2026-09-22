@@ -674,7 +674,9 @@ export interface ProviderAttemptInput<TSelection> {
    * Injected rather than called directly because it needs the provider runtime and the agent's
    * judgment-model selection, neither of which this coordinator holds. Absent means the feature is
    * off, which is the default. Implementations must return the input array when they decline to
-   * prune, and must not throw — a judgment that cannot be made must leave the messages alone.
+   * prune. A thrown error is caught by the caller, which logs it and keeps every result, so an
+   * implementation that throws on a provider failure is handled — but a judgment that cannot be made
+   * must leave the messages alone rather than degrade them.
    */
   pruneClosedToolResults?(input: {
     messages: ChatMessage[]

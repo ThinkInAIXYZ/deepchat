@@ -92,9 +92,13 @@ export class JevPruningFeedback {
       prunedToolCallId,
       repeatedToolCallId: params.toolCallId
     }
-    const existing = this.misses.get(params.sessionId)
-    if (existing) existing.push(record)
-    else this.misses.set(params.sessionId, [record])
+    // Recorded only while the count can still change a decision. Past the stop it is the same answer
+    // forever, and the map already retains full `toolArgs` strings per entry.
+    if (this.missCount(params.sessionId) < JEV_PRUNING_MAX_MISSES) {
+      const existing = this.misses.get(params.sessionId)
+      if (existing) existing.push(record)
+      else this.misses.set(params.sessionId, [record])
+    }
 
     return true
   }

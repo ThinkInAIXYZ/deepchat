@@ -24,8 +24,8 @@ typed answers and probabilities rather than generating text. `Choice` returns `c
 `Noul` returns a single `noul` probability and no confidence.
 
 This document covers the provider/protocol half of the work. The agent-facing half — the judgment
-model slot and the Jev permission-review backend — is a separate goal in
-`docs/features/agent-judgment-model/`.
+model slot and the two backends that read it (permission review, and later tool-result pruning) — is
+a separate goal in `docs/features/agent-judgment-model/`.
 
 ## Goals
 

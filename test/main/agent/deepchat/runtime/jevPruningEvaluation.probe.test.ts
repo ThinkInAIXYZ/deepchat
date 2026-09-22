@@ -1,4 +1,5 @@
 import { DatabaseSync } from 'node:sqlite'
+import { existsSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
@@ -13,10 +14,19 @@ import {
 import { pruningInvocationSignature } from '@/agent/deepchat/runtime/jevPruningFeedback'
 
 /**
- * TEMPORARY evaluation probe — untracked, not a durable test.
+ * Evaluation harness, not a regression test.
  *
- * Answers the one question the in-process feedback loop cannot: is `keepThreshold` 0.5 anywhere near
- * right for real usage?
+ * It runs a network evaluation against real Session Tape, so it is opt-in twice over: it needs
+ * `TYPESAFE_API_KEY` and `JEV_PRUNING_EVAL=1`, and the tape database it reads has to exist. A plain
+ * `pnpm test` therefore never reaches the network, even on a machine that has the key set, and never
+ * fails on a machine that has no tape.
+ *
+ * It is committed rather than kept as a scratch probe because it is the only evidence behind the
+ * conclusion that the pruning judgement is not good enough, and a conclusion that cannot be re-run
+ * cannot be checked.
+ *
+ * It answers the one question the in-process feedback loop cannot: is `keepThreshold` 0.5 anywhere
+ * near right for real usage?
  *
  * The loop only fires when the agent re-runs a pruned tool, but our own noul criteria say the results
  * worth keeping are exactly the ones where re-running would NOT recover the contents — so the loop is
@@ -39,7 +49,15 @@ import { pruningInvocationSignature } from '@/agent/deepchat/runtime/jevPruningF
 
 const API_KEY = process.env.TYPESAFE_API_KEY
 const MODEL = process.env.TYPESAFE_MODEL ?? 'jev-1.13.0'
-const DB_PATH = path.join(os.homedir(), 'Library/Application Support/DeepChat/app_db/agent.db')
+const TAPE_DB_PATH = path.join(
+  os.homedir(),
+  'Library/Application Support/DeepChat/app_db/agent.db'
+)
+const RUN_EVALUATION = process.env.JEV_PRUNING_EVAL === '1'
+const CAN_RUN =
+  Boolean(API_KEY) && RUN_EVALUATION && existsSync(TAPE_DB_PATH)
+
+const DB_PATH = TAPE_DB_PATH
 const SESSION_LIMIT = Number(process.env.JEV_EVAL_SESSIONS ?? 6)
 const TURN_LIMIT = Number(process.env.JEV_EVAL_TURNS ?? 4)
 
@@ -199,7 +217,7 @@ function distinctiveTokens(content: string): string[] {
   return Array.from(new Set(content.match(/[A-Za-z0-9_./-]{12,}/g) ?? [])).slice(0, 12)
 }
 
-describe.skipIf(!API_KEY)('Jev pruning threshold evaluation', () => {
+describe.skipIf(!CAN_RUN)('Jev pruning threshold evaluation', () => {
   it('measures false drops and wasted keeps against real sessions', async () => {
     const db = new DatabaseSync(DB_PATH, { readOnly: true })
     const sessions = readSessions(db)

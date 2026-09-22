@@ -467,8 +467,9 @@ export interface DeepChatLoopRunnerPorts {
   sessionPermissionPort: SessionPermissionPort
   reviewToolPermission: ToolPermissionReviewer
   /**
-   * Optional Jev-judged pruning of closed tool results. Absent means the feature is off, which is the
-   * default; the coordinator runs it only when the agent has a `toolResultPruningModel` configured.
+   * Optional Jev-judged pruning of closed tool results. Always wired by the harness; whether it does
+   * anything is decided inside the binding, which returns the messages untouched unless the agent has
+   * a `judgmentModel` configured. Absent here means the pass is skipped entirely.
    */
   pruneClosedToolResults?: ClosedToolResultPruner
   hookSink: Pick<RuntimeHookSink, 'scope'>

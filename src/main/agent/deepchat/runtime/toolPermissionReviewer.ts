@@ -233,6 +233,7 @@ async function reviewWithJudgmentModel(
   actionHash: string,
   selection: { providerId: string; modelId: string }
 ): Promise<ToolPermissionReviewResult> {
+  const startedAt = Date.now()
   const fitted = fitJevReviewState({ request, recentMessages: context.messages })
 
   if (!fitted) {
@@ -306,7 +307,8 @@ async function reviewWithJudgmentModel(
     // Raw signals: without these there is no way to tell which gate caused an escalation.
     riskConfidence: signals.riskConfidence,
     authorizationProbability: signals.authorization,
-    injectionProbability: signals.injectionPressure
+    injectionProbability: signals.injectionPressure,
+    latencyMs: Date.now() - startedAt
   })
 
   return decision
