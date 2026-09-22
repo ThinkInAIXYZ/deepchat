@@ -3351,7 +3351,8 @@
       "activation_failed": "無法啟用該執行環境。",
       "unsupported_platform": "目前平台沒有官方執行環境建置。"
     },
-    "ocrPinHint": "OCR 需要官方 Node v24.18.0（ABI 137）。目前執行階段可供聊天和 MCP 使用，但不能用於 OCR。請安裝官方執行階段。"
+    "ocrPinHint": "OCR 需要官方 Node v24.18.0（ABI 137）。目前執行階段可供聊天和 MCP 使用，但不能用於 OCR。請安裝官方執行階段。",
+    "cloudflaredTitle": "cloudflared"
   },
   "userPlugins": {
     "install": "安裝外掛",

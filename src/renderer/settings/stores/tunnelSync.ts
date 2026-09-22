@@ -11,7 +11,9 @@ export const useTunnelSyncStore = defineStore('tunnelSync', () => {
   const error = ref<string | null>(null)
   let refreshing = false
   const transferring = computed(() =>
-    ['pairing', 'downloading', 'verifying', 'importing'].includes(peer.value?.phase ?? '')
+    ['pairing', 'preparing', 'downloading', 'verifying', 'importing'].includes(
+      peer.value?.phase ?? ''
+    )
   )
 
   function errorKey(value: unknown): string {

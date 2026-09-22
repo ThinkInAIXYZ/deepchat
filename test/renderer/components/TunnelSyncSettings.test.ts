@@ -5,8 +5,18 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { defineComponent } from 'vue'
 import TunnelSyncSettings from '../../../src/renderer/settings/components/TunnelSyncSettings.vue'
 import { useTunnelSyncStore } from '../../../src/renderer/settings/stores/tunnelSync'
+import settings from '../../../src/renderer/src/i18n/en-US/settings.json'
 import sync from '../../../src/renderer/src/i18n/en-US/sync.json'
 
+vi.mock('vue-router', () => ({ useRouter: () => ({ push: vi.fn() }) }))
+vi.mock('@api/ToolchainClient', () => ({
+  createToolchainClient: () => ({
+    getStatus: async () => ({
+      cloudflared: { availability: 'ready', selection: { source: 'bundled' } }
+    }),
+    onChanged: () => () => {}
+  })
+}))
 vi.unmock('pinia')
 vi.unmock('vue-i18n')
 
@@ -61,7 +71,7 @@ async function render() {
         createI18n({
           legacy: false,
           locale: 'en',
-          messages: { en: { sync, common: { cancel: 'Cancel' } } }
+          messages: { en: { sync, settings, common: { cancel: 'Cancel' } } }
         })
       ],
       stubs: {
@@ -89,7 +99,7 @@ describe('TunnelSyncSettings', () => {
     const wrapper = await render()
     const overwrite = wrapper
       .findAll('button')
-      .find((button) => button.text() === 'Pull and overwrite')!
+      .find((button) => button.text() === 'Replace local data')!
     await overwrite.trigger('click')
     expect(client.pull).not.toHaveBeenCalled()
     await wrapper.get('[role="alertdialog"] button').trigger('click')
@@ -109,7 +119,7 @@ describe('TunnelSyncSettings', () => {
     client.peerStatus.mockRejectedValue(new Error('sync.tunnel.error.credentialsUnavailable'))
     await useTunnelSyncStore().refresh()
     await flushPromises()
-    const enable = wrapper.findAll('button').find((button) => button.text() === 'Enable host')!
+    const enable = wrapper.findAll('button').find((button) => button.text() === 'Enable sharing')!
     expect(enable.attributes('disabled')).toBeUndefined()
     expect(wrapper.get('[role="alert"]').text()).toContain('Pairing credentials')
   })

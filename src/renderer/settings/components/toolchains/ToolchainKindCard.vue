@@ -149,9 +149,7 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 
-const title = computed(() =>
-  props.kind === 'node' ? t('settings.toolchains.nodeTitle') : t('settings.toolchains.uvTitle')
-)
+const title = computed(() => t(`settings.toolchains.${props.kind}Title`))
 const availabilityLabel = computed(() => {
   const availability = props.status?.availability ?? 'unconfigured'
   return t(`settings.toolchains.availability.${availability}`)

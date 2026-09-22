@@ -1,8 +1,9 @@
 import { spawnSync } from 'node:child_process'
-import { rmSync } from 'node:fs'
+import { chmodSync, copyFileSync, mkdirSync, rmSync } from 'node:fs'
 import path from 'node:path'
 import logger from '@shared/logger'
 import type {
+  ResolvedCloudflaredToolchain,
   ResolvedNodeToolchain,
   ResolvedToolchain,
   ResolvedUvToolchain,
@@ -50,6 +51,8 @@ import {
   managedRootDir
 } from './layout'
 import {
+  probeCloudflared,
+  findOnPath,
   probeCustomNode,
   probeCustomUv,
   probeNodeRoot,
@@ -148,7 +151,7 @@ export class ToolchainService {
 
   gcUnreachableTrees(): void {
     const persisted = this.loadPersisted()
-    const keep = (['node', 'uv'] as const).flatMap((kind) => {
+    const keep = (['node', 'uv', 'cloudflared'] as const).flatMap((kind) => {
       const roots = [managedKindRoot(this.options.userDataDir, kind, catalogVersionFor(kind))]
       const selection = persisted[kind]
       if (selection?.source === 'managed' && selection.version) {
@@ -173,7 +176,10 @@ export class ToolchainService {
       const probed = probeSystemNode(this.env, this.platform)
       return probed.status === 'complete' ? { ...probed.toolchain, source: 'system' } : null
     }
-    const probed = probeSystemUv(this.env, this.platform)
+    const probed =
+      kind === 'cloudflared'
+        ? this.probeCloudflaredSelection({ source: 'system' })
+        : probeSystemUv(this.env, this.platform)
     return probed.status === 'complete' ? { ...probed.toolchain, source: 'system' } : null
   }
 
@@ -203,10 +209,12 @@ export class ToolchainService {
   getStatus(): ToolchainStatusSnapshot {
     const node = this.inspectKind('node')
     const uv = this.inspectKind('uv')
+    const cloudflared = this.inspectKind('cloudflared')
     return {
       node,
       uv,
-      missing: this.mergeMissingNotices(node, uv)
+      cloudflared,
+      missing: this.mergeMissingNotices(node, uv, cloudflared)
     }
   }
 
@@ -239,7 +247,9 @@ export class ToolchainService {
     const bundled =
       kind === 'node'
         ? probeNodeRoot(bundledKindRoot(this.options.appPath, 'node'), this.platform, false)
-        : probeUvRoot(bundledKindRoot(this.options.appPath, 'uv'), this.platform)
+        : kind === 'cloudflared'
+          ? probeCloudflared(bundledKindRoot(this.options.appPath, kind), this.platform)
+          : probeUvRoot(bundledKindRoot(this.options.appPath, 'uv'), this.platform)
     if (bundled.status === 'complete') {
       return this.setSource(kind, { source: 'bundled' })
     }
@@ -253,6 +263,7 @@ export class ToolchainService {
     return true
   }
 
+  resolve(kind: 'cloudflared', options?: ResolveOptions): ResolvedCloudflaredToolchain
   resolve(kind: 'node', options?: ResolveOptions): ResolvedNodeToolchain
   resolve(kind: 'uv', options?: ResolveOptions): ResolvedUvToolchain
   resolve(kind: ToolchainKind, options?: ResolveOptions): ResolvedToolchain
@@ -275,7 +286,11 @@ export class ToolchainService {
 
     try {
       const resolved =
-        kind === 'node' ? this.resolveNode(selection, options.purpose) : this.resolveUv(selection)
+        kind === 'node'
+          ? this.resolveNode(selection, options.purpose)
+          : kind === 'cloudflared'
+            ? this.resolveCloudflared(selection)
+            : this.resolveUv(selection)
       Object.freeze(resolved)
       this.resolvedCache.set(cacheKey, resolved)
       if (trackMissing) this.clearMissing(kind, options.purpose)
@@ -385,6 +400,47 @@ export class ToolchainService {
     return {
       ...probed.toolchain,
       source: selection.source as Exclude<ToolchainSource, 'unconfigured'>
+    }
+  }
+
+  private probeCloudflaredSelection(selection: ToolchainSelection) {
+    let target = ''
+    switch (selection.source) {
+      case 'bundled':
+        target = bundledKindRoot(this.options.appPath, 'cloudflared')
+        break
+      case 'managed':
+        target = managedKindRoot(
+          this.options.userDataDir,
+          'cloudflared',
+          selection.version || catalogVersionFor('cloudflared')
+        )
+        break
+      case 'custom':
+        target = selection.customPath ?? ''
+        break
+      case 'system':
+        target =
+          findOnPath(
+            this.platform === 'win32' ? 'cloudflared.exe' : 'cloudflared',
+            this.env,
+            this.platform
+          ) ?? ''
+        break
+    }
+    return probeCloudflared(target, this.platform)
+  }
+
+  private resolveCloudflared(selection: ToolchainSelection): ResolvedCloudflaredToolchain {
+    const probed = this.probeCloudflaredSelection(selection)
+    if (probed.status !== 'complete')
+      throw new ToolchainResolutionError('cloudflared', 'missing', 'cloudflared is missing')
+    return {
+      ...probed.toolchain,
+      source: selection.source as Exclude<ToolchainSource, 'unconfigured'>,
+      version:
+        selection.version ??
+        (selection.source === 'bundled' ? catalogVersionFor('cloudflared') : null)
     }
   }
 
@@ -508,7 +564,8 @@ export class ToolchainService {
     return {
       schemaVersion: 1,
       node: publicSelection(this.selectionFor('node').selection),
-      uv: publicSelection(this.selectionFor('uv').selection)
+      uv: publicSelection(this.selectionFor('uv').selection),
+      cloudflared: publicSelection(this.selectionFor('cloudflared').selection)
     }
   }
 
@@ -535,6 +592,13 @@ export class ToolchainService {
       }
       return { source: 'unconfigured' }
     }
+    if (kind === 'cloudflared') {
+      if (this.probeCloudflaredSelection({ source: 'bundled' }).status === 'complete')
+        return { source: 'bundled' }
+      if (this.probeCloudflaredSelection({ source: 'system' }).status === 'complete')
+        return { source: 'system' }
+      return { source: 'unconfigured' }
+    }
     const bundled = probeUvRoot(bundledKindRoot(this.options.appPath, 'uv'), this.platform)
     if (bundled.status === 'complete') return { source: 'bundled' }
     if (probeSystemUv(this.env, this.platform).status === 'complete') {
@@ -558,12 +622,13 @@ export class ToolchainService {
 
   private ensureFirstRunPersisted(): void {
     const current = this.loadPersisted()
-    if (current.node && current.uv) return
+    if (current.node && current.uv && current.cloudflared) return
     this.persist(
       {
         schemaVersion: 1,
         node: current.node ?? this.deriveSelection('node'),
-        uv: current.uv ?? this.deriveSelection('uv')
+        uv: current.uv ?? this.deriveSelection('uv'),
+        cloudflared: current.cloudflared ?? this.deriveSelection('cloudflared')
       },
       undefined,
       { silent: true }
@@ -576,10 +641,11 @@ export class ToolchainService {
     const next: ToolchainPersistedState = {
       schemaVersion: 1,
       node: current.node,
-      uv: current.uv
+      uv: current.uv,
+      cloudflared: current.cloudflared
     }
     let changed = false
-    for (const kind of ['node', 'uv'] as const) {
+    for (const kind of ['node', 'uv', 'cloudflared'] as const) {
       const selection = current[kind]
       if (selection?.source !== 'unconfigured' || selection.explicit) continue
       const detected = this.deriveSelection(kind)
@@ -597,7 +663,9 @@ export class ToolchainService {
       {
         schemaVersion: 1,
         node: kind === 'node' ? selection : (current.node ?? { source: 'unconfigured' }),
-        uv: kind === 'uv' ? selection : (current.uv ?? { source: 'unconfigured' })
+        uv: kind === 'uv' ? selection : (current.uv ?? { source: 'unconfigured' }),
+        cloudflared:
+          kind === 'cloudflared' ? selection : (current.cloudflared ?? { source: 'unconfigured' })
       },
       kind
     )
@@ -694,7 +762,17 @@ export class ToolchainService {
       rmSync(extractDir, { recursive: true, force: true })
       this.throwIfInstallCancelled(controller.signal)
       this.setProgress(kind, 'extracting')
-      await this.extract(archivePath, extractDir, controller.signal)
+      if (kind === 'cloudflared' && !artifact.filename.endsWith('.tgz')) {
+        mkdirSync(extractDir, { recursive: true })
+        const executable = path.join(
+          extractDir,
+          this.platform === 'win32' ? 'cloudflared.exe' : 'cloudflared'
+        )
+        copyFileSync(archivePath, executable)
+        chmodSync(executable, 0o755)
+      } else {
+        await this.extract(archivePath, extractDir, controller.signal)
+      }
       this.throwIfInstallCancelled(controller.signal)
       this.controllers.delete(kind)
 
@@ -702,7 +780,9 @@ export class ToolchainService {
       const complete =
         kind === 'node'
           ? probeNodeRoot(payloadRoot, this.platform, true)
-          : probeUvRoot(payloadRoot, this.platform)
+          : kind === 'cloudflared'
+            ? probeCloudflared(payloadRoot, this.platform)
+            : probeUvRoot(payloadRoot, this.platform)
       if (complete.status !== 'complete') {
         throw new ToolchainDownloadError(
           'activation_failed',
@@ -742,7 +822,9 @@ export class ToolchainService {
     const bundled =
       kind === 'node'
         ? probeNodeRoot(bundledKindRoot(this.options.appPath, 'node'), this.platform, false)
-        : probeUvRoot(bundledKindRoot(this.options.appPath, 'uv'), this.platform)
+        : kind === 'cloudflared'
+          ? probeCloudflared(bundledKindRoot(this.options.appPath, kind), this.platform)
+          : probeUvRoot(bundledKindRoot(this.options.appPath, 'uv'), this.platform)
     const managedVersion =
       selection.source === 'managed' && selection.version
         ? selection.version
@@ -754,10 +836,15 @@ export class ToolchainService {
             this.platform,
             true
           )
-        : probeUvRoot(
-            managedKindRoot(this.options.userDataDir, 'uv', managedVersion),
-            this.platform
-          )
+        : kind === 'cloudflared'
+          ? probeCloudflared(
+              managedKindRoot(this.options.userDataDir, kind, managedVersion),
+              this.platform
+            )
+          : probeUvRoot(
+              managedKindRoot(this.options.userDataDir, 'uv', managedVersion),
+              this.platform
+            )
     const system = this.detectSystem(kind)
     let availability: ToolchainKindStatus['availability'] = 'unconfigured'
     let reason: ToolchainResolveReason | null = null
@@ -767,7 +854,11 @@ export class ToolchainService {
 
     if (selection.source !== 'unconfigured') {
       const probed =
-        kind === 'node' ? this.probeNodeSelection(selection) : this.probeUvSelection(selection)
+        kind === 'node'
+          ? this.probeNodeSelection(selection)
+          : kind === 'cloudflared'
+            ? this.probeCloudflaredSelection(selection)
+            : this.probeUvSelection(selection)
       if (probed.status === 'complete') {
         availability = 'ready'
         if (kind === 'node') {
@@ -787,6 +878,10 @@ export class ToolchainService {
         } else if (probed.toolchain.kind === 'uv') {
           resolvedVersion = selection.version ?? probed.toolchain.version
           resolvedPath = probed.toolchain.uv
+        } else if (probed.toolchain.kind === 'cloudflared') {
+          resolvedVersion =
+            selection.version ?? (selection.source === 'bundled' ? catalogVersionFor(kind) : null)
+          resolvedPath = probed.toolchain.cloudflared
         }
       } else {
         availability = probed.status
@@ -806,7 +901,12 @@ export class ToolchainService {
       managedAvailable: managed.status === 'complete',
       system: system
         ? {
-            path: system.kind === 'node' ? system.node : system.uv,
+            path:
+              system.kind === 'node'
+                ? system.node
+                : system.kind === 'uv'
+                  ? system.uv
+                  : system.cloudflared,
             version: system.kind === 'node' ? this.peekNodeVersion(system) : system.version
           }
         : null,
@@ -886,12 +986,17 @@ export class ToolchainService {
   }
 
   private collectMissing(): ToolchainMissingNotice[] {
-    return this.mergeMissingNotices(this.inspectKind('node'), this.inspectKind('uv'))
+    return this.mergeMissingNotices(
+      this.inspectKind('node'),
+      this.inspectKind('uv'),
+      this.inspectKind('cloudflared')
+    )
   }
 
   private mergeMissingNotices(
     node: ToolchainKindStatus,
-    uv: ToolchainKindStatus
+    uv: ToolchainKindStatus,
+    cloudflared: ToolchainKindStatus
   ): ToolchainMissingNotice[] {
     const rank: Record<ToolchainResolveReason, number> = {
       transient: 0,
@@ -911,7 +1016,7 @@ export class ToolchainService {
         byKind.set(kind, reason)
       }
     }
-    for (const status of [node, uv]) {
+    for (const status of [node, uv, cloudflared]) {
       if (status.availability === 'ready') continue
       const reason: ToolchainResolveReason = status.reason ?? 'unconfigured'
       if (reason === 'transient') continue

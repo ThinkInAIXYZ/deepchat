@@ -9,6 +9,7 @@ export const SyncPeerStatusSchema = z.object({
   phase: z.enum([
     'idle',
     'pairing',
+    'preparing',
     'downloading',
     'verifying',
     'importing',

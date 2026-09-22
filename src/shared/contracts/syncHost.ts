@@ -15,6 +15,7 @@ export const SYNC_HOST_HANDSHAKE_PATH = `${SYNC_HOST_PATH_PREFIX}/handshake`
 export const SYNC_HOST_PAIR_PATH = `${SYNC_HOST_PATH_PREFIX}/pair`
 export const SYNC_HOST_STATUS_PATH = `${SYNC_HOST_PATH_PREFIX}/status`
 export const SYNC_HOST_SNAPSHOT_PATH = `${SYNC_HOST_PATH_PREFIX}/snapshot`
+export const SYNC_HOST_PREPARE_PATH = `${SYNC_HOST_PATH_PREFIX}/prepare`
 export const SYNC_HOST_PUSH_PATH = `${SYNC_HOST_PATH_PREFIX}/push`
 export const SYNC_HOST_EVENTS_PATH = `${SYNC_HOST_PATH_PREFIX}/events`
 
@@ -57,7 +58,7 @@ export const SYNC_HOST_SNAPSHOT_ID_HEADER = 'x-deepchat-snapshot-id'
 export const SYNC_HOST_SNAPSHOT_HASH_HEADER = 'x-deepchat-snapshot-sha256'
 export const SYNC_HOST_DEVICE_HEADER = 'x-deepchat-device-id'
 
-export const SyncHostCapabilitySchema = z.enum(['snapshot', 'range', 'push', 'events'])
+export const SyncHostCapabilitySchema = z.enum(['snapshot', 'range', 'prepare', 'push', 'events'])
 export type SyncHostCapability = z.infer<typeof SyncHostCapabilitySchema>
 
 export const SyncHostHandshakeSchema = z.object({
@@ -90,7 +91,9 @@ export type SyncHostSnapshotInfo = z.infer<typeof SyncHostSnapshotInfoSchema>
 
 export const SyncHostStatusSchema = z.object({
   snapshot: SyncHostSnapshotInfoSchema.nullable(),
-  serverTime: z.number().int().nonnegative()
+  serverTime: z.number().int().nonnegative(),
+  preparing: z.boolean().default(false),
+  preparationError: z.string().nullable().default(null)
 })
 export type SyncHostStatus = z.infer<typeof SyncHostStatusSchema>
 

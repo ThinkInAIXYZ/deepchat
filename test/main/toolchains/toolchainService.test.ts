@@ -101,7 +101,8 @@ describe('ToolchainService', () => {
       JSON.parse(readFileSync(path.join(userDataDir, 'toolchains', 'state.json'), 'utf8'))
     ).toMatchObject({
       node: { source: 'system' },
-      uv: { source: 'system' }
+      uv: { source: 'system' },
+      cloudflared: { source: 'unconfigured' }
     })
   })
 
@@ -407,7 +408,8 @@ describe('ToolchainService', () => {
     expect(service.getState()).toEqual({
       schemaVersion: 1,
       node: { source: 'unconfigured' },
-      uv: { source: 'unconfigured' }
+      uv: { source: 'unconfigured' },
+      cloudflared: { source: 'unconfigured' }
     })
     expect(() => service.resolve('node')).toThrow(/not configured/)
     expect(notices.at(-1)).toEqual([{ kind: 'node', reason: 'unconfigured' }])
@@ -415,7 +417,8 @@ describe('ToolchainService', () => {
       JSON.parse(readFileSync(path.join(userDataDir, 'toolchains', 'state.json'), 'utf8'))
     ).toMatchObject({
       node: { source: 'unconfigured' },
-      uv: { source: 'unconfigured' }
+      uv: { source: 'unconfigured' },
+      cloudflared: { source: 'unconfigured' }
     })
 
     const systemRoot = mkdtempSync(path.join(os.tmpdir(), 'dc-sys-'))
@@ -428,7 +431,8 @@ describe('ToolchainService', () => {
     expect(service.getState()).toEqual({
       schemaVersion: 1,
       node: { source: 'system' },
-      uv: { source: 'system' }
+      uv: { source: 'system' },
+      cloudflared: { source: 'unconfigured' }
     })
     expect(service.resolve('node').node).toBe(path.join(systemRoot, 'bin', 'node'))
     expect(service.getStatus().node.derived).toBe(false)
@@ -437,7 +441,8 @@ describe('ToolchainService', () => {
       JSON.parse(readFileSync(path.join(userDataDir, 'toolchains', 'state.json'), 'utf8'))
     ).toMatchObject({
       node: { source: 'system' },
-      uv: { source: 'system' }
+      uv: { source: 'system' },
+      cloudflared: { source: 'unconfigured' }
     })
   })
 
@@ -510,7 +515,8 @@ describe('ToolchainService', () => {
         schemaVersion: 1,
         provisional: true,
         node: { source: 'system' },
-        uv: { source: 'system' }
+        uv: { source: 'system' },
+        cloudflared: { source: 'unconfigured' }
       })
     )
     const service = new ToolchainService({
@@ -523,7 +529,8 @@ describe('ToolchainService', () => {
     expect(service.getState()).toEqual({
       schemaVersion: 1,
       node: { source: 'unconfigured' },
-      uv: { source: 'unconfigured' }
+      uv: { source: 'unconfigured' },
+      cloudflared: { source: 'unconfigured' }
     })
   })
 

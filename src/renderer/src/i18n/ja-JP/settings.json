@@ -3351,7 +3351,8 @@
       "activation_failed": "ランタイムを有効化できませんでした。",
       "unsupported_platform": "このプラットフォームには公式ランタイムがありません。"
     },
-    "ocrPinHint": "OCR には公式 Node v24.18.0（ABI 137）が必要です。このランタイムはチャットと MCP では利用できますが、OCR では使えません。公式ランタイムをインストールしてください。"
+    "ocrPinHint": "OCR には公式 Node v24.18.0（ABI 137）が必要です。このランタイムはチャットと MCP では利用できますが、OCR では使えません。公式ランタイムをインストールしてください。",
+    "cloudflaredTitle": "cloudflared"
   },
   "userPlugins": {
     "install": "プラグインをインストール",

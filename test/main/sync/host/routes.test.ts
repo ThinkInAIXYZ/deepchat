@@ -25,7 +25,11 @@ const STATUS = {
   deviceCount: 2,
   hasSnapshot: true,
   configuredPort: 43117,
-  publishedAt: 1_700_000_000_000
+  publishedAt: 1_700_000_000_000,
+  preparing: false,
+  tunnelConfig: { mode: 'external' as const, publicUrl: '' },
+  hasTunnelToken: false,
+  tunnel: { phase: 'stopped' as const, publicUrl: '', error: null }
 }
 
 const PAIRING = {
@@ -119,7 +123,11 @@ describe('sync host routes', () => {
     await expect(handler({ enabled: false }, context)).resolves.toEqual({
       status: { ...STATUS, enabled: false }
     })
-    expect(setEnabled).toHaveBeenCalledWith(false, { port: undefined, consent: undefined })
+    expect(setEnabled).toHaveBeenCalledWith(false, {
+      port: undefined,
+      consent: undefined,
+      tunnel: undefined
+    })
   })
 
   it('surfaces a setEnabled failure instead of reporting a status', async () => {

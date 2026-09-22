@@ -1,11 +1,16 @@
+import type { SyncTunnelConfig } from '@shared/contracts/routes/syncHost.routes'
 import type { DeepchatBridge } from '@shared/contracts/bridge'
 import { getDeepchatBridge } from './core'
 
 export function createTunnelSyncClient(bridge: DeepchatBridge = getDeepchatBridge()) {
   return {
     hostStatus: () => bridge.invoke('syncHost.getStatus', {}),
-    setEnabled: (enabled: boolean, port?: number, consent?: boolean) =>
-      bridge.invoke('syncHost.setEnabled', { enabled, port, consent }),
+    setEnabled: (
+      enabled: boolean,
+      port?: number,
+      consent?: boolean,
+      tunnel?: SyncTunnelConfig & { token?: string }
+    ) => bridge.invoke('syncHost.setEnabled', { enabled, port, consent, tunnel }),
     publish: () => bridge.invoke('syncHost.publish', {}),
     createCode: () => bridge.invoke('syncHost.createPairingCode', {}),
     devices: () => bridge.invoke('syncHost.listDevices', {}),

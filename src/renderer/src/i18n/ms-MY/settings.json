@@ -3351,7 +3351,8 @@
       "activation_failed": "Runtime tidak dapat diaktifkan.",
       "unsupported_platform": "Platform ini tiada runtime rasmi."
     },
-    "ocrPinHint": "OCR memerlukan Node rasmi v24.18.0 (ABI 137). Runtime ini sedia untuk sembang dan MCP, tetapi bukan OCR. Pasang runtime rasmi."
+    "ocrPinHint": "OCR memerlukan Node rasmi v24.18.0 (ABI 137). Runtime ini sedia untuk sembang dan MCP, tetapi bukan OCR. Pasang runtime rasmi.",
+    "cloudflaredTitle": "cloudflared"
   },
   "userPlugins": {
     "install": "Pasang pemalam",

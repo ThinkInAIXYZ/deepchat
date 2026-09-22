@@ -241,10 +241,6 @@
     },
     {
       "file": "src/renderer/settings/components/DataSettings.vue",
-      "specifier": "@/lib/utils"
-    },
-    {
-      "file": "src/renderer/settings/components/DataSettings.vue",
       "specifier": "@/stores/language"
     },
     {
@@ -564,5 +560,5 @@
       "specifier": "@/i18n/bootstrap"
     }
   ],
-  "settingsToChatAppImportCount": 128
+  "settingsToChatAppImportCount": 127
 }

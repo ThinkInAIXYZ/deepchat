@@ -122,7 +122,7 @@ export function gcUnreachableToolchainTrees(
 ): void {
   const keep = new Set([...keepDirectories].map((directory) => path.resolve(directory)))
   const skipKinds = new Set(options?.skipKinds ?? [])
-  for (const kind of ['node', 'uv'] as const) {
+  for (const kind of ['node', 'uv', 'cloudflared'] as const) {
     if (skipKinds.has(kind)) continue
     const kindRoot = path.join(managedRootDir(userDataDir), kind)
     let entries: string[]

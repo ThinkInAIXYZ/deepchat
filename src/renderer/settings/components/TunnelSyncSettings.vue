@@ -1,83 +1,128 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useIntervalFn } from '@vueuse/core'
 import { storeToRefs } from 'pinia'
 import QRCode from 'qrcode'
 import { useTunnelSyncStore } from '../stores/tunnelSync'
+import { createToolchainClient } from '@api/ToolchainClient'
+import { createDeviceClient } from '@api/DeviceClient'
+import { createBrowserClient } from '@api/BrowserClient'
+import type { ToolchainKindStatus } from '@shared/types/toolchains'
+import type { SyncTunnelConfig } from '@shared/contracts/routes/syncHost.routes'
 import { Input } from '@shadcn/components/ui/input'
 import { Label } from '@shadcn/components/ui/label'
+import { Tabs, TabsList, TabsTrigger } from '@shadcn/components/ui/tabs'
 import { DcButton } from '@dc-ui/components/button'
 import { DcConfirmDialog } from '@dc-ui/components/confirm-dialog'
 
 const { t } = useI18n()
+const router = useRouter()
 const store = useTunnelSyncStore()
 const { host, peer, devices, busy, error, transferring } = storeToRefs(store)
+const tools = createToolchainClient()
+const deviceClient = createDeviceClient()
+const browser = createBrowserClient()
+const toolchain = ref<ToolchainKindStatus | null>(null)
 const port = ref('48632')
+const mode = ref<SyncTunnelConfig['mode']>('quick')
 const publicUrl = ref('')
+const token = ref('')
 const enableDialog = ref(false)
 const overwriteDialog = ref(false)
+const connectForm = ref(false)
 const pairingInput = ref('')
 const deviceName = ref('')
 const renameId = ref<string | null>(null)
 const renameName = ref('')
 const qr = ref('')
+const copied = ref(false)
 const now = ref(Date.now())
+const running = computed(() => Boolean(host.value?.status.enabled))
+const tunnel = computed(() => host.value?.status.tunnel)
+const connectionUrl = computed(() => tunnel.value?.publicUrl ?? '')
+const canConnect = computed(
+  () =>
+    running.value &&
+    connectionUrl.value &&
+    ['connected', 'external'].includes(tunnel.value?.phase ?? '')
+)
 const activePairing = computed(() => {
   const pairing = host.value?.pairing
   return pairing && pairing.expiresAt > now.value ? pairing : null
 })
-const pairingPayload = computed(() => {
-  if (!activePairing.value) return ''
-  try {
-    const url = new URL(publicUrl.value)
-    if (
-      url.protocol !== 'https:' ||
-      url.username ||
-      url.password ||
-      url.pathname !== '/' ||
-      url.search ||
-      url.hash
-    )
-      return ''
-    return JSON.stringify({ hostUrl: url.origin, ...activePairing.value })
-  } catch {
-    return ''
-  }
-})
-let qrRevision = 0
-watch(pairingPayload, async (payload) => {
-  const revision = ++qrRevision
-  qr.value = ''
-  if (payload) {
-    const image = await QRCode.toDataURL(payload, { width: 180, margin: 2 }).catch(() => '')
-    if (revision === qrRevision) qr.value = image
-  }
-})
 watch(
-  () => host.value?.status.configuredPort,
-  (value) => {
-    if (value) port.value = String(value)
+  () => activePairing.value?.code,
+  () => {
+    qr.value = ''
+    copied.value = false
   }
 )
+let hydrated = false
+watch(
+  () => host.value?.status,
+  (status) => {
+    if (!status || hydrated) return
+    hydrated = true
+    if (status.configuredPort) port.value = String(status.configuredPort)
+    if (status.configuredPort || status.enabled) {
+      mode.value = status.tunnelConfig.mode
+      publicUrl.value = status.tunnelConfig.publicUrl
+    }
+  },
+  { immediate: true }
+)
+let stopTools: (() => void) | undefined
+async function refreshTools() {
+  toolchain.value = (await tools.getStatus().catch(() => null))?.cloudflared ?? null
+}
+onMounted(() => {
+  void store.refresh()
+  void refreshTools()
+  stopTools = tools.onChanged(() => void refreshTools())
+})
+onBeforeUnmount(() => stopTools?.())
 useIntervalFn(() => {
   now.value = Date.now()
   void store.refresh()
 }, 2000)
-onMounted(() => {
-  void store.refresh()
-})
 const progressText = computed(() => {
   const bytes = (value: number) => (value / 1024 ** 2).toFixed(1)
   return `${bytes(peer.value?.received ?? 0)} / ${bytes(peer.value?.total ?? 0)} MiB`
 })
+const guideUrl = 'https://developers.cloudflare.com/tunnel/get-started/'
+const serviceUrl = computed(() => `http://127.0.0.1:${port.value}`)
 function startRename(device: { deviceId: string; name: string }) {
   renameId.value = device.deviceId
   renameName.value = device.name
 }
 async function enable() {
-  if (await store.run(() => store.client.setEnabled(true, Number(port.value), true)))
+  if (
+    await store.run(() =>
+      store.client.setEnabled(true, Number(port.value), true, {
+        mode: mode.value,
+        publicUrl: mode.value === 'quick' ? '' : publicUrl.value.trim(),
+        token: mode.value === 'named' ? token.value.trim() || undefined : undefined
+      })
+    )
+  ) {
     enableDialog.value = false
+    token.value = ''
+  }
+}
+async function connection(qrcode = false) {
+  await store.run(async () => {
+    const pairing = activePairing.value ?? (await store.client.createCode()).pairing
+    if (!pairing || !connectionUrl.value) return
+    await store.refresh()
+    const payload = JSON.stringify({ hostUrl: connectionUrl.value, ...pairing })
+    if (qrcode) qr.value = await QRCode.toDataURL(payload, { width: 160, margin: 2 })
+    else {
+      deviceClient.copyText(payload)
+      copied.value = true
+    }
+  })
 }
 async function pair() {
   await store.run(async () => {
@@ -92,9 +137,8 @@ async function pair() {
       typeof input.hostUrl !== 'string' ||
       typeof input.hostId !== 'string' ||
       typeof input.code !== 'string'
-    ) {
+    )
       throw new Error('sync.tunnel.error.invalidPairing')
-    }
     await store.client.pair({ ...input, deviceName: deviceName.value })
     pairingInput.value = ''
   })
@@ -106,258 +150,334 @@ async function overwrite() {
 
 <template>
   <section
-    class="rounded-xl border border-border bg-card/30 p-4"
-    aria-labelledby="tunnel-sync-title"
+    class="space-y-4 text-sm"
+    :aria-label="t('sync.tunnel.title')"
     data-testid="tunnel-sync-section"
   >
-    <h2 id="tunnel-sync-title" class="text-sm font-medium">{{ t('sync.tunnel.title') }}</h2>
-    <p class="mt-2 text-sm text-muted-foreground">{{ t('sync.tunnel.description') }}</p>
-    <p v-if="error" role="alert" class="mt-3 text-sm text-destructive">{{ t(error) }}</p>
-    <div class="mt-5 space-y-4">
-      <h3 class="text-sm font-medium">{{ t('sync.tunnel.host') }}</h3>
-      <div class="flex flex-wrap items-end gap-3">
-        <div class="space-y-2">
-          <Label for="tunnel-port">{{ t('sync.tunnel.port') }}</Label>
-          <Input
-            id="tunnel-port"
-            v-model="port"
-            type="number"
-            min="1"
-            max="65535"
-            class="w-32"
-            :disabled="busy || host?.status.enabled"
-          />
+    <div class="flex flex-wrap items-center justify-between gap-2 border-b border-border pb-3">
+      <p class="text-xs text-muted-foreground">
+        <span class="font-medium text-foreground">cloudflared</span>
+        · {{ t(`settings.toolchains.availability.${toolchain?.availability ?? 'unconfigured'}`) }}
+        <template v-if="toolchain?.availability === 'ready'">
+          · {{ t(`settings.toolchains.sources.${toolchain.selection.source}`) }}
+          {{ toolchain.resolvedVersion }}</template
+        >
+      </p>
+      <DcButton size="sm" variant="ghost" @click="router.push({ name: 'settings-toolchains' })">{{
+        t('sync.tunnel.manageToolchain')
+      }}</DcButton>
+    </div>
+    <p v-if="error" role="alert" class="text-xs text-destructive">{{ t(error) }}</p>
+    <div class="space-y-3">
+      <div class="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <h3 class="font-medium">{{ t('sync.tunnel.host') }}</h3>
+          <p class="mt-1 text-xs text-muted-foreground">{{ t('sync.tunnel.shareHelp') }}</p>
         </div>
         <DcButton
-          v-if="!host?.status.enabled"
-          variant="outline"
-          :disabled="
-            busy ||
-            !host ||
-            !Number.isInteger(Number(port)) ||
-            Number(port) < 1 ||
-            Number(port) > 65535
-          "
-          @click="enableDialog = true"
-          >{{ t('sync.tunnel.enable') }}</DcButton
-        >
-        <DcButton
-          v-else
+          v-if="running"
+          size="sm"
           variant="outline"
           :disabled="busy"
           @click="store.run(() => store.client.setEnabled(false))"
           >{{ t('sync.tunnel.disable') }}</DcButton
         >
-        <span class="text-sm text-muted-foreground" role="status">{{
-          t(host?.status.running ? 'sync.tunnel.running' : 'sync.tunnel.stopped')
-        }}</span>
-      </div>
-      <template v-if="host?.status.running">
-        <p class="text-sm text-muted-foreground">{{ t('sync.tunnel.ingress') }}</p>
-        <code class="block select-text break-all rounded bg-muted p-2 text-xs"
-          >service: http://127.0.0.1:{{ host.status.port }}</code
-        >
-        <details class="text-sm">
-          <summary class="cursor-pointer">{{ t('sync.tunnel.quickTunnel') }}</summary>
-          <code class="mt-2 block select-text break-all rounded bg-muted p-2 text-xs"
-            >cloudflared tunnel --protocol http2 --url http://127.0.0.1:{{ host.status.port }}</code
-          >
-          <p class="mt-2 text-muted-foreground">{{ t('sync.tunnel.quickWarning') }}</p>
-        </details>
-        <div class="flex flex-wrap items-center gap-3">
-          <DcButton
-            variant="outline"
-            :disabled="busy || transferring"
-            @click="store.run(() => store.client.publish())"
-            >{{ t('sync.tunnel.publish') }}</DcButton
-          >
-          <span class="text-sm text-muted-foreground">{{
-            host.status.publishedAt
-              ? t('sync.tunnel.publishedAt', {
-                  time: new Date(host.status.publishedAt).toLocaleString()
-                })
-              : t('sync.tunnel.noSnapshot')
-          }}</span>
-        </div>
-        <p class="text-sm text-muted-foreground">{{ t('sync.tunnel.publishHelp') }}</p>
-        <div class="space-y-2">
-          <Label for="tunnel-public-url">{{ t('sync.tunnel.publicUrl') }}</Label>
-          <Input
-            id="tunnel-public-url"
-            v-model="publicUrl"
-            type="url"
-            placeholder="https://sync.example.com"
-            :disabled="busy"
-          />
-        </div>
         <DcButton
-          variant="outline"
-          :disabled="busy"
-          @click="store.run(() => store.client.createCode())"
-          >{{ t('sync.tunnel.createCode') }}</DcButton
+          v-else
+          size="sm"
+          :disabled="busy || !host || (mode !== 'external' && toolchain?.availability !== 'ready')"
+          @click="enableDialog = true"
+          >{{ t('sync.tunnel.enable') }}</DcButton
         >
-        <div v-if="activePairing" class="space-y-2">
-          <p class="text-sm">
-            {{
-              t('sync.tunnel.codeExpires', {
-                code: activePairing.code,
+      </div>
+      <template v-if="!running">
+        <p
+          v-if="mode !== 'external' && toolchain?.availability !== 'ready'"
+          class="text-xs text-muted-foreground"
+        >
+          {{ t('sync.tunnel.installHelp') }}
+        </p>
+        <Tabs v-model="mode">
+          <TabsList
+            :aria-label="t('sync.tunnel.addressMode')"
+            class="flex h-auto w-fit max-w-full flex-wrap"
+          >
+            <TabsTrigger
+              v-for="option in ['quick', 'named', 'external'] as const"
+              :key="option"
+              :value="option"
+              :disabled="busy"
+              >{{ t(`sync.tunnel.modes.${option}`) }}</TabsTrigger
+            >
+          </TabsList>
+        </Tabs>
+        <p v-if="mode === 'quick'" class="text-xs leading-relaxed text-muted-foreground">
+          {{ t('sync.tunnel.quickHelp') }}
+        </p>
+        <template v-else>
+          <ol
+            v-if="mode === 'named'"
+            class="list-inside list-decimal space-y-1 text-xs leading-relaxed text-muted-foreground"
+          >
+            <li>
+              {{ t('sync.tunnel.domainStepOne') }}
+              <a
+                :href="guideUrl"
+                class="underline underline-offset-2"
+                @click.prevent="browser.openExternal(guideUrl)"
+                >{{ t('sync.tunnel.guide') }}</a
+              >
+            </li>
+            <li>
+              {{ t('sync.tunnel.domainStepTwo') }}
+              <code class="select-all break-all text-foreground">{{ serviceUrl }}</code>
+            </li>
+            <li>{{ t('sync.tunnel.domainStepThree') }}</li>
+          </ol>
+          <p v-else class="text-xs text-muted-foreground">
+            {{ t('sync.tunnel.externalHelp') }}
+            <code class="select-all break-all text-foreground">{{ serviceUrl }}</code>
+          </p>
+          <div class="grid gap-3 sm:grid-cols-2">
+            <div class="space-y-1" :class="mode === 'external' ? 'sm:col-span-2' : ''">
+              <Label for="tunnel-url" class="text-xs">{{ t('sync.tunnel.publicUrl') }}</Label>
+              <Input
+                id="tunnel-url"
+                v-model="publicUrl"
+                :disabled="busy"
+                placeholder="https://sync.example.com"
+                class="h-8!"
+              />
+            </div>
+            <div v-if="mode === 'named'" class="space-y-1">
+              <Label for="tunnel-token" class="text-xs">{{ t('sync.tunnel.tunnelToken') }}</Label>
+              <Input
+                id="tunnel-token"
+                v-model="token"
+                type="password"
+                autocomplete="off"
+                :disabled="busy"
+                :placeholder="host?.status.hasTunnelToken ? t('sync.tunnel.tokenSaved') : ''"
+                class="h-8!"
+              />
+            </div>
+          </div>
+        </template>
+        <details class="text-xs">
+          <summary class="w-fit cursor-pointer text-muted-foreground">
+            {{ t('sync.tunnel.advanced') }}
+          </summary>
+          <div class="mt-2 flex items-center gap-3">
+            <Label for="tunnel-port" class="text-xs">{{ t('sync.tunnel.port') }}</Label>
+            <Input
+              id="tunnel-port"
+              v-model="port"
+              type="number"
+              min="1"
+              max="65535"
+              :disabled="busy"
+              class="h-8! w-28"
+            />
+          </div>
+        </details>
+      </template>
+      <template v-else>
+        <div class="flex flex-wrap items-center gap-2" role="status" aria-live="polite">
+          <span class="text-xs text-muted-foreground">{{
+            t(`sync.tunnel.connector.${tunnel?.phase ?? 'stopped'}`)
+          }}</span>
+          <code v-if="connectionUrl" class="select-all break-all text-xs">{{ connectionUrl }}</code>
+        </div>
+        <p v-if="mode === 'quick'" class="text-xs text-muted-foreground">
+          {{ t('sync.tunnel.quickWarning') }}
+        </p>
+        <p v-if="tunnel?.error" role="alert" class="text-xs text-destructive">
+          {{ t(tunnel.error) }}
+        </p>
+        <div v-if="canConnect" class="space-y-2">
+          <div class="flex flex-wrap items-center gap-2">
+            <DcButton size="sm" variant="outline" :disabled="busy" @click="connection()">{{
+              t(copied ? 'sync.tunnel.copied' : 'sync.tunnel.copyConnection')
+            }}</DcButton>
+            <DcButton size="sm" variant="ghost" :disabled="busy" @click="connection(true)">{{
+              t('sync.tunnel.qrCode')
+            }}</DcButton>
+            <span v-if="activePairing" class="text-xs text-muted-foreground">{{
+              t('sync.tunnel.expires', {
                 time: new Date(activePairing.expiresAt).toLocaleTimeString()
               })
-            }}
+            }}</span>
+          </div>
+          <p class="text-xs text-muted-foreground">{{ t('sync.tunnel.connectionHelp') }}</p>
+          <img v-if="qr" :src="qr" :alt="t('sync.tunnel.qrCode')" width="160" height="160" />
+        </div>
+        <details v-if="devices.length" class="text-xs">
+          <summary class="w-fit cursor-pointer text-muted-foreground">
+            {{ t('sync.tunnel.devices') }} ({{ devices.filter((d) => !d.revoked).length }})
+          </summary>
+          <div
+            v-for="device in devices"
+            :key="device.deviceId"
+            class="mt-2 flex flex-wrap items-center gap-2"
+          >
+            <template v-if="renameId === device.deviceId">
+              <Input
+                v-model="renameName"
+                :aria-label="t('sync.tunnel.deviceName')"
+                maxlength="120"
+                class="h-8! min-w-0 flex-1"
+              />
+              <DcButton
+                size="sm"
+                variant="outline"
+                :disabled="busy || !renameName.trim()"
+                @click="
+                  store.run(async () => {
+                    await store.client.rename(device.deviceId, renameName)
+                    renameId = null
+                  })
+                "
+                >{{ t('common.save') }}</DcButton
+              >
+              <DcButton size="sm" variant="ghost" @click="renameId = null">{{
+                t('common.cancel')
+              }}</DcButton>
+            </template>
+            <template v-else>
+              <span class="min-w-0 flex-1 break-all"
+                >{{ device.name }}
+                <span v-if="device.revoked" class="text-muted-foreground"
+                  >· {{ t('sync.tunnel.revoked') }}</span
+                ></span
+              >
+              <DcButton size="sm" variant="ghost" :disabled="busy" @click="startRename(device)">{{
+                t('sync.tunnel.rename')
+              }}</DcButton>
+              <DcButton
+                v-if="!device.revoked"
+                size="sm"
+                variant="ghost"
+                :disabled="busy"
+                @click="store.run(() => store.client.revoke(device.deviceId))"
+                >{{ t('sync.tunnel.revoke') }}</DcButton
+              >
+            </template>
+          </div>
+        </details>
+      </template>
+    </div>
+    <div class="space-y-3 border-t border-border pt-3">
+      <div class="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <h3 class="font-medium">{{ t('sync.tunnel.peer') }}</h3>
+          <p class="mt-1 text-xs text-muted-foreground">
+            {{ peer?.paired ? peer.hostUrl : t('sync.tunnel.receiveHelp') }}
           </p>
-          <Label v-if="pairingPayload" for="tunnel-pairing-payload">{{
+        </div>
+        <DcButton
+          v-if="!peer?.paired"
+          size="sm"
+          variant="outline"
+          :disabled="busy || transferring"
+          @click="connectForm = !connectForm"
+          >{{ t('sync.tunnel.pair') }}</DcButton
+        >
+        <DcButton
+          v-else
+          size="sm"
+          :disabled="busy || transferring"
+          @click="store.run(() => store.client.pull('increment'))"
+          >{{ t('sync.tunnel.pull') }}</DcButton
+        >
+      </div>
+      <div v-if="!peer?.paired && connectForm" class="space-y-3">
+        <div class="space-y-1">
+          <Label for="tunnel-pairing-input" class="text-xs">{{
             t('sync.tunnel.pairingPayload')
           }}</Label>
           <textarea
-            v-if="pairingPayload"
-            id="tunnel-pairing-payload"
-            :value="pairingPayload"
-            readonly
-            rows="4"
-            class="w-full select-text rounded-md border border-input bg-background p-2 text-xs"
-          />
-          <img
-            v-if="qr"
-            :src="qr"
-            :alt="t('sync.tunnel.pairingPayload')"
-            width="180"
-            height="180"
-          />
-        </div>
-      </template>
-      <div v-if="devices.length" class="space-y-2">
-        <h4 class="text-sm font-medium">{{ t('sync.tunnel.devices') }}</h4>
-        <div
-          v-for="device in devices"
-          :key="device.deviceId"
-          class="flex flex-wrap items-center gap-2 border-t border-border py-2"
-        >
-          <template v-if="renameId === device.deviceId">
-            <Input
-              v-model="renameName"
-              :aria-label="t('sync.tunnel.deviceName')"
-              maxlength="120"
-              class="w-48"
-            />
-            <DcButton
-              variant="outline"
-              :disabled="busy || !renameName.trim()"
-              @click="
-                store.run(async () => {
-                  await store.client.rename(device.deviceId, renameName)
-                  renameId = null
-                })
-              "
-              >{{ t('common.save') }}</DcButton
-            >
-            <DcButton variant="ghost" @click="renameId = null">{{ t('common.cancel') }}</DcButton>
-          </template>
-          <template v-else>
-            <span class="min-w-0 flex-1 break-all text-sm"
-              >{{ device.name
-              }}<span class="block text-xs text-muted-foreground">{{
-                device.revoked
-                  ? t('sync.tunnel.revoked')
-                  : device.lastSeenAt
-                    ? t('sync.tunnel.lastSeen', {
-                        time: new Date(device.lastSeenAt).toLocaleString()
-                      })
-                    : t('sync.tunnel.neverSeen')
-              }}</span></span
-            >
-            <DcButton variant="ghost" :disabled="busy" @click="startRename(device)">{{
-              t('sync.tunnel.rename')
-            }}</DcButton>
-            <DcButton
-              v-if="!device.revoked"
-              variant="outline"
-              :disabled="busy"
-              @click="store.run(() => store.client.revoke(device.deviceId))"
-              >{{ t('sync.tunnel.revoke') }}</DcButton
-            >
-          </template>
-        </div>
-      </div>
-    </div>
-    <div class="mt-6 space-y-4 border-t border-border pt-5">
-      <h3 class="text-sm font-medium">{{ t('sync.tunnel.peer') }}</h3>
-      <template v-if="!peer?.paired">
-        <div class="space-y-2">
-          <Label for="tunnel-pairing-input">{{ t('sync.tunnel.pairingPayload') }}</Label>
-          <textarea
             id="tunnel-pairing-input"
             v-model="pairingInput"
-            rows="4"
+            rows="2"
             :disabled="busy || transferring"
             class="w-full rounded-md border border-input bg-background p-2 text-xs"
           />
         </div>
-        <div class="space-y-2">
-          <Label for="tunnel-device-name">{{ t('sync.tunnel.deviceName') }}</Label>
-          <Input
-            id="tunnel-device-name"
-            v-model="deviceName"
-            maxlength="120"
-            :disabled="busy || transferring"
-          />
+        <div class="flex flex-wrap items-end gap-2">
+          <div class="min-w-0 flex-1 space-y-1">
+            <Label for="tunnel-device-name" class="text-xs">{{
+              t('sync.tunnel.deviceName')
+            }}</Label>
+            <Input
+              id="tunnel-device-name"
+              v-model="deviceName"
+              maxlength="120"
+              :disabled="busy || transferring"
+              class="h-8!"
+            />
+          </div>
+          <DcButton
+            size="sm"
+            :disabled="busy || transferring || !pairingInput.trim() || !deviceName.trim()"
+            @click="pair"
+            >{{ t('sync.tunnel.confirmConnect') }}</DcButton
+          >
         </div>
-        <DcButton
-          variant="outline"
-          :disabled="busy || transferring || !pairingInput.trim() || !deviceName.trim()"
-          @click="pair"
-          >{{ t('sync.tunnel.pair') }}</DcButton
+      </div>
+      <template v-if="peer?.paired">
+        <div
+          role="status"
+          aria-live="polite"
+          class="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground"
         >
-      </template>
-      <template v-else>
-        <p class="break-all text-sm">{{ peer.hostUrl }}</p>
-        <p class="text-xs text-muted-foreground">{{ peer.hostId }}</p>
-        <p class="text-sm text-muted-foreground">{{ t('sync.tunnel.incrementHelp') }}</p>
-        <p class="text-sm text-muted-foreground">{{ t('sync.tunnel.encryptionHelp') }}</p>
-        <div class="flex flex-wrap gap-2">
-          <DcButton
-            variant="outline"
-            :disabled="busy || transferring"
-            @click="store.run(() => store.client.pull('increment'))"
-            >{{ t('sync.tunnel.pull') }}</DcButton
-          >
-          <DcButton
-            variant="outline"
-            :disabled="busy || transferring"
-            @click="overwriteDialog = true"
-            >{{ t('sync.tunnel.overwrite') }}</DcButton
-          >
-          <DcButton
-            variant="ghost"
-            :disabled="busy || transferring"
-            @click="store.run(() => store.client.forget())"
-            >{{ t('sync.tunnel.forget') }}</DcButton
-          >
+          <span>{{ t(`sync.tunnel.phase.${peer.phase}`) }}</span>
+          <span v-if="peer.lastSuccessAt">{{
+            t('sync.tunnel.lastSuccess', { time: new Date(peer.lastSuccessAt).toLocaleString() })
+          }}</span>
           <DcButton
             v-if="transferring"
-            variant="outline"
+            size="sm"
+            variant="ghost"
             :disabled="peer.phase === 'importing'"
             @click="store.run(() => store.client.cancel())"
             >{{ t('common.cancel') }}</DcButton
           >
         </div>
-        <div role="status" aria-live="polite" class="space-y-2 text-sm">
-          <p>{{ t(`sync.tunnel.phase.${peer.phase}`) }}</p>
-          <template v-if="transferring && peer.total">
-            <progress
-              :value="peer.received"
-              :max="peer.total"
-              :aria-label="t('sync.tunnel.pull')"
-              class="h-2 w-full"
-            />
-            <p class="text-muted-foreground">{{ progressText }}</p>
-          </template>
-          <p v-if="peer.lastSuccessAt" class="text-muted-foreground">
-            {{
-              t('sync.tunnel.lastSuccess', { time: new Date(peer.lastSuccessAt).toLocaleString() })
-            }}
-          </p>
+        <div v-if="transferring && peer.total" class="space-y-1 text-xs text-muted-foreground">
+          <progress
+            :value="peer.received"
+            :max="peer.total"
+            :aria-label="t('sync.tunnel.pull')"
+            class="h-1.5 w-full"
+          />
+          <p>{{ progressText }}</p>
         </div>
-        <p v-if="peer.error" role="alert" class="text-sm text-destructive">{{ t(peer.error) }}</p>
+        <p v-if="peer.error" role="alert" class="text-xs text-destructive">{{ t(peer.error) }}</p>
+        <p class="text-xs leading-relaxed text-muted-foreground">
+          {{ t('sync.tunnel.incrementHelp') }}
+        </p>
+        <details class="text-xs">
+          <summary class="w-fit cursor-pointer text-muted-foreground">
+            {{ t('sync.tunnel.moreOptions') }}
+          </summary>
+          <p class="my-2 text-muted-foreground">{{ t('sync.tunnel.encryptionHelp') }}</p>
+          <div class="flex flex-wrap gap-2">
+            <DcButton
+              size="sm"
+              variant="outline"
+              :disabled="busy || transferring"
+              @click="overwriteDialog = true"
+              >{{ t('sync.tunnel.overwrite') }}</DcButton
+            >
+            <DcButton
+              size="sm"
+              variant="ghost"
+              :disabled="busy || transferring"
+              @click="store.run(() => store.client.forget())"
+              >{{ t('sync.tunnel.forget') }}</DcButton
+            >
+          </div>
+        </details>
       </template>
     </div>
     <DcConfirmDialog

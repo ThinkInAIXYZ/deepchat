@@ -3351,7 +3351,8 @@
       "activation_failed": "런타임을 활성화할 수 없습니다.",
       "unsupported_platform": "이 플랫폼에는 공식 런타임이 없습니다."
     },
-    "ocrPinHint": "OCR에는 공식 Node v24.18.0(ABI 137)이 필요합니다. 이 런타임은 채팅과 MCP에는 사용할 수 있지만 OCR에는 사용할 수 없습니다. 공식 런타임을 설치하세요."
+    "ocrPinHint": "OCR에는 공식 Node v24.18.0(ABI 137)이 필요합니다. 이 런타임은 채팅과 MCP에는 사용할 수 있지만 OCR에는 사용할 수 없습니다. 공식 런타임을 설치하세요.",
+    "cloudflaredTitle": "cloudflared"
   },
   "userPlugins": {
     "install": "플러그인 설치",

@@ -6,20 +6,11 @@
     data-testid="settings-toolchains-page"
   >
     <ToolchainKindCard
-      kind="node"
-      :status="snapshot?.node ?? null"
-      :busy="busyKind === 'node'"
-      @change-source="changeSource"
-      @install="runInstall"
-      @repair="runRepair"
-      @revert="runRevert"
-      @pick-custom="runPickCustom"
-      @cancel="runCancel"
-    />
-    <ToolchainKindCard
-      kind="uv"
-      :status="snapshot?.uv ?? null"
-      :busy="busyKind === 'uv'"
+      v-for="kind in TOOLCHAIN_KINDS"
+      :key="kind"
+      :kind="kind"
+      :status="snapshot?.[kind] ?? null"
+      :busy="busyKind === kind"
       @change-source="changeSource"
       @install="runInstall"
       @repair="runRepair"
@@ -31,6 +22,7 @@
 </template>
 
 <script setup lang="ts">
+import { TOOLCHAIN_KINDS } from '@shared/types/toolchains'
 import { onBeforeUnmount, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type {

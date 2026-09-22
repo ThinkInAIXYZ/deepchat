@@ -218,7 +218,6 @@ export const GENERATED_ICON_WHITELIST: Record<GeneratedIconCollectionKey, readon
     'search-x',
     'send',
     'server',
-    'server-cog',
     'server-off',
     'settings',
     'settings-2',

@@ -553,7 +553,7 @@ describe('DataSettings', () => {
   it('switches cloud sync setup to custom S3-compatible fields', async () => {
     const { wrapper } = await setup()
 
-    await wrapper.get('[data-testid="cloud-provider-custom"]').trigger('click')
+    await wrapper.get('[data-testid="cloud-provider-custom"]').trigger('keydown', { key: 'Enter' })
     await nextTick()
 
     expect(wrapper.get('[data-testid="cloud-provider-custom"]').text()).toContain(
@@ -567,7 +567,7 @@ describe('DataSettings', () => {
   it('falls back a blank custom S3 region to auto when saving cloud config', async () => {
     const { wrapper, syncStore } = await setup()
 
-    await wrapper.get('[data-testid="cloud-provider-custom"]').trigger('click')
+    await wrapper.get('[data-testid="cloud-provider-custom"]').trigger('keydown', { key: 'Enter' })
     await nextTick()
     await wrapper.get('#cloud-endpoint').setValue('https://minio.example.com/')
     await wrapper.get('#cloud-bucket').setValue('deepchat')

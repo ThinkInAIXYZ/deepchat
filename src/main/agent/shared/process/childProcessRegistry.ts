@@ -8,7 +8,7 @@ import { terminateProcessTreeByPid } from './processTree'
 const RECORD_VERSION = 1
 const DEFAULT_MAX_RECORD_AGE_MS = 7 * 24 * 60 * 60 * 1000
 
-export type ChildProcessSubsystem = 'background-exec' | 'mcp-stdio' | 'acp-agent'
+export type ChildProcessSubsystem = 'background-exec' | 'mcp-stdio' | 'acp-agent' | 'sync-tunnel'
 
 export interface ChildProcessLaunchRecord {
   version: number

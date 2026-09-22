@@ -1324,9 +1324,8 @@ export async function createMainProcessControl(dependencies: {
     providerDatabase,
     publishDeepchatEvent
   )
-  syncPeerService = new SyncPeerService({
-    directory: path.join(app.getPath('userData'), 'sync-peer'),
-    protectToken: (token) => {
+  const syncTokenStorage = {
+    protectToken: (token: string) => {
       if (
         !safeStorage.isEncryptionAvailable() ||
         (process.platform === 'linux' && safeStorage.getSelectedStorageBackend() === 'basic_text')
@@ -1335,7 +1334,11 @@ export async function createMainProcessControl(dependencies: {
       }
       return safeStorage.encryptString(token).toString('base64')
     },
-    revealToken: (wrapped) => safeStorage.decryptString(Buffer.from(wrapped, 'base64')),
+    revealToken: (wrapped: string) => safeStorage.decryptString(Buffer.from(wrapped, 'base64'))
+  }
+  syncPeerService = new SyncPeerService({
+    directory: path.join(app.getPath('userData'), 'sync-peer'),
+    ...syncTokenStorage,
     isLocalDatabaseEncrypted: () => Boolean(mainDatabase.getDatabasePassword()),
     importSnapshot: (filePath, mode) => {
       if (databaseMaintenanceState !== 'running') throw new Error('sync.tunnel.error.busy')
@@ -1345,6 +1348,9 @@ export async function createMainProcessControl(dependencies: {
     }
   })
   syncHostService = new SyncHostService({
+    resolveCloudflared: () => toolchainService.resolve('cloudflared').cloudflared,
+    ...syncTokenStorage,
+
     createBackup: () => {
       if (databaseMaintenanceState !== 'running') throw new Error('sync.tunnel.error.busy')
       return syncService.createHostBackup()

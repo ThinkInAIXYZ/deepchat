@@ -1,6 +1,10 @@
 import { statSync } from 'node:fs'
 import path from 'node:path'
-import type { ResolvedNodeToolchain, ResolvedUvToolchain } from '@shared/types/toolchains'
+import type {
+  ResolvedCloudflaredToolchain,
+  ResolvedNodeToolchain,
+  ResolvedUvToolchain
+} from '@shared/types/toolchains'
 import {
   inferNodeRootFromExecutable,
   inferUvRootFromExecutable,
@@ -246,4 +250,28 @@ function isExistingDirectory(directory: string): boolean {
 
 function fileIfExists(filePath: string): string | null {
   return isExistingFile(filePath) ? filePath : null
+}
+
+export function probeCloudflared(
+  customPath: string,
+  platform: NodeJS.Platform
+):
+  | { status: 'complete'; toolchain: Omit<ResolvedCloudflaredToolchain, 'source'> }
+  | { status: 'missing' } {
+  if (!path.isAbsolute(customPath) || customPath.includes('\0')) return { status: 'missing' }
+  const executable = isExistingDirectory(customPath)
+    ? path.join(customPath, platform === 'win32' ? 'cloudflared.exe' : 'cloudflared')
+    : customPath
+  if (!isExistingFile(executable)) return { status: 'missing' }
+  const rootDir = path.dirname(executable)
+  return {
+    status: 'complete',
+    toolchain: {
+      kind: 'cloudflared',
+      cloudflared: executable,
+      version: null,
+      rootDir,
+      binDir: rootDir
+    }
+  }
 }

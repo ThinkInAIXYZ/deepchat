@@ -65,6 +65,7 @@ export const ToolchainStatusSnapshotSchema = z
   .object({
     node: ToolchainKindStatusSchema,
     uv: ToolchainKindStatusSchema,
+    cloudflared: ToolchainKindStatusSchema,
     missing: z.array(ToolchainMissingNoticeSchema).max(8)
   })
   .strict()
@@ -73,7 +74,8 @@ const ToolchainStateSchema = z
   .object({
     schemaVersion: z.literal(1),
     node: ToolchainSelectionSchema,
-    uv: ToolchainSelectionSchema
+    uv: ToolchainSelectionSchema,
+    cloudflared: ToolchainSelectionSchema
   })
   .strict()
 

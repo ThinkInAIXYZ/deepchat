@@ -10,13 +10,13 @@ export const runtimeVersionsPath = path.join(repositoryRoot, 'resources', 'runti
 
 const supportedPlatforms = new Set(['darwin', 'linux', 'win32'])
 const supportedArchitectures = new Set(['arm64', 'x64'])
-const supportedRuntimeTypes = new Set(['node', 'rtk', 'uv'])
+const supportedRuntimeTypes = new Set(['node', 'rtk', 'uv', 'cloudflared'])
 const supportedToolchainManifestSchemas = new Set([2, 3])
 const sha256Pattern = /^[a-f0-9]{64}$/
 
 export function loadRuntimeVersions(manifestPath = runtimeVersionsPath) {
   const parsed = JSON.parse(readFileSync(manifestPath, 'utf8'))
-  const requiredKeys = ['tinyRuntimeInjector', 'node', 'uv', 'rtk']
+  const requiredKeys = ['tinyRuntimeInjector', 'node', 'uv', 'rtk', 'cloudflared']
 
   if (!supportedToolchainManifestSchemas.has(parsed.schemaVersion)) {
     throw new Error(`Unsupported runtime version manifest schema: ${parsed.schemaVersion}`)
@@ -34,11 +34,10 @@ export function loadRuntimeVersions(manifestPath = runtimeVersionsPath) {
     for (const arch of supportedArchitectures) {
       const target = `${platform}-${arch}`
       const artifact = parsed.nodeArtifacts[target]
-      if (
-        !artifact ||
-        !sha256Pattern.test(artifact.executableSha256)
-      ) {
-        throw new Error(`Runtime version manifest has invalid Node integrity metadata for ${target}`)
+      if (!artifact || !sha256Pattern.test(artifact.executableSha256)) {
+        throw new Error(
+          `Runtime version manifest has invalid Node integrity metadata for ${target}`
+        )
       }
       nodeArtifacts[target] = Object.freeze({
         executableSha256: artifact.executableSha256
@@ -51,6 +50,8 @@ export function loadRuntimeVersions(manifestPath = runtimeVersionsPath) {
     node: parsed.node,
     uv: parsed.uv,
     rtk: parsed.rtk,
+    cloudflared: parsed.cloudflared,
+    cloudflaredArtifacts: parsed.cloudflaredArtifacts,
     nodeArtifacts: Object.freeze(nodeArtifacts)
   })
 }
@@ -98,7 +99,14 @@ export function parseRuntimeInstallArgs(argv) {
 }
 
 function parseRuntimeTypes(value) {
-  const types = [...new Set(value.split(',').map((item) => item.trim()).filter(Boolean))]
+  const types = [
+    ...new Set(
+      value
+        .split(',')
+        .map((item) => item.trim())
+        .filter(Boolean)
+    )
+  ]
   if (types.length === 0 || types.some((type) => !supportedRuntimeTypes.has(type))) {
     throw new Error(`Unsupported runtime type selection: ${value}`)
   }
@@ -131,6 +139,9 @@ export function buildRuntimeInstallPlan({
     runtimes.push({ type: 'rtk', version: versions.rtk })
   }
 
+  if (versions.cloudflaredArtifacts?.[`${platform}-${arch}`])
+    runtimes.push({ type: 'cloudflared', version: versions.cloudflared })
+
   runtimes = types
     ? runtimes.filter(({ type }) => types.includes(type))
     : runtimes.filter(({ type }) => type !== 'node')
@@ -138,39 +149,55 @@ export function buildRuntimeInstallPlan({
     throw new Error(`No selected runtimes are available for ${platform}-${arch}`)
   }
 
-  return runtimes.map(({ type, version }) => ({
-    command: 'pnpm',
-    args: [
-      'dlx',
-      `tiny-runtime-injector@${versions.tinyRuntimeInjector}`,
-      '--type',
-      type,
-      '--dir',
-      path.join(rootDir, 'runtime', type),
-      '--runtime-version',
-      version,
-      '--arch',
-      arch,
-      '--platform',
-      platform
-    ],
-    type,
-    version,
-    platform,
-    arch,
-    ...(type === 'node'
+  return runtimes.map(({ type, version }) =>
+    type === 'cloudflared'
       ? {
-          executablePath: path.join(
-            rootDir,
-            'runtime',
-            'node',
-            ...(platform === 'win32' ? ['node.exe'] : ['bin', 'node'])
-          ),
-          expectedExecutableSha256: versions.nodeArtifacts[`${platform}-${arch}`]
-            .executableSha256
+          command: process.execPath,
+          args: [
+            path.join(repositoryRoot, 'scripts', 'install-cloudflared.mjs'),
+            platform,
+            arch,
+            path.join(rootDir, 'runtime', type)
+          ],
+          type,
+          version,
+          platform,
+          arch
         }
-      : {})
-  }))
+      : {
+          command: 'pnpm',
+          args: [
+            'dlx',
+            `tiny-runtime-injector@${versions.tinyRuntimeInjector}`,
+            '--type',
+            type,
+            '--dir',
+            path.join(rootDir, 'runtime', type),
+            '--runtime-version',
+            version,
+            '--arch',
+            arch,
+            '--platform',
+            platform
+          ],
+          type,
+          version,
+          platform,
+          arch,
+          ...(type === 'node'
+            ? {
+                executablePath: path.join(
+                  rootDir,
+                  'runtime',
+                  'node',
+                  ...(platform === 'win32' ? ['node.exe'] : ['bin', 'node'])
+                ),
+                expectedExecutableSha256:
+                  versions.nodeArtifacts[`${platform}-${arch}`].executableSha256
+              }
+            : {})
+        }
+  )
 }
 
 async function sha256File(filePath) {

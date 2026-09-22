@@ -108,7 +108,7 @@ export function isNodeVersionInCompatRange(version: string): boolean {
 }
 
 export function catalogVersionFor(kind: ToolchainKind): string {
-  return kind === 'node' ? NODE_PIN : UV_PIN
+  return kind === 'node' ? NODE_PIN : kind === 'uv' ? UV_PIN : runtimeVersions.cloudflared
 }
 
 export function resolveToolchainArtifact(
@@ -125,14 +125,21 @@ export function resolveToolchainArtifact(
 
   const target = `${platform}-${arch}`
   const pin = catalogVersionFor(kind)
-  const archive = (kind === 'node' ? NODE_ARCHIVES[pin] : UV_ARCHIVES[pin])?.[target]
+  const cloudflaredArchives: Record<string, { filename: string; sha256: string }> =
+    runtimeVersions.cloudflaredArtifacts
+  const archive =
+    kind === 'cloudflared'
+      ? cloudflaredArchives[target]
+      : (kind === 'node' ? NODE_ARCHIVES[pin] : UV_ARCHIVES[pin])?.[target]
   if (!archive) throw unsupportedPlatform(kind, platform, arch)
 
   const version = catalogVersionFor(kind)
   const officialUrl =
-    kind === 'node'
-      ? `${NODE_OFFICIAL_DIST}${NODE_PIN}/${archive.filename}`
-      : `https://github.com/astral-sh/uv/releases/download/${UV_PIN}/${archive.filename}`
+    kind === 'cloudflared'
+      ? `https://github.com/cloudflare/cloudflared/releases/download/${pin}/${archive.filename}`
+      : kind === 'node'
+        ? `${NODE_OFFICIAL_DIST}${NODE_PIN}/${archive.filename}`
+        : `https://github.com/astral-sh/uv/releases/download/${UV_PIN}/${archive.filename}`
 
   return {
     kind,

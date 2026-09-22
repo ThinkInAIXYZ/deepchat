@@ -39,7 +39,8 @@ describe('toolchain routes', () => {
       state: {
         schemaVersion: 1,
         node: { source: 'unconfigured' },
-        uv: { source: 'unconfigured' }
+        uv: { source: 'unconfigured' },
+        cloudflared: { source: 'unconfigured' }
       }
     })
   })
@@ -68,7 +69,8 @@ describe('toolchain routes', () => {
       state: {
         schemaVersion: 1,
         node: { source: 'unconfigured' },
-        uv: { source: 'unconfigured' }
+        uv: { source: 'unconfigured' },
+        cloudflared: { source: 'unconfigured' }
       }
     })
   })

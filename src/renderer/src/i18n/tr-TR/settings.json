@@ -3351,7 +3351,8 @@
       "activation_failed": "Çalışma zamanı etkinleştirilemedi.",
       "unsupported_platform": "Bu platform için resmi bir çalışma zamanı yok."
     },
-    "ocrPinHint": "OCR resmi Node v24.18.0 (ABI 137) gerektirir. Bu çalışma zamanı sohbet ve MCP için hazırdır, OCR için değildir. Resmi çalışma zamanını yükleyin."
+    "ocrPinHint": "OCR resmi Node v24.18.0 (ABI 137) gerektirir. Bu çalışma zamanı sohbet ve MCP için hazırdır, OCR için değildir. Resmi çalışma zamanını yükleyin.",
+    "cloudflaredTitle": "cloudflared"
   },
   "userPlugins": {
     "install": "Eklenti yükle",

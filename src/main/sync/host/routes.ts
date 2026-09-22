@@ -61,7 +61,8 @@ export function createSyncHostRoutes(deps: { host: SyncHostRoutePort }): Deepcha
         const input = syncHostSetEnabledRoute.input.parse(rawInput)
         const status = await deps.host.setEnabled(input.enabled, {
           port: input.port,
-          consent: input.consent
+          consent: input.consent,
+          tunnel: input.tunnel
         })
         return syncHostSetEnabledRoute.output.parse({ status })
       }

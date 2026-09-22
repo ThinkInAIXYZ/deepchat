@@ -51,7 +51,7 @@ describe('tunnel sync transfer boundary', () => {
     })
   }
 
-  async function publish(encrypted = false): Promise<void> {
+  async function writeBackup(encrypted = false): Promise<void> {
     fileName = `backup-${Date.now()}.zip`
     bytes = Buffer.from(
       zipSync({
@@ -60,6 +60,10 @@ describe('tunnel sync transfer boundary', () => {
       })
     )
     await writeFile(path.join(root, 'backups', fileName), bytes)
+  }
+
+  async function publish(encrypted = false): Promise<void> {
+    await writeBackup(encrypted)
     await host.publishSnapshot()
   }
 
@@ -74,9 +78,12 @@ describe('tunnel sync transfer boundary', () => {
   }
 
   async function settled(): Promise<void> {
-    await vi.waitFor(async () => {
-      expect(['completed', 'failed', 'cancelled']).toContain((await peer.getStatus()).phase)
-    })
+    await vi.waitFor(
+      async () => {
+        expect(['completed', 'failed', 'cancelled']).toContain((await peer.getStatus()).phase)
+      },
+      { timeout: 5000 }
+    )
   }
 
   beforeEach(async () => {
@@ -128,6 +135,20 @@ describe('tunnel sync transfer boundary', () => {
     expect(requests).toEqual([])
   })
 
+  it('prepares data on the first sync without manual publication and rejects anonymous preparation', async () => {
+    await writeBackup()
+    expect((await host.getStatus()).hasSnapshot).toBe(false)
+    expect((await fetch(hostOrigin + '/sync/v1/prepare', { method: 'POST' })).status).toBe(401)
+    expect((await host.getStatus()).hasSnapshot).toBe(false)
+    await pair()
+    await peer.pull('increment')
+    await settled()
+    expect(imported).toHaveLength(1)
+    expect(imported[0].equals(bytes)).toBe(true)
+    expect(requests.filter((request) => request.path.endsWith('/prepare'))).toHaveLength(1)
+    expect((await peer.getStatus()).lastSuccessAt).toBeTypeOf('number')
+  })
+
   it('requires consent and preserves a published snapshot when export fails', async () => {
     await host.setEnabled(false)
     await expect(host.setEnabled(true, { port: Number(new URL(hostOrigin).port) })).rejects.toThrow(
@@ -137,13 +158,13 @@ describe('tunnel sync transfer boundary', () => {
     await host.setEnabled(true, { port: Number(new URL(hostOrigin).port), consent: true })
     await publish()
     await pair()
-    const original = bytes
     exportFailure = true
     await expect(host.publishSnapshot()).rejects.toThrow('export failed')
     await peer.pull('increment')
     await settled()
-    expect(imported).toEqual([original])
-    expect((await peer.getStatus()).lastSuccessAt).toBeTypeOf('number')
+    expect(imported).toEqual([])
+    expect((await peer.getStatus()).error).toBe('sync.tunnel.error.prepareFailed')
+    expect((await host.getStatus()).hasSnapshot).toBe(true)
     const state = JSON.parse(await readFile(path.join(root, 'peer', 'pairing.json'), 'utf8'))
     expect(state.token).toBeUndefined()
     expect(state.wrappedToken).toBeTypeOf('string')
@@ -195,6 +216,7 @@ describe('tunnel sync transfer boundary', () => {
     expect(requests.some((request) => request.range === `bytes=${partial.size}-`)).toBe(true)
     expect(imported).toEqual([bytes])
     expect((await peer.getStatus()).phase).toBe('completed')
+    expect(requests.filter((request) => request.path.endsWith('/prepare'))).toHaveLength(1)
   })
 
   it('rejects a snapshot switch between status and download, then accepts a fresh retry', async () => {

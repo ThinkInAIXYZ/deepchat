@@ -2,10 +2,12 @@ import { createHash, randomBytes } from 'node:crypto'
 import { createReadStream } from 'node:fs'
 import { mkdir, open, readFile, rename, rm, stat, statfs } from 'node:fs/promises'
 import path from 'node:path'
+import { setTimeout as delay } from 'node:timers/promises'
 import { z } from 'zod'
 import {
   SYNC_HOST_HANDSHAKE_PATH,
   SYNC_HOST_PAIR_PATH,
+  SYNC_HOST_PREPARE_PATH,
   SYNC_HOST_PROTOCOL_VERSION,
   SYNC_HOST_STATUS_PATH,
   SYNC_HOST_SNAPSHOT_PATH,
@@ -228,7 +230,7 @@ export class SyncPeerService {
     await this.pairingTask?.catch(() => undefined)
   }
 
-  private async checkHost(hostUrl: string, hostId: string, signal: AbortSignal): Promise<void> {
+  private async checkHost(hostUrl: string, hostId: string, signal: AbortSignal) {
     const handshake = SyncHostHandshakeSchema.parse(
       await this.json(hostUrl + SYNC_HOST_HANDSHAKE_PATH, { signal })
     )
@@ -238,6 +240,7 @@ export class SyncPeerService {
       !handshake.capabilities.includes('snapshot')
     )
       fail('unsupportedHost')
+    return handshake
   }
 
   private async json(url: string, init: RequestInit): Promise<unknown> {
@@ -295,7 +298,7 @@ export class SyncPeerService {
   private async transfer(mode: 'increment' | 'overwrite', signal: AbortSignal): Promise<void> {
     const pairing = await this.readPairing()
     if (!pairing) fail('notPaired')
-    await this.checkHost(pairing.hostUrl, pairing.hostId, signal)
+    const handshake = await this.checkHost(pairing.hostUrl, pairing.hostId, signal)
     let token: string
     try {
       token = this.deps.revealToken(pairing.wrappedToken)
@@ -304,9 +307,42 @@ export class SyncPeerService {
     }
     if (!token) fail('credentialsUnavailable')
     const headers = { authorization: `Bearer ${token}` }
-    const { snapshot } = SyncHostStatusSchema.parse(
+    let status = SyncHostStatusSchema.parse(
       await this.json(pairing.hostUrl + SYNC_HOST_STATUS_PATH, { headers, signal })
     )
+    let existing = ''
+    try {
+      existing = await readFile(this.file('snapshot.json'), 'utf8')
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+    }
+    const resumable =
+      status.snapshot &&
+      existing ===
+        JSON.stringify({
+          hostUrl: pairing.hostUrl,
+          hostId: pairing.hostId,
+          snapshot: status.snapshot
+        }) &&
+      (await stat(this.file('snapshot.part'))
+        .then((value) => value.size > 0 && value.size <= status.snapshot!.size)
+        .catch(() => false))
+    if (!resumable && handshake.capabilities.includes('prepare')) {
+      this.progress.phase = 'preparing'
+      await this.json(pairing.hostUrl + SYNC_HOST_PREPARE_PATH, { method: 'POST', headers, signal })
+      const deadline = Date.now() + 10 * 60_000
+      do {
+        status = SyncHostStatusSchema.parse(
+          await this.json(pairing.hostUrl + SYNC_HOST_STATUS_PATH, { headers, signal })
+        )
+        if (!status.preparing) break
+        if (Date.now() > deadline) fail('prepareFailed')
+        await delay(1000, undefined, { signal })
+      } while (status.preparing)
+      if (status.preparationError) fail('prepareFailed')
+    }
+    this.progress.phase = 'downloading'
+    const { snapshot } = status
     if (!snapshot) fail('noSnapshot')
     if (snapshot.databaseEncrypted) fail('encryptedSnapshot')
     if (mode === 'overwrite' && this.deps.isLocalDatabaseEncrypted())
@@ -321,12 +357,6 @@ export class SyncPeerService {
     )
       fail('invalidResponse')
     const identity = JSON.stringify({ hostUrl: pairing.hostUrl, hostId: pairing.hostId, snapshot })
-    let existing = ''
-    try {
-      existing = await readFile(this.file('snapshot.json'), 'utf8')
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
-    }
     if (existing !== identity) {
       await this.clearPartial()
       await this.writePrivate('snapshot.json', JSON.parse(identity))

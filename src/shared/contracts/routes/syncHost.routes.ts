@@ -2,6 +2,18 @@ import { z } from 'zod'
 import { SyncHostAuditEntrySchema, SyncHostDeviceViewSchema } from '../syncHost'
 import { defineRouteContract } from '../common'
 
+export const SyncTunnelConfigSchema = z.object({
+  mode: z.enum(['quick', 'named', 'external']),
+  publicUrl: z.string().max(2048).default('')
+})
+export type SyncTunnelConfig = z.infer<typeof SyncTunnelConfigSchema>
+export const SyncTunnelStatusSchema = z.object({
+  phase: z.enum(['stopped', 'starting', 'connected', 'external', 'failed']),
+  publicUrl: z.string(),
+  error: z.string().nullable()
+})
+export type SyncTunnelStatus = z.infer<typeof SyncTunnelStatusSchema>
+
 const SyncHostStatusViewSchema = z.object({
   enabled: z.boolean(),
   running: z.boolean(),
@@ -10,7 +22,11 @@ const SyncHostStatusViewSchema = z.object({
   deviceCount: z.number().int().nonnegative(),
   hasSnapshot: z.boolean(),
   configuredPort: z.number().int().min(0).max(65535),
-  publishedAt: z.number().nullable()
+  publishedAt: z.number().nullable(),
+  preparing: z.boolean().default(false),
+  tunnelConfig: SyncTunnelConfigSchema.default({ mode: 'external', publicUrl: '' }),
+  hasTunnelToken: z.boolean().default(false),
+  tunnel: SyncTunnelStatusSchema.default({ phase: 'stopped', publicUrl: '', error: null })
 })
 
 const SyncHostPairingViewSchema = z.object({
@@ -33,7 +49,8 @@ export const syncHostSetEnabledRoute = defineRouteContract({
   input: z.object({
     enabled: z.boolean(),
     port: z.number().int().min(1).max(65535).optional(),
-    consent: z.boolean().optional()
+    consent: z.boolean().optional(),
+    tunnel: SyncTunnelConfigSchema.extend({ token: z.string().max(8192).optional() }).optional()
   }),
   output: z.object({
     status: SyncHostStatusViewSchema

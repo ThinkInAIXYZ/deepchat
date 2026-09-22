@@ -16,6 +16,7 @@ import {
   SYNC_HOST_PROTOCOL_NAME,
   SYNC_HOST_PROTOCOL_VERSION,
   SYNC_HOST_PUSH_PATH,
+  SYNC_HOST_PREPARE_PATH,
   SYNC_HOST_RATE_LIMIT_MAX_KEYS,
   SYNC_HOST_RATE_LIMIT_REQUESTS_PER_WINDOW,
   SYNC_HOST_RATE_LIMIT_WINDOW_MS,
@@ -43,6 +44,7 @@ const HANDLED_PATHS = new Set([
   SYNC_HOST_STATUS_PATH,
   SYNC_HOST_SNAPSHOT_PATH,
   SYNC_HOST_PUSH_PATH,
+  SYNC_HOST_PREPARE_PATH,
   SYNC_HOST_EVENTS_PATH
 ])
 
@@ -51,6 +53,8 @@ export interface SyncHostEndpointLogger {
 }
 
 export interface SyncHostEndpointDeps {
+  prepare?: () => void
+  preparation?: () => { preparing: boolean; preparationError: string | null }
   devices: SyncHostDeviceStore
   pairing: SyncHostPairingAuthority
   snapshotSource: SyncHostSnapshotSource
@@ -239,7 +243,7 @@ export class SyncHostEndpoint {
           protocolVersion: SYNC_HOST_PROTOCOL_VERSION,
           hostId: this.deps.getHostId(),
           appVersion: this.deps.getAppVersion(),
-          capabilities: HOST_CAPABILITIES,
+          capabilities: this.deps.prepare ? [...HOST_CAPABILITIES, 'prepare'] : HOST_CAPABILITIES,
           encryption: { payload: 'none', transport: 'tls' }
         })
         const bytes = this.respondJson(response, 200, payload)
@@ -284,6 +288,22 @@ export class SyncHostEndpoint {
       if (method !== 'GET' && method !== 'POST') {
         this.respondJson(response, 405, { error: 'method_not_allowed' })
         this.audit({ method, path, status: 405, bytes: 0, deviceId: device.deviceId, clientIp })
+        return
+      }
+
+      if (path === SYNC_HOST_PREPARE_PATH) {
+        if (method !== 'POST' || !this.deps.prepare) {
+          this.respondJson(response, 405, { error: 'method_not_allowed' })
+          return
+        }
+        const read = await this.readBody(request, 0)
+        if (!read.ok) {
+          this.respondJson(response, 413, { error: 'payload_too_large' })
+          return
+        }
+        this.deps.prepare()
+        const bytes = this.respondJson(response, 202, { accepted: true })
+        this.audit({ method, path, status: 202, bytes, deviceId: device.deviceId, clientIp })
         return
       }
 
@@ -420,6 +440,7 @@ export class SyncHostEndpoint {
             databaseEncrypted: snapshot.databaseEncrypted
           }
         : null,
+      ...this.deps.preparation?.(),
       serverTime: Date.now()
     })
     const bytes = this.respondJson(response, 200, payload)
