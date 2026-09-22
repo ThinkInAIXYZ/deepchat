@@ -373,7 +373,9 @@ describe('WorkersAiProvider', () => {
         // The run-API root instead of the OpenAI-compatible base: chat would not work with it.
         'https://api.cloudflare.com/client/v4/accounts/test-account/ai',
         // A query or fragment would be spliced into the request path.
-        'https://api.cloudflare.com/client/v4/accounts/test-account/ai/v1?foo=1'
+        'https://api.cloudflare.com/client/v4/accounts/test-account/ai/v1?foo=1',
+        // Cleartext transport: the bearer token must not travel unencrypted.
+        'http://api.cloudflare.com/client/v4/accounts/test-account/ai/v1'
       ]) {
         await expect(
           createProviderInstance({ baseUrl }).runJudgment({
@@ -385,6 +387,27 @@ describe('WorkersAiProvider', () => {
       }
 
       expect(fetchMock).not.toHaveBeenCalled()
+    })
+
+    it('accepts plain HTTP for a loopback host, which is what a local proxy uses', async () => {
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValue(jsonResponse({ model: 'jev-1.13.0', answers: {} }))
+      vi.stubGlobal('fetch', fetchMock)
+
+      await expect(
+        createProviderInstance({
+          baseUrl: 'http://localhost:8787/client/v4/accounts/test-account/ai/v1'
+        }).runJudgment({
+          model: 'typesafe/jev',
+          state: {},
+          questions: { q: { type: 'noul', instructions: 'Is this true?' } }
+        })
+      ).resolves.toMatchObject({ model: 'jev-1.13.0' })
+
+      expect(fetchMock.mock.calls[0][0]).toBe(
+        'http://localhost:8787/client/v4/accounts/test-account/ai/run'
+      )
     })
   })
 

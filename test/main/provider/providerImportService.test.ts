@@ -936,9 +936,10 @@ describe('ProviderImportService', () => {
     }
   )
 
-  it('leaves imported Workers AI chat models untyped while tagging its judgment model', async () => {
-    // Workers AI is a mixed catalog: only its Jev model is a decision model. Tagging the whole
-    // catalog as judgment would hide every chat model from the chat pickers.
+  it('imports only the Workers AI judgment model and skips the models it cannot classify', async () => {
+    // Workers AI is a mixed catalog, and an imported source carries no task metadata, so nothing here
+    // can tell an embedding model from a chat model. An untyped model reads as chat, which would put
+    // an embedding model in the chat pickers until the provider's own refresh classifies it.
     homeDir = createHome()
     writeFile(
       path.join(homeDir, '.hermes/config.yaml'),
@@ -989,9 +990,8 @@ describe('ProviderImportService', () => {
     const calls = (providerSettings.addCustomModel as any).mock.calls
     const chatModel = calls.find(
       ([, model]: [string, { id: string }]) => model.id === '@cf/meta/llama-3.1-8b-instruct'
-    )?.[1]
-    expect(chatModel).toBeDefined()
-    expect(chatModel).not.toHaveProperty('type')
+    )
+    expect(chatModel).toBeUndefined()
   })
 
   it('preserves existing custom provider metadata when updating by fingerprint', async () => {

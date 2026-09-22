@@ -85,12 +85,25 @@ export function isJevNoulAnswer(answer: JevAnswer): answer is JevNoulAnswer {
   return answer.type === 'noul'
 }
 
+/** The model namespace Cloudflare serves Jev under, and the bare family name. */
+const JEV_MODEL_NAMESPACE = 'typesafe/jev'
+const JEV_MODEL_FAMILY = 'jev'
+
 /**
  * Whether a model id belongs to the Jev family. Jev models are judgment models wherever they are
  * served — TypeSafe's own catalog, Cloudflare Workers AI's catalog, or an imported configuration —
  * and the id is what carries that across all three, so the rule lives in the shared vocabulary
  * rather than in one transport.
+ *
+ * Matching is on the namespace or the family prefix rather than on any occurrence of `jev`: a
+ * substring rule would claim an unrelated vendor's model that merely has those letters in its name.
  */
 export function isJevJudgmentModelId(modelId: string): boolean {
-  return modelId.toLowerCase().includes('jev')
+  const normalized = modelId.trim().toLowerCase()
+  return (
+    normalized === JEV_MODEL_NAMESPACE ||
+    normalized === JEV_MODEL_FAMILY ||
+    normalized.startsWith(`${JEV_MODEL_FAMILY}-`) ||
+    normalized.startsWith(`${JEV_MODEL_NAMESPACE}-`)
+  )
 }

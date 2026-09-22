@@ -281,6 +281,11 @@ export class ProviderInstanceManager {
 
   private replaceProviders(providers: LLM_PROVIDER[]): void {
     const nextProviders = new Map(providers.map((provider) => [provider.id, provider]))
+    // Snapshot before `this.providers` is replaced below: a protocol change is decided by comparing
+    // the api type an existing instance was built for with the incoming one.
+    const previousApiTypes = new Map(
+      Array.from(this.providers, ([id, provider]) => [id, provider.apiType])
+    )
 
     for (const providerId of Array.from(this.providerInstances.keys())) {
       const nextProvider = nextProviders.get(providerId)
@@ -296,12 +301,23 @@ export class ProviderInstanceManager {
 
     for (const provider of providers) {
       const instance = this.providerInstances.get(provider.id)
-      if (instance) {
-        try {
-          instance.updateConfig(provider)
-        } catch (error) {
-          console.error(`Failed to update provider config ${provider.id}:`, error)
-        }
+      if (!instance) {
+        continue
+      }
+
+      // A protocol change cannot be applied to a live instance: an AI SDK provider cannot become a
+      // Workers AI provider, and the reverse would keep the old protocol's routing overrides. The
+      // instance is dropped instead, and the next lookup builds one for the new api type.
+      if (previousApiTypes.get(provider.id) !== provider.apiType) {
+        logger.info(`Rebuilding provider instance after a protocol change: ${provider.id}`)
+        this.cleanupProviderInstance(provider.id)
+        continue
+      }
+
+      try {
+        instance.updateConfig(provider)
+      } catch (error) {
+        console.error(`Failed to update provider config ${provider.id}:`, error)
       }
     }
 

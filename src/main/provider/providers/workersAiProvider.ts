@@ -30,6 +30,9 @@ const RUN_PATH = '/run'
 const MODEL_SEARCH_PATH = '/models/search'
 const JUDGMENT_TIMEOUT_MS = 30_000
 
+/** Hosts for which plain HTTP is accepted: a proxy on this machine cannot be reached over TLS. */
+const LOOPBACK_HOSTNAMES = new Set(['localhost', '127.0.0.1', '[::1]'])
+
 /** Cloudflare's model search is paginated; the catalog is well under this ceiling today. */
 const MODEL_SEARCH_PAGE_SIZE = 100
 const MAX_MODEL_SEARCH_PAGES = 5
@@ -337,6 +340,13 @@ export class WorkersAiProvider extends AiSdkProvider {
     try {
       url = new URL(raw)
     } catch {
+      throw new Error(WORKERS_AI_BASE_URL_ERROR)
+    }
+
+    // The bearer token must not travel in cleartext, so the transport is HTTPS. HTTP is allowed only
+    // for a loopback host, which is what a local proxy or a tunnel on this machine uses.
+    const isLoopback = LOOPBACK_HOSTNAMES.has(url.hostname.toLowerCase())
+    if (url.protocol !== 'https:' && !(url.protocol === 'http:' && isLoopback)) {
       throw new Error(WORKERS_AI_BASE_URL_ERROR)
     }
 
