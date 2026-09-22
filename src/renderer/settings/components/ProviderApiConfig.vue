@@ -461,9 +461,7 @@ watch(
 
     if (
       !storedApiKey ||
-      !['ppio', 'openrouter', 'siliconcloud', 'silicon', 'deepseek', '302ai', 'cherryin'].includes(
-        providerId
-      )
+      !['ppio', 'openrouter', 'deepseek', '302ai', 'cherryin'].includes(providerId)
     ) {
       return
     }
