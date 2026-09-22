@@ -316,10 +316,11 @@ describe('SessionLifecycle', () => {
     async (kind) => {
       const harness = createHarness()
       harness.getRuntime('session-1').snapshot.mockResolvedValue({
-        status: 'working',
+        status: 'generating',
         providerId: 'runtime-provider',
-        modelId: 'runtime-model'
-      })
+        modelId: 'runtime-model',
+        permissionMode: 'default'
+      } satisfies DeepChatSessionState)
       const input = {
         agentId: 'acp-agent',
         message: 'Hello',
@@ -334,7 +335,7 @@ describe('SessionLifecycle', () => {
       expect(result).toMatchObject({
         orchestrationPolicy: 'explicit',
         toolModeOverride: null,
-        status: 'working',
+        status: 'generating',
         providerId: 'runtime-provider',
         modelId: 'runtime-model'
       })

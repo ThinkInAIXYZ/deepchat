@@ -54,7 +54,10 @@ describe('pending interaction contract', () => {
     ]
     const entries = collectPendingInteractionEntries('message-3', blocks, 8)
     expect(entries).toMatchObject([
-      { blockIndex: 1, interaction: { origin: 'skill-draft-confirmation', order: 8, question: { question: '' } } },
+      {
+        blockIndex: 1,
+        interaction: { origin: 'skill-draft-confirmation', order: 8, question: { question: '' } }
+      },
       { blockIndex: 2, interaction: { origin: 'acp-permission', order: 9 } }
     ])
     expect(collectPendingInteraction('message-3', 19, blocks)).toMatchObject({
