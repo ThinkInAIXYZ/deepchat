@@ -16,7 +16,9 @@ connectivity, chat scrollbar ownership, and composer width. Their default provid
 `minimax` / `MiniMax-M2.7`; override these with `DEEPCHAT_E2E_PROVIDER_ID` and
 `DEEPCHAT_E2E_MODEL_ID`. The target model must be configured and enabled in the selected profile.
 
-The CI subset runs only launch and Settings navigation, using the same profile isolation.
+The CI subset runs launch, Settings navigation, and Skill sync, using the same profile isolation.
+Skill sync asserts that scanning does not fall back from the bundled Worker. The Windows ARM64
+workflow also runs this spec against the packaged executable to cover loading from `app.asar`.
 
 ## Commands
 

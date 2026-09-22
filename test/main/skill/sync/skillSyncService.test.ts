@@ -323,35 +323,50 @@ describe('SkillSyncService', () => {
       consoleWarnSpy.mockRestore()
     })
 
-    it('publishes new discoveries after comparing cache and local skills', async () => {
-      const { toolScanner } = await import('../../../../src/main/skill/sync/toolScanner')
-      vi.mocked(toolScanner.scanExternalTools).mockResolvedValue([
-        {
-          toolId: 'claude-code',
-          toolName: 'Claude Code',
-          available: true,
-          skillsDir: '/home/user/.claude/skills/',
-          skills: [
+    it.each([null, {}, { tools: null }, { tools: [{ toolId: 'claude-code' }] }])(
+      'repairs malformed cache and publishes discoveries after fallback: %j',
+      async (cache) => {
+        mockProviderSettings.getScanCache.mockReturnValue(cache)
+        const { toolScanner } = await import('../../../../src/main/skill/sync/toolScanner')
+        vi.mocked(toolScanner.scanExternalTools).mockResolvedValue([
+          {
+            toolId: 'claude-code',
+            toolName: 'Claude Code',
+            available: true,
+            skillsDir: '/home/user/.claude/skills/',
+            skills: [
+              {
+                name: 'new-skill',
+                path: '/home/user/.claude/skills/new-skill/SKILL.md',
+                format: 'claude-code',
+                lastModified: new Date()
+              }
+            ]
+          }
+        ])
+
+        const discoveries = await presenter.scanAndDetectNewDiscoveries()
+
+        expect(discoveries).toHaveLength(1)
+        expect(discoveries[0].newSkills.map((skill) => skill.name)).toEqual(['new-skill'])
+        expect(mockProviderSettings.setScanCache).toHaveBeenCalledWith({
+          timestamp: expect.any(String),
+          tools: [
             {
-              name: 'new-skill',
-              path: '/home/user/.claude/skills/new-skill/SKILL.md',
-              format: 'claude-code',
-              lastModified: new Date()
+              toolId: 'claude-code',
+              available: true,
+              skills: [{ name: 'new-skill', lastModified: expect.any(String) }]
             }
           ]
-        }
-      ])
-
-      const discoveries = await presenter.scanAndDetectNewDiscoveries()
-
-      expect(discoveries).toHaveLength(1)
-      expect(getPublishedEventPayloads('skillSync.discoveries.changed')).toContainEqual(
-        expect.objectContaining({
-          discoveries,
-          version: expect.any(Number)
         })
-      )
-    })
+        expect(getPublishedEventPayloads('skillSync.discoveries.changed')).toContainEqual(
+          expect.objectContaining({
+            discoveries,
+            version: expect.any(Number)
+          })
+        )
+      }
+    )
   })
 
   describe('scanTool', () => {
