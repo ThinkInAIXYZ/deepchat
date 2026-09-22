@@ -3417,6 +3417,7 @@
     "clearConnections": "Clear connection",
     "clearConfirm": "Disable the plugin and remove the saved connection and keys retained for previous addresses? Memories in Mem and other tools’ connections will be kept.",
     "apiKey": "API key (optional)",
-    "replaceTitle": "Change connection?"
+    "replaceTitle": "Change connection?",
+    "summary": "Carry conversations, decisions, and agent discoveries across AI tools, with memory that grows over time."
   }
 }

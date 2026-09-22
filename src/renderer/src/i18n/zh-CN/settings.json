@@ -3417,6 +3417,7 @@
     "clearConnections": "清除连接",
     "clearConfirm": "停用插件并清除连接及为旧地址保留的密钥？Mem 中的记忆和其他工具的连接配置会保留。",
     "apiKey": "API 密钥（可选）",
-    "replaceTitle": "更换连接地址？"
+    "replaceTitle": "更换连接地址？",
+    "summary": "跨 AI 工具保存对话、决策和智能体发现，让记忆持续积累。"
   }
 }

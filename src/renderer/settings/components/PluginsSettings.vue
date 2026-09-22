@@ -50,6 +50,12 @@
         <div class="flex items-start justify-between gap-3">
           <div class="min-w-0">
             <div class="flex items-center gap-2">
+              <img
+                v-if="plugin.id === NOWLEDGE_PLUGIN_ID"
+                :src="nowledgeMemIcon"
+                alt=""
+                class="size-6 shrink-0 object-contain"
+              />
               <h3 class="text-sm font-semibold truncate">{{ plugin.name }}</h3>
               <span
                 class="border border-border rounded px-2 py-0.5 text-[11px] text-muted-foreground"
@@ -57,8 +63,15 @@
                 {{ plugin.version }}
               </span>
             </div>
-            <div class="text-xs text-muted-foreground mt-1 truncate">
-              {{ plugin.publisher }} · {{ plugin.id }}
+            <div
+              class="text-xs text-muted-foreground mt-1"
+              :class="{ truncate: plugin.id !== NOWLEDGE_PLUGIN_ID }"
+            >
+              {{
+                plugin.id === NOWLEDGE_PLUGIN_ID
+                  ? t('settings.nowledgePlugin.summary')
+                  : `${plugin.publisher} · ${plugin.id}`
+              }}
             </div>
           </div>
           <span
@@ -152,6 +165,7 @@ import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
 import { DcButton } from '@dc-ui/components/button'
 import { createPluginClient } from '@api/PluginClient'
+import nowledgeMemIcon from '@/assets/images/nowledge-mem.webp'
 import { NOWLEDGE_PLUGIN_ID } from '@shared/types/nowledgeMemPlugin'
 import NowledgeMemSettings from './NowledgeMemSettings.vue'
 import type { PluginActionResult, PluginListItem, PluginRuntimeState } from '@shared/types/plugin'

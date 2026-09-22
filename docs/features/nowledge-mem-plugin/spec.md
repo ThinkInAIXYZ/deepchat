@@ -63,6 +63,11 @@ rejects a changed destination before sending. Existing JSON download remains ava
 
 ## UI
 
+Plugin catalog, detail, settings and MCP entries use the official logo from
+https://mem.nowledge.co/images/nowledge-mem-logo.webp, bundled locally for offline rendering.
+The product summary paraphrases the introduction at https://mem.nowledge.co/ and is localized
+through vue-i18n. Publisher metadata remains separate from the displayed product introduction.
+
 ```text
 BEFORE
 MCP settings       -> Nowledge URL / headers

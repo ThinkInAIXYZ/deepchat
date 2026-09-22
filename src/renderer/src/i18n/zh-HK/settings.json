@@ -3417,6 +3417,7 @@
     "clearConnections": "清除連線",
     "clearConfirm": "停用外掛並清除連線及為舊位址保留的金鑰？Mem 中的記憶和其他工具的連線設定會保留。",
     "apiKey": "API 金鑰（選填）",
-    "replaceTitle": "變更連線位址？"
+    "replaceTitle": "變更連線位址？",
+    "summary": "跨 AI 工具儲存對話、決策和智慧體發現，讓記憶持續累積。"
   }
 }

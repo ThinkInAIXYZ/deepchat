@@ -133,11 +133,17 @@
               <div
                 class="flex size-12 shrink-0 items-center justify-center rounded-xl border bg-muted/40"
               >
-                <Icon :icon="pluginIcon" class="size-6" :class="pluginIconClass" />
+                <img
+                  v-if="isNowledgePlugin"
+                  :src="nowledgeMemIcon"
+                  alt=""
+                  class="size-10 object-contain"
+                />
+                <Icon v-else :icon="pluginIcon" class="size-6" :class="pluginIconClass" />
               </div>
               <div class="min-w-0">
                 <h1 class="truncate text-2xl font-semibold tracking-normal">{{ pluginTitle }}</h1>
-                <p class="truncate text-sm text-muted-foreground">
+                <p class="text-sm text-muted-foreground" :class="{ truncate: !isNowledgePlugin }">
                   {{ pluginDescription }}
                 </p>
               </div>
@@ -293,6 +299,7 @@
 <script setup lang="ts">
 import UserPluginDetails from './UserPluginDetails.vue'
 import NowledgeMemSettings from '../../../settings/components/NowledgeMemSettings.vue'
+import nowledgeMemIcon from '@/assets/images/nowledge-mem.webp'
 import { NOWLEDGE_PLUGIN_ID } from '@shared/types/nowledgeMemPlugin'
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
@@ -402,6 +409,7 @@ const pluginTitle = computed(() =>
   isFeishuPlugin.value ? t('settings.remote.feishu.title') : (plugin.value?.name ?? '')
 )
 const pluginDescription = computed(() => {
+  if (isNowledgePlugin.value) return t('settings.nowledgePlugin.summary')
   if (isCuaPlugin.value) {
     return t('settings.pluginsHub.cuaDescription')
   }
