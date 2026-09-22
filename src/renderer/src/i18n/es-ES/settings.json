@@ -219,7 +219,7 @@
     "chatModel": "Modelo de chat predeterminado",
     "assistantModel": "Modelo asistente",
     "judgmentModel": "Modelo de evaluación",
-    "judgmentModelDesc": "Los argumentos de las herramientas y la conversación reciente se envían a este servicio de terceros.",
+    "judgmentModelDesc": "Los argumentos de las herramientas, la conversación reciente y el contenido de los resultados de las herramientas se envían a este servicio de terceros. Se utiliza para revisar los permisos de las herramientas y para descartar del contexto los resultados de herramientas obsoletos.",
     "visionModel": "Modelo de visión",
     "imageGenerationModel": "Modelo de generación de imágenes",
     "temperature": "Temperatura",

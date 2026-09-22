@@ -219,7 +219,7 @@
     "chatModel": "Standard-Chatmodell",
     "assistantModel": "Assistentenmodell",
     "judgmentModel": "Beurteilungsmodell",
-    "judgmentModelDesc": "Werkzeugargumente und der aktuelle Gesprächsverlauf werden an diesen Drittanbieterdienst gesendet.",
+    "judgmentModelDesc": "Werkzeugargumente, der aktuelle Gesprächsverlauf und die Inhalte von Werkzeugergebnissen werden an diesen Drittanbieterdienst gesendet. Er wird verwendet, um Werkzeugberechtigungen zu prüfen und veraltete Werkzeugergebnisse aus dem Kontext zu entfernen.",
     "visionModel": "Vision-Modell",
     "imageGenerationModel": "Bilderzeugungsmodell",
     "temperature": "Temperatur",

@@ -12,6 +12,7 @@ import {
   type LoopRunPromptUsageAnchor
 } from './loopRun'
 import type { ChatMessage } from '@shared/types/core/chat-message'
+import logger from '@shared/logger'
 import {
   createStreamEvent,
   type ErrorStreamEvent,
@@ -665,6 +666,22 @@ export interface ProviderAttemptInput<TSelection> {
   inspectContextOverflow?(value: unknown): ProviderContextOverflowFacts
   onContextOverflowFacts?(facts: ProviderContextOverflowFacts): void
   createAbortError(): Error
+  /**
+   * Optional Jev-judged pruning of closed tool results, run ahead of the size-based truncation
+   * stages so that a result judged stale is dropped whole rather than truncated, and a result judged
+   * necessary keeps its contents.
+   *
+   * Injected rather than called directly because it needs the provider runtime and the agent's
+   * judgment-model selection, neither of which this coordinator holds. Absent means the feature is
+   * off, which is the default. Implementations must return the input array when they decline to
+   * prune. A thrown error is caught by the caller, which logs it and keeps every result, so an
+   * implementation that throws on a provider failure is handled — but a judgment that cannot be made
+   * must leave the messages alone rather than degrade them.
+   */
+  pruneClosedToolResults?(input: {
+    messages: ChatMessage[]
+    protectedToolCallIds: ReadonlySet<string>
+  }): Promise<ChatMessage[]>
 }
 
 function buildPromptUsageEnvelope(input: {
@@ -887,6 +904,32 @@ export class DeepChatContextCoordinator {
     let manifestSummaryCursorOrderSeq = input.viewContext?.summaryCursorOrderSeq ?? 1
     let manifestSyntheticContributions = input.viewContext?.syntheticContributions
     const legacyRequestToolReserveTokens = input.budget.estimateToolReserveTokens(input.tools)
+    /**
+     * Pruning is attempted at most once per attempt. It costs a judgment request, and both truncation
+     * call sites below are on the same pressure path — running it again after the first stage would
+     * re-ask about results it just decided on.
+     */
+    let toolResultPruningAttempted = false
+    const pruneThenCompactToolResults = async (
+      messages: ChatMessage[],
+      protectedToolCallIds: ReadonlySet<string>
+    ): Promise<ChatMessage[]> => {
+      let base = messages
+
+      if (!toolResultPruningAttempted && input.pruneClosedToolResults) {
+        toolResultPruningAttempted = true
+        try {
+          base = await input.pruneClosedToolResults({ messages, protectedToolCallIds })
+        } catch (error) {
+          // A judgment that cannot be made must not block the attempt. Keep every result and let the
+          // size-based stages below do what they would have done anyway.
+          logger.warn('[DeepChatContextCoordinator] tool result pruning failed:', error)
+          base = messages
+        }
+      }
+
+      return compactNextToolResultStage(base, protectedToolCallIds)
+    }
     const compactNextToolResultStage = (
       messages: ChatMessage[],
       protectedToolCallIds: ReadonlySet<string>
@@ -1023,12 +1066,12 @@ export class DeepChatContextCoordinator {
             const protectedToolCallIds = new Set(
               input.run.resources.runtimeSkillContexts.map((binding) => binding.toolCallId)
             )
-            const compactToolResults = (): void => {
+            const compactToolResults = async (): Promise<void> => {
               const pressureCandidate = this.withActiveTurnFrom(
                 input.requestMessages,
                 requestPreflight.messages
               )
-              const compactedToolResults = compactNextToolResultStage(
+              const compactedToolResults = await pruneThenCompactToolResults(
                 pressureCandidate,
                 protectedToolCallIds
               )
@@ -1040,12 +1083,12 @@ export class DeepChatContextCoordinator {
                 requestedMaxTokens
               })
             }
-            compactToolResults()
+            await compactToolResults()
             if (
               requestPreflight.requiresContextPressureRecovery ||
               !requestPreflight.fitsWithinContext
             ) {
-              compactToolResults()
+              await compactToolResults()
             }
             if (
               requestPreflight.requiresContextPressureRecovery ||
@@ -1295,7 +1338,7 @@ export class DeepChatContextCoordinator {
       const protectedToolCallIds = new Set(
         input.run.resources.runtimeSkillContexts.map((binding) => binding.toolCallId)
       )
-      const compactedToolResults = compactNextToolResultStage(
+      const compactedToolResults = await pruneThenCompactToolResults(
         recoveryCandidate,
         protectedToolCallIds
       )

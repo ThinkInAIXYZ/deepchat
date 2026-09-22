@@ -219,7 +219,7 @@
     "chatModel": "Varsayılan Sohbet Modeli",
     "assistantModel": "Asistan Modeli",
     "judgmentModel": "Değerlendirme Modeli",
-    "judgmentModelDesc": "Araç argümanları ve son konuşma bu üçüncü taraf hizmetine gönderilir.",
+    "judgmentModelDesc": "Araç argümanları, son konuşma ve araç sonuçlarının içeriği bu üçüncü taraf hizmetine gönderilir. Bu hizmet, araç izinlerini incelemek ve eskimiş araç sonuçlarını bağlamdan çıkarmak için kullanılır.",
     "visionModel": "Vizyon Modeli",
     "imageGenerationModel": "Görüntü Oluşturma Modeli",
     "temperature": "Sıcaklık",

@@ -76,7 +76,7 @@ describe('ProviderDbLoader', () => {
     lastAttemptedAt?: number
   }) => {
     fs.mkdirSync(getCacheDir(), { recursive: true })
-    fs.writeFileSync(getMetaFile(), JSON.stringify(meta), 'utf-8')
+    fs.writeFileSync(getMetaFile(), JSON.stringify({ schemaVersion: 1, ...meta }), 'utf-8')
   }
 
   const readMeta = () => JSON.parse(fs.readFileSync(getMetaFile(), 'utf-8'))
@@ -194,6 +194,55 @@ describe('ProviderDbLoader', () => {
 
     expect(result.status).toBe('skipped')
     expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('redownloads legacy sanitized caches once even when the upstream ETag is unchanged', async () => {
+    writeCachedDb(createAggregate(['zhipuai']))
+    fs.writeFileSync(
+      getMetaFile(),
+      JSON.stringify({
+        sourceUrl: DEFAULT_PROVIDER_DB_URL,
+        etag: '"same"',
+        lastUpdated: Date.now(),
+        ttlHours: 4
+      })
+    )
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            providers: {
+              zhipuai: {
+                id: 'zhipuai',
+                models: [
+                  {
+                    id: 'glm-5.3',
+                    reasoning: { supported: true },
+                    reasoning_options: [{ type: 'effort', values: ['low', 'high', 'max'] }]
+                  }
+                ]
+              }
+            }
+          }),
+          { status: 200, headers: { etag: '"same"' } }
+        )
+      )
+      .mockResolvedValueOnce(new Response(null, { status: 304 }))
+    vi.stubGlobal('fetch', fetchMock)
+    const ProviderDbLoader = await importLoader()
+    const loader = new ProviderDbLoader()
+    expect((await loader.refreshIfNeeded()).status).toBe('updated')
+    expect(fetchMock.mock.calls[0][1].headers).not.toHaveProperty('If-None-Match')
+    expect(
+      loader.getModel('zhipuai', 'glm-5.3')?.extra_capabilities?.reasoning?.effort_options
+    ).toEqual(['low', 'high', 'max'])
+    expect((await loader.refreshIfNeeded(true)).status).toBe('not-modified')
+    expect(fetchMock.mock.calls[1][1].headers['If-None-Match']).toBe('"same"')
+    expect(
+      new ProviderDbLoader().getModel('zhipuai', 'glm-5.3')?.extra_capabilities?.reasoning
+        ?.effort_options
+    ).toEqual(['low', 'high', 'max'])
   })
 
   it('treats 304 responses as fresh and avoids another fetch inside the TTL window', async () => {

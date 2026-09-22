@@ -73,6 +73,7 @@ const createProvider = (overrides?: Partial<LLM_PROVIDER>): LLM_PROVIDER => ({
 
 async function setup(options?: {
   provider?: LLM_PROVIDER
+  usesProviderDb?: boolean
   providerWebsites?: {
     official: string
     apiKey: string
@@ -153,6 +154,7 @@ async function setup(options?: {
   const wrapper = mount(ProviderApiConfig, {
     props: {
       provider: options?.provider ?? createProvider(),
+      usesProviderDb: options?.usesProviderDb,
       providerWebsites: options?.providerWebsites ?? {
         official: 'https://example.com',
         apiKey: 'https://example.com/key',
@@ -386,33 +388,39 @@ describe('ProviderApiConfig', () => {
     expect(tokenFactoryLink?.attributes('target')).toBe('_blank')
   })
 
-  it('shows the metadata sync hint for DB-backed providers and delegates refresh to the provider client', async () => {
-    const { wrapper, providerClient, notifyRenderer } = await setup({
-      provider: createProvider({
-        id: 'doubao',
-        name: 'Doubao',
-        apiType: 'doubao',
-        baseUrl: 'https://ark.cn-beijing.volces.com/api/v3'
+  it.each(['doubao', 'xiaomi-token-plan-sgp'])(
+    'uses main-projected catalog metadata for %s',
+    async (id) => {
+      const { wrapper, providerClient, notifyRenderer } = await setup({
+        usesProviderDb: true,
+        provider: createProvider({
+          id,
+          name: 'Doubao',
+          apiType: 'doubao',
+          baseUrl: 'https://ark.cn-beijing.volces.com/api/v3'
+        })
       })
-    })
 
-    expect(wrapper.text()).toContain('settings.provider.refreshModelsWithMetadataHint')
+      expect(wrapper.text()).toContain('settings.provider.refreshModelsWithMetadataHint')
 
-    const refreshButton = findButtonByText(wrapper, 'settings.provider.refreshModels')
-    expect(refreshButton).toBeDefined()
+      const refreshButton = findButtonByText(wrapper, 'settings.provider.refreshModels')
+      expect(refreshButton).toBeDefined()
 
-    await refreshButton!.trigger('click')
-    await flushPromises()
+      await refreshButton!.trigger('click')
+      await flushPromises()
 
-    expect(providerClient.refreshModels).toHaveBeenCalledWith('doubao')
-    expect(notifyRenderer).toHaveBeenCalledWith({
-      kind: 'success',
-      code: 'settings.provider.modelsRefreshed',
-      title: 'settings.provider.toast.refreshModelsSuccessTitle',
-      description: 'settings.provider.toast.refreshModelsSuccessDescriptionWithMetadata'
-    })
-    expect(wrapper.find('[data-testid="inline-operation-feedback"]').exists()).toBe(false)
-  })
+      expect(providerClient.refreshModels).toHaveBeenCalledWith(id)
+      expect(notifyRenderer).toHaveBeenCalledWith({
+        kind: 'success',
+        code: 'settings.provider.modelsRefreshed',
+        title: 'settings.provider.toast.refreshModelsSuccessTitle',
+        description: 'settings.provider.toast.refreshModelsSuccessDescriptionWithMetadata'
+      })
+      expect(wrapper.find('[data-testid="inline-operation-feedback"]').exists()).toBe(false)
+      await wrapper.setProps({ usesProviderDb: false })
+      expect(wrapper.text()).not.toContain('settings.provider.refreshModelsWithMetadataHint')
+    }
+  )
 
   it('refreshes only models for non DB-backed providers', async () => {
     const { wrapper, providerClient, notifyRenderer } = await setup()
@@ -515,6 +523,7 @@ describe('ProviderApiConfig', () => {
 
   it('reports metadata-backed refresh failures as transient feedback', async () => {
     const { wrapper, providerClient, notifyRenderer } = await setup({
+      usesProviderDb: true,
       provider: createProvider({
         id: 'doubao',
         name: 'Doubao',

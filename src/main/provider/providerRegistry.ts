@@ -38,7 +38,6 @@ export type AiSdkKeyStatusStrategy =
   | '302ai'
   | 'cherryin'
   | 'modelscope'
-  | 'siliconcloud'
 
 export type AiSdkCheckStrategy = 'fetch-models' | 'key-status' | 'generate-text'
 
@@ -266,6 +265,18 @@ const PROVIDER_ID_REGISTRY = new Map<string, AiSdkProviderDefinition>([
       ...OPENAI_BASE,
       modelSource: 'provider-db',
       providerDbGroup: 'default'
+    })
+  ],
+  [
+    'fireworks',
+    createDefinition({
+      ...OPENAI_BASE,
+      modelSource: 'provider-db',
+      providerDbSourceId: 'fireworks-ai',
+      checkStrategy: 'generate-text',
+      credentialStrategy: 'api-key',
+      embeddingStrategy: 'none',
+      checkModelId: 'accounts/fireworks/models/gpt-oss-120b'
     })
   ],
   [
@@ -532,17 +543,13 @@ const PROVIDER_ID_REGISTRY = new Map<string, AiSdkProviderDefinition>([
   [
     'silicon',
     createDefinition({
-      ...CHINESE_SUMMARY_OPENAI,
-      checkStrategy: 'key-status',
-      keyStatusStrategy: 'siliconcloud'
+      ...CHINESE_SUMMARY_OPENAI
     })
   ],
   [
     'siliconcloud',
     createDefinition({
-      ...CHINESE_SUMMARY_OPENAI,
-      checkStrategy: 'key-status',
-      keyStatusStrategy: 'siliconcloud'
+      ...CHINESE_SUMMARY_OPENAI
     })
   ],
   [
@@ -714,6 +721,7 @@ const PROVIDER_API_TYPE_REGISTRY = new Map<string, AiSdkProviderDefinition>([
   ['anthropic', PROVIDER_ID_REGISTRY.get('anthropic')!],
   ['aws-bedrock', PROVIDER_ID_REGISTRY.get('aws-bedrock')!],
   ['doubao', PROVIDER_ID_REGISTRY.get('doubao')!],
+  ['fireworks', PROVIDER_ID_REGISTRY.get('fireworks')!],
   ['gemini', PROVIDER_ID_REGISTRY.get('gemini')!],
   ['grok', PROVIDER_ID_REGISTRY.get('grok')!],
   ['groq', PROVIDER_ID_REGISTRY.get('groq')!],
@@ -737,4 +745,10 @@ export function resolveAiSdkProviderDefinition(
   const apiType = provider.apiType.trim().toLowerCase()
 
   return PROVIDER_ID_REGISTRY.get(providerId) || PROVIDER_API_TYPE_REGISTRY.get(apiType) || null
+}
+
+// Catalog facts belong to a provider profile, not every provider sharing its transport.
+export function isProviderDbBackedProvider(providerId: string | undefined | null): boolean {
+  const source = PROVIDER_ID_REGISTRY.get(providerId?.trim().toLowerCase() ?? '')?.modelSource
+  return source === 'provider-db' || source === 'kimi-for-coding' || source === 'openai-codex'
 }
