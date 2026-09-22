@@ -148,6 +148,10 @@ itself rather than a host with a fixed route appended to it.
       still post to the host root.
 - [x] Normalize a trailing slash before deriving the catalog path, so `…/v1/systemone/` resolves to
       the sibling `/v1/models` instead of the child `/v1/systemone/models`.
+- [x] Validate the configured endpoint before using it: an unparseable value, a non-HTTP scheme, or a
+      bare host with no path fails the check with the documented message and issues no request, so
+      staged validation cannot accept a broken endpoint over a working configuration. The 404/405
+      "vendor without a catalog" fallback stays separate from this.
 
 ## Deferred
 

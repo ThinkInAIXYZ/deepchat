@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   extractJevModelRecords,
   isJevUnsupportedCapabilityError,
+  JEV_BASE_URL_ERROR,
   JEV_UNSUPPORTED_CAPABILITY_ERROR,
   JevProvider
 } from '../../../src/main/provider/providers/jevProvider'
@@ -363,6 +364,40 @@ describe('JevProvider', () => {
       vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({ detail: 'bad key' }, 401)))
       const unauthorized = await createProviderInstance().check()
       expect(unauthorized.isOk).toBe(false)
+    })
+
+    it.each([
+      { name: 'an unparseable endpoint', baseUrl: 'not-a-url' },
+      {
+        name: 'a bare host with no path to take a sibling from',
+        baseUrl: 'https://api.typesafe.ai'
+      },
+      { name: 'a non-HTTP scheme', baseUrl: 'file:///tmp/systemone' }
+    ])('rejects $name without issuing a request', async ({ baseUrl }) => {
+      // A URL that cannot be sent to must not read as "this vendor has no catalog": staged validation
+      // would then accept it over a working configuration.
+      const fetchMock = vi.fn()
+      vi.stubGlobal('fetch', fetchMock)
+
+      const result = await createProviderInstance({ baseUrl }).check()
+
+      expect(result.isOk).toBe(false)
+      expect(result.errorMsg).toBe(JEV_BASE_URL_ERROR)
+      expect(fetchMock).not.toHaveBeenCalled()
+    })
+
+    it('refuses to post a judgment to an unparseable endpoint', async () => {
+      const fetchMock = vi.fn()
+      vi.stubGlobal('fetch', fetchMock)
+
+      await expect(
+        createProviderInstance({ baseUrl: 'not-a-url' }).runJudgment({
+          model: 'jev-1.13.0',
+          state: {},
+          questions: { q: { type: 'noul', instructions: 'Is this true?' } }
+        })
+      ).rejects.toThrow(JEV_BASE_URL_ERROR)
+      expect(fetchMock).not.toHaveBeenCalled()
     })
   })
 })

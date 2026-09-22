@@ -27,7 +27,8 @@ Ownership: `src/main/provider/providers/workersAiProvider.ts`, `jevProvider.ts`,
 Objective: populate the pickers from the account.
 
 - [x] Read the Workers AI model search (`{apiRoot}/models/search`), authenticated with the provider
-      token, paging through `result_info.total_pages` up to a cap.
+      token, paging through `result_info.total_pages` up to a cap — and, when the envelope reports no
+      total, paging until an empty page instead of stopping after page 1.
 - [x] Type by the catalog task: `Text Generation` → chat, `Text Embeddings` → embedding; any
       `jev` model → judgment at 32k context; everything else skipped, because the OpenAI-compatible
       endpoints cannot serve it.

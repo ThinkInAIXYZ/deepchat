@@ -95,6 +95,17 @@ const searchResponse = (
     errors: []
   })
 
+/** The envelope can carry only `page`/`per_page`, without a total. */
+const searchResponseWithoutTotalPages = (
+  records: Array<{ name: string; task?: string }>
+): Response =>
+  jsonResponse({
+    result: records,
+    result_info: { page: 1, per_page: 100 },
+    success: true,
+    errors: []
+  })
+
 const bundledCatalog = [
   {
     id: 'typesafe/jev',
@@ -279,6 +290,34 @@ describe('WorkersAiProvider', () => {
       ])
       expect(fetchMock).toHaveBeenCalledTimes(2)
       expect(fetchMock.mock.calls[1][0]).toContain('page=2')
+    })
+
+    it('keeps paging while the envelope reports no total', async () => {
+      // A missing total is not one page: stopping at page 1 would persist an incomplete catalog.
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValueOnce(
+          searchResponseWithoutTotalPages([
+            { name: '@cf/meta/llama-3.1-8b-instruct', task: 'Text Generation' }
+          ])
+        )
+        .mockResolvedValueOnce(
+          searchResponseWithoutTotalPages([
+            { name: '@cf/qwen/qwen2.5-coder-32b-instruct', task: 'Text Generation' }
+          ])
+        )
+        .mockResolvedValueOnce(searchResponseWithoutTotalPages([]))
+      vi.stubGlobal('fetch', fetchMock)
+
+      const models = await createProviderInstance().fetchModels()
+
+      expect(models.map((model) => model.id)).toEqual([
+        '@cf/meta/llama-3.1-8b-instruct',
+        '@cf/qwen/qwen2.5-coder-32b-instruct',
+        'typesafe/jev'
+      ])
+      expect(fetchMock).toHaveBeenCalledTimes(3)
+      expect(fetchMock.mock.calls[2][0]).toContain('page=3')
     })
 
     it('keeps the last-known then bundled catalog when the search is unavailable', async () => {

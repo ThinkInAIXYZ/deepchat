@@ -138,6 +138,11 @@ a meaningful check for a non-generative model. A 404 or 405 at the catalog path 
 exposes no catalog — is reported as usable, because it says nothing about the endpoint and probing
 the endpoint would spend the vendor's tokens. A rejected credential (`401`) is still a failure.
 
+An endpoint that cannot be used at all is *not* that case: an unparseable value, a non-HTTP scheme, or
+a bare host with no path to take a sibling from fails the check with the documented message and issues
+no request. Reporting those as usable would let staged validation overwrite a working configuration
+with a broken one, and a bare host would post judgment to the host root.
+
 ### Credentials and transport safety
 
 The API key is read and held in the main process only, never emitted to the renderer, matching the
@@ -206,6 +211,8 @@ drives dark-mode inversion for monochrome `currentColor` marks.
 - A custom provider can be created with api type `jev`, and connecting it performs an authenticated
   catalog fetch against the endpoint's sibling path and reports failure on `401` without persisting a
   broken provider. An endpoint without a sibling catalog (404/405) is reported as usable.
+- An endpoint that cannot be used — unparseable, a non-HTTP scheme, or a bare host with no path —
+  fails the check with the documented message and issues no request.
 - A custom provider's judgment call posts to the configured endpoint URL verbatim.
 - `jev-1.13.0` and `jev-latest` appear as judgment models and are absent from the chat model picker
   and the MCP sampling picker.

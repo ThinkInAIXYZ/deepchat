@@ -93,9 +93,10 @@ OpenAI-compatible base.
 
 - `GET {apiRoot}/models/search?per_page=100&page=N`, authenticated with the same bearer token. It
   spends no neurons and it proves the token and the account id in one call.
-- Pagination follows Cloudflare's `result_info.total_pages` when present, and stops after one page
-  when it is absent, capped at five pages. Records are deduped by model id, so a repeated page cannot
-  duplicate the persisted catalog.
+- Pagination follows Cloudflare's `result_info.total_pages` when present. When the total is absent —
+  the envelope can carry only `page`/`per_page` — paging continues until a page comes back empty
+  rather than stopping after the first page, capped at five pages. Records are deduped by model id, so
+  a repeated page cannot duplicate the persisted catalog.
 - An envelope that reports `success: false` is a failure even when it arrives with a 2xx status;
   otherwise it would read as an account with no models.
 - Typing by the catalog's `task`, normalized across the string, `{ name }` and hyphenated `{ id }`
@@ -204,9 +205,8 @@ cannot point elsewhere.
 - The search response's element fields (`name`, `task`, `description`) and its pagination envelope
   (`result_info.total_pages`) are written from Cloudflare's published API and its usage in the wild,
   not from a live account. The parser is tolerant: an unreadable shape yields no records, so the
-  provider keeps the last-known catalog and the check still reports the account status. If
-  `total_pages` is absent, discovery stops after the first page, which degrades to the seed rather
-  than failing.
+  provider keeps the last-known catalog and the check still reports the account status. An absent
+  `total_pages` pages until an empty page, capped at five pages, so it cannot truncate the catalog.
 - Confirmed against the live API: the catalog does **not** list the third-party judgment model, so
   discovery alone never yields it. Handled by always merging the fixed `typesafe/jev` id — from the
   bundled seed when there is one, otherwise from the built definition — so a Jev *variant* the catalog

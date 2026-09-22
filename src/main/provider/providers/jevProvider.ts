@@ -26,6 +26,10 @@ const DEFAULT_BASE_URL = 'https://api.typesafe.ai/v1/systemone'
 const CATALOG_SEGMENT = 'models'
 const DEFAULT_REQUEST_TIMEOUT_MS = 30_000
 
+/** Shown when the configured endpoint cannot be used as an endpoint. */
+const JEV_BASE_URL_HINT = 'https://api.typesafe.ai/v1/systemone'
+export const JEV_BASE_URL_ERROR = `System One endpoint must look like ${JEV_BASE_URL_HINT}`
+
 /** Jev's documented budget: 64k tokens per request, 32k for state plus the longest question. */
 const JEV_CONTEXT_LENGTH = 64_000
 
@@ -255,7 +259,8 @@ export class JevProvider extends BaseLLMProvider {
     try {
       // The configured base URL *is* the System One endpoint: vendors expose it at different paths,
       // so nothing is appended to it.
-      const response = await this.fetchProvider(this.getBaseUrl(), {
+      const { endpoint } = this.resolveEndpoint()
+      const response = await this.fetchProvider(endpoint, {
         method: 'POST',
         headers: this.getAuthHeaders(),
         body: JSON.stringify({
@@ -323,8 +328,7 @@ export class JevProvider extends BaseLLMProvider {
   }
 
   private async listModels(signal?: AbortSignal): Promise<JevModelRecord[]> {
-    const catalogUrl = resolveJevCatalogUrl(this.getBaseUrl())
-    if (!catalogUrl) return []
+    const { catalogUrl } = this.resolveEndpoint()
 
     const { signal: requestSignal, cleanup } = this.createRequestSignal(signal)
     try {
@@ -354,6 +358,31 @@ export class JevProvider extends BaseLLMProvider {
       return raw.replace(/\/+$/, '')
     }
     return DEFAULT_BASE_URL
+  }
+
+  /**
+   * The configured endpoint, validated. The URL is used verbatim and its sibling path is the only
+   * source of the catalog, so a value that cannot be sent to (unparseable, a non-HTTP scheme, or a
+   * bare host with no path to take a sibling from) is a broken configuration rather than a vendor
+   * without a catalog: reporting it as usable would let staged validation overwrite a working
+   * configuration, and a bare host would post judgment to the host root.
+   */
+  private resolveEndpoint(): { endpoint: string; catalogUrl: string } {
+    const endpoint = this.getBaseUrl()
+
+    let protocol = ''
+    try {
+      protocol = new URL(endpoint).protocol
+    } catch {
+      throw new Error(JEV_BASE_URL_ERROR)
+    }
+
+    const catalogUrl = resolveJevCatalogUrl(endpoint)
+    if (!catalogUrl || (protocol !== 'https:' && protocol !== 'http:')) {
+      throw new Error(JEV_BASE_URL_ERROR)
+    }
+
+    return { endpoint, catalogUrl }
   }
 
   private getAuthHeaders(): Record<string, string> {

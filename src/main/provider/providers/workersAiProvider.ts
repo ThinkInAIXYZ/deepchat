@@ -108,12 +108,15 @@ export function extractWorkersAiModelRecords(payload: unknown): WorkersAiModelRe
   return records
 }
 
-/** Cloudflare's V4 envelope reports pagination in `result_info`; absent means a single page. */
-function resolveTotalPages(payload: unknown): number {
+/**
+ * Cloudflare's V4 envelope reports pagination in `result_info`. A missing total is not a page count:
+ * the envelope can carry only `page`/`per_page`, so the caller keeps paging until a page is empty.
+ */
+function resolveTotalPages(payload: unknown): number | undefined {
   const totalPages = asRecord(asRecord(payload)?.result_info)?.total_pages
-  return typeof totalPages === 'number' && Number.isFinite(totalPages) && totalPages > 1
+  return typeof totalPages === 'number' && Number.isFinite(totalPages) && totalPages > 0
     ? Math.floor(totalPages)
-    : 1
+    : undefined
 }
 
 /**
@@ -321,7 +324,12 @@ export class WorkersAiProvider extends AiSdkProvider {
       for (const record of pageRecords) {
         records.set(record.name, record)
       }
-      if (pageRecords.length === 0 || page >= resolveTotalPages(payload)) break
+
+      // A page that comes back empty is the end of the catalog. When the envelope reports no total,
+      // paging continues instead of stopping after the first page, bounded by
+      // MAX_MODEL_SEARCH_PAGES.
+      const totalPages = resolveTotalPages(payload)
+      if (pageRecords.length === 0 || (totalPages !== undefined && page >= totalPages)) break
     }
     return [...records.values()]
   }
