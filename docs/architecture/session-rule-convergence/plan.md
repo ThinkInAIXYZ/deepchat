@@ -4,8 +4,10 @@
   Review and verify lifecycle contracts, including persisted fields and snapshot fallback; commit.
   Lifecycle/Scheduler/Remote: 61 tests pass; node typecheck passes. Baseline ablation with the new
   lifecycle tests fails exactly the two persisted-timestamp cases (25 others pass).
-- [ ] Share pending action eligibility and identity across runtime, Remote and renderer.
+- [x] Share pending action eligibility and identity across runtime, Remote and renderer.
   Review boundary differences and verify positive/negative eligibility plus adapter behavior; commit.
+  Runtime/Remote/ACP/renderer: 64 tests pass; full typecheck passes. Removing needsUserAction
+  exclusion in the isolated worktree fails both the contract test and existing renderer test.
 - [ ] Share ChatService cleanup operations without merging timeout/result policies.
   Review failure and cancellation behavior, verify cleanup contracts; commit.
 - [ ] Complete whole-change P0–P3 review and adversarial checks. Fix in-scope findings and use
