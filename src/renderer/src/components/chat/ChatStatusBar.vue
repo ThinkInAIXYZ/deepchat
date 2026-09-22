@@ -1196,7 +1196,7 @@ import {
   CollapsibleTrigger
 } from '@shadcn/components/ui/collapsible'
 import type { SystemPrompt } from '@shared/types/prompt'
-import type { ModelConfig, RENDERER_MODEL_META } from '@shared/types/provider'
+import type { RENDERER_MODEL_META } from '@shared/types/provider'
 import type {
   DeepChatAgentConfig,
   PermissionMode,
@@ -1221,14 +1221,8 @@ import {
   MODEL_TIMEOUT_MAX_MS,
   MODEL_TIMEOUT_MIN_MS
 } from '@shared/modelConfigDefaults'
-import {
-  normalizeImageGenerationOptions,
-  supportsOpenAIImageGenerationSettings
-} from '@shared/imageGenerationSettings'
-import {
-  normalizeVideoGenerationOptions,
-  supportsOpenAICompatibleVideoGeneration
-} from '@shared/videoGenerationSettings'
+import { normalizeImageGenerationOptions } from '@shared/imageGenerationSettings'
+import { normalizeVideoGenerationOptions } from '@shared/videoGenerationSettings'
 import { resolvePreferredChatModel, type ChatModelSelection } from '@/lib/chatModelSelection'
 import {
   getReasoningEffortOptions,
@@ -1344,9 +1338,6 @@ const orchestrationCapabilityLoadFailed = ref(false)
 const isOrchestrationPolicySaving = ref(false)
 const isGenerationSettingsExpanded = ref(false)
 const modelSearchKeyword = ref('')
-const generationSettingsModelConfigState = ref<ModelConfig | null>(null)
-const generationSettingsModelConfigSelection = ref<ModelSelection | null>(null)
-let generationSettingsModelConfigToken = 0
 
 const modelCapabilities = useModelCapabilities()
 const capabilityReasoningPortrait = computed(
@@ -1637,9 +1628,6 @@ const showModelOptionsLoading = computed(
   () => !isAcpAgent.value && !modelStore.initialized && !hasModelOptionsError.value
 )
 
-const resolveProviderApiType = (providerId: string): string | undefined =>
-  providerStore.sortedProviders.find((provider) => provider.id === providerId)?.apiType
-
 const modelGroups = computed<GroupedModelList[]>(() => {
   if (!isModelOptionsReady.value) {
     return []
@@ -1675,91 +1663,17 @@ const generationSettingsModel = computed<ModelSelection | null>(() => {
   return effectiveModelSelection.value
 })
 
-const generationSettingsModelMeta = computed(() => {
+const mediaSettings = computed(() => {
   const target = generationSettingsModel.value
-  if (!target) {
-    return null
-  }
-  return findEnabledModelMeta(target.providerId, target.modelId)
+  return target && isSameModelSelection(target, modelCapabilities.queryIdentity.value)
+    ? modelCapabilities.snapshot.value?.mediaSettings
+    : undefined
 })
-
-const generationSettingsModelConfig = computed(() =>
-  isSameModelSelection(generationSettingsModel.value, generationSettingsModelConfigSelection.value)
-    ? generationSettingsModelConfigState.value
-    : null
-)
-
-const showOpenAIImageGenerationSettings = computed(() => {
-  const target = generationSettingsModel.value
-  if (!target) {
-    return false
-  }
-
-  const modelMeta = generationSettingsModelMeta.value
-  const modelConfig = generationSettingsModelConfig.value
-  return supportsOpenAIImageGenerationSettings({
-    providerId: target.providerId,
-    providerApiType: resolveProviderApiType(target.providerId),
-    modelId: target.modelId,
-    apiEndpoint: modelConfig?.apiEndpoint,
-    endpointType: modelConfig?.endpointType ?? modelMeta?.endpointType,
-    supportedEndpointTypes: modelMeta?.supportedEndpointTypes,
-    type: modelConfig?.type ?? modelMeta?.type
-  })
-})
-
-const showOpenAIVideoGenerationSettings = computed(() => {
-  const target = generationSettingsModel.value
-  if (!target) {
-    return false
-  }
-
-  const modelMeta = generationSettingsModelMeta.value
-  const modelConfig = generationSettingsModelConfig.value
-  return supportsOpenAICompatibleVideoGeneration({
-    providerId: target.providerId,
-    providerApiType: resolveProviderApiType(target.providerId),
-    modelId: target.modelId,
-    apiEndpoint: modelConfig?.apiEndpoint,
-    endpointType: modelConfig?.endpointType ?? modelMeta?.endpointType,
-    supportedEndpointTypes: modelMeta?.supportedEndpointTypes,
-    type: modelConfig?.type ?? modelMeta?.type
-  })
-})
+const showOpenAIImageGenerationSettings = computed(() => mediaSettings.value?.image === true)
+const showOpenAIVideoGenerationSettings = computed(() => mediaSettings.value?.video === true)
 
 const showOpenAIMediaGenerationSettings = computed(
   () => showOpenAIImageGenerationSettings.value || showOpenAIVideoGenerationSettings.value
-)
-
-watch(
-  () => {
-    const target = generationSettingsModel.value
-    return target ? { providerId: target.providerId, modelId: target.modelId } : null
-  },
-  async (target) => {
-    const token = ++generationSettingsModelConfigToken
-    generationSettingsModelConfigState.value = null
-    generationSettingsModelConfigSelection.value = null
-
-    if (!target) {
-      return
-    }
-
-    try {
-      const config = await modelClient.getModelConfig(target.modelId, target.providerId)
-      if (token !== generationSettingsModelConfigToken) {
-        return
-      }
-      generationSettingsModelConfigState.value = config
-      generationSettingsModelConfigSelection.value = { ...target }
-    } catch (error) {
-      if (token !== generationSettingsModelConfigToken) {
-        return
-      }
-      console.warn('[ChatStatusBar] Failed to load model settings target config:', error)
-    }
-  },
-  { immediate: true }
 )
 
 const normalizePermissionMode = (mode?: PermissionMode | null): PermissionMode =>
@@ -2273,39 +2187,14 @@ const resolveDefaultGenerationSettings = async (
     defaults.forceInterleavedThinkingCompat = interleavedThinkingDefault
   }
 
-  const modelMeta = findEnabledModelMeta(providerId, modelId)
-  if (
-    supportsOpenAIImageGenerationSettings({
-      providerId,
-      providerApiType: resolveProviderApiType(providerId),
-      modelId,
-      apiEndpoint: modelConfig.apiEndpoint,
-      endpointType: modelConfig.endpointType ?? modelMeta?.endpointType,
-      supportedEndpointTypes: modelMeta?.supportedEndpointTypes,
-      type: modelConfig.type ?? modelMeta?.type
-    })
-  ) {
-    const imageGeneration = normalizeImageGenerationOptions(modelConfig.imageGeneration)
-    if (imageGeneration) {
-      defaults.imageGeneration = imageGeneration
-    }
+  const imageGeneration = normalizeImageGenerationOptions(modelConfig.imageGeneration)
+  if (imageGeneration) {
+    defaults.imageGeneration = imageGeneration
   }
 
-  if (
-    supportsOpenAICompatibleVideoGeneration({
-      providerId,
-      providerApiType: resolveProviderApiType(providerId),
-      modelId,
-      apiEndpoint: modelConfig.apiEndpoint,
-      endpointType: modelConfig.endpointType ?? modelMeta?.endpointType,
-      supportedEndpointTypes: modelMeta?.supportedEndpointTypes,
-      type: modelConfig.type ?? modelMeta?.type
-    })
-  ) {
-    const videoGeneration = normalizeVideoGenerationOptions(modelConfig.videoGeneration)
-    if (videoGeneration) {
-      defaults.videoGeneration = videoGeneration
-    }
+  const videoGeneration = normalizeVideoGenerationOptions(modelConfig.videoGeneration)
+  if (videoGeneration) {
+    defaults.videoGeneration = videoGeneration
   }
 
   if (portrait?.supported === true && hasThinkingBudgetSupport(portrait)) {

@@ -1,7 +1,3 @@
-import { ApiEndpointType, ModelType } from './model'
-
-export const OPENAI_IMAGE_GENERATION_MODEL_ID_FALLBACK = 'gpt-image-2'
-
 export const IMAGE_GENERATION_QUALITY_VALUES = ['low', 'medium', 'high', 'auto'] as const
 export const IMAGE_GENERATION_OUTPUT_FORMAT_VALUES = ['png', 'jpeg', 'webp'] as const
 export const OPENAI_IMAGE_GENERATION_BACKGROUND_VALUES = ['auto', 'opaque'] as const
@@ -30,18 +26,6 @@ export type OpenAIImageGenerationBackground =
   (typeof OPENAI_IMAGE_GENERATION_BACKGROUND_VALUES)[number]
 export type ImageGenerationModeration = (typeof IMAGE_GENERATION_MODERATION_VALUES)[number]
 
-export interface OpenAIImageGenerationSettingsTarget {
-  providerId?: unknown
-  providerApiType?: unknown
-  providerKind?: unknown
-  providerOptionsKey?: unknown
-  modelId?: unknown
-  apiEndpoint?: unknown
-  endpointType?: unknown
-  supportedEndpointTypes?: readonly unknown[]
-  type?: unknown
-}
-
 export interface ImageGenerationOptions {
   size?: string
   quality?: ImageGenerationQuality
@@ -68,89 +52,6 @@ export interface OpenAIImageGenerationSizeValidationResult {
 const hasOwn = <T extends string>(values: readonly T[], value: unknown): value is T =>
   typeof value === 'string' && values.includes(value as T)
 
-const normalizeText = (value: unknown): string =>
-  typeof value === 'string' ? value.trim().toLowerCase() : ''
-
-const NON_OPENAI_IMAGE_PROVIDER_HINTS = [
-  'anthropic',
-  'gemini',
-  'vertex',
-  'aws-bedrock',
-  'github-copilot',
-  'ollama',
-  'acp',
-  'voiceai',
-  'xai',
-  'grok'
-] as const
-
-const isOpenAICompatibleProvider = (target: OpenAIImageGenerationSettingsTarget): boolean => {
-  const providerId = normalizeText(target.providerId)
-  const providerApiType = normalizeText(target.providerApiType)
-  const providerKind = normalizeText(target.providerKind)
-  const providerOptionsKey = normalizeText(target.providerOptionsKey)
-
-  if (
-    NON_OPENAI_IMAGE_PROVIDER_HINTS.some(
-      (hint) =>
-        providerId.includes(hint) || providerApiType.includes(hint) || providerKind.includes(hint)
-    )
-  ) {
-    return false
-  }
-
-  if (
-    providerKind === 'openai-codex' ||
-    providerKind === 'openai-responses' ||
-    providerKind === 'openai-compatible'
-  ) {
-    return true
-  }
-
-  if (providerOptionsKey === 'openai') {
-    return true
-  }
-
-  if (
-    providerId === 'openai' ||
-    providerId === 'openai-codex' ||
-    providerId === 'openai-responses' ||
-    providerId === 'new-api' ||
-    providerId === 'apimart'
-  ) {
-    return true
-  }
-
-  if (
-    providerApiType === 'openai' ||
-    providerApiType === 'openai-codex' ||
-    providerApiType === 'openai-responses' ||
-    providerApiType === 'openai-compatible' ||
-    providerApiType === 'openai-completions' ||
-    providerApiType === 'new-api' ||
-    providerApiType === 'apimart' ||
-    providerApiType === 'openai_chat'
-  ) {
-    return true
-  }
-
-  return false
-}
-
-const hasOpenAIImageGenerationRoute = (target: OpenAIImageGenerationSettingsTarget): boolean => {
-  const modelId = normalizeText(target.modelId)
-  const apiEndpoint = normalizeText(target.apiEndpoint)
-  const endpointType = normalizeText(target.endpointType)
-  const modelType = normalizeText(target.type)
-
-  return (
-    apiEndpoint === ApiEndpointType.Image ||
-    endpointType === 'image-generation' ||
-    modelType === ModelType.ImageGeneration.toLowerCase() ||
-    modelId.includes(OPENAI_IMAGE_GENERATION_MODEL_ID_FALLBACK)
-  )
-}
-
 const parseSize = (size: string): { width: number; height: number } | null => {
   const match = size.trim().match(/^(\d+)x(\d+)$/)
   if (!match) {
@@ -165,10 +66,6 @@ const parseSize = (size: string): { width: number; height: number } | null => {
 
   return { width, height }
 }
-
-export const supportsOpenAIImageGenerationSettings = (
-  target: OpenAIImageGenerationSettingsTarget
-): boolean => isOpenAICompatibleProvider(target) && hasOpenAIImageGenerationRoute(target)
 
 export const validateOpenAIImageGenerationSize = (
   size: string

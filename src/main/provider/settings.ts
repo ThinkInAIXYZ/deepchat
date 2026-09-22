@@ -69,6 +69,9 @@ import {
   isMiniMaxM3AdaptiveThinkingModel
 } from '@shared/modelRequestPolicy'
 import { resolveDeepSeekResponsesRoute } from './deepseekResponsesAdapter'
+import { resolveAiSdkProviderDefinition } from './providerRegistry'
+import { resolveMediaSettingsCapabilities } from './mediaCapabilities'
+import { resolveProviderTransport } from './providerTransport'
 
 // Create interface for model storage
 const defaultProviders = DEFAULT_PROVIDERS.map((provider) => ({
@@ -500,25 +503,6 @@ export class ProviderSettings implements ProviderSettingsPort {
     return hasEndpointEvidence || providerApiType || ownedBy || storedRoute ? route : null
   }
 
-  private resolveCapabilityIdentityWithProvider(
-    providerId: string,
-    modelId: string,
-    routeOverride?: CapabilityRouteOverride,
-    resolvedModelConfig?: ModelRouteConfig,
-    providerFacts?: MODEL_META,
-    provider?: LLM_PROVIDER
-  ): ResolvedCapabilityIdentity {
-    const route = this.resolveCapabilityRouteWithProvider(
-      providerId,
-      modelId,
-      routeOverride,
-      resolvedModelConfig,
-      providerFacts,
-      provider
-    )
-    return this.resolveCapabilityIdentityFromRoute(providerId, modelId, route, provider)
-  }
-
   private resolveCapabilityIdentityFromRoute(
     providerId: string,
     modelId: string,
@@ -534,31 +518,27 @@ export class ProviderSettings implements ProviderSettingsPort {
     })
   }
 
-  private resolveCapabilityIdentityForModel(
-    providerId: string,
-    modelId: string,
-    routeOverride?: CapabilityRouteOverride,
-    resolvedModelConfig?: ModelRouteConfig,
-    providerFacts?: MODEL_META
-  ): ResolvedCapabilityIdentity {
-    return this.resolveCapabilityIdentityWithProvider(
-      providerId,
-      modelId,
-      routeOverride,
-      resolvedModelConfig,
-      providerFacts,
-      this.providerHelper?.getProviderById?.(providerId)
-    )
-  }
-
   getCapabilitySnapshot(input: CapabilitySnapshotResolutionInput): ResolvedModelCapabilitySnapshot {
     const { providerId, modelId, resolvedModelConfig } = input
-    const identity = this.resolveCapabilityIdentityForModel(
+    const provider = this.providerHelper?.getProviderById?.(providerId)
+    const definition = provider ? resolveAiSdkProviderDefinition(provider) : null
+    const isApimart = definition?.routeStrategy === 'apimart'
+    const routeConfig = isApimart
+      ? {}
+      : (resolvedModelConfig ?? this.getModelRouteConfig(modelId, providerId))
+    const route = this.resolveCapabilityRouteWithProvider(
       providerId,
       modelId,
-      input.routeOverride,
-      resolvedModelConfig
+      isApimart ? undefined : input.routeOverride,
+      routeConfig,
+      undefined,
+      provider
     )
+    const identity = this.resolveCapabilityIdentityFromRoute(providerId, modelId, route, provider)
+    const transport =
+      definition && provider
+        ? resolveProviderTransport(definition, provider, modelId, route)
+        : undefined
     const reasoningDependentPolicy =
       getMoonshotKimiTemperaturePolicy(identity.providerId, identity.requestModelId) ||
       isMiniMaxM3AdaptiveThinkingModel(identity.providerId, identity.requestModelId)
@@ -570,9 +550,19 @@ export class ProviderSettings implements ProviderSettingsPort {
         : undefined)
 
     const snapshot = buildResolvedCapabilitySnapshot(identity, {
-      reasoningEnabled
+      reasoningEnabled,
+      mediaSettings: resolveMediaSettingsCapabilities(
+        transport?.providerKind,
+        modelId,
+        {
+          ...routeConfig,
+          type: route?.type ?? routeConfig.type,
+          ...(!isApimart ? input.routeOverride : {})
+        },
+        transport?.endpointType,
+        definition?.routeStrategy === 'grok'
+      )
     })
-    const provider = this.providerHelper?.getProviderById?.(providerId)
     if (
       resolveDeepSeekResponsesRoute({
         providerId,

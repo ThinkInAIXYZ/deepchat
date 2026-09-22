@@ -936,6 +936,7 @@ function createMockProviderSettings() {
           catalogModelId: modelId
         },
         requestPolicy: createPassthroughModelRequestPolicy(),
+        mediaSettings: { image: false, video: false },
         supportsAudioInput: settings.supportsAudioInputCapability(providerId, modelId),
         supportsReasoning: false,
         reasoningPortrait: null,

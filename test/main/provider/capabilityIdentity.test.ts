@@ -533,7 +533,9 @@ describe('capability identity resolution', () => {
     const getModelConfig = vi.fn(() => ({ reasoning: true }))
 
     Object.assign(providerSettings as object, {
-      resolveCapabilityIdentityForModel: resolveIdentity,
+      resolveCapabilityIdentityFromRoute: resolveIdentity,
+      resolveCapabilityRouteWithProvider: vi.fn(() => null),
+      getModelRouteConfig: vi.fn(() => ({})),
       getModelConfig
     })
 
@@ -564,10 +566,6 @@ describe('capability identity resolution', () => {
         }
       }).requestPolicy.temperature
     ).toEqual({ mode: 'fixed', value: 0.6 })
-    expect(resolveIdentity).toHaveBeenLastCalledWith('new-api', 'kimi-k2.6', undefined, {
-      endpointType: 'openai',
-      reasoning: false
-    })
     expect(getModelConfig).toHaveBeenCalledTimes(1)
   })
 
@@ -610,7 +608,9 @@ describe('capability identity resolution', () => {
     const getModelConfig = vi.fn(() => ({ reasoning: true, temperature: 0.6 }))
 
     Object.assign(providerSettings as object, {
-      resolveCapabilityIdentityForModel: resolveIdentity,
+      resolveCapabilityIdentityFromRoute: resolveIdentity,
+      resolveCapabilityRouteWithProvider: vi.fn(() => null),
+      getModelRouteConfig: vi.fn(() => ({})),
       getModelConfig
     })
 

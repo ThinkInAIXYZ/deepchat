@@ -1,8 +1,7 @@
 import type { ProviderSettingsPort } from '@/provider/settings'
-import { supportsOpenAIImageGenerationSettings } from '@shared/imageGenerationSettings'
 import { ApiEndpointType, ModelType } from '@shared/model'
 import type { LLM_PROVIDER, ModelConfig } from '@shared/types/provider'
-import { supportsOpenAICompatibleVideoGeneration } from '@shared/videoGenerationSettings'
+import { resolveMediaSettingsCapabilities } from '@/provider/mediaCapabilities'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { DEFAULT_PROVIDERS } from '../../../src/main/provider/defaults'
 import { ProviderInstanceManager } from '../../../src/main/provider/managers/providerInstanceManager'
@@ -164,18 +163,14 @@ describe('ApimartProvider', () => {
     })
     expect(manager.createDraftInstance(createProvider())).toBeInstanceOf(ApimartProvider)
     expect(
-      supportsOpenAIImageGenerationSettings({
-        providerId: 'apimart',
-        providerApiType: 'apimart',
+      resolveMediaSettingsCapabilities('openai-compatible', 'image', {
         type: ModelType.ImageGeneration
-      })
+      }).image
     ).toBe(true)
     expect(
-      supportsOpenAICompatibleVideoGeneration({
-        providerId: 'apimart',
-        providerApiType: 'apimart',
+      resolveMediaSettingsCapabilities('openai-compatible', 'video', {
         type: ModelType.VideoGeneration
-      })
+      }).video
     ).toBe(true)
   })
 
