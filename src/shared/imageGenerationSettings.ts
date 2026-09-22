@@ -1,5 +1,3 @@
-export const OPENAI_IMAGE_GENERATION_MODEL_ID_FALLBACK = 'gpt-image-2'
-
 export const IMAGE_GENERATION_QUALITY_VALUES = ['low', 'medium', 'high', 'auto'] as const
 export const IMAGE_GENERATION_OUTPUT_FORMAT_VALUES = ['png', 'jpeg', 'webp'] as const
 export const OPENAI_IMAGE_GENERATION_BACKGROUND_VALUES = ['auto', 'opaque'] as const
