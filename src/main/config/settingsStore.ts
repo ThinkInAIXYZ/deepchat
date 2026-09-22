@@ -88,6 +88,7 @@ export class SettingsStore implements StoreLike<Record<string, unknown>> {
     if (this.isDatabaseAttached) {
       throw new Error('Settings database is already attached')
     }
+    database.appSettingsTable.seedPortableSettings(this.legacyStore.store)
     this.activeStore = new AppSettingsDbBackedStore(
       this.legacyStore,
       () => database.appSettingsTable

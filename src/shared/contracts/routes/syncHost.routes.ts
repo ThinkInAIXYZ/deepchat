@@ -16,6 +16,7 @@ export type SyncTunnelStatus = z.infer<typeof SyncTunnelStatusSchema>
 
 const SyncHostStatusViewSchema = z.object({
   enabled: z.boolean(),
+  allowWrites: z.boolean().default(false),
   running: z.boolean(),
   port: z.number().int().positive().nullable(),
   hostId: z.string(),
@@ -50,6 +51,7 @@ export const syncHostSetEnabledRoute = defineRouteContract({
     enabled: z.boolean(),
     port: z.number().int().min(1).max(65535).optional(),
     consent: z.boolean().optional(),
+    bidirectional: z.boolean().optional(),
     tunnel: SyncTunnelConfigSchema.extend({ token: z.string().max(8192).optional() }).optional()
   }),
   output: z.object({

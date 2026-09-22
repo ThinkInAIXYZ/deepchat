@@ -14,7 +14,8 @@ export class SyncTunnel {
 
   constructor(
     private readonly directory: string,
-    private readonly resolveBinary: () => string
+    private readonly resolveBinary: () => string,
+    private readonly changed?: () => void
   ) {
     this.registry = new ChildProcessRegistry({ rootDir: path.join(directory, 'processes') })
   }
@@ -61,6 +62,7 @@ export class SyncTunnel {
       const connections = new Set<string>()
       const consume = (chunk: Buffer) => {
         if (this.child !== child || this.current.phase === 'failed') return
+        const previous = JSON.stringify(this.current)
         buffer = (buffer + chunk.toString()).slice(-8192)
         const lines = buffer.split('\n')
         buffer = lines.pop() ?? ''
@@ -89,6 +91,7 @@ export class SyncTunnel {
         } else {
           this.current.phase = 'starting'
         }
+        if (previous !== JSON.stringify(this.current)) this.changed?.()
       }
       child.stdout?.on('data', consume)
       child.stderr?.on('data', consume)
@@ -132,6 +135,7 @@ export class SyncTunnel {
     this.clearTimer()
     this.current.phase = 'failed'
     this.current.error ??= 'sync.tunnel.error.tunnelFailed'
+    this.changed?.()
     // Keep the handle until stop confirms termination, including a startup timeout.
   }
 

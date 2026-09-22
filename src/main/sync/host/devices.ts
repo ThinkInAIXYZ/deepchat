@@ -53,6 +53,7 @@ export class SyncHostDeviceStore {
     name: string
     expiresAt?: number | null
     now?: number
+    writable?: boolean
   }): Promise<IssuedSyncHostDevice> {
     const now = input.now ?? Date.now()
     const token = randomBytes(SYNC_HOST_DEVICE_TOKEN_BYTES).toString('base64url')
@@ -63,7 +64,8 @@ export class SyncHostDeviceStore {
       createdAt: now,
       lastSeenAt: null,
       expiresAt: input.expiresAt ?? null,
-      revokedAt: null
+      revokedAt: null,
+      writable: input.writable === true
     }
     await this.state.update((state) => {
       state.devices.push(record)
@@ -88,6 +90,18 @@ export class SyncHostDeviceStore {
       return toView(record)
     }
     return null
+  }
+
+  canWrite(deviceId: string): boolean {
+    return this.state
+      .snapshot()
+      .devices.some(
+        (device) =>
+          device.deviceId === deviceId &&
+          device.writable === true &&
+          device.revokedAt === null &&
+          (device.expiresAt === null || device.expiresAt > Date.now())
+      )
   }
 
   async revoke(deviceId: string, now: number = Date.now()): Promise<boolean> {

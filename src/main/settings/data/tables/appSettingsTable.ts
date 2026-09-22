@@ -1,3 +1,4 @@
+import { SYNC_PORTABLE_SETTINGS } from '@shared/types/syncPortableSettings'
 import Database from 'better-sqlite3-multiple-ciphers'
 import { BaseTable } from '@/data/baseTable'
 
@@ -77,6 +78,20 @@ export class AppSettingsTable extends BaseTable {
          ON CONFLICT(id) DO UPDATE SET applied_at = excluded.applied_at`
       )
       .run(id, now())
+  }
+
+  seedPortableSettings(legacy: Record<string, unknown>): void {
+    const migration = 'portable-sync-settings-v1'
+    if (this.hasConfigMigration(migration)) return
+    this.db.transaction(() => {
+      const insert = this.db.prepare(
+        'INSERT OR IGNORE INTO app_settings(key,value_json,sensitive,updated_at) VALUES(?,?,0,0)'
+      )
+      for (const key of SYNC_PORTABLE_SETTINGS) {
+        if (legacy[key] !== undefined) insert.run(key, stringifyJson(legacy[key]))
+      }
+      this.markConfigMigrationApplied(migration)
+    })()
   }
 
   getAppSetting<TValue = unknown>(key: string): TValue | undefined {

@@ -18,6 +18,7 @@ import {
 import { createSyncHostRoutes, type SyncHostRoutePort } from '@/sync/host/routes'
 
 const STATUS = {
+  allowWrites: false,
   enabled: true,
   running: true,
   port: 43117,

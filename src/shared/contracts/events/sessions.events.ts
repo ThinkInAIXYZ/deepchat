@@ -32,7 +32,15 @@ export const sessionsUpdatedEvent = defineEventContract({
   name: 'sessions.updated',
   payload: z.object({
     sessionIds: z.array(EntityIdSchema),
-    reason: z.enum(['created', 'activated', 'deactivated', 'list-refreshed', 'updated', 'deleted']),
+    reason: z.enum([
+      'created',
+      'activated',
+      'deactivated',
+      'list-refreshed',
+      'updated',
+      'deleted',
+      'synced'
+    ]),
     activeSessionId: EntityIdSchema.nullable().optional(),
     webContentsId: z.number().int().optional()
   })

@@ -99,7 +99,8 @@ export type SyncHostStatus = z.infer<typeof SyncHostStatusSchema>
 
 export const SyncHostPairRequestSchema = z.object({
   code: z.string().min(1).max(256),
-  deviceName: z.string().trim().min(1).max(SYNC_HOST_DEVICE_NAME_MAX_LENGTH)
+  deviceName: z.string().trim().min(1).max(SYNC_HOST_DEVICE_NAME_MAX_LENGTH),
+  bidirectional: z.boolean().optional()
 })
 export type SyncHostPairRequest = z.infer<typeof SyncHostPairRequestSchema>
 

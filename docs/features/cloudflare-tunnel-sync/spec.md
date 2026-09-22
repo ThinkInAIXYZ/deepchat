@@ -22,9 +22,9 @@ for explicitly requested restore and compatibility; it is not the automatic merg
 
 - `src/main/sync/host` owns pairing, the public endpoint, connector lifecycle and peer notifications.
 - `src/main/sync/peer` owns the outbound connection, staged transfer, acknowledgements and retries.
-- Shared sync logic owns scheduling, LWW comparison, the durable change index and batch construction.
+- `src/main/sync/replica` owns scheduling, LWW comparison, the durable change index and batch construction.
   Host and peer use the same comparator and application rules.
-- Domain persistence owners record successful writes and apply validated sync units. Session runtime
+- SQLite triggers record successful canonical writes; the replica store validates and applies units. Session runtime
   admission coordinates safe application; the sync layer cannot cancel a run to make progress.
 - ToolchainService owns bundled, managed, system and custom cloudflared executables.
 - Settings uses typed preload/IPC clients and its own store, without chat-app imports. Main-process
@@ -82,7 +82,7 @@ Conflict units follow domain consistency boundaries rather than arbitrary SQLite
 | Conversation | One session bundle: portable metadata, ordered messages, dependent content and canonical history. The newer complete bundle wins atomically. |
 | Agent, provider and MCP definitions | One stable definition, with its dependent portable settings. Different definition IDs coexist. |
 | Portable application settings | One allowlisted setting key; never replace the entire settings document. |
-| Custom/system prompts | One prompt ID, including removal; a file timestamp cannot stand in for every prompt's modification time. |
+| Custom/system prompts | Each existing SQLite prompt-list setting is one unit, including removals within that list. Its newer value wins without adding a separate prompt persistence model. |
 | Memory | One canonical memory record plus its domain deletion identity; honor existing memory tombstone semantics. Derived vectors and indexes remain local. |
 
 For a matching session ID, replace its related content together when the incoming session is newer.
@@ -91,12 +91,19 @@ session; do not splice histories or ask the user to resolve the conflict. Openin
 changing transient selection must not update its modification time.
 
 The domain mapping must enumerate canonical tables, fields, dependencies and local-only fields before
-implementation. Do not serialize all SQLite tables generically. Local tape sequence IDs require
-mapping through the session owner; imported historical tool runs are data and never execute again.
+implementation. Do not serialize all SQLite tables generically. Tape entry IDs are scoped by session; bundle import preserves that composite identity; imported historical tool runs are data and never execute again.
 Runtime handles, pending executions/approvals, scheduler jobs and deliveries, machine paths, toolchain
 choices, caches, derived projections, credentials for sync itself and local UI state are excluded.
 File attachments and external resources retain the existing backup boundary: this feature does not
 promise transfer of arbitrary files referenced by an absolute path.
+
+The executable allowlist is `src/main/sync/replica/units.ts`: sessions include the session root,
+DeepChat configuration/metadata, tape entries, messages and their dependent content; providers include
+models, model status and user overrides; agents and MCP servers use their definition tables. Memory
+records and domain tombstone identities have separate units. Application settings are restricted to
+prompt lists and `SYNC_PORTABLE_SETTINGS`. Project directories, agent runtime state, provider last-use
+and memory embeddings/access counters are preserved locally. SQL notifications coalesce within a
+transaction; outgoing SSE notifications coalesce over 250 ms.
 
 ## Deletion and initialization
 
@@ -125,9 +132,10 @@ per unit; an unbounded log containing every streamed token is unnecessary.
 
 For SQLite data, persist unit metadata/revision in the same transaction as the canonical mutation.
 A rolled-back write must not generate a change. Cover UI, CLI, agent completion and background writer
-paths through the persistence owner, not renderer events. File-backed prompts/settings need a durable
-write-intent before replacement, an atomic file write and metadata finalization; startup reconciles
-only unfinished intents. A post-save in-memory event alone cannot provide crash recovery.
+paths through SQLite triggers, not renderer events. Prompt lists already live in `app_settings`.
+Portable chat preferences migrate once from JSON into the same existing table; paths, security
+switches and local UI settings remain local. Compatibility backup JSON includes portable values,
+and manual imports restore them into SQLite. No separate file write-intent journal is needed.
 
 After commit, notify the scheduler. The notification performs no export, hash or network work. Streamed
 message persistence may coalesce the same unit's pending revision, but an active session is not
@@ -145,8 +153,10 @@ nextAttemptAt = max(min(quietDeadline, forcedDeadline), rateDeadline)
 
 The 120-second maximum wait prevents continuous edits from starving eligible pending work. It never
 bypasses runtime admission, the 60-second minimum or an in-flight operation. Ineligible active session
-bundles wait for the corresponding idle event; unrelated eligible data may proceed. There is at most
-one local sync cycle at a time, and timer state uses monotonic elapsed time while the process runs.
+bundles wait for runtime-idle notifications or a bounded retry. Export stops before a busy unit to
+keep delivery cursors contiguous; later units remain pending. There is at most one local cycle at a
+time. One-shot timers use the current clock and the persisted last-start time, under the same
+correct-device-clock assumption as conflict comparison.
 Persist pending revisions and the last start so restart cannot forget work or reset the rate limit.
 
 Capture an upper revision from a consistent read view when a cycle starts. Export and acknowledge
@@ -182,7 +192,9 @@ table names. Only the negotiated domain unit schema is accepted.
   accepted peer edits notify other devices through the same revision mechanism.
 - Build immutable batches from consistent data views. Each manifest identifies source replica,
   cursor range, schema and content digest. Split large payloads into parts within the existing
-  32 MiB push-part bound; stream compression and transfer with bounded memory. Reuse verified parts
+  32 MiB push-part bound: parts are 16 MiB, target batches are 8 MiB, and the hard compressed and
+  uncompressed limit is 32 MiB. Compression runs asynchronously; short SQLite transactions handle
+  allowlisted rows. A single session above the hard limit fails visibly without acknowledgement. Reuse verified parts
   and immutable identity for resume. A lost part must not cause a fresh full-database export.
 - Acknowledgement means durable application or an idempotent LWW no-op, never just receipt. Compare
   the stamp again inside the apply transaction. Persist application and receive-cursor progress
@@ -190,7 +202,8 @@ table names. Only the negotiated domain unit schema is accepted.
 - A cursor advances only across fully accounted-for units. A busy unit is staged durably and must not
   be skipped by moving the cursor past it. Do not hold its transaction open while waiting for idle.
 - Retain immutable batches needed for active resumable transfers; bound abandoned staging by size and
-  expiry. Pruning batch files cannot delete the current indexed state or tombstones needed by an
+  expiry. Each staging directory is capped at 128 MiB; completed parts and superseded downloads
+  are removed, and abandoned files expire after 24 hours. Pruning batch files cannot delete the current indexed state or tombstones needed by an
   offline peer. If a delivery cursor cannot be continued, re-enumerate current units and tombstones.
 
 The notification stream replaces automatic prepare-status polling. Legacy manual v1 transfer can

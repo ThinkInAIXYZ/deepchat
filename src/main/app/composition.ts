@@ -1,3 +1,6 @@
+import { SyncReplicaStore } from '@/sync/replica/store'
+import { SyncReplicaEndpoint } from '@/sync/replica/endpoint'
+import { AutomaticSync } from '@/sync/replica/automatic'
 import { SyncPeerService } from '../sync/peer'
 import { createSyncPeerRoutes } from '../sync/peer/routes'
 import logger from '@shared/logger'
@@ -531,6 +534,9 @@ export async function createMainProcessControl(dependencies: {
   let syncService: SyncService
   let syncPeerService: SyncPeerService
   let syncHostService: SyncHostService
+  let syncReplica: SyncReplicaStore | undefined
+  let automaticSync: AutomaticSync | undefined
+  const syncActiveSessions = new Set<string>()
   let deeplinkService: DeeplinkService
   let notificationService: NotificationService
   let tabPresenter: TabPresenter
@@ -761,6 +767,15 @@ export async function createMainProcessControl(dependencies: {
   }
   const publishDeepchatEvent = (name: DeepchatEventName, payload: unknown): void => {
     sessionEventRouter.publish(name, payload)
+    if (name === 'sessions.status.changed') {
+      const state = payload as { sessionId: string; status: string }
+      if (state.status === 'generating' || state.status === 'running')
+        syncActiveSessions.add(state.sessionId)
+      else {
+        syncActiveSessions.delete(state.sessionId)
+        syncReplica?.wake()
+      }
+    }
   }
   dependencies.mcpAppSandboxRegistry.setConsentPublisher((windowId, payload) => {
     windowPresenter.sendToWindow(
@@ -1347,7 +1362,136 @@ export async function createMainProcessControl(dependencies: {
       )
     }
   })
+  const syncAppliedSessions = new Set<string>()
+  const hasPendingSyncSession = (id: string): boolean =>
+    Boolean(
+      mainDatabase
+        .getDatabase()
+        .prepare(
+          "SELECT 1 FROM deepchat_pending_inputs WHERE session_id=? AND state != 'consumed' LIMIT 1"
+        )
+        .get(id)
+    )
+  syncReplica = new SyncReplicaStore({
+    database: () => mainDatabase.getDatabase(),
+    directory: path.join(app.getPath('userData'), 'sync-replica'),
+    canApply: (kind, id) =>
+      databaseMaintenanceState === 'running' &&
+      (kind === 'session'
+        ? !syncActiveSessions.has(id) &&
+          !hasPendingSyncSession(id) &&
+          (syncAppliedSessions.has(id) || !sessionDeletionGate.hasActiveOperations(id))
+        : syncActiveSessions.size === 0 &&
+          !sessionDeletionGate.hasActiveOperationsOutside(syncAppliedSessions)),
+    guard: async (units, operation) => {
+      const ids = [
+        ...new Set(units.filter((unit) => unit.kind === 'session').map((unit) => unit.id))
+      ].sort()
+      const apply = async (index: number): Promise<ReturnType<typeof operation>> => {
+        if (index === ids.length) return operation()
+        const id = ids[index]
+        if (
+          syncActiveSessions.has(id) ||
+          hasPendingSyncSession(id) ||
+          sessionDeletionGate.hasActiveOperations(id)
+        )
+          return false
+        return sessionDeletionGate.runWithSessionDeletion(id, async () => {
+          if (syncActiveSessions.has(id)) return false
+          await deepChatAgentHarness.cleanupSession(id)
+          await acpAgentRuntime.cleanupSession(toAppSessionId(id))
+          syncAppliedSessions.add(id)
+          try {
+            return await apply(index + 1)
+          } finally {
+            syncAppliedSessions.delete(id)
+          }
+        })
+      }
+      return apply(0)
+    },
+    applied: (kind, id, deleted) => {
+      if (kind === 'session')
+        publishDeepchatEvent('sessions.updated', {
+          sessionIds: [id],
+          reason: deleted ? 'deleted' : 'synced'
+        })
+      if (kind === 'provider') {
+        providerSettings.invalidateSyncCaches()
+        providerRuntime.handleProviderAtomicUpdate({
+          operation: 'remove',
+          providerId: id,
+          requiresRebuild: true
+        })
+        const provider = providerSettings.getProviderById(id)
+        if (provider)
+          providerRuntime.handleProviderAtomicUpdate({
+            operation: 'add',
+            providerId: id,
+            provider,
+            requiresRebuild: false
+          })
+        publishDeepchatEvent('providers.changed', {
+          reason: 'providers',
+          providerIds: [id],
+          version: Date.now()
+        })
+        publishDeepchatEvent('models.changed', {
+          reason: 'runtime-refresh',
+          providerId: id,
+          version: Date.now()
+        })
+      }
+      if (kind === 'setting' && id === 'customPrompts') promptSettings.invalidateSyncCache()
+      const refresh = async () => {
+        if (kind === 'agent')
+          await emitAgentCatalogChanged(agentSettings, publishDeepchatEvent, [id])
+        if (kind === 'mcp') {
+          mcpService.handleConfigChanged()
+          publishDeepchatEvent('mcp.config.changed', {
+            mcpServers: await dependencies.mcpSettings.getMcpServers(),
+            mcpEnabled: await dependencies.mcpSettings.getMcpEnabled(),
+            version: Date.now()
+          })
+          deepChatAgentHarness.refreshToolRegistry()
+        }
+        if (kind === 'setting' && id === 'customPrompts')
+          publishDeepchatEvent('config.customPrompts.changed', {
+            prompts: await promptSettings.getCustomPrompts(),
+            version: Date.now()
+          })
+        if (kind === 'setting' && (id === 'systemPrompts' || id === 'default_system_prompt'))
+          await promptSettings.publishSystemPromptState()
+      }
+      void refresh().catch((error) =>
+        logger.warn('[Sync] Could not refresh imported settings', error)
+      )
+      publishDeepchatEvent('sync.device.changed', { version: Date.now() })
+    }
+  })
+  const replicaEndpoint = new SyncReplicaEndpoint({
+    store: syncReplica,
+    directory: path.join(app.getPath('userData'), 'sync-host'),
+    hostId: () => syncHostService.getHostId(),
+    available: () =>
+      databaseMaintenanceState === 'running' &&
+      !syncService.isBackupInProgress() &&
+      !mainDatabase.getDatabasePassword()
+  })
+  automaticSync = new AutomaticSync({
+    store: syncReplica,
+    directory: path.join(app.getPath('userData'), 'sync-peer'),
+    connection: () => syncPeerService.connection(),
+    available: () =>
+      databaseMaintenanceState === 'running' &&
+      !syncService.isBackupInProgress() &&
+      !mainDatabase.getDatabasePassword(),
+    changed: () => publishDeepchatEvent('sync.device.changed', { version: Date.now() })
+  })
+  syncPeerService.automatic = automaticSync
   syncHostService = new SyncHostService({
+    changed: () => publishDeepchatEvent('sync.device.changed', { version: Date.now() }),
+    replica: replicaEndpoint,
     resolveCloudflared: () => toolchainService.resolve('cloudflared').cloudflared,
     ...syncTokenStorage,
 
@@ -1912,6 +2056,13 @@ export async function createMainProcessControl(dependencies: {
     publishEvent: publishDeepchatEvent,
     publishSessionUpdate: (update) => {
       sessionRuntimeEvents.publish(update)
+      if (update.kind === 'status') {
+        if (update.status === 'generating') syncActiveSessions.add(update.sessionId)
+        else {
+          syncActiveSessions.delete(update.sessionId)
+          syncReplica?.wake()
+        }
+      }
       if (update.kind === 'status' && (update.status === 'idle' || update.status === 'error')) {
         void yoBrowserPresenter.releaseInactivePreview(update.sessionId).catch((error) => {
           logger.warn('[YoBrowser] Failed to release inactive preview', {
@@ -2677,6 +2828,9 @@ export async function createMainProcessControl(dependencies: {
   async function destroy(): Promise<void> {
     await runDestroyStep('agentCliTokenAuthority.clear', () => agentCliTokenAuthority.clear())
     await runDestroyStep('cliServer.stop', () => cliServer.stop())
+    await runDestroyStep('automaticSync.close', () => automaticSync!.close())
+    replicaEndpoint.close()
+    syncReplica?.close()
     await runDestroyStep('syncPeerService.stop', () => syncPeerService.stop())
     await runDestroyStep('syncHostService.stop', () => syncHostService.stop())
     await runDestroyStep('tapeInspectorHeadWatcher.close', () => tapeInspectorHeadWatcher.close())
@@ -3413,6 +3567,8 @@ export async function createMainProcessControl(dependencies: {
     }
     if (syncService.isBackupInProgress()) throw new Error('sync.tunnel.error.busy')
     databaseMaintenanceState = 'maintenance'
+    replicaEndpoint.stop()
+    await automaticSync?.pause()
     startupWorkloadCoordinator.cancelTarget('main')
     memoryService.stopBackgroundMaintenance()
 
@@ -3473,6 +3629,8 @@ export async function createMainProcessControl(dependencies: {
       const startupRunId = startupWorkloadCoordinator.createRun('main')
       scheduleBackgroundWork(startupRunId)
       databaseMaintenanceState = 'running'
+      syncReplica?.wake()
+      await automaticSync?.start()
     } catch (error) {
       databaseMaintenanceState = 'failed'
       await stopForCleanup()
@@ -3635,6 +3793,7 @@ export async function createMainProcessControl(dependencies: {
   }
   try {
     await syncHostService.startIfEnabled()
+    await automaticSync?.start()
   } catch (error) {
     reportMainStartupComponentFailure(dependencies.startupRunId, 'sync_host', 'unknown')
     logger.error('[SyncHost] Failed to start host mode', error)

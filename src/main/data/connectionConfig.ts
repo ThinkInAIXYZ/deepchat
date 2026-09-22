@@ -1,4 +1,5 @@
 import type Database from 'better-sqlite3-multiple-ciphers'
+import { configureDatabaseChangeNotification } from './databaseChanges'
 
 export const SQLCIPHER_COMPATIBILITY_VERSION = 4
 
@@ -17,6 +18,7 @@ export function configureSQLiteConnection(db: Database.Database, password?: stri
     applySQLitePassword(db, password)
   }
 
+  configureDatabaseChangeNotification(db)
   db.pragma('journal_mode = WAL')
   // NORMAL is what every connection has been running with: the bundled
   // better-sqlite3-multiple-ciphers build compiles in SQLITE_DEFAULT_WAL_SYNCHRONOUS=1, which

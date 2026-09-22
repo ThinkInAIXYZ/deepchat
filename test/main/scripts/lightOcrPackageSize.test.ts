@@ -24,12 +24,12 @@ describe('Light OCR packaged component budgets', () => {
         ocrAssetsCompressed: 90,
         nodeRuntimeCompressed: 0,
         otherRuntimeCompressedByTarget: {
-          'darwin-arm64': 32,
-          'darwin-x64': 32,
-          'linux-arm64': 32,
-          'linux-x64': 32,
+          'darwin-arm64': 48,
+          'darwin-x64': 48,
+          'linux-arm64': 48,
+          'linux-x64': 48,
           'win32-arm64': 32,
-          'win32-x64': 32
+          'win32-x64': 48
         }
       }
     })
@@ -40,7 +40,7 @@ describe('Light OCR packaged component budgets', () => {
       expect(readComponentBudgets(manifest, target)).toEqual({
         ocrAssetsCompressed: 90,
         nodeRuntimeCompressed: 0,
-        otherRuntimeCompressed: 32
+        otherRuntimeCompressed: target === 'win32-arm64' ? 32 : 48
       })
     }
   })

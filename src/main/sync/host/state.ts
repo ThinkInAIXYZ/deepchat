@@ -18,10 +18,12 @@ export interface SyncHostDeviceRecord {
   lastSeenAt: number | null
   expiresAt: number | null
   revokedAt: number | null
+  writable?: boolean
 }
 
 export interface SyncHostState {
   enabled: boolean
+  allowWrites: boolean
   port: number
   consentAt: number | null
   consentVersion: number
@@ -34,6 +36,7 @@ export interface SyncHostState {
 
 const DEFAULT_STATE: SyncHostState = {
   enabled: false,
+  allowWrites: false,
   port: 0,
   consentAt: null,
   consentVersion: 0,
@@ -182,6 +185,7 @@ export class SyncHostStateStore {
     const record = parsed as Partial<SyncHostState>
     return {
       enabled: record.enabled === true,
+      allowWrites: record.allowWrites === true,
       tunnel: SyncTunnelConfigSchema.safeParse(record.tunnel).data ?? {
         mode: 'external',
         publicUrl: ''

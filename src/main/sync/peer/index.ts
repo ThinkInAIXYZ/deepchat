@@ -1,4 +1,5 @@
 import { createHash, randomBytes } from 'node:crypto'
+import type { AutomaticSync, SyncConnection } from '../replica/automatic'
 import { createReadStream } from 'node:fs'
 import { mkdir, open, readFile, rename, rm, stat, statfs } from 'node:fs/promises'
 import path from 'node:path'
@@ -27,7 +28,8 @@ const PairingSchema = z.object({
   deviceId: z.string(),
   deviceName: z.string(),
   wrappedToken: z.string(),
-  lastSuccessAt: z.number().nullable()
+  lastSuccessAt: z.number().nullable(),
+  bidirectional: z.boolean().default(false)
 })
 type Pairing = z.infer<typeof PairingSchema>
 
@@ -46,6 +48,7 @@ function fail(code: string): never {
 
 /** One paired host and one transfer per profile; private staging never enters cloud backups. */
 export class SyncPeerService {
+  automatic?: AutomaticSync
   private readonly fetch: typeof fetch
   private controller: AbortController | null = null
   private task: Promise<void> | null = null
@@ -94,9 +97,35 @@ export class SyncPeerService {
     }
   }
 
+  async connection(): Promise<SyncConnection | null> {
+    const pairing = await this.readPairing()
+    if (!pairing) return null
+    if (!pairing.bidirectional) throw new Error('sync.tunnel.error.writeConsentRequired')
+    return {
+      hostUrl: pairing.hostUrl,
+      hostId: pairing.hostId,
+      token: this.deps.revealToken(pairing.wrappedToken)
+    }
+  }
+
+  async setAutomatic(enabled: boolean): Promise<SyncPeerStatus> {
+    this.assertIdle()
+    if (!this.automatic) fail('automaticUnsupported')
+    await this.automatic.setEnabled(enabled)
+    return this.getStatus()
+  }
+
+  async syncNow(): Promise<SyncPeerStatus> {
+    this.assertIdle()
+    if (!this.automatic?.status().enabled) fail('automaticDisabled')
+    this.automatic.request(true)
+    return this.getStatus()
+  }
+
   async getStatus(): Promise<SyncPeerStatus> {
     const pairing = await this.readPairing()
     return {
+      automatic: this.automatic?.status(),
       paired: pairing !== null,
       hostUrl: pairing?.hostUrl ?? '',
       hostId: pairing?.hostId ?? '',
@@ -115,6 +144,7 @@ export class SyncPeerService {
     hostId: string
     code: string
     deviceName: string
+    bidirectional?: boolean
   }): Promise<SyncPeerStatus> {
     this.assertIdle()
     this.pairingTask = this.pairInternal(input).finally(() => {
@@ -128,11 +158,13 @@ export class SyncPeerService {
     hostId: string
     code: string
     deviceName: string
+    bidirectional?: boolean
   }): Promise<SyncPeerStatus> {
     this.pairingBusy = true
     this.controller = new AbortController()
     this.progress = { phase: 'pairing', received: 0, total: 0, error: null }
     try {
+      await this.automatic?.setEnabled(false)
       let url: URL
       try {
         url = new URL(input.hostUrl)
@@ -156,7 +188,11 @@ export class SyncPeerService {
         await this.json(hostUrl + SYNC_HOST_PAIR_PATH, {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ code: input.code, deviceName: input.deviceName }),
+          body: JSON.stringify({
+            code: input.code,
+            deviceName: input.deviceName,
+            bidirectional: input.bidirectional
+          }),
           signal: this.controller.signal
         })
       )
@@ -166,7 +202,8 @@ export class SyncPeerService {
         deviceId: response.deviceId,
         deviceName: response.deviceName,
         wrappedToken: this.deps.protectToken(response.token),
-        lastSuccessAt: null
+        lastSuccessAt: null,
+        bidirectional: input.bidirectional === true
       } satisfies Pairing)
       await this.clearPartial()
       this.progress.phase = 'idle'
@@ -182,6 +219,7 @@ export class SyncPeerService {
   }
 
   async forget(): Promise<SyncPeerStatus> {
+    await this.automatic?.setEnabled(false)
     this.assertIdle()
     this.pairingBusy = true
     try {
@@ -196,6 +234,7 @@ export class SyncPeerService {
 
   async pull(mode: 'increment' | 'overwrite', confirmOverwrite = false): Promise<SyncPeerStatus> {
     this.assertIdle()
+    if (this.automatic?.status().enabled) fail('busy')
     if (mode === 'overwrite' && !confirmOverwrite) fail('overwriteConfirmation')
     this.cancelled = false
     this.controller = new AbortController()

@@ -21,6 +21,9 @@ vi.unmock('pinia')
 vi.unmock('vue-i18n')
 
 const client = vi.hoisted(() => ({
+  onChanged: () => () => {},
+  setAutomatic: vi.fn(),
+  syncNow: vi.fn(),
   hostStatus: vi.fn(),
   peerStatus: vi.fn(),
   devices: vi.fn(),
@@ -122,5 +125,32 @@ describe('TunnelSyncSettings', () => {
     const enable = wrapper.findAll('button').find((button) => button.text() === 'Enable sharing')!
     expect(enable.attributes('disabled')).toBeUndefined()
     expect(wrapper.get('[role="alert"]').text()).toContain('Pairing credentials')
+  })
+  it('shows two-way timing and busy status and sends Sync now through the automatic path', async () => {
+    const wrapper = await render()
+    const store = useTunnelSyncStore()
+    store.peer = {
+      ...initialPeer,
+      phase: 'idle',
+      automatic: {
+        enabled: true,
+        phase: 'busy',
+        lastSuccessAt: null,
+        error: null
+      }
+    }
+    client.syncNow.mockResolvedValue(store.peer)
+    await flushPromises()
+    expect(wrapper.text()).toContain('15 seconds')
+    expect(wrapper.text()).toContain('60 seconds')
+    expect(wrapper.text()).toContain('Waiting for active work to finish')
+    expect(wrapper.text()).not.toContain('Replace local data')
+    await wrapper
+      .findAll('button')
+      .find((button) => button.text() === 'Sync now')!
+      .trigger('click')
+    await flushPromises()
+    expect(client.syncNow).toHaveBeenCalledOnce()
+    expect(client.pull).not.toHaveBeenCalled()
   })
 })

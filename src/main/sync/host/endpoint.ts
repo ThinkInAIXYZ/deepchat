@@ -1,4 +1,6 @@
 import http from 'node:http'
+import { SYNC_REPLICA_PREFIX } from '@shared/contracts/syncReplica'
+import type { SyncReplicaEndpoint } from '../replica/endpoint'
 import type net from 'node:net'
 import fs from 'node:fs'
 import {
@@ -53,6 +55,9 @@ export interface SyncHostEndpointLogger {
 }
 
 export interface SyncHostEndpointDeps {
+  changed?: () => void
+  replica?: SyncReplicaEndpoint
+  allowWrites?: () => boolean
   prepare?: () => void
   preparation?: () => { preparing: boolean; preparationError: string | null }
   devices: SyncHostDeviceStore
@@ -280,6 +285,21 @@ export class SyncHostEndpoint {
         return
       }
 
+      if (path.startsWith(SYNC_REPLICA_PREFIX + '/') && this.deps.replica) {
+        const socket = this.sockets.get(request.socket)
+        if (socket) socket.streaming = true
+        response.once('close', () => {
+          if (socket) socket.streaming = false
+        })
+        await this.deps.replica.handle(
+          request,
+          response,
+          device.deviceId,
+          () => this.deps.allowWrites?.() === true && this.deps.devices.canWrite(device.deviceId)
+        )
+        return
+      }
+
       if (!HANDLED_PATHS.has(path)) {
         this.respondJson(response, 404, { error: 'not_found' })
         this.audit({ method, path, status: 404, bytes: 0, deviceId: device.deviceId, clientIp })
@@ -406,7 +426,10 @@ export class SyncHostEndpoint {
     this.pairFailures.delete(failureKey)
     let issued: IssuedSyncHostDevice
     try {
-      issued = await this.deps.devices.issue({ name: validation.data.deviceName })
+      issued = await this.deps.devices.issue({
+        name: validation.data.deviceName,
+        writable: validation.data.bidirectional === true && this.deps.allowWrites?.() === true
+      })
     } catch (error) {
       // The code was spent but no device exists. Burning it would force the user to generate a new
       // one for a failure that was not theirs, so it is restored and the error still surfaces.
@@ -420,6 +443,7 @@ export class SyncHostEndpoint {
     })
     const bytes = this.respondJson(response, 200, payload)
     this.audit({ method, path, status: 200, bytes, deviceId: issued.device.deviceId, clientIp })
+    this.deps.changed?.()
   }
 
   private async handleStatus(

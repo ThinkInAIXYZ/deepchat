@@ -1,4 +1,6 @@
 import {
+  syncPeerSetAutomaticRoute,
+  syncPeerSyncNowRoute,
   syncPeerGetStatusRoute,
   syncPeerPairRoute,
   syncPeerPullRoute,
@@ -10,6 +12,23 @@ import type { SyncPeerService } from './index'
 
 export function createSyncPeerRoutes(peer: SyncPeerService) {
   return createRouteMap([
+    [
+      syncPeerSetAutomaticRoute.name,
+      async (input, context) => {
+        requireRendererCaller(context)
+        return syncPeerSetAutomaticRoute.output.parse(
+          await peer.setAutomatic(syncPeerSetAutomaticRoute.input.parse(input).enabled)
+        )
+      }
+    ],
+    [
+      syncPeerSyncNowRoute.name,
+      async (input, context) => {
+        requireRendererCaller(context)
+        syncPeerSyncNowRoute.input.parse(input)
+        return syncPeerSyncNowRoute.output.parse(await peer.syncNow())
+      }
+    ],
     [
       syncPeerGetStatusRoute.name,
       async (input, context) => {

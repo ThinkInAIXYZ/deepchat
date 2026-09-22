@@ -31,7 +31,7 @@
     "title": "Device sync",
     "description": "Sync between your devices through Cloudflare Tunnel.",
     "host": "Share this device",
-    "peer": "Sync from another device",
+    "peer": "Connect another device",
     "port": "Loopback port",
     "enable": "Enable sharing",
     "disable": "Disable sharing",
@@ -52,7 +52,7 @@
     "overwrite": "Replace local data",
     "forget": "Disconnect device",
     "lastSuccess": "Last synced: {time}",
-    "consent": "Sharing allows paired devices to request your current conversations, settings, provider API keys and credentials in MCP configuration. Cloudflare terminates HTTPS; transfers are not end-to-end encrypted. Allow these devices to access your data?",
+    "consent": "Paired devices can read, update and delete shared conversations, memories, settings, provider API keys and MCP credentials. Cloudflare terminates HTTPS; transfers are not end-to-end encrypted. Allow these devices to access and change your data?",
     "overwriteWarning": "This replaces local data with the host data and stops active sessions during import. Cancellation is available until import starts. Continue?",
     "phase": {
       "idle": "Ready",
@@ -94,12 +94,18 @@
       "tunnelStopFailed": "Could not stop the connector. Close the connector process before trying again.",
       "tunnelUnavailable": "Configure cloudflared in Toolchains first.",
       "prepareFailed": "The host could not prepare current data. Check the host and try again.",
-      "networkBlocked": "Could not connect to the Cloudflare edge. Check proxy/DNS settings and allow outbound TCP on port 7844."
+      "networkBlocked": "Could not connect to the Cloudflare edge. Check proxy/DNS settings and allow outbound TCP on port 7844.",
+      "batchTooLarge": "A changed session exceeds the sync size limit. Reduce its size and retry.",
+      "unavailable": "Device sync is unavailable during maintenance or database encryption.",
+      "writeConsentRequired": "Two-way access is unavailable. Enable sharing with write permission on the host, then pair this device again.",
+      "automaticUnsupported": "Update both devices to a version supporting automatic sync.",
+      "automaticDisabled": "Enable automatic sync first.",
+      "cancelled": "Sync cancelled."
     },
     "syncTitle": "Sync",
     "syncDescription": "Back up through cloud storage, or connect directly to another device.",
-    "shareHelp": "Keep this device online. Connected devices can request its latest data.",
-    "receiveHelp": "Copy the connection information from the device you want to sync from.",
+    "shareHelp": "Keep this device online. Paired devices can send and receive changes.",
+    "receiveHelp": "Paste connection information from your other device to enable two-way sync.",
     "manageToolchain": "Manage toolchain",
     "installHelp": "Install cloudflared or select an existing binary in Toolchains to enable sharing.",
     "addressMode": "Address type",
@@ -130,6 +136,18 @@
       "connected": "Tunnel connected",
       "external": "Using your existing tunnel",
       "failed": "Tunnel connection failed"
+    },
+    "automatic": "Automatic two-way sync",
+    "automaticHelp": "Sync after 15 seconds without changes, at least 60 seconds between syncs. Busy sessions wait until they finish. Newer changes and deletions win on both devices.",
+    "automaticConsent": "Connecting grants this device permission to update and delete shared data. Automatic sync also sends this device’s conversations, provider keys and portable settings to the host.",
+    "automaticPhase": {
+      "off": "Automatic sync off",
+      "idle": "Up to date",
+      "waiting": "Changes waiting to sync",
+      "syncing": "Syncing both devices…",
+      "busy": "Waiting for active work to finish",
+      "offline": "Disconnected; reconnecting…",
+      "failed": "Sync failed; pending changes will retry"
     }
   }
 }

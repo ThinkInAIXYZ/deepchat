@@ -1,4 +1,5 @@
 import { randomBytes } from 'node:crypto'
+import type { SyncReplicaEndpoint } from '../replica/endpoint'
 import { chmod, copyFile, mkdir, open, rename, unlink } from 'node:fs/promises'
 import path from 'node:path'
 import {
@@ -21,6 +22,7 @@ const ENDPOINT_DESCRIPTOR_FILENAME = 'endpoint.json'
 
 export interface SyncHostServiceStatus {
   enabled: boolean
+  allowWrites: boolean
   running: boolean
   port: number | null
   hostId: string
@@ -35,6 +37,8 @@ export interface SyncHostServiceStatus {
 }
 
 export interface SyncHostServiceDeps {
+  changed?: () => void
+  replica?: SyncReplicaEndpoint
   resolveCloudflared?: () => string
   protectToken?: (token: string) => string
   revealToken?: (wrapped: string) => string
@@ -76,7 +80,8 @@ export class SyncHostService {
     this.tunnel = deps.resolveCloudflared
       ? new SyncTunnel(
           path.join(deps.getUserDataPath(), ENDPOINT_DIRECTORY),
-          deps.resolveCloudflared
+          deps.resolveCloudflared,
+          deps.changed
         )
       : null
     this.state = new SyncHostStateStore(path.join(deps.getUserDataPath(), ENDPOINT_DIRECTORY))
@@ -92,6 +97,9 @@ export class SyncHostService {
       logger: deps.logger
     })
     this.endpoint = new SyncHostEndpoint({
+      changed: deps.changed,
+      replica: deps.replica,
+      allowWrites: () => this.state.snapshot().allowWrites,
       prepare: () => this.prepareSnapshot(),
       preparation: () => ({
         preparing: this.preparing !== null,
@@ -147,6 +155,7 @@ export class SyncHostService {
     options: {
       port?: number
       consent?: boolean
+      bidirectional?: boolean
       tunnel?: SyncTunnelConfig & { token?: string }
     } = {}
   ): Promise<SyncHostServiceStatus> {
@@ -198,6 +207,7 @@ export class SyncHostService {
         await this.startInternal(port)
         try {
           await this.state.update((state) => {
+            state.allowWrites = options.bidirectional === true
             state.enabled = true
             state.port = port
             state.consentAt = Date.now()
@@ -299,6 +309,7 @@ export class SyncHostService {
     const snapshot = await this.snapshotSource.current()
     return {
       enabled: this.getEnabled(),
+      allowWrites: this.state.snapshot().allowWrites,
       running: this.endpoint.isRunning(),
       port: this.endpoint.isRunning() ? this.endpoint.getPort() : null,
       hostId: this.getHostId(),
@@ -339,8 +350,10 @@ export class SyncHostService {
     return this.devices.list()
   }
 
-  revokeDevice(deviceId: string): Promise<boolean> {
-    return this.devices.revoke(deviceId)
+  async revokeDevice(deviceId: string): Promise<boolean> {
+    const revoked = await this.devices.revoke(deviceId)
+    this.deps.replica?.revoke(deviceId)
+    return revoked
   }
 
   renameDevice(deviceId: string, name: string): Promise<boolean> {
@@ -395,6 +408,7 @@ export class SyncHostService {
   private async stopInternal(): Promise<void> {
     this.startError = null
     this.pairing.clear()
+    this.deps.replica?.stop()
     try {
       await this.tunnel?.stop()
     } finally {
@@ -405,7 +419,7 @@ export class SyncHostService {
   }
 
   private serialize<T>(step: () => Promise<T>): Promise<T> {
-    const next = this.lifecycle.then(step, step)
+    const next = this.lifecycle.then(step, step).finally(() => this.deps.changed?.())
     this.lifecycle = next.catch(() => undefined)
     return next
   }

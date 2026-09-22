@@ -8,5 +8,5 @@ export const SQLITE_COPY_EXCLUDED_OBJECTS = new Set([
 ])
 
 export function shouldExcludeFromSqliteCopy(objectName: string): boolean {
-  return SQLITE_COPY_EXCLUDED_OBJECTS.has(objectName)
+  return objectName.startsWith('_sync_') || SQLITE_COPY_EXCLUDED_OBJECTS.has(objectName)
 }

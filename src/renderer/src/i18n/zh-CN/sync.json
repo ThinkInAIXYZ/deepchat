@@ -31,7 +31,7 @@
     "title": "设备直连",
     "description": "通过 Cloudflare Tunnel 在设备之间同步数据。",
     "host": "从本机共享",
-    "peer": "从其他设备同步",
+    "peer": "连接其他设备",
     "port": "本地回环端口",
     "enable": "开启共享",
     "disable": "关闭共享",
@@ -52,7 +52,7 @@
     "overwrite": "替换本地数据",
     "forget": "断开设备",
     "lastSuccess": "上次同步：{time}",
-    "consent": "开启后，已配对设备可随时获取本机当前的对话、设置、服务商 API Key 和 MCP 配置中的凭证。Cloudflare 会终止 HTTPS，传输不具备端到端加密。允许这些设备访问本机数据？",
+    "consent": "已配对设备可以读取、修改和删除共享的会话、记忆、设置、服务商 API 密钥和 MCP 凭据。Cloudflare 会终止 HTTPS，传输并非端到端加密。允许这些设备访问和修改你的数据吗？",
     "overwriteWarning": "将以主机数据替换本地数据，并在导入时停止活动会话。开始导入前可以取消。是否继续？",
     "phase": {
       "idle": "就绪",
@@ -94,12 +94,18 @@
       "tunnelStopFailed": "无法停止隧道进程，请关闭该进程后再试。",
       "tunnelUnavailable": "请先在工具链配置 cloudflared。",
       "prepareFailed": "主机无法准备当前数据，请检查主机状态后重试。",
-      "networkBlocked": "无法连接 Cloudflare 边缘网络。请检查代理和 DNS，并允许出站 TCP 7844。"
+      "networkBlocked": "无法连接 Cloudflare 边缘网络。请检查代理和 DNS，并允许出站 TCP 7844。",
+      "batchTooLarge": "变更会话超过同步大小限制，请缩减内容后重试。",
+      "unavailable": "数据库维护或加密期间无法使用设备同步。",
+      "writeConsentRequired": "尚未获得双向同步权限。请在主机确认允许修改数据并开启共享，再重新配对此设备。",
+      "automaticUnsupported": "请将两台设备更新至支持自动同步的版本。",
+      "automaticDisabled": "请先开启自动同步。",
+      "cancelled": "同步已取消。"
     },
     "syncTitle": "同步",
     "syncDescription": "通过云存储备份，或直接连接另一台设备同步数据。",
-    "shareHelp": "请保持本机在线，已连接的设备可获取本机最新数据。",
-    "receiveHelp": "从要同步的设备上复制连接信息，然后在这里连接。",
+    "shareHelp": "请保持此设备在线，已配对设备可以发送和接收变更。",
+    "receiveHelp": "粘贴另一台设备的连接信息，开启双向同步。",
     "manageToolchain": "管理工具链",
     "installHelp": "请先到工具链安装 cloudflared，或选择已有的程序，再开启共享。",
     "addressMode": "地址方式",
@@ -130,6 +136,18 @@
       "connected": "隧道已连接",
       "external": "使用已有隧道",
       "failed": "隧道连接失败"
+    },
+    "automatic": "自动双向同步",
+    "automaticHelp": "数据变更后静默 15 秒同步一次，两次至少间隔 60 秒。正在运行的会话会等待结束；两端修改和删除按时间戳保留较新的结果。",
+    "automaticConsent": "连接后，此设备可以修改和删除共享数据。开启自动同步还会将此设备的会话、服务商密钥和可跨设备的设置发送到主机。",
+    "automaticPhase": {
+      "off": "自动同步已关闭",
+      "idle": "已同步",
+      "waiting": "等待同步变更",
+      "syncing": "正在双向同步…",
+      "busy": "等待正在运行的任务结束",
+      "offline": "连接已断开，正在重连…",
+      "failed": "同步失败，将重试待同步变更"
     }
   }
 }

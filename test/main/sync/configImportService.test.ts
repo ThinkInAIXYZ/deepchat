@@ -56,6 +56,9 @@ const getMockState = (dbPath: string): MockState => {
 
 class MockDatabase {
   readonly open = true
+  function() {
+    return this
+  }
 
   constructor(readonly dbPath: string) {}
   pragma() {

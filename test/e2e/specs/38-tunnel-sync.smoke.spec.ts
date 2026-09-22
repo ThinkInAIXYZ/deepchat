@@ -3,6 +3,8 @@ import { openSettings, openSettingsTab } from '../helpers/settings'
 import { waitForAppReady } from '../helpers/wait'
 import { createServer } from 'node:net'
 import { join } from 'node:path'
+import { gzipSync } from 'node:zlib'
+import { createHash } from 'node:crypto'
 
 /** All writes use the fixture's isolated profile, including the legacy backup destination. */
 test('tunnel host requires consent, prepares data on demand with legacy sync off, and restarts on its fixed port @smoke', async ({
@@ -85,6 +87,100 @@ test('tunnel host requires consent, prepares data on demand with legacy sync off
       )
     )
     .toBe(true)
+  // Legacy pairing cannot write; v2 requires the separate bidirectional grant.
+  expect(
+    (
+      await fetch(`http://127.0.0.1:${port}/sync/v2/status`, {
+        headers: { authorization: `Bearer ${token}` }
+      })
+    ).status
+  ).toBe(403)
+  const writePairing = await settings.evaluate(
+    async () => (await window.deepchat.invoke('syncHost.createPairingCode', {})).pairing!
+  )
+  const writablePair = await fetch(`http://127.0.0.1:${port}/sync/v1/pair`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      code: writePairing.code,
+      deviceName: 'Two-way device',
+      bidirectional: true
+    })
+  })
+  const writable = (await writablePair.json()) as { token: string }
+  const headers = { authorization: `Bearer ${writable.token}`, 'content-type': 'application/json' }
+  const prompt = {
+    id: 'synced-prompt',
+    name: 'Synced prompt',
+    description: 'Received through v2',
+    content: 'Test content'
+  }
+  const batch = {
+    protocol: 2,
+    replicaId: 'test-replica',
+    after: 0,
+    through: 1,
+    units: [
+      {
+        kind: 'setting',
+        id: 'customPrompts',
+        origin: 'test-replica',
+        revision: 1,
+        modifiedAt: Date.now() + 1000,
+        deleted: false,
+        tables: {
+          app_settings: [
+            {
+              key: 'customPrompts',
+              value_json: JSON.stringify([prompt]),
+              sensitive: 1,
+              updated_at: Date.now()
+            }
+          ]
+        }
+      }
+    ]
+  }
+  const data = gzipSync(JSON.stringify(batch))
+  const id = createHash('sha256').update(data).digest('hex')
+  expect(
+    (
+      await fetch(`http://127.0.0.1:${port}/sync/v2/upload`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          id,
+          size: data.length,
+          parts: 1,
+          through: 1,
+          replicaId: 'test-replica'
+        })
+      })
+    ).status
+  ).toBe(200)
+  expect(
+    (
+      await fetch(`http://127.0.0.1:${port}/sync/v2/part?id=${id}&part=0`, {
+        method: 'POST',
+        headers,
+        body: data
+      })
+    ).status
+  ).toBe(200)
+  expect(
+    (
+      await fetch(`http://127.0.0.1:${port}/sync/v2/commit?id=${id}`, {
+        method: 'POST',
+        headers,
+        body: '{}'
+      })
+    ).status
+  ).toBe(200)
+  expect(
+    await settings.evaluate(async () =>
+      (await window.deepchat.invoke('config.listCustomPrompts', {})).prompts.map((item) => item.id)
+    )
+  ).toContain('synced-prompt')
   await expect(section.locator('code').first()).toContainText('https://sync.example.test')
   await settings.screenshot({
     path: testInfo.outputPath('tunnel-sync-host.png'),

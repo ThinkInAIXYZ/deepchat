@@ -11,6 +11,7 @@ import { createDeviceClient } from '@api/DeviceClient'
 import { createBrowserClient } from '@api/BrowserClient'
 import type { ToolchainKindStatus } from '@shared/types/toolchains'
 import type { SyncTunnelConfig } from '@shared/contracts/routes/syncHost.routes'
+import { Switch } from '@shadcn/components/ui/switch'
 import { Input } from '@shadcn/components/ui/input'
 import { Label } from '@shadcn/components/ui/label'
 import { Tabs, TabsList, TabsTrigger } from '@shadcn/components/ui/tabs'
@@ -74,18 +75,23 @@ watch(
   { immediate: true }
 )
 let stopTools: (() => void) | undefined
+let stopSync: (() => void) | undefined
 async function refreshTools() {
   toolchain.value = (await tools.getStatus().catch(() => null))?.cloudflared ?? null
 }
 onMounted(() => {
   void store.refresh()
   void refreshTools()
+  stopSync = store.client.onChanged(() => void store.refresh())
   stopTools = tools.onChanged(() => void refreshTools())
 })
-onBeforeUnmount(() => stopTools?.())
+onBeforeUnmount(() => {
+  stopTools?.()
+  stopSync?.()
+})
 useIntervalFn(() => {
   now.value = Date.now()
-  void store.refresh()
+  if (transferring.value || tunnel.value?.phase === 'starting') void store.refresh()
 }, 2000)
 const progressText = computed(() => {
   const bytes = (value: number) => (value / 1024 ** 2).toFixed(1)
@@ -100,11 +106,17 @@ function startRename(device: { deviceId: string; name: string }) {
 async function enable() {
   if (
     await store.run(() =>
-      store.client.setEnabled(true, Number(port.value), true, {
-        mode: mode.value,
-        publicUrl: mode.value === 'quick' ? '' : publicUrl.value.trim(),
-        token: mode.value === 'named' ? token.value.trim() || undefined : undefined
-      })
+      store.client.setEnabled(
+        true,
+        Number(port.value),
+        true,
+        {
+          mode: mode.value,
+          publicUrl: mode.value === 'quick' ? '' : publicUrl.value.trim(),
+          token: mode.value === 'named' ? token.value.trim() || undefined : undefined
+        },
+        true
+      )
     )
   ) {
     enableDialog.value = false
@@ -139,7 +151,7 @@ async function pair() {
       typeof input.code !== 'string'
     )
       throw new Error('sync.tunnel.error.invalidPairing')
-    await store.client.pair({ ...input, deviceName: deviceName.value })
+    await store.client.pair({ ...input, deviceName: deviceName.value, bidirectional: true })
     pairingInput.value = ''
   })
 }
@@ -386,11 +398,16 @@ async function overwrite() {
           v-else
           size="sm"
           :disabled="busy || transferring"
-          @click="store.run(() => store.client.pull('increment'))"
+          @click="
+            store.run(() =>
+              peer?.automatic?.enabled ? store.client.syncNow() : store.client.pull('increment')
+            )
+          "
           >{{ t('sync.tunnel.pull') }}</DcButton
         >
       </div>
       <div v-if="!peer?.paired && connectForm" class="space-y-3">
+        <p class="text-xs text-muted-foreground">{{ t('sync.tunnel.automaticConsent') }}</p>
         <div class="space-y-1">
           <Label for="tunnel-pairing-input" class="text-xs">{{
             t('sync.tunnel.pairingPayload')
@@ -425,6 +442,32 @@ async function overwrite() {
         </div>
       </div>
       <template v-if="peer?.paired">
+        <div class="flex items-center justify-between gap-3">
+          <div class="space-y-1">
+            <Label for="tunnel-automatic">{{ t('sync.tunnel.automatic') }}</Label>
+            <p class="text-xs text-muted-foreground">{{ t('sync.tunnel.automaticHelp') }}</p>
+          </div>
+          <Switch
+            id="tunnel-automatic"
+            :model-value="peer.automatic?.enabled ?? false"
+            :disabled="busy || transferring"
+            @update:model-value="(enabled) => store.run(() => store.client.setAutomatic(enabled))"
+          />
+        </div>
+        <p v-if="peer.automatic?.enabled" role="status" class="text-xs text-muted-foreground">
+          {{ t(`sync.tunnel.automaticPhase.${peer.automatic.phase}`) }}
+          <span v-if="peer.automatic.lastSuccessAt">
+            ·
+            {{
+              t('sync.tunnel.lastSuccess', {
+                time: new Date(peer.automatic.lastSuccessAt).toLocaleString()
+              })
+            }}</span
+          >
+        </p>
+        <p v-if="peer.automatic?.error" role="alert" class="text-xs text-destructive">
+          {{ t(peer.automatic.error) }}
+        </p>
         <div
           role="status"
           aria-live="polite"
@@ -453,7 +496,7 @@ async function overwrite() {
           <p>{{ progressText }}</p>
         </div>
         <p v-if="peer.error" role="alert" class="text-xs text-destructive">{{ t(peer.error) }}</p>
-        <p class="text-xs leading-relaxed text-muted-foreground">
+        <p v-if="!peer.automatic?.enabled" class="text-xs leading-relaxed text-muted-foreground">
           {{ t('sync.tunnel.incrementHelp') }}
         </p>
         <details class="text-xs">
@@ -467,6 +510,7 @@ async function overwrite() {
               variant="outline"
               :disabled="busy || transferring"
               @click="overwriteDialog = true"
+              v-if="!peer.automatic?.enabled"
               >{{ t('sync.tunnel.overwrite') }}</DcButton
             >
             <DcButton

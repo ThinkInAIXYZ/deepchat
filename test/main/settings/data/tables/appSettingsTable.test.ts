@@ -31,6 +31,26 @@ describeIfSqlite('AppSettingsTable storage', () => {
     return { db, tables }
   }
 
+  it('migrates portable preferences once without replacing SQLite values or local paths', () => {
+    const { db, tables } = createTables()
+    tables.setAppSetting('defaultModel', { providerId: 'local', modelId: 'existing' })
+    tables.seedPortableSettings({
+      defaultModel: { providerId: 'old' },
+      copyWithCotEnabled: true,
+      defaultProjectPath: '/local'
+    })
+    expect(tables.getAppSetting('defaultModel')).toEqual({
+      providerId: 'local',
+      modelId: 'existing'
+    })
+    expect(tables.getAppSetting('copyWithCotEnabled')).toBe(true)
+    expect(tables.getAppSetting('defaultProjectPath')).toBeUndefined()
+    tables.deleteAppSetting('copyWithCotEnabled')
+    tables.seedPortableSettings({ copyWithCotEnabled: true })
+    expect(tables.getAppSetting('copyWithCotEnabled')).toBeUndefined()
+    db.close()
+  })
+
   it('stores app settings', () => {
     const { db, tables } = createTables()
 

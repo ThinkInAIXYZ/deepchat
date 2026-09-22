@@ -1,4 +1,6 @@
 import {
+  syncPeerSetAutomaticRoute,
+  syncPeerSyncNowRoute,
   syncPeerGetStatusRoute,
   syncPeerPairRoute,
   syncPeerPullRoute,
@@ -1300,6 +1302,8 @@ const DEEPCHAT_ROUTE_CATALOG_PART_5 = {
   [toolchainsRevertRoute.name]: toolchainsRevertRoute,
   [toolchainsPickCustomRoute.name]: toolchainsPickCustomRoute,
   [syncHostPublishRoute.name]: syncHostPublishRoute,
+  [syncPeerSetAutomaticRoute.name]: syncPeerSetAutomaticRoute,
+  [syncPeerSyncNowRoute.name]: syncPeerSyncNowRoute,
   [syncPeerGetStatusRoute.name]: syncPeerGetStatusRoute,
   [syncPeerPairRoute.name]: syncPeerPairRoute,
   [syncPeerPullRoute.name]: syncPeerPullRoute,
