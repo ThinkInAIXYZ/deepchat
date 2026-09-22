@@ -32,7 +32,8 @@ export const SUPPORTED_PROVIDER_INSTALL_CUSTOM_TYPES = [
   'jiekou',
   'zenmux',
   'o3fan',
-  'jev'
+  'jev',
+  'workers-ai'
 ] as const
 
 const SUPPORTED_PROVIDER_INSTALL_CUSTOM_TYPE_SET = new Set<string>(

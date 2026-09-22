@@ -793,7 +793,8 @@
         "gemini": "Gemini",
         "ollama": "Ollama",
         "mistral": "Mistral AI",
-        "jev": "TypeSafe Jev (System One)"
+        "jev": "TypeSafe Jev (System One)",
+        "workersAi": "Cloudflare Workers AI"
       },
       "applyFailed": "İçe aktarma başarısız oldu: {message}"
     },

@@ -114,6 +114,35 @@ describe('ProviderInstanceManager ACP lifetime', () => {
     expect(processShutdown).not.toHaveBeenCalled()
   })
 
+  it('keeps the current provider selection when a protocol change rebuilds the instance', () => {
+    // The provider stays enabled and selected; only a disable or a removal clears the selection.
+    const setCurrentProviderId = vi.fn()
+    const providers = new Map([[provider.id, provider]])
+    const manager = new ProviderInstanceManager({
+      providerSettings: {
+        getProviders: () => [...providers.values()]
+      } as never,
+      locale: { getLanguage: () => 'en-US' },
+      activeStreams: new Map(),
+      rateLimitManager: {
+        syncProviders: vi.fn(),
+        cleanupProviderRateLimit: vi.fn()
+      } as never,
+      getCurrentProviderId: () => 'acp',
+      setCurrentProviderId,
+      acpRuntimeOwner: new AcpRuntimeOwner(() => null),
+      publishEvent: vi.fn()
+    })
+    manager.init()
+    const first = manager.getProviderInstance('acp')
+
+    manager.setProviders([{ ...provider, apiType: 'openai-completions' }])
+
+    expect(first.cleanup).toHaveBeenCalledTimes(1)
+    expect(manager.getExistingProviderInstance('acp')).toBeUndefined()
+    expect(setCurrentProviderId).not.toHaveBeenCalled()
+  })
+
   it('aborts compatibility streams and clears provider state when ACP is disabled', () => {
     const processShutdown = vi.fn()
     const sharedRuntime = {

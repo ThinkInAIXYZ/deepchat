@@ -793,7 +793,8 @@
         "gemini": "Gemini",
         "ollama": "Ollama",
         "mistral": "AI của Mistral",
-        "jev": "TypeSafe Jev (System One)"
+        "jev": "TypeSafe Jev (System One)",
+        "workersAi": "Cloudflare Workers AI"
       },
       "applyFailed": "Nhập không thành công: {message}"
     },

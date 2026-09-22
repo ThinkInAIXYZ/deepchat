@@ -7,7 +7,9 @@ const PROVIDER_DEFAULTS: LLM_PROVIDER_BASE[] = [
     name: 'TypeSafe',
     apiType: 'jev',
     apiKey: '',
-    baseUrl: 'https://api.typesafe.ai',
+    // The System One endpoint itself, not a host: the protocol takes the URL whole because vendors
+    // expose System One at different paths. The catalog is the endpoint's sibling (`/v1/models`).
+    baseUrl: 'https://api.typesafe.ai/v1/systemone',
     enable: false,
     // Static fallback so the judgment-model picker is populated before the first catalog refresh.
     // Live discovery from `GET /v1/models` stays authoritative once it succeeds.
@@ -37,7 +39,45 @@ const PROVIDER_DEFAULTS: LLM_PROVIDER_BASE[] = [
       official: 'https://typesafe.ai/',
       apiKey: 'https://console.typesafe.ai/keys',
       docs: 'https://docs.typesafe.ai/introduction',
+      // `defaultBaseUrl` is derived from `baseUrl` for profiles that do not set it, which is the
+      // endpoint URL here.
       models: 'https://docs.typesafe.ai/models'
+    }
+  },
+  {
+    id: 'cloudflare',
+    name: 'Cloudflare',
+    apiType: 'workers-ai',
+    apiKey: '',
+    // Workers AI has no account-less endpoint: the account id is a path segment, so the base URL
+    // carries it. The profile therefore ships the format (rendered as the field hint through
+    // `defaultBaseUrl`) rather than a base URL that would silently resolve to the wrong vendor.
+    // It is the OpenAI-compatible base, which is what the chat and embedding models use; the run and
+    // catalog endpoints hang off the same path with `/v1` removed.
+    baseUrl: '',
+    enable: false,
+    // The account's chat and embedding models come from the live catalog, so they are not seeded:
+    // seeding them would pin stale model ids. The judgment model is a fixed Workers AI model id, so
+    // it is seeded to keep the judgment-model picker populated before the first catalog refresh.
+    models: [
+      {
+        id: 'typesafe/jev',
+        name: 'Jev',
+        group: 'default',
+        providerId: 'cloudflare',
+        isCustom: false,
+        type: ModelType.Judgment,
+        contextLength: 32000,
+        description: "TypeSafe's System One decision model, served through Workers AI."
+      }
+    ],
+    websites: {
+      official: 'https://www.cloudflare.com/',
+      apiKey: 'https://dash.cloudflare.com/?to=/:account/ai/workers-ai',
+      docs: 'https://developers.cloudflare.com/workers-ai/',
+      models: 'https://developers.cloudflare.com/workers-ai/models/',
+      // Explicit, because the derived hint would be empty: this profile ships no base URL.
+      defaultBaseUrl: 'https://api.cloudflare.com/client/v4/accounts/<ACCOUNT_ID>/ai/v1'
     }
   },
   {

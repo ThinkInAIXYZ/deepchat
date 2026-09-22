@@ -93,7 +93,7 @@
                 <SelectItem value="anthropic">Anthropic</SelectItem>
                 <SelectItem value="ollama">Ollama</SelectItem>
                 <SelectItem value="mistral">Mistral AI</SelectItem>
-                <SelectItem value="jev">TypeSafe Jev (System One)</SelectItem>
+                <SelectItem value="jev">System One</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -246,7 +246,7 @@ const apiEndpointSuffix = computed(() => {
   if (!normalizedBaseUrl.value) return ''
   if (form.value.apiType === 'openai') return '/responses'
   if (form.value.apiType === 'openai-completions') return '/chat/completions'
-  if (form.value.apiType === 'jev') return '/v1/systemone'
+  // `jev` (System One) takes the endpoint URL itself, so there is no suffix to show.
   return ''
 })
 

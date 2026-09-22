@@ -882,23 +882,80 @@ describe('ProviderImportService', () => {
     )
   })
 
-  it('tags imported models as judgment models when the target api type is jev', async () => {
-    // Imported sources carry no model type, and the picker filters read "no type" as "not a judgment
-    // model" — so an untagged import would land in every chat picker and fail only at request time.
+  it.each(['jev', 'workers-ai'] as const)(
+    'tags imported models as judgment models when the target api type is %s',
+    async (targetApiType) => {
+      // Imported sources carry no model type, and the picker filters read "no type" as "not a
+      // judgment model" — so an untagged import would land in every chat picker and fail only at
+      // request time.
+      homeDir = createHome()
+      writeFile(
+        path.join(homeDir, '.hermes/config.yaml'),
+        [
+          'llm:',
+          '  providers:',
+          '    - id: judge-plan',
+          '      name: Judge Plan',
+          '      type: vendor-judge',
+          '      apiKey: sk-judge',
+          '      baseUrl: https://api.judge.example.com',
+          '      models:',
+          '        - id: jev-1.13.0',
+          '          name: Jev 1.13.0'
+        ].join('\n')
+      )
+
+      const providerSettings = createProviderSettings()
+      const service = new ProviderImportService(providerSettings as any, {
+        homeDir,
+        platform: 'darwin'
+      })
+      const scan = await service.scan()
+      const provider = scan.providers[0]
+
+      service.apply({
+        sessionId: scan.sessionId,
+        selections: [
+          {
+            sourceId: 'hermes',
+            providerIds: [provider.id],
+            providerOptions: {
+              [provider.id]: {
+                targetApiType
+              }
+            }
+          }
+        ]
+      })
+
+      // Imported models land in the custom-model store, which `getModels()` merges into the catalog.
+      expect(providerSettings.addCustomModel).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({ id: 'jev-1.13.0', type: ModelType.Judgment })
+      )
+    }
+  )
+
+  it('imports only the Workers AI judgment model and skips the models it cannot classify', async () => {
+    // Workers AI is a mixed catalog, and an imported source carries no task metadata, so nothing here
+    // can tell an embedding model from a chat model. An untyped model reads as chat, which would put
+    // an embedding model in the chat pickers until the provider's own refresh classifies it.
     homeDir = createHome()
     writeFile(
       path.join(homeDir, '.hermes/config.yaml'),
       [
         'llm:',
         '  providers:',
-        '    - id: judge-plan',
-        '      name: Judge Plan',
-        '      type: vendor-judge',
-        '      apiKey: sk-judge',
-        '      baseUrl: https://api.judge.example.com',
+        '    - id: workers-ai-account',
+        '      name: Workers AI',
+        '      type: vendor-workers',
+        '      apiKey: cf-token',
+        '      baseUrl: https://api.cloudflare.com/client/v4/accounts/abc/ai/v1',
         '      models:',
-        '        - id: jev-1.13.0',
-        '          name: Jev 1.13.0'
+        '        - id: "@cf/meta/llama-3.1-8b-instruct"',
+        '          name: Llama 3.1 8B',
+        '        - id: typesafe/jev',
+        '          name: Jev'
       ].join('\n')
     )
 
@@ -918,18 +975,23 @@ describe('ProviderImportService', () => {
           providerIds: [provider.id],
           providerOptions: {
             [provider.id]: {
-              targetApiType: 'jev'
+              targetApiType: 'workers-ai'
             }
           }
         }
       ]
     })
 
-    // Imported models land in the custom-model store, which `getModels()` merges into the catalog.
     expect(providerSettings.addCustomModel).toHaveBeenCalledWith(
       expect.any(String),
-      expect.objectContaining({ id: 'jev-1.13.0', type: ModelType.Judgment })
+      expect.objectContaining({ id: 'typesafe/jev', type: ModelType.Judgment })
     )
+
+    const calls = (providerSettings.addCustomModel as any).mock.calls
+    const chatModel = calls.find(
+      ([, model]: [string, { id: string }]) => model.id === '@cf/meta/llama-3.1-8b-instruct'
+    )
+    expect(chatModel).toBeUndefined()
   })
 
   it('preserves existing custom provider metadata when updating by fingerprint', async () => {

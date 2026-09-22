@@ -9,6 +9,7 @@ import { VoiceAIProvider } from '../providers/voiceAIProvider'
 import { AiSdkProvider } from '../providers/aiSdkProvider'
 import { ApimartProvider } from '../providers/apimartProvider'
 import { JevProvider } from '../providers/jevProvider'
+import { WorkersAiProvider } from '../providers/workersAiProvider'
 import { RateLimitManager } from './rateLimitManager'
 import { StreamState } from '../types'
 import type { AcpRuntimeOwner } from '@/agent/acp/client'
@@ -233,7 +234,7 @@ export class ProviderInstanceManager {
     logger.info(`Provider reorder completed, no instance rebuild required`)
   }
 
-  private cleanupProviderInstance(providerId: string): void {
+  private cleanupProviderInstance(providerId: string, preserveCurrent = false): void {
     const activeStreamsToStop = Array.from(this.options.activeStreams.entries()).filter(
       ([, streamState]) => streamState.providerId === providerId
     )
@@ -268,7 +269,9 @@ export class ProviderInstanceManager {
     )
 
     const currentProviderId = this.options.getCurrentProviderId()
-    if (currentProviderId === providerId) {
+    // A protocol rebuild keeps the provider enabled and selected; only an actual removal or disable
+    // should drop the user's current selection.
+    if (!preserveCurrent && currentProviderId === providerId) {
       logger.info(`Clearing current provider as it was disabled: ${providerId}`)
       this.options.setCurrentProviderId(null)
     }
@@ -280,6 +283,11 @@ export class ProviderInstanceManager {
 
   private replaceProviders(providers: LLM_PROVIDER[]): void {
     const nextProviders = new Map(providers.map((provider) => [provider.id, provider]))
+    // Snapshot before `this.providers` is replaced below: a protocol change is decided by comparing
+    // the api type an existing instance was built for with the incoming one.
+    const previousApiTypes = new Map(
+      Array.from(this.providers, ([id, provider]) => [id, provider.apiType])
+    )
 
     for (const providerId of Array.from(this.providerInstances.keys())) {
       const nextProvider = nextProviders.get(providerId)
@@ -295,12 +303,23 @@ export class ProviderInstanceManager {
 
     for (const provider of providers) {
       const instance = this.providerInstances.get(provider.id)
-      if (instance) {
-        try {
-          instance.updateConfig(provider)
-        } catch (error) {
-          console.error(`Failed to update provider config ${provider.id}:`, error)
-        }
+      if (!instance) {
+        continue
+      }
+
+      // A protocol change cannot be applied to a live instance: an AI SDK provider cannot become a
+      // Workers AI provider, and the reverse would keep the old protocol's routing overrides. The
+      // instance is dropped instead, and the next lookup builds one for the new api type.
+      if (previousApiTypes.get(provider.id) !== provider.apiType) {
+        logger.info(`Rebuilding provider instance after a protocol change: ${provider.id}`)
+        this.cleanupProviderInstance(provider.id, true)
+        continue
+      }
+
+      try {
+        instance.updateConfig(provider)
+      } catch (error) {
+        console.error(`Failed to update provider config ${provider.id}:`, error)
       }
     }
 
@@ -369,6 +388,13 @@ export class ProviderInstanceManager {
       // repointed that entry at a different api type.
       if (provider.apiType === 'jev') {
         return new JevProvider(provider, this.options.providerSettings, this.options.locale)
+      }
+
+      // Workers AI is its own protocol rather than a `jev` variant: it serves ordinary chat and
+      // embedding models through the OpenAI-compatible endpoints as well as the judgment model, so
+      // the provider is an AI SDK provider with the judgment capability added.
+      if (provider.apiType === 'workers-ai') {
+        return new WorkersAiProvider(provider, this.options.providerSettings, this.options.locale)
       }
 
       const definition = resolveAiSdkProviderDefinition(provider)

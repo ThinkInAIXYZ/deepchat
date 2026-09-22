@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   extractJevModelRecords,
   isJevUnsupportedCapabilityError,
+  JEV_BASE_URL_ERROR,
   JEV_UNSUPPORTED_CAPABILITY_ERROR,
   JevProvider
 } from '../../../src/main/provider/providers/jevProvider'
@@ -37,12 +38,14 @@ vi.mock('../../../src/main/platform/proxy', () => ({
   }
 }))
 
+const SYSTEM_ONE_URL = 'https://api.typesafe.ai/v1/systemone'
+
 const createProvider = (overrides?: Partial<LLM_PROVIDER>): LLM_PROVIDER => ({
   id: 'typesafe',
   name: 'TypeSafe',
   apiType: 'jev',
   apiKey: 'test-key',
-  baseUrl: 'https://api.typesafe.ai',
+  baseUrl: SYSTEM_ONE_URL,
   enable: false,
   ...overrides
 })
@@ -109,6 +112,25 @@ describe('JevProvider', () => {
 
       expect(models.map((model) => model.id)).toEqual(['jev-1.13.0', 'jev-latest'])
       expect(models.every((model) => model.type === ModelType.Judgment)).toBe(true)
+      expect(fetchMock).toHaveBeenCalledWith(
+        'https://api.typesafe.ai/v1/models',
+        expect.objectContaining({
+          headers: expect.objectContaining({ Authorization: 'Bearer test-key' })
+        })
+      )
+    })
+
+    it('reads the sibling catalog when the configured endpoint ends in a slash', async () => {
+      // A trailing slash must not turn the catalog into the child path `/v1/systemone/models`.
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValue(jsonResponse({ models: [{ name: 'jev-latest' }] }))
+      vi.stubGlobal('fetch', fetchMock)
+
+      await createProviderInstance({
+        baseUrl: 'https://api.typesafe.ai/v1/systemone/'
+      }).fetchModels()
+
       expect(fetchMock).toHaveBeenCalledWith(
         'https://api.typesafe.ai/v1/models',
         expect.objectContaining({
@@ -253,6 +275,46 @@ describe('JevProvider', () => {
       ).rejects.toThrow('at least one question')
     })
 
+    it('posts to a vendor endpoint verbatim and reads its sibling catalog', async () => {
+      // Vendors expose System One at different paths, so the configured URL is the endpoint and
+      // nothing is appended to it. The catalog is the sibling path.
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValueOnce(
+          jsonResponse({ models: [{ name: 'jev-latest', description: 'alias' }] })
+        )
+        .mockResolvedValueOnce(jsonResponse({ model: 'jev-1.13.0', answers: {} }))
+      vi.stubGlobal('fetch', fetchMock)
+
+      const provider = createProviderInstance({
+        baseUrl: 'https://vendor.example/api/v2/system-one'
+      })
+
+      await provider.fetchModels()
+      await provider.runJudgment({
+        model: 'jev-latest',
+        state: {},
+        questions: { q: { type: 'noul', instructions: 'Is this true?' } }
+      })
+
+      expect(fetchMock.mock.calls[0][0]).toBe('https://vendor.example/api/v2/models')
+      expect(fetchMock.mock.calls[1][0]).toBe('https://vendor.example/api/v2/system-one')
+    })
+
+    it('reports an endpoint without a sibling catalog as usable', async () => {
+      // 404/405 at the catalog path says nothing about the endpoint, and probing the endpoint would
+      // spend the vendor's tokens.
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({ detail: 'nope' }, 404)))
+
+      await expect(
+        createProviderInstance({ baseUrl: 'https://vendor.example/decide' }).check()
+      ).resolves.toEqual({ isOk: true, errorMsg: null })
+
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({ detail: 'bad key' }, 401)))
+      const unauthorized = await createProviderInstance().check()
+      expect(unauthorized.isOk).toBe(false)
+    })
+
     it('does not silently drop an already-aborted caller signal', async () => {
       let observedSignal: AbortSignal | undefined
       vi.stubGlobal(
@@ -302,6 +364,40 @@ describe('JevProvider', () => {
       vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({ detail: 'bad key' }, 401)))
       const unauthorized = await createProviderInstance().check()
       expect(unauthorized.isOk).toBe(false)
+    })
+
+    it.each([
+      { name: 'an unparseable endpoint', baseUrl: 'not-a-url' },
+      {
+        name: 'a bare host with no path to take a sibling from',
+        baseUrl: 'https://api.typesafe.ai'
+      },
+      { name: 'a non-HTTP scheme', baseUrl: 'file:///tmp/systemone' }
+    ])('rejects $name without issuing a request', async ({ baseUrl }) => {
+      // A URL that cannot be sent to must not read as "this vendor has no catalog": staged validation
+      // would then accept it over a working configuration.
+      const fetchMock = vi.fn()
+      vi.stubGlobal('fetch', fetchMock)
+
+      const result = await createProviderInstance({ baseUrl }).check()
+
+      expect(result.isOk).toBe(false)
+      expect(result.errorMsg).toBe(JEV_BASE_URL_ERROR)
+      expect(fetchMock).not.toHaveBeenCalled()
+    })
+
+    it('refuses to post a judgment to an unparseable endpoint', async () => {
+      const fetchMock = vi.fn()
+      vi.stubGlobal('fetch', fetchMock)
+
+      await expect(
+        createProviderInstance({ baseUrl: 'not-a-url' }).runJudgment({
+          model: 'jev-1.13.0',
+          state: {},
+          questions: { q: { type: 'noul', instructions: 'Is this true?' } }
+        })
+      ).rejects.toThrow(JEV_BASE_URL_ERROR)
+      expect(fetchMock).not.toHaveBeenCalled()
     })
   })
 })

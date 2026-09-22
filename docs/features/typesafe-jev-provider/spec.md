@@ -57,13 +57,14 @@ a separate goal in `docs/features/agent-judgment-model/`.
 ### Protocol identity
 
 - `apiType` is `jev`.
-- Built-in provider id `typesafe`, display name `TypeSafe`, base URL `https://api.typesafe.ai`,
-  `enable: false`.
+- Built-in provider id `typesafe`, display name `TypeSafe`, base URL
+  `https://api.typesafe.ai/v1/systemone`, `enable: false`.
 - Auth is an API key sent as `Authorization: Bearer <key>`. No OAuth, no device flow, no
   provider-specific credential store.
-- A custom provider selects `apiType: 'jev'` and supplies its own base URL and key. The endpoint
-  path is fixed at `/v1/systemone` for evaluation and `/v1/models` for discovery; it is not
-  user-configurable, because a divergent path is a divergent protocol.
+- A custom provider selects `apiType: 'jev'` and supplies its own base URL and key. The base URL **is**
+  the System One endpoint: vendors expose the protocol at different paths, so the URL is taken whole
+  and nothing is appended to it. The catalog is the endpoint's sibling path, with its last segment
+  replaced by `models` (`/v1/systemone` → `/v1/models`).
 
 ### Registration
 
@@ -109,9 +110,14 @@ helpers that enumerate non-chat types explicitly (`isExplicitNonChatNewApiModelT
 
 ### Model discovery
 
-`GET {baseUrl}/v1/models` returning `{ "models": [{ "name", "description", "release_date" }] }`.
-This shape is not OpenAI-shaped, so discovery is implemented in the provider rather than delegated
-to the tolerant OpenAI parser.
+`GET {catalogUrl}` returning `{ "models": [{ "name", "description", "release_date" }] }`, where
+`catalogUrl` is the configured endpoint with its last path segment replaced by `models`
+(`/v1/systemone` → `/v1/models`). This shape is not OpenAI-shaped, so discovery is implemented in the
+provider rather than delegated to the tolerant OpenAI parser.
+
+A vendor that does not expose a catalog answers 404 or 405 at that path. Discovery reads that as "no
+live catalog" and keeps the configured models; the connection check reads it as "not contradicted",
+because the endpoint itself is not probed without spending the vendor's tokens.
 
 The built-in `typesafe` profile additionally ships a bundled catalog (`jev-1.13.0`, `jev-latest`).
 It is the fallback whenever the live catalog is unavailable or empty — missing API key, transport or
@@ -128,7 +134,14 @@ stored provider config (`providerSettings`), which is where the fallback reads t
 
 The check is the authenticated catalog fetch. It spends no tokens and needs no `checkModelId`,
 which matters because TypeSafe bills input tokens per request and a "hello" generation probe is not
-a meaningful check for a non-generative model.
+a meaningful check for a non-generative model. A 404 or 405 at the catalog path — a vendor that
+exposes no catalog — is reported as usable, because it says nothing about the endpoint and probing
+the endpoint would spend the vendor's tokens. A rejected credential (`401`) is still a failure.
+
+An endpoint that cannot be used at all is *not* that case: an unparseable value, a non-HTTP scheme, or
+a bare host with no path to take a sibling from fails the check with the documented message and issues
+no request. Reporting those as usable would let staged validation overwrite a working configuration
+with a broken one, and a bare host would post judgment to the host root.
 
 ### Credentials and transport safety
 
@@ -141,9 +154,10 @@ present.
 ### Renderer
 
 The provider uses the existing generic provider configuration UI. `AddProviderFlow` gains one
-`<SelectItem value="jev">` entry so the protocol is reachable for custom providers, and the
-protocol joins the import and deeplink allow-lists so imported configurations do not silently
-degrade to `openai-completions`. No Jev-specific settings form is introduced.
+`<SelectItem value="jev">` entry, labelled `System One`, so the protocol is reachable for custom
+providers, and the protocol joins the import and deeplink allow-lists so imported configurations do
+not silently degrade to `openai-completions`. No Jev-specific settings form is introduced, and no
+endpoint hint is shown: the configured base URL is the endpoint.
 
 ### Provider logo
 
@@ -195,7 +209,11 @@ drives dark-mode inversion for monochrome `currentColor` marks.
 - A new and an upgraded installation both list a disabled `TypeSafe` provider whose api type is
   `jev`.
 - A custom provider can be created with api type `jev`, and connecting it performs an authenticated
-  `GET {baseUrl}/v1/models` and reports failure on `401` without persisting a broken provider.
+  catalog fetch against the endpoint's sibling path and reports failure on `401` without persisting a
+  broken provider. An endpoint without a sibling catalog (404/405) is reported as usable.
+- An endpoint that cannot be used — unparseable, a non-HTTP scheme, or a bare host with no path —
+  fails the check with the documented message and issues no request.
+- A custom provider's judgment call posts to the configured endpoint URL verbatim.
 - `jev-1.13.0` and `jev-latest` appear as judgment models and are absent from the chat model picker
   and the MCP sampling picker.
 - Selecting a Jev model in a chat surface is impossible through the UI, and any direct attempt fails

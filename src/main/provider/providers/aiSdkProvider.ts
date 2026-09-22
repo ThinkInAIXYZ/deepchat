@@ -92,7 +92,7 @@ const GREENPT_RECOMMENDED_MODEL_IDS = [
 const GREENPT_NON_OPENAI_MODEL_IDS = new Set(['green-s', 'green-s-pro'])
 const DEFAULT_NEW_API_BASE_URL = 'https://www.newapi.ai'
 
-type RouteDecision = {
+export type RouteDecision = {
   providerKind: AiSdkProviderKind
   providerPatch?: Partial<LLM_PROVIDER>
   modelConfigPatch?: Partial<ModelConfig>
@@ -102,7 +102,7 @@ type RouteDecision = {
   capabilityIdentity?: ResolvedCapabilityIdentity
 }
 
-type RouteDecisionOptions = {
+export type RouteDecisionOptions = {
   deepSeekResponsesRoute?: DeepSeekResponsesRoute
 }
 
@@ -1741,6 +1741,8 @@ export class AiSdkProvider extends BaseLLMProvider {
         return this.fetchNewApiModels()
       case 'apimart':
         throw new Error('APIMart model discovery requires ApimartProvider')
+      case 'workers-ai':
+        throw new Error('Workers AI model discovery requires WorkersAiProvider')
       case 'openai':
       default:
         return this.fetchDefaultOpenAIModels({ timeout: this.getModelFetchTimeout() }).then(

@@ -13,12 +13,22 @@ import type {
 } from '@shared/types/provider'
 import { BaseLLMProvider, type ProviderGenerateTextOptions } from '../baseProvider'
 import type { ProviderLocalePort } from '../ports'
-import { createProviderHttpErrorFromResponse } from '../providerFailure'
+import { createProviderHttpErrorFromResponse, ProviderHttpError } from '../providerFailure'
 
-const DEFAULT_BASE_URL = 'https://api.typesafe.ai'
-const SYSTEM_ONE_PATH = '/v1/systemone'
-const MODELS_PATH = '/v1/models'
+/**
+ * TypeSafe's own System One endpoint, used only when a provider carries no base URL. The configured
+ * base URL is the endpoint itself rather than a host: vendors expose System One at different paths, so
+ * the URL is taken whole instead of being assembled from a host plus a fixed route.
+ */
+const DEFAULT_BASE_URL = 'https://api.typesafe.ai/v1/systemone'
+
+/** The catalog is the endpoint's sibling: `/v1/systemone` -> `/v1/models`. */
+const CATALOG_SEGMENT = 'models'
 const DEFAULT_REQUEST_TIMEOUT_MS = 30_000
+
+/** Shown when the configured endpoint cannot be used as an endpoint. */
+const JEV_BASE_URL_HINT = 'https://api.typesafe.ai/v1/systemone'
+export const JEV_BASE_URL_ERROR = `System One endpoint must look like ${JEV_BASE_URL_HINT}`
 
 /** Jev's documented budget: 64k tokens per request, 32k for state plus the longest question. */
 const JEV_CONTEXT_LENGTH = 64_000
@@ -36,11 +46,48 @@ export function isJevUnsupportedCapabilityError(error: unknown): boolean {
 }
 
 /**
- * Type guard for the judgment capability. Used by the runtime so a non-System-One provider fails
- * with a clear message instead of a missing-method crash.
+ * The model catalog for a configured System One endpoint: its sibling path with the last segment
+ * replaced by `models` (`/v1/systemone` -> `/v1/models`). Vendors that do not expose a catalog simply
+ * answer 404 there, which discovery reads as "no live catalog" and the check as "not contradicted".
  */
-export function supportsJevJudgment(provider: unknown): provider is JevProvider {
-  return provider instanceof JevProvider
+export function resolveJevCatalogUrl(endpoint: string): string | undefined {
+  try {
+    const url = new URL(endpoint)
+    // A trailing slash would leave an empty last segment and resolve to a child path
+    // (`/v1/systemone/` -> `/v1/systemone/models`) instead of the sibling catalog.
+    const segments = url.pathname.replace(/\/+$/, '').split('/')
+    if (segments.length < 2) return undefined
+
+    segments[segments.length - 1] = CATALOG_SEGMENT
+    url.pathname = segments.join('/')
+    url.search = ''
+    url.hash = ''
+    return url.toString()
+  } catch {
+    return undefined
+  }
+}
+
+const isMissingCatalogError = (error: unknown): boolean =>
+  error instanceof ProviderHttpError &&
+  (error.failure.statusCode === 404 || error.failure.statusCode === 405)
+
+/**
+ * Structural type guard for the judgment capability. Used by the runtime so a provider that cannot
+ * judge fails with a clear message instead of a missing-method crash. It is structural rather than
+ * `instanceof JevProvider` because one provider can serve judgments *and* ordinary chat models —
+ * Cloudflare Workers AI does — so the capability cannot be tied to the System One class.
+ */
+export function supportsJevJudgment(provider: unknown): provider is JevJudgmentCapable {
+  return typeof (provider as Partial<JevJudgmentCapable> | undefined)?.runJudgment === 'function'
+}
+
+/** The judgment capability, as the runtime consumes it. */
+export type JevJudgmentCapable = {
+  runJudgment(
+    request: JevJudgmentRequest,
+    options?: { signal?: AbortSignal }
+  ): Promise<JevJudgmentResult>
 }
 
 type JevModelRecord = {
@@ -87,7 +134,11 @@ export function extractJevModelRecords(payload: unknown): JevModelRecord[] {
   return records
 }
 
-function parseJudgmentAnswers(payload: unknown): JevJudgmentResult {
+/**
+ * Parses the System One answer payload. Exported because a second transport (Cloudflare Workers AI)
+ * returns the same answer shape inside its own envelope and unwraps it into this parser.
+ */
+export function parseJudgmentAnswers(payload: unknown): JevJudgmentResult {
   const root = asRecord(payload)
   const answers = asRecord(root?.answers)
   if (!answers) {
@@ -133,6 +184,12 @@ export class JevProvider extends BaseLLMProvider {
       await this.listModels()
       return { isOk: true, errorMsg: null }
     } catch (error: unknown) {
+      // A vendor that does not expose the sibling catalog answers 404/405 there. That says nothing
+      // about the endpoint itself, and probing the endpoint would spend the vendor's tokens, so a
+      // missing catalog is reported as usable rather than as a broken configuration.
+      if (isMissingCatalogError(error)) {
+        return { isOk: true, errorMsg: null }
+      }
       return { isOk: false, errorMsg: error instanceof Error ? error.message : String(error) }
     }
   }
@@ -200,7 +257,10 @@ export class JevProvider extends BaseLLMProvider {
 
     const { signal, cleanup } = this.createRequestSignal(options?.signal)
     try {
-      const response = await this.fetchProvider(this.buildUrl(SYSTEM_ONE_PATH), {
+      // The configured base URL *is* the System One endpoint: vendors expose it at different paths,
+      // so nothing is appended to it.
+      const { endpoint } = this.resolveEndpoint()
+      const response = await this.fetchProvider(endpoint, {
         method: 'POST',
         headers: this.getAuthHeaders(),
         body: JSON.stringify({
@@ -268,9 +328,11 @@ export class JevProvider extends BaseLLMProvider {
   }
 
   private async listModels(signal?: AbortSignal): Promise<JevModelRecord[]> {
+    const { catalogUrl } = this.resolveEndpoint()
+
     const { signal: requestSignal, cleanup } = this.createRequestSignal(signal)
     try {
-      const response = await this.fetchProvider(this.buildUrl(MODELS_PATH), {
+      const response = await this.fetchProvider(catalogUrl, {
         method: 'GET',
         headers: this.getAuthHeaders(),
         signal: requestSignal
@@ -298,10 +360,29 @@ export class JevProvider extends BaseLLMProvider {
     return DEFAULT_BASE_URL
   }
 
-  private buildUrl(path: string): string {
-    const base = this.getBaseUrl()
-    const normalizedPath = path.startsWith('/') ? path : `/${path}`
-    return `${base}${normalizedPath}`
+  /**
+   * The configured endpoint, validated. The URL is used verbatim and its sibling path is the only
+   * source of the catalog, so a value that cannot be sent to (unparseable, a non-HTTP scheme, or a
+   * bare host with no path to take a sibling from) is a broken configuration rather than a vendor
+   * without a catalog: reporting it as usable would let staged validation overwrite a working
+   * configuration, and a bare host would post judgment to the host root.
+   */
+  private resolveEndpoint(): { endpoint: string; catalogUrl: string } {
+    const endpoint = this.getBaseUrl()
+
+    let protocol = ''
+    try {
+      protocol = new URL(endpoint).protocol
+    } catch {
+      throw new Error(JEV_BASE_URL_ERROR)
+    }
+
+    const catalogUrl = resolveJevCatalogUrl(endpoint)
+    if (!catalogUrl || (protocol !== 'https:' && protocol !== 'http:')) {
+      throw new Error(JEV_BASE_URL_ERROR)
+    }
+
+    return { endpoint, catalogUrl }
   }
 
   private getAuthHeaders(): Record<string, string> {
