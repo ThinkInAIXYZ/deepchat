@@ -94,6 +94,7 @@ function createHarness(initialSessions: SessionRecord[] = []) {
           isDraft?: boolean
           disabledAgentTools?: string[]
           orchestrationPolicy?: SessionRecord['orchestrationPolicy']
+          toolModeOverride?: SessionRecord['toolModeOverride']
           sessionKind?: SessionRecord['sessionKind']
           parentSessionId?: string | null
           subagentMeta?: SessionRecord['subagentMeta']
@@ -114,6 +115,7 @@ function createHarness(initialSessions: SessionRecord[] = []) {
             parentSessionId: options.parentSessionId ?? null,
             subagentMeta: options.subagentMeta ?? null,
             orchestrationPolicy: options.orchestrationPolicy ?? 'explicit',
+            toolModeOverride: options.toolModeOverride ?? null,
             metadata: options.metadata ?? null
           })
         )
@@ -279,6 +281,84 @@ function createHarness(initialSessions: SessionRecord[] = []) {
 }
 
 describe('SessionLifecycle', () => {
+  it.each(['regular', 'detached'] as const)(
+    '%s creation returns persisted fields and assignment fallback without a snapshot',
+    async (kind) => {
+      const harness = createHarness()
+      harness.getRuntime('session-1').snapshot.mockResolvedValue(null)
+      const input = {
+        agentId: 'deepchat',
+        providerId: 'custom-provider',
+        modelId: 'custom-model',
+        orchestrationPolicy: 'proactive' as const,
+        toolModeOverride: 'code' as const
+      }
+      const result =
+        kind === 'regular'
+          ? await harness.coordinator.createSession({ ...input, message: 'Hello' }, 42)
+          : await harness.coordinator.createDetachedSession({ ...input, title: 'Hello' })
+
+      expect(result).toMatchObject({
+        title: 'Hello',
+        createdAt: 100,
+        updatedAt: 200,
+        orchestrationPolicy: 'proactive',
+        toolModeOverride: 'code',
+        status: 'idle',
+        providerId: 'custom-provider',
+        modelId: 'custom-model'
+      })
+    }
+  )
+
+  it.each(['regular', 'detached'] as const)(
+    '%s creation uses runtime assignment and ignores DeepChat policy for ACP',
+    async (kind) => {
+      const harness = createHarness()
+      harness.getRuntime('session-1').snapshot.mockResolvedValue({
+        status: 'working',
+        providerId: 'runtime-provider',
+        modelId: 'runtime-model'
+      })
+      const input = {
+        agentId: 'acp-agent',
+        message: 'Hello',
+        providerId: 'acp',
+        orchestrationPolicy: 'proactive' as const,
+        toolModeOverride: 'code' as const
+      }
+      const result =
+        kind === 'regular'
+          ? await harness.coordinator.createSession(input, 42)
+          : await harness.coordinator.createDetachedSession(input)
+      expect(result).toMatchObject({
+        orchestrationPolicy: 'explicit',
+        toolModeOverride: null,
+        status: 'working',
+        providerId: 'runtime-provider',
+        modelId: 'runtime-model'
+      })
+    }
+  )
+
+  it.each(['regular', 'detached'] as const)(
+    '%s creation removes the row and runtime on initialization failure',
+    async (kind) => {
+      const harness = createHarness()
+      const error = new Error('initialization failed')
+      harness.getRuntime('session-1').initialize.mockRejectedValueOnce(error)
+      const result =
+        kind === 'regular'
+          ? harness.coordinator.createSession({ agentId: 'deepchat', message: 'Hello' }, 42)
+          : harness.coordinator.createDetachedSession({})
+      await expect(result).rejects.toBe(error)
+      expect(harness.records.has('session-1')).toBe(false)
+      expect(harness.getRuntime('session-1').close).toHaveBeenCalledOnce()
+      expect(harness.desktop.bind).not.toHaveBeenCalled()
+      expect(harness.projection.notify).not.toHaveBeenCalled()
+    }
+  )
+
   it('persists proactive policy only for regular DeepChat sessions', async () => {
     const deepChatHarness = createHarness()
 

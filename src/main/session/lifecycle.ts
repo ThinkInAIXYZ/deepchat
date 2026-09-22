@@ -1,5 +1,5 @@
 import logger from '@shared/logger'
-import { toAppSessionId } from '@/agent/shared/agentSessionIds'
+import { toAppSessionId, type AppSessionId } from '@/agent/shared/agentSessionIds'
 import { normalizeCreateSessionInput } from '@/agent/shared/agentSessionNormalization'
 import type {
   CreateDetachedSessionInput,
@@ -93,50 +93,19 @@ export class SessionLifecycle implements SessionLifecyclePort {
     options: { signal?: AbortSignal } | undefined,
     assignment: ResolvedSessionAssignment
   ): Promise<SessionWithState & { initialTurn?: MessageStartResult }> {
-    const {
-      agentId,
-      providerId,
-      modelId,
-      projectDir,
-      permissionMode,
-      generationSettings,
-      disabledAgentTools
-    } = assignment
+    const { agentId, providerId, modelId, projectDir } = assignment
     logger.info(`[SessionLifecycle] createSession agent=${agentId} webContentsId=${webContentsId}`)
     const normalizedInput = normalizeCreateSessionInput(input)
     logger.info(`[SessionLifecycle] resolved provider=${providerId} model=${modelId}`)
 
     const title = normalizedInput.text.slice(0, 50) || 'New Chat'
-    const orchestrationPolicy =
-      assignment.agentType === 'deepchat'
-        ? normalizeOrchestrationPolicy(input.orchestrationPolicy)
-        : DEFAULT_ORCHESTRATION_POLICY
-    const sessionId = this.dependencies.sessions.create(agentId, title, projectDir, {
-      isDraft: false,
-      disabledAgentTools,
-      orchestrationPolicy,
-      toolModeOverride:
-        assignment.agentType === 'deepchat'
-          ? normalizeToolModeOverride(input.toolModeOverride)
-          : null
-    })
+    const sessionId = await this.createInitializedRegularSession(
+      title,
+      input,
+      assignment,
+      options?.signal
+    )
     logger.info(`[SessionLifecycle] session created id=${sessionId}`)
-
-    try {
-      options?.signal?.throwIfAborted()
-      await this.initializeSessionRuntime(sessionId, {
-        agentId,
-        providerId,
-        modelId,
-        projectDir,
-        permissionMode,
-        ...(generationSettings ? { generationSettings } : {})
-      })
-      options?.signal?.throwIfAborted()
-    } catch (error) {
-      await this.cleanupFailedSessionInitialization(sessionId, providerId)
-      throw error
-    }
     logger.info('[SessionLifecycle] agent.initSession done')
 
     this.dependencies.desktop.bind(webContentsId, sessionId)
@@ -148,29 +117,8 @@ export class SessionLifecycle implements SessionLifecyclePort {
     })
 
     try {
-      const state = await this.dependencies.runtime.resolveSession(sessionId).snapshot()
+      const result = await this.materializeCreatedSession(sessionId, assignment)
       options?.signal?.throwIfAborted()
-      const result: SessionWithState = {
-        id: sessionId,
-        agentId,
-        title,
-        projectDir,
-        isPinned: false,
-        isDraft: false,
-        sessionKind: 'regular',
-        parentSessionId: null,
-        subagentMeta: null,
-        orchestrationPolicy,
-        toolModeOverride:
-          assignment.agentType === 'deepchat'
-            ? normalizeToolModeOverride(input.toolModeOverride)
-            : null,
-        createdAt: Date.now(),
-        updatedAt: Date.now(),
-        status: state?.status ?? 'idle',
-        providerId: state?.providerId ?? providerId,
-        modelId: state?.modelId ?? modelId
-      }
 
       const initialTurn = await this.dependencies.initialTurn.startInitialTurn({
         sessionId,
@@ -212,6 +160,25 @@ export class SessionLifecycle implements SessionLifecyclePort {
     assignment: ResolvedSessionAssignment
   ): Promise<SessionWithState> {
     const title = input.title?.trim() || 'New Chat'
+    const sessionId = await this.createInitializedRegularSession(title, input, assignment)
+
+    if (input.activeSkills && input.activeSkills.length > 0) {
+      await this.dependencies.skills.setActiveSkills(sessionId, input.activeSkills)
+    }
+    this.dependencies.projection.notify({ sessionIds: [sessionId], reason: 'created' })
+
+    return await this.materializeCreatedSession(sessionId, assignment)
+  }
+
+  private async createInitializedRegularSession(
+    title: string,
+    input: Pick<
+      CreateDetachedSessionInput,
+      'orchestrationPolicy' | 'toolModeOverride' | 'metadata'
+    >,
+    assignment: ResolvedSessionAssignment,
+    signal?: AbortSignal
+  ): Promise<AppSessionId> {
     const {
       agentId,
       providerId,
@@ -237,6 +204,7 @@ export class SessionLifecycle implements SessionLifecyclePort {
       metadata: input.metadata ?? null
     })
     try {
+      signal?.throwIfAborted()
       await this.initializeSessionRuntime(sessionId, {
         agentId,
         providerId,
@@ -245,38 +213,26 @@ export class SessionLifecycle implements SessionLifecyclePort {
         permissionMode,
         generationSettings
       })
+      signal?.throwIfAborted()
     } catch (error) {
       await this.cleanupFailedSessionInitialization(sessionId, providerId)
       throw error
     }
+    return sessionId
+  }
 
-    if (input.activeSkills && input.activeSkills.length > 0) {
-      await this.dependencies.skills.setActiveSkills(sessionId, input.activeSkills)
-    }
-    this.dependencies.projection.notify({ sessionIds: [sessionId], reason: 'created' })
-
+  private async materializeCreatedSession(
+    sessionId: AppSessionId,
+    assignment: ResolvedSessionAssignment
+  ): Promise<SessionWithState> {
     const state = await this.dependencies.runtime.resolveSession(sessionId).snapshot()
+    const record = this.dependencies.sessions.get(sessionId)
+    if (!record) throw new Error(`Session not found after creation: ${sessionId}`)
     return {
-      id: sessionId,
-      agentId,
-      title,
-      projectDir,
-      isPinned: false,
-      isDraft: false,
-      sessionKind: 'regular',
-      parentSessionId: null,
-      subagentMeta: null,
-      orchestrationPolicy,
-      toolModeOverride:
-        assignment.agentType === 'deepchat'
-          ? normalizeToolModeOverride(input.toolModeOverride)
-          : null,
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-      ...(input.metadata ? { metadata: input.metadata } : {}),
+      ...record,
       status: state?.status ?? 'idle',
-      providerId: state?.providerId ?? providerId,
-      modelId: state?.modelId ?? modelId
+      providerId: state?.providerId ?? assignment.providerId,
+      modelId: state?.modelId ?? assignment.modelId
     }
   }
 
