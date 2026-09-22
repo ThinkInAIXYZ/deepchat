@@ -13,6 +13,12 @@ export function resolveMediaSettingsCapabilities(
   endpointType?: NewApiEndpointType | 'grok-image',
   grokImageProtocol = false
 ): MediaSettingsCapabilities {
+  // Azure routes image requests only through an explicit Image endpoint, including
+  // deployment aliases that do not carry an image model name.
+  if (providerKind === 'azure') {
+    return { image: modelConfig.apiEndpoint === ApiEndpointType.Image, video: false }
+  }
+
   const openAIImageTransport =
     providerKind === 'openai-compatible' ||
     providerKind === 'openai-responses' ||

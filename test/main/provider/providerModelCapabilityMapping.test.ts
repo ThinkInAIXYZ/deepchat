@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { ModelType } from '../../../src/shared/model'
+import { ApiEndpointType, ModelType } from '../../../src/shared/model'
 
 const createResolvedConfig = (reasoning: boolean) => ({
   maxTokens: 32000,
@@ -71,6 +71,25 @@ describe('ProviderSettings provider model capability mapping', () => {
       })
     }
   )
+
+  it.each([
+    ['production-art', ApiEndpointType.Image, true],
+    ['gpt-image-1', ApiEndpointType.Chat, false],
+    ['sora-2', ApiEndpointType.Video, false]
+  ])('projects Azure deployment %s via %s', async (modelId, apiEndpoint, image) => {
+    const { ProviderSettings } = await loadProviderSettings()
+    const presenter = Object.assign(Object.create(ProviderSettings.prototype), {
+      providerHelper: {
+        getProviderById: () => ({ id: 'azure-openai', apiType: 'openai-completions' })
+      },
+      providerModelHelper: { getProviderModelRouteMetadata: () => undefined },
+      getModelRouteConfig: () => ({ apiEndpoint })
+    }) as InstanceType<typeof ProviderSettings>
+
+    expect(
+      presenter.getCapabilitySnapshot({ providerId: 'azure-openai', modelId }).mediaSettings
+    ).toEqual({ image, video: false })
+  })
 
   it('uses draft media routes without rewriting stored routes or explicit capability ownership', async () => {
     const { ProviderSettings } = await loadProviderSettings()
