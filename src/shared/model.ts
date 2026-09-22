@@ -66,6 +66,17 @@ function normalizeProviderValue(value: string | undefined): string {
   return value?.trim().toLowerCase() ?? ''
 }
 
+// Compatibility aliases for OpenAI image routes, not provider-independent model capabilities.
+export function isOpenAIImageGenerationModelId(modelId: string | undefined): boolean {
+  const normalized = normalizeModelId(modelId)
+  return (
+    normalized === 'gpt-4o-all' ||
+    normalized === 'gpt-4o-image' ||
+    normalized.startsWith('dall-e-') ||
+    normalized.startsWith('gpt-image-')
+  )
+}
+
 function normalizeRouteHintValue(value: string | undefined): string {
   return normalizeProviderValue(value).replace(/[./_-]+/g, ' ')
 }
@@ -183,7 +194,7 @@ export function resolveNewApiModelTypeFromMetadata(
     return ModelType.TTS
   }
 
-  if (normalizedModelId.startsWith('dall-e-') || normalizedModelId.startsWith('gpt-image-')) {
+  if (isOpenAIImageGenerationModelId(normalizedModelId)) {
     return ModelType.ImageGeneration
   }
   if (normalizedModelId.startsWith('sora-')) {

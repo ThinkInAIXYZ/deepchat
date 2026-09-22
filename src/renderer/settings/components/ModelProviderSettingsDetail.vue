@@ -12,6 +12,7 @@
       <ProviderApiConfig
         :provider="provider"
         :provider-websites="providerWebsites"
+        :uses-provider-db="defaultProvider?.usesProviderDb"
         @api-host-change="handleApiHostChange"
         @api-key-change="handleApiKeyChange"
         @validate-key="openModelCheckDialog"
@@ -200,10 +201,11 @@ const scrollToOnboardingSection = (stepId?: string | null) => {
   })
 }
 
+const defaultProvider = computed(() =>
+  providerStore.defaultProviders.find((provider) => provider.id === props.provider.id)
+)
 const providerWebsites = computed<ProviderWebsites | undefined>(
-  () =>
-    providerStore.defaultProviders.find((provider) => provider.id === props.provider.id)
-      ?.websites as ProviderWebsites | undefined
+  () => defaultProvider.value?.websites as ProviderWebsites | undefined
 )
 
 const providerModelsSource = computed(

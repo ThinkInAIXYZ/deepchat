@@ -233,7 +233,7 @@
           }}
         </DcButton>
       </div>
-      <p v-if="shouldRefreshProviderDbFirst" class="text-xs leading-5 text-muted-foreground">
+      <p v-if="usesProviderDb" class="text-xs leading-5 text-muted-foreground">
         {{ t('settings.provider.refreshModelsWithMetadataHint') }}
       </p>
       <p
@@ -273,7 +273,6 @@ import GrokOAuth from './GrokOAuth.vue'
 import { createProviderClient } from '@api/ProviderClient'
 import { useModelCheckStore } from '@/stores/modelCheck'
 import type { LLM_PROVIDER, KeyStatus } from '@shared/types/provider'
-import { isProviderDbBackedProvider } from '@shared/providerDbCatalog'
 import { notifyRenderer } from '@renderer-notifications/rendererNotificationPort'
 
 interface ProviderWebsites {
@@ -305,6 +304,7 @@ const EDITABLE_BASE_URL_PROVIDER_IDS = new Set([
 const props = defineProps<{
   provider: LLM_PROVIDER
   providerWebsites?: ProviderWebsites
+  usesProviderDb?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -341,7 +341,6 @@ const isBaseUrlEditableByDefault = computed(
 const showLockedBaseUrl = computed(
   () => !isBaseUrlEditableByDefault.value && !baseUrlUnlocked.value
 )
-const shouldRefreshProviderDbFirst = computed(() => isProviderDbBackedProvider(props.provider.id))
 const isGrokOAuthAvailable = computed(() => {
   if (props.provider.id !== 'grok') {
     return false
@@ -487,7 +486,7 @@ const refreshModels = async () => {
   if (isRefreshing.value) return
 
   const providerId = props.provider.id
-  const refreshesMetadata = shouldRefreshProviderDbFirst.value
+  const refreshesMetadata = props.usesProviderDb
   isRefreshing.value = true
   try {
     await providerClient.refreshModels(providerId)

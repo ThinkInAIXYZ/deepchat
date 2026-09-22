@@ -978,10 +978,6 @@
       "label": "Lunghezza testo risposta",
       "description": "Imposta la lunghezza massima della risposta AI"
     },
-    "artifacts": {
-      "title": "Effetto Artifacts",
-      "description": "Effetto animazione nella generazione dei blocchi di codice"
-    },
     "provider": "Provider",
     "modelList": "Elenco modelli",
     "selectModel": "Seleziona modello",

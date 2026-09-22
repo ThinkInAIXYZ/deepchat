@@ -609,10 +609,6 @@
       "label": "Comprimento da Resposta",
       "description": "Defina o comprimento máximo da resposta da IA"
     },
-    "artifacts": {
-      "description": "Habilitar o recurso Artefatos permite que a IA gere conteúdo mais rico",
-      "title": "Artefatos"
-    },
     "addModel": "Adicionar Modelo",
     "configureModel": "Configurar Modelo",
     "modelList": "Lista de Modelos",

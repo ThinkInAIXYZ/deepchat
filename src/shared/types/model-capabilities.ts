@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import type { ReasoningEffort, ReasoningPortrait, Verbosity } from './model-db'
-import { ModelType, NEW_API_ENDPOINT_TYPES } from '../model'
+import { ApiEndpointType, ModelType, NEW_API_ENDPOINT_TYPES } from '../model'
 import type { ModelRequestPolicy } from '../modelRequestPolicy'
 import type { ToolMode } from '../toolMode'
 
@@ -19,6 +19,7 @@ export type ResolvedCapabilityIdentity =
     }
 
 export const CapabilityRouteOverrideSchema = z.object({
+  apiEndpoint: z.enum(ApiEndpointType).optional(),
   endpointType: z.enum(NEW_API_ENDPOINT_TYPES).optional(),
   supportedEndpointTypes: z.array(z.enum(NEW_API_ENDPOINT_TYPES)).optional(),
   type: z.enum(ModelType).optional(),
@@ -36,8 +37,16 @@ export const CapabilitySnapshotQuerySchema = z.object({
 
 export type CapabilitySnapshotQuery = z.infer<typeof CapabilitySnapshotQuerySchema>
 
+export const MediaSettingsCapabilitiesSchema = z.object({
+  image: z.boolean(),
+  video: z.boolean()
+})
+
+export type MediaSettingsCapabilities = z.infer<typeof MediaSettingsCapabilitiesSchema>
+
 export type ResolvedModelCapabilitySnapshot = {
   identity: ResolvedCapabilityIdentity
+  mediaSettings: MediaSettingsCapabilities
   defaultToolMode?: ToolMode
   requestPolicy: ModelRequestPolicy
   supportsAudioInput: boolean

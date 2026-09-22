@@ -978,10 +978,6 @@
       "label": "返回文本长度",
       "description": "设置AI响应的最大长度"
     },
-    "artifacts": {
-      "title": "Artifacts效果",
-      "description": "代码块生成动画效果"
-    },
     "provider": "服务商",
     "modelList": "模型列表",
     "selectModel": "选择模型",

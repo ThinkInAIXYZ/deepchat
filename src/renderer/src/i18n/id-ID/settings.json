@@ -978,10 +978,6 @@
       "label": "Kembalikan panjang teks",
       "description": "Tetapkan durasi maksimum respons AI"
     },
-    "artifacts": {
-      "title": "Efek Artifacts",
-      "description": "Blok kode menghasilkan efek animasi"
-    },
     "provider": "penyedia layanan",
     "modelList": "Daftar model",
     "selectModel": "Pilih modelnya",

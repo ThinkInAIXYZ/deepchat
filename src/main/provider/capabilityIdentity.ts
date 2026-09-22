@@ -379,7 +379,8 @@ export const resolveCapabilityIdentity = (
 
 export const buildResolvedCapabilitySnapshot = (
   identity: ResolvedCapabilityIdentity,
-  options: Pick<CapabilitySnapshotQuery, 'reasoningEnabled'> = {}
+  options: Pick<CapabilitySnapshotQuery, 'reasoningEnabled'> &
+    Partial<Pick<ResolvedModelCapabilitySnapshot, 'mediaSettings'>> = {}
 ): ResolvedModelCapabilitySnapshot => {
   const catalogModelId = identity.catalogModelId ?? identity.requestModelId
   const catalog = modelCapabilities.getCatalogCapabilitySnapshot(
@@ -415,6 +416,7 @@ export const buildResolvedCapabilitySnapshot = (
 
   return {
     identity,
+    mediaSettings: options.mediaSettings ?? { image: false, video: false },
     ...(catalog.defaultToolMode ? { defaultToolMode: catalog.defaultToolMode } : {}),
     requestPolicy,
     supportsAudioInput: catalog.supportsAudioInput,

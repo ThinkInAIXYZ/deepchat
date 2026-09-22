@@ -175,10 +175,6 @@
       "name": "sistem file",
       "desc": "Aktifkan DeepChat untuk beroperasi pada file lokal"
     },
-    "Artifacts": {
-      "name": "Artifacts",
-      "desc": "Jadikan keluaran DeepChat Anda beragam dengan konten Artifacts"
-    },
     "braveSearch": {
       "name": "Pencarian Brave",
       "desc": "API Pencarian Brave https://brave.com/search/api/"

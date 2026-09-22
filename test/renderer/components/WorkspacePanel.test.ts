@@ -4,9 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import WorkspacePanel from '@/components/sidepanel/WorkspacePanel.vue'
 
 const {
-  showArtifactMock,
   toggleSectionMock,
-  clearArtifactMock,
   clearFileMock,
   clearDiffMock,
   selectFileMock,
@@ -28,9 +26,7 @@ const {
   workspaceWatchStatusState,
   setSessionProjectDirMock
 } = vi.hoisted(() => ({
-  showArtifactMock: vi.fn(),
   toggleSectionMock: vi.fn(),
-  clearArtifactMock: vi.fn(),
   clearFileMock: vi.fn(),
   clearDiffMock: vi.fn(),
   selectFileMock: vi.fn(),
@@ -128,61 +124,25 @@ const {
 }))
 
 const sessionState = reactive({
-  selectedArtifactContext: null,
   selectedFilePath: null,
   selectedDiffPath: null,
   viewMode: 'preview',
   sections: {
     subagents: true,
     files: true,
-    git: true,
-    artifacts: true
+    git: true
   }
 })
 
 const sidepanelStore = reactive({
   open: true,
   toggleSection: toggleSectionMock,
-  clearArtifact: clearArtifactMock,
   clearFile: clearFileMock,
   clearDiff: clearDiffMock,
   selectFile: selectFileMock,
   selectDiff: selectDiffMock,
   getSessionState: () => sessionState
 })
-
-const artifactStore = {
-  currentArtifact: null,
-  currentMessageId: null,
-  currentThreadId: null,
-  showArtifact: showArtifactMock
-}
-
-const messageStore = {
-  messages: [
-    {
-      id: 'm1',
-      sessionId: 's1',
-      orderSeq: 1,
-      role: 'assistant',
-      content: JSON.stringify([
-        {
-          type: 'content',
-          status: 'success',
-          timestamp: 1,
-          content:
-            '<antArtifact type="text/markdown" identifier="artifact-1" title="Workspace Doc"># Hello</antArtifact>'
-        }
-      ]),
-      status: 'sent',
-      isContextEdge: 0,
-      metadata: '{}',
-      createdAt: 10,
-      updatedAt: 10
-    }
-  ],
-  getAssistantMessageBlocks: (message: { content: string }) => JSON.parse(message.content)
-}
 
 const emitWorkspaceInvalidated = async (payload: {
   workspacePath: string
@@ -234,14 +194,6 @@ vi.mock('@iconify/vue', () => ({
     name: 'Icon',
     template: '<i class="icon-stub" />'
   })
-}))
-
-vi.mock('@/stores/artifact', () => ({
-  useArtifactStore: () => artifactStore
-}))
-
-vi.mock('@/stores/ui/message', () => ({
-  useMessageStore: () => messageStore
 }))
 
 vi.mock('@/stores/ui/sidepanel', () => ({
@@ -345,20 +297,13 @@ describe('WorkspacePanel', () => {
     workspaceInvalidationState.reset()
     workspaceWatchStatusState.reset()
     sidepanelStore.open = true
-    sessionState.selectedArtifactContext = null
     sessionState.selectedFilePath = null
     sessionState.selectedDiffPath = null
     sessionState.sections.subagents = true
     sessionState.sections.files = true
     sessionState.sections.git = true
-    sessionState.sections.artifacts = true
-    artifactStore.currentArtifact = null
-    artifactStore.currentMessageId = null
-    artifactStore.currentThreadId = null
 
-    showArtifactMock.mockReset()
     toggleSectionMock.mockReset()
-    clearArtifactMock.mockReset()
     clearFileMock.mockReset()
     clearDiffMock.mockReset()
     selectFileMock.mockReset()
@@ -402,46 +347,6 @@ describe('WorkspacePanel', () => {
 
     await wrapper.find('[data-testid="agent-activity-panel"] button').trigger('click')
     expect(toggleSectionMock).toHaveBeenCalledWith('s1', 'subagents')
-  })
-
-  it('extracts artifact items from assistant blocks and opens preview context', async () => {
-    const wrapper = mount(WorkspacePanel, {
-      props: {
-        sessionId: 's1',
-        workspacePath: 'C:/repo'
-      }
-    })
-
-    await flushPromises()
-
-    expect(wrapper.text()).toContain('Workspace Doc')
-
-    const artifactButton = wrapper
-      .findAll('button')
-      .find((button) => button.text().includes('Workspace Doc'))
-    expect(artifactButton).toBeTruthy()
-
-    await artifactButton!.trigger('click')
-
-    expect(showArtifactMock).toHaveBeenCalledWith(
-      {
-        id: 'artifact-1',
-        type: 'text/markdown',
-        title: 'Workspace Doc',
-        language: undefined,
-        content: '# Hello',
-        status: 'loaded'
-      },
-      'm1',
-      's1',
-      {
-        force: true,
-        open: false,
-        viewMode: 'preview'
-      }
-    )
-
-    wrapper.unmount()
   })
 
   it('does not render a subagent section in the workspace navigation', async () => {
@@ -556,36 +461,6 @@ describe('WorkspacePanel', () => {
     await wrapper.find('.workspace-viewer-stub').trigger('click')
 
     expect(clearDiffMock).toHaveBeenCalledWith('s1')
-
-    wrapper.unmount()
-  })
-
-  it('keeps workspace list visible for artifact selections', async () => {
-    readDirectoryMock.mockResolvedValueOnce([
-      {
-        name: 'README.md',
-        path: 'C:/repo/README.md',
-        isDirectory: false
-      }
-    ])
-
-    sessionState.selectedArtifactContext = {
-      threadId: 's1',
-      messageId: 'm1',
-      artifactId: 'artifact-1'
-    }
-
-    const wrapper = mount(WorkspacePanel, {
-      props: {
-        sessionId: 's1',
-        workspacePath: 'C:/repo'
-      }
-    })
-
-    await flushPromises()
-
-    expect(wrapper.find('.workspace-file-node-stub').exists()).toBe(true)
-    expect(wrapper.find('.workspace-viewer-stub').exists()).toBe(true)
 
     wrapper.unmount()
   })
@@ -987,36 +862,6 @@ describe('WorkspacePanel', () => {
 
     expect(clearFileMock).toHaveBeenCalledWith('s1')
     expect(clearDiffMock).toHaveBeenCalledWith('s1')
-
-    wrapper.unmount()
-  })
-
-  it('keeps the current temporary artifact selection when it is not part of artifact items', async () => {
-    sessionState.selectedArtifactContext = {
-      threadId: 's1',
-      messageId: 'C:/repo/README.md',
-      artifactId: 'temp-html-preview'
-    }
-    artifactStore.currentArtifact = {
-      id: 'temp-html-preview',
-      type: 'text/html',
-      title: 'HTML Preview',
-      content: '<h1>Hello</h1>',
-      status: 'loaded'
-    }
-    artifactStore.currentMessageId = 'C:/repo/README.md'
-    artifactStore.currentThreadId = 's1'
-
-    const wrapper = mount(WorkspacePanel, {
-      props: {
-        sessionId: 's1',
-        workspacePath: 'C:/repo'
-      }
-    })
-
-    await flushPromises()
-
-    expect(clearArtifactMock).not.toHaveBeenCalled()
 
     wrapper.unmount()
   })

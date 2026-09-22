@@ -47,17 +47,6 @@ export interface VideoGenerationDetectionTarget {
   } | null
 }
 
-const NON_OPENAI_VIDEO_PROVIDER_HINTS = [
-  'anthropic',
-  'gemini',
-  'vertex',
-  'aws-bedrock',
-  'github-copilot',
-  'ollama',
-  'acp',
-  'voiceai'
-] as const
-
 const FLAT_TOP_LEVEL_VIDEO_PROVIDER_HINTS = ['aihubmix'] as const
 
 const VIDEO_GENERATION_MODEL_ID_PREFIXES = [
@@ -218,44 +207,6 @@ export function isVideoGenerationModelConfig(
       endpointType: modelConfig.endpointType,
       supportedEndpointTypes: modelConfig.supportedEndpointTypes
     }) === ModelType.VideoGeneration
-  )
-}
-
-export function supportsOpenAICompatibleVideoGeneration(
-  target: VideoGenerationDetectionTarget
-): boolean {
-  const providerId = normalizeText(target.providerId)
-  const providerApiType = normalizeText(target.providerApiType)
-  const providerKind = normalizeText(target.providerKind)
-  const providerOptionsKey = normalizeText(target.providerOptionsKey)
-
-  if (
-    NON_OPENAI_VIDEO_PROVIDER_HINTS.some(
-      (hint) =>
-        providerId.includes(hint) || providerApiType.includes(hint) || providerKind.includes(hint)
-    )
-  ) {
-    return false
-  }
-
-  const isOpenAICompatibleProvider =
-    providerKind === 'openai-compatible' ||
-    providerKind === 'openai-responses' ||
-    providerOptionsKey === 'openai' ||
-    providerId === 'openai' ||
-    providerId === 'openai-responses' ||
-    providerId === 'new-api' ||
-    providerId === 'apimart' ||
-    providerApiType === 'openai' ||
-    providerApiType === 'openai-compatible' ||
-    providerApiType === 'openai-responses' ||
-    providerApiType === 'openai_chat' ||
-    providerApiType === 'new-api' ||
-    providerApiType === 'apimart'
-
-  return (
-    isOpenAICompatibleProvider &&
-    resolveVideoGenerationCompatType(target) === ModelType.VideoGeneration
   )
 }
 

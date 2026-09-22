@@ -142,10 +142,6 @@
     "acpServersSelected": "{count}개의 MCP가 선택되었습니다."
   },
   "inmemory": {
-    "Artifacts": {
-      "desc": "DeepChat에서 다양한 Artifacts 콘텐츠를 출력할 수 있게 해줍니다",
-      "name": "Artifacts"
-    },
     "bochaSearch": {
       "desc": "Bocha 검색 API https://open.bochaai.com/",
       "name": "Bocha Search"

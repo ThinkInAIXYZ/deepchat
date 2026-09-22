@@ -1,7 +1,7 @@
 import { ModelType } from '@shared/model'
 import type { LLM_PROVIDER_BASE } from '@shared/types/provider'
 
-export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
+const PROVIDER_DEFAULTS: LLM_PROVIDER_BASE[] = [
   {
     id: 'typesafe',
     name: 'TypeSafe',
@@ -39,8 +39,9 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
       official: 'https://typesafe.ai/',
       apiKey: 'https://console.typesafe.ai/keys',
       docs: 'https://docs.typesafe.ai/introduction',
-      models: 'https://docs.typesafe.ai/models',
-      defaultBaseUrl: 'https://api.typesafe.ai/v1/systemone'
+      // `defaultBaseUrl` is derived from `baseUrl` for profiles that do not set it, which is the
+      // endpoint URL here.
+      models: 'https://docs.typesafe.ai/models'
     }
   },
   {
@@ -75,6 +76,7 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
       apiKey: 'https://dash.cloudflare.com/?to=/:account/ai/workers-ai',
       docs: 'https://developers.cloudflare.com/workers-ai/',
       models: 'https://developers.cloudflare.com/workers-ai/models/',
+      // Explicit, because the derived hint would be empty: this profile ships no base URL.
       defaultBaseUrl: 'https://api.cloudflare.com/client/v4/accounts/<ACCOUNT_ID>/ai/v1'
     }
   },
@@ -89,8 +91,7 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
       official: 'https://ollama.com/',
       apiKey: '',
       docs: 'https://github.com/ollama/ollama/tree/main/docs',
-      models: 'https://ollama.com/library',
-      defaultBaseUrl: 'http://localhost:11434'
+      models: 'https://ollama.com/library'
     }
   },
   {
@@ -104,8 +105,7 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
       official: 'https://deepseek.com/',
       apiKey: 'https://platform.deepseek.com/api_keys',
       docs: 'https://platform.deepseek.com/api-docs/',
-      models: 'https://platform.deepseek.com/api-docs/',
-      defaultBaseUrl: 'https://api.deepseek.com/v1'
+      models: 'https://platform.deepseek.com/api-docs/'
     }
   },
   {
@@ -119,8 +119,7 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
       official: 'https://www.cheaperinference.com/',
       apiKey: 'https://www.cheaperinference.com/dashboard/keys',
       docs: 'https://www.cheaperinference.com/docs',
-      models: 'https://www.cheaperinference.com/markets',
-      defaultBaseUrl: 'https://api.cheaperinference.com/v1'
+      models: 'https://www.cheaperinference.com/markets'
     }
   },
   {
@@ -134,8 +133,7 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
       official: 'https://www.api-route.com/',
       apiKey: 'https://www.api-route.com/api-keys',
       docs: 'https://www.api-route.com/docs/quickstart',
-      models: 'https://www.api-route.com/pricing',
-      defaultBaseUrl: 'https://global.api-route.com/v1'
+      models: 'https://www.api-route.com/pricing'
     }
   },
   {
@@ -149,8 +147,7 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
       official: 'https://runinfra.ai/',
       apiKey: 'https://runinfra.ai/settings/api-keys',
       docs: 'https://runinfra.ai/docs/api-reference/model-apis-quickstart',
-      models: 'https://runinfra.ai/inference-api',
-      defaultBaseUrl: 'https://api.runinfra.ai/v1'
+      models: 'https://runinfra.ai/inference-api'
     }
   },
   {
@@ -164,8 +161,7 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
       official: 'https://greenpt.com/',
       apiKey: 'https://account.greenpt.ai/api/keys',
       docs: 'https://docs.greenpt.ai/get-started',
-      models: 'https://api.greenpt.ai/v1/models',
-      defaultBaseUrl: 'https://api.greenpt.ai/v1'
+      models: 'https://api.greenpt.ai/v1/models'
     }
   },
   {
@@ -179,8 +175,7 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
       official: 'https://developer.amd.com.cn/radeon/',
       apiKey: 'https://developer.amd.com.cn/radeon/tokenfactory?source=deepchat',
       docs: 'https://developer.amd.com.cn/radeon/',
-      models: 'https://developer.amd.com.cn/radeon/tokenfactory?source=deepchat',
-      defaultBaseUrl: 'https://developer.amd.com.cn/radeon/api/v1'
+      models: 'https://developer.amd.com.cn/radeon/tokenfactory?source=deepchat'
     }
   },
   {
@@ -194,8 +189,7 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
       official: 'https://apimart.ai/zh',
       apiKey: 'https://apimart.ai/zh/keys',
       docs: 'https://docs.apimart.ai/cn',
-      models: 'https://docs.apimart.ai/cn/api-reference/texts/models/list',
-      defaultBaseUrl: 'https://api.apimart.ai/v1'
+      models: 'https://docs.apimart.ai/cn/api-reference/texts/models/list'
     }
   },
   {
@@ -209,8 +203,7 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
       official: 'https://www.qiniu.com',
       apiKey: 'https://developer.qiniu.com/aitokenapi/12884/how-to-get-api-key',
       docs: 'https://developer.qiniu.com/aitokenapi',
-      models: 'https://developer.qiniu.com/aitokenapi/12883/model-list',
-      defaultBaseUrl: 'https://api.qnaigc.com/v1'
+      models: 'https://developer.qiniu.com/aitokenapi/12883/model-list'
     }
   },
   {
@@ -224,8 +217,7 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
       official: 'https://www.siliconflow.cn/',
       apiKey: 'https://cloud.siliconflow.cn/account/ak',
       docs: 'https://docs.siliconflow.cn/',
-      models: 'https://docs.siliconflow.cn/docs/model-names',
-      defaultBaseUrl: 'https://api.siliconflow.cn/v1'
+      models: 'https://docs.siliconflow.cn/docs/model-names'
     }
   },
   // {
@@ -255,8 +247,7 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
       official: 'https://ppinfra.com/',
       apiKey: 'https://ppinfra.com/settings/key-management',
       docs: 'https://ppinfra.com/docs/get-started/quickstart.html',
-      models: 'https://ppinfra.com/model-api/console',
-      defaultBaseUrl: 'https://api.ppinfra.com/v3/openai'
+      models: 'https://ppinfra.com/model-api/console'
     }
   },
 
@@ -271,8 +262,7 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
       official: 'https://jiekou.ai?utm_source=github_deepchat',
       apiKey: 'https://jiekou.ai/settings/key-management?utm_source=github_deepchat',
       docs: 'https://docs.jiekou.ai/docs/support/quickstart?utm_source=github_deepchat',
-      models: 'https://jiekou.ai/?utm_source=github_deepchat',
-      defaultBaseUrl: 'https://api.jiekou.ai/openai'
+      models: 'https://jiekou.ai/?utm_source=github_deepchat'
     }
   },
 
@@ -287,8 +277,7 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
       official: 'https://zenmux.ai/',
       apiKey: 'https://zenmux.ai/settings/keys',
       docs: 'https://docs.zenmux.ai/api/openai/create-chat-completion.html',
-      models: 'https://docs.zenmux.ai/api/openai/create-chat-completion.html',
-      defaultBaseUrl: 'https://zenmux.ai/api/v1/'
+      models: 'https://docs.zenmux.ai/api/openai/create-chat-completion.html'
     }
   },
 
@@ -303,8 +292,7 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
       official: 'https://tokenflux.ai/',
       apiKey: 'https://tokenflux.ai/dashboard/api-keys',
       docs: 'https://docs.tokenflux.ai/',
-      models: 'https://docs.tokenflux.ai/api-reference',
-      defaultBaseUrl: 'https://tokenflux.ai/v1'
+      models: 'https://docs.tokenflux.ai/api-reference'
     }
   },
 
@@ -319,8 +307,7 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
       official: 'https://tokenlab.sh/',
       apiKey: 'https://tokenlab.sh/dashboard',
       docs: 'https://docs.tokenlab.sh/',
-      models: 'https://api.tokenlab.sh/v1/models',
-      defaultBaseUrl: 'https://api.tokenlab.sh/v1'
+      models: 'https://api.tokenlab.sh/v1/models'
     }
   },
 
@@ -335,8 +322,7 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
       official: 'https://daoxe.com/',
       apiKey: 'https://daoxe.com/token',
       docs: 'https://github.com/seven7763/DaoXE-AI',
-      models: 'https://daoxe.com/pricing',
-      defaultBaseUrl: 'https://daoxe.com/v1'
+      models: 'https://daoxe.com/pricing'
     }
   },
 
@@ -351,8 +337,7 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
       official: 'https://www.burncloud.com/',
       apiKey: 'https://ai.burncloud.com/api/usage/token/',
       docs: 'https://docs.burncloud.com',
-      models: 'https://ai.burncloud.com/v1/models',
-      defaultBaseUrl: 'https://ai.burncloud.com'
+      models: 'https://ai.burncloud.com/v1/models'
     }
   },
 
@@ -367,8 +352,7 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
       official: 'https://openai.com/',
       apiKey: 'https://platform.openai.com/api-keys',
       docs: 'https://platform.openai.com/docs/api-reference/responses',
-      models: 'https://platform.openai.com/docs/models',
-      defaultBaseUrl: 'https://api.openai.com/v1'
+      models: 'https://platform.openai.com/docs/models'
     }
   },
   {
@@ -382,8 +366,7 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
       official: 'https://developers.openai.com/codex',
       apiKey: 'https://chatgpt.com/codex',
       docs: 'https://developers.openai.com/codex/auth',
-      models: 'https://developers.openai.com/codex/models',
-      defaultBaseUrl: 'https://chatgpt.com/backend-api/codex'
+      models: 'https://developers.openai.com/codex/models'
     }
   },
   {
@@ -397,8 +380,7 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
       official: 'https://agentclientprotocol.com',
       apiKey: '',
       docs: 'https://agentclientprotocol.com',
-      models: 'https://agentclientprotocol.com',
-      defaultBaseUrl: ''
+      models: 'https://agentclientprotocol.com'
     }
   },
   {
@@ -412,8 +394,7 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
       official: 'https://open.cherryin.ai/console',
       apiKey: 'https://open.cherryin.ai/console',
       docs: 'https://docs.newapi.pro/api/openai-responses/',
-      models: 'https://docs.newapi.pro/api/openai-responses/',
-      defaultBaseUrl: 'https://open.cherryin.ai/v1'
+      models: 'https://docs.newapi.pro/api/openai-responses/'
     }
   },
   {
@@ -427,8 +408,7 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
       official: 'https://www.newapi.ai/',
       apiKey: 'https://www.newapi.ai/token',
       docs: 'https://www.newapi.ai/zh/docs/api',
-      models: 'https://www.newapi.ai/zh/docs/api',
-      defaultBaseUrl: 'https://www.newapi.ai'
+      models: 'https://www.newapi.ai/zh/docs/api'
     }
   },
   {
@@ -442,8 +422,7 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
       official: 'https://openai.com/',
       apiKey: 'https://platform.openai.com/api-keys',
       docs: 'https://platform.openai.com/docs',
-      models: 'https://platform.openai.com/docs/models',
-      defaultBaseUrl: 'https://api.openai.com/v1'
+      models: 'https://platform.openai.com/docs/models'
     }
   },
   {
@@ -457,8 +436,7 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
       official: 'https://voice.ai/',
       apiKey: 'https://voice.ai/app/dashboard/developers',
       docs: 'https://voice.ai/docs/introduction',
-      models: 'https://voice.ai/docs/api-reference/text-to-speech/list-voices',
-      defaultBaseUrl: 'https://dev.voice.ai'
+      models: 'https://voice.ai/docs/api-reference/text-to-speech/list-voices'
     }
   },
   {
@@ -472,8 +450,7 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
       official: 'https://gemini.google.com/',
       apiKey: 'https://aistudio.google.com/app/apikey',
       docs: 'https://ai.google.dev/gemini-api/docs',
-      models: 'https://ai.google.dev/gemini-api/docs/models/gemini',
-      defaultBaseUrl: 'https://generativelanguage.googleapis.com'
+      models: 'https://ai.google.dev/gemini-api/docs/models/gemini'
     }
   },
   {
@@ -502,8 +479,7 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
       official: 'https://www.anthropic.com/',
       apiKey: 'https://console.anthropic.com/settings/keys',
       docs: 'https://docs.anthropic.com/',
-      models: 'https://docs.anthropic.com/claude/docs/models-overview',
-      defaultBaseUrl: 'https://api.anthropic.com'
+      models: 'https://docs.anthropic.com/claude/docs/models-overview'
     }
   },
   {
@@ -517,8 +493,7 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
       official: 'https://anonrouter.ai/',
       apiKey: 'https://anonrouter.ai/home/api-keys',
       docs: 'https://docs.anonrouter.ai/quickstart',
-      models: 'https://anonrouter.ai/models',
-      defaultBaseUrl: 'https://api.anonrouter.ai/v1'
+      models: 'https://anonrouter.ai/models'
     }
   },
   {
@@ -532,8 +507,7 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
       official: 'https://openrouter.ai/',
       apiKey: 'https://openrouter.ai/settings/keys',
       docs: 'https://openrouter.ai/docs/quick-start',
-      models: 'https://openrouter.ai/docs/models',
-      defaultBaseUrl: 'https://openrouter.ai/api/v1/'
+      models: 'https://openrouter.ai/docs/models'
     }
   },
   {
@@ -547,8 +521,7 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
       official: 'https://www.orcarouter.ai/',
       apiKey: 'https://www.orcarouter.ai/console/token',
       docs: 'https://docs.orcarouter.ai',
-      models: 'https://www.orcarouter.ai/models',
-      defaultBaseUrl: 'https://api.orcarouter.ai/v1'
+      models: 'https://www.orcarouter.ai/models'
     }
   },
   {
@@ -562,8 +535,7 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
       official: 'https://synthorai.io/',
       apiKey: 'https://synthorai.io/console/api-keys',
       docs: 'https://synthorai.io/docs/',
-      models: 'https://synthorai.io/models/',
-      defaultBaseUrl: 'https://synthorai.io/v1'
+      models: 'https://synthorai.io/models/'
     }
   },
   {
@@ -577,8 +549,7 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
       official: 'https://opencode.ai/auth',
       apiKey: 'https://opencode.ai/auth',
       docs: 'https://opencode.ai/docs/zh-cn/go/',
-      models: 'https://opencode.ai/zen/go/v1/models',
-      defaultBaseUrl: 'https://opencode.ai/zen/go/v1'
+      models: 'https://opencode.ai/zen/go/v1/models'
     }
   },
   {
@@ -592,8 +563,7 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
       official: 'https://routerra.ai/',
       apiKey: 'https://routerra.ai/',
       docs: '',
-      models: 'https://routerra.ai/v1/models',
-      defaultBaseUrl: 'https://routerra.ai/v1'
+      models: 'https://routerra.ai/v1/models'
     }
   },
   {
@@ -607,8 +577,7 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
       official: 'https://modelsell.com/',
       apiKey: 'https://modelsell.com/console/token',
       docs: 'https://modelsell.com/docs/api-reference',
-      models: 'https://modelsell.com/v1/models',
-      defaultBaseUrl: 'https://modelsell.com/v1'
+      models: 'https://modelsell.com/v1/models'
     }
   },
   {
@@ -622,8 +591,7 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
       official: 'https://www.straico.com/',
       apiKey: 'https://platform.straico.com/settings-api',
       docs: 'https://documenter.getpostman.com/view/5900072/2s9YyzddrR',
-      models: 'https://api.straico.com/v2/models',
-      defaultBaseUrl: 'https://api.straico.com/v2'
+      models: 'https://api.straico.com/v2/models'
     }
   },
   {
@@ -637,8 +605,7 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
       official: 'https://poe.com/',
       apiKey: 'https://poe.com/api_key',
       docs: 'https://creator.poe.com/docs/external-applications/openai-compatible-api',
-      models: 'https://api.poe.com/v1/models',
-      defaultBaseUrl: 'https://api.poe.com/v1'
+      models: 'https://api.poe.com/v1/models'
     }
   },
   {
@@ -652,8 +619,7 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
       official: 'https://302ai.cn/',
       apiKey: 'https://dash.302.ai/apis/list',
       docs: 'https://302ai.apifox.cn/doc-3704971',
-      models: 'https://302ai.cn/pricing/',
-      defaultBaseUrl: 'https://api.302.ai/v1'
+      models: 'https://302ai.cn/pricing/'
     }
   },
   {
@@ -667,8 +633,7 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
       official: 'https://build.nvidia.com/',
       apiKey: 'https://build.nvidia.com/settings/api-keys',
       docs: 'https://docs.api.nvidia.com/nim/',
-      models: 'https://build.nvidia.com/explore/discover',
-      defaultBaseUrl: 'https://integrate.api.nvidia.com/v1'
+      models: 'https://build.nvidia.com/explore/discover'
     }
   },
   {
@@ -682,8 +647,7 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
       official: 'https://huggingface.co/',
       apiKey: 'https://huggingface.co/settings/tokens',
       docs: 'https://huggingface.co/docs/inference-providers',
-      models: 'https://huggingface.co/inference/models',
-      defaultBaseUrl: 'https://router.huggingface.co/v1'
+      models: 'https://huggingface.co/inference/models'
     }
   },
   {
@@ -697,8 +661,7 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
       official: 'https://vercel.com/ai',
       apiKey: 'https://vercel.com/dashboard',
       docs: 'https://vercel.com/docs/ai-gateway',
-      models: 'https://vercel.com/docs/ai-gateway/models-and-providers',
-      defaultBaseUrl: 'https://ai-gateway.vercel.sh/v1'
+      models: 'https://vercel.com/docs/ai-gateway/models-and-providers'
     }
   },
   // {
@@ -727,8 +690,7 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
       official: 'https://www.together.ai/',
       apiKey: 'https://api.together.ai/settings/api-keys',
       docs: 'https://docs.together.ai/docs/introduction',
-      models: 'https://docs.together.ai/docs/chat-models',
-      defaultBaseUrl: 'https://api.together.xyz/v1'
+      models: 'https://docs.together.ai/docs/chat-models'
     }
   },
   {
@@ -742,8 +704,7 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
       official: 'https://github.com/marketplace/models',
       apiKey: 'https://github.com/settings/tokens',
       docs: 'https://docs.github.com/en/github-models',
-      models: 'https://github.com/marketplace/models',
-      defaultBaseUrl: 'https://models.inference.ai.azure.com'
+      models: 'https://github.com/marketplace/models'
     }
   },
   {
@@ -758,8 +719,7 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
       apiKey: 'https://github.com/settings/tokens',
       docs: 'https://docs.github.com/en/copilot',
       models:
-        'https://docs.github.com/en/copilot/using-github-copilot/using-github-copilot-chat-in-your-ide',
-      defaultBaseUrl: 'https://api.githubcopilot.com'
+        'https://docs.github.com/en/copilot/using-github-copilot/using-github-copilot-chat-in-your-ide'
     }
   },
   // {
@@ -788,8 +748,7 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
       official: 'https://console.volcengine.com/ark/',
       apiKey: 'https://console.volcengine.com/ark/region:ark+cn-beijing/apiKey',
       docs: 'https://www.volcengine.com/docs/82379/1182403',
-      models: 'https://console.volcengine.com/ark/region:ark+cn-beijing/endpoint',
-      defaultBaseUrl: 'https://ark.cn-beijing.volces.com/api/v3'
+      models: 'https://console.volcengine.com/ark/region:ark+cn-beijing/endpoint'
     }
   },
   {
@@ -818,8 +777,7 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
       official: 'https://www.minimax.io/',
       apiKey: 'https://platform.minimax.io/user-center/basic-information/interface-key',
       docs: 'https://platform.minimax.io/docs/api-reference/text-anthropic-api',
-      models: 'https://platform.minimax.io/docs/api-reference/models/anthropic/list-models',
-      defaultBaseUrl: 'https://api.minimax.io/anthropic/v1'
+      models: 'https://platform.minimax.io/docs/api-reference/models/anthropic/list-models'
     }
   },
   {
@@ -827,14 +785,13 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
     name: 'Fireworks',
     apiType: 'fireworks',
     apiKey: '',
-    baseUrl: 'https://api.fireworks.ai/inference',
+    baseUrl: 'https://api.fireworks.ai/inference/v1',
     enable: false,
     websites: {
       official: 'https://fireworks.ai/',
       apiKey: 'https://fireworks.ai/account/api-keys',
       docs: 'https://docs.fireworks.ai/getting-started/introduction',
-      models: 'https://fireworks.ai/dashboard/models',
-      defaultBaseUrl: 'https://api.fireworks.ai/inference'
+      models: 'https://fireworks.ai/dashboard/models'
     }
   },
   {
@@ -848,8 +805,7 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
       official: 'https://open.bigmodel.cn/',
       apiKey: 'https://open.bigmodel.cn/usercenter/apikeys',
       docs: 'https://docs.bigmodel.cn',
-      models: 'https://open.bigmodel.cn/modelcenter/square',
-      defaultBaseUrl: 'https://open.bigmodel.cn/api/paas/v4/'
+      models: 'https://open.bigmodel.cn/modelcenter/square'
     }
   },
   {
@@ -863,8 +819,7 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
       official: 'https://moonshot.ai/',
       apiKey: 'https://platform.moonshot.cn/console/api-keys',
       docs: 'https://platform.moonshot.cn/docs/',
-      models: 'https://platform.moonshot.cn/docs/intro#%E6%A8%A1%E5%9E%8B%E5%88%97%E8%A1%A8',
-      defaultBaseUrl: 'https://api.moonshot.cn/v1'
+      models: 'https://platform.moonshot.cn/docs/intro#%E6%A8%A1%E5%9E%8B%E5%88%97%E8%A1%A8'
     }
   },
   {
@@ -878,8 +833,7 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
       official: 'https://www.moonshot.ai/',
       apiKey: 'https://platform.kimi.ai/console/api-keys',
       docs: 'https://platform.moonshot.ai/docs/api/chat',
-      models: 'https://platform.moonshot.ai/docs/models',
-      defaultBaseUrl: 'https://api.moonshot.ai/v1'
+      models: 'https://platform.moonshot.ai/docs/models'
     }
   },
   {
@@ -893,8 +847,7 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
       official: 'https://www.kimi.com/code',
       apiKey: 'https://www.kimi.com/code/console',
       docs: 'https://www.kimi.com/code/docs/en/third-party-tools/other-coding-agents.html',
-      models: 'https://www.kimi.com/code/docs/en/third-party-tools/other-coding-agents.html',
-      defaultBaseUrl: 'https://api.kimi.com/coding/'
+      models: 'https://www.kimi.com/code/docs/en/third-party-tools/other-coding-agents.html'
     }
   },
   // {
@@ -923,8 +876,7 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
       official: 'https://www.aliyun.com/product/bailian',
       apiKey: 'https://bailian.console.aliyun.com/?apiKey=1#/api-key',
       docs: 'https://help.aliyun.com/zh/model-studio/getting-started/',
-      models: 'https://bailian.console.aliyun.com/model-market#/model-market',
-      defaultBaseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1/'
+      models: 'https://bailian.console.aliyun.com/model-market#/model-market'
     }
   },
   {
@@ -938,8 +890,7 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
       official: 'https://www.alibabacloud.com/product/modelstudio',
       apiKey: 'https://modelstudio.console.alibabacloud.com/',
       docs: 'https://www.alibabacloud.com/help/en/model-studio/token-plan-overview',
-      models: 'https://www.alibabacloud.com/help/en/model-studio/token-plan-overview',
-      defaultBaseUrl: 'https://token-plan.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1'
+      models: 'https://www.alibabacloud.com/help/en/model-studio/token-plan-overview'
     }
   },
   {
@@ -953,8 +904,7 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
       official: 'https://www.aliyun.com/product/bailian',
       apiKey: 'https://bailian.console.aliyun.com/?apiKey=1#/api-key',
       docs: 'https://www.alibabacloud.com/help/zh/model-studio/token-plan-overview',
-      models: 'https://www.alibabacloud.com/help/zh/model-studio/token-plan-overview',
-      defaultBaseUrl: 'https://token-plan.cn-beijing.maas.aliyuncs.com/compatible-mode/v1'
+      models: 'https://www.alibabacloud.com/help/zh/model-studio/token-plan-overview'
     }
   },
   {
@@ -968,8 +918,7 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
       official: 'https://lmstudio.ai/docs/app',
       apiKey: 'https://lmstudio.ai/docs/app',
       docs: 'https://lmstudio.ai/docs/app',
-      models: 'https://lmstudio.ai/models',
-      defaultBaseUrl: 'http://127.0.0.1:1234/v1'
+      models: 'https://lmstudio.ai/models'
     }
   },
   {
@@ -983,8 +932,7 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
       official: 'https://platform.stepfun.com/',
       apiKey: 'https://platform.stepfun.com/interface-key',
       docs: 'https://platform.stepfun.com/docs/zh/overview/concept',
-      models: 'https://platform.stepfun.com/docs/zh/llm/text',
-      defaultBaseUrl: 'https://api.stepfun.com/v1'
+      models: 'https://platform.stepfun.com/docs/zh/llm/text'
     }
   },
   {
@@ -998,8 +946,7 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
       official: 'https://platform.stepfun.com/step-plan',
       apiKey: 'https://platform.stepfun.com/interface-key',
       docs: 'https://platform.stepfun.com/docs/zh/step-plan/quick-start',
-      models: 'https://platform.stepfun.com/docs/zh/step-plan/integrations/reasoning-api',
-      defaultBaseUrl: 'https://api.stepfun.com/step_plan/v1'
+      models: 'https://platform.stepfun.com/docs/zh/step-plan/integrations/reasoning-api'
     }
   },
 
@@ -1014,8 +961,7 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
       official: 'https://groq.com/',
       apiKey: 'https://console.groq.com/keys',
       docs: 'https://console.groq.com/docs/quickstart',
-      models: 'https://console.groq.com/docs/models',
-      defaultBaseUrl: 'https://api.groq.com/openai/v1'
+      models: 'https://console.groq.com/docs/models'
     }
   },
 
@@ -1030,8 +976,7 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
       official: 'https://mistral.ai',
       apiKey: 'https://console.mistral.ai/api-keys/',
       docs: 'https://docs.mistral.ai/',
-      models: 'https://docs.mistral.ai/getting-started/models/',
-      defaultBaseUrl: 'https://api.mistral.ai/v1'
+      models: 'https://docs.mistral.ai/getting-started/models/'
     }
   },
 
@@ -1046,8 +991,7 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
       official: 'https://x.ai/',
       apiKey: 'https://console.x.ai',
       docs: 'https://docs.x.ai/',
-      models: 'https://docs.x.ai/docs#getting-started',
-      defaultBaseUrl: 'https://api.x.ai/v1'
+      models: 'https://docs.x.ai/docs#getting-started'
     }
   },
   {
@@ -1061,8 +1005,7 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
       official: 'https://www.upstage.ai/',
       apiKey: 'https://console.upstage.ai/api-keys?api=chat',
       docs: 'https://developers.upstage.ai/docs/apis/chat',
-      models: 'https://developers.upstage.ai/docs/getting-started/models',
-      defaultBaseUrl: 'https://api.upstage.ai/v1/solar'
+      models: 'https://developers.upstage.ai/docs/getting-started/models'
     }
   },
   // {
@@ -1106,8 +1049,7 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
       official: 'https://aihubmix.com',
       apiKey: 'https://aihubmix.com/token',
       docs: 'https://doc.aihubmix.com/',
-      models: 'https://docs.aihubmix.com/cn/api/Model-Information',
-      defaultBaseUrl: 'https://aihubmix.com/v1'
+      models: 'https://docs.aihubmix.com/cn/api/Model-Information'
     }
   },
   // {
@@ -1151,8 +1093,7 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
       official: 'https://cloud.tencent.com/product/hunyuan',
       apiKey: 'https://console.cloud.tencent.com/hunyuan/api-key',
       docs: 'https://cloud.tencent.com/document/product/1729/111007',
-      models: 'https://cloud.tencent.com/document/product/1729/104753',
-      defaultBaseUrl: 'https://api.hunyuan.cloud.tencent.com/v1'
+      models: 'https://cloud.tencent.com/document/product/1729/104753'
     }
   },
   {
@@ -1183,8 +1124,7 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
       official: 'https://modelscope.cn/',
       apiKey: 'https://modelscope.cn/my/myaccesstoken',
       docs: 'https://modelscope.cn/docs/modelscope_agent/api_service',
-      models: 'https://modelscope.cn/models',
-      defaultBaseUrl: 'https://api-inference.modelscope.cn/v1/'
+      models: 'https://modelscope.cn/models'
     }
   },
   {
@@ -1198,8 +1138,7 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
       official: 'https://aws.amazon.com/bedrock/',
       apiKey: 'https://console.aws.amazon.com/iam/',
       docs: 'https://docs.aws.amazon.com/bedrock/latest/userguide/what-is-bedrock.html',
-      models: 'https://docs.aws.amazon.com/bedrock/latest/userguide/models-supported.html',
-      defaultBaseUrl: ''
+      models: 'https://docs.aws.amazon.com/bedrock/latest/userguide/models-supported.html'
     }
   },
   {
@@ -1213,8 +1152,7 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
       official: 'https://platform.xiaomimimo.com/#/docs/quick-start/first-api-call',
       apiKey: 'https://platform.xiaomimimo.com/#/console/api-keys',
       docs: 'https://platform.xiaomimimo.com/#/docs',
-      models: 'https://platform.xiaomimimo.com/#/docs',
-      defaultBaseUrl: 'https://api.xiaomimimo.com/v1'
+      models: 'https://platform.xiaomimimo.com/#/docs'
     }
   },
   {
@@ -1228,8 +1166,7 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
       official: 'https://platform.xiaomimimo.com/',
       apiKey: 'https://platform.xiaomimimo.com/#/console/plan-manage',
       docs: 'https://platform.xiaomimimo.com/#/docs',
-      models: 'https://platform.xiaomimimo.com/#/docs',
-      defaultBaseUrl: 'https://token-plan-cn.xiaomimimo.com/v1'
+      models: 'https://platform.xiaomimimo.com/#/docs'
     }
   },
   {
@@ -1243,8 +1180,7 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
       official: 'https://platform.xiaomimimo.com/',
       apiKey: 'https://platform.xiaomimimo.com/#/console/plan-manage',
       docs: 'https://platform.xiaomimimo.com/#/docs',
-      models: 'https://platform.xiaomimimo.com/#/docs',
-      defaultBaseUrl: 'https://token-plan-sgp.xiaomimimo.com/v1'
+      models: 'https://platform.xiaomimimo.com/#/docs'
     }
   },
   {
@@ -1258,8 +1194,7 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
       official: 'https://platform.xiaomimimo.com/',
       apiKey: 'https://platform.xiaomimimo.com/#/console/plan-manage',
       docs: 'https://platform.xiaomimimo.com/#/docs',
-      models: 'https://platform.xiaomimimo.com/#/docs',
-      defaultBaseUrl: 'https://token-plan-ams.xiaomimimo.com/v1'
+      models: 'https://platform.xiaomimimo.com/#/docs'
     }
   },
   {
@@ -1273,8 +1208,7 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
       official: 'https://o3.fan',
       apiKey: 'https://o3.fan/token',
       docs: 'https://o3.fan',
-      models: 'https://o3.fan/info/models',
-      defaultBaseUrl: 'https://api.o3.fan/v1'
+      models: 'https://o3.fan/info/models'
     }
   },
   {
@@ -1288,8 +1222,7 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
       official: 'https://novita.ai/',
       apiKey: 'https://novita.ai/',
       docs: 'https://novita.ai/docs',
-      models: 'https://novita.ai/models',
-      defaultBaseUrl: 'https://api.novita.ai/openai'
+      models: 'https://novita.ai/models'
     }
   },
   {
@@ -1303,8 +1236,7 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
       official: 'https://astraflow.ucloud.cn/',
       apiKey: 'https://astraflow.ucloud.cn/modelverse/api-keys',
       docs: 'https://astraflow.ucloud.cn/docs',
-      models: 'https://astraflow.ucloud.cn/modelverse/playground',
-      defaultBaseUrl: 'https://api-us-ca.umodelverse.ai/v1'
+      models: 'https://astraflow.ucloud.cn/modelverse/playground'
     }
   },
   {
@@ -1318,8 +1250,15 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
       official: 'https://astraflow.ucloud.cn/',
       apiKey: 'https://astraflow.ucloud.cn/modelverse/api-keys',
       docs: 'https://astraflow.ucloud.cn/docs',
-      models: 'https://astraflow.ucloud.cn/modelverse/playground',
-      defaultBaseUrl: 'https://api.modelverse.cn/v1'
+      models: 'https://astraflow.ucloud.cn/modelverse/playground'
     }
   }
 ]
+
+export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = PROVIDER_DEFAULTS.map((provider) => ({
+  ...provider,
+  websites: provider.websites && {
+    ...provider.websites,
+    defaultBaseUrl: provider.websites.defaultBaseUrl ?? provider.baseUrl
+  }
+}))

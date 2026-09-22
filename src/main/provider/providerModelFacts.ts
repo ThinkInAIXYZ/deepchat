@@ -1,4 +1,4 @@
-import { isProviderDbBackedProvider } from '@shared/providerDbCatalog'
+import { isProviderDbBackedProvider } from './providerRegistry'
 import type { MODEL_META } from '@shared/types/provider'
 
 const CATALOG_DERIVED_MODEL_FIELDS = [

@@ -48,10 +48,6 @@
     "updateServerFailed": "Opdatering af server mislykkedes"
   },
   "inmemory": {
-    "Artifacts": {
-      "desc": "Lad din DeepChat generere varieret indhold af Artifacts.",
-      "name": "Artefakter"
-    },
     "bochaSearch": {
       "desc": "Bocha Søgning API https://open.bochaai.com/",
       "name": "Bocha Søgning"

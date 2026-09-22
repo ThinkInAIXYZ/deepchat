@@ -4,6 +4,7 @@ import {
   ApiEndpointType,
   ModelType,
   isNewApiEndpointType,
+  isOpenAIImageGenerationModelId,
   resolveNewApiModelTypeFromMetadata,
   resolveNewApiEndpointTypeFromRoute,
   type NewApiEndpointType
@@ -57,9 +58,10 @@ import {
 } from '../providerRegistry'
 import { providerDbLoader } from '../../provider/providerDbLoader'
 import { modelCapabilities } from '../modelCapabilities'
+import { resolveMediaSettingsCapabilities } from '../mediaCapabilities'
+import { resolveProviderTransport } from '../providerTransport'
 import {
   buildResolvedCapabilitySnapshot,
-  isApimartResponsesRoute,
   isOpenCodeGoAnthropicRoute,
   isZenmuxAnthropicRoute,
   resolveCapabilityFamilyHint,
@@ -71,8 +73,6 @@ import {
   type DeepSeekResponsesRoute
 } from '../deepseekResponsesAdapter'
 
-const OPENAI_IMAGE_GENERATION_MODELS = ['gpt-4o-all', 'gpt-4o-image']
-const OPENAI_IMAGE_GENERATION_MODEL_PREFIXES = ['dall-e-', 'gpt-image-']
 const OPENAI_CODEX_RECOMMENDED_MODEL_IDS = [
   'gpt-5.5',
   'gpt-5.6-sol',
@@ -134,12 +134,8 @@ class ProviderHttpError extends Error {
   }
 }
 
-const isOpenAIImageGenerationModel = (modelId: string): boolean =>
-  OPENAI_IMAGE_GENERATION_MODELS.includes(modelId) ||
-  OPENAI_IMAGE_GENERATION_MODEL_PREFIXES.some((prefix) => modelId.startsWith(prefix))
-
 const shouldUseOpenAIImageGenerationRoute = (modelId: string, modelConfig: ModelConfig): boolean =>
-  isOpenAIImageGenerationModel(modelId) ||
+  isOpenAIImageGenerationModelId(modelId) ||
   modelConfig.apiEndpoint === ApiEndpointType.Image ||
   modelConfig.type === ModelType.ImageGeneration
 
@@ -334,38 +330,6 @@ export class AiSdkProvider extends BaseLLMProvider {
     return this.provider.id.trim().toLowerCase() === 'anthropic'
   }
 
-  private resolveNewApiEndpointType(
-    modelId: string,
-    modelConfig: ModelRouteConfig,
-    storedModel: StoredModelRouteMetadata | undefined
-  ): NewApiEndpointType {
-    if (isNewApiEndpointType(modelConfig.endpointType)) {
-      return modelConfig.endpointType
-    }
-
-    if (storedModel && isNewApiEndpointType(storedModel.endpointType)) {
-      return storedModel.endpointType
-    }
-
-    const ownedBy = storedModel?.ownedBy ?? modelConfig.ownedBy
-    const capabilityFamilyHint = resolveCapabilityFamilyHint(modelId, ownedBy)
-    return resolveNewApiEndpointTypeFromRoute(
-      storedModel
-        ? {
-            endpointType: storedModel.endpointType,
-            supportedEndpointTypes: storedModel.supportedEndpointTypes,
-            type: storedModel.type,
-            ownedBy,
-            capabilityFamilyHint
-          }
-        : {
-            ownedBy,
-            capabilityFamilyHint
-          },
-      modelId
-    )
-  }
-
   private buildRouteDecision(
     modelId: string,
     modelConfig: ModelRouteConfig,
@@ -375,6 +339,15 @@ export class AiSdkProvider extends BaseLLMProvider {
     const providerRouteConfig: ModelRouteConfig = strategy === 'apimart' ? {} : modelConfig
     const storedModel = this.getStoredModelRouteMetadata(modelId, providerRouteConfig)
     const deepSeekResponsesRoute = options?.deepSeekResponsesRoute
+    const ownedBy = storedModel?.ownedBy ?? providerRouteConfig.ownedBy
+    const transport = resolveProviderTransport(this.definition, this.provider, modelId, {
+      ...storedModel,
+      endpointType: isNewApiEndpointType(providerRouteConfig.endpointType)
+        ? providerRouteConfig.endpointType
+        : storedModel?.endpointType,
+      ownedBy,
+      capabilityFamilyHint: resolveCapabilityFamilyHint(modelId, ownedBy)
+    })
 
     if (deepSeekResponsesRoute) {
       const capabilityIdentity = this.resolveCapabilityIdentity(
@@ -427,7 +400,7 @@ export class AiSdkProvider extends BaseLLMProvider {
       }
     }
 
-    if (strategy === 'opencode-go' && isOpenCodeGoAnthropicRoute(this.provider.id, modelId)) {
+    if (strategy === 'opencode-go' && transport.providerKind === 'anthropic') {
       const capabilityIdentity = this.resolveCapabilityIdentity(
         modelId,
         undefined,
@@ -447,11 +420,7 @@ export class AiSdkProvider extends BaseLLMProvider {
 
     if (strategy === 'new-api' || strategy === 'apimart') {
       const isApimart = strategy === 'apimart'
-      const endpointType =
-        isApimartResponsesRoute(this.provider.id, modelId) ||
-        isApimartResponsesRoute(this.provider.apiType, modelId)
-          ? 'openai-response'
-          : this.resolveNewApiEndpointType(modelId, providerRouteConfig, storedModel)
+      const { endpointType, providerKind } = transport
       const capabilityIdentity = this.resolveCapabilityIdentity(
         modelId,
         endpointType,
@@ -467,7 +436,7 @@ export class AiSdkProvider extends BaseLLMProvider {
       switch (endpointType) {
         case 'anthropic':
           return {
-            providerKind: 'anthropic',
+            providerKind,
             endpointType,
             capabilityIdentity,
             supportsOfficialAnthropicReasoning: true,
@@ -479,7 +448,7 @@ export class AiSdkProvider extends BaseLLMProvider {
           }
         case 'gemini':
           return {
-            providerKind: 'gemini',
+            providerKind,
             endpointType,
             capabilityIdentity,
             providerPatch: {
@@ -490,7 +459,7 @@ export class AiSdkProvider extends BaseLLMProvider {
           }
         case 'openai-response':
           return {
-            providerKind: 'openai-responses',
+            providerKind,
             endpointType,
             capabilityIdentity,
             providerPatch: {
@@ -501,7 +470,7 @@ export class AiSdkProvider extends BaseLLMProvider {
           }
         case 'image-generation':
           return {
-            providerKind: 'openai-compatible',
+            providerKind,
             endpointType,
             capabilityIdentity,
             providerPatch: {
@@ -517,7 +486,7 @@ export class AiSdkProvider extends BaseLLMProvider {
           }
         case 'video-generation':
           return {
-            providerKind: 'openai-compatible',
+            providerKind,
             endpointType,
             capabilityIdentity,
             providerPatch: {
@@ -534,7 +503,7 @@ export class AiSdkProvider extends BaseLLMProvider {
         case 'openai':
         default:
           return {
-            providerKind: 'openai-compatible',
+            providerKind,
             endpointType,
             capabilityIdentity,
             providerPatch: {
@@ -578,6 +547,15 @@ export class AiSdkProvider extends BaseLLMProvider {
     const base: LLM_PROVIDER = {
       ...this.provider,
       ...decision.providerPatch
+    }
+
+    // Older built-in Fireworks configs omitted /v1. Normalize only that official endpoint;
+    // never rewrite a custom proxy or mutate the user's saved configuration.
+    if (
+      this.definition.providerDbSourceId === 'fireworks-ai' &&
+      /^https:\/\/api\.fireworks\.ai\/inference\/?$/.test(base.baseUrl)
+    ) {
+      base.baseUrl = 'https://api.fireworks.ai/inference/v1'
     }
 
     if (shouldUseXaiGrokOAuthFetch(base)) {
@@ -780,7 +758,14 @@ export class AiSdkProvider extends BaseLLMProvider {
       decision.capabilityIdentity ??
       this.resolveCapabilityIdentityFromProviderState(modelId, decision.endpointType)
     const capabilitySnapshot = buildResolvedCapabilitySnapshot(capabilityIdentity, {
-      reasoningEnabled: resolvedModelConfig.reasoning
+      reasoningEnabled: resolvedModelConfig.reasoning,
+      mediaSettings: resolveMediaSettingsCapabilities(
+        decision.providerKind,
+        modelId,
+        resolvedModelConfig,
+        decision.endpointType,
+        this.getRouteStrategy() === 'grok'
+      )
     })
 
     const cleanHeaders =
@@ -804,7 +789,7 @@ export class AiSdkProvider extends BaseLLMProvider {
                 ? (runtimeModelId: string, runtimeModelConfig: ModelConfig) =>
                     shouldUseOpenAIImageGenerationRoute(runtimeModelId, runtimeModelConfig)
                 : (runtimeModelId: string, runtimeModelConfig: ModelConfig) =>
-                    isOpenAIImageGenerationModel(runtimeModelId) ||
+                    isOpenAIImageGenerationModelId(runtimeModelId) ||
                     runtimeModelConfig.apiEndpoint === ApiEndpointType.Image
 
     const shouldUseVideoGeneration =

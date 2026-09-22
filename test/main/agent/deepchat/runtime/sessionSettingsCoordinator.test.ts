@@ -37,6 +37,7 @@ function createProviderSettings(): ProviderModelResolutionPort {
       type: ModelType.Chat
     }),
     getCapabilitySnapshot: vi.fn(({ providerId, modelId }) => ({
+      mediaSettings: { image: false, video: false },
       identity: {
         providerId,
         requestModelId: modelId,

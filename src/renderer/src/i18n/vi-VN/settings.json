@@ -978,10 +978,6 @@
       "label": "Độ dài phản hồi",
       "description": "Đặt độ dài tối đa của phản hồi AI"
     },
-    "artifacts": {
-      "description": "Kích hoạt tính năng Artifacts cho phép AI tạo ra nội dung phong phú hơn",
-      "title": "Hiện vật"
-    },
     "addModel": "Thêm mô hình",
     "configureModel": "Cấu hình mô hình",
     "modelList": "Danh sách mẫu",

@@ -175,7 +175,7 @@
     {
       "id": "cline",
       "name": "Cline",
-      "version": "3.0.62",
+      "version": "3.0.63",
       "description": "Autonomous coding agent CLI - capable of creating/editing files, running commands, using the browser, and more",
       "repository": "https://github.com/cline/cline",
       "website": "https://cline.bot/cli",
@@ -187,7 +187,7 @@
       "icon": "https://cdn.agentclientprotocol.com/registry/v1/latest/cline.svg",
       "distribution": {
         "npx": {
-          "package": "cline@3.0.62",
+          "package": "cline@3.0.63",
           "args": [
             "--acp"
           ]
@@ -529,7 +529,7 @@
     {
       "id": "dimcode",
       "name": "DimCode",
-      "version": "0.5.8",
+      "version": "0.5.9",
       "description": "A coding agent that puts leading models at your command.",
       "website": "https://dimcode.dev/docs/acp.html",
       "authors": [
@@ -538,7 +538,7 @@
       "license": "proprietary",
       "distribution": {
         "npx": {
-          "package": "dimcode@0.5.8",
+          "package": "dimcode@0.5.9",
           "args": [
             "acp"
           ]
@@ -571,7 +571,7 @@
     {
       "id": "factory-droid",
       "name": "Factory Droid",
-      "version": "0.224.0",
+      "version": "0.224.1",
       "description": "Factory Droid - AI coding agent powered by Factory AI",
       "website": "https://factory.ai/product/cli",
       "authors": [
@@ -581,7 +581,7 @@
       "license_url": "https://factory.ai/legal/terms",
       "distribution": {
         "npx": {
-          "package": "droid@0.224.0",
+          "package": "droid@0.224.1",
           "args": [
             "exec",
             "--output-format",

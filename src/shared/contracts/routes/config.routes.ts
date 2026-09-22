@@ -115,7 +115,6 @@ export const CONFIG_ENTRY_KEYS = [
   'input_deepThinking',
   'input_chatMode',
   'think_collapse',
-  'artifact_think_collapse',
   'providerOrder',
   'providerTimestamps',
   'configuredProviders',
@@ -146,7 +145,6 @@ export const ConfigEntryValuesSchema = z.object({
   input_deepThinking: z.boolean(),
   input_chatMode: z.string(),
   think_collapse: z.boolean(),
-  artifact_think_collapse: z.boolean(),
   providerOrder: z.array(z.string()),
   providerTimestamps: z.record(z.string(), z.number().int()),
   configuredProviders: z.array(z.string()),
@@ -190,10 +188,6 @@ export const ConfigEntryChangeSchema = z.discriminatedUnion('key', [
   }),
   z.object({
     key: z.literal('think_collapse'),
-    value: z.boolean()
-  }),
-  z.object({
-    key: z.literal('artifact_think_collapse'),
     value: z.boolean()
   }),
   z.object({

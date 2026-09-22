@@ -146,47 +146,6 @@
               </div>
             </div>
           </section>
-
-          <section v-if="artifactItems.length > 0">
-            <button
-              class="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium"
-              type="button"
-              :aria-expanded="sessionState.sections.artifacts"
-              :aria-controls="`${sectionId}-artifacts`"
-              @click="sidepanelStore.toggleSection(props.sessionId, 'artifacts')"
-            >
-              <Icon icon="lucide:box" class="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-              <span class="flex-1 truncate">{{ t('chat.workspace.sections.artifacts') }}</span>
-              <span class="text-[11px] text-muted-foreground">{{ artifactItems.length }}</span>
-              <Icon
-                :icon="
-                  sessionState.sections.artifacts ? 'lucide:chevron-down' : 'lucide:chevron-right'
-                "
-                class="h-3.5 w-3.5 shrink-0 text-muted-foreground"
-              />
-            </button>
-            <div
-              :id="`${sectionId}-artifacts`"
-              v-show="sessionState.sections.artifacts"
-              class="pb-2"
-            >
-              <button
-                v-for="item in artifactItems"
-                :key="item.key"
-                class="flex w-full items-center gap-2 px-3 py-2 text-left text-xs transition-colors"
-                :class="
-                  isArtifactSelected(item)
-                    ? 'bg-accent text-accent-foreground'
-                    : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground'
-                "
-                type="button"
-                @click="handleArtifactSelect(item)"
-              >
-                <Icon :icon="getArtifactIcon(item.type)" class="h-3.5 w-3.5 shrink-0" />
-                <span class="min-w-0 flex-1 truncate">{{ item.title || item.identifier }}</span>
-              </button>
-            </div>
-          </section>
         </div>
       </div>
     </div>
@@ -195,7 +154,6 @@
       v-if="isWorkspaceViewerVisible"
       ref="viewerRef"
       :session-id="props.sessionId"
-      :artifact="selectedArtifact"
       :file-preview="selectedFilePreview"
       :git-diff="selectedGitDiff"
       :loading-file-preview="loadingFilePreview"
@@ -209,21 +167,18 @@
 </template>
 
 <script setup lang="ts">
-import { nextTick, useId, computed, ref, toRef, watch } from 'vue'
+import { nextTick, useId, computed, ref, toRef } from 'vue'
 import { Icon } from '@iconify/vue'
 import { DcButton } from '@dc-ui/components/button'
 import { useI18n } from 'vue-i18n'
 import { createFileClient } from '@api/FileClient'
 import { createProjectClient } from '@api/ProjectClient'
 import { createWorkspaceClient } from '@api/WorkspaceClient'
-import { extractArtifactsFromBlock } from '@/composables/useArtifacts'
 import WorkspaceFileNode from '@/components/workspace/WorkspaceFileNode.vue'
 import LiveDelegationPanel from './LiveDelegationPanel.vue'
 import WorkspaceViewer from './WorkspaceViewer.vue'
 import { useWorkspaceSync } from './composables/useWorkspaceSync'
-import { useArtifactStore } from '@/stores/artifact'
-import { useMessageStore } from '@/stores/ui/message'
-import { useSidepanelStore, type WorkspaceArtifactContext } from '@/stores/ui/sidepanel'
+import { useSidepanelStore } from '@/stores/ui/sidepanel'
 import { useSessionStore } from '@/stores/ui/session'
 import type { WorkspaceGitFileChange } from '@shared/types/workspace'
 
@@ -239,20 +194,7 @@ const emit = defineEmits<{
   'insert-file-reference': [filePath: string]
 }>()
 
-type ArtifactItem = WorkspaceArtifactContext & {
-  key: string
-  identifier: string
-  title: string
-  type: string
-  language?: string
-  content: string
-  status: 'loading' | 'loaded'
-  createdAt: number
-}
-
 const { t } = useI18n()
-const artifactStore = useArtifactStore()
-const messageStore = useMessageStore()
 const sidepanelStore = useSidepanelStore()
 const sessionStore = useSessionStore()
 const workspaceClient = createWorkspaceClient()
@@ -290,98 +232,6 @@ const watchStatusBanner = computed(() => {
     : t('chat.workspace.files.watchStatus.degraded')
 })
 
-const artifactItems = computed<ArtifactItem[]>(() => {
-  const items: ArtifactItem[] = []
-
-  for (const message of messageStore.messages) {
-    if (message.sessionId !== props.sessionId || message.role !== 'assistant') {
-      continue
-    }
-
-    for (const block of messageStore.getAssistantMessageBlocks(message)) {
-      for (const artifact of extractArtifactsFromBlock(block)) {
-        items.push({
-          key: `${message.id}:${artifact.identifier}`,
-          threadId: props.sessionId,
-          messageId: message.id,
-          artifactId: artifact.identifier,
-          identifier: artifact.identifier,
-          title: artifact.title,
-          type: artifact.type,
-          language: artifact.language,
-          content: artifact.content,
-          status: artifact.loading ? 'loading' : 'loaded',
-          createdAt: message.createdAt
-        })
-      }
-    }
-  }
-
-  return items.sort((left, right) => right.createdAt - left.createdAt)
-})
-
-const selectedArtifact = computed(() => {
-  const context = sessionState.value.selectedArtifactContext
-  if (!context) {
-    return null
-  }
-
-  if (
-    artifactStore.currentArtifact &&
-    artifactStore.currentArtifact.id === context.artifactId &&
-    artifactStore.currentMessageId === context.messageId &&
-    artifactStore.currentThreadId === context.threadId
-  ) {
-    return artifactStore.currentArtifact
-  }
-
-  const matched = artifactItems.value.find(
-    (item) =>
-      item.threadId === context.threadId &&
-      item.messageId === context.messageId &&
-      item.artifactId === context.artifactId
-  )
-
-  if (!matched) {
-    return null
-  }
-
-  return {
-    id: matched.artifactId,
-    type: matched.type,
-    title: matched.title,
-    language: matched.language,
-    content: matched.content,
-    status: matched.status
-  }
-})
-
-watch(
-  [artifactItems, () => sessionState.value.selectedArtifactContext] as const,
-  ([items, context]) => {
-    if (!context) {
-      return
-    }
-
-    const existsInArtifactItems = items.some(
-      (item) =>
-        item.threadId === context.threadId &&
-        item.messageId === context.messageId &&
-        item.artifactId === context.artifactId
-    )
-
-    const matchesCurrentArtifact =
-      artifactStore.currentArtifact?.id === context.artifactId &&
-      artifactStore.currentMessageId === context.messageId &&
-      artifactStore.currentThreadId === context.threadId
-
-    if (!existsInArtifactItems && !matchesCurrentArtifact) {
-      sidepanelStore.clearArtifact(props.sessionId)
-    }
-  },
-  { immediate: true }
-)
-
 const workspaceRoot = ref<HTMLElement | null>(null)
 const viewerRef = ref<{ focus: () => void } | null>(null)
 const sectionId = useId()
@@ -402,7 +252,7 @@ const isSingleItemViewerActive = computed(() => {
 
 const isWorkspaceViewerVisible = computed(() => {
   const state = sessionState.value
-  return Boolean(state.selectedFilePath || state.selectedDiffPath || state.selectedArtifactContext)
+  return Boolean(state.selectedFilePath || state.selectedDiffPath)
 })
 
 const handleViewerBack = async () => {
@@ -410,7 +260,6 @@ const handleViewerBack = async () => {
   const path = state.selectedFilePath || state.selectedDiffPath
   if (state.selectedFilePath) sidepanelStore.clearFile(props.sessionId)
   else if (state.selectedDiffPath) sidepanelStore.clearDiff(props.sessionId)
-  else if (state.selectedArtifactContext) sidepanelStore.clearArtifact(props.sessionId)
   await nextTick()
   const target = Array.from(
     workspaceRoot.value?.querySelectorAll<HTMLElement>('[data-workspace-path]') ?? []
@@ -427,57 +276,8 @@ const handleDiffSelect = (filePath: string) => {
   focusViewer()
 }
 
-const handleArtifactSelect = (item: ArtifactItem) => {
-  artifactStore.showArtifact(
-    {
-      id: item.artifactId,
-      type: item.type,
-      title: item.title,
-      language: item.language,
-      content: item.content,
-      status: item.status
-    },
-    item.messageId,
-    item.threadId,
-    {
-      force: true,
-      open: false,
-      viewMode: 'preview'
-    }
-  )
-  focusViewer()
-}
-
-const isArtifactSelected = (item: ArtifactItem) => {
-  const context = sessionState.value.selectedArtifactContext
-  return (
-    context?.threadId === item.threadId &&
-    context?.messageId === item.messageId &&
-    context?.artifactId === item.artifactId
-  )
-}
-
 const formatGitFlag = (change: WorkspaceGitFileChange) => {
   return change.stagedStatus || change.unstagedStatus || 'M'
-}
-
-const getArtifactIcon = (type: string) => {
-  switch (type) {
-    case 'application/vnd.ant.code':
-      return 'lucide:square-code'
-    case 'text/markdown':
-      return 'vscode-icons:file-type-markdown'
-    case 'text/html':
-      return 'vscode-icons:file-type-html'
-    case 'image/svg+xml':
-      return 'vscode-icons:file-type-svg'
-    case 'application/vnd.ant.mermaid':
-      return 'vscode-icons:file-type-mermaid'
-    case 'application/vnd.ant.react':
-      return 'vscode-icons:file-type-reactts'
-    default:
-      return 'lucide:file'
-  }
 }
 
 const isDragging = ref(false)

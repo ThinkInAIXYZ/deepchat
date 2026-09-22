@@ -275,7 +275,6 @@
     "sections": {
       "files": "Archivos",
       "git": "Git",
-      "artifacts": "Artifacts",
       "subagents": "Subagents"
     },
     "plan": {

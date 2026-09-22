@@ -978,10 +978,6 @@
       "label": "Response Length",
       "description": "Set the maximum length of the AI response"
     },
-    "artifacts": {
-      "description": "Enabling the Artifacts feature allows the AI to generate richer content",
-      "title": "Artifacts"
-    },
     "addModel": "Add Model",
     "configureModel": "Configure Model",
     "modelList": "Model List",

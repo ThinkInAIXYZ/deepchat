@@ -142,10 +142,6 @@
   },
   "title": "MCP設定",
   "inmemory": {
-    "Artifacts": {
-      "desc": "Deepchat出力の多様化されたアーティファクトコンテンツを作成します",
-      "name": "Artifacts"
-    },
     "bochaSearch": {
       "desc": "Bocha検索API https://open.bochaai.com/",
       "name": "Bocha Search"

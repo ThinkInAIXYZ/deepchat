@@ -66,6 +66,7 @@ type SetupOptions = {
   draftGenerationSettings?: Partial<TestGenerationSettings>
   reasoningPortrait?: ReasoningPortrait | null
   capabilityProviderId?: string
+  mediaSettings?: { image: boolean; video: boolean }
   temperatureCapability?: boolean | undefined
   requestPolicy?: ModelRequestPolicy
   capabilityRequestError?: Error
@@ -514,6 +515,7 @@ const setup = async (options: SetupOptions = {}) => {
         }
 
         return Promise.resolve({
+          mediaSettings: options.mediaSettings ?? { image: false, video: false },
           identity: {
             providerId: options.capabilityProviderId ?? providerId,
             requestModelId: modelId,
@@ -1809,6 +1811,7 @@ describe('ChatStatusBar model and session panels', () => {
     }
   ])('uses the dedicated image settings panel for gpt-image-2 on $providerId', async (provider) => {
     const { wrapper } = await setup({
+      mediaSettings: { image: true, video: false },
       agentId: 'deepchat',
       hasActiveSession: false,
       preferredModel: { providerId: provider.providerId, modelId: 'gpt-image-2' },
@@ -1849,6 +1852,7 @@ describe('ChatStatusBar model and session panels', () => {
 
   it('uses the image settings panel for gpt-image-2 on OpenAI-compatible providers', async () => {
     const { wrapper, modelClient } = await setup({
+      mediaSettings: { image: true, video: false },
       agentId: 'deepchat',
       hasActiveSession: false,
       preferredModel: { providerId: 'aihubmix', modelId: 'gpt-image-2' },

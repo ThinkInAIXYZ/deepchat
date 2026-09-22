@@ -978,10 +978,6 @@
       "label": "Longitud de la respuesta",
       "description": "Establecer la duración máxima de la respuesta de la IA"
     },
-    "artifacts": {
-      "title": "Artefactos",
-      "description": "Habilitar la función Artefactos permite a la IA generar contenido más rico"
-    },
     "provider": "Servicio provider",
     "modelList": "Lista de modelos",
     "selectModel": "Selecciona un modelo",

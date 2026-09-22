@@ -978,10 +978,6 @@
       "label": "Yanıt Uzunluğu",
       "description": "AI yanıtının maksimum uzunluğunu ayarlayın"
     },
-    "artifacts": {
-      "title": "Artifacts",
-      "description": "Artifacts özelliğinin etkinleştirilmesi yapay zekanın daha zengin içerik oluşturmasına olanak tanır"
-    },
     "provider": "Servis sağlayıcı",
     "modelList": "Model Listesi",
     "selectModel": "Bir model seçin",

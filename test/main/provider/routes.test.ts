@@ -8,6 +8,7 @@ import {
   modelsSetStatusRoute,
   providersImportApplyRoute,
   providersImportScanRoute,
+  providersListDefaultsRoute,
   providersListSummariesRoute,
   providersRemoveRoute,
   providersUpdateRoute
@@ -35,6 +36,28 @@ function createRoutes(deps: {
 }
 
 describe('Provider routes', () => {
+  it('projects catalog membership without adding it to saved defaults', async () => {
+    const providers = ['xiaomi-token-plan-cn', 'kimi-for-coding', 'openai-codex', 'anthropic'].map(
+      (id) => ({
+        id,
+        name: id,
+        apiType: 'openai-completions',
+        apiKey: '',
+        baseUrl: '',
+        enable: false
+      })
+    )
+    const routes = createRoutes({ providerSettings: { getDefaultProviders: () => providers } })
+    const result = await routes.get(providersListDefaultsRoute.name)!({}, context)
+    expect(result).toEqual({
+      providers: providers.map((provider, index) => ({
+        ...provider,
+        usesProviderDb: index < 3
+      }))
+    })
+    expect(providers.every((provider) => !('usesProviderDb' in provider))).toBe(true)
+  })
+
   it('prevents CLI removal of built-in providers', async () => {
     const removeProviderAtomic = vi.fn()
     const routes = createRoutes({
@@ -180,6 +203,7 @@ describe('Provider routes', () => {
 
   it('returns one authoritative capability snapshot and forwards draft route metadata', async () => {
     const snapshot = {
+      mediaSettings: { image: false, video: false },
       identity: {
         providerId: 'anthropic',
         requestModelId: 'claude-opus-4-8',

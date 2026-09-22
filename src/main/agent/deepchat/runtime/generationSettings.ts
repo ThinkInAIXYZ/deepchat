@@ -23,14 +23,8 @@ import {
   MODEL_TIMEOUT_MAX_MS,
   MODEL_TIMEOUT_MIN_MS
 } from '@shared/modelConfigDefaults'
-import {
-  normalizeImageGenerationOptions,
-  supportsOpenAIImageGenerationSettings
-} from '@shared/imageGenerationSettings'
-import {
-  normalizeVideoGenerationOptions,
-  supportsOpenAICompatibleVideoGeneration
-} from '@shared/videoGenerationSettings'
+import { normalizeImageGenerationOptions } from '@shared/imageGenerationSettings'
+import { normalizeVideoGenerationOptions } from '@shared/videoGenerationSettings'
 import { isDeepSeekSeriesModelId } from '@shared/model'
 import { providerDbLoader } from '@/provider/providerDbLoader'
 import { capAgentDefaultMaxTokens } from './contextBudget'
@@ -214,13 +208,6 @@ export function buildPersistedGenerationSettingsReplacement(
   }
 }
 
-function resolveProviderApiType(
-  providerSettings: ProviderModelResolutionPort,
-  providerId: string
-): string | undefined {
-  return providerSettings.getProviderById(providerId)?.apiType
-}
-
 async function buildDefaultGenerationSettings(
   providerSettings: ProviderModelResolutionPort,
   promptSettings: Pick<PromptSettings, 'getDefaultSystemPrompt'>,
@@ -285,32 +272,14 @@ async function buildDefaultGenerationSettings(
     defaults.forceInterleavedThinkingCompat = interleavedThinkingDefault
   }
 
-  if (
-    supportsOpenAIImageGenerationSettings({
-      providerId,
-      providerApiType: resolveProviderApiType(providerSettings, providerId),
-      modelId,
-      apiEndpoint: modelConfig.apiEndpoint,
-      endpointType: modelConfig.endpointType,
-      type: modelConfig.type
-    })
-  ) {
+  if (snapshot.mediaSettings.image) {
     const imageGeneration = normalizeImageGenerationOptions(modelConfig.imageGeneration)
     if (imageGeneration) {
       defaults.imageGeneration = imageGeneration
     }
   }
 
-  if (
-    supportsOpenAICompatibleVideoGeneration({
-      providerId,
-      providerApiType: resolveProviderApiType(providerSettings, providerId),
-      modelId,
-      apiEndpoint: modelConfig.apiEndpoint,
-      endpointType: modelConfig.endpointType,
-      type: modelConfig.type
-    })
-  ) {
+  if (snapshot.mediaSettings.video) {
     const videoGeneration = normalizeVideoGenerationOptions(modelConfig.videoGeneration)
     if (videoGeneration) {
       defaults.videoGeneration = videoGeneration
@@ -543,16 +512,7 @@ export async function sanitizeGenerationSettings(
     delete next.forceInterleavedThinkingCompat
   }
 
-  if (
-    supportsOpenAIImageGenerationSettings({
-      providerId,
-      providerApiType: resolveProviderApiType(providerSettings, providerId),
-      modelId,
-      apiEndpoint: modelConfig.apiEndpoint,
-      endpointType: modelConfig.endpointType,
-      type: modelConfig.type
-    })
-  ) {
+  if (snapshot.mediaSettings.image) {
     if (Object.prototype.hasOwnProperty.call(patch, 'imageGeneration')) {
       const imageGeneration = normalizeImageGenerationOptions(patch.imageGeneration)
       if (imageGeneration) {
@@ -572,16 +532,7 @@ export async function sanitizeGenerationSettings(
     delete next.imageGeneration
   }
 
-  if (
-    supportsOpenAICompatibleVideoGeneration({
-      providerId,
-      providerApiType: resolveProviderApiType(providerSettings, providerId),
-      modelId,
-      apiEndpoint: modelConfig.apiEndpoint,
-      endpointType: modelConfig.endpointType,
-      type: modelConfig.type
-    })
-  ) {
+  if (snapshot.mediaSettings.video) {
     if (Object.prototype.hasOwnProperty.call(patch, 'videoGeneration')) {
       const videoGeneration = normalizeVideoGenerationOptions(patch.videoGeneration)
       if (videoGeneration) {
