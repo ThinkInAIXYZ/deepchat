@@ -16,6 +16,7 @@
             size="icon-sm"
             :label="t('common.newChat')"
             :tooltip="t('common.newChat')"
+            tooltip-side="bottom"
             data-testid="collapsed-new-chat-button"
             class="collapsed-new-chat-button pointer-events-auto absolute left-4 top-2.5"
             @click="handleCollapsedNewChat"
