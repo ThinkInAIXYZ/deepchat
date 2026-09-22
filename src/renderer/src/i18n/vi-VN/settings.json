@@ -219,7 +219,7 @@
     "chatModel": "Mô hình trò chuyện mặc định",
     "assistantModel": "Trợ lý người mẫu",
     "judgmentModel": "Mô hình phán đoán",
-    "judgmentModelDesc": "Đối số công cụ và cuộc trò chuyện gần đây được gửi đến dịch vụ bên thứ ba này.",
+    "judgmentModelDesc": "Đối số công cụ, cuộc trò chuyện gần đây và nội dung kết quả công cụ được gửi đến dịch vụ bên thứ ba này. Dịch vụ này được dùng để xem xét quyền của công cụ và loại bỏ khỏi ngữ cảnh các kết quả công cụ đã cũ.",
     "visionModel": "Mô hình tầm nhìn",
     "imageGenerationModel": "Mô hình tạo hình ảnh",
     "temperature": "Nhiệt độ",

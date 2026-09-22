@@ -219,7 +219,7 @@
     "chatModel": "Domyślny model czatu",
     "assistantModel": "Modelka Asystenta",
     "judgmentModel": "Model oceny",
-    "judgmentModelDesc": "Argumenty narzędzi i ostatnia rozmowa są wysyłane do tej usługi zewnętrznej.",
+    "judgmentModelDesc": "Argumenty narzędzi, ostatnia rozmowa oraz treść wyników narzędzi są wysyłane do tej usługi zewnętrznej. Służy ona do weryfikacji uprawnień narzędzi i usuwania nieaktualnych wyników narzędzi z kontekstu.",
     "visionModel": "Model wizji",
     "imageGenerationModel": "Model generowania obrazu",
     "temperature": "Temperatura",

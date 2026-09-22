@@ -219,7 +219,7 @@
     "chatModel": "Model dialog default",
     "assistantModel": "model pembantu",
     "judgmentModel": "model penilaian",
-    "judgmentModelDesc": "Argumen alat dan percakapan terbaru dikirim ke layanan pihak ketiga ini.",
+    "judgmentModelDesc": "Argumen alat, percakapan terbaru, dan isi hasil alat dikirim ke layanan pihak ketiga ini. Layanan ini digunakan untuk meninjau izin alat dan membuang hasil alat yang sudah usang dari konteks.",
     "visionModel": "model visual",
     "imageGenerationModel": "Model pembuatan gambar",
     "temperature": "suhu",

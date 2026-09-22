@@ -2744,7 +2744,7 @@
     "chatModel": "預設對話模型",
     "assistantModel": "助手模型",
     "judgmentModel": "判定模型",
-    "judgmentModelDesc": "工具參數和最近的對話會傳送到此外部服務。",
+    "judgmentModelDesc": "工具參數、最近的對話，以及工具結果的內容都會傳送到此外部服務。它用於審核工具權限，以及從上下文中丟棄過期的工具結果。",
     "visionModel": "視覺模型",
     "imageGenerationModel": "圖像生成模型",
     "temperature": "溫度",

@@ -219,7 +219,7 @@
     "chatModel": "Model dialog lalai",
     "assistantModel": "model pembantu",
     "judgmentModel": "model penilaian",
-    "judgmentModelDesc": "Argumen alat dan perbualan terkini dihantar ke perkhidmatan pihak ketiga ini.",
+    "judgmentModelDesc": "Argumen alat, perbualan terkini dan kandungan hasil alat dihantar ke perkhidmatan pihak ketiga ini. Ia digunakan untuk menyemak kebenaran alat dan membuang hasil alat yang lapuk daripada konteks.",
     "visionModel": "model visual",
     "imageGenerationModel": "Model penjanaan imej",
     "temperature": "suhu",
