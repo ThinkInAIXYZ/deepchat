@@ -42,6 +42,41 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
     }
   },
   {
+    id: 'cloudflare',
+    name: 'Cloudflare',
+    apiType: 'workers-ai',
+    apiKey: '',
+    // Workers AI has no account-less endpoint: the account id is a path segment, so the base URL
+    // carries it. The profile therefore ships the format (rendered as the field hint through
+    // `defaultBaseUrl`) rather than a base URL that would silently resolve to the wrong vendor.
+    // It is the OpenAI-compatible base, which is what the chat and embedding models use; the run and
+    // catalog endpoints hang off the same path with `/v1` removed.
+    baseUrl: '',
+    enable: false,
+    // The account's chat and embedding models come from the live catalog, so they are not seeded:
+    // seeding them would pin stale model ids. The judgment model is a fixed Workers AI model id, so
+    // it is seeded to keep the judgment-model picker populated before the first catalog refresh.
+    models: [
+      {
+        id: 'typesafe/jev',
+        name: 'Jev',
+        group: 'default',
+        providerId: 'cloudflare',
+        isCustom: false,
+        type: ModelType.Judgment,
+        contextLength: 32000,
+        description: "TypeSafe's System One decision model, served through Workers AI."
+      }
+    ],
+    websites: {
+      official: 'https://www.cloudflare.com/',
+      apiKey: 'https://dash.cloudflare.com/?to=/:account/ai/workers-ai',
+      docs: 'https://developers.cloudflare.com/workers-ai/',
+      models: 'https://developers.cloudflare.com/workers-ai/models/',
+      defaultBaseUrl: 'https://api.cloudflare.com/client/v4/accounts/<ACCOUNT_ID>/ai/v1'
+    }
+  },
+  {
     id: 'ollama',
     name: 'Ollama',
     apiType: 'ollama',

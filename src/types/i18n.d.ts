@@ -2940,6 +2940,7 @@ declare module 'vue-i18n' {
           ollama: string
           mistral: string
           jev: string
+          workersAi: string
         }
         applyFailed: string
       }

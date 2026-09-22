@@ -9,6 +9,7 @@ import { VoiceAIProvider } from '../providers/voiceAIProvider'
 import { AiSdkProvider } from '../providers/aiSdkProvider'
 import { ApimartProvider } from '../providers/apimartProvider'
 import { JevProvider } from '../providers/jevProvider'
+import { WorkersAiProvider } from '../providers/workersAiProvider'
 import { RateLimitManager } from './rateLimitManager'
 import { StreamState } from '../types'
 import type { AcpRuntimeOwner } from '@/agent/acp/client'
@@ -369,6 +370,13 @@ export class ProviderInstanceManager {
       // repointed that entry at a different api type.
       if (provider.apiType === 'jev') {
         return new JevProvider(provider, this.options.providerSettings, this.options.locale)
+      }
+
+      // Workers AI is its own protocol rather than a `jev` variant: it serves ordinary chat and
+      // embedding models through the OpenAI-compatible endpoints as well as the judgment model, so
+      // the provider is an AI SDK provider with the judgment capability added.
+      if (provider.apiType === 'workers-ai') {
+        return new WorkersAiProvider(provider, this.options.providerSettings, this.options.locale)
       }
 
       const definition = resolveAiSdkProviderDefinition(provider)

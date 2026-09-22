@@ -25,6 +25,20 @@ import {
   type ProviderImportSourceScan
 } from '@shared/providerImport'
 import type { ProviderChange } from '@shared/provider-operations'
+import { isJevJudgmentModelId } from '@shared/jevProtocol'
+
+/**
+ * Imported sources carry no model type, and the picker filters read "no type" as "not a judgment
+ * model". A System One api type is judgment models only; Workers AI is mixed, so only its Jev models
+ * are tagged and its chat and embedding models stay untyped.
+ */
+function resolveImportedModelType(apiType: string, modelId: string): ModelType | undefined {
+  if (apiType === 'jev') return ModelType.Judgment
+  if (apiType === 'workers-ai') {
+    return isJevJudgmentModelId(modelId) ? ModelType.Judgment : undefined
+  }
+  return undefined
+}
 
 type SourceDefinition = {
   id: ProviderImportSourceId
@@ -1394,10 +1408,13 @@ export class ProviderImportService {
     // A System One provider's models are decision models, not chat models. Imported sources carry no
     // type, and an untyped model reads as "not a judgment model" to the picker filters, so it would
     // otherwise land in every chat picker and fail only at request time.
-    const modelType = apiType === 'jev' ? ModelType.Judgment : undefined
-
+    //
+    // Workers AI is mixed — its catalog is mostly ordinary chat and embedding models, and only its
+    // Jev model is a decision model — so its type is resolved per model instead of per api type, and
+    // its chat models stay untyped on purpose.
     return uniqueStrings(models.map((model) => model.id)).map((modelId) => {
       const sourceModel = models.find((model) => model.id === modelId)
+      const modelType = resolveImportedModelType(apiType, modelId)
       return {
         id: modelId,
         name: sourceModel?.name || modelId,

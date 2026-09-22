@@ -297,7 +297,9 @@ const EDITABLE_BASE_URL_PROVIDER_IDS = new Set([
   'ollama',
   'lmstudio',
   'azure-openai',
-  'vertex'
+  'vertex',
+  // Tenant-specific endpoint: the Cloudflare account id is a path segment of the base URL.
+  'cloudflare'
 ])
 
 const props = defineProps<{

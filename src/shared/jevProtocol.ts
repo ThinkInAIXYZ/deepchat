@@ -84,3 +84,13 @@ export function isJevChoiceAnswer(answer: JevAnswer): answer is JevChoiceAnswer 
 export function isJevNoulAnswer(answer: JevAnswer): answer is JevNoulAnswer {
   return answer.type === 'noul'
 }
+
+/**
+ * Whether a model id belongs to the Jev family. Jev models are judgment models wherever they are
+ * served — TypeSafe's own catalog, Cloudflare Workers AI's catalog, or an imported configuration —
+ * and the id is what carries that across all three, so the rule lives in the shared vocabulary
+ * rather than in one transport.
+ */
+export function isJevJudgmentModelId(modelId: string): boolean {
+  return modelId.toLowerCase().includes('jev')
+}

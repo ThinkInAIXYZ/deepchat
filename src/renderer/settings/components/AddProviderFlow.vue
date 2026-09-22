@@ -94,6 +94,7 @@
                 <SelectItem value="ollama">Ollama</SelectItem>
                 <SelectItem value="mistral">Mistral AI</SelectItem>
                 <SelectItem value="jev">TypeSafe Jev (System One)</SelectItem>
+                <SelectItem value="workers-ai">Cloudflare Workers AI</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -247,6 +248,7 @@ const apiEndpointSuffix = computed(() => {
   if (form.value.apiType === 'openai') return '/responses'
   if (form.value.apiType === 'openai-completions') return '/chat/completions'
   if (form.value.apiType === 'jev') return '/v1/systemone'
+  if (form.value.apiType === 'workers-ai') return '/chat/completions'
   return ''
 })
 

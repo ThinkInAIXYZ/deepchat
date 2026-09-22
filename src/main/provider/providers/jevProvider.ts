@@ -36,11 +36,21 @@ export function isJevUnsupportedCapabilityError(error: unknown): boolean {
 }
 
 /**
- * Type guard for the judgment capability. Used by the runtime so a non-System-One provider fails
- * with a clear message instead of a missing-method crash.
+ * Structural type guard for the judgment capability. Used by the runtime so a provider that cannot
+ * judge fails with a clear message instead of a missing-method crash. It is structural rather than
+ * `instanceof JevProvider` because one provider can serve judgments *and* ordinary chat models —
+ * Cloudflare Workers AI does — so the capability cannot be tied to the System One class.
  */
-export function supportsJevJudgment(provider: unknown): provider is JevProvider {
-  return provider instanceof JevProvider
+export function supportsJevJudgment(provider: unknown): provider is JevJudgmentCapable {
+  return typeof (provider as Partial<JevJudgmentCapable> | undefined)?.runJudgment === 'function'
+}
+
+/** The judgment capability, as the runtime consumes it. */
+export type JevJudgmentCapable = {
+  runJudgment(
+    request: JevJudgmentRequest,
+    options?: { signal?: AbortSignal }
+  ): Promise<JevJudgmentResult>
 }
 
 type JevModelRecord = {
@@ -87,7 +97,11 @@ export function extractJevModelRecords(payload: unknown): JevModelRecord[] {
   return records
 }
 
-function parseJudgmentAnswers(payload: unknown): JevJudgmentResult {
+/**
+ * Parses the System One answer payload. Exported because a second transport (Cloudflare Workers AI)
+ * returns the same answer shape inside its own envelope and unwraps it into this parser.
+ */
+export function parseJudgmentAnswers(payload: unknown): JevJudgmentResult {
   const root = asRecord(payload)
   const answers = asRecord(root?.answers)
   if (!answers) {
