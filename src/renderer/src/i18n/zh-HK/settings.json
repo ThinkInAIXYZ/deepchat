@@ -608,10 +608,6 @@
       "label": "返回文本長度",
       "description": "設置AI響應的最大長度"
     },
-    "artifacts": {
-      "description": "啟用Artifacts功能允許AI生成更豐富的內容",
-      "title": "Artifacts效果"
-    },
     "addModel": "添加模型",
     "configureModel": "配置模型",
     "modelList": "模型列表",

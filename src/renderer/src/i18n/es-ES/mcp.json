@@ -175,10 +175,6 @@
       "name": "Sistema de archivos",
       "desc": "Permita que DeepChat interactúe con el sistema de archivos local."
     },
-    "Artifacts": {
-      "name": "Artefactos",
-      "desc": "Produzca artefactos más ricos en DeepChat"
-    },
     "braveSearch": {
       "name": "Brave Search",
       "desc": "Brave Search API https://brave.com/search/api/"

@@ -1,28 +1,17 @@
 import { computed, type ComputedRef } from 'vue'
-import type { ArtifactState } from '@/stores/artifact'
 import type { WorkspaceFilePreview, WorkspaceViewMode } from '@shared/types/workspace'
 
-export type WorkspaceViewerSource = 'artifact' | 'file' | 'git-diff' | null
+export type WorkspaceViewerSource = 'file' | 'git-diff' | null
 export type WorkspaceViewerPane = 'empty' | 'git-diff' | 'code' | 'preview' | 'info'
-export type WorkspacePreviewKind =
-  | 'markdown'
-  | 'html'
-  | 'pdf'
-  | 'svg'
-  | 'image'
-  | 'mermaid'
-  | 'react'
-  | 'raw'
+export type WorkspacePreviewKind = 'markdown' | 'html' | 'pdf' | 'svg' | 'image' | 'raw'
 
 type SessionStateLike = {
-  selectedArtifactContext: unknown
   selectedFilePath: string | null
   selectedDiffPath: string | null
   viewMode: WorkspaceViewMode
 }
 
 interface UseWorkspaceViewerModelOptions {
-  artifact: ComputedRef<ArtifactState | null>
   filePreview: ComputedRef<WorkspaceFilePreview | null>
   sessionState: ComputedRef<SessionStateLike>
 }
@@ -35,27 +24,7 @@ export function useWorkspaceViewerModel(options: UseWorkspaceViewerModelOptions)
     if (options.sessionState.value.selectedFilePath) {
       return 'file'
     }
-    if (options.sessionState.value.selectedArtifactContext && options.artifact.value) {
-      return 'artifact'
-    }
     return null
-  })
-
-  const artifactPreviewKind = computed<WorkspacePreviewKind>(() => {
-    switch (options.artifact.value?.type) {
-      case 'text/markdown':
-        return 'markdown'
-      case 'text/html':
-        return 'html'
-      case 'image/svg+xml':
-        return 'svg'
-      case 'application/vnd.ant.mermaid':
-        return 'mermaid'
-      case 'application/vnd.ant.react':
-        return 'react'
-      default:
-        return 'raw'
-    }
   })
 
   const filePreviewKind = computed<WorkspacePreviewKind | null>(() => {
@@ -76,10 +45,6 @@ export function useWorkspaceViewerModel(options: UseWorkspaceViewerModelOptions)
   })
 
   const availableTabs = computed<WorkspaceViewMode[]>(() => {
-    if (activeSource.value === 'artifact') {
-      return ['preview', 'code']
-    }
-
     if (activeSource.value !== 'file' || !options.filePreview.value) {
       return []
     }
@@ -115,14 +80,6 @@ export function useWorkspaceViewerModel(options: UseWorkspaceViewerModelOptions)
       return 'git-diff'
     }
 
-    if (activeSource.value === 'artifact') {
-      if (effectiveViewMode.value === 'code') {
-        return 'code'
-      }
-
-      return options.artifact.value?.type === 'application/vnd.ant.code' ? 'code' : 'preview'
-    }
-
     if (!options.filePreview.value) {
       return 'empty'
     }
@@ -145,10 +102,6 @@ export function useWorkspaceViewerModel(options: UseWorkspaceViewerModelOptions)
   const previewKind = computed<WorkspacePreviewKind | null>(() => {
     if (paneKind.value !== 'preview') {
       return null
-    }
-
-    if (activeSource.value === 'artifact') {
-      return artifactPreviewKind.value
     }
 
     return filePreviewKind.value

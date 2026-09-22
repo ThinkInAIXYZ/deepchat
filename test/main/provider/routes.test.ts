@@ -203,6 +203,7 @@ describe('Provider routes', () => {
 
   it('returns one authoritative capability snapshot and forwards draft route metadata', async () => {
     const snapshot = {
+      mediaSettings: { image: false, video: false },
       identity: {
         providerId: 'anthropic',
         requestModelId: 'claude-opus-4-8',

@@ -1,4 +1,5 @@
 import { computed, ref } from 'vue'
+import { projectPendingInteraction } from '@shared/chat/pendingInteraction'
 import type { DisplayAssistantMessageBlock } from '@/features/chat-page/model/displayMessage'
 import type { useMessageStore } from '@/stores/ui/message'
 import type { ToolInteractionResponse, ToolInteractionResult } from '@shared/types/agent-interface'
@@ -98,28 +99,13 @@ export function useToolInteraction(options: UseToolInteractionOptions) {
       const blocks = options.messageStore.getAssistantMessageBlocks(message)
 
       for (const block of blocks) {
-        if (
-          block.type !== 'action' ||
-          (block.action_type !== 'question_request' &&
-            block.action_type !== 'tool_call_permission') ||
-          block.status !== 'pending' ||
-          block.extra?.needsUserAction === false
-        ) {
-          continue
-        }
-
-        const toolCallId = block.tool_call?.id
-        if (!toolCallId) {
-          continue
-        }
+        const pending = projectPendingInteraction(block)
+        if (!pending) continue
 
         list.push({
           sessionId: options.sessionId(),
           messageId: message.id,
-          toolCallId,
-          actionType: block.action_type,
-          toolName: block.tool_call?.name || '',
-          toolArgs: block.tool_call?.params || '',
+          ...pending,
           block
         })
       }

@@ -574,14 +574,8 @@ import {
   MODEL_TIMEOUT_MAX_MS,
   MODEL_TIMEOUT_MIN_MS
 } from '@shared/modelConfigDefaults'
-import {
-  normalizeImageGenerationOptions,
-  supportsOpenAIImageGenerationSettings
-} from '@shared/imageGenerationSettings'
-import {
-  normalizeVideoGenerationOptions,
-  supportsOpenAICompatibleVideoGeneration
-} from '@shared/videoGenerationSettings'
+import { normalizeImageGenerationOptions } from '@shared/imageGenerationSettings'
+import { normalizeVideoGenerationOptions } from '@shared/videoGenerationSettings'
 import { normalizeTtsSettings } from '@shared/ttsSettings'
 import { useModelConfigStore } from '@/stores/modelConfigStore'
 import { useModelStore } from '@/stores/modelStore'
@@ -727,27 +721,11 @@ const dialogTitle = computed(() =>
 )
 const canEditModelIdentity = computed(() => isCreateMode.value || props.isCustomModel === true)
 const shouldValidateIdentity = computed(() => isCreateMode.value || props.isCustomModel === true)
-const showOpenAIImageGenerationSettings = computed(() =>
-  supportsOpenAIImageGenerationSettings({
-    providerId: props.providerId,
-    providerApiType: currentProvider.value?.apiType,
-    modelId: modelIdField.value.trim(),
-    apiEndpoint: config.value.apiEndpoint,
-    endpointType: config.value.endpointType ?? providerModelMeta.value?.endpointType,
-    supportedEndpointTypes: providerModelMeta.value?.supportedEndpointTypes,
-    type: config.value.type ?? providerModelMeta.value?.type
-  })
+const showOpenAIImageGenerationSettings = computed(
+  () => modelCapabilities.snapshot.value?.mediaSettings.image === true
 )
-const showOpenAIVideoGenerationSettings = computed(() =>
-  supportsOpenAICompatibleVideoGeneration({
-    providerId: props.providerId,
-    providerApiType: currentProvider.value?.apiType,
-    modelId: modelIdField.value.trim(),
-    apiEndpoint: config.value.apiEndpoint,
-    endpointType: config.value.endpointType ?? providerModelMeta.value?.endpointType,
-    supportedEndpointTypes: providerModelMeta.value?.supportedEndpointTypes,
-    type: config.value.type ?? providerModelMeta.value?.type
-  })
+const showOpenAIVideoGenerationSettings = computed(
+  () => modelCapabilities.snapshot.value?.mediaSettings.video === true
 )
 const showOpenAIMediaGenerationSettings = computed(
   () => showOpenAIImageGenerationSettings.value || showOpenAIVideoGenerationSettings.value
@@ -944,6 +922,7 @@ const fetchCapabilities = async () => {
 
   const routeOverride = shouldUseDraftCapabilityRoute.value
     ? {
+        apiEndpoint: config.value.apiEndpoint,
         endpointType: isNewApiEndpointType(config.value.endpointType)
           ? config.value.endpointType
           : providerModelMeta.value?.endpointType,
@@ -1506,10 +1485,10 @@ const handleSave = async () => {
           : undefined,
     imageGeneration: showOpenAIImageGenerationSettings.value
       ? normalizeImageGenerationOptions(config.value.imageGeneration)
-      : undefined,
+      : config.value.imageGeneration,
     videoGeneration: showOpenAIVideoGenerationSettings.value
       ? normalizeVideoGenerationOptions(config.value.videoGeneration)
-      : undefined,
+      : config.value.videoGeneration,
     tts: showTtsSettings.value ? normalizeTtsSettings(config.value.tts) : undefined
   }
 
@@ -1638,6 +1617,16 @@ watch(
 
     syncNewApiDerivedFields()
     if (props.open && !isLoadingModelConfig.value) {
+      queueCapabilityRefresh()
+    }
+  }
+)
+
+watch(
+  () => config.value.apiEndpoint,
+  () => {
+    if (props.open && !isLoadingModelConfig.value) {
+      capabilityRouteWasEdited.value = true
       queueCapabilityRefresh()
     }
   }

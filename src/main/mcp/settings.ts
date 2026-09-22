@@ -120,15 +120,6 @@ const PLATFORM_SPECIFIC_SERVERS: Record<string, Omit<MCPServerConfig, 'enabled'>
 // Extract inmemory type services as constants
 const DEFAULT_INMEMORY_SERVERS: Record<string, Omit<MCPServerConfig, 'enabled'>> = {
   // buildInFileSystem has been removed - filesystem capabilities are now provided via Agent tools
-  Artifacts: {
-    args: [],
-    descriptions: 'DeepChat内置 artifacts mcp服务',
-    icons: '🎨',
-    type: 'inmemory' as MCPServerType,
-    command: 'artifacts',
-    env: {},
-    disable: false
-  },
   bochaSearch: {
     args: [],
     descriptions: 'DeepChat内置博查搜索服务',
@@ -248,7 +239,7 @@ const DEFAULT_INMEMORY_SERVERS: Record<string, Omit<MCPServerConfig, 'enabled'>>
   ...PLATFORM_SPECIFIC_SERVERS
 }
 
-const DEFAULT_ENABLED_SERVER_NAMES = ['Artifacts', ...(isMacOS() ? ['deepchat/apple-server'] : [])]
+const DEFAULT_ENABLED_SERVER_NAMES = isMacOS() ? ['deepchat/apple-server'] : []
 
 const DEFAULT_MCP_SERVERS = {
   mcpServers: {
@@ -476,6 +467,13 @@ export class McpSettings {
 
       if (removedBuiltInServers.delete(serverName)) {
         removedListChanged = true
+      }
+    }
+
+    for (const [name, config] of Object.entries(servers)) {
+      if (config.type === 'inmemory' && (name === 'Artifacts' || config.command === 'artifacts')) {
+        delete servers[name]
+        hasChanges = true
       }
     }
 

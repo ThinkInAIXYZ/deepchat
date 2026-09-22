@@ -175,10 +175,6 @@
       "name": "Dosya Sistemi",
       "desc": "DeepChat öğesinin yerel dosya sistemiyle etkileşime girmesine izin verin."
     },
-    "Artifacts": {
-      "name": "Artifacts",
-      "desc": "DeepChat'de daha zengin Artifacts üretin"
-    },
     "braveSearch": {
       "name": "Brave Ara",
       "desc": "Brave Arama API https://brave.com/search/api/"

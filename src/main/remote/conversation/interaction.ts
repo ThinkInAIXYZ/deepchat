@@ -1,4 +1,5 @@
 import type { AssistantMessageBlock, QuestionOption } from '@shared/types/agent-interface'
+import { projectPendingInteraction } from '@shared/chat/pendingInteraction'
 import type {
   RemotePendingInteraction,
   RemotePendingInteractionPermission,
@@ -194,26 +195,14 @@ export const collectPendingInteraction = (
   blocks: AssistantMessageBlock[]
 ): RemotePendingInteractionWithOrder | null => {
   for (const block of blocks) {
-    if (
-      block.type !== 'action' ||
-      (block.action_type !== 'tool_call_permission' && block.action_type !== 'question_request') ||
-      block.status !== 'pending' ||
-      block.extra?.needsUserAction === false
-    ) {
-      continue
-    }
-
-    const toolCallId = block.tool_call?.id
-    if (!toolCallId) {
-      continue
-    }
+    const pending = projectPendingInteraction(block)
+    if (!pending) continue
+    const { actionType, ...identity } = pending
 
     const base = {
       messageId,
       messageOrderSeq,
-      toolCallId,
-      toolName: block.tool_call?.name || '',
-      toolArgs: block.tool_call?.params || '',
+      ...identity,
       ...(block.tool_call?.server_name ? { serverName: block.tool_call.server_name } : {}),
       ...(block.tool_call?.server_icons ? { serverIcons: block.tool_call.server_icons } : {}),
       ...(block.tool_call?.server_description
@@ -221,7 +210,7 @@ export const collectPendingInteraction = (
         : {})
     }
 
-    if (block.action_type === 'question_request') {
+    if (actionType === 'question_request') {
       return {
         ...base,
         type: 'question',

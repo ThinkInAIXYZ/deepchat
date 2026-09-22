@@ -175,10 +175,6 @@
       "name": "sistem fail",
       "desc": "Dayakan DeepChat untuk beroperasi pada fail tempatan"
     },
-    "Artifacts": {
-      "name": "Artifacts",
-      "desc": "Kandungan Artifacts yang pelbagai untuk output DeepChat anda"
-    },
     "braveSearch": {
       "name": "Carian Brave",
       "desc": "Brave carian API https://brave.com/search/api/"

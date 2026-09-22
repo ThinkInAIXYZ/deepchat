@@ -240,12 +240,7 @@ export class ChatService {
     let cancelFailed = false
     try {
       await this.deps.scheduler.timeout({
-        task: Promise.allSettled([
-          Promise.resolve().then(() =>
-            this.deps.sessionPermissionPort.clearSessionPermissions(targetSessionId)
-          ),
-          Promise.resolve().then(() => this.deps.turn.cancelGeneration(targetSessionId))
-        ]).then((results) => {
+        task: this.settleCancellation(targetSessionId).then((results) => {
           const clearPermissionsResult = results[0]
           if (clearPermissionsResult?.status === 'rejected') {
             console.warn(
@@ -315,16 +310,20 @@ export class ChatService {
     return { dismissed }
   }
 
+  private settleCancellation(sessionId: string) {
+    return Promise.allSettled([
+      Promise.resolve().then(() =>
+        this.deps.sessionPermissionPort.clearSessionPermissions(sessionId)
+      ),
+      Promise.resolve().then(() => this.deps.turn.cancelGeneration(sessionId))
+    ])
+  }
+
   private async bestEffortCancel(sessionId: string, reason: string): Promise<void> {
     let cleanupResults: PromiseSettledResult<void>[]
     try {
       cleanupResults = await this.deps.scheduler.timeout({
-        task: Promise.allSettled([
-          Promise.resolve().then(() =>
-            this.deps.sessionPermissionPort.clearSessionPermissions(sessionId)
-          ),
-          Promise.resolve().then(() => this.deps.turn.cancelGeneration(sessionId))
-        ]),
+        task: this.settleCancellation(sessionId),
         ms: CHAT_STOP_TIMEOUT_MS,
         reason: `chat.bestEffortCancel:${sessionId}`
       })

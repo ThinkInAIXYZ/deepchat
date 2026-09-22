@@ -90,18 +90,37 @@ describe('McpSettings', () => {
     const { McpSettings } = await loadHelper('darwin')
     const helper = new McpSettings()
     const mcpStore = (helper as any).mcpStore
-    const artifactsConfig = { ...mcpStore.get('mcpServers').Artifacts }
+    const searchConfig = { ...mcpStore.get('mcpServers').bochaSearch }
 
-    delete artifactsConfig.enabled
+    delete searchConfig.enabled
     mcpStore.set('mcpServers', {
-      Artifacts: artifactsConfig
+      bochaSearch: searchConfig
     })
     mcpStore.set('defaultServers', [])
 
     const servers = await helper.getMcpServers()
 
-    expect(servers.Artifacts.enabled).toBe(false)
+    expect(servers.bochaSearch.enabled).toBe(false)
     expect(mcpStore.has('defaultServers')).toBe(false)
+  })
+
+  it('retires persisted in-memory artifacts without removing external servers', async () => {
+    const { McpSettings } = await loadHelper('darwin')
+    const helper = new McpSettings()
+    const store = (helper as any).mcpStore
+    expect(store.get('mcpServers').Artifacts).toBeUndefined()
+    store.set('mcpServers', {
+      Artifacts: { type: 'inmemory', command: 'artifacts', enabled: true, args: [], env: {} },
+      renamed: { type: 'inmemory', command: 'artifacts', enabled: true, args: [], env: {} },
+      external: { type: 'stdio', command: 'artifacts', enabled: true, args: [], env: {} }
+    })
+    store.set('defaultServers', ['Artifacts'])
+    const servers = await helper.getMcpServers()
+    expect(servers.Artifacts).toBeUndefined()
+    expect(servers.renamed).toBeUndefined()
+    expect(servers.external.command).toBe('artifacts')
+    expect(store.get('mcpServers').Artifacts).toBeUndefined()
+    expect((await helper.getMcpServers()).Artifacts).toBeUndefined()
   })
 
   it('updates Router credentials through one fallback store write', async () => {

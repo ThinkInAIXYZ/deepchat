@@ -176,13 +176,19 @@
         <span class="flex flex-row gap-2">
           <template v-if="usage.input_tokens > 0 || usage.output_tokens > 0">
             <span class="text-xs flex flex-row items-center">
-              <Icon icon="lucide:arrow-up" class="w-3 h-3" />{{ usage.input_tokens }}
+              <Icon icon="lucide:arrow-up" class="w-3 h-3" />{{
+                formatTokenCount(usage.input_tokens)
+              }}
             </span>
             <span class="text-xs flex flex-row items-center">
-              <Icon icon="lucide:arrow-down" class="w-3 h-3" />{{ usage.output_tokens }}
+              <Icon icon="lucide:arrow-down" class="w-3 h-3" />{{
+                formatTokenCount(usage.output_tokens)
+              }}
             </span>
           </template>
-          <template v-if="hasTokensPerSecond">{{ usage.tokens_per_second?.toFixed(2) }}/S</template>
+          <template v-if="hasTokensPerSecond"
+            >{{ formatTokenCount(usage.tokens_per_second, 2) }}/S</template
+          >
         </span>
       </div>
     </TooltipProvider>
@@ -304,6 +310,28 @@ const emit = defineEmits<{
 }>()
 
 const hasTokensPerSecond = computed(() => props.usage.tokens_per_second > 0)
+
+const formatTokenCount = (value: number, fractionDigits = 0): string => {
+  const units = [
+    { threshold: 1_000_000_000_000, suffix: 'T' },
+    { threshold: 1_000_000_000, suffix: 'B' },
+    { threshold: 1_000_000, suffix: 'M' },
+    { threshold: 1_000, suffix: 'K' }
+  ]
+  for (let i = 0; i < units.length; i++) {
+    const unit = units[i]
+    if (Math.abs(value) >= unit.threshold) {
+      if (i > 0 && Math.abs(Number((value / unit.threshold).toFixed(2))) >= 1000) {
+        const next = units[i - 1]
+        const promoted = (value / next.threshold).toFixed(2)
+        return `${promoted.replace(/\.?0+$/, '')}${next.suffix}`
+      }
+      const scaled = (value / unit.threshold).toFixed(2)
+      return `${scaled.replace(/\.?0+$/, '')}${unit.suffix}`
+    }
+  }
+  return value.toFixed(fractionDigits)
+}
 const hasVariants = computed(() => (props.totalVariants || 0) > 1)
 const allowTrace = computed(() => props.showTrace ?? false)
 const allowMemory = computed(() => props.showMemory ?? false)

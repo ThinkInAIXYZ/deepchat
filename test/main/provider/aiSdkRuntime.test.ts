@@ -920,6 +920,44 @@ describe('AI SDK runtime', () => {
     )
   })
 
+  it('forwards Azure image settings for a deployment alias', async () => {
+    mockCreateAiSdkProviderContext.mockReturnValueOnce({
+      providerOptionsKey: 'azure',
+      apiType: 'azure_responses',
+      model: {},
+      imageModel: {}
+    })
+    const context = {
+      providerKind: 'azure',
+      provider: { id: 'azure-openai', apiType: 'openai-completions' },
+      providerSettings: createProviderSettings(),
+      defaultHeaders: {},
+      shouldUseImageGeneration: () => true
+    } as any
+
+    for await (const _event of runAiSdkCoreStream(
+      context,
+      [{ role: 'user', content: 'draw a cat' }],
+      'production-art',
+      {
+        apiEndpoint: 'image',
+        imageGeneration: { size: '1536x1024', quality: 'high' }
+      } as any,
+      0.7,
+      1024,
+      []
+    )) {
+      // Drain stream.
+    }
+
+    expect(mockGenerateImage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        size: '1536x1024',
+        providerOptions: { azure: { quality: 'high' } }
+      })
+    )
+  })
+
   it('uses wire-shaped gpt-image-2 options for OpenAI-compatible image providers', async () => {
     mockCreateAiSdkProviderContext.mockReturnValueOnce({
       providerOptionsKey: 'newApi',

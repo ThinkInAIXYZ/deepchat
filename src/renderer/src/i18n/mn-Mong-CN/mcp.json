@@ -175,10 +175,6 @@
       "name": "ᠪᠢᠴᠢᠭ᠌ ᠮᠠᠲ᠋ᠧᠷᠢᠶᠠᠯ ᠤᠨ ᠰᠢᠰᠲ᠋ᠧᠮ",
       "desc": "ᠢ ᠲᠤᠰ DeepChat ᠤᠨ ᠲᠤᠰ ᠭᠠᠵᠠᠷ ᠤᠨ ᠳᠠᠩᠰᠠ ᠡᠪᠬᠡᠮᠡᠯ ᠢᠶᠡᠷ ᠶᠠᠪᠤᠭᠤᠯᠬᠤ ᠶᠢ ᠵᠥᠪᠰᠢᠶᠡᠷᠡᠨ᠎ᠡ"
     },
-    "Artifacts": {
-      "name": "ᠦᠷ᠎ᠡ ᠳᠦᠩ",
-      "desc": "ᠲᠠᠨ ᠤ DeepChat Artifacts"
-    },
     "braveSearch": {
       "name": "Brave ᠡᠷᠢᠬᠦ",
       "desc": "Brave ᠶᠢ API https://brave.com/search/api/"

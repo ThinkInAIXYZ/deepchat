@@ -12,7 +12,6 @@ function createDeferred<T>() {
 }
 
 const {
-  showArtifactMock,
   getSearchResultsMock,
   hideReferenceMock,
   showReferenceMock,
@@ -20,7 +19,6 @@ const {
   navigateLinkMock,
   ensureMarkdownWorkersMock
 } = vi.hoisted(() => ({
-  showArtifactMock: vi.fn(),
   getSearchResultsMock: vi.fn().mockResolvedValue([]),
   hideReferenceMock: vi.fn(),
   showReferenceMock: vi.fn(),
@@ -46,12 +44,6 @@ const setup = async (props: Record<string, unknown> = {}) => {
 
   vi.doMock('nanoid', () => ({
     nanoid: nanoidMock
-  }))
-
-  vi.doMock('@/stores/artifact', () => ({
-    useArtifactStore: () => ({
-      showArtifact: showArtifactMock
-    })
   }))
 
   vi.doMock('@/stores/reference', () => ({
@@ -90,17 +82,6 @@ const setup = async (props: Record<string, unknown> = {}) => {
   }))
 
   vi.doMock('markstream-vue', () => {
-    const previewPayload = {
-      id: 'preview-artifact',
-      artifactType: 'text/html',
-      artifactTitle: 'HTML Preview',
-      language: 'html',
-      node: {
-        code: '<h1>Hello</h1>',
-        language: 'html'
-      }
-    }
-
     const NodeRenderer = defineComponent({
       name: 'NodeRenderer',
       props: {
@@ -112,6 +93,7 @@ const setup = async (props: Record<string, unknown> = {}) => {
           type: Boolean,
           default: false
         },
+        codeBlockProps: { type: Object, default: undefined },
         codeBlockOptions: {
           type: Object,
           default: undefined
@@ -137,7 +119,7 @@ const setup = async (props: Record<string, unknown> = {}) => {
           default: undefined
         }
       },
-      emits: ['click', 'mouseover', 'mouseout', 'handleArtifactClick'],
+      emits: ['click', 'mouseover', 'mouseout'],
       setup(props, { emit }) {
         return () =>
           h(
@@ -146,6 +128,7 @@ const setup = async (props: Record<string, unknown> = {}) => {
               'data-testid': 'node-renderer',
               'data-final': String(props.final),
               'data-code-block-stream': String(props.codeBlockStream),
+              'data-preview-enabled': String(props.codeBlockProps?.showPreviewButton),
               'data-code-block-overflow': props.codeBlockOptions?.overflow,
               'data-code-block-font-family': props.codeBlockOptions?.fontFamily,
               'data-code-block-themes': props.themes?.join(','),
@@ -172,15 +155,6 @@ const setup = async (props: Record<string, unknown> = {}) => {
                   onClick: (event: MouseEvent) => emit('click', event)
                 },
                 'unmarked anchor'
-              ),
-              h(
-                'button',
-                {
-                  type: 'button',
-                  'data-testid': 'preview-code',
-                  onClick: () => emit('handleArtifactClick', previewPayload)
-                },
-                'preview code'
               ),
               h(
                 'span',
@@ -230,7 +204,6 @@ const setup = async (props: Record<string, unknown> = {}) => {
 
 describe('MarkdownRenderer', () => {
   beforeEach(() => {
-    showArtifactMock.mockReset()
     getSearchResultsMock.mockReset()
     getSearchResultsMock.mockResolvedValue([])
     hideReferenceMock.mockReset()
@@ -250,52 +223,17 @@ describe('MarkdownRenderer', () => {
     vi.useRealTimers()
   })
 
+  it('disables artifact previews for ordinary code blocks', async () => {
+    const { wrapper } = await setup({ content: '```html\n<h1>Hello</h1>\n```' })
+    expect(wrapper.get('[data-testid="node-renderer"]').attributes('data-preview-enabled')).toBe(
+      'false'
+    )
+  })
+
   it('initializes markdown workers lazily when mounted', async () => {
     await setup()
 
     expect(ensureMarkdownWorkersMock).toHaveBeenCalledTimes(1)
-  })
-
-  it('uses the provided message and thread ids for HTML preview artifacts', async () => {
-    const { wrapper } = await setup({
-      messageId: 'message-1',
-      threadId: 'thread-1'
-    })
-
-    await wrapper.get('[data-testid="preview-code"]').trigger('click')
-
-    expect(showArtifactMock).toHaveBeenCalledWith(
-      {
-        id: 'preview-artifact',
-        type: 'text/html',
-        title: 'HTML Preview',
-        language: 'html',
-        content: '<h1>Hello</h1>',
-        status: 'loaded'
-      },
-      'message-1',
-      'thread-1',
-      { force: true }
-    )
-  })
-
-  it('falls back to local ids when no message or thread ids are provided', async () => {
-    const { wrapper } = await setup()
-    await wrapper.get('[data-testid="preview-code"]').trigger('click')
-
-    expect(showArtifactMock).toHaveBeenCalledWith(
-      {
-        id: 'preview-artifact',
-        type: 'text/html',
-        title: 'HTML Preview',
-        language: 'html',
-        content: '<h1>Hello</h1>',
-        status: 'loaded'
-      },
-      'artifact-msg-fallback-message',
-      'artifact-thread-fallback-thread',
-      { force: true }
-    )
   })
 
   it('normalizes unsupported code fence languages before they reach Markstream', async () => {
@@ -353,7 +291,7 @@ describe('MarkdownRenderer', () => {
     const { wrapper } = await setup({ messageId: 'message-1', threadId: 'thread-1' })
 
     expect(wrapper.get('[data-testid="node-renderer"]').attributes('data-custom-id')).toContain(
-      'artifact-msg-fallback-message'
+      'markdown-msg-fallback-message'
     )
   })
 

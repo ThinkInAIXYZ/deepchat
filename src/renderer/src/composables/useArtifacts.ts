@@ -24,21 +24,6 @@ export interface ProcessedPart {
   }
 }
 
-export interface ParsedArtifactPart {
-  identifier: string
-  title: string
-  type:
-    | 'application/vnd.ant.code'
-    | 'text/markdown'
-    | 'text/html'
-    | 'image/svg+xml'
-    | 'application/vnd.ant.mermaid'
-    | 'application/vnd.ant.react'
-  language?: string
-  content: string
-  loading: boolean
-}
-
 // 定义可接受的artifact类型
 type ArtifactType =
   | 'application/vnd.ant.code'
@@ -47,71 +32,23 @@ type ArtifactType =
   | 'image/svg+xml'
   | 'application/vnd.ant.mermaid'
   | 'application/vnd.ant.react'
-type ArtifactSourceBlock = Pick<DisplayAssistantMessageBlock, 'content' | 'status'>
+type ArtifactSourceBlock = Pick<DisplayAssistantMessageBlock, 'content' | 'status' | 'artifact'>
 
 export const useBlockContent = (props: { block: ArtifactSourceBlock }) => {
   const blockContent = computed(() =>
     typeof props.block.content === 'string' ? props.block.content : ''
   )
   const processedContent = computed<ProcessedPart[]>(() =>
-    blockContent.value
-      ? generatePart(blockContent.value, props.block.status)
-      : [{ type: 'text', content: '' }]
+    props.block.artifact
+      ? [{ type: 'artifact', content: blockContent.value, artifact: props.block.artifact }]
+      : blockContent.value
+        ? generatePart(blockContent.value, props.block.status)
+        : [{ type: 'text', content: '' }]
   )
 
   return {
     processedContent
   }
-}
-
-export function extractArtifactsFromContent(
-  content: string,
-  status: DisplayAssistantMessageBlock['status']
-): ParsedArtifactPart[] {
-  return generatePart(content, status)
-    .filter(
-      (
-        part
-      ): part is ProcessedPart & {
-        type: 'artifact'
-        artifact: NonNullable<ProcessedPart['artifact']>
-      } => {
-        return part.type === 'artifact' && Boolean(part.artifact)
-      }
-    )
-    .map((part) => ({
-      identifier: part.artifact.identifier,
-      title: part.artifact.title,
-      type: part.artifact.type,
-      language: part.artifact.language,
-      content: part.content,
-      loading: Boolean(part.loading)
-    }))
-}
-
-/**
- * Block-reference memo for artifact extraction. The message store reuses block
- * object references for settled blocks (reuseStableAssistantBlocks in
- * stores/ui/message.ts), so a per-stream-chunk rescan only re-extracts blocks
- * whose reference actually changed — typically the streaming tail. A status
- * change always yields a new block object, so status is covered by the key.
- * Returned arrays are shared between callers and must not be mutated.
- */
-const artifactExtractionCache = new WeakMap<
-  DisplayAssistantMessageBlock,
-  readonly ParsedArtifactPart[]
->()
-
-export function extractArtifactsFromBlock(
-  block: DisplayAssistantMessageBlock
-): readonly ParsedArtifactPart[] {
-  const cached = artifactExtractionCache.get(block)
-  if (cached) {
-    return cached
-  }
-  const result = Object.freeze(extractArtifactsFromContent(block.content ?? '', block.status))
-  artifactExtractionCache.set(block, result)
-  return result
 }
 
 // Precompiled once — never construct RegExp inside the scan loop.
@@ -311,7 +248,7 @@ function buildClosedArtifactPart(match: RegExpExecArray): ProcessedPart {
   const attributes = parseAttributes(match[1])
   return {
     type: 'artifact',
-    content: match[2].trim(),
+    content: match[2],
     loading: false,
     artifact: {
       identifier: attributes.identifier || '',
@@ -328,7 +265,7 @@ function buildUnclosedArtifactPart(match: RegExpExecArray): ProcessedPart {
   const identifierMatch = openingTag.match(/identifier="([^"]+)"/)
   const titleMatch = openingTag.match(/title="([^"]+)"/)
   const languageMatch = openingTag.match(/language="([^"]+)"/)
-  const body = match[5] ? match[5].trim() : ''
+  const body = match[5] ?? ''
 
   return {
     type: 'artifact',
@@ -343,7 +280,7 @@ function buildUnclosedArtifactPart(match: RegExpExecArray): ProcessedPart {
   }
 }
 
-/** Exported for unit tests — production callers use useBlockContent / extractArtifactsFromContent. */
+/** Parse historical message markup without launching artifact previews. */
 export function generatePart(
   content: string,
   status: DisplayAssistantMessageBlock['status']

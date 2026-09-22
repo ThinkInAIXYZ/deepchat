@@ -181,10 +181,6 @@
   },
   "title": "MCP تەڭشەكلىرى",
   "inmemory": {
-    "Artifacts": {
-      "desc": "DeepChat نىڭ چىقىرىشىدىكى تۈرلۈك Artifacts مەزمۇنىنى ھاسىل قىلىش",
-      "name": "ھاسىل قىلىنغان مەزمۇنلار"
-    },
     "bochaSearch": {
       "desc": "بوچا ئىزدەش API https://open.bochaai.com/",
       "name": "بوچا ئىزدەش"

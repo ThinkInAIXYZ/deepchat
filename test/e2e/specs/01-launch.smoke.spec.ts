@@ -160,5 +160,7 @@ test('keeps the main window usable when plugin host initialization fails @smoke'
   const { records } = readJsonl(join(first.userDataDir, 'logs', 'main.jsonl'))
   const terminals = records.filter((record) => record.event === 'app.startup.terminal')
   expect(terminals).toHaveLength(2)
-  expect(terminals.every((record) => (record.context as JsonObject).outcome === 'completed')).toBe(true)
+  expect(terminals.every((record) => (record.context as JsonObject).outcome === 'completed')).toBe(
+    true
+  )
 })
