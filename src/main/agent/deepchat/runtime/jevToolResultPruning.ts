@@ -17,7 +17,9 @@ import { estimateJevTokens } from './jevReviewState'
  * So this runs *before* truncation and asks a different question: is this result still needed at
  * all? A result judged stale is replaced by a short note, which means the truncation pass that
  * follows skips it (its content is now well under the threshold). A result judged necessary is left
- * verbatim — which is strictly better than truncating it.
+ * verbatim. That is not an exemption from the size-based truncation that follows: a kept result over
+ * the threshold is still cut to head and tail. The gain is that a *stale* result is removed whole
+ * instead of being cut, and a needed one is not cut by this pass.
  *
  * ## Two boundaries this module must not cross
  *
@@ -30,6 +32,18 @@ import { estimateJevTokens } from './jevReviewState'
  *    the app's own pre-assessment was fed to the reviewer, which both primed the answer and tripped
  *    the injection question. The same rule applies here: the state carries what the result says, not
  *    any hint about what the caller already suspects.
+ *
+ * ## Accepted risk: the judged material is untrusted
+ *
+ * The candidate contents are tool output — file bodies, command output, fetched pages — and they are
+ * sent to the model that decides whether to delete them. Those questions carry no injection criteria,
+ * unlike the permission questions, which do. So content that reads as an instruction could in
+ * principle argue for its own deletion or its own survival.
+ *
+ * The blast radius is what makes this acceptable rather than overlooked: the worst case is a result
+ * dropped that was needed, which costs a round-trip through Session Tape, and the feedback loop
+ * narrows the band when that happens. It is not an action being taken on the strength of injected
+ * text. Worth revisiting if this pass is ever given anything more than a delete-or-keep decision.
  *
  * ## The assumption this rests on
  *
@@ -92,13 +106,6 @@ export const JEV_PRUNING_MAX_STATE_TOKENS = 20_000
  * are small, no judgment can free enough context to pay for asking.
  */
 export const JEV_PRUNING_MIN_CANDIDATE_CHARS = 2_000
-
-/**
- * Fraction of candidate content that must actually be freed for the pass to count as worthwhile.
- * Reported rather than enforced, because by the time it is known the request has already been made;
- * it is the signal that says whether `keepThreshold` is set anywhere near right.
- */
-export const JEV_PRUNING_MIN_REDUCTION_RATIO = 0.25
 
 type JevPruningStateShape = {
   /** Recorded in logs so an evaluation can see how often fitting was needed and how hard. */
@@ -262,6 +269,12 @@ export function collectJevPruningCandidates(
 
   // Oldest first, capped. `slice(0, max)` rather than a tail slice: the oldest results are the ones
   // that have been costing context the longest and the ones least likely to still be needed.
+  //
+  // The most recent closed exchange is a candidate too, which the size-based pass deliberately
+  // preserves. A wrong judgment there strips the freshest round-trip, which is the one most likely to
+  // still be in play. It is included anyway because it is also the one most likely to be re-run, and a
+  // re-run is what the feedback loop detects; the alternative — pinning it — would leave the largest
+  // single result of a turn permanently out of reach.
   return candidates.slice(0, maxCandidates)
 }
 
@@ -482,8 +495,19 @@ export function decideJevPruningDrop(
   return recoverable !== null && recoverable >= recoverableAbove
 }
 
+/**
+ * A `noul` is a probability, so anything outside `[0, 1]` is not one. A parseable but out-of-range
+ * value — a negative, a `NaN`, a `2` — is a malformed answer, and treating it as a real score is how a
+ * broken response deletes context: `-3` reads as "well below the drop threshold" and the result is
+ * dropped unconditionally.
+ *
+ * The permission path learned this in #2335 and gates its own reader the same way. This module's
+ * docstring states the invariant; this is where it is enforced.
+ */
 function readNoul(answer: JevAnswer | undefined): number | null {
-  return answer && isJevNoulAnswer(answer) ? answer.noul : null
+  if (!answer || !isJevNoulAnswer(answer)) return null
+  const value = answer.noul
+  return Number.isFinite(value) && value >= 0 && value <= 1 ? value : null
 }
 
 /**
@@ -557,7 +581,11 @@ export type JevPruningOutcome = {
   decisions: JevPruningDecision[]
   /** `true` when the pass ran; `false` when it was skipped, with `skipReason` saying why. */
   attempted: boolean
-  skipReason?: 'nothing-to-judge' | 'below-minimum-payload' | 'state-did-not-fit'
+  /**
+   * `nothing-to-judge` covers both no candidates and a state that could not be fitted — the minimal
+   * shape always fits a non-empty candidate list, so a separate reason would be unreachable.
+   */
+  skipReason?: 'nothing-to-judge' | 'below-minimum-payload'
   /** Fraction of candidate content actually freed. `NaN` when the pass did not run. */
   reductionRatio: number
   shape?: string

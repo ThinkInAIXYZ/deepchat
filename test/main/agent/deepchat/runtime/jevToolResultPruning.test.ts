@@ -155,6 +155,26 @@ describe('readJevPruningSignals', () => {
     expect(signals.get('c1')).toEqual({ relevance: null, recoverable: null })
     expect(signals.get('c2')).toEqual({ relevance: null, recoverable: null })
   })
+
+  it('reports null for an out-of-range answer rather than acting on it', () => {
+    // A `noul` is a probability. `-3` is not one, and reading it as a score would put it below the
+    // drop threshold and delete the result on a malformed response.
+    const signals = readJevPruningSignals(
+      { relevant_c1: noul(-3), recoverable_c1: noul(2) },
+      candidates
+    )
+
+    expect(signals.get('c1')).toEqual({ relevance: null, recoverable: null })
+  })
+
+  it('accepts the closed unit interval', () => {
+    const signals = readJevPruningSignals(
+      { relevant_c1: noul(0), recoverable_c1: noul(1) },
+      candidates
+    )
+
+    expect(signals.get('c1')).toEqual({ relevance: 0, recoverable: 1 })
+  })
 })
 
 describe('decideJevPruningDrop', () => {
