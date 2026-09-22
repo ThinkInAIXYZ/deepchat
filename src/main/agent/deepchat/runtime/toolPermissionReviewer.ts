@@ -8,12 +8,12 @@ import type { AgentSettingsPort } from '@/agent/settings'
 import {
   buildJevPermissionQuestions,
   composeJevReviewDecision,
-  JEV_REVIEW_MAX_CONTENT_CHARS,
-  JEV_REVIEW_MAX_RECENT_MESSAGES
+  describeJevReviewSignals
 } from './jevPermissionQuestions'
+import { fitJevReviewState } from './jevReviewState'
+import { chatMessageContentToReviewText } from './reviewText'
 
 export const AUTO_APPROVE_REVIEW_MAX_RECENT_MESSAGES = 8
-const AUTO_APPROVE_REVIEW_MAX_CONTENT_CHARS = 2_000
 const AUTO_APPROVE_REVIEW_TIMEOUT_MS = 30_000
 
 export interface ToolPermissionReviewerDependencies {
@@ -56,43 +56,6 @@ function stableStringify(value: unknown): string {
 
 function sha256Text(value: string): string {
   return createHash('sha256').update(value).digest('hex')
-}
-
-/**
- * `head` keeps the leading characters only, which is the generative path's existing behaviour.
- * `head-and-tail` also keeps the trailing characters, because an instruction that tries to steer the
- * decision often sits at the end of a long tool result and head-only truncation would hide exactly
- * the content the injection question exists to see.
- */
-type ReviewTextTruncation = 'head' | 'head-and-tail'
-
-const HEAD_AND_TAIL_MARKER = '...[truncated]...'
-
-const isHighSurrogate = (code: number): boolean => code >= 0xd800 && code <= 0xdbff
-const isLowSurrogate = (code: number): boolean => code >= 0xdc00 && code <= 0xdfff
-
-function truncateReviewText(
-  value: string,
-  maxChars = AUTO_APPROVE_REVIEW_MAX_CONTENT_CHARS,
-  truncation: ReviewTextTruncation = 'head'
-): string {
-  if (value.length <= maxChars) return value
-
-  if (truncation === 'head-and-tail') {
-    // The marker counts against the budget, and neither cut may land inside a surrogate pair.
-    const budget = Math.max(0, maxChars - HEAD_AND_TAIL_MARKER.length)
-    const headBudget = Math.ceil(budget / 2)
-
-    let headEnd = headBudget
-    if (headEnd > 0 && isHighSurrogate(value.charCodeAt(headEnd - 1))) headEnd -= 1
-
-    let tailStart = value.length - (budget - headBudget)
-    if (tailStart > 0 && isLowSurrogate(value.charCodeAt(tailStart))) tailStart += 1
-
-    return `${value.slice(0, headEnd)}${HEAD_AND_TAIL_MARKER}${value.slice(tailStart)}`
-  }
-
-  return `${value.slice(0, maxChars)}...[truncated]`
 }
 
 function extractJsonObjectText(value: string): string | null {
@@ -201,33 +164,6 @@ function normalizeReviewDecision(rawText: string, actionHash: string): ToolPermi
   }
 }
 
-function chatMessageContentToReviewText(
-  content: ChatMessage['content'],
-  maxChars = AUTO_APPROVE_REVIEW_MAX_CONTENT_CHARS,
-  truncation: ReviewTextTruncation = 'head'
-): string {
-  if (typeof content === 'string') {
-    return truncateReviewText(content, maxChars, truncation)
-  }
-  if (!Array.isArray(content)) {
-    return ''
-  }
-
-  const parts = content.map((item) => {
-    if (item.type === 'text') {
-      return item.text
-    }
-    if (item.type === 'image_url') {
-      return '[image]'
-    }
-    if (item.type === 'input_audio') {
-      return `[audio:${item.input_audio.filename || 'attachment'}]`
-    }
-    return '[attachment]'
-  })
-  return truncateReviewText(parts.join('\n'), maxChars, truncation)
-}
-
 function buildAutoApproveReviewSystemPrompt(): string {
   return [
     'You are DeepChat Auto Approve Reviewer. Review one exact tool action before it executes.',
@@ -284,42 +220,6 @@ function buildAutoApproveReviewUserPrompt(params: {
 }
 
 /**
- * Builds the System One review state. Filtered in code rather than forwarding the whole transcript,
- * because TypeSafe documents that accuracy degrades as state fills with unrelated detail. Tool
- * results are retained deliberately: they are a primary prompt-injection vector and the injection
- * question needs to see them.
- */
-function buildJevReviewState(params: {
-  request: ToolPermissionReviewRequest
-  recentMessages: ChatMessage[]
-}): Record<string, unknown> {
-  const recentConversation = params.recentMessages
-    .slice(-JEV_REVIEW_MAX_RECENT_MESSAGES)
-    .map((message) => ({
-      role: message.role,
-      content: chatMessageContentToReviewText(
-        message.content,
-        JEV_REVIEW_MAX_CONTENT_CHARS,
-        'head-and-tail'
-      ),
-      calledTools: message.tool_calls?.map((toolCall) => toolCall.function.name)
-    }))
-
-  return {
-    reviewTask: 'deepchat_judgment_tool_action',
-    proposedAction: {
-      toolName: params.request.toolName,
-      toolArgs: params.request.toolArgs,
-      toolSource: params.request.toolSource,
-      serverName: params.request.serverName,
-      reason: params.request.reason,
-      permission: params.request.permission
-    },
-    recentConversation
-  }
-}
-
-/**
  * Reviews one action with the agent's configured System One (Jev) model.
  *
  * The verdict is bound to the action by the caller: the hash identifies this exact action and its
@@ -333,6 +233,25 @@ async function reviewWithJudgmentModel(
   actionHash: string,
   selection: { providerId: string; modelId: string }
 ): Promise<ToolPermissionReviewResult> {
+  const startedAt = Date.now()
+  const fitted = fitJevReviewState({ request, recentMessages: context.messages })
+
+  if (!fitted) {
+    // Sending an oversized request would only produce a 422 that degrades to the same answer, and the
+    // judgement could not have been made anyway. Escalate directly and say why.
+    logger.warn('[DeepChatAgent] judgment review state exceeded its budget:', {
+      sessionId: request.sessionId,
+      toolCallId: request.toolCallId,
+      toolName: request.toolName,
+      actionHash
+    })
+    return {
+      decision: 'ask_user',
+      rationale: 'Judgment review could not fit this action within the model context limit.',
+      actionHash
+    }
+  }
+
   await dependencies.providerRuntime.executeWithRateLimit(selection.providerId, {
     signal: context.signal
   })
@@ -341,13 +260,33 @@ async function reviewWithJudgmentModel(
     selection.providerId,
     selection.modelId,
     {
-      state: buildJevReviewState({ request, recentMessages: context.messages }),
+      state: fitted.state,
       questions: buildJevPermissionQuestions()
     },
     { signal: context.signal }
   )
 
-  const decision = composeJevReviewDecision({ actionHash, answers: result.answers })
+  const composed = composeJevReviewDecision({ actionHash, answers: result.answers })
+  const signals = describeJevReviewSignals(result.answers)
+
+  /**
+   * A truncated action cannot be auto-allowed.
+   *
+   * `actionTruncated` means the reviewer was shown less of the action than will run — the whole
+   * `toolArgs` still executes, but only its first `toolArgsChars` characters were judged. An
+   * `auto_allow` from that is a verdict on a partial view, so it is downgraded to asking the user.
+   * This is the other half of bounding the state: fitting it keeps the request from failing, and this
+   * keeps the request from succeeding on the wrong thing.
+   */
+  const decision: ToolPermissionReviewResult =
+    composed.decision === 'auto_allow' && fitted.actionTruncated
+      ? {
+          ...composed,
+          decision: 'ask_user',
+          rationale:
+            'Judgment review saw only part of this action, so it cannot be auto-approved.'
+        }
+      : composed
 
   logger.info('[DeepChatAgent] judgment review decision:', {
     sessionId: request.sessionId,
@@ -358,10 +297,18 @@ async function reviewWithJudgmentModel(
     judgmentModelId: selection.modelId,
     answeredModel: result.model,
     inputTokens: result.usage?.input_tokens,
+    stateShape: fitted.shape,
+    stateTokens: fitted.estimatedTokens,
+    actionTruncated: fitted.actionTruncated,
     actionHash,
     decision: decision.decision,
     riskLevel: decision.riskLevel,
-    userAuthorization: decision.userAuthorization
+    userAuthorization: decision.userAuthorization,
+    // Raw signals: without these there is no way to tell which gate caused an escalation.
+    riskConfidence: signals.riskConfidence,
+    authorizationProbability: signals.authorization,
+    injectionProbability: signals.injectionPressure,
+    latencyMs: Date.now() - startedAt
   })
 
   return decision

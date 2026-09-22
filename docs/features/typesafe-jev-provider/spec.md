@@ -24,8 +24,8 @@ typed answers and probabilities rather than generating text. `Choice` returns `c
 `Noul` returns a single `noul` probability and no confidence.
 
 This document covers the provider/protocol half of the work. The agent-facing half — the judgment
-model slot and the Jev permission-review backend — is a separate goal in
-`docs/features/agent-judgment-model/`.
+model slot and the two backends that read it (permission review, and later tool-result pruning) — is
+a separate goal in `docs/features/agent-judgment-model/`.
 
 ## Goals
 
@@ -42,9 +42,11 @@ model slot and the Jev permission-review backend — is a separate goal in
 
 - Making Jev usable as a chat, embedding, rerank, image, video, or speech model.
 - Any generation, streaming, or tool-call surface for this protocol.
-- Installing the `@typesafe-ai/sdk` package. The adapter uses the existing main-process fetch and
-  proxy path; the SDK is rejected because it is a generation-shaped client and would add a
-  dependency the contract does not need.
+- Installing the `@typesafe-ai/sdk` package. The SDK is a System One client rather than a chat client,
+  so it would work — it is declined for two other reasons. The provider-runtime contract forbids
+  installing provider SDKs automatically and requires the existing main-process fetch and proxy path;
+  and calling the endpoint directly keeps the API key, proxy handling, `AbortSignal`, timeouts and
+  status mapping in the same place as every other provider instead of splitting that chain in two.
 - Provider-db catalog integration for Jev models.
 - Per-vendor protocol deviation for custom providers. Custom `jev` providers reuse the TypeSafe
   wire format exactly and may only change base URL and key.

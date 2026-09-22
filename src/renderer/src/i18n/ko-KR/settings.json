@@ -2744,7 +2744,7 @@
     "chatModel": "기본 대화 모델",
     "assistantModel": "보조 모델",
     "judgmentModel": "판정 모델",
-    "judgmentModelDesc": "도구 인수와 최근 대화가 이 타사 서비스로 전송됩니다.",
+    "judgmentModelDesc": "도구 인수, 최근 대화, 도구 결과 내용이 이 타사 서비스로 전송됩니다. 이는 도구 권한을 검토하고 오래된 도구 결과를 컨텍스트에서 제거하는 데 사용됩니다.",
     "visionModel": "시각적 모델",
     "imageGenerationModel": "이미지 생성 모델",
     "temperature": "온도",

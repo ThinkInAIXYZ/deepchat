@@ -52,7 +52,8 @@ function createHarness() {
     },
     programmaticToolParents: {
       releaseSession: vi.fn(record('programmaticToolParents.releaseSession'))
-    }
+    },
+    pruningFeedback: { clear: vi.fn(record('pruningFeedback.clear')) }
   } as unknown as SessionLifecycleCoordinatorDependencies
 
   return { cancel, coordinator: new SessionLifecycleCoordinator(deps), deps, order, runtime }
@@ -129,6 +130,7 @@ describe('SessionLifecycleCoordinator', () => {
       'sessionStore.delete',
       'compaction.releaseSession',
       'programmaticToolParents.releaseSession',
+      'pruningFeedback.clear',
       'toolSurfaceCanaryDiagnostics.clearSession',
       'interactionParking.clearSession',
       'toolSurfaceDiagnostics.clear',
@@ -152,6 +154,7 @@ describe('SessionLifecycleCoordinator', () => {
       'sessionStore.delete',
       'compaction.releaseSession',
       'programmaticToolParents.releaseSession',
+      'pruningFeedback.clear',
       'toolSurfaceCanaryDiagnostics.clearSession',
       'interactionParking.clearSession',
       'memory.finishSessionDestroy',

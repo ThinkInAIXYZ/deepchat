@@ -219,7 +219,7 @@
     "chatModel": "Default Chat Model",
     "assistantModel": "Assistant Model",
     "judgmentModel": "Judgment Model",
-    "judgmentModelDesc": "Tool arguments and the recent conversation are sent to this third-party service.",
+    "judgmentModelDesc": "Tool arguments, the recent conversation, and tool result contents are sent to this third-party service. It is used to review tool permissions and to drop stale tool results from the context.",
     "visionModel": "Vision Model",
     "imageGenerationModel": "Image Generation Model",
     "temperature": "Temperature",

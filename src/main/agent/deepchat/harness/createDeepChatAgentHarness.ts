@@ -36,10 +36,12 @@ import { ToolSurfaceShadowDiagnosticsRegistry } from '@/agent/deepchat/runtime/t
 import { ToolSurfaceCanaryDiagnosticsRegistry } from '@/agent/deepchat/runtime/toolSurfaceCanaryDiagnostics'
 import { resolveAgentOutputLimits } from '@shared/lib/agentOutputLimits'
 import {
+  createClosedToolResultPruner,
   createToolPermissionReviewer,
   createToolResultNormalizer,
   type ToolRuntimeBindingDependencies
 } from '@/agent/deepchat/runtime/toolRuntimeBindings'
+import { JevPruningFeedback } from '@/agent/deepchat/runtime/jevPruningFeedback'
 import { TranscriptMutationCoordinator } from '@/agent/deepchat/runtime/transcriptMutationCoordinator'
 import { TurnCoordinator } from '@/agent/deepchat/runtime/turnCoordinator'
 import { DeepChatAgentHarness } from './deepChatAgentHarness'
@@ -322,6 +324,7 @@ function createDeepChatRuntimeServices(deps: DeepChatHarnessDependencies): DeepC
       tokenAuthority: deps.agentCliTokenAuthority,
       executionJournal: sessionData.programmaticExecutionJournal
     })
+  const pruningFeedback = new JevPruningFeedback()
   const sessionLifecycle = new SessionLifecycleCoordinator({
     registry: runtime,
     providerSettings,
@@ -338,7 +341,11 @@ function createDeepChatRuntimeServices(deps: DeepChatHarnessDependencies): DeepC
     interactionParking,
     toolSurfaceDiagnostics,
     toolSurfaceCanaryDiagnostics,
-    programmaticToolParents
+    programmaticToolParents,
+    // Cleared when the session is released, so signatures and miss records do not outlive it. Without
+    // this the maps grow with every session the app ever runs, and a reused session id would inherit
+    // the previous session's pruning policy.
+    pruningFeedback
   })
   const toolRuntimeBindings: ToolRuntimeBindingDependencies = {
     providerSettings,
@@ -347,7 +354,8 @@ function createDeepChatRuntimeServices(deps: DeepChatHarnessDependencies): DeepC
     registry: runtime,
     sessionStore,
     identity,
-    runLifecycle
+    runLifecycle,
+    pruningFeedback
   }
   const toolOutputGuard = new ToolOutputGuard(async (sessionId) =>
     resolveAgentOutputLimits(
@@ -413,6 +421,7 @@ function createDeepChatRuntimeServices(deps: DeepChatHarnessDependencies): DeepC
     identity,
     sessionPermissionPort,
     reviewToolPermission: createToolPermissionReviewer(toolRuntimeBindings),
+    pruneClosedToolResults: createClosedToolResultPruner(toolRuntimeBindings),
     hookSink,
     compaction,
     runJournalObserver,

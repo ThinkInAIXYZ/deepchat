@@ -1,6 +1,9 @@
 import type { JevAnswer } from '@shared/jevProtocol'
 import { describe, expect, it } from 'vitest'
-import { composeJevReviewDecision } from '@/agent/deepchat/runtime/jevPermissionQuestions'
+import {
+  buildJevPermissionQuestions,
+  composeJevReviewDecision
+} from '@/agent/deepchat/runtime/jevPermissionQuestions'
 
 /**
  * Boundary tests for the judgment composition. Threshold values are written as literals on purpose:
@@ -86,5 +89,38 @@ describe('composeJevReviewDecision', () => {
   it('binds every verdict to the reviewed action', () => {
     expect(decide(buildAnswers({})).actionHash).toBe(ACTION_HASH)
     expect(decide({}).actionHash).toBe(ACTION_HASH)
+  })
+})
+
+describe('risk criteria', () => {
+  const riskCriteria = () => {
+    const question = buildJevPermissionQuestions().risk_level as {
+      criteria: Record<string, string>
+    }
+    return question.criteria
+  }
+
+  it('never calls credential or secret material low risk', () => {
+    // The hole this closes: `low` was defined as "reading or inspecting data", which auto-allowed
+    // reading `.env`. The rule encoded the thing it was meant to catch. The composition's floors are
+    // tested above; this pins the criteria text itself, because a silent revert of the wording would
+    // otherwise leave every test passing.
+    expect(riskCriteria().low).toMatch(/credential|secret/i)
+    expect(riskCriteria().low).toMatch(/never|not|no\b/i)
+  })
+
+  it('routes reading credential material to high risk', () => {
+    expect(riskCriteria().high).toMatch(/reading credential or secret material/i)
+    expect(riskCriteria().high).toMatch(/\.env/)
+  })
+
+  it('routes sending credential material to critical', () => {
+    expect(riskCriteria().critical).toMatch(/sending credential or secret material/i)
+  })
+
+  it('says the target matters more than the operation or the user request', () => {
+    const question = buildJevPermissionQuestions().risk_level as { instructions: string }
+    expect(question.instructions).toMatch(/matters more than whether the operation is a read or a write/i)
+    expect(question.instructions).toMatch(/more than what the user asked for/i)
   })
 })
