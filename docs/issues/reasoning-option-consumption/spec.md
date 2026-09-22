@@ -9,6 +9,13 @@ omit that field. Gemini level portraits survive import but are excluded from the
 and chat selectors and from session capability checks. The Grok request mapper additionally
 restricts effort to the Grok Mini family.
 
+OpenRouter GLM entries match their provider-local IDs correctly, but PublicProviderConf's
+OpenRouter collector drops the live API's `reasoning` metadata. The upstream fix is
+https://github.com/ThinkInAIXYZ/PublicProviderConf/pull/61. OpenRouter's own declared controls
+must be consumed instead of substituting native Zhipu capabilities. The bundled OpenRouter
+snapshot includes that collector's output; runtime updates require the upstream fix to be
+merged and published to `dev/dist/all.json` first.
+
 The catalog import boundary owns compatibility with upstream metadata. Shared portrait helpers
 own selectable tiers and validation. Main-process capability snapshots own defaults and session
 support. Existing renderer selectors consume these facts; the AI SDK adapter owns wire encoding.
@@ -39,6 +46,9 @@ reopening a session, and generation. Toggle-only and fixed models acquire no fic
 BEFORE  GLM-5.3  Reasoning [On]
 AFTER   GLM-5.3  Reasoning [On]  Effort [low / high / max]
 
+BEFORE  OpenRouter z-ai/glm-5.3-flash  [Use default]
+AFTER   OpenRouter z-ai/glm-5.3-flash  [low / high / max] (default: max)
+
 BEFORE  Gemini 3 Flash  Reasoning [Enabled]
 AFTER   Gemini 3 Flash  Reasoning [Enabled]  Level [minimal / low / medium / high]
 ```
@@ -65,9 +75,15 @@ existing effort, budget, and fixed models.
 - Production build passed. Normal prebuild provider and ACP registry refreshes are retained.
 - Authenticated live-provider responses and desktop manual acceptance have not been executed.
 
+The OpenRouter follow-up passes 63 tests across model capabilities, capability identity, and
+wire serialization. It verifies provider-local matching, the declared default, supported choices,
+the unchanged namespaced request model ID, and the selected `reasoning_effort`.
+
 ## Manual acceptance
 
-1. Run this branch with `pnpm dev` or install its build. In Settings → Data, use Update model
+1. For OpenRouter, first merge and publish PublicProviderConf PR #61. Before publication, runtime
+   refreshes and normal prebuild fetches still receive the old catalog. Run this branch with
+   `pnpm dev` or install its build. In Settings → Data, use Update model
    configuration → Update now. Existing installs must obtain a fresh catalog once; subsequent
    updates may correctly report that the catalog is current.
 2. Open Provider → Model settings and then the chat reasoning selector. Verify these choices:
@@ -76,6 +92,7 @@ existing effort, budget, and fixed models.
    | --- | --- |
    | GLM-5.2 | high, max |
    | GLM-5.3 / GLM-5.3-flash | low, high, max |
+   | OpenRouter z-ai/glm-5.3 / z-ai/glm-5.3-flash | low, high, max (default: max) |
    | deepseek-flash | low, high, max |
    | Grok 4.5 | low, medium, high |
    | Grok 4.6 | low, medium, high, xhigh |

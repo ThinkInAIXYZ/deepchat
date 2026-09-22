@@ -327727,6 +327727,13 @@
             "supported": true,
             "default": true
           },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true,
+              "mode": "fixed"
+            }
+          },
           "type": "chat"
         },
         {
@@ -327750,6 +327757,13 @@
             "supported": true,
             "default": true
           },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true,
+              "mode": "fixed"
+            }
+          },
           "type": "chat"
         },
         {
@@ -327772,6 +327786,13 @@
           "reasoning": {
             "supported": true,
             "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true,
+              "mode": "fixed"
+            }
           },
           "type": "chat"
         },
@@ -327819,6 +327840,12 @@
           "reasoning": {
             "supported": true,
             "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true
+            }
           },
           "attachment": true,
           "type": "chat"
@@ -327979,7 +328006,8 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": true,
+            "effort": "high"
           },
           "extra_capabilities": {
             "reasoning": {
@@ -328030,7 +328058,8 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": true,
+            "effort": "high"
           },
           "extra_capabilities": {
             "reasoning": {
@@ -328081,7 +328110,8 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": true,
+            "effort": "high"
           },
           "extra_capabilities": {
             "reasoning": {
@@ -328132,7 +328162,8 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": true,
+            "effort": "high"
           },
           "extra_capabilities": {
             "reasoning": {
@@ -328183,12 +328214,12 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": false
+            "default": true
           },
           "extra_capabilities": {
             "reasoning": {
               "supported": true,
-              "default_enabled": false,
+              "default_enabled": true,
               "mode": "budget",
               "budget": {
                 "min": 1024,
@@ -328229,12 +328260,12 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": false
+            "default": true
           },
           "extra_capabilities": {
             "reasoning": {
               "supported": true,
-              "default_enabled": false,
+              "default_enabled": true,
               "mode": "budget",
               "budget": {
                 "min": 1024,
@@ -328275,12 +328306,12 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": false
+            "default": true
           },
           "extra_capabilities": {
             "reasoning": {
               "supported": true,
-              "default_enabled": false,
+              "default_enabled": true,
               "mode": "budget",
               "budget": {
                 "min": 1024,
@@ -328321,12 +328352,12 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": false
+            "default": true
           },
           "extra_capabilities": {
             "reasoning": {
               "supported": true,
-              "default_enabled": false,
+              "default_enabled": true,
               "mode": "budget",
               "budget": {
                 "min": 1024,
@@ -328367,23 +328398,18 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": false
+            "default": true
           },
           "extra_capabilities": {
             "reasoning": {
               "supported": true,
-              "default_enabled": false,
+              "default_enabled": true,
               "mode": "mixed",
               "budget": {
                 "min": 1024,
                 "unit": "tokens"
               },
               "effort": "high",
-              "effort_options": [
-                "low",
-                "medium",
-                "high"
-              ],
               "interleaved": true,
               "summaries": true,
               "visibility": "summary",
@@ -328419,23 +328445,18 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": false
+            "default": true
           },
           "extra_capabilities": {
             "reasoning": {
               "supported": true,
-              "default_enabled": false,
+              "default_enabled": true,
               "mode": "mixed",
               "budget": {
                 "min": 1024,
                 "unit": "tokens"
               },
               "effort": "high",
-              "effort_options": [
-                "low",
-                "medium",
-                "high"
-              ],
               "interleaved": true,
               "summaries": true,
               "visibility": "summary",
@@ -328471,13 +328492,14 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": false
+            "default": false,
+            "effort": "high"
           },
           "extra_capabilities": {
             "reasoning": {
               "supported": true,
               "default_enabled": false,
-              "mode": "mixed",
+              "mode": "effort",
               "budget": {
                 "min": 1024,
                 "unit": "tokens"
@@ -328524,13 +328546,14 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": false
+            "default": false,
+            "effort": "high"
           },
           "extra_capabilities": {
             "reasoning": {
               "supported": true,
               "default_enabled": false,
-              "mode": "mixed",
+              "mode": "effort",
               "budget": {
                 "min": 1024,
                 "unit": "tokens"
@@ -328577,7 +328600,8 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": false
+            "default": false,
+            "effort": "high"
           },
           "extra_capabilities": {
             "reasoning": {
@@ -328628,7 +328652,8 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": false
+            "default": false,
+            "effort": "high"
           },
           "extra_capabilities": {
             "reasoning": {
@@ -328679,7 +328704,8 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": false
+            "default": false,
+            "effort": "high"
           },
           "extra_capabilities": {
             "reasoning": {
@@ -328730,7 +328756,8 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": false
+            "default": false,
+            "effort": "high"
           },
           "extra_capabilities": {
             "reasoning": {
@@ -328781,11 +328808,22 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": true,
+            "effort": "high"
           },
           "extra_capabilities": {
             "reasoning": {
-              "supported": true
+              "supported": true,
+              "default_enabled": true,
+              "mode": "effort",
+              "effort": "high",
+              "effort_options": [
+                "low",
+                "medium",
+                "high",
+                "xhigh",
+                "max"
+              ]
             }
           },
           "attachment": true,
@@ -328811,7 +328849,23 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": true,
+            "effort": "high"
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true,
+              "mode": "effort",
+              "effort": "high",
+              "effort_options": [
+                "low",
+                "medium",
+                "high",
+                "xhigh",
+                "max"
+              ]
+            }
           },
           "attachment": true,
           "type": "chat"
@@ -328836,12 +328890,12 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": false
+            "default": true
           },
           "extra_capabilities": {
             "reasoning": {
               "supported": true,
-              "default_enabled": false,
+              "default_enabled": true,
               "mode": "budget",
               "budget": {
                 "min": 1024,
@@ -328883,12 +328937,12 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": false
+            "default": true
           },
           "extra_capabilities": {
             "reasoning": {
               "supported": true,
-              "default_enabled": false,
+              "default_enabled": true,
               "mode": "budget",
               "budget": {
                 "min": 1024,
@@ -328930,12 +328984,12 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": false
+            "default": true
           },
           "extra_capabilities": {
             "reasoning": {
               "supported": true,
-              "default_enabled": false,
+              "default_enabled": true,
               "mode": "budget",
               "budget": {
                 "min": 1024,
@@ -328976,18 +329030,19 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": false
+            "default": true,
+            "effort": "medium"
           },
           "extra_capabilities": {
             "reasoning": {
               "supported": true,
-              "default_enabled": false,
-              "mode": "mixed",
+              "default_enabled": true,
+              "mode": "effort",
               "budget": {
                 "min": 1024,
                 "unit": "tokens"
               },
-              "effort": "high",
+              "effort": "medium",
               "effort_options": [
                 "low",
                 "medium",
@@ -329029,18 +329084,19 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": false
+            "default": true,
+            "effort": "medium"
           },
           "extra_capabilities": {
             "reasoning": {
               "supported": true,
-              "default_enabled": false,
-              "mode": "mixed",
+              "default_enabled": true,
+              "mode": "effort",
               "budget": {
                 "min": 1024,
                 "unit": "tokens"
               },
-              "effort": "high",
+              "effort": "medium",
               "effort_options": [
                 "low",
                 "medium",
@@ -329082,11 +329138,22 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": true,
+            "effort": "high"
           },
           "extra_capabilities": {
             "reasoning": {
-              "supported": true
+              "supported": true,
+              "default_enabled": true,
+              "mode": "effort",
+              "effort": "high",
+              "effort_options": [
+                "low",
+                "medium",
+                "high",
+                "xhigh",
+                "max"
+              ]
             }
           },
           "attachment": true,
@@ -329112,7 +329179,23 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": true,
+            "effort": "high"
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true,
+              "mode": "effort",
+              "effort": "high",
+              "effort_options": [
+                "low",
+                "medium",
+                "high",
+                "xhigh",
+                "max"
+              ]
+            }
           },
           "attachment": true,
           "type": "chat"
@@ -329139,6 +329222,13 @@
             "supported": true,
             "default": true
           },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true,
+              "mode": "fixed"
+            }
+          },
           "type": "chat"
         },
         {
@@ -329162,6 +329252,12 @@
           "reasoning": {
             "supported": true,
             "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true
+            }
           },
           "type": "chat"
         },
@@ -329188,6 +329284,12 @@
             "supported": true,
             "default": true
           },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true
+            }
+          },
           "type": "chat"
         },
         {
@@ -329212,6 +329314,12 @@
           "reasoning": {
             "supported": true,
             "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true
+            }
           },
           "type": "chat"
         },
@@ -329238,6 +329346,12 @@
             "supported": true,
             "default": true
           },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true
+            }
+          },
           "type": "chat"
         },
         {
@@ -329261,7 +329375,21 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": true,
+            "effort": "medium"
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true,
+              "mode": "effort",
+              "effort": "medium",
+              "effort_options": [
+                "low",
+                "medium",
+                "high"
+              ]
+            }
           },
           "type": "chat"
         },
@@ -329286,7 +329414,22 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": true,
+            "effort": "medium"
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true,
+              "mode": "effort",
+              "effort": "medium",
+              "effort_options": [
+                "minimal",
+                "low",
+                "medium",
+                "high"
+              ]
+            }
           },
           "type": "chat"
         },
@@ -329311,7 +329454,22 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": true,
+            "effort": "medium"
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true,
+              "mode": "effort",
+              "effort": "medium",
+              "effort_options": [
+                "minimal",
+                "low",
+                "medium",
+                "high"
+              ]
+            }
           },
           "type": "chat"
         },
@@ -329469,6 +329627,12 @@
             "supported": true,
             "default": true
           },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true
+            }
+          },
           "type": "chat"
         },
         {
@@ -329536,6 +329700,12 @@
             "supported": true,
             "default": true
           },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true
+            }
+          },
           "type": "chat"
         },
         {
@@ -329562,6 +329732,8 @@
           "extra_capabilities": {
             "reasoning": {
               "supported": true,
+              "default_enabled": true,
+              "mode": "fixed",
               "interleaved": true,
               "summaries": true,
               "visibility": "summary",
@@ -329596,6 +329768,8 @@
           "extra_capabilities": {
             "reasoning": {
               "supported": true,
+              "default_enabled": true,
+              "mode": "fixed",
               "interleaved": true,
               "summaries": true,
               "visibility": "summary",
@@ -329629,7 +329803,8 @@
           },
           "extra_capabilities": {
             "reasoning": {
-              "supported": true
+              "supported": true,
+              "default_enabled": true
             }
           },
           "type": "chat"
@@ -329655,6 +329830,12 @@
             "supported": true,
             "default": true
           },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true
+            }
+          },
           "type": "chat"
         },
         {
@@ -329677,11 +329858,12 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": false
           },
           "extra_capabilities": {
             "reasoning": {
-              "supported": true
+              "supported": true,
+              "default_enabled": false
             }
           },
           "type": "chat"
@@ -329708,6 +329890,12 @@
             "supported": true,
             "default": true
           },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true
+            }
+          },
           "type": "chat"
         },
         {
@@ -329729,7 +329917,8 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": true,
+            "effort": "high"
           },
           "extra_capabilities": {
             "reasoning": {
@@ -329738,9 +329927,8 @@
               "mode": "effort",
               "effort": "high",
               "effort_options": [
-                "low",
                 "high",
-                "max"
+                "xhigh"
               ],
               "interleaved": true,
               "summaries": true,
@@ -329774,11 +329962,20 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": true,
+            "effort": "high"
           },
           "extra_capabilities": {
             "reasoning": {
-              "supported": true
+              "supported": true,
+              "default_enabled": true,
+              "mode": "effort",
+              "effort": "high",
+              "effort_options": [
+                "low",
+                "high",
+                "max"
+              ]
             }
           },
           "type": "chat"
@@ -329802,7 +329999,21 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": true,
+            "effort": "high"
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true,
+              "mode": "effort",
+              "effort": "high",
+              "effort_options": [
+                "low",
+                "high",
+                "max"
+              ]
+            }
           },
           "type": "chat"
         },
@@ -329826,7 +330037,8 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": true,
+            "effort": "high"
           },
           "extra_capabilities": {
             "reasoning": {
@@ -329872,7 +330084,21 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": true,
+            "effort": "high"
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true,
+              "mode": "effort",
+              "effort": "high",
+              "effort_options": [
+                "low",
+                "high",
+                "max"
+              ]
+            }
           },
           "type": "chat"
         },
@@ -329896,7 +330122,8 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": true,
+            "effort": "high"
           },
           "extra_capabilities": {
             "reasoning": {
@@ -329905,9 +330132,8 @@
               "mode": "effort",
               "effort": "high",
               "effort_options": [
-                "low",
                 "high",
-                "max"
+                "xhigh"
               ],
               "interleaved": true,
               "summaries": true,
@@ -329942,11 +330168,20 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": true,
+            "effort": "high"
           },
           "extra_capabilities": {
             "reasoning": {
-              "supported": true
+              "supported": true,
+              "default_enabled": true,
+              "mode": "effort",
+              "effort": "high",
+              "effort_options": [
+                "low",
+                "high",
+                "max"
+              ]
             }
           },
           "type": "chat"
@@ -329971,7 +330206,21 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": true,
+            "effort": "high"
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true,
+              "mode": "effort",
+              "effort": "high",
+              "effort_options": [
+                "low",
+                "high",
+                "max"
+              ]
+            }
           },
           "type": "chat"
         },
@@ -329995,11 +330244,20 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": true,
+            "effort": "high"
           },
           "extra_capabilities": {
             "reasoning": {
-              "supported": true
+              "supported": true,
+              "default_enabled": true,
+              "mode": "effort",
+              "effort": "high",
+              "effort_options": [
+                "low",
+                "high",
+                "max"
+              ]
             }
           },
           "type": "chat"
@@ -330025,6 +330283,12 @@
           "reasoning": {
             "supported": true,
             "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true
+            }
           },
           "type": "chat"
         },
@@ -330121,12 +330385,12 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": false
+            "default": true
           },
           "extra_capabilities": {
             "reasoning": {
               "supported": true,
-              "default_enabled": false,
+              "default_enabled": true,
               "mode": "budget",
               "budget": {
                 "default": -1,
@@ -330167,12 +330431,12 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": false
+            "default": true
           },
           "extra_capabilities": {
             "reasoning": {
               "supported": true,
-              "default_enabled": false,
+              "default_enabled": true,
               "mode": "budget",
               "budget": {
                 "default": -1,
@@ -330266,7 +330530,7 @@
             "reasoning": {
               "supported": true,
               "default_enabled": true,
-              "mode": "budget",
+              "mode": "fixed",
               "budget": {
                 "default": -1,
                 "min": 128,
@@ -330311,7 +330575,7 @@
             "reasoning": {
               "supported": true,
               "default_enabled": true,
-              "mode": "budget",
+              "mode": "fixed",
               "budget": {
                 "default": -1,
                 "min": 128,
@@ -330357,7 +330621,7 @@
             "reasoning": {
               "supported": true,
               "default_enabled": true,
-              "mode": "budget",
+              "mode": "fixed",
               "budget": {
                 "default": -1,
                 "min": 128,
@@ -330397,13 +330661,21 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": true,
+            "effort": "medium"
           },
           "extra_capabilities": {
             "reasoning": {
               "supported": true,
               "default_enabled": true,
-              "mode": "level",
+              "mode": "effort",
+              "effort": "medium",
+              "effort_options": [
+                "minimal",
+                "low",
+                "medium",
+                "high"
+              ],
               "level": "high",
               "level_options": [
                 "minimal",
@@ -330443,13 +330715,21 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": true,
+            "effort": "medium"
           },
           "extra_capabilities": {
             "reasoning": {
               "supported": true,
               "default_enabled": true,
-              "mode": "level",
+              "mode": "effort",
+              "effort": "medium",
+              "effort_options": [
+                "minimal",
+                "low",
+                "medium",
+                "high"
+              ],
               "level": "high",
               "level_options": [
                 "minimal",
@@ -330494,7 +330774,7 @@
             "reasoning": {
               "supported": true,
               "default_enabled": true,
-              "mode": "level",
+              "mode": "fixed",
               "level": "high",
               "level_options": [
                 "low",
@@ -330536,7 +330816,7 @@
             "reasoning": {
               "supported": true,
               "default_enabled": true,
-              "mode": "level",
+              "mode": "fixed",
               "level": "high",
               "level_options": [
                 "low",
@@ -330572,11 +330852,19 @@
           "tool_call": false,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": true,
+            "effort": "minimal"
           },
           "extra_capabilities": {
             "reasoning": {
-              "supported": true
+              "supported": true,
+              "default_enabled": true,
+              "mode": "effort",
+              "effort": "minimal",
+              "effort_options": [
+                "minimal",
+                "high"
+              ]
             }
           },
           "type": "imageGeneration"
@@ -330602,11 +330890,19 @@
           "tool_call": false,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": true,
+            "effort": "minimal"
           },
           "extra_capabilities": {
             "reasoning": {
-              "supported": true
+              "supported": true,
+              "default_enabled": true,
+              "mode": "effort",
+              "effort": "minimal",
+              "effort_options": [
+                "minimal",
+                "high"
+              ]
             }
           },
           "type": "imageGeneration"
@@ -330633,11 +330929,21 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": true,
+            "effort": "minimal"
           },
           "extra_capabilities": {
             "reasoning": {
-              "supported": true
+              "supported": true,
+              "default_enabled": true,
+              "mode": "effort",
+              "effort": "minimal",
+              "effort_options": [
+                "minimal",
+                "low",
+                "medium",
+                "high"
+              ]
             }
           },
           "attachment": true,
@@ -330664,11 +330970,19 @@
           "tool_call": false,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": true,
+            "effort": "minimal"
           },
           "extra_capabilities": {
             "reasoning": {
-              "supported": true
+              "supported": true,
+              "default_enabled": true,
+              "mode": "effort",
+              "effort": "minimal",
+              "effort_options": [
+                "minimal",
+                "high"
+              ]
             }
           },
           "type": "imageGeneration"
@@ -330695,7 +331009,22 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": true,
+            "effort": "minimal"
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true,
+              "mode": "effort",
+              "effort": "minimal",
+              "effort_options": [
+                "minimal",
+                "low",
+                "medium",
+                "high"
+              ]
+            }
           },
           "attachment": true,
           "type": "chat"
@@ -330722,7 +331051,22 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": true,
+            "effort": "minimal"
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true,
+              "mode": "effort",
+              "effort": "minimal",
+              "effort_options": [
+                "minimal",
+                "low",
+                "medium",
+                "high"
+              ]
+            }
           },
           "attachment": true,
           "type": "chat"
@@ -330749,13 +331093,20 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": true,
+            "effort": "medium"
           },
           "extra_capabilities": {
             "reasoning": {
               "supported": true,
               "default_enabled": true,
-              "mode": "level",
+              "mode": "effort",
+              "effort": "medium",
+              "effort_options": [
+                "low",
+                "medium",
+                "high"
+              ],
               "level": "high",
               "level_options": [
                 "low",
@@ -330793,13 +331144,20 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": true,
+            "effort": "medium"
           },
           "extra_capabilities": {
             "reasoning": {
               "supported": true,
               "default_enabled": true,
-              "mode": "level",
+              "mode": "effort",
+              "effort": "medium",
+              "effort_options": [
+                "low",
+                "medium",
+                "high"
+              ],
               "level": "high",
               "level_options": [
                 "low",
@@ -330837,13 +331195,20 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": true,
+            "effort": "medium"
           },
           "extra_capabilities": {
             "reasoning": {
               "supported": true,
               "default_enabled": true,
-              "mode": "level",
+              "mode": "effort",
+              "effort": "medium",
+              "effort_options": [
+                "low",
+                "medium",
+                "high"
+              ],
               "level": "high",
               "level_options": [
                 "low",
@@ -330881,13 +331246,21 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": true,
+            "effort": "medium"
           },
           "extra_capabilities": {
             "reasoning": {
               "supported": true,
               "default_enabled": true,
-              "mode": "level",
+              "mode": "effort",
+              "effort": "medium",
+              "effort_options": [
+                "minimal",
+                "low",
+                "medium",
+                "high"
+              ],
               "level": "high",
               "level_options": [
                 "minimal",
@@ -330927,11 +331300,21 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": true,
+            "effort": "minimal"
           },
           "extra_capabilities": {
             "reasoning": {
-              "supported": true
+              "supported": true,
+              "default_enabled": true,
+              "mode": "effort",
+              "effort": "minimal",
+              "effort_options": [
+                "minimal",
+                "low",
+                "medium",
+                "high"
+              ]
             }
           },
           "attachment": true,
@@ -330959,7 +331342,22 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": true,
+            "effort": "minimal"
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true,
+              "mode": "effort",
+              "effort": "minimal",
+              "effort_options": [
+                "minimal",
+                "low",
+                "medium",
+                "high"
+              ]
+            }
           },
           "attachment": true,
           "type": "chat"
@@ -330986,13 +331384,21 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": true,
+            "effort": "medium"
           },
           "extra_capabilities": {
             "reasoning": {
               "supported": true,
               "default_enabled": true,
-              "mode": "level",
+              "mode": "effort",
+              "effort": "medium",
+              "effort_options": [
+                "minimal",
+                "low",
+                "medium",
+                "high"
+              ],
               "level": "high",
               "level_options": [
                 "minimal",
@@ -331032,13 +331438,21 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": true,
+            "effort": "medium"
           },
           "extra_capabilities": {
             "reasoning": {
               "supported": true,
               "default_enabled": true,
-              "mode": "level",
+              "mode": "effort",
+              "effort": "medium",
+              "effort_options": [
+                "minimal",
+                "low",
+                "medium",
+                "high"
+              ],
               "level": "high",
               "level_options": [
                 "minimal",
@@ -331078,13 +331492,21 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": true,
+            "effort": "medium"
           },
           "extra_capabilities": {
             "reasoning": {
               "supported": true,
               "default_enabled": true,
-              "mode": "level",
+              "mode": "effort",
+              "effort": "medium",
+              "effort_options": [
+                "minimal",
+                "low",
+                "medium",
+                "high"
+              ],
               "level": "high",
               "level_options": [
                 "minimal",
@@ -331124,13 +331546,20 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": true,
+            "effort": "medium"
           },
           "extra_capabilities": {
             "reasoning": {
               "supported": true,
               "default_enabled": true,
-              "mode": "level",
+              "mode": "effort",
+              "effort": "medium",
+              "effort_options": [
+                "low",
+                "medium",
+                "high"
+              ],
               "level": "high",
               "level_options": [
                 "minimal",
@@ -331170,13 +331599,20 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": true,
+            "effort": "medium"
           },
           "extra_capabilities": {
             "reasoning": {
               "supported": true,
               "default_enabled": true,
-              "mode": "level",
+              "mode": "effort",
+              "effort": "medium",
+              "effort_options": [
+                "low",
+                "medium",
+                "high"
+              ],
               "level": "high",
               "level_options": [
                 "minimal",
@@ -331216,13 +331652,20 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": true,
+            "effort": "medium"
           },
           "extra_capabilities": {
             "reasoning": {
               "supported": true,
               "default_enabled": true,
-              "mode": "level",
+              "mode": "effort",
+              "effort": "medium",
+              "effort_options": [
+                "low",
+                "medium",
+                "high"
+              ],
               "level": "high",
               "level_options": [
                 "minimal",
@@ -331262,13 +331705,20 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": true,
+            "effort": "medium"
           },
           "extra_capabilities": {
             "reasoning": {
               "supported": true,
               "default_enabled": true,
-              "mode": "level",
+              "mode": "effort",
+              "effort": "medium",
+              "effort_options": [
+                "low",
+                "medium",
+                "high"
+              ],
               "level": "high",
               "level_options": [
                 "minimal",
@@ -331399,7 +331849,13 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": false
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": false
+            }
           },
           "type": "chat"
         },
@@ -331425,7 +331881,13 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": false
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": false
+            }
           },
           "type": "chat"
         },
@@ -331451,7 +331913,13 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": false
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": false
+            }
           },
           "type": "chat"
         },
@@ -331477,7 +331945,13 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": false
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": false
+            }
           },
           "type": "chat"
         },
@@ -331591,7 +332065,21 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": true,
+            "effort": "high"
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true,
+              "mode": "effort",
+              "effort": "high",
+              "effort_options": [
+                "none",
+                "low",
+                "high"
+              ]
+            }
           },
           "type": "chat"
         },
@@ -331615,7 +332103,22 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": true,
+            "effort": "medium"
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true,
+              "mode": "effort",
+              "effort": "medium",
+              "effort_options": [
+                "none",
+                "low",
+                "medium",
+                "high"
+              ]
+            }
           },
           "type": "chat"
         },
@@ -331638,7 +332141,22 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": true,
+            "effort": "medium"
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true,
+              "mode": "effort",
+              "effort": "medium",
+              "effort_options": [
+                "none",
+                "low",
+                "medium",
+                "high"
+              ]
+            }
           },
           "type": "chat"
         },
@@ -331665,7 +332183,8 @@
           },
           "extra_capabilities": {
             "reasoning": {
-              "supported": true
+              "supported": true,
+              "default_enabled": true
             }
           },
           "type": "chat"
@@ -331691,6 +332210,12 @@
             "supported": true,
             "default": true
           },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true
+            }
+          },
           "type": "chat"
         },
         {
@@ -331714,6 +332239,12 @@
             "supported": true,
             "default": true
           },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true
+            }
+          },
           "type": "chat"
         },
         {
@@ -331736,6 +332267,12 @@
           "reasoning": {
             "supported": true,
             "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true
+            }
           },
           "type": "chat"
         },
@@ -331762,6 +332299,12 @@
             "supported": true,
             "default": true
           },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true
+            }
+          },
           "type": "chat"
         },
         {
@@ -331786,6 +332329,12 @@
           "reasoning": {
             "supported": true,
             "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true
+            }
           },
           "type": "chat"
         },
@@ -331899,6 +332448,13 @@
             "supported": true,
             "default": true
           },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true,
+              "mode": "fixed"
+            }
+          },
           "type": "chat"
         },
         {
@@ -331946,7 +332502,8 @@
           },
           "extra_capabilities": {
             "reasoning": {
-              "supported": true
+              "supported": true,
+              "default_enabled": true
             }
           },
           "type": "chat"
@@ -332151,7 +332708,22 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": true,
+            "effort": "medium"
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true,
+              "mode": "effort",
+              "effort": "medium",
+              "effort_options": [
+                "low",
+                "medium",
+                "high",
+                "xhigh"
+              ]
+            }
           },
           "type": "chat"
         },
@@ -332176,7 +332748,22 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": true,
+            "effort": "medium"
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true,
+              "mode": "effort",
+              "effort": "medium",
+              "effort_options": [
+                "low",
+                "medium",
+                "high",
+                "xhigh"
+              ]
+            }
           },
           "type": "chat"
         },
@@ -332202,11 +332789,22 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": true,
+            "effort": "medium"
           },
           "extra_capabilities": {
             "reasoning": {
-              "supported": true
+              "supported": true,
+              "default_enabled": true,
+              "mode": "effort",
+              "effort": "medium",
+              "effort_options": [
+                "minimal",
+                "low",
+                "medium",
+                "high",
+                "xhigh"
+              ]
             }
           },
           "attachment": true,
@@ -332234,11 +332832,22 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": true,
+            "effort": "medium"
           },
           "extra_capabilities": {
             "reasoning": {
-              "supported": true
+              "supported": true,
+              "default_enabled": true,
+              "mode": "effort",
+              "effort": "medium",
+              "effort_options": [
+                "minimal",
+                "low",
+                "medium",
+                "high",
+                "xhigh"
+              ]
             }
           },
           "attachment": true,
@@ -332266,7 +332875,23 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": true,
+            "effort": "medium"
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true,
+              "mode": "effort",
+              "effort": "medium",
+              "effort_options": [
+                "minimal",
+                "low",
+                "medium",
+                "high",
+                "xhigh"
+              ]
+            }
           },
           "attachment": true,
           "type": "chat"
@@ -332293,11 +332918,23 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": true,
+            "effort": "medium"
           },
           "extra_capabilities": {
             "reasoning": {
-              "supported": true
+              "supported": true,
+              "default_enabled": true,
+              "mode": "effort",
+              "effort": "medium",
+              "effort_options": [
+                "minimal",
+                "low",
+                "medium",
+                "high",
+                "xhigh",
+                "max"
+              ]
             }
           },
           "attachment": true,
@@ -332325,7 +332962,24 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": true,
+            "effort": "medium"
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true,
+              "mode": "effort",
+              "effort": "medium",
+              "effort_options": [
+                "minimal",
+                "low",
+                "medium",
+                "high",
+                "xhigh",
+                "max"
+              ]
+            }
           },
           "attachment": true,
           "type": "chat"
@@ -332418,6 +333072,12 @@
             "supported": true,
             "default": true
           },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true
+            }
+          },
           "type": "chat"
         },
         {
@@ -332444,7 +333104,9 @@
           },
           "extra_capabilities": {
             "reasoning": {
-              "supported": true
+              "supported": true,
+              "default_enabled": true,
+              "mode": "fixed"
             }
           },
           "type": "chat"
@@ -332496,7 +333158,9 @@
           },
           "extra_capabilities": {
             "reasoning": {
-              "supported": true
+              "supported": true,
+              "default_enabled": true,
+              "mode": "fixed"
             }
           },
           "type": "chat"
@@ -332525,7 +333189,9 @@
           },
           "extra_capabilities": {
             "reasoning": {
-              "supported": true
+              "supported": true,
+              "default_enabled": true,
+              "mode": "fixed"
             }
           },
           "type": "chat"
@@ -332555,6 +333221,8 @@
           "extra_capabilities": {
             "reasoning": {
               "supported": true,
+              "default_enabled": true,
+              "mode": "fixed",
               "interleaved": true,
               "summaries": true,
               "visibility": "summary",
@@ -332591,7 +333259,8 @@
           },
           "extra_capabilities": {
             "reasoning": {
-              "supported": true
+              "supported": true,
+              "default_enabled": true
             }
           },
           "type": "chat"
@@ -332882,7 +333551,20 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": true,
+            "effort": "high"
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true,
+              "mode": "effort",
+              "effort": "high",
+              "effort_options": [
+                "none",
+                "high"
+              ]
+            }
           },
           "attachment": true,
           "type": "chat"
@@ -332907,7 +333589,20 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": true,
+            "effort": "high"
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true,
+              "mode": "effort",
+              "effort": "high",
+              "effort_options": [
+                "none",
+                "high"
+              ]
+            }
           },
           "attachment": true,
           "type": "chat"
@@ -333052,7 +333747,20 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": false,
+            "effort": "high"
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": false,
+              "mode": "effort",
+              "effort": "high",
+              "effort_options": [
+                "none",
+                "high"
+              ]
+            }
           },
           "type": "chat"
         },
@@ -333076,7 +333784,20 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": false,
+            "effort": "high"
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": false,
+              "mode": "effort",
+              "effort": "high",
+              "effort_options": [
+                "none",
+                "high"
+              ]
+            }
           },
           "type": "chat"
         },
@@ -333245,6 +333966,8 @@
           "extra_capabilities": {
             "reasoning": {
               "supported": true,
+              "default_enabled": true,
+              "mode": "fixed",
               "interleaved": true,
               "summaries": true,
               "visibility": "summary",
@@ -333280,6 +334003,7 @@
           "extra_capabilities": {
             "reasoning": {
               "supported": true,
+              "default_enabled": true,
               "interleaved": true,
               "summaries": true,
               "visibility": "summary",
@@ -333314,7 +334038,8 @@
           },
           "extra_capabilities": {
             "reasoning": {
-              "supported": true
+              "supported": true,
+              "default_enabled": true
             }
           },
           "type": "chat"
@@ -333343,7 +334068,9 @@
           },
           "extra_capabilities": {
             "reasoning": {
-              "supported": true
+              "supported": true,
+              "default_enabled": true,
+              "mode": "fixed"
             }
           },
           "type": "chat"
@@ -333369,11 +334096,20 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": true,
+            "effort": "max"
           },
           "extra_capabilities": {
             "reasoning": {
-              "supported": true
+              "supported": true,
+              "default_enabled": true,
+              "mode": "effort",
+              "effort": "max",
+              "effort_options": [
+                "low",
+                "high",
+                "max"
+              ]
             }
           },
           "type": "chat"
@@ -333443,7 +334179,21 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": true,
+            "effort": "high"
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true,
+              "mode": "effort",
+              "effort": "high",
+              "effort_options": [
+                "none",
+                "medium",
+                "high"
+              ]
+            }
           },
           "type": "chat"
         },
@@ -333468,7 +334218,21 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": true,
+            "effort": "high"
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true,
+              "mode": "effort",
+              "effort": "high",
+              "effort_options": [
+                "none",
+                "medium",
+                "high"
+              ]
+            }
           },
           "type": "chat"
         },
@@ -333537,6 +334301,12 @@
             "supported": true,
             "default": true
           },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true
+            }
+          },
           "type": "chat"
         },
         {
@@ -333562,7 +334332,8 @@
           },
           "extra_capabilities": {
             "reasoning": {
-              "supported": true
+              "supported": true,
+              "default_enabled": true
             }
           },
           "type": "chat"
@@ -333592,6 +334363,12 @@
             "supported": true,
             "default": true
           },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true
+            }
+          },
           "type": "chat"
         },
         {
@@ -333614,11 +334391,19 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": true,
+            "effort": "medium"
           },
           "extra_capabilities": {
             "reasoning": {
-              "supported": true
+              "supported": true,
+              "default_enabled": true,
+              "mode": "effort",
+              "effort": "medium",
+              "effort_options": [
+                "low",
+                "medium"
+              ]
             }
           },
           "type": "chat"
@@ -333643,7 +334428,20 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": true,
+            "effort": "medium"
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true,
+              "mode": "effort",
+              "effort": "medium",
+              "effort_options": [
+                "low",
+                "medium"
+              ]
+            }
           },
           "type": "chat"
         },
@@ -333667,11 +334465,19 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": true,
+            "effort": "high"
           },
           "extra_capabilities": {
             "reasoning": {
-              "supported": true
+              "supported": true,
+              "default_enabled": true,
+              "mode": "effort",
+              "effort": "high",
+              "effort_options": [
+                "medium",
+                "high"
+              ]
             }
           },
           "type": "chat"
@@ -333696,7 +334502,20 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": true,
+            "effort": "high"
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true,
+              "mode": "effort",
+              "effort": "high",
+              "effort_options": [
+                "medium",
+                "high"
+              ]
+            }
           },
           "type": "chat"
         },
@@ -333724,7 +334543,8 @@
           },
           "extra_capabilities": {
             "reasoning": {
-              "supported": true
+              "supported": true,
+              "default_enabled": true
             }
           },
           "type": "chat"
@@ -333751,6 +334571,12 @@
             "supported": true,
             "default": true
           },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true
+            }
+          },
           "type": "chat"
         },
         {
@@ -333776,7 +334602,8 @@
           },
           "extra_capabilities": {
             "reasoning": {
-              "supported": true
+              "supported": true,
+              "default_enabled": true
             }
           },
           "type": "chat"
@@ -333801,6 +334628,12 @@
           "reasoning": {
             "supported": true,
             "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true
+            }
           },
           "type": "chat"
         },
@@ -334389,6 +335222,13 @@
             "supported": true,
             "default": true
           },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true,
+              "mode": "fixed"
+            }
+          },
           "attachment": true,
           "type": "imageGeneration"
         },
@@ -334414,6 +335254,13 @@
           "reasoning": {
             "supported": true,
             "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true,
+              "mode": "fixed"
+            }
           },
           "attachment": true,
           "type": "imageGeneration"
@@ -334486,7 +335333,22 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": true,
+            "effort": "medium"
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true,
+              "mode": "effort",
+              "effort": "medium",
+              "effort_options": [
+                "minimal",
+                "low",
+                "medium",
+                "high"
+              ]
+            }
           },
           "attachment": true,
           "type": "chat"
@@ -334559,7 +335421,22 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": true,
+            "effort": "medium"
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true,
+              "mode": "effort",
+              "effort": "medium",
+              "effort_options": [
+                "minimal",
+                "low",
+                "medium",
+                "high"
+              ]
+            }
           },
           "attachment": true,
           "type": "chat"
@@ -334592,8 +335469,11 @@
             "reasoning": {
               "supported": true,
               "default_enabled": true,
-              "mode": "fixed",
+              "mode": "effort",
               "effort": "high",
+              "effort_options": [
+                "high"
+              ],
               "verbosity": "medium",
               "verbosity_options": [
                 "low",
@@ -334626,7 +335506,19 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": true,
+            "effort": "high"
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true,
+              "mode": "effort",
+              "effort": "high",
+              "effort_options": [
+                "high"
+              ]
+            }
           },
           "attachment": true,
           "type": "chat"
@@ -334651,7 +335543,22 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": true,
+            "effort": "medium"
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true,
+              "mode": "effort",
+              "effort": "medium",
+              "effort_options": [
+                "minimal",
+                "low",
+                "medium",
+                "high"
+              ]
+            }
           },
           "attachment": true,
           "type": "chat"
@@ -334676,14 +335583,14 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": false,
+            "default": true,
             "effort": "none",
             "verbosity": "medium"
           },
           "extra_capabilities": {
             "reasoning": {
               "supported": true,
-              "default_enabled": false,
+              "default_enabled": true,
               "mode": "effort",
               "effort": "none",
               "effort_options": [
@@ -334724,18 +335631,17 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": false,
-            "effort": "none",
+            "default": true,
+            "effort": "medium",
             "verbosity": "medium"
           },
           "extra_capabilities": {
             "reasoning": {
               "supported": true,
-              "default_enabled": false,
+              "default_enabled": true,
               "mode": "effort",
-              "effort": "none",
+              "effort": "medium",
               "effort_options": [
-                "none",
                 "low",
                 "medium",
                 "high"
@@ -334771,21 +335677,21 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": false,
-            "effort": "none",
+            "default": true,
+            "effort": "medium",
             "verbosity": "medium"
           },
           "extra_capabilities": {
             "reasoning": {
               "supported": true,
-              "default_enabled": false,
+              "default_enabled": true,
               "mode": "effort",
-              "effort": "none",
+              "effort": "medium",
               "effort_options": [
-                "none",
                 "low",
                 "medium",
-                "high"
+                "high",
+                "xhigh"
               ],
               "verbosity": "medium",
               "verbosity_options": [
@@ -334818,18 +335724,17 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": false,
-            "effort": "none",
+            "default": true,
+            "effort": "medium",
             "verbosity": "medium"
           },
           "extra_capabilities": {
             "reasoning": {
               "supported": true,
-              "default_enabled": false,
+              "default_enabled": true,
               "mode": "effort",
-              "effort": "none",
+              "effort": "medium",
               "effort_options": [
-                "none",
                 "low",
                 "medium",
                 "high"
@@ -334865,7 +335770,22 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": true,
+            "effort": "none"
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true,
+              "mode": "effort",
+              "effort": "none",
+              "effort_options": [
+                "none",
+                "low",
+                "medium",
+                "high"
+              ]
+            }
           },
           "attachment": true,
           "type": "chat"
@@ -334890,16 +335810,16 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": false,
-            "effort": "none",
+            "default": true,
+            "effort": "medium",
             "verbosity": "medium"
           },
           "extra_capabilities": {
             "reasoning": {
               "supported": true,
-              "default_enabled": false,
+              "default_enabled": true,
               "mode": "effort",
-              "effort": "none",
+              "effort": "medium",
               "effort_options": [
                 "none",
                 "low",
@@ -335011,7 +335931,7 @@
           "reasoning": {
             "supported": true,
             "default": true,
-            "effort": "high",
+            "effort": "medium",
             "verbosity": "medium"
           },
           "extra_capabilities": {
@@ -335019,7 +335939,7 @@
               "supported": true,
               "default_enabled": true,
               "mode": "effort",
-              "effort": "high",
+              "effort": "medium",
               "effort_options": [
                 "medium",
                 "high",
@@ -335057,19 +335977,17 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": false,
-            "effort": "none",
+            "default": true,
+            "effort": "medium",
             "verbosity": "medium"
           },
           "extra_capabilities": {
             "reasoning": {
               "supported": true,
-              "default_enabled": false,
+              "default_enabled": true,
               "mode": "effort",
-              "effort": "none",
+              "effort": "medium",
               "effort_options": [
-                "none",
-                "low",
                 "medium",
                 "high",
                 "xhigh"
@@ -335106,7 +336024,23 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": true,
+            "effort": "medium"
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true,
+              "mode": "effort",
+              "effort": "medium",
+              "effort_options": [
+                "none",
+                "low",
+                "medium",
+                "high",
+                "xhigh"
+              ]
+            }
           },
           "attachment": true,
           "type": "chat"
@@ -335142,6 +336076,7 @@
               "mode": "effort",
               "effort": "medium",
               "effort_options": [
+                "none",
                 "low",
                 "medium",
                 "high",
@@ -335180,7 +336115,7 @@
           "reasoning": {
             "supported": true,
             "default": false,
-            "effort": "none",
+            "effort": "medium",
             "verbosity": "medium"
           },
           "extra_capabilities": {
@@ -335188,7 +336123,7 @@
               "supported": true,
               "default_enabled": false,
               "mode": "effort",
-              "effort": "none",
+              "effort": "medium",
               "effort_options": [
                 "none",
                 "low",
@@ -335230,7 +336165,7 @@
           "reasoning": {
             "supported": true,
             "default": false,
-            "effort": "none",
+            "effort": "medium",
             "verbosity": "medium"
           },
           "extra_capabilities": {
@@ -335238,7 +336173,7 @@
               "supported": true,
               "default_enabled": false,
               "mode": "effort",
-              "effort": "none",
+              "effort": "medium",
               "effort_options": [
                 "none",
                 "low",
@@ -335279,7 +336214,7 @@
           "reasoning": {
             "supported": true,
             "default": false,
-            "effort": "none",
+            "effort": "medium",
             "verbosity": "medium"
           },
           "extra_capabilities": {
@@ -335287,7 +336222,7 @@
               "supported": true,
               "default_enabled": false,
               "mode": "effort",
-              "effort": "none",
+              "effort": "medium",
               "effort_options": [
                 "none",
                 "low",
@@ -335328,7 +336263,7 @@
           "reasoning": {
             "supported": true,
             "default": false,
-            "effort": "none",
+            "effort": "medium",
             "verbosity": "medium"
           },
           "extra_capabilities": {
@@ -335336,7 +336271,7 @@
               "supported": true,
               "default_enabled": false,
               "mode": "effort",
-              "effort": "none",
+              "effort": "medium",
               "effort_options": [
                 "none",
                 "low",
@@ -335377,7 +336312,7 @@
           "reasoning": {
             "supported": true,
             "default": false,
-            "effort": "none",
+            "effort": "medium",
             "verbosity": "medium"
           },
           "extra_capabilities": {
@@ -335385,7 +336320,7 @@
               "supported": true,
               "default_enabled": false,
               "mode": "effort",
-              "effort": "none",
+              "effort": "medium",
               "effort_options": [
                 "none",
                 "low",
@@ -335426,7 +336361,7 @@
           "reasoning": {
             "supported": true,
             "default": false,
-            "effort": "none",
+            "effort": "medium",
             "verbosity": "medium"
           },
           "extra_capabilities": {
@@ -335434,7 +336369,7 @@
               "supported": true,
               "default_enabled": false,
               "mode": "effort",
-              "effort": "none",
+              "effort": "medium",
               "effort_options": [
                 "none",
                 "low",
@@ -335475,7 +336410,7 @@
           "reasoning": {
             "supported": true,
             "default": true,
-            "effort": "high",
+            "effort": "medium",
             "verbosity": "medium"
           },
           "extra_capabilities": {
@@ -335483,7 +336418,7 @@
               "supported": true,
               "default_enabled": true,
               "mode": "effort",
-              "effort": "high",
+              "effort": "medium",
               "effort_options": [
                 "medium",
                 "high",
@@ -335521,19 +336456,17 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": false,
-            "effort": "none",
+            "default": true,
+            "effort": "medium",
             "verbosity": "medium"
           },
           "extra_capabilities": {
             "reasoning": {
               "supported": true,
-              "default_enabled": false,
+              "default_enabled": true,
               "mode": "effort",
-              "effort": "none",
+              "effort": "medium",
               "effort_options": [
-                "none",
-                "low",
                 "medium",
                 "high",
                 "xhigh"
@@ -335570,7 +336503,23 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": false,
+            "effort": "medium"
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": false,
+              "mode": "effort",
+              "effort": "medium",
+              "effort_options": [
+                "none",
+                "low",
+                "medium",
+                "high",
+                "xhigh"
+              ]
+            }
           },
           "attachment": true,
           "type": "chat"
@@ -335606,6 +336555,7 @@
               "mode": "effort",
               "effort": "medium",
               "effort_options": [
+                "none",
                 "low",
                 "medium",
                 "high",
@@ -335643,11 +336593,20 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": true,
+            "effort": "medium"
           },
           "extra_capabilities": {
             "reasoning": {
-              "supported": true
+              "supported": true,
+              "default_enabled": true,
+              "mode": "effort",
+              "effort": "medium",
+              "effort_options": [
+                "medium",
+                "high",
+                "xhigh"
+              ]
             }
           },
           "attachment": true,
@@ -335673,7 +336632,21 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": true,
+            "effort": "medium"
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true,
+              "mode": "effort",
+              "effort": "medium",
+              "effort_options": [
+                "medium",
+                "high",
+                "xhigh"
+              ]
+            }
           },
           "attachment": true,
           "type": "chat"
@@ -335698,7 +336671,23 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": true,
+            "effort": "medium"
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true,
+              "mode": "effort",
+              "effort": "medium",
+              "effort_options": [
+                "none",
+                "low",
+                "medium",
+                "high",
+                "xhigh"
+              ]
+            }
           },
           "attachment": true,
           "type": "chat"
@@ -335773,7 +336762,24 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": true,
+            "effort": "medium"
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true,
+              "mode": "effort",
+              "effort": "medium",
+              "effort_options": [
+                "none",
+                "low",
+                "medium",
+                "high",
+                "xhigh",
+                "max"
+              ]
+            }
           },
           "attachment": true,
           "type": "chat"
@@ -335798,7 +336804,24 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": true,
+            "effort": "medium"
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true,
+              "mode": "effort",
+              "effort": "medium",
+              "effort_options": [
+                "none",
+                "low",
+                "medium",
+                "high",
+                "xhigh",
+                "max"
+              ]
+            }
           },
           "attachment": true,
           "type": "chat"
@@ -335823,7 +336846,24 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": true,
+            "effort": "medium"
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true,
+              "mode": "effort",
+              "effort": "medium",
+              "effort_options": [
+                "none",
+                "low",
+                "medium",
+                "high",
+                "xhigh",
+                "max"
+              ]
+            }
           },
           "attachment": true,
           "type": "chat"
@@ -335898,7 +336938,24 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": true,
+            "effort": "medium"
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true,
+              "mode": "effort",
+              "effort": "medium",
+              "effort_options": [
+                "none",
+                "low",
+                "medium",
+                "high",
+                "xhigh",
+                "max"
+              ]
+            }
           },
           "attachment": true,
           "type": "chat"
@@ -335923,7 +336980,24 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": true,
+            "effort": "medium"
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true,
+              "mode": "effort",
+              "effort": "medium",
+              "effort_options": [
+                "none",
+                "low",
+                "medium",
+                "high",
+                "xhigh",
+                "max"
+              ]
+            }
           },
           "attachment": true,
           "type": "chat"
@@ -335948,7 +337022,24 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": true,
+            "effort": "medium"
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true,
+              "mode": "effort",
+              "effort": "medium",
+              "effort_options": [
+                "none",
+                "low",
+                "medium",
+                "high",
+                "xhigh",
+                "max"
+              ]
+            }
           },
           "attachment": true,
           "type": "chat"
@@ -336023,7 +337114,24 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": true,
+            "effort": "medium"
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true,
+              "mode": "effort",
+              "effort": "medium",
+              "effort_options": [
+                "none",
+                "low",
+                "medium",
+                "high",
+                "xhigh",
+                "max"
+              ]
+            }
           },
           "attachment": true,
           "type": "chat"
@@ -336048,7 +337156,24 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": true,
+            "effort": "medium"
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true,
+              "mode": "effort",
+              "effort": "medium",
+              "effort_options": [
+                "none",
+                "low",
+                "medium",
+                "high",
+                "xhigh",
+                "max"
+              ]
+            }
           },
           "attachment": true,
           "type": "chat"
@@ -336073,7 +337198,24 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": true,
+            "effort": "medium"
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true,
+              "mode": "effort",
+              "effort": "medium",
+              "effort_options": [
+                "none",
+                "low",
+                "medium",
+                "high",
+                "xhigh",
+                "max"
+              ]
+            }
           },
           "attachment": true,
           "type": "chat"
@@ -336098,11 +337240,22 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": true,
+            "effort": "medium"
           },
           "extra_capabilities": {
             "reasoning": {
-              "supported": true
+              "supported": true,
+              "default_enabled": true,
+              "mode": "effort",
+              "effort": "medium",
+              "effort_options": [
+                "low",
+                "medium",
+                "high",
+                "xhigh",
+                "max"
+              ]
             }
           },
           "attachment": true,
@@ -336128,7 +337281,23 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": true,
+            "effort": "medium"
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true,
+              "mode": "effort",
+              "effort": "medium",
+              "effort_options": [
+                "low",
+                "medium",
+                "high",
+                "xhigh",
+                "max"
+              ]
+            }
           },
           "attachment": true,
           "type": "chat"
@@ -336153,7 +337322,23 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": true,
+            "effort": "medium"
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true,
+              "mode": "effort",
+              "effort": "medium",
+              "effort_options": [
+                "low",
+                "medium",
+                "high",
+                "xhigh",
+                "max"
+              ]
+            }
           },
           "attachment": true,
           "type": "chat"
@@ -336178,7 +337363,23 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": true,
+            "effort": "medium"
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true,
+              "mode": "effort",
+              "effort": "medium",
+              "effort_options": [
+                "low",
+                "medium",
+                "high",
+                "xhigh",
+                "max"
+              ]
+            }
           },
           "attachment": true,
           "type": "chat"
@@ -336277,11 +337478,20 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": true,
+            "effort": "medium"
           },
           "extra_capabilities": {
             "reasoning": {
-              "supported": true
+              "supported": true,
+              "default_enabled": true,
+              "mode": "effort",
+              "effort": "medium",
+              "effort_options": [
+                "low",
+                "medium",
+                "high"
+              ]
             }
           },
           "type": "chat"
@@ -336305,11 +337515,20 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": true,
+            "effort": "medium"
           },
           "extra_capabilities": {
             "reasoning": {
-              "supported": true
+              "supported": true,
+              "default_enabled": true,
+              "mode": "effort",
+              "effort": "medium",
+              "effort_options": [
+                "low",
+                "medium",
+                "high"
+              ]
             }
           },
           "type": "chat"
@@ -336335,6 +337554,13 @@
             "supported": true,
             "default": true
           },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true,
+              "mode": "fixed"
+            }
+          },
           "type": "chat"
         },
         {
@@ -336357,8 +337583,7 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true,
-            "effort": "medium"
+            "default": true
           },
           "extra_capabilities": {
             "reasoning": {
@@ -336366,11 +337591,6 @@
               "default_enabled": true,
               "mode": "effort",
               "effort": "medium",
-              "effort_options": [
-                "low",
-                "medium",
-                "high"
-              ],
               "visibility": "hidden"
             }
           },
@@ -336397,8 +337617,7 @@
           "tool_call": false,
           "reasoning": {
             "supported": true,
-            "default": true,
-            "effort": "medium"
+            "default": true
           },
           "extra_capabilities": {
             "reasoning": {
@@ -336406,11 +337625,6 @@
               "default_enabled": true,
               "mode": "effort",
               "effort": "medium",
-              "effort_options": [
-                "low",
-                "medium",
-                "high"
-              ],
               "visibility": "hidden"
             }
           },
@@ -336437,8 +337651,7 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true,
-            "effort": "medium"
+            "default": true
           },
           "extra_capabilities": {
             "reasoning": {
@@ -336446,11 +337659,6 @@
               "default_enabled": true,
               "mode": "effort",
               "effort": "medium",
-              "effort_options": [
-                "low",
-                "medium",
-                "high"
-              ],
               "visibility": "hidden"
             }
           },
@@ -336476,8 +337684,7 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true,
-            "effort": "medium"
+            "default": true
           },
           "extra_capabilities": {
             "reasoning": {
@@ -336485,11 +337692,6 @@
               "default_enabled": true,
               "mode": "effort",
               "effort": "medium",
-              "effort_options": [
-                "low",
-                "medium",
-                "high"
-              ],
               "visibility": "hidden"
             }
           },
@@ -336516,17 +337718,15 @@
           "reasoning": {
             "supported": true,
             "default": true,
-            "effort": "medium"
+            "effort": "high"
           },
           "extra_capabilities": {
             "reasoning": {
               "supported": true,
               "default_enabled": true,
               "mode": "effort",
-              "effort": "medium",
+              "effort": "high",
               "effort_options": [
-                "low",
-                "medium",
                 "high"
               ],
               "visibility": "hidden"
@@ -336554,8 +337754,7 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true,
-            "effort": "medium"
+            "default": true
           },
           "extra_capabilities": {
             "reasoning": {
@@ -336563,11 +337762,6 @@
               "default_enabled": true,
               "mode": "effort",
               "effort": "medium",
-              "effort_options": [
-                "low",
-                "medium",
-                "high"
-              ],
               "visibility": "hidden"
             }
           },
@@ -336594,8 +337788,7 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true,
-            "effort": "medium"
+            "default": true
           },
           "extra_capabilities": {
             "reasoning": {
@@ -336603,11 +337796,6 @@
               "default_enabled": true,
               "mode": "effort",
               "effort": "medium",
-              "effort_options": [
-                "low",
-                "medium",
-                "high"
-              ],
               "visibility": "hidden"
             }
           },
@@ -336636,6 +337824,12 @@
             "supported": true,
             "default": true
           },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true
+            }
+          },
           "attachment": true,
           "type": "chat"
         },
@@ -336659,8 +337853,7 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true,
-            "effort": "medium"
+            "default": true
           },
           "extra_capabilities": {
             "reasoning": {
@@ -336668,11 +337861,6 @@
               "default_enabled": true,
               "mode": "effort",
               "effort": "medium",
-              "effort_options": [
-                "low",
-                "medium",
-                "high"
-              ],
               "visibility": "hidden"
             }
           },
@@ -336700,17 +337888,15 @@
           "reasoning": {
             "supported": true,
             "default": true,
-            "effort": "medium"
+            "effort": "high"
           },
           "extra_capabilities": {
             "reasoning": {
               "supported": true,
               "default_enabled": true,
               "mode": "effort",
-              "effort": "medium",
+              "effort": "high",
               "effort_options": [
-                "low",
-                "medium",
                 "high"
               ],
               "visibility": "hidden"
@@ -336740,6 +337926,12 @@
           "reasoning": {
             "supported": true,
             "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true
+            }
           },
           "attachment": true,
           "type": "chat"
@@ -336918,6 +338110,12 @@
             "supported": true,
             "default": true
           },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true
+            }
+          },
           "type": "chat"
         },
         {
@@ -336963,6 +338161,12 @@
           "reasoning": {
             "supported": true,
             "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true
+            }
           },
           "type": "chat"
         },
@@ -337011,6 +338215,13 @@
             "supported": true,
             "default": true
           },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true,
+              "mode": "fixed"
+            }
+          },
           "type": "chat"
         },
         {
@@ -337034,6 +338245,12 @@
           "reasoning": {
             "supported": true,
             "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true
+            }
           },
           "type": "chat"
         },
@@ -337060,7 +338277,8 @@
           },
           "extra_capabilities": {
             "reasoning": {
-              "supported": true
+              "supported": true,
+              "default_enabled": true
             }
           },
           "type": "chat"
@@ -337085,6 +338303,12 @@
           "reasoning": {
             "supported": true,
             "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true
+            }
           },
           "type": "chat"
         },
@@ -337111,7 +338335,8 @@
           },
           "extra_capabilities": {
             "reasoning": {
-              "supported": true
+              "supported": true,
+              "default_enabled": true
             }
           },
           "type": "chat"
@@ -337137,6 +338362,12 @@
             "supported": true,
             "default": true
           },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true
+            }
+          },
           "type": "chat"
         },
         {
@@ -337160,7 +338391,20 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": true,
+            "effort": "xhigh"
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true,
+              "mode": "effort",
+              "effort": "xhigh",
+              "effort_options": [
+                "medium",
+                "xhigh"
+              ]
+            }
           },
           "type": "chat"
         },
@@ -337343,6 +338587,7 @@
           "extra_capabilities": {
             "reasoning": {
               "supported": true,
+              "default_enabled": true,
               "interleaved": true,
               "summaries": true,
               "visibility": "summary",
@@ -337377,6 +338622,7 @@
           "extra_capabilities": {
             "reasoning": {
               "supported": true,
+              "default_enabled": true,
               "interleaved": true,
               "summaries": true,
               "visibility": "summary",
@@ -337433,6 +338679,8 @@
           "extra_capabilities": {
             "reasoning": {
               "supported": true,
+              "default_enabled": true,
+              "mode": "fixed",
               "interleaved": true,
               "summaries": true,
               "visibility": "summary",
@@ -337467,6 +338715,7 @@
           "extra_capabilities": {
             "reasoning": {
               "supported": true,
+              "default_enabled": true,
               "interleaved": true,
               "summaries": true,
               "visibility": "summary",
@@ -337523,6 +338772,8 @@
           "extra_capabilities": {
             "reasoning": {
               "supported": true,
+              "default_enabled": true,
+              "mode": "fixed",
               "interleaved": true,
               "summaries": true,
               "visibility": "summary",
@@ -337557,6 +338808,7 @@
           "extra_capabilities": {
             "reasoning": {
               "supported": true,
+              "default_enabled": true,
               "interleaved": true,
               "summaries": true,
               "visibility": "summary",
@@ -337592,6 +338844,7 @@
           "extra_capabilities": {
             "reasoning": {
               "supported": true,
+              "default_enabled": true,
               "interleaved": true,
               "summaries": true,
               "visibility": "summary",
@@ -337771,6 +339024,7 @@
           "extra_capabilities": {
             "reasoning": {
               "supported": true,
+              "default_enabled": true,
               "interleaved": true,
               "summaries": true,
               "visibility": "summary",
@@ -337827,6 +339081,8 @@
           "extra_capabilities": {
             "reasoning": {
               "supported": true,
+              "default_enabled": true,
+              "mode": "fixed",
               "interleaved": true,
               "summaries": true,
               "visibility": "summary",
@@ -337887,6 +339143,8 @@
           "extra_capabilities": {
             "reasoning": {
               "supported": true,
+              "default_enabled": true,
+              "mode": "fixed",
               "interleaved": true,
               "summaries": true,
               "visibility": "summary",
@@ -337947,6 +339205,8 @@
           "extra_capabilities": {
             "reasoning": {
               "supported": true,
+              "default_enabled": true,
+              "mode": "fixed",
               "interleaved": true,
               "summaries": true,
               "visibility": "summary",
@@ -338031,6 +339291,8 @@
           "extra_capabilities": {
             "reasoning": {
               "supported": true,
+              "default_enabled": true,
+              "mode": "fixed",
               "interleaved": true,
               "summaries": true,
               "visibility": "summary",
@@ -338068,6 +339330,7 @@
           "extra_capabilities": {
             "reasoning": {
               "supported": true,
+              "default_enabled": true,
               "interleaved": true,
               "summaries": true,
               "visibility": "summary",
@@ -338105,6 +339368,7 @@
           "extra_capabilities": {
             "reasoning": {
               "supported": true,
+              "default_enabled": true,
               "interleaved": true,
               "summaries": true,
               "visibility": "summary",
@@ -338142,6 +339406,7 @@
           "extra_capabilities": {
             "reasoning": {
               "supported": true,
+              "default_enabled": true,
               "interleaved": true,
               "summaries": true,
               "visibility": "summary",
@@ -338179,6 +339444,7 @@
           "extra_capabilities": {
             "reasoning": {
               "supported": true,
+              "default_enabled": true,
               "interleaved": true,
               "summaries": true,
               "visibility": "summary",
@@ -338215,6 +339481,7 @@
           "extra_capabilities": {
             "reasoning": {
               "supported": true,
+              "default_enabled": true,
               "interleaved": true,
               "summaries": true,
               "visibility": "summary",
@@ -338251,6 +339518,7 @@
           "extra_capabilities": {
             "reasoning": {
               "supported": true,
+              "default_enabled": true,
               "interleaved": true,
               "summaries": true,
               "visibility": "summary",
@@ -338287,6 +339555,7 @@
           "extra_capabilities": {
             "reasoning": {
               "supported": true,
+              "default_enabled": true,
               "interleaved": true,
               "summaries": true,
               "visibility": "summary",
@@ -338323,6 +339592,7 @@
           "extra_capabilities": {
             "reasoning": {
               "supported": true,
+              "default_enabled": true,
               "interleaved": true,
               "summaries": true,
               "visibility": "summary",
@@ -338359,6 +339629,7 @@
           "extra_capabilities": {
             "reasoning": {
               "supported": true,
+              "default_enabled": true,
               "interleaved": true,
               "summaries": true,
               "visibility": "summary",
@@ -338396,6 +339667,7 @@
           "extra_capabilities": {
             "reasoning": {
               "supported": true,
+              "default_enabled": true,
               "interleaved": true,
               "summaries": true,
               "visibility": "summary",
@@ -338432,6 +339704,7 @@
           "extra_capabilities": {
             "reasoning": {
               "supported": true,
+              "default_enabled": true,
               "interleaved": true,
               "summaries": true,
               "visibility": "summary",
@@ -338466,6 +339739,7 @@
           "extra_capabilities": {
             "reasoning": {
               "supported": true,
+              "default_enabled": true,
               "interleaved": true,
               "summaries": true,
               "visibility": "summary",
@@ -338502,6 +339776,7 @@
           "extra_capabilities": {
             "reasoning": {
               "supported": true,
+              "default_enabled": true,
               "interleaved": true,
               "summaries": true,
               "visibility": "summary",
@@ -338537,7 +339812,8 @@
           },
           "extra_capabilities": {
             "reasoning": {
-              "supported": true
+              "supported": true,
+              "default_enabled": true
             }
           },
           "type": "chat"
@@ -338565,7 +339841,8 @@
           },
           "extra_capabilities": {
             "reasoning": {
-              "supported": true
+              "supported": true,
+              "default_enabled": true
             }
           },
           "type": "chat"
@@ -338594,7 +339871,8 @@
           },
           "extra_capabilities": {
             "reasoning": {
-              "supported": true
+              "supported": true,
+              "default_enabled": true
             }
           },
           "type": "chat"
@@ -338619,11 +339897,20 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": true,
+            "effort": "xhigh"
           },
           "extra_capabilities": {
             "reasoning": {
-              "supported": true
+              "supported": true,
+              "default_enabled": true,
+              "mode": "effort",
+              "effort": "xhigh",
+              "effort_options": [
+                "low",
+                "medium",
+                "xhigh"
+              ]
             }
           },
           "type": "chat"
@@ -338650,7 +339937,21 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": true,
+            "effort": "xhigh"
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true,
+              "mode": "effort",
+              "effort": "xhigh",
+              "effort_options": [
+                "low",
+                "medium",
+                "xhigh"
+              ]
+            }
           },
           "type": "chat"
         },
@@ -338676,7 +339977,21 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": true,
+            "effort": "xhigh"
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true,
+              "mode": "effort",
+              "effort": "xhigh",
+              "effort_options": [
+                "low",
+                "medium",
+                "xhigh"
+              ]
+            }
           },
           "type": "chat"
         },
@@ -338705,7 +340020,8 @@
           },
           "extra_capabilities": {
             "reasoning": {
-              "supported": true
+              "supported": true,
+              "default_enabled": true
             }
           },
           "type": "chat"
@@ -338731,7 +340047,23 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": true,
+            "effort": "xhigh"
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true,
+              "mode": "effort",
+              "effort": "xhigh",
+              "effort_options": [
+                "minimal",
+                "low",
+                "medium",
+                "high",
+                "xhigh"
+              ]
+            }
           },
           "type": "chat"
         },
@@ -338779,6 +340111,13 @@
           "reasoning": {
             "supported": true,
             "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true,
+              "mode": "fixed"
+            }
           },
           "type": "chat"
         },
@@ -338846,7 +340185,21 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": true,
+            "effort": "high"
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true,
+              "mode": "effort",
+              "effort": "high",
+              "effort_options": [
+                "high",
+                "xhigh",
+                "max"
+              ]
+            }
           },
           "attachment": true,
           "type": "chat"
@@ -338871,7 +340224,21 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": true,
+            "effort": "xhigh"
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true,
+              "mode": "effort",
+              "effort": "xhigh",
+              "effort_options": [
+                "high",
+                "xhigh",
+                "max"
+              ]
+            }
           },
           "type": "chat"
         },
@@ -338895,7 +340262,21 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": true,
+            "effort": "xhigh"
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true,
+              "mode": "effort",
+              "effort": "xhigh",
+              "effort_options": [
+                "high",
+                "xhigh",
+                "max"
+              ]
+            }
           },
           "attachment": true,
           "type": "chat"
@@ -338920,7 +340301,20 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": true,
+            "effort": "high"
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true,
+              "mode": "effort",
+              "effort": "high",
+              "effort_options": [
+                "none",
+                "high"
+              ]
+            }
           },
           "attachment": true,
           "type": "chat"
@@ -339012,6 +340406,13 @@
             "supported": true,
             "default": true
           },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true,
+              "mode": "fixed"
+            }
+          },
           "type": "chat"
         },
         {
@@ -339035,7 +340436,21 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": true,
+            "effort": "medium"
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true,
+              "mode": "effort",
+              "effort": "medium",
+              "effort_options": [
+                "low",
+                "medium",
+                "high"
+              ]
+            }
           },
           "type": "chat"
         },
@@ -339059,6 +340474,12 @@
           "reasoning": {
             "supported": true,
             "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true
+            }
           },
           "type": "chat"
         },
@@ -339148,11 +340569,20 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": true,
+            "effort": "high"
           },
           "extra_capabilities": {
             "reasoning": {
-              "supported": true
+              "supported": true,
+              "default_enabled": true,
+              "mode": "effort",
+              "effort": "high",
+              "effort_options": [
+                "none",
+                "low",
+                "high"
+              ]
             }
           },
           "type": "chat"
@@ -339177,11 +340607,20 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": true,
+            "effort": "high"
           },
           "extra_capabilities": {
             "reasoning": {
-              "supported": true
+              "supported": true,
+              "default_enabled": true,
+              "mode": "effort",
+              "effort": "high",
+              "effort_options": [
+                "none",
+                "low",
+                "high"
+              ]
             }
           },
           "type": "chat"
@@ -339205,11 +340644,20 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": true,
+            "effort": "high"
           },
           "extra_capabilities": {
             "reasoning": {
-              "supported": true
+              "supported": true,
+              "default_enabled": true,
+              "mode": "effort",
+              "effort": "high",
+              "effort_options": [
+                "none",
+                "low",
+                "high"
+              ]
             }
           },
           "type": "chat"
@@ -339301,7 +340749,24 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": true,
+            "effort": "high"
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true,
+              "mode": "effort",
+              "effort": "high",
+              "effort_options": [
+                "none",
+                "minimal",
+                "low",
+                "medium",
+                "high",
+                "max"
+              ]
+            }
           },
           "type": "chat"
         },
@@ -339326,7 +340791,24 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": true,
+            "effort": "high"
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true,
+              "mode": "effort",
+              "effort": "high",
+              "effort_options": [
+                "none",
+                "minimal",
+                "low",
+                "medium",
+                "high",
+                "max"
+              ]
+            }
           },
           "type": "chat"
         },
@@ -339351,7 +340833,24 @@
           "tool_call": false,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": true,
+            "effort": "high"
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true,
+              "mode": "effort",
+              "effort": "high",
+              "effort_options": [
+                "none",
+                "minimal",
+                "low",
+                "medium",
+                "high",
+                "max"
+              ]
+            }
           },
           "type": "chat"
         },
@@ -339376,7 +340875,24 @@
           "tool_call": false,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": true,
+            "effort": "high"
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true,
+              "mode": "effort",
+              "effort": "high",
+              "effort_options": [
+                "none",
+                "minimal",
+                "low",
+                "medium",
+                "high",
+                "max"
+              ]
+            }
           },
           "type": "chat"
         },
@@ -339444,7 +340960,23 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": false,
+            "effort": "medium"
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": false,
+              "mode": "effort",
+              "effort": "medium",
+              "effort_options": [
+                "none",
+                "minimal",
+                "low",
+                "medium",
+                "high"
+              ]
+            }
           },
           "type": "chat"
         },
@@ -339467,7 +340999,25 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": false,
+            "effort": "medium"
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": false,
+              "mode": "effort",
+              "effort": "medium",
+              "effort_options": [
+                "none",
+                "minimal",
+                "low",
+                "medium",
+                "high",
+                "xhigh",
+                "max"
+              ]
+            }
           },
           "type": "chat"
         },
@@ -339513,7 +341063,13 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": false
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": false
+            }
           },
           "attachment": true,
           "type": "chat"
@@ -339538,7 +341094,22 @@
           "tool_call": false,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": true,
+            "effort": "medium"
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true,
+              "mode": "effort",
+              "effort": "medium",
+              "effort_options": [
+                "low",
+                "medium",
+                "high",
+                "xhigh"
+              ]
+            }
           },
           "attachment": true,
           "type": "chat"
@@ -339563,11 +341134,21 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": true,
+            "effort": "low"
           },
           "extra_capabilities": {
             "reasoning": {
-              "supported": true
+              "supported": true,
+              "default_enabled": true,
+              "mode": "effort",
+              "effort": "low",
+              "effort_options": [
+                "none",
+                "low",
+                "medium",
+                "high"
+              ]
             }
           },
           "attachment": true,
@@ -339593,7 +341174,22 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": true,
+            "effort": "low"
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true,
+              "mode": "effort",
+              "effort": "low",
+              "effort_options": [
+                "none",
+                "low",
+                "medium",
+                "high"
+              ]
+            }
           },
           "attachment": true,
           "type": "chat"
@@ -339618,11 +341214,20 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": true,
+            "effort": "high"
           },
           "extra_capabilities": {
             "reasoning": {
-              "supported": true
+              "supported": true,
+              "default_enabled": true,
+              "mode": "effort",
+              "effort": "high",
+              "effort_options": [
+                "low",
+                "medium",
+                "high"
+              ]
             }
           },
           "attachment": true,
@@ -339648,11 +341253,21 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": true,
+            "effort": "high"
           },
           "extra_capabilities": {
             "reasoning": {
-              "supported": true
+              "supported": true,
+              "default_enabled": true,
+              "mode": "effort",
+              "effort": "high",
+              "effort_options": [
+                "low",
+                "medium",
+                "high",
+                "xhigh"
+              ]
             }
           },
           "attachment": true,
@@ -339679,7 +341294,22 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": true,
+            "effort": "high"
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true,
+              "mode": "effort",
+              "effort": "high",
+              "effort_options": [
+                "low",
+                "medium",
+                "high",
+                "xhigh"
+              ]
+            }
           },
           "attachment": true,
           "type": "chat"
@@ -339708,7 +341338,9 @@
           },
           "extra_capabilities": {
             "reasoning": {
-              "supported": true
+              "supported": true,
+              "default_enabled": true,
+              "mode": "fixed"
             }
           },
           "attachment": true,
@@ -339739,6 +341371,12 @@
             "supported": true,
             "default": true
           },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true
+            }
+          },
           "type": "chat"
         },
         {
@@ -339762,6 +341400,12 @@
           "reasoning": {
             "supported": true,
             "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true
+            }
           },
           "type": "chat"
         },
@@ -339790,6 +341434,12 @@
             "supported": true,
             "default": true
           },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true
+            }
+          },
           "type": "chat"
         },
         {
@@ -339816,6 +341466,12 @@
           "reasoning": {
             "supported": true,
             "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true
+            }
           },
           "type": "chat"
         },
@@ -339844,6 +341500,12 @@
             "supported": true,
             "default": true
           },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true
+            }
+          },
           "type": "chat"
         },
         {
@@ -339867,6 +341529,12 @@
           "reasoning": {
             "supported": true,
             "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true
+            }
           },
           "type": "chat"
         },
@@ -339892,6 +341560,12 @@
             "supported": true,
             "default": true
           },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true
+            }
+          },
           "type": "chat"
         },
         {
@@ -339916,6 +341590,12 @@
           "reasoning": {
             "supported": true,
             "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true
+            }
           },
           "type": "chat"
         },
@@ -339943,7 +341623,8 @@
           },
           "extra_capabilities": {
             "reasoning": {
-              "supported": true
+              "supported": true,
+              "default_enabled": true
             }
           },
           "type": "chat"
@@ -339972,6 +341653,12 @@
             "supported": true,
             "default": true
           },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true
+            }
+          },
           "type": "chat"
         },
         {
@@ -339999,6 +341686,7 @@
           "extra_capabilities": {
             "reasoning": {
               "supported": true,
+              "default_enabled": true,
               "interleaved": true,
               "summaries": true,
               "visibility": "summary",
@@ -340033,7 +341721,8 @@
           },
           "extra_capabilities": {
             "reasoning": {
-              "supported": true
+              "supported": true,
+              "default_enabled": true
             }
           },
           "type": "chat"
@@ -340063,6 +341752,7 @@
           "extra_capabilities": {
             "reasoning": {
               "supported": true,
+              "default_enabled": true,
               "interleaved": true,
               "summaries": true,
               "visibility": "summary",
@@ -340097,7 +341787,8 @@
           },
           "extra_capabilities": {
             "reasoning": {
-              "supported": true
+              "supported": true,
+              "default_enabled": true
             }
           },
           "type": "chat"
@@ -340126,7 +341817,8 @@
           },
           "extra_capabilities": {
             "reasoning": {
-              "supported": true
+              "supported": true,
+              "default_enabled": true
             }
           },
           "type": "chat"
@@ -340151,11 +341843,19 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": true,
+            "effort": "high"
           },
           "extra_capabilities": {
             "reasoning": {
-              "supported": true
+              "supported": true,
+              "default_enabled": true,
+              "mode": "effort",
+              "effort": "high",
+              "effort_options": [
+                "high",
+                "xhigh"
+              ]
             }
           },
           "type": "chat"
@@ -340180,7 +341880,20 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": true,
+            "effort": "high"
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true,
+              "mode": "effort",
+              "effort": "high",
+              "effort_options": [
+                "high",
+                "xhigh"
+              ]
+            }
           },
           "type": "chat"
         },
@@ -340204,7 +341917,20 @@
           "tool_call": false,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": true,
+            "effort": "high"
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true,
+              "mode": "effort",
+              "effort": "high",
+              "effort_options": [
+                "high",
+                "xhigh"
+              ]
+            }
           },
           "type": "chat"
         },
@@ -340228,11 +341954,20 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": true,
+            "effort": "max"
           },
           "extra_capabilities": {
             "reasoning": {
-              "supported": true
+              "supported": true,
+              "default_enabled": true,
+              "mode": "effort",
+              "effort": "max",
+              "effort_options": [
+                "low",
+                "high",
+                "max"
+              ]
             }
           },
           "type": "chat"
@@ -340259,11 +341994,20 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": true,
+            "effort": "max"
           },
           "extra_capabilities": {
             "reasoning": {
-              "supported": true
+              "supported": true,
+              "default_enabled": true,
+              "mode": "effort",
+              "effort": "max",
+              "effort_options": [
+                "low",
+                "high",
+                "max"
+              ]
             }
           },
           "type": "chat"
@@ -340290,7 +342034,21 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": true,
+            "effort": "max"
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true,
+              "mode": "effort",
+              "effort": "max",
+              "effort_options": [
+                "low",
+                "high",
+                "max"
+              ]
+            }
           },
           "type": "chat"
         },
@@ -340316,7 +342074,21 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": true,
+            "effort": "max"
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true,
+              "mode": "effort",
+              "effort": "max",
+              "effort_options": [
+                "low",
+                "high",
+                "max"
+              ]
+            }
           },
           "type": "chat"
         },
@@ -340340,7 +342112,21 @@
           "tool_call": true,
           "reasoning": {
             "supported": true,
-            "default": true
+            "default": true,
+            "effort": "max"
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true,
+              "mode": "effort",
+              "effort": "max",
+              "effort_options": [
+                "low",
+                "high",
+                "max"
+              ]
+            }
           },
           "type": "chat"
         },
@@ -340367,6 +342153,12 @@
           "reasoning": {
             "supported": true,
             "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true
+            }
           },
           "type": "chat"
         }

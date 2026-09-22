@@ -148,6 +148,8 @@ describe('AI SDK reasoning wire payloads', () => {
     ['zhipu', 'glm-5.2', 'max', 'chat'],
     ['zhipu', 'glm-5.3', 'low', 'chat'],
     ['zhipu', 'glm-5.3-flash', 'high', 'chat'],
+    ['openrouter', 'z-ai/glm-5.3-flash', 'low', 'chat'],
+    ['openrouter', 'z-ai/glm-5.3', 'max', 'chat'],
     ['deepseek', 'deepseek-flash', 'max', 'chat'],
     ['grok', 'grok-4.5', 'medium', 'chat'],
     ['grok', 'grok-4.6', 'xhigh', 'chat'],
@@ -230,6 +232,7 @@ describe('AI SDK reasoning wire payloads', () => {
       } else if (endpoint === 'responses') {
         expect(body.reasoning).toEqual({ effort })
       } else {
+        expect(body.model).toBe(modelId)
         expect(body.reasoning_effort).toBe(effort)
       }
     }
