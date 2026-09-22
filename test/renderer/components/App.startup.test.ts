@@ -351,11 +351,6 @@ const mountApp = async (options?: {
   vi.doMock('@api/OnboardingClient', () => ({
     createOnboardingClient: vi.fn(() => onboardingClient)
   }))
-  vi.doMock('@/stores/artifact', () => ({
-    useArtifactStore: () => ({
-      hideArtifact: vi.fn()
-    })
-  }))
   vi.doMock('@/stores/ui/session', () => ({
     useSessionStore: () => sessionStore
   }))

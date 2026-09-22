@@ -1,6 +1,6 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { describe, expect, it, vi } from 'vitest'
-import SvgArtifact from '@/components/artifacts/SvgArtifact.vue'
+import WorkspaceSvgPreview from '@/components/sidepanel/viewer/WorkspaceSvgPreview.vue'
 
 vi.mock('vue-i18n', () => ({
   useI18n: () => ({
@@ -14,9 +14,9 @@ vi.mock('@api/DeviceClient', () => ({
   }))
 }))
 
-describe('SvgArtifact', () => {
+describe('WorkspaceSvgPreview', () => {
   it('uses full-height flex classes for sanitized previews', async () => {
-    const wrapper = mount(SvgArtifact, {
+    const wrapper = mount(WorkspaceSvgPreview, {
       props: {
         block: {
           content: '<svg viewBox="0 0 10 10"><rect width="10" height="10" /></svg>',

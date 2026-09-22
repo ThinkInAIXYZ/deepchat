@@ -228,7 +228,6 @@
     "sections": {
       "files": "ファイル",
       "git": "Git",
-      "artifacts": "Artifacts",
       "subagents": "サブエージェント"
     },
     "files": {

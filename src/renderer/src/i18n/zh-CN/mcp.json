@@ -175,10 +175,6 @@
       "name": "文件系统",
       "desc": "让 DeepChat 能够操作本地文件"
     },
-    "Artifacts": {
-      "name": "Artifacts",
-      "desc": "让你的 DeepChat 输出的多样化的 Artifacts 内容"
-    },
     "braveSearch": {
       "name": "Brave搜索",
       "desc": "Brave搜索 API https://brave.com/search/api/"

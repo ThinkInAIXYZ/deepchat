@@ -1042,6 +1042,7 @@ function createMockProviderSettings() {
     reasoningEffortDefault: vi.fn().mockReturnValue('medium'),
     supportsVerbosity: vi.fn().mockReturnValue(true),
     verbosityDefault: vi.fn().mockReturnValue('medium'),
+    mediaSettings: { image: false, video: false },
     providerId: vi.fn().mockImplementation((providerId: string, _modelId: string) => providerId)
   }
 
@@ -1083,6 +1084,7 @@ function createMockProviderSettings() {
         providerId === 'moonshot' && modelId === 'moonshotai/kimi-k2.6'
       const supportsProviderSearch = providerId === 'deepseek' && modelId === 'deepseek-v4-flash'
       return {
+        mediaSettings: capabilityFixture.mediaSettings,
         identity: {
           providerId: capabilityFixture.providerId(providerId, modelId),
           requestModelId: modelId,
@@ -9336,6 +9338,7 @@ describe('DeepChatAgentHarness', () => {
     })
 
     it('keeps image generation settings for OpenAI-compatible providers', async () => {
+      providerSettings.capabilityFixture.mediaSettings = { image: true, video: false }
       providerSettings.getModelConfig.mockImplementation((modelId: string, providerId: string) => {
         if (providerId === 'aihubmix' && modelId === 'gpt-image-2') {
           return {

@@ -335,6 +335,18 @@ describe('ChatService', () => {
     expect(harness.turn.cancelGeneration).toHaveBeenCalledWith('session-1')
   })
 
+  it('still stops generation when permission cleanup throws synchronously', async () => {
+    const harness = createHarness()
+    harness.sessionPermissionPort.clearSessionPermissions.mockImplementationOnce(() => {
+      throw new Error('permission cleanup failed')
+    })
+
+    await expect(harness.service.stopStream({ sessionId: 'session-1' })).resolves.toEqual({
+      stopped: true
+    })
+    expect(harness.turn.cancelGeneration).toHaveBeenCalledWith('session-1')
+  })
+
   it('returns an honest stop result when bounded cleanup times out', async () => {
     const harness = createHarness()
     const cleanupTimeout = new Error('cleanup timed out')

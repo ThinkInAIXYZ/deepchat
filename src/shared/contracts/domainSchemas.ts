@@ -24,6 +24,7 @@ import {
 } from '../lib/agentOutputLimits'
 import { ToolModeSchema } from '../toolMode'
 import { ProviderCustomHeadersSchema } from '../providerCustomHeaders'
+import { MediaSettingsCapabilitiesSchema } from '../types/model-capabilities'
 
 export const ThemeModeSchema = z.enum(['dark', 'light', 'system'])
 
@@ -543,6 +544,7 @@ export const ModelCapabilitiesSchema = z.object({
       catalogModelId: z.null()
     })
   ]),
+  mediaSettings: MediaSettingsCapabilitiesSchema,
   defaultToolMode: ToolModeSchema.optional(),
   requestPolicy: z.object({
     temperature: NumberRequestParameterPolicySchema,

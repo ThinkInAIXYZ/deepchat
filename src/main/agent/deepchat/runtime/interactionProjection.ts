@@ -1,4 +1,5 @@
 import type { AssistantMessageBlock } from '@shared/types/agent-interface'
+import { projectPendingInteraction } from '@shared/chat/pendingInteraction'
 import type { ToolCallImagePreview } from '@shared/types/core/mcp'
 import type { LoopRun } from '@/agent/deepchat/loop/loopRun'
 import type { DeepChatAgentInstance } from '@/agent/deepchat/instance/deepChatAgentInstance'
@@ -142,24 +143,11 @@ export function collectPendingInteractionEntries(
 
   for (let index = 0; index < blocks.length; index += 1) {
     const block = blocks[index]
-    if (
-      block.type !== 'action' ||
-      (block.action_type !== 'tool_call_permission' && block.action_type !== 'question_request') ||
-      block.status !== 'pending' ||
-      block.extra?.needsUserAction === false
-    ) {
-      continue
-    }
+    const pending = projectPendingInteraction(block)
+    if (!pending) continue
+    const { toolCallId, toolName, toolArgs } = pending
 
-    const toolCallId = block.tool_call?.id
-    if (!toolCallId) {
-      continue
-    }
-
-    const toolName = block.tool_call?.name || ''
-    const toolArgs = block.tool_call?.params || ''
-
-    if (block.action_type === 'question_request') {
+    if (pending.actionType === 'question_request') {
       entries.push({
         blockIndex: index,
         interaction: {

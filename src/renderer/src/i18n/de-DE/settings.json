@@ -977,10 +977,6 @@
       "label": "Antwortlänge",
       "description": "Maximale Länge der KI-Antwort festlegen"
     },
-    "artifacts": {
-      "title": "Artifacts-Effekt",
-      "description": "Animationseffekt bei der Codeblock-Generierung"
-    },
     "provider": "Anbieter",
     "modelList": "Modellliste",
     "selectModel": "Modell auswählen",

@@ -25,7 +25,6 @@ export const useUiSettingsStore = defineStore('uiSettings', () => {
   const codeFontFamily = ref('')
   const systemFonts = ref<string[]>([])
   const isLoadingFonts = ref(false)
-  const artifactsEffectEnabled = ref(false)
   const autoScrollEnabled = ref(true)
   const contentProtectionEnabled = ref(false)
   const privacyModeEnabled = ref(false)
@@ -62,10 +61,6 @@ export const useUiSettingsStore = defineStore('uiSettings', () => {
 
     if (typeof values.codeFontFamily === 'string') {
       codeFontFamily.value = values.codeFontFamily
-    }
-
-    if (typeof values.artifactsEffectEnabled === 'boolean') {
-      artifactsEffectEnabled.value = values.artifactsEffectEnabled
     }
 
     if (typeof values.autoScrollEnabled === 'boolean') {
@@ -265,18 +260,6 @@ export const useUiSettingsStore = defineStore('uiSettings', () => {
     ])
   }
 
-  const setArtifactsEffectEnabled = async (enabled: boolean) => {
-    const nextValue = Boolean(enabled)
-    artifactsEffectEnabled.value = nextValue
-
-    await updateSettings([
-      {
-        key: 'artifactsEffectEnabled',
-        value: nextValue
-      }
-    ])
-  }
-
   const setContentProtectionEnabled = async (enabled: boolean) => {
     const nextValue = Boolean(enabled)
     contentProtectionEnabled.value = nextValue
@@ -392,7 +375,6 @@ export const useUiSettingsStore = defineStore('uiSettings', () => {
     isLoadingFonts,
     formattedFontFamily,
     formattedCodeFontFamily,
-    artifactsEffectEnabled,
     autoScrollEnabled,
     autoCompactionEnabled,
     autoCompactionTriggerThreshold,
@@ -413,7 +395,6 @@ export const useUiSettingsStore = defineStore('uiSettings', () => {
     setAutoCompactionEnabled,
     setAutoCompactionTriggerThreshold,
     setAutoCompactionRetainRecentPairs,
-    setArtifactsEffectEnabled,
     setContentProtectionEnabled,
     setPrivacyModeEnabled,
     setCopyWithCotEnabled,

@@ -245,7 +245,6 @@
     "sections": {
       "files": "文件",
       "git": "Git",
-      "artifacts": "Artifacts",
       "subagents": "subagent"
     },
     "files": {

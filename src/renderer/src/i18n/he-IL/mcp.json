@@ -181,10 +181,6 @@
   },
   "title": "הגדרות MCP",
   "inmemory": {
-    "Artifacts": {
-      "desc": "צור תוצרים (Artifacts) עשירים יותר ב-DeepChat",
-      "name": "תוצרים (Artifacts)"
-    },
     "bochaSearch": {
       "desc": "Bocha Search API https://open.bochaai.com/",
       "name": "Bocha Search"

@@ -1,4 +1,4 @@
-export type MarkdownLinkSource = 'chat' | 'artifact' | 'workspace'
+export type MarkdownLinkSource = 'chat' | 'workspace'
 
 export interface MarkdownLinkContext {
   source: MarkdownLinkSource

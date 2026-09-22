@@ -3,14 +3,7 @@ import { defineStore } from 'pinia'
 import { useEventListener, useStorage } from '@vueuse/core'
 import type { SidePanelTab, WorkspaceNavSection, WorkspaceViewMode } from '@shared/types/workspace'
 
-export interface WorkspaceArtifactContext {
-  threadId: string
-  messageId: string
-  artifactId: string
-}
-
 export interface WorkspaceSessionState {
-  selectedArtifactContext: WorkspaceArtifactContext | null
   selectedFilePath: string | null
   selectedDiffPath: string | null
   viewMode: WorkspaceViewMode
@@ -25,12 +18,10 @@ export interface TapeInspectorOpenRequest {
 }
 
 const createSessionState = (): WorkspaceSessionState => ({
-  selectedArtifactContext: null,
   selectedFilePath: null,
   selectedDiffPath: null,
   viewMode: 'preview',
   sections: {
-    artifacts: true,
     files: true,
     git: false,
     subagents: true
@@ -193,26 +184,6 @@ export const useSidepanelStore = defineStore('sidepanel', () => {
     state.sections[section] = !state.sections[section]
   }
 
-  const selectArtifact = (
-    sessionId: string,
-    context: WorkspaceArtifactContext | null,
-    options?: {
-      open?: boolean
-      viewMode?: WorkspaceViewMode
-    }
-  ) => {
-    const state = ensureSessionState(sessionId)
-    state.selectedArtifactContext = context
-    state.selectedFilePath = null
-    state.selectedDiffPath = null
-    state.viewMode = options?.viewMode ?? state.viewMode
-    state.sections.artifacts = true
-
-    if (options?.open !== false) {
-      openWorkspace(sessionId)
-    }
-  }
-
   const selectFile = (
     sessionId: string,
     filePath: string,
@@ -222,7 +193,6 @@ export const useSidepanelStore = defineStore('sidepanel', () => {
     }
   ) => {
     const state = ensureSessionState(sessionId)
-    state.selectedArtifactContext = null
     state.selectedFilePath = filePath
     state.selectedDiffPath = null
     state.viewMode = options?.viewMode ?? state.viewMode
@@ -241,7 +211,6 @@ export const useSidepanelStore = defineStore('sidepanel', () => {
     }
   ) => {
     const state = ensureSessionState(sessionId)
-    state.selectedArtifactContext = null
     state.selectedFilePath = null
     state.selectedDiffPath = filePath
     state.sections.git = true
@@ -249,11 +218,6 @@ export const useSidepanelStore = defineStore('sidepanel', () => {
     if (options?.open !== false) {
       openWorkspace(sessionId)
     }
-  }
-
-  const clearArtifact = (sessionId: string) => {
-    const state = ensureSessionState(sessionId)
-    state.selectedArtifactContext = null
   }
 
   const clearFile = (sessionId: string) => {
@@ -292,10 +256,8 @@ export const useSidepanelStore = defineStore('sidepanel', () => {
     toggleWorkspace,
     setViewMode,
     toggleSection,
-    selectArtifact,
     selectFile,
     selectDiff,
-    clearArtifact,
     clearFile,
     clearDiff
   }

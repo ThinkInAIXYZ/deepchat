@@ -181,10 +181,6 @@
   },
   "title": "Cài đặt MCP",
   "inmemory": {
-    "Artifacts": {
-      "desc": "Sản xuất các Cổ vật phong phú hơn trong DeepChat",
-      "name": "Hiện vật"
-    },
     "bochaSearch": {
       "desc": "Bocha Tìm kiếm API https://open.bochaai.com/",
       "name": "Tìm kiếm Bocha"

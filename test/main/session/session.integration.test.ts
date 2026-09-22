@@ -1302,6 +1302,7 @@ describe('Session application coordinators', () => {
 
   describe('createSession', () => {
     it('creates session with correct parameters', async () => {
+      const rows = installSessionStore(sqlitePresenter)
       const result = await lifecycle.createSession(
         { agentId: 'deepchat', message: 'Hello world', projectDir: '/tmp/proj' },
         1
@@ -1312,6 +1313,8 @@ describe('Session application coordinators', () => {
       expect(result.title).toBe('Hello world')
       expect(result.projectDir).toBe('/tmp/proj')
       expect(result.status).toBe('idle')
+      expect(result.createdAt).toBe(rows.get(result.id).created_at)
+      expect(result.updatedAt).toBe(rows.get(result.id).updated_at)
       expect(deepChatAgent.initSession).toHaveBeenCalledWith(
         'mock-session-id',
         expect.objectContaining({
@@ -1331,6 +1334,7 @@ describe('Session application coordinators', () => {
     })
 
     it('derives title from first 50 chars of message', async () => {
+      installSessionStore(sqlitePresenter)
       const longMessage = 'A'.repeat(100)
       const result = await lifecycle.createSession({ agentId: 'deepchat', message: longMessage }, 1)
 
@@ -1338,6 +1342,7 @@ describe('Session application coordinators', () => {
     })
 
     it('defaults to "New Chat" when message is empty', async () => {
+      installSessionStore(sqlitePresenter)
       const result = await lifecycle.createSession({ agentId: 'deepchat', message: '' }, 1)
 
       expect(result.title).toBe('New Chat')
@@ -2051,6 +2056,7 @@ describe('Session application coordinators', () => {
 
   describe('createDetachedSession', () => {
     it('creates a detached session without window activation', async () => {
+      installSessionStore(sqlitePresenter)
       const result = await lifecycle.createDetachedSession({
         title: 'Remote Session',
         agentId: 'deepchat'

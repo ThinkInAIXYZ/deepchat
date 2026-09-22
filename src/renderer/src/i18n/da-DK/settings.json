@@ -541,10 +541,6 @@
       "label": "Svarlængde",
       "description": "Angiv den maksimale længde på AI'ens svar"
     },
-    "artifacts": {
-      "description": "Aktivering af Artifact-funktionen giver AI'en mulighed for at generere rigere indhold",
-      "title": "Artifacts"
-    },
     "addModel": "Tilføj model",
     "configureModel": "Konfigurér model",
     "modelList": "Modelliste",

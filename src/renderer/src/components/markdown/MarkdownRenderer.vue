@@ -16,6 +16,7 @@
       :code-block-stream="segment.codeBlockStream"
       :themes="codeBlockThemes"
       :code-block-options="codeBlockOptions"
+      :code-block-props="{ showPreviewButton: false }"
       :mermaid-props="mermaidProps"
       :fade="segment.fade"
       :batch-rendering="true"
@@ -33,7 +34,6 @@
       :max-live-nodes="segment.maxLiveNodes"
       :live-node-buffer="segment.liveNodeBuffer"
       @copy="$emit('copy', $event)"
-      @handle-artifact-click="handleArtifactClick"
       @click="handleRendererClick"
       @mouseover="handleRendererMouseover"
       @mouseout="handleRendererMouseout"
@@ -44,16 +44,11 @@
 <script setup lang="ts">
 import { useAccessibilitySupport } from '@/composables/useAccessibilitySupport'
 import { createSessionClient } from '@api/SessionClient'
-import { useArtifactStore } from '@/stores/artifact'
 import { useReferenceStore } from '@/stores/reference'
 import { nanoid } from 'nanoid'
 import { useDebounceFn } from '@vueuse/core'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import NodeRenderer, {
-  type CodeBlockPreviewPayload,
-  type ParsedNode,
-  type ParseOptions
-} from 'markstream-vue'
+import NodeRenderer, { type ParsedNode, type ParseOptions } from 'markstream-vue'
 import { useThemeStore } from '@/stores/theme'
 import { useUiSettingsStore } from '@/stores/uiSettingsStore'
 import { useMarkdownLinkNavigation } from './useMarkdownLinkNavigation'
@@ -85,9 +80,8 @@ const props = withDefaults(
 )
 const themeStore = useThemeStore()
 const uiSettingsStore = useUiSettingsStore()
-const artifactStore = useArtifactStore()
-const fallbackMessageId = `artifact-msg-${nanoid()}`
-const fallbackThreadId = `artifact-thread-${nanoid()}`
+const fallbackMessageId = `markdown-msg-${nanoid()}`
+const fallbackThreadId = `markdown-thread-${nanoid()}`
 const referenceStore = useReferenceStore()
 const sessionClient = createSessionClient()
 const renderContent = ref(normalizeMarkstreamCodeFenceLanguages(props.content))
@@ -496,22 +490,6 @@ function getReferenceIndex(element: HTMLElement): number {
 
 function isEventInsideElement(event: MouseEvent, element: HTMLElement): boolean {
   return event.relatedTarget instanceof Node && element.contains(event.relatedTarget)
-}
-
-function handleArtifactClick(v: CodeBlockPreviewPayload): void {
-  artifactStore.showArtifact(
-    {
-      id: v.id,
-      type: v.artifactType,
-      title: v.artifactTitle,
-      language: v.node.language,
-      content: v.node.code,
-      status: 'loaded'
-    },
-    effectiveMessageId.value,
-    effectiveThreadId.value,
-    { force: true }
-  )
 }
 
 function handleRendererClick(event: MouseEvent): void {

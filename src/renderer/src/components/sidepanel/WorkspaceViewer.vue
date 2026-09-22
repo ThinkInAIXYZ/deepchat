@@ -201,7 +201,6 @@
         class="h-full min-h-0 w-full"
         :session-id="props.sessionId"
         :preview-kind="previewKind"
-        :artifact="previewArtifact"
         :file-preview="previewFilePreview"
       />
 
@@ -236,7 +235,6 @@ import {
 import { createWorkspaceClient } from '@api/WorkspaceClient'
 import { notifyRenderer } from '@renderer-notifications/rendererNotificationPort'
 import { useSidepanelStore } from '@/stores/ui/sidepanel'
-import type { ArtifactState } from '@/stores/artifact'
 import type {
   WorkspaceFileOpenApp,
   WorkspaceFilePreview,
@@ -253,7 +251,6 @@ defineExpose({ focus: () => viewerRegion.value?.focus() })
 
 const props = defineProps<{
   sessionId: string
-  artifact: ArtifactState | null
   filePreview: WorkspaceFilePreview | null
   gitDiff: WorkspaceGitDiff | null
   loadingFilePreview: boolean
@@ -274,7 +271,6 @@ const workspaceClient = createWorkspaceClient()
 const sessionState = computed(() => sidepanelStore.getSessionState(props.sessionId))
 const { activeSource, effectiveViewMode, paneKind, previewKind, shouldShowTabs } =
   useWorkspaceViewerModel({
-    artifact: computed(() => props.artifact),
     filePreview: computed(() => props.filePreview),
     sessionState
   })
@@ -289,9 +285,6 @@ const getPathBasename = (value: string | null | undefined) => {
 }
 
 const viewerTitle = computed(() => {
-  if (activeSource.value === 'artifact') {
-    return props.artifact?.title || t('chat.workspace.title')
-  }
   if (activeSource.value === 'file') {
     return props.filePreview?.name || getPathBasename(sessionState.value.selectedFilePath)
   }
@@ -311,24 +304,11 @@ const viewerSubtitle = computed(() => {
   return ''
 })
 
-const previewArtifact = computed(() => {
-  return activeSource.value === 'artifact' ? props.artifact : null
-})
-
 const previewFilePreview = computed(() => {
   return activeSource.value === 'file' ? props.filePreview : null
 })
 
 const codeSource = computed(() => {
-  if (activeSource.value === 'artifact' && props.artifact) {
-    return {
-      id: props.artifact.id,
-      content: props.artifact.content,
-      language: props.artifact.language ?? null,
-      type: props.artifact.type
-    }
-  }
-
   if (activeSource.value !== 'file' || !props.filePreview) {
     return null
   }

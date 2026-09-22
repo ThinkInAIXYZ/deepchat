@@ -49,40 +49,11 @@
     </div>
 
     <div
-      v-else-if="props.previewKind === 'html' && artifactBlock"
-      class="min-h-0 w-full flex-1 overflow-hidden"
-      data-testid="workspace-preview-html-artifact"
-    >
-      <HTMLArtifact
-        :block="artifactBlock"
-        :is-preview="true"
-        viewport-size="desktop"
-        class="h-full min-h-0 w-full"
-      />
-    </div>
-
-    <div
       v-else-if="props.previewKind === 'svg' && resolvedBlock"
       class="min-h-0 w-full flex-1 overflow-hidden"
       data-testid="workspace-preview-svg"
     >
-      <SvgArtifact :block="resolvedBlock" class="h-full min-h-0 w-full" />
-    </div>
-
-    <div
-      v-else-if="props.previewKind === 'mermaid' && artifactBlock"
-      class="min-h-0 w-full flex-1 overflow-hidden"
-      data-testid="workspace-preview-mermaid"
-    >
-      <MermaidArtifact :block="artifactBlock" :is-preview="true" class="h-full min-h-0 w-full" />
-    </div>
-
-    <div
-      v-else-if="props.previewKind === 'react' && artifactBlock"
-      class="min-h-0 w-full flex-1 overflow-hidden"
-      data-testid="workspace-preview-react"
-    >
-      <ReactArtifact :block="artifactBlock" :is-preview="true" class="h-full min-h-0 w-full" />
+      <WorkspaceSvgPreview :block="resolvedBlock" class="h-full min-h-0 w-full" />
     </div>
 
     <div
@@ -98,38 +69,19 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import type { ArtifactState } from '@/stores/artifact'
 import type { WorkspaceFilePreview } from '@shared/types/workspace'
 import type { WorkspacePreviewKind } from '../composables/useWorkspaceViewerModel'
 import MarkdownRenderer from '@/components/markdown/MarkdownRenderer.vue'
-import HTMLArtifact from '@/components/artifacts/HTMLArtifact.vue'
-import SvgArtifact from '@/components/artifacts/SvgArtifact.vue'
-import MermaidArtifact from '@/components/artifacts/MermaidArtifact.vue'
-import ReactArtifact from '@/components/artifacts/ReactArtifact.vue'
+import WorkspaceSvgPreview from './WorkspaceSvgPreview.vue'
 import type { MarkdownLinkContext } from '@/components/markdown/linkTypes'
 
 const props = defineProps<{
   sessionId?: string
   previewKind: WorkspacePreviewKind
-  artifact?: ArtifactState | null
   filePreview?: WorkspaceFilePreview | null
 }>()
 
 const { t } = useI18n()
-
-const artifactBlock = computed(() => {
-  if (!props.artifact) {
-    return null
-  }
-
-  return {
-    content: props.artifact.content,
-    artifact: {
-      type: props.artifact.type,
-      title: props.artifact.title
-    }
-  }
-})
 
 const fileBlock = computed(() => {
   if (!props.filePreview) {
@@ -154,9 +106,9 @@ const fileBlock = computed(() => {
   }
 })
 
-const resolvedBlock = computed(() => artifactBlock.value ?? fileBlock.value)
-const resolvedContent = computed(() => props.artifact?.content ?? props.filePreview?.content ?? '')
-const previewSourceId = computed(() => props.artifact?.id ?? props.filePreview?.path)
+const resolvedBlock = computed(() => fileBlock.value)
+const resolvedContent = computed(() => props.filePreview?.content ?? '')
+const previewSourceId = computed(() => props.filePreview?.path)
 const markdownLinkContext = computed<MarkdownLinkContext>(() => {
   if (props.filePreview) {
     return {
@@ -167,13 +119,11 @@ const markdownLinkContext = computed<MarkdownLinkContext>(() => {
   }
 
   return {
-    source: 'artifact',
+    source: 'workspace',
     sessionId: props.sessionId
   }
 })
-const resolvedTitle = computed(
-  () => props.artifact?.title ?? props.filePreview?.name ?? t('artifacts.preview')
-)
+const resolvedTitle = computed(() => props.filePreview?.name ?? t('artifacts.preview'))
 const imageSrc = computed(() => props.filePreview?.content || props.filePreview?.thumbnail || '')
 const documentPreviewUrl = computed(() => {
   if (!props.filePreview?.previewUrl) {

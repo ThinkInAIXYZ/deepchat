@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { ModelCapabilitiesSchema } from '@shared/contracts/domainSchemas'
 
 const createValidCapabilities = () => ({
+  mediaSettings: { image: false, video: false },
   identity: {
     providerId: 'openai',
     requestModelId: 'gpt-5.4',
@@ -31,6 +32,7 @@ const createValidCapabilities = () => ({
 
 describe('ModelCapabilitiesSchema', () => {
   it.each([
+    'mediaSettings',
     'supportsAudioInput',
     'supportsReasoning',
     'supportsSearch',

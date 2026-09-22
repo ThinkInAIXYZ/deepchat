@@ -133,7 +133,6 @@ function createRuntime() {
     fontSizeLevel: 2,
     fontFamily: 'JetBrains Mono',
     codeFontFamily: 'Fira Code',
-    artifactsEffectEnabled: false,
     autoScrollEnabled: true,
     autoCompactionEnabled: true,
     autoCompactionTriggerThreshold: 80,
@@ -986,10 +985,6 @@ function createRuntime() {
     getFontSizeLevel: vi.fn(() => settings.fontSizeLevel),
     setFontSizeLevel: vi.fn((value: number) => {
       settings.fontSizeLevel = value
-    }),
-    getArtifactsEffectEnabled: vi.fn(() => settings.artifactsEffectEnabled),
-    setArtifactsEffectEnabled: vi.fn((value: boolean) => {
-      settings.artifactsEffectEnabled = value
     }),
     getAutoScrollEnabled: vi.fn(() => settings.autoScrollEnabled),
     setAutoScrollEnabled: vi.fn((value: boolean) => {

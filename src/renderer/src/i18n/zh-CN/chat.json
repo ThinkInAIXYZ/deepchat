@@ -360,7 +360,6 @@
     "sections": {
       "files": "文件",
       "git": "Git",
-      "artifacts": "Artifacts",
       "subagents": "subagent"
     },
     "plan": {
@@ -614,7 +613,9 @@
     }
   },
   "orchestration": {
-    "actions": { "openChild": "打开子会话" },
+    "actions": {
+      "openChild": "打开子会话"
+    },
     "activityTitle": "Agent 活动",
     "proactive": {
       "title": "主动协作",

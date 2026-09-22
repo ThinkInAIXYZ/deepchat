@@ -7,7 +7,7 @@ import type { WorkspaceFileOpenAppKind } from '@shared/workspace/fileOpenApps'
 
 export type SidePanelTab = 'workspace' | 'browser' | 'mcp-app' | 'tape-inspector'
 
-export type WorkspaceNavSection = 'artifacts' | 'files' | 'git' | 'subagents'
+export type WorkspaceNavSection = 'files' | 'git' | 'subagents'
 
 export type WorkspaceViewMode = 'preview' | 'code'
 
