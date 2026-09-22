@@ -1,4 +1,4 @@
-import { ApiEndpointType, ModelType } from './model'
+import { ApiEndpointType, ModelType, isOpenAIImageGenerationModelId } from './model'
 
 export const OPENAI_IMAGE_GENERATION_MODEL_ID_FALLBACK = 'gpt-image-2'
 
@@ -147,7 +147,7 @@ const hasOpenAIImageGenerationRoute = (target: OpenAIImageGenerationSettingsTarg
     apiEndpoint === ApiEndpointType.Image ||
     endpointType === 'image-generation' ||
     modelType === ModelType.ImageGeneration.toLowerCase() ||
-    modelId.includes(OPENAI_IMAGE_GENERATION_MODEL_ID_FALLBACK)
+    isOpenAIImageGenerationModelId(modelId)
   )
 }
 

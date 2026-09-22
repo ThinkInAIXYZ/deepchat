@@ -4,6 +4,7 @@ import {
   ApiEndpointType,
   ModelType,
   isNewApiEndpointType,
+  isOpenAIImageGenerationModelId,
   resolveNewApiModelTypeFromMetadata,
   resolveNewApiEndpointTypeFromRoute,
   type NewApiEndpointType
@@ -71,8 +72,6 @@ import {
   type DeepSeekResponsesRoute
 } from '../deepseekResponsesAdapter'
 
-const OPENAI_IMAGE_GENERATION_MODELS = ['gpt-4o-all', 'gpt-4o-image']
-const OPENAI_IMAGE_GENERATION_MODEL_PREFIXES = ['dall-e-', 'gpt-image-']
 const OPENAI_CODEX_RECOMMENDED_MODEL_IDS = [
   'gpt-5.5',
   'gpt-5.6-sol',
@@ -134,12 +133,8 @@ class ProviderHttpError extends Error {
   }
 }
 
-const isOpenAIImageGenerationModel = (modelId: string): boolean =>
-  OPENAI_IMAGE_GENERATION_MODELS.includes(modelId) ||
-  OPENAI_IMAGE_GENERATION_MODEL_PREFIXES.some((prefix) => modelId.startsWith(prefix))
-
 const shouldUseOpenAIImageGenerationRoute = (modelId: string, modelConfig: ModelConfig): boolean =>
-  isOpenAIImageGenerationModel(modelId) ||
+  isOpenAIImageGenerationModelId(modelId) ||
   modelConfig.apiEndpoint === ApiEndpointType.Image ||
   modelConfig.type === ModelType.ImageGeneration
 
@@ -813,7 +808,7 @@ export class AiSdkProvider extends BaseLLMProvider {
                 ? (runtimeModelId: string, runtimeModelConfig: ModelConfig) =>
                     shouldUseOpenAIImageGenerationRoute(runtimeModelId, runtimeModelConfig)
                 : (runtimeModelId: string, runtimeModelConfig: ModelConfig) =>
-                    isOpenAIImageGenerationModel(runtimeModelId) ||
+                    isOpenAIImageGenerationModelId(runtimeModelId) ||
                     runtimeModelConfig.apiEndpoint === ApiEndpointType.Image
 
     const shouldUseVideoGeneration =
