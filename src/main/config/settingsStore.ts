@@ -16,7 +16,6 @@ export function createSettingsStore(): SettingsStore {
         closeToQuit: false,
         proxyMode: 'system',
         customProxyUrl: '',
-        artifactsEffectEnabled: true,
         searchPreviewEnabled: true,
         contentProtectionEnabled: false,
         privacyModeEnabled: false,

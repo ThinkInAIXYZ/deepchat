@@ -142,10 +142,6 @@
   },
   "title": "MCP設定",
   "inmemory": {
-    "Artifacts": {
-      "desc": "讓你的 DeepChat 輸出的多樣化的 Artifacts 內容",
-      "name": "Artifacts"
-    },
     "bochaSearch": {
       "desc": "博查搜索 API https://open.bochaai.com/",
       "name": "博查搜索"

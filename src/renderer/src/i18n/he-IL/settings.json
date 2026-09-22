@@ -608,10 +608,6 @@
       "label": "אורך תגובה",
       "description": "הגדר את האורך המקסימלי של תגובת ה-AI"
     },
-    "artifacts": {
-      "description": "הפעלת תכונת ה-Artifacts (תוצרים) מאפשרת ל-AI ליצור תוכן עשיר יותר",
-      "title": "תוצרים (Artifacts)"
-    },
     "addModel": "הוסף מודל",
     "configureModel": "הגדר מודל",
     "modelList": "רשימת מודלים",

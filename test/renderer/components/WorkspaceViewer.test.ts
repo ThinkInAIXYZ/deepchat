@@ -21,14 +21,12 @@ const textFilePreview = {
 } as const
 
 const textFileSession = {
-  selectedArtifactContext: null,
   selectedFilePath: 'C:/repo/src/app.ts',
   selectedDiffPath: null,
   viewMode: 'preview',
   sections: {
     files: true,
-    git: false,
-    artifacts: true
+    git: false
   }
 } as const
 
@@ -39,18 +37,12 @@ describe('WorkspaceViewer', () => {
 
   const setup = async (options?: {
     sessionState?: {
-      selectedArtifactContext: {
-        threadId: string
-        messageId: string
-        artifactId: string
-      } | null
       selectedFilePath: string | null
       selectedDiffPath: string | null
       viewMode: 'preview' | 'code'
       sections: {
         files: boolean
         git: boolean
-        artifacts: boolean
       }
     }
     props?: Record<string, unknown>
@@ -62,18 +54,12 @@ describe('WorkspaceViewer', () => {
     const sessionState =
       options?.sessionState ??
       ({
-        selectedArtifactContext: {
-          threadId: 'thread-1',
-          messageId: 'message-1',
-          artifactId: 'artifact-1'
-        },
         selectedFilePath: null,
         selectedDiffPath: null,
         viewMode: 'preview',
         sections: {
           files: true,
-          git: false,
-          artifacts: true
+          git: false
         }
       } as const)
 
@@ -164,13 +150,6 @@ describe('WorkspaceViewer', () => {
     const wrapper = mount(WorkspaceViewer, {
       props: {
         sessionId: 'thread-1',
-        artifact: {
-          id: 'artifact-1',
-          type: 'application/octet-stream',
-          title: 'Raw artifact',
-          content: 'fallback content',
-          status: 'loaded'
-        },
         filePreview: null,
         gitDiff: null,
         loadingFilePreview: false,
@@ -260,35 +239,18 @@ describe('WorkspaceViewer', () => {
     expect(wrapper.emitted('back')).toEqual([[]])
   })
 
-  it('shows raw artifact preview through preview pane fallback', async () => {
-    const { wrapper } = await setup()
-
-    expect(wrapper.get('[data-testid="workspace-viewer-body"]').classes()).toEqual(
-      expect.arrayContaining(['min-h-0', 'flex-1', 'overflow-hidden'])
-    )
-    expect(wrapper.get('[data-testid="preview-pane"]').classes()).toEqual(
-      expect.arrayContaining(['h-full', 'min-h-0', 'w-full'])
-    )
-    expect(wrapper.get('[data-testid="preview-pane"]').text()).toContain('raw')
-    expect(wrapper.text()).toContain('artifacts.preview')
-    expect(wrapper.text()).toContain('artifacts.code')
-  })
-
   it('renders code pane only for text files', async () => {
     const { wrapper } = await setup({
       sessionState: {
-        selectedArtifactContext: null,
         selectedFilePath: 'C:/repo/src/app.ts',
         selectedDiffPath: null,
         viewMode: 'preview',
         sections: {
           files: true,
-          git: false,
-          artifacts: true
+          git: false
         }
       },
       props: {
-        artifact: null,
         filePreview: {
           path: 'C:/repo/src/app.ts',
           relativePath: 'src/app.ts',
@@ -319,18 +281,15 @@ describe('WorkspaceViewer', () => {
   it('shows preview and code tabs for markdown files', async () => {
     const { wrapper, sidepanelStore } = await setup({
       sessionState: {
-        selectedArtifactContext: null,
         selectedFilePath: 'C:/repo/README.md',
         selectedDiffPath: null,
         viewMode: 'preview',
         sections: {
           files: true,
-          git: false,
-          artifacts: true
+          git: false
         }
       },
       props: {
-        artifact: null,
         filePreview: {
           path: 'C:/repo/README.md',
           relativePath: 'README.md',
@@ -366,18 +325,15 @@ describe('WorkspaceViewer', () => {
   it('shows preview only for pdf files', async () => {
     const { wrapper } = await setup({
       sessionState: {
-        selectedArtifactContext: null,
         selectedFilePath: 'C:/repo/manual.pdf',
         selectedDiffPath: null,
         viewMode: 'preview',
         sections: {
           files: true,
-          git: false,
-          artifacts: true
+          git: false
         }
       },
       props: {
-        artifact: null,
         filePreview: {
           path: 'C:/repo/manual.pdf',
           relativePath: 'manual.pdf',
@@ -405,18 +361,15 @@ describe('WorkspaceViewer', () => {
   it('shows preview and code tabs for svg files', async () => {
     const { wrapper, sidepanelStore } = await setup({
       sessionState: {
-        selectedArtifactContext: null,
         selectedFilePath: 'C:/repo/diagram.svg',
         selectedDiffPath: null,
         viewMode: 'preview',
         sections: {
           files: true,
-          git: false,
-          artifacts: true
+          git: false
         }
       },
       props: {
-        artifact: null,
         filePreview: {
           path: 'C:/repo/diagram.svg',
           relativePath: 'diagram.svg',
@@ -450,18 +403,15 @@ describe('WorkspaceViewer', () => {
   it('shows info pane for unsupported files', async () => {
     const { wrapper } = await setup({
       sessionState: {
-        selectedArtifactContext: null,
         selectedFilePath: 'C:/repo/archive.zip',
         selectedDiffPath: null,
         viewMode: 'preview',
         sections: {
           files: true,
-          git: false,
-          artifacts: true
+          git: false
         }
       },
       props: {
-        artifact: null,
         filePreview: {
           path: 'C:/repo/archive.zip',
           relativePath: 'archive.zip',
@@ -491,7 +441,6 @@ describe('WorkspaceViewer', () => {
     const { wrapper, notifyRenderer } = await setup({
       sessionState: textFileSession,
       props: {
-        artifact: null,
         filePreview: textFilePreview
       },
       preferredAppId: 'vscode',
@@ -510,7 +459,6 @@ describe('WorkspaceViewer', () => {
     const { wrapper, openFileMock, notifyRenderer } = await setup({
       sessionState: textFileSession,
       props: {
-        artifact: null,
         filePreview: textFilePreview
       },
       preferredAppId: 'vscode',
@@ -543,7 +491,6 @@ describe('WorkspaceViewer', () => {
     const { wrapper, openFileMock, notifyRenderer } = await setup({
       sessionState: textFileSession,
       props: {
-        artifact: null,
         filePreview: textFilePreview
       },
       preferredAppId: 'vscode',
@@ -581,7 +528,6 @@ describe('WorkspaceViewer', () => {
     const { wrapper, notifyRenderer } = await setup({
       sessionState: textFileSession,
       props: {
-        artifact: null,
         filePreview: textFilePreview
       },
       preferredAppId: '#system-default',
@@ -600,7 +546,6 @@ describe('WorkspaceViewer', () => {
     const { wrapper, openFileWithAppMock } = await setup({
       sessionState: textFileSession,
       props: {
-        artifact: null,
         filePreview: textFilePreview
       },
       fileOpenApps: [{ id: 'cursor', name: 'Cursor', kind: 'editor' }]
@@ -625,7 +570,6 @@ describe('WorkspaceViewer', () => {
     const { wrapper, openFileWithAppMock, notifyRenderer } = await setup({
       sessionState: textFileSession,
       props: {
-        artifact: null,
         filePreview: textFilePreview
       },
       preferredAppId: 'vscode',

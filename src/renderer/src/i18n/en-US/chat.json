@@ -360,7 +360,6 @@
     "sections": {
       "files": "Files",
       "git": "Git",
-      "artifacts": "Artifacts",
       "subagents": "Subagents"
     },
     "plan": {
@@ -614,7 +613,9 @@
     }
   },
   "orchestration": {
-    "actions": { "openChild": "Open child" },
+    "actions": {
+      "openChild": "Open child"
+    },
     "activityTitle": "Agent activity",
     "proactive": {
       "title": "Proactive collaboration",

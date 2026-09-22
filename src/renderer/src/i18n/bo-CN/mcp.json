@@ -175,10 +175,6 @@
       "name": "ཡིག་ཆའི་མ་ལག",
       "desc": "DeepChat ལ་ས་གནས་ཀྱི་ཡིག་ཆ་བཀོལ་སྤྱོད་བྱེད་དུ་བཅུག་ཆོག"
     },
-    "Artifacts": {
-      "name": "གྲུབ་འབྲས།",
-      "desc": "ཁྱོད་ཀྱི་DeepChat ལ་སྣ་མང་Artifacts ནང་དོན་འདོན་དུ་འཇུག་དགོས།"
-    },
     "braveSearch": {
       "name": "Brave འཚོལ་ཞིབ།",
       "desc": "Brave འཚོལ་བཤེར་API https://brave.com/search/api/"

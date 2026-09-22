@@ -112,7 +112,6 @@ const PREFERENCE_SETTING_KEYS = new Set([
   'fontSizeLevel',
   'fontFamily',
   'codeFontFamily',
-  'artifactsEffectEnabled',
   'autoScrollEnabled',
   'notificationsEnabled',
   'copyWithCotEnabled'
