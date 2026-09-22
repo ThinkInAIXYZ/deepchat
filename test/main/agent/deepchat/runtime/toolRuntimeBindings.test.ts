@@ -1,7 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
+import type { ChatMessage } from '@shared/types/core/chat-message'
 import { DeepChatAgentRuntime } from '@/agent/deepchat/instance/deepChatAgentRuntime'
 import { toAppSessionId } from '@/agent/shared/agentSessionIds'
 import {
+  createClosedToolResultPruner,
   createToolPermissionReviewer,
   createToolResultNormalizer,
   type ToolRuntimeBindingDependencies
@@ -140,5 +142,95 @@ describe('tool runtime bindings', () => {
     expect(forwardedRequest).toBe(request)
     expect(forwardedContext).toBe(context)
     expect(dependencies.getSessionAgentId(SESSION_ID)).toBe('agent-a')
+  })
+})
+
+describe('createClosedToolResultPruner', () => {
+  const SESSION = 'session'
+  const messages = () =>
+    [
+      { role: 'user', content: 'the task' },
+      {
+        role: 'assistant',
+        content: '',
+        tool_calls: [{ id: 'c1', function: { name: 'exec', arguments: '{}' } }]
+      },
+      { role: 'tool', tool_call_id: 'c1', content: 'x'.repeat(3_000) }
+    ] as unknown as ChatMessage[]
+
+  const buildDeps = (judgmentModel: unknown, runJudgment = vi.fn()) =>
+    ({
+      agentSettings: {
+        resolveDeepChatAgentConfig: vi.fn(async () => ({ judgmentModel }))
+      },
+      identity: { getAgentId: vi.fn(() => 'agent-a') },
+      providerRuntime: {
+        executeWithRateLimit: vi.fn(async () => undefined),
+        runJudgment
+      },
+      pruningFeedback: new JevPruningFeedback()
+    }) as unknown as ToolRuntimeBindingDependencies
+
+  it('does nothing when no judgment model is configured', async () => {
+    // The off-by-default guarantee: this is the binding that would make the network call, and with no
+    // model selected it must return the messages untouched without reaching the provider.
+    const runJudgment = vi.fn()
+    const deps = buildDeps(undefined, runJudgment)
+    const before = messages()
+
+    const result = await createClosedToolResultPruner(deps)({
+      sessionId: SESSION,
+      messages: before,
+      protectedToolCallIds: new Set(),
+      signal: new AbortController().signal
+    })
+
+    expect(result).toBe(before)
+    expect(runJudgment).not.toHaveBeenCalled()
+  })
+
+  it('does nothing once the session has stopped pruning', async () => {
+    const runJudgment = vi.fn()
+    const deps = buildDeps({ providerId: 'typesafe', modelId: 'jev-latest' }, runJudgment)
+    // Three misses is the stop.
+    for (let i = 0; i < 3; i += 1) {
+      deps.pruningFeedback.recordPruned(SESSION, [
+        { toolCallId: `p${i}`, toolName: 'exec', toolArgs: `args-${i}` }
+      ])
+      deps.pruningFeedback.observeToolCall({
+        sessionId: SESSION,
+        toolCallId: `r${i}`,
+        toolName: 'exec',
+        toolArgs: `args-${i}`
+      })
+    }
+    const before = messages()
+
+    const result = await createClosedToolResultPruner(deps)({
+      sessionId: SESSION,
+      messages: before,
+      protectedToolCallIds: new Set(),
+      signal: new AbortController().signal
+    })
+
+    expect(result).toBe(before)
+    expect(runJudgment).not.toHaveBeenCalled()
+  })
+
+  it('asks the judgment model when configured, and keeps a result it cannot read', async () => {
+    const runJudgment = vi.fn(async () => ({ model: 'jev-1.13.0', answers: {} }))
+    const deps = buildDeps({ providerId: 'typesafe', modelId: 'jev-latest' }, runJudgment)
+    const before = messages()
+
+    const result = await createClosedToolResultPruner(deps)({
+      sessionId: SESSION,
+      messages: before,
+      protectedToolCallIds: new Set(),
+      signal: new AbortController().signal
+    })
+
+    expect(runJudgment).toHaveBeenCalledTimes(1)
+    // No readable answers, so every result is kept: an unreadable answer is not evidence of staleness.
+    expect(result).toBe(before)
   })
 })
