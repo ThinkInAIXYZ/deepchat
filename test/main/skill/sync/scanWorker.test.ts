@@ -177,7 +177,17 @@ describe('scanAndDetectDiscoveriesInWorker', () => {
     await expect(pending).rejects.toMatchObject({ name: 'AbortError' })
   })
 
-  it('scans external tools off-main and returns discoveries', async () => {
+  it.each([
+    { cache: null, expectedNames: ['alpha'] },
+    { cache: {}, expectedNames: ['alpha'] },
+    { cache: { tools: null }, expectedNames: ['alpha'] },
+    { cache: { tools: [{ toolId: 'cursor-global' }] }, expectedNames: ['alpha'] },
+    { cache: { tools: [{ toolId: 'cursor-global', skills: {} }] }, expectedNames: ['alpha'] },
+    {
+      cache: { tools: [null, { toolId: 'cursor-global', skills: [null, { name: 'alpha' }] }] },
+      expectedNames: []
+    }
+  ])('scans off-main despite malformed cache: $cache', async ({ cache, expectedNames }) => {
     const fs = await vi.importActual<typeof import('node:fs')>('node:fs')
     const os = await vi.importActual<typeof import('node:os')>('node:os')
     const path = await vi.importActual<typeof import('node:path')>('node:path')
@@ -194,10 +204,7 @@ describe('scanAndDetectDiscoveriesInWorker', () => {
 
     const result = await scanAndDetectDiscoveriesInWorker({
       tools: [createCursorTool(skillsRoot)],
-      cache: {
-        timestamp: new Date().toISOString(),
-        tools: []
-      },
+      cache: cache as ScanCache | null,
       existingSkillNames: []
     })
 
@@ -212,16 +219,9 @@ describe('scanAndDetectDiscoveriesInWorker', () => {
         ]
       })
     ])
-    expect(result.discoveries).toEqual([
-      expect.objectContaining({
-        toolId: 'cursor-global',
-        newSkills: [
-          expect.objectContaining({
-            name: 'alpha'
-          })
-        ]
-      })
-    ])
+    expect(result.discoveries.flatMap((item) => item.newSkills.map((skill) => skill.name))).toEqual(
+      expectedNames
+    )
   })
 })
 

@@ -11,9 +11,12 @@ No push or GitHub mutation is authorized. This refactor is independently usable 
 
 ## Validation outcome
 
-- Skill and inline-runner suites: 28 files, 571 tests passed. Provider catalog checks: 69 passed.
+- Skill and inline-runner suites: 28 files, 579 tests passed. Provider catalog checks: 69 passed.
 - Containment ablation: replacing the final realpath check with the original path exposes both
   sibling-folder and outside-root descriptions; the regression fails. Restoring the check passes.
+- Follow-up review restored malformed-cache recovery in the shared discovery comparison.
+  Removing cache guards fails eight Worker/fallback cases; restoring them passes, preserves
+  valid cached names, and lets startup persist a repaired cache and publish discoveries.
 - Format check, i18n, lint, both typechecks and full app/CLI build passed.
 - Real electron-vite bundle and Electron ASAR smoke returned non-empty metadata with Date values.
 - Review covered security, architecture and four adversarial angles. Fixed the test CLI's Windows

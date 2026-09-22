@@ -16,6 +16,8 @@ adapter, a new parser, a dependency, or a public setting.
 - ToolScanner owns the registry and scanning rules, accepting a tool list at construction so
   the Worker uses the same configuration snapshot as its caller.
 - A shared discovery function compares scan results with cached and imported names.
+- Persisted cache is best-effort: malformed tool/skill entries are ignored while valid names
+  still suppress duplicate discoveries. Successful startup scanning replaces the cache.
 - The Worker entry runs scanning and comparison and posts the existing response envelope.
 - scanWorker owns loading the bundled entry. Node structured clone preserves Date values;
   no ISO conversion or public type change is required.

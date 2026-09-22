@@ -5,9 +5,19 @@ export function compareWithCacheAndSkills(
   cache: ScanCache | null,
   existingSkillNames: Set<string>
 ): NewDiscovery[] {
-  const cacheMap = new Map(
-    cache?.tools.map((tool) => [tool.toolId, new Set(tool.skills.map((skill) => skill.name))])
-  )
+  // Persisted cache is not runtime-validated. Ignore malformed entries so a
+  // successful scan can replace it instead of failing in both execution paths.
+  const cacheMap = new Map<string, Set<string>>()
+  if (Array.isArray(cache?.tools)) {
+    for (const tool of cache.tools) {
+      if (typeof tool?.toolId !== 'string') continue
+      const skills = Array.isArray(tool.skills) ? tool.skills : []
+      cacheMap.set(
+        tool.toolId,
+        new Set(skills.flatMap((skill) => (typeof skill?.name === 'string' ? [skill.name] : [])))
+      )
+    }
+  }
   const discoveries: NewDiscovery[] = []
 
   for (const result of scanResults) {
