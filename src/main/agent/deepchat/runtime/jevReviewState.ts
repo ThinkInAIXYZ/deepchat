@@ -34,6 +34,12 @@ import {
  */
 const JEV_TOKEN_PIECES = /[A-Za-z]+|\d+|[^\sA-Za-z\d]/g
 
+/**
+ * Length at which an unbroken alphanumeric run stops looking like a word and starts looking like a
+ * blob — base64, a hash, a minified payload, a data URL.
+ */
+const JEV_TOKEN_BLOB_RUN_LENGTH = 24
+
 export function estimateJevTokens(value: string): number {
   let tokens = 0
 
@@ -41,7 +47,14 @@ export function estimateJevTokens(value: string): number {
     const first = piece.charCodeAt(0)
     if (first >= 48 && first <= 57) tokens += piece.length / 2
     else if ((first >= 65 && first <= 90) || (first >= 97 && first <= 122)) {
-      tokens += 1 + Math.floor((piece.length - 1) / 6)
+      const wordRule = 1 + Math.floor((piece.length - 1) / 6)
+      // The letter rule is calibrated on prose and undercounts a blob badly: a 119,000-character
+      // base64 run estimates at ~19.8k tokens against a real count nearer 30k, so an oversized request
+      // passes the budget check and fails at the HTTP layer instead — the exact degradation the budget
+      // exists to prevent. Charge long runs by length instead, keeping whichever rule is larger so
+      // ordinary words are unaffected.
+      const blobRule = piece.length >= JEV_TOKEN_BLOB_RUN_LENGTH ? piece.length / 4 : 0
+      tokens += Math.max(wordRule, blobRule)
     } else tokens += 0.9
   }
 
@@ -62,6 +75,8 @@ type JevReviewStateShape = {
   toolArgsChars: number
   /** `null` keeps the permission object intact; a number replaces it with a truncated JSON string. */
   permissionChars: number | null
+  /** Bound on the executable strings inside the permission payload (`command`, each path). */
+  permissionFieldChars: number
 }
 
 const JEV_REVIEW_STATE_SHAPES: readonly JevReviewStateShape[] = [
@@ -70,37 +85,48 @@ const JEV_REVIEW_STATE_SHAPES: readonly JevReviewStateShape[] = [
     maxMessages: JEV_REVIEW_MAX_RECENT_MESSAGES,
     messageChars: JEV_REVIEW_MAX_CONTENT_CHARS,
     toolArgsChars: 4_000,
-    permissionChars: null
+    permissionChars: null,
+    permissionFieldChars: 2_000
   },
   {
     label: 'tight',
     maxMessages: JEV_REVIEW_MAX_RECENT_MESSAGES,
     messageChars: 800,
     toolArgsChars: 1_000,
-    permissionChars: 1_000
+    permissionChars: 1_000,
+    permissionFieldChars: 1_000
   },
   {
     label: 'tighter',
     maxMessages: 4,
     messageChars: 400,
     toolArgsChars: 400,
-    permissionChars: 300
+    permissionChars: 300,
+    permissionFieldChars: 400
   },
   {
     label: 'minimal',
     maxMessages: 2,
     messageChars: 200,
     toolArgsChars: 160,
-    permissionChars: 120
+    permissionChars: 120,
+    permissionFieldChars: 200
   },
   {
     label: 'action-only',
     maxMessages: 1,
     messageChars: 120,
     toolArgsChars: 80,
-    permissionChars: 60
+    permissionChars: 60,
+    permissionFieldChars: 100
   }
 ]
+
+/**
+ * Cap on how many `permission.paths` entries reach the reviewer. The per-entry bound alone leaves the
+ * count free, so a `write` touching thousands of paths would still fill the state.
+ */
+export const JEV_REVIEW_MAX_PERMISSION_PATHS = 20
 
 /**
  * Reduces the permission payload to the facts a reviewer needs in order to judge the action.
@@ -121,15 +147,41 @@ const JEV_REVIEW_STATE_SHAPES: readonly JevReviewStateShape[] = [
  * What remains is the action itself — what runs, against which paths, in which shell.
  */
 function toReviewablePermission(
-  permission: NonNullable<ToolPermissionReviewRequest['permission']>
-): Record<string, unknown> {
+  permission: NonNullable<ToolPermissionReviewRequest['permission']>,
+  maxFieldChars: number
+): { permission: Record<string, unknown>; truncated: boolean } {
+  const command = boundString(permission.command, maxFieldChars)
+  // The array length is bounded as well as each entry: bounding only the entries leaves the count
+  // free, and a `write` touching thousands of paths is the shape that made the state unbounded in the
+  // first place.
+  const paths = permission.paths?.slice(0, JEV_REVIEW_MAX_PERMISSION_PATHS)
+  const boundedPaths = paths?.map((entry) => boundString(entry, maxFieldChars).value)
+
   return {
-    permissionType: permission.permissionType,
-    command: permission.command,
-    shellProfile: permission.shellProfile,
-    paths: permission.paths,
-    baseCommand: permission.commandInfo?.baseCommand
+    permission: {
+      permissionType: permission.permissionType,
+      command: command.value,
+      shellProfile: permission.shellProfile,
+      paths: boundedPaths,
+      baseCommand: permission.commandInfo?.baseCommand
+    },
+    // `command` and `paths` are executable: they say what runs and against what. Leaving them
+    // unbounded let a 119,000-character command ride through the widest shape while still describing
+    // the action, which is the same partial-view problem as a truncated `toolArgs`.
+    truncated:
+      command.truncated ||
+      (permission.paths?.length ?? 0) > JEV_REVIEW_MAX_PERMISSION_PATHS ||
+      (paths?.some((entry) => boundString(entry, maxFieldChars).truncated) ?? false)
   }
+}
+
+function boundString(value: string | undefined, maxChars: number): {
+  value: string | undefined
+  truncated: boolean
+} {
+  if (typeof value !== 'string') return { value, truncated: false }
+  const bounded = truncateReviewText(value, maxChars, 'head-and-tail')
+  return { value: bounded, truncated: bounded !== value }
 }
 
 function buildStateForShape(
@@ -144,7 +196,7 @@ function buildStateForShape(
   }))
 
   const reviewablePermission = request.permission
-    ? toReviewablePermission(request.permission)
+    ? toReviewablePermission(request.permission, shape.permissionFieldChars)
     : null
 
   const rawToolArgs = request.toolArgs ?? ''
@@ -152,19 +204,19 @@ function buildStateForShape(
 
   const permissionIsStringified = shape.permissionChars !== null
   const stringifiedPermission = reviewablePermission
-    ? JSON.stringify(reviewablePermission)
+    ? JSON.stringify(reviewablePermission.permission)
     : null
   const permission =
     shape.permissionChars === null || stringifiedPermission === null
-      ? reviewablePermission
+      ? (reviewablePermission?.permission ?? null)
       : truncateReviewText(stringifiedPermission, shape.permissionChars, 'head-and-tail')
 
   /**
    * Whether the reviewer is being shown less of the action than will actually run.
    *
    * A truncated `toolArgs` is the dangerous case: the action still executes in full, so a reviewer
-   * that saw only the first `toolArgsChars` characters is not judging the action that runs. A
-   * truncated permission payload is the same problem for the executable fields inside it.
+   * that saw only the first `toolArgsChars` characters is not judging the action that runs. A bounded
+   * executable field inside the permission payload is the same problem.
    *
    * Both comparisons are against the content, not the shape. Re-encoding the permission as JSON in a
    * tighter shape is not truncation, and treating it as such would refuse `auto_allow` for every
@@ -172,6 +224,7 @@ function buildStateForShape(
    */
   const actionTruncated =
     boundedToolArgs !== rawToolArgs ||
+    (reviewablePermission?.truncated ?? false) ||
     (permissionIsStringified &&
       stringifiedPermission !== null &&
       permission !== stringifiedPermission)

@@ -105,11 +105,15 @@ describe('fitJevReviewState', () => {
   })
 
   it('tightens further when the full shape still exceeds the budget', () => {
+    // With every scalar bounded, the `paths` array is the only dimension left that can exceed the
+    // budget, so this is what still reaches the tighter shapes. Punctuation-heavy entries because the
+    // estimator charges those most — the point is to exercise the fitting, not to claim this is a
+    // common shape. Realistically the widest shape fits, and the tighter ones are a safety net.
     const fitted = fitJevReviewState({
       request: buildRequest({
         permission: {
           permissionType: 'write',
-          paths: ['y'.repeat(200_000)]
+          paths: Array.from({ length: 200 }, (_, i) => `${i}${'!'.repeat(2_000)}`)
         } as ToolPermissionReviewRequest['permission']
       }),
       recentMessages: []
