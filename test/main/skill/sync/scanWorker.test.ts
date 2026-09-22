@@ -1,5 +1,45 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
-import { scanAndDetectDiscoveriesInWorker } from '../../../../src/main/skill/sync/scanWorker'
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
+import { execFileSync } from 'node:child_process'
+import { pathToFileURL } from 'node:url'
+import type { ExternalToolConfig, ScanCache } from '../../../../src/shared/types/skillSync'
+
+vi.unmock('fs')
+vi.unmock('path')
+
+let scanAndDetectDiscoveriesInWorker: typeof import('../../../../src/main/skill/sync/scanWorker').scanAndDetectDiscoveriesInWorker
+let scanExternalToolsInWorker: typeof import('../../../../src/main/skill/sync/scanWorker').scanExternalToolsInWorker
+let ToolScanner: typeof import('../../../../src/main/skill/sync/toolScanner').ToolScanner
+let compareWithCacheAndSkills: typeof import('../../../../src/main/skill/sync/discoveries').compareWithCacheAndSkills
+let buildDir: string
+
+beforeAll(async () => {
+  const fs = await vi.importActual<typeof import('node:fs')>('node:fs')
+  const os = await vi.importActual<typeof import('node:os')>('node:os')
+  const path = await vi.importActual<typeof import('node:path')>('node:path')
+  buildDir = fs.mkdtempSync(path.join(os.tmpdir(), 'deepchat-scan-build-'))
+  execFileSync(
+    process.execPath,
+    [
+      path.resolve('node_modules/electron-vite/bin/electron-vite.js'),
+      'build',
+      '--config',
+      'test/main/skill/sync/scanWorker.build.ts',
+      '--outDir',
+      buildDir
+    ],
+    { cwd: process.cwd(), stdio: 'pipe' }
+  )
+  const load = (name: string) =>
+    import(/* @vite-ignore */ pathToFileURL(path.join(buildDir, 'main', name)).href)
+  ;({ scanAndDetectDiscoveriesInWorker, scanExternalToolsInWorker } = await load('scanWorker.mjs'))
+  ;({ ToolScanner } = await load('toolScanner.mjs'))
+  ;({ compareWithCacheAndSkills } = await load('discoveries.mjs'))
+}, 60_000)
+
+afterAll(async () => {
+  const fs = await vi.importActual<typeof import('node:fs')>('node:fs')
+  if (buildDir) fs.rmSync(buildDir, { recursive: true, force: true })
+})
 
 const tempDirs: string[] = []
 
@@ -33,6 +73,110 @@ afterEach(async () => {
 })
 
 describe('scanAndDetectDiscoveriesInWorker', () => {
+  it('matches fallback metadata, filtering and errors on real files', async () => {
+    const fs = await vi.importActual<typeof import('node:fs')>('node:fs')
+    const os = await vi.importActual<typeof import('node:os')>('node:os')
+    const path = await vi.importActual<typeof import('node:path')>('node:path')
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'deepchat-scan-parity-'))
+    tempDirs.push(root)
+    const write = (name: string, content: string) => {
+      const target = path.join(root, name)
+      fs.mkdirSync(path.dirname(target), { recursive: true })
+      fs.writeFileSync(target, content)
+      fs.utimesSync(target, new Date('2026-01-02T03:04:05Z'), new Date('2026-01-02T03:04:05Z'))
+    }
+    write('folders/alpha/SKILL.md', '---\ndescription: "Alpha summary"\n---\n# Alpha')
+    write('folders/cached/SKILL.md', '# Cached\nAlready seen')
+    write('folders/imported/SKILL.md', '# Imported\nAlready imported')
+    write('folders/empty/SKILL.md', 'No heading or description')
+    write('prompts/task.prompt.md', '# Task\nPrompt summary')
+    write('prompts/ignore.md', '# Ignore\nWrong extension')
+    write('flat/limit.md', '# Limit\n' + 'x'.repeat(10 * 1024 * 1024 - 8))
+    write('flat/oversize.md', 'x'.repeat(10 * 1024 * 1024 + 1))
+    write('not-directory', 'file')
+    fs.mkdirSync(path.join(root, 'folders/not-file/SKILL.md'), { recursive: true })
+    fs.mkdirSync(path.join(root, 'folders/missing-entry'))
+    const tools: ExternalToolConfig[] = [
+      createCursorTool(path.join(root, 'folders')),
+      {
+        ...createCursorTool('prompts'),
+        id: 'prompts-project',
+        isProjectLevel: true,
+        filePattern: '*.prompt.md'
+      },
+      { ...createCursorTool(path.join(root, 'flat')), id: 'flat', filePattern: '*.md' },
+      { ...createCursorTool(path.join(root, 'absent')), id: 'absent' },
+      { ...createCursorTool(path.join(root, 'not-directory')), id: 'not-directory' }
+    ]
+    const cache: ScanCache = {
+      timestamp: '2026-01-01T00:00:00Z',
+      tools: [
+        {
+          toolId: tools[0].id,
+          available: true,
+          skills: [{ name: 'cached', lastModified: '2025-12-01T00:00:00Z' }]
+        }
+      ]
+    }
+    const existingSkillNames = ['imported']
+    const fallback = await new ToolScanner(tools).scanExternalTools(root)
+    const worker = await scanAndDetectDiscoveriesInWorker({
+      tools,
+      projectRoot: root,
+      cache,
+      existingSkillNames
+    })
+    expect(worker.scanResults).toEqual(fallback)
+    expect(worker.discoveries).toEqual(
+      compareWithCacheAndSkills(fallback, cache, new Set(existingSkillNames))
+    )
+    expect(worker.scanResults[0].skills.map((skill) => skill.name)).toEqual([
+      'alpha',
+      'cached',
+      'empty',
+      'imported'
+    ])
+    expect(worker.scanResults[0].skills[0]).toEqual({
+      name: 'alpha',
+      description: 'Alpha summary',
+      path: path.join(root, 'folders/alpha'),
+      format: 'cursor',
+      lastModified: new Date('2026-01-02T03:04:05Z')
+    })
+    expect(worker.scanResults[0].skills[2].description).toBeUndefined()
+    expect(worker.scanResults[1].skills).toEqual([
+      expect.objectContaining({ name: 'task', description: 'Prompt summary' })
+    ])
+    expect(worker.scanResults[2].skills.map((skill) => skill.name)).toEqual(['limit'])
+    expect(worker.scanResults[3]).toMatchObject({ available: false, skills: [] })
+    expect(worker.scanResults[4]).toMatchObject({
+      available: false,
+      skills: [],
+      error: `Path is not a directory: ${path.join(root, 'not-directory')}`
+    })
+    expect(
+      worker.discoveries.map((item) => [item.toolId, item.newSkills.map((skill) => skill.name)])
+    ).toEqual([
+      ['cursor-global', ['alpha', 'empty']],
+      ['flat', ['limit']]
+    ])
+    const userOnly = await scanExternalToolsInWorker({ tools })
+    expect(userOnly).toEqual(await new ToolScanner(tools).scanExternalTools())
+    expect(userOnly.map((result) => result.toolId)).not.toContain('prompts-project')
+  })
+
+  it('rejects cancellation before and after starting a Worker', async () => {
+    const before = new AbortController()
+    before.abort()
+    await expect(scanExternalToolsInWorker({ tools: [] }, before.signal)).rejects.toMatchObject({
+      name: 'AbortError'
+    })
+    const during = new AbortController()
+    const pending = scanExternalToolsInWorker({ tools: [] }, during.signal)
+    during.abort()
+    await expect(pending).rejects.toMatchObject({ name: 'AbortError' })
+  })
+
   it('scans external tools off-main and returns discoveries', async () => {
     const fs = await vi.importActual<typeof import('node:fs')>('node:fs')
     const os = await vi.importActual<typeof import('node:os')>('node:os')

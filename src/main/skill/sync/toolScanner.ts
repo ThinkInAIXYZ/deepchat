@@ -279,9 +279,9 @@ export function resolveSkillsDir(tool: ExternalToolConfig, projectRoot?: string)
 export class ToolScanner {
   private toolRegistry: Map<string, ExternalToolConfig>
 
-  constructor() {
+  constructor(tools: ExternalToolConfig[] = EXTERNAL_TOOLS) {
     this.toolRegistry = new Map()
-    for (const tool of EXTERNAL_TOOLS) {
+    for (const tool of tools) {
       this.toolRegistry.set(tool.id, tool)
     }
   }
