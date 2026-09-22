@@ -84,7 +84,6 @@ export interface PluginMcpServerManifest {
   command?: string
   args?: string[]
   url?: string
-  connectionProfile?: 'local' | 'remote'
   headers?: Record<string, string>
   env?: Record<string, string>
   /** @deprecated MCP permissions are host-owned; retained only for manifest compatibility. */

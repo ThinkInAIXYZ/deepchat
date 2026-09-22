@@ -126,7 +126,7 @@ export class ConversationExporterService implements IConversationExporter {
     try {
       if (this.deps.nowledgeMemConnections) {
         const state = await this.deps.nowledgeMemConnections.getState()
-        const connection = state.exportProfile && state.connections[state.exportProfile]
+        const connection = state.connection
         if (!connection || config) throw new Error('Verify connections in the Nowledge Mem plugin')
         const resolved = this.deps.nowledgeMemConnections.getExportConfig()
         await this.deps.nowledgeMemConnections.verify(

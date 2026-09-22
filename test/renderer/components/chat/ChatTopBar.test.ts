@@ -186,12 +186,10 @@ const mountTopBar = () =>
 describe('ChatTopBar Nowledge export', () => {
   it('requires confirmation, keeps the confirmed target and surfaces a failed send', async () => {
     const connection = {
-      profile: 'remote',
       apiBaseUrl: 'https://mem.example.com/remote-api'
     }
     nowledge.getConnections.mockResolvedValue({
-      exportProfile: 'remote',
-      connections: { remote: connection }
+      connection
     })
     nowledge.sendSession.mockRejectedValueOnce(new Error('Thread export: HTTP 401'))
     const wrapper = mountTopBar()
@@ -208,7 +206,7 @@ describe('ChatTopBar Nowledge export', () => {
     await flushPromises()
     expect(nowledge.sendSession).toHaveBeenCalledWith({
       sessionId: 'session-1',
-      profile: 'remote',
+
       apiBaseUrl: 'https://mem.example.com/remote-api'
     })
     expect(vm.nowledgeOpen).toBe(true)

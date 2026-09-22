@@ -11,7 +11,6 @@ import {
   type NowledgeConnection,
   type NowledgeConnectionInput,
   type NowledgePluginState,
-  type NowledgeProfileId,
   isNowledgeMachineLocalSetting
 } from '@shared/types/nowledgeMemPlugin'
 import { memHeaders, type NowledgeMemConfig } from '@/exporter/nowledgeMemClient'
@@ -20,8 +19,7 @@ const SETTINGS_KEY = 'nowledgeMemPlugin'
 const KEY_VARIABLE = 'NOWLEDGE_MEM_API_KEY'
 type StoredConnection = Omit<NowledgeConnection, 'hasApiKey'> & { credentialId?: string }
 type StoredState = {
-  connections: Partial<Record<NowledgeProfileId, StoredConnection>>
-  exportProfile: NowledgeProfileId | null
+  connection: StoredConnection | null
   credentials?: Record<string, string>
 }
 
@@ -32,34 +30,25 @@ export function normalizeMemUrl(value: string): string {
   } catch {
     throw new Error('Invalid Nowledge Mem server URL')
   }
-  const loopback = ['127.0.0.1', 'localhost', '[::1]'].includes(url.hostname)
   if (
-    (url.protocol !== 'https:' && !(url.protocol === 'http:' && loopback)) ||
+    (url.protocol !== 'https:' && url.protocol !== 'http:') ||
     url.username ||
     url.password ||
     url.search ||
     url.hash
   )
-    throw new Error(
-      'Use HTTPS, or HTTP on this computer, without URL credentials or query parameters'
-    )
+    throw new Error('Use an HTTP or HTTPS URL without credentials or query parameters')
   return url.toString().replace(/\/+$/, '')
 }
 
 export function resolveMemEndpoints(
-  input: Pick<NowledgeConnectionInput, 'baseUrl' | 'apiBaseUrl' | 'mcpUrl' | 'profile'>
+  input: Pick<NowledgeConnectionInput, 'baseUrl' | 'apiBaseUrl' | 'mcpUrl'>
 ) {
   const baseUrl = normalizeMemUrl(input.baseUrl)
   const apiBaseUrl = normalizeMemUrl(input.apiBaseUrl || baseUrl.replace(/\/mcp$/, ''))
   const mcpUrl = normalizeMemUrl(input.mcpUrl || `${apiBaseUrl}/mcp`) + '/'
   if ([apiBaseUrl, mcpUrl].some((value) => new URL(value).origin !== new URL(baseUrl).origin)) {
     throw new Error('API and MCP must belong to the selected server origin')
-  }
-  const local = ['127.0.0.1', 'localhost', '[::1]'].includes(new URL(baseUrl).hostname)
-  if (input.profile === 'local' && !local)
-    throw new Error('The local connection must use this computer’s loopback address')
-  if (input.profile === 'remote' && (local || new URL(baseUrl).protocol !== 'https:')) {
-    throw new Error('The remote connection must use a remote HTTPS server')
   }
   return { baseUrl, apiBaseUrl, mcpUrl }
 }
@@ -83,7 +72,24 @@ export class NowledgeMemConnections {
   ) {}
 
   private read(): StoredState {
-    return this.settings.get<StoredState>(SETTINGS_KEY) ?? { connections: {}, exportProfile: null }
+    const state = this.settings.get<
+      Partial<StoredState> & {
+        connections?: Partial<Record<'local' | 'remote', StoredConnection>>
+        exportProfile?: 'local' | 'remote' | null
+      }
+    >(SETTINGS_KEY)
+    if (!state) return { connection: null }
+    if ('connection' in state)
+      return { connection: state.connection ?? null, credentials: state.credentials }
+    // Retain the selected destination and all destination-bound credentials from profile settings.
+    return {
+      connection:
+        state.connections?.[state.exportProfile ?? 'local'] ??
+        state.connections?.remote ??
+        state.connections?.local ??
+        null,
+      credentials: state.credentials
+    }
   }
 
   private key(connection: StoredConnection): string {
@@ -102,13 +108,16 @@ export class NowledgeMemConnections {
   async getState(): Promise<NowledgePluginState> {
     const state = this.read()
     return {
-      exportProfile: state.exportProfile,
-      connections: Object.fromEntries(
-        Object.entries(state.connections).map(([id, { credentialId, ...connection }]) => [
-          id,
-          { ...connection, hasApiKey: Boolean(credentialId) }
-        ])
-      ),
+      connection: state.connection
+        ? {
+            baseUrl: state.connection.baseUrl,
+            apiBaseUrl: state.connection.apiBaseUrl,
+            mcpUrl: state.connection.mcpUrl,
+            timeout: state.connection.timeout,
+            verifiedAt: state.connection.verifiedAt,
+            hasApiKey: Boolean(state.connection.credentialId)
+          }
+        : null,
       legacy: (await this.legacyConnections()).map(({ apiKey, ...connection }) => ({
         ...connection,
         hasApiKey: Boolean(apiKey)
@@ -163,12 +172,10 @@ export class NowledgeMemConnections {
     return result
   }
 
-  getExportConfig(profile?: NowledgeProfileId): NowledgeMemConfig {
+  getExportConfig(): NowledgeMemConfig {
     const state = this.read()
-    const selected = profile ?? state.exportProfile
-    const connection = selected && state.connections[selected]
-    if (!connection)
-      throw new Error('Select a verified export connection in the Nowledge Mem plugin')
+    const connection = state.connection
+    if (!connection) throw new Error('Verify a connection in the Nowledge Mem plugin')
     return {
       baseUrl: connection.apiBaseUrl,
       apiKey: this.key(connection),
@@ -178,19 +185,11 @@ export class NowledgeMemConnections {
 
   getPublicExportConfig(): NowledgeMemConfig {
     const state = this.read()
-    const connection = state.exportProfile && state.connections[state.exportProfile]
+    const connection = state.connection
     return {
       baseUrl: connection ? connection.apiBaseUrl : 'http://127.0.0.1:14242',
       timeout: connection ? connection.timeout : 30000
     }
-  }
-
-  selectExport(profile: NowledgeProfileId): void {
-    if (this.busy) throw new Error('A connection update is in progress')
-    const state = this.read()
-    if (!state.connections[profile])
-      throw new Error('Verify this connection before using it for exports')
-    this.settings.set(SETTINGS_KEY, { ...state, exportProfile: profile })
   }
 
   clear(): void {
@@ -200,8 +199,8 @@ export class NowledgeMemConnections {
     }
   }
 
-  getMcpConnection(profile: NowledgeProfileId): Partial<MCPServerConfig> | undefined {
-    const connection = this.read().connections[profile]
+  getMcpConnection(): Partial<MCPServerConfig> | undefined {
+    const connection = this.read().connection
     if (!connection) return undefined
     return {
       baseUrl: connection.mcpUrl,
@@ -212,15 +211,13 @@ export class NowledgeMemConnections {
 
   getMcpBindings(config: Partial<MCPServerConfig>): Record<string, string> {
     if (config.ownerPluginId !== NOWLEDGE_PLUGIN_ID) return {}
-    for (const profile of ['local', 'remote'] as const) {
-      const connection = this.read().connections[profile]
-      if (
-        connection &&
-        config.baseUrl === connection.mcpUrl &&
-        config.sourceId === NOWLEDGE_PLUGIN_ID
-      ) {
-        return { [KEY_VARIABLE]: this.key(connection) }
-      }
+    const connection = this.read().connection
+    if (
+      connection &&
+      config.baseUrl === connection.mcpUrl &&
+      config.sourceId === NOWLEDGE_PLUGIN_ID
+    ) {
+      return { [KEY_VARIABLE]: this.key(connection) }
     }
     throw new Error('The Nowledge MCP destination no longer matches its saved connection')
   }
@@ -232,7 +229,7 @@ export class NowledgeMemConnections {
     try {
       let endpoints = resolveMemEndpoints(input)
       const state = this.read()
-      const previous = state.connections[input.profile]
+      const previous = state.connection
       if (
         previous &&
         (previous.apiBaseUrl !== endpoints.apiBaseUrl || previous.mcpUrl !== endpoints.mcpUrl) &&
@@ -254,16 +251,10 @@ export class NowledgeMemConnections {
         }
         apiKey ||= legacy.apiKey
       }
-      if (input.connectLink?.trim()) {
-        if (apiKey) throw new Error('Use an API key or a connect link, not both')
-        apiKey = await this.redeem(input.connectLink.trim(), endpoints.baseUrl, input.timeout)
-      }
       // Reuse only credentials bound to these exact destinations, never ambient nmem settings.
       const suppliedKey = apiKey
       const savedCredential = state.credentials?.[this.credentialId(endpoints)]
       apiKey ||= savedCredential ? this.secrets.get(savedCredential) : ''
-      if (input.profile === 'remote' && !apiKey)
-        throw new Error('Enter an API key or a one-time connect link for this server')
       try {
         await this.verify(endpoints, apiKey, input.timeout)
       } catch (error) {
@@ -276,10 +267,10 @@ export class NowledgeMemConnections {
         )
           throw error
         endpoints = resolveMemEndpoints({ ...input, apiBaseUrl: `${endpoints.baseUrl}/remote-api` })
-        if (!suppliedKey && savedCredential) {
+        if (!suppliedKey) {
           const resolvedCredential = state.credentials?.[this.credentialId(endpoints)]
           apiKey = resolvedCredential ? this.secrets.get(resolvedCredential) : ''
-          if (!apiKey)
+          if (!apiKey && savedCredential)
             throw new Error('Enter a credential for the resolved API and MCP destinations')
         }
         await this.verify(endpoints, apiKey, input.timeout)
@@ -304,15 +295,13 @@ export class NowledgeMemConnections {
       if (credentialId && !reuse) this.secrets.setWrapped(credentialId, this.secrets.wrap(apiKey))
       const connection: StoredConnection = {
         ...endpoints,
-        profile: input.profile,
         timeout: input.timeout,
         verifiedAt: Date.now(),
         ...(credentialId ? { credentialId } : {})
       }
       try {
         this.settings.set(SETTINGS_KEY, {
-          connections: { ...state.connections, [input.profile]: connection },
-          exportProfile: state.exportProfile ?? input.profile,
+          connection,
           credentials: {
             ...state.credentials,
             ...(credentialId ? { [destinationKey]: credentialId } : {})
@@ -406,49 +395,5 @@ export class NowledgeMemConnections {
     } finally {
       await client.close().catch(() => {})
     }
-  }
-
-  private async redeem(link: string, baseUrl: string, timeout: number): Promise<string> {
-    let url: URL
-    try {
-      url = new URL(link)
-    } catch {
-      throw new Error('Invalid connect link')
-    }
-    if (url.origin !== new URL(baseUrl).origin || url.username || url.password)
-      throw new Error('The connect link must belong to the selected server')
-    const token = url.searchParams.get('nmem_connect') || url.searchParams.get('token')
-    if (!token) throw new Error('The link does not contain a one-time connect token')
-    let response: Response
-    try {
-      response = await fetch(`${url.origin}/api/remote-access/redeem-connect-token`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token }),
-        redirect: 'error',
-        signal: AbortSignal.timeout(timeout)
-      })
-    } catch {
-      throw new Error('Connect link redemption failed; obtain a new link before trying again')
-    }
-    if (!response.ok)
-      throw new Error(`Connect link redemption: HTTP ${response.status}; obtain a new link`)
-    const data = (await response.json().catch(() => null)) as {
-      api_key?: unknown
-      url?: unknown
-    } | null
-    if (!data || typeof data.api_key !== 'string' || !data.api_key)
-      throw new Error('Connect link response did not contain a credential')
-    if (typeof data.url === 'string') {
-      let returned: URL
-      try {
-        returned = new URL(data.url)
-      } catch {
-        throw new Error('Connect link returned an invalid server URL')
-      }
-      if (returned.origin !== url.origin)
-        throw new Error('Connect link returned a different server')
-    }
-    return data.api_key
   }
 }

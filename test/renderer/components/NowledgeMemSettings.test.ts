@@ -9,33 +9,18 @@ afterEach(() => {
   wrappers.length = 0
   vi.restoreAllMocks()
 })
-const button = (wrapper: VueWrapper, key: string) =>
-  wrapper.findAll('button').find((item) => item.text() === `settings.nowledgePlugin.${key}`)!
 
 async function setup() {
   vi.resetModules()
   let state: NowledgePluginState = {
-    connections: {
-      local: {
-        profile: 'local',
-        baseUrl: 'http://127.0.0.1:14242',
-        apiBaseUrl: 'http://127.0.0.1:14242',
-        mcpUrl: 'http://127.0.0.1:14242/mcp/',
-        timeout: 30000,
-        verifiedAt: 1,
-        hasApiKey: false
-      },
-      remote: {
-        profile: 'remote',
-        baseUrl: 'https://mem.example.test',
-        apiBaseUrl: 'https://mem.example.test/remote-api',
-        mcpUrl: 'https://mem.example.test/remote-api/mcp/',
-        timeout: 30000,
-        verifiedAt: 1,
-        hasApiKey: true
-      }
+    connection: {
+      baseUrl: 'https://mem.example.test',
+      apiBaseUrl: 'https://mem.example.test/remote-api',
+      mcpUrl: 'https://mem.example.test/remote-api/mcp/',
+      timeout: 30000,
+      verifiedAt: 1,
+      hasApiKey: true
     },
-    exportProfile: 'local',
     legacy: []
   }
   const client = {
@@ -43,17 +28,10 @@ async function setup() {
     saveConnection: vi.fn(async (input) => {
       state = {
         ...state,
-        connections: {
-          ...state.connections,
-          [input.profile]: {
-            ...state.connections[input.profile as 'local' | 'remote'],
-            baseUrl: input.baseUrl
-          }
-        }
+        connection: { ...state.connection!, baseUrl: input.baseUrl }
       }
       return structuredClone(state)
-    }),
-    selectExport: vi.fn(async (profile) => ({ ...state, exportProfile: profile }))
+    })
   }
   const requestLeave = vi.fn().mockResolvedValue(false)
   vi.doMock('@api/NowledgeMemClient', () => ({ createNowledgeMemClient: () => client }))
@@ -86,62 +64,71 @@ async function setup() {
 }
 
 describe('Nowledge plugin settings', () => {
-  it('keeps stored keys out of the form and selects a verified export profile independently', async () => {
+  it('shows only an address and optional key without exposing saved credentials', async () => {
     const { wrapper, client } = await setup()
-    await button(wrapper, 'remote').trigger('click')
-    await flushPromises()
-    expect(
-      (wrapper.get('[data-testid=nowledge-mem-api-key-input]').element as HTMLInputElement).value
-    ).toBe('')
+    expect(wrapper.findAll('input')).toHaveLength(2)
+    expect(wrapper.text()).toContain('settings.nowledgePlugin.apiKey')
+    expect(wrapper.get('[data-testid=nowledge-mem-base-url-input]').element).toHaveProperty(
+      'value',
+      'https://mem.example.test'
+    )
+    expect(wrapper.get('[data-testid=nowledge-mem-api-key-input]').element).toHaveProperty(
+      'value',
+      ''
+    )
     expect(wrapper.get('[data-testid=nowledge-mem-api-key-input]').attributes('type')).toBe(
       'password'
     )
-    await button(wrapper, 'useForExports').trigger('click')
-    await flushPromises()
-    expect(client.selectExport).toHaveBeenCalledWith('remote')
-    expect(button(wrapper, 'exportSelected').exists()).toBe(true)
-    expect(client.saveConnection).not.toHaveBeenCalled()
-  })
-
-  it('requires confirmation when changing the saved destination and preserves dirty drafts on cancellation', async () => {
-    const { wrapper, client, requestLeave } = await setup()
-    await wrapper
-      .get('[data-testid=nowledge-mem-base-url-input]')
-      .setValue('http://127.0.0.1:15555')
-    expect(
-      wrapper.get('[data-testid=nowledge-mem-save-button]').attributes('disabled')
-    ).toBeDefined()
-    await button(wrapper, 'remote').trigger('click')
-    await flushPromises()
-    expect(requestLeave).toHaveBeenCalled()
-    expect(
-      (wrapper.get('[data-testid=nowledge-mem-base-url-input]').element as HTMLInputElement).value
-    ).toContain('15555')
-    await wrapper.get('[role=checkbox]').trigger('click')
     await wrapper.get('form').trigger('submit')
     await flushPromises()
     expect(client.saveConnection).toHaveBeenCalledWith(
+      expect.objectContaining({ apiKey: '', apiBaseUrl: 'https://mem.example.test/remote-api' })
+    )
+  })
+
+  it('confirms a changed address on save and keeps the draft when canceled', async () => {
+    const { wrapper, client } = await setup()
+    await wrapper
+      .get('[data-testid=nowledge-mem-base-url-input]')
+      .setValue('http://192.168.1.2:14242')
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+    expect(client.saveConnection).not.toHaveBeenCalled()
+    const dialog = wrapper.findAllComponents({ name: 'DcConfirmDialog' })[0]
+    expect(dialog.props('open')).toBe(true)
+    dialog.vm.$emit('update:open', false)
+    await flushPromises()
+    expect(wrapper.get('[data-testid=nowledge-mem-base-url-input]').element).toHaveProperty(
+      'value',
+      'http://192.168.1.2:14242'
+    )
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+    dialog.vm.$emit('confirm')
+    await flushPromises()
+    expect(client.saveConnection).toHaveBeenCalledWith(
       expect.objectContaining({
-        baseUrl: 'http://127.0.0.1:15555',
+        baseUrl: 'http://192.168.1.2:14242',
         replace: true,
-        profile: 'local'
+        apiBaseUrl: '',
+        mcpUrl: '',
+        apiKey: ''
       })
     )
     expect(wrapper.emitted('saved')).toHaveLength(1)
   })
 
-  it('retains the draft and clears a potentially consumed connect link after failed verification', async () => {
+  it('retains the draft and shows authentication errors without reporting success', async () => {
     const { wrapper, client } = await setup()
-    await button(wrapper, 'remote').trigger('click')
-    await flushPromises()
     client.saveConnection.mockRejectedValueOnce(new Error('REST authentication: HTTP 401'))
-    await wrapper
-      .findAll('input[type=password]')[1]
-      .setValue('https://mem.example.test/app?nmem_connect=once')
+    await wrapper.get('[data-testid=nowledge-mem-api-key-input]').setValue('wrong-key')
     await wrapper.get('form').trigger('submit')
     await flushPromises()
     expect(wrapper.get('[role=alert]').text()).toContain('HTTP 401')
-    expect((wrapper.findAll('input[type=password]')[1].element as HTMLInputElement).value).toBe('')
+    expect(wrapper.get('[data-testid=nowledge-mem-api-key-input]').element).toHaveProperty(
+      'value',
+      'wrong-key'
+    )
     expect(wrapper.emitted('saved')).toBeUndefined()
   })
 
@@ -173,7 +160,6 @@ describe('Nowledge plugin settings', () => {
     await wrapper.get('form').trigger('submit')
     await flushPromises()
     expect(wrapper.get('fieldset').attributes('disabled')).toBeDefined()
-    expect(button(wrapper, 'remote').attributes('disabled')).toBeDefined()
     resolve(await client.getConnections())
     await flushPromises()
     expect(wrapper.get('fieldset').attributes('disabled')).toBeUndefined()

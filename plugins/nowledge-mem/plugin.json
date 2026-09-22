@@ -16,16 +16,9 @@
   },
   "mcpServers": [
     {
-      "id": "nowledge-mem-local",
-      "displayName": "Nowledge Mem (Local)",
-      "transport": "http",
-      "connectionProfile": "local"
-    },
-    {
-      "id": "nowledge-mem-remote",
-      "displayName": "Nowledge Mem (Remote)",
-      "transport": "http",
-      "connectionProfile": "remote"
+      "id": "nowledge-mem-connection",
+      "displayName": "Nowledge Mem",
+      "transport": "http"
     }
   ],
   "skills": [

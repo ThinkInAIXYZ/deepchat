@@ -7,35 +7,22 @@ pnpm install --frozen-lockfile
 pnpm dev
 ```
 
-## Local Mem
+## Connect a Mem server
 
-1. Start Nowledge Mem on the same computer as DeepChat.
-2. Open Plugins > Nowledge Mem > Local. Enter `http://127.0.0.1:14242`. If authentication is
-   enabled, enter its API key in the password field.
-3. Click Verify and save. Expect a success message, API base `http://127.0.0.1:14242`, MCP
-   `http://127.0.0.1:14242/mcp/`, and a cleared key input. Verification includes REST and an MCP
-   context read, so a health response alone cannot produce success.
-4. Enable the plugin. Select `nowledge-mem-local` in the agent/session MCP controls and use the
-   Nowledge Skill to read working context. The unconfigured remote server must remain inactive.
+1. Open Plugins > Nowledge Mem. The form has two inputs: Server URL and API key (optional).
+2. Enter your address: `http://127.0.0.1:14242` for a Mem running on this computer, an HTTP/HTTPS
+   LAN address, or a remote address such as `https://mem.example.com`. A deployment with a known
+   API prefix can use `https://mem.example.com/remote-api` directly.
+3. Enter the server's API key if it requires one; otherwise leave it blank. Click Verify and save.
+   Expect a success message and a cleared key input. Verification includes REST authentication
+   and a read-only MCP context call. A 401/403 or network error preserves the saved connection.
+4. Enable the plugin and select `nowledge-mem-connection` in agent/session MCP controls.
+   API exports and MCP use the same verified server; no separate export selection is needed.
+5. Change the address and save. Confirm the new destination in the dialog. Prior credentials
+   remain bound to the original address and are never supplied to the new server.
 
-## Remote Mem alongside local Mem
-
-1. In the same plugin, select Remote and enter `https://mem.example.com` (or your server).
-2. Enter that server's API key securely, or obtain a fresh one-time connect link from its App and
-   paste it into the password field. Use one credential method per save. A consumed link is cleared;
-   request a new link if redemption or subsequent verification fails.
-3. For a deployment explicitly using the legacy routes, expand Advanced endpoints and enter API
-   base `https://mem.example.com/remote-api` and MCP
-   `https://mem.example.com/remote-api/mcp/`. Otherwise leave overrides empty. Root routes are tried
-   first; only a missing REST route (404) permits trying `/remote-api`. Authentication failures,
-   TLS failures and timeouts stop immediately.
-4. Verify and save, then select `nowledge-mem-remote` for the agent. Local remains independently
-   available. With both MCP servers selected, specify which connection to use in the request.
-5. Click Use for exports on the desired profile. This changes the default REST destination;
-   agent/session MCP selection remains independent.
-
-DeepChat owns these connections. It does not read ambient `NMEM_*` variables or modify the nmem CLI,
-Codex, or another tool's configuration. Advanced fields show the effective API/MCP destinations.
+DeepChat does not read ambient `NMEM_*` variables or modify nmem or another AI tool's settings.
+A server root resolves to `/mcp/`. Only a missing REST route (404) permits trying `/remote-api`.
 
 ## Send a conversation
 
@@ -46,23 +33,22 @@ Codex, or another tool's configuration. Advanced fields show the effective API/M
    expect the same thread with no duplicate messages. Add a message and export to check incremental
    import. The server must support `/threads/import`; an older server returns an upgrade error. Unsent drafts must be absent. The `.json` export menu item
    downloads a file and does not send it.
-4. Change the profile's API destination while its confirmation is open, then confirm. Expect an
+4. Change the saved destination while its confirmation is open, then confirm. Expect an
    error asking you to confirm again; the request must not silently use the replacement destination.
 
 ## Failure, import and restart
 
 - Enter a wrong replacement key and save. Expect an authentication error, with the previously
-  verified endpoints, credentials and export choice preserved. No request should go to localhost.
-- Edit a saved destination. Saving requires the replacement checkbox and credentials for that
-  destination. The old credential is retained for reconnecting to its exact API/MCP pair.
+  verified endpoints and credentials preserved. No request should go to localhost.
+- Edit a saved destination. Saving asks for confirmation. Enter credentials if that destination requires them. The old credential is retained for reconnecting to its exact API/MCP pair.
 - If legacy export settings or a user-owned `nowledge-mem` MCP entry exist, load the appropriate
   import candidate and verify explicitly. Old MCP entries remain user-owned. An imported export
   key is removed from the old plaintext setting only after encrypted storage succeeds.
 - Disable the plugin: its MCP tools and Skill disappear. Enable it and restart DeepChat: saved
-  endpoints, export choice and encrypted credentials remain usable. The key input stays empty.
+  endpoints and encrypted credentials remain usable. The key input stays empty.
 - Open the separate settings window > Knowledge Base > Nowledge Mem. Expect the settings-window
   plugin page and its working configuration form, without a router error.
-- Clear all connections, confirm, and check that the plugin is disabled and both profiles are empty.
+- Clear connection, confirm, and check that the plugin is disabled and its connection is empty.
   Reconnecting requires entering credentials again, including for previous destinations.
 - Stop the server and verify: expect a connection error and unchanged saved state.
 

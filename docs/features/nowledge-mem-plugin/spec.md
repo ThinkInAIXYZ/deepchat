@@ -2,12 +2,10 @@
 
 ## Contract
 
-DeepChat provides an optional official Nowledge Mem plugin containing Skills and native HTTP MCP
-connections. Local and remote connections are saved independently. Each verified connection has a
-separate MCP server, selectable through existing agent/session MCP controls. An explicit default
-selects the REST conversation-export destination. Changing that default does not change MCP
-selection. Requests capture their destination before asynchronous work; stale MCP tool identities
-must fail rather than execute against another server.
+DeepChat provides an optional official Nowledge Mem plugin containing Skills and a native HTTP MCP
+connection. Users enter a server address and an optional API key. The verified connection supplies
+both MCP tools and REST conversation exports. Requests capture their destination before asynchronous
+work; an export confirmation cannot silently follow a changed destination.
 
 ## Ownership
 
@@ -21,19 +19,19 @@ is needed. DeepChat Skills use host MCP tools and the host export action, not un
 
 ## Endpoints and authentication
 
-Local defaults to http://127.0.0.1:14242 with /mcp/. Remote accepts a server root or an explicit API
-prefix. Auto resolution verifies the root API first, then the legacy /remote-api prefix only on an
-unavailable route (404). Explicit API/MCP overrides take precedence. A 401/403, timeout, TLS error or
-invalid response stops verification. Local HTTP is restricted to loopback; remote uses HTTPS.
-Credentials are never forwarded across origins or redirects. URL credentials, query and fragment
-are rejected. Remote credentials are entered in a password field; a one-time connect link can be
-redeemed in the main process, once, without writing it to disk or logging it.
+The address defaults to http://127.0.0.1:14242 and accepts HTTP or HTTPS addresses, including LAN
+hosts, server roots, API prefixes and MCP URLs. No local/remote category restricts the address.
+API keys are optional; verification determines whether the server requires authentication. Root
+API routes are tried first, then /remote-api only on an unavailable REST route (404). Authentication,
+network and TLS failures stop verification. Credentials are never forwarded across origins or
+redirects. URL credentials, query and fragment are rejected. Saved effective API/MCP endpoints are
+preserved when re-verifying the same address.
 
 Saving verifies health, an authenticated REST read, MCP initialization and one read-only Mem tool
 call before committing settings. Failed verification leaves the previous connection usable. Saved
 credentials are reusable only for the identical API/MCP destinations. Old destination credentials
 are retained on a switch. Unchanged keys reuse their entry; a successful rotation deletes the
-superseded key for that destination. Clear all connections disables the plugin and removes every
+superseded key for that destination. Clear connection disables the plugin and removes every
 saved connection and retained credential. The bundled official plugin has no uninstall action.
 Keys and upstream response bodies never appear in diagnostic output.
 
@@ -44,7 +42,9 @@ are machine-local: backups omit them, and imports preserve the receiving compute
 
 ## Compatibility
 
-Existing export and MCP configurations are shown as explicit import candidates. Import does not
+Existing export and MCP configurations are shown as explicit import candidates when no plugin
+connection is saved. Previous profile-based settings retain their selected export destination as
+the shared connection and preserve all destination-bound credentials. Import does not
 silently choose between different services, overwrite a connection or remove a user-managed MCP
 server. An imported export key is removed from the legacy plaintext setting only after encrypted
 storage succeeds. Users can retire the old MCP entry after checking the new plugin. The old knowledge
@@ -65,14 +65,12 @@ Knowledge settings -> Nowledge API URL / key
 
 AFTER
 Plugins > Nowledge Mem
-  [Local] [Remote]
   Server URL          [...]
-  API key             [Enter replacement / saved]
-  Connect link        [One-time link, remote only]
-  Advanced endpoints  [API base] [MCP URL]
-  [Verify and save] [Use for exports]
-  Existing connections: one [Load configuration] action per entry
-  [Clear all connections] -> Confirm deletion
+  API key (optional)  [...]
+  [Verify and save]
+  Changing an existing address asks for confirmation when saving.
+  Existing settings: [Load configuration], when no connection is saved
+  [Clear connection] -> Confirm deletion
 Chat menu > Send to Nowledge Mem > Confirm session and destination > Send
 ```
 
@@ -82,7 +80,8 @@ password fields, pending operations disable conflicting actions, and discarded d
 
 ## Acceptance
 
-- Local and remote profiles coexist and expose independent MCP selections.
+- Localhost, LAN and remote server addresses use the same two-field form.
+- API keys may be omitted when the server permits unauthenticated access.
 - API exports and MCP use the same selected connection credentials without plaintext duplication.
 - Remote auth/connectivity errors never select localhost or commit a failed configuration.
 - Updating a destination does not reuse another destination's credential.

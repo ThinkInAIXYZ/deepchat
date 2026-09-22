@@ -13,22 +13,11 @@
 
 ## Validation
 
-- Main-process regression suites: 42 files, 615 tests passed, including actual HTTP MCP verification,
-  destination-bound credentials, rotation cleanup, sync isolation, activation recovery,
-  idempotent conversation imports and packaging contracts.
-- Renderer suites: 6 files, 82 tests passed, including settings drafts, JSON IPC serialization,
-  explicit export confirmation and existing official-plugin pages.
-- Electron smoke: all three settings-navigation, knowledge-route and Nowledge-lifecycle tests
-  passed, including real-router navigation, REST/MCP verification, failed key replacement,
-  disable/enable recovery and explicit credential removal. Rendered settings were inspected.
-- Read-only live verification of the existing remote Mem passed through the new host connection
-  service (REST authentication, MCP initialization and context read). The temporary probe was
-  removed. No remote conversation was uploaded and no CLI/AI-tool configuration was changed.
-- Format, i18n, lint, typecheck and the production build passed. Nowledge plugin packages were
-  bundled and verified for all six supported OS/architecture combinations. Production builds
-  refreshed the provider catalog and ACP registry.
-- Manual checks for real server exports, connect-link issuance, migration from existing user
-  settings and full application restart are documented in [verification.md](verification.md).
+Run the focused commands in [verification.md](verification.md), plus format, i18n, lint and
+production build checks. Cover the two-field settings form, HTTP LAN and HTTPS addresses with
+optional keys, previous profile selection and credential retention, REST/MCP authentication,
+export destination confirmation, plugin lifecycle recovery and packaging contracts.
 
-The exact suite commands are listed in [verification.md](verification.md); the main scope includes
-the complete `test/main/mcp` and `test/main/sync` directories and three packaging-contract files.
+Verified: 42 main-process files / 618 tests, 6 renderer files / 82 tests, and all three Electron
+smoke tests. Format, i18n, lint, typecheck, production build, plugin validation and six-target
+bundling passed. The rendered two-field form was inspected.

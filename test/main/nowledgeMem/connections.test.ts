@@ -41,10 +41,6 @@ beforeEach(async () => {
       res.end('{"memories":[]}')
       return
     }
-    if (pathname.endsWith('/redeem-connect-token')) {
-      res.end('{"api_key":"redeemed-key"}')
-      return
-    }
     if (req.method !== 'POST') {
       res.writeHead(405).end('{}')
       return
@@ -123,38 +119,74 @@ function routeRemoteToFixture() {
   })
 }
 
-const local = () => ({ profile: 'local', baseUrl, timeout: 5000 })
+const local = () => ({ baseUrl, timeout: 5000 })
 const remote = (base = 'https://mem.example.test') => ({
-  profile: 'remote',
   baseUrl: base,
   apiKey: 'remote-key',
   timeout: 5000
 })
 
 describe('Nowledge connection contract', () => {
-  it('verifies REST and a real MCP call, persists isolated profiles and restores export selection', async () => {
+  it('verifies REST and MCP and restores the same connection for tools and exports', async () => {
     routeRemoteToFixture()
     const { service, create, data } = setup()
     await service.save(local())
-    await service.save(remote())
+    await service.save({ ...remote(), replace: true })
     const state = await service.getState()
-    expect(Object.keys(state.connections)).toEqual(['local', 'remote'])
-    expect(state.exportProfile).toBe('local')
+    expect(state.connection?.baseUrl).toBe('https://mem.example.test')
     expect(JSON.stringify([...data])).not.toContain('remote-key')
     expect(JSON.stringify(state)).not.toContain('remote-key')
-    service.selectExport('remote')
     expect(create().getExportConfig()).toMatchObject({
       baseUrl: 'https://mem.example.test',
       apiKey: 'remote-key'
     })
     expect(service.getPublicExportConfig()).not.toHaveProperty('apiKey')
     const config = {
-      ...service.getMcpConnection('remote'),
+      ...service.getMcpConnection(),
       ownerPluginId: NOWLEDGE_PLUGIN_ID,
       sourceId: NOWLEDGE_PLUGIN_ID
     }
     expect(service.getMcpBindings(config)).toEqual({ NOWLEDGE_MEM_API_KEY: 'remote-key' })
     expect(requests.some((r) => r.path === '/mcp/' && r.key === 'remote-key')).toBe(true)
+  })
+
+  it.each(['http://192.168.1.2:14242', 'https://mem.example.test'])(
+    'accepts %s without an API key when the server allows it',
+    async (address) => {
+      vi.stubGlobal('fetch', (url: string | URL | Request, init?: RequestInit) => {
+        const target = new URL(url instanceof Request ? url.url : url)
+        return nativeFetch(`${baseUrl}${target.pathname}${target.search}`, init)
+      })
+      const { service } = setup()
+      const state = await service.save({ baseUrl: address, timeout: 5000 })
+      expect(state.connection).toMatchObject({ baseUrl: address, hasApiKey: false })
+      expect(requests.every((request) => request.key === undefined)).toBe(true)
+    }
+  )
+
+  it('keeps the selected profile and credentials when reading previous settings', async () => {
+    routeRemoteToFixture()
+    const { service, data, encrypted } = setup()
+    await service.save({ ...local(), apiKey: 'local-key' })
+    const localConnection = (data.get('nowledgeMemPlugin') as { connection: object }).connection
+    await service.save({ ...remote(), replace: true })
+    const saved = structuredClone(data.get('nowledgeMemPlugin')) as {
+      connection: object
+      credentials: object
+    }
+    data.set('nowledgeMemPlugin', {
+      connections: {
+        local: localConnection,
+        remote: { ...saved.connection, profile: 'remote' }
+      },
+      exportProfile: 'remote',
+      credentials: saved.credentials
+    })
+    expect((await service.getState()).connection?.baseUrl).toBe('https://mem.example.test')
+    expect(service.getExportConfig().apiKey).toBe('remote-key')
+    await service.save({ ...remote(), apiKey: '' })
+    expect(data.get('nowledgeMemPlugin')).not.toHaveProperty('connections')
+    expect([...encrypted.values()]).toEqual(['local-key', 'remote-key'])
   })
 
   it('does not commit bad authentication or retry it at another path', async () => {
@@ -183,13 +215,14 @@ describe('Nowledge connection contract', () => {
     const { service } = setup()
     await service.save(remote())
     const old = {
-      ...service.getMcpConnection('remote'),
+      ...service.getMcpConnection(),
       ownerPluginId: NOWLEDGE_PLUGIN_ID,
       sourceId: NOWLEDGE_PLUGIN_ID
     }
     const next = { ...remote('https://other.example.test'), apiKey: '' }
     await expect(service.save(next)).rejects.toThrow('Confirm replacing')
-    await expect(service.save({ ...next, replace: true })).rejects.toThrow('Enter an API key')
+    await service.save({ ...next, replace: true })
+    expect(service.getExportConfig().apiKey).toBe('')
     await service.save({ ...next, replace: true, apiKey: 'other-key' })
     expect(() => service.getMcpBindings(old)).toThrow('no longer matches')
     await service.save({ ...remote(), replace: true, apiKey: '' })
@@ -201,7 +234,7 @@ describe('Nowledge connection contract', () => {
       nowledgeMemConfig: { baseUrl, apiKey: 'legacy-key', timeout: 5000 }
     })
     const state = await service.getState()
-    expect(state.connections).toEqual({})
+    expect(state.connection).toBeNull()
     expect(state.legacy[0].hasApiKey).toBe(true)
     expect(JSON.stringify(state)).not.toContain('legacy-key')
     await service.save({ ...local(), legacySource: 'export' })
@@ -237,7 +270,7 @@ describe('Nowledge connection contract', () => {
     expect(encrypted.size).toBe(2)
     service.clear()
     expect(encrypted.size).toBe(0)
-    expect((await service.getState()).connections).toEqual({})
+    expect((await service.getState()).connection).toBeNull()
   })
 
   it('resolves legacy API prefixes only on a missing route, preserving the full MCP prefix', async () => {
@@ -245,8 +278,28 @@ describe('Nowledge connection contract', () => {
     legacyOnly = true
     const { service } = setup()
     const state = await service.save(remote())
-    expect(state.connections.remote?.apiBaseUrl).toBe('https://mem.example.test/remote-api')
-    expect(state.connections.remote?.mcpUrl).toBe('https://mem.example.test/remote-api/mcp/')
+    expect(state.connection?.apiBaseUrl).toBe('https://mem.example.test/remote-api')
+    expect(state.connection?.mcpUrl).toBe('https://mem.example.test/remote-api/mcp/')
+  })
+
+  it('recovers the matching prefix credential when reconnecting with an empty key', async () => {
+    routeRemoteToFixture()
+    legacyOnly = true
+    const { service } = setup()
+    await service.save(remote())
+    await service.save({
+      ...remote('https://other.example.test'),
+      replace: true,
+      apiKey: 'other-key'
+    })
+    requests = []
+    await service.save({ ...remote(), replace: true, apiKey: '' })
+    expect(service.getExportConfig().apiKey).toBe('remote-key')
+    expect(
+      requests
+        .filter((request) => request.path.startsWith('/remote-api'))
+        .every((request) => request.key === 'remote-key')
+    ).toBe(true)
   })
 
   it('does not forward a saved root credential to newly discovered legacy routes', async () => {
@@ -263,30 +316,9 @@ describe('Nowledge connection contract', () => {
     expect(await service.getState()).toEqual(before)
   })
 
-  it('redeems a same-server one-time link once without persisting the link', async () => {
-    routeRemoteToFixture()
-    const { service, data } = setup()
-    await service.save({
-      ...remote(),
-      apiKey: '',
-      connectLink: 'https://mem.example.test/app?nmem_connect=single-use'
-    })
-    expect(service.getExportConfig().apiKey).toBe('redeemed-key')
-    expect(JSON.stringify([...data])).not.toContain('single-use')
-    expect(requests.filter((r) => r.path.endsWith('redeem-connect-token'))).toHaveLength(1)
-    await expect(
-      service.save({
-        ...remote(),
-        apiKey: '',
-        connectLink: 'https://other.example.test/app?nmem_connect=secret'
-      })
-    ).rejects.toThrow('selected server')
-  })
-
-  it('rejects cross-origin endpoints, nonlocal HTTP and credentials in URLs before network access', () => {
+  it('rejects cross-origin endpoints and credentials in URLs before network access', () => {
     for (const input of [
       { ...remote(), apiBaseUrl: 'https://other.example.test' },
-      { ...local(), baseUrl: 'http://192.168.1.2:14242' },
       { ...remote(), baseUrl: 'https://key:secret@mem.example.test' }
     ])
       expect(() => resolveMemEndpoints(input as never)).toThrow()

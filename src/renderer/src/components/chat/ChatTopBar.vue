@@ -320,12 +320,11 @@ async function openNowledgeExport() {
   const title = currentTitle.value
   try {
     const state = await nowledgeClient.getConnections()
-    const connection = state.exportProfile && state.connections[state.exportProfile]
+    const connection = state.connection
     if (!connection) throw new Error(t('settings.nowledgePlugin.selectTarget'))
     if (props.sessionId !== sessionId) return
     nowledgeTarget.value = {
       sessionId,
-      profile: connection.profile,
       apiBaseUrl: connection.apiBaseUrl
     }
     nowledgeTitle.value = title

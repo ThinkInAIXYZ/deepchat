@@ -40,7 +40,7 @@ export class AgentSessionExportService {
   ) {}
 
   async submitToNowledgeMem(input: NowledgeExportInput): Promise<{ threadId: string }> {
-    const connection = this.dependencies.nowledgeMemConnections?.getExportConfig(input.profile)
+    const connection = this.dependencies.nowledgeMemConnections?.getExportConfig()
     if (!connection || connection.baseUrl !== input.apiBaseUrl) {
       throw new Error('The Nowledge export destination changed; confirm it again')
     }

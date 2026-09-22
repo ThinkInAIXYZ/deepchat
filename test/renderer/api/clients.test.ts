@@ -35,11 +35,10 @@ describe('renderer api clients', () => {
       const parsed = pluginsInvokeActionRoute.input.parse(input)
       expect(parsed.payload).not.toHaveProperty('legacySource')
       return {
-        result: { ok: true, data: { connections: {}, exportProfile: null, legacy: [] } }
+        result: { ok: true, data: { connection: null, legacy: [] } }
       } as never
     })
     await createNowledgeMemClient(bridge).saveConnection({
-      profile: 'local',
       baseUrl: 'http://127.0.0.1:14242',
       timeout: 30000,
       legacySource: undefined

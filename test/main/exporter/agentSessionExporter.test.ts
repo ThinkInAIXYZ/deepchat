@@ -165,7 +165,7 @@ describe('AgentSessionExportService', () => {
     vi.stubGlobal('fetch', fetchMock)
     const sent = service.submitToNowledgeMem({
       sessionId: 'session-1',
-      profile: 'remote',
+
       apiBaseUrl: options.nowledgeConfig.baseUrl
     })
     options.nowledgeConfig.baseUrl = 'https://changed.example'
@@ -189,7 +189,7 @@ describe('AgentSessionExportService', () => {
     await expect(
       service.submitToNowledgeMem({
         sessionId: 'session-1',
-        profile: 'remote',
+
         apiBaseUrl: 'https://different.example'
       })
     ).rejects.toThrow('destination changed')
@@ -197,7 +197,7 @@ describe('AgentSessionExportService', () => {
     await expect(
       service.submitToNowledgeMem({
         sessionId: 'session-1',
-        profile: 'remote',
+
         apiBaseUrl: 'https://mem.example'
       })
     ).rejects.toThrow('persistence acknowledgement')
@@ -245,7 +245,7 @@ describe('AgentSessionExportService', () => {
     vi.stubGlobal('fetch', fetchMock)
     const input = {
       sessionId: 'session-1',
-      profile: 'remote' as const,
+
       apiBaseUrl: 'https://mem.example'
     }
     await expect(service.submitToNowledgeMem(input)).resolves.toEqual({

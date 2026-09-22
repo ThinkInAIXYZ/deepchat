@@ -5,21 +5,8 @@
     data-testid="nowledge-mem-settings"
   >
     <p class="text-sm text-muted-foreground">{{ t('settings.nowledgePlugin.description') }}</p>
-    <div class="flex gap-2" :aria-label="t('settings.nowledgePlugin.connection')">
-      <DcButton
-        v-for="id in profiles"
-        :key="id"
-        size="sm"
-        :variant="profile === id ? 'secondary' : 'ghost'"
-        :aria-pressed="profile === id"
-        :disabled="busy"
-        @click="switchProfile(id)"
-      >
-        {{ t(`settings.nowledgePlugin.${id}`) }}
-      </DcButton>
-    </div>
     <p v-if="loading" role="status">{{ t('common.loading') }}</p>
-    <form v-else class="space-y-4" @submit.prevent="save">
+    <form v-else class="space-y-4" @submit.prevent="save()">
       <fieldset class="space-y-4" :disabled="busy || !state">
         <div class="space-y-2">
           <Label :for="`${uid}-url`">{{ t('settings.nowledgePlugin.serverUrl') }}</Label>
@@ -27,14 +14,12 @@
             :id="`${uid}-url`"
             :model-value="draft.baseUrl"
             data-testid="nowledge-mem-base-url-input"
-            :placeholder="
-              profile === 'local' ? 'http://127.0.0.1:14242' : 'https://mem.example.com'
-            "
+            placeholder="http://127.0.0.1:14242"
             @update:model-value="changeUrl(String($event))"
           />
         </div>
         <div class="space-y-2">
-          <Label :for="`${uid}-key`">{{ t('settings.knowledgeBase.nowledgeMem.apiKey') }}</Label>
+          <Label :for="`${uid}-key`">{{ t('settings.nowledgePlugin.apiKey') }}</Label>
           <Input
             :id="`${uid}-key`"
             v-model="draft.apiKey"
@@ -42,74 +27,17 @@
             autocomplete="new-password"
             data-testid="nowledge-mem-api-key-input"
             :placeholder="
-              savedConnection?.hasApiKey
+              savedConnection?.hasApiKey && !destinationChanged
                 ? t('settings.nowledgePlugin.savedKey')
                 : t('settings.nowledgePlugin.enterKey')
             "
           />
           <p class="text-xs text-muted-foreground">{{ t('settings.nowledgePlugin.keyHint') }}</p>
         </div>
-        <div v-if="profile === 'remote'" class="space-y-2">
-          <Label :for="`${uid}-link`">{{ t('settings.nowledgePlugin.connectLink') }}</Label>
-          <Input
-            :id="`${uid}-link`"
-            v-model="draft.connectLink"
-            type="password"
-            autocomplete="off"
-          />
-        </div>
-        <details class="space-y-3">
-          <summary class="cursor-pointer text-sm">
-            {{ t('settings.nowledgePlugin.advanced') }}
-          </summary>
-          <div class="space-y-2">
-            <Label :for="`${uid}-api`">{{ t('settings.nowledgePlugin.apiUrl') }}</Label>
-            <Input :id="`${uid}-api`" v-model="draft.apiBaseUrl" :placeholder="draft.baseUrl" />
-          </div>
-          <div class="space-y-2">
-            <Label :for="`${uid}-mcp`">{{ t('settings.nowledgePlugin.mcpUrl') }}</Label>
-            <Input
-              :id="`${uid}-mcp`"
-              v-model="draft.mcpUrl"
-              :placeholder="`${draft.apiBaseUrl || draft.baseUrl}/mcp/`"
-            />
-          </div>
-          <div class="space-y-2">
-            <Label :for="`${uid}-timeout`">{{ t('settings.nowledgePlugin.timeout') }}</Label>
-            <Input
-              :id="`${uid}-timeout`"
-              v-model="timeoutSeconds"
-              type="number"
-              min="5"
-              max="120"
-            />
-          </div>
-        </details>
-        <div v-if="destinationChanged" class="flex items-start gap-2 text-sm">
-          <Checkbox
-            :id="`${uid}-replace`"
-            v-model:checked="draft.replace"
-            :disabled="busy"
-            class="mt-1"
-          />
-          <Label :for="`${uid}-replace`">{{ t('settings.nowledgePlugin.replace') }}</Label>
-        </div>
         <div class="flex flex-wrap gap-2">
           <DcButton type="submit" :disabled="!canSave" data-testid="nowledge-mem-save-button">{{
             busy ? t('settings.nowledgePlugin.verifying') : t('settings.nowledgePlugin.verifySave')
           }}</DcButton>
-          <DcButton
-            type="button"
-            variant="outline"
-            :disabled="!savedConnection || dirty || state?.exportProfile === profile"
-            @click="selectExport"
-          >
-            {{
-              state?.exportProfile === profile
-                ? t('settings.nowledgePlugin.exportSelected')
-                : t('settings.nowledgePlugin.useForExports')
-            }}
-          </DcButton>
           <DcButton v-if="dirty" type="button" variant="ghost" @click="resetDraft">{{
             t('common.cancel')
           }}</DcButton>
@@ -127,16 +55,7 @@
         t('common.retry')
       }}</DcButton>
     </div>
-    <dl
-      v-if="savedConnection"
-      class="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-2 text-xs text-muted-foreground"
-    >
-      <dt>{{ t('settings.nowledgePlugin.apiUrl') }}</dt>
-      <dd class="break-all">{{ savedConnection.apiBaseUrl }}</dd>
-      <dt>{{ t('settings.nowledgePlugin.mcpUrl') }}</dt>
-      <dd class="break-all">{{ savedConnection.mcpUrl }}</dd>
-    </dl>
-    <div v-if="state?.legacy.length" class="space-y-2 border-t pt-4">
+    <div v-if="!savedConnection && state?.legacy.length" class="space-y-2 border-t pt-4">
       <p class="text-sm">{{ t('settings.nowledgePlugin.legacy') }}</p>
       <div
         v-for="item in state.legacy"
@@ -155,13 +74,25 @@
       <p class="text-xs text-muted-foreground">{{ t('settings.nowledgePlugin.legacyHint') }}</p>
     </div>
     <DcButton
-      v-if="state && Object.keys(state.connections).length"
+      v-if="savedConnection"
       variant="outline"
       :disabled="busy || dirty"
       @click="clearOpen = true"
     >
       {{ t('settings.nowledgePlugin.clearConnections') }}
     </DcButton>
+    <DcConfirmDialog
+      v-model:open="replaceOpen"
+      :title="t('settings.nowledgePlugin.replaceTitle')"
+      :danger="false"
+      :description="t('settings.nowledgePlugin.replace')"
+      :confirm-label="t('settings.nowledgePlugin.verifySave')"
+      :busy="busy"
+      @confirm="save(true)"
+    >
+      <p class="break-all text-sm">{{ draft.baseUrl }}</p>
+      <DcInlineError v-if="error" :error="error" />
+    </DcConfirmDialog>
     <DcConfirmDialog
       v-model:open="clearOpen"
       :title="t('settings.nowledgePlugin.clearConnections')"
@@ -183,39 +114,27 @@ import { useI18n } from 'vue-i18n'
 import { DcButton } from '@dc-ui/components/button'
 import { Input } from '@shadcn/components/ui/input'
 import { Label } from '@shadcn/components/ui/label'
-import { Checkbox } from '@shadcn/components/ui/checkbox'
 import { DcConfirmDialog } from '@dc-ui/components/confirm-dialog'
 import { DcInlineError } from '@dc-ui/components/inline-error'
 import { createNowledgeMemClient } from '@api/NowledgeMemClient'
-import type {
-  NowledgeConnectionInput,
-  NowledgePluginState,
-  NowledgeProfileId
-} from '@shared/types/nowledgeMemPlugin'
+import type { NowledgeConnectionInput, NowledgePluginState } from '@shared/types/nowledgeMemPlugin'
 import { settingsLeaveGuard } from '../services/settingsLeaveGuard'
 
 const emit = defineEmits<{ saved: [] }>()
 const { t } = useI18n()
 const uid = useId()
 const client = createNowledgeMemClient()
-const profiles = ['local', 'remote'] as const
-const profile = ref<NowledgeProfileId>('local')
 const state = ref<NowledgePluginState | null>(null)
 const loading = ref(true)
 const busy = ref(false)
 const error = ref('')
 const message = ref('')
 const clearOpen = ref(false)
-const savedConnection = computed(() => state.value?.connections[profile.value])
-const draft = reactive<NowledgeConnectionInput>({ profile: 'local', baseUrl: '', timeout: 30000 })
+const replaceOpen = ref(false)
+const savedConnection = computed(() => state.value?.connection)
+const draft = reactive<NowledgeConnectionInput>({ baseUrl: '', timeout: 30000 })
 const baseline = ref('')
 const dirty = computed(() => baseline.value !== JSON.stringify(draft))
-const timeoutSeconds = computed({
-  get: () => draft.timeout / 1000,
-  set: (value: string | number) => {
-    draft.timeout = Number(value) * 1000
-  }
-})
 const destinationChanged = computed(() => {
   const saved = savedConnection.value
   return (
@@ -225,26 +144,17 @@ const destinationChanged = computed(() => {
       draft.mcpUrl !== saved.mcpUrl)
   )
 })
-const canSave = computed(
-  () =>
-    draft.baseUrl.trim() &&
-    draft.timeout >= 5000 &&
-    draft.timeout <= 120000 &&
-    (!destinationChanged.value || draft.replace) &&
-    !(draft.apiKey && draft.connectLink)
-)
+const canSave = computed(() => Boolean(draft.baseUrl.trim()))
 
 function resetDraft() {
   const saved = savedConnection.value
   Object.keys(draft).forEach((key) => delete (draft as unknown as Record<string, unknown>)[key])
   Object.assign(draft, {
-    profile: profile.value,
-    baseUrl: saved?.baseUrl ?? (profile.value === 'local' ? 'http://127.0.0.1:14242' : ''),
+    baseUrl: saved?.baseUrl ?? 'http://127.0.0.1:14242',
     apiBaseUrl: saved?.apiBaseUrl ?? '',
     mcpUrl: saved?.mcpUrl ?? '',
     timeout: saved?.timeout ?? 30000,
     apiKey: '',
-    connectLink: '',
     replace: false
   })
   baseline.value = JSON.stringify(draft)
@@ -255,14 +165,6 @@ function changeUrl(value: string) {
   draft.mcpUrl = ''
   delete draft.legacySource
   draft.replace = false
-}
-async function switchProfile(id: NowledgeProfileId) {
-  if (profile.value === id || busy.value) return
-  if (dirty.value && !(await settingsLeaveGuard.requestLeave())) return
-  profile.value = id
-  error.value = ''
-  message.value = ''
-  resetDraft()
 }
 async function load() {
   loading.value = true
@@ -276,30 +178,23 @@ async function load() {
     loading.value = false
   }
 }
-async function save() {
+async function save(confirmed = false) {
   if (busy.value || !canSave.value) return
+  if (destinationChanged.value && !confirmed) {
+    error.value = ''
+    replaceOpen.value = true
+    return
+  }
   busy.value = true
   error.value = ''
   message.value = ''
-  const input = { ...draft }
-  // A link may be consumed even when subsequent verification fails.
-  draft.connectLink = ''
+  const input = { ...draft, replace: confirmed }
   try {
     state.value = await client.saveConnection(input)
+    replaceOpen.value = false
     resetDraft()
     message.value = state.value.activationFailed ? '' : t('settings.nowledgePlugin.verified')
     emit('saved')
-  } catch (cause) {
-    error.value = cause instanceof Error ? cause.message : t('settings.nowledgePlugin.saveFailed')
-  } finally {
-    busy.value = false
-  }
-}
-async function selectExport() {
-  busy.value = true
-  error.value = ''
-  try {
-    state.value = await client.selectExport(profile.value)
   } catch (cause) {
     error.value = cause instanceof Error ? cause.message : t('settings.nowledgePlugin.saveFailed')
   } finally {
@@ -323,8 +218,6 @@ async function clearConnections() {
   }
 }
 function importLegacy(item: NowledgePluginState['legacy'][number]) {
-  const host = new URL(item.baseUrl).hostname
-  profile.value = ['localhost', '127.0.0.1', '[::1]'].includes(host) ? 'local' : 'remote'
   resetDraft()
   Object.assign(draft, {
     baseUrl: item.baseUrl,
@@ -346,6 +239,5 @@ onBeforeUnmount(() => {
   stop()
   lease.release()
   draft.apiKey = ''
-  draft.connectLink = ''
 })
 </script>

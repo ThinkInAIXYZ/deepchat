@@ -3,8 +3,7 @@ import {
   NOWLEDGE_PLUGIN_ID,
   type NowledgePluginState,
   type NowledgeConnectionInput,
-  type NowledgeExportInput,
-  type NowledgeProfileId
+  type NowledgeExportInput
 } from '@shared/types/nowledgeMemPlugin'
 import type { DeepchatBridge } from '@shared/contracts/bridge'
 import {
@@ -38,7 +37,7 @@ export function createNowledgeMemClient(bridge: DeepchatBridge = getDeepchatBrid
   const plugins = createPluginClient(bridge)
   async function connectionAction(
     actionId: string,
-    payload?: NowledgeConnectionInput | { profile: NowledgeProfileId }
+    payload?: NowledgeConnectionInput
   ): Promise<NowledgePluginState> {
     const result = await plugins.invokeAction({
       pluginId: NOWLEDGE_PLUGIN_ID,
@@ -67,8 +66,6 @@ export function createNowledgeMemClient(bridge: DeepchatBridge = getDeepchatBrid
     getConnections: () => connectionAction('nowledge.get'),
     clearConnections: () => connectionAction('nowledge.clear'),
     saveConnection: (input: NowledgeConnectionInput) => connectionAction('nowledge.save', input),
-    selectExport: (profile: NowledgeProfileId) =>
-      connectionAction('nowledge.selectExport', { profile }),
     getConfig,
     updateConfig,
     testConnection

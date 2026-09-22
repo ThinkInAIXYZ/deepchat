@@ -5,9 +5,8 @@ description: Use Nowledge Mem for cross-tool startup context, recall of prior de
 
 # Nowledge Mem
 
-Use the enabled `nowledge-mem-local` or `nowledge-mem-remote` MCP tools. If both connections are
-available and the intended destination is unclear, ask which one to use before reading or writing.
-Keep that destination, returned identity and Space for the whole operation. Never mix results from
+Use the enabled `nowledge-mem-connection` MCP tools for the server configured in Plugins >
+Nowledge Mem. Keep that destination, returned identity and Space for the whole operation. Never mix results from
 different Mem servers or silently retry on another server.
 
 At the beginning of related work, read Context Bundle once (`read_context_bundle`, source_app
@@ -22,7 +21,7 @@ show one when it enforces the same identity and Space as retrieval.
 Save a concise durable learning with `memory_add` or update an existing memory only when it is
 useful beyond this conversation. State what was saved. Do not save speculative conclusions as
 facts. Save complete conversations only when the user requests it: use DeepChat's conversation
-export to Nowledge Mem, whose export target is selected separately in the plugin settings. Do not
+export to Nowledge Mem, which uses the same verified connection as MCP. Do not
 claim an export happened without a successful acknowledgement.
 
 For configuration or failed access, direct the user to Plugins > Nowledge Mem. The host verifies

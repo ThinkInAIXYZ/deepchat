@@ -1,9 +1,8 @@
 import {
   NOWLEDGE_PLUGIN_ID,
-  NowledgeProfileIdSchema,
   NowledgeExportInputSchema,
   type NowledgeExportInput,
-  nowledgeServerName
+  NOWLEDGE_MCP_SERVER_ID
 } from '@shared/types/nowledgeMemPlugin'
 import { normalizeMemUrl, type NowledgeMemConnections } from '@/nowledgeMem'
 import { ToolchainService } from '@/toolchains'
@@ -474,10 +473,6 @@ export class PluginService implements PluginServicePort {
           const disabled = await this.disablePlugin(pluginId)
           if (!disabled.ok) return disabled
           this.nowledgeMem.clear()
-        } else if (actionId === 'nowledge.selectExport') {
-          this.nowledgeMem.selectExport(
-            NowledgeProfileIdSchema.parse((_payload as { profile?: unknown })?.profile)
-          )
         } else if (actionId !== 'nowledge.get') throw new Error('Unknown Nowledge Mem action')
         return {
           ok: true,
@@ -695,10 +690,10 @@ export class PluginService implements PluginServicePort {
     const existingServers = await this.mcpSettings.getMcpServers()
     const registeredServerNames: string[] = []
     for (const server of servers) {
-      const profile =
-        plugin.manifest.id === NOWLEDGE_PLUGIN_ID ? server.connectionProfile : undefined
-      const connection = profile ? this.nowledgeMem?.getMcpConnection(profile) : undefined
-      if (profile && !connection) continue
+      const managed =
+        plugin.manifest.id === NOWLEDGE_PLUGIN_ID && server.id === NOWLEDGE_MCP_SERVER_ID
+      const connection = managed ? this.nowledgeMem?.getMcpConnection() : undefined
+      if (managed && !connection) continue
       const command = this.resolvePluginTemplate(server.command ?? '', plugin, runtime)
       const serverName = server.id
       const startMode = server.startMode ?? 'eager'
@@ -1682,15 +1677,9 @@ export class PluginService implements PluginServicePort {
       serverIds.add(server.id)
 
       if (server.transport === 'http') {
-        if (server.connectionProfile) {
-          if (
-            manifest.id !== NOWLEDGE_PLUGIN_ID ||
-            !['local', 'remote'].includes(server.connectionProfile) ||
-            server.id !== nowledgeServerName(server.connectionProfile)
-          ) {
-            throw new Error('Invalid host-managed Nowledge connection')
-          }
-        } else normalizeMemUrl(server.url ?? '')
+        if (manifest.id !== NOWLEDGE_PLUGIN_ID || server.id !== NOWLEDGE_MCP_SERVER_ID) {
+          normalizeMemUrl(server.url ?? '')
+        }
         if (
           server.command ||
           server.args?.length ||
@@ -2323,8 +2312,7 @@ export class PluginService implements PluginServicePort {
         serverId: server.id,
         enabled:
           pluginEnabled &&
-          (!server.connectionProfile ||
-            Boolean(this.nowledgeMem?.getMcpConnection(server.connectionProfile))),
+          (manifest.id !== NOWLEDGE_PLUGIN_ID || Boolean(this.nowledgeMem?.getMcpConnection())),
         running: await this.mcpService.isServerRunning(server.id),
         lifecycleState: supervisorState?.state,
         quarantinedAt: supervisorState?.quarantine?.recordedAt,

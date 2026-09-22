@@ -18,9 +18,10 @@ test('Nowledge plugin verifies local REST and MCP, protects keys and restores it
       res.writeHead(401).end('{}')
       return
     }
-    if (req.url === '/health' || req.url?.startsWith('/memories?')) {
+    const url = new URL(req.url!, 'http://localhost')
+    if (url.pathname.endsWith('/health') || url.pathname.endsWith('/memories')) {
       res.setHeader('Content-Type', 'application/json')
-      res.end(req.url === '/health' ? '{"status":"ok"}' : '{"memories":[]}')
+      res.end(url.pathname.endsWith('/health') ? '{"status":"ok"}' : '{"memories":[]}')
       return
     }
     const mem = new McpServer({ name: 'Nowledge fixture', version: '1.0.0' })
@@ -59,10 +60,12 @@ test('Nowledge plugin verifies local REST and MCP, protects keys and restores it
     }, pluginId)
     const panel = app.page.getByTestId('nowledge-mem-settings')
     await expect(panel).toBeVisible()
+    await expect(panel.locator('input')).toHaveCount(2)
+    await expect(panel.getByText('API key (optional)', { exact: true })).toBeVisible()
     await panel.getByTestId('nowledge-mem-base-url-input').fill(baseUrl)
     await panel.getByTestId('nowledge-mem-api-key-input').fill(fixtureKey)
     await panel.getByTestId('nowledge-mem-save-button').click()
-    await expect.poll(async () => (await readState()).connections.local?.hasApiKey).toBe(true)
+    await expect.poll(async () => (await readState()).connection?.hasApiKey).toBe(true)
     expect(contextReads).toBeGreaterThan(0)
     expect(JSON.stringify(await readState())).not.toContain(fixtureKey)
     await expect(panel.getByTestId('nowledge-mem-api-key-input')).toHaveValue('')
@@ -83,7 +86,7 @@ test('Nowledge plugin verifies local REST and MCP, protects keys and restores it
           async (id) =>
             (
               await window.deepchat.invoke('plugins.get', { pluginId: id })
-            ).plugin?.mcpServers?.find((server) => server.serverId === 'nowledge-mem-local')
+            ).plugin?.mcpServers?.find((server) => server.serverId === 'nowledge-mem-connection')
               ?.running,
           pluginId
         )
@@ -113,7 +116,7 @@ test('Nowledge plugin verifies local REST and MCP, protects keys and restores it
           async (id) =>
             (
               await window.deepchat.invoke('plugins.get', { pluginId: id })
-            ).plugin?.mcpServers?.find((server) => server.serverId === 'nowledge-mem-local')
+            ).plugin?.mcpServers?.find((server) => server.serverId === 'nowledge-mem-connection')
               ?.running,
           pluginId
         )
@@ -121,12 +124,23 @@ test('Nowledge plugin verifies local REST and MCP, protects keys and restores it
       .toBe(true)
     expect(await readState()).toEqual(before)
     await app.page.screenshot({ path: testInfo.outputPath('nowledge-verified.png') })
-    await panel.getByRole('button', { name: 'Clear all connections', exact: true }).click()
+    await panel.getByTestId('nowledge-mem-base-url-input').fill(`${baseUrl}/alternate`)
+    await panel.getByTestId('nowledge-mem-api-key-input').fill(fixtureKey)
+    await panel.getByTestId('nowledge-mem-save-button').click()
+    const confirm = app.page.getByRole('alertdialog')
+    await expect(confirm).toContainText(`${baseUrl}/alternate`)
+    expect((await readState()).connection?.baseUrl).toBe(baseUrl)
+    await confirm.getByRole('button', { name: 'Verify and save', exact: true }).click()
+    await expect(confirm).not.toBeVisible()
+    await expect
+      .poll(async () => (await readState()).connection?.baseUrl)
+      .toBe(`${baseUrl}/alternate`)
+    await panel.getByRole('button', { name: 'Clear connection', exact: true }).click()
     await app.page
       .getByRole('alertdialog')
       .getByRole('button', { name: 'Confirm', exact: true })
       .click()
-    await expect.poll(async () => Object.keys((await readState()).connections).length).toBe(0)
+    await expect.poll(async () => (await readState()).connection).toBeNull()
   } finally {
     await app.page
       .evaluate(async (id) => window.deepchat.invoke('plugins.disable', { pluginId: id }), pluginId)

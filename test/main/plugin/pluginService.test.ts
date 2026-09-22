@@ -822,13 +822,10 @@ describe('PluginService', () => {
     const fixture = await createDirectoryFixture({ pluginId })
     const manifestPath = path.join(fixture.pluginRoot, 'plugin.json')
     const manifest = JSON.parse(await readFile(manifestPath, 'utf8'))
-    manifest.mcpServers = [
-      { id: 'nowledge-mem-local', transport: 'http', connectionProfile: 'local' }
-    ]
+    manifest.mcpServers = [{ id: 'nowledge-mem-connection', transport: 'http' }]
     await writeFile(manifestPath, JSON.stringify(manifest))
     const state = {
-      connections: { local: { apiBaseUrl: 'http://127.0.0.1:14242' } },
-      exportProfile: 'local',
+      connection: { apiBaseUrl: 'http://127.0.0.1:14242' },
       legacy: []
     }
     const nowledgeMem = {
