@@ -1,7 +1,11 @@
 import { describe, expect, it, vi } from 'vitest'
 import { defineComponent, nextTick, reactive, ref } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
-import type { ReasoningPortrait } from '../../../src/shared/types/model-db'
+import {
+  getReasoningEffortOptions,
+  getReasoningEffortDefault,
+  type ReasoningPortrait
+} from '../../../src/shared/types/model-db'
 import { ApiEndpointType, ModelType } from '../../../src/shared/model'
 import type { ModelRequestPolicy } from '../../../src/shared/modelRequestPolicy'
 
@@ -84,8 +88,8 @@ const createCapabilityResult = (options: SetupOptions, modelId = options.modelId
     searchDefaults: {},
     supportsTemperatureControl: temperatureCapability !== false,
     temperatureCapability,
-    supportsReasoningEffort: Boolean(options.reasoningPortrait?.effort),
-    reasoningEffortDefault: options.reasoningPortrait?.effort,
+    supportsReasoningEffort: getReasoningEffortOptions(options.reasoningPortrait).length > 0,
+    reasoningEffortDefault: getReasoningEffortDefault(options.reasoningPortrait),
     supportsVerbosity: Boolean(options.reasoningPortrait?.verbosity),
     verbosityDefault: options.reasoningPortrait?.verbosity
   }
@@ -634,7 +638,7 @@ describe('ModelConfigDialog reasoning portraits', () => {
     expect(wrapper.text()).not.toContain('settings.model.modelConfig.reasoningVisibility.label')
   })
 
-  it('hides effort and budget controls for level-based portraits', async () => {
+  it('shows level choices and defaults while hiding budget controls', async () => {
     const { wrapper } = await setup({
       providerId: 'vertex',
       modelId: 'gemini-3-flash-preview',
@@ -653,7 +657,16 @@ describe('ModelConfigDialog reasoning portraits', () => {
       }
     })
 
-    expect(wrapper.text()).not.toContain('settings.model.modelConfig.reasoningEffort.label')
+    expect(wrapper.text()).toContain('settings.model.modelConfig.reasoningEffort.label')
+    expect((wrapper.vm as any).effectiveReasoningEffort).toBe('high')
+    for (const level of ['minimal', 'low', 'medium', 'high']) {
+      expect(wrapper.text()).toContain(
+        `settings.model.modelConfig.reasoningEffort.options.${level}`
+      )
+    }
+    ;(wrapper.vm as any).effectiveReasoningEffort = 'low'
+    await nextTick()
+    expect((wrapper.vm as any).config.reasoningEffort).toBe('low')
     expect(wrapper.text()).not.toContain('settings.model.modelConfig.thinkingBudget.label')
   })
 

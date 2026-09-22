@@ -1335,6 +1335,48 @@ describe('ChatStatusBar model and session panels', () => {
     )
   })
 
+  it('offers Gemini levels and persists a selected level for the active session', async () => {
+    vi.useFakeTimers()
+    const { wrapper, agentSessionPresenter } = await setup({
+      hasActiveSession: true,
+      activeProviderId: 'gemini',
+      activeModelId: 'gemini-3-flash-preview',
+      supportsEffort: true,
+      reasoningEffortDefault: 'high',
+      extraModelGroups: [
+        {
+          providerId: 'gemini',
+          providerName: 'Gemini',
+          models: [{ id: 'gemini-3-flash-preview', name: 'Gemini 3 Flash' }]
+        }
+      ],
+      reasoningPortrait: {
+        supported: true,
+        defaultEnabled: true,
+        mode: 'level',
+        level: 'high',
+        levelOptions: ['minimal', 'low', 'medium', 'high']
+      }
+    })
+    await (wrapper.vm as any).selectModel('gemini', 'gemini-3-flash-preview')
+    await flushPromises()
+    expect(wrapper.text()).toContain('settings.model.modelConfig.reasoningEffort.label')
+    for (const level of ['minimal', 'low', 'medium', 'high']) {
+      expect(wrapper.text()).toContain(
+        `settings.model.modelConfig.reasoningEffort.options.${level}`
+      )
+    }
+    ;(wrapper.vm as any).onReasoningEffortSelect('low')
+    vi.advanceTimersByTime(300)
+    await flushPromises()
+    expect(agentSessionPresenter.updateSessionGenerationSettings).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({ reasoningEffort: 'low' })
+    )
+    vi.runOnlyPendingTimers()
+    vi.useRealTimers()
+  })
+
   it('hides anthropic adaptive reasoning subsettings when backend reasoning is disabled', async () => {
     const { wrapper } = await setup({
       hasActiveSession: false,

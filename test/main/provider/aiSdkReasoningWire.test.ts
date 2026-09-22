@@ -6,6 +6,8 @@ vi.mock('../../../src/main/platform/proxy', () => ({
   }
 }))
 
+import { getReasoningEffortOptions, type ReasoningPortrait } from '@shared/types/model-db'
+import { resolveModelRequestPolicy } from '@shared/modelRequestPolicy'
 import { runAiSdkGenerateText } from '@/provider/aiSdk/runtime'
 
 const providerSettings = {
@@ -141,6 +143,97 @@ describe('AI SDK reasoning wire payloads', () => {
 
     expect(body.reasoning_effort).toBe('high')
   })
+
+  it.each([
+    ['zhipu', 'glm-5.2', 'max', 'chat'],
+    ['zhipu', 'glm-5.3', 'low', 'chat'],
+    ['zhipu', 'glm-5.3-flash', 'high', 'chat'],
+    ['deepseek', 'deepseek-flash', 'max', 'chat'],
+    ['grok', 'grok-4.5', 'medium', 'chat'],
+    ['grok', 'grok-4.6', 'xhigh', 'chat'],
+    ['grok', 'grok-4.5', 'medium', 'responses'],
+    ['grok', 'grok-4.6', 'xhigh', 'responses'],
+    ['gemini', 'gemini-3-flash-preview', 'minimal', 'gemini'],
+    ['vertex', 'gemini-3-flash-preview', 'low', 'vertex']
+  ] as const)(
+    'serializes %s %s effort %s through %s',
+    async (providerId, modelId, effort, endpoint) => {
+      const portrait: ReasoningPortrait =
+        endpoint === 'gemini' || endpoint === 'vertex'
+          ? {
+              supported: true,
+              defaultEnabled: true,
+              mode: 'level',
+              level: 'high',
+              levelOptions: ['minimal', 'low', 'medium', 'high']
+            }
+          : { supported: true, defaultEnabled: true, effortOptions: [effort] }
+      const body = await captureRequestBody(() =>
+        runAiSdkGenerateText(
+          {
+            providerKind:
+              endpoint === 'vertex'
+                ? 'vertex'
+                : endpoint === 'gemini'
+                  ? 'gemini'
+                  : endpoint === 'responses'
+                    ? 'openai-responses'
+                    : 'openai-compatible',
+            provider: {
+              id: providerId,
+              name: providerId,
+              apiType: providerId,
+              apiKey: 'test-key',
+              baseUrl: 'https://provider.example.com/v1',
+              enable: true
+            } as any,
+            providerSettings,
+            defaultHeaders: {},
+            capabilitySnapshot: {
+              identity: {
+                providerId,
+                requestModelId: modelId,
+                catalogMatched: true,
+                catalogModelId: modelId
+              },
+              requestPolicy: resolveModelRequestPolicy(providerId, modelId, true),
+              supportsAudioInput: false,
+              supportsReasoning: true,
+              reasoningPortrait: portrait,
+              thinkingBudgetRange: {},
+              supportsSearch: false,
+              searchDefaults: {},
+              temperatureCapability: undefined,
+              supportsTemperatureControl: true,
+              supportsReasoningEffort: getReasoningEffortOptions(portrait).length > 0,
+              reasoningEffortDefault: undefined,
+              supportsVerbosity: false,
+              verbosityDefault: undefined
+            }
+          },
+          [{ role: 'user', content: 'Hello' }],
+          modelId,
+          {
+            reasoning: true,
+            reasoningEffort: effort,
+            thinkingBudget: 2048,
+            functionCall: false
+          },
+          undefined,
+          1024
+        )
+      )
+
+      if (endpoint === 'gemini' || endpoint === 'vertex') {
+        expect(body.generationConfig.thinkingConfig.thinkingLevel).toBe(effort)
+        expect(body.generationConfig.thinkingConfig).not.toHaveProperty('thinkingBudget')
+      } else if (endpoint === 'responses') {
+        expect(body.reasoning).toEqual({ effort })
+      } else {
+        expect(body.reasoning_effort).toBe(effort)
+      }
+    }
+  )
 
   it('does not emit reasoning effort for unsupported Grok models', async () => {
     const body = await captureRequestBody(() =>
