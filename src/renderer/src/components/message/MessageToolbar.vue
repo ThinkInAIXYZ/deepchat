@@ -318,8 +318,14 @@ const formatTokenCount = (value: number, fractionDigits = 0): string => {
     { threshold: 1_000_000, suffix: 'M' },
     { threshold: 1_000, suffix: 'K' }
   ]
-  for (const unit of units) {
+  for (let i = 0; i < units.length; i++) {
+    const unit = units[i]
     if (Math.abs(value) >= unit.threshold) {
+      if (i > 0 && Math.abs(Number((value / unit.threshold).toFixed(2))) >= 1000) {
+        const next = units[i - 1]
+        const promoted = (value / next.threshold).toFixed(2)
+        return `${promoted.replace(/\.?0+$/, '')}${next.suffix}`
+      }
       const scaled = (value / unit.threshold).toFixed(2)
       return `${scaled.replace(/\.?0+$/, '')}${unit.suffix}`
     }
