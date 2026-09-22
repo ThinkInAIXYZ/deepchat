@@ -154,6 +154,12 @@
             :label="`${t('thread.actions.exportNowledgeMem')} (.json)`"
             @select="handleExport('nowledge-mem')"
           />
+          <DcDropdownActionItem
+            icon="lucide:send"
+            :label="t('settings.nowledgePlugin.sendSession')"
+            :disabled="nowledgeBusy"
+            @select="openNowledgeExport"
+          />
         </DropdownMenuContent>
       </DropdownMenu>
 
@@ -222,6 +228,27 @@
     <DcInlineError v-if="deleteDialogError" :error="deleteDialogError" />
   </DcConfirmDialog>
 
+  <DcConfirmDialog
+    :open="nowledgeOpen"
+    :title="t('settings.nowledgePlugin.sendSession')"
+    :description="
+      t('settings.nowledgePlugin.sendConfirm', {
+        title: nowledgeTitle,
+        url: nowledgeTarget?.apiBaseUrl ?? ''
+      })
+    "
+    :confirm-label="t('common.confirm')"
+    :busy="nowledgeBusy"
+    @update:open="
+      (open: boolean) => {
+        if (!nowledgeBusy) nowledgeOpen = open
+      }
+    "
+    @confirm="sendNowledgeExport"
+  >
+    <DcInlineError v-if="nowledgeError" :error="nowledgeError" />
+  </DcConfirmDialog>
+
   <AgentTransferDialog
     v-model:open="moveDialogOpen"
     mode="move-session"
@@ -237,6 +264,8 @@
 
 <script setup lang="ts">
 import { computed, nextTick, ref, useAttrs, watch } from 'vue'
+import { createNowledgeMemClient } from '@api/NowledgeMemClient'
+import type { NowledgeExportInput } from '@shared/types/nowledgeMemPlugin'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
 import { DcButton } from '@dc-ui/components/button'
@@ -275,6 +304,61 @@ const agentStore = useAgentStore()
 const sidepanelStore = useSidepanelStore()
 const sidebarStore = useSidebarStore()
 const uiSettingsStore = useUiSettingsStore()
+
+const nowledgeClient = createNowledgeMemClient()
+const nowledgeOpen = ref(false)
+const nowledgeBusy = ref(false)
+const nowledgeError = ref('')
+const nowledgeTitle = ref('')
+const nowledgeTarget = ref<NowledgeExportInput | null>(null)
+
+async function openNowledgeExport() {
+  if (nowledgeBusy.value) return
+  nowledgeBusy.value = true
+  nowledgeError.value = ''
+  const sessionId = props.sessionId
+  const title = currentTitle.value
+  try {
+    const state = await nowledgeClient.getConnections()
+    const connection = state.connection
+    if (!connection) throw new Error(t('settings.nowledgePlugin.selectTarget'))
+    if (props.sessionId !== sessionId) return
+    nowledgeTarget.value = {
+      sessionId,
+      apiBaseUrl: connection.apiBaseUrl
+    }
+    nowledgeTitle.value = title
+    nowledgeOpen.value = true
+  } catch (error) {
+    notifyRenderer({
+      kind: 'error',
+      code: 'chat.session.exportFailed',
+      title: t('thread.export.failed'),
+      description: error instanceof Error ? error.message : t('settings.nowledgePlugin.saveFailed')
+    })
+  } finally {
+    nowledgeBusy.value = false
+  }
+}
+async function sendNowledgeExport() {
+  if (nowledgeBusy.value || !nowledgeTarget.value) return
+  nowledgeBusy.value = true
+  nowledgeError.value = ''
+  try {
+    await nowledgeClient.sendSession({ ...nowledgeTarget.value })
+    nowledgeOpen.value = false
+    notifyRenderer({
+      kind: 'success',
+      code: 'chat.session.exported',
+      title: t('settings.nowledgePlugin.sent')
+    })
+  } catch (error) {
+    nowledgeError.value =
+      error instanceof Error ? error.message : t('settings.nowledgePlugin.saveFailed')
+  } finally {
+    nowledgeBusy.value = false
+  }
+}
 
 const isRenaming = ref(false)
 const clearDialogOpen = ref(false)

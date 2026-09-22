@@ -1,4 +1,5 @@
 import fs from 'fs'
+import { NOWLEDGE_PLUGIN_ID } from '@shared/types/nowledgeMemPlugin'
 import path from 'path'
 import type Database from 'better-sqlite3-multiple-ciphers'
 import type { MCPServerConfig } from '@shared/types/mcp'
@@ -374,6 +375,7 @@ export class SyncConfigImportService {
       payload.mcpServers = Object.fromEntries(
         Object.entries(mcpSettings.mcpServers)
           .filter((entry): entry is [string, MCPServerConfig] => isRecord(entry[1]))
+          .filter(([, config]) => config.ownerPluginId !== NOWLEDGE_PLUGIN_ID)
           .map(([name, config]) => [
             name,
             {

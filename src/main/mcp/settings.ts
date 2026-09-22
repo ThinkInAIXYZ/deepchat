@@ -310,6 +310,17 @@ export const SYSTEM_INMEM_MCP_SERVERS: Record<string, MCPServerConfig> = {
 export class McpSettings {
   private mcpStore: StoreLike<IMcpSettings & Record<string, unknown>>
   private mcpDatabase?: McpDatabase
+  private pluginBindingResolvers = new Map<
+    string,
+    (config: Partial<MCPServerConfig>) => Record<string, string>
+  >()
+
+  setPluginBindingResolver(
+    pluginId: string,
+    resolve: (config: Partial<MCPServerConfig>) => Record<string, string>
+  ): void {
+    this.pluginBindingResolvers.set(pluginId, resolve)
+  }
 
   constructor(
     private readonly variableSecrets?: Pick<
@@ -968,6 +979,8 @@ export class McpSettings {
   }
 
   getMcpVariableBindings(config: Partial<MCPServerConfig>): Record<string, string> {
+    const resolve = config.ownerPluginId && this.pluginBindingResolvers.get(config.ownerPluginId)
+    if (resolve) return resolve(config)
     if (!config.serverId) return {}
     const raw = this.variableSecrets?.get(`mcpVariableBindings.${config.serverId}`)
     if (!raw) return {}

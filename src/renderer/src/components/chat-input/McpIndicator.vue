@@ -235,8 +235,14 @@
               :key="server.name"
               class="flex items-center gap-2 rounded-md px-2 py-1.5 text-xs"
             >
+              <img
+                v-if="server.ownerPluginId === NOWLEDGE_PLUGIN_ID"
+                :src="nowledgeMemIcon"
+                alt=""
+                class="size-4 shrink-0 object-contain"
+              />
               <Icon
-                v-if="server.icons === 'plugin'"
+                v-else-if="server.icons === 'plugin'"
                 icon="lucide:puzzle"
                 class="h-3.5 w-3.5 shrink-0 text-muted-foreground"
               />
@@ -313,8 +319,14 @@
             :key="server.name"
             class="flex items-center gap-2 rounded-md px-2 py-1.5 text-xs"
           >
+            <img
+              v-if="server.ownerPluginId === NOWLEDGE_PLUGIN_ID"
+              :src="nowledgeMemIcon"
+              alt=""
+              class="size-4 shrink-0 object-contain"
+            />
             <Icon
-              v-if="server.icons === 'plugin'"
+              v-else-if="server.icons === 'plugin'"
               icon="lucide:puzzle"
               class="h-3.5 w-3.5 shrink-0 text-muted-foreground"
             />
@@ -333,6 +345,8 @@
 </template>
 
 <script setup lang="ts">
+import nowledgeMemIcon from '@/assets/images/nowledge-mem.webp'
+import { NOWLEDGE_PLUGIN_ID } from '@shared/types/nowledgeMemPlugin'
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'

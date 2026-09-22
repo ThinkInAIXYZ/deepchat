@@ -1,4 +1,5 @@
 import { app, shell } from 'electron'
+import { isNowledgeMachineLocalSetting } from '@shared/types/nowledgeMemPlugin'
 import path from 'path'
 import fs from 'fs'
 import Database from 'better-sqlite3-multiple-ciphers'
@@ -871,6 +872,7 @@ export class SyncService {
     const providerModelKeys = this.getLegacyProviderModelKeys(settings)
     return Object.fromEntries(
       Object.entries(settings).filter(([key]) => {
+        if (isNowledgeMachineLocalSetting(key)) return false
         if (MIGRATED_APP_SETTINGS_KEYS.has(key)) {
           return false
         }
@@ -1064,7 +1066,10 @@ export class SyncService {
 
     // A backup never carries machine-local settings, so restore them from the receiving target.
     const localSettings = this.readSettingsFile(targetPath)
-    for (const key of MACHINE_LOCAL_APP_SETTINGS_KEYS) {
+    for (const key of [
+      ...MACHINE_LOCAL_APP_SETTINGS_KEYS,
+      ...Object.keys(localSettings ?? {}).filter(isNowledgeMachineLocalSetting)
+    ]) {
       if (localSettings && key in localSettings) {
         preservedSettings[key] = localSettings[key]
       }

@@ -1,3 +1,4 @@
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { test, expect } from '../fixtures/electronApp'
 import { waitForAppReady } from '../helpers/wait'
 import { existsSync, readFileSync } from 'node:fs'
@@ -95,4 +96,71 @@ test('启动应用 @smoke', async ({ app }, testInfo) => {
     ).toBe(true)
   }
   expect(existsSync(join(app.userDataDir, 'logs', 'main.log'))).toBe(false)
+})
+
+test('starts and repairs an obsolete installed Nowledge manifest @smoke', async ({ launchApp }) => {
+  const first = await launchApp()
+  test.skip(!first.ownsUserDataDir, 'Requires an isolated fixture-owned profile.')
+  await waitForAppReady(first.page)
+  const pluginId = 'com.deepchat.plugins.nowledge-mem'
+  expect(
+    await first.page.evaluate(
+      async (id) => (await window.deepchat.invoke('plugins.enable', { pluginId: id })).result.ok,
+      pluginId
+    )
+  ).toBe(true)
+  await first.close()
+  const manifestPath = join(first.userDataDir, 'plugins', pluginId, 'plugin.json')
+  const manifest = JSON.parse(await readFile(manifestPath, 'utf8'))
+  manifest.mcpServers = [
+    { id: 'nowledge-mem-local', transport: 'http', connectionProfile: 'local' }
+  ]
+  await writeFile(manifestPath, JSON.stringify(manifest))
+  const brokenRoot = join(first.userDataDir, 'plugins', 'broken')
+  await mkdir(brokenRoot, { recursive: true })
+  await writeFile(join(brokenRoot, 'plugin.json'), '{broken')
+
+  const restarted = await launchApp()
+  await waitForAppReady(restarted.page)
+  await expect(restarted.page.getByTestId('app-main')).toBeVisible()
+  const plugin = await restarted.page.evaluate(
+    async (id) => (await window.deepchat.invoke('plugins.get', { pluginId: id })).plugin,
+    pluginId
+  )
+  expect(plugin?.enabled).toBe(true)
+  expect(plugin?.activationError).toBeUndefined()
+  expect(JSON.parse(await readFile(manifestPath, 'utf8')).mcpServers[0].id).toBe(
+    'nowledge-mem-connection'
+  )
+  expect(await restarted.close()).toBe('graceful')
+  const { records } = readJsonl(join(first.userDataDir, 'logs', 'main.jsonl'))
+  expect(
+    records
+      .filter((record) => record.event === 'app.startup.terminal')
+      .every((record) => (record.context as JsonObject).outcome === 'completed')
+  ).toBe(true)
+})
+
+test('keeps the main window usable when plugin host initialization fails @smoke', async ({
+  launchApp
+}) => {
+  const first = await launchApp()
+  test.skip(!first.ownsUserDataDir, 'Requires an isolated fixture-owned profile.')
+  await waitForAppReady(first.page)
+  await first.close()
+  const pluginRoot = join(first.userDataDir, 'plugins')
+  await rm(pluginRoot, { recursive: true, force: true })
+  await writeFile(pluginRoot, 'invalid plugin directory')
+
+  const restarted = await launchApp()
+  await waitForAppReady(restarted.page)
+  await expect(restarted.page.getByTestId('app-main')).toBeVisible()
+  await expect(restarted.page.getByTestId('app-settings-button')).toBeEnabled()
+  expect(await restarted.close()).toBe('graceful')
+  const { records } = readJsonl(join(first.userDataDir, 'logs', 'main.jsonl'))
+  const terminals = records.filter((record) => record.event === 'app.startup.terminal')
+  expect(terminals).toHaveLength(2)
+  expect(terminals.every((record) => (record.context as JsonObject).outcome === 'completed')).toBe(
+    true
+  )
 })

@@ -17,6 +17,20 @@ const detail = {
 
 async function setup(leaveAllowed: boolean) {
   vi.resetModules()
+  vi.doUnmock('vue-router')
+  const { createRouter, createMemoryHistory } = await import('vue-router')
+  const router = createRouter({
+    history: createMemoryHistory(),
+    routes: [
+      {
+        path: '/knowledge-base',
+        name: 'settings-knowledge-base',
+        component: { template: '<div />' }
+      },
+      { path: '/plugins', name: 'settings-plugins', component: { template: '<div />' } }
+    ]
+  })
+  await router.push('/knowledge-base')
 
   const requestLeave = vi.fn().mockResolvedValue(leaveAllowed)
   vi.doMock('@api/KnowledgeClient', () => ({
@@ -57,6 +71,7 @@ async function setup(leaveAllowed: boolean) {
   ).default
   const wrapper = mount(Component, {
     global: {
+      plugins: [router],
       stubs: {
         SettingsPageShell: defineComponent({
           name: 'SettingsPageShell',
@@ -65,7 +80,7 @@ async function setup(leaveAllowed: boolean) {
         RagflowKnowledgeSettings: true,
         DifyKnowledgeSettings: true,
         FastGptKnowledgeSettings: true,
-        NowledgeMemSettings: true,
+
         BuiltinKnowledgeSettings,
         KnowledgeFile
       }
@@ -73,10 +88,17 @@ async function setup(leaveAllowed: boolean) {
   })
   await flushPromises()
 
-  return { wrapper, requestLeave }
+  return { wrapper, requestLeave, router }
 }
 
 describe('KnowledgeBaseSettings', () => {
+  it('opens plugin settings using the settings-window router', async () => {
+    const { wrapper, router } = await setup(true)
+    await wrapper.get('[data-testid=nowledge-plugin-link]').trigger('click')
+    await flushPromises()
+    expect(router.currentRoute.value.name).toBe('settings-plugins')
+    wrapper.unmount()
+  })
   it('keeps the settings surface mounted when internal navigation is blocked', async () => {
     const { wrapper, requestLeave } = await setup(false)
 
@@ -85,7 +107,7 @@ describe('KnowledgeBaseSettings', () => {
 
     expect(requestLeave).toHaveBeenCalledTimes(1)
     expect(wrapper.find('[data-testid="knowledge-file"]').exists()).toBe(false)
-    expect(wrapper.findComponent({ name: 'NowledgeMemSettings' }).exists()).toBe(true)
+    expect(wrapper.find('[data-testid=nowledge-plugin-link]').exists()).toBe(true)
     wrapper.unmount()
   })
 
@@ -96,7 +118,7 @@ describe('KnowledgeBaseSettings', () => {
     await flushPromises()
 
     expect(wrapper.find('[data-testid="knowledge-file"]').exists()).toBe(true)
-    expect(wrapper.findComponent({ name: 'NowledgeMemSettings' }).exists()).toBe(false)
+    expect(wrapper.find('[data-testid=nowledge-plugin-link]').exists()).toBe(false)
     wrapper.unmount()
   })
 })

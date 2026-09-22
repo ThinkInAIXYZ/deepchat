@@ -47,4 +47,8 @@ test('knowledge settings read-only routes expose supported formats @smoke', asyn
   expect(snapshot.extensions.length).toBeGreaterThan(0)
   expect(snapshot.extensions.every((extension) => typeof extension === 'string')).toBe(true)
   expect(snapshot.extensions).toEqual(expect.arrayContaining(['txt', 'md']))
+
+  await settingsPage.getByTestId('nowledge-plugin-link').click()
+  await expect(settingsPage.getByTestId('settings-plugins-page')).toBeVisible()
+  await expect(settingsPage.getByTestId('nowledge-mem-settings')).toBeVisible()
 })

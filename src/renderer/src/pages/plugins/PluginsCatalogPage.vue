@@ -50,7 +50,13 @@
             <div
               class="flex size-12 shrink-0 items-center justify-center rounded-xl border border-border bg-muted/40"
             >
-              <Icon :icon="item.icon" class="size-6" :class="item.iconClass" />
+              <img
+                v-if="item.iconImage"
+                :src="item.iconImage"
+                alt=""
+                class="size-10 object-contain"
+              />
+              <Icon v-else :icon="item.icon" class="size-6" :class="item.iconClass" />
             </div>
 
             <div class="min-w-0 flex-1">
@@ -106,6 +112,8 @@
 </template>
 
 <script setup lang="ts">
+import nowledgeMemIcon from '@/assets/images/nowledge-mem.webp'
+import { NOWLEDGE_PLUGIN_ID } from '@shared/types/nowledgeMemPlugin'
 import UserPluginInstallDialog from './UserPluginInstallDialog.vue'
 import { computed, onMounted, ref } from 'vue'
 import { storeToRefs } from 'pinia'
@@ -133,6 +141,7 @@ type CatalogItemBase = {
   typeBadge?: string
   badge?: CatalogBadge
   icon: string
+  iconImage?: string
   iconClass?: string
   actionLabel: string
 }
@@ -201,6 +210,7 @@ const isPending = (itemId: string) => pendingItemId.value === itemId
 const pluginTitle = (plugin: PluginListItem): string =>
   isFeishuOfficialPlugin(plugin) ? t('settings.remote.feishu.title') : plugin.name
 const pluginDescription = (plugin: PluginListItem): string => {
+  if (plugin.id === NOWLEDGE_PLUGIN_ID) return t('settings.nowledgePlugin.summary')
   if (isFeishuOfficialPlugin(plugin)) {
     return t('settings.remote.feishu.description')
   }
@@ -255,6 +265,7 @@ const catalogItems = computed<CatalogItem[]>(() => {
         variant: enabled ? 'success' : 'neutral'
       },
       icon: pluginIcon(plugin),
+      iconImage: plugin.id === NOWLEDGE_PLUGIN_ID ? nowledgeMemIcon : undefined,
       iconClass: isFeishuOfficialPlugin(plugin) ? remoteIconClassByChannel.feishu : undefined,
       actionLabel:
         enabled || plugin.userPlugin

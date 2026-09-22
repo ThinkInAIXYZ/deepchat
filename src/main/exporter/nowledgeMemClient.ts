@@ -1,6 +1,10 @@
 import { NowledgeMemThread } from '@shared/types/nowledgeMem'
 import logger from '@shared/logger'
 import type { SettingsStore } from '@/config/settingsStore'
+export const memHeaders = (apiKey: string): Record<string, string> => ({
+  APP: 'DeepChat',
+  ...(apiKey ? { Authorization: `Bearer ${apiKey}`, 'X-NMEM-API-Key': apiKey } : {})
+})
 
 export interface NowledgeMemConfig {
   baseUrl: string
@@ -116,68 +120,15 @@ export class NowledgeMemClient {
    * Submit thread to nowledge-mem API
    */
   async submitThread(
-    thread: NowledgeMemThread
+    thread: NowledgeMemThread,
+    configOverride?: NowledgeMemConfig
   ): Promise<NowledgeMemApiResponse<NowledgeMemThread>> {
     try {
-      await this.ensureConfigLoaded()
-      // Log thread data being sent for debugging
-      logger.info('Submitting thread to nowledge-mem', {
-        threadId: thread.thread_id,
-        messageCount: thread.messages.length,
-        source: thread.source
-      })
-
-      const response = await fetch(`${this.config.baseUrl}/threads`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(this.config.apiKey && { Authorization: `Bearer ${this.config.apiKey}` })
-        },
-        body: JSON.stringify(thread),
-        signal: AbortSignal.timeout(this.config.timeout)
-      })
-
-      let responseData
-      let rawText = ''
-
-      if (!response.ok) {
-        // Try to get raw response text first for debugging
-        try {
-          rawText = await response.text()
-          logger.info(`HTTP ${response.status} Response:`, rawText)
-        } catch (textError) {
-          logger.error('Failed to read response text:', textError)
-        }
-
-        // Then try to parse JSON
-        try {
-          responseData = JSON.parse(rawText)
-        } catch (jsonError) {
-          logger.error('Failed to parse response as JSON:', jsonError)
-          responseData = { error: rawText || `HTTP ${response.status}: ${response.statusText}` }
-        }
-      } else {
-        responseData = await response.json().catch(() => ({}))
-        logger.info('Success response:', responseData)
-      }
-
-      return {
-        success: response.ok,
-        status: response.status,
-        data: response.ok ? responseData : undefined,
-        error: response.ok
-          ? undefined
-          : responseData.error ||
-            responseData.message ||
-            rawText ||
-            `HTTP ${response.status}: ${response.statusText}`
-      }
-    } catch (error) {
-      logger.error('Error submitting thread to nowledge-mem:', error)
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error'
-      }
+      if (!configOverride) await this.ensureConfigLoaded()
+      const config = configOverride ?? { ...this.config }
+      return await submitNowledgeThread(thread, config)
+    } catch {
+      return { success: false, error: 'Thread export failed or timed out' }
     }
   }
 
@@ -247,6 +198,72 @@ export class NowledgeMemClient {
       valid: errors.length === 0,
       errors,
       warnings
+    }
+  }
+}
+
+export async function submitNowledgeThread(
+  thread: NowledgeMemThread,
+  config: NowledgeMemConfig
+): Promise<NowledgeMemApiResponse<NowledgeMemThread>> {
+  try {
+    // Log thread data being sent for debugging
+    logger.info('Submitting thread to nowledge-mem', {
+      threadId: thread.thread_id,
+      messageCount: thread.messages.length,
+      source: thread.source
+    })
+
+    const response = await fetch(`${config.baseUrl.replace(/\/+$/, '')}/threads/import`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...memHeaders(config.apiKey ?? '')
+      },
+      body: JSON.stringify({
+        thread_id: thread.thread_id,
+        title: thread.title,
+        source: thread.source,
+        messages: thread.messages,
+        metadata: thread.metadata,
+        expected_message_count: thread.messages.length
+      }),
+      signal: AbortSignal.timeout(config.timeout),
+      redirect: 'error'
+    })
+
+    if (!response.ok)
+      return {
+        success: false,
+        status: response.status,
+        error:
+          response.status === 404
+            ? 'This Mem server does not support idempotent thread imports; update Mem before exporting'
+            : `Thread export: HTTP ${response.status}`
+      }
+    const data = await response.json().catch(() => null)
+    const ack = Array.isArray(data?.results) && data.results.length === 1 ? data.results[0] : null
+    const acknowledgedId = ack?.thread_id
+    const messageCount = ack?.message_count ?? ack?.total_messages
+    if (
+      data?.success !== true ||
+      data?.failed_count !== 0 ||
+      ack?.success !== true ||
+      acknowledgedId !== thread.thread_id ||
+      !Number.isInteger(messageCount) ||
+      messageCount < thread.messages.length
+    ) {
+      return {
+        success: false,
+        error: 'Thread export returned no matching persistence acknowledgement'
+      }
+    }
+    return { success: true, status: response.status, data: thread }
+  } catch {
+    logger.error('Error submitting thread to nowledge-mem')
+    return {
+      success: false,
+      error: 'Thread export failed or timed out'
     }
   }
 }
