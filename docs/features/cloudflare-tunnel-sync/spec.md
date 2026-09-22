@@ -34,25 +34,46 @@ Reuse pairing protection, bounded transport, private staging, integrity verifica
 transfer. `SyncService.importBackupFile` and application-wide database maintenance stay exclusive to
 manual restore. Automatic sync must not call their close/reopen or suspend-all-sessions workflow.
 
-## Conflict model and data units
+## Existing backup import behavior
 
-Each synchronized unit has a stable `(kind, id)` and a stamp `(modifiedAt, originDeviceId)`.
-`modifiedAt` is an integer UTC millisecond write timestamp, not export, arrival or import time.
-`originDeviceId` is a persistent random installation identity, separate from a host-issued pairing
-record ID. Compare timestamps first and, on equality, compare device IDs lexicographically using a
-fixed byte ordering. Every device makes the same choice, independent of delivery order.
+The existing storage backends share `SyncService.importBackupFile`; transport does not choose how
+individual records merge. Their implemented rules are:
 
-New local writes receive a timestamp greater than the last locally issued stamp and the unit's
-current stamp, using the wall clock when it is ahead. Persist the clock floor. Remote application
-preserves the original stamp; it never calls the local timestamp allocator. Equal stamps are
-idempotent. Different payloads with the same stamp are a protocol error, not another overwrite.
-A successful import must not manufacture another edit and bounce it back indefinitely.
+| Path | Conflict behavior |
+| --- | --- |
+| S3/R2 download | Select the newest backup by its package timestamp; this does not compare record modification times. |
+| SQLite incremental import | `DataImporter` uses `INSERT OR IGNORE` for primary-key tables, keeping existing rows without comparing `updated_at`. |
+| Legacy chat/config and prompt incremental import | Add missing IDs/keys and keep existing values. Provider timestamps represent last use, not a conflict rule. |
+| SQLite overwrite import | Replace the database from the selected backup after explicit confirmation. |
+| Portable JSON app settings | Use backup values while preserving machine-local settings; this is not a timestamp merge. |
 
-Timestamp ordering assumes reasonably synchronized device clocks; it cannot discover the real order
-of disconnected edits made with incorrect clocks. Compare clocks on connection and surface a clock
-error if the difference exceeds five minutes; pause automatic exchange rather than silently adjust
-remote timestamps. Reject malformed or implausibly future-dated stamps before advancing a cursor.
-The five-minute bound is an internal guard, not a user-configurable conflict policy.
+Implementation references: [cloud storage](../../../src/main/sync/cloudStorageService.ts),
+[record import](../../../src/main/sync/dataImporter.ts),
+[backup/settings import](../../../src/main/sync/index.ts) and
+[legacy configuration import](../../../src/main/sync/configImportService.ts).
+
+Keep these manual backup semantics intact. Automatic sync adds a timestamp comparison for matching
+IDs instead of treating insert-only import or whole-database restore as an automatic merge operation.
+
+## Timestamp overwrite and data units
+
+The normal workflow is using a session on one device, then continuing it on another. Simultaneous
+editing of one session is exceptional and does not require a collaborative conflict workflow.
+
+For each `(kind, id)`, insert when missing and otherwise keep the version with the newer modification
+time. Prefer existing persisted `updated_at`/`updatedAt` fields where they represent actual content
+writes. Where a unit spans records, maintain its modification time with the canonical mutation; do
+not substitute last-opened, last-used, export, receive or import time. An actual local edit uses
+`max(Date.now(), previousModifiedAt + 1)` so two local writes cannot share the same millisecond.
+
+Keep the originating device ID as a fixed tie-breaker for equal timestamps: compare the IDs using a
+fixed byte ordering. This is one comparison rule, not another user-visible conflict mode. Preserve
+both timestamp and origin on receive/relay; applying the same version again is a no-op and does not
+start another round of edits. Device identity remains separate from host-issued pairing record IDs.
+
+Validate timestamps as nonnegative safe integers. Device clocks are assumed to be correct; there is
+no clock synchronization service, persisted global clock floor or clock-skew-based sync suspension.
+The chosen policy accepts that an incorrectly set clock can make the wrong edit win.
 
 Conflict units follow domain consistency boundaries rather than arbitrary SQLite rows:
 
@@ -64,11 +85,10 @@ Conflict units follow domain consistency boundaries rather than arbitrary SQLite
 | Custom/system prompts | One prompt ID, including removal; a file timestamp cannot stand in for every prompt's modification time. |
 | Memory | One canonical memory record plus its domain deletion identity; honor existing memory tombstone semantics. Derived vectors and indexes remain local. |
 
-A session bundle is deliberately the LWW unit because editing, truncation, ordering and execution
-history are related. Concurrent edits to different sessions survive independently; concurrent edits
-to the same session choose one complete history. The losing device's divergent content is overwritten,
-including locally added messages in that session. Do not claim message-level collaborative merging.
-Opening a session or changing transient selection must not update its sync stamp.
+For a matching session ID, replace its related content together when the incoming session is newer.
+Keep unrelated sessions. The same timestamp rule applies if two devices happen to edit the same
+session; do not splice histories or ask the user to resolve the conflict. Opening a session or
+changing transient selection must not update its modification time.
 
 The domain mapping must enumerate canonical tables, fields, dependencies and local-only fields before
 implementation. Do not serialize all SQLite tables generically. Local tape sequence IDs require
@@ -80,8 +100,8 @@ promise transfer of arbitrary files referenced by an absolute path.
 
 ## Deletion and initialization
 
-A deletion produces a tombstone with the same identity and comparison stamp as an update. Keep its
-metadata after removing the payload. The newer update or deletion wins. An older offline copy cannot
+A deletion retains its ID and modification timestamp as a tombstone, compared just like an update.
+Keep its metadata after removing the payload. The newer update or deletion wins. An older offline copy cannot
 resurrect a deleted unit; a genuinely newer edit may supersede the tombstone under the chosen LWW
 policy. Session deletion is one unit, so child rows cannot resurrect it independently.
 
@@ -149,7 +169,7 @@ as automatic bidirectional sync.
 
 The authenticated v2 surface consists of handshake/status, an SSE notification stream, bounded change
 batch upload/download and acknowledgements. Status includes replica identity, protocol/schema
-compatibility, current revision and clock information. Do not send arbitrary SQL or trust incoming
+compatibility and current revision. Do not send arbitrary SQL or trust incoming
 table names. Only the negotiated domain unit schema is accepted.
 
 - The connecting device maintains one authenticated SSE connection. Events announce available
@@ -229,7 +249,7 @@ paths so importing a backup cannot enable sync, clone identity or advance peer c
 ## UI behavior
 
 Use compact connection status, one automatic-sync switch and Sync now. Surface waiting, transferring,
-waiting-for-local-work, offline, clock error and last successfully applied time. Do not expose dirty
+waiting-for-local-work, offline and last successfully applied time. Do not expose dirty
 bits, cursors or batch preparation as user actions. Turning automatic sync off does not disconnect a
 paired device. Connection loss preserves pairing and pending changes; it is not reported as success.
 All user-facing copy uses i18n and existing settings primitives.
@@ -252,14 +272,15 @@ Device sync                             Device sync
   wait and runtime/rate constraints. Idle data produces no scans or status polling.
 - Edits on either side propagate, including through the host to a second peer. Restart/offline writes,
   missed events, interrupted uploads and lost acknowledgements converge without losing pending work.
-- Delivery order, duplicate batches and equal timestamps produce the same LWW outcome. Remote
+- Newer versions replace matching IDs; older and duplicate versions cannot overwrite them. Equal
+  timestamps use the fixed device-ID tie-breaker. Remote
   application preserves stamps and does not produce an endless notification/export loop.
 - Deletions propagate and stale offline data cannot resurrect them. Different sessions coexist;
-  concurrent changes to the same session select one consistent bundle with explicit user semantics.
+  a matching session is replaced as one consistent unit when the incoming version is newer.
 - Active generation and tool execution continue untouched during background transfer. Application
   waits for safe admission and rechecks newer local writes without using global database maintenance.
 - First enrollment merges both datasets, preserves local-only state and does not execute imported
-  work. Unknown schemas, integrity failures, revoked permissions and clock errors cannot acknowledge
+  work. Unknown schemas, integrity failures and revoked permissions cannot acknowledge
   uncommitted data or silently fall back to overwrite.
 - Ordinary cycles transfer changed units with bounded memory and measured main-thread time. Large
   sessions, slow links, many changes and multiple peers are included in performance validation.

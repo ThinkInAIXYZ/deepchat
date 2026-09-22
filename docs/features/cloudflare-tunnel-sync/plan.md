@@ -15,13 +15,16 @@ manual backup transfers; it must not be presented as the LWW application path.
 
 ## Execution
 
-### 1. Canonical units and durable change capture
+### 1. Timestamp comparison and durable change capture
 
+- [x] Inspect existing backup conflict rules: latest package selection, insert-only record import,
+  explicit database overwrite and machine-local settings preservation.
 - [ ] Map each sync unit to its persistence owner, canonical data, dependencies and local-only fields.
   Cover whole-session bundles, definitions, portable setting keys, prompts and canonical memory.
   Session tape IDs and dependent rows must be mapped consistently; never copy arbitrary tables.
-- [ ] Add persistent replica identity, the LWW stamp/comparator, latest-state revision index and
-  tombstones. Keep delivery cursors separate from conflict timestamps and machine-local credentials.
+- [ ] Reuse persisted content modification times; insert missing IDs and replace matching IDs only
+  when newer. Use device ID only for timestamp ties. Add the latest-state revision index and deletion
+  markers needed for delivery; do not add a global clock service or conflict workflow.
 - [ ] Capture successful writes transactionally across UI, CLI, agent and background paths. Reconcile
   interrupted file-backed writes. Exclude transient activity, projections and sync bookkeeping.
 - [ ] Index existing data once with preserved timestamps or deterministic baseline stamps. Define
@@ -39,7 +42,7 @@ replaying an identical remote unit neither changes its stamp nor produces anothe
 - [ ] Ensure imported history cannot replay tools or enqueue jobs, and refresh open views after
   commit without resetting local drafts. Keep manual backup import behavior separate.
 
-Completion: two datasets converge under reversed delivery order, edits and deletions without
+Completion: switching devices preserves new sessions and applies newer edits/deletions without
 interrupting generation, with no whole-database replacement or synthetic runtime execution.
 
 ### 3. Event-driven scheduling
@@ -55,7 +58,7 @@ scanning/polling; restart and continuous editing do not lose or indefinitely sta
 ### 4. Bidirectional protocol and recovery
 
 - [ ] Implement explicit v2 compatibility and write-consent negotiation without changing v1 payloads.
-  Add authenticated revision notifications, current-state negotiation and clock-skew handling.
+  Add authenticated revision notifications and current-state negotiation.
 - [ ] Implement immutable bounded batches and resumable parts in both directions, retaining original
   stamps through the host. Reuse staging, integrity and transport bounds where their contracts fit.
 - [ ] Persist acknowledgements only with application/no-op completion. Handle gaps, busy units,
@@ -69,7 +72,7 @@ queries, unintended write access, cursor gaps or full-database export for each o
 ### 5. Settings and enrollment
 
 - [ ] Add automatic-sync opt-in and compact live status through typed events. Explain timestamp
-  conflict resolution, whole-session overwrite and clock errors; retain Sync now and explicit restore.
+  overwrite and session replacement; retain Sync now and explicit restore. No conflict controls.
 - [ ] Preserve tunnel/toolchain controls. Migrate existing pairs as manual/read-only until write
   enrollment is accepted. Keep English/Chinese copy and locale catalog parity.
 
@@ -78,10 +81,11 @@ pairings cannot silently start overwriting data. Include the spec's BEFORE/AFTER
 
 ### 6. Whole-change review and validation
 
-- [ ] Review domain ownership, timestamp ties/skew, deletions, bootstrap, write-capture completeness,
+- [ ] Review domain ownership, newer/older/tied timestamps, deletions, bootstrap, write-capture completeness,
   runtime admission, bounded resource use, secret exclusions and legacy protocol behavior.
 - [ ] After implementation, select the smallest durable regression coverage for convergence,
-  scheduling, concurrent writes, restart recovery, authorization and active-session protection.
+  scheduling, device handoff, writes during transfer, restart recovery, authorization and active-session
+  protection. Do not build a concurrent session-editing test matrix.
 - [ ] Exercise isolated Electron profiles and inspect normal/narrow UI. Measure idle cost, large
   session preparation/application, burst edits, multiple peers, slow links and resume behavior.
 - [ ] Run format, i18n, lint, types, relevant tests, renderer boundaries, icons and production build.
@@ -98,5 +102,7 @@ Quick Tunnel allocation succeeds locally, but the edge TLS handshake fails and p
 blocked. Public end-to-end transfer, named tunnel account setup and other platform packaging require
 separate verification; synthetic local transport success is not evidence of public connectivity.
 
-Design artifacts pass format, i18n, lint, Node/renderer typechecks and `git diff --check`.
+Backup import research is checked against the existing sync service, configuration import and table
+filtering suites: 3 files, 29 passing tests. Design artifacts pass format, i18n, lint, Node/renderer
+typechecks and `git diff --check`.
 Automatic LWW behavior has no implementation or runtime validation yet.
