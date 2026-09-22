@@ -4,7 +4,7 @@ import { createI18n } from 'vue-i18n'
 import { flushPromises, mount } from '@vue/test-utils'
 import { defineComponent } from 'vue'
 import TunnelSyncSettings from '../../../src/renderer/settings/components/TunnelSyncSettings.vue'
-import { useTunnelSyncStore } from '@/stores/tunnelSync'
+import { useTunnelSyncStore } from '../../../src/renderer/settings/stores/tunnelSync'
 import sync from '../../../src/renderer/src/i18n/en-US/sync.json'
 
 vi.unmock('pinia')

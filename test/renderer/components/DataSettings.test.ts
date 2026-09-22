@@ -222,7 +222,9 @@ const setup = async (
       }
     })
   }))
-  vi.doMock('@/stores/tunnelSync', () => ({ useTunnelSyncStore: vi.fn() }))
+  vi.doMock('../../../src/renderer/settings/stores/tunnelSync', () => ({
+    useTunnelSyncStore: vi.fn()
+  }))
   vi.doMock('pinia', async () => {
     const vue = await vi.importActual<typeof import('vue')>('vue')
     return {
