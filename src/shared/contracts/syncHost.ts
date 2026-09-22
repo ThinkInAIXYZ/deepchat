@@ -51,7 +51,7 @@ export const SYNC_HOST_MAX_PUSH_PART_BYTES = 32 * 1024 * 1024
 export const SYNC_HOST_AUDIT_LIMIT = 500
 
 /** User-visible failure codes surfaced to the renderer; copy is added with the Settings UI. */
-export const SYNC_HOST_BIND_FAILED_ERROR = 'syncHost.error.bindFailed'
+export const SYNC_HOST_BIND_FAILED_ERROR = 'sync.tunnel.error.bindFailed'
 
 export const SYNC_HOST_SNAPSHOT_ID_HEADER = 'x-deepchat-snapshot-id'
 export const SYNC_HOST_SNAPSHOT_HASH_HEADER = 'x-deepchat-snapshot-sha256'

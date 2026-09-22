@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto'
-import { chmod, mkdir, open, rename, unlink } from 'node:fs/promises'
+import { chmod, copyFile, mkdir, open, rename, unlink } from 'node:fs/promises'
 import path from 'node:path'
 import {
   SYNC_HOST_BIND_FAILED_ERROR,
@@ -24,10 +24,12 @@ export interface SyncHostServiceStatus {
   hostId: string
   deviceCount: number
   hasSnapshot: boolean
+  configuredPort: number
+  publishedAt: number | null
 }
 
 export interface SyncHostServiceDeps {
-  listBackups: () => Promise<SyncBackupInfo[]>
+  createBackup: () => Promise<SyncBackupInfo | null>
   getFolderPath: () => string
   getUserDataPath: () => string
   getAppVersion: () => string
@@ -61,8 +63,12 @@ export class SyncHostService {
     this.devices = new SyncHostDeviceStore(this.state)
     this.pairing = new SyncHostPairingAuthority(() => this.getHostId())
     this.snapshotSource = new SyncHostSnapshotSource({
-      listBackups: deps.listBackups,
-      getFolderPath: deps.getFolderPath,
+      listBackups: async () => {
+        await this.state.load()
+        const published = this.state.snapshot().published
+        return published ? [published] : []
+      },
+      getFolderPath: () => this.publicationDirectory(),
       logger: deps.logger
     })
     this.endpoint = new SyncHostEndpoint({
@@ -111,15 +117,29 @@ export class SyncHostService {
     return created
   }
 
-  async setEnabled(enabled: boolean): Promise<SyncHostServiceStatus> {
+  async setEnabled(
+    enabled: boolean,
+    options: { port?: number; consent?: boolean } = {}
+  ): Promise<SyncHostServiceStatus> {
     await this.serialize(async () => {
+      await this.state.load()
       if (enabled) {
+        if (!options.consent) throw new Error('sync.tunnel.error.consentRequired')
+        const port = options.port ?? this.state.snapshot().port
+        if (!Number.isInteger(port) || port < 1 || port > 65535) {
+          throw new Error('sync.tunnel.error.invalidPort')
+        }
+        if (this.endpoint.isRunning() && this.endpoint.getPort() !== port) {
+          throw new Error('sync.tunnel.error.disableFirst')
+        }
         // Start before persisting so a failed bind never leaves host mode marked enabled without a
         // listener, and roll the listener back if the flag itself cannot be written.
-        await this.startInternal()
+        await this.startInternal(port)
         try {
           await this.state.update((state) => {
             state.enabled = true
+            state.port = port
+            state.consentAt = Date.now()
           })
         } catch (error) {
           await this.stopInternal()
@@ -147,21 +167,59 @@ export class SyncHostService {
   /** Starts the endpoint only when host mode is enabled; safe to call unconditionally at boot. */
   async startIfEnabled(): Promise<void> {
     await this.initialize()
-    if (!this.getEnabled()) return
     await this.serialize(async () => {
-      await this.startInternal()
-      try {
-        await this.state.update((state) => {
-          state.enabled = true
+      const state = this.state.snapshot()
+      if (!state.enabled) return
+      if (!state.consentAt || !state.port) {
+        await this.state.update((next) => {
+          next.enabled = false
         })
-      } catch (error) {
-        await this.stopInternal()
-        throw error
+        return
       }
+      await this.startInternal(state.port)
     })
   }
 
+  /** Publish only a completed export; unrelated sync-folder packages are never served. */
+  async publishSnapshot(): Promise<SyncHostServiceStatus> {
+    await this.serialize(async () => {
+      await this.state.load()
+      if (!this.state.snapshot().consentAt || !this.getEnabled()) {
+        throw new Error('sync.tunnel.error.consentRequired')
+      }
+      const backup = await this.deps.createBackup()
+      if (!backup) throw new Error('sync.tunnel.error.busy')
+      if (!/^backup-\d+\.zip$/.test(backup.fileName)) throw new Error('sync.error.noValidBackup')
+      const directory = this.publicationDirectory()
+      await mkdir(directory, { recursive: true, mode: 0o700 })
+      const target = path.join(directory, backup.fileName)
+      const temporary = `${target}.${randomBytes(6).toString('hex')}.tmp`
+      const previous = this.state.snapshot().published
+      try {
+        await copyFile(path.join(this.deps.getFolderPath(), backup.fileName), temporary)
+        await chmod(temporary, 0o600)
+        await rename(temporary, target)
+        await this.state.update((state) => {
+          state.published = backup
+        })
+      } catch (error) {
+        await unlink(temporary).catch(() => undefined)
+        if (previous?.fileName !== backup.fileName) await unlink(target).catch(() => undefined)
+        throw error
+      }
+      if (previous && previous.fileName !== backup.fileName) {
+        await unlink(path.join(directory, previous.fileName)).catch(() => undefined)
+      }
+    })
+    return this.getStatus()
+  }
+
+  private publicationDirectory(): string {
+    return path.join(this.deps.getUserDataPath(), ENDPOINT_DIRECTORY, 'snapshots')
+  }
+
   async getStatus(): Promise<SyncHostServiceStatus> {
+    await this.initialize()
     const snapshot = await this.snapshotSource.current()
     return {
       enabled: this.getEnabled(),
@@ -169,7 +227,9 @@ export class SyncHostService {
       port: this.endpoint.isRunning() ? this.endpoint.getPort() : null,
       hostId: this.getHostId(),
       deviceCount: this.devices.count(),
-      hasSnapshot: snapshot !== null
+      hasSnapshot: snapshot !== null,
+      configuredPort: this.state.snapshot().port,
+      publishedAt: snapshot ? (this.state.snapshot().published?.createdAt ?? null) : null
     }
   }
 
@@ -199,14 +259,12 @@ export class SyncHostService {
     return this.endpoint.getAuditEntries()
   }
 
-  private async startInternal(): Promise<void> {
+  private async startInternal(port = this.state.snapshot().port): Promise<void> {
     if (this.endpoint.isRunning()) {
-      // The descriptor may be missing if a previous write failed; rewrite it before returning.
-      await this.writeEndpointDescriptor()
       return
     }
     try {
-      await this.endpoint.start()
+      await this.endpoint.start({ port })
     } catch (error) {
       this.deps.logger?.warn('[SyncHost] Failed to bind endpoint', {
         error: error instanceof Error ? error.message : String(error)
@@ -216,9 +274,10 @@ export class SyncHostService {
     try {
       await this.writeEndpointDescriptor()
     } catch (error) {
-      // A listener without a descriptor is unreachable by the tunnel and must not survive.
-      await this.endpoint.stop()
-      throw error
+      // User-managed tunnels reach the configured port without a descriptor.
+      this.deps.logger?.warn('[SyncHost] Failed to write optional endpoint descriptor', {
+        error: error instanceof Error ? error.message : String(error)
+      })
     }
   }
 

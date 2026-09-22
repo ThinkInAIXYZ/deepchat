@@ -150,6 +150,10 @@ export class SyncService {
     shell.openPath(syncFolderPath)
   }
 
+  public isBackupInProgress(): boolean {
+    return this.isBackingUp
+  }
+
   public async getBackupStatus(): Promise<{ isBackingUp: boolean; lastBackupTime: number }> {
     const lastBackupTime = this.settings.getLastSyncTime()
     return { isBackingUp: this.isBackingUp, lastBackupTime }
@@ -291,6 +295,12 @@ export class SyncService {
       throw new Error('sync.error.notEnabled')
     }
 
+    return this.createHostBackup()
+  }
+
+  /** Shared local export pipeline; host publishing does not enable legacy/cloud sync. */
+  public async createHostBackup(): Promise<SyncBackupInfo | null> {
+    if (this.isBackingUp) return null
     try {
       return await this.performBackup()
     } catch (error) {
@@ -330,6 +340,15 @@ export class SyncService {
       return { success: false, message: 'sync.error.noValidBackup' }
     }
 
+    return this.importBackupFile(backupZipPath, importMode, database)
+  }
+
+  /** Internal entry point for a fully downloaded and verified private staging file. */
+  public async importBackupFile(
+    backupZipPath: string,
+    importMode: 'increment' | 'overwrite',
+    database: SyncImportDatabasePort
+  ): Promise<SyncImportResult> {
     this.publishEvent('sync.import.started', {
       version: Date.now()
     })

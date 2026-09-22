@@ -7,7 +7,8 @@ import {
   syncHostListDevicesRoute,
   syncHostRenameDeviceRoute,
   syncHostRevokeDeviceRoute,
-  syncHostSetEnabledRoute
+  syncHostSetEnabledRoute,
+  syncHostPublishRoute
 } from '@shared/contracts/routes'
 import {
   SyncHostAuditEntrySchema,
@@ -22,7 +23,9 @@ const STATUS = {
   port: 43117,
   hostId: 'host-abc',
   deviceCount: 2,
-  hasSnapshot: true
+  hasSnapshot: true,
+  configuredPort: 43117,
+  publishedAt: 1_700_000_000_000
 }
 
 const PAIRING = {
@@ -57,6 +60,7 @@ function auditEntry(overrides: Partial<SyncHostAuditEntry> = {}): SyncHostAuditE
 
 function createHostPort(overrides: Partial<SyncHostRoutePort> = {}): SyncHostRoutePort {
   return {
+    publishSnapshot: vi.fn(async () => STATUS),
     getStatus: vi.fn(async () => STATUS),
     getPairingCode: vi.fn(() => null),
     setEnabled: vi.fn(async () => STATUS),
@@ -72,7 +76,7 @@ function createHostPort(overrides: Partial<SyncHostRoutePort> = {}): SyncHostRou
 const context = createRendererRouteContext(1, null)
 
 describe('sync host routes', () => {
-  it('exposes exactly the seven renderer-facing routes as handlers', () => {
+  it('exposes exactly the eight renderer-facing routes as handlers', () => {
     const routes = createSyncHostRoutes({ host: createHostPort() })
 
     expect([...routes.keys()].sort()).toEqual(
@@ -83,10 +87,11 @@ describe('sync host routes', () => {
         syncHostListDevicesRoute.name,
         syncHostRenameDeviceRoute.name,
         syncHostRevokeDeviceRoute.name,
+        syncHostPublishRoute.name,
         syncHostSetEnabledRoute.name
       ].sort()
     )
-    expect(routes.size).toBe(7)
+    expect(routes.size).toBe(8)
     for (const handler of routes.values()) {
       expect(typeof handler).toBe('function')
     }
@@ -114,7 +119,7 @@ describe('sync host routes', () => {
     await expect(handler({ enabled: false }, context)).resolves.toEqual({
       status: { ...STATUS, enabled: false }
     })
-    expect(setEnabled).toHaveBeenCalledWith(false)
+    expect(setEnabled).toHaveBeenCalledWith(false, { port: undefined, consent: undefined })
   })
 
   it('surfaces a setEnabled failure instead of reporting a status', async () => {

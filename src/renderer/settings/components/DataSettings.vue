@@ -5,6 +5,7 @@
     :description="t('settings.data.privacyDescription')"
   >
     <div class="flex w-full flex-col gap-4">
+      <TunnelSyncSettings />
       <div
         data-testid="database-encryption-section"
         class="rounded-xl border border-border bg-card/30 p-4"
@@ -1043,6 +1044,7 @@
 </template>
 
 <script setup lang="ts">
+import TunnelSyncSettings from './TunnelSyncSettings.vue'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
 import { ref, onMounted, onBeforeUnmount, computed, watch, nextTick, useId } from 'vue'

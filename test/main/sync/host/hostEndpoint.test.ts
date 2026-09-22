@@ -13,8 +13,8 @@ vi.unmock('fs')
 vi.unmock('node:fs')
 
 import { SYNC_HOST_MAX_CONNECTIONS, SYNC_HOST_PATH_PREFIX } from '@shared/contracts/syncHost'
-import type { SyncBackupInfo } from '@shared/types/sync'
 import { SyncHostService } from '@/sync/host'
+import { SyncHostSnapshotSource } from '@/sync/host/snapshot'
 import { SyncHostPairingAuthority } from '@/sync/host/pairing'
 
 const BACKUP_FILE_NAME = 'backup-1700000000000.zip'
@@ -32,7 +32,7 @@ describe('SyncHostService endpoint', () => {
   let service: SyncHostService
   let baseUrl: string
   let backupBytes: Buffer
-  let listBackups: () => Promise<SyncBackupInfo[]>
+  let publicationDir: string
 
   beforeEach(async () => {
     tempDir = await mkdtemp(path.join(os.tmpdir(), 'deepchat-sync-host-'))
@@ -51,11 +51,13 @@ describe('SyncHostService endpoint', () => {
     backupBytes = Buffer.from(archive)
     await writeFile(path.join(syncDir, BACKUP_FILE_NAME), backupBytes)
 
-    listBackups = async () => [
-      { fileName: BACKUP_FILE_NAME, createdAt: 1_700_000_000_000, size: backupBytes.length }
-    ]
+    publicationDir = path.join(tempDir, 'sync-host', 'snapshots')
     service = new SyncHostService({
-      listBackups: () => listBackups(),
+      createBackup: async () => ({
+        fileName: BACKUP_FILE_NAME,
+        createdAt: 1_700_000_000_000,
+        size: backupBytes.length
+      }),
       getFolderPath: () => syncDir,
       getUserDataPath: () => tempDir,
       getAppVersion: () => '9.9.9',
@@ -65,9 +67,12 @@ describe('SyncHostService endpoint', () => {
     await service.start()
     const started = await service.getStatus()
     baseUrl = `http://127.0.0.1:${started.port}`
+    await service.setEnabled(true, { port: started.port!, consent: true })
+    await service.publishSnapshot()
   })
 
   afterEach(async () => {
+    vi.restoreAllMocks()
     await service.stop()
     await rm(tempDir, { recursive: true, force: true })
   })
@@ -404,14 +409,10 @@ describe('SyncHostService endpoint', () => {
     expect(entries.length - before).toBe(1)
   })
 
-  it('serves only real backup packages, not any zip in the sync folder', async () => {
-    const impostor = 'not-a-backup.zip'
+  it('keeps the published snapshot when a newer ordinary backup appears', async () => {
+    const impostor = 'backup-1800000000000.zip'
     const archive = zipSync({ 'manifest.json': strToU8(JSON.stringify({ version: 3 })) })
     await writeFile(path.join(syncDir, impostor), Buffer.from(archive))
-    listBackups = async () => [
-      { fileName: impostor, createdAt: 1_800_000_000_000, size: archive.length },
-      { fileName: BACKUP_FILE_NAME, createdAt: 1_700_000_000_000, size: backupBytes.length }
-    ]
 
     const { token } = await pairDevice()
     const status = await fetch(`${baseUrl}${SYNC_HOST_PATH_PREFIX}/status`, {
@@ -426,7 +427,7 @@ describe('SyncHostService endpoint', () => {
     const userData = await mkdtemp(path.join(os.tmpdir(), 'deepchat-sync-host-id-'))
     try {
       const uninitialized = new SyncHostService({
-        listBackups: async () => [],
+        createBackup: async () => null,
         getFolderPath: () => syncDir,
         getUserDataPath: () => userData,
         getAppVersion: () => '9.9.9'
@@ -443,7 +444,7 @@ describe('SyncHostService endpoint', () => {
       await uninitialized.stop()
 
       const reloaded = new SyncHostService({
-        listBackups: async () => [],
+        createBackup: async () => null,
         getFolderPath: () => syncDir,
         getUserDataPath: () => userData,
         getAppVersion: () => '9.9.9'
@@ -493,11 +494,11 @@ describe('SyncHostService endpoint', () => {
     const gate = new Promise<void>((resolve) => {
       release = resolve
     })
-    const gated = listBackups
-    listBackups = async () => {
+    const original = SyncHostSnapshotSource.prototype.current
+    vi.spyOn(SyncHostSnapshotSource.prototype, 'current').mockImplementation(async function () {
       await gate
-      return gated()
-    }
+      return original.call(this)
+    })
 
     const controller = new AbortController()
     const pending = fetch(`${baseUrl}${SYNC_HOST_PATH_PREFIX}/snapshot`, {
@@ -515,11 +516,9 @@ describe('SyncHostService endpoint', () => {
     expect(audit.map((entry) => entry.status)).toEqual([499])
   })
 
-  it('reports no snapshot instead of failing when the backup list cannot be read', async () => {
+  it('reports no snapshot instead of failing when the publication disappears', async () => {
     const { token } = await pairDevice()
-    listBackups = async () => {
-      throw new Error('sync folder unavailable')
-    }
+    await rm(publicationDir, { recursive: true })
 
     // A storage failure is a transient condition a slave retries: it must see "no snapshot", never
     // a 500 that looks like a broken host.
@@ -551,10 +550,10 @@ describe('SyncHostService endpoint', () => {
   it('keeps the listener and the enabled flag consistent under interleaved enable/disable', async () => {
     await Promise.all([
       service.setEnabled(false),
-      service.setEnabled(true),
-      service.setEnabled(true),
+      service.setEnabled(true, { port: Number(new URL(baseUrl).port), consent: true }),
+      service.setEnabled(true, { port: Number(new URL(baseUrl).port), consent: true }),
       service.setEnabled(false),
-      service.setEnabled(true)
+      service.setEnabled(true, { port: Number(new URL(baseUrl).port), consent: true })
     ])
 
     const enabled = await service.getStatus()
@@ -570,7 +569,7 @@ describe('SyncHostService endpoint', () => {
   })
 
   it('stops the listener on teardown without disabling host mode', async () => {
-    await service.setEnabled(true)
+    await service.setEnabled(true, { port: Number(new URL(baseUrl).port), consent: true })
 
     await service.stop()
 
@@ -594,7 +593,7 @@ describe('SyncHostService endpoint', () => {
     const userData = await mkdtemp(path.join(os.tmpdir(), 'deepchat-sync-host-lazy-'))
     try {
       const uninitialized = new SyncHostService({
-        listBackups: async () => [],
+        createBackup: async () => null,
         getFolderPath: () => syncDir,
         getUserDataPath: () => userData,
         getAppVersion: () => '9.9.9'
@@ -680,7 +679,7 @@ describe('SyncHostService endpoint', () => {
   })
 
   it('survives a corrupt archive without hanging or throwing', async () => {
-    await writeFile(path.join(syncDir, BACKUP_FILE_NAME), Buffer.from('not a zip at all'))
+    await writeFile(path.join(publicationDir, BACKUP_FILE_NAME), Buffer.from('not a zip at all'))
 
     const { token } = await pairDevice()
     const response = await fetch(`${baseUrl}${SYNC_HOST_PATH_PREFIX}/status`, {
@@ -698,7 +697,7 @@ describe('SyncHostService endpoint', () => {
     const userData = await mkdtemp(path.join(os.tmpdir(), 'deepchat-sync-host-uninit-'))
     try {
       const seed = new SyncHostService({
-        listBackups: async () => [],
+        createBackup: async () => null,
         getFolderPath: () => syncDir,
         getUserDataPath: () => userData,
         getAppVersion: () => '9.9.9'
@@ -706,7 +705,11 @@ describe('SyncHostService endpoint', () => {
       await seed.initialize()
       const issued = await seed.listDevices()
       expect(issued).toEqual([])
-      const firstToken = await seed.setEnabled(true)
+      await seed.start()
+      const firstToken = await seed.setEnabled(true, {
+        port: (await seed.getStatus()).port!,
+        consent: true
+      })
       expect(firstToken.enabled).toBe(true)
       // Release the listener seed.setEnabled(true) started before the files are removed.
       await seed.stop()
@@ -715,7 +718,7 @@ describe('SyncHostService endpoint', () => {
       // The mutation has to be a real one: with the read-modify-write bug this persisted the empty
       // default state over the file, discarding the enabled flag and every device record.
       const late = new SyncHostService({
-        listBackups: async () => [],
+        createBackup: async () => null,
         getFolderPath: () => syncDir,
         getUserDataPath: () => userData,
         getAppVersion: () => '9.9.9'
@@ -724,7 +727,7 @@ describe('SyncHostService endpoint', () => {
       await late.stop()
 
       const reloaded = new SyncHostService({
-        listBackups: async () => [],
+        createBackup: async () => null,
         getFolderPath: () => syncDir,
         getUserDataPath: () => userData,
         getAppVersion: () => '9.9.9'
@@ -742,9 +745,7 @@ describe('SyncHostService endpoint', () => {
     expect(await service.revokeDevice(issued.deviceId)).toBe(true)
 
     const reloaded = new SyncHostService({
-      listBackups: async () => [
-        { fileName: BACKUP_FILE_NAME, createdAt: 1_700_000_000_000, size: backupBytes.length }
-      ],
+      createBackup: async () => null,
       getFolderPath: () => syncDir,
       getUserDataPath: () => tempDir,
       getAppVersion: () => '9.9.9'

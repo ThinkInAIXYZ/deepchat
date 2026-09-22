@@ -1,3 +1,5 @@
+import { SyncPeerService } from '../sync/peer'
+import { createSyncPeerRoutes } from '../sync/peer/routes'
 import logger from '@shared/logger'
 import {
   mainLogger,
@@ -24,7 +26,7 @@ import {
 } from '@shared/contracts/events'
 import path from 'path'
 import { DialogService } from '../desktop/dialog'
-import { app, ipcMain, webContents as electronWebContents } from 'electron'
+import { safeStorage, app, ipcMain, webContents as electronWebContents } from 'electron'
 import { DEEPCHAT_EVENT_CHANNEL } from '@shared/contracts/channels'
 import { createDeepchatEventEnvelope, type DeepchatEventName } from '@shared/contracts/events'
 import { optimizer } from '@electron-toolkit/utils'
@@ -527,6 +529,7 @@ export async function createMainProcessControl(dependencies: {
   let ocrSettings: OcrSettings
   let mcpService: McpService
   let syncService: SyncService
+  let syncPeerService: SyncPeerService
   let syncHostService: SyncHostService
   let deeplinkService: DeeplinkService
   let notificationService: NotificationService
@@ -1321,8 +1324,31 @@ export async function createMainProcessControl(dependencies: {
     providerDatabase,
     publishDeepchatEvent
   )
+  syncPeerService = new SyncPeerService({
+    directory: path.join(app.getPath('userData'), 'sync-peer'),
+    protectToken: (token) => {
+      if (
+        !safeStorage.isEncryptionAvailable() ||
+        (process.platform === 'linux' && safeStorage.getSelectedStorageBackend() === 'basic_text')
+      ) {
+        throw new Error('sync.error.safeStorageUnavailable')
+      }
+      return safeStorage.encryptString(token).toString('base64')
+    },
+    revealToken: (wrapped) => safeStorage.decryptString(Buffer.from(wrapped, 'base64')),
+    isLocalDatabaseEncrypted: () => Boolean(mainDatabase.getDatabasePassword()),
+    importSnapshot: (filePath, mode) => {
+      if (databaseMaintenanceState !== 'running') throw new Error('sync.tunnel.error.busy')
+      return runDatabaseMaintenance((database) =>
+        syncService.importBackupFile(filePath, mode, database)
+      )
+    }
+  })
   syncHostService = new SyncHostService({
-    listBackups: () => syncService.listBackups(),
+    createBackup: () => {
+      if (databaseMaintenanceState !== 'running') throw new Error('sync.tunnel.error.busy')
+      return syncService.createHostBackup()
+    },
     getFolderPath: () => syncSettings.getFolderPath(),
     getUserDataPath: () => app.getPath('userData'),
     getAppVersion: () => app.getVersion(),
@@ -2645,6 +2671,7 @@ export async function createMainProcessControl(dependencies: {
   async function destroy(): Promise<void> {
     await runDestroyStep('agentCliTokenAuthority.clear', () => agentCliTokenAuthority.clear())
     await runDestroyStep('cliServer.stop', () => cliServer.stop())
+    await runDestroyStep('syncPeerService.stop', () => syncPeerService.stop())
     await runDestroyStep('syncHostService.stop', () => syncHostService.stop())
     await runDestroyStep('tapeInspectorHeadWatcher.close', () => tapeInspectorHeadWatcher.close())
     await runDestroyStep('typedEventHub.close', () => typedEventHub.close())
@@ -3099,6 +3126,7 @@ export async function createMainProcessControl(dependencies: {
         exporterRoutes,
         syncRoutes,
         syncHostRoutes,
+        createSyncPeerRoutes(syncPeerService),
         platformRoutes,
         hookRoutes,
         notificationRoutes,
@@ -3358,6 +3386,7 @@ export async function createMainProcessControl(dependencies: {
       throw new Error(`App lifecycle is ${appLifecycleState}`)
     }
     if (databaseMaintenanceState === 'running') return
+    if (routeName === 'sync.startBackup') throw new Error('sync.tunnel.error.busy')
     if (
       routeName.startsWith('chat.') ||
       routeName.startsWith('sessions.') ||
@@ -3376,6 +3405,7 @@ export async function createMainProcessControl(dependencies: {
     if (databaseMaintenanceState !== 'running') {
       throw new Error(`App database maintenance is ${databaseMaintenanceState}`)
     }
+    if (syncService.isBackupInProgress()) throw new Error('sync.tunnel.error.busy')
     databaseMaintenanceState = 'maintenance'
     startupWorkloadCoordinator.cancelTarget('main')
     memoryService.stopBackgroundMaintenance()

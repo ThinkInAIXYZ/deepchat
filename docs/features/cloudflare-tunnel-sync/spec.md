@@ -1,238 +1,160 @@
 # Cloudflare Tunnel Host Sync
 
-Status: proposed. Transport validated end-to-end; host-side core implemented (pairing, device
-tokens, status, snapshot pull with resume). Tunnel supervision, push, change events, settings UI
-and the slave side are not implemented yet.
+Status: Phase 1 implemented for user-managed tunnels. Local transport, application lifecycle and
+settings validation are recorded in `plan.md`. Push, events, scheduling and app-managed tunnels are
+separate delivery phases.
 
-A DeepChat instance becomes the **host** (device A) and exposes a sync endpoint through the user's
-own Cloudflare Tunnel, so other devices (B/C/D) can pull from or push to it over a public HTTPS
-address without a third-party bucket, inbound port, or working NAT. Topology is star-shaped: slaves
-talk only to the host; devices never connect to each other.
+## Scope and ownership
 
-The existing S3/R2 cloud backup flow stays as-is and is not replaced.
+A DeepChat host publishes a backup through a loopback HTTP endpoint. Receiving devices connect to
+its public HTTPS origin through the user's Cloudflare Tunnel. The host must stay online; there is
+no relay, offline queue, peer-to-peer discovery, account service or concurrent-edit merge.
 
-## Goals
+Core owns the endpoint, device authority, publication, receiving client, private persistence and
+import coordination. Settings → Data owns the user-facing controls, using typed renderer-only
+`syncHost.*` and `syncPeer.*` routes. Remote HTTP traffic never reaches the IPC route surface.
 
-1. Host mode: a host exposes an authenticated sync endpoint through a user-operated Cloudflare
-   Tunnel; no inbound port, works behind CGNAT.
-2. Pairing: the host shows a short-lived pairing code (text + QR); a slave exchanges it for its own
-   device token. The host can list, rename, and revoke devices at any time.
-3. Transfer: slaves pull the host snapshot or push their own backup to the host, reusing the
-   existing backup/import pipeline with `increment` and `overwrite` semantics unchanged.
-4. Visibility: tunnel state, transport protocol, last sync time, progress, and errors live in
-   Settings → Data.
-5. Security: every request except `handshake` is authenticated; Cloudflare provides TLS; optional
-   Cloudflare Access service token; loopback-only origin binding.
+The existing local and S3/R2 backup flows remain available. Host publication reuses their export
+format and the existing importer rather than defining a second data model.
 
-## Non-Goals
+## Delivery phases
 
-- No DeepChat-operated relay, no multi-tenant account system.
-- No queueing or forwarding while the host is offline; slaves wait or skip.
-- No programmatic manipulation of the user's Cloudflare account.
-- No replacement of the existing S3/R2 backup path.
-- No concurrent-edit merge in this phase (see Known Limitations).
-- No incremental or delete-propagation improvement to the backup format itself.
+1. **Phase 1:** user-managed tunnel, fixed loopback port, informed consent, explicit publication,
+   pairing, device rename/revocation, manual pull, resume, integrity verification and import.
+2. **Phase 2:** bounded multipart push, change events, scheduled pulls and transfer history.
+3. **Phase 3:** app-managed cloudflared installation through ToolchainService and core process
+   supervision. No plugin package, npm dependency or installer-bundled cloudflared is required.
 
-## Ownership
+Unix sockets and Cloudflare Access service-token configuration are deferred. Phase 1 clients do
+not follow browser login redirects and do not supply Access service-token headers.
 
-Two layers, deliberately split by capability rather than by convenience:
+## Host endpoint and lifecycle
 
-- **Core** owns the data plane: the loopback-bound sync HTTP surface (`/sync/v1/*`), pairing, device
-  token authority, snapshot streaming, push assembly, audit, and the Settings → Data UI. Core
-  already owns `agent.db`, the backup pipeline and the import semantics; the endpoint must not
-  duplicate them.
-- **Core also supervises the tunnel process** (Plan slice 0 closed this question against the
-  original assumption). Slice 0 established that a plugin cannot own a long-lived `cloudflared`
-  child: an official plugin can only run a binary as an MCP stdio server, the SDK kills only that
-  direct child (SIGTERM then SIGKILL) and closes the transport *before* tree termination, so a
-  reparented grandchild survives — which fails the "disabling leaves no leftover process"
-  acceptance criterion. Core supervision is therefore required, not preferred.
-- **Plugin** (`com.deepchat.plugins.cloudflare-tunnel-sync`, official package) owns binary
-  provisioning and user-facing tunnel configuration: the bundled `cloudflared` per target, its
-  declared runtime manifest, the tunnel settings/status page, and the configuration values core
-  needs to launch the tunnel.
+- Bind only `127.0.0.1` on a user-configured port in 1–65535. Never fall back to another port on a
+  conflict. Port changes require disabling the host first.
+- Enabling requires explicit consent describing provider API keys, other backup credentials and
+  Cloudflare TLS termination. Consent and the selected port are stored in machine-local host state.
+- An enabled state without recorded consent and a valid fixed port does not start at boot.
+- Successful enablement persists across restarts. Disabling closes listener connections and clears
+  the outstanding pairing code. Application teardown closes the listener without clearing enablement.
+- Lifecycle transitions and publication are serialized. Failed publication retains the previous
+  selected snapshot. Database maintenance rejects concurrent backup work.
+- `<userData>/sync-host/endpoint.json` is an optional descriptor. Failure to write it does not
+  prevent user-managed operation. A future supervisor must verify pid and host identity before use.
+- Request receive deadlines, header/body caps, bounded connections, per-source pairing limits,
+  per-device request limits and bounded audit records protect the public endpoint. Response streams
+  do not have a total-duration timeout that would interrupt a healthy large download.
 
-The plugin still cannot carry the data plane for the reasons below: an official plugin cannot
-register HTTP routes on the app server, cannot reach the DB or backup pipeline (`sync.*` contracts
-are renderer-IPC only and absent from the CLI surface), and the only host-owned runtime adapter
-(`cua-embedded-v1`) is reserved for the CUA plugin.
+Named-tunnel ingress points at `service: http://127.0.0.1:<port>`. The settings section also provides
+`cloudflared tunnel --protocol http2 --url http://127.0.0.1:<port>` for Quick Tunnel debugging.
+Quick Tunnel URLs change on restart, requiring the client to pair with the new origin.
+DeepChat does not launch, stop or modify user-managed tunnel processes.
 
-## Host Endpoint
+## Authentication and pairing
 
-A new server in the main process owns `127.0.0.1:<ephemeral-port>`, started only while host mode is
-enabled:
+`GET /sync/v1/handshake` and `POST /sync/v1/pair` are the only unauthenticated endpoints. Other
+paths authenticate before method/path handling. Repeated anonymous requests may receive 429.
+The handshake advertises only supported capabilities (`snapshot`, `range`).
 
-- **Binding invariant**: loopback only. Never `0.0.0.0`, never a LAN address. This is what the
-  issue's security baseline permits and what the transport evidence forces: `cloudflared` Quick
-  Tunnels cannot target a unix socket, so a TCP origin is required on every platform.
-- **Platform coverage**: POSIX and Windows both use the loopback listener. Windows cannot use a
-  named pipe for this, because `cloudflared` cannot dial one.
-- **Hardening** reuses the control-plane patterns rather than inventing new ones: descriptor file
-  `0600` written by temp+rename, `maxHeaderSize` cap, connection cap, a bounded *request-receive*
-  timeout (which does not limit response streaming, so long downloads stay possible while a stalled
-  request cannot hold a connection slot), per-route body caps, and a bounded audit log.
-- Authentication runs before path and method handling: every unauthenticated request other than
-  `handshake` and `pair` receives one uniform 401, so callers cannot map the route surface. Unknown
-  paths and unsupported methods are only distinguished for authenticated devices.
-- The endpoint is **not** the local control plane. That surface explicitly non-goals TCP, loopback,
-  remote access and network callers, and its bearer token is a same-user file-readable secret. Host
-  sync gets its own listener, its own token authority, and its own principal model.
-- Core publishes the bound port and host identity to a private descriptor
-  (`<userData>/sync-host/endpoint.json`, `0600`, temp+rename), which the tunnel supervisor reads
-  instead of guessing the port. The descriptor is removed when host mode is disabled.
-- Renderer access is IPC-only (`syncHost.*` routes); remote devices never touch those routes.
+Pairing codes are short-lived, single-use and held only in memory. Failures consume a per-source
+budget without destroying the user's code. A failed device issuance restores an unexpired code.
+The host UI provides text and QR pairing details containing the HTTPS origin, opaque host identity,
+code and expiry. The client checks host identity before exchanging the code.
 
-## Pairing and Device Tokens
+Device tokens are random, unscoped and non-expiring in Phase 1. The host stores only their hashes
+and redacted metadata; revocation is enforced on the next request. An existing response is not
+retroactively recalled. Identity comparison is not a cryptographic host signature.
 
-- Enabling host mode is off by default and requires an explicit confirmation with a risk notice.
-- The host generates a pairing code: short TTL (single-digit minutes), single use, rate-limited
-  attempts. It carries the host identity, and the UI renders it as text plus QR alongside the
-  current tunnel URL, so a slave can confirm it reached the intended host.
-- Failed attempts impose a backoff window but **never destroy the code**. Anyone who learns the
-  tunnel hostname can call `pair` unauthenticated, so letting failures invalidate the code would
-  hand an anonymous caller a permanent denial of pairing.
-- Phase 1 uses an opaque host identity (`hostId`) rather than a cryptographic host key: the value is
-  generated once per profile and is what a slave compares against the pairing payload. Signature
-  verification and end-to-end payload encryption remain outside this phase and must not be implied
-  in UI copy.
-- `POST /sync/v1/pair` exchanges the code for a per-device token. The host stores only the token
-  hash plus device metadata (id, name, created/expires, last seen).
-- Tokens are per device and revocable immediately; revocation is enforced on the next request, not
-  on restart. Phase 1 issues unscoped, non-expiring tokens — the store supports expiry but pairing
-  does not set one yet, and there is no scope model. UI copy must not imply otherwise.
-- Every other route requires `Authorization: Bearer <device-token>`; failures return 401 and never
-  a success status, and authentication runs before method or path handling so unauthenticated
-  callers learn nothing about the route surface.
+## Explicit snapshot publication
 
-## Snapshot Pull
+The host never serves the newest arbitrary file in the legacy sync folder. Publishing:
 
-`GET /sync/v1/snapshot` streams the latest backup package:
+1. Creates a completed backup through the existing export pipeline, even with legacy sync disabled.
+2. Copies it to `<userData>/sync-host/snapshots/` with private permissions and atomic rename.
+3. Atomically records the selected backup in host state, then retires the previous publication.
 
-- `Content-Length`, snapshot id, and content hash headers are required; `Range` requests return
-  `206` with `Content-Range` (validated end-to-end, see Validation Evidence).
-- The slave resumes by offset, then verifies the assembled hash before importing. A partial
-  download never reaches `importFromSync`.
-- Payload reuse is the existing pipeline (`startBackup` producing `backup-<epochMs>.zip`,
-  `importFromSync` with `increment` | `overwrite`), not a parallel export implementation.
-- The host currently serves whatever the newest package in the sync folder is; it does not yet
-  produce one on demand. A fresh or stale host therefore answers 404 or serves an old package, and
-  `startBackup` additionally refuses while the legacy S3 sync toggle is off. Closing this gap (a
-  host-triggered snapshot or an explicit "no snapshot yet" state) is required before the acceptance
-  criteria can pass.
+A failed export or publication does not select an incomplete file. Ordinary backups, cloud downloads
+and imports do not change the selection. If the selected file disappears, status reports no snapshot
+and snapshot requests return 404. The UI shows publication time and requires republishing for changes.
+Remote fetches never trigger an export.
 
-## Push
+The snapshot source computes SHA-256 and manifest metadata with concurrent-reader deduplication.
+Unrelated deflate entries are consumed without inflation; manifest input slices and output size are
+bounded. Invalid manifests are reported as unknown format and are rejected by the receiving client.
 
-`POST /sync/v1/push` accepts a slave's backup for host-side import, split into bounded parts:
+`GET /sync/v1/status` returns snapshot identity, size, SHA-256, format and database encryption state.
+`GET /sync/v1/snapshot` streams the selected file with identity/hash headers and Content-Length.
+A valid Range receives 206 and Content-Range; an unsatisfiable range receives 416.
 
-- Cloudflare documents a **100 MB proxied request body limit** on free plans. Our validation pushed
-  125,829,120 bytes through a Quick Tunnel successfully, so enforcement varies by tunnel mode, plan
-  and edge; the design must not depend on it. Parts are therefore capped well below that
-  (target ≤ 32 MiB), each part is independently retryable and idempotent, and the host reassembles
-  into a staging file before import.
-- Import runs only after full assembly and hash/identity verification. An interrupted or partial
-  push leaves no import side effect; staging is discarded and cleaned up.
-- Imported data uses the existing `increment` | `overwrite` modes. `increment` only inserts missing
-  rows; it does not propagate updates or deletions. This limitation is user-visible copy, not a
-  hidden surprise.
+## Receiving client and import
 
-## Change Events
+- One paired host and one operation per receiving profile. Pairing credentials live under
+  `<userData>/sync-peer/`, outside the synced settings and backup package.
+- Tokens are protected with Electron safeStorage. Pairing fails before code exchange when secure
+  storage is unavailable, including the Linux basic_text fallback. Tokens never enter renderer DTOs.
+- Accept HTTPS origins only, without embedded credentials, path, query or fragment. Reject redirects.
+  Check the paired host identity and protocol before sending the bearer token on a pull.
+- Bound control responses to 64 KiB and requests to 30 seconds. Downloads have a 60-second idle
+  timeout, declared-size checks, a 64 GiB ceiling and a free-space preflight.
+- Stage downloads in the private client directory. Resume only when host origin, host identity,
+  snapshot identity, size and hash match the saved metadata. Validate the response headers and
+  Content-Range before appending. A server returning a full 200 response restarts the file.
+- Hash the complete assembled file before import. A changed snapshot, truncated response or invalid
+  digest never reaches the importer. Cancelled/interrupted partial downloads remain resumable across
+  app restarts; a digest failure discards the partial file.
+- Run the verified private file through `SyncService.importBackupFile` inside application database
+  maintenance. Preserve the existing importer and rollback behavior. Download cancellation remains
+  available until import begins; import itself is not cancellable.
+- Incremental import keeps existing insert-only row behavior: updates and deletions do not propagate.
+  Configuration restoration keeps the existing backup semantics. Overwrite requires explicit
+  confirmation in both UI and IPC input.
+- Encrypted remote snapshots are rejected before download. No remote database password is reused or
+  transferred. An unencrypted snapshot cannot overwrite an encrypted local database. Key-aware
+  cross-device restoration is outside Phase 1.
+- Progress remains in main while the page is closed. Settings polls while mounted; reopening the
+  page restores current state. Success time is local metadata. A bookkeeping failure after a
+  committed import is reported separately and never misrepresented as a failed import.
 
-`GET /sync/v1/events` is a long-lived SSE stream used to tell slaves that host data changed, so a
-slave can decide to pull. Bounded keepalive, bounded client count, no payload contents, no
-credential material. Slaves must treat it as an optimization: absence of the stream must degrade to
-manual or scheduled pulls, never to a broken sync.
+## Data and security invariants
 
-## Slave Device Side
+Backup contents follow the existing exporter. Provider credentials remain included; consent names
+this exposure explicitly. Cloudflare terminates HTTPS and the payload has no additional end-to-end
+encryption. The UI must not imply otherwise.
 
-- Slaves store `{hostUrl, deviceId, token}` locally; the token is protected with `safeStorage`,
-  never written to synced settings or backup packages.
-- Slaves trigger pull or push on demand or on a schedule, with progress, cancel, and clear errors.
-- Host URL changes (for example after a Quick Tunnel restart mints a new hostname) invalidate
-  pairing for that device until re-paired; the UI must say so instead of failing opaquely.
+Host identity, device hashes, consent, enablement, publication state, receiving credentials, tunnel
+credentials and Cloudflare Access secrets must never enter backup packages. Host and client files
+are machine-local; imported settings cannot resurrect revoked devices or turn on host mode.
+Existing machine-local exclusions such as cloudSyncSecret and agentCommandShell remain unchanged.
+Memory vectors are not part of agent.db.
 
-## Tunnel Helper Plugin
+## Acceptance criteria
 
-- Package id `com.deepchat.plugins.cloudflare-tunnel-sync`, official source, per-target packages
-  following the existing `deepchat-plugin-*` release naming.
-- `cloudflared` ships **inside the plugin package** (measured `darwin-amd64` binary: 41.7 MB), so
-  no download infrastructure is required. Detection uses manifest `plugin:` relative candidates and
-  the host applies the executable bit; version comes from `--version`. Note that
-  `runtime.install.provider`/`strategy` are only recorded as labels by the host today; there is no
-  generic manifest-driven downloader to lean on.
-- **Transport protocol**: `http2` is the default and is user-selectable. QUIC/UDP 7844 is blocked on
-  real networks (including the validation network): with the default `auto`, `cloudflared` retries
-  QUIC indefinitely and every request fails with 502 while TCP/HTTP2 passes the precheck. The plugin
-  surfaces transport state and the precheck's `suggested_protocol` instead of failing silently.
-- Tunnel modes: a named tunnel on the user's own domain (fixed hostname, the supported product path)
-  and Quick Tunnel (random `*.trycloudflare.com`, debug/fallback, no SLA, new hostname per start).
-  Quick Tunnel mode must warn that pairing does not survive a restart.
-- Optional hardening: for named-tunnel users, a config-file ingress with
-  `service: unix:/<userData>/sync.sock` is supported and validates cleanly, but it must remain
-  optional because Quick Tunnel cannot use it.
-- Host mode disable must stop the tunnel process and close the listener: no leftover `cloudflared`,
-  no listening port, no stale socket file.
+- Host enablement requires consent; it binds only the configured loopback port and restores that
+  port after restart. Disabling leaves no listener or app-owned tunnel process.
+- A fresh host has no downloadable snapshot. Publishing works with legacy sync disabled; ordinary
+  backups cannot replace the published snapshot and failed publication preserves it.
+- Pairing checks the expected host identity, stores no plaintext bearer token, and exposes no token
+  through renderer contracts. Revoked devices cannot obtain another snapshot response.
+- Interrupted transfers resume across client restarts. Identity/range/hash failures and cancellation
+  never import partial data. Successful transfers call the existing importer through maintenance.
+- Overwrite needs confirmation. Encryption limitations, insertion-only behavior, tunnel availability
+  and publication age are explicit user-visible states.
+- Settings remains usable at narrow widths; keyboard-accessible forms and confirmation dialogs use
+  existing UI primitives. New copy is Chinese and English; other locale catalogs carry English copy
+  for these additions until localized.
 
-## Excluded Data (Invariants)
+## Later phases
 
-These must never appear in any transfer, and this is verified rather than assumed:
+Multipart push must stage bounded parts (target at most 32 MiB), validate their complete set, size
+and hash before import, and make retries idempotent. SSE notifications carry no payload contents;
+manual/scheduled pulls must work without a live stream. An event should describe publication changes,
+not imply that unpublished database changes are downloadable.
 
-- **Host-mode credentials and identity**: device token hashes, the host identity and the enabled
-  flag. These are satisfied by construction: host state lives in a private machine-local file
-  (`<userData>/sync-host/host-state.json`, `0600`), not in the settings blob. This matters because
-  settings travel inside backup packages (`configs/app-settings.json`), into S3/R2 uploads, and are
-  merged wholesale on import — a settings-backed device list would have let an importer accept
-  another host's device tokens, resurrect revoked devices, and enable host mode without consent.
-- tunnel credentials and Cloudflare Access secrets — nothing in the sync path touches them yet;
-  this becomes an implementation obligation when the tunnel layer lands.
-- machine-local values excluded by design today (`cloudSyncSecret`, `agentCommandShell`);
-- memory vector data — vectors are not in `agent.db`; slaves regenerate them locally.
-
-**Not yet satisfied — provider credentials.** The existing backup format packages `database/agent.db`
-whole, and `providers.api_key` is a plaintext column in that database. Today's S3/R2 flow already
-uploads it; serving the same package over a tunnel extends that exposure to every paired device and
-to the network path in between. "Provider API keys never leave the machine" is therefore **false**
-until either the export redacts provider credentials or the feature ships with an explicit,
-user-visible warning and consent. This is a product decision, not an implementation detail, because
-redacting keys changes what an imported backup restores.
-
-Session, message and settings data are the baseline; skills, MCP configuration and knowledge-base
-files are in scope because the existing backup package already carries them.
-
-## Security Baseline
-
-- Default off; enabling requires explicit confirmation and a risk notice.
-- Loopback-only origin binding on every platform; Unix socket is an optional extra for named
-  tunnels, never a requirement.
-- Per-device tokens: hash-only at rest, immediate revocation. Phase 1 issues **unscoped,
-  non-expiring** tokens — the store supports expiry but pairing does not set one, and there is no
-  scope model, so a leaked device token stays valid on every route until a human revokes it. Pairing
-  codes are one-time, short-lived, and rate-limited per source.
-- Request size caps, per-device rate limits, and path validation on both ends.
-- Audit log records device, method, bytes, result, and client IP (`cf-connecting-ip` is forwarded by
-  Cloudflare and was confirmed present at the origin), never tokens or payload contents.
-- Cloudflare Access service token (`CF-Access-Client-Id`/`CF-Access-Client-Secret`) is **strongly
-  recommended** rather than mandatory: the Settings UI provides a configuration entry and warns when
-  a public hostname runs without it, but application-level device tokens remain the enforced layer.
-
-## Compatibility
-
-- The endpoint is versioned (`/sync/v1`) and `handshake` reports protocol, app version, database
-  version, capabilities and encryption mode so a slave can refuse an incompatible host instead of
-  corrupting data.
-- Import compatibility is the existing backup contract; a host and slave on incompatible database
-  versions must fail handshake, not attempt import.
-- Nothing in this feature changes existing S3/R2 behavior, existing sync IPC contracts, or the local
-  control plane's surface.
-
-## Known Limitations
-
-- Whole-database transfer every time; no incremental and no delete propagation.
-- `increment` inserts missing rows only, so updates and deletions made on the host do not reach
-  slaves.
-- Memory vectors must be regenerated on the receiving side.
-- Measured throughput on the validation network was ~7.2 MB/s, so a multi-hundred-MB database means
-  minutes, not seconds.
-- The host is a single point of failure by design; slaves cannot reach each other.
+App-managed cloudflared uses pinned official assets and SHA-256 verification via ToolchainService,
+with system, managed and custom sources. Core owns process-group termination and startup reaping.
+Descriptor validation and crash-orphan handling must be resolved before claiming complete teardown.
+Platform availability follows the pinned official asset catalog; user-managed TCP operation remains
+independent of the managed binary catalog.
 
 ## Validation Evidence
 
@@ -254,47 +176,3 @@ Tunnel, synthetic data only, bearer-gated endpoint):
 | `cloudflared --url unix:/path` | fails (`http://unix:` → DNS lookup of `unix`) |
 | Config-file `service: unix:` ingress | `ingress validate` OK, routes correctly |
 | Process teardown | no leftover processes; stale socket file survived SIGTERM |
-
-## Acceptance Criteria
-
-1. Two devices pair, then pull and push successfully; `increment` import neither loses data nor
-   duplicates sessions.
-2. A transfer interrupted mid-flight resumes without corruption and without a partial import.
-3. A revoked or expired token is rejected immediately; no request returns 200 on a failed
-   validation.
-4. Disabling the feature leaves no listening port, no `cloudflared` process, and no stale socket.
-5. Credential-class data (provider keys, tunnel credentials, machine-local values) is provably
-   absent from every transfer.
-6. Host mode works on a network where QUIC/UDP 7844 is blocked.
-7. Host mode works on macOS, Linux and Windows hosts.
-
-## Resolved Questions
-
-| Question | Decision |
-| --- | --- |
-| Windows host: loopback-only or macOS/Linux-only in phase 1? | Support Windows hosts in phase 1, using the same loopback listener as POSIX. |
-| `cloudflared` managed by the app or user-run? | Bundled inside the plugin package; core supervises the process using the plugin-resolved binary path. |
-| Default sync scope | Sessions, messages, settings, plus skills, MCP configuration and knowledge-base files. Memory vectors excluded (not in `agent.db`; slaves regenerate them). **Provider credentials are currently included, not excluded** — they are plaintext columns in the `agent.db` that every package carries, so this row stays unresolved until the export redacts them or the feature ships explicit consent (see Excluded Data). |
-| Access service token mandatory? | Strongly recommended in the UI, not mandatory; device tokens remain enforced. |
-| Endpoint transport (added) | Loopback TCP listener on every platform; Unix socket optional for named tunnels only. |
-| Push framing (added) | Bounded, independently retryable parts; no reliance on large single-body uploads. |
-| Who supervises the tunnel process? (Plan slice 0) | Core, after slice 0 proved a plugin cannot guarantee grandchild teardown: the MCP SDK kills only its direct child and closes the transport before tree termination, so a reparented `cloudflared` survives plugin disable. The plugin supplies the binary and UI. |
-
-## Open Questions
-
-- **Provider credentials in the served package** (see Excluded Data): decide between redacting
-  provider credentials from the export, or shipping an explicit consent + warning. This blocks the
-  "credentials provably absent" acceptance criterion.
-- **Snapshot production**: whether the host creates a snapshot on demand or only serves an existing
-  one, and how it behaves when the legacy S3 sync toggle is off.
-- Descriptor ownership verification: the endpoint descriptor carries a pid and host identity but
-  nothing verifies them. Once the tunnel supervisor lands, a stale descriptor could aim the tunnel
-  at a port the OS later reassigned to an unrelated local service.
-- Crash-orphan handling for the tunnel: a core-spawned `cloudflared` is reparented after an app
-  crash or SIGKILL and holds its edge connection until the next launch reaps it. Closing this needs
-  a watchdog or a parent-liveness mechanism, since `cloudflared` has no equivalent of the CUA
-  driver's `--parent-liveness-stdio` flag. The acceptance criterion currently holds at next boot,
-  not at crash time.
-- Whether the slave must be told that a host's database is encrypted before it attempts an import.
-  The snapshot already reports `backupFormatVersion`; a companion "database is encrypted" flag may
-  be required so the slave fails with a clear message instead of a decrypt error.

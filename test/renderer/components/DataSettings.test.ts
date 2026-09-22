@@ -222,6 +222,7 @@ const setup = async (
       }
     })
   }))
+  vi.doMock('@/stores/tunnelSync', () => ({ useTunnelSyncStore: vi.fn() }))
   vi.doMock('pinia', async () => {
     const vue = await vi.importActual<typeof import('vue')>('vue')
     return {
@@ -242,6 +243,7 @@ const setup = async (
     ...(options.realAlertDialog ? { attachTo: document.body } : {}),
     global: {
       stubs: {
+        TunnelSyncSettings: true,
         ScrollArea: passthroughStub('ScrollArea'),
         Icon: true,
         Dialog: passthroughStub('Dialog'),

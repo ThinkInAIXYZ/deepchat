@@ -1,6 +1,7 @@
 import { randomBytes } from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
+import type { SyncBackupInfo } from '@shared/types/sync'
 
 const STATE_FILENAME = 'host-state.json'
 
@@ -17,11 +18,21 @@ export interface SyncHostDeviceRecord {
 
 export interface SyncHostState {
   enabled: boolean
+  port: number
+  consentAt: number | null
+  published: SyncBackupInfo | null
   hostId: string | null
   devices: SyncHostDeviceRecord[]
 }
 
-const DEFAULT_STATE: SyncHostState = { enabled: false, hostId: null, devices: [] }
+const DEFAULT_STATE: SyncHostState = {
+  enabled: false,
+  port: 0,
+  consentAt: null,
+  published: null,
+  hostId: null,
+  devices: []
+}
 
 /**
  * Machine-local state for host mode, stored as a private file instead of a settings key.
@@ -160,6 +171,18 @@ export class SyncHostStateStore {
     const record = parsed as Partial<SyncHostState>
     return {
       enabled: record.enabled === true,
+      port:
+        Number.isInteger(record.port) && record.port! >= 1 && record.port! <= 65535
+          ? record.port!
+          : 0,
+      consentAt: typeof record.consentAt === 'number' ? record.consentAt : null,
+      published:
+        record.published &&
+        /^backup-\d+\.zip$/.test(record.published.fileName) &&
+        Number.isFinite(record.published.createdAt) &&
+        Number.isFinite(record.published.size)
+          ? record.published
+          : null,
       hostId: typeof record.hostId === 'string' && record.hostId.length > 0 ? record.hostId : null,
       devices: Array.isArray(record.devices)
         ? record.devices.filter(

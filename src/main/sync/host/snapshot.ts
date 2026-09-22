@@ -46,14 +46,19 @@ const MANIFEST_MAX_BYTES = 1024 * 1024
  */
 const BACKUP_FILE_NAME_REGEX = /^backup-\d+\.zip$/
 
-/**
- * Extracts only manifest.json from the archive.
- *
- * The archive is streamed rather than buffered: a backup package can be hundreds of megabytes and a
- * transient full-archive read in the main process is a real memory risk. fflate cannot skip an
- * entry, so the remaining entries are inflated and discarded — bounded memory at the cost of one
- * decompression pass, which only happens when the digest cache misses.
- */
+/** Consume unrelated deflate entries without buffering or inflating their contents. */
+class ManifestInflate extends UnzipInflate {
+  constructor(private readonly fileName: string) {
+    super()
+  }
+
+  override push(chunk: Uint8Array, final: boolean): void {
+    if (this.fileName === 'manifest.json') super.push(chunk, final)
+    else this.ondata(null, new Uint8Array(0), final)
+  }
+}
+
+/** Extract only the manifest, bounding compressed input per inflate call as well as output. */
 function readManifestEntry(filePath: string): Promise<BackupManifestShape | null> {
   return new Promise((resolve) => {
     let settled = false
@@ -66,7 +71,7 @@ function readManifestEntry(filePath: string): Promise<BackupManifestShape | null
     }
 
     const unzip = new Unzip((file) => {
-      if (!file.name.endsWith('manifest.json')) {
+      if (file.name !== 'manifest.json') {
         file.ondata = () => undefined
         file.start()
         return
@@ -74,7 +79,11 @@ function readManifestEntry(filePath: string): Promise<BackupManifestShape | null
       const chunks: Uint8Array[] = []
       let buffered = 0
       file.ondata = (error, data, final) => {
-        if (error) return
+        if (error) {
+          done(null)
+          stream?.destroy()
+          return
+        }
         buffered += data.length
         if (buffered > MANIFEST_MAX_BYTES) {
           done(null)
@@ -90,11 +99,16 @@ function readManifestEntry(filePath: string): Promise<BackupManifestShape | null
           manifest = null
         }
       }
+      if (file.originalSize !== undefined && file.originalSize > MANIFEST_MAX_BYTES) {
+        done(null)
+        stream?.destroy()
+        return
+      }
       file.start()
     })
 
     // fflate only auto-registers stored entries; deflate entries need a codec or `start()` throws.
-    unzip.register(UnzipInflate)
+    unzip.register(ManifestInflate)
 
     stream = fs.createReadStream(filePath, { highWaterMark: 1024 * 1024 })
     stream.on('data', (chunk: string | Buffer) => {
@@ -102,7 +116,10 @@ function readManifestEntry(filePath: string): Promise<BackupManifestShape | null
       // A corrupt or hostile archive must not throw out of a stream handler: that would escape to
       // the main process and leave the request hanging.
       try {
-        unzip.push(new Uint8Array(bytes.buffer, bytes.byteOffset, bytes.byteLength), false)
+        // A small compressed slice bounds each synchronous inflate allocation, including bombs.
+        for (let offset = 0; offset < bytes.length && !settled; offset += 1024) {
+          unzip.push(bytes.subarray(offset, offset + 1024), false)
+        }
       } catch {
         done(null)
         stream?.destroy()

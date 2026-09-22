@@ -5,7 +5,8 @@ import {
   syncHostListDevicesRoute,
   syncHostRenameDeviceRoute,
   syncHostRevokeDeviceRoute,
-  syncHostSetEnabledRoute
+  syncHostSetEnabledRoute,
+  syncHostPublishRoute
 } from '@shared/contracts/routes'
 import {
   createRouteMap,
@@ -22,6 +23,7 @@ import type { SyncHostService } from './index'
  */
 export type SyncHostRoutePort = Pick<
   SyncHostService,
+  | 'publishSnapshot'
   | 'getStatus'
   | 'getPairingCode'
   | 'setEnabled'
@@ -34,6 +36,14 @@ export type SyncHostRoutePort = Pick<
 
 export function createSyncHostRoutes(deps: { host: SyncHostRoutePort }): DeepchatRouteMap {
   return createRouteMap([
+    [
+      syncHostPublishRoute.name,
+      async (rawInput, context) => {
+        requireRendererCaller(context)
+        syncHostPublishRoute.input.parse(rawInput)
+        return syncHostPublishRoute.output.parse({ status: await deps.host.publishSnapshot() })
+      }
+    ],
     [
       syncHostGetStatusRoute.name,
       async (rawInput, context) => {
@@ -49,7 +59,10 @@ export function createSyncHostRoutes(deps: { host: SyncHostRoutePort }): Deepcha
       async (rawInput, context) => {
         requireRendererCaller(context)
         const input = syncHostSetEnabledRoute.input.parse(rawInput)
-        const status = await deps.host.setEnabled(input.enabled)
+        const status = await deps.host.setEnabled(input.enabled, {
+          port: input.port,
+          consent: input.consent
+        })
         return syncHostSetEnabledRoute.output.parse({ status })
       }
     ],

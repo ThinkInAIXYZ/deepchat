@@ -8,7 +8,9 @@ const SyncHostStatusViewSchema = z.object({
   port: z.number().int().positive().nullable(),
   hostId: z.string(),
   deviceCount: z.number().int().nonnegative(),
-  hasSnapshot: z.boolean()
+  hasSnapshot: z.boolean(),
+  configuredPort: z.number().int().min(0).max(65535),
+  publishedAt: z.number().nullable()
 })
 
 const SyncHostPairingViewSchema = z.object({
@@ -29,7 +31,9 @@ export const syncHostGetStatusRoute = defineRouteContract({
 export const syncHostSetEnabledRoute = defineRouteContract({
   name: 'syncHost.setEnabled',
   input: z.object({
-    enabled: z.boolean()
+    enabled: z.boolean(),
+    port: z.number().int().min(1).max(65535).optional(),
+    consent: z.boolean().optional()
   }),
   output: z.object({
     status: SyncHostStatusViewSchema
@@ -79,4 +83,10 @@ export const syncHostGetAuditRoute = defineRouteContract({
   output: z.object({
     entries: z.array(SyncHostAuditEntrySchema)
   })
+})
+
+export const syncHostPublishRoute = defineRouteContract({
+  name: 'syncHost.publish',
+  input: z.object({}).default({}),
+  output: z.object({ status: SyncHostStatusViewSchema })
 })
