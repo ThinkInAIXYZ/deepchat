@@ -71,14 +71,25 @@ const runMigration = (providers: LLM_PROVIDER[]) => {
 
 describe('migrateTypesafeSystemOneEndpoint', () => {
   it('rewrites the bare host a pre-change build persisted to the full endpoint', () => {
-    // The configured URL is posted verbatim now, and the check reads a missing sibling catalog as
-    // "not contradicted", so the legacy host would look healthy while posting to the host root.
+    // The configured URL is posted verbatim now, so the legacy host would post to the host root.
     const setProviderById = runMigration([createTypesafeProvider('https://api.typesafe.ai')])
 
     expect(setProviderById).toHaveBeenCalledWith('typesafe', {
       ...createTypesafeProvider('https://api.typesafe.ai/v1/systemone')
     })
   })
+
+  it.each([' https://api.typesafe.ai ', 'https://api.typesafe.ai/', 'https://api.typesafe.ai///'])(
+    'rewrites the legacy host stored as %s',
+    (baseUrl) => {
+      // The request path trims and strips trailing slashes, so these forms reach the host root too.
+      const setProviderById = runMigration([createTypesafeProvider(baseUrl)])
+
+      expect(setProviderById).toHaveBeenCalledWith('typesafe', {
+        ...createTypesafeProvider('https://api.typesafe.ai/v1/systemone')
+      })
+    }
+  )
 
   it('leaves a configured endpoint and other providers untouched', () => {
     const setProviderById = runMigration([

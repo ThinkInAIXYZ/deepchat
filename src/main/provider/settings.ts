@@ -90,6 +90,9 @@ const defaultProviders = DEFAULT_PROVIDERS.map((provider) => ({
 
 const PROVIDERS_STORE_KEY = 'providers'
 const DEPRECATED_BUILTIN_PROVIDER_IDS = ['qwenlm', 'laoshi'] as const
+/** System One's endpoint, and the bare host a pre-change build persisted for it. */
+const TYPESAFE_SYSTEM_ONE_ENDPOINT = 'https://api.typesafe.ai/v1/systemone'
+const LEGACY_TYPESAFE_HOST = 'https://api.typesafe.ai'
 const VOICE_AI_DEFAULTS = {
   audioFormat: 'mp3',
   model: 'voiceai-tts-v1-latest',
@@ -804,12 +807,14 @@ export class ProviderSettings implements ProviderSettingsPort {
   /**
    * System One used to be configured with the vendor host and the endpoint appended at request time.
    * The configured URL is now the full endpoint, so an install that stored the bare host would post
-   * judgment calls to the host root — and the connection check would still report healthy, because a
-   * missing sibling catalog is read as "not contradicted". The stored value is exact, so rewrite it.
+   * judgment calls to the host root. The request path normalizes whitespace and trailing slashes away,
+   * so the comparison does the same rather than matching the stored string exactly.
    */
   private migrateTypesafeSystemOneEndpoint(): void {
     const legacyTypesafe = this.getProviders().find(
-      (provider) => provider.id === 'typesafe' && provider.baseUrl === 'https://api.typesafe.ai'
+      (provider) =>
+        provider.id === 'typesafe' &&
+        provider.baseUrl?.trim().replace(/\/+$/, '') === LEGACY_TYPESAFE_HOST
     )
 
     if (!legacyTypesafe) {
@@ -818,7 +823,7 @@ export class ProviderSettings implements ProviderSettingsPort {
 
     this.setProviderById('typesafe', {
       ...legacyTypesafe,
-      baseUrl: 'https://api.typesafe.ai/v1/systemone'
+      baseUrl: TYPESAFE_SYSTEM_ONE_ENDPOINT
     })
   }
 

@@ -145,7 +145,8 @@ itself rather than a host with a fixed route appended to it.
 - [x] Migrate a stored `https://api.typesafe.ai` (the bare host a pre-change dev build persisted) to
       the full endpoint, because the configured URL is now posted verbatim and the connection check
       reads a missing sibling catalog as "not contradicted", so the old value would look healthy and
-      still post to the host root.
+      still post to the host root. The comparison normalizes whitespace and trailing slashes, matching
+      what the request path does.
 - [x] Normalize a trailing slash before deriving the catalog path, so `…/v1/systemone/` resolves to
       the sibling `/v1/models` instead of the child `/v1/systemone/models`.
 - [x] Validate the configured endpoint before using it: an unparseable value, a non-HTTP scheme, or a
