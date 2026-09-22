@@ -2740,7 +2740,7 @@
     "chatModel": "Standard chatmodel",
     "assistantModel": "Assistentmodel",
     "judgmentModel": "Vurderingsmodel",
-    "judgmentModelDesc": "Værktøjsargumenter og den seneste samtale sendes til denne tredjepartstjeneste.",
+    "judgmentModelDesc": "Værktøjsargumenter, den seneste samtale og indholdet af værktøjsresultater sendes til denne tredjepartstjeneste. Den bruges til at gennemgå værktøjstilladelser og til at fjerne forældede værktøjsresultater fra konteksten.",
     "visionModel": "Vision-model",
     "imageGenerationModel": "Billedgenereringsmodel",
     "temperature": "Temperatur",

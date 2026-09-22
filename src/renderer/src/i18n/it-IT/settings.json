@@ -219,7 +219,7 @@
     "chatModel": "Modello conversazione predefinito",
     "assistantModel": "Modello assistente",
     "judgmentModel": "Modello di valutazione",
-    "judgmentModelDesc": "Gli argomenti degli strumenti e la conversazione recente vengono inviati a questo servizio di terze parti.",
+    "judgmentModelDesc": "Gli argomenti degli strumenti, la conversazione recente e il contenuto dei risultati degli strumenti vengono inviati a questo servizio di terze parti. È usato per verificare i permessi degli strumenti e per rimuovere dal contesto i risultati degli strumenti obsoleti.",
     "visionModel": "Modello visivo",
     "imageGenerationModel": "Modello generazione immagini",
     "temperature": "Temperatura",

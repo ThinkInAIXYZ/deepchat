@@ -37,6 +37,14 @@ runtime behavior from package names and do not install arbitrary SDKs dynamicall
 API-key profiles such as NVIDIA, Hugging Face, Moonshot, StepFun, Upstage, Alibaba, MiniMax, DaoXE,
 Kimi For Coding and OpenCode Go remain catalog/registry mappings unless they need a real special adapter.
 
+Default reset URLs are derived from each profile's base URL, except explicit website overrides
+(currently Vertex, Azure and MiniMax). Defaults never overwrite a saved user endpoint.
+Catalog-backed profile membership is derived in the main registry from `provider-db`,
+`kimi-for-coding` and `openai-codex` model-source strategies, not a separately maintained ID list.
+The existing default-provider route projects `usesProviderDb` for renderer refresh hints; this
+field is not a persisted provider setting. Model-fact cleanup remains profile-ID based and
+preserves explicit custom-model facts rather than inferring ownership from a shared transport.
+
 ## Model capability identity
 
 Provider service identity, transport identity, and provider-db capability identity are separate
@@ -72,6 +80,21 @@ passing through unless an explicit model request policy requires a different wir
 - Browser OAuth uses `shell.openExternal` plus loopback callback when supported; paste/device fallback is
   provider-specific and must be explicit.
 - AbortSignal, proxy, timeout and provider error mapping must survive every adapter layer.
+
+## Fireworks
+
+Fireworks uses the existing OpenAI-compatible transport with API-key credentials and the
+`fireworks-ai` provider-db catalog. Connection checks generate text with
+`accounts/fireworks/models/gpt-oss-120b`; they do not assume the inference endpoint exposes a
+model-discovery API. The default endpoint is `https://api.fireworks.ai/inference/v1`.
+
+For existing Fireworks configurations, normalize only the old official `/inference` endpoint
+(with or without a trailing slash) in the request-time copy. Preserve saved configuration,
+already-versioned endpoints and custom proxies. No special provider class or storage migration
+is required.
+
+Upstream references: [OpenAI compatibility](https://docs.fireworks.ai/tools-sdks/openai-compatibility)
+and [GPT OSS 120B model ID](https://fireworks.ai/models/fireworks/gpt-oss-120b).
 
 ## OpenAI Codex
 

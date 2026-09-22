@@ -8,6 +8,7 @@ import {
 } from '@shared/modelRequestPolicy'
 import {
   getReasoningEffectiveEnabledForProvider,
+  getReasoningEffortOptions,
   hasAnthropicReasoningToggle,
   normalizeAnthropicReasoningVisibilityValue,
   normalizeReasoningEffortValue,
@@ -225,9 +226,17 @@ export function buildProviderOptions(
       const config: Record<string, unknown> = {}
       if (
         modelConfig.reasoningEffort &&
-        (params.providerId !== 'grok' || supportsGrokReasoningEffort(params.modelId))
+        (params.providerId !== 'grok' ||
+          (reasoningPortrait?.supported !== false &&
+            getReasoningEffortOptions(reasoningPortrait).includes(modelConfig.reasoningEffort)) ||
+          (!reasoningPortrait && supportsGrokReasoningEffort(params.modelId)))
       ) {
         config.reasoningEffort = modelConfig.reasoningEffort
+        if (params.providerId === 'grok' && params.apiType === 'openai_responses') {
+          // The OpenAI SDK does not recognize Grok's reasoning model IDs.
+          config.forceReasoning = true
+          config.reasoningSummary = null
+        }
       }
       if (modelConfig.verbosity) {
         config.textVerbosity = modelConfig.verbosity
@@ -383,7 +392,7 @@ export function buildProviderOptions(
       const config: Record<string, unknown> = {}
       if (shouldSendThinkingConfig) {
         config.thinkingConfig = {
-          ...(modelConfig.thinkingBudget !== undefined
+          ...(reasoningPortrait?.mode !== 'level' && modelConfig.thinkingBudget !== undefined
             ? { thinkingBudget: modelConfig.thinkingBudget }
             : {}),
           ...(modelConfig.reasoningEffort ? { thinkingLevel: modelConfig.reasoningEffort } : {}),
@@ -402,7 +411,7 @@ export function buildProviderOptions(
       }
       if (shouldSendThinkingConfig) {
         config.thinkingConfig = {
-          ...(modelConfig.thinkingBudget !== undefined
+          ...(reasoningPortrait?.mode !== 'level' && modelConfig.thinkingBudget !== undefined
             ? { thinkingBudget: modelConfig.thinkingBudget }
             : {}),
           ...(modelConfig.reasoningEffort ? { thinkingLevel: modelConfig.reasoningEffort } : {}),

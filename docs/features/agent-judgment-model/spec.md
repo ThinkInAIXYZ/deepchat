@@ -45,6 +45,16 @@ This document covers the agent-facing half. The provider/protocol half is a sepa
 `assistantModel`. It is added to the agent config type, the config schema, and the repository's
 merge list so it round-trips through the agents table.
 
+The slot drives **two** uses, which activate differently and are worth keeping distinct when reading
+anything below:
+
+- **Tool-permission review**, which additionally requires `auto` permission mode.
+- **Tool-result pruning** (added later; see `docs/features/` and PR #2337), which manages context and
+  therefore has no permission-mode precondition — selecting the model enables it on its own.
+
+Both are experimental and off by default. Nothing else reads this field: `assistantModel` readers
+other than these two are unchanged.
+
 The global config-entry surface (`CONFIG_ENTRY_KEYS`) is deliberately not extended: the slot is
 per-agent, and the legacy global key is a migration source rather than a new home.
 
@@ -161,7 +171,9 @@ byte-for-byte unchanged.
 
 ## Compatibility
 
-- With `judgmentModel` unset, review behaviour is byte-for-byte the existing behaviour.
+- With `judgmentModel` unset, review behaviour is byte-for-byte the existing behaviour, and tool-result
+  pruning does not run.
+- Setting it enables both uses, subject to the activation difference above.
 - Existing stored agent rows parse unchanged; the new field is optional.
 - The permission interaction flow and `ToolPermissionReviewResult` shape are unchanged.
 

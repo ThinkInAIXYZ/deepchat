@@ -11,6 +11,7 @@ vi.mock('../../../src/main/provider/providerDbLoader', () => ({
   }
 }))
 
+import { sanitizeAggregate, getReasoningEffortOptions } from '../../../src/shared/types/model-db'
 import { ModelCapabilities } from '../../../src/main/provider/modelCapabilities'
 
 describe('ModelCapabilities reasoning portraits', () => {
@@ -289,7 +290,79 @@ describe('ModelCapabilities reasoning portraits', () => {
     })
   })
 
-  it('keeps level portraits from pretending to support effort or budget controls', () => {
+  it('exposes imported effort options without inventing defaults or changing toggles', () => {
+    state.mockDb = sanitizeAggregate({
+      providers: {
+        zhipuai: {
+          id: 'zhipuai',
+          models: [
+            {
+              id: 'glm-5.3',
+              reasoning: { supported: true, default: true },
+              reasoning_options: [{ type: 'effort', values: ['low', 'high', 'max'] }]
+            }
+          ]
+        }
+      }
+    })
+    const snapshot = new ModelCapabilities().getCatalogCapabilitySnapshot('zhipuai', 'glm-5.3')
+    expect(snapshot).toMatchObject({
+      supportsReasoning: true,
+      supportsReasoningEffort: true,
+      reasoningEffortDefault: undefined
+    })
+    expect(getReasoningEffortOptions(snapshot.reasoningPortrait)).toEqual(['low', 'high', 'max'])
+    expect(snapshot.reasoningPortrait?.mode).toBeUndefined()
+  })
+
+  it('uses OpenRouter GLM tiers without borrowing native provider defaults', () => {
+    state.mockDb = sanitizeAggregate({
+      providers: {
+        openrouter: {
+          id: 'openrouter',
+          models: [
+            {
+              id: 'z-ai/glm-5.3-flash',
+              reasoning: { supported: true, default: true },
+              reasoning_options: [{ type: 'effort', values: ['low', 'high', 'max'] }],
+              extra_capabilities: {
+                reasoning: { supported: true, default_enabled: true, mode: 'effort', effort: 'max' }
+              }
+            }
+          ]
+        },
+        zhipuai: {
+          id: 'zhipuai',
+          models: [
+            {
+              id: 'glm-5.3-flash',
+              extra_capabilities: {
+                reasoning: {
+                  supported: true,
+                  mode: 'effort',
+                  effort: 'high',
+                  effort_options: ['high']
+                }
+              }
+            }
+          ]
+        }
+      }
+    })
+    const capabilities = new ModelCapabilities()
+    expect(
+      capabilities.findCapabilityModelMatch('z-ai/glm-5.3-flash', ['openrouter'])
+    ).toMatchObject({ providerId: 'openrouter', modelId: 'z-ai/glm-5.3-flash' })
+    const snapshot = capabilities.getCatalogCapabilitySnapshot('openrouter', 'z-ai/glm-5.3-flash')
+    expect(snapshot).toMatchObject({
+      modelMatched: true,
+      supportsReasoningEffort: true,
+      reasoningEffortDefault: 'max'
+    })
+    expect(getReasoningEffortOptions(snapshot.reasoningPortrait)).toEqual(['low', 'high', 'max'])
+  })
+
+  it('exposes level choices and defaults without exposing budget controls', () => {
     const capabilities = new ModelCapabilities()
     const portrait = capabilities.getReasoningPortrait('vertex', 'gemini-3-flash-preview')
 
@@ -300,7 +373,11 @@ describe('ModelCapabilities reasoning portraits', () => {
       level: 'high',
       levelOptions: ['minimal', 'low', 'medium', 'high']
     })
-    expect(capabilities.supportsReasoningEffort('vertex', 'gemini-3-flash-preview')).toBe(false)
+    expect(capabilities.supportsReasoningEffort('vertex', 'gemini-3-flash-preview')).toBe(true)
+    expect(capabilities.getReasoningEffortDefault('vertex', 'gemini-3-flash-preview')).toBe('high')
+    expect(
+      capabilities.getCatalogCapabilitySnapshot('openrouter', 'google/gemini-3-flash-preview')
+    ).toMatchObject({ supportsReasoningEffort: true, reasoningEffortDefault: 'high' })
     expect(capabilities.getThinkingBudgetRange('vertex', 'gemini-3-flash-preview')).toEqual({})
   })
 

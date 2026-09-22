@@ -1,7 +1,21 @@
 import { describe, expect, it } from 'vitest'
-import { isProviderDbBackedProvider } from '../../../src/shared/providerDbCatalog'
+import { isProviderDbBackedProvider } from '../../../src/main/provider/providerRegistry'
 
 describe('provider DB catalog', () => {
+  it.each(['xiaomi-token-plan-cn', 'xiaomi-token-plan-sgp', 'xiaomi-token-plan-ams'])(
+    'includes the %s catalog profile',
+    (id) => {
+      expect(isProviderDbBackedProvider(id)).toBe(true)
+    }
+  )
+
+  it.each(['anthropic', 'gemini', 'new-api', 'custom-mistral', '', undefined, null])(
+    'does not infer catalog ownership from metadata or transport: %s',
+    (id) => {
+      expect(isProviderDbBackedProvider(id)).toBe(false)
+    }
+  )
+
   it('treats Mistral as provider DB-backed', () => {
     expect(isProviderDbBackedProvider('mistral')).toBe(true)
     expect(isProviderDbBackedProvider(' MISTRAL ')).toBe(true)

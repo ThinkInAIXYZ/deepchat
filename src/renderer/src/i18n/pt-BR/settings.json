@@ -2740,7 +2740,7 @@
     "chatModel": "Modelo de chat padrão",
     "assistantModel": "Modelo auxiliar",
     "judgmentModel": "Modelo de avaliação",
-    "judgmentModelDesc": "Os argumentos das ferramentas e a conversa recente são enviados a este serviço de terceiros.",
+    "judgmentModelDesc": "Os argumentos das ferramentas, a conversa recente e o conteúdo dos resultados das ferramentas são enviados a este serviço de terceiros. Ele é usado para revisar permissões de ferramentas e descartar do contexto resultados de ferramentas obsoletos.",
     "visionModel": "Modelo de visão",
     "imageGenerationModel": "Modelo de Geração de Imagem",
     "temperature": "Temperatura",

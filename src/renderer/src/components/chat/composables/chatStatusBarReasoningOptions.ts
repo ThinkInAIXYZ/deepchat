@@ -1,7 +1,8 @@
 import type { SessionGenerationSettings } from '@shared/types/agent-interface'
 import {
   ANTHROPIC_REASONING_VISIBILITY_VALUES,
-  DEFAULT_REASONING_EFFORT_OPTIONS as FALLBACK_REASONING_EFFORT_OPTIONS,
+  getReasoningEffortOptions,
+  getReasoningEffortDefault,
   hasAnthropicReasoningToggle,
   isReasoningEffort,
   isVerbosity,
@@ -19,30 +20,7 @@ const DEFAULT_VERBOSITY_OPTIONS: SessionGenerationSettings['verbosity'][] = [
   'high'
 ]
 
-export const getReasoningEffortOptions = (
-  portrait: ReasoningPortrait | null | undefined
-): ReasoningEffortValue[] => {
-  if (
-    !portrait ||
-    portrait.mode === 'budget' ||
-    portrait.mode === 'level' ||
-    portrait.mode === 'fixed'
-  ) {
-    return []
-  }
-
-  const options = portrait?.effortOptions?.filter(isReasoningEffort)
-  if (options && options.length > 0) {
-    return options
-  }
-  if (portrait.mode === 'mixed' || !isReasoningEffort(portrait?.effort)) {
-    return []
-  }
-
-  return FALLBACK_REASONING_EFFORT_OPTIONS.includes(portrait.effort)
-    ? [...FALLBACK_REASONING_EFFORT_OPTIONS]
-    : [portrait.effort]
-}
+export { getReasoningEffortOptions } from '@shared/types/model-db'
 
 export const getVerbosityOptions = (
   portrait: ReasoningPortrait | null | undefined
@@ -99,9 +77,8 @@ export const normalizeReasoningEffort = (
     return value
   }
 
-  return isReasoningEffort(portrait?.effort) && options.includes(portrait.effort)
-    ? portrait.effort
-    : undefined
+  const defaultEffort = getReasoningEffortDefault(portrait)
+  return defaultEffort && options.includes(defaultEffort) ? defaultEffort : undefined
 }
 
 export const normalizeVerbosity = (

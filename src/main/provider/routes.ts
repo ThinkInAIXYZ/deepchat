@@ -75,6 +75,7 @@ import type { ProviderImportService } from './providerImportService'
 import { ProviderService, type ProviderQueryScheduler } from './providerService'
 import type { ProviderRuntime } from '.'
 import { CliRequestError } from '@/cli/errors'
+import { isProviderDbBackedProvider } from './providerRegistry'
 
 export function createProviderRoutes(deps: {
   providerSettings: ProviderSettingsPort
@@ -230,7 +231,10 @@ export function createProviderRoutes(deps: {
       async (rawInput) => {
         providersListDefaultsRoute.input.parse(rawInput)
         return providersListDefaultsRoute.output.parse({
-          providers: providerSettings.getDefaultProviders()
+          providers: providerSettings.getDefaultProviders().map((provider) => ({
+            ...provider,
+            usesProviderDb: isProviderDbBackedProvider(provider.id)
+          }))
         })
       }
     ],

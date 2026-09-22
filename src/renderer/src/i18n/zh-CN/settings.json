@@ -219,7 +219,7 @@
     "chatModel": "默认对话模型",
     "assistantModel": "助手模型",
     "judgmentModel": "判定模型",
-    "judgmentModelDesc": "工具参数和最近的对话会发送到此外部服务。",
+    "judgmentModelDesc": "工具参数、最近的对话，以及工具结果的正文都会发送到此外部服务。它用于审核工具权限，以及从上下文中丢弃过期的工具结果。",
     "visionModel": "视觉模型",
     "imageGenerationModel": "图像生成模型",
     "temperature": "温度",

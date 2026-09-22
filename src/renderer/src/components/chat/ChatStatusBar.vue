@@ -1206,6 +1206,7 @@ import { normalizeDeepChatSubagentConfig } from '@shared/lib/deepchatSubagents'
 import {
   getReasoningEffectiveEnabledForProvider,
   hasAnthropicReasoningToggle,
+  getReasoningEffortDefault,
   type ReasoningPortrait
 } from '@shared/types/model-db'
 import {
@@ -2330,7 +2331,7 @@ const resolveDefaultGenerationSettings = async (
   if (supportsReasoningEffort(portrait) && anthropicReasoningEnabled) {
     const effort = normalizeReasoningEffort(
       portrait,
-      modelConfig.reasoningEffort ?? portrait?.effort
+      modelConfig.reasoningEffort ?? getReasoningEffortDefault(portrait)
     )
     if (effort) {
       defaults.reasoningEffort = effort

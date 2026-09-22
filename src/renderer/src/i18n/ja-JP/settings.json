@@ -2740,7 +2740,7 @@
     "chatModel": "既定の会話モデル",
     "assistantModel": "アシスタントモデル",
     "judgmentModel": "判定モデル",
-    "judgmentModelDesc": "ツールの引数と直近の会話は、このサードパーティサービスに送信されます。",
+    "judgmentModelDesc": "ツールの引数、直近の会話、およびツール実行結果の内容は、このサードパーティサービスに送信されます。これはツールの権限を審査し、古くなったツール実行結果をコンテキストから破棄するために使用されます。",
     "visionModel": "視覚モデル",
     "imageGenerationModel": "画像生成モデル",
     "temperature": "温度",

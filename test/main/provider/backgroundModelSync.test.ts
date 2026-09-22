@@ -160,7 +160,13 @@ describe('ProviderRuntime background model sync', () => {
     expect(refreshSpy).not.toHaveBeenCalled()
   })
 
-  it('re-syncs enabled DB-backed provider models when provider-db updates', async () => {
+  it.each([
+    'doubao',
+    'kimi-for-coding',
+    'xiaomi-token-plan-cn',
+    'xiaomi-token-plan-sgp',
+    'xiaomi-token-plan-ams'
+  ])('re-syncs enabled %s models when provider-db updates', async (id) => {
     const refreshSpy = vi
       .spyOn(AiSdkProvider.prototype, 'refreshModels')
       .mockResolvedValue(undefined)
@@ -168,7 +174,7 @@ describe('ProviderRuntime background model sync', () => {
     const presenter = createProviderRuntime(
       createProviderSettings(
         createProvider({
-          id: 'doubao',
+          id,
           name: 'Doubao',
           apiType: 'doubao',
           baseUrl: 'https://ark.cn-beijing.volces.com/api/v3'
@@ -259,9 +265,16 @@ describe('ProviderRuntime background model sync', () => {
     expect(refreshSpy).toHaveBeenCalledTimes(2)
   })
 
-  it('refreshes provider DB before rebuilding DB-backed provider models', async () => {
+  it.each([
+    'doubao',
+    'kimi-for-coding',
+    'openai-codex',
+    'xiaomi-token-plan-cn',
+    'xiaomi-token-plan-sgp',
+    'xiaomi-token-plan-ams'
+  ])('refreshes provider DB before manually rebuilding %s models', async (id) => {
     const provider = createProvider({
-      id: 'doubao',
+      id,
       name: 'Doubao',
       apiType: 'doubao',
       baseUrl: 'https://ark.cn-beijing.volces.com/api/v3'
@@ -272,7 +285,7 @@ describe('ProviderRuntime background model sync', () => {
       .mockResolvedValue(undefined)
 
     const presenter = createProviderRuntime(providerSettings)
-    await presenter.refreshModels('doubao')
+    await presenter.refreshModels(id)
 
     expect(providerSettings.refreshProviderDb).toHaveBeenCalledWith(true)
     expect(refreshSpy).toHaveBeenCalledTimes(1)

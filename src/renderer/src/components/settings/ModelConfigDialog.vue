@@ -552,11 +552,10 @@ import type { ModelRequestPolicy } from '@shared/modelRequestPolicy'
 import type { ModelConfig } from '@shared/types/provider'
 import {
   ANTHROPIC_REASONING_VISIBILITY_VALUES,
-  DEFAULT_REASONING_EFFORT_OPTIONS as FALLBACK_REASONING_EFFORT_OPTIONS,
+  getReasoningEffortOptions,
   getReasoningControlModeForProvider,
   getReasoningEffectiveEnabledForProvider,
   hasAnthropicReasoningToggle,
-  isReasoningEffort,
   normalizeAnthropicReasoningVisibilityValue,
   isVerbosity,
   normalizeReasoningEffortValue,
@@ -833,31 +832,6 @@ const capabilityVerbosityDefault = computed(
 const capabilityReasoningVisibilityDefault = computed(() =>
   normalizeAnthropicReasoningVisibilityValue(capabilityReasoningPortrait.value?.visibility)
 )
-
-const getReasoningEffortOptions = (
-  portrait: ReasoningPortrait | null | undefined
-): ReasoningEffort[] => {
-  if (
-    !portrait ||
-    portrait.mode === 'budget' ||
-    portrait.mode === 'level' ||
-    portrait.mode === 'fixed'
-  ) {
-    return []
-  }
-
-  const options = portrait?.effortOptions?.filter(isReasoningEffort)
-  if (options && options.length > 0) {
-    return options
-  }
-  if (portrait.mode === 'mixed' || !isReasoningEffort(portrait?.effort)) {
-    return []
-  }
-
-  return FALLBACK_REASONING_EFFORT_OPTIONS.includes(portrait.effort)
-    ? [...FALLBACK_REASONING_EFFORT_OPTIONS]
-    : [portrait.effort]
-}
 
 const getVerbosityOptions = (
   portrait: ReasoningPortrait | null | undefined

@@ -185,6 +185,28 @@ export type ReasoningControlMode = 'unsupported' | 'toggle' | 'indicator'
 export const isReasoningEffort = (value: unknown): value is ReasoningEffort =>
   ReasoningEffortSchema.safeParse(value).success
 
+export const getReasoningEffortOptions = (
+  portrait: ReasoningPortrait | null | undefined
+): ReasoningEffort[] => {
+  if (!portrait || portrait.mode === 'budget' || portrait.mode === 'fixed') return []
+  if (portrait.mode === 'level') return portrait.levelOptions?.filter(isReasoningEffort) ?? []
+
+  const options = portrait.effortOptions?.filter(isReasoningEffort)
+  if (options?.length) return options
+  if (portrait.mode === 'mixed' || !isReasoningEffort(portrait.effort)) return []
+
+  return DEFAULT_REASONING_EFFORT_OPTIONS.includes(portrait.effort)
+    ? [...DEFAULT_REASONING_EFFORT_OPTIONS]
+    : [portrait.effort]
+}
+
+export const getReasoningEffortDefault = (
+  portrait: ReasoningPortrait | null | undefined
+): ReasoningEffort | undefined => {
+  const value = portrait?.mode === 'level' ? portrait.level : portrait?.effort
+  return isReasoningEffort(value) ? value : undefined
+}
+
 export const isVerbosity = (value: unknown): value is Verbosity =>
   VerbositySchema.safeParse(value).success
 
@@ -225,16 +247,20 @@ export const normalizeReasoningEffortValue = (
     return undefined
   }
 
-  const options = portrait?.effortOptions?.filter(isReasoningEffort)
+  const options =
+    portrait?.mode === 'level'
+      ? getReasoningEffortOptions(portrait)
+      : portrait?.effortOptions?.filter(isReasoningEffort)
+  const defaultEffort = getReasoningEffortDefault(portrait)
   if (options && options.length > 0) {
     if (options.includes(value)) {
       return value
     }
 
-    return isReasoningEffort(portrait?.effort) && options.includes(portrait.effort)
-      ? portrait.effort
-      : undefined
+    return defaultEffort && options.includes(defaultEffort) ? defaultEffort : undefined
   }
+
+  if (portrait?.mode === 'level') return undefined
 
   if (canResolveReasoningEffortFromPortrait(portrait) && isReasoningEffort(portrait?.effort)) {
     return value === portrait.effort ? value : portrait.effort
@@ -587,9 +613,23 @@ function getExtraReasoning(
   return undefined
 }
 
-function getExtraCapabilities(obj: unknown): ProviderModel['extra_capabilities'] {
-  if (!isRecord(obj)) return undefined
-  const reasoning = getExtraReasoning(obj['reasoning'])
+function getExtraCapabilities(
+  obj: unknown,
+  reasoningOptions: unknown
+): ProviderModel['extra_capabilities'] {
+  let reasoning = isRecord(obj) ? getExtraReasoning(obj['reasoning']) : undefined
+  if (
+    !reasoning?.effort_options?.length &&
+    (!reasoning?.mode || reasoning.mode === 'effort' || reasoning.mode === 'mixed') &&
+    Array.isArray(reasoningOptions)
+  ) {
+    const options = reasoningOptions.flatMap((option) =>
+      isRecord(option) && option.type === 'effort' && Array.isArray(option.values)
+        ? option.values.filter(isReasoningEffort)
+        : []
+    )
+    if (options.length) reasoning = { ...reasoning, effort_options: [...new Set(options)] }
+  }
   if (reasoning) {
     return { reasoning }
   }
@@ -670,7 +710,7 @@ export function sanitizeAggregate(input: unknown): ProviderAggregate | null {
         tool_call: getBoolean(rm, 'tool_call'),
         default_tool_mode: defaultToolMode.success ? defaultToolMode.data : undefined,
         reasoning: getReasoning(rm['reasoning']),
-        extra_capabilities: getExtraCapabilities(rm['extra_capabilities']),
+        extra_capabilities: getExtraCapabilities(rm['extra_capabilities'], rm['reasoning_options']),
         search: getSearch(rm['search']),
         attachment: getBoolean(rm, 'attachment'),
         open_weights: getBoolean(rm, 'open_weights'),
