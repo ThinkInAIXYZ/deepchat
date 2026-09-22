@@ -37,12 +37,14 @@ vi.mock('../../../src/main/platform/proxy', () => ({
   }
 }))
 
+const SYSTEM_ONE_URL = 'https://api.typesafe.ai/v1/systemone'
+
 const createProvider = (overrides?: Partial<LLM_PROVIDER>): LLM_PROVIDER => ({
   id: 'typesafe',
   name: 'TypeSafe',
   apiType: 'jev',
   apiKey: 'test-key',
-  baseUrl: 'https://api.typesafe.ai',
+  baseUrl: SYSTEM_ONE_URL,
   enable: false,
   ...overrides
 })
@@ -251,6 +253,46 @@ describe('JevProvider', () => {
       await expect(
         provider.runJudgment({ model: 'jev-1.13.0', state: {}, questions: {} })
       ).rejects.toThrow('at least one question')
+    })
+
+    it('posts to a vendor endpoint verbatim and reads its sibling catalog', async () => {
+      // Vendors expose System One at different paths, so the configured URL is the endpoint and
+      // nothing is appended to it. The catalog is the sibling path.
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValueOnce(
+          jsonResponse({ models: [{ name: 'jev-latest', description: 'alias' }] })
+        )
+        .mockResolvedValueOnce(jsonResponse({ model: 'jev-1.13.0', answers: {} }))
+      vi.stubGlobal('fetch', fetchMock)
+
+      const provider = createProviderInstance({
+        baseUrl: 'https://vendor.example/api/v2/system-one'
+      })
+
+      await provider.fetchModels()
+      await provider.runJudgment({
+        model: 'jev-latest',
+        state: {},
+        questions: { q: { type: 'noul', instructions: 'Is this true?' } }
+      })
+
+      expect(fetchMock.mock.calls[0][0]).toBe('https://vendor.example/api/v2/models')
+      expect(fetchMock.mock.calls[1][0]).toBe('https://vendor.example/api/v2/system-one')
+    })
+
+    it('reports an endpoint without a sibling catalog as usable', async () => {
+      // 404/405 at the catalog path says nothing about the endpoint, and probing the endpoint would
+      // spend the vendor's tokens.
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({ detail: 'nope' }, 404)))
+
+      await expect(
+        createProviderInstance({ baseUrl: 'https://vendor.example/decide' }).check()
+      ).resolves.toEqual({ isOk: true, errorMsg: null })
+
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({ detail: 'bad key' }, 401)))
+      const unauthorized = await createProviderInstance().check()
+      expect(unauthorized.isOk).toBe(false)
     })
 
     it('does not silently drop an already-aborted caller signal', async () => {

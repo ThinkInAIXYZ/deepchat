@@ -71,7 +71,10 @@ Ownership: `src/main/provider/providers/workersAiProvider.ts`.
 
 Objective: reach the protocol from the UI and keep imports honest.
 
-- [x] Add the protocol option and the `/chat/completions` endpoint hint to `AddProviderFlow`.
+- [x] Add the protocol option and the `/chat/completions` endpoint hint to `AddProviderFlow` — then
+      removed again on review: the protocol is Cloudflare's own transport, so it belongs to the
+      built-in profile and not to the custom-provider protocol list. The import and deeplink
+      allow-lists keep it, so an imported configuration does not degrade to `openai-completions`.
 - [x] Add `workers-ai` to the import allow-list, the deeplink allow-list, and the import dialog's api
       type label (the `workersAi` locale key, present in all 23 locales).
 - [x] Type imported models per model instead of per api type: a `jev` name is a judgment model, and

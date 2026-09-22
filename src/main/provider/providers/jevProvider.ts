@@ -13,11 +13,17 @@ import type {
 } from '@shared/types/provider'
 import { BaseLLMProvider, type ProviderGenerateTextOptions } from '../baseProvider'
 import type { ProviderLocalePort } from '../ports'
-import { createProviderHttpErrorFromResponse } from '../providerFailure'
+import { createProviderHttpErrorFromResponse, ProviderHttpError } from '../providerFailure'
 
-const DEFAULT_BASE_URL = 'https://api.typesafe.ai'
-const SYSTEM_ONE_PATH = '/v1/systemone'
-const MODELS_PATH = '/v1/models'
+/**
+ * TypeSafe's own System One endpoint, used only when a provider carries no base URL. The configured
+ * base URL is the endpoint itself rather than a host: vendors expose System One at different paths, so
+ * the URL is taken whole instead of being assembled from a host plus a fixed route.
+ */
+const DEFAULT_BASE_URL = 'https://api.typesafe.ai/v1/systemone'
+
+/** The catalog is the endpoint's sibling: `/v1/systemone` -> `/v1/models`. */
+const CATALOG_SEGMENT = 'models'
 const DEFAULT_REQUEST_TIMEOUT_MS = 30_000
 
 /** Jev's documented budget: 64k tokens per request, 32k for state plus the longest question. */
@@ -34,6 +40,31 @@ export const JEV_UNSUPPORTED_CAPABILITY_ERROR = 'jev-unsupported-capability'
 export function isJevUnsupportedCapabilityError(error: unknown): boolean {
   return error instanceof Error && error.message === JEV_UNSUPPORTED_CAPABILITY_ERROR
 }
+
+/**
+ * The model catalog for a configured System One endpoint: its sibling path with the last segment
+ * replaced by `models` (`/v1/systemone` -> `/v1/models`). Vendors that do not expose a catalog simply
+ * answer 404 there, which discovery reads as "no live catalog" and the check as "not contradicted".
+ */
+export function resolveJevCatalogUrl(endpoint: string): string | undefined {
+  try {
+    const url = new URL(endpoint)
+    const segments = url.pathname.split('/')
+    if (segments.length < 2) return undefined
+
+    segments[segments.length - 1] = CATALOG_SEGMENT
+    url.pathname = segments.join('/')
+    url.search = ''
+    url.hash = ''
+    return url.toString()
+  } catch {
+    return undefined
+  }
+}
+
+const isMissingCatalogError = (error: unknown): boolean =>
+  error instanceof ProviderHttpError &&
+  (error.failure.statusCode === 404 || error.failure.statusCode === 405)
 
 /**
  * Structural type guard for the judgment capability. Used by the runtime so a provider that cannot
@@ -147,6 +178,12 @@ export class JevProvider extends BaseLLMProvider {
       await this.listModels()
       return { isOk: true, errorMsg: null }
     } catch (error: unknown) {
+      // A vendor that does not expose the sibling catalog answers 404/405 there. That says nothing
+      // about the endpoint itself, and probing the endpoint would spend the vendor's tokens, so a
+      // missing catalog is reported as usable rather than as a broken configuration.
+      if (isMissingCatalogError(error)) {
+        return { isOk: true, errorMsg: null }
+      }
       return { isOk: false, errorMsg: error instanceof Error ? error.message : String(error) }
     }
   }
@@ -214,7 +251,9 @@ export class JevProvider extends BaseLLMProvider {
 
     const { signal, cleanup } = this.createRequestSignal(options?.signal)
     try {
-      const response = await this.fetchProvider(this.buildUrl(SYSTEM_ONE_PATH), {
+      // The configured base URL *is* the System One endpoint: vendors expose it at different paths,
+      // so nothing is appended to it.
+      const response = await this.fetchProvider(this.getBaseUrl(), {
         method: 'POST',
         headers: this.getAuthHeaders(),
         body: JSON.stringify({
@@ -282,9 +321,12 @@ export class JevProvider extends BaseLLMProvider {
   }
 
   private async listModels(signal?: AbortSignal): Promise<JevModelRecord[]> {
+    const catalogUrl = resolveJevCatalogUrl(this.getBaseUrl())
+    if (!catalogUrl) return []
+
     const { signal: requestSignal, cleanup } = this.createRequestSignal(signal)
     try {
-      const response = await this.fetchProvider(this.buildUrl(MODELS_PATH), {
+      const response = await this.fetchProvider(catalogUrl, {
         method: 'GET',
         headers: this.getAuthHeaders(),
         signal: requestSignal
@@ -310,12 +352,6 @@ export class JevProvider extends BaseLLMProvider {
       return raw.replace(/\/+$/, '')
     }
     return DEFAULT_BASE_URL
-  }
-
-  private buildUrl(path: string): string {
-    const base = this.getBaseUrl()
-    const normalizedPath = path.startsWith('/') ? path : `/${path}`
-    return `${base}${normalizedPath}`
   }
 
   private getAuthHeaders(): Record<string, string> {

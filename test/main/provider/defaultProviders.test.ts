@@ -9,14 +9,14 @@ describe('DEFAULT_PROVIDERS', () => {
         id: 'typesafe',
         name: 'TypeSafe',
         apiType: 'jev',
-        baseUrl: 'https://api.typesafe.ai',
+        baseUrl: 'https://api.typesafe.ai/v1/systemone',
         enable: false,
         websites: expect.objectContaining({
           official: 'https://typesafe.ai/',
           apiKey: 'https://console.typesafe.ai/keys',
           docs: 'https://docs.typesafe.ai/introduction',
           models: 'https://docs.typesafe.ai/models',
-          defaultBaseUrl: 'https://api.typesafe.ai'
+          defaultBaseUrl: 'https://api.typesafe.ai/v1/systemone'
         })
       })
     )

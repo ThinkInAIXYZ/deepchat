@@ -16,7 +16,8 @@ serves two kinds of model that DeepChat treats differently:
 
 A user has one Cloudflare account and one token, so this must be one provider. The `jev` protocol
 cannot carry it: `docs/features/typesafe-jev-provider/spec.md` defines that api type as the System One
-wire format exactly, with a fixed `/v1/systemone` path and a `{ models: [...] }` catalog.
+wire format exactly: `POST` to the configured base URL with `{ state, model, questions }`, and a
+catalog at the endpoint's sibling `models` path.
 
 ## Goals
 
@@ -132,7 +133,10 @@ cannot point elsewhere.
 
 ### Renderer
 
-- `AddProviderFlow` gains the protocol option and the `/chat/completions` endpoint hint.
+- The protocol is not offered in `AddProviderFlow`: it is Cloudflare's own transport (account id in
+  the path, Workers AI catalog and run API), so it is a built-in vendor rather than a protocol a
+  custom provider can be pointed at. It stays in the import and deeplink allow-lists so an imported
+  configuration keeps its api type instead of degrading to `openai-completions`.
 - The import and deeplink allow-lists include `workers-ai`. Imported models are typed per model
   rather than per api type: a model id in the Jev family (the shared `isJevJudgmentModelId` rule) is a
   judgment model, everything else stays untyped so it remains a chat model in the pickers.

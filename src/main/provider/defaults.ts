@@ -7,7 +7,9 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
     name: 'TypeSafe',
     apiType: 'jev',
     apiKey: '',
-    baseUrl: 'https://api.typesafe.ai',
+    // The System One endpoint itself, not a host: the protocol takes the URL whole because vendors
+    // expose System One at different paths. The catalog is the endpoint's sibling (`/v1/models`).
+    baseUrl: 'https://api.typesafe.ai/v1/systemone',
     enable: false,
     // Static fallback so the judgment-model picker is populated before the first catalog refresh.
     // Live discovery from `GET /v1/models` stays authoritative once it succeeds.
@@ -38,7 +40,7 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
       apiKey: 'https://console.typesafe.ai/keys',
       docs: 'https://docs.typesafe.ai/introduction',
       models: 'https://docs.typesafe.ai/models',
-      defaultBaseUrl: 'https://api.typesafe.ai'
+      defaultBaseUrl: 'https://api.typesafe.ai/v1/systemone'
     }
   },
   {
