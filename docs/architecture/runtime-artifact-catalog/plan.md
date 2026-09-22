@@ -15,8 +15,24 @@ drift, and substituting the executable hash failed the differential oracle. No p
 
 ## 2. Installer and delivery contracts
 
-- [ ] Derive installer targets from the manifest while retaining legacy schema compatibility.
-- [ ] Add a contract for manifest, package/OCR targets and all four workflow matrices.
-- [ ] Review the full branch, resolve findings and run ablation checks.
-- [ ] Run format, i18n, lint, typecheck and relevant tests; record unavailable platform validation.
-- [ ] Remove temporary probes, commit the second slice, and leave the branch unpushed.
+- [x] Derive installer targets from the manifest while retaining legacy schema compatibility.
+- [x] Add a contract for manifest, package/OCR targets and all four workflow matrices.
+- [x] Review the full branch, resolve findings and run ablation checks.
+- [x] Run format, i18n, lint, typecheck and relevant tests; record unavailable platform validation.
+- [x] Remove temporary probes, commit the second slice, and leave the branch unpushed.
+
+Validation: 161 tests across 14 relevant files passed (toolchains, installer, runtime delivery,
+afterPack, package contract and OCR runtime asset resolution). Repository format, format check,
+i18n, lint, both typechecks and the normal build passed. The built main bundle contains the
+manifest archive metadata and version guard; no additional runtime file loader is required.
+
+Actual temporary-root macOS ARM64 installs passed for uv/uvx 0.9.18 and Node v24.18.0, including
+the installer's executable checksum, companion completeness and version verification. Temporary
+installation roots were removed. Windows ARM64 default and Linux explicit-Node CLI dry runs
+retained their expected commands.
+
+Ablation: removing pin binding and exact target-pair validation caused exactly three regression
+tests to fail (Node pin, uv pin, missing Windows ARM64 pair); restoring them returned the relevant
+suite to 161 passing tests. Final architecture and four adversarial review passes found no remaining
+P0–P3 issues. Actual Windows/Linux packages and six-platform offline OCR smoke were not run locally;
+they remain platform-CI verification, not evidence supplied by the matrix contract tests.
