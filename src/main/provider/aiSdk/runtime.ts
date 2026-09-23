@@ -1223,6 +1223,7 @@ async function buildPromptRuntime(
   }
   const providerOptionResult = buildProviderOptions({
     providerId: context.provider.id,
+    codexBackend: context.providerKind === 'openai-codex',
     capabilityProviderId,
     supportsOfficialAnthropicReasoning: context.supportsOfficialAnthropicReasoning,
     providerOptionsKey: providerContext.providerOptionsKey,

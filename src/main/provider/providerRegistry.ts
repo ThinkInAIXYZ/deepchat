@@ -758,6 +758,10 @@ export function resolveAiSdkProviderDefinition(
   const providerId = provider.id.trim().toLowerCase()
   const apiType = provider.apiType.trim().toLowerCase()
 
+  if (providerId === 'openai' && provider.openaiAuthMode === 'chatgpt') {
+    return OPENAI_CODEX
+  }
+
   return PROVIDER_ID_REGISTRY.get(providerId) || PROVIDER_API_TYPE_REGISTRY.get(apiType) || null
 }
 

@@ -77,6 +77,8 @@ export type LLM_PROVIDER = {
   capabilityProviderId?: string
   name: string
   apiType: string
+  /** OpenAI's API key and ChatGPT-backed Codex use different endpoints and credentials. */
+  openaiAuthMode?: 'api-key' | 'chatgpt'
   apiKey: string
   copilotClientId?: string
   baseUrl: string

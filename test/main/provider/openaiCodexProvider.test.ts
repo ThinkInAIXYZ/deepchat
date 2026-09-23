@@ -5,7 +5,9 @@ import { DEFAULT_PROVIDERS } from '../../../src/main/provider/defaults'
 import { providerDbLoader } from '../../../src/main/provider/providerDbLoader'
 import { AiSdkProvider } from '../../../src/main/provider/providers/aiSdkProvider'
 import { resolveAiSdkProviderDefinition } from '../../../src/main/provider/providerRegistry'
+import { createAiSdkProviderContext } from '../../../src/main/provider/aiSdk/providerFactory'
 import type { LLM_PROVIDER } from '@shared/types/provider'
+import { checkRequiresRebuild } from '@shared/provider-operations'
 
 const CODEX_RESOURCE_MODEL_IDS = [
   'gpt-5.6',
@@ -43,6 +45,34 @@ describe('OpenAI Codex provider registration', () => {
     expect(definition?.modelSource).toBe('openai-codex')
     expect(definition?.providerDbSourceId).toBe('openai')
     expect(definition?.checkModelId).toBe('gpt-5.6-luna')
+  })
+
+  it('routes the OpenAI entry to Codex only when ChatGPT sign-in is selected', () => {
+    const openai = DEFAULT_PROVIDERS.find((provider) => provider.id === 'openai')!
+    expect(resolveAiSdkProviderDefinition(openai)?.runtimeKind).toBe('openai-responses')
+    expect(checkRequiresRebuild({ openaiAuthMode: 'chatgpt' })).toBe(true)
+    expect(
+      resolveAiSdkProviderDefinition({ ...openai, openaiAuthMode: 'chatgpt' })?.runtimeKind
+    ).toBe('openai-codex')
+    expect(
+      resolveAiSdkProviderDefinition({ ...openai, openaiAuthMode: 'chatgpt' })?.modelSource
+    ).toBe('openai-codex')
+    expect(resolveAiSdkProviderDefinition(openai)?.runtimeKind).toBe('openai-responses')
+  })
+
+  it('never sends ChatGPT-authenticated OpenAI requests to api.openai.com', () => {
+    const openai = DEFAULT_PROVIDERS.find((provider) => provider.id === 'openai')!
+    const context = createAiSdkProviderContext({
+      providerKind: 'openai-codex',
+      provider: { ...openai, openaiAuthMode: 'chatgpt' },
+      providerSettings: { getAzureApiVersion: () => undefined } as any,
+      defaultHeaders: {},
+      modelId: 'gpt-5.6-luna',
+      wrapThinkReasoning: false
+    })
+
+    expect(context.apiType).toBe('openai_responses')
+    expect(context.endpoint).toBe('https://chatgpt.com/backend-api/codex/responses')
   })
 
   it('has curated Codex models in the bundled OpenAI provider database', async () => {

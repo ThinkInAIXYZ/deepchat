@@ -1,7 +1,11 @@
 <template>
   <ProviderSettingsShell
     :title="t(provider.name)"
-    :subtitle="provider.baseUrl"
+    :subtitle="
+      provider.id === 'openai' && provider.openaiAuthMode === 'chatgpt'
+        ? 'https://chatgpt.com/backend-api/codex'
+        : provider.baseUrl
+    "
     :enabled-count="enabledModels.length"
     :enabled="provider.enable"
     :enabled-updating="isProviderStatusUpdating"
@@ -15,6 +19,7 @@
         :uses-provider-db="defaultProvider?.usesProviderDb"
         @api-host-change="handleApiHostChange"
         @api-key-change="handleApiKeyChange"
+        @auth-mode-change="handleAuthModeChange"
         @validate-key="openModelCheckDialog"
         @delete-provider="showDeleteProviderDialog = true"
         @oauth-success="handleOAuthSuccess"
@@ -418,6 +423,14 @@ const handleApiKeyChange = async (value: string) => {
   }
   const result = await providerStore.updateProviderApi(props.provider.id, value, undefined)
   maybeEmitProviderConfigured(result.updated as LLM_PROVIDER)
+}
+
+const handleAuthModeChange = async (mode: 'api-key' | 'chatgpt') => {
+  if (props.provider.id !== 'openai' || (props.provider.openaiAuthMode || 'api-key') === mode) {
+    return
+  }
+  await providerStore.updateProviderConfig(props.provider.id, { openaiAuthMode: mode })
+  await modelStore.refreshProviderModels(props.provider.id)
 }
 
 const handleApiHostChange = async (value: string) => {
