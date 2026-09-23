@@ -1,5 +1,15 @@
 # Changelog
 
+## v1.1.3-beta.1 (2026-09-23)
+- Added automatic two-way device sync and integration with the Codex-compatible Nowledge Mem plugin
+- Added Cloudflare Workers AI and TypeSafe providers, plus an opt-in judgment model that can prune stale tool results to reduce context usage
+- Compactly displayed token usage in the message toolbar
+- Hardened skill discovery and worker loading against malformed caches and unsafe manifest targets
+- 新增设备双向自动同步，以及与兼容 Codex 的 Nowledge Mem 插件集成
+- 新增 Cloudflare Workers AI 和 TypeSafe Provider，并支持启用判断模型来清理过期工具结果、减少上下文占用
+- 在消息工具栏中紧凑展示 Token 用量
+- 加固 Skill 发现与 Worker 加载流程，防范异常缓存和不安全的清单目标
+
 ## v1.1.2 (2026-09-20)
 - Added an Open With picker for workspace files, with detected editors and terminals, remembered preferences, and system-default fallback
 - Added installation and management of Codex-compatible user plugin packages from Git repositories, ZIP archives, and local folders, including Skills, supported context hooks, and MCP configurations
