@@ -1465,13 +1465,17 @@ export async function createMainProcessControl(dependencies: {
           ] as const
         ).find((value) => value === id)
         if (key) {
-          const value = dependencies.settingsStore.get(key)
-          if (value !== undefined)
-            publishDeepchatEvent('settings.changed', {
-              changedKeys: [key],
-              version: Date.now(),
-              values: { [key]: value }
-            })
+          const values = {
+            autoCompactionEnabled: agentDefaults.getAutoCompactionEnabled(),
+            autoCompactionTriggerThreshold: agentDefaults.getAutoCompactionTriggerThreshold(),
+            autoCompactionRetainRecentPairs: agentDefaults.getAutoCompactionRetainRecentPairs(),
+            copyWithCotEnabled: desktopSettings.getCopyWithCotEnabled()
+          }
+          publishDeepchatEvent('settings.changed', {
+            changedKeys: [key],
+            version: Date.now(),
+            values: { [key]: values[key] }
+          })
         }
       }
       const refresh = async () => {
