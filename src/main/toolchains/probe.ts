@@ -1,4 +1,4 @@
-import { statSync } from 'node:fs'
+import { accessSync, constants, statSync } from 'node:fs'
 import path from 'node:path'
 import type {
   ResolvedCloudflaredToolchain,
@@ -125,7 +125,8 @@ export function probeCustomUv(customPath: string, platform: NodeJS.Platform): Uv
 export function findOnPath(
   command: string,
   env: NodeJS.ProcessEnv,
-  platform: NodeJS.Platform
+  platform: NodeJS.Platform,
+  executableOnly = false
 ): string | null {
   const pathValue = readPathValue(env, platform)
   if (!pathValue) return null
@@ -138,7 +139,8 @@ export function findOnPath(
     if (!trimmed || !path.isAbsolute(trimmed)) continue
     for (const extension of extensions) {
       const candidate = path.join(trimmed, `${command}${extension}`)
-      if (isExistingFile(candidate)) return candidate
+      if (executableOnly ? isExecutableFile(candidate, platform) : isExistingFile(candidate))
+        return candidate
     }
   }
   return null
@@ -240,6 +242,17 @@ function isExistingFile(filePath: string): boolean {
   }
 }
 
+function isExecutableFile(filePath: string, platform: NodeJS.Platform): boolean {
+  if (!isExistingFile(filePath)) return false
+  if (platform === 'win32') return true
+  try {
+    accessSync(filePath, constants.X_OK)
+    return true
+  } catch {
+    return false
+  }
+}
+
 function isExistingDirectory(directory: string): boolean {
   try {
     return statSync(directory).isDirectory()
@@ -262,7 +275,7 @@ export function probeCloudflared(
   const executable = isExistingDirectory(customPath)
     ? path.join(customPath, platform === 'win32' ? 'cloudflared.exe' : 'cloudflared')
     : customPath
-  if (!isExistingFile(executable)) return { status: 'missing' }
+  if (!isExecutableFile(executable, platform)) return { status: 'missing' }
   const rootDir = path.dirname(executable)
   return {
     status: 'complete',

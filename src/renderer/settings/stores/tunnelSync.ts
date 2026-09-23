@@ -8,7 +8,14 @@ export const useTunnelSyncStore = defineStore('tunnelSync', () => {
   const peer = ref<Awaited<ReturnType<typeof client.peerStatus>> | null>(null)
   const devices = ref<Awaited<ReturnType<typeof client.devices>>['devices']>([])
   const busy = ref(false)
-  const error = ref<string | null>(null)
+  const actionError = ref<string | null>(null)
+  const statusError = ref<string | null>(null)
+  const error = computed({
+    get: () => actionError.value ?? statusError.value,
+    set: (value: string | null) => {
+      actionError.value = value
+    }
+  })
   let refreshing: Promise<void> | null = null
   let refreshAgain = false
   const transferring = computed(() =>
@@ -46,14 +53,14 @@ export const useTunnelSyncStore = defineStore('tunnelSync', () => {
         const failed = [nextHost, nextPeer, nextDevices].find(
           (result) => result.status === 'rejected'
         )
-        if (failed?.status === 'rejected') error.value = errorKey(failed.reason)
-        else if (!busy.value) error.value = null
+        if (failed?.status === 'rejected') statusError.value = errorKey(failed.reason)
+        else statusError.value = null
       } while (refreshAgain)
     })()
     try {
       await refreshing
     } catch (value) {
-      error.value = errorKey(value)
+      statusError.value = errorKey(value)
     } finally {
       refreshing = null
     }
@@ -62,13 +69,13 @@ export const useTunnelSyncStore = defineStore('tunnelSync', () => {
   async function run(action: () => Promise<unknown>): Promise<boolean> {
     if (busy.value) return false
     busy.value = true
-    error.value = null
+    actionError.value = null
     try {
       await action()
       await refresh()
       return true
     } catch (value) {
-      error.value = errorKey(value)
+      actionError.value = errorKey(value)
       return false
     } finally {
       busy.value = false

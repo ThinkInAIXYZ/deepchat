@@ -8,7 +8,12 @@ vi.unmock('node:fs')
 vi.unmock('path')
 vi.unmock('node:path')
 
-import { probeCustomNode, probeSystemNode } from '../../../src/main/toolchains/probe'
+import {
+  findOnPath,
+  probeCloudflared,
+  probeCustomNode,
+  probeSystemNode
+} from '../../../src/main/toolchains/probe'
 
 function writeExecutable(filePath: string): void {
   mkdirSync(path.dirname(filePath), { recursive: true })
@@ -17,6 +22,21 @@ function writeExecutable(filePath: string): void {
 }
 
 describe('toolchain probe', () => {
+  it('skips non-executable cloudflared files on POSIX', () => {
+    const first = mkdtempSync(path.join(os.tmpdir(), 'dc-cloudflared-nonexec-'))
+    const second = mkdtempSync(path.join(os.tmpdir(), 'dc-cloudflared-exec-'))
+    const nonExecutable = path.join(first, 'cloudflared')
+    writeFileSync(nonExecutable, '')
+    chmodSync(nonExecutable, 0o644)
+    const executable = path.join(second, 'cloudflared')
+    writeExecutable(executable)
+
+    expect(probeCloudflared(nonExecutable, 'darwin').status).toBe('missing')
+    expect(findOnPath('cloudflared', { PATH: `${first}:${second}` }, 'darwin', true)).toBe(
+      executable
+    )
+  })
+
   it('locates Windows system Node via Path and .cmd siblings', () => {
     const root = mkdtempSync(path.join(os.tmpdir(), 'dc-win-node-'))
     writeExecutable(path.join(root, 'node.exe'))

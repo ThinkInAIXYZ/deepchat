@@ -322,6 +322,7 @@ export class SyncPeerService {
   private httpError(status: number): never {
     if (status === 401 || status === 403) fail('unauthorized')
     if (status === 404) fail('noSnapshot')
+    if (status === 405) fail('automaticUnsupported')
     if (status === 429) fail('rateLimited')
     fail('connectionFailed')
   }
@@ -343,7 +344,7 @@ export class SyncPeerService {
   private async transfer(mode: 'increment' | 'overwrite', signal: AbortSignal): Promise<void> {
     const pairing = await this.readPairing()
     if (!pairing) fail('notPaired')
-    const handshake = await this.checkHost(pairing.hostUrl, pairing.hostId, signal)
+    await this.checkHost(pairing.hostUrl, pairing.hostId, signal)
     let token: string
     try {
       token = this.deps.revealToken(pairing.wrappedToken)
@@ -372,19 +373,36 @@ export class SyncPeerService {
       (await stat(this.file('snapshot.part'))
         .then((value) => value.size > 0 && value.size <= status.snapshot!.size)
         .catch(() => false))
-    if (!resumable && handshake.capabilities.includes('prepare')) {
-      this.progress.phase = 'preparing'
-      await this.json(pairing.hostUrl + SYNC_HOST_PREPARE_PATH, { method: 'POST', headers, signal })
-      const deadline = Date.now() + 10 * 60_000
-      do {
-        status = SyncHostStatusSchema.parse(
-          await this.json(pairing.hostUrl + SYNC_HOST_STATUS_PATH, { headers, signal })
+    if (!resumable) {
+      let preparing = false
+      try {
+        await this.json(pairing.hostUrl + SYNC_HOST_PREPARE_PATH, {
+          method: 'POST',
+          headers,
+          signal
+        })
+        preparing = true
+      } catch (error) {
+        const message = error instanceof Error ? error.message : ''
+        if (
+          message !== 'sync.tunnel.error.noSnapshot' &&
+          message !== 'sync.tunnel.error.automaticUnsupported'
         )
-        if (!status.preparing) break
-        if (Date.now() > deadline) fail('prepareFailed')
-        await delay(1000, undefined, { signal })
-      } while (status.preparing)
-      if (status.preparationError) fail('prepareFailed')
+          throw error
+      }
+      if (preparing) {
+        this.progress.phase = 'preparing'
+        const deadline = Date.now() + 10 * 60_000
+        do {
+          status = SyncHostStatusSchema.parse(
+            await this.json(pairing.hostUrl + SYNC_HOST_STATUS_PATH, { headers, signal })
+          )
+          if (!status.preparing) break
+          if (Date.now() > deadline) fail('prepareFailed')
+          await delay(1000, undefined, { signal })
+        } while (status.preparing)
+        if (status.preparationError) fail('prepareFailed')
+      }
     }
     this.progress.phase = 'downloading'
     const { snapshot } = status

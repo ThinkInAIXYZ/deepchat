@@ -12,6 +12,7 @@ import { SyncHostService } from '@/sync/host'
 import { SyncPeerService } from '@/sync/peer'
 import { createSyncPeerRoutes } from '@/sync/peer/routes'
 import { SyncHostSnapshotSource } from '@/sync/host/snapshot'
+import { SYNC_HOST_PREPARE_PATH } from '@shared/contracts/syncHost'
 
 /** Real host/client sockets and private profiles; only OS crypto and final database import are ports. */
 describe('tunnel sync transfer boundary', () => {
@@ -147,6 +148,20 @@ describe('tunnel sync transfer boundary', () => {
     expect(imported[0].equals(bytes)).toBe(true)
     expect(requests.filter((request) => request.path.endsWith('/prepare'))).toHaveLength(1)
     expect((await peer.getStatus()).lastSuccessAt).toBeTypeOf('number')
+  })
+
+  it('imports an existing snapshot when an older host has no prepare route', async () => {
+    await publish()
+    const originalFetch = requestFetch
+    requestFetch = (input, init) =>
+      new URL(String(input)).pathname === SYNC_HOST_PREPARE_PATH
+        ? Promise.resolve(new Response('{}', { status: 404 }))
+        : originalFetch(input, init)
+    await pair()
+    await peer.pull('increment')
+    await settled()
+    expect(imported).toHaveLength(1)
+    expect(imported[0].equals(bytes)).toBe(true)
   })
 
   it('requires consent and preserves a published snapshot when export fails', async () => {

@@ -108,6 +108,17 @@ describeIfNativeSqlite('Device sync durable merge', () => {
     expect(a.store.revision()).toBe(revision)
   })
 
+  it('tracks writes from a connection without the local notification function', () => {
+    const a = device()
+    const writer = new (requireDatabase())(a.db.name)
+    try {
+      writer.exec("INSERT INTO new_sessions VALUES('external','From another connection',NULL,1,1)")
+      expect(a.store.export(0).units.map((unit) => unit.id)).toContain('external')
+    } finally {
+      writer.close()
+    }
+  })
+
   it('waits for an active session without acknowledging it, and rejects unrelated rows atomically', async () => {
     const a = device(),
       b = device()

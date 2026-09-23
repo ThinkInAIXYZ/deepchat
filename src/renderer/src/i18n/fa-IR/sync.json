@@ -52,8 +52,8 @@
     "overwrite": "Replace local data",
     "forget": "Disconnect device",
     "lastSuccess": "Last synced: {time}",
-    "consent": "Paired devices can read shared data. You can grant each device permission to update and delete conversations, memories, settings, provider API keys and MCP credentials. Cloudflare terminates HTTPS; transfers are not end-to-end encrypted. Enable sharing?",
-    "overwriteWarning": "This replaces local data with a full host backup and stops active sessions during import. The backup includes device-local data such as project paths and scheduled jobs. Continue?",
+    "consent": "دستگاه‌های جفت‌شده می‌توانند داده‌های به‌اشتراک‌گذاشته‌شده را بخوانند. می‌توانید به هر دستگاه اجازه دهید گفتگوها، حافظه‌ها، تنظیمات، کلیدهای API ارائه‌دهندگان و اطلاعات ورود MCP را تغییر دهد یا حذف کند. اتصال HTTPS در Cloudflare پایان می‌یابد و انتقال‌ها رمزنگاری سرتاسری ندارند. اشتراک‌گذاری فعال شود؟",
+    "overwriteWarning": "این کار داده‌های محلی را با یک پشتیبان کامل از دستگاه میزبان جایگزین می‌کند و هنگام واردکردن، نشست‌های فعال را متوقف می‌کند. پشتیبان شامل داده‌های مخصوص دستگاه مانند مسیر پروژه‌ها و کارهای زمان‌بندی‌شده نیز هست. ادامه می‌دهید؟",
     "phase": {
       "idle": "Ready",
       "pairing": "Pairing…",
@@ -148,7 +148,7 @@
     },
     "automatic": "Automatic two-way sync",
     "automaticHelp": "Sync after 15 seconds without changes, at least 60 seconds between syncs. Busy sessions wait until they finish. Newer changes and deletions win on both devices.",
-    "automaticConsent": "Request permission to send this device’s conversations, provider keys and portable settings to the host. The host must separately allow edits after pairing.",
+    "automaticConsent": "برای فرستادن گفتگوها، کلیدهای ارائه‌دهندگان و تنظیمات قابل‌انتقال این دستگاه به میزبان درخواست مجوز کنید. میزبان باید پس از جفت‌شدن، اجازهٔ ویرایش را جداگانه بدهد.",
     "automaticPhase": {
       "off": "Automatic sync off",
       "idle": "Up to date",
@@ -158,13 +158,13 @@
       "offline": "Disconnected; reconnecting…",
       "failed": "Sync failed; pending changes will retry"
     },
-    "requestWrite": "Request two-way sync",
-    "readOnlyHelp": "This pairing can import a full host backup, but cannot use automatic two-way sync. Disconnect and pair again to request it.",
-    "writeAllowed": "Can edit",
-    "readOnly": "Read only",
-    "allowWrite": "Allow edits",
-    "removeWrite": "Remove edit access",
-    "fullBackupWarning": "A full backup contains device-local data that automatic sync excludes, including project paths, scheduled jobs and pending inputs. Importing may overwrite settings and run copied jobs on this device.",
-    "importFullBackup": "Import full backup"
+    "requestWrite": "درخواست همگام‌سازی دوطرفه",
+    "readOnlyHelp": "با این جفت‌سازی می‌توان پشتیبان کامل میزبان را وارد کرد، اما همگام‌سازی خودکار دوطرفه ممکن نیست. برای درخواست آن، اتصال را قطع کنید و دوباره جفت شوید.",
+    "writeAllowed": "اجازهٔ ویرایش دارد",
+    "readOnly": "فقط خواندنی",
+    "allowWrite": "اجازهٔ ویرایش بده",
+    "removeWrite": "لغو اجازهٔ ویرایش",
+    "fullBackupWarning": "پشتیبان کامل شامل داده‌های مخصوص دستگاه است که در همگام‌سازی خودکار منتقل نمی‌شوند؛ از جمله مسیر پروژه‌ها، کارهای زمان‌بندی‌شده و ورودی‌های در انتظار. واردکردن آن ممکن است تنظیمات را بازنویسی کند و کارهای کپی‌شده را در این دستگاه اجرا کند.",
+    "importFullBackup": "واردکردن پشتیبان کامل"
   }
 }

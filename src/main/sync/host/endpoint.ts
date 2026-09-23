@@ -248,7 +248,7 @@ export class SyncHostEndpoint {
           protocolVersion: SYNC_HOST_PROTOCOL_VERSION,
           hostId: this.deps.getHostId(),
           appVersion: this.deps.getAppVersion(),
-          capabilities: this.deps.prepare ? [...HOST_CAPABILITIES, 'prepare'] : HOST_CAPABILITIES,
+          capabilities: HOST_CAPABILITIES,
           encryption: { payload: 'none', transport: 'tls' }
         })
         const bytes = this.respondJson(response, 200, payload)

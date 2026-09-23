@@ -129,6 +129,7 @@ export class SyncHostDeviceStore {
       const target = state.devices.find((device) => device.deviceId === deviceId)
       if (!target || target.revokedAt !== null || !target.requestedWrite || !target.replicaId)
         return
+      if (target.writable === writable) return
       target.writable = writable
       changed = true
     })

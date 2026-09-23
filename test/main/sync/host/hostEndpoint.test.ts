@@ -147,7 +147,7 @@ describe('SyncHostService endpoint', () => {
     }
     expect(body.protocol).toBe('sync/v1')
     expect(body.hostId).toBe(service.getHostId())
-    expect(body.capabilities).toEqual(['snapshot', 'range', 'prepare'])
+    expect(body.capabilities).toEqual(['snapshot', 'range'])
     expect(body.encryption.transport).toBe('tls')
   })
 

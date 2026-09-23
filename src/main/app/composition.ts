@@ -2844,10 +2844,10 @@ export async function createMainProcessControl(dependencies: {
     await runDestroyStep('agentCliTokenAuthority.clear', () => agentCliTokenAuthority.clear())
     await runDestroyStep('cliServer.stop', () => cliServer.stop())
     await runDestroyStep('automaticSync.close', () => automaticSync!.close())
-    replicaEndpoint.close()
-    syncReplica?.close()
     await runDestroyStep('syncPeerService.stop', () => syncPeerService.stop())
     await runDestroyStep('syncHostService.stop', () => syncHostService.stop())
+    await runDestroyStep('replicaEndpoint.close', () => replicaEndpoint.close())
+    await runDestroyStep('syncReplica.close', () => syncReplica?.close())
     await runDestroyStep('tapeInspectorHeadWatcher.close', () => tapeInspectorHeadWatcher.close())
     await runDestroyStep('typedEventHub.close', () => typedEventHub.close())
     await runDestroyStep('cliMutationGuard.clear', () => cliMutationGuard.clear())
@@ -3808,10 +3808,14 @@ export async function createMainProcessControl(dependencies: {
   }
   try {
     await syncHostService.startIfEnabled()
-    await automaticSync?.start()
   } catch (error) {
     reportMainStartupComponentFailure(dependencies.startupRunId, 'sync_host', 'unknown')
     logger.error('[SyncHost] Failed to start host mode', error)
+  }
+  try {
+    await automaticSync?.start()
+  } catch (error) {
+    logger.error('[SyncReplica] Failed to start automatic sync', error)
   }
   if (cliServer.getStatus().running) {
     try {

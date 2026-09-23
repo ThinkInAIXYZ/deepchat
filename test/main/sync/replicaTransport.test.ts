@@ -39,6 +39,27 @@ describeIfNativeSqlite('Automatic device sync transport', () => {
     return { directory, db, store }
   }
 
+  it('guides mismatched replica identities to re-pairing', async () => {
+    const peer = device()
+    let body = JSON.stringify({ error: 'replicaMismatch' })
+    const automatic = new AutomaticSync({
+      store: peer.store,
+      directory: peer.directory,
+      connection: async () => ({
+        hostUrl: 'https://sync.example.test',
+        hostId: 'host',
+        token: 'test-token'
+      }),
+      available: () => true,
+      changed: () => {},
+      fetch: async () => new Response(body, { status: 403 })
+    })
+    cleanups.push(() => automatic.close())
+    await expect(automatic.setEnabled(true)).rejects.toThrow('rePairRequired')
+    body = 'Forbidden'
+    await expect(automatic.setEnabled(true)).rejects.toThrow('writeConsentRequired')
+  })
+
   it('exchanges edits in both directions, persists acknowledgements, and rejects revoked writes', async () => {
     const host = device(),
       peer = device()

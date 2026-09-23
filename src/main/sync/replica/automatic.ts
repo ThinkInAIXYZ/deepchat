@@ -365,8 +365,14 @@ export class AutomaticSync {
       throw new Error('sync.tunnel.error.invalidResponse')
     }
     if (response.status === 403) {
-      const body = JSON.parse((await this.bytes(response, 65536)).toString()) as { error?: unknown }
-      if (body.error === 'rePairRequired') throw new Error('sync.tunnel.error.rePairRequired')
+      let body: { error?: unknown } = {}
+      try {
+        body = JSON.parse((await this.bytes(response, 65536)).toString()) as { error?: unknown }
+      } catch {
+        // Intermediaries can return a non-JSON 403 response.
+      }
+      if (body.error === 'rePairRequired' || body.error === 'replicaMismatch')
+        throw new Error('sync.tunnel.error.rePairRequired')
       throw new Error('sync.tunnel.error.writeConsentRequired')
     }
     void response.body?.cancel()

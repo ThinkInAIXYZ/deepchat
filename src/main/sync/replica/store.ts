@@ -188,10 +188,13 @@ export class SyncReplicaStore {
           ? `AND (${portable.map((column) => `OLD.${q(column)} IS NOT NEW.${q(column)}`).join(' OR ')})`
           : ''
       const trigger = q(`_sync_${table.table}_${operation.toLowerCase()}`)
+      const notifyTrigger = q(`_sync_notify_${table.table}_${operation.toLowerCase()}`)
+      const timing = operation === 'DELETE' ? 'BEFORE' : 'AFTER'
+      const condition = `(SELECT suppress FROM _sync_state WHERE singleton=1)=0 AND ${key} IS NOT NULL ${filter} ${changed}`
       // BEFORE DELETE preserves a child's parent identity while a cascade still has it available.
       db.exec(`DROP TRIGGER IF EXISTS ${trigger}; CREATE TRIGGER ${trigger}
-        ${operation === 'DELETE' ? 'BEFORE' : 'AFTER'} ${operation} ON ${q(table.table)}
-        WHEN (SELECT suppress FROM _sync_state WHERE singleton=1)=0 AND ${key} IS NOT NULL ${filter} ${changed}
+        ${timing} ${operation} ON ${q(table.table)}
+        WHEN ${condition}
         BEGIN
           UPDATE _sync_state SET revision=revision+1 WHERE singleton=1;
           INSERT INTO _sync_changes(kind,id,modified_at,origin,revision,deleted)
@@ -202,8 +205,11 @@ export class SyncReplicaStore {
             modified_at=MAX(excluded.modified_at,_sync_changes.modified_at+1),
             origin=excluded.origin, revision=excluded.revision,
             deleted=${root ? 'excluded.deleted' : '_sync_changes.deleted'};
-          SELECT deepchat_sync_notify();
         END;`)
+      db.exec(`CREATE TEMP TRIGGER IF NOT EXISTS ${notifyTrigger}
+        ${timing} ${operation} ON main.${q(table.table)}
+        WHEN ${condition}
+        BEGIN SELECT deepchat_sync_notify(); END;`)
     }
   }
 

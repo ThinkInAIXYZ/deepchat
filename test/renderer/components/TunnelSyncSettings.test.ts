@@ -177,6 +177,24 @@ describe('TunnelSyncSettings', () => {
     expect(enable.attributes('disabled')).toBeUndefined()
     expect(wrapper.get('[role="alert"]').text()).toContain('Pairing credentials')
   })
+  it('keeps an action failure visible when a concurrent status refresh succeeds', async () => {
+    await render()
+    const store = useTunnelSyncStore()
+    const currentHost = store.host
+    let resolveHost!: (value: typeof currentHost) => void
+    client.hostStatus.mockImplementationOnce(
+      () => new Promise((resolve) => (resolveHost = resolve))
+    )
+    const refreshing = store.refresh()
+    await store.run(async () => {
+      throw new Error('sync.tunnel.error.bindFailed')
+    })
+    resolveHost(currentHost)
+    await refreshing
+    expect(store.error).toBe('sync.tunnel.error.bindFailed')
+    await store.refresh()
+    expect(store.error).toBe('sync.tunnel.error.bindFailed')
+  })
   it('shows two-way timing and busy status and sends Sync now through the automatic path', async () => {
     const wrapper = await render()
     const store = useTunnelSyncStore()

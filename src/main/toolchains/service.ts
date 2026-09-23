@@ -424,7 +424,8 @@ export class ToolchainService {
           findOnPath(
             this.platform === 'win32' ? 'cloudflared.exe' : 'cloudflared',
             this.env,
-            this.platform
+            this.platform,
+            true
           ) ?? ''
         break
     }
