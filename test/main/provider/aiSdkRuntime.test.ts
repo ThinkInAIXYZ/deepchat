@@ -171,6 +171,50 @@ describe('AI SDK runtime', () => {
       statusCode: 400
     })
 
+  it.each([
+    {
+      name: 'text-to-speech',
+      runtimeFlag: { shouldUseTts: () => true },
+      error: 'OpenAI Codex does not support text-to-speech requests'
+    },
+    {
+      name: 'video generation',
+      runtimeFlag: { shouldUseVideoGeneration: () => true },
+      error: 'OpenAI Codex does not support video generation requests'
+    }
+  ])('blocks $name routes on the Codex backend', async ({ runtimeFlag, error }) => {
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+    const context = createTextRuntimeContext({
+      providerKind: 'openai-codex',
+      provider: {
+        id: 'openai',
+        apiType: 'openai',
+        openaiAuthMode: 'chatgpt',
+        baseUrl: 'https://relay.example.com/v1',
+        apiKey: 'saved-api-key'
+      },
+      ...runtimeFlag
+    })
+
+    const consumeStream = async () => {
+      for await (const _event of runAiSdkCoreStream(
+        context,
+        [{ role: 'user', content: 'generate media' }],
+        'custom-model',
+        {} as any,
+        0.7,
+        1024,
+        []
+      )) {
+        // Consume the stream so errors thrown before the first event are observed.
+      }
+    }
+
+    await expect(consumeStream()).rejects.toThrow(error)
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
   it('applies the static batch limit, bounded parallelism, and abort signal', async () => {
     const controller = new AbortController()
     const texts = Array.from({ length: 50 }, (_, index) => String(index + 1))

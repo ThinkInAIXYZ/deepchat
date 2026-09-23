@@ -97,7 +97,7 @@
       </DcButton>
     </div>
 
-    <div v-if="provider.id !== 'openai'" class="text-xs leading-5 text-muted-foreground">
+    <div class="text-xs leading-5 text-muted-foreground">
       {{ t('settings.provider.openaiCodexLoginTip') }}
     </div>
 

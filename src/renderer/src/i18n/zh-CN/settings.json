@@ -1528,7 +1528,7 @@
     "openaiCodexReconnect": "重新连接",
     "openaiCodexSignOut": "退出登录",
     "openaiCodexCancel": "取消",
-    "openaiCodexLoginTip": "OpenAI Codex 使用 ChatGPT 登录，token 单独存储在 OpenAI API Key provider 之外。",
+    "openaiCodexLoginTip": "OpenAI 的 ChatGPT 登录模式与 OpenAI Codex 服务商共享登录状态；在任一处登录或退出都会同时影响两者。",
     "loginSuccess": "登录成功",
     "loginFailed": "登录失败",
     "tokenValid": "令牌有效",

@@ -1406,6 +1406,10 @@ export async function* runAiSdkCoreStream(
   const timeout = resolveRequestTimeout(normalizedModelConfig)
 
   if (shouldUseTtsRuntime(context, modelId, normalizedModelConfig)) {
+    if (context.providerKind === 'openai-codex') {
+      throw new Error('OpenAI Codex does not support text-to-speech requests')
+    }
+
     const text = extractTtsText(messages)
     const usePatternB = isChatAudioTtsModel(modelId)
     const usePatternC = isGeminiGenerateContentTtsModel(modelId)
@@ -1458,6 +1462,10 @@ export async function* runAiSdkCoreStream(
   }
 
   if (shouldUseVideoGenerationRuntime(context, modelId, normalizedModelConfig)) {
+    if (context.providerKind === 'openai-codex') {
+      throw new Error('OpenAI Codex does not support video generation requests')
+    }
+
     const prompt = extractVideoPrompt(messages)
     const normalizedVideoOptions = resolveVideoGenerationRequestOptions(
       prompt,

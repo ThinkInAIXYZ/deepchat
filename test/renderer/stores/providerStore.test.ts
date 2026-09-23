@@ -87,6 +87,17 @@ async function setupStore() {
 }
 
 describe('providerStore.stageProviderApiChange', () => {
+  it('invalidates cached health when the OpenAI authentication mode changes', async () => {
+    const { store } = await setupStore()
+    await store.refreshProviders()
+
+    await store.checkProvider('p1')
+    expect(store.getProviderHealth('p1').status).toBe('verified')
+
+    await store.updateProviderConfig('p1', { openaiAuthMode: 'chatgpt' })
+    expect(store.getProviderHealth('p1').status).toBe('not_checked')
+  })
+
   it('serializes overlapping key and endpoint edits per provider', async () => {
     const { store, providerClient } = await setupStore()
 

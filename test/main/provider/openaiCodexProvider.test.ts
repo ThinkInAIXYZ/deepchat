@@ -60,11 +60,19 @@ describe('OpenAI Codex provider registration', () => {
     expect(resolveAiSdkProviderDefinition(openai)?.runtimeKind).toBe('openai-responses')
   })
 
-  it('never sends ChatGPT-authenticated OpenAI requests to api.openai.com', () => {
+  it('always routes ChatGPT-authenticated OpenAI requests to the Codex backend', () => {
     const openai = DEFAULT_PROVIDERS.find((provider) => provider.id === 'openai')!
+    const provider = {
+      ...openai,
+      baseUrl: 'https://relay.example.com/v1',
+      openaiAuthMode: 'chatgpt' as const
+    }
+    const definition = resolveAiSdkProviderDefinition(provider)
+    expect(definition?.runtimeKind).toBe('openai-codex')
+
     const context = createAiSdkProviderContext({
-      providerKind: 'openai-codex',
-      provider: { ...openai, openaiAuthMode: 'chatgpt' },
+      providerKind: definition!.runtimeKind,
+      provider,
       providerSettings: { getAzureApiVersion: () => undefined } as any,
       defaultHeaders: {},
       modelId: 'gpt-5.6-luna',

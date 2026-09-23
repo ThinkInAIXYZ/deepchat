@@ -672,7 +672,9 @@ export const useModelStore = defineStore('model', () => {
     try {
       await invalidateProviderModelsCache(providerId)
       const providerState = getProviderState(providerId)
-      const useRuntimeModelList = isRuntimeModelListProvider(providerId)
+      const useRuntimeModelList =
+        isRuntimeModelListProvider(providerId) ||
+        (providerId === 'openai' && providerState?.openaiAuthMode === 'chatgpt')
       const useProviderDbModels = providerState?.apiType !== 'ollama' && !useRuntimeModelList
       let models: RENDERER_MODEL_META[] = useProviderDbModels
         ? await modelClient.getDbProviderModels(providerId)
