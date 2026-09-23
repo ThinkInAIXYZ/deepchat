@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { existsSync } from 'fs'
 import fs from 'fs/promises'
+import { createRequire } from 'node:module'
 import os from 'os'
 import path from 'path'
 import { FffSearchService, FffSearchUnavailableError } from '@/platform/fileSearch/fffSearchService'
@@ -92,6 +93,10 @@ function createMockModule(overrides: Record<string, unknown> = {}) {
 
 describe('FffSearchService', () => {
   it('loads the packaged FFF module from app.asar.unpacked when available', async () => {
+    const require = createRequire(import.meta.url)
+    const packageJson = JSON.parse(
+      await fs.readFile(require.resolve('@ff-labs/fff-node/package.json'), 'utf8')
+    )
     const resourcesPath = await fs.mkdtemp(path.join(os.tmpdir(), 'fff-packaged-resources-'))
     const moduleRoot = path.join(
       resourcesPath,
@@ -100,7 +105,7 @@ describe('FffSearchService', () => {
       '@ff-labs',
       'fff-node'
     )
-    const entryPath = path.join(moduleRoot, 'dist', 'src', 'index.js')
+    const entryPath = path.join(moduleRoot, packageJson.exports['.'].import)
     const originalResourcesPath = Object.getOwnPropertyDescriptor(process, 'resourcesPath')
 
     await fs.mkdir(path.dirname(entryPath), { recursive: true })
