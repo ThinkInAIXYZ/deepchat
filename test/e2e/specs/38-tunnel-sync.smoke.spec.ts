@@ -63,9 +63,18 @@ test('tunnel host requires consent, prepares data on demand with legacy sync off
       )
     )
     .toBe(port)
+  await section.getByRole('button', { name: /Generate connection info|生成连接信息/ }).click()
   const pairing = await settings.evaluate(
-    async () => (await window.deepchat.invoke('syncHost.createPairingCode', {})).pairing!
+    async () => (await window.deepchat.invoke('syncHost.getStatus', {})).pairing!
   )
+  await expect(section).toContainText(pairing.code)
+  await expect(
+    section.getByRole('button', { name: /Copy connection info|复制连接信息/ })
+  ).toBeVisible()
+  await section.screenshot({
+    path: testInfo.outputPath('tunnel-pairing-info.png'),
+    animations: 'disabled'
+  })
   const response = await fetch(`http://127.0.0.1:${port}/sync/v1/pair`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },

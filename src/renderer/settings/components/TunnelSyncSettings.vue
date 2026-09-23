@@ -43,7 +43,7 @@ const now = ref(Date.now())
 const running = computed(() => Boolean(host.value?.status.enabled))
 const tunnel = computed(() => host.value?.status.tunnel)
 const connectionUrl = computed(() => tunnel.value?.publicUrl ?? '')
-const canConnect = computed(
+const canShareConnection = computed(
   () =>
     running.value &&
     connectionUrl.value &&
@@ -124,16 +124,20 @@ async function enable() {
   }
 }
 async function connection(qrcode = false) {
+  const pairing = activePairing.value
+  if (!pairing || !canShareConnection.value) return
+  const payload = JSON.stringify({ hostUrl: connectionUrl.value, ...pairing })
+  if (qrcode) qr.value = await QRCode.toDataURL(payload, { width: 160, margin: 2 })
+  else {
+    deviceClient.copyText(payload)
+    copied.value = true
+  }
+}
+async function createConnection() {
+  if (!canShareConnection.value) return
   await store.run(async () => {
-    const pairing = activePairing.value ?? (await store.client.createCode()).pairing
-    if (!pairing || !connectionUrl.value) return
-    await store.refresh()
-    const payload = JSON.stringify({ hostUrl: connectionUrl.value, ...pairing })
-    if (qrcode) qr.value = await QRCode.toDataURL(payload, { width: 160, margin: 2 })
-    else {
-      deviceClient.copyText(payload)
-      copied.value = true
-    }
+    if (!(await store.client.createCode()).pairing)
+      throw new Error('sync.tunnel.error.connectionFailed')
   })
 }
 async function pair() {
@@ -298,7 +302,9 @@ async function overwrite() {
           <span class="text-xs text-muted-foreground">{{
             t(`sync.tunnel.connector.${tunnel?.phase ?? 'stopped'}`)
           }}</span>
-          <code v-if="connectionUrl" class="select-all break-all text-xs">{{ connectionUrl }}</code>
+          <code v-if="connectionUrl && canShareConnection" class="select-all break-all text-xs">{{
+            connectionUrl
+          }}</code>
         </div>
         <p v-if="mode === 'quick'" class="text-xs text-muted-foreground">
           {{ t('sync.tunnel.quickWarning') }}
@@ -306,22 +312,51 @@ async function overwrite() {
         <p v-if="tunnel?.error" role="alert" class="text-xs text-destructive">
           {{ t(tunnel.error) }}
         </p>
-        <div v-if="canConnect" class="space-y-2">
+        <div class="space-y-2 border-t border-border pt-3">
+          <h4 class="font-medium">{{ t('sync.tunnel.sharePairingTitle') }}</h4>
+          <p class="text-xs text-muted-foreground">
+            {{ t(canShareConnection ? 'sync.tunnel.connectionHelp' : 'sync.tunnel.waitForTunnel') }}
+          </p>
           <div class="flex flex-wrap items-center gap-2">
-            <DcButton size="sm" variant="outline" :disabled="busy" @click="connection()">{{
-              t(copied ? 'sync.tunnel.copied' : 'sync.tunnel.copyConnection')
-            }}</DcButton>
-            <DcButton size="sm" variant="ghost" :disabled="busy" @click="connection(true)">{{
-              t('sync.tunnel.qrCode')
-            }}</DcButton>
-            <span v-if="activePairing" class="text-xs text-muted-foreground">{{
-              t('sync.tunnel.expires', {
-                time: new Date(activePairing.expiresAt).toLocaleTimeString()
-              })
-            }}</span>
+            <DcButton
+              size="sm"
+              variant="outline"
+              :disabled="busy || !canShareConnection"
+              @click="createConnection"
+              >{{
+                t(activePairing ? 'sync.tunnel.newConnection' : 'sync.tunnel.createConnection')
+              }}</DcButton
+            >
+            <span
+              v-if="activePairing && canShareConnection"
+              class="text-xs text-muted-foreground"
+              >{{
+                t('sync.tunnel.expires', {
+                  time: new Date(activePairing.expiresAt).toLocaleTimeString()
+                })
+              }}</span
+            >
           </div>
-          <p class="text-xs text-muted-foreground">{{ t('sync.tunnel.connectionHelp') }}</p>
-          <img v-if="qr" :src="qr" :alt="t('sync.tunnel.qrCode')" width="160" height="160" />
+          <div
+            v-if="activePairing && canShareConnection"
+            class="max-w-xl space-y-2 rounded-md bg-muted/40 p-3"
+          >
+            <p class="text-xs text-muted-foreground">{{ t('sync.tunnel.pairingCode') }}</p>
+            <code class="select-all text-base font-semibold tracking-wider">{{
+              activePairing.code
+            }}</code>
+            <p class="text-xs text-muted-foreground">{{ t('sync.tunnel.publicUrl') }}</p>
+            <code class="select-all break-all text-xs">{{ connectionUrl }}</code>
+            <div class="flex flex-wrap gap-2">
+              <DcButton size="sm" variant="outline" :disabled="busy" @click="connection()">{{
+                t(copied ? 'sync.tunnel.copied' : 'sync.tunnel.copyConnection')
+              }}</DcButton>
+              <DcButton size="sm" variant="ghost" :disabled="busy" @click="connection(true)">{{
+                t('sync.tunnel.qrCode')
+              }}</DcButton>
+            </div>
+            <img v-if="qr" :src="qr" :alt="t('sync.tunnel.qrCode')" width="160" height="160" />
+          </div>
         </div>
         <details v-if="devices.length" class="text-xs">
           <summary class="w-fit cursor-pointer text-muted-foreground">

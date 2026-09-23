@@ -28,7 +28,8 @@ const client = vi.hoisted(() => ({
   peerStatus: vi.fn(),
   devices: vi.fn(),
   pull: vi.fn(),
-  cancel: vi.fn()
+  cancel: vi.fn(),
+  createCode: vi.fn()
 }))
 vi.mock('@api/TunnelSyncClient', () => ({ createTunnelSyncClient: () => client }))
 
@@ -152,5 +153,63 @@ describe('TunnelSyncSettings', () => {
     await flushPromises()
     expect(client.syncNow).toHaveBeenCalledOnce()
     expect(client.pull).not.toHaveBeenCalled()
+  })
+
+  it('shows why pairing is unavailable until the tunnel connects', async () => {
+    const wrapper = await render()
+    const store = useTunnelSyncStore()
+    store.host = {
+      ...store.host!,
+      status: {
+        ...store.host!.status,
+        enabled: true,
+        running: true,
+        tunnel: {
+          phase: 'failed',
+          publicUrl: 'https://sync.example.test',
+          error: 'sync.tunnel.error.syntheticEdgeIp'
+        }
+      }
+    }
+    await flushPromises()
+    expect(wrapper.text()).toContain('The tunnel is not connected')
+    expect(wrapper.text()).toContain('198.18/15')
+    expect(
+      wrapper
+        .findAll('button')
+        .find((button) => button.text() === 'Generate connection info')
+        ?.attributes('disabled')
+    ).toBeDefined()
+    expect(wrapper.text()).not.toContain('One-time pairing code')
+  })
+
+  it('reveals the one-time code and full connection copy action after generation', async () => {
+    const wrapper = await render()
+    const store = useTunnelSyncStore()
+    const status = {
+      ...store.host!.status,
+      enabled: true,
+      running: true,
+      tunnel: { phase: 'connected', publicUrl: 'https://sync.example.test', error: null }
+    }
+    const pairing = { code: 'ABCDEFGH', hostId: 'local', expiresAt: Date.now() + 60_000 }
+    store.host = { status, pairing: null }
+    client.hostStatus.mockResolvedValue({ status, pairing })
+    client.createCode.mockResolvedValue({ pairing })
+    await flushPromises()
+    expect(wrapper.text()).not.toContain(pairing.code)
+    await wrapper
+      .findAll('button')
+      .find((button) => button.text() === 'Generate connection info')!
+      .trigger('click')
+    await flushPromises()
+    expect(client.createCode).toHaveBeenCalledOnce()
+    expect(wrapper.text()).toContain(pairing.code)
+    expect(wrapper.text()).toContain('Copy connection info')
+    store.peer = { ...initialPeer, paired: false }
+    await flushPromises()
+    expect(wrapper.text()).toContain(
+      'Enable sharing and generate connection info on the other device'
+    )
   })
 })

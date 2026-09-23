@@ -39,21 +39,21 @@
     },
     "darwin-x64": {
       "installer": {
-        "maxGrowthBytes": 94371840,
+        "maxGrowthBytes": 117440512,
         "maxShrinkBytes": 94371840
       },
       "updater-payload": {
-        "maxGrowthBytes": 94371840,
+        "maxGrowthBytes": 117440512,
         "maxShrinkBytes": 94371840
       }
     },
     "darwin-arm64": {
       "installer": {
-        "maxGrowthBytes": 94371840,
+        "maxGrowthBytes": 117440512,
         "maxShrinkBytes": 94371840
       },
       "updater-payload": {
-        "maxGrowthBytes": 94371840,
+        "maxGrowthBytes": 117440512,
         "maxShrinkBytes": 94371840
       }
     }

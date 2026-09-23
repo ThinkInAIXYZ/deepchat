@@ -47,6 +47,8 @@ describe('sync connector lifecycle', () => {
       const observed = JSON.parse(await readFile(observedPath, 'utf8'))
       expect(observed.token).toBe('synthetic-token')
       expect(observed.args.join(' ')).not.toContain('synthetic-token')
+      expect(observed.args).toContain('auto')
+      expect(observed.args).not.toContain('http2')
       expect(JSON.stringify(tunnel.status())).not.toContain('synthetic-token')
       const record = JSON.stringify(
         new ChildProcessRegistry({ rootDir: path.join(root, 'processes') }).list('sync-tunnel')
@@ -65,6 +67,27 @@ describe('sync connector lifecycle', () => {
       const restarted = JSON.parse(await readFile(observedPath, 'utf8'))
       process.kill(restarted.pid, 'SIGTERM')
       await vi.waitFor(() => expect(tunnel.status().phase).toBe('failed'))
+    }
+  )
+
+  it.skipIf(process.platform === 'win32')(
+    'identifies a blocked edge caused by synthetic proxy DNS',
+    async () => {
+      const root = await profile()
+      const executable = path.join(root, 'cloudflared')
+      await writeFile(
+        executable,
+        `#!${process.execPath}\n` +
+          `console.error('Tunnel connection curve preferences connIndex=0 ip=198.18.0.46');\n` +
+          `console.error('HTTP/2 connection is blocked or unreachable'); setInterval(() => {}, 1000)\n`,
+        { mode: 0o755 }
+      )
+      const tunnel = new SyncTunnel(root, () => executable)
+      tunnels.push(tunnel)
+      await tunnel.start({ mode: 'quick', publicUrl: '' }, 48632)
+      await vi.waitFor(() =>
+        expect(tunnel.status().error).toBe('sync.tunnel.error.syntheticEdgeIp')
+      )
     }
   )
 

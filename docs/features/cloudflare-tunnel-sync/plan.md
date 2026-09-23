@@ -56,6 +56,9 @@ contiguous acknowledgement cursor.
 The package smoke budgets allow 48 MiB of compressed non-OCR runtimes on targets bundling
 cloudflared, based on CI measurements of 41–44 MiB. Windows ARM64 retains its 32 MiB budget because
 it does not bundle cloudflared; OCR and Node budgets are unchanged.
+The installer-size gate allows 112 MiB adjusted growth for macOS (90 MiB on other targets): the
+verified macOS installers grew 48–52 MiB against the pinned baseline after the bundled connector
+and current runtime changes, while the policy's expected 50 MiB reduction remains in force.
 
 ## External validation
 
@@ -63,6 +66,9 @@ it does not bundle cloudflared; OCR and Node budgets are unchanged.
 - [ ] Verify Windows/Linux packaging on their native runners.
 
 The pinned macOS ARM64 cloudflared artifact passes SHA256 verification and Quick Tunnel allocation.
-The local network blocks edge TLS/port 7844, so loopback success does not establish public connectivity.
+Local connector pre-checks resolve the edge domains to synthetic `198.18.0.x` addresses, so both
+regional UDP/QUIC and TCP/HTTP2 checks fail. The actual Cloudflare edge IPs accept TCP 7844 from this
+machine; the local proxy/DNS split must return and route the real edge addresses before public transfer
+can be validated. Loopback success does not establish public connectivity.
 Windows ARM64 has no native official artifact at the current pin. These external checks remain visible
 in the Draft PR rather than being reported as completed.

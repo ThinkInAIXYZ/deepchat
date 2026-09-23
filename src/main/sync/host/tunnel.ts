@@ -39,7 +39,7 @@ export class SyncTunnel {
       const configPath = path.join(this.directory, 'connector.yml')
       // An explicit empty config prevents ~/.cloudflared settings leaking into this connector.
       await writeFile(configPath, '{}\n', { mode: 0o600 })
-      const args = ['tunnel', '--config', configPath, '--no-autoupdate', '--protocol', 'http2']
+      const args = ['tunnel', '--config', configPath, '--no-autoupdate', '--protocol', 'auto']
       if (config.mode === 'named') {
         if (!token) throw new Error('missing token')
         args.push('run')
@@ -60,6 +60,7 @@ export class SyncTunnel {
       this.child = child
       let buffer = ''
       const connections = new Set<string>()
+      let syntheticEdgeIp = false
       const consume = (chunk: Buffer) => {
         if (this.child !== child || this.current.phase === 'failed') return
         const previous = JSON.stringify(this.current)
@@ -67,6 +68,7 @@ export class SyncTunnel {
         const lines = buffer.split('\n')
         buffer = lines.pop() ?? ''
         for (const line of lines) {
+          if (/\b198\.1[89]\.\d{1,3}\.\d{1,3}\b/.test(line)) syntheticEdgeIp = true
           if (config.mode === 'quick') {
             const url = line.match(/https:\/\/[a-z0-9-]+\.trycloudflare\.com\b/)?.[0]
             if (url) this.current.publicUrl = url
@@ -80,9 +82,12 @@ export class SyncTunnel {
             connections.delete(index)
           if (
             line.includes('TLS handshake with edge error') ||
-            line.includes('HTTP/2 connection is blocked')
+            line.includes('HTTP/2 connection is blocked') ||
+            line.includes('precheck complete hard_fail=true')
           )
             this.current.error = 'sync.tunnel.error.networkBlocked'
+          if (syntheticEdgeIp && this.current.error === 'sync.tunnel.error.networkBlocked')
+            this.current.error = 'sync.tunnel.error.syntheticEdgeIp'
         }
         if (connections.size && this.current.publicUrl) {
           this.current.phase = 'connected'
