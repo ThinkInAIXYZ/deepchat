@@ -7954,8 +7954,7 @@
               "text",
               "image",
               "audio",
-              "video",
-              "pdf"
+              "video"
             ],
             "output": [
               "text"
@@ -7983,8 +7982,7 @@
             }
           },
           "attachment": true,
-          "open_weights": false,
-          "knowledge": "2026-09-22",
+          "open_weights": true,
           "release_date": "2026-09-22",
           "last_updated": "2026-09-22",
           "type": "chat"
@@ -8116,8 +8114,7 @@
               "text",
               "image",
               "audio",
-              "video",
-              "pdf"
+              "video"
             ],
             "output": [
               "text"
@@ -8145,8 +8142,7 @@
             }
           },
           "attachment": true,
-          "open_weights": false,
-          "knowledge": "2026-09-22",
+          "open_weights": true,
           "release_date": "2026-09-22",
           "last_updated": "2026-09-22",
           "type": "chat"
@@ -15902,8 +15898,7 @@
             }
           },
           "attachment": true,
-          "open_weights": false,
-          "knowledge": "2026-09-22",
+          "open_weights": true,
           "release_date": "2026-09-22",
           "last_updated": "2026-09-22",
           "type": "chat"
@@ -15916,8 +15911,8 @@
             "input": [
               "text",
               "image",
-              "video",
-              "audio"
+              "audio",
+              "video"
             ],
             "output": [
               "text"
@@ -15942,7 +15937,7 @@
             }
           },
           "attachment": true,
-          "open_weights": false,
+          "open_weights": true,
           "release_date": "2026-09-21",
           "last_updated": "2026-09-21",
           "type": "chat"
@@ -16021,8 +16016,7 @@
             }
           },
           "attachment": true,
-          "open_weights": false,
-          "knowledge": "2026-09-22",
+          "open_weights": true,
           "release_date": "2026-09-22",
           "last_updated": "2026-09-22",
           "type": "chat"
@@ -29408,6 +29402,47 @@
           "type": "chat"
         },
         {
+          "id": "openai-gpt-6-sol",
+          "name": "OpenAI GPT-6 Sol",
+          "display_name": "OpenAI GPT-6 Sol",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1050000,
+            "output": 128000
+          },
+          "temperature": false,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "effort_options": [
+                "none",
+                "low",
+                "medium",
+                "high",
+                "xhigh"
+              ]
+            }
+          },
+          "attachment": true,
+          "open_weights": false,
+          "knowledge": "2026-04-20",
+          "release_date": "2026-09-22",
+          "last_updated": "2026-09-22",
+          "type": "chat"
+        },
+        {
           "id": "openai-gpt-image-1.5",
           "name": "OpenAI GPT Image 1.5",
           "display_name": "OpenAI GPT Image 1.5",
@@ -30056,6 +30091,47 @@
           "open_weights": true,
           "release_date": "2023-05-19",
           "last_updated": "2026-04-30",
+          "type": "chat"
+        },
+        {
+          "id": "anthropic-claude-opus-5.5",
+          "name": "Anthropic Claude Opus 5.5",
+          "display_name": "Anthropic Claude Opus 5.5",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1000000,
+            "output": 128000
+          },
+          "temperature": false,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "effort_options": [
+                "low",
+                "medium",
+                "high",
+                "xhigh",
+                "max"
+              ]
+            }
+          },
+          "attachment": true,
+          "open_weights": false,
+          "knowledge": "2026-06",
+          "release_date": "2026-09-22",
+          "last_updated": "2026-09-22",
           "type": "chat"
         },
         {
@@ -32127,6 +32203,47 @@
           "knowledge": "2023-12",
           "release_date": "2024-07-23",
           "last_updated": "2024-07-23",
+          "type": "chat"
+        },
+        {
+          "id": "openai-gpt-6-luna",
+          "name": "OpenAI GPT-6 Luna",
+          "display_name": "OpenAI GPT-6 Luna",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1050000,
+            "output": 128000
+          },
+          "temperature": false,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "effort_options": [
+                "none",
+                "low",
+                "medium",
+                "high",
+                "xhigh"
+              ]
+            }
+          },
+          "attachment": true,
+          "open_weights": false,
+          "knowledge": "2026-05-18",
+          "release_date": "2026-09-22",
+          "last_updated": "2026-09-22",
           "type": "chat"
         },
         {
@@ -47062,8 +47179,7 @@
               "text",
               "image",
               "audio",
-              "video",
-              "pdf"
+              "video"
             ],
             "output": [
               "text"
@@ -47090,8 +47206,7 @@
             }
           },
           "attachment": true,
-          "open_weights": false,
-          "knowledge": "2026-09-22",
+          "open_weights": true,
           "release_date": "2026-09-22",
           "last_updated": "2026-09-22",
           "type": "chat"
@@ -47105,8 +47220,7 @@
               "text",
               "image",
               "audio",
-              "video",
-              "pdf"
+              "video"
             ],
             "output": [
               "text"
@@ -47133,8 +47247,7 @@
             }
           },
           "attachment": true,
-          "open_weights": false,
-          "knowledge": "2026-09-22",
+          "open_weights": true,
           "release_date": "2026-09-22",
           "last_updated": "2026-09-22",
           "type": "chat"
@@ -79936,6 +80049,45 @@
           "type": "chat"
         },
         {
+          "id": "deepseek-v4-1-flash",
+          "name": "DeepSeek V4.1 Flash",
+          "display_name": "DeepSeek V4.1 Flash",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1000000,
+            "output": 384000
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "effort_options": [
+                "low",
+                "high",
+                "max"
+              ]
+            }
+          },
+          "attachment": true,
+          "open_weights": true,
+          "knowledge": "2025-05",
+          "release_date": "2026-09-10",
+          "last_updated": "2026-09-10",
+          "type": "chat"
+        },
+        {
           "id": "gpt-5-6-luna",
           "name": "GPT-5.6 Luna",
           "display_name": "GPT-5.6 Luna",
@@ -99301,8 +99453,7 @@
               "text",
               "image",
               "audio",
-              "video",
-              "pdf"
+              "video"
             ],
             "output": [
               "text"
@@ -99330,8 +99481,7 @@
             }
           },
           "attachment": true,
-          "open_weights": false,
-          "knowledge": "2026-09-22",
+          "open_weights": true,
           "release_date": "2026-09-22",
           "last_updated": "2026-09-22",
           "type": "chat"
@@ -99345,8 +99495,7 @@
               "text",
               "image",
               "audio",
-              "video",
-              "pdf"
+              "video"
             ],
             "output": [
               "text"
@@ -99374,8 +99523,7 @@
             }
           },
           "attachment": true,
-          "open_weights": false,
-          "knowledge": "2026-09-22",
+          "open_weights": true,
           "release_date": "2026-09-22",
           "last_updated": "2026-09-22",
           "type": "chat"
@@ -103481,6 +103629,50 @@
           "type": "chat"
         },
         {
+          "id": "fastino/gliner2.5-multi-v1",
+          "name": "GLiNER 2.5 Multi",
+          "display_name": "GLiNER 2.5 Multi",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 4096,
+            "output": 4096
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "interleaved": true,
+              "summaries": true,
+              "visibility": "summary",
+              "continuation": [
+                "thinking_blocks"
+              ],
+              "effort_options": [
+                "low",
+                "medium",
+                "high"
+              ]
+            }
+          },
+          "attachment": false,
+          "open_weights": true,
+          "release_date": "2026-08-24",
+          "last_updated": "2026-08-24",
+          "type": "chat"
+        },
+        {
           "id": "fastino/gliner2-base-v1",
           "name": "GLiNER2 Base",
           "display_name": "GLiNER2 Base",
@@ -103654,6 +103846,50 @@
           "open_weights": false,
           "release_date": "2026-04-30",
           "last_updated": "2026-04-30",
+          "type": "chat"
+        },
+        {
+          "id": "fastino/gliguard-PII-multi",
+          "name": "GLiNER2-Guardrails-PII-Multi",
+          "display_name": "GLiNER2-Guardrails-PII-Multi",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "interleaved": true,
+              "summaries": true,
+              "visibility": "summary",
+              "continuation": [
+                "thinking_blocks"
+              ],
+              "effort_options": [
+                "low",
+                "medium",
+                "high"
+              ]
+            }
+          },
+          "attachment": false,
+          "open_weights": true,
+          "release_date": "2026-07-08",
+          "last_updated": "2026-07-08",
           "type": "chat"
         },
         {
@@ -108408,6 +108644,54 @@
           "type": "chat"
         },
         {
+          "id": "step-5-preview",
+          "name": "Step 5 Preview",
+          "display_name": "Step 5 Preview",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "video"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1000000,
+            "output": 384000
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "mode": "effort",
+              "effort": "medium",
+              "effort_options": [
+                "low",
+                "medium",
+                "high"
+              ],
+              "interleaved": true,
+              "summaries": true,
+              "visibility": "summary",
+              "continuation": [
+                "thinking_blocks"
+              ]
+            }
+          },
+          "attachment": true,
+          "open_weights": false,
+          "release_date": "2026-09-16",
+          "last_updated": "2026-09-20",
+          "type": "chat"
+        },
+        {
           "id": "step-2-16k",
           "name": "Step 2 (16K)",
           "display_name": "Step 2 (16K)",
@@ -108559,52 +108843,6 @@
           "knowledge": "2024-06",
           "release_date": "2025-01-01",
           "last_updated": "2026-02-13",
-          "type": "chat"
-        },
-        {
-          "id": "step-5-preview",
-          "name": "Step 5 Preview",
-          "display_name": "Step 5 Preview",
-          "modalities": {
-            "input": [
-              "text",
-              "image",
-              "video"
-            ],
-            "output": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 1000000,
-            "output": 384000
-          },
-          "temperature": true,
-          "tool_call": true,
-          "reasoning": {
-            "supported": true,
-            "default": true
-          },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true,
-              "mode": "effort",
-              "effort": "medium",
-              "effort_options": [
-                "low",
-                "medium",
-                "high"
-              ],
-              "interleaved": true,
-              "summaries": true,
-              "visibility": "summary",
-              "continuation": [
-                "thinking_blocks"
-              ]
-            }
-          },
-          "attachment": true,
-          "last_updated": "2026-09-20",
           "type": "chat"
         }
       ]
@@ -111080,6 +111318,48 @@
           "type": "chat"
         },
         {
+          "id": "gpt-6-sol",
+          "name": "GPT-6 Sol",
+          "display_name": "GPT-6 Sol",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "pdf"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1050000,
+            "output": 128000
+          },
+          "temperature": false,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "effort_options": [
+                "none",
+                "low",
+                "medium",
+                "high",
+                "max"
+              ]
+            }
+          },
+          "attachment": true,
+          "open_weights": false,
+          "knowledge": "2026-04-20",
+          "release_date": "2026-09-22",
+          "last_updated": "2026-09-22",
+          "type": "chat"
+        },
+        {
           "id": "ling-3.0-tiny",
           "name": "ling-3.0-tiny",
           "display_name": "ling-3.0-tiny",
@@ -112730,6 +113010,48 @@
           "knowledge": "2025-01",
           "release_date": "2026-05-19",
           "last_updated": "2026-05-19",
+          "type": "chat"
+        },
+        {
+          "id": "gpt-6-luna",
+          "name": "GPT-6 Luna",
+          "display_name": "GPT-6 Luna",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "pdf"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1050000,
+            "output": 128000
+          },
+          "temperature": false,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "effort_options": [
+                "none",
+                "low",
+                "medium",
+                "high",
+                "max"
+              ]
+            }
+          },
+          "attachment": true,
+          "open_weights": false,
+          "knowledge": "2026-05-18",
+          "release_date": "2026-09-22",
+          "last_updated": "2026-09-22",
           "type": "chat"
         },
         {
@@ -116186,8 +116508,7 @@
               "text",
               "image",
               "audio",
-              "video",
-              "pdf"
+              "video"
             ],
             "output": [
               "text"
@@ -116215,8 +116536,7 @@
             }
           },
           "attachment": true,
-          "open_weights": false,
-          "knowledge": "2026-09-22",
+          "open_weights": true,
           "release_date": "2026-09-22",
           "last_updated": "2026-09-22",
           "type": "chat"
@@ -116229,8 +116549,8 @@
             "input": [
               "text",
               "image",
-              "video",
-              "audio"
+              "audio",
+              "video"
             ],
             "output": [
               "text"
@@ -116258,7 +116578,7 @@
             }
           },
           "attachment": true,
-          "open_weights": false,
+          "open_weights": true,
           "release_date": "2026-09-21",
           "last_updated": "2026-09-21",
           "type": "chat"
@@ -116352,8 +116672,7 @@
               "text",
               "image",
               "audio",
-              "video",
-              "pdf"
+              "video"
             ],
             "output": [
               "text"
@@ -116381,8 +116700,7 @@
             }
           },
           "attachment": true,
-          "open_weights": false,
-          "knowledge": "2026-09-22",
+          "open_weights": true,
           "release_date": "2026-09-22",
           "last_updated": "2026-09-22",
           "type": "chat"
@@ -120292,8 +120610,7 @@
             }
           },
           "attachment": true,
-          "open_weights": false,
-          "knowledge": "2026-09-22",
+          "open_weights": true,
           "release_date": "2026-09-22",
           "last_updated": "2026-09-22",
           "type": "chat"
@@ -120334,8 +120651,7 @@
             }
           },
           "attachment": true,
-          "open_weights": false,
-          "knowledge": "2026-09-22",
+          "open_weights": true,
           "release_date": "2026-09-22",
           "last_updated": "2026-09-22",
           "type": "chat"
@@ -120549,6 +120865,47 @@
           "knowledge": "2025-08-31",
           "release_date": "2026-02-17",
           "last_updated": "2026-03-13",
+          "type": "chat"
+        },
+        {
+          "id": "anthropic/claude-opus-5-5",
+          "name": "Claude Opus 5.5",
+          "display_name": "Claude Opus 5.5",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1000000,
+            "output": 128000
+          },
+          "temperature": false,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "effort_options": [
+                "low",
+                "medium",
+                "high",
+                "xhigh",
+                "max"
+              ]
+            }
+          },
+          "attachment": true,
+          "open_weights": false,
+          "knowledge": "2026-06",
+          "release_date": "2026-09-22",
+          "last_updated": "2026-09-22",
           "type": "chat"
         },
         {
@@ -121912,6 +122269,48 @@
           "type": "chat"
         },
         {
+          "id": "openai/gpt-6-sol",
+          "name": "GPT-6 Sol",
+          "display_name": "GPT-6 Sol",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1050000,
+            "output": 128000
+          },
+          "temperature": false,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "effort_options": [
+                "none",
+                "low",
+                "medium",
+                "high",
+                "xhigh",
+                "max"
+              ]
+            }
+          },
+          "attachment": true,
+          "open_weights": false,
+          "knowledge": "2026-04-20",
+          "release_date": "2026-09-22",
+          "last_updated": "2026-09-22",
+          "type": "chat"
+        },
+        {
           "id": "openai/gpt-5.6-sol",
           "name": "GPT-5.6 Sol",
           "display_name": "GPT-5.6 Sol",
@@ -122056,6 +122455,48 @@
           "knowledge": "2025-08-31",
           "release_date": "2026-03-05",
           "last_updated": "2026-03-05",
+          "type": "chat"
+        },
+        {
+          "id": "openai/gpt-6-luna",
+          "name": "GPT-6 Luna",
+          "display_name": "GPT-6 Luna",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1050000,
+            "output": 128000
+          },
+          "temperature": false,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "effort_options": [
+                "none",
+                "low",
+                "medium",
+                "high",
+                "xhigh",
+                "max"
+              ]
+            }
+          },
+          "attachment": true,
+          "open_weights": false,
+          "knowledge": "2026-05-18",
+          "release_date": "2026-09-22",
+          "last_updated": "2026-09-22",
           "type": "chat"
         },
         {
@@ -136732,8 +137173,7 @@
             }
           },
           "attachment": true,
-          "open_weights": false,
-          "knowledge": "2026-09-22",
+          "open_weights": true,
           "release_date": "2026-09-22",
           "last_updated": "2026-09-22",
           "type": "chat"
@@ -136775,7 +137215,7 @@
             }
           },
           "attachment": true,
-          "open_weights": false,
+          "open_weights": true,
           "release_date": "2026-09-21",
           "last_updated": "2026-09-21",
           "type": "chat"
@@ -136817,8 +137257,7 @@
             }
           },
           "attachment": true,
-          "open_weights": false,
-          "knowledge": "2026-09-22",
+          "open_weights": true,
           "release_date": "2026-09-22",
           "last_updated": "2026-09-22",
           "type": "chat"
@@ -159589,8 +160028,7 @@
               "text",
               "image",
               "audio",
-              "video",
-              "pdf"
+              "video"
             ],
             "output": [
               "text"
@@ -159617,8 +160055,7 @@
             }
           },
           "attachment": true,
-          "open_weights": false,
-          "knowledge": "2026-09-22",
+          "open_weights": true,
           "release_date": "2026-09-22",
           "last_updated": "2026-09-22",
           "type": "chat"
@@ -163455,8 +163892,7 @@
               "text",
               "image",
               "audio",
-              "video",
-              "pdf"
+              "video"
             ],
             "output": [
               "text"
@@ -163483,8 +163919,7 @@
             }
           },
           "attachment": true,
-          "open_weights": false,
-          "knowledge": "2026-09-22",
+          "open_weights": true,
           "release_date": "2026-09-22",
           "last_updated": "2026-09-22",
           "type": "chat"
@@ -170638,6 +171073,49 @@
           "type": "chat"
         },
         {
+          "id": "gpt-6-sol",
+          "name": "GPT-6 Sol",
+          "display_name": "GPT-6 Sol",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "pdf"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1050000,
+            "output": 128000
+          },
+          "temperature": false,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "effort_options": [
+                "none",
+                "low",
+                "medium",
+                "high",
+                "xhigh",
+                "max"
+              ]
+            }
+          },
+          "attachment": true,
+          "open_weights": false,
+          "knowledge": "2026-04-20",
+          "release_date": "2026-09-22",
+          "last_updated": "2026-09-22",
+          "type": "chat"
+        },
+        {
           "id": "gpt-5.6-sol",
           "name": "GPT-5.6 Sol",
           "display_name": "GPT-5.6 Sol",
@@ -171071,6 +171549,48 @@
           "type": "chat"
         },
         {
+          "id": "claude-opus-5.5",
+          "name": "Claude Opus 5.5",
+          "display_name": "Claude Opus 5.5",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "pdf"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1000000,
+            "output": 128000
+          },
+          "temperature": false,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "effort_options": [
+                "low",
+                "medium",
+                "high",
+                "xhigh",
+                "max"
+              ]
+            }
+          },
+          "attachment": true,
+          "open_weights": false,
+          "knowledge": "2026-06",
+          "release_date": "2026-09-22",
+          "last_updated": "2026-09-22",
+          "type": "chat"
+        },
+        {
           "id": "mai-code-1-flash-picker",
           "name": "MAI-Code-1-Flash",
           "display_name": "MAI-Code-1-Flash",
@@ -171248,6 +171768,49 @@
           "open_weights": false,
           "release_date": "2026-08-11",
           "last_updated": "2026-08-11",
+          "type": "chat"
+        },
+        {
+          "id": "gpt-6-luna",
+          "name": "GPT-6 Luna",
+          "display_name": "GPT-6 Luna",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "pdf"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1050000,
+            "output": 128000
+          },
+          "temperature": false,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "effort_options": [
+                "none",
+                "low",
+                "medium",
+                "high",
+                "xhigh",
+                "max"
+              ]
+            }
+          },
+          "attachment": true,
+          "open_weights": false,
+          "knowledge": "2026-05-18",
+          "release_date": "2026-09-22",
+          "last_updated": "2026-09-22",
           "type": "chat"
         },
         {
@@ -180910,8 +181473,7 @@
             "default": true
           },
           "attachment": true,
-          "open_weights": false,
-          "knowledge": "2026-09-22",
+          "open_weights": true,
           "release_date": "2026-09-22",
           "last_updated": "2026-09-22",
           "type": "chat"
@@ -181329,8 +181891,7 @@
             "default": true
           },
           "attachment": true,
-          "open_weights": false,
-          "knowledge": "2026-09-22",
+          "open_weights": true,
           "release_date": "2026-09-22",
           "last_updated": "2026-09-22",
           "type": "chat"
@@ -181757,8 +182318,8 @@
             "input": [
               "text",
               "image",
-              "video",
-              "audio"
+              "audio",
+              "video"
             ],
             "output": [
               "text"
@@ -181775,7 +182336,7 @@
             "default": true
           },
           "attachment": true,
-          "open_weights": false,
+          "open_weights": true,
           "release_date": "2026-09-21",
           "last_updated": "2026-09-21",
           "type": "chat"
@@ -192152,8 +192713,7 @@
             }
           },
           "attachment": true,
-          "open_weights": false,
-          "knowledge": "2026-09-22",
+          "open_weights": true,
           "release_date": "2026-09-22",
           "last_updated": "2026-09-22",
           "type": "chat"
@@ -192166,8 +192726,8 @@
             "input": [
               "text",
               "image",
-              "video",
-              "audio"
+              "audio",
+              "video"
             ],
             "output": [
               "text"
@@ -192192,7 +192752,7 @@
             }
           },
           "attachment": true,
-          "open_weights": false,
+          "open_weights": true,
           "release_date": "2026-09-21",
           "last_updated": "2026-09-21",
           "type": "chat"
@@ -192231,8 +192791,7 @@
             }
           },
           "attachment": true,
-          "open_weights": false,
-          "knowledge": "2026-09-22",
+          "open_weights": true,
           "release_date": "2026-09-22",
           "last_updated": "2026-09-22",
           "type": "chat"
@@ -209022,6 +209581,41 @@
           "type": "chat"
         },
         {
+          "id": "global.moonshotai.kimi-k3",
+          "name": "Kimi K3 (Global)",
+          "display_name": "Kimi K3 (Global)",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1048576,
+            "output": 131072
+          },
+          "temperature": false,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "interleaved": true
+            }
+          },
+          "attachment": true,
+          "open_weights": true,
+          "release_date": "2026-07-16",
+          "last_updated": "2026-07-16",
+          "type": "chat"
+        },
+        {
           "id": "apac.amazon.nova-pro-v1:0",
           "name": "Nova Pro (APAC)",
           "display_name": "Nova Pro (APAC)",
@@ -209109,6 +209703,41 @@
           "knowledge": "2025-08-31",
           "release_date": "2026-02-17",
           "last_updated": "2026-03-13",
+          "type": "chat"
+        },
+        {
+          "id": "us.moonshotai.kimi-k3",
+          "name": "Kimi K3 (US)",
+          "display_name": "Kimi K3 (US)",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1048576,
+            "output": 131072
+          },
+          "temperature": false,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "interleaved": true
+            }
+          },
+          "attachment": true,
+          "open_weights": true,
+          "release_date": "2026-07-16",
+          "last_updated": "2026-07-16",
           "type": "chat"
         },
         {
@@ -209354,6 +209983,48 @@
           "open_weights": true,
           "release_date": "2025-12-23",
           "last_updated": "2025-12-23",
+          "type": "chat"
+        },
+        {
+          "id": "us.openai.gpt-6-luna",
+          "name": "GPT-6 Luna (US)",
+          "display_name": "GPT-6 Luna (US)",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1050000,
+            "output": 128000
+          },
+          "temperature": false,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "effort_options": [
+                "none",
+                "low",
+                "medium",
+                "high",
+                "xhigh",
+                "max"
+              ]
+            }
+          },
+          "attachment": true,
+          "open_weights": false,
+          "knowledge": "2026-05-18",
+          "release_date": "2026-09-22",
+          "last_updated": "2026-09-22",
           "type": "chat"
         },
         {
@@ -210595,6 +211266,48 @@
           "type": "chat"
         },
         {
+          "id": "global.openai.gpt-6-sol",
+          "name": "GPT-6 Sol (Global)",
+          "display_name": "GPT-6 Sol (Global)",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1050000,
+            "output": 128000
+          },
+          "temperature": false,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "effort_options": [
+                "none",
+                "low",
+                "medium",
+                "high",
+                "xhigh",
+                "max"
+              ]
+            }
+          },
+          "attachment": true,
+          "open_weights": false,
+          "knowledge": "2026-04-20",
+          "release_date": "2026-09-22",
+          "last_updated": "2026-09-22",
+          "type": "chat"
+        },
+        {
           "id": "global.xai.grok-4.6",
           "name": "Grok 4.6 (Global)",
           "display_name": "Grok 4.6 (Global)",
@@ -211830,6 +212543,48 @@
           "type": "chat"
         },
         {
+          "id": "global.openai.gpt-6-luna",
+          "name": "GPT-6 Luna (Global)",
+          "display_name": "GPT-6 Luna (Global)",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1050000,
+            "output": 128000
+          },
+          "temperature": false,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "effort_options": [
+                "none",
+                "low",
+                "medium",
+                "high",
+                "xhigh",
+                "max"
+              ]
+            }
+          },
+          "attachment": true,
+          "open_weights": false,
+          "knowledge": "2026-05-18",
+          "release_date": "2026-09-22",
+          "last_updated": "2026-09-22",
+          "type": "chat"
+        },
+        {
           "id": "us.anthropic.claude-fable-5-1",
           "name": "Claude Fable 5.1 (US)",
           "display_name": "Claude Fable 5.1 (US)",
@@ -212609,6 +213364,48 @@
           "knowledge": "2024-10",
           "release_date": "2024-12-03",
           "last_updated": "2024-12-03",
+          "type": "chat"
+        },
+        {
+          "id": "us.openai.gpt-6-sol",
+          "name": "GPT-6 Sol (US)",
+          "display_name": "GPT-6 Sol (US)",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1050000,
+            "output": 128000
+          },
+          "temperature": false,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "effort_options": [
+                "none",
+                "low",
+                "medium",
+                "high",
+                "xhigh",
+                "max"
+              ]
+            }
+          },
+          "attachment": true,
+          "open_weights": false,
+          "knowledge": "2026-04-20",
+          "release_date": "2026-09-22",
+          "last_updated": "2026-09-22",
           "type": "chat"
         },
         {
@@ -227865,8 +228662,7 @@
               "text",
               "image",
               "audio",
-              "video",
-              "pdf"
+              "video"
             ],
             "output": [
               "text"
@@ -227894,8 +228690,7 @@
             }
           },
           "attachment": true,
-          "open_weights": false,
-          "knowledge": "2026-09-22",
+          "open_weights": true,
           "release_date": "2026-09-22",
           "last_updated": "2026-09-22",
           "type": "chat"
@@ -233447,6 +234242,48 @@
           "type": "chat"
         },
         {
+          "id": "cline-pass/mimo-v2.6-pro",
+          "name": "MiMo-V2.6-Pro",
+          "display_name": "MiMo-V2.6-Pro",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "audio",
+              "video"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1048576,
+            "output": 131072
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "effort_options": [
+                "none",
+                "low",
+                "medium",
+                "high",
+                "xhigh"
+              ]
+            }
+          },
+          "attachment": true,
+          "open_weights": true,
+          "release_date": "2026-09-22",
+          "last_updated": "2026-09-22",
+          "type": "chat"
+        },
+        {
           "id": "cline-pass/kimi-k2.6",
           "name": "Kimi K2.6",
           "display_name": "Kimi K2.6",
@@ -233794,6 +234631,91 @@
           "open_weights": false,
           "release_date": "2026-08-26",
           "last_updated": "2026-08-26",
+          "type": "chat"
+        },
+        {
+          "id": "cline-pass/muse-spark-1.3-contributor",
+          "name": "Muse Spark 1.3 Contributor",
+          "display_name": "Muse Spark 1.3 Contributor",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "video",
+              "pdf",
+              "audio"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1048576,
+            "output": 131072
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "effort_options": [
+                "minimal",
+                "low",
+                "medium",
+                "high",
+                "xhigh"
+              ]
+            }
+          },
+          "attachment": true,
+          "open_weights": false,
+          "release_date": "2026-09-02",
+          "last_updated": "2026-09-02",
+          "type": "chat"
+        },
+        {
+          "id": "cline-pass/mimo-v2.6-flash",
+          "name": "MiMo-V2.6-Flash",
+          "display_name": "MiMo-V2.6-Flash",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "audio",
+              "video"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1048576,
+            "output": 131072
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "effort_options": [
+                "none",
+                "low",
+                "medium",
+                "high",
+                "xhigh"
+              ]
+            }
+          },
+          "attachment": true,
+          "open_weights": true,
+          "release_date": "2026-09-22",
+          "last_updated": "2026-09-22",
           "type": "chat"
         },
         {
@@ -239348,6 +240270,47 @@
           "type": "chat"
         },
         {
+          "id": "x-ai/grok-4.7",
+          "name": "Grok 4.7",
+          "display_name": "Grok 4.7",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "pdf"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 500000,
+            "output": 65536
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "effort_options": [
+                "low",
+                "medium",
+                "high",
+                "xhigh"
+              ]
+            }
+          },
+          "attachment": true,
+          "open_weights": false,
+          "knowledge": "2026-05",
+          "release_date": "2026-09-21",
+          "last_updated": "2026-09-21",
+          "type": "chat"
+        },
+        {
           "id": "x-ai/grok-4.1-fast",
           "name": "Grok 4.1 Fast",
           "display_name": "Grok 4.1 Fast",
@@ -239424,6 +240387,49 @@
           "knowledge": "2024-05-30",
           "release_date": "2025-08-07",
           "last_updated": "2025-08-07",
+          "type": "chat"
+        },
+        {
+          "id": "openai/gpt-6-sol",
+          "name": "GPT-6 Sol",
+          "display_name": "GPT-6 Sol",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "pdf"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1050000,
+            "output": 128000
+          },
+          "temperature": false,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "effort_options": [
+                "none",
+                "low",
+                "medium",
+                "high",
+                "xhigh",
+                "max"
+              ]
+            }
+          },
+          "attachment": true,
+          "open_weights": false,
+          "knowledge": "2026-04-20",
+          "release_date": "2026-09-22",
+          "last_updated": "2026-09-22",
           "type": "chat"
         },
         {
@@ -239839,6 +240845,49 @@
           "knowledge": "2023-09",
           "release_date": "2024-05-13",
           "last_updated": "2024-08-06",
+          "type": "chat"
+        },
+        {
+          "id": "openai/gpt-6-luna",
+          "name": "GPT-6 Luna",
+          "display_name": "GPT-6 Luna",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "pdf"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1050000,
+            "output": 128000
+          },
+          "temperature": false,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "effort_options": [
+                "none",
+                "low",
+                "medium",
+                "high",
+                "xhigh",
+                "max"
+              ]
+            }
+          },
+          "attachment": true,
+          "open_weights": false,
+          "knowledge": "2026-05-18",
+          "release_date": "2026-09-22",
+          "last_updated": "2026-09-22",
           "type": "chat"
         },
         {
@@ -241918,8 +242967,7 @@
               "text",
               "image",
               "audio",
-              "video",
-              "pdf"
+              "video"
             ],
             "output": [
               "text"
@@ -241947,8 +242995,7 @@
             }
           },
           "attachment": true,
-          "open_weights": false,
-          "knowledge": "2026-09-22",
+          "open_weights": true,
           "release_date": "2026-09-22",
           "last_updated": "2026-09-22",
           "type": "chat"
@@ -241962,8 +243009,7 @@
               "text",
               "image",
               "audio",
-              "video",
-              "pdf"
+              "video"
             ],
             "output": [
               "text"
@@ -241991,8 +243037,7 @@
             }
           },
           "attachment": true,
-          "open_weights": false,
-          "knowledge": "2026-09-22",
+          "open_weights": true,
           "release_date": "2026-09-22",
           "last_updated": "2026-09-22",
           "type": "chat"
@@ -250594,50 +251639,6 @@
           "type": "chat"
         },
         {
-          "id": "step-3.5-flash-2603",
-          "name": "Step 3.5 Flash 2603",
-          "display_name": "Step 3.5 Flash 2603",
-          "modalities": {
-            "input": [
-              "text"
-            ],
-            "output": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 256000,
-            "output": 256000
-          },
-          "temperature": true,
-          "tool_call": true,
-          "reasoning": {
-            "supported": true,
-            "default": true
-          },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true,
-              "interleaved": true,
-              "summaries": true,
-              "visibility": "summary",
-              "continuation": [
-                "thinking_blocks"
-              ],
-              "effort_options": [
-                "low",
-                "high"
-              ]
-            }
-          },
-          "attachment": false,
-          "open_weights": true,
-          "knowledge": "2025-01",
-          "release_date": "2026-04-02",
-          "last_updated": "2026-04-02",
-          "type": "chat"
-        },
-        {
           "id": "step-5-preview",
           "name": "Step 5 Preview",
           "display_name": "Step 5 Preview",
@@ -250680,7 +251681,53 @@
             }
           },
           "attachment": true,
+          "open_weights": false,
+          "release_date": "2026-09-16",
           "last_updated": "2026-09-20",
+          "type": "chat"
+        },
+        {
+          "id": "step-3.5-flash-2603",
+          "name": "Step 3.5 Flash 2603",
+          "display_name": "Step 3.5 Flash 2603",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 256000,
+            "output": 256000
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "interleaved": true,
+              "summaries": true,
+              "visibility": "summary",
+              "continuation": [
+                "thinking_blocks"
+              ],
+              "effort_options": [
+                "low",
+                "high"
+              ]
+            }
+          },
+          "attachment": false,
+          "open_weights": true,
+          "knowledge": "2025-01",
+          "release_date": "2026-04-02",
+          "last_updated": "2026-04-02",
           "type": "chat"
         }
       ]
@@ -274335,8 +275382,7 @@
               "text",
               "image",
               "audio",
-              "video",
-              "pdf"
+              "video"
             ],
             "output": [
               "text"
@@ -274364,8 +275410,7 @@
             }
           },
           "attachment": true,
-          "open_weights": false,
-          "knowledge": "2026-09-22",
+          "open_weights": true,
           "release_date": "2026-09-22",
           "last_updated": "2026-09-22",
           "type": "chat"
@@ -275185,8 +276230,7 @@
               "text",
               "image",
               "audio",
-              "video",
-              "pdf"
+              "video"
             ],
             "output": [
               "text"
@@ -275214,8 +276258,7 @@
             }
           },
           "attachment": true,
-          "open_weights": false,
-          "knowledge": "2026-09-22",
+          "open_weights": true,
           "release_date": "2026-09-22",
           "last_updated": "2026-09-22",
           "type": "chat"
@@ -276722,6 +277765,48 @@
           "knowledge": "2025-07-31",
           "release_date": "2026-01-08",
           "last_updated": "2026-01-08",
+          "type": "chat"
+        },
+        {
+          "id": "duo-chat-opus-5-5",
+          "name": "Agentic Chat (Claude Opus 5.5)",
+          "display_name": "Agentic Chat (Claude Opus 5.5)",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "pdf"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1000000,
+            "output": 128000
+          },
+          "temperature": false,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "effort_options": [
+                "low",
+                "medium",
+                "high",
+                "xhigh",
+                "max"
+              ]
+            }
+          },
+          "attachment": true,
+          "open_weights": false,
+          "knowledge": "2026-06",
+          "release_date": "2026-09-22",
+          "last_updated": "2026-09-22",
           "type": "chat"
         }
       ]
@@ -335609,7 +336694,7 @@
           },
           "limit": {
             "context": 1048576,
-            "output": 943718
+            "output": 384000
           },
           "tool_call": true,
           "reasoning": {
@@ -348369,6 +349454,54 @@
           "type": "chat"
         },
         {
+          "id": "gpt-6-luna",
+          "name": "gpt-6-luna",
+          "display_name": "gpt-6-luna",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1050000,
+            "output": 128000
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "type": "chat"
+        },
+        {
+          "id": "gpt-6-sol",
+          "name": "gpt-6-sol",
+          "display_name": "gpt-6-sol",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1050000,
+            "output": 128000
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "type": "chat"
+        },
+        {
           "id": "gpt-6-astra",
           "name": "gpt-6-astra",
           "display_name": "gpt-6-astra",
@@ -352860,6 +353993,30 @@
                 "thinking_blocks"
               ]
             }
+          },
+          "type": "chat"
+        },
+        {
+          "id": "claude-opus-5-5",
+          "name": "claude-opus-5-5",
+          "display_name": "claude-opus-5-5",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1000000,
+            "output": 128000
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
           },
           "type": "chat"
         },
@@ -360596,8 +361753,7 @@
             "default": true
           },
           "attachment": true,
-          "open_weights": false,
-          "knowledge": "2026-09-22",
+          "open_weights": true,
           "release_date": "2026-09-22",
           "last_updated": "2026-09-22",
           "type": "chat"
@@ -360628,8 +361784,7 @@
             "default": true
           },
           "attachment": true,
-          "open_weights": false,
-          "knowledge": "2026-09-22",
+          "open_weights": true,
           "release_date": "2026-09-22",
           "last_updated": "2026-09-22",
           "type": "chat"
@@ -360642,8 +361797,8 @@
             "input": [
               "text",
               "image",
-              "video",
-              "audio"
+              "audio",
+              "video"
             ],
             "output": [
               "text"
@@ -360660,7 +361815,7 @@
             "default": true
           },
           "attachment": true,
-          "open_weights": false,
+          "open_weights": true,
           "release_date": "2026-09-21",
           "last_updated": "2026-09-21",
           "type": "chat"
