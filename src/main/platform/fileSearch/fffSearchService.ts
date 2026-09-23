@@ -85,7 +85,6 @@ const PACKAGED_FFF_NODE_ENTRY = path.join(
   '@ff-labs',
   'fff-node',
   'dist',
-  'src',
   'index.js'
 )
 const GLOB_PATTERN = /[*?[{]/
