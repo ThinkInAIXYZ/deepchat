@@ -3348,7 +3348,8 @@
       "activation_failed": "Nie udało się aktywować środowiska.",
       "unsupported_platform": "Ta platforma nie ma oficjalnego środowiska."
     },
-    "ocrPinHint": "OCR wymaga oficjalnego Node v24.18.0 (ABI 137). To środowisko nadaje się do czatu i MCP, ale nie do OCR. Zainstaluj oficjalne środowisko."
+    "ocrPinHint": "OCR wymaga oficjalnego Node v24.18.0 (ABI 137). To środowisko nadaje się do czatu i MCP, ale nie do OCR. Zainstaluj oficjalne środowisko.",
+    "cloudflaredTitle": "cloudflared"
   },
   "userPlugins": {
     "install": "Zainstaluj wtyczkę",

@@ -118,6 +118,7 @@ import {
   skillSyncScanStartedEvent
 } from './events/skillSync.events'
 import {
+  syncDeviceChangedEvent,
   syncBackupCompletedEvent,
   syncBackupErrorEvent,
   syncBackupStartedEvent,
@@ -278,6 +279,7 @@ export const DEEPCHAT_EVENT_CATALOG = {
   [mcpElicitationDecisionEvent.name]: mcpElicitationDecisionEvent,
   [mcpElicitationCancelledEvent.name]: mcpElicitationCancelledEvent,
   [mcpAppConsentRequestEvent.name]: mcpAppConsentRequestEvent,
+  [syncDeviceChangedEvent.name]: syncDeviceChangedEvent,
   [syncBackupStartedEvent.name]: syncBackupStartedEvent,
   [syncBackupCompletedEvent.name]: syncBackupCompletedEvent,
   [syncBackupErrorEvent.name]: syncBackupErrorEvent,

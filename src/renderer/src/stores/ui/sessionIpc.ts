@@ -13,6 +13,7 @@ interface BindSessionStoreIpcOptions {
   onDeactivated: () => void
   onStatusChanged: (sessionId: string, status: string, version: number) => void
   onCompactionChanged: (payload: SessionCompactionChangedPayload) => void
+  onSynchronized?: (sessionIds: string[]) => void | Promise<void>
   onImported: (mode?: 'increment' | 'overwrite') => void | Promise<void>
 }
 
@@ -79,6 +80,11 @@ export function bindSessionStoreIpc(options: BindSessionStoreIpcOptions): Sessio
         return
       }
 
+      if (payload.reason === 'synced') {
+        void options.refreshSessionsByIds(payload.sessionIds)
+        void options.onSynchronized?.(payload.sessionIds)
+        return
+      }
       if (
         payload.reason === 'created' ||
         payload.reason === 'list-refreshed' ||

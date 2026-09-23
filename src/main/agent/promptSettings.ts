@@ -77,6 +77,10 @@ export class PromptSettings {
     private readonly events: PromptSettingsEvents
   ) {}
 
+  invalidateSyncCache(): void {
+    this.customPromptsCache = null
+  }
+
   async getCustomPrompts(): Promise<Prompt[]> {
     if (this.customPromptsCache !== null) {
       return this.customPromptsCache
@@ -218,7 +222,7 @@ export class PromptSettings {
     return prompts.find((p) => p.id === 'default')?.id || 'default'
   }
 
-  private async publishSystemPromptState(): Promise<void> {
+  async publishSystemPromptState(): Promise<void> {
     this.events.publishSystemPromptsChanged({
       prompts: await this.getSystemPrompts(),
       defaultPromptId: await this.getDefaultSystemPromptId(),

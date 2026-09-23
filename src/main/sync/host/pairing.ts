@@ -66,8 +66,8 @@ export class SyncHostPairingAuthority {
    *
    * Failed attempts never invalidate or block the code. The endpoint is reachable by anyone who
    * learns the tunnel hostname, so any global penalty would hand an anonymous caller a permanent
-   * denial of pairing; brute force is instead bounded per source by the endpoint's failure budget,
-   * against roughly 40 bits of code entropy.
+   * denial of pairing. When a trusted client IP is available, the endpoint applies a per-source
+   * budget; otherwise the five-minute code still has roughly 40 bits of entropy.
    */
   consume(presented: string, now: number = Date.now()): 'accepted' | 'invalid' | 'expired' {
     if (!this.code) return 'expired'

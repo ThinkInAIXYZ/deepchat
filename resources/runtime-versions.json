@@ -3,7 +3,8 @@
   "tinyRuntimeInjector": "1.2.0",
   "artifactVersions": {
     "node": "v24.18.0",
-    "uv": "0.9.18"
+    "uv": "0.9.18",
+    "cloudflared": "2026.9.1"
   },
   "node": "v24.18.0",
   "nodeArtifacts": {
@@ -81,6 +82,29 @@
       "win32-arm64": "@arcships/light-ocr-win32-arm64",
       "linux-x64": "@arcships/light-ocr-linux-x64-gnu",
       "linux-arm64": "@arcships/light-ocr-linux-arm64-gnu"
+    }
+  },
+  "cloudflared": "2026.9.1",
+  "cloudflaredArtifacts": {
+    "darwin-arm64": {
+      "filename": "cloudflared-darwin-arm64.tgz",
+      "archiveSha256": "c27ab8fd0aa489449e3d201eb02f957ef460a13b613662928b1b23394bf1bcfe"
+    },
+    "darwin-x64": {
+      "filename": "cloudflared-darwin-amd64.tgz",
+      "archiveSha256": "ff0d3b51d5ff70eceef89d6b32145fee985018a2174596a5dbe405e2766e2ac4"
+    },
+    "linux-arm64": {
+      "filename": "cloudflared-linux-arm64",
+      "archiveSha256": "3d97437c71848bd8df68041e12436b484a661d95073ea1937f01a845ce88faa3"
+    },
+    "linux-x64": {
+      "filename": "cloudflared-linux-amd64",
+      "archiveSha256": "03f1f25d1cc93b9ad6c60569d44060bc4f17ed97075760ed8cfca4b12dcd68cc"
+    },
+    "win32-x64": {
+      "filename": "cloudflared-windows-amd64.exe",
+      "archiveSha256": "2837888cc0f5d58f15b6dc478376de90b4d3ba5241c7947455d1e0a0df429712"
     }
   }
 }

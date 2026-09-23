@@ -10,3 +10,7 @@ export const SQLITE_COPY_EXCLUDED_OBJECTS = new Set([
 export function shouldExcludeFromSqliteCopy(objectName: string): boolean {
   return SQLITE_COPY_EXCLUDED_OBJECTS.has(objectName)
 }
+
+export function shouldExcludeFromSyncImport(objectName: string): boolean {
+  return objectName.startsWith('_sync_') || shouldExcludeFromSqliteCopy(objectName)
+}

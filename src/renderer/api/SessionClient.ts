@@ -539,7 +539,14 @@ export function createSessionClient(bridge: DeepchatBridge = getDeepchatBridge()
   function onUpdated(
     listener: (payload: {
       sessionIds: string[]
-      reason: 'created' | 'activated' | 'deactivated' | 'list-refreshed' | 'updated' | 'deleted'
+      reason:
+        | 'created'
+        | 'activated'
+        | 'deactivated'
+        | 'list-refreshed'
+        | 'updated'
+        | 'deleted'
+        | 'synced'
       activeSessionId?: string | null
       webContentsId?: number
     }) => void

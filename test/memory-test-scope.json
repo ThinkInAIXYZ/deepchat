@@ -56,6 +56,7 @@
     "test/main/scripts/memoryTestScope.test.ts"
   ],
   "native": [
+    "test/main/sync/replicaNative.test.ts",
     "test/main/memory/agentMemoryAuditRetention.test.ts",
     "test/main/memory/agentMemoryDirectiveTable.test.ts",
     "test/main/memory/agentMemoryPaginationNative.test.ts",

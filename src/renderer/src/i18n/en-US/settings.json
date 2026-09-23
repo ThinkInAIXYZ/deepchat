@@ -3307,7 +3307,7 @@
     }
   },
   "toolchains": {
-    "description": "Choose where DeepChat gets Node and uv. The source never switches by itself.",
+    "description": "Manage bundled, downloaded or external Node.js, uv and cloudflared binaries.",
     "nodeTitle": "Node.js",
     "uvTitle": "uv",
     "source": "Source",
@@ -3348,7 +3348,8 @@
       "activation_failed": "The runtime could not be activated.",
       "unsupported_platform": "This platform does not have an official runtime build."
     },
-    "ocrPinHint": "OCR needs official Node v24.18.0 (ABI 137). This runtime is ready for chat and MCP, but not for OCR. Install the official runtime."
+    "ocrPinHint": "OCR needs official Node v24.18.0 (ABI 137). This runtime is ready for chat and MCP, but not for OCR. Install the official runtime.",
+    "cloudflaredTitle": "cloudflared"
   },
   "userPlugins": {
     "install": "Install a plugin",

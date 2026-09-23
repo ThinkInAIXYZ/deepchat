@@ -52,6 +52,9 @@ vi.mock('better-sqlite3-multiple-ciphers', async () => {
   class MockDatabase {
     private state: MockState
     private inTx = false
+    function() {
+      return this
+    }
 
     constructor(
       private readonly dbPath: string,
@@ -272,6 +275,7 @@ vi.mock('../../../src/main/sync/configImportService', async () => {
   const path = await vi.importActual<typeof import('path')>('path')
 
   class MockSyncConfigImportService {
+    importPortableSettings() {}
     readManifest(extractionDir: string) {
       configImportMocks.readManifest(extractionDir)
       const manifestPath = path.join(extractionDir, 'manifest.json')
@@ -384,8 +388,10 @@ describe('SyncService backup import', () => {
         )
       ),
       appSettingsTable: {
+        getAppSetting: vi.fn(),
         hasConfigMigration: vi.fn(() => true)
       },
+      getDatabase: vi.fn(() => ({ prepare: () => ({ get: () => undefined }) })),
       getDatabasePassword: vi.fn(() => undefined),
       openDatabaseConnection: vi.fn((target: string) => new Database(target)),
       clearNewAgentData: vi.fn(),

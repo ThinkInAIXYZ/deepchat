@@ -1,6 +1,11 @@
 import { randomBytes } from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
+import {
+  SyncTunnelConfigSchema,
+  type SyncTunnelConfig
+} from '@shared/contracts/routes/syncHost.routes'
+import type { SyncBackupInfo } from '@shared/types/sync'
 
 const STATE_FILENAME = 'host-state.json'
 
@@ -13,15 +18,36 @@ export interface SyncHostDeviceRecord {
   lastSeenAt: number | null
   expiresAt: number | null
   revokedAt: number | null
+  writable?: boolean
+  requestedWrite?: boolean
+  replicaId?: string | null
 }
 
 export interface SyncHostState {
   enabled: boolean
+  allowWrites: boolean
+  port: number
+  consentAt: number | null
+  consentVersion: number
+  published: SyncBackupInfo | null
+  tunnel: SyncTunnelConfig
+  wrappedTunnelToken: string | null
   hostId: string | null
   devices: SyncHostDeviceRecord[]
 }
 
-const DEFAULT_STATE: SyncHostState = { enabled: false, hostId: null, devices: [] }
+const DEFAULT_STATE: SyncHostState = {
+  enabled: false,
+  allowWrites: false,
+  port: 0,
+  consentAt: null,
+  consentVersion: 0,
+  published: null,
+  tunnel: { mode: 'external', publicUrl: '' },
+  wrappedTunnelToken: null,
+  hostId: null,
+  devices: []
+}
 
 /**
  * Machine-local state for host mode, stored as a private file instead of a settings key.
@@ -89,6 +115,7 @@ export class SyncHostStateStore {
   snapshot(): SyncHostState {
     return {
       ...this.state,
+      tunnel: { ...this.state.tunnel },
       devices: this.state.devices.map((record) => ({ ...record }))
     }
   }
@@ -160,6 +187,26 @@ export class SyncHostStateStore {
     const record = parsed as Partial<SyncHostState>
     return {
       enabled: record.enabled === true,
+      allowWrites: record.allowWrites === true,
+      tunnel: SyncTunnelConfigSchema.safeParse(record.tunnel).data ?? {
+        mode: 'external',
+        publicUrl: ''
+      },
+      wrappedTunnelToken:
+        typeof record.wrappedTunnelToken === 'string' ? record.wrappedTunnelToken : null,
+      port:
+        Number.isInteger(record.port) && record.port! >= 1 && record.port! <= 65535
+          ? record.port!
+          : 0,
+      consentVersion: record.consentVersion === 2 ? 2 : 0,
+      consentAt: typeof record.consentAt === 'number' ? record.consentAt : null,
+      published:
+        record.published &&
+        /^backup-\d+\.zip$/.test(record.published.fileName) &&
+        Number.isFinite(record.published.createdAt) &&
+        Number.isFinite(record.published.size)
+          ? record.published
+          : null,
       hostId: typeof record.hostId === 'string' && record.hostId.length > 0 ? record.hostId : null,
       devices: Array.isArray(record.devices)
         ? record.devices.filter(

@@ -6,8 +6,10 @@ import {
   syncHostGetStatusRoute,
   syncHostListDevicesRoute,
   syncHostRenameDeviceRoute,
+  syncHostSetDeviceWritableRoute,
   syncHostRevokeDeviceRoute,
-  syncHostSetEnabledRoute
+  syncHostSetEnabledRoute,
+  syncHostPublishRoute
 } from '@shared/contracts/routes'
 import {
   SyncHostAuditEntrySchema,
@@ -17,12 +19,19 @@ import {
 import { createSyncHostRoutes, type SyncHostRoutePort } from '@/sync/host/routes'
 
 const STATUS = {
+  allowWrites: false,
   enabled: true,
   running: true,
   port: 43117,
   hostId: 'host-abc',
   deviceCount: 2,
-  hasSnapshot: true
+  hasSnapshot: true,
+  configuredPort: 43117,
+  publishedAt: 1_700_000_000_000,
+  preparing: false,
+  tunnelConfig: { mode: 'external' as const, publicUrl: '' },
+  hasTunnelToken: false,
+  tunnel: { phase: 'stopped' as const, publicUrl: '', error: null }
 }
 
 const PAIRING = {
@@ -37,7 +46,9 @@ const DEVICE: SyncHostDeviceView = {
   createdAt: 1_700_000_000_000,
   expiresAt: null,
   lastSeenAt: 1_700_000_100_000,
-  revoked: false
+  revoked: false,
+  writable: false,
+  requestedWrite: true
 }
 
 /** Built through the contract so an evolving audit schema cannot leave the fixture malformed. */
@@ -57,6 +68,7 @@ function auditEntry(overrides: Partial<SyncHostAuditEntry> = {}): SyncHostAuditE
 
 function createHostPort(overrides: Partial<SyncHostRoutePort> = {}): SyncHostRoutePort {
   return {
+    publishSnapshot: vi.fn(async () => STATUS),
     getStatus: vi.fn(async () => STATUS),
     getPairingCode: vi.fn(() => null),
     setEnabled: vi.fn(async () => STATUS),
@@ -64,6 +76,7 @@ function createHostPort(overrides: Partial<SyncHostRoutePort> = {}): SyncHostRou
     listDevices: vi.fn(() => []),
     revokeDevice: vi.fn(async () => true),
     renameDevice: vi.fn(async () => true),
+    setDeviceWritable: vi.fn(async () => true),
     getAuditEntries: vi.fn(() => []),
     ...overrides
   }
@@ -72,7 +85,7 @@ function createHostPort(overrides: Partial<SyncHostRoutePort> = {}): SyncHostRou
 const context = createRendererRouteContext(1, null)
 
 describe('sync host routes', () => {
-  it('exposes exactly the seven renderer-facing routes as handlers', () => {
+  it('exposes the renderer-facing routes as handlers', () => {
     const routes = createSyncHostRoutes({ host: createHostPort() })
 
     expect([...routes.keys()].sort()).toEqual(
@@ -83,10 +96,12 @@ describe('sync host routes', () => {
         syncHostListDevicesRoute.name,
         syncHostRenameDeviceRoute.name,
         syncHostRevokeDeviceRoute.name,
+        syncHostSetDeviceWritableRoute.name,
+        syncHostPublishRoute.name,
         syncHostSetEnabledRoute.name
       ].sort()
     )
-    expect(routes.size).toBe(7)
+    expect(routes.size).toBe(9)
     for (const handler of routes.values()) {
       expect(typeof handler).toBe('function')
     }
@@ -114,7 +129,11 @@ describe('sync host routes', () => {
     await expect(handler({ enabled: false }, context)).resolves.toEqual({
       status: { ...STATUS, enabled: false }
     })
-    expect(setEnabled).toHaveBeenCalledWith(false)
+    expect(setEnabled).toHaveBeenCalledWith(false, {
+      port: undefined,
+      consent: undefined,
+      tunnel: undefined
+    })
   })
 
   it('surfaces a setEnabled failure instead of reporting a status', async () => {

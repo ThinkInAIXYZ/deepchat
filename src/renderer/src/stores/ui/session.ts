@@ -1561,6 +1561,11 @@ export const useSessionStore = defineStore('session', () => {
     fetchSessions,
     refreshSessionsByIds,
     removeSessions,
+    onSynchronized: async (ids) => {
+      for (const id of ids) messageStore.invalidateRecentSessionView(id)
+      const id = activeSessionId.value
+      if (id && ids.includes(id)) await messageStore.loadMessages(id)
+    },
     onImported: (mode) => {
       if (mode === 'overwrite') {
         const replacedIds = sessions.value.map((session) => session.id)

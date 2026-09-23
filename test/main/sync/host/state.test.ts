@@ -9,6 +9,7 @@ vi.unmock('fs')
 vi.unmock('node:fs')
 
 import { SyncHostStateStore } from '@/sync/host/state'
+import { SyncHostDeviceStore } from '@/sync/host/devices'
 
 /**
  * Durability rules for the machine-local host state. These are unit tests because the failure modes
@@ -95,5 +96,24 @@ describe('SyncHostStateStore', () => {
       `${JSON.stringify({ enabled: true, hostId: 'host-1', devices: [] })}\n`
     )
     expect((await store.load()).enabled).toBe(true)
+  })
+
+  it('does not report a legacy grant without replica identity as writable', async () => {
+    await store.load()
+    await store.update((state) => {
+      state.devices.push({
+        deviceId: 'legacy',
+        name: 'Old device',
+        tokenHash: 'a'.repeat(64),
+        createdAt: 1,
+        lastSeenAt: null,
+        expiresAt: null,
+        revokedAt: null,
+        writable: true
+      })
+    })
+    const devices = new SyncHostDeviceStore(store)
+    expect(devices.list()[0]).toMatchObject({ writable: false, requestedWrite: false })
+    expect(devices.canWrite('legacy')).toBe(false)
   })
 })

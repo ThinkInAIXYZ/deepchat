@@ -742,7 +742,7 @@
         "failed": "导入未能完成；如果已开始覆盖，原有 YoBrowser Cookie 已恢复。"
       }
     },
-    "privacyTitle": "Data & Privacy",
+    "privacyTitle": "数据与隐私",
     "privacyDescription": "管理备份同步、隐私模式、数据维护与危险操作。",
     "dangerZone": {
       "title": "Danger Zone",
@@ -3307,7 +3307,7 @@
     }
   },
   "toolchains": {
-    "description": "选择 DeepChat 使用的 Node 和 uv。来源选定后不会再偷偷切换。",
+    "description": "管理 Node.js、uv 和 cloudflared 的内置、托管下载或外部程序。",
     "nodeTitle": "Node.js",
     "uvTitle": "uv",
     "source": "来源",
@@ -3348,7 +3348,8 @@
       "activation_failed": "无法激活该运行时。",
       "unsupported_platform": "当前平台没有官方运行时构建。"
     },
-    "ocrPinHint": "OCR 需要官方 Node v24.18.0（ABI 137）。当前运行时可供聊天和 MCP 使用，但不能用于 OCR。请安装官方运行时。"
+    "ocrPinHint": "OCR 需要官方 Node v24.18.0（ABI 137）。当前运行时可供聊天和 MCP 使用，但不能用于 OCR。请安装官方运行时。",
+    "cloudflaredTitle": "cloudflared"
   },
   "userPlugins": {
     "install": "安装插件",

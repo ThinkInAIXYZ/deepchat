@@ -66,9 +66,10 @@ describe('install-runtime', () => {
 
     expect(plan.map(({ type, version }) => ({ type, version }))).toEqual([
       { type: 'uv', version: '0.9.18' },
-      { type: 'rtk', version: 'v0.43.0' }
+      { type: 'rtk', version: 'v0.43.0' },
+      { type: 'cloudflared', version: '2026.9.1' }
     ])
-    for (const step of plan) {
+    for (const step of plan.filter(step => step.type !== 'cloudflared')) {
       expect(step.args).toContain('tiny-runtime-injector@1.2.0')
       expect(step.args).toContain('--runtime-version')
       expect(step.args).toContain(step.version)
@@ -88,8 +89,8 @@ describe('install-runtime', () => {
     expect(() => buildRuntimeInstallPlan({ platform: 'win32', arch: 'arm64', versions })).toThrow(
       /Unsupported runtime target: win32-arm64/
     )
-    expect(buildRuntimeInstallPlan({ platform: 'win32', arch: 'x64', versions })).toHaveLength(2)
-    expect(buildRuntimeInstallPlan({ platform: 'linux', arch: 'arm64', versions })).toHaveLength(2)
+    expect(buildRuntimeInstallPlan({ platform: 'win32', arch: 'x64', versions })).toHaveLength(3)
+    expect(buildRuntimeInstallPlan({ platform: 'linux', arch: 'arm64', versions })).toHaveLength(3)
   })
 
   it.each(['x64', 'arm64'])('builds a Node-only plan for Linux %s', (arch) => {

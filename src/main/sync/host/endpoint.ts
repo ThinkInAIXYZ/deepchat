@@ -1,5 +1,7 @@
 import http from 'node:http'
-import type net from 'node:net'
+import { SYNC_REPLICA_PREFIX } from '@shared/contracts/syncReplica'
+import type { SyncReplicaEndpoint } from '../replica/endpoint'
+import net from 'node:net'
 import fs from 'node:fs'
 import {
   SYNC_HOST_AUDIT_LIMIT,
@@ -16,6 +18,7 @@ import {
   SYNC_HOST_PROTOCOL_NAME,
   SYNC_HOST_PROTOCOL_VERSION,
   SYNC_HOST_PUSH_PATH,
+  SYNC_HOST_PREPARE_PATH,
   SYNC_HOST_RATE_LIMIT_MAX_KEYS,
   SYNC_HOST_RATE_LIMIT_REQUESTS_PER_WINDOW,
   SYNC_HOST_RATE_LIMIT_WINDOW_MS,
@@ -35,7 +38,7 @@ import type { IssuedSyncHostDevice, SyncHostDeviceStore } from './devices'
 import type { SyncHostPairingAuthority } from './pairing'
 import type { SyncHostSnapshotSource } from './snapshot'
 
-/** Capabilities this build actually serves; the handshake must not advertise more. */
+/** Stable v1 transfer capabilities; auxiliary preparation is not negotiated. */
 const HOST_CAPABILITIES: SyncHostCapability[] = ['snapshot', 'range']
 const HANDLED_PATHS = new Set([
   SYNC_HOST_HANDSHAKE_PATH,
@@ -43,6 +46,7 @@ const HANDLED_PATHS = new Set([
   SYNC_HOST_STATUS_PATH,
   SYNC_HOST_SNAPSHOT_PATH,
   SYNC_HOST_PUSH_PATH,
+  SYNC_HOST_PREPARE_PATH,
   SYNC_HOST_EVENTS_PATH
 ])
 
@@ -51,6 +55,13 @@ export interface SyncHostEndpointLogger {
 }
 
 export interface SyncHostEndpointDeps {
+  changed?: () => void
+  getPublicUrl?: () => string
+  trustCloudflareClientIp?: () => boolean
+  replica?: SyncReplicaEndpoint
+  allowWrites?: () => boolean
+  prepare?: () => void
+  preparation?: () => { preparing: boolean; preparationError: string | null }
   devices: SyncHostDeviceStore
   pairing: SyncHostPairingAuthority
   snapshotSource: SyncHostSnapshotSource
@@ -228,8 +239,13 @@ export class SyncHostEndpoint {
     }
 
     try {
+      if (!this.acceptsOrigin(request)) {
+        response.setHeader('connection', 'close')
+        this.respondJson(response, 403, { error: 'invalid_origin' })
+        return
+      }
       if (path === SYNC_HOST_HANDSHAKE_PATH && method === 'GET') {
-        if (!this.consumeRateLimit(`anon:${clientIp ?? 'unknown'}`)) {
+        if (clientIp && !this.consumeRateLimit(`anon:${clientIp}`)) {
           this.respondJson(response, 429, { error: 'rate_limited' })
           this.auditAnonymous({ method, path, status: 429, bytes: 0, deviceId: null, clientIp })
           return
@@ -256,7 +272,7 @@ export class SyncHostEndpoint {
       // able to tell which routes exist, or which methods they accept, from the response.
       const device = this.authenticate(request)
       if (!device) {
-        if (!this.consumeRateLimit(`anon:${clientIp ?? 'unknown'}`)) {
+        if (clientIp && !this.consumeRateLimit(`anon:${clientIp}`)) {
           this.respondJson(response, 429, { error: 'rate_limited' })
           this.auditAnonymous({ method, path, status: 429, bytes: 0, deviceId: null, clientIp })
           return
@@ -276,6 +292,22 @@ export class SyncHostEndpoint {
         return
       }
 
+      if (path.startsWith(SYNC_REPLICA_PREFIX + '/') && this.deps.replica) {
+        const socket = this.sockets.get(request.socket)
+        if (socket) socket.streaming = true
+        response.once('close', () => {
+          if (socket) socket.streaming = false
+        })
+        await this.deps.replica.handle(
+          request,
+          response,
+          device.deviceId,
+          this.deps.devices.replicaId(device.deviceId),
+          () => this.deps.allowWrites?.() === true && this.deps.devices.canWrite(device.deviceId)
+        )
+        return
+      }
+
       if (!HANDLED_PATHS.has(path)) {
         this.respondJson(response, 404, { error: 'not_found' })
         this.audit({ method, path, status: 404, bytes: 0, deviceId: device.deviceId, clientIp })
@@ -284,6 +316,22 @@ export class SyncHostEndpoint {
       if (method !== 'GET' && method !== 'POST') {
         this.respondJson(response, 405, { error: 'method_not_allowed' })
         this.audit({ method, path, status: 405, bytes: 0, deviceId: device.deviceId, clientIp })
+        return
+      }
+
+      if (path === SYNC_HOST_PREPARE_PATH) {
+        if (method !== 'POST' || !this.deps.prepare) {
+          this.respondJson(response, 405, { error: 'method_not_allowed' })
+          return
+        }
+        const read = await this.readBody(request, 0)
+        if (!read.ok) {
+          this.respondJson(response, 413, { error: 'payload_too_large' })
+          return
+        }
+        this.deps.prepare()
+        const bytes = this.respondJson(response, 202, { accepted: true })
+        this.audit({ method, path, status: 202, bytes, deviceId: device.deviceId, clientIp })
         return
       }
 
@@ -334,7 +382,12 @@ export class SyncHostEndpoint {
       this.auditAnonymous({ method, path, status: 405, bytes: 0, deviceId: null, clientIp })
       return
     }
-    if (!this.consumeRateLimit(`pair:${clientIp ?? 'unknown'}`)) {
+    if (!/^application\/json(?:\s*;|$)/i.test(request.headers['content-type'] ?? '')) {
+      this.respondJson(response, 415, { error: 'unsupported_media_type' })
+      this.auditAnonymous({ method, path, status: 415, bytes: 0, deviceId: null, clientIp })
+      return
+    }
+    if (clientIp && !this.consumeRateLimit(`pair:${clientIp}`)) {
       this.respondJson(response, 429, { error: 'rate_limited' })
       this.auditAnonymous({ method, path, status: 429, bytes: 0, deviceId: null, clientIp })
       return
@@ -363,9 +416,13 @@ export class SyncHostEndpoint {
       this.auditAnonymous({ method, path, status: 400, bytes: 0, deviceId: null, clientIp })
       return
     }
+    if (validation.data.bidirectional && !validation.data.replicaId) {
+      this.respondJson(response, 400, { error: 'automaticUnsupported' })
+      this.auditAnonymous({ method, path, status: 400, bytes: 0, deviceId: null, clientIp })
+      return
+    }
 
-    const failureKey = clientIp ?? 'unknown'
-    if (!this.consumePairFailureBudget(failureKey, false)) {
+    if (clientIp && !this.consumePairFailureBudget(clientIp, false)) {
       this.respondJson(response, 429, { error: 'rate_limited' })
       this.auditAnonymous({ method, path, status: 429, bytes: 0, deviceId: null, clientIp })
       return
@@ -377,20 +434,30 @@ export class SyncHostEndpoint {
     // Invalid and expired codes share one response so a caller cannot probe code state. Repeated
     // failures cost the caller's own budget, never the user's code.
     if (outcome !== 'accepted') {
-      this.consumePairFailureBudget(failureKey, true)
+      if (clientIp) this.consumePairFailureBudget(clientIp, true)
       this.respondJson(response, 401, { error: 'pairing_failed' })
       this.auditAnonymous({ method, path, status: 401, bytes: 0, deviceId: null, clientIp })
       return
     }
 
-    this.pairFailures.delete(failureKey)
+    if (clientIp) this.pairFailures.delete(clientIp)
     let issued: IssuedSyncHostDevice
     try {
-      issued = await this.deps.devices.issue({ name: validation.data.deviceName })
+      issued = await this.deps.devices.issue({
+        name: validation.data.deviceName,
+        requestedWrite:
+          validation.data.bidirectional === true && Boolean(validation.data.replicaId),
+        replicaId: validation.data.replicaId
+      })
     } catch (error) {
       // The code was spent but no device exists. Burning it would force the user to generate a new
       // one for a failure that was not theirs, so it is restored and the error still surfaces.
       if (outstanding) this.deps.pairing.restore(outstanding.code, outstanding.expiresAt)
+      if (error instanceof Error && error.message === 'sync.tunnel.error.duplicateReplica') {
+        const bytes = this.respondJson(response, 409, { error: 'duplicateReplica' })
+        this.auditAnonymous({ method, path, status: 409, bytes, deviceId: null, clientIp })
+        return
+      }
       throw error
     }
     const payload = SyncHostPairResponseSchema.parse({
@@ -400,6 +467,7 @@ export class SyncHostEndpoint {
     })
     const bytes = this.respondJson(response, 200, payload)
     this.audit({ method, path, status: 200, bytes, deviceId: issued.device.deviceId, clientIp })
+    this.deps.changed?.()
   }
 
   private async handleStatus(
@@ -420,6 +488,7 @@ export class SyncHostEndpoint {
             databaseEncrypted: snapshot.databaseEncrypted
           }
         : null,
+      ...this.deps.preparation?.(),
       serverTime: Date.now()
     })
     const bytes = this.respondJson(response, 200, payload)
@@ -566,16 +635,41 @@ export class SyncHostEndpoint {
     return { start, end: Math.min(end, size - 1) }
   }
 
-  /**
-   * Cloudflare sets `cf-connecting-ip` on tunneled requests; a loopback peer may also spoof it, so
-   * only an IP-literal shaped value is trusted as a limiter/audit key.
-   */
+  private acceptsOrigin(request: http.IncomingMessage): boolean {
+    const localHost = `127.0.0.1:${this.boundPort}`
+    const host = request.headers.host?.toLowerCase()
+    let publicOrigin = ''
+    try {
+      publicOrigin = new URL(this.deps.getPublicUrl?.() ?? '').origin
+    } catch {
+      // A temporary tunnel has no public address until its connector is ready.
+    }
+    const publicHost = publicOrigin ? new URL(publicOrigin).host : ''
+    if (host !== localHost && host !== publicHost) return false
+    const origin = request.headers.origin
+    return (
+      !origin ||
+      (typeof origin === 'string' &&
+        origin === (host === localHost ? `http://${localHost}` : publicOrigin))
+    )
+  }
+
+  /** Only managed Cloudflare tunnels supply a trustworthy client IP header. */
   private resolveClientIp(request: http.IncomingMessage): string | null {
     const header = request.headers['cf-connecting-ip']
-    if (typeof header === 'string' && /^[0-9a-fA-F:.]{3,45}$/.test(header.trim())) {
+    if (
+      this.deps.trustCloudflareClientIp?.() &&
+      typeof header === 'string' &&
+      net.isIP(header.trim())
+    ) {
       return header.trim()
     }
-    return request.socket.remoteAddress ?? null
+    if (
+      !this.deps.getPublicUrl?.() &&
+      request.headers.host?.toLowerCase() === `127.0.0.1:${this.boundPort}`
+    )
+      return request.socket.remoteAddress ?? null
+    return null
   }
 
   private authenticate(request: http.IncomingMessage) {

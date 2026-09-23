@@ -1,6 +1,6 @@
 import Database from 'better-sqlite3-multiple-ciphers'
 import { configureSQLiteConnection } from '@/data/connectionConfig'
-import { shouldExcludeFromSqliteCopy } from '@/data/sqliteCopyExclusions'
+import { shouldExcludeFromSyncImport } from '@/data/sqliteCopyExclusions'
 import { orderSqliteTablesForCopy } from '@/data/sqliteCopyOrder'
 import {
   isAgentMemoryEmbeddingState,
@@ -161,7 +161,7 @@ export class DataImporter {
       virtualTableNames.some((vtab) => name === vtab || name.startsWith(`${vtab}_`))
 
     const tables = allTables.filter(
-      (table) => !isVirtualOrShadow(table.name) && !shouldExcludeFromSqliteCopy(table.name)
+      (table) => !isVirtualOrShadow(table.name) && !shouldExcludeFromSyncImport(table.name)
     )
 
     return orderSqliteTablesForCopy(this.targetDb, tables).map((table) => table.name)

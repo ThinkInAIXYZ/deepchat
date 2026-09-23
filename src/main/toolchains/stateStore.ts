@@ -72,6 +72,8 @@ export function parseToolchainState(value: unknown): ToolchainPersistedState {
   }
   const persisted: ToolchainPersistedState = { schemaVersion: 1 }
   if (record.node !== undefined) persisted.node = parseSelection(record.node, 'node')
+  if (record.cloudflared !== undefined)
+    persisted.cloudflared = parseSelection(record.cloudflared, 'cloudflared')
   if (record.uv !== undefined) persisted.uv = parseSelection(record.uv, 'uv')
   return persisted
 }

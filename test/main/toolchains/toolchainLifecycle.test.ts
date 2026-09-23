@@ -55,6 +55,44 @@ afterEach(() => {
 })
 
 describe('ToolchainService lifecycle', () => {
+  it('installs a verified raw cloudflared binary and preserves bundled/custom selections', async () => {
+    const appPath = mkdtempSync(path.join(os.tmpdir(), 'dc-app-'))
+    const userDataDir = mkdtempSync(path.join(os.tmpdir(), 'dc-data-'))
+    const bundled = path.join(appPath, 'runtime', 'cloudflared', 'cloudflared')
+    writeExecutable(bundled)
+    const payload = Buffer.from('verified-cloudflared-binary')
+    vi.spyOn(catalog, 'resolveToolchainArtifact').mockReturnValue({
+      ...catalog.resolveToolchainArtifact('cloudflared', 'linux', 'x64'),
+      sha256: sha256(payload)
+    })
+    const service = new ToolchainService({
+      appPath,
+      userDataDir,
+      platform: 'linux',
+      arch: 'x64',
+      env: { PATH: '' },
+      fetch: createFetch(payload)
+    })
+    expect(service.resolve('cloudflared').cloudflared).toBe(bundled)
+    await service.install('cloudflared')
+    expect(service.getStatus().cloudflared).toMatchObject({
+      availability: 'ready',
+      selection: { source: 'managed' }
+    })
+    expect(readFileSync(service.resolve('cloudflared').cloudflared)).toEqual(payload)
+    service.setSource('cloudflared', { source: 'custom', customPath: bundled })
+    expect(service.resolve('cloudflared').source).toBe('custom')
+    service.revert('cloudflared')
+    expect(service.resolve('cloudflared').source).toBe('bundled')
+    const reloaded = new ToolchainService({
+      appPath,
+      userDataDir,
+      platform: 'linux',
+      env: { PATH: '' }
+    })
+    expect(reloaded.getState().cloudflared.source).toBe('bundled')
+  })
+
   it('leaves the previous working source active when extraction fails', async () => {
     const appPath = mkdtempSync(path.join(os.tmpdir(), 'dc-app-'))
     const userDataDir = mkdtempSync(path.join(os.tmpdir(), 'dc-data-'))

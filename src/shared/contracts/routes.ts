@@ -1,3 +1,13 @@
+import {
+  syncPeerSetAutomaticRoute,
+  syncPeerSyncNowRoute,
+  syncPeerGetStatusRoute,
+  syncPeerPairRoute,
+  syncPeerPullRoute,
+  syncPeerCancelRoute,
+  syncPeerForgetRoute
+} from './routes/syncPeer.routes'
+export * from './routes/syncPeer.routes'
 import type { z } from 'zod'
 import type { RouteContract } from './common'
 import { approvalsResolveRoute } from './routes/approvals.routes'
@@ -576,8 +586,10 @@ import {
   syncHostGetStatusRoute,
   syncHostListDevicesRoute,
   syncHostRenameDeviceRoute,
+  syncHostSetDeviceWritableRoute,
   syncHostRevokeDeviceRoute,
-  syncHostSetEnabledRoute
+  syncHostSetEnabledRoute,
+  syncHostPublishRoute
 } from './routes/syncHost.routes'
 import {
   syncGetBackupStatusRoute,
@@ -1290,12 +1302,21 @@ const DEEPCHAT_ROUTE_CATALOG_PART_5 = {
   [toolchainsRepairRoute.name]: toolchainsRepairRoute,
   [toolchainsRevertRoute.name]: toolchainsRevertRoute,
   [toolchainsPickCustomRoute.name]: toolchainsPickCustomRoute,
+  [syncHostPublishRoute.name]: syncHostPublishRoute,
+  [syncPeerSetAutomaticRoute.name]: syncPeerSetAutomaticRoute,
+  [syncPeerSyncNowRoute.name]: syncPeerSyncNowRoute,
+  [syncPeerGetStatusRoute.name]: syncPeerGetStatusRoute,
+  [syncPeerPairRoute.name]: syncPeerPairRoute,
+  [syncPeerPullRoute.name]: syncPeerPullRoute,
+  [syncPeerCancelRoute.name]: syncPeerCancelRoute,
+  [syncPeerForgetRoute.name]: syncPeerForgetRoute,
   [syncHostGetStatusRoute.name]: syncHostGetStatusRoute,
   [syncHostSetEnabledRoute.name]: syncHostSetEnabledRoute,
   [syncHostCreatePairingCodeRoute.name]: syncHostCreatePairingCodeRoute,
   [syncHostListDevicesRoute.name]: syncHostListDevicesRoute,
   [syncHostRevokeDeviceRoute.name]: syncHostRevokeDeviceRoute,
   [syncHostRenameDeviceRoute.name]: syncHostRenameDeviceRoute,
+  [syncHostSetDeviceWritableRoute.name]: syncHostSetDeviceWritableRoute,
   [syncHostGetAuditRoute.name]: syncHostGetAuditRoute
 } satisfies Record<string, RouteContract>
 

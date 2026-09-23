@@ -1,3 +1,4 @@
+import { SYNC_PORTABLE_SETTINGS } from '@shared/types/syncPortableSettings'
 import type { AppSettingsTable } from './data/tables/appSettingsTable'
 import type { StoreLike } from '@/config/storeLike'
 
@@ -12,7 +13,10 @@ export const SENSITIVE_APP_SETTING_KEYS = [
   'skills.managementState'
 ] as const
 
-const SENSITIVE_APP_SETTING_KEY_SET = new Set<string>(SENSITIVE_APP_SETTING_KEYS)
+const SENSITIVE_APP_SETTING_KEY_SET = new Set<string>([
+  ...SENSITIVE_APP_SETTING_KEYS,
+  ...SYNC_PORTABLE_SETTINGS
+])
 
 type LegacyStore = StoreLike<Record<string, unknown>>
 type AppSettingsTableProvider = () => AppSettingsTable

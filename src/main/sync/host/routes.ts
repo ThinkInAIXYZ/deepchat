@@ -4,8 +4,10 @@ import {
   syncHostGetStatusRoute,
   syncHostListDevicesRoute,
   syncHostRenameDeviceRoute,
+  syncHostSetDeviceWritableRoute,
   syncHostRevokeDeviceRoute,
-  syncHostSetEnabledRoute
+  syncHostSetEnabledRoute,
+  syncHostPublishRoute
 } from '@shared/contracts/routes'
 import {
   createRouteMap,
@@ -22,6 +24,7 @@ import type { SyncHostService } from './index'
  */
 export type SyncHostRoutePort = Pick<
   SyncHostService,
+  | 'publishSnapshot'
   | 'getStatus'
   | 'getPairingCode'
   | 'setEnabled'
@@ -29,11 +32,20 @@ export type SyncHostRoutePort = Pick<
   | 'listDevices'
   | 'revokeDevice'
   | 'renameDevice'
+  | 'setDeviceWritable'
   | 'getAuditEntries'
 >
 
 export function createSyncHostRoutes(deps: { host: SyncHostRoutePort }): DeepchatRouteMap {
   return createRouteMap([
+    [
+      syncHostPublishRoute.name,
+      async (rawInput, context) => {
+        requireRendererCaller(context)
+        syncHostPublishRoute.input.parse(rawInput)
+        return syncHostPublishRoute.output.parse({ status: await deps.host.publishSnapshot() })
+      }
+    ],
     [
       syncHostGetStatusRoute.name,
       async (rawInput, context) => {
@@ -49,7 +61,12 @@ export function createSyncHostRoutes(deps: { host: SyncHostRoutePort }): Deepcha
       async (rawInput, context) => {
         requireRendererCaller(context)
         const input = syncHostSetEnabledRoute.input.parse(rawInput)
-        const status = await deps.host.setEnabled(input.enabled)
+        const status = await deps.host.setEnabled(input.enabled, {
+          port: input.port,
+          consent: input.consent,
+          bidirectional: input.bidirectional,
+          tunnel: input.tunnel
+        })
         return syncHostSetEnabledRoute.output.parse({ status })
       }
     ],
@@ -87,6 +104,16 @@ export function createSyncHostRoutes(deps: { host: SyncHostRoutePort }): Deepcha
         const input = syncHostRenameDeviceRoute.input.parse(rawInput)
         return syncHostRenameDeviceRoute.output.parse({
           renamed: await deps.host.renameDevice(input.deviceId, input.name)
+        })
+      }
+    ],
+    [
+      syncHostSetDeviceWritableRoute.name,
+      async (rawInput, context) => {
+        requireRendererCaller(context)
+        const input = syncHostSetDeviceWritableRoute.input.parse(rawInput)
+        return syncHostSetDeviceWritableRoute.output.parse({
+          changed: await deps.host.setDeviceWritable(input.deviceId, input.writable)
         })
       }
     ],

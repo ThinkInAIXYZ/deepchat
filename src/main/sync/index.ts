@@ -1,3 +1,4 @@
+import { SYNC_PORTABLE_SETTINGS } from '@shared/types/syncPortableSettings'
 import { app, shell } from 'electron'
 import { isNowledgeMachineLocalSetting } from '@shared/types/nowledgeMemPlugin'
 import path from 'path'
@@ -107,6 +108,7 @@ export interface SyncImportDatabasePort {
 }
 
 interface SyncDatabasePort {
+  getDatabase(): Database.Database
   getDatabasePassword(): string | undefined
   openDatabaseConnection(dbPath: string): Database.Database
   withBackupReadLock<T>(work: () => Promise<T>): Promise<BackupReadLockOutcome<T>>
@@ -149,6 +151,10 @@ export class SyncService {
       fs.mkdirSync(syncFolderPath, { recursive: true })
     }
     shell.openPath(syncFolderPath)
+  }
+
+  public isBackupInProgress(): boolean {
+    return this.isBackingUp
   }
 
   public async getBackupStatus(): Promise<{ isBackingUp: boolean; lastBackupTime: number }> {
@@ -292,6 +298,12 @@ export class SyncService {
       throw new Error('sync.error.notEnabled')
     }
 
+    return this.createHostBackup()
+  }
+
+  /** Shared local export pipeline; host publishing does not enable legacy/cloud sync. */
+  public async createHostBackup(): Promise<SyncBackupInfo | null> {
+    if (this.isBackingUp) return null
     try {
       return await this.performBackup()
     } catch (error) {
@@ -331,6 +343,15 @@ export class SyncService {
       return { success: false, message: 'sync.error.noValidBackup' }
     }
 
+    return this.importBackupFile(backupZipPath, importMode, database)
+  }
+
+  /** Internal entry point for a fully downloaded and verified private staging file. */
+  public async importBackupFile(
+    backupZipPath: string,
+    importMode: 'increment' | 'overwrite',
+    database: SyncImportDatabasePort
+  ): Promise<SyncImportResult> {
     this.publishEvent('sync.import.started', {
       version: Date.now()
     })
@@ -424,7 +445,11 @@ export class SyncService {
           } else {
             configImportService.importLegacyConfig(extractionDir, 'overwrite')
           }
-          this.mergeAppSettingsPreservingMachineLocal(backupAppSettingsPath, this.APP_SETTINGS_PATH)
+          this.mergeAppSettingsPreservingMachineLocal(
+            backupAppSettingsPath,
+            this.APP_SETTINGS_PATH,
+            'overwrite'
+          )
 
           if (fs.existsSync(backupCustomPromptsPath)) {
             this.copyFile(backupCustomPromptsPath, this.CUSTOM_PROMPTS_PATH)
@@ -459,7 +484,11 @@ export class SyncService {
           } else {
             configImportService.importLegacyConfig(extractionDir, 'increment')
           }
-          this.mergeAppSettingsPreservingMachineLocal(backupAppSettingsPath, this.APP_SETTINGS_PATH)
+          this.mergeAppSettingsPreservingMachineLocal(
+            backupAppSettingsPath,
+            this.APP_SETTINGS_PATH,
+            'increment'
+          )
           if (fs.existsSync(backupCustomPromptsPath)) {
             this.mergePromptStore(backupCustomPromptsPath, this.CUSTOM_PROMPTS_PATH)
           }
@@ -481,7 +510,11 @@ export class SyncService {
           extractionDir,
           importMode === ImportMode.OVERWRITE ? 'overwrite' : 'increment'
         )
-        this.mergeAppSettingsPreservingMachineLocal(backupAppSettingsPath, this.APP_SETTINGS_PATH)
+        this.mergeAppSettingsPreservingMachineLocal(
+          backupAppSettingsPath,
+          this.APP_SETTINGS_PATH,
+          importMode === ImportMode.OVERWRITE ? 'overwrite' : 'increment'
+        )
         if (fs.existsSync(backupCustomPromptsPath)) {
           this.mergePromptStore(backupCustomPromptsPath, this.CUSTOM_PROMPTS_PATH)
         }
@@ -540,6 +573,40 @@ export class SyncService {
     }
   }
 
+  private async removeSyncBookkeeping(files: Record<string, Uint8Array>): Promise<void> {
+    const active = this.database.getDatabase()
+    if (!active.prepare("SELECT 1 FROM sqlite_master WHERE name='_sync_state'").get()) return
+    const temporary = await fs.promises.mkdtemp(
+      path.join(app.getPath('temp'), 'deepchat-sync-backup-')
+    )
+    const file = path.join(temporary, 'agent.db')
+    try {
+      await fs.promises.writeFile(file, files[ZIP_PATHS.agentDb])
+      if (files[ZIP_PATHS.agentDbWal])
+        await fs.promises.writeFile(`${file}-wal`, files[ZIP_PATHS.agentDbWal])
+      const db = this.database.openDatabaseConnection(file)
+      try {
+        const objects = db
+          .prepare(
+            "SELECT type,name FROM sqlite_master WHERE name GLOB '_sync_*' AND type IN ('trigger','table') ORDER BY type DESC"
+          )
+          .all() as { type: string; name: string }[]
+        for (const object of objects) {
+          if (!/^_sync_[a-zA-Z0-9_]+$/.test(object.name))
+            throw new Error('Invalid sync metadata object')
+          db.exec(`DROP ${object.type === 'trigger' ? 'TRIGGER' : 'TABLE'} "${object.name}"`)
+        }
+        db.pragma('wal_checkpoint(TRUNCATE)')
+      } finally {
+        db.close()
+      }
+      files[ZIP_PATHS.agentDb] = toUint8ArrayView(await fs.promises.readFile(file))
+      delete files[ZIP_PATHS.agentDbWal]
+    } finally {
+      await fs.promises.rm(temporary, { recursive: true, force: true })
+    }
+  }
+
   private async performBackup(): Promise<SyncBackupInfo> {
     this.isBackingUp = true
     this.emitBackupStatus('preparing')
@@ -574,6 +641,7 @@ export class SyncService {
       this.emitBackupStatus('collecting')
       this.ensureSqliteConfigStorageReady()
       const files = await this.collectBackupFiles()
+      await this.removeSyncBookkeeping(files)
 
       const manifest = {
         version: CURRENT_SYNC_BACKUP_VERSION,
@@ -864,6 +932,11 @@ export class SyncService {
   private async readSanitizedAppSettingsBackup(): Promise<Uint8Array> {
     const raw = await fs.promises.readFile(this.APP_SETTINGS_PATH, 'utf-8')
     const parsed = JSON.parse(raw) as Record<string, unknown>
+    for (const key of SYNC_PORTABLE_SETTINGS) {
+      const value = this.settingsDatabase.appSettingsTable.getAppSetting(key)
+      if (value === undefined) delete parsed[key]
+      else parsed[key] = value
+    }
     const sanitized = this.removeMigratedAppSettings(parsed)
     return new Uint8Array(Buffer.from(JSON.stringify(sanitized, null, 2), 'utf-8'))
   }
@@ -1035,7 +1108,11 @@ export class SyncService {
     }
   }
 
-  private mergeAppSettingsPreservingMachineLocal(backupPath: string, targetPath: string): void {
+  private mergeAppSettingsPreservingMachineLocal(
+    backupPath: string,
+    targetPath: string,
+    mode: 'overwrite' | 'increment'
+  ): void {
     let backupSettingsRaw: string
     try {
       backupSettingsRaw = fs.readFileSync(backupPath, 'utf-8')
@@ -1075,6 +1152,7 @@ export class SyncService {
       }
     }
 
+    this.createConfigImportService().importPortableSettings(backupSettings, mode)
     const sanitizedBackupSettings = this.removeMigratedAppSettings(backupSettings)
     const mergedSettings = {
       ...sanitizedBackupSettings,

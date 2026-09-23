@@ -15,6 +15,7 @@ const mocks = vi.hoisted(() => {
     close,
     databaseCtor: vi.fn(function Database() {
       return {
+        function: vi.fn(),
         pragma,
         key,
         close

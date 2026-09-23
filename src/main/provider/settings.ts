@@ -1078,6 +1078,12 @@ export class ProviderSettings implements ProviderSettingsPort {
     this.modelStatusHelper.disableModel(providerId, modelId)
   }
 
+  invalidateSyncCaches(): void {
+    this.modelStatusHelper.clearModelStatusCache()
+    this.providerModelHelper.invalidateAllProviderModelsCache()
+    this.modelConfigHelper.clearMemoryCache()
+  }
+
   clearModelStatusCache(): void {
     this.modelStatusHelper.clearModelStatusCache()
   }

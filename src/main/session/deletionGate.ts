@@ -50,6 +50,18 @@ export class SessionDeletionGate implements SessionDeletionGatePort {
     }
   }
 
+  hasActiveOperations(sessionId?: string): boolean {
+    return sessionId
+      ? (this.activeOperations.get(sessionId) ?? 0) > 0 || this.deletingSessionIds.has(sessionId)
+      : this.activeOperations.size > 0 || this.deletingSessionIds.size > 0
+  }
+
+  hasActiveOperationsOutside(excluded: ReadonlySet<string>): boolean {
+    return [...this.activeOperations.keys(), ...this.deletingSessionIds].some(
+      (id) => !excluded.has(id)
+    )
+  }
+
   private normalizeSessionId(sessionId: string): string {
     const normalizedSessionId = sessionId.trim()
     if (!normalizedSessionId) throw new Error('Session ID is required.')

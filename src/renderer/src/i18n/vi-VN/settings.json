@@ -3348,7 +3348,8 @@
       "activation_failed": "Không kích hoạt được runtime.",
       "unsupported_platform": "Nền tảng này không có runtime chính thức."
     },
-    "ocrPinHint": "OCR cần Node chính thức v24.18.0 (ABI 137). Runtime này dùng được cho chat và MCP, nhưng không dùng cho OCR. Hãy cài runtime chính thức."
+    "ocrPinHint": "OCR cần Node chính thức v24.18.0 (ABI 137). Runtime này dùng được cho chat và MCP, nhưng không dùng cho OCR. Hãy cài runtime chính thức.",
+    "cloudflaredTitle": "cloudflared"
   },
   "userPlugins": {
     "install": "Cài đặt plugin",

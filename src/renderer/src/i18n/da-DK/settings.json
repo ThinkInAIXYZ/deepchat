@@ -3348,7 +3348,8 @@
       "activation_failed": "Runtime kunne ikke aktiveres.",
       "unsupported_platform": "Denne platform har ikke et officielt runtime."
     },
-    "ocrPinHint": "OCR kræver officiel Node v24.18.0 (ABI 137). Dette runtime er klar til chat og MCP, men ikke til OCR. Installer det officielle runtime."
+    "ocrPinHint": "OCR kræver officiel Node v24.18.0 (ABI 137). Dette runtime er klar til chat og MCP, men ikke til OCR. Installer det officielle runtime.",
+    "cloudflaredTitle": "cloudflared"
   },
   "userPlugins": {
     "install": "Installer et plugin",

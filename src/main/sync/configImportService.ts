@@ -1,3 +1,4 @@
+import { SYNC_PORTABLE_SETTINGS } from '@shared/types/syncPortableSettings'
 import fs from 'fs'
 import { NOWLEDGE_PLUGIN_ID } from '@shared/types/nowledgeMemPlugin'
 import path from 'path'
@@ -126,6 +127,24 @@ export class SyncConfigImportService {
     private readonly targetDbPath: string,
     private readonly openDatabase: (dbPath: string) => Database.Database = openSQLiteDatabase
   ) {}
+
+  importPortableSettings(settings: Record<string, unknown>, mode: SyncConfigImportMode): void {
+    const entries = SYNC_PORTABLE_SETTINGS.filter((key) => Object.hasOwn(settings, key))
+    if (!entries.length) return
+    const db = this.openDatabase(this.targetDbPath)
+    try {
+      const table = new AppSettingsTable(db)
+      table.createTable()
+      db.transaction(() => {
+        for (const key of entries) {
+          if (mode === 'overwrite' || !table.hasAppSetting(key))
+            table.setAppSetting(key, settings[key], false)
+        }
+      })()
+    } finally {
+      db.close()
+    }
+  }
 
   readManifest(extractionDir: string): SyncBackupManifest | null {
     return this.readJsonFile<SyncBackupManifest>(path.join(extractionDir, 'manifest.json'))

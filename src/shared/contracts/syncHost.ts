@@ -15,6 +15,7 @@ export const SYNC_HOST_HANDSHAKE_PATH = `${SYNC_HOST_PATH_PREFIX}/handshake`
 export const SYNC_HOST_PAIR_PATH = `${SYNC_HOST_PATH_PREFIX}/pair`
 export const SYNC_HOST_STATUS_PATH = `${SYNC_HOST_PATH_PREFIX}/status`
 export const SYNC_HOST_SNAPSHOT_PATH = `${SYNC_HOST_PATH_PREFIX}/snapshot`
+export const SYNC_HOST_PREPARE_PATH = `${SYNC_HOST_PATH_PREFIX}/prepare`
 export const SYNC_HOST_PUSH_PATH = `${SYNC_HOST_PATH_PREFIX}/push`
 export const SYNC_HOST_EVENTS_PATH = `${SYNC_HOST_PATH_PREFIX}/events`
 
@@ -40,7 +41,8 @@ export const SYNC_HOST_PAIRING_CODE_TTL_MS = 5 * 60_000
  * Per-source pairing failure budget. There is deliberately no global attempt cap and no
  * `attemptsRemaining` in the pairing payload: anyone who learns the tunnel hostname can call
  * `pair`, so a global counter would both hand them a denial of pairing and let them drive a
- * number the UI shows. Brute force is bounded per source against ~40 bits of code entropy.
+ * number the UI shows. Apply this budget only when a trusted source IP is available; the code
+ * itself has ~40 bits of entropy and expires after five minutes.
  */
 export const SYNC_HOST_PAIR_FAILURE_WINDOW_MS = 5 * 60_000
 export const SYNC_HOST_PAIR_MAX_FAILURES_PER_WINDOW = 20
@@ -51,13 +53,13 @@ export const SYNC_HOST_MAX_PUSH_PART_BYTES = 32 * 1024 * 1024
 export const SYNC_HOST_AUDIT_LIMIT = 500
 
 /** User-visible failure codes surfaced to the renderer; copy is added with the Settings UI. */
-export const SYNC_HOST_BIND_FAILED_ERROR = 'syncHost.error.bindFailed'
+export const SYNC_HOST_BIND_FAILED_ERROR = 'sync.tunnel.error.bindFailed'
 
 export const SYNC_HOST_SNAPSHOT_ID_HEADER = 'x-deepchat-snapshot-id'
 export const SYNC_HOST_SNAPSHOT_HASH_HEADER = 'x-deepchat-snapshot-sha256'
 export const SYNC_HOST_DEVICE_HEADER = 'x-deepchat-device-id'
 
-export const SyncHostCapabilitySchema = z.enum(['snapshot', 'range', 'push', 'events'])
+export const SyncHostCapabilitySchema = z.enum(['snapshot', 'range', 'prepare', 'push', 'events'])
 export type SyncHostCapability = z.infer<typeof SyncHostCapabilitySchema>
 
 export const SyncHostHandshakeSchema = z.object({
@@ -90,13 +92,17 @@ export type SyncHostSnapshotInfo = z.infer<typeof SyncHostSnapshotInfoSchema>
 
 export const SyncHostStatusSchema = z.object({
   snapshot: SyncHostSnapshotInfoSchema.nullable(),
-  serverTime: z.number().int().nonnegative()
+  serverTime: z.number().int().nonnegative(),
+  preparing: z.boolean().default(false),
+  preparationError: z.string().nullable().default(null)
 })
 export type SyncHostStatus = z.infer<typeof SyncHostStatusSchema>
 
 export const SyncHostPairRequestSchema = z.object({
   code: z.string().min(1).max(256),
-  deviceName: z.string().trim().min(1).max(SYNC_HOST_DEVICE_NAME_MAX_LENGTH)
+  deviceName: z.string().trim().min(1).max(SYNC_HOST_DEVICE_NAME_MAX_LENGTH),
+  bidirectional: z.boolean().optional(),
+  replicaId: z.uuid().optional()
 })
 export type SyncHostPairRequest = z.infer<typeof SyncHostPairRequestSchema>
 
@@ -114,7 +120,9 @@ export const SyncHostDeviceViewSchema = z.object({
   createdAt: z.number().int().nonnegative(),
   expiresAt: z.number().int().nonnegative().nullable(),
   lastSeenAt: z.number().int().nonnegative().nullable(),
-  revoked: z.boolean()
+  revoked: z.boolean(),
+  writable: z.boolean(),
+  requestedWrite: z.boolean()
 })
 export type SyncHostDeviceView = z.infer<typeof SyncHostDeviceViewSchema>
 

@@ -20,12 +20,15 @@ const NODE_TARGETS = [
 describe('toolchain catalog', () => {
   afterEach(() => vi.restoreAllMocks())
 
-  it.each(['node', 'uv'] as const)('rejects %s metadata belonging to another release', (kind) => {
-    vi.spyOn(runtimeVersions.artifactVersions, kind, 'get').mockReturnValue('0.0.0')
-    expect(() => resolveToolchainArtifact(kind, 'win32', 'arm64')).toThrow(
-      /has no official artifact/
-    )
-  })
+  it.each(['node', 'uv', 'cloudflared'] as const)(
+    'rejects %s metadata belonging to another release',
+    (kind) => {
+      vi.spyOn(runtimeVersions.artifactVersions, kind, 'get').mockReturnValue('0.0.0')
+      expect(() => resolveToolchainArtifact(kind, 'linux', 'x64')).toThrow(
+        /has no official artifact/
+      )
+    }
+  )
 
   it('uses the Windows ARM64 archive hash, not the installed executable hash', () => {
     expect(resolveToolchainArtifact('node', 'win32', 'arm64')).toEqual({

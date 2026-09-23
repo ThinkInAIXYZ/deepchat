@@ -1,4 +1,4 @@
-export const TOOLCHAIN_KINDS = ['node', 'uv'] as const
+export const TOOLCHAIN_KINDS = ['node', 'uv', 'cloudflared'] as const
 export type ToolchainKind = (typeof TOOLCHAIN_KINDS)[number]
 
 export const TOOLCHAIN_SOURCES = ['bundled', 'managed', 'system', 'custom', 'unconfigured'] as const
@@ -29,12 +29,14 @@ export interface ToolchainSelection {
 export interface ToolchainState {
   schemaVersion: 1
   node: ToolchainSelection
+  cloudflared: ToolchainSelection
   uv: ToolchainSelection
 }
 
 export type ToolchainPersistedState = {
   schemaVersion: 1
   node?: ToolchainSelection
+  cloudflared?: ToolchainSelection
   uv?: ToolchainSelection
 }
 
@@ -61,7 +63,19 @@ export interface ResolvedUvToolchain {
   uvx: string
 }
 
-export type ResolvedToolchain = ResolvedNodeToolchain | ResolvedUvToolchain
+export interface ResolvedCloudflaredToolchain {
+  kind: 'cloudflared'
+  source: Exclude<ToolchainSource, 'unconfigured'>
+  version: string | null
+  rootDir: string
+  binDir: string
+  cloudflared: string
+}
+
+export type ResolvedToolchain =
+  | ResolvedNodeToolchain
+  | ResolvedUvToolchain
+  | ResolvedCloudflaredToolchain
 
 export const TOOLCHAIN_DOWNLOAD_REASONS = [
   'dns',
@@ -121,6 +135,7 @@ export interface ToolchainMissingNotice {
 
 export interface ToolchainStatusSnapshot {
   node: ToolchainKindStatus
+  cloudflared: ToolchainKindStatus
   uv: ToolchainKindStatus
   missing: ToolchainMissingNotice[]
 }

@@ -20,6 +20,7 @@ export const DARWIN_DISTRIBUTION_CHECK_NAMES = Object.freeze([
 
 const MIB = 1024 * 1024
 export const DEFAULT_INSTALLER_DELTA_BYTES = 90 * MIB
+const MACOS_INSTALLER_GROWTH_BYTES = 112 * MIB
 export const PACKAGE_SIZE_TRANSIENT_DELTA = Object.freeze({
   reason: 'stop-shipping-bundled-node',
   baselineCommit: 'dfb4ba0f34c008c27cfb6bd98a08fdbd36f7b343',
@@ -279,7 +280,10 @@ export function createDefaultPackageSizePolicy() {
           getMeasuredRoles(definition).map(({ name }) => [
             name,
             {
-              maxGrowthBytes: DEFAULT_INSTALLER_DELTA_BYTES,
+              maxGrowthBytes:
+                definition.platform === 'darwin'
+                  ? MACOS_INSTALLER_GROWTH_BYTES
+                  : DEFAULT_INSTALLER_DELTA_BYTES,
               maxShrinkBytes: DEFAULT_INSTALLER_DELTA_BYTES
             }
           ])

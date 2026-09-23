@@ -103,6 +103,7 @@ function buildService(
       setLastSyncTime: () => undefined
     } as never,
     {
+      getDatabase: () => connection,
       getDatabasePassword: () => password,
       openDatabaseConnection: (target: string) => openSQLiteDatabase(target, password),
       withBackupReadLock: (work: () => Promise<unknown>) =>
@@ -110,7 +111,7 @@ function buildService(
     } as never,
     {
       get appSettingsTable() {
-        return { hasConfigMigration: () => true }
+        return { hasConfigMigration: () => true, getAppSetting: () => undefined }
       }
     } as never,
     {} as never,

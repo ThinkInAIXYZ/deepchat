@@ -32,7 +32,7 @@ describe('runtime delivery contract', () => {
       expect(nodePlan[0].expectedExecutableSha256).toBe(nodeArtifact.executableSha256)
       expect(nodePlan[0].expectedExecutableSha256).not.toBe(nodeArtifact.archiveSha256)
       expect(buildRuntimeInstallPlan({ platform, arch }).map(({ type }) => type)).toEqual(
-        platform === 'win32' && arch === 'arm64' ? ['uv'] : ['uv', 'rtk']
+        platform === 'win32' && arch === 'arm64' ? ['uv'] : ['uv', 'rtk', 'cloudflared']
       )
     }
   })

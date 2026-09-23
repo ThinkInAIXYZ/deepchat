@@ -3348,7 +3348,8 @@
       "activation_failed": "לא ניתן היה להפעיל את סביבת הריצה.",
       "unsupported_platform": "לפלטפורמה זו אין סביבת ריצה רשמית."
     },
-    "ocrPinHint": "OCR דורש Node רשמי v24.18.0 (ABI 137). סביבה זו מתאימה לצ׳אט ול-MCP, אך לא ל-OCR. התקינו את סביבת הריצה הרשמית."
+    "ocrPinHint": "OCR דורש Node רשמי v24.18.0 (ABI 137). סביבה זו מתאימה לצ׳אט ול-MCP, אך לא ל-OCR. התקינו את סביבת הריצה הרשמית.",
+    "cloudflaredTitle": "cloudflared"
   },
   "userPlugins": {
     "install": "התקנת תוסף",

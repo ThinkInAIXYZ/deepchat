@@ -58,3 +58,8 @@ export const syncImportErrorEvent = defineEventContract({
     version: z.number().int()
   })
 })
+
+export const syncDeviceChangedEvent = defineEventContract({
+  name: 'sync.device.changed',
+  payload: z.object({ version: z.number().int() })
+})
