@@ -22,7 +22,7 @@ function writeExecutable(filePath: string): void {
 }
 
 describe('toolchain probe', () => {
-  it('skips non-executable cloudflared files on POSIX', () => {
+  it.skipIf(process.platform === 'win32')('skips non-executable cloudflared files on POSIX', () => {
     const first = mkdtempSync(path.join(os.tmpdir(), 'dc-cloudflared-nonexec-'))
     const second = mkdtempSync(path.join(os.tmpdir(), 'dc-cloudflared-exec-'))
     const nonExecutable = path.join(first, 'cloudflared')
