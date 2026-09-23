@@ -24,7 +24,9 @@ function toView(record: SyncHostDeviceRecord): SyncHostDeviceView {
     createdAt: record.createdAt,
     expiresAt: record.expiresAt,
     lastSeenAt: record.lastSeenAt,
-    revoked: record.revokedAt !== null
+    revoked: record.revokedAt !== null,
+    writable: record.writable === true,
+    requestedWrite: record.requestedWrite === true
   }
 }
 
@@ -53,8 +55,16 @@ export class SyncHostDeviceStore {
     name: string
     expiresAt?: number | null
     now?: number
-    writable?: boolean
+    requestedWrite?: boolean
+    replicaId?: string | null
   }): Promise<IssuedSyncHostDevice> {
+    if (
+      input.replicaId &&
+      this.state
+        .snapshot()
+        .devices.some((device) => device.replicaId === input.replicaId && device.revokedAt === null)
+    )
+      throw new Error('sync.tunnel.error.duplicateReplica')
     const now = input.now ?? Date.now()
     const token = randomBytes(SYNC_HOST_DEVICE_TOKEN_BYTES).toString('base64url')
     const record: SyncHostDeviceRecord = {
@@ -65,7 +75,9 @@ export class SyncHostDeviceStore {
       lastSeenAt: null,
       expiresAt: input.expiresAt ?? null,
       revokedAt: null,
-      writable: input.writable === true
+      writable: false,
+      requestedWrite: input.requestedWrite === true,
+      replicaId: input.replicaId ?? null
     }
     await this.state.update((state) => {
       state.devices.push(record)
@@ -102,6 +114,25 @@ export class SyncHostDeviceStore {
           device.revokedAt === null &&
           (device.expiresAt === null || device.expiresAt > Date.now())
       )
+  }
+
+  replicaId(deviceId: string): string | null {
+    return (
+      this.state.snapshot().devices.find((device) => device.deviceId === deviceId)?.replicaId ??
+      null
+    )
+  }
+
+  async setWritable(deviceId: string, writable: boolean): Promise<boolean> {
+    let changed = false
+    await this.state.update((state) => {
+      const target = state.devices.find((device) => device.deviceId === deviceId)
+      if (!target || target.revokedAt !== null || !target.requestedWrite || !target.replicaId)
+        return
+      target.writable = writable
+      changed = true
+    })
+    return changed
   }
 
   async revoke(deviceId: string, now: number = Date.now()): Promise<boolean> {

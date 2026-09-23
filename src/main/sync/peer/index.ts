@@ -35,6 +35,7 @@ type Pairing = z.infer<typeof PairingSchema>
 
 export interface SyncPeerDeps {
   directory: string
+  replicaId?(): string
   protectToken(token: string): string
   revealToken(wrapped: string): string
   isLocalDatabaseEncrypted(): boolean
@@ -127,6 +128,7 @@ export class SyncPeerService {
     return {
       automatic: this.automatic?.status(),
       paired: pairing !== null,
+      canWrite: pairing?.bidirectional ?? false,
       hostUrl: pairing?.hostUrl ?? '',
       hostId: pairing?.hostId ?? '',
       deviceName: pairing?.deviceName ?? '',
@@ -181,6 +183,8 @@ export class SyncPeerService {
       )
         fail('invalidUrl')
       const hostUrl = url.origin
+      const replicaId = input.bidirectional ? this.deps.replicaId?.() : undefined
+      if (input.bidirectional && !replicaId) fail('automaticUnsupported')
       // Fail before consuming a one-time code when the OS cannot protect a token.
       this.deps.protectToken('availability-check')
       await this.checkHost(hostUrl, input.hostId, this.controller.signal)
@@ -191,7 +195,8 @@ export class SyncPeerService {
           body: JSON.stringify({
             code: input.code,
             deviceName: input.deviceName,
-            bidirectional: input.bidirectional
+            bidirectional: input.bidirectional,
+            replicaId
           }),
           signal: this.controller.signal
         })
@@ -293,6 +298,7 @@ export class SyncPeerService {
     })
     if (!response.ok) {
       await response.body?.cancel()
+      if (response.status === 409 && url.endsWith(SYNC_HOST_PAIR_PATH)) fail('duplicateReplica')
       this.httpError(response.status)
     }
     if (!response.body) fail('invalidResponse')

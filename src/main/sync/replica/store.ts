@@ -415,6 +415,7 @@ export class SyncReplicaStore {
   }
 
   private validateUnit(unit: SyncUnit): Definition {
+    if (unit.modifiedAt > Date.now() + 5 * 60_000) throw new Error('sync.tunnel.error.clockSkew')
     const definition = this.definitions.find((value) => value.kind === unit.kind)
     if (!definition || (definition.keys && !definition.keys.includes(unit.id)))
       throw new Error('Unsupported sync unit')

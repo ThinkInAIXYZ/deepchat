@@ -21,6 +21,8 @@ export function createTunnelSyncClient(bridge: DeepchatBridge = getDeepchatBridg
     revoke: (deviceId: string) => bridge.invoke('syncHost.revokeDevice', { deviceId }),
     rename: (deviceId: string, name: string) =>
       bridge.invoke('syncHost.renameDevice', { deviceId, name }),
+    setDeviceWritable: (deviceId: string, writable: boolean) =>
+      bridge.invoke('syncHost.setDeviceWritable', { deviceId, writable }),
     peerStatus: () => bridge.invoke('syncPeer.getStatus', {}),
     pair: (input: {
       hostUrl: string

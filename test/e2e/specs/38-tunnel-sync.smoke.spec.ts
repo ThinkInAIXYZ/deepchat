@@ -4,7 +4,7 @@ import { waitForAppReady } from '../helpers/wait'
 import { createServer } from 'node:net'
 import { join } from 'node:path'
 import { gzipSync } from 'node:zlib'
-import { createHash } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 
 /** All writes use the fixture's isolated profile, including the legacy backup destination. */
 test('tunnel host requires consent, prepares data on demand with legacy sync off, and restarts on its fixed port @smoke', async ({
@@ -107,16 +107,21 @@ test('tunnel host requires consent, prepares data on demand with legacy sync off
   const writePairing = await settings.evaluate(
     async () => (await window.deepchat.invoke('syncHost.createPairingCode', {})).pairing!
   )
+  const replicaId = randomUUID()
   const writablePair = await fetch(`http://127.0.0.1:${port}/sync/v1/pair`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({
       code: writePairing.code,
       deviceName: 'Two-way device',
-      bidirectional: true
+      bidirectional: true,
+      replicaId
     })
   })
-  const writable = (await writablePair.json()) as { token: string }
+  const writable = (await writablePair.json()) as { token: string; deviceId: string }
+  await settings.evaluate(async (deviceId) => {
+    await window.deepchat.invoke('syncHost.setDeviceWritable', { deviceId, writable: true })
+  }, writable.deviceId)
   const headers = { authorization: `Bearer ${writable.token}`, 'content-type': 'application/json' }
   const prompt = {
     id: 'synced-prompt',
@@ -126,14 +131,14 @@ test('tunnel host requires consent, prepares data on demand with legacy sync off
   }
   const batch = {
     protocol: 2,
-    replicaId: 'test-replica',
+    replicaId,
     after: 0,
     through: 1,
     units: [
       {
         kind: 'setting',
         id: 'customPrompts',
-        origin: 'test-replica',
+        origin: replicaId,
         revision: 1,
         modifiedAt: Date.now() + 1000,
         deleted: false,
@@ -162,7 +167,7 @@ test('tunnel host requires consent, prepares data on demand with legacy sync off
           size: data.length,
           parts: 1,
           through: 1,
-          replicaId: 'test-replica'
+          replicaId
         })
       })
     ).status

@@ -100,7 +100,8 @@ export type SyncHostStatus = z.infer<typeof SyncHostStatusSchema>
 export const SyncHostPairRequestSchema = z.object({
   code: z.string().min(1).max(256),
   deviceName: z.string().trim().min(1).max(SYNC_HOST_DEVICE_NAME_MAX_LENGTH),
-  bidirectional: z.boolean().optional()
+  bidirectional: z.boolean().optional(),
+  replicaId: z.uuid().optional()
 })
 export type SyncHostPairRequest = z.infer<typeof SyncHostPairRequestSchema>
 
@@ -118,7 +119,9 @@ export const SyncHostDeviceViewSchema = z.object({
   createdAt: z.number().int().nonnegative(),
   expiresAt: z.number().int().nonnegative().nullable(),
   lastSeenAt: z.number().int().nonnegative().nullable(),
-  revoked: z.boolean()
+  revoked: z.boolean(),
+  writable: z.boolean(),
+  requestedWrite: z.boolean()
 })
 export type SyncHostDeviceView = z.infer<typeof SyncHostDeviceViewSchema>
 

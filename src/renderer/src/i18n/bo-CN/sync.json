@@ -52,8 +52,8 @@
     "overwrite": "Replace local data",
     "forget": "Disconnect device",
     "lastSuccess": "Last synced: {time}",
-    "consent": "Paired devices can read, update and delete shared conversations, memories, settings, provider API keys and MCP credentials. Cloudflare terminates HTTPS; transfers are not end-to-end encrypted. Allow these devices to access and change your data?",
-    "overwriteWarning": "This replaces local data with the host data and stops active sessions during import. Cancellation is available until import starts. Continue?",
+    "consent": "Paired devices can read shared data. You can grant each device permission to update and delete conversations, memories, settings, provider API keys and MCP credentials. Cloudflare terminates HTTPS; transfers are not end-to-end encrypted. Enable sharing?",
+    "overwriteWarning": "This replaces local data with a full host backup and stops active sessions during import. The backup includes device-local data such as project paths and scheduled jobs. Continue?",
     "phase": {
       "idle": "Ready",
       "pairing": "Pairing…",
@@ -98,10 +98,13 @@
       "syntheticEdgeIp": "The Cloudflare edge domains resolved to synthetic 198.18/15 addresses. Exclude region1.v2.argotunnel.com and region2.v2.argotunnel.com from your proxy's fake DNS, allow outbound UDP or TCP on port 7844, then disable and re-enable sharing.",
       "batchTooLarge": "A changed session exceeds the sync size limit. Reduce its size and retry.",
       "unavailable": "Device sync is unavailable during maintenance or database encryption.",
-      "writeConsentRequired": "Two-way access is unavailable. Enable sharing with write permission on the host, then pair this device again.",
+      "writeConsentRequired": "The host has not allowed this device to edit data. Ask the host to grant edit access.",
       "automaticUnsupported": "Update both devices to a version supporting automatic sync.",
       "automaticDisabled": "Enable automatic sync first.",
-      "cancelled": "Sync cancelled."
+      "cancelled": "Sync cancelled.",
+      "clockSkew": "A device clock is over five minutes ahead. Correct the clock, then sync again.",
+      "rePairRequired": "This pairing predates device identity checks. Disconnect and pair again.",
+      "duplicateReplica": "Another active device uses this sync identity. Reset the cloned profile identity before pairing."
     },
     "syncTitle": "Sync",
     "syncDescription": "Back up through cloud storage, or connect directly to another device.",
@@ -145,7 +148,7 @@
     },
     "automatic": "Automatic two-way sync",
     "automaticHelp": "Sync after 15 seconds without changes, at least 60 seconds between syncs. Busy sessions wait until they finish. Newer changes and deletions win on both devices.",
-    "automaticConsent": "Connecting grants this device permission to update and delete shared data. Automatic sync also sends this device’s conversations, provider keys and portable settings to the host.",
+    "automaticConsent": "Request permission to send this device’s conversations, provider keys and portable settings to the host. The host must separately allow edits after pairing.",
     "automaticPhase": {
       "off": "Automatic sync off",
       "idle": "Up to date",
@@ -154,6 +157,14 @@
       "busy": "Waiting for active work to finish",
       "offline": "Disconnected; reconnecting…",
       "failed": "Sync failed; pending changes will retry"
-    }
+    },
+    "requestWrite": "Request two-way sync",
+    "readOnlyHelp": "This pairing can import a full host backup, but cannot use automatic two-way sync. Disconnect and pair again to request it.",
+    "writeAllowed": "Can edit",
+    "readOnly": "Read only",
+    "allowWrite": "Allow edits",
+    "removeWrite": "Remove edit access",
+    "fullBackupWarning": "A full backup contains device-local data that automatic sync excludes, including project paths, scheduled jobs and pending inputs. Importing may overwrite settings and run copied jobs on this device.",
+    "importFullBackup": "Import full backup"
   }
 }

@@ -271,29 +271,36 @@ export class AutomaticSync {
             signal
           )
         )
-      const outgoing = this.deps.store.export(cursor)
-      if (outgoing.units.length) {
-        const manifest = await this.outgoing.prepare(outgoing)
-        const { missing } = z
-          .object({
-            missing: z.array(
-              z
-                .number()
-                .int()
-                .min(0)
-                .max(manifest.parts - 1)
-            )
-          })
-          .parse(await this.json(connection, '/upload', signal, manifest))
-        for (const part of missing) {
-          const data = await this.outgoing.part(manifest.id, part)
-          await this.requestHttp(connection, `/part?id=${manifest.id}&part=${part}`, signal, data)
+      let outgoingThrough = cursor
+      let uploadFailure: unknown = null
+      try {
+        const outgoing = this.deps.store.export(cursor)
+        outgoingThrough = outgoing.through
+        if (outgoing.units.length) {
+          const manifest = await this.outgoing.prepare(outgoing)
+          const { missing } = z
+            .object({
+              missing: z.array(
+                z
+                  .number()
+                  .int()
+                  .min(0)
+                  .max(manifest.parts - 1)
+              )
+            })
+            .parse(await this.json(connection, '/upload', signal, manifest))
+          for (const part of missing) {
+            const data = await this.outgoing.part(manifest.id, part)
+            await this.requestHttp(connection, `/part?id=${manifest.id}&part=${part}`, signal, data)
+          }
+          const committed = z
+            .object({ cursor: z.number().int().nonnegative().safe() })
+            .parse(await this.json(connection, `/commit?id=${manifest.id}`, signal, {}))
+          if (committed.cursor < outgoing.through) throw new Error('Invalid acknowledgement')
+          await this.outgoing.discard(manifest.id)
         }
-        const committed = z
-          .object({ cursor: z.number().int().nonnegative().safe() })
-          .parse(await this.json(connection, `/commit?id=${manifest.id}`, signal, {}))
-        if (committed.cursor < outgoing.through) throw new Error('Invalid acknowledgement')
-        await this.outgoing.discard(manifest.id)
+      } catch (error) {
+        uploadFailure = error
       }
       const after = this.deps.store.cursor(info.replicaId)
       const manifest = SyncBatchManifestSchema.parse(
@@ -316,10 +323,11 @@ export class AutomaticSync {
       if (!(await this.deps.store.apply(batch, () => !signal.aborted && this.state.enabled)))
         throw new Error('sync.tunnel.error.busy')
       await this.incoming.discard(manifest.id)
+      if (uploadFailure) throw uploadFailure
       this.state.lastSuccessAt = Date.now()
       await this.save()
       this.update('idle')
-      if (outgoing.through < this.deps.store.revision() || batch.through < info.revision)
+      if (outgoingThrough < this.deps.store.revision() || batch.through < info.revision)
         this.request()
     } finally {
       if (this.transfer === controller) this.transfer = null
@@ -350,14 +358,19 @@ export class AutomaticSync {
         'sync.tunnel.error.batchTooLarge',
         'sync.tunnel.error.diskFull',
         'sync.tunnel.error.integrityFailed',
-        'sync.tunnel.error.cancelled'
+        'sync.tunnel.error.cancelled',
+        'sync.tunnel.error.clockSkew'
       ]
       if (typeof body.error === 'string' && errors.includes(body.error)) throw new Error(body.error)
       throw new Error('sync.tunnel.error.invalidResponse')
     }
-    void response.body?.cancel()
-    if (response.status === 401 || response.status === 403)
+    if (response.status === 403) {
+      const body = JSON.parse((await this.bytes(response, 65536)).toString()) as { error?: unknown }
+      if (body.error === 'rePairRequired') throw new Error('sync.tunnel.error.rePairRequired')
       throw new Error('sync.tunnel.error.writeConsentRequired')
+    }
+    void response.body?.cancel()
+    if (response.status === 401) throw new Error('sync.tunnel.error.writeConsentRequired')
     if (response.status === 429) throw new Error('sync.tunnel.error.rateLimited')
     if (response.status === 409) throw new Error('sync.tunnel.error.busy')
     if (response.status === 404) throw new Error('sync.tunnel.error.automaticUnsupported')

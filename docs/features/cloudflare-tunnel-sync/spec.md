@@ -199,6 +199,10 @@ table names. Only the negotiated domain unit schema is accepted.
 - Acknowledgement means durable application or an idempotent LWW no-op, never just receipt. Compare
   the stamp again inside the apply transaction. Persist application and receive-cursor progress
   atomically; a crash before acknowledgement can safely replay the same data.
+- Bind each v2 writer's replica identity to its host-side pairing record. Reject cursor requests and
+  uploads claiming another replica, reject duplicate active identities, and require re-pairing for
+  legacy records with no bound identity. Reject incoming timestamps more than five minutes ahead
+  of the receiver's clock before applying a unit.
 - A cursor advances only across fully accounted-for units. A busy unit is staged durably and must not
   be skipped by moving the cursor past it. Do not hold its transaction open while waiting for idle.
 - Retain immutable batches needed for active resumable transfers; bound abandoned staging by size and
@@ -242,7 +246,8 @@ shutdown and identity-checked stale-process cleanup stay owned by the host servi
 
 Automatic sync and peer write permission require explicit enrollment on both sides. Legacy host
 consent and read-only device tokens do not silently gain write access. Persist consent version and
-capability grants in machine-local state; re-pair or explicitly upgrade permissions before v2 writes.
+capability grants in machine-local state; the receiver requests two-way sync and the host grants or
+removes edit permission per device. Re-pair before v2 writes when the old pairing has no replica id.
 Opting into automatic sync must explain that paired devices may modify/delete synchronized data and
 that the later timestamp wins, including whole-session conflicts.
 

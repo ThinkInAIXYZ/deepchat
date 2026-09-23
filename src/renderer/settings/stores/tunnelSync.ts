@@ -9,7 +9,8 @@ export const useTunnelSyncStore = defineStore('tunnelSync', () => {
   const devices = ref<Awaited<ReturnType<typeof client.devices>>['devices']>([])
   const busy = ref(false)
   const error = ref<string | null>(null)
-  let refreshing = false
+  let refreshing: Promise<void> | null = null
+  let refreshAgain = false
   const transferring = computed(() =>
     ['pairing', 'preparing', 'downloading', 'verifying', 'importing'].includes(
       peer.value?.phase ?? ''
@@ -27,24 +28,34 @@ export const useTunnelSyncStore = defineStore('tunnelSync', () => {
   }
 
   async function refresh() {
-    if (refreshing) return
-    refreshing = true
+    if (refreshing) {
+      refreshAgain = true
+      return refreshing
+    }
+    refreshing = (async () => {
+      do {
+        refreshAgain = false
+        const [nextHost, nextPeer, nextDevices] = await Promise.allSettled([
+          client.hostStatus(),
+          client.peerStatus(),
+          client.devices()
+        ])
+        if (nextHost.status === 'fulfilled') host.value = nextHost.value
+        if (nextPeer.status === 'fulfilled') peer.value = nextPeer.value
+        if (nextDevices.status === 'fulfilled') devices.value = nextDevices.value.devices
+        const failed = [nextHost, nextPeer, nextDevices].find(
+          (result) => result.status === 'rejected'
+        )
+        if (failed?.status === 'rejected') error.value = errorKey(failed.reason)
+        else if (!busy.value) error.value = null
+      } while (refreshAgain)
+    })()
     try {
-      const [nextHost, nextPeer, nextDevices] = await Promise.allSettled([
-        client.hostStatus(),
-        client.peerStatus(),
-        client.devices()
-      ])
-      if (nextHost.status === 'fulfilled') host.value = nextHost.value
-      if (nextPeer.status === 'fulfilled') peer.value = nextPeer.value
-      if (nextDevices.status === 'fulfilled') devices.value = nextDevices.value.devices
-      for (const result of [nextHost, nextPeer, nextDevices]) {
-        if (result.status === 'rejected') error.value = errorKey(result.reason)
-      }
+      await refreshing
     } catch (value) {
       error.value = errorKey(value)
     } finally {
-      refreshing = false
+      refreshing = null
     }
   }
 

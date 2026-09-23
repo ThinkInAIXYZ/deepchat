@@ -1,4 +1,4 @@
-import { randomBytes } from 'node:crypto'
+import { randomBytes, randomUUID } from 'node:crypto'
 import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import http from 'node:http'
 import { connect } from 'node:net'
@@ -88,6 +88,53 @@ describe('SyncHostService endpoint', () => {
     expect(response.status).toBe(200)
     return (await response.json()) as { deviceId: string; token: string }
   }
+
+  it('requires a host grant before a requesting device can write and supports downgrading it', async () => {
+    await service.setEnabled(true, {
+      port: Number(new URL(baseUrl).port),
+      consent: true,
+      bidirectional: true
+    })
+    const pairing = service.createPairingCode()!
+    const replicaId = randomUUID()
+    const response = await fetch(`${baseUrl}${SYNC_HOST_PATH_PREFIX}/pair`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        code: pairing.code,
+        deviceName: 'Writable laptop',
+        bidirectional: true,
+        replicaId
+      })
+    })
+    expect(response.status).toBe(200)
+    const { deviceId } = (await response.json()) as { deviceId: string }
+    expect(service.listDevices().find((device) => device.deviceId === deviceId)).toMatchObject({
+      writable: false,
+      requestedWrite: true
+    })
+    expect(await service.setDeviceWritable(deviceId, true)).toBe(true)
+    expect(service.listDevices().find((device) => device.deviceId === deviceId)?.writable).toBe(
+      true
+    )
+    expect(await service.setDeviceWritable(deviceId, false)).toBe(true)
+    expect(service.listDevices().find((device) => device.deviceId === deviceId)?.writable).toBe(
+      false
+    )
+    const duplicateCode = service.createPairingCode()!
+    const duplicate = await fetch(`${baseUrl}${SYNC_HOST_PATH_PREFIX}/pair`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        code: duplicateCode.code,
+        deviceName: 'Cloned laptop',
+        bidirectional: true,
+        replicaId
+      })
+    })
+    expect(duplicate.status).toBe(409)
+    expect(service.listDevices()).toHaveLength(1)
+  })
 
   it('serves handshake without authentication and advertises only real capabilities', async () => {
     const response = await fetch(`${baseUrl}${SYNC_HOST_PATH_PREFIX}/handshake`)

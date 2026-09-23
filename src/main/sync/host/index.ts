@@ -360,6 +360,13 @@ export class SyncHostService {
     return this.devices.rename(deviceId, name)
   }
 
+  async setDeviceWritable(deviceId: string, writable: boolean): Promise<boolean> {
+    const changed = await this.devices.setWritable(deviceId, writable)
+    if (changed && !writable) this.deps.replica?.revoke(deviceId)
+    if (changed) this.deps.changed?.()
+    return changed
+  }
+
   getAuditEntries(): SyncHostAuditEntry[] {
     return this.endpoint.getAuditEntries()
   }

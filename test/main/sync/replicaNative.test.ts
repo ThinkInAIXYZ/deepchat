@@ -124,6 +124,16 @@ describeIfNativeSqlite('Device sync durable merge', () => {
     expect(b.db.prepare('SELECT * FROM new_sessions').all()).toEqual([])
     expect(await b.store.apply(batch)).toBe(true)
   })
+
+  it('rejects a future peer timestamp without advancing its delivery cursor', async () => {
+    const a = device(),
+      b = device()
+    a.db.exec("INSERT INTO new_sessions VALUES('s','First',NULL,1,1)")
+    const batch = a.store.export(0)
+    batch.units[0].modifiedAt = Number.MAX_SAFE_INTEGER
+    await expect(b.store.apply(batch)).rejects.toThrow('clockSkew')
+    expect(b.store.cursor(a.store.replicaId)).toBe(0)
+  })
   it('preserves memory deletion and local session revisions with the complete application schema', async () => {
     function fullDevice() {
       const directory = mkdtempSync(join(tmpdir(), 'deepchat-replica-full-'))

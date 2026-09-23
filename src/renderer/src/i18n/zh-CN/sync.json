@@ -52,8 +52,8 @@
     "overwrite": "替换本地数据",
     "forget": "断开设备",
     "lastSuccess": "上次同步：{time}",
-    "consent": "已配对设备可以读取、修改和删除共享的会话、记忆、设置、服务商 API 密钥和 MCP 凭据。Cloudflare 会终止 HTTPS，传输并非端到端加密。允许这些设备访问和修改你的数据吗？",
-    "overwriteWarning": "将以主机数据替换本地数据，并在导入时停止活动会话。开始导入前可以取消。是否继续？",
+    "consent": "已配对设备可以读取共享数据。你可以逐台授权修改和删除会话、记忆、设置、服务商 API 密钥与 MCP 凭据。Cloudflare 会终止 HTTPS，传输并非端到端加密。是否开启共享？",
+    "overwriteWarning": "这会用主机的完整备份替换本机数据，并在导入时停止活动会话。备份包含项目路径、定时任务等本机数据。是否继续？",
     "phase": {
       "idle": "就绪",
       "pairing": "正在配对…",
@@ -98,10 +98,13 @@
       "syntheticEdgeIp": "Cloudflare 边缘域名被解析为 198.18/15 虚拟地址。请在代理中让 region1.v2.argotunnel.com 和 region2.v2.argotunnel.com 使用真实 DNS，并允许出站 UDP 或 TCP 7844；然后关闭并重新开启共享。",
       "batchTooLarge": "变更会话超过同步大小限制，请缩减内容后重试。",
       "unavailable": "数据库维护或加密期间无法使用设备同步。",
-      "writeConsentRequired": "尚未获得双向同步权限。请在主机确认允许修改数据并开启共享，再重新配对此设备。",
+      "writeConsentRequired": "主机尚未允许此设备修改数据。请在主机上授予修改权限。",
       "automaticUnsupported": "请将两台设备更新至支持自动同步的版本。",
       "automaticDisabled": "请先开启自动同步。",
-      "cancelled": "同步已取消。"
+      "cancelled": "同步已取消。",
+      "clockSkew": "有设备的系统时间快了超过五分钟。请校准时间后重新同步。",
+      "rePairRequired": "当前配对早于设备身份校验。请断开后重新配对。",
+      "duplicateReplica": "已有设备使用相同同步身份。请先重置克隆设备的身份再配对。"
     },
     "syncTitle": "同步",
     "syncDescription": "通过云存储备份，或直接连接另一台设备同步数据。",
@@ -145,7 +148,7 @@
     },
     "automatic": "自动双向同步",
     "automaticHelp": "数据变更后静默 15 秒同步一次，两次至少间隔 60 秒。正在运行的会话会等待结束；两端修改和删除按时间戳保留较新的结果。",
-    "automaticConsent": "连接后，此设备可以修改和删除共享数据。开启自动同步还会将此设备的会话、服务商密钥和可跨设备的设置发送到主机。",
+    "automaticConsent": "申请将本机的会话、服务商密钥和可跨设备设置发送到主机。配对后还需在主机上单独允许修改。",
     "automaticPhase": {
       "off": "自动同步已关闭",
       "idle": "已同步",
@@ -154,6 +157,14 @@
       "busy": "等待正在运行的任务结束",
       "offline": "连接已断开，正在重连…",
       "failed": "同步失败，将重试待同步变更"
-    }
+    },
+    "requestWrite": "申请双向同步",
+    "readOnlyHelp": "当前配对只能导入主机的完整备份，无法自动双向同步。如需双向同步，请断开后重新配对并申请修改权限。",
+    "writeAllowed": "可修改",
+    "readOnly": "只读",
+    "allowWrite": "允许修改",
+    "removeWrite": "移除修改权限",
+    "fullBackupWarning": "完整备份包含自动同步不会传输的本机数据，包括项目路径、定时任务和待处理输入。导入可能覆盖设置，并使复制的任务在这台设备运行。",
+    "importFullBackup": "导入完整备份"
   }
 }

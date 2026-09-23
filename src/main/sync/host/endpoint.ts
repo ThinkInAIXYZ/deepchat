@@ -295,6 +295,7 @@ export class SyncHostEndpoint {
           request,
           response,
           device.deviceId,
+          this.deps.devices.replicaId(device.deviceId),
           () => this.deps.allowWrites?.() === true && this.deps.devices.canWrite(device.deviceId)
         )
         return
@@ -428,12 +429,19 @@ export class SyncHostEndpoint {
     try {
       issued = await this.deps.devices.issue({
         name: validation.data.deviceName,
-        writable: validation.data.bidirectional === true && this.deps.allowWrites?.() === true
+        requestedWrite:
+          validation.data.bidirectional === true && Boolean(validation.data.replicaId),
+        replicaId: validation.data.replicaId
       })
     } catch (error) {
       // The code was spent but no device exists. Burning it would force the user to generate a new
       // one for a failure that was not theirs, so it is restored and the error still surfaces.
       if (outstanding) this.deps.pairing.restore(outstanding.code, outstanding.expiresAt)
+      if (error instanceof Error && error.message === 'sync.tunnel.error.duplicateReplica') {
+        const bytes = this.respondJson(response, 409, { error: 'duplicateReplica' })
+        this.auditAnonymous({ method, path, status: 409, bytes, deviceId: null, clientIp })
+        return
+      }
       throw error
     }
     const payload = SyncHostPairResponseSchema.parse({

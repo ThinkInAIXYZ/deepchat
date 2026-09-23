@@ -56,6 +56,9 @@ const getMockState = (dbPath: string): MockState => {
 
 class MockDatabase {
   readonly open = true
+  transaction<T>(operation: () => T): () => T {
+    return operation
+  }
   function() {
     return this
   }
@@ -342,6 +345,20 @@ describe('SyncConfigImportService', () => {
     expect(state.migrations).toContain('config-sqlite-v1')
     expect(state.migrations).toContain(RAW_PROVIDER_MODEL_FACTS_MIGRATION_ID)
     expect(state.migrations).toContain(USER_MODEL_CONFIG_MIGRATION_ID)
+  })
+
+  it('keeps local portable preferences during incremental backup import', () => {
+    const service = new SyncConfigImportService(dbPath)
+    const state = getMockState(dbPath)
+    state.appSettings.defaultModel = 'local-model'
+    service.importPortableSettings(
+      { defaultModel: 'host-model', copyWithCotEnabled: true },
+      'increment'
+    )
+    expect(state.appSettings.defaultModel).toBe('local-model')
+    expect(state.appSettings.copyWithCotEnabled).toBe(true)
+    service.importPortableSettings({ defaultModel: 'host-model' }, 'overwrite')
+    expect(state.appSettings.defaultModel).toBe('host-model')
   })
 
   it('imports legacy app, model, MCP, and ACP config into sqlite tables', () => {

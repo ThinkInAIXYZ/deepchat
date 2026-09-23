@@ -31,10 +31,12 @@ const mode = ref<SyncTunnelConfig['mode']>('quick')
 const publicUrl = ref('')
 const token = ref('')
 const enableDialog = ref(false)
+const incrementDialog = ref(false)
 const overwriteDialog = ref(false)
 const connectForm = ref(false)
 const pairingInput = ref('')
 const deviceName = ref('')
+const requestWrite = ref(false)
 const renameId = ref<string | null>(null)
 const renameName = ref('')
 const qr = ref('')
@@ -103,12 +105,28 @@ function startRename(device: { deviceId: string; name: string }) {
   renameId.value = device.deviceId
   renameName.value = device.name
 }
+function openDialog(dialog: 'enable' | 'increment' | 'overwrite') {
+  error.value = null
+  if (dialog === 'enable') enableDialog.value = true
+  else if (dialog === 'increment') incrementDialog.value = true
+  else overwriteDialog.value = true
+}
 async function enable() {
+  const localPort = Number(port.value)
+  if (
+    !String(port.value).trim() ||
+    !Number.isInteger(localPort) ||
+    localPort < 1 ||
+    localPort > 65535
+  ) {
+    error.value = 'sync.tunnel.error.invalidPort'
+    return
+  }
   if (
     await store.run(() =>
       store.client.setEnabled(
         true,
-        Number(port.value),
+        localPort,
         true,
         {
           mode: mode.value,
@@ -155,9 +173,17 @@ async function pair() {
       typeof input.code !== 'string'
     )
       throw new Error('sync.tunnel.error.invalidPairing')
-    await store.client.pair({ ...input, deviceName: deviceName.value, bidirectional: true })
+    await store.client.pair({
+      ...input,
+      deviceName: deviceName.value,
+      bidirectional: requestWrite.value
+    })
     pairingInput.value = ''
+    requestWrite.value = false
   })
+}
+async function pullIncrement() {
+  if (await store.run(() => store.client.pull('increment'))) incrementDialog.value = false
 }
 async function overwrite() {
   if (await store.run(() => store.client.pull('overwrite', true))) overwriteDialog.value = false
@@ -202,7 +228,7 @@ async function overwrite() {
           v-else
           size="sm"
           :disabled="busy || !host || (mode !== 'external' && toolchain?.availability !== 'ready')"
-          @click="enableDialog = true"
+          @click="openDialog('enable')"
           >{{ t('sync.tunnel.enable') }}</DcButton
         >
       </div>
@@ -397,6 +423,30 @@ async function overwrite() {
                   >· {{ t('sync.tunnel.revoked') }}</span
                 ></span
               >
+              <span v-if="!device.revoked" class="text-muted-foreground">
+                {{ t(device.writable ? 'sync.tunnel.writeAllowed' : 'sync.tunnel.readOnly') }}
+              </span>
+              <span v-if="!device.revoked" class="text-muted-foreground">
+                {{
+                  device.lastSeenAt
+                    ? t('sync.tunnel.lastSeen', {
+                        time: new Date(device.lastSeenAt).toLocaleString()
+                      })
+                    : t('sync.tunnel.neverSeen')
+                }}
+              </span>
+              <DcButton
+                v-if="!device.revoked && device.requestedWrite"
+                size="sm"
+                variant="ghost"
+                :disabled="busy"
+                @click="
+                  store.run(() => store.client.setDeviceWritable(device.deviceId, !device.writable))
+                "
+                >{{
+                  t(device.writable ? 'sync.tunnel.removeWrite' : 'sync.tunnel.allowWrite')
+                }}</DcButton
+              >
               <DcButton size="sm" variant="ghost" :disabled="busy" @click="startRename(device)">{{
                 t('sync.tunnel.rename')
               }}</DcButton>
@@ -430,19 +480,25 @@ async function overwrite() {
           >{{ t('sync.tunnel.pair') }}</DcButton
         >
         <DcButton
-          v-else
+          v-else-if="peer?.automatic?.enabled"
           size="sm"
           :disabled="busy || transferring"
-          @click="
-            store.run(() =>
-              peer?.automatic?.enabled ? store.client.syncNow() : store.client.pull('increment')
-            )
-          "
+          @click="store.run(() => store.client.syncNow())"
           >{{ t('sync.tunnel.pull') }}</DcButton
         >
       </div>
       <div v-if="!peer?.paired && connectForm" class="space-y-3">
-        <p class="text-xs text-muted-foreground">{{ t('sync.tunnel.automaticConsent') }}</p>
+        <div class="flex items-start gap-3">
+          <Switch
+            id="tunnel-request-write"
+            v-model="requestWrite"
+            :disabled="busy || transferring"
+          />
+          <div class="space-y-1">
+            <Label for="tunnel-request-write">{{ t('sync.tunnel.requestWrite') }}</Label>
+            <p class="text-xs text-muted-foreground">{{ t('sync.tunnel.automaticConsent') }}</p>
+          </div>
+        </div>
         <div class="space-y-1">
           <Label for="tunnel-pairing-input" class="text-xs">{{
             t('sync.tunnel.pairingPayload')
@@ -477,7 +533,7 @@ async function overwrite() {
         </div>
       </div>
       <template v-if="peer?.paired">
-        <div class="flex items-center justify-between gap-3">
+        <div v-if="peer.canWrite" class="flex items-center justify-between gap-3">
           <div class="space-y-1">
             <Label for="tunnel-automatic">{{ t('sync.tunnel.automatic') }}</Label>
             <p class="text-xs text-muted-foreground">{{ t('sync.tunnel.automaticHelp') }}</p>
@@ -489,6 +545,7 @@ async function overwrite() {
             @update:model-value="(enabled) => store.run(() => store.client.setAutomatic(enabled))"
           />
         </div>
+        <p v-else class="text-xs text-muted-foreground">{{ t('sync.tunnel.readOnlyHelp') }}</p>
         <p v-if="peer.automatic?.enabled" role="status" class="text-xs text-muted-foreground">
           {{ t(`sync.tunnel.automaticPhase.${peer.automatic.phase}`) }}
           <span v-if="peer.automatic.lastSuccessAt">
@@ -531,21 +588,25 @@ async function overwrite() {
           <p>{{ progressText }}</p>
         </div>
         <p v-if="peer.error" role="alert" class="text-xs text-destructive">{{ t(peer.error) }}</p>
-        <p v-if="!peer.automatic?.enabled" class="text-xs leading-relaxed text-muted-foreground">
-          {{ t('sync.tunnel.incrementHelp') }}
-        </p>
         <details class="text-xs">
           <summary class="w-fit cursor-pointer text-muted-foreground">
             {{ t('sync.tunnel.moreOptions') }}
           </summary>
-          <p class="my-2 text-muted-foreground">{{ t('sync.tunnel.encryptionHelp') }}</p>
+          <p class="my-2 text-muted-foreground">{{ t('sync.tunnel.fullBackupWarning') }}</p>
           <div class="flex flex-wrap gap-2">
             <DcButton
               size="sm"
               variant="outline"
               :disabled="busy || transferring"
-              @click="overwriteDialog = true"
+              @click="openDialog('increment')"
+              >{{ t('sync.tunnel.importFullBackup') }}</DcButton
+            >
+            <DcButton
               v-if="!peer.automatic?.enabled"
+              size="sm"
+              variant="outline"
+              :disabled="busy || transferring"
+              @click="openDialog('overwrite')"
               >{{ t('sync.tunnel.overwrite') }}</DcButton
             >
             <DcButton
@@ -566,13 +627,26 @@ async function overwrite() {
       :busy="busy"
       :danger="false"
       @confirm="enable"
-    />
+    >
+      <p v-if="error" role="alert" class="text-xs text-destructive">{{ t(error) }}</p>
+    </DcConfirmDialog>
+    <DcConfirmDialog
+      v-model:open="incrementDialog"
+      :title="t('sync.tunnel.importFullBackup')"
+      :description="t('sync.tunnel.fullBackupWarning')"
+      :busy="busy"
+      @confirm="pullIncrement"
+    >
+      <p v-if="error" role="alert" class="text-xs text-destructive">{{ t(error) }}</p>
+    </DcConfirmDialog>
     <DcConfirmDialog
       v-model:open="overwriteDialog"
       :title="t('sync.tunnel.overwrite')"
       :description="t('sync.tunnel.overwriteWarning')"
       :busy="busy"
       @confirm="overwrite"
-    />
+    >
+      <p v-if="error" role="alert" class="text-xs text-destructive">{{ t(error) }}</p>
+    </DcConfirmDialog>
   </section>
 </template>

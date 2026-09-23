@@ -128,7 +128,7 @@ export class SyncConfigImportService {
     private readonly openDatabase: (dbPath: string) => Database.Database = openSQLiteDatabase
   ) {}
 
-  importPortableSettings(settings: Record<string, unknown>): void {
+  importPortableSettings(settings: Record<string, unknown>, mode: SyncConfigImportMode): void {
     const entries = SYNC_PORTABLE_SETTINGS.filter((key) => Object.hasOwn(settings, key))
     if (!entries.length) return
     const db = this.openDatabase(this.targetDbPath)
@@ -136,7 +136,10 @@ export class SyncConfigImportService {
       const table = new AppSettingsTable(db)
       table.createTable()
       db.transaction(() => {
-        for (const key of entries) table.setAppSetting(key, settings[key], false)
+        for (const key of entries) {
+          if (mode === 'overwrite' || !table.hasAppSetting(key))
+            table.setAppSetting(key, settings[key], false)
+        }
       })()
     } finally {
       db.close()

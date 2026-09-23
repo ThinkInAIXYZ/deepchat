@@ -586,6 +586,7 @@ import {
   syncHostGetStatusRoute,
   syncHostListDevicesRoute,
   syncHostRenameDeviceRoute,
+  syncHostSetDeviceWritableRoute,
   syncHostRevokeDeviceRoute,
   syncHostSetEnabledRoute,
   syncHostPublishRoute
@@ -1315,6 +1316,7 @@ const DEEPCHAT_ROUTE_CATALOG_PART_5 = {
   [syncHostListDevicesRoute.name]: syncHostListDevicesRoute,
   [syncHostRevokeDeviceRoute.name]: syncHostRevokeDeviceRoute,
   [syncHostRenameDeviceRoute.name]: syncHostRenameDeviceRoute,
+  [syncHostSetDeviceWritableRoute.name]: syncHostSetDeviceWritableRoute,
   [syncHostGetAuditRoute.name]: syncHostGetAuditRoute
 } satisfies Record<string, RouteContract>
 

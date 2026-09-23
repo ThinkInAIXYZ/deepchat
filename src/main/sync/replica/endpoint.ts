@@ -76,6 +76,7 @@ export class SyncReplicaEndpoint {
     request: http.IncomingMessage,
     response: http.ServerResponse,
     device: string,
+    replicaId: string | null,
     authorized: () => boolean
   ): Promise<void> {
     const json = (status: number, value: unknown) => {
@@ -92,6 +93,10 @@ export class SyncReplicaEndpoint {
     const writable = authorized()
     if (!writable) {
       json(403, { error: 'writeConsentRequired' })
+      return
+    }
+    if (!replicaId) {
+      json(403, { error: 'rePairRequired' })
       return
     }
     const url = new URL(request.url ?? '/', 'http://localhost')
@@ -134,6 +139,10 @@ export class SyncReplicaEndpoint {
     try {
       if (route === '/cursor' && request.method === 'GET') {
         const replica = z.string().min(1).max(512).parse(url.searchParams.get('replica'))
+        if (replica !== replicaId) {
+          json(403, { error: 'replicaMismatch' })
+          return
+        }
         json(200, { cursor: this.deps.store.cursor(replica) })
       } else if (route === '/download' && request.method === 'GET') {
         const { after } = Query.parse({ after: url.searchParams.get('after') })
@@ -165,6 +174,10 @@ export class SyncReplicaEndpoint {
         const manifest = SyncBatchManifestSchema.parse(
           JSON.parse((await this.body(request, 65536)).toString())
         )
+        if (manifest.replicaId !== replicaId) {
+          json(403, { error: 'replicaMismatch' })
+          return
+        }
         if (manifest.parts !== Math.ceil(manifest.size / SYNC_PART_BYTES) || manifest.parts === 0)
           throw new Error('Invalid parts')
         this.uploads.set(device, manifest)
@@ -193,6 +206,10 @@ export class SyncReplicaEndpoint {
           return
         }
         const batch = await this.files.assemble(manifest)
+        if (batch.replicaId !== replicaId) {
+          json(403, { error: 'replicaMismatch' })
+          return
+        }
         // Revocation can occur while disk IO is pending; an erased upload loses permission to commit.
         if (this.uploads.get(device) !== manifest || !this.deps.available()) {
           json(403, {})

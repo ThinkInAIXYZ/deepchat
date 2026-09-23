@@ -370,6 +370,17 @@ describe('DatabaseSecurityService', () => {
     expect(names).not.toContain('deepchat_tape_search_fts_meta')
   })
 
+  it('preserves replica cursors and change history during encryption migration', async () => {
+    const names = await listMigratableTableNames(
+      ['_sync_state', '_sync_changes', '_sync_receipts'].map((name) => ({
+        type: 'table',
+        name,
+        sql: `CREATE TABLE ${name} (id TEXT)`
+      }))
+    )
+    expect(names).toEqual(['_sync_changes', '_sync_receipts', '_sync_state'])
+  })
+
   it('uses dependency order for encryption database copies', async () => {
     const table = (name: string) => ({
       type: 'table',

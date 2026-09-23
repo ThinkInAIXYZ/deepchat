@@ -96,6 +96,12 @@ export const syncHostRenameDeviceRoute = defineRouteContract({
   })
 })
 
+export const syncHostSetDeviceWritableRoute = defineRouteContract({
+  name: 'syncHost.setDeviceWritable',
+  input: z.object({ deviceId: z.string().min(1), writable: z.boolean() }),
+  output: z.object({ changed: z.boolean() })
+})
+
 export const syncHostGetAuditRoute = defineRouteContract({
   name: 'syncHost.getAudit',
   input: z.object({}).default({}),

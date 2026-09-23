@@ -19,6 +19,8 @@ export interface SyncHostDeviceRecord {
   expiresAt: number | null
   revokedAt: number | null
   writable?: boolean
+  requestedWrite?: boolean
+  replicaId?: string | null
 }
 
 export interface SyncHostState {

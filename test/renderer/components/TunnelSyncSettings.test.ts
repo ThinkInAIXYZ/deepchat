@@ -23,18 +23,22 @@ vi.unmock('vue-i18n')
 const client = vi.hoisted(() => ({
   onChanged: () => () => {},
   setAutomatic: vi.fn(),
+  setEnabled: vi.fn(),
   syncNow: vi.fn(),
   hostStatus: vi.fn(),
   peerStatus: vi.fn(),
   devices: vi.fn(),
+  pair: vi.fn(),
   pull: vi.fn(),
   cancel: vi.fn(),
-  createCode: vi.fn()
+  createCode: vi.fn(),
+  setDeviceWritable: vi.fn()
 }))
 vi.mock('@api/TunnelSyncClient', () => ({ createTunnelSyncClient: () => client }))
 
 const initialPeer = {
   paired: true,
+  canWrite: true,
   hostUrl: 'https://sync.example.test',
   hostId: 'host-1',
   deviceName: 'Laptop',
@@ -88,7 +92,7 @@ async function render() {
           props: ['open'],
           emits: ['confirm'],
           template:
-            '<div v-if="open" role="alertdialog"><button @click="$emit(\'confirm\')">Confirm</button></div>'
+            '<div v-if="open" role="alertdialog"><slot /><button @click="$emit(\'confirm\')">Confirm</button></div>'
         })
       }
     }
@@ -99,6 +103,52 @@ async function render() {
 }
 
 describe('TunnelSyncSettings', () => {
+  it('does not request write access without the receiving device opting in', async () => {
+    const wrapper = await render()
+    useTunnelSyncStore().peer = { ...initialPeer, paired: false }
+    await flushPromises()
+    client.pair.mockResolvedValue(initialPeer)
+    await wrapper
+      .findAll('button')
+      .find((button) => button.text() === 'Connect device')!
+      .trigger('click')
+    await wrapper
+      .get('#tunnel-pairing-input')
+      .setValue(
+        JSON.stringify({ hostUrl: 'https://sync.example.test', hostId: 'host-1', code: 'ABCD1234' })
+      )
+    await wrapper.get('#tunnel-device-name').setValue('Laptop')
+    await wrapper
+      .findAll('button')
+      .find((button) => button.text() === 'Connect')!
+      .trigger('click')
+    await flushPromises()
+    expect(client.pair).toHaveBeenCalledWith({
+      hostUrl: 'https://sync.example.test',
+      hostId: 'host-1',
+      code: 'ABCD1234',
+      deviceName: 'Laptop',
+      bidirectional: false
+    })
+  })
+  it('shows invalid port and connection errors inside the sharing dialog', async () => {
+    const wrapper = await render()
+    await wrapper.get('#tunnel-port').setValue('')
+    await wrapper
+      .findAll('button')
+      .find((button) => button.text() === 'Enable sharing')!
+      .trigger('click')
+    await wrapper.get('[role="alertdialog"] button').trigger('click')
+    await flushPromises()
+    expect(wrapper.get('[role="alertdialog"]').text()).toContain('Choose a port')
+    expect(client.setEnabled).not.toHaveBeenCalled()
+
+    await wrapper.get('#tunnel-port').setValue('48632')
+    client.setEnabled.mockRejectedValue(new Error('sync.tunnel.error.bindFailed'))
+    await wrapper.get('[role="alertdialog"] button').trigger('click')
+    await flushPromises()
+    expect(wrapper.get('[role="alertdialog"]').text()).toContain('Could not bind')
+  })
   it('requires explicit overwrite confirmation and disables cancellation after import begins', async () => {
     const wrapper = await render()
     const overwrite = wrapper

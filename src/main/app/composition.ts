@@ -1364,6 +1364,7 @@ export async function createMainProcessControl(dependencies: {
   }
   syncPeerService = new SyncPeerService({
     directory: path.join(app.getPath('userData'), 'sync-peer'),
+    replicaId: () => syncReplica!.replicaId,
     ...syncTokenStorage,
     isLocalDatabaseEncrypted: () => Boolean(mainDatabase.getDatabasePassword()),
     importSnapshot: (filePath, mode) => {

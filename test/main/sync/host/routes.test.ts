@@ -6,6 +6,7 @@ import {
   syncHostGetStatusRoute,
   syncHostListDevicesRoute,
   syncHostRenameDeviceRoute,
+  syncHostSetDeviceWritableRoute,
   syncHostRevokeDeviceRoute,
   syncHostSetEnabledRoute,
   syncHostPublishRoute
@@ -45,7 +46,9 @@ const DEVICE: SyncHostDeviceView = {
   createdAt: 1_700_000_000_000,
   expiresAt: null,
   lastSeenAt: 1_700_000_100_000,
-  revoked: false
+  revoked: false,
+  writable: false,
+  requestedWrite: true
 }
 
 /** Built through the contract so an evolving audit schema cannot leave the fixture malformed. */
@@ -73,6 +76,7 @@ function createHostPort(overrides: Partial<SyncHostRoutePort> = {}): SyncHostRou
     listDevices: vi.fn(() => []),
     revokeDevice: vi.fn(async () => true),
     renameDevice: vi.fn(async () => true),
+    setDeviceWritable: vi.fn(async () => true),
     getAuditEntries: vi.fn(() => []),
     ...overrides
   }
@@ -81,7 +85,7 @@ function createHostPort(overrides: Partial<SyncHostRoutePort> = {}): SyncHostRou
 const context = createRendererRouteContext(1, null)
 
 describe('sync host routes', () => {
-  it('exposes exactly the eight renderer-facing routes as handlers', () => {
+  it('exposes the renderer-facing routes as handlers', () => {
     const routes = createSyncHostRoutes({ host: createHostPort() })
 
     expect([...routes.keys()].sort()).toEqual(
@@ -92,11 +96,12 @@ describe('sync host routes', () => {
         syncHostListDevicesRoute.name,
         syncHostRenameDeviceRoute.name,
         syncHostRevokeDeviceRoute.name,
+        syncHostSetDeviceWritableRoute.name,
         syncHostPublishRoute.name,
         syncHostSetEnabledRoute.name
       ].sort()
     )
-    expect(routes.size).toBe(8)
+    expect(routes.size).toBe(9)
     for (const handler of routes.values()) {
       expect(typeof handler).toBe('function')
     }

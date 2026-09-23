@@ -4,6 +4,7 @@ import {
   syncHostGetStatusRoute,
   syncHostListDevicesRoute,
   syncHostRenameDeviceRoute,
+  syncHostSetDeviceWritableRoute,
   syncHostRevokeDeviceRoute,
   syncHostSetEnabledRoute,
   syncHostPublishRoute
@@ -31,6 +32,7 @@ export type SyncHostRoutePort = Pick<
   | 'listDevices'
   | 'revokeDevice'
   | 'renameDevice'
+  | 'setDeviceWritable'
   | 'getAuditEntries'
 >
 
@@ -102,6 +104,16 @@ export function createSyncHostRoutes(deps: { host: SyncHostRoutePort }): Deepcha
         const input = syncHostRenameDeviceRoute.input.parse(rawInput)
         return syncHostRenameDeviceRoute.output.parse({
           renamed: await deps.host.renameDevice(input.deviceId, input.name)
+        })
+      }
+    ],
+    [
+      syncHostSetDeviceWritableRoute.name,
+      async (rawInput, context) => {
+        requireRendererCaller(context)
+        const input = syncHostSetDeviceWritableRoute.input.parse(rawInput)
+        return syncHostSetDeviceWritableRoute.output.parse({
+          changed: await deps.host.setDeviceWritable(input.deviceId, input.writable)
         })
       }
     ],

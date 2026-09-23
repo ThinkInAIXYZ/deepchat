@@ -52,7 +52,7 @@ describeIfNativeSqlite('Automatic device sync transport', () => {
       available: () => true
     })
     const server = createServer((request, response) => {
-      void endpoint.handle(request, response, 'peer', () => writable)
+      void endpoint.handle(request, response, 'peer', peer.store.replicaId, () => writable)
     })
     await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
     const origin = `http://127.0.0.1:${(server.address() as { port: number }).port}`
@@ -103,6 +103,19 @@ describeIfNativeSqlite('Automatic device sync transport', () => {
     await automatic.setEnabled(false)
     const cursor = host.store.cursor(peer.store.replicaId)
     expect(cursor).toBeGreaterThan(0)
+    const other = device()
+    other.db.exec("INSERT INTO new_sessions VALUES('forged','Forged',1)")
+    const forged = await new SyncBatchFiles(join(other.directory, 'outgoing')).prepare(
+      other.store.export(0)
+    )
+    const rejected = await fetch(origin + '/sync/v2/upload', {
+      method: 'POST',
+      body: JSON.stringify(forged)
+    })
+    expect(rejected.status).toBe(403)
+    expect(host.store.cursor(other.store.replicaId)).toBe(0)
+    const falseCursor = await fetch(origin + `/sync/v2/cursor?replica=${other.store.replicaId}`)
+    expect(falseCursor.status).toBe(403)
     writable = false
     endpoint.revoke('peer')
     const denied = await fetch(origin + '/sync/v2/upload', { method: 'POST', body: '{}' })

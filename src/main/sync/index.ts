@@ -445,7 +445,11 @@ export class SyncService {
           } else {
             configImportService.importLegacyConfig(extractionDir, 'overwrite')
           }
-          this.mergeAppSettingsPreservingMachineLocal(backupAppSettingsPath, this.APP_SETTINGS_PATH)
+          this.mergeAppSettingsPreservingMachineLocal(
+            backupAppSettingsPath,
+            this.APP_SETTINGS_PATH,
+            'overwrite'
+          )
 
           if (fs.existsSync(backupCustomPromptsPath)) {
             this.copyFile(backupCustomPromptsPath, this.CUSTOM_PROMPTS_PATH)
@@ -480,7 +484,11 @@ export class SyncService {
           } else {
             configImportService.importLegacyConfig(extractionDir, 'increment')
           }
-          this.mergeAppSettingsPreservingMachineLocal(backupAppSettingsPath, this.APP_SETTINGS_PATH)
+          this.mergeAppSettingsPreservingMachineLocal(
+            backupAppSettingsPath,
+            this.APP_SETTINGS_PATH,
+            'increment'
+          )
           if (fs.existsSync(backupCustomPromptsPath)) {
             this.mergePromptStore(backupCustomPromptsPath, this.CUSTOM_PROMPTS_PATH)
           }
@@ -502,7 +510,11 @@ export class SyncService {
           extractionDir,
           importMode === ImportMode.OVERWRITE ? 'overwrite' : 'increment'
         )
-        this.mergeAppSettingsPreservingMachineLocal(backupAppSettingsPath, this.APP_SETTINGS_PATH)
+        this.mergeAppSettingsPreservingMachineLocal(
+          backupAppSettingsPath,
+          this.APP_SETTINGS_PATH,
+          importMode === ImportMode.OVERWRITE ? 'overwrite' : 'increment'
+        )
         if (fs.existsSync(backupCustomPromptsPath)) {
           this.mergePromptStore(backupCustomPromptsPath, this.CUSTOM_PROMPTS_PATH)
         }
@@ -1096,7 +1108,11 @@ export class SyncService {
     }
   }
 
-  private mergeAppSettingsPreservingMachineLocal(backupPath: string, targetPath: string): void {
+  private mergeAppSettingsPreservingMachineLocal(
+    backupPath: string,
+    targetPath: string,
+    mode: 'overwrite' | 'increment'
+  ): void {
     let backupSettingsRaw: string
     try {
       backupSettingsRaw = fs.readFileSync(backupPath, 'utf-8')
@@ -1136,7 +1152,7 @@ export class SyncService {
       }
     }
 
-    this.createConfigImportService().importPortableSettings(backupSettings)
+    this.createConfigImportService().importPortableSettings(backupSettings, mode)
     const sanitizedBackupSettings = this.removeMigratedAppSettings(backupSettings)
     const mergedSettings = {
       ...sanitizedBackupSettings,
